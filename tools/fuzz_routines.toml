@@ -19180,3 +19180,111 @@ args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00"]
 iterations = 2000
 why = "as menu_wait_for_frame, through its jump"
 
+
+# ---- scene: the attract sequence's pages of credits and the palace rising ------------------------
+
+[[routine]]
+name = "scene_credit_pages_set_up"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0382-7E0382=00-05",
+        "--fill", "7E0920-7E092F=00-00"]
+iterations = 300
+why = "the page's setup from the program's mode table, the program kept (its code and its pages' text); the page shown before one of the five, and the frame's list free for its two tasks"
+
+[[routine]]
+name = "scene_show_the_credits_page"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the program kept, on the scene's own page, as the frame's list calls it"
+
+[[routine]]
+name = "scene_show_the_credits_page"
+variant = "last_frame"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0008-7E0008=5A-5A",
+        "--fill", "7E0009-7E0009=00-00"]
+why = "the page's 90th frame, where it hands its slot to the darkening"
+
+[[routine]]
+name = "scene_palace_set_up"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0920-7E095F=00-00"]
+iterations = 300
+why = "the palace's setup from the program's mode table, the program kept (its scripts, descriptors and the operands it changes); the lists free for the tasks the scripts' first step adds"
+
+[[routine]]
+name = "scene_work_out_the_turn"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the program kept, on the scene's own page, as the frame's list calls it: any angle and scale"
+
+[[routine]]
+name = "scene_shimmer_the_palace"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the program kept (the table is past it), on the scene's own page, as the frame's list calls it"
+
+[[routine]]
+name = "scene_ripple_the_palace"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the program kept, on the scene's own page, as the frame's list calls it: any strength, scroll and mosaic"
+
+[[routine]]
+name = "scene_ripple_the_palace"
+variant = "mosaic_due"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E00C3-7E00C3=01-01"]
+why = "the mosaic's wait running out, with a mosaic left or none"
+
+[[routine]]
+name = "scene_darken_the_palace"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0520-7E0520=00-01"]
+why = "the program kept, on the scene's own page, as the frame's list calls it; the last fade over, or still playing"
+
+[[routine]]
+name = "scene_whiten_the_palace"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0520-7E0520=00-01"]
+why = "as scene_darken_the_palace"
+
+[[routine]]
+name = "scene_clear_the_palace"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0520-7E0520=00-01"]
+why = "as scene_darken_the_palace"
+
+[[routine]]
+name = "scene_send_the_palace_offsets"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the program kept, as the vblank list calls it"
+
+[[routine]]
+name = "scene_send_the_map"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E003B-7E003B=00-01"]
+why = "the program kept, on the scene's own page, as the vblank list calls it; a map waiting or none"
+
+[[routine]]
+name = "scene_sweep_the_palace_curtain"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0350-7E0350=00-02",
+        "--fill", "7E0351-7E0351=00-1F", "--fill", "7E0352-7E0352=C4-C4", "--fill", "7E0353-7E0353=F1-F1",
+        "--fill", "7E0354-7E0354=7E-7E"]
+why = "a frame task of the palace with the curtain; the curtain's state as the setup leaves it and its sweep makes it (the step is a port of its own, called through the machine)"

@@ -23,8 +23,8 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* The race is drawn without its panel when the scene's flags say so. */
-static bool panel_shown(const GameState *g) { return !(scene_flags(g) & SCENE_FLAG_NO_PANEL); }
+/* The attract sequence's race is drawn without its panel. */
+static bool panel_shown(const GameState *g) { return !(scene_flags(g) & SCENE_FLAG_ATTRACT_SEQUENCE); }
 
 /* Compared as the race compares: by the sign of the difference. */
 static bool at_least(uint16_t a, uint16_t b) { return (int16_t)(a - b) >= 0; }

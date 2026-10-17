@@ -208,6 +208,7 @@ enum {
     VID_OAM_SPRITES_A_HIGH_BYTE = 4,
     VID_OAM_HIGH_BITS = 2,          /* a sprite's bits in its high byte */
     VID_OAM_HIDDEN_Y = 0xE0,        /* the line an entry is put on to show nowhere */
+    VID_OAM_HIGH_BITS_WORD = 0x100, /* the table's word where the high bits start */
 };
 
 /* X as the table's entry holds it, and the sprite's two high bits. */
@@ -519,6 +520,7 @@ enum {
     VID_STEP_SPILL_SIZE_LO,  /* $43x5 = VidLineEffect.snes_spill */
     VID_STEP_SPILL_CURSOR_LO, /* $43x8 = VidLineEffect.snes_spill */
     VID_STEP_INDIRECT_BANK_IS_SOURCE, /* $43x7 = the source's bank, which some sites write there as well */
+    VID_STEP_VRAM_READ_FIRST, /* a read of VRAM's read port ($213A) before a read back, which steps its address on */
 };
 
 typedef struct {
@@ -612,6 +614,14 @@ PF_API void vid_send_vram_fill(Platform *pf, PfOrigin o, uint16_t vram_addr, PfD
 PF_API void vid_send_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count);
 /* The sprite table (VID_OAM_*: 128 entries and the high bits), as the game built it. */
 PF_API void vid_send_oam(Platform *pf, PfOrigin o, PfData oam);
+/* `len` bytes of the sprite table from its word `word_addr` (the entries from
+ * 0, the high bits from VID_OAM_HIGH_BITS_WORD) all set to `value`: every
+ * entry put on one line, or every sprite's high bits cleared. */
+PF_API void vid_send_oam_fill(Platform *pf, PfOrigin o, uint16_t word_addr, uint8_t value, uint16_t len);
+/* Sprite `index`'s entry (0-127) set in the sprite table; the sprite's high
+ * bits (X's ninth, large) are the high table's, which this leaves. A screen
+ * of letters set as sprites once, rather than built each frame, is written so. */
+PF_API void vid_set_sprite(Platform *pf, PfOrigin o, uint8_t index, const VidSprite *sp);
 
 /* A whole screen set up at once (VidScreen). The SNES backend writes the
  * registers in the order the original's routine at the site did. */
@@ -753,6 +763,8 @@ void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32
                          const VidVramPort *port);
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
 void vid_obs_upload_oam(VidObserver *ob, PfData oam);
+void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len);
+void vid_obs_write_oam(VidObserver *ob, uint8_t v);
 void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t, uint8_t control);
 
 #ifdef CT_PLATFORM_SNES

@@ -9249,3 +9249,83 @@ the attract sequence's other scenes in the program 224, the curtain in `$C3` 150
 The reference play's fallbacks went from 24.95 M instructions to 25.12 M, with the title's fades, its ripple calming and its routines' calls gone: what rose is the measure seeing the title's main loop's pass that the frame's interrupt cuts each frame (the idle entry's, `$7E:3023`-`$7E:3028` and the empty routine's RTS, `$7E:3176`) and the title's wait for its song (`$7E:5AAA`), which the first frame's comparison had covered while it never finished (its setup stopped inside it); they are counted now, as the race's passes were.
 
 **Timing.** Calibrated: the new entries, the lists (whose stretches take the tasks inline, without the call's frames), the start's first frame, and the field's scene start. The race's and the endings' setups' worst-case exceptions moved to the program's start and the setup's entry, whose stretches now run them as C (tools/timing_exceptions.txt), and the race's late screens write to the setup's entry (tools/vblank_check_exceptions.txt).
+
+## Phase 4a, the native frame: the curtain, and the fallback measure's unfinished comparisons (`$C3:000E`, `$C3:01BD`-`$C3:02DC`, `$C6:E241`-`$C6:E2AE`, `$C2:0346`, `$C2:046E`)
+
+The fourth chunk of the native frame's stream, after the scene's tables
+("Phase 4a, the native frame: the scene's tables as C").
+
+**How it was chosen.** The strict player stopped at frame 2140 on `$C6:E241`,
+where the menus' attract scene starts its curtain, which the scene engine's
+step (`$C3:01E4`) sweeps; then at `$C2:046E`, the sprite-object mode's jump
+to its wait for a frame. Before them, the review's fixes: a task's
+registered entry takes its row (`scene_task_alone(s, &row)`, the list the
+row's), so a task with no row can't reach it; and the fallback measure's
+unfinished comparisons (below).
+
+**What it is.**
+- The curtain (`scene/curtain.c`): the ragged edge that sweeps across the
+  screen to open or close a scene, a byte a line. Each frame every line's
+  edge moves 8 to 11 pixels, in runs of 3 to 34 lines that move alike, the
+  runs taken from the game's table of random bytes from a place a stirred
+  number picks (`scene_draw_random`); the edges are kept $1C0 bytes on and
+  sent to the table or the half after it, a frame each; after 31 steps the
+  sweep is over. Two of the original's accidents are kept: an edge stopped at
+  0 leaves A's high byte at the direct page's, which every later run's length
+  takes in (the rest of that frame is one run); and the adds and subtracts
+  take in the carry of the line's compare with the end, which carries only
+  where the lines wrap round the bank. The scene engine's jump to it
+  (`$C3:000E`) is a stop there, so a comparison of the step is the step's own.
+- The menus' curtain (`menu/line_effects.c`, `$C6:E241` start, `$C6:E27E`
+  step): window 1's right edge line by line on slot 2 (a new line target,
+  `VID_LINE_WINDOW1_RIGHT`), from the object's own table, the slot's two runs
+  of 112 lines showing the half the step just sent.
+- The sprite-object mode's wait for a frame from its start (`$C2:0346`) and
+  its jump (`$C2:046E`).
+
+**What shadow mode and fuzzing found.** Fuzzing found both of the curtain's
+accidents, a sweep of none clearing the count, and that a table in the
+second bank near its end runs the work RAM port on into low RAM (it wrote
+over the menus' current object): the guard takes tables clear of low RAM's
+first $2000 bytes in the first bank and short of the end in the second.
+Through the jump as a port of its own, the stir's wait for the original's
+latch was the jump's comparison's, not the step's, and 4% of steps compared
+a beam they hadn't waited for. Over the 35 movies, 0 mismatching:
+the step 2,097 calls (248 inside an outer step's latch wait, compared as its), its jump 1,535, the menus' start 8 and step 264, the wait 30,714 and its jump 29,964. **Fuzzing** (seed 1): the step 0 of 18,572 of 20,000 (1,428
+turned away by the guard), the jump 0 of 20,000, the menus' start 0 of 1,750
+and step 0 of 1,860 of 2,000, the wait and its jump 0 of 2,000 each.
+
+**The fallback measure's unfinished comparisons.** A covered stretch ended
+only where its comparison finished, its routine returned, or a port was
+entered at or above it; a nested comparison that shadow mode set aside
+(started inside another's stretch and still running at its point) never told
+the measure, so its stretch stayed open and hid everything the original ran
+after it until S rose above where it began. The title's first frame's never
+did: its stretch, begun at S $06FF, covered the title's main loop for the rest
+of every movie (seen by dumping the measure's extents in the old build), which
+is why `$7E:3176` read 7,510 and then, once the title's setup ran inside the
+start's comparison and the first frame's comparison finished, 45,103: the
+loop's pass the frame's interrupt cuts, once a frame, counted as every other
+interrupted idle pass is. The runtime now tells the measure that a set-aside
+comparison is finished (`settle_nested`), and a run that ends inside a
+comparison writes what it hid (`open` lines): every instruction a comparison
+covers, its callees' included, is counted on the comparison's own line, and
+the `open PORT` lines take part in the ratchet like the other kinds (a new
+one, or one that rose, fails `--check`), so a comparison that stops finishing
+can't pass for a gain. Over the library 62,881 instructions sit under comparisons still open at a movie's end (16 ports, the battle's frame work's the most), now baseline lines of their own. The reference play's count went from 25.12 M to 52.21 M with the
+fix and this chunk's ports: the battle's wait loops run as call-outs' callees
+(`$CD:0453` 20.7 M, `$CD:0033` 6.7 M, `$CD:0024` 1.4 M), the race setup's
+arrangers and the menus' and field's code after set-aside comparisons. The
+endings' small rises at boot-path-2's merge (`$7E:6BE5` +70, `$7E:9ABD` +34,
+`$7E:A03D` +88) are the same mechanism the other way about: with the title's
+tasks inline the frame list's comparison was set aside 25 times instead of
+165, so 140 more frames' original tasks were counted as the list's call-outs'
+callees rather than hidden under the frame work's stretch.
+
+**Measured.** The strict run goes on through the title's end, the menus'
+attract scene and its curtain, to frame 2663, and stops at `$7E:6B04`, the
+setup of the attract sequence's next scene (mode 1). Over 3,000 frames
+`--interpreted log` lists 224 addresses (from 417), all in the program at
+`$7E` (the attract sequence's scenes 1 and 3).
+
+**Timing.** Calibrated: the new entries. One exception: the jump, a stop with no access of its own, estimated at 0 against the original's 18 clocks.

@@ -1173,6 +1173,11 @@ offset = 0xE
 size = 2
 meaning = "The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of pictures"
 [[var.field]]
+name = "ripple_offset"
+offset = 0x0
+size = 2
+meaning = "The palace's ripple (on the scene's own page): the column offset as it is worked out across the columns, which ends back where it started"
+[[var.field]]
 name = "script_scratch"
 offset = 0x0
 size = 2
@@ -1790,6 +1795,152 @@ subsystem = "scene"
 reuses = "scene_race_final_score"
 meaning = "In the shared endings: where the next caption's text is in the program; the captions end at the staff roll's text ($AB1A). Modes 10 and 11 start it at $A651"
 source = "game/scene/endings.c, the setup $7E:8538; the captions' task $7E:9B4F"
+
+[[var]]
+name = "scene_credits_page"
+addr = "7E:0382"
+size = 2
+subsystem = "scene"
+reuses = ["scene_race_final_score", "scene_ending_caption_text"]
+meaning = "The attract sequence's page of credits shown last, 1-5 (read a byte), below the program's work RAM so the pages go round from one showing to the next"
+source = "game/scene/credit_pages.c, the setup $7E:6B04"
+
+[[var]]
+name = "scene_turn_matrix"
+addr = "7E:001F"
+size = 2
+count = 4
+index = "a, b, c, d"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_scaler_pairs", "scene_scaler_request_state", "scene_scaler_source_base", "scene_scaler_rows_left", "scene_ending_picture_ready"]
+meaning = "The program's turning of a map ($7E:7441): its matrix, worked out each frame from sequence channel 0's angle (register 5) and scale (register 0) -- a and d the cosine, b the sine and c the sine negated, each in 256ths times the scale's quarter, over 8"
+source = "game/scene/rising_palace.c, the turn's matrix $7E:73C6"
+
+[[var]]
+name = "scene_turn_center"
+addr = "7E:0027"
+size = 2
+count = 2
+index = "x, y"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_scaler_row_step", "scene_scaler_column_step"]
+meaning = "The program's turning of a map: the point it turns about, sequence channel 0's registers 1 and 2"
+source = "game/scene/rising_palace.c, the turn's matrix $7E:73C6"
+
+[[var]]
+name = "scene_turn_position"
+addr = "7E:002B"
+size = 2
+count = 2
+index = "x, y"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_scaler_source_limit", "scene_scaler_output"]
+meaning = "The program's turning of a map: where it is placed, sequence channel 0's registers 1 and 2 again"
+source = "game/scene/rising_palace.c, the turn's matrix $7E:73C6"
+
+[[var]]
+name = "scene_map_buffer_waiting"
+addr = "7E:003B"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_bitplane_scratch"]
+meaning = "Nonzero while the map buffer ($1400) holds a map for VRAM: the program's upload of it ($7E:783C) sends it and clears this"
+source = "game/scene/rising_palace.c, the map's upload $7E:783C"
+
+[[var]]
+name = "scene_palace_ripple_scroll"
+addr = "7E:003D"
+size = 2
+subsystem = "scene"
+reuses = ["scene_bitplane_scratch"]
+meaning = "The palace's scene (mode 3): BG3's horizontal scroll, which moves the column offsets' ripple across the picture by its strength each frame"
+source = "game/scene/rising_palace.c, the ripple $7E:69AF"
+
+[[var]]
+name = "scene_palace_sea_scroll"
+addr = "7E:003F"
+size = 2
+subsystem = "scene"
+reuses = ["scene_bitplane_scratch"]
+meaning = "The palace's scene: BG2's vertical scroll below the horizon, which a per-line effect reads; sequence channel 1's register 2 over 4"
+source = "game/scene/rising_palace.c, the ripple $7E:69AF"
+
+[[var]]
+name = "scene_palace_column_offsets"
+addr = "7E:0043"
+size = 2
+count = 64
+index = "column: the first 32 across, the next 32 down"
+subsystem = "scene"
+reuses = ["scene_bitplane_scratch", "scene_bg3_scroll_x", "scene_mode7_matrix", "scene_title_slides", "scene_title_slide_ends", "scene_title_pendulum_phase", "scene_title_pendulum_swing", "scene_title_ignores_buttons", "scene_title_button_taken", "scene_title_wait", "scene_title_logo_x", "scene_title_logo_y", "scene_title_timer", "scene_race_tilemap_a_ready", "scene_race_tilemap_b_ready", "scene_race_tilemap_ready_high", "scene_race_demo", "scene_race_racers", "scene_race_score", "scene_race_lead", "scene_race_view", "scene_race_johnny_controls", "scene_race_boosts", "scene_race_place", "scene_race_boost_held", "scene_race_cartridge_column", "scene_race_contact", "scene_race_contact_across", "scene_race_last_contact", "scene_race_crono_lean", "scene_race_stage", "scene_race_finish_margin", "scene_race_finish_margin_high", "scene_race_divisor_start", "scene_race_steer_buttons", "scene_race_boost_timer", "scene_race_frames", "scene_race_leaving", "scene_credits_scroll", "scene_credits_row_vram", "scene_credits_text", "scene_credits_over", "scene_credits_fast", "scene_credits_fast_high", "scene_stars_last_distance", "scene_stars_drift_frames", "scene_ending_picture_half", "scene_ending_picture_source", "scene_ending_picture_zoom", "scene_ending_picture_tall", "scene_ending_caption_gap", "scene_ending_caption_shown", "scene_ending_caption_countdown", "scene_ending_window_left", "scene_ending_window_corners", "scene_ending_caption_phase", "scene_ending_captions_left"]
+meaning = "The palace's scene: the offsets mode 2 moves BG1's columns by, BG3's first two rows as the vblank sends them: across, the ripple's shape from its strength, and down, none"
+source = "game/scene/rising_palace.c, the ripple $7E:69AF and its upload $7E:66DD"
+
+[[var]]
+name = "scene_palace_mosaic_wait"
+addr = "7E:00C3"
+page = "scene"
+subsystem = "scene"
+meaning = "The palace's scene: frames until the mosaic's next step ($14 between steps)"
+source = "game/scene/rising_palace.c, the ripple $7E:69AF"
+
+[[var]]
+name = "scene_palace_mosaic"
+addr = "7E:00C4"
+page = "scene"
+subsystem = "scene"
+meaning = "The palace's scene: BG1's mosaic, counted down a step at a time to none"
+source = "game/scene/rising_palace.c, the ripple $7E:69AF"
+
+[[var]]
+name = "scene_palace_line_shifts"
+addr = "7E:F000"
+size = 2
+count = 224
+index = "line"
+subsystem = "scene"
+reuses = ["scene_race_line_tables", "scene_plane_matrix_top_row", "scene_plane_line_above_b"]
+meaning = "The palace's scene: BG1's horizontal scroll on each line, which a per-line effect reads: the shimmer's strength on every other line, the odd lines or the even by the frame"
+source = "game/scene/rising_palace.c, the shimmer $7E:6A23"
+
+[[var]]
+name = "scene_map_upload_vram"
+addr = "7E:7841"
+size = 2
+subsystem = "scene"
+meaning = "Where the program's upload of the map buffer ($7E:783C) sends it in VRAM: the operand of its own load, $6000 as the program is unpacked, which the palace's setup makes 0"
+source = "game/scene/rising_palace.c, the setup $7E:671F"
+
+[[var]]
+name = "scene_turned_map_rows"
+addr = "7E:7442"
+subsystem = "scene"
+meaning = "How many rows of 32 tiles the program's turning of a map ($7E:7441) writes into the map buffer: the operand of its own load, $1B as the program is unpacked, which the palace's setup makes $1C"
+source = "game/scene/rising_palace.c, the setup $7E:671F"
+
+[[var]]
+name = "scene_palace_darkening_step"
+addr = "7E:6A5F"
+subsystem = "scene"
+meaning = "The palace's scene: how far the palace's colors move each frame as they darken, the first of its fades: the operand of the fade's own load, 1 as the program is unpacked, 6 in the attract sequence's"
+source = "game/scene/rising_palace.c, the fades $7E:6A51"
+
+[[var]]
+name = "scene_palace_whitening_step"
+addr = "7E:6A82"
+subsystem = "scene"
+meaning = "The palace's scene: the same for the second fade, to white: 4, or 8 in the attract sequence's"
+source = "game/scene/rising_palace.c, the fades $7E:6A74"
+
+[[var]]
+name = "scene_palace_clearing_step"
+addr = "7E:6AAB"
+subsystem = "scene"
+meaning = "The palace's scene: the same for the last fade, from white back to the colors: 3, or 8 in the attract sequence's"
+source = "game/scene/rising_palace.c, the fades $7E:6A97"
 
 [[var]]
 name = "scene_ending_picture_sprite_counts"

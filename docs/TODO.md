@@ -1883,6 +1883,14 @@ rest waits, is [PLAN.md](PLAN.md).
   scheduled with the audio in PLAN.md, "Phase 4a". **P4** (widescreen) and
   **P5** (GBA feasibility) follow it in Phase 4b; P0-P3 are otherwise done but
   for the leftovers below.
+- **Mode 2's column offsets have no encoder.** `rising_palace.c`'s
+  `OFFSET_FOR_BG1 = 0x2000` is the SNES's bit in an offset-per-tile entry
+  saying which layer the offset moves; a `vid_*` encoder for an entry (the
+  layer, the scroll) would keep the layout in the platform.
+- **No service reads VRAM back.** The palace's setup reads the field's map back
+  out of VRAM (`$7E:674D`) through `vid_snes_copy` with
+  `VID_STEP_VRAM_READ_FIRST`; a `vid_*` read-back (or a copy within VRAM)
+  would take it off the SNES-only escape.
 - **The gates the event engine opens write their own registers.**
   `saves/events-end-of-time-gate` is the one movie `--vid-check` is not close on
   (3863 of 5599; PLATFORM.md, "P2 as built"): from frame 3864 its gate screen
@@ -2582,6 +2590,10 @@ waits on M5 rather than on a backend.
 
 ## Player and tooling
 
+- **`tools/portsmell.py`'s `sibling-through-machine` matches only literal
+  addresses**: a call-out to a registered port through a named constant
+  (`rising_palace.c`'s `m_jsl_dc(s, ..., CURTAIN_STEP, ...)`) gets past it.
+  Resolving the file's enum constants before matching would catch it.
 - **The fallback measure's edges** (REIMPLEMENTATION.md, "The fallback measure"):
   - it follows extents by the stack, so a task switch to a stack within
     `STACK_SPAN` of the one it left (`dev/fallbacks.c`) keeps the extent it
@@ -2734,6 +2746,30 @@ waits on M5 rather than on a backend.
 - **`scene/scene_data.h` reads bank `$FE` by address** (`scene_data_byte`,
   which the resource copies use): the asset seam wants a named accessor for
   each resource the table at `$FE:0000` points to.
+- **The scenes' text is read out of the unpacked program by address**: the
+  staff roll's credits (`staff_roll.c`), and the attract sequence's pages of
+  credits with their tables of where each page's names and jobs start
+  (`credit_pages.c`, `wram_read8`/`wram_read16` on `$7E`). The asset seam wants
+  a named accessor for each, as for the resources in bank `$FE`.
+- **The palace rising works out a turning matrix it never uses**
+  (`rising_palace.c`, `$7E:73C6`, and the turned map's row count the setup
+  sets): mode 5's turning of a map (`$7E:7441`) is what would read them, and
+  it is still the original's. When mode 5 is ported, the matrix and its
+  operands belong with it.
+- **The palace's turn writes its matrix by bare index** (`rising_palace.c`,
+  `work_out_the_turn_task`: `set_scene_turn_matrix(g, 0..3, ...)`): the four
+  entries want names (which is the cosine, which the sine and its negation),
+  in the RAM map or an enum, as the turn's position and centre have theirs.
+- **The palace's curtain calls its step through the machine**
+  (`rising_palace.c`, `scene_sweep_the_palace_curtain`): `$C3:01E4` is the
+  registered `scene_sweep_the_curtain`, reached with `m_jsl_dc` so that its
+  comparison stays its own, and `CURTAIN_STEP` is defined again in
+  `curtain.c` (`scene_curtain_jump`). One definition in `scene.h`, and the
+  call as C once the step no longer needs a comparison of its own.
+- **The credit pages read byte cells through word accessors**
+  (`credit_pages.c`: `next_page`'s `scene_credits_page(g) & 0x00FF`,
+  `write_the_jobs`'s `scene_sprite_offset_x(g) & 0xFF00`): narrow the
+  declarations in `re/ram.toml` so the masks leave the port.
 - **`scene_find_divisor` on a bank that isn't low RAM.** Its limit is read
   through the data bank, and its guard now leaves the rare call whose data bank
   doesn't reach low RAM (one in some runs of `events-jetbike-race`) to the

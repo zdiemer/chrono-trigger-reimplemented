@@ -1000,7 +1000,11 @@ static VarsRangeFault range_faults[] = {
     { .var = "battle_map_buffer" },
     { .var = "battle_wave_lines" },
     { .var = "battle_wave_marks" },
+    { .var = "scene_turn_matrix" },
+    { .var = "scene_turn_center" },
+    { .var = "scene_turn_position" },
     { .var = "scene_bitplane_scratch" },
+    { .var = "scene_palace_column_offsets" },
     { .var = "scene_race_racers" },
     { .var = "scene_title_slides" },
     { .var = "scene_title_slide_ends" },
@@ -1051,6 +1055,7 @@ static VarsRangeFault range_faults[] = {
     { .var = "scene_credits_scroll_register" },
     { .var = "scene_race_plane_column" },
     { .var = "scene_race_road_strip" },
+    { .var = "scene_palace_line_shifts" },
     { .var = "scene_race_line_tables" },
     { .var = "scene_plane_matrix_top_row" },
     { .var = "scene_plane_matrix_bottom_row" },
@@ -1091,7 +1096,7 @@ static void out_of_range(const GameState *g, unsigned var, const char *accessor,
 
 const VarsRangeFault *vars_range_faults(unsigned *count)
 {
-    *count = 907;
+    *count = 912;
     return range_faults;
 }
 
@@ -6651,6 +6656,8 @@ uint8_t scene_sprite_list_left(const GameState *g) { return r8(g, 0x7E0019u); }
 void set_scene_sprite_list_left(GameState *g, uint8_t v) { w8(g, 0x7E0019u, v); }
 uint16_t scene_scaler_pairs(const GameState *g) { return r16(g, 0x7E001Fu); }
 void set_scene_scaler_pairs(GameState *g, uint16_t v) { w16(g, 0x7E001Fu, v); }
+uint16_t scene_turn_matrix(const GameState *g, unsigned i) { IN_RANGE(g, 836, "scene_turn_matrix", "count", i, 4u); return r16(g, 0x7E001Fu + (uint32_t)i * 0x02u); }
+void set_scene_turn_matrix(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 836, "set_scene_turn_matrix", "count", i, 4u); w16(g, 0x7E001Fu + (uint32_t)i * 0x02u, v); }
 uint16_t scene_ending_picture_ready(const GameState *g) { return r16(g, 0x7E0021u); }
 void set_scene_ending_picture_ready(GameState *g, uint16_t v) { w16(g, 0x7E0021u, v); }
 uint16_t scene_scaler_request_state(const GameState *g) { return r16(g, 0x7E0021u); }
@@ -6661,10 +6668,14 @@ uint16_t scene_scaler_rows_left(const GameState *g) { return r16(g, 0x7E0025u); 
 void set_scene_scaler_rows_left(GameState *g, uint16_t v) { w16(g, 0x7E0025u, v); }
 uint16_t scene_scaler_row_step(const GameState *g) { return r16(g, 0x7E0027u); }
 void set_scene_scaler_row_step(GameState *g, uint16_t v) { w16(g, 0x7E0027u, v); }
+uint16_t scene_turn_center(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_turn_center", "count", i, 2u); return r16(g, 0x7E0027u + (uint32_t)i * 0x02u); }
+void set_scene_turn_center(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_turn_center", "count", i, 2u); w16(g, 0x7E0027u + (uint32_t)i * 0x02u, v); }
 uint16_t scene_scaler_column_step(const GameState *g) { return r16(g, 0x7E0029u); }
 void set_scene_scaler_column_step(GameState *g, uint16_t v) { w16(g, 0x7E0029u, v); }
 uint16_t scene_scaler_source_limit(const GameState *g) { return r16(g, 0x7E002Bu); }
 void set_scene_scaler_source_limit(GameState *g, uint16_t v) { w16(g, 0x7E002Bu, v); }
+uint16_t scene_turn_position(const GameState *g, unsigned i) { IN_RANGE(g, 838, "scene_turn_position", "count", i, 2u); return r16(g, 0x7E002Bu + (uint32_t)i * 0x02u); }
+void set_scene_turn_position(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 838, "set_scene_turn_position", "count", i, 2u); w16(g, 0x7E002Bu + (uint32_t)i * 0x02u, v); }
 uint16_t scene_scaler_output(const GameState *g) { return r16(g, 0x7E002Du); }
 void set_scene_scaler_output(GameState *g, uint16_t v) { w16(g, 0x7E002Du, v); }
 uint16_t scene_scaler_plane_output(const GameState *g) { return r16(g, 0x7E002Fu); }
@@ -6679,8 +6690,16 @@ uint16_t scene_scaler_output_end(const GameState *g) { return r16(g, 0x7E0037u);
 void set_scene_scaler_output_end(GameState *g, uint16_t v) { w16(g, 0x7E0037u, v); }
 uint16_t scene_race_tilemap_pending(const GameState *g) { return r16(g, 0x7E0039u); }
 void set_scene_race_tilemap_pending(GameState *g, uint16_t v) { w16(g, 0x7E0039u, v); }
-uint8_t scene_bitplane_scratch_byte(const GameState *g, unsigned at) { IN_RANGE(g, 836, "scene_bitplane_scratch_byte", "bytes", at, 9u); return r8(g, 0x7E003Bu + at); }
-void set_scene_bitplane_scratch_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 836, "set_scene_bitplane_scratch_byte", "bytes", at, 9u); w8(g, 0x7E003Bu + at, v); }
+uint8_t scene_bitplane_scratch_byte(const GameState *g, unsigned at) { IN_RANGE(g, 839, "scene_bitplane_scratch_byte", "bytes", at, 9u); return r8(g, 0x7E003Bu + at); }
+void set_scene_bitplane_scratch_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 839, "set_scene_bitplane_scratch_byte", "bytes", at, 9u); w8(g, 0x7E003Bu + at, v); }
+uint8_t scene_map_buffer_waiting(const GameState *g) { return r8(g, 0x7E003Bu); }
+void set_scene_map_buffer_waiting(GameState *g, uint8_t v) { w8(g, 0x7E003Bu, v); }
+uint16_t scene_palace_ripple_scroll(const GameState *g) { return r16(g, 0x7E003Du); }
+void set_scene_palace_ripple_scroll(GameState *g, uint16_t v) { w16(g, 0x7E003Du, v); }
+uint16_t scene_palace_sea_scroll(const GameState *g) { return r16(g, 0x7E003Fu); }
+void set_scene_palace_sea_scroll(GameState *g, uint16_t v) { w16(g, 0x7E003Fu, v); }
+uint16_t scene_palace_column_offsets(const GameState *g, unsigned column) { IN_RANGE(g, 840, "scene_palace_column_offsets", "count", column, 64u); return r16(g, 0x7E0043u + (uint32_t)column * 0x02u); }
+void set_scene_palace_column_offsets(GameState *g, unsigned column, uint16_t v) { IN_RANGE(g, 840, "set_scene_palace_column_offsets", "count", column, 64u); w16(g, 0x7E0043u + (uint32_t)column * 0x02u, v); }
 uint16_t scene_bg3_scroll_x(const GameState *g) { return r16(g, 0x7E0044u); }
 void set_scene_bg3_scroll_x(GameState *g, uint16_t v) { w16(g, 0x7E0044u, v); }
 uint16_t scene_race_demo(const GameState *g) { return r16(g, 0x7E0044u); }
@@ -6689,42 +6708,42 @@ uint8_t scene_stars_last_distance(const GameState *g) { return r8(g, 0x7E0044u);
 void set_scene_stars_last_distance(GameState *g, uint8_t v) { w8(g, 0x7E0044u, v); }
 uint16_t scene_credits_scroll(const GameState *g) { return r16(g, 0x7E0046u); }
 void set_scene_credits_scroll(GameState *g, uint16_t v) { w16(g, 0x7E0046u, v); }
-uint16_t scene_race_racers_screen_x(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_screen_x", "count", i, 2u); return r16(g, 0x7E0046u + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_screen_x(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_screen_x", "count", i, 2u); w16(g, 0x7E0046u + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_screen_y(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_screen_y", "count", i, 2u); return r16(g, 0x7E0048u + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_screen_y(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_screen_y", "count", i, 2u); w16(g, 0x7E0048u + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_speed(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_speed", "count", i, 2u); return r16(g, 0x7E004Au + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_speed(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_speed", "count", i, 2u); w16(g, 0x7E004Au + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_speeding_up(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_speeding_up", "count", i, 2u); return r16(g, 0x7E004Cu + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_speeding_up(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_speeding_up", "count", i, 2u); w16(g, 0x7E004Cu + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_lane(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_lane", "count", i, 2u); return r16(g, 0x7E004Eu + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_lane(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_lane", "count", i, 2u); w16(g, 0x7E004Eu + (uint32_t)i * 0x25u, v); }
-uint8_t scene_race_racers_after_lane(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_after_lane", "count", i, 2u); return r8(g, 0x7E0050u + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_after_lane(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 837, "set_scene_race_racers_after_lane", "count", i, 2u); w8(g, 0x7E0050u + (uint32_t)i * 0x25u, v); }
-uint32_t scene_race_racers_distance(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_distance", "count", i, 2u); return r32(g, 0x7E0051u + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_distance(GameState *g, unsigned i, uint32_t v) { IN_RANGE(g, 837, "set_scene_race_racers_distance", "count", i, 2u); w32(g, 0x7E0051u + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_top_speed_leading(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_top_speed_leading", "count", i, 2u); return r16(g, 0x7E0055u + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_top_speed_leading(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_top_speed_leading", "count", i, 2u); w16(g, 0x7E0055u + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_top_speed(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_top_speed", "count", i, 2u); return r16(g, 0x7E0057u + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_top_speed(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_top_speed", "count", i, 2u); w16(g, 0x7E0057u + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_top_speed_trailing(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_top_speed_trailing", "count", i, 2u); return r16(g, 0x7E0059u + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_top_speed_trailing(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_top_speed_trailing", "count", i, 2u); w16(g, 0x7E0059u + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_width(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_width", "count", i, 2u); return r16(g, 0x7E005Bu + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_width(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_width", "count", i, 2u); w16(g, 0x7E005Bu + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_height(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_height", "count", i, 2u); return r16(g, 0x7E005Du + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_height(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_height", "count", i, 2u); w16(g, 0x7E005Du + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_right(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_right", "count", i, 2u); return r16(g, 0x7E005Fu + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_right(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_right", "count", i, 2u); w16(g, 0x7E005Fu + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_bottom(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_bottom", "count", i, 2u); return r16(g, 0x7E0061u + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_bottom(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_bottom", "count", i, 2u); w16(g, 0x7E0061u + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_out_of_sight(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_out_of_sight", "count", i, 2u); return r16(g, 0x7E0063u + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_out_of_sight(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_out_of_sight", "count", i, 2u); w16(g, 0x7E0063u + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_drift_up(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_drift_up", "count", i, 2u); return r16(g, 0x7E0065u + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_drift_up(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_drift_up", "count", i, 2u); w16(g, 0x7E0065u + (uint32_t)i * 0x25u, v); }
-uint16_t scene_race_racers_drift_down(const GameState *g, unsigned i) { IN_RANGE(g, 837, "scene_race_racers_drift_down", "count", i, 2u); return r16(g, 0x7E0067u + (uint32_t)i * 0x25u); }
-void set_scene_race_racers_drift_down(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 837, "set_scene_race_racers_drift_down", "count", i, 2u); w16(g, 0x7E0067u + (uint32_t)i * 0x25u, v); }
-uint16_t scene_title_slides(const GameState *g, unsigned i) { IN_RANGE(g, 838, "scene_title_slides", "count", i, 5u); return r16(g, 0x7E0046u + (uint32_t)i * 0x02u); }
-void set_scene_title_slides(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 838, "set_scene_title_slides", "count", i, 5u); w16(g, 0x7E0046u + (uint32_t)i * 0x02u, v); }
+uint16_t scene_race_racers_screen_x(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_screen_x", "count", i, 2u); return r16(g, 0x7E0046u + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_screen_x(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_screen_x", "count", i, 2u); w16(g, 0x7E0046u + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_screen_y(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_screen_y", "count", i, 2u); return r16(g, 0x7E0048u + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_screen_y(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_screen_y", "count", i, 2u); w16(g, 0x7E0048u + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_speed(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_speed", "count", i, 2u); return r16(g, 0x7E004Au + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_speed(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_speed", "count", i, 2u); w16(g, 0x7E004Au + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_speeding_up(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_speeding_up", "count", i, 2u); return r16(g, 0x7E004Cu + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_speeding_up(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_speeding_up", "count", i, 2u); w16(g, 0x7E004Cu + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_lane(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_lane", "count", i, 2u); return r16(g, 0x7E004Eu + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_lane(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_lane", "count", i, 2u); w16(g, 0x7E004Eu + (uint32_t)i * 0x25u, v); }
+uint8_t scene_race_racers_after_lane(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_after_lane", "count", i, 2u); return r8(g, 0x7E0050u + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_after_lane(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 841, "set_scene_race_racers_after_lane", "count", i, 2u); w8(g, 0x7E0050u + (uint32_t)i * 0x25u, v); }
+uint32_t scene_race_racers_distance(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_distance", "count", i, 2u); return r32(g, 0x7E0051u + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_distance(GameState *g, unsigned i, uint32_t v) { IN_RANGE(g, 841, "set_scene_race_racers_distance", "count", i, 2u); w32(g, 0x7E0051u + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_top_speed_leading(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_top_speed_leading", "count", i, 2u); return r16(g, 0x7E0055u + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_top_speed_leading(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_top_speed_leading", "count", i, 2u); w16(g, 0x7E0055u + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_top_speed(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_top_speed", "count", i, 2u); return r16(g, 0x7E0057u + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_top_speed(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_top_speed", "count", i, 2u); w16(g, 0x7E0057u + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_top_speed_trailing(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_top_speed_trailing", "count", i, 2u); return r16(g, 0x7E0059u + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_top_speed_trailing(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_top_speed_trailing", "count", i, 2u); w16(g, 0x7E0059u + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_width(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_width", "count", i, 2u); return r16(g, 0x7E005Bu + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_width(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_width", "count", i, 2u); w16(g, 0x7E005Bu + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_height(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_height", "count", i, 2u); return r16(g, 0x7E005Du + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_height(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_height", "count", i, 2u); w16(g, 0x7E005Du + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_right(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_right", "count", i, 2u); return r16(g, 0x7E005Fu + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_right(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_right", "count", i, 2u); w16(g, 0x7E005Fu + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_bottom(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_bottom", "count", i, 2u); return r16(g, 0x7E0061u + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_bottom(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_bottom", "count", i, 2u); w16(g, 0x7E0061u + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_out_of_sight(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_out_of_sight", "count", i, 2u); return r16(g, 0x7E0063u + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_out_of_sight(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_out_of_sight", "count", i, 2u); w16(g, 0x7E0063u + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_drift_up(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_drift_up", "count", i, 2u); return r16(g, 0x7E0065u + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_drift_up(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_drift_up", "count", i, 2u); w16(g, 0x7E0065u + (uint32_t)i * 0x25u, v); }
+uint16_t scene_race_racers_drift_down(const GameState *g, unsigned i) { IN_RANGE(g, 841, "scene_race_racers_drift_down", "count", i, 2u); return r16(g, 0x7E0067u + (uint32_t)i * 0x25u); }
+void set_scene_race_racers_drift_down(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 841, "set_scene_race_racers_drift_down", "count", i, 2u); w16(g, 0x7E0067u + (uint32_t)i * 0x25u, v); }
+uint16_t scene_title_slides(const GameState *g, unsigned i) { IN_RANGE(g, 842, "scene_title_slides", "count", i, 5u); return r16(g, 0x7E0046u + (uint32_t)i * 0x02u); }
+void set_scene_title_slides(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 842, "set_scene_title_slides", "count", i, 5u); w16(g, 0x7E0046u + (uint32_t)i * 0x02u, v); }
 uint16_t scene_credits_row_vram(const GameState *g) { return r16(g, 0x7E0048u); }
 void set_scene_credits_row_vram(GameState *g, uint16_t v) { w16(g, 0x7E0048u, v); }
 uint16_t scene_credits_text(const GameState *g) { return r16(g, 0x7E004Au); }
@@ -6733,12 +6752,12 @@ uint16_t scene_ending_picture_half(const GameState *g) { return r16(g, 0x7E004Cu
 void set_scene_ending_picture_half(GameState *g, uint16_t v) { w16(g, 0x7E004Cu, v); }
 uint16_t scene_ending_picture_source(const GameState *g) { return r16(g, 0x7E004Eu); }
 void set_scene_ending_picture_source(GameState *g, uint16_t v) { w16(g, 0x7E004Eu, v); }
-uint16_t scene_title_slide_ends(const GameState *g, unsigned i) { IN_RANGE(g, 839, "scene_title_slide_ends", "count", i, 5u); return r16(g, 0x7E0050u + (uint32_t)i * 0x02u); }
-void set_scene_title_slide_ends(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 839, "set_scene_title_slide_ends", "count", i, 5u); w16(g, 0x7E0050u + (uint32_t)i * 0x02u, v); }
+uint16_t scene_title_slide_ends(const GameState *g, unsigned i) { IN_RANGE(g, 843, "scene_title_slide_ends", "count", i, 5u); return r16(g, 0x7E0050u + (uint32_t)i * 0x02u); }
+void set_scene_title_slide_ends(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 843, "set_scene_title_slide_ends", "count", i, 5u); w16(g, 0x7E0050u + (uint32_t)i * 0x02u, v); }
 uint16_t scene_ending_picture_zoom(const GameState *g) { return r16(g, 0x7E0056u); }
 void set_scene_ending_picture_zoom(GameState *g, uint16_t v) { w16(g, 0x7E0056u, v); }
-uint16_t scene_stars_drift_frames(const GameState *g, unsigned i) { IN_RANGE(g, 840, "scene_stars_drift_frames", "count", i, 3u); return r16(g, 0x7E0058u + (uint32_t)i * 0x02u); }
-void set_scene_stars_drift_frames(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 840, "set_scene_stars_drift_frames", "count", i, 3u); w16(g, 0x7E0058u + (uint32_t)i * 0x02u, v); }
+uint16_t scene_stars_drift_frames(const GameState *g, unsigned i) { IN_RANGE(g, 844, "scene_stars_drift_frames", "count", i, 3u); return r16(g, 0x7E0058u + (uint32_t)i * 0x02u); }
+void set_scene_stars_drift_frames(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 844, "set_scene_stars_drift_frames", "count", i, 3u); w16(g, 0x7E0058u + (uint32_t)i * 0x02u, v); }
 uint16_t scene_mode7_matrix_a(const GameState *g) { return r16(g, 0x7E005Au); }
 void set_scene_mode7_matrix_a(GameState *g, uint16_t v) { w16(g, 0x7E005Au, v); }
 uint16_t scene_mode7_matrix_b(const GameState *g) { return r16(g, 0x7E005Cu); }
@@ -6769,8 +6788,8 @@ uint16_t scene_ending_window_left(const GameState *g) { return r16(g, 0x7E0071u)
 void set_scene_ending_window_left(GameState *g, uint16_t v) { w16(g, 0x7E0071u, v); }
 uint16_t scene_title_wait(const GameState *g) { return r16(g, 0x7E0072u); }
 void set_scene_title_wait(GameState *g, uint16_t v) { w16(g, 0x7E0072u, v); }
-uint16_t scene_ending_window_corners(const GameState *g, unsigned corner) { IN_RANGE(g, 841, "scene_ending_window_corners", "count", corner, 4u); return r16(g, 0x7E0073u + (uint32_t)corner * 0x02u); }
-void set_scene_ending_window_corners(GameState *g, unsigned corner, uint16_t v) { IN_RANGE(g, 841, "set_scene_ending_window_corners", "count", corner, 4u); w16(g, 0x7E0073u + (uint32_t)corner * 0x02u, v); }
+uint16_t scene_ending_window_corners(const GameState *g, unsigned corner) { IN_RANGE(g, 845, "scene_ending_window_corners", "count", corner, 4u); return r16(g, 0x7E0073u + (uint32_t)corner * 0x02u); }
+void set_scene_ending_window_corners(GameState *g, unsigned corner, uint16_t v) { IN_RANGE(g, 845, "set_scene_ending_window_corners", "count", corner, 4u); w16(g, 0x7E0073u + (uint32_t)corner * 0x02u, v); }
 uint16_t scene_ending_picture_tall(const GameState *g) { return r16(g, 0x7E007Bu); }
 void set_scene_ending_picture_tall(GameState *g, uint16_t v) { w16(g, 0x7E007Bu, v); }
 uint16_t scene_ending_caption_gap(const GameState *g) { return r16(g, 0x7E007Du); }
@@ -6785,8 +6804,8 @@ uint16_t scene_ending_captions_left(const GameState *g) { return r16(g, 0x7E0085
 void set_scene_ending_captions_left(GameState *g, uint16_t v) { w16(g, 0x7E0085u, v); }
 uint16_t scene_race_lead(const GameState *g) { return r16(g, 0x7E008Eu); }
 void set_scene_race_lead(GameState *g, uint16_t v) { w16(g, 0x7E008Eu, v); }
-uint16_t scene_race_view(const GameState *g, unsigned i) { IN_RANGE(g, 842, "scene_race_view", "count", i, 4u); return r16(g, 0x7E0090u + (uint32_t)i * 0x02u); }
-void set_scene_race_view(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 842, "set_scene_race_view", "count", i, 4u); w16(g, 0x7E0090u + (uint32_t)i * 0x02u, v); }
+uint16_t scene_race_view(const GameState *g, unsigned i) { IN_RANGE(g, 846, "scene_race_view", "count", i, 4u); return r16(g, 0x7E0090u + (uint32_t)i * 0x02u); }
+void set_scene_race_view(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 846, "set_scene_race_view", "count", i, 4u); w16(g, 0x7E0090u + (uint32_t)i * 0x02u, v); }
 uint16_t scene_race_johnny_controls(const GameState *g) { return r16(g, 0x7E0098u); }
 void set_scene_race_johnny_controls(GameState *g, uint16_t v) { w16(g, 0x7E0098u, v); }
 uint16_t scene_race_boosts(const GameState *g) { return r16(g, 0x7E009Au); }
@@ -6805,8 +6824,8 @@ uint16_t scene_race_last_contact(const GameState *g) { return r16(g, 0x7E00A8u);
 void set_scene_race_last_contact(GameState *g, uint16_t v) { w16(g, 0x7E00A8u, v); }
 uint8_t scene_race_tilemap_a_ready(const GameState *g) { return r8(g, 0x7E00AAu); }
 void set_scene_race_tilemap_a_ready(GameState *g, uint8_t v) { w8(g, 0x7E00AAu, v); }
-uint8_t scene_race_tilemap_ready_high(const GameState *g, unsigned i) { IN_RANGE(g, 843, "scene_race_tilemap_ready_high", "count", i, 2u); return r8(g, 0x7E00ABu + (uint32_t)i * 0x02u); }
-void set_scene_race_tilemap_ready_high(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 843, "set_scene_race_tilemap_ready_high", "count", i, 2u); w8(g, 0x7E00ABu + (uint32_t)i * 0x02u, v); }
+uint8_t scene_race_tilemap_ready_high(const GameState *g, unsigned i) { IN_RANGE(g, 847, "scene_race_tilemap_ready_high", "count", i, 2u); return r8(g, 0x7E00ABu + (uint32_t)i * 0x02u); }
+void set_scene_race_tilemap_ready_high(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 847, "set_scene_race_tilemap_ready_high", "count", i, 2u); w8(g, 0x7E00ABu + (uint32_t)i * 0x02u, v); }
 uint8_t scene_race_tilemap_b_ready(const GameState *g) { return r8(g, 0x7E00ACu); }
 void set_scene_race_tilemap_b_ready(GameState *g, uint8_t v) { w8(g, 0x7E00ACu, v); }
 uint8_t scene_credits_fast(const GameState *g) { return r8(g, 0x7E00ADu); }
@@ -6823,14 +6842,18 @@ uint8_t scene_race_finish_margin_high(const GameState *g) { return r8(g, 0x7E00B
 void set_scene_race_finish_margin_high(GameState *g, uint8_t v) { w8(g, 0x7E00B3u, v); }
 uint16_t scene_race_divisor_start(const GameState *g) { return r16(g, 0x7E00B4u); }
 void set_scene_race_divisor_start(GameState *g, uint16_t v) { w16(g, 0x7E00B4u, v); }
-uint16_t scene_race_steer_buttons(const GameState *g, unsigned i) { IN_RANGE(g, 844, "scene_race_steer_buttons", "count", i, 2u); return r16(g, 0x7E00B6u + (uint32_t)i * 0x02u); }
-void set_scene_race_steer_buttons(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 844, "set_scene_race_steer_buttons", "count", i, 2u); w16(g, 0x7E00B6u + (uint32_t)i * 0x02u, v); }
+uint16_t scene_race_steer_buttons(const GameState *g, unsigned i) { IN_RANGE(g, 848, "scene_race_steer_buttons", "count", i, 2u); return r16(g, 0x7E00B6u + (uint32_t)i * 0x02u); }
+void set_scene_race_steer_buttons(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 848, "set_scene_race_steer_buttons", "count", i, 2u); w16(g, 0x7E00B6u + (uint32_t)i * 0x02u, v); }
 uint16_t scene_race_boost_timer(const GameState *g) { return r16(g, 0x7E00BAu); }
 void set_scene_race_boost_timer(GameState *g, uint16_t v) { w16(g, 0x7E00BAu, v); }
 uint16_t scene_race_frames(const GameState *g) { return r16(g, 0x7E00BCu); }
 void set_scene_race_frames(GameState *g, uint16_t v) { w16(g, 0x7E00BCu, v); }
 uint16_t scene_race_leaving(const GameState *g) { return r16(g, 0x7E00BEu); }
 void set_scene_race_leaving(GameState *g, uint16_t v) { w16(g, 0x7E00BEu, v); }
+uint8_t scene_palace_mosaic_wait(const GameState *g) { return r8(g, 0x7E00C3u); }
+void set_scene_palace_mosaic_wait(GameState *g, uint8_t v) { w8(g, 0x7E00C3u, v); }
+uint8_t scene_palace_mosaic(const GameState *g) { return r8(g, 0x7E00C4u); }
+void set_scene_palace_mosaic(GameState *g, uint8_t v) { w8(g, 0x7E00C4u, v); }
 uint8_t scene_race_ending(const GameState *g) { return r8(g, 0x7E0350u); }
 void set_scene_race_ending(GameState *g, uint8_t v) { w8(g, 0x7E0350u, v); }
 uint16_t scene_circle_center_x(const GameState *g) { return r16(g, 0x7E0350u); }
@@ -6859,6 +6882,8 @@ uint8_t scene_race_winner(const GameState *g) { return r8(g, 0x7E0380u); }
 void set_scene_race_winner(GameState *g, uint8_t v) { w8(g, 0x7E0380u, v); }
 uint8_t scene_race_prize(const GameState *g) { return r8(g, 0x7E0381u); }
 void set_scene_race_prize(GameState *g, uint8_t v) { w8(g, 0x7E0381u, v); }
+uint16_t scene_credits_page(const GameState *g) { return r16(g, 0x7E0382u); }
+void set_scene_credits_page(GameState *g, uint16_t v) { w16(g, 0x7E0382u, v); }
 uint16_t scene_ending_caption_text(const GameState *g) { return r16(g, 0x7E0382u); }
 void set_scene_ending_caption_text(GameState *g, uint16_t v) { w16(g, 0x7E0382u, v); }
 uint16_t scene_race_final_score(const GameState *g) { return r16(g, 0x7E0382u); }
@@ -6919,60 +6944,60 @@ uint8_t scene_irq_stub_jump(const GameState *g) { return r8(g, 0x7E0504u); }
 void set_scene_irq_stub_jump(GameState *g, uint8_t v) { w8(g, 0x7E0504u, v); }
 uint32_t scene_irq_stub_handler(const GameState *g) { return r24(g, 0x7E0505u); }
 void set_scene_irq_stub_handler(GameState *g, uint32_t v) { w24(g, 0x7E0505u, v); }
-uint8_t scene_sprite_table_byte(const GameState *g, unsigned at) { IN_RANGE(g, 845, "scene_sprite_table_byte", "bytes", at, 512u); return r8(g, 0x7E0700u + at); }
-void set_scene_sprite_table_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 845, "set_scene_sprite_table_byte", "bytes", at, 512u); w8(g, 0x7E0700u + at, v); }
-uint8_t scene_sprite_high_table_byte(const GameState *g, unsigned at) { IN_RANGE(g, 846, "scene_sprite_high_table_byte", "bytes", at, 32u); return r8(g, 0x7E0900u + at); }
-void set_scene_sprite_high_table_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 846, "set_scene_sprite_high_table_byte", "bytes", at, 32u); w8(g, 0x7E0900u + at, v); }
-uint16_t scene_tasks(const GameState *g, unsigned slot) { IN_RANGE(g, 847, "scene_tasks", "count", slot, 16u); return r16(g, 0x7E0920u + (uint32_t)slot * 0x02u); }
-void set_scene_tasks(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 847, "set_scene_tasks", "count", slot, 16u); w16(g, 0x7E0920u + (uint32_t)slot * 0x02u, v); }
-uint16_t scene_early_tasks(const GameState *g, unsigned slot) { IN_RANGE(g, 848, "scene_early_tasks", "count", slot, 8u); return r16(g, 0x7E0940u + (uint32_t)slot * 0x02u); }
-void set_scene_early_tasks(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 848, "set_scene_early_tasks", "count", slot, 8u); w16(g, 0x7E0940u + (uint32_t)slot * 0x02u, v); }
-uint16_t scene_tasks_running(const GameState *g, unsigned slot) { IN_RANGE(g, 849, "scene_tasks_running", "count", slot, 16u); return r16(g, 0x7E0950u + (uint32_t)slot * 0x02u); }
-void set_scene_tasks_running(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 849, "set_scene_tasks_running", "count", slot, 16u); w16(g, 0x7E0950u + (uint32_t)slot * 0x02u, v); }
-uint8_t scene_channels_registers_byte(const GameState *g, unsigned channel, unsigned at) { IN_RANGE(g, 850, "scene_channels_registers_byte", "count", channel, 2u); IN_RANGE(g, 850, "scene_channels_registers_byte", "bytes", at, 32u); return r8(g, 0x7E0A00u + (uint32_t)channel * 0x100u + at); }
-void set_scene_channels_registers_byte(GameState *g, unsigned channel, unsigned at, uint8_t v) { IN_RANGE(g, 850, "set_scene_channels_registers_byte", "count", channel, 2u); IN_RANGE(g, 850, "set_scene_channels_registers_byte", "bytes", at, 32u); w8(g, 0x7E0A00u + (uint32_t)channel * 0x100u + at, v); }
-uint16_t scene_channels_script(const GameState *g, unsigned channel) { IN_RANGE(g, 850, "scene_channels_script", "count", channel, 2u); return r16(g, 0x7E0A20u + (uint32_t)channel * 0x100u); }
-void set_scene_channels_script(GameState *g, unsigned channel, uint16_t v) { IN_RANGE(g, 850, "set_scene_channels_script", "count", channel, 2u); w16(g, 0x7E0A20u + (uint32_t)channel * 0x100u, v); }
-uint8_t scene_channels_loop_counters_byte(const GameState *g, unsigned channel, unsigned at) { IN_RANGE(g, 850, "scene_channels_loop_counters_byte", "count", channel, 2u); IN_RANGE(g, 850, "scene_channels_loop_counters_byte", "bytes", at, 32u); return r8(g, 0x7E0A22u + (uint32_t)channel * 0x100u + at); }
-void set_scene_channels_loop_counters_byte(GameState *g, unsigned channel, unsigned at, uint8_t v) { IN_RANGE(g, 850, "set_scene_channels_loop_counters_byte", "count", channel, 2u); IN_RANGE(g, 850, "set_scene_channels_loop_counters_byte", "bytes", at, 32u); w8(g, 0x7E0A22u + (uint32_t)channel * 0x100u + at, v); }
-uint16_t scene_channels_return_address(const GameState *g, unsigned channel) { IN_RANGE(g, 850, "scene_channels_return_address", "count", channel, 2u); return r16(g, 0x7E0A30u + (uint32_t)channel * 0x100u); }
-void set_scene_channels_return_address(GameState *g, unsigned channel, uint16_t v) { IN_RANGE(g, 850, "set_scene_channels_return_address", "count", channel, 2u); w16(g, 0x7E0A30u + (uint32_t)channel * 0x100u, v); }
-uint16_t scene_race_perspective_camera(const GameState *g, unsigned i) { IN_RANGE(g, 851, "scene_race_perspective_camera", "count", i, 5u); return r16(g, 0x7E0A30u + (uint32_t)i * 0x02u); }
-void set_scene_race_perspective_camera(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 851, "set_scene_race_perspective_camera", "count", i, 5u); w16(g, 0x7E0A30u + (uint32_t)i * 0x02u, v); }
-uint16_t scene_race_turning(const GameState *g, unsigned i) { IN_RANGE(g, 852, "scene_race_turning", "count", i, 2u); return r16(g, 0x7E0A3Au + (uint32_t)i * 0x02u); }
-void set_scene_race_turning(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 852, "set_scene_race_turning", "count", i, 2u); w16(g, 0x7E0A3Au + (uint32_t)i * 0x02u, v); }
-uint8_t scene_stars_across(const GameState *g, unsigned i) { IN_RANGE(g, 853, "scene_stars_across", "count", i, 128u); return r8(g, 0x7E0C00u + (uint32_t)i * 0x04u); }
-void set_scene_stars_across(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 853, "set_scene_stars_across", "count", i, 128u); w8(g, 0x7E0C00u + (uint32_t)i * 0x04u, v); }
-uint8_t scene_stars_down(const GameState *g, unsigned i) { IN_RANGE(g, 853, "scene_stars_down", "count", i, 128u); return r8(g, 0x7E0C01u + (uint32_t)i * 0x04u); }
-void set_scene_stars_down(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 853, "set_scene_stars_down", "count", i, 128u); w8(g, 0x7E0C01u + (uint32_t)i * 0x04u, v); }
-uint8_t scene_tilemap_buffer_byte(const GameState *g, unsigned at) { IN_RANGE(g, 854, "scene_tilemap_buffer_byte", "bytes", at, 2048u); return r8(g, 0x7E0C00u + at); }
-void set_scene_tilemap_buffer_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 854, "set_scene_tilemap_buffer_byte", "bytes", at, 2048u); w8(g, 0x7E0C00u + at, v); }
-uint8_t scene_star_depths(const GameState *g, unsigned i) { IN_RANGE(g, 855, "scene_star_depths", "count", i, 128u); return r8(g, 0x7E0E00u + (uint32_t)i * 0x04u); }
-void set_scene_star_depths(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 855, "set_scene_star_depths", "count", i, 128u); w8(g, 0x7E0E00u + (uint32_t)i * 0x04u, v); }
-uint16_t scene_race_picture_requests_pairs(const GameState *g, unsigned i) { IN_RANGE(g, 856, "scene_race_picture_requests_pairs", "count", i, 2u); return r16(g, 0x7E1400u + (uint32_t)i * 0x0Eu); }
-void set_scene_race_picture_requests_pairs(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 856, "set_scene_race_picture_requests_pairs", "count", i, 2u); w16(g, 0x7E1400u + (uint32_t)i * 0x0Eu, v); }
-uint16_t scene_race_picture_requests_state(const GameState *g, unsigned i) { IN_RANGE(g, 856, "scene_race_picture_requests_state", "count", i, 2u); return r16(g, 0x7E1402u + (uint32_t)i * 0x0Eu); }
-void set_scene_race_picture_requests_state(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 856, "set_scene_race_picture_requests_state", "count", i, 2u); w16(g, 0x7E1402u + (uint32_t)i * 0x0Eu, v); }
-uint16_t scene_race_picture_requests_source(const GameState *g, unsigned i) { IN_RANGE(g, 856, "scene_race_picture_requests_source", "count", i, 2u); return r16(g, 0x7E1404u + (uint32_t)i * 0x0Eu); }
-void set_scene_race_picture_requests_source(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 856, "set_scene_race_picture_requests_source", "count", i, 2u); w16(g, 0x7E1404u + (uint32_t)i * 0x0Eu, v); }
-uint16_t scene_race_picture_requests_rows(const GameState *g, unsigned i) { IN_RANGE(g, 856, "scene_race_picture_requests_rows", "count", i, 2u); return r16(g, 0x7E1406u + (uint32_t)i * 0x0Eu); }
-void set_scene_race_picture_requests_rows(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 856, "set_scene_race_picture_requests_rows", "count", i, 2u); w16(g, 0x7E1406u + (uint32_t)i * 0x0Eu, v); }
-uint16_t scene_race_picture_requests_row_step(const GameState *g, unsigned i) { IN_RANGE(g, 856, "scene_race_picture_requests_row_step", "count", i, 2u); return r16(g, 0x7E1408u + (uint32_t)i * 0x0Eu); }
-void set_scene_race_picture_requests_row_step(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 856, "set_scene_race_picture_requests_row_step", "count", i, 2u); w16(g, 0x7E1408u + (uint32_t)i * 0x0Eu, v); }
-uint16_t scene_race_picture_requests_column_step(const GameState *g, unsigned i) { IN_RANGE(g, 856, "scene_race_picture_requests_column_step", "count", i, 2u); return r16(g, 0x7E140Au + (uint32_t)i * 0x0Eu); }
-void set_scene_race_picture_requests_column_step(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 856, "set_scene_race_picture_requests_column_step", "count", i, 2u); w16(g, 0x7E140Au + (uint32_t)i * 0x0Eu, v); }
-uint16_t scene_race_picture_requests_source_limit(const GameState *g, unsigned i) { IN_RANGE(g, 856, "scene_race_picture_requests_source_limit", "count", i, 2u); return r16(g, 0x7E140Cu + (uint32_t)i * 0x0Eu); }
-void set_scene_race_picture_requests_source_limit(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 856, "set_scene_race_picture_requests_source_limit", "count", i, 2u); w16(g, 0x7E140Cu + (uint32_t)i * 0x0Eu, v); }
-uint8_t scene_credits_row_byte(const GameState *g, unsigned at) { IN_RANGE(g, 857, "scene_credits_row_byte", "bytes", at, 32u); return r8(g, 0x7E1414u + at); }
-void set_scene_credits_row_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 857, "set_scene_credits_row_byte", "bytes", at, 32u); w8(g, 0x7E1414u + at, v); }
+uint8_t scene_sprite_table_byte(const GameState *g, unsigned at) { IN_RANGE(g, 849, "scene_sprite_table_byte", "bytes", at, 512u); return r8(g, 0x7E0700u + at); }
+void set_scene_sprite_table_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 849, "set_scene_sprite_table_byte", "bytes", at, 512u); w8(g, 0x7E0700u + at, v); }
+uint8_t scene_sprite_high_table_byte(const GameState *g, unsigned at) { IN_RANGE(g, 850, "scene_sprite_high_table_byte", "bytes", at, 32u); return r8(g, 0x7E0900u + at); }
+void set_scene_sprite_high_table_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 850, "set_scene_sprite_high_table_byte", "bytes", at, 32u); w8(g, 0x7E0900u + at, v); }
+uint16_t scene_tasks(const GameState *g, unsigned slot) { IN_RANGE(g, 851, "scene_tasks", "count", slot, 16u); return r16(g, 0x7E0920u + (uint32_t)slot * 0x02u); }
+void set_scene_tasks(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 851, "set_scene_tasks", "count", slot, 16u); w16(g, 0x7E0920u + (uint32_t)slot * 0x02u, v); }
+uint16_t scene_early_tasks(const GameState *g, unsigned slot) { IN_RANGE(g, 852, "scene_early_tasks", "count", slot, 8u); return r16(g, 0x7E0940u + (uint32_t)slot * 0x02u); }
+void set_scene_early_tasks(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 852, "set_scene_early_tasks", "count", slot, 8u); w16(g, 0x7E0940u + (uint32_t)slot * 0x02u, v); }
+uint16_t scene_tasks_running(const GameState *g, unsigned slot) { IN_RANGE(g, 853, "scene_tasks_running", "count", slot, 16u); return r16(g, 0x7E0950u + (uint32_t)slot * 0x02u); }
+void set_scene_tasks_running(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 853, "set_scene_tasks_running", "count", slot, 16u); w16(g, 0x7E0950u + (uint32_t)slot * 0x02u, v); }
+uint8_t scene_channels_registers_byte(const GameState *g, unsigned channel, unsigned at) { IN_RANGE(g, 854, "scene_channels_registers_byte", "count", channel, 2u); IN_RANGE(g, 854, "scene_channels_registers_byte", "bytes", at, 32u); return r8(g, 0x7E0A00u + (uint32_t)channel * 0x100u + at); }
+void set_scene_channels_registers_byte(GameState *g, unsigned channel, unsigned at, uint8_t v) { IN_RANGE(g, 854, "set_scene_channels_registers_byte", "count", channel, 2u); IN_RANGE(g, 854, "set_scene_channels_registers_byte", "bytes", at, 32u); w8(g, 0x7E0A00u + (uint32_t)channel * 0x100u + at, v); }
+uint16_t scene_channels_script(const GameState *g, unsigned channel) { IN_RANGE(g, 854, "scene_channels_script", "count", channel, 2u); return r16(g, 0x7E0A20u + (uint32_t)channel * 0x100u); }
+void set_scene_channels_script(GameState *g, unsigned channel, uint16_t v) { IN_RANGE(g, 854, "set_scene_channels_script", "count", channel, 2u); w16(g, 0x7E0A20u + (uint32_t)channel * 0x100u, v); }
+uint8_t scene_channels_loop_counters_byte(const GameState *g, unsigned channel, unsigned at) { IN_RANGE(g, 854, "scene_channels_loop_counters_byte", "count", channel, 2u); IN_RANGE(g, 854, "scene_channels_loop_counters_byte", "bytes", at, 32u); return r8(g, 0x7E0A22u + (uint32_t)channel * 0x100u + at); }
+void set_scene_channels_loop_counters_byte(GameState *g, unsigned channel, unsigned at, uint8_t v) { IN_RANGE(g, 854, "set_scene_channels_loop_counters_byte", "count", channel, 2u); IN_RANGE(g, 854, "set_scene_channels_loop_counters_byte", "bytes", at, 32u); w8(g, 0x7E0A22u + (uint32_t)channel * 0x100u + at, v); }
+uint16_t scene_channels_return_address(const GameState *g, unsigned channel) { IN_RANGE(g, 854, "scene_channels_return_address", "count", channel, 2u); return r16(g, 0x7E0A30u + (uint32_t)channel * 0x100u); }
+void set_scene_channels_return_address(GameState *g, unsigned channel, uint16_t v) { IN_RANGE(g, 854, "set_scene_channels_return_address", "count", channel, 2u); w16(g, 0x7E0A30u + (uint32_t)channel * 0x100u, v); }
+uint16_t scene_race_perspective_camera(const GameState *g, unsigned i) { IN_RANGE(g, 855, "scene_race_perspective_camera", "count", i, 5u); return r16(g, 0x7E0A30u + (uint32_t)i * 0x02u); }
+void set_scene_race_perspective_camera(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 855, "set_scene_race_perspective_camera", "count", i, 5u); w16(g, 0x7E0A30u + (uint32_t)i * 0x02u, v); }
+uint16_t scene_race_turning(const GameState *g, unsigned i) { IN_RANGE(g, 856, "scene_race_turning", "count", i, 2u); return r16(g, 0x7E0A3Au + (uint32_t)i * 0x02u); }
+void set_scene_race_turning(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 856, "set_scene_race_turning", "count", i, 2u); w16(g, 0x7E0A3Au + (uint32_t)i * 0x02u, v); }
+uint8_t scene_stars_across(const GameState *g, unsigned i) { IN_RANGE(g, 857, "scene_stars_across", "count", i, 128u); return r8(g, 0x7E0C00u + (uint32_t)i * 0x04u); }
+void set_scene_stars_across(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 857, "set_scene_stars_across", "count", i, 128u); w8(g, 0x7E0C00u + (uint32_t)i * 0x04u, v); }
+uint8_t scene_stars_down(const GameState *g, unsigned i) { IN_RANGE(g, 857, "scene_stars_down", "count", i, 128u); return r8(g, 0x7E0C01u + (uint32_t)i * 0x04u); }
+void set_scene_stars_down(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 857, "set_scene_stars_down", "count", i, 128u); w8(g, 0x7E0C01u + (uint32_t)i * 0x04u, v); }
+uint8_t scene_tilemap_buffer_byte(const GameState *g, unsigned at) { IN_RANGE(g, 858, "scene_tilemap_buffer_byte", "bytes", at, 2048u); return r8(g, 0x7E0C00u + at); }
+void set_scene_tilemap_buffer_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 858, "set_scene_tilemap_buffer_byte", "bytes", at, 2048u); w8(g, 0x7E0C00u + at, v); }
+uint8_t scene_star_depths(const GameState *g, unsigned i) { IN_RANGE(g, 859, "scene_star_depths", "count", i, 128u); return r8(g, 0x7E0E00u + (uint32_t)i * 0x04u); }
+void set_scene_star_depths(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 859, "set_scene_star_depths", "count", i, 128u); w8(g, 0x7E0E00u + (uint32_t)i * 0x04u, v); }
+uint16_t scene_race_picture_requests_pairs(const GameState *g, unsigned i) { IN_RANGE(g, 860, "scene_race_picture_requests_pairs", "count", i, 2u); return r16(g, 0x7E1400u + (uint32_t)i * 0x0Eu); }
+void set_scene_race_picture_requests_pairs(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 860, "set_scene_race_picture_requests_pairs", "count", i, 2u); w16(g, 0x7E1400u + (uint32_t)i * 0x0Eu, v); }
+uint16_t scene_race_picture_requests_state(const GameState *g, unsigned i) { IN_RANGE(g, 860, "scene_race_picture_requests_state", "count", i, 2u); return r16(g, 0x7E1402u + (uint32_t)i * 0x0Eu); }
+void set_scene_race_picture_requests_state(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 860, "set_scene_race_picture_requests_state", "count", i, 2u); w16(g, 0x7E1402u + (uint32_t)i * 0x0Eu, v); }
+uint16_t scene_race_picture_requests_source(const GameState *g, unsigned i) { IN_RANGE(g, 860, "scene_race_picture_requests_source", "count", i, 2u); return r16(g, 0x7E1404u + (uint32_t)i * 0x0Eu); }
+void set_scene_race_picture_requests_source(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 860, "set_scene_race_picture_requests_source", "count", i, 2u); w16(g, 0x7E1404u + (uint32_t)i * 0x0Eu, v); }
+uint16_t scene_race_picture_requests_rows(const GameState *g, unsigned i) { IN_RANGE(g, 860, "scene_race_picture_requests_rows", "count", i, 2u); return r16(g, 0x7E1406u + (uint32_t)i * 0x0Eu); }
+void set_scene_race_picture_requests_rows(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 860, "set_scene_race_picture_requests_rows", "count", i, 2u); w16(g, 0x7E1406u + (uint32_t)i * 0x0Eu, v); }
+uint16_t scene_race_picture_requests_row_step(const GameState *g, unsigned i) { IN_RANGE(g, 860, "scene_race_picture_requests_row_step", "count", i, 2u); return r16(g, 0x7E1408u + (uint32_t)i * 0x0Eu); }
+void set_scene_race_picture_requests_row_step(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 860, "set_scene_race_picture_requests_row_step", "count", i, 2u); w16(g, 0x7E1408u + (uint32_t)i * 0x0Eu, v); }
+uint16_t scene_race_picture_requests_column_step(const GameState *g, unsigned i) { IN_RANGE(g, 860, "scene_race_picture_requests_column_step", "count", i, 2u); return r16(g, 0x7E140Au + (uint32_t)i * 0x0Eu); }
+void set_scene_race_picture_requests_column_step(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 860, "set_scene_race_picture_requests_column_step", "count", i, 2u); w16(g, 0x7E140Au + (uint32_t)i * 0x0Eu, v); }
+uint16_t scene_race_picture_requests_source_limit(const GameState *g, unsigned i) { IN_RANGE(g, 860, "scene_race_picture_requests_source_limit", "count", i, 2u); return r16(g, 0x7E140Cu + (uint32_t)i * 0x0Eu); }
+void set_scene_race_picture_requests_source_limit(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 860, "set_scene_race_picture_requests_source_limit", "count", i, 2u); w16(g, 0x7E140Cu + (uint32_t)i * 0x0Eu, v); }
+uint8_t scene_credits_row_byte(const GameState *g, unsigned at) { IN_RANGE(g, 861, "scene_credits_row_byte", "bytes", at, 32u); return r8(g, 0x7E1414u + at); }
+void set_scene_credits_row_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 861, "set_scene_credits_row_byte", "bytes", at, 32u); w8(g, 0x7E1414u + at, v); }
 uint16_t scene_race_plane_turn(const GameState *g) { return r16(g, 0x7E141Cu); }
 void set_scene_race_plane_turn(GameState *g, uint16_t v) { w16(g, 0x7E141Cu, v); }
 uint16_t scene_race_horizon(const GameState *g) { return r16(g, 0x7E141Eu); }
 void set_scene_race_horizon(GameState *g, uint16_t v) { w16(g, 0x7E141Eu, v); }
-uint16_t scene_race_view_position(const GameState *g, unsigned i) { IN_RANGE(g, 858, "scene_race_view_position", "count", i, 2u); return r16(g, 0x7E1420u + (uint32_t)i * 0x02u); }
-void set_scene_race_view_position(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 858, "set_scene_race_view_position", "count", i, 2u); w16(g, 0x7E1420u + (uint32_t)i * 0x02u, v); }
-uint16_t scene_race_view_sent(const GameState *g, unsigned i) { IN_RANGE(g, 859, "scene_race_view_sent", "count", i, 4u); return r16(g, 0x7E1424u + (uint32_t)i * 0x02u); }
-void set_scene_race_view_sent(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 859, "set_scene_race_view_sent", "count", i, 4u); w16(g, 0x7E1424u + (uint32_t)i * 0x02u, v); }
+uint16_t scene_race_view_position(const GameState *g, unsigned i) { IN_RANGE(g, 862, "scene_race_view_position", "count", i, 2u); return r16(g, 0x7E1420u + (uint32_t)i * 0x02u); }
+void set_scene_race_view_position(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 862, "set_scene_race_view_position", "count", i, 2u); w16(g, 0x7E1420u + (uint32_t)i * 0x02u, v); }
+uint16_t scene_race_view_sent(const GameState *g, unsigned i) { IN_RANGE(g, 863, "scene_race_view_sent", "count", i, 4u); return r16(g, 0x7E1424u + (uint32_t)i * 0x02u); }
+void set_scene_race_view_sent(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 863, "set_scene_race_view_sent", "count", i, 4u); w16(g, 0x7E1424u + (uint32_t)i * 0x02u, v); }
 uint16_t scene_race_center_x(const GameState *g) { return r16(g, 0x7E142Cu); }
 void set_scene_race_center_x(GameState *g, uint16_t v) { w16(g, 0x7E142Cu, v); }
 uint16_t scene_race_center_y(const GameState *g) { return r16(g, 0x7E142Eu); }
@@ -6985,18 +7010,18 @@ uint16_t scene_race_bg3_scroll_y(const GameState *g) { return r16(g, 0x7E1436u);
 void set_scene_race_bg3_scroll_y(GameState *g, uint16_t v) { w16(g, 0x7E1436u, v); }
 uint16_t scene_race_scenery_drift(const GameState *g) { return r16(g, 0x7E143Eu); }
 void set_scene_race_scenery_drift(GameState *g, uint16_t v) { w16(g, 0x7E143Eu, v); }
-uint16_t scene_race_camera_offset(const GameState *g, unsigned i) { IN_RANGE(g, 860, "scene_race_camera_offset", "count", i, 2u); return r16(g, 0x7E1440u + (uint32_t)i * 0x02u); }
-void set_scene_race_camera_offset(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 860, "set_scene_race_camera_offset", "count", i, 2u); w16(g, 0x7E1440u + (uint32_t)i * 0x02u, v); }
+uint16_t scene_race_camera_offset(const GameState *g, unsigned i) { IN_RANGE(g, 864, "scene_race_camera_offset", "count", i, 2u); return r16(g, 0x7E1440u + (uint32_t)i * 0x02u); }
+void set_scene_race_camera_offset(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 864, "set_scene_race_camera_offset", "count", i, 2u); w16(g, 0x7E1440u + (uint32_t)i * 0x02u, v); }
 uint16_t scene_race_johnny_gone(const GameState *g) { return r16(g, 0x7E1444u); }
 void set_scene_race_johnny_gone(GameState *g, uint16_t v) { w16(g, 0x7E1444u, v); }
-uint8_t scene_race_divisors(const GameState *g, unsigned i) { IN_RANGE(g, 861, "scene_race_divisors", "count", i, 256u); return r8(g, 0x7E1446u + (uint32_t)i * 0x01u); }
-void set_scene_race_divisors(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 861, "set_scene_race_divisors", "count", i, 256u); w8(g, 0x7E1446u + (uint32_t)i * 0x01u, v); }
-uint8_t scene_palette_byte(const GameState *g, unsigned at) { IN_RANGE(g, 862, "scene_palette_byte", "bytes", at, 512u); return r8(g, 0x7E2200u + at); }
-void set_scene_palette_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 862, "set_scene_palette_byte", "bytes", at, 512u); w8(g, 0x7E2200u + at, v); }
+uint8_t scene_race_divisors(const GameState *g, unsigned i) { IN_RANGE(g, 865, "scene_race_divisors", "count", i, 256u); return r8(g, 0x7E1446u + (uint32_t)i * 0x01u); }
+void set_scene_race_divisors(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 865, "set_scene_race_divisors", "count", i, 256u); w8(g, 0x7E1446u + (uint32_t)i * 0x01u, v); }
+uint8_t scene_palette_byte(const GameState *g, unsigned at) { IN_RANGE(g, 866, "scene_palette_byte", "bytes", at, 512u); return r8(g, 0x7E2200u + at); }
+void set_scene_palette_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 866, "set_scene_palette_byte", "bytes", at, 512u); w8(g, 0x7E2200u + at, v); }
 uint16_t scene_main_loop_call(const GameState *g) { return r16(g, 0x7E3024u); }
 void set_scene_main_loop_call(GameState *g, uint16_t v) { w16(g, 0x7E3024u, v); }
-uint16_t scene_program_setups(const GameState *g, unsigned i) { IN_RANGE(g, 863, "scene_program_setups", "count", i, 16u); return r16(g, 0x7E3043u + (uint32_t)i * 0x02u); }
-void set_scene_program_setups(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 863, "set_scene_program_setups", "count", i, 16u); w16(g, 0x7E3043u + (uint32_t)i * 0x02u, v); }
+uint16_t scene_program_setups(const GameState *g, unsigned i) { IN_RANGE(g, 867, "scene_program_setups", "count", i, 16u); return r16(g, 0x7E3043u + (uint32_t)i * 0x02u); }
+void set_scene_program_setups(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 867, "set_scene_program_setups", "count", i, 16u); w16(g, 0x7E3043u + (uint32_t)i * 0x02u, v); }
 uint16_t scene_perspective_start(const GameState *g) { return r16(g, 0x7E35FDu); }
 void set_scene_perspective_start(GameState *g, uint16_t v) { w16(g, 0x7E35FDu, v); }
 uint16_t scene_perspective_across_product(const GameState *g) { return r16(g, 0x7E360Bu); }
@@ -7015,26 +7040,26 @@ uint16_t scene_perspective_end(const GameState *g) { return r16(g, 0x7E3637u); }
 void set_scene_perspective_end(GameState *g, uint16_t v) { w16(g, 0x7E3637u, v); }
 uint16_t scene_perspective_pair_branch(const GameState *g) { return r16(g, 0x7E368Fu); }
 void set_scene_perspective_pair_branch(GameState *g, uint16_t v) { w16(g, 0x7E368Fu, v); }
-uint8_t scene_number_digits(const GameState *g, unsigned i) { IN_RANGE(g, 864, "scene_number_digits", "count", i, 21u); return r8(g, 0x7E3A7Du + (uint32_t)i * 0x01u); }
-void set_scene_number_digits(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 864, "set_scene_number_digits", "count", i, 21u); w8(g, 0x7E3A7Du + (uint32_t)i * 0x01u, v); }
-uint16_t scene_race_openings(const GameState *g, unsigned i) { IN_RANGE(g, 865, "scene_race_openings", "count", i, 2u); return r16(g, 0x7E3F66u + (uint32_t)i * 0x02u); }
-void set_scene_race_openings(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 865, "set_scene_race_openings", "count", i, 2u); w16(g, 0x7E3F66u + (uint32_t)i * 0x02u, v); }
+uint8_t scene_number_digits(const GameState *g, unsigned i) { IN_RANGE(g, 868, "scene_number_digits", "count", i, 21u); return r8(g, 0x7E3A7Du + (uint32_t)i * 0x01u); }
+void set_scene_number_digits(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 868, "set_scene_number_digits", "count", i, 21u); w8(g, 0x7E3A7Du + (uint32_t)i * 0x01u, v); }
+uint16_t scene_race_openings(const GameState *g, unsigned i) { IN_RANGE(g, 869, "scene_race_openings", "count", i, 2u); return r16(g, 0x7E3F66u + (uint32_t)i * 0x02u); }
+void set_scene_race_openings(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 869, "set_scene_race_openings", "count", i, 2u); w16(g, 0x7E3F66u + (uint32_t)i * 0x02u, v); }
 uint8_t scene_race_ending_sweep(const GameState *g) { return r8(g, 0x7E4259u); }
 void set_scene_race_ending_sweep(GameState *g, uint8_t v) { w8(g, 0x7E4259u, v); }
-uint16_t scene_race_steering_by_view(const GameState *g, unsigned i) { IN_RANGE(g, 866, "scene_race_steering_by_view", "count", i, 16u); return r16(g, 0x7E4319u + (uint32_t)i * 0x02u); }
-void set_scene_race_steering_by_view(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 866, "set_scene_race_steering_by_view", "count", i, 16u); w16(g, 0x7E4319u + (uint32_t)i * 0x02u, v); }
-uint8_t scene_race_line_counts(const GameState *g, unsigned i) { IN_RANGE(g, 867, "scene_race_line_counts", "count", i, 2u); return r8(g, 0x7E451Fu + (uint32_t)i * 0x03u); }
-void set_scene_race_line_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 867, "set_scene_race_line_counts", "count", i, 2u); w8(g, 0x7E451Fu + (uint32_t)i * 0x03u, v); }
-uint8_t scene_race_math_line_counts(const GameState *g, unsigned i) { IN_RANGE(g, 868, "scene_race_math_line_counts", "count", i, 2u); return r8(g, 0x7E452Bu + (uint32_t)i * 0x03u); }
-void set_scene_race_math_line_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 868, "set_scene_race_math_line_counts", "count", i, 2u); w8(g, 0x7E452Bu + (uint32_t)i * 0x03u, v); }
+uint16_t scene_race_steering_by_view(const GameState *g, unsigned i) { IN_RANGE(g, 870, "scene_race_steering_by_view", "count", i, 16u); return r16(g, 0x7E4319u + (uint32_t)i * 0x02u); }
+void set_scene_race_steering_by_view(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 870, "set_scene_race_steering_by_view", "count", i, 16u); w16(g, 0x7E4319u + (uint32_t)i * 0x02u, v); }
+uint8_t scene_race_line_counts(const GameState *g, unsigned i) { IN_RANGE(g, 871, "scene_race_line_counts", "count", i, 2u); return r8(g, 0x7E451Fu + (uint32_t)i * 0x03u); }
+void set_scene_race_line_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 871, "set_scene_race_line_counts", "count", i, 2u); w8(g, 0x7E451Fu + (uint32_t)i * 0x03u, v); }
+uint8_t scene_race_math_line_counts(const GameState *g, unsigned i) { IN_RANGE(g, 872, "scene_race_math_line_counts", "count", i, 2u); return r8(g, 0x7E452Bu + (uint32_t)i * 0x03u); }
+void set_scene_race_math_line_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 872, "set_scene_race_math_line_counts", "count", i, 2u); w8(g, 0x7E452Bu + (uint32_t)i * 0x03u, v); }
 uint8_t scene_plane_far_color_math(const GameState *g) { return r8(g, 0x7E4562u); }
 void set_scene_plane_far_color_math(GameState *g, uint8_t v) { w8(g, 0x7E4562u, v); }
-uint8_t scene_race_scroll_line_counts(const GameState *g, unsigned i) { IN_RANGE(g, 869, "scene_race_scroll_line_counts", "count", i, 2u); return r8(g, 0x7E45A6u + (uint32_t)i * 0x03u); }
-void set_scene_race_scroll_line_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 869, "set_scene_race_scroll_line_counts", "count", i, 2u); w8(g, 0x7E45A6u + (uint32_t)i * 0x03u, v); }
-uint16_t scene_race_finish_lanes(const GameState *g, unsigned i) { IN_RANGE(g, 870, "scene_race_finish_lanes", "count", i, 2u); return r16(g, 0x7E46CEu + (uint32_t)i * 0x16u); }
-void set_scene_race_finish_lanes(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 870, "set_scene_race_finish_lanes", "count", i, 2u); w16(g, 0x7E46CEu + (uint32_t)i * 0x16u, v); }
-uint16_t scene_race_lucky_scores(const GameState *g, unsigned i) { IN_RANGE(g, 871, "scene_race_lucky_scores", "count", i, 11u); return r16(g, 0x7E4772u + (uint32_t)i * 0x02u); }
-void set_scene_race_lucky_scores(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 871, "set_scene_race_lucky_scores", "count", i, 11u); w16(g, 0x7E4772u + (uint32_t)i * 0x02u, v); }
+uint8_t scene_race_scroll_line_counts(const GameState *g, unsigned i) { IN_RANGE(g, 873, "scene_race_scroll_line_counts", "count", i, 2u); return r8(g, 0x7E45A6u + (uint32_t)i * 0x03u); }
+void set_scene_race_scroll_line_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 873, "set_scene_race_scroll_line_counts", "count", i, 2u); w8(g, 0x7E45A6u + (uint32_t)i * 0x03u, v); }
+uint16_t scene_race_finish_lanes(const GameState *g, unsigned i) { IN_RANGE(g, 874, "scene_race_finish_lanes", "count", i, 2u); return r16(g, 0x7E46CEu + (uint32_t)i * 0x16u); }
+void set_scene_race_finish_lanes(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 874, "set_scene_race_finish_lanes", "count", i, 2u); w16(g, 0x7E46CEu + (uint32_t)i * 0x16u, v); }
+uint16_t scene_race_lucky_scores(const GameState *g, unsigned i) { IN_RANGE(g, 875, "scene_race_lucky_scores", "count", i, 11u); return r16(g, 0x7E4772u + (uint32_t)i * 0x02u); }
+void set_scene_race_lucky_scores(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 875, "set_scene_race_lucky_scores", "count", i, 11u); w16(g, 0x7E4772u + (uint32_t)i * 0x02u, v); }
 uint16_t scene_race_bar_right(const GameState *g) { return r16(g, 0x7E4F74u); }
 void set_scene_race_bar_right(GameState *g, uint16_t v) { w16(g, 0x7E4F74u, v); }
 uint16_t scene_race_markers_right(const GameState *g) { return r16(g, 0x7E50DAu); }
@@ -7043,18 +7068,18 @@ uint8_t scene_race_markers_shown(const GameState *g) { return r8(g, 0x7E510Du); 
 void set_scene_race_markers_shown(GameState *g, uint8_t v) { w8(g, 0x7E510Du, v); }
 uint16_t scene_race_distance_shown_less(const GameState *g) { return r16(g, 0x7E5171u); }
 void set_scene_race_distance_shown_less(GameState *g, uint16_t v) { w16(g, 0x7E5171u, v); }
-uint16_t scene_race_johnny_frames(const GameState *g, unsigned i) { IN_RANGE(g, 872, "scene_race_johnny_frames", "count", i, 16u); return r16(g, 0x7E51B1u + (uint32_t)i * 0x02u); }
-void set_scene_race_johnny_frames(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 872, "set_scene_race_johnny_frames", "count", i, 16u); w16(g, 0x7E51B1u + (uint32_t)i * 0x02u, v); }
-uint16_t scene_race_crono_frames(const GameState *g, unsigned i) { IN_RANGE(g, 873, "scene_race_crono_frames", "count", i, 48u); return r16(g, 0x7E528Bu + (uint32_t)i * 0x02u); }
-void set_scene_race_crono_frames(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 873, "set_scene_race_crono_frames", "count", i, 48u); w16(g, 0x7E528Bu + (uint32_t)i * 0x02u, v); }
-uint16_t scene_race_crono_frame_ends(const GameState *g, unsigned i) { IN_RANGE(g, 874, "scene_race_crono_frame_ends", "count", i, 8u); return r16(g, 0x7E52EBu + (uint32_t)i * 0x02u); }
-void set_scene_race_crono_frame_ends(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 874, "set_scene_race_crono_frame_ends", "count", i, 8u); w16(g, 0x7E52EBu + (uint32_t)i * 0x02u, v); }
-uint16_t scene_race_crono_frame_rows(const GameState *g, unsigned i) { IN_RANGE(g, 875, "scene_race_crono_frame_rows", "count", i, 8u); return r16(g, 0x7E52FBu + (uint32_t)i * 0x02u); }
-void set_scene_race_crono_frame_rows(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 875, "set_scene_race_crono_frame_rows", "count", i, 8u); w16(g, 0x7E52FBu + (uint32_t)i * 0x02u, v); }
-uint16_t scene_race_crono_sprite_counts(const GameState *g, unsigned i) { IN_RANGE(g, 876, "scene_race_crono_sprite_counts", "count", i, 8u); return r16(g, 0x7E530Bu + (uint32_t)i * 0x02u); }
-void set_scene_race_crono_sprite_counts(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 876, "set_scene_race_crono_sprite_counts", "count", i, 8u); w16(g, 0x7E530Bu + (uint32_t)i * 0x02u, v); }
-uint8_t scene_race_sprite_list_counts(const GameState *g, unsigned i) { IN_RANGE(g, 877, "scene_race_sprite_list_counts", "count", i, 2u); return r8(g, 0x7E531Bu + (uint32_t)i * 0x41u); }
-void set_scene_race_sprite_list_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 877, "set_scene_race_sprite_list_counts", "count", i, 2u); w8(g, 0x7E531Bu + (uint32_t)i * 0x41u, v); }
+uint16_t scene_race_johnny_frames(const GameState *g, unsigned i) { IN_RANGE(g, 876, "scene_race_johnny_frames", "count", i, 16u); return r16(g, 0x7E51B1u + (uint32_t)i * 0x02u); }
+void set_scene_race_johnny_frames(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 876, "set_scene_race_johnny_frames", "count", i, 16u); w16(g, 0x7E51B1u + (uint32_t)i * 0x02u, v); }
+uint16_t scene_race_crono_frames(const GameState *g, unsigned i) { IN_RANGE(g, 877, "scene_race_crono_frames", "count", i, 48u); return r16(g, 0x7E528Bu + (uint32_t)i * 0x02u); }
+void set_scene_race_crono_frames(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 877, "set_scene_race_crono_frames", "count", i, 48u); w16(g, 0x7E528Bu + (uint32_t)i * 0x02u, v); }
+uint16_t scene_race_crono_frame_ends(const GameState *g, unsigned i) { IN_RANGE(g, 878, "scene_race_crono_frame_ends", "count", i, 8u); return r16(g, 0x7E52EBu + (uint32_t)i * 0x02u); }
+void set_scene_race_crono_frame_ends(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 878, "set_scene_race_crono_frame_ends", "count", i, 8u); w16(g, 0x7E52EBu + (uint32_t)i * 0x02u, v); }
+uint16_t scene_race_crono_frame_rows(const GameState *g, unsigned i) { IN_RANGE(g, 879, "scene_race_crono_frame_rows", "count", i, 8u); return r16(g, 0x7E52FBu + (uint32_t)i * 0x02u); }
+void set_scene_race_crono_frame_rows(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 879, "set_scene_race_crono_frame_rows", "count", i, 8u); w16(g, 0x7E52FBu + (uint32_t)i * 0x02u, v); }
+uint16_t scene_race_crono_sprite_counts(const GameState *g, unsigned i) { IN_RANGE(g, 880, "scene_race_crono_sprite_counts", "count", i, 8u); return r16(g, 0x7E530Bu + (uint32_t)i * 0x02u); }
+void set_scene_race_crono_sprite_counts(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 880, "set_scene_race_crono_sprite_counts", "count", i, 8u); w16(g, 0x7E530Bu + (uint32_t)i * 0x02u, v); }
+uint8_t scene_race_sprite_list_counts(const GameState *g, unsigned i) { IN_RANGE(g, 881, "scene_race_sprite_list_counts", "count", i, 2u); return r8(g, 0x7E531Bu + (uint32_t)i * 0x41u); }
+void set_scene_race_sprite_list_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 881, "set_scene_race_sprite_list_counts", "count", i, 2u); w8(g, 0x7E531Bu + (uint32_t)i * 0x41u, v); }
 uint8_t scene_race_panel_sprites(const GameState *g) { return r8(g, 0x7E5395u); }
 void set_scene_race_panel_sprites(GameState *g, uint8_t v) { w8(g, 0x7E5395u, v); }
 uint8_t scene_race_bar_end_x(const GameState *g) { return r8(g, 0x7E53A0u); }
@@ -7075,111 +7100,125 @@ uint8_t scene_caption_line_y(const GameState *g) { return r8(g, 0x7E64DAu); }
 void set_scene_caption_line_y(GameState *g, uint8_t v) { w8(g, 0x7E64DAu, v); }
 uint8_t scene_caption_letter_attributes(const GameState *g) { return r8(g, 0x7E6525u); }
 void set_scene_caption_letter_attributes(GameState *g, uint8_t v) { w8(g, 0x7E6525u, v); }
-uint8_t scene_caption_letters(const GameState *g, unsigned i) { IN_RANGE(g, 878, "scene_caption_letters", "count", i, 288u); return r8(g, 0x7E662Fu + (uint32_t)i * 0x01u); }
-void set_scene_caption_letters(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 878, "set_scene_caption_letters", "count", i, 288u); w8(g, 0x7E662Fu + (uint32_t)i * 0x01u, v); }
-uint8_t scene_ending_picture_sprite_counts(const GameState *g, unsigned i) { IN_RANGE(g, 879, "scene_ending_picture_sprite_counts", "count", i, 2u); return r8(g, 0x7E88B9u + (uint32_t)i * 0x21u); }
-void set_scene_ending_picture_sprite_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 879, "set_scene_ending_picture_sprite_counts", "count", i, 2u); w8(g, 0x7E88B9u + (uint32_t)i * 0x21u, v); }
-uint8_t scene_ending_window_above(const GameState *g, unsigned i) { IN_RANGE(g, 880, "scene_ending_window_above", "count", i, 2u); return r8(g, 0x7E9070u + (uint32_t)i * 0x03u); }
-void set_scene_ending_window_above(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 880, "set_scene_ending_window_above", "count", i, 2u); w8(g, 0x7E9070u + (uint32_t)i * 0x03u, v); }
-uint8_t scene_ending_window_lines(const GameState *g, unsigned i) { IN_RANGE(g, 881, "scene_ending_window_lines", "count", i, 2u); return r8(g, 0x7E9076u + (uint32_t)i * 0x03u); }
-void set_scene_ending_window_lines(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 881, "set_scene_ending_window_lines", "count", i, 2u); w8(g, 0x7E9076u + (uint32_t)i * 0x03u, v); }
-uint8_t scene_ending_window_from(const GameState *g, unsigned i) { IN_RANGE(g, 882, "scene_ending_window_from", "count", i, 2u); return r8(g, 0x7E9077u + (uint32_t)i * 0x03u); }
-void set_scene_ending_window_from(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 882, "set_scene_ending_window_from", "count", i, 2u); w8(g, 0x7E9077u + (uint32_t)i * 0x03u, v); }
-uint8_t scene_ending_window_to(const GameState *g, unsigned i) { IN_RANGE(g, 883, "scene_ending_window_to", "count", i, 2u); return r8(g, 0x7E9078u + (uint32_t)i * 0x03u); }
-void set_scene_ending_window_to(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 883, "set_scene_ending_window_to", "count", i, 2u); w8(g, 0x7E9078u + (uint32_t)i * 0x03u, v); }
-uint8_t scene_credits_scroll_register(const GameState *g, unsigned i) { IN_RANGE(g, 884, "scene_credits_scroll_register", "count", i, 2u); return r8(g, 0x7E9F23u + (uint32_t)i * 0x05u); }
-void set_scene_credits_scroll_register(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 884, "set_scene_credits_scroll_register", "count", i, 2u); w8(g, 0x7E9F23u + (uint32_t)i * 0x05u, v); }
-uint8_t scene_race_plane_column_byte(const GameState *g, unsigned at) { IN_RANGE(g, 885, "scene_race_plane_column_byte", "bytes", at, 20u); return r8(g, 0x7EC995u + at); }
-void set_scene_race_plane_column_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 885, "set_scene_race_plane_column_byte", "bytes", at, 20u); w8(g, 0x7EC995u + at, v); }
-uint8_t scene_race_road_strip_byte(const GameState *g, unsigned at) { IN_RANGE(g, 886, "scene_race_road_strip_byte", "bytes", at, 64u); return r8(g, 0x7EE100u + at); }
-void set_scene_race_road_strip_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 886, "set_scene_race_road_strip_byte", "bytes", at, 64u); w8(g, 0x7EE100u + at, v); }
-uint8_t scene_race_line_tables_byte(const GameState *g, unsigned at) { IN_RANGE(g, 887, "scene_race_line_tables_byte", "bytes", at, 4096u); return r8(g, 0x7EF000u + at); }
-void set_scene_race_line_tables_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 887, "set_scene_race_line_tables_byte", "bytes", at, 4096u); w8(g, 0x7EF000u + at, v); }
+uint8_t scene_caption_letters(const GameState *g, unsigned i) { IN_RANGE(g, 882, "scene_caption_letters", "count", i, 288u); return r8(g, 0x7E662Fu + (uint32_t)i * 0x01u); }
+void set_scene_caption_letters(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 882, "set_scene_caption_letters", "count", i, 288u); w8(g, 0x7E662Fu + (uint32_t)i * 0x01u, v); }
+uint8_t scene_palace_darkening_step(const GameState *g) { return r8(g, 0x7E6A5Fu); }
+void set_scene_palace_darkening_step(GameState *g, uint8_t v) { w8(g, 0x7E6A5Fu, v); }
+uint8_t scene_palace_whitening_step(const GameState *g) { return r8(g, 0x7E6A82u); }
+void set_scene_palace_whitening_step(GameState *g, uint8_t v) { w8(g, 0x7E6A82u, v); }
+uint8_t scene_palace_clearing_step(const GameState *g) { return r8(g, 0x7E6AABu); }
+void set_scene_palace_clearing_step(GameState *g, uint8_t v) { w8(g, 0x7E6AABu, v); }
+uint8_t scene_turned_map_rows(const GameState *g) { return r8(g, 0x7E7442u); }
+void set_scene_turned_map_rows(GameState *g, uint8_t v) { w8(g, 0x7E7442u, v); }
+uint16_t scene_map_upload_vram(const GameState *g) { return r16(g, 0x7E7841u); }
+void set_scene_map_upload_vram(GameState *g, uint16_t v) { w16(g, 0x7E7841u, v); }
+uint8_t scene_ending_picture_sprite_counts(const GameState *g, unsigned i) { IN_RANGE(g, 883, "scene_ending_picture_sprite_counts", "count", i, 2u); return r8(g, 0x7E88B9u + (uint32_t)i * 0x21u); }
+void set_scene_ending_picture_sprite_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 883, "set_scene_ending_picture_sprite_counts", "count", i, 2u); w8(g, 0x7E88B9u + (uint32_t)i * 0x21u, v); }
+uint8_t scene_ending_window_above(const GameState *g, unsigned i) { IN_RANGE(g, 884, "scene_ending_window_above", "count", i, 2u); return r8(g, 0x7E9070u + (uint32_t)i * 0x03u); }
+void set_scene_ending_window_above(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 884, "set_scene_ending_window_above", "count", i, 2u); w8(g, 0x7E9070u + (uint32_t)i * 0x03u, v); }
+uint8_t scene_ending_window_lines(const GameState *g, unsigned i) { IN_RANGE(g, 885, "scene_ending_window_lines", "count", i, 2u); return r8(g, 0x7E9076u + (uint32_t)i * 0x03u); }
+void set_scene_ending_window_lines(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 885, "set_scene_ending_window_lines", "count", i, 2u); w8(g, 0x7E9076u + (uint32_t)i * 0x03u, v); }
+uint8_t scene_ending_window_from(const GameState *g, unsigned i) { IN_RANGE(g, 886, "scene_ending_window_from", "count", i, 2u); return r8(g, 0x7E9077u + (uint32_t)i * 0x03u); }
+void set_scene_ending_window_from(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 886, "set_scene_ending_window_from", "count", i, 2u); w8(g, 0x7E9077u + (uint32_t)i * 0x03u, v); }
+uint8_t scene_ending_window_to(const GameState *g, unsigned i) { IN_RANGE(g, 887, "scene_ending_window_to", "count", i, 2u); return r8(g, 0x7E9078u + (uint32_t)i * 0x03u); }
+void set_scene_ending_window_to(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 887, "set_scene_ending_window_to", "count", i, 2u); w8(g, 0x7E9078u + (uint32_t)i * 0x03u, v); }
+uint8_t scene_credits_scroll_register(const GameState *g, unsigned i) { IN_RANGE(g, 888, "scene_credits_scroll_register", "count", i, 2u); return r8(g, 0x7E9F23u + (uint32_t)i * 0x05u); }
+void set_scene_credits_scroll_register(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 888, "set_scene_credits_scroll_register", "count", i, 2u); w8(g, 0x7E9F23u + (uint32_t)i * 0x05u, v); }
+uint8_t scene_race_plane_column_byte(const GameState *g, unsigned at) { IN_RANGE(g, 889, "scene_race_plane_column_byte", "bytes", at, 20u); return r8(g, 0x7EC995u + at); }
+void set_scene_race_plane_column_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 889, "set_scene_race_plane_column_byte", "bytes", at, 20u); w8(g, 0x7EC995u + at, v); }
+uint8_t scene_race_road_strip_byte(const GameState *g, unsigned at) { IN_RANGE(g, 890, "scene_race_road_strip_byte", "bytes", at, 64u); return r8(g, 0x7EE100u + at); }
+void set_scene_race_road_strip_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 890, "set_scene_race_road_strip_byte", "bytes", at, 64u); w8(g, 0x7EE100u + at, v); }
+uint16_t scene_palace_line_shifts(const GameState *g, unsigned line) { IN_RANGE(g, 891, "scene_palace_line_shifts", "count", line, 224u); return r16(g, 0x7EF000u + (uint32_t)line * 0x02u); }
+void set_scene_palace_line_shifts(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 891, "set_scene_palace_line_shifts", "count", line, 224u); w16(g, 0x7EF000u + (uint32_t)line * 0x02u, v); }
+uint8_t scene_race_line_tables_byte(const GameState *g, unsigned at) { IN_RANGE(g, 892, "scene_race_line_tables_byte", "bytes", at, 4096u); return r8(g, 0x7EF000u + at); }
+void set_scene_race_line_tables_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 892, "set_scene_race_line_tables_byte", "bytes", at, 4096u); w8(g, 0x7EF000u + at, v); }
 uint16_t scene_plane_line_above_b(const GameState *g) { return r16(g, 0x7EF0FEu); }
 void set_scene_plane_line_above_b(GameState *g, uint16_t v) { w16(g, 0x7EF0FEu, v); }
-uint16_t scene_plane_matrix_top_row_a(const GameState *g, unsigned line) { IN_RANGE(g, 888, "scene_plane_matrix_top_row_a", "count", line, 224u); return r16(g, 0x7EF100u + (uint32_t)line * 0x04u); }
-void set_scene_plane_matrix_top_row_a(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 888, "set_scene_plane_matrix_top_row_a", "count", line, 224u); w16(g, 0x7EF100u + (uint32_t)line * 0x04u, v); }
-uint16_t scene_plane_matrix_top_row_b(const GameState *g, unsigned line) { IN_RANGE(g, 888, "scene_plane_matrix_top_row_b", "count", line, 224u); return r16(g, 0x7EF102u + (uint32_t)line * 0x04u); }
-void set_scene_plane_matrix_top_row_b(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 888, "set_scene_plane_matrix_top_row_b", "count", line, 224u); w16(g, 0x7EF102u + (uint32_t)line * 0x04u, v); }
+uint16_t scene_plane_matrix_top_row_a(const GameState *g, unsigned line) { IN_RANGE(g, 893, "scene_plane_matrix_top_row_a", "count", line, 224u); return r16(g, 0x7EF100u + (uint32_t)line * 0x04u); }
+void set_scene_plane_matrix_top_row_a(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 893, "set_scene_plane_matrix_top_row_a", "count", line, 224u); w16(g, 0x7EF100u + (uint32_t)line * 0x04u, v); }
+uint16_t scene_plane_matrix_top_row_b(const GameState *g, unsigned line) { IN_RANGE(g, 893, "scene_plane_matrix_top_row_b", "count", line, 224u); return r16(g, 0x7EF102u + (uint32_t)line * 0x04u); }
+void set_scene_plane_matrix_top_row_b(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 893, "set_scene_plane_matrix_top_row_b", "count", line, 224u); w16(g, 0x7EF102u + (uint32_t)line * 0x04u, v); }
 uint16_t scene_plane_line_above_c(const GameState *g) { return r16(g, 0x7EF484u); }
 void set_scene_plane_line_above_c(GameState *g, uint16_t v) { w16(g, 0x7EF484u, v); }
-uint16_t scene_plane_matrix_bottom_row_c(const GameState *g, unsigned line) { IN_RANGE(g, 889, "scene_plane_matrix_bottom_row_c", "count", line, 224u); return r16(g, 0x7EF488u + (uint32_t)line * 0x04u); }
-void set_scene_plane_matrix_bottom_row_c(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 889, "set_scene_plane_matrix_bottom_row_c", "count", line, 224u); w16(g, 0x7EF488u + (uint32_t)line * 0x04u, v); }
-uint16_t scene_plane_matrix_bottom_row_d(const GameState *g, unsigned line) { IN_RANGE(g, 889, "scene_plane_matrix_bottom_row_d", "count", line, 224u); return r16(g, 0x7EF48Au + (uint32_t)line * 0x04u); }
-void set_scene_plane_matrix_bottom_row_d(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 889, "set_scene_plane_matrix_bottom_row_d", "count", line, 224u); w16(g, 0x7EF48Au + (uint32_t)line * 0x04u, v); }
+uint16_t scene_plane_matrix_bottom_row_c(const GameState *g, unsigned line) { IN_RANGE(g, 894, "scene_plane_matrix_bottom_row_c", "count", line, 224u); return r16(g, 0x7EF488u + (uint32_t)line * 0x04u); }
+void set_scene_plane_matrix_bottom_row_c(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 894, "set_scene_plane_matrix_bottom_row_c", "count", line, 224u); w16(g, 0x7EF488u + (uint32_t)line * 0x04u, v); }
+uint16_t scene_plane_matrix_bottom_row_d(const GameState *g, unsigned line) { IN_RANGE(g, 894, "scene_plane_matrix_bottom_row_d", "count", line, 224u); return r16(g, 0x7EF48Au + (uint32_t)line * 0x04u); }
+void set_scene_plane_matrix_bottom_row_d(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 894, "set_scene_plane_matrix_bottom_row_d", "count", line, 224u); w16(g, 0x7EF48Au + (uint32_t)line * 0x04u, v); }
 uint8_t scene_title_left_with_a_button(const GameState *g) { return r8(g, 0x7F0060u); }
 void set_scene_title_left_with_a_button(GameState *g, uint8_t v) { w8(g, 0x7F0060u, v); }
-uint16_t scene_race_picture(const GameState *g, unsigned i) { IN_RANGE(g, 890, "scene_race_picture", "count", i, 1152u); return r16(g, 0x7F0200u + (uint32_t)i * 0x02u); }
-void set_scene_race_picture(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 890, "set_scene_race_picture", "count", i, 1152u); w16(g, 0x7F0200u + (uint32_t)i * 0x02u, v); }
-uint8_t scene_race_scaler_output_byte(const GameState *g, unsigned at) { IN_RANGE(g, 891, "scene_race_scaler_output_byte", "bytes", at, 1792u); return r8(g, 0x7F0300u + at); }
-void set_scene_race_scaler_output_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 891, "set_scene_race_scaler_output_byte", "bytes", at, 1792u); w8(g, 0x7F0300u + at, v); }
-uint8_t scene_race_plane_map_byte(const GameState *g, unsigned at) { IN_RANGE(g, 892, "scene_race_plane_map_byte", "bytes", at, 8192u); return r8(g, 0x7F2200u + at); }
-void set_scene_race_plane_map_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 892, "set_scene_race_plane_map_byte", "bytes", at, 8192u); w8(g, 0x7F2200u + at, v); }
+uint16_t scene_race_picture(const GameState *g, unsigned i) { IN_RANGE(g, 895, "scene_race_picture", "count", i, 1152u); return r16(g, 0x7F0200u + (uint32_t)i * 0x02u); }
+void set_scene_race_picture(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 895, "set_scene_race_picture", "count", i, 1152u); w16(g, 0x7F0200u + (uint32_t)i * 0x02u, v); }
+uint8_t scene_race_scaler_output_byte(const GameState *g, unsigned at) { IN_RANGE(g, 896, "scene_race_scaler_output_byte", "bytes", at, 1792u); return r8(g, 0x7F0300u + at); }
+void set_scene_race_scaler_output_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 896, "set_scene_race_scaler_output_byte", "bytes", at, 1792u); w8(g, 0x7F0300u + at, v); }
+uint8_t scene_race_plane_map_byte(const GameState *g, unsigned at) { IN_RANGE(g, 897, "scene_race_plane_map_byte", "bytes", at, 8192u); return r8(g, 0x7F2200u + at); }
+void set_scene_race_plane_map_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 897, "set_scene_race_plane_map_byte", "bytes", at, 8192u); w8(g, 0x7F2200u + at, v); }
 uint16_t scene_plane_line_above_a(const GameState *g) { return r16(g, 0x7FF0FCu); }
 void set_scene_plane_line_above_a(GameState *g, uint16_t v) { w16(g, 0x7FF0FCu, v); }
 uint16_t scene_plane_line_above_d(const GameState *g) { return r16(g, 0x7FF486u); }
 void set_scene_plane_line_above_d(GameState *g, uint16_t v) { w16(g, 0x7FF486u, v); }
-uint16_t scene_call_first(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_first", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
-void set_scene_call_first(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_first", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
-uint16_t scene_call_second(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_second", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF2u); }
-void set_scene_call_second(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_second", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF2u, v); }
-uint32_t scene_call_dividend(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_dividend", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF0u); }
-void set_scene_call_dividend(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 893, "set_scene_call_dividend", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF0u, v); }
-uint32_t scene_call_product(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_product", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF4u); }
-void set_scene_call_product(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 893, "set_scene_call_product", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF4u, v); }
-uint8_t scene_call_product_third_byte(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_product_third_byte", "instances", page.index, scene_program_page_count(page)); return r8(g, scene_program_page_base(page) + 0xF6u); }
-void set_scene_call_product_third_byte(GameState *g, SceneProgramPage page, uint8_t v) { IN_RANGE(g, 893, "set_scene_call_product_third_byte", "instances", page.index, scene_program_page_count(page)); w8(g, scene_program_page_base(page) + 0xF6u, v); }
-uint32_t scene_call_divisor(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_divisor", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF4u); }
-void set_scene_call_divisor(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 893, "set_scene_call_divisor", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF4u, v); }
-uint16_t scene_call_fraction(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_fraction", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF4u); }
-void set_scene_call_fraction(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_fraction", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF4u, v); }
-uint16_t scene_call_quotient_limit(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_quotient_limit", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF4u); }
-void set_scene_call_quotient_limit(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_quotient_limit", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF4u, v); }
-uint32_t scene_call_quotient(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_quotient", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF8u); }
-void set_scene_call_quotient(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 893, "set_scene_call_quotient", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF8u, v); }
-uint8_t scene_call_after_the_product(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_after_the_product", "instances", page.index, scene_program_page_count(page)); return r8(g, scene_program_page_base(page) + 0xF8u); }
-void set_scene_call_after_the_product(GameState *g, SceneProgramPage page, uint8_t v) { IN_RANGE(g, 893, "set_scene_call_after_the_product", "instances", page.index, scene_program_page_count(page)); w8(g, scene_program_page_base(page) + 0xF8u, v); }
-uint16_t scene_call_divisor_less_one(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_divisor_less_one", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF8u); }
-void set_scene_call_divisor_less_one(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_divisor_less_one", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF8u, v); }
-uint32_t scene_call_remainder(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_remainder", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xFCu); }
-void set_scene_call_remainder(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 893, "set_scene_call_remainder", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xFCu, v); }
-uint8_t scene_call_transfer_control(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_transfer_control", "instances", page.index, scene_program_page_count(page)); return r8(g, scene_program_page_base(page) + 0xF0u); }
-void set_scene_call_transfer_control(GameState *g, SceneProgramPage page, uint8_t v) { IN_RANGE(g, 893, "set_scene_call_transfer_control", "instances", page.index, scene_program_page_count(page)); w8(g, scene_program_page_base(page) + 0xF0u, v); }
-uint8_t scene_call_transfer_register(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_transfer_register", "instances", page.index, scene_program_page_count(page)); return r8(g, scene_program_page_base(page) + 0xF2u); }
-void set_scene_call_transfer_register(GameState *g, SceneProgramPage page, uint8_t v) { IN_RANGE(g, 893, "set_scene_call_transfer_register", "instances", page.index, scene_program_page_count(page)); w8(g, scene_program_page_base(page) + 0xF2u, v); }
-uint16_t scene_call_matrix_table_offset(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_matrix_table_offset", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
-void set_scene_call_matrix_table_offset(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_matrix_table_offset", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
-uint16_t scene_call_matrix_tile_step(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_matrix_tile_step", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF2u); }
-void set_scene_call_matrix_tile_step(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_matrix_tile_step", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF2u, v); }
-uint16_t scene_call_matrix_plane_pair_step(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_matrix_plane_pair_step", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF4u); }
-void set_scene_call_matrix_plane_pair_step(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_matrix_plane_pair_step", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF4u, v); }
-uint16_t scene_call_matrix_row_step(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_matrix_row_step", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF6u); }
-void set_scene_call_matrix_row_step(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_matrix_row_step", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF6u, v); }
-uint16_t scene_call_matrix_source(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_matrix_source", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF8u); }
-void set_scene_call_matrix_source(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_matrix_source", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF8u, v); }
-uint16_t scene_call_matrix_destination(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_matrix_destination", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xFAu); }
-void set_scene_call_matrix_destination(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_matrix_destination", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xFAu, v); }
-uint32_t scene_call_bump_push(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_bump_push", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF6u); }
-void set_scene_call_bump_push(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 893, "set_scene_call_bump_push", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF6u, v); }
-uint16_t scene_call_race_edge_half_width(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_race_edge_half_width", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
-void set_scene_call_race_edge_half_width(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_race_edge_half_width", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
-uint16_t scene_call_race_edge_middle(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_race_edge_middle", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF2u); }
-void set_scene_call_race_edge_middle(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_race_edge_middle", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF2u, v); }
-uint16_t scene_call_race_half_size(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_race_half_size", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xFCu); }
-void set_scene_call_race_half_size(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_race_half_size", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xFCu, v); }
-uint16_t scene_call_race_gap(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_race_gap", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xFEu); }
-void set_scene_call_race_gap(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_race_gap", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xFEu, v); }
-uint16_t scene_call_race_pose(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_race_pose", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xFEu); }
-void set_scene_call_race_pose(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_race_pose", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xFEu, v); }
-uint16_t scene_call_script_scratch(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 893, "scene_call_script_scratch", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
-void set_scene_call_script_scratch(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 893, "set_scene_call_script_scratch", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
+uint16_t scene_call_first(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_first", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
+void set_scene_call_first(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_first", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
+uint16_t scene_call_second(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_second", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF2u); }
+void set_scene_call_second(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_second", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF2u, v); }
+uint32_t scene_call_dividend(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_dividend", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF0u); }
+void set_scene_call_dividend(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 898, "set_scene_call_dividend", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF0u, v); }
+uint32_t scene_call_product(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_product", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF4u); }
+void set_scene_call_product(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 898, "set_scene_call_product", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF4u, v); }
+uint8_t scene_call_product_third_byte(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_product_third_byte", "instances", page.index, scene_program_page_count(page)); return r8(g, scene_program_page_base(page) + 0xF6u); }
+void set_scene_call_product_third_byte(GameState *g, SceneProgramPage page, uint8_t v) { IN_RANGE(g, 898, "set_scene_call_product_third_byte", "instances", page.index, scene_program_page_count(page)); w8(g, scene_program_page_base(page) + 0xF6u, v); }
+uint32_t scene_call_divisor(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_divisor", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF4u); }
+void set_scene_call_divisor(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 898, "set_scene_call_divisor", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF4u, v); }
+uint16_t scene_call_fraction(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_fraction", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF4u); }
+void set_scene_call_fraction(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_fraction", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF4u, v); }
+uint16_t scene_call_quotient_limit(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_quotient_limit", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF4u); }
+void set_scene_call_quotient_limit(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_quotient_limit", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF4u, v); }
+uint32_t scene_call_quotient(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_quotient", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF8u); }
+void set_scene_call_quotient(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 898, "set_scene_call_quotient", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF8u, v); }
+uint8_t scene_call_after_the_product(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_after_the_product", "instances", page.index, scene_program_page_count(page)); return r8(g, scene_program_page_base(page) + 0xF8u); }
+void set_scene_call_after_the_product(GameState *g, SceneProgramPage page, uint8_t v) { IN_RANGE(g, 898, "set_scene_call_after_the_product", "instances", page.index, scene_program_page_count(page)); w8(g, scene_program_page_base(page) + 0xF8u, v); }
+uint16_t scene_call_divisor_less_one(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_divisor_less_one", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF8u); }
+void set_scene_call_divisor_less_one(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_divisor_less_one", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF8u, v); }
+uint32_t scene_call_remainder(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_remainder", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xFCu); }
+void set_scene_call_remainder(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 898, "set_scene_call_remainder", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xFCu, v); }
+uint8_t scene_call_transfer_control(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_transfer_control", "instances", page.index, scene_program_page_count(page)); return r8(g, scene_program_page_base(page) + 0xF0u); }
+void set_scene_call_transfer_control(GameState *g, SceneProgramPage page, uint8_t v) { IN_RANGE(g, 898, "set_scene_call_transfer_control", "instances", page.index, scene_program_page_count(page)); w8(g, scene_program_page_base(page) + 0xF0u, v); }
+uint8_t scene_call_transfer_register(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_transfer_register", "instances", page.index, scene_program_page_count(page)); return r8(g, scene_program_page_base(page) + 0xF2u); }
+void set_scene_call_transfer_register(GameState *g, SceneProgramPage page, uint8_t v) { IN_RANGE(g, 898, "set_scene_call_transfer_register", "instances", page.index, scene_program_page_count(page)); w8(g, scene_program_page_base(page) + 0xF2u, v); }
+uint16_t scene_call_matrix_table_offset(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_matrix_table_offset", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
+void set_scene_call_matrix_table_offset(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_matrix_table_offset", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
+uint16_t scene_call_matrix_tile_step(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_matrix_tile_step", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF2u); }
+void set_scene_call_matrix_tile_step(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_matrix_tile_step", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF2u, v); }
+uint16_t scene_call_matrix_plane_pair_step(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_matrix_plane_pair_step", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF4u); }
+void set_scene_call_matrix_plane_pair_step(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_matrix_plane_pair_step", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF4u, v); }
+uint16_t scene_call_matrix_row_step(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_matrix_row_step", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF6u); }
+void set_scene_call_matrix_row_step(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_matrix_row_step", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF6u, v); }
+uint16_t scene_call_matrix_source(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_matrix_source", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF8u); }
+void set_scene_call_matrix_source(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_matrix_source", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF8u, v); }
+uint16_t scene_call_matrix_destination(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_matrix_destination", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xFAu); }
+void set_scene_call_matrix_destination(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_matrix_destination", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xFAu, v); }
+uint32_t scene_call_bump_push(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_bump_push", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF6u); }
+void set_scene_call_bump_push(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 898, "set_scene_call_bump_push", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF6u, v); }
+uint16_t scene_call_race_edge_half_width(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_race_edge_half_width", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
+void set_scene_call_race_edge_half_width(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_race_edge_half_width", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
+uint16_t scene_call_race_edge_middle(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_race_edge_middle", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF2u); }
+void set_scene_call_race_edge_middle(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_race_edge_middle", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF2u, v); }
+uint16_t scene_call_race_half_size(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_race_half_size", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xFCu); }
+void set_scene_call_race_half_size(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_race_half_size", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xFCu, v); }
+uint16_t scene_call_race_gap(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_race_gap", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xFEu); }
+void set_scene_call_race_gap(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_race_gap", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xFEu, v); }
+uint16_t scene_call_race_pose(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_race_pose", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xFEu); }
+void set_scene_call_race_pose(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_race_pose", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xFEu, v); }
+uint16_t scene_call_ripple_offset(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_ripple_offset", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
+void set_scene_call_ripple_offset(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_ripple_offset", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
+uint16_t scene_call_script_scratch(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 898, "scene_call_script_scratch", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
+void set_scene_call_script_scratch(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 898, "set_scene_call_script_scratch", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
 
 /* ---- warp ---------------------------------------------------------------------------------- */
 
 uint16_t warp_zero(const GameState *g) { return r16(g, 0x7E0508u); }
 void set_warp_zero(GameState *g, uint16_t v) { w16(g, 0x7E0508u, v); }
-uint8_t warp_work(const GameState *g, unsigned i) { IN_RANGE(g, 894, "warp_work", "count", i, 16u); return r8(g, 0x7E050Au + (uint32_t)i * 0x01u); }
-void set_warp_work(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 894, "set_warp_work", "count", i, 16u); w8(g, 0x7E050Au + (uint32_t)i * 0x01u, v); }
+uint8_t warp_work(const GameState *g, unsigned i) { IN_RANGE(g, 899, "warp_work", "count", i, 16u); return r8(g, 0x7E050Au + (uint32_t)i * 0x01u); }
+void set_warp_work(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 899, "set_warp_work", "count", i, 16u); w8(g, 0x7E050Au + (uint32_t)i * 0x01u, v); }
 uint16_t warp_frame(const GameState *g) { return r16(g, 0x7E051Bu); }
 void set_warp_frame(GameState *g, uint16_t v) { w16(g, 0x7E051Bu, v); }
 uint8_t warp_frame_ended(const GameState *g) { return r8(g, 0x7E051Eu); }
@@ -7192,48 +7231,48 @@ uint8_t warp_circle_radius(const GameState *g) { return r8(g, 0x7E0523u); }
 void set_warp_circle_radius(GameState *g, uint8_t v) { w8(g, 0x7E0523u, v); }
 uint8_t warp_circle_tables_built(const GameState *g) { return r8(g, 0x7E0524u); }
 void set_warp_circle_tables_built(GameState *g, uint8_t v) { w8(g, 0x7E0524u, v); }
-uint8_t warp_pixel_set_masks(const GameState *g, unsigned row) { IN_RANGE(g, 895, "warp_pixel_set_masks", "count", row, 8u); return r8(g, 0x7E0525u + (uint32_t)row * 0x01u); }
-void set_warp_pixel_set_masks(GameState *g, unsigned row, uint8_t v) { IN_RANGE(g, 895, "set_warp_pixel_set_masks", "count", row, 8u); w8(g, 0x7E0525u + (uint32_t)row * 0x01u, v); }
-uint8_t warp_pixel_clear_masks(const GameState *g, unsigned row) { IN_RANGE(g, 896, "warp_pixel_clear_masks", "count", row, 8u); return r8(g, 0x7E052Du + (uint32_t)row * 0x01u); }
-void set_warp_pixel_clear_masks(GameState *g, unsigned row, uint8_t v) { IN_RANGE(g, 896, "set_warp_pixel_clear_masks", "count", row, 8u); w8(g, 0x7E052Du + (uint32_t)row * 0x01u, v); }
+uint8_t warp_pixel_set_masks(const GameState *g, unsigned row) { IN_RANGE(g, 900, "warp_pixel_set_masks", "count", row, 8u); return r8(g, 0x7E0525u + (uint32_t)row * 0x01u); }
+void set_warp_pixel_set_masks(GameState *g, unsigned row, uint8_t v) { IN_RANGE(g, 900, "set_warp_pixel_set_masks", "count", row, 8u); w8(g, 0x7E0525u + (uint32_t)row * 0x01u, v); }
+uint8_t warp_pixel_clear_masks(const GameState *g, unsigned row) { IN_RANGE(g, 901, "warp_pixel_clear_masks", "count", row, 8u); return r8(g, 0x7E052Du + (uint32_t)row * 0x01u); }
+void set_warp_pixel_clear_masks(GameState *g, unsigned row, uint8_t v) { IN_RANGE(g, 901, "set_warp_pixel_clear_masks", "count", row, 8u); w8(g, 0x7E052Du + (uint32_t)row * 0x01u, v); }
 uint16_t warp_flicker(const GameState *g) { return r16(g, 0x7E0535u); }
 void set_warp_flicker(GameState *g, uint16_t v) { w16(g, 0x7E0535u, v); }
-uint8_t warp_plane_map(const GameState *g, unsigned row, unsigned column) { IN_RANGE(g, 897, "warp_plane_map", "rows", row, 128u); IN_RANGE(g, 897, "warp_plane_map", "columns", column, 128u); return r8(g, 0x7F0000u + (uint32_t)row * 0x80u + column); }
-void set_warp_plane_map(GameState *g, unsigned row, unsigned column, uint8_t v) { IN_RANGE(g, 897, "set_warp_plane_map", "rows", row, 128u); IN_RANGE(g, 897, "set_warp_plane_map", "columns", column, 128u); w8(g, 0x7F0000u + (uint32_t)row * 0x80u + column, v); }
-uint8_t warp_light_tiles_byte(const GameState *g, unsigned at) { IN_RANGE(g, 898, "warp_light_tiles_byte", "bytes", at, 8192u); return r8(g, 0x7F4000u + at); }
-void set_warp_light_tiles_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 898, "set_warp_light_tiles_byte", "bytes", at, 8192u); w8(g, 0x7F4000u + at, v); }
-uint8_t warp_plane_lists_top_lines(const GameState *g, unsigned line) { IN_RANGE(g, 899, "warp_plane_lists_top_lines", "count", line, 4u); return r8(g, 0x7F6000u + (uint32_t)line * 0x07u); }
-void set_warp_plane_lists_top_lines(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 899, "set_warp_plane_lists_top_lines", "count", line, 4u); w8(g, 0x7F6000u + (uint32_t)line * 0x07u, v); }
-uint16_t warp_plane_lists_top_values(const GameState *g, unsigned line) { IN_RANGE(g, 899, "warp_plane_lists_top_values", "count", line, 4u); return r16(g, 0x7F6001u + (uint32_t)line * 0x07u); }
-void set_warp_plane_lists_top_values(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 899, "set_warp_plane_lists_top_values", "count", line, 4u); w16(g, 0x7F6001u + (uint32_t)line * 0x07u, v); }
-uint8_t warp_plane_lists_bottom_lines(const GameState *g, unsigned line) { IN_RANGE(g, 899, "warp_plane_lists_bottom_lines", "count", line, 4u); return r8(g, 0x7F6003u + (uint32_t)line * 0x07u); }
-void set_warp_plane_lists_bottom_lines(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 899, "set_warp_plane_lists_bottom_lines", "count", line, 4u); w8(g, 0x7F6003u + (uint32_t)line * 0x07u, v); }
-uint16_t warp_plane_lists_bottom_values(const GameState *g, unsigned line) { IN_RANGE(g, 899, "warp_plane_lists_bottom_values", "count", line, 4u); return r16(g, 0x7F6004u + (uint32_t)line * 0x07u); }
-void set_warp_plane_lists_bottom_values(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 899, "set_warp_plane_lists_bottom_values", "count", line, 4u); w16(g, 0x7F6004u + (uint32_t)line * 0x07u, v); }
-uint8_t warp_plane_lists_end(const GameState *g, unsigned line) { IN_RANGE(g, 899, "warp_plane_lists_end", "count", line, 4u); return r8(g, 0x7F6006u + (uint32_t)line * 0x07u); }
-void set_warp_plane_lists_end(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 899, "set_warp_plane_lists_end", "count", line, 4u); w8(g, 0x7F6006u + (uint32_t)line * 0x07u, v); }
-uint16_t warp_plane_matrix_first_row_scale(const GameState *g, unsigned line) { IN_RANGE(g, 900, "warp_plane_matrix_first_row_scale", "count", line, 256u); return r16(g, 0x7F601Cu + (uint32_t)line * 0x04u); }
-void set_warp_plane_matrix_first_row_scale(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 900, "set_warp_plane_matrix_first_row_scale", "count", line, 256u); w16(g, 0x7F601Cu + (uint32_t)line * 0x04u, v); }
-uint16_t warp_plane_matrix_first_row_turn(const GameState *g, unsigned line) { IN_RANGE(g, 900, "warp_plane_matrix_first_row_turn", "count", line, 256u); return r16(g, 0x7F601Eu + (uint32_t)line * 0x04u); }
-void set_warp_plane_matrix_first_row_turn(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 900, "set_warp_plane_matrix_first_row_turn", "count", line, 256u); w16(g, 0x7F601Eu + (uint32_t)line * 0x04u, v); }
-uint16_t warp_plane_matrix_second_row_turn(const GameState *g, unsigned line) { IN_RANGE(g, 901, "warp_plane_matrix_second_row_turn", "count", line, 256u); return r16(g, 0x7F681Cu + (uint32_t)line * 0x04u); }
-void set_warp_plane_matrix_second_row_turn(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 901, "set_warp_plane_matrix_second_row_turn", "count", line, 256u); w16(g, 0x7F681Cu + (uint32_t)line * 0x04u, v); }
-uint16_t warp_plane_matrix_second_row_scale(const GameState *g, unsigned line) { IN_RANGE(g, 901, "warp_plane_matrix_second_row_scale", "count", line, 256u); return r16(g, 0x7F681Eu + (uint32_t)line * 0x04u); }
-void set_warp_plane_matrix_second_row_scale(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 901, "set_warp_plane_matrix_second_row_scale", "count", line, 256u); w16(g, 0x7F681Eu + (uint32_t)line * 0x04u, v); }
-uint16_t warp_plane_centres_x(const GameState *g, unsigned i) { IN_RANGE(g, 902, "warp_plane_centres_x", "count", i, 2u); return r16(g, 0x7F701Cu + (uint32_t)i * 0x04u); }
-void set_warp_plane_centres_x(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 902, "set_warp_plane_centres_x", "count", i, 2u); w16(g, 0x7F701Cu + (uint32_t)i * 0x04u, v); }
-uint16_t warp_plane_centres_y(const GameState *g, unsigned i) { IN_RANGE(g, 902, "warp_plane_centres_y", "count", i, 2u); return r16(g, 0x7F701Eu + (uint32_t)i * 0x04u); }
-void set_warp_plane_centres_y(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 902, "set_warp_plane_centres_y", "count", i, 2u); w16(g, 0x7F701Eu + (uint32_t)i * 0x04u, v); }
-uint16_t warp_plane_scrolls_across(const GameState *g, unsigned i) { IN_RANGE(g, 903, "warp_plane_scrolls_across", "count", i, 2u); return r16(g, 0x7F7024u + (uint32_t)i * 0x04u); }
-void set_warp_plane_scrolls_across(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 903, "set_warp_plane_scrolls_across", "count", i, 2u); w16(g, 0x7F7024u + (uint32_t)i * 0x04u, v); }
-uint16_t warp_plane_scrolls_down(const GameState *g, unsigned i) { IN_RANGE(g, 903, "warp_plane_scrolls_down", "count", i, 2u); return r16(g, 0x7F7026u + (uint32_t)i * 0x04u); }
-void set_warp_plane_scrolls_down(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 903, "set_warp_plane_scrolls_down", "count", i, 2u); w16(g, 0x7F7026u + (uint32_t)i * 0x04u, v); }
-uint8_t warp_circle_half_widths(const GameState *g, unsigned line) { IN_RANGE(g, 904, "warp_circle_half_widths", "count", line, 128u); return r8(g, 0x7F702Cu + (uint32_t)line * 0x01u); }
-void set_warp_circle_half_widths(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 904, "set_warp_circle_half_widths", "count", line, 128u); w8(g, 0x7F702Cu + (uint32_t)line * 0x01u, v); }
+uint8_t warp_plane_map(const GameState *g, unsigned row, unsigned column) { IN_RANGE(g, 902, "warp_plane_map", "rows", row, 128u); IN_RANGE(g, 902, "warp_plane_map", "columns", column, 128u); return r8(g, 0x7F0000u + (uint32_t)row * 0x80u + column); }
+void set_warp_plane_map(GameState *g, unsigned row, unsigned column, uint8_t v) { IN_RANGE(g, 902, "set_warp_plane_map", "rows", row, 128u); IN_RANGE(g, 902, "set_warp_plane_map", "columns", column, 128u); w8(g, 0x7F0000u + (uint32_t)row * 0x80u + column, v); }
+uint8_t warp_light_tiles_byte(const GameState *g, unsigned at) { IN_RANGE(g, 903, "warp_light_tiles_byte", "bytes", at, 8192u); return r8(g, 0x7F4000u + at); }
+void set_warp_light_tiles_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 903, "set_warp_light_tiles_byte", "bytes", at, 8192u); w8(g, 0x7F4000u + at, v); }
+uint8_t warp_plane_lists_top_lines(const GameState *g, unsigned line) { IN_RANGE(g, 904, "warp_plane_lists_top_lines", "count", line, 4u); return r8(g, 0x7F6000u + (uint32_t)line * 0x07u); }
+void set_warp_plane_lists_top_lines(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 904, "set_warp_plane_lists_top_lines", "count", line, 4u); w8(g, 0x7F6000u + (uint32_t)line * 0x07u, v); }
+uint16_t warp_plane_lists_top_values(const GameState *g, unsigned line) { IN_RANGE(g, 904, "warp_plane_lists_top_values", "count", line, 4u); return r16(g, 0x7F6001u + (uint32_t)line * 0x07u); }
+void set_warp_plane_lists_top_values(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 904, "set_warp_plane_lists_top_values", "count", line, 4u); w16(g, 0x7F6001u + (uint32_t)line * 0x07u, v); }
+uint8_t warp_plane_lists_bottom_lines(const GameState *g, unsigned line) { IN_RANGE(g, 904, "warp_plane_lists_bottom_lines", "count", line, 4u); return r8(g, 0x7F6003u + (uint32_t)line * 0x07u); }
+void set_warp_plane_lists_bottom_lines(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 904, "set_warp_plane_lists_bottom_lines", "count", line, 4u); w8(g, 0x7F6003u + (uint32_t)line * 0x07u, v); }
+uint16_t warp_plane_lists_bottom_values(const GameState *g, unsigned line) { IN_RANGE(g, 904, "warp_plane_lists_bottom_values", "count", line, 4u); return r16(g, 0x7F6004u + (uint32_t)line * 0x07u); }
+void set_warp_plane_lists_bottom_values(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 904, "set_warp_plane_lists_bottom_values", "count", line, 4u); w16(g, 0x7F6004u + (uint32_t)line * 0x07u, v); }
+uint8_t warp_plane_lists_end(const GameState *g, unsigned line) { IN_RANGE(g, 904, "warp_plane_lists_end", "count", line, 4u); return r8(g, 0x7F6006u + (uint32_t)line * 0x07u); }
+void set_warp_plane_lists_end(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 904, "set_warp_plane_lists_end", "count", line, 4u); w8(g, 0x7F6006u + (uint32_t)line * 0x07u, v); }
+uint16_t warp_plane_matrix_first_row_scale(const GameState *g, unsigned line) { IN_RANGE(g, 905, "warp_plane_matrix_first_row_scale", "count", line, 256u); return r16(g, 0x7F601Cu + (uint32_t)line * 0x04u); }
+void set_warp_plane_matrix_first_row_scale(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 905, "set_warp_plane_matrix_first_row_scale", "count", line, 256u); w16(g, 0x7F601Cu + (uint32_t)line * 0x04u, v); }
+uint16_t warp_plane_matrix_first_row_turn(const GameState *g, unsigned line) { IN_RANGE(g, 905, "warp_plane_matrix_first_row_turn", "count", line, 256u); return r16(g, 0x7F601Eu + (uint32_t)line * 0x04u); }
+void set_warp_plane_matrix_first_row_turn(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 905, "set_warp_plane_matrix_first_row_turn", "count", line, 256u); w16(g, 0x7F601Eu + (uint32_t)line * 0x04u, v); }
+uint16_t warp_plane_matrix_second_row_turn(const GameState *g, unsigned line) { IN_RANGE(g, 906, "warp_plane_matrix_second_row_turn", "count", line, 256u); return r16(g, 0x7F681Cu + (uint32_t)line * 0x04u); }
+void set_warp_plane_matrix_second_row_turn(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 906, "set_warp_plane_matrix_second_row_turn", "count", line, 256u); w16(g, 0x7F681Cu + (uint32_t)line * 0x04u, v); }
+uint16_t warp_plane_matrix_second_row_scale(const GameState *g, unsigned line) { IN_RANGE(g, 906, "warp_plane_matrix_second_row_scale", "count", line, 256u); return r16(g, 0x7F681Eu + (uint32_t)line * 0x04u); }
+void set_warp_plane_matrix_second_row_scale(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 906, "set_warp_plane_matrix_second_row_scale", "count", line, 256u); w16(g, 0x7F681Eu + (uint32_t)line * 0x04u, v); }
+uint16_t warp_plane_centres_x(const GameState *g, unsigned i) { IN_RANGE(g, 907, "warp_plane_centres_x", "count", i, 2u); return r16(g, 0x7F701Cu + (uint32_t)i * 0x04u); }
+void set_warp_plane_centres_x(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 907, "set_warp_plane_centres_x", "count", i, 2u); w16(g, 0x7F701Cu + (uint32_t)i * 0x04u, v); }
+uint16_t warp_plane_centres_y(const GameState *g, unsigned i) { IN_RANGE(g, 907, "warp_plane_centres_y", "count", i, 2u); return r16(g, 0x7F701Eu + (uint32_t)i * 0x04u); }
+void set_warp_plane_centres_y(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 907, "set_warp_plane_centres_y", "count", i, 2u); w16(g, 0x7F701Eu + (uint32_t)i * 0x04u, v); }
+uint16_t warp_plane_scrolls_across(const GameState *g, unsigned i) { IN_RANGE(g, 908, "warp_plane_scrolls_across", "count", i, 2u); return r16(g, 0x7F7024u + (uint32_t)i * 0x04u); }
+void set_warp_plane_scrolls_across(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 908, "set_warp_plane_scrolls_across", "count", i, 2u); w16(g, 0x7F7024u + (uint32_t)i * 0x04u, v); }
+uint16_t warp_plane_scrolls_down(const GameState *g, unsigned i) { IN_RANGE(g, 908, "warp_plane_scrolls_down", "count", i, 2u); return r16(g, 0x7F7026u + (uint32_t)i * 0x04u); }
+void set_warp_plane_scrolls_down(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 908, "set_warp_plane_scrolls_down", "count", i, 2u); w16(g, 0x7F7026u + (uint32_t)i * 0x04u, v); }
+uint8_t warp_circle_half_widths(const GameState *g, unsigned line) { IN_RANGE(g, 909, "warp_circle_half_widths", "count", line, 128u); return r8(g, 0x7F702Cu + (uint32_t)line * 0x01u); }
+void set_warp_circle_half_widths(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 909, "set_warp_circle_half_widths", "count", line, 128u); w8(g, 0x7F702Cu + (uint32_t)line * 0x01u, v); }
 uint8_t warp_circle_half_widths_unchecked(const GameState *g, unsigned line) { return r8(g, 0x7F702Cu + (uint32_t)line * 0x01u); }
 void set_warp_circle_half_widths_unchecked(GameState *g, unsigned line, uint8_t v) { w8(g, 0x7F702Cu + (uint32_t)line * 0x01u, v); }
-uint16_t warp_circle_windows(const GameState *g, unsigned line) { IN_RANGE(g, 905, "warp_circle_windows", "count", line, 512u); return r16(g, 0x7F70ACu + (uint32_t)line * 0x02u); }
-void set_warp_circle_windows(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 905, "set_warp_circle_windows", "count", line, 512u); w16(g, 0x7F70ACu + (uint32_t)line * 0x02u, v); }
+uint16_t warp_circle_windows(const GameState *g, unsigned line) { IN_RANGE(g, 910, "warp_circle_windows", "count", line, 512u); return r16(g, 0x7F70ACu + (uint32_t)line * 0x02u); }
+void set_warp_circle_windows(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 910, "set_warp_circle_windows", "count", line, 512u); w16(g, 0x7F70ACu + (uint32_t)line * 0x02u, v); }
 uint8_t warp_circle_window_list_top_lines(const GameState *g) { return r8(g, 0x7F74ACu); }
 void set_warp_circle_window_list_top_lines(GameState *g, uint8_t v) { w8(g, 0x7F74ACu, v); }
 uint16_t warp_circle_window_list_top_values(const GameState *g) { return r16(g, 0x7F74ADu); }
@@ -7244,5 +7283,5 @@ uint16_t warp_circle_window_list_bottom_values(const GameState *g) { return r16(
 void set_warp_circle_window_list_bottom_values(GameState *g, uint16_t v) { w16(g, 0x7F74B0u, v); }
 uint8_t warp_circle_window_list_end(const GameState *g) { return r8(g, 0x7F74B2u); }
 void set_warp_circle_window_list_end(GameState *g, uint8_t v) { w8(g, 0x7F74B2u, v); }
-uint8_t warp_kept_event_memory_byte(const GameState *g, unsigned at) { IN_RANGE(g, 906, "warp_kept_event_memory_byte", "bytes", at, 512u); return r8(g, 0x7F74B3u + at); }
-void set_warp_kept_event_memory_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 906, "set_warp_kept_event_memory_byte", "bytes", at, 512u); w8(g, 0x7F74B3u + at, v); }
+uint8_t warp_kept_event_memory_byte(const GameState *g, unsigned at) { IN_RANGE(g, 911, "warp_kept_event_memory_byte", "bytes", at, 512u); return r8(g, 0x7F74B3u + at); }
+void set_warp_kept_event_memory_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 911, "set_warp_kept_event_memory_byte", "bytes", at, 512u); w8(g, 0x7F74B3u + at, v); }

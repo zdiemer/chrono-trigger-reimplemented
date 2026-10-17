@@ -12808,6 +12808,13 @@ void set_scene_sprite_list_left(GameState *g, uint8_t v);
 uint16_t scene_scaler_pairs(const GameState *g);
 void set_scene_scaler_pairs(GameState *g, uint16_t v);
 
+enum { SCENE_TURN_MATRIX_COUNT = 4 };   /* by a, b, c, d */
+/* The program's turning of a map ($7E:7441): its matrix, worked out each frame from sequence
+ * channel 0's angle (register 5) and scale (register 0) -- a and d the cosine, b the sine and c
+ * the sine negated, each in 256ths times the scale's quarter, over 8 */
+uint16_t scene_turn_matrix(const GameState *g, unsigned i);
+void set_scene_turn_matrix(GameState *g, unsigned i, uint16_t v);
+
 /* In the endings that share $7E:8538: nonzero while the zooming picture has been scaled and
  * gathered into tiles and waits for the vblank to send them, which clears its low byte; the main
  * loop scales no new picture until then */
@@ -12831,6 +12838,12 @@ void set_scene_scaler_rows_left(GameState *g, uint16_t v);
 uint16_t scene_scaler_row_step(const GameState *g);
 void set_scene_scaler_row_step(GameState *g, uint16_t v);
 
+enum { SCENE_TURN_CENTER_COUNT = 2 };   /* by x, y */
+/* The program's turning of a map: the point it turns about, sequence channel 0's registers 1 and
+ * 2 */
+uint16_t scene_turn_center(const GameState *g, unsigned i);
+void set_scene_turn_center(GameState *g, unsigned i, uint16_t v);
+
 /* Bitmap scaler: 8.8 fixed-point step between source samples along a row */
 uint16_t scene_scaler_column_step(const GameState *g);
 void set_scene_scaler_column_step(GameState *g, uint16_t v);
@@ -12839,6 +12852,12 @@ void set_scene_scaler_column_step(GameState *g, uint16_t v);
  * bitmap ends */
 uint16_t scene_scaler_source_limit(const GameState *g);
 void set_scene_scaler_source_limit(GameState *g, uint16_t v);
+
+enum { SCENE_TURN_POSITION_COUNT = 2 };   /* by x, y */
+/* The program's turning of a map: where it is placed, sequence channel 0's registers 1 and 2
+ * again */
+uint16_t scene_turn_position(const GameState *g, unsigned i);
+void set_scene_turn_position(GameState *g, unsigned i, uint16_t v);
 
 /* Bitmap scaler: address in bank $7F of the current output row (32 bytes of planar tile
  * graphics) */
@@ -12878,6 +12897,27 @@ void set_scene_race_tilemap_pending(GameState *g, uint16_t v);
 enum { SCENE_BITPLANE_SCRATCH_BYTES = 9 };
 uint8_t scene_bitplane_scratch_byte(const GameState *g, unsigned at);
 void set_scene_bitplane_scratch_byte(GameState *g, unsigned at, uint8_t v);
+
+/* Nonzero while the map buffer ($1400) holds a map for VRAM: the program's upload of it
+ * ($7E:783C) sends it and clears this */
+uint8_t scene_map_buffer_waiting(const GameState *g);
+void set_scene_map_buffer_waiting(GameState *g, uint8_t v);
+
+/* The palace's scene (mode 3): BG3's horizontal scroll, which moves the column offsets' ripple
+ * across the picture by its strength each frame */
+uint16_t scene_palace_ripple_scroll(const GameState *g);
+void set_scene_palace_ripple_scroll(GameState *g, uint16_t v);
+
+/* The palace's scene: BG2's vertical scroll below the horizon, which a per-line effect reads;
+ * sequence channel 1's register 2 over 4 */
+uint16_t scene_palace_sea_scroll(const GameState *g);
+void set_scene_palace_sea_scroll(GameState *g, uint16_t v);
+
+enum { SCENE_PALACE_COLUMN_OFFSETS_COUNT = 64 };   /* by column: the first 32 across, the next 32 down */
+/* The palace's scene: the offsets mode 2 moves BG1's columns by, BG3's first two rows as the
+ * vblank sends them: across, the ripple's shape from its strength, and down, none */
+uint16_t scene_palace_column_offsets(const GameState *g, unsigned column);
+void set_scene_palace_column_offsets(GameState *g, unsigned column, uint16_t v);
 
 /* BG3's horizontal scroll, sent with the per-frame tilemap block */
 uint16_t scene_bg3_scroll_x(const GameState *g);
@@ -13224,6 +13264,14 @@ void set_scene_race_frames(GameState *g, uint16_t v);
 uint16_t scene_race_leaving(const GameState *g);
 void set_scene_race_leaving(GameState *g, uint16_t v);
 
+/* The palace's scene: frames until the mosaic's next step ($14 between steps) */
+uint8_t scene_palace_mosaic_wait(const GameState *g);
+void set_scene_palace_mosaic_wait(GameState *g, uint8_t v);
+
+/* The palace's scene: BG1's mosaic, counted down a step at a time to none */
+uint8_t scene_palace_mosaic(const GameState *g);
+void set_scene_palace_mosaic(GameState *g, uint8_t v);
+
 /* Nonzero once a button has been pressed after the race and its ending has begun: the way the
  * curtain sweeps, scene_race_ending_sweep */
 uint8_t scene_race_ending(const GameState *g);
@@ -13290,6 +13338,11 @@ void set_scene_race_winner(GameState *g, uint8_t v);
  * reaching 1300, 1500 and 2000 */
 uint8_t scene_race_prize(const GameState *g);
 void set_scene_race_prize(GameState *g, uint8_t v);
+
+/* The attract sequence's page of credits shown last, 1-5 (read a byte), below the program's work
+ * RAM so the pages go round from one showing to the next */
+uint16_t scene_credits_page(const GameState *g);
+void set_scene_credits_page(GameState *g, uint16_t v);
 
 /* In the shared endings: where the next caption's text is in the program; the captions end at
  * the staff roll's text ($AB1A). Modes 10 and 11 start it at $A651 */
@@ -13843,6 +13896,32 @@ enum { SCENE_CAPTION_LETTERS_COUNT = 288 };   /* by a character code for its wid
 uint8_t scene_caption_letters(const GameState *g, unsigned i);
 void set_scene_caption_letters(GameState *g, unsigned i, uint8_t v);
 
+/* The palace's scene: how far the palace's colors move each frame as they darken, the first of
+ * its fades: the operand of the fade's own load, 1 as the program is unpacked, 6 in the attract
+ * sequence's */
+uint8_t scene_palace_darkening_step(const GameState *g);
+void set_scene_palace_darkening_step(GameState *g, uint8_t v);
+
+/* The palace's scene: the same for the second fade, to white: 4, or 8 in the attract sequence's */
+uint8_t scene_palace_whitening_step(const GameState *g);
+void set_scene_palace_whitening_step(GameState *g, uint8_t v);
+
+/* The palace's scene: the same for the last fade, from white back to the colors: 3, or 8 in the
+ * attract sequence's */
+uint8_t scene_palace_clearing_step(const GameState *g);
+void set_scene_palace_clearing_step(GameState *g, uint8_t v);
+
+/* How many rows of 32 tiles the program's turning of a map ($7E:7441) writes into the map
+ * buffer: the operand of its own load, $1B as the program is unpacked, which the palace's setup
+ * makes $1C */
+uint8_t scene_turned_map_rows(const GameState *g);
+void set_scene_turned_map_rows(GameState *g, uint8_t v);
+
+/* Where the program's upload of the map buffer ($7E:783C) sends it in VRAM: the operand of its
+ * own load, $6000 as the program is unpacked, which the palace's setup makes 0 */
+uint16_t scene_map_upload_vram(const GameState *g);
+void set_scene_map_upload_vram(GameState *g, uint16_t v);
+
 enum { SCENE_ENDING_PICTURE_SPRITE_COUNTS_COUNT = 2 };   /* by the picture: 0 the short one, 1 the tall one */
 /* The count bytes of the zooming picture's two sprite lists in the program (one more than the
  * sprites drawn): the gathering sets each from the picture's zoom, so the list draws as many of
@@ -13890,6 +13969,12 @@ void set_scene_race_plane_column_byte(GameState *g, unsigned at, uint8_t v);
 enum { SCENE_RACE_ROAD_STRIP_BYTES = 64 };
 uint8_t scene_race_road_strip_byte(const GameState *g, unsigned at);
 void set_scene_race_road_strip_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { SCENE_PALACE_LINE_SHIFTS_COUNT = 224 };   /* by line */
+/* The palace's scene: BG1's horizontal scroll on each line, which a per-line effect reads: the
+ * shimmer's strength on every other line, the odd lines or the even by the frame */
+uint16_t scene_palace_line_shifts(const GameState *g, unsigned line);
+void set_scene_palace_line_shifts(GameState *g, unsigned line, uint16_t v);
 
 /* The per-line tables the race's line effects read, cleared at setup [4096 bytes, one at a time] */
 enum { SCENE_RACE_LINE_TABLES_BYTES = 4096 };
@@ -14053,6 +14138,10 @@ void set_scene_call_race_gap(GameState *g, SceneProgramPage page, uint16_t v);
  * pictures */
 uint16_t scene_call_race_pose(const GameState *g, SceneProgramPage page);
 void set_scene_call_race_pose(GameState *g, SceneProgramPage page, uint16_t v);
+/* The palace's ripple (on the scene's own page): the column offset as it is worked out across
+ * the columns, which ends back where it started */
+uint16_t scene_call_ripple_offset(const GameState *g, SceneProgramPage page);
+void set_scene_call_ripple_offset(GameState *g, SceneProgramPage page, uint16_t v);
 /* A sequence channel's: what the interpreter last kept there -- the command it read, the address
  * of the register an assignment names, or the routine of the program a script calls (on the
  * scene's own page) */

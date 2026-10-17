@@ -43,6 +43,8 @@ ESCAPES = {
     "scene/staff_roll.c": 2,  # $7E:90A7 and $7E:8F77, which fill the data port's low half and its high half
                               # alone
     "scene/endings.c": 1,  # $7E:85B2, which fills the data port's low half alone past the plane
+    "scene/rising_palace.c": 2,  # $7E:672C, the map's top filled through the multiplier, and $7E:674D, the
+                                 # rest read back out of VRAM after a read of the port that steps it on
 }
 
 # Files whose calls still spell out the SNES backend's write order for a transfer

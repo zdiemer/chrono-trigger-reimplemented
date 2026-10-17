@@ -24,6 +24,8 @@
  *                 routine the race writes to regroup them into tiles, and
  *                 that routine
  *   perspective.c the Mode 7 plane in perspective, the race's and the endings'
+ *   credit_pages.c the attract sequence's pages of the game's staff
+ *   rising_palace.c the palace rising out of the sea under the red moon
  *   staff_roll.c  the telepod ending's last scene: the staff credits over the
  *                 stars, and The End
  *   stars.c       the star field the endings fly through
@@ -64,9 +66,12 @@ enum {
      * the boot starts it, the frame's work leaves interrupts enabled so it can
      * fire, and the program's clear of its work RAM keeps what lies below $0920. */
     SCENE_FLAG_TITLE_WITH_LINE_IRQ = 0x80,
-    /* The race is drawn without its panel, and closes behind a curtain: the
-     * attract sequence's. */
-    SCENE_FLAG_NO_PANEL = 0x40,
+    /* The scene is the attract sequence's showing of it. The race is drawn
+     * without its panel, runs the attract's scripts (its camera one of two,
+     * by turns) and closes behind a curtain (scene/race.c, race_drawing.c);
+     * the palace rising runs the attract's scripts, opens and closes behind a
+     * curtain and fades faster (scene/rising_palace.c). */
+    SCENE_FLAG_ATTRACT_SEQUENCE = 0x40,
     /* The frame's work doesn't send the sound driver song changes. */
     SCENE_FLAG_NO_SONGS = 0x20,
 };
@@ -142,6 +147,15 @@ enum {
     SCENE_TASK_DRAW_THE_COPYRIGHT = 0x5E1E,
     SCENE_TASK_RIPPLE = 0x5FFE,
     SCENE_TASK_UPLOAD_RIPPLE = 0x6212,
+    SCENE_TASK_SHOW_THE_CREDITS_PAGE = 0x6BE5,  /* scene/credit_pages.c */
+    SCENE_TASK_SEND_THE_PALACE_OFFSETS = 0x66DD,   /* scene/rising_palace.c */
+    SCENE_TASK_RIPPLE_THE_PALACE = 0x69AF,
+    SCENE_TASK_SHIMMER_THE_PALACE = 0x6A23,
+    SCENE_TASK_DARKEN_THE_PALACE = 0x6A51,
+    SCENE_TASK_WHITEN_THE_PALACE = 0x6A74,
+    SCENE_TASK_CLEAR_THE_PALACE = 0x6A97,
+    SCENE_TASK_WORK_OUT_THE_TURN = 0x73C6,
+    SCENE_TASK_SEND_THE_MAP = 0x783C,
 };
 
 /* How a task's frame ends: it stays on its list, it is done (its slot
@@ -184,12 +198,17 @@ typedef struct {
     bool calls_out;
 } SceneTaskPort;
 
-/* The tasks each file has as C (scene/title.c, scene/screen.c), which the
- * lists' runner looks a task up in. */
+/* The tasks each file has as C (scene/title.c, scene/screen.c,
+ * scene/credit_pages.c, scene/rising_palace.c), which the lists' runner looks
+ * a task up in. */
 extern const SceneTaskPort scene_title_tasks[];
 extern const unsigned scene_title_task_count;
 extern const SceneTaskPort scene_screen_tasks[];
 extern const unsigned scene_screen_task_count;
+extern const SceneTaskPort scene_credit_pages_tasks[];
+extern const unsigned scene_credit_pages_task_count;
+extern const SceneTaskPort scene_palace_tasks[];
+extern const unsigned scene_palace_task_count;
 
 /* The program's routines the scripts call (their command $A0), which are C,
  * by the values the scripts hold for them (the routines' addresses). */
@@ -471,6 +490,8 @@ void scene_title_wait_for_its_song(Snes *s);
 bool scene_race_set_up_scene(Snes *s);
 bool scene_ending_set_up_scene(Snes *s);
 bool scene_staff_roll_set_up_scene(Snes *s);
+bool scene_credit_pages_set_up_scene(Snes *s);
+bool scene_palace_set_up_scene(Snes *s);
 bool scene_title_set_up_present(Snes *s);
 bool scene_title_loader_present(Snes *s);
 void scene_title_load_sprite_graphics(Snes *s);
@@ -586,6 +607,32 @@ bool scene_program_end_present(Snes *s);
 /* The game back to the field's start on the game's fresh stack, as the
  * program ends. */
 void scene_hand_back_to_the_field(Snes *s);
+/* scene/credit_pages.c (the program in RAM) */
+bool scene_credit_pages_set_up_present(Snes *s);
+void scene_credit_pages_set_up(Snes *s);
+bool scene_show_the_credits_page_present(Snes *s);
+void scene_show_the_credits_page(Snes *s);
+/* scene/rising_palace.c (the program in RAM) */
+bool scene_palace_set_up_present(Snes *s);
+void scene_palace_set_up(Snes *s);
+void scene_send_the_palace_offsets(Snes *s);
+bool scene_send_the_palace_offsets_present(Snes *s);
+void scene_sweep_the_palace_curtain(Snes *s);
+bool scene_sweep_the_palace_curtain_present(Snes *s);
+void scene_ripple_the_palace(Snes *s);
+bool scene_ripple_the_palace_present(Snes *s);
+void scene_shimmer_the_palace(Snes *s);
+bool scene_shimmer_the_palace_present(Snes *s);
+void scene_darken_the_palace(Snes *s);
+bool scene_darken_the_palace_present(Snes *s);
+void scene_whiten_the_palace(Snes *s);
+bool scene_whiten_the_palace_present(Snes *s);
+void scene_clear_the_palace(Snes *s);
+bool scene_clear_the_palace_present(Snes *s);
+void scene_work_out_the_turn(Snes *s);
+bool scene_work_out_the_turn_present(Snes *s);
+void scene_send_the_map(Snes *s);
+bool scene_send_the_map_present(Snes *s);
 /* scene/staff_roll.c (the program in RAM) */
 bool scene_staff_roll_set_up_present(Snes *s);
 void scene_staff_roll_set_up(Snes *s);

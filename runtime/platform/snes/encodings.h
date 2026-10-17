@@ -23,7 +23,7 @@ typedef struct {
     uint8_t channel;         /* 0-7; a line effect's is its slot */
     uint8_t control;         /* $43x0 as the original writes it; a line effect's comes from its target */
     const uint8_t *steps;    /* VID_STEP_*, ending in VID_STEP_END */
-    uint32_t source;         /* where a site that only prepares the channel points it */
+    uint32_t source;         /* where a site that only prepares the channel points it, or a fill reads its byte */
 } PfSnesEncoding;
 
 /* The site's encoding, or NULL where the original programs no channel there

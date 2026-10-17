@@ -376,6 +376,8 @@ static void start_fade(GameState *g, unsigned slot, AnimationType type, PaletteF
     set_palette_animations_fade_target(g, slot, fade.to_level);
 }
 
+bool palette_animation_playing(const GameState *g, unsigned slot) { return palette_animations_kind(g, slot) != NO_ANIMATION; }
+
 /* The scene program's start of the telepod ending's fade ($7E:9FA9). */
 void palette_start_fade_to_white(GameState *g, unsigned slot, PaletteFade fade) { start_fade(g, slot, FADE_TO_WHITE, fade); }
 

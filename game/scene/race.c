@@ -504,7 +504,7 @@ static void choose_scripts(GameState *g, Platform *pf)
 {
     set_scene_fade_period(g, FADE_PERIOD);
     set_scene_fade_countdown(g, FADE_PERIOD);
-    if (!(scene_flags(g) & SCENE_FLAG_NO_PANEL)) {
+    if (!(scene_flags(g) & SCENE_FLAG_ATTRACT_SEQUENCE)) {
         set_scene_channels_script(g, 0, RACE_CAMERA_SCRIPT);
         set_scene_channels_script(g, 1, RACE_SCRIPT);
         set_scene_line_effects(g, RACE_LINE_EFFECTS & ~CURTAIN_LINE_EFFECT);

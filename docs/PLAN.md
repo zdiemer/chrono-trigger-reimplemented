@@ -225,7 +225,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 289 files, 117 of 88,861 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 291 files, 117 of 89,454 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -511,18 +511,18 @@ program's stirred random numbers as game code (history file, "Phase 3, the
 scene program: the star field, the captions and the random numbers"); and so
 are the program's start and end and the title from its setup to its end
 (history file, "Phase 4a, the native frame: the title"; history file, "Phase 4a, the native frame: the scene's tables as C").
-**Next**, by what the library reaches: the attract sequence's other scenes
-(modes 1 and 3, the attract demo's); the Beyond Time
+**Next**, by what the library reaches: the Beyond Time
 ending's remaining tasks -- the zooming picture's turn (`$7E:99B5`), the
 Mode 7 picture's vblank tasks (`$7E:9AF3`, `$7E:9DBC`, `$7E:9E2B`, with the
 signed multiply `$7E:33D6`), its tiles' expansion (`$7E:5EF8`), the two
 animated sprites and their first timing (`$7E:9BF9`, `$7E:9BB8`, which draw
 on the table of random bytes, already game code) and the signed sprite
 lists (`$7E:3A97`). The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and
-`$7E:8A01`-`$7E:8B51` no movie reaches. The program's other scenes (modes 1 and 3-8, whose routines lie around the
-title's between `$7E:53BB` and `$7E:7FC3`, about 6 KiB) wait for a movie that
-reaches them: none does (the title left idle is the likeliest way in), so a
-port there would rest on fuzzing alone.
+`$7E:8A01`-`$7E:8B51` no movie reaches. The attract sequence's two scenes (modes 1 and 3) are ports (REIMPLEMENTATION.md,
+"Phase 4a, the native frame: the attract sequence's pages of credits and the
+palace rising"). The program's other scenes (modes 4-8, whose routines lie
+around the title's between `$7E:53BB` and `$7E:7FC3`) wait for a movie that
+reaches them: none does, so a port there would rest on fuzzing alone.
 
 **What `$FD` has left** after wave 1 (docs/history/reimplementation-waves.md, "Phase 3,
 wave 1: bank `$FD`"), the time warp (`game/warp/`) and the location's
@@ -558,14 +558,16 @@ by an audit; the fourth is the program itself.
   to its end: `ct_play --generated off --interpreted stop` (PLAYING.md) runs
   the field's first start, the program's start into the title, the title's
   frames and its scripts' routines, the music fading out and the screen going
-  dark, the scene's end into the menus' attract scene and its curtain, to
-  frame 2663, and stops at `$7E:6B04`, the setup of the attract sequence's
-  next scene (REIMPLEMENTATION.md, "Phase 4a, the native frame: the
-  curtain"). Over 3,000 frames from power-on `--interpreted log` lists 224
-  addresses still interpreted, all of them the attract sequence's scenes 1
-  and 3 in the program (`$7E`). Next: those two scenes (`$7E:53BB`-`$7E:7FC3`,
-  about 6 KiB, which only the attract demo reaches), then on to the load
-  screen and a new game.
+  dark, the scene's end into the menus' attract scene and its curtain, the
+  attract sequence's pages of credits and its field scenes, to frame 3449,
+  and stops at `$C0:3B76`, in the field's event command that goes to a
+  location at once, after its wait for the vblank flag (REIMPLEMENTATION.md,
+  "Phase 4a, the native frame: the attract sequence's pages of credits and
+  the palace rising"). Over 3,000 frames from power-on `--interpreted log`
+  lists nothing; over 20,000 nothing in the scene program, and 513 addresses
+  of the field's, the battle's and bank `$FD`'s code as the attract
+  sequence plays them. Next: that command's wait, then the rest of those
+  513, then on to the load screen and a new game.
 
   **Timing** (PLATFORM.md, "Timing without a beam, as built"): the calls and
   their host backend are built, the field's budgets, the menus' task switch
