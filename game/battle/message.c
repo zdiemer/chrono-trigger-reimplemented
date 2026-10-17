@@ -166,15 +166,14 @@ static bool pause_on_the_message(Snes *s)
 /* The escape's message stays a second, whatever the speed; the others for
  * the frames the speed gives, or until A is pressed. */
 enum { RAN_AWAY = 0x08, RAN_AWAY_FRAMES = 0x3C };
-/* The frames are kept in the battle's cell $53, where the animation scripts that run
- * after a message find them. */
+/* The original keeps the frames in a work cell of the battle's ($53). */
 enum { LEFT_FRAMES = 0x53 - 0x45 };
 
 static bool hold_the_message(Snes *s, uint8_t message)
 {
     GameState *g = state_of(s);
     uint8_t left = frames_up(g);
-    set_battle_scratch(g, LEFT_FRAMES, left);
+    ORIGINAL_EFFECT(set_battle_scratch(g, LEFT_FRAMES, left));
     if (message == RAN_AWAY)
         return battle_wait_frames(s, 0xCD01E7, 0xCD3E3B, COUNTING_WAIT_READS, RAN_AWAY_FRAMES);
     do {
