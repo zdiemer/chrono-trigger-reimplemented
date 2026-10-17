@@ -1264,6 +1264,21 @@ compares, so only the steps that name those registers write it.
 `VidSnesTransfer.continue_channel` says a transfer carries on with whatever the
 channel already holds, for the graphics loader at `$7E:59D5` (below).
 
+The attract sequence's scenes added three more. `vid_send_oam_fill` sets a run
+of the sprite table to one value -- every entry put on one line, or every high
+bit cleared -- which the credit pages do before setting their own sprites (the
+original fills from a byte of its own holding the value, which the SNES
+backend takes from the site's encoding, its `source`); `vid_set_sprite` sets
+one entry by its index, for a screen of letters set as sprites once rather
+than built in memory each frame (the SNES backend writes the table's address
+only where its data port isn't already at the entry, as the original streams
+a run of them, and makes the entry's last byte, `vid_oam_attributes`, in
+`snes/video.h`, since the bits are the SNES's); and
+`VID_STEP_VRAM_READ_FIRST` is the read of VRAM's read port the palace's setup
+makes before it reads its map back, which steps the address on a word
+(REIMPLEMENTATION.md, "Phase 4a, the native frame: the attract sequence's
+pages of credits and the palace rising").
+
 **Ported** (all in [PORTING.md](PORTING.md)'s status table):
 `palette_upload` `$C0:712E`; the battle's `$CD:09CE`, `$CD:09F1`, `$CC:E000`,
 `$D1:E8D9` and the second vblank handler `$D1:F4C0`; the field's `$FD:C1EE`,

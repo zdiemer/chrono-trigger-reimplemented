@@ -8465,6 +8465,14 @@
  * bytes] */
 #define RAM_SCENE_SCALER_PAIRS 0x7E001Fu
 #define RAM_SCENE_SCALER_PAIRS_DP 0x1Fu      /* page scene */
+/* The program's turning of a map ($7E:7441): its matrix, worked out each frame from sequence
+ * channel 0's angle (register 5) and scale (register 0) -- a and d the cosine, b the sine and c
+ * the sine negated, each in 256ths times the scale's quarter, over 8 [4 x $2 bytes, by a, b, c,
+ * d] */
+#define RAM_SCENE_TURN_MATRIX 0x7E001Fu
+#define RAM_SCENE_TURN_MATRIX_COUNT 4u
+#define RAM_SCENE_TURN_MATRIX_STRIDE 0x02u
+#define RAM_SCENE_TURN_MATRIX_DP 0x1Fu       /* page scene */
 /* In the endings that share $7E:8538: nonzero while the zooming picture has been scaled and
  * gathered into tiles and waits for the vblank to send them, which clears its low byte; the main
  * loop scales no new picture until then [2 bytes] */
@@ -8483,6 +8491,12 @@
 /* Bitmap scaler: step added to the row accumulator per output row [2 bytes] */
 #define RAM_SCENE_SCALER_ROW_STEP 0x7E0027u
 #define RAM_SCENE_SCALER_ROW_STEP_DP 0x27u   /* page scene */
+/* The program's turning of a map: the point it turns about, sequence channel 0's registers 1 and
+ * 2 [2 x $2 bytes, by x, y] */
+#define RAM_SCENE_TURN_CENTER 0x7E0027u
+#define RAM_SCENE_TURN_CENTER_COUNT 2u
+#define RAM_SCENE_TURN_CENTER_STRIDE 0x02u
+#define RAM_SCENE_TURN_CENTER_DP 0x27u       /* page scene */
 /* Bitmap scaler: 8.8 fixed-point step between source samples along a row [2 bytes] */
 #define RAM_SCENE_SCALER_COLUMN_STEP 0x7E0029u
 #define RAM_SCENE_SCALER_COLUMN_STEP_DP 0x29u /* page scene */
@@ -8490,6 +8504,12 @@
  * bitmap ends [2 bytes] */
 #define RAM_SCENE_SCALER_SOURCE_LIMIT 0x7E002Bu
 #define RAM_SCENE_SCALER_SOURCE_LIMIT_DP 0x2Bu /* page scene */
+/* The program's turning of a map: where it is placed, sequence channel 0's registers 1 and 2
+ * again [2 x $2 bytes, by x, y] */
+#define RAM_SCENE_TURN_POSITION 0x7E002Bu
+#define RAM_SCENE_TURN_POSITION_COUNT 2u
+#define RAM_SCENE_TURN_POSITION_STRIDE 0x02u
+#define RAM_SCENE_TURN_POSITION_DP 0x2Bu     /* page scene */
 /* Bitmap scaler: address in bank $7F of the current output row (32 bytes of planar tile
  * graphics) [2 bytes] */
 #define RAM_SCENE_SCALER_OUTPUT 0x7E002Du
@@ -8521,6 +8541,22 @@
  * ($3F) [9 bytes] */
 #define RAM_SCENE_BITPLANE_SCRATCH 0x7E003Bu
 #define RAM_SCENE_BITPLANE_SCRATCH_DP 0x3Bu  /* page scene */
+/* Nonzero while the map buffer ($1400) holds a map for VRAM: the program's upload of it
+ * ($7E:783C) sends it and clears this */
+#define RAM_SCENE_MAP_BUFFER_WAITING 0x7E003Bu
+#define RAM_SCENE_MAP_BUFFER_WAITING_DP 0x3Bu /* page scene */
+/* The palace's scene (mode 3): BG3's horizontal scroll, which moves the column offsets' ripple
+ * across the picture by its strength each frame [2 bytes] */
+#define RAM_SCENE_PALACE_RIPPLE_SCROLL 0x7E003Du
+/* The palace's scene: BG2's vertical scroll below the horizon, which a per-line effect reads;
+ * sequence channel 1's register 2 over 4 [2 bytes] */
+#define RAM_SCENE_PALACE_SEA_SCROLL 0x7E003Fu
+/* The palace's scene: the offsets mode 2 moves BG1's columns by, BG3's first two rows as the
+ * vblank sends them: across, the ripple's shape from its strength, and down, none [64 x $2
+ * bytes, by column: the first 32 across, the next 32 down] */
+#define RAM_SCENE_PALACE_COLUMN_OFFSETS 0x7E0043u
+#define RAM_SCENE_PALACE_COLUMN_OFFSETS_COUNT 64u
+#define RAM_SCENE_PALACE_COLUMN_OFFSETS_STRIDE 0x02u
 /* BG3's horizontal scroll, sent with the per-frame tilemap block [2 bytes] */
 #define RAM_SCENE_BG3_SCROLL_X 0x7E0044u
 #define RAM_SCENE_BG3_SCROLL_X_DP 0x44u      /* page scene */
@@ -8784,6 +8820,12 @@
 /* Nonzero once A has been pressed after the finish and the picture is fading out [2 bytes] */
 #define RAM_SCENE_RACE_LEAVING 0x7E00BEu
 #define RAM_SCENE_RACE_LEAVING_DP 0xBEu      /* page scene */
+/* The palace's scene: frames until the mosaic's next step ($14 between steps) */
+#define RAM_SCENE_PALACE_MOSAIC_WAIT 0x7E00C3u
+#define RAM_SCENE_PALACE_MOSAIC_WAIT_DP 0xC3u /* page scene */
+/* The palace's scene: BG1's mosaic, counted down a step at a time to none */
+#define RAM_SCENE_PALACE_MOSAIC 0x7E00C4u
+#define RAM_SCENE_PALACE_MOSAIC_DP 0xC4u     /* page scene */
 /* Nonzero once a button has been pressed after the race and its ending has begun: the way the
  * curtain sweeps, scene_race_ending_sweep */
 #define RAM_SCENE_RACE_ENDING 0x7E0350u
@@ -8835,6 +8877,9 @@
  * bits (1 a repdigit, 2 777, 3 123 or 1234, 4 a round thousand), and $20, $40 and $80 for
  * reaching 1300, 1500 and 2000 */
 #define RAM_SCENE_RACE_PRIZE 0x7E0381u
+/* The attract sequence's page of credits shown last, 1-5 (read a byte), below the program's work
+ * RAM so the pages go round from one showing to the next [2 bytes] */
+#define RAM_SCENE_CREDITS_PAGE 0x7E0382u
 /* In the shared endings: where the next caption's text is in the program; the captions end at
  * the staff roll's text ($AB1A). Modes 10 and 11 start it at $A651 [2 bytes] */
 #define RAM_SCENE_ENDING_CAPTION_TEXT 0x7E0382u
@@ -9227,6 +9272,22 @@
 #define RAM_SCENE_CAPTION_LETTERS 0x7E662Fu
 #define RAM_SCENE_CAPTION_LETTERS_COUNT 288u
 #define RAM_SCENE_CAPTION_LETTERS_STRIDE 0x01u
+/* The palace's scene: how far the palace's colors move each frame as they darken, the first of
+ * its fades: the operand of the fade's own load, 1 as the program is unpacked, 6 in the attract
+ * sequence's */
+#define RAM_SCENE_PALACE_DARKENING_STEP 0x7E6A5Fu
+/* The palace's scene: the same for the second fade, to white: 4, or 8 in the attract sequence's */
+#define RAM_SCENE_PALACE_WHITENING_STEP 0x7E6A82u
+/* The palace's scene: the same for the last fade, from white back to the colors: 3, or 8 in the
+ * attract sequence's */
+#define RAM_SCENE_PALACE_CLEARING_STEP 0x7E6AABu
+/* How many rows of 32 tiles the program's turning of a map ($7E:7441) writes into the map
+ * buffer: the operand of its own load, $1B as the program is unpacked, which the palace's setup
+ * makes $1C */
+#define RAM_SCENE_TURNED_MAP_ROWS 0x7E7442u
+/* Where the program's upload of the map buffer ($7E:783C) sends it in VRAM: the operand of its
+ * own load, $6000 as the program is unpacked, which the palace's setup makes 0 [2 bytes] */
+#define RAM_SCENE_MAP_UPLOAD_VRAM 0x7E7841u
 /* The count bytes of the zooming picture's two sprite lists in the program (one more than the
  * sprites drawn): the gathering sets each from the picture's zoom, so the list draws as many of
  * its sprites as the picture covers [2 x $21 bytes, by the picture: 0 the short one, 1 the tall
@@ -9268,6 +9329,12 @@
 #define RAM_SCENE_RACE_PLANE_COLUMN 0x7EC995u
 /* The race's scaled road strip, sent to VRAM $5180 each frame [64 bytes] */
 #define RAM_SCENE_RACE_ROAD_STRIP 0x7EE100u
+/* The palace's scene: BG1's horizontal scroll on each line, which a per-line effect reads: the
+ * shimmer's strength on every other line, the odd lines or the even by the frame [224 x $2
+ * bytes, by line] */
+#define RAM_SCENE_PALACE_LINE_SHIFTS 0x7EF000u
+#define RAM_SCENE_PALACE_LINE_SHIFTS_COUNT 224u
+#define RAM_SCENE_PALACE_LINE_SHIFTS_STRIDE 0x02u
 /* The per-line tables the race's line effects read, cleared at setup [4096 bytes] */
 #define RAM_SCENE_RACE_LINE_TABLES 0x7EF000u
 /* The second matrix entry of the line above the screen (scene_plane_line_above_a), just before
@@ -9343,6 +9410,7 @@
 #define RAM_SCENE_CALL_RACE_HALF_SIZE_DP 0xFCu /* The race's placing of Crono: his size halved, at least $40, which his picture's height and width are worked out over; the field's controller read takes it over as the repeat delay (input_repeat_delay) */
 #define RAM_SCENE_CALL_RACE_GAP_DP 0xFEu     /* The race's placing of a bike: the horizon's gap to the plane's top, less one, kept there across the multiply that shifts the cell after the product; the field's controller read takes it over as the buttons of the frame before (input_previous) */
 #define RAM_SCENE_CALL_RACE_POSE_DP 0xFEu    /* The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of pictures */
+#define RAM_SCENE_CALL_RIPPLE_OFFSET_DP 0xF0u /* The palace's ripple (on the scene's own page): the column offset as it is worked out across the columns, which ends back where it started */
 #define RAM_SCENE_CALL_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page) */
 
 /* ---- warp ---------------------------------------------------------------------------------- */

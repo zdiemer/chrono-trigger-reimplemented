@@ -2474,85 +2474,72 @@ is a few reads, which the original spends 40 to 100 clocks on), and the
 callers whose stretches now take the waits' work inline (the frame wait's
 tail, the battle's frame step) moved with them.
 
-### Phase 4a, the native frame: the curtain, and the fallback measure's unfinished comparisons (`$C3:000E`, `$C3:01BD`-`$C3:02DC`, `$C6:E241`-`$C6:E2AE`, `$C2:0346`, `$C2:046E`)
+### Phase 4a, the native frame: the attract sequence's pages of credits and the palace rising (`$7E:6B04`-`$7E:6CBF`, `$7E:66B0`-`$7E:6B03`, `$7E:73C6`-`$7E:7440`, `$7E:783C`)
 
-The fourth chunk of the native frame's stream, after the scene's tables
-(history file, "Phase 4a, the native frame: the scene's tables as C").
+The fifth chunk of the native frame's stream, after the curtain (history
+file, "Phase 4a, the native frame: the curtain, and the fallback measure's
+unfinished comparisons").
 
-**How it was chosen.** The strict player stopped at frame 2140 on `$C6:E241`,
-where the menus' attract scene starts its curtain, which the scene engine's
-step (`$C3:01E4`) sweeps; then at `$C2:046E`, the sprite-object mode's jump
-to its wait for a frame. Before them, the review's fixes: a task's
-registered entry takes its row (`scene_task_alone(s, &row)`, the list the
-row's), so a task with no row can't reach it; and the fallback measure's
-unfinished comparisons (below).
+**How it was chosen.** The strict player stopped at frame 2663 on `$7E:6B04`,
+the setup of the scene program's mode 1, and over 3,000 frames the rest of
+what it interpreted was mode 1's and mode 3's code. They are the two scenes of
+the program the attract sequence plays between its field scenes; nothing
+else reaches them.
 
 **What it is.**
-- The curtain (`scene/curtain.c`): the ragged edge that sweeps across the
-  screen to open or close a scene, a byte a line. Each frame every line's
-  edge moves 8 to 11 pixels, in runs of 3 to 34 lines that move alike, the
-  runs taken from the game's table of random bytes from a place a stirred
-  number picks (`scene_draw_random`); the edges are kept $1C0 bytes on and
-  sent to the table or the half after it, a frame each; after 31 steps the
-  sweep is over. Two of the original's accidents are kept: an edge stopped at
-  0 leaves A's high byte at the direct page's, which every later run's length
-  takes in (the rest of that frame is one run); and the adds and subtracts
-  take in the carry of the line's compare with the end, which carries only
-  where the lines wrap round the bank. The scene engine's jump to it
-  (`$C3:000E`) is a stop there, so a comparison of the step is the step's own.
-- The menus' curtain (`menu/line_effects.c`, `$C6:E241` start, `$C6:E27E`
-  step): window 1's right edge line by line on slot 2 (a new line target,
-  `VID_LINE_WINDOW1_RIGHT`), from the object's own table, the slot's two runs
-  of 112 lines showing the half the step just sent.
-- The sprite-object mode's wait for a frame from its start (`$C2:0346`) and
-  its jump (`$C2:046E`).
+- The pages of credits (`scene/credit_pages.c`, mode 1): five pages of the
+  game's staff, one each time the mode runs, the page kept below the
+  program's work RAM. The names are BG1's map, written from the program's
+  text a letter a tile; the jobs above them are sprites in a small font, 5
+  pixels apart, written straight into the sprite table, which the page's frame
+  task keeps from being built over by holding the sprite table's cursor at its
+  start. On the program's 90th frame the task hands its slot to the darkening
+  that ends the scene. The letters' resource is half sent as it is and half
+  widened from two bitplanes to four, the two added blank.
+- The palace rising (`scene/rising_palace.c`, mode 3): the setup takes the map
+  the field left at VRAM `$6000` and shows it as BG1 in mode 2, its top ten rows
+  blank, with per-line effects for a shimmer (every other line pushed across, by
+  frame parity), the sea's scroll below the horizon and the sky's map above it;
+  frame tasks ripple BG1's columns through mode 2's offsets, fade the palace
+  dark, to white and back, and work out a turning matrix the scene never uses
+  (the program's turning of a map, mode 5's, would); vblank tasks send the
+  offsets and the scrolls. The attract sequence's showing adds a curtain (a
+  frame task that steps the curtain, `$C3:01E4`, through the machine, so the
+  step's comparison stays its own) and faster fades. The setup changes three
+  of the program's operands -- the map upload's VRAM address, the turning's row
+  count and the fades' steps -- which are now variables in the RAM map, and the
+  guards hash the code around them.
+- The services: `vid_send_oam_fill`, `vid_set_sprite` and
+  `VID_STEP_VRAM_READ_FIRST` (PLATFORM.md); and `palette_animation_playing`,
+  which the palace's fades wait on.
 
-**What shadow mode and fuzzing found.** Fuzzing found both of the curtain's
-accidents, a sweep of none clearing the count, and that a table in the
-second bank near its end runs the work RAM port on into low RAM (it wrote
-over the menus' current object): the guard takes tables clear of low RAM's
-first $2000 bytes in the first bank and short of the end in the second.
-Through the jump as a port of its own, the stir's wait for the original's
-latch was the jump's comparison's, not the step's, and 4% of steps compared
-a beam they hadn't waited for. Over the 35 movies, 0 mismatching:
-the step 2,097 calls (248 inside an outer step's latch wait, compared as its), its jump 1,535, the menus' start 8 and step 264, the wait 30,714 and its jump 29,964. **Fuzzing** (seed 1): the step 0 of 18,572 of 20,000 (1,428
-turned away by the guard), the jump 0 of 20,000, the menus' start 0 of 1,750
-and step 0 of 1,860 of 2,000, the wait and its jump 0 of 2,000 each.
+**What shadow mode and fuzzing found.** The letters' unpacking is called from
+inside the setup's loader routine, whose return the original has under the
+call: without it shadow mode paired the call with nothing. Y and the overflow
+are live at the setups' end (the frame's work reads them): each setup leaves
+them as its original does, the credit pages' overflow worked out in the
+wrapper from the page's last letter. The curtain's task is a frame task, not a vblank one, and the
+original's step waits for a latched beam: run as C inside the list, it put the
+whole frame list's comparison in a latch wait (124 frames uncompared), so the
+task is the list's original's, a port reached through the machine like the
+race's. Over the 35 movies, 0 mismatching: the credit pages' setup 10 calls (compared inside the program's start) and their task 900; the palace's setup 2, the turn, the shimmer, the ripple, the offsets' upload and the curtain's task 562 each, the fades 2, 86 and 64, the map's upload 2, all in `attract-demo`, which plays the attract sequence's showing of the palace. **Fuzzing** (seed 1): 0
+mismatches over the 14 rows -- the two setups 300 states each, the tasks
+20,000 each (a page's 90th frame, a fade over or not, a mosaic due and a
+curtain under way among the variants), none turned away. The palace's setup
+sends the map itself, where the original increments the buffer's flag and
+sends through the vblank task's code: on a flag at $FF, which the game never
+has, the original's wraps and sends nothing, so that row keeps the flag at 0
+or 1 (an accepted divergence, written at `finish_the_palace`).
 
-**The fallback measure's unfinished comparisons.** A covered stretch ended
-only where its comparison finished, its routine returned, or a port was
-entered at or above it; a nested comparison that shadow mode set aside
-(started inside another's stretch and still running at its point) never told
-the measure, so its stretch stayed open and hid everything the original ran
-after it until S rose above where it began. The title's first frame's never
-did: its stretch, begun at S $06FF, covered the title's main loop for the rest
-of every movie (seen by dumping the measure's extents in the old build), which
-is why `$7E:3176` read 7,510 and then, once the title's setup ran inside the
-start's comparison and the first frame's comparison finished, 45,103: the
-loop's pass the frame's interrupt cuts, once a frame, counted as every other
-interrupted idle pass is. The runtime now tells the measure that a set-aside
-comparison is finished (`settle_nested`), and a run that ends inside a
-comparison writes what it hid (`open` lines): every instruction a comparison
-covers, its callees' included, is counted on the comparison's own line, and
-the `open PORT` lines take part in the ratchet like the other kinds (a new
-one, or one that rose, fails `--check`), so a comparison that stops finishing
-can't pass for a gain. Over the library 62,881 instructions sit under comparisons still open at a movie's end (16 ports, the battle's frame work's the most), now baseline lines of their own. The reference play's count went from 25.12 M to 52.21 M with the
-fix and this chunk's ports: the battle's wait loops run as call-outs' callees
-(`$CD:0453` 20.7 M, `$CD:0033` 6.7 M, `$CD:0024` 1.4 M), the race setup's
-arrangers and the menus' and field's code after set-aside comparisons. The
-endings' small rises at boot-path-2's merge (`$7E:6BE5` +70, `$7E:9ABD` +34,
-`$7E:A03D` +88) are the same mechanism the other way about: with the title's
-tasks inline the frame list's comparison was set aside 25 times instead of
-165, so 140 more frames' original tasks were counted as the list's call-outs'
-callees rather than hidden under the frame work's stretch.
+**Measured.** The strict run goes on through both scenes and the attract
+sequence's field scenes to frame 3449, and stops at `$C0:3B76`, in the field's
+event command that goes to a location at once (`$C0:3B4B`), after its wait for
+the vblank flag. Over 3,000 frames `--interpreted log` lists nothing (from
+224); over 20,000, nothing in the program at `$7E`: what is left (513 addresses)
+is the field's, the battle's and bank `$FD`'s. The fallback measure's reference play went from 52.21 M to 51.43 M (62,881 still under open comparisons); one line rose, the program's code with no port (`7E:----`, +826 instructions): the tails of the two new setups after their call-outs, which the original runs in the reference after the setup's comparison is set aside inside the program's start, as the staff roll's and the shared endings' setups' do.
 
-**Measured.** The strict run goes on through the title's end, the menus'
-attract scene and its curtain, to frame 2663, and stops at `$7E:6B04`, the
-setup of the attract sequence's next scene (mode 1). Over 3,000 frames
-`--interpreted log` lists 224 addresses (from 417), all in the program at
-`$7E` (the attract sequence's scenes 1 and 3).
-
-**Timing.** Calibrated: the new entries. One exception: the jump, a stop with no access of its own, estimated at 0 against the original's 18 clocks.
+**Timing.** Calibrated: the new entries, and the program's start, whose
+stretch now holds the two setups as C.
 
 ### The reading cost of a chunk
 

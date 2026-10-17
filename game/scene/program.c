@@ -7,10 +7,11 @@
  * keeps what that clear spares), the sound is put back to normal
  * (scene/sound.c), every sprite hidden and the screen set to the one every
  * scene starts from (scene/screen.c). Then the scene's own setup, by its mode:
- * the title's (scene/title.c), the race's, the shared endings' and the staff
- * roll's are C, the others still the original's; and its first frame: the
- * palette the setup made sent, a frame waited out, the frame's work done once
- * (scene/frame.c) and the interrupts on. The program's main loop then runs
+ * the title's (scene/title.c), the race's, the attract sequence's pages of
+ * credits (scene/credit_pages.c), the palace rising (scene/rising_palace.c),
+ * the shared endings' and the staff roll's are C, the others still the
+ * original's; and its first frame: the palette the setup made sent, a frame
+ * waited out, the frame's work done once (scene/frame.c) and the interrupts on. The program's main loop then runs
  * (attract/main_loop.c) until a script ends the scene, when the program blanks
  * the screen (scene/screen.c), puts the sound back to normal and hands the
  * game back to the field's start, on the game's fresh stack.
@@ -79,19 +80,24 @@ static void as_the_screen_s_setup_leaves_it(Snes *s)
 
 /* The low bits of scene_flags are the scene's mode, which picks its setup:
  * the race's (scene/race.c; the attract sequence's race is mode 9), the
- * title's (scene/title.c), the shared endings' (scene/endings.c) and the
- * staff roll's (scene/staff_roll.c) are C; the attract sequence's other
- * scenes, and the ones no movie reaches, are still the original's, called by
- * the routine the program's own table names for the mode. */
+ * attract sequence's pages of credits (scene/credit_pages.c), the title's
+ * (scene/title.c), the palace rising (scene/rising_palace.c), the shared
+ * endings' (scene/endings.c) and the staff roll's (scene/staff_roll.c) are C;
+ * the attract sequence's other scenes, and the ones no movie reaches, are
+ * still the original's, called by the routine the program's own table names
+ * for the mode. */
 enum { SCENE_MODE_BITS = 0x1F, SCENE_MODES = 16, PROGRAM_BANK = 0x7E0000 };
 
 typedef enum {
-    MODE_RACE = 0, MODE_TITLE = 2, MODE_ATTRACT_RACE = 9, MODE_ENDING = 10, MODE_ENDING_TOO = 11,
-    MODE_STAFF_ROLL = 13, MODE_ENDING_AGAIN = 14, MODE_LAST_ENDING = 15,
+    MODE_RACE = 0, MODE_CREDITS_PAGE = 1, MODE_TITLE = 2, MODE_RISING_PALACE = 3, MODE_ATTRACT_RACE = 9,
+    MODE_ENDING = 10, MODE_ENDING_TOO = 11, MODE_STAFF_ROLL = 13, MODE_ENDING_AGAIN = 14, MODE_LAST_ENDING = 15,
 } SceneMode;
 
 /* The setups' routines, by which their time is reckoned. */
-enum { RACE_SET_UP = 0x7E3B48, TITLE_SET_UP = 0x7E5978, ENDINGS_SET_UP = 0x7E8538, STAFF_ROLL_SET_UP = 0x7E8EA8 };
+enum {
+    RACE_SET_UP = 0x7E3B48, CREDIT_PAGES_SET_UP = 0x7E6B04, TITLE_SET_UP = 0x7E5978, PALACE_SET_UP = 0x7E671F,
+    ENDINGS_SET_UP = 0x7E8538, STAFF_ROLL_SET_UP = 0x7E8EA8,
+};
 
 static const struct {
     SceneMode mode;
@@ -101,7 +107,9 @@ static const struct {
     bool binary;   /* its code adds, so it runs in binary mode */
 } setups[] = {
     { MODE_RACE, RACE_SET_UP, scene_race_set_up_scene, scene_race_set_up_present, false },
+    { MODE_CREDITS_PAGE, CREDIT_PAGES_SET_UP, scene_credit_pages_set_up_scene, scene_credit_pages_set_up_present, false },
     { MODE_TITLE, TITLE_SET_UP, scene_title_set_up_scene, scene_title_set_up_present, false },
+    { MODE_RISING_PALACE, PALACE_SET_UP, scene_palace_set_up_scene, scene_palace_set_up_present, false },
     { MODE_ATTRACT_RACE, RACE_SET_UP, scene_race_set_up_scene, scene_race_set_up_present, false },
     { MODE_ENDING, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
     { MODE_ENDING_TOO, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },

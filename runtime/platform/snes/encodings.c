@@ -21,7 +21,7 @@ enum {
     SB = VID_STEP_SOURCE_BANK, ZL = VID_STEP_SIZE_LO, ZH = VID_STEP_SIZE_HI, ZC = VID_STEP_SIZE_CLEAR,
     IB = VID_STEP_INDIRECT_BANK, TL = VID_STEP_TARGET_LO, TH = VID_STEP_TARGET_HI, GO = VID_STEP_START,
     P = VID_STEP_VRAM_PORT, SPZ = VID_STEP_SPILL_SIZE_LO, SPC = VID_STEP_SPILL_CURSOR_LO,
-    IBS = VID_STEP_INDIRECT_BANK_IS_SOURCE,
+    IBS = VID_STEP_INDIRECT_BANK_IS_SOURCE, VRF = VID_STEP_VRAM_READ_FIRST,
 };
 #define STEPS(...) ((const uint8_t[]){ __VA_ARGS__, VID_STEP_END })
 
@@ -34,6 +34,7 @@ enum {
     FILL_WORDS = 0x09,         /* the same byte into both halves of a word */
     WORDS_INDIRECT_BIT = 0x41, /* words, with HDMA's indirect bit, which a transfer ignores */
     FROM_REGISTER = 0x80,      /* out of the register into memory */
+    FROM_REGISTERS = 0x81,     /* out of a register pair into memory, a word at a time */
     ONE_REGISTER_INDIRECT_BIT = 0x40,   /* a byte at a time, with HDMA's indirect bit */
     TWO_BYTES_INDIRECT_BIT = 0x42,      /* two bytes at a time, with HDMA's indirect bit */
 };
@@ -185,6 +186,15 @@ static const PfSnesEncoding encodings[] = {
     { 0x7E5AEB, 0, 0, 7, FIXED_BYTE, SCENE_TRANSFER_STEPS, 0 },          /* low bytes filled */
     { 0x7E6215, 0, 0, 7, WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, P, GO), 0 },   /* BG3's offset rows */
     /* the staff roll */
+    { 0x7E672C, 0, 0, 7, FROM_REGISTERS, STEPS(SB, D, SL, SH, ZL, ZH, C, GO), 0 },   /* the palace's map's top rows filled */
+    { 0x7E674D, 0, 0, 7, FROM_REGISTERS, STEPS(TL, TH, VRF, C, D, SL, SH, SB, ZL, ZH, P, GO), 0 },   /* ... the rest read back */
+    { 0x7E66E0, 0, 0, 7, WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, P, GO), 0 },   /* the palace's column offsets */
+    { 0x7E6853, 0, 0, 0, 0, STEPS(SL, SH), 0 },   /* the palace's curtain: its window's table on odd steps */
+    { 0x7E685A, 0, 0, 0, 0, STEPS(SL, SH), 0 },   /* ... and on even ones */
+    { 0x7E7843, 0, 0, 7, WORDS, STEPS(TL, TH, C, D, SL, SH, P, SB, ZL, ZH, GO), 0 },   /* the map buffer */
+    { 0x7E6B22, 0, 0, 7, FILL_WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0 },   /* the credits page's map cleared */
+    { 0x7E6B44, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0xD20000 },   /* ... its sprites' high bits, from a 0 */
+    { 0x7E6B66, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0x7E4565 },   /* ... and its sprites hidden, from an $E0 */
     { 0x7E90BD, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, P, ZL, ZH, C, D, SL, SH, SB, GO), 0 },   /* the credits' tiles blanked */
     { 0x7E8F77, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, ZL, ZH, C, D, SL, SH, P, GO), 0 },       /* ... and set in front */
     { 0x7E9F1D, 0, 0, 7, ONE_REGISTER, STEPS(TL, TH, ZL, ZH, C, D, SL, SH, SB, P, GO), 0 },  /* a row of the credits */

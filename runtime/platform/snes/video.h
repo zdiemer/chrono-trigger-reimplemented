@@ -8,9 +8,11 @@
 #include "platform/video.h"
 
 enum {
-    PF_SNES_INIDISP = 0x2100, PF_SNES_OBSEL = 0x2101, PF_SNES_OAMADDL = 0x2102, PF_SNES_BGMODE = 0x2105,
+    PF_SNES_INIDISP = 0x2100, PF_SNES_OBSEL = 0x2101, PF_SNES_OAMADDL = 0x2102, PF_SNES_OAMDATA = 0x2104,
+    PF_SNES_BGMODE = 0x2105,
     PF_SNES_MOSAIC = 0x2106, PF_SNES_BG1SC = 0x2107, PF_SNES_BG12NBA = 0x210B, PF_SNES_BG1HOFS = 0x210D,
     PF_SNES_VMAIN = 0x2115, PF_SNES_VMADDL = 0x2116, PF_SNES_VMDATAL = 0x2118, PF_SNES_M7SEL = 0x211A,
+    PF_SNES_VMDATAHREAD = 0x213A,
     PF_SNES_M7A = 0x211B, PF_SNES_CGADD = 0x2121, PF_SNES_W12SEL = 0x2123, PF_SNES_CGWSEL = 0x2130,
     PF_SNES_COLDATA = 0x2132, PF_SNES_SETINI = 0x2133, PF_SNES_MDMAEN = 0x420B, PF_SNES_HDMAEN = 0x420C,
 };
@@ -299,6 +301,7 @@ static inline void pf_snes_program(Snes *s, const PfSnesChannel *c, const uint8_
         case VID_STEP_SPILL_SIZE_LO: pf_snes_put(s, (uint16_t)(base + 5), c->spill); break;
         case VID_STEP_SPILL_CURSOR_LO: pf_snes_put(s, (uint16_t)(base + 8), c->spill); break;
         case VID_STEP_INDIRECT_BANK_IS_SOURCE: pf_snes_put(s, (uint16_t)(base + 7), (uint8_t)(c->source >> 16)); break;
+        case VID_STEP_VRAM_READ_FIRST: (void)pf_snes_get(s, PF_SNES_VMDATAHREAD); break;
         }
     }
 }
@@ -604,6 +607,43 @@ PF_API void vid_send_oam(Platform *pf, PfOrigin o, PfData oam)
     pf_snes_send(pf, o, "vid_send_oam", 0x04, 0x02, 0, oam, 0x220, NULL, false, 0);
     if (vid_observer)
         vid_obs_upload_oam(vid_observer, oam);
+}
+
+/* The original fills from a byte of its own that holds the value, which the
+ * site's encoding names as its source. */
+PF_API void vid_send_oam_fill(Platform *pf, PfOrigin o, uint16_t word_addr, uint8_t value, uint16_t len)
+{
+    const PfSnesEncoding *e = pf_snes_encoding(o.site, "vid_send_oam_fill");
+    pf_snes_send(pf, o, "vid_send_oam_fill", 0x04, 0x02, word_addr, PF_GAME(e->source), len, NULL, false, 0);
+    if (vid_observer)
+        vid_obs_fill_oam(vid_observer, word_addr, value, len);
+}
+
+/* A sprite's entry's last byte: its tile's ninth bit, palette, priority and
+ * flips. */
+static inline uint8_t vid_oam_attributes(const VidSprite *sp)
+{
+    return (uint8_t)((sp->vflip ? 0x80 : 0) | (sp->hflip ? 0x40 : 0) | (sp->priority & 3) << 4 |
+                     (sp->palette & 7) << 1 | (sp->tile >> 8 & 1));
+}
+
+/* The original writes a run of entries through the table's data port from one
+ * setting of its address, so the address is set only where the port isn't
+ * already at the entry. */
+PF_API void vid_set_sprite(Platform *pf, PfOrigin o, uint8_t index, const VidSprite *sp)
+{
+    Snes *s = pf_snes(pf);
+    uint16_t at = (uint16_t)(index * VID_OAM_ENTRY_BYTES);
+    if (s->ppu.oam_addr != at)
+        vid_set_oam_address(pf, o, (uint16_t)(at / 2), false);
+    const uint8_t entry[VID_OAM_ENTRY_BYTES] = { vid_oam_x_low(sp->x), sp->y, (uint8_t)sp->tile, vid_oam_attributes(sp) };
+    pf_snes_begin("vid_set_sprite", o);
+    for (unsigned i = 0; i < VID_OAM_ENTRY_BYTES; i++) {
+        pf_snes_put(s, PF_SNES_OAMDATA, entry[i]);
+        if (vid_observer)
+            vid_obs_write_oam(vid_observer, entry[i]);
+    }
+    pf_snes_end();
 }
 
 PF_API void vid_set_line_slot(Platform *pf, PfOrigin o, uint8_t slot, const VidLineEffect *e)

@@ -393,6 +393,15 @@ void vid_obs_upload_oam(VidObserver *ob, PfData oam)
         ob->oam[i] = ob->read(ob->ctx, oam.addr + i);
 }
 
+void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len)
+{
+    vid_obs_oam_address(ob, word_addr, false);
+    for (uint32_t i = 0; i < len; i++)
+        oam_put(ob, value);
+}
+
+void vid_obs_write_oam(VidObserver *ob, uint8_t v) { oam_put(ob, v); }
+
 /* The SNES-only escape: a transfer whose mode and destination are game data.
  * Where the destination is video memory the observer can still follow it, byte
  * by byte in the pattern the transfer mode gives (as runtime/snes/bus.c does);
