@@ -6484,13 +6484,31 @@ iterations = 2000
 why = "the menus' page and data bank"
 
 [[routine]]
+name = "menu_nmi_enter"
+at = "C2:840E"
+subsystem = "menu"
+state = "menus"
+args = ["--interrupt"]
+why = "the vblank handler as the interrupt enters it, with whatever registers, page and data bank the interrupted code has, on the menus' stack"
+
+[[routine]]
+name = "menu_nmi_enter"
+variant = "narrow"
+at = "C2:840E"
+subsystem = "menu"
+state = "menus"
+args = ["--interrupt", "--widths", "8,8"]
+why = "as the plain row, interrupting code with 8-bit registers: the index registers are kept a byte each"
+
+[[routine]]
 name = "menu_nmi_work"
 at = "C2:842A"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0D00", "--db", "00"]
-iterations = 500
-why = "the vblank handler, entered as the interrupt enters it"
+args = ["--d", "0D00", "--db", "00", "--s", "1DF8", "--jump", "--fill", "7E1DF9-7E1DF9=04,05,06,07,44,45,46,47,84,85,86,87,C4,C5,C6,C7",
+        "--fill", "7E1DFE-7E1DFE=00-FF", "--fill", "7E1DFF-7E1DFF=00-1C"]
+iterations = 2000
+why = "the vblank handler's work, entered as its entry leaves it, on to its return: on the handler's own stack with the flags it kept there wide and the interrupt's I (the guard refuses narrow ones), and the interrupted stack noted at $1DFE anywhere in low RAM below the page the handler's stack runs down into (the guard refuses the rest: there the return pulls what the work's callees left, and the ports among them leave their dead stack bytes alone), so the interrupted registers come back from anywhere there"
 
 [[routine]]
 name = "menu_vblank_upload"
@@ -8965,6 +8983,63 @@ state = "objects"
 args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
 iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_draw_the_world"
+at = "C6:E7FA"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00"]
+iterations = 300
+why = "called by JSL from a script's call command on the object mode's page; the two planes' maps and groups the cells name anywhere in bank $7E, and the maps, groups and colours random. The guard (game/menu/turning_world.c) refuses planes in low RAM, where the original keeps its working values (the mode's first cells, its return on the stack) and reads them changing under it; the scene's planes are at $3000-$5800"
+
+[[routine]]
+name = "menu_object_draw_the_world"
+variant = "planes"
+at = "C6:E7FA"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0010-7E0011=5800", "--fill", "7E0013-7E0014=4000",
+        "--fill", "7E0016-7E0017=3800", "--fill", "7E0019-7E001A=3000"]
+iterations = 300
+why = "as the plain row, with the cells naming the planes the scene draws (the land's map and groups, plane 1, then plane 0's over it), their contents random"
+
+[[routine]]
+name = "menu_object_start_the_world_turning"
+at = "C6:E90F"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script's call command on the object mode's page, the running object a slot; it sets every field it turns by"
+
+[[routine]]
+name = "menu_object_turn_the_world"
+at = "C6:E9F5"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+1A,1=00-17",
+        "--fill", "[7E004E]+1B,1=00-00"]
+why = "called by JSL from a script's call command on the object mode's page, the running object a slot whose angle, zoom, distances (0 among them, the divider's all-ones), pivot, reach and turn are random and whose tilt is one of the table's 24: the guard (game/menu/turning_world.c) refuses any other, which no scene sets and which the original reads on into the code after the table for"
+
+[[routine]]
+name = "menu_object_turn_the_world"
+variant = "wide"
+at = "C6:E9F5"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--widths", "16,16", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A",
+        "--fill", "[7E004E]+1A,1=00-17", "--fill", "[7E004E]+1B,1=00-00"]
+why = "as the plain row, entered with a 16-bit accumulator as the start falls into it"
+
+[[routine]]
+name = "menu_object_turn_the_world_on"
+at = "C6:EE23"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script's call command on the object mode's page, the running object a slot; the turn handed on in the cell random"
 
 [[routine]]
 name = "menu_object_accelerate"

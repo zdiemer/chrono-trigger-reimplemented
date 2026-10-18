@@ -60,6 +60,7 @@ typedef struct FuzzOptions {
     unsigned long iterations;
     uint64_t seed;
     bool long_call, interrupt;
+    bool jump;   /* entered by a jump or by falling through: nothing pushed (a handler's work after its entry) */
     unsigned range_lo[3], range_hi[3];   /* A, X, Y */
     unsigned range_step[3];              /* every step-th value from lo (0: every one) */
     FuzzArea areas[FUZZ_MAX_AREAS];

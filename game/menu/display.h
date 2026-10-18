@@ -30,7 +30,9 @@ void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t
 void menu_mode_start(Snes *s);
 void menu_mode_return(Snes *s);
 void menu_mode_restart(Snes *s);
+void menu_nmi_enter(Snes *s);
 void menu_nmi_work(Snes *s);
+bool menu_nmi_work_runs(Snes *s);
 void menu_vblank_upload(Snes *s);
 void menu_upload_vram_queue(Snes *s);
 void menu_upload_palette(Snes *s);

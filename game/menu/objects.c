@@ -78,6 +78,14 @@ void menu_set_object_byte(GameState *g, MenuObject o, uint16_t at, uint8_t v)
     set_byte_at(g, (uint16_t)(menu_object_address(o) + at), v);
 }
 
+void menu_object_leave_cell8(GameState *g, unsigned cell, uint8_t v) { set_menu_object_scratch_bytes_byte(g, cell, v); }
+
+void menu_object_leave_cell16(GameState *g, unsigned cell, uint16_t v)
+{
+    menu_object_leave_cell8(g, cell, (uint8_t)v);
+    menu_object_leave_cell8(g, cell + 1, (uint8_t)(v >> 8));
+}
+
 /* ---- Starting objects ----------------------------------------------------------------------- */
 
 /* A new object takes on the starter's state from its sixth byte on: where it

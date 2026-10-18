@@ -23,10 +23,13 @@ static const char *const kind_names[KINDS] = { "refused", "handback", "skipped",
  * it is charged to (entry address, or NO_PORT), the S it ends above, the S it
  * began at (a hand port entered there or above ends it: the original's code
  * went on to a port without returning, a main loop's next pass), and whether
- * an interrupt began it (an RTI ends it, wherever the stack is then). */
+ * an interrupt began it (an RTI ends it, wherever the stack is then). A held
+ * extent is an interrupt entry's comparison (NativeEntry.interrupt), whose
+ * handler may move the stack: neither S nor a port entered ends it, only the
+ * comparison's end or an RTI. */
 typedef struct Frame {
     uint8_t kind;
-    bool interrupt;
+    bool interrupt, held;
     uint32_t routine, port;
     uint16_t floor, start;
     uint64_t hidden;   /* COVERED, a comparison's own (named): what it and its callees have not counted */
@@ -205,7 +208,7 @@ static void count_hidden(Fallbacks *f)
 /* Extents the machine has left: S rose above where they began. */
 static void leave_finished(Fallbacks *f, uint16_t s)
 {
-    while (f->depth > 1 && s > f->frames[f->depth - 1].floor)
+    while (f->depth > 1 && !f->frames[f->depth - 1].held && s > f->frames[f->depth - 1].floor)
         f->depth--;
 }
 
@@ -229,11 +232,12 @@ static void leave_covered(Fallbacks *f, const NativeEntry *e)
     }
 }
 
-/* An interrupt returned: its extent ends, and every one begun inside it. */
+/* An interrupt returned: its extent ends, or the held one of the handler's
+ * comparison, and every one begun inside it. */
 static void leave_interrupt(Fallbacks *f)
 {
     for (int i = f->depth - 1; i > 0; i--) {
-        if (f->frames[i].interrupt) {
+        if (f->frames[i].interrupt || f->frames[i].held) {
             f->depth = i;
             return;
         }
@@ -260,7 +264,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         f->pass.open = false;
 
     Frame eff = f->frames[f->depth - 1];
-    if (f->depth > 1 && eff.floor - sp > STACK_SPAN)
+    if (f->depth > 1 && !eff.held && eff.floor - sp > STACK_SPAN)
         eff = (Frame){ .kind = UNPORTED, .routine = BANK_ONLY, .port = NO_PORT, .floor = sp };
     f->eff = eff;
     uint32_t routine = eff.routine == BANK_ONLY ? BANK_ONLY | (pc & 0xFF0000) : eff.routine;
@@ -431,12 +435,13 @@ static void on_entered(void *ctx, Snes *s, const NativeEntry *e)
     uint16_t sp = s->cpu.s;
     f->pass.open = false;
     leave_finished(f, sp);
-    while (f->depth > 1 && f->frames[f->depth - 1].start <= sp)
+    while (f->depth > 1 && !f->frames[f->depth - 1].held && f->frames[f->depth - 1].start <= sp)
         f->depth--;
     f->pending = false;
     f->pending_rti = false;
     if (f->shadow)
-        enter(f, (Frame){ .kind = COVERED, .routine = cpu_pc24(&s->cpu), .port = e->addr, .floor = sp, .name = e->name });
+        enter(f, (Frame){ .kind = COVERED, .held = e->interrupt, .routine = cpu_pc24(&s->cpu), .port = e->addr,
+                          .floor = sp, .name = e->name });
 }
 
 /* SHADOW: a wait loop's head, where an idle entry applies. A pass that came

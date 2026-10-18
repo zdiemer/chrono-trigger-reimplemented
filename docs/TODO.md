@@ -1515,23 +1515,15 @@ rest waits, is [PLAN.md](PLAN.md).
     resumed on the task's own stack, which the fallback measure can't file
     under the port that stopped at the yield. Most of what it runs is the
     tasks' own loops: the menus' task's (`$C2:826C`-`$C2:8290`, the yield and
-    then the screen's step through the table at `$C2:8292`, 2.3 M
-    instructions of the shipping mode's movies), the records' sprite task's
-    (`$C2:E91B`-`$C2:E921`) and the scheduler's resumption (`$C2:8206`-`$C2:8215`).
+    then the screen's step through the table at `$C2:8292`, 3.5 M
+    instructions of the shipping mode's movies, the most of bank `$C2` still
+    run as the original there now that the vblank handler is C), the records'
+    sprite task's (`$C2:E91B`-`$C2:E921`, 0.6 M) and the scheduler's
+    resumption (`$C2:8206`-`$C2:8215`).
     A port of a loop that yields every pass would hold a comparison open for
     the whole of a screen; the tasks as fibers of their own
     (`runtime/port/fiber.h`, the menus' fourth chunk's item) would take them
     off the machine;
-  - the menus' vblank handler's entry and exit (`$C2:840E`-`$C2:8429`,
-    `$C2:8466`-`$C2:8471`, around `menu_nmi_work`; 3.7 M instructions of the
-    shipping mode's movies with the stub's `7E:0500` line) stay the
-    original's: the handler moves the stack to its own place above the
-    interrupted code's (`$1DFD` down, the interrupted one kept at
-    `$7E:1DFE`), and shadow mode takes a stack above the one an entry was
-    entered on for its return, so a port of the whole handler is compared as
-    returned before its first call. Ending an interrupt entry's comparison at
-    its RTI instead would let it be ported (as `menu_object_nmi` is, which
-    keeps its stack);
   - the scrolling lists' cursor kept within the rows (`$C2:EA53`) and their
     frame laid out (`$C2:EA81`, the divider's quotient the scroll bar's
     step), which the equipment, items, techs and shop screens' bridges call
@@ -2451,6 +2443,23 @@ re-runs the census.
     (the music's fade takes the waits' guard, `battle_message_can_be_typed`,
     because it runs on into one; `registry.c` says so now). Add it with
     an example once a second case turns up, or now if the owner agrees.
+- **What the shipping mode's fallbacks' second chunk left** (REIMPLEMENTATION.md,
+  "Phase 4a, the shipping mode's fallbacks, chunk 2"):
+  - the Day of Lavos's drawing (`$C6:E7FA`) and its turn's start (`$C6:E90F`)
+    run past a vblank, so their one call in `battle-lavos-gameover` is
+    interrupted and only fuzzing compares them; a cut of the movie whose
+    state starts just before each, run with the interrupts held, would give
+    shadow mode a call of each;
+  - the scripts' start of an object (`menu_object_cmd_start_script`) is in
+    `tools/timing_exceptions.txt` for its calls in vblank in the Day of Lavos,
+    whose free-slot search the original makes a slot at a time over dozens of
+    running objects: a charge per slot passed at `$C2:048A`'s rate overshot
+    every other scene, and wants a rate of its own (the search as a timed part,
+    `TIMED_AS` a routine that is only the loop);
+  - the globe that ends the Day of Lavos is the scene program's (`7E:6439`,
+    `7E:65DD`, 1.9 M of the shipping mode's movies), left with the rest of the
+    `$7E` lines as the chunk's brief asked; `$C6:EE31`, beside the turn,
+    nothing in the library calls.
 - **What the shipping mode's fallbacks' review left** (none blocking):
   - The direct page's scratch cells `$00`-`$0E` are written plainly across
     about a dozen battle files under names that belong to other routines
@@ -2701,13 +2710,6 @@ waits on M5 rather than on a backend.
     time: check whether the new ending ports (`$C0:75A0`, `$C0:6E27`,
     `$C0:0AFF`) leave estimated time owed at frame ends, which thins out the
     bases the search replays from (the likely, unconfirmed cause);
-  - the shipping mode's movies drift into play their reference play never
-    makes, and the largest of what they run as the original is now there:
-    the menus' object scripts' routines of the 1000 A.D. world map's event
-    (`$C6:E7FA`-`$C6:EE22`, a Mode 7 picture built and turned; 7.3 M
-    instructions over `endings-beyond-time`, `endings-bucket-lavos` and
-    `endings-telepod-lavos`, none in any reference play), whose port would rest on
-    fuzzing alone (movies-wanted.md, "1000 A.D. world map event");
   - the shipping mode's count can't be ratcheted: it moves with every port's
     timing (99 of 1068 keys between the default and the native-shape build).
     A shipping-mode run that played the movies at the original's timing

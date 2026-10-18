@@ -7801,6 +7801,14 @@ meaning = "The caller's stack pointer, put back when the menus return"
 source = "game/menu/display.c, menu_mode_return $C2:82C1"
 
 [[var]]
+name = "menu_interrupted_stack"
+addr = "7E:1DFE"
+size = 2
+subsystem = "menu"
+meaning = "The stack pointer of the code the menus' vblank handler interrupted, put back as it returns; the handler runs on its own stack, from just below"
+source = "game/menu/display.c, menu_nmi_enter $C2:840E and menu_nmi_work $C2:842A"
+
+[[var]]
 name = "menu_entry_a"
 addr = "7E:0A00"
 subsystem = "menu"
@@ -11630,6 +11638,57 @@ meaning = "Slot 3's second table of per-line values"
 source = "game/menu/epoch.c"
 
 [[var]]
+name = "menu_slot4_line_values"
+addr = "7E:9DB6"
+size = 2
+count = 224
+index = "line"
+subsystem = "menu_object"
+meaning = "Slot 4's first table of per-line values: the turning world map's Mode 7 matrix c, a line pair a value"
+source = "game/menu/turning_world.c"
+
+[[var]]
+name = "menu_slot4_other_line_values"
+addr = "7E:A056"
+size = 2
+count = 224
+index = "line"
+subsystem = "menu_object"
+meaning = "Slot 4's second table of per-line values"
+source = "game/menu/turning_world.c"
+
+[[var]]
+name = "menu_slot5_line_values"
+addr = "7E:A3D6"
+size = 2
+count = 224
+index = "line"
+subsystem = "menu_object"
+meaning = "Slot 5's first table of per-line values: the turning world map's Mode 7 matrix d"
+source = "game/menu/turning_world.c"
+
+[[var]]
+name = "menu_slot5_other_line_values"
+addr = "7E:A676"
+size = 2
+count = 224
+index = "line"
+subsystem = "menu_object"
+meaning = "Slot 5's second table of per-line values"
+source = "game/menu/turning_world.c"
+
+[[var]]
+name = "menu_world_picture"
+addr = "7F:9000"
+size = 1
+count = 0x3000
+index = "byte"
+reuses = "menu_world_map_tiles"
+subsystem = "menu_object"
+meaning = "The 1000 A.D. world map as a Mode 7 picture, built for the Day of Lavos's turning map before it goes to VRAM: 192 tiles of 64 pixels, twelve tiles across and sixteen down, a pixel a map tile across and two down (over the map view's tile graphics, menu_world_map_tiles, which the event's map doesn't load)"
+source = "game/menu/turning_world.c, menu_object_draw_the_world $C6:E7FA"
+
+[[var]]
 name = "menu_world_map_tiles"
 addr = "7F:9000"
 size = 32
@@ -11737,6 +11796,15 @@ size = 1
 subsystem = "menu"
 meaning = "Which half of each of the time dial's double-buffered per-line tables is being rebuilt: bit 0 the window, bit 1 the matrix, bit 2 its second pair"
 source = "game/menu/epoch.c, menu_epoch_build_gate_window $C2:6CC1, menu_epoch_gate_matrix_object $C2:6F85"
+
+[[var]]
+name = "menu_world_frames"
+addr = "7E:1BF5"
+size = 1
+reuses = "menu_gate_flags"
+subsystem = "menu"
+meaning = "The Day of Lavos's turning world map: the frames it has turned, counted round a byte, whose parity picks which of each matrix value's two tables a frame draws into while the other is on the screen. The time dial's flags' cell (menu_gate_flags), which the dial's screens alone use otherwise"
+source = "game/menu/turning_world.c, menu_object_turn_the_world $C6:E9F5"
 
 [[var]]
 name = "menu_time_period"
@@ -12382,6 +12450,31 @@ source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c, game/
   name = "jolt_size"
   offset = 0x0A
   meaning = "A random jolt: how far it went, 0-63"
+  [[var.field]]
+  name = "world_turn_handed_on"
+  offset = 0x08
+  size = 2
+  meaning = "The Day of Lavos's turning world map: the turn a frame's work ($C6:E9F5) hands the routine that turns the picture on by it ($C6:EE23), which the object's script calls next (game/menu/turning_world.c)"
+  [[var.field]]
+  name = "world_land_map"
+  offset = 0x10
+  size = 2
+  meaning = "The turning world map's drawing ($C6:E7FA): where in bank $7E the scene has the land's map (the world map's plane 1), a tile group's number a map tile; the drawing leaves it a whole map on"
+  [[var.field]]
+  name = "world_over_map"
+  offset = 0x13
+  size = 2
+  meaning = "The drawing: where the map of the plane over the land is (plane 0), drawn over it; left a whole map on"
+  [[var.field]]
+  name = "world_land_groups"
+  offset = 0x16
+  size = 2
+  meaning = "The drawing: where in bank $7E the land's tile groups are, which its map's numbers name"
+  [[var.field]]
+  name = "world_over_groups"
+  offset = 0x19
+  size = 2
+  meaning = "The drawing: where the tile groups of the plane over the land are"
 [[var]]
 name = "menu_text"
 addr = "7E:020C"
@@ -12959,6 +13052,70 @@ source = "game/menu/objects.c, menu_run_objects $C2:051D; game/menu/script.c, me
   name = "period"
   offset = 0x22
   meaning = "The time dial's object and its digits: which of the seven periods it shows (game/menu/epoch.c)"
+
+  [[var.field]]
+  name = "world_tilt"
+  offset = 0x1A
+  size = 2
+  meaning = "The Day of Lavos's turning world map: how steeply the picture leans away, an index into the tilts' table at $C6:EB23, each a step its distances grow by down the screen (game/menu/turning_world.c)"
+
+  [[var.field]]
+  name = "world_zoom"
+  offset = 0x24
+  meaning = "The turning world map: how large the picture is drawn, a multiplier of the matrix's sine and cosine (game/menu/turning_world.c)"
+
+  [[var.field]]
+  name = "world_zoom_high"
+  offset = 0x25
+  meaning = "The byte after the turning world map's zoom, which the turn's start clears with it as a word; nothing reads it"
+
+  [[var.field]]
+  name = "world_distance_across"
+  offset = 0x26
+  meaning = "The turning world map: how far away the picture is, across, at the screen's middle line, which divides the matrix's first row (game/menu/turning_world.c)"
+
+  [[var.field]]
+  name = "world_distance_across_high"
+  offset = 0x27
+  meaning = "The byte after the distance across, cleared with it as world_zoom_high is; nothing reads it"
+
+  [[var.field]]
+  name = "world_distance_down"
+  offset = 0x28
+  meaning = "The turning world map: the same, down, which divides the matrix's second row"
+
+  [[var.field]]
+  name = "world_distance_down_high"
+  offset = 0x29
+  meaning = "The byte after the distance down, cleared with it as world_zoom_high is; nothing reads it"
+
+  [[var.field]]
+  name = "world_pivot_x"
+  offset = 0x2A
+  size = 2
+  meaning = "The turning world map: the point of the picture it turns about, across, before the reach moves it (game/menu/turning_world.c)"
+
+  [[var.field]]
+  name = "world_pivot_y"
+  offset = 0x2C
+  size = 2
+  meaning = "The turning world map: the point it turns about, down"
+
+  [[var.field]]
+  name = "world_turn"
+  offset = 0x2E
+  size = 2
+  meaning = "The turning world map: how far it turns a frame, in 1024ths of a turn: each frame's work hands it on in the mode's cells (menu_object_scratch's world_turn_handed_on) to the routine that turns it ($C6:EE23; game/menu/turning_world.c)"
+
+  [[var.field]]
+  name = "world_reach"
+  offset = 0x30
+  meaning = "The turning world map: how far from the pivot, along the turned picture, the bottom middle of the screen looks, in 256ths of the middle line's matrix (game/menu/turning_world.c)"
+
+  [[var.field]]
+  name = "world_reach_high"
+  offset = 0x31
+  meaning = "The byte after the reach, cleared with it as world_zoom_high is; a frame's work copies it into the mode's cells with the reach, where nothing reads it"
 
   [[var.field]]
   name = "zoom_x"

@@ -99,7 +99,7 @@ B.C., 6 the Black Omen, 7 the End of Time, 0 1999 A.D. and the title's).
 | Map | KiB (ported) | Saves on it |
 |---|--:|---|
 | 65,000,000 B.C. (`$1F3`, scene 3) | 2.63 (0.38) | ctsave05 slots 1, 2; ctsave07 slots 2, 3; ct-state6, ct-state10; zophar chrono-4 slots 2, 3. Handlers `$C2:4CC5`, `$5097`, `$5494`, `$504B` and `$C6:E072`/`$E101` |
-| 1000 A.D. (`$1F0`, scene 0) | 1.67 (1.54) | every 1000 A.D. save; the code is `$C6:E7FA`-`$EC7C`, routines a scene 0 script calls with command `$4E`, and commands `$3F`/`$40`/`$08`/`$25` no movie's walk there runs: an event on the map, which one is unknown |
+| 1000 A.D. (`$1F0`, scene 0) | 1.67 (1.54) | every 1000 A.D. save; the code is `$C6:E7FA`-`$EE30`, routines a scene 0 script calls with command `$4E`: the Day of Lavos after a loss to Lavos, which `battle-lavos-gameover` (route `lavos_lost`) now plays; commands `$3F`/`$40`/`$08`/`$25` no movie's walk there runs |
 | 12,000 B.C. (`$1F6`, scene 6) | 0.78 (0.78) | zophar chrono-6 slot 2 |
 | 12,000 B.C. (`$1F4`, scene 4) | 0.54 (0.46) + 0.21 shared with 1, 5 | ctsave08 slot 2; ct-state7, ct-state8 |
 | 1999 A.D. (`$1F7`, scene 7) | 0.23 (0.23) | none; the bucket ending and the attract demo pass over it |
@@ -233,6 +233,16 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   animation commands and effects they use; about 0.1 KiB a minute on the AI alone.
 - **Route**: yes (walking, `talk()`, the battle bot).
 
+### 5b. The Day of Lavos after a loss
+- **Save**: technoplaza ct-state16 slot 2 (Crono and Marle at the fair, New Game+).
+- **Do**: take the right telepod's Gate to Lavos and lose the shell's fight.
+- **Recorded**: `battle-lavos-gameover` (route `lavos_lost`, 16192 frames): nobody acts until the
+  shell's first imitation wipes the party; the loss plays Lavos rising out of the 1999 A.D. world map,
+  the operators' room, the 1000 A.D. world map laid back and turned in Mode 7 under the needles
+  (`$C6:E7FA`-`$C6:EE30`, which no other movie's reference play reaches: the shipping mode's endings
+  drifted into it after a lost Lavos fight, 7.3 M instructions run as the original), and the globe
+  behind "But... the future refused to change", where the movie stops.
+
 ### 6. Black Tyrano and Lavos's fall
 - **Save**: ctsave08 slot 1 (`$12F`).
 - **Do**: beat Azala and the Black Tyrano; watch the scene at `$12D`.
@@ -249,7 +259,6 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 
 ### Unknown
 - **Floor switches** (2.10 KiB): no map with a switch of the other shapes is identified.
-- **1000 A.D. world map event** (1.67 KiB, `$C6:E7FA`-`$EC7C`): the scene 0 script that calls it isn't identified.
 - **Mode 5** (2.05 KiB): nothing found that starts it.
 - **Field engine**, **battle other**, **enemy movement**, **sound driver** and
   **palette effects** (10.9 KiB together): no trigger identified; expect the

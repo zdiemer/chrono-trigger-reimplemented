@@ -3495,6 +3495,14 @@
 /* Which half of each of the time dial's double-buffered per-line tables is being rebuilt: bit 0
  * the window, bit 1 the matrix, bit 2 its second pair */
 #define RAM_MENU_GATE_FLAGS 0x7E1BF5u
+/* The Day of Lavos's turning world map: the frames it has turned, counted round a byte, whose
+ * parity picks which of each matrix value's two tables a frame draws into while the other is on
+ * the screen. The time dial's flags' cell (menu_gate_flags), which the dial's screens alone use
+ * otherwise */
+#define RAM_MENU_WORLD_FRAMES 0x7E1BF5u
+/* The stack pointer of the code the menus' vblank handler interrupted, put back as it returns;
+ * the handler runs on its own stack, from just below [2 bytes] */
+#define RAM_MENU_INTERRUPTED_STACK 0x7E1DFEu
 /* The fourteen bytes after the inventory's items, which the menus' clean-up of the inventory
  * ($C2:9988) takes as its places 242-255 [14 x $1 bytes, by place past the inventory] */
 #define RAM_MENU_INVENTORY_PAST_THE_ITEMS 0x7E24F2u
@@ -4198,6 +4206,11 @@
 #define RAM_MENU_OBJECT_SCRATCH_IRIS_LOWER_TO 0x7E0019u /* The squashed iris: the centre line, where its lower half starts */
 #define RAM_MENU_OBJECT_SCRATCH_JOLT_ANGLE 0x7E0008u /* A random jolt ($C6:E6D0): the direction it took, 256 steps a turn, as a word */
 #define RAM_MENU_OBJECT_SCRATCH_JOLT_SIZE 0x7E000Au /* A random jolt: how far it went, 0-63 */
+#define RAM_MENU_OBJECT_SCRATCH_WORLD_TURN_HANDED_ON 0x7E0008u /* The Day of Lavos's turning world map: the turn a frame's work ($C6:E9F5) hands the routine that turns the picture on by it ($C6:EE23), which the object's script calls next (game/menu/turning_world.c) */
+#define RAM_MENU_OBJECT_SCRATCH_WORLD_LAND_MAP 0x7E0010u /* The turning world map's drawing ($C6:E7FA): where in bank $7E the scene has the land's map (the world map's plane 1), a tile group's number a map tile; the drawing leaves it a whole map on */
+#define RAM_MENU_OBJECT_SCRATCH_WORLD_OVER_MAP 0x7E0013u /* The drawing: where the map of the plane over the land is (plane 0), drawn over it; left a whole map on */
+#define RAM_MENU_OBJECT_SCRATCH_WORLD_LAND_GROUPS 0x7E0016u /* The drawing: where in bank $7E the land's tile groups are, which its map's numbers name */
+#define RAM_MENU_OBJECT_SCRATCH_WORLD_OVER_GROUPS 0x7E0019u /* The drawing: where the tile groups of the plane over the land are */
 /* Two bytes ORed into the display register each frame (bit 7 forced blank, low nibble
  * brightness); while bit 7 of the first is set the wave handler also turns its effect off [2
  * bytes] */
@@ -4372,6 +4385,18 @@
 #define RAM_MENU_OBJECT_SLOTS_ANGLE 0x7E0B48u /* The time dial's object: the angle the gate stands at; the gate's matrix object: the angle its spin has reached (game/menu/epoch.c) */
 #define RAM_MENU_OBJECT_SLOTS_TURN 0x7E0B50u /* The time dial's object: how far the gate turns each frame, signed (game/menu/epoch.c) */
 #define RAM_MENU_OBJECT_SLOTS_PERIOD 0x7E0B52u /* The time dial's object and its digits: which of the seven periods it shows (game/menu/epoch.c) */
+#define RAM_MENU_OBJECT_SLOTS_WORLD_TILT 0x7E0B4Au /* The Day of Lavos's turning world map: how steeply the picture leans away, an index into the tilts' table at $C6:EB23, each a step its distances grow by down the screen (game/menu/turning_world.c) */
+#define RAM_MENU_OBJECT_SLOTS_WORLD_ZOOM 0x7E0B54u /* The turning world map: how large the picture is drawn, a multiplier of the matrix's sine and cosine (game/menu/turning_world.c) */
+#define RAM_MENU_OBJECT_SLOTS_WORLD_ZOOM_HIGH 0x7E0B55u /* The byte after the turning world map's zoom, which the turn's start clears with it as a word; nothing reads it */
+#define RAM_MENU_OBJECT_SLOTS_WORLD_DISTANCE_ACROSS 0x7E0B56u /* The turning world map: how far away the picture is, across, at the screen's middle line, which divides the matrix's first row (game/menu/turning_world.c) */
+#define RAM_MENU_OBJECT_SLOTS_WORLD_DISTANCE_ACROSS_HIGH 0x7E0B57u /* The byte after the distance across, cleared with it as world_zoom_high is; nothing reads it */
+#define RAM_MENU_OBJECT_SLOTS_WORLD_DISTANCE_DOWN 0x7E0B58u /* The turning world map: the same, down, which divides the matrix's second row */
+#define RAM_MENU_OBJECT_SLOTS_WORLD_DISTANCE_DOWN_HIGH 0x7E0B59u /* The byte after the distance down, cleared with it as world_zoom_high is; nothing reads it */
+#define RAM_MENU_OBJECT_SLOTS_WORLD_PIVOT_X 0x7E0B5Au /* The turning world map: the point of the picture it turns about, across, before the reach moves it (game/menu/turning_world.c) */
+#define RAM_MENU_OBJECT_SLOTS_WORLD_PIVOT_Y 0x7E0B5Cu /* The turning world map: the point it turns about, down */
+#define RAM_MENU_OBJECT_SLOTS_WORLD_TURN 0x7E0B5Eu /* The turning world map: how far it turns a frame, in 1024ths of a turn: each frame's work hands it on in the mode's cells (menu_object_scratch's world_turn_handed_on) to the routine that turns it ($C6:EE23; game/menu/turning_world.c) */
+#define RAM_MENU_OBJECT_SLOTS_WORLD_REACH 0x7E0B60u /* The turning world map: how far from the pivot, along the turned picture, the bottom middle of the screen looks, in 256ths of the middle line's matrix (game/menu/turning_world.c) */
+#define RAM_MENU_OBJECT_SLOTS_WORLD_REACH_HIGH 0x7E0B61u /* The byte after the reach, cleared with it as world_zoom_high is; a frame's work copies it into the mode's cells with the reach, where nothing reads it */
 #define RAM_MENU_OBJECT_SLOTS_ZOOM_X 0x7E0B54u /* The map view's cursor: how far the plane is zoomed across, a divisor of its matrix (game/menu/epoch.c) */
 #define RAM_MENU_OBJECT_SLOTS_ZOOM_Y 0x7E0B56u /* The map view's cursor: how far it is zoomed down */
 #define RAM_MENU_OBJECT_SLOTS_PATH_STEP 0x7E0B58u /* The map view's cursor: how far along its path it has come, in bytes of the path's tables */
@@ -4427,6 +4452,24 @@
 #define RAM_MENU_SLOT3_OTHER_LINE_VALUES 0x7E9A36u
 #define RAM_MENU_SLOT3_OTHER_LINE_VALUES_COUNT 224u
 #define RAM_MENU_SLOT3_OTHER_LINE_VALUES_STRIDE 0x02u
+/* Slot 4's first table of per-line values: the turning world map's Mode 7 matrix c, a line pair
+ * a value [224 x $2 bytes, by line] */
+#define RAM_MENU_SLOT4_LINE_VALUES 0x7E9DB6u
+#define RAM_MENU_SLOT4_LINE_VALUES_COUNT 224u
+#define RAM_MENU_SLOT4_LINE_VALUES_STRIDE 0x02u
+/* Slot 4's second table of per-line values [224 x $2 bytes, by line] */
+#define RAM_MENU_SLOT4_OTHER_LINE_VALUES 0x7EA056u
+#define RAM_MENU_SLOT4_OTHER_LINE_VALUES_COUNT 224u
+#define RAM_MENU_SLOT4_OTHER_LINE_VALUES_STRIDE 0x02u
+/* Slot 5's first table of per-line values: the turning world map's Mode 7 matrix d [224 x $2
+ * bytes, by line] */
+#define RAM_MENU_SLOT5_LINE_VALUES 0x7EA3D6u
+#define RAM_MENU_SLOT5_LINE_VALUES_COUNT 224u
+#define RAM_MENU_SLOT5_LINE_VALUES_STRIDE 0x02u
+/* Slot 5's second table of per-line values [224 x $2 bytes, by line] */
+#define RAM_MENU_SLOT5_OTHER_LINE_VALUES 0x7EA676u
+#define RAM_MENU_SLOT5_OTHER_LINE_VALUES_COUNT 224u
+#define RAM_MENU_SLOT5_OTHER_LINE_VALUES_STRIDE 0x02u
 /* The sprite nodes objects queue their sprite groups in, linked into the drawing list ($B500) or
  * the free list ($B504) [64 x $10 bytes, by node] */
 #define RAM_MENU_SPRITE_NODES 0x7EB000u
@@ -4460,6 +4503,13 @@
 #define RAM_MENU_WORLD_MAP_TILES 0x7F9000u
 #define RAM_MENU_WORLD_MAP_TILES_COUNT 896u
 #define RAM_MENU_WORLD_MAP_TILES_STRIDE 0x20u
+/* The 1000 A.D. world map as a Mode 7 picture, built for the Day of Lavos's turning map before
+ * it goes to VRAM: 192 tiles of 64 pixels, twelve tiles across and sixteen down, a pixel a map
+ * tile across and two down (over the map view's tile graphics, menu_world_map_tiles, which the
+ * event's map doesn't load) [12288 x $1 bytes, by byte] */
+#define RAM_MENU_WORLD_PICTURE 0x7F9000u
+#define RAM_MENU_WORLD_PICTURE_COUNT 12288u
+#define RAM_MENU_WORLD_PICTURE_STRIDE 0x01u
 
 /* ---- overworld ----------------------------------------------------------------------------- */
 

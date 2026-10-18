@@ -37,10 +37,12 @@ enum { RUN_OF_112_LINES = 0xF0, TABLE_END = 0 };
 
 uint16_t menu_line_values(uint8_t slot, unsigned which)
 {
-    static const uint16_t values[3][2] = {
+    static const uint16_t values[5][2] = {
         { (uint16_t)RAM_MENU_SLOT1_LINE_VALUES, (uint16_t)RAM_MENU_SLOT1_OTHER_LINE_VALUES },
         { (uint16_t)RAM_MENU_SLOT2_LINE_VALUES, (uint16_t)RAM_MENU_SLOT2_OTHER_LINE_VALUES },
         { (uint16_t)RAM_MENU_SLOT3_LINE_VALUES, (uint16_t)RAM_MENU_SLOT3_OTHER_LINE_VALUES },
+        { (uint16_t)RAM_MENU_SLOT4_LINE_VALUES, (uint16_t)RAM_MENU_SLOT4_OTHER_LINE_VALUES },
+        { (uint16_t)RAM_MENU_SLOT5_LINE_VALUES, (uint16_t)RAM_MENU_SLOT5_OTHER_LINE_VALUES },
     };
     return values[slot - FIRST_SLOT][which & 1];
 }

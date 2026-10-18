@@ -447,6 +447,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 |---|---|---|---|
 | `battle-magus.ctm` | ctsave07, 1 | Vamp ambush won (results), the Magus fight: Mid Tonic, Ice Water dual tech, Lightning2, barrier changes, a Revive, Cure | 18000 |
 | `battle-golem-twins-gameover.ctm` | ctsave10, 3 | Delta Force, the Golems copying elements, Life revive, party wiped, game over back to the title (the sound driver restarts the SPC700 boot ROM) | 12969 |
+| `battle-lavos-gameover.ctm` | technoplaza ct-state16, 2 | New Game+ at the fair: the telepod's Gate to Lavos, the shell's fight lost with nobody acting, and the Day of Lavos that follows a loss to it: Lavos rising out of the 1999 A.D. world map, the operators' room, the 1000 A.D. world map laid back and turned in Mode 7 under the needles, and the globe behind "But... the future refused to change" (route `lavos_lost`) | 16192 |
 | `battle-tyrano-lair-walls.ctm` | ctsave08, 1 | Volcano and Avian Rex: Volt Bite, Haste, won with an item drop and a level-up | 8042 |
 | `late-omen-battles.ctm` | ctsave15, 1 | Black Omen random battles won (results), status Chaos keeping Lucca confused, many single techs, running away from an ambush | 18412 |
 | `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, the dual tech list, Mega Bomb, Confuse, item menus, Life 2 on a fallen Crono | 17762 |

@@ -35,15 +35,11 @@ DEV_ROOM_MAPS = {room for room, _ in DEV_ROOMS} | {"8601", "5301"}
 DREAM_TEAM = [(9, 0x02), (8, 0x04), (10, 0x01), (11, 0x08), (12, 0x10)]      # bits of $7F:0077
 
 
-def main():
-    args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, sound=args.sound_driver, until=args.until)
+def to_the_shell(run, start):
+    """The phases up to the Gate to Lavos's shell (`fair`, `exhibit`, `shell`): the
+    title, the fair save loaded, Leene Square to the telepod exhibit, and the right
+    telepod's Gate. `start` is the first phase to run (Run.start_at)."""
     machine = run.machine
-    developers = lambda: machine.b(A.DEVELOPERS_TALKED)
-    dream_team = lambda: machine.b(A.DREAM_TEAM_TALKED)
-    start = run.start_at(PHASES)
-
     if start <= 0:
         # Title, then load the save the cursor already sits on (the last one saved).
         machine.run(1620)
@@ -81,6 +77,18 @@ def main():
             if run.map_id() != "0800":
                 break
         run.checkpoint("shell")
+
+
+def main():
+    args = route_arguments(__doc__.splitlines()[0], save=SAVE)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
+              generated=args.generated, sound=args.sound_driver, until=args.until)
+    machine = run.machine
+    developers = lambda: machine.b(A.DEVELOPERS_TALKED)
+    dream_team = lambda: machine.b(A.DREAM_TEAM_TALKED)
+    start = run.start_at(PHASES)
+
+    to_the_shell(run, start)
     if start <= 3:
         run.fight("crono_and_marle", lambda r, s: r.map_id() == "da01", party=2, seed=args.seed)
         run.checkpoint("cavern")

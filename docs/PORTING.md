@@ -675,6 +675,40 @@ time stopped and interrupts held, and owes its bus and internal clocks after
 it, as a port would with a `cost_milli` of 1000. It gives up on a routine that
 yields (2 million instructions without a return).
 
+## Interrupt handlers
+
+Shadow mode decides that the original has left a routine by its stack: S
+above where the call began. A vblank handler that moves to a stack of its own
+above the interrupted code's (the menus', `$C2:840E`: the interrupted S kept
+at `$7E:1DFE`, its own from `$1DFD` down) trips that at the move, before the
+handler's first call-out, so a port of it was compared as returned there and
+mismatched every call. An entry flagged `.interrupt = true` (`NativeEntry`,
+`runtime/port/native.h`) is followed differently, in shadow mode only:
+
+- its call is over at the original's **RTI** (seen at its instruction and taken
+  at the next step), not where S rises; an RTI after an interrupt nested in the
+  stretch can't be told from the entry's own, so that call counts as
+  interrupted, as a stack switch inside an interrupted stretch always has;
+- where S jumps in one step further than an instruction pushes or pulls (4
+  bytes), the handler has moved stacks: the popped region below S
+  (`native_copy_popped_stack`, the bytes the comparison takes as dead) starts
+  again on the new stack, and the one it left keeps its own. Without that the
+  region would run from the old stack's low mark up to the new S and hide
+  every byte between the two stacks from the comparison.
+
+Nothing else changes: the stack test is the rule for every entry not flagged,
+and a flagged entry's call-outs and stops are compared as any other's. The
+fallback measure follows the same calls (`dev/fallbacks.c`: a flagged entry's
+comparison is a held extent that neither S nor a port entered inside it
+ends), and so does the fuzzer (`dev/fuzz.c`'s popped region; `ct_fuzz --s
+HHHH` sets the stack and `--jump` enters a routine gone on to rather than
+called, as a handler's work after its entry is). `tests/port/shadow_test.c`
+has a handler that moves to its own stack: matched with the flag, a mismatch
+without it, and a stray write between the two stacks caught. The handlers
+that keep their stack (`menu_object_nmi`, the field's and the battle's) aren't
+flagged: there the RTI is where S rises above the entry, and the two rules
+agree.
+
 ## Fuzzing
 
 Shadow mode only checks the states the movies reach. `ct_fuzz` checks a

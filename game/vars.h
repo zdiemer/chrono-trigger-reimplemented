@@ -5164,6 +5164,18 @@ void set_menu_pending_scroll_y(GameState *g, uint16_t v);
 uint8_t menu_gate_flags(const GameState *g);
 void set_menu_gate_flags(GameState *g, uint8_t v);
 
+/* The Day of Lavos's turning world map: the frames it has turned, counted round a byte, whose
+ * parity picks which of each matrix value's two tables a frame draws into while the other is on
+ * the screen. The time dial's flags' cell (menu_gate_flags), which the dial's screens alone use
+ * otherwise */
+uint8_t menu_world_frames(const GameState *g);
+void set_menu_world_frames(GameState *g, uint8_t v);
+
+/* The stack pointer of the code the menus' vblank handler interrupted, put back as it returns;
+ * the handler runs on its own stack, from just below */
+uint16_t menu_interrupted_stack(const GameState *g);
+void set_menu_interrupted_stack(GameState *g, uint16_t v);
+
 enum { MENU_INVENTORY_PAST_THE_ITEMS_COUNT = 14 };   /* by place past the inventory */
 /* The fourteen bytes after the inventory's items, which the menus' clean-up of the inventory
  * ($C2:9988) takes as its places 242-255 */
@@ -6330,6 +6342,26 @@ void set_menu_object_scratch_jolt_angle(GameState *g, uint16_t v);
 /* A random jolt: how far it went, 0-63 */
 uint8_t menu_object_scratch_jolt_size(const GameState *g);
 void set_menu_object_scratch_jolt_size(GameState *g, uint8_t v);
+/* The Day of Lavos's turning world map: the turn a frame's work ($C6:E9F5) hands the routine
+ * that turns the picture on by it ($C6:EE23), which the object's script calls next
+ * (game/menu/turning_world.c) */
+uint16_t menu_object_scratch_world_turn_handed_on(const GameState *g);
+void set_menu_object_scratch_world_turn_handed_on(GameState *g, uint16_t v);
+/* The turning world map's drawing ($C6:E7FA): where in bank $7E the scene has the land's map
+ * (the world map's plane 1), a tile group's number a map tile; the drawing leaves it a whole map
+ * on */
+uint16_t menu_object_scratch_world_land_map(const GameState *g);
+void set_menu_object_scratch_world_land_map(GameState *g, uint16_t v);
+/* The drawing: where the map of the plane over the land is (plane 0), drawn over it; left a
+ * whole map on */
+uint16_t menu_object_scratch_world_over_map(const GameState *g);
+void set_menu_object_scratch_world_over_map(GameState *g, uint16_t v);
+/* The drawing: where in bank $7E the land's tile groups are, which its map's numbers name */
+uint16_t menu_object_scratch_world_land_groups(const GameState *g);
+void set_menu_object_scratch_world_land_groups(GameState *g, uint16_t v);
+/* The drawing: where the tile groups of the plane over the land are */
+uint16_t menu_object_scratch_world_over_groups(const GameState *g);
+void set_menu_object_scratch_world_over_groups(GameState *g, uint16_t v);
 
 /* $80 while the screen is off (forced blank), 0 while it shows; the fades set it as they end */
 uint8_t menu_object_display_blank(const GameState *g);
@@ -6720,6 +6752,52 @@ void set_menu_object_slots_turn(GameState *g, unsigned slot, uint16_t v);
 /* The time dial's object and its digits: which of the seven periods it shows (game/menu/epoch.c) */
 uint8_t menu_object_slots_period(const GameState *g, unsigned slot);
 void set_menu_object_slots_period(GameState *g, unsigned slot, uint8_t v);
+/* The Day of Lavos's turning world map: how steeply the picture leans away, an index into the
+ * tilts' table at $C6:EB23, each a step its distances grow by down the screen
+ * (game/menu/turning_world.c) */
+uint16_t menu_object_slots_world_tilt(const GameState *g, unsigned slot);
+void set_menu_object_slots_world_tilt(GameState *g, unsigned slot, uint16_t v);
+/* The turning world map: how large the picture is drawn, a multiplier of the matrix's sine and
+ * cosine (game/menu/turning_world.c) */
+uint8_t menu_object_slots_world_zoom(const GameState *g, unsigned slot);
+void set_menu_object_slots_world_zoom(GameState *g, unsigned slot, uint8_t v);
+/* The byte after the turning world map's zoom, which the turn's start clears with it as a word;
+ * nothing reads it */
+uint8_t menu_object_slots_world_zoom_high(const GameState *g, unsigned slot);
+void set_menu_object_slots_world_zoom_high(GameState *g, unsigned slot, uint8_t v);
+/* The turning world map: how far away the picture is, across, at the screen's middle line, which
+ * divides the matrix's first row (game/menu/turning_world.c) */
+uint8_t menu_object_slots_world_distance_across(const GameState *g, unsigned slot);
+void set_menu_object_slots_world_distance_across(GameState *g, unsigned slot, uint8_t v);
+/* The byte after the distance across, cleared with it as world_zoom_high is; nothing reads it */
+uint8_t menu_object_slots_world_distance_across_high(const GameState *g, unsigned slot);
+void set_menu_object_slots_world_distance_across_high(GameState *g, unsigned slot, uint8_t v);
+/* The turning world map: the same, down, which divides the matrix's second row */
+uint8_t menu_object_slots_world_distance_down(const GameState *g, unsigned slot);
+void set_menu_object_slots_world_distance_down(GameState *g, unsigned slot, uint8_t v);
+/* The byte after the distance down, cleared with it as world_zoom_high is; nothing reads it */
+uint8_t menu_object_slots_world_distance_down_high(const GameState *g, unsigned slot);
+void set_menu_object_slots_world_distance_down_high(GameState *g, unsigned slot, uint8_t v);
+/* The turning world map: the point of the picture it turns about, across, before the reach moves
+ * it (game/menu/turning_world.c) */
+uint16_t menu_object_slots_world_pivot_x(const GameState *g, unsigned slot);
+void set_menu_object_slots_world_pivot_x(GameState *g, unsigned slot, uint16_t v);
+/* The turning world map: the point it turns about, down */
+uint16_t menu_object_slots_world_pivot_y(const GameState *g, unsigned slot);
+void set_menu_object_slots_world_pivot_y(GameState *g, unsigned slot, uint16_t v);
+/* The turning world map: how far it turns a frame, in 1024ths of a turn: each frame's work hands
+ * it on in the mode's cells (menu_object_scratch's world_turn_handed_on) to the routine that
+ * turns it ($C6:EE23; game/menu/turning_world.c) */
+uint16_t menu_object_slots_world_turn(const GameState *g, unsigned slot);
+void set_menu_object_slots_world_turn(GameState *g, unsigned slot, uint16_t v);
+/* The turning world map: how far from the pivot, along the turned picture, the bottom middle of
+ * the screen looks, in 256ths of the middle line's matrix (game/menu/turning_world.c) */
+uint8_t menu_object_slots_world_reach(const GameState *g, unsigned slot);
+void set_menu_object_slots_world_reach(GameState *g, unsigned slot, uint8_t v);
+/* The byte after the reach, cleared with it as world_zoom_high is; a frame's work copies it into
+ * the mode's cells with the reach, where nothing reads it */
+uint8_t menu_object_slots_world_reach_high(const GameState *g, unsigned slot);
+void set_menu_object_slots_world_reach_high(GameState *g, unsigned slot, uint8_t v);
 /* The map view's cursor: how far the plane is zoomed across, a divisor of its matrix
  * (game/menu/epoch.c) */
 uint16_t menu_object_slots_zoom_x(const GameState *g, unsigned slot);
@@ -6835,6 +6913,27 @@ enum { MENU_SLOT3_OTHER_LINE_VALUES_COUNT = 224 };   /* by line */
 uint16_t menu_slot3_other_line_values(const GameState *g, unsigned line);
 void set_menu_slot3_other_line_values(GameState *g, unsigned line, uint16_t v);
 
+enum { MENU_SLOT4_LINE_VALUES_COUNT = 224 };   /* by line */
+/* Slot 4's first table of per-line values: the turning world map's Mode 7 matrix c, a line pair
+ * a value */
+uint16_t menu_slot4_line_values(const GameState *g, unsigned line);
+void set_menu_slot4_line_values(GameState *g, unsigned line, uint16_t v);
+
+enum { MENU_SLOT4_OTHER_LINE_VALUES_COUNT = 224 };   /* by line */
+/* Slot 4's second table of per-line values */
+uint16_t menu_slot4_other_line_values(const GameState *g, unsigned line);
+void set_menu_slot4_other_line_values(GameState *g, unsigned line, uint16_t v);
+
+enum { MENU_SLOT5_LINE_VALUES_COUNT = 224 };   /* by line */
+/* Slot 5's first table of per-line values: the turning world map's Mode 7 matrix d */
+uint16_t menu_slot5_line_values(const GameState *g, unsigned line);
+void set_menu_slot5_line_values(GameState *g, unsigned line, uint16_t v);
+
+enum { MENU_SLOT5_OTHER_LINE_VALUES_COUNT = 224 };   /* by line */
+/* Slot 5's second table of per-line values */
+uint16_t menu_slot5_other_line_values(const GameState *g, unsigned line);
+void set_menu_slot5_other_line_values(GameState *g, unsigned line, uint16_t v);
+
 enum { MENU_SPRITE_NODES_COUNT = 64 };   /* by node */
 /* Previous node in its list */
 uint16_t menu_sprite_nodes_prev(const GameState *g, unsigned i);
@@ -6889,6 +6988,14 @@ enum { MENU_WORLD_MAP_TILES_COUNT = 896 };   /* by world map tile */
 enum { MENU_WORLD_MAP_TILES_BYTES = 32 };
 uint8_t menu_world_map_tiles_byte(const GameState *g, unsigned i, unsigned at);
 void set_menu_world_map_tiles_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
+enum { MENU_WORLD_PICTURE_COUNT = 12288 };   /* by byte */
+/* The 1000 A.D. world map as a Mode 7 picture, built for the Day of Lavos's turning map before
+ * it goes to VRAM: 192 tiles of 64 pixels, twelve tiles across and sixteen down, a pixel a map
+ * tile across and two down (over the map view's tile graphics, menu_world_map_tiles, which the
+ * event's map doesn't load) */
+uint8_t menu_world_picture(const GameState *g, unsigned i);
+void set_menu_world_picture(GameState *g, unsigned i, uint8_t v);
 
 /* ---- overworld ----------------------------------------------------------------------------- */
 

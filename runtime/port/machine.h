@@ -398,6 +398,68 @@ static inline void m_return_to_interrupted_bank_first(Snes *s)
     m_rti(s);
 }
 
+/* An index register pushed and pulled as wide as the flags make it. */
+static inline void m_push_index(Snes *s, uint16_t v)
+{
+    if (s->cpu.p & CPU_FLAG_X)
+        m_push8(s, (uint8_t)v);
+    else
+        m_push16(s, v);
+}
+static inline uint16_t m_pull_index(Snes *s) { return (s->cpu.p & CPU_FLAG_X) ? m_pull8(s) : m_pull16(s); }
+
+/* PLP, narrowing X and Y when the pulled flags make them 8-bit. */
+static inline void m_pull_flags(Snes *s)
+{
+    s->cpu.p = m_pull8(s);
+    if (s->cpu.p & CPU_FLAG_X) {
+        s->cpu.x &= 0xFF;
+        s->cpu.y &= 0xFF;
+    }
+}
+
+/* An interrupt handler that runs on a stack of its own (the menus' vblank
+ * handler's, $C2:840E): the interrupted code's data bank, X and Y (as wide as
+ * they were) and flags kept on that code's stack, then with every register
+ * wide and the data bank $00, a move to `own` (LDX, TXS: the flags it leaves go
+ * on with the rest), where A, D and the flags are kept a word, a word and a
+ * byte; it leaves 8-bit A and 16-bit index registers. Returns the interrupted
+ * stack, which the handler notes to go back to. */
+static inline uint16_t m_enter_handler_stack(Snes *s, uint16_t own)
+{
+    m_push8(s, s->cpu.db);
+    m_push_index(s, s->cpu.x);
+    m_push_index(s, s->cpu.y);
+    m_push8(s, s->cpu.p);
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
+    s->cpu.db = 0x00;
+    uint16_t interrupted = s->cpu.s;
+    s->cpu.x = own;
+    s->cpu.s = own;
+    m_set_nz16(s, own);
+    m_push16(s, s->cpu.a);
+    m_push16(s, s->cpu.d);
+    m_push8(s, s->cpu.p);
+    m_sep(s, CPU_FLAG_M);
+    return interrupted;
+}
+
+/* ...and back: the handler's flags, D and A, the interrupted stack, its flags,
+ * Y, X and data bank, and the return from the interrupt. */
+static inline void m_leave_handler_stack(Snes *s, uint16_t interrupted)
+{
+    m_pull_flags(s);
+    s->cpu.d = m_pull16(s);
+    s->cpu.a = m_pull16(s);
+    s->cpu.x = interrupted;
+    s->cpu.s = interrupted;
+    m_pull_flags(s);
+    s->cpu.y = m_pull_index(s);
+    s->cpu.x = m_pull_index(s);
+    s->cpu.db = m_pull8(s);
+    m_rti(s);
+}
+
 /* A routine reached by a long call that keeps its caller's registers on the
  * stack while it runs, flags first: P, the data bank, D, then 16-bit A, X and
  * Y (PHP, REP #$30, PHB, PHD, PHA, PHX, PHY), leaving 16-bit registers; and

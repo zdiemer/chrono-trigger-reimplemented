@@ -492,6 +492,29 @@ static inline uint8_t menu_return_flags(const GameState *g, uint8_t kind) { retu
  * step, 1024 steps a turn, of which the second half is read below zero. */
 static inline uint8_t menu_wave_size(const GameState *g, uint16_t step) { return rom_read8(g, 0xC0F900u + step); }
 
+/* A sine of 1024 steps a turn, its values -255 to 255: the wave's size at
+ * the step, below zero in the second half of the turn ($C2:225E); and the
+ * cosine, the sine a quarter turn on ($C2:225A). */
+enum { MENU_SINE_STEPS = 0x400 };
+static inline int16_t menu_sine(const GameState *g, uint16_t phase)
+{
+    uint16_t step = phase & (MENU_SINE_STEPS - 1);
+    int16_t size = menu_wave_size(g, step);
+    return step >= MENU_SINE_STEPS / 2 ? (int16_t)-size : size;
+}
+static inline int16_t menu_cosine(const GameState *g, uint16_t phase)
+{
+    return menu_sine(g, (uint16_t)(phase + MENU_SINE_STEPS / 4));
+}
+
+/* The tilts the Day of Lavos's turning world leans back by
+ * (menu/turning_world.c): how much its distances grow a line pair down the
+ * screen, in 256ths ($C6:EB23, the steeper the later). The frame's guard
+ * keeps the tilt among them; the original's index would read on into the
+ * code after the table. */
+enum { MENU_WORLD_TILTS = 24 };
+static inline uint8_t menu_world_tilt_step(const GameState *g, uint16_t tilt) { return rom_read8(g, 0xC6EB23u + tilt); }
+
 /* A sine wave of 256 steps a turn ($C0:F800), as signed bytes: the table the
  * field reads as its directions' velocity factors, read whole by the scenes'
  * objects, through the data bank. */
