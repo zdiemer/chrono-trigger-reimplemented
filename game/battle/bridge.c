@@ -154,6 +154,21 @@ void battle_keep(Snes *s, BattleFrame f)
  * it. */
 void battle_stop_keeping(Snes *s, BattleFrame f) { s->cpu.s = (uint16_t)(s->cpu.s + f.kept_bytes); }
 
+BattleFrame battle_keeping_the_registers(const Snes *s, BattleCarry carry)
+{
+    uint16_t x = s->cpu.x, y = s->cpu.y;
+    return (BattleFrame){ .kept = { (uint8_t)s->cpu.a, (uint8_t)(x >> 8), (uint8_t)x, (uint8_t)(y >> 8), (uint8_t)y },
+                          .kept_bytes = 5,
+                          .carry = carry };
+}
+
+void battle_give_the_registers_back(Snes *s, BattleFrame f)
+{
+    m_set_a8(s, f.kept[0]);
+    s->cpu.x = (uint16_t)(f.kept[1] << 8 | f.kept[2]);
+    s->cpu.y = (uint16_t)(f.kept[3] << 8 | f.kept[4]);
+}
+
 bool battle_run_under(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *), BattleFrame f)
 {
     battle_keep(s, f);

@@ -937,15 +937,14 @@ bool battle_aim_action_ready(Snes *s)
     return battle_on_page(s) && fits;
 }
 
-/* The area search for the shape and the area its caller hands it in cells
- * (battle_aim_rule_shape, battle_area_search). The carry the search leaves
- * goes back to the caller, whose multiply after it takes it. */
+// $C1:C741
+/* The area search for the shape the targeting's rule names and the area its
+ * caller hands it in cells (battle_aim_rule_shape, battle_area_search): the
+ * shape noted beside the area, then the battle's step 7 on the two. */
 void battle_search_area(Snes *s)
 {
     GameState *g = state_of(s);
-    uint8_t shape = battle_aim_rule_shape(g);
-    AreaAsked asked = battle_area_asked(g);
-    search_area(g, shape, &asked);
-    m_set_flag(s, CPU_FLAG_C, battle_area_search_carry(shape, asked.among_party, asked.centre, asked.toward));
+    set_battle_area_shape(g, battle_aim_rule_shape(g));
+    NATIVE_TIME_AS(s, 0xC11FDD, battle_search_the_noted_area(s));
     m_rts(s);
 }

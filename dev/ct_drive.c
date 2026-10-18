@@ -26,10 +26,13 @@
  * (native, the default), the S-DSP (dsp), or both compared frame by frame (check, which at
  * quit prints a `mixer check:` line and exits 1 if a frame differed).
  * --fallbacks (with --native on or shadow) counts what the original's code runs in
- * place of hand ports, as ct_dev's does (dev/fallbacks.h), and writes it at
- * quit; tools/movies/ctdrv.py passes it from $CT_DRIVE_FALLBACKS, which is how
- * the gate measures the routes (tools/fallbacks.py). Frames a load replays
- * are counted again: it measures what ran, as a player would have run it.
+ * place of hand ports, as ct_dev's does (dev/fallbacks.h), over everything this
+ * machine runs, and writes it at quit: a search's probes, the attempts a load
+ * undoes and the frames a load replays are all counted. So the gate doesn't
+ * count a route's own machine: tools/movies/ctdrv.py plays the input the route
+ * kept again from power-on in a ct_drive of its own with --fallbacks
+ * (Machine.count_kept_frames), checks that it ends on the route's frame with
+ * the route's work RAM, and that count is what tools/fallbacks.py reads.
  * --drain-budgets (with --native on) answers the field's frame budgets as a host
  * does, with time for all the work they defer (platform/timing.h,
  * tm_frame_time_left): the objects' script turns and new frames run every frame,

@@ -1,7 +1,9 @@
-/* The load screen's save slots (game/menu/save_screen.c). */
+/* The save slots' summaries, and the load and save screens' frames that show
+ * them as the cursor moves (game/menu/save_screen.c). */
 #ifndef CT_GAME_MENU_SAVE_SCREEN_H
 #define CT_GAME_MENU_SAVE_SCREEN_H
 
+#include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
 
@@ -10,9 +12,18 @@
  * room. */
 bool menu_save_slots_can_show(const GameState *g);
 
-/* The slots' rows' per-line effect for the next frame, the row of the slot
- * after the one shown marked ($C2:CFFB). */
+/* The save screen can show the slot under its cursor as it waits for a
+ * choice ($C2:CFA2): the cursor on one of the rows, a summary there the
+ * drawing can take, and the drawing's counts with room. */
+bool menu_slot_under_the_cursor_shows(const GameState *g);
+
+/* The slots' rows' per-line effect for the next frame, the slot marked's row
+ * marked ($C2:CFFB). */
 void menu_put_slot_rows_effect(GameState *g);
+
+/* The summary of the slot shown drawn, where it holds a game: its header and
+ * era label, its members' rows and portraits ($C2:D36C). */
+void menu_draw_the_slot_shown(GameState *g, Platform *pf);
 
 void menu_read_save_slots(Snes *s);
 void menu_read_slot_summary(Snes *s);
@@ -24,6 +35,7 @@ void menu_load_slot_rows_effect(Snes *s);
 void menu_draw_member_portrait(Snes *s);
 void menu_draw_save_slot(Snes *s);
 void menu_show_save_slot(Snes *s);
+void menu_move_among_the_slots(Snes *s);
 
 bool menu_slot_rows_effect_is_loadable(Snes *s);
 bool menu_save_slots_are_readable(Snes *s);
@@ -33,5 +45,6 @@ bool menu_slot_summary_is_readable(Snes *s);
 bool menu_portrait_is_drawable(Snes *s);
 bool menu_save_slot_is_drawable(Snes *s);
 bool menu_save_slots_are_showable(Snes *s);
+bool menu_slot_under_the_cursor_is_showable(Snes *s);
 
 #endif

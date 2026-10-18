@@ -10,6 +10,9 @@
  *   (nested in the dispatcher's comparison), which is what calibrates them;
  * - an attribution to an address with no hand port stays the port's own time
  *   and is reported;
+ * - a sibling's scope (native_time_as_sibling) around a handler that calls
+ *   out mid-work makes the stretches that are mostly its work the handler's
+ *   in the report, not the dispatcher's;
  * - every call still matches: attribution changes no behaviour.
  *
  * Exits non-zero on failure.
@@ -54,7 +57,15 @@ static const struct {
     /* 8300, handler 2: copies four bytes. LDA $40 : STA $41 : LDA $42 : STA $43 ... : RTS */
     { 0x8300, { 0xA5, 0x40, 0x85, 0x41, 0xA5, 0x42, 0x85, 0x43, 0xA5, 0x44, 0x85, 0x45, 0xA5, 0x46, 0x85, 0x47, 0x60 },
       17 },
+    /* 8400, handler 3, which the dispatcher calls in handler 2's place in the
+     * sibling run: LDA $40 : STA $41 : JSR $8500 : LDA $42 : STA $43 : JSR $8500 : RTS */
+    { 0x8400, { 0xA5, 0x40, 0x85, 0x41, 0x20, 0x00, 0x85, 0xA5, 0x42, 0x85, 0x43, 0x20, 0x00, 0x85, 0x60 }, 15 },
+    /* 8500, the original's routine handler 3 calls: RTS */
+    { 0x8500, { 0x60 }, 1 },
 };
+
+/* The sibling run: the dispatcher's JSR $8300 at $810A made JSR $8400. */
+enum { SECOND_CALL = 0x810A, HANDLER3 = 0x8400, HANDLER3_CALLS = 0x8404, HANDLER3_CALLS_AGAIN = 0x840B };
 
 /* The handlers' work, which the dispatcher's port runs inline. */
 static void handler1_work(Snes *s, uint8_t a)
@@ -82,7 +93,31 @@ static void handler2(Snes *s)
     m_rts(s);
 }
 
+/* Handler 3's work, a copy either side of each call to the original's $8500:
+ * its middle stretch, between the two calls, is its work alone. */
+static void copy_byte(Snes *s, uint32_t from)
+{
+    uint8_t v = m_read8(s, from);
+    m_write8(s, from + 1, v);
+    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | v);
+}
+
+static void handler3_work(Snes *s)
+{
+    copy_byte(s, 0x000040);
+    m_jsr_dc(s, HANDLER3_CALLS, 0x008500, DC_A | DC_X | DC_Y | DC_FLAGS);
+    copy_byte(s, 0x000042);
+    m_jsr_dc(s, HANDLER3_CALLS_AGAIN, 0x008500, DC_A | DC_X | DC_Y | DC_FLAGS);
+}
+
+static void handler3(Snes *s)
+{
+    handler3_work(s);
+    m_rts(s);
+}
+
 static uint32_t handler1_tag = 0x008200;
+static bool sibling_run;
 
 static void dispatcher(Snes *s)
 {
@@ -90,7 +125,11 @@ static void dispatcher(Snes *s)
     s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | a);
     if (a)
         NATIVE_TIME_AS(s, handler1_tag, handler1_work(s, a));
-    else
+    else if (sibling_run) {
+        m_push16(s, SECOND_CALL + 2);   /* the return the original's JSR pushes, under handler 3's calls */
+        NATIVE_TIME_AS_SIBLING(s, HANDLER3, handler3_work(s));
+        m_pull16(s);
+    } else
         NATIVE_TIME_AS(s, 0x008300, handler2_work(s));
     m_rts(s);
 }
@@ -102,6 +141,7 @@ static const NativeEntry entries[] = {
     { .addr = 0x008100, .name = "dispatcher", .fn = dispatcher, M8_X16, LOOSE, .cost_milli = 5000 },
     { .addr = 0x008200, .name = "handler1", .fn = handler1, M8_X16, LOOSE, .cost_milli = 40000 },
     { .addr = 0x008300, .name = "handler2", .fn = handler2, M8_X16, LOOSE, .cost_milli = 3000 },
+    { .addr = 0x008400, .name = "handler3", .fn = handler3, M8_X16, LOOSE, .cost_milli = 3000 },
 };
 
 /* One run of `frames` frames in shadow mode; the report in `out`. */
@@ -111,6 +151,8 @@ static void run(int frames, char *out, size_t n)
     for (size_t k = 0; k < sizeof program / sizeof program[0]; k++)
         memcpy(rom + program[k].at, program[k].code, program[k].len);
     rom[0xFFFC] = 0x00, rom[0xFFFD] = 0x80;
+    if (sibling_run)
+        rom[SECOND_CALL + 2] = HANDLER3 >> 8;
     static Snes s;
     snes_init(&s, rom, sizeof rom);
     s.interpreter = cpu_step;
@@ -140,7 +182,7 @@ static unsigned long long field(const char *report, const char *entry, const cha
     const char *e = strstr(report, entry);
     if (!e)
         return ~0ull;
-    const char *end = strstr(e, "\n  0");   /* the next entry's line: addresses in bank $00 */
+    const char *end = strstr(e + 1, "\n  0");   /* the next entry's line: addresses in bank $00 */
     const char *k = strstr(e, key);
     if (!k || (end && k > end))
         return ~0ull;
@@ -177,6 +219,28 @@ int main(void)
     CHECK(strstr(report, "part 008200") == NULL, "nothing attributed to handler1 now:\n%s", report);
     CHECK(strstr(report, "timing: attributions to no hand port") != NULL && strstr(report, "(last 008250)") != NULL,
           "the bad tag is reported:\n%s", report);
+
+    /* Handler 3 run as the dispatcher's sibling: of each of its calls from
+     * the dispatcher, the stretches most of whose clocks are its work -- the
+     * middle one, between its two calls, and the first, where its copy and its
+     * call's return address outweigh the dispatcher's read and push -- are
+     * handler 3's in the report, beside its own calls' first stretches (nested
+     * in the dispatcher's comparison), with the dispatcher's few clocks among
+     * them a part at the dispatcher's value. The last, the dispatcher's pull
+     * and return, stays the dispatcher's. */
+    handler1_tag = 0x008200;
+    sibling_run = true;
+    run(20, report, sizeof report);
+    unsigned long long dispatched = field(report, "008100 dispatcher", "calls ");
+    unsigned long long d_stretches = field(report, "008100 dispatcher", "stretches ");
+    unsigned long long h3_stretches = field(report, "\n  008400 handler3", "stretches ");
+    CHECK(dispatched > 100 && d_stretches != ~0ull && h3_stretches != ~0ull, "the sibling run's report:\n%s", report);
+    CHECK(d_stretches + 2 >= dispatched && d_stretches <= dispatched,
+          "the dispatcher keeps %llu stretches over %llu calls:\n%s", d_stretches, dispatched, report);
+    CHECK(h3_stretches + 2 >= dispatched / 2 * 3 && h3_stretches <= dispatched / 2 * 3 + 2,
+          "handler 3 has %llu stretches over %llu dispatches:\n%s", h3_stretches, dispatched, report);
+    CHECK(field(report, "\n  008400 handler3", "part 008100 dispatcher native-bus ") != ~0ull,
+          "the dispatcher's clocks in handler 3's stretches are a part of them:\n%s", report);
 
     if (failures)
         printf("%d failure(s)\n", failures);

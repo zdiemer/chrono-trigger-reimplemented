@@ -230,8 +230,7 @@ static bool draw_load_screen(Snes *s)
     set_menu_save_slot_shown(g, slot);
     set_menu_cursor_index(g, slot);
     ORIGINAL_EFFECT(leave_start_slot_loaded(s, slot));
-    if (!menu_run(s, 0xC2E7E8, 0xC2D36C, menu_draw_save_slot))
-        return false;
+    TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, pf));
     set_menu_text_attribute(g, 0);
     menu_draw_windows(g, pf, SUMMARY_PANEL);
     if (!menu_run(s, 0xC2E7F3, 0xC2E743, menu_show_save_slot))

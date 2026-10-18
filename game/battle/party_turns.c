@@ -49,17 +49,11 @@
  * is fuzzed with. */
 enum { STEP_READS_A = DC_X | DC_Y | DC_FLAGS };
 
-/* The step's number in A. The step indexes its table of steps with the whole
- * of A, so A's high byte is part of what it reads and can't be declared dead:
- * it is clear where the original's code before the step clears it, and
- * otherwise what the step before left there. */
-static void give_step(Snes *s, BattleStep number, bool a_high_clear)
-{
-    if (a_high_clear)
-        s->cpu.a = number;
-    else
-        m_set_a8(s, number);
-}
+/* A step indexes its table with the whole of A, so A's high byte is part of
+ * what the ask hands it (battle_take_step puts the step's number in the low
+ * byte) and can't be declared dead: it is clear where the original's code
+ * before the step clears it, and otherwise what the step before left there. */
+static void clear_a_high_byte(Snes *s) { s->cpu.a &= 0x00FF; }
 
 /* A member's attack on the action's first target ($C1:BFAA), called from
  * bank $FD through the long call at $C1:FDC7. */
@@ -167,10 +161,10 @@ static bool cancel_if_unable(Snes *s, uint8_t member)
     if (!combatant_cant_act(g, member) || battle_member_ready(g, member) == MEMBER_NO_ACTION)
         return true;
     drop_waiting_action(g, member);
-    give_step(s, BATTLE_STEP_CALLED_OFF, true);
+    clear_a_high_byte(s);
     /* dc-evidence: ct_fuzz --poison-dc battle_cancel_if_unable, seed 1: 5000
      * states, 4904 call-outs scrambled, 0 mismatched */
-    if (!battle_call(s, 0xC1B43B, BATTLE_STEP, STEP_READS_A))
+    if (!battle_take_step(s, 0xC1B43B, BATTLE_STEP_CALLED_OFF, STEP_READS_A))
         return false;
     TIMED_AS(g, 0xC1B6D1, battle_return_chosen_item(g, member));
     return true;
@@ -366,10 +360,10 @@ static bool see_to_knocked_out(Snes *s)
     }
     set_battle_reaction_entry(g, BATTLE_ENEMIES);
     if (battle_enemy_beaten_any(g) && !battle_is_demo(g)) {
-        give_step(s, BATTLE_STEP_ENEMIES_BEATEN, true);
+        clear_a_high_byte(s);
         /* dc-evidence: ct_fuzz --poison-dc battle_see_to_knocked_out_enemies:knocked_out, seed 1:
          * 5000 states, 4954 call-outs scrambled, 0 mismatched */
-        if (!battle_call(s, 0xC1B7D7, BATTLE_STEP, STEP_READS_A))
+        if (!battle_take_step(s, 0xC1B7D7, BATTLE_STEP_ENEMIES_BEATEN, STEP_READS_A))
             return false;
     }
     uint8_t any = 0;
@@ -438,10 +432,11 @@ static bool stand_down(Snes *s)
 {
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         set_battle_step_member(state_of(s), member);
-        give_step(s, BATTLE_STEP_CALLED_OFF, member == 0);
+        if (member == 0)
+            clear_a_high_byte(s);
         /* dc-evidence: ct_fuzz --poison-dc battle_party_stands_down, seed 1: 5000
          * states, 15000 call-outs scrambled, 0 mismatched */
-        if (!battle_call(s, stand_down_sites[member], BATTLE_STEP, STEP_READS_A))
+        if (!battle_take_step(s, stand_down_sites[member], BATTLE_STEP_CALLED_OFF, STEP_READS_A))
             return false;
     }
     return true;

@@ -2529,9 +2529,11 @@
  * place's column and line), which tells whether it moved [2 bytes] */
 #define RAM_MENU_NAME_CURSOR_BEFORE 0x7E007Fu
 #define RAM_MENU_NAME_CURSOR_BEFORE_DP 0x7Fu /* page menu */
-/* The save slot after the one shown (wrapping 0-3), whose row the row table marks */
-#define RAM_MENU_SAVE_SLOT_NEXT 0x7E007Fu
-#define RAM_MENU_SAVE_SLOT_NEXT_DP 0x7Fu     /* page menu */
+/* The save slot whose row the slot rows' effect marks: on the load screen the one after the slot
+ * shown (wrapping 0-3); on the save screen the slot under the cursor, which the next frame
+ * compares with the cursor to tick when it has moved */
+#define RAM_MENU_SAVE_SLOT_MARKED 0x7E007Fu
+#define RAM_MENU_SAVE_SLOT_MARKED_DP 0x7Fu   /* page menu */
 /* The settings screen's option the cursor was on when the last frame's input was taken, which
  * tells a push right on the controls from one that brought the cursor there */
 #define RAM_MENU_SETTINGS_OPTION_BEFORE 0x7E007Fu

@@ -60,6 +60,14 @@ void battle_stop_after_call(Snes *s, uint32_t site);
 /* The battle's steps' routine (BattleStep, battle.h). */
 enum { BATTLE_STEP = 0xC10003 };
 
+/* A port's ask for a step, as the original's JSR at `site` makes it: the step
+ * run as C, through the steps' table, where the runtime would run the
+ * dispatch's hand port (its guard taking the call); otherwise the original's
+ * dispatch called, with `dont_care` what it doesn't
+ * read of the asker's registers (checked as a call-out's declaration by
+ * tools/dontcare_check.py; battle/steps.c). True if it came back to the call's return. */
+bool battle_take_step(Snes *s, uint32_t site, BattleStep step, uint16_t dont_care);
+
 /* After a call made some other way (a service's call-out), returning to
  * `returns_to` on the page and bank it was made on: the same test, and the
  * same stop. */
@@ -118,7 +126,7 @@ bool battle_binary_m8_x16(const Snes *s);
  * there; these set the machine up so and take it down again after. */
 typedef enum { BATTLE_CARRY_AS_IT_IS, BATTLE_CARRY_CLEAR, BATTLE_CARRY_SET } BattleCarry;
 typedef struct {
-    uint8_t kept[3];
+    uint8_t kept[5];
     uint8_t kept_bytes;
     BattleCarry carry;
 } BattleFrame;
@@ -134,6 +142,12 @@ static inline BattleFrame battle_keeping_word(uint16_t word, BattleCarry carry)
 
 void battle_keep(Snes *s, BattleFrame f);
 void battle_stop_keeping(Snes *s, BattleFrame f);
+
+/* The frame of a routine that keeps its caller's accumulator (its low byte)
+ * and index registers across a call, as the battle's steps do ($C1:0003);
+ * and those registers given back from it after. */
+BattleFrame battle_keeping_the_registers(const Snes *s, BattleCarry carry);
+void battle_give_the_registers_back(Snes *s, BattleFrame f);
 
 /* battle_run, battle_run_dc, battle_run_long_dc and battle_wait_frame,
  * battle_wait_frames with the frame set up for the call and taken down after it; where the call

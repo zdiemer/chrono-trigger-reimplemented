@@ -64,7 +64,7 @@ static void draw_the_slots(GameState *g, Platform *pf)
 
 /* The second frame's: the front layer cleared for the summary, nothing
  * described, the slot last saved in shown, and the cursor on it. */
-static uint8_t make_room_for_the_summary(GameState *g)
+static void make_room_for_the_summary(GameState *g)
 {
     for (unsigned tile = SUMMARY_FROM_ROW * TILES_A_ROW; tile < (SUMMARY_FROM_ROW + SUMMARY_ROWS) * TILES_A_ROW; tile++)
         set_menu_front_tilemap(g, tile, 0);
@@ -73,8 +73,7 @@ static uint8_t make_room_for_the_summary(GameState *g)
     set_menu_description_stale(g, NOTHING_DESCRIBED);
     uint8_t slot = save_slot_chosen(g);
     set_menu_save_slot_shown(g, slot);
-    set_menu_save_slot_next(g, slot);
-    return slot;
+    set_menu_save_slot_marked(g, slot);
 }
 
 /* The third frame's: the text layer a line up, the colours, the sprites
@@ -103,7 +102,7 @@ enum { SAVE_SCREEN_WINDOWS = 0xC138 };
 // $C2:D0E5
 void menu_lay_out_save_screen(GameState *g, Platform *pf)
 {
-    set_menu_cursor_index(g, menu_save_slot_next(g));
+    set_menu_cursor_index(g, menu_save_slot_marked(g));
     TIMED_AS(g, 0xC2ED31, menu_draw_window_list(g, pf, SAVE_SCREEN_WINDOWS));
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     set_menu_line_effects(g, SAVE_SCREEN_LINE_EFFECTS);
@@ -138,11 +137,9 @@ void menu_show_save_panel(Snes *s)
     draw_the_slots(g, pf);
     if (!yield(s, 0xC2D07E))
         return;
-    uint8_t slot = make_room_for_the_summary(g);
+    make_room_for_the_summary(g);
     menu_set_widths(s, true, false);
-    ORIGINAL_EFFECT(menu_leave_load(s, slot));
-    if (!menu_run(s, 0xC2D09E, 0xC2D36C, menu_draw_save_slot))
-        return;
+    TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, pf));
     menu_queue_fixed_upload(g, MENU_UPLOAD_TEXT_LAYER);
     set_menu_palette_changed(g, 0);
     if (!yield(s, 0xC2D0AA))
@@ -181,8 +178,8 @@ void menu_open_save_screen(Snes *s)
 }
 
 // $C2:D506
-/* Choosing a slot saves in it, going back closes the menus, and a push
- * moves among the slots (the save screen's own, the original's). */
+/* Choosing a slot saves in it (the original's), going back closes the menus,
+ * and otherwise the slot under the cursor is shown as it moves among them. */
 void menu_choose_on_save_screen(Snes *s)
 {
     GameState *g = state_of(s);
@@ -194,6 +191,8 @@ void menu_choose_on_save_screen(Snes *s)
         m_stop_at_own(s, SAVE_IN_THE_SLOT, READS_A_HIGH);
     else if (menu_asked(g, MENU_GO_BACK))
         m_stop_at(s, LEAVE_THE_MENUS, READS_NOTHING);
+    else if (menu_slot_under_the_cursor_shows(g))
+        NATIVE_TIME_AS(s, MOVE_AMONG_THE_SLOTS, menu_move_among_the_slots(s));
     else
         m_stop_at_own(s, MOVE_AMONG_THE_SLOTS, READS_A_HIGH);
 }
@@ -215,7 +214,7 @@ bool menu_save_screen_lays_out(Snes *s)
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_save_slot_next(state_of(s)) < MENU_SAVE_SLOTS;
+    bool ok = menu_save_slot_marked(state_of(s)) < MENU_SAVE_SLOTS;
     vars_peek(false);
     return ok;
 }

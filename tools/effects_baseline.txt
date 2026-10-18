@@ -236,6 +236,8 @@ game/menu/members.c menu_colour_member_row_entry menu_scratch_member_row_place m
 game/menu/members.c menu_member_rows_can_be_drawn_from menu_zero menu_object_sprite_script # the menus' zero word, which their opening writes plainly; the scaffolding at the address is the sprite-object mode's
 game/menu/object_commands.c drift menu_object_shadows_bg3_scroll_x menu_save_member_row
 game/menu/object_script.c move_top_layer menu_object_shadows_bg3_scroll_x menu_save_member_row
+game/menu/save_screen.c drawing_counts menu_zero menu_object_sprite_script # the menus' zero word, which their opening writes plainly, read while the save screen's frame peeks whether it applies; the scaffolding at the address is the sprite-object mode's
+game/menu/save_screen.c move_among_the_slots menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly just before, the frame's choosing; the scaffolding at the address is the sprite-object mode's
 game/menu/save_screen.c draw_member_rows menu_save_summary_byte menu_save_summary
 game/menu/save_screen.c draw_the_rows_portrait menu_save_member_row menu_save_member_row
 game/menu/save_screen.c draw_the_rows_portrait menu_scratch_save_member menu_object_scratch
@@ -756,7 +758,8 @@ game/menu/objects.c menu_object_place menu_object_slots_x menu_description_glyph
 game/menu/objects.c menu_object_velocity menu_object_slots_velocity_x menu_name_grid_line # the sprite-object mode's slot, which its objects' starts write plainly; the scaffolding at the address is a menu screen's, a cell it writes and nothing reads
 game/menu/objects.c menu_object_wrap_onto_map menu_object_slots_x_pixel menu_description_glyphs_sent_pad # the sprite-object mode's slot, which its objects' starts write plainly; the scaffolding at the address is a menu screen's, a cell it writes and nothing reads
 game/menu/save_screen.c draw_member_rows menu_save_summary_byte menu_built_upload # another screen's cells on the same bytes, which it sets plainly before it reads them; the upload record built there is only the original's
-game/menu/save_screen.c draw_save_slot menu_save_slot_shown menu_save_slot_shown # the slot a save screen works on, which it sets plainly before it reads it, or another screen's cells on the same bytes; the count the slots' drawing leaves past the last is only the original's
+game/menu/save_screen.c menu_draw_the_slot_shown menu_save_slot_shown menu_save_slot_shown # the slot a save screen works on, which it sets plainly before it reads it, or another screen's cells on the same bytes; the count the slots' drawing leaves past the last is only the original's
+game/menu/save_screen.c menu_draw_save_slot menu_save_slot_shown menu_save_slot_shown # the slot a save screen works on, which it sets plainly before it reads it, or another screen's cells on the same bytes; the count the slots' drawing leaves past the last is only the original's
 game/menu/save_screen.c draw_the_rows_portrait menu_draw_origin menu_draw_origin # the drawing's origin, which each drawing sets plainly before it reads it; the place the original leaves it past the last slot or member is only the original's
 game/menu/save_screen.c member_present menu_save_summary_byte menu_built_upload # another screen's cells on the same bytes, which it sets plainly before it reads them; the upload record built there is only the original's
 game/menu/save_screen.c menu_draw_chapter_label menu_save_slot_shown menu_save_slot_shown # the slot a save screen works on, which it sets plainly before it reads it, or another screen's cells on the same bytes; the count the slots' drawing leaves past the last is only the original's

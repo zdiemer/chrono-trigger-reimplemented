@@ -2705,8 +2705,8 @@ uint8_t menu_exchange_cursor_kept(const GameState *g) { return r8(g, 0x7E007Fu);
 void set_menu_exchange_cursor_kept(GameState *g, uint8_t v) { w8(g, 0x7E007Fu, v); }
 uint16_t menu_name_cursor_before(const GameState *g) { return r16(g, 0x7E007Fu); }
 void set_menu_name_cursor_before(GameState *g, uint16_t v) { w16(g, 0x7E007Fu, v); }
-uint8_t menu_save_slot_next(const GameState *g) { return r8(g, 0x7E007Fu); }
-void set_menu_save_slot_next(GameState *g, uint8_t v) { w8(g, 0x7E007Fu, v); }
+uint8_t menu_save_slot_marked(const GameState *g) { return r8(g, 0x7E007Fu); }
+void set_menu_save_slot_marked(GameState *g, uint8_t v) { w8(g, 0x7E007Fu, v); }
 uint8_t menu_settings_option_before(const GameState *g) { return r8(g, 0x7E007Fu); }
 void set_menu_settings_option_before(GameState *g, uint8_t v) { w8(g, 0x7E007Fu, v); }
 uint8_t menu_shop_list_cursor(const GameState *g) { return r8(g, 0x7E007Fu); }

@@ -9531,3 +9531,98 @@ a call-out's callee before, is the dispatcher's own work now.
 whose stretches took the new ports' work in (the return to the field, the
 screen's setup, the timers' dispatcher, the battle's message), and the
 script's screen effect, which reads fewer cells now.
+
+## Phase 3, menus and overworld: the world map set up, its scenes' calls and the frame's input (`$C2:0024`-`$C2:015D`, `$C2:03EF`, `$C2:0471`, `$C2:0BF6`, `$C2:23A8`-`$C2:23CE`, `$C2:26D6`-`$C2:2EC0`, `$C2:2ED9`-`$C2:2F4D`, `$C2:5798`, `$C2:7860`-`$C2:7BD0`, `$C2:8002`)
+
+The thirteenth chunk of bank `$C2` (history file, "Phase 3, menus and
+overworld: the vehicles, the screen's objects and the calls made where they
+go", for the one before), picked as that one was, by what the reference play
+still ran as the original in the menus and the overworld: `$C2` at 78.9%
+native (47.7 KiB run, 10.1 KiB of it the original's). Three of the largest
+were left: the trampoline at `$C2:8002` (2.0 million instructions, the
+field's, the battle's and the object mode's vblank handlers' way to the
+frame's input, `$C2:84D2`, already a port); the overworld's setup, everything
+the sprite-object mode did after its own start stopped at `$C2:0024`, the
+scene stream loaders among it (2.1 KiB and 0.6 million instructions); and the
+routines the scenes' scripts call that nothing ported.
+
+**What it is.**
+
+- `overworld/setup.c`, the world map set up (`$C2:23A8`) and loaded again
+  after the menus or the map view (`$C2:2C93`). Each world map's record
+  (`$C6:FD00`, `overworld_data.h`) names a stream a byte in one of ten
+  tables (the MD2 resources at `$C6:FDF0`-`$C6:FFE0`, `OverworldStreamTable`):
+  the sprites' four pages, the party's sprites and colours (each member's
+  block taken from one stream of every character's), the map's seven blocks
+  of tiles, the top layer's tiles and tilemap, the palette (kept in low RAM
+  with the last sprite palette from the ROM, and sent), the Black Omen's
+  sprites and colours over the four maps it hangs over from the story's point
+  `$D4`, the tile groups, the maps, the ground's kinds, the regions, the lists
+  of places (spread from one stream to their four lists), the scene's script
+  and the graphics its script sends as it plays. Then the overworld's own
+  state afresh, the camera on the party, both planes drawn and the scene's
+  script started. The unpacker (`data/decompress.c`) still takes the machine,
+  so the loads reach it through an `Unpacker` the entries supply, which runs
+  its entry as the original's call reaches it.
+- `menu/display.c`, the mode's own start whole (`$C2:000F`): the cartridge's
+  speed (`tm_fast_rom`), the screen and the console's registers (`$C2:0043`,
+  `$C2:00F2`: the controller port's lines, the arithmetic unit, the timers),
+  its state (`$C2:012F`: the direct page cleared, the shadows of the display),
+  its vblank handler (`$C2:0110`) and its upload queue (`$C2:03EF`); with the
+  sprite list's free links laid out (`menu/sprites.c`, `$C2:0BF6`) and every
+  object slot freed (`menu/objects.c`, `$C2:0471`).
+- `menu/object_commands.c`, what the scenes' scripts call: a random step to
+  the right (`$C2:79E0`) and a random place in one of two stretches of the
+  map (`$C2:7A0C`, `$C2:7A31`, one operation and two rows); the party hidden,
+  kept and brought back (`$C2:7860`-`$C2:7888`, `menu_kept_party`); a story
+  flag set and one asked about (`$C2:7B44`, `$C2:7BC4`). The location's song
+  (`$C2:2F0F`) is `overworld/music.c`'s, the request passed on (`$C2:2ED9`) is
+  its entry now, and the sign's label cleared (`$C2:5798`) `sign.c`'s.
+- `menu/frame.c`, `$C2:8002`: the frame's input run as its call at `$C2:8006`
+  reaches it, so its stop where the controller isn't read yet stays the
+  input's own.
+
+The Epoch's screens and the overworld's main loop call the new pieces as C
+(the queue reset, the slots freed, the map's tiles and the map loaded again),
+so `menu/epoch.c` and `overworld/main_loop.c` lost five call-outs; the main
+loop hands a map the loader can't take as it stands (none the game makes) to
+the original's call.
+
+**Nested entries count.** The fallback measure files what a registered entry
+hands back as its own even inside a port that covers the whole routine in
+shadow mode: the palette's send at `$C2:2D47`, entered by falling through,
+stopped at `$C2:2D91`, and its rest counted in every movie that set up a map,
+until it became the whole routine (`overworld_finish_the_graphics`). A port
+that lands around an old stopping entry should make that entry whole too.
+
+**What the gate found.** Shadow mode: the location's song leaves A's high
+byte as the region lookup's word did, which the driver's call compares; the
+mode's start stops at `$C2:23A8` with its own set (D is read there, the
+registers aren't). Fuzzing: the mode's page is cleared through `$EF` (the
+first draft cleared `$F0` too, which no state of the game's has set); and
+the map view's plane built on a random record pointer unpacked garbage over
+the stack, so `menu_epoch_build_map` now asks for the world map's record to
+be the one noted (`overworld_map_tiles_run`), which every real call has.
+
+**Numbers.** Over the reference play the code run in place of hand ports fell
+from 27.1 KiB and 141.9 million instructions to 24.8 KiB and 139.3
+million; `$C2`'s native coverage from 78.9% to 83.8% (47.7 KiB run, the
+original's from 10.1 KiB to 7.7 KiB). Every new entry matches in every
+movie; `$C2:7860`, `$C2:7888`, `$C2:7A0C` and `$C2:7A31` are reached by no
+movie and are fuzzed only (seed 1, `tools/fuzz_routines.toml`; counts in
+`docs/ports.tsv`). Calibrated rows: the new entries, the mode's start and
+screen, the Epoch's two screens, the map view's plane and graphics, and the
+overworld's main loop and its return from the menus, whose call-outs became
+C. Timing exceptions (`tools/timing_exceptions.txt`): the set up, the map's
+loads and the frames that run them (`worst`), whose time follows the packed
+streams, as the field's loads' does.
+
+**Left.** What `C2:----` holds, 5.0 KiB the reference play runs with no call
+on record: the menus' screens' code after a task's yield (`$C2:821E`), which
+the measure can't attribute to the port that stopped there (TODO.md). The
+frame waits (`$C2:0346`, `$C2:046E`, `$C2:0454`), the timing service's. The
+scrolling lists' cursor and frame (`$C2:EA53`, `$C2:EA81`), which four
+screens' bridges call out to; the equipment screen's preview (`$C2:A5C3`);
+the endings' scenes' line effects (`$C6:E241`, `$C6:E27E`), which call the
+scene engine's unported `$C3:000E`; and the dactyl's flight, which
+`field-65m-bc-dactyl.ctm` (route `dactyl_65m_bc`) reaches now.

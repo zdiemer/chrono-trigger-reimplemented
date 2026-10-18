@@ -770,6 +770,25 @@ handlers' own measurement and the report of a bad tag. Nothing shadow mode
 compares changes: a tag only decides which `cost_milli` a port's clocks are
 estimated with, in the report and in `on` mode's charge.
 
+A sibling that a port runs as C where the original's call reached it through
+the machine is measured on its own stretches too, not inside its caller's
+(`native_time_as_sibling`, `runtime/port/native.h`): a stretch more than half
+of whose bus clocks were spent in such a run is the sibling's in the report,
+its errors and its calibration, with the caller's own few clocks a part of it
+at the caller's value. The battle's steps showed why. Once the dispatch
+(`$C1:0003`) was a port running the frame's work and an action's showing as C,
+every stretch of theirs was the dispatch's, so the dispatch's own few clocks
+(the asker's registers pushed and the return) took up the siblings' error,
+calibrated at 94,180 per thousand, and the asker's cost absorbed what that
+did elsewhere (`battle_give_turn` 6451 to 4767). Charged so in the shipping
+mode, a battle's frames ended at other points: `endings-telepod-lavos` lost
+the Lavos shell fight, went back to the title, and its presses opened New
+Game's name entry for about 95,000 frames (3.29 M to 8.29 M instructions in
+place of hand ports). Measured as the siblings' own, the dispatch calibrates
+at 2367, the askers at their old values, and the movie wins the fight again
+and plays to its end as before (3.26 M). `tests/port/time_parts_test.c` checks the rule on a made-up
+handler. Only the report moves; the estimate and `on` mode's charge don't.
+
 A tag needs a hand port at its address to be measured. Where the part of a
 dispatcher that varies wasn't one, it became one, as an entry of its own with
 its guard, don't-care set and fuzzing (and `tools/dontcare_check.py` agrees
@@ -2282,100 +2301,149 @@ shipping mode over the movies and the routes, from 26.2 KiB and 391 million to
 (`--drifted`); the map's building from its six whole stretches, and the
 clear, which no stretch of the library completes, from its loop.
 
-### Phase 3, menus and overworld: the world map set up, its scenes' calls and the frame's input (`$C2:0024`-`$C2:015D`, `$C2:03EF`, `$C2:0471`, `$C2:0BF6`, `$C2:23A8`-`$C2:23CE`, `$C2:26D6`-`$C2:2EC0`, `$C2:2ED9`-`$C2:2F4D`, `$C2:5798`, `$C2:7860`-`$C2:7BD0`, `$C2:8002`)
+### Phase 4a, the shipping mode's fallbacks: the save screen's frame among the slots and the battle's steps (`$C2:CFA2`, `$C1:0003`, `$C1:1FDD`)
 
-The thirteenth chunk of bank `$C2` (history file, "Phase 3, menus and
-overworld: the vehicles, the screen's objects and the calls made where they
-go", for the one before), picked as that one was, by what the reference play
-still ran as the original in the menus and the overworld: `$C2` at 78.9%
-native (47.7 KiB run, 10.1 KiB of it the original's). Three of the largest
-were left: the trampoline at `$C2:8002` (2.0 million instructions, the
-field's, the battle's and the object mode's vblank handlers' way to the
-frame's input, `$C2:84D2`, already a port); the overworld's setup, everything
-the sprite-object mode did after its own start stopped at `$C2:0024`, the
-scene stream loaders among it (2.1 KiB and 0.6 million instructions); and the
-routines the scenes' scripts call that nothing ported.
+The menus' stream's fourteenth chunk (history file, "Phase 3, menus and
+overworld: the world map set up, its scenes' calls and the frame's input",
+for the one before), chosen by what the shipping mode's fallback measure (the movies and the
+routes) still ran as the original rather than by what the reference play
+does.
+
+**How it was chosen.** The last full gate's shipping mode ran 56.88 M
+instructions of the original's code over the movies, 51.4 M of it hand-backs,
+and 13.47 M over the routes. One line was two thirds of it: `C2:D506`, 38.1 M,
+the save point's save screen's choosing (`menu_choose_on_save_screen`)
+handing the rest of every frame to the original. In the shipping mode
+`endings-beyond-time` (33.3 M), `late-lavos` and `late-omen-zeal` (2.4 M each)
+drift onto a save point's save screen and sit there for 59,000 frames, and
+every one of those frames the original redrew the slot under the cursor
+(`$C2:CFA2`): three block moves, each byte an instruction, the slot's
+summary drawn when it holds a game and three uploads queued. No movie's
+reference play reaches the save point's screen, but the main menu's save
+screen jumps to the same routine (`$C2:CEFD`), which `menus-field-menu` and
+`menus-end-of-time` reach. The next lines, in order of gain, were the menus'
+object scripts' 1000 A.D. world map routines (`$C6:E7FA`-`$C6:EE22`, 7.3 M,
+none in any reference play), the menus' tasks' and vblank handler's own code
+under `C2:----` (5.6 M) and the battle's steps' dispatch (`C1:0003`, 1.1 M).
 
 **What it is.**
+- The save screen's frame among the slots (`menu/save_screen.c`,
+  `menu_move_among_the_slots`, `$C2:CFA2`): the cursor's slot noted as the
+  one shown and the one the rows' effect marks, a tick where the cursor came
+  to it from another, the rows' effect, the slot's tilemap and the era
+  label's rows cleared through their accessors (the load screen's frame,
+  `$C2:E743`, shares them), the slot's summary drawn where it holds a game by
+  `$C2:D36C`'s logic called as C and timed as it (`menu_draw_the_slot_shown`,
+  which the load screen's frame and opening and the save point's panel call
+  so too), and the three uploads queued in the save screen's order (the
+  tilemap's second part before its first, where the load screen's frame
+  queues the first before the second; each goes to its own place in video
+  memory and the vblank sends the queue whole, so only the queue's records
+  in work RAM tell the two orders apart). The save point's choosing
+  (`$C2:D506`) calls it as C where its guard's condition holds; the main
+  menu's save screen still reaches it through the original's jump. The
+  slot's drawing's guard (`slot_is_drawable`) now also asks the summary's
+  location to be a place's number, as the summary's reading masks it: past
+  that the era's lookup runs off its table into bank `$00`, which fuzzing of
+  the choosing on the cartridge's own screen reached as soon as the frame
+  was C (631 of 1,981 mismatching, the era label drawn where the original's
+  read past the table and drew none); the fuzz rows with random summaries
+  keep their locations' high bytes to 0-1.
+- The battle's steps (`battle/steps.c`, `battle_run_a_step`, `$C1:0003`):
+  the step the accumulator names, through a C table of the ten steps'
+  routines, with the asker's accumulator and index registers kept on the
+  stack under the step's call (`battle_keeping_the_registers`, a
+  `BattleFrame` of five bytes) and given back after. Four steps are ports and
+  run as siblings (the frame's work, an action's showing, the target search
+  and now the area search); the other six are call-outs to the original. The
+  ports that ask for steps (the main loop's, a member's action called off,
+  the party standing down, the knocked-out enemies seen to) run it as C
+  (`battle_take_step`) where the runtime would run its port, and make the
+  original's call otherwise. The asker's X and Y it keeps on the stack under
+  the step are declared dead while they stay there (`native_stack_dont_care`,
+  docs/PORTING.md) where the asker's call declares the registers so, which
+  `tools/dontcare_check.py` checks as the call's.
+- The area search as step 7 (`battle/area_search.c`, `battle_find_the_noted_area`,
+  `$C1:1FDD`): the search already C (`battle_find_area`), entered with the
+  area its asker noted in the search's cells, one body with the targeting's
+  search (`$C1:C741`), which notes the shape and asks for the step. Without it the dispatch's
+  call-out to the original's search was counted as hand-back inside the
+  targeting's port, whose own C does the search (10.5 K instructions of new
+  lines in the reference play, gone with the entry).
+- The routes' fallback count is over the frames each run kept
+  (`tools/movies/ctdrv.py`, `Machine.count_kept_frames`): as a run ends, its
+  kept input is played again from its start by a `ct_drive` that counts, so
+  the player search's probes, the attempts a restore undid and the frames a
+  load replays from a base are no longer counted, and a run resumed from a
+  checkpoint is counted from its start (REIMPLEMENTATION.md, "The fallback
+  measure"). The replay must end on the run's frame with the run's work RAM,
+  or the run fails rather than count another; so do frames run with no
+  buttons kept (a probe no restore undid, a state loaded with no input beside
+  it). It costs a replay of each route's kept frames, seconds for the short
+  routes, under a timeout of its own.
+- Left out: the menus' vblank handler's entry and exit (`$C2:840E`-`$C2:8429`,
+  `$C2:8466`-`$C2:8471`), written whole and taken back, because the handler
+  moves to a stack above the interrupted one and shadow mode takes a stack
+  above an entry's for its return (every call mismatched at its first
+  call-out); the tasks' loops (`$C2:826C`, `$C2:E91B`), which yield every pass
+  and would hold a comparison open for a whole screen; the 1000 A.D. world
+  map's Mode 7 routines, which only the shipping mode's drift reaches and
+  would rest on fuzzing alone; the main menu's save screen's steps and the
+  save itself (`$C2:CEDC`-`$C2:CF92`, 0.2 M); and, as the brief asked, the
+  scene program's lines, `C0:0002` and the `$CD` lines (TODO.md for each).
 
-- `overworld/setup.c`, the world map set up (`$C2:23A8`) and loaded again
-  after the menus or the map view (`$C2:2C93`). Each world map's record
-  (`$C6:FD00`, `overworld_data.h`) names a stream a byte in one of ten
-  tables (the MD2 resources at `$C6:FDF0`-`$C6:FFE0`, `OverworldStreamTable`):
-  the sprites' four pages, the party's sprites and colours (each member's
-  block taken from one stream of every character's), the map's seven blocks
-  of tiles, the top layer's tiles and tilemap, the palette (kept in low RAM
-  with the last sprite palette from the ROM, and sent), the Black Omen's
-  sprites and colours over the four maps it hangs over from the story's point
-  `$D4`, the tile groups, the maps, the ground's kinds, the regions, the lists
-  of places (spread from one stream to their four lists), the scene's script
-  and the graphics its script sends as it plays. Then the overworld's own
-  state afresh, the camera on the party, both planes drawn and the scene's
-  script started. The unpacker (`data/decompress.c`) still takes the machine,
-  so the loads reach it through an `Unpacker` the entries supply, which runs
-  its entry as the original's call reaches it.
-- `menu/display.c`, the mode's own start whole (`$C2:000F`): the cartridge's
-  speed (`tm_fast_rom`), the screen and the console's registers (`$C2:0043`,
-  `$C2:00F2`: the controller port's lines, the arithmetic unit, the timers),
-  its state (`$C2:012F`: the direct page cleared, the shadows of the display),
-  its vblank handler (`$C2:0110`) and its upload queue (`$C2:03EF`); with the
-  sprite list's free links laid out (`menu/sprites.c`, `$C2:0BF6`) and every
-  object slot freed (`menu/objects.c`, `$C2:0471`).
-- `menu/object_commands.c`, what the scenes' scripts call: a random step to
-  the right (`$C2:79E0`) and a random place in one of two stretches of the
-  map (`$C2:7A0C`, `$C2:7A31`, one operation and two rows); the party hidden,
-  kept and brought back (`$C2:7860`-`$C2:7888`, `menu_kept_party`); a story
-  flag set and one asked about (`$C2:7B44`, `$C2:7BC4`). The location's song
-  (`$C2:2F0F`) is `overworld/music.c`'s, the request passed on (`$C2:2ED9`) is
-  its entry now, and the sign's label cleared (`$C2:5798`) `sign.c`'s.
-- `menu/frame.c`, `$C2:8002`: the frame's input run as its call at `$C2:8006`
-  reaches it, so its stop where the controller isn't read yet stays the
-  input's own.
+**What shadow mode and fuzzing found.** Over the 35 movies, 0 mismatching:
+`menu_move_among_the_slots` 418 calls, all compared; `battle_run_a_step`
+29,986, of which 28,260 are compared inside the ports that ask for steps, 714
+on their own and 1,009 interrupted (the steps that wait for frames, which
+fuzzing compares at the step's call); `battle_find_the_noted_area` 46 (4
+interrupted). The frame's work's own calls (`battle_wait_step`, 27,547) are
+compared inside the dispatch's, as its sibling; the uncompared lines of both
+say so (`tools/uncompared_baseline.txt`). The
+don't-care check found that the steps' routines may read the overflow the
+asker leaves (the frame's work and an action's showing, by a target set
+decided at run time), so the dispatch passes it on untouched rather than
+declaring it; and that A's high byte is read after the area search's
+return, which its declaration now compares. **Fuzzing** (seed 1,
+`tools/fuzz_routines.toml`): the frame among the slots 0 of 4,724 (276 turned
+away), the choosing that now runs it 0 of 2,000, the slot's drawing 0 of
+1,894 and the load screen's frame 0 of 1,894 with the locations kept to
+places; the dispatch 0 of 5,000 compared at each of the ten steps' calls
+(`ct_fuzz` takes twelve `--stop-at-call`s now, from eight); the area search
+step 0 of 5,000.
 
-The Epoch's screens and the overworld's main loop call the new pieces as C
-(the queue reset, the slots freed, the map's tiles and the map loaded again),
-so `menu/epoch.c` and `overworld/main_loop.c` lost five call-outs; the main
-loop hands a map the loader can't take as it stands (none the game makes) to
-the original's call.
+**Measured.** The shipping mode over the movies: 10.9 KiB of code and 18.70
+M instructions in place of hand ports, from 11.0 KiB and 56.88 M (the save
+point's choosing's line 38.1 M to 3,228 instructions, the save itself, which
+it still hands back); over the routes, counted over the frames they keep, 6.7
+KiB and 5.50 M, from 13.47 M counted over every frame they ran. The
+reference play: 19.6 KiB and 22.24 M, from 22.83 M (`C1:0003` 0.32 M to 45
+instructions; `C2:----` 3.65 M to 3.38 M). No line rose there; the line
+`open C1:0003` is new, what an action's showing's and the frame's work's open
+comparisons hid at a movie's end (`open C1:4058`, `open C1:106E`), under the
+dispatch's comparison now that they run as its siblings. In the shipping
+mode `endings-telepod-lavos` rose at first, from 3.29 M to 8.29 M: the
+dispatch's estimate (its value calibrated on its siblings' stretches) ended
+a frame of the Lavos shell fight one pass early, the party lost and went
+back to the title, and the presses opened New Game's name entry, where the
+menus' task loop and vblank entry run every frame (`C2:----` 3.76 M,
+`7E:0500` 1.25 M). With the steps' siblings measured on their own stretches
+(Timing, below) it plays to its end again, 3.26 M. (The route count's
+replay was checked by hand on the `telepod_lavos` route: the same outcome at
+the same frame, 134,547, with byte-identical work RAM; every route's count
+checks that now.) The review's answers moved the others: over the movies 20.83 M (from 18.70 M),
+`endings-bucket-lavos` 0.40 M to 7.00 M, whose battle near frame 15,000 now
+runs its passes ahead and goes on to a menu screen and the 1000 A.D. world
+map's event; under `--port-timing oracle` both builds play it the same, and
+both estimated runs already leave the original's timing before frame 8000.
+Over the routes 5.43 M (from 5.50 M).
 
-**Nested entries count.** The fallback measure files what a registered entry
-hands back as its own even inside a port that covers the whole routine in
-shadow mode: the palette's send at `$C2:2D47`, entered by falling through,
-stopped at `$C2:2D91`, and its rest counted in every movie that set up a map,
-until it became the whole routine (`overworld_finish_the_graphics`). A port
-that lands around an old stopping entry should make that entry whole too.
-
-**What the gate found.** Shadow mode: the location's song leaves A's high
-byte as the region lookup's word did, which the driver's call compares; the
-mode's start stops at `$C2:23A8` with its own set (D is read there, the
-registers aren't). Fuzzing: the mode's page is cleared through `$EF` (the
-first draft cleared `$F0` too, which no state of the game's has set); and
-the map view's plane built on a random record pointer unpacked garbage over
-the stack, so `menu_epoch_build_map` now asks for the world map's record to
-be the one noted (`overworld_map_tiles_run`), which every real call has.
-
-**Numbers.** Over the reference play the code run in place of hand ports fell
-from 27.1 KiB and 141.9 million instructions to 24.8 KiB and 139.3
-million; `$C2`'s native coverage from 78.9% to 83.8% (47.7 KiB run, the
-original's from 10.1 KiB to 7.7 KiB). Every new entry matches in every
-movie; `$C2:7860`, `$C2:7888`, `$C2:7A0C` and `$C2:7A31` are reached by no
-movie and are fuzzed only (seed 1, `tools/fuzz_routines.toml`; counts in
-`docs/ports.tsv`). Calibrated rows: the new entries, the mode's start and
-screen, the Epoch's two screens, the map view's plane and graphics, and the
-overworld's main loop and its return from the menus, whose call-outs became
-C. Timing exceptions (`tools/timing_exceptions.txt`): the set up, the map's
-loads and the frames that run them (`worst`), whose time follows the packed
-streams, as the field's loads' does.
-
-**Left.** What `C2:----` holds, 5.0 KiB the reference play runs with no call
-on record: the menus' screens' code after a task's yield (`$C2:821E`), which
-the measure can't attribute to the port that stopped there (TODO.md). The
-frame waits (`$C2:0346`, `$C2:046E`, `$C2:0454`), the timing service's. The
-scrolling lists' cursor and frame (`$C2:EA53`, `$C2:EA81`), which four
-screens' bridges call out to; the equipment screen's preview (`$C2:A5C3`);
-the endings' scenes' line effects (`$C6:E241`, `$C6:E27E`), which call the
-scene engine's unported `$C3:000E`; and the dactyl's flight, which
-`field-65m-bc-dactyl.ctm` (route `dactyl_65m_bc`) reaches now.
+**Timing.** Calibrated (`--drifted`): the new entries, the load screen's
+frame and the choices round it, and the steps' siblings, measured on their
+own stretches (`native_time_as_sibling`, "The timing gate"): an action's
+showing 9781 to 18,841 (17,617 before the dispatch was a port), whose
+worst-stretch exception is its own again, and the dispatch 94,180 to 2367,
+which has none now.
 
 ### Phase 4a, timing: the battle frame work's remainders, chunk 2: the rewards' messages, the music round a battle and the field's ends (`$FD:A982`, `$FD:AD17`-`$FD:AE51`, `$FD:DA55`-`$FD:DB97`, `$C0:0005`-`$C0:000D`, `$C0:0AFF`-`$C0:0B27`, `$C0:1B90`-`$C0:1CFB`, `$C0:3B76`-`$C0:3B97`, `$C0:6E27`, `$C0:75A0`)
 
@@ -2686,7 +2754,15 @@ nothing measurable (gato-battle 47 s with it, 49 s without). The shipping
 mode's count is still made, over every movie (`--native on --generated on
 --sound-driver c`, 43 s for the library) and the routes (`route_check
 --fallbacks`, `$CT_DRIVE_FALLBACKS` through `tools/movies/ctdrv.py`), and
-reported beside it. The shadow runs use the original sound driver, so the CPU
+reported beside it. A route's count is over the frames it kept: as the run
+ends, the input it kept is played again from its start by a `ct_drive` that
+counts (`Machine.count_kept_frames`), so a search's probes, the attempts a
+restore undid and the frames a load replays from a base are left out, and a
+run resumed from a checkpoint is counted from its start. The replay is
+checked against the run: it must end on the run's frame with the run's work
+RAM, or the route fails rather than count another run, and input with frames
+no buttons were kept for (a probe no restore undid, a state loaded with no
+`.pads` beside it) is an error, not frames of no buttons. The shadow runs use the original sound driver, so the CPU
 half's waits for its answers count there and not in the shipping mode.
 
 **The ratchet.** `tools/fallbacks.py --check` against
