@@ -339,11 +339,34 @@ void warp_set_up(Snes *s)
     m_rts(s);
 }
 
-/* A frame, then on to the main loop's wait for the next (`loop`); on the last,
- * to the warp's end, which the original makes from its main loop as calls
- * (`ending`, below). A frame leaves A's high byte clear, from the colours'
- * pulse, and the next frame's plane reads it (and shifts it out of what it
- * makes). */
+/* The screen dark and everything stopped, with the CPU's interrupts masked
+ * too, as the warp's end begins. */
+static void go_dark_and_still(Snes *s)
+{
+    go_dark(m_platform(s));
+    m_set_flag(s, CPU_FLAG_I, true);
+}
+
+enum { FIELD_STARTS = 0xC00000, GO_DARK = 0xFDEAC8, PUT_BACK_THE_STORY_FLAGS = 0xFDEAB7 };
+
+// $FD:DA55, $FD:DAB4, $FD:DB13, $FD:DB8D (each kind's end, all four the same)
+/* The warp over: the screen dark, the story flags put back over the plane's
+ * map, and the field started again, which loads the location the event set
+ * for the end of the trip. */
+void warp_end(Snes *s)
+{
+    NATIVE_TIME_AS(s, GO_DARK, go_dark_and_still(s));
+    TIMED_AS(state_of(s), PUT_BACK_THE_STORY_FLAGS, put_back_the_story_flags(state_of(s)));
+    m_stop_at(s, FIELD_STARTS, READS_NOTHING);
+}
+
+/* A frame, then on to the main loop's wait for the next (`loop`); after the
+ * last, to the warp's end (`ending`, the entry below). The end is an entry of
+ * its own rather than the last frame's tail: it stops the picture's line
+ * effects, and run at the last frame's estimated time they stop a line early
+ * or late, where the end's own entry starts in step with the original. A
+ * frame leaves A's high byte clear, from the colours' pulse, and the next
+ * frame's plane reads it (and shifts it out of what it makes). */
 static void run_a_frame(Snes *s, WarpKindId id, uint32_t loop, uint32_t ending)
 {
     bool goes_on = make_a_frame(state_of(s), m_platform(s), &kinds[id]);
@@ -364,13 +387,11 @@ void warp_shortest_frame(Snes *s) { run_a_frame(s, WARP_SHORTEST, 0xFDDAC1, 0xFD
 void warp_flickering_frame(Snes *s) { run_a_frame(s, WARP_FLICKERING, 0xFDDB24, 0xFDDB8D); }
 
 // $FD:EAC8
-/* The warp's end begins: the screen dark, everything stopped, and the CPU's
- * interrupts masked, a call of its own so that the picture's line effects stop
- * where the original stops them. What it leaves in A nobody reads. */
+/* The warp's end begins, a call of its own so that the picture's line effects
+ * stop where the original stops them. What it leaves in A nobody reads. */
 void warp_go_dark(Snes *s)
 {
-    go_dark(m_platform(s));
-    m_set_flag(s, CPU_FLAG_I, true);
+    go_dark_and_still(s);
     m_rts(s);
 }
 

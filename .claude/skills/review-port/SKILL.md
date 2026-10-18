@@ -387,7 +387,11 @@ Each of these is a finding. Every example here comes from this repo.
     yours to see, and rates its file **translation**. Where the original's
     rounding really moves a pixel, that is one named function
     (`edge_rounding(...)`) with a comment saying what the player sees, not the
-    shape of the whole routine.
+    shape of the whole routine. One exception, accepted by the owner
+    (2026-10-17): the carry chains in `game/scene/stars.c`, `race_rules.c` and
+    `race_projection.c` stay, because the original never clears the carry
+    between its adds and the spilled bit moves positions, which shadow mode
+    and fuzzing compare. Don't grade those files down for them.
 13. **Memory used as registers.** A loop counter or temporary kept in a RAM cell
     and read back (`set_scene_circle_count(g, x); ... x = scene_circle_count(g);`),
     or bytes shifted in place in scratch. CLAUDE.md requires writing the cells the

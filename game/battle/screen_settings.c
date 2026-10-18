@@ -18,6 +18,7 @@
  * animation and the HP gradient. */
 #include "battle/screen_script.h"
 
+#include "battle/frame.h"
 #include "battle/screen_data.h"
 #include "original_effects.h"
 
@@ -348,8 +349,7 @@ SCREEN_OPERATION(set_frame_row, value)
  * base. */
 static ScreenFlow rebase_arrangement(GameState *g, uint8_t value)
 {
-    set_battle_alternate_base(g, value);
-    set_battle_alternate_apply(g, (uint8_t)(battle_alternate_apply(g) + 1));
+    battle_arrange_the_lines(g, value);
     return screen_on();
 }
 SCREEN_OPERATION(rebase_arrangement, value)

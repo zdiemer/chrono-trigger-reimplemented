@@ -169,8 +169,7 @@ isn't ported yet, so retiring it is porting its callee. In order:
    ending still runs as the original's (`$7E:99B5`, `$7E:9AF3`-`$7E:9E2B`).
 3. **The battle's frame work**: 2.7 M instructions of the reference play,
    nearly all `$CD:0024` (an effect's end on an object) and `$CD:010A`/
-   `$CD:0154`, which the timers' dispatcher's call-outs reach; and in bank
-   `$FD` the rewards' messages (`$FD:AD17`), which call the battle's messages.
+   `$CD:0154`, which the timers' dispatcher's call-outs reach.
 
 ## The validation gate
 
@@ -224,7 +223,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 293 files, 117 of 90,088 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 295 files, 117 of 90,501 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -271,16 +270,16 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **7% of the code is still generated.**
+docstring says which way it is wrong). **6% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.9K | 0% | 436 |
-| field engine, events (`$C0`) | 59.4K | 57.8K | 14.0K | 3% | 393 |
+| field engine, events (`$C0`) | 59.4K | 58.3K | 14.0K | 2% | 401 |
 | menus, text, overworld (`$C2`) | 59.1K | 52.0K | 14.0K | 12% | 508 |
-| scene program, RAM (`$7E`) | 24.9K | 16.3K | 2.2K | 35% | 126 |
+| scene program, RAM (`$7E`) | 24.9K | 17.6K | 2.4K | 30% | 138 |
 | battle frame work (`$CD`) | 15.4K | 15.2K | 4.7K | 1% | 220 |
-| field graphics (`$FD`) | 15.1K | 14.7K | 2.2K | 3% | 105 |
+| field graphics (`$FD`) | 15.1K | 15.0K | 2.2K | 0% | 111 |
 | battle sprites (`$CF`) | 6.8K | 6.8K | 0.3K | 0% | 46 |
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 54 |
 | battle setup (`$CC`) | 4.8K | 4.8K | 0.1K | 0% | 11 |
@@ -289,13 +288,13 @@ docstring says which way it is wrong). **7% of the code is still generated.**
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
 | console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
-| **total** | **266.5K** | **248.3K** | **57.4K** | **7%** | **2018** |
+| **total** | **266.5K** | **250.5K** | **57.6K** | **6%** | **2044** |
 
 `$CD`, the battle's frame work, is C but for 0.2 KiB: the whole screen script
 language (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"),
 the frame work's table moves and waits, and the battle's close, the
-battlefield put back and the messages (REIMPLEMENTATION.md, "Phase 4a,
-timing: the battle frame work's remainders"). What `python3 tools/burndown.py
+battlefield put back and the messages (history/reimplementation-chunks.md,
+"Phase 4a, timing: the battle frame work's remainders"). What `python3 tools/burndown.py
 --uncovered CD` still lists is not worth a port as it stands: the screen
 script runner's hand-back for a byte past the language's last command
 (`$CD:165F`, which no script has), the wait for a line of the picture
@@ -435,10 +434,10 @@ kinds and the area search); and an action shown (history/reimplementation-chunks
 an action shown"): the showing's step, the action's animation chosen and
 loaded, the poses' looks, the battle's own frame step and step 3, and the
 hits landing with a felled enemy's spoils. `python3 tools/burndown.py
---uncovered C1` (and `CF`, `CC`) leaves only jump stubs into ports. **Next** for the battle is bank
-`$FD`'s rewards' messages (`$FD:AD17`), which can call the battle messages'
-port now (TODO.md), and the turn state's clearing (`$FD:A982`) for a name for
-the block it clears. The
+--uncovered C1` (and `CF`, `CC`) leaves only jump stubs into ports, and bank
+`$FD`'s battle routines are C too, the rewards' messages (`$FD:AD17`) and the
+turns' work cleared (`$FD:A982`) the last (REIMPLEMENTATION.md, "Phase 4a,
+timing: the battle frame work's remainders, chunk 2"). The
 burndown counts the bank done, but the fallback measure shows what its ports
 still hand back: with an action's showing C, the largest left are the
 battle frame work's loads the showing calls -- the background's change
@@ -483,9 +482,9 @@ The equipment screen's preview of an item's figures (`$C2:A5C3`,
 after the list's move returns, which leaves them as none of its paths work
 out yet (TODO.md).
 
-**`$C0`: the field and events**, 3% left after seventeen chunks, and 98% of
+**`$C0`: the field and events**, 2% left after seventeen chunks and the field's part of the battle frame work's remainders, and 98% of
 what real play runs of it native. What is left is a character's start
-(`$C0:597D`), which the menus call, the switch's sound (`$C0:1B90`), and
+(`$C0:597D`), which the menus call, and
 waits the timing service takes over where their callers
 are ports (TODO.md, "Frame waits still made on the machine"). Every event
 command has a row; event's bridges still call the unpacker (`$C3:0002`,
@@ -558,15 +557,19 @@ by an audit; the fourth is the program itself.
   the field's first start, the program's start into the title, the title's
   frames and its scripts' routines, the music fading out and the screen going
   dark, the scene's end into the menus' attract scene and its curtain, the
-  attract sequence's pages of credits and its field scenes, to frame 3449,
-  and stops at `$C0:3B76`, in the field's event command that goes to a
-  location at once, after its wait for the vblank flag (REIMPLEMENTATION.md,
-  "Phase 4a, the native frame: the attract sequence's pages of credits and
-  the palace rising"). Over 3,000 frames from power-on `--interpreted log`
-  lists nothing; over 20,000 nothing in the scene program, and 513 addresses
-  of the field's, the battle's and bank `$FD`'s code as the attract
-  sequence plays them. Next: that command's wait, then the rest of those
-  513, then on to the load screen and a new game.
+  attract sequence's pages of credits and its field scenes, the change of
+  place an event makes at once between them, and into the attract's battle,
+  to frame 3779, and stops at `$CD:0000`, the jump stub the battle's start
+  (`battle/from_field.c`) reaches the battle screen's setup through
+  (`$CD:0039`, then the port at `$D1:F1B0`; REIMPLEMENTATION.md, "Phase 4a,
+  timing: the battle frame work's remainders, chunk 2"). Over 3,000 frames
+  from power-on `--interpreted log` lists nothing; over 20,000 nothing in the
+  scene program, the field or bank `$FD`, and 204 addresses (from 513): the
+  battle's as the attract's battle plays them (`$C1`, 195, most of them the
+  party's poses `$C1:35DD`-`$C1:3713` the setup ends with, and its jump stubs
+  at `$C1:0003`-`$C1:0058`), and the stubs `$C0:0002`, `$CC:F062`, `$CD:0000`,
+  `$CD:0003` and `$CD:0039`. Next: the stubs and the poses, then on to the
+  load screen and a new game.
 
   **Timing** (PLATFORM.md, "Timing without a beam, as built"): the calls and
   their host backend are built, the field's budgets, the menus' task switch

@@ -10,7 +10,7 @@
  * of it and at most one level. Between the two, the tech points teach the
  * members their techs (battle/rewards_techs.c).
  *
- * The rewards' messages ($FD:AD17, the original's) then show what this noted:
+ * The rewards' messages (battle/rewards_messages.c) then show what this noted:
  * the experience and the tech points given (battle_reward_flags), the levels
  * gained (battle_rewards_levels_gained, battle_rewards_levels_noted), the
  * techs learned. A party that wears the accessory that turns the experience
@@ -67,8 +67,6 @@ static void count_level_gained(GameState *g, uint8_t member)
     if (count == 0)
         set_battle_rewards_levels_gained_unchecked(g, member + 1u, (uint8_t)(battle_rewards_levels_gained_unchecked(g, member + 1u) + 1));
 }
-
-enum { NOTED_LEVEL_GAINED = 0x80 };
 
 static bool knocked_out(const GameState *g, Grower who) { return (record_byte(g, who, STAT_CONDITION) & CONDITION_KNOCKED_OUT) != 0; }
 

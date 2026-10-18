@@ -213,21 +213,19 @@ void field_hold_party_if_defeated(Snes *s)
 /* ---- After the battle ($C0:0283) ----------------------------------------------------------- */
 
 /* How the game goes on after a battle: on the field, which a battle the party
- * may lose (the event's flags' bit 5) does even when it was beaten; the game
- * over, where it may not; or, for the result only a script sets (2), back to
- * the place put aside (event $DC), unless the event's flags say otherwise.
- * That test the original makes against the byte at $0010 rather than a bit
- * (its neighbour tests bit 5 as #$20), and the port keeps it. */
+ * may lose (the battle's terms) does even when it was beaten; the game over,
+ * where it may not; or, for the result only a script sets, back to the place
+ * put aside (event $DC), unless the event's flags say otherwise. That test the
+ * original makes against the byte at $0010 rather than a bit (its neighbour
+ * tests the defeat's term as #$20), and the port keeps it. */
 typedef enum { GO_ON_ON_THE_FIELD, GAME_OVER, BACK_TO_THE_PLACE_PUT_ASIDE } AfterBattle;
-enum { LOSING_GOES_ON = 0x20, RESULT_BACK_TO_THE_PLACE_PUT_ASIDE = 2 };
 
 static AfterBattle how_the_game_goes_on(const GameState *g)
 {
-    uint8_t flags = battle_event_flags(g);
-    switch (battle_result(g)) {
-    case BATTLE_DEFEATED: return flags & LOSING_GOES_ON ? GO_ON_ON_THE_FIELD : GAME_OVER;
-    case RESULT_BACK_TO_THE_PLACE_PUT_ASIDE:
-        return flags & field_after_battle_test_byte(g) ? GO_ON_ON_THE_FIELD : BACK_TO_THE_PLACE_PUT_ASIDE;
+    switch (battle_how_it_ended(g)) {
+    case BATTLE_DEFEATED: return battle_terms(g, BATTLE_TERMS_DEFEAT_GOES_ON) ? GO_ON_ON_THE_FIELD : GAME_OVER;
+    case BATTLE_BACK_TO_THE_PLACE_PUT_ASIDE:
+        return battle_event_flags(g) & field_after_battle_test_byte(g) ? GO_ON_ON_THE_FIELD : BACK_TO_THE_PLACE_PUT_ASIDE;
     default: return GO_ON_ON_THE_FIELD;
     }
 }

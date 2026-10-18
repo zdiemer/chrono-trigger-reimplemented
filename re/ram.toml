@@ -13709,8 +13709,8 @@ source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/battlefi
 name = "battle_event_flags"
 addr = "7E:2A1F"
 subsystem = "battle"
-meaning = "Flags the event hands the battle with battle_setup_flags (event $D8's second operand): with bit 6 the battle keeps the field's song ($CD:03CC)"
-source = "game/event/locations.c fight $C0:3A83; game/battle/sound.c battle_wait_sound_port1_or_2a1f $CD:042B"
+meaning = "The battle's terms, which the event hands it with battle_setup_flags (event $D8's second operand): bit 7 leaves the party where it stands afterwards, bit 6 keeps the field's song through the fight ($CD:03CC), bit 5 lets the field go on after a defeat (BATTLE_TERMS_*, battle/battle.h)"
+source = "game/event/locations.c fight $C0:3A83; game/battle/closing.c close_the_display $CD:03B4; game/field/sounds.c $C0:1BE6; game/field/battle_return.c $C0:0283"
 
 [[var]]
 name = "battle_party_placement"
@@ -19853,7 +19853,7 @@ name = "battle_message_opening"
 addr = "7E:CE18"
 subsystem = "battle"
 meaning = "Id of the battle message being opened by id ($CD:02AA), which becomes battle_message_shown once its text is set"
-source = "game/battle/message.c battle_show_message_by_id $CD:0295"
+source = "game/battle/message.c show_an_enemy_message $CD:0295 (left as scaffolding for the original's code, which reads it back at $CD:02BE where a wait hands the machine to it)"
 
 [[var]]
 name = "battle_alternate_base"
@@ -22231,6 +22231,14 @@ reuses = "field_frame_staging"
 subsystem = "field"
 meaning = "Where a 24-sprite figure's 96 tiles are drawn before they go to VRAM at once ($C0:E12A): the frame builder's four areas borrowed, and the $400 bytes after them"
 source = "game/field/frames.c, object_draw_whole_figure $C0:E12A"
+
+[[var]]
+name = "field_bg3_tiles_unpacked"
+addr = "7F:5080"
+size = 0xF80
+subsystem = "field"
+meaning = "BG3's tiles, unpacked here before they are sent to VRAM $5000: the location's tile set's BG3 block, or the credits' letters (event $29). They stay through a battle, which sends the location's back from here as it puts the battlefield back ($CD:0453)"
+source = "game/field/location.c field_load_tile_graphics $C0:6DEF; game/field/script_layers.c load_the_credits_letters $C0:6E27; game/battle/battlefield_restore.c send_the_kept_tiles $CD:0458"
 
 [[var]]
 name = "field_frame_staging"

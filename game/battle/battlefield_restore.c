@@ -25,8 +25,10 @@
 #include "battle/entries.h"
 #include "battle/frame.h"
 #include "battle/screen.h"
+#include "battle/wait.h"
 #include "charge.h"
 #include "platform/video.h"
+#include "ram.h"
 #include "vars.h"
 
 /* ---- The screen the battle started with ---------------------------------------------------- */
@@ -45,27 +47,59 @@ enum { SCROLL_ENTRIES = 32 };
  * the fifth of the split's values, and full brightness. */
 enum { NO_TINT = 0xE0, TINT_VALUE = 5, FULL_BRIGHTNESS = 0x0F };
 
-// $CD:0CF6
-/* The screen's settings below the split go back to the start's: BG3's map,
- * the layers on each screen and those the windows mask, the color math, the
- * mode and mosaic; the tint black, and the picture at full brightness. The
- * start's settings keep a byte nothing reads beside the tint, which goes with
- * it into the tint's word. */
-static void take_back_the_start_screen(GameState *g)
+/* The screen below the split, as the battle keeps it: BG3's map, the layers
+ * on each screen and those the windows mask, the color math, the mode and
+ * mosaic, the tint and the brightness. The tint goes into the split's values
+ * as a word, whose high byte is the byte the start's settings keep beside it,
+ * which nothing reads. */
+typedef struct {
+    uint8_t bg3_map;
+    uint8_t main, sub, main_windowed, sub_windowed;
+    uint8_t math_control, math_layers;
+    uint8_t mode, mosaic;
+    uint8_t tint, beside_the_tint;
+    uint8_t brightness;
+} BelowTheSplit;
+
+static void show_below_the_split(GameState *g, BelowTheSplit screen)
 {
-    set_battle_layer_map_settings(g, BG3_LAYER, battle_start_tile_maps(g, BG3_LAYER));
-    set_battle_screen_settings(g, MAIN_SCREEN, battle_start_screens_main(g));
-    set_battle_screen_settings(g, SUB_SCREEN, battle_start_screens_sub(g));
-    set_battle_screen_settings(g, MAIN_WINDOWED, battle_start_screens_main_window_mask(g));
-    set_battle_screen_settings(g, SUB_WINDOWED, battle_start_screens_sub_window_mask(g));
-    set_battle_color_math_settings(g, MATH_CONTROL, battle_start_screens_math_control(g));
-    set_battle_color_math_settings(g, MATH_LAYERS, battle_start_screens_math_layers(g));
-    set_battle_screen_mode(g, battle_start_screens_mode(g));
-    set_battle_mosaic(g, battle_start_screens_mosaic(g));
-    set_battle_split_line_values(g, TINT_VALUE, (uint16_t)(battle_start_screens_unused(g) << 8 | NO_TINT));
-    set_battle_fixed_color(g, NO_TINT);
-    set_battle_brightness(g, FULL_BRIGHTNESS);
+    set_battle_layer_map_settings(g, BG3_LAYER, screen.bg3_map);
+    set_battle_screen_settings(g, MAIN_SCREEN, screen.main);
+    set_battle_screen_settings(g, SUB_SCREEN, screen.sub);
+    set_battle_screen_settings(g, MAIN_WINDOWED, screen.main_windowed);
+    set_battle_screen_settings(g, SUB_WINDOWED, screen.sub_windowed);
+    set_battle_color_math_settings(g, MATH_CONTROL, screen.math_control);
+    set_battle_color_math_settings(g, MATH_LAYERS, screen.math_layers);
+    set_battle_screen_mode(g, screen.mode);
+    set_battle_mosaic(g, screen.mosaic);
+    set_battle_split_line_values(g, TINT_VALUE, (uint16_t)(screen.beside_the_tint << 8 | screen.tint));
+    set_battle_fixed_color(g, screen.tint);
+    set_battle_brightness(g, screen.brightness);
 }
+
+/* The screen the battle started with: the field's settings, untinted, at
+ * full brightness. */
+static BelowTheSplit the_start_screen(const GameState *g)
+{
+    return (BelowTheSplit){
+        .bg3_map = battle_start_tile_maps(g, BG3_LAYER),
+        .main = battle_start_screens_main(g),
+        .sub = battle_start_screens_sub(g),
+        .main_windowed = battle_start_screens_main_window_mask(g),
+        .sub_windowed = battle_start_screens_sub_window_mask(g),
+        .math_control = battle_start_screens_math_control(g),
+        .math_layers = battle_start_screens_math_layers(g),
+        .mode = battle_start_screens_mode(g),
+        .mosaic = battle_start_screens_mosaic(g),
+        .tint = NO_TINT,
+        .beside_the_tint = battle_start_screens_unused(g),
+        .brightness = FULL_BRIGHTNESS,
+    };
+}
+
+// $CD:0CF6
+/* The screen's settings below the split go back to the start's. */
+static void take_back_the_start_screen(GameState *g) { show_below_the_split(g, the_start_screen(g)); }
 
 // $CD:0CA1
 /* As the battle's screen is set up: every layer's map as the field left it
@@ -107,14 +141,12 @@ static bool shows_its_own_layer(const GameState *g)
            || ((battle_start_screens_main(g) | battle_start_screens_sub(g)) & BG3);
 }
 
-/* The battlefield's tiles, as the battle keeps a copy of them in the second
- * bank of work RAM, and where they go in VRAM. */
-enum { KEPT_TILES = 0x7F5080, TILES_VRAM = 0x5000, TILES_BYTES = 0x0F80 };
+/* The battlefield's BG3 tiles, as the field unpacked them into the second
+ * bank of work RAM (field_bg3_tiles_unpacked, field/location.c), which stay
+ * there through the battle, and where they go in VRAM. */
+enum { TILES_VRAM = 0x5000, TILES_BYTES = 0x0F80 };
 /* The frame work's transfer reads none of the flags. */
 enum { SEND_READS = DC_FLAGS };
-/* The frame work's waits for the next frame ($CD:3E75) and for some frames
- * ($CD:3E3B) carry A's high byte on to the battle's pause. */
-enum { WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS, WAIT_FRAMES_READS = DC_X | DC_Y | DC_FLAGS };
 /* A quarter of a second for the picture to settle. */
 enum { SETTLING_FRAMES = 15 };
 
@@ -122,12 +154,10 @@ static bool send_the_kept_tiles(Snes *s, uint32_t site)
 {
     uint16_t page = m_direct_page(s);
     uint8_t bank = s->cpu.db;
-    vid_send_vram_and_wait(m_platform(s), PF_CALL_DC(site, 0xCD3ED2, SEND_READS), TILES_VRAM, PF_GAME(KEPT_TILES),
+    vid_send_vram_and_wait(m_platform(s), PF_CALL_DC(site, 0xCD3ED2, SEND_READS), TILES_VRAM, PF_GAME(RAM_FIELD_BG3_TILES_UNPACKED),
                            TILES_BYTES);
     return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
 }
-
-static bool wait_for_the_next_frame(Snes *s, uint32_t site) { return battle_wait_frame(s, site, 0xCD3E75, WAIT_READS); }
 
 /* The waits pass the carry on to the menu's turn, which reads it, so the port
  * leaves it there as the original's tests do: the battlefield's test sets it
@@ -159,10 +189,10 @@ static bool put_the_battlefield_back(Snes *s)
         if (fades)
             TIMED_AS(g, 0xCD0E61, battle_fade_battlefield_layer(g, true));
         leave_the_tests(s, g, own_layer, fades);
-        if (!wait_for_the_next_frame(s, 0xCD048C))
+        if (!battle_wait_for_the_next_frame_from(s, 0xCD048C))
             return false;
         TIMED_AS(g, 0xCD0CF6, take_back_the_start_screen(g));
-        if (!battle_wait_frames(s, 0xCD0494, 0xCD3E3B, WAIT_FRAMES_READS, SETTLING_FRAMES))
+        if (!battle_wait_frames(s, 0xCD0494, BATTLE_SOME_FRAMES_WAIT, BATTLE_COUNTING_WAIT_READS, SETTLING_FRAMES))
             return false;
     }
     s->cpu.a = 0;
@@ -170,7 +200,7 @@ static bool put_the_battlefield_back(Snes *s)
     set_battle_background_restore_request(g, 0);
     TIMED_AS(g, 0xCD0E23, battle_restore_kept_colors(g));
     m_set_flag(s, CPU_FLAG_C, true);
-    return wait_for_the_next_frame(s, 0xCD04A2);
+    return battle_wait_for_the_next_frame_from(s, 0xCD04A2);
 }
 
 /* ---- The entries ------------------------------------------------------------------------------ */

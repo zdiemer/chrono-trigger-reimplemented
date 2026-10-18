@@ -66,7 +66,7 @@ static void count_frame(GameState *g)
     set_battle_message_by_id(g, 0);
     set_battle_vram_copy_mode(g, 0);
     set_battle_message_timed(g, 0);
-    set_battle_alternate_apply(g, (uint8_t)(battle_alternate_apply(g) + 1));
+    battle_lay_the_lines_out_again(g);
 }
 
 static bool pause_allowed(const GameState *g)

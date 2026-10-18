@@ -3,6 +3,11 @@
 #define CT_GAME_BATTLE_MAIN_LOOP_H
 
 #include "snes/system.h"
+#include "state.h"
+
+/* $FD:A982: the battle's work on its turns cleared, as a battle starts. */
+void battle_clear_the_turn_work(GameState *g);
+void battle_clear_the_turn_work_entry(Snes *s);
 
 void battle_main_loop_start(Snes *s);
 void battle_main_loop(Snes *s);

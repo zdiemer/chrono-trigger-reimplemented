@@ -209,7 +209,7 @@ static LocationDescription the_record(const GameState *g) { return location_desc
  * (the last a little short of a full block), the last two unpacked to bank
  * $7F; BG3's block unpacked to bank $7F and sent to BG3's tiles. */
 enum { UNPACKED_TILES = RAM_FIELD_LAYER_MAPS, BLOCK_TILES = 0x1000, LAST_BLOCK_TILES = 0x0F80, VRAM_TILES_FROM = 0x2000,
-       VRAM_BLOCK_WORDS = 0x0800, BG3_UNPACKED_TILES = 0x7F5080, BG3_VRAM_TILES = 0x5000, TRANSFER_WORDS = 1 };
+       VRAM_BLOCK_WORDS = 0x0800, BG3_UNPACKED_TILES = RAM_FIELD_BG3_TILES_UNPACKED, BG3_VRAM_TILES = 0x5000, TRANSFER_WORDS = 1 };
 static const uint32_t kept_blocks[TILE_SET_BLOCKS - TILE_SET_BLOCKS_IN_VRAM] = { 0x7F6000, 0x7F7000 };
 
 /* How the map's tiles are made of the tiles, unpacked: BG1's and BG2's, and

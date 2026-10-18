@@ -74,7 +74,18 @@ bool battle_wait_line(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
 
 void battle_stop_after_call(Snes *s, uint32_t site) { m_stop_at_own(s, site + BATTLE_JSR_SIZE, 0); }
 
-static bool run_entry(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *), bool long_call)
+/* What a sibling's call must come back as: on the page it was made on, or
+ * (for one whose caller puts its page and bank right after) only the battle's
+ * widths, at the call's return. */
+typedef enum { BACK_ON_THE_PAGE, BACK_ON_ANY_PAGE } ComesBack;
+
+static bool came_back_from(Snes *s, uint32_t returns_to, uint16_t page, ComesBack how)
+{
+    return battle_back(s, returns_to, how == BACK_ON_THE_PAGE ? page : m_direct_page(s), data_bank(s));
+}
+
+static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                      bool long_call, ComesBack how)
 {
     uint16_t page = m_direct_page(s), stack = s->cpu.s;
     uint32_t returns_to = site + (long_call ? BATTLE_JSL_SIZE : BATTLE_JSR_SIZE);
@@ -88,25 +99,108 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Sn
      * the runtime runs whatever the registry has for the state it meets */
     const NativeEntry *e = native_hand_entry(s);
     if (!e || e->fn != entry) {
+        /* a real call, which goes on only on the page it was made on: one
+         * that comes back on another stops at its return */
         s->cpu.s = stack;
-        return long_call ? battle_call_long(s, site, routine, 0) : battle_call(s, site, routine, 0);
+        return long_call ? battle_call_long(s, site, routine, dont_care) : battle_call(s, site, routine, dont_care);
     }
     NATIVE_TIME_AS(s, routine, entry(s));
     bool returned = s->cpu.s == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
-    return returned && battle_back(s, returns_to, page, data_bank(s));
+    return returned && came_back_from(s, returns_to, page, how);
 }
+
+void battle_push_the_return(Snes *s, uint32_t site) { m_push16(s, (uint16_t)(site + BATTLE_JSR_SIZE - 1)); }
+void battle_pull_the_return(Snes *s) { m_pull16(s); }
 
 bool battle_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
 {
-    return run_entry(s, site, routine, entry, false);
+    return run_entry(s, site, routine, 0, entry, false, BACK_ON_THE_PAGE);
 }
 
 bool battle_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
 {
-    return run_entry(s, site, routine, entry, true);
+    return run_entry(s, site, routine, 0, entry, true, BACK_ON_THE_PAGE);
+}
+
+bool battle_run_dc(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    return run_entry(s, site, routine, dont_care, entry, false, BACK_ON_THE_PAGE);
+}
+
+bool battle_run_long_dc(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    return run_entry(s, site, routine, dont_care, entry, true, BACK_ON_THE_PAGE);
+}
+
+bool battle_run_long_to_any_page(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
+{
+    return run_entry(s, site, routine, 0, entry, true, BACK_ON_ANY_PAGE);
 }
 
 bool battle_widths_m8_x16(const Snes *s) { return !s->cpu.e && m_m8(s) && !m_x8(s); }
+bool battle_binary_m8_x16(const Snes *s) { return binary_m8_x16(s); }
+
+/* ---- What the original keeps across a call or a wait ------------------------------------- */
+
+void battle_keep(Snes *s, BattleFrame f)
+{
+    for (unsigned i = 0; i < f.kept_bytes; i++)
+        m_push8(s, f.kept[i]);
+    if (f.carry != BATTLE_CARRY_AS_IT_IS)
+        m_set_flag(s, CPU_FLAG_C, f.carry == BATTLE_CARRY_SET);
+}
+
+/* What was kept is the original's to pull again: the port only moves past
+ * it. */
+void battle_stop_keeping(Snes *s, BattleFrame f) { s->cpu.s = (uint16_t)(s->cpu.s + f.kept_bytes); }
+
+bool battle_run_under(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *), BattleFrame f)
+{
+    battle_keep(s, f);
+    if (!battle_run(s, site, routine, entry))
+        return false;
+    battle_stop_keeping(s, f);
+    return true;
+}
+
+bool battle_run_dc_under(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                         BattleFrame f)
+{
+    battle_keep(s, f);
+    if (!battle_run_dc(s, site, routine, dont_care, entry))
+        return false;
+    battle_stop_keeping(s, f);
+    return true;
+}
+
+bool battle_run_long_dc_under(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                              BattleFrame f)
+{
+    battle_keep(s, f);
+    if (!battle_run_long_dc(s, site, routine, dont_care, entry))
+        return false;
+    battle_stop_keeping(s, f);
+    return true;
+}
+
+bool battle_wait_under(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BattleFrame f)
+{
+    battle_keep(s, f);
+    if (!battle_wait_frame(s, site, routine, dont_care))
+        return false;
+    battle_stop_keeping(s, f);
+    return true;
+}
+
+bool battle_wait_frames_under(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t frames,
+                              BattleFrame f)
+{
+    battle_keep(s, f);
+    if (!battle_wait_frames(s, site, routine, dont_care, frames))
+        return false;
+    battle_stop_keeping(s, f);
+    return true;
+}
 
 bool battle_names_combatant(uint16_t slot) { return slot < BATTLE_COMBATANTS; }
 bool battle_names_stat_block(uint16_t offset)

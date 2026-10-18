@@ -25,6 +25,7 @@
 #include "field/menus.h"
 #include "field/party.h"
 #include "field/requests.h"
+#include "field/sounds.h"
 #include "field/switches.h"
 #include "field/walk.h"
 
@@ -112,13 +113,13 @@ void field_step_screen_changes(GameState *g)
 static bool asked(const GameState *g, uint8_t request) { return (field_requests(g) & request) != 0; }
 static void answered(GameState *g, uint8_t request) { set_field_requests(g, (uint8_t)(field_requests(g) & ~request)); }
 
-/* The switch's sound: the original's routine, called from each switch's
- * own place ($C0:1B90, which pans it on the leader). It reads A's high byte
- * (the sound driver keeps it and hands it back) and nothing else of the
- * registers. Two of the five switches note their shape before the sound and
- * three after; nothing reads it in between, but the call is compared, so the
- * shape is noted first where the original does. */
-enum { SWITCH_SOUND = 0xC01B90, SOUND_READS_NOTHING = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+/* The switch's sound (field/sounds.c), run from each switch's own place as
+ * the original calls it there. It reads A's high byte (the sound driver
+ * keeps it and hands it back) and nothing else of the registers. Two of the
+ * five switches note their shape before the sound and three after; nothing
+ * reads it in between, but the call is compared, so the shape is noted first
+ * where the original does. */
+enum { SOUND_READS_NOTHING = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 /* Where each switch calls the sound from, by its shape and the column
  * stepped into: its own place, which is also where the port stops if the
  * call comes back other than it went. */
@@ -163,7 +164,8 @@ static bool answer_step_event(Snes *s)
     s->cpu.a = (uint16_t)(field_switch_sound_high_a(g, p, step) << 8 | (s->cpu.a & 0xFF));
     unsigned shape = p.shape;
     uint32_t site = p.step_column == 0 ? sound_sites[shape].left : sound_sites[shape].right;
-    if (!bridge_call(s, site, SWITCH_SOUND, SOUND_READS_NOTHING, on_the_field_page(s, false)))
+    if (!field_run(s, site, FIELD_SWITCH_SOUND_ENTRY, SOUND_READS_NOTHING, field_play_the_switch_sound_entry,
+                   on_the_field_page(s, false)))
         return false;
     field_queue_switch_redraw(g, p, step);
     m_set_flag(s, CPU_FLAG_V, field_switch_redraw_overflow(g));
@@ -231,15 +233,6 @@ static void keep_where_the_party_was(GameState *g)
     set_location_previous_flags(g, (uint8_t)(at.facing ^ FACING_OPPOSITE));
 }
 
-/* The next place becomes the party's. */
-static void party_moves_to_the_next_place(GameState *g)
-{
-    set_location_id(g, location_next_id(g));
-    set_location_x(g, location_next_x(g));
-    set_location_y(g, location_next_y(g));
-    set_location_flags(g, location_next_flags(g));
-}
-
 /* The field starts again on a fresh stack at its start ($C0:0000), which the
  * port leaves to the original, from where it sets the stack. */
 enum { FIELD_STARTS_AGAIN = 0xC00CC0, AS_THE_FIELD_STARTS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
@@ -254,27 +247,28 @@ static bool change_location(Snes *s)
         return true;
     display_go_dark(s);
     keep_where_the_party_was(g);
-    party_moves_to_the_next_place(g);
+    field_move_to_the_next_place(g);
     m_stop_at_own(s, FIELD_STARTS_AGAIN, AS_THE_FIELD_STARTS);
     return false;
 }
 
 /* ---- A chest ($C0:16DC) --------------------------------------------------------------------- */
 
-/* The chest's sound, from the original's own call: the switch's sound's
- * routine with the chest's effect ($C0:1BA7). It reads A's high byte (the
- * sound driver keeps it and hands it back): the step event's where one came
- * before (leave_a_for_the_chest), else as the main loop called the requests.
- * The chest's kind is forgotten before the sound, which only shadow mode's
- * comparison at the call sees: opening the chest sets it again. */
-enum { CHEST_SOUND = 0xC01BA7, CHEST_SOUND_SITE = 0xC016EB };
+/* The chest's sound (field/sounds.c), run from the original's own call. It
+ * reads A's high byte (the sound driver keeps it and hands it back): the
+ * step event's where one came before (leave_a_for_the_chest), else as the
+ * main loop called the requests. The chest's kind is forgotten before the
+ * sound, which only shadow mode's comparison at the call sees: opening the
+ * chest sets it again. */
+enum { CHEST_SOUND_SITE = 0xC016EB };
 
 static bool answer_chest(Snes *s)
 {
     GameState *g = state_of(s);
     ORIGINAL_EFFECT(field_chest_opening_starts(g));
     answered(g, FIELD_REQUEST_OPEN_CHEST);
-    if (!call(s, CHEST_SOUND_SITE, CHEST_SOUND, SOUND_READS_NOTHING))
+    if (!field_run(s, CHEST_SOUND_SITE, FIELD_CHEST_SOUND_ENTRY, SOUND_READS_NOTHING, field_play_the_chest_sound_entry,
+                   on_the_field_page(s, false)))
         return false;
     if (field_open_chest(g))
         m_set_flag(s, CPU_FLAG_V, field_chest_redraw_overflow(g));

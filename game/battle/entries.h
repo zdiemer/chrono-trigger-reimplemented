@@ -657,6 +657,10 @@ void battle_choose_status_pose(Snes *s);
 bool battle_poses_combatant(Snes *s);
 void battle_step_enemy_effects(Snes *s);
 
+/* battle/rewards_messages.c */
+void battle_show_the_rewards(Snes *s);
+bool battle_rewards_can_be_shown(Snes *s);
+
 /* battle/battle_end.c: the battle's end's bookkeeping */
 void battle_clear_party_statuses_entry(Snes *s);
 void battle_stand_party_up_entry(Snes *s);

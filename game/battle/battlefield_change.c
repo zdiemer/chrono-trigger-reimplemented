@@ -30,6 +30,7 @@
 #include "battle/frame.h"
 #include "battle/frame_data.h"
 #include "battle/screen.h"
+#include "battle/wait.h"
 #include "charge.h"
 #include "original_effects.h"
 #include "platform/video.h"
@@ -82,7 +83,7 @@ static void stop_the_old_effects(GameState *g)
  * fade's kind in its cells $55 and $53. */
 enum { KEPT_COLORS = 8, FIRST_KEPT_COLOR = 24 };
 enum { HALVED_MATH = 0x40, GRADIENT = 0x01 };
-enum { FADE_SLOT = 2, GRADIENT_FADES = 0x20, FADE_BACK_IN = 8, FADE_SLOT_REQUESTED = 0x80 };
+enum { FADE_SLOT = 2, FADE_SLOT_REQUESTED = 0x80 };
 enum { LEFT_FADE_KIND = 0x53, LEFT_HALVED = 0x55 };
 
 // $CD:0E23
@@ -118,8 +119,7 @@ void battle_fade_battlefield_layer(GameState *g, bool back_in)
     screen_leave_cell(g, LEFT_FADE_KIND, kind);
     if (halved)
         return;
-    uint8_t fade = (battle_background_flags(g) & GRADIENT) ? GRADIENT_FADES : 0;
-    set_up_the_fade(g, kind, battlefield_fade(g, (uint8_t)(fade + (back_in ? FADE_BACK_IN : 0))));
+    set_up_the_fade(g, kind, battlefield_fade(g, battle_background_flags(g) & GRADIENT, back_in));
 }
 
 static void fade_the_old_layer_out(GameState *g) { battle_fade_battlefield_layer(g, false); }
@@ -467,16 +467,10 @@ static bool send(Snes *s, uint32_t site, uint16_t buffer, uint16_t vram, uint16_
     return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
 }
 
-/* The frame work's waits for the next frame ($CD:3E75) and for a number of
- * them ($CD:3E3B). Each carries A's high byte on to the battle's pause, which
- * reads it. */
-enum { WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS, WAIT_FRAMES_READS = DC_X | DC_Y | DC_FLAGS };
-
-static bool wait_for_the_next_frame(Snes *s, uint32_t site) { return battle_wait_frame(s, site, 0xCD3E75, WAIT_READS); }
-
+/* The frame work's wait for a number of frames (battle/wait.h). */
 static bool wait_frames(Snes *s, uint32_t site, uint8_t frames)
 {
-    return battle_wait_frames(s, site, 0xCD3E3B, WAIT_FRAMES_READS, frames);
+    return battle_wait_frames(s, site, BATTLE_SOME_FRAMES_WAIT, BATTLE_COUNTING_WAIT_READS, frames);
 }
 
 // $CD:0EF8-$CD:0F3F
@@ -502,12 +496,12 @@ static bool take_the_old_layer_away(Snes *s)
     }
     set_battle_screen_settings(g, MAIN_WINDOWED, 0);
     set_battle_screen_settings(g, SUB_WINDOWED, 0);
-    if (!wait_for_the_next_frame(s, 0xCD0F33))
+    if (!battle_wait_for_the_next_frame_from(s, 0xCD0F33))
         return false;
     set_battle_split_line_values(g, FIXED_COLOR_VALUE, 0);
     for (unsigned i = 0; i < COLOR_MATH_SETTINGS; i++)
         set_battle_color_math_settings(g, i, 0);
-    return wait_for_the_next_frame(s, 0xCD0F3F);
+    return battle_wait_for_the_next_frame_from(s, 0xCD0F3F);
 }
 
 /* The original counts the sets in a cell as it goes ($CACE), and keeps the
@@ -591,7 +585,7 @@ static bool load_effect_tile_rows(Snes *s, uint8_t first_row_set, uint8_t first_
     ORIGINAL_EFFECT(set_battle_tile_rows_next(g, first_row_set));
     ORIGINAL_EFFECT(set_battle_tile_rows_slot(g, first_slot));
     ORIGINAL_EFFECT(set_battle_tile_rows_end(g, end));
-    if (!wait_for_the_next_frame(s, 0xCD132E))
+    if (!battle_wait_for_the_next_frame_from(s, 0xCD132E))
         return false;
     for (uint8_t slot = first_slot; slot != end; slot++) {
         uint8_t row_set = (uint8_t)(first_row_set + (slot - first_slot));

@@ -265,4 +265,8 @@ EVENT_BRIDGES(EVENT_DECLARE_ENTRY)
 void event_screen_party_routine(Snes *s);
 bool event_screen_party_routine_accepts(Snes *s);
 
+/* Events $E1's and $DF's change at once, after their wait for the vblank
+ * ($C0:3B76, event/locations.c). */
+void event_go_now_in_the_dark(Snes *s);
+
 #endif

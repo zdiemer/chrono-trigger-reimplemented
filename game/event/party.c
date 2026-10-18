@@ -15,6 +15,7 @@
  * The commands are bridges still: what they hand back is the carry the
  * command was entered with, and the Y the menus' services leave, which the
  * original's code after them and shadow mode see. */
+#include "battle/battle.h"
 #include "charge.h"
 #include "event/bridge.h"
 #include "event/calls.h"
@@ -695,10 +696,6 @@ void event_member_back_to_the_leader(Snes *s)
     m_rts(s);
 }
 
-/* The battle an event starts can leave the party where it stands afterward
- * (bit 7 of the flags the event hands the battle, event/locations.c). */
-enum { PARTY_STAYS_PUT = 0x80 };
-
 /* For the original: it names each member it sends back in the cell the
  * leader's contact is kept in, which the walk sets again before it reads
  * it. */
@@ -715,7 +712,7 @@ static void leave_member_named(GameState *g, FieldObject member)
  * where it stands sends nobody. */
 void party_back_together(GameState *g)
 {
-    if (battle_event_flags(g) & PARTY_STAYS_PUT) {
+    if (battle_terms(g, BATTLE_TERMS_PARTY_STAYS_PUT)) {
         set_variable_byte(g, GATHERING_COUNT, PARTY_ALL_GATHERED);
         return;
     }

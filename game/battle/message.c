@@ -19,18 +19,22 @@
  *
  * The same message isn't opened twice running. The logic is C on the game's
  * state; what reaches the machine is the bridge that makes the frame work's
- * waits from the original's sites, with what it keeps on the stack there. */
+ * waits from the original's sites, each with what the original keeps on the
+ * stack and leaves in the carry there (battle/bridge.h, BattleFrame). */
 #include "battle/message.h"
 
 #include "battle/bridge.h"
 #include "battle/frame_data.h"
+#include "battle/frame.h"
 #include "battle/sound.h"
+#include "battle/wait.h"
 #include "charge.h"
 #include "menu/typeset.h"
 #include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/input.h"
 #include "port/vars_ram.h"
+#include "ram.h"
 #include "vars.h"
 
 /* The menus' text code sets at most this many letters a call. */
@@ -77,8 +81,6 @@ void battle_clear_the_message_tiles(GameState *g)
  * escape, a member back on its feet, the windows that name a combatant), an
  * enemy's, and the descriptions of techs and items. */
 enum { BATTLE_MESSAGES = 0xCEEF11, ENEMY_MESSAGES = 0xCCCBC9, DESCRIPTIONS = 0xCC3A09 };
-/* The message's tiles, in work RAM, laid out as the menus' four-colour text. */
-enum { MESSAGE_TILES = 0x7EB400 };
 /* A message set all at once is given this many letters. */
 enum { WHOLE_MESSAGE = 0x40 };
 /* While a message shows, the vblank handler sends its tiles in place of
@@ -94,7 +96,7 @@ static void open_the_message(GameState *g, uint8_t string)
     set_menu_text_string(g, string);
     set_battle_message_timed(g, 0);
     set_field_message_mark(g, 0);
-    set_menu_text_tiles(g, MESSAGE_TILES);
+    set_menu_text_tiles(g, RAM_BATTLE_MESSAGE_TILES);
     set_menu_text_layout(g, MENU_TEXT_FOUR_COLOUR);
     TIMED_AS(g, 0xCD0239, battle_clear_the_message_tiles(g));
     TIMED_AS(g, 0xC257DF, menu_text_start(g));
@@ -104,35 +106,25 @@ static void open_the_message(GameState *g, uint8_t string)
 static void show_the_message(GameState *g, bool shown)
 {
     set_battle_vram_copy_mode(g, shown ? MESSAGE_SHOWN : MESSAGE_HIDDEN);
-    set_battle_alternate_apply(g, (uint8_t)(battle_alternate_apply(g) + 1));
+    battle_lay_the_lines_out_again(g);
+}
+
+/* A message the battle held for, closed. */
+static void close_the_message(GameState *g)
+{
+    show_the_message(g, false);
+    set_battle_message_timed(g, 0);
 }
 
 /* The frames a message stays up for, at the player's speed. */
 static uint8_t frames_up(const GameState *g) { return battle_message_frames_at_speed(g, message_speed(g)); }
 
-/* The battle's waits pass the carry on to their callers, which read it, so
- * the bridge leaves it where the original's tests do: looking the speed up
- * shifts a bit of the settings into it, and a compare of the message leaves
- * whether it was at least the one compared with. */
-static void leave_the_carry(Snes *s, bool carry) { m_set_flag(s, CPU_FLAG_C, carry); }
-
-/* The frame work's waits for its handler ($CD:3E7D), and for the next frame
- * ($CD:3E75) and some frames ($CD:3E3B), which carry A's high byte on to the
- * battle's pause. */
-enum { WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS, COUNTING_WAIT_READS = DC_X | DC_Y | DC_FLAGS };
-
-static bool wait_for_the_handler(Snes *s, uint32_t site) { return battle_wait_frame(s, site, 0xCD3E7D, WAIT_READS); }
-
 /* A wait for the next frame the original makes with a count in A, which it
- * keeps on the stack across the wait. */
-static bool wait_a_frame_counting(Snes *s, uint32_t site, uint8_t left)
+ * keeps on the stack across the wait, with the carry `carry`. */
+static bool wait_a_frame_counting(Snes *s, uint32_t site, uint8_t left, BattleCarry carry)
 {
     m_set_a8(s, left);
-    m_push8(s, left);
-    if (!battle_wait_frame(s, site, 0xCD3E75, COUNTING_WAIT_READS))
-        return false;
-    m_pull8(s);
-    return true;
+    return battle_wait_under(s, site, BATTLE_NEXT_FRAME_WAIT, BATTLE_COUNTING_WAIT_READS, battle_counting(left, carry));
 }
 
 // $CD:027F
@@ -143,7 +135,7 @@ static bool set_out_the_message(Snes *s, uint8_t letters)
     GameState *g = state_of(s);
     set_menu_text_budget(g, letters);
     TIMED_AS(g, 0xC25823, menu_text_go_on(g));
-    if (!wait_for_the_handler(s, 0xCD0286) || !wait_for_the_handler(s, 0xCD0289))
+    if (!battle_wait_for_the_handler_from(s, 0xCD0286) || !battle_wait_for_the_handler_from(s, 0xCD0289))
         return false;
     show_the_message(g, true);
     return true;
@@ -153,12 +145,29 @@ static bool set_out_the_message(Snes *s, uint8_t letters)
 /* A pause of 16 frames around a message the battle holds for. */
 enum { MESSAGE_PAUSE = 0x10 };
 
+/* What the setting out and the pause don't read of the registers where they
+ * are called: the index registers and the flags but the carry, which they
+ * hand on to the waits (battle/wait.h); the pause loads its own count into A
+ * too, where the setting out takes the letters to set. */
+enum {
+    SETTING_OUT_IGNORES = DC_X | DC_Y | DC_N | DC_V | DC_Z,
+    PAUSE_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z,
+};
+
 static bool pause_on_the_message(Snes *s)
 {
     for (uint8_t left = MESSAGE_PAUSE; left != 0; left--)
-        if (!wait_a_frame_counting(s, 0xCD020D, left))
+        if (!wait_a_frame_counting(s, 0xCD020D, left, BATTLE_CARRY_AS_IT_IS))
             return false;
     return true;
+}
+
+/* Set out the whole of a message just opened, from the original's call at
+ * `site`, with what the original keeps there. */
+static bool set_out_the_whole_message(Snes *s, uint32_t site, BattleFrame kept)
+{
+    m_set_a8(s, WHOLE_MESSAGE);
+    return battle_run_dc_under(s, site, 0xCD027F, SETTING_OUT_IGNORES, battle_set_out_the_message, kept);
 }
 
 /* ---- The battle's own messages, which the battle holds for ---------------------------------------- */
@@ -169,15 +178,19 @@ enum { RAN_AWAY = 0x08, RAN_AWAY_FRAMES = 0x3C };
 /* The original keeps the frames in a work cell of the battle's ($53). */
 enum { LEFT_FRAMES = 0x53 - 0x45 };
 
-static bool hold_the_message(Snes *s, uint8_t message)
+/* The hold's waits pass on the carry of the original's test of the message
+ * against the escape's (`tested`), from the first. */
+static bool hold_the_message(Snes *s, uint8_t message, BattleCarry tested)
 {
     GameState *g = state_of(s);
-    uint8_t left = frames_up(g);
-    ORIGINAL_EFFECT(set_battle_scratch(g, LEFT_FRAMES, left));
+    uint8_t frames = frames_up(g);
+    ORIGINAL_EFFECT(set_battle_scratch(g, LEFT_FRAMES, frames));
     if (message == RAN_AWAY)
-        return battle_wait_frames(s, 0xCD01E7, 0xCD3E3B, COUNTING_WAIT_READS, RAN_AWAY_FRAMES);
+        return battle_wait_frames_under(s, 0xCD01E7, BATTLE_SOME_FRAMES_WAIT, BATTLE_COUNTING_WAIT_READS,
+                                        RAN_AWAY_FRAMES, battle_carrying(tested));
+    uint8_t left = frames;
     do {
-        if (!wait_a_frame_counting(s, 0xCD01EF, left))
+        if (!wait_a_frame_counting(s, 0xCD01EF, left, left == frames ? tested : BATTLE_CARRY_AS_IT_IS))
             return false;
         if (battle_joypad(g) & IN_BUTTON_A)
             break;
@@ -185,45 +198,79 @@ static bool hold_the_message(Snes *s, uint8_t message)
     return true;
 }
 
+/* What the original has in the machine at each of the battle message's calls
+ * (battle/bridge.h, BattleFrame). It keeps the message on the stack while it
+ * shows it, a copy for each of its later uses (the sound's look-up, the
+ * opening, the hold's test), so at each call the copies not used yet are
+ * under the call's return; and the carry its last compare left. */
+static BattleFrame keeping_copies(uint8_t message, uint8_t copies, BattleCarry carry)
+{
+    BattleFrame f = { .kept_bytes = copies, .carry = carry };
+    for (unsigned i = 0; i < copies; i++)
+        f.kept[i] = message;
+    return f;
+}
+
+/* At the sound: two copies, and the look-up's compare with none, which a
+ * sound found leaves clear. */
+static BattleFrame kept_at_the_sound(uint8_t message) { return keeping_copies(message, 2, BATTLE_CARRY_CLEAR); }
+
+/* At the setting out: one copy, and where there was no sound, the look-up's
+ * compare that found none, which leaves the carry set. */
+static BattleFrame kept_at_the_setting_out(uint8_t message, bool silent)
+{
+    return keeping_copies(message, 1, silent ? BATTLE_CARRY_SET : BATTLE_CARRY_AS_IT_IS);
+}
+
+/* At the pause: the copy for the hold's test. */
+static BattleFrame kept_at_the_pause(uint8_t message) { return keeping_copies(message, 1, BATTLE_CARRY_AS_IT_IS); }
+
+/* The hold's first wait has the carry of the message's test against the
+ * escape's. */
+static BattleCarry tested_for_the_hold(uint8_t message) { return battle_carry_of(message >= RAN_AWAY); }
+
 // $CD:01B3 (through $CD:0021)
 /* Show one of the battle's own messages and hold the battle while it is up:
  * its sound, its whole text at once, a pause, the frames the player's speed
- * gives, and a pause after it closes. The original keeps the message on the
- * stack, a copy for each use of it. */
+ * gives, and a pause after it closes. */
 static bool show_a_battle_message(Snes *s, uint8_t message)
 {
     GameState *g = state_of(s);
-    for (unsigned copy = 0; copy < 3; copy++)
-        m_push8(s, message);
     set_menu_text_strings(g, BATTLE_MESSAGES);
-    m_pull8(s);
     uint8_t sound = battle_message_sound(g, message);
-    leave_the_carry(s, sound >= BATTLE_MESSAGE_SILENT);
-    if (sound != BATTLE_MESSAGE_SILENT) {
-        m_set_a8(s, sound);
-        s->cpu.x = AU_CENTRE;
-        if (!battle_run(s, 0xCD01CE, 0xCD3B71, battle_play_a_sound))
-            return false;
-    }
-    m_pull8(s);
+    bool silent = sound == BATTLE_MESSAGE_SILENT;
+    if (!silent && !battle_play_a_sound_from(s, 0xCD01CE, sound, AU_CENTRE, kept_at_the_sound(message)))
+        return false;
     TIMED_AS(g, 0xCD025E, open_the_message(g, message));
-    m_set_a8(s, WHOLE_MESSAGE);
-    if (!battle_run(s, 0xCD01D5, 0xCD027F, battle_set_out_the_message)
-        || !battle_run(s, 0xCD01D8, 0xCD020A, battle_pause_on_the_message))
+    if (!set_out_the_whole_message(s, 0xCD01D5, kept_at_the_setting_out(message, silent))
+        || !battle_run_dc_under(s, 0xCD01D8, 0xCD020A, PAUSE_IGNORES, battle_pause_on_the_message, kept_at_the_pause(message))
+        || !hold_the_message(s, message, tested_for_the_hold(message)))
         return false;
-    m_pull8(s);
-    leave_the_carry(s, message >= RAN_AWAY);
-    if (!hold_the_message(s, message))
-        return false;
-    show_the_message(g, false);
-    set_battle_message_timed(g, 0);
-    return battle_run(s, 0xCD0206, 0xCD020A, battle_pause_on_the_message);
+    close_the_message(g);
+    return battle_run_dc(s, 0xCD0206, 0xCD020A, PAUSE_IGNORES, battle_pause_on_the_message);
 }
 
 /* ---- An enemy's message ------------------------------------------------------------------------- */
 
 /* The frames between setting an enemy's message and timing it. */
 enum { ENEMY_MESSAGE_PAUSE = 8 };
+
+/* While the message is set, the original keeps it in a cell of its own
+ * (battle_message_opening), which its code reads back after the waits, where
+ * one of them hands the machine to it. */
+static void leave_the_message_opening(GameState *g, uint8_t message) { set_battle_message_opening(g, message); }
+
+/* What the original has in the carry at the enemy message's calls: at the
+ * setting out, its compare of the message with the one up; at the last wait,
+ * the bit of the settings its look-up of the speed shifted out. */
+static BattleFrame kept_at_the_enemys_setting_out(uint8_t message, uint8_t up)
+{
+    return battle_carrying(battle_carry_of(message >= up));
+}
+static BattleFrame kept_at_the_enemys_last_wait(const GameState *g)
+{
+    return battle_carrying(battle_carry_of(speed_shifted_out(g)));
+}
 
 // $CD:0295 (through $CD:0033)
 /* Show an enemy's message, unless it is the one up already: its whole text,
@@ -234,20 +281,18 @@ static bool show_an_enemy_message(Snes *s, uint8_t message)
     GameState *g = state_of(s);
     set_battle_message_by_id(g, (uint8_t)(battle_message_by_id(g) + 1));
     set_menu_text_strings(g, ENEMY_MESSAGES);
-    leave_the_carry(s, message >= battle_message_shown(g));
-    if (message == battle_message_shown(g))
+    uint8_t up = battle_message_shown(g);
+    if (message == up)
         return true;
-    set_battle_message_opening(g, message);
+    ORIGINAL_EFFECT(leave_the_message_opening(g, message));
     TIMED_AS(g, 0xCD025E, open_the_message(g, message));
-    m_set_a8(s, WHOLE_MESSAGE);
-    if (!battle_run(s, 0xCD02B0, 0xCD027F, battle_set_out_the_message)
-        || !battle_wait_frames(s, 0xCD02B5, 0xCD3E3B, COUNTING_WAIT_READS, ENEMY_MESSAGE_PAUSE))
+    if (!set_out_the_whole_message(s, 0xCD02B0, kept_at_the_enemys_setting_out(message, up))
+        || !battle_wait_frames(s, 0xCD02B5, BATTLE_SOME_FRAMES_WAIT, BATTLE_COUNTING_WAIT_READS, ENEMY_MESSAGE_PAUSE))
         return false;
     set_battle_message_frames(g, frames_up(g));
-    set_battle_message_shown(g, battle_message_opening(g));
+    set_battle_message_shown(g, message);
     set_battle_message_timed(g, (uint8_t)(battle_message_timed(g) + 1));
-    leave_the_carry(s, speed_shifted_out(g));
-    return battle_wait_frame(s, 0xCD02C7, 0xCD3E75, WAIT_READS);
+    return battle_wait_under(s, 0xCD02C7, BATTLE_NEXT_FRAME_WAIT, BATTLE_WAIT_READS, kept_at_the_enemys_last_wait(g));
 }
 
 /* ---- The messages typed a letter a frame ----------------------------------------------------------- */
@@ -376,7 +421,7 @@ static void leave_the_asking(Snes *s, uint8_t message, bool enemy_up, bool opene
 {
     m_set_a8(s, opened ? 1 : message);
     if (!enemy_up)
-        leave_the_carry(s, !opened);
+        m_set_flag(s, CPU_FLAG_C, !opened);
     m_rtl(s);
 }
 
@@ -435,7 +480,7 @@ static bool message_can_open(Snes *s, uint32_t strings, uint8_t string)
     if (!battle_on_page(s))
         return false;
     vars_peek(true);
-    bool ok = menu_text_can_be_typed(state_of(s), strings, string, MESSAGE_TILES);
+    bool ok = menu_text_can_be_typed(state_of(s), strings, string, RAM_BATTLE_MESSAGE_TILES);
     vars_peek(false);
     return ok;
 }

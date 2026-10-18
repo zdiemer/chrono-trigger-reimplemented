@@ -21,7 +21,9 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame_data.h"
+#include "charge.h"
 #include "core/palette.h"
+#include "field/line_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/native.h"
@@ -334,6 +336,25 @@ void battle_setup_window_hdma(Snes *s)
     m_rts(s);
 }
 
+/* The field's line effects rebuilt for the picture the battle hands back
+ * ($C0:0005, field/line_effects.c), as C where its builders can build and the
+ * handler runs as the field's routine is entered, else the original's call
+ * from the handler's JSL; either leaves the effects to switch on in A's low
+ * byte. */
+static bool rebuild_the_fields_line_effects(Snes *s)
+{
+    GameState *g = state_of(s);
+    vars_peek(true);
+    bool builds = field_line_effects_can_be_built(g);
+    vars_peek(false);
+    if (!builds || !battle_binary_m8_x16(s))
+        return battle_call_long(s, 0xD1F4E2, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, 0);
+    uint8_t effects;
+    TIMED_AS(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, effects = field_rebuild_line_effects(g, m_platform(s)));
+    m_set_a8(s, effects);
+    return true;
+}
+
 // $D1:F4C0
 /* The handler saves the interrupted code's registers and runs on the battle's
  * page. The per-line effects' enable is the one write it makes through the
@@ -356,8 +377,7 @@ void battle_nmi_alternate(Snes *s)
     m_jsl_dc(s, 0xD1F4DE, 0xCD09CE, DC_A | DC_X | DC_N | DC_Z | DC_C);
     if (!battle_widths_m8_x16(s))
         return;
-    m_jsl_dc(s, 0xD1F4E2, 0xC00005, DC_A | DC_X | DC_Y | DC_FLAGS);
-    if (!battle_widths_m8_x16(s))
+    if (!rebuild_the_fields_line_effects(s))
         return;
     if (m_io_bank(s->cpu.db))
         vid_enable_line_effects(pf, PF_AT(0xD1F4E6), (uint8_t)s->cpu.a);

@@ -680,6 +680,10 @@ uint8_t field_set_up_line_effects(GameState *g, Platform *pf)
     return set;
 }
 
+/* The builders dispatch on the dialog window's place through a table of
+ * three; a place past it jumps into bytes that aren't code. */
+bool field_line_effects_can_be_built(const GameState *g) { return dialog_window_position(g) < WINDOW_POSITIONS; }
+
 /* ---- Where it meets the original ------------------------------------------------------
  *
  * The translation between the original's registers and the C, which a build
@@ -778,7 +782,7 @@ bool field_line_effects_can_build(Snes *s)
     if (!field_line_effects_page_reaches_ram(s))
         return false;
     vars_peek(true);
-    bool ok = dialog_window_position(state_of(s)) < WINDOW_POSITIONS;
+    bool ok = field_line_effects_can_be_built(state_of(s));
     vars_peek(false);
     return ok;
 }
@@ -914,6 +918,39 @@ void field_skip_wave_lines(Snes *s)
     keep_wave_line(g, line);
     m_set_a8(s, line);
     m_rts(s);
+}
+
+// $C0:0AFF (through $C0:0005)
+/* Both table sets built afresh as the field's setup builds them, from its own
+ * scroll and color math, and the line effects programmed from them; returns
+ * the effects the field runs (field_line_effect_enable), for the caller to
+ * switch on. The battle's vblank handler has it done on its way out
+ * (battle/display.c). The builds take the setup's path here, which is
+ * cheaper than the one the field's every frame takes, so the work is timed
+ * at this routine's own rate rather than the builder's. */
+uint8_t field_rebuild_line_effects(GameState *g, Platform *pf)
+{
+    set_field_display_flags(g, (uint8_t)(field_display_flags(g) | FIELD_DISPLAY_SETUP));
+    build_line_effect_tables(g);
+    build_line_effect_tables(g);
+    set_field_display_flags(g, (uint8_t)(field_display_flags(g) & ~FIELD_DISPLAY_SETUP));
+    field_set_up_line_effects(g, pf);
+    return field_line_effect_enable(g);
+}
+
+/* Only A's low byte is read after it. */
+void field_rebuild_the_line_effects(Snes *s)
+{
+    m_set_a8(s, field_rebuild_line_effects(state_of(s), m_platform(s)));
+    m_rtl(s);
+}
+
+bool field_line_effects_can_be_rebuilt(Snes *s)
+{
+    vars_peek(true);
+    bool ok = field_line_effects_can_be_built(state_of(s));
+    vars_peek(false);
+    return ok;
 }
 
 /* The original reaches the transfer registers through the direct page, which

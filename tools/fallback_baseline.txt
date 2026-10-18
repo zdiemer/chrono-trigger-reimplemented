@@ -106,21 +106,15 @@
 7E:9FC8 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:9FEA 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:A03D 504808 90  # handback by scene_run_frame_tasks (scene program (RAM))
-C0:---- 210222 757  # no port yet (field engine, events)
+C0:---- 207735 690  # no port yet (field engine, events)
 C0:0002 436376 3  # handback by battle_scroll_map_layers, battle_set_the_screen_up (field engine, events)
-C0:0005 11836 44  # handback by battle_nmi_alternate (field engine, events)
-C0:0008 972 68  # handback by battle_set_the_screen_up (field engine, events)
-C0:000B 1189 284  # handback by battle_wait_start_music_fade_loop (field engine, events)
 C0:00BA 2445795 11  # handback by field_wait_for_the_next_frame (field engine, events)
 C0:0B38 704 5  # handback by field_enter, field_fade_in, field_fade_in_after_a_menu (field engine, events)
-C0:1B90 15 29  # handback by field_frame (field engine, events)
 C0:597D 667 92  # handback by field_bring_the_party_back (field engine, events)
-C0:5A93 1962 41  # handback by event_run_object_script (field engine, events)
-C0:6E27 42 53  # handback by event_run_init_scripts (field engine, events)
+C0:5A93 1377 10  # handback by event_run_object_script (field engine, events)
 C0:74D4 539 20  # handback by field_frame (field engine, events)
 C0:74E8 444 22  # handback by field_frame (field engine, events)
 C0:74F7 84 22  # handback by field_frame (field engine, events)
-C0:75A0 150964 73  # handback by event_run_init_scripts, field_frame (field engine, events)
 C0:9AC8 2355 33  # no port yet (field engine, events)
 C0:9AD3 5328 157  # no port yet (field engine, events)
 C0:EC60 68152 11  # handback by field_finish_frame (field engine, events)
@@ -286,12 +280,10 @@ CF:FD36 5 5  # handback by battle_draw_menu_window (battle sprites)
 CF:FE20 12126 101  # handback by battle_dispatch_expired_timers (battle sprites)
 D1:FE97 1309035 7  # handback by battle_irq (battle NMI, graphics)
 FD:---- 3685 229  # no port yet (field graphics)
-FD:A982 243493 19  # handback by battle_main_loop_start (field graphics)
 FD:A990 990 222  # handback by battle_dispatch_expired_timers (field graphics)
-FD:AD17 2527 211  # handback by battle_main_loop_body (field graphics)
-FD:DA65 514 13  # handback by warp_short_frame (field graphics)
-FD:DAC4 161 13  # handback by warp_shortest_frame (field graphics)
-FD:DB27 769 13  # handback by warp_flickering_frame (field graphics)
+FD:DA65 508 3  # handback by warp_short_frame (field graphics)
+FD:DAC4 158 3  # handback by warp_shortest_frame (field graphics)
+FD:DB27 766 3  # handback by warp_flickering_frame (field graphics)
 FD:EADA 8 5  # handback by warp_set_up: the idle wait's leaving pass (field graphics)
 FD:EAEB 8616 7  # handback by warp_wait_for_frame: the idle wait's leaving pass (field graphics)
 FF:---- 168061 402  # no port yet (misc)
@@ -301,14 +293,13 @@ open C1:007E 5733 0  # hidden under battle_wait_for_frame's comparison, still op
 open C1:106E 18 0  # hidden under battle_wait_step's comparison, still open when a run ended
 open C1:4058 32048 0  # hidden under battle_show_action's comparison, still open when a run ended
 open C1:8120 5 0  # hidden under battle_main_loop's comparison, still open when a run ended
-open C1:812C 86 0  # hidden under battle_main_loop_body's comparison, still open when a run ended
+open C1:812C 2466 0  # hidden under battle_main_loop_body's comparison, still open when a run ended
 open C1:8290 32402 0  # hidden under battle_dispatch_expired_timers's comparison, still open when a run ended
 open C1:B967 194 0  # hidden under battle_carry_out_member_action's comparison, still open when a run ended
 open C2:23CF 9 0  # hidden under overworld_main_loop's comparison, still open when a run ended
 open C7:0004 1209 0  # hidden under sound_driver_command's comparison, still open when a run ended
 open C7:0655 7904 0  # hidden under sound_driver_upload_block's comparison, still open when a run ended
 open C7:09DA 2 0  # hidden under sound_driver_send_counter's comparison, still open when a run ended
-open CD:0021 1083 0  # hidden under battle_show_a_battle_message's comparison, still open when a run ended
 open CD:0036 6 0  # hidden under battle_sit_out_the_pause_long's comparison, still open when a run ended
 open CD:3E44 4 0  # hidden under battle_sit_out_the_pause's comparison, still open when a run ended
 open CD:3E75 3702 0  # hidden under battle_wait_for_the_next_frame's comparison, still open when a run ended

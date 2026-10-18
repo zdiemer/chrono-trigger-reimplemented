@@ -12,8 +12,8 @@
  * haven't that isn't locked, once each of them knows as many single techs as
  * it asks of them.
  *
- * What was learned is noted for the rewards' messages ($FD:AD17, the
- * original's): the single techs in the members' eight places of
+ * What was learned is noted for the rewards' messages (battle/
+ * rewards_messages.c): the single techs in the members' eight places of
  * battle_rewards_techs, the double techs in battle_rewards_double_techs,
  * the triple tech in battle_rewards_triple_tech, and each kind in the
  * member's battle_rewards_techs_noted -- for a combination, the last member
@@ -28,16 +28,11 @@
 #include "charge.h"
 #include "original_effects.h"
 
-/* What a member's techs noted says it learned. */
-enum { NOTED_SINGLE_TECHS = 0x08, NOTED_DOUBLE_TECHS = 0x04, NOTED_TRIPLE_TECH = 0x02 };
-
 static void note_learned(GameState *g, uint8_t member, uint8_t what)
 {
     set_battle_rewards_techs_noted(g, member, battle_rewards_techs_noted(g, member) | what);
 }
 
-/* A member's single techs have eight places in the messages' list. */
-enum { PLACES_A_MEMBER = 8 };
 
 /* A learned bit: a character's single techs from its first, a combination's
  * techs from its first, at the top. */
@@ -191,9 +186,6 @@ static void set_combination_learned(GameState *g, uint8_t record, uint8_t v)
     else
         set_party_triple_techs_learned(g, (unsigned)(record - PARTY_DOUBLE_TECHS_LEARNED_COUNT), v);
 }
-
-/* No tech taught, in the messages' lists. */
-enum { NO_TECH = 0xFF };
 
 /* A combination of two characters, and of three. */
 enum { DOUBLE = 2, TRIPLE = 3 };

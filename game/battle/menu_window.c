@@ -19,9 +19,10 @@
  * Between menus the battle calls off a member's combination tech when one of
  * the members in it can no longer act.
  *
- * Much around these is still the original's (laying out the lists, the
- * descriptions, the target's name, asking for the tilemaps' uploads), which
- * the entries call between their own parts. */
+ * The description and the target's name are battle messages (battle/
+ * message.c), run as the original calls them; the item page's list and
+ * asking for the tilemaps' uploads are still the original's, which the
+ * entries call between their own parts. */
 #include "battle/window.h"
 
 #include "battle/bridge.h"
@@ -389,10 +390,10 @@ void battle_reset_frames(GameState *g)
 
 /* ---- The pages, with the original's parts ------------------------------------------------ */
 
-/* The calls to the original's code: a tech's description ($CD:0027), and the
- * uploads of the window's tilemaps ($CF:FD02, $CF:FD36). Each reads what the
- * window left in memory; only the description takes a register, the tech in
- * A. */
+/* The calls to the original's code, the uploads of the window's tilemaps
+ * ($CF:FD02, $CF:FD36), read only what the window left in memory. (A tech's
+ * description, $CD:0027, is the battle message's, battle/message.c, which
+ * takes the tech in A.) */
 enum { CALLEE_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 /* The settings' bit that asks for the descriptions. */

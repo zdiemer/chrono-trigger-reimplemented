@@ -44,6 +44,7 @@
 #include "field/requests.h"
 #include "field/screen_effects.h"
 #include "field/script_layers.h"
+#include "field/sounds.h"
 #include "field/graphics.h"
 #include "field/layers.h"
 #include "field/line_effects.h"
@@ -219,9 +220,12 @@ const NativeEntry game_natives[] = {
       .cost_milli = 5120, .dont_care = DC_A | DC_X | DC_Y | DC_FLAGS, .guard = battle_on_page },
     { .addr = 0xD1E8D9, .name = "battle_upload_tile_rows", .fn = battle_upload_tile_rows, NEEDS_M8_X16,
       .cost_milli = 7004, .guard = battle_tile_rows_ready, .dont_care = DC_A | DC_X | DC_FLAGS },
-    { .addr = 0xD1F4C0, .name = "battle_nmi_alternate", .fn = battle_nmi_alternate, .cost_milli = 3278 },
+    { .addr = 0xD1F4C0, .name = "battle_nmi_alternate", .fn = battle_nmi_alternate, .cost_milli = 3630 },
     { .addr = 0xC0712E, .name = "palette_upload", .fn = palette_upload, NEEDS_M8_X16, .cost_milli = 4514,
       .dont_care = DC_A | DC_X | DC_FLAGS, .guard = palette_bank_is_io },
+    { .addr = 0xC00005, .name = "field_rebuild_the_line_effects", .fn = field_rebuild_the_line_effects,
+      NEEDS_M8_X16_BINARY, .cost_milli = 4307, .dont_care = DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = field_line_effects_can_be_rebuilt },
     { .addr = 0xFDC1EE, .name = "field_setup_line_effects", .fn = field_setup_line_effects, NEEDS_M8_X16,
       .cost_milli = 4214, .dont_care = DC_N | DC_Z, .guard = field_display_bank_is_io },
     { .addr = 0xFDC124, .name = "field_init_line_effect_values", .fn = field_init_line_effect_values,
@@ -1279,6 +1283,9 @@ const NativeEntry game_natives[] = {
       .cost_milli = 3180, .guard = battle_on_page, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xCD0516, .name = "battle_close_the_window", .fn = battle_close_the_window, NEEDS_M8_X16_BINARY,
       .cost_milli = 3250, .guard = battle_on_page, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
+    /* the fade runs on into the frame work's wait for some frames ($CD:3E3B),
+       as the original jumps to it, so it takes that wait's guard: the waits
+       type the next letter of a battle message */
     { .addr = 0xCD039E, .name = "battle_fade_the_music_out", .fn = battle_fade_the_music_out, NEEDS_M8_X16_BINARY,
       .cost_milli = 3250, .guard = battle_message_can_be_typed, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z },
     { .addr = 0xCD0DB1, .name = "battle_play_out_the_boss_end", .fn = battle_play_out_the_boss_end,
@@ -1764,6 +1771,10 @@ const NativeEntry game_natives[] = {
       .guard = battle_on_page, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z },
     { .addr = 0xC1B3D2, .name = "battle_keep_standing_enemies", .fn = battle_keep_standing_enemies_entry, NEEDS_M8_X16_BINARY, .cost_milli = 13875,
       .guard = battle_on_page, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z },
+    { .addr = 0xFDA982, .name = "battle_clear_the_turn_work", .fn = battle_clear_the_turn_work_entry, NEEDS_M8_X16,
+      .cost_milli = 9987, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
+    { .addr = 0xFDAD17, .name = "battle_show_the_rewards", .fn = battle_show_the_rewards, NEEDS_M8_X16_BINARY,
+      .cost_milli = 9279, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = battle_rewards_can_be_shown },
     { .addr = 0xFDAA98, .name = "battle_count_enemies_out", .fn = battle_count_enemies_out_entry, NEEDS_M8_X16_BINARY, .cost_milli = 17227,
       .guard = battle_on_page, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xFDAAB0, .name = "battle_note_beaten_enemies", .fn = battle_note_beaten_enemies_entry, NEEDS_M8_X16_BINARY, .cost_milli = 12823,
@@ -2411,6 +2422,8 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC0EC71, .name = "field_wait_for_frame_loop", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true, .guard = field_bank_low_ram },
     { .addr = 0xC03B71, .name = "field_change_location_wait_for_vblank_loop",
       .fn = field_change_location_wait_for_vblank_loop, NEEDS_M8, .idle = true, .guard = field_display_bank_is_io },
+    { .addr = 0xC03B76, .name = "event_go_now_in_the_dark", .fn = event_go_now_in_the_dark, NEEDS_M8_X16,
+      .cost_milli = 3062, .guard = field_on_page },
     { .addr = 0xC04181, .name = "field_restart_wait_for_vblank_loop", .fn = field_restart_wait_for_vblank_loop,
       NEEDS_M8, .idle = true, .guard = field_display_bank_is_io },
     /* field object motion; entered with 8-bit A and 16-bit X */
@@ -2607,6 +2620,21 @@ const NativeEntry game_natives[] = {
       .cost_milli = 1, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_can_be_set_up_again },
     { .addr = 0xC01B53, .name = "field_start_location_song", .fn = field_start_location_song, NEEDS_M8_X16,
       .cost_milli = 3949, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_bank_zero },
+    /* the field's own sounds and the music round a battle (field/sounds.c) */
+    { .addr = 0xC01B90, .name = "field_play_the_switch_sound", .fn = field_play_the_switch_sound_entry, NEEDS_M8_X16,
+      .cost_milli = 2800, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = field_sound_at_the_leader_can_play },
+    { .addr = 0xC01BA7, .name = "field_play_the_chest_sound", .fn = field_play_the_chest_sound_entry, NEEDS_M8_X16,
+      .cost_milli = 2800, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
+      .guard = field_sound_at_the_leader_can_play },
+    { .addr = 0xC00008, .name = "field_start_the_battle_song", .fn = field_start_the_battle_song, NEEDS_M8_X16,
+      .cost_milli = 5143, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C },
+    { .addr = 0xC0000B, .name = "field_bring_the_music_back", .fn = field_bring_the_music_back, NEEDS_M8_X16,
+      .cost_milli = 5243, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C },
+    { .addr = 0xC075A0, .name = "field_blank_the_staging", .fn = field_blank_the_staging_entry, NEEDS_M8_X16,
+      .cost_milli = 3295, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C },
+    { .addr = 0xC06E27, .name = "field_load_the_credits_letters", .fn = field_load_the_credits_letters, NEEDS_M8_X16,
+      .cost_milli = 1, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero },
     { .addr = 0xC00960, .name = "field_load_tile_graphics", .fn = field_load_tile_graphics, NEEDS_M8_X16,
       .cost_milli = 99071, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_bank_zero },
     { .addr = 0xC06DCF, .name = "field_load_bg3_graphics", .fn = field_load_bg3_graphics, NEEDS_M8_X16,
@@ -4386,6 +4414,10 @@ const NativeEntry game_natives[] = {
       .guard = warp_on_its_page },
     { .addr = 0xFDDB27, .name = "warp_flickering_frame", .fn = warp_flickering_frame, NEEDS_M8_X16,
       .cost_milli = 8325, .guard = warp_on_its_page },
+    { .addr = 0xFDDA55, .name = "warp_end", .fn = warp_end, NEEDS_M8_X16, .cost_milli = 3000, .guard = warp_on_its_page },
+    { .addr = 0xFDDAB4, .name = "warp_end", .fn = warp_end, NEEDS_M8_X16, .cost_milli = 3000, .guard = warp_on_its_page },
+    { .addr = 0xFDDB13, .name = "warp_end", .fn = warp_end, NEEDS_M8_X16, .cost_milli = 3000, .guard = warp_on_its_page },
+    { .addr = 0xFDDB8D, .name = "warp_end", .fn = warp_end, NEEDS_M8_X16, .cost_milli = 3000, .guard = warp_on_its_page },
     { .addr = 0xFDEAC8, .name = "warp_go_dark", .fn = warp_go_dark, NEEDS_M8, .cost_milli = 4300,
       .dont_care = DC_A | DC_N | DC_Z, .guard = warp_bank_reaches_io },
     { .addr = 0xFDEAB7, .name = "warp_put_back_the_story_flags", .fn = warp_put_back_the_story_flags, NEEDS_M8_X16,

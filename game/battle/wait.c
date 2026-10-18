@@ -107,6 +107,16 @@ static void wait_for_the_small_handler(GameState *g, Platform *pf)
         tm_wait_for_handlers(pf, PF_LOOP(0xCD044E, 0xCD0452));
 }
 
+bool battle_wait_for_the_handler_from(Snes *s, uint32_t site)
+{
+    return battle_wait_frame(s, site, BATTLE_HANDLER_WAIT, BATTLE_WAIT_READS);
+}
+
+bool battle_wait_for_the_next_frame_from(Snes *s, uint32_t site)
+{
+    return battle_wait_frame(s, site, BATTLE_NEXT_FRAME_WAIT, BATTLE_WAIT_READS);
+}
+
 /* ---- The entries ---------------------------------------------------------------------------- */
 
 /* The waits leave A's low byte as the test that ended them left it, 0, which

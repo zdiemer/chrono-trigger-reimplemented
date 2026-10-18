@@ -4406,6 +4406,15 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
+name = "event_go_now_in_the_dark"
+at = "C0:3B76"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 5000
+why = "the field's page (the guard), any place the party is and goes to"
+
+[[routine]]
 name = "event_cmd_go_to_location_now"
 at = "C0:3B4B"
 subsystem = "event"
@@ -5948,6 +5957,44 @@ subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00"]
 why = "any state: on to the scene engine with the field's close's scene"
+
+[[routine]]
+name = "field_play_the_switch_sound"
+at = "C0:1B90"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00,02,04,06,0C,1E,7E,80", "--fill", "7E0198-7E0198=00",
+        "--apu-loopback"]
+iterations = 5000
+why = "the field's page and data bank; the leader any object, or nobody (the marker, which the original reads as the slot past the tables), its slot's high byte clear (the guard takes a leader the original reads one for); the APU's ports echoing, so the driver's handshake ends"
+
+[[routine]]
+name = "field_play_the_chest_sound"
+at = "C0:1BA7"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00,02,04,06,0C,1E,7E,80", "--fill", "7E0198-7E0198=00",
+        "--apu-loopback"]
+iterations = 5000
+why = "as field_play_the_switch_sound"
+
+[[routine]]
+name = "field_blank_the_staging"
+at = "C0:75A0"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 2000
+why = "any state: the staging is blanked whatever it holds"
+
+[[routine]]
+name = "field_load_the_credits_letters"
+at = "C0:6E27"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 1000
+why = "the field's page and data bank (the guard); the unpacking and the send are the same from every state"
 
 [[routine]]
 name = "field_start_location_song"
@@ -18876,6 +18923,15 @@ iterations = 2000
 why = "a bank reaching the registers (the guard)"
 
 [[routine]]
+name = "warp_end"
+at = "FD:DA55"
+subsystem = "warp"
+state = "warp"
+args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+iterations = 2000
+why = "the warp's page with its zero (the guard); the four kinds' ends are the one entry"
+
+[[routine]]
 name = "warp_put_back_the_story_flags"
 subsystem = "warp"
 state = "warp"
@@ -19411,8 +19467,62 @@ state = "battle"
 args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
         "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
         "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2",
-        "--stop-at-call", "CD3B71", "--stop-at-call", "CD027F", "--stop-at-call", "CD020A"]
-why = "any of the battle's messages, as the guard takes a string the menus' code can type; up to its sound or its first step that spans frames (each fuzzed alone)"
+        "--stop-at-call", "CD3B71", "--stop-at-call", "CD027F", "--stop-at-call", "CD020A", "--apu-loopback"]
+why = "any of the battle's messages, as the guard takes a string the menus' code can type; up to its first step that spans frames (each fuzzed alone), its sound played as C (the call where the sound's own preconditions don't hold), the APU's ports echoing so the driver's handshake ends"
+
+[[routine]]
+name = "battle_show_the_rewards"
+at = "FD:AD17"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--stop-at-call", "CD0021"]
+why = "any rewards and notes, A's high byte clear as the main loop calls it (the guard, which also turns away a member noted with double techs whose list has no end); up to the first message, which spans frames (fuzzed alone)"
+
+[[routine]]
+name = "battle_show_the_rewards"
+variant = "members"
+at = "FD:AD17"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--stop-at-call", "CD0021",
+        "--fill", "7EB2AF-7EB2AF=00", "--fill", "7EB30E-7EB30E=FF"]
+why = "the battle's own rewards none, so the first message is a member's (a level, a tech of each kind, or none told at all), the double techs' list ending by its last place so the guard takes every state; up to that message"
+
+[[routine]]
+name = "battle_clear_the_turn_work"
+at = "FD:A982"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "any state: the block is cleared whatever it holds"
+
+[[routine]]
+name = "field_start_the_battle_song"
+at = "C0:0008"
+subsystem = "field"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--apu-loopback"]
+iterations = 5000
+why = "any event terms (the field's song kept or not) and battle song, from the battle's page as its setup calls it; the APU's ports echoing, so the driver's handshake ends. Where the event keeps the field's song, the driver's switch of the effects' sets runs past the budget in about half the states (skipped: the driver's code, the same call in both)"
+
+[[routine]]
+name = "field_bring_the_music_back"
+at = "C0:000B"
+subsystem = "field"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7F01EC-7F01EC=00,01,02", "--apu-loopback"]
+iterations = 5000
+why = "a battle won, lost or past either, any event terms and song kept, from the battle's page as its close calls it; the APU's ports echoing, so the driver's handshake ends; skipped as field_start_the_battle_song's, where the event kept the field's song"
+
+[[routine]]
+name = "field_rebuild_the_line_effects"
+at = "C0:0005"
+subsystem = "field"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0126-7E0126=00,01,02"]
+iterations = 5000
+why = "any field tables and dialog window, its place one of the builders' three (the guard: past them the original jumps into bytes that aren't code), from the battle's vblank handler's page"
 
 [[routine]]
 name = "battle_show_an_enemy_message"

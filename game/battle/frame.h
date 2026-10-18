@@ -34,6 +34,24 @@
 #include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
+#include "vars.h"
+
+/* ---- The window's arrangement and slide (frame.c) ------------------------------------------- */
+
+/* The battle lays its lines out in one of a few arrangements (battle_alternate_
+ * base: the window's, the battlefield's, those of the battle's end), which the
+ * line handler applies when it is asked (battle_alternate_apply counts the
+ * asks). Change the arrangement, or only have it applied anew (a message
+ * shown or closed, a screen script's rebase). */
+void battle_arrange_the_lines(GameState *g, uint8_t arrangement);
+void battle_lay_the_lines_out_again(GameState *g);
+
+/* The battle window's slide (battle_window_slide): still, about to slide in,
+ * or sliding out; a slide takes the window's 23 lines a line a frame. */
+enum { BATTLE_SLIDE_STILL = 0, BATTLE_SLIDE_STARTING_IN = 0xFF, BATTLE_SLIDE_OUT = 0x80 };
+void battle_start_the_slide(GameState *g, uint8_t slide);
+// $CD:0534
+static inline bool battle_window_sliding(const GameState *g) { return battle_window_slide_frames(g) != 0; }
 
 /* ---- scroll.c ------------------------------------------------------------------------------ */
 

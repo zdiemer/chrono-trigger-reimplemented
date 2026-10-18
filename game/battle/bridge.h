@@ -79,9 +79,73 @@ bool battle_back(Snes *s, uint32_t returns_to, uint16_t page, uint8_t bank);
 bool battle_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
 bool battle_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
 
+/* A sibling's work run as C where the original's JSR at `site` calls it,
+ * with the call's return pushed meanwhile, so that the work's own call-outs
+ * are made under it as the original's are (its time is the caller's to tag,
+ * TIMED_AS); and the return taken off again after. */
+void battle_push_the_return(Snes *s, uint32_t site);
+void battle_pull_the_return(Snes *s);
+
+/* battle_run and battle_run_long where the call reads less than every
+ * register: the don't-care set of the real call made where the entry's guard
+ * turns the state away (and the set a fuzz run stopping at the call compares
+ * by). */
+bool battle_run_dc(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+bool battle_run_long_dc(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+
+/* battle_run_long for a sibling that comes back on a page and data bank of
+ * its own, which the caller puts right after the call (the field's music
+ * after a battle, field/sounds.c): true if it came back to the call's return
+ * with the battle's widths, whatever its page. Where the entry's guard turns
+ * the state away, the real call made instead goes on only on the page it was
+ * made on, as battle_run's does. */
+bool battle_run_long_to_any_page(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
+
 /* 8-bit A and 16-bit index registers, whatever else: what the interrupt
- * handlers need a callee to come back with. */
+ * handlers need a callee to come back with; and with binary arithmetic, what
+ * most of the battle's entries need to be entered with. */
 bool battle_widths_m8_x16(const Snes *s);
+bool battle_binary_m8_x16(const Snes *s);
+
+/* ---- What the original keeps across a call or a wait ------------------------------------- */
+
+/* What the original has in the machine at one of its calls or waits beyond
+ * the call's own arguments, which shadow mode compares there and its code
+ * after the call reads: the bytes it keeps on the stack under the call's
+ * return (a count, a value it uses again after), first pushed first; and the
+ * carry its last test left, which the waits pass on to their callers. A
+ * bridge says what its original keeps at each call, from what it is doing
+ * there; these set the machine up so and take it down again after. */
+typedef enum { BATTLE_CARRY_AS_IT_IS, BATTLE_CARRY_CLEAR, BATTLE_CARRY_SET } BattleCarry;
+typedef struct {
+    uint8_t kept[3];
+    uint8_t kept_bytes;
+    BattleCarry carry;
+} BattleFrame;
+
+static inline BattleCarry battle_carry_of(bool carry) { return carry ? BATTLE_CARRY_SET : BATTLE_CARRY_CLEAR; }
+/* Nothing kept: only the carry, if that. */
+static inline BattleFrame battle_carrying(BattleCarry carry) { return (BattleFrame){ .carry = carry }; }
+/* A word kept, as a 16-bit push keeps it. */
+static inline BattleFrame battle_keeping_word(uint16_t word, BattleCarry carry)
+{
+    return (BattleFrame){ .kept = { (uint8_t)(word >> 8), (uint8_t)word }, .kept_bytes = 2, .carry = carry };
+}
+
+void battle_keep(Snes *s, BattleFrame f);
+void battle_stop_keeping(Snes *s, BattleFrame f);
+
+/* battle_run, battle_run_dc, battle_run_long_dc and battle_wait_frame,
+ * battle_wait_frames with the frame set up for the call and taken down after it; where the call
+ * stops, the original carries on with what it keeps still on the stack. */
+bool battle_run_under(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *), BattleFrame f);
+bool battle_run_dc_under(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                         BattleFrame f);
+bool battle_run_long_dc_under(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                              BattleFrame f);
+bool battle_wait_under(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BattleFrame f);
+bool battle_wait_frames_under(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t frames,
+                              BattleFrame f);
 
 /* ---- What the registers name -------------------------------------------------------------- */
 

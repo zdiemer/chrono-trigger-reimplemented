@@ -52,6 +52,7 @@ void warp_long_frame(Snes *s);
 void warp_short_frame(Snes *s);
 void warp_shortest_frame(Snes *s);
 void warp_flickering_frame(Snes *s);
+void warp_end(Snes *s);
 void warp_go_dark(Snes *s);
 void warp_put_back_the_story_flags(Snes *s);
 void warp_wait_for_frame(Snes *s);

@@ -13,6 +13,7 @@
 
 #include "battle/bridge.h"
 #include "battle/wait.h"
+#include "charge.h"
 #include "platform/audio.h"
 #include "vars.h"
 
@@ -84,14 +85,38 @@ static void leave_the_pan(Snes *s, const GameState *g, bool played)
 }
 
 // $CD:3B71
-/* A sound effect played, A the effect and X where it is panned; the pan is
- * left in A, as the script's sound leaves it. */
+/* A sound effect played, panned where the caller says. */
+static void play_a_sound(Platform *pf, uint8_t effect, uint8_t pan)
+{
+    au_play_effect(pf, PF_CALL_DC(0xCD3B7D, 0xC70004, DRIVER_IGNORES), effect, pan);
+}
+
+/* The effect comes in A and its pan in X; the pan is left in A, as the
+ * script's sound leaves it. */
 void battle_play_a_sound(Snes *s)
 {
     uint8_t pan = (uint8_t)s->cpu.x;
-    au_play_effect(m_platform(s), PF_CALL_DC(0xCD3B7D, 0xC70004, DRIVER_IGNORES), (uint8_t)s->cpu.a, pan);
+    play_a_sound(m_platform(s), (uint8_t)s->cpu.a, pan);
     m_set_a8(s, pan);
     m_rts(s);
+}
+
+bool battle_play_a_sound_from(Snes *s, uint32_t site, uint8_t effect, uint8_t pan, BattleFrame kept)
+{
+    battle_keep(s, kept);
+    s->cpu.x = pan;
+    if (!battle_on_page(s) || !battle_binary_m8_x16(s)) {
+        m_set_a8(s, effect);
+        if (!battle_call(s, site, 0xCD3B71, 0))
+            return false;
+    } else {
+        battle_push_the_return(s, site);
+        TIMED_AS(state_of(s), 0xCD3B71, play_a_sound(m_platform(s), effect, pan));
+        battle_pull_the_return(s);
+        m_set_a8(s, pan);
+    }
+    battle_stop_keeping(s, kept);
+    return true;
 }
 
 void battle_play_the_script_sound(Snes *s)

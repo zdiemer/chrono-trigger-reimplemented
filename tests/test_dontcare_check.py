@@ -220,6 +220,31 @@ void carries(Snes *s) { bridge_call(s, 0xC08003, 0xC08020, DC_Y, bridge_machine_
         self.assertNotIn(dc.BRIDGE_FILE, text)
         self.assertEqual(counts["calls"], 2)
 
+    def test_waits_of_one_routine(self):
+        """A wait called (s, site) declares its routine's call with the
+        routine and the set its header names, and the battle's forms with what
+        the original keeps declare as battle_wait_frame does."""
+        lv, opcode_at = liveness()
+        header = dc.Source("game/battle/wait.h", """
+enum { BATTLE_HANDLER_WAIT = 0xC08020, BATTLE_NEXT_FRAME_WAIT = 0xC08020, BATTLE_WAIT_READS = DC_X };
+""")
+        wait = dc.Source("game/battle/wait.c", """
+bool battle_wait_for_the_handler_from(Snes *s, uint32_t site)
+{ return battle_wait_frame(s, site, BATTLE_HANDLER_WAIT, BATTLE_WAIT_READS); }
+""")
+        port = dc.Source("game/port.c", """
+void calls(Snes *s) { battle_wait_for_the_handler_from(s, 0xC08003); }
+void keeps(Snes *s) { battle_wait_under(s, 0xC08003, 0xC08020, DC_Y, battle_carrying(BATTLE_CARRY_SET)); }
+""")
+        registry = dc.Source("game/registry.c", REGISTRY)
+        found, _, counts = dc.run_sources([registry, wait, port],
+                                          [dc.Source("runtime/port/native.h", NATIVE_H), header], lv, opcode_at)
+        text = "\n".join(f.text() for f in found)
+        self.assertIn("game/port.c:2: the call from $C0:8003 to $C0:8020 declares DC_X,", text)
+        self.assertNotIn("declares DC_Y", text)
+        self.assertNotIn("game/battle/wait.c", text)
+        self.assertEqual(counts["calls"], 2)
+
     def test_a_high_byte(self):
         # DC_AH claims A's high byte alone, which C0:8010's LDA #$01 (8-bit) leaves
         # as it was: dead after the return here, as is all of A

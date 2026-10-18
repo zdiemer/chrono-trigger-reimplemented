@@ -127,30 +127,46 @@ STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
 # game/menu/bridge.h): bridge_call(s, site, target, set, machine) and
 # bridge_call_long(...) and bridge_call_on_page (on another page) with field_run and field_run_long (a sibling port run as
 # C under the call's frame, or the same call where its guard refuses), the battle's battle_call(s, site, target, set) and
-# battle_call_long(...), the menus' menu_call and menu_call_long, and the waits
+# battle_call_long(...), battle_run_dc and battle_run_long_dc (a sibling port run as C, or that call where its guard refuses), the
+# menus' menu_call and menu_call_long, and the waits
 # that go through the timing service (field_wait_frame, battle_wait_frame, battle_wait_frames,
 # battle_wait_line: the same arguments, then their own), are
 # m_jsr_dc and m_jsl_dc and a stop of the bridge's own with no set at the
 # call's return; their arguments are read where they are called, and the
-# helpers' own bodies (BRIDGES) aren't declarations of their own.
+# helpers' own bodies (BRIDGES) aren't declarations of their own. The battle's
+# forms with what the original keeps across the call (battle_run_dc_under, battle_run_long_dc_under,
+# battle_wait_under, battle_wait_frames_under) take the same arguments first.
 DELEGATES = ("bridge_call", "bridge_call_long", "field_run", "field_run_long", "field_run_holding", "field_run_on_page",
              "bridge_call_on_page", "field_run_or_hand_over",
              "battle_call",
-             "battle_call_long", "menu_call", "menu_call_long", "menu_call_returning",
+             "battle_call_long", "battle_run_dc", "battle_run_long_dc", "menu_call", "menu_call_long", "menu_call_returning",
              "field_wait_frame", "battle_wait_frame", "battle_wait_frames", "battle_wait_line",
+             "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under", "battle_wait_frames_under",
              "scene_run", "scene_run_long")
+# Waits of a single routine, called (s, site): the routine and the set are
+# these constants (game/battle/wait.h).
+FIXED_DELEGATES = {
+    "battle_wait_for_the_handler_from": ("BATTLE_HANDLER_WAIT", "BATTLE_WAIT_READS"),
+    "battle_wait_for_the_next_frame_from": ("BATTLE_NEXT_FRAME_WAIT", "BATTLE_WAIT_READS"),
+}
 BRIDGES = {
     "game/field/bridge.c": ("bridge_call", "bridge_call_long", "bridge_back", "field_run", "field_run_long",
                             "field_run_holding", "field_run_on_page", "bridge_call_on_page", "field_run_or_hand_over",
                             "run_entry", "field_wait_frame"),
-    "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back", "run_entry", "battle_stop_after_call",
-                             "battle_wait_frame", "battle_wait_frames", "battle_wait_line"),
+    "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back", "run_entry", "battle_run_dc", "battle_run_long_dc",
+                             "battle_stop_after_call",
+                             "battle_wait_frame", "battle_wait_frames", "battle_wait_line",
+                             "battle_run_under", "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under",
+                             "battle_wait_frames_under"),
+    "game/battle/wait.c": tuple(FIXED_DELEGATES),
+    # a sibling run as C, or the original's call declaring nothing where its preconditions fail
+    "game/battle/sound.c": ("battle_play_a_sound_from",),
     "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_back"),
     "game/scene/bridge.c": ("scene_run", "scene_run_long", "run_entry"),
 }
 BRIDGE_FILE, BRIDGE_BODIES = "game/field/bridge.c", BRIDGES["game/field/bridge.c"]
-DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS + DELEGATES
-CALL_OUTS = ("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + DELEGATES
+DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS + DELEGATES + tuple(FIXED_DELEGATES)
+CALL_OUTS = ("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + DELEGATES + tuple(FIXED_DELEGATES)
 RETURNS = re.compile(r"\bm_rt[sli]\s*\(")
 RETURN_OPCODES = {0x60: "RTS", 0x6B: "RTL", 0x40: "RTI"}
 MAX_DEPTH = 6
@@ -958,6 +974,10 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                     if len(call.args) != 3:
                         raise Unreadable("PF_CALL_DC takes (site, target, dont_care)")
                     nodes = [parse(a) for a in call.args]
+                elif call.name in FIXED_DELEGATES:
+                    if len(call.args) != 2:
+                        raise Unreadable(f"{call.name} takes (s, site)")
+                    nodes = [parse(call.args[1])] + [parse(c) for c in FIXED_DELEGATES[call.name]]
                 else:
                     nodes = [parse(a) for a in call.args[1:4]]
                 try:
@@ -1047,6 +1067,8 @@ def call_out_targets(src: Source, funcs, ev: Evaluator) -> set:
                 node = origin[2][1]
             elif call.name == "PF_CALL_DC":
                 node = parse(call.args[1])
+            elif call.name in FIXED_DELEGATES:
+                node = parse(FIXED_DELEGATES[call.name][0])
             else:
                 node = parse(call.args[2])
             out |= {v[0] & 0xFFFFFF for v, _ in ev.values([node], src, f)}
