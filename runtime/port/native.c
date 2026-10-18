@@ -27,7 +27,26 @@ static void push16_raw(Snes *s, uint16_t v)
 #define MAX_DETAILS 256
 #define DEFAULT_DETAILS 16
 #define RESUME_SLOTS 4096
+#define MAX_DEAD_STACK 16     /* stack bytes a port has declared don't care at once (native_stack_dont_care) */
+#define MAX_TIME_SCOPES 16    /* native_time_as scopes a stretch's owner is looked for in (deeper ones nest uncounted) */
+#define MAX_STRETCH_RUNS 8     /* sibling runs one stretch's clocks are tallied for (stretch_owner) */
 #define MAX_SEGMENT_PARTS 48   /* distinct routines one stretch of a port attributes time to (the battle timers' dispatch, a whole turn, reaches more than 32) */
+
+/* A native_time_as scope: the routine's table index (-1 the port's own), and
+ * for a sibling's run (native_time_as_sibling) the run's number in its job, 0
+ * for a plain scope. */
+typedef struct {
+    int idx;
+    unsigned run;
+} TimeScope;
+
+/* Of one stretch's bus clocks, those spent inside a sibling's run (its scope
+ * and the scopes it opened), the run at `depth` among the open scopes. */
+typedef struct {
+    unsigned run;
+    int idx, depth;
+    uint32_t bus;
+} RunClocks;
 
 /* A port's bus clocks in one stretch attributed to the routine at table index
  * `entry` (native_time_as). */
@@ -72,6 +91,21 @@ typedef struct Job {
     SegmentPart parts[MAX_SEGMENT_PARTS];
     unsigned bad_tags, part_overflows;
     uint32_t bad_tag;
+    /* The scopes native_time_as and native_time_as_sibling have open,
+     * outermost first, how deep they go now and how many sibling runs have
+     * been numbered; and of this stretch's bus clocks, all of them and those
+     * each sibling's run held, which name the stretch's owner
+     * (stretch_owner). */
+    TimeScope scopes[MAX_TIME_SCOPES];
+    int depth;
+    unsigned runs;
+    uint32_t stretch_bus;
+    RunClocks run_clocks[MAX_STRETCH_RUNS];
+    int nrun_clocks;
+    /* Stack bytes the port declared don't care while they stay pushed
+     * (native_stack_dont_care), by address. */
+    uint16_t dead_stack[MAX_DEAD_STACK];
+    int ndead_stack;
     struct Job *next_free;
 } Job;
 
@@ -219,6 +253,7 @@ typedef struct Active {
     SegmentPart segment_parts[MAX_SEGMENT_PARTS];
     unsigned segment_bad_tags, segment_part_overflows;
     uint32_t segment_bad_tag;
+    int segment_owner;   /* SHADOW: the entry whose stretch it is in the timing report (stretch_owner), -1 the port's */
 } Active;
 
 /* SHADOW mode record of the original's execution, for replaying generated
@@ -418,6 +453,8 @@ static void count_from(Active *a, Snes *m)
         j->part_dma = m->bus.dma_clocks;
         j->nparts = 0;
         j->bad_tags = j->part_overflows = 0;
+        j->stretch_bus = 0;
+        j->nrun_clocks = 0;
     }
 }
 
@@ -448,6 +485,22 @@ static void part_flush(Job *j)
     uint32_t bus = m->bus.clocks - j->part_bus, dma = m->bus.dma_clocks - j->part_dma;
     j->part_bus = m->bus.clocks;
     j->part_dma = m->bus.dma_clocks;
+    j->stretch_bus += bus;
+    int open = j->depth < MAX_TIME_SCOPES ? j->depth : MAX_TIME_SCOPES;
+    for (int k = 0; bus && k < open; k++) {
+        const TimeScope *scope = &j->scopes[k];
+        if (!scope->run)
+            continue;
+        int r = 0;
+        while (r < j->nrun_clocks && j->run_clocks[r].run != scope->run)
+            r++;
+        if (r == j->nrun_clocks) {
+            if (r == MAX_STRETCH_RUNS)
+                continue;   /* no room: the run can't own the stretch */
+            j->run_clocks[j->nrun_clocks++] = (RunClocks){ scope->run, scope->idx, k, 0 };
+        }
+        j->run_clocks[r].bus += bus;
+    }
     if (j->part < 0 || !bus)
         return;
     for (int k = 0; k < j->nparts; k++) {
@@ -462,6 +515,31 @@ static void part_flush(Job *j)
         return;
     }
     j->parts[j->nparts++] = (SegmentPart){ j->part, bus, dma };
+}
+
+/* Whose stretch a stretch of a port is in the timing report: the routine of
+ * the innermost sibling's run (native_time_as_sibling) that held more than
+ * half of its bus clocks, where that is a hand port's entry other than the
+ * running one, else the running port's own (-1). A sibling run as C where the
+ * original's call reached it through the machine has stretches that are its
+ * work, or nearly: the middle of one that waits for frames (an action's
+ * showing, run by the battle's steps), and its first and last, with the few
+ * clocks of the call round them. They are measured as the sibling's, so
+ * that its calibration and its worst stretches are its own, as the
+ * original's call of it is, rather than the caller's few clocks taking up
+ * the sibling's error. */
+static int stretch_owner(const Job *j)
+{
+    int owner = -1, depth = -1;
+    for (int r = 0; r < j->nrun_clocks; r++) {
+        const RunClocks *run = &j->run_clocks[r];
+        if ((uint64_t)run->bus * 2 > j->stretch_bus && run->depth > depth && run->idx >= 0 && active_runtime
+            && &active_runtime->table[run->idx] != j->entry) {
+            owner = run->idx;
+            depth = run->depth;
+        }
+    }
+    return owner;
 }
 
 /* SHADOW: bring the active routine's machine copy up to date with s. */
@@ -580,10 +658,11 @@ static const char *refusal_reason(const NativeEntry *e, const Snes *s)
     return "guard";
 }
 
-const NativeEntry *native_hand_entry(Snes *s)
+const NativeEntry *native_hand_entry(Snes *s) { return native_hand_entry_at(s, cpu_pc24(&s->cpu)); }
+
+const NativeEntry *native_hand_entry_at(Snes *s, uint32_t pc)
 {
     const NativeRuntime *rt = active_runtime;
-    uint32_t pc = cpu_pc24(&s->cpu);
     int idx = rt ? find_entry(rt, pc) : -1;
     for (; idx >= 0 && idx < rt->count && rt->table[idx].addr == pc && !rt->table[idx].generated; idx++)
         if (entry_applies(&rt->table[idx], s))
@@ -781,6 +860,31 @@ void native_copy_popped_stack(const Snes *o, Snes *c, uint16_t lowest_s)
         c->bus.wram[addr] = o->bus.wram[addr];
 }
 
+/* The stack bytes a port declared dead while they stay pushed, copied from
+ * the original's machine where they are still above its S. */
+static void copy_dead_stack(const Snes *o, Snes *c, const uint16_t *at, int n)
+{
+    for (int k = 0; k < n; k++)
+        if (at[k] > o->cpu.s && at[k] < 0x2000)
+            c->bus.wram[at[k]] = o->bus.wram[at[k]];
+}
+
+void native_stack_dont_care(Snes *s, uint16_t at, uint16_t bytes)
+{
+    Job *j = current_job;
+    if (!j || j->m != s)
+        return;
+    for (uint16_t k = 0; k < bytes && j->ndead_stack < MAX_DEAD_STACK; k++)
+        j->dead_stack[j->ndead_stack++] = (uint16_t)(at + k);
+}
+
+void native_stack_cared(Snes *s)
+{
+    Job *j = current_job;
+    if (j && j->m == s)
+        j->ndead_stack = 0;
+}
+
 uint16_t native_stop_dont_care_direct;
 uint32_t native_stop_at_direct;
 bool native_stop_own_direct;
@@ -835,6 +939,21 @@ static bool interrupt_deliverable(const Snes *s)
 
 static NativeStats *stats_of(NativeRuntime *rt, const Active *a) { return &rt->stats[a->entry - rt->table]; }
 
+/* `p`'s clocks among a stretch's parts in st's timing report. */
+static void add_time_part(NativeStats *st, const SegmentPart *p)
+{
+    unsigned i = 0;
+    while (i < st->t_nparts && st->t_parts[i].entry != p->entry)
+        i++;
+    if (i == st->t_nparts) {
+        st->t_parts = realloc(st->t_parts, sizeof *st->t_parts * (i + 1));
+        st->t_parts[i] = (NativeTimePart){ p->entry, 0, 0 };
+        st->t_nparts++;
+    }
+    st->t_parts[i].bus += p->bus;
+    st->t_parts[i].dma += p->dma;
+}
+
 /* Close a segment of original execution that native code stood in for. */
 static void end_segment(NativeRuntime *rt, Active *a, Snes *s)
 {
@@ -855,19 +974,21 @@ static void end_segment(NativeRuntime *rt, Active *a, Snes *s)
         return;
     uint64_t estimate = estimate_parts(rt, a->entry, a->segment_bus_clocks, a->segment_dma_clocks, a->segment_parts,
                                        a->segment_nparts);
+    /* the stretch's timing is its owner's (stretch_owner): the owner's own
+     * clocks aren't a part of its own, and the running port's are */
+    int owner = a->segment_owner;
+    SegmentPart own = { (int)(a->entry - rt->table), a->segment_bus_clocks, a->segment_dma_clocks };
+    if (owner >= 0)
+        st = &rt->stats[owner];
     for (int k = 0; k < a->segment_nparts; k++) {
         const SegmentPart *p = &a->segment_parts[k];
-        unsigned i = 0;
-        while (i < st->t_nparts && st->t_parts[i].entry != p->entry)
-            i++;
-        if (i == st->t_nparts) {
-            st->t_parts = realloc(st->t_parts, sizeof *st->t_parts * (i + 1));
-            st->t_parts[i] = (NativeTimePart){ p->entry, 0, 0 };
-            st->t_nparts++;
-        }
-        st->t_parts[i].bus += p->bus;
-        st->t_parts[i].dma += p->dma;
+        own.bus -= p->bus;
+        own.dma -= p->dma;
+        if (p->entry != owner)
+            add_time_part(st, p);
     }
+    if (owner >= 0 && own.bus)
+        add_time_part(st, &own);
     uint64_t error = estimate > original ? estimate - original : original - estimate;
     st->t_stretches++;
     st->t_original_clocks += original;
@@ -937,8 +1058,11 @@ static bool differs(Active *a, Snes *s, uint16_t dont_care, char *why, size_t n)
     if (s->frame != a->segment_frame)
         a->clone->ppu.oam_addr = s->ppu.oam_addr;
     /* What the original pushed and pulled again since the segment began is dead
-     * (native_copy_popped_stack). */
+     * (native_copy_popped_stack), and so is what the port declared so of what
+     * it keeps pushed (native_stack_dont_care). */
     native_copy_popped_stack(s, a->clone, a->segment_low_s);
+    if (a->job)
+        copy_dead_stack(s, a->clone, a->job->dead_stack, a->job->ndead_stack);
     return compare_machines(s, a->clone, dont_care, a->since, why, n);
 }
 
@@ -1164,6 +1288,7 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         a->segment_bad_tags = j->bad_tags;
         a->segment_bad_tag = j->bad_tag;
         a->segment_part_overflows = j->part_overflows;
+        a->segment_owner = stretch_owner(j);
     }
     if (rt->mode == NATIVE_ON && j->state == JOB_CALLING && !j->call_waits && rt->observer.called_out)
         rt->observer.called_out(rt->observer.ctx, s, a->entry, j->call_target);
@@ -2150,6 +2275,7 @@ static bool oracle_run(NativeRuntime *rt, const NativeEntry *e, NativeStats *st,
 
     Active *a = &rt->active[rt->nactive++];
     memset(a, 0, sizeof *a);
+    a->segment_owner = -1;
     a->entry = e;
     a->entry_s = s->cpu.s;
     a->job = job_get();
@@ -2159,6 +2285,9 @@ static bool oracle_run(NativeRuntime *rt, const NativeEntry *e, NativeStats *st,
     a->job->stop_own = false;
     a->job->returned = false;
     a->job->part = -1;
+    a->job->depth = 0;
+    a->job->runs = 0;
+    a->job->ndead_stack = 0;
     a->job->m = s;
     count_from(a, s);
     job_run(a->job);
@@ -2347,6 +2476,7 @@ static int32_t intercept(void *ctx, Snes *s)
         }
         Active *a = &rt->active[rt->nactive++];
         memset(a, 0, sizeof *a);
+        a->segment_owner = -1;
         a->entry = e;
         a->entry_s = s->cpu.s;
         a->job = job_get();
@@ -2357,6 +2487,9 @@ static int32_t intercept(void *ctx, Snes *s)
         a->job->returned = false;
         a->job->returned_rti = false;
         a->job->part = -1;
+        a->job->depth = 0;
+        a->job->runs = 0;
+        a->job->ndead_stack = 0;
         if (rt->observer.entered)
             rt->observer.entered(rt->observer.ctx, s, e);
         if (rt->mode == NATIVE_SHADOW) {
@@ -2553,6 +2686,14 @@ static void call_out(Snes *s, uint32_t site, uint32_t target, bool long_call, ui
     poisoning = false;
 }
 
+void native_poison_as_call(Snes *s, uint32_t site, uint32_t target, uint16_t dont_care)
+{
+    uint64_t bits;
+    uint16_t set = dont_care;
+    if (dont_care && native_site_poison && native_site_poison(site, target, &bits, &set))
+        scramble(&s->cpu, (uint16_t)(set & dont_care), bits);
+}
+
 void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care)
 {
     call_out(s, site, target, long_call, dont_care, false);
@@ -2633,7 +2774,7 @@ void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call)
     native_call_dc(s, site, target, long_call, 0);
 }
 
-int native_time_as(Snes *s, uint32_t routine)
+static int time_as(Snes *s, uint32_t routine, bool sibling)
 {
     Job *j = current_job;
     const NativeRuntime *rt = active_runtime;
@@ -2649,16 +2790,24 @@ int native_time_as(Snes *s, uint32_t routine)
     } else if (&rt->table[idx] == j->entry) {
         idx = -1;
     }
+    if (j->depth < MAX_TIME_SCOPES)
+        j->scopes[j->depth] = (TimeScope){ idx, sibling ? ++j->runs : 0 };
+    j->depth++;
     j->part = idx;
     return was;
 }
 
+int native_time_as(Snes *s, uint32_t routine) { return time_as(s, routine, false); }
+int native_time_as_sibling(Snes *s, uint32_t routine) { return time_as(s, routine, true); }
+
 void native_time_end(Snes *s, int was)
 {
     Job *j = current_job;
-    if (!j || j->m != s)
+    if (!j || j->m != s || !active_runtime)
         return;
     part_flush(j);
+    if (j->depth > 0)
+        j->depth--;
     j->part = was;
 }
 

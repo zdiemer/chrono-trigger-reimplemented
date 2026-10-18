@@ -1,5 +1,7 @@
 /* The save slots' summaries: read from the cartridge as the menus open, and
- * shown on the load screen (menu/load_screen.c) as the cursor moves.
+ * shown beside the slots on the two screens that list them, the load screen
+ * (menu/load_screen.c) and a save point's save screen (menu/saving.c), as the
+ * cursor moves.
  *
  * As the menus open, each of the three slots is checked on the cartridge (by
  * the save code, menu/saves.c); a slot that holds a game
@@ -11,14 +13,17 @@
  * slot's label. Every slot gets its name label. The labels are set in the
  * dialog's font by the typesetter (typeset.c's menu_set_label, $C2:F90C).
  *
- * On the load screen the cursor skips the slots that hold no game, and shows
- * the summary of the one it is on: its header (the time played and the rest,
- * drawn by the window command lists), a label for the era it was saved in,
- * and a row for each party member with the member's portrait. Once the game
- * has been finished, a fourth row offers two choices, which left and right
- * flip between. Behind the rows a per-line effect sets the slot rows apart,
- * and the row of the slot after the one shown is marked in it. The screen
- * copies the summary shown to its working copy and draws from that. */
+ * Both screens show the summary of the slot under the cursor: its header (the
+ * time played and the rest, drawn by the window command lists), a label for
+ * the era it was saved in, and a row for each party member with the member's
+ * portrait (menu_draw_the_slot_shown). The screen copies the summary shown to
+ * its working copy and draws from that. Behind the rows a per-line effect sets
+ * the slot rows apart and marks one of them. On the load screen the cursor
+ * skips the slots that hold no game, the row of the slot after the one shown
+ * is marked, and once the game has been finished a fourth row offers two
+ * choices, which left and right flip between ($C2:E743). On the save screen
+ * the cursor may rest on an empty slot, which shows nothing; its own row is
+ * marked, and a tick sounds as it comes to another slot ($C2:CFA2). */
 #include "menu/save_screen.h"
 
 #include "charge.h"
@@ -65,7 +70,7 @@ void menu_put_slot_rows_effect(GameState *g)
     set_menu_block_move_source(g, RAM_ABS(RAM_MENU_SLOT_ROW_TABLE));
     set_menu_block_move_dest(g, EFFECT_TABLE);
     set_menu_block_move_size(g, TABLE_BANDS * 3 + 1);
-    unsigned marked = menu_save_slot_next(g) + 1u;
+    unsigned marked = menu_save_slot_marked(g) + 1u;
     set_menu_slot_row_table_lines(g, marked, MARKED_LINES);
     set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | BLOCK_MOVE | SLOT_ROWS_CHANNEL));
     set_menu_slot_row_table_values(g, marked, MARKED_VALUES);
@@ -205,23 +210,16 @@ static void finish_header(GameState *g)
     menu_queue_fixed_upload(g, MENU_UPLOAD_ERA_LABEL);
 }
 
-/* The header runs on the menus' page with the data bank on work RAM's ($7E),
- * which the summary's copy leaves it on, and sets the era's label with the
- * widths the original has there. */
 // $C2:D36C, from $C2:D39E
 /* The slot's header: its window with the time played, and the era label,
  * loaded when it isn't the one already there, drawn and queued. */
-static bool draw_header(Snes *s)
+static void draw_header(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
-    draw_header_window(g, m_platform(s));
+    draw_header_window(g, pf);
     uint8_t era = slot_era(g);
-    if (era != menu_save_slot_era(g)) {
-        menu_set_widths(s, true, false);
+    if (era != menu_save_slot_era(g))
         set_menu_save_era_width(g, set_era_label(g, era));
-    }
     finish_header(g);
-    return true;
 }
 
 /* The portrait of the member the rows' cells name: the command list leaves
@@ -276,24 +274,19 @@ static void palette_changed(GameState *g) { set_menu_palette_changed(g, (uint8_t
 // $C2:D36C
 /* Draw the summary of the slot shown, a slot that holds a game: nothing for
  * the fourth row or an empty slot. */
-static bool draw_save_slot(Snes *s)
+void menu_draw_the_slot_shown(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
     set_menu_member_marked(g, 0);
     uint8_t slot = menu_save_slot_shown(g);
     if (slot >= SAVE_SLOTS || menu_save_slot_in_use(g, slot) == 0)
-        return true;
+        return;
     copy_summary(g, slot);
-    s->cpu.db = MENU_DATA_BANK;   /* the copy's block move leaves it there */
-    if (menu_save_header_taken(g) == 0) {
-        if (!draw_header(s))
-            return false;
-    } else {
+    if (menu_save_header_taken(g) == 0)
+        draw_header(g, pf);
+    else
         forget_era_label(g);
-    }
-    draw_member_rows(g, m_platform(s));
+    draw_member_rows(g, pf);
     palette_changed(g);
-    return true;
 }
 
 /* The slots the cursor moves between, and the cursor's moves this frame. */
@@ -337,6 +330,32 @@ static void clear_slot_tilemap(GameState *g)
             set_menu_era_label_tiles(g, row, i, 0);
 }
 
+/* The rows' effect with the slot's row marked, and its tilemap cleared for
+ * its summary. */
+static void make_room_for_the_slot(Snes *s, GameState *g)
+{
+    NATIVE_TIME_AS(s, 0xC2CFFB, menu_put_slot_rows_effect(g));
+    clear_slot_tilemap(g);
+}
+
+/* The slot's tilemap and the era label queued for the next vblank. */
+static void queue_the_slot(GameState *g, const uint16_t order[3])
+{
+    for (unsigned i = 0; i < 3; i++)
+        menu_queue_fixed_upload(g, order[i]);
+}
+
+/* The two screens queue the same three uploads, the slot's tilemap in three
+ * parts, and only the order of the first two differs. Nothing on screen tells
+ * the orders apart: the vblank sends the whole queue at once
+ * (menu_send_upload_queue), and the three parts go to places of their own in
+ * video memory, none overlapping another. The orders are the original's two
+ * routines', kept because the queue's records in work RAM are compared. */
+static const uint16_t LOAD_SCREEN_UPLOADS[3] = { MENU_UPLOAD_SLOT_TILEMAP, MENU_UPLOAD_SLOT_TILEMAP_2,
+                                                 MENU_UPLOAD_SLOT_TILEMAP_3 };
+static const uint16_t SAVE_SCREEN_UPLOADS[3] = { MENU_UPLOAD_SLOT_TILEMAP_2, MENU_UPLOAD_SLOT_TILEMAP,
+                                                 MENU_UPLOAD_SLOT_TILEMAP_3 };
+
 // $C2:E743
 /* Show the slot the cursor is on: off the empty slots; on the fourth row, left
  * or right flips between its choices; then the slot rows' effect, and the
@@ -358,12 +377,47 @@ static bool show_save_slot(Snes *s)
             return false;
     }
     set_menu_save_slot_shown(g, slot);
-    set_menu_save_slot_next(g, (uint8_t)((slot + 1) & ROW_MASK));
-    NATIVE_TIME_AS(s, 0xC2CFFB, menu_put_slot_rows_effect(g));
-    clear_slot_tilemap(g);
+    set_menu_save_slot_marked(g, (uint8_t)((slot + 1) & ROW_MASK));
+    make_room_for_the_slot(s, g);
     s->cpu.db = MENU_DATA_BANK;   /* the clearing's block moves leave it there */
     menu_set_widths(s, false, false);
     ORIGINAL_EFFECT(leave_last_load(s));
+    return true;
+}
+
+/* ---- The save screen's frame ------------------------------------------------------------------- */
+
+/* The save screen shows the slot under the cursor, which it keeps as the
+ * slot both shown and marked in the rows' effect (the load screen marks the
+ * one after). The slot marked until now, which the cursor has come from if
+ * it isn't this one. */
+static uint8_t show_the_slot_under_the_cursor(GameState *g, uint8_t slot)
+{
+    uint8_t was = menu_save_slot_marked(g);
+    set_menu_save_slot_shown(g, slot);
+    set_menu_save_slot_marked(g, slot);
+    return was;
+}
+
+// $C2:CFA2
+/* Every frame the save screen waits for a choice, the slot under the cursor
+ * drawn afresh: a tick where the cursor came to it from another slot, the
+ * slot's row marked, its summary drawn when it holds a game, and the whole
+ * queued. */
+static bool move_among_the_slots(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint8_t slot = menu_cursor_index(g);
+    uint8_t was = show_the_slot_under_the_cursor(g, slot);
+    if (slot != was) {
+        ORIGINAL_EFFECT(menu_leave_compare(s, slot, was));
+        if (!menu_run(s, 0xC2CFAF, 0xC2EAC2, menu_play_cursor_sound))
+            return false;
+    }
+    make_room_for_the_slot(s, g);
+    if (menu_save_slot_in_use(g, slot) != 0)
+        TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, m_platform(s)));
+    queue_the_slot(g, SAVE_SCREEN_UPLOADS);
     return true;
 }
 
@@ -402,10 +456,11 @@ void menu_draw_member_portrait(Snes *s)
 // $C2:D36C
 void menu_draw_save_slot(Snes *s)
 {
-    menu_save_p(s);
-    if (!draw_save_slot(s))
-        return;
-    menu_restore_p(s);
+    GameState *g = state_of(s);
+    menu_draw_the_slot_shown(g, m_platform(s));
+    uint8_t slot = menu_save_slot_shown(g);
+    if (slot < SAVE_SLOTS && menu_save_slot_in_use(g, slot) != 0)
+        leave_block_move_bank(s);   /* the summary's copy is a block move */
     m_rts(s);
 }
 
@@ -416,12 +471,19 @@ void menu_show_save_slot(Snes *s)
     menu_save_p(s);
     if (!show_save_slot(s))
         return;
-    if (!menu_run(s, 0xC2E7AC, 0xC2D36C, menu_draw_save_slot))
-        return;
-    menu_queue_fixed_upload(g, MENU_UPLOAD_SLOT_TILEMAP);
-    menu_queue_fixed_upload(g, MENU_UPLOAD_SLOT_TILEMAP_2);
-    menu_queue_fixed_upload(g, MENU_UPLOAD_SLOT_TILEMAP_3);
+    TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, m_platform(s)));
+    queue_the_slot(g, LOAD_SCREEN_UPLOADS);
     ORIGINAL_EFFECT(leave_last_upload(s, MENU_UPLOAD_SLOT_TILEMAP_3));
+    menu_restore_p(s);
+    m_rts(s);
+}
+
+// $C2:CFA2
+void menu_move_among_the_slots(Snes *s)
+{
+    menu_save_p(s);
+    if (!move_among_the_slots(s))
+        return;
     menu_restore_p(s);
     m_rts(s);
 }
@@ -770,10 +832,19 @@ static bool time_is_decimal(const GameState *g, uint8_t slot)
     return menu_time_digits_are_decimal(g, (uint16_t)(summary + (TIME_PLAYED_DIGITS - SUMMARY_AT)));
 }
 
+/* The place the party is in, which the summary keeps as the reading masks it
+ * (to a location's number): the era's lookup by it stays in its table. */
+static bool location_is_a_place(const GameState *g, uint8_t slot)
+{
+    uint16_t location = (uint16_t)(save_slot_summaries_header_byte(g, slot, HEADER_LOCATION)
+                                   | save_slot_summaries_header_byte(g, slot, HEADER_LOCATION + 1) << 8);
+    return location <= LOCATION_BITS;
+}
+
 static bool slot_is_drawable(const GameState *g, uint8_t slot)
 {
     return slot >= SAVE_SLOTS || menu_save_slot_in_use(g, slot) == 0
-           || (members_are_characters(g, slot) && time_is_decimal(g, slot));
+           || (members_are_characters(g, slot) && time_is_decimal(g, slot) && location_is_a_place(g, slot));
 }
 
 static bool drawing_counts(const GameState *g)
@@ -814,6 +885,24 @@ bool menu_save_slots_are_showable(Snes *s)
     return ok;
 }
 
+/* The save screen's frame: a cursor on one of the four rows, the slot read
+ * as a byte (the original reads it a word wide with the cell after it, which
+ * the slots' reading clears as the menus open), a summary the drawing can
+ * take, and the drawing's counts. */
+bool menu_slot_under_the_cursor_shows(const GameState *g)
+{
+    vars_peek(true);
+    uint8_t slot = menu_cursor_index(g);
+    bool ok = slot < SLOT_ROWS && menu_after_slot_shown(g) == 0 && slot_is_drawable(g, slot) && drawing_counts(g);
+    vars_peek(false);
+    return ok;
+}
+
+bool menu_slot_under_the_cursor_is_showable(Snes *s)
+{
+    return menu_on_page_work_ram(s) && menu_slot_under_the_cursor_shows(state_of(s));
+}
+
 bool menu_portrait_is_drawable(Snes *s)
 {
     if (!menu_on_page(s) || s->cpu.db != MENU_DATA_BANK)
@@ -830,7 +919,7 @@ bool menu_slot_rows_effect_is_loadable(Snes *s)
     if (!menu_on_page(s))
         return false;
     vars_peek(true);
-    bool ok = menu_save_slot_next(state_of(s)) < SLOT_ROWS;
+    bool ok = menu_save_slot_marked(state_of(s)) < SLOT_ROWS;
     vars_peek(false);
     return ok;
 }

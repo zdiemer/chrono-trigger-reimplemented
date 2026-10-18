@@ -20,6 +20,10 @@ bool battle_first_mark_carry(const GameState *g, bool carry);
 bool battle_area_search_carry(uint8_t shape, bool among_party, uint8_t centre, uint8_t toward);
 bool battle_other_marks_carry(const GameState *g, bool carry);
 bool battle_bounds_carry(const GameState *g, unsigned slot);
+/* battle/area_search.c: the noted area searched, and the battle's step 7
+ * that does it. */
+void battle_search_the_noted_area(Snes *s);
+void battle_find_the_noted_area(Snes *s);
 
 /* The enemies' minds: battle/random.c, positions.c, targets.c, enemy_scripts.c,
  * enemy_conditions.c, enemy_actions.c, enemy_turn.c, and main_loop.c's
@@ -893,6 +897,9 @@ bool battle_attack_animation_ready(Snes *s);
 bool battle_attack_up_close_ready(Snes *s);
 void battle_frame_step(Snes *s);
 void battle_wait_step(Snes *s);
+/* $C1:0003: a battle step by its number (battle/steps.c), and its guard. */
+void battle_run_a_step(Snes *s);
+bool battle_step_is_known(Snes *s);
 void battle_next_member_takes_the_menu_entry(Snes *s);
 bool battle_menu_queue_ready(Snes *s);
 bool battle_frame_step_ready(Snes *s);

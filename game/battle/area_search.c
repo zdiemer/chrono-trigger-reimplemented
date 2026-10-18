@@ -431,4 +431,23 @@ bool battle_area_search_carry(uint8_t shape, bool among_party, uint8_t centre, u
     }
 }
 
+/* The area noted in the search's cells searched by the shape noted beside
+ * it, and the carry the search leaves its callers: the battle's step 7, and
+ * the targeting's search ($C1:C741), which notes the shape and asks for it. */
+void battle_search_the_noted_area(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint8_t shape = battle_area_shape(g);
+    AreaAsked asked = battle_area_asked(g);
+    battle_find_area(g, shape, &asked);
+    m_set_flag(s, CPU_FLAG_C, battle_area_search_carry(shape, asked.among_party, asked.centre, asked.toward));
+}
 
+// $C1:1FDD
+/* The battle's step 7, as the original's code asks for it through the steps'
+ * dispatch (battle/steps.c). */
+void battle_find_the_noted_area(Snes *s)
+{
+    battle_search_the_noted_area(s);
+    m_rts(s);
+}

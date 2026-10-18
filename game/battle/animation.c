@@ -412,11 +412,11 @@ static uint8_t tested_byte(const GameState *g, unsigned slot, uint8_t which)
 {
     if (which == TESTS_CONDITION)
         return battle_stats_condition(g, slot);
-    if (which - TESTS_STATUS < STATUS_BYTES)
+    if (which >= TESTS_STATUS && which < TESTS_STATUS + STATUS_BYTES)
         return (uint8_t)(battle_stats_status(g, slot) >> 8 * (which - TESTS_STATUS));
-    if (which - TESTS_KEPT < KEPT_BYTES)
+    if (which >= TESTS_KEPT && which < TESTS_KEPT + KEPT_BYTES)
         return (uint8_t)(battle_stats_status_kept(g, slot) >> 8 * (which - TESTS_KEPT));
-    return 0;
+    return 0;   /* no entry of the table ($CC:F77F) tests another byte */
 }
 
 /* A pose with its top bit set is none; an animation of STANCE is the

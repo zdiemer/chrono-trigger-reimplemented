@@ -28,6 +28,7 @@ battle_load_tech_animation
 battle_member_attacks
 battle_play_a_sound  # run as C by the window's opening and the battle's messages (battle_run), whose stretches compare it; called by the original's code, it is compared
 battle_put_the_battlefield_back  # run as C by the frame wait's tail and the display's close (battle_run), whose stretches compare it; fuzzed alone up to its first wait
+battle_run_a_step  # run as C by the ports that ask for steps (battle_take_step: the main loop's, a member's action called off, the party standing down, the knocked-out enemies seen to), whose stretches compare it; called by the original's code, it is compared, and fuzzed alone at each step's call
 battle_run_scripts
 battle_set_out_the_message  # run as C by the battle's own and an enemy's message (battle_run), whose stretches compare it; fuzzed alone up to its first wait
 battle_set_up_double_techs
@@ -38,6 +39,7 @@ battle_start_action_showing
 battle_wait_for_the_handler  # run as C by the frame work's wait for the next frame (battle_run), whose stretch compares it; called on its own, it is compared
 battle_wait_for_the_next_frame  # run as C by the waits for some frames and the transfer (battle_run), whose stretches compare it; called on its own, it is compared
 battle_wait_some_frames  # its own loop comes back to its entry, each pass inside the stretch its first call stands for, which compares them
+battle_wait_step  # run as C by the battle's steps' dispatch (battle_run_a_step, battle_run_dc_under), whose stretches compare it; fuzzed alone up to its first wait
 battle_work_out_member_tech
 event_cmd_cast_npc
 event_cmd_fade_music

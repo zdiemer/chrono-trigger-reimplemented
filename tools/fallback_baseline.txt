@@ -119,7 +119,6 @@ C0:9AC8 2355 33  # no port yet (field engine, events)
 C0:9AD3 5328 157  # no port yet (field engine, events)
 C0:EC60 68152 11  # handback by field_finish_frame (field engine, events)
 C0:ECCC 638751 7  # handback by field_irq (field engine, events)
-C1:0003 321973 20  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_main_loop and 3 more (battle)
 C1:0012 215409 31  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 5 more (battle)
 C1:0023 3794 47  # handback by battle_main_loop_start (battle)
 C1:0042 31536 189  # handback by battle_party_faces_the_enemies (battle)
@@ -139,7 +138,7 @@ C1:8290 20 5  # handback by battle_dispatch_expired_timers (battle)
 C1:8345 25 5  # handback by battle_main_loop_tail (battle)
 C1:BD6F 10607 42  # handback by battle_dispatch_expired_timers (battle)
 C1:BFA4 2949 6  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_show_status_number (battle)
-C2:---- 3648800 5256  # no port yet (menus, text, overworld)
+C2:---- 3380862 5170  # no port yet (menus, text, overworld)
 C2:0009 16 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
 C2:0346 3750 5  # handback by overworld_back_from_the_menus, overworld_main_loop (menus, text, overworld)
 C2:0454 3161 32  # handback by overworld_back_from_the_menus, overworld_main_loop (menus, text, overworld)
@@ -289,9 +288,8 @@ FD:EAEB 8616 7  # handback by warp_wait_for_frame: the idle wait's leaving pass 
 FF:---- 168061 402  # no port yet (misc)
 open 7E:3003 5 0  # hidden under scene_setup_and_first_frame's comparison, still open when a run ended
 open C0:0097 35 0  # hidden under field_frame's comparison, still open when a run ended
+open C1:0003 32078 0  # hidden under battle_run_a_step's comparison, still open when a run ended: what battle_show_action's and battle_wait_step's open comparisons hid (32,066) before they ran as the dispatch's siblings
 open C1:007E 5733 0  # hidden under battle_wait_for_frame's comparison, still open when a run ended
-open C1:106E 18 0  # hidden under battle_wait_step's comparison, still open when a run ended
-open C1:4058 32048 0  # hidden under battle_show_action's comparison, still open when a run ended
 open C1:8120 5 0  # hidden under battle_main_loop's comparison, still open when a run ended
 open C1:812C 2466 0  # hidden under battle_main_loop_body's comparison, still open when a run ended
 open C1:8290 32402 0  # hidden under battle_dispatch_expired_timers's comparison, still open when a run ended

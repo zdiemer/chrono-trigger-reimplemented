@@ -278,6 +278,17 @@ bool native_compare(const Snes *original, const Snes *native, uint16_t dont_care
  * compares the two itself (ct_fuzz). Bank 0's work RAM only. */
 void native_copy_popped_stack(const Snes *original, Snes *native, uint16_t lowest_s);
 
+/* Stack bytes a port keeps pushed that are dead while they stay there: a
+ * register a routine the port stands in for saves under a call and pulls
+ * again after it, where the port's call declares that register don't care
+ * (the battle's steps keep the asker's X and Y so; battle/steps.c). The
+ * `bytes` bytes from `at` aren't compared while they are on the stack, until
+ * native_stack_cared, which the port calls once it has moved past them, or
+ * before it stops with them still there (the original pulls them then).
+ * Outside the runtime both do nothing. */
+void native_stack_dont_care(Snes *s, uint16_t at, uint16_t bytes);
+void native_stack_cared(Snes *s);
+
 /* For native routines that stop at an instruction of the original rather than
  * returning (setting PC): registers and flags that nothing reads at that point
  * before setting them, which SHADOW mode then doesn't compare there, on top of
@@ -349,6 +360,8 @@ const NativeEntry *native_running_entry(void);
  * machine's PC whose precondition and guard hold, or NULL. For running
  * registered code synchronously (the APU-direct audio backend). */
 const NativeEntry *native_hand_entry(Snes *s);
+/* The same for a call the machine would make to `addr` (24-bit) now. */
+const NativeEntry *native_hand_entry_at(Snes *s, uint32_t addr);
 
 /* Number of registered routines entered and not yet left (suspended in
  * call-outs, or awaiting shadow comparison). Save states taken while this is
@@ -453,8 +466,19 @@ void native_wait_call(Snes *s, uint32_t site, uint32_t target, bool long_call, u
  * Scopes nest (a handler's own handlers), and one naming the running port
  * itself is its own time. An address with no hand port registered counts as
  * the port's own time, and shadow mode's timing report names it (the timing
- * gate fails on it). Outside the runtime (ct_fuzz, tests) both do nothing. */
+ * gate fails on it). native_time_as_sibling opens the same scope for a port
+ * that runs a sibling as C where the original's call reached it through the
+ * machine (the battle's steps, battle/steps.c): a stretch (the part of a call
+ * between call-outs) more than half of whose bus clocks were spent inside
+ * such a scope is the sibling's in the timing report, its errors and its
+ * calibration, not the running port's, whose own clocks in it are a part of
+ * it at the running port's value. So a sibling that waits for frames (an
+ * action's showing) is measured on its stretches as the original's call of
+ * it is, rather than the caller's few clocks taking up its error. Only the
+ * report moves; the estimate doesn't. Outside the runtime (ct_fuzz, tests)
+ * all three do nothing. */
 int native_time_as(Snes *s, uint32_t routine);
+int native_time_as_sibling(Snes *s, uint32_t routine);
 void native_time_end(Snes *s, int was);
 /* Time charged rather than spent, for a port that does another way what the
  * original spends its time on (game/charge.h): `bus_clocks` more of the stretch's
@@ -474,6 +498,14 @@ void native_uncounted_end(Snes *s, uint32_t mark);
         int native_time_was_ = native_time_as((s), (routine)); \
         statement;                                            \
         native_time_end((s), native_time_was_);               \
+    } while (0)
+
+/* The same for a sibling's run (native_time_as_sibling). */
+#define NATIVE_TIME_AS_SIBLING(s, routine, statement)                 \
+    do {                                                              \
+        int native_time_was_ = native_time_as_sibling((s), (routine)); \
+        statement;                                                    \
+        native_time_end((s), native_time_was_);                       \
     } while (0)
 
 /* Synchronous call-outs: the instructions callees may run in total
@@ -509,6 +541,14 @@ void native_call_poison_reset(void);
  * was, one that doesn't changes what the original's code does, which a trace
  * shows. NULL by default. */
 extern bool (*native_site_poison)(uint32_t site, uint32_t target, uint64_t *bits, uint16_t *set);
+
+/* For a port that runs as C what its call-out declaring `dont_care` would have
+ * called (the battle's steps, battle/steps.c): the scrambling the hook above
+ * makes at such a call, made on the port's registers before the C runs, so
+ * that ct_dev --poison-site tests the declaration as it would the call's.
+ * (Outside the runtime, where ct_fuzz --poison-dc runs, such a port makes the
+ * call-out itself.) */
+void native_poison_as_call(Snes *s, uint32_t site, uint32_t target, uint16_t dont_care);
 
 /* The shipping mode's returns, for ct_dev --poison-return: where a hand port
  * registered at `entry` returns to the original's code and this hook says so,

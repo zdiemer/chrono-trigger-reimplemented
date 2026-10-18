@@ -6,10 +6,12 @@ policies against synthetic battle state. The driver itself (dev/ct_drive.c) is
 checked against `ct_dev --native off` by hand, as docs/MOVIES.md describes;
 nothing here runs the machine.
 """
+import os
 import random
+import tempfile
 import unittest
 
-from tools.movies import addresses, bfs, mkmovie, policies
+from tools.movies import addresses, bfs, ctdrv, mkmovie, policies
 from tools.movies.bot import BattleState
 from tools.movies.campaign import Run
 
@@ -408,6 +410,53 @@ class TestAddresses(unittest.TestCase):
                     and name != "BATTLE_STAT_STRIDE":
                 self.assertTrue(0x7E0000 <= value <= 0x7FFFFF or 0xC00000 <= value <= 0xFFFFFF,
                                 "%s = %06X is not a work RAM or ROM address" % (name, value))
+
+
+class TestKeptInput(unittest.TestCase):
+    """The input a Machine keeps is what the route count replays, so frames
+    with no buttons kept for them are errors, not frames of no buttons."""
+
+    def machine(self):
+        m = ctdrv.Machine.__new__(ctdrv.Machine)
+        m.frame, m.pads, m.counted = 0, [], None
+        m.answers = []
+
+        def cmd(line):
+            m.answers.append(line)
+            verb, *args = line.split()
+            if verb in ("run", "runw"):
+                return "%d" % (m.frame + int(args[0]))
+            return "%d" % m.loaded
+        m.cmd = cmd
+        return m
+
+    def test_a_probe_not_restored_stops_the_next_run(self):
+        m = self.machine()
+        m.run(3, "A")
+        m.probe(2, "B")
+        with self.assertRaises(ctdrv.DriveError):
+            m.run(1)
+        with self.assertRaises(ctdrv.DriveError):
+            m.runw(1)
+        self.assertEqual(m.pads, [mkmovie.pad_of("A")] * 3)
+
+    def test_a_state_needs_its_input(self):
+        m = self.machine()
+        m.run(3, "A")
+        with tempfile.TemporaryDirectory() as scratch:
+            state = os.path.join(scratch, "s.state")
+            m.loaded = 2
+            self.assertEqual(m.load_state(state), 2)
+            self.assertEqual(m.pads, [])
+            with self.assertRaises(ctdrv.DriveError):
+                m.run(1)
+            with open(state + ".pads", "w", encoding="utf-8") as handle:
+                handle.write("1 2")
+            self.assertEqual(m.load_state(state), 2)
+            self.assertEqual(m.pads, [1, 2])
+            m.loaded = 3
+            with self.assertRaises(ctdrv.DriveError):
+                m.load_state(state)
 
 
 if __name__ == "__main__":

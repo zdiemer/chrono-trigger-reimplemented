@@ -66,7 +66,7 @@ in place of the ports: the native coverage.
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 7% left (93% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program about 75%, battle frame work 90%, field graphics 92%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (35 movies): 21.3 KiB, 36 M instructions (handback 12.7 KiB, unported 8.8 KiB); shipping mode with the routes 18.8 KiB, 104 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (35 movies): 19.6 KiB, 22.2 M instructions (handback 7.5 KiB, unported 12.3 KiB); shipping mode with the long routes 13.3 KiB, 26.3 M (the movies 20.8 M, the routes 5.4 M over the frames they keep); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -223,7 +223,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 295 files, 117 of 90,501 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 296 files, 117 of 90,760 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -274,9 +274,9 @@ docstring says which way it is wrong). **6% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.9K | 0% | 436 |
+| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.9K | 0% | 437 |
 | field engine, events (`$C0`) | 59.4K | 58.3K | 14.0K | 2% | 401 |
-| menus, text, overworld (`$C2`) | 59.1K | 52.0K | 14.0K | 12% | 508 |
+| menus, text, overworld (`$C2`) | 59.1K | 52.1K | 14.0K | 12% | 509 |
 | scene program, RAM (`$7E`) | 24.9K | 17.6K | 2.4K | 30% | 138 |
 | battle frame work (`$CD`) | 15.4K | 15.2K | 4.7K | 1% | 220 |
 | field graphics (`$FD`) | 15.1K | 15.0K | 2.2K | 0% | 111 |
@@ -288,7 +288,7 @@ docstring says which way it is wrong). **6% of the code is still generated.**
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
 | console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
-| **total** | **266.5K** | **250.5K** | **57.6K** | **6%** | **2044** |
+| **total** | **266.5K** | **250.5K** | **57.5K** | **6%** | **2046** |
 
 `$CD`, the battle's frame work, is C but for 0.2 KiB: the whole screen script
 language (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"),
@@ -444,8 +444,9 @@ battle frame work's loads the showing calls -- the background's change
 (`$CD:0018`, `$CD:0EBD` and its moves at `$CD:107D`-`$CD:12B8`, 29 million
 instructions of the reference play) and the effects' graphics sets
 (`$CD:0015`, `$CD:002A`), which wait on the vblank handler's sends -- then the
-steps' dispatch (`$C1:0003`) and the frame waits (`$C1:007E`, the timing
-service's; TODO.md, "What an action's showing left at its edge").
+steps' routines the dispatch (`$C1:0003`, `battle/steps.c`) still calls out to
+and the frame waits (`$C1:007E`, the timing service's; TODO.md, "What an
+action's showing left at its edge").
 
 **`$C2`: the menus.** In: the Epoch's two Mode 7 screens, the object scripts'
 instruction set and the map they scroll, the load screen, the window command

@@ -149,6 +149,10 @@ FIXED_DELEGATES = {
     "battle_wait_for_the_handler_from": ("BATTLE_HANDLER_WAIT", "BATTLE_WAIT_READS"),
     "battle_wait_for_the_next_frame_from": ("BATTLE_NEXT_FRAME_WAIT", "BATTLE_WAIT_READS"),
 }
+# A step asked for by a port, called (s, site, step, set): a call-out to the
+# steps' dispatch at site declaring set where the dispatch's guard refuses, and
+# the step run as C under the dispatch's frame otherwise (game/battle/steps.c).
+TARGET_DELEGATES = {"battle_take_step": "BATTLE_STEP"}
 BRIDGES = {
     "game/field/bridge.c": ("bridge_call", "bridge_call_long", "bridge_back", "field_run", "field_run_long",
                             "field_run_holding", "field_run_on_page", "bridge_call_on_page", "field_run_or_hand_over",
@@ -159,14 +163,17 @@ BRIDGES = {
                              "battle_run_under", "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under",
                              "battle_wait_frames_under"),
     "game/battle/wait.c": tuple(FIXED_DELEGATES),
+    "game/battle/steps.c": tuple(TARGET_DELEGATES),
     # a sibling run as C, or the original's call declaring nothing where its preconditions fail
     "game/battle/sound.c": ("battle_play_a_sound_from",),
     "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_back"),
     "game/scene/bridge.c": ("scene_run", "scene_run_long", "run_entry"),
 }
 BRIDGE_FILE, BRIDGE_BODIES = "game/field/bridge.c", BRIDGES["game/field/bridge.c"]
-DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS + DELEGATES + tuple(FIXED_DELEGATES)
-CALL_OUTS = ("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + DELEGATES + tuple(FIXED_DELEGATES)
+DECLARATIONS = (("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS + DELEGATES + tuple(FIXED_DELEGATES)
+                + tuple(TARGET_DELEGATES))
+CALL_OUTS = (("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + DELEGATES
+             + tuple(FIXED_DELEGATES) + tuple(TARGET_DELEGATES))
 RETURNS = re.compile(r"\bm_rt[sli]\s*\(")
 RETURN_OPCODES = {0x60: "RTS", 0x6B: "RTL", 0x40: "RTI"}
 MAX_DEPTH = 6
@@ -287,14 +294,15 @@ def split_args(text: str) -> list:
 def struct_fields(body: str) -> list:
     """The field names of a struct's body, in order: every declarator of every
     declaration (`uint16_t flag, copy;` is two fields), without its pointer
-    stars, array bounds or bit-field width."""
+    stars, array bounds or bit-field width, and a function pointer's name."""
     names = []
     for decl in body.split(";"):
         if not decl.strip():
             continue
         for declarator in split_args(decl):
             declarator = re.sub(r"\[[^\]]*\]|:\s*\w+\s*$", "", declarator)
-            words = re.findall(r"[A-Za-z_]\w*", declarator)
+            pointer = re.search(r"\(\s*\*\s*(\w+)\s*\)", declarator)   # a function pointer's name
+            words = [pointer.group(1)] if pointer else re.findall(r"[A-Za-z_]\w*", declarator)
             if words:
                 names.append(words[-1])
     return names
@@ -978,6 +986,10 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                     if len(call.args) != 2:
                         raise Unreadable(f"{call.name} takes (s, site)")
                     nodes = [parse(call.args[1])] + [parse(c) for c in FIXED_DELEGATES[call.name]]
+                elif call.name in TARGET_DELEGATES:
+                    if len(call.args) != 4:
+                        raise Unreadable(f"{call.name} takes (s, site, step, dont_care)")
+                    nodes = [parse(call.args[1]), parse(TARGET_DELEGATES[call.name]), parse(call.args[3])]
                 else:
                     nodes = [parse(a) for a in call.args[1:4]]
                 try:
@@ -1069,6 +1081,8 @@ def call_out_targets(src: Source, funcs, ev: Evaluator) -> set:
                 node = parse(call.args[1])
             elif call.name in FIXED_DELEGATES:
                 node = parse(FIXED_DELEGATES[call.name][0])
+            elif call.name in TARGET_DELEGATES:
+                node = parse(TARGET_DELEGATES[call.name])
             else:
                 node = parse(call.args[2])
             out |= {v[0] & 0xFFFFFF for v, _ in ev.values([node], src, f)}

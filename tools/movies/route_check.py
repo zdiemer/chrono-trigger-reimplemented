@@ -21,9 +21,12 @@ what must match. Exits 0 only if every run reached its outcome.
 
 `--fallbacks DIR` has each run in `--native on` count what the original's
 code runs in place of hand ports (ct_drive --fallbacks, through
-$CT_DRIVE_FALLBACKS), kept with the run's checkpoints and copied to DIR as
-`<route>-<mode>/` when it ends, for tools/fallbacks.py (the gate's fallback
-measure; docs/REIMPLEMENTATION.md, "The fallback measure").
+$CT_DRIVE_FALLBACKS) over the frames the run kept, its input played again
+from the start as it ends (not the searches' probes, the attempts a restore
+undid or the frames a load replayed; a replay that doesn't end with the run's
+frame and work RAM fails the run), copied to DIR as `<route>-<mode>/`, for
+tools/fallbacks.py (the gate's fallback measure; docs/REIMPLEMENTATION.md,
+"The fallback measure").
 
 `--resume` (with `--scratch`) keeps each run's directory where the last run of
 the same route, mode, ct_drive, ROM and route scripts left it, so a run cut short -- a time
@@ -126,10 +129,12 @@ def run_one(route, mode, scratch, rom, drive, timeout, resume=False, fallbacks=N
     resumed = prepare(where, run_stamp(route, mode, rom, drive), resume)
     env = None
     if fallbacks and mode[0] == "on":
-        # kept with the checkpoints, so a resumed run's counts add to the
-        # ones before it
+        # the frames the run keeps are counted from its start as it ends
+        # (ctdrv.Machine.count_kept_frames), a resumed run's included, so
+        # counts an earlier run left are dropped
         counts = os.path.join(where, "fallbacks")
-        os.makedirs(counts, exist_ok=True)
+        shutil.rmtree(counts, ignore_errors=True)
+        os.makedirs(counts)
         env = dict(os.environ, CT_DRIVE_FALLBACKS=counts)
     command = [sys.executable, "-m", "tools.movies.routes." + name, "--prefix", os.path.join(where, name),
                "--native", mode[0]]

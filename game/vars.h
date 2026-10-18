@@ -3672,9 +3672,11 @@ void set_menu_exchange_cursor_kept(GameState *g, uint8_t v);
 uint16_t menu_name_cursor_before(const GameState *g);
 void set_menu_name_cursor_before(GameState *g, uint16_t v);
 
-/* The save slot after the one shown (wrapping 0-3), whose row the row table marks */
-uint8_t menu_save_slot_next(const GameState *g);
-void set_menu_save_slot_next(GameState *g, uint8_t v);
+/* The save slot whose row the slot rows' effect marks: on the load screen the one after the slot
+ * shown (wrapping 0-3); on the save screen the slot under the cursor, which the next frame
+ * compares with the cursor to tick when it has moved */
+uint8_t menu_save_slot_marked(const GameState *g);
+void set_menu_save_slot_marked(GameState *g, uint8_t v);
 
 /* The settings screen's option the cursor was on when the last frame's input was taken, which
  * tells a push right on the controls from one that brought the cursor there */

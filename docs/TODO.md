@@ -165,8 +165,10 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What battle's rewrite left** (history/reimplementation-phase3a.md, "Phase 3a: the battle off the
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
-  - The original's routines the battle still calls out to: the battle steps
-    (`$C1:0003`) and the rewards' gold `$C1:D0A2`;
+  - The original's routines the battle still calls out to: six of the
+    battle's ten steps' routines (`$C1:0023`, `$C1:1B19`, `$C1:1BAA`,
+    `$C1:006D`, `$C1:354D`, `$C1:356D`; the dispatch
+    `$C1:0003` is `battle/steps.c`) and the rewards' gold `$C1:D0A2`;
     from an enemy's turn (history/reimplementation-waves.md,
     "Phase 3, wave 2: the enemies' minds"), an enemy's
     coming in `$FD:B438`, the calling in
@@ -830,10 +832,8 @@ rest waits, is [PLAN.md](PLAN.md).
     fights, none felling an enemy; a native build, which doesn't keep the
     cell, decides it otherwise.
 - **What an action's showing left at its edge** (history/reimplementation-chunks.md,
-  "Phase 3, battle: an action shown"): the steps' dispatch (`$C1:0003`) and
-  the showing's stub (`$C1:BFA4`), whose callers' declarations rest on the
-  library's evidence for the overflow they hand the steps, so a port of the
-  dispatch moves that evidence with it; the menu's turn the frame work's wait
+  "Phase 3, battle: an action shown"): the showing's stub (`$C1:BFA4`); the
+  menu's turn the frame work's wait
   for the vblank handler gives (`$C1:0012`, `$C1:10E3`), after which every
   register is live; and the frame waits (`$C1:007E`), which wait on the
   vblank handler and go with the timing service (PLAN.md, "Timing is
@@ -1507,15 +1507,31 @@ rest waits, is [PLAN.md](PLAN.md).
     sprite scripts rarely are): a variant with the slot's scripts kept would
     cover it better.
 
-- **What the world map's set up left** (REIMPLEMENTATION.md, "Phase 3, menus and
+- **What the world map's set up left** (history/reimplementation-chunks.md, "Phase 3, menus and
   overworld: the world map set up, its scenes' calls and the frame's
   input"):
   - the reference play runs 5.0 KiB of bank `$C2` with no call on record
     (`C2:----`): the menus' screens' code after a task's yield (`$C2:821E`),
     resumed on the task's own stack, which the fallback measure can't file
-    under the port that stopped at the yield. Ports whose work spans a yield
-    (or the measure following a task's resumption to the port that yielded)
-    would show how much of it is really the original's;
+    under the port that stopped at the yield. Most of what it runs is the
+    tasks' own loops: the menus' task's (`$C2:826C`-`$C2:8290`, the yield and
+    then the screen's step through the table at `$C2:8292`, 2.3 M
+    instructions of the shipping mode's movies), the records' sprite task's
+    (`$C2:E91B`-`$C2:E921`) and the scheduler's resumption (`$C2:8206`-`$C2:8215`).
+    A port of a loop that yields every pass would hold a comparison open for
+    the whole of a screen; the tasks as fibers of their own
+    (`runtime/port/fiber.h`, the menus' fourth chunk's item) would take them
+    off the machine;
+  - the menus' vblank handler's entry and exit (`$C2:840E`-`$C2:8429`,
+    `$C2:8466`-`$C2:8471`, around `menu_nmi_work`; 3.7 M instructions of the
+    shipping mode's movies with the stub's `7E:0500` line) stay the
+    original's: the handler moves the stack to its own place above the
+    interrupted code's (`$1DFD` down, the interrupted one kept at
+    `$7E:1DFE`), and shadow mode takes a stack above the one an entry was
+    entered on for its return, so a port of the whole handler is compared as
+    returned before its first call. Ending an interrupt entry's comparison at
+    its RTI instead would let it be ported (as `menu_object_nmi` is, which
+    keeps its stack);
   - the scrolling lists' cursor kept within the rows (`$C2:EA53`) and their
     frame laid out (`$C2:EA81`, the divider's quotient the scroll bar's
     step), which the equipment, items, techs and shop screens' bridges call
@@ -1560,9 +1576,19 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What the menus' ninth chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   main menu, the save screen's opening, name entry, the description, the
   list slide and the shop's equipping"):
-  - the save screen's own opening and frame (`$C2:D4F8`, `$C2:D506`) are
-    reached by no movie (the library saves from the main menu's panel):
-    fuzzing is their check, and their `cost_milli` is the placeholder;
+  - the save point's save screen's opening and choosing (`$C2:D4F8`,
+    `$C2:D506`) are reached by no movie's reference play (the library saves
+    from the main menu's panel), only by the shipping mode's drift, where
+    `endings-beyond-time`, `late-lavos` and `late-omen-zeal` end up on one
+    and sit there (59,000 frames of it): fuzzing is their check, and their
+    `cost_milli` is the placeholder. The frame among the slots they share
+    with the main menu's save screen (`$C2:CFA2`, `menu_move_among_the_slots`)
+    is compared in the reference play through the main menu's;
+  - the main menu's save screen's steps (`$C2:CEDC`, `$C2:CEFD`, `$C2:CF61`,
+    `$C2:CF92`, the table at `$C2:CED4`), the save made (`$C2:CF0A`-`$C2:CF5D`,
+    two frame waits, the second its tail) and the overwrite question's window
+    (`$C2:D4BB`, `$C2:D4D5`) are still the original's: 0.2 M instructions of
+    the shipping mode's movies, a few thousand of the reference play's;
   - the naming's and the main menu's openings and the shop's member opening
     span frames on every call, so shadow mode compares them only inside
     their callers and the timing gate can't measure them (`cost_milli`
@@ -2425,6 +2451,21 @@ re-runs the census.
     (the music's fade takes the waits' guard, `battle_message_can_be_typed`,
     because it runs on into one; `registry.c` says so now). Add it with
     an example once a second case turns up, or now if the owner agrees.
+- **What the shipping mode's fallbacks' review left** (none blocking):
+  - The direct page's scratch cells `$00`-`$0E` are written plainly across
+    about a dozen battle files under names that belong to other routines
+    (rubric items 87, 114): each plain write wants its value said in the
+    game's terms, or a leaves helper, and every leave's offset checked
+    against the cells the logic reads by name.
+  - `battle/targets.c`'s enemies picked with the stray place
+    (`consider_stray`, `pick_enemies_with_stray`) carry the original's A
+    through the loop as the next place, for a selector no script uses (item
+    34): a guard that refuses the selector, and the stray reads dropped.
+  - The tech list's marks are decoded two ways, in `menu_lists.c` and in
+    `menu_window.c` (item 18): one decoder, in the subsystem's header.
+  - The shop's, the settings', the techs', the item screen's and the
+    opening's bridges still run C siblings through `menu_run` (item 123):
+    call them as C, timed with `TIMED_AS`, where they make no call-outs.
 - **The line handlers' hblank waits**: `field_irq_wait_hblank_loop`
   (`$C0:ECEB`), `battle_irq_wait_hblank_loop` (`$D1:FEB8`) and the scene
   boot's `$C3:0530`/`$C3:0538` land the forced blank at the end of line 211,
@@ -2636,9 +2677,16 @@ waits on M5 rather than on a backend.
 ## Player and tooling
 
 - **`tools/portsmell.py`'s `sibling-through-machine` matches only literal
-  addresses**: a call-out to a registered port through a named constant
-  (`rising_palace.c`'s `m_jsl_dc(s, ..., CURTAIN_STEP, ...)`) gets past it.
-  Resolving the file's enum constants before matching would catch it.
+  addresses in `m_jsr`/`m_jsl`**: a call-out to a registered port through a
+  named constant (`rising_palace.c`'s `m_jsl_dc(s, ..., CURTAIN_STEP, ...)`)
+  or through the bridges' `battle_call`/`menu_call` gets past it, and so does
+  `menu_run` of a C sibling. Resolving the enum constants is cheap; telling
+  the findings from the legitimate cases is not: a `battle_call` to a port is
+  right where it is the call-out a guard's refusal makes (`battle_take_turn`,
+  `battle_take_step`), and `menu_run`'s targets are ports by design, so only
+  a sibling with no call-outs is item 123. The check needs to know which
+  calls are a refusal's (a helper's body, or a branch on the guard) and which
+  siblings call out.
 - **The fallback measure's edges** (REIMPLEMENTATION.md, "The fallback measure"):
   - it follows extents by the stack, so a task switch to a stack within
     `STACK_SPAN` of the one it left (`dev/fallbacks.c`) keeps the extent it
@@ -2646,18 +2694,20 @@ waits on M5 rather than on a backend.
     its caller;
   - the shadow runs play the original sound driver, so the CPU half's waits
     for its answers count there (0.9 KiB) and are gone in the shipping mode;
-  - the routes' counts include the attempts a route throws away and the
-    frames a load replays, and a run `route_check` resumes loses the counts of
-    the process it killed. `ct_drive` counts fallbacks during the player
-    search's probes and its replays from a base, so the route measure
-    includes search work rather than only the frames kept: the Beyond Time
-    route's rise from 10.24 M to 13.47 M with the battle frame work's
-    remainders' second chunk was its replays growing from 30,056 frames to
-    44,660 (REIMPLEMENTATION.md, that chunk's "Measured"). Stop counting during
-    probes and replays. And check whether the new ending ports (`$C0:75A0`,
-    `$C0:6E27`, `$C0:0AFF`) leave estimated time owed at frame ends, which
-    thins out the bases the search replays from (the likely, unconfirmed
-    cause of those replays);
+  - the Beyond Time route's replays from a base grew from 30,056 frames to
+    44,660 with the battle frame work's remainders' second chunk
+    (REIMPLEMENTATION.md, that chunk's "Measured"), which the route measure no longer counts
+    (it counts the frames kept) but which still cost the route's run its
+    time: check whether the new ending ports (`$C0:75A0`, `$C0:6E27`,
+    `$C0:0AFF`) leave estimated time owed at frame ends, which thins out the
+    bases the search replays from (the likely, unconfirmed cause);
+  - the shipping mode's movies drift into play their reference play never
+    makes, and the largest of what they run as the original is now there:
+    the menus' object scripts' routines of the 1000 A.D. world map's event
+    (`$C6:E7FA`-`$C6:EE22`, a Mode 7 picture built and turned; 7.3 M
+    instructions over `endings-beyond-time`, `endings-bucket-lavos` and
+    `endings-telepod-lavos`, none in any reference play), whose port would rest on
+    fuzzing alone (movies-wanted.md, "1000 A.D. world map event");
   - the shipping mode's count can't be ratcheted: it moves with every port's
     timing (99 of 1068 keys between the default and the native-shape build).
     A shipping-mode run that played the movies at the original's timing

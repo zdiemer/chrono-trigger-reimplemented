@@ -115,7 +115,6 @@ enum {
 
 static bool step(Snes *s, uint32_t site, BattleStep number)
 {
-    m_set_a8(s, number);
     /* the overflow flag the step saves with the flags across its frame waits
      * is read by nothing after. The static result, V dead into $C1:0003, is
      * the proof at every site; the run exercises the menu's ($C1:856D), and
@@ -126,7 +125,7 @@ static bool step(Snes *s, uint32_t site, BattleStep number)
      * --poison-set V at each site over the library, calls with V inverted:
      * C1802D 20, C18151 32, C18161 4, C18188 11, C1856D 285,
      * C1AC7E 4; 0 differing; a site under 100 rests on the static result) */
-    return battle_call(s, site, BATTLE_STEP, READS_A);
+    return battle_take_step(s, site, number, READS_A);
 }
 
 /* The party member the loop is working on, where the original's code it
@@ -314,6 +313,10 @@ static bool start_battle(Snes *s)
 
 /* ---- A pass of the loop ------------------------------------------------------------------ */
 
+/* The pass's body, where the loop goes on after the frame's step
+ * (battle_main_loop_body). */
+enum { PASS_BODY = 0xC1812C };
+
 // $C1:8120
 /* The pass's frame: the pass counted, the damage table's hit back to the
  * first, and the frame's work and wait (battle step 3). */
@@ -324,7 +327,9 @@ static void next_frame(Snes *s)
     set_battle_damage_hit(g, 0);
     s->cpu.a = BATTLE_STEP_NEXT_FRAME;
     m_set_nz8(s, BATTLE_STEP_NEXT_FRAME);
-    m_jsr(s, 0xC18129, BATTLE_STEP);
+    /* the frame's work leaves the overflow to nothing that reads it */
+    if (battle_take_step(s, 0xC18129, BATTLE_STEP_NEXT_FRAME, 0))
+        m_stop_at(s, PASS_BODY, DC_V);
 }
 
 /* Every enemy that must be beaten is out (or none is there). */

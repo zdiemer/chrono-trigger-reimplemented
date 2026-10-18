@@ -12,7 +12,7 @@
 
 #define FUZZ_MAX_AREAS 48
 #define FUZZ_MAX_VALUES 32
-#define FUZZ_MAX_STOP_CALLS 8
+#define FUZZ_MAX_STOP_CALLS 12
 
 /* A range of work RAM the fuzzer sets: from the base state (keep) or random
  * bytes from lo to hi (fill). Absolute, lo_addr-hi_addr as 24-bit bus

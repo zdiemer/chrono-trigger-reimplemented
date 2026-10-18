@@ -92,6 +92,7 @@ typedef enum {
     BATTLE_STEP_CALLED_OFF = 2,       /* a member's queued action called off */
     BATTLE_STEP_NEXT_FRAME = 3,       /* the frame's work, and a wait for the next */
     BATTLE_STEP_SHOW_ACTION = 4,      /* an action's showing starts */
+    BATTLE_STEP_SEARCH_TARGET = 5,    /* a target searched for (battle_search_for_target) */
     BATTLE_STEP_ENEMIES_BEATEN = 6,   /* the enemies beaten, seen to */
     BATTLE_STEP_SEARCH_AREA = 7,      /* who stands in an area of the battlefield (battle_area_search) */
     BATTLE_STEP_VICTORY = 8,          /* the party's victory */

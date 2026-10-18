@@ -78,7 +78,7 @@
  * there hides a wrong declaration. It is the evidence a don't-care
  * declaration liveness can't prove carries (docs/PORTING.md, "Declarations
  * liveness can't prove"). The states are those of the same seed without it.
- * --stop-at-call BBAAAA (up to 8) ends a state's comparison at the port's
+ * --stop-at-call BBAAAA (up to 12) ends a state's comparison at the port's
  * call-out to that routine: the machines are compared at the callee's entry,
  * with the call's don't-care set, the original run up to the same call. For a
  * port that yields to the next frame through a task switch (the menus'

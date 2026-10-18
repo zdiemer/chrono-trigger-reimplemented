@@ -6831,9 +6831,18 @@ name = "menu_draw_save_slot"
 at = "C2:D36C"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-03", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-03", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7633-7E7633=00-01", "--fill", "7E7673-7E7673=00-01", "--fill", "7E76B3-7E76B3=00-01", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07"]
 iterations = 2000
-why = "the menus' page and data bank, the slot shown one of the four rows, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them, every other byte small, the slots' designs each one of the eight), the VRAM queue empty, numbers converted from one"
+why = "the menus' page and data bank, the slot shown one of the four rows, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them, every other byte small and the locations places' numbers, the slots' designs each one of the eight), the VRAM queue empty, numbers converted from one"
+
+[[routine]]
+name = "menu_move_among_the_slots"
+at = "C2:CFA2"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--fill", "7E0054-7E0054=00-03", "--fill", "7E007F-7E007F=00-03", "--fill", "7E007A-7E007A=00-00", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7633-7E7633=00-01", "--fill", "7E7673-7E7673=00-01", "--fill", "7E76B3-7E76B3=00-01", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07"]
+iterations = 5000
+why = "the menus' page and data bank, the cursor on one of the four rows and the slot it was on before one of them too (so it moves or rests), the slot's index a byte (the cell after it 0, as the slots' reading leaves it), the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them, every other byte small and the locations places' numbers, the designs each one of the eight), the VRAM queue empty, numbers converted from one; the sound's handshake echoed"
 
 [[routine]]
 name = "menu_draw_save_slot"
@@ -6850,9 +6859,9 @@ name = "menu_show_save_slot"
 at = "C2:E743"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=00-03", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=00-03", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7633-7E7633=00-01", "--fill", "7E7673-7E7673=00-01", "--fill", "7E76B3-7E76B3=00-01", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07"]
 iterations = 2000
-why = "the menus' page and data bank, the cursor on one of the four rows, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them, every other byte small, the slots' designs each one of the eight), the VRAM queue empty, numbers converted from one"
+why = "the menus' page and data bank, the cursor on one of the four rows, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them, every other byte small and the locations places' numbers, the slots' designs each one of the eight), the VRAM queue empty, numbers converted from one"
 
 [[routine]]
 name = "menu_run_window_list"
@@ -7103,7 +7112,7 @@ name = "menu_open_load_screen"
 at = "C2:E613"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D49-7E0D49=01-01"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7633-7E7633=00-01", "--fill", "7E7673-7E7673=00-01", "--fill", "7E76B3-7E76B3=00-01", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D49-7E0D49=01-01"]
 iterations = 2000
 why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, at least the first slot with a game (the movies' calls are all interrupted)"
 
@@ -7112,7 +7121,7 @@ name = "menu_draw_load_screen"
 at = "C2:E7C3"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D49-7E0D49=01-01"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7633-7E7633=00-01", "--fill", "7E7673-7E7673=00-01", "--fill", "7E76B3-7E76B3=00-01", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D49-7E0D49=01-01"]
 iterations = 2000
 why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, at least the first slot with a game (the movies' calls are all interrupted)"
 
@@ -7121,7 +7130,7 @@ name = "menu_choose_on_load_screen"
 at = "C2:E61B"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4A-7E0D4A=01-01", "--fill", "7E0054-7E0054=00-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E9382-7E9397=00-03"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7633-7E7633=00-01", "--fill", "7E7673-7E7673=00-01", "--fill", "7E76B3-7E76B3=00-01", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4A-7E0D4A=01-01", "--fill", "7E0054-7E0054=00-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E9382-7E9397=00-03"]
 iterations = 2000
 why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the second slot with a game, the cursor on one of the four rows, whose neighbours are rows; the buttons random, so each of the step's choices is reached"
 
@@ -7131,7 +7140,7 @@ at = "C2:E743"
 variant = "new_game_plus"
 subsystem = "menu"
 state = "new_game_plus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=03-03", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4C-7E0D4C=01-01", "--stop-at-call", "C70004"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=03-03", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7633-7E7633=00-01", "--fill", "7E7673-7E7673=00-01", "--fill", "7E76B3-7E76B3=00-01", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4C-7E0D4C=01-01", "--stop-at-call", "C70004"]
 why = "as the plain entry, on a finished cartridge's load screen (the New Game+ movie's), the cursor on the fourth row and the moves random, so left or right flips between a new game and a New Game+ and plays the cursor's sound; compared at the sound driver's call, where the P the sound saves is still on the stack (a return pops it, which the plain comparison leaves out)"
 
 [[routine]]
@@ -7140,7 +7149,7 @@ at = "C2:E61B"
 variant = "new_game_plus"
 subsystem = "menu"
 state = "new_game_plus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4A-7E0D4A=01-01", "--fill", "7E0054-7E0054=03-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E9382-7E9397=00-03", "--fill", "7E0D4C-7E0D4C=01-01", "--stop-at-call", "C70004"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7633-7E7633=00-01", "--fill", "7E7673-7E7673=00-01", "--fill", "7E76B3-7E76B3=00-01", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4A-7E0D4A=01-01", "--fill", "7E0054-7E0054=03-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E9382-7E9397=00-03", "--fill", "7E0D4C-7E0D4C=01-01", "--stop-at-call", "C70004"]
 why = "as the plain entry, on a finished cartridge's load screen, the cursor on the fourth row and the buttons random: its choices flipped, a new game started (A's high byte as setting up its state leaves it, which the sound command's call hands the driver) or a New Game+ asked for; compared at the sound driver's calls"
 
 [[routine]]
@@ -7148,7 +7157,7 @@ name = "menu_choose_game_to_carry_on_from"
 at = "C2:E6AE"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4A-7E0D4A=01-01", "--fill", "7E0054-7E0054=00-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E9382-7E9397=00-03", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7633-7E7633=00-01", "--fill", "7E7673-7E7673=00-01", "--fill", "7E76B3-7E76B3=00-01", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4A-7E0D4A=01-01", "--fill", "7E0054-7E0054=00-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E9382-7E9397=00-03", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
 iterations = 2000
 why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the second slot with a game, the cursor on one of the four rows, whose neighbours are rows; the buttons random, so each of the step's choices is reached; the active party characters or empty places, as the game in memory always has it when a New Game+ carries on (the carrying over's guard, menu_carry_over_runs, which the step's own call doesn't consult)"
 
@@ -7175,7 +7184,7 @@ name = "menu_ask_which_to_carry_on_from"
 at = "C2:E841"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0079-7E0079=00-02"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7633-7E7633=00-01", "--fill", "7E7673-7E7673=00-01", "--fill", "7E76B3-7E76B3=00-01", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0079-7E0079=00-02"]
 iterations = 2000
 why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the slot shown one of the three"
 
@@ -7185,7 +7194,7 @@ at = "C2:E841"
 variant = "narrow"
 subsystem = "menu"
 state = "menus"
-args = ["--widths", "8,8", "--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0079-7E0079=00-02"]
+args = ["--widths", "8,8", "--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7633-7E7633=00-01", "--fill", "7E7673-7E7673=00-01", "--fill", "7E76B3-7E76B3=00-01", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0079-7E0079=00-02"]
 why = "as the plain entry, entered with byte-wide registers as the load screen's fourth row calls it (the New Game+ movie's one call, which a guard on 16-bit index registers had refused)"
 
 [[routine]]
@@ -7193,7 +7202,7 @@ name = "menu_erase_slot"
 at = "C2:E8B7"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0079-7E0079=00-02", "--stop-at-call", "C2821E"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7633-7E7633=00-01", "--fill", "7E7673-7E7673=00-01", "--fill", "7E76B3-7E76B3=00-01", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0079-7E0079=00-02", "--stop-at-call", "C2821E"]
 iterations = 2000
 why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the slot shown one of the three; compared up to its wait for the next frame ($C2:821E, a task switch the fuzzer can't run past)"
 
@@ -12148,6 +12157,15 @@ iterations = 3000
 why = "on the battle's page, the menu's turn not due, up to the frame work's tail (a fuzz run calls its siblings as the original's calls, so the menu's turn is its entries' runs and the next member's, and the tail is the frame work's)"
 
 [[routine]]
+name = "battle_run_a_step"
+at = "C1:0003"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0009", "--stop-at-call", "C10023", "--stop-at-call", "C11B19", "--stop-at-call", "C11BAA", "--stop-at-call", "C1106E", "--stop-at-call", "C14058", "--stop-at-call", "C12986", "--stop-at-call", "C1006D", "--stop-at-call", "C11FDD", "--stop-at-call", "C1356D", "--stop-at-call", "C1354D"]
+iterations = 5000
+why = "on the battle's page, each of the ten steps asked for (A's high byte clear, as the guard takes it) with random index registers; compared at the step's call, where the asker's registers are kept on the stack under it"
+
+[[routine]]
 name = "battle_wait_step"
 subsystem = "battle"
 state = "battle"
@@ -14032,6 +14050,15 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02,FF", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=01,02,11,14,17,1F,2E,34,37,3B,3C,3E,40,47,48,49,52,53,54,56,5A,64,6A"]
 iterations = 5000
 why = "the techs' variant with every party tech that has area rules, so that the area search runs"
+
+[[routine]]
+name = "battle_find_the_noted_area"
+at = "C1:1FDD"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E99CC-7E99CC=00-07", "--fill", "7E9604-7E9604=00,01", "--fill", "7E9605-7E9606=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "a shape of the area search's seven and one past them, noted where the step reads it, and an area placed on combatants, the combatants in the fight or out, A's high byte clear as the guard takes it; the rest at random"
 
 [[routine]]
 name = "battle_search_area"

@@ -35,13 +35,24 @@ class DriveError(RuntimeError):
     pass
 
 
+def replay_seconds(frames):
+    """How long the replay of a run's kept frames may take before it counts as
+    hung: far more than any takes (ct_drive plays well over 60 frames a
+    second)."""
+    return 300 + frames // 10
+
+
 class Machine:
     """`native`, `generated` and `sound` are ct_drive's --native, --generated and
     --sound-driver (default: the interpreter and the original sound driver, or
     $CT_DRIVE_NATIVE, $CT_DRIVE_GENERATED and $CT_DRIVE_SOUND). With --native on
     and $CT_DRIVE_FALLBACKS naming a directory, each machine also counts what
     the original's code runs in place of hand ports (ct_drive --fallbacks) into
-    a file of its own there, for tools/fallbacks.py. With $CT_DRIVE_DRAIN_BUDGETS
+    a file of its own there, for tools/fallbacks.py: over the frames the run
+    kept, its input as close() finds it, played again from the start by a
+    ct_drive of its own (which must end with the run's frame and work RAM), so that what searches threw away (probes, the attempts
+    a restore undoes, the frames a load replays) isn't counted, and a run
+    resumed from a state file is counted from its start. With $CT_DRIVE_DRAIN_BUDGETS
     set and --native on, the field's frame budgets have time for all their work,
     as a host's do (ct_drive --drain-budgets)."""
 
@@ -61,9 +72,10 @@ class Machine:
         if os.environ.get("CT_DRIVE_DRAIN_BUDGETS") and native == "on":
             command += ["--drain-budgets"]
         fallbacks = os.environ.get("CT_DRIVE_FALLBACKS")
+        self.counted = None
         if fallbacks and native == "on":
             Machine._count += 1
-            command += ["--fallbacks", os.path.join(fallbacks, "drive-%d-%d.txt" % (os.getpid(), Machine._count))]
+            self.counted = (list(command), os.path.join(fallbacks, "drive-%d-%d.txt" % (os.getpid(), Machine._count)))
         command += [rom] + ([str(sram)] if sram else [])
         self.rom, self.sram, self.drive = rom, sram, drive
         self.native, self.generated, self.sound = native, generated, sound
@@ -85,7 +97,16 @@ class Machine:
 
     def close(self):
         """Quit. ct_drive exits 1 where the run went wrong in a way no answer
-        showed (the C sound driver's host dropping a command, say): a DriveError."""
+        showed (the C sound driver's host dropping a command, say): a DriveError.
+        With $CT_DRIVE_FALLBACKS, the frames kept are then counted."""
+        ended = None
+        if self.counted:
+            # the work RAM the run ends with, which the counting's replay must reach
+            ended = self.counted[1] + ".ended.wram"
+            try:
+                self.cmd("wram %s" % ended)
+            except Exception:
+                ended = None
         try:
             self.cmd("quit")
         except Exception:
@@ -93,6 +114,63 @@ class Machine:
         status = self.process.wait()
         if status:
             raise DriveError("ct_drive exited with status %d (its output says why)" % status)
+        if self.counted:
+            if ended is None:
+                raise DriveError("counting the kept frames: the run's work RAM couldn't be read as it ended")
+            self.count_kept_frames(ended)
+
+    def count_kept_frames(self, ended):
+        """Play the input the run kept from the start in a ct_drive that counts
+        what the original's code runs in place of hand ports, and write its
+        counts. The run's own machine should reach every frame it kept as a
+        straight run of that input does (a load replays from a base to the
+        frame it was saved at, dev/ct_drive.c); the replay is checked against
+        it, the frame it ends on and its work RAM against `ended`, the file
+        of the run's work RAM as it ended, and a replay that differs is a
+        DriveError rather than a count."""
+        command, path = self.counted
+        self.counted = None
+        if len(self.pads) < self.frame:
+            raise DriveError("counting the kept frames: frames %d-%d were run but not kept (a probe not restored, "
+                             "or a state loaded with no input)" % (len(self.pads), self.frame - 1))
+        pads = self.pads[: self.frame]
+        lines = []
+        start = 0
+        while start < len(pads):
+            end = start
+            while end < len(pads) and pads[end] == pads[start]:
+                end += 1
+            lines.append(self._run_command("run", end - start, pads[start]))
+            start = end
+        replayed = path + ".replayed.wram"
+        lines += ["frame", "wram %s" % replayed, "quit"]
+        counting = subprocess.Popen(command + ["--fallbacks", path, self.rom] + ([str(self.sram)] if self.sram else []),
+                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        try:
+            out, _ = counting.communicate("\n".join(lines) + "\n", timeout=replay_seconds(len(pads)))
+        except subprocess.TimeoutExpired:
+            counting.kill()
+            counting.communicate()
+            raise DriveError("counting the kept frames: the replay of %d frames took more than %d seconds"
+                             % (len(pads), replay_seconds(len(pads))))
+        answers = out.splitlines()
+        status = counting.returncode
+        failed = [answer for answer in answers if not answer.startswith("ok")]
+        if status or failed or len(answers) < 3:
+            raise DriveError("counting the kept frames: ct_drive exited with status %d%s"
+                             % (status, (", answering " + failed[0]) if failed else ""))
+        reached = int(answers[-3][3:])
+        try:
+            same = reached == self.frame and pathlib.Path(replayed).read_bytes() == pathlib.Path(ended).read_bytes()
+        finally:
+            for name in (replayed, ended):
+                if os.path.exists(name):
+                    os.remove(name)
+        if not same:
+            os.remove(path)
+            raise DriveError("counting the kept frames: the replay of the kept input %s"
+                             % ("ended on frame %d, the run on %d" % (reached, self.frame) if reached != self.frame
+                                else "ended with other work RAM than the run did, so it counted another run"))
 
     def __enter__(self):
         return self
@@ -114,12 +192,19 @@ class Machine:
         pad = pad_of(buttons)
         if frames <= 0:
             return
+        self._unkept_check()
         self.cmd(self._run_command("run", frames, pad))
         del self.pads[self.frame:]
-        while len(self.pads) < self.frame:
-            self.pads.append(0)
         self.pads.extend([pad] * frames)
         self.frame += frames
+
+    def _unkept_check(self):
+        """A run logged after frames whose buttons nothing kept -- a probe's
+        that no restore undid, or a state's loaded with no `.pads` -- would
+        put a gap in the input."""
+        if len(self.pads) < self.frame:
+            raise DriveError("frames %d-%d were run by a probe and not restored, or loaded from a state with no "
+                             "input beside it, so the input has no buttons for them" % (len(self.pads), self.frame - 1))
 
     def probe(self, frames, buttons=0):
         """Run frames without logging them (searches, which restore afterwards)."""
@@ -131,6 +216,7 @@ class Machine:
 
     def play_movie(self, path, to):
         """Run to frame `to` with a movie's buttons, logging them."""
+        self._unkept_check()
         answer = self.cmd("movie %s %d" % (path, to))
         pads = mkmovie.load_movie_pads(path, to)
         del self.pads[self.frame:]
@@ -156,11 +242,11 @@ class Machine:
     def runw(self, frames, buttons=0):
         """run() and return the watched bytes afterwards."""
         pad = pad_of(buttons)
+        if frames > 0:
+            self._unkept_check()
         answer = self.cmd(self._run_command("runw", max(frames, 0), pad))
         if frames > 0:
             del self.pads[self.frame:]
-            while len(self.pads) < self.frame:
-                self.pads.append(0)
             self.pads.extend([pad] * frames)
             self.frame += frames
         frame, _, data = answer.partition(" ")
@@ -188,11 +274,20 @@ class Machine:
             handle.write(" ".join(str(pad) for pad in self.pads[: self.frame]))
 
     def load_state(self, path):
-        self.frame = int(self.cmd("loadfile %s" % path))
+        """Read a state file back, and the input that reached it from its
+        `.pads` sidecar. A state with no sidecar (one ct_dev --save-state
+        wrote) leaves the input unknown, never the last run's: reading the
+        machine is fine, but a run logged after it, or the count of the
+        frames kept, is a DriveError (_unkept_check)."""
         sidecar = str(path) + ".pads"
-        if os.path.exists(sidecar):
-            with open(sidecar, encoding="utf-8") as handle:
-                self.pads = [int(value) for value in handle.read().split()]
+        self.frame = int(self.cmd("loadfile %s" % path))
+        if not os.path.exists(sidecar):
+            self.pads = []
+            return self.frame
+        with open(sidecar, encoding="utf-8") as handle:
+            self.pads = [int(value) for value in handle.read().split()]
+        if len(self.pads) != self.frame:
+            raise DriveError("%s holds %d frames of input for a state at frame %d" % (sidecar, len(self.pads), self.frame))
         return self.frame
 
     def native_status(self):

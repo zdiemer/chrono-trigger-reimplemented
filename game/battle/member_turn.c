@@ -658,11 +658,10 @@ void battle_members_wait_after_tech(Snes *s)
 /* The battle's step 2, for the calling off of a member's action ($FD:A937). */
 void battle_member_called_off_step(Snes *s)
 {
-    m_set_a8(s, BATTLE_STEP_CALLED_OFF);
     /* the overflow flag the step saves with the flags across its frame waits
      * is read by nothing after (tools/v_readers.py C1:0003). dc-evidence:
      * ct_fuzz --poison-dc battle_member_called_off_step, seed 1: 5000 states,
      * 5000 call-outs scrambled, 0 mismatched */
-    if (battle_call(s, 0xC1B963, BATTLE_STEP, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
+    if (battle_take_step(s, 0xC1B963, BATTLE_STEP_CALLED_OFF, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
         m_rtl(s);
 }

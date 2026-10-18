@@ -66,7 +66,11 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   now: nothing reads below S, so a port needn't rebuild the frames of the
   subroutines it inlines or the P bytes a callee saves and restores (the $C7
   pilot, below; bytes still on the stack, such as a frame live under a
-  call-out's return address, are compared as before). `DC_AH` in a don't-care
+  call-out's return address, are compared as before; a port that keeps a
+  register pushed for a routine it stands in for, which pulls it back only to
+  hand it back, and whose call declares that register don't care, declares
+  the bytes dead while they stay pushed with `native_stack_dont_care`: the
+  battle's steps keep the asker's X and Y so, `battle/steps.c`). `DC_AH` in a don't-care
   set leaves out A's high byte only, for code that works on an 8-bit A and
   leaves the high byte to whatever last set it, and `DC_AL` A's low byte only,
   for code whose callers read A's high byte (a later 16-bit load or `TAX` takes
