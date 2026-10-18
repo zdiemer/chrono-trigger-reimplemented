@@ -166,30 +166,28 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What battle's rewrite left** (history/reimplementation-phase3a.md, "Phase 3a: the battle off the
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
   - The original's routines the battle still calls out to: the battle steps
-    (`$C1:0003`) and the rewards' gold `$C1:D0A2` and messages `$FD:AD17`;
-    from a member's chosen action carried out (history/reimplementation-chunks.md, "Phase 3, battle
-    chunk 5"), the messages `$CD:0021`; from an enemy's turn (history/reimplementation-waves.md,
+    (`$C1:0003`) and the rewards' gold `$C1:D0A2`;
+    from an enemy's turn (history/reimplementation-waves.md,
     "Phase 3, wave 2: the enemies' minds"), an enemy's
     coming in `$FD:B438`, the calling in
-    `$FD:A990`, the message `$CD:0033` and the action's showing
+    `$FD:A990` and the action's showing
     `$C1:BFA4`/`$C1:EC7F`; what an effect's working out turns away to the
     original (history/reimplementation-chunks.md, "Phase 3, battle chunk 4: the party's working
     out"): a hit that steals as well (no record has one); the effect's start a status's timer asks for
     (`$C1:EC7F`); the
     pose's setup `$C1:308C`, and an animation that names no movement
     (`$C1:3760`'s table past its nine rows, no animation the battle gives);
-    the decompressor from the effect graphics loader; `$CD:0027`/`$002D`/`$0030`
-    from the menu window; from a member that comes back once (history/reimplementation-chunks.md, "Phase 3,
-    battle: the leftovers"), the showing's step `$C1:BFA4`/`$C1:EC7F` and
-    the message `$CD:0021`; from the battle's start and its return to the
-    field, the battle screen's setup `$CD:0000` (`$D1:F1B0`), the display's
-    closing `$CD:0006`, and from the setup's
-    end the party's poses `$C1:35DD`; the wait tail's callees from the frame
-    work, the battlefield put back `$CD:0453` and an effect's graphics
+    the decompressor from the effect graphics loader; from a member that comes back once (history/reimplementation-chunks.md, "Phase 3,
+    battle: the leftovers"), the showing's step `$C1:BFA4`/`$C1:EC7F`; from
+    the battle's start, the battle screen's setup `$CD:0000` (`$D1:F1B0`),
+    and from the setup's
+    end the party's poses `$C1:35DD`; the wait tail's callee from the frame
+    work, an effect's graphics
     loaded `$D1:ECF3`; the menu's turn the frame work's wait gives
-    (`$C1:0012`); and from the screen's start (history/reimplementation-chunks.md, "Phase 3, battle:
-    cuts, bands and the screen's start"), the start settings' copy
-    `$CD:0C9D` and the battle music's start `$C0:0008`.
+    (`$C1:0012`); and from the battle's close, a battle lost on the screen
+    effects' battlefield (`$CD:0D93`, which no movie reaches). The battle
+    screen's setup is reached through its jump stub (`$CD:0000` to `$CD:0039`),
+    where the strict native run stops now (PLAN.md, "The native frame").
   - What the screen script's rows still turn away to the original
     (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"), none of it a
     call the library makes: the drift `$D7` where its amount's high byte,
@@ -716,9 +714,6 @@ rest waits, is [PLAN.md](PLAN.md).
     them with the gate.
 
 - **What battle's chunk 8 left** (history/reimplementation-chunks.md, "Phase 3, battle chunk 8"):
-  - the rewards' messages (`$FD:AD17`) are still the original's: each waits
-    for the player through `$CD:0021`, so their port waits on the messages'
-    own (the window's text and the wait for a button);
   - the tech points' count (`rewards_techs.c`, `rewards_count_tech_points`)
     pays the battle's points again towards a tech whose cost the points left
     over from the last one don't reach, so a member can learn more than the
@@ -728,8 +723,10 @@ rest waits, is [PLAN.md](PLAN.md).
     the members' three, which is the first member's techs' byte (no message
     tests that bit there), and counted in the byte after the members' counts,
     whose carry reaches the battle's reaction entry (`rewards_levels.c`,
-    `count_level_gained`): name the reserve's bytes when `$FD:AD17` is ported,
-    or drop them if the messages never read them;
+    `count_level_gained`). The messages (`rewards_messages.c`, `$FD:AD17`)
+    never read either: they test only bits 3, 2 and 1 of a techs byte and
+    count only the members' three levels, so a native build can drop the
+    reserve's noting;
   - the share for the reserve clears `battle_status_script_seen`'s first byte
     as it clears its own cell (`rewards_share_with_reserve`): nothing after
     the battle's end reads it before the next fight's start clears it, so a
@@ -843,9 +840,8 @@ rest waits, is [PLAN.md](PLAN.md).
   decided"). Poses 1, 10 and 11 have looks (`pose_looks.c`) no status gives.
 - **What the battlefield's change left** (REIMPLEMENTATION.md, "Phase 3, battle: the
   battlefield changed and an effect's rows of its tiles"): the rest of the original
-  that loads a battlefield, the screen effects' song and the HP gradient's
-  (`$CD:0D62`, `$CD:0D93`-`$CD:0DF9`, `$CD:0E05`) and the battlefield put
-  back (`$CD:0453`, with `$CD:0E23`-`$CD:0E61`), which call the ports; and
+  that loads a battlefield, the screen effects' battlefield's end (`$CD:0D93`-`$CD:0DA2`, a battle
+  lost there, which no movie reaches) and `$CD:0E05`, which call the ports; and
   the map buffer's clear (`$CD:1052`), whose every call in the library spans
   the vblank handler, so its `cost_milli` is an estimate from its loop (the
   original's time over the port's accesses in the shadow runs) the timing gate
@@ -1038,9 +1034,8 @@ rest waits, is [PLAN.md](PLAN.md).
   (`battle_map_cycle`, `_strip_step`, `_strip_cells`) and reads which places
   have a tile with the original's shift-left bit reader (keep them in locals,
   test the place's bit, write the final values once); the battlefield
-  accessors in `frame_data.h` take a built bank-and-place address, a byte
-  offset into the fades and the descriptors' `0x8000` (take the set, strip,
-  tile and fade kind and return records); the screen effects' settings
+  accessors in `frame_data.h` take a built bank-and-place address and the
+  descriptors' `0x8000` (take the set, strip and tile and return records); the screen effects' settings
   (`$53`-`$61`, `battle_screen_effect_settings`) are written through the
   scaffolding writers `screen_leave_*` under `LEFT_*` names (they are game
   state the scripts read: write them through the settings, named for what
@@ -2188,10 +2183,6 @@ re-runs the census.
     and a character's start (`$C0:597D`); the Start
     assignment's test leaves the overflow of its subtraction, which the
     menus' entry and the next frame read (field/leaves.c);
-  - the switch's sound is still the original's routine (`$C0:1B90`, which
-    pans it on the leader by reading the objects' screen X with the party's
-    first two places as one index word); the port calls it and hands it A's
-    high byte as the original has it (field/leaves.c);
 - **What the screen effects left** (history/reimplementation-chunks.md, "Phase 3, field and events:
   the screen effects and the credits"):
   - the field still calls the curtain's step (`scene/curtain.c`, `$C3:01E4`)
@@ -2206,14 +2197,13 @@ re-runs the census.
     original's from the command's own dispatch (`$C0:4009`), where the port
     stops; event `$FF` `$9F` calls the menus' party routine 8 as C through
     the same dispatch's frame (`event_screen_party_routine`);
-  - the credits' letters' loading (`$C0:6E27`) and the layers' staging
-    blanked (`$C0:75A0`, the block move from `$D2:0000` the map scrolling's
-    follow-ups name) are call-outs of event `$29` and the layer work;
   - one fuzzed state in 40,000 of the screen effects' step differs only in
     OAM bytes holding what looks like the original's stack (seed 1, state
     10,647): find what writes OAM there.
 - **The line effects' tables past their size on fuzzed states.** Fuzzing
-  `field_build_line_effect_tables` and the window and wave builders over
+  `field_build_line_effect_tables`, the window and wave builders and the
+  rebuild that builds both sets (`field_rebuild_the_line_effects`, and the
+  battle's vblank handler `battle_nmi_alternate`, which calls it as C) over
   random states reports the accessor out of range: a table built for a random
   window or wave runs past its $57 bytes (`field_line_effect_tables`) into the
   next, from byte $57 on. It predates the Phase 3 chunks (the same run of
@@ -2233,9 +2223,8 @@ re-runs the census.
   - the map's whole-screen drawing leaves the edge runs' wrap cell 0, the
     count its loop ran down (`field_layer_edge_wrap`'s low byte), which the
     edges then read: a third use of that cell, with the climb's note;
-  - the blank that clears the staging at `$C0:75A0` (a block move from
-    `$D2:0000`) and the map's other loaders around the drawing (`$C0:7199`,
-    1104 bytes left in the run) are the original's.
+  - the map's other loaders around the drawing (`$C0:7199`, 1104 bytes left
+    in the run) are the original's.
 - **What the screen's setup and the objects' setup left**
   (history/reimplementation-chunks.md, "Phase 3, field and events: the screen
   set up, the map unpacked, the objects started"):
@@ -2332,7 +2321,13 @@ re-runs the census.
   sites); following a table row's index through the callers would let them
   say it plainly.
 - **Frame waits still made on the machine**: the races `$C0:3B71` and
-  `$C0:4181` (`field/frame.c`); the attract's `$7E:31B0`/`$7E:31B7`
+  `$C0:4181` (`field/frame.c`), the field's waits for the vblank before a
+  change of place made at once (the change after `$C0:3B71` is C,
+  `event_go_now_in_the_dark`; after `$C0:4181` it is the original's,
+  `$C0:4186`, which no movie reaches): each is an idle entry, a pass at a
+  time on the machine, that waits for the vblank through the timing service
+  where the original spins on the vblank interrupt's flag; a native build
+  wants it a `tm_` wait its port calls; the attract's `$7E:31B0`/`$7E:31B7`
   (`attract/main_loop.c`, which reads `$4212` itself rather than through the
   service); the idle entries on flags a handler clears
   (`field_wait_for_frame_loop`, `menu_wait_for_frame_loop`,
@@ -2350,7 +2345,7 @@ re-runs the census.
   `$C2:0346` are still the original's around their idle loops, and the pass
   that leaves an idle loop stays counted as a fallback: they take the
   battle's shape.
-- **What the battle's waits left** (REIMPLEMENTATION.md, "Phase 4a, timing: the
+- **What the battle's waits left** (history/reimplementation-chunks.md, "Phase 4a, timing: the
   battle's waits and its transfer from the main thread"):
   - The menus' text code the battle message's typing calls (`$CD:04DF` ->
     `$C2:0009` -> `$C2:5823`) reads the carry it is entered with, which
@@ -2382,6 +2377,54 @@ re-runs the census.
   - The host's `vid_send_vram_and_wait` stops the program on a game address
     (no host memory behind it yet): the battlefield's change, its one caller,
     passes one.
+- **What the battle frame work's remainders left** (history/reimplementation-chunks.md,
+  "Phase 4a, timing: the battle frame work's remainders"):
+  - The messages, the close and the battlefield put back run inside their
+    callers' stretches, which compare them there: the enemy's message is
+    compared alone once in 298 calls, the display's close, the window's
+    close, the battlefield put back and the setting out never. Their fuzz
+    runs stop at the first wait, as the battle's waits' do, so what each does
+    after it is checked by shadow mode in its caller alone.
+  - Machine shape kept so shadow mode's points line up with the original's
+    stack: the bridges say at each wait and call what the original keeps on
+    the stack and leaves in the carry there (`BattleFrame`, battle/bridge.h:
+    the battle's message's copies of itself, the counted waits' counts, the
+    item's place in the rewards' telling, the battlefield the boss's end
+    changes to), and the counted waits keep their count in A
+    (`message.c`'s `wait_a_frame_counting`, `closing.c`'s
+    `wait_frames_counting`). They go when the waits are called as C from
+    callers that are C.
+- **What the battle frame work's remainders' second chunk left** (REIMPLEMENTATION.md,
+  "Phase 4a, timing: the battle frame work's remainders, chunk 2"):
+  - The rewards' messages are fuzzed only up to the first message, which
+    holds for frames, so the telling after it is checked by shadow mode
+    alone, inside the battle's main loop's stretch.
+  - The music round a battle (`field/sounds.c`) still sets the field's page,
+    the data bank `$00` and A `$0100` on the machine for the driver's calls,
+    which read A's high byte; they go when the driver's command entry is
+    called as C.
+  - The strict native run stops at the jump stubs into the battle screen's
+    setup (`$CD:0000`, `$CD:0039`; `battle/from_field.c` calls them), and
+    then meets `$CD:0003`, `$C0:0002` and `$CC:F062`, the party's poses
+    `$C1:35DD` and the battle's stubs at `$C1:0003`-`$C1:0058` (PLAN.md, "The
+    native frame").
+  - What its review left (none blocking after its fixes):
+    `battle_wait_music_fade_loop` (`battle/sound.c`) sets the PC by hand, a
+    stop-point fragment of `$CD:0D93`'s loop (rubric item 16: port the
+    defeat's battlefield change it is a pass of); `sound_driver_2f00_set`,
+    the set of effects the driver loads with the next song, is named for its
+    address (item 4: name it in the map, with its `_sent` and `_pending`
+    neighbours); `battle_pause_blocked` is written as `$FF`, 1 and 0 in
+    different files (item 10: a bool, or a named state each writer uses);
+    and the menu window still reaches the description and the target's
+    name (`battle_describe`, `battle_name_a_combatant*`, pure C) through
+    `battle_run_long` (item 123: call them as C behind a test of their
+    guards, as `battle_play_a_sound_from` does).
+  - The review proposed a rubric item for `.claude/skills/review-port/`: a
+    guard must test its entry's own preconditions, or say whose it borrows
+    (the music's fade takes the waits' guard, `battle_message_can_be_typed`,
+    because it runs on into one; `registry.c` says so now). Add it with
+    an example once a second case turns up, or now if the owner agrees.
 - **The line handlers' hblank waits**: `field_irq_wait_hblank_loop`
   (`$C0:ECEB`), `battle_irq_wait_hblank_loop` (`$D1:FEB8`) and the scene
   boot's `$C3:0530`/`$C3:0538` land the forced blank at the end of line 211,
@@ -2395,8 +2438,10 @@ re-runs the census.
   waits for line 64 before the screen script channels run while the timed
   effect slots do (`$CD:09AC`), and screen script command `$C1` (`$CD:1D93`,
   in no movie) waits for a line from the script. Neither is followed by a
-  register write, so the wait looks like pacing; take it out when the frame
-  work's own remainder is ported.
+  register write, so the wait looks like pacing. The rest of the frame work
+  is ported around it, and an entry at `$CD:3B82` would make the service's
+  own call of the original recurse into the port: decide whether a native
+  build keeps the wait at all, and take it out of the service if not.
 - **The timer resets.** `$C2:0043` past `$C2:00F2` and `$C2:940D` past
   `$C2:94B8` clear `$4207-$420A` in a run of CPU register writes (where the
   menu ports stop). Nothing enables the timers after them, so natively they
@@ -2603,7 +2648,16 @@ waits on M5 rather than on a backend.
     for its answers count there (0.9 KiB) and are gone in the shipping mode;
   - the routes' counts include the attempts a route throws away and the
     frames a load replays, and a run `route_check` resumes loses the counts of
-    the process it killed;
+    the process it killed. `ct_drive` counts fallbacks during the player
+    search's probes and its replays from a base, so the route measure
+    includes search work rather than only the frames kept: the Beyond Time
+    route's rise from 10.24 M to 13.47 M with the battle frame work's
+    remainders' second chunk was its replays growing from 30,056 frames to
+    44,660 (REIMPLEMENTATION.md, that chunk's "Measured"). Stop counting during
+    probes and replays. And check whether the new ending ports (`$C0:75A0`,
+    `$C0:6E27`, `$C0:0AFF`) leave estimated time owed at frame ends, which
+    thins out the bases the search replays from (the likely, unconfirmed
+    cause of those replays);
   - the shipping mode's count can't be ratcheted: it moves with every port's
     timing (99 of 1068 keys between the default and the native-shape build).
     A shipping-mode run that played the movies at the original's timing

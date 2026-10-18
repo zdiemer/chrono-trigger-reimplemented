@@ -633,12 +633,33 @@ bool battle_changed_battlefield_fits(Snes *s);
 bool battle_battlefield_fits(Snes *s);
 bool battle_battlefield_map_fits(Snes *s);
 
+/* battle/battlefield_restore.c */
+void battle_put_the_battlefield_back(Snes *s);
+void battle_take_the_start_settings_long(Snes *s);
+void battle_take_back_the_start_screen(Snes *s);
+void battle_fade_battlefield_layer_back_in(Snes *s);
+void battle_has_a_layer_of_its_own(Snes *s);
+void battle_restore_kept_colors_entry(Snes *s);
+
+/* battle/closing.c */
+void battle_close_the_display(Snes *s);
+void battle_open_the_window(Snes *s);
+void battle_close_the_window(Snes *s);
+void battle_fade_the_music_out(Snes *s);
+void battle_play_out_the_boss_end(Snes *s);
+void battle_let_the_screen_settle(Snes *s);
+void battle_change_to_the_battlefield(Snes *s);
+
 /* battle/animation.c */
 void battle_step_combatant_animations(Snes *s);
 bool battle_steps_animations(Snes *s);
 void battle_choose_status_pose(Snes *s);
 bool battle_poses_combatant(Snes *s);
 void battle_step_enemy_effects(Snes *s);
+
+/* battle/rewards_messages.c */
+void battle_show_the_rewards(Snes *s);
+bool battle_rewards_can_be_shown(Snes *s);
 
 /* battle/battle_end.c: the battle's end's bookkeeping */
 void battle_clear_party_statuses_entry(Snes *s);

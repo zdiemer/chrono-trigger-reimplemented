@@ -144,6 +144,7 @@ add_library(ct_game STATIC
   game/field/scroll.c
   game/field/tile_copy.c
   game/field/walk.c
+  game/field/sounds.c
   game/field/sprites.c
   game/field/window_shape.c
   game/menu/bridge.c
@@ -355,12 +356,15 @@ add_library(ct_game STATIC
   game/battle/script_walk.c
   game/battle/script_sound.c
   game/battle/rewards_levels.c
+  game/battle/rewards_messages.c
   game/battle/rewards_techs.c
   game/battle/member_stats.c
   game/battle/draw_objects.c
   game/battle/object_motion.c
   game/battle/tiles.c
   game/battle/battlefield_change.c
+  game/battle/battlefield_restore.c
+  game/battle/closing.c
   game/battle/uploads.c
   game/battle/timers.c
   game/battle/wait.c

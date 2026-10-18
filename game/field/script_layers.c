@@ -1,6 +1,6 @@
 /* Field mode: the work on the layers scripts leave the main loop.
  *
- * Three things, looked at once a frame after the screen effect's step:
+ * Three kinds of work, looked at once a frame after the screen effect's step:
  * - BG2's left or right half cleared: the layers' staging blanked, and the
  *   vblank asked to send it to that half of BG2's tile map.
  * - The credits the endings roll: texts from the ROM written into BG3's tile
@@ -12,17 +12,23 @@
  * - The message the field opened for a chest closed once the chest has
  *   scrolled off the screen.
  * The layer work comes first, a piece a frame; the message is looked at only
- * on frames without it. */
+ * on frames without it. Here too are the two pieces event $29 uses as it
+ * chooses a text: the staging blanked, and the credits' letters loaded into
+ * BG3's tiles. */
 #include "field/script_layers.h"
 
+#include "charge.h"
 #include "cpu_io.h"
+#include "data/decompress.h"
 #include "field/bridge.h"
 #include "field/dialog_window.h"
+#include "field/display.h"
 #include "field/field.h"
 #include "field/field_data.h"
 #include "field/scratch.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
+#include "ram.h"
 #include "vars.h"
 
 /* ---- The credits -------------------------------------------------------------------------------- */
@@ -158,6 +164,39 @@ static void send_bg2_halves(GameState *g)
 
 static void bg2_halves_cleared(GameState *g) { field_mode_flag(g, BG2_HALVES, false); }
 
+/* ---- The staging blanked, and the credits' letters ------------------------------------------------ */
+
+// $C0:75A0
+/* BG1's staging blanked, every entry of it the blank one: what BG2's halves
+ * are cleared from, and what the credits' choice clears as it starts (event
+ * $29). */
+void field_blank_the_staging(GameState *g)
+{
+    for (unsigned at = 0; at < FIELD_LAYER_STAGING_BYTES; at++)
+        set_field_layer_staging_byte(g, FIELD_BG1, at, field_blank_entries_byte(g, at % FIELD_BLANK_ENTRIES_BYTES));
+}
+
+/* The credits' font, unpacked where the field unpacks BG3's tiles
+ * (field_bg3_tiles_unpacked) and sent to BG3's tiles from $5000. */
+enum { LETTERS_VRAM = 0x5000, LETTERS_BYTES = 0x400 };
+enum { UNPACKER = 0xC30002, THE_UNPACKER_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
+
+// $C0:6E27
+/* The letters the credits are written in, loaded as event $29 chooses a text
+ * (game/event/screen.c). False where the unpacker handed back to the
+ * original. */
+static bool load_the_credits_letters(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_decompress_source(g, FIELD_CREDITS_LETTERS_PACKED);
+    set_decompress_dest(g, RAM_FIELD_BG3_TILES_UNPACKED);
+    if (!field_run_long(s, 0xC06E3D, UNPACKER, THE_UNPACKER_IGNORES, decompress, on_the_field_page(s, false)))
+        return false;
+    FieldTransfer letters = { LETTERS_VRAM, FIELD_TRANSFER_WORDS, RAM_FIELD_BG3_TILES_UNPACKED, LETTERS_BYTES };
+    TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, m_platform(s), letters));
+    return true;
+}
+
 /* ---- The chest's message ------------------------------------------------------------------------- */
 
 /* Whether the chest the leader opened is on the screen: right of its left
@@ -180,48 +219,50 @@ static void close_the_chests_message(GameState *g)
 
 /* ---- The frame's turn --------------------------------------------------------------------------- */
 
-typedef enum { NO_WORK, WROTE_A_LINE, CLEARS_BG2 } LayerWork;
+static bool writing_the_credits(const GameState *g) { return field_mode_flags(g) & FIELD_WRITING_CREDITS; }
 
 // $C0:274D
-static LayerWork do_the_layer_work(GameState *g)
+static void do_the_layer_work(GameState *g)
 {
     uint8_t flags = field_mode_flags(g);
-    if (flags & FIELD_WRITING_CREDITS) {
+    if (flags & FIELD_WRITING_CREDITS)
         write_a_credits_line(g);
-        return WROTE_A_LINE;
-    }
-    if (flags & BG2_HALVES) {
+    else if (flags & BG2_HALVES) {
         send_bg2_halves(g);
-        return CLEARS_BG2;
-    }
-    if (flags & FIELD_DIALOG_OPENED_BY_THE_FIELD)
+        TIMED_AS(g, FIELD_BLANK_THE_STAGING_ENTRY, field_blank_the_staging(g));
+        bg2_halves_cleared(g);
+    } else if (flags & FIELD_DIALOG_OPENED_BY_THE_FIELD)
         close_the_chests_message(g);
-    return NO_WORK;
 }
 
-/* ---- Where it meets the original -----------------------------------------------------------------
- *
- * BG2's halves are cleared from the layers' staging, which the original's
- * routine blanks ($C0:75A0); the port calls it as the original does. */
-enum { BLANK_THE_STAGING = 0xC075A0, READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+/* ---- Where it meets the original ----------------------------------------------------------------- */
 
 /* On the field's page, with 8-bit A and 16-bit index registers. A, X, Y and
  * the flags but V are dead after it; a credits line leaves V clear (the
- * sum its send's size is worked out with never overflows), the staging's
- * blank as it leaves V, and the rest as it came. */
+ * sum its send's size is worked out with never overflows), and the rest,
+ * the staging's blank among them, as it came. */
 void field_do_script_layer_work(Snes *s)
 {
     GameState *g = state_of(s);
-    switch (do_the_layer_work(g)) {
-    case WROTE_A_LINE: m_set_flag(s, CPU_FLAG_V, false); break;
-    case CLEARS_BG2:
-        if (!bridge_call(s, 0xC02787, BLANK_THE_STAGING, READS_NOTHING, on_the_field_page(s, false)))
-            return;
-        bg2_halves_cleared(g);
-        break;
-    default: break;
-    }
+    vars_peek(true);
+    bool writes_a_line = writing_the_credits(g);
+    vars_peek(false);
+    do_the_layer_work(g);
+    if (writes_a_line)
+        m_set_flag(s, CPU_FLAG_V, false);
     m_rts(s);
+}
+
+void field_blank_the_staging_entry(Snes *s)
+{
+    field_blank_the_staging(state_of(s));
+    m_rts(s);
+}
+
+void field_load_the_credits_letters(Snes *s)
+{
+    if (load_the_credits_letters(s))
+        m_rts(s);
 }
 
 /* The guard: on the field's page with the data bank $00, and a credits line
@@ -232,7 +273,7 @@ bool field_script_layer_work_can_run(Snes *s)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = !(field_mode_flags(g) & FIELD_WRITING_CREDITS) || credits_line_fits(g);
+    bool ok = !writing_the_credits(g) || credits_line_fits(g);
     vars_peek(false);
     return ok;
 }

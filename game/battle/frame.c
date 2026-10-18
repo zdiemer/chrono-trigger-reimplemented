@@ -132,24 +132,35 @@ static void choose_the_arrangement(GameState *g)
  * is out, the battlefield's arrangement follows. The slide's state is a
  * byte: 0 still, $FF about to slide in, positive sliding in, other negatives
  * sliding out. */
-enum { SLIDE_STILL = 0, SLIDE_STARTING_IN = 0xFF, SLIDE_OUT = 0x80, SLIDE_IN_STARTED = 1 };
+enum { SLIDE_IN_STARTED = 1, WINDOW_LINES = 0x17 };
 enum { BATTLEFIELD_ARRANGEMENT = 0, WINDOW_ARRANGEMENT = 2 };
 
-static bool sliding_out(uint8_t slide) { return (slide & SLIDE_OUT) != 0; }
+static bool sliding_out(uint8_t slide) { return (slide & BATTLE_SLIDE_OUT) != 0; }
 
-/* Where a slide ends: the arrangement changes, and a slide in allows the
- * pause again. */
-static void arrange_for(GameState *g, uint8_t arrangement)
+void battle_lay_the_lines_out_again(GameState *g)
+{
+    set_battle_alternate_apply(g, (uint8_t)(battle_alternate_apply(g) + 1));
+}
+
+void battle_arrange_the_lines(GameState *g, uint8_t arrangement)
 {
     set_battle_alternate_base(g, arrangement);
-    set_battle_alternate_apply(g, (uint8_t)(battle_alternate_apply(g) + 1));
+    battle_lay_the_lines_out_again(g);
+}
+
+/* A slide starts from the frame after this (BATTLE_SLIDE_STARTING_IN, or
+ * BATTLE_SLIDE_OUT). */
+void battle_start_the_slide(GameState *g, uint8_t slide)
+{
+    set_battle_window_slide_frames(g, WINDOW_LINES);
+    set_battle_window_slide(g, slide);
 }
 
 static void end_the_slide(GameState *g)
 {
     if (!sliding_out(battle_window_slide(g)))
         set_battle_pause_blocked(g, 0);
-    set_battle_window_slide(g, SLIDE_STILL);
+    set_battle_window_slide(g, BATTLE_SLIDE_STILL);
 }
 
 /* A line of the slide, in the per-line tables (battle/display.c). The frame
@@ -161,7 +172,7 @@ static void slide_a_line(Snes *s, bool out)
     uint8_t left = (uint8_t)(battle_window_slide_frames(g) - 1);
     set_battle_window_slide_frames(g, left);
     if (left == 0)
-        arrange_for(g, out ? BATTLEFIELD_ARRANGEMENT : WINDOW_ARRANGEMENT);
+        battle_arrange_the_lines(g, out ? BATTLEFIELD_ARRANGEMENT : WINDOW_ARRANGEMENT);
     if (left == 0 && out)
         end_the_slide(g);
 }
@@ -172,9 +183,9 @@ static bool slide_the_window(Snes *s)
 {
     GameState *g = state_of(s);
     uint8_t slide = battle_window_slide(g);
-    if (slide == SLIDE_STILL)
+    if (slide == BATTLE_SLIDE_STILL)
         return true;
-    if (slide == SLIDE_STARTING_IN) {
+    if (slide == BATTLE_SLIDE_STARTING_IN) {
         set_battle_alternate_base(g, BATTLEFIELD_ARRANGEMENT);
         NATIVE_TIME_AS(s, 0xCEEE6E, battle_arrange_line_effects(g, battle_alternate_latched(g)));
         battle_leave_arrangement_registers(s);
@@ -487,7 +498,7 @@ static void send_the_frame(Snes *s)
         NATIVE_TIME_AS(s, 0xCD3EB4, battle_send_queued_transfer(g, pf));
         return;
     }
-    if (battle_window_slide(g) == SLIDE_STILL)
+    if (battle_window_slide(g) == BATTLE_SLIDE_STILL)
         NATIVE_TIME_AS(s, 0xCD0607, battle_send_block_and_message_tiles(g, pf));
     NATIVE_TIME_AS(s, 0xCD3EB4, battle_send_queued_transfer(g, pf));
     if (!battle_paused(g))
@@ -589,7 +600,7 @@ static bool work_the_frame(Snes *s)
     vid_set_display(pf, PF_AT(0xCD0925), &display);
     if (!battle_scroll_the_layers(s) || !shake_the_screen(s))
         return false;
-    if (!(battle_frame_count(g) & 1) && battle_window_slide(g) == SLIDE_STILL)
+    if (!(battle_frame_count(g) & 1) && battle_window_slide(g) == BATTLE_SLIDE_STILL)
         choose_the_arrangement(g);
     if (!run_the_gradient(s))
         return false;
@@ -620,7 +631,7 @@ static bool finish_the_wait(Snes *s)
         return false;
     if (!battle_vram_request_busy(g)) {
         if (battle_background_restore_request(g) && !battle_effects_running(g)
-            && !battle_call(s, 0xCD04C4, 0xCD0453, READS_A_HIGH))
+            && !battle_run(s, 0xCD04C4, 0xCD0453, battle_put_the_battlefield_back))
             return false;
         if (battle_effect_graphics_wanted(g) && !battle_effect_graphics_loading(g)) {
             m_set_a8(s, battle_effect_graphics_effect(g));

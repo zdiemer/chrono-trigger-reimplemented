@@ -113,6 +113,11 @@ static inline uint8_t field_mirrored_byte(const GameState *g, uint8_t b) { retur
  * reads carry. */
 static inline uint8_t field_credits_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xFDA000u + at); }
 
+/* The credits' letters, packed (the unpacker's stream) at $FD:0000: the font
+ * the endings' credits are written in, which event $29 loads into BG3's
+ * tiles. */
+enum { FIELD_CREDITS_LETTERS_PACKED = 0xFD0000 };
+
 /* The blank tile map entries a row of BG3's staging is cleared with before a
  * credits line: 32 bytes at $D2:0000, the start of the sprite graphics' first
  * bank, which hold 0. */

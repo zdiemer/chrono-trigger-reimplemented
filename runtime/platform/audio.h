@@ -36,6 +36,7 @@ enum {
     AU_BEND_BOTH = 0x85,        /* p1 steps, p2 the tempo's and the pitch's modifiers both */
     AU_BEND_TEMPO = 0x86,       /* p1 steps, p2 the tempo's modifier: 0 as written, 1-127 faster, 128-255 slower */
     AU_BEND_EFFECTS_PITCH = 0x89, /* p1 steps, p2 the pitch modifier of the effect voices */
+    AU_SWITCH_EFFECTS = 0x70,   /* p1 nonzero: the battle's set of effects, at once; 0: the field's */
     AU_STOP_ALL = 0xF0,         /* the music and every effect */
     AU_STOP_EFFECTS = 0xF2,     /* p1 which pair of effect voices: 0 voices 6-7, 1 voices 4-5 */
     AU_FAST_FORWARD = 0xF6      /* p1 1: everything played fast (the driver's timer at 8 kHz); 0: back at its pace */
@@ -50,6 +51,13 @@ static inline void au_play_song(Platform *pf, PfOrigin o, uint8_t song)
 static inline void au_play_effect(Platform *pf, PfOrigin o, uint8_t effect, uint8_t pan)
 {
     au_command(pf, o, (AudioCommand){ .command = AU_START_EFFECT, .p1 = effect, .p2 = pan, .count = 2 });
+}
+
+/* Switch the set of sound effects the driver plays at once: the battle's, or
+ * the field's. */
+static inline void au_switch_effects(Platform *pf, PfOrigin o, bool battles)
+{
+    au_command(pf, o, (AudioCommand){ .command = AU_SWITCH_EFFECTS, .p1 = battles ? 1 : 0, .count = 1 });
 }
 
 /* Fade `what` (AU_FADE_*) to `volume` over `steps` steps (0: at once). */

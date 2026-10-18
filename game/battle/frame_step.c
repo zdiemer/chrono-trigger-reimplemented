@@ -19,6 +19,7 @@
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/message.h"
 #include "charge.h"
 #include "vars.h"
 
@@ -123,13 +124,12 @@ void battle_frame_step(Snes *s)
  * clears, and says the party can't escape. */
 enum { MESSAGE_CLEARED = 0xFF, MESSAGE_CANT_ESCAPE = 0x75 };
 
-/* The message routine ($CD:0027) reads the message in A's low byte. */
-enum { MESSAGE_READS = DC_AH | DC_X | DC_Y | DC_FLAGS };
-
+/* The message line's description ($CD:0027, battle/message.c) takes the
+ * message in A's low byte. */
 static bool show_message(Snes *s, uint32_t site, uint8_t message)
 {
     m_set_a8(s, message);
-    return battle_call_long(s, site, 0xCD0027, MESSAGE_READS);
+    return battle_run_long(s, site, 0xCD0027, battle_describe);
 }
 
 static bool refuse_to_run(Snes *s)

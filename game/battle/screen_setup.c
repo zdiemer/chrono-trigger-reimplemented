@@ -28,6 +28,7 @@
 #include "battle/message.h"
 #include "battle/screen_lines.h"
 #include "core/console.h"
+#include "field/sounds.h"
 #include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -285,8 +286,7 @@ static void keep_the_row_colors(GameState *g)
 }
 
 /* The original's calls out, by the site each is made from. */
-enum { SCROLL_MAP_LAYERS = 0xCD0C89, LOAD_START_SETTINGS = 0xCD0C9D,
-       START_BATTLE_MUSIC = 0xC00008, READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS };
+enum { SCROLL_MAP_LAYERS = 0xCD0C89 };
 
 // $D1:F1B0
 /* Set the screen up as a battle starts. False where a call-out didn't come
@@ -302,9 +302,12 @@ static bool set_the_screen_up(Snes *s)
        N and Z as the original's last store of the vectors leaves them, the
        line handler's stub's first byte */
     m_set_nz8(s, (uint8_t)irq_vector(g));
-    if (!battle_run_long(s, 0xD1F1D7, SCROLL_MAP_LAYERS, battle_scroll_map_layers)
-        || !battle_call_long(s, 0xD1F1DB, LOAD_START_SETTINGS, READS_NOTHING))
+    if (!battle_run_long(s, 0xD1F1D7, SCROLL_MAP_LAYERS, battle_scroll_map_layers))
         return false;
+    NATIVE_TIME_AS(s, 0xCD0C9D, battle_take_the_start_settings(g));
+    /* the start's settings leave the carry set, as their count of the scroll
+       tables' bands ends; the music's call below keeps it on the stack */
+    m_set_flag(s, CPU_FLAG_C, true);
     start_the_frame_work(g);
     start_the_effects(g);
     start_the_messages(g);
@@ -319,12 +322,12 @@ static bool set_the_screen_up(Snes *s)
     NATIVE_TIME_AS(s, 0xD1F83D, build_fade_tables(g));
     if (!battle_run_long(s, 0xD1F3FE, 0xCD0235, battle_clear_the_message_tiles_long))
         return false;
-    /* the music's start keeps the data bank, the page and the flags on the
-       stack around its call, where the original keeps them */
+    /* the battle's song (field/sounds.c) keeps the data bank, the page and
+       the flags on the stack around its call, where the original keeps them */
     m_push8(s, s->cpu.db);
     m_push16(s, s->cpu.d);
     m_push8(s, s->cpu.p);
-    if (!battle_call_long(s, 0xD1F405, START_BATTLE_MUSIC, READS_NOTHING))
+    if (!battle_run_long(s, 0xD1F405, FIELD_BATTLE_SONG_ENTRY, field_start_the_battle_song))
         return false;
     s->cpu.p = m_pull8(s);
     s->cpu.d = m_pull16(s);

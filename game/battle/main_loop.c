@@ -37,6 +37,7 @@
 #include "battle/combatant.h"
 #include "battle/enemy_scripts.h"
 #include "battle/entries.h"
+#include "battle/message.h"
 #include "battle/party_turns.h"
 #include "battle/random.h"
 #include "battle/rewards.h"
@@ -47,6 +48,7 @@
 #include "port/native.h"
 #include "rom.h"
 #include "vars.h"
+#include "wram.h"
 
 /* ---- The original's routines the loop calls ------------------------------------------------ */
 
@@ -56,9 +58,9 @@
 /* The loop's other callees in the original's code, named for what they do (as
  * far as that is worked out; docs/TODO.md). */
 enum {
-    CLEAR_TURN_STATE = 0xFDA982,     /* clear the turns' state */
+    CLEAR_TURN_WORK = 0xFDA982,      /* the turns' work cleared (below) */
     GIVE_GOLD = 0xC1D0A2,            /* the gold (Y) given */
-    SHOW_REWARDS = 0xFDAD17,         /* the rewards' messages */
+    SHOW_REWARDS = 0xFDAD17,         /* the rewards' messages (battle/rewards_messages.c) */
     GIVE_ITEM = 0xC1D005,            /* an item (Y) given */
     SHOW_MESSAGE = 0xCD0021,         /* a battle message */
     START_ACTION = 0xC1895B,         /* an action started (the running away, $79) */
@@ -107,7 +109,6 @@ enum {
     READS_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
     READS_A = DC_X | DC_Y | DC_FLAGS,
     READS_A_AND_OVERFLOW = DC_X | DC_Y | DC_N | DC_Z | DC_C,
-    READS_ALL_OF_A = DC_X | DC_Y | DC_N | DC_Z,
     READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_FLAGS,
     READS_Y_AND_OVERFLOW = DC_A | DC_X | DC_N | DC_Z | DC_C,
 };
@@ -144,6 +145,22 @@ static bool check_combinations(Snes *s, uint32_t site)
 }
 
 /* ---- The battle's start ------------------------------------------------------------------ */
+
+/* The battle's work on its turns, from $7E:AD89 to $B3F4: the action under
+ * way and its targets, the combatants' timers and their order, the enemies'
+ * scripts' places, the effects' tallies and the rewards' notes. It is every
+ * battle variable there rather than one the RAM map names, so it is cleared by
+ * address (game/wram.h). */
+enum { TURN_WORK_AT = 0x7EAD89, TURN_WORK_BYTES = 0xB3F5 - 0xAD89 };
+
+// $FD:A982
+/* Every battle starts with its turns' work cleared. The fill takes none of
+ * the port's own time, so the original's, a store a byte, is charged for it. */
+void battle_clear_the_turn_work(GameState *g)
+{
+    wram_fill8(g, TURN_WORK_AT, TURN_WORK_BYTES, 0);
+    ORIGINAL_EFFECT(charge_as(g, CLEAR_TURN_WORK, TURN_WORK_BYTES));
+}
 
 /* Where the battle's random numbers are drawn from its table: kept between
  * battles, and on the battle's page while it runs. */
@@ -269,8 +286,7 @@ static void put_demo_back(GameState *g)
 static bool start_battle(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!battle_call_long(s, 0xC18006, CLEAR_TURN_STATE, READS_NOTHING))
-        return false;
+    TIMED_AS(g, CLEAR_TURN_WORK, battle_clear_the_turn_work(g));
     take_random_position(g);
     /* the fight's start (battle/fight_start.c), run as C */
     if (!battle_run(s, 0xC18012, 0xC1FA8B, battle_start_fight_entry))
@@ -385,9 +401,9 @@ static bool leave_with_rewards(Snes *s)
     } else {
         s->cpu.a = battle_rewards_held(g);
     }
-    /* the messages take A along as the code before leaves it; the overflow
-     * they pass through to their own callee, which doesn't read it */
-    if (!battle_call_long(s, 0xC183F5, SHOW_REWARDS, READS_ALL_OF_A | DC_V))
+    /* the messages (battle/rewards_messages.c) take A's high byte clear, as
+     * the code before leaves it */
+    if (!battle_run_long(s, 0xC183F5, SHOW_REWARDS, battle_show_the_rewards))
         return false;
     stand_party_up(g);
     keep_party_records(g);
@@ -456,7 +472,7 @@ static bool run_away(Snes *s)
     TIMED_AS(g, 0xFDAA98, battle_count_enemies_out(g));
     /* the message in A, its high byte clear as the counting leaves it */
     s->cpu.a = RAN_AWAY_MESSAGE;
-    if (!battle_call_long(s, 0xC18203, SHOW_MESSAGE, READS_A))
+    if (!battle_run_long(s, 0xC18203, SHOW_MESSAGE, battle_show_a_battle_message))
         return false;
     clear_party_statuses(g);
     if (!battle_run(s, 0xC1820A, PARTY_STANDS_DOWN, battle_party_stands_down))
@@ -1049,6 +1065,12 @@ void battle_main_loop_start(Snes *s)
 }
 
 void battle_main_loop(Snes *s) { next_frame(s); }
+
+void battle_clear_the_turn_work_entry(Snes *s)
+{
+    battle_clear_the_turn_work(state_of(s));
+    m_rtl(s);
+}
 
 void battle_main_loop_body(Snes *s) { run_pass(s); }
 

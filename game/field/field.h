@@ -109,6 +109,16 @@ static inline void field_set_next_location(GameState *g, Location l)
     set_location_next_flags(g, l.how);
 }
 
+/* The next place becomes the party's, as a change of place is made (the main
+ * loop's, field/requests.c; a script's at once, event/locations.c). */
+static inline void field_move_to_the_next_place(GameState *g)
+{
+    set_location_id(g, location_next_id(g));
+    set_location_x(g, location_next_x(g));
+    set_location_y(g, location_next_y(g));
+    set_location_flags(g, location_next_flags(g));
+}
+
 /* field_map_transition: what the vblank sends of the layers' tile maps for
  * the main loop and the scripts, a send a frame (field/nmi.c). Its low bits
  * are a move, which sends the tile map staged in bank $7E to a layer's place

@@ -9329,3 +9329,205 @@ setup of the attract sequence's next scene (mode 1). Over 3,000 frames
 `$7E` (the attract sequence's scenes 1 and 3).
 
 **Timing.** Calibrated: the new entries. One exception: the jump, a stop with no access of its own, estimated at 0 against the original's 18 clocks.
+
+## Phase 4a, timing: the battle's waits and its transfer from the main thread (`$C1:007E`, `$CF:FCFB`, `$CD:3E3B`-`$CD:3E89`, `$CD:3ECE`-`$CD:3F9D`, `$CD:3E44`, `$CD:0036`, `$CD:044A`, `$CD:04DF`, `$CD:0235`-`$CD:025D`, `$CD:3B5F`)
+
+The second chunk of the timing service's stream (PLATFORM.md, "Timing without
+a beam, as built", has the calls, the runtime's wait and the host backend).
+
+**How it was chosen.** By `tools/fallbacks.py --by routine` over the reference
+play: after the time warp, the battle's waits were its largest handbacks --
+the wait for a line `$CD:3B82` 4.8 M instructions, the pause's turn `$CD:3E44`
+4.0 M and its long form `$CD:0036` 2.8 M, the frame wait `$C1:007E` 4.0 M, the
+return to the field's `$CF:FCFB` 1.9 M, the start's `$CD:044A` 0.8 M, the
+frame work's waits `$CD:3E7D`, `$CD:3E75` and `$CD:3E3B` 0.8 M -- with the
+work the waits do each frame, the message's letter `$CD:04DF` 1.3 M, the
+script's sound `$CD:3B5F` 1.1 M, and the transfer that waits on them
+`$CD:3ED2` 0.6 M; and the message tiles' clear `$CD:0239` 1.8 M, which the
+message's start makes. The battle's frame work was 19.9 M of the 60.3 M.
+
+**What it is.** A wait was a call-out to the original's routine, whose
+loop ran on the machine (in shadow mode, and as a pass in the shipping
+mode), so moving its callers onto `tm_wait_frame` alone would have retired
+nothing. The routines became ports (`battle/wait.c`), and what they wait on
+became the service's: a wait asks the vblank handler for something (the
+frame's update, the handler's frame, the small handler's) and calls
+`tm_wait_for_handlers` until it is answered, the pause given its turn on each
+pass as the original's loop gives it. That needed the runtime to let a port
+wait (`native_wait_loop`, PLATFORM.md). The wait for a line has no game work
+in it, so `tm_wait_line` waits in place itself (`native_wait_call`). The
+pause (`battle/sound.c`) sits a paused fight out a frame at a time through
+the same wait; the letter's typing and the tiles' clear are
+`battle/message.c`; the transfer is `battle/uploads.c`, behind the new
+`vid_send_vram_and_wait`, which the battlefield's change calls instead of the
+original's routine. The vars it named: `battle_alternate_frame_pending`
+(`$47`, the small handler's flag), `battle_vram_send_left`, `_last` and
+`_size`.
+
+**What shadow mode found.** Registers that flow out of the waits to their
+callers through the original's code: the typing leaves the message's speed in
+X and a bit of the settings in the carry, which the callers read (`$CD:04DF`'s
+entry derives them from the state); the transfer leaves A 1 and the carry its
+count's, likewise; the frame work's wait keeps A on the stack while it waits,
+so the transfer's A there had to be the original's (scaffolding, its
+`leave_what_the_wait_keeps`); and the message tiles' clear leaves the flags the
+battle's setup pushes. Comparing the port's X and Y at the wait points, where
+the menus' text code leaves its own, found nothing a reader reads: the wait
+points compare memory, S, the page and the bank, and the registers where
+something reads them. The pause's entry is reached on every pass of the
+original's loop and compared on its own each time, which makes the library's
+shadow runs about half as long again; the frame work's waits that a port runs
+as C are compared in that port's stretch and abandoned on their own, which
+`tools/uncompared.py`'s baseline records.
+
+**Fuzzing.** No interrupt comes under `ct_fuzz`, so a wait is compared up to
+its first pass (`--stop-at-call` at the loop's head, which `native_wait_loop`
+honours outside the runtime), or through it where the count it asks with
+wraps to 0; and a sibling the port runs as C (`battle_run`) is a real call
+of the original's wait there, which spins until the budget, so a state that
+reaches one is skipped. Seed 1, 20,000 states each, compared and mismatched:
+the frame wait 0 of 9,985 to its wait and 0 of 20,000 answered at once, the
+last frame's 0 of 20,000, the small handler's 0 of 20,000, the pause 0 of
+13,176 and its long form 0 of 6,578, the script's sound 0 of 14,870, the
+tiles' clear 0 of 20,000 (each form), the handler's wait 0 of 44, the next
+frame's 0 of 21, some frames' 0 of 5 and the letter 0 of 97 (the menus' text
+guard takes few random texts), the transfer 0 of 108; the callers changed,
+the frame wait's tail 0 of 14, the return to the field 0 of 16,509, the
+screen's setup 0 of 1,360 and the battlefield's five 0 of 71,296. The
+transfer's first run mismatched 4 of 108, a VRAM byte's low bit: the carry
+at its waits reached the original's typing of a message's letter, whose
+menus' text code reads it on texts the game never sets though liveness has
+it dead (`--poison-site` runs: 199 of 6,982 at the typing's call, 0 of
+17,684 at the menu's turn; docs/TODO.md). The shipping mode types the letter
+as C, which reads no carry, behind the menus' text guard that turns those
+texts away; the transfer leaves the original's carry anyway.
+
+**Measured.** Shadow mode over the 35 movies, 0 mismatching: the frame wait
+358,694 calls (2 interrupted), the letter 400,276 (806 interrupted: the
+vblank handler fell in the typing), the script's sound 357,611 (24), the
+transfer 10,657 (8) and its long form 403, the tiles' clear 2,487 (331) and
+37, the last frame's 200, the small handler's 78; the frame work's waits
+42,666, 37,244 and 17,735 calls, of which 37,244, 31,106 and 16,571 the
+original reaches inside an enclosing wait's stretch, compared there as that
+port's; the pause's entries 299.7 million calls, 299.2 million compared and 0.5 million interrupted. The
+reference play's fallbacks went from 60.3 M instructions to 36.2 M (the
+battle's frame work 19.9 M to 1.8 M, the battle's 4.7 M to 0.7 M, its
+sprites' 1.9 M to 12 K). The menu's turn `$C1:0012` counts 7% more and the
+message call `$CD:0021` 23% more: the measure left an idle loop's pass open
+after the loop, until the next pass through the same head with the same S
+took back what had run between, and the frame work's wait for the handler,
+an idle loop until this chunk, left its pass open across the menu's turn.
+`dev/fallbacks.c` closes a pass where its routine returns past the loop's
+level now: the library's total rose by 4.6 K instructions, the overworld's
+frame wait (`$C2:0346`, `$C2:0454`) taking less back.
+
+**Timing.** Calibrated (and the frame work's waits again once their nested
+calls were compared): the waits' `cost_milli` are their passes' (a pass
+is a few reads, which the original spends 40 to 100 clocks on), and the
+callers whose stretches now take the waits' work inline (the frame wait's
+tail, the battle's frame step) moved with them.
+
+## Phase 4a, timing: the battle frame work's remainders: the battle's close, the battlefield put back, the messages (`$CD:0006`-`$CD:0033`, `$CD:01B3`-`$CD:0310`, `$CD:039E`-`$CD:0453`, `$CD:04FD`-`$CD:0534`, `$CD:0C9D`-`$CD:0CF6`, `$CD:0D62`, `$CD:0DB1`-`$CD:0DD8`, `$CD:0E23`-`$CD:0E9D`, `$CD:3B71`)
+
+The third chunk of the timing service's stream, after the battle's waits
+(history file, "Phase 4a, timing: the battle's waits and its transfer from the
+main thread").
+
+**How it was chosen.** The battle's waits had moved the frame work's loops
+into ports, and the fallback measure's fix for unfinished comparisons (the
+curtain's section, below) then showed what they waited inside: the callers' call-outs ran the
+original's routines whose waits these are, the battlefield put back
+`$CD:0453` 20.7 M instructions of the reference play, the enemy's message
+`$CD:0033` 6.7 M, the battle's own messages `$CD:0021` 0.2 M and the display's
+close `$CD:0006` 0.2 M, with the boss's end `$CD:0DB1`, the colors kept
+`$CD:0E23` and the descriptions `$CD:0027`; the battle frame work's 30.9 M of
+the 52.2 M. Together with the start settings' copy they were nearly all of
+what `burndown.py --uncovered CD` still listed.
+
+**What it is.**
+- The battle's close (`battle/closing.c`, `$CD:03B4` through `$CD:0006`):
+  the battlefield put back if an effect drew over it, the music faded out
+  (`$CD:039E`) unless the event kept the field's song, the window slid away
+  (`$CD:0516`; its opening `$CD:04FD` through `$CD:000C` is the same slide the
+  other way, with its sound), and on an HP gradient's battlefield the boss's
+  end played out (`$CD:0DB1`, `$CD:0DD8`, `$CD:0D62`: the gradient settles,
+  two seconds held, the victory's battlefield and song); then the small vblank
+  handler fades the picture and the field's music comes back. The window's
+  slide test (`$CD:0534`) is a C predicate inside the waits.
+- The battlefield put back (`battle/battlefield_restore.c`, `$CD:0453`): the
+  battlefield's tiles sent again from the battle's copy, its own layer faded
+  back in (`$CD:0E61`, the fade `battlefield_change.c` already had, the other
+  way), the screen's settings back to the start's (`$CD:0CF6`, which the start
+  took, `$CD:0C9D`/`$CD:0CA1`), a quarter of a second to settle, and row 1's
+  last colors back (`$CD:0E23`); `$CD:0E9D` says whether the battlefield has a
+  layer of its own.
+- The messages (`battle/message.c`): the battle's own (`$CD:01B3` through
+  `$CD:0021`), held for the frames the message speed gives or until A; the
+  enemy's (`$CD:0295` through `$CD:0033`), which the vblank handler times; the
+  naming windows and descriptions typed a letter a frame (`$CD:02CB`,
+  `$CD:02D8`, `$CD:0310`), sharing the opening (`$CD:025E`), the setting out
+  (`$CD:027F`) and the pause (`$CD:020A`). The sound they and the window play
+  is `$CD:3B71` (`battle/sound.c`). Their callers in `$C1` and the frame work
+  call them as C (`battle_run`), and the two idle entries the close's music
+  waits had (`$CD:042B`, `$CD:0DB7`) are inside the ports now, retired.
+- Left out: the screen script runner's hand-back for a byte past the
+  language's last command (`$CD:165F`; no script has one); a battle lost on
+  the screen effects' battlefield (`$CD:0D93`, `$CD:0DA2`, a call-out from
+  `closing.c`; nothing reaches it); the beam wait `$CD:3B82`, which is the
+  timing service's `tm_wait_line` already, so an entry there would make the
+  service's call recurse into a port; and the jump stubs `$CD:0000`, `$CD:0012`
+  and `$CD:0039`.
+
+**What shadow mode and the gate found.** The window's slide test and its stub
+(`$CD:0534`, `$CD:0012`) were entries at first; the battle's window wait
+(`$C1:003C`, an idle loop) reaches them on every pass, and the measure counted
+the passes as their comparisons instead of taking them back, so they are not
+registered. The effects check's runs found the script's screen effect
+(`$C1:621B`) reading the cell `$53`, which the message calls leave as
+scaffolding (the frames held, the naming window's kind): it read all five
+settings before putting the given ones over them, so it now reads only the
+ones its command doesn't give. The start settings' copy leaves the carry set,
+which the battle music's call keeps on the stack. Most of the entries run only
+inside their callers' stretches, which compare them there: the enemy's message
+is compared alone once in 298 calls, the close and the window's close never
+(`tools/uncompared.py`'s baseline).
+
+**Fuzzing.** Seed 1 (`tools/fuzz_routines.toml`), 20,000 states each, each
+compared up to its first wait or transfer as the battle's waits are, or to a
+sibling that spans frames, which is fuzzed alone: 0 mismatched of 20,000 for
+the battlefield put back, the start settings and the start's screen put back,
+the fade back in, the layer test, the kept colors, the window's close, the
+boss's end and its settle, and both naming windows; the descriptions 0 of
+19,999, the window's opening 0 of 9,852, the sound 0 of 9,997, the change to
+the victory's battlefield 0 of 5,353 (9,214 turned away by its guard, a
+battlefield that doesn't fit), the opening 0 of 3,391 (16,609 a string from
+no table of the battle's), the pause 0 of 89 and the music's fade 0 of 38
+(the rest a letter being typed that the menus' text guard turns away), and
+the setting out none (that guard takes no random text). The three composites, the display's close, the
+battle's message and the enemy's, differ at their first sibling's call
+(19,985, 15,260 and 19,912 of 20,000) in registers only, A's low byte, X, Y
+and the flags the sibling declares dead, with memory equal in every state.
+The script's screen effect, which now reads only the settings its command
+doesn't give, 0 of 143 (the rest turned away by its guard).
+
+**Measured.** Shadow mode over the 35 movies, 0 mismatching: the colors'
+layer test 124,068 calls, the descriptions 6,156 (265 interrupted), the
+opening 2,450 (348), the naming window 1,912 (2) and with HP 90, the boss's
+settle 1,881, the kept colors 1,138, the start screen put back 523, the
+battlefield put back 486, the fade back in 326, the setting out 314, the
+enemy's message 298, the sound 113, the start settings 37, the window's opening
+37 and close 32, the display's close 32, the pause 33, the battle's messages
+17 (15 interrupted: each holds for frames), the music's fade 7, the boss's end
+and its change 3. The reference play's fallbacks went from 52.2 M
+instructions to 24.0 M (the battle frame work 30.9 M to 2.7 M: what is left
+there is `$CD:0024`, `$CD:010A` and `$CD:0154`, which the timers' dispatcher's
+call-outs reach). Two `open` lines are the movies' ends: `gato-battle` stops
+while the rewards' second message is up (`$CD:0021`, 1,083 instructions), and
+in `late-omen-terramutant` the timers' dispatcher's last call is still open
+(`$C1:8290`, 11,547 to 32,402 over the library): the enemy's message inside it,
+a call-out's callee before, is the dispatcher's own work now.
+
+**Timing.** Calibrated: the new entries, and with `--drifted` the callers
+whose stretches took the new ports' work in (the return to the field, the
+screen's setup, the timers' dispatcher, the battle's message), and the
+script's screen effect, which reads fewer cells now.

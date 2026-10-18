@@ -82,14 +82,14 @@ static ScriptFlow screen_effect(GameState *g, uint8_t first)
 {
     uint8_t count = screen_effect_settings_given(first);
     uint8_t settings[SCREEN_EFFECT_SETTINGS];
-    for (uint8_t k = 0; k < SCREEN_EFFECT_SETTINGS; k++)
-        settings[k] = battle_screen_effect_settings(g, k);
     for (uint8_t k = 0; k < count; k++) {
         uint8_t given = script_operand(g, 1u + k);
         set_battle_screen_effect_settings(g, k, given);
         if (k < SCREEN_EFFECT_SETTINGS)
             settings[k] = given;
     }
+    for (uint8_t k = count; k < SCREEN_EFFECT_SETTINGS; k++)
+        settings[k] = battle_screen_effect_settings(g, k);
     ORIGINAL_EFFECT(script_leave(g, LEFT_COUNTED, 0));
     ORIGINAL_EFFECT(script_leave(g, LEFT_COUNT, count));
     battle_set_screen_effect_to(g, settings);

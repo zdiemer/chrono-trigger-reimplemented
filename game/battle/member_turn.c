@@ -32,6 +32,7 @@
 #include "battle/combatant.h"
 #include "battle/enemy_actions.h"
 #include "battle/entries.h"
+#include "battle/message.h"
 #include "battle/party_turns.h"
 #include "battle/targets.h"
 #include "battle/rules_data.h"
@@ -332,7 +333,7 @@ enum { MESSAGE_ITEM_TAKEN = 0x03, MESSAGE_NOTHING_TO_TAKE = 0x0D };
 static bool show_message(Snes *s, uint32_t site, uint8_t message)
 {
     m_set_a8(s, message);
-    return battle_call_long(s, site, SHOW_MESSAGE, READS_A);
+    return battle_run_long(s, site, SHOW_MESSAGE, battle_show_a_battle_message);
 }
 
 // $C1:BC21

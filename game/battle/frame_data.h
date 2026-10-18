@@ -9,6 +9,7 @@
 #ifndef CT_GAME_BATTLE_FRAME_DATA_H
 #define CT_GAME_BATTLE_FRAME_DATA_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "rom.h"
@@ -42,6 +43,14 @@ static inline BattleQueuedTransfer battle_queued_transfer(const GameState *g, ui
 static inline uint8_t battle_message_frames_at_speed(const GameState *g, uint8_t speed)
 {
     return rom_read8(g, 0xCD019Du + (speed & 0x07u));
+}
+
+/* The sound each of the battle's own messages plays as it opens ($D1:EE99, a
+ * byte a message; BATTLE_MESSAGE_SILENT for none). */
+enum { BATTLE_MESSAGE_SILENT = 0xFF };
+static inline uint8_t battle_message_sound(const GameState *g, uint8_t message)
+{
+    return rom_read8(g, 0xD1EE99u + message);
 }
 
 /* ---- Blocks of rows ---------------------------------------------------------------------- */
@@ -194,9 +203,13 @@ static inline uint8_t battlefield_fade_kind(const GameState *g, uint8_t backdrop
 {
     return rom_read8(g, 0xCEEFFAu + backdrop_math);
 }
-static inline BattlefieldFade battlefield_fade(const GameState *g, uint8_t at)
+/* The fades by record: the plain battlefield's out, then back in; the HP
+ * gradient's from the fifth record. */
+enum { BATTLEFIELD_FADE_BYTES = 8, BATTLEFIELD_GRADIENT_FADES = 4 };
+static inline BattlefieldFade battlefield_fade(const GameState *g, bool gradient, bool back_in)
 {
-    uint32_t from = 0xCEEFFEu + at;
+    unsigned record = (gradient ? BATTLEFIELD_GRADIENT_FADES : 0) + (back_in ? 1 : 0);
+    uint32_t from = 0xCEEFFEu + record * BATTLEFIELD_FADE_BYTES;
     return (BattlefieldFade){ rom_read8(g, from), rom_read8(g, from + 1), rom_read8(g, from + 2), rom_read8(g, from + 3),
                               rom_read8(g, from + 4), rom_read8(g, from + 5), rom_read8(g, from + 6), rom_read8(g, from + 7) };
 }

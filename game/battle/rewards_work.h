@@ -57,6 +57,19 @@ static inline void set_record_long(GameState *g, Grower who, unsigned at, uint32
 static inline uint8_t grower_character(const GameState *g, Grower who) { return record_byte(g, who, STAT_ID); }
 static inline uint8_t grower_level(const GameState *g, Grower who) { return record_byte(g, who, STAT_LEVEL); }
 
+/* ---- What the rewards' messages show (battle/rewards_messages.c) ---------------------------------- */
+
+/* What a member's notes say it gained: a level (battle_rewards_levels_noted),
+ * and single techs, double techs or a triple tech (battle_rewards_techs_noted). */
+enum { NOTED_LEVEL_GAINED = 0x80 };
+enum { NOTED_SINGLE_TECHS = 0x08, NOTED_DOUBLE_TECHS = 0x04, NOTED_TRIPLE_TECH = 0x02 };
+
+/* A member's single techs have eight places in the messages' list. */
+enum { PLACES_A_MEMBER = 8 };
+
+/* No tech taught, in the messages' lists. */
+enum { NO_TECH = 0xFF };
+
 /* ---- The characters ------------------------------------------------------------------------ */
 
 /* A character's bit where the game keeps a bit a character, Crono's at the

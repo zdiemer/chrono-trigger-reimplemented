@@ -17,6 +17,10 @@
  *   tiles.c     decoding the battlefield's tiles for upload
  *   battlefield_change.c  changing the battlefield's BG3 layer for another,
  *               and loading an effect's rows of the battlefield's tiles
+ *   battlefield_restore.c  the screen the battle starts with, and putting
+ *               the battlefield back once the effects are over
+ *   closing.c   the window's opening and closing, and the display closed
+ *               down as the battle ends
  *
  * Their logic takes the game's state and the platform; what reaches the
  * original's code (the battle's routines still generated from the ROM) is in
@@ -30,6 +34,24 @@
 #include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
+#include "vars.h"
+
+/* ---- The window's arrangement and slide (frame.c) ------------------------------------------- */
+
+/* The battle lays its lines out in one of a few arrangements (battle_alternate_
+ * base: the window's, the battlefield's, those of the battle's end), which the
+ * line handler applies when it is asked (battle_alternate_apply counts the
+ * asks). Change the arrangement, or only have it applied anew (a message
+ * shown or closed, a screen script's rebase). */
+void battle_arrange_the_lines(GameState *g, uint8_t arrangement);
+void battle_lay_the_lines_out_again(GameState *g);
+
+/* The battle window's slide (battle_window_slide): still, about to slide in,
+ * or sliding out; a slide takes the window's 23 lines a line a frame. */
+enum { BATTLE_SLIDE_STILL = 0, BATTLE_SLIDE_STARTING_IN = 0xFF, BATTLE_SLIDE_OUT = 0x80 };
+void battle_start_the_slide(GameState *g, uint8_t slide);
+// $CD:0534
+static inline bool battle_window_sliding(const GameState *g) { return battle_window_slide_frames(g) != 0; }
 
 /* ---- scroll.c ------------------------------------------------------------------------------ */
 
@@ -120,6 +142,17 @@ void battle_turn_the_gradient(GameState *g);
 /* Decode `tiles` tiles of a row set of the battlefield's tiles into the
  * decode buffer, from its start. */
 void battle_decode_tiles(GameState *g, uint16_t row_set, uint16_t tiles);
+
+/* ---- battlefield_change.c, battlefield_restore.c -------------------------------------------- */
+
+/* Background row 1's last eight colors put back as the battle started them. */
+void battle_restore_kept_colors(GameState *g);
+/* Fade the battlefield's own layer out, as it leaves, or back in, as it is put
+ * back. */
+void battle_fade_battlefield_layer(GameState *g, bool back_in);
+/* The layers' maps and scroll and the screen's settings below the split, as
+ * the field hands them to the battle. */
+void battle_take_the_start_settings(GameState *g);
 
 /* ---- The guards (registry .guard) ------------------------------------------------------ */
 

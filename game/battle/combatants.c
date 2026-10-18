@@ -15,6 +15,7 @@
 #include "battle/effect_parts.h"
 #include "battle/effect_work.h"
 #include "battle/entries.h"
+#include "battle/message.h"
 #include "battle/rules_data.h"
 #include "battle/targets.h"
 #include "battle/timers.h"
@@ -465,7 +466,7 @@ static bool comes_back_shown(Snes *s, uint8_t member)
         return false;
     name_in_message(g, member);
     s->cpu.a = MESSAGE_CAME_BACK;
-    if (!battle_call_long(s, 0xC1B386, SHOW_MESSAGE, DC_X | DC_Y | DC_FLAGS))
+    if (!battle_run_long(s, 0xC1B386, SHOW_MESSAGE, battle_show_a_battle_message))
         return false;
     after_coming_back(g);
     return true;

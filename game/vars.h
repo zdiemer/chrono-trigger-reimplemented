@@ -2831,6 +2831,14 @@ enum { FIELD_OBJECT_SPRITE_HIGH_LAST_COUNT = 128 };   /* by object slot * 2, and
 uint8_t field_object_sprite_high_last(const GameState *g, unsigned slot);
 void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint8_t v);
 
+/* BG3's tiles, unpacked here before they are sent to VRAM $5000: the location's tile set's BG3
+ * block, or the credits' letters (event $29). They stay through a battle, which sends the
+ * location's back from here as it puts the battlefield back ($CD:0453) [3968 bytes, one at a
+ * time] */
+enum { FIELD_BG3_TILES_UNPACKED_BYTES = 3968 };
+uint8_t field_bg3_tiles_unpacked_byte(const GameState *g, unsigned at);
+void set_field_bg3_tiles_unpacked_byte(GameState *g, unsigned at, uint8_t v);
+
 /* ---- menu ---------------------------------------------------------------------------------- */
 
 /* Where the scheduler starts a task, from the task's record, which it jumps through ($C2:81FF) */
@@ -7869,8 +7877,10 @@ void set_battle_enemy_placement_frame(GameState *g, unsigned i, uint8_t v);
 uint32_t battle_enemy_placement_graphics(const GameState *g, unsigned i);
 void set_battle_enemy_placement_graphics(GameState *g, unsigned i, uint32_t v);
 
-/* Flags the event hands the battle with battle_setup_flags (event $D8's second operand): with
- * bit 6 the battle keeps the field's song ($CD:03CC) */
+/* The battle's terms, which the event hands it with battle_setup_flags (event $D8's second
+ * operand): bit 7 leaves the party where it stands afterwards, bit 6 keeps the field's song
+ * through the fight ($CD:03CC), bit 5 lets the field go on after a defeat (BATTLE_TERMS_*,
+ * battle/battle.h) */
 uint8_t battle_event_flags(const GameState *g);
 void set_battle_event_flags(GameState *g, uint8_t v);
 
@@ -12692,6 +12702,11 @@ void set_battle_pause_blocked(GameState *g, uint8_t v);
  * open twice */
 uint8_t battle_message_shown(const GameState *g);
 void set_battle_message_shown(GameState *g, uint8_t v);
+
+/* Id of the battle message being opened by id ($CD:02AA), which becomes battle_message_shown
+ * once its text is set */
+uint8_t battle_message_opening(const GameState *g);
+void set_battle_message_opening(GameState *g, uint8_t v);
 
 /* Frames counted by the debug frame advance, whose every fourth frame can run */
 uint8_t battle_frame_advance_count(const GameState *g);

@@ -7,6 +7,8 @@
  * field main loop carries it out, and the script waits on it meanwhile. A
  * battle is requested the same way, and the script waits until it is over. */
 #include "event/bridge.h"
+#include "core/console.h"
+#include "core/display.h"
 #include "event/variables.h"
 #include "field/field.h"
 
@@ -114,10 +116,10 @@ static EventFlow fight(GameState *g, uint8_t setup, uint8_t terms)
 EVENT_OPERATION(fight, setup, terms)
 
 // $C0:3B4B
-/* Go to another place at once. The rest -- waiting for vblank, blanking the
- * screen, keeping the location left and restarting the field at $C0:0000
- * with a fresh stack -- is the original's, from $C0:3B71, where nothing the
- * port could leave in the registers is read. */
+/* Go to another place at once: the place set as where the party goes next,
+ * then a wait for the vblank (the idle entry at $C0:3B71, field/frame.c,
+ * where nothing the port could leave in the registers is read) and the
+ * change made in the dark (below). */
 static void go_now(Snes *s, uint8_t opcode)
 {
     GameState *g = state_of(s);
@@ -125,6 +127,40 @@ static void go_now(Snes *s, uint8_t opcode)
     ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, c.map_and_how));
     set_location_as(g, WHERE_IT_GOES_NEXT, location_of(c.map_and_how, c.tile));
     m_stop_at_own(s, 0xC03B71, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+}
+
+/* The place the party is leaving, kept to come back to (the place it goes
+ * next then becomes where it is, field/field.h). */
+static void keep_the_place_left(GameState *g)
+{
+    set_location_previous_id(g, location_id(g));
+    set_location_previous_x(g, location_x(g));
+    set_location_previous_y(g, location_y(g));
+    set_location_previous_flags(g, location_flags(g));
+}
+
+/* The field starts again from its start, on the game's fresh stack, and
+ * loads the place the party is; it reads nothing of the registers. */
+enum { FIELD_STARTS = 0xC00000, THE_FIELD_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+// $C0:3B76 (after the wait for the vblank at $C0:3B71)
+/* The change made at once, in the dark: the screen blank and everything
+ * stopped, the place left kept, the place the command named made the party's,
+ * and the field started again on the game's fresh stack. The wait before it
+ * depends on timing, so it is not part of this: the original spins on the
+ * vblank interrupt's flag, racing its own vblank handler for it, and the
+ * wait's idle entry (field/frame.c) waits instead for what the loop is for,
+ * the vblank, through the timing service, one pass at a time on the machine
+ * (docs/TODO.md, "Frame waits still made on the machine"). */
+void event_go_now_in_the_dark(Snes *s)
+{
+    GameState *g = state_of(s);
+    display_go_dark(s);
+    keep_the_place_left(g);
+    field_move_to_the_next_place(g);
+    s->cpu.x = CONSOLE_STACK_TOP;
+    s->cpu.s = CONSOLE_STACK_TOP;
+    m_stop_at(s, FIELD_STARTS, THE_FIELD_READS_NOTHING);
 }
 
 void event_cmd_go_to_location_now(Snes *s) { go_now(s, 0xE1); }

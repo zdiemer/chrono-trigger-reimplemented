@@ -4406,6 +4406,15 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
+name = "event_go_now_in_the_dark"
+at = "C0:3B76"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 5000
+why = "the field's page (the guard), any place the party is and goes to"
+
+[[routine]]
 name = "event_cmd_go_to_location_now"
 at = "C0:3B4B"
 subsystem = "event"
@@ -5948,6 +5957,44 @@ subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00"]
 why = "any state: on to the scene engine with the field's close's scene"
+
+[[routine]]
+name = "field_play_the_switch_sound"
+at = "C0:1B90"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00,02,04,06,0C,1E,7E,80", "--fill", "7E0198-7E0198=00",
+        "--apu-loopback"]
+iterations = 5000
+why = "the field's page and data bank; the leader any object, or nobody (the marker, which the original reads as the slot past the tables), its slot's high byte clear (the guard takes a leader the original reads one for); the APU's ports echoing, so the driver's handshake ends"
+
+[[routine]]
+name = "field_play_the_chest_sound"
+at = "C0:1BA7"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00,02,04,06,0C,1E,7E,80", "--fill", "7E0198-7E0198=00",
+        "--apu-loopback"]
+iterations = 5000
+why = "as field_play_the_switch_sound"
+
+[[routine]]
+name = "field_blank_the_staging"
+at = "C0:75A0"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 2000
+why = "any state: the staging is blanked whatever it holds"
+
+[[routine]]
+name = "field_load_the_credits_letters"
+at = "C0:6E27"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 1000
+why = "the field's page and data bank (the guard); the unpacking and the send are the same from every state"
 
 [[routine]]
 name = "field_start_location_song"
@@ -18876,6 +18923,15 @@ iterations = 2000
 why = "a bank reaching the registers (the guard)"
 
 [[routine]]
+name = "warp_end"
+at = "FD:DA55"
+subsystem = "warp"
+state = "warp"
+args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+iterations = 2000
+why = "the warp's page with its zero (the guard); the four kinds' ends are the one entry"
+
+[[routine]]
 name = "warp_put_back_the_story_flags"
 subsystem = "warp"
 state = "warp"
@@ -19288,3 +19344,238 @@ args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E035
         "--fill", "7E0351-7E0351=00-1F", "--fill", "7E0352-7E0352=C4-C4", "--fill", "7E0353-7E0353=F1-F1",
         "--fill", "7E0354-7E0354=7E-7E"]
 why = "a frame task of the palace with the curtain; the curtain's state as the setup leaves it and its sweep makes it (the step is a port of its own, called through the machine)"
+
+# ---- battle: the messages, the window's opening and closing, the display's close (bank CD) -------
+# Each is compared up to its first wait or transfer (the frame work's waits and its send to VRAM,
+# which span frames; shadow mode compares the rest at each call).
+
+[[routine]]
+name = "battle_put_the_battlefield_back"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECA26-7ECA26=00-00", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "on the battle's page, no transfer queued; up to its first wait"
+
+[[routine]]
+name = "battle_take_the_start_settings"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "no input but the field's screen and scroll the battle starts with, any"
+
+[[routine]]
+name = "battle_take_back_the_start_screen"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "no input but the start's screen settings, any"
+
+[[routine]]
+name = "battle_fade_battlefield_layer_back_in"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "no input but the battle's start screens and background flags, any"
+
+[[routine]]
+name = "battle_has_a_layer_of_its_own"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "any battlefield"
+
+[[routine]]
+name = "battle_restore_kept_colors"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "any kept colors"
+
+[[routine]]
+name = "battle_close_the_display"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7ECA26-7ECA26=00-00", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2",
+        "--stop-at-call", "CD0453", "--stop-at-call", "CD039E", "--stop-at-call", "CD0516"]
+why = "on the battle's page; up to its first call of a step of its own (each spans frames, and is fuzzed alone)"
+
+[[routine]]
+name = "battle_open_the_window"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "on the battle's page; up to its first wait"
+
+[[routine]]
+name = "battle_close_the_window"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "on the battle's page; up to its first wait"
+
+[[routine]]
+name = "battle_fade_the_music_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "on the battle's page; the fade's command, up to its first wait"
+
+[[routine]]
+name = "battle_play_out_the_boss_end"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2",
+        "--stop-at-call", "CD039E"]
+why = "on the battle's page; up to the music's fade, which spans frames and is fuzzed alone"
+
+[[routine]]
+name = "battle_let_the_screen_settle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "on the battle's page; up to its first wait"
+
+[[routine]]
+name = "battle_change_to_the_battlefield"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "a battlefield in X; up to its first wait"
+
+[[routine]]
+name = "battle_play_a_sound"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "any sound and pan"
+
+[[routine]]
+name = "battle_show_a_battle_message"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2",
+        "--stop-at-call", "CD3B71", "--stop-at-call", "CD027F", "--stop-at-call", "CD020A", "--apu-loopback"]
+why = "any of the battle's messages, as the guard takes a string the menus' code can type; up to its first step that spans frames (each fuzzed alone), its sound played as C (the call where the sound's own preconditions don't hold), the APU's ports echoing so the driver's handshake ends"
+
+[[routine]]
+name = "battle_show_the_rewards"
+at = "FD:AD17"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--stop-at-call", "CD0021"]
+why = "any rewards and notes, A's high byte clear as the main loop calls it (the guard, which also turns away a member noted with double techs whose list has no end); up to the first message, which spans frames (fuzzed alone)"
+
+[[routine]]
+name = "battle_show_the_rewards"
+variant = "members"
+at = "FD:AD17"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--stop-at-call", "CD0021",
+        "--fill", "7EB2AF-7EB2AF=00", "--fill", "7EB30E-7EB30E=FF"]
+why = "the battle's own rewards none, so the first message is a member's (a level, a tech of each kind, or none told at all), the double techs' list ending by its last place so the guard takes every state; up to that message"
+
+[[routine]]
+name = "battle_clear_the_turn_work"
+at = "FD:A982"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "any state: the block is cleared whatever it holds"
+
+[[routine]]
+name = "field_start_the_battle_song"
+at = "C0:0008"
+subsystem = "field"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--apu-loopback"]
+iterations = 5000
+why = "any event terms (the field's song kept or not) and battle song, from the battle's page as its setup calls it; the APU's ports echoing, so the driver's handshake ends. Where the event keeps the field's song, the driver's switch of the effects' sets runs past the budget in about half the states (skipped: the driver's code, the same call in both)"
+
+[[routine]]
+name = "field_bring_the_music_back"
+at = "C0:000B"
+subsystem = "field"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7F01EC-7F01EC=00,01,02", "--apu-loopback"]
+iterations = 5000
+why = "a battle won, lost or past either, any event terms and song kept, from the battle's page as its close calls it; the APU's ports echoing, so the driver's handshake ends; skipped as field_start_the_battle_song's, where the event kept the field's song"
+
+[[routine]]
+name = "field_rebuild_the_line_effects"
+at = "C0:0005"
+subsystem = "field"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0126-7E0126=00,01,02"]
+iterations = 5000
+why = "any field tables and dialog window, its place one of the builders' three (the guard: past them the original jumps into bytes that aren't code), from the battle's vblank handler's page"
+
+[[routine]]
+name = "battle_show_an_enemy_message"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2",
+        "--stop-at-call", "CD027F"]
+why = "any enemy's message, as the guard takes a string the menus' code can type; up to setting it out, which spans frames (fuzzed alone)"
+
+[[routine]]
+name = "battle_name_a_combatant"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "any combatant, an enemy's message up or not, the same one asked before or not"
+
+[[routine]]
+name = "battle_name_a_combatant_with_hp"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "the same with the HP window"
+
+[[routine]]
+name = "battle_describe"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "any description, as the guard takes a string the menus' code can type"
+
+[[routine]]
+name = "battle_set_out_the_message"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "any budget of letters, a text the menus' code can go on with; up to its first wait"
+
+[[routine]]
+name = "battle_pause_on_the_message"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "on the battle's page; up to its first wait"
+
+[[routine]]
+name = "battle_open_the_message"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E020D-7E020D=11,C9,09",
+        "--fill", "7E020E-7E020E=EF,CB,3A", "--fill", "7E020F-7E020F=CE,CC"]
+why = "any string of the three tables the battle's messages come from (the guard takes only those), and one the menus' code can type"

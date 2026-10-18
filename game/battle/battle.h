@@ -26,11 +26,31 @@ static inline bool battle_slot_is_party(unsigned slot) { return slot < BATTLE_PA
  * the party. */
 enum { BATTLE_EMPTY_SLOT = 0x80 };
 
-/* How the battle ended (battle_result), which the field reads when it puts
- * the party back (field/battle_return.c). */
-typedef enum { BATTLE_WON_OR_RAN = 0, BATTLE_DEFEATED = 1 } BattleResult;
+/* How the battle ended (battle_result), which the battle's close and the
+ * field read as the party goes back (battle/closing.c, field/sounds.c,
+ * field/battle_return.c). The battle itself ends only won (or run from) or
+ * lost; the third is a script's, which sends the party back to the place it
+ * put aside (event $DC) once the battle is over. */
+typedef enum {
+    BATTLE_WON_OR_RAN = 0,
+    BATTLE_DEFEATED = 1,
+    BATTLE_BACK_TO_THE_PLACE_PUT_ASIDE = 2,
+} BattleResult;
 static inline BattleResult battle_how_it_ended(const GameState *g) { return (BattleResult)battle_result(g); }
 static inline void battle_ends(GameState *g, BattleResult result) { set_battle_result(g, (uint8_t)result); }
+
+/* The terms the event that starts a battle sets it (battle_event_flags,
+ * event $D8's second operand, event/locations.c): the party left where it
+ * stands afterwards (event/party.c); the field's song kept playing through the
+ * fight (battle/closing.c, field/sounds.c); and a defeat that doesn't end the
+ * game, the field going on, with its music, as after any other battle
+ * (field/battle_return.c, field/sounds.c). */
+enum {
+    BATTLE_TERMS_PARTY_STAYS_PUT = 0x80,
+    BATTLE_TERMS_KEEP_THE_FIELD_SONG = 0x40,
+    BATTLE_TERMS_DEFEAT_GOES_ON = 0x20,
+};
+static inline bool battle_terms(const GameState *g, uint8_t term) { return (battle_event_flags(g) & term) != 0; }
 
 /* An enemy's rule (battle_enemy_rule): its number in the low seven bits (0
  * none); the top bit is set once a script lifts the hold the rule's color

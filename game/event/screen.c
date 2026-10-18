@@ -11,6 +11,7 @@
  * interrupt steps them a frame at a time toward their target, and marks them
  * running (field/field.h, field_effect_status) until they arrive. */
 #include "event/bridge.h"
+#include "charge.h"
 #include "core/display.h"
 #include "core/palette.h"
 #include "field/field.h"
@@ -259,17 +260,17 @@ static void hold_bg3_for_the_credits(GameState *g)
 /* BG3's tile map two screens wide, or two screens tall (field_bg3_map_size). */
 enum { BG3_TWO_SCREENS_WIDE = 1, BG3_TWO_SCREENS_TALL = 2 };
 
-/* The original's routines the credits' choice calls: the credits' letters
- * loaded into BG3's tiles, and the layers' staging blanked. */
-enum { LOAD_THE_LETTERS = 0xC06E27, BLANK_THE_STAGING = 0xC075A0,
-       READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+/* What the credits' choice calls (field/script_layers.c): the credits'
+ * letters loaded into BG3's tiles, through the unpacker, and the layers'
+ * staging blanked. */
+enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 // $C0:3E84
 /* Choose which of the credits' texts BG3 shows next, and how BG3's tile map
  * is laid out for it: BG3 held for them, its letters loaded and the staging
- * blanked, by the original's routines. The original keeps the command's
- * offset on the stack over the calls, and reads its operand after them (the
- * letters are unpacked into bank $7F, beside the script). */
+ * blanked. The original keeps the command's offset on the stack over the
+ * letters' loading, and reads its operand after it (the letters are unpacked
+ * into bank $7F, beside the script). */
 void event_cmd_choose_credits(Snes *s)
 {
     GameState *g = state_of(s);
@@ -277,9 +278,9 @@ void event_cmd_choose_credits(Snes *s)
     BridgeMachine as = event_machine(s, false);
     m_push16(s, s->cpu.y);
     hold_bg3_for_the_credits(g);
-    if (!bridge_call(s, 0xC03E93, LOAD_THE_LETTERS, READS_NOTHING, as) ||
-        !bridge_call(s, 0xC03E96, BLANK_THE_STAGING, READS_NOTHING, as))
+    if (!field_run(s, 0xC03E93, FIELD_LOAD_THE_CREDITS_LETTERS_ENTRY, READS_NOTHING, field_load_the_credits_letters, as))
         return;
+    TIMED_AS(g, FIELD_BLANK_THE_STAGING_ENTRY, field_blank_the_staging(g));
     s->cpu.y = m_pull16(s);
     EventCommand c = event_command_of(s, 0x29);
     set_field_bg3_map_size(g, c.two_screens_tall ? BG3_TWO_SCREENS_TALL : BG3_TWO_SCREENS_WIDE);

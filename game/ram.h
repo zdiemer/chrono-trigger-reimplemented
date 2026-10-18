@@ -2123,6 +2123,10 @@
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST 0x7F4F80u
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST_COUNT 128u
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST_STRIDE 0x01u
+/* BG3's tiles, unpacked here before they are sent to VRAM $5000: the location's tile set's BG3
+ * block, or the credits' letters (event $29). They stay through a battle, which sends the
+ * location's back from here as it puts the battlefield back ($CD:0453) [3968 bytes] */
+#define RAM_FIELD_BG3_TILES_UNPACKED 0x7F5080u
 
 /* ---- menu ---------------------------------------------------------------------------------- */
 
@@ -5146,8 +5150,10 @@
 #define RAM_BATTLE_ENEMY_PLACEMENT_PALETTE 0x7E29C7u /* Sprite palette (doubled into $9888/$993C) */
 #define RAM_BATTLE_ENEMY_PLACEMENT_FRAME 0x7E29C3u /* The frame the enemy's object starts on */
 #define RAM_BATTLE_ENEMY_PLACEMENT_GRAPHICS 0x7E29C8u /* Long pointer to the enemy's graphics set. On the field, the first three people and creatures a map's scripts load note in the first three where in bank $7F their graphics were unpacked, the address alone (event $82, $C0:4645) */
-/* Flags the event hands the battle with battle_setup_flags (event $D8's second operand): with
- * bit 6 the battle keeps the field's song ($CD:03CC) */
+/* The battle's terms, which the event hands it with battle_setup_flags (event $D8's second
+ * operand): bit 7 leaves the party where it stands afterwards, bit 6 keeps the field's song
+ * through the fight ($CD:03CC), bit 5 lets the field go on after a defeat (BATTLE_TERMS_*,
+ * battle/battle.h) */
 #define RAM_BATTLE_EVENT_FLAGS 0x7E2A1Fu
 /* How the battle's background behaves: bit 0 the HP gradient runs each frame, bit 1 palette
  * animation slot 7 follows the sprite palette row swap */
@@ -8374,6 +8380,9 @@
 /* Id of the battle message last opened by id ($FF once it has closed), so the same one doesn't
  * open twice */
 #define RAM_BATTLE_MESSAGE_SHOWN 0x7ECE17u
+/* Id of the battle message being opened by id ($CD:02AA), which becomes battle_message_shown
+ * once its text is set */
+#define RAM_BATTLE_MESSAGE_OPENING 0x7ECE18u
 /* Frames counted by the debug frame advance, whose every fourth frame can run */
 #define RAM_BATTLE_FRAME_ADVANCE_COUNT 0x7ECE19u
 /* The byte after battle_frame_advance_count, which the battle's start clears with it as a word;
