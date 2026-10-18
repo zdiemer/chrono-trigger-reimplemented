@@ -9626,3 +9626,147 @@ screens' bridges call out to; the equipment screen's preview (`$C2:A5C3`);
 the endings' scenes' line effects (`$C6:E241`, `$C6:E27E`), which call the
 scene engine's unported `$C3:000E`; and the dactyl's flight, which
 `field-65m-bc-dactyl.ctm` (route `dactyl_65m_bc`) reaches now.
+
+## Phase 4a, the shipping mode's fallbacks: the save screen's frame among the slots and the battle's steps (`$C2:CFA2`, `$C1:0003`, `$C1:1FDD`)
+
+The menus' stream's fourteenth chunk (history file, "Phase 3, menus and
+overworld: the world map set up, its scenes' calls and the frame's input",
+for the one before), chosen by what the shipping mode's fallback measure (the movies and the
+routes) still ran as the original rather than by what the reference play
+does.
+
+**How it was chosen.** The last full gate's shipping mode ran 56.88 M
+instructions of the original's code over the movies, 51.4 M of it hand-backs,
+and 13.47 M over the routes. One line was two thirds of it: `C2:D506`, 38.1 M,
+the save point's save screen's choosing (`menu_choose_on_save_screen`)
+handing the rest of every frame to the original. In the shipping mode
+`endings-beyond-time` (33.3 M), `late-lavos` and `late-omen-zeal` (2.4 M each)
+drift onto a save point's save screen and sit there for 59,000 frames, and
+every one of those frames the original redrew the slot under the cursor
+(`$C2:CFA2`): three block moves, each byte an instruction, the slot's
+summary drawn when it holds a game and three uploads queued. No movie's
+reference play reaches the save point's screen, but the main menu's save
+screen jumps to the same routine (`$C2:CEFD`), which `menus-field-menu` and
+`menus-end-of-time` reach. The next lines, in order of gain, were the menus'
+object scripts' 1000 A.D. world map routines (`$C6:E7FA`-`$C6:EE22`, 7.3 M,
+none in any reference play), the menus' tasks' and vblank handler's own code
+under `C2:----` (5.6 M) and the battle's steps' dispatch (`C1:0003`, 1.1 M).
+
+**What it is.**
+- The save screen's frame among the slots (`menu/save_screen.c`,
+  `menu_move_among_the_slots`, `$C2:CFA2`): the cursor's slot noted as the
+  one shown and the one the rows' effect marks, a tick where the cursor came
+  to it from another, the rows' effect, the slot's tilemap and the era
+  label's rows cleared through their accessors (the load screen's frame,
+  `$C2:E743`, shares them), the slot's summary drawn where it holds a game by
+  `$C2:D36C`'s logic called as C and timed as it (`menu_draw_the_slot_shown`,
+  which the load screen's frame and opening and the save point's panel call
+  so too), and the three uploads queued in the save screen's order (the
+  tilemap's second part before its first, where the load screen's frame
+  queues the first before the second; each goes to its own place in video
+  memory and the vblank sends the queue whole, so only the queue's records
+  in work RAM tell the two orders apart). The save point's choosing
+  (`$C2:D506`) calls it as C where its guard's condition holds; the main
+  menu's save screen still reaches it through the original's jump. The
+  slot's drawing's guard (`slot_is_drawable`) now also asks the summary's
+  location to be a place's number, as the summary's reading masks it: past
+  that the era's lookup runs off its table into bank `$00`, which fuzzing of
+  the choosing on the cartridge's own screen reached as soon as the frame
+  was C (631 of 1,981 mismatching, the era label drawn where the original's
+  read past the table and drew none); the fuzz rows with random summaries
+  keep their locations' high bytes to 0-1.
+- The battle's steps (`battle/steps.c`, `battle_run_a_step`, `$C1:0003`):
+  the step the accumulator names, through a C table of the ten steps'
+  routines, with the asker's accumulator and index registers kept on the
+  stack under the step's call (`battle_keeping_the_registers`, a
+  `BattleFrame` of five bytes) and given back after. Four steps are ports and
+  run as siblings (the frame's work, an action's showing, the target search
+  and now the area search); the other six are call-outs to the original. The
+  ports that ask for steps (the main loop's, a member's action called off,
+  the party standing down, the knocked-out enemies seen to) run it as C
+  (`battle_take_step`) where the runtime would run its port, and make the
+  original's call otherwise. The asker's X and Y it keeps on the stack under
+  the step are declared dead while they stay there (`native_stack_dont_care`,
+  docs/PORTING.md) where the asker's call declares the registers so, which
+  `tools/dontcare_check.py` checks as the call's.
+- The area search as step 7 (`battle/area_search.c`, `battle_find_the_noted_area`,
+  `$C1:1FDD`): the search already C (`battle_find_area`), entered with the
+  area its asker noted in the search's cells, one body with the targeting's
+  search (`$C1:C741`), which notes the shape and asks for the step. Without it the dispatch's
+  call-out to the original's search was counted as hand-back inside the
+  targeting's port, whose own C does the search (10.5 K instructions of new
+  lines in the reference play, gone with the entry).
+- The routes' fallback count is over the frames each run kept
+  (`tools/movies/ctdrv.py`, `Machine.count_kept_frames`): as a run ends, its
+  kept input is played again from its start by a `ct_drive` that counts, so
+  the player search's probes, the attempts a restore undid and the frames a
+  load replays from a base are no longer counted, and a run resumed from a
+  checkpoint is counted from its start (REIMPLEMENTATION.md, "The fallback
+  measure"). The replay must end on the run's frame with the run's work RAM,
+  or the run fails rather than count another; so do frames run with no
+  buttons kept (a probe no restore undid, a state loaded with no input beside
+  it). It costs a replay of each route's kept frames, seconds for the short
+  routes, under a timeout of its own.
+- Left out: the menus' vblank handler's entry and exit (`$C2:840E`-`$C2:8429`,
+  `$C2:8466`-`$C2:8471`), written whole and taken back, because the handler
+  moves to a stack above the interrupted one and shadow mode takes a stack
+  above an entry's for its return (every call mismatched at its first
+  call-out); the tasks' loops (`$C2:826C`, `$C2:E91B`), which yield every pass
+  and would hold a comparison open for a whole screen; the 1000 A.D. world
+  map's Mode 7 routines, which only the shipping mode's drift reaches and
+  would rest on fuzzing alone; the main menu's save screen's steps and the
+  save itself (`$C2:CEDC`-`$C2:CF92`, 0.2 M); and, as the brief asked, the
+  scene program's lines, `C0:0002` and the `$CD` lines (TODO.md for each).
+
+**What shadow mode and fuzzing found.** Over the 35 movies, 0 mismatching:
+`menu_move_among_the_slots` 418 calls, all compared; `battle_run_a_step`
+29,986, of which 28,260 are compared inside the ports that ask for steps, 714
+on their own and 1,009 interrupted (the steps that wait for frames, which
+fuzzing compares at the step's call); `battle_find_the_noted_area` 46 (4
+interrupted). The frame's work's own calls (`battle_wait_step`, 27,547) are
+compared inside the dispatch's, as its sibling; the uncompared lines of both
+say so (`tools/uncompared_baseline.txt`). The
+don't-care check found that the steps' routines may read the overflow the
+asker leaves (the frame's work and an action's showing, by a target set
+decided at run time), so the dispatch passes it on untouched rather than
+declaring it; and that A's high byte is read after the area search's
+return, which its declaration now compares. **Fuzzing** (seed 1,
+`tools/fuzz_routines.toml`): the frame among the slots 0 of 4,724 (276 turned
+away), the choosing that now runs it 0 of 2,000, the slot's drawing 0 of
+1,894 and the load screen's frame 0 of 1,894 with the locations kept to
+places; the dispatch 0 of 5,000 compared at each of the ten steps' calls
+(`ct_fuzz` takes twelve `--stop-at-call`s now, from eight); the area search
+step 0 of 5,000.
+
+**Measured.** The shipping mode over the movies: 10.9 KiB of code and 18.70
+M instructions in place of hand ports, from 11.0 KiB and 56.88 M (the save
+point's choosing's line 38.1 M to 3,228 instructions, the save itself, which
+it still hands back); over the routes, counted over the frames they keep, 6.7
+KiB and 5.50 M, from 13.47 M counted over every frame they ran. The
+reference play: 19.6 KiB and 22.24 M, from 22.83 M (`C1:0003` 0.32 M to 45
+instructions; `C2:----` 3.65 M to 3.38 M). No line rose there; the line
+`open C1:0003` is new, what an action's showing's and the frame's work's open
+comparisons hid at a movie's end (`open C1:4058`, `open C1:106E`), under the
+dispatch's comparison now that they run as its siblings. In the shipping
+mode `endings-telepod-lavos` rose at first, from 3.29 M to 8.29 M: the
+dispatch's estimate (its value calibrated on its siblings' stretches) ended
+a frame of the Lavos shell fight one pass early, the party lost and went
+back to the title, and the presses opened New Game's name entry, where the
+menus' task loop and vblank entry run every frame (`C2:----` 3.76 M,
+`7E:0500` 1.25 M). With the steps' siblings measured on their own stretches
+(Timing, below) it plays to its end again, 3.26 M. (The route count's
+replay was checked by hand on the `telepod_lavos` route: the same outcome at
+the same frame, 134,547, with byte-identical work RAM; every route's count
+checks that now.) The review's answers moved the others: over the movies 20.83 M (from 18.70 M),
+`endings-bucket-lavos` 0.40 M to 7.00 M, whose battle near frame 15,000 now
+runs its passes ahead and goes on to a menu screen and the 1000 A.D. world
+map's event; under `--port-timing oracle` both builds play it the same, and
+both estimated runs already leave the original's timing before frame 8000.
+Over the routes 5.43 M (from 5.50 M).
+
+**Timing.** Calibrated (`--drifted`): the new entries, the load screen's
+frame and the choices round it, and the steps' siblings, measured on their
+own stretches (`native_time_as_sibling`, "The timing gate"): an action's
+showing 9781 to 18,841 (17,617 before the dispatch was a port), whose
+worst-stretch exception is its own again, and the dispatch 94,180 to 2367,
+which has none now.

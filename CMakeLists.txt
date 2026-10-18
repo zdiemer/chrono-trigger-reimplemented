@@ -207,6 +207,7 @@ add_library(ct_game STATIC
   game/menu/tiles.c
   game/menu/typeset.c
   game/menu/top_layer.c
+  game/menu/turning_world.c
   game/menu/vram.c
   game/menu/wave.c
   game/menu/windows.c

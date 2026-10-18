@@ -2301,149 +2301,125 @@ shipping mode over the movies and the routes, from 26.2 KiB and 391 million to
 (`--drifted`); the map's building from its six whole stretches, and the
 clear, which no stretch of the library completes, from its loop.
 
-### Phase 4a, the shipping mode's fallbacks: the save screen's frame among the slots and the battle's steps (`$C2:CFA2`, `$C1:0003`, `$C1:1FDD`)
+### Phase 4a, the shipping mode's fallbacks, chunk 2: the menus' vblank handler whole, and the Day of Lavos's turning world (`$C2:840E`-`$C2:8471`, `$C6:E7FA`-`$C6:EE30`)
 
-The menus' stream's fourteenth chunk (history file, "Phase 3, menus and
-overworld: the world map set up, its scenes' calls and the frame's input",
-for the one before), chosen by what the shipping mode's fallback measure (the movies and the
-routes) still ran as the original rather than by what the reference play
-does.
+The menus' stream's fifteenth chunk (history file, "Phase 4a, the shipping
+mode's fallbacks: the save screen's frame among the slots and the battle's
+steps", for the one before), again chosen by what the shipping mode still ran
+as the original.
 
-**How it was chosen.** The last full gate's shipping mode ran 56.88 M
-instructions of the original's code over the movies, 51.4 M of it hand-backs,
-and 13.47 M over the routes. One line was two thirds of it: `C2:D506`, 38.1 M,
-the save point's save screen's choosing (`menu_choose_on_save_screen`)
-handing the rest of every frame to the original. In the shipping mode
-`endings-beyond-time` (33.3 M), `late-lavos` and `late-omen-zeal` (2.4 M each)
-drift onto a save point's save screen and sit there for 59,000 frames, and
-every one of those frames the original redrew the slot under the cursor
-(`$C2:CFA2`): three block moves, each byte an instruction, the slot's
-summary drawn when it holds a game and three uploads queued. No movie's
-reference play reaches the save point's screen, but the main menu's save
-screen jumps to the same routine (`$C2:CEFD`), which `menus-field-menu` and
-`menus-end-of-time` reach. The next lines, in order of gain, were the menus'
-object scripts' 1000 A.D. world map routines (`$C6:E7FA`-`$C6:EE22`, 7.3 M,
-none in any reference play), the menus' tasks' and vblank handler's own code
-under `C2:----` (5.6 M) and the battle's steps' dispatch (`C1:0003`, 1.1 M).
+**How it was chosen.** The last gate's shipping mode ran 26.27 M instructions
+of the original's code over the movies and the routes (20.83 M and 5.43 M).
+Its two largest pieces were the menus' vblank handler and the 1000 A.D. world
+map's event. The handler's own code was 5.6 M of it, less than the whole `C2:----`
+line (7.7 M) it was taken for: its entry (`$C2:840E`-`$C2:8420`, filed under the `$0500` stub's
+hand-back, `7E:0500`, 2.38 M), the rest of the entry and the exit after the
+stack moves (`$C2:8421`-`$C2:8429`, `$C2:8467`-`$C2:8471`, 2.98 M of the
+`C2:----` line) and the exit's first pull, after `menu_nmi_work`'s stop
+(`C2:842A`, 0.2 M), each run 198,549 times. The rest of `C2:----` is the
+menus' task loop and the records' sprite task (`$C2:826C`, 3.5 M; `$C2:E91B`,
+0.6 M), which TODO.md keeps for the tasks as fibers. The world map event's
+routines (`C6:E9F5`, `C6:EDE1`, `C6:E8C7`, `C6:E7FA`, 7.25 M) ran only in the
+three endings' shipping runs, identically in each: each drifted into losing
+the Lavos fight, and a loss to Lavos plays the Day of Lavos.
+
+**The runtime: an interrupt entry's comparison ends at its RTI**
+(PORTING.md, "Interrupt handlers"). The handler moves to its own stack above
+the interrupted code's, and shadow mode took S rising above an entry's for its
+return, so a port of it was compared as returned at the move. An entry flagged
+`.interrupt` is now followed to the original's RTI instead, and where S jumps
+further in a step than an instruction pushes or pulls the popped region starts
+again on the new stack (the stack it left keeps its own), so the bytes between
+the two stacks are compared rather than taken as popped. Only flagged entries
+see either change. `shadow_test` has a handler that moves to its own stack:
+matched with the flag, a mismatch without it, a wrong count and a stray write
+between the stacks caught, and the dead bytes it pushes and pulls on the
+stack it leaves not compared (without the left region they mismatched; without
+the low mark's restart the stray write passed). The fallback measure and the
+fuzzer follow the same calls (a held extent in `dev/fallbacks.c`, the popped
+region in `dev/fuzz.c`; `ct_fuzz --s` and `--jump`). **Evidence that nothing
+else moved:** over main's 35 movies, every (movie, entry) line of the shadow
+reports but `menu_nmi_work`'s and the new entries' is identical to main's
+gate, 71,540 of them; `menu_nmi_work` has the same 47,347 calls, all matched
+there and here.
 
 **What it is.**
-- The save screen's frame among the slots (`menu/save_screen.c`,
-  `menu_move_among_the_slots`, `$C2:CFA2`): the cursor's slot noted as the
-  one shown and the one the rows' effect marks, a tick where the cursor came
-  to it from another, the rows' effect, the slot's tilemap and the era
-  label's rows cleared through their accessors (the load screen's frame,
-  `$C2:E743`, shares them), the slot's summary drawn where it holds a game by
-  `$C2:D36C`'s logic called as C and timed as it (`menu_draw_the_slot_shown`,
-  which the load screen's frame and opening and the save point's panel call
-  so too), and the three uploads queued in the save screen's order (the
-  tilemap's second part before its first, where the load screen's frame
-  queues the first before the second; each goes to its own place in video
-  memory and the vblank sends the queue whole, so only the queue's records
-  in work RAM tell the two orders apart). The save point's choosing
-  (`$C2:D506`) calls it as C where its guard's condition holds; the main
-  menu's save screen still reaches it through the original's jump. The
-  slot's drawing's guard (`slot_is_drawable`) now also asks the summary's
-  location to be a place's number, as the summary's reading masks it: past
-  that the era's lookup runs off its table into bank `$00`, which fuzzing of
-  the choosing on the cartridge's own screen reached as soon as the frame
-  was C (631 of 1,981 mismatching, the era label drawn where the original's
-  read past the table and drew none); the fuzz rows with random summaries
-  keep their locations' high bytes to 0-1.
-- The battle's steps (`battle/steps.c`, `battle_run_a_step`, `$C1:0003`):
-  the step the accumulator names, through a C table of the ten steps'
-  routines, with the asker's accumulator and index registers kept on the
-  stack under the step's call (`battle_keeping_the_registers`, a
-  `BattleFrame` of five bytes) and given back after. Four steps are ports and
-  run as siblings (the frame's work, an action's showing, the target search
-  and now the area search); the other six are call-outs to the original. The
-  ports that ask for steps (the main loop's, a member's action called off,
-  the party standing down, the knocked-out enemies seen to) run it as C
-  (`battle_take_step`) where the runtime would run its port, and make the
-  original's call otherwise. The asker's X and Y it keeps on the stack under
-  the step are declared dead while they stay there (`native_stack_dont_care`,
-  docs/PORTING.md) where the asker's call declares the registers so, which
-  `tools/dontcare_check.py` checks as the call's.
-- The area search as step 7 (`battle/area_search.c`, `battle_find_the_noted_area`,
-  `$C1:1FDD`): the search already C (`battle_find_area`), entered with the
-  area its asker noted in the search's cells, one body with the targeting's
-  search (`$C1:C741`), which notes the shape and asks for the step. Without it the dispatch's
-  call-out to the original's search was counted as hand-back inside the
-  targeting's port, whose own C does the search (10.5 K instructions of new
-  lines in the reference play, gone with the entry).
-- The routes' fallback count is over the frames each run kept
-  (`tools/movies/ctdrv.py`, `Machine.count_kept_frames`): as a run ends, its
-  kept input is played again from its start by a `ct_drive` that counts, so
-  the player search's probes, the attempts a restore undid and the frames a
-  load replays from a base are no longer counted, and a run resumed from a
-  checkpoint is counted from its start (REIMPLEMENTATION.md, "The fallback
-  measure"). The replay must end on the run's frame with the run's work RAM,
-  or the run fails rather than count another; so do frames run with no
-  buttons kept (a probe no restore undid, a state loaded with no input beside
-  it). It costs a replay of each route's kept frames, seconds for the short
-  routes, under a timeout of its own.
-- Left out: the menus' vblank handler's entry and exit (`$C2:840E`-`$C2:8429`,
-  `$C2:8466`-`$C2:8471`), written whole and taken back, because the handler
-  moves to a stack above the interrupted one and shadow mode takes a stack
-  above an entry's for its return (every call mismatched at its first
-  call-out); the tasks' loops (`$C2:826C`, `$C2:E91B`), which yield every pass
-  and would hold a comparison open for a whole screen; the 1000 A.D. world
-  map's Mode 7 routines, which only the shipping mode's drift reaches and
-  would rest on fuzzing alone; the main menu's save screen's steps and the
-  save itself (`$C2:CEDC`-`$C2:CF92`, 0.2 M); and, as the brief asked, the
-  scene program's lines, `C0:0002` and the `$CD` lines (TODO.md for each).
+- The menus' vblank handler (`menu/display.c`): its entry, `menu_nmi_enter`
+  (`$C2:840E`), keeps the interrupted code's registers on its stack, notes the
+  stack (`menu_interrupted_stack`, `$7E:1DFE`, new in the map), moves to the
+  handler's own at `$1DFD` and its page, and stops where its work's port
+  begins; the work, `menu_nmi_work` (`$C2:842A`), now ends with the exit,
+  everything put back and the RTI. Two entries rather than one because the
+  work's is a port of its own with call-outs at the handler's sites: a whole
+  handler port would have set its comparisons aside at its first call. The
+  register mechanics are machine helpers (`m_enter_handler_stack`,
+  `m_leave_handler_stack`, `runtime/port/machine.h`); the work's guard asks for
+  the stack its entry built and an interrupted stack below the handler's page.
+- The Day of Lavos's turning world (`menu/turning_world.c`, a new file): the
+  1000 A.D. world map drawn as a Mode 7 picture (`menu_object_draw_the_world`,
+  `$C6:E7FA` with `$C6:E8C7`; the picture's pixels shared with the Epoch's map
+  view in `menu/map_picture.h`), the matrix put on line-effect slots 2-5 and
+  the turn set up (`menu_object_start_the_world_turning`, `$C6:E90F`), each
+  frame's matrix a line pair at a time in perspective with the plane's centre
+  and scroll (`menu_object_turn_the_world`, `$C6:E9F5` with `$C6:EDE1`), and
+  the angle moved by the turn the frame hands on in a cell
+  (`menu_object_turn_the_world_on`, `$C6:EE23`). The sine and cosine are the
+  menus' (`menu_sine`, `menu_data.h`, now the Epoch's too); slots 4 and 5's
+  tables and the object's turning fields are new in the map.
+- A reference for it: the route `lavos_lost` (`tools/movies/routes/`, sharing
+  `telepod_lavos`'s way to the shell) loses the shell's fight from the
+  technoplaza fair save and plays the Day of Lavos to the globe;
+  `battle-lavos-gameover.ctm` (16,192 frames) is in the library, so shadow
+  mode compares the event, and it reaches no refusal.
+- Left out: the menus' task loops (above); `$C6:EE31`, which nothing in the
+  library calls; and, as the brief asked, the scene program's lines (the
+  globe's `7E:6439` and `7E:65DD` among them), the `$CD` lines and `C0:0002`.
 
-**What shadow mode and fuzzing found.** Over the 35 movies, 0 mismatching:
-`menu_move_among_the_slots` 418 calls, all compared; `battle_run_a_step`
-29,986, of which 28,260 are compared inside the ports that ask for steps, 714
-on their own and 1,009 interrupted (the steps that wait for frames, which
-fuzzing compares at the step's call); `battle_find_the_noted_area` 46 (4
-interrupted). The frame's work's own calls (`battle_wait_step`, 27,547) are
-compared inside the dispatch's, as its sibling; the uncompared lines of both
-say so (`tools/uncompared_baseline.txt`). The
-don't-care check found that the steps' routines may read the overflow the
-asker leaves (the frame's work and an action's showing, by a target set
-decided at run time), so the dispatch passes it on untouched rather than
-declaring it; and that A's high byte is read after the area search's
-return, which its declaration now compares. **Fuzzing** (seed 1,
-`tools/fuzz_routines.toml`): the frame among the slots 0 of 4,724 (276 turned
-away), the choosing that now runs it 0 of 2,000, the slot's drawing 0 of
-1,894 and the load screen's frame 0 of 1,894 with the locations kept to
-places; the dispatch 0 of 5,000 compared at each of the ten steps' calls
-(`ct_fuzz` takes twelve `--stop-at-call`s now, from eight); the area search
-step 0 of 5,000.
+**What shadow mode and fuzzing found.** Over the 36 movies, 0 mismatching:
+`menu_nmi_enter` and `menu_nmi_work` 48,055 calls each, all compared to the
+RTI; `menu_object_turn_the_world` 249 (one interrupted, inside the start),
+`menu_object_turn_the_world_on` 234; the drawing and the start once each, both
+interrupted (each runs past a vblank), so they rest on fuzzing. Shadow mode
+found the product register the divider's remainder shares (the multiply comes
+last), and that the start falls into the frame with a 16-bit accumulator,
+which the frame's precondition now takes rather than refusing. **Fuzzing**
+(seed 1, `tools/fuzz_routines.toml`): the handler's entry 0 of 20,000, and 0 of
+20,000 interrupting 8-bit registers; the work 0 of 1,669 to its RTI (331 whose
+random callees don't return), from its own stack (`--s 1DF8 --jump`) with an
+interrupted stack anywhere below the handler's page (fuzzing first found an
+interrupted stack inside the handler's own reading what the ports among the
+callees don't push, which the guard now refuses); the drawing 0 of 131 with random planes (169
+turned away: planes in low RAM, which the original reads changing under it as
+it keeps its cells and return there) and 0 of 300 with the scene's planes;
+the start 0 of 2,000; the frame 0 of 20,000, and again with a 16-bit
+accumulator, the tilt one of the table's 24 (its guard refuses any other,
+which no scene sets: the original's index reads on into the code after the
+table); the turn 0 of 2,000.
 
-**Measured.** The shipping mode over the movies: 10.9 KiB of code and 18.70
-M instructions in place of hand ports, from 11.0 KiB and 56.88 M (the save
-point's choosing's line 38.1 M to 3,228 instructions, the save itself, which
-it still hands back); over the routes, counted over the frames they keep, 6.7
-KiB and 5.50 M, from 13.47 M counted over every frame they ran. The
-reference play: 19.6 KiB and 22.24 M, from 22.83 M (`C1:0003` 0.32 M to 45
-instructions; `C2:----` 3.65 M to 3.38 M). No line rose there; the line
-`open C1:0003` is new, what an action's showing's and the frame's work's open
-comparisons hid at a movie's end (`open C1:4058`, `open C1:106E`), under the
-dispatch's comparison now that they run as its siblings. In the shipping
-mode `endings-telepod-lavos` rose at first, from 3.29 M to 8.29 M: the
-dispatch's estimate (its value calibrated on its siblings' stretches) ended
-a frame of the Lavos shell fight one pass early, the party lost and went
-back to the title, and the presses opened New Game's name entry, where the
-menus' task loop and vblank entry run every frame (`C2:----` 3.76 M,
-`7E:0500` 1.25 M). With the steps' siblings measured on their own stretches
-(Timing, below) it plays to its end again, 3.26 M. (The route count's
-replay was checked by hand on the `telepod_lavos` route: the same outcome at
-the same frame, 134,547, with byte-identical work RAM; every route's count
-checks that now.) The review's answers moved the others: over the movies 20.83 M (from 18.70 M),
-`endings-bucket-lavos` 0.40 M to 7.00 M, whose battle near frame 15,000 now
-runs its passes ahead and goes on to a menu screen and the 1000 A.D. world
-map's event; under `--port-timing oracle` both builds play it the same, and
-both estimated runs already leave the original's timing before frame 8000.
-Over the routes 5.43 M (from 5.50 M).
+**Measured.** The shipping mode over the movies: 9.3 KiB of code and
+8.07 M instructions in place of hand ports, from 10.9 KiB and 20.83 M (7.99 M
+over main's 35 movies; the new movie's own shipping run, which drifts away
+from the Day of Lavos too, adds 0.08 M): the handler's 5.6 M and the event's
+7.25 M are gone, and `C2:----` (4.75 M) is now the task loops'. Over the
+routes, counted over the frames they keep, 5.23 M over main's nine, from
+5.43 M, and 6.02 M with `lavos_lost`, which the long routes now run (0.78 M:
+the globe's scene program, mostly). The reference play: over main's 35
+movies 20.91 M, from 22.24 M (the handler's lines gone: `7E:0500`, `C2:842A`,
+and its part of `C2:----`); with the new movie 21.97 M over 36 movies and
+20.3 KiB, the baseline taking the movie's lines (the globe's scene program,
+`7E:6439` and `7E:65DD`, and the colours' sampling, `C2:6400`, `C2:6453`, that
+the event's script calls). No refusal in real play; the native shape runs all
+36 movies and reaches all ten routes' outcomes. `--misses` lists nothing over
+`menu` and `battle-lavos-gameover`, and `--px-check` reports every frame of
+both identical.
 
-**Timing.** Calibrated (`--drifted`): the new entries, the load screen's
-frame and the choices round it, and the steps' siblings, measured on their
-own stretches (`native_time_as_sibling`, "The timing gate"): an action's
-showing 9781 to 18,841 (17,617 before the dispatch was a port), whose
-worst-stretch exception is its own again, and the dispatch 94,180 to 2367,
-which has none now.
+**Timing.** Calibrated (`--drifted`, 33 rows: the new entries and those the new movie moved): the
+handler's entry at 4791 and its work 3755 to 3113; the frame 12,410, the turn
+2000; the drawing and the start, which no stretch of the library completes,
+at their calls' ratios (13,034 and 11,857). One exception: the scripts' start
+of an object, whose search for a free slot is long where the Day of Lavos
+keeps dozens of needles running (`tools/timing_exceptions.txt`; a charge per
+slot passed overshot every other scene).
 
 ### Phase 4a, timing: the battle frame work's remainders, chunk 2: the rewards' messages, the music round a battle and the field's ends (`$FD:A982`, `$FD:AD17`-`$FD:AE51`, `$FD:DA55`-`$FD:DB97`, `$C0:0005`-`$C0:000D`, `$C0:0AFF`-`$C0:0B27`, `$C0:1B90`-`$C0:1CFB`, `$C0:3B76`-`$C0:3B97`, `$C0:6E27`, `$C0:75A0`)
 

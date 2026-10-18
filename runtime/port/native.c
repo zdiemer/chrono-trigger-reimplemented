@@ -226,6 +226,12 @@ typedef struct Active {
     uint64_t segment_horizon, segment_interrupt_horizon;   /* SHADOW: at the segment's start (timing spike) */
     bool segment_interrupted, interrupted, mismatched;
     uint16_t segment_low_s;   /* SHADOW: the lowest S the original has reached in the segment */
+    /* SHADOW, an interrupt entry (NativeEntry.interrupt): the original is at an
+     * RTI in the segment, and it has run one; and the stack it moved from in
+     * the segment, as the lowest S reached there and S as it left (0: none),
+     * whose popped bytes are dead too (follow_the_stack). */
+    bool at_rti, returned_by_rti;
+    uint16_t left_low_s, left_s;
     uint16_t ret_dont_care;   /* SHADOW: the native routine's native_dont_care_at_stop */
     uint32_t ret_at;          /* ...and where it said the set applies */
     bool ret_own;             /* ...and that the set is the stop's own */
@@ -348,6 +354,7 @@ struct NativeRuntime {
     bool timing_report;
     bool page_report;
     uint64_t step_master, prev_step_master;   /* SHADOW: master clock at the latest two steps */
+    uint16_t prev_s;                          /* SHADOW: the original's S at the latest step */
     Snes *timing_copy;                        /* the machine as it was before a port ran, to put it back */
     uint64_t timing_copy_since;
     Snes *timing_scratch;                     /* ORACLE: the machine the generated code is timed on */
@@ -1061,6 +1068,11 @@ static bool differs(Active *a, Snes *s, uint16_t dont_care, char *why, size_t n)
      * (native_copy_popped_stack), and so is what the port declared so of what
      * it keeps pushed (native_stack_dont_care). */
     native_copy_popped_stack(s, a->clone, a->segment_low_s);
+    /* And for an interrupt entry, what was popped of the stack it left
+     * (follow_the_stack): the stack is in bank $00's low RAM, the first $2000
+     * bytes of work RAM, so a bank-$00 address past them isn't work RAM. */
+    for (uint32_t addr = (uint32_t)a->left_low_s + 1; addr <= a->left_s && addr < 0x2000; addr++)
+        a->clone->bus.wram[addr] = s->bus.wram[addr];
     if (a->job)
         copy_dead_stack(s, a->clone, a->job->dead_stack, a->job->ndead_stack);
     return compare_machines(s, a->clone, dont_care, a->since, why, n);
@@ -1280,9 +1292,11 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
             memcpy(a->segment_port_clears, apu_port_clears, sizeof apu_port_clears);
             a->segment_interrupted = false;
             a->segment_low_s = s->cpu.s;
+            a->left_low_s = a->left_s = 0;
         }
         a->stretch_goes_on = j->state == JOB_LATCHING;
         a->wait_compared = false;
+        a->at_rti = false;
         a->segment_nparts = j->nparts;
         memcpy(a->segment_parts, j->parts, sizeof *j->parts * (size_t)j->nparts);
         a->segment_bad_tags = j->bad_tags;
@@ -1360,6 +1374,14 @@ static bool wait_point(NativeRuntime *rt, Active *a, Snes *s, uint32_t pc)
     return true;
 }
 
+/* SHADOW: whether the original has returned from the call `a` compares while
+ * the port is still running: S above where the call began (past the return
+ * address), or for an interrupt entry, an RTI run. */
+static bool returned_from_entry(const Active *a, const Snes *s)
+{
+    return a->entry->interrupt ? a->returned_by_rti : s->cpu.s > a->entry_s + 1;
+}
+
 /* Check the innermost active routine against where the machine is now.
  * Returns true if it changed (so the next one may need checking). */
 static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
@@ -1370,8 +1392,9 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
     if (a->phase == PH_SEGMENT) {   /* SHADOW only */
         if (!a->job) {
             /* Above both the stop point and the entry: an early stop can be
-             * below the entry (after pushes), where the original starts. */
-            bool left = s->cpu.s > a->ret_s && s->cpu.s > a->entry_s;
+             * below the entry (after pushes), where the original starts. An
+             * interrupt entry's original has left once it has run its RTI. */
+            bool left = a->entry->interrupt ? a->returned_by_rti : s->cpu.s > a->ret_s && s->cpu.s > a->entry_s;
             if (point_given_up(rt, a, left)) {
                 finish(rt);
                 return true;
@@ -1407,7 +1430,9 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
                     a->interrupted = true;
                 else {
                     a->mismatched = true;
-                    detail(rt, "mismatch", a->entry, "original left the routine without returning where the native one did");
+                    detail(rt, "mismatch", a->entry,
+                           a->entry->interrupt ? "original returned from the interrupt elsewhere than the native one"
+                                               : "original left the routine without returning where the native one did");
                 }
                 finish(rt);
                 return true;
@@ -1415,7 +1440,8 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             return false;
         }
         const Job *j = a->job;
-        if (point_given_up(rt, a, s->cpu.s > a->entry_s + 1)) {
+        bool returned = returned_from_entry(a, s);
+        if (point_given_up(rt, a, returned)) {
             finish(rt);
             return true;
         }
@@ -1433,12 +1459,12 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
                 rt->observer.called_out(rt->observer.ctx, s, a->entry, j->call_target);
             return false;
         }
-        if (s->cpu.s > a->entry_s + 1 && a->segment_interrupted) {
+        if (returned && a->segment_interrupted) {
             a->interrupted = true;
             finish(rt);
             return true;
         }
-        if (s->cpu.s > a->entry_s + 1) {
+        if (returned) {
             char msg[96];
             snprintf(msg, sizeof msg, "original returned without the call to %06X the native routine made",
                      j->call_target);
@@ -1456,7 +1482,7 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             finish(rt);
             return true;
         }
-        if (s->cpu.s > a->entry_s + 1) {
+        if (returned_from_entry(a, s)) {
             a->mismatched = true;
             detail(rt, "mismatch", a->entry, "original returned without reading the beam where the native routine did");
             finish(rt);
@@ -2344,6 +2370,45 @@ static bool oracle_run(NativeRuntime *rt, const NativeEntry *e, NativeStats *st,
     return true;
 }
 
+/* The most an instruction pulls (RTI's P, PC and bank) or pushes (an
+ * interrupt's): S moving further in a step is a stack switch. */
+#define MAX_PULL 4
+#define MAX_PUSH 4
+#define OP_RTI 0x40
+
+/* SHADOW: the original's stack, for the comparisons waiting for it: the lowest
+ * S each segment has reached (what was pushed and pulled again below S is
+ * dead, native_copy_popped_stack); and for an interrupt entry
+ * (NativeEntry.interrupt), the RTI that ends its call, and a jump of S past
+ * what an instruction pushes or pulls, which is the handler moving to a stack
+ * of its own or back: the popped region starts again there, and the stack it
+ * left keeps its own, so the bytes between the two stacks are compared, not
+ * taken as popped. */
+static void follow_the_stack(NativeRuntime *rt, const Snes *s, uint32_t pc)
+{
+    uint16_t sp = s->cpu.s;
+    bool moved = sp > rt->prev_s + MAX_PULL || sp + MAX_PUSH < rt->prev_s;
+    bool at_rti = !s->cpu.e && snes_bus_peek(&s->bus, pc) == OP_RTI;
+    for (int i = 0; i < rt->nactive; i++) {
+        Active *a = &rt->active[i];
+        if (a->phase != PH_SEGMENT && a->phase != PH_LATCH)
+            continue;
+        if (a->entry->interrupt) {
+            if (moved) {
+                a->left_low_s = a->segment_low_s;
+                a->left_s = rt->prev_s;
+                a->segment_low_s = sp;
+            }
+            if (a->at_rti)
+                a->returned_by_rti = true;   /* the RTI seen at the step before has run */
+            a->at_rti = at_rti;
+        }
+        if (sp < a->segment_low_s)
+            a->segment_low_s = sp;
+    }
+    rt->prev_s = sp;
+}
+
 static int32_t intercept(void *ctx, Snes *s)
 {
     NativeRuntime *rt = ctx;
@@ -2370,13 +2435,8 @@ static int32_t intercept(void *ctx, Snes *s)
             return spend;   /* the time, or -1: the interpreter takes the interrupt */
     }
 
-    if (rt->mode == NATIVE_SHADOW) {
-        for (int i = 0; i < rt->nactive; i++) {
-            Active *a = &rt->active[i];
-            if ((a->phase == PH_SEGMENT || a->phase == PH_LATCH) && s->cpu.s < a->segment_low_s)
-                a->segment_low_s = s->cpu.s;
-        }
-    }
+    if (rt->mode == NATIVE_SHADOW)
+        follow_the_stack(rt, s, pc);
 
     if (rt->mode == NATIVE_SHADOW && rt->nactive > 1)
         settle_nested(rt, s, pc);

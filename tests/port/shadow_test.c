@@ -13,7 +13,11 @@
  *   routine that relies on a low byte it declared dead at a call-out is caught;
  * - a stop declared with m_stop_at_own is compared without the entry's set,
  *   where m_stop_at adds it;
- * - the report describes mismatches before notes (abandoned comparisons).
+ * - the report describes mismatches before notes (abandoned comparisons);
+ * - an interrupt entry (NativeEntry.interrupt) whose handler moves to a stack
+ *   above the interrupted code's is compared to its RTI, where the stack test
+ *   would end it at the move; and is not blind to the work RAM between the
+ *   two stacks.
  *
  * Each case registers a few routines, runs the program for a few frames in
  * SHADOW mode and reads its counters (native_stats_named) and the mismatches
@@ -49,7 +53,7 @@ static int failures;
  * written to NMITIMEN, $20 counts the loop's passes. */
 static const struct {
     uint16_t at;
-    uint8_t bytes[24];
+    uint8_t bytes[28];
     uint8_t n;
 } code[] = {
     /* reset */
@@ -78,16 +82,24 @@ static const struct {
     { 0x8500, { 0xA2, 0x00, 0x00, 0xE8, 0xE0, 0xFF, 0xFF, 0xD0, 0xFA, 0x60 }, 10 },
     /* 8600 the NMI handler: RTI */
     { 0x8600, { 0x40 }, 1 },
+    /* 8700 the NMI handler that moves the stack (NMI_MOVES): PHX : PHA : PEA #0 : PLB : PLB : TSX : STX $40 :
+     * LDX #$0FFF : TXS : 870E INC $42 : 8710 JSR 8780 : LDX $40 : TXS : PLA : PLX : RTI */
+    { 0x8700, { 0xDA, 0x48, 0xF4, 0x00, 0x00, 0xAB, 0xAB, 0xBA, 0x86, 0x40, 0xA2, 0xFF, 0x0F, 0x9A, 0xE6, 0x42, 0x20,
+                0x80, 0x87, 0xA6, 0x40, 0x9A, 0x68, 0xFA, 0x40 }, 25 },
+    /* 8780 INC $44 : RTS */
+    { 0x8780, { 0xE6, 0x44, 0x60 }, 3 },
 };
 
-static uint8_t *make_rom(void)
+enum { NMI_RETURNS = 0x86, NMI_MOVES = 0x87 };
+
+static uint8_t *make_rom(uint8_t nmi_page)
 {
     uint8_t *rom = malloc(ROM_SIZE);
     memset(rom, 0xDB, ROM_SIZE);   /* STP */
     for (size_t i = 0; i < sizeof code / sizeof code[0]; i++)
         memcpy(rom + code[i].at, code[i].bytes, code[i].n);
     rom[0xFFFC] = 0x00, rom[0xFFFD] = 0x80;   /* reset (emulation mode) */
-    rom[0xFFEA] = 0x00, rom[0xFFEB] = 0x86;   /* NMI (native mode) */
+    rom[0xFFEA] = 0x00, rom[0xFFEB] = nmi_page;   /* NMI (native mode) */
     return rom;
 }
 
@@ -214,6 +226,51 @@ static void long_after(Snes *s, uint16_t passes, bool wrong)
 static void long_fourth(Snes *s) { long_after(s, 3, false); }
 static void long_wrong(Snes *s) { long_after(s, 3, true); }
 
+/* 8700, the handler that moves the stack: the interrupted X and A kept on the
+ * interrupted stack, the data bank 0 (through two bytes pushed and pulled
+ * there, which the port leaves alone), its S at $40, the handler's own stack
+ * at $0FFF, $42 counted, a call to 8780, then all of it put back and RTI.
+ * `by` counts $42 wrong where it isn't 1; `stray` writes a byte between the
+ * two stacks that the original doesn't. */
+enum { HANDLER_STACK = 0x0FFF, HANDLER_WORK = 0x00870E, HANDLER_CALL = 0x008710, HANDLER_CALLEE = 0x008780 };
+
+static uint16_t handler_enter(Snes *s)
+{
+    m_push16(s, s->cpu.x);
+    m_push8(s, (uint8_t)s->cpu.a);
+    s->cpu.db = 0x00;
+    uint16_t interrupted = s->cpu.s;
+    m_write16(s, m_dp(s, 0x40), interrupted);
+    s->cpu.x = HANDLER_STACK;
+    s->cpu.s = HANDLER_STACK;
+    m_set_nz16(s, HANDLER_STACK);
+    return interrupted;
+}
+
+static void handler(Snes *s, uint8_t by, uint16_t stray)
+{
+    uint16_t interrupted = handler_enter(s);
+    inc_dp(s, 0x42, by);
+    if (stray)
+        m_write8(s, stray, 1);
+    m_jsr(s, HANDLER_CALL, HANDLER_CALLEE);
+    s->cpu.x = interrupted;
+    s->cpu.s = interrupted;
+    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | m_pull8(s));
+    s->cpu.x = m_pull16(s);
+    m_rti(s);
+}
+static void handler_whole(Snes *s) { handler(s, 1, 0); }
+static void handler_wrong(Snes *s) { handler(s, 2, 0); }
+static void handler_stray(Snes *s) { handler(s, 1, 0x0800); }
+
+/* ...and its entry alone, stopping where its work begins on the new stack. */
+static void handler_entry(Snes *s)
+{
+    (void)handler_enter(s);
+    m_stop_at(s, HANDLER_WORK, 0);
+}
+
 #define M8X16 .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M
 #define ENTRY(address, function, ...) { .addr = address, .name = #function, .fn = function, M8X16, __VA_ARGS__ }
 
@@ -286,7 +343,7 @@ static void expect(const char *name, bool match)
 
 int main(void)
 {
-    uint8_t *rom = make_rom();
+    uint8_t *rom = make_rom(NMI_RETURNS);
 
     /* the program runs, and nothing registered is compared */
     RUN(true, false, 2, ENTRY(0x00FFF0, loop_first));
@@ -364,6 +421,30 @@ int main(void)
     CHECK(strstr(details, "later passes, then an interrupt"), "%s", details);
 
     free(rom);
+
+    /* an interrupt entry whose handler moves to a stack above the interrupted
+     * code's: compared to its RTI (without the flag, the stack's rise ends the
+     * comparison at the move, before the call), where a wrong count and a
+     * stray write between the two stacks are caught; and its entry alone,
+     * stopped on the stack it moved to */
+    rom = make_rom(NMI_MOVES);
+    RUN(true, false, 3, ENTRY(0x008700, handler_whole, .interrupt = true));
+    expect("handler_whole", true);
+    Counts handled = counts_of("handler_whole");
+    CHECK(handled.calls >= 2 && handled.matched == handled.calls, "handler_whole: calls %u matched %u\n%s",
+          handled.calls, handled.matched, details);
+    RUN(true, false, 3, ENTRY(0x008700, handler_whole));
+    expect("handler_whole", false);
+    CHECK(strstr(details, "original returned without the call to 008780"), "%s", details);
+    RUN(true, false, 3, ENTRY(0x008700, handler_wrong, .interrupt = true));
+    expect("handler_wrong", false);
+    RUN(true, false, 3, ENTRY(0x008700, handler_stray, .interrupt = true));
+    expect("handler_stray", false);
+    CHECK(strstr(details, "0800"), "the stray write between the stacks: %s", details);
+    RUN(true, false, 3, ENTRY(0x008700, handler_entry, .interrupt = true));
+    expect("handler_entry", true);
+    free(rom);
+
     if (failures) {
         printf("shadow_test: %d failures\n", failures);
         return 1;

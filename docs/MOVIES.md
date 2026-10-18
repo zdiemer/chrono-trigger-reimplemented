@@ -136,6 +136,10 @@ python3 -m tools.movies.routes.bucket_lavos --prefix work/bucket ...
 python3 -m tools.movies.routes.beyond_time --prefix work/beyond ...
 ```
 
+`lavos_lost` (`battle-lavos-gameover.ctm`) takes `telepod_lavos`'s way to
+Lavos's shell (its first phases, `to_the_shell`) and loses the fight, for the
+Day of Lavos a loss plays.
+
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.

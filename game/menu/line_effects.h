@@ -10,7 +10,10 @@
  *
  * The wave (menu/wave.c) scrolls the layer over the map from slot 1; the
  * irises draw a circle of window into slot 1 or 2; the scripts' own routines
- * start a slot on a window's edges or the first plane's vertical scroll. */
+ * start a slot on a window's edges or the first plane's vertical scroll; the
+ * time dial (menu/epoch.c) turns its gate's Mode 7 matrix from two slots, and
+ * the Day of Lavos's turning world (menu/turning_world.c) its map's from
+ * four, slots 2-5. */
 #ifndef CT_GAME_MENU_LINE_EFFECTS_H
 #define CT_GAME_MENU_LINE_EFFECTS_H
 
@@ -26,7 +29,7 @@
  * screen's lines, which the vblank handler sends in two halves. */
 enum { MENU_LINE_TABLE_LINES = 224, MENU_LINE_HALF_BYTES = MENU_LINE_TABLE_LINES / 2 * 2 };
 
-/* Where a slot keeps its values in bank $7E: two tables for each of slots 1-3
+/* Where a slot keeps its values in bank $7E: two tables for each of slots 1-5
  * (menu_slot1_line_values and the rest), which an object draws into on
  * alternate frames (0 and 1). The wave uses slot 1's first. */
 uint16_t menu_line_values(uint8_t slot, unsigned which);
@@ -39,8 +42,9 @@ uint32_t menu_line_slot_table(uint8_t slot);
 
 /* Program line-effect channel `channel` on `target`, reading its values
  * through the small table at `table` in bank $7E (a slot's, or an object's
- * own); the channel is programmed at `site`, the original's. The Mode 7
- * matrix's four channels read two slots' tables between them. */
+ * own); the channel is programmed at `site`, the original's. The time
+ * dial's Mode 7 matrix has its four channels read two slots' tables between
+ * them; the turning world's, a slot's each. */
 void menu_program_line_channel(Platform *pf, uint32_t site, uint8_t channel, VidLineTarget target, uint32_t table);
 
 /* Turn slots' effects on or off from the next frame (a bit a slot). */

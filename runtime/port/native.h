@@ -83,6 +83,16 @@ typedef struct NativeEntry {
     /* Generated only: entered in emulation mode (the reset vector's first
      * instructions); p_mask and p_value are 0. Every other entry needs native mode. */
     bool emulation;
+    /* Part of an interrupt handler that moves the stack (the menus' vblank
+     * handler runs on its own, above the interrupted code's). SHADOW mode ends
+     * the comparison of a call at the original's RTI, rather than where the
+     * original's S rises above where the call began; and where S jumps, up or
+     * down, further than an instruction pulls or pushes, the stack the handler
+     * moves to (or back from) starts its own popped region
+     * (native_copy_popped_stack), and the stack it left keeps its own, so the
+     * bytes between the two stacks stay compared. docs/PORTING.md, "Interrupt
+     * handlers". */
+    bool interrupt;
 } NativeEntry;
 
 /* Where generated code can continue at an instruction that isn't an entry

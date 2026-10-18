@@ -1,0 +1,66 @@
+# The Day of Lavos as a game over, from the telepod at the Millennial Fair in New Game+: load the fair save (Crono and
+# Marle), walk Leene Square to the telepods, Taban's speech, the right telepod's Gate, then Lavos's outer shell with nobody
+# acting until its first imitation wipes the party. The loss to Lavos: Lavos rising out of the 1999 A.D. world map, the
+# operators' room (its dialogue pressed through), the 1000 A.D. world map tilted and turned in Mode 7 under the falling
+# needles, and the globe turning behind "But... the future refused to change" (route lavos_lost).
+# Save: technoplaza ct-state16 slot 2 (games.technoplaza.net/snes/chronotrigger/savestates.php, Chrono Trigger (U).srm).
+# frames 16192
+# sram crc32 82F04637
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 4 A
+2554 16 UP
+2574 4 A
+2908 176 UP
+3084 16 RIGHT
+3100 96 UP
+3196 16 LEFT
+3212 152 UP
+3364 8 LEFT
+3372 8 UP
+3620 304 UP
+3924 16 LEFT
+3940 8 UP
+4008 3 A
+4048 3 A
+4088 3 A
+4128 3 A
+4168 3 A
+4238 3 A
+4278 3 A
+4378 3 A
+4418 3 A
+4458 3 A
+4498 3 A
+4628 72 UP
+4700 40 RIGHT
+4740 34 UP
+4782 4 A
+4846 4 A
+4910 4 A
+4974 4 A
+5038 4 A
+11762 3 A
+11807 3 A
+11852 3 A
+11897 3 A
+12882 3 A
+12922 3 A
+12962 3 A
+13002 3 A
+13042 3 A
+13082 3 A
+13122 3 A
+13162 3 A
+13202 3 A
+13342 3 A
+13382 3 A
+13422 3 A
+13507 3 A
+13547 3 A
+13587 3 A
+13752 3 A
+13792 3 A
+13972 3 A
+14012 3 A
+14052 3 A

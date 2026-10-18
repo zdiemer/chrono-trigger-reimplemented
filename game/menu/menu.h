@@ -9,16 +9,31 @@
  * sprite-object mode ($C2:0000) is the one the Epoch's screens and the world
  * maps' scenes run in: a map of three planes behind a set of sprite objects,
  * each run by a handler or a command script (map.c, objects.c,
- * object_script.c, object_commands.c, top_layer.c, wave.c, epoch.c).
+ * object_script.c, object_commands.c, top_layer.c, wave.c, epoch.c,
+ * turning_world.c).
  * Each mode's main loop waits for its vblank handler (frame.c). The music the
  * menus switch to is sound.c, and the dialog's proportional font, set a
  * glyph at a time, typeset.c and glyphs.c. What they read from the ROM is menu_data.h. */
 #ifndef CT_GAME_MENU_H
 #define CT_GAME_MENU_H
 
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "snes/system.h"
 #include "state.h"
 #include "vars.h"
+
+/* A signed division as the original makes it: the size divided and the sign
+ * put back after, so it rounds toward zero, and a divisor of 0 gives the CPU's
+ * divider's all ones (-1, or 1 with the sign put back). The Epoch's map view
+ * and the Day of Lavos's turning world work their Mode 7 matrices out so, and
+ * the time dial its gate's edges' slopes. */
+static inline int16_t menu_signed_quotient(uint16_t size, uint8_t divisor, bool negative)
+{
+    uint16_t q = divisor ? (uint16_t)(size / divisor) : 0xFFFF;
+    return (int16_t)(negative ? (uint16_t)(0 - q) : q);
+}
 
 /* The menus' tasks (menu_tasks), which their scheduler runs a turn of each
  * frame: a task started runs from `start` on its next turn ($C2:8249). Some

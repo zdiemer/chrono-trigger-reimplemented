@@ -52,6 +52,12 @@ MenuObject menu_object_at_address(uint16_t address);
 uint8_t menu_object_byte(const GameState *g, MenuObject o, uint16_t at);
 void menu_set_object_byte(GameState *g, MenuObject o, uint16_t at, uint8_t v);
 
+/* The direct-page cells the mode's routines share ($00-$1B, menu_object_scratch),
+ * where a port leaves what the original leaves there for the original's code
+ * and shadow mode: scaffolding, a byte or a word (low byte first). */
+void menu_object_leave_cell8(GameState *g, unsigned cell, uint8_t v);
+void menu_object_leave_cell16(GameState *g, unsigned cell, uint16_t v);
+
 /* ---- How it looks ------------------------------------------------------------------------ */
 
 /* An object's look, the byte its sprites are drawn with (menu/sprites.c):

@@ -45,17 +45,6 @@ static const VidDisplay BLANK = { .blank = true };
 
 bool menu_display_bank_is_io(Snes *s) { return m_io_bank(s->cpu.db); }
 
-/* PLP, narrowing X and Y when the pulled P makes them 8-bit. */
-static void plp(Snes *s)
-{
-    uint8_t p = m_pull8(s);
-    s->cpu.p = p;
-    if (p & CPU_FLAG_X) {
-        s->cpu.x &= 0xFF;
-        s->cpu.y &= 0xFF;
-    }
-}
-
 /* Registers the entries' callees don't read, and the stops' (tools/dontcare_check.py
  * checks each). */
 enum {
@@ -160,7 +149,7 @@ void menu_mode_return(Snes *s)
     uint16_t stack = menu_caller_stack(state_of(s));
     s->cpu.x = stack;
     s->cpu.s = stack;
-    plp(s);
+    m_pull_flags(s);
     s->cpu.db = m_pull8(s);
     s->cpu.d = m_pull16(s);
     m_set_nz16(s, s->cpu.d);
@@ -185,14 +174,52 @@ enum { FRAME_SENT = 0xFF, FRAME_READY_BIT = 0x80, LINE_EFFECTS = 0x7F, BLOCK_MOV
 
 void menu_ask_for_the_block_move(GameState *g) { set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | BLOCK_MOVE_ASKED)); }
 
-// $C2:842A (the body of the NMI handler at $C2:840E, installed at the $0500
-// stub from the table at $C2:8406)
+/* ---- The menus' vblank handler ------------------------------------------------------------------ */
+
+/* The handler runs on a stack of its own, at the top of the menus' low RAM,
+ * whatever stack the code it interrupts is on (a screen's task has its own):
+ * it keeps that code's registers, notes its stack to go back to, and moves
+ * (m_enter_handler_stack: keeping and putting back the interrupted code's
+ * registers is the machine's part of taking an interrupt). */
+enum { HANDLER_STACK = 0x1DFD };
+
+/* The work goes on from the stack its entry built, with the flags it kept
+ * there wide, as the entry leaves them (what the return pulls is as wide as
+ * they say); and the interrupted stack is below the page the handler's own
+ * runs down into, as every one the game has is (the screens' tasks', the
+ * menus' own at $09FF), so what the return pulls from it is what the
+ * interrupted code left there, not what the work's callees left below the
+ * handler's stack. */
+bool menu_nmi_work_runs(Snes *s)
+{
+    enum { KEPT_HERE = 5, HANDLER_PAGE = HANDLER_STACK & 0xFF00 };   /* kept: the accumulator, the page, the flags */
+    uint8_t kept_flags = snes_bus_peek(&s->bus, (uint16_t)(s->cpu.s + 1));
+    vars_peek(true);
+    uint16_t interrupted = menu_interrupted_stack(state_of(s));
+    vars_peek(false);
+    return s->cpu.s == HANDLER_STACK - KEPT_HERE && !(kept_flags & (CPU_FLAG_M | CPU_FLAG_X)) &&
+           interrupted < HANDLER_PAGE;
+}
+
+// $C2:840E (installed at the $0500 NMI stub from the table at $C2:8406)
+/* The menus' vblank handler as it starts: the interrupted code's registers
+ * kept and the handler on its own stack and page. Its work follows
+ * (menu_nmi_work, a port of its own, where this one stops), and the vblank's
+ * acknowledgement there, a compare, sets the flags before anything reads
+ * them. */
+void menu_nmi_enter(Snes *s)
+{
+    set_menu_interrupted_stack(state_of(s), m_enter_handler_stack(s, HANDLER_STACK));
+    s->cpu.d = MENUS_PAGE;
+    m_stop_at(s, 0xC2842A, DC_N | DC_Z | DC_C);
+}
+
+// $C2:842A (the handler's work, after its entry at $C2:840E)
 /* The menus' vblank: counts the frame, sends the frame's work ($C2:85D6) with
  * the per-line effects off and turns them back on after, reads the input and
  * the timers ($C2:8473), and sets the BG mode and the brightness (0 is forced
- * blank). Stops at $C2:8466, where the handler starts putting the registers
- * back; the entry at $C2:840E, which saves them and moves the stack, is the
- * original's. */
+ * blank); then gives the interrupted code its registers and stack back and
+ * returns to it. */
 void menu_nmi_work(Snes *s)
 {
     GameState *g = state_of(s);
@@ -221,7 +248,7 @@ void menu_nmi_work(Snes *s)
     vid_set_display(pf, PF_AT(0xC2845B), &display);
     if (menu_wait_frames(g) != 0)
         set_menu_wait_frames(g, (uint8_t)(menu_wait_frames(g) - 1));
-    m_stop_at(s, 0xC28466, NOTHING_READ);
+    m_leave_handler_stack(s, menu_interrupted_stack(g));
 }
 
 enum { SCROLLED_LAYERS = 3 };
@@ -963,7 +990,7 @@ void menu_init_video_memory(Snes *s)
     vid_send_vram_fill(pf, PF_AT(0xC294D8), 0x0000, PF_GAME(0xC29510), 0xFFFF, NULL);
     for (int i = 0; i < 3; i++)
         NATIVE_TIME_AS(s, 0xC29512, menu_clear_memory(g, pf, stretches[i].at, stretches[i].bytes));
-    plp(s);
+    m_pull_flags(s);
     s->cpu.d = m_pull16(s);
     s->cpu.db = m_pull8(s);
     m_rts(s);

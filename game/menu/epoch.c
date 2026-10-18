@@ -35,6 +35,8 @@
 #include "cpu_io.h"
 #include "menu/display.h"
 #include "menu/line_effects.h"
+#include "menu/map_picture.h"
+#include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/typeset.h"
 #include "menu/object.h"
@@ -54,17 +56,8 @@
 
 /* ---- What both screens use ---------------------------------------------------------------- */
 
-/* A sine wave of 1024 steps a turn, its values -255 to 255: the menus' wave
- * table's size at the step, below zero in the second half of the turn. */
-enum { SINE_STEPS = 0x400, HALF_TURN = 0x200, QUARTER_TURN = 0x100, EIGHTH_TURN = 0x80 };
-
-static int16_t sine(const GameState *g, uint16_t phase)
-{
-    uint16_t step = phase & (SINE_STEPS - 1);
-    int16_t size = menu_wave_size(g, step);
-    return step >= HALF_TURN ? (int16_t)-size : size;
-}
-static int16_t cosine(const GameState *g, uint16_t phase) { return sine(g, (uint16_t)(phase + QUARTER_TURN)); }
+/* The turns' sine and cosine are the menus' (menu_sine, menu_cosine). */
+enum { EIGHTH_TURN = MENU_SINE_STEPS / 8 };
 
 /* The mode's work RAM bank, where its buffers are. */
 enum { WORK_RAM_BANK = 0x7E, EXTRA_RAM_BANK = 0x7F };
@@ -73,7 +66,7 @@ static uint32_t in_work_ram(uint16_t at) { return (uint32_t)WORK_RAM_BANK << 16 
 /* The Mode 7 layer's pixels and tile numbers share VRAM words: a tile's 64
  * pixels are a byte each in the high halves of its 64 words, and the plane's
  * 128 by 128 tile numbers the low halves of the first 16384. */
-enum { MODE7_TILE_PIXELS = 64, MODE7_MAP_ROW = 128 };
+enum { MODE7_TILE_PIXELS = MENU_MODE7_TILE_PIXELS, MODE7_MAP_ROW = 128 };
 
 /* How VRAM steps as the screens' uploads go: a word at a time, stepping
  * after its high byte, or (the plane's tile numbers, the low halves alone)
@@ -95,15 +88,6 @@ static void set_mode7_matrix(GameState *g, int16_t a, int16_t b, int16_t c, int1
         set_menu_object_shadows_mode7_matrix_byte(g, 2 * i, (uint8_t)m[i]);
         set_menu_object_shadows_mode7_matrix_byte(g, 2 * i + 1, (uint8_t)((uint16_t)m[i] >> 8));
     }
-}
-
-/* The original's direct-page cells ($00-$1B), as the leave_* functions put
- * what it leaves there. */
-static void leave_cell8(GameState *g, unsigned cell, uint8_t v) { set_menu_object_scratch_bytes_byte(g, cell, v); }
-static void leave_cell16(GameState *g, unsigned cell, uint16_t v)
-{
-    leave_cell8(g, cell, (uint8_t)v);
-    leave_cell8(g, cell + 1, (uint8_t)(v >> 8));
 }
 
 /* The world maps count from the first's location. */
@@ -133,28 +117,17 @@ static void sample_map_colours(GameState *g)
     ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)(RAM_MENU_MAP_COLOURS + WORLD_MAP_TILES), WORK_RAM_BANK));
 }
 
-/* The picture is 96 pixels across, a map tile's column each, and 128 down,
- * two a map row; it is built in the mode's upload buffer four map rows (a
- * row of Mode 7 tiles, twelve) at a time and sent to the plane's tiles from
- * tile 1. */
+/* The picture (menu/map_picture.h) is built in the mode's upload buffer
+ * four map rows (a row of Mode 7 tiles, twelve) at a time and sent to the
+ * plane's tiles from tile 1. */
 enum {
-    MAP_COLUMNS = 96, MAP_ROWS = 64,
-    PICTURE_TILES_ACROSS = MAP_COLUMNS / 8, PICTURE_TILES_DOWN = 2 * MAP_ROWS / 8,
-    TILE_ROW_BYTES = PICTURE_TILES_ACROSS * MODE7_TILE_PIXELS,
-    MAP_ROWS_A_TILE_ROW = 4, FIRST_PICTURE_TILE = 1,
+    MAP_COLUMNS = MENU_MAP_COLUMNS, MAP_ROWS = MENU_MAP_ROWS,
+    PICTURE_TILES_ACROSS = MENU_MAP_PICTURE_TILES_ACROSS, PICTURE_TILES_DOWN = MENU_MAP_PICTURE_TILES_DOWN,
+    TILE_ROW_BYTES = MENU_MAP_PICTURE_TILE_ROW,
+    MAP_ROWS_A_TILE_ROW = MENU_MAP_ROWS_A_TILE_ROW, FIRST_PICTURE_TILE = 1,
 };
-
-/* A map tile is drawn from its tile group's right-hand tiles (the group's
- * top right and bottom right words): each one's colour in its palette, so
- * the pixel is the CGRAM entry. A colour of 0 draws nothing, and leaves what
- * is under it. */
-enum { GROUP_BYTES = 8, TOP_RIGHT = 2, BOTTOM_RIGHT = 6, TILE_NUMBER = 0x03FF, PALETTE_BITS = 0x1C00 };
+enum { GROUP_BYTES = MENU_MAP_GROUP_BYTES, TOP_RIGHT = MENU_MAP_TOP_RIGHT, BOTTOM_RIGHT = MENU_MAP_BOTTOM_RIGHT };
 enum { BLACK = 0 };
-
-typedef struct {
-    bool drawn;
-    uint8_t pixel;
-} MapPixel;
 
 /* Some colours aren't shown, and come out black: on one of the world maps
  * those of its fifth palette, on the rest a handful of its first three. */
@@ -171,25 +144,16 @@ static uint16_t group_word(const GameState *g, uint16_t group, unsigned corner)
     return wram_read16(g, in_work_ram((uint16_t)(group + corner)));
 }
 
-static uint8_t palette_of(uint16_t word) { return (uint8_t)((word & PALETTE_BITS) >> 6); }
-
-static MapPixel group_pixel(const GameState *g, uint16_t group, unsigned corner, uint8_t palette)
+/* The view's pixel: the map's, black where its colour isn't shown. */
+static MenuMapPixel group_pixel(const GameState *g, uint16_t group, unsigned corner, uint8_t palette)
 {
-    uint16_t tile = group_word(g, group, corner) & TILE_NUMBER;
-    uint8_t colour = tile < WORLD_MAP_TILES ? menu_map_colours(g, tile) : menu_map_colours_unchecked(g, tile);
-    if (colour == 0)
-        return (MapPixel){ false, 0 };
-    uint8_t pixel = (uint8_t)(colour | palette);
-    return (MapPixel){ true, shown(g, pixel) ? pixel : BLACK };
+    MenuMapPixel p = menu_map_pixel(g, group_word(g, group, corner), palette);
+    if (p.drawn && !shown(g, p.pixel))
+        p.pixel = BLACK;
+    return p;
 }
 
-/* Where a map tile's pair of pixels goes in the tile row being built. */
-static uint16_t picture_offset(unsigned column, unsigned row)
-{
-    return (uint16_t)((column / 8) * MODE7_TILE_PIXELS + column % 8 + (2 * row % 8) * 8);
-}
-
-static void put_pixel(GameState *g, uint16_t buffer, uint16_t at, MapPixel p)
+static void put_pixel(GameState *g, uint16_t buffer, uint16_t at, MenuMapPixel p)
 {
     if (p.drawn)
         wram_write8(g, in_work_ram((uint16_t)(buffer + at)), p.pixel);
@@ -201,11 +165,11 @@ static uint16_t draw_map_tile(GameState *g, uint16_t buffer, uint8_t plane, unsi
 {
     uint8_t group = wram_read8(g, in_work_ram((uint16_t)(menu_plane_map(g, plane) + row * MAP_COLUMNS + column)));
     uint16_t record = (uint16_t)(menu_plane_groups(g, plane) + group * GROUP_BYTES);
-    uint16_t at = picture_offset(column, row);
+    uint16_t at = menu_map_picture_offset(column, row);
     /* Both palettes are read before either pixel is drawn: where the buffer
      * lies over the groups, the first pixel can change the second's tile. */
-    uint8_t top = palette_of(group_word(g, record, TOP_RIGHT));
-    uint8_t bottom = palette_of(group_word(g, record, BOTTOM_RIGHT));
+    uint8_t top = menu_map_palette(group_word(g, record, TOP_RIGHT));
+    uint8_t bottom = menu_map_palette(group_word(g, record, BOTTOM_RIGHT));
     put_pixel(g, buffer, at, group_pixel(g, record, TOP_RIGHT, top));
     put_pixel(g, buffer, (uint16_t)(at + 8), group_pixel(g, record, BOTTOM_RIGHT, bottom));
     return record;
@@ -286,18 +250,18 @@ static void leave_map_view_built(GameState *g, uint16_t last_group)
     enum { NAMES_LEFT = 0x00, NAMES_ROW = 0x01, BUFFER_AT = 0x05, NEXT_TILE = 0x08, NEXT_SOURCE = 0x0A,
            NEXT_VRAM = 0x0C, LAST_GROUP = 0x0E, NAMES_AT = 0x10, OVER_MAP = 0x13, LAND_GROUPS = 0x16,
            OVER_GROUPS = 0x19 };
-    leave_cell8(g, NAMES_LEFT, 0);
-    leave_cell8(g, NAMES_ROW, PICTURE_ROW);
-    leave_cell16(g, BUFFER_AT, (uint16_t)menu_object_upload_buffer(g));
-    leave_cell16(g, NEXT_TILE, FIRST_PICTURE_TILE + PICTURE_TILES_ACROSS * PICTURE_TILES_DOWN);
-    leave_cell16(g, NEXT_SOURCE, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE) + NAME_TABLE_BYTES));
-    leave_cell16(g, NEXT_VRAM, NAME_ROWS_SENT * MODE7_MAP_ROW);
-    leave_cell16(g, LAST_GROUP, last_group);
-    leave_cell16(g, NAMES_AT, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE) + (PICTURE_ROW + PICTURE_TILES_DOWN) * NAME_ROWS_SENT
+    menu_object_leave_cell8(g, NAMES_LEFT, 0);
+    menu_object_leave_cell8(g, NAMES_ROW, PICTURE_ROW);
+    menu_object_leave_cell16(g, BUFFER_AT, (uint16_t)menu_object_upload_buffer(g));
+    menu_object_leave_cell16(g, NEXT_TILE, FIRST_PICTURE_TILE + PICTURE_TILES_ACROSS * PICTURE_TILES_DOWN);
+    menu_object_leave_cell16(g, NEXT_SOURCE, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE) + NAME_TABLE_BYTES));
+    menu_object_leave_cell16(g, NEXT_VRAM, NAME_ROWS_SENT * MODE7_MAP_ROW);
+    menu_object_leave_cell16(g, LAST_GROUP, last_group);
+    menu_object_leave_cell16(g, NAMES_AT, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE) + (PICTURE_ROW + PICTURE_TILES_DOWN) * NAME_ROWS_SENT
                                          + PICTURE_COLUMN));
-    leave_cell16(g, OVER_MAP, (uint16_t)(menu_plane_map(g, OVER_THE_LAND) + MAP_ROWS * MAP_COLUMNS));
-    leave_cell16(g, LAND_GROUPS, menu_plane_groups(g, LAND_PLANE));
-    leave_cell16(g, OVER_GROUPS, menu_plane_groups(g, OVER_THE_LAND));
+    menu_object_leave_cell16(g, OVER_MAP, (uint16_t)(menu_plane_map(g, OVER_THE_LAND) + MAP_ROWS * MAP_COLUMNS));
+    menu_object_leave_cell16(g, LAND_GROUPS, menu_plane_groups(g, LAND_PLANE));
+    menu_object_leave_cell16(g, OVER_GROUPS, menu_plane_groups(g, OVER_THE_LAND));
     hw_set_multiplicand(g, PICTURE_ROW);
     (void)hw_multiply_by(g, NAME_ROWS_SENT);
 }
@@ -367,37 +331,26 @@ enum { CLOSE_BUTTON = 0x0008 };
 enum { MATRIX_SCALE = 8 };
 
 /* A value of the sine, at the matrix's unit and shrunk by a zoom (a larger
- * zoom, a smaller picture). The original divides its size and puts the sign
- * back after, so it rounds toward zero; a zoom of 0 gives the divider's
- * all-ones. */
-static uint16_t quotient(uint16_t dividend, uint8_t divisor)
-{
-    return divisor ? (uint16_t)(dividend / divisor) : 0xFFFF;
-}
-
+ * zoom, a smaller picture). */
 static uint16_t size_at_the_unit(int16_t value) { return (uint16_t)((value < 0 ? -value : value) * MATRIX_SCALE); }
 
-static uint16_t zoomed(int16_t value, uint8_t zoom)
-{
-    uint16_t q = quotient(size_at_the_unit(value), zoom);
-    return value < 0 ? (uint16_t)(0 - q) : q;
-}
+static int16_t zoomed(int16_t value, uint8_t zoom) { return menu_signed_quotient(size_at_the_unit(value), zoom, value < 0); }
 
 /* What working out the matrix leaves in the mode's cells and the divider:
  * the four quotients, the sine's and cosine's sizes, the zooms and the two
  * signs (the second a byte on from the first). */
-static void leave_matrix(GameState *g, int16_t sin, int16_t cos, const uint16_t matrix[4], uint16_t zoom_x,
+static void leave_matrix(GameState *g, int16_t sin, int16_t cos, const int16_t matrix[4], uint16_t zoom_x,
                          uint16_t zoom_y)
 {
     enum { QUOTIENTS = 0x00, COS8 = 0x08, SIN8 = 0x0A, ZOOM_X = 0x0C, ZOOM_Y = 0x0E, SIN_SIGN = 0x10, COS_SIGN = 0x11 };
     for (unsigned i = 0; i < 4; i++)
-        leave_cell16(g, QUOTIENTS + 2 * i, matrix[i]);
-    leave_cell16(g, COS8, size_at_the_unit(cos));
-    leave_cell16(g, SIN8, size_at_the_unit(sin));
-    leave_cell16(g, ZOOM_X, zoom_x);
-    leave_cell16(g, ZOOM_Y, zoom_y);
-    leave_cell8(g, SIN_SIGN, sin < 0);
-    leave_cell8(g, COS_SIGN, cos < 0);
+        menu_object_leave_cell16(g, QUOTIENTS + 2 * i, (uint16_t)matrix[i]);
+    menu_object_leave_cell16(g, COS8, size_at_the_unit(cos));
+    menu_object_leave_cell16(g, SIN8, size_at_the_unit(sin));
+    menu_object_leave_cell16(g, ZOOM_X, zoom_x);
+    menu_object_leave_cell16(g, ZOOM_Y, zoom_y);
+    menu_object_leave_cell8(g, SIN_SIGN, sin < 0);
+    menu_object_leave_cell8(g, COS_SIGN, cos < 0);
     hw_set_dividend(g, size_at_the_unit(cos));
     hw_divide_by(g, (uint8_t)zoom_y);
 }
@@ -410,11 +363,11 @@ static void leave_matrix(GameState *g, int16_t sin, int16_t cos, const uint16_t 
 static void turn_map_view(GameState *g, MenuObject cursor, MenuObject sine_from)
 {
     uint16_t zoom_x = menu_object_slots_zoom_x(g, cursor), zoom_y = menu_object_slots_zoom_y(g, cursor);
-    int16_t sin = sine(g, menu_object_slots_phase(g, sine_from));
-    int16_t cos = cosine(g, menu_object_slots_phase(g, cursor));
-    const uint16_t matrix[4] = { zoomed(cos, (uint8_t)zoom_x), zoomed(sin, (uint8_t)zoom_x),
-                                 (uint16_t)(0 - zoomed(sin, (uint8_t)zoom_y)), zoomed(cos, (uint8_t)zoom_y) };
-    set_mode7_matrix(g, (int16_t)matrix[0], (int16_t)matrix[1], (int16_t)matrix[2], (int16_t)matrix[3]);
+    int16_t sin = menu_sine(g, menu_object_slots_phase(g, sine_from));
+    int16_t cos = menu_cosine(g, menu_object_slots_phase(g, cursor));
+    const int16_t matrix[4] = { zoomed(cos, (uint8_t)zoom_x), zoomed(sin, (uint8_t)zoom_x),
+                                (int16_t)-zoomed(sin, (uint8_t)zoom_y), zoomed(cos, (uint8_t)zoom_y) };
+    set_mode7_matrix(g, matrix[0], matrix[1], matrix[2], matrix[3]);
     ORIGINAL_EFFECT(leave_matrix(g, sin, cos, matrix, zoom_x, zoom_y));
 }
 
@@ -575,7 +528,7 @@ static void map_view_gradient(GameState *g, Platform *pf)
         } while (++level != LEVELS);
     }
     ORIGINAL_EFFECT(hw_port_seek(g, at, WORK_RAM_BANK));
-    ORIGINAL_EFFECT(leave_cell8(g, 0x00, level));
+    ORIGINAL_EFFECT(menu_object_leave_cell8(g, 0x00, level));
     menu_start_line_effect(g, pf, 0xC2694F, GRADIENT_SLOT, VID_LINE_FIXED_COLOR);
     set_menu_object_hdma_pointers(g, 0, (uint16_t)RAM_MENU_SLOT1_LINE_VALUES);
     set_menu_object_hdma_pointers(g, 1, (uint16_t)(RAM_MENU_SLOT1_LINE_VALUES + GRADIENT_HALF));
@@ -590,8 +543,8 @@ static bool later_periods(const GameState *g) { return menu_story_progress(g) >=
 static void leave_period_table(GameState *g)
 {
     enum { PERIODS_AT = 0x10 };
-    leave_cell16(g, PERIODS_AT, later_periods(g) ? 0x6CA5 : 0x6C97);
-    leave_cell8(g, PERIODS_AT + 2, 0xC2);
+    menu_object_leave_cell16(g, PERIODS_AT, later_periods(g) ? 0x6CA5 : 0x6C97);
+    menu_object_leave_cell8(g, PERIODS_AT + 2, 0xC2);
 }
 
 // $C2:747A
@@ -658,10 +611,10 @@ static SignedProduct multiply_signed(int8_t by, int16_t value)
 static void leave_multiply(GameState *g, const SignedProduct *p)
 {
     enum { BY = 0x07, VALUE = 0x0E, PRODUCT = 0x19 };
-    leave_cell8(g, BY, p->by);
-    leave_cell16(g, VALUE, p->value);
-    leave_cell16(g, PRODUCT, (uint16_t)p->product);
-    leave_cell8(g, PRODUCT + 2, (uint8_t)((uint32_t)p->product >> 16));
+    menu_object_leave_cell8(g, BY, p->by);
+    menu_object_leave_cell16(g, VALUE, p->value);
+    menu_object_leave_cell16(g, PRODUCT, (uint16_t)p->product);
+    menu_object_leave_cell8(g, PRODUCT + 2, (uint8_t)((uint32_t)p->product >> 16));
     hw_set_multiplicand(g, p->by);
     (void)hw_multiply_by(g, (uint8_t)(p->value >> 8));
 }
@@ -684,7 +637,7 @@ typedef struct {
  * centre. */
 static void turn_corners(GameState *g, uint16_t angle, ScreenPoint corners[CORNERS])
 {
-    int16_t cos = cosine(g, angle), sin = sine(g, angle);
+    int16_t cos = menu_cosine(g, angle), sin = menu_sine(g, angle);
     SignedProduct last = { 0 };
     uint16_t last_height = 0;
     for (unsigned c = 0; c < CORNERS; c++) {
@@ -702,7 +655,7 @@ static void turn_corners(GameState *g, uint16_t angle, ScreenPoint corners[CORNE
         set_menu_gate_corners(g, 2 * c + 1, corners[c].y);
     }
     ORIGINAL_EFFECT(leave_multiply(g, &last));
-    ORIGINAL_EFFECT(leave_cell16(g, 0x04, last_height));
+    ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x04, last_height));
 }
 
 /* An edge of the triangle, from its higher corner to the line above its
@@ -732,8 +685,7 @@ static GateEdge edge_between(ScreenPoint from, ScreenPoint to)
     e.height = (uint8_t)(e.bottom - e.top);
     bool leftward = to.x < from.x;
     e.width = (uint8_t)(leftward ? from.x - to.x : to.x - from.x);
-    uint16_t slope = quotient((uint16_t)(e.width << 8), e.height);
-    e.step = leftward ? (uint16_t)(0 - slope) : slope;
+    e.step = (uint16_t)menu_signed_quotient((uint16_t)(e.width << 8), e.height, leftward);
     return e;
 }
 
@@ -793,26 +745,26 @@ static void leave_window_drawn(GameState *g, const WindowDrawn *w, const GateEdg
     enum { CROSSINGS = 0x00, SECOND_CROSSING = 0x02, HEIGHT = 0x04, CORNERS_LEFT = 0x06, LINE = 0x08, BOTTOM = 0x0A,
            TO_X = 0x0C, TO_Y = 0x0E, EDGES_LEFT = 0x10, EDGE_AT = 0x11, LINES_LEFT = 0x13, TABLE = 0x16,
            EDGES = 0x19 };
-    leave_cell16(g, CROSSINGS, w->crossings[0]);
-    leave_cell16(g, SECOND_CROSSING, w->crossings[1]);
+    menu_object_leave_cell16(g, CROSSINGS, w->crossings[0]);
+    menu_object_leave_cell16(g, SECOND_CROSSING, w->crossings[1]);
     if (divided->drawn)
-        leave_cell8(g, HEIGHT, divided->height);
-    leave_cell8(g, CORNERS_LEFT, 0);
-    leave_cell8(g, LINE, w->after_the_last_line);
-    leave_cell8(g, LINE + 1, w->any_swapped ? 0 : (uint8_t)((uint16_t)w->cos >> 8));
-    leave_cell8(g, BOTTOM, w->bottom);
-    leave_cell8(g, BOTTOM + 1, (uint8_t)((uint16_t)w->sin >> 8));
-    leave_cell8(g, TO_X, w->last_edge.swapped ? w->last_from.x : w->last_to.x);
-    leave_cell8(g, TO_X + 1, 0);
-    leave_cell8(g, TO_Y, w->last_edge.drawn ? w->last_edge.bottom : w->last_to.y);
+        menu_object_leave_cell8(g, HEIGHT, divided->height);
+    menu_object_leave_cell8(g, CORNERS_LEFT, 0);
+    menu_object_leave_cell8(g, LINE, w->after_the_last_line);
+    menu_object_leave_cell8(g, LINE + 1, w->any_swapped ? 0 : (uint8_t)((uint16_t)w->cos >> 8));
+    menu_object_leave_cell8(g, BOTTOM, w->bottom);
+    menu_object_leave_cell8(g, BOTTOM + 1, (uint8_t)((uint16_t)w->sin >> 8));
+    menu_object_leave_cell8(g, TO_X, w->last_edge.swapped ? w->last_from.x : w->last_to.x);
+    menu_object_leave_cell8(g, TO_X + 1, 0);
+    menu_object_leave_cell8(g, TO_Y, w->last_edge.drawn ? w->last_edge.bottom : w->last_to.y);
     if (w->any_swapped)
-        leave_cell8(g, TO_Y + 1, (uint8_t)((uint16_t)w->sin >> 8));
-    leave_cell8(g, EDGES_LEFT, 0);
-    leave_cell8(g, EDGE_AT, 0);
-    leave_cell8(g, LINES_LEFT, 0);
-    leave_cell8(g, LINES_LEFT + 1, 0);
-    leave_cell16(g, TABLE, w->table);
-    leave_cell16(g, EDGES, (uint16_t)w->edges);
+        menu_object_leave_cell8(g, TO_Y + 1, (uint8_t)((uint16_t)w->sin >> 8));
+    menu_object_leave_cell8(g, EDGES_LEFT, 0);
+    menu_object_leave_cell8(g, EDGE_AT, 0);
+    menu_object_leave_cell8(g, LINES_LEFT, 0);
+    menu_object_leave_cell8(g, LINES_LEFT + 1, 0);
+    menu_object_leave_cell16(g, TABLE, w->table);
+    menu_object_leave_cell16(g, EDGES, (uint16_t)w->edges);
     if (divided->drawn) {
         hw_set_dividend(g, (uint16_t)(divided->width << 8));
         hw_divide_by(g, divided->height);
@@ -853,7 +805,7 @@ static void draw_gate_window(GameState *g, MenuObject dial)
     ScreenPoint corners[CORNERS];
     turn_corners(g, angle, corners);
 
-    WindowDrawn w = { .table = table, .bank = bank, .cos = cosine(g, angle), .sin = sine(g, angle) };
+    WindowDrawn w = { .table = table, .bank = bank, .cos = menu_cosine(g, angle), .sin = menu_sine(g, angle) };
     GateEdge divided = { 0 };
     uint8_t top = 0xFF, bottom = 0;
     for (unsigned c = 0; c < CORNERS; c++) {
@@ -974,7 +926,7 @@ static DialOutcome time_dial(GameState *g, Platform *pf, MenuObject dial)
         if (turn == 0) {
             if (buttons & TRAVEL_BUTTON) {
                 uint16_t there = period_location(g, menu_object_slots_period(g, dial));
-                ORIGINAL_EFFECT(leave_cell16(g, 0x08, location_here(g)));
+                ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x08, location_here(g)));
                 if (there != location_here(g)) {
                     set_menu_travel_location(g, there);
                     set_menu_mode(g, MENU_MODE_BACK_TO_THE_MAP);
@@ -1004,7 +956,7 @@ static DialOutcome time_dial(GameState *g, Platform *pf, MenuObject dial)
     }
     uint8_t period = menu_object_slots_period(g, dial);
     uint16_t there = period_location(g, period);
-    ORIGINAL_EFFECT(leave_cell16(g, 0x08, there));
+    ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x08, there));
     if (location_here(g) != there) {
         set_menu_time_period(g, period);
         set_menu_object_slots_step(g, dial, DIAL_WAITS);
@@ -1030,8 +982,8 @@ enum { SPIN_SPEED = 4, LAST_LINE = MENU_LINE_TABLE_LINES - 1 };
 
 static void gate_spin_line(GameState *g, uint16_t cosines, uint16_t sines, uint16_t line, uint16_t angle)
 {
-    wram_write16(g, in_work_ram((uint16_t)(cosines + 2 * line)), (uint16_t)cosine(g, angle));
-    wram_write16(g, in_work_ram((uint16_t)(sines + 2 * line)), (uint16_t)sine(g, (uint16_t)(angle + EIGHTH_TURN)));
+    wram_write16(g, in_work_ram((uint16_t)(cosines + 2 * line)), (uint16_t)menu_cosine(g, angle));
+    wram_write16(g, in_work_ram((uint16_t)(sines + 2 * line)), (uint16_t)menu_sine(g, (uint16_t)(angle + EIGHTH_TURN)));
 }
 
 /* What the spin leaves in the mode's cells: the two tables' places, past
@@ -1040,8 +992,8 @@ static void gate_spin_line(GameState *g, uint16_t cosines, uint16_t sines, uint1
 static void leave_spin(GameState *g, uint16_t cosines, uint16_t sines)
 {
     enum { COSINES_AT = 0x10, SINES_AT = 0x13 };
-    leave_cell16(g, COSINES_AT, cosines);
-    leave_cell16(g, SINES_AT, sines);
+    menu_object_leave_cell16(g, COSINES_AT, cosines);
+    menu_object_leave_cell16(g, SINES_AT, sines);
 }
 
 // $C2:6F85
@@ -1070,8 +1022,8 @@ static void gate_spin(GameState *g, Platform *pf, MenuObject spin)
         set_menu_object_slots_angle(g, spin, angle);
         ORIGINAL_EFFECT(leave_spin(g, (uint16_t)(cosines + 2 * MENU_LINE_TABLE_LINES),
                                    (uint16_t)(sines + 2 * MENU_LINE_TABLE_LINES)));
-        ORIGINAL_EFFECT(leave_cell16(g, 0x00, 0));
-        ORIGINAL_EFFECT(leave_cell16(g, 0x08, angle));
+        ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x00, 0));
+        ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x08, angle));
         return;
     }
     bool first = !(menu_gate_flags(g) & DRAWING_THE_OTHER_SPIN);
@@ -1160,10 +1112,10 @@ static void upload_gate_tiles(GameState *g, Platform *pf)
 static void leave_gate_tiles(GameState *g)
 {
     enum { PIECES_LEFT = 0x00, VRAM = 0x08, SOURCE = 0x0A, ROWS_AT = 0x0C };
-    leave_cell8(g, PIECES_LEFT, 0);
-    leave_cell16(g, VRAM, (uint16_t)(menu_gate_tile_row(g, GATE_TILE_ROWS - 1) + GATE_PIECES * GATE_PIECE_WORDS));
-    leave_cell16(g, SOURCE, (uint16_t)(RAM_ABS(RAM_MENU_MODE7_PLANE) + GATE_PIECES * GATE_PIECE_BYTES));
-    leave_cell16(g, ROWS_AT, 2 * GATE_TILE_ROWS);
+    menu_object_leave_cell8(g, PIECES_LEFT, 0);
+    menu_object_leave_cell16(g, VRAM, (uint16_t)(menu_gate_tile_row(g, GATE_TILE_ROWS - 1) + GATE_PIECES * GATE_PIECE_WORDS));
+    menu_object_leave_cell16(g, SOURCE, (uint16_t)(RAM_ABS(RAM_MENU_MODE7_PLANE) + GATE_PIECES * GATE_PIECE_BYTES));
+    menu_object_leave_cell16(g, ROWS_AT, 2 * GATE_TILE_ROWS);
 }
 
 /* A tilemap row is 32 bytes, sixteen words. */
@@ -1174,10 +1126,10 @@ enum { TILEMAP_ROW_BYTES = 0x20, TILEMAP_ROW_WORDS = 0x10 };
 static void leave_rows_asked_for(GameState *g, uint32_t picks, uint32_t source)
 {
     enum { PICKS = 0x10, SOURCE = 0x13 };
-    leave_cell16(g, PICKS, (uint16_t)picks);
-    leave_cell8(g, PICKS + 2, (uint8_t)(picks >> 16));
-    leave_cell16(g, SOURCE, (uint16_t)source);
-    leave_cell8(g, SOURCE + 2, (uint8_t)(source >> 16));
+    menu_object_leave_cell16(g, PICKS, (uint16_t)picks);
+    menu_object_leave_cell8(g, PICKS + 2, (uint8_t)(picks >> 16));
+    menu_object_leave_cell16(g, SOURCE, (uint16_t)source);
+    menu_object_leave_cell8(g, SOURCE + 2, (uint8_t)(source >> 16));
 }
 
 // $C2:72D8
@@ -1192,11 +1144,11 @@ static void upload_gate_rows(GameState *g, Platform *pf, uint16_t rows, uint32_t
         uint32_t from = (source & 0xFF0000u) | (uint16_t)(pick * TILEMAP_ROW_BYTES + source);
         vid_send_vram(pf, PF_AT(0xC272EE), vram, PF_GAME(from), TILEMAP_ROW_BYTES, &after_high);
         vram = (uint16_t)(vram + TILEMAP_ROW_WORDS);
-        ORIGINAL_EFFECT(leave_cell16(g, 0x0A, (uint16_t)from));
+        ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x0A, (uint16_t)from));
     } while (--left != 0);
-    ORIGINAL_EFFECT(leave_cell16(g, 0x00, 0));
-    ORIGINAL_EFFECT(leave_cell16(g, 0x08, vram));
-    ORIGINAL_EFFECT(leave_cell16(g, 0x10, (uint16_t)picks));
+    ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x00, 0));
+    ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x08, vram));
+    ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x10, (uint16_t)picks));
 }
 
 // $C2:7361

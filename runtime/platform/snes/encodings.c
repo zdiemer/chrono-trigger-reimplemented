@@ -109,6 +109,9 @@ static const PfSnesEncoding encodings[] = {
     /* the line effects the scenes' objects start, $C6:E000-$C6:E5A7 */
     MENU_LINE(0xC6E012), MENU_LINE(0xC6E32A), MENU_LINE(0xC6E45A), MENU_LINE(0xC6E352), MENU_LINE(0xC6E482),
     MENU_LINE(0xC6E5A7), MENU_LINE(0xC6E253),
+    /* the Day of Lavos's turning world: its picture, and its matrix's four line effects */
+    { 0xC6E898, 0, 0, 7, ONE_REGISTER, STEPS(TL, TH, SL, SH, ZL, ZH, C, D, P, SB, GO), 0 },
+    MENU_LINE(0xC6E949), MENU_LINE(0xC6E94B), MENU_LINE(0xC6E94D), MENU_LINE(0xC6E94F),
     /* the top layer's wave over the world maps */
     MENU_LINE(0xC2769A), MENU_LINE(0xC2779E),
     /* the Epoch's map view */

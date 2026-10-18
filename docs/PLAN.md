@@ -66,7 +66,7 @@ in place of the ports: the native coverage.
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 7% left (93% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program about 75%, battle frame work 90%, field graphics 92%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (35 movies): 19.6 KiB, 22.2 M instructions (handback 7.5 KiB, unported 12.3 KiB); shipping mode with the long routes 13.3 KiB, 26.3 M (the movies 20.8 M, the routes 5.4 M over the frames they keep); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (36 movies): 20.3 KiB, 22.0 M instructions (handback 8.3 KiB, unported 12.3 KiB); shipping mode with the long routes 11.7 KiB, 14.1 M (the movies 8.1 M, the ten routes 6.0 M over the frames they keep); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -223,7 +223,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 296 files, 117 of 90,760 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 297 files, 117 of 91,084 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -274,9 +274,9 @@ docstring says which way it is wrong). **6% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.9K | 0% | 437 |
+| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.9K | 0% | 438 |
 | field engine, events (`$C0`) | 59.4K | 58.3K | 14.0K | 2% | 401 |
-| menus, text, overworld (`$C2`) | 59.1K | 52.1K | 14.0K | 12% | 509 |
+| menus, text, overworld (`$C2`) | 59.1K | 52.1K | 14.0K | 12% | 510 |
 | scene program, RAM (`$7E`) | 24.9K | 17.6K | 2.4K | 30% | 138 |
 | battle frame work (`$CD`) | 15.4K | 15.2K | 4.7K | 1% | 220 |
 | field graphics (`$FD`) | 15.1K | 15.0K | 2.2K | 0% | 111 |
@@ -284,11 +284,11 @@ docstring says which way it is wrong). **6% of the code is still generated.**
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 54 |
 | battle setup (`$CC`) | 4.8K | 4.8K | 0.1K | 0% | 11 |
 | scene engine (`$C3`) | 3.8K | 3.6K | 0.7K | 7% | 31 |
-| scene data (`$C6`) | 3.4K | 3.4K | 2.1K | 0% | 28 |
+| scene data (`$C6`) | 3.4K | 3.4K | 0.8K | 0% | 32 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
 | console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
-| **total** | **266.5K** | **250.5K** | **57.5K** | **6%** | **2046** |
+| **total** | **266.5K** | **250.6K** | **56.1K** | **6%** | **2052** |
 
 `$CD`, the battle's frame work, is C but for 0.2 KiB: the whole screen script
 language (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"),
@@ -316,8 +316,9 @@ one subsystem near done. `$C3` (the scene engine) is done but for code the
 beam's counters decide and one routine nothing reaches (its row in
 docs/ports.tsv; the
 edge sequence the field's rasterizer inlines is credited to it); `$C6` has its small object
-routines and irises, and its Mode 7 map and perspective effects, table
-builders and orbit routines are left, none of which a movie reaches.
+routines and irises, and the Day of Lavos's turning world, which
+`battle-lavos-gameover` reaches; its table builders and orbit routines are
+left, which no movie reaches.
 
 Subsystem by subsystem, each through the gate, cheapest and best understood
 first. `--uncovered BANK` lists the largest unported runs, which is how to pick

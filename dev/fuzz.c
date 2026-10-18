@@ -282,14 +282,33 @@ static void original_access(SnesBus *bus)
 
 /* Run the interpreter until PC and S are back at the sentinel, noting the
  * lowest S on the way, for at most `budget` bus accesses. */
-static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s, bool must_step, uint16_t *lowest_s,
+/* The original's stack as it ran: the lowest S it reached, below which what
+ * it pushed and pulled again is dead; and for an interrupt entry
+ * (NativeEntry.interrupt), the stack it moved from with what it had popped
+ * there, as shadow mode follows it (runtime/port/native.c, follow_the_stack). */
+typedef struct {
+    uint16_t low, left_low, left_s;
+} Popped;
+
+/* S moved further in a step than an instruction pushes or pulls: a stack switch. */
+#define MOST_A_STEP_MOVES 4
+
+static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s, bool must_step, Popped *popped, bool interrupt,
                       unsigned long budget)
 {
-    *lowest_s = s->cpu.s;
+    *popped = (Popped){ .low = s->cpu.s };
+    uint16_t prev = s->cpu.s;
     original_work = 0;
     for (unsigned long steps = 0; original_work < budget && steps < budget; steps++) {   /* a halted CPU makes no accesses */
-        if (s->cpu.s < *lowest_s)
-            *lowest_s = s->cpu.s;
+        uint16_t sp = s->cpu.s;
+        if (interrupt && (sp > prev + MOST_A_STEP_MOVES || sp + MOST_A_STEP_MOVES < prev)) {
+            popped->left_low = popped->low;
+            popped->left_s = prev;
+            popped->low = sp;
+        }
+        if (sp < popped->low)
+            popped->low = sp;
+        prev = sp;
         if (cpu_pc24(&s->cpu) == ret_pc && s->cpu.s == ret_s && (steps > 0 || !must_step))
             return true;
         s->cpu.nmi_pending = false;
@@ -297,6 +316,14 @@ static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s, bool must_step, 
         cpu_step(&s->cpu);
     }
     return false;
+}
+
+/* What the original popped, taken as the port's: it is dead. */
+static void copy_popped(const Snes *orig, Snes *native, const Popped *popped)
+{
+    native_copy_popped_stack(orig, native, popped->low);
+    for (uint32_t addr = (uint32_t)popped->left_low + 1; addr <= popped->left_s && addr < 0x2000; addr++)
+        native->bus.wram[addr] = orig->bus.wram[addr];
 }
 
 /* ---- describing a mismatch in full ------------------------------------------------ */
@@ -500,7 +527,9 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         /* Call it: return to address $0000 in the routine's bank. */
         uint16_t ret_s = m->cpu.s;
         uint32_t ret_pc = e->addr & 0xFF0000;
-        if (o->interrupt) {
+        if (o->jump) {
+            /* Gone on to, not called: whatever it returns through is the state's. */
+        } else if (o->interrupt) {
             /* As an interrupt: PB, PC ($0000), P pushed; I set, D cleared. RTI
              * returns to exactly that address. */
             snes_bus_write(&m->bus, m->cpu.s--, (uint8_t)(e->addr >> 16));
@@ -545,7 +574,7 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
             native_fiber = fiber_create(native_fiber_main, NULL);
         fiber_switch(native_fiber);
         native.bus.on_access = NULL;
-        uint16_t lowest_s;
+        Popped popped;
         bool at_call = native_ran == RAN_TO_STOP_CALL;
         if (at_call) {
             /* The port is at the callee's entry, never to go on. */
@@ -565,7 +594,7 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
             /* The port's own code ran past the budget. If the original gets
              * back from the call on a small part of it, the port loops where
              * the original doesn't: a finding. Otherwise both run long. */
-            if (run_until(&orig, ret_pc, ret_s, false, &lowest_s, o->budget / FUZZ_LOOP_SHARE)) {
+            if (run_until(&orig, ret_pc, ret_s, false, &popped, e->interrupt, o->budget / FUZZ_LOOP_SHARE)) {
                 r.looped++;
                 char what[160];
                 snprintf(what, sizeof what,
@@ -600,7 +629,7 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         /* The original's budget: the port's, and a multiple of what the port
          * did (see FUZZ_ORIGINAL_FACTOR). */
         unsigned long budget = o->budget + FUZZ_ORIGINAL_FACTOR * native_work;
-        if (!run_until(&orig, stop_pc, stop_s, back_at_entry, &lowest_s, budget)) {
+        if (!run_until(&orig, stop_pc, stop_s, back_at_entry, &popped, e->interrupt, budget)) {
             if (stop_pc == ret_pc && stop_s == ret_s) {
                 r.original_long++;
             } else {
@@ -620,7 +649,7 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         bool same = false;
         char first_what[160] = "";
         for (unsigned pass = 0; pass < FUZZ_MAX_POINT_PASSES; pass++) {
-            native_copy_popped_stack(&orig, &native, lowest_s);
+            copy_popped(&orig, &native, &popped);
             if (!native_compare(&orig, &native, dont_care, what, sizeof what)) {
                 same = true;
                 break;
@@ -629,11 +658,15 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
                 memcpy(first_what, what, sizeof first_what);
                 snes_clone(&first_pass, &orig);
             }
-            uint16_t low;
-            if (!run_until(&orig, stop_pc, stop_s, true, &low, budget))
+            Popped more;
+            if (!run_until(&orig, stop_pc, stop_s, true, &more, e->interrupt, budget))
                 break;
-            if (low < lowest_s)
-                lowest_s = low;
+            if (more.low < popped.low)
+                popped.low = more.low;
+            if (more.left_s) {
+                popped.left_low = more.left_low;
+                popped.left_s = more.left_s;
+            }
         }
         r.scrambled += poison_calls;
         r.at_call += at_call;

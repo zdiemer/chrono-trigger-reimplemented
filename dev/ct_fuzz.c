@@ -2,9 +2,9 @@
  * random machine states rather than states a movie happens to reach.
  *
  *   ct_fuzz --rom roms/ct-usa.sfc --load-state base.state --routine <name|BBAAAA>
- *           [--iterations N] [--seed S] [--long | --interrupt] [--budget N]
+ *           [--iterations N] [--seed S] [--long | --interrupt | --jump] [--budget N]
  *           [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... [--range A|X|Y=lo-hi]...
- *           [--db BB] [--d HHHH] [--widths M,X] [--apu-loopback] [--poison-dc] [--details N]
+ *           [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc] [--details N]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
  * the N V Z C flags and all of work RAM except the stack page, applies the
@@ -59,7 +59,9 @@
  * 0-$500 by $80). --db sets the data bank, which the base state
  * otherwise decides, for entries that address registers through it; --d the
  * direct page likewise, for entries guarded on the page their subsystem runs
- * with. --widths M,X (8 or 16 each) sets the accumulator's and the index
+ * with; --s the stack pointer, for an entry that runs on a stack of its own
+ * (the menus' vblank handler's work), with --jump where it is gone on to, not
+ * called, so nothing is pushed for it to return through. --widths M,X (8 or 16 each) sets the accumulator's and the index
  * registers' widths the routine is entered with, which the base state
  * otherwise decides, for entries whose callers come both ways (the menus'
  * services, called with 16-bit index registers by most and 8-bit by a New
@@ -125,7 +127,7 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *state_path = NULL, *routine = NULL;
     bool apu_loopback = false;
-    int data_bank = -1, direct_page = -1, m_width = 0, x_width = 0;
+    int data_bank = -1, direct_page = -1, stack = -1, m_width = 0, x_width = 0;
     FuzzOptions o;
     fuzz_default_options(&o);
     for (int i = 1; i < argc; i++) {
@@ -136,6 +138,10 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--interrupt")) {
             o.interrupt = true;
+            continue;
+        }
+        if (!strcmp(a, "--jump")) {
+            o.jump = true;
             continue;
         }
         if (!strcmp(a, "--apu-loopback")) {
@@ -165,6 +171,7 @@ int main(int argc, char **argv)
         }
         else if (!strcmp(a, "--db")) data_bank = (int)(strtoul(v, NULL, 16) & 0xFF);
         else if (!strcmp(a, "--d")) direct_page = (int)(strtoul(v, NULL, 16) & 0xFFFF);
+        else if (!strcmp(a, "--s")) stack = (int)(strtoul(v, NULL, 16) & 0xFFFF);
         else if (!strcmp(a, "--widths") && sscanf(v, "%d,%d", &m_width, &x_width) == 2 &&
                  (m_width == 8 || m_width == 16) && (x_width == 8 || x_width == 16))
             ;
@@ -215,6 +222,8 @@ int main(int argc, char **argv)
         base.cpu.db = (uint8_t)data_bank;
     if (direct_page >= 0)
         base.cpu.d = (uint16_t)direct_page;
+    if (stack >= 0)
+        base.cpu.s = (uint16_t)stack;
     if (m_width)
         base.cpu.p = (uint8_t)(m_width == 8 ? base.cpu.p | CPU_FLAG_M : base.cpu.p & ~CPU_FLAG_M);
     if (x_width)
@@ -240,8 +249,8 @@ int main(int argc, char **argv)
 
 usage:
     fprintf(stderr, "usage: ct_fuzz --rom <rom> --routine <name|BBAAAA> [--load-state f] [--iterations N] "
-                    "[--seed S] [--long | --interrupt] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
-                    "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
+                    "[--seed S] [--long | --interrupt | --jump] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
+                    "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]...\n"
                     "  [--details N]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
