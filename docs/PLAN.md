@@ -64,7 +64,7 @@ in place of the ports: the native coverage.
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 8% left (92% has a port) | 0% |
+| ROM code reimplemented (`burndown.py`) | 7% left (93% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program about 75%, battle frame work 90%, field graphics 92%, scene engine 71%) | 100% |
 | Code run in place of hand ports (`fallbacks.py`) | the reference play (35 movies): 21.3 KiB, 36 M instructions (handback 12.7 KiB, unported 8.8 KiB); shipping mode with the routes 18.8 KiB, 104 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
@@ -167,11 +167,10 @@ isn't ported yet, so retiring it is porting its callee. In order:
    run as the original's (`$7E:5D71`, `$7E:6A23`, `$7E:69AF` and their
    neighbours, the largest of its handbacks), and what the Beyond Time
    ending still runs as the original's (`$7E:99B5`, `$7E:9AF3`-`$7E:9E2B`).
-3. **The battle's frame work** (87%): its largest handbacks now are waits on
-   the display -- the line wait (`$CD:3B82`), the pause's (`$CD:3E44`) and the
-   frame waits with their transfers (`$CD:3E75`, `$CD:3ED2`), which go with the
-   timing service -- and the frame work's message and window calls
-   (`$CD:0036`, `$CD:0239`, `$CD:04DF`).
+3. **The battle's frame work**: 2.7 M instructions of the reference play,
+   nearly all `$CD:0024` (an effect's end on an object) and `$CD:010A`/
+   `$CD:0154`, which the timers' dispatcher's call-outs reach; and in bank
+   `$FD` the rewards' messages (`$FD:AD17`), which call the battle's messages.
 
 ## The validation gate
 
@@ -225,7 +224,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 291 files, 117 of 89,454 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 293 files, 117 of 90,088 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -272,40 +271,40 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **8% of the code is still generated.**
+docstring says which way it is wrong). **7% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 17.0K | 0% | 436 |
-| field engine, events (`$C0`) | 59.4K | 57.5K | 14.0K | 3% | 384 |
-| menus, text, overworld (`$C2`) | 59.1K | 52.0K | 14.0K | 12% | 505 |
-| scene program, RAM (`$7E`) | 24.9K | 15.3K | 2.1K | 39% | 99 |
-| battle frame work (`$CD`) | 15.4K | 14.5K | 5.2K | 6% | 194 |
-| field graphics (`$FD`) | 15.1K | 14.3K | 2.2K | 5% | 99 |
-| battle sprites (`$CF`) | 6.8K | 6.8K | 0.3K | 0% | 45 |
+| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.9K | 0% | 436 |
+| field engine, events (`$C0`) | 59.4K | 57.8K | 14.0K | 3% | 393 |
+| menus, text, overworld (`$C2`) | 59.1K | 52.0K | 14.0K | 12% | 508 |
+| scene program, RAM (`$7E`) | 24.9K | 16.3K | 2.2K | 35% | 126 |
+| battle frame work (`$CD`) | 15.4K | 15.2K | 4.7K | 1% | 220 |
+| field graphics (`$FD`) | 15.1K | 14.7K | 2.2K | 3% | 105 |
+| battle sprites (`$CF`) | 6.8K | 6.8K | 0.3K | 0% | 46 |
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 54 |
 | battle setup (`$CC`) | 4.8K | 4.8K | 0.1K | 0% | 11 |
-| scene engine (`$C3`) | 3.8K | 3.6K | 0.9K | 7% | 29 |
-| scene data (`$C6`) | 3.4K | 3.4K | 2.3K | 0% | 26 |
+| scene engine (`$C3`) | 3.8K | 3.6K | 0.7K | 7% | 31 |
+| scene data (`$C6`) | 3.4K | 3.4K | 2.1K | 0% | 28 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
-| **total** | **266.5K** | **246.0K** | **58.1K** | **8%** | **1942** |
+| console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
+| **total** | **266.5K** | **248.3K** | **57.4K** | **7%** | **2018** |
 
-`$CD`, the battle's frame work, has the whole screen script language in C
-(REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"): its runner, every
-command, the triangles', circles' and squares' drawing and the special
-effects, with the frame work's table moves. What is left (`python3
-tools/burndown.py --uncovered CD`, about 0.9 KiB) is the frame work's waits
-and what they call, one chunk: the battle's closing (`$CD:0006`,
-`$CD:03B4`-`$CD:04A5`: the music's fade, the background put back, the
-frames it waits), the battle messages (`$CD:0021`, `$CD:01B3`, which call the
-menus' text, `$C2:0003`/`$C2:0009`, and wait for frames), the start
-settings' copy (`$CD:0C9D`/`$CD:0CF6`), the frame wait's tail's callees
-(`$CD:04DF`, `$CD:0516`, `$CD:0D62`-`$CD:0E79`), the wait for a line of the
-picture `$CD:3B82` (the frame work's and `$C1`'s), the channel loop's head
-`$CD:165F` the runner hands an unknown byte back to, and the jump stubs at
-`$CD:0000`-`$CD:0036`. Each waits on the console's frames or beam, so the
-chunk is where those waits become the platform's (docs/TODO.md).
+`$CD`, the battle's frame work, is C but for 0.2 KiB: the whole screen script
+language (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"),
+the frame work's table moves and waits, and the battle's close, the
+battlefield put back and the messages (REIMPLEMENTATION.md, "Phase 4a,
+timing: the battle frame work's remainders"). What `python3 tools/burndown.py
+--uncovered CD` still lists is not worth a port as it stands: the screen
+script runner's hand-back for a byte past the language's last command
+(`$CD:165F`, which no script has), the wait for a line of the picture
+(`$CD:3B82`, the timing service's `tm_wait_line` already) and script command
+`$C1`'s jump to it (`$CD:1D93`, in no movie), a battle lost on the screen
+effects' battlefield (`$CD:0D93`, `$CD:0DA2`, which no movie reaches), and the
+jump stubs `$CD:0000`, `$CD:0012` and `$CD:0039`. The fallback measure still
+counts the frame work's code the timers' dispatcher reaches (above, "The
+order now").
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 225 event command entries), which is why the shares are so high
@@ -437,9 +436,9 @@ an action shown"): the showing's step, the action's animation chosen and
 loaded, the poses' looks, the battle's own frame step and step 3, and the
 hits landing with a felled enemy's spoils. `python3 tools/burndown.py
 --uncovered C1` (and `CF`, `CC`) leaves only jump stubs into ports. **Next** for the battle is bank
-`$CD`'s remainder (above); in bank `$FD` the rewards' messages (`$FD:AD17`) wait for the
-battle messages' port, since each waits for the player (TODO.md), and the
-turn state's clearing (`$FD:A982`) for a name for the block it clears. The
+`$FD`'s rewards' messages (`$FD:AD17`), which can call the battle messages'
+port now (TODO.md), and the turn state's clearing (`$FD:A982`) for a name for
+the block it clears. The
 burndown counts the bank done, but the fallback measure shows what its ports
 still hand back: with an action's showing C, the largest left are the
 battle frame work's loads the showing calls -- the background's change

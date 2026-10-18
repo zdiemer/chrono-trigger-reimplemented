@@ -4,12 +4,11 @@
  * give the pause a turn on every pass (battle/wait.c), and while it is paused
  * the game sits it out there a frame at a time. It silences the battle's sound
  * -- the sound driver is told to (command $F5), and told again to carry on
- * when the pause ends -- and stops the play time clock. And before the battle changes the music -- at its start, for a screen
- * effect's own song -- it has the driver fade the song out and waits, a frame
- * at a time, for the fade to run out (the driver counts its steps left on its
- * status, platform/audio.h); a battle an event starts with the field's song
- * kept doesn't wait at its start. The waits are passes of the original's
- * loops, which call a frame's wait between them. */
+ * when the pause ends -- and stops the play time clock. Here too are the
+ * sounds the battle plays from its frame work: a screen script's, and the
+ * battle window's. As the battle ends, it has the driver fade the music out
+ * and waits for the fade to run out (battle/closing.c; the driver counts its
+ * steps left on its status, platform/audio.h). */
 #include "battle/sound.h"
 
 #include "battle/bridge.h"
@@ -84,6 +83,17 @@ static void leave_the_pan(Snes *s, const GameState *g, bool played)
     m_set_a8(s, (uint8_t)battle_script_sound_pan(g));
 }
 
+// $CD:3B71
+/* A sound effect played, A the effect and X where it is panned; the pan is
+ * left in A, as the script's sound leaves it. */
+void battle_play_a_sound(Snes *s)
+{
+    uint8_t pan = (uint8_t)s->cpu.x;
+    au_play_effect(m_platform(s), PF_CALL_DC(0xCD3B7D, 0xC70004, DRIVER_IGNORES), (uint8_t)s->cpu.a, pan);
+    m_set_a8(s, pan);
+    m_rts(s);
+}
+
 void battle_play_the_script_sound(Snes *s)
 {
     GameState *g = state_of(s);
@@ -95,40 +105,15 @@ void battle_play_the_script_sound(Snes *s)
 
 /* ---- The fade's waits ------------------------------------------------------------------ */
 
-/* One pass of a wait for the fade to run out: on to `done` once it has (or
- * `anyway`), else back to `wait`, the loop's call of a frame's wait. The
- * status tested is left in A. */
-static void wait_for_fade(Snes *s, PfOrigin o, bool anyway, uint16_t wait, uint16_t done)
+/* One pass of the wait for the fade to run out before a defeat's song on the
+ * screen effects' battlefield (in $CD:0D93, the original's still; the others
+ * are battle/closing.c's): on to the song once it has, else back to the
+ * loop's call of a frame's wait. The status tested is left in A. */
+// $CD:0D9C
+void battle_wait_music_fade_loop(Snes *s)
 {
-    if (anyway) {
-        s->cpu.pc = done;
-        return;
-    }
-    uint8_t left = au_music_fade_left(m_platform(s), o);
+    uint8_t left = au_music_fade_left(m_platform(s), PF_AT(0xCD0D9C));
     m_set_a8(s, left);
     m_set_nz8(s, left);
-    s->cpu.pc = left != 0 ? wait : done;
-}
-
-/* An event can start a battle with the field's song kept. */
-enum { KEEPS_FIELD_SONG = 0x40 };
-
-// $CD:042B (in $CD:0418, the start's)
-void battle_wait_start_music_fade_loop(Snes *s)
-{
-    bool kept = (battle_event_flags(state_of(s)) & KEEPS_FIELD_SONG) != 0;
-    if (kept) {
-        m_set_a8(s, KEEPS_FIELD_SONG);
-        m_set_nz8(s, KEEPS_FIELD_SONG);
-    }
-    wait_for_fade(s, PF_AT(0xCD0432), kept, 0x0428, 0x0438);
-}
-
-// $CD:0D9C (in $CD:0D93, before a song of the screen effects')
-void battle_wait_music_fade_loop(Snes *s) { wait_for_fade(s, PF_AT(0xCD0D9C), false, 0x0D99, 0x0DA2); }
-
-// $CD:0DB7 (in $CD:0DB1, before the HP gradient's)
-void battle_wait_music_fade_for_gradient_loop(Snes *s)
-{
-    wait_for_fade(s, PF_AT(0xCD0DB7), false, 0x0DB4, 0x0DBD);
+    s->cpu.pc = left != 0 ? 0x0D99 : 0x0DA2;
 }

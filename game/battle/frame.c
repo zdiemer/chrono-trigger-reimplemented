@@ -620,7 +620,7 @@ static bool finish_the_wait(Snes *s)
         return false;
     if (!battle_vram_request_busy(g)) {
         if (battle_background_restore_request(g) && !battle_effects_running(g)
-            && !battle_call(s, 0xCD04C4, 0xCD0453, READS_A_HIGH))
+            && !battle_run(s, 0xCD04C4, 0xCD0453, battle_put_the_battlefield_back))
             return false;
         if (battle_effect_graphics_wanted(g) && !battle_effect_graphics_loading(g)) {
             m_set_a8(s, battle_effect_graphics_effect(g));

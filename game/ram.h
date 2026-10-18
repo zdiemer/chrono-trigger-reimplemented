@@ -8374,6 +8374,9 @@
 /* Id of the battle message last opened by id ($FF once it has closed), so the same one doesn't
  * open twice */
 #define RAM_BATTLE_MESSAGE_SHOWN 0x7ECE17u
+/* Id of the battle message being opened by id ($CD:02AA), which becomes battle_message_shown
+ * once its text is set */
+#define RAM_BATTLE_MESSAGE_OPENING 0x7ECE18u
 /* Frames counted by the debug frame advance, whose every fourth frame can run */
 #define RAM_BATTLE_FRAME_ADVANCE_COUNT 0x7ECE19u
 /* The byte after battle_frame_advance_count, which the battle's start clears with it as a word;

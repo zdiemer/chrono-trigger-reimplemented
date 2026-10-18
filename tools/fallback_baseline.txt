@@ -146,8 +146,7 @@ C1:8345 25 5  # handback by battle_main_loop_tail (battle)
 C1:BD6F 10607 42  # handback by battle_dispatch_expired_timers (battle)
 C1:BFA4 2949 6  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_show_status_number (battle)
 C2:---- 3648800 5256  # no port yet (menus, text, overworld)
-C2:0003 2447 3  # handback by battle_dispatch_expired_timers, battle_draw_menu_window, battle_main_loop_body and 2 more (menus, text, overworld)
-C2:0009 330 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
+C2:0009 16 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
 C2:0346 3750 5  # handback by overworld_back_from_the_menus, overworld_main_loop (menus, text, overworld)
 C2:0454 3161 32  # handback by overworld_back_from_the_menus, overworld_main_loop (menus, text, overworld)
 C2:046E 149787 5  # handback by overworld_main_loop (menus, text, overworld)
@@ -277,37 +276,10 @@ C7:0A7B 628 10  # handback by sound_driver_song_echoed (sound driver)
 CC:ED87 1369 13  # handback by battle_setup_graphics (battle setup)
 CD:0000 111 8  # handback by battle_start_from_field (battle frame work)
 CD:0003 148 8  # handback by battle_main_loop_start (battle frame work)
-CD:0006 197346 139  # handback by battle_return_to_field (battle frame work)
-CD:000C 407 28  # handback by battle_main_loop_start (battle frame work)
 CD:0012 4336 16  # handback by battle_main_loop_start (battle frame work)
-CD:0021 203854 118  # handback by battle_main_loop_body (battle frame work)
 CD:0024 1358401 192  # handback by battle_dispatch_expired_timers (battle frame work)
-CD:0027 67668 56  # handback by battle_draw_menu_window (battle frame work)
-CD:0030 18740 66  # handback by battle_place_menu_cursors (battle frame work)
-CD:0033 6685401 118  # handback by battle_dispatch_expired_timers (battle frame work)
 CD:010A 631872 147  # handback by battle_dispatch_expired_timers (battle frame work)
 CD:0154 754048 73  # handback by battle_dispatch_expired_timers (battle frame work)
-CD:01A5 2512 14  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 1 more (battle frame work)
-CD:020A 2706 11  # handback by battle_main_loop_body (battle frame work)
-CD:025E 29431 41  # handback by battle_dispatch_expired_timers, battle_draw_menu_window, battle_main_loop_body and 1 more (battle frame work)
-CD:027F 2512 22  # handback by battle_dispatch_expired_timers, battle_main_loop_body (battle frame work)
-CD:039E 98 28  # handback by battle_return_to_field (battle frame work)
-CD:042B 366 21  # handback by battle_wait_start_music_fade_loop (battle frame work)
-CD:0453 20659880 111  # handback by battle_frame_wait_tail, battle_return_to_field (battle frame work)
-CD:0516 384 30  # handback by battle_return_to_field (battle frame work)
-CD:0534 1504 8  # handback by battle_return_to_field (battle frame work)
-CD:0C9D 74 4  # handback by battle_set_the_screen_up (battle frame work)
-CD:0CA1 22508 135  # handback by battle_set_the_screen_up (battle frame work)
-CD:0CF6 8748 50  # handback by battle_frame_wait_tail, battle_return_to_field (battle frame work)
-CD:0D62 93 55  # handback by battle_wait_music_fade_for_gradient_loop (battle frame work)
-CD:0DB1 138896 34  # handback by battle_return_to_field (battle frame work)
-CD:0DB7 20111 62  # handback by battle_wait_music_fade_for_gradient_loop (battle frame work)
-CD:0DD8 1682 34  # handback by battle_wait_music_fade_for_gradient_loop (battle frame work)
-CD:0E23 80388 18  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more (battle frame work)
-CD:0E35 7156 40  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more (battle frame work)
-CD:0E61 18908 37  # handback by battle_frame_wait_tail, battle_return_to_field (battle frame work)
-CD:0E9D 7248 32  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 3 more (battle frame work)
-CD:3B71 1105 23  # handback by battle_dispatch_expired_timers, battle_main_loop_body, battle_main_loop_start (battle frame work)
 CD:3ED2 10 5  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 4 more (battle frame work)
 CF:FD02 110 5  # handback by battle_draw_menu_window (battle sprites)
 CF:FD36 5 5  # handback by battle_draw_menu_window (battle sprites)
@@ -327,15 +299,16 @@ open 7E:3003 5 0  # hidden under scene_setup_and_first_frame's comparison, still
 open C0:0097 35 0  # hidden under field_frame's comparison, still open when a run ended
 open C1:007E 5733 0  # hidden under battle_wait_for_frame's comparison, still open when a run ended
 open C1:106E 18 0  # hidden under battle_wait_step's comparison, still open when a run ended
-open C1:4058 32422 0  # hidden under battle_show_action's comparison, still open when a run ended
+open C1:4058 32048 0  # hidden under battle_show_action's comparison, still open when a run ended
 open C1:8120 5 0  # hidden under battle_main_loop's comparison, still open when a run ended
 open C1:812C 86 0  # hidden under battle_main_loop_body's comparison, still open when a run ended
-open C1:8290 11547 0  # hidden under battle_dispatch_expired_timers's comparison, still open when a run ended
+open C1:8290 32402 0  # hidden under battle_dispatch_expired_timers's comparison, still open when a run ended
 open C1:B967 194 0  # hidden under battle_carry_out_member_action's comparison, still open when a run ended
 open C2:23CF 9 0  # hidden under overworld_main_loop's comparison, still open when a run ended
 open C7:0004 1209 0  # hidden under sound_driver_command's comparison, still open when a run ended
 open C7:0655 7904 0  # hidden under sound_driver_upload_block's comparison, still open when a run ended
 open C7:09DA 2 0  # hidden under sound_driver_send_counter's comparison, still open when a run ended
+open CD:0021 1083 0  # hidden under battle_show_a_battle_message's comparison, still open when a run ended
 open CD:0036 6 0  # hidden under battle_sit_out_the_pause_long's comparison, still open when a run ended
 open CD:3E44 4 0  # hidden under battle_sit_out_the_pause's comparison, still open when a run ended
 open CD:3E75 3702 0  # hidden under battle_wait_for_the_next_frame's comparison, still open when a run ended

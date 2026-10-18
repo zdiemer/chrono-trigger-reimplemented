@@ -18,6 +18,7 @@ battle_frame_update
 battle_frame_work
 battle_give_turn
 battle_hp_loss_timer_ran_out
+battle_let_the_screen_settle  # its loop's head is the entry: the original comes round to it on every pass inside the boss's end, whose stretch compares it; fuzzed alone up to its first wait
 battle_load_action_animation
 battle_load_attack_animation
 battle_load_battlefield
@@ -25,10 +26,14 @@ battle_load_effect_tile_rows
 battle_load_second_effect_tile_rows
 battle_load_tech_animation
 battle_member_attacks
+battle_play_a_sound  # run as C by the window's opening and the battle's messages (battle_run), whose stretches compare it; called by the original's code, it is compared
+battle_put_the_battlefield_back  # run as C by the frame wait's tail and the display's close (battle_run), whose stretches compare it; fuzzed alone up to its first wait
 battle_run_scripts
+battle_set_out_the_message  # run as C by the battle's own and an enemy's message (battle_run), whose stretches compare it; fuzzed alone up to its first wait
 battle_set_up_double_techs
 battle_setup_display
 battle_show_action
+battle_show_an_enemy_message  # run as C by the enemies' turns (battle_run_long), whose stretches compare it; fuzzed alone up to setting the message out
 battle_start_action_showing
 battle_wait_for_the_handler  # run as C by the frame work's wait for the next frame (battle_run), whose stretch compares it; called on its own, it is compared
 battle_wait_for_the_next_frame  # run as C by the waits for some frames and the transfer (battle_run), whose stretches compare it; called on its own, it is compared

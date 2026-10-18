@@ -37,6 +37,7 @@
 #include "battle/combatant.h"
 #include "battle/enemy_scripts.h"
 #include "battle/entries.h"
+#include "battle/message.h"
 #include "battle/party_turns.h"
 #include "battle/random.h"
 #include "battle/rewards.h"
@@ -456,7 +457,7 @@ static bool run_away(Snes *s)
     TIMED_AS(g, 0xFDAA98, battle_count_enemies_out(g));
     /* the message in A, its high byte clear as the counting leaves it */
     s->cpu.a = RAN_AWAY_MESSAGE;
-    if (!battle_call_long(s, 0xC18203, SHOW_MESSAGE, READS_A))
+    if (!battle_run_long(s, 0xC18203, SHOW_MESSAGE, battle_show_a_battle_message))
         return false;
     clear_party_statuses(g);
     if (!battle_run(s, 0xC1820A, PARTY_STANDS_DOWN, battle_party_stands_down))

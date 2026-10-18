@@ -47,7 +47,6 @@ scene_race_draw vblank-tail draws the race's sprites into the RAM sprite table i
 scene_program_start worst the program's start, which runs the scene's setup as C (scene/program.c): the race's setup, with the display blanked and the frame's interrupt off, unpacking its graphics and arranging the racers' pictures in long loops, and the shared endings', unpacking the ground and widening the captions' letters into VRAM a word at a time: at most 90451 clocks (66 lines) in a start of a few frames, moving when the scene starts
 scene_setup_and_first_frame worst the same setups, from where the sound's last command returns: at most 88726 clocks (65 lines), moving when the scene starts
 scene_ending_load_ground_and_picture worst a script's scene change in the shared endings, with the per-line effects off: the ground's name table and the picture's 240 rows mirrored in long loops, two or four calls whose time the vblank's interrupt splits; at most 542602 clocks in calls of 448,000 on average, moving when the picture first shows
-scene_ending_load_picture worst as scene_ending_load_ground_and_picture without the ground: the picture's 240 rows mirrored, at most 542602 clocks in calls of 583,000 on average, moving when the picture first shows
 
 # The telepod ending's staff roll, a frame task writing RAM the next vblank sends.
 scene_roll_credits vblank-tail writes the next line of the staff credits into a RAM row buffer every 16th frame (every frame when they roll fast) and only hands on to its scroll otherwise, so its time follows the line's length, which one scalar fits only on average; at most 4037 clocks (3.0 lines), writing only RAM
@@ -96,11 +95,9 @@ field_load_bg3_graphics drift the BG3 graphics' unpacking attributed to the deco
 field_load_bg3_graphics worst as for its drift: a load with the screen blanked, ending sooner or later
 field_load_tile_looks worst unpacks the tiles' looks while the screen is blanked, its time following the packed data: at most 52380 clocks against a 50468 limit
 field_load_bg3_tile_looks drift as field_load_bg3_graphics, for BG3's tile looks
-field_fade_in_after_a_menu vblank-tail as field_fade_in after a menu, its setup and frames attributed (cost_milli 1); 3.31% of its calls off by 1024 clocks or more, with the screen dark
 field_unpack_the_map worst unpacks a location's map while the screen is blanked, its time following the packed data: 5.8% error in calls of 1.34 million clocks, ending a load sooner or later
 field_set_up_after_a_menu worst brings the field back after a menu with the screen blanked: the map's unpacking and the screen's setup under it are C at their estimates, at most 300121 clocks in calls of 1.42 million, with the screen blanked
 field_refresh_effects drift runs the screen effects' and the layers' frame work inline, attributed (cost_milli 1); what is left over-estimates by 6%, writing RAM
-field_refresh_effects vblank-tail as for its drift: 2.94% of its vblank calls off by 1024 clocks or more, at most 2237 clocks
 field_walk_a_frame drift walks the party a frame inline, attributed (cost_milli 1); +0.77% over 1203 clocks a call, writing RAM
 # The leader's walk, now run as C under the frame's stretch: its own time has
 # two kinds of call, a step and a step that recentres the screen, and the
@@ -133,7 +130,6 @@ menu_choose_shop_tab worst the shop's tabs: most frames only read the buttons; t
 # those routines' rates, so a step carries their spread; each writes the menus'
 # buffers in RAM, which the next vblank uploads, and the vblank check finds no
 # video write of theirs moved.
-field_set_up_after_a_menu drift brings the field back after a menu with the screen blanked: the shop's returns to Medina's market load more than the other movies' returns, +1.99% at cost_milli 1, its loadings attributed
 menu_describe_pointed_tech drift the techs screen's description request, its time charged at the description's start: -0.67%, 3 clocks a call on average, writing RAM only
 menu_name_the_character drift name entry's frame: its own share is at the floor and its parts (the grid's move, the typing, the name's window) are charged at their rates; -0.75%, at most 146 clocks
 menu_move_on_the_name_grid drift the grid's move: its own share is at the floor and the name's cursor and window are charged at their routines' rates, 326 clocks over every call; writing RAM only

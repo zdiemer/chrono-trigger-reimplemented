@@ -44,6 +44,14 @@ static inline uint8_t battle_message_frames_at_speed(const GameState *g, uint8_t
     return rom_read8(g, 0xCD019Du + (speed & 0x07u));
 }
 
+/* The sound each of the battle's own messages plays as it opens ($D1:EE99, a
+ * byte a message; BATTLE_MESSAGE_SILENT for none). */
+enum { BATTLE_MESSAGE_SILENT = 0xFF };
+static inline uint8_t battle_message_sound(const GameState *g, uint8_t message)
+{
+    return rom_read8(g, 0xD1EE99u + message);
+}
+
 /* ---- Blocks of rows ---------------------------------------------------------------------- */
 
 /* Where each of the four blocks a routine can ask for goes in VRAM ($CD:05FF,

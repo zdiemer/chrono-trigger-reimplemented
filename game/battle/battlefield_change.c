@@ -73,19 +73,20 @@ static void stop_the_old_effects(GameState *g)
         set_battle_window_steps(g, count, 0);
 }
 
-/* The old layer's colors fade out through palette animation slot 10's
- * preset: background row 1's last eight colors go back to how the battle
- * started, and unless the battle's color math halves its colors, the fade
- * for the battlefield's kind (the HP gradient's own where it has one) is set
- * up and asked for. The original keeps the halving and the fade's kind in its
- * cells $55 and $53. */
+/* The layer's colors fade through palette animation slot 10's preset, out
+ * as an old battlefield leaves and back in as the battlefield is put back
+ * (battlefield_restore.c): background row 1's last eight colors go back to
+ * how the battle started, and unless the battle's color math halves its
+ * colors, the fade for the battlefield's kind (the HP gradient's own where it
+ * has one) is set up and asked for. The original keeps the halving and the
+ * fade's kind in its cells $55 and $53. */
 enum { KEPT_COLORS = 8, FIRST_KEPT_COLOR = 24 };
 enum { HALVED_MATH = 0x40, GRADIENT = 0x01 };
-enum { FADE_SLOT = 2, GRADIENT_FADES = 0x20, FADE_SLOT_REQUESTED = 0x80 };
+enum { FADE_SLOT = 2, GRADIENT_FADES = 0x20, FADE_BACK_IN = 8, FADE_SLOT_REQUESTED = 0x80 };
 enum { LEFT_FADE_KIND = 0x53, LEFT_HALVED = 0x55 };
 
 // $CD:0E23
-static void restore_the_kept_colors(GameState *g)
+void battle_restore_kept_colors(GameState *g)
 {
     for (unsigned i = 0; i < KEPT_COLORS; i++) {
         set_palette_base(g, FIRST_KEPT_COLOR + i, battle_kept_row_colors(g, i));
@@ -107,10 +108,10 @@ static void set_up_the_fade(GameState *g, uint8_t kind, BattlefieldFade f)
     set_battle_palette_preset_request(g, battle_palette_preset_request(g) | FADE_SLOT_REQUESTED);
 }
 
-// $CD:0E79 (with $CD:0E35)
-static void fade_the_old_layer_out(GameState *g)
+// $CD:0E35, with $CD:0E79 (out) and $CD:0E61 (back in)
+void battle_fade_battlefield_layer(GameState *g, bool back_in)
 {
-    restore_the_kept_colors(g);
+    battle_restore_kept_colors(g);
     uint8_t halved = (battle_start_screens_math_layers(g) & HALVED_MATH) ? 1 : 0;
     uint8_t kind = battlefield_fade_kind(g, halved);
     screen_leave_cell(g, LEFT_HALVED, halved);
@@ -118,8 +119,10 @@ static void fade_the_old_layer_out(GameState *g)
     if (halved)
         return;
     uint8_t fade = (battle_background_flags(g) & GRADIENT) ? GRADIENT_FADES : 0;
-    set_up_the_fade(g, kind, battlefield_fade(g, fade));
+    set_up_the_fade(g, kind, battlefield_fade(g, (uint8_t)(fade + (back_in ? FADE_BACK_IN : 0))));
 }
+
+static void fade_the_old_layer_out(GameState *g) { battle_fade_battlefield_layer(g, false); }
 
 /* The screen's settings below the split: the layers of the main screen, and
  * which of the main and sub screens' layers the windows mask. */

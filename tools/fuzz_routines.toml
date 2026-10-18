@@ -19288,3 +19288,184 @@ args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E035
         "--fill", "7E0351-7E0351=00-1F", "--fill", "7E0352-7E0352=C4-C4", "--fill", "7E0353-7E0353=F1-F1",
         "--fill", "7E0354-7E0354=7E-7E"]
 why = "a frame task of the palace with the curtain; the curtain's state as the setup leaves it and its sweep makes it (the step is a port of its own, called through the machine)"
+
+# ---- battle: the messages, the window's opening and closing, the display's close (bank CD) -------
+# Each is compared up to its first wait or transfer (the frame work's waits and its send to VRAM,
+# which span frames; shadow mode compares the rest at each call).
+
+[[routine]]
+name = "battle_put_the_battlefield_back"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECA26-7ECA26=00-00", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "on the battle's page, no transfer queued; up to its first wait"
+
+[[routine]]
+name = "battle_take_the_start_settings"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "no input but the field's screen and scroll the battle starts with, any"
+
+[[routine]]
+name = "battle_take_back_the_start_screen"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "no input but the start's screen settings, any"
+
+[[routine]]
+name = "battle_fade_battlefield_layer_back_in"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "no input but the battle's start screens and background flags, any"
+
+[[routine]]
+name = "battle_has_a_layer_of_its_own"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "any battlefield"
+
+[[routine]]
+name = "battle_restore_kept_colors"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "any kept colors"
+
+[[routine]]
+name = "battle_close_the_display"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7ECA26-7ECA26=00-00", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2",
+        "--stop-at-call", "CD0453", "--stop-at-call", "CD039E", "--stop-at-call", "CD0516"]
+why = "on the battle's page; up to its first call of a step of its own (each spans frames, and is fuzzed alone)"
+
+[[routine]]
+name = "battle_open_the_window"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "on the battle's page; up to its first wait"
+
+[[routine]]
+name = "battle_close_the_window"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "on the battle's page; up to its first wait"
+
+[[routine]]
+name = "battle_fade_the_music_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "on the battle's page; the fade's command, up to its first wait"
+
+[[routine]]
+name = "battle_play_out_the_boss_end"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2",
+        "--stop-at-call", "CD039E"]
+why = "on the battle's page; up to the music's fade, which spans frames and is fuzzed alone"
+
+[[routine]]
+name = "battle_let_the_screen_settle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "on the battle's page; up to its first wait"
+
+[[routine]]
+name = "battle_change_to_the_battlefield"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "a battlefield in X; up to its first wait"
+
+[[routine]]
+name = "battle_play_a_sound"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "any sound and pan"
+
+[[routine]]
+name = "battle_show_a_battle_message"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2",
+        "--stop-at-call", "CD3B71", "--stop-at-call", "CD027F", "--stop-at-call", "CD020A"]
+why = "any of the battle's messages, as the guard takes a string the menus' code can type; up to its sound or its first step that spans frames (each fuzzed alone)"
+
+[[routine]]
+name = "battle_show_an_enemy_message"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2",
+        "--stop-at-call", "CD027F"]
+why = "any enemy's message, as the guard takes a string the menus' code can type; up to setting it out, which spans frames (fuzzed alone)"
+
+[[routine]]
+name = "battle_name_a_combatant"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "any combatant, an enemy's message up or not, the same one asked before or not"
+
+[[routine]]
+name = "battle_name_a_combatant_with_hp"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "the same with the HP window"
+
+[[routine]]
+name = "battle_describe"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "any description, as the guard takes a string the menus' code can type"
+
+[[routine]]
+name = "battle_set_out_the_message"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "any budget of letters, a text the menus' code can go on with; up to its first wait"
+
+[[routine]]
+name = "battle_pause_on_the_message"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "on the battle's page; up to its first wait"
+
+[[routine]]
+name = "battle_open_the_message"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E020D-7E020D=11,C9,09",
+        "--fill", "7E020E-7E020E=EF,CB,3A", "--fill", "7E020F-7E020F=CE,CC"]
+why = "any string of the three tables the battle's messages come from (the guard takes only those), and one the menus' code can type"

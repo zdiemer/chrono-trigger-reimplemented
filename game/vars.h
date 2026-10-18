@@ -12693,6 +12693,11 @@ void set_battle_pause_blocked(GameState *g, uint8_t v);
 uint8_t battle_message_shown(const GameState *g);
 void set_battle_message_shown(GameState *g, uint8_t v);
 
+/* Id of the battle message being opened by id ($CD:02AA), which becomes battle_message_shown
+ * once its text is set */
+uint8_t battle_message_opening(const GameState *g);
+void set_battle_message_opening(GameState *g, uint8_t v);
+
 /* Frames counted by the debug frame advance, whose every fourth frame can run */
 uint8_t battle_frame_advance_count(const GameState *g);
 void set_battle_frame_advance_count(GameState *g, uint8_t v);

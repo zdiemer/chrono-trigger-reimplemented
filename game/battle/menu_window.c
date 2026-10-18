@@ -28,6 +28,7 @@
 #include "battle/choosing.h"
 #include "battle/combatant.h"
 #include "battle/entries.h"
+#include "battle/message.h"
 #include "battle/window_data.h"
 #include "battle/window_leaves.h"
 #include "original_effects.h"
@@ -472,7 +473,7 @@ static bool show_tech_page(Snes *s, GameState *g)
     vars_peek(false);
     if (battle_show_descriptions(g) & DESCRIPTIONS_ON) {
         s->cpu.a = battle_selected_tech_id(g);
-        if (!battle_call_long(s, 0xC10E95, 0xCD0027, DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
+        if (!battle_run_long(s, 0xC10E95, 0xCD0027, battle_describe))
             return false;
     }
     if (!battle_call_long(s, 0xC10E99, 0xCFFD36, CALLEE_READS_NOTHING))
@@ -797,7 +798,8 @@ static bool place_lone_target_cursor(Snes *s, GameState *g, uint8_t target)
             bool with_hp = enemy_hp_shown(g, target);
             s->cpu.a = describe_target(g, target);
             m_set_flag(s, CPU_FLAG_C, false);   /* the original's doubling of the target, passed on */
-            if (!battle_call_long(s, with_hp ? 0xC11A47 : 0xC11A16, with_hp ? 0xCD002D : 0xCD0030, CALLEE_READS_A))
+            if (!battle_run_long(s, with_hp ? 0xC11A47 : 0xC11A16, with_hp ? 0xCD002D : 0xCD0030,
+                                 with_hp ? battle_name_a_combatant_with_hp : battle_name_a_combatant))
                 return false;
             named = true;
         }

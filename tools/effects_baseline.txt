@@ -19,7 +19,7 @@ game/battle/digits.c digits_entry battle_number battle_number only
 game/battle/digits.c kept_digits battle_digits[2] battle_digits
 game/battle/digits.c kept_digits battle_digits[3] battle_digits
 game/battle/digits.c kept_digits battle_digits[4] battle_digits
-game/battle/display.c fade_brightness battle_scratch[0] battle_scratch only
+game/battle/display.c fade_brightness battle_scratch[0] battle_scratch # the brightness the fade starts from: the battle's close puts it there plainly as it installs the handler (battle/closing.c)
 game/battle/draw_objects.c at_a_sprite battle_oam_next battle_oam_next
 game/battle/draw_objects.c battle_copy_frame_tiles battle_draw_tile_groups battle_draw_tile_groups
 game/battle/draw_objects.c battle_draw_afterimage battle_draw_scratch[4] battle_draw_scratch
@@ -72,7 +72,7 @@ game/battle/positions.c reach_entry battle_product battle_product               
 game/battle/positions.c search_carry battle_product battle_product                                            # the product the search just kept plainly (positions.c distance_squared); the menu window's scaffolding reuses the cell between
 game/battle/screen.h screen_cell battle_low_scratch battle_low_scratch
 game/battle/screen.h screen_cell battle_scratch battle_scratch
-game/battle/screen.h screen_cell battle_scratch[0] battle_scratch only
+game/battle/screen.h screen_cell battle_scratch[0] battle_scratch
 game/battle/screen.h screen_cell battle_scratch[10] battle_scratch only
 game/battle/screen.h screen_cell battle_scratch[11] battle_scratch only
 game/battle/screen.h screen_cell battle_scratch[12] battle_scratch only
@@ -97,9 +97,9 @@ game/battle/tiles.c battle_decode_tile_row battle_scratch[34] battle_scratch    
 game/battle/tiles.c battle_decode_tile_row battle_scratch[35] battle_scratch                                  # the entry's operand: the original's callers put the count of tiles in the cell, every call
 game/battle/uploads.c battle_send_vram_and_wait battle_vram_send_size battle_message_window_kind # the entry's operand: vid_send_vram_and_wait's SNES backend, and the original's callers, put the size there plainly before every call
 game/battle/uploads.c battle_send_vram_and_wait battle_vram_send_size battle_scratch # the entry's operand: vid_send_vram_and_wait's SNES backend, and the original's callers, put the size there plainly before every call
-game/battle/uploads.c battle_upload_tile_rows battle_scratch[0] battle_scratch only
+game/battle/uploads.c battle_upload_tile_rows battle_scratch[0] battle_scratch
 game/battle/uploads.c battle_upload_tile_rows battle_scratch[1] battle_scratch only
-game/battle/uploads.c battle_vram_transfer battle_scratch[0] battle_scratch only
+game/battle/uploads.c battle_vram_transfer battle_scratch[0] battle_scratch
 game/battle/uploads.c battle_vram_transfer battle_scratch[1] battle_scratch only
 game/battle/wait.c wait_for_the_small_handler battle_alternate_frame_pending battle_scratch # the wait sets the flag plainly itself, and only the small handler clears it (battle_nmi_alternate)
 game/battle/window.h battle_work16 battle_work[0] battle_work only # the entries' operands: the original's callers put them there first, every call
@@ -305,9 +305,6 @@ game/scene/screen.c scene_send_unpacked scene_call_transfer_control scene_call #
 game/scene/screen.c scene_send_unpacked scene_call_transfer_register scene_call # the transfer's register, which its callers (the loaders, the race's setup) set plainly before their sends
 game/scene/title.c upload_ripple scene_bg3_scroll_x scene_stars_last_distance # the cell is set for the scene that reads it before it does (the race plainly, race.c mark_the_demo; the title's ripple by the program's own code); the star field's write is the endings', another scene
 run menu_object_wave_hdma menu_wave_phase                                                                     # the wave starts from whatever the field's page left in that cell ($01E2), in the original as here (TODO.md, "The menus' wave phase starts from event's scratch cell"): in the native shape it starts from another leftover, a different phase of the wave over a map screen's top layer on its first frames, and nothing else reads it
-run scene_draw_circle_jump scene_circle_center_x                                                              # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte
-run scene_draw_circle_jump scene_circle_center_y                                                              # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte
-run scene_draw_circle_jump scene_circle_radius                                                                # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte
 game/menu/save_screen.c draw_member_rows menu_save_summary_byte menu_record_frame_tile_list                    # the records' frames borrow the save summary's place for their tile lists, which only the original's frame building read; the save screen copies the summary there afresh ($C2:D19F, save_screen.c) before anything reads it
 game/menu/save_screen.c member_present menu_save_summary_byte menu_record_frame_tile_list                      # the records' frames borrow the save summary's place for their tile lists, which only the original's frame building read; the save screen copies the summary there afresh ($C2:D19F, save_screen.c) before anything reads it
 game/menu/save_screen.c show_member menu_save_summary_byte menu_record_frame_tile_list                         # the records' frames borrow the save summary's place for their tile lists, which only the original's frame building read; the save screen copies the summary there afresh ($C2:D19F, save_screen.c) before anything reads it
@@ -319,7 +316,6 @@ game/menu/text.c two_digits_at $7E98CB menu_record_frame_tile_list              
 game/menu/text.c two_digits_at $7E98CC menu_record_frame_tile_list                                             # the records' frames borrow the save summary's place for their tile lists, which only the original's frame building read; the save screen copies the summary there afresh ($C2:D19F, save_screen.c) before anything reads it
 game/menu/sprites.c frame_tiles_left menu_record_frame_tile_list menu_record_frame_tile_list                   # the frame building's own entry ($C2:F75C) takes the frame's tiles where the original's animation leaves them; only the original's code would call it, and the animation is C now, passing them as C
 game/menu/sprites.c frame_tiles_left menu_record_frame_tile_list menu_save_summary                             # the frame building's own entry ($C2:F75C) takes the frame's tiles where the original's animation leaves them; only the original's code would call it, and the animation is C now, passing them as C
-run menu_queue_built_vram_upload menu_record_frame_tile_list                                                   # an upload built over the save summary ($7E:9890, seven bytes) is queued with its eighth, unused byte, which the records' frame's tile list left there; nothing reads the queue's eighth bytes
 run menu_queue_built_vram_upload menu_settings_buttons_before                                                   # an upload built over the save summary ($7E:9890, seven bytes) is queued with its eighth, unused byte, which the records' frame's tile list left there; nothing reads the queue's eighth bytes
 game/field/sprites.c hide_leftovers field_sprite_range_next event_scratch  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the page's scratch uses of those cells (the switches' screen edges, event's leaves) come in between
 game/field/sprites.c range_next field_sprite_range_next event_scratch  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the page's scratch uses of those cells (the switches' screen edges, event's leaves) come in between

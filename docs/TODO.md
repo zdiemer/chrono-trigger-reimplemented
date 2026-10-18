@@ -167,29 +167,28 @@ rest waits, is [PLAN.md](PLAN.md).
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
   - The original's routines the battle still calls out to: the battle steps
     (`$C1:0003`) and the rewards' gold `$C1:D0A2` and messages `$FD:AD17`;
-    from a member's chosen action carried out (history/reimplementation-chunks.md, "Phase 3, battle
-    chunk 5"), the messages `$CD:0021`; from an enemy's turn (history/reimplementation-waves.md,
+    from an enemy's turn (history/reimplementation-waves.md,
     "Phase 3, wave 2: the enemies' minds"), an enemy's
     coming in `$FD:B438`, the calling in
-    `$FD:A990`, the message `$CD:0033` and the action's showing
+    `$FD:A990` and the action's showing
     `$C1:BFA4`/`$C1:EC7F`; what an effect's working out turns away to the
     original (history/reimplementation-chunks.md, "Phase 3, battle chunk 4: the party's working
     out"): a hit that steals as well (no record has one); the effect's start a status's timer asks for
     (`$C1:EC7F`); the
     pose's setup `$C1:308C`, and an animation that names no movement
     (`$C1:3760`'s table past its nine rows, no animation the battle gives);
-    the decompressor from the effect graphics loader; `$CD:0027`/`$002D`/`$0030`
-    from the menu window; from a member that comes back once (history/reimplementation-chunks.md, "Phase 3,
-    battle: the leftovers"), the showing's step `$C1:BFA4`/`$C1:EC7F` and
-    the message `$CD:0021`; from the battle's start and its return to the
-    field, the battle screen's setup `$CD:0000` (`$D1:F1B0`), the display's
-    closing `$CD:0006`, and from the setup's
-    end the party's poses `$C1:35DD`; the wait tail's callees from the frame
-    work, the battlefield put back `$CD:0453` and an effect's graphics
+    the decompressor from the effect graphics loader; from a member that comes back once (history/reimplementation-chunks.md, "Phase 3,
+    battle: the leftovers"), the showing's step `$C1:BFA4`/`$C1:EC7F`; from
+    the battle's start, the battle screen's setup `$CD:0000` (`$D1:F1B0`),
+    and from the setup's
+    end the party's poses `$C1:35DD`; the wait tail's callee from the frame
+    work, an effect's graphics
     loaded `$D1:ECF3`; the menu's turn the frame work's wait gives
-    (`$C1:0012`); and from the screen's start (history/reimplementation-chunks.md, "Phase 3, battle:
-    cuts, bands and the screen's start"), the start settings' copy
-    `$CD:0C9D` and the battle music's start `$C0:0008`.
+    (`$C1:0012`); from the screen's start (history/reimplementation-chunks.md, "Phase 3, battle:
+    cuts, bands and the screen's start"), the battle music's start
+    `$C0:0008`; and from the battle's close, the field's music put back
+    `$C0:000B` and a battle lost on the screen effects' battlefield
+    (`$CD:0D93`, which no movie reaches).
   - What the screen script's rows still turn away to the original
     (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"), none of it a
     call the library makes: the drift `$D7` where its amount's high byte,
@@ -717,8 +716,8 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What battle's chunk 8 left** (history/reimplementation-chunks.md, "Phase 3, battle chunk 8"):
   - the rewards' messages (`$FD:AD17`) are still the original's: each waits
-    for the player through `$CD:0021`, so their port waits on the messages'
-    own (the window's text and the wait for a button);
+    for the player through `$CD:0021`, which is a port now
+    (`battle_show_a_battle_message`), so their port can call it as C;
   - the tech points' count (`rewards_techs.c`, `rewards_count_tech_points`)
     pays the battle's points again towards a tech whose cost the points left
     over from the last one don't reach, so a member can learn more than the
@@ -843,9 +842,8 @@ rest waits, is [PLAN.md](PLAN.md).
   decided"). Poses 1, 10 and 11 have looks (`pose_looks.c`) no status gives.
 - **What the battlefield's change left** (REIMPLEMENTATION.md, "Phase 3, battle: the
   battlefield changed and an effect's rows of its tiles"): the rest of the original
-  that loads a battlefield, the screen effects' song and the HP gradient's
-  (`$CD:0D62`, `$CD:0D93`-`$CD:0DF9`, `$CD:0E05`) and the battlefield put
-  back (`$CD:0453`, with `$CD:0E23`-`$CD:0E61`), which call the ports; and
+  that loads a battlefield, the screen effects' battlefield's end (`$CD:0D93`-`$CD:0DA2`, a battle
+  lost there, which no movie reaches) and `$CD:0E05`, which call the ports; and
   the map buffer's clear (`$CD:1052`), whose every call in the library spans
   the vblank handler, so its `cost_milli` is an estimate from its loop (the
   original's time over the port's accesses in the shadow runs) the timing gate
@@ -2350,7 +2348,7 @@ re-runs the census.
   `$C2:0346` are still the original's around their idle loops, and the pass
   that leaves an idle loop stays counted as a fallback: they take the
   battle's shape.
-- **What the battle's waits left** (REIMPLEMENTATION.md, "Phase 4a, timing: the
+- **What the battle's waits left** (history/reimplementation-chunks.md, "Phase 4a, timing: the
   battle's waits and its transfer from the main thread"):
   - The menus' text code the battle message's typing calls (`$CD:04DF` ->
     `$C2:0009` -> `$C2:5823`) reads the carry it is entered with, which
@@ -2382,6 +2380,20 @@ re-runs the census.
   - The host's `vid_send_vram_and_wait` stops the program on a game address
     (no host memory behind it yet): the battlefield's change, its one caller,
     passes one.
+- **What the battle frame work's remainders left** (REIMPLEMENTATION.md,
+  "Phase 4a, timing: the battle frame work's remainders"):
+  - The messages, the close and the battlefield put back run inside their
+    callers' stretches, which compare them there: the enemy's message is
+    compared alone once in 298 calls, the display's close, the window's
+    close, the battlefield put back and the setting out never. Their fuzz
+    runs stop at the first wait, as the battle's waits' do, so what each does
+    after it is checked by shadow mode in its caller alone.
+  - Machine shape kept so shadow mode's points line up with the original's
+    stack: the battle's message keeps three copies of the message on the
+    stack (`message.c`, `show_a_battle_message`), and the counted waits keep
+    their count in A, the message's on the stack as well
+    (`wait_a_frame_counting`; `closing.c`'s `wait_frames_counting`). They go
+    when the waits are called as C from callers that are C.
 - **The line handlers' hblank waits**: `field_irq_wait_hblank_loop`
   (`$C0:ECEB`), `battle_irq_wait_hblank_loop` (`$D1:FEB8`) and the scene
   boot's `$C3:0530`/`$C3:0538` land the forced blank at the end of line 211,
@@ -2395,8 +2407,10 @@ re-runs the census.
   waits for line 64 before the screen script channels run while the timed
   effect slots do (`$CD:09AC`), and screen script command `$C1` (`$CD:1D93`,
   in no movie) waits for a line from the script. Neither is followed by a
-  register write, so the wait looks like pacing; take it out when the frame
-  work's own remainder is ported.
+  register write, so the wait looks like pacing. The rest of the frame work
+  is ported around it, and an entry at `$CD:3B82` would make the service's
+  own call of the original recurse into the port: decide whether a native
+  build keeps the wait at all, and take it out of the service if not.
 - **The timer resets.** `$C2:0043` past `$C2:00F2` and `$C2:940D` past
   `$C2:94B8` clear `$4207-$420A` in a run of CPU register writes (where the
   menu ports stop). Nothing enables the timers after them, so natively they

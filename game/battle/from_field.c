@@ -244,8 +244,8 @@ static bool last_frames(Snes *s)
     return frame_passes(s, 0xCFFCCC);
 }
 
-/* The battle's display is closed down ($CD:0006), the original's still, with
- * A's high byte clear. */
+/* The battle's display is closed down ($CD:0006, battle/closing.c), with A's
+ * high byte clear. */
 enum { CLOSE_DISPLAY = 0xCD0006 };
 
 // $C1:0006
@@ -257,7 +257,7 @@ void battle_return_to_field(Snes *s)
         return;
     stand_characters_up(g);
     s->cpu.a = 0;
-    if (!battle_call_long(s, 0xCFFCE9, CLOSE_DISPLAY, DC_AL | DC_X | DC_Y | DC_FLAGS))
+    if (!battle_run_long(s, 0xCFFCE9, CLOSE_DISPLAY, battle_close_the_display))
         return;
     m_return_to_caller_long(s);
 }
