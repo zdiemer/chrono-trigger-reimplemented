@@ -95,7 +95,7 @@ static ScreenFlow nudge_layer(GameState *g, ScreenChannel channel, uint8_t direc
     uint16_t by = (uint16_t)(distance + 1);
     set_battle_screen_layer_offset_x(g, channel, (uint16_t)(battle_screen_layer_offset_x(g, channel) + nudges[direction].across * by));
     set_battle_screen_layer_offset_y(g, channel, (uint16_t)(battle_screen_layer_offset_y(g, channel) + nudges[direction].down * by));
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, by));
+    screen_leave_for_the_drift(g, by);
     return screen_on();
 }
 SCREEN_OPERATION(nudge_layer, channel, direction, distance)
@@ -113,7 +113,7 @@ static ScreenFlow drop_layer_by_effect_object(GameState *g, ScreenChannel channe
 {
     uint16_t rise = object_rise(g);
     set_battle_screen_layer_offset_y(g, channel, (uint16_t)(battle_screen_layer_offset_y(g, channel) + rise));
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, rise));
+    screen_leave_for_the_drift(g, rise);
     return screen_on();
 }
 SCREEN_OPERATION(drop_layer_by_effect_object, channel)

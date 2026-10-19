@@ -392,8 +392,8 @@ name = "scene_sprite_offset_y_high"
 addr = "7E:0018"
 page = "scene"
 subsystem = "scene"
-meaning = "The byte after the sprites' Y offset, which the race stores with it as a word; nothing reads it"
-source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+meaning = "The high byte of the sprites' Y offset, where the offset is a word: the race and the fireworks store it with the offset, and the program's own list of large sprites ($7E:A03D) works each Y out on the whole word, to tell a sprite below the picture"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54; game/scene/sprites.c $7E:A03D"
 
 [[var]]
 name = "scene_sprite_list_left"
@@ -402,6 +402,14 @@ page = "scene"
 subsystem = "scene"
 meaning = "Count byte of the sprite list being copied, decremented per entry (the list holds one fewer entry than it)"
 source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E"
+
+[[var]]
+name = "scene_sprite_list_left_high"
+addr = "7E:001A"
+page = "scene"
+subsystem = "scene"
+meaning = "The byte after a sprite list's count, which the program's list of large sprites takes down with the count as a word once it has left a sprite out (its accumulator a word wide from there): not 0, the count runs on past the list's end"
+source = "game/scene/sprites.c $7E:A03D"
 
 [[var]]
 name = "scene_sprite_table"
@@ -1045,7 +1053,7 @@ dp = 0xF0
 stride = 16
 subsystem = "scene"
 meaning = "The sixteen bytes a scene program's routine takes its values in and leaves its results in, on whichever page it is called on (the scene's own, or a sequence channel's): the arithmetic's operands and results, the program's transfer's mode and register, the matrix code generator's offsets, the script's kept word. Each field is one routine's use, so fields overlap"
-source = "game/scene/math.c, scene_multiply $7E:31BF, scene_divide $7E:339F, scene_divide_8_8 $7E:32E2, scene_multiply_signed $C3:094C, scene_find_divisor $C3:0E29; game/scene/race_matrix.c, scene_write_matrix_code $C3:09E9; game/scene/screen.c, scene_transfer $7E:38E7; game/scene/script.c, scene_run_sequence $C3:0AFF"
+source = "game/scene/math.c, scene_multiply $7E:31BF, scene_divide $7E:339F, scene_divide_8_8 $7E:32E2, scene_multiply_signed $C3:094C, scene_find_divisor $C3:0E29; game/scene/beyond_time.c $7E:99B5, $7E:9BF9; game/scene/race_matrix.c, scene_write_matrix_code $C3:09E9; game/scene/screen.c, scene_transfer $7E:38E7; game/scene/script.c, scene_run_sequence $C3:0AFF"
 [[var.field]]
 name = "first"
 offset = 0x0
@@ -1182,6 +1190,16 @@ name = "script_scratch"
 offset = 0x0
 size = 2
 meaning = "A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page)"
+[[var.field]]
+name = "kept_list_clip"
+offset = 0x0
+size = 2
+meaning = "On the scene's own page: the large sprite list's drop instruction (scene_large_list_clip), which the fireworks keep here while they write it out to draw their bursts"
+[[var.field]]
+name = "orbit_frame"
+offset = 0xE
+size = 2
+meaning = "On the scene's own page: twice the frame counter, which the shared endings' orbit keeps here between its sine and its cosine"
 
 # ---- the scene's absolute work RAM ---------------------------------------------
 
@@ -2381,15 +2399,15 @@ source = "game/scene/race_matrix.c, scene_gather_picture $7E:B574"
 
 
 [[var]]
-name = "scene_race_perspective_camera"
+name = "scene_perspective_camera"
 addr = "7E:0A30"
 size = 2
 count = 5
 index = "the camera's height, angle, pitch, depth and mirroring, as channel 0's registers 0, 5, 6, 8 and 11 hold them"
 subsystem = "scene"
 reuses = "scene_channels"
-meaning = "The camera the race last built its perspective for, kept in channel 0's spare loop counters: when the camera differs, the perspective is built again"
-source = "game/scene/race_camera.c, scene_race_check_perspective $7E:42CE"
+meaning = "The camera the Mode 7 plane's perspective was last built for, kept in channel 0's spare loop counters: when the camera differs, the perspective is built again (the race's check compares all five, the Beyond Time ending's flight the first four)"
+source = "game/scene/perspective.c scene_keep_the_camera; game/scene/race_camera.c, scene_race_check_perspective $7E:42CE; game/scene/beyond_time.c $7E:9ABD"
 
 [[var]]
 name = "scene_race_turning"
@@ -2431,6 +2449,219 @@ index = "0 the lines above the horizon, 1 the lines from it"
 subsystem = "scene"
 meaning = "The line counts of the race's per-line table for the BG mode (mode 1 above the horizon, the plane's mode 7 from it), which the race sets each vblank from the horizon"
 source = "game/scene/race_camera.c, scene_race_set_horizon $7E:44FE"
+
+[[var]]
+name = "scene_flight_mode_line_counts"
+addr = "7E:902F"
+count = 2
+stride = 3
+index = "0 the lines above the horizon, 1 the lines from it"
+subsystem = "scene"
+meaning = "The line counts of the Beyond Time ending's per-line table for the BG mode (the sky above the horizon, the ground's Mode 7 from it), a table in the program's own data that the flight sets each vblank from the horizon"
+source = "game/scene/beyond_time.c $7E:9080"
+
+[[var]]
+name = "scene_flight_scroll_line_counts"
+addr = "7E:9043"
+count = 2
+stride = 3
+index = "0 the lines above the horizon, 1 the lines from it"
+subsystem = "scene"
+meaning = "The line counts of the flight's per-line table for BG1's scroll: the sky's (scene_flight_view's sky_x and sky_y) above the horizon, the ground's (its line_x and line_y) from it"
+source = "game/scene/beyond_time.c $7E:9080"
+
+[[var]]
+name = "scene_flight_screens_line_counts"
+addr = "7E:904D"
+count = 2
+stride = 3
+index = "0 the lines above the horizon, 1 the lines from it"
+subsystem = "scene"
+meaning = "The line counts of the flight's per-line table for the main screen's layers"
+source = "game/scene/beyond_time.c $7E:9080"
+
+[[var]]
+name = "scene_flight_view"
+addr = "7E:1400"
+stride = 0x14
+subsystem = "scene"
+reuses = "scene_race_picture_requests"
+meaning = "Where the Beyond Time ending's flight looks at the world's map from, worked out each vblank from channel 0's camera and sent the next ($7E:9AF3, $7E:9DBC); the per-line table for BG1's scroll reads its line and sky scrolls"
+source = "game/scene/beyond_time.c $7E:9AF3, $7E:9DBC"
+[[var.field]]
+name = "x"
+offset = 0x00
+size = 2
+meaning = "The view's scroll across: the camera's place on the map, moved out along its turn by its distance"
+[[var.field]]
+name = "y"
+offset = 0x02
+size = 2
+meaning = "The view's scroll down"
+[[var.field]]
+name = "line_x"
+offset = 0x04
+size = 2
+meaning = "The view's scroll across as the per-line table sends it below the horizon (the vblank's copy of x)"
+[[var.field]]
+name = "line_y"
+offset = 0x06
+size = 2
+meaning = "The view's scroll down as the per-line table sends it"
+[[var.field]]
+name = "centre_x"
+offset = 0x08
+size = 2
+meaning = "The plane's rotation centre across, the view's place half a screen in"
+[[var.field]]
+name = "centre_y"
+offset = 0x0A
+size = 2
+meaning = "The plane's rotation centre down, the view's place a screen's height in"
+[[var.field]]
+name = "sky_x"
+offset = 0x0C
+size = 2
+meaning = "The sky's scroll across above the horizon: against the camera's turn"
+[[var.field]]
+name = "sky_y"
+offset = 0x0E
+size = 2
+meaning = "The sky's scroll down: the horizon's line under its last"
+[[var.field]]
+name = "turned_x"
+offset = 0x10
+size = 2
+meaning = "The camera's distance turned, across"
+[[var.field]]
+name = "turned_y"
+offset = 0x12
+size = 2
+meaning = "The camera's distance turned, down"
+
+[[var]]
+name = "scene_ending_plane_flat"
+addr = "7E:007B"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_race_racers", "scene_palace_column_offsets"]
+meaning = "In the Beyond Time ending's flight: nonzero while the world's map is shown flat, turned and scaled by one matrix, rather than in perspective (the byte the zooming picture's scaling reads as scene_ending_picture_tall)"
+source = "game/scene/beyond_time.c $7E:9ABD, $7E:9DBC"
+
+[[var]]
+name = "scene_ending_orbit_size"
+addr = "7E:006B"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_race_racers", "scene_palace_column_offsets"]
+meaning = "How far, in 256ths of the sine, the shared endings' orbit swings out (the scripts set its low byte)"
+source = "game/scene/beyond_time.c $7E:99B5"
+
+[[var]]
+name = "scene_ending_orbit_x"
+addr = "7E:006D"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_race_racers", "scene_palace_column_offsets"]
+meaning = "Where along its figure of eight the shared endings' orbit is, across: the sine of four times the frame counter, swung out by the orbit's size"
+source = "game/scene/beyond_time.c $7E:99B5"
+
+[[var]]
+name = "scene_ending_orbit_y"
+addr = "7E:006F"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_race_racers", "scene_palace_column_offsets"]
+meaning = "Where along its figure of eight the orbit is, down: the cosine of twice the frame counter, swung out"
+source = "game/scene/beyond_time.c $7E:99B5"
+
+[[var]]
+name = "scene_fireworks_countdown"
+addr = "7E:0087"
+size = 2
+count = 2
+index = "firework"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_race_racers", "scene_palace_column_offsets"]
+meaning = "Frames left on the firework's frame of its burst"
+source = "game/scene/beyond_time.c $7E:9BF9"
+
+[[var]]
+name = "scene_fireworks_frame"
+addr = "7E:008F"
+size = 2
+count = 2
+index = "firework"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_race_racers", "scene_palace_column_offsets"]
+meaning = "Where the firework is in its burst (scene_firework_bursts): the place in the program of its frame's sprite list, a byte into the frame, after how many frames it shows"
+source = "game/scene/beyond_time.c $7E:9BF9, $7E:9BD8"
+
+[[var]]
+name = "scene_fireworks_x"
+addr = "7E:0097"
+count = 2
+stride = 2
+index = "firework"
+unchecked = "a firework's place is read as a word from its Y, whose high byte is the next firework's X, and for the last the byte after the places (game/scene/beyond_time.c)"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_race_view", "scene_palace_column_offsets"]
+meaning = "Where across the screen the firework bursts"
+source = "game/scene/beyond_time.c $7E:9BB8"
+
+[[var]]
+name = "scene_fireworks_y"
+addr = "7E:0098"
+count = 2
+stride = 2
+index = "firework"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_race_view", "scene_palace_column_offsets"]
+meaning = "Where down the screen the firework bursts"
+source = "game/scene/beyond_time.c $7E:9BB8"
+
+[[var]]
+name = "scene_fireworks_held"
+addr = "7E:009F"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_race_place", "scene_palace_column_offsets"]
+meaning = "Nonzero while the fireworks hold: each new burst is the one held frame, for 48 frames, rather than a burst picked at random"
+source = "game/scene/beyond_time.c $7E:9BD8"
+
+[[var]]
+name = "scene_firework_bursts"
+addr = "7E:A5B0"
+count = 0x88
+index = "byte"
+subsystem = "scene"
+meaning = "The fireworks' bursts in the program, frame after frame: each frame how many frames it shows and then its list of large sprites (a word), a frame of 0 frames ending a burst. Four bursts start at $A5B0, $A5CC, $A5E8 and $A610, and the held burst's one frame, at $A60C, is also the third's last"
+source = "game/scene/beyond_time.c $7E:9BF9, $7E:9BD8"
+
+[[var]]
+name = "scene_large_list_clip"
+addr = "7E:A074"
+size = 2
+subsystem = "scene"
+meaning = "The instruction in the program's list of large sprites ($7E:A03D) that drops a sprite whose Y falls at or past line 224 (a BCS, $D8B0, as the program is loaded), or two NOPs ($EAEA) that keep every sprite, which the fireworks write while they draw their bursts and put back after"
+source = "game/scene/sprites.c $7E:A03D; game/scene/beyond_time.c $7E:9BF9"
+
+[[var]]
+name = "scene_large_list_spare"
+addr = "7E:A090"
+size = 2
+subsystem = "scene"
+meaning = "Two bytes of the list of large sprites that no path runs, which the fireworks write a compare into ($E0C9) and then the load the program has there ($E0A9)"
+source = "game/scene/beyond_time.c $7E:9BF9"
 
 [[var]]
 name = "scene_race_math_line_counts"
@@ -5840,12 +6071,28 @@ meaning = "Vertical"
 [[var]]
 name = "field_line_screens"
 addr = "7F:1520"
-size = 4
 count = 3
+stride = 4
 index = "0 outside the dialog window, 1 its body, 2 its top and bottom edges"
 subsystem = "field"
 meaning = "Main and sub screen layers and their window masks the screens line effect sends (field_main_screen and field_sub_screen outside the window)"
-source = "game/field/line_effects.c, field_init_line_effect_values $FD:C124"
+source = "game/field/line_effects.c, field_init_line_effect_values $FD:C124; game/field/screen_effects.c; game/battle/beaten_enemies.c $CD:0078"
+[[var.field]]
+name = "main_layers"
+offset = 0
+meaning = "The layers on the main screen"
+[[var.field]]
+name = "sub_layers"
+offset = 1
+meaning = "The layers on the sub screen"
+[[var.field]]
+name = "main_masks"
+offset = 2
+meaning = "The layers the windows mask on the main screen"
+[[var.field]]
+name = "sub_masks"
+offset = 3
+meaning = "The layers the windows mask on the sub screen"
 
 [[var]]
 name = "field_line_color_math"
@@ -18854,11 +19101,21 @@ source = "game/battle/screen.h; $CD:16A6"
 name = "battle_scratch"
 addr = "7E:0045"
 page = "battle"
-count = 0x31
+count = 0x32
 index = "byte"
 subsystem = "battle"
-meaning = "Direct-page scratch the battle's routines share ($45-$75): counts, thresholds, operands and table offsets, each routine's own; the battlefield tile decoder keeps its pointers, masks and counts at $53-$6A, the count of tiles its callers hand it at $67, and the battlefield's map builder its pointers and counts at $53-$75"
-source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B, battle_load_effect_graphics $D1:ECF3; game/battle/display.c; game/battle/tiles.c battle_decode_tile_row $CD:1368; game/battle/battlefield_change.c $CD:0EBD-$CD:12B8"
+meaning = "Direct-page scratch the battle's routines share ($45-$76): counts, thresholds, operands and table offsets, each routine's own; the battlefield tile decoder keeps its pointers, masks and counts at $53-$6A, the count of tiles its callers hand it at $67, the battlefield's map builder its pointers and counts at $53-$75, and a beaten enemy's dissolve its step's layout, runs, enemy, mask and row at $53-$76"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B, battle_load_effect_graphics $D1:ECF3; game/battle/display.c; game/battle/tiles.c battle_decode_tile_row $CD:1368; game/battle/battlefield_change.c $CD:0EBD-$CD:12B8; game/battle/beaten_enemies.c $CD:010A"
+
+[[var]]
+name = "battle_screen_leftover"
+addr = "7E:0045"
+size = 2
+page = "battle"
+reuses = "battle_scratch"
+subsystem = "battle"
+meaning = "What the battle's screen work leaves last in its first shared work cells, a word: each frame the layers' scroll leaves BG1's scroll across there, and many of the screen script's commands a value of their working (a window band's edges or the end of its lines, the waves' phase, a layer's nudge or bob, the HP gradient's row copy its count run out). The screen scripts' drift ($D7) tests the high byte, as it tests whatever the last effect left there, to decide whether it drifts by an amount"
+source = "game/battle/scroll.c $CD:06C4; game/battle/screen.h screen_leave_for_the_drift (screen_window.c, screen_layers.c, screen_waves.c, screen_gradient.c, screen_divide.c, screen_script.c, screen_specials.c); game/battle/screen_motion.c drifts_by_an_amount"
 
 [[var]]
 name = "battle_alternate_frame_pending"
@@ -19182,8 +19439,29 @@ source = "game/battle/screen_specials.c $CD:2D51"
 name = "battle_ended_effect_object"
 addr = "7E:CD00"
 subsystem = "battle"
-meaning = "The object $CD:0024 was last called with, as an effect ends on it ($CF:FE76); the special effect 15 clears its sprites' attribute bits"
-source = "$CD:0043; game/battle/screen_specials.c $CD:2B5C"
+meaning = "The beaten enemy last seen off the battlefield ($CD:0024, from the beaten enemies' step), whose graphics the dissolve puts out; the special effect 15 clears its sprites' attribute bits"
+source = "game/battle/beaten_enemies.c $CD:0043; game/battle/screen_specials.c $CD:2B5C"
+
+[[var]]
+name = "battle_dissolve_pace"
+addr = "7E:CD01"
+subsystem = "battle"
+meaning = "How fast a beaten enemy's dissolve moves on through the places of a tile: its low three bits pick the stride ($CE:EFEA); the dissolve sets 7"
+source = "game/battle/beaten_enemies.c $CD:00A0, $CD:010A"
+
+[[var]]
+name = "battle_dissolve_frames"
+addr = "7E:CCFE"
+subsystem = "battle"
+meaning = "The frames of a beaten enemy's dissolve gone, to 32"
+source = "game/battle/beaten_enemies.c $CD:00A0"
+
+[[var]]
+name = "battle_dissolve_place"
+addr = "7E:CCFF"
+subsystem = "battle"
+meaning = "The place in every 8x8 tile of the enemy's graphics its dissolve put out last: the column in bits 0-2, the row in bits 3-5"
+source = "game/battle/beaten_enemies.c $CD:00A0, $CD:010A"
 
 [[var]]
 name = "battle_window_steps"
@@ -23188,8 +23466,8 @@ addr = "7E:A020"
 count = 8
 index = "enemy"
 subsystem = "battle"
-meaning = "The low two bits of each enemy's family byte, noted as the fight starts; no code traced reads them"
-source = "game/battle/fight_enemies.c ($FD:B121)"
+meaning = "The low two bits of each enemy's family byte, noted as the fight starts: bit 0 has the enemy, beaten, leave the fight by changing the battlefield rather than dissolving"
+source = "game/battle/fight_enemies.c ($FD:B121); game/battle/beaten_enemies.c $CD:0087"
 
 [[var]]
 name = "battle_experience_won"
@@ -23828,8 +24106,8 @@ count = 15
 index = "setting"
 reuses = "battle_scratch"
 subsystem = "battle"
-meaning = "A screen effect's settings, as its caller gives them (the animation scripts' $80 gives as many as its first byte says; the effect reads five)"
-source = "game/battle/screen_motion.c battle_screen_effect_from_settings $D1:F67A; game/battle/script_sound.c screen_effect $C1:621B"
+meaning = "A screen effect's settings, as its caller gives them (the animation scripts' $80 gives as many as its first byte says; the effect reads five, a command giving fewer taking the rest from what is left here, which a beaten enemy's dissolve overwrites with its step's layout, last run and count)"
+source = "game/battle/screen_motion.c battle_screen_effect_from_settings $D1:F67A; game/battle/script_sound.c screen_effect $C1:621B; game/battle/beaten_enemies.c $CD:010A"
 
 [[var]]
 name = "battle_effect_enemy"

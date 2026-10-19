@@ -188,6 +188,24 @@ void scene_build_perspective(GameState *g, SceneChannel ch)
     ORIGINAL_EFFECT(leave_loop_operands(g, &t, last_distance));
 }
 
+/* ---- The camera it was built for ------------------------------------------------------------- */
+
+/* The camera's registers the perspective was last built for, in the order
+ * scene_perspective_camera keeps them. */
+static const unsigned camera_registers[] = { PLANE_HEIGHT, PLANE_TURN, PLANE_HORIZON, PLANE_TOP, PLANE_LINES_PAIRED };
+enum { CAMERA_REGISTERS = sizeof camera_registers / sizeof camera_registers[0] };
+
+unsigned scene_keep_the_camera(GameState *g, unsigned registers)
+{
+    unsigned first = registers;
+    for (unsigned i = 0; i < registers && i < CAMERA_REGISTERS && first == registers; i++)
+        if (plane_register(g, 0, camera_registers[i]) != scene_perspective_camera(g, i))
+            first = i;
+    for (unsigned i = first; i < registers && i < CAMERA_REGISTERS; i++)
+        set_scene_perspective_camera(g, i, plane_register(g, 0, camera_registers[i]));
+    return first;
+}
+
 /* ---- Entry ----------------------------------------------------------------------------------- */
 
 /* The program's perspective code, without the operands the program writes
@@ -248,14 +266,11 @@ bool scene_perspective_as_ported(Snes *s, uint16_t d)
 
 bool scene_build_perspective_present(Snes *s) { return scene_perspective_as_ported(s, m_direct_page(s)); }
 
-/* The turn's sum in the sine leaves the overflow: a turn from $7F00 to $7FFF
- * passes $7FFF a quarter turn on. */
-enum { QUARTER_TURN = 0x100 };
-
 /* What the original leaves, from the state after: Y at the end of the tables,
  * X the distance after the last line's, A the last entry it stored (the sine's
- * negated, or the copy's last), the loop's last compare in the flags, the
- * direct page on the CPU's registers and the data bank its own. */
+ * negated, or the copy's last), the loop's last compare in the flags but V,
+ * which the cosine of the turn left, the direct page on the CPU's registers
+ * and the data bank its own. */
 void scene_leave_perspective_registers(Snes *s, SceneChannel ch)
 {
     GameState *g = state_of(s);
@@ -266,7 +281,7 @@ void scene_leave_perspective_registers(Snes *s, SceneChannel ch)
     s->cpu.x = (uint16_t)(plane_register(g, ch, PLANE_TOP) + (SCREEN_LINES - first_line(g, ch)));
     s->cpu.y = SCREEN_END;
     uint16_t turn = plane_register(g, ch, PLANE_TURN);
-    m_set_flag(s, CPU_FLAG_V, ((turn ^ (uint16_t)(turn + QUARTER_TURN)) & ~(turn ^ QUARTER_TURN) & 0x8000) != 0);
+    m_set_flag(s, CPU_FLAG_V, scene_quarter_turn_on_overflows(turn));
     m_set_flag(s, CPU_FLAG_N, false);
     m_set_flag(s, CPU_FLAG_Z, true);
     m_set_flag(s, CPU_FLAG_C, true);

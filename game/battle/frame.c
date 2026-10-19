@@ -30,6 +30,7 @@
 #include "battle/screen.h"
 #include "battle/screen_data.h"
 #include "battle/sound.h"
+#include "field/field.h"
 #include "original_effects.h"
 #include "platform/input.h"
 #include "platform/video.h"
@@ -710,24 +711,13 @@ void battle_frame_wait_tail(Snes *s)
     m_rtl(s);
 }
 
-// $CD:0C89
-/* The map's layers that scroll by themselves (the field's, which the battle's
- * background is a map of): the field's routine keeps its own page and bank,
- * so the battle's data bank, page and flags are kept on the stack around it,
- * where the original keeps them. */
+// $CD:0C89 (through $C0:0002)
+/* The map's layers that scroll by themselves, the field's, which the battle's
+ * background is a map of: a frame's worth, the field's own work, timed as
+ * its routine. */
 void battle_scroll_map_layers(Snes *s)
 {
-    m_push8(s, s->cpu.db);
-    m_push16(s, s->cpu.d);
-    m_push8(s, s->cpu.p);
-    m_jsl_dc(s, 0xCD0C8C, 0xC00002, READS_NOTHING | DC_DB | DC_D);
-    s->cpu.p = m_pull8(s);
-    if (m_x8(s)) {
-        s->cpu.x &= 0xFF;
-        s->cpu.y &= 0xFF;
-    }
-    s->cpu.d = m_pull16(s);
-    s->cpu.db = m_pull8(s);
+    NATIVE_TIME_AS(s, 0xC02C41, field_scroll_layers_by_themselves(state_of(s)));
     m_rtl(s);
 }
 

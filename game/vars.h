@@ -2624,10 +2624,18 @@ uint16_t field_line_scroll_v(const GameState *g, unsigned layer);
 void set_field_line_scroll_v(GameState *g, unsigned layer, uint16_t v);
 
 enum { FIELD_LINE_SCREENS_COUNT = 3 };   /* by 0 outside the dialog window, 1 its body, 2 its top and bottom edges */
-/* Main and sub screen layers and their window masks the screens line effect sends
- * (field_main_screen and field_sub_screen outside the window) */
-uint32_t field_line_screens(const GameState *g, unsigned i);
-void set_field_line_screens(GameState *g, unsigned i, uint32_t v);
+/* The layers on the main screen */
+uint8_t field_line_screens_main_layers(const GameState *g, unsigned i);
+void set_field_line_screens_main_layers(GameState *g, unsigned i, uint8_t v);
+/* The layers on the sub screen */
+uint8_t field_line_screens_sub_layers(const GameState *g, unsigned i);
+void set_field_line_screens_sub_layers(GameState *g, unsigned i, uint8_t v);
+/* The layers the windows mask on the main screen */
+uint8_t field_line_screens_main_masks(const GameState *g, unsigned i);
+void set_field_line_screens_main_masks(GameState *g, unsigned i, uint8_t v);
+/* The layers the windows mask on the sub screen */
+uint8_t field_line_screens_sub_masks(const GameState *g, unsigned i);
+void set_field_line_screens_sub_masks(GameState *g, unsigned i, uint8_t v);
 
 enum { FIELD_LINE_COLOR_MATH_COUNT = 4 };   /* by table set, + 2 inside the dialog window */
 /* Color math layers (field_fixed_color_math_layers) */
@@ -7498,13 +7506,23 @@ void set_battle_shrugged_off_mark(GameState *g, uint8_t v);
 uint16_t battle_screen_channel(const GameState *g);
 void set_battle_screen_channel(GameState *g, uint16_t v);
 
-enum { BATTLE_SCRATCH_COUNT = 49 };   /* by byte */
-/* Direct-page scratch the battle's routines share ($45-$75): counts, thresholds, operands and
+enum { BATTLE_SCRATCH_COUNT = 50 };   /* by byte */
+/* Direct-page scratch the battle's routines share ($45-$76): counts, thresholds, operands and
  * table offsets, each routine's own; the battlefield tile decoder keeps its pointers, masks and
- * counts at $53-$6A, the count of tiles its callers hand it at $67, and the battlefield's map
- * builder its pointers and counts at $53-$75 */
+ * counts at $53-$6A, the count of tiles its callers hand it at $67, the battlefield's map
+ * builder its pointers and counts at $53-$75, and a beaten enemy's dissolve its step's layout,
+ * runs, enemy, mask and row at $53-$76 */
 uint8_t battle_scratch(const GameState *g, unsigned i);
 void set_battle_scratch(GameState *g, unsigned i, uint8_t v);
+
+/* What the battle's screen work leaves last in its first shared work cells, a word: each frame
+ * the layers' scroll leaves BG1's scroll across there, and many of the screen script's commands
+ * a value of their working (a window band's edges or the end of its lines, the waves' phase, a
+ * layer's nudge or bob, the HP gradient's row copy its count run out). The screen scripts' drift
+ * ($D7) tests the high byte, as it tests whatever the last effect left there, to decide whether
+ * it drifts by an amount */
+uint16_t battle_screen_leftover(const GameState *g);
+void set_battle_screen_leftover(GameState *g, uint16_t v);
 
 /* Set by the battle's start and end to wait for the small vblank handler they run
  * (battle_nmi_alternate), which clears it once it has finished a frame */
@@ -7518,7 +7536,9 @@ void set_battle_message_window_kind(GameState *g, uint8_t v);
 
 enum { BATTLE_SCREEN_EFFECT_SETTINGS_COUNT = 15 };   /* by setting */
 /* A screen effect's settings, as its caller gives them (the animation scripts' $80 gives as many
- * as its first byte says; the effect reads five) */
+ * as its first byte says; the effect reads five, a command giving fewer taking the rest from
+ * what is left here, which a beaten enemy's dissolve overwrites with its step's layout, last run
+ * and count) */
 uint8_t battle_screen_effect_settings(const GameState *g, unsigned i);
 void set_battle_screen_effect_settings(GameState *g, unsigned i, uint8_t v);
 
@@ -9347,8 +9367,8 @@ uint8_t battle_block_uploads_made(const GameState *g);
 void set_battle_block_uploads_made(GameState *g, uint8_t v);
 
 enum { BATTLE_ENEMY_FAMILY_BITS_COUNT = 8 };   /* by enemy */
-/* The low two bits of each enemy's family byte, noted as the fight starts; no code traced reads
- * them */
+/* The low two bits of each enemy's family byte, noted as the fight starts: bit 0 has the enemy,
+ * beaten, leave the fight by changing the battlefield rather than dissolving */
 uint8_t battle_enemy_family_bits(const GameState *g, unsigned i);
 void set_battle_enemy_family_bits(GameState *g, unsigned i, uint8_t v);
 
@@ -12561,10 +12581,24 @@ enum { BATTLE_KEPT_ROW_COLORS_COUNT = 8 };   /* by color, from background row 1'
 uint16_t battle_kept_row_colors(const GameState *g, unsigned i);
 void set_battle_kept_row_colors(GameState *g, unsigned i, uint16_t v);
 
-/* The object $CD:0024 was last called with, as an effect ends on it ($CF:FE76); the special
- * effect 15 clears its sprites' attribute bits */
+/* The frames of a beaten enemy's dissolve gone, to 32 */
+uint8_t battle_dissolve_frames(const GameState *g);
+void set_battle_dissolve_frames(GameState *g, uint8_t v);
+
+/* The place in every 8x8 tile of the enemy's graphics its dissolve put out last: the column in
+ * bits 0-2, the row in bits 3-5 */
+uint8_t battle_dissolve_place(const GameState *g);
+void set_battle_dissolve_place(GameState *g, uint8_t v);
+
+/* The beaten enemy last seen off the battlefield ($CD:0024, from the beaten enemies' step),
+ * whose graphics the dissolve puts out; the special effect 15 clears its sprites' attribute bits */
 uint8_t battle_ended_effect_object(const GameState *g);
 void set_battle_ended_effect_object(GameState *g, uint8_t v);
+
+/* How fast a beaten enemy's dissolve moves on through the places of a tile: its low three bits
+ * pick the stride ($CE:EFEA); the dissolve sets 7 */
+uint8_t battle_dissolve_pace(const GameState *g);
+void set_battle_dissolve_pace(GameState *g, uint8_t v);
 
 /* Nonzero while the battle is paused: the frame work, the frame wait tail and the IRQ's
  * odd-frame transfers stop, and the sound pauses */
@@ -12933,8 +12967,9 @@ void set_scene_sprite_offset_x(GameState *g, uint16_t v);
 uint8_t scene_sprite_offset_y(const GameState *g);
 void set_scene_sprite_offset_y(GameState *g, uint8_t v);
 
-/* The byte after the sprites' Y offset, which the race stores with it as a word; nothing reads
- * it */
+/* The high byte of the sprites' Y offset, where the offset is a word: the race and the fireworks
+ * store it with the offset, and the program's own list of large sprites ($7E:A03D) works each Y
+ * out on the whole word, to tell a sprite below the picture */
 uint8_t scene_sprite_offset_y_high(const GameState *g);
 void set_scene_sprite_offset_y_high(GameState *g, uint8_t v);
 
@@ -12942,6 +12977,12 @@ void set_scene_sprite_offset_y_high(GameState *g, uint8_t v);
  * entry than it) */
 uint8_t scene_sprite_list_left(const GameState *g);
 void set_scene_sprite_list_left(GameState *g, uint8_t v);
+
+/* The byte after a sprite list's count, which the program's list of large sprites takes down
+ * with the count as a word once it has left a sprite out (its accumulator a word wide from
+ * there): not 0, the count runs on past the list's end */
+uint8_t scene_sprite_list_left_high(const GameState *g);
+void set_scene_sprite_list_left_high(GameState *g, uint8_t v);
 
 /* Bitmap scaler: pairs of 8-sample groups per output row (the row's width in 16-pixel units) */
 uint16_t scene_scaler_pairs(const GameState *g);
@@ -13232,13 +13273,28 @@ void set_scene_race_score(GameState *g, uint16_t v);
 uint8_t scene_credits_over(const GameState *g);
 void set_scene_credits_over(GameState *g, uint8_t v);
 
+/* How far, in 256ths of the sine, the shared endings' orbit swings out (the scripts set its low
+ * byte) */
+uint16_t scene_ending_orbit_size(const GameState *g);
+void set_scene_ending_orbit_size(GameState *g, uint16_t v);
+
 /* How far the pendulum swings, the factor its phase's sine is scaled by */
 uint16_t scene_title_pendulum_swing(const GameState *g);
 void set_scene_title_pendulum_swing(GameState *g, uint16_t v);
 
+/* Where along its figure of eight the shared endings' orbit is, across: the sine of four times
+ * the frame counter, swung out by the orbit's size */
+uint16_t scene_ending_orbit_x(const GameState *g);
+void set_scene_ending_orbit_x(GameState *g, uint16_t v);
+
 /* Nonzero while the title takes no button (its scripts set it); its watch for a button waits */
 uint16_t scene_title_ignores_buttons(const GameState *g);
 void set_scene_title_ignores_buttons(GameState *g, uint16_t v);
+
+/* Where along its figure of eight the orbit is, down: the cosine of twice the frame counter,
+ * swung out */
+uint16_t scene_ending_orbit_y(const GameState *g);
+void set_scene_ending_orbit_y(GameState *g, uint16_t v);
 
 /* Nonzero once a button has ended the title */
 uint16_t scene_title_button_taken(const GameState *g);
@@ -13266,6 +13322,12 @@ void set_scene_ending_window_corners(GameState *g, unsigned corner, uint16_t v);
 uint16_t scene_ending_picture_tall(const GameState *g);
 void set_scene_ending_picture_tall(GameState *g, uint16_t v);
 
+/* In the Beyond Time ending's flight: nonzero while the world's map is shown flat, turned and
+ * scaled by one matrix, rather than in perspective (the byte the zooming picture's scaling reads
+ * as scene_ending_picture_tall) */
+uint16_t scene_ending_plane_flat(const GameState *g);
+void set_scene_ending_plane_flat(GameState *g, uint16_t v);
+
 /* In the shared endings: how many frames go by between one caption fading out and the next
  * starting to fade in */
 uint16_t scene_ending_caption_gap(const GameState *g);
@@ -13291,16 +13353,42 @@ void set_scene_ending_caption_phase(GameState *g, uint16_t v);
 uint16_t scene_ending_captions_left(const GameState *g);
 void set_scene_ending_captions_left(GameState *g, uint16_t v);
 
+enum { SCENE_FIREWORKS_COUNTDOWN_COUNT = 2 };   /* by firework */
+/* Frames left on the firework's frame of its burst */
+uint16_t scene_fireworks_countdown(const GameState *g, unsigned i);
+void set_scene_fireworks_countdown(GameState *g, unsigned i, uint16_t v);
+
 /* How far Crono is ahead of Johnny, in 32nds of the distance (negative when behind): who leads
  * decides each bike's top speed */
 uint16_t scene_race_lead(const GameState *g);
 void set_scene_race_lead(GameState *g, uint16_t v);
+
+enum { SCENE_FIREWORKS_FRAME_COUNT = 2 };   /* by firework */
+/* Where the firework is in its burst (scene_firework_bursts): the place in the program of its
+ * frame's sprite list, a byte into the frame, after how many frames it shows */
+uint16_t scene_fireworks_frame(const GameState *g, unsigned i);
+void set_scene_fireworks_frame(GameState *g, unsigned i, uint16_t v);
 
 enum { SCENE_RACE_VIEW_COUNT = 4 };   /* by 0 the sine, 1 the cosine, 2 and 3 their negatives */
 /* The turn the bikes' places take as they are placed on the screen (a quarter turn less the
  * camera's angle): its sine and cosine, and their negatives */
 uint16_t scene_race_view(const GameState *g, unsigned i);
 void set_scene_race_view(GameState *g, unsigned i, uint16_t v);
+
+enum { SCENE_FIREWORKS_X_COUNT = 2 };   /* by firework */
+/* Where across the screen the firework bursts */
+uint8_t scene_fireworks_x(const GameState *g, unsigned i);
+void set_scene_fireworks_x(GameState *g, unsigned i, uint8_t v);
+/* Where across the screen the firework bursts Unchecked, for marked scaffolding only: a
+ * firework's place is read as a word from its Y, whose high byte is the next firework's X, and
+ * for the last the byte after the places (game/scene/beyond_time.c) */
+uint8_t scene_fireworks_x_unchecked(const GameState *g, unsigned i);
+void set_scene_fireworks_x_unchecked(GameState *g, unsigned i, uint8_t v);
+
+enum { SCENE_FIREWORKS_Y_COUNT = 2 };   /* by firework */
+/* Where down the screen the firework bursts */
+uint8_t scene_fireworks_y(const GameState *g, unsigned i);
+void set_scene_fireworks_y(GameState *g, unsigned i, uint8_t v);
 
 /* What Johnny presses this frame: $8000 the throttle, $0100 and $0200 steering toward the lower
  * or the higher lanes */
@@ -13314,6 +13402,11 @@ void set_scene_race_boosts(GameState *g, uint16_t v);
 /* Where the camera is along the track: the two bikes' distances averaged */
 uint32_t scene_race_place(const GameState *g);
 void set_scene_race_place(GameState *g, uint32_t v);
+
+/* Nonzero while the fireworks hold: each new burst is the one held frame, for 48 frames, rather
+ * than a burst picked at random */
+uint16_t scene_fireworks_held(const GameState *g);
+void set_scene_fireworks_held(GameState *g, uint16_t v);
 
 /* Nonzero while B is held after a boost, so holding it boosts once */
 uint16_t scene_race_boost_held(const GameState *g);
@@ -13703,11 +13796,12 @@ void set_scene_channels_loop_counters_byte(GameState *g, unsigned channel, unsig
 uint16_t scene_channels_return_address(const GameState *g, unsigned channel);
 void set_scene_channels_return_address(GameState *g, unsigned channel, uint16_t v);
 
-enum { SCENE_RACE_PERSPECTIVE_CAMERA_COUNT = 5 };   /* by the camera's height, angle, pitch, depth and mirroring, as channel 0's registers 0, 5, 6, 8 and 11 hold them */
-/* The camera the race last built its perspective for, kept in channel 0's spare loop counters:
- * when the camera differs, the perspective is built again */
-uint16_t scene_race_perspective_camera(const GameState *g, unsigned i);
-void set_scene_race_perspective_camera(GameState *g, unsigned i, uint16_t v);
+enum { SCENE_PERSPECTIVE_CAMERA_COUNT = 5 };   /* by the camera's height, angle, pitch, depth and mirroring, as channel 0's registers 0, 5, 6, 8 and 11 hold them */
+/* The camera the Mode 7 plane's perspective was last built for, kept in channel 0's spare loop
+ * counters: when the camera differs, the perspective is built again (the race's check compares
+ * all five, the Beyond Time ending's flight the first four) */
+uint16_t scene_perspective_camera(const GameState *g, unsigned i);
+void set_scene_perspective_camera(GameState *g, unsigned i, uint16_t v);
 
 enum { SCENE_RACE_TURNING_COUNT = 2 };   /* by 0 turning one way (R), 1 the other (L) */
 /* In the demo, how fast the camera is turning each way: it builds up to 12 while the shoulder
@@ -13755,6 +13849,39 @@ enum { SCENE_STAR_DEPTHS_COUNT = 128 };   /* by star: its sprite entry's number 
  * at a new random place */
 uint8_t scene_star_depths(const GameState *g, unsigned i);
 void set_scene_star_depths(GameState *g, unsigned i, uint8_t v);
+
+/* The view's scroll across: the camera's place on the map, moved out along its turn by its
+ * distance */
+uint16_t scene_flight_view_x(const GameState *g);
+void set_scene_flight_view_x(GameState *g, uint16_t v);
+/* The view's scroll down */
+uint16_t scene_flight_view_y(const GameState *g);
+void set_scene_flight_view_y(GameState *g, uint16_t v);
+/* The view's scroll across as the per-line table sends it below the horizon (the vblank's copy
+ * of x) */
+uint16_t scene_flight_view_line_x(const GameState *g);
+void set_scene_flight_view_line_x(GameState *g, uint16_t v);
+/* The view's scroll down as the per-line table sends it */
+uint16_t scene_flight_view_line_y(const GameState *g);
+void set_scene_flight_view_line_y(GameState *g, uint16_t v);
+/* The plane's rotation centre across, the view's place half a screen in */
+uint16_t scene_flight_view_centre_x(const GameState *g);
+void set_scene_flight_view_centre_x(GameState *g, uint16_t v);
+/* The plane's rotation centre down, the view's place a screen's height in */
+uint16_t scene_flight_view_centre_y(const GameState *g);
+void set_scene_flight_view_centre_y(GameState *g, uint16_t v);
+/* The sky's scroll across above the horizon: against the camera's turn */
+uint16_t scene_flight_view_sky_x(const GameState *g);
+void set_scene_flight_view_sky_x(GameState *g, uint16_t v);
+/* The sky's scroll down: the horizon's line under its last */
+uint16_t scene_flight_view_sky_y(const GameState *g);
+void set_scene_flight_view_sky_y(GameState *g, uint16_t v);
+/* The camera's distance turned, across */
+uint16_t scene_flight_view_turned_x(const GameState *g);
+void set_scene_flight_view_turned_x(GameState *g, uint16_t v);
+/* The camera's distance turned, down */
+uint16_t scene_flight_view_turned_y(const GameState *g);
+void set_scene_flight_view_turned_y(GameState *g, uint16_t v);
 
 enum { SCENE_RACE_PICTURE_REQUESTS_COUNT = 2 };   /* by racer: 0 Crono, 1 Johnny */
 /* The picture's width in pairs of eight-pixel groups */
@@ -14141,6 +14268,25 @@ enum { SCENE_ENDING_PICTURE_SPRITE_COUNTS_COUNT = 2 };   /* by the picture: 0 th
 uint8_t scene_ending_picture_sprite_counts(const GameState *g, unsigned i);
 void set_scene_ending_picture_sprite_counts(GameState *g, unsigned i, uint8_t v);
 
+enum { SCENE_FLIGHT_MODE_LINE_COUNTS_COUNT = 2 };   /* by 0 the lines above the horizon, 1 the lines from it */
+/* The line counts of the Beyond Time ending's per-line table for the BG mode (the sky above the
+ * horizon, the ground's Mode 7 from it), a table in the program's own data that the flight sets
+ * each vblank from the horizon */
+uint8_t scene_flight_mode_line_counts(const GameState *g, unsigned i);
+void set_scene_flight_mode_line_counts(GameState *g, unsigned i, uint8_t v);
+
+enum { SCENE_FLIGHT_SCROLL_LINE_COUNTS_COUNT = 2 };   /* by 0 the lines above the horizon, 1 the lines from it */
+/* The line counts of the flight's per-line table for BG1's scroll: the sky's
+ * (scene_flight_view's sky_x and sky_y) above the horizon, the ground's (its line_x and line_y)
+ * from it */
+uint8_t scene_flight_scroll_line_counts(const GameState *g, unsigned i);
+void set_scene_flight_scroll_line_counts(GameState *g, unsigned i, uint8_t v);
+
+enum { SCENE_FLIGHT_SCREENS_LINE_COUNTS_COUNT = 2 };   /* by 0 the lines above the horizon, 1 the lines from it */
+/* The line counts of the flight's per-line table for the main screen's layers */
+uint8_t scene_flight_screens_line_counts(const GameState *g, unsigned i);
+void set_scene_flight_screens_line_counts(GameState *g, unsigned i, uint8_t v);
+
 enum { SCENE_ENDING_WINDOW_ABOVE_COUNT = 2 };   /* by the entry: the lines above the picture, split in two */
 /* The line counts of the first two entries of the per-line table for window 1's edges in the
  * shared endings: together, the lines above the zooming picture, where the window is shut */
@@ -14170,6 +14316,25 @@ enum { SCENE_CREDITS_SCROLL_REGISTER_COUNT = 2 };   /* by the store: 0 the scrol
  * $12, BG3's, where the staff roll's setup has written it */
 uint8_t scene_credits_scroll_register(const GameState *g, unsigned i);
 void set_scene_credits_scroll_register(GameState *g, unsigned i, uint8_t v);
+
+/* The instruction in the program's list of large sprites ($7E:A03D) that drops a sprite whose Y
+ * falls at or past line 224 (a BCS, $D8B0, as the program is loaded), or two NOPs ($EAEA) that
+ * keep every sprite, which the fireworks write while they draw their bursts and put back after */
+uint16_t scene_large_list_clip(const GameState *g);
+void set_scene_large_list_clip(GameState *g, uint16_t v);
+
+/* Two bytes of the list of large sprites that no path runs, which the fireworks write a compare
+ * into ($E0C9) and then the load the program has there ($E0A9) */
+uint16_t scene_large_list_spare(const GameState *g);
+void set_scene_large_list_spare(GameState *g, uint16_t v);
+
+enum { SCENE_FIREWORK_BURSTS_COUNT = 136 };   /* by byte */
+/* The fireworks' bursts in the program, frame after frame: each frame how many frames it shows
+ * and then its list of large sprites (a word), a frame of 0 frames ending a burst. Four bursts
+ * start at $A5B0, $A5CC, $A5E8 and $A610, and the held burst's one frame, at $A60C, is also the
+ * third's last */
+uint8_t scene_firework_bursts(const GameState *g, unsigned i);
+void set_scene_firework_bursts(GameState *g, unsigned i, uint8_t v);
 
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes, one at a time] */
@@ -14359,6 +14524,14 @@ void set_scene_call_ripple_offset(GameState *g, SceneProgramPage page, uint16_t 
  * scene's own page) */
 uint16_t scene_call_script_scratch(const GameState *g, SceneProgramPage page);
 void set_scene_call_script_scratch(GameState *g, SceneProgramPage page, uint16_t v);
+/* On the scene's own page: the large sprite list's drop instruction (scene_large_list_clip),
+ * which the fireworks keep here while they write it out to draw their bursts */
+uint16_t scene_call_kept_list_clip(const GameState *g, SceneProgramPage page);
+void set_scene_call_kept_list_clip(GameState *g, SceneProgramPage page, uint16_t v);
+/* On the scene's own page: twice the frame counter, which the shared endings' orbit keeps here
+ * between its sine and its cosine */
+uint16_t scene_call_orbit_frame(const GameState *g, SceneProgramPage page);
+void set_scene_call_orbit_frame(GameState *g, SceneProgramPage page, uint16_t v);
 
 /* ---- warp ---------------------------------------------------------------------------------- */
 

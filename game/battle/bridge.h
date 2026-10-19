@@ -52,6 +52,14 @@ bool battle_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_c
 bool battle_wait_frames(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t frames);
 bool battle_wait_line(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t line);
 
+/* The battle's transfer of a buffer of work RAM (`from`, its bank and
+ * address) to VRAM from the main thread, from the JSR at `site` to
+ * $CD:3ED2, which queues it for the vblank handler and waits until it has
+ * gone (vid_send_vram_and_wait); it reads none of the flags. It comes back as
+ * battle_call's callee must. */
+enum { BATTLE_SEND = 0xCD3ED2, BATTLE_SEND_READS = DC_FLAGS };
+bool battle_send_and_wait(Snes *s, uint32_t site, uint32_t from, uint16_t vram, uint16_t bytes);
+
 /* Stop at the return of the JSR at `site`, where the original carries on with
  * the machine as its callee left it: for a port that asks, after a call-out,
  * whether what the callee left is what it goes on with. */
@@ -134,6 +142,11 @@ typedef struct {
 static inline BattleCarry battle_carry_of(bool carry) { return carry ? BATTLE_CARRY_SET : BATTLE_CARRY_CLEAR; }
 /* Nothing kept: only the carry, if that. */
 static inline BattleFrame battle_carrying(BattleCarry carry) { return (BattleFrame){ .carry = carry }; }
+/* A byte kept, as an 8-bit push keeps it. */
+static inline BattleFrame battle_keeping_byte(uint8_t byte, BattleCarry carry)
+{
+    return (BattleFrame){ .kept = { byte }, .kept_bytes = 1, .carry = carry };
+}
 /* A word kept, as a 16-bit push keeps it. */
 static inline BattleFrame battle_keeping_word(uint16_t word, BattleCarry carry)
 {

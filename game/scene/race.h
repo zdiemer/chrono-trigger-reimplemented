@@ -53,6 +53,18 @@ enum {
     RACE_STARTED = 13,     /* set when the countdown ends */
 };
 
+/* The per-line tables split at the horizon, by the camera's pitch, as the
+ * race's and the Beyond Time ending's flight's are: the lines above it, half
+ * the pitch, and the lines from it, the other half with the odd line. */
+typedef struct {
+    uint8_t above, below;
+} SceneHorizon;
+static inline SceneHorizon scene_horizon_lines(uint8_t pitch)
+{
+    uint8_t above = pitch >> 1;
+    return (SceneHorizon){ above, (uint8_t)(above + (pitch & 1)) };
+}
+
 static inline uint16_t race_camera(const GameState *g, unsigned reg) { return scene_channel_register(g, 0, reg); }
 static inline void set_race_camera(GameState *g, unsigned reg, uint16_t v) { set_scene_channel_register(g, 0, reg, v); }
 static inline uint16_t race_channel_1(const GameState *g, unsigned reg) { return scene_channel_register(g, 1, reg); }

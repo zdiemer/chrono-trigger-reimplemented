@@ -64,9 +64,9 @@ in place of the ports: the native coverage.
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 7% left (93% has a port) | 0% |
+| ROM code reimplemented (`burndown.py`) | 5% left (95% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program about 75%, battle frame work 90%, field graphics 92%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (36 movies): 19.5 KiB, 19.9 M instructions (handback 8.0 KiB, unported 11.8 KiB); shipping mode with the long routes 11.2 KiB, 6.3 M (the movies 1.5 M, the ten routes 4.8 M over the frames they keep); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (36 movies): 18.0 KiB, 13.9 M instructions (handback 6.5 KiB, unported 11.8 KiB); shipping mode with the long routes 9.6 KiB, 1.5 M (the movies 0.9 M, the ten routes 0.6 M over the frames they keep); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -167,12 +167,10 @@ isn't ported yet, so retiring it is porting its callee. In order:
 2. **The scene program**, its unported modes after movies reach them, and
    the title's and the attract program's own frame tasks, which the movies
    run as the original's (`$7E:5D71`, `$7E:6A23`, `$7E:69AF` and their
-   neighbours, the largest of its handbacks), and what the Beyond Time
-   ending still runs as the original's (`$7E:99B5`, `$7E:A03D`,
-   `$7E:9AF3`-`$7E:9E2B`).
-3. **The battle's frame work**: 2.7 M instructions of the reference play,
-   nearly all `$CD:0024` (an effect's end on an object) and `$CD:010A`/
-   `$CD:0154`, which the timers' dispatcher's call-outs reach.
+   neighbours, the largest of its handbacks), and what the endings still
+   hand back to the original: the Mode 7 picture's tiles (`$7E:5EF8`), the
+   swept window's rider (`$7E:3A97`) and the program's sine and multiplies
+   (`$7E:33D6`, `$7E:3461`, `$7E:3465`) where a guard refuses them.
 
 ## The validation gate
 
@@ -226,7 +224,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 299 files, 117 of 91,680 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 301 files, 117 of 92,586 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -273,17 +271,17 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **6% of the code is still generated.**
+docstring says which way it is wrong). **5% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.9K | 0% | 438 |
+| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.9K | 0% | 439 |
 | field engine, events (`$C0`) | 59.4K | 58.3K | 14.0K | 2% | 401 |
 | menus, text, overworld (`$C2`) | 59.1K | 52.4K | 14.0K | 11% | 521 |
-| scene program, RAM (`$7E`) | 24.9K | 17.8K | 2.4K | 28% | 141 |
-| battle frame work (`$CD`) | 15.4K | 15.2K | 4.7K | 1% | 220 |
+| scene program, RAM (`$7E`) | 24.9K | 18.9K | 2.4K | 24% | 160 |
+| battle frame work (`$CD`) | 15.4K | 15.2K | 4.3K | 1% | 224 |
 | field graphics (`$FD`) | 15.1K | 15.0K | 2.2K | 0% | 111 |
-| battle sprites (`$CF`) | 6.8K | 6.8K | 0.3K | 0% | 46 |
+| battle sprites (`$CF`) | 6.8K | 6.8K | 0.2K | 0% | 47 |
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 54 |
 | battle setup (`$CC`) | 4.8K | 4.8K | 0.1K | 0% | 11 |
 | scene engine (`$C3`) | 3.8K | 3.6K | 0.7K | 7% | 31 |
@@ -291,7 +289,7 @@ docstring says which way it is wrong). **6% of the code is still generated.**
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
 | console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
-| **total** | **266.5K** | **251.1K** | **56.2K** | **6%** | **2066** |
+| **total** | **266.5K** | **252.2K** | **55.7K** | **5%** | **2091** |
 
 `$CD`, the battle's frame work, is C but for 0.2 KiB: the whole screen script
 language (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"),
@@ -514,13 +512,12 @@ program's stirred random numbers as game code (history file, "Phase 3, the
 scene program: the star field, the captions and the random numbers"); and so
 are the program's start and end and the title from its setup to its end
 (history file, "Phase 4a, the native frame: the title"; history file, "Phase 4a, the native frame: the scene's tables as C").
-**Next**, by what the library reaches: the Beyond Time
-ending's remaining tasks -- the zooming picture's turn (`$7E:99B5`), the
-Mode 7 picture's vblank tasks (`$7E:9AF3`, `$7E:9DBC`, `$7E:9E2B`, with the
-signed multiply `$7E:33D6`), its tiles' expansion (`$7E:5EF8`), the two
-animated sprites and their first timing (`$7E:9BF9`, `$7E:9BB8`, which draw
-on the table of random bytes, already game code) and the signed sprite
-lists (`$7E:3A97`). The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and
+So is the Beyond Time ending's night: the flight over the world's map, the
+Epoch, the town's lights, the fireworks and the Mode 7 pictures' vblank
+tasks, with the program's sine and signed multiply as entries (REIMPLEMENTATION.md, "Phase 4a,
+the shipping mode's fallbacks, chunk 4"). **Next**, by what the library
+reaches: the Mode 7 picture's tiles' expansion (`$7E:5EF8`) and the swept
+window's rider's sprite list (`$7E:3A97`). The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and
 `$7E:8A01`-`$7E:8B51` no movie reaches. The attract sequence's two scenes (modes 1 and 3) are ports (REIMPLEMENTATION.md,
 "Phase 4a, the native frame: the attract sequence's pages of credits and the
 palace rising"). The program's other scenes (modes 4-8, whose routines lie

@@ -9890,3 +9890,149 @@ at their calls' ratios (13,034 and 11,857). One exception: the scripts' start
 of an object, whose search for a free slot is long where the Day of Lavos
 keeps dozens of needles running (`tools/timing_exceptions.txt`; a charge per
 slot passed overshot every other scene).
+
+## Phase 4a, the shipping mode's fallbacks, chunk 3: the menus' task loops and the screens' steps, the save screens, and the planet seen from space (`$C2:826C`-`$C2:828E`, `$C2:E91B`-`$C2:E922`, `$C2:CEDC`-`$C2:CFA1`, `$C2:D4BB`-`$C2:D4EF`, `$7E:6439`-`$7E:64BE`, `$7E:6598`-`$7E:663F`)
+
+The menus' stream's sixteenth chunk (history file, "Phase 4a, the shipping
+mode's fallbacks, chunk 2", for the one before), again chosen by what the
+shipping mode still ran as the original.
+
+**How it was chosen.** The last gate's shipping mode ran 14.08 M instructions
+of the original's code over the movies and the routes. `C2:----` was 4.92 M of
+it, and `fallbacks.py --report` split it into two loops, each run once a frame
+for as long as the menus are open: the menus' main task (`$C2:826C`-`$C2:828E`:
+its wait, then the running screen's step looked up through the table at
+`$C2:8292` and jumped to; 21 instructions a pass, 204,627 passes, 4.30 M) and
+the cursor's task (`$C2:E91B`-`$C2:E921`: the sprites' reset, the wait, a
+branch back; 0.62 M), nearly all of both in the three endings' shipping runs,
+which drift onto a save point's save screen and sit there. The planet's two
+frame tasks (`7E:6439`, 1.61 M, and `7E:65DD`, 1.37 M) came next. Ported, the
+main task's turn handed the save screens' overwrite question (`$C2:CF61`, the
+step the endings sat on) back to the original 52,750 times (0.42 M), so the
+main menu's save screen's steps, the question and the save itself followed,
+which leaves no step of any screen to the original. `7E:99B5` and `7E:A03D`
+(0.55 M and 0.51 M, the `beyond_time` route only) are another scene's, an
+orbit and a sprite list whose callers patch its code, and the `$CD` lines the
+battle's; both are left (TODO.md).
+
+**The runtime: dead stack bytes kept to a stop** (PORTING.md, the don't-care
+sets). A loop's wait keeps the task's X, Y, P and D on the task's stack for
+its return, and the loop goes on into code that loads both index registers
+before reading them; but the port's X and Y there are its own (the cursor's
+reset leaves the original's last place in them, a step's C its own), and
+shadow mode compares the bytes on the stack the task left. A port already
+declares such bytes dead with `native_stack_dont_care` while they stay pushed;
+the declaration ended with the port's job, before its stop's comparison, and
+only covered bytes above the original's S. The bytes a port leaves declared
+where it stops now stay uncompared at the stop wherever the original's S has
+gone (another task's stack). The battle's steps, the one other user, release
+theirs before they stop, so nothing else moves; `shadow_test` has a handler
+that leaves a wrong X on the stack it moves from, matched with the
+declaration and a mismatch without. The loops' kept X and Y are left
+uncompared only as far as the set their stop declares has them, which
+`tools/dontcare_check.py` checks at the wait's JSR through the wait's keeping
+them, and `tests/test_menu_task_waits.py` ties to the ROM: the wait pushes X
+then Y under the return, and neither is read after it at `$C2:826F` or on the
+cursor's way round to `$C2:E92D`. A call the original makes as a jump through
+a pointer, its return pushed before it (a `PER`), is a call-out of its own
+(`native_jump_call_dc`; the menus' `menu_call_jumped` and `menu_run_jumped`),
+named by the jump's own site; the check takes one that declares nothing only
+where liveness has the site's target read at run time.
+
+**What it is.**
+- The menus' two tasks that run all the time (`menu/tasks.c`): the main
+  task's turn (`menu_run_the_main_task`, `$C2:826F`, from its start and from
+  its wait), the running screen's step and then the wait; its wait alone
+  where a step came back through the original's code (`menu_main_task_waits`,
+  `$C2:826C`); and the cursor's turn (`$C2:E91B` and `$C2:E921`, one
+  function), the sprites' reset and the wait. The wait is the yield's port
+  run as its JSR reaches it (`menu_run`), where the runtime would run it
+  (`menu_runs_as_port`, `menu/bridge.c`, new), and otherwise the JSR's.
+- The screens and their steps (`menu/screens.c`, new): a C table of the
+  twelve screens (`MenuScreen`, `menu/menu.h`) and each one's steps, the step
+  run as C from the original's jump to it (`$C2:828E`) under the return to the
+  wait its `PER` pushes, timed as the sibling's own; where a step's guard refuses, the original's routine
+  is called. The step's routine finds its address in A as the jump leaves it
+  (the exchange's opening reads its high byte where it refuses); the rest the
+  lookup leaves, X, Y, the flags and the two cells it goes through, is
+  scaffolding.
+- The save screens (`menu/saving.c`): the main menu's save screen's opening,
+  refused with a buzz where saving takes a save point or a vehicle is out
+  (`menu_open_saving`, `$C2:CEDC`); its choosing of a slot (`$C2:CEFD`); the
+  slot chosen, which asks first where it holds a game (`$C2:CF0A`, also where
+  a save point's choosing stops); the question whether to save over it and
+  the step after it no code moves to (`$C2:CF61`, `$C2:CF92`, which both save
+  screens share), with its window opened and put away (`$C2:D4BB`,
+  `$C2:D4D5`, as C); the save itself (`menu_save_the_game`, `$C2:CF37`: its
+  sound, the slot marked, `saves_save_game`, a frame, the slot's summary read
+  back, a frame) and the slot shown after it (`$C2:CF21`). A step's read of
+  the cursor is one helper of `menu/cursor.h` (`menu_step_reads_the_cursor`,
+  and a form that leaves the flags of the original's test of the buttons,
+  which a save point's choosing now takes too), and the slots' labels'
+  graphic and its three uploads are named once, in `menu_data.h`. The record between the Epoch's and the
+  dactyl's in the world map's vehicles, whose state the opening reads with
+  theirs, is new in the map (`overworld_second_vehicle_state`).
+- The planet seen from space (`scene/planet.c`, new): the scene program's
+  modes 7 and 8, the Day of Lavos's end when the party loses among them. Its
+  palette's colours stepped toward the colours a script chose, a step of
+  each of red, green and blue every so many frames (`$7E:6439`; the period an
+  operand of the step's own code, which the shared endings' routine changes,
+  now a variable in the map); two dozen stars twinkling about it, each waiting,
+  playing its ten frames four ticks each with the program's sprite for it, and
+  put anew elsewhere (`$7E:65DD`), all put out as the scene sets up
+  (`$7E:6598`). Both tasks are rows of the frame lists' C table.
+
+**What shadow mode and fuzzing found.** Over the 36 movies, 0
+mismatching: the main task's turn 46,419 calls (72 interrupted),
+its wait 46,368, the cursor's turn 47,292 and 47,239; the main menu's
+save screen's choosing 422, the question 110, the slot shown after a
+save 2; the opening, the slot chosen and the save once each, their own
+comparisons set aside inside the main task's turn, which reaches every call
+they make; the colours' step 4,377, the stars 660, their putting
+out 1. Shadow mode found a step that comes back with a 16-bit
+accumulator (the item list's), which the turn's wait takes as it is; the
+index registers the wait keeps (the runtime change above); and the flags the
+steps' own tests leave where a tick saves them on the stack. **Fuzzing** (seed
+1, `tools/fuzz_routines.toml`), 0 mismatching: the main task's turn 2,239 of 10,000
+(the rest the guard refuses past a screen's last step, or calls past the
+budget), its wait and the cursor's turns 2,000 and 20,000 each; the save screens' steps
+and the save every one compared but those whose save, the original's call outside the runtime, runs past the budget (`menu_save_in_the_slot` 989 of 2,000), between 1,887 and 2,000 of 2,000 each; the colours' step 20,000 of 20,000 and loosely
+1,535 of 20,000, the stars 10,009 of 20,000 (10,029 loosely) and their putting out 10,023 of 20,000 (the rest
+entered with the carry set, which the guards refuse). The loose run found the
+colours' step reading back what it writes where the colours lie over its
+code, its working cells or the stack's top, which its guard now refuses.
+
+**Measured.** The shipping mode over the movies: 8.8 KiB of code and
+1.52 M instructions in place of hand ports, from 9.3 KiB and 8.07 M:
+`C2:----` from 4.75 M to 0.19 M (what is left is the held cursors' task's
+loop, the records' task's return to its start and a step of the save
+panel's), the question's 0.42 M and the planet's lines gone. Over the routes,
+counted over the frames they keep, 4.80 M from 6.02 M (the planet's scene of
+`lavos_lost`, the menus' loops); movies and routes together 6.32 M from 14.08
+M, of which `CD:0154`, `CD:010A`, `7E:99B5` and `7E:A03D` are 2.46 M. The
+reference play: 19.91 M from 21.97 M over the 36 movies, 19.5 KiB from 20.3
+KiB. The baseline takes the gain and three new lines: the main task's turn's
+290 instructions where a step stops in the original's code, and the menus'
+wait for the frame's uploads (`$C2:81CA`, an idle entry shadow mode leaves to
+the original, 49,680 instructions), filed now under the cursor's turn, whose
+wait, the frame's last task's, stops there. No refusal in real play; the
+native shape runs all 36 movies and reaches all ten routes' outcomes.
+`--misses` lists nothing over `menu`, `menus-field-menu` and
+`battle-lavos-gameover`, and `--px-check` reports every frame of the three
+identical. Nine screens' steps the turn runs as C, each of which makes a
+call-out, now have their own comparisons set aside inside the turn's, which
+covers them (`tools/uncompared_baseline.txt`).
+
+**Timing.** Calibrated (`--drifted`, 29 rows): the new entries -- the
+main task's turn at 554 and its wait at the floor, the cursor's turns 24,747
+and 25,865, the question 5,755, the stars 10,350, the colours' step 4,023 once
+it charges the working cells it keeps in locals (24 bytes a colour: one
+scalar fitted neither the frames that step and the frames that don't) -- the
+screens' steps the turn runs, whose stretches take in its lookup and wait as
+a sibling's, and the frame list, which runs the planet's tasks. The save
+screens' other entries, which no stretch of the library completes on its own,
+keep the placeholder. Four exceptions (`tools/timing_exceptions.txt`): the
+main task's wait, whose stretch is the wait's; the main menu's and the shop's
+how-many steps' vblank tails (1.08% and 1.05%), now that they run inside the
+turn; and the twinkling's, whose time follows how many stars wait, twinkle
+or are put anew.

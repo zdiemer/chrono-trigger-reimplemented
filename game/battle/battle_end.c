@@ -125,10 +125,6 @@ void battle_keep_party_records(GameState *g)
 
 /* ---- The enemies ---------------------------------------------------------------------------- */
 
-/* An enemy marked to stay on the field after the battle (its placement's
- * kind); the field takes away an enemy whose kind is left 0. */
-enum { STAYS_ON_THE_FIELD = 0x40 };
-
 static unsigned slot_of(unsigned enemy) { return BATTLE_FIRST_ENEMY + enemy; }
 
 // $C1:B3BB
@@ -136,7 +132,7 @@ static unsigned slot_of(unsigned enemy) { return BATTLE_FIRST_ENEMY + enemy; }
 void battle_take_enemies_away(GameState *g)
 {
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
-        set_battle_enemy_placement_kind(g, enemy, battle_enemy_placement_kind(g, enemy) & STAYS_ON_THE_FIELD);
+        set_battle_enemy_placement_kind(g, enemy, battle_enemy_placement_kind(g, enemy) & BATTLE_ENEMY_STAYS_ON_THE_FIELD);
 }
 
 // $C1:B3D2
@@ -146,7 +142,7 @@ void battle_keep_standing_enemies(GameState *g)
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         if (battle_combatant_id(g, slot_of(enemy)) == COMBATANT_NONE || (battle_enemy_standing(g, enemy) & ENEMY_IN_RESERVE))
             continue;
-        set_battle_enemy_placement_kind(g, enemy, STAYS_ON_THE_FIELD);
+        set_battle_enemy_placement_kind(g, enemy, BATTLE_ENEMY_STAYS_ON_THE_FIELD);
     }
 }
 

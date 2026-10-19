@@ -637,6 +637,17 @@ bool battle_changed_battlefield_fits(Snes *s);
 bool battle_battlefield_fits(Snes *s);
 bool battle_battlefield_map_fits(Snes *s);
 
+/* battle/beaten_enemies.c */
+void battle_see_to_the_beaten_enemies(Snes *s);
+void battle_see_off_the_beaten_enemies(Snes *s);
+void battle_see_off_an_enemy(Snes *s);
+void battle_dissolve_an_enemy(Snes *s);
+void battle_dissolve_a_step(Snes *s);
+void battle_change_battlefield_as_an_enemy_leaves(Snes *s);
+bool battle_seeing_off_the_beaten(Snes *s);
+bool battle_seeing_off(Snes *s);
+bool battle_dissolving(Snes *s);
+
 /* battle/battlefield_restore.c */
 void battle_put_the_battlefield_back(Snes *s);
 void battle_take_the_start_settings_long(Snes *s);

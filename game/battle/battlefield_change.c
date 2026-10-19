@@ -82,7 +82,7 @@ static void stop_the_old_effects(GameState *g)
  * has one) is set up and asked for. The original keeps the halving and the
  * fade's kind in its cells $55 and $53. */
 enum { KEPT_COLORS = 8, FIRST_KEPT_COLOR = 24 };
-enum { HALVED_MATH = 0x40, GRADIENT = 0x01 };
+enum { HALVED_MATH = 0x40 };
 enum { FADE_SLOT = 2, FADE_SLOT_REQUESTED = 0x80 };
 enum { LEFT_FADE_KIND = 0x53, LEFT_HALVED = 0x55 };
 
@@ -95,7 +95,7 @@ void battle_restore_kept_colors(GameState *g)
     }
 }
 
-static void set_up_the_fade(GameState *g, uint8_t kind, BattlefieldFade f)
+void battle_fade_through_the_preset(GameState *g, uint8_t kind, BattlePaletteFade f)
 {
     set_battle_palette_slot_presets_first_color(g, FADE_SLOT, f.first_color);
     set_battle_palette_slot_presets_color_count(g, FADE_SLOT, f.color_count);
@@ -119,7 +119,7 @@ void battle_fade_battlefield_layer(GameState *g, bool back_in)
     screen_leave_cell(g, LEFT_FADE_KIND, kind);
     if (halved)
         return;
-    set_up_the_fade(g, kind, battlefield_fade(g, battle_background_flags(g) & GRADIENT, back_in));
+    battle_fade_through_the_preset(g, kind, battlefield_fade(g, battle_background_flags(g) & BATTLE_BACKGROUND_HAS_GRADIENT, back_in));
 }
 
 static void fade_the_old_layer_out(GameState *g) { battle_fade_battlefield_layer(g, false); }
@@ -454,17 +454,12 @@ static void build_the_map(GameState *g, uint16_t tile_set)
 /* ---- Loading the battlefield ------------------------------------------------------------------ */
 
 /* A buffer of work RAM sent to VRAM from the main thread, which waits for it
- * to go (the battle's transfer, $CD:3ED2, which reads none of the flags). */
+ * to go (battle_send_and_wait). */
 enum { DECODE_BUFFER = 0x2D00, MAP_VRAM = 0x7C00, MAP_BYTES = 0x800 };
-enum { SEND_READS = DC_FLAGS };
 
 static bool send(Snes *s, uint32_t site, uint16_t buffer, uint16_t vram, uint16_t bytes)
 {
-    uint16_t page = m_direct_page(s);
-    uint8_t bank = s->cpu.db;
-    vid_send_vram_and_wait(m_platform(s), PF_CALL_DC(site, 0xCD3ED2, SEND_READS), vram,
-                           PF_GAME((uint32_t)WORK_RAM_BANK << 16 | buffer), bytes);
-    return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
+    return battle_send_and_wait(s, site, (uint32_t)WORK_RAM_BANK << 16 | buffer, vram, bytes);
 }
 
 /* The frame work's wait for a number of frames (battle/wait.h). */
@@ -481,7 +476,7 @@ static bool wait_frames(Snes *s, uint32_t site, uint8_t frames)
 static bool take_the_old_layer_away(Snes *s)
 {
     GameState *g = state_of(s);
-    if (battle_background_flags(g) & GRADIENT) {
+    if (battle_background_flags(g) & BATTLE_BACKGROUND_HAS_GRADIENT) {
         TIMED_AS(g, 0xCD0E79, fade_the_old_layer_out(g));
         if (!wait_frames(s, 0xCD0F09, GRADIENT_FADE_FRAMES))
             return false;
@@ -566,6 +561,17 @@ static bool change_the_battlefield(Snes *s)
     if (!battle_run(s, 0xCD0D2C, 0xCD0EBD, battle_load_battlefield))
         return false;
     TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));
+    return true;
+}
+
+bool battle_load_and_run_battlefield(Snes *s, uint32_t site, uint16_t battlefield)
+{
+    GameState *g = state_of(s);
+    s->cpu.x = battlefield;
+    if (!battle_run(s, site, 0xCD0EBD, battle_load_battlefield))
+        return false;
+    TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));
+    set_battle_screen_scripts_running(g, true);
     return true;
 }
 

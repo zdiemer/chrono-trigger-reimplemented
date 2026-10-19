@@ -305,6 +305,35 @@ args = ["--d", "0A80", "--keep", "7E3000-7EB5FF"]
 why = "D inside a channel's page but on no instance: the guard refuses every state, before and after"
 
 [[routine]]
+name = "scene_multiply_signed16"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--keep", "7E3000-7EB5FF"]
+why = "the operands random: the guard refuses magnitudes whose middle partial sums overflow, as the multiply's does"
+
+[[routine]]
+name = "scene_multiply_signed16"
+variant = "channel"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0A00", "--keep", "7E3000-7EB5FF"]
+why = "on the first sequence channel's page, where the endings' flight and the race's camera call it"
+
+[[routine]]
+name = "scene_sine"
+subsystem = "scene"
+state = "race"
+args = ["--keep", "7E3000-7EB5FF"]
+why = "any angle, page and data bank"
+
+[[routine]]
+name = "scene_cosine"
+subsystem = "scene"
+state = "race"
+args = ["--keep", "7E3000-7EB5FF"]
+why = "any angle, page and data bank"
+
+[[routine]]
 name = "scene_title_ripple_columns"
 at = "7E:5FFE"
 subsystem = "scene"
@@ -1058,6 +1087,127 @@ subsystem = "scene"
 state = "ending"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=09-09", "--fill", "7E007B-7E007B=00-01"]
 why = "a frame and a vblank task, the sprite cursor at the table's start, as the frames place the picture; either shape"
+
+[[routine]]
+name = "scene_keep_the_orbit"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task: the program kept, the frame counter and the orbit's size random"
+
+[[routine]]
+name = "scene_pass_the_map"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task"
+
+[[routine]]
+name = "scene_check_the_flight_view"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E007B-7E007C=0000,0001"]
+why = "a frame task, the map flat or in perspective, the camera random: a changed one builds the perspective, where the port builds it, or stops at the original's jump to it"
+
+[[routine]]
+name = "scene_place_the_flight_view"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task"
+
+[[routine]]
+name = "scene_send_the_flight_view"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E007B-7E007C=0000,0001"]
+why = "a vblank task, the map flat or in perspective; flat, half the states enter with the carry set, which the guard refuses (beyond_time.c)"
+
+[[routine]]
+name = "scene_send_the_flight_view"
+variant = "edge"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E007B-7E007C=0001", "--fill", "7E0A02-7E0A03=FF7F,FF80,FFC0,FFFF,0000"]
+why = "flat, the camera about the map's left edge, where the centre down is a line lower (beyond_time.c); half the states enter with the carry set, which the guard refuses"
+
+[[routine]]
+name = "scene_set_the_flight_horizon"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task"
+
+[[routine]]
+name = "scene_circle_the_epoch"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task"
+
+[[routine]]
+name = "scene_sway_the_epoch"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task"
+
+[[routine]]
+name = "scene_twinkle_the_lights"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0008-7E0008=00,08,10,07"]
+why = "a frame task, on an eighth frame or not"
+
+[[routine]]
+name = "scene_turn_back_and_twinkle"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0008-7E0008=00,08,10,07"]
+why = "a frame task, on an eighth frame or not"
+
+[[routine]]
+name = "scene_burst_the_fireworks"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0011-7E0012=0000,0040,0100", "--fill", "7E0013-7E0014=0900,0904,0910", "--fill", "7E0087-7E0088=0001,0002", "--fill", "7E0089-7E008A=0001,0002", "--fill", "7E009F-7E00A0=0000,0001",
+        "--fill", "7E008F-7E0090=A5AE,A5B1,A5B4,A5C9,A5E6,A607,A60A,A60E,A632", "--fill", "7E0091-7E0092=A5AE,A5C9,A5E6,A60A,A632"]
+why = "a frame task: each firework at a frame of one of its bursts (the guard refuses another, beyond_time.c), its frame on its last count or not (a burst's start is met only on its last count: the guard refuses one met earlier), held or not, the sprite cursor where both fit"
+
+[[routine]]
+name = "scene_set_the_fireworks_up"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E009F-7E00A0=0000,0001"]
+why = "the shared setup's call: held or not"
+
+[[routine]]
+name = "scene_send_the_picture"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task"
+
+[[routine]]
+name = "scene_send_the_picture_and_bg2"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task"
+
+[[routine]]
+name = "scene_draw_large_sprite_list"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0011-7E0012=0000,0040,0100", "--fill", "7E0013-7E0014=0900,0904,0910", "--fill", "7EA074-7EA075=EA-EA", "--range", "A=A203-A56F"]
+why = "the fireworks' form of the routine (its drop written out with two NOPs: the guard hands the other form to the original), a list among the bursts' (the guard refuses one past the sprite table from the cursor)"
+
+[[routine]]
+name = "scene_ending_draw_the_end"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0011-7E0012=0000,0040,0100", "--fill", "7E0013-7E0014=0900,0904,0910"]
+why = "a frame task, the sprite cursor where The End fits"
 
 [[routine]]
 name = "scene_ending_pick_picture_frame"
@@ -19684,6 +19834,63 @@ args = ["--d", "0000", "--db", "7E", "--range", "X=0000-00FF", "--fill", "7ECD02
         "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
         "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
 why = "a battlefield in X; up to its first wait"
+
+[[routine]]
+name = "battle_see_to_the_beaten_enemies"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
+        "--fill", "7EAEB3-7EAEBA=00-01", "--fill", "7E9FFA-7EA001=00-01", "--fill", "7E967F-7E9686=00-04",
+        "--fill", "7E993F-7E9946=00,02,04,06,08,0A,0C,0E", "--stop-at-call", "CFFE20",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "the battle's step 6 with any enemies beaten, hidden or drawn, of the graphics kinds the battle has, each with one of the sprite palettes (the guard refuses another, game/battle/beaten_enemies.c); up to its long call of the work, which the fuzzer makes as the original's"
+
+[[routine]]
+name = "battle_see_off_the_beaten_enemies"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
+        "--fill", "7EAEB3-7EAEBA=00-01", "--fill", "7E9FFA-7EA001=00-01", "--fill", "7E967F-7E9686=00-04",
+        "--fill", "7E993F-7E9946=00,02,04,06,08,0A,0C,0E", "--stop-at-call", "CD0024",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "as the step's, from its long call; up to the first enemy seen off, which the fuzzer calls as the original's"
+
+[[routine]]
+name = "battle_see_off_an_enemy"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0003-000A", "--fill", "7ECD02-7ECD02=00-00",
+        "--fill", "7E967F-7E9686=00-04", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "an enemy in A; up to its first wait (seeing off spans frames)"
+
+[[routine]]
+name = "battle_dissolve_an_enemy"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
+        "--fill", "7ECD00-7ECD00=03-0A", "--fill", "7E967F-7E9686=00-04", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "the enemy being seen off; up to its first wait, after the fade's setting up (the dissolve spans frames)"
+
+[[routine]]
+name = "battle_dissolve_a_step"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD00-7ECD00=03-0A",
+        "--fill", "7E967F-7E9686=00-05"]
+why = "any enemy, of any graphics kind or layout the dissolve has, at any pace and place, over whatever its tile buffer holds"
+
+[[routine]]
+name = "battle_change_battlefield_as_an_enemy_leaves"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD02-7ECD02=00-00",
+        "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B",
+        "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2"]
+why = "a battlefield in A; up to its first wait"
 
 [[routine]]
 name = "battle_play_a_sound"
