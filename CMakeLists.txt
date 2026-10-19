@@ -242,6 +242,7 @@ add_library(ct_game STATIC
   game/scene/math.c
   game/scene/perspective.c
   game/scene/planet.c
+  game/scene/beyond_time.c
   game/scene/program.c
   game/scene/race.c
   game/scene/race_camera.c
@@ -368,6 +369,7 @@ add_library(ct_game STATIC
   game/battle/tiles.c
   game/battle/battlefield_change.c
   game/battle/battlefield_restore.c
+  game/battle/beaten_enemies.c
   game/battle/closing.c
   game/battle/uploads.c
   game/battle/timers.c

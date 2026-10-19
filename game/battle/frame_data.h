@@ -190,14 +190,29 @@ static inline uint16_t effect_tile_rows_vram(const GameState *g, uint8_t slot)
     return rom_read16(g, 0xCD1308u + (uint8_t)(slot * 2));
 }
 
-/* The fade that takes the old battlefield's layer away before a new one is
- * loaded ($CE:EFFA, its kind by whether the battle started with color math
- * on the backdrop; $CE:EFFE, eight bytes a fade, laid out as a palette
- * animation slot from its first color: the fades out, and after each the fade
- * back in). */
+/* A fade the battle runs through palette animation slot 10's preset, laid
+ * out as a palette animation slot from its first color: which colors, how
+ * fast, and from what level to what (battle_fade_through_the_preset). */
 typedef struct {
     uint8_t first_color, color_count, step, delay, period, fade_mode, fade_level, fade_target;
-} BattlefieldFade;
+} BattlePaletteFade;
+
+static inline BattlePaletteFade battle_palette_fade_at(const GameState *g, uint32_t from)
+{
+    return (BattlePaletteFade){ rom_read8(g, from), rom_read8(g, from + 1), rom_read8(g, from + 2),
+                                rom_read8(g, from + 3), rom_read8(g, from + 4), rom_read8(g, from + 5),
+                                rom_read8(g, from + 6), rom_read8(g, from + 7) };
+}
+
+/* A beaten enemy's colors fade to white as it dissolves ($CE:EFE1: the
+ * animation's kind, then the fade). */
+static inline uint8_t battle_dissolve_fade_kind(const GameState *g) { return rom_read8(g, 0xCEEFE1u); }
+static inline BattlePaletteFade battle_dissolve_fade(const GameState *g) { return battle_palette_fade_at(g, 0xCEEFE2u); }
+
+/* The fade that takes the old battlefield's layer away before a new one is
+ * loaded ($CE:EFFA, its kind by whether the battle started with color math
+ * on the backdrop; $CE:EFFE, eight bytes a fade: the fades out, and after
+ * each the fade back in). */
 
 static inline uint8_t battlefield_fade_kind(const GameState *g, uint8_t backdrop_math)
 {
@@ -206,12 +221,10 @@ static inline uint8_t battlefield_fade_kind(const GameState *g, uint8_t backdrop
 /* The fades by record: the plain battlefield's out, then back in; the HP
  * gradient's from the fifth record. */
 enum { BATTLEFIELD_FADE_BYTES = 8, BATTLEFIELD_GRADIENT_FADES = 4 };
-static inline BattlefieldFade battlefield_fade(const GameState *g, bool gradient, bool back_in)
+static inline BattlePaletteFade battlefield_fade(const GameState *g, bool gradient, bool back_in)
 {
     unsigned record = (gradient ? BATTLEFIELD_GRADIENT_FADES : 0) + (back_in ? 1 : 0);
-    uint32_t from = 0xCEEFFEu + record * BATTLEFIELD_FADE_BYTES;
-    return (BattlefieldFade){ rom_read8(g, from), rom_read8(g, from + 1), rom_read8(g, from + 2), rom_read8(g, from + 3),
-                              rom_read8(g, from + 4), rom_read8(g, from + 5), rom_read8(g, from + 6), rom_read8(g, from + 7) };
+    return battle_palette_fade_at(g, 0xCEEFFEu + record * BATTLEFIELD_FADE_BYTES);
 }
 
 #endif

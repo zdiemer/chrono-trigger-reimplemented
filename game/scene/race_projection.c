@@ -38,7 +38,6 @@ static SceneProgramPage own(void) { return scene_program_own(); }
 /* ---- The camera's turn ------------------------------------------------------------------------ */
 
 /* The bikes are turned by the camera's angle back from a quarter turn. */
-enum { QUARTER_TURN = 0x100 };
 
 typedef struct {
     int16_t sine, cosine;
@@ -46,7 +45,7 @@ typedef struct {
 
 static TurnBack turn_back(const GameState *g)
 {
-    uint16_t back = (uint16_t)(QUARTER_TURN - race_camera(g, CAMERA_ANGLE));
+    uint16_t back = (uint16_t)(SCENE_QUARTER_TURN - race_camera(g, CAMERA_ANGLE));
     return (TurnBack){ scene_sine(g, back), scene_cosine(g, back) };
 }
 

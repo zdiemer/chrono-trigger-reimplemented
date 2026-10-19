@@ -1964,6 +1964,10 @@
 #define RAM_FIELD_LINE_SCREENS 0x7F1520u
 #define RAM_FIELD_LINE_SCREENS_COUNT 3u
 #define RAM_FIELD_LINE_SCREENS_STRIDE 0x04u
+#define RAM_FIELD_LINE_SCREENS_MAIN_LAYERS 0x7F1520u /* The layers on the main screen */
+#define RAM_FIELD_LINE_SCREENS_SUB_LAYERS 0x7F1521u /* The layers on the sub screen */
+#define RAM_FIELD_LINE_SCREENS_MAIN_MASKS 0x7F1522u /* The layers the windows mask on the main screen */
+#define RAM_FIELD_LINE_SCREENS_SUB_MASKS 0x7F1523u /* The layers the windows mask on the sub screen */
 /* Color math layers and fixed color the color math line effect sends [4 x $2 bytes, by table
  * set, + 2 inside the dialog window] */
 #define RAM_FIELD_LINE_COLOR_MATH 0x7F152Cu
@@ -4820,14 +4824,23 @@
 /* Offset of the screen script channel whose command runs (0 or $10) [2 bytes] */
 #define RAM_BATTLE_SCREEN_CHANNEL 0x7E0043u
 #define RAM_BATTLE_SCREEN_CHANNEL_DP 0x43u   /* page battle */
-/* Direct-page scratch the battle's routines share ($45-$75): counts, thresholds, operands and
+/* Direct-page scratch the battle's routines share ($45-$76): counts, thresholds, operands and
  * table offsets, each routine's own; the battlefield tile decoder keeps its pointers, masks and
- * counts at $53-$6A, the count of tiles its callers hand it at $67, and the battlefield's map
- * builder its pointers and counts at $53-$75 [49 x $1 bytes, by byte] */
+ * counts at $53-$6A, the count of tiles its callers hand it at $67, the battlefield's map
+ * builder its pointers and counts at $53-$75, and a beaten enemy's dissolve its step's layout,
+ * runs, enemy, mask and row at $53-$76 [50 x $1 bytes, by byte] */
 #define RAM_BATTLE_SCRATCH 0x7E0045u
-#define RAM_BATTLE_SCRATCH_COUNT 49u
+#define RAM_BATTLE_SCRATCH_COUNT 50u
 #define RAM_BATTLE_SCRATCH_STRIDE 0x01u
 #define RAM_BATTLE_SCRATCH_DP 0x45u          /* page battle */
+/* What the battle's screen work leaves last in its first shared work cells, a word: each frame
+ * the layers' scroll leaves BG1's scroll across there, and many of the screen script's commands
+ * a value of their working (a window band's edges or the end of its lines, the waves' phase, a
+ * layer's nudge or bob, the HP gradient's row copy its count run out). The screen scripts' drift
+ * ($D7) tests the high byte, as it tests whatever the last effect left there, to decide whether
+ * it drifts by an amount [2 bytes] */
+#define RAM_BATTLE_SCREEN_LEFTOVER 0x7E0045u
+#define RAM_BATTLE_SCREEN_LEFTOVER_DP 0x45u  /* page battle */
 /* Set by the battle's start and end to wait for the small vblank handler they run
  * (battle_nmi_alternate), which clears it once it has finished a frame */
 #define RAM_BATTLE_ALTERNATE_FRAME_PENDING 0x7E0047u
@@ -4837,7 +4850,9 @@
 #define RAM_BATTLE_MESSAGE_WINDOW_KIND 0x7E0053u
 #define RAM_BATTLE_MESSAGE_WINDOW_KIND_DP 0x53u /* page battle */
 /* A screen effect's settings, as its caller gives them (the animation scripts' $80 gives as many
- * as its first byte says; the effect reads five) [15 x $1 bytes, by setting] */
+ * as its first byte says; the effect reads five, a command giving fewer taking the rest from
+ * what is left here, which a beaten enemy's dissolve overwrites with its step's layout, last run
+ * and count) [15 x $1 bytes, by setting] */
 #define RAM_BATTLE_SCREEN_EFFECT_SETTINGS 0x7E0053u
 #define RAM_BATTLE_SCREEN_EFFECT_SETTINGS_COUNT 15u
 #define RAM_BATTLE_SCREEN_EFFECT_SETTINGS_STRIDE 0x01u
@@ -6098,8 +6113,9 @@
 /* Counted each time a requested block of rows goes to VRAM (nothing in the banks disassembled
  * reads it: docs/TODO.md) */
 #define RAM_BATTLE_BLOCK_UPLOADS_MADE 0x7EA01Fu
-/* The low two bits of each enemy's family byte, noted as the fight starts; no code traced reads
- * them [8 x $1 bytes, by enemy] */
+/* The low two bits of each enemy's family byte, noted as the fight starts: bit 0 has the enemy,
+ * beaten, leave the fight by changing the battlefield rather than dissolving [8 x $1 bytes, by
+ * enemy] */
 #define RAM_BATTLE_ENEMY_FAMILY_BITS 0x7EA020u
 #define RAM_BATTLE_ENEMY_FAMILY_BITS_COUNT 8u
 #define RAM_BATTLE_ENEMY_FAMILY_BITS_STRIDE 0x01u
@@ -8279,9 +8295,17 @@
 #define RAM_BATTLE_KEPT_ROW_COLORS 0x7ECCEEu
 #define RAM_BATTLE_KEPT_ROW_COLORS_COUNT 8u
 #define RAM_BATTLE_KEPT_ROW_COLORS_STRIDE 0x02u
-/* The object $CD:0024 was last called with, as an effect ends on it ($CF:FE76); the special
- * effect 15 clears its sprites' attribute bits */
+/* The frames of a beaten enemy's dissolve gone, to 32 */
+#define RAM_BATTLE_DISSOLVE_FRAMES 0x7ECCFEu
+/* The place in every 8x8 tile of the enemy's graphics its dissolve put out last: the column in
+ * bits 0-2, the row in bits 3-5 */
+#define RAM_BATTLE_DISSOLVE_PLACE 0x7ECCFFu
+/* The beaten enemy last seen off the battlefield ($CD:0024, from the beaten enemies' step),
+ * whose graphics the dissolve puts out; the special effect 15 clears its sprites' attribute bits */
 #define RAM_BATTLE_ENDED_EFFECT_OBJECT 0x7ECD00u
+/* How fast a beaten enemy's dissolve moves on through the places of a tile: its low three bits
+ * pick the stride ($CE:EFEA); the dissolve sets 7 */
+#define RAM_BATTLE_DISSOLVE_PACE 0x7ECD01u
 /* Nonzero while the battle is paused: the frame work, the frame wait tail and the IRQ's
  * odd-frame transfers stop, and the sound pauses */
 #define RAM_BATTLE_PAUSED 0x7ECD02u
@@ -8523,14 +8547,20 @@
 /* Y added to every sprite of a list as it is copied */
 #define RAM_SCENE_SPRITE_OFFSET_Y 0x7E0017u
 #define RAM_SCENE_SPRITE_OFFSET_Y_DP 0x17u   /* page scene */
-/* The byte after the sprites' Y offset, which the race stores with it as a word; nothing reads
- * it */
+/* The high byte of the sprites' Y offset, where the offset is a word: the race and the fireworks
+ * store it with the offset, and the program's own list of large sprites ($7E:A03D) works each Y
+ * out on the whole word, to tell a sprite below the picture */
 #define RAM_SCENE_SPRITE_OFFSET_Y_HIGH 0x7E0018u
 #define RAM_SCENE_SPRITE_OFFSET_Y_HIGH_DP 0x18u /* page scene */
 /* Count byte of the sprite list being copied, decremented per entry (the list holds one fewer
  * entry than it) */
 #define RAM_SCENE_SPRITE_LIST_LEFT 0x7E0019u
 #define RAM_SCENE_SPRITE_LIST_LEFT_DP 0x19u  /* page scene */
+/* The byte after a sprite list's count, which the program's list of large sprites takes down
+ * with the count as a word once it has left a sprite out (its accumulator a word wide from
+ * there): not 0, the count runs on past the list's end */
+#define RAM_SCENE_SPRITE_LIST_LEFT_HIGH 0x7E001Au
+#define RAM_SCENE_SPRITE_LIST_LEFT_HIGH_DP 0x1Au /* page scene */
 /* Bitmap scaler: pairs of 8-sample groups per output row (the row's width in 16-pixel units) [2
  * bytes] */
 #define RAM_SCENE_SCALER_PAIRS 0x7E001Fu
@@ -8743,13 +8773,25 @@
  * go on to The End (counted up as it is set) */
 #define RAM_SCENE_CREDITS_OVER 0x7E006Au
 #define RAM_SCENE_CREDITS_OVER_DP 0x6Au      /* page scene */
+/* How far, in 256ths of the sine, the shared endings' orbit swings out (the scripts set its low
+ * byte) [2 bytes] */
+#define RAM_SCENE_ENDING_ORBIT_SIZE 0x7E006Bu
+#define RAM_SCENE_ENDING_ORBIT_SIZE_DP 0x6Bu /* page scene */
 /* How far the pendulum swings, the factor its phase's sine is scaled by [2 bytes] */
 #define RAM_SCENE_TITLE_PENDULUM_SWING 0x7E006Cu
 #define RAM_SCENE_TITLE_PENDULUM_SWING_DP 0x6Cu /* page scene */
+/* Where along its figure of eight the shared endings' orbit is, across: the sine of four times
+ * the frame counter, swung out by the orbit's size [2 bytes] */
+#define RAM_SCENE_ENDING_ORBIT_X 0x7E006Du
+#define RAM_SCENE_ENDING_ORBIT_X_DP 0x6Du    /* page scene */
 /* Nonzero while the title takes no button (its scripts set it); its watch for a button waits [2
  * bytes] */
 #define RAM_SCENE_TITLE_IGNORES_BUTTONS 0x7E006Eu
 #define RAM_SCENE_TITLE_IGNORES_BUTTONS_DP 0x6Eu /* page scene */
+/* Where along its figure of eight the orbit is, down: the cosine of twice the frame counter,
+ * swung out [2 bytes] */
+#define RAM_SCENE_ENDING_ORBIT_Y 0x7E006Fu
+#define RAM_SCENE_ENDING_ORBIT_Y_DP 0x6Fu    /* page scene */
 /* Nonzero once a button has ended the title [2 bytes] */
 #define RAM_SCENE_TITLE_BUTTON_TAKEN 0x7E0070u
 #define RAM_SCENE_TITLE_BUTTON_TAKEN_DP 0x70u /* page scene */
@@ -8773,6 +8815,11 @@
  * low byte [2 bytes] */
 #define RAM_SCENE_ENDING_PICTURE_TALL 0x7E007Bu
 #define RAM_SCENE_ENDING_PICTURE_TALL_DP 0x7Bu /* page scene */
+/* In the Beyond Time ending's flight: nonzero while the world's map is shown flat, turned and
+ * scaled by one matrix, rather than in perspective (the byte the zooming picture's scaling reads
+ * as scene_ending_picture_tall) [2 bytes] */
+#define RAM_SCENE_ENDING_PLANE_FLAT 0x7E007Bu
+#define RAM_SCENE_ENDING_PLANE_FLAT_DP 0x7Bu /* page scene */
 /* In the shared endings: how many frames go by between one caption fading out and the next
  * starting to fade in [2 bytes] */
 #define RAM_SCENE_ENDING_CAPTION_GAP 0x7E007Du
@@ -8793,10 +8840,22 @@
  * nothing [2 bytes] */
 #define RAM_SCENE_ENDING_CAPTIONS_LEFT 0x7E0085u
 #define RAM_SCENE_ENDING_CAPTIONS_LEFT_DP 0x85u /* page scene */
+/* Frames left on the firework's frame of its burst [2 x $2 bytes, by firework] */
+#define RAM_SCENE_FIREWORKS_COUNTDOWN 0x7E0087u
+#define RAM_SCENE_FIREWORKS_COUNTDOWN_COUNT 2u
+#define RAM_SCENE_FIREWORKS_COUNTDOWN_STRIDE 0x02u
+#define RAM_SCENE_FIREWORKS_COUNTDOWN_DP 0x87u /* page scene */
 /* How far Crono is ahead of Johnny, in 32nds of the distance (negative when behind): who leads
  * decides each bike's top speed [2 bytes] */
 #define RAM_SCENE_RACE_LEAD 0x7E008Eu
 #define RAM_SCENE_RACE_LEAD_DP 0x8Eu         /* page scene */
+/* Where the firework is in its burst (scene_firework_bursts): the place in the program of its
+ * frame's sprite list, a byte into the frame, after how many frames it shows [2 x $2 bytes, by
+ * firework] */
+#define RAM_SCENE_FIREWORKS_FRAME 0x7E008Fu
+#define RAM_SCENE_FIREWORKS_FRAME_COUNT 2u
+#define RAM_SCENE_FIREWORKS_FRAME_STRIDE 0x02u
+#define RAM_SCENE_FIREWORKS_FRAME_DP 0x8Fu   /* page scene */
 /* The turn the bikes' places take as they are placed on the screen (a quarter turn less the
  * camera's angle): its sine and cosine, and their negatives [4 x $2 bytes, by 0 the sine, 1 the
  * cosine, 2 and 3 their negatives] */
@@ -8804,6 +8863,16 @@
 #define RAM_SCENE_RACE_VIEW_COUNT 4u
 #define RAM_SCENE_RACE_VIEW_STRIDE 0x02u
 #define RAM_SCENE_RACE_VIEW_DP 0x90u         /* page scene */
+/* Where across the screen the firework bursts [2 x $2 bytes, by firework] */
+#define RAM_SCENE_FIREWORKS_X 0x7E0097u
+#define RAM_SCENE_FIREWORKS_X_COUNT 2u
+#define RAM_SCENE_FIREWORKS_X_STRIDE 0x02u
+#define RAM_SCENE_FIREWORKS_X_DP 0x97u       /* page scene */
+/* Where down the screen the firework bursts [2 x $2 bytes, by firework] */
+#define RAM_SCENE_FIREWORKS_Y 0x7E0098u
+#define RAM_SCENE_FIREWORKS_Y_COUNT 2u
+#define RAM_SCENE_FIREWORKS_Y_STRIDE 0x02u
+#define RAM_SCENE_FIREWORKS_Y_DP 0x98u       /* page scene */
 /* What Johnny presses this frame: $8000 the throttle, $0100 and $0200 steering toward the lower
  * or the higher lanes [2 bytes] */
 #define RAM_SCENE_RACE_JOHNNY_CONTROLS 0x7E0098u
@@ -8814,6 +8883,10 @@
 /* Where the camera is along the track: the two bikes' distances averaged [4 bytes] */
 #define RAM_SCENE_RACE_PLACE 0x7E009Cu
 #define RAM_SCENE_RACE_PLACE_DP 0x9Cu        /* page scene */
+/* Nonzero while the fireworks hold: each new burst is the one held frame, for 48 frames, rather
+ * than a burst picked at random [2 bytes] */
+#define RAM_SCENE_FIREWORKS_HELD 0x7E009Fu
+#define RAM_SCENE_FIREWORKS_HELD_DP 0x9Fu    /* page scene */
 /* Nonzero while B is held after a boost, so holding it boosts once [2 bytes] */
 #define RAM_SCENE_RACE_BOOST_HELD 0x7E00A0u
 #define RAM_SCENE_RACE_BOOST_HELD_DP 0xA0u   /* page scene */
@@ -9098,12 +9171,14 @@
 #define RAM_SCENE_CHANNELS_SCRIPT 0x7E0A20u  /* Pointer to the channel's next script command in bank $7E; a store to it is a goto */
 #define RAM_SCENE_CHANNELS_LOOP_COUNTERS 0x7E0A22u /* Counters of the loop commands $80-$9F, a word each at $22 + 2n (n = 7 is the return address) */
 #define RAM_SCENE_CHANNELS_RETURN_ADDRESS 0x7E0A30u /* Where the script's call command ($A3) returns to */
-/* The camera the race last built its perspective for, kept in channel 0's spare loop counters:
- * when the camera differs, the perspective is built again [5 x $2 bytes, by the camera's height,
- * angle, pitch, depth and mirroring, as channel 0's registers 0, 5, 6, 8 and 11 hold them] */
-#define RAM_SCENE_RACE_PERSPECTIVE_CAMERA 0x7E0A30u
-#define RAM_SCENE_RACE_PERSPECTIVE_CAMERA_COUNT 5u
-#define RAM_SCENE_RACE_PERSPECTIVE_CAMERA_STRIDE 0x02u
+/* The camera the Mode 7 plane's perspective was last built for, kept in channel 0's spare loop
+ * counters: when the camera differs, the perspective is built again (the race's check compares
+ * all five, the Beyond Time ending's flight the first four) [5 x $2 bytes, by the camera's
+ * height, angle, pitch, depth and mirroring, as channel 0's registers 0, 5, 6, 8 and 11 hold
+ * them] */
+#define RAM_SCENE_PERSPECTIVE_CAMERA 0x7E0A30u
+#define RAM_SCENE_PERSPECTIVE_CAMERA_COUNT 5u
+#define RAM_SCENE_PERSPECTIVE_CAMERA_STRIDE 0x02u
 /* In the demo, how fast the camera is turning each way: it builds up to 12 while the shoulder
  * button is held and dies away when it isn't; the camera turns by a quarter of each a frame [2 x
  * $2 bytes, by 0 turning one way (R), 1 the other (L)] */
@@ -9141,6 +9216,20 @@
 #define RAM_SCENE_STAR_DEPTHS 0x7E0E00u
 #define RAM_SCENE_STAR_DEPTHS_COUNT 128u
 #define RAM_SCENE_STAR_DEPTHS_STRIDE 0x04u
+/* Where the Beyond Time ending's flight looks at the world's map from, worked out each vblank
+ * from channel 0's camera and sent the next ($7E:9AF3, $7E:9DBC); the per-line table for BG1's
+ * scroll reads its line and sky scrolls [20 bytes] */
+#define RAM_SCENE_FLIGHT_VIEW 0x7E1400u
+#define RAM_SCENE_FLIGHT_VIEW_X 0x7E1400u    /* The view's scroll across: the camera's place on the map, moved out along its turn by its distance */
+#define RAM_SCENE_FLIGHT_VIEW_Y 0x7E1402u    /* The view's scroll down */
+#define RAM_SCENE_FLIGHT_VIEW_LINE_X 0x7E1404u /* The view's scroll across as the per-line table sends it below the horizon (the vblank's copy of x) */
+#define RAM_SCENE_FLIGHT_VIEW_LINE_Y 0x7E1406u /* The view's scroll down as the per-line table sends it */
+#define RAM_SCENE_FLIGHT_VIEW_CENTRE_X 0x7E1408u /* The plane's rotation centre across, the view's place half a screen in */
+#define RAM_SCENE_FLIGHT_VIEW_CENTRE_Y 0x7E140Au /* The plane's rotation centre down, the view's place a screen's height in */
+#define RAM_SCENE_FLIGHT_VIEW_SKY_X 0x7E140Cu /* The sky's scroll across above the horizon: against the camera's turn */
+#define RAM_SCENE_FLIGHT_VIEW_SKY_Y 0x7E140Eu /* The sky's scroll down: the horizon's line under its last */
+#define RAM_SCENE_FLIGHT_VIEW_TURNED_X 0x7E1410u /* The camera's distance turned, across */
+#define RAM_SCENE_FLIGHT_VIEW_TURNED_Y 0x7E1412u /* The camera's distance turned, down */
 /* A racer's picture to scale for this frame: the scaler's settings, which the program's main
  * loop copies into the scaler's cells ($7E:51F4) when the request is pending [2 x $E bytes, by
  * racer: 0 Crono, 1 Johnny] */
@@ -9416,6 +9505,24 @@
 #define RAM_SCENE_ENDING_PICTURE_SPRITE_COUNTS 0x7E88B9u
 #define RAM_SCENE_ENDING_PICTURE_SPRITE_COUNTS_COUNT 2u
 #define RAM_SCENE_ENDING_PICTURE_SPRITE_COUNTS_STRIDE 0x21u
+/* The line counts of the Beyond Time ending's per-line table for the BG mode (the sky above the
+ * horizon, the ground's Mode 7 from it), a table in the program's own data that the flight sets
+ * each vblank from the horizon [2 x $3 bytes, by 0 the lines above the horizon, 1 the lines from
+ * it] */
+#define RAM_SCENE_FLIGHT_MODE_LINE_COUNTS 0x7E902Fu
+#define RAM_SCENE_FLIGHT_MODE_LINE_COUNTS_COUNT 2u
+#define RAM_SCENE_FLIGHT_MODE_LINE_COUNTS_STRIDE 0x03u
+/* The line counts of the flight's per-line table for BG1's scroll: the sky's
+ * (scene_flight_view's sky_x and sky_y) above the horizon, the ground's (its line_x and line_y)
+ * from it [2 x $3 bytes, by 0 the lines above the horizon, 1 the lines from it] */
+#define RAM_SCENE_FLIGHT_SCROLL_LINE_COUNTS 0x7E9043u
+#define RAM_SCENE_FLIGHT_SCROLL_LINE_COUNTS_COUNT 2u
+#define RAM_SCENE_FLIGHT_SCROLL_LINE_COUNTS_STRIDE 0x03u
+/* The line counts of the flight's per-line table for the main screen's layers [2 x $3 bytes, by
+ * 0 the lines above the horizon, 1 the lines from it] */
+#define RAM_SCENE_FLIGHT_SCREENS_LINE_COUNTS 0x7E904Du
+#define RAM_SCENE_FLIGHT_SCREENS_LINE_COUNTS_COUNT 2u
+#define RAM_SCENE_FLIGHT_SCREENS_LINE_COUNTS_STRIDE 0x03u
 /* The line counts of the first two entries of the per-line table for window 1's edges in the
  * shared endings: together, the lines above the zooming picture, where the window is shut [2 x
  * $3 bytes, by the entry: the lines above the picture, split in two] */
@@ -9445,6 +9552,21 @@
 #define RAM_SCENE_CREDITS_SCROLL_REGISTER 0x7E9F23u
 #define RAM_SCENE_CREDITS_SCROLL_REGISTER_COUNT 2u
 #define RAM_SCENE_CREDITS_SCROLL_REGISTER_STRIDE 0x05u
+/* The instruction in the program's list of large sprites ($7E:A03D) that drops a sprite whose Y
+ * falls at or past line 224 (a BCS, $D8B0, as the program is loaded), or two NOPs ($EAEA) that
+ * keep every sprite, which the fireworks write while they draw their bursts and put back after
+ * [2 bytes] */
+#define RAM_SCENE_LARGE_LIST_CLIP 0x7EA074u
+/* Two bytes of the list of large sprites that no path runs, which the fireworks write a compare
+ * into ($E0C9) and then the load the program has there ($E0A9) [2 bytes] */
+#define RAM_SCENE_LARGE_LIST_SPARE 0x7EA090u
+/* The fireworks' bursts in the program, frame after frame: each frame how many frames it shows
+ * and then its list of large sprites (a word), a frame of 0 frames ending a burst. Four bursts
+ * start at $A5B0, $A5CC, $A5E8 and $A610, and the held burst's one frame, at $A60C, is also the
+ * third's last [136 x $1 bytes, by byte] */
+#define RAM_SCENE_FIREWORK_BURSTS 0x7EA5B0u
+#define RAM_SCENE_FIREWORK_BURSTS_COUNT 136u
+#define RAM_SCENE_FIREWORK_BURSTS_STRIDE 0x01u
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes] */
 #define RAM_SCENE_RACE_PLANE_COLUMN 0x7EC995u
@@ -9533,6 +9655,8 @@
 #define RAM_SCENE_CALL_RACE_POSE_DP 0xFEu    /* The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of pictures */
 #define RAM_SCENE_CALL_RIPPLE_OFFSET_DP 0xF0u /* The palace's ripple (on the scene's own page): the column offset as it is worked out across the columns, which ends back where it started */
 #define RAM_SCENE_CALL_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page) */
+#define RAM_SCENE_CALL_KEPT_LIST_CLIP_DP 0xF0u /* On the scene's own page: the large sprite list's drop instruction (scene_large_list_clip), which the fireworks keep here while they write it out to draw their bursts */
+#define RAM_SCENE_CALL_ORBIT_FRAME_DP 0xFEu  /* On the scene's own page: twice the frame counter, which the shared endings' orbit keeps here between its sine and its cosine */
 
 /* ---- warp ---------------------------------------------------------------------------------- */
 

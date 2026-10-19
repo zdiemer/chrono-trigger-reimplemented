@@ -143,11 +143,13 @@ DELEGATES = ("bridge_call", "bridge_call_long", "field_run", "field_run_long", "
              "menu_call_jumped", "field_wait_frame", "battle_wait_frame", "battle_wait_frames", "battle_wait_line",
              "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under", "battle_wait_frames_under",
              "scene_run", "scene_run_long")
-# Waits of a single routine, called (s, site): the routine and the set are
-# these constants (game/battle/wait.h).
+# Calls of a single routine, called (s, site, ...): the routine and the set
+# are these constants (game/battle/wait.h, game/battle/bridge.h), and the call
+# takes this many arguments, what follows the site being its own.
 FIXED_DELEGATES = {
-    "battle_wait_for_the_handler_from": ("BATTLE_HANDLER_WAIT", "BATTLE_WAIT_READS"),
-    "battle_wait_for_the_next_frame_from": ("BATTLE_NEXT_FRAME_WAIT", "BATTLE_WAIT_READS"),
+    "battle_wait_for_the_handler_from": ("BATTLE_HANDLER_WAIT", "BATTLE_WAIT_READS", 2),
+    "battle_wait_for_the_next_frame_from": ("BATTLE_NEXT_FRAME_WAIT", "BATTLE_WAIT_READS", 2),
+    "battle_send_and_wait": ("BATTLE_SEND", "BATTLE_SEND_READS", 5),
 }
 # A step asked for by a port, called (s, site, step, set): a call-out to the
 # steps' dispatch at site declaring set where the dispatch's guard refuses, and
@@ -161,8 +163,8 @@ BRIDGES = {
                              "battle_stop_after_call",
                              "battle_wait_frame", "battle_wait_frames", "battle_wait_line",
                              "battle_run_under", "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under",
-                             "battle_wait_frames_under"),
-    "game/battle/wait.c": tuple(FIXED_DELEGATES),
+                             "battle_wait_frames_under", "battle_send_and_wait"),
+    "game/battle/wait.c": ("battle_wait_for_the_handler_from", "battle_wait_for_the_next_frame_from"),
     "game/battle/steps.c": tuple(TARGET_DELEGATES),
     # a sibling run as C, or the original's call declaring nothing where its preconditions fail
     "game/battle/sound.c": ("battle_play_a_sound_from",),
@@ -983,9 +985,10 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                         raise Unreadable("PF_CALL_DC takes (site, target, dont_care)")
                     nodes = [parse(a) for a in call.args]
                 elif call.name in FIXED_DELEGATES:
-                    if len(call.args) != 2:
-                        raise Unreadable(f"{call.name} takes (s, site)")
-                    nodes = [parse(call.args[1])] + [parse(c) for c in FIXED_DELEGATES[call.name]]
+                    routine, dont_care, arity = FIXED_DELEGATES[call.name]
+                    if len(call.args) != arity:
+                        raise Unreadable(f"{call.name} takes {arity} arguments, (s, site{', ...' if arity > 2 else ''})")
+                    nodes = [parse(call.args[1]), parse(routine), parse(dont_care)]
                 elif call.name in TARGET_DELEGATES:
                     if len(call.args) != 4:
                         raise Unreadable(f"{call.name} takes (s, site, step, dont_care)")

@@ -157,6 +157,12 @@ static inline void screen_set_cell_word(GameState *g, uint8_t cell, uint16_t v)
     screen_set_cell(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
 }
 
+/* What a screen command leaves last in the first two cells, a word
+ * (battle_screen_leftover), whose high byte the screen scripts' drift tests
+ * as it decides how to drift (screen_motion.c): game state, so written
+ * plainly, as the layers' scroll writes it each frame (scroll.c). */
+static inline void screen_leave_for_the_drift(GameState *g, uint16_t v) { set_battle_screen_leftover(g, v); }
+
 /* The scaffolding's writes, by the same cells. */
 static inline void screen_leave_cell(GameState *g, uint8_t cell, uint8_t v) { screen_set_cell(g, cell, v); }
 static inline void screen_leave_word(GameState *g, uint8_t cell, uint16_t v) { screen_set_cell_word(g, cell, v); }

@@ -19,9 +19,12 @@
  *   the screen they roll up on, slowly, through the staff roll's own tasks
  *   (staff_roll.c); mode 15 goes straight on with its script instead;
  * - the last scene ($7E:8DF3, then the vblank task $7E:8E44): its colors and
- *   the window a frame task sweeps across it ($7E:9A0C).
+ *   the window a frame task sweeps across it ($7E:9A0C), and "The End" drawn
+ *   over it ($7E:99FA).
  *
- * The captions' turns are captions.c's, the star field's flight stars.c's.
+ * The captions' turns are captions.c's, the star field's flight stars.c's,
+ * the Beyond Time ending's night (its fireworks, which the setup places, and
+ * its flight over the world) beyond_time.c's.
  *
  * Every entry is the scene program's code in work RAM, guarded by a hash of
  * it. What the scripts call runs on the calling channel's page with the
@@ -30,10 +33,9 @@
  * original's code it calls out to finds the stack where it expects.
  *
  * Left as the original's, behind call-outs: the program's unpacker
- * ($7E:3691), the first step of a script ($7E:3749), the captions' first
- * timing ($7E:9BB8), the expansion of the Mode 7 picture's tiles ($7E:5E3C,
- * through $7E:5EF8), and the sprite list the swept window's rider is
- * ($7E:3A97). */
+ * ($7E:3691), the first step of a script ($7E:3749), the expansion of the
+ * Mode 7 picture's tiles ($7E:5E3C, through $7E:5EF8), and the sprite list
+ * the swept window's rider is ($7E:3A97). */
 #include "scene/race.h"
 
 #include "charge.h"
@@ -250,17 +252,23 @@ static uint16_t place_picture(GameState *g)
 }
 
 /* The pictures' frames lie in the second bank from $1200, $400 apart, 32 of
- * them; channel 0's register picks one, rounded to the nearest. */
-enum { FIRST_FRAME = 0x1200, FRAME_SHIFT = 5, FRAMES = 0x1F, ROUNDING = 0x10 };
+ * them, a frame for each 32nd of a turn of the animation (1024 steps a turn). */
+enum { FIRST_FRAME = 0x1200, FRAME_SHIFT = 5, FRAMES = 0x1F, FRAME_BYTES_SHIFT = 10, ROUNDING = 0x10 };
+
+// $7E:8921
+void scene_ending_show_picture_frame(GameState *g, uint16_t turn)
+{
+    uint16_t frame = (uint16_t)(turn >> FRAME_SHIFT & FRAMES);
+    set_scene_ending_picture_source(g, (uint16_t)(FIRST_FRAME + (frame << FRAME_BYTES_SHIFT)));
+}
 
 // $7E:891B
-/* Each frame: the picture's frame of its animation, for the next scaling. */
+/* Each frame: the picture's frame of its animation, for the next scaling,
+ * where channel 0's register turns it, rounded to the nearest. */
 static uint16_t pick_picture_frame(GameState *g)
 {
-    uint16_t frame = (uint16_t)((scene_channel_register(g, STEERING_CHANNEL, PICTURE_FRAME) + ROUNDING) >> FRAME_SHIFT & FRAMES);
-    uint16_t source = (uint16_t)(FIRST_FRAME + (frame << 10));
-    set_scene_ending_picture_source(g, source);
-    return source;
+    scene_ending_show_picture_frame(g, (uint16_t)(scene_channel_register(g, STEERING_CHANNEL, PICTURE_FRAME) + ROUNDING));
+    return scene_ending_picture_source(g);
 }
 
 /* The picture's sprite tiles in VRAM. */
@@ -471,10 +479,6 @@ static void first_script_step(Snes *s, uint16_t picture_script)
     s->cpu.d = 0x0000;
 }
 
-/* The captions' first timing ($7E:9BB8), which draws on the program's random
- * numbers; it reads none of the registers. */
-enum { TIME_CAPTIONS = 0x7E9BB8, TIME_CAPTIONS_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
-
 /* The stars' scatter starts its draws from what the original hands its first
  * one unexamined: A as the screen's blanking left it, and the carry the
  * script's call came with, which nothing here touches. The overflow its last
@@ -613,7 +617,7 @@ static void set_up_ending(Snes *s)
     TIMED_AS(g, 0xFDE275, palette_stop_animations(g));
     start_captions(g);
     set_scene_reset_disabled(g, 1);
-    m_jsr_dc(s, 0x7E870E, TIME_CAPTIONS, TIME_CAPTIONS_IGNORES);
+    TIMED_AS(g, 0x7E9BB8, scene_set_the_fireworks_up(g));
 
     uint16_t descriptors_end = 0;
     TIMED_AS(g, 0x7E36CC, descriptors_end = scene_set_up_line_effects(g, pf, ENDING_LINE_EFFECTS));
@@ -1062,6 +1066,17 @@ static Sweep move_sweep_window(GameState *g, Platform *pf)
     return SWEEP_GOES_ON;
 }
 
+/* "The End", its sprite list drawn low in the middle of the screen. */
+enum { THE_END = 0xA1A1, THE_END_X = 0x3C, THE_END_Y = 0x90 };
+
+// $7E:99FA
+/* Each frame of the last scene: "The End" over it. */
+static void draw_the_end(GameState *g)
+{
+    scene_draw_lists_at(g, THE_END_X, THE_END_Y);
+    TIMED_AS(g, 0xC30D5E, scene_draw_sprite_list(g, THE_END, true));
+}
+
 // $7E:8E88
 /* In vblank: BG2's scroll down, where the steering channel holds it. */
 static void scroll_bg2(const GameState *g, Platform *pf)
@@ -1096,7 +1111,8 @@ bool scene_ending_set_up_present(Snes *s)
         !m_code_matches(s, 0x7E8538, 0x21A, 0x6E812E4FAAD367E2ull) || !m_code_matches(s, 0x7E66B0, 0x2D, 0x668182BFFD2B1A5Bull) ||
         !m_code_matches(s, 0x7E37CA, 0x29, 0x94A78C10CD6A42C5ull) || !m_code_matches(s, 0x7E8752, 0x20, 0xE25F56B609E8320Eull) ||
         !m_code_matches(s, 0x7E8772, 0x1E, 0xACB5DF9A02DD40EAull) || !m_code_matches(s, 0x7E3974, 0x16, 0xFF73F0234DD0D06Aull) ||
-        !m_code_matches(s, 0x7E36CC, 0x3C, 0x45191A42A1EEF6A8ull) || !m_code_matches(s, 0x7E8FEA, 0x24, 0xFFD32519BE41426Dull))
+        !m_code_matches(s, 0x7E36CC, 0x3C, 0x45191A42A1EEF6A8ull) || !m_code_matches(s, 0x7E8FEA, 0x24, 0xFFD32519BE41426Dull) ||
+        !scene_set_the_fireworks_up_present(s))
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
@@ -1106,11 +1122,13 @@ bool scene_ending_set_up_present(Snes *s)
 }
 
 /* Entered from the program's mode table with 8-bit A; back on the scene's
- * page, the data bank as the captions' timing left it, and the overflow the
- * per-line effects' setup leaves, clear. */
+ * page, the data bank bank 0, where the fireworks' setup leaves it (it works
+ * on the program's bank and pulls the 0 it pushed under it), and the overflow
+ * the per-line effects' setup leaves, clear. */
 bool scene_ending_set_up_scene(Snes *s)
 {
     set_up_ending(s);
+    s->cpu.db = 0x00;
     s->cpu.d = 0x0000;
     m_set_flag(s, CPU_FLAG_V, false);
     s->cpu.p |= CPU_FLAG_M;
@@ -1392,6 +1410,30 @@ void scene_ending_place_picture(Snes *s)
     uint16_t list = place_picture(state_of(s));
     ORIGINAL_EFFECT(leave_picture_placed(s, list));
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
+    m_rts(s);
+}
+
+/* "The End": the scene's page, a data bank on the registers (the list streams
+ * through the work RAM port), room for its sprites from the cursor. */
+bool scene_ending_draw_the_end_present(Snes *s)
+{
+    if (!scene_on_scene_page_io_bank(s) || !m_code_matches(s, 0x7E99FA, 0x12, 0x6A62CB76AC02881Eull))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool fits = scene_sprites_fit(g, scene_sprite_list_length(g, THE_END));
+    vars_peek(false);
+    return fits;
+}
+
+/* A frame task; back, Y is the next free entry and A as the clipped list
+ * leaves it. */
+void scene_ending_draw_the_end(Snes *s)
+{
+    GameState *g = state_of(s);
+    draw_the_end(g);
+    s->cpu.y = scene_sprite_index(g);
+    ORIGINAL_EFFECT(s->cpu.a = scene_clipped_list_leaves_a(g, THE_END, THE_END));
     m_rts(s);
 }
 

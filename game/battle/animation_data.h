@@ -1,8 +1,8 @@
 /* Battle: what the combatants' animation and the building of their sprite
  * graphics read from the ROM.
  *
- * Every read of cartridge data battle/animation.c, objects.c, sprites.c and
- * tiles.c make goes through here, named for what the data is (the asset
+ * Every read of cartridge data battle/animation.c, objects.c, sprites.c,
+ * tiles.c and beaten_enemies.c make goes through here, named for what the data is (the asset
  * seam, docs/PLAN.md Phase 3), at the index the original uses, 16-bit
  * wraparound and all. The accessors take the game's state (game/rom.h), not
  * the machine, so a build that loads these tables from elsewhere changes this
@@ -246,5 +246,30 @@ static inline uint16_t battle_palette_plane_mask(const GameState *g, uint8_t pal
 {
     return rom_read16(g, 0xCD1300u + palette * 2u);
 }
+
+/* ---- A beaten enemy's dissolve ------------------------------------------------------------- */
+
+/* How far a dissolve moves on through the 64 places of a tile at each step,
+ * by its pace ($CE:EFEA, a byte a pace, by the pace's low three bits). */
+static inline uint8_t battle_dissolve_stride(const GameState *g, uint8_t pace) { return rom_read8(g, 0xCEEFEAu + (pace & 7u)); }
+
+/* The runs of an enemy's tiles a dissolve goes through, two a layout ($CE:F192,
+ * eight bytes a layout): each run's first tile's place in the object's tile
+ * buffer, and how many tiles follow it a tile apart. The original's index is a
+ * byte of the layout times eight. */
+enum { BATTLE_DISSOLVE_RUNS = 2, BATTLE_DISSOLVE_LAYOUTS = 6 };
+typedef struct {
+    uint16_t first, tiles;
+} BattleTileRun;
+
+static inline BattleTileRun battle_dissolve_run(const GameState *g, uint8_t layout, unsigned run)
+{
+    uint16_t at = (uint16_t)((uint8_t)(layout * 8u) + run * 4u);
+    return (BattleTileRun){ rom_read16(g, 0xCEF192u + at), rom_read16(g, 0xCEF194u + at) };
+}
+
+/* How much of the object's tile buffer a dissolve sends to VRAM a frame, in
+ * bytes, by the object's graphics kind ($CE:F156, a word a kind). */
+static inline uint16_t battle_dissolve_bytes(const GameState *g, uint8_t kind) { return rom_read16(g, 0xCEF156u + kind * 2u); }
 
 #endif

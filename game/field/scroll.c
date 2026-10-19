@@ -81,7 +81,7 @@ static int8_t backward(int8_t before, int8_t accumulated) { return accumulated <
 /* Every frame, for a map that scrolls a layer by itself. BG2's horizontal
  * accumulator does nothing at all while it is 0 (the other axes write their
  * unchanged position back). */
-static void scroll_layers(GameState *g)
+void field_scroll_layers_by_themselves(GameState *g)
 {
     int8_t last_backward = 0;
     if (field_auto_scroll(g) & SCROLL_BG2) {
@@ -103,6 +103,6 @@ static void scroll_layers(GameState *g)
  * set). */
 void field_scroll_layers(Snes *s)
 {
-    scroll_layers(state_of(s));
+    field_scroll_layers_by_themselves(state_of(s));
     m_rtl(s);
 }

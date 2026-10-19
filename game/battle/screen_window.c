@@ -47,13 +47,9 @@ static uint8_t position_down(const GameState *g) { return (uint8_t)(battle_anima
 
 enum { BAND_WIDEST = 8, BAND_TALLEST = 9 };
 
-/* The original works out the band's edges in two cells, and leaves the end
- * of its lines there after a band down. */
-static void leave_band(GameState *g, uint8_t low, uint8_t high)
-{
-    screen_leave_cell(g, 0x45, low);
-    screen_leave_cell(g, 0x46, high);
-}
+/* Each window command leaves a word of its working for the screen scripts'
+ * drift (screen_leave_for_the_drift): a band across its edges, a band down
+ * the end of its lines. */
 
 // $D1:EDCD
 /* Screen command $EE: open a band about the first animation position, a step
@@ -70,7 +66,7 @@ static void open_band_across(GameState *g)
         set_band_half_width(g, (uint8_t)(half + 1));
     for (unsigned line = 0; line < BATTLEFIELD_LINES; line++)
         set_line_edges(g, coming_line(g, line), WINDOW_1, edges_between(left, right));
-    ORIGINAL_EFFECT(leave_band(g, left, right));
+    screen_leave_for_the_drift(g, (uint16_t)(left | right << 8));
 }
 
 static void open_band_down(GameState *g)
@@ -82,7 +78,7 @@ static void open_band_down(GameState *g)
         set_band_half_height(g, (uint8_t)(half + 1));
     for (unsigned line = top; line < bottom; line++)
         set_line_edges(g, coming_line(g, line), WINDOW_2, EDGES_FULL);
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, (uint16_t)(bottom * LINE_BYTES)));
+    screen_leave_for_the_drift(g, (uint16_t)(bottom * LINE_BYTES));
 }
 
 static void open_band(GameState *g, bool across)
@@ -116,7 +112,7 @@ static void draw_middle_band(GameState *g, uint8_t grow_by)
     uint8_t top = (uint8_t)(BAND_MIDDLE_LINE - half), bottom = (uint8_t)(BAND_MIDDLE_LINE + half);
     for (unsigned line = top; line < bottom; line++)
         set_line_edges(g, coming_line(g, line), WINDOW_1, edges_between(left, right));
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, (uint16_t)(bottom * LINE_BYTES)));
+    screen_leave_for_the_drift(g, (uint16_t)(bottom * LINE_BYTES));
     ORIGINAL_EFFECT(screen_leave_word(g, 0x49, edges_between(left, right)));
 }
 
@@ -167,11 +163,11 @@ static void set_pair_edges(GameState *g, unsigned pair, Window w, Edges e)
 
 static Edges waved(Edges base, int16_t offset) { return (Edges)(base + offset); }
 
-/* What the waves leave in their cells, and the multiplier its last product:
- * the phases where they stopped, the amplitudes and the bases. */
+/* What the waves leave in their cells but the first, and the multiplier its
+ * last product: window 1's phase where it stopped, the amplitudes and the
+ * bases. */
 static void leave_waves(GameState *g, const Waves *w)
 {
-    screen_leave_word(g, 0x45, w->phase[WINDOW_2]);
     screen_leave_word(g, 0x47, w->phase[WINDOW_1]);
     screen_leave_cell(g, 0x4B, w->amplitude[WINDOW_1]);
     screen_leave_cell(g, 0x4D, w->amplitude[WINDOW_2]);
@@ -191,6 +187,7 @@ static void draw_waves(GameState *g, Waves w)
         w.phase[WINDOW_1]++;
         w.phase[WINDOW_2]++;
     }
+    screen_leave_for_the_drift(g, w.phase[WINDOW_2]);
     ORIGINAL_EFFECT(leave_waves(g, &w));
 }
 
@@ -356,8 +353,8 @@ static void copy_window_1_inside_out(GameState *g)
     for (unsigned line = 0; line < SCREEN_LINES; line++)
         set_line_edges(g, coming_line(g, line), WINDOW_2, inside_out(line_edges(g, shown_line(g, line), WINDOW_1)));
     /* the original copies the lines in eight blocks of 28, and leaves the end
-     * of a block's in its cell */
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, SCREEN_LINES / 8 * LINE_BYTES));
+     * of a block's */
+    screen_leave_for_the_drift(g, SCREEN_LINES / 8 * LINE_BYTES);
 }
 
 /* ---- Fills --------------------------------------------------------------------------------------- */
@@ -403,7 +400,6 @@ static Edges widened(uint8_t v) { return (Edges)(int16_t)(int8_t)v; }
 
 static void leave_ripple(GameState *g, uint8_t frame, uint16_t base)
 {
-    screen_leave_word(g, 0x45, (uint8_t)(frame + RIPPLE_PAIRS));
     screen_leave_word(g, 0x47, (uint8_t)(frame * RIPPLE_SPEED + RIPPLE_PAIRS));
     screen_leave_word(g, 0x49, base);
     hw_set_multiplicand(g, battle_sine_magnitude(g, (uint8_t)(frame + RIPPLE_PAIRS - 1)));
@@ -428,6 +424,7 @@ static void ripple_windows(GameState *g)
             set_line_edges(g, line, WINDOW_2, w2);
         }
     }
+    screen_leave_for_the_drift(g, (uint8_t)(frame + RIPPLE_PAIRS));
     ORIGINAL_EFFECT(leave_ripple(g, frame, base));
 }
 

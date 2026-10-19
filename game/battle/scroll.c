@@ -106,13 +106,17 @@ static void leave_scratch_word(GameState *g, unsigned cell, uint16_t v)
 
 /* The original works the six values out in the scratch cells from $45 on,
  * BG1's across first, and leaves them there; in the wave modes, which layers
- * the wave moves in the low cells $1A, $1C and $1E. */
+ * the wave moves in the low cells $1A, $1C and $1E. BG1's across is the
+ * first word, which the screen scripts' drift tests the high byte of
+ * (battle_screen_leftover, screen_motion.c): game state, written plainly
+ * (battle_scroll_layers); the rest only the original's code reads. */
 enum { WAVED_LAYER_CELLS = 0x1A };
 
 static void leave_layer_scrolls(GameState *g, BattleScrollMode mode, const LayerScroll s[SCROLLED_LAYERS])
 {
     for (unsigned layer = 0; layer < SCROLLED_LAYERS; layer++) {
-        leave_scratch_word(g, 4 * layer, s[layer].x);
+        if (layer != BG1)
+            leave_scratch_word(g, 4 * layer, s[layer].x);
         leave_scratch_word(g, 4 * layer + 2, s[layer].y);
     }
     if (mode != BATTLE_SCROLL_LINE_OFFSETS && mode != BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3)
@@ -136,6 +140,7 @@ void battle_scroll_layers(GameState *g, BattleScrollMode mode)
         scroll_entries(g, layer, s[layer], waved_layer(g, mode, layer), 0, LINES_PER_LAYER);
     if (mode == BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3)
         scroll_entries(g, BG3, s[BG3], waved_layer(g, mode, BG3), LINES_PER_LAYER, FINER_BG3_ENTRIES);
+    set_battle_screen_leftover(g, s[BG1].x);
     ORIGINAL_EFFECT(leave_layer_scrolls(g, mode, s));
 }
 

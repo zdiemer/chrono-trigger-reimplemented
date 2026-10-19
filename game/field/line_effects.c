@@ -622,6 +622,16 @@ static uint32_t bytes4(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
     return (uint32_t)a | (uint32_t)b << 8 | (uint32_t)c << 16 | (uint32_t)d << 24;
 }
 
+/* A part of the screen's layers on the main and sub screens, none of them
+ * masked by the windows. */
+static void set_screens(GameState *g, unsigned which, uint8_t main, uint8_t sub)
+{
+    set_field_line_screens_main_layers(g, which, main);
+    set_field_line_screens_sub_layers(g, which, sub);
+    set_field_line_screens_main_masks(g, which, 0);
+    set_field_line_screens_sub_masks(g, which, 0);
+}
+
 // $FD:C124
 static void init_line_effect_values(GameState *g)
 {
@@ -642,9 +652,9 @@ static void init_line_effect_values(GameState *g)
         set_field_line_window1_edges(g, set, vid_line_window_edges(WHOLE_LINE_LEFT, WHOLE_LINE_RIGHT));
         set_field_line_color_math_fixed_color(g, color_math(set, true), vid_line_fixed_color(ALL_CHANNELS, 0));
     }
-    set_field_line_screens(g, SCREENS_OUTSIDE, bytes4(field_main_screen(g), field_sub_screen(g), 0, 0));
-    set_field_line_screens(g, SCREENS_WINDOW_BODY, bytes4(SCREENS_WINDOW_BODY_LAYERS, 0, 0, 0));
-    set_field_line_screens(g, SCREENS_WINDOW_EDGE, bytes4(SCREENS_WINDOW_EDGE_LAYERS, 0, 0, 0));
+    set_screens(g, SCREENS_OUTSIDE, field_main_screen(g), field_sub_screen(g));
+    set_screens(g, SCREENS_WINDOW_BODY, SCREENS_WINDOW_BODY_LAYERS, 0);
+    set_screens(g, SCREENS_WINDOW_EDGE, SCREENS_WINDOW_EDGE_LAYERS, 0);
     set_dialog_window_state(g, 0);
     fill_dialog_shading(g);
 }

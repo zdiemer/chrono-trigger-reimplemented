@@ -90,7 +90,7 @@ static ScreenFlow sway_lines(GameState *g, uint8_t value)
         set_offset(g, HALF_THE_ENTRIES + entry, (uint16_t)-sway);
         set_battle_line_scroll_offsets_down(g, HALF_THE_ENTRIES + entry, 0);
     }
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, sway));
+    screen_leave_for_the_drift(g, sway);
     ORIGINAL_EFFECT(screen_leave_word(g, 0x47, (uint16_t)-sway));
     return screen_on();
 }

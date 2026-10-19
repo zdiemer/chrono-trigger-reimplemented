@@ -2447,18 +2447,9 @@ re-runs the census.
     every other scene, and wants a rate of its own (the search as a timed part,
     `TIMED_AS` a routine that is only the loop);
   - `$C6:EE31`, beside the turn, nothing in the library calls.
-- **What the shipping mode's fallbacks' third chunk left** (REIMPLEMENTATION.md,
-  "Phase 4a, the shipping mode's fallbacks, chunk 3"):
-  - the shared endings' scene program's `7E:99B5` and `7E:A03D` (1.0 M
-    instructions of `endings-beyond-time`'s reference play, 1.06 M of the
-    `beyond_time` route, nothing else): an orbit worked out from the frame
-    counter's sine and cosine and a scale, and a sprite list read through the
-    work RAM port whose callers patch its compare and its branch
-    (`$7E:A074`, `$7E:A090`) to change how it clips the list at the screen's
-    bottom; a port takes the two patches as variables, as the palace's
-    operands are (`scene/rising_palace.c`);
-  - the battle frame work's `CD:0154` and `CD:010A` (0.45 M of the shipping
-    mode's movies), not attempted;
+- **What the shipping mode's fallbacks' third chunk left**
+  (history/reimplementation-chunks.md, "Phase 4a, the shipping mode's
+  fallbacks, chunk 3"):
   - the save screens' fourth step (`$C2:CF92`) is one no code moves the
     screens to, so fuzzing alone checks it; the main menu's save screen's
     opening, the save in a slot and the save itself (`$C2:CEDC`, `$C2:CF0A`,
@@ -2472,6 +2463,52 @@ re-runs the census.
     which no showing makes; the planet's colours' guard refuses colours over
     the step's code, its working cells or the stack's top, which the original
     would step as it reads them.
+- **What the shipping mode's fallbacks' fourth chunk left** (REIMPLEMENTATION.md,
+  "Phase 4a, the shipping mode's fallbacks, chunk 4"):
+  - three entries nothing in the library calls, so fuzzing alone checks
+    them: the battlefield changed as an enemy leaves (`$CD:0E05`, an enemy
+    whose family changes it, or one an enemy's rule binds), the Beyond Time
+    lights' twinkle with the camera turned back first (`$7E:9D45`) and the
+    Mode 7 picture sent with BG2's scroll (`$7E:9E19`); a cut of a
+    Beyond Time or Lavos fight that meets them would let shadow mode compare
+    them;
+  - the program's list of large sprites (`$7E:A03D`) in the form that leaves
+    out a sprite at the picture's bottom or below: once it has left one out,
+    the original goes on with a 16-bit accumulator, storing the next
+    sprite's bytes as words and counting down a word, and the guard refuses a
+    list that leaves out any sprite but its last; that form's only caller
+    (`$7E:9C58`) no showing in the library reaches;
+  - the beaten enemies' step (`$C1:006D`), its search (`$CF:FE20`), seeing an
+    enemy off (`$CD:0024`) and the dissolve (`$CD:00A0`) span frames, so
+    shadow mode compares them only where no enemy is dissolved (12 of 52
+    calls) or inside the turn's comparison, and the dissolve's step
+    (`$CD:010A`, 3,008 calls) alone on its own;
+  - a beaten enemy's dissolve leaves its step's layout, last run and count in
+    the battle's shared work cells over the screen effect's kept settings
+    (`$7E:0053`-`$7E:0058`), which a later screen effect giving fewer than
+    five settings takes up (`battle_run_script_channel` in the Lavos fights
+    of three movies' shipping runs): they are written plainly
+    (`battle/beaten_enemies.c`), and native storage must keep the two
+    variables on the same bytes or give the effect what the dissolve leaves;
+  - the fireworks' leftover offset (the last firework's place read as words,
+    its Y's high byte the byte past the places) is scaffolding the readers
+    are shown not to read (`tools/effects_baseline.txt`, `scene/sprites.c`);
+    a native build keeps the offset's high bytes clear there;
+  - the screen scripts' drift (`$D7`, `battle/screen_motion.c`) tests the
+    high byte of its amount in `$46`, which the last screen work left there.
+    The layers' scroll leaves it each frame and most screen commands leave
+    it in their logic, both now written plainly (`battle_screen_leftover`,
+    `screen_leave_for_the_drift`); a few effects leave `$45` as a word only
+    inside their leaves helpers, as scaffolding (among them
+    `screen_triangles.c`, `screen_circles.c`, `screen_beam.c` and
+    `screen_shapes.c`), and a drift after one, which no run makes, would
+    test what was there before in a native build: their leftovers want
+    writing plainly too, or the drift's test its own source
+    (`tools/effects_baseline.txt`, `drift_high_byte`);
+  - what the endings still hand back to the original in the reference play:
+    the Mode 7 picture's tiles (`$7E:5EF8`, 0.20 M instructions of
+    `endings-beyond-time`), the swept window's rider (`$7E:3A97`), the
+    program's first script step (`$7E:3749`) and `$7E:37CA`.
 - **What the shipping mode's fallbacks' review left** (none blocking):
   - The direct page's scratch cells `$00`-`$0E` are written plainly across
     about a dozen battle files under names that belong to other routines

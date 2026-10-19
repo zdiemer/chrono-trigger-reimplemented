@@ -414,7 +414,9 @@ bool field_window_shape_starts_on_a_line(const GameState *g);
 void field_rasterize_quad(Snes *s);
 bool field_window_shape_table_in_place(Snes *s);
 
-/* field/scroll.c */
+/* field/scroll.c: the layers a map scrolls by themselves, a frame's worth;
+ * the battle on the map's background scrolls them too (battle/frame.c). */
+void field_scroll_layers_by_themselves(GameState *g);
 void field_scroll_layers(Snes *s);
 
 #endif
