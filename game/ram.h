@@ -2135,6 +2135,7 @@
 #define RAM_MENU_SCRATCH 0x7E0000u
 #define RAM_MENU_SCRATCH_DP 0x00u            /* page menu */
 #define RAM_MENU_SCRATCH_TASK_START 0x7E0000u /* Where the scheduler starts a task, from the task's record, which it jumps through ($C2:81FF) */
+#define RAM_MENU_SCRATCH_STEP_ROUTINE 0x7E0000u /* The menus' main task's turn: the routine of the screen's step, which it jumps through ($C2:828E) */
 #define RAM_MENU_SCRATCH_FITS_POWER 0x7E0000u /* The list of what fits ($C2:8953): the power the last row of the ordering kept (where nothing fits, the slot's first item) */
 #define RAM_MENU_SCRATCH_FITS_ROW 0x7E0001u  /* The list of what fits: the row its ordering reached, its end */
 #define RAM_MENU_SCRATCH_SAVE_MEMBER 0x7E0000u /* The load screen: the character of the party member it is drawing a row for (its record's first byte; the portrait clears the high byte) */
@@ -2294,6 +2295,10 @@
  * HP's, 6 the MP's */
 #define RAM_MENU_AMOUNTS_FROM 0x7E0016u
 #define RAM_MENU_AMOUNTS_FROM_DP 0x16u       /* page menu */
+/* The menus' main task's turn: where the running screen's list of steps is, a long address into
+ * bank $C2, which the turn reads the step through; nothing reads it after [3 bytes] */
+#define RAM_MENU_SCREEN_STEPS_AT 0x7E0016u
+#define RAM_MENU_SCREEN_STEPS_AT_DP 0x16u    /* page menu */
 /* A New Game+'s load ($FF:FAED): where the starting record of the character it equips is, a long
  * address into the ROM [3 bytes] */
 #define RAM_MENU_STARTING_RECORD_AT 0x7E0016u
@@ -4599,6 +4604,10 @@
 #define RAM_OVERWORLD_EPOCH_X 0x7E0290u      /* Where it stands across, a pixel */
 #define RAM_OVERWORLD_EPOCH_Y 0x7E0292u      /* And down */
 #define RAM_OVERWORLD_EPOCH_STATE 0x7E0294u  /* Bits 0-1 how many of the party are aboard, bit 2 the party is entering the Black Omen from it, bit 3 it flies over the Black Omen, bit 4 it is leaving through time (the time dial runs, the map holds still), bit 5 it has its wings, bit 6 the party has it out, bit 7 it is in this period (game/overworld/epoch.c) */
+/* The state of a vehicle record laid out as the Epoch's and the dactyl's, between the two: no
+ * port writes it; the main menu's save screen reads its bit 6 (the party has it out) with
+ * theirs, and refuses to save where it is set */
+#define RAM_OVERWORLD_SECOND_VEHICLE_STATE 0x7E0299u
 /* The dactyl the party rides on the 65,000,000 B.C. map: where it stands and its state, as the
  * Epoch's (overworld_epoch) [5 bytes] */
 #define RAM_OVERWORLD_DACTYL 0x7E029Au
@@ -8618,6 +8627,9 @@
 #define RAM_SCENE_PALACE_COLUMN_OFFSETS 0x7E0043u
 #define RAM_SCENE_PALACE_COLUMN_OFFSETS_COUNT 64u
 #define RAM_SCENE_PALACE_COLUMN_OFFSETS_STRIDE 0x02u
+/* The planet's scene: nonzero once the script has the stars stop, so that a star that has
+ * twinkled is put anew below the screen, out of sight [2 bytes] */
+#define RAM_SCENE_TWINKLES_HIDDEN 0x7E0044u
 /* BG3's horizontal scroll, sent with the per-frame tilemap block [2 bytes] */
 #define RAM_SCENE_BG3_SCROLL_X 0x7E0044u
 #define RAM_SCENE_BG3_SCROLL_X_DP 0x44u      /* page scene */
@@ -8932,6 +8944,21 @@
 /* Bit 0: the circle's table is in bank $7F rather than $7E */
 #define RAM_SCENE_CIRCLE_TABLE_BANK 0x7E0358u
 #define RAM_SCENE_CIRCLE_TABLE_BANK_DP 0x58u /* page decompress */
+/* The planet's scene (modes 7 and 8): where the colours are that the planet's colours step
+ * toward, in the program's bank, which the scene's script sets [2 bytes] */
+#define RAM_SCENE_PLANET_FADE_TOWARD 0x7E0360u
+#define RAM_SCENE_PLANET_FADE_TOWARD_DP 0x60u /* page decompress */
+/* The planet's scene: where the colours that step are, in the program's bank (the scene's
+ * working palette) [2 bytes] */
+#define RAM_SCENE_PLANET_FADE_PALETTE 0x7E0362u
+#define RAM_SCENE_PLANET_FADE_PALETTE_DP 0x62u /* page decompress */
+/* The planet's scene: how many colours step [2 bytes] */
+#define RAM_SCENE_PLANET_FADE_COLOURS 0x7E0364u
+#define RAM_SCENE_PLANET_FADE_COLOURS_DP 0x64u /* page decompress */
+/* The planet's scene: steps the colours have left to take, one each time the step comes round;
+ * the script sets it as a word, the step counts the low byte */
+#define RAM_SCENE_PLANET_FADE_STEPS 0x7E0366u
+#define RAM_SCENE_PLANET_FADE_STEPS_DP 0x66u /* page decompress */
 /* Who won the jet bike race, for the story to read after the scene: 1 Crono, 2 Johnny */
 #define RAM_SCENE_RACE_WINNER 0x7E0380u
 /* What Crono's winning score earns, for the story to read: a prize for a lucky number in the low
@@ -8998,6 +9025,10 @@
  * (scaffolding) */
 #define RAM_SCENE_CURTAIN_FILL 0x7E03F0u
 #define RAM_SCENE_CURTAIN_FILL_DP 0xF0u      /* page decompress */
+/* The colours' step: the part of the colour stepped toward it compared last, the last colour's
+ * blue (scaffolding) [2 bytes] */
+#define RAM_SCENE_PLANET_FADE_TARGET_PART 0x7E03F0u
+#define RAM_SCENE_PLANET_FADE_TARGET_PART_DP 0xF0u /* page decompress */
 /* Scratch of the circle: the midpoint algorithm's decision value while the outline is stepped,
  * then the mode while the lower half is filled [2 bytes] */
 #define RAM_SCENE_CIRCLE_DECISION 0x7E03F2u
@@ -9005,6 +9036,9 @@
 /* How far the curtain's last run of lines moved its edges, 8-11 pixels (scaffolding) */
 #define RAM_SCENE_CURTAIN_MOVE 0x7E03F2u
 #define RAM_SCENE_CURTAIN_MOVE_DP 0xF2u      /* page decompress */
+/* The colours' step: the last colour's red and green, stepped (scaffolding) [2 bytes] */
+#define RAM_SCENE_PLANET_FADE_STEPPED_PARTS 0x7E03F2u
+#define RAM_SCENE_PLANET_FADE_STEPPED_PARTS_DP 0xF2u /* page decompress */
 /* Scratch of the circle: the table address of the line y above the center, stepped up two bytes
  * a time [2 bytes] */
 #define RAM_SCENE_CIRCLE_ROW 0x7E03F4u
@@ -9016,6 +9050,10 @@
  * that finds the line x above it [2 bytes] */
 #define RAM_SCENE_CIRCLE_CENTER_ROW_HALF 0x7E03F6u
 #define RAM_SCENE_CIRCLE_CENTER_ROW_HALF_DP 0xF6u /* page decompress */
+/* The colours' step: colours left to step, 0 once it has stepped them all (scaffolding) [2
+ * bytes] */
+#define RAM_SCENE_PLANET_FADE_COLOURS_LEFT 0x7E03FEu
+#define RAM_SCENE_PLANET_FADE_COLOURS_LEFT_DP 0xFEu /* page decompress */
 /* The NMI stub (core's nmi_vector) as the scenes install their handlers in it: a long jump and
  * its target [4 bytes] */
 #define RAM_SCENE_NMI_STUB 0x7E0500u
@@ -9087,6 +9125,16 @@
  * makes the ripple. In the race, all $800 go to whichever half of the racers' tilemap is ready
  * [2048 bytes] */
 #define RAM_SCENE_TILEMAP_BUFFER 0x7E0C00u
+/* The planet's scene's stars that twinkle: each waits a while, plays its twinkle a frame each
+ * four ticks, and is put anew somewhere else [24 x $8 bytes, by twinkle] */
+#define RAM_SCENE_TWINKLES 0x7E0C00u
+#define RAM_SCENE_TWINKLES_COUNT 24u
+#define RAM_SCENE_TWINKLES_STRIDE 0x08u
+#define RAM_SCENE_TWINKLES_X 0x7E0C00u       /* Across the screen */
+#define RAM_SCENE_TWINKLES_Y 0x7E0C01u       /* Down the screen ($E0 below it) */
+#define RAM_SCENE_TWINKLES_WAIT 0x7E0C02u    /* Frames before the twinkle starts */
+#define RAM_SCENE_TWINKLES_FRAMES_LEFT 0x7E0C03u /* Frames of the twinkle left, counted down from 10: the frame it shows is 10 less this */
+#define RAM_SCENE_TWINKLES_TICKS 0x7E0C04u   /* Ticks left on the twinkle's frame, of four */
 /* How far each star of the field is from the viewer, 0-127 (127 the farthest): the field's speed
  * moves it every frame, and a star that passes the viewer or the far end comes back at the other
  * at a new random place [128 x $4 bytes, by star: its sprite entry's number] */
@@ -9316,6 +9364,10 @@
 /* How far the loop over a picture's tiles ($7E:5E3C) moves on after each, the operand of its
  * add: $10, or $30 where the shared endings' third scene writes it */
 #define RAM_SCENE_PLANE_TILES_STRIDE 0x7E5E4Au
+/* The planet's colours step once in so many frames, less one, a mask on the frame counter: the
+ * operand of the step's own AND, $0F (every 16th frame) as the program is unpacked, $1F (every
+ * 32nd) where the ending's script makes it */
+#define RAM_SCENE_PLANET_FADE_PERIOD 0x7E643Eu
 /* Where a line of the program's captions starts across, the operand of a load in the caption's
  * drawing ($7E:64CA), which a caption's text sets for its first line and every later caption
  * starts from */
@@ -9333,6 +9385,14 @@
 #define RAM_SCENE_CAPTION_LETTERS 0x7E662Fu
 #define RAM_SCENE_CAPTION_LETTERS_COUNT 288u
 #define RAM_SCENE_CAPTION_LETTERS_STRIDE 0x01u
+/* The program's sprite a twinkling star is drawn with: its tile, which the twinkling writes for
+ * each star's frame ($80 and on), its attributes, and X and Y, added to the star's place [4
+ * bytes] */
+#define RAM_SCENE_TWINKLE_SPRITE 0x7E6640u
+#define RAM_SCENE_TWINKLE_SPRITE_TILE 0x7E6640u /* The tile, the twinkle's frame's */
+#define RAM_SCENE_TWINKLE_SPRITE_ATTRIBUTES 0x7E6641u /* The attributes */
+#define RAM_SCENE_TWINKLE_SPRITE_X 0x7E6642u /* X from the star's place */
+#define RAM_SCENE_TWINKLE_SPRITE_Y 0x7E6643u /* Y from the star's place */
 /* The palace's scene: how far the palace's colors move each frame as they darken, the first of
  * its fades: the operand of the fade's own load, 1 as the program is unpacked, 6 in the attract
  * sequence's */

@@ -19,8 +19,8 @@
  * can take itself off, or hand its slot to another, when it is done.
  *
  * The lists run the tasks that are ports (the title's, the screen's fades and
- * the frame's own sprites and palette, the credit pages' and the palace
- * rising's) from a C table, and any other task, and the program's
+ * the frame's own sprites and palette, the credit pages', the palace
+ * rising's and the planet's) from a C table, and any other task, and the program's
  * own send of a sound command, as a call on the machine; so the frame's work
  * is a bridge around the logic here: it makes those calls with the registers
  * the original has there, takes a task off its list where it leaves through
@@ -429,7 +429,7 @@ bool scene_vblank_tasks_present(Snes *s)
 /* ---- The tasks ------------------------------------------------------------------------------ */
 
 /* The tasks that are C (scene/title.c, scene/screen.c, scene/credit_pages.c,
- * scene/rising_palace.c), looked up by the value on the list and the list it
+ * scene/rising_palace.c, scene/planet.c), looked up by the value on the list and the list it
  * is on. */
 static const SceneTaskPort *port_of(SceneTask task, SceneTaskList list)
 {
@@ -438,7 +438,7 @@ static const SceneTaskPort *port_of(SceneTask task, SceneTaskList list)
         const unsigned *count;
     } files[] = { { scene_title_tasks, &scene_title_task_count }, { scene_screen_tasks, &scene_screen_task_count },
                   { scene_credit_pages_tasks, &scene_credit_pages_task_count },
-                  { scene_palace_tasks, &scene_palace_task_count } };
+                  { scene_palace_tasks, &scene_palace_task_count }, { scene_planet_tasks, &scene_planet_task_count } };
     for (unsigned f = 0; f < sizeof files / sizeof files[0]; f++)
         for (unsigned n = 0; n < *files[f].count; n++)
             if (files[f].ports[n].task == task && files[f].ports[n].list == list)

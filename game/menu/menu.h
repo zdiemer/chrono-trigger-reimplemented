@@ -35,6 +35,18 @@ static inline int16_t menu_signed_quotient(uint16_t size, uint8_t divisor, bool 
     return (int16_t)(negative ? (uint16_t)(0 - q) : q);
 }
 
+/* The menus' screens, by the number the menus keep for the one running
+ * (menu_screen): the main menu, the six screens its options open (each its
+ * option's number plus one, menu/main_menu.h), and the rest the menus are
+ * opened on. The menus have no screen 8 to 10. menu/screens.c runs their
+ * steps. */
+typedef enum {
+    MENU_SCREEN_MAIN_MENU, MENU_SCREEN_EQUIPMENT, MENU_SCREEN_ITEMS, MENU_SCREEN_TECHS, MENU_SCREEN_SETTINGS,
+    MENU_SCREEN_EXCHANGE, MENU_SCREEN_SAVE, MENU_SCREEN_EXCHANGE_AT_THE_GATE,
+    MENU_SCREEN_SAVE_POINT = 11, MENU_SCREEN_SHOP, MENU_SCREEN_NAMING, MENU_SCREEN_LOAD,
+    MENU_SCREENS,
+} MenuScreen;
+
 /* The menus' tasks (menu_tasks), which their scheduler runs a turn of each
  * frame: a task started runs from `start` on its next turn ($C2:8249). Some
  * have places of their own: the description's typing, the cursor's sprite
@@ -60,7 +72,9 @@ void menu_stop_tasks_entry(Snes *s);
 
 
 /* menu/tasks.c: a task waits a frame or some frames, or ends, and the next
- * goes on; the frame's turns from the first task; the menus' first wait. */
+ * goes on; the frame's turns from the first task; the menus' first wait; and
+ * the turns of the main task and the cursor's, the tasks that run all the
+ * time. */
 void menu_task_waits_a_frame(Snes *s);
 void menu_task_waits_frames(Snes *s);
 void menu_task_ends(Snes *s);
@@ -69,6 +83,16 @@ void menu_wait_for_the_first_frame(Snes *s);
 bool menu_task_can_wait(Snes *s);
 bool menu_task_can_end(Snes *s);
 bool menu_tasks_can_run(Snes *s);
+
+void menu_run_the_main_task(Snes *s);
+void menu_main_task_waits(Snes *s);
+void menu_run_the_cursor_task(Snes *s);
+
+/* menu/screens.c: the running screen's step, as the main task's turn runs
+ * it; true if it came back to the turn. And the turn's guard: the screen on a
+ * step it has. */
+bool menu_run_the_screen_s_step(Snes *s);
+bool menu_screen_step_is_known(Snes *s);
 
 /* menu/frame.c */
 void menu_wait_for_frame_loop(Snes *s);

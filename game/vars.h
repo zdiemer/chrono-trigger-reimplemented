@@ -2844,6 +2844,10 @@ void set_field_bg3_tiles_unpacked_byte(GameState *g, unsigned at, uint8_t v);
 /* Where the scheduler starts a task, from the task's record, which it jumps through ($C2:81FF) */
 uint16_t menu_scratch_task_start(const GameState *g);
 void set_menu_scratch_task_start(GameState *g, uint16_t v);
+/* The menus' main task's turn: the routine of the screen's step, which it jumps through
+ * ($C2:828E) */
+uint16_t menu_scratch_step_routine(const GameState *g);
+void set_menu_scratch_step_routine(GameState *g, uint16_t v);
 /* The list of what fits ($C2:8953): the power the last row of the ordering kept (where nothing
  * fits, the slot's first item) */
 uint8_t menu_scratch_fits_power(const GameState *g);
@@ -3379,6 +3383,11 @@ void set_menu_scratch_song_volume(GameState *g, uint8_t v);
  * HP's, 6 the MP's */
 uint8_t menu_amounts_from(const GameState *g);
 void set_menu_amounts_from(GameState *g, uint8_t v);
+
+/* The menus' main task's turn: where the running screen's list of steps is, a long address into
+ * bank $C2, which the turn reads the step through; nothing reads it after */
+uint32_t menu_screen_steps_at(const GameState *g);
+void set_menu_screen_steps_at(GameState *g, uint32_t v);
 
 /* A New Game+'s load ($FF:FAED): where the starting record of the character it equips is, a long
  * address into the ROM */
@@ -7192,6 +7201,12 @@ void set_overworld_epoch_y(GameState *g, uint16_t v);
  * period (game/overworld/epoch.c) */
 uint8_t overworld_epoch_state(const GameState *g);
 void set_overworld_epoch_state(GameState *g, uint8_t v);
+
+/* The state of a vehicle record laid out as the Epoch's and the dactyl's, between the two: no
+ * port writes it; the main menu's save screen reads its bit 6 (the party has it out) with
+ * theirs, and refuses to save where it is set */
+uint8_t overworld_second_vehicle_state(const GameState *g);
+void set_overworld_second_vehicle_state(GameState *g, uint8_t v);
 
 /* Across */
 uint16_t overworld_dactyl_x(const GameState *g);
@@ -13043,6 +13058,11 @@ enum { SCENE_PALACE_COLUMN_OFFSETS_COUNT = 64 };   /* by column: the first 32 ac
 uint16_t scene_palace_column_offsets(const GameState *g, unsigned column);
 void set_scene_palace_column_offsets(GameState *g, unsigned column, uint16_t v);
 
+/* The planet's scene: nonzero once the script has the stars stop, so that a star that has
+ * twinkled is put anew below the screen, out of sight */
+uint16_t scene_twinkles_hidden(const GameState *g);
+void set_scene_twinkles_hidden(GameState *g, uint16_t v);
+
 /* BG3's horizontal scroll, sent with the per-frame tilemap block */
 uint16_t scene_bg3_scroll_x(const GameState *g);
 void set_scene_bg3_scroll_x(GameState *g, uint16_t v);
@@ -13453,6 +13473,25 @@ void set_scene_curtain_noise_page(GameState *g, uint16_t v);
 uint8_t scene_circle_table_bank(const GameState *g);
 void set_scene_circle_table_bank(GameState *g, uint8_t v);
 
+/* The planet's scene (modes 7 and 8): where the colours are that the planet's colours step
+ * toward, in the program's bank, which the scene's script sets */
+uint16_t scene_planet_fade_toward(const GameState *g);
+void set_scene_planet_fade_toward(GameState *g, uint16_t v);
+
+/* The planet's scene: where the colours that step are, in the program's bank (the scene's
+ * working palette) */
+uint16_t scene_planet_fade_palette(const GameState *g);
+void set_scene_planet_fade_palette(GameState *g, uint16_t v);
+
+/* The planet's scene: how many colours step */
+uint16_t scene_planet_fade_colours(const GameState *g);
+void set_scene_planet_fade_colours(GameState *g, uint16_t v);
+
+/* The planet's scene: steps the colours have left to take, one each time the step comes round;
+ * the script sets it as a word, the step counts the low byte */
+uint8_t scene_planet_fade_steps(const GameState *g);
+void set_scene_planet_fade_steps(GameState *g, uint8_t v);
+
 /* Who won the jet bike race, for the story to read after the scene: 1 Crono, 2 Johnny */
 uint8_t scene_race_winner(const GameState *g);
 void set_scene_race_winner(GameState *g, uint8_t v);
@@ -13561,6 +13600,11 @@ void set_scene_circle_count(GameState *g, uint16_t v);
 uint8_t scene_curtain_fill(const GameState *g);
 void set_scene_curtain_fill(GameState *g, uint8_t v);
 
+/* The colours' step: the part of the colour stepped toward it compared last, the last colour's
+ * blue (scaffolding) */
+uint16_t scene_planet_fade_target_part(const GameState *g);
+void set_scene_planet_fade_target_part(GameState *g, uint16_t v);
+
 /* Scratch of the circle: the midpoint algorithm's decision value while the outline is stepped,
  * then the mode while the lower half is filled */
 uint16_t scene_circle_decision(const GameState *g);
@@ -13569,6 +13613,10 @@ void set_scene_circle_decision(GameState *g, uint16_t v);
 /* How far the curtain's last run of lines moved its edges, 8-11 pixels (scaffolding) */
 uint8_t scene_curtain_move(const GameState *g);
 void set_scene_curtain_move(GameState *g, uint8_t v);
+
+/* The colours' step: the last colour's red and green, stepped (scaffolding) */
+uint16_t scene_planet_fade_stepped_parts(const GameState *g);
+void set_scene_planet_fade_stepped_parts(GameState *g, uint16_t v);
 
 /* Scratch of the circle: the table address of the line y above the center, stepped up two bytes
  * a time */
@@ -13583,6 +13631,10 @@ void set_scene_curtain_end(GameState *g, uint16_t v);
  * that finds the line x above it */
 uint16_t scene_circle_center_row_half(const GameState *g);
 void set_scene_circle_center_row_half(GameState *g, uint16_t v);
+
+/* The colours' step: colours left to step, 0 once it has stepped them all (scaffolding) */
+uint16_t scene_planet_fade_colours_left(const GameState *g);
+void set_scene_planet_fade_colours_left(GameState *g, uint16_t v);
 
 /* The jump's opcode, which installing a handler writes */
 uint8_t scene_nmi_stub_jump(const GameState *g);
@@ -13679,6 +13731,23 @@ void set_scene_stars_down(GameState *g, unsigned i, uint8_t v);
 enum { SCENE_TILEMAP_BUFFER_BYTES = 2048 };
 uint8_t scene_tilemap_buffer_byte(const GameState *g, unsigned at);
 void set_scene_tilemap_buffer_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { SCENE_TWINKLES_COUNT = 24 };   /* by twinkle */
+/* Across the screen */
+uint8_t scene_twinkles_x(const GameState *g, unsigned i);
+void set_scene_twinkles_x(GameState *g, unsigned i, uint8_t v);
+/* Down the screen ($E0 below it) */
+uint8_t scene_twinkles_y(const GameState *g, unsigned i);
+void set_scene_twinkles_y(GameState *g, unsigned i, uint8_t v);
+/* Frames before the twinkle starts */
+uint8_t scene_twinkles_wait(const GameState *g, unsigned i);
+void set_scene_twinkles_wait(GameState *g, unsigned i, uint8_t v);
+/* Frames of the twinkle left, counted down from 10: the frame it shows is 10 less this */
+uint8_t scene_twinkles_frames_left(const GameState *g, unsigned i);
+void set_scene_twinkles_frames_left(GameState *g, unsigned i, uint8_t v);
+/* Ticks left on the twinkle's frame, of four */
+uint8_t scene_twinkles_ticks(const GameState *g, unsigned i);
+void set_scene_twinkles_ticks(GameState *g, unsigned i, uint8_t v);
 
 enum { SCENE_STAR_DEPTHS_COUNT = 128 };   /* by star: its sprite entry's number */
 /* How far each star of the field is from the viewer, 0-127 (127 the farthest): the field's speed
@@ -13997,6 +14066,12 @@ void set_scene_plane_tiles_expander(GameState *g, uint16_t v);
 uint8_t scene_plane_tiles_stride(const GameState *g);
 void set_scene_plane_tiles_stride(GameState *g, uint8_t v);
 
+/* The planet's colours step once in so many frames, less one, a mask on the frame counter: the
+ * operand of the step's own AND, $0F (every 16th frame) as the program is unpacked, $1F (every
+ * 32nd) where the ending's script makes it */
+uint8_t scene_planet_fade_period(const GameState *g);
+void set_scene_planet_fade_period(GameState *g, uint8_t v);
+
 /* Where a line of the program's captions starts across, the operand of a load in the caption's
  * drawing ($7E:64CA), which a caption's text sets for its first line and every later caption
  * starts from */
@@ -14019,6 +14094,19 @@ enum { SCENE_CAPTION_LETTERS_COUNT = 288 };   /* by a character code for its wid
  * pixels, and 32 bytes on, its first tile ($7E:664F) */
 uint8_t scene_caption_letters(const GameState *g, unsigned i);
 void set_scene_caption_letters(GameState *g, unsigned i, uint8_t v);
+
+/* The tile, the twinkle's frame's */
+uint8_t scene_twinkle_sprite_tile(const GameState *g);
+void set_scene_twinkle_sprite_tile(GameState *g, uint8_t v);
+/* The attributes */
+uint8_t scene_twinkle_sprite_attributes(const GameState *g);
+void set_scene_twinkle_sprite_attributes(GameState *g, uint8_t v);
+/* X from the star's place */
+uint8_t scene_twinkle_sprite_x(const GameState *g);
+void set_scene_twinkle_sprite_x(GameState *g, uint8_t v);
+/* Y from the star's place */
+uint8_t scene_twinkle_sprite_y(const GameState *g);
+void set_scene_twinkle_sprite_y(GameState *g, uint8_t v);
 
 /* The palace's scene: how far the palace's colors move each frame as they darken, the first of
  * its fades: the operand of the fade's own load, 1 as the program is unpacked, 6 in the attract

@@ -69,6 +69,13 @@ typedef struct {
 MenuCursorRead menu_note_cursor_read(const GameState *g);
 void menu_leave_cursor_read(Snes *s, MenuCursorRead r);
 
+/* A screen's step reading the cursor as C (menu_read_cursor, timed as the
+ * original's reading), and what the original's reading leaves; and the same
+ * with the flags of the test of the buttons the original's steps make after
+ * it (a BIT of menu_cursor_buttons against the accumulator it leaves). */
+void menu_step_reads_the_cursor(Snes *s);
+void menu_step_reads_the_cursor_and_tests_its_buttons(Snes *s);
+
 /* The entries. */
 void menu_clear_sprite_table(Snes *s);
 void menu_reset_sprites(Snes *s);

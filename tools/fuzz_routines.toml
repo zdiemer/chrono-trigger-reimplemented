@@ -18271,6 +18271,69 @@ iterations = 2000
 why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; as menu_show_save_panel"
 
 [[routine]]
+name = "menu_open_saving"
+at = "C2:CEDC"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0414-7E0414=00-02", "--fill", "7E007F-7E007F=00-02", "--fill", "7E0D34-7E0D35=0000,FFFF", "--fill", "7E0294-7E0294=00,40,80", "--fill", "7E0299-7E0299=00,40", "--fill", "7E029E-7E029E=00,40,80", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+iterations = 2000
+why = "as menu_open_save_screen; the place's note either of the two the menus' opening makes (its guard refuses any other) and the three vehicles' states each out or not, so the screen opens or is refused"
+
+[[routine]]
+name = "menu_choose_slot_to_save_in"
+at = "C2:CEFD"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0414-7E0414=00-02", "--fill", "7E007F-7E007F=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-0F", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0054-7E0054=00-04", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0D49-7E0D4B=00,FF", "--fill", "7E0081-7E0081=00-04", "--fill", "7E0F00-7E0F00=00-02", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+iterations = 2000
+why = "as menu_choose_on_save_screen; the cursor on a slot or the question's answers, the slot shown one of the three, each holding a game or not, compared up to a wait or the sound driver"
+
+[[routine]]
+name = "menu_answer_whether_to_save_over"
+at = "C2:CF61"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0414-7E0414=00-02", "--fill", "7E007F-7E007F=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-0F", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0054-7E0054=00-04", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0D49-7E0D4B=00,FF", "--fill", "7E0081-7E0081=00-04", "--fill", "7E0F00-7E0F00=00-02", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+iterations = 2000
+why = "as menu_choose_slot_to_save_in, the cursor on \"yes\" or not and where it was before random"
+
+[[routine]]
+name = "menu_close_the_question_on_a_button"
+at = "C2:CF92"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0414-7E0414=00-02", "--fill", "7E007F-7E007F=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-0F", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0054-7E0054=00-04", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0D49-7E0D4B=00,FF", "--fill", "7E0081-7E0081=00-04", "--fill", "7E0F00-7E0F00=00-02", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+iterations = 2000
+why = "as menu_answer_whether_to_save_over"
+
+[[routine]]
+name = "menu_save_in_the_slot"
+at = "C2:CF0A"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0414-7E0414=00-02", "--fill", "7E007F-7E007F=00-02", "--fill", "7E0054-7E0054=00-02", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0D49-7E0D4B=00,FF", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+iterations = 2000
+why = "the slot shown one of the three, holding a game (the question, compared up to the tick's sound) or empty (the save, the original's call outside the runtime, whose own wait runs it past the budget: those states are skipped; menu_save_the_game is its check)"
+
+[[routine]]
+name = "menu_save_the_game"
+at = "C2:CF37"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0414-7E0414=00-02", "--fill", "7E007F-7E007F=00-02", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0D49-7E0D4B=00,FF", "--stop-at-call", "C2821E"]
+iterations = 2000
+why = "the slot shown one of the three; compared at its first wait, after the sound, the slot marked and the game written to the cartridge (what follows the wait, the summary read back, is menu_read_slot_summary's)"
+
+[[routine]]
+name = "menu_show_the_slot_saved"
+at = "C2:CF21"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0D8C-7E0D8C=00-07", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D11-7E0D11=00,08,10"]
+iterations = 2000
+why = "as menu_draw_slot_window, with room in the queue for its two uploads"
+
+[[routine]]
 name = "menu_choose_on_save_screen"
 at = "C2:D506"
 subsystem = "menu"
@@ -18788,6 +18851,36 @@ subsystem = "menu"
 state = "menus"
 args = []
 why = "nothing it reads: it sets the stack, page and data bank"
+
+[[routine]]
+name = "menu_run_the_main_task"
+subsystem = "menu"
+state = "menus"
+args = ["--jump", "--d", "0000", "--db", "7E", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0067-7E0067=00,01,02,03,04,05,06,07,0B,0C,0D,0E", "--fill", "7E0068-7E0068=00-08", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+iterations = 10000
+why = "gone on to as the scheduler starts or resumes the task; low RAM, the tilemaps and tables as the state has them; any of the twelve screens and steps 0-8, which the guard turns away past a screen's last; outside the runtime each step is the original's call and the wait a stop, so this compares the lookup and the registers it hands the step"
+
+[[routine]]
+name = "menu_main_task_waits"
+subsystem = "menu"
+state = "menus"
+args = ["--jump", "--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "gone on to past a step the original finished; outside the runtime the wait is a stop at its own JSR"
+
+[[routine]]
+name = "menu_run_the_cursor_task"
+subsystem = "menu"
+state = "menus"
+args = ["--jump", "--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=00-29"]
+why = "as menu_reset_sprites, gone on to as the task starts; the cursor on one of its menu's 42 places, shown or hidden for the frame as the random state has it, compared at the wait's JSR with the index registers the reset leaves"
+
+[[routine]]
+name = "menu_cursor_task_goes_on"
+subsystem = "menu"
+state = "menus"
+args = ["--jump", "--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=00-29"]
+why = "as menu_run_the_cursor_task, from the wait's return"
 
 [[routine]]
 name = "attract_frame_pass"
@@ -19437,6 +19530,43 @@ subsystem = "scene"
 state = "attract"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E003B-7E003B=00-01"]
 why = "the program kept, on the scene's own page, as the vblank list calls it; a map waiting or none"
+
+[[routine]]
+name = "scene_step_the_planet_s_colours"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0360-7E0361=B5B4,B7B4", "--fill", "7E0362-7E0363=2240", "--fill", "7E0364-7E0365=00C0,0001,0040", "--fill", "7E0366-7E0366=00-20", "--fill", "7E0008-7E0008=00,10,20,05", "--fill", "7E643E-7E643E=0F,1F"]
+why = "the program kept, on the scene's own page; the planet's colours and the two the setups step them toward, a step due on most states (the frame counter on the period or off it, either period), steps left or none"
+
+[[routine]]
+name = "scene_step_the_planet_s_colours"
+variant = "loose"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0008-7E0008=00,10,20,05"]
+why = "the colours and their count anywhere: the guard refuses colours over the step's code, its working cells on the decompressor's page or the stack's top, which the original reads back as it writes them"
+
+[[routine]]
+name = "scene_twinkle_the_stars"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0C02-7E0CBF:8=00-03", "--fill", "7E0C03-7E0CBF:8=01-0A", "--fill", "7E0C04-7E0CBF:8=01-04", "--fill", "7E0011-7E0012=0000,0040,0100", "--fill", "7E0013-7E0014=0900,0904,0910", "--fill", "7E0044-7E0045=0000,0001"]
+why = "the program kept, as the frame list calls it; every star waiting a little, twinkling or on its last frame, the sprite cursor where all 24 fit, the stars shown or hidden; half the states enter with the carry set, which the guard refuses (planet.c)"
+
+[[routine]]
+name = "scene_twinkle_the_stars"
+variant = "loose"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0011-7E0012=0000,0040,0100", "--fill", "7E0013-7E0014=0900,0904,0910"]
+why = "the stars' records and the hiding random, the cursor where all 24 fit"
+
+[[routine]]
+name = "scene_put_out_the_stars"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0044-7E0045=0000,0001"]
+why = "the program kept, as the setup calls it; the stars shown or hidden; half the states enter with the carry set, which the guard refuses"
 
 [[routine]]
 name = "scene_sweep_the_palace_curtain"

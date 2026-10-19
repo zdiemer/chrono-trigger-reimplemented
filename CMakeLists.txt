@@ -192,6 +192,7 @@ add_library(ct_game STATIC
   game/menu/script.c
   game/menu/screen_objects.c
   game/menu/script_bridge.c
+  game/menu/screens.c
   game/menu/settings_screen.c
   game/menu/settings_screen_bridge.c
   game/menu/shop.c
@@ -240,6 +241,7 @@ add_library(ct_game STATIC
   game/scene/guards.c
   game/scene/math.c
   game/scene/perspective.c
+  game/scene/planet.c
   game/scene/program.c
   game/scene/race.c
   game/scene/race_camera.c

@@ -232,6 +232,11 @@ typedef struct Active {
      * whose popped bytes are dead too (follow_the_stack). */
     bool at_rti, returned_by_rti;
     uint16_t left_low_s, left_s;
+    /* SHADOW: the stack bytes the port declared dead (native_stack_dont_care)
+     * and left on the stack where it stopped, which its last comparison
+     * leaves out as its stretches' did. */
+    uint16_t left_dead_stack[MAX_DEAD_STACK];
+    int nleft_dead_stack;
     uint16_t ret_dont_care;   /* SHADOW: the native routine's native_dont_care_at_stop */
     uint32_t ret_at;          /* ...and where it said the set applies */
     bool ret_own;             /* ...and that the set is the stop's own */
@@ -868,11 +873,13 @@ void native_copy_popped_stack(const Snes *o, Snes *c, uint16_t lowest_s)
 }
 
 /* The stack bytes a port declared dead while they stay pushed, copied from
- * the original's machine where they are still above its S. */
-static void copy_dead_stack(const Snes *o, Snes *c, const uint16_t *at, int n)
+ * the original's machine where they are still above its S; or, those it left
+ * on a stack where it stopped, wherever the original's S has gone since (to
+ * another stack: a menu task's wait). */
+static void copy_dead_stack(const Snes *o, Snes *c, const uint16_t *at, int n, bool left)
 {
     for (int k = 0; k < n; k++)
-        if (at[k] > o->cpu.s && at[k] < 0x2000)
+        if ((left || at[k] > o->cpu.s) && at[k] < 0x2000)
             c->bus.wram[at[k]] = o->bus.wram[at[k]];
 }
 
@@ -1074,7 +1081,9 @@ static bool differs(Active *a, Snes *s, uint16_t dont_care, char *why, size_t n)
     for (uint32_t addr = (uint32_t)a->left_low_s + 1; addr <= a->left_s && addr < 0x2000; addr++)
         a->clone->bus.wram[addr] = s->bus.wram[addr];
     if (a->job)
-        copy_dead_stack(s, a->clone, a->job->dead_stack, a->job->ndead_stack);
+        copy_dead_stack(s, a->clone, a->job->dead_stack, a->job->ndead_stack, false);
+    else
+        copy_dead_stack(s, a->clone, a->left_dead_stack, a->nleft_dead_stack, true);
     return compare_machines(s, a->clone, dont_care, a->since, why, n);
 }
 
@@ -1313,6 +1322,8 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
     if (rt->mode == NATIVE_ON && j->state == JOB_DONE && j->returned && !j->returned_rti)
         poison_return(a->entry, m);
     if (j->state == JOB_DONE) {
+        memcpy(a->left_dead_stack, j->dead_stack, sizeof *j->dead_stack * (size_t)j->ndead_stack);
+        a->nleft_dead_stack = j->ndead_stack;
         a->ret_dont_care = j->stop_dont_care;
         a->ret_at = j->stop_at;
         a->ret_own = j->stop_own;
@@ -2688,18 +2699,15 @@ static void keep_untouched_scrambled(Cpu *out, const Cpu *mine, const Cpu *scram
 static Snes *poison_trial;
 static bool poisoning;
 
-static void call_out(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care, bool waits)
+/* The call from `site`, its return `ret` pushed as the original pushes it (a
+ * JSR's or a PER's address less one, a JSL's with its bank first). */
+static void call_out_returning(Snes *s, uint32_t site, uint32_t target, uint32_t ret, bool long_call,
+                               uint16_t dont_care, bool waits)
 {
     uint16_t s_after = s->cpu.s;
-    uint32_t ret;
-    if (long_call) {
-        push8_raw(s, site >> 16);
-        push16_raw(s, (uint16_t)(site + 3));
-        ret = (site & 0xFF0000) | (uint16_t)(site + 4);
-    } else {
-        push16_raw(s, (uint16_t)(site + 2));
-        ret = (site & 0xFF0000) | (uint16_t)(site + 3);
-    }
+    if (long_call)
+        push8_raw(s, ret >> 16);
+    push16_raw(s, (uint16_t)((uint16_t)ret - 1));
     s->cpu.pb = target >> 16;
     s->cpu.pc = target & 0xFFFF;
 
@@ -2754,9 +2762,20 @@ void native_poison_as_call(Snes *s, uint32_t site, uint32_t target, uint16_t don
         scramble(&s->cpu, (uint16_t)(set & dont_care), bits);
 }
 
+static void call_out(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care, bool waits)
+{
+    uint32_t ret = (site & 0xFF0000) | (uint16_t)(site + (long_call ? 4 : 3));
+    call_out_returning(s, site, target, ret, long_call, dont_care, waits);
+}
+
 void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care)
 {
     call_out(s, site, target, long_call, dont_care, false);
+}
+
+void native_jump_call_dc(Snes *s, uint32_t site, uint32_t target, uint32_t returns_to, uint16_t dont_care)
+{
+    call_out_returning(s, site, target, returns_to, false, dont_care, false);
 }
 
 void native_wait_call(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care, int32_t wake)

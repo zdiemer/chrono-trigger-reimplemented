@@ -446,7 +446,7 @@ bool menu_exchange_has_two_to_swap(const GameState *g)
 // $C2:C627 (where there aren't two)
 void menu_exchange_refuse(GameState *g)
 {
-    set_menu_screen(g, MAIN_MENU_SCREEN);
+    set_menu_screen(g, MENU_SCREEN_MAIN_MENU);
     set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1));
 }
 

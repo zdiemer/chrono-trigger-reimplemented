@@ -42,6 +42,12 @@ bool menu_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care
 /* The same for a routine that comes back with widths of its own. */
 bool menu_call_returning(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, bool a8, bool x8);
 
+/* The same for a routine the original reaches by a jump through a pointer at
+ * `site` it reads at run time (a JMP (abs)), with a return the code before
+ * the jump pushed (a PER): the callee returns to `returns_to`, which is where
+ * the port goes on, or stops. */
+bool menu_call_jumped(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint32_t returns_to);
+
 /* The machine a bridge expects back after a call made some other way (a
  * service's call-out, a sibling run as its JSR reaches it), noted before it. */
 typedef struct {
@@ -72,6 +78,18 @@ bool menu_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes 
  * did (the equipment list's move leaves a 16-bit accumulator after a slide):
  * the widths it came back with stand. */
 bool menu_run_any_widths(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
+
+/* The same, the widths standing, for a sibling the original reaches by such a
+ * jump (menu_call_jumped), with its return to `returns_to` pushed before it. */
+bool menu_run_jumped(Snes *s, uint32_t returns_to, uint32_t routine, void (*entry)(Snes *));
+
+/* Whether the runtime would run `entry`, a sibling's registered entry at
+ * `routine`, for the original's call to it made now: its precondition and its
+ * guard hold, and the run hasn't left it out. A bridge that runs the sibling
+ * with menu_run asks this first, and where it wouldn't, the call is made (or
+ * the bridge stops at it), so the original runs whatever the runtime would
+ * have. Outside the runtime (ct_fuzz) it never would. */
+bool menu_runs_as_port(Snes *s, uint32_t routine, void (*entry)(Snes *));
 
 /* ---- The frame of the routines a bridge stands in for ------------------------------- */
 

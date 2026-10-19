@@ -128,7 +128,7 @@ STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
 # bridge_call_long(...) and bridge_call_on_page (on another page) with field_run and field_run_long (a sibling port run as
 # C under the call's frame, or the same call where its guard refuses), the battle's battle_call(s, site, target, set) and
 # battle_call_long(...), battle_run_dc and battle_run_long_dc (a sibling port run as C, or that call where its guard refuses), the
-# menus' menu_call and menu_call_long, and the waits
+# menus' menu_call and menu_call_long (and menu_call_jumped, from a jump through a pointer), and the waits
 # that go through the timing service (field_wait_frame, battle_wait_frame, battle_wait_frames,
 # battle_wait_line: the same arguments, then their own), are
 # m_jsr_dc and m_jsl_dc and a stop of the bridge's own with no set at the
@@ -140,7 +140,7 @@ DELEGATES = ("bridge_call", "bridge_call_long", "field_run", "field_run_long", "
              "bridge_call_on_page", "field_run_or_hand_over",
              "battle_call",
              "battle_call_long", "battle_run_dc", "battle_run_long_dc", "menu_call", "menu_call_long", "menu_call_returning",
-             "field_wait_frame", "battle_wait_frame", "battle_wait_frames", "battle_wait_line",
+             "menu_call_jumped", "field_wait_frame", "battle_wait_frame", "battle_wait_frames", "battle_wait_line",
              "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under", "battle_wait_frames_under",
              "scene_run", "scene_run_long")
 # Waits of a single routine, called (s, site): the routine and the set are
@@ -166,7 +166,7 @@ BRIDGES = {
     "game/battle/steps.c": tuple(TARGET_DELEGATES),
     # a sibling run as C, or the original's call declaring nothing where its preconditions fail
     "game/battle/sound.c": ("battle_play_a_sound_from",),
-    "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_back"),
+    "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_call_jumped", "menu_back"),
     "game/scene/bridge.c": ("scene_run", "scene_run_long", "run_entry"),
 }
 BRIDGE_FILE, BRIDGE_BODIES = "game/field/bridge.c", BRIDGES["game/field/bridge.c"]
@@ -1239,6 +1239,12 @@ def check(entries: list, decls: list, sources: list, lv, opcode_at, strict=None,
         if d.kind == "call":
             targets = [d.target] if d.target is not None else site_targets(lv, d.site)
             if not targets:
+                why = site_dynamic(lv, d.site)
+                if d.dont_care == 0 and why is not None:
+                    # a jump whose target the original reads at run time, declaring nothing dead: it
+                    # claims nothing about the target (the menus' steps, game/menu/screens.c)
+                    rows.append(f"{where}: call {fmt(d.site)} -> a computed target ({why}), declaring nothing: ok")
+                    continue
                 findings.append(Finding(where, f"the call from {fmt(d.site)}: its target is computed, and the "
                                                "original's instruction there isn't a call the analysis resolved"))
                 continue

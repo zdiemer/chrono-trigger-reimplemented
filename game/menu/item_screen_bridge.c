@@ -74,16 +74,6 @@ static bool refuse(Snes *s, uint32_t site) { return menu_run(s, site, 0xC2EACC, 
 enum { BLANK_DESCRIPTION = 0x00 };
 static void describe(GameState *g, uint8_t item) { TIMED_AS(g, 0xC2F2F3, menu_describe_item(g, item)); }
 
-/* The cursor read as C, leaving what the original's reading leaves. */
-static void read_cursor(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuCursorRead r = menu_note_cursor_read(g);
-    (void)r;
-    TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
-    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
-}
-
 static void leave_buttons_tested(Snes *s);
 static void leave_paging_answered(Snes *s, bool turned);
 static void leave_one_taken(Snes *s);
@@ -149,7 +139,7 @@ void menu_open_items(Snes *s)
 void menu_choose_item_command(Snes *s)
 {
     GameState *g = state_of(s);
-    read_cursor(s);
+    menu_step_reads_the_cursor(s);
     ItemsCommandChoice c = menu_items_choose_command(g);
     ORIGINAL_EFFECT(leave_buttons_tested(s));
     switch (c) {
@@ -277,7 +267,7 @@ void menu_choose_on_item_list(Snes *s)
 {
     GameState *g = state_of(s);
     menu_items_put_nothing_in_hand(g);
-    read_cursor(s);
+    menu_step_reads_the_cursor(s);
     ItemsListChoice c = menu_items_choose_on_the_list(g);
     ORIGINAL_EFFECT(leave_buttons_tested(s));
     switch (c) {
@@ -307,7 +297,7 @@ void menu_move_picked_item(Snes *s)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
-    read_cursor(s);
+    menu_step_reads_the_cursor(s);
     ItemsMoveChoice c = menu_items_choose_where(g);
     ORIGINAL_EFFECT(leave_buttons_tested(s));
     switch (c) {
@@ -504,7 +494,7 @@ static void choose_members_to_use_on(Snes *s, ItemUseKind kind)
     for (;;) {
         if (!yield(s, SITES[w].wait))
             return;
-        read_cursor(s);
+        menu_step_reads_the_cursor(s);
         if (!menu_run(s, SITES[w].point, SITES[w].point_routine, POINTING[w]))
             return;
         ItemsMemberChoice c = menu_items_choose_member(g);

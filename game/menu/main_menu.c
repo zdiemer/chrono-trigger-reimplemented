@@ -244,7 +244,7 @@ enum { SCREEN_COLOURS = 0x80, SCREEN_COLOURS_COUNT = 16, NO_STEP = 0xFF };
 void menu_main_menu_open_option(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC2ED31, menu_draw_window_list(g, pf, MENU_WINDOWS_OPTION_OPENING));
-    set_menu_screen(g, (uint8_t)(menu_main_menu_option(g) + 1));
+    set_menu_screen(g, (uint8_t)(MENU_SCREEN_EQUIPMENT + menu_main_menu_option(g)));
     set_menu_screen_step(g, 0);
     for (unsigned i = 0; i < SCREEN_COLOURS_COUNT; i++)
         set_menu_palette(g, SCREEN_COLOURS + i, menu_rom_colour(g, MENU_ROM_ROW_8_COLOURS, i));
@@ -258,7 +258,7 @@ enum { CHOOSING = 1 };
 
 void menu_main_menu_come_back(GameState *g)
 {
-    set_menu_screen(g, MAIN_MENU_SCREEN);
+    set_menu_screen(g, MENU_SCREEN_MAIN_MENU);
     set_menu_screen_step(g, CHOOSING);
     TIMED_AS(g, 0xC28255, menu_stop_tasks(g, MENU_PANELS_TASKS));
 }

@@ -41,16 +41,6 @@ enum {
 
 static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, CURSOR_SOUND, menu_play_cursor_sound); }
 
-/* The cursor read as C, leaving what the original's reading leaves. */
-static void read_cursor(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuCursorRead r = menu_note_cursor_read(g);
-    (void)r;
-    TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
-    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
-}
-
 /* ---- The panels ---------------------------------------------------------------------------------- */
 
 /* Each option's panel is shown by its screen's own entry, which waits for
@@ -211,7 +201,7 @@ void menu_choose_on_main_menu(Snes *s)
 {
     GameState *g = state_of(s);
     set_menu_cursor_index(g, menu_main_menu_option(g));
-    read_cursor(s);
+    menu_step_reads_the_cursor(s);
     switch (menu_main_menu_choose(g)) {
     case MAIN_MENU_OPTION_CHOSEN: menu_main_menu_open_option(g, m_platform(s)); break;
     case MAIN_MENU_LEFT: m_stop_at(s, LEAVE_THE_MENUS, READS_NOTHING); return;

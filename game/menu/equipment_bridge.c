@@ -92,16 +92,6 @@ static bool play_sound(Snes *s, uint32_t site, uint8_t sound)
     return menu_run(s, site, 0xC2EABA, menu_play_sound);
 }
 
-/* The cursor read as C, leaving what the original's reading leaves. */
-static void read_cursor(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuCursorRead r = menu_note_cursor_read(g);
-    (void)r;
-    TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
-    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
-}
-
 static void leave_member_step_tested(Snes *s);
 static void leave_slot_step_tested(Snes *s, SlotChoice c);
 static void leave_buttons_tested(Snes *s);
@@ -159,7 +149,7 @@ void menu_set_up_equipment(Snes *s)
 void menu_choose_equipment_member(Snes *s)
 {
     GameState *g = state_of(s);
-    read_cursor(s);
+    menu_step_reads_the_cursor(s);
     MemberChoice c = menu_equip_choose_member(g);
     ORIGINAL_EFFECT(leave_member_step_tested(s));
     switch (c) {
@@ -229,7 +219,7 @@ enum { LIST_TASK = 0x10 };
 void menu_choose_equipment_slot(Snes *s)
 {
     GameState *g = state_of(s);
-    read_cursor(s);
+    menu_step_reads_the_cursor(s);
     SlotChoice c = menu_equip_choose_slot(g);
     ORIGINAL_EFFECT(leave_slot_step_tested(s, c));
     switch (c) {
@@ -329,7 +319,7 @@ static void back_to_the_slots(Snes *s)
 void menu_choose_equipment_item(Snes *s)
 {
     GameState *g = state_of(s);
-    read_cursor(s);
+    menu_step_reads_the_cursor(s);
     ItemChoice c = menu_equip_choose_item(g);
     ORIGINAL_EFFECT(leave_buttons_tested(s));
     switch (c) {

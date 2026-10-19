@@ -66,16 +66,6 @@ enum {
 static bool yield(Snes *s, uint32_t site) { return menu_call(s, site, YIELD, READS_NOTHING); }
 static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, CURSOR_SOUND, menu_play_cursor_sound); }
 
-/* The cursor read as C, leaving what the original's reading leaves. */
-static void read_cursor(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuCursorRead r = menu_note_cursor_read(g);
-    (void)r;
-    TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
-    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
-}
-
 static void leave_choosing_started(Snes *s);
 static void leave_input_tested(Snes *s);
 static void leave_row_tested(Snes *s);
@@ -256,7 +246,7 @@ static void choose_the_first(Snes *s)
 void menu_choose_first_to_exchange(Snes *s)
 {
     GameState *g = state_of(s);
-    read_cursor(s);
+    menu_step_reads_the_cursor(s);
     ORIGINAL_EFFECT(leave_input_tested(s));
     switch (menu_exchange_input(g)) {
     case EXCHANGE_CHOSEN: choose_the_first(s); return;
@@ -274,7 +264,7 @@ void menu_choose_first_to_exchange(Snes *s)
 void menu_choose_first_at_the_gate(Snes *s)
 {
     GameState *g = state_of(s);
-    read_cursor(s);
+    menu_step_reads_the_cursor(s);
     ORIGINAL_EFFECT(leave_input_tested(s));
     switch (menu_exchange_input(g)) {
     case EXCHANGE_CHOSEN:
@@ -300,7 +290,7 @@ void menu_choose_first_at_the_gate(Snes *s)
 void menu_choose_second_to_exchange(Snes *s)
 {
     GameState *g = state_of(s);
-    read_cursor(s);
+    menu_step_reads_the_cursor(s);
     ORIGINAL_EFFECT(leave_input_tested(s));
     ExchangeInput input = menu_exchange_input(g);
     if (input == EXCHANGE_MOVED) {

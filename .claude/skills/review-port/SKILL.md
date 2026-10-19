@@ -393,7 +393,10 @@ Each of these is a finding. Every example here comes from this repo.
     between its adds and the spilled bit moves positions, which shadow mode
     and fuzzing compare; so do those in `game/battle/screen_sides.c` and
     `screen_window.c` (accepted 2026-10-18), where the spilled bit moves a
-    window's edges a column. Don't grade those files down for them.
+    window's edges a column; and so do `game/scene/random.c`'s add with the
+    carry fed back in, and `game/menu/epoch.c`'s `on_the_screen`, whose y
+    takes the subtraction's no-borrow (both accepted 2026-10-19, also under
+    items 57 and 119). Don't grade those files down for them.
 13. **Memory used as registers.** A loop counter or temporary kept in a RAM cell
     and read back (`set_scene_circle_count(g, x); ... x = scene_circle_count(g);`),
     or bytes shifted in place in scratch. CLAUDE.md requires writing the cells the

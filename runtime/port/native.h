@@ -294,8 +294,10 @@ void native_copy_popped_stack(const Snes *original, Snes *native, uint16_t lowes
  * (the battle's steps keep the asker's X and Y so; battle/steps.c). The
  * `bytes` bytes from `at` aren't compared while they are on the stack, until
  * native_stack_cared, which the port calls once it has moved past them, or
- * before it stops with them still there (the original pulls them then).
- * Outside the runtime both do nothing. */
+ * before it stops with them still there where the original pulls them then.
+ * Bytes it leaves declared where it stops stay uncompared at the stop: a
+ * menu task's registers kept on its stack as it waits, which it reads none of
+ * when it goes on (menu/tasks.c). Outside the runtime both do nothing. */
 void native_stack_dont_care(Snes *s, uint16_t at, uint16_t bytes);
 void native_stack_cared(Snes *s);
 
@@ -405,6 +407,11 @@ uint64_t native_owed(const NativeRuntime *rt);
  * the machine's interpreter), with interrupts held off and no time passing. */
 void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call);
 void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care);
+/* The same for a call the original makes as a jump through a pointer at
+ * `site` (a JMP (abs) whose target it reads at run time), with the return
+ * the code before the jump pushed (a PER): the callee returns to `returns_to`,
+ * in the jump's bank. */
+void native_jump_call_dc(Snes *s, uint32_t site, uint32_t target, uint32_t returns_to, uint16_t dont_care);
 
 /* For native routines, before I/O whose timing another processor observes (the
  * APU ports): in ON mode, let the time the routine has taken so far pass on the
