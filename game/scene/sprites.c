@@ -230,8 +230,16 @@ void scene_draw_lists_at(GameState *g, uint16_t x, uint16_t y)
     set_scene_sprite_offset_y_high(g, (uint8_t)(y >> 8));
 }
 
-/* As C calls, for the program's routines ported as C. */
+/* As C calls, for the program's routines ported as C: one small sprite from
+ * its four bytes in the program, or one the port has as values, each moved by
+ * the scene's offset. */
 void scene_draw_sprite(GameState *g, uint16_t source) { add_sprite(g, source, false); }
+void scene_draw_sprite_moved(GameState *g, SceneSprite sprite)
+{
+    sprite.x = moved_x(g, sprite.x);
+    sprite.y = moved_y(g, sprite.y);
+    scene_add_sprite_at_cursor(g, sprite, false);
+}
 void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped) { load_sprite_list(g, list, clipped); }
 
 /* ---- Guards --------------------------------------------------------------------------------- */

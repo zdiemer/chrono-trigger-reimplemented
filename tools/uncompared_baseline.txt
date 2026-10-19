@@ -55,8 +55,17 @@ field_set_the_screen_up
 field_set_up_the_objects
 field_start_location_song
 field_walk_the_leader
+menu_choose_equipment_item  # a screen's step the menus' main task's turn runs as C (menu/screens.c): the turn's comparison covers it to its call-outs, and its own, which outlasts the turn's to the same call, is set aside
+menu_choose_for_sale  # a screen's step the menus' main task's turn runs as C (menu/screens.c): the turn's comparison covers it to its call-outs, and its own, which outlasts the turn's to the same call, is set aside
+menu_choose_goods  # a screen's step the menus' main task's turn runs as C (menu/screens.c): the turn's comparison covers it to its call-outs, and its own, which outlasts the turn's to the same call, is set aside
+menu_choose_on_item_list  # a screen's step the menus' main task's turn runs as C (menu/screens.c): the turn's comparison covers it to its call-outs, and its own, which outlasts the turn's to the same call, is set aside
+menu_choose_shop_equipment  # a screen's step the menus' main task's turn runs as C (menu/screens.c): the turn's comparison covers it to its call-outs, and its own, which outlasts the turn's to the same call, is set aside
+menu_choose_shop_slot  # a screen's step the menus' main task's turn runs as C (menu/screens.c): the turn's comparison covers it to its call-outs, and its own, which outlasts the turn's to the same call, is set aside
+menu_choose_tech  # a screen's step the menus' main task's turn runs as C (menu/screens.c): the turn's comparison covers it to its call-outs, and its own, which outlasts the turn's to the same call, is set aside
+menu_choose_tech_member  # a screen's step the menus' main task's turn runs as C (menu/screens.c): the turn's comparison covers it to its call-outs, and its own, which outlasts the turn's to the same call, is set aside
 menu_make_equipment_list
 menu_move_among_tech_members
+menu_move_picked_item  # a screen's step the menus' main task's turn runs as C (menu/screens.c): the turn's comparison covers it to its call-outs, and its own, which outlasts the turn's to the same call, is set aside
 menu_object_cmd_call_routine
 menu_object_cmd_call_routine_far
 menu_object_cmd_play_effect_on_voices_67

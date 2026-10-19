@@ -16,7 +16,6 @@
 typedef enum {
     MAIN_MENU_EQUIPMENT, MAIN_MENU_ITEMS, MAIN_MENU_TECHS, MAIN_MENU_SETTINGS, MAIN_MENU_EXCHANGE, MAIN_MENU_SAVING,
 } MainMenuOption;
-enum { MAIN_MENU_SCREEN = 0 };
 
 /* The menus open on the main menu: with nobody in the party they close at
  * once (false); otherwise the screens' cursors are kept or started afresh

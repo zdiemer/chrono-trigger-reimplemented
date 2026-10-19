@@ -605,15 +605,12 @@ static void leave_summary_read(GameState *g, Platform *pf)
 /* ---- The labels --------------------------------------------------------------------------------- */
 
 /* The labels are set in the dialog's font by the typesetter's label setting
- * (menu_set_label, $C2:F90C) from a table of strings: the slots' names
- * ($FF:D3FE, the first slot's $0E) into the graphic at $7E:6E10, $20 bytes a
- * slot, and the chapters' (the empty slot's the one after the last chapter,
- * $FF:D03E) into $7E:7000, $200 bytes a slot. */
-enum { SLOT_NAMES = 0xFFD3FE, FIRST_SLOT_NAME = 0x0E, SLOT_NAMES_AT = 0x6E10, SLOT_NAME_BYTES = 0x20 };
-enum { CHAPTER_LABELS = 0xFFD03E, EMPTY_SLOT_LABEL = MENU_CHAPTERS, CHAPTER_LABELS_AT = 0x7000, CHAPTER_LABEL_BYTES = 0x200 };
-/* The labels' upload (a record of bank C2's, menu_data.h): the slots' names
- * to VRAM $7000. */
-enum { UPLOAD_SLOT_LABELS = 0xD198 };
+ * (menu_set_label, $C2:F90C) from a table of strings into the slots' labels'
+ * graphic (menu_data.h): the slots' names ($FF:D3FE, the first slot's $0E),
+ * and the chapters' (the empty slot's the one after the last chapter,
+ * $FF:D03E). */
+enum { SLOT_NAMES = 0xFFD3FE, FIRST_SLOT_NAME = 0x0E };
+enum { CHAPTER_LABELS = 0xFFD03E, EMPTY_SLOT_LABEL = MENU_CHAPTERS };
 
 /* Set a label of `table` into its place at `at`, noted as where the menus'
  * graphic goes. */
@@ -667,9 +664,9 @@ void menu_draw_chapter_label(Snes *s)
 {
     GameState *g = state_of(s);
     menu_save_p(s);
-    uint16_t at = (uint16_t)(CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * CHAPTER_LABEL_BYTES);
-    wram_fill8(g, 0x7E0000u | at, CHAPTER_LABEL_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, CHAPTER_LABEL_BYTES));
+    uint16_t at = (uint16_t)(MENU_CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * MENU_CHAPTER_LABEL_BYTES);
+    wram_fill8(g, 0x7E0000u | at, MENU_CHAPTER_LABEL_BYTES, 0);
+    ORIGINAL_EFFECT(charge_block_move(g, MENU_CHAPTER_LABEL_BYTES));
     menu_set_widths(s, false, false);
     set_label_at(g, CHAPTER_LABELS, menu_text_string(g), at);
     menu_restore_p(s);
@@ -692,9 +689,9 @@ void menu_draw_slot_name(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     uint8_t slot = menu_save_slot_shown(g);
-    uint16_t at = (uint16_t)(SLOT_NAMES_AT + slot * SLOT_NAME_BYTES);
+    uint16_t at = (uint16_t)(MENU_SLOT_NAMES_AT + slot * MENU_SLOT_NAME_BYTES);
     ORIGINAL_EFFECT(hw_set_multiplicand(g, slot));
-    ORIGINAL_EFFECT((void)hw_multiply_by(g, SLOT_NAME_BYTES));
+    ORIGINAL_EFFECT((void)hw_multiply_by(g, MENU_SLOT_NAME_BYTES));
     menu_set_widths(s, false, false);
     set_label_at(g, SLOT_NAMES, (uint8_t)(FIRST_SLOT_NAME + slot), at);
     /* a shift of 0 is taken as 256 moves */
@@ -797,7 +794,7 @@ void menu_read_save_slots(Snes *s)
         ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, false));
     }
     set_menu_save_slot_shown(g, MENU_SAVE_SLOTS);   /* past the last, as the count leaves it */
-    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, UPLOAD_SLOT_LABELS)));
+    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, MENU_UPLOAD_SLOT_NAMES)));
     menu_restore_p(s);
     m_rts(s);
 }
@@ -955,7 +952,7 @@ bool menu_chapter_label_is_drawable(Snes *s)
         return false;
     const GameState *g = state_of(s);
     vars_peek(true);
-    uint16_t at = (uint16_t)(CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * CHAPTER_LABEL_BYTES);
+    uint16_t at = (uint16_t)(MENU_CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * MENU_CHAPTER_LABEL_BYTES);
     bool ok = menu_label_can_be_set(g, CHAPTER_LABELS, menu_text_string(g), at);
     vars_peek(false);
     return ok;

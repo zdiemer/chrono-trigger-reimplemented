@@ -26,6 +26,9 @@
  *   perspective.c the Mode 7 plane in perspective, the race's and the endings'
  *   credit_pages.c the attract sequence's pages of the game's staff
  *   rising_palace.c the palace rising out of the sea under the red moon
+ *   planet.c      the planet seen from space: the Day of Lavos's end when the
+ *                 party loses, and an ending's (modes 7 and 8): its colours'
+ *                 steps and the stars that twinkle about it
  *   staff_roll.c  the telepod ending's last scene: the staff credits over the
  *                 stars, and The End
  *   stars.c       the star field the endings fly through
@@ -156,6 +159,8 @@ enum {
     SCENE_TASK_CLEAR_THE_PALACE = 0x6A97,
     SCENE_TASK_WORK_OUT_THE_TURN = 0x73C6,
     SCENE_TASK_SEND_THE_MAP = 0x783C,
+    SCENE_TASK_STEP_THE_PLANET_S_COLOURS = 0x6439,   /* scene/planet.c */
+    SCENE_TASK_TWINKLE_THE_STARS = 0x65DD,
 };
 
 /* How a task's frame ends: it stays on its list, it is done (its slot
@@ -199,7 +204,7 @@ typedef struct {
 } SceneTaskPort;
 
 /* The tasks each file has as C (scene/title.c, scene/screen.c,
- * scene/credit_pages.c, scene/rising_palace.c), which the lists' runner looks
+ * scene/credit_pages.c, scene/rising_palace.c, scene/planet.c), which the lists' runner looks
  * a task up in. */
 extern const SceneTaskPort scene_title_tasks[];
 extern const unsigned scene_title_task_count;
@@ -209,6 +214,8 @@ extern const SceneTaskPort scene_credit_pages_tasks[];
 extern const unsigned scene_credit_pages_task_count;
 extern const SceneTaskPort scene_palace_tasks[];
 extern const unsigned scene_palace_task_count;
+extern const SceneTaskPort scene_planet_tasks[];
+extern const unsigned scene_planet_task_count;
 
 /* The program's routines the scripts call (their command $A0), which are C,
  * by the values the scripts hold for them (the routines' addresses). */
@@ -259,6 +266,10 @@ void scene_draw_lists_at(GameState *g, uint16_t x, uint16_t y);
 /* A list drawn as the program's list routines draw it (scene_load_sprite_list,
  * its clipped form): for the program's routines ported as C. */
 void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped);
+/* A small sprite drawn at the cursor as the program's routine draws one
+ * (scene_add_sprite, as C scene_draw_sprite), moved by the offset, for a port
+ * that has it as values. */
+void scene_draw_sprite_moved(GameState *g, SceneSprite sprite);
 uint16_t scene_clipped_list_leaves_a(const GameState *g, uint16_t list, uint16_t a);
 /* The rest of the cursor's group of four sprites put off the screen, as the
  * frame's last sprites leave it. */
@@ -612,6 +623,14 @@ bool scene_credit_pages_set_up_present(Snes *s);
 void scene_credit_pages_set_up(Snes *s);
 bool scene_show_the_credits_page_present(Snes *s);
 void scene_show_the_credits_page(Snes *s);
+/* scene/planet.c (the program in RAM) */
+void scene_step_the_planet_s_colours(Snes *s);
+bool scene_step_the_planet_s_colours_present(Snes *s);
+void scene_twinkle_the_stars(Snes *s);
+bool scene_twinkle_the_stars_present(Snes *s);
+void scene_put_out_the_stars(Snes *s);
+bool scene_put_out_the_stars_present(Snes *s);
+
 /* scene/rising_palace.c (the program in RAM) */
 bool scene_palace_set_up_present(Snes *s);
 void scene_palace_set_up(Snes *s);

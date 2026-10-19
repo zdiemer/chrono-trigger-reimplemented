@@ -66,6 +66,14 @@ uint16_t menu_item_figures_at_of_last(GameState *g);
 void menu_build_item_tables(GameState *g);
 void menu_copy_past_the_names_now(GameState *g);
 
+/* The place's second note, as the menus open: the party on one of the
+ * locations, not a map of the world, where the story doesn't hold the
+ * place's items back. There item $C8's kind loses the bit the place takes,
+ * and the main menu doesn't save (menu/saving.c). And, for a guard, whether
+ * the note is one the menus' opening makes. */
+bool menu_place_is_noted_as_a_location(const GameState *g);
+bool menu_place_note_is_known(const GameState *g);
+
 void menu_build_items(Snes *s);
 void menu_add_operand_items(Snes *s);
 void menu_take_operand_items(Snes *s);

@@ -70,7 +70,9 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   register pushed for a routine it stands in for, which pulls it back only to
   hand it back, and whose call declares that register don't care, declares
   the bytes dead while they stay pushed with `native_stack_dont_care`: the
-  battle's steps keep the asker's X and Y so, `battle/steps.c`). `DC_AH` in a don't-care
+  battle's steps keep the asker's X and Y so, `battle/steps.c`; bytes still
+  declared where the port stops stay uncompared at the stop, where a menu
+  task's wait leaves its registers on the task's stack, `menu/tasks.c`). `DC_AH` in a don't-care
   set leaves out A's high byte only, for code that works on an 8-bit A and
   leaves the high byte to whatever last set it, and `DC_AL` A's low byte only,
   for code whose callers read A's high byte (a later 16-bit load or `TAX` takes

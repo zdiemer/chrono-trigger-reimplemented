@@ -49,15 +49,22 @@ bool menu_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care
     return menu_back(s, site + MENU_JSL_SIZE, m);
 }
 
-/* Run the sibling as the original's call at `site` reaches it: a JSR, or a
- * JSL that pushes its bank too. */
+bool menu_call_jumped(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint32_t returns_to)
+{
+    MenuMachine m = menu_machine_now(s);
+    native_jump_call_dc(s, site, routine, returns_to, dont_care);
+    return menu_back(s, returns_to, m);
+}
+
+/* Run the sibling as the original's call reaches it, its return to
+ * `returns_to` pushed as the call pushes it: a JSR's or a PER's, or a JSL's,
+ * which pushes its bank too. */
 typedef enum { BY_JSR, BY_JSL } CallKind;
 
-static bool run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *), bool any_widths, CallKind kind)
+static bool run(Snes *s, uint32_t returns_to, uint32_t routine, void (*entry)(Snes *), bool any_widths, CallKind kind)
 {
     MenuMachine m = menu_machine_now(s);
     uint16_t stack = stack_pointer(s);
-    uint32_t returns_to = site + (kind == BY_JSL ? MENU_JSL_SIZE : MENU_JSR_SIZE);
     if (kind == BY_JSL)
         m_push8(s, (uint8_t)(returns_to >> 16));
     m_push16(s, (uint16_t)(returns_to - 1));
@@ -72,16 +79,30 @@ static bool run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *),
     return returned && menu_back(s, returns_to, m);
 }
 
-bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *)) { return run(s, site, routine, entry, false, BY_JSR); }
+bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
+{
+    return run(s, site + MENU_JSR_SIZE, routine, entry, false, BY_JSR);
+}
 
 bool menu_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
 {
-    return run(s, site, routine, entry, false, BY_JSL);
+    return run(s, site + MENU_JSL_SIZE, routine, entry, false, BY_JSL);
 }
 
 bool menu_run_any_widths(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
 {
-    return run(s, site, routine, entry, true, BY_JSR);
+    return run(s, site + MENU_JSR_SIZE, routine, entry, true, BY_JSR);
+}
+
+bool menu_run_jumped(Snes *s, uint32_t returns_to, uint32_t routine, void (*entry)(Snes *))
+{
+    return run(s, returns_to, routine, entry, true, BY_JSR);
+}
+
+bool menu_runs_as_port(Snes *s, uint32_t routine, void (*entry)(Snes *))
+{
+    const NativeEntry *e = native_hand_entry_at(s, routine);
+    return e && e->fn == entry;
 }
 
 void menu_set_widths(Snes *s, bool a8, bool x8)

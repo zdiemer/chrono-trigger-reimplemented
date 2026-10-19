@@ -17,7 +17,9 @@
  * - an interrupt entry (NativeEntry.interrupt) whose handler moves to a stack
  *   above the interrupted code's is compared to its RTI, where the stack test
  *   would end it at the move; and is not blind to the work RAM between the
- *   two stacks.
+ *   two stacks;
+ * - stack bytes a port declares dead (native_stack_dont_care) stay uncompared
+ *   at its stop, where it leaves them on the stack.
  *
  * Each case registers a few routines, runs the program for a few frames in
  * SHADOW mode and reads its counters (native_stats_named) and the mismatches
@@ -271,6 +273,21 @@ static void handler_entry(Snes *s)
     m_stop_at(s, HANDLER_WORK, 0);
 }
 
+/* ...and its entry alone keeping a wrong X on the interrupted stack: a
+ * mismatch at the stop, unless the port declares the two bytes dead
+ * (native_stack_dont_care), which holds at the stop with them still there. */
+static void handler_entry_wrong_x(Snes *s, bool declared)
+{
+    uint16_t kept_at = (uint16_t)(s->cpu.s - 1);
+    s->cpu.x ^= 0x5555;
+    if (declared)
+        native_stack_dont_care(s, kept_at, 2);
+    (void)handler_enter(s);
+    m_stop_at(s, HANDLER_WORK, 0);
+}
+static void handler_entry_wrong_x_dead(Snes *s) { handler_entry_wrong_x(s, true); }
+static void handler_entry_wrong_x_live(Snes *s) { handler_entry_wrong_x(s, false); }
+
 #define M8X16 .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M
 #define ENTRY(address, function, ...) { .addr = address, .name = #function, .fn = function, M8X16, __VA_ARGS__ }
 
@@ -443,6 +460,10 @@ int main(void)
     CHECK(strstr(details, "0800"), "the stray write between the stacks: %s", details);
     RUN(true, false, 3, ENTRY(0x008700, handler_entry, .interrupt = true));
     expect("handler_entry", true);
+    RUN(true, false, 3, ENTRY(0x008700, handler_entry_wrong_x_dead, .interrupt = true));
+    expect("handler_entry_wrong_x_dead", true);
+    RUN(true, false, 3, ENTRY(0x008700, handler_entry_wrong_x_live, .interrupt = true));
+    expect("handler_entry_wrong_x_live", false);
     free(rom);
 
     if (failures) {

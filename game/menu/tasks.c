@@ -22,8 +22,12 @@
  * task as a coroutine (runtime/port/fiber.h). */
 #include "menu/menu.h"
 
+#include "charge.h"
+#include "menu/bridge.h"
+#include "menu/cursor.h"
 #include "original_effects.h"
 #include "port/machine.h"
+#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -241,6 +245,74 @@ void menu_run_the_tasks(Snes *s) { take_turn(s, next_turn(state_of(s), 0)); }
 // $C2:81B9
 /* The menus, once open, wait for the first frame's uploads. */
 void menu_wait_for_the_first_frame(Snes *s) { wait_for_the_next_frame(s); }
+
+/* ---- The tasks that run all the time ------------------------------------------------------- */
+
+/* The two tasks the menus start as they open and stop only as they close are
+ * each a loop: a frame's work, then the wait for the next frame. The main
+ * task's work is the running screen's step (menu/screens.c), which may wait
+ * for frames of its own inside; the cursor's is the menus' sprites hidden and
+ * the cursor placed (menu/cursor.c). */
+enum { MAIN_TASK_WAIT = 0xC2826C, CURSOR_TASK_WAIT = 0xC2E91E };
+
+/* The loop's wait, from its JSR at `site`: run as the JSR reaches it where
+ * the runtime would run it, and otherwise left to the JSR. Either way the
+ * next task goes on, and this one goes on from the JSR's return on its next
+ * turn, into its work again. The wait keeps the registers on the task's
+ * stack for that return, where the loops read none of them. */
+enum { THE_WAIT = 0xC2821E, THE_LOOPS_READ_NOTHING_AFTER_IT = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+/* The index registers the wait keeps, just under the loop's return (X, then
+ * Y below it, each a byte or a word), are what the loop's stop declares it
+ * doesn't read after the wait (tools/dontcare_check.py checks the
+ * declaration at the wait's JSR, through the wait's keeping them, and
+ * tests/test_menu_task_waits.py at the loops' returns): the loops load both
+ * before they read either. So where the declaration has them, the port's
+ * own, which the work before the wait leaves in them and which aren't the
+ * original's, aren't compared while the task waits. */
+static void leave_the_kept_index_registers_uncompared(Snes *s, uint16_t dont_care)
+{
+    enum { RETURN_BYTES = 2 };
+    uint16_t bytes = m_x8(s) ? 1 : 2;
+    uint16_t x_at = (uint16_t)(s->cpu.s - RETURN_BYTES - bytes + 1), y_at = (uint16_t)(x_at - bytes);
+    if (dont_care & DC_X)
+        native_stack_dont_care(s, x_at, bytes);
+    if (dont_care & DC_Y)
+        native_stack_dont_care(s, y_at, bytes);
+}
+
+static void wait_in_the_loop(Snes *s, uint32_t site)
+{
+    if (menu_runs_as_port(s, THE_WAIT, menu_task_waits_a_frame)) {
+        leave_the_kept_index_registers_uncompared(s, THE_LOOPS_READ_NOTHING_AFTER_IT);
+        menu_run(s, site, THE_WAIT, menu_task_waits_a_frame);
+    } else {
+        m_stop_at(s, site, THE_LOOPS_READ_NOTHING_AFTER_IT);
+    }
+}
+
+// $C2:826F
+/* The main task's turn, from its start and from its wait: the screen's step,
+ * then the wait. */
+void menu_run_the_main_task(Snes *s)
+{
+    if (menu_run_the_screen_s_step(s))
+        wait_in_the_loop(s, MAIN_TASK_WAIT);
+}
+
+// $C2:826C
+/* The main task's wait, where a step came back to it through the original's
+ * code (one that ended in a sibling's routine). */
+void menu_main_task_waits(Snes *s) { wait_in_the_loop(s, MAIN_TASK_WAIT); }
+
+// $C2:E91B, $C2:E921
+/* The cursor's task (MENU_CURSOR_TASK), from its start and from its wait. */
+void menu_run_the_cursor_task(Snes *s)
+{
+    GameState *g = state_of(s);
+    TIMED_AS(g, 0xC2E92D, menu_reset_sprites_and_cursor(g));
+    wait_in_the_loop(s, CURSOR_TASK_WAIT);
+}
 
 /* ---- The guards -------------------------------------------------------------------------------- */
 

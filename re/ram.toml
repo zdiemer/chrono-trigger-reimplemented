@@ -5379,6 +5379,143 @@ meaning = "Where the curtain's lines end, past the 224th (scaffolding)"
 source = "game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
 
 [[var]]
+name = "scene_planet_fade_toward"
+addr = "7E:0360"
+size = 2
+page = "decompress"
+subsystem = "scene"
+meaning = "The planet's scene (modes 7 and 8): where the colours are that the planet's colours step toward, in the program's bank, which the scene's script sets"
+source = "game/scene/planet.c, the colours' step $7E:6439; set by the script's calls $7E:63FE, $7E:6403, $7E:6422"
+
+[[var]]
+name = "scene_planet_fade_palette"
+addr = "7E:0362"
+size = 2
+page = "decompress"
+subsystem = "scene"
+meaning = "The planet's scene: where the colours that step are, in the program's bank (the scene's working palette)"
+source = "game/scene/planet.c, the colours' step $7E:6439"
+
+[[var]]
+name = "scene_planet_fade_colours"
+addr = "7E:0364"
+size = 2
+page = "decompress"
+subsystem = "scene"
+meaning = "The planet's scene: how many colours step"
+source = "game/scene/planet.c, the colours' step $7E:6439"
+
+[[var]]
+name = "scene_planet_fade_steps"
+addr = "7E:0366"
+page = "decompress"
+subsystem = "scene"
+meaning = "The planet's scene: steps the colours have left to take, one each time the step comes round; the script sets it as a word, the step counts the low byte"
+source = "game/scene/planet.c, the colours' step $7E:6439"
+
+[[var]]
+name = "scene_planet_fade_target_part"
+addr = "7E:03F0"
+size = 2
+page = "decompress"
+subsystem = "scene"
+reuses = ["scene_circle_count", "scene_curtain_fill"]
+meaning = "The colours' step: the part of the colour stepped toward it compared last, the last colour's blue (scaffolding)"
+source = "game/scene/planet.c, the colours' step $7E:6439"
+
+[[var]]
+name = "scene_planet_fade_stepped_parts"
+addr = "7E:03F2"
+size = 2
+page = "decompress"
+subsystem = "scene"
+reuses = ["scene_circle_decision", "scene_curtain_move"]
+meaning = "The colours' step: the last colour's red and green, stepped (scaffolding)"
+source = "game/scene/planet.c, the colours' step $7E:6439"
+
+[[var]]
+name = "scene_planet_fade_colours_left"
+addr = "7E:03FE"
+size = 2
+page = "decompress"
+subsystem = "scene"
+meaning = "The colours' step: colours left to step, 0 once it has stepped them all (scaffolding)"
+source = "game/scene/planet.c, the colours' step $7E:6439"
+
+[[var]]
+name = "scene_planet_fade_period"
+addr = "7E:643E"
+subsystem = "scene"
+reuses = ["scene_caption_letters", "overworld_map"]
+meaning = "The planet's colours step once in so many frames, less one, a mask on the frame counter: the operand of the step's own AND, $0F (every 16th frame) as the program is unpacked, $1F (every 32nd) where the ending's script makes it"
+source = "game/scene/planet.c, the colours' step $7E:6439; set by the script's call $7E:6422"
+
+[[var]]
+name = "scene_twinkles"
+addr = "7E:0C00"
+count = 24
+stride = 8
+index = "twinkle"
+subsystem = "scene"
+reuses = ["scene_tilemap_buffer", "scene_stars"]
+meaning = "The planet's scene's stars that twinkle: each waits a while, plays its twinkle a frame each four ticks, and is put anew somewhere else"
+source = "game/scene/planet.c, the stars put out $7E:6598 and their twinkling $7E:65DD"
+[[var.field]]
+name = "x"
+offset = 0x0
+meaning = "Across the screen"
+[[var.field]]
+name = "y"
+offset = 0x1
+meaning = "Down the screen ($E0 below it)"
+[[var.field]]
+name = "wait"
+offset = 0x2
+meaning = "Frames before the twinkle starts"
+[[var.field]]
+name = "frames_left"
+offset = 0x3
+meaning = "Frames of the twinkle left, counted down from 10: the frame it shows is 10 less this"
+[[var.field]]
+name = "ticks"
+offset = 0x4
+meaning = "Ticks left on the twinkle's frame, of four"
+
+[[var]]
+name = "scene_twinkles_hidden"
+addr = "7E:0044"
+size = 2
+subsystem = "scene"
+reuses = ["scene_palace_column_offsets", "scene_bg3_scroll_x", "scene_race_demo", "scene_stars_last_distance"]
+meaning = "The planet's scene: nonzero once the script has the stars stop, so that a star that has twinkled is put anew below the screen, out of sight"
+source = "game/scene/planet.c, a star put anew $7E:65AE; set by the scene's script"
+
+[[var]]
+name = "scene_twinkle_sprite"
+addr = "7E:6640"
+stride = 4
+subsystem = "scene"
+reuses = ["scene_caption_letters", "overworld_map"]
+meaning = "The program's sprite a twinkling star is drawn with: its tile, which the twinkling writes for each star's frame ($80 and on), its attributes, and X and Y, added to the star's place"
+source = "game/scene/planet.c, the stars' twinkling $7E:65DD"
+[[var.field]]
+name = "tile"
+offset = 0x0
+meaning = "The tile, the twinkle's frame's"
+[[var.field]]
+name = "attributes"
+offset = 0x1
+meaning = "The attributes"
+[[var.field]]
+name = "x"
+offset = 0x2
+meaning = "X from the star's place"
+[[var.field]]
+name = "y"
+offset = 0x3
+meaning = "Y from the star's place"
+
+[[var]]
 name = "scene_circle_count"
 addr = "7E:03F0"
 size = 2
@@ -6921,6 +7058,11 @@ source = "game/menu/save_screen.c, game/menu/sprites.c, game/menu/tasks.c"
   offset = 0
   size = 2
   meaning = "Where the scheduler starts a task, from the task's record, which it jumps through ($C2:81FF)"
+  [[var.field]]
+  name = "step_routine"
+  offset = 0
+  size = 2
+  meaning = "The menus' main task's turn: the routine of the screen's step, which it jumps through ($C2:828E)"
   [[var.field]]
   name = "fits_power"
   offset = 0
@@ -11107,6 +11249,16 @@ reuses = ["menu_tech_members", "menu_tech_parts_column"]
 subsystem = "menu"
 meaning = "A New Game+'s load ($FF:FAED): where the starting record of the character it equips is, a long address into the ROM"
 source = "game/menu/saves.c, menu_load_carried_over $FF:FAED"
+
+[[var]]
+name = "menu_screen_steps_at"
+addr = "7E:0016"
+page = "menu"
+size = 3
+reuses = ["menu_tech_members", "menu_tech_parts_column", "menu_starting_record_at", "menu_amounts_from"]
+subsystem = "menu"
+meaning = "The menus' main task's turn: where the running screen's list of steps is, a long address into bank $C2, which the turn reads the step through; nothing reads it after"
+source = "game/menu/screens.c, the main task's turn $C2:826F"
 
 [[var]]
 name = "menu_hundreds_digits"
@@ -21326,6 +21478,13 @@ addr = "7E:028F"
 subsystem = "overworld"
 meaning = "The vehicle the party boards or gets off, as the travel it gives (2 the Epoch, 3 a dactyl; 0 none)"
 source = "$C2:309E; game/overworld/walk.c, followers.c"
+
+[[var]]
+name = "overworld_second_vehicle_state"
+addr = "7E:0299"
+subsystem = "overworld"
+meaning = "The state of a vehicle record laid out as the Epoch's and the dactyl's, between the two: no port writes it; the main menu's save screen reads its bit 6 (the party has it out) with theirs, and refuses to save where it is set"
+source = "game/menu/saving.c, the main menu's save screen's opening $C2:CEDC"
 
 [[var]]
 name = "overworld_epoch"

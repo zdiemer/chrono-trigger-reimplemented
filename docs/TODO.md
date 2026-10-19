@@ -1510,20 +1510,14 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What the world map's set up left** (history/reimplementation-chunks.md, "Phase 3, menus and
   overworld: the world map set up, its scenes' calls and the frame's
   input"):
-  - the reference play runs 5.0 KiB of bank `$C2` with no call on record
-    (`C2:----`): the menus' screens' code after a task's yield (`$C2:821E`),
+  - what the reference play still runs of bank `$C2` with no call on record
+    (`C2:----`) is the menus' screens' code after a task's wait (`$C2:821E`),
     resumed on the task's own stack, which the fallback measure can't file
-    under the port that stopped at the yield. Most of what it runs is the
-    tasks' own loops: the menus' task's (`$C2:826C`-`$C2:8290`, the yield and
-    then the screen's step through the table at `$C2:8292`, 3.5 M
-    instructions of the shipping mode's movies, the most of bank `$C2` still
-    run as the original there now that the vblank handler is C), the records'
-    sprite task's (`$C2:E91B`-`$C2:E921`, 0.6 M) and the scheduler's
-    resumption (`$C2:8206`-`$C2:8215`).
-    A port of a loop that yields every pass would hold a comparison open for
-    the whole of a screen; the tasks as fibers of their own
-    (`runtime/port/fiber.h`, the menus' fourth chunk's item) would take them
-    off the machine;
+    under the port that stopped at the wait: the held cursors' task's loop
+    (`$C2:8BB8`-`$C2:8C33`), the records' task's return to its start
+    (`$C2:F699`) and a step of the save panel's (`$C2:D08F`), 0.19 M
+    instructions of the shipping mode's movies in all now that the main
+    task's and the cursor's loops are C (menu/tasks.c);
   - the scrolling lists' cursor kept within the rows (`$C2:EA53`) and their
     frame laid out (`$C2:EA81`, the divider's quotient the scroll bar's
     step), which the equipment, items, techs and shop screens' bridges call
@@ -1576,11 +1570,6 @@ rest waits, is [PLAN.md](PLAN.md).
     `cost_milli` is the placeholder. The frame among the slots they share
     with the main menu's save screen (`$C2:CFA2`, `menu_move_among_the_slots`)
     is compared in the reference play through the main menu's;
-  - the main menu's save screen's steps (`$C2:CEDC`, `$C2:CEFD`, `$C2:CF61`,
-    `$C2:CF92`, the table at `$C2:CED4`), the save made (`$C2:CF0A`-`$C2:CF5D`,
-    two frame waits, the second its tail) and the overwrite question's window
-    (`$C2:D4BB`, `$C2:D4D5`) are still the original's: 0.2 M instructions of
-    the shipping mode's movies, a few thousand of the reference play's;
   - the naming's and the main menu's openings and the shop's member opening
     span frames on every call, so shadow mode compares them only inside
     their callers and the timing gate can't measure them (`cost_milli`
@@ -2084,9 +2073,10 @@ re-runs the census.
   program", step 4). Still to write for it: `VID_AT_LINE_HANDLER` resolved
   from the recorded line by the native renderer (the picture's height,
   `tm_host_picture_lines`), and the other services' host backends.
-- **The menus' tasks are coroutines of their own.** The scheduler is C
-  (`menu/tasks.c`), but each task runs on its own stack and yields from deep
-  in its calls (the description typed a letter a frame, the cursor's sprite),
+- **The menus' tasks are coroutines of their own.** The scheduler and the
+  turns of the main task and the cursor's are C (`menu/tasks.c`), but each
+  task runs on its own stack and waits from deep in its calls (the
+  description typed a letter a frame, a step that draws over frames),
   so a build with no machine runs a fiber per task besides the main thread's
   (the host backend resumes whichever fiber waited), or the tasks rewritten to
   resume, each a state machine called once a frame: the way for a target that
@@ -2456,10 +2446,32 @@ re-runs the census.
     running objects: a charge per slot passed at `$C2:048A`'s rate overshot
     every other scene, and wants a rate of its own (the search as a timed part,
     `TIMED_AS` a routine that is only the loop);
-  - the globe that ends the Day of Lavos is the scene program's (`7E:6439`,
-    `7E:65DD`, 1.9 M of the shipping mode's movies), left with the rest of the
-    `$7E` lines as the chunk's brief asked; `$C6:EE31`, beside the turn,
-    nothing in the library calls.
+  - `$C6:EE31`, beside the turn, nothing in the library calls.
+- **What the shipping mode's fallbacks' third chunk left** (REIMPLEMENTATION.md,
+  "Phase 4a, the shipping mode's fallbacks, chunk 3"):
+  - the shared endings' scene program's `7E:99B5` and `7E:A03D` (1.0 M
+    instructions of `endings-beyond-time`'s reference play, 1.06 M of the
+    `beyond_time` route, nothing else): an orbit worked out from the frame
+    counter's sine and cosine and a scale, and a sprite list read through the
+    work RAM port whose callers patch its compare and its branch
+    (`$7E:A074`, `$7E:A090`) to change how it clips the list at the screen's
+    bottom; a port takes the two patches as variables, as the palace's
+    operands are (`scene/rising_palace.c`);
+  - the battle frame work's `CD:0154` and `CD:010A` (0.45 M of the shipping
+    mode's movies), not attempted;
+  - the save screens' fourth step (`$C2:CF92`) is one no code moves the
+    screens to, so fuzzing alone checks it; the main menu's save screen's
+    opening, the save in a slot and the save itself (`$C2:CEDC`, `$C2:CF0A`,
+    `$C2:CF37`) are compared in real play only inside the main task's turn,
+    which reaches the original's calls they make, their own comparisons set
+    aside (once each in `menus-field-menu` and `menus-end-of-time`); a movie
+    that saves over a game and opens the main menu's save screen where it is
+    refused would compare more of them;
+  - the twinkling stars' guard refuses a pass entered with the carry set,
+    which would put the first star it puts anew a pixel further right, and
+    which no showing makes; the planet's colours' guard refuses colours over
+    the step's code, its working cells or the stack's top, which the original
+    would step as it reads them.
 - **What the shipping mode's fallbacks' review left** (none blocking):
   - The direct page's scratch cells `$00`-`$0E` are written plainly across
     about a dozen battle files under names that belong to other routines

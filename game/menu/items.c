@@ -299,7 +299,13 @@ enum { FIRST_BIT = 0x01, SECOND_BIT = 0x02, PLACE_ITEMS_HELD = 0x80 };
 enum { LAST_PLACE = 0x1F0, ALLOWED = 0xFFFF, NOT_ALLOWED = 0 };
 enum { ITEM_THE_PLACE_CHANGES = 0xC8, KIND_THE_PLACE_TAKES = 0x02 };
 
-static bool later_place(const GameState *g) { return menu_place_items(g, 1) != NOT_ALLOWED; }
+bool menu_place_is_noted_as_a_location(const GameState *g) { return menu_place_items(g, 1) != NOT_ALLOWED; }
+
+bool menu_place_note_is_known(const GameState *g)
+{
+    uint16_t note = menu_place_items(g, 1);
+    return note == ALLOWED || note == NOT_ALLOWED;
+}
 
 static void note_story_and_place(GameState *g)
 {
@@ -323,7 +329,7 @@ void menu_build_item_tables(GameState *g)
     note_name_places(g);
     clear_past_the_equipment(g);
     copy_items_figures(g);
-    if (later_place(g))
+    if (menu_place_is_noted_as_a_location(g))
         set_menu_item_kinds(g, ITEM_THE_PLACE_CHANGES,
                             (uint8_t)(menu_item_kinds(g, ITEM_THE_PLACE_CHANGES) & ~KIND_THE_PLACE_TAKES));
 }

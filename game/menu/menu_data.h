@@ -413,14 +413,31 @@ enum {
     MENU_UPLOAD_TEXT_LAYER_WHOLE = 0xFC14,
 };
 
-/* The load screen's uploads: the era label's graphic, and the slot's tilemap
- * in three parts. */
+/* The load screen's uploads: the era label's graphic, the slot's tilemap in
+ * three parts, and the label of the question which finished game to carry
+ * on from ($7E:5E00, $600 bytes). */
 enum {
     MENU_UPLOAD_ERA_LABEL = 0xD45F,
     MENU_UPLOAD_SLOT_TILEMAP = 0xFBDC,
     MENU_UPLOAD_SLOT_TILEMAP_2 = 0xFC0D,
     MENU_UPLOAD_SLOT_TILEMAP_3 = 0xFC29,
+    MENU_UPLOAD_CARRY_ON_LABEL = 0xE88A,
 };
+
+/* The graphic the load and save screens set the slots' labels into
+ * (menu/save_screen.c), from $7E:6E00: each slot's name, $20 bytes a slot
+ * from $7E:6E10, and its chapter's, $200 bytes a slot from $7E:7000. The
+ * screens send it to VRAM $7800 on, so a slot's chapter lies at VRAM $7900
+ * on, $100 words a slot. Its uploads: the whole ($800 bytes), as the screens
+ * open; the chapters' alone ($600 bytes), as the save screen sends them once
+ * it has saved in a slot; and its first $200 bytes, the names', to VRAM
+ * $7000, once the summary has set them. */
+enum {
+    MENU_SLOT_NAMES_AT = 0x6E10, MENU_SLOT_NAME_BYTES = 0x20,
+    MENU_CHAPTER_LABELS_AT = 0x7000, MENU_CHAPTER_LABEL_BYTES = 0x200,
+    MENU_CHAPTER_LABELS_VRAM = 0x7900, MENU_CHAPTER_LABEL_VRAM_WORDS = 0x100,
+};
+enum { MENU_UPLOAD_SLOT_LABELS = 0xFC53, MENU_UPLOAD_CHAPTER_LABELS = 0xCF30, MENU_UPLOAD_SLOT_NAMES = 0xD198 };
 
 /* ---- The sprite-object mode --------------------------------------------------------------- */
 
@@ -1074,5 +1091,16 @@ static inline uint16_t menu_gate_row_first_tile(const GameState *g, unsigned row
 static inline uint16_t menu_gate_palette_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFF706u + 2u * i); }
 static inline uint16_t menu_gate_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFF6FEu + 2u * i); }
 static inline uint16_t menu_gate_wave(const GameState *g, unsigned i) { return rom_read16(g, 0xFFF759u + 2u * i); }
+
+/* ---- The screens' steps ------------------------------------------------------------------- */
+
+/* Where the original keeps each screen's list of steps, by the screen's
+ * number ($C2:8292, a word each, in bank $C2): the menus' main task looks a
+ * step up through it, and menu/screens.c's own table stands for it. */
+enum { MENU_STEP_LISTS_BANK = 0xC2 };
+static inline uint16_t menu_screen_step_list(const GameState *g, uint8_t screen)
+{
+    return rom_read16(g, 0xC28292u + 2u * screen);
+}
 
 #endif

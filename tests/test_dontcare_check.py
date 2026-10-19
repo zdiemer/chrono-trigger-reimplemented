@@ -408,6 +408,12 @@ void dispatch(Snes *s)
 }
 
 void elsewhere(Snes *s) { m_rts(s); }
+
+void jumps(Snes *s)
+{
+    menu_call_jumped(s, 0xC0808A, s->cpu.a, 0, 0xC08083);
+    menu_call_jumped(s, 0xC08088, s->cpu.a, 0, 0xC08083);
+}
 """ % {"evidence": EVIDENCE, "elsewhere": EVIDENCE.replace("dispatch,", "elsewhere,"),
        "few": EVIDENCE.replace("1500 call-outs", "12 call-outs")}
 
@@ -478,6 +484,15 @@ class DynamicTargets(unittest.TestCase):
 
     def test_note_on_the_statement_lines(self):
         self.assertEqual(self.at(21), [])
+
+    def test_a_jump_to_a_computed_target_declaring_nothing(self):
+        # the jump through a pointer in RAM claims nothing about where it goes
+        self.assertEqual(self.at(29), [])
+        self.assertTrue(any(r.startswith("game/port.c:29:") and "a computed target (its pointer" in r
+                            for r in self.rows))
+        # an instruction that isn't one (a typo'd site) is a finding, declaring nothing or not
+        (f,) = self.at(30)
+        self.assertIn("isn't a call the analysis resolved", f)
 
     def test_without_strict_nothing_changes(self):
         found, _, _ = findings()

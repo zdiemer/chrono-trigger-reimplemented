@@ -386,6 +386,20 @@ enum { MENUS_VBLANK_PAGE = 0x0D00 };
 
 bool menu_frame_input_is_takeable(Snes *s) { return m_direct_page(s) == MENUS_VBLANK_PAGE && m_bank_reaches_low_ram(s); }
 
+void menu_step_reads_the_cursor(Snes *s)
+{
+    GameState *g = state_of(s);
+    MenuCursorRead r = menu_note_cursor_read(g);
+    TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
+    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
+}
+
+void menu_step_reads_the_cursor_and_tests_its_buttons(Snes *s)
+{
+    menu_step_reads_the_cursor(s);
+    ORIGINAL_EFFECT(menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(state_of(s))));
+}
+
 // $C2:E984
 void menu_read_cursor_input(Snes *s)
 {

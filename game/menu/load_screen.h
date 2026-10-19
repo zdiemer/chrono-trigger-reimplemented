@@ -7,7 +7,8 @@
 #include "snes/system.h"
 #include "state.h"
 
-/* The screen's four steps, in the order of the menus' table for screen 14. */
+/* The screen's four steps, in the order the screen names them
+ * (MENU_SCREEN_LOAD, menu/screens.c). */
 void menu_open_load_screen(Snes *s);
 void menu_choose_on_load_screen(Snes *s);
 void menu_choose_game_to_carry_on_from(Snes *s);
@@ -18,6 +19,9 @@ void menu_answer_erase(Snes *s);
 void menu_draw_the_slots(GameState *g, Platform *pf);
 void menu_draw_slot_rows(GameState *g);
 void menu_draw_slot_rows_entry(Snes *s);
+/* A slot's window drawn afresh in the design its game was saved with
+ * ($C2:D32C), as the save screen does once it has saved in the slot. */
+void menu_redraw_slot_window(GameState *g, uint8_t slot);
 
 void menu_draw_load_screen(Snes *s);
 void menu_ask_which_to_carry_on_from(Snes *s);

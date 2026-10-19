@@ -9770,3 +9770,123 @@ own stretches (`native_time_as_sibling`, "The timing gate"): an action's
 showing 9781 to 18,841 (17,617 before the dispatch was a port), whose
 worst-stretch exception is its own again, and the dispatch 94,180 to 2367,
 which has none now.
+
+## Phase 4a, the shipping mode's fallbacks, chunk 2: the menus' vblank handler whole, and the Day of Lavos's turning world (`$C2:840E`-`$C2:8471`, `$C6:E7FA`-`$C6:EE30`)
+
+The menus' stream's fifteenth chunk (history file, "Phase 4a, the shipping
+mode's fallbacks: the save screen's frame among the slots and the battle's
+steps", for the one before), again chosen by what the shipping mode still ran
+as the original.
+
+**How it was chosen.** The last gate's shipping mode ran 26.27 M instructions
+of the original's code over the movies and the routes (20.83 M and 5.43 M).
+Its two largest pieces were the menus' vblank handler and the 1000 A.D. world
+map's event. The handler's own code was 5.6 M of it, less than the whole `C2:----`
+line (7.7 M) it was taken for: its entry (`$C2:840E`-`$C2:8420`, filed under the `$0500` stub's
+hand-back, `7E:0500`, 2.38 M), the rest of the entry and the exit after the
+stack moves (`$C2:8421`-`$C2:8429`, `$C2:8467`-`$C2:8471`, 2.98 M of the
+`C2:----` line) and the exit's first pull, after `menu_nmi_work`'s stop
+(`C2:842A`, 0.2 M), each run 198,549 times. The rest of `C2:----` is the
+menus' task loop and the records' sprite task (`$C2:826C`, 3.5 M; `$C2:E91B`,
+0.6 M), which TODO.md keeps for the tasks as fibers. The world map event's
+routines (`C6:E9F5`, `C6:EDE1`, `C6:E8C7`, `C6:E7FA`, 7.25 M) ran only in the
+three endings' shipping runs, identically in each: each drifted into losing
+the Lavos fight, and a loss to Lavos plays the Day of Lavos.
+
+**The runtime: an interrupt entry's comparison ends at its RTI**
+(PORTING.md, "Interrupt handlers"). The handler moves to its own stack above
+the interrupted code's, and shadow mode took S rising above an entry's for its
+return, so a port of it was compared as returned at the move. An entry flagged
+`.interrupt` is now followed to the original's RTI instead, and where S jumps
+further in a step than an instruction pushes or pulls the popped region starts
+again on the new stack (the stack it left keeps its own), so the bytes between
+the two stacks are compared rather than taken as popped. Only flagged entries
+see either change. `shadow_test` has a handler that moves to its own stack:
+matched with the flag, a mismatch without it, a wrong count and a stray write
+between the stacks caught, and the dead bytes it pushes and pulls on the
+stack it leaves not compared (without the left region they mismatched; without
+the low mark's restart the stray write passed). The fallback measure and the
+fuzzer follow the same calls (a held extent in `dev/fallbacks.c`, the popped
+region in `dev/fuzz.c`; `ct_fuzz --s` and `--jump`). **Evidence that nothing
+else moved:** over main's 35 movies, every (movie, entry) line of the shadow
+reports but `menu_nmi_work`'s and the new entries' is identical to main's
+gate, 71,540 of them; `menu_nmi_work` has the same 47,347 calls, all matched
+there and here.
+
+**What it is.**
+- The menus' vblank handler (`menu/display.c`): its entry, `menu_nmi_enter`
+  (`$C2:840E`), keeps the interrupted code's registers on its stack, notes the
+  stack (`menu_interrupted_stack`, `$7E:1DFE`, new in the map), moves to the
+  handler's own at `$1DFD` and its page, and stops where its work's port
+  begins; the work, `menu_nmi_work` (`$C2:842A`), now ends with the exit,
+  everything put back and the RTI. Two entries rather than one because the
+  work's is a port of its own with call-outs at the handler's sites: a whole
+  handler port would have set its comparisons aside at its first call. The
+  register mechanics are machine helpers (`m_enter_handler_stack`,
+  `m_leave_handler_stack`, `runtime/port/machine.h`); the work's guard asks for
+  the stack its entry built and an interrupted stack below the handler's page.
+- The Day of Lavos's turning world (`menu/turning_world.c`, a new file): the
+  1000 A.D. world map drawn as a Mode 7 picture (`menu_object_draw_the_world`,
+  `$C6:E7FA` with `$C6:E8C7`; the picture's pixels shared with the Epoch's map
+  view in `menu/map_picture.h`), the matrix put on line-effect slots 2-5 and
+  the turn set up (`menu_object_start_the_world_turning`, `$C6:E90F`), each
+  frame's matrix a line pair at a time in perspective with the plane's centre
+  and scroll (`menu_object_turn_the_world`, `$C6:E9F5` with `$C6:EDE1`), and
+  the angle moved by the turn the frame hands on in a cell
+  (`menu_object_turn_the_world_on`, `$C6:EE23`). The sine and cosine are the
+  menus' (`menu_sine`, `menu_data.h`, now the Epoch's too); slots 4 and 5's
+  tables and the object's turning fields are new in the map.
+- A reference for it: the route `lavos_lost` (`tools/movies/routes/`, sharing
+  `telepod_lavos`'s way to the shell) loses the shell's fight from the
+  technoplaza fair save and plays the Day of Lavos to the globe;
+  `battle-lavos-gameover.ctm` (16,192 frames) is in the library, so shadow
+  mode compares the event, and it reaches no refusal.
+- Left out: the menus' task loops (above); `$C6:EE31`, which nothing in the
+  library calls; and, as the brief asked, the scene program's lines (the
+  globe's `7E:6439` and `7E:65DD` among them), the `$CD` lines and `C0:0002`.
+
+**What shadow mode and fuzzing found.** Over the 36 movies, 0 mismatching:
+`menu_nmi_enter` and `menu_nmi_work` 48,055 calls each, all compared to the
+RTI; `menu_object_turn_the_world` 249 (one interrupted, inside the start),
+`menu_object_turn_the_world_on` 234; the drawing and the start once each, both
+interrupted (each runs past a vblank), so they rest on fuzzing. Shadow mode
+found the product register the divider's remainder shares (the multiply comes
+last), and that the start falls into the frame with a 16-bit accumulator,
+which the frame's precondition now takes rather than refusing. **Fuzzing**
+(seed 1, `tools/fuzz_routines.toml`): the handler's entry 0 of 20,000, and 0 of
+20,000 interrupting 8-bit registers; the work 0 of 1,669 to its RTI (331 whose
+random callees don't return), from its own stack (`--s 1DF8 --jump`) with an
+interrupted stack anywhere below the handler's page (fuzzing first found an
+interrupted stack inside the handler's own reading what the ports among the
+callees don't push, which the guard now refuses); the drawing 0 of 131 with random planes (169
+turned away: planes in low RAM, which the original reads changing under it as
+it keeps its cells and return there) and 0 of 300 with the scene's planes;
+the start 0 of 2,000; the frame 0 of 20,000, and again with a 16-bit
+accumulator, the tilt one of the table's 24 (its guard refuses any other,
+which no scene sets: the original's index reads on into the code after the
+table); the turn 0 of 2,000.
+
+**Measured.** The shipping mode over the movies: 9.3 KiB of code and
+8.07 M instructions in place of hand ports, from 10.9 KiB and 20.83 M (7.99 M
+over main's 35 movies; the new movie's own shipping run, which drifts away
+from the Day of Lavos too, adds 0.08 M): the handler's 5.6 M and the event's
+7.25 M are gone, and `C2:----` (4.75 M) is now the task loops'. Over the
+routes, counted over the frames they keep, 5.23 M over main's nine, from
+5.43 M, and 6.02 M with `lavos_lost`, which the long routes now run (0.78 M:
+the globe's scene program, mostly). The reference play: over main's 35
+movies 20.91 M, from 22.24 M (the handler's lines gone: `7E:0500`, `C2:842A`,
+and its part of `C2:----`); with the new movie 21.97 M over 36 movies and
+20.3 KiB, the baseline taking the movie's lines (the globe's scene program,
+`7E:6439` and `7E:65DD`, and the colours' sampling, `C2:6400`, `C2:6453`, that
+the event's script calls). No refusal in real play; the native shape runs all
+36 movies and reaches all ten routes' outcomes. `--misses` lists nothing over
+`menu` and `battle-lavos-gameover`, and `--px-check` reports every frame of
+both identical.
+
+**Timing.** Calibrated (`--drifted`, 33 rows: the new entries and those the new movie moved): the
+handler's entry at 4791 and its work 3755 to 3113; the frame 12,410, the turn
+2000; the drawing and the start, which no stretch of the library completes,
+at their calls' ratios (13,034 and 11,857). One exception: the scripts' start
+of an object, whose search for a free slot is long where the Day of Lavos
+keeps dozens of needles running (`tools/timing_exceptions.txt`; a charge per
+slot passed overshot every other scene).
