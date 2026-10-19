@@ -314,7 +314,7 @@ static void bob_layer(GameState *g, ScreenChannel channel, bool up)
     uint16_t offset = battle_screen_layer_offset_y(g, channel);
     set_battle_screen_layer_offset_y(g, channel, (uint16_t)(up ? offset - by : offset + by));
     set_battle_screen_wave_step(g, channel, (uint8_t)(step + 1));
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, (uint16_t)by));
+    screen_leave_for_the_drift(g, (uint16_t)by);
 }
 
 static void bob_layer_down(GameState *g, ScreenChannel channel) { bob_layer(g, channel, false); }

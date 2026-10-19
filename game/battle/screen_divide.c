@@ -264,7 +264,7 @@ static ScreenFlow carry_window_over(GameState *g, uint8_t window)
     Window w = window ? WINDOW_2 : WINDOW_1;
     for (unsigned line = 0; line < CARRIED_LINES; line++)
         set_line_edges(g, coming_line(g, line), w, line_edges(g, shown_line(g, line), w));
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, (uint16_t)(window * 2 + CARRIED_RUN_BYTES)));
+    screen_leave_for_the_drift(g, (uint16_t)(window * 2 + CARRIED_RUN_BYTES));
     return screen_on();
 }
 SCREEN_OPERATION(carry_window_over, window)

@@ -21,6 +21,34 @@ enum { BATTLE_PARTY_SIZE = 3, BATTLE_ENEMIES = 8, BATTLE_COMBATANTS = BATTLE_PAR
 
 static inline bool battle_slot_is_party(unsigned slot) { return slot < BATTLE_PARTY_SIZE; }
 
+/* An enemy marked (in its placement's kind) to stay on the field after the
+ * battle: beaten, it stays where it is (battle/beaten_enemies.c), and the
+ * field keeps it, taking away an enemy whose kind is left 0
+ * (battle/battle_end.c). */
+enum { BATTLE_ENEMY_STAYS_ON_THE_FIELD = 0x40 };
+static inline bool battle_enemy_stays_on_the_field(const GameState *g, unsigned enemy)
+{
+    return (battle_enemy_placement_kind(g, enemy) & BATTLE_ENEMY_STAYS_ON_THE_FIELD) != 0;
+}
+
+/* An object whose sprites carry attribute bits of their own (their priority
+ * over the battlefield's layers) is drawn among them; one whose bits an effect
+ * took away (battle/screen_specials.c) no longer is, and a beaten enemy that
+ * isn't drawn simply leaves its place (battle/beaten_enemies.c). */
+static inline bool battle_object_drawn_on_the_battlefield(const GameState *g, unsigned slot)
+{
+    return battle_object_attribute_bits(g, slot) != 0;
+}
+
+/* An enemy whose family (battle_enemy_family_bits) has it change the
+ * battlefield as it leaves the fight, beaten, rather than dissolve
+ * (battle/fight_enemies.c notes it, battle/beaten_enemies.c acts on it). */
+enum { BATTLE_FAMILY_CHANGES_THE_BATTLEFIELD = 0x01 };
+static inline bool battle_enemy_changes_the_battlefield(const GameState *g, unsigned enemy)
+{
+    return (battle_enemy_family_bits(g, enemy) & BATTLE_FAMILY_CHANGES_THE_BATTLEFIELD) != 0;
+}
+
 /* The top bit of a party slot's character marks it empty, and of a
  * character's party slot (battle_character_slot) marks the character out of
  * the party. */

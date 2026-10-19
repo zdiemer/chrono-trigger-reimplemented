@@ -37,7 +37,7 @@ static const struct {
     [BATTLE_STEP_NEXT_FRAME] = { 0xC1106E, battle_wait_step, STEP_READS_A_AND_OVERFLOW },
     [BATTLE_STEP_SHOW_ACTION] = { 0xC14058, battle_show_action, STEP_READS_A_AND_OVERFLOW },
     [BATTLE_STEP_SEARCH_TARGET] = { 0xC12986, battle_search_for_target, STEP_READS_A },
-    [BATTLE_STEP_ENEMIES_BEATEN] = { 0xC1006D, NULL, STEP_READS_A },
+    [BATTLE_STEP_ENEMIES_BEATEN] = { 0xC1006D, battle_see_to_the_beaten_enemies, STEP_READS_A },
     [BATTLE_STEP_SEARCH_AREA] = { 0xC11FDD, battle_find_the_noted_area, STEP_READS_A },
     [BATTLE_STEP_VICTORY] = { 0xC1356D, NULL, STEP_READS_A },
     [BATTLE_STEP_DEFEAT] = { 0xC1354D, NULL, STEP_READS_A },

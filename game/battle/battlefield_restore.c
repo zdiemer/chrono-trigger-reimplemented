@@ -145,18 +145,12 @@ static bool shows_its_own_layer(const GameState *g)
  * bank of work RAM (field_bg3_tiles_unpacked, field/location.c), which stay
  * there through the battle, and where they go in VRAM. */
 enum { TILES_VRAM = 0x5000, TILES_BYTES = 0x0F80 };
-/* The frame work's transfer reads none of the flags. */
-enum { SEND_READS = DC_FLAGS };
 /* A quarter of a second for the picture to settle. */
 enum { SETTLING_FRAMES = 15 };
 
 static bool send_the_kept_tiles(Snes *s, uint32_t site)
 {
-    uint16_t page = m_direct_page(s);
-    uint8_t bank = s->cpu.db;
-    vid_send_vram_and_wait(m_platform(s), PF_CALL_DC(site, 0xCD3ED2, SEND_READS), TILES_VRAM, PF_GAME(RAM_FIELD_BG3_TILES_UNPACKED),
-                           TILES_BYTES);
-    return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
+    return battle_send_and_wait(s, site, RAM_FIELD_BG3_TILES_UNPACKED, TILES_VRAM, TILES_BYTES);
 }
 
 /* The waits pass the carry on to the menu's turn, which reads it, so the port

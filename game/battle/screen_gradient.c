@@ -159,7 +159,7 @@ static void fade_a_step(GameState *g)
     for (unsigned row = 0; row < GRADIENT_ROWS; row++)
         show_gradient_row(g, row, row_start(g, gradient_row_turn(g, row, phase)));
     /* the row copy counts its colors down in a cell */
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, 0));
+    screen_leave_for_the_drift(g, 0);
 }
 
 /* Where the enemy's level has moved from the one shown, start a fade from the
@@ -246,7 +246,7 @@ void battle_write_gradient_row(Snes *s)
 {
     GameState *g = state_of(s);
     show_gradient_row(g, s->cpu.y / ROW_BYTES, (uint8_t)s->cpu.a);
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, 0));
+    screen_leave_for_the_drift(g, 0);
     s->cpu.a = 0;
     m_rts(s);
 }

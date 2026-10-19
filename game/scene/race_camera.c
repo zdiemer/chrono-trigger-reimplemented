@@ -102,28 +102,24 @@ static void follow_finish(GameState *g)
 /* ---- The horizon ------------------------------------------------------------------------------ */
 
 // $7E:44FE
-/* The horizon splits the per-line tables: the lines above it (half the pitch)
- * and the lines from it (the other half, with the odd line), in the tables
- * for the BG mode, the color math and BG1's scroll. Then the road strip goes
- * to VRAM. */
+/* The horizon splits the per-line tables (scene_horizon_lines) for the BG
+ * mode, the color math and BG1's scroll. Then the road strip goes to VRAM. */
 static void set_horizon(GameState *g)
 {
-    uint8_t pitch = (uint8_t)race_camera(g, CAMERA_PITCH);
-    uint8_t above = pitch >> 1, below = (uint8_t)(above + (pitch & 1));
-    set_scene_race_line_counts(g, 0, above);
-    set_scene_race_math_line_counts(g, 0, above);
-    set_scene_race_scroll_line_counts(g, 0, above);
-    set_scene_race_line_counts(g, 1, below);
-    set_scene_race_math_line_counts(g, 1, below);
-    set_scene_race_scroll_line_counts(g, 1, below);
+    SceneHorizon h = scene_horizon_lines((uint8_t)race_camera(g, CAMERA_PITCH));
+    set_scene_race_line_counts(g, 0, h.above);
+    set_scene_race_math_line_counts(g, 0, h.above);
+    set_scene_race_scroll_line_counts(g, 0, h.above);
+    set_scene_race_line_counts(g, 1, h.below);
+    set_scene_race_math_line_counts(g, 1, h.below);
+    set_scene_race_scroll_line_counts(g, 1, h.below);
 }
 
 /* ---- The perspective --------------------------------------------------------------------------- */
 
-/* The camera the perspective is built for, as scene_race_perspective_camera
- * keeps it. */
-static const unsigned perspective_registers[] = { CAMERA_HEIGHT, CAMERA_ANGLE, CAMERA_PITCH, CAMERA_PLANE_TOP, CAMERA_LINES_PAIRED };
-enum { PERSPECTIVE_REGISTERS = sizeof perspective_registers / sizeof perspective_registers[0] };
+/* The race compares all five of the camera's registers the perspective keeps
+ * (scene_keep_the_camera). */
+enum { PERSPECTIVE_REGISTERS = 5, CAMERA_HEIGHT_KEPT = 0 };
 
 /* The original clears the divisors with a block move of 255 bytes after
  * storing the first word. */
@@ -145,19 +141,10 @@ void race_forget_divisors(GameState *g)
  * divisors. */
 static bool camera_changed(GameState *g)
 {
-    unsigned first = PERSPECTIVE_REGISTERS;
-    for (unsigned i = 0; i < PERSPECTIVE_REGISTERS && first == PERSPECTIVE_REGISTERS; i++)
-        if (race_camera(g, perspective_registers[i]) != scene_race_perspective_camera(g, i))
-            first = i;
-    if (first == PERSPECTIVE_REGISTERS)
-        return false;
-    if (first == 0) {
-        set_scene_race_perspective_camera(g, 0, race_camera(g, CAMERA_HEIGHT));
+    unsigned first = scene_keep_the_camera(g, PERSPECTIVE_REGISTERS);
+    if (first == CAMERA_HEIGHT_KEPT)
         race_forget_divisors(g);
-    }
-    for (unsigned i = first ? first : 1; i < PERSPECTIVE_REGISTERS; i++)
-        set_scene_race_perspective_camera(g, i, race_camera(g, perspective_registers[i]));
-    return true;
+    return first != PERSPECTIVE_REGISTERS;
 }
 
 /* ---- The camera in the demo --------------------------------------------------------------------- */

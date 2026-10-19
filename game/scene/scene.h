@@ -31,6 +31,9 @@
  *                 steps and the stars that twinkle about it
  *   staff_roll.c  the telepod ending's last scene: the staff credits over the
  *                 stars, and The End
+ *   beyond_time.c the Beyond Time ending's night: Taban's fireworks, the
+ *                 town's lights, the Epoch's flight over the world's map and
+ *                 the Mode 7 pictures between
  *   stars.c       the star field the endings fly through
  *   captions.c    the captions over the shared endings
  *   random.c      the program's random numbers
@@ -326,9 +329,15 @@ void scene_circle_draw(GameState *g, uint8_t mode);
  * first half turn; the cosine a quarter turn on. The lookup also leaves
  * whether the step is in the second half of the turn (scene_sine_second_half),
  * the carry its compare leaves, which some callers carry on into a divide. */
+enum { SCENE_FULL_TURN = 0x400, SCENE_HALF_TURN = 0x200, SCENE_QUARTER_TURN = 0x100 };
 int16_t scene_sine(const GameState *g, uint16_t angle);
 int16_t scene_cosine(const GameState *g, uint16_t angle);
 bool scene_sine_second_half(uint16_t angle);
+/* For the entry wrappers: whether an angle a quarter turn on passes the top
+ * of a signed word (from $7F00 up to $7FFF), the overflow the original's
+ * cosine leaves where it adds the quarter turn, and its perspective's builder
+ * after the cosine of the plane's turn. */
+bool scene_quarter_turn_on_overflows(uint16_t angle);
 
 /* The CPU's divider, as the scene programs divide by it: a 16-bit dividend
  * over a byte, $FFFF for a divisor of 0. */
@@ -408,6 +417,12 @@ uint16_t scene_matrix_writer_leaves_y(void);
 /* scene/perspective.c: the Mode 7 plane's perspective built again for a
  * channel's camera, as the race's camera check and the endings ask for it. */
 void scene_build_perspective(GameState *g, SceneChannel ch);
+/* Whether channel 0's camera differs from the one the perspective was last
+ * built for, in its first `registers` of the five kept (height, turn,
+ * horizon, depth, the lines paired): those from the first that differs on are
+ * kept as the perspective's. Returns the first that differed, or `registers`
+ * where none did. */
+unsigned scene_keep_the_camera(GameState *g, unsigned registers);
 
 /* ---- Entries, by file ------------------------------------------------------------------------ */
 
@@ -704,6 +719,44 @@ void scene_ending_gather_picture(Snes *s);
  * original's scaler. */
 void scene_bridge_scale_ending_picture(Snes *s);
 
+/* scene/endings.c: the zooming picture's frame for a turn of its animation
+ * (1024 steps a turn, a frame each 32nd). */
+void scene_ending_show_picture_frame(GameState *g, uint16_t turn);
+bool scene_ending_draw_the_end_present(Snes *s);
+void scene_ending_draw_the_end(Snes *s);
+
+/* scene/beyond_time.c (the program in RAM): the fireworks placed and their
+ * first bursts picked (the shared setup's), and the night's tasks. */
+void scene_set_the_fireworks_up(GameState *g);
+void scene_set_the_fireworks_up_entry(Snes *s);
+bool scene_set_the_fireworks_up_present(Snes *s);
+void scene_keep_the_orbit(Snes *s);
+bool scene_keep_the_orbit_present(Snes *s);
+void scene_pass_the_map(Snes *s);
+bool scene_pass_the_map_present(Snes *s);
+void scene_check_the_flight_view(Snes *s);
+bool scene_check_the_flight_view_present(Snes *s);
+void scene_place_the_flight_view(Snes *s);
+bool scene_place_the_flight_view_present(Snes *s);
+void scene_send_the_flight_view(Snes *s);
+bool scene_send_the_flight_view_present(Snes *s);
+void scene_set_the_flight_horizon(Snes *s);
+bool scene_set_the_flight_horizon_present(Snes *s);
+void scene_circle_the_epoch(Snes *s);
+bool scene_circle_the_epoch_present(Snes *s);
+void scene_sway_the_epoch(Snes *s);
+bool scene_sway_the_epoch_present(Snes *s);
+void scene_twinkle_the_lights(Snes *s);
+bool scene_twinkle_the_lights_present(Snes *s);
+void scene_turn_back_and_twinkle(Snes *s);
+bool scene_turn_back_and_twinkle_present(Snes *s);
+void scene_burst_the_fireworks(Snes *s);
+bool scene_burst_the_fireworks_present(Snes *s);
+void scene_send_the_picture(Snes *s);
+bool scene_send_the_picture_present(Snes *s);
+void scene_send_the_picture_and_bg2(Snes *s);
+bool scene_send_the_picture_and_bg2_present(Snes *s);
+
 /* scene/stars.c (the program in RAM) */
 bool scene_stars_scatter_code_present(Snes *s);
 bool scene_stars_scatter_present(Snes *s);
@@ -799,6 +852,13 @@ void scene_load_sprite_list(Snes *s);
 void scene_load_sprite_list_clipped(Snes *s);
 void scene_add_sprite(Snes *s);
 void scene_add_large_sprite(Snes *s);
+/* The program's own list of large sprites ($7E:A03D), as a C call and as its
+ * entry: every sprite kept (the fireworks' bursts), or those at the picture's
+ * bottom or below left out, the form the callers write into its code. */
+typedef enum { LIST_KEEPS_EVERY_SPRITE, LIST_LEAVES_OUT_BELOW_THE_PICTURE } SceneLargeList;
+void scene_draw_large_sprite_list(GameState *g, uint16_t list, SceneLargeList form);
+void scene_draw_large_sprite_list_entry(Snes *s);
+bool scene_large_sprite_list_fits(Snes *s);
 
 /* scene/circle.c */
 bool scene_circle_table_is_clear(Snes *s);
@@ -817,6 +877,11 @@ void scene_divide_8_8(Snes *s);
 bool scene_multiply_present(Snes *s);
 void scene_multiply(Snes *s);
 void scene_multiply_signed(Snes *s);
+bool scene_multiply_signed16_present(Snes *s);
+void scene_multiply_signed16_entry(Snes *s);
+bool scene_sine_present(Snes *s);
+void scene_sine_entry(Snes *s);
+void scene_cosine_entry(Snes *s);
 void scene_find_divisor(Snes *s);
 bool scene_find_divisor_on_divider_page(Snes *s);
 

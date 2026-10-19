@@ -5,6 +5,7 @@
 #include "battle/battle.h"
 #include "original_effects.h"
 #include "platform/timing.h"
+#include "platform/video.h"
 #include "port/native.h"
 
 /* The machine's state a guard or a call's check looks at. */
@@ -56,6 +57,14 @@ bool battle_wait_frames(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_
     uint16_t page = m_direct_page(s);
     uint8_t bank = data_bank(s);
     tm_wait_frames(m_platform(s), PF_CALL_DC(site, routine, dont_care), frames);
+    return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
+}
+
+bool battle_send_and_wait(Snes *s, uint32_t site, uint32_t from, uint16_t vram, uint16_t bytes)
+{
+    uint16_t page = m_direct_page(s);
+    uint8_t bank = data_bank(s);
+    vid_send_vram_and_wait(m_platform(s), PF_CALL_DC(site, BATTLE_SEND, BATTLE_SEND_READS), vram, PF_GAME(from), bytes);
     return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
 }
 

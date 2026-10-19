@@ -71,15 +71,8 @@ static const WindowCut BG3_INSIDE = { MAP_AND_SPRITES, 0, 0, PAIR(W1_OUTSIDE, 0)
 static const WindowCut BG3_ROUND = { MAP_AND_SPRITES, 0, PAIR(0, W1_INSIDE), PAIR(W1_INSIDE, 0), 0 };
 static const WindowCut NO_CUT = { 0, 0, 0, 0, 0 };
 
-/* The screens' values outside the dialog window (field_line_screens' first):
- * the layers on the main and sub screens, then the window's masks of each. */
-enum { SCREENS_OUTSIDE = 0, MAIN_LAYERS = 0, SUB_LAYERS = 8, MAIN_MASKS = 16, SUB_MASKS = 24 };
-
-static void set_screens_byte(GameState *g, unsigned shift, uint8_t v)
-{
-    uint32_t screens = field_line_screens(g, SCREENS_OUTSIDE);
-    set_field_line_screens(g, SCREENS_OUTSIDE, (screens & ~(0xFFu << shift)) | (uint32_t)v << shift);
-}
+/* The screens' values outside the dialog window (field_line_screens' first). */
+enum { SCREENS_OUTSIDE = 0 };
 
 static void choose_windows(GameState *g, const WindowCut *c)
 {
@@ -90,8 +83,8 @@ static void choose_windows(GameState *g, const WindowCut *c)
 
 static void cut(GameState *g, const WindowCut *c)
 {
-    set_screens_byte(g, MAIN_MASKS, c->hides_on_main);
-    set_screens_byte(g, SUB_MASKS, c->hides_on_sub);
+    set_field_line_screens_main_masks(g, SCREENS_OUTSIDE, c->hides_on_main);
+    set_field_line_screens_sub_masks(g, SCREENS_OUTSIDE, c->hides_on_sub);
     choose_windows(g, c);
 }
 
@@ -404,9 +397,9 @@ static void bg3_blended_round_a_circle(GameState *g)
     set_field_color_math_layers(g, BG3_ALONE);
     set_field_fixed_color_math_layers(g, BG3_ALONE);
     set_field_main_screen(g, BG3_ALONE);
-    set_screens_byte(g, MAIN_LAYERS, BG3_ALONE);
+    set_field_line_screens_main_layers(g, SCREENS_OUTSIDE, BG3_ALONE);
     set_field_sub_screen(g, THE_REST);
-    set_screens_byte(g, SUB_LAYERS, THE_REST);
+    set_field_line_screens_sub_layers(g, SCREENS_OUTSIDE, THE_REST);
     set_field_layer_scroll_v(g, FIELD_BG2, BG2_SCROLL_DOWN);
     window_line_effect(g, SLOT_WINDOW1, true);
     draw_circle(g, TOP_CIRCLE_X, TOP_CIRCLE_Y, BG3_ROUND_RADIUS, SCENE_CIRCLE_ROUND);
@@ -439,12 +432,12 @@ enum { RIPPLE_SETTLES = 0x20, RIPPLE_GROWS = 0x14, RIPPLE_HOLDS = 0x20, RIPPLE_S
 
 static void ripple_begins(GameState *g)
 {
-    set_screens_byte(g, MAIN_LAYERS, LAYERS_WITH_THE_COPY);
-    set_screens_byte(g, MAIN_MASKS, RIPPLE_HIDES);
+    set_field_line_screens_main_layers(g, SCREENS_OUTSIDE, LAYERS_WITH_THE_COPY);
+    set_field_line_screens_main_masks(g, SCREENS_OUTSIDE, RIPPLE_HIDES);
     set_field_line_wave_bg2(g, (uint16_t)((field_line_wave_bg2(g) & 0xFF00) | BG2_WAVES));
     uint8_t map = bg2_map_one_screen(g);
     set_bg2_map(g, map);
-    set_screens_byte(g, SUB_MASKS, map);
+    set_field_line_screens_sub_masks(g, SCREENS_OUTSIDE, map);
 }
 
 static void ripple_circle_opens(GameState *g)

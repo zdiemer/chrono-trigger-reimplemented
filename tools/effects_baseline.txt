@@ -105,9 +105,9 @@ game/battle/tiles.c battle_decode_tile_row battle_scratch[35] battle_scratch    
 game/battle/uploads.c battle_send_vram_and_wait battle_vram_send_size battle_message_window_kind # the entry's operand: vid_send_vram_and_wait's SNES backend, and the original's callers, put the size there plainly before every call
 game/battle/uploads.c battle_send_vram_and_wait battle_vram_send_size battle_scratch # the entry's operand: vid_send_vram_and_wait's SNES backend, and the original's callers, put the size there plainly before every call
 game/battle/uploads.c battle_upload_tile_rows battle_scratch[0] battle_scratch
-game/battle/uploads.c battle_upload_tile_rows battle_scratch[1] battle_scratch only
+game/battle/uploads.c battle_upload_tile_rows battle_scratch[1] battle_scratch
 game/battle/uploads.c battle_vram_transfer battle_scratch[0] battle_scratch
-game/battle/uploads.c battle_vram_transfer battle_scratch[1] battle_scratch only
+game/battle/uploads.c battle_vram_transfer battle_scratch[1] battle_scratch
 game/battle/wait.c wait_for_the_small_handler battle_alternate_frame_pending battle_scratch # the wait sets the flag plainly itself, and only the small handler clears it (battle_nmi_alternate)
 game/battle/window.h battle_work16 battle_work[0] battle_work only # the entries' operands: the original's callers put them there first, every call
 game/battle/window.h battle_work16 battle_work[1] battle_work only # the entries' operands: the original's callers put them there first, every call
@@ -544,7 +544,7 @@ game/battle/screen.h screen_cell battle_scratch[6] battle_scratch only # $CE:E7C
 game/battle/screen.h screen_cell battle_scratch[7] battle_scratch only # $CE:E7C8's start in its unrolled copy, read by its entry's wrapper alone: the circles' drawing ($CD:3616) puts it in the cell before every call
 game/battle/screen_beam.c battle_rasterize_window_quad battle_window_quad_index battle_window_quad_index only # the entry's window: its caller ($D1:F9AF, as the original runs it) sets it before every call
 game/battle/screen_triangles.c battle_draw_window_triangle battle_window_quad_index battle_window_quad_index only # the entry's window: its callers (the original's triangle commands, where a row turns them away) set it before every call
-game/battle/screen_motion.c drift_high_byte battle_scratch[1] battle_scratch only # the drift's guard: what the last effect's working left in $46, which the original adds the drift with; no script has $D7, and a native build takes it as clear (docs/TODO.md)
+game/battle/screen_motion.c drift_high_byte battle_scratch[1] battle_scratch # the drift's guard: what the last screen work left in $46, which the original adds the drift with. The layers' scroll leaves it plainly each frame and the screen commands that leave $45 as a word in their logic do too (battle_screen_leftover, screen_leave_for_the_drift); a few effects leave it only inside their leaves helpers, as scaffolding, which no run drifts after, and a drift after one would test what was there before in a native build (docs/TODO.md)
 game/battle/screen_between.c battle_measure_direction battle_direction_work[2] battle_random_lowest # the entry's second point: its caller ($CD:1B22, as the original's $CC runs it) puts it in the cell before every call
 game/battle/screen_divide.c battle_cut_window battle_cut_steps[0] battle_cut_steps only # the entry's line: the original's $97 handler puts it in the cells before every call
 game/battle/screen_divide.c battle_cut_window battle_cut_run[0] battle_cut_run only # the entry's line: the original's $97 handler puts it in the cells before every call
@@ -1112,3 +1112,21 @@ game/menu/saving.c menu_answer_whether_to_save_over menu_cursor_index menu_objec
 game/menu/saving.c show_the_slot_saved menu_save_slot_shown menu_save_slot_shown                         # the slot saved in: the save screens' frame among the slots writes it plainly each frame a slot is chosen from (menu/save_screen.c); the scaffolding is the rows' drawing's count, left past the last slot as the screen opens
 game/menu/saving.c menu_save_the_game menu_save_slot_shown menu_save_slot_shown                          # as show_the_slot_saved
 game/menu/saving.c menu_save_in_the_slot menu_save_slot_shown menu_save_slot_shown                       # as show_the_slot_saved
+game/battle/beaten_enemies.c battle_dissolve_a_step battle_dissolve_pace battle_dissolve_pace only # the step's entry's operand: only the original's dissolve calls it, which sets the pace before its first step ($CD:00A2); the C dissolve passes its pace to the step as C
+game/battle/beaten_enemies.c battle_dissolve_a_step battle_dissolve_place battle_dissolve_place # the step's entry's operand: only the original's dissolve calls it, which clears the place before its first step ($CD:00C7) and keeps the step's; the C dissolve keeps the place in a local
+game/scene/sprites.c moved_x scene_sprite_offset_x scene_sprite_offset_x # the fireworks' leftover offset (beyond_time.c) differs from the plain writes only in the high bytes, the last firework's place read as words; this reads the low byte, each firework's place, which the plain write leaves too
+game/scene/sprites.c moved_y scene_sprite_offset_y scene_sprite_offset_y # as moved_x: the low byte, which the fireworks' plain write leaves too
+game/scene/sprites.c scene_move_sprite_offset scene_sprite_offset_x scene_sprite_offset_x # keeps X's high byte, which only the clipped lists read, and every scene that draws one sets the whole offset first (endings.c place_picture, scene_draw_lists_at); the captions and the planet's stars it serves draw small sprites, from the low byte
+game/scene/sprites.c clipped_x scene_sprite_offset_x scene_sprite_offset_x # the whole X: every caller of a clipped list sets the whole offset first (endings.c place_picture and draw_the_end, the race's and the title's own scenes), never after the fireworks' leftover
+game/scene/sprites.c clipped_list_leaves scene_sprite_offset_y scene_sprite_offset_y # the low byte, which the fireworks' plain write leaves too, and only after a clipped list whose caller set the offset whole
+game/scene/sprites.c offset_y_word scene_sprite_offset_y scene_sprite_offset_y # the program's own list of large sprites: the fireworks set the offset plainly before each burst they draw, and the list's other caller ($7E:9C58) stores the whole word first
+game/scene/sprites.c offset_y_word scene_sprite_offset_y_high scene_sprite_offset_y_high # as the low byte: the fireworks set it plainly before each burst, the list's other caller stores the whole word first
+game/scene/credit_pages.c write_the_jobs scene_sprite_offset_x scene_sprite_offset_x # the attract sequence's credits, another scene program than the endings' fireworks; it reads the low byte, which it sets itself
+game/scene/race_drawing.c draw_boosts scene_sprite_offset_x scene_sprite_offset_x # the race's own scene program, which no ending's fireworks run beside; the race sets the offset itself
+game/scene/race_drawing.c draw_numbers scene_sprite_offset_x scene_sprite_offset_x # as draw_boosts
+game/scene/race.h race_picture_state scene_race_picture_requests_state scene_flight_view # the cells are the Beyond Time flight's scratch in the endings' program (beyond_time.c, the camera's distance turned) and the race's picture requests in its own; the race sets its requests up plainly before it reads them (race_drawing.c)
+game/scene/race.h race_picture_state scene_race_picture_requests_state[1] scene_flight_view # as the first request
+game/scene/race_matrix.c hand_to_scaler scene_race_picture_requests_source scene_flight_view # as race_picture_state
+game/scene/race_matrix.c hand_to_scaler scene_race_picture_requests_state scene_flight_view # as race_picture_state
+game/scene/math.c scene_multiply_signed16_entry scene_call_first scene_call # the entry's operands: only the original's code calls it, and each of its eight calls ($7E:4458, $7E:446B and $7E:4E61, $7E:4ECB the race's camera and its projection, $7E:9939, $7E:9953 the Epoch circling, $7E:9B0A, $7E:9B1D the flight's view placed) stores both operands on the page just before it; the scaffolding is other calls' results in the same record (scene_call)
+game/scene/math.c scene_multiply_signed16_entry scene_call_second scene_call # as scene_call_first: each of the original's eight calls stores the operand just before it

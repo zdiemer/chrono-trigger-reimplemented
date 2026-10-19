@@ -19,6 +19,8 @@
  *               and loading an effect's rows of the battlefield's tiles
  *   battlefield_restore.c  the screen the battle starts with, and putting
  *               the battlefield back once the effects are over
+ *   beaten_enemies.c  the enemies an action beat leaving the fight: a fade
+ *               to white and a dissolve, or a battlefield of their own
  *   closing.c   the window's opening and closing, and the display closed
  *               down as the battle ends
  *
@@ -31,6 +33,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "battle/frame_data.h"
 #include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
@@ -115,6 +118,10 @@ void battle_show_window_table(GameState *g, Platform *pf);
 /* A battlefield whose background has the HP gradient (battle_background_flags
  * bit 0) also ripples. */
 enum { BATTLE_BACKGROUND_HAS_GRADIENT = 0x01 };
+/* A battlefield the screen effects made (bit 4): it has an end of its own as
+ * the battle is lost (closing.c), and the enemies a rule binds dissolve on it
+ * as any other enemy does (beaten_enemies.c). */
+enum { BATTLE_BACKGROUND_EFFECTS_BATTLEFIELD = 0x10 };
 
 /* Lay the screen out for the per-line effects in one of the ROM's
  * arrangements (the battlefield alone, the battle window in view, a line of
@@ -147,9 +154,20 @@ void battle_decode_tiles(GameState *g, uint16_t row_set, uint16_t tiles);
 
 /* Background row 1's last eight colors put back as the battle started them. */
 void battle_restore_kept_colors(GameState *g);
+/* Run a fade of `kind` (palette_animations' kind) through palette animation
+ * slot 10's preset: set up as the slot will run it, and asked for. The old
+ * battlefield's layer fades so, and a beaten enemy's colors
+ * (beaten_enemies.c). */
+void battle_fade_through_the_preset(GameState *g, uint8_t kind, BattlePaletteFade f);
 /* Fade the battlefield's own layer out, as it leaves, or back in, as it is put
  * back. */
 void battle_fade_battlefield_layer(GameState *g, bool back_in);
+/* Load another battlefield and start its own screen scripts, marked running
+ * from the next frame: a battle ending on the victory's battlefield
+ * (closing.c), and an enemy leaving on its family's or its rule's
+ * (beaten_enemies.c). The load is the call at `site`, the battlefield in X,
+ * a word, as the caller's TAX leaves it. */
+bool battle_load_and_run_battlefield(Snes *s, uint32_t site, uint16_t battlefield);
 /* The layers' maps and scroll and the screen's settings below the split, as
  * the field hands them to the battle. */
 void battle_take_the_start_settings(GameState *g);

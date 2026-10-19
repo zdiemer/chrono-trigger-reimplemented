@@ -202,15 +202,10 @@ static bool play_the_changed_battlefields_song(Snes *s, BattleFrame kept)
  * start. The battlefield comes in X. */
 static bool change_to_the_battlefield(Snes *s, uint16_t battlefield)
 {
-    GameState *g = state_of(s);
     if (!play_the_changed_battlefields_song(s, battle_keeping_word(battlefield, BATTLE_CARRY_AS_IT_IS)))
         return false;
-    s->cpu.x = battlefield;
-    if (!battle_run(s, 0xCD0D86, 0xCD0EBD, battle_load_battlefield))
+    if (!battle_load_and_run_battlefield(s, 0xCD0D86, battlefield))
         return false;
-    set_battle_screen_scripts_running(g, 0);
-    TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));
-    set_battle_screen_scripts_running(g, 1);
     s->cpu.a = 0; /* the scripts' start leaves A's high byte clear for the waits */
     return true;
 }
@@ -239,9 +234,9 @@ static bool play_out_the_boss_end(Snes *s)
 /* ---- The display closed down ------------------------------------------------------------------ */
 
 /* The battle's background flags as it ends: bit 7 lets the field's song go
- * after all; bit 0, the HP gradient, and bit 4, the screen effects'
- * battlefield, each have an end of their own. */
-enum { SONG_GOES = 0x80, GRADIENT = 0x01, EFFECTS_BATTLEFIELD = 0x10 };
+ * after all; the HP gradient and the screen effects' battlefield (frame.h)
+ * each have an end of their own. */
+enum { SONG_GOES = 0x80 };
 /* The battle's small vblank handler (battle/display.c), which fades the
  * picture out from the brightness it is given. */
 enum { SMALL_VBLANK_HANDLER = 0xD1F4C0, FADE_FROM = 0 };
@@ -291,10 +286,10 @@ static bool close_the_display(Snes *s)
     /* the original asks only whether the battle was won: a script's result
        (BATTLE_BACK_TO_THE_PLACE_PUT_ASIDE) ends here as a defeat does */
     bool won = battle_how_it_ended(g) == BATTLE_WON_OR_RAN;
-    if ((battle_background_flags(g) & GRADIENT) && won) {
+    if ((battle_background_flags(g) & BATTLE_BACKGROUND_HAS_GRADIENT) && won) {
         if (!battle_run(s, 0xCD03FF, 0xCD0DB1, battle_play_out_the_boss_end))
             return false;
-    } else if ((battle_background_flags(g) & (GRADIENT | EFFECTS_BATTLEFIELD)) && !won) {
+    } else if ((battle_background_flags(g) & (BATTLE_BACKGROUND_HAS_GRADIENT | BATTLE_BACKGROUND_EFFECTS_BATTLEFIELD)) && !won) {
         if (!battle_call(s, 0xCD040A, 0xCD0D93, BATTLE_WAIT_READS))
             return false;
     }

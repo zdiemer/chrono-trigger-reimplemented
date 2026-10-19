@@ -9,12 +9,14 @@
  * - multiply: 16 x 16 bits into a 32-bit product;
  * - multiply_signed: a signed 16-bit value times a signed byte;
  * - multiply_signed16: two signed 16-bit values, as magnitudes through
- *   multiply (the race's camera; a C call, not an entry);
+ *   multiply (the race's camera, the endings' flight);
  * - divide: 32 by 32 bits, into a quotient and a remainder;
  * - divide_8_8: a value's high byte by a 16-bit divisor, as an 8.8 fixed-point
  *   fraction (how far along a distance something is);
  * - find_divisor: the first divisor after a starting one whose quotient falls
- *   under a limit (the race's scale for a distance).
+ *   under a limit (the race's scale for a distance);
+ * - the sine and the cosine of an angle, 1024 steps a turn, from the game's
+ *   table of a quarter wave (scene_data.h).
  *
  * Each is C arithmetic on the operands the game gives it. The original's way of
  * computing them leaves marks on some inputs no scene gives it -- a 32-bit
@@ -148,20 +150,18 @@ uint32_t scene_multiply_signed16(GameState *g, SceneProgramPage page, uint16_t a
 
 /* ---- The sine --------------------------------------------------------------------------------- */
 
-enum { TURN = 0x400, HALF_TURN = 0x200, QUARTER_TURN = 0x100 };
-
 // $7E:3465
 int16_t scene_sine(const GameState *g, uint16_t angle)
 {
-    uint16_t step = angle & (TURN - 1);
+    uint16_t step = angle & (SCENE_FULL_TURN - 1);
     int16_t magnitude = scene_sine_magnitude(g, step);
-    return step < HALF_TURN ? (int16_t)-magnitude : magnitude;
+    return step < SCENE_HALF_TURN ? (int16_t)-magnitude : magnitude;
 }
 
 // $7E:3461
-int16_t scene_cosine(const GameState *g, uint16_t angle) { return scene_sine(g, (uint16_t)(angle + QUARTER_TURN)); }
+int16_t scene_cosine(const GameState *g, uint16_t angle) { return scene_sine(g, (uint16_t)(angle + SCENE_QUARTER_TURN)); }
 
-bool scene_sine_second_half(uint16_t angle) { return (angle & (TURN - 1)) >= HALF_TURN; }
+bool scene_sine_second_half(uint16_t angle) { return (angle & (SCENE_FULL_TURN - 1)) >= SCENE_HALF_TURN; }
 
 /* ---- The arithmetic as C calls -------------------------------------------------------------- */
 
@@ -323,6 +323,26 @@ bool scene_multiply_present(Snes *s)
     return exact;
 }
 
+/* The signed multiply's magnitudes go through the multiply, whose guard's
+ * test of its middle partial sums they must pass too. */
+bool scene_multiply_signed16_present(Snes *s)
+{
+    if (!scene_on_program_page(s) || !m_code_matches(s, 0x7E33D6, 0x37, 0xCB3F0FAD1C9F8EA9ull) ||
+        !m_code_matches(s, 0x7E31BF, 74, 0x479627EBF1311CAFull))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    SceneProgramPage page = scene_program_page_at_entry(s);
+    bool exact = scene_multiplies_exactly(magnitude16(scene_call_first(g, page)), magnitude16(scene_call_second(g, page)),
+                                          carries_into_the_product(g, page));
+    vars_peek(false);
+    return exact;
+}
+
+/* The sine reads its table through a long address, so any page and data bank
+ * will do. */
+bool scene_sine_present(Snes *s) { return m_code_matches(s, 0x7E3461, 0x19, 0xA2486F18B991C163ull); }
+
 bool scene_divide_8_8_present(Snes *s)
 {
     return scene_on_program_page(s) && m_code_matches(s, 0x7E32E2, 189, 0xD04B8C1274AF93C8ull);
@@ -370,6 +390,48 @@ void scene_multiply_signed(Snes *s)
     multiply_signed(g, page);
     s->cpu.x = (uint16_t)((a & 0xFF) * b);
     m_rtl(s);
+}
+
+/* Entered with 16-bit index registers; P comes back as it was (the original
+ * saves it round its work), and nothing else it leaves is read. */
+void scene_multiply_signed16_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    SceneProgramPage page = scene_program_page_at_entry(s);
+    scene_multiply_signed16(g, page, scene_call_first(g, page), scene_call_second(g, page));
+    m_rts(s);
+}
+
+/* The angle comes in A, and the value goes back there. The callers read the
+ * flags it leaves: whether the value is negative or 0, and the carry, set for
+ * an angle in the turn's second half, where the value is the table's as it
+ * is. X is left the angle's step in the turn. */
+static void leave_the_sine(Snes *s, uint16_t angle)
+{
+    int16_t value = scene_sine(state_of(s), angle);
+    s->cpu.a = (uint16_t)value;
+    s->cpu.x = angle & (SCENE_FULL_TURN - 1);
+    m_set_flag(s, CPU_FLAG_N, value < 0);
+    m_set_flag(s, CPU_FLAG_Z, value == 0);
+    m_set_flag(s, CPU_FLAG_C, scene_sine_second_half(angle));
+}
+
+void scene_sine_entry(Snes *s)
+{
+    leave_the_sine(s, s->cpu.a);
+    m_rts(s);
+}
+
+bool scene_quarter_turn_on_overflows(uint16_t angle) { return (int16_t)angle > INT16_MAX - SCENE_QUARTER_TURN; }
+
+/* The cosine is the sine a quarter turn on; the original adds the quarter
+ * turn, which leaves the overflow of that signed add. */
+void scene_cosine_entry(Snes *s)
+{
+    uint16_t angle = s->cpu.a;
+    m_set_flag(s, CPU_FLAG_V, scene_quarter_turn_on_overflows(angle));
+    leave_the_sine(s, (uint16_t)(angle + SCENE_QUARTER_TURN));
+    m_rts(s);
 }
 
 /* Entered with 16-bit A and X and the carry, which the dividend's cell ends

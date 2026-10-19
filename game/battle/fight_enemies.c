@@ -115,8 +115,9 @@ void fight_load_enemy(GameState *g, uint8_t enemy)
 }
 
 // $FD:B121
-/* The low two bits of each enemy's family, noted (nothing reads them:
- * scaffolding). */
+/* The low two bits of each enemy's family, noted: the first has a beaten
+ * enemy change the battlefield as it leaves (BATTLE_FAMILY_CHANGES_THE_BATTLEFIELD,
+ * battle.h). */
 enum { FAMILY_BITS = 0x03 };
 
 static void note_family(GameState *g, unsigned enemy)
@@ -127,7 +128,7 @@ static void note_family(GameState *g, unsigned enemy)
 void fight_note_enemy_families(GameState *g)
 {
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
-        ORIGINAL_EFFECT(note_family(g, enemy));
+        note_family(g, enemy);
 }
 
 /* ---- What the enemies carry -------------------------------------------------------------------- */

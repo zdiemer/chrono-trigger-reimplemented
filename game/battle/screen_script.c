@@ -162,7 +162,7 @@ ScreenFlow screen_wait_back(GameState *g, bool waiting, uint16_t at, uint8_t bac
 {
     if (!waiting)
         return screen_on();
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, back));
+    screen_leave_for_the_drift(g, back);
     return screen_go_to((uint16_t)(at + 1 - back));
 }
 
