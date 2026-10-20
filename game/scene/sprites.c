@@ -19,7 +19,11 @@
  * would start past it is put off screen (the race's racers leaving the
  * picture), or large through the program's own list routine ($7E:A03D, which
  * the fireworks draw their bursts with), which works each Y out as a word and
- * can leave out a sprite at the picture's bottom or below.
+ * can leave out a sprite at the picture's bottom or below; or with signed
+ * offsets, each sprite's size in its attributes, through another of the
+ * program's own ($7E:3A97, the endings' rider of the swept window), where a
+ * sprite left of the picture shows with X's 9th bit and one past the right
+ * edge or below the picture is put out of sight.
  *
  * The original's registers leave the callers the next free entry, and after a
  * clipped list the A its loop ends with and the overflow of its last Y; the
@@ -108,16 +112,40 @@ void scene_place_sprite(GameState *g, uint16_t entry, SceneSprite sprite)
 
 /* ---- Lists ------------------------------------------------------------------------------------ */
 
-/* A list: its count byte, then its entries. */
+/* A list: its count byte, then its entries, each a sprite's tile,
+ * attributes, X and Y. */
+enum { LISTED_TILE = 0, LISTED_ATTRIBUTES = 1, LISTED_X = 2, LISTED_Y = 3 };
+
+typedef struct {
+    uint8_t tile, attributes, x, y;
+} ListedSprite;
+
 static uint32_t list_address(uint16_t list) { return (uint32_t)SOURCE_BANK << 16 | list; }
-static uint32_t list_entry(uint16_t list, unsigned n) { return list_address(list) + 1 + n * ENTRY_BYTES; }
 static uint8_t list_sprites(const GameState *g, uint16_t list) { return (uint8_t)(wram_read8(g, list_address(list)) - 1); }
 
-/* The original reads a list through the work RAM port, which it leaves just
- * past the list's last byte (in the port's second bank, if the list runs over). */
-static void leave_port_past(GameState *g, uint16_t list, uint8_t sprites)
+/* One of the `n`th sprite's bytes: what reads a single one of them, and the
+ * lists that may lie over the tables they fill and so are read a byte at a
+ * time, as the original reads them. */
+static uint8_t listed_byte(const GameState *g, uint16_t list, unsigned n, uint8_t field)
 {
-    uint32_t past = (uint32_t)list + 1 + (uint32_t)sprites * ENTRY_BYTES;
+    return wram_read8(g, list_address(list) + 1 + n * ENTRY_BYTES + field);
+}
+
+static ListedSprite listed_sprite(const GameState *g, uint16_t list, unsigned n)
+{
+    return (ListedSprite){ listed_byte(g, list, n, LISTED_TILE), listed_byte(g, list, n, LISTED_ATTRIBUTES),
+                           listed_byte(g, list, n, LISTED_X), listed_byte(g, list, n, LISTED_Y) };
+}
+
+/* The original reads a list through the work RAM port, which it leaves just
+ * past the list's last byte (in the port's second bank, if the list runs
+ * over), the port's bank byte as the routine set it: 0, or for the signed
+ * list's routine the bank's own number. */
+enum { PORT_BANK_ZERO = 0x00, PORT_BANK_NAMED = SOURCE_BANK };
+
+static void leave_port_past(GameState *g, uint8_t bank, uint16_t list, uint8_t sprites)
+{
+    uint32_t past = ((uint32_t)bank << 16 | list) + 1 + (uint32_t)sprites * ENTRY_BYTES;
     hw_port_seek(g, (uint16_t)past, (uint8_t)(past >> 16));
 }
 
@@ -146,23 +174,22 @@ static void load_sprite_list(GameState *g, uint16_t list, bool clipped)
     uint8_t sprites = list_sprites(g, list);
     SpriteCursor c = cursor(g);
     for (unsigned n = 0; n < sprites; n++) {
-        uint32_t at = list_entry(list, n);
-        set_entry(g, c.entry, ENTRY_TILE, wram_read8(g, at));
-        set_entry(g, c.entry, ENTRY_ATTRIBUTES, wram_read8(g, at + 1));
-        /* in the order the original reads and writes them, since a list can
-         * lie over the tables it fills */
+        /* a byte at a time, in the order the original reads and writes them,
+         * since a list of small sprites can lie over the tables it fills */
+        set_entry(g, c.entry, ENTRY_TILE, listed_byte(g, list, n, LISTED_TILE));
+        set_entry(g, c.entry, ENTRY_ATTRIBUTES, listed_byte(g, list, n, LISTED_ATTRIBUTES));
         if (clipped) {
-            place_clipped_x(g, c, wram_read8(g, at + 2));
-            set_entry(g, c.entry, ENTRY_Y, moved_y(g, wram_read8(g, at + 3)));
+            place_clipped_x(g, c, listed_byte(g, list, n, LISTED_X));
+            set_entry(g, c.entry, ENTRY_Y, moved_y(g, listed_byte(g, list, n, LISTED_Y)));
         } else {
-            set_entry(g, c.entry, ENTRY_X, moved_x(g, wram_read8(g, at + 2)));
-            set_entry(g, c.entry, ENTRY_Y, moved_y(g, wram_read8(g, at + 3)));
+            set_entry(g, c.entry, ENTRY_X, moved_x(g, listed_byte(g, list, n, LISTED_X)));
+            set_entry(g, c.entry, ENTRY_Y, moved_y(g, listed_byte(g, list, n, LISTED_Y)));
             shift_in_small(g, c.high);
         }
         next_entry(&c);
     }
     set_cursor(g, c);
-    ORIGINAL_EFFECT(leave_port_past(g, list, sprites));
+    ORIGINAL_EFFECT(leave_port_past(g, PORT_BANK_ZERO, list, sprites));
     ORIGINAL_EFFECT(set_scene_sprite_list_left(g, 0));
 }
 
@@ -194,11 +221,12 @@ void scene_draw_large_sprite_list(GameState *g, uint16_t list, SceneLargeList fo
     uint8_t sprites = list_sprites(g, list);
     SpriteCursor c = cursor(g);
     for (unsigned n = 0; n < sprites; n++) {
-        uint32_t at = list_entry(list, n);
-        set_entry(g, c.entry, ENTRY_TILE, wram_read8(g, at));
-        set_entry(g, c.entry, ENTRY_ATTRIBUTES, wram_read8(g, at + 1));
-        set_entry(g, c.entry, ENTRY_X, moved_x(g, wram_read8(g, at + 2)));
-        uint16_t y = large_list_y(g, wram_read8(g, at + 3));
+        /* a byte at a time, as the original reads them: the list can lie over
+         * the tables it fills */
+        set_entry(g, c.entry, ENTRY_TILE, listed_byte(g, list, n, LISTED_TILE));
+        set_entry(g, c.entry, ENTRY_ATTRIBUTES, listed_byte(g, list, n, LISTED_ATTRIBUTES));
+        set_entry(g, c.entry, ENTRY_X, moved_x(g, listed_byte(g, list, n, LISTED_X)));
+        uint16_t y = large_list_y(g, listed_byte(g, list, n, LISTED_Y));
         if (form == LIST_LEAVES_OUT_BELOW_THE_PICTURE && y >= BELOW_THE_PICTURE)
             continue;
         set_entry(g, c.entry, ENTRY_Y, (uint8_t)y);
@@ -206,8 +234,69 @@ void scene_draw_large_sprite_list(GameState *g, uint16_t list, SceneLargeList fo
         next_entry(&c);
     }
     set_cursor(g, c);
-    ORIGINAL_EFFECT(leave_port_past(g, list, sprites));
+    ORIGINAL_EFFECT(leave_port_past(g, PORT_BANK_ZERO, list, sprites));
     ORIGINAL_EFFECT(set_scene_sprite_list_left(g, 0));
+}
+
+/* A list with signed offsets: an entry's X and Y count from the scene's
+ * offsets, both whole words, either way; its attributes carry its size, a
+ * bit that isn't kept in the table. */
+enum { SIGNED_LIST_LARGE = 0x10 };
+
+static int16_t signed_list_x(const GameState *g, uint8_t list_x)
+{
+    return (int16_t)(uint16_t)((int8_t)list_x + scene_sprite_offset_x(g));
+}
+
+static int16_t signed_list_y(const GameState *g, uint8_t list_y)
+{
+    return (int16_t)(uint16_t)((int8_t)list_y + offset_y_word(g));
+}
+
+/* A sprite at or past the right edge, or above or below the picture, shows
+ * nowhere: it goes below the picture. */
+static bool past_the_right_edge(int16_t x) { return x >= SCREEN_RIGHT; }
+static uint8_t shown_y(int16_t y) { return y < 0 || y >= BELOW_THE_PICTURE ? BELOW_THE_PICTURE : (uint8_t)y; }
+
+/* What the original's drawing leaves in its cells: the work RAM port past the
+ * list, the count run down, and the last sprite's attributes, which it keeps
+ * to test the sprite's size. */
+static void leave_signed_list_drawn(GameState *g, uint16_t list, uint8_t sprites)
+{
+    leave_port_past(g, PORT_BANK_NAMED, list, sprites);
+    set_scene_sprite_list_left(g, 0);
+    if (sprites)
+        set_scene_sprite_list_attributes(g, listed_byte(g, list, sprites - 1u, LISTED_ATTRIBUTES));
+}
+
+// $7E:3A97
+/* Copy the list at `list` into the sprite table, each sprite placed by its
+ * signed offsets from the scene's and as large as its attributes say. A sprite
+ * left of the picture shows as far in from its left edge as X's low byte says
+ * (X's 9th bit); one that would start past the right edge goes below the
+ * picture, small, its X in the table left as it was. The cursor moves on past
+ * them. */
+void scene_draw_signed_sprite_list(GameState *g, uint16_t list)
+{
+    uint8_t sprites = list_sprites(g, list);
+    SpriteCursor c = cursor(g);
+    for (unsigned n = 0; n < sprites; n++) {
+        ListedSprite sprite = listed_sprite(g, list, n);
+        set_entry(g, c.entry, ENTRY_TILE, sprite.tile);
+        set_entry(g, c.entry, ENTRY_ATTRIBUTES, (uint8_t)(sprite.attributes & ~SIGNED_LIST_LARGE));
+        int16_t x = signed_list_x(g, sprite.x);
+        if (past_the_right_edge(x)) {
+            shift_in(g, c.high, 0);
+            set_entry(g, c.entry, ENTRY_Y, BELOW_THE_PICTURE);
+        } else {
+            set_entry(g, c.entry, ENTRY_X, (uint8_t)x);
+            shift_in(g, c.high, (uint8_t)((sprite.attributes & SIGNED_LIST_LARGE ? HIGH_LARGE : 0) | (x < 0 ? HIGH_X9 : 0)));
+            set_entry(g, c.entry, ENTRY_Y, shown_y(signed_list_y(g, sprite.y)));
+        }
+        next_entry(&c);
+    }
+    set_cursor(g, c);
+    ORIGINAL_EFFECT(leave_signed_list_drawn(g, list, sprites));
 }
 
 // $C3:0DBC, $C3:0DF3
@@ -407,10 +496,9 @@ static ClippedListLeaves clipped_list_leaves(const GameState *g, uint16_t list, 
 {
     uint8_t sprites = list_sprites(g, list);
     if (sprites) {
-        uint32_t last = list_entry(list, sprites - 1u);
-        uint16_t x = clipped_x(g, wram_read8(g, last + 2));
+        uint16_t x = clipped_x(g, listed_byte(g, list, sprites - 1u, LISTED_X));
         uint16_t stored = past_the_right(x) ? 0x9801 : x;
-        uint8_t y = wram_read8(g, last + 3), offset = (uint8_t)scene_sprite_offset_y(g);
+        uint8_t y = listed_byte(g, list, sprites - 1u, LISTED_Y), offset = (uint8_t)scene_sprite_offset_y(g);
         uint8_t sum = (uint8_t)(y + offset);
         a = (uint16_t)(((uint16_t)(stored << 1) & 0xFF00) | (a & 0xFF));
         overflow = (~(y ^ offset) & (y ^ sum) & 0x80) != 0;
@@ -472,7 +560,7 @@ static uint16_t large_list_leaves_a(const GameState *g, uint16_t list, SceneLarg
     uint8_t sprites = list_sprites(g, list);
     if (!sprites)
         return (uint16_t)((list & 0xFF00) | wram_read8(g, list_address(list)));
-    uint16_t y = large_list_y(g, wram_read8(g, list_entry(list, sprites - 1u) + 3));
+    uint16_t y = large_list_y(g, listed_byte(g, list, sprites - 1u, LISTED_Y));
     if (form == LIST_LEAVES_OUT_BELOW_THE_PICTURE && y >= BELOW_THE_PICTURE)
         return y;
     return (uint16_t)((y & 0xFF00) | (scene_sprite_index(g) & (ENTRY_BYTES * SPRITES_PER_HIGH_BYTE - 1)));
@@ -489,6 +577,46 @@ void scene_draw_large_sprite_list_entry(Snes *s)
     s->cpu.y = scene_sprite_index(g);
     ORIGINAL_EFFECT(s->cpu.a = large_list_leaves_a(g, list, form));
     m_rts(s);
+}
+
+/* What the signed list leaves in A: the next free entry's place in its group
+ * of four, over the high byte of its last sprite's X where that sprite went
+ * past the right edge (0 otherwise); with no sprite, its count. */
+static uint16_t signed_list_leaves_a(const GameState *g, uint16_t list)
+{
+    uint8_t sprites = list_sprites(g, list);
+    if (!sprites)
+        return wram_read8(g, list_address(list));
+    int16_t x = signed_list_x(g, listed_byte(g, list, sprites - 1u, LISTED_X));
+    uint16_t high = past_the_right_edge(x) ? (uint16_t)((uint16_t)x & 0xFF00) : 0;
+    return (uint16_t)(high | (scene_sprite_index(g) & (ENTRY_BYTES * SPRITES_PER_HIGH_BYTE - 1)));
+}
+
+/* The list at A; back, Y is the next free entry, as the routine keeps it in
+ * its cells, with 16-bit A. */
+void scene_draw_signed_sprite_list_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint16_t list = s->cpu.a;
+    scene_draw_signed_sprite_list(g, list);
+    s->cpu.y = scene_sprite_index(g);
+    ORIGINAL_EFFECT(s->cpu.a = signed_list_leaves_a(g, list));
+    m_rtl(s);
+}
+
+/* Where the original keeps a sprite's attributes while it places it. */
+enum { ATTRIBUTES_CELL = RAM_SCENE_SPRITE_LIST_ATTRIBUTES & 0xFFFF };
+
+/* The routine's code, on the scene's page; a list clear of the sprite tables
+ * and of the cells the original works in, which it reads back as it goes. */
+bool scene_signed_sprite_list_fits(Snes *s)
+{
+    if (!m_code_matches(s, 0x7E3A92, 0xB6, 0x25F432D70AF1A949ull) || !list_fits(s, true))
+        return false;
+    uint16_t list = s->cpu.a;
+    unsigned sprites = (uint8_t)(snes_bus_peek(&s->bus, list_address(list)) - 1);
+    uint32_t end = (uint32_t)list + 1 + sprites * ENTRY_BYTES;
+    return !(list <= ATTRIBUTES_CELL && end > ATTRIBUTES_CELL);
 }
 
 /* The routine's code, but for the two words of it a caller writes: the test
@@ -510,7 +638,7 @@ static bool leaves_out_no_more_than_its_last(const GameState *g, uint16_t list)
 {
     uint8_t sprites = list_sprites(g, list);
     for (unsigned n = 0; n < sprites; n++)
-        if (large_list_y(g, wram_read8(g, list_entry(list, n) + 3)) >= BELOW_THE_PICTURE)
+        if (large_list_y(g, listed_byte(g, list, n, LISTED_Y)) >= BELOW_THE_PICTURE)
             return n + 1u == sprites && scene_sprite_list_left_high(g) == 0;
     return true;
 }

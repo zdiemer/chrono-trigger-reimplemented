@@ -10212,3 +10212,191 @@ again (`--drifted`): the field's screen effects and the event command that
 runs them, whose screens' values are now written a field at a time (3,484
 and 5,212), and the fireworks, which read their bursts' frames through the
 map (7,461). No exception.
+
+## Phase 4a, the shipping mode's fallbacks, chunk 5: the battle's menu line and the party's poses, the dactyls on the 65,000,000 B.C. map, the scroll bar's task, and the endings' Mode 7 tiles (`$C1:0012`, `$C1:1B19`-`$C1:1BAA`, `$C1:354D`-`$C1:3713`, `$C1:BD6F`, `$C2:4CC5`-`$C2:5627`, `$C2:6400`, `$C2:65B2`, `$C2:77F2`, `$C2:8BB8`-`$C2:8C33`, `$C2:A5C3`, `$C2:A5E7`, `$7E:5E3C`, `$7E:5EF8`)
+
+The battle's, the menus' and the scene program's streams together again
+(history file, "Phase 4a, the shipping mode's fallbacks, chunk 4", for the one
+before), chosen, as the last four were, by what the shipping mode still ran as
+the original.
+
+**How it was chosen.** The last gate's shipping mode ran 1.52 M instructions
+of the original's code (the movies 0.89 M, the routes 0.63 M). Over the movies
+its largest lines were the menus' code after a task's wait (`C2:----`, 0.19 M,
+most of it the scroll bar's task), the Day of Lavos's turning world sampling
+and placing the world map (`C2:6400`, `C2:6453`, `C2:65B2`, 0.20 M, the
+scene's script calling them directly), the equipment screen's preview
+(`C2:A5E7`, 93 K), the party's poses (`C1:369A`, 79 K, with the opening that
+goes into them, `C1:0042`) and the battle menu's turn (`C1:0012`, 52 K); over
+the routes the endings' Mode 7 tiles (`7E:5EF8`, 0.20 M) and the menu's turn
+(0.15 M). The menu's turn calls the line of members waiting for the menu
+(`$C1:1B67`, already C), so the line's two steps came with it; the poses'
+victory and defeat are the battle's steps 8 and 9; the dactyls
+(`$C2:4CC5`-`$C2:5627`) were the bank's last unported run, which
+`field-65m-bc-dactyl.ctm` rides. The list's cursor kept within its rows
+(`$C2:EA53`) was left: five call sites in four bridges, each reading registers
+it leaves (TODO.md).
+
+**What it is.**
+- The party's line for the battle menu (`battle/menu_line.c`, new): a member
+  whose turn comes joins the line with the turn's chime (`$C1:1B19`, the
+  battle's step 1), the first in line takes the menu at the menu's turn
+  (`$C1:1B67`, moved from `frame_step.c`), and a member whose action is
+  called off steps out of the line or gives its slot up, the menu handed on
+  (`$C1:1BAA`, step 2; `battle_hand_the_menu_on`, which the queued action
+  in `menu_input.c` now shares). The menu's turn by the frame wait's long
+  call (`$C1:0012`, `$C1:10E3`) is the frame step's turn without its tail.
+- The party's poses (`battle/party_poses.c`, new): loaded from the opening's,
+  the victory's or the defeat's animation (`$C1:35DD`), stepped every other
+  frame for 64 (`$C1:369A`), the waits and the frame work's tail the battle's
+  bridges; the opening (`$C1:0042`) goes into them as C; the victory (`$C1:356D`,
+  step 8) sees the fight's leftovers off and takes each member's menu away a
+  frame apart before its poses, unless the battle is set up without them
+  (`BATTLE_SETUP_NO_VICTORY_POSE`); the defeat (`$C1:354D`, step 9).
+- A hasted or slowed combatant's turn wait as it starts again (`$C1:BD6F`,
+  `battle_restart_turn_wait`, which the members' turns already called as C):
+  worked out from the full wait and handed back, and called as C by the
+  enemies' turns too.
+- The dactyls (`overworld/dactyl.c`, new): the leader's dactyl as the
+  vehicle (`$C2:4CC5`), taking off, flown by the pad, coming down where the
+  ground is open; the other two in a V behind it (`$C2:5097`), each heading
+  for its place every fourth frame by the arctangent (`$C2:229D`), slowing so
+  as not to pass it, gliding onto the leader's spot as it lands; and each
+  one's second sprite (`$C2:504B`, `$C2:5494`). What the leader's shares
+  with the Epoch -- its state's bits, rising, flying a tile at a time on the
+  pad's word, steering, coming down where it may, landing -- is one module in
+  `vehicles.c` ("In the air"), keyed by `Vehicle`, which both handlers call,
+  with what differs (the Epoch's time gate, Black Omen, song and six tiles of
+  ground; the dactyl's highest walls, palette and followers) said where it
+  differs; the walkers' pieces moved into `party.c` and `terrain.c`.
+- The menus: the scroll bar's task (`$C2:8BB8`, and `$C2:8C33` after its
+  wait), whose frame (`menu/held_cursors.c`) was C already, a loop of the
+  tasks' own (`menu/tasks.c`) that waits for the next frame as the main and
+  the cursor's tasks do, the wait run as C; the top layer's fast drift
+  (`$C2:77F2`, `drift` taking the velocity); the equipment screen's preview
+  (`$C2:A5C3`, `$C2:A5E7`, `menu_equip_try_on`): the item tried on and the
+  figures it would change marked up or down, one try-on with the shop's
+  (`menu_try_on`, `menu_mark_the_figures_tried_on`, `menu/figures.c`; the
+  windows' tables of figures `menu_data.h`'s accessors), called as C by the
+  item step's bridge; and the Day of Lavos's two calls into the Epoch's map
+  view (`$C2:6400`, `$C2:65B2`), the pieces `epoch.c` already had, now
+  registered with the registers the scene's script reads after.
+- The scene program: the eight-plane tile expansion (`$7E:5EF8`), one
+  function with the title's four-plane one (`scene_expand_plane_tile`), and
+  the endings' loop over the Mode 7 picture's 164 tiles (`$7E:5E3C`) as C,
+  writing the code patches the program's state keeps.
+
+**How the menu's turn leaves the carry.** The frame wait (`$CD:3E75`) used to
+call the original's turn, which runs the menu's frame (`$C1:1153`) and the
+cursors' (`$C1:17DD`); the cursors pass the frame's carry on where no cursor
+is placed, and the frame's own carry is declared don't-care on library
+evidence (its registry note). Run as C, the turn leaves the port's carry, and
+the waits' comparison at their return found it differing at 13 of their 43,351
+calls in the six movies that fight Lavos or in the Black Omen. Liveness has it
+read after the waits, through the same battle messages' frame waits into the
+same multiply, so the two waits declare it with the same kind of note (`ct_dev
+--poison-return`, re-made by the gate's `--evidence`): 11,814 returns of the
+wait for the next frame (8,753 of them to a bridge) and 339 of the wait for
+some frames with the carry inverted, and every movie's trace the same. The menu's frame's own note
+counted its returns to the original's turn, which is gone, so
+`--poison-return` now also inverts a port's registers where a battle bridge
+runs it as C and goes on with them (`native_poison_sibling_return`,
+`battle/bridge.c`): 54,108 of the frame's returns, every one to a bridge.
+A bridge may set the registers again at once (the step dispatch does), so
+such a return tests less than one to the original's code: `ct_dev` counts
+them apart, and each note says how many of its returns were to a bridge.
+
+**What shadow mode and fuzzing found.** Over the 36 movies, 0 mismatching once
+the waits declare the carry: the menu's turn 37,511 calls (26,407 compared on
+their own, the rest inside the frame wait's); the step of the poses 3,008, the
+calling off 94 and the opening 38, compared on their own; the line's joining
+(588), the poses (47), the victory (25) and the defeat (2) span frames or run
+inside the step dispatch's stretch, which compares them; the dactyls 313 and
+626 calls; the scroll bar's task 9,890 and 8,761; the fast drift 139; the
+eight-plane expansion 148 of 164 (16 interrupted); the Day of Lavos's two 1
+and 2 (one interrupted). Shadow mode and fuzzing found the poses' member
+counter a word (`battle_party_pose_member`), the victory's palette copy
+reading A's high byte after the frame's tail (the port goes on as the original
+from there where it is set, which the game never does) and the calling off's
+carry read by the step's asker; a loose follower's offsets breaking with the
+leader's spot off the map (the guard now asks it on), and the turn's joining
+reading A's high byte. **Fuzzing** (seed 1, `tools/fuzz_routines.toml`): 0
+mismatching everywhere, and against a build of the last commit the same counts
+for every entry the chunk changed (the frame wait and its callers, the
+opening, the item step, the timers' dispatch, the scroll bar's start, the
+title's expansion): the menu's turn 3,000 of 3,000, the joining 3,955 of 5,000
+(the rest past the budget), the calling off and the step of the poses 5,000
+each, the poses 3,000 up to their first wait; the victory and the defeat 2 of
+3,000 each, the rest past the first call-out's budget (TODO.md); the dactyls
+5,000, 3,000, 4,939 and 5,000, and the followers loose 10,310 of 20,000 (the
+guard refuses the rest); the scroll bar's task 20,000 and 20,000; the fast
+drift 2,000; the Day of Lavos's two 300 and 2,000; the eight-plane expansion
+2,000, and loose 1,978.
+
+**Measured.** The shipping mode over the movies: 4.6 KiB of code and 0.21 M
+instructions in place of hand ports, from 8.4 KiB and 0.89 M; over the routes,
+counted over the frames they keep, 0.09 M from 0.63 M (the Mode 7 tiles' and
+the menu's turn's lines); movies and routes together 5.6 KiB and 0.30 M from
+9.6 KiB and 1.52 M, with `C1:0012`, `C1:369A`, `C1:0042`, `C2:6400`-`C2:65B2`,
+`C2:A5E7`, `7E:5EF8` and the dactyls' lines gone and the menus' code after a
+wait (`C2:----`) down to 64 K. What leads now is that line, the swept window's
+rider (`7E:3A97`, 46 K), the healing's digits (`C2:9093`, 29 K), the list's
+cursor (`C2:EA53`, 24 K) and the attract program's frame tasks (`7E:66B0`,
+`7E:63D5`, `7E:64BF`). The reference play: 12.82 M from 13.90 M over the 36
+movies, 14.0 KiB from 18.0 KiB. The baseline takes the gain, with two new
+lines: the scroll bar's task handing back at the menus' wait for the frame's
+uploads (`C2:8BB8`, `C2:8C33`, 41 and 2,521 instructions), an idle entry, where
+its task is the frame's last to run, as the cursor's task does at `C2:E921`. No refusal
+in real play; the native shape runs all 36 movies and reaches all ten routes'
+outcomes. `--misses` lists nothing over `field-65m-bc-dactyl`,
+`battle-lavos-gameover`, `late-omen-battles`, `gato-battle`,
+`menus-shop-equip`, `menus-field-menu`, `field-12kbc-1f4`, `title-start` and
+`endings-beyond-time`, and `--px-check` reports every frame of the nine
+identical. One new entry is past the uncompared check's floor, the line's
+joining (588 calls, all inside the step dispatch's stretch), with its reason
+in the baseline.
+
+**After the review.** The review (one per merge) found no file a
+translation and eleven lapses, all fixed: the scroll bar's task stopped at
+its JSR to the task switch, a port, where it now waits through `tasks.c`'s
+loop wait as the main and the cursor's tasks do (its kept flags declared and
+tested, `tests/test_menu_task_waits.py`), which took its fallback lines from
+1,129 and 8,761 instructions to the idle wait's 41 and 2,521; the following
+dactyl's stray way faced before, taken from the map's scroll, is marked
+scaffolding (its effects line gone, and ten added for the cells the slots
+lie over, each read after a plain write); the equipment screen's try-on indexed its figures from the menus'
+zero cell, which its guard and the item step's now refuse unless 0 (a fuzz
+variant with the cell random: 1,997 of 2,000 mismatched before, all refused
+now); the dactyl's and the Epoch's flight became one module keyed by
+`Vehicle`; the poses use `animation.c`'s list reader and kept lists, writing
+the lists once and the frames left as scaffolding, and one
+`battle_give_the_party_poses` serves the opening, the victory and the
+defeat; the try-on is one with the shop's and reads the windows' tables of
+figures through accessors; the endings' Mode 7 tiles are a `GameState`
+function, the dead Y write gone; the expansion returns nothing and the tile's
+size is one definition (`scene_plane_tile_bytes`), its guard also refusing a
+tile past low RAM (5 of 2,000 fuzzed states mismatched there before); and
+`battle_restart_turn_wait` works the wait out from the full wait and hands it
+back, where its callers wrote the cell for it to read. Shadow over the 36
+movies, 0 mismatching; `fuzz_compare` against the reviewed commit's build,
+seed 1, the same on all 33 of the overworld's entries and 83 of the 84
+battle, menu and scene entries the fixes reach, the 84th the zero cell's
+variant above; the don't-care check and the effects ratchet clean.
+
+**Timing.** Calibrated (`--drifted`) from a shadow pass over the library: the
+new entries -- the dactyls between 5,653 and 8,843, the scroll bar's task
+4,530 and 4,690, the menu's turn 3,967, the line's joining 4,414 and calling
+off 6,523, the poses 8,410 and their step 16,160, the victory 5,951, and the
+eight-plane expansion 33,350 (its own accesses few beside the picture's bytes
+it writes) -- and the entries whose work moved into or out of them: the frame
+waits (1,971 and 2,492), the transfers and the return to the field that wait
+through the turn (3,068, 8,963, and the long transfer 1, nearly all its time
+the turn's, a part now), the turn's giving (6,685), the calling off a waiting
+member (4,196), the main task (702) and the equipment screen's slot and item
+steps (7,499 and 15,992, the item's with the preview inside; after the
+review the scroll bar's task 3,245 and 3,448, its wait now a part, the item
+step 14,276, the shop's try-on, compare and choosing, the members' tech
+waits and turn's end, and the Epoch again). The defeat and
+the Day of Lavos's two, with one or two stretches each, take what those
+calibrate to (2,464, 30,988 and 4,408); the fast drift calibrates to the
+drift's own value (2,766). No exception.

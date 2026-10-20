@@ -20,6 +20,14 @@
  * past the rows it shows (its frame, the original's $C2:EA81, counts them). */
 bool menu_list_scrolls(const GameState *g);
 
+/* The cursor pushed along the list ($C2:EA53): a list that scrolls scrolls a
+ * row where the push took the cursor past its rows (menu_list_scrolls_a_row),
+ * which its screen does, and keeps a held Start repeating fast; one that
+ * doesn't wraps the cursor round its places. Its entry and the screens'
+ * steps' run of it are in menu/bridge.h. */
+void menu_keep_the_cursor_on_the_list(GameState *g);
+bool menu_list_scrolls_a_row(const GameState *g);
+
 /* Whether the list slid up (its step negative, as its low byte has it). */
 bool menu_list_slid_up(const GameState *g);
 

@@ -12,8 +12,8 @@
  * the calls; so are the equipping's steps' own (a member chosen, its slots,
  * the shoulders' switch), which wait for frames, and the equipment screen's
  * list of what fits and its move along. What is still the original's: a
- * list's cursor's move, its frame, and the frame's wait. The shop's way out
- * and its fade in are jumps the bridges stop at.
+ * list's frame and the frame's wait. The shop's way out and its fade in are
+ * jumps the bridges stop at.
  *
  * Before each of those calls a bridge leaves the registers and flags the
  * original's own instructions left there, worked out from the state (the
@@ -45,7 +45,6 @@
 
 enum {
     YIELD = 0xC2821E,              /* the task waits for the next frame */
-    MOVE_IN_LIST = 0xC2EA53,       /* the cursor kept within a list's rows */
     FRAME_THE_LIST = 0xC2EA81,     /* a scrolling list's frame laid out: Y places */
     LEAVE_THE_SHOP = 0xC282B2,     /* the menus' way out */
     FADE_IN = 0xC283B2,            /* the screen's fade in started */
@@ -67,7 +66,6 @@ enum {
     READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
 };
 
-static bool call(Snes *s, uint32_t site, uint32_t routine) { return menu_call(s, site, routine, READS_NOTHING); }
 static bool yield(Snes *s, uint32_t site) { return menu_call(s, site, YIELD, READS_NOTHING); }
 static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, CURSOR_SOUND, menu_play_cursor_sound); }
 
@@ -144,9 +142,8 @@ void menu_open_shop(Snes *s)
 }
 
 // $C2:DACA
-/* The shop's windows and goods, the description of nothing (the
- * original's), the colours and the members, the panel (its own), and the
- * prices and layers. */
+/* The shop's windows and goods, the description of nothing, the colours
+ * and the members, the panel (its own), and the prices and layers. */
 void menu_set_up_shop(Snes *s)
 {
     GameState *g = state_of(s);
@@ -202,8 +199,7 @@ void menu_show_shop_item_panel(Snes *s)
 
 // $C2:D546
 /* A tab chosen opens its list, with a tick; going back leaves the shop; up
- * or down goes to the members (the original's); a tick where the cursor
- * moved. */
+ * or down goes to the members; a tick where the cursor moved. */
 void menu_choose_shop_tab(Snes *s)
 {
     GameState *g = state_of(s);
@@ -245,8 +241,9 @@ void menu_choose_shop_tab(Snes *s)
 /* ---- The lists ----------------------------------------------------------------------------------- */
 
 // $C2:DD40
-/* A list's frame (the original's): eight rows shown from the first, the
- * scroll bar's track a whole list's, the list's count in Y. */
+/* A list's frame: eight rows shown from the first, the scroll bar's track
+ * a whole list's, and the original's frame laid out with the list's count
+ * in Y. */
 enum { LIST_BAR_TRACK = 0x5400 };
 
 void menu_frame_shop_list(Snes *s)
@@ -324,9 +321,9 @@ void menu_open_for_sale_list(Snes *s)
     m_rts(s);
 }
 
-/* The row the cursor is on taken and described (the original's); the
- * panel where the place is another (its own); a tick where the cursor
- * moved; the list queued. */
+/* The row the cursor is on taken and described; the panel where the
+ * place is another (its own); a tick where the cursor moved; the list
+ * queued. */
 static void take_the_row(Snes *s, bool selling)
 {
     GameState *g = state_of(s);
@@ -349,9 +346,9 @@ static void take_the_row(Snes *s, bool selling)
     m_rts(s);
 }
 
-/* The list slid a row: started (the original's), the row coming in drawn,
- * a tick, the frames (each the original's, waiting for the next), the rows
- * at rest, and the row taken. */
+/* The list slid a row: started, the row coming in drawn, a tick, the
+ * frames (each waiting for the next, the original's wait), the rows at
+ * rest, and the row taken. */
 static void slide_the_list(Snes *s, bool selling)
 {
     GameState *g = state_of(s);
@@ -376,8 +373,8 @@ static void slide_the_list(Snes *s, bool selling)
 
 // $C2:D7CF, $C2:D8B2
 /* Pointing along a list: a page turned, the rows drawn again and a
- * frame's wait; or the cursor moved within the rows
- * (the original's), a push past them sliding the list. Then the row. */
+ * frame's wait; or the cursor kept on the list's rows, a push past them
+ * sliding the list. Then the row. */
 static void point_along(Snes *s, bool selling)
 {
     GameState *g = state_of(s);
@@ -391,8 +388,7 @@ static void point_along(Snes *s, bool selling)
         take_the_row(s, selling);
         return;
     }
-    if (!call(s, selling ? 0xC2D8CF : 0xC2D7EC, MOVE_IN_LIST))
-        return;
+    menu_step_keeps_the_cursor_on_the_list(s);
     if (menu_shop_list_slide_brings_a_row(g, selling)) {
         slide_the_list(s, selling);
         return;
@@ -401,8 +397,8 @@ static void point_along(Snes *s, bool selling)
 }
 
 /* Going back from a list to the tabs: the panel for nothing (its own), a
- * tick, the tabs, and on to the description of nothing (the original's
- * jump). */
+ * tick, the tabs, and on to the description of nothing, where the original
+ * jumps. */
 static void back_to_the_tabs(Snes *s, bool selling)
 {
     GameState *g = state_of(s);

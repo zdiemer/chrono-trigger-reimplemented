@@ -20,10 +20,7 @@
  *
  * This file is what the game does; item_screen_bridge.c runs it on the
  * original's machine, calling out between the parts here to what is still
- * the original's: the setting aside of the party's items, the list's frame,
- * paging and sliding, the scroll bar's and the second cursor's tasks, the
- * description, the restoring of HP and MP and the figures worked out again,
- * the frames the screen waits. */
+ * the original's: the list's frame and the frames the screen waits. */
 #include "menu/item_screen.h"
 
 #include "charge.h"
@@ -414,7 +411,7 @@ enum { FIRST_PAST_THE_ENDS = 0xF0 };
 
 bool menu_items_slide_brings_a_row(const GameState *g)
 {
-    if (!menu_list_scrolls(g) || !menu_pushed(g, MENU_PUSHED_PAST_AN_EDGE))
+    if (!menu_list_scrolls_a_row(g))
         return false;
     uint8_t before_the_cursor = (uint8_t)(menu_cursor_index(g) + menu_item_list_top(g) - 1);
     return before_the_cursor < FIRST_PAST_THE_ENDS;
@@ -746,8 +743,7 @@ void menu_items_start_member_choice(GameState *g)
 }
 
 /* The window over the list, the seventh record's sprite unset (the records'
- * reset, the original's $C2:F566, comes next), and the window's per-line
- * tables. */
+ * reset, $C2:F566, comes next), and the window's per-line tables. */
 enum { MEMBER_WINDOW = 0xC0E4, LAST_RECORD = 7, NO_SPRITE = 0xFF };
 
 void menu_items_lay_out_member_window_lines(GameState *g)
@@ -885,8 +881,8 @@ bool menu_items_use_helps(const GameState *g) { return menu_use_helps(g) != 0; }
 
 /* A tab used: its sparkle's colours, and the amounts the members' rows show
  * (their HP's three then their MP's): none but a 1 at the member's place,
- * the original's index taken in two bits. The original's showing of them
- * ($C2:8F6C) comes next. */
+ * the original's index taken in two bits. Their showing ($C2:8F6C) comes
+ * next. */
 enum { SPARKLE_COLOURS = 4, FIRST_SPARKLE_COLOUR = 0x84, SHOWN_NONE = 0xFFFF, SHOWN_RAISED = 1, SHOWN_PLACE_BITS = 0x03 };
 
 void menu_items_show_the_raise(GameState *g)

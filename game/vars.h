@@ -13005,6 +13005,11 @@ void set_scene_race_buttons(GameState *g, uint16_t v);
 uint16_t scene_frame_counter(const GameState *g);
 void set_scene_frame_counter(GameState *g, uint16_t v);
 
+/* The attributes of the sprite the program's list with signed offsets ($7E:3A97) is placing,
+ * kept to test its size: scaffolding, the last sprite's as the list leaves it */
+uint8_t scene_sprite_list_attributes(const GameState *g);
+void set_scene_sprite_list_attributes(GameState *g, uint8_t v);
+
 /* OAM address the sprite upload leaves set with priority rotation on: the entry that draws on
  * top */
 uint8_t scene_sprite_priority_start(const GameState *g);

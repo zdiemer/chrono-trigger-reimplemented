@@ -4,10 +4,10 @@
 # A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes
 # on one, is a new fallback, and needs its reason. An `open PORT` line is what the original ran
 # under that port's comparisons still open when a run ended, which hides it from the rest.
-7E:---- 228258 1847  # no port yet (scene program (RAM))
-7E:3023 29631 8  # handback by attract_frame_pass (scene program (RAM))
+7E:---- 99477 1847  # no port yet (scene program (RAM))
+7E:3023 11133 8  # handback by attract_frame_pass (scene program (RAM))
 7E:3092 849 51  # handback by scene_clear_work_ram (scene program (RAM))
-7E:3176 50481 1  # handback by scene_boot, scene_run_vblank_tasks (scene program (RAM))
+7E:3176 1388 1  # handback by scene_boot, scene_run_vblank_tasks (scene program (RAM))
 7E:31B0 406 15  # handback by scene_boot (scene program (RAM))
 7E:3443 768 5  # no port yet (scene program (RAM))
 7E:347A 19 1  # handback by scene_run_frame_tasks (scene program (RAM))
@@ -23,7 +23,6 @@
 7E:37F3 810 7  # handback by scene_run_frame_tasks, scene_run_sequence (scene program (RAM))
 7E:38AF 23445 20  # handback by scene_boot, scene_run_frame_tasks, scene_run_sequence and 1 more (scene program (RAM))
 7E:395E 250 22  # handback by scene_boot, scene_run_frame_tasks (scene program (RAM))
-7E:3A97 46352 149  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:3EB7 1230 22  # no port yet (scene program (RAM))
 7E:3ECD 28224 71  # no port yet (scene program (RAM))
 7E:3ED3 98672 65  # no port yet (scene program (RAM))
@@ -88,40 +87,32 @@
 7E:9F8A 11 31  # handback by scene_run_sequence (scene program (RAM))
 7E:9FC8 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:9FEA 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
-C0:---- 217642 690  # no port yet (field engine, events)
-C0:00BA 2502738 11  # handback by field_wait_for_the_next_frame (field engine, events)
+C0:---- 217402 675  # no port yet (field engine, events)
+C0:00BA 627239 6  # handback by field_wait_for_the_next_frame (field engine, events)
 C0:0B38 724 5  # handback by field_enter, field_fade_in, field_fade_in_after_a_menu (field engine, events)
 C0:597D 667 92  # handback by field_bring_the_party_back (field engine, events)
-C0:5A93 1377 10  # handback by event_run_object_script (field engine, events)
+C0:5A93 78 5  # handback by event_run_object_script (field engine, events)
 C0:74D4 539 20  # handback by field_frame (field engine, events)
 C0:74E8 444 22  # handback by field_frame (field engine, events)
 C0:74F7 84 22  # handback by field_frame (field engine, events)
 C0:9AC8 2445 33  # no port yet (field engine, events)
 C0:9AD3 5526 157  # no port yet (field engine, events)
-C0:EC60 69726 11  # handback by field_finish_frame (field engine, events)
-C0:ECCC 653733 7  # handback by field_irq (field engine, events)
-C1:0023 3882 47  # handback by battle_main_loop_start (battle)
-C1:007E 170 5  # handback by battle_build_bitmap_shapes, battle_carry_out_member_action, battle_dispatch_expired_timers and 4 more (battle)
+C0:EC60 18072 6  # handback by field_finish_frame (field engine, events)
+C1:0023 2470 42  # handback by battle_main_loop_start (battle)
 C1:34A7 4291 52  # handback by battle_main_loop_start (battle)
-C1:4C9E 330 5  # handback by battle_run_scripts (battle)
-C1:8231 10 5  # handback by battle_tick_timers (battle)
-C1:8290 20 5  # handback by battle_dispatch_expired_timers (battle)
-C1:8345 25 5  # handback by battle_main_loop_tail (battle)
 C1:BFA4 2970 6  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_show_status_number (battle)
-C2:---- 1449369 4743  # no port yet (menus, text, overworld)
+C2:---- 338735 4719  # no port yet (menus, text, overworld)
 C2:0009 16 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
-C2:0346 3840 5  # handback by overworld_back_from_the_menus, overworld_main_loop (menus, text, overworld)
+C2:0346 2304 5  # handback by overworld_back_from_the_menus, overworld_main_loop (menus, text, overworld)
 C2:0454 3161 32  # handback by overworld_back_from_the_menus, overworld_main_loop (menus, text, overworld)
-C2:046E 158792 5  # handback by overworld_main_loop (menus, text, overworld)
+C2:046E 95280 5  # handback by overworld_main_loop (menus, text, overworld)
 C2:5DC4 32213 114  # no port yet (menus, text, overworld)
 C2:5F5A 2180 88  # no port yet (menus, text, overworld)
 C2:8000 60 2  # handback by field_frame, overworld_main_loop (menus, text, overworld)
 C2:800E 479 47  # handback by menu_mode_start (menus, text, overworld)
 C2:813C 1000 46  # handback by menu_choose_equipment_item (menus, text, overworld)
-C2:81B9 82 5  # the wait for the frame's uploads the port stops at ($C2:81CA): the pass that leaves the idle loop, which the measure keeps counted (menus, text, overworld)
-C2:8216 8 5  # the wait for the frame's uploads the port stops at ($C2:81CA): the pass that leaves the idle loop, which the measure keeps counted (menus, text, overworld)
-C2:821E 19206 5  # refused by menu_play_the_gate_song; handback by menu_choose_equipment_item, menu_choose_equipment_member, menu_choose_equipment_slot and 21 more; unported (menus, text, overworld)
-C2:822B 478 5  # handback by menu_choose_battle_mode, menu_choose_first_at_the_gate, menu_choose_on_main_menu and 2 more; unported (menus, text, overworld)
+C2:81B9 2 5  # the wait for the frame's uploads the port stops at ($C2:81CA): the pass that leaves the idle loop, which the measure keeps counted (menus, text, overworld)
+C2:821E 1 3  # refused by menu_play_the_gate_song; handback by menu_choose_equipment_item, menu_choose_equipment_member, menu_choose_equipment_slot and 21 more; unported (menus, text, overworld)
 C2:8249 756 12  # refused by menu_start_the_scroll_bar; handback by menu_start_gate_screen; unported (menus, text, overworld)
 C2:826F 290 87  # handback by menu_run_the_main_task (menus, text, overworld): where a step stops in the original's code (the fade in, the menus' close, the main menu's return)
 C2:83CA 1158 52  # handback by menu_choose_first_at_the_gate, menu_choose_on_main_menu, menu_choose_shop_tab; unported (menus, text, overworld)
@@ -130,8 +121,6 @@ C2:8816 245 10  # no port yet (menus, text, overworld)
 C2:8839 3955 72  # no port yet (menus, text, overworld)
 C2:8A45 410 3  # handback by menu_draw_the_cursor_held_on_a_member (menus, text, overworld)
 C2:8BA6 304 18  # no port yet (menus, text, overworld)
-C2:8BB8 41 5  # handback by menu_scroll_bar_task (menus, text, overworld): as C2:8C33
-C2:8C33 2521 5  # handback by menu_scroll_bar_task_goes_on (menus, text, overworld): the menus' wait for the frame's uploads ($C2:81CA), an idle entry shadow mode leaves to the original, where the scroll bar's wait stops when its task is the frame's last to run, as the cursor's does at C2:E921
 C2:8D1C 34 38  # no port yet (menus, text, overworld)
 C2:9093 29280 101  # no port yet (menus, text, overworld)
 C2:940D 742 29  # handback by menu_init_video (menus, text, overworld)
@@ -167,10 +156,8 @@ C2:DC1E 1055 86  # no port yet (menus, text, overworld)
 C2:DCBE 685 28  # no port yet (menus, text, overworld)
 C2:E058 294 26  # no port yet (menus, text, overworld)
 C2:E072 363 51  # no port yet (menus, text, overworld)
-C2:E91B 68 5  # handback by menu_run_the_cursor_task (menus, text, overworld): as C2:E921
-C2:E921 49612 5  # handback by menu_cursor_task_goes_on (menus, text, overworld): the menus' wait for the frame's uploads ($C2:81CA), an idle entry shadow mode leaves to the original, where the cursor's wait, the frame's last task's, stops
+C2:E921 1 3  # handback by menu_cursor_task_goes_on (menus, text, overworld): the menus' wait for the frame's uploads ($C2:81CA), an idle entry shadow mode leaves to the original, where the cursor's wait, the frame's last task's, stops
 C2:EA27 286 15  # no port yet (menus, text, overworld)
-C2:EA53 57591 29  # handback by menu_choose_equipment_item, menu_choose_for_sale, menu_choose_goods and 6 more (menus, text, overworld)
 C2:EA81 28495 57  # handback by menu_choose_how_many_to_sell, menu_choose_shop_slot, menu_choose_shop_tab and 7 more (menus, text, overworld)
 C2:EE23 162 53  # no port yet (menus, text, overworld)
 C2:EFBE 3264 165  # no port yet (menus, text, overworld)
@@ -189,42 +176,38 @@ C3:0CCD 33 21  # handback by scene_run_frame_tasks (scene engine)
 C3:0CE2 500 22  # handback by scene_run_frame_tasks (scene engine)
 C3:0CF8 190 22  # handback by scene_run_frame_tasks (scene engine)
 C3:0E29 338354 13  # skipped by scene_find_divisor (scene engine)
-C7:---- 288041 771  # no port yet (sound driver)
+C7:---- 288013 771  # no port yet (sound driver)
 C7:0000 222 15  # handback by sound_driver_boot (sound driver)
-C7:0004 30174 23  # handback by sound_driver_command (sound driver)
+C7:0004 27570 18  # handback by sound_driver_command (sound driver)
 C7:005F 74 5  # handback by sound_driver_boot_start (sound driver)
 C7:007D 444 5  # handback by sound_driver_boot_block (sound driver)
 C7:00B0 1027601 17  # handback by sound_driver_boot_next_byte (sound driver)
 C7:00FB 74 3  # handback by sound_driver_boot_started (sound driver)
-C7:063D 651 13  # handback by sound_driver_command_timed_out (sound driver)
-C7:08FF 389 21  # handback by sound_driver_2f00_command_echoed (sound driver)
-C7:09DA 3090030 15  # handback by sound_driver_command, sound_driver_send_counter, sound_driver_upload_2f00_data and 1 more (sound driver)
+C7:063D 516 8  # handback by sound_driver_command_timed_out (sound driver)
+C7:08FF 307 16  # handback by sound_driver_2f00_command_echoed (sound driver)
+C7:09DA 3070588 5  # handback by sound_driver_command, sound_driver_send_counter, sound_driver_upload_2f00_data and 1 more (sound driver)
 C7:0A39 1406 8  # handback by sound_driver_send_song (sound driver)
-C7:0A79 8150 13  # handback by sound_driver_song_timed_out (sound driver)
-C7:0A7B 648 10  # handback by sound_driver_song_echoed (sound driver)
-CC:ED87 1398 13  # handback by battle_setup_graphics (battle setup)
+C7:0A79 6236 8  # handback by sound_driver_song_timed_out (sound driver)
+C7:0A7B 562 5  # handback by sound_driver_song_echoed (sound driver)
+CC:ED87 152 8  # handback by battle_setup_graphics (battle setup)
 CD:0000 114 8  # handback by battle_start_from_field (battle frame work)
 CD:0003 152 8  # handback by battle_main_loop_start (battle frame work)
-CD:0012 4470 16  # handback by battle_main_loop_start (battle frame work)
-CD:3ED2 10 5  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 4 more (battle frame work)
-CF:FD02 110 5  # handback by battle_draw_menu_window (battle sprites)
-CF:FD36 5 5  # handback by battle_draw_menu_window (battle sprites)
-D1:FE97 1321941 7  # handback by battle_irq (battle NMI, graphics)
-FD:---- 3792 229  # no port yet (field graphics)
+CD:0012 1755 11  # handback by battle_main_loop_start (battle frame work)
+FD:---- 12 22  # no port yet (field graphics)
 FD:A990 990 222  # handback by battle_dispatch_expired_timers (field graphics)
 FD:DA65 762 3  # handback by warp_short_frame (field graphics)
 FD:DAC4 158 3  # handback by warp_shortest_frame (field graphics)
 FD:DB27 766 3  # handback by warp_flickering_frame (field graphics)
 FD:EADA 10 5  # handback by warp_set_up: the idle wait's leaving pass (field graphics)
-FD:EAEB 10146 7  # handback by warp_wait_for_frame: the idle wait's leaving pass (field graphics)
+FD:EAEB 6764 7  # handback by warp_wait_for_frame: the idle wait's leaving pass (field graphics)
 FF:---- 168061 402  # no port yet (misc)
 open 7E:3003 5 0  # hidden under scene_setup_and_first_frame's comparison, still open when a run ended
-open C0:0097 40 0  # hidden under field_frame's comparison, still open when a run ended
-open C1:0003 32060 0  # hidden under battle_run_a_step's comparison, still open when a run ended: what battle_show_action's and battle_wait_step's open comparisons hid (32,066) before they ran as the dispatch's siblings
-open C1:007E 5733 0  # hidden under battle_wait_for_frame's comparison, still open when a run ended
+open C0:0097 35 0  # hidden under field_frame's comparison, still open when a run ended
+open C1:0003 32045 0  # hidden under battle_run_a_step's comparison, still open when a run ended: what battle_show_action's and battle_wait_step's open comparisons hid (32,066) before they ran as the dispatch's siblings
+open C1:007E 5723 0  # hidden under battle_wait_for_frame's comparison, still open when a run ended
 open C1:8120 16 0  # hidden under battle_main_loop's comparison, still open when a run ended
 open C1:812C 2841 0  # hidden under battle_main_loop_body's comparison, still open when a run ended
-open C1:8290 32414 0  # hidden under battle_dispatch_expired_timers's comparison, still open when a run ended
+open C1:8290 32374 0  # hidden under battle_dispatch_expired_timers's comparison, still open when a run ended
 open C1:B967 194 0  # hidden under battle_carry_out_member_action's comparison, still open when a run ended
 open C2:23CF 9 0  # hidden under overworld_main_loop's comparison, still open when a run ended
 open C7:0004 1209 0  # hidden under sound_driver_command's comparison, still open when a run ended
@@ -232,4 +215,4 @@ open C7:0655 7904 0  # hidden under sound_driver_upload_block's comparison, stil
 open C7:09DA 2 0  # hidden under sound_driver_send_counter's comparison, still open when a run ended
 open CD:0036 6 0  # hidden under battle_sit_out_the_pause_long's comparison, still open when a run ended
 open CD:3E44 4 0  # hidden under battle_sit_out_the_pause's comparison, still open when a run ended
-open CD:3E75 3702 0  # hidden under battle_wait_for_the_next_frame's comparison, still open when a run ended
+open CD:3E75 3697 0  # hidden under battle_wait_for_the_next_frame's comparison, still open when a run ended

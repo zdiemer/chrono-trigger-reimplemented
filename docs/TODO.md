@@ -26,6 +26,15 @@ rest waits, is [PLAN.md](PLAN.md).
   be too once their handlers are entries. Adding a movie or a port means
   recalibrating, since the drift limit holds only for the measured value.
   `--generated only` stays exact.
+- **Charge the endings' swept window by its lines.** `scene_ending_sweep_window`
+  (`$7E:9A0C`, `game/scene/endings.c`) carries one calibrated `cost_milli`,
+  but the original's time follows the window's lines and corners as it sweeps
+  (a 22% mean error; at worst 64,755 clocks off once in 785 stretches, on
+  `tools/timing_exceptions.txt` since the rider's list, run as C inside it,
+  stopped splitting its stretch: REIMPLEMENTATION.md, "Phase 4a, the shipping
+  mode's fallbacks, chunk 6"). Time its work by what it draws -- the lines and
+  corners it sweeps, each at a calibrated value through `NATIVE_TIME_AS` on
+  a registered piece -- so the exception can go.
 - **Fuzzing coverage of existing ports.** Fuzzing is now part of every port's
   definition of done (PORTING.md); ports registered before that without a
   recorded fuzz run should get one, subsystem by subsystem as Phase 3a
@@ -1504,18 +1513,14 @@ rest waits, is [PLAN.md](PLAN.md).
   overworld: the world map set up, its scenes' calls and the frame's
   input"):
   - what the reference play still runs of bank `$C2` with no call on record
-    (`C2:----`) is the menus' screens' code after a task's wait (`$C2:821E`),
-    resumed on the task's own stack, which the fallback measure can't file
-    under the port that stopped at the wait: the records' task's return to
-    its start (`$C2:F699`) and a step of the save panel's (`$C2:D08F`), now
-    that the main task's, the cursor's and the scroll bar's loops are C
-    (menu/tasks.c, menu/held_cursors.c);
-  - the scrolling lists' cursor kept within the rows (`$C2:EA53`) and their
-    frame laid out (`$C2:EA81`, the divider's quotient the scroll bar's
-    step), which the equipment, items, techs and shop screens' bridges call
-    out to (REIMPLEMENTATION.md, "Phase 4a, the shipping mode's fallbacks,
-    chunk 5": five call sites in four bridges, each leaving the registers
-    its caller reads after);
+    (`C2:----`) is mostly the menus' screens' code after a wait for the
+    next frame in the middle of a step, which the runtime abandons
+    ("What the shipping mode's fallbacks' sixth chunk left"), and the
+    menus' frame-end wait's last pass (`$C2:81CA`); the scheduler's switch
+    into a task is counted as its ports' now;
+  - the scrolling lists' frame laid out (`$C2:EA81`, the divider's quotient
+    the scroll bar's step), which the equipment, items, techs and shop
+    screens' bridges call out to;
   - the world map's loads reach the unpacker through the machine
     (`overworld/setup.c`'s `Unpacker`): a C unpacker taking a stream and a
     destination would make them plain calls (the event commands' TODO wants
@@ -2337,11 +2342,11 @@ re-runs the census.
   `tm_wait_frame` (`field_wait_frame`, `battle_wait_frame`). The battle's
   wait routines are ports whose loops give the processor up through
   `tm_wait_for_handlers` (`battle/wait.c`; PLATFORM.md, "Timing without a
-  beam, as built"); the field's `$C0:EC60` (2.5 M instructions of the
-  reference play, the largest wait left) and the sprite-object mode's
+  beam, as built"); the field's `$C0:EC60` and the sprite-object mode's
   `$C2:0346` are still the original's around their idle loops, and the pass
-  that leaves an idle loop stays counted as a fallback: they take the
-  battle's shape.
+  that leaves an idle loop stays counted as a fallback (0.63 M and 0.10 M
+  of the reference play): what they need before they take the battle's
+  shape is in "What the shipping mode's fallbacks' sixth chunk left".
 - **What the battle's waits left** (history/reimplementation-chunks.md, "Phase 4a, timing: the
   battle's waits and its transfer from the main thread"):
   - The menus' text code the battle message's typing calls (`$CD:04DF` ->
@@ -2495,19 +2500,14 @@ re-runs the census.
     writing plainly too, or the drift's test its own source
     (`tools/effects_baseline.txt`, `drift_high_byte`);
   - what the endings still hand back to the original in the reference play:
-    the swept window's rider (`$7E:3A97`), the program's first script step
-    (`$7E:3749`) and `$7E:37CA`.
-- **What the shipping mode's fallbacks' fifth chunk left** (REIMPLEMENTATION.md,
+    the program's first script step (`$7E:3749`) and `$7E:37CA`.
+- **What the shipping mode's fallbacks' fifth chunk left** (history/reimplementation-chunks.md
   "Phase 4a, the shipping mode's fallbacks, chunk 5"):
-  - the scrolling lists' cursor kept within their rows (`$C2:EA53`): the
-    equipment, items, techs and shop screens' bridges call it at five sites,
-    each going on with registers it leaves, so a port needs each bridge's
-    reads worked out first;
-  - what the shipping mode still runs of the menus' unported code: the
-    healing's digits (`$C2:9093`), `$C2:A518`, `$C2:A7B7` and `$C2:A970`;
-    of the scene program's, the swept window's rider (`$7E:3A97`), the first
-    script step (`$7E:3749`) and the title's and attract's frame tasks
-    (`$7E:66B0`, `$7E:63D5`, `$7E:64BF`);
+  - what the shipping mode still runs of the scene program's: the first
+    script step's tail (`$7E:3749`, the sequence interpreter going on as the
+    original after its wait for the music, `$C3:0C28` being no entry,
+    `scene/script.c`) and the title's and attract's frame tasks (`$7E:66B0`,
+    `$7E:63D5`, `$7E:64BF`);
   - the frame waits (`$CD:3E75`, `$CD:3E3B`) leave the menu frame's carry,
     declared don't-care on library evidence (`registry.c`): a C menu frame
     that worked its carry out, or a C battle message whose waits don't read
@@ -2524,6 +2524,37 @@ re-runs the census.
     leader's spot off the map, which no flight makes; the arrival's x
     measured across the map's height (`slow_so_as_not_to_pass`) is the
     original's and kept.
+- **What the shipping mode's fallbacks' sixth chunk left** (REIMPLEMENTATION.md,
+  "Phase 4a, the shipping mode's fallbacks, chunk 6"):
+  - **A wait for the next frame in the middle of a menus' step is taken for
+    an unwind.** A bridge that yields mid-body (`menu_call` to the task
+    switch, `$C2:821E` or `$C2:822B`) waits in a call-out whose callee moves
+    to the next task's stack; where that stack lies above the yielding
+    task's, the runtime takes S above the call's return for the callee
+    unwinding past it and abandons the port (`native.c`, PH_CALLOUT: "callee
+    C2821E unwound past its return"), in both modes. The original then runs
+    the rest of the step when the task goes on: that is what the shipping
+    mode's `C2:9093` (the healing's rising numbers, `menu_raise_amount_kind`
+    abandoned 6 of 6), `C2:A518`, `C2:A7B7` and `C2:A970` (the equipment
+    screen's slides) are, though each is C already, and part of `C2:----`.
+    The fix is a call-out the runtime waits out across the task switch, as
+    `native_wait_loop` does for a handler; what it lacks is a way to drop
+    the wait where the task never goes on (a task stopped or restarted, the
+    menus closed while one waits), without which a dropped task would leave
+    a routine suspended for good, and with it ct_drive's bases and ct_play's
+    quick saves (MOVIES.md, "Suspended routines and owed time");
+  - the field's and the sprite-object mode's frame waits (`$C0:EC71`,
+    `$C2:0348`) stay idle entries, though the battle's waits are ports that
+    wait inside through `tm_wait_for_handlers`: there the main thread is in
+    its wait at nearly every frame end, and a port waiting inside would hold
+    a routine suspended across each one, which ct_drive's bases and ct_play's
+    saves can't hold. They need a wait a machine copy can hold (the port's
+    continuation the idle entry it already is) before they take the battle's
+    shape; the reference play counts the pass that leaves each (0.63 M and
+    0.10 M);
+  - the signed sprite list (`$7E:3A97`) has four callers in the program
+    besides the rider (`$7E:7F9C`, `$7E:7FB0`, `$7E:7FBF`, `$7E:8386`) that
+    no movie reaches: fuzzing alone compares the lists they draw.
 - **What the shipping mode's fallbacks' review left** (none blocking):
   - The direct page's scratch cells `$00`-`$0E` are written plainly across
     about a dozen battle files under names that belong to other routines
@@ -2539,12 +2570,12 @@ re-runs the census.
   - The shop's, the settings', the techs', the item screen's and the
     opening's bridges still run C siblings through `menu_run` (item 123):
     call them as C, timed with `TIMED_AS`, where they make no call-outs.
-- **The line handlers' hblank waits**: `field_irq_wait_hblank_loop`
-  (`$C0:ECEB`), `battle_irq_wait_hblank_loop` (`$D1:FEB8`) and the scene
-  boot's `$C3:0530`/`$C3:0538` land the forced blank at the end of line 211,
-  which `vid_raster_display` at the handler's line already says. They read
-  through the SNES-only `tm_snes_video_status` and have no host half; they
-  go when the line handlers become functions the driver calls.
+- **The scene boot's hblank waits** (`$C3:0530`/`$C3:0538`) land the forced
+  blank at the end of its line, which `vid_raster_display` at the handler's
+  line already says, and read through the SNES-only `tm_snes_video_status`:
+  the field's and the battle's line handlers wait through
+  `tm_wait_line_drawn` now (PLATFORM.md, "Timing without a beam, as built"),
+  which the boot's could take too.
 - **The battle's wait for a line `$CD:3B82`**: its callers call
   `tm_wait_line`, whose SNES backend waits where the port stands in the
   shipping mode and calls the original's routine only in shadow mode and the

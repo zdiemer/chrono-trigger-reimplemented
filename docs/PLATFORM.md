@@ -2159,7 +2159,9 @@ added -- `tm_wait_frame`, `tm_frame_time_left`, `tm_wait_line`, `tm_entropy`
 and `tm_odd_frame` -- with `tm_wait_frame_then_enable`, which the field's
 screen setup added (a frame's wait with the handlers off, then the handlers
 on), `tm_wait_frames` and `tm_wait_for_handlers`, which the battle's waits
-added (below), and `input.h` has `in_ready` as a backend call.
+added (below), `tm_wait_line_drawn`, with which the field's and the battle's
+line handlers wait for their line's horizontal blank before they end the
+picture, and `input.h` has `in_ready` as a backend call.
 `tm_video_status` and `tm_beam_line` left the portable interface: what they
 returned was the hardware's status byte and counter, which no host can answer
 (review rubric item 118). The status is SNES-only now (`tm_snes_video_status`,
@@ -2173,6 +2175,7 @@ call it (below).
 | `tm_frame_time_left(pf, o, line)` | `$213F`, `$2137`, `$213D` twice; true while the line is above `line` or at 240 and below | true |
 | `tm_wait_frames(pf, PF_CALL_DC(...), frames)` | the count in A's low byte, and the call of the mode's routine that waits that many (the battle's `$CD:3E3B`) | waits that many frames |
 | `tm_wait_for_handlers(pf, PF_LOOP(head, exit))` | the machine waits where the port stands, taking its interrupts there, until one has been taken; no original code runs (`native_wait_loop`, below) | yields the main thread to the driver: the next frame's handlers run |
+| `tm_wait_line_drawn(pf, PF_LOOP(head, exit))` | inside a line handler: the machine steps where the port stands until the line is in its horizontal blank, at least a pass of the shortest such loop into it (`IDLE_EXIT_CLOCKS`) and that pass's tail after it saw the blank (`POLL_TAIL_CLOCKS`), so the writes after land no earlier than the original's; no original code runs (`native_wait_loop`, `NATIVE_WAKE_HBLANK`) | returns: the host runs the line handler once the picture's lines are drawn |
 | `tm_wait_line(pf, PF_CALL_DC(...), line)` | the line left in A; the machine waits where the port stands until the picture is at the line, and only shadow mode and the tools call `$CD:3B82` (`native_wait_call`) | returns |
 | `tm_entropy(pf, o, width)` | `$2137`, `$213C`, `$213D` twice, a byte or a word at a time as `$C3:02DD` reads them (a word's high bytes are `$2138`, `$213D` and `$213E`), `$2137` reading as the bus's last byte, the compare's operand's `$21`; shadow mode waits for the original's latch | four values from a 32-bit xorshift the driver seeds |
 | `in_ready(pf, o)` | `$4212` bit 0 clear | true |
@@ -2246,7 +2249,15 @@ the shipping mode the port's fiber is suspended where the machine stands,
 its time paid there, and the machine takes its interrupts at that point,
 stepping a line at a time between them, until a handler has been taken
 (`NATIVE_WAKE_HANDLER`) or the picture is at a line, past the vertical blank;
-the original's loop never runs. In shadow mode the original runs its loop: the
+the original's loop never runs. A line handler's wait for its line's
+horizontal blank (`NATIVE_WAKE_HBLANK`, `tm_wait_line_drawn`) steps to the
+blank instead, and goes on no sooner than a pass of the shortest such loop
+into it (`IDLE_EXIT_CLOCKS`), as an idle entry's exit does, so that the
+forced blank after it lands where the original's could and not on the line's
+last dots; where the blank was seen late, behind the line's HDMA, it goes on
+after the pass's tail alone, the `AND #` and `BEQ` the original still runs
+after its read (`POLL_TAIL_CLOCKS`, 24; adding the whole pass there took 6% of
+the field's forced blanks onto the next line). In shadow mode the original runs its loop: the
 port's stretch before the wait is compared where the original first comes to
 the loop's head or exit with the port's S (memory, S, the page and the bank;
 the port's other registers are its own across the wait and compared where

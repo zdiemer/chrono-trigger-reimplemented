@@ -21,6 +21,7 @@
 #include "battle/entries.h"
 #include "battle/frame.h"
 #include "battle/screen_data.h"
+#include "charge.h"
 #include "core/tile_animation.h"
 #include "cpu_io.h"
 #include "original_effects.h"
@@ -225,70 +226,60 @@ static bool alternate_wanted(GameState *g)
 // $D1:FE4C
 /* On the line handler's even frames: apply the alternating-frame setting when
  * it is wanted, and clear the ask. */
-void battle_apply_alternate_frame(Snes *s)
+static void apply_the_alternate_frame(GameState *g)
 {
-    GameState *g = state_of(s);
     if (alternate_wanted(g)) {
         uint8_t arrangement = (uint8_t)(battle_alternate_base(g) + battle_alternate_latched(g) + battle_vram_copy_mode(g));
-        NATIVE_TIME_AS(s, ARRANGE_LINE_EFFECTS, battle_arrange_line_effects(g, arrangement));
+        TIMED_AS(g, ARRANGE_LINE_EFFECTS, battle_arrange_line_effects(g, arrangement));
         set_battle_alternate_apply(g, 0);
     }
+}
+
+void battle_apply_alternate_frame(Snes *s)
+{
+    apply_the_alternate_frame(state_of(s));
     m_rts(s);
 }
 
+/* The line handler's start: the handler marked busy, the line interrupt
+ * acknowledged (NMI and auto-joypad kept on) and the line effects off; the
+ * line let be drawn and the rest of the frame blanked. */
+static void begin_line_handler(GameState *g, Platform *pf)
+{
+    set_battle_interrupt_busy(g, (uint8_t)(battle_interrupt_busy(g) + 1));
+    tm_ack_line_irq(pf, PF_AT(0xD1FEA8));
+    tm_enable_interrupts(pf, PF_AT(0xD1FEAE), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
+    vid_enable_line_effects(pf, PF_AT(0xD1FEB5), 0);
+    tm_wait_line_drawn(pf, PF_LOOP(0xD1FEB8, 0xD1FEBF));
+    vid_raster_display(pf, PF_AT(0xD1FEC1), VID_AT_LINE_HANDLER, &(VidDisplay){ .blank = true });
+}
+
 // $D1:FE97
-/* The battle's line handler, up to its wait for hblank: the handler marked
- * busy, the line interrupt acknowledged (NMI and auto-joypad kept on), and the
- * line effects off. It stops at the wait, $D1:FEB8, an idle entry, with A 0
- * and Z set as the wait's first test leaves them. */
+/* The battle's line handler, at the line its picture ends after: the picture
+ * ended (begin_line_handler); then on even frames the alternating-frame
+ * setting and on odd ones, unless paused, the tile animation uploads, which
+ * run under the flags of the pause's test, pushed; then the math operands
+ * back, and return. The page is the battle's and the data bank the
+ * registers', as the original's has them at its wait. */
 void battle_irq(Snes *s)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
     m_save_interrupted_registers_bank_first(s);
     s->cpu.d = BATTLE_PAGE;
-    m_sep(s, CPU_FLAG_M);
-    set_battle_interrupt_busy(g, (uint8_t)(battle_interrupt_busy(g) + 1));
-    tm_ack_line_irq(pf, PF_AT(0xD1FEA8));
-    tm_enable_interrupts(pf, PF_AT(0xD1FEAE), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
     s->cpu.db = 0x00;
-    vid_enable_line_effects(pf, PF_AT(0xD1FEB5), 0);
-    s->cpu.a = 0;
-    m_set_nz8(s, 0);
-    m_stop_at(s, 0xD1FEB8, 0);
-}
-
-// $D1:FEBF
-/* The rest of the line handler, from hblank: the rest of the frame blanked,
- * then on even frames the alternating-frame setting (on the data bank $7E,
- * which an 8-bit load puts in A's low byte) and on odd ones, unless paused,
- * the tile animation uploads, which run under the flags of the pause's test,
- * pushed; then the math operands back, and return. */
-void battle_irq_after_hblank(Snes *s)
-{
-    GameState *g = state_of(s);
-    vid_raster_display(m_platform(s), PF_AT(0xD1FEC1), VID_AT_LINE_HANDLER, &(VidDisplay){ .blank = true });
+    m_sep(s, CPU_FLAG_M);
+    begin_line_handler(g, pf);
     if (!(battle_frame_count(g) & 0x01)) {
-        s->cpu.db = BATTLE_DATA_BANK;
-        m_set_a8(s, BATTLE_DATA_BANK);
-        m_jsr_dc(s, 0xD1FECE, 0xD1FE4C, DC_X | DC_Y | DC_N | DC_Z | DC_C);
-        if (!battle_widths_m8_x16(s))
-            return;
+        NATIVE_TIME_AS(s, 0xD1FE4C, apply_the_alternate_frame(g));
     } else if (!battle_paused(g)) {
         m_set_a8(s, 0);
         m_set_nz8(s, 0);
         m_push8(s, s->cpu.p);
         if (!battle_run_long(s, 0xD1FEDA, TILE_ANIMATION_UPLOADS, tile_animation_upload) || !battle_widths_m8_x16(s))
             return;
-        s->cpu.p = m_pull8(s);
-        if (s->cpu.p & CPU_FLAG_X) {
-            s->cpu.x &= 0xFF;
-            s->cpu.y &= 0xFF;
-        }
+        (void)m_pull8(s);   /* the pause test's flags off the stack; the return puts the interrupted code's back */
     }
-    s->cpu.x = 0;
-    s->cpu.d = BATTLE_PAGE;
-    m_sep(s, CPU_FLAG_M);
     ORIGINAL_EFFECT(restore_math_operands(g));
     set_battle_interrupt_busy(g, 0);
     m_return_to_interrupted_bank_first(s);

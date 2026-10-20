@@ -18,6 +18,10 @@ static const char *const kind_names[KINDS] = { "refused", "handback", "skipped",
 #define STATES_KEPT 4
 /* The instructions of one pass of a wait loop kept to be taken back (SHADOW). */
 #define PASS_MAX 64
+/* Passes an interrupt cut, kept aside while their handlers run (SHADOW). */
+#define PASSES_ASIDE 8
+/* The most an instruction pulls (RTI: P, PC and the bank). */
+#define MOST_A_STEP_PULLS 4
 
 /* An extent: why the code in it runs, the routine it is filed under, the port
  * it is charged to (entry address, or NO_PORT), the S it ends above, the S it
@@ -56,6 +60,14 @@ typedef struct Refusal {
     char states[STATES_KEPT][256];
 } Refusal;
 
+typedef struct Pass {
+    bool open;
+    uint32_t head;
+    uint16_t s;
+    int n;
+    uint32_t keys[PASS_MAX][4];
+} Pass;
+
 struct Fallbacks {
     Snes *s;
     Frame frames[MAX_FRAMES];
@@ -64,18 +76,20 @@ struct Fallbacks {
     bool pending;               /* the latest instruction was a call... */
     uint16_t pending_s;         /* ...and its callee starts with this S */
     bool pending_rti;           /* the latest instruction was an RTI */
+    uint16_t last_s;            /* S at the latest instruction */
     bool shadow;                /* the runtime observed is in SHADOW mode */
     /* SHADOW: the pass of a wait loop an idle entry stands for, as the
      * original runs it: counted as it runs, and taken back when the loop comes
      * round to its head again (the idle port would have run it); the pass
-     * that leaves the loop stays counted. */
+     * that leaves the loop stays counted. A pass an interrupt cuts is kept
+     * aside while the handler runs, which has passes of its own, and goes on
+     * where the handler returns to it. */
+    Pass pass;
     struct {
-        bool open;
-        uint32_t head;
-        uint16_t s;
-        int n;
-        uint32_t keys[PASS_MAX][4];
-    } pass;
+        uint32_t serial;   /* the order it was kept aside in; 0 for a free place */
+        Pass pass;
+    } aside[PASSES_ASIDE];
+    uint32_t serials;
     Count *slots;
     size_t cap, used;
     struct { uint32_t addr; const char *name; } *ports;   /* the events' ports' names */
@@ -142,6 +156,7 @@ void fallbacks_reset(Fallbacks *f)
     f->pending = false;
     f->pending_rti = false;
     f->pass.open = false;
+    memset(f->aside, 0, sizeof f->aside);
 }
 
 static size_t hash(uint32_t a, uint32_t b, uint32_t c, uint32_t d)
@@ -205,11 +220,23 @@ static void count_hidden(Fallbacks *f)
         }
 }
 
-/* Extents the machine has left: S rose above where they began. */
+/* Extents the machine has left: S rose above where they began. Where it rose
+ * further than an instruction pulls, the stack was switched (the menus' tasks
+ * each run on a stack of their own), and a comparison's own stretch goes on
+ * across it, held, until the runtime says it is over (on_finished): a port
+ * that switches tasks stands for the original's switch and the going on
+ * into the next task, which runs on the other stack. */
 static void leave_finished(Fallbacks *f, uint16_t s)
 {
-    while (f->depth > 1 && !f->frames[f->depth - 1].held && s > f->frames[f->depth - 1].floor)
+    bool switched = s > f->last_s + MOST_A_STEP_PULLS;
+    while (f->depth > 1 && !f->frames[f->depth - 1].held && s > f->frames[f->depth - 1].floor) {
+        Frame *top = &f->frames[f->depth - 1];
+        if (switched && top->kind == COVERED && top->name) {
+            top->held = true;
+            return;
+        }
         f->depth--;
+    }
 }
 
 static void enter(Fallbacks *f, Frame frame)
@@ -232,6 +259,38 @@ static void leave_covered(Fallbacks *f, const NativeEntry *e)
     }
 }
 
+/* SHADOW: an interrupt cuts the pass of a wait loop: it is kept aside, and
+ * the handler starts with none. A place whose interrupt never came back (its
+ * handler went on to another stack) is the oldest, and is taken first. */
+static void put_the_pass_aside(Fallbacks *f)
+{
+    if (f->pass.open) {
+        int at = 0;
+        for (int i = 1; i < PASSES_ASIDE; i++)
+            if (f->aside[i].serial < f->aside[at].serial)
+                at = i;
+        f->aside[at].serial = ++f->serials;
+        f->aside[at].pass = f->pass;
+    }
+    f->pass.open = false;
+}
+
+/* SHADOW: an interrupt returned to S `sp`: the latest pass it cut there goes
+ * on. (The extents can't say which interrupt it was: a handler's port entered
+ * at the interrupt's own S ends its extent.) */
+static void take_the_pass_back(Fallbacks *f, uint16_t sp)
+{
+    int at = -1;
+    for (int i = 0; i < PASSES_ASIDE; i++)
+        if (f->aside[i].serial && f->aside[i].pass.s == sp && (at < 0 || f->aside[i].serial > f->aside[at].serial))
+            at = i;
+    f->pass.open = false;
+    if (at >= 0) {
+        f->pass = f->aside[at].pass;
+        f->aside[at].serial = 0;
+    }
+}
+
 /* An interrupt returned: its extent ends, or the held one of the handler's
  * comparison, and every one begun inside it. */
 static void leave_interrupt(Fallbacks *f)
@@ -244,14 +303,23 @@ static void leave_interrupt(Fallbacks *f)
     }
 }
 
+/* The latest instruction was an RTI: the interrupt's extent ends, and the
+ * pass it cut goes on. Taken at the instruction after it, or at a wait
+ * loop's head where it returned to one, which is told first. */
+static void after_an_rti(Fallbacks *f, uint16_t sp)
+{
+    if (!f->pending_rti)
+        return;
+    leave_interrupt(f);
+    take_the_pass_back(f, sp);
+    f->pending_rti = false;
+}
+
 void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
     const Snes *s = f->s;
     uint16_t sp = s->cpu.s;
-    if (f->pending_rti) {
-        leave_interrupt(f);
-        f->pending_rti = false;
-    }
+    after_an_rti(f, sp);
     leave_finished(f, sp);
     if (f->pending && sp == f->pending_s)
         enter(f, (Frame){ .kind = f->eff.kind, .routine = pc, .port = f->eff.port, .floor = sp });
@@ -293,6 +361,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         f->pending_s = (uint16_t)(sp - (op == 0x22 ? 3 : 2));
     }
     f->pending_rti = op == 0x40;
+    f->last_s = sp;
 }
 
 void fallbacks_on_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
@@ -306,11 +375,11 @@ CpuStep fallbacks_interpreter(Cpu *cpu)
     Fallbacks *f = current;
     if (f && kind == CPU_STEP_INTERRUPT && cpu == &f->s->cpu) {
         leave_finished(f, cpu->s);
+        put_the_pass_aside(f);
         enter(f, (Frame){ .kind = UNPORTED, .interrupt = true, .routine = cpu_pc24(cpu), .port = NO_PORT,
                           .floor = cpu->s });
         f->pending = false;
         f->pending_rti = false;
-        f->pass.open = false;
     }
     return kind;
 }
@@ -451,6 +520,7 @@ static void on_idle(void *ctx, Snes *s, const NativeEntry *e)
     Fallbacks *f = ctx;
     (void)e;
     uint32_t pc = cpu_pc24(&s->cpu);
+    after_an_rti(f, s->cpu.s);
     if (f->pass.open && f->pass.head == pc && f->pass.s == s->cpu.s) {
         for (int i = 0; i < f->pass.n; i++) {
             const uint32_t *k = f->pass.keys[i];
@@ -477,9 +547,9 @@ static void on_finished(void *ctx, const NativeEntry *e)
 static void on_returned_from_interrupt(void *ctx, Snes *s, const NativeEntry *e)
 {
     Fallbacks *f = ctx;
-    (void)s;
     (void)e;
     leave_interrupt(f);
+    take_the_pass_back(f, s->cpu.s);
 }
 
 void fallbacks_attach(Fallbacks *f, NativeRuntime *rt, bool shadow)

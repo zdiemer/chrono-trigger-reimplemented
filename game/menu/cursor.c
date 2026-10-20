@@ -181,6 +181,11 @@ void menu_read_cursor(GameState *g)
  * and clears. */
 enum { LONG_DELAY = 1 };
 
+/* A screen asks the next frame's input for a fast repeat, so that a push or
+ * Start held through what it does carries straight on: the request is any
+ * count but 0, and the original counts it down from where it is. */
+void menu_ask_for_a_fast_repeat(GameState *g) { set_menu_fast_repeat(g, (uint8_t)(menu_fast_repeat(g) - 1)); }
+
 static bool ask_fast_repeat(GameState *g)
 {
     if (!menu_fast_repeat(g))

@@ -26,10 +26,7 @@
  *
  * This file is what the game does; tech_screen_bridge.c runs it on the
  * original's machine, calling out between the parts here to what is still
- * the original's: the scroll bars' frames and their task, the cursor's moves
- * within a list, the paging, the list's slide frames, the description's
- * setting, the restoring of HP and MP, the cursors on every member, the
- * sprites' colours and task, and the frames the screen waits. */
+ * the original's: a list's frame and the frames the screen waits. */
 #include "menu/tech_screen.h"
 
 #include "charge.h"
@@ -333,12 +330,12 @@ void menu_techs_switch_kind(GameState *g)
     set_menu_tech_category(g, kind);
 }
 
-/* The original's move within the list asks for a fast repeat when a button
- * is held; the members ask for none. */
+/* Keeping the cursor on a list asks for a fast repeat while Start is held
+ * (menu_keep_the_cursor_on_the_list); the members' list asks for none. */
 bool menu_techs_push_slides_members(GameState *g)
 {
     set_menu_fast_repeat(g, 0);
-    return menu_list_scrolls(g) && menu_pushed(g, MENU_PUSHED_PAST_AN_EDGE);
+    return menu_list_scrolls_a_row(g);
 }
 
 /* ---- The list ---------------------------------------------------------------------------------- */
@@ -499,10 +496,6 @@ bool menu_techs_slide_members_a_frame(GameState *g)
     return frames != 0;
 }
 
-/* The slide's end asks the input for a fast repeat on the next frame, so a
- * push held through it carries straight on. */
-static void ask_for_a_fast_repeat(GameState *g) { set_menu_fast_repeat(g, (uint8_t)(menu_fast_repeat(g) - 1)); }
-
 void menu_techs_finish_member_slide(GameState *g)
 {
     MenuTilePlace slid = place_named((uint16_t)(menu_tech_slide_copy(g) ^ SLID_ROWS));
@@ -519,7 +512,7 @@ void menu_techs_finish_member_slide(GameState *g)
     menu_work_on_member(g, (uint8_t)(scroll - 1));
     set_menu_tech_row_drawn(g, LAST_ROW_PASSED);
     set_menu_line_effects(g, LINE_EFFECTS);
-    ask_for_a_fast_repeat(g);
+    menu_ask_for_a_fast_repeat(g);   /* a push held through the slide carries straight on */
 }
 
 /* ---- Into the list ----------------------------------------------------------------------------- */

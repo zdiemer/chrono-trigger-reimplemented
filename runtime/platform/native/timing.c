@@ -137,6 +137,7 @@ bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
 }
 
 void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line) { (void)pf; (void)o; (void)line; }
+void tm_wait_line_drawn(Platform *pf, PfOrigin o) { (void)pf; (void)o; }
 
 /* A 32-bit xorshift: small, and the same on every host. */
 static uint16_t next_entropy(Platform *pf)

@@ -381,83 +381,80 @@ void field_fill_memory(Snes *s)
     m_rts(s);
 }
 
-// $C0:ECCC (installed at the $0504 line-interrupt stub by field_install_irq)
-/* The field's line interrupt: where it is the field's, it leaves only the
- * vblank and controller interrupts on for the rest of the frame and waits for
- * the line's hblank, an idle entry at $C0:ECEB, where this port stops. The
- * wait is the original's, on the beam (docs/PLATFORM.md, "Timing without a
- * beam"). */
-void field_irq(Snes *s)
-{
-    m_save_interrupted_registers(s);
-    Platform *pf = m_platform(s);
-    if (!line_interrupt_for_field(state_of(s), pf)) {
-        m_return_to_interrupted(s);
-        return;
-    }
-    tm_enable_interrupts(pf, PF_AT(0xC0ECE3), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
-    s->cpu.a = (uint16_t)(s->cpu.a & 0xFF00);
-    s->cpu.db = 0x00;
-    m_set_nz8(s, 0);
-    s->cpu.pc = 0xECEB;
-}
-
-// $C0:ECEB
-/* One pass of the line interrupt's wait for hblank. Idle entry, 8-bit A;
- * exits to the blanking at $C0:ECF2. */
-void field_irq_wait_hblank_loop(Snes *s)
-{
-    uint8_t status = tm_snes_video_status(m_platform(s), PF_AT(0xC0ECEB));
-    m_set_a8(s, (uint8_t)(status & TM_SNES_IN_HBLANK));
-    m_set_nz8(s, (uint8_t)(status & TM_SNES_IN_HBLANK));
-    if (status & TM_SNES_IN_HBLANK)
-        s->cpu.pc = 0xECF2;
-}
-
-/* The animated tiles' uploads, through the original's jump to them at
- * $FD:FFFD; the handler puts every register back after either job. */
-enum { TILE_ANIMATION_UPLOADS = 0xFDFFFD, THE_HANDLER_PUTS_EVERYTHING_BACK = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-/* The rest of the line interrupt, from hblank: the picture ends, then the
- * time to vblank goes to one of two jobs, which alternate with the line
- * effects' table set: the windows' corner tiles among other work
- * ($C0:ED15), or bank $FD's work ($FD:FFFD), both the original's code; and
- * back to what it interrupted. A and the flags hold the table set's bit as
- * the choice leaves them: nothing reads them after a job that comes back as
- * the field runs, but one that doesn't hands its machine, those included, to
- * the original's code as it is. */
-void field_irq_after_hblank(Snes *s)
-{
-    GameState *g = state_of(s);
-    end_picture(m_platform(s));
-    uint8_t second_set = field_display_flags(g) & FIELD_SECOND_TABLE_SET;
-    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | second_set);
-    m_set_nz8(s, second_set);
-    if (!second_set) {
-        m_jsr(s, 0xC0ED03, 0xC0ED15);
-        if (s->cpu.e || (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
-            return;
-    } else if (!field_run_long(s, 0xC0ED08, TILE_ANIMATION_UPLOADS, THE_HANDLER_PUTS_EVERYTHING_BACK,
-                               tile_animation_upload, bridge_machine_now(s))) {
-        return;
-    }
-    m_return_to_interrupted(s);
-}
-
 /* ---- After the picture ---------------------------------------------------------------------- */
 
 // $C0:ED15
 /* The line interrupt's job in the time after the picture, on the frames it
  * isn't bank $FD's: the dialog's choice pointer, where it shows, and the looks
  * of a switch pressed or a chest opened (field/switches.c). */
-void field_redraw_after_picture(Snes *s)
+static void redraw_after_the_picture(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     if (field_choice_pointer_shown(g))
         TIMED_AS(g, FIELD_REFRESH_CHOICE_POINTER_ENTRY, field_refresh_choice_pointer(g, pf));
     field_redraw_changed_tiles(g, pf);
+}
+
+void field_redraw_after_picture(Snes *s)
+{
+    redraw_after_the_picture(state_of(s), m_platform(s));
     m_rts(s);
+}
+
+/* ---- The line interrupt ----------------------------------------------------------------------- */
+
+/* The animated tiles' uploads, through the original's jump to them at
+ * $FD:FFFD; the handler puts every register back after them. */
+enum { TILE_ANIMATION_UPLOADS = 0xFDFFFD, THE_HANDLER_PUTS_EVERYTHING_BACK = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+/* For the original's code at $FD:FFFD, should it not come back as the field
+ * runs and keep the machine as it is: A and the flags as the choice of job
+ * leaves them, the table set's bit. */
+static void leave_the_choice_in_a(Snes *s, uint8_t second_set)
+{
+    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | second_set);
+    m_set_nz8(s, second_set);
+}
+
+/* The line handler's start, where the line interrupt is the field's (false
+ * where it isn't): only the vblank and controller interrupts left on for the
+ * rest of the frame, the line let be drawn, and the picture ended. */
+static bool begin_line_handler(const GameState *g, Platform *pf)
+{
+    if (!line_interrupt_for_field(g, pf))
+        return false;
+    tm_enable_interrupts(pf, PF_AT(0xC0ECE3), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
+    tm_wait_line_drawn(pf, PF_LOOP(0xC0ECEB, 0xC0ECF2));
+    end_picture(pf);
+    return true;
+}
+
+// $C0:ECCC (installed at the $0504 line-interrupt stub by field_install_irq)
+/* The field's line interrupt, at the line its picture ends after. Where it is
+ * the field's, it ends the picture (begin_line_handler); then the time to
+ * vblank goes to one of two jobs, which alternate with the line effects'
+ * table set: the dialog's choice pointer and the tiles that changed
+ * ($C0:ED15), or bank $FD's animated tiles ($FD:FFFD, the original's code);
+ * and back to what it interrupted. The data bank is the registers', as the
+ * original's has it at its wait and for bank $FD's work (where the interrupt
+ * isn't the field's, the return puts the interrupted code's back). */
+void field_irq(Snes *s)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    m_save_interrupted_registers(s);
+    s->cpu.db = 0x00;
+    if (begin_line_handler(g, pf)) {
+        uint8_t second_set = field_display_flags(g) & FIELD_SECOND_TABLE_SET;
+        if (!second_set) {
+            NATIVE_TIME_AS(s, 0xC0ED15, redraw_after_the_picture(g, pf));
+        } else {
+            leave_the_choice_in_a(s, second_set);
+            if (!field_run_long(s, 0xC0ED08, TILE_ANIMATION_UPLOADS, THE_HANDLER_PUTS_EVERYTHING_BACK,
+                                tile_animation_upload, bridge_machine_now(s)))
+                return;
+        }
+    }
+    m_return_to_interrupted(s);
 }
 
 /* Its guard: the data bank $00, on whatever page the interrupt has (it

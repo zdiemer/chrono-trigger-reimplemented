@@ -16,11 +16,12 @@
  *   - the battle's start and end wait for their own small handler
  *     (battle_nmi_alternate) to finish a frame.
  *
- * Other waits stay passes of the original's loops, run on the machine, each
- * an idle entry: for the window's slide to have finished, for the battle's
- * graphics to have loaded at its start, and the line handler's wait for the
- * horizontal blank before it writes. What a pass leaves in A and the flags
- * (the value it tested) is what the original's code after the loop finds. */
+ * Two other waits stay passes of the original's loops, run on the machine,
+ * each an idle entry: for the window's slide to have finished, and for the
+ * battle's graphics to have loaded at its start. What a pass leaves in A and
+ * the flags (the value it tested) is what the original's code after the loop
+ * finds. (The line handler's wait for its line to be drawn is the timing
+ * service's, battle/nmi.c.) */
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/message.h"
@@ -219,15 +220,4 @@ void battle_wait_graphics_loaded_loop(Snes *s)
     m_cmp8(s, step, GRAPHICS_LOADED);
     if (step == GRAPHICS_LOADED)
         s->cpu.pc = 0xF062;
-}
-
-// $D1:FEB8 (in the line handler)
-/* The line handler waits for the horizontal blank before it writes. */
-void battle_irq_wait_hblank_loop(Snes *s)
-{
-    uint8_t hblank = tm_snes_video_status(m_platform(s), PF_AT(0xD1FEB8)) & TM_SNES_IN_HBLANK;
-    m_set_a8(s, hblank);
-    m_set_nz8(s, hblank);
-    if (hblank)
-        s->cpu.pc = 0xFEBF;
 }

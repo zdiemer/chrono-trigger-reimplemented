@@ -106,6 +106,14 @@ PF_API void tm_wait_for_handlers(Platform *pf, PfOrigin o)
     native_wait_loop(pf_snes(pf), o.site, o.target, NATIVE_WAKE_HANDLER);
 }
 
+/* The line handlers' wait for their line's horizontal blank: the machine
+ * steps where the port stands until the line is in it, and no original code
+ * runs; shadow mode lets the original's loop on $4212 run (native_wait_loop). */
+PF_API void tm_wait_line_drawn(Platform *pf, PfOrigin o)
+{
+    native_wait_loop(pf_snes(pf), o.site, o.target, NATIVE_WAKE_HBLANK);
+}
+
 /* The original's routines wait on the vblank's flag and then turn the
  * handlers on themselves: the vblank handler and the controllers' reading,
  * with the field's line handler at line 211 ($C0:0B38), or, the time warp's,

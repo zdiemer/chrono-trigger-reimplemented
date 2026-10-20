@@ -229,5 +229,8 @@ uint64_t snes_span_bound(const Snes *snes, uint64_t cpu_clocks);
  * hblank/vblank bits can change (hblank end, hblank start, or the line's end).
  * For skipping ahead in busy-wait loops that poll them. */
 uint32_t snes_clocks_to_next_poll_change(const Snes *snes);
+/* Master clocks since the line's horizontal blank began ($4212 bit 6 set),
+ * 0 outside it. */
+uint32_t snes_clocks_into_hblank(const Snes *snes);
 
 #endif

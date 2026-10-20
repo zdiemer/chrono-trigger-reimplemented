@@ -91,6 +91,12 @@ PF_API bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line);
  * routine it stands for, as tm_wait_frame's does. A host draws a frame at a
  * time, so it has nothing to wait for. */
 PF_API void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line);
+/* Inside the line handler, before it ends the picture: wait until the line it
+ * runs at has been drawn (the line's horizontal blank), so that the picture's
+ * last line shows whole. `o` names the original's loop the call stands in
+ * (PF_LOOP). A host runs the line handler once the picture's lines are drawn,
+ * so it has nothing to wait for. */
+PF_API void tm_wait_line_drawn(Platform *pf, PfOrigin o);
 /* Noise for effects that look random (the scenes' random numbers stir it into
  * their seed): four values, bytes or words as the caller stirs them. The
  * SNES backend reads them as the scenes' stir ($C3:02DD) does, so a port

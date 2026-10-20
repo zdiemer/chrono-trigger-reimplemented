@@ -396,6 +396,14 @@ meaning = "The high byte of the sprites' Y offset, where the offset is a word: t
 source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54; game/scene/sprites.c $7E:A03D"
 
 [[var]]
+name = "scene_sprite_list_attributes"
+addr = "7E:000A"
+page = "scene"
+subsystem = "scene"
+meaning = "The attributes of the sprite the program's list with signed offsets ($7E:3A97) is placing, kept to test its size: scaffolding, the last sprite's as the list leaves it"
+source = "game/scene/sprites.c, scene_draw_signed_sprite_list $7E:3A97"
+
+[[var]]
 name = "scene_sprite_list_left"
 addr = "7E:0019"
 page = "scene"

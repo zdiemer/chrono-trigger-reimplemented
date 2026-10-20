@@ -8570,6 +8570,10 @@
 /* Frames counted by the scene NMI work [2 bytes] */
 #define RAM_SCENE_FRAME_COUNTER 0x7E0008u
 #define RAM_SCENE_FRAME_COUNTER_DP 0x08u     /* page scene */
+/* The attributes of the sprite the program's list with signed offsets ($7E:3A97) is placing,
+ * kept to test its size: scaffolding, the last sprite's as the list leaves it */
+#define RAM_SCENE_SPRITE_LIST_ATTRIBUTES 0x7E000Au
+#define RAM_SCENE_SPRITE_LIST_ATTRIBUTES_DP 0x0Au /* page scene */
 /* OAM address the sprite upload leaves set with priority rotation on: the entry that draws on
  * top */
 #define RAM_SCENE_SPRITE_PRIORITY_START 0x7E0010u

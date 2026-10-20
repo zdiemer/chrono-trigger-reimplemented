@@ -867,6 +867,12 @@ typedef enum { LIST_KEEPS_EVERY_SPRITE, LIST_LEAVES_OUT_BELOW_THE_PICTURE } Scen
 void scene_draw_large_sprite_list(GameState *g, uint16_t list, SceneLargeList form);
 void scene_draw_large_sprite_list_entry(Snes *s);
 bool scene_large_sprite_list_fits(Snes *s);
+/* The program's list with signed offsets ($7E:3A97), each sprite's size in its
+ * attributes, as a C call and as its entry: the endings' rider of the swept
+ * window. */
+void scene_draw_signed_sprite_list(GameState *g, uint16_t list);
+void scene_draw_signed_sprite_list_entry(Snes *s);
+bool scene_signed_sprite_list_fits(Snes *s);
 
 /* scene/circle.c */
 bool scene_circle_table_is_clear(Snes *s);
