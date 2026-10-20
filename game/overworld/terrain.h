@@ -47,12 +47,25 @@ GroundBelow overworld_look_below(GameState *g, WorldSpot at);
 void overworld_keep_ground(GameState *g, MenuObject walker, GroundAround around);
 GroundAround overworld_ground_kept(const GameState *g, MenuObject walker);
 
+/* A vehicle comes down only where the four tiles round its spot and the two
+ * below them, as its slot keeps them, are open ground: no wall and no
+ * place's ground. */
+bool overworld_open_ground_kept(const GameState *g, MenuObject vehicle);
+
 /* A walker can't step to a spot where either tile above it is a wall; the
  * leader stands on a place's ground where both are. */
 static inline bool ground_walls_off(GroundAround a) { return ((a.up_left | a.up_right) & GROUND_WALL) != 0; }
 static inline bool ground_of_a_place(GroundAround a)
 {
     return (a.up_left & GROUND_OF_A_PLACE) && (a.up_right & GROUND_OF_A_PLACE);
+}
+
+/* A wall with both its bits is one even a dactyl can't fly over; it can't
+ * fly to a spot where any of the four tiles round it is one. */
+static inline bool ground_bars_flight(GroundAround a)
+{
+    return (a.up_left & GROUND_WALL) == GROUND_WALL || (a.up_right & GROUND_WALL) == GROUND_WALL
+           || (a.down_left & GROUND_WALL) == GROUND_WALL || (a.down_right & GROUND_WALL) == GROUND_WALL;
 }
 
 /* The region of the map a spot is in. The region map starts at the map's

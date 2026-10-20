@@ -117,6 +117,16 @@ GroundAround overworld_ground_kept(const GameState *g, MenuObject walker)
                            menu_object_slots_ground_down_right(g, walker) };
 }
 
+bool overworld_open_ground_kept(const GameState *g, MenuObject vehicle)
+{
+    enum { NOT_OPEN = GROUND_WALL | GROUND_OF_A_PLACE };
+    GroundAround a = overworld_ground_kept(g, vehicle);
+    uint8_t all = (uint8_t)(a.up_left | a.up_right | a.down_left | a.down_right
+                            | menu_object_slots_ground_below_left(g, vehicle)
+                            | menu_object_slots_ground_below_right(g, vehicle));
+    return !(all & NOT_OPEN);
+}
+
 /* ---- The regions ------------------------------------------------------------------------ */
 
 /* A region map's row holds a nibble for each of the map's columns, the even

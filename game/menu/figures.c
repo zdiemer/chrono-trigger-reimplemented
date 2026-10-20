@@ -342,6 +342,44 @@ static bool equipment_is_the_games(const GameState *g)
     return true;
 }
 
+/* ---- Trying an item on -------------------------------------------------------------------- */
+
+void menu_try_on(GameState *g, uint8_t item)
+{
+    set_menu_item_operand(g, item);
+    set_menu_status_record_bytes_byte(g, menu_equip_record_place(g), item);
+}
+
+static uint8_t figure_shown(const GameState *g, MenuFiguresWindow window, unsigned i)
+{
+    return window == FIGURES_IN_THE_SHOP ? menu_shop_figure_shown(g, i) : menu_equipment_figure_shown(g, i);
+}
+
+// $C2:A5E7, $C2:E18A
+void menu_mark_the_figures_tried_on(GameState *g, MenuFiguresWindow window)
+{
+    bool shop = window == FIGURES_IN_THE_SHOP;
+    unsigned shown = shop ? MENU_SHOP_FIGURES_SHOWN : MENU_EQUIPMENT_FIGURES_SHOWN;
+    TIMED_AS(g, 0xC2916E, menu_work_out_figures_shown(g));
+    for (unsigned i = 0; i < shown; i++) {
+        uint8_t figure = figure_shown(g, window, i);
+        uint8_t was = menu_status_record_figures_byte(g, figure), is = menu_figures_worked_out(g, figure);
+        if (shop)
+            set_menu_status_record_figures_byte(g, figure, is);
+        set_menu_figure_marks(g, i, menu_figure_mark(was, is));
+    }
+}
+
+bool menu_figures_workable_with(const GameState *g, uint8_t place, uint8_t item)
+{
+    for (unsigned slot = 0; slot < MENU_EQUIPMENT_SLOTS; slot++) {
+        bool tried = menu_category_slot_place(g, (uint8_t)slot) == place;
+        if (!an_item_of_the_games(tried ? item : worn(g, (MenuItemCategory)slot), (MenuItemCategory)slot))
+            return false;
+    }
+    return true;
+}
+
 bool menu_figures_are_workable(Snes *s)
 {
     if (!menu_on_page_work_ram(s))

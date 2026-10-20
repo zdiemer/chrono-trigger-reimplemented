@@ -165,9 +165,8 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What battle's rewrite left** (history/reimplementation-phase3a.md, "Phase 3a: the battle off the
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
-  - The original's routines the battle still calls out to: six of the
-    battle's ten steps' routines (`$C1:0023`, `$C1:1B19`, `$C1:1BAA`,
-    `$C1:006D`, `$C1:354D`, `$C1:356D`; the dispatch
+  - The original's routines the battle still calls out to: one of the
+    battle's ten steps' routines (`$C1:0023`; the dispatch
     `$C1:0003` is `battle/steps.c`) and the rewards' gold `$C1:D0A2`;
     from an enemy's turn (history/reimplementation-waves.md,
     "Phase 3, wave 2: the enemies' minds"), an enemy's
@@ -182,11 +181,9 @@ rest waits, is [PLAN.md](PLAN.md).
     the decompressor from the effect graphics loader; from a member that comes back once (history/reimplementation-chunks.md, "Phase 3,
     battle: the leftovers"), the showing's step `$C1:BFA4`/`$C1:EC7F`; from
     the battle's start, the battle screen's setup `$CD:0000` (`$D1:F1B0`),
-    and from the setup's
-    end the party's poses `$C1:35DD`; the wait tail's callee from the frame
+    the wait tail's callee from the frame
     work, an effect's graphics
-    loaded `$D1:ECF3`; the menu's turn the frame work's wait gives
-    (`$C1:0012`); and from the battle's close, a battle lost on the screen
+    loaded `$D1:ECF3`; and from the battle's close, a battle lost on the screen
     effects' battlefield (`$CD:0D93`, which no movie reaches). The battle
     screen's setup is reached through its jump stub (`$CD:0000` to `$CD:0039`),
     where the strict native run stops now (PLAN.md, "The native frame").
@@ -832,10 +829,8 @@ rest waits, is [PLAN.md](PLAN.md).
     fights, none felling an enemy; a native build, which doesn't keep the
     cell, decides it otherwise.
 - **What an action's showing left at its edge** (history/reimplementation-chunks.md,
-  "Phase 3, battle: an action shown"): the showing's stub (`$C1:BFA4`); the
-  menu's turn the frame work's wait
-  for the vblank handler gives (`$C1:0012`, `$C1:10E3`), after which every
-  register is live; and the frame waits (`$C1:007E`), which wait on the
+  "Phase 3, battle: an action shown"): the showing's stub (`$C1:BFA4`);
+  and the frame waits (`$C1:007E`), which wait on the
   vblank handler and go with the timing service (PLAN.md, "Timing is
   decided"). Poses 1, 10 and 11 have looks (`pose_looks.c`) no status gives.
 - **What the battlefield's change left** (REIMPLEMENTATION.md, "Phase 3, battle: the
@@ -1076,9 +1071,11 @@ rest waits, is [PLAN.md](PLAN.md).
   rebuilt only to be decoded (also `display.c`); `epoch.c` writes
   `(location_flags & ~0x03) | facing` three times, leaves the
   `EPOCH_ARRIVALS` locations and rows unnamed, and `keep_a_stray_spot` should
-  name the writer that resets the spot; `DACTYL_MAP`/`LOCATION_NUMBER` are
-  defined in `vehicles.c` and `epoch.c`, and `over_the_dactyl` repeats
-  `dactyl_on_this_map`; `vehicles.c` writes a signed-word test out by hand;
+  name the writer that resets the spot; `vehicles.c`'s `LOCATION_NUMBER`
+  repeats `field_data.h`'s `LOCATION_NUMBER_BITS`, and the vehicles in the
+  air's `parked_here` repeats the boarding's `dactyl_on_this_map` and
+  `epoch_on_this_map`, the latter with the location compared whole, as the
+  original's two tests do; `vehicles.c` writes a signed-word test out by hand;
   the equipment guard `menu_list_what_fits_can_be_made` works out "can use"
   itself, and `power` starts at the slot's first item only for a leftover;
   `menu_data.h`'s new slot accessors split a comment from its function;
@@ -1486,10 +1483,6 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What the vehicles and the screen's objects left** (history/reimplementation-chunks.md, "Phase 3,
   menus and overworld: the vehicles, the screen's objects and the calls made
   where they go"):
-  - the dactyl's flight (`$C2:4CDA`-`$C2:5627`, about 2.4 KiB) is still the
-    original's; `field-65m-bc-dactyl.ctm` (route `dactyl_65m_bc`) boards one at
-    Tyrano Lair, flies a short way and lands, so it is ready to be ported and
-    checked;
   - the objects' loop (`menu/objects.c`) and the scripts' call command
     (`menu/script_bridge.c`) still call a handler or a named routine through
     the machine, at its own address, so that each keeps its shadow
@@ -1513,15 +1506,16 @@ rest waits, is [PLAN.md](PLAN.md).
   - what the reference play still runs of bank `$C2` with no call on record
     (`C2:----`) is the menus' screens' code after a task's wait (`$C2:821E`),
     resumed on the task's own stack, which the fallback measure can't file
-    under the port that stopped at the wait: the held cursors' task's loop
-    (`$C2:8BB8`-`$C2:8C33`), the records' task's return to its start
-    (`$C2:F699`) and a step of the save panel's (`$C2:D08F`), 0.19 M
-    instructions of the shipping mode's movies in all now that the main
-    task's and the cursor's loops are C (menu/tasks.c);
+    under the port that stopped at the wait: the records' task's return to
+    its start (`$C2:F699`) and a step of the save panel's (`$C2:D08F`), now
+    that the main task's, the cursor's and the scroll bar's loops are C
+    (menu/tasks.c, menu/held_cursors.c);
   - the scrolling lists' cursor kept within the rows (`$C2:EA53`) and their
     frame laid out (`$C2:EA81`, the divider's quotient the scroll bar's
     step), which the equipment, items, techs and shop screens' bridges call
-    out to, and the equipment screen's preview (`$C2:A5C3`, `$C2:A5E7`);
+    out to (REIMPLEMENTATION.md, "Phase 4a, the shipping mode's fallbacks,
+    chunk 5": five call sites in four bridges, each leaving the registers
+    its caller reads after);
   - the world map's loads reach the unpacker through the machine
     (`overworld/setup.c`'s `Unpacker`): a C unpacker taking a stream and a
     destination would make them plain calls (the event commands' TODO wants
@@ -1621,12 +1615,7 @@ rest waits, is [PLAN.md](PLAN.md).
     and a Lapis, more than ten places of items) would keep them checked.
 - **What the menus' fifth chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   equipment screen and its member list"):
-  - the equipment screen's preview of an item's figures (`$C2:A5C3`,
-    `$C2:A5E7`) stays the original's: the P it saves (under its calls to the
-    figures, `$C2:916E`, and the description) is what the list's move
-    (`$C2:9F05`) leaves at its return, which that port doesn't work out on
-    its paths; what its steps call out to beyond it is still the original's
-    too: the list of what fits (`$C2:8953`), the lists' sliding (`$C2:EA53`,
+  - what the equipment screen's steps call out to is still the original's: the list of what fits (`$C2:8953`), the lists' sliding (`$C2:EA53`,
     `$C2:EB9B`, `$C2:EB1F`), the low-HP marks (`$C2:813C`), the tasks' stop
     (`$C2:8255`) and the main menu (`$C2:9A98`);
   - the member slide's start (`$C2:9D5B`) and the member list's scroll bar
@@ -2413,9 +2402,8 @@ re-runs the census.
     called as C.
   - The strict native run stops at the jump stubs into the battle screen's
     setup (`$CD:0000`, `$CD:0039`; `battle/from_field.c` calls them), and
-    then meets `$CD:0003`, `$C0:0002` and `$CC:F062`, the party's poses
-    `$C1:35DD` and the battle's stubs at `$C1:0003`-`$C1:0058` (PLAN.md, "The
-    native frame").
+    then meets `$CD:0003`, `$C0:0002` and `$CC:F062` and the battle's stubs
+    at `$C1:0003`-`$C1:0058` (PLAN.md, "The native frame").
   - What its review left (none blocking after its fixes):
     `battle_wait_music_fade_loop` (`battle/sound.c`) sets the PC by hand, a
     stop-point fragment of `$CD:0D93`'s loop (rubric item 16: port the
@@ -2463,8 +2451,9 @@ re-runs the census.
     which no showing makes; the planet's colours' guard refuses colours over
     the step's code, its working cells or the stack's top, which the original
     would step as it reads them.
-- **What the shipping mode's fallbacks' fourth chunk left** (REIMPLEMENTATION.md,
-  "Phase 4a, the shipping mode's fallbacks, chunk 4"):
+- **What the shipping mode's fallbacks' fourth chunk left**
+  (history/reimplementation-chunks.md, "Phase 4a, the shipping mode's
+  fallbacks, chunk 4"):
   - three entries nothing in the library calls, so fuzzing alone checks
     them: the battlefield changed as an enemy leaves (`$CD:0E05`, an enemy
     whose family changes it, or one an enemy's rule binds), the Beyond Time
@@ -2506,9 +2495,35 @@ re-runs the census.
     writing plainly too, or the drift's test its own source
     (`tools/effects_baseline.txt`, `drift_high_byte`);
   - what the endings still hand back to the original in the reference play:
-    the Mode 7 picture's tiles (`$7E:5EF8`, 0.20 M instructions of
-    `endings-beyond-time`), the swept window's rider (`$7E:3A97`), the
-    program's first script step (`$7E:3749`) and `$7E:37CA`.
+    the swept window's rider (`$7E:3A97`), the program's first script step
+    (`$7E:3749`) and `$7E:37CA`.
+- **What the shipping mode's fallbacks' fifth chunk left** (REIMPLEMENTATION.md,
+  "Phase 4a, the shipping mode's fallbacks, chunk 5"):
+  - the scrolling lists' cursor kept within their rows (`$C2:EA53`): the
+    equipment, items, techs and shop screens' bridges call it at five sites,
+    each going on with registers it leaves, so a port needs each bridge's
+    reads worked out first;
+  - what the shipping mode still runs of the menus' unported code: the
+    healing's digits (`$C2:9093`), `$C2:A518`, `$C2:A7B7` and `$C2:A970`;
+    of the scene program's, the swept window's rider (`$7E:3A97`), the first
+    script step (`$7E:3749`) and the title's and attract's frame tasks
+    (`$7E:66B0`, `$7E:63D5`, `$7E:64BF`);
+  - the frame waits (`$CD:3E75`, `$CD:3E3B`) leave the menu frame's carry,
+    declared don't-care on library evidence (`registry.c`): a C menu frame
+    that worked its carry out, or a C battle message whose waits don't read
+    it, would take the notes out;
+  - the victory (`$C1:356D`) goes on as the original after the frame's tail
+    where A's high byte comes back set, which the game never makes; its
+    fuzzing compares few states (most run past the first call-out's budget),
+    and the poses, the victory, the defeat and the turn's joining span frames
+    or run inside the step dispatch, so shadow mode compares them only
+    through their callers';
+  - the Day of Lavos's sampling of the world map (`$C2:6400`) is interrupted
+    at its one call in the library, so fuzzing alone compares it;
+  - the dactyls: the followers' guard refuses offsets past `NEAR` and a
+    leader's spot off the map, which no flight makes; the arrival's x
+    measured across the map's height (`slow_so_as_not_to_pass`) is the
+    original's and kept.
 - **What the shipping mode's fallbacks' review left** (none blocking):
   - The direct page's scratch cells `$00`-`$0E` are written plainly across
     about a dozen battle files under names that belong to other routines

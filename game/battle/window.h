@@ -103,6 +103,16 @@ static inline bool menu_slot_has_member(const GameState *g, unsigned slot)
                                                                 : battle_menu_slot_members_unchecked(g, slot));
 }
 
+/* The party's line for the menu (menu_line.c): the member first in line
+ * takes the menu; and the member with the open menu gives its slot up, the
+ * menu going on to the first member still holding a slot, or closing, its
+ * window built afresh and the timers going again. */
+void battle_next_member_takes_the_menu(GameState *g);
+void battle_hand_the_menu_on(GameState *g, uint8_t member);
+/* A member's action called off: out of the line, or out of its slot of the
+ * menu ($C1:1BAA, the battle's step 2). */
+void battle_call_off_the_menu(GameState *g, uint8_t member);
+
 /* ---- The battle window's layouts ---------------------------------------------------------- */
 
 /* The game's settings choose one of three layouts. The first shows each

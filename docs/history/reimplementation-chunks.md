@@ -10036,3 +10036,179 @@ main task's wait, whose stretch is the wait's; the main menu's and the shop's
 how-many steps' vblank tails (1.08% and 1.05%), now that they run inside the
 turn; and the twinkling's, whose time follows how many stars wait, twinkle
 or are put anew.
+
+## Phase 4a, the shipping mode's fallbacks, chunk 4: the beaten enemies seen off, the Beyond Time ending's night, and the scene program's sine and signed multiply (`$C1:006D`, `$CF:FE20`-`$CF:FE7F`, `$CD:0024`-`$CD:019C`, `$CD:0E05`, `$CD:0C89`, `$7E:9080`-`$7E:90CE`, `$7E:992A`-`$7E:9E79`, `$7E:A03D`-`$7E:A098`, `$7E:33D6`-`$7E:340C`, `$7E:3461`-`$7E:3479`)
+
+The battle's and the scene program's streams together this time (history
+file, "Phase 4a, the shipping mode's fallbacks, chunk 3", for the one before),
+chosen, as the last three were, by what the shipping mode still ran as the
+original.
+
+**How it was chosen.** The last gate's shipping mode ran 6.32 M instructions
+of the original's code (the movies 1.52 M, the routes 4.80 M). Its largest
+lines were the dissolve of a beaten enemy (`CD:0154` 0.75 M and `CD:010A`
+0.65 M, its step and the step's loop over the tiles), the map layers' scroll
+a battle on a map's background calls through `$C0:0002` (0.44 M), and the
+Beyond Time ending's tasks in the scene program: the shared endings' orbit
+(`7E:99B5`, 0.55 M), the program's own list of large sprites (`7E:A03D`,
+0.51 M), the flight's view (`7E:9AF3`, `7E:9DBC`, `7E:9ABD`, 0.54 M) and the
+Mode 7 pictures' (`7E:9E2B`, 0.16 M). The dissolve is reached only from seeing
+a beaten enemy off, so the battle's step 6 came whole with it; the Beyond Time
+tasks are one scene, taken whole with the fireworks the shared setup places.
+The program's sine and signed multiply, which those tasks, the race's and
+every scene's original code call, were the stretch, and came too.
+
+**What it is.**
+- The enemies an action beat leave the fight (`battle/beaten_enemies.c`,
+  new): the battle's step 6 (`$C1:006D`) and its search from the last enemy
+  place to the first (`$CF:FE20`): each beaten enemy is down, its mark and
+  drift cleared; a hidden one leaves its place; a drawn one takes the dying
+  enemies' palette and is seen off (`$CD:0024`, `$CD:0043`), unless it stays
+  on the field after the battle. Seeing off waits for the battlefield to be
+  put back, then dissolves the enemy with a sound (`$CD:0093`, `$CD:00A0`:
+  two of the 64 places of each tile go clear a frame for 32 frames, the
+  stride through the tile its pace's, `$CD:010A`/`$CD:0154` as one step), or
+  changes the battlefield where its family has it (`$CD:0E05`), or under an
+  enemy's rule dissolves without the sound and then changes the battlefield
+  to the rule's (`$CD:006B`). The waits and transfers are the battle's
+  bridges (`battle/wait.c`, `battle/uploads.c`), made where the original
+  makes them.
+- The map layers that scroll by themselves under a battle (`$CD:0C89`): the
+  field's own C (`field_scroll_layers_by_themselves`), timed as its routine,
+  in place of the long call through `$C0:0002`.
+- The Beyond Time ending's night (`scene/beyond_time.c`, new): the flight
+  over the world's map in the dark -- the map passing under the camera
+  (`$7E:90C1`), the view checked, the flat plane turned or the perspective
+  built again where the camera changed (`$7E:9ABD`, `$7E:56B4`; the camera
+  kept by `scene_keep_the_camera`, now shared with the race's camera check,
+  as is the horizon's split, `scene_horizon_lines`), placed and sent in the
+  vblank (`$7E:9AF3`, `$7E:9DBC`, `$7E:5654`) and the horizon set
+  (`$7E:9080`); the Epoch circling and swaying (`$7E:992A`, `$7E:997D`); the
+  town's lights twinkling (`$7E:9D48`, `$7E:9D45`); the fireworks placed by
+  the shared setup, now as C (`$7E:9BB8`), and bursting (`$7E:9BF9`, the
+  burst picked at `$7E:9BD8`); the Mode 7 pictures sent (`$7E:9E2B`,
+  `$7E:9E19`); and the shared endings' orbit (`$7E:99B5`). "The End" over
+  the last scene (`$7E:99FA`) joined `scene/endings.c`.
+- The program's own list of large sprites (`scene/sprites.c`,
+  `scene_draw_large_sprite_list`, `$7E:A03D`), beside the lists the scene
+  engine draws.
+- The program's sine and cosine and its signed multiply as entries
+  (`scene/math.c`, `$7E:3461`, `$7E:3465`, `$7E:33D6`), which the C callers
+  already had; the original's own code, where it still runs, now reaches
+  them as ports.
+
+**How the list of large sprites picks its form.** Its callers patch its code.
+As the program is loaded, its test at `$7E:A074` leaves out a sprite whose Y
+comes to the picture's bottom or below (a branch back to the next sprite);
+the fireworks save that word, write two no-operations over it for their
+bursts so that every sprite shows however low, and put it back after; they
+also write a compare into two bytes no path runs (`$7E:A090`) and then the
+load the program has there. The port has the two forms as a type
+(`SceneLargeList`): the fireworks call it as C with the form that keeps every
+sprite, and the registered entry, which only the original's code reaches,
+reads the form from the test's code bytes (`scene_large_list_clip`, named in
+the map), where the guard refuses any code but the two the program writes.
+The fireworks' saved word and the spare bytes' final load are scaffolding.
+The original's form that leaves sprites out goes on with a 16-bit
+accumulator once it has left one out, storing the next sprite's bytes as
+words; the guard refuses a list that leaves out any sprite but its last, and
+that form's one caller (`$7E:9C58`) no showing reaches.
+
+**What shadow mode and fuzzing found.** Over the 36 movies, 0 mismatching:
+the dissolve's step 3,008 calls; the step 6 and its search 52 each, 12 of
+them compared on their own (no enemy dissolved) and the rest inside the
+turn's comparison, as seeing an enemy off and the dissolve (47 each) are,
+since they span frames; the map layers' scroll 440,679; the Beyond Time
+tasks between 163 (the Epoch swaying) and 15,676 (the orbit) calls, the
+fireworks' setup 2, the list of large sprites 3,198 and "The End" 3,211, all
+in `endings-beyond-time`; the signed multiply 41,691 and the sine and cosine
+223,895 and 97,948, in every movie. The battlefield's change as an enemy
+leaves, the lights' twinkle with the camera turned back and the picture sent
+with BG2's scroll nothing in the library calls: fuzzing alone checks them
+(TODO.md). Shadow mode found the flat view's guard refusing 975 real calls:
+the flight's flat view keeps its camera half a screen left of the map's
+left edge, where the original's sum across carries into its sum down and
+puts the plane's centre a line lower; that is now a named rule
+(`left_of_the_map_by_less_than_the_centre`) rather than a refusal, with a
+fuzz variant about the edge. The gate's shipping runs with
+`--scaffold-reads` found the screen script reading, in three movies' Lavos
+fights, what a dissolve's step leaves in the battle's shared cells: they lie
+over the screen effect's kept settings, which an effect giving fewer than
+five takes up, so those three words are written plainly
+(`leave_the_step_over_the_effect_settings`; the overlap named in the map and
+in TODO.md). **Fuzzing** (seed 1, `tools/fuzz_routines.toml`), 0 mismatching
+everywhere: the battle's entries 20,000 of 20,000 each up to their first
+wait or long call (the battlefield's change 19,933, the rest past the
+budget), the scroll 20,000; the scene's tasks 20,000 each but the flight's
+view sent flat with the carry set (14,958, and 10,029 of 20,000 about the
+map's edge), the fireworks (13,264; the guard refuses a firework at no frame
+of a burst or a burst's start met early) and the list of large sprites
+(7,580 in the fireworks' form; the guard refuses a list whose sprites
+don't fit the table from the cursor); the multiply, the sine and the
+cosine 20,000 each (the multiply on a channel's page too).
+
+**The review** asked for nine things, all done but one part. The word in the
+battle's first shared cells (`$45`), whose high byte the screen scripts'
+drift tests, is written plainly (`battle_screen_leftover`): the reviewer
+named the screen window's leftover, but the shipping run's read was of what
+the layers' scroll leaves there every frame and, at the one drift that read
+it, what a layer's nudge had left; the scroll and every screen command that
+leaves the word in its logic now write it plainly
+(`screen_leave_for_the_drift`), and the few that leave it only in a leaves
+helper are in TODO.md. The bursts' frames are read through one accessor returning a
+frame's count and list (`scene_firework_bursts`, now in the map) where
+offsets had read the next entry's count; the view's check is named for the
+turn it also makes (`update_the_view`); the cosine's overflow is one helper
+the perspective's builder shares, and the quarter turn one definition
+(`scene.h`); loading a battlefield and marking its scripts running is one
+operation (`battle_load_and_run_battlefield`); `field_line_screens` has its
+four bytes as fields; the drawn enemy and the family's mark are predicates in
+`battle.h`, and the gradient's bit is `frame.h`'s. The search's leftovers are
+one helper after its loop, but for those the call to see an enemy off must
+find, since shadow mode compares memory at the call: they went into that
+call's own helper. The part not done: the fireworks' leftover offset stays
+scaffolding, because written plainly it would read two cells as a word and
+past the places in the logic (items 99 and 103); its baseline lines keep
+their reasons. The math lines' reasons name the eight calls that store the
+operands.
+
+**Measured.** The shipping mode over the movies: 8.4 KiB of code and
+0.89 M instructions in place of hand ports, from 8.8 KiB and 1.52 M; over the
+routes, counted over the frames they keep, 0.63 M from 4.80 M (the dissolve's,
+the scroll's and the Beyond Time ending's lines); movies and routes
+together 1.52 M from 6.32 M, with `CD:0154`, `CD:010A`, `C0:0002`,
+`7E:99B5`, `7E:A03D` and the flight's and pictures' lines gone. What leads
+now is the battle's long-call return (`C1:0012`, 0.20 M, the music's fade and
+the way back to the field), the Mode 7 picture's tiles (`7E:5EF8`, 0.20 M)
+and the menus' unported code (0.20 M). The reference play: 13.90 M from
+19.91 M over the 36 movies, 18.0 KiB from 19.5 KiB. The baseline takes the
+gain, with no new line. No refusal in real play; the native shape runs all
+36 movies and reaches all ten routes' outcomes. `--misses` lists nothing
+over `endings-beyond-time`, `endings-bucket-lavos`, `gato-battle`,
+`battle-magus`, `battle-lavos-gameover`, `late-omen-battles`,
+`events-jetbike-race` and `attract-demo`, and `--px-check` reports every
+frame of the eight identical. The step 6 and its nested entries have 52
+calls or fewer, under the uncompared check's floor, so the uncompared
+baseline doesn't change.
+
+**Timing.** Calibrated (`--drifted`, twice): the new entries -- the Beyond
+Time tasks between 2,230 (the lights) and 14,339 (the Epoch circling), the
+list of large sprites 5,482, the dissolve's step 5,454, the multiply 7,469,
+the sine 9,453 and the cosine 11,067 -- and the scroll under a battle, whose
+work is now the field's routine's part (18,362 on its own few accesses),
+and the endings' picture frame (4,125), which now picks the frame
+through the Epoch's helper. Two that nothing calls take their twins' values
+(the lights' 2,230, the picture's 4,698); the fireworks' setup, the search
+and the dissolve, whose stretches the library has too few of to judge, their
+calibrated ones. The step 6 is the odd one: its own accesses are its long
+call's few, while the original's time in its stretches is the whole of the
+seeing off, its parts at their own rates and a remainder (the dissolve's frame
+loop and its fades) that no own access stands for, so its rate is 365,064 per
+access. A first calibration made before the dissolve's step wrote its
+leftovers plainly drifted it and the knocked-out enemies' step, which carries
+it as a part, past the limit; calibrated again from the next gate's shadow logs
+(365,064 and 8,414) both hold. The review's changes moved three, calibrated
+again (`--drifted`): the field's screen effects and the event command that
+runs them, whose screens' values are now written a field at a time (3,484
+and 5,212), and the fireworks, which read their bursts' frames through the
+map (7,461). No exception.

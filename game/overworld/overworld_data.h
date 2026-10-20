@@ -70,17 +70,18 @@ static inline Reach overworld_reach(const GameState *g, ReachRecord r)
     return (Reach){ rom_read16(g, at), rom_read16(g, at + 2), rom_read16(g, at + 4), rom_read16(g, at + 6) };
 }
 
+/* The second sprite each vehicle is drawn with, the Epoch and the dactyls
+ * alike: standing, and in flight. */
+enum { VEHICLE_SECOND_SPRITE_STANDING = 0x4E, VEHICLE_SECOND_SPRITE_IN_FLIGHT = 0x1F };
+
 /* The Epoch's sprite scripts: standing with its wings or without them,
- * taking off and landing, and the second sprite it is drawn with, standing
- * and in flight; and in flight, the way it faces, with its wings ($C2:48C9,
- * a byte a facing) or without ($C2:48C5). */
+ * taking off and landing; and in flight, the way it faces, with its wings
+ * ($C2:48C9, a byte a facing) or without ($C2:48C5). */
 enum {
     EPOCH_STANDS_WITH_ITS_WINGS = 0x18,
     EPOCH_STANDS_WITHOUT_WINGS = 0x2D,
     EPOCH_TAKES_OFF = 0x19,
     EPOCH_LANDS = 0x1A,
-    EPOCH_SECOND_SPRITE_STANDING = 0x4E,
-    EPOCH_SECOND_SPRITE_IN_FLIGHT = 0x1F,
 };
 static inline uint8_t overworld_epoch_flying_animation(const GameState *g, bool wings, uint8_t facing)
 {
@@ -105,6 +106,51 @@ enum {
     EPOCH_ENTERS_THE_BLACK_OMEN = 0xC24C8F,
     EPOCH_BOARDED_IN_A_SCENE = 0xC231A8,
 };
+
+/* ---- The dactyls ------------------------------------------------------------------------ */
+
+/* The dactyls' sprite scripts: the leader's standing, and taking off and
+ * landing alike; the second's and third's taking off and landing alike, the
+ * second member's first. */
+enum { DACTYL_STANDS = 0x24, DACTYL_TAKES_OFF = 0x29, SECOND_S_DACTYL_TAKES_OFF = 0x6F, THIRD_S_DACTYL_TAKES_OFF = 0x74 };
+
+/* The leader's dactyl flies the way it faces two pixels a frame, across and
+ * down ($C2:5037, two words a facing), showing its flying animation that way
+ * ($C2:5047, a byte a facing). */
+static inline int16_t overworld_dactyl_pace(const GameState *g, uint8_t facing, MenuAxis axis)
+{
+    return (int16_t)rom_read16(g, 0xC25037u + facing * 4u + axis * 2u);
+}
+static inline uint8_t overworld_dactyl_flying_animation(const GameState *g, uint8_t facing)
+{
+    return rom_read8(g, 0xC25047u + facing);
+}
+
+/* Where the leader's dactyl's second sprite is drawn, below its spot (above
+ * where negative), standing and in flight ($C2:508F, a word of each and a
+ * word of its sprite script). */
+static inline int16_t overworld_dactyl_second_sprite_below(const GameState *g, bool flying)
+{
+    return (int16_t)rom_read16(g, 0xC2508Fu + (flying ? 4u : 0u));
+}
+static inline uint8_t overworld_dactyl_second_sprite(const GameState *g, bool flying)
+{
+    return rom_read8(g, 0xC25091u + (flying ? 4u : 0u));
+}
+
+/* The second and third members' dactyls fly in a V behind the leader's: each
+ * its place across and down from the leader's spot by the way the leader
+ * flies ($C2:543C, two words a place, the two followers' places for each
+ * facing in turn), and its flying animation the way it faces ($C2:548C, four
+ * a follower). */
+static inline int16_t overworld_formation_place(const GameState *g, uint8_t leader_facing, unsigned follower, MenuAxis axis)
+{
+    return (int16_t)rom_read16(g, 0xC2543Cu + (leader_facing * 2u + follower) * 4u + axis * 2u);
+}
+static inline uint8_t overworld_following_dactyl_flying_animation(const GameState *g, unsigned follower, uint8_t facing)
+{
+    return rom_read8(g, 0xC2548Cu + follower * 4u + facing);
+}
 
 /* The Black Omen's name among the places' names (the sign's). */
 enum { OVERWORLD_BLACK_OMEN_NAME = 0x4C };

@@ -133,7 +133,7 @@ static void give_effect_enemy(GameState *g, unsigned enemy) { set_battle_effect_
  * each facing's part of them a stride after the last. */
 enum { PARTY_LISTS_BANK = 0xE4, FRAMES_PER_ANIMATION = 4 };
 
-static uint8_t party_list_byte(const GameState *g, uint16_t at)
+uint8_t battle_party_list_byte(const GameState *g, uint16_t at)
 {
     return battle_frame_list_byte(g, battle_at(PARTY_LISTS_BANK, at));
 }
@@ -143,10 +143,12 @@ static uint16_t facing_stride(const GameState *g, unsigned slot)
     return (uint16_t)(battle_facing_stride_low(g, slot) | battle_facing_stride_high(g, slot) << 8);
 }
 
-/* The member's step keeps the places of its lists in the animation
- * scheduler's first entry (battle_scheduled_frame_lists), whatever member it
- * is: a scheduled animation of the first combatant finds them there. */
-static void keep_member_lists(GameState *g, uint16_t frames_at, uint16_t times_at)
+uint16_t battle_facing_part(GameState *g, unsigned slot)
+{
+    return (uint16_t)battle_multiply_long(g, battle_object_facing(g, slot), facing_stride(g, slot));
+}
+
+void battle_keep_member_lists(GameState *g, uint16_t frames_at, uint16_t times_at)
 {
     set_battle_scheduled_frame_lists(g, 0, frames_at);
     set_battle_scheduled_delay_lists(g, 0, times_at);
@@ -162,20 +164,20 @@ static uint8_t take_next_party_frame(GameState *g, unsigned member, uint8_t anim
     uint16_t place = (uint16_t)(animation * FRAMES_PER_ANIMATION);
     uint16_t frames_at = (uint16_t)(battle_object_frame_lists(g, member) + place);
     uint16_t times_at = (uint16_t)(battle_object_delay_lists(g, member) + place);
-    keep_member_lists(g, frames_at, times_at);
-    uint16_t facing_part = (uint16_t)battle_multiply_long(g, battle_object_facing(g, member), facing_stride(g, member));
+    battle_keep_member_lists(g, frames_at, times_at);
+    uint16_t facing_part = battle_facing_part(g, member);
 
     uint8_t frame = (uint8_t)(battle_party_frame(g, member) + 1);
-    uint8_t time = party_list_byte(g, (uint16_t)(times_at + frame));
+    uint8_t time = battle_party_list_byte(g, (uint16_t)(times_at + frame));
     if (time == 0) {
         frame = 0;
-        time = party_list_byte(g, times_at);
+        time = battle_party_list_byte(g, times_at);
     }
     set_battle_party_frame(g, member, frame);
     uint8_t steps = (uint8_t)battle_divide_by(g, time, TIME_UNITS_PER_STEP).quotient;
     set_battle_party_frame_delay(g, member, steps != 0 ? steps : 1);
 
-    uint8_t graphics = party_list_byte(g, (uint16_t)(frames_at + facing_part + frame));
+    uint8_t graphics = battle_party_list_byte(g, (uint16_t)(frames_at + facing_part + frame));
     battle_show_object_frame(g, member, graphics);
     ORIGINAL_EFFECT(set_work_word(g, LEFT_FACING_PART, facing_part));
     return graphics;

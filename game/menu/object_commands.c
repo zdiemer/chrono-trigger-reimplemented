@@ -110,12 +110,12 @@ static uint8_t next_random(GameState *g)
     return menu_random_byte(g, at);
 }
 
-/* The sine of an angle of 256 steps a turn, from -128 to 128: the table's,
- * whose bytes can't hold the quarter turns' 128, which are put in by hand. */
-enum { QUARTER_TURN = 0x40, THREE_QUARTER_TURN = 0xC0, SINE_PEAK = 128 };
+/* The table's bytes can't hold the quarter turns' 128, which are put in by
+ * hand. */
+enum { QUARTER_TURN = MENU_OBJECT_TURN / 4, THREE_QUARTER_TURN = 3 * MENU_OBJECT_TURN / 4, SINE_PEAK = 128 };
 
 // $C2:2277
-static int16_t sine(const GameState *g, uint8_t angle)
+int16_t menu_object_sine(const GameState *g, uint8_t angle)
 {
     if (angle == QUARTER_TURN)
         return SINE_PEAK;
@@ -125,7 +125,7 @@ static int16_t sine(const GameState *g, uint8_t angle)
 }
 
 // $C2:2273
-static int16_t cosine(const GameState *g, uint8_t angle) { return sine(g, (uint8_t)(angle + QUARTER_TURN)); }
+int16_t menu_object_cosine(const GameState *g, uint8_t angle) { return menu_object_sine(g, (uint8_t)(angle + QUARTER_TURN)); }
 
 /* A jolt's size is up to 63, and it moves the object that many 256ths of the
  * sine along each axis, rounded toward zero. */
@@ -144,7 +144,7 @@ static void leave_jolt(GameState *g, uint8_t angle, uint8_t size)
 {
     set_menu_object_scratch_jolt_angle(g, angle);
     set_menu_object_scratch_jolt_size(g, size);
-    int16_t s = sine(g, angle);
+    int16_t s = menu_object_sine(g, angle);
     hw_set_multiplicand(g, (uint8_t)(s < 0 ? -s : s));
     hw_multiply_by(g, size);
 }
@@ -157,8 +157,8 @@ static void jolt(GameState *g, MenuObject o)
 {
     uint8_t angle = next_random(g);
     uint8_t size = next_random(g) & (JOLT_SIZES - 1);
-    set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_object_slots_x_pixel(g, o) + jolt_along(cosine(g, angle), size)));
-    set_menu_object_slots_y_pixel(g, o, (uint16_t)(menu_object_slots_y_pixel(g, o) + jolt_along(sine(g, angle), size)));
+    set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_object_slots_x_pixel(g, o) + jolt_along(menu_object_cosine(g, angle), size)));
+    set_menu_object_slots_y_pixel(g, o, (uint16_t)(menu_object_slots_y_pixel(g, o) + jolt_along(menu_object_sine(g, angle), size)));
     ORIGINAL_EFFECT(leave_jolt(g, angle, size));
 }
 

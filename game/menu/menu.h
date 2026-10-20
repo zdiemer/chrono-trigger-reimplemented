@@ -87,6 +87,7 @@ bool menu_tasks_can_run(Snes *s);
 void menu_run_the_main_task(Snes *s);
 void menu_main_task_waits(Snes *s);
 void menu_run_the_cursor_task(Snes *s);
+void menu_run_the_scroll_bar_task(Snes *s);
 
 /* menu/screens.c: the running screen's step, as the main task's turn runs
  * it; true if it came back to the turn. And the turn's guard: the screen on a

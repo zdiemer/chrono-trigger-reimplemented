@@ -123,13 +123,23 @@ void scene_title_fill_bg1_map(Snes *s)
 
 /* ---- The plane's pixels ------------------------------------------------------------------------ */
 
-enum { TILE_ROWS = 8, TILE_PIXELS = 8, TILE_PLANES = 4, PLANES_2_AND_3 = 0x10, ROW_BYTES = 2 };
+enum { TILE_ROWS = 8, TILE_PIXELS = 8, TILE_PLANES = 4, ROW_BYTES = 2 };
 
 /* The port reads the tile where the original does, through the data bank, and
  * keeps the rows it unpacks in locals where the original shifts them in the
  * scene's scratch: the same only while the tile doesn't lie over that scratch,
- * which no tile does. */
-enum { SCRATCH_FIRST = 0x003B, SCRATCH_END = 0x0040, TILE_BYTES = 0x20 };
+ * which no tile does. In a bank whose low addresses are low RAM, the tile
+ * lies within it, as every tile the game expands does (past it, the
+ * original reads the bus's open values). */
+enum { SCRATCH_FIRST = 0x003B, SCRATCH_END = 0x0040, LOW_RAM_END = 0x2000 };
+
+/* The tile's `bytes` from `tile` clear of the cells from `first` to `end`. */
+static bool apart(uint16_t tile, uint16_t bytes, uint16_t first, uint16_t end)
+{
+    return (uint16_t)(first - tile) >= bytes && (uint16_t)(tile - first) >= end - first;
+}
+
+static bool in_low_ram(uint16_t tile, uint16_t bytes) { return (uint32_t)tile + bytes <= LOW_RAM_END; }
 
 bool scene_title_expand_plane_tile_present(Snes *s)
 {
@@ -137,46 +147,77 @@ bool scene_title_expand_plane_tile_present(Snes *s)
         return false;
     if (!m_bank_reaches_low_ram(s))
         return true;
-    uint16_t tile = s->cpu.x;
-    return (uint16_t)(SCRATCH_FIRST - tile) >= TILE_BYTES && (uint16_t)(tile - SCRATCH_FIRST) >= SCRATCH_END - SCRATCH_FIRST;
+    uint16_t tile = s->cpu.x, bytes = scene_plane_tile_bytes(TILE_PLANES);
+    return in_low_ram(tile, bytes) && apart(tile, bytes, SCRATCH_FIRST, SCRATCH_END);
 }
 
 /* The scratch the original unpacks each row in, as it leaves it: every bit
- * shifted out of the four planes, and its row count run down. */
-static void leave_scratch_empty(GameState *g)
+ * shifted out of the planes; and the four-plane form's row count, run down,
+ * which it keeps after the planes. */
+static void leave_scratch_empty(GameState *g, unsigned planes)
 {
-    for (unsigned i = 0; i <= TILE_PLANES; i++)
+    for (unsigned i = 0; i < planes; i++)
         set_scene_bitplane_scratch_byte(g, i, 0);
+    if (planes == TILE_PLANES)
+        set_scene_bitplane_scratch_byte(g, TILE_PLANES, 0);
 }
 
-// $7E:5E54
-/* One tile of 4-bit planar graphics at `tile` (in `bank`) turned into the
- * plane's pixels: eight rows of eight, each pixel the byte of its four plane
- * bits, into the high bytes of VRAM. Returns where the tile ends. */
-static uint16_t expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t tile)
+// $7E:5E54, $7E:5EF8
+/* One tile of planar graphics at `tile` (in `bank`), four planes or eight,
+ * turned into the plane's pixels: eight rows of eight, each pixel the byte of
+ * its plane bits, into the high bytes of VRAM. */
+void scene_expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t tile, unsigned planes)
 {
     for (int row = 0; row < TILE_ROWS; row++) {
-        uint16_t planes_0_1 = wram_read16(g, (uint32_t)bank << 16 | tile);
-        uint16_t planes_2_3 = wram_read16(g, (uint32_t)bank << 16 | (uint16_t)(tile + PLANES_2_AND_3));
-        uint8_t planes[TILE_PLANES] = { (uint8_t)planes_0_1, (uint8_t)(planes_0_1 >> 8), (uint8_t)planes_2_3,
-                                        (uint8_t)(planes_2_3 >> 8) };
+        uint8_t plane_bytes[SCENE_MOST_PLANES];
+        for (unsigned pair = 0; pair < planes / 2; pair++) {
+            uint16_t two = wram_read16(g, (uint32_t)bank << 16 | (uint16_t)(tile + pair * SCENE_PLANE_PAIR_BYTES));
+            plane_bytes[2 * pair] = (uint8_t)two;
+            plane_bytes[2 * pair + 1] = (uint8_t)(two >> 8);
+        }
         tile = (uint16_t)(tile + ROW_BYTES);
         for (int pixel = TILE_PIXELS - 1; pixel >= 0; pixel--) {
             uint8_t color = 0;
-            for (int plane = TILE_PLANES - 1; plane >= 0; plane--)
-                color = (uint8_t)(color << 1 | (planes[plane] >> pixel & 1));
-            vid_write_vram_byte(pf, PF_AT(0x7E5E75), true, color);
+            for (int plane = (int)planes - 1; plane >= 0; plane--)
+                color = (uint8_t)(color << 1 | (plane_bytes[plane] >> pixel & 1));
+            vid_write_vram_byte(pf, PF_AT(planes == TILE_PLANES ? 0x7E5E75 : 0x7E5F2E), true, color);
         }
     }
-    ORIGINAL_EFFECT(leave_scratch_empty(g));
-    return tile;
+    ORIGINAL_EFFECT(leave_scratch_empty(g, planes));
+    /* The eight-plane form counts its rows in the bitmap scaler's cell, which
+     * the scaler reads before it writes: the count run out stays there. */
+    if (planes == SCENE_MOST_PLANES)
+        set_scene_wide_tile_rows_left(g, 0);
 }
 
-/* X is the tile, in the data bank; back, it is where the tile ends. */
-void scene_title_expand_plane_tile(Snes *s)
+/* X is the tile, in the data bank; back, it is where the tile's first pair
+ * of planes ends, which the original's loop over the tiles moves on from. */
+static void expand_at_x(Snes *s, unsigned planes)
 {
-    s->cpu.x = expand_plane_tile(state_of(s), m_platform(s), s->cpu.db, s->cpu.x);
+    uint16_t tile = s->cpu.x;
+    scene_expand_plane_tile(state_of(s), m_platform(s), s->cpu.db, tile, planes);
+    s->cpu.x = (uint16_t)(tile + SCENE_PLANE_PAIR_BYTES);
     m_rts(s);
+}
+
+void scene_title_expand_plane_tile(Snes *s) { expand_at_x(s, TILE_PLANES); }
+
+// $7E:5EF8
+void scene_ending_expand_wide_tile(Snes *s) { expand_at_x(s, SCENE_MOST_PLANES); }
+
+/* The eight-plane form keeps its row count apart, in the scaler's cell, and
+ * reads its tile's sixty-four bytes: the same tile over neither. */
+enum { WIDE_ROWS_CELL = 0x0031, WIDE_SCRATCH_END = 0x0043 };
+
+bool scene_ending_expand_wide_tile_present(Snes *s)
+{
+    if (!scene_on_scene_page(s) || !m_code_matches(s, 0x7E5EF8, 0x106, 0x1C904F691D855A78ull))
+        return false;
+    if (!m_bank_reaches_low_ram(s))
+        return true;
+    uint16_t tile = s->cpu.x, bytes = scene_plane_tile_bytes(SCENE_MOST_PLANES);
+    return in_low_ram(tile, bytes) && apart(tile, bytes, WIDE_ROWS_CELL, WIDE_ROWS_CELL + 1)
+           && apart(tile, bytes, SCRATCH_FIRST, WIDE_SCRATCH_END);
 }
 
 /* ---- The plane's name table ----------------------------------------------------------------- */
@@ -765,7 +806,7 @@ enum { UNPACKED_GRAPHICS = 0x7F0200, UNPACKED_PALETTE_AT = 0x2000 };
 enum { WORDS_TO_TWO_REGISTERS = 0x01 };
 
 /* The plane's pixels: the first 160 of the layers' tiles, 32 bytes each. */
-enum { PLANE_TILES = 0xA0, TILE_PLANES_BYTES = 0x10 };
+enum { PLANE_TILES = 0xA0 };
 
 /* The title's resources are unpacked by the program's unpacker (scene/boot.c),
  * from the setup's own calls; it reads X, the resource, and the overflow. */
@@ -786,8 +827,8 @@ static void build_plane_pixels(GameState *g, Platform *pf)
 {
     uint16_t tile = (uint16_t)UNPACKED_GRAPHICS;
     for (unsigned n = 0; n < PLANE_TILES; n++) {
-        TIMED_AS(g, 0x7E5E54, tile = expand_plane_tile(g, pf, SCENE_UPPER_WORK_RAM, tile));
-        tile = (uint16_t)(tile + TILE_PLANES_BYTES);
+        TIMED_AS(g, 0x7E5E54, scene_expand_plane_tile(g, pf, SCENE_UPPER_WORK_RAM, tile, TILE_PLANES));
+        tile = (uint16_t)(tile + scene_plane_tile_bytes(TILE_PLANES));
     }
 }
 

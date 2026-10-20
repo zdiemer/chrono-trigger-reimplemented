@@ -1010,13 +1010,19 @@ above the entry in `game/registry.c`, beside the reader named:
 ```c
 /* ...the reader, and why nothing acts on what it reads...
  * dc-evidence: ct_dev --poison-return BBAAAA --poison-set C over the library:
- * N returns, C inverted M; 0 differing */
+ * N returns (B to a bridge), C inverted M; 0 differing */
 ```
 
 `ct_dev --poison-return BBAAAA` (with `--native on`) scrambles, wherever the
-port registered there returns to the original's code in the shipping mode, the
-registers its entry declares don't-care (only those `--poison-set` names), and
-prints how many returns had the carry inverted. The check takes the note where
+port registered there returns to the original's code in the shipping mode, or
+to a battle bridge that ran it as C in place of a call and goes on with its
+registers (a sibling, `battle/bridge.c`), the registers its entry declares
+don't-care (only those `--poison-set` names), and prints how many returns it
+made, how many of them were to a bridge, and how many had the carry
+inverted. A return to a bridge is counted apart because the bridge may set
+the registers again at once (the battle's step dispatch does, `steps.c`), so
+it tests less than a return to the original's code; the note says how many of
+its returns were such. The check takes the note where
 liveness has the carry alone read after the entry returns, the entry named,
 C in the set, no trace differing and at least 100 returns inverted;
 `tools/dc_evidence.py` makes the run again beside the other two, and compares
@@ -1025,6 +1031,11 @@ case: its carry runs out through the frame step into a battle message's frame
 waits, and the first multiply of the party's statuses cleared after the
 message takes it into a product's high word the next pass clears
 (history/reimplementation-chunks.md, "Phase 3, battle: the player choosing").
+Since the menu's turn is C, the frame's returns are all to bridges (its note
+says so), and the
+frame waits that the turn's carry leaves through (`$CD:3E75`, `$CD:3E3B`)
+carry notes of their own (REIMPLEMENTATION.md, "Phase 4a, the shipping
+mode's fallbacks, chunk 5").
 
 ## Status
 

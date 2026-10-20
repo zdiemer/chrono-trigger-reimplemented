@@ -145,9 +145,10 @@ static void leave_the_plain_cells(GameState *g, unsigned slot)
     set_battle_pose_held_count(g, slot, 0);
 }
 
+// $C1:30B6
 /* The old look taken off: no marker, no cycle, a member's colours as
  * loaded. */
-static void take_off_the_look(GameState *g, unsigned slot)
+void battle_take_off_the_look(GameState *g, unsigned slot)
 {
     set_battle_marker_on(g, slot, 0);
     set_battle_party_palette_cycle_on(g, slot, 0);
@@ -173,7 +174,7 @@ static void show_the_marker(GameState *g, unsigned slot, MarkerKind kind)
 static void put_on_the_look(GameState *g, unsigned slot, PoseLook look)
 {
     if (look.takes_off_the_old)
-        take_off_the_look(g, slot);
+        battle_take_off_the_look(g, slot);
     if (look.marker != NO_MARKER)
         show_the_marker(g, slot, look.marker);
     if (look.cycles) {

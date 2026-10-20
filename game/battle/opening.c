@@ -4,10 +4,8 @@
  * enemies and striking its opening pose: each member faces the enemy nearest
  * it, and the members taking part take the opening's animation, those sitting
  * the fight out none. The poses themselves, a few frames each member steps
- * through over the next frames, are the same routine the victory and the
- * defeat end with ($C1:35DD), which is still the original's: the setup hands
- * on to it, with the animation each member takes and which of the three it is
- * in their cells. */
+ * through over the next frames, are the same the victory and the defeat end
+ * with (battle/party_poses.c), which the setup goes on into. */
 #include "battle/animation.h"
 #include "battle/animation_data.h"
 #include "battle/battle.h"
@@ -59,32 +57,23 @@ static void face_the_enemies(GameState *g)
     ORIGINAL_EFFECT(leave_member_count(g));
 }
 
-/* Where the opening's animation is in a member's lists, and none for a member
- * sitting the fight out. */
-enum { OPENING_ANIMATION = 0x30, NO_ANIMATION = 0 };
-
 // $C1:34DB
 /* The party faces the enemies, and takes the opening's poses. */
 static void open_the_battle(GameState *g)
 {
     face_the_enemies(g);
-    for (unsigned member = BATTLE_PARTY_SIZE; member-- > 0;)
-        set_battle_party_scene_animation(g, member, battle_member_sitting_out(g, member) ? NO_ANIMATION : OPENING_ANIMATION);
-    set_battle_party_scene_opening(g, 1);
-    set_battle_party_scene_poses_all(g, 0);
+    battle_give_the_party_poses(g, PARTY_POSE_OPENING);
 }
 
 /* ---- The entry --------------------------------------------------------------------------- */
 
 /* From the setup's wait for the window's slide ($C1:0042, which jumps here),
- * and on to the poses, which take A's high byte along, clear as the setup
- * has it (the guard's). */
-enum { PARTY_POSES = 0xC135DD };
-
+ * and on to the poses (battle/party_poses.c), which return to the setup. */
 void battle_party_faces_the_enemies(Snes *s)
 {
     open_the_battle(state_of(s));
-    m_stop_at(s, PARTY_POSES, DC_AL | DC_X | DC_Y | DC_FLAGS);
+    if (battle_strike_the_poses_as_their_own(s))
+        m_rts(s);
 }
 
 /* On the battle's page with A's high byte clear, as the setup comes; the

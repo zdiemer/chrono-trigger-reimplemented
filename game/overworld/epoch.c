@@ -22,29 +22,24 @@
  *
  * Beside it the Epoch has two more objects: the second sprite it is drawn
  * with (above it while it stands, below it in flight), and the watch for the
- * Black Omen under it in flight, which shows the Omen's name on the sign. */
+ * Black Omen under it in flight, which shows the Omen's name on the sign.
+ *
+ * Rising, flying and coming down are the same as the dactyl's (vehicles.c,
+ * "In the air"); what is the Epoch's own -- the time gate, its scenes, the
+ * Black Omen, its first flight as a scene -- is here. */
 #include "overworld/vehicles.h"
 
 #include "charge.h"
-#include "core/input.h"
 #include "menu/epoch.h"
 #include "menu/sprites.h"
 #include "original_effects.h"
 #include "overworld/music.h"
-#include "overworld/terrain.h"
 #include "vars.h"
 
 /* ---- Its state ----------------------------------------------------------------------------- */
 
-static uint8_t epoch_state(const GameState *g) { return overworld_vehicle_state(g, VEHICLE_EPOCH); }
-
-static bool epoch_is(const GameState *g, uint8_t bits) { return (epoch_state(g) & bits) != 0; }
-
-static void mark_epoch(GameState *g, uint8_t bits, bool on)
-{
-    uint8_t state = epoch_state(g);
-    overworld_set_vehicle_state(g, VEHICLE_EPOCH, (uint8_t)(on ? state | bits : state & ~bits));
-}
+static bool epoch_is(const GameState *g, uint8_t bits) { return overworld_vehicle_is(g, VEHICLE_EPOCH, bits); }
+static void mark_epoch(GameState *g, uint8_t bits, bool on) { overworld_mark_vehicle(g, VEHICLE_EPOCH, bits, on); }
 
 static bool has_its_wings(const GameState *g) { return epoch_is(g, EPOCH_HAS_ITS_WINGS); }
 
@@ -53,9 +48,10 @@ EpochStep overworld_epoch_step(const GameState *g, MenuObject epoch) { return (E
 static void set_step(GameState *g, MenuObject self, EpochStep step) { overworld_set_step(g, self, step); }
 
 /* Standing, the Epoch is drawn under the party; in the air, over it. */
-enum { UNDER_THE_PARTY = MENU_LOOK_ON_THE_MAP | 0x20, OVER_THE_PARTY = MENU_LOOK_ON_THE_MAP | 0x30 };
-
-static void draw(GameState *g, MenuObject self, uint8_t look) { set_menu_object_slots_look(g, self, look); }
+static void draw(GameState *g, MenuObject self, bool over_the_party)
+{
+    overworld_draw_vehicle(g, self, EPOCH_PALETTE, over_the_party);
+}
 
 static Facing facing(const GameState *g, MenuObject self) { return (Facing)menu_object_slots_facing(g, self); }
 
@@ -69,10 +65,8 @@ static void give_animation(GameState *g, MenuObject self, uint8_t animation)
 // $C2:48A9
 void overworld_show_the_epoch_flying(GameState *g, MenuObject epoch)
 {
-    give_animation(g, epoch, overworld_epoch_flying_animation(g, has_its_wings(g), facing(g, epoch)));
+    overworld_show_vehicle_flying(g, VEHICLE_EPOCH, epoch, facing(g, epoch));
 }
-
-static void show_flying(GameState *g, MenuObject self) { overworld_show_the_epoch_flying(g, self); }
 
 // $C2:48CD
 /* In a scene of the Epoch's, it is carried a third of the way round the map
@@ -88,12 +82,7 @@ static WorldSpot place(const GameState *g, MenuObject self) { return overworld_w
 
 /* Where the Epoch is is where it stands for the party, the menus and the map
  * view. */
-static void keep_its_spot(GameState *g, MenuObject self)
-{
-    WorldSpot at = place(g, self);
-    set_overworld_epoch_x(g, at.x);
-    set_overworld_epoch_y(g, at.y);
-}
+static void keep_its_spot(GameState *g, MenuObject self) { overworld_keep_vehicle_spot(g, VEHICLE_EPOCH, place(g, self)); }
 
 /* Where the original clears the step's note with a word, the byte after it
  * goes with it; nothing reads it. */
@@ -103,54 +92,19 @@ static void clear_the_step_note_as_a_word(GameState *g)
     ORIGINAL_EFFECT(set_overworld_after_step_begun(g, 0));
 }
 
-static void stop(GameState *g, MenuObject self)
-{
-    overworld_halt(g, self);
-    set_menu_object_slots_age(g, self, 0);
-}
-
-/* A half pixel a frame up or down: how it rises and comes down. */
-enum { HALF_A_PIXEL = MENU_POSITION_UNITS / 2 };
-
-static void start_moving_up_or_down(GameState *g, MenuObject self, int8_t way)
-{
-    menu_object_set_velocity(g, self, (MenuPlace){ 0, (uint32_t)(int32_t)(way * HALF_A_PIXEL) });
-    set_menu_object_slots_age(g, self, 0);
-}
+static void stop(GameState *g, MenuObject self) { overworld_vehicle_stop(g, self); }
 
 /* The ground under the Epoch: the four tiles round its spot, as a walker's
  * feet stand, and the two below them. It may land only where all six are
  * open ground, no wall and no place's ground. */
 static void note_the_ground(GameState *g, MenuObject self, WorldSpot at)
 {
-    overworld_keep_ground(g, self, overworld_look_around(g, at));
-    GroundBelow below = overworld_look_below(g, at);
-    set_menu_object_slots_ground_below_left(g, self, below.left);
-    set_menu_object_slots_ground_below_right(g, self, below.right);
+    overworld_note_the_ground_under(g, VEHICLE_EPOCH, self, at);
 }
-
-static bool open_ground_under(const GameState *g, MenuObject self)
-{
-    enum { NOT_OPEN = GROUND_WALL | GROUND_OF_A_PLACE };
-    GroundAround a = overworld_ground_kept(g, self);
-    uint8_t all = (uint8_t)(a.up_left | a.up_right | a.down_left | a.down_right
-                            | menu_object_slots_ground_below_left(g, self)
-                            | menu_object_slots_ground_below_right(g, self));
-    return !(all & NOT_OPEN);
-}
-
-static void play_the_song_of_flight(GameState *g)
-{
-    enum { WINGS_OF_TIME = 0x13 };
-    overworld_play_song(g, WINGS_OF_TIME);
-}
-
-/* The buttons the player assigned, as the leader reads them on foot. */
-static Buttons held(const GameState *g) { return input_mapped(g, ASSIGNED_HELD); }
 
 /* ---- The time gate ----------------------------------------------------------------------------- */
 
-static void open_the_time_gate(GameState *g, MenuObject self)
+void overworld_epoch_opens_the_time_gate(GameState *g, MenuObject self)
 {
     mark_epoch(g, EPOCH_LEAVING_THROUGH_TIME, true);
     overworld_set_mode(g, OVERWORLD_TRAVELLING_THROUGH_TIME);
@@ -254,9 +208,6 @@ static void wait_at_the_time_gate(GameState *g, MenuObject self)
 
 /* ---- Standing ---------------------------------------------------------------------------------- */
 
-/* The Epoch's sprite is drawn this far over its spot while it is in the
- * air. */
-enum { HEIGHT_IN_THE_AIR = 0x18 };
 
 // $C2:42F8
 /* As the map starts, and after it has come down, the Epoch is placed where
@@ -269,7 +220,7 @@ static void set_down(GameState *g, MenuObject self)
     set_menu_object_slots_tiles(g, self, 0);
     if (!epoch_is(g, VEHICLE_OUT)) {
         set_step(g, self, EPOCH_STANDS);
-        draw(g, self, UNDER_THE_PARTY);
+        draw(g, self, false);
         set_menu_object_slots_facing(g, self, FACING_DOWN);
         set_menu_object_slots_facing_before(g, self, FACING_DOWN);
         set_overworld_epoch_flying(g, false);
@@ -282,7 +233,7 @@ static void set_down(GameState *g, MenuObject self)
         (void)overworld_restore_the_tempo(g);
     Facing arrival = overworld_arrival_facing(g);
     set_step(g, self, arriving ? EPOCH_RUNS_A_SCENE : EPOCH_FLIES);
-    draw(g, self, OVER_THE_PARTY);
+    draw(g, self, true);
     set_menu_object_slots_facing(g, self, arrival);
     set_menu_object_slots_facing_before(g, self, arrival);
     mark_epoch(g, EPOCH_ENTERING_THE_BLACK_OMEN | EPOCH_OVER_THE_BLACK_OMEN, false);
@@ -292,34 +243,23 @@ static void set_down(GameState *g, MenuObject self)
         set_menu_object_slots_command_frames(g, self, 0);
         return;
     }
-    show_flying(g, self);
+    overworld_show_the_epoch_flying(g, self);
     note_the_ground(g, self, place(g, self));
     animate(g);
 }
-
-static void fly(GameState *g, MenuObject self);
 
 /* At one point of the story the Epoch's first flight is a scene: it rises,
  * and a script holds the map. */
 enum { STORY_SHOWS_THE_FIRST_FLIGHT = 0xD3 };
 
-/* Rising takes this many frames; a few in, it is drawn over the party. */
-enum { RISING_FRAMES = 0x30, OVER_THE_PARTY_AFTER = 0x08 };
-
-static uint8_t frames_on(const GameState *g, MenuObject self) { return menu_object_slots_frames_since_step(g, self); }
 
 // $C2:443C
-/* Rising, a half pixel a frame; risen, it flies, the song of flight playing
- * and the party arriving facing its way wherever it comes down. */
+/* Rising; risen, it flies, unless the story shows its first flight as a
+ * scene. */
 static void rise(GameState *g, MenuObject self)
 {
-    if (frames_on(g, self) == OVER_THE_PARTY_AFTER)
-        draw(g, self, OVER_THE_PARTY);
-    if (frames_on(g, self) < menu_object_slots_epoch_manoeuvre_frames(g, self)) {
-        overworld_walk_a_frame(g, self);
-        animate(g);
+    if (overworld_vehicle_rises(g, VEHICLE_EPOCH, self))
         return;
-    }
     if (menu_story_progress(g) == STORY_SHOWS_THE_FIRST_FLIGHT) {
         if (overworld_mode(g) == OVERWORLD_ON_THE_MAP) {
             overworld_set_mode(g, OVERWORLD_BACK_ON_THE_MAP);
@@ -328,15 +268,7 @@ static void rise(GameState *g, MenuObject self)
         }
         return;
     }
-    set_step(g, self, EPOCH_FLIES);
-    show_flying(g, self);
-    play_the_song_of_flight(g);
-    set_overworld_epoch_flying(g, true);
-    WorldSpot at = place(g, self);
-    overworld_put_walker(g, self, (WorldSpot){ at.x, (uint16_t)(at.y + HEIGHT_IN_THE_AIR) });
-    stop(g, self);
-    set_location_flags(g, (uint8_t)((location_flags(g) & ~0x03) | facing(g, self)));
-    fly(g, self);
+    overworld_vehicle_takes_to_the_air(g, VEHICLE_EPOCH, self);
 }
 
 // $C2:43CB
@@ -350,15 +282,14 @@ static void stand(GameState *g, MenuObject self)
     }
     mark_epoch(g, VEHICLE_OUT, true);
     if (!has_its_wings(g)) {
-        open_the_time_gate(g, self);
+        overworld_epoch_opens_the_time_gate(g, self);
         animate(g);
         return;
     }
     set_step(g, self, EPOCH_RISES);
-    play_the_song_of_flight(g);
+    overworld_play_the_song_of_flight(g);
     note_the_ground(g, self, place(g, self));
-    start_moving_up_or_down(g, self, -1);
-    set_menu_object_slots_epoch_manoeuvre_frames(g, self, RISING_FRAMES);
+    overworld_vehicle_climb(g, VEHICLE_EPOCH, self, -1);
     give_animation(g, self, EPOCH_TAKES_OFF);
     rise(g, self);
 }
@@ -373,172 +304,18 @@ static void wait_for_the_party_to_get_off(GameState *g, MenuObject self)
 
 /* ---- In the air -------------------------------------------------------------------------------- */
 
-/* The spot a tile on the way it flies, round the map. */
-static int8_t way_of(int16_t pace) { return pace < 0 ? -1 : pace > 0 ? 1 : 0; }
-
-static WorldSpot a_tile_on(const GameState *g, MenuObject self)
+// $C2:4510
+/* Over the Black Omen the confirm button takes the party into it, once. */
+bool overworld_epoch_takes_the_party_into_the_omen(GameState *g)
 {
-    WorldSpot at = overworld_spot_ahead(place(g, self), MENU_ACROSS, way_of(overworld_pace(g, self, MENU_ACROSS)));
-    return overworld_spot_ahead(at, MENU_DOWN, way_of(overworld_pace(g, self, MENU_DOWN)));
-}
-
-// $C2:4675
-/* A frame of flying a tile on: the map follows it; at the tile, it flies on
- * as the pad says. */
-static void fly_a_tile(GameState *g, MenuObject self)
-{
-    overworld_walk_a_frame(g, self);
-    overworld_carry_the_map(g, self);
-    animate(g);
-    keep_its_spot(g, self);
-    WorldSpot at = place(g, self), goal = overworld_goal(g, self);
-    if (at.x != goal.x || at.y != goal.y)
-        return;
-    /* The original stores the step as a word here, which clears the count of
-     * frames beside it; nothing counts them in flight, but it is the
-     * object's state. */
-    set_step(g, self, EPOCH_FLIES);
-    set_menu_object_slots_frames_since_step(g, self, 0);
-}
-
-// $C2:461D
-/* Turn it the way the pad says and fly a tile on; turned, it shows that way
- * and the party will arrive facing it. */
-static void head(GameState *g, MenuObject self, Facing way)
-{
-    set_menu_object_slots_facing_before(g, self, facing(g, self));
-    set_menu_object_slots_facing(g, self, way);
-    int16_t across = overworld_epoch_pace(g, way, MENU_ACROSS), down = overworld_epoch_pace(g, way, MENU_DOWN);
-    menu_object_set_velocity(g, self, (MenuPlace){ (uint32_t)(int32_t)across << 16, (uint32_t)(int32_t)down << 16 });
-    if (way != (Facing)menu_object_slots_facing_before(g, self)) {
-        set_location_flags(g, (uint8_t)((location_flags(g) & ~0x03) | way));
-        show_flying(g, self);
-    }
-    WorldSpot goal = a_tile_on(g, self);
-    overworld_set_goal(g, self, goal);
-    note_the_ground(g, self, goal);
-    set_overworld_step_begun(g, 0);
-    set_step(g, self, EPOCH_FLIES_A_TILE);
-    fly_a_tile(g, self);
-}
-
-/* Coming down takes this many frames, a half pixel a frame from as high as
- * it flies; near the ground it is drawn under the party again. */
-enum { COMING_DOWN_FRAMES = 0x31, UNDER_THE_PARTY_AFTER = 0x20 };
-
-// $C2:4569
-static void come_down(GameState *g, MenuObject self)
-{
-    start_moving_up_or_down(g, self, 1);
-    WorldSpot at = place(g, self);
-    overworld_put_walker(g, self, (WorldSpot){ at.x, (uint16_t)(at.y - HEIGHT_IN_THE_AIR) });
-    set_menu_object_slots_facing(g, self, FACING_DOWN);
-    set_location_flags(g, (uint8_t)((location_flags(g) & ~0x03) | FACING_DOWN));
-    set_menu_object_slots_epoch_manoeuvre_frames(g, self, COMING_DOWN_FRAMES);
-    give_animation(g, self, EPOCH_LANDS);
-    set_overworld_epoch_flying(g, false);
-    overworld_play_the_song_in_view(g);
-    set_step(g, self, EPOCH_COMES_DOWN);
-}
-
-// $C2:46E2
-/* Coming down; down, it stands, the party out of it. */
-static void coming_down(GameState *g, MenuObject self)
-{
-    if (frames_on(g, self) == UNDER_THE_PARTY_AFTER)
-        draw(g, self, UNDER_THE_PARTY);
-    if (frames_on(g, self) < menu_object_slots_epoch_manoeuvre_frames(g, self)) {
-        overworld_walk_a_frame(g, self);
-        animate(g);
-        return;
-    }
-    mark_epoch(g, VEHICLE_OUT, false);
-    set_step(g, self, EPOCH_SETS_DOWN);
-    give_animation(g, self, EPOCH_STANDS_WITH_ITS_WINGS);
-    stop(g, self);
-    animate(g);
-}
-
-/* The dactyl's map is the only one it is on; the Epoch doesn't come down on
- * it. */
-static bool over_the_dactyl(GameState *g)
-{
-    enum { DACTYL_MAP = 0x01F3 };
-    WorldSpot epoch = overworld_vehicle_spot(g, VEHICLE_EPOCH);
-    ORIGINAL_EFFECT(overworld_leave_reach_from(g, epoch, REACH_OF_THE_EPOCH_IN_FLIGHT));
-    return (overworld_vehicle_state(g, VEHICLE_DACTYL) & VEHICLE_HERE) && location_id(g) == DACTYL_MAP
-           && overworld_within_reach(g, epoch, REACH_OF_THE_EPOCH_IN_FLIGHT, overworld_vehicle_spot(g, VEHICLE_DACTYL),
-                                     REACH_OF_THE_DACTYL_FROM_THE_AIR);
-}
-
-// $C2:4510, $C2:4531
-/* The confirm button: over the Black Omen, the party enters it (once); else
- * the Epoch comes down where it may. False where it may not, and the pad
- * steers it on. */
-static bool come_down_if_it_may(GameState *g, MenuObject self)
-{
-    if (epoch_is(g, EPOCH_OVER_THE_BLACK_OMEN)) {
-        if (!epoch_is(g, EPOCH_ENTERING_THE_BLACK_OMEN)) {
-            overworld_set_mode(g, OVERWORLD_BACK_ON_THE_MAP);
-            mark_epoch(g, EPOCH_ENTERING_THE_BLACK_OMEN, true);
-            TIMED_AS(g, 0xC204D9, (void)menu_start_script(g, EPOCH_ENTERS_THE_BLACK_OMEN, MENU_ORDINARY_SLOT));
-        }
-        animate(g);
-        return true;
-    }
-    if (!open_ground_under(g, self) || over_the_dactyl(g))
+    if (!epoch_is(g, EPOCH_OVER_THE_BLACK_OMEN))
         return false;
-    bool kept_off;
-    TIMED_AS(g, 0xC6E797, kept_off = menu_epoch_kept_off_the_ground(g, self));
-    if (kept_off)
-        return false;
-    come_down(g, self);
-    animate(g);
+    if (!epoch_is(g, EPOCH_ENTERING_THE_BLACK_OMEN)) {
+        overworld_set_mode(g, OVERWORLD_BACK_ON_THE_MAP);
+        mark_epoch(g, EPOCH_ENTERING_THE_BLACK_OMEN, true);
+        TIMED_AS(g, 0xC204D9, (void)menu_start_script(g, EPOCH_ENTERS_THE_BLACK_OMEN, MENU_ORDINARY_SLOT));
+    }
     return true;
-}
-
-/* The pad's directions, up first. */
-static const struct {
-    Buttons button;
-    Facing way;
-} DIRECTIONS[] = {
-    { BUTTON_UP, FACING_UP }, { BUTTON_DOWN, FACING_DOWN }, { BUTTON_LEFT, FACING_LEFT }, { BUTTON_RIGHT, FACING_RIGHT },
-};
-
-// $C2:44CC
-/* The buttons in flight: the time gate, the menus, the map view, or a way to
- * fly, in that order. */
-static void steer(GameState *g, MenuObject self, Buttons buttons)
-{
-    if (buttons & OVERWORLD_ASSIGNED_START) {
-        open_the_time_gate(g, self);
-    } else if (buttons & OVERWORLD_ASSIGNED_MENUS) {
-        overworld_set_mode(g, OVERWORLD_OPENING_THE_MENUS);
-    } else if (buttons & OVERWORLD_ASSIGNED_MAP_VIEW) {
-        overworld_set_mode(g, OVERWORLD_OPENING_THE_MAP_VIEW);
-    } else {
-        for (unsigned d = 0; d < sizeof DIRECTIONS / sizeof DIRECTIONS[0]; d++)
-            if (buttons & DIRECTIONS[d].button) {
-                head(g, self, DIRECTIONS[d].way);
-                return;
-            }
-    }
-    animate(g);
-}
-
-// $C2:44B7
-/* In the air, the Epoch waits on the pad while the overworld is on the
- * map. */
-static void fly(GameState *g, MenuObject self)
-{
-    Buttons buttons = held(g);
-    if (overworld_mode(g) != OVERWORLD_ON_THE_MAP || buttons == 0) {
-        animate(g);
-        return;
-    }
-    if ((buttons & ASSIGNED_CONFIRM) && come_down_if_it_may(g, self))
-        return;
-    steer(g, self, buttons);
 }
 
 /* ---- Its scenes -------------------------------------------------------------------------------- */
@@ -577,9 +354,9 @@ bool overworld_fly_the_epoch(GameState *g, MenuObject self, const EpochScripts *
     case EPOCH_SETS_DOWN: set_down(g, self); break;
     case EPOCH_STANDS: stand(g, self); break;
     case EPOCH_RISES: rise(g, self); break;
-    case EPOCH_FLIES: fly(g, self); break;
-    case EPOCH_FLIES_A_TILE: fly_a_tile(g, self); break;
-    case EPOCH_COMES_DOWN: coming_down(g, self); break;
+    case EPOCH_FLIES: overworld_vehicle_flies(g, VEHICLE_EPOCH, self); break;
+    case EPOCH_FLIES_A_TILE: overworld_vehicle_flies_a_tile(g, VEHICLE_EPOCH, self); break;
+    case EPOCH_COMES_DOWN: overworld_vehicle_comes_down(g, VEHICLE_EPOCH, self); break;
     case EPOCH_AT_THE_TIME_GATE: wait_at_the_time_gate(g, self); break;
     case EPOCH_RUNS_A_SCENE: return play_its_scene(g, self, scripts);
     default: wait_for_the_party_to_get_off(g, self); break;
@@ -602,13 +379,13 @@ bool overworld_draw_the_epoch_s_second_sprite(GameState *g, MenuObject self)
         if ((location_id(g) & LOCATION_NUMBER) != menu_epoch_location(g))
             return true;
         overworld_set_step(g, self, SECOND_SPRITE_FOLLOWS);
-        draw(g, self, OVER_THE_PARTY);
+        draw(g, self, true);
         set_menu_object_slots_tiles(g, self, 0);
     }
     WorldSpot epoch = overworld_vehicle_spot(g, VEHICLE_EPOCH);
     bool in_the_air = has_its_wings(g) && overworld_epoch_flying(g);
-    give_animation(g, self, in_the_air ? EPOCH_SECOND_SPRITE_IN_FLIGHT : EPOCH_SECOND_SPRITE_STANDING);
-    int16_t below = in_the_air ? HEIGHT_IN_THE_AIR : -HEIGHT_IN_THE_AIR;
+    give_animation(g, self, in_the_air ? VEHICLE_SECOND_SPRITE_IN_FLIGHT : VEHICLE_SECOND_SPRITE_STANDING);
+    int16_t below = in_the_air ? VEHICLE_HEIGHT_IN_THE_AIR : -VEHICLE_HEIGHT_IN_THE_AIR;
     overworld_put_walker(g, self, (WorldSpot){ epoch.x, (uint16_t)(epoch.y + below) });
     animate(g);
     return false;

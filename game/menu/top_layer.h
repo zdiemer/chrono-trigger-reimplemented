@@ -7,6 +7,7 @@
 
 void menu_top_layer_slow_drift(Snes *s);
 void menu_top_layer_drift(Snes *s);
+void menu_top_layer_fast_drift(Snes *s);
 void menu_top_layer_wave_drift(Snes *s);
 void menu_top_layer_wave(Snes *s);
 bool menu_top_layer_object_runs(Snes *s);

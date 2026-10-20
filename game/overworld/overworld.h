@@ -22,10 +22,11 @@
  *   map's lists say what is there -- an exit the player can enter with the
  *   first button, a place's name for the sign (sign.c), an event whose script
  *   runs once.
- * - **The vehicles** (vehicles.c, epoch.c): the party walks to the Epoch or
- *   a dactyl to board it and gets off it again; the vehicles' controller
- *   decides when, and the Epoch flies over the map and through time. Flying
- *   the dactyl is still the original's.
+ * - **The vehicles** (vehicles.c, epoch.c, dactyl.c): the party walks to the
+ *   Epoch or a dactyl to board it and gets off it again; the vehicles'
+ *   controller decides when. The Epoch flies over the map and through time,
+ *   and on the 65,000,000 B.C. map the party flies dactyls, the leader's
+ *   steered by the pad and the others' following it.
  *
  * A walker's position is a pixel of the map, which is MENU_MAP_WIDTH pixels
  * round and MENU_MAP_HEIGHT high (menu/object.h); a tile is TILE_PIXELS of it. */
@@ -72,6 +73,7 @@ typedef struct {
     uint16_t x, y;
 } WorldSpot;
 WorldSpot overworld_vehicle_spot(const GameState *g, Vehicle v);
+void overworld_keep_vehicle_spot(GameState *g, Vehicle v, WorldSpot at);
 void overworld_climb_aboard(GameState *g, Vehicle v);
 void overworld_climb_down(GameState *g, Vehicle v);
 
@@ -165,6 +167,11 @@ void overworld_leave_step_table_row(GameState *g);
  * member's palette from the member's tiles, a priority higher on the one map
  * that asks it. */
 void overworld_dress(GameState *g, MenuObject walker, PartyPlace place);
+/* The palette the member in the place is drawn in on the map, as a look's
+ * bits (menu/object.h): the dactyl each rides is drawn in it too. */
+uint8_t overworld_member_palette(PartyPlace place);
+/* The priorities the party is drawn at, the vehicles under it and over it. */
+enum { OVERWORLD_PRIORITY_2 = 0x20, OVERWORLD_PRIORITY_3 = 0x30 };
 
 /* Run the walker's animation for the frame, which draws it. */
 void overworld_animate(GameState *g);
@@ -221,11 +228,22 @@ void overworld_set_goal(GameState *g, MenuObject walker, WorldSpot goal);
 enum { TILE_PIXELS = 8 };
 WorldSpot overworld_spot_ahead(WorldSpot at, MenuAxis axis, int8_t way);
 
+/* The spot a tile on from where a mover is, the way it moves across and the
+ * way it moves down, round the map: where a vehicle in flight is headed. */
+WorldSpot overworld_a_tile_on(const GameState *g, MenuObject mover);
+
+/* The way the first of the pad's directions held asks for, up first; false
+ * where none is held. */
+bool overworld_way_held(Buttons held, Facing *way);
+
 /* The way the party faces as it sets off on the map: the way it arrived (a
  * location's flags keep it), or down, off a vehicle. Setting it sets the
  * flags whole. */
 Facing overworld_arrival_facing(const GameState *g);
 void overworld_set_arrival_facing(GameState *g, Facing facing);
+/* A vehicle in flight turns the way the party will arrive facing as it
+ * turns, the location's other flags kept. */
+void overworld_turn_arrival_facing(GameState *g, Facing facing);
 
 /* ---- An event's scripts for the party ---------------------------------------------------- */
 

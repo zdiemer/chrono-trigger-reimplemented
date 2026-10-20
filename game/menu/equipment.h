@@ -96,6 +96,13 @@ bool menu_equip_list_is_for_another_slot(GameState *g);
 typedef enum { ITEM_POINTED_AT, ITEM_CHOSEN, ITEM_LEFT_FOR_THE_SLOTS } ItemChoice;
 ItemChoice menu_equip_choose_item(const GameState *g);
 
+/* The list's item on the cursor tried on in the slot, the member's figures
+ * marked by how it moves them and the item described ($C2:A5C3); where the
+ * figures can't be worked out with it (an item no list of the game's holds),
+ * the original's. */
+void menu_equip_try_on(GameState *g, Platform *pf);
+bool menu_equip_can_try_on(const GameState *g);
+
 /* Putting the chosen item on: what the member has on in the slot goes back
  * to the party's items, and the chosen item, the one the figures were drawn
  * with, goes on and is taken from them. A weapon changed clears the story's

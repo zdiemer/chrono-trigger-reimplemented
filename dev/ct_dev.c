@@ -134,8 +134,9 @@
  * it. It prints each site's calls and how many had the overflow flag inverted.
  * --poison-return BBAAAA (with --native on) does the same where the hand port
  * registered at that address returns to the original's code, to the set its
- * entry declares (native_return_poison), and prints each entry's returns and
- * how many had the carry inverted.
+ * entry declares (native_return_poison), and prints each entry's returns, how
+ * many of them were to a bridge that ran it as C in place of a call (a
+ * sibling's), and how many had the carry inverted.
  * --index-check BBAAAA (with --native off --generated off, where the interpreter
  * runs everything) notes the X register each time the instruction there runs,
  * and prints the largest and how often it was past $FE: the check of a jump
@@ -448,11 +449,12 @@ static int npoison_sites;
 static uint64_t poison_state = 0x9E3779B97F4A7C15ull;
 static uint16_t poison_set = 0xFFFF;
 
-/* --poison-return: the entries named, how many returns each made and in how
- * many the carry was among what was scrambled (so inverted). */
+/* --poison-return: the entries named, how many returns each made, how many
+ * of them to a bridge, and in how many the carry was among what was
+ * scrambled (so inverted). */
 typedef struct {
     uint32_t entry;
-    unsigned long returns, c_inverted;
+    unsigned long returns, to_bridges, c_inverted;
 } PoisonReturn;
 static PoisonReturn poison_returns[16];
 static int npoison_returns;
@@ -465,7 +467,7 @@ static uint64_t poison_next(void)
     return poison_state;
 }
 
-static bool poison_return(uint32_t entry, uint64_t *bits, uint16_t *set)
+static bool poison_return(uint32_t entry, bool to_a_bridge, uint64_t *bits, uint16_t *set)
 {
     for (int i = 0; i < npoison_returns; i++) {
         if (poison_returns[i].entry != entry)
@@ -473,6 +475,7 @@ static bool poison_return(uint32_t entry, uint64_t *bits, uint16_t *set)
         *set &= poison_set;
         *bits = poison_next();
         poison_returns[i].returns++;
+        poison_returns[i].to_bridges += to_a_bridge;
         if (*set & DC_C)
             poison_returns[i].c_inverted++;
         return *set != 0;
@@ -1042,8 +1045,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "poison-site: %06X calls %lu, V inverted %lu\n", (unsigned)poison_sites[i].site,
                 poison_sites[i].calls, poison_sites[i].v_inverted);
     for (int i = 0; i < npoison_returns; i++)
-        fprintf(stderr, "poison-return: %06X returns %lu, C inverted %lu\n", (unsigned)poison_returns[i].entry,
-                poison_returns[i].returns, poison_returns[i].c_inverted);
+        fprintf(stderr, "poison-return: %06X returns %lu (%lu to a bridge), C inverted %lu\n",
+                (unsigned)poison_returns[i].entry, poison_returns[i].returns, poison_returns[i].to_bridges,
+                poison_returns[i].c_inverted);
     for (int i = 0; i < nindex_checks; i++)
         fprintf(stderr, "index-check: %06X runs %lu, largest X $%04X, past $%02X %lu\n", (unsigned)index_checks[i].pc,
                 index_checks[i].runs, (unsigned)index_checks[i].largest, (unsigned)index_limit, index_checks[i].over);

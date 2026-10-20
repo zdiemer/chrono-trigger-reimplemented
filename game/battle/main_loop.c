@@ -35,6 +35,7 @@
 #include "battle/battle_end.h"
 #include "battle/bridge.h"
 #include "battle/combatant.h"
+#include "battle/effect_parts.h"
 #include "battle/enemy_scripts.h"
 #include "battle/entries.h"
 #include "battle/message.h"
@@ -64,7 +65,6 @@ enum {
     GIVE_ITEM = 0xC1D005,            /* an item (Y) given */
     SHOW_MESSAGE = 0xCD0021,         /* a battle message */
     START_ACTION = 0xC1895B,         /* an action started (the running away, $79) */
-    SPEED_UP_TURN = 0xC1BD6F,        /* a hasted combatant's turn wait halved */
     MEMBER_ACTS_FOR_ITSELF = 0xC1BCE1, /* a member whose status picks its action */
     CARRY_OUT_ACTION = 0xC1B967,     /* a member's chosen action carried out */
 };
@@ -613,24 +613,15 @@ static bool enemy_can_act(GameState *g, unsigned enemy)
     return battle_enemy_script_outcome(g, enemy) == OUTCOME_HELD;
 }
 
-/* The turn wait an enemy that acted starts again from. */
-static void restart_turn_wait(GameState *g, unsigned slot)
-{
-    set_battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot, battle_turn_wait(g, slot));
-}
-
 /* An enemy's turn: its script picks its action, its turn wait starts again
- * (halved while it is hasted) and its turn timer runs. */
+ * (halved while it is hasted, doubled while slowed) and its turn timer runs. */
 static bool enemy_turn(Snes *s, uint8_t slot)
 {
     GameState *g = state_of(s);
     set_battle_enemy_acting(g, (uint8_t)(slot - BATTLE_FIRST_ENEMY));
     if (!battle_run(s, 0xC184D6, ENEMY_TURN, battle_enemy_takes_turn))
         return false;
-    restart_turn_wait(g, slot);
-    s->cpu.x = slot;
-    if (!battle_call(s, 0xC184E1, SPEED_UP_TURN, DC_A | DC_Y | DC_FLAGS))
-        return false;
+    (void)battle_restart_turn_wait(g, slot);
     battle_restart_timer(g, BATTLE_TIMER_TURN, slot);
     return true;
 }

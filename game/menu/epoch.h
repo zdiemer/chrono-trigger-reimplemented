@@ -10,6 +10,8 @@
 /* The map view */
 void menu_epoch_map_screen(Snes *s);
 void menu_epoch_build_map(Snes *s);
+void menu_epoch_sample_map_colours(Snes *s);
+void menu_epoch_place_map_picture(Snes *s);
 void menu_epoch_map_cursor(Snes *s);
 void menu_epoch_map_matrix(Snes *s);
 void menu_epoch_map_party_marker(Snes *s);
@@ -39,6 +41,9 @@ void menu_epoch_in_area(Snes *s);
 /* Whether the Epoch, flying over the world map, is over the part of it it
  * may not come down in. */
 bool menu_epoch_kept_off_the_ground(GameState *g, MenuObject epoch);
+/* The same over world map `map` (counted from the first, MENU_FIRST_WORLD_MAP): the
+ * dactyls' map's is the part the dactyl doesn't come down in either. */
+bool menu_epoch_kept_off_the_ground_of(GameState *g, MenuObject o, unsigned map);
 
 /* Guards */
 bool menu_epoch_page_is_menu(Snes *s);

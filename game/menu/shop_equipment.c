@@ -163,8 +163,8 @@ void menu_shop_back_up_to_the_tabs(GameState *g, Platform *pf)
 
 /* ---- A member's slots ---------------------------------------------------------------------------- */
 
-/* The member's figures' colours, cleared. */
-enum { FIGURES = MENU_SHOP_FIGURE_MARKS_COUNT };
+/* The seven stats the shop's member window shows, their colours cleared. */
+enum { FIGURES = MENU_SHOP_FIGURES_SHOWN };
 
 // $C2:E0A5
 /* The member on the cursor chosen: its figures uncoloured, the member
@@ -172,7 +172,7 @@ enum { FIGURES = MENU_SHOP_FIGURE_MARKS_COUNT };
 void menu_shop_choose_the_member(GameState *g, Platform *pf)
 {
     for (unsigned figure = 0; figure < FIGURES; figure++)
-        set_menu_shop_figure_marks(g, figure, 0);
+        set_menu_figure_marks(g, figure, FIGURE_AS_IT_IS);
     ORIGINAL_EFFECT(charge_block_move(g, FIGURES - 2));
     menu_work_on_member(g, (uint8_t)(menu_cursor_index(g) - SHOP_FIRST_MEMBER));
     TIMED_AS(g, 0xC28820, (void)menu_load_member(g, menu_member_worked_on(g)));
@@ -285,11 +285,6 @@ void menu_shop_back_to_the_members(GameState *g)
 
 /* ---- Trying on ----------------------------------------------------------------------------------- */
 
-/* The figures the member window colours, by where they are in the record,
- * in the order it lists them. */
-static const uint8_t FIGURE_SHOWN[FIGURES] = { 0, 2, 5, 3, 1, 4, 6 };
-enum { RAISED = 0x08, LOWERED = 0x1C, AS_IT_IS = 0x00 };
-
 // $C2:E18A
 /* The member's figures as the status record has them, worked out again with
  * what it has on there: each one's colour by how it moves, the record
@@ -297,13 +292,7 @@ enum { RAISED = 0x08, LOWERED = 0x1C, AS_IT_IS = 0x00 };
  * window, and the item's description. */
 void menu_shop_compare_figures(GameState *g, Platform *pf)
 {
-    TIMED_AS(g, 0xC2916E, menu_work_out_figures_shown(g));
-    for (unsigned i = 0; i < FIGURES; i++) {
-        unsigned figure = FIGURE_SHOWN[i];
-        uint8_t was = menu_status_record_figures_byte(g, figure), is = menu_figures_worked_out(g, figure);
-        set_menu_status_record_figures_byte(g, figure, is);
-        set_menu_shop_figure_marks(g, i, is == was ? AS_IT_IS : is > was ? RAISED : LOWERED);
-    }
+    menu_mark_the_figures_tried_on(g, FIGURES_IN_THE_SHOP);
     menu_shop_panel_member_shown(g, menu_member_worked_on(g));
     menu_draw_windows(g, pf, FIGURES_WINDOW);
     TIMED_AS(g, 0xC2F2F3, menu_describe_item(g, menu_item_operand(g)));
@@ -315,9 +304,7 @@ void menu_shop_compare_figures(GameState *g, Platform *pf)
 void menu_shop_try_on(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC28820, (void)menu_load_member(g, menu_member_worked_on(g)));
-    uint8_t item = menu_list_items(g, (uint8_t)(menu_equip_list_top(g) + menu_cursor_index(g) - FIRST_LIST_PLACE));
-    set_menu_item_operand(g, item);
-    set_menu_status_record_bytes_byte(g, menu_equip_record_place(g), item);
+    menu_try_on(g, menu_list_items(g, (uint8_t)(menu_equip_list_top(g) + menu_cursor_index(g) - FIRST_LIST_PLACE)));
     TIMED_AS(g, 0xC2E18A, menu_shop_compare_figures(g, pf));
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER_STRIPS);
 }

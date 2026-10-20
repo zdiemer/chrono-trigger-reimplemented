@@ -48,7 +48,7 @@ enum {
     MEMBER_SCROLL_BAR = 0xC2A170,    /* the member list's scroll bar set up */
     FRAME_THE_LIST = 0xC2EA81,       /* a scrolling list's frame laid out: Y places, rows shown */
     LOW_HP_MARKS = 0xC2813C,         /* each character's low-HP mark worked out */
-    PREVIEW_ITEM = 0xC2A5C3,         /* the list's item on the cursor put in the record, the figures with it */
+    TRY_ON = 0xC2A5C3,               /* the list's item on the cursor tried on (equipment.c), where it is no item of the game's */
     MOVE_IN_LIST = 0xC2EA53,         /* the cursor kept within a list's rows */
     START_MEMBER_SLIDE = 0xC29D5B,   /* the member list's slide started, if there is a member to bring in */
 };
@@ -311,6 +311,20 @@ static void back_to_the_slots(Snes *s)
     m_rts(s);
 }
 
+/* The item on the cursor tried on, as C where the figures can be worked out
+ * with it. */
+static bool try_on(Snes *s)
+{
+    GameState *g = state_of(s);
+    vars_peek(true);
+    bool as_c = menu_equip_can_try_on(g);
+    vars_peek(false);
+    if (!as_c)
+        return call(s, 0xC29CB2, TRY_ON);
+    menu_equip_try_on(g, m_platform(s));
+    return true;
+}
+
 // $C2:9CA5
 /* An item chosen: what comes off given back, the chosen item put on and
  * taken from the party's items, its sound, a weapon's byte forgotten, and
@@ -333,7 +347,7 @@ void menu_choose_equipment_item(Snes *s)
         return;
     case ITEM_LEFT_FOR_THE_SLOTS: back_to_the_slots(s); return;
     case ITEM_POINTED_AT:
-        if (!menu_run_any_widths(s, 0xC29CAF, 0xC29F05, menu_point_along_equipment_list) || !call(s, 0xC29CB2, PREVIEW_ITEM))
+        if (!menu_run_any_widths(s, 0xC29CAF, 0xC29F05, menu_point_along_equipment_list) || !try_on(s))
             return;
         menu_set_widths(s, true, m_x8(s));
         ORIGINAL_EFFECT(leave_cursor_compared(s));
@@ -915,7 +929,10 @@ bool menu_equipment_slot_is_pointable(Snes *s) { return on_the_screen(s) && peek
 bool menu_equipment_member_switches(Snes *s) { return on_the_screen(s) && peek(s, slot_is_pointable); }
 
 /* Choosing an item: the member's record one of the characters', the slot's
- * place in it, the list's place of the cursor's row, and the list's. */
+ * place in it, the list's place of the cursor's row, and the list's; and the
+ * menus' zero cell 0, as the menus keep it, which the original's figures
+ * tried on are marked from (menu_equip_can_try_on) and its windows' text
+ * drawn by. */
 enum { RECORD_BYTES = 0x50, FIRST_LIST_PLACE = 4, LIST_ROWS = 9 };
 
 static bool list_is_pointable(const GameState *g)
@@ -927,7 +944,7 @@ static bool list_is_pointable(const GameState *g)
 
 static bool item_step_runs(const GameState *g)
 {
-    return menu_member_record_is_a_characters(g) && menu_equip_record_place(g) < RECORD_BYTES
+    return menu_zero(g) == 0 && menu_member_record_is_a_characters(g) && menu_equip_record_place(g) < RECORD_BYTES
            && menu_member_row(g) < MENU_MEMBERS_COUNT && list_is_pointable(g);
 }
 
@@ -937,6 +954,7 @@ bool menu_equipment_item_step_runs(Snes *s)
 }
 
 bool menu_equipment_list_is_pointable(Snes *s) { return on_the_screen(s) && peek(s, list_is_pointable); }
+
 
 bool menu_equipment_list_rows_move(Snes *s) { return menu_on_page_work_ram(s); }
 

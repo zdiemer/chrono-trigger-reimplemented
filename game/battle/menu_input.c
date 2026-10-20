@@ -355,19 +355,8 @@ static void queue_action(GameState *g, uint8_t member, const Chosen *c)
         ORIGINAL_EFFECT(set_battle_member_actions_what(g, member, (uint8_t)battle_work16(g, WHAT_CELL)));
     ORIGINAL_EFFECT(leave_chosen_cells(g, c));
 
-    set_battle_menu_page(g, PAGE_COMMANDS);
-    set_battle_menu_slot_shown(g, NO_SLOT_SHOWN);
     set_battle_menu_member_count(g, (uint8_t)(battle_menu_member_count(g) - 1));
-    set_battle_menu_slot_members(g, member, MENU_NONE);
-    uint8_t next = MENU_NONE;
-    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
-        if (menu_slot_has_member(g, slot)) {
-            next = battle_menu_slot_members(g, slot);
-            break;
-        }
-    set_battle_menu_slot(g, next);
-    set_battle_menu_member(g, next);
-    set_battle_timers_held(g, 0);
+    battle_hand_the_menu_on(g, member);
 }
 
 // $C1:161A

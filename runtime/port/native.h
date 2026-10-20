@@ -572,8 +572,17 @@ void native_poison_as_call(Snes *s, uint32_t site, uint32_t target, uint16_t don
  * the registers and flags its don't-care set names (or as many of them as the
  * hook leaves in `set`) are scrambled before the original's code goes on. A
  * declaration that holds leaves the run as it was; one that doesn't changes
- * what the original's code does, which a trace shows. NULL by default. */
-extern bool (*native_return_poison)(uint32_t entry, uint64_t *bits, uint16_t *set);
+ * what the original's code does, which a trace shows. `to_a_bridge` says the
+ * return is a sibling's (below), which the tool counts apart: a bridge may
+ * set the registers again at once, so such a return tests less. NULL by
+ * default. */
+extern bool (*native_return_poison)(uint32_t entry, bool to_a_bridge, uint64_t *bits, uint16_t *set);
+
+/* The same where a bridge runs the port `e` as C in place of a call to it (a
+ * sibling, battle/bridge.c) and it returns there: the bridge goes on with its
+ * registers, into the original's code or into ports that hand them on, so the
+ * declaration is tested as at a return to the original's code. */
+void native_poison_sibling_return(Snes *s, const NativeEntry *e);
 
 /* Synchronous call-outs, for ct_fuzz --stop-at-call: called with the machine
  * at the callee's entry (the return address pushed); a tool that wants the

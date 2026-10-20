@@ -518,6 +518,15 @@ meaning = "Bitmap scaler: pointer to the source row being sampled; a row equal t
 source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
+name = "scene_wide_tile_rows_left"
+addr = "7E:0031"
+page = "scene"
+reuses = "scene_scaler_source_row"
+subsystem = "scene"
+meaning = "The endings' Mode 7 picture: the rows of an eight-plane tile still to expand into the plane's pixels, 0 once it is done, which the bitmap scaler then finds as its last source row"
+source = "game/scene/title.c, scene_expand_plane_tile $7E:5EF8"
+
+[[var]]
 name = "scene_scaler_row_position"
 addr = "7E:0033"
 size = 2
@@ -559,8 +568,8 @@ addr = "7E:003B"
 size = 9
 page = "scene"
 subsystem = "scene"
-meaning = "Scratch the original packs pixels in, which only the routine that fills it reads: the scaler's eight sample words ($3B-$43), or the title's plane tile row's two words and its row count ($3F)"
-source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309; game/scene/title.c, scene_title_expand_plane_tile $7E:5E54"
+meaning = "Scratch the original packs pixels in, which only the routine that fills it reads: the scaler's eight sample words ($3B-$43), the title's plane tile row's two words and its row count ($3F), or the endings' eight-plane row's four words ($3B-$42)"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309; game/scene/title.c, scene_title_expand_plane_tile $7E:5E54, $7E:5EF8"
 
 [[var]]
 name = "scene_bg3_scroll_x"
@@ -7301,6 +7310,15 @@ subsystem = "menu"
 meaning = "The menus' first direct-page cells, which their routines share as working values, each its own"
 source = "game/menu/save_screen.c, game/menu/sprites.c, game/menu/tasks.c"
   [[var.field]]
+  name = "scroll_arrows_at"
+  offset = 0
+  size = 4
+  meaning = "The scroll bar's task: where it worked its two arrows' places out, across and down, the upper's then the lower's (game/menu/held_cursors.c, $C2:8BB8; scaffolding)"
+  [[var.field]]
+  name = "figure_compared"
+  offset = 0
+  meaning = "The equipment screen's comparison of a member's figures with an item tried on: the last figure it looked at, as the member's record has it (game/menu/equipment.c, $C2:A5E7; scaffolding)"
+  [[var.field]]
   name = "task_start"
   offset = 0
   size = 2
@@ -10213,14 +10231,14 @@ meaning = "Each character's tenth of its greatest HP, worked out as the menus op
 source = "the menus' opening $C2:813C; game/menu/members.c"
 
 [[var]]
-name = "menu_shop_figure_marks"
+name = "menu_figure_marks"
 addr = "7E:0D4D"
-count = 7
-index = "figure: the seven stats in the order the member's window lists them"
+count = 11
+index = "figure, in the order the window lists them: the shop's seven stats; the equipment screen's attack, defence and seven stats, and its greatest HP the eleventh"
 reuses = ["menu_member_face", "menu_item_row_item", "menu_item_power", "menu_item_row_count"]
 subsystem = "menu"
-meaning = "How the shop's member window colours each figure of the member equipping: the text's colour where the item tried on leaves it as it is, brighter ($08) where it raises it, darker ($1C) where it lowers it"
-source = "game/menu/shop_equipment.c, $C2:E18A"
+meaning = "How the shop's member window and the equipment screen's figures colour each figure of the member equipping: the text's colour where the item tried on leaves it as it is, brighter ($08) where it raises it, darker ($1C) where it lowers it (menu/figures.h, MenuFigureMark)"
+source = "game/menu/shop_equipment.c, $C2:E18A; game/menu/equipment.c, $C2:A5E7"
 
 [[var]]
 name = "menu_member_face"
@@ -10295,6 +10313,10 @@ source = "game/menu/equipment.c; the member list's bar $C2:A170"
   name = "blink"
   offset = 5
   meaning = "Which half of their blink the bar's arrows are in, which the bar's task flips"
+  [[var.field]]
+  name = "blink_count"
+  offset = 4
+  meaning = "The frames until the bar's arrows' blink turns, its low three bits (the byte after the thumb, which a slide's move of the thumb as a word can carry into)"
   [[var.field]]
   name = "hidden"
   offset = 8
@@ -12323,6 +12345,13 @@ meaning = "1 while the Epoch flies over the world map (from the end of its take-
 source = "game/overworld/epoch.c ($C2:42F8, $C2:4945)"
 
 [[var]]
+name = "overworld_dactyl_flying"
+addr = "7E:1BF0"
+subsystem = "overworld"
+meaning = "1 while the dactyl the leader rides flies over the 65,000,000 B.C. map (from the end of its take-off until it starts to land), 0 while it stands; its second sprite goes by it"
+source = "game/overworld/dactyl.c ($C2:4CDA, $C2:4D9B, $C2:4E78, $C2:5068)"
+
+[[var]]
 name = "overworld_black_omen"
 addr = "7E:02A2"
 stride = 4
@@ -13602,6 +13631,10 @@ source = "game/menu/objects.c, menu_run_objects $C2:051D; game/menu/script.c, me
   meaning = "A scene's object that drifts the map: its count of frames, a byte, the map moving on every fourth (game/menu/map_scenes.c)"
 
   [[var.field]]
+  name = "dactyl_landing_cleared"
+  offset = 0x22
+  meaning = "A following dactyl on the 65,000,000 B.C. map clears this byte as it comes down; nothing reads it (game/overworld/dactyl.c)"
+  [[var.field]]
   name = "epoch_manoeuvre_frames"
   offset = 0x26
   meaning = "The Epoch on the world map: how many frames its take-off or landing lasts (game/overworld/epoch.c)"
@@ -14439,6 +14472,63 @@ index = "script channel"
 subsystem = "battle"
 meaning = "Each animation script channel's wait counter"
 source = "game/battle/scripts.c header and battle_run_script_channel $C1:4C9E"
+
+[[var]]
+name = "battle_party_pose_countdown"
+addr = "7E:5DBD"
+count = 3
+index = "party member"
+reuses = "battle_script_pointers"
+subsystem = "battle"
+meaning = "The party's poses: how many of the poses' steps (every other frame) each member's frame has left to show; its first frame comes a step later for each member after the leader"
+source = "game/battle/party_poses.c load_the_poses $C1:35DD, step_the_poses $C1:369A"
+
+[[var]]
+name = "battle_party_pose_frame"
+addr = "7E:5DC1"
+count = 3
+index = "party member"
+reuses = "battle_script_pointers"
+subsystem = "battle"
+meaning = "The party's poses: which of its eight frames each member shows, $FF before the first; a member that has shown its eighth holds it"
+source = "game/battle/party_poses.c load_the_poses $C1:35DD, step_the_poses $C1:369A"
+
+[[var]]
+name = "battle_party_pose_member"
+addr = "7E:5DC5"
+size = 2
+reuses = "battle_script_pointers"
+subsystem = "battle"
+meaning = "The party's poses: the member the poses' step looked at last, a word, 3 once it has been through them (scaffolding: nothing reads it)"
+source = "game/battle/party_poses.c step_the_poses $C1:369A"
+
+[[var]]
+name = "battle_party_poses_frames_left"
+addr = "7E:5DC9"
+reuses = "battle_script_pointers"
+subsystem = "battle"
+meaning = "The party's poses: how many frames of the battle they have left to run, from 64"
+source = "game/battle/party_poses.c strike_the_poses $C1:35DD"
+
+[[var]]
+name = "battle_party_pose_delays"
+addr = "7E:922D"
+count = 24
+index = "party member * 8 + frame"
+reuses = "battle_number_sprites"
+subsystem = "battle"
+meaning = "The party's poses: each member's eight frames' times, in the poses' steps (half its delay list's), which no number shows over the poses"
+source = "game/battle/party_poses.c load_the_poses $C1:35DD, step_the_poses $C1:369A"
+
+[[var]]
+name = "battle_party_pose_frames"
+addr = "7E:9245"
+count = 24
+index = "party member * 8 + frame"
+reuses = "battle_number_sprites"
+subsystem = "battle"
+meaning = "The party's poses: each member's eight frames, from its frame list in its facing's part"
+source = "game/battle/party_poses.c load_the_poses $C1:35DD, step_the_poses $C1:369A"
 
 [[var]]
 name = "battle_party_scene_animation"
@@ -21806,7 +21896,27 @@ source = "game/overworld/walk.c ($C2:34CD, $C2:37E8), followers.c ($C2:3BA8)"
   [[var.field]]
   name = "state"
   offset = 4
-  meaning = "Bits 0-1 how many of the party are aboard, bit 6 the party has it out, bit 7 it is on the map"
+  meaning = "Bits 0-1 how many of the party are aboard, bit 5 it is coming down (the other dactyls come down with it), bit 6 the party has it out, bit 7 it is on the map"
+
+[[var]]
+name = "overworld_following_dactyls"
+addr = "7E:02A6"
+count = 2
+stride = 4
+index = "the second member's dactyl, then the third's"
+subsystem = "overworld"
+meaning = "Where the second and third members' dactyls are on the 65,000,000 B.C. map as they fly behind the leader's: each dactyl keeps its spot here every frame, and its second sprite follows it"
+source = "game/overworld/dactyl.c ($C2:5605, $C2:556D)"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  size = 2
+  meaning = "Across, a pixel"
+  [[var.field]]
+  name = "y"
+  offset = 2
+  size = 2
+  meaning = "Down, a pixel"
 
 [[var]]
 name = "overworld_idle_frames"

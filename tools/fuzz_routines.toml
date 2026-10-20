@@ -690,13 +690,32 @@ args = ["--d", "0A00", "--db", "00", "--keep", "7E3000-7EB5FF"]
 why = "on channel 0's page, which the title's script calls it from and its guard asks for (a channel's page)"
 
 [[routine]]
+name = "scene_ending_expand_wide_tile"
+at = "7E:5EF8"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "7F", "--keep", "7E3000-7EB5FF", "--range", "X=0000-FFBF"]
+iterations = 2000
+why = "the source in work RAM's upper bank, where the endings unpack the picture's tiles"
+
+[[routine]]
+name = "scene_ending_expand_wide_tile"
+variant = "loose"
+at = "7E:5EF8"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--range", "X=0000-1FBF"]
+iterations = 2000
+why = "the source in low RAM, over the scene's cells too: the guard refuses a tile over the row count or the scratch the original packs each row in, which it reads changing"
+
+[[routine]]
 name = "scene_title_expand_plane_tile"
 at = "7E:5E54"
 subsystem = "scene"
 state = "attract"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--range", "X=0000-1FFF"]
 iterations = 2000
-why = "the source in low RAM: past it, open bus"
+why = "the source in low RAM: past it, open bus, which the guard refuses for a tile that runs past low RAM"
 
 [[routine]]
 name = "scene_title_upload_ripple"
@@ -1036,7 +1055,7 @@ subsystem = "scene"
 state = "ending"
 args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
 iterations = 300
-why = "called by a script's call command; the tiles' expansion the original's"
+why = "called by a script's call command"
 
 [[routine]]
 name = "scene_ending_prepare_credits"
@@ -7573,6 +7592,16 @@ iterations = 2000
 why = "the items' tables the menus built as they opened as the state has them; low RAM, the tilemaps and the screen's tables as the state has them; the menus' page and data bank, the screen's tilemaps, cursor places and palette, the member's record one of the seven and the slot's place one of the four, the cursor on the list's rows, the list within its 98 places; the buttons random; compared up to a wait for the next frame (the list's slide frames wait in theirs)"
 
 [[routine]]
+name = "menu_choose_equipment_item"
+variant = "menu_zero"
+at = "C2:9CA5"
+subsystem = "menu"
+state = "equipment"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E7700-7E7FFF", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--fill", "7E0051-7E0051=01-FF", "--fill", "7E0052-7E0052=00-00", "--fill", "7E9380-7E947B=00-29", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-03", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E006F-7E0070=2600,2650,26A0,26F0,2740,2790,27E0", "--fill", "7E0D26-7E0D27=0027,0028,0029,002A", "--fill", "7E0412-7E0412=00-08", "--fill", "7E0054-7E0054=04-0C", "--fill", "7E0FC8-7E0FC8=00-50", "--fill", "7E0FC6-7E0FC6=00-62", "--stop-at-call", "C2821E", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "as the plain row, with the menus' zero cell not 0, which the game never leaves it: the original marks the figures tried on from the cell's place in its table, and draws the windows' text by it, so the step's guard and the try-on's (menu_equip_can_try_on) refuse it and the original runs (before the try-on's guard took it, 1997 of 2000 states mismatched)"
+
+[[routine]]
 name = "menu_point_along_equipment_list"
 at = "C2:9F05"
 subsystem = "menu"
@@ -8910,6 +8939,15 @@ iterations = 2000
 why = "the object mode's page and data bank, entered as the first slot's handler: the slot in X and in the running object's cell (the guard)"
 
 [[routine]]
+name = "menu_top_layer_fast_drift"
+at = "C2:77F2"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30"]
+iterations = 2000
+why = "as menu_top_layer_drift's"
+
+[[routine]]
 name = "menu_top_layer_drift"
 at = "C2:7702"
 subsystem = "menu"
@@ -9153,6 +9191,24 @@ args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0010-7E0011=5800", "
         "--fill", "7E0016-7E0017=3800", "--fill", "7E0019-7E001A=3000"]
 iterations = 300
 why = "as the plain row, with the cells naming the planes the scene draws (the land's map and groups, plane 1, then plane 0's over it), their contents random"
+
+[[routine]]
+name = "menu_epoch_sample_map_colours"
+at = "C2:6400"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 300
+why = "called from a script's call command on the object mode's page and data bank (the Day of Lavos's world); the world map's tile graphics random"
+
+[[routine]]
+name = "menu_epoch_place_map_picture"
+at = "C2:65B2"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "called from a script's call command on the object mode's page and data bank (the Day of Lavos's world)"
 
 [[routine]]
 name = "menu_object_start_the_world_turning"
@@ -10916,8 +10972,8 @@ why = "an effect in the stepping's cell, as the effects' loop leaves it; the gua
 name = "battle_party_faces_the_enemies"
 subsystem = "battle"
 state = "battle"
-args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9870-7E9871=00-0A", "--fill", "7E9873-7E9873=00-0A"]
-why = "the setup's end as its wait for the window leaves it, A's high byte clear; the search's other combatants and its last find on combatants, as the guard takes them"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9870-7E9871=00-0A", "--fill", "7E9873-7E9873=00-0A", "--fill", "7E967A-7E967A=00-00", "--stop-at-call", "C1007E"]
+why = "the setup's end as its wait for the window leaves it, A's high byte clear; the search's other combatants and its last find on combatants, as the guard takes them; the graphics' object a battle slot, as the poses' guard takes it; up to the poses' first wait for a frame"
 
 [[routine]]
 name = "battle_update_combatant"
@@ -12404,6 +12460,69 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7E95D6-7E95D6=00,01,02,80,FF", "--range", "A=0000-00FF"]
 why = "the first member in the menu's queue a party member or none, as the game queues them"
+
+[[routine]]
+name = "battle_menu_turn"
+at = "C1:0012"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E993A-7E993A=00-00"]
+iterations = 3000
+why = "called by JSL from the frame work's wait on the battle's page, the menu's turn not due (where it is, its siblings are their own entries' runs, as battle_frame_step's)"
+
+[[routine]]
+name = "battle_turn_comes"
+at = "C1:1B19"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E00A1-7E00A1=00-02", "--fill", "7E95DA-7E95DA=00-03", "--fill", "7EA6D9-7EA6DB=00,01,02,80,FF", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "the battle's step 1 as the dispatch enters it, A's high byte clear (the guard's: the step indexes by the whole of A), its member a party member, the line holding up to three, the menu's slots a member or nobody; the sound driver's call-out runs past the budget on a fifth of the random states"
+
+[[routine]]
+name = "battle_called_off"
+at = "C1:1BAA"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E00A1-7E00A1=00-02", "--fill", "7E95D6-7E95D9=00,01,02,FF", "--fill", "7E95DA-7E95DA=00-03", "--fill", "7EA6D9-7EA6DB=00,01,02,80,FF", "--fill", "7E95D5-7E95D5=00,01,02,FF", "--fill", "7EA86B-7EA86B=00-03"]
+iterations = 5000
+why = "the battle's step 2 as the dispatch enters it, its member a party member, the line and the menu's slots and open member a member or nobody, the page kept for targets none or one of the three"
+
+[[routine]]
+name = "battle_step_the_poses"
+at = "C1:369A"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00E5-7E00E5=00,01", "--fill", "7E5DBD-7E5DBF=00-04", "--fill", "7E5DC1-7E5DC3=FF,00,01,02,03,04,05,06,07", "--fill", "7E96F5-7E96F7=00,01", "--fill", "7E5DDE-7E5DDE=00,01", "--fill", "7E967A-7E967A=00-00", "--fill", "7E967C-7E9686=00-04", "--fill", "7E1C57-7E1C98=C0-FE"]
+iterations = 5000
+why = "a frame of the poses on the battle's page: sending or stepping, each member's frame before its first or one of its eight with up to four steps left on it, there or not, knocked out members posing or not, the graphics' object a battle slot (the guard's); the poses' tables random; the members' graphics kinds and pointers as battle_build_object_graphics's row has them (the guard refuses kinds the builders don't know)"
+
+[[routine]]
+name = "battle_strike_the_poses"
+at = "C1:35DD"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E5DF1-7E5DF6=0000,0020,0028,0030", "--fill", "7E96F5-7E96F7=00,01", "--fill", "7E967A-7E967A=00-00", "--fill", "7E967C-7E9686=00-04", "--stop-at-call", "C1007E"]
+iterations = 3000
+why = "the poses loaded for each of the battle's animations of them, members there or not, up to the first wait for a frame (the steps after are battle_step_the_poses's)"
+
+[[routine]]
+name = "battle_victory"
+at = "C1:356D"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00A1-7E00A1=00-02", "--fill", "7E95D6-7E95D9=00,01,02,FF", "--fill", "7E95DA-7E95DA=00-03", "--fill", "7EA6D9-7EA6DB=00,01,02,80,FF", "--fill", "7E95D5-7E95D5=00,01,02,FF", "--fill", "7E967A-7E967A=00-00", "--fill", "7E967C-7E9686=00-04", "--stop-at-call", "C1007E"]
+iterations = 3000
+why = "the battle's step 8 as the dispatch enters it, the menu's line, slots and open member as the game keeps them, up to its first wait for a frame (the frame work's tail before it is the original's in a fuzz run)"
+
+[[routine]]
+name = "battle_defeat"
+at = "C1:354D"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E967A-7E967A=00-00", "--fill", "7E967C-7E9686=00-04", "--stop-at-call", "C1007E"]
+iterations = 3000
+why = "the battle's step 9 as the dispatch enters it, up to its wait for a frame"
 
 [[routine]]
 name = "battle_go_round_the_poses"
@@ -18017,6 +18136,24 @@ why = "the menus' page and data bank"
 
 
 [[routine]]
+name = "menu_scroll_bar_task"
+at = "C2:8BB8"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--widths", "16,16", "--fill", "7E0D93-7E0D93=00-7F", "--fill", "7E0D95-7E0D95=00-1F", "--fill", "7E0D99-7E0D99=00-03", "--stop-at-call", "C2821E"]
+iterations = 20000
+why = "the menus' page and data bank, 16-bit as the scheduler starts a task, up to its wait; the bar in the screen's upper half, its thumb up to 31 rows down at up to four lines a row, the rest of its cells random (the guard refuses a thumb off the screen, where the original's sum carries, which no list's bar is)"
+
+[[routine]]
+name = "menu_scroll_bar_task_goes_on"
+at = "C2:8C33"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--widths", "16,16", "--fill", "7E0D93-7E0D93=00-7F", "--fill", "7E0D95-7E0D95=00-1F", "--fill", "7E0D99-7E0D99=00-03", "--stop-at-call", "C2821E"]
+iterations = 20000
+why = "as menu_scroll_bar_task's, where the task goes on after its wait"
+
+[[routine]]
 name = "menu_start_the_scroll_bar"
 variant = "bank00"
 at = "C2:8B93"
@@ -18831,6 +18968,56 @@ state = "overworld"
 args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E00E0-7E00EA", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0E-0E", "--range", "X=0EB0-0EB0", "--fill", "7E0100-7E0101=01F0,01F1,01F2,01F3,01F4,01F5,01F6,01F7", "--fill", "7E029F-7E02A0=01F0,01F1,01F2,01F3", "--fill", "7E0283-7E0283=00-1F", "--fill", "7E0284-7E0284=00-00", "--fill", "7E0285-7E0285=00-1F", "--fill", "7E0286-7E0286=00-00", "--fill", "7E0290-7E0290=00-1F", "--fill", "7E0291-7E0291=00-00", "--fill", "7E0292-7E0292=00-1F", "--fill", "7E0293-7E0293=00-00", "--fill", "7E029A-7E029A=00-1F", "--fill", "7E029B-7E029B=00-00", "--fill", "7E029C-7E029C=00-1F", "--fill", "7E029D-7E029D=00-00", "--fill", "7E02A2-7E02A2=00-1F", "--fill", "7E02A3-7E02A3=00-00", "--fill", "7E02A4-7E02A4=00-1F", "--fill", "7E02A5-7E02A5=00-00", "--keep", "7E0EB0-7E0EEF", "--fill", "7E005E-7E005E=00-00", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--fill", "7E0EB2-7E0EB2=00-08", "--fill", "7E0ED8-7E0ED8=00-03", "--fill", "7E0ED7-7E0ED7=00-03", "--fill", "7E0ED6-7E0ED6=30,31", "--fill", "7E0EB3-7E0EB3=00,08,20,30,31", "--fill", "7E027C-7E027C=00,01,01,01,08", "--fill", "7E027E-7E027E=00,02,02,05", "--fill", "7E0294-7E0294=00-FF", "--fill", "7E029E-7E029E=00-FF", "--fill", "7E00F8-7E00F9=0000,0080,0001,0040,0004,0800,0400,0200,0100,0880", "--fill", "7E02AF-7E02B0=0000,FFFF,01D9,01F7,01F2,01F0", "--fill", "7E1BA6-7E1BA6=00,00,00,D3", "--fill", "7E0ECA-7E0ECB=0000", "--fill", "7E0ECC-7E0ECD=0000,0002,FFFE", "--fill", "7E0ECE-7E0ECF=0000", "--fill", "7E0ED0-7E0ED1=0000,0002,FFFE", "--fill", "7E0EB7-7E0EB8=4B8C,4AAD,4A9B", "--fill", "7E0EB9-7E0EB9=C2-C2", "--fill", "7E0ED2-7E0ED5=00-FF", "--fill", "7E0EDE-7E0EDF=00-FF"]
 iterations = 5000
 why = "the Epoch's slot as the state has it, entered as its handler, on any of its steps, facing any way, its take-off or landing counted either side of its end; the overworld mostly on the map, the party on foot, in it or getting off, its state random, the pad any of its buttons, the time gate's choice none, left or a location (the scenes' among them), the story at its first flight a quarter of the time; its pace still or two pixels either way, its scene one of its own, the ground under it random; on a world map, the party, the vehicles and the Omen within a few tiles of one another, the upload queue whole with room"
+
+[state.dactyl]
+movie = "oracle/movies/saves/field-65m-bc-dactyl.ctm"
+frames = 2700
+
+[[routine]]
+name = "overworld_dactyl"
+at = "C2:4CC5"
+subsystem = "overworld"
+state = "dactyl"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E00E0-7E00EA", "--fill", "7E005E-7E005E=00-00", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--fill", "7E004E-7E004E=F0-F0", "--fill", "7E004F-7E004F=0D-0D", "--range", "X=0DF0-0DF0", "--keep", "7E0DF0-7E0E2F", "--fill", "7E0DF2-7E0DF2=00-05", "--fill", "7E0DF3-7E0DF3=00,07,08,1F,20,2F,30,31", "--fill", "7E0E18-7E0E18=00-03", "--fill", "7E0E04-7E0E05=0000,0040,0358,05F8", "--fill", "7E0E08-7E0E09=0000,0100,0250,03F8", "--fill", "7E0E0A-7E0E0B=0000", "--fill", "7E0E0C-7E0E0D=0000,0002,FFFE", "--fill", "7E0E0E-7E0E0F=0000", "--fill", "7E0E10-7E0E11=0000,0002,FFFE", "--fill", "7E0E12-7E0E15=00-07", "--fill", "7E0E1E-7E0E1F=00-07", "--fill", "7E0100-7E0101=01F3,01F3,01F0", "--fill", "7E029F-7E02A0=01F0,01F3", "--fill", "7E0290-7E0290=00-1F", "--fill", "7E0291-7E0291=00-00", "--fill", "7E0292-7E0292=00-1F", "--fill", "7E0293-7E0293=00-00", "--fill", "7E029A-7E029A=00-1F", "--fill", "7E029B-7E029B=00-00", "--fill", "7E029C-7E029C=00-1F", "--fill", "7E029D-7E029D=00-00", "--fill", "7E0294-7E0294=00-FF", "--fill", "7E029E-7E029E=00-FF", "--fill", "7E027C-7E027C=00,01,01,01,05", "--fill", "7E027E-7E027E=00,03,03,05", "--fill", "7E00F8-7E00F9=0000,0080,0040,0004,0800,0400,0200,0100,0880"]
+iterations = 5000
+why = "the leader's dactyl's slot as the state has it, in flight, entered as its handler on any of its steps, facing any way, its take-off or landing counted either side of its turns, its place at the map's corners and middle, its pace still or two pixels either way, the ground round it and below it random; the overworld mostly on the map, the party on foot, on a dactyl or getting off, the dactyl's and the Epoch's states random, the pad any of its buttons, the location the dactyls' map or another and the Epoch's this one or another, the vehicles within a few tiles of one another, the upload queue whole with room"
+
+[[routine]]
+name = "overworld_dactyl_second_sprite"
+at = "C2:504B"
+subsystem = "overworld"
+state = "dactyl"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E00E0-7E00EA", "--fill", "7E005E-7E005E=00-00", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0E-0E", "--range", "X=0EB0-0EB0", "--keep", "7E0EB0-7E0EEF", "--fill", "7E0EB2-7E0EB2=00-01", "--fill", "7E1BF0-7E1BF0=00-01"]
+iterations = 3000
+why = "its slot as the state has it, either step, whether the leader's dactyl flies either way, its spot random"
+
+[[routine]]
+name = "overworld_following_dactyl"
+at = "C2:5097"
+subsystem = "overworld"
+state = "dactyl"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E00E0-7E00EA", "--fill", "7E005E-7E005E=00-00", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0E-0E", "--range", "X=0E30-0E30", "--keep", "7E0E30-7E0E6F", "--keep", "7E029A-7E029D", "--fill", "7E0E32-7E0E32=00-05", "--fill", "7E0E33-7E0E33=00,03,04,07,08,2F,30,31", "--fill", "7E0E54-7E0E54=01,02", "--fill", "7E0E58-7E0E58=00-03", "--fill", "7E0E57-7E0E57=00,01,02,03,FF", "--fill", "7E0E44-7E0E44=10-AF", "--fill", "7E0E48-7E0E48=10-8F", "--fill", "7E0104-7E0104=00-FF", "--fill", "7E029E-7E029E=00-FF", "--fill", "7E027E-7E027E=00,03,03,05"]
+iterations = 5000
+why = "the second member's dactyl's slot as the state has it in flight, entered as its handler on any of its steps, its frames counted either side of its turns, the second's or the third's, facing any way and having faced any way or none, placed across and down within about a hundred pixels of its place in the V and the leader's (the leader's spot as the state has it), its velocity random; the leader's state (coming down, out) and the way it flies random, the party on foot, on a dactyl or getting off. The guard refuses one further from its place than the heading's table reaches, or from the leader's as it comes down than the glide's speed is worked out for, which the game keeps far nearer"
+
+[[routine]]
+name = "overworld_following_dactyl"
+variant = "loose"
+at = "C2:5097"
+subsystem = "overworld"
+state = "dactyl"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E00E0-7E00EA", "--fill", "7E005E-7E005E=00-00", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0E-0E", "--range", "X=0E30-0E30", "--keep", "7E0E30-7E0E6F", "--fill", "7E0E32-7E0E32=00-05", "--fill", "7E0E54-7E0E54=01,02", "--fill", "7E0E58-7E0E58=00-03", "--fill", "7E0E45-7E0E45=00-05", "--fill", "7E0E49-7E0E49=00-03", "--fill", "7E029B-7E029B=00-05", "--fill", "7E029D-7E029D=00-03"]
+iterations = 20000
+why = "as the plain row, with the dactyl and the leader's anywhere on the map and its frames, the way it faced before and the leader's state random, so that its place in the V comes round the map's edges from it; the guard refuses those further than the heading's table reaches, about half"
+
+[[routine]]
+name = "overworld_following_dactyl_second_sprite"
+at = "C2:5494"
+subsystem = "overworld"
+state = "dactyl"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E00E0-7E00EA", "--fill", "7E005E-7E005E=00-00", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--fill", "7E004E-7E004E=F0-F0", "--fill", "7E004F-7E004F=0E-0E", "--range", "X=0EF0-0EF0", "--keep", "7E0EF0-7E0F2F", "--keep", "7E029A-7E029D", "--fill", "7E0EF2-7E0EF2=00-04", "--fill", "7E0EF3-7E0EF3=00,07,08,2F,30,31", "--fill", "7E0F14-7E0F14=01,02", "--fill", "7E029E-7E029E=00-FF", "--fill", "7E027E-7E027E=00,03,03,05"]
+iterations = 5000
+why = "the second member's dactyl's second sprite's slot as the state has it in flight, any of its steps, the second's or the third's, its frames counted either side of its turns, the dactyls' spots random, the leader's state random, the party on foot, on a dactyl or getting off; the guard refuses one further from the leader's spot as it comes down than the glide's speed is worked out for"
 
 [[routine]]
 name = "overworld_epoch_second_sprite"

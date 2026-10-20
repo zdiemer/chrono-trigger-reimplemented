@@ -36,6 +36,7 @@ battle_setup_display
 battle_show_action
 battle_show_an_enemy_message  # run as C by the enemies' turns (battle_run_long), whose stretches compare it; fuzzed alone up to setting the message out
 battle_start_action_showing
+battle_turn_comes  # run as C by the step dispatch as a member's turn comes (battle_run_a_step, from the timers' dispatch), whose stretch compares it; fuzzed alone
 battle_wait_for_the_handler  # run as C by the frame work's wait for the next frame (battle_run), whose stretch compares it; called on its own, it is compared
 battle_wait_for_the_next_frame  # run as C by the waits for some frames and the transfer (battle_run), whose stretches compare it; called on its own, it is compared
 battle_wait_some_frames  # its own loop comes back to its entry, each pass inside the stretch its first call stands for, which compares them

@@ -241,6 +241,82 @@ void menu_start_the_scroll_bar(GameState *g)
     menu_start_task(g, MENU_SCROLL_BAR_TASK, DRAW_THE_SCROLL_BAR);
 }
 
+/* ---- The scroll bar ---------------------------------------------------------------------------- */
+
+/* The bar's thumb is a pair of arrows, one over the other, riding down the
+ * bar with the list: the upper shows where the list can scroll up, the
+ * lower, the upper flipped, where it can scroll down. They blink, lit for
+ * eight frames and out for eight, and show nothing while the bar is hidden
+ * or the list has no lines to scroll. They are the last two sprites of the
+ * screen's (the 31st and 32nd). */
+enum { UPPER_ARROW = 30, LOWER_ARROW = 31, ARROW_LINES = 8 };
+enum { UPPER_ARROW_SPRITE = 0x3022, LOWER_ARROW_SPRITE = 0xB022 };
+enum { BLINK_FRAMES = 0x07, LIT = 0x01 };
+
+/* The thumb's line: the bar's top, and the lines of the rows the list has
+ * scrolled at the bar's step (a line and its 256ths a row). */
+static unsigned thumb_line(const GameState *g)
+{
+    uint16_t at = menu_scroll_bar_place(g);
+    return (unsigned)(at >> 8) + (unsigned)(menu_scroll_bar_thumb(g) * menu_scroll_bar_step(g) >> 8);
+}
+
+/* A frame of the blink: its count runs out every eighth frame, and turns
+ * it. */
+static bool blink_lit(GameState *g)
+{
+    uint8_t count = (uint8_t)((menu_scroll_bar_blink_count(g) & BLINK_FRAMES) - 1);
+    set_menu_scroll_bar_blink_count(g, count);
+    if (count & 0x80)
+        set_menu_scroll_bar_blink(g, (uint8_t)(menu_scroll_bar_blink(g) ^ LIT));
+    return (menu_scroll_bar_blink(g) & LIT) != 0;
+}
+
+/* What placing the arrows leaves: their places in the menus' first cells,
+ * and the multiplier as it worked the thumb's line out, a byte of the step at
+ * a time. */
+static void leave_the_arrows_placed(GameState *g, uint8_t x, uint8_t y)
+{
+    uint8_t lower = (uint8_t)(y + ARROW_LINES);
+    set_menu_scratch_scroll_arrows_at(g, (uint32_t)x | (uint32_t)y << 8 | (uint32_t)x << 16 | (uint32_t)lower << 24);
+    hw_set_multiplicand(g, menu_scroll_bar_thumb(g));
+    (void)hw_multiply_by(g, (uint8_t)(menu_scroll_bar_step(g) >> 8));
+}
+
+// $C2:8BB8
+/* A frame of the bar: the arrows' blink turns; lit, each arrow is placed
+ * where it shows, at the thumb's line. */
+void menu_draw_the_scroll_bar(GameState *g)
+{
+    if (blink_lit(g)) {
+        if (menu_scroll_bar_hidden(g))
+            return;
+        uint8_t x = (uint8_t)menu_scroll_bar_place(g), y = (uint8_t)thumb_line(g);
+        ORIGINAL_EFFECT(leave_the_arrows_placed(g, x, y));
+        uint8_t thumb = menu_scroll_bar_thumb(g), span = menu_scroll_bar_span(g);
+        if (span == 0)
+            return;
+        if (thumb != 0) {
+            set_oam_buffer_x(g, UPPER_ARROW, x);
+            set_oam_buffer_y(g, UPPER_ARROW, y);
+        }
+        if (thumb < span) {
+            set_oam_buffer_x(g, LOWER_ARROW, x);
+            set_oam_buffer_y(g, LOWER_ARROW, (uint8_t)(y + ARROW_LINES));
+        }
+    }
+    put_sprite(g, UPPER_ARROW, UPPER_ARROW_SPRITE);
+    put_sprite(g, LOWER_ARROW, LOWER_ARROW_SPRITE);
+}
+
+/* The original works the thumb's line out a byte at a time, carrying where
+ * a byte overflows; a line on the screen never does. */
+static bool thumb_on_the_screen(const GameState *g)
+{
+    enum { LINES = 0x100 };
+    return thumb_line(g) < LINES;
+}
+
 /* ---- The entries ------------------------------------------------------------------------------- */
 
 // $C2:8A98
@@ -311,6 +387,16 @@ void menu_start_the_scroll_bar_entry(Snes *s)
 {
     menu_start_the_scroll_bar(state_of(s));
     m_rts(s);
+}
+
+bool menu_scroll_bar_is_drawable(Snes *s)
+{
+    if (!menu_on_page_work_ram(s) || m_x8(s))
+        return false;
+    vars_peek(true);
+    bool ok = thumb_on_the_screen(state_of(s));
+    vars_peek(false);
+    return ok;
 }
 
 /* The cursors are drawn on the menus' page with the data bank on work
