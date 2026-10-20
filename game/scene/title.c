@@ -168,6 +168,8 @@ static void leave_scratch_empty(GameState *g, unsigned planes)
  * its plane bits, into the high bytes of VRAM. */
 void scene_expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t tile, unsigned planes)
 {
+    if (planes > SCENE_MOST_PLANES)
+        planes = SCENE_MOST_PLANES;
     for (int row = 0; row < TILE_ROWS; row++) {
         uint8_t plane_bytes[SCENE_MOST_PLANES];
         for (unsigned pair = 0; pair < planes / 2; pair++) {
