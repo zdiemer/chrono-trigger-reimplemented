@@ -46,6 +46,6 @@ overworld_main_loop hdma-enable visible the world map's HDMA stops, as the menus
 menu_nmi_work display visible the frame's work estimated past vblank once a movie: the display write lands on lines 41-44, two or three picture lines black on one frame
 menu_nmi_work display unblank as its visible entry: the end of the forced blank on lines 43-44 instead of in vblank, once a movie
 # The battle's forced blank under the window, taken late behind the masked frame
-# work as battle_irq above: the reference lands on lines 212 and 218 in the same
-# fights, the shipping mode on 216 and 219, three times.
-battle_irq_after_hblank display lines taken late behind the battle's masked frame work, lines 216 and 219 three times in late-lavos and late-omen-zeal where the reference is on 212 and 218
+# work as the line effects' stop above (the same handler): the reference lands on
+# lines 212 and 218 in the same fights, the shipping mode on 216 and 219, three times.
+battle_irq display lines taken late behind the battle's masked frame work, lines 216 and 219 three times in late-lavos and late-omen-zeal where the reference is on 212 and 218

@@ -6758,6 +6758,8 @@ uint16_t scene_race_buttons(const GameState *g) { return r16(g, 0x7E0006u); }
 void set_scene_race_buttons(GameState *g, uint16_t v) { w16(g, 0x7E0006u, v); }
 uint16_t scene_frame_counter(const GameState *g) { return r16(g, 0x7E0008u); }
 void set_scene_frame_counter(GameState *g, uint16_t v) { w16(g, 0x7E0008u, v); }
+uint8_t scene_sprite_list_attributes(const GameState *g) { return r8(g, 0x7E000Au); }
+void set_scene_sprite_list_attributes(GameState *g, uint8_t v) { w8(g, 0x7E000Au, v); }
 uint8_t scene_sprite_priority_start(const GameState *g) { return r8(g, 0x7E0010u); }
 void set_scene_sprite_priority_start(GameState *g, uint8_t v) { w8(g, 0x7E0010u, v); }
 uint16_t scene_sprite_index(const GameState *g) { return r16(g, 0x7E0011u); }

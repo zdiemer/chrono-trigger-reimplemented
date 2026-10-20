@@ -1222,6 +1222,21 @@ args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E001
 why = "the fireworks' form of the routine (its drop written out with two NOPs: the guard hands the other form to the original), a list among the bursts' (the guard refuses one past the sprite table from the cursor)"
 
 [[routine]]
+name = "scene_draw_signed_sprite_list"
+subsystem = "scene"
+state = "ending"
+args = ["--long", "--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0011-7E0012=0000,0040,0100,01F0", "--fill", "7E0013-7E0014=0900,0904,0910,091F", "--range", "A=A1E2-A1E2"]
+why = "the swept window's rider, the endings' one list in the program's signed form, with the scene's offsets random (left of the picture, past its right edge, above and below it); the guard refuses a cursor its sprites would run past the tables from"
+
+[[routine]]
+name = "scene_draw_signed_sprite_list"
+variant = "loose"
+subsystem = "scene"
+state = "ending"
+args = ["--long", "--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0011-7E0012=0000,0040,0100,01F0", "--fill", "7E0013-7E0014=0900,0904,0910,091F", "--range", "A=8000-C000"]
+why = "any of the program's bytes from $8000 read as a list (the other callers' lists lie there), the guard refusing lists that run past the tables from the cursor or over them or the cells the original works in"
+
+[[routine]]
 name = "scene_ending_draw_the_end"
 subsystem = "scene"
 state = "ending"
@@ -5754,11 +5769,11 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00,02,04,06,08,0A,
 why = "the field's page, the current object one the tables hold, as the field keeps it"
 
 [[routine]]
-name = "field_irq_after_hblank"
+name = "field_irq"
 subsystem = "field"
 state = "field"
-args = ["--db", "00"]
-why = "a bank reaching the registers; either of the frame's late jobs runs as a call-out"
+args = ["--interrupt", "--line-handler"]
+why = "the line handler interrupting any state, whole, with the line interrupt raised as the handler finds it and the line in its hblank by the time it looks: the field's own handler where it takes the interrupt ($010F's bit 7 random), then either of the frame's late jobs"
 
 [[routine]]
 name = "field_install_nmi"
@@ -9818,15 +9833,8 @@ why = "the vblank handler interrupting any state, the battle's mode kept (the fr
 name = "battle_irq"
 subsystem = "battle"
 state = "battle"
-args = ["--interrupt"]
-why = "the line handler's head interrupting any state"
-
-[[routine]]
-name = "battle_irq_after_hblank"
-subsystem = "battle"
-state = "battle"
-args = ["--interrupt", "--db", "00", "--d", "0000"]
-why = "the line handler's tail, as its head leaves the machine at the wait for hblank"
+args = ["--interrupt", "--line-handler"]
+why = "the line handler interrupting any state, whole, the line in its hblank by the time it looks"
 
 [[routine]]
 name = "battle_apply_alternate_frame"
@@ -17973,6 +17981,13 @@ subsystem = "menu"
 state = "menus"
 args = ["--db", "7E", "--keep", "7E7A00-7E7AF1", "--fill", "7E04C9-7E04C9=00-F1", "--fill", "7E9A90-7E9A90=00-08"]
 why = "the menus' table of users as they built it; an item of the game's, and a loaded character of the bits' nine (the guard refuses others)"
+
+[[routine]]
+name = "menu_keep_the_cursor_on_the_list"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+why = "the menus' page and data bank; whether the list scrolls, the push, its places, the cursor and the held buttons random (a list whose last place is before its first, which the original wraps round for ever, is skipped)"
 
 [[routine]]
 name = "menu_turn_page"

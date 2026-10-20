@@ -14,7 +14,6 @@ game/battle/enemy_turn.c                     flag-note-in-logic       1
 game/battle/main_loop.c                      return-address-pushed    1
 game/battle/member_stats.c                   flag-note-in-logic       1
 game/battle/member_turn.c                    flag-note-in-logic       1
-game/battle/nmi.c                            sibling-through-machine  1
 game/battle/rewards_techs.c                  flag-note-in-logic       1
 game/battle/screen_graphics.c                flag-note-in-logic       1  # the wrapper's entry state for each block's unpack call-out, not a note in the logic
 game/battle/tech_records.c                   flag-note-in-logic       1
@@ -23,7 +22,6 @@ game/core/input.h                            enum-types-nothing       1
 game/event/bridge.c                          pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
 game/event/movement.c                        flag-note-in-logic       1
 game/field/bridge.c                          pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
-game/field/display.c                         sibling-through-machine  1
 game/menu/bridge.c                           pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
 game/menu/cursor.c                           return-address-pushed    3
 game/menu/display.c                          sibling-through-machine  4

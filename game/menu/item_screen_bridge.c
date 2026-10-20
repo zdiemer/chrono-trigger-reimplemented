@@ -4,12 +4,9 @@
  *
  * Each step reads the cursor, asks item_screen.c what the frame's input
  * does, and carries it out: the sounds are siblings, run as the original's
- * JSRs reach them (menu_run); the setting aside of the party's items, the
- * list's frame, paging and sliding, the scroll bar's and the second cursor's
- * tasks, the description, the restoring, the frames the screen waits for are
- * the original's, called out to. Where a step jumps on to another routine
- * (the second cursor's task, the description, the main menu, the stop of a
- * task), it stops there.
+ * JSRs reach them (menu_run); the list's frame and the frames the screen
+ * waits for are the original's, called out to. Where a step jumps on to the
+ * main menu, it stops there.
  *
  * The routines a step reaches with a JSR and that call out themselves (the
  * pointing along the list and its description, the use of an item and its
@@ -51,7 +48,6 @@
 enum {
     YIELD = 0xC2821E,                /* the task waits for the next frame */
     FRAME_THE_LIST = 0xC2EA81,       /* a scrolling list's frame laid out: Y places, rows shown */
-    MOVE_IN_LIST = 0xC2EA53,         /* the cursor kept within a list's rows */
     MAIN_MENU = 0xC29A98,            /* back to the main menu */
 };
 
@@ -64,7 +60,6 @@ enum {
     READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
 };
 
-static bool call(Snes *s, uint32_t site, uint32_t routine) { return menu_call(s, site, routine, READS_NOTHING); }
 static bool yield(Snes *s, uint32_t site) { return menu_call(s, site, YIELD, READS_NOTHING); }
 static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, 0xC2EAC2, menu_play_cursor_sound); }
 static bool refuse(Snes *s, uint32_t site) { return menu_run(s, site, 0xC2EACC, menu_play_refusal_sound); }
@@ -195,10 +190,10 @@ static void point_at_listed_item(Snes *s)
 // $C2:AC59
 void menu_point_at_listed_item(Snes *s) { point_at_listed_item(s); }
 
-/* The list's slide, a row in: started (the original's), the row brought in
- * and drawn, a tick, the frames (each the original's), then the item on the
- * cursor described and the rows moved in their buffer. It leaves a 16-bit
- * accumulator. */
+/* The list's slide, a row in: started, the row brought in and drawn, a
+ * tick, the frames (each waiting for the next, the original's wait), then
+ * the item on the cursor described and the rows moved in their buffer. It
+ * leaves a 16-bit accumulator. */
 static void slide_the_list(Snes *s)
 {
     GameState *g = state_of(s);
@@ -248,8 +243,7 @@ static void point_along_the_list(Snes *s)
         m_rts(s);
         return;
     }
-    if (!call(s, 0xC2AC54, MOVE_IN_LIST))
-        return;
+    menu_step_keeps_the_cursor_on_the_list(s);
     if (menu_items_slide_brings_a_row(g)) {
         slide_the_list(s);
         return;
@@ -463,8 +457,8 @@ static void leave_member_window(Snes *s)
  * at the original's sites of each: opened, then a frame at a time the cursor
  * among the members (the tonic's pointing is the techs screen's, $C2:B83E;
  * the tab's looks at the member's figure), and choosing uses the item where
- * it helps -- a tonic's restoring (the original's), or a tab's raise --
- * then one more of it used; or refuses. Going back closes the window. */
+ * it helps -- a tonic's restoring, or a tab's raise -- then one more of it
+ * used; or refuses. Going back closes the window. */
 enum { TONIC, TAB };
 static const struct {
     uint32_t open, wait, point, point_routine, refuse;
@@ -575,8 +569,8 @@ void menu_point_at_tab_member(Snes *s)
 }
 
 // $C2:B2A7
-/* A tab used: its sparkle and amount shown (the original's), the figure
- * raised, and the member's figures worked out again (the original's). */
+/* A tab used: its sparkle and amount shown, the figure raised, and the
+ * member's figures worked out again. */
 void menu_raise_figure(Snes *s)
 {
     GameState *g = state_of(s);
@@ -727,7 +721,7 @@ static void leave_rows_redrawn(Snes *s)
 static void leave_ends_compared(Snes *s)
 {
     const GameState *g = state_of(s);
-    if (!(menu_list_scrolls(g) && menu_pushed(g, MENU_PUSHED_PAST_AN_EDGE)))
+    if (!menu_list_scrolls_a_row(g))
         return;
     uint8_t before = (uint8_t)(menu_cursor_index(g) + menu_item_list_top(g) - 1);
     m_set_a8(s, before);

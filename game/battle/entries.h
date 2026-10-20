@@ -815,7 +815,6 @@ void battle_nmi(Snes *s);
 void battle_restore_math_operands(Snes *s);
 void battle_apply_alternate_frame(Snes *s);
 void battle_irq(Snes *s);
-void battle_irq_after_hblank(Snes *s);
 
 /* battle/scripts.c */
 void battle_run_script_channel(Snes *s);

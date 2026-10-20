@@ -3,6 +3,7 @@
 #include "menu/lists.h"
 
 #include "charge.h"
+#include "core/input.h"
 #include "menu/cursor.h"
 #include "menu/bridge.h"
 #include "menu/display.h"
@@ -34,6 +35,35 @@ void menu_move_list_rows(GameState *g, uint16_t rows_at, unsigned shown_bytes, u
         wram_copy(g, first + row * row_bytes, first + (row + 1) * row_bytes, row_bytes);
     wram_copy(g, past, first, row_bytes);
     ORIGINAL_EFFECT(charge_block_move(g, shown_bytes));
+}
+
+/* ---- The cursor along a list ------------------------------------------------------------------- */
+
+/* Whether the push took the cursor past the rows of a list that scrolls,
+ * which the list's screen then scrolls a row. */
+bool menu_list_scrolls_a_row(const GameState *g)
+{
+    return menu_list_scrolls(g) && menu_pushed(g, MENU_PUSHED_PAST_AN_EDGE);
+}
+
+// $C2:EA53
+/* The cursor pushed along a list. A list that scrolls leaves the cursor to
+ * its screen, which scrolls a row where the push took it past the rows, and
+ * while Start is held asks for a fast repeat, so that the list runs on. One
+ * that doesn't scroll wraps the cursor round: pushed past its bottom to its
+ * first place, past its top to its last; and a cursor past its last place
+ * goes to its first. */
+void menu_keep_the_cursor_on_the_list(GameState *g)
+{
+    if (menu_list_scrolls(g)) {
+        if (input_held(g) & BUTTON_START)
+            menu_ask_for_a_fast_repeat(g);
+        return;
+    }
+    if (menu_pushed(g, MENU_PUSHED_PAST_AN_EDGE))
+        set_menu_cursor_index(g, menu_pushed(g, MENU_PUSHED_DOWN) ? menu_list_first_place(g) : menu_list_last_place(g));
+    if (menu_list_last_place(g) < menu_cursor_index(g))
+        set_menu_cursor_index(g, menu_list_first_place(g));
 }
 
 /* ---- The slide ---------------------------------------------------------------------------------- */
@@ -221,6 +251,36 @@ bool menu_list_slide_frame_is_showable(Snes *s)
               && still_within_the_first_band(g, (uint8_t)first);
     vars_peek(false);
     return ok;
+}
+
+/* What the original leaves its callers, who branch on it: where the list
+ * scrolls a row, the push's ways in A's low byte and N set; otherwise the
+ * direct page in A, as its last load takes it. */
+void menu_leave_cursor_kept_on_the_list(Snes *s)
+{
+    const GameState *g = state_of(s);
+    if (menu_list_scrolls_a_row(g)) {
+        uint8_t moves = menu_cursor_moves(g);
+        m_set_a8(s, moves);
+        m_set_nz8(s, moves);
+    } else {
+        s->cpu.a = s->cpu.d;
+        m_set_nz16(s, s->cpu.d);
+    }
+}
+
+void menu_step_keeps_the_cursor_on_the_list(Snes *s)
+{
+    GameState *g = state_of(s);
+    TIMED_AS(g, 0xC2EA53, menu_keep_the_cursor_on_the_list(g));
+    ORIGINAL_EFFECT(menu_leave_cursor_kept_on_the_list(s));
+}
+
+void menu_keep_the_cursor_on_the_list_entry(Snes *s)
+{
+    menu_keep_the_cursor_on_the_list(state_of(s));
+    menu_leave_cursor_kept_on_the_list(s);
+    m_rts(s);
 }
 
 /* ---- Paging ------------------------------------------------------------------------------------- */

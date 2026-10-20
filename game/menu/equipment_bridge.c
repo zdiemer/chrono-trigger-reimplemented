@@ -4,17 +4,16 @@
  *
  * Each step reads the cursor, asks equipment.c what the frame's input does,
  * and carries that out: the sounds and the member's card are siblings, run
- * as the original's JSRs reach them (menu_run); the slots' and the list's
- * drawing, the lists' sliding and the frames the screen waits for are the
- * original's, called out to (the party's inventory, its items set aside and
- * the lists' paging are C, menu/items.h, menu/figures.h, menu/lists.h); where a
- * step jumps on to another routine (the member list's move, the slots'
- * pointing, the list's step, back to the main menu), it stops there, and the
- * runtime runs that routine, a port or the original's.
+ * as the original's JSRs reach them (menu_run); the member list's scroll
+ * bar and the start of its slide, the list's frame, the low-HP marks, the
+ * trying on of what is no item of the game's and the frames the screen
+ * waits for are the original's, called out to; where a step jumps on to
+ * another routine (the member list's move, the slots' pointing, the list's
+ * step, back to the main menu), it stops there, and the runtime runs that
+ * routine, a port or the original's.
  *
  * Shadow mode compares the machine at every call out, the flags a sibling
- * saves as it starts (on the stack under its own calls out) among it, and
- * some of the original's drawings may read the overflow and the carry. So
+ * saves as it starts (on the stack under its own calls out) among it. So
  * after each decision a bridge leaves the flags the original's own tests
  * left, worked out from the state (the leaves at the end of the file):
  * scaffolding, which the native build compiles out. */
@@ -49,14 +48,13 @@ enum {
     FRAME_THE_LIST = 0xC2EA81,       /* a scrolling list's frame laid out: Y places, rows shown */
     LOW_HP_MARKS = 0xC2813C,         /* each character's low-HP mark worked out */
     TRY_ON = 0xC2A5C3,               /* the list's item on the cursor tried on (equipment.c), where it is no item of the game's */
-    MOVE_IN_LIST = 0xC2EA53,         /* the cursor kept within a list's rows */
     START_MEMBER_SLIDE = 0xC29D5B,   /* the member list's slide started, if there is a member to bring in */
 };
 
 /* Where a step jumps on to: the member list's move and the slots' pointing,
  * the screen's set-up, the card, back to the members, on to the list (ports
  * of these files), back to the main menu, the refusal's sound and the cursor
- * sound as a step's last, and the stop of the list's task. */
+ * sound as a step's last. */
 enum {
     POINT_AT_MEMBER = 0xC29D17, POINT_AT_SLOT = 0xC29ECD, SET_UP_SCREEN = 0xC2A11A, MEMBER_CARD = 0xC2A22F,
     MAIN_MENU = 0xC29A98, BACK_TO_MEMBERS = 0xC2A2CD, ON_TO_THE_LIST = 0xC2A41A, REFUSAL_SOUND = 0xC2EACC,
@@ -64,17 +62,12 @@ enum {
 };
 
 /* What they read (tools/dontcare_check.py checks each): most nothing but the
- * page and the data bank; the drawings that may reach the window language's
- * handlers, picked at run time, maybe the overflow and the carry; a row of
- * the list X as well; the refusal's sound A's high byte, and the tasks' stop
- * the tasks in A. */
+ * page and the data bank; the list's frame its places in Y; the refusal's
+ * sound A's high byte, and the cursor sound as a step's last A and the
+ * carry. */
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-    MAY_READ_V_C = DC_A | DC_X | DC_Y | DC_N | DC_Z,
-    MAY_READ_V = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
-    READS_X_MAY_READ_V = DC_A | DC_Y | DC_N | DC_Z | DC_C,
     READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-    READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
     READS_A_AND_CARRY = DC_X | DC_Y | DC_N | DC_V | DC_Z,
 };
@@ -382,8 +375,7 @@ void menu_point_along_equipment_list(Snes *s)
         m_rts(s);
         return;
     }
-    if (!call(s, 0xC29F2F, MOVE_IN_LIST))
-        return;
+    menu_step_keeps_the_cursor_on_the_list(s);
     uint8_t row = menu_equip_list_row(g);
     bool slides = menu_equip_list_slide_brings_a_row(g, row);
     ORIGINAL_EFFECT(leave_row_noted(s, row));
@@ -576,9 +568,9 @@ void menu_slide_equipment_list_out(Snes *s)
     m_rts(s);
 }
 
-/* The list of what fits made, laid out, its frame (the
- * original's), its bar, the bar's task (the original's), and drawn. The
- * drawing leaves the pen past the list in A. */
+/* The list of what fits made, laid out, its frame (the original's), its
+ * bar, the bar's task, and drawn. The drawing leaves the pen past the list
+ * in A. */
 static void make_the_list(Snes *s)
 {
     GameState *g = state_of(s);
@@ -836,7 +828,7 @@ static void leave_page_turned(Snes *s)
 static void leave_row_noted(Snes *s, uint8_t row)
 {
     GameState *g = state_of(s);
-    if (menu_list_scrolls(g) && menu_pushed(g, MENU_PUSHED_PAST_AN_EDGE))
+    if (menu_list_scrolls_a_row(g))
         set_menu_item_operand(g, row);
 }
 

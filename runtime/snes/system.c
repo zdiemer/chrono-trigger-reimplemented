@@ -473,6 +473,15 @@ uint64_t snes_span_bound(const Snes *s, uint64_t cpu_clocks)
     return span;
 }
 
+uint32_t snes_clocks_into_hblank(const Snes *s)
+{
+    if (s->hclock >= HBLANK_START_HCLOCK)
+        return s->hclock - HBLANK_START_HCLOCK;
+    if (s->hclock < HBLANK_END_HCLOCK)
+        return SNES_CLOCKS_PER_LINE - HBLANK_START_HCLOCK + s->hclock;
+    return 0;
+}
+
 uint32_t snes_clocks_to_next_poll_change(const Snes *s)
 {
     if (s->hclock < HBLANK_END_HCLOCK)

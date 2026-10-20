@@ -61,6 +61,10 @@ typedef struct FuzzOptions {
     uint64_t seed;
     bool long_call, interrupt;
     bool jump;   /* entered by a jump or by falling through: nothing pushed (a handler's work after its entry) */
+    /* As the line handler is entered: the line interrupt's flag raised ($4211),
+     * and the line in its hblank by the time the handler looks for it (nothing
+     * advances time here, so a wait for it would never end otherwise). */
+    bool line_handler;
     unsigned range_lo[3], range_hi[3];   /* A, X, Y */
     unsigned range_step[3];              /* every step-th value from lo (0: every one) */
     FuzzArea areas[FUZZ_MAX_AREAS];

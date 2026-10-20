@@ -4,13 +4,10 @@
  *
  * Each step reads the cursor, asks tech_screen.c what the frame's input
  * does, and carries it out: the sounds are siblings, run as the original's
- * JSRs reach them (menu_run); the cursor's moves within a list and the list's
- * frame, the paging, the list's slide frames, the description's setting, the
- * stopping of the menus' tasks, the restoring, the cursors on every member,
- * the sprites' colours and task, and the frames the screen waits are the
- * original's, called out to. A refused choice jumps to the refusal's sound,
- * as the original's does, and going back from the members to the main menu
- * stops there.
+ * JSRs reach them (menu_run); the list's frame and the frames the screen
+ * waits are the original's, called out to. A refused choice jumps to the
+ * refusal's sound, as the original's does, and going back from the members
+ * to the main menu stops there.
  *
  * The routines a step reaches with a JSR that call out themselves (the moves
  * among the members and the member list's slide, the list's slide, the
@@ -54,7 +51,6 @@ enum {
     YIELD = 0xC2821E,                  /* the task waits for the next frame */
     WAIT_FRAMES = 0xC2822B,            /* ... for the frames in A */
     MAIN_MENU = 0xC29A98,              /* back to the main menu */
-    MOVE_IN_LIST = 0xC2EA53,           /* the cursor kept within a list's rows */
     FRAME_THE_LIST = 0xC2EA81,         /* a scrolling list's frame laid out: Y places, rows shown */
 };
 
@@ -67,7 +63,6 @@ enum {
     READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
 };
 
-static bool call(Snes *s, uint32_t site, uint32_t routine) { return menu_call(s, site, routine, READS_NOTHING); }
 static bool yield(Snes *s, uint32_t site) { return menu_call(s, site, YIELD, READS_NOTHING); }
 static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, 0xC2EAC2, menu_play_cursor_sound); }
 
@@ -123,9 +118,8 @@ static void leave_cost_taken(Snes *s, uint8_t mp_before);
 /* ---- Opening the screen ------------------------------------------------------------------------ */
 
 // $C2:B35D, $C2:B979
-/* A tick, the screen's windows, the rocks' triple techs worked out (the
- * original's) and noted, the scroll bar's task (the original's), and the
- * sprites. */
+/* A tick, the screen's windows, the rocks' triple techs worked out and
+ * noted, the scroll bar's task, and the sprites. */
 void menu_open_techs(Snes *s)
 {
     GameState *g = state_of(s);
@@ -199,9 +193,10 @@ void menu_describe_tech_kind(Snes *s)
 }
 
 // $C2:B520
-/* Left and right switch the kind; up and down move among the members (the
- * original's), sliding the list past its ends; the member's list made where
- * it is another, the kind's tab, its caption, and the rows sent. */
+/* Left and right switch the kind; up and down move among the members, the
+ * cursor kept on their list, sliding the list past its ends; the member's
+ * list made where it is another, the kind's tab, its caption, and the rows
+ * sent. */
 void menu_move_among_tech_members(Snes *s)
 {
     GameState *g = state_of(s);
@@ -210,8 +205,7 @@ void menu_move_among_tech_members(Snes *s)
     uint8_t kind_before = menu_tech_category(g);
     menu_techs_switch_kind(g);
     ORIGINAL_EFFECT(leave_kind_switched(s, kind_before));
-    if (!call(s, 0xC2B542, MOVE_IN_LIST))
-        return;
+    menu_step_keeps_the_cursor_on_the_list(s);
     if (menu_techs_push_slides_members(g) && !menu_run(s, 0xC2B54A, 0xC2B568, menu_slide_tech_members))
         return;
     uint8_t before = menu_tech_list_shown(g);
@@ -382,9 +376,9 @@ void menu_describe_pointed_tech(Snes *s)
 }
 
 // $C2:B72F
-/* The list's slide, a row in: started (the original's), the tech brought in
- * and drawn, a tick, the frames (each the original's), and the list at
- * rest. */
+/* The list's slide, a row in: started, the tech brought in and drawn, a
+ * tick, the frames (each waiting for the next, the original's wait), and
+ * the list at rest. */
 void menu_slide_tech_list(Snes *s)
 {
     GameState *g = state_of(s);
@@ -415,8 +409,8 @@ void menu_slide_tech_list(Snes *s)
 }
 
 /* The cursor moved along the list: a page turned and drawn again, a frame
- * waited; or kept within the rows (the original's), the list slid a row
- * where the push brings one. Then the cursor's row kept, a tick where it
+ * waited; or kept on the list's rows, the list slid a row where the push
+ * brings one. Then the cursor's row kept, a tick where it
  * moved, the tech on it shown and described, and the list's layer sent. */
 static void point_along_the_list(Snes *s)
 {
@@ -431,9 +425,8 @@ static void point_along_the_list(Snes *s)
         if (!yield(s, 0xC2B705))
             return;
     } else {
-        if (!call(s, 0xC2B70A, MOVE_IN_LIST))
-            return;
-        if (menu_list_scrolls(g) && menu_pushed(g, MENU_PUSHED_PAST_AN_EDGE)
+        menu_step_keeps_the_cursor_on_the_list(s);
+        if (menu_list_scrolls_a_row(g)
             && !menu_run(s, 0xC2B70F, 0xC2B72F, menu_slide_tech_list))
             return;
     }
@@ -491,8 +484,8 @@ static void use_the_tech(Snes *s)
     m_rts(s);
 }
 
-/* Back to the members: the description's task stopped (the original's), a
- * tick, the member rows again, the rows sent. */
+/* Back to the members: the description's task stopped, a tick, the member
+ * rows again, the rows sent. */
 static void back_to_the_members(Snes *s)
 {
     GameState *g = state_of(s);
@@ -629,9 +622,8 @@ void menu_choose_tech_target(Snes *s)
 /* ---- The main menu's panel --------------------------------------------------------------------- */
 
 // $C2:B8DA
-/* The panel: its windows, the sprites' colours (the original's), a frame,
- * the records' task (the original's), the member rows, the tabs, colours and
- * colour math. */
+/* The panel: its windows, the sprites' colours, a frame, the records'
+ * task, the member rows, the tabs, colours and colour math. */
 void menu_show_techs_panel(Snes *s)
 {
     GameState *g = state_of(s);

@@ -23,8 +23,9 @@
  *
  * This file is what the game does; equipment_bridge.c runs it on the
  * original's machine, calling out to what is still the original's between
- * the parts here: the slots' and the list's drawing, the party's inventory,
- * the lists' paging and sliding, the frames the screen waits. */
+ * the parts here: the member list's scroll bar and the start of its slide,
+ * the list's frame, the low-HP marks, the trying on of what is no item of
+ * the game's, the frames the screen waits. */
 #include "menu/equipment.h"
 
 #include "charge.h"
@@ -324,18 +325,13 @@ bool menu_equip_slide_members_a_frame(GameState *g)
     return frames != 0;
 }
 
-/* The slide's end asks the input for a fast repeat on the next frame, so a
- * push held through it carries straight on: the request is any count but 0,
- * and the original counts it down from where it is. */
-static void ask_for_a_fast_repeat(GameState *g) { set_menu_fast_repeat(g, (uint8_t)(menu_fast_repeat(g) - 1)); }
-
 void menu_equip_finish_member_slide(GameState *g)
 {
     copy_rows_on(g, LIST_BACK_LAYER, slid_place(g), ROWS_PLACE);
     copy_rows_on(g, LIST_FRONT_LAYER, slid_place(g), ROWS_PLACE);
     show_rows_from(g, LINE_AT_REST);
     menu_queue_fixed_upload(g, UPLOAD_ROW_LINES);
-    ask_for_a_fast_repeat(g);
+    menu_ask_for_a_fast_repeat(g);   /* a push held through the slide carries straight on */
 }
 
 /* ---- Choosing a slot --------------------------------------------------------------------------- */
@@ -562,7 +558,7 @@ uint8_t menu_equip_list_row(const GameState *g) { return (uint8_t)(menu_cursor_i
  * where there is one: not before the list's first item, nor past its last. */
 bool menu_equip_list_slide_brings_a_row(const GameState *g, uint8_t row)
 {
-    if (!menu_list_scrolls(g) || !menu_pushed(g, MENU_PUSHED_PAST_AN_EDGE))
+    if (!menu_list_scrolls_a_row(g))
         return false;
     uint8_t item = (uint8_t)(row + menu_equip_list_top(g));
     return item != 0 && (uint8_t)(item + 1) < menu_equip_choices(g);
@@ -710,8 +706,8 @@ void menu_equip_dim_colours(GameState *g, unsigned first)
 // $C2:A101
 /* The main menu leaving the equipment: palette row 7's first half, where the
  * screen put its colours, given back the menus' own (the party's items come
- * back from where the screen set them aside, the original's, between), and
- * the main menu's line effects. */
+ * back from where the screen set them aside between), and the main menu's
+ * line effects. */
 enum { PANEL_COLOURS = 8 };
 
 void menu_equip_panel_put_away(GameState *g)

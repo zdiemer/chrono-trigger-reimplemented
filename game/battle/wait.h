@@ -44,6 +44,5 @@ void battle_wait_some_frames(Snes *s);
 void battle_wait_for_the_small_handler(Snes *s);
 void battle_wait_window_slide_loop(Snes *s);
 void battle_wait_graphics_loaded_loop(Snes *s);
-void battle_irq_wait_hblank_loop(Snes *s);
 
 #endif

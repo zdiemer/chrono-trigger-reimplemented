@@ -545,6 +545,10 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         }
         m->cpu.pb = (uint8_t)(e->addr >> 16);
         m->cpu.pc = (uint16_t)e->addr;
+        if (o->line_handler) {
+            m->bus.irq_flag = true;
+            m->bus.in_hblank = true;
+        }
         /* The guard looks at the machine as the routine is entered, the return
          * address pushed: a guard that reads work RAM can read the stack. */
         if (e->guard && !e->guard(m)) {

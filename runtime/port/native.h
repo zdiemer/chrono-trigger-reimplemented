@@ -440,8 +440,13 @@ void native_await_latch(Snes *s);
  * after it), whose passes look at what a handler leaves: the port runs its
  * passes as C and calls this between them. In ON mode the machine stands
  * where the port is, taking interrupts there, until a handler has been taken
- * (`wake` NATIVE_WAKE_HANDLER) or the picture is at the line `wake`, past the
- * vertical blank; no original code runs. In SHADOW mode the original runs its
+ * (`wake` NATIVE_WAKE_HANDLER), the line being drawn has reached its
+ * horizontal blank (NATIVE_WAKE_HBLANK; the port goes on no sooner than a
+ * pass of the shortest such loop into it, as an idle entry's exit does, nor
+ * than that pass's tail after the read where the line's HDMA held the
+ * processor past the blank's start, so its writes land no earlier than the
+ * original's could), or the picture is at the line
+ * `wake`, past the vertical blank; no original code runs. In SHADOW mode the original runs its
  * loop: the port's stretch before the wait is compared where the original
  * first comes to the head or the exit with the port's S (its memory, S, the
  * page and the bank: the port's other registers are its own across the wait,
@@ -459,7 +464,7 @@ void native_await_latch(Snes *s);
  * without the call; SHADOW mode and outside the runtime make the call, as
  * native_call_dc does, but the callee counts as the port's own work (no
  * observer is told of a call-out). */
-enum { NATIVE_WAKE_HANDLER = -1 };
+enum { NATIVE_WAKE_HANDLER = -1, NATIVE_WAKE_HBLANK = -2 };
 enum { NATIVE_WAIT_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 void native_wait_loop(Snes *s, uint32_t head, uint32_t exit, int32_t wake);
 void native_wait_call(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care, int32_t wake);

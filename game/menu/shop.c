@@ -9,8 +9,8 @@
  * darker where it is worse; a member that could use it strikes a pose.
  *
  * On the tabs a second cursor holds on the tab while the first moves; up or
- * down goes to the members to equip them from the shop (still the
- * original's), and going back leaves. Choosing a tab opens its list, whose
+ * down goes to the members to equip them from the shop, and going back
+ * leaves. Choosing a tab opens its list, whose
  * rows a page at a time turn with the shoulders and slide a row at a time
  * past their ends; the row's item is described as the cursor meets it.
  * Choosing a row opens the quantity window on one of it, if the party can
@@ -800,7 +800,7 @@ ShopListChoice menu_shop_choose_on_the_list(const GameState *g)
     return SHOP_ROW_POINTED_AT;
 }
 
-/* Pointing along: the top noted for the paging (the original's). */
+/* Pointing along: the top noted for the paging. */
 uint8_t menu_shop_list_top(const GameState *g, bool selling) { return list_top(g, selling); }
 
 /* A page turned: the list's top where the paging put it, the rows drawn
@@ -821,7 +821,7 @@ static uint8_t listed_count(const GameState *g, bool selling)
  * (the place before the cursor's short of the count's last but one). */
 bool menu_shop_list_slide_brings_a_row(GameState *g, bool selling)
 {
-    if (!menu_list_scrolls(g) || !menu_pushed(g, MENU_PUSHED_PAST_AN_EDGE))
+    if (!menu_list_scrolls_a_row(g))
         return false;
     uint8_t last = (uint8_t)(listed_count(g, selling) - 2);
     ORIGINAL_EFFECT(set_menu_scratch_shop_last_place(g, last));
@@ -1207,7 +1207,7 @@ void menu_shop_draw_for_sale(GameState *g) { menu_shop_draw_rows(g, true); }
 
 // $C2:D5D9, $C2:D689
 /* Going back from a list: the cursor on its tab, the panel to show nothing
- * (drawn as the original's panel), a tick; then every character standing,
+ * (drawn by its own entry), a tick; then every character standing,
  * the tabs' windows, the bar's task stopped and the held cursor going on. */
 void menu_shop_back_from_the_list(GameState *g, bool selling)
 {

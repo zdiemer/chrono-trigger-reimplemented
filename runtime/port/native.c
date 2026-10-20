@@ -205,6 +205,11 @@ typedef struct Debt {
  * abs / AND # / BEQ (9 cycles, 6 master clocks each at FastROM and I/O
  * speed), so the exit lands no earlier than the original's could. */
 #define IDLE_EXIT_CLOCKS 54
+/* ... and the part of that pass after its read, AND # (or BIT #) and the BEQ
+ * falling through (4 cycles at FastROM speed): where the read that sees the
+ * change comes late, behind the line's HDMA, the original still runs these
+ * before it leaves the loop. */
+#define POLL_TAIL_CLOCKS 24
 
 /* A registered routine that has been entered and not yet left. */
 typedef struct Active {
@@ -251,6 +256,7 @@ typedef struct Active {
     uint16_t sync_s;
     int32_t wake;          /* ON, PH_WAIT: what ends the wait... */
     bool woke;             /* ...and, for a wait on the handlers, that one has been taken where the port is */
+    bool exit_passed;      /* ON, PH_WAIT for the hblank: its exit pass's time has passed (IDLE_EXIT_CLOCKS) */
     bool wait_compared;    /* SHADOW, a wait in the port's loop: the stretch before it was compared */
     /* SHADOW, PH_LATCH: the original's latches when the port began to wait;
      * and that the stretch the original is catching up with began before the
@@ -1287,6 +1293,7 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
             a->sync_s = s->cpu.s;
             a->wake = j->wake;
             a->woke = false;
+            a->exit_passed = false;
             return;
         }
     } else {
@@ -1344,13 +1351,23 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
 }
 
 /* ON: whether the wait a port is suspended in is over (native_wait_loop,
- * native_wait_call): a handler has been taken where the port stands, or the
- * picture has reached the line, past the vertical blank. */
+ * native_wait_call): a handler has been taken where the port stands, the line
+ * is in its horizontal blank, or the picture has reached the line, past the
+ * vertical blank. */
 static bool wait_over(const Active *a, const Snes *s)
 {
     if (a->wake == NATIVE_WAKE_HANDLER)
         return a->woke;
+    if (a->wake == NATIVE_WAKE_HBLANK)
+        return s->bus.in_hblank;   /* what the original's poll of $4212 reads */
     return s->vline < SNES_VBLANK_LINE && s->vline >= (uint32_t)a->wake;
+}
+
+/* ON: the time a waiting port lets pass before it looks again: to the next
+ * change of the hblank bit for a wait on it, else a line. */
+static uint32_t wait_step(const Active *a, const Snes *s)
+{
+    return a->wake == NATIVE_WAKE_HBLANK ? snes_clocks_to_next_poll_change(s) : SNES_CLOCKS_PER_LINE;
 }
 
 /* SHADOW: the original at the head of the loop a port waits in, or at its
@@ -1515,7 +1532,17 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         if (pc != a->sync_pc || s->cpu.s != a->sync_s || interrupt_deliverable(s))
             return false;
         if (!wait_over(a, s)) {
-            *result = (int32_t)until_interrupt(s, SNES_CLOCKS_PER_LINE);
+            *result = (int32_t)until_interrupt(s, wait_step(a, s));
+            return true;
+        }
+        if (a->wake == NATIVE_WAKE_HBLANK && !a->exit_passed) {
+            /* the original's last pass ends no sooner than a pass after
+             * the blank began, nor sooner than its tail after the read that
+             * saw it, which comes as late as now where the line's HDMA held
+             * the processor into the blank */
+            a->exit_passed = true;
+            uint32_t into = snes_clocks_into_hblank(s);
+            *result = (int32_t)(into < IDLE_EXIT_CLOCKS - POLL_TAIL_CLOCKS ? IDLE_EXIT_CLOCKS - into : POLL_TAIL_CLOCKS);
             return true;
         }
         count_from(a, s);

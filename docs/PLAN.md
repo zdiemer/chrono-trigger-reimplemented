@@ -66,7 +66,7 @@ in place of the ports: the native coverage.
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 4% left (96% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program about 75%, battle frame work 90%, field graphics 92%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (36 movies): 14.0 KiB, 12.8 M instructions (handback 2.6 KiB, unported 11.7 KiB); shipping mode with the long routes 5.6 KiB, 0.30 M (the movies 0.21 M, the ten routes 0.09 M over the frames they keep); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (36 movies): 13.6 KiB, 7.3 M instructions (handback 2.4 KiB, unported 11.5 KiB); shipping mode with the long routes 5.5 KiB, 0.23 M (the movies 0.18 M, the ten routes 0.04 M over the frames they keep); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -154,20 +154,21 @@ play still runs as the original (`tools/fallbacks.py --by routine`), not by
 which bank has the most unported bytes: a handback is a port calling code that
 isn't ported yet, so retiring it is porting its callee. In order:
 
-1. **The menus and the overworld** (84%): the scrolling lists' cursor and
-   frame (`$C2:EA53`, `$C2:EA81`) that four screens call out to, the
-   healing's digits (`$C2:9093`) and `$C2:A518`, and the endings' scenes'
+1. **The menus and the overworld** (84%): a wait for the next frame in the
+   middle of a screen's step that the runtime keeps rather than abandons,
+   which is what leaves the healing's rising numbers and the equipment
+   screen's slides (`$C2:9093`, `$C2:A518`, `$C2:A7B7`, `$C2:A970`) and
+   most of `C2:----` to the original though they are C (TODO.md, "What the
+   shipping mode's fallbacks' sixth chunk left"); the scrolling lists' frame
+   (`$C2:EA81`) that four screens call out to, and the endings' scenes'
    line effects behind `$C3:000E` (TODO.md, "What the world map's set up
-   left", "What the shipping mode's fallbacks' fifth chunk left"); then what
-   the menus' tasks run after a wait that is still the original's
-   (`C2:----`: the records' return to their start, a step of the save
-   panel's).
+   left").
 2. **The scene program**, its unported modes after movies reach them, and
    the title's and the attract program's own frame tasks, which the movies
    run as the original's (`$7E:5D71`, `$7E:6A23`, `$7E:69AF` and their
    neighbours, the largest of its handbacks), and what the endings still
-   hand back to the original: the swept window's rider (`$7E:3A97`), the
-   program's first script step (`$7E:3749`) and the program's sine and
+   hand back to the original: the program's first script step (`$7E:3749`)
+   and the program's sine and
    multiplies (`$7E:33D6`, `$7E:3461`, `$7E:3465`) where a guard refuses
    them.
 3. **The battle's** last handback in the shipping mode, the enemies' action
@@ -477,7 +478,7 @@ leader, the followers, the ground and its places, the regions' music, the
 place's sign and the main loop with its round trips to the menus and the
 Epoch's screens), with the vehicles' controller and the Epoch flown over the
 map and through time, and the world map's set up from its record's streams.
-The dactyls' flight over the 65,000,000 B.C. map is C too (REIMPLEMENTATION.md,
+The dactyls' flight over the 65,000,000 B.C. map is C too (history/reimplementation-chunks.md
 "Phase 4a, the shipping mode's fallbacks, chunk 5").
 
 **`$C0`: the field and events**, 2% left after seventeen chunks and the field's part of the battle frame work's remainders, and 98% of
@@ -511,9 +512,11 @@ So is the Beyond Time ending's night: the flight over the world's map, the
 Epoch, the town's lights, the fireworks and the Mode 7 pictures' vblank
 tasks, with the program's sine and signed multiply as entries (history file, "Phase 4a,
 the shipping mode's fallbacks, chunk 4"), and the Mode 7 picture's tiles'
-expansion (REIMPLEMENTATION.md, "Phase 4a, the shipping mode's fallbacks,
-chunk 5"). **Next**, by what the library reaches: the swept window's rider's
-sprite list (`$7E:3A97`) and the program's first script step (`$7E:3749`). The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and
+expansion (history/reimplementation-chunks.md "Phase 4a, the shipping mode's fallbacks,
+chunk 5"), and the swept window's rider's sprite list (REIMPLEMENTATION.md,
+"Phase 4a, the shipping mode's fallbacks, chunk 6"). **Next**, by what the
+library reaches: the program's first script step's tail after the sequence
+interpreter's wait for the music (`$7E:3749`, `$C3:0C28`). The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and
 `$7E:8A01`-`$7E:8B51` no movie reaches. The attract sequence's two scenes (modes 1 and 3) are ports (REIMPLEMENTATION.md,
 "Phase 4a, the native frame: the attract sequence's pages of credits and the
 palace rising"). The program's other scenes (modes 4-8, whose routines lie
@@ -573,8 +576,10 @@ by an audit; the fourth is the program itself.
   their host backend are built, the field's budgets, the menus' task switch
   and the battle's wait routines are ports, and no port reads the beam's
   status. What is left is in TODO.md, "Timing without a beam": the waits
-  still made on the machine (the field's `$C0:EC60` the largest, which takes
-  the battle's shape), the host backend's place in `ct_native`, and the
+  still made on the machine (the field's `$C0:EC60` the largest, which needs
+  a wait a machine copy can hold before it takes the battle's shape; the
+  line handlers wait for their line through `tm_wait_line_drawn`), the host
+  backend's place in `ct_native`, and the
   menus' tasks, which each need a coroutine of their own or a rewrite to
   resume.
 

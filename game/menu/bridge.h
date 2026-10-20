@@ -116,6 +116,16 @@ void menu_leave_load(Snes *s, uint8_t v);
 /* ... and A's high byte clear, as the save code's loads leave it. */
 void menu_leave_a_high_byte_clear(Snes *s);
 
+/* ---- The cursor kept on a list (menu/lists.c) ------------------------------------------ */
+
+/* Its entry ($C2:EA53), and what the original leaves the code after it,
+ * which branches on it (scaffolding). */
+void menu_keep_the_cursor_on_the_list_entry(Snes *s);
+void menu_leave_cursor_kept_on_the_list(Snes *s);
+/* A screen's step keeping it as C, timed as the original's, and leaving what
+ * the original leaves. */
+void menu_step_keeps_the_cursor_on_the_list(Snes *s);
+
 /* ---- The guards (registry .guard) ------------------------------------------------------ */
 
 /* On the menus' page; and with the data bank on work RAM's as well. */

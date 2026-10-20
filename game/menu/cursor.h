@@ -50,6 +50,10 @@ void menu_clear_sprites_but_cursor(GameState *g);
  * and the buttons the player assigned come out as menu_cursor_buttons. */
 void menu_read_cursor(GameState *g);
 
+/* A screen asks the next frame's input to repeat held buttons every frame
+ * (menu_fast_repeat). */
+void menu_ask_for_a_fast_repeat(GameState *g);
+
 /* A screen's first cursor places kept aside while another layout puts its
  * own there (the shop's, while the equipping from it runs), and put back. */
 void menu_keep_cursor_places(GameState *g);

@@ -1034,7 +1034,7 @@ message takes it into a product's high word the next pass clears
 Since the menu's turn is C, the frame's returns are all to bridges (its note
 says so), and the
 frame waits that the turn's carry leaves through (`$CD:3E75`, `$CD:3E3B`)
-carry notes of their own (REIMPLEMENTATION.md, "Phase 4a, the shipping
+carry notes of their own (history/reimplementation-chunks.md "Phase 4a, the shipping
 mode's fallbacks, chunk 5").
 
 ## Status

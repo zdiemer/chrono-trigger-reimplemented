@@ -201,6 +201,7 @@ int main(void)
     /* a host has time for all the deferrable work, and no line to wait for */
     CHECK(tm_frame_time_left(&pf, PF_AT(0), 0), "time left at any line");
     tm_wait_line(&pf, PF_CALL(0, 0), 64);
+    tm_wait_line_drawn(&pf, PF_LOOP(0, 0));
 
     /* the generator replays from its seed */
     TmEntropy first[8], again[8];

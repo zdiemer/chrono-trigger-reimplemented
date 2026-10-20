@@ -2,14 +2,16 @@
  * random machine states rather than states a movie happens to reach.
  *
  *   ct_fuzz --rom roms/ct-usa.sfc --load-state base.state --routine <name|BBAAAA>
- *           [--iterations N] [--seed S] [--long | --interrupt | --jump] [--budget N]
+ *           [--iterations N] [--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N]
  *           [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... [--range A|X|Y=lo-hi]...
  *           [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc] [--details N]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
  * the N V Z C flags and all of work RAM except the stack page, applies the
  * routine's entry precondition on P, and calls the routine as a JSR (JSL with
- * --long) would, or as an interrupt (--interrupt). The original runs on the
+ * --long) would, or as an interrupt (--interrupt; with --line-handler, the
+ * line interrupt raised and the line in its hblank, as a line handler finds
+ * the machine and looks for it). The original runs on the
  * interpreter; the native routine runs on a copy (call-outs interpreted
  * synchronously). The machines are compared where the native routine left
  * off, normally the return, as in shadow mode (at the first pass of the
@@ -140,6 +142,10 @@ int main(int argc, char **argv)
             o.interrupt = true;
             continue;
         }
+        if (!strcmp(a, "--line-handler")) {
+            o.line_handler = true;
+            continue;
+        }
         if (!strcmp(a, "--jump")) {
             o.jump = true;
             continue;
@@ -249,7 +255,7 @@ int main(int argc, char **argv)
 
 usage:
     fprintf(stderr, "usage: ct_fuzz --rom <rom> --routine <name|BBAAAA> [--load-state f] [--iterations N] "
-                    "[--seed S] [--long | --interrupt | --jump] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
+                    "[--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
                     "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]...\n"
                     "  [--details N]\n"

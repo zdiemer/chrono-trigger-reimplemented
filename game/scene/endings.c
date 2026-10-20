@@ -33,9 +33,7 @@
  * original's code it calls out to finds the stack where it expects.
  *
  * Left as the original's, behind call-outs: the program's unpacker
- * ($7E:3691), the first step of a script ($7E:3749), the expansion of the
- * Mode 7 picture's tiles ($7E:5E3C, through $7E:5EF8), and the sprite list
- * the swept window's rider is ($7E:3A97). */
+ * ($7E:3691) and the first step of a script ($7E:3749). */
 #include "scene/race.h"
 
 #include "charge.h"
@@ -1323,22 +1321,13 @@ bool scene_ending_sweep_window_present(Snes *s)
     return ok;
 }
 
-/* The rider is a sprite list drawn by the program's list drawer with signed
- * offsets ($7E:3A97), the list in A and its place in the scene's sprite
- * offsets, with 16-bit A; it reads nothing else but the direct page and the
- * data bank, and comes back with 16-bit A and Y the next free entry. */
-enum { DRAW_SIGNED_LIST = 0x7E3A97, DRAW_IGNORES = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-static void draw_rider(Snes *s)
+/* The rider, a sprite list of the program's with signed offsets, behind the
+ * window's left edge and level with its top. */
+static void draw_rider(GameState *g)
 {
-    GameState *g = state_of(s);
-    set_scene_sprite_offset_x(g, (uint16_t)(scene_ending_window_left(g) - RIDER_BEHIND_THE_EDGE));
-    uint16_t line = (uint16_t)(scene_ending_window_corners(g, LEFT_TOP) / QUARTERS);
-    set_scene_sprite_offset_y(g, (uint8_t)line);
-    set_scene_sprite_offset_y_high(g, (uint8_t)(line >> 8));
-    s->cpu.a = RIDER;
-    m_set_flag(s, CPU_FLAG_M, false);
-    m_jsl_dc(s, 0x7E9A6A, DRAW_SIGNED_LIST, DRAW_IGNORES);
+    scene_draw_lists_at(g, (uint16_t)(scene_ending_window_left(g) - RIDER_BEHIND_THE_EDGE),
+                        (uint16_t)(scene_ending_window_corners(g, LEFT_TOP) / QUARTERS));
+    TIMED_AS(g, 0x7E3A97, scene_draw_signed_sprite_list(g, RIDER));
 }
 
 /* The list's exit for a task that takes itself off. */
@@ -1352,10 +1341,12 @@ void scene_ending_sweep_window(Snes *s)
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
     draw_sweep_window(g);
-    if (scene_ending_window_left(g))
-        draw_rider(s);
-    else
+    if (scene_ending_window_left(g)) {
+        draw_rider(g);
+        ORIGINAL_EFFECT(s->cpu.y = scene_sprite_index(g));
+    } else {
         ORIGINAL_EFFECT(s->cpu.y = field_window_shape_leaves_y(g));
+    }
     if (move_sweep_window(g, pf) == SWEEP_OVER) {
         ORIGINAL_EFFECT(s->cpu.a = 0);
         m_stop_at(s, REMOVE_SWEEP_TASK, DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C);
