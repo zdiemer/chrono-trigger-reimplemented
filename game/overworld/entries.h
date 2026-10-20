@@ -35,6 +35,17 @@ bool overworld_epoch_second_sprite_runs(Snes *s);
 bool overworld_black_omen_watch_runs(Snes *s);
 bool overworld_reach_test_runs(Snes *s);
 
+/* The dactyls' handlers (vehicles.h): the leader's, the second's and the
+ * third's, and the second sprite of each. */
+void overworld_dactyl_entry(Snes *s);
+void overworld_dactyl_second_sprite_entry(Snes *s);
+void overworld_following_dactyl_entry(Snes *s);
+void overworld_following_dactyl_second_sprite_entry(Snes *s);
+bool overworld_dactyl_runs(Snes *s);
+bool overworld_dactyl_second_sprite_runs(Snes *s);
+bool overworld_following_dactyl_runs(Snes *s);
+bool overworld_following_dactyl_second_sprite_runs(Snes *s);
+
 /* The main loop, from its head and from the menus' return. */
 void overworld_main_loop_entry(Snes *s);
 void overworld_back_from_the_menus_entry(Snes *s);

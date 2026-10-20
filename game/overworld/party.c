@@ -24,6 +24,17 @@ WorldSpot overworld_vehicle_spot(const GameState *g, Vehicle v)
     return (WorldSpot){ overworld_epoch_x(g), overworld_epoch_y(g) };
 }
 
+void overworld_keep_vehicle_spot(GameState *g, Vehicle v, WorldSpot at)
+{
+    if (v == VEHICLE_DACTYL) {
+        set_overworld_dactyl_x(g, at.x);
+        set_overworld_dactyl_y(g, at.y);
+    } else {
+        set_overworld_epoch_x(g, at.x);
+        set_overworld_epoch_y(g, at.y);
+    }
+}
+
 uint8_t overworld_vehicle_state(const GameState *g, Vehicle v)
 {
     return v == VEHICLE_DACTYL ? overworld_dactyl_state(g) : overworld_epoch_state(g);
@@ -127,13 +138,17 @@ void overworld_start_over_if_asked(GameState *g, MenuObject walker)
  * own: the leader's the fourth palette and the first tiles, each member
  * after it the next palette and tiles $20 on. */
 enum { LOCATION_DRAWN_HIGHER = 0x01F5, PARTY_FIRST_PALETTE = 4, TILES_A_MEMBER = 0x20 };
-enum { PRIORITY_2 = 0x20, PRIORITY_3 = 0x30 };
+enum { PRIORITY_2 = OVERWORLD_PRIORITY_2, PRIORITY_3 = OVERWORLD_PRIORITY_3 };
+
+uint8_t overworld_member_palette(PartyPlace place)
+{
+    return (uint8_t)(((PARTY_FIRST_PALETTE + place) << 1) & MENU_LOOK_PALETTE);
+}
 
 void overworld_dress(GameState *g, MenuObject walker, PartyPlace place)
 {
     uint8_t priority = location_id(g) == LOCATION_DRAWN_HIGHER ? PRIORITY_3 : PRIORITY_2;
-    uint8_t palette = (uint8_t)(((PARTY_FIRST_PALETTE + place) << 1) & MENU_LOOK_PALETTE);
-    set_menu_object_slots_look(g, walker, (uint8_t)(MENU_LOOK_ON_THE_MAP | priority | palette));
+    set_menu_object_slots_look(g, walker, (uint8_t)(MENU_LOOK_ON_THE_MAP | priority | overworld_member_palette(place)));
     set_menu_object_slots_tiles(g, walker, (uint16_t)(place * TILES_A_MEMBER));
 }
 
@@ -300,9 +315,41 @@ WorldSpot overworld_spot_ahead(WorldSpot at, MenuAxis axis, int8_t way)
     return (WorldSpot){ (uint16_t)x, (uint16_t)(y & (MENU_MAP_HEIGHT - 1)) };
 }
 
+/* The spot a tile on the way it moves, along each axis it moves on. */
+static int8_t way_of(int16_t pace) { return pace < 0 ? -1 : pace > 0 ? 1 : 0; }
+
+WorldSpot overworld_a_tile_on(const GameState *g, MenuObject mover)
+{
+    WorldSpot at = overworld_spot_ahead(overworld_walker_spot(g, mover), MENU_ACROSS,
+                                        way_of(overworld_pace(g, mover, MENU_ACROSS)));
+    return overworld_spot_ahead(at, MENU_DOWN, way_of(overworld_pace(g, mover, MENU_DOWN)));
+}
+
+static const struct {
+    Buttons button;
+    Facing way;
+} PAD_WAYS[] = {
+    { BUTTON_UP, FACING_UP }, { BUTTON_DOWN, FACING_DOWN }, { BUTTON_LEFT, FACING_LEFT }, { BUTTON_RIGHT, FACING_RIGHT },
+};
+
+bool overworld_way_held(Buttons held, Facing *way)
+{
+    for (unsigned d = 0; d < sizeof PAD_WAYS / sizeof PAD_WAYS[0]; d++)
+        if (held & PAD_WAYS[d].button) {
+            *way = PAD_WAYS[d].way;
+            return true;
+        }
+    return false;
+}
+
 enum { ARRIVAL_FACING = 0x03 };
 Facing overworld_arrival_facing(const GameState *g) { return (Facing)(location_flags(g) & ARRIVAL_FACING); }
 void overworld_set_arrival_facing(GameState *g, Facing facing) { set_location_flags(g, (uint8_t)facing); }
+
+void overworld_turn_arrival_facing(GameState *g, Facing facing)
+{
+    set_location_flags(g, (uint8_t)((location_flags(g) & ~ARRIVAL_FACING) | facing));
+}
 
 /* ---- The leader's trail ------------------------------------------------------------------ */
 

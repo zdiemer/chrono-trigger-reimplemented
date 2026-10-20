@@ -25,6 +25,7 @@
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
+#include "menu/held_cursors.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -252,8 +253,10 @@ void menu_wait_for_the_first_frame(Snes *s) { wait_for_the_next_frame(s); }
  * each a loop: a frame's work, then the wait for the next frame. The main
  * task's work is the running screen's step (menu/screens.c), which may wait
  * for frames of its own inside; the cursor's is the menus' sprites hidden and
- * the cursor placed (menu/cursor.c). */
-enum { MAIN_TASK_WAIT = 0xC2826C, CURSOR_TASK_WAIT = 0xC2E91E };
+ * the cursor placed (menu/cursor.c). The scroll bar's task, which a list's
+ * screen starts and stops, is the same loop over a frame of the bar's arrows
+ * (menu/held_cursors.c). */
+enum { MAIN_TASK_WAIT = 0xC2826C, CURSOR_TASK_WAIT = 0xC2E91E, SCROLL_BAR_TASK_WAIT = 0xC28C30 };
 
 /* The loop's wait, from its JSR at `site`: run as the JSR reaches it where
  * the runtime would run it, and otherwise left to the JSR. Either way the
@@ -270,21 +273,28 @@ enum { THE_WAIT = 0xC2821E, THE_LOOPS_READ_NOTHING_AFTER_IT = DC_A | DC_X | DC_Y
  * before they read either. So where the declaration has them, the port's
  * own, which the work before the wait leaves in them and which aren't the
  * original's, aren't compared while the task waits. */
-static void leave_the_kept_index_registers_uncompared(Snes *s, uint16_t dont_care)
+static void leave_the_kept_index_registers_uncompared(Snes *s, uint16_t dont_care, bool widths_its_own)
 {
-    enum { RETURN_BYTES = 2 };
+    enum { RETURN_BYTES = 2, FLAGS_BYTES = 1 };
     uint16_t bytes = m_x8(s) ? 1 : 2;
     uint16_t x_at = (uint16_t)(s->cpu.s - RETURN_BYTES - bytes + 1), y_at = (uint16_t)(x_at - bytes);
     if (dont_care & DC_X)
         native_stack_dont_care(s, x_at, bytes);
     if (dont_care & DC_Y)
         native_stack_dont_care(s, y_at, bytes);
+    if (widths_its_own && (dont_care & DC_FLAGS) == DC_FLAGS)
+        native_stack_dont_care(s, (uint16_t)(y_at - FLAGS_BYTES), FLAGS_BYTES);
 }
 
-static void wait_in_the_loop(Snes *s, uint32_t site)
+/* Under them the wait keeps the flags, the widths with them. Where a loop
+ * sets its widths itself, as the original's code has them at the wait (the
+ * scroll bar's: A 8-bit from its head, the index registers 16-bit as the
+ * task starts), only the flags in that byte can differ, which the loops
+ * don't read after the wait either; so that byte isn't compared there. */
+static void wait_in_the_loop(Snes *s, uint32_t site, bool widths_its_own)
 {
     if (menu_runs_as_port(s, THE_WAIT, menu_task_waits_a_frame)) {
-        leave_the_kept_index_registers_uncompared(s, THE_LOOPS_READ_NOTHING_AFTER_IT);
+        leave_the_kept_index_registers_uncompared(s, THE_LOOPS_READ_NOTHING_AFTER_IT, widths_its_own);
         menu_run(s, site, THE_WAIT, menu_task_waits_a_frame);
     } else {
         m_stop_at(s, site, THE_LOOPS_READ_NOTHING_AFTER_IT);
@@ -297,13 +307,13 @@ static void wait_in_the_loop(Snes *s, uint32_t site)
 void menu_run_the_main_task(Snes *s)
 {
     if (menu_run_the_screen_s_step(s))
-        wait_in_the_loop(s, MAIN_TASK_WAIT);
+        wait_in_the_loop(s, MAIN_TASK_WAIT, false);
 }
 
 // $C2:826C
 /* The main task's wait, where a step came back to it through the original's
  * code (one that ended in a sibling's routine). */
-void menu_main_task_waits(Snes *s) { wait_in_the_loop(s, MAIN_TASK_WAIT); }
+void menu_main_task_waits(Snes *s) { wait_in_the_loop(s, MAIN_TASK_WAIT, false); }
 
 // $C2:E91B, $C2:E921
 /* The cursor's task (MENU_CURSOR_TASK), from its start and from its wait. */
@@ -311,7 +321,17 @@ void menu_run_the_cursor_task(Snes *s)
 {
     GameState *g = state_of(s);
     TIMED_AS(g, 0xC2E92D, menu_reset_sprites_and_cursor(g));
-    wait_in_the_loop(s, CURSOR_TASK_WAIT);
+    wait_in_the_loop(s, CURSOR_TASK_WAIT, false);
+}
+
+// $C2:8BB8, $C2:8C33
+/* The scroll bar's task (MENU_SCROLL_BAR_TASK), from its start and from its
+ * wait, which it waits in with A 8-bit and the index registers 16-bit. */
+void menu_run_the_scroll_bar_task(Snes *s)
+{
+    menu_set_widths(s, true, false);
+    menu_draw_the_scroll_bar(state_of(s));
+    wait_in_the_loop(s, SCROLL_BAR_TASK_WAIT, true);
 }
 
 /* ---- The guards -------------------------------------------------------------------------------- */

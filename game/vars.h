@@ -2849,6 +2849,14 @@ void set_field_bg3_tiles_unpacked_byte(GameState *g, unsigned at, uint8_t v);
 
 /* ---- menu ---------------------------------------------------------------------------------- */
 
+/* The scroll bar's task: where it worked its two arrows' places out, across and down, the
+ * upper's then the lower's (game/menu/held_cursors.c, $C2:8BB8; scaffolding) */
+uint32_t menu_scratch_scroll_arrows_at(const GameState *g);
+void set_menu_scratch_scroll_arrows_at(GameState *g, uint32_t v);
+/* The equipment screen's comparison of a member's figures with an item tried on: the last figure
+ * it looked at, as the member's record has it (game/menu/equipment.c, $C2:A5E7; scaffolding) */
+uint8_t menu_scratch_figure_compared(const GameState *g);
+void set_menu_scratch_figure_compared(GameState *g, uint8_t v);
 /* Where the scheduler starts a task, from the task's record, which it jumps through ($C2:81FF) */
 uint16_t menu_scratch_task_start(const GameState *g);
 void set_menu_scratch_task_start(GameState *g, uint16_t v);
@@ -4327,6 +4335,13 @@ enum { MENU_SAVE_SLOT_IN_USE_COUNT = 4 };   /* by save slot */
 uint8_t menu_save_slot_in_use(const GameState *g, unsigned slot);
 void set_menu_save_slot_in_use(GameState *g, unsigned slot, uint8_t v);
 
+enum { MENU_FIGURE_MARKS_COUNT = 11 };   /* by figure, in the order the window lists them: the shop's seven stats; the equipment screen's attack, defence and seven stats, and its greatest HP the eleventh */
+/* How the shop's member window and the equipment screen's figures colour each figure of the
+ * member equipping: the text's colour where the item tried on leaves it as it is, brighter ($08)
+ * where it raises it, darker ($1C) where it lowers it (menu/figures.h, MenuFigureMark) */
+uint8_t menu_figure_marks(const GameState *g, unsigned i);
+void set_menu_figure_marks(GameState *g, unsigned i, uint8_t v);
+
 /* The attack or defence of the weapon or armour whose users the items screen shows, which the
  * window shows beside them */
 uint8_t menu_item_power(const GameState *g);
@@ -4340,13 +4355,6 @@ void set_menu_item_row_item(GameState *g, uint8_t v);
  * 5 set ($C2:A1EF) */
 uint16_t menu_member_face(const GameState *g);
 void set_menu_member_face(GameState *g, uint16_t v);
-
-enum { MENU_SHOP_FIGURE_MARKS_COUNT = 7 };   /* by figure: the seven stats in the order the member's window lists them */
-/* How the shop's member window colours each figure of the member equipping: the text's colour
- * where the item tried on leaves it as it is, brighter ($08) where it raises it, darker ($1C)
- * where it lowers it */
-uint8_t menu_shop_figure_marks(const GameState *g, unsigned member);
-void set_menu_shop_figure_marks(GameState *g, unsigned member, uint8_t v);
 
 /* How many of the item the items screen's list drew last the party has, the number its row shows */
 uint8_t menu_item_row_count(const GameState *g);
@@ -4522,6 +4530,10 @@ void set_menu_scroll_bar_step(GameState *g, uint16_t v);
 /* Which half of their blink the bar's arrows are in, which the bar's task flips */
 uint8_t menu_scroll_bar_blink(const GameState *g);
 void set_menu_scroll_bar_blink(GameState *g, uint8_t v);
+/* The frames until the bar's arrows' blink turns, its low three bits (the byte after the thumb,
+ * which a slide's move of the thumb as a word can carry into) */
+uint8_t menu_scroll_bar_blink_count(const GameState *g);
+void set_menu_scroll_bar_blink_count(GameState *g, uint8_t v);
 /* Nonzero while the bar is hidden */
 uint8_t menu_scroll_bar_hidden(const GameState *g);
 void set_menu_scroll_bar_hidden(GameState *g, uint8_t v);
@@ -6871,6 +6883,10 @@ void set_menu_object_slots_goal_y(GameState *g, unsigned slot, uint16_t v);
  * fourth (game/menu/map_scenes.c) */
 uint8_t menu_object_slots_drift_count(const GameState *g, unsigned slot);
 void set_menu_object_slots_drift_count(GameState *g, unsigned slot, uint8_t v);
+/* A following dactyl on the 65,000,000 B.C. map clears this byte as it comes down; nothing reads
+ * it (game/overworld/dactyl.c) */
+uint8_t menu_object_slots_dactyl_landing_cleared(const GameState *g, unsigned slot);
+void set_menu_object_slots_dactyl_landing_cleared(GameState *g, unsigned slot, uint8_t v);
 /* The Epoch on the world map: how many frames its take-off or landing lasts
  * (game/overworld/epoch.c) */
 uint8_t menu_object_slots_epoch_manoeuvre_frames(const GameState *g, unsigned slot);
@@ -7222,7 +7238,8 @@ void set_overworld_dactyl_x(GameState *g, uint16_t v);
 /* Down */
 uint16_t overworld_dactyl_y(const GameState *g);
 void set_overworld_dactyl_y(GameState *g, uint16_t v);
-/* Bits 0-1 how many of the party are aboard, bit 6 the party has it out, bit 7 it is on the map */
+/* Bits 0-1 how many of the party are aboard, bit 5 it is coming down (the other dactyls come
+ * down with it), bit 6 the party has it out, bit 7 it is on the map */
 uint8_t overworld_dactyl_state(const GameState *g);
 void set_overworld_dactyl_state(GameState *g, uint8_t v);
 
@@ -7232,6 +7249,14 @@ void set_overworld_black_omen_x(GameState *g, uint16_t v);
 /* Down */
 uint16_t overworld_black_omen_y(const GameState *g);
 void set_overworld_black_omen_y(GameState *g, uint16_t v);
+
+enum { OVERWORLD_FOLLOWING_DACTYLS_COUNT = 2 };   /* by the second member's dactyl, then the third's */
+/* Across, a pixel */
+uint16_t overworld_following_dactyls_x(const GameState *g, unsigned member);
+void set_overworld_following_dactyls_x(GameState *g, unsigned member, uint16_t v);
+/* Down, a pixel */
+uint16_t overworld_following_dactyls_y(const GameState *g, unsigned member);
+void set_overworld_following_dactyls_y(GameState *g, unsigned member, uint16_t v);
 
 enum { OVERWORLD_IDLE_FRAMES_COUNT = 3 };   /* by the party's place: 0 the leader, 1 the second member, 2 the third */
 /* Frames each of the party has stood still, up to $F0, when it plays its idle animation once and
@@ -7302,6 +7327,11 @@ void set_overworld_region_songs(GameState *g, unsigned i, uint8_t v);
  * land), 0 while it stands; the Epoch's second sprite goes by it */
 uint8_t overworld_epoch_flying(const GameState *g);
 void set_overworld_epoch_flying(GameState *g, uint8_t v);
+
+/* 1 while the dactyl the leader rides flies over the 65,000,000 B.C. map (from the end of its
+ * take-off until it starts to land), 0 while it stands; its second sprite goes by it */
+uint8_t overworld_dactyl_flying(const GameState *g);
+void set_overworld_dactyl_flying(GameState *g, uint8_t v);
 
 /* Cleared as the leader begins a step and as the overworld starts */
 uint8_t overworld_step_begun(const GameState *g);
@@ -8178,10 +8208,31 @@ enum { BATTLE_SCRIPT_POINTER_PADS_COUNT = 17 };   /* by script channel (16: the 
 uint8_t battle_script_pointer_pads(const GameState *g, unsigned channel);
 void set_battle_script_pointer_pads(GameState *g, unsigned channel, uint8_t v);
 
+enum { BATTLE_PARTY_POSE_COUNTDOWN_COUNT = 3 };   /* by party member */
+/* The party's poses: how many of the poses' steps (every other frame) each member's frame has
+ * left to show; its first frame comes a step later for each member after the leader */
+uint8_t battle_party_pose_countdown(const GameState *g, unsigned member);
+void set_battle_party_pose_countdown(GameState *g, unsigned member, uint8_t v);
+
 enum { BATTLE_SCRIPT_POINTERS_COUNT = 16 };   /* by script channel */
 /* Each animation script channel's program pointer (24-bit) */
 uint32_t battle_script_pointers(const GameState *g, unsigned channel);
 void set_battle_script_pointers(GameState *g, unsigned channel, uint32_t v);
+
+enum { BATTLE_PARTY_POSE_FRAME_COUNT = 3 };   /* by party member */
+/* The party's poses: which of its eight frames each member shows, $FF before the first; a member
+ * that has shown its eighth holds it */
+uint8_t battle_party_pose_frame(const GameState *g, unsigned member);
+void set_battle_party_pose_frame(GameState *g, unsigned member, uint8_t v);
+
+/* The party's poses: the member the poses' step looked at last, a word, 3 once it has been
+ * through them (scaffolding: nothing reads it) */
+uint16_t battle_party_pose_member(const GameState *g);
+void set_battle_party_pose_member(GameState *g, uint16_t v);
+
+/* The party's poses: how many frames of the battle they have left to run, from 64 */
+uint8_t battle_party_poses_frames_left(const GameState *g);
+void set_battle_party_poses_frames_left(GameState *g, uint8_t v);
 
 /* Set for the party's poses at the battle's opening, clear for the victory's and the defeat's;
  * $C1:369A tests it where a member's poses run out, going on the same way either way */
@@ -8426,6 +8477,17 @@ void set_battle_number_sprites_tile(GameState *g, unsigned i, uint8_t v);
 /* Attributes */
 uint8_t battle_number_sprites_attributes(const GameState *g, unsigned i);
 void set_battle_number_sprites_attributes(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_PARTY_POSE_DELAYS_COUNT = 24 };   /* by party member * 8 + frame */
+/* The party's poses: each member's eight frames' times, in the poses' steps (half its delay
+ * list's), which no number shows over the poses */
+uint8_t battle_party_pose_delays(const GameState *g, unsigned member);
+void set_battle_party_pose_delays(GameState *g, unsigned member, uint8_t v);
+
+enum { BATTLE_PARTY_POSE_FRAMES_COUNT = 24 };   /* by party member * 8 + frame */
+/* The party's poses: each member's eight frames, from its frame list in its facing's part */
+uint8_t battle_party_pose_frames(const GameState *g, unsigned member);
+void set_battle_party_pose_frames(GameState *g, unsigned member, uint8_t v);
 
 enum { BATTLE_NUMBER_SPRITE_HIGH_COUNT = 11 };   /* by combatant */
 /* OAM high-table byte of each combatant's four number sprites */
@@ -13053,6 +13115,11 @@ void set_scene_scaler_plane_output(GameState *g, uint16_t v);
 uint16_t scene_scaler_source_row(const GameState *g);
 void set_scene_scaler_source_row(GameState *g, uint16_t v);
 
+/* The endings' Mode 7 picture: the rows of an eight-plane tile still to expand into the plane's
+ * pixels, 0 once it is done, which the bitmap scaler then finds as its last source row */
+uint8_t scene_wide_tile_rows_left(const GameState *g);
+void set_scene_wide_tile_rows_left(GameState *g, uint8_t v);
+
 /* Bitmap scaler: row accumulator that picks each output row's source row (0 at the start) */
 uint16_t scene_scaler_row_position(const GameState *g);
 void set_scene_scaler_row_position(GameState *g, uint16_t v);
@@ -13072,8 +13139,8 @@ uint16_t scene_race_tilemap_pending(const GameState *g);
 void set_scene_race_tilemap_pending(GameState *g, uint16_t v);
 
 /* Scratch the original packs pixels in, which only the routine that fills it reads: the scaler's
- * eight sample words ($3B-$43), or the title's plane tile row's two words and its row count
- * ($3F) [9 bytes, one at a time] */
+ * eight sample words ($3B-$43), the title's plane tile row's two words and its row count ($3F),
+ * or the endings' eight-plane row's four words ($3B-$42) [9 bytes, one at a time] */
 enum { SCENE_BITPLANE_SCRATCH_BYTES = 9 };
 uint8_t scene_bitplane_scratch_byte(const GameState *g, unsigned at);
 void set_scene_bitplane_scratch_byte(GameState *g, unsigned at, uint8_t v);

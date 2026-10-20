@@ -2138,6 +2138,8 @@
  * [16 bytes] */
 #define RAM_MENU_SCRATCH 0x7E0000u
 #define RAM_MENU_SCRATCH_DP 0x00u            /* page menu */
+#define RAM_MENU_SCRATCH_SCROLL_ARROWS_AT 0x7E0000u /* The scroll bar's task: where it worked its two arrows' places out, across and down, the upper's then the lower's (game/menu/held_cursors.c, $C2:8BB8; scaffolding) */
+#define RAM_MENU_SCRATCH_FIGURE_COMPARED 0x7E0000u /* The equipment screen's comparison of a member's figures with an item tried on: the last figure it looked at, as the member's record has it (game/menu/equipment.c, $C2:A5E7; scaffolding) */
 #define RAM_MENU_SCRATCH_TASK_START 0x7E0000u /* Where the scheduler starts a task, from the task's record, which it jumps through ($C2:81FF) */
 #define RAM_MENU_SCRATCH_STEP_ROUTINE 0x7E0000u /* The menus' main task's turn: the routine of the screen's step, which it jumps through ($C2:828E) */
 #define RAM_MENU_SCRATCH_FITS_POWER 0x7E0000u /* The list of what fits ($C2:8953): the power the last row of the ordering kept (where nothing fits, the slot's first item) */
@@ -2951,6 +2953,14 @@
 #define RAM_MENU_SAVE_SLOT_IN_USE 0x7E0D49u
 #define RAM_MENU_SAVE_SLOT_IN_USE_COUNT 4u
 #define RAM_MENU_SAVE_SLOT_IN_USE_STRIDE 0x01u
+/* How the shop's member window and the equipment screen's figures colour each figure of the
+ * member equipping: the text's colour where the item tried on leaves it as it is, brighter ($08)
+ * where it raises it, darker ($1C) where it lowers it (menu/figures.h, MenuFigureMark) [11 x $1
+ * bytes, by figure, in the order the window lists them: the shop's seven stats; the equipment
+ * screen's attack, defence and seven stats, and its greatest HP the eleventh] */
+#define RAM_MENU_FIGURE_MARKS 0x7E0D4Du
+#define RAM_MENU_FIGURE_MARKS_COUNT 11u
+#define RAM_MENU_FIGURE_MARKS_STRIDE 0x01u
 /* The attack or defence of the weapon or armour whose users the items screen shows, which the
  * window shows beside them */
 #define RAM_MENU_ITEM_POWER 0x7E0D4Du
@@ -2959,13 +2969,6 @@
 /* The character whose face and name a member row's window list draws, in the low bits, with bit
  * 5 set ($C2:A1EF) [2 bytes] */
 #define RAM_MENU_MEMBER_FACE 0x7E0D4Du
-/* How the shop's member window colours each figure of the member equipping: the text's colour
- * where the item tried on leaves it as it is, brighter ($08) where it raises it, darker ($1C)
- * where it lowers it [7 x $1 bytes, by figure: the seven stats in the order the member's window
- * lists them] */
-#define RAM_MENU_SHOP_FIGURE_MARKS 0x7E0D4Du
-#define RAM_MENU_SHOP_FIGURE_MARKS_COUNT 7u
-#define RAM_MENU_SHOP_FIGURE_MARKS_STRIDE 0x01u
 /* How many of the item the items screen's list drew last the party has, the number its row shows */
 #define RAM_MENU_ITEM_ROW_COUNT 0x7E0D4Eu
 /* Set to 4 by $C2:A1EF when the character a status window shows ($7E:9A90's low bits) has
@@ -3074,6 +3077,7 @@
 #define RAM_MENU_SCROLL_BAR_THUMB_WORD 0x7E0D95u /* The same as a word with the byte after it, as a sliding list moves the thumb a line a frame */
 #define RAM_MENU_SCROLL_BAR_STEP 0x7E0D98u   /* The thumb's move a row of the list */
 #define RAM_MENU_SCROLL_BAR_BLINK 0x7E0D97u  /* Which half of their blink the bar's arrows are in, which the bar's task flips */
+#define RAM_MENU_SCROLL_BAR_BLINK_COUNT 0x7E0D96u /* The frames until the bar's arrows' blink turns, its low three bits (the byte after the thumb, which a slide's move of the thumb as a word can carry into) */
 #define RAM_MENU_SCROLL_BAR_HIDDEN 0x7E0D9Au /* Nonzero while the bar is hidden */
 /* Nonzero skips placing the cursor sprite for one frame; the per-frame sprite reset clears it */
 #define RAM_MENU_CURSOR_HIDDEN 0x7E0D9Bu
@@ -4422,6 +4426,7 @@
 #define RAM_MENU_OBJECT_SLOTS_GOAL_X 0x7E0B5Au /* An overworld walker: where across it is walking to, a pixel */
 #define RAM_MENU_OBJECT_SLOTS_GOAL_Y 0x7E0B5Cu /* An overworld walker: where down it is walking to */
 #define RAM_MENU_OBJECT_SLOTS_DRIFT_COUNT 0x7E0B52u /* A scene's object that drifts the map: its count of frames, a byte, the map moving on every fourth (game/menu/map_scenes.c) */
+#define RAM_MENU_OBJECT_SLOTS_DACTYL_LANDING_CLEARED 0x7E0B52u /* A following dactyl on the 65,000,000 B.C. map clears this byte as it comes down; nothing reads it (game/overworld/dactyl.c) */
 #define RAM_MENU_OBJECT_SLOTS_EPOCH_MANOEUVRE_FRAMES 0x7E0B56u /* The Epoch on the world map: how many frames its take-off or landing lasts (game/overworld/epoch.c) */
 #define RAM_MENU_OBJECT_SLOTS_GROUND_BELOW_LEFT 0x7E0B5Eu /* The Epoch on the world map: the ground of the 8x8 tile below the lower left of the four round its spot (game/overworld/terrain.c) */
 #define RAM_MENU_OBJECT_SLOTS_GROUND_BELOW_RIGHT 0x7E0B5Fu /* The Epoch: the ground of the tile below the lower right of the four */
@@ -4617,11 +4622,19 @@
 #define RAM_OVERWORLD_DACTYL 0x7E029Au
 #define RAM_OVERWORLD_DACTYL_X 0x7E029Au     /* Across */
 #define RAM_OVERWORLD_DACTYL_Y 0x7E029Cu     /* Down */
-#define RAM_OVERWORLD_DACTYL_STATE 0x7E029Eu /* Bits 0-1 how many of the party are aboard, bit 6 the party has it out, bit 7 it is on the map */
+#define RAM_OVERWORLD_DACTYL_STATE 0x7E029Eu /* Bits 0-1 how many of the party are aboard, bit 5 it is coming down (the other dactyls come down with it), bit 6 the party has it out, bit 7 it is on the map */
 /* Where the Black Omen stands on the world map: the Epoch enters it from the air [4 bytes] */
 #define RAM_OVERWORLD_BLACK_OMEN 0x7E02A2u
 #define RAM_OVERWORLD_BLACK_OMEN_X 0x7E02A2u /* Across, a pixel */
 #define RAM_OVERWORLD_BLACK_OMEN_Y 0x7E02A4u /* Down */
+/* Where the second and third members' dactyls are on the 65,000,000 B.C. map as they fly behind
+ * the leader's: each dactyl keeps its spot here every frame, and its second sprite follows it [2
+ * x $4 bytes, by the second member's dactyl, then the third's] */
+#define RAM_OVERWORLD_FOLLOWING_DACTYLS 0x7E02A6u
+#define RAM_OVERWORLD_FOLLOWING_DACTYLS_COUNT 2u
+#define RAM_OVERWORLD_FOLLOWING_DACTYLS_STRIDE 0x04u
+#define RAM_OVERWORLD_FOLLOWING_DACTYLS_X 0x7E02A6u /* Across, a pixel */
+#define RAM_OVERWORLD_FOLLOWING_DACTYLS_Y 0x7E02A8u /* Down, a pixel */
 /* Frames each of the party has stood still, up to $F0, when it plays its idle animation once and
  * holds at $FE-$FF [3 x $1 bytes, by the party's place: 0 the leader, 1 the second member, 2 the
  * third] */
@@ -4673,6 +4686,9 @@
 /* 1 while the Epoch flies over the world map (from the end of its take-off until it starts to
  * land), 0 while it stands; the Epoch's second sprite goes by it */
 #define RAM_OVERWORLD_EPOCH_FLYING 0x7E1BEFu
+/* 1 while the dactyl the leader rides flies over the 65,000,000 B.C. map (from the end of its
+ * take-off until it starts to land), 0 while it stands; its second sprite goes by it */
+#define RAM_OVERWORLD_DACTYL_FLYING 0x7E1BF0u
 /* Cleared as the leader begins a step and as the overworld starts */
 #define RAM_OVERWORLD_STEP_BEGUN 0x7E1BF7u
 /* The byte after overworld_step_begun, which the Epoch clears with it where it clears that with
@@ -5336,10 +5352,26 @@
 #define RAM_BATTLE_SCRIPT_POINTER_PADS 0x7E5DBCu
 #define RAM_BATTLE_SCRIPT_POINTER_PADS_COUNT 17u
 #define RAM_BATTLE_SCRIPT_POINTER_PADS_STRIDE 0x04u
+/* The party's poses: how many of the poses' steps (every other frame) each member's frame has
+ * left to show; its first frame comes a step later for each member after the leader [3 x $1
+ * bytes, by party member] */
+#define RAM_BATTLE_PARTY_POSE_COUNTDOWN 0x7E5DBDu
+#define RAM_BATTLE_PARTY_POSE_COUNTDOWN_COUNT 3u
+#define RAM_BATTLE_PARTY_POSE_COUNTDOWN_STRIDE 0x01u
 /* Each animation script channel's program pointer (24-bit) [16 x $4 bytes, by script channel] */
 #define RAM_BATTLE_SCRIPT_POINTERS 0x7E5DBDu
 #define RAM_BATTLE_SCRIPT_POINTERS_COUNT 16u
 #define RAM_BATTLE_SCRIPT_POINTERS_STRIDE 0x04u
+/* The party's poses: which of its eight frames each member shows, $FF before the first; a member
+ * that has shown its eighth holds it [3 x $1 bytes, by party member] */
+#define RAM_BATTLE_PARTY_POSE_FRAME 0x7E5DC1u
+#define RAM_BATTLE_PARTY_POSE_FRAME_COUNT 3u
+#define RAM_BATTLE_PARTY_POSE_FRAME_STRIDE 0x01u
+/* The party's poses: the member the poses' step looked at last, a word, 3 once it has been
+ * through them (scaffolding: nothing reads it) [2 bytes] */
+#define RAM_BATTLE_PARTY_POSE_MEMBER 0x7E5DC5u
+/* The party's poses: how many frames of the battle they have left to run, from 64 */
+#define RAM_BATTLE_PARTY_POSES_FRAMES_LEFT 0x7E5DC9u
 /* Set for the party's poses at the battle's opening, clear for the victory's and the defeat's;
  * $C1:369A tests it where a member's poses run out, going on the same way either way */
 #define RAM_BATTLE_PARTY_SCENE_OPENING 0x7E5DDDu
@@ -5460,6 +5492,16 @@
 #define RAM_BATTLE_NUMBER_SPRITES_Y 0x7E922Eu /* Y position ($F0 hidden) */
 #define RAM_BATTLE_NUMBER_SPRITES_TILE 0x7E922Fu /* Digit tile */
 #define RAM_BATTLE_NUMBER_SPRITES_ATTRIBUTES 0x7E9230u /* Attributes */
+/* The party's poses: each member's eight frames' times, in the poses' steps (half its delay
+ * list's), which no number shows over the poses [24 x $1 bytes, by party member * 8 + frame] */
+#define RAM_BATTLE_PARTY_POSE_DELAYS 0x7E922Du
+#define RAM_BATTLE_PARTY_POSE_DELAYS_COUNT 24u
+#define RAM_BATTLE_PARTY_POSE_DELAYS_STRIDE 0x01u
+/* The party's poses: each member's eight frames, from its frame list in its facing's part [24 x
+ * $1 bytes, by party member * 8 + frame] */
+#define RAM_BATTLE_PARTY_POSE_FRAMES 0x7E9245u
+#define RAM_BATTLE_PARTY_POSE_FRAMES_COUNT 24u
+#define RAM_BATTLE_PARTY_POSE_FRAMES_STRIDE 0x01u
 /* OAM high-table byte of each combatant's four number sprites [11 x $1 bytes, by combatant] */
 #define RAM_BATTLE_NUMBER_SPRITE_HIGH 0x7E92DDu
 #define RAM_BATTLE_NUMBER_SPRITE_HIGH_COUNT 11u
@@ -8621,6 +8663,10 @@
  * previous output [2 bytes] */
 #define RAM_SCENE_SCALER_SOURCE_ROW 0x7E0031u
 #define RAM_SCENE_SCALER_SOURCE_ROW_DP 0x31u /* page scene */
+/* The endings' Mode 7 picture: the rows of an eight-plane tile still to expand into the plane's
+ * pixels, 0 once it is done, which the bitmap scaler then finds as its last source row */
+#define RAM_SCENE_WIDE_TILE_ROWS_LEFT 0x7E0031u
+#define RAM_SCENE_WIDE_TILE_ROWS_LEFT_DP 0x31u /* page scene */
 /* Bitmap scaler: row accumulator that picks each output row's source row (0 at the start) [2
  * bytes] */
 #define RAM_SCENE_SCALER_ROW_POSITION 0x7E0033u
@@ -8637,8 +8683,8 @@
 #define RAM_SCENE_RACE_TILEMAP_PENDING 0x7E0039u
 #define RAM_SCENE_RACE_TILEMAP_PENDING_DP 0x39u /* page scene */
 /* Scratch the original packs pixels in, which only the routine that fills it reads: the scaler's
- * eight sample words ($3B-$43), or the title's plane tile row's two words and its row count
- * ($3F) [9 bytes] */
+ * eight sample words ($3B-$43), the title's plane tile row's two words and its row count ($3F),
+ * or the endings' eight-plane row's four words ($3B-$42) [9 bytes] */
 #define RAM_SCENE_BITPLANE_SCRATCH 0x7E003Bu
 #define RAM_SCENE_BITPLANE_SCRATCH_DP 0x3Bu  /* page scene */
 /* Nonzero while the map buffer ($1400) holds a map for VRAM: the program's upload of it

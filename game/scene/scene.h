@@ -397,8 +397,14 @@ uint32_t scene_mirror_rows(GameState *g, uint32_t to, uint32_t from, uint16_t la
 void scene_gather_picture_into_tiles(GameState *g);
 
 /* scene/title.c: a 32x32-tile picture's tile numbers, unpacked in
- * `picture_bank`, as the plane's name table. */
+ * `picture_bank`, as the plane's name table; and a tile of four or eight
+ * planes at `tile` turned into the plane's pixels. A tile's planes lie in
+ * pairs, a pair a row of two bytes for each of its eight rows; a tile of
+ * `planes` takes scene_plane_tile_bytes. */
 void scene_load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank);
+enum { SCENE_MOST_PLANES = 8, SCENE_PLANE_PAIR_BYTES = 0x10 };
+static inline uint16_t scene_plane_tile_bytes(unsigned planes) { return (uint16_t)(planes / 2 * SCENE_PLANE_PAIR_BYTES); }
+void scene_expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t tile, unsigned planes);
 
 /* scene/staff_roll.c: the credits' letters' colors, and their map blanked
  * (the in-front half of every word from the caller's own code at
@@ -556,6 +562,8 @@ bool scene_title_darken_sprite_palette_4_present(Snes *s);
 bool scene_title_untint_sprite_palette_3_present(Snes *s);
 bool scene_title_expand_plane_tile_present(Snes *s);
 void scene_title_expand_plane_tile(Snes *s);
+bool scene_ending_expand_wide_tile_present(Snes *s);
+void scene_ending_expand_wide_tile(Snes *s);
 bool scene_title_ripple_columns_present(Snes *s);
 void scene_title_ripple_columns(Snes *s);
 void scene_title_calm_the_ripple(Snes *s);

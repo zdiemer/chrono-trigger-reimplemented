@@ -239,29 +239,49 @@ static void place_map_picture(GameState *g, Platform *pf)
                            VID_VRAM_LOW_BYTES, &after_low);
 }
 
-/* What building the view leaves in the mode's cells: the name table's last
- * row sent (its count run out, the row it started the picture at, the tile
- * after the last, the next row's source and VRAM word), where it started the
- * picture's rows, and the picture's building (the buffer's place, the last
- * group it looked at, the two planes' maps a row past the last and their
- * groups); and the multiplier as it found the picture's row. */
-static void leave_map_view_built(GameState *g, uint16_t last_group)
+/* What each part of building the view leaves in the mode's cells. */
+enum { CELL_NAMES_LEFT = 0x00, CELL_NAMES_ROW = 0x01, CELL_BUFFER_AT = 0x05, CELL_NEXT_TILE = 0x08,
+       CELL_NEXT_SOURCE = 0x0A, CELL_NEXT_VRAM = 0x0C, CELL_LAST_GROUP = 0x0E, CELL_NAMES_AT = 0x10,
+       CELL_OVER_MAP = 0x13, CELL_LAND_GROUPS = 0x16, CELL_OVER_GROUPS = 0x19 };
+
+/* The colours' sampling: the last tile's colour, the count of tiles run out,
+ * and where the last tile's graphics are. */
+static void leave_colours_sampled(GameState *g)
 {
-    enum { NAMES_LEFT = 0x00, NAMES_ROW = 0x01, BUFFER_AT = 0x05, NEXT_TILE = 0x08, NEXT_SOURCE = 0x0A,
-           NEXT_VRAM = 0x0C, LAST_GROUP = 0x0E, NAMES_AT = 0x10, OVER_MAP = 0x13, LAND_GROUPS = 0x16,
-           OVER_GROUPS = 0x19 };
-    menu_object_leave_cell8(g, NAMES_LEFT, 0);
-    menu_object_leave_cell8(g, NAMES_ROW, PICTURE_ROW);
-    menu_object_leave_cell16(g, BUFFER_AT, (uint16_t)menu_object_upload_buffer(g));
-    menu_object_leave_cell16(g, NEXT_TILE, FIRST_PICTURE_TILE + PICTURE_TILES_ACROSS * PICTURE_TILES_DOWN);
-    menu_object_leave_cell16(g, NEXT_SOURCE, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE) + NAME_TABLE_BYTES));
-    menu_object_leave_cell16(g, NEXT_VRAM, NAME_ROWS_SENT * MODE7_MAP_ROW);
-    menu_object_leave_cell16(g, LAST_GROUP, last_group);
-    menu_object_leave_cell16(g, NAMES_AT, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE) + (PICTURE_ROW + PICTURE_TILES_DOWN) * NAME_ROWS_SENT
-                                         + PICTURE_COLUMN));
-    menu_object_leave_cell16(g, OVER_MAP, (uint16_t)(menu_plane_map(g, OVER_THE_LAND) + MAP_ROWS * MAP_COLUMNS));
-    menu_object_leave_cell16(g, LAND_GROUPS, menu_plane_groups(g, LAND_PLANE));
-    menu_object_leave_cell16(g, OVER_GROUPS, menu_plane_groups(g, OVER_THE_LAND));
+    enum { LAST_COLOUR = 0x00, TILES_DONE = 0x08, LAST_TILE_AT = 0x10, WORLD_MAP_TILES_AT = 0x9000 };
+    menu_object_leave_cell8(g, LAST_COLOUR, menu_map_colours(g, WORLD_MAP_TILES - 1));
+    menu_object_leave_cell16(g, TILES_DONE, WORLD_MAP_TILES);
+    menu_object_leave_cell16(g, LAST_TILE_AT, (uint16_t)(WORLD_MAP_TILES_AT + (WORLD_MAP_TILES - 1) * TILE_BYTES));
+}
+
+/* The picture's drawing: the buffer's place, the count of map rows run out,
+ * the last group it looked at, the plane over the land's map a row past the
+ * last, and the two planes' groups. */
+static void leave_picture_drawn(GameState *g, uint16_t last_group)
+{
+    enum { ROWS_DONE = 0x08 };
+    menu_object_leave_cell16(g, CELL_BUFFER_AT, (uint16_t)menu_object_upload_buffer(g));
+    menu_object_leave_cell16(g, ROWS_DONE, MAP_ROWS);
+    menu_object_leave_cell16(g, CELL_LAST_GROUP, last_group);
+    menu_object_leave_cell16(g, CELL_OVER_MAP, (uint16_t)(menu_plane_map(g, OVER_THE_LAND) + MAP_ROWS * MAP_COLUMNS));
+    menu_object_leave_cell16(g, CELL_LAND_GROUPS, menu_plane_groups(g, LAND_PLANE));
+    menu_object_leave_cell16(g, CELL_OVER_GROUPS, menu_plane_groups(g, OVER_THE_LAND));
+}
+
+/* The picture's laying out: the name table's last row sent (its count run
+ * out, the row it started the picture at, the tile after the last, a byte,
+ * the next row's source and VRAM word), where it started the picture's rows;
+ * and the multiplier as it found the picture's row. */
+static void leave_picture_placed(GameState *g)
+{
+    menu_object_leave_cell8(g, CELL_NAMES_LEFT, 0);
+    menu_object_leave_cell8(g, CELL_NAMES_ROW, PICTURE_ROW);
+    menu_object_leave_cell8(g, CELL_NEXT_TILE, FIRST_PICTURE_TILE + PICTURE_TILES_ACROSS * PICTURE_TILES_DOWN);
+    menu_object_leave_cell16(g, CELL_NEXT_SOURCE, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE) + NAME_TABLE_BYTES));
+    menu_object_leave_cell16(g, CELL_NEXT_VRAM, NAME_ROWS_SENT * MODE7_MAP_ROW);
+    menu_object_leave_cell16(g, CELL_NAMES_AT, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE)
+                                                          + (PICTURE_ROW + PICTURE_TILES_DOWN) * NAME_ROWS_SENT
+                                                          + PICTURE_COLUMN));
     hw_set_multiplicand(g, PICTURE_ROW);
     (void)hw_multiply_by(g, NAME_ROWS_SENT);
 }
@@ -273,8 +293,9 @@ static void build_map_view(GameState *g, Platform *pf)
 {
     sample_map_colours(g);
     uint16_t last_group = draw_map_picture(g, pf);
+    ORIGINAL_EFFECT(leave_picture_drawn(g, last_group));
     place_map_picture(g, pf);
-    ORIGINAL_EFFECT(leave_map_view_built(g, last_group));
+    ORIGINAL_EFFECT(leave_picture_placed(g));
 }
 
 /* ---- The map view: its graphics --------------------------------------------------------------- */
@@ -1268,13 +1289,11 @@ static void leave_area_cells(GameState *g, uint16_t tile_x, uint16_t tile_y, con
     set_menu_object_scratch_area_outside(g, sides);
 }
 
-// $C6:E797
-/* Whether the object is inside that part of the world map the party is on. */
-static bool in_area(GameState *g, MenuObject o)
+/* Whether the object is inside that part of the world map `map`. */
+bool menu_epoch_kept_off_the_ground_of(GameState *g, MenuObject o, unsigned map)
 {
     MenuPlace p = menu_object_place(g, o);
     uint16_t tile_x = menu_pixel(p.x) >> TILE_SHIFT, tile_y = menu_pixel(p.y) >> TILE_SHIFT;
-    unsigned map = (uint16_t)(location_id(g) - MENU_FIRST_WORLD_MAP);
     if (!world_map_areas[map].has_area) {
         ORIGINAL_EFFECT(leave_area_cells(g, tile_x, tile_y, NULL, 0));
         return false;
@@ -1283,6 +1302,13 @@ static bool in_area(GameState *g, MenuObject o)
     uint8_t sides = sides_outside((uint8_t)tile_x, (uint8_t)tile_y, *a);
     ORIGINAL_EFFECT(leave_area_cells(g, tile_x, tile_y, a, sides));
     return sides == 0;
+}
+
+// $C6:E797
+/* Whether the object is inside that part of the world map the party is on. */
+static bool in_area(GameState *g, MenuObject o)
+{
+    return menu_epoch_kept_off_the_ground_of(g, o, (uint16_t)(location_id(g) - MENU_FIRST_WORLD_MAP));
 }
 
 bool menu_epoch_kept_off_the_ground(GameState *g, MenuObject epoch) { return in_area(g, epoch); }
@@ -1684,6 +1710,40 @@ void menu_epoch_build_map(Snes *s)
 {
     if (!build_map_view_on_the_machine(s))
         return;
+    m_sep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+/* The Day of Lavos's turning world (menu/turning_world.c) builds its picture
+ * of the 1000 A.D. map from the same pieces: its scene's script calls the
+ * colours' sampling and the picture's laying out on their own. What each
+ * leaves in X, A's high byte and the carry is what liveness keeps live after
+ * a script's call (menu/map_scenes.c): the colours' table, the count of
+ * tiles, and the carry of the sampling's last count; the laying out's size
+ * of a row sent, and the carry of moving past the last row's source. */
+enum { COLOURS_AT = 0xAB25 };
+
+// $C2:6400
+void menu_epoch_sample_map_colours(Snes *s)
+{
+    GameState *g = state_of(s);
+    sample_map_colours(g);
+    ORIGINAL_EFFECT(leave_colours_sampled(g));
+    s->cpu.x = COLOURS_AT;
+    s->cpu.a = WORLD_MAP_TILES;
+    m_set_flag(s, CPU_FLAG_C, true);
+    m_sep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+// $C2:65B2
+void menu_epoch_place_map_picture(Snes *s)
+{
+    GameState *g = state_of(s);
+    place_map_picture(g, m_platform(s));
+    ORIGINAL_EFFECT(leave_picture_placed(g));
+    s->cpu.x = NAME_ROWS_SENT;
+    m_set_flag(s, CPU_FLAG_C, false);
     m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }

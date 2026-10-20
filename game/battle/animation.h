@@ -112,11 +112,26 @@ void battle_find_effect_animations(GameState *g);
  * game keeps clear. */
 void battle_step_combatants(GameState *g);
 
+/* Where the facing the object faces starts in its frame lists, after the
+ * first facing's (battle/animation.c). */
+uint16_t battle_facing_part(GameState *g, unsigned slot);
+
+/* A byte of a party member's frame or delay lists, which are in bank $E4;
+ * and the places of the lists a member steps through, kept in the animation
+ * scheduler's first entry (battle_scheduled_frame_lists), whatever member it
+ * is: a scheduled animation of the first combatant finds them there
+ * (battle/animation.c). */
+uint8_t battle_party_list_byte(const GameState *g, uint16_t at);
+void battle_keep_member_lists(GameState *g, uint16_t frames_at, uint16_t times_at);
+
 /* ---- What a pose shows (battle/pose_looks.c) --------------------------------------------- */
 
 /* Where the combatant's pose changed, its look changes to the new pose's: a
  * marker, its palette cycling, a party member's colours ($C1:308C). */
 void battle_show_pose_look(GameState *g, unsigned slot);
+/* The look taken off: no marker, no cycle, a party member's colours as
+ * loaded ($C1:30B6). */
+void battle_take_off_the_look(GameState *g, unsigned slot);
 
 /* Whether the party's palettes keep the colours a look puts back among the
  * sprites', as the game's do (the looks' guards, and the animations' step's). */

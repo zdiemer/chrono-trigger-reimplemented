@@ -150,15 +150,15 @@ void battle_wait_for_the_handler(Snes *s)
 
 // $CD:3E75
 /* The frame work's wait for the next frame: the handler's frame, then the
- * menu's turn ($C1:0012, the original's), which reads of the registers A's
- * high byte and the carry. */
+ * menu's turn (battle/frame_step.c), which reads of the registers A's high
+ * byte and the carry. */
 enum { MENU_TURN_READS_A_HIGH_AND_CARRY = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z };
 
 void battle_wait_for_the_next_frame(Snes *s)
 {
     if (!battle_run(s, 0xCD3E75, 0xCD3E7D, battle_wait_for_the_handler))
         return;
-    if (!battle_call_long(s, 0xCD3E78, 0xC10012, MENU_TURN_READS_A_HIGH_AND_CARRY))
+    if (!battle_run_long_dc(s, 0xCD3E78, 0xC10012, MENU_TURN_READS_A_HIGH_AND_CARRY, battle_menu_turn_long))
         return;
     m_rts(s);
 }

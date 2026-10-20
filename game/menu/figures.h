@@ -18,6 +18,26 @@ void menu_work_out_figures(GameState *g);
  * the accessory that doubles it. */
 void menu_work_out_figures_shown(GameState *g);
 
+/* How a screen marks a figure of the member equipping, by how the item tried
+ * on moves it from what the member has (menu_figure_marks): the text's colour
+ * where it stays, brighter where it rises, darker where it falls. */
+typedef enum { FIGURE_AS_IT_IS = 0x00, FIGURE_RAISED = 0x08, FIGURE_LOWERED = 0x1C } MenuFigureMark;
+static inline MenuFigureMark menu_figure_mark(uint16_t was, uint16_t is)
+{
+    return is == was ? FIGURE_AS_IT_IS : is > was ? FIGURE_RAISED : FIGURE_LOWERED;
+}
+
+/* Trying an item on, as the equipment screen and the shop do with the item
+ * on the cursor: it goes into the slot the screen has open in the member's
+ * status record, and is the item the screen then describes
+ * (menu_item_operand). Then the member's figures are worked out with it, and
+ * each figure the screen's window shows is marked by how the item moves it
+ * (menu_figure_marks, in the window's order): the equipment screen's nine,
+ * or the shop's seven stats, which the shop's record also takes on. */
+typedef enum { FIGURES_ON_THE_EQUIPMENT_SCREEN, FIGURES_IN_THE_SHOP } MenuFiguresWindow;
+void menu_try_on(GameState *g, uint8_t item);
+void menu_mark_the_figures_tried_on(GameState *g, MenuFiguresWindow window);
+
 /* The figures shown, then written back to the member's record and its
  * copy: the figures, the greatest HP, and the HP. */
 void menu_note_member_figures(GameState *g);
@@ -38,6 +58,8 @@ void menu_note_everyones_figures_entry(Snes *s);
 void menu_set_items_aside_entry(Snes *s);
 void menu_put_items_back_entry(Snes *s);
 bool menu_figures_are_workable(Snes *s);
+/* The same with `item` tried on in the record's `place`. */
+bool menu_figures_workable_with(const GameState *g, uint8_t place, uint8_t item);
 bool menu_member_figures_are_notable(Snes *s);
 bool menu_everyones_figures_are_notable(Snes *s);
 

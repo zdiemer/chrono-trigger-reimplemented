@@ -30,6 +30,7 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/cursor.h"
+#include "menu/description.h"
 #include "menu/items.h"
 #include "menu/display.h"
 #include "menu/figures.h"
@@ -432,6 +433,58 @@ ItemChoice menu_equip_choose_item(const GameState *g)
 
 /* The slot's place in the member's record. */
 static uint8_t slot_place(const GameState *g) { return (uint8_t)menu_equip_record_place(g); }
+
+/* After the figures it marks, and a place it leaves unmarked, the window
+ * marks the member's greatest HP. */
+enum { GREATEST_HP_MARK = MENU_EQUIPMENT_FIGURES_SHOWN + 1 };
+enum { FIGURES_WINDOW = 0xBEE2 };
+
+/* What comparing the figures leaves in the menus' first cell: the last
+ * figure the window shows, as the record has it. */
+static void leave_the_last_figure_compared(GameState *g)
+{
+    uint8_t last = menu_equipment_figure_shown(g, MENU_EQUIPMENT_FIGURES_SHOWN - 1);
+    set_menu_scratch_figure_compared(g, menu_status_record_figures_byte(g, last));
+}
+
+// $C2:A5E7
+/* The member's figures worked out again with the item tried on, each marked
+ * by how the item moves it from what the member has now, its greatest HP
+ * too; the figures' window drawn and the front layer queued. */
+static void compare_figures(GameState *g, Platform *pf)
+{
+    menu_mark_the_figures_tried_on(g, FIGURES_ON_THE_EQUIPMENT_SCREEN);
+    set_menu_figure_marks(g, GREATEST_HP_MARK, menu_figure_mark(menu_status_record_hp_cap(g), menu_figures_greatest_hp(g)));
+    ORIGINAL_EFFECT(leave_the_last_figure_compared(g));
+    menu_draw_windows(g, pf, FIGURES_WINDOW);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
+}
+
+static uint8_t list_place_on_the_cursor(const GameState *g)
+{
+    return (uint8_t)(menu_equip_list_top(g) + menu_equip_list_row(g));
+}
+
+static uint8_t item_on_the_cursor(const GameState *g) { return menu_list_items(g, list_place_on_the_cursor(g)); }
+
+/* The original marks the figures from the menus' zero cell's place in its
+ * table of them, which the menus keep at 0. */
+bool menu_equip_can_try_on(const GameState *g)
+{
+    return menu_zero(g) == 0 && list_place_on_the_cursor(g) < MENU_LIST_ITEMS_COUNT
+           && menu_figures_workable_with(g, slot_place(g), item_on_the_cursor(g));
+}
+
+// $C2:A5C3
+/* The list's item on the cursor tried on in the slot: the member's figures
+ * compared with it, and the item described. */
+void menu_equip_try_on(GameState *g, Platform *pf)
+{
+    uint8_t item = item_on_the_cursor(g);
+    menu_try_on(g, item);
+    compare_figures(g, pf);
+    TIMED_AS(g, 0xC2F2F3, menu_describe_item(g, item));
+}
 
 /* For the original's code and shadow mode: the item and how many the
  * inventory's routines are handed in the menus' cells. */

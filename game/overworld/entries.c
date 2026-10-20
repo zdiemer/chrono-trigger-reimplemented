@@ -173,6 +173,40 @@ void overworld_black_omen_watch_entry(Snes *s)
     handler_goes_on(s);
 }
 
+/* ---- The dactyls ---------------------------------------------------------------------------- */
+
+// $C2:4CC5
+void overworld_dactyl_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    overworld_fly_the_dactyl(g, menu_object_running(g));
+    handler_goes_on(s);
+}
+
+// $C2:504B
+void overworld_dactyl_second_sprite_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    overworld_draw_the_dactyl_s_second_sprite(g, menu_object_running(g));
+    handler_goes_on(s);
+}
+
+// $C2:5097
+void overworld_following_dactyl_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    overworld_fly_a_following_dactyl(g, menu_object_running(g));
+    handler_goes_on(s);
+}
+
+// $C2:5494
+void overworld_following_dactyl_second_sprite_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    overworld_draw_a_following_dactyl_s_second_sprite(g, menu_object_running(g));
+    handler_goes_on(s);
+}
+
 /* The test's operands are in the mode's cells: the two spots, and long
  * pointers to their reaches' records. It answers in the carry, which its
  * callers branch on; and it leaves the accumulator 16 bits wide, which
@@ -435,17 +469,17 @@ static bool on_a_world_map(const GameState *g)
     return (uint16_t)(location_id(g) - FIRST_WORLD_MAP) < WORLD_MAPS;
 }
 
-/* In the air the map scrolls with the Epoch at its pace, whole pixels: two a
+/* In the air the map scrolls with a vehicle at its pace, whole pixels: two a
  * frame at most, across or down. */
-static bool the_map_can_follow_the_epoch(const GameState *g, MenuObject epoch, EpochStep step)
+static bool the_map_can_follow_the_vehicle(const GameState *g, MenuObject vehicle, bool flies_a_tile)
 {
     enum { FASTEST = 2 };
     unsigned records = 2 * menu_map_scroll_records(MENU_ACROSS, FASTEST) + 2 * menu_map_scroll_records(MENU_DOWN, FASTEST);
     if (!menu_map_can_scroll(g, 1, records) || !menu_map_can_scroll(g, 2, records))
         return false;
-    if (step != EPOCH_FLIES_A_TILE)
+    if (!flies_a_tile)
         return true;
-    MenuPlace v = menu_object_velocity(g, epoch);
+    MenuPlace v = menu_object_velocity(g, vehicle);
     int16_t across = (int16_t)menu_pixel(v.x), down = (int16_t)menu_pixel(v.y);
     return (uint16_t)v.x == 0 && (uint16_t)v.y == 0 && across >= -FASTEST && across <= FASTEST && down >= -FASTEST
            && down <= FASTEST;
@@ -462,7 +496,7 @@ bool overworld_epoch_runs(Snes *s)
     bool ok = step < EPOCH_STEPS && on_a_world_map(g) && menu_object_slots_facing(g, self) < 4
               && epoch_animates(g, self, step == EPOCH_SETS_DOWN || step == EPOCH_RUNS_A_SCENE);
     if (ok && (step == EPOCH_FLIES || step == EPOCH_FLIES_A_TILE))
-        ok = the_map_can_follow_the_epoch(g, self, step);
+        ok = the_map_can_follow_the_vehicle(g, self, step == EPOCH_FLIES_A_TILE);
     if (ok && step == EPOCH_RUNS_A_SCENE)
         ok = menu_object_script_can_run(g, menu_object_slots_script(g, self));
     vars_peek(false);
@@ -477,8 +511,104 @@ bool overworld_epoch_second_sprite_runs(Snes *s)
     vars_peek(true);
     const GameState *g = state_of(s);
     bool ok = overworld_step(g, self) < 2 && epoch_animates(g, self, overworld_step(g, self) == 0)
-              && menu_given_sprite_script_is_well_formed(g, EPOCH_SECOND_SPRITE_STANDING)
-              && menu_given_sprite_script_is_well_formed(g, EPOCH_SECOND_SPRITE_IN_FLIGHT);
+              && menu_given_sprite_script_is_well_formed(g, VEHICLE_SECOND_SPRITE_STANDING)
+              && menu_given_sprite_script_is_well_formed(g, VEHICLE_SECOND_SPRITE_IN_FLIGHT);
+    vars_peek(false);
+    return ok;
+}
+
+/* The dactyls keep to their steps, face one of the four ways, and animate
+ * with sprite scripts the language reads (the one each has too, unless it is
+ * set down and given one first); the leader's has the map follow it where it
+ * flies, and the others are the second's and the third's, kept near their
+ * places in the V (vehicles.h). They read the heading's and the sine's
+ * tables through the data bank, which reaches the ROM's first bank. */
+static bool animations_are_sound(const GameState *g, const uint8_t *animations, unsigned count)
+{
+    for (unsigned i = 0; i < count; i++)
+        if (!menu_given_sprite_script_is_well_formed(g, animations[i]))
+            return false;
+    return true;
+}
+
+static bool dactyl_animates(const GameState *g, MenuObject self, bool given_one_first)
+{
+    static const uint8_t ANIMATIONS[] = { DACTYL_STANDS, DACTYL_TAKES_OFF, SECOND_S_DACTYL_TAKES_OFF,
+                                          THIRD_S_DACTYL_TAKES_OFF, VEHICLE_SECOND_SPRITE_STANDING,
+                                          VEHICLE_SECOND_SPRITE_IN_FLIGHT };
+    if (!menu_sprite_list_is_sound(g) || !menu_object_queue_is_whole(g)
+        || !(given_one_first || menu_sprite_script_is_well_formed(g, self))
+        || !animations_are_sound(g, ANIMATIONS, sizeof ANIMATIONS))
+        return false;
+    for (uint8_t facing = 0; facing < 4; facing++)
+        if (!menu_given_sprite_script_is_well_formed(g, overworld_dactyl_flying_animation(g, facing))
+            || !menu_given_sprite_script_is_well_formed(g, overworld_following_dactyl_flying_animation(g, 0, facing))
+            || !menu_given_sprite_script_is_well_formed(g, overworld_following_dactyl_flying_animation(g, 1, facing)))
+            return false;
+    return true;
+}
+
+static bool a_follower(const GameState *g, MenuObject self)
+{
+    PartyPlace place = (PartyPlace)menu_object_slots_party_place(g, self);
+    return place == PARTY_FIRST_MEMBER || place == PARTY_SECOND_MEMBER;
+}
+
+bool overworld_dactyl_runs(Snes *s)
+{
+    MenuObject self;
+    if (!peek(s, &self))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    DactylStep step = (DactylStep)overworld_step(g, self);
+    bool ok = step < DACTYL_STEPS && menu_object_slots_facing(g, self) < 4
+              && dactyl_animates(g, self, step == DACTYL_SETS_DOWN);
+    if (ok && (step == DACTYL_FLIES || step == DACTYL_FLIES_A_TILE))
+        ok = the_map_can_follow_the_vehicle(g, self, step == DACTYL_FLIES_A_TILE);
+    vars_peek(false);
+    return ok;
+}
+
+bool overworld_dactyl_second_sprite_runs(Snes *s)
+{
+    MenuObject self;
+    if (!peek(s, &self))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = overworld_step(g, self) < DACTYL_SECOND_SPRITE_STEPS && overworld_dactyl_flying(g) <= 1
+              && dactyl_animates(g, self, overworld_step(g, self) == 0);
+    vars_peek(false);
+    return ok;
+}
+
+bool overworld_following_dactyl_runs(Snes *s)
+{
+    MenuObject self;
+    if (!peek(s, &self) || !m_bank_is_zero(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    FollowingDactylStep step = (FollowingDactylStep)overworld_step(g, self);
+    bool ok = step < FOLLOWER_STEPS && a_follower(g, self) && menu_object_slots_facing(g, self) < 4
+              && dactyl_animates(g, self, step == FOLLOWER_SETS_DOWN)
+              && overworld_following_dactyl_keeps_near(g, self);
+    vars_peek(false);
+    return ok;
+}
+
+bool overworld_following_dactyl_second_sprite_runs(Snes *s)
+{
+    MenuObject self;
+    if (!peek(s, &self))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    FollowingSecondSpriteStep step = (FollowingSecondSpriteStep)overworld_step(g, self);
+    bool ok = step < FOLLOWERS_SPRITE_STEPS && a_follower(g, self)
+              && dactyl_animates(g, self, step == FOLLOWERS_SPRITE_SETS_DOWN)
+              && overworld_following_second_sprite_keeps_near(g, self);
     vars_peek(false);
     return ok;
 }

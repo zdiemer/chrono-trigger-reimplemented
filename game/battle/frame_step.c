@@ -8,10 +8,11 @@
  * and while nothing else happens (the battle's step 3, which the main loop
  * asks for) it animates the combatants and the enemies' effects as well.
  *
- * The menu takes its turn every fourth frame (battle_frame_tick_4): the next
- * party member waiting for the menu takes it, then the menu's window is
- * drawn (battle/menu_window.c), the buttons taken (battle/menu_input.c) and
- * the cursors placed. Those are ports of their own that call the original's
+ * The menu takes its turn every fourth frame (battle_frame_tick_4), in the
+ * frame step and in the frame work's wait for the next frame: the next
+ * party member in line for the menu takes it (battle/menu_line.c), then the
+ * menu's window is drawn (battle/menu_window.c), the buttons taken
+ * (battle/menu_input.c) and the cursors placed. Those are ports of their own that call the original's
  * code, so they are run as the original's calls make them (battle_run); so
  * are the combatants' and the enemies' animation steps (battle/animation.c)
  * and the frame work's tail ($CD:0009, battle/frame.c). */
@@ -20,42 +21,9 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/message.h"
+#include "battle/window.h"
 #include "charge.h"
 #include "vars.h"
-
-/* ---- The menu's queue ------------------------------------------------------------------------ */
-
-/* A queue entry's member, or none (negative). */
-enum { NOBODY_WAITING = 0x80, NO_MENU_SLOT = 0x80 };
-
-/* The window is to be built afresh for the member, whichever slot it shows. */
-enum { WINDOW_TO_REBUILD = 0xFE };
-
-// $C1:1B67
-/* The member first in line for the menu takes it: its choice starts clean,
- * its tech list's cursor and scroll as the battle remembers them, it takes
- * the menu slot of its own place, and the window is built afresh; where no
- * slot is current, its slot is. The rest of the line moves up, as the
- * original moves it: the second place takes the third's member, and the
- * fourth too, the third keeping its own. */
-static void next_member_takes_the_menu(GameState *g)
-{
-    uint8_t member = battle_menu_queue(g, 0);
-    if (member & NOBODY_WAITING)
-        return;
-    set_battle_member_choice_extra(g, member, 0);
-    set_battle_tech_cursor(g, member, battle_remembered_tech_row(g, member));
-    set_battle_tech_scroll(g, member, battle_remembered_tech_scroll(g, member));
-    set_battle_menu_slot_members(g, member, member);
-    set_battle_menu_slot_shown(g, WINDOW_TO_REBUILD);
-    set_battle_menu_queue(g, 0, battle_menu_queue(g, 1));
-    set_battle_menu_queue(g, 1, battle_menu_queue(g, 2));
-    set_battle_menu_queue(g, 3, battle_menu_queue(g, 2));
-    set_battle_menu_queue_length(g, (uint8_t)(battle_menu_queue_length(g) - 1));
-    set_battle_menu_member_count(g, (uint8_t)(battle_menu_member_count(g) + 1));
-    if (battle_menu_slot(g) & NO_MENU_SLOT)
-        set_battle_menu_slot(g, member);
-}
 
 /* ---- The menu's turn ------------------------------------------------------------------------- */
 
@@ -71,7 +39,7 @@ static bool take_the_menu_turn(Snes *s, MenuCalls calls)
 {
     GameState *g = state_of(s);
     set_battle_frame_tick_4(g, 0);
-    TIMED_AS(g, 0xC11B67, next_member_takes_the_menu(g));
+    TIMED_AS(g, 0xC11B67, battle_next_member_takes_the_menu(g));
     return battle_run(s, calls.window, 0xC10C2D, battle_draw_menu_window)
            && battle_run(s, calls.buttons, 0xC11153, battle_take_menu_input)
            && battle_run(s, calls.cursors, 0xC117DD, battle_place_menu_cursors);
@@ -115,6 +83,15 @@ void battle_frame_step(Snes *s)
 {
     if (frame_step(s))
         m_rts(s);
+}
+
+// $C1:0012, $C1:10E3
+/* The menu's turn alone, as the frame work's wait for the next frame takes
+ * it (battle/wait.c), by a long call that jumps on to it. */
+void battle_menu_turn_long(Snes *s)
+{
+    if (menu_turn_between_steps(s, (MenuCalls){ 0xC110F0, 0xC110F3, 0xC110F6 }))
+        m_rtl(s);
 }
 
 /* ---- The battle's step 3: a frame of waiting ------------------------------------------------- */
@@ -224,19 +201,13 @@ void battle_wait_step(Snes *s)
     m_rts(s);
 }
 
-void battle_next_member_takes_the_menu_entry(Snes *s)
-{
-    next_member_takes_the_menu(state_of(s));
-    m_rts(s);
-}
-
 /* The guards. The menu's turn finds its member's cells by the whole of A
  * with the queue's first, so the queue's first is a party member or nobody
  * and A's high byte clear, as the game has them, where the turn is due. */
 static bool queue_fits(Snes *s)
 {
     uint8_t member = battle_menu_queue(state_of(s), 0);
-    return (s->cpu.a & 0xFF00) == 0 && ((member & NOBODY_WAITING) || battle_slot_is_party(member));
+    return (s->cpu.a & 0xFF00) == 0 && (menu_nobody(member) || battle_slot_is_party(member));
 }
 
 bool battle_menu_queue_ready(Snes *s)

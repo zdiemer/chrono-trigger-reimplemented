@@ -493,17 +493,6 @@ static void scatter_stars(Snes *s)
     ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, scene_random_last_overflow()));
 }
 
-/* The program's loop over a picture's tiles ($7E:5E3C), Y of them, each
- * expanded into the Mode 7 plane's pixels by the routine the loop calls. */
-enum { EXPAND_TILES = 0x7E5E3C, EXPAND_IGNORES = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C };
-
-static void expand_tiles(Snes *s, uint16_t tiles)
-{
-    s->cpu.y = tiles;
-    /* dc-evidence: ct_fuzz --poison-dc scene_ending_start_mode7_picture, seed 1: 300 states,
-       1200 call-outs scrambled, 0 mismatched */
-    m_jsr_dc(s, 0x7E8C70, EXPAND_TILES, EXPAND_IGNORES);
-}
 
 /* ---- The setup: the ground, the captions, the scripts ------------------------------------------- */
 
@@ -781,11 +770,28 @@ static void start_stars(Snes *s)
     scene_use_loaded_palette(g);
 }
 
-/* The Mode 7 picture: its tiles, expanded into the plane's pixels by the
- * program's loop (made to take $30 bytes a tile, through its other
- * expansion), its name table, and its colors from color 16. */
+/* The Mode 7 picture: its tiles, expanded into the plane's pixels, its name
+ * table, and its colors from color 16. Its tiles are of eight planes, which
+ * the program's loop over tiles ($7E:5E3C) takes once its code is made to
+ * call the eight-plane expansion and to move on from the end of a tile's
+ * first pair of planes (where the expansion leaves it) to the next tile; the
+ * port expands them as C, and makes the code the same, which is the
+ * program's state. */
 enum { PLANE_TILES = 0xCF, PLANE_TILES_VRAM = 0x6000, PLANE_TILES_TO_EXPAND = 0xA4 };
-enum { EXPAND_WIDE_TILE = 0x5EF8, WIDE_TILE_BYTES = 0x30 };
+enum { EXPAND_WIDE_TILE = 0x5EF8, UNPACKED_TILES = 0x0200 };
+
+// $7E:5E3C
+static void expand_the_picture_tiles(GameState *g, Platform *pf)
+{
+    uint16_t tile_bytes = scene_plane_tile_bytes(SCENE_MOST_PLANES);
+    set_scene_plane_tiles_expander(g, EXPAND_WIDE_TILE);
+    set_scene_plane_tiles_stride(g, (uint8_t)(tile_bytes - SCENE_PLANE_PAIR_BYTES));
+    uint16_t tile = UNPACKED_TILES;
+    for (unsigned n = 0; n < PLANE_TILES_TO_EXPAND; n++) {
+        TIMED_AS(g, 0x7E5EF8, scene_expand_plane_tile(g, pf, SCENE_UPPER_WORK_RAM, tile, SCENE_MOST_PLANES));
+        tile = (uint16_t)(tile + tile_bytes);
+    }
+}
 enum { PLANE_MAP = 0xB1, PLANE_MAP_VRAM = 0x4400, PLANE_COLORS = 0x54, PLANE_COLORS_AT = 0x2020 };
 
 // $7E:8C14
@@ -802,9 +808,10 @@ static void start_mode7_picture(Snes *s)
     vid_set_vram_address(pf, PF_AT(0x7E8C4E), PLANE_TILES_VRAM);
     send_unpacked(g, pf);
     vid_set_vram_address(pf, PF_AT(0x7E8C58), 0x0000);
-    set_scene_plane_tiles_expander(g, EXPAND_WIDE_TILE);
-    set_scene_plane_tiles_stride(g, WIDE_TILE_BYTES);
-    expand_tiles(s, PLANE_TILES_TO_EXPAND);
+    expand_the_picture_tiles(g, pf);
+    /* the overflow of the loop's last move on (to $2B00: none), which the
+     * unpacker reads */
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, false));
     unpack(s, 0x7E8C76, PLANE_MAP);
     vid_set_vram_address(pf, PF_AT(0x7E8C7C), PLANE_MAP_VRAM);
     send_unpacked(g, pf);

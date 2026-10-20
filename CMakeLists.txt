@@ -213,6 +213,7 @@ add_library(ct_game STATIC
   game/menu/wave.c
   game/menu/windows.c
   game/overworld/entries.c
+  game/overworld/dactyl.c
   game/overworld/epoch.c
   game/overworld/followers.c
   game/overworld/main_loop.c
@@ -297,6 +298,8 @@ add_library(ct_game STATIC
   game/battle/party_turns.c
   game/battle/menu_window.c
   game/battle/menu_input.c
+  game/battle/menu_line.c
+  game/battle/party_poses.c
   game/battle/action_showing.c
   game/battle/action_animation.c
   game/battle/frame_step.c

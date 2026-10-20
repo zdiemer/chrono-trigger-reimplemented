@@ -907,12 +907,35 @@ bool battle_animation_loading_ready(Snes *s);
 bool battle_attack_animation_ready(Snes *s);
 bool battle_attack_up_close_ready(Snes *s);
 void battle_frame_step(Snes *s);
+void battle_menu_turn_long(Snes *s);
 void battle_wait_step(Snes *s);
 /* $C1:0003: a battle step by its number (battle/steps.c), and its guard. */
 void battle_run_a_step(Snes *s);
 bool battle_step_is_known(Snes *s);
 void battle_next_member_takes_the_menu_entry(Snes *s);
 bool battle_menu_queue_ready(Snes *s);
+/* The battle's steps 1 and 2 (battle/menu_line.c): a member's turn comes and
+ * it joins the line for the menu; a member's action is called off. */
+void battle_turn_comes_step(Snes *s);
+/* The party's poses (battle/party_poses.c): as a whole, a frame's step,
+ * and the battle's steps 8 and 9, the victory and the defeat, that end in
+ * them; the poses from a routine that goes on into them. */
+void battle_strike_the_poses_entry(Snes *s);
+void battle_step_the_poses_entry(Snes *s);
+void battle_victory_step(Snes *s);
+void battle_defeat_step(Snes *s);
+bool battle_poses_ready(Snes *s);
+bool battle_poses_step_ready(Snes *s);
+bool battle_victory_ready(Snes *s);
+bool battle_strike_the_poses(Snes *s);
+bool battle_strike_the_poses_as_their_own(Snes *s);
+/* The poses the party strikes: the opening's and the victory's by each
+ * member taking part in the fight, the defeat's by all three. */
+typedef enum { PARTY_POSE_OPENING, PARTY_POSE_VICTORY, PARTY_POSE_DEFEAT } PartyPose;
+void battle_give_the_party_poses(GameState *g, PartyPose pose);
+void battle_called_off_step(Snes *s);
+bool battle_turn_comes_ready(Snes *s);
+bool battle_called_off_ready(Snes *s);
 bool battle_frame_step_ready(Snes *s);
 
 /* battle/pose_looks.c: what a pose shows, and the poses' round */

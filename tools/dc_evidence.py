@@ -46,7 +46,7 @@ from tools.suite import collect  # noqa: E402
 
 STACK_PAGE = "$7E:0600-06FF"
 POISON = re.compile(r"^poison-site: ([0-9A-F]{6}) calls (\d+), V inverted (\d+)$", re.M)
-RETURNS = re.compile(r"^poison-return: ([0-9A-F]{6}) returns (\d+), C inverted (\d+)$", re.M)
+RETURNS = re.compile(r"^poison-return: ([0-9A-F]{6}) returns (\d+) \((\d+) to a bridge\), C inverted (\d+)$", re.M)
 INDEX = re.compile(r"^index-check: ([0-9A-F]{6}) runs (\d+), largest X \$([0-9A-F]{4}), past \$FE (\d+)$", re.M)
 
 
@@ -64,11 +64,12 @@ def notes(root: pathlib.Path) -> list:
 
 
 def return_notes(root: pathlib.Path) -> list:
-    """(entry, cited returns with C inverted) of every ct_dev --poison-return
-    note in game/registry.c."""
+    """(entry, cited returns with C inverted, cited returns to a bridge) of
+    every ct_dev --poison-return note in game/registry.c."""
     text = (root / "game/registry.c").read_text(encoding="utf-8")
     flat = " ".join(re.sub(r"/\*|\*/|//|^\s*\*|\s\*\s", " ", text, flags=re.M).split())
-    return [(int(m.group("entry"), 16), int(m.group("inverted"))) for m in RETURN_EVIDENCE.finditer(flat)]
+    return [(int(m.group("entry"), 16), int(m.group("inverted")), int(m.group("bridged") or 0))
+            for m in RETURN_EVIDENCE.finditer(flat)]
 
 
 def index_sites(root: pathlib.Path) -> list:
@@ -108,7 +109,7 @@ def run_movie(binary, rom, out, movie, sites, dispatches, entries):
     for t in traces.values():
         t.unlink(missing_ok=True)
     poisoned = {int(s, 16): int(v) for s, _, v in POISON.findall(logs["poisoned"])}
-    poisoned_returns = {int(e, 16): int(v) for e, _, v in RETURNS.findall(logs.get("returns", ""))}
+    poisoned_returns = {int(e, 16): (int(v), int(b)) for e, _, b, v in RETURNS.findall(logs.get("returns", ""))}
     index = {int(d, 16): (int(r), int(x, 16), int(o)) for d, r, x, o in INDEX.findall(logs["index"])}
     return name, failed, same, tail, poisoned, index, poisoned_returns
 
@@ -127,8 +128,9 @@ def main(argv=None) -> int:
     if not found and not returned:
         print("no tools/v_readers.py or ct_dev --poison-return dc-evidence notes in game/")
         return 0
-    entries = sorted({e for e, _ in returned})
+    entries = sorted({e for e, _, _ in returned})
     inverted_returns = {e: 0 for e in entries}
+    bridged_returns = {e: 0 for e in entries}
     sites = sorted({s for _, _, counts, _ in found for s in counts})
     dispatches = index_sites(ROOT)
     out = args.out or pathlib.Path(tempfile.mkdtemp(prefix="dc_evidence-"))
@@ -142,8 +144,9 @@ def main(argv=None) -> int:
     with cf.ThreadPoolExecutor(max(1, args.jobs)) as ex:
         for name, failed, same, tail, poisoned, idx, poisoned_returns in ex.map(
                 lambda m: run_movie(binary, args.rom, out, m, sites, dispatches, entries), movies):
-            for e, v in poisoned_returns.items():
+            for e, (v, b) in poisoned_returns.items():
                 inverted_returns[e] = inverted_returns.get(e, 0) + v
+                bridged_returns[e] = bridged_returns.get(e, 0) + b
             for s, v in poisoned.items():
                 inverted[s] = inverted.get(s, 0) + v
             for d, (runs, largest, over) in idx.items():
@@ -167,12 +170,13 @@ def main(argv=None) -> int:
         print(f"{path}: {target}: " + ", ".join(f"{s:06X} cites {counts[s]}, made {made[s]}" for s in counts)
               + ("" if ok else f"  <-- under {MIN_SCRAMBLED} at " + ", ".join(f"{s:06X}" for s in short)
                  + ("" if static else " (and the note doesn't rest them on the static result)")))
-    for e, cited in returned:
+    for e, cited, cited_bridged in returned:
         made = inverted_returns.get(e, 0)
+        bridged = bridged_returns.get(e, 0)
         ok = made >= MIN_SCRAMBLED
         bad += not ok and not args.movies
-        print(f"game/registry.c: {e:06X} returns with C inverted: cites {cited}, made {made}"
-              + ("" if ok else f"  <-- under {MIN_SCRAMBLED}"))
+        print(f"game/registry.c: {e:06X} returns with C inverted: cites {cited} ({cited_bridged} to a bridge), "
+              f"made {made} ({bridged} to a bridge)" + ("" if ok else f"  <-- under {MIN_SCRAMBLED}"))
     if not args.out:
         shutil.rmtree(out, ignore_errors=True)
     print("dc_evidence: " + ("OK" if not bad else f"{bad} problem(s)"))

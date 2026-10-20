@@ -120,9 +120,14 @@ HitAmounts effect_hit_amounts(GameState *g, const EffectRecord *e);
 void effect_apply_hit(GameState *g, Platform *pf, HitAmounts hit);
 
 /* $C1:E63B: a hit wakes the target and brings it to its senses, and its turn
- * wait starts again. $C1:BD6F: a combatant's turn wait as it starts again. */
+ * wait starts again. */
 void effect_wake_target(GameState *g);
-void battle_adjust_turn_wait(GameState *g, uint8_t slot);
+
+/* $C1:BD6F: a combatant's turn wait starts again from its full wait
+ * (battle_turn_wait): halved while it is hasted, doubled (to 255 at most)
+ * while slowed, at least 1, and a party member's gauge measures it. Returns
+ * the wait it starts from. */
+uint8_t battle_restart_turn_wait(GameState *g, uint8_t slot);
 
 /* ---- Statuses (battle/effect_statuses.c) -------------------------------------------------- */
 

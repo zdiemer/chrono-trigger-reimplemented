@@ -129,6 +129,12 @@ typedef enum { MENU_ACROSS, MENU_DOWN } MenuAxis;
 /* Turn the object's velocity round across or down. */
 void menu_object_turn_round(GameState *g, MenuObject o, MenuAxis axis);
 
+/* The sine and cosine the objects move by: of an angle of MENU_OBJECT_TURN
+ * steps a turn, from -128 to 128. */
+enum { MENU_OBJECT_TURN = 0x100 };
+int16_t menu_object_sine(const GameState *g, uint8_t angle);
+int16_t menu_object_cosine(const GameState *g, uint8_t angle);
+
 /* Move the object by its velocity (a frame's move). */
 void menu_object_move(GameState *g, MenuObject o);
 

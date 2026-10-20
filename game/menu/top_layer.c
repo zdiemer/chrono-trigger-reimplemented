@@ -1,9 +1,10 @@
 /* The layer over the world maps: how their scenes move it.
  *
  * The sprite-object mode shows a world map in its first two planes and a
- * layer over them (BG3). The scenes of three of the world maps start an
+ * layer over them (BG3). The scenes of four of the world maps start an
  * object that moves the layer every frame -- a slow drift, a drift by a
- * velocity of its own, or a drift with a wave down its lines -- and each
+ * velocity of its own (one of them fast, over the 12,000 B.C. map), or a
+ * drift with a wave down its lines -- and each
  * takes in the scroll the menu code has left pending (the map's own
  * scrolling moves the layer with it; menu/object_script.c). The wave's
  * values sit in a circular buffer, so the drift moves the wave's start round
@@ -62,20 +63,21 @@ static bool slow_drift(GameState *g, MenuObject o)
     return true;
 }
 
-/* The drift's velocity, 16.16 a frame: a little under four pixels left and
- * two down. */
-enum { DRIFT_ACROSS = 0xFFFC8931u, DRIFT_DOWN = 0x00020000u };
+/* The drifts' velocities, 16.16 a frame: a little under four pixels left
+ * and two down; and the fast one, a little over seventeen left and ten up. */
+static const MenuPlace DRIFT = { 0xFFFC8931u, 0x00020000u };
+static const MenuPlace FAST_DRIFT = { 0xFFEEADF4u, 0xFFF60000u };
 
-// $C2:7702
+// $C2:7702, $C2:77F2
 /* A drift by a velocity: the object carries the layer's place, its fraction
  * of a pixel kept from frame to frame. */
-static bool drift(GameState *g, MenuObject o)
+static bool drift(GameState *g, MenuObject o, MenuPlace velocity)
 {
     if (held(g))
         return false;
     if (menu_object_slots_step(g, o) == 0) {
         set_menu_object_slots_step(g, o, 1);
-        menu_object_set_velocity(g, o, (MenuPlace){ DRIFT_ACROSS, DRIFT_DOWN });
+        menu_object_set_velocity(g, o, velocity);
     }
     set_menu_object_slots_x_pixel(g, o, menu_object_shadows_bg3_scroll_x(g));
     set_menu_object_slots_y_pixel(g, o, menu_object_shadows_bg3_scroll_y(g));
@@ -217,7 +219,14 @@ void menu_top_layer_slow_drift(Snes *s)
 void menu_top_layer_drift(Snes *s)
 {
     GameState *g = state_of(s);
-    goes_on(s, drift(g, menu_object_running(g)));
+    goes_on(s, drift(g, menu_object_running(g), DRIFT));
+}
+
+// $C2:77F2
+void menu_top_layer_fast_drift(Snes *s)
+{
+    GameState *g = state_of(s);
+    goes_on(s, drift(g, menu_object_running(g), FAST_DRIFT));
 }
 
 // $C2:75FD

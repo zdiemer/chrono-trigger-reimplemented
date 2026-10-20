@@ -186,9 +186,7 @@ static void member_waits_after_tech(GameState *g, uint8_t tech, unsigned part)
         forget_choice(g, slot);
     }
     set_battle_member_ready(g, slot, 0);
-    set_battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot, battle_turn_wait(g, slot));
-    battle_adjust_turn_wait(g, slot);
-    uint8_t wait = battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot);
+    uint8_t wait = battle_restart_turn_wait(g, slot);
     bool ran_past = true;
     if (wait != MOST_WAIT) {
         uint16_t product = effect_times(g, tech_wait_tenths(g, tech, part), wait);
@@ -254,8 +252,7 @@ static void end_turn(GameState *g)
 static void member_turn_ends(GameState *g)
 {
     uint8_t member = battle_actor(g);
-    set_battle_timer_counts_byte(g, BATTLE_TIMER_TURN, member, battle_turn_wait(g, member));
-    battle_adjust_turn_wait(g, member);
+    (void)battle_restart_turn_wait(g, member);
     if (battle_timer_running(g, BATTLE_TIMER_TURN, member))
         battle_restart_timer(g, BATTLE_TIMER_TURN, member);
     end_turn(g);

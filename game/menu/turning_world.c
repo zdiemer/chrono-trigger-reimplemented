@@ -8,7 +8,9 @@
  *
  * - **draw the world** ($C6:E7FA): the map as a Mode 7 picture
  *   (menu/map_picture.h), both its planes, the second over the first, built
- *   whole in bank $7F and sent to the plane's tiles from tile 1;
+ *   whole in bank $7F and sent to the plane's tiles from tile 1; before it the
+ *   script has each map tile's colour sampled, and after it the picture laid
+ *   out on the plane, both as the Epoch's map view does them (menu/epoch.c);
  * - **start the world turning** ($C6:E90F): the Mode 7 matrix put on four
  *   line-effect slots, one a value (a, b, c and d on slots 2-5), each reading
  *   a table of a value a line, so the matrix can change down the screen; the

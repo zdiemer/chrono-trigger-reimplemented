@@ -537,6 +537,34 @@ static inline uint8_t menu_world_tilt_step(const GameState *g, uint16_t tilt) { 
  * objects, through the data bank. */
 static inline int8_t menu_sine_step(const GameState *g, uint8_t angle) { return (int8_t)rom_read8(g, 0xC0F800u + angle); }
 
+/* The figures a window of the member equipping shows, in the order it lists
+ * them, each by where it is among the figures of the member's status record
+ * (menu_status_record_figures, which starts MENU_RECORD_FIGURES_PLACE into
+ * the record): the equipment screen's nine ($C2:A642: the attack and the
+ * defence, then the seven stats) and the shop's seven ($C2:E1DC: the stats
+ * alone, in the same order). */
+enum { MENU_RECORD_FIGURES_PLACE = 0x36, MENU_EQUIPMENT_FIGURES_SHOWN = 9, MENU_SHOP_FIGURES_SHOWN = 7 };
+static inline uint8_t menu_equipment_figure_shown(const GameState *g, unsigned i)
+{
+    return (uint8_t)(rom_read8(g, 0xC2A642u + i) - MENU_RECORD_FIGURES_PLACE);
+}
+static inline uint8_t menu_shop_figure_shown(const GameState *g, unsigned i)
+{
+    return (uint8_t)(rom_read8(g, 0xC2E1DCu + i) - MENU_RECORD_FIGURES_PLACE);
+}
+
+/* Beside it, an arctangent ($C0:F300): the angle, in the same 256 steps a
+ * turn, from 0 along the axis across to 64 along the axis down, at which a
+ * point lies `down` and `across` from the start, both in steps of 4 pixels
+ * and fewer than 32; a row of 32 for each step down. And the way an angle
+ * faces ($C0:F700, a byte an angle: field/object.h's Facing). */
+enum { MENU_ARCTANGENT_STEP = 4, MENU_ARCTANGENT_STEPS = 32 };
+static inline uint8_t menu_arctangent(const GameState *g, unsigned down, unsigned across)
+{
+    return rom_read8(g, 0xC0F300u + down * MENU_ARCTANGENT_STEPS + across);
+}
+static inline uint8_t menu_facing_of_angle(const GameState *g, uint8_t angle) { return rom_read8(g, 0xC0F700u + angle); }
+
 /* The menus' random bytes ($C0:FE00, 256 of them), which the sprite-object
  * mode's scenes take in turn; the healing draws six from a frame's place,
  * the last few reading on past the table. */

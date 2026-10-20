@@ -290,28 +290,21 @@ void effect_drain(GameState *g, Drain what, uint8_t share)
 /* ---- Waking the target --------------------------------------------------------------------- */
 
 // $C1:BD6F
-/* A combatant's turn wait as it starts again: halved while hasted, doubled
- * (to 255 at most) while slowed, at least 1; a party member's gauge measures
- * it. */
-void battle_adjust_turn_wait(GameState *g, uint8_t slot)
+uint8_t battle_restart_turn_wait(GameState *g, uint8_t slot)
 {
-    uint8_t wait = battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot);
-    if ((combatant_stat_byte(g, slot, STAT_STATUS_3) | combatant_stat_byte(g, slot, STAT_KEPT_STATUS_3)) & STATUS3_HASTE) {
+    uint8_t wait = battle_turn_wait(g, slot);
+    if ((combatant_stat_byte(g, slot, STAT_STATUS_3) | combatant_stat_byte(g, slot, STAT_KEPT_STATUS_3)) & STATUS3_HASTE)
         wait >>= 1;
-        set_battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot, wait);
-    }
-    if (combatant_stat_byte(g, slot, STAT_STATUS_1) & STATUS_SLOW) {
+    if (combatant_stat_byte(g, slot, STAT_STATUS_1) & STATUS_SLOW)
         wait = wait & 0x80 ? 0xFF : (uint8_t)(wait << 1);
-        set_battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot, wait);
-    }
-    if (wait == 0) {
+    if (wait == 0)
         wait = 1;
-        set_battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot, wait);
-    }
+    set_battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot, wait);
     if (slot < BATTLE_PARTY_SIZE) {
         set_battle_gauge_wait(g, slot, wait);
         set_battle_gauge_wait_full(g, slot, wait);
     }
+    return wait;
 }
 
 // $C1:E63B
@@ -323,8 +316,7 @@ void effect_wake_target(GameState *g)
     set_effect_target_stat(g, STAT_STATUS_1, statuses & (uint8_t)~STATUSES_A_HIT_ENDS);
     uint8_t slot = effect_target(g);
     battle_restart_timer(g, BATTLE_TIMER_TURN, slot);
-    set_battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot, battle_turn_wait(g, slot));
-    battle_adjust_turn_wait(g, slot);
+    (void)battle_restart_turn_wait(g, slot);
 }
 
 /* ---- A hit's tests of landing --------------------------------------------------------------- */

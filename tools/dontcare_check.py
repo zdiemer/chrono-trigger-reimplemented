@@ -82,12 +82,15 @@ An entry's own set after it returns can carry a note too, for the carry alone,
 in the comment block just above the entry in game/registry.c:
 
     /* dc-evidence: ct_dev --poison-return BBAAAA --poison-set C over the library:
-     * N returns, C inverted M; 0 differing */
+     * N returns (B to a bridge), C inverted M; 0 differing */
 
 where liveness has the carry read past the entry's return to a reader whose
 result nothing acts on: the run inverted it there in the shipping mode, M at
 least MIN_SCRAMBLED times, and no trace differed (tools/dc_evidence.py makes it
-again).
+again). B, which a note may leave out where it is 0, counts the returns to a
+bridge that ran the entry as C in place of a call (a sibling's,
+native_poison_sibling_return): a bridge may set the registers again at once,
+so those test less than a return to the original's code.
 
 The declarations are read from the source, not run: their arguments must be
 constants, or built from the parameters of the function they are in (every
@@ -205,7 +208,8 @@ V_EVIDENCE = re.compile(
 # comment block just above the entry in game/registry.c.
 RETURN_EVIDENCE = re.compile(
     r"dc-evidence:\s*ct_dev\s+--poison-return\s+(?P<entry>[0-9A-Fa-f]{6})\s+--poison-set\s+(?P<set>[AXYNVZC]+)"
-    r"\s+over\s+the\s+library:\s*(?P<returns>\d+)\s+returns,\s*C\s+inverted\s+(?P<inverted>\d+);"
+    r"\s+over\s+the\s+library:\s*(?P<returns>\d+)\s+returns(?:\s*\((?P<bridged>\d+)\s+to\s+a\s+bridge\))?,"
+    r"\s*C\s+inverted\s+(?P<inverted>\d+);"
     r"\s*(?P<differing>\d+)\s+differing")
 
 

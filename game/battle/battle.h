@@ -95,6 +95,7 @@ enum { BATTLE_STAT_BLOCK_BYTES = 0x80 };
 /* How the battle was set up (battle_setup_flags; the vblank keeps a copy,
  * battle_setup_flags_copy). */
 enum {
+    BATTLE_SETUP_NO_VICTORY_POSE = 0x01, /* the party strikes no pose as it wins */
     BATTLE_SETUP_PARTY_OFF_GRID = 0x04, /* the party stands off the battlefield's grid */
     BATTLE_SETUP_DEMO = 0x20,           /* a demo battle: the party acts at once, and any button ends it */
     BATTLE_SETUP_NO_RUNNING = 0x80,     /* L and R held don't run away */
