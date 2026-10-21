@@ -2,16 +2,21 @@
  * frame.
  *
  * Every scene starts from the same screen: blank, the sprite graphics at VRAM
- * $4000, every layer, window and effect off (init_video). Its vblank tasks
- * then send each frame's sprites and palette (upload_sprites, upload_palette),
- * and hide every sprite in the table for the scene to place again
- * (clear_sprite_table). Its loaders move graphics into VRAM with a transfer of
- * their own (transfer), and a scene with per-line effects programs them from a
+ * $4000, every layer, window and effect off (init_video), its work RAM
+ * cleared. Its vblank tasks then send each frame's sprites and palette
+ * (upload_sprites, upload_palette), and hide every sprite in the table for
+ * the scene to place again (clear_sprite_table); its frame tasks animate the
+ * palettes and fade the screen and the music. Its loaders move graphics into
+ * VRAM with transfers of their own -- of what the unpacker made, in the way
+ * the setup chooses (transfer), and of a buffer given in the call cells
+ * (scene_send_from) -- copy resources as they are and make the loaded palette
+ * the current one, and a scene with per-line effects programs them from a
  * table of descriptors (setup_line_effects).
  *
- * Two of these clear memory by copying the product the Mode 7 multiplier
- * offers, 0 or $E0, out of the PPU: a transfer that reads a register rather
- * than writing one, which no video call expresses, so it goes through the
+ * The work RAM's clear, the sprite table's and the setups' clears of their
+ * buffers (scene_clear_buffer) copy the product the Mode 7 multiplier offers,
+ * 0 or $E0, out of the PPU: a transfer that reads a register rather than
+ * writing one, which no video call expresses, so it goes through the
  * SNES-only escape (vid_snes_copy); the matrix values they leave behind are
  * the video state.
  *
@@ -251,13 +256,15 @@ void scene_upload_palette(Snes *s)
 /* The task reads the multiplier's operands into its first scratch word before
  * the animations, which multiply, and writes them back after. The registers
  * can't be read: both bytes read back as the bus last had them, the read's own
- * address's high byte, and the write multiplies them. Scaffolding: the
- * multiplier and the cell left as the original leaves them. */
+ * address's high byte, and the write multiplies them. The word stays where
+ * the Epoch's dive's random draws stir it in after it; the multiplier left as
+ * the original leaves it is scaffolding. */
 enum { MULTIPLIER_READ_BACK = 0x4242 };
+
+static void keep_the_multiplier_s_word(GameState *g, uint16_t kept) { scene_leave_for_the_draws(g, kept, TM_ENTROPY_WORDS); }
 
 static void put_the_multiplier_back(GameState *g, uint16_t kept)
 {
-    set_scene_call_first(g, scene_program_own(), kept);
     hw_set_multiplicand(g, (uint8_t)kept);
     (void)hw_multiply_by(g, (uint8_t)(kept >> 8));
 }
@@ -269,6 +276,7 @@ static TaskEnd animate_the_palettes_task(GameState *g, Platform *pf)
 {
     (void)pf;
     TIMED_AS(g, 0xFDFFF7, palette_animate_a_frame(g));
+    keep_the_multiplier_s_word(g, MULTIPLIER_READ_BACK);
     ORIGINAL_EFFECT(put_the_multiplier_back(g, MULTIPLIER_READ_BACK));
     return task_goes_on();
 }
@@ -283,14 +291,20 @@ static TaskLeftovers animate_the_palettes_leaves(const GameState *g, TaskEnd end
                             .overflow_clear = true };
 }
 
-/* The Epoch's dive into Lavos (scene mode 6, still the program's own code;
- * docs/TODO.md) has its sequence run a frame of the
- * animations itself, from a channel's page with the data bank on work RAM's,
- * where the word the routine keeps aside is two bytes of the program's own
- * code, put back as they were; the copy stays in the channel's call cell. */
+/* The Epoch's dive into Lavos (scene/epoch_dive.c) has its sequence run a
+ * frame of the animations itself as it starts a fade, from a channel's page
+ * with the data bank on work RAM's, where the word the routine keeps aside is
+ * two bytes of the program's own code, put back as they were; the copy stays
+ * in the channel's call cell. */
 static void keep_the_code_under_the_multiplier(GameState *g, SceneChannel ch)
 {
     set_scene_call_first(g, scene_program_channel(ch), scene_code_under_the_multiplier(g));
+}
+
+void scene_animate_the_palettes_for(GameState *g, SceneChannel ch)
+{
+    TIMED_AS(g, 0xFDFFF7, palette_animate_a_frame(g));
+    ORIGINAL_EFFECT(keep_the_code_under_the_multiplier(g, ch));
 }
 
 /* As a frame task, or called by a channel's sequence (above). */
@@ -301,9 +315,7 @@ void scene_animate_the_palettes(Snes *s)
         scene_task_alone(s, &scene_screen_tasks[ROW_ANIMATE_PALETTES]);
         return;
     }
-    GameState *g = state_of(s);
-    TIMED_AS(g, 0xFDFFF7, palette_animate_a_frame(g));
-    ORIGINAL_EFFECT(keep_the_code_under_the_multiplier(g, ch));
+    scene_animate_the_palettes_for(state_of(s), ch);
     scene_leave_task_registers(s, &scene_screen_tasks[ROW_ANIMATE_PALETTES], task_goes_on());
     m_rts(s);
 }
@@ -492,6 +504,51 @@ void scene_send_unpacked_as(const GameState *g, Platform *pf, uint8_t mode, uint
     vid_snes_copy(pf, PF_AT(0x7E38EA), &t);
 }
 
+// $7E:38C3
+/* The program's other transfer: `bytes` from `source` into a register, in
+ * the mode given, with its channel programmed from the scene's call cells,
+ * which keep it (the program's multiply carries in the byte after its
+ * product, which the count lies in). */
+static void keep_the_transfer_in_the_call(GameState *g, uint8_t mode, uint8_t port_register, uint32_t source, uint16_t bytes)
+{
+    SceneProgramPage scene = scene_program_own();
+    set_scene_call_transfer_control(g, scene, mode);
+    set_scene_call_transfer_register(g, scene, port_register);
+    set_scene_call_transfer_source(g, scene, (uint16_t)source);
+    set_scene_call_transfer_source_bank(g, scene, (uint8_t)(source >> 16));
+    set_scene_call_transfer_bytes(g, scene, bytes);
+}
+
+void scene_send_from(GameState *g, Platform *pf, uint8_t mode, uint8_t port_register, uint32_t source, uint16_t bytes)
+{
+    keep_the_transfer_in_the_call(g, mode, port_register, source, bytes);
+    const VidSnesTransfer t = { .dest = port_register, .source = source, .size = bytes, .mode_from_data = true, .mode = mode };
+    vid_snes_copy(pf, PF_AT(0x7E38E3), &t);
+}
+
+/* Clear a buffer by copying the Mode 7 multiplier's product (0 here) out of
+ * the PPU, the way scene_clear_work_ram does: a transfer that reads a register
+ * rather than writing one, which goes through the SNES-only escape. */
+void scene_clear_buffer(Platform *pf, uint32_t buffer, uint16_t bytes, uint32_t site)
+{
+    const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = buffer, .size = bytes };
+    vid_snes_copy(pf, PF_AT(site), &t);
+}
+
+const SceneTransfer scene_pixels_into_high_bytes = { SCENE_TRANSFER_BYTES, VID_SNES_VRAM_DATA_HIGH };
+const SceneTransfer scene_whole_words = { SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW };
+
+void scene_choose_transfer(GameState *g, SceneTransfer t)
+{
+    set_scene_call_transfer_control(g, scene_program_own(), t.mode);
+    set_scene_call_transfer_register(g, scene_program_own(), t.vram_register);
+}
+
+void scene_send_unpacked_by(GameState *g, Platform *pf, SceneTransfer t)
+{
+    TIMED_AS(g, 0x7E38E7, scene_send_unpacked_as(g, pf, t.mode, t.vram_register));
+}
+
 void scene_send_unpacked(const GameState *g, Platform *pf)
 {
     SceneProgramPage scene = scene_program_own();
@@ -567,6 +624,26 @@ void scene_use_loaded_palette(GameState *g)
     wram_copy(g, LOADED_PALETTE, WORKING_PALETTE, PALETTE_BYTES);
     ORIGINAL_EFFECT(charge_block_move(g, PALETTE_BYTES));
 }
+
+/* As the program's code calls it, with 16-bit index registers: back with
+ * 8-bit A, and A, X and Y as the block move and its count's step on leave
+ * them, past the palettes. */
+static void leave_the_palette_copied(Snes *s)
+{
+    s->cpu.a = 0;
+    s->cpu.x = (uint16_t)(LOADED_PALETTE + PALETTE_BYTES);
+    s->cpu.y = (uint16_t)(WORKING_PALETTE + PALETTE_BYTES);
+}
+
+void scene_use_loaded_palette_entry(Snes *s)
+{
+    scene_use_loaded_palette(state_of(s));
+    ORIGINAL_EFFECT(leave_the_palette_copied(s));
+    s->cpu.p |= CPU_FLAG_M;
+    m_rts(s);
+}
+
+bool scene_use_loaded_palette_present(Snes *s) { return m_code_matches(s, 0x7E38AF, 0x14, 0xD31DAC893D4743DCull); }
 
 /* ---- Per-line effects from descriptors --------------------------------------------------- */
 

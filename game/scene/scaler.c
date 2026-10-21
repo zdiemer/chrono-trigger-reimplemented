@@ -47,6 +47,24 @@ static uint32_t in_scaler_bank(uint16_t at, uint16_t offset)
     return ((uint32_t)SCENE_UPPER_WORK_RAM << 16 | at) + offset;
 }
 
+/* ---- A bitmap handed over ------------------------------------------------------------------------- */
+
+/* The scaler draws every bitmap from the start of its output. */
+enum { OUTPUT_START = 0x0200 };
+
+void scene_scaler_start(GameState *g, SceneScaling bitmap)
+{
+    set_scene_scaler_source_base(g, bitmap.source);
+    set_scene_scaler_rows_left(g, bitmap.rows);
+    set_scene_scaler_pairs(g, bitmap.pairs);
+    set_scene_scaler_row_step(g, bitmap.row_step);
+    set_scene_scaler_column_step(g, (uint16_t)(bitmap.row_step << 1));
+    set_scene_scaler_source_limit(g, bitmap.limit);
+    set_scene_scaler_output(g, OUTPUT_START);
+    set_scene_scaler_plane_output(g, OUTPUT_START);
+    set_scene_scaler_row_position(g, 0);
+}
+
 /* ---- Sampling ---------------------------------------------------------------------------------- */
 
 /* A row's samples start 1/256 of a pixel further on when its source row lies

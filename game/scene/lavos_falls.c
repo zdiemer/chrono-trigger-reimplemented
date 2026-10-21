@@ -121,12 +121,6 @@ static void let_lavos_fall(GameState *g, Platform *pf, uint8_t channel)
     set_scene_channels_script(g, SCENE_CAMERA_CHANNEL, LAVOS_FALLS_TO_THE_PLANET);
 }
 
-/* Each leaves A as its last load left it: channel 0's script's place. */
-static uint16_t leaves_the_script_place(uint16_t called_with)
-{
-    return called_with == SCENE_ROUTINE_LET_LAVOS_FALL ? LAVOS_FALLS_TO_THE_PLANET : LAVOS_GOES_BACK;
-}
-
 /* ---- The setup -------------------------------------------------------------------------------- */
 
 /* The scene's resources: those unpacked by their place in the program's list,
@@ -216,30 +210,6 @@ static void copy_into_the_first_bank(GameState *g, unsigned resource, uint16_t t
     scene_copy_resource_to(g, scene_program_own(), resource, to, bytes);
 }
 
-/* The program's transfer of what the unpacker made into VRAM: a byte at a
- * time into the high bytes (Mode 7's pixels), or a word at a time. The setup
- * chooses one before it unpacks what goes that way, and the choice also stays
- * in the scene's call cells, as the original sets them, which is where a send
- * that is given none takes it from (scene_send_unpacked). */
-typedef struct {
-    uint8_t mode, vram_register;
-} Transfer;
-
-enum { A_BYTE_AT_A_TIME = 0x00 };
-static const Transfer PIXELS_INTO_HIGH_BYTES = { A_BYTE_AT_A_TIME, VID_SNES_VRAM_DATA_HIGH };
-static const Transfer WHOLE_WORDS = { SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW };
-
-static void choose_transfer(GameState *g, Transfer t)
-{
-    set_scene_call_transfer_control(g, scene_program_own(), t.mode);
-    set_scene_call_transfer_register(g, scene_program_own(), t.vram_register);
-}
-
-static void send_unpacked(GameState *g, Platform *pf, Transfer t)
-{
-    TIMED_AS(g, 0x7E38E7, scene_send_unpacked_as(g, pf, t.mode, t.vram_register));
-}
-
 /* Lavos's picture: its pixels. */
 static void load_lavos(Snes *s)
 {
@@ -253,8 +223,8 @@ static void load_lavos(Snes *s)
     set_decompress_length(g, (uint16_t)(2 * packed));
     spread_the_pixels(s, packed);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    choose_transfer(g, PIXELS_INTO_HIGH_BYTES);
-    send_unpacked(g, pf, PIXELS_INTO_HIGH_BYTES);
+    scene_choose_transfer(g, scene_pixels_into_high_bytes);
+    scene_send_unpacked_by(g, pf, scene_pixels_into_high_bytes);
 }
 
 /* The planet's tiles and the stars'. */
@@ -268,10 +238,10 @@ static void load_the_sprites(Snes *s)
     vid_set_vram_address(pf, PF_AT(0x7E5421), PLANET_TILES_VRAM);
     lay_out_the_planet_tiles(g, pf);
     ORIGINAL_EFFECT(leave_the_tiles_laid_out(g));
-    choose_transfer(g, WHOLE_WORDS);
+    scene_choose_transfer(g, scene_whole_words);
     vid_set_vram_address(pf, PF_AT(0x7E5434), STAR_TILES_VRAM);
     unpack(s, 0x7E543A, STAR_TILES);
-    send_unpacked(g, pf, WHOLE_WORDS);
+    scene_send_unpacked_by(g, pf, scene_whole_words);
 }
 
 static void load_lavos_s_map(Snes *s)
@@ -364,12 +334,23 @@ static void set_up_lavos_falls(Snes *s)
 
 /* The routines channel 1's script calls, as C (scene/script.c). */
 const SceneScriptRoutine scene_lavos_routines[] = {
-    [SCENE_ROW_SEND_LAVOS_BACK] = { SCENE_ROUTINE_SEND_LAVOS_BACK, send_lavos_back, scene_send_lavos_back_present,
-                                    leaves_the_script_place, false },
-    [SCENE_ROW_LET_LAVOS_FALL] = { SCENE_ROUTINE_LET_LAVOS_FALL, let_lavos_fall, scene_let_lavos_fall_present,
-                                   leaves_the_script_place, false },
+    [SCENE_ROW_SEND_LAVOS_BACK] = { SCENE_ROUTINE_SEND_LAVOS_BACK, send_lavos_back, scene_send_lavos_back_present, false },
+    [SCENE_ROW_LET_LAVOS_FALL] = { SCENE_ROUTINE_LET_LAVOS_FALL, let_lavos_fall, scene_let_lavos_fall_present, false },
 };
 const unsigned scene_lavos_routine_count = sizeof scene_lavos_routines / sizeof scene_lavos_routines[0];
+
+#if ORIGINAL_EFFECTS
+/* Each leaves A as its last load left it: channel 0's script's place. */
+static uint16_t leaves_the_script_place(uint16_t called_with)
+{
+    return called_with == SCENE_ROUTINE_LET_LAVOS_FALL ? LAVOS_FALLS_TO_THE_PLANET : LAVOS_GOES_BACK;
+}
+
+const SceneRoutineLeaves scene_lavos_routine_leaves[] = {
+    [SCENE_ROW_SEND_LAVOS_BACK] = { leaves_the_script_place, NULL },
+    [SCENE_ROW_LET_LAVOS_FALL] = { leaves_the_script_place, NULL },
+};
+#endif
 
 void scene_send_lavos_back(Snes *s) { scene_script_routine_alone(s, &scene_lavos_routines[SCENE_ROW_SEND_LAVOS_BACK]); }
 void scene_let_lavos_fall(Snes *s) { scene_script_routine_alone(s, &scene_lavos_routines[SCENE_ROW_LET_LAVOS_FALL]); }

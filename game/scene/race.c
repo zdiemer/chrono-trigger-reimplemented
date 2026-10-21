@@ -68,15 +68,6 @@ enum {
  * before it has one of its own. */
 enum { PLANE_MAP_IN_ROM = 0xD20000 };
 
-/* Clear a buffer by copying the Mode 7 multiplier's product (0 here) out of
- * the PPU, the way scene_clear_work_ram does: a transfer that reads a register
- * rather than writing one, which goes through the SNES-only escape. */
-static void clear_buffer(Platform *pf, uint32_t buffer, uint16_t bytes, uint32_t site)
-{
-    const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = buffer, .size = bytes };
-    vid_snes_copy(pf, PF_AT(site), &t);
-}
-
 /* The registers a stop leaves nothing in that the program reads. */
 enum { NOTHING_READ = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
@@ -87,8 +78,8 @@ enum { NOTHING_READ = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
  * and the tilemap buffer with what follows it. */
 static void clear_race_buffers(Platform *pf)
 {
-    clear_buffer(pf, LINE_TABLES, LINE_TABLES_BYTES, 0x7E3C22);
-    clear_buffer(pf, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | SCENE_TILEMAP_BUFFER, TILEMAP_BUFFER_BYTES, 0x7E3C3E);
+    scene_clear_buffer(pf, LINE_TABLES, LINE_TABLES_BYTES, 0x7E3C22);
+    scene_clear_buffer(pf, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | SCENE_TILEMAP_BUFFER, TILEMAP_BUFFER_BYTES, 0x7E3C3E);
 }
 
 static const VidBg race_bg1 = { .map_base = BG1_MAP_VRAM, .map_w = 32, .map_h = 32 };
@@ -334,7 +325,7 @@ static void before_kind(GameState *g, Platform *pf, RaceGraphicsKind kind)
     case LAYER_MAP:
         wram_fill8(g, ROAD_STRIP, ROAD_STRIP_BYTES, 0);
         ORIGINAL_EFFECT(charge_block_move(g, ROAD_STRIP_BYTES - 1));
-        clear_buffer(pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E3E71);
+        scene_clear_buffer(pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E3E71);
         return;
     case INTO_PALETTE:
     case PLANE_MAP_PART:
@@ -542,8 +533,8 @@ enum { SCALER_OUTPUT_AS_FULL = 0x0A00 };
 enum { MAIN_LOOP_SCALES_PICTURES = 0x51D1, PERSPECTIVE_FROM_THE_HORIZON = 0x45B0 };
 
 /* The regrouping code is written for the scaler's picture into the tilemap
- * buffer, through the work RAM port. */
-enum { MATRIX_CODE = 0xB574, MATRIX_DESTINATION = SCENE_TILEMAP_BUFFER, MATRIX_SOURCE = 0x0200 };
+ * buffer. */
+enum { MATRIX_DESTINATION = SCENE_TILEMAP_BUFFER, MATRIX_SOURCE = 0x0200 };
 
 void scene_race_set_up(Snes *s)
 {
@@ -568,7 +559,6 @@ void scene_race_set_up(Snes *s)
     first_script_step(s);
     set_scene_perspective_start(g, PERSPECTIVE_FROM_THE_HORIZON);
     set_scene_main_loop_call(g, MAIN_LOOP_SCALES_PICTURES);
-    hw_port_seek(g, MATRIX_CODE, SCENE_LOWER_WORK_RAM);
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
     setup_race_maps(pf);
 }
@@ -811,13 +801,6 @@ void scene_race_wait_for_tilemap_upload_loop(Snes *s)
 
 /* ---- The engine's sound --------------------------------------------------------------------- */
 
-/* The race's code at $7E:4BCB, whose absolute addressing must reach the APU
- * ports. */
-bool scene_race_engine_present(Snes *s)
-{
-    return m_bank_reaches_io(s) && scene_on_scene_page(s) && m_code_matches(s, 0x7E4BCB, 17, 0x0E86BCEA28400770ull);
-}
-
 /* The sound driver's command that sets the pitch of the effect voices, which
  * play the engine (docs/SOUND.md); the race writes it straight to the driver,
  * its parameter first, without waiting for the echo. */
@@ -860,11 +843,3 @@ void race_sound_bump(Snes *s) { send_effect(s, 0x7E4BC8, AU_START_OTHER_EFFECT, 
 /* The button that ends the scene after the race. */
 void race_sound_leaving(Snes *s) { send_effect(s, 0x7E426D, AU_START_EFFECT, LEAVING_SOUND); }
 
-/* Continues at $7E:4BDC with 8-bit A the command. */
-void scene_race_set_engine_pitch(Snes *s)
-{
-    race_send_engine_pitch(state_of(s), m_platform(s));
-    m_set_a8(s, EFFECT_PITCH);
-    m_set_nz8(s, EFFECT_PITCH);
-    s->cpu.pc = 0x4BDC;
-}

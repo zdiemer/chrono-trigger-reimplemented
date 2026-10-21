@@ -73,23 +73,13 @@ rest waits, is [PLAN.md](PLAN.md).
 - **The last of `$CF`**: `$CF:FAE2` (259 bytes) and `$CF:FD9E` (231) are the
   bank's unported runs (`python3 tools/burndown.py --uncovered CF`).
 
-- **The Epoch's dive into Lavos is mostly the program's** (scene mode 6, `$7E:78DD`
-  on; REIMPLEMENTATION.md, "Phase 4a, the shipping mode's fallbacks, chunk 9").
-  Its perspective's two starts of the lines (`$7E:801F`, `$7E:8042`) and its
-  plane's scroll and centre in the vblank (`$7E:81C4`) are ports; the rest isn't:
-  the setup (`$7E:78DD`, `$7E:7A68`, its curve table and line effects), the
-  views' switches (`$7E:79F8`, `$7E:7A35`, one-shot vblank tasks that leave
-  through the list's exit), the shell's line tables animated by bytes poked into
-  the program's own tables (`$7E:7BF2`, `$7E:7F58`, `$7E:7FCB` with the circle,
-  `$7E:8079`-`$7E:80E0`), the sprites drawn with jitter (`$7E:7F12`, `$7E:7F35`,
-  `$7E:7F7D`, `$7E:82D1`, `$7E:835B`, `$7E:8205`), the frame routine (`$7E:8278`)
-  and the script's routines (`$7E:7ED1`, `$7E:7EE8`, `$7E:7EF8`, `$7E:7F05`,
-  `$7E:82F5`, `$7E:831F`). Two things make it more than a transliteration's
-  work: the jitter's random draws (`$7E:3443`, the stirred number `$C3:02DD`)
-  mix in whatever A, X and the carry the code before left, so a port has to
-  name what it hands the stir, as stars.c does; and the line tables are bytes
-  of the program's image that want names in re/ram.toml first.
-  `events-epoch-lavos` plays all of it.
+- **The one-off vblank tasks leave through the program's exit.** The race's
+  column uploads, the endings' and the Epoch's dive's view switches
+  (`$7E:79F8`, `$7E:7A35`) take themselves off the vblank list by jumping to
+  the list's exit (`$7E:39DE`), which the frame list's runner handles as C
+  (`scene/frame.c`, `run_the_original_task`) but the vblank list's doesn't:
+  the rest of that frame's vblank list runs as the original's. Handle the
+  vblank list's exit as the frame list's is, and those tasks become rows.
 - **The pixels' spread is still the program's** (`$7E:350E`, called by Lavos's
   fall's setup, `scene/lavos_falls.c`): it spreads each packed byte into two
   pixels through the work RAM port, reading the bytes by moving the stack onto
@@ -97,6 +87,15 @@ rest waits, is [PLAN.md](PLAN.md).
   that switch now (docs/PORTING.md, "Call-outs"), so a port of it, a loop over
   the bytes, would be compared in `battle-black-tyrano`; its 14,992
   instructions are the setup's call-out in the reference play.
+- **The race's pictures' mirroring has no entry of its own** (`$7E:3ECD`,
+  which runs `$7E:3ED3` twice, and `$7E:3EB7`). The race's setup does it as
+  C (`scene/race.c`, `mirror_crono`, `scene_mirror_rows`), so the shipping mode
+  never runs them; but the reference play sets the attract demo's race up
+  inside a stretch whose comparison is set aside (`$7E:3ECD`-`$7E:3F13`), and
+  there the original runs them: 0.13 M of the reference play's instructions
+  over the 42 movies (`$7E:3ED3` 98,672 of them; tools/fallback_baseline.txt).
+  Register them as entries with `scene_mirror_rows` behind them, and the
+  reference play compares them there instead.
 - **The attract sequence's credit pages mismatch in fuzzing.** Fuzzing the
   scene program's start (`scene_program_start`, `scene_setup_and_first_frame`,
   seed 1, tools/fuzz_routines.toml) mismatches 11 and 39 of 375 states, all of
@@ -925,8 +924,7 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What the jet bike race's review left** (none blocking after its fixes):
   `race_rules.c`'s `drive_johnny` reads the lane through `race_lane_high`
   (the lane's high byte with the byte after it as a word, race.h) where the
-  lane would say it; `sprites.c` exports `scene_clipped_list_leaves_a`, a
-  register derivation, from a logic file; `hw_divide_by_word`'s contract
+  lane would say it; `hw_divide_by_word`'s contract
   describes the word store spilling into the next register (prefer
   `hw_divide_by` plus a marked note of that byte); `math.c`, `sprites.c`,
   `race_camera.c` and `race_matrix.c` rated "mostly". Fuzz states for the

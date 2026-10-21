@@ -137,6 +137,13 @@ SEQ_TASK_ADDERS = {                                  # routine -> task list (X =
     0x7E39B1: "0920",
 }
 # Calls to the adders whose X isn't a constant, and why they are covered.
+# The task lists a routine of the program sets whole, with a block move from a
+# list in its own image (the Epoch's dive gives the frame a list of tasks for
+# each of its views, $7E:7ED1 and $7E:7EE8): an MVN within bank $7E whose
+# destination Y is a list's start and whose source X and count A are
+# constants; every word it copies is a task.
+SEQ_TASK_LIST_STARTS = {0x0920: "0920", 0x0940: "0940"}
+
 SEQ_DYNAMIC_ADDS = {
     0xC30BAE: "sequence command $AA: its operands are parsed",
     0xC30BC7: "sequence command $A8: its operands are parsed",
@@ -296,6 +303,22 @@ def derive_seqscript(an, fl) -> Derivation:
                 static += len(xs)
             elif site not in SEQ_DYNAMIC_ADDS:
                 d.problems.append(f"{fmt(site)}: a task added whose handler isn't a constant and isn't listed")
+    for pc in program:
+        insn = next(iter(an.code[pc].values()))
+        if insn.name != "MVN" or insn.operand != 0x7E7E:
+            continue
+        ys, xs, counts = (register_values(an, pc, r, fl) for r in ("Y", "X", "A"))
+        if not ys or not ys & set(SEQ_TASK_LIST_STARTS):
+            continue
+        if not xs or not counts or len(ys) != 1:
+            d.problems.append(f"{fmt(pc)}: a task list copied whose source or length isn't a constant")
+            continue
+        lst = SEQ_TASK_LIST_STARTS[next(iter(ys))]
+        for x in xs:
+            for n in counts:
+                words = {an.u16(0x7E0000 | (x + 2 * i)) for i in range((n + 1) // 2)}
+                tasks[lst] |= {0x7E0000 | w for w in words if w}
+                static += len(words)
     d.targets["call"] = set(parse.calls)
     d.targets["tasks_0920"] = tasks["0920"]
     d.targets["tasks_0940"] = tasks["0940"]

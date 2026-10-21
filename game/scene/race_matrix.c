@@ -30,6 +30,7 @@
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
+#include "ram.h"
 #include "scene/scene_data.h"
 #include "vars.h"
 
@@ -42,10 +43,14 @@ enum { OP_LDA_IMMEDIATE = 0xA9, OP_TCD = 0x5B, OP_LDA_ABSOLUTE = 0xAD, OP_STA_DI
 enum { STRIPS = 8, TILES_ACROSS = 8, PLANE_PAIRS = 2, TILE_ROWS = 8 };
 enum { TILE_STEP = 4, PLANE_PAIR_STEP = 2, ROW_STEP = 0x20 };
 
+/* The routine is written a byte after another through the work RAM port, as
+ * the generator writes it, which the port's time is reckoned by. */
+static void emit(GameState *g, uint8_t v) { hw_port_write(g, v); }
+
 static void emit_word(GameState *g, uint16_t v)
 {
-    hw_port_write(g, (uint8_t)v);
-    hw_port_write(g, (uint8_t)(v >> 8));
+    emit(g, (uint8_t)v);
+    emit(g, (uint8_t)(v >> 8));
 }
 
 /* The generator's offsets: the table word of the strip being written, and the
@@ -71,7 +76,7 @@ static void leave_offsets(GameState *g, const Offsets *o, uint16_t destination)
 /* Write the routine: pairs store from the page in `destination` on, and load
  * from `source` on. The source base stays in the scene's cells, where the
  * program's next multiply finds it after its product. */
-void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t source)
+static void write_matrix_code(GameState *g, uint16_t destination, uint16_t source)
 {
     Offsets o = { 0, 0, 0, 0 };
     uint16_t pair = destination;
@@ -86,15 +91,15 @@ void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t so
                 for (uint8_t k = 0; k < TILE_ROWS; k++) {
                     if ((uint8_t)pair == 0) {
                         /* the direct page moved to the next page */
-                        hw_port_write(g, OP_LDA_IMMEDIATE);
+                        emit(g, OP_LDA_IMMEDIATE);
                         emit_word(g, (uint16_t)(page << 8));
-                        hw_port_write(g, OP_TCD);
+                        emit(g, OP_TCD);
                         page++;
                     }
-                    hw_port_write(g, OP_LDA_ABSOLUTE);
+                    emit(g, OP_LDA_ABSOLUTE);
                     emit_word(g, (uint16_t)(o.table + o.tile + o.plane_pair + o.row + source));
-                    hw_port_write(g, OP_STA_DIRECT);
-                    hw_port_write(g, (uint8_t)pair);
+                    emit(g, OP_STA_DIRECT);
+                    emit(g, (uint8_t)pair);
                     pair = (uint16_t)(pair + 2);
                     o.row = (uint8_t)(o.row + ROW_STEP);
                 }
@@ -103,7 +108,7 @@ void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t so
             o.tile = (uint8_t)(o.tile + TILE_STEP);
         }
     }
-    hw_port_write(g, OP_RTS);
+    emit(g, OP_RTS);
 
     SceneProgramPage scene = scene_program_own();
     set_scene_call_matrix_source(g, scene, source);
@@ -114,6 +119,15 @@ void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t so
     ORIGINAL_EFFECT(leave_offsets(g, &o, (uint16_t)((destination & 0x00FF) | page << 8)));
 }
 
+/* The scenes' setups have it written into its place in the program
+ * (scene_matrix_code); the generator's own entry, wherever its caller pointed
+ * the port. */
+void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t source)
+{
+    hw_port_seek(g, (uint16_t)RAM_SCENE_MATRIX_CODE, (uint8_t)(RAM_SCENE_MATRIX_CODE >> 16));
+    write_matrix_code(g, destination, source);
+}
+
 uint16_t scene_matrix_writer_leaves_y(void) { return STRIPS * 2; }
 
 /* Entered with 16-bit index registers: X the first destination page's
@@ -122,7 +136,7 @@ uint16_t scene_matrix_writer_leaves_y(void) { return STRIPS * 2; }
  * which is clear. */
 void scene_write_matrix_code(Snes *s)
 {
-    scene_write_matrix_code_for(state_of(s), s->cpu.x, s->cpu.y);
+    write_matrix_code(state_of(s), s->cpu.x, s->cpu.y);
     s->cpu.d = 0x0000;
     s->cpu.db = 0x00;
     m_set_flag(s, CPU_FLAG_V, false);
@@ -187,27 +201,17 @@ void scene_gather_picture(Snes *s)
 
 static bool picture_waiting(const GameState *g, Racer r) { return race_picture_state(g, r) == PICTURE_WAITING; }
 
-/* The scaler draws a racer's picture from the start of its output. */
-enum { SCALER_OUTPUT_START = 0x0200 };
-
 // $7E:51F4
 /* A racer's request to the scaler: its settings (the request's state comes
- * along into the cells between them, which nothing reads), the scaled rows
- * from the start of the output, a sample across every two row steps, from the
- * picture's first row. */
+ * along into the cells between them, which nothing reads). */
 static void hand_to_scaler(GameState *g, Racer r)
 {
-    set_scene_scaler_pairs(g, scene_race_picture_requests_pairs(g, r));
+    scene_scaler_start(g, (SceneScaling){ .source = scene_race_picture_requests_source(g, r),
+                                          .rows = scene_race_picture_requests_rows(g, r),
+                                          .pairs = scene_race_picture_requests_pairs(g, r),
+                                          .row_step = scene_race_picture_requests_row_step(g, r),
+                                          .limit = scene_race_picture_requests_source_limit(g, r) });
     set_scene_scaler_request_state(g, scene_race_picture_requests_state(g, r));
-    set_scene_scaler_source_base(g, scene_race_picture_requests_source(g, r));
-    set_scene_scaler_rows_left(g, scene_race_picture_requests_rows(g, r));
-    uint16_t row_step = scene_race_picture_requests_row_step(g, r);
-    set_scene_scaler_row_step(g, row_step);
-    set_scene_scaler_source_limit(g, scene_race_picture_requests_source_limit(g, r));
-    set_scene_scaler_output(g, SCALER_OUTPUT_START);
-    set_scene_scaler_plane_output(g, SCALER_OUTPUT_START);
-    set_scene_scaler_column_step(g, (uint16_t)(row_step << 1));
-    set_scene_scaler_row_position(g, 0);
 }
 
 /* The next racer from `from` whose picture waits, or RACERS for none. */

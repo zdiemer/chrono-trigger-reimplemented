@@ -15,19 +15,13 @@
 #include "port/native.h"
 #include "port/vars_ram.h"
 
-/* The main loop hands a racer's picture to the scaler from its routine at
- * $7E:51F4, called from one site per racer, which keeps the data bank to come
- * back to on the stack and calls the scaler's start; the scaler's rows then
- * run as the original's from the head of its row loop, and its return lands on
- * the routine's wait for the upload ($7E:5211). */
-enum {
-    CRONO_SCALING_CALL = 0x7E51DC, JOHNNY_SCALING_CALL = 0x7E51ED, JSR_LENGTH = 3,
-    SCALER_CALL = 0x7E520D, JSL_LENGTH = 4,
-    SCALER_ROWS = 0xC30309,
-};
-
-/* The data bank the scaling routine comes back to: the low byte of the word it
- * pushes to set the scaler's. */
+/* A main loop hands a picture to the scaler from a routine of its scene's,
+ * which keeps the data bank to come back to on the stack (the low byte of the
+ * word it pushes to set the scaler's) and calls the scaler's start; the
+ * scaler's rows then run as the original's from the head of its row loop,
+ * the first taking the carry the routine left, and its return lands on the
+ * routine's code after the call. */
+enum { JSR_LENGTH = 3, JSL_LENGTH = 4, SCALER_ROWS = 0xC30309 };
 enum { DATA_BANK_AFTER = 0x00, SCENE_PAGE = 0x0000 };
 
 /* The direct page and the data bank the original has at a point. */
@@ -37,34 +31,37 @@ static void on_page(Snes *s, uint16_t page, uint8_t bank)
     s->cpu.db = bank;
 }
 
-void scene_bridge_scale_picture(Snes *s, Racer r, bool row_nudge)
+static void call_the_scaler(Snes *s, uint32_t call, bool row_nudge)
 {
-    uint32_t call = r == RACER_CRONO ? CRONO_SCALING_CALL : JOHNNY_SCALING_CALL;
-    m_push16(s, (uint16_t)(call + JSR_LENGTH - 1));
     m_push8(s, DATA_BANK_AFTER);
-    m_push8(s, (uint8_t)(SCALER_CALL >> 16));
-    m_push16(s, (uint16_t)(SCALER_CALL + JSL_LENGTH - 1));
+    m_push8(s, (uint8_t)(call >> 16));
+    m_push16(s, (uint16_t)(call + JSL_LENGTH - 1));
     on_page(s, SCENE_PAGE, SCENE_UPPER_WORK_RAM);
     m_set_flag(s, CPU_FLAG_C, row_nudge);
     m_stop_at(s, SCALER_ROWS, DC_A | DC_X | DC_Y | DC_N | DC_Z);
 }
 
-/* The shared endings' main loop hands their picture to the scaler from
- * $7E:8930, which keeps the data bank to come back to on the stack (the low
- * byte of the word it pushes to set the scaler's) and calls the scaler's start
- * from $7E:897F; the scaler's rows then run as the original's, and its return
- * lands on the routine's gathering ($7E:8983). The carry its first row takes is
- * the last shift's, of a zoom under $8000: clear. */
-enum { ENDINGS_SCALER_CALL = 0x7E897F };
+/* The race's routine ($7E:51F4) is called from one site per racer, and calls
+ * the scaler from $7E:520D; its return lands on the routine's wait for the
+ * upload ($7E:5211). */
+enum { CRONO_SCALING_CALL = 0x7E51DC, JOHNNY_SCALING_CALL = 0x7E51ED, RACE_SCALER_CALL = 0x7E520D };
 
-void scene_bridge_scale_ending_picture(Snes *s)
+void scene_bridge_scale_picture(Snes *s, Racer r, bool row_nudge)
 {
-    m_push8(s, DATA_BANK_AFTER);
-    m_push8(s, (uint8_t)(ENDINGS_SCALER_CALL >> 16));
-    m_push16(s, (uint16_t)(ENDINGS_SCALER_CALL + JSL_LENGTH - 1));
-    on_page(s, SCENE_PAGE, SCENE_UPPER_WORK_RAM);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_stop_at(s, SCALER_ROWS, DC_A | DC_X | DC_Y | DC_N | DC_Z);
+    uint32_t call = r == RACER_CRONO ? CRONO_SCALING_CALL : JOHNNY_SCALING_CALL;
+    m_push16(s, (uint16_t)(call + JSR_LENGTH - 1));
+    call_the_scaler(s, RACE_SCALER_CALL, row_nudge);
+}
+
+/* The shared endings' ($7E:8930) and the Epoch's dive's ($7E:8278) are the
+ * main loop's call itself, and call the scaler from $7E:897F and $7E:82A0,
+ * whose returns land on their gathering ($7E:8983, $7E:82A4). The carry the
+ * first row takes is the last shift's of a zoom under $8000: clear. */
+enum { ENDINGS_SCALER_CALL = 0x7E897F, DIVE_SCALER_CALL = 0x7E82A0 };
+
+void scene_bridge_scale_scene_picture(Snes *s, ScenePictureScaling which)
+{
+    call_the_scaler(s, which == SCALING_THE_EPOCH ? DIVE_SCALER_CALL : ENDINGS_SCALER_CALL, false);
 }
 
 /* ---- The race's setup ------------------------------------------------------------------------- */
@@ -91,6 +88,7 @@ void scene_bridge_start_song(Snes *s, uint32_t call, uint8_t song)
 }
 
 /* ---- The setups' loading and stars ------------------------------------------------------------- */
+
 
 /* The stars scattered at random ($7E:5777), as a setup has them scattered:
  * their first draw from what the setup's call before left in A and the carry,

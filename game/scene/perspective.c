@@ -106,7 +106,6 @@ enum {
     SHELL_FROM_OUTSIDE_FIRST = 26, SHELL_FROM_OUTSIDE_END = 198,
     SHELL_ABOVE_FIRST = 0, SHELL_ABOVE_END = 112, SHELL_ABOVE_NEAREST = 0xFF,
     SHELL_BELOW_FIRST = 128, SHELL_BELOW_FARTHEST = 0x20,
-    SHELL_CAMERA_FRAMES = 7,   /* the camera's register the half above counts its builds in */
 };
 
 /* The lines a build makes: from the first to the end, the first's distance,
@@ -177,8 +176,8 @@ static void start_lines(GameState *g, SceneChannel ch, const PlaneLines *l)
         set_scene_shell_halves_built(g, (uint16_t)(scene_shell_halves_built(g) + 1));
         set_scene_perspective_line_step(g, l->step_instruction);
         if (shell_above_built_last(g))
-            set_scene_channel_register(g, ch, SHELL_CAMERA_FRAMES,
-                                       (uint16_t)(plane_register(g, ch, SHELL_CAMERA_FRAMES) + 1));
+            set_scene_channel_register(g, ch, SCENE_PLANE_SHELL_FRAMES,
+                                       (uint16_t)(plane_register(g, ch, SCENE_PLANE_SHELL_FRAMES) + 1));
         set_scene_perspective_end(g, (uint16_t)(l->end * LINE_BYTES));
         break;
     }
@@ -298,20 +297,47 @@ void scene_build_perspective(GameState *g, SceneChannel ch)
 /* ---- The camera it was built for ------------------------------------------------------------- */
 
 /* The camera's registers the perspective was last built for, in the order
- * scene_perspective_camera keeps them. */
+ * scene_perspective_camera keeps them. The Epoch's dive keeps its height and
+ * its turn, and in the third place the frames the cockpit's view counts as
+ * it builds the shell above, so that each such build has the shell below
+ * built after it. */
 static const unsigned camera_registers[] = { SCENE_PLANE_HEIGHT, SCENE_PLANE_TURN, SCENE_PLANE_HORIZON, SCENE_PLANE_TOP, SCENE_PLANE_LINES_PAIRED };
-enum { CAMERA_REGISTERS = sizeof camera_registers / sizeof camera_registers[0] };
+static const unsigned dive_camera_registers[] = { SCENE_PLANE_HEIGHT, SCENE_PLANE_TURN, SCENE_PLANE_SHELL_FRAMES };
+enum {
+    CAMERA_REGISTERS = sizeof camera_registers / sizeof camera_registers[0],
+    DIVE_CAMERA_REGISTERS = sizeof dive_camera_registers / sizeof dive_camera_registers[0],
+};
+
+static unsigned keep_the_camera(GameState *g, const unsigned *kept, unsigned registers)
+{
+    unsigned first = registers;
+    for (unsigned i = 0; i < registers && first == registers; i++)
+        if (plane_register(g, SCENE_CAMERA_CHANNEL, kept[i]) != scene_perspective_camera(g, i))
+            first = i;
+    for (unsigned i = first; i < registers; i++)
+        set_scene_perspective_camera(g, i, plane_register(g, SCENE_CAMERA_CHANNEL, kept[i]));
+    return first;
+}
 
 unsigned scene_keep_the_camera(GameState *g, unsigned registers)
 {
-    unsigned first = registers;
-    for (unsigned i = 0; i < registers && i < CAMERA_REGISTERS && first == registers; i++)
-        if (plane_register(g, SCENE_CAMERA_CHANNEL, camera_registers[i]) != scene_perspective_camera(g, i))
-            first = i;
-    for (unsigned i = first; i < registers && i < CAMERA_REGISTERS; i++)
-        set_scene_perspective_camera(g, i, plane_register(g, SCENE_CAMERA_CHANNEL, camera_registers[i]));
-    return first;
+    return keep_the_camera(g, camera_registers, registers < CAMERA_REGISTERS ? registers : CAMERA_REGISTERS);
 }
+
+bool scene_keep_the_dive_camera(GameState *g)
+{
+    return keep_the_camera(g, dive_camera_registers, DIVE_CAMERA_REGISTERS) != DIVE_CAMERA_REGISTERS;
+}
+
+/* The Epoch's dive's two views of the shell: from outside, its lines along
+ * the curve; from the cockpit, the halves above and below. */
+void scene_look_at_the_shell_from_outside(GameState *g)
+{
+    set_scene_perspective_line_step(g, STEP_ALONG_THE_CURVE);
+    set_scene_perspective_start(g, START_SHELL_FROM_OUTSIDE);
+}
+
+void scene_look_at_the_shell_from_the_cockpit(GameState *g) { set_scene_perspective_start(g, START_SHELL_FROM_THE_COCKPIT); }
 
 /* ---- Entry ----------------------------------------------------------------------------------- */
 

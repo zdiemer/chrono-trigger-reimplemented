@@ -10870,3 +10870,138 @@ window, the list's opening and the list for sale's making inline at those
 ports' own rates, and one for the block move stub, whose own calls measure
 4.6% slower than the rate the 36 ports that time it inside their stretches
 fit (`tools/timing_exceptions.txt`). Gate: suite OK.
+
+## Phase 4a, the shipping mode's fallbacks, chunk 9: six movies into the library, the refusals they found, Lavos falling to the planet, and the Epoch's dive's perspective (`$7E:53BB`-`$7E:5529`, `$7E:55F9`-`$7E:5653`, `$7E:5654`-`$7E:56EA`, `$7E:56EB`-`$7E:576D`, `$7E:5855`, `$7E:801F`-`$7E:8078`, `$7E:81C4`, `$C2:9D5B`-`$C2:9DAE`)
+
+The fallbacks' stream ("Phase 4a, the shipping mode's fallbacks, chunk 8", above, for the one before), chosen by the movies:
+five recorded from routes (docs/movies-wanted.md) and the tech sweep, which
+waited on a refusal, each reaching code no movie ran.
+
+**The movies.** `menus-sweep` (6424 frames), `menus-save-point` (3270),
+`events-epoch-lavos` (7792), `battle-black-tyrano` (49219), `battle-guardian`
+(25751) and `battle-tech-sweep` (118090), each made by its route
+(tools/movies/routes/) on this branch's build: the routes reproduced the five
+recorded on chunk 7's byte for byte, since chunk 8 moved only the shipping
+mode's timing. With them the library leaves 40.9 KiB of live code unexecuted
+(3.7 KiB unported), against 47.4 KiB without them (movies-wanted.md, Totals).
+The tech sweep adds about six minutes of shadow run to the gate.
+
+**What they found.** One port bug: `menu_slide_tech_list` (`$C2:B72F`) left
+the sign clear in the P its tick saves, where the original's last load before
+the queue's call is the upload record's place (`$FBE3`, sign set); fuzzing the
+tick's call (variant `tick`, stopped at the sound driver) found it in 457 of
+500 states, and none after. Since chunk 8 the slide's comparisons are set aside
+at the main task's point, so the shadow runs no longer see it. And four guards turning away calls real play makes, each
+closed by porting what it turned away rather than an allowlist line:
+
+- `scene_build_perspective` (`$7E:357B`, 202 calls in the Epoch's dive). The
+  dive puts its own routines at the program's call that starts the lines: from
+  outside, the shell curving away (`$7E:801F`), each line's distance read off a
+  curve the dive made as it began (`scene_shell_curve`, through the work RAM
+  port: the step `$2C80` is a branch to read the next); from the cockpit, the
+  shell above and below built in turn (`$7E:8042`), nearer two a line toward
+  the top and farther two a line from the middle, the half above counting a
+  frame on the camera. perspective.c now plans the lines once (`lines_of`:
+  first line, end, first distance, how it steps) for the guard, the build and
+  the leaves, so the race's and the endings' lines are the same plan's other
+  cases.
+- `scene_animate_the_palettes` (`$7E:37FA`, 2): the dive's sequence calls it
+  with 8-bit A on a channel's page through work RAM's bank, where the word it
+  keeps aside around the animation is two bytes of the race's code
+  (`scene_code_under_the_multiplier`).
+- `scene_setup_line_effects` (`$7E:36CC`, 2): the dive's table drives color
+  math's control and layers as a pair a line, a target the video service had no
+  name for: `VID_LINE_MATH_CONTROL_AND_LAYERS`, added (the SNES encoding and
+  the observer's state).
+- `script_return_from_call` (`$C1:56FB`, 24 in the Black Tyrano's fight, 8 in
+  the tech sweep): the return at the top (`$C1:5722`) goes on into the plain
+  return where the point is at the top of the screen, as the end unless listed
+  and the throw that waits first already did into theirs (`goes_on_into`,
+  `script_point_at_the_top`).
+
+Refusals in real play: 0, over the 42 movies.
+
+**Lavos falls to the planet** (scene mode 4, `scene/lavos_falls.c`): the setup
+(`$7E:53BB`; Lavos's picture, its map widened to the plane's 128, the planet's
+tiles laid out in a list's order, the colours, the scripts, the stars), Lavos
+turning (`$7E:56A9`), the star field swinging round on an angle (`$7E:55F9`,
+`$7E:5855`), the planet's edge drawn (`$7E:56EB`) and the two routines channel
+1's script calls (`$7E:5640`, `$7E:564D`, through script.c's table of routines,
+now one per scene file). The flat plane's turn and send (`$7E:56B4`,
+`$7E:5654`) were beyond_time.c's; they are `scene/plane.c`'s now, Mode 7's
+plane under channel 0's camera, which the Beyond Time ending and Lavos's fall
+both use, and which also sends the dive's plane's scroll and centre in the
+vblank (`$7E:81C4`). The widening of a plane's map (`$7E:37CA`), its blanking
+(`$7E:90A7`), the stars' scatter bridge and the buffers' addresses
+(`SCENE_UNPACK_BUFFER`, `SCENE_PLANE_MAP`) moved where every scene shares them.
+Not ported: the pixels' spread (`$7E:350E`), which reads the packed bytes by
+moving the stack onto them (docs/TODO.md). Shadow mode took S rising above an
+entry or a call's return for a return or an unwinding, so the setup was
+compared only up to the spread; it now tells a switch onto a stack of the
+code's own (more than a page above, `NATIVE_STACK_SWITCH_DISTANCE`) from
+either, and waits for S to come back (`note_stack_switch`; docs/PORTING.md,
+"Call-outs"; `tests/port/shadow_test.c` has such a callee, abandoned at every
+call without it). The setup is now compared to its end inside
+`scene_program_start`'s stretch, which found the port's leftover of the work
+RAM port pointing into bank `$7E` where the original writes the port's bank
+0, since fixed. Fuzzing had found the setup's three resource copies taking the
+program's byte places for the copier's entry numbers (300 of 300 states),
+which shadow mode, blind past the spread then, hadn't.
+
+**The Epoch's dive** (mode 6) stays the program's but for its perspective's
+starts and its plane's place: the rest (docs/TODO.md) mixes whatever registers
+the code before left into its random draws and animates line tables that are
+bytes of the program's image. One consequence lands here: its sprite drawing
+reads the flags the signed sprite list leaves (`$7E:3A97`), so that entry's
+don't-care set narrowed to nothing and its wrapper works them out (the count
+run down; the last sprite's last sum's overflow and its last test's carry,
+which for a sprite past the right edge is a bit of its high-table byte from
+before the list, read by the wrapper), and `scene_multiply`'s V is declared
+live (the perspective's callers read it through it).
+
+**The menus.** The equipment members' slide's start (`$C2:9D5B`,
+`menu_start_sliding_equipment_members`) is a port, its slide's settings one
+table as the techs screen's, and the two screens share `MemberListSlide` and
+the decision which way a push slides the list (members.h,
+`menu_member_slide_for_push`). Both starts run their slide where its own guard
+holds and call the original's otherwise (`menu_run_or_call`, menu/bridge.h;
+the slide's guard wants room for three uploads, which the start's doesn't
+ask). The settings' button rows and window design (`$C2:C20F`-`$C2BC`,
+`$C2:C5C7`) were C already; burndown didn't credit them because its reading
+took the menus' bridge's `run` setting the PC for a hand-back
+(dontcare_check.py's `BRIDGES` lists it now, as the scene bridge's
+`run_entry` was), which moved `$C2` from 54.5 to 56.6 KiB counted ported.
+
+**Numbers.** Over the 36 movies chunk 8 measured, the reference play is 1.19 M
+instructions run as the original (1.41 M before; no port changed, the drop is
+comparisons followed further: the runtime across stack switches, and the
+measure where it had dropped them at a callee port's entry after nested ones
+were set aside), and the
+shipping mode 0.07 M (0.09 M before). Over the five recorded movies the reference play went from 0.68 M (after
+the guards; the Epoch alone had refused 0.37 M before them) to 0.49 M. Their
+shipping mode is 2.32 M, nearly all of it the dive's (`events-epoch-lavos`, 2.31 M,
+1.94 M of it code with no port): it measured 2.32 M before the ports and 2.18 M
+after at the same estimates, and the recalibration over the 42 movies moved it
+back, as it moved the endings' down, so over the dive it follows the estimates
+more than the ports. With the tech sweep, the library's reference play is 1.66 M
+and its shipping mode 2.40 M; the routes' shipping mode is 2.37 M, nearly all of
+it the Epoch's route and 0.04 M the ten from before, as they were. Burndown: 254.8 KiB of 266.5 KiB to 257.3 KiB (11.7 KiB unported to 9.2, about 2.1 KiB of it the menus' credit above).
+
+Shadow over the 42 movies 0 mismatching: the new entries compare 1,712 turns
+and as many flat plane sends (2,687 with the Beyond Time ending's), 828 swings,
+564 angles, 538 planet draws, the two routines' 3 calls, 1,619 plane places;
+the closed guards' entries 2,909 perspective builds, 85,409 palettes' frames,
+16 line effects' setups, 3,898 returns from a call; the equipment slide's
+start 2. Fuzz 0 mismatching on every entry this touched (tools/fuzz_routines.toml:
+the mode 4 entries, the dive's perspective (`cockpit`, `outside`), palettes
+(`channel`) and line effects (`dive`, `cockpit`) variants, the return at the
+top (`at_the_top`), the tech list's tick, the slide's start 2000/2000), seed 1.
+Misses: none on the movies the ports touch but `events-epoch-lavos`'s, which
+are the dive's own interpreted code; px-check identical over `battle-black-tyrano`,
+`events-epoch-lavos`, `menus-sweep` and `endings-beyond-time`. Timing: 191 rows recalibrated (`--drifted`, over the 42 movies), the new entries among them, and the signed sprite list again once its flag leaves stopped counting their reads as its time (8,823 to 9,474); eight exceptions where the new movies took an entry's stretches in vblank past the limits' minimum or added one long stretch (the tile animations' load and its jump, the description's typing, the button rows, the effect slots' step, the signed sprite list in the dive, the save point's screen, the rewards shared with the reserve; `tools/timing_exceptions.txt`), and one exception dropped that the recalibration made unneeded. With the setup
+compared past the spread, Lavos's fall's setup has a rate of its own (6962,
+worked out from the scene start's stretches it runs in, where its work is a
+part), and a stretch's room for the routines it attributes time to went from 48
+to 128 (`MAX_SEGMENT_PARTS`): the field's frame, followed through a mode on
+stacks of its own, reaches more.
+Gate: suite OK.

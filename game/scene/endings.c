@@ -159,7 +159,7 @@ enum { EIGHT = 0x0800 };
 
 /* Where the scaler puts the picture's rows, in the second bank: from the
  * start of its output, two 8-pixel groups a pass. */
-enum { SCALER_OUTPUT_START = 0x0200, PAIRS_ACROSS = 4 };
+enum { PAIRS_ACROSS = 4 };
 
 // $7E:8930
 /* The main loop's call each pass: unless the last picture still waits to be
@@ -171,17 +171,10 @@ static bool hand_picture_to_scaler(GameState *g)
         return false;
     const PictureLayout *layout = &layouts[picture_shape(g)];
     uint16_t zoom = picture_register(g, PICTURE_ZOOM) & ZOOM_BITS;
-    set_scene_scaler_rows_left(g, layout->rows);
-    set_scene_scaler_source_limit(g, layout->tile_bytes);
-    set_scene_scaler_row_step(g, zoom);
     set_scene_ending_picture_zoom(g, zoom);
-    set_scene_scaler_source_base(g, scene_ending_picture_source(g));
-    set_scene_scaler_output(g, SCALER_OUTPUT_START);
-    set_scene_scaler_plane_output(g, SCALER_OUTPUT_START);
     set_scene_ending_picture_half(g, scene_divide_8_8_by(g, scene_program_own(), EIGHT, zoom));
-    set_scene_scaler_column_step(g, (uint16_t)(zoom << 1));
-    set_scene_scaler_pairs(g, PAIRS_ACROSS);
-    set_scene_scaler_row_position(g, 0);
+    scene_scaler_start(g, (SceneScaling){ .source = scene_ending_picture_source(g), .rows = layout->rows, .pairs = PAIRS_ACROSS,
+                                          .row_step = zoom, .limit = layout->tile_bytes });
     return true;
 }
 
@@ -459,7 +452,7 @@ enum { BLANKING_LEFT_IN_A = 0x0080 };
 /* ---- The setup: the ground, the captions, the scripts ------------------------------------------- */
 
 /* The captions' letters, and the regrouping code for the zooming picture. */
-enum { LETTERS = 0x63, MATRIX_CODE = 0xB574, MATRIX_DESTINATION = SCENE_TILEMAP_BUFFER, MATRIX_SOURCE = 0x0200 };
+enum { LETTERS = 0x63, MATRIX_DESTINATION = SCENE_TILEMAP_BUFFER, MATRIX_SOURCE = 0x0200 };
 
 /* The ground: its pixels into the high halves of VRAM's words, its name table
  * in two halves, then the sprites' second page of tiles. */
@@ -482,7 +475,6 @@ static void load_letters_and_ground(Snes *s)
     unpack(s, 0x7E8549, LETTERS);
     send_letters_widened(g, pf);
     set_scene_caption_letter_attributes(g, CAPTION_LETTERS_IN_FRONT);
-    hw_port_seek(g, MATRIX_CODE, SCENE_LOWER_WORK_RAM);
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
 
     vid_start_vram_uploads(pf, PF_AT(0x7E856F), SCENE_VRAM_WHOLE_WORDS);
@@ -748,11 +740,7 @@ static void expand_the_picture_tiles(GameState *g, Platform *pf)
     uint16_t tile_bytes = scene_plane_tile_bytes(SCENE_MOST_PLANES);
     set_scene_plane_tiles_expander(g, EXPAND_WIDE_TILE);
     set_scene_plane_tiles_stride(g, (uint8_t)(tile_bytes - SCENE_PLANE_PAIR_BYTES));
-    uint16_t tile = UNPACKED_TILES;
-    for (unsigned n = 0; n < PLANE_TILES_TO_EXPAND; n++) {
-        TIMED_AS(g, 0x7E5EF8, scene_expand_plane_tile(g, pf, SCENE_UPPER_WORK_RAM, tile, SCENE_MOST_PLANES));
-        tile = (uint16_t)(tile + tile_bytes);
-    }
+    (void)scene_expand_tiles(g, pf, UNPACKED_TILES, PLANE_TILES_TO_EXPAND, SCENE_MOST_PLANES, tile_bytes);
 }
 enum { PLANE_MAP = 0xB1, PLANE_MAP_VRAM = 0x4400, PLANE_COLORS = 0x54, PLANE_COLORS_AT = 0x2020 };
 
@@ -1448,7 +1436,7 @@ void scene_ending_scale_picture(Snes *s)
         return;
     }
     ORIGINAL_EFFECT(leave_dividend(s));
-    scene_bridge_scale_ending_picture(s);
+    scene_bridge_scale_scene_picture(s, SCALING_THE_ENDING_PICTURE);
 }
 
 bool scene_ending_gather_picture_present(Snes *s)

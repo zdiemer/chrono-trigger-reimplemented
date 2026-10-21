@@ -1070,7 +1070,7 @@ dp = 0xF0
 stride = 16
 subsystem = "scene"
 meaning = "The sixteen bytes a scene program's routine takes its values in and leaves its results in, on whichever page it is called on (the scene's own, or a sequence channel's): the arithmetic's operands and results, the program's transfer's mode and register, the matrix code generator's offsets, the script's kept word. Each field is one routine's use, so fields overlap"
-source = "game/scene/math.c, scene_multiply $7E:31BF, scene_divide $7E:339F, scene_divide_8_8 $7E:32E2, scene_multiply_signed $C3:094C, scene_find_divisor $C3:0E29; game/scene/beyond_time.c $7E:99B5, $7E:9BF9; game/scene/race_matrix.c, scene_write_matrix_code $C3:09E9; game/scene/screen.c, scene_transfer $7E:38E7; game/scene/script.c, scene_run_sequence $C3:0AFF"
+source = "game/scene/math.c, scene_multiply $7E:31BF, scene_divide $7E:339F, scene_divide_8_8 $7E:32E2, scene_multiply_signed $C3:094C, scene_find_divisor $C3:0E29; game/scene/beyond_time.c $7E:99B5, $7E:9BF9; game/scene/race_matrix.c, scene_write_matrix_code $C3:09E9; game/scene/screen.c, scene_transfer $7E:38E7; game/scene/script.c, scene_run_sequence $C3:0AFF; game/scene/random.c, scene_draw_random $C3:02DD"
 [[var.field]]
 name = "first"
 offset = 0x0
@@ -1137,6 +1137,32 @@ meaning = "The program's own transfer: its channel's mode (how it moves the byte
 name = "transfer_register"
 offset = 0x2
 meaning = "The program's own transfer: the register it feeds"
+[[var.field]]
+name = "transfer_source"
+offset = 0x4
+size = 2
+meaning = "The program's transfer from its cells ($7E:38C3): where it reads from in the bank after"
+[[var.field]]
+name = "transfer_source_bank"
+offset = 0x6
+meaning = "Its source's bank"
+[[var.field]]
+name = "transfer_bytes"
+offset = 0x8
+size = 2
+meaning = "How many bytes it moves"
+[[var.field]]
+name = "dive_curve_step"
+offset = 0x0
+meaning = "The Epoch's dive's setup ($7E:7A68): the half step of the sine it makes the shell's curve's last line from"
+[[var.field]]
+name = "dive_curve_lines_left"
+offset = 0x4
+meaning = "The same setup: the curve's lines left to make, counted down to 0"
+[[var.field]]
+name = "dive_panel_tile"
+offset = 0x0
+meaning = "The same setup: the next tile of the panel's map, counted up a row at a time from $90"
 [[var.field]]
 name = "matrix_table_offset"
 offset = 0x0
@@ -1206,7 +1232,12 @@ meaning = "The palace's ripple (on the scene's own page): the column offset as i
 name = "script_scratch"
 offset = 0x0
 size = 2
-meaning = "A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page)"
+meaning = "A sequence channel's: what the interpreter last kept there -- the command it read, or the address of the register an assignment names"
+[[var.field]]
+name = "stirred"
+offset = 0x0
+size = 2
+meaning = "On the scene's own page: what the program's random draws stir in (game/scene/random.c), whatever the last of its routines to use the cell left there: the 8.8 divide's dividend, the routine of the program a script calls, the word the palettes' frame keeps aside, a warning light's picture or a gauge's place in the Epoch's dive (a byte draw stirs its low byte alone)"
 [[var.field]]
 name = "kept_list_clip"
 offset = 0x0
@@ -1232,7 +1263,7 @@ name = "scene_song_sending"
 addr = "7E:0388"
 subsystem = "scene"
 meaning = "Nonzero while a song is being sent to the sound driver; the race skips its sound parameter meanwhile"
-source = "game/scene/frame.c, song_to_send $C3:09A4; game/scene/race.c, scene_race_set_engine_pitch $7E:4BD2"
+source = "game/scene/frame.c, song_to_send $C3:09A4; game/scene/race_rules.c, scene_race_pitch_and_move $7E:4BD2"
 
 [[var]]
 name = "scene_song_playing"
@@ -2185,6 +2216,303 @@ index = "screen line"
 subsystem = "scene"
 meaning = "The Epoch's dive, seen from outside: how far each screen line looks onto Lavos's shell, which curves away from the middle of the screen (255 less half of every third byte of a ROM curve at $C0:F900, made as the dive starts at $7E:7A68); the perspective reads a line's distance from it where the dive's lines step through it"
 source = "game/scene/perspective.c, scene_build_perspective $7E:357B (the dive's start of the lines, $7E:801F)"
+
+[[var]]
+name = "scene_dive_picture_waiting"
+addr = "7E:0021"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_scaler_request_state", "scene_ending_picture_ready", "scene_turn_matrix"]
+meaning = "The Epoch's dive, seen from outside: 1 while the Epoch's picture has been scaled and gathered into sprite tiles and waits for the vblank to send them, which clears it; the main loop scales no new picture until then"
+source = "game/scene/epoch_dive.c, the picture's scaling $7E:8278, its gathering $7E:82A4 and its upload $7E:824A"
+
+[[var]]
+name = "scene_dive_picture_mark_high"
+addr = "7E:0022"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_scaler_request_state", "scene_ending_picture_ready", "scene_turn_matrix"]
+meaning = "The Epoch's dive: the byte after its picture's mark (scene_dive_picture_waiting), which the original's word-wide test and stores of the mark take along with it; 0 throughout the dive (the scene's clear leaves it so and the mark's stores write it so), and the guards hold it there"
+source = "game/scene/epoch_dive.c, the guards of the picture's scaling $7E:8278, its gathering $7E:82A4 and the setup $7E:78DD"
+
+[[var]]
+name = "scene_dive_shake"
+addr = "7E:004A"
+size = 2
+subsystem = "scene"
+reuses = "scene_palace_column_offsets"
+meaning = "The Epoch's dive, seen from the cockpit: how hard the cockpit shakes, the lines a random draw may move the instrument panel down by, as a mask of the draw (0, 1 or 3, which channel 0's script sets as the dive goes on)"
+source = "game/scene/epoch_dive.c, the cockpit's shaking $7E:7F7D"
+
+[[var]]
+name = "scene_dive_epoch_frames_left"
+addr = "7E:004C"
+size = 2
+subsystem = "scene"
+reuses = ["scene_palace_column_offsets", "scene_ending_picture_half"]
+meaning = "The Epoch's dive, seen from outside as it leaves: the frames left on the Epoch's frame of animation (1 as the dive starts, so that the first frame is taken at once)"
+source = "game/scene/epoch_dive.c, the Epoch flying on $7E:835B"
+
+[[var]]
+name = "scene_dive_epoch_frame"
+addr = "7E:004E"
+size = 2
+subsystem = "scene"
+reuses = ["scene_palace_column_offsets", "scene_ending_picture_source"]
+meaning = "The Epoch's dive, seen from outside as it leaves: the Epoch's frame of animation, as the address of its sprite list in the program's table of frames (scene_dive_epoch_frames); as the dive starts, the address three bytes before the first frame's list, so that the next frame is the first"
+source = "game/scene/epoch_dive.c, the Epoch flying on $7E:835B"
+
+[[var]]
+name = "scene_dive_trail_radius"
+addr = "7E:0B38"
+size = 2
+subsystem = "scene"
+reuses = "scene_channels"
+meaning = "The Epoch's dive, seen from outside: the radius of the round head of the Epoch's trail of light, worked out each frame from how far the Epoch's picture reaches, which a task then gives channel 1's register 6; kept in channel 1's loop counter 11, which the dive's scripts don't use"
+source = "game/scene/epoch_dive.c, the Epoch drawn $7E:8205, the trail's size $7E:7FC4"
+
+[[var]]
+name = "scene_dive_fog_thickening"
+addr = "7E:E000"
+count = 32
+index = "line of the band"
+subsystem = "scene"
+meaning = "The Epoch's dive: the fixed color the line effects give a band of 32 lines, line by line, black to white (its intensity rising from 0 to 31), for the fog where the shell meets the light"
+source = "game/scene/epoch_dive.c, the setup's fog $7E:7A68"
+
+[[var]]
+name = "scene_dive_fog_thinning"
+addr = "7E:E030"
+count = 32
+index = "line of the band"
+subsystem = "scene"
+meaning = "The Epoch's dive: the same band the other way, white to black"
+source = "game/scene/epoch_dive.c, the setup's fog $7E:7A68"
+
+[[var]]
+name = "scene_dive_trail_circle"
+addr = "7E:E060"
+stride = 2
+count = 64
+index = "line from the circle's top"
+subsystem = "scene"
+meaning = "The Epoch's dive, seen from outside: the circle the head of the Epoch's trail is shaped by, drawn by the iris ($C3:0077) each frame round a point as far in from the screen's top left as its radius"
+source = "game/scene/epoch_dive.c, the trail $7E:7FCB"
+[[var.field]]
+name = "left"
+offset = 0
+meaning = "The circle's left edge on the line"
+[[var.field]]
+name = "right"
+offset = 1
+meaning = "Its right edge"
+
+[[var]]
+name = "scene_dive_trail_edges"
+addr = "7E:E0E0"
+size = 2
+count = 64
+index = "line of the trail's head"
+subsystem = "scene"
+reuses = "scene_race_road_strip"
+meaning = "The Epoch's dive, seen from outside: the window the trail of light is lit in, line by line from the top of its head: its left edge in the low byte (the circle's, moved to where the Epoch is), its right edge the screen's in the high byte"
+source = "game/scene/epoch_dive.c, the trail $7E:7FCB"
+
+[[var]]
+name = "scene_dive_light_above"
+addr = "7E:7BE2"
+subsystem = "scene"
+meaning = "The Epoch's dive, seen from the cockpit: the line effect's table of the fixed color, the first entry's count of lines, the dark above the band of light ahead; it runs down two a frame as the light opens"
+source = "game/scene/epoch_dive.c, the light opening $7E:7BF2"
+
+[[var]]
+name = "scene_dive_light_rising"
+addr = "7E:7BE5"
+subsystem = "scene"
+meaning = "The same table's second entry: its count of lines (with the bit that steps its source a byte a line), the fog thickening into the light, from scene_dive_fog_thickening"
+source = "game/scene/epoch_dive.c, the light opening $7E:7BF2"
+
+[[var]]
+name = "scene_dive_light_rising_from"
+addr = "7E:7BE6"
+subsystem = "scene"
+meaning = "The low byte of where that entry reads its colors, a line of scene_dive_fog_thickening, which moves two lines on a frame once the dark above is gone, so that the band starts brighter"
+source = "game/scene/epoch_dive.c, the light opening $7E:7BF2"
+
+[[var]]
+name = "scene_dive_light_upper_middle"
+addr = "7E:7BE8"
+subsystem = "scene"
+meaning = "The same table's third entry's count of lines, the top half of the band's brightest part"
+source = "game/scene/epoch_dive.c, the light opening $7E:7BF2"
+
+[[var]]
+name = "scene_dive_light_lower_middle"
+addr = "7E:7BEB"
+subsystem = "scene"
+meaning = "The same table's fourth entry's count of lines, the bottom half of the band's brightest part"
+source = "game/scene/epoch_dive.c, the light opening $7E:7BF2"
+
+[[var]]
+name = "scene_dive_panel_math_lines"
+addr = "7E:7C36"
+subsystem = "scene"
+meaning = "The Epoch's dive, seen from the cockpit: the line effect's table of color math, its third entry's count of lines, those from line 167 down to the instrument panel's top"
+source = "game/scene/epoch_dive.c, the panel's lines $7E:7F58"
+
+[[var]]
+name = "scene_dive_panel_mode_lines"
+addr = "7E:7C44"
+subsystem = "scene"
+meaning = "The same, in the line effect's table of the BG mode (Mode 7 above the panel, mode 1 for it)"
+source = "game/scene/epoch_dive.c, the panel's lines $7E:7F58"
+
+[[var]]
+name = "scene_dive_panel_scroll_lines"
+addr = "7E:7C52"
+subsystem = "scene"
+meaning = "The same, in the line effect's table of BG1's scroll (the shell's place above the panel)"
+source = "game/scene/epoch_dive.c, the panel's lines $7E:7F58"
+
+[[var]]
+name = "scene_dive_panel_scroll_x"
+addr = "7E:7C58"
+size = 2
+subsystem = "scene"
+meaning = "The Epoch's dive, seen from the cockpit: BG1's scroll across for the instrument panel, in the same table, against channel 1's place across"
+source = "game/scene/epoch_dive.c, the panel's lines $7E:7F58"
+
+[[var]]
+name = "scene_dive_panel_scroll_y"
+addr = "7E:7C5A"
+subsystem = "scene"
+meaning = "The low byte of BG1's scroll down for the instrument panel, which puts the panel's first row on its top line"
+source = "game/scene/epoch_dive.c, the panel's lines $7E:7F58"
+
+[[var]]
+name = "scene_dive_trail_lines_above"
+addr = "7E:7C5C"
+subsystem = "scene"
+meaning = "The Epoch's dive, seen from outside: the line effect's table of window 1's edges, its first entry's count of lines, those above the head of the Epoch's trail of light"
+source = "game/scene/epoch_dive.c, the trail $7E:7FCB"
+
+[[var]]
+name = "scene_dive_trail_lines"
+addr = "7E:7C5F"
+subsystem = "scene"
+meaning = "The same table's second entry's count of lines (with the bit that steps its source a line at a time), the trail's head, from scene_dive_trail_edges"
+source = "game/scene/epoch_dive.c, the trail $7E:7FCB"
+
+[[var]]
+name = "scene_dive_trail_math_lines_above"
+addr = "7E:7C66"
+subsystem = "scene"
+meaning = "The Epoch's dive, seen from outside: the line effect's table of color math, its first entry's count of lines, those above the trail's head"
+source = "game/scene/epoch_dive.c, the trail $7E:7FCB"
+
+[[var]]
+name = "scene_dive_trail_math_lines"
+addr = "7E:7C69"
+subsystem = "scene"
+meaning = "The same table's second entry's count of lines, the trail's head, which color math lights"
+source = "game/scene/epoch_dive.c, the trail $7E:7FCB"
+
+[[var]]
+name = "scene_dive_lights"
+addr = "7E:810A"
+stride = 4
+count = 6
+index = "sprite of the panel's lights' list"
+subsystem = "scene"
+meaning = "The Epoch's dive, seen from the cockpit: the sprites of the instrument panel's lights, a list of the program's (its count at $8109): the warning lights at either side of the panel and the needles of its gauges, left and right, each rewritten every frame to one of their pictures at random"
+source = "game/scene/epoch_dive.c, the panel's lights $7E:8079"
+[[var.field]]
+name = "tile"
+offset = 0
+meaning = "The sprite's tile"
+[[var.field]]
+name = "attributes"
+offset = 1
+meaning = "Its attributes"
+[[var.field]]
+name = "x"
+offset = 2
+meaning = "Its place across, signed, from the list's"
+[[var.field]]
+name = "y"
+offset = 3
+meaning = "Its place down, signed, from the list's"
+
+[[var]]
+name = "scene_dive_warning_light_pictures"
+addr = "7E:80E1"
+size = 2
+count = 4
+index = "picture"
+subsystem = "scene"
+meaning = "The Epoch's dive, seen from the cockpit: the four pictures a warning light at the side of the instrument panel flickers between, each a sprite's tile in the low byte and its attributes in the high"
+source = "game/scene/epoch_dive.c, the panel's lights $7E:8079"
+
+[[var]]
+name = "scene_dive_needle_pictures"
+addr = "7E:80E9"
+stride = 4
+count = 8
+index = "sprite: a picture is two, the needle's tip and its foot"
+subsystem = "scene"
+meaning = "The Epoch's dive, seen from the cockpit: the four pictures a gauge's needle jumps between, two sprites each, placed across from the gauge's left edge"
+source = "game/scene/epoch_dive.c, the panel's lights $7E:8079"
+[[var.field]]
+name = "tile"
+offset = 0
+meaning = "The sprite's tile"
+[[var.field]]
+name = "attributes"
+offset = 1
+meaning = "Its attributes"
+[[var.field]]
+name = "x"
+offset = 2
+meaning = "Its place across from the gauge's left edge"
+[[var.field]]
+name = "y"
+offset = 3
+meaning = "Its place down, signed, from the list's"
+
+[[var]]
+name = "scene_dive_epoch_sprites"
+addr = "7E:82B0"
+subsystem = "scene"
+meaning = "The Epoch's dive, seen from outside: the count of the sprite list the Epoch's scaled picture is drawn with, one more than its sprites: eight of them, or the first four for a picture under half its size"
+source = "game/scene/epoch_dive.c, the Epoch drawn $7E:8205"
+
+[[var]]
+name = "scene_matrix_code"
+addr = "7E:B574"
+count = 5153
+index = "byte of the routine"
+subsystem = "scene"
+meaning = "The routine the matrix code generator ($C3:09E9) writes into the program for the race, the endings and the Epoch's dive to regroup a scaled picture into sprite tiles: 1024 pairs of a load and a store, the direct page moved on a page every 128 pairs, and a return"
+source = "game/scene/race_matrix.c, scene_write_matrix_code $C3:09E9, scene_gather_picture_into_tiles $7E:B574"
+
+[[var]]
+name = "scene_dive_epoch_frames"
+addr = "7E:84F8"
+stride = 3
+count = 22
+index = "frame: the Epoch's 21 frames of animation, then the table's end"
+subsystem = "scene"
+meaning = "The Epoch's dive, seen from outside as it leaves: the Epoch's frames of animation in the program, each how many frames it shows and its sprite list; the 22nd is the table's end, whose length of 0 sends the animation back to the first (its list is the program's code, never read)"
+source = "game/scene/epoch_dive.c, the Epoch flying on $7E:835B"
+[[var.field]]
+name = "length"
+offset = 0
+meaning = "How many frames the frame shows for; 0 at the table's end"
+[[var.field]]
+name = "list"
+offset = 1
+size = 2
+meaning = "Its sprite list in the program"
 
 [[var]]
 name = "scene_code_under_the_multiplier"

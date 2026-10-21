@@ -31,6 +31,9 @@
  *                 steps and the stars that twinkle about it
  *   staff_roll.c  the telepod ending's last scene: the staff credits over the
  *                 stars, and The End
+ *   lavos_falls.c Lavos falling to the planet (mode 4)
+ *   epoch_dive.c  the Epoch's dive into Lavos (mode 6): the shell from the
+ *                 cockpit and from outside
  *   beyond_time.c the Beyond Time ending's night: Taban's fireworks, the
  *                 town's lights, the Epoch's flight over the world's map and
  *                 the Mode 7 pictures between
@@ -59,6 +62,7 @@
 
 #include <stdbool.h>
 
+#include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "snes/system.h"
@@ -108,8 +112,9 @@ enum { SCENE_BLANK_TILE = 0x7E350B };
 enum { SCENE_UNPACK_BUFFER = 0x7F0200, SCENE_PLANE_MAP = 0x7F2200 };
 
 /* How the loaders' transfer (scene_transfer) moves its bytes, as the program
- * keeps it for the SNES-only escape: into a register pair, a word at a time. */
-enum { SCENE_TRANSFER_WORDS = 0x01 };
+ * keeps it for the SNES-only escape: into one register, a byte at a time, or
+ * into a register pair, a word at a time. */
+enum { SCENE_TRANSFER_BYTES = 0x00, SCENE_TRANSFER_WORDS = 0x01 };
 
 /* How VRAM writes step: a word at a time, stepping after the high byte (whole
  * words), or after the low byte (the low bytes alone, as the Mode 7 plane's
@@ -233,27 +238,47 @@ enum {
     SCENE_ROUTINE_UNTINT_SPRITE_PALETTE_3 = 0x5DE9,
     SCENE_ROUTINE_LET_LAVOS_FALL = 0x5640,        /* scene/lavos_falls.c */
     SCENE_ROUTINE_SEND_LAVOS_BACK = 0x564D,
+    SCENE_ROUTINE_LOOK_FROM_OUTSIDE = 0x7ED1,     /* scene/epoch_dive.c */
+    SCENE_ROUTINE_LOOK_FROM_THE_COCKPIT = 0x7EE8,
+    SCENE_ROUTINE_FADE_THE_SHELL_IN = 0x82F5,
+    SCENE_ROUTINE_WHITE_OUT = 0x831F,
 };
 
-/* A routine a script calls, as C: its work on the calling channel; the guard
- * that says the program's code for it is the code the port stands for; and
- * what it leaves in A for the script's interpreter, which A held the
- * routine's address when it called. */
+/* A routine a script calls, as C: its work on the calling channel; and the
+ * guard that says the program's code for it is the code the port stands
+ * for. */
 typedef struct {
     uint16_t routine;
     void (*run)(GameState *g, Platform *pf, uint8_t channel);
     bool (*present)(Snes *s);
-    uint16_t (*leaves_a)(uint16_t called_with);
     bool leaves_the_program_bank;   /* it comes back with the data bank on the program's */
 } SceneScriptRoutine;
+
+#if ORIGINAL_EFFECTS
+/* What a routine leaves in the registers for the original's code after it,
+ * in a table parallel to its file's routines: A, from the A it was called
+ * with (the routine's address, as the interpreter calls it), and the other
+ * registers it changes (the interpreter hands Y on to the sound driver and
+ * its caller). The build without the original's effects has none of it. */
+typedef struct {
+    uint16_t (*a)(uint16_t called_with);
+    void (*rest)(Snes *s);   /* NULL: the rest as it was */
+} SceneRoutineLeaves;
+extern const SceneRoutineLeaves scene_title_routine_leaves[];
+extern const SceneRoutineLeaves scene_lavos_routine_leaves[];
+extern const SceneRoutineLeaves scene_dive_routine_leaves[];
+#endif
 
 /* The tables' rows, by routine. */
 enum { SCENE_ROW_START_RIPPLE, SCENE_ROW_DARKEN_SPRITE_PALETTE_4, SCENE_ROW_UNTINT_SPRITE_PALETTE_3 };
 enum { SCENE_ROW_SEND_LAVOS_BACK, SCENE_ROW_LET_LAVOS_FALL };
+enum { SCENE_ROW_LOOK_FROM_OUTSIDE, SCENE_ROW_LOOK_FROM_THE_COCKPIT, SCENE_ROW_FADE_THE_SHELL_IN, SCENE_ROW_WHITE_OUT };
 extern const SceneScriptRoutine scene_title_routines[];
 extern const unsigned scene_title_routine_count;
 extern const SceneScriptRoutine scene_lavos_routines[];
 extern const unsigned scene_lavos_routine_count;
+extern const SceneScriptRoutine scene_dive_routines[];
+extern const unsigned scene_dive_routine_count;
 /* scene/script.c: a routine of those tables reached by its address, as its
  * registered entry: its row's work. */
 void scene_script_routine_alone(Snes *s, const SceneScriptRoutine *r);
@@ -292,9 +317,14 @@ void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped);
  * that has it as values. */
 void scene_draw_sprite_moved(GameState *g, SceneSprite sprite);
 uint16_t scene_clipped_list_leaves_a(const GameState *g, uint16_t list, uint16_t a);
+/* The overflow a clipped list leaves (of its last sprite's Y). */
+bool scene_clipped_list_leaves_overflow(const GameState *g, uint16_t list);
 /* The rest of the cursor's group of four sprites put off the screen, as the
  * frame's last sprites leave it. */
 void scene_hide_rest_of_group(GameState *g);
+/* Where the cursor stands in its group of four sprites, whose bits the high
+ * table keeps in one byte: its entry's byte offset in the group, 0-15. */
+uint8_t scene_sprite_place_in_group(const GameState *g);
 
 /* scene/random.c: the program's random numbers -- the next of the game's
  * table of random bytes, and a stirred draw, a byte or a word. A draw is its
@@ -307,9 +337,21 @@ static inline SceneDraw scene_draw_from(uint16_t number, bool spilled, TmEntropy
     unsigned bits = width == TM_ENTROPY_WORDS ? 16 : 8;
     return (SceneDraw)(number & ((1u << bits) - 1)) | (spilled ? 1u << bits : 0);
 }
+/* Whether a draw spilled a bit over its top. */
+static inline bool scene_draw_spilled(SceneDraw d, TmEntropyWidth width)
+{
+    return (d >> (width == TM_ENTROPY_WORDS ? 16 : 8) & 1) != 0;
+}
 uint8_t scene_next_random_byte(GameState *g);
 SceneDraw scene_draw_random(GameState *g, Platform *pf, PfOrigin o, SceneDraw last, uint16_t salt, TmEntropyWidth width);
+/* The same draw with the palette's bytes for noise, as the program's code
+ * draws with the data bank on work RAM, where the stir's reads of the beam
+ * land on the palette. */
+SceneDraw scene_draw_random_off_the_palette(GameState *g, SceneDraw last, uint16_t salt, TmEntropyWidth width);
 bool scene_random_last_overflow(void);
+/* Something left for the draws after it to stir in (scene_call_stirred), as
+ * wide as the draw that takes it. */
+void scene_leave_for_the_draws(GameState *g, uint16_t value, TmEntropyWidth width);
 
 /* scene/stars.c: the star field's speed and drift, which the scripts and the
  * scenes' tasks set in channel 1's registers, and how its drawing is set: the
@@ -392,6 +434,8 @@ int16_t scene_multiply_by_signed_byte(GameState *g, SceneProgramPage page, uint1
  * 16 x 16-bit product: the magnitude scaled and the sign put back, so a
  * negative value rounds toward 0. */
 int16_t scene_scale_by_256ths(GameState *g, SceneProgramPage page, int16_t value, uint16_t by);
+/* The 8.8 fraction of `dividend`'s high byte over `divisor`, the dividend
+ * left in the first operand's cell, where the random draws stir it in. */
 uint16_t scene_divide_8_8_by(GameState *g, SceneProgramPage page, uint16_t dividend, uint16_t divisor);
 uint8_t scene_find_divisor_from(GameState *g, uint16_t dividend, uint8_t from, uint16_t limit);
 
@@ -401,12 +445,33 @@ uint8_t scene_find_divisor_from(GameState *g, uint16_t dividend, uint8_t from, u
  * (returns where it ends). */
 void scene_send_unpacked_as(const GameState *g, Platform *pf, uint8_t mode, uint8_t port_register);
 void scene_send_unpacked(const GameState *g, Platform *pf);
+/* The two ways the loaders send what was unpacked into VRAM: a byte at a
+ * time into the high bytes (Mode 7's pixels), or a word at a time. A setup
+ * chooses one before it unpacks what goes that way, and the choice stays in
+ * the scene's call cells, as the original sets them, which is where a send
+ * that is given none takes it from (scene_send_unpacked); the setups' ports
+ * hand theirs to the send. */
+typedef struct {
+    uint8_t mode, vram_register;
+} SceneTransfer;
+extern const SceneTransfer scene_pixels_into_high_bytes, scene_whole_words;
+void scene_choose_transfer(GameState *g, SceneTransfer t);
+void scene_send_unpacked_by(GameState *g, Platform *pf, SceneTransfer t);
+/* scene/screen.c: the program's transfer from its call cells: `bytes` from
+ * `source` into a register in a mode; and a buffer cleared by a transfer out
+ * of the Mode 7 multiplier's product (0 where the scenes do it), by the
+ * program's code at `site`. */
+void scene_send_from(GameState *g, Platform *pf, uint8_t mode, uint8_t port_register, uint32_t source, uint16_t bytes);
+void scene_clear_buffer(Platform *pf, uint32_t buffer, uint16_t bytes, uint32_t site);
 uint16_t scene_set_up_line_effects(const GameState *g, Platform *pf, uint16_t at);
 /* scene/screen.c: the working palette sent; the bank the unpacker's
  * destination names; `bytes` of a resource copied as they are to `to` in that
  * bank, the count handed over in `page`'s first cell; and the loaded palette
  * made the one the frame sends. */
 void scene_send_palette(Platform *pf);
+/* scene/screen.c: a frame of the palette animations, as a channel's script
+ * has the program run it itself (the Epoch's dive's fades). */
+void scene_animate_the_palettes_for(GameState *g, SceneChannel ch);
 /* scene/screen.c: the program's work RAM cleared (true: the title's shorter
  * clear, which keeps what lies below the task lists), every sprite hidden, and
  * the screen every scene starts from. */
@@ -416,6 +481,8 @@ void scene_set_up_first_screen(GameState *g, Platform *pf);
 uint8_t scene_unpacked_bank(const GameState *g);
 void scene_copy_resource_to(GameState *g, SceneProgramPage page, unsigned resource, uint16_t to, uint16_t bytes);
 void scene_use_loaded_palette(GameState *g);
+void scene_use_loaded_palette_entry(Snes *s);
+bool scene_use_loaded_palette_present(Snes *s);
 /* scene/screen.c: a Mode 7 plane's name table, unpacked 64 tiles a row into
  * SCENE_UNPACK_BUFFER, widened to the plane's 128 into SCENE_PLANE_MAP; and
  * the plane's name table blank for `bytes` words past where VRAM's address
@@ -445,6 +512,9 @@ void scene_load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank);
 enum { SCENE_MOST_PLANES = 8, SCENE_PLANE_PAIR_BYTES = 0x10 };
 static inline uint16_t scene_plane_tile_bytes(unsigned planes) { return (uint16_t)(planes / 2 * SCENE_PLANE_PAIR_BYTES); }
 void scene_expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t tile, unsigned planes);
+/* `count` tiles of a picture in the second bank, from `first`, each `step`
+ * bytes on from the last, expanded in turn (returns past the last). */
+uint16_t scene_expand_tiles(GameState *g, Platform *pf, uint16_t first, uint16_t count, unsigned planes, uint16_t step);
 
 /* scene/staff_roll.c: the credits' letters' colors, and their map blanked
  * (the in-front half of every word from the caller's own code at
@@ -452,9 +522,8 @@ void scene_expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t 
 void scene_set_letter_colors(GameState *g);
 void scene_blank_credits_map(Platform *pf, PfOrigin in_front_site);
 
-/* scene/race_matrix.c: the regrouping routine written, through the work RAM
- * port as the caller has pointed it, for a picture at `source` into the page
- * at `destination`. */
+/* scene/race_matrix.c: the regrouping routine written into its place in the
+ * program, for a picture at `source` into the page at `destination`. */
 void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t source);
 /* The writer's Y as it comes back: past its table of strips, two bytes each
  * (scaffolding, for the code after a setup that ends with it). */
@@ -470,12 +539,13 @@ uint16_t scene_matrix_writer_leaves_y(void);
  * first line under the horizon, the distance of the plane's first line (the
  * larger, the farther the plane starts) and, in the register the flat
  * plane's B takes, whether the lines are built in pairs (the race's, while
- * nonzero). */
+ * nonzero); in the Epoch's dive, seen from the cockpit, the frames counted
+ * as the shell above is built. */
 enum { SCENE_CAMERA_CHANNEL = 0 };
 enum {
     SCENE_PLANE_HEIGHT = 0, SCENE_PLANE_X = 1, SCENE_PLANE_Y = 2, SCENE_PLANE_CENTRE_X = 3, SCENE_PLANE_CENTRE_Y = 4,
-    SCENE_PLANE_TURN = 5, SCENE_PLANE_HORIZON = 6, SCENE_PLANE_TOP = 8, SCENE_PLANE_A = 10, SCENE_PLANE_B = 11,
-    SCENE_PLANE_LINES_PAIRED = 11, SCENE_PLANE_C = 12, SCENE_PLANE_D = 13,
+    SCENE_PLANE_TURN = 5, SCENE_PLANE_HORIZON = 6, SCENE_PLANE_SHELL_FRAMES = 7, SCENE_PLANE_TOP = 8, SCENE_PLANE_A = 10,
+    SCENE_PLANE_B = 11, SCENE_PLANE_LINES_PAIRED = 11, SCENE_PLANE_C = 12, SCENE_PLANE_D = 13,
 };
 void scene_turn_the_flat_plane(GameState *g);
 void scene_send_the_flat_plane(const GameState *g, Platform *pf);
@@ -490,6 +560,14 @@ void scene_build_perspective(GameState *g, SceneChannel ch);
  * kept as the perspective's. Returns the first that differed, or `registers`
  * where none did. */
 unsigned scene_keep_the_camera(GameState *g, unsigned registers);
+/* The same for the Epoch's dive's camera, which the perspective keeps its
+ * height, its turn and the count of the cockpit's builds of the shell above
+ * for: whether any differed. */
+bool scene_keep_the_dive_camera(GameState *g);
+/* The Epoch's dive's perspective set to its view of the shell from outside,
+ * or from the cockpit (perspective.c's lines). */
+void scene_look_at_the_shell_from_outside(GameState *g);
+void scene_look_at_the_shell_from_the_cockpit(GameState *g);
 
 /* ---- Entries, by file ------------------------------------------------------------------------ */
 
@@ -626,6 +704,8 @@ void scene_title_expand_plane_tile(Snes *s);
 bool scene_ending_expand_wide_tile_present(Snes *s);
 void scene_ending_expand_wide_tile(Snes *s);
 bool scene_title_ripple_columns_present(Snes *s);
+void scene_expand_the_plane_tiles(Snes *s);
+bool scene_expand_the_plane_tiles_present(Snes *s);
 void scene_title_ripple_columns(Snes *s);
 void scene_title_calm_the_ripple(Snes *s);
 bool scene_title_calm_the_ripple_present(Snes *s);
@@ -651,8 +731,6 @@ bool scene_race_upload_plane_present(Snes *s);
 void scene_race_upload_plane(Snes *s);
 bool scene_race_wait_for_tilemap_upload_present(Snes *s);
 void scene_race_wait_for_tilemap_upload_loop(Snes *s);
-bool scene_race_engine_present(Snes *s);
-void scene_race_set_engine_pitch(Snes *s);
 
 /* scene/perspective.c (the program in RAM): the entry the endings jump to,
  * and for the race's camera check, whether the port builds the perspective
@@ -787,9 +865,10 @@ bool scene_ending_scale_picture_present(Snes *s);
 void scene_ending_scale_picture(Snes *s);
 bool scene_ending_gather_picture_present(Snes *s);
 void scene_ending_gather_picture(Snes *s);
-/* scene/bridge.c: where the endings' scaling of their picture goes on in the
- * original's scaler. */
-void scene_bridge_scale_ending_picture(Snes *s);
+/* scene/bridge.c: where a scene's scaling of its picture goes on in the
+ * original's scaler: the shared endings' or the Epoch's dive's. */
+typedef enum { SCALING_THE_ENDING_PICTURE, SCALING_THE_EPOCH } ScenePictureScaling;
+void scene_bridge_scale_scene_picture(Snes *s, ScenePictureScaling which);
 
 /* scene/lavos_falls.c */
 bool scene_lavos_falls_set_up_scene(Snes *s);
@@ -807,6 +886,53 @@ void scene_send_lavos_back(Snes *s);
 bool scene_send_lavos_back_present(Snes *s);
 void scene_let_lavos_fall(Snes *s);
 bool scene_let_lavos_fall_present(Snes *s);
+
+/* scene/epoch_dive.c */
+bool scene_dive_set_up_scene(Snes *s);
+void scene_dive_set_up(Snes *s);
+bool scene_dive_set_up_present(Snes *s);
+void scene_pass_the_shell_across(Snes *s);
+bool scene_pass_the_shell_across_present(Snes *s);
+void scene_pass_the_shell_down(Snes *s);
+bool scene_pass_the_shell_down_present(Snes *s);
+void scene_let_the_shell_fall_away(Snes *s);
+bool scene_let_the_shell_fall_away_present(Snes *s);
+void scene_check_the_shell(Snes *s);
+bool scene_check_the_shell_present(Snes *s);
+void scene_scale_the_epoch(Snes *s);
+bool scene_scale_the_epoch_present(Snes *s);
+void scene_gather_the_epoch(Snes *s);
+bool scene_gather_the_epoch_present(Snes *s);
+void scene_send_the_epoch(Snes *s);
+bool scene_send_the_epoch_present(Snes *s);
+void scene_draw_the_epoch(Snes *s);
+bool scene_draw_the_epoch_present(Snes *s);
+void scene_size_the_trail(Snes *s);
+bool scene_size_the_trail_present(Snes *s);
+void scene_draw_the_trail(Snes *s);
+bool scene_draw_the_trail_present(Snes *s);
+void scene_fly_the_epoch_on(Snes *s);
+bool scene_fly_the_epoch_on_present(Snes *s);
+void scene_shake_the_cockpit(Snes *s);
+bool scene_shake_the_cockpit_present(Snes *s);
+void scene_flicker_the_lights(Snes *s);
+bool scene_flicker_the_lights_present(Snes *s);
+void scene_follow_the_panel(Snes *s);
+bool scene_follow_the_panel_present(Snes *s);
+void scene_open_the_light(Snes *s);
+bool scene_open_the_light_present(Snes *s);
+void scene_set_the_screen_outside(Snes *s);
+bool scene_set_the_screen_outside_present(Snes *s);
+void scene_set_the_screen_in_the_cockpit(Snes *s);
+bool scene_set_the_screen_in_the_cockpit_present(Snes *s);
+void scene_look_from_outside(Snes *s);
+bool scene_look_from_outside_present(Snes *s);
+void scene_look_from_the_cockpit(Snes *s);
+bool scene_look_from_the_cockpit_present(Snes *s);
+void scene_fade_the_shell_in(Snes *s);
+bool scene_fade_the_shell_in_present(Snes *s);
+void scene_white_out(Snes *s);
+bool scene_white_out_present(Snes *s);
 
 /* scene/plane.c */
 void scene_send_the_flat_plane_entry(Snes *s);
@@ -885,6 +1011,8 @@ void scene_race_gather_scaled(Snes *s);
 
 /* scene/race_rules.c (the program in RAM) */
 bool scene_race_ride_present(Snes *s);
+bool scene_race_pitch_and_move_present(Snes *s);
+void scene_race_pitch_and_move(Snes *s);
 bool scene_race_ride_lists_fit(Snes *s);
 void scene_race_ride(Snes *s);
 bool scene_race_coast_present(Snes *s);
@@ -960,15 +1088,33 @@ bool scene_large_sprite_list_fits(Snes *s);
 void scene_draw_signed_sprite_list(GameState *g, uint16_t list);
 void scene_draw_signed_sprite_list_entry(Snes *s);
 bool scene_signed_sprite_list_fits(Snes *s);
+bool scene_signed_sprite_list_code_present(Snes *s);
+/* What the signed list leaves in A, for the ports' wrappers. */
+uint16_t scene_signed_list_leaves_a(const GameState *g, uint16_t list);
 
 /* scene/circle.c */
 bool scene_circle_table_is_clear(Snes *s);
 void scene_draw_circle(Snes *s);
 
-/* scene/scaler.c */
+/* scene/scaler.c: a bitmap handed to the scaler, which draws it from the
+ * start of its output: `rows` rows of `pairs` pairs of 8-pixel groups from
+ * the bitmap at `source`, each row's source `row_step` 128ths of a row on
+ * from the last and its samples twice that apart, until the rows run out or
+ * the row position reaches `limit`. */
+typedef struct {
+    uint16_t source, rows, pairs, row_step, limit;
+} SceneScaling;
+void scene_scaler_start(GameState *g, SceneScaling bitmap);
 bool scene_scaler_in_its_bank(Snes *s);
 void scene_scale_bitmap_row(Snes *s);
 void scene_scale_bitmap(Snes *s);
+
+/* scene/random.c: the draw as the program's code calls it, through its own
+ * call ($7E:3443) or the stir's ($C3:02DD). */
+void scene_draw_random_entry(Snes *s);
+bool scene_draw_random_present(Snes *s);
+void scene_program_draw_random(Snes *s);
+bool scene_program_draw_random_present(Snes *s);
 
 /* scene/math.c */
 bool scene_divide_present(Snes *s);
