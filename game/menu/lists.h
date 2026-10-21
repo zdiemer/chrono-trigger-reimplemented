@@ -62,12 +62,26 @@ void menu_slide_list_a_frame_entry(Snes *s);
 bool menu_list_slide_is_startable(Snes *s);
 bool menu_list_slide_frame_is_showable(Snes *s);
 
+/* A scrolling list's frame ($C2:EA81): the list laid out for its paging, its
+ * cursor and its scroll bar, `places` places, `rows` of them in view at once,
+ * and the bar's thumb moving over `track` lines (menu_frame_the_list, below).
+ * The entry takes the places in Y and the rows and track where its callers
+ * leave them, and the bridges that run it as C leave the registers as it
+ * does. */
+void menu_frame_the_list(GameState *g, uint8_t places, uint8_t rows, uint16_t track);
+void menu_frame_the_list_entry(Snes *s);
+void menu_leave_the_list_framed(Snes *s, uint8_t places);
+bool menu_list_frame_is_layable(Snes *s);
+
 /* A scrolling list paged with the shoulder assignments, its first row at
  * `top`: back a page or on a page, its rows as its frame laid them out
  * (menu_paging_rows, menu_paging_last_top). The new first row, `top` where
  * no page turns; a page that turns moves the scroll bar's thumb there and
  * ticks, and paging past an end puts the cursor on the end's place. */
 uint8_t menu_turn_page(GameState *g, uint8_t top);
+
+/* Whether a page turns for the frame's input, asked before the paging. */
+bool menu_page_turns(const GameState *g, uint8_t top);
 
 /* Its entry ($C2:93BF): the first row in menu_paging_top, the answer in A
  * $FF where a page turned. */

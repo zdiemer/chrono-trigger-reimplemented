@@ -43,7 +43,6 @@
 /* ---- The calls out ------------------------------------------------------------------------------- */
 
 enum {
-    YIELD = 0xC2821E,           /* the task waits for the next frame */
     MAIN_MENU = 0xC29A98,       /* back to the main menu */
     LEAVE_THE_MENUS = 0xC282B2, /* the menus close, back to the field */
     FADE_IN = 0xC283B2,         /* the screen's fade in started */
@@ -63,7 +62,6 @@ enum {
     READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
 };
 
-static bool yield(Snes *s, uint32_t site) { return menu_call(s, site, YIELD, READS_NOTHING); }
 static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, CURSOR_SOUND, menu_play_cursor_sound); }
 
 static void leave_choosing_started(Snes *s);
@@ -98,7 +96,7 @@ static bool slide_the_reserve(Snes *s, ExchangeSlide *slide)
     menu_save_p(s);
     while (menu_exchange_slide_a_frame(g, slide)) {
         menu_set_widths(s, false, false);
-        if (!yield(s, 0xC2C936))
+        if (!menu_wait_a_frame_from(s, 0xC2C936))
             return false;
     }
     menu_exchange_end_the_slide(g);
@@ -220,7 +218,7 @@ void menu_open_exchange_at_the_gate(Snes *s)
     if (!menu_run(s, 0xC2C7C5, LAY_OUT_THE_SCREEN, menu_lay_out_the_exchange) || !show_the_swirl(s))
         return;
     while (menu_tasks_state(g, MENU_DESCRIPTION_TASK) != 0)
-        if (!yield(s, 0xC2C7D0))
+        if (!menu_wait_a_frame_from(s, 0xC2C7D0))
             return;
     menu_exchange_show_the_gate(g);
     if (!menu_run(s, 0xC2C7DA, START_THE_GATE_SCREEN, menu_start_gate_screen))
@@ -353,10 +351,10 @@ void menu_show_exchange_panel(Snes *s)
         return;
     menu_set_widths(s, false, false);
     menu_exchange_panel_colours(g);
-    if (!yield(s, 0xC2CA2D))
+    if (!menu_wait_a_frame_from(s, 0xC2CA2D))
         return;
     menu_exchange_panel_draw_the_rows(g, pf);
-    if (!yield(s, 0xC2CA33))
+    if (!menu_wait_a_frame_from(s, 0xC2CA33))
         return;
     menu_set_widths(s, false, false);
     menu_exchange_panel_finish(g, pf);

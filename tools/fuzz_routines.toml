@@ -9044,6 +9044,15 @@ iterations = 2000
 why = "a pass of the records' task over the records as the state has them loaded, the first two asked for any of the first animations with any frame time left, the first sometimes hidden, the frame's share of uploads anywhere from none to seven blocks"
 
 [[routine]]
+name = "menu_record_task_goes_on"
+at = "C2:F699"
+subsystem = "menu"
+state = "menus"
+args = ["--db", "7E", "--keep", "7E1800-7E1A3F", "--keep", "7E8000-7E9693", "--fill", "7E1811-7E1811=00-03", "--fill", "7E1851-7E1851=00-03", "--fill", "7E1813-7E1813=00-02", "--fill", "7E1853-7E1853=00-02", "--fill", "7E1818-7E1818=00,00,00,01,80", "--fill", "7E0D72-7E0D72=00,00,80", "--fill", "7E0D75-7E0D75=00-07", "--fill", "7E0D11-7E0D11=00,08,10,18,20"]
+iterations = 2000
+why = "the records' task going on from its wait round its loop: a pass over the records as the state has them loaded, the first two asked for any of the first animations with any frame time left, the first sometimes hidden, the frame's share of uploads anywhere from none to seven blocks"
+
+[[routine]]
 name = "menu_draw_record_sprites"
 at = "C2:F871"
 subsystem = "menu"
@@ -20321,3 +20330,17 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E020D-7E020D=11,C9,09",
         "--fill", "7E020E-7E020E=EF,CB,3A", "--fill", "7E020F-7E020F=CE,CC"]
 why = "any string of the three tables the battle's messages come from (the guard takes only those), and one the menus' code can type"
+
+[[routine]]
+name = "menu_frame_the_list"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--range", "Y=0000-00FF", "--fill", "7E0000-7E0000=00-10", "--fill", "7E0DDB-7E0DDB=00-0C"]
+why = "a list's places in Y anywhere from none to 255 (the high byte the frame drops), the rows in view none to sixteen, its first place none to twelve; the divider as the state left it"
+
+[[routine]]
+name = "menu_start_the_tasks"
+subsystem = "menu"
+state = "menus"
+args = ["--db", "7E"]
+why = "any state: it clears the tasks' records and starts the two that run all the time, then waits for the first frame (as far as fuzzing goes, the wait's head)"

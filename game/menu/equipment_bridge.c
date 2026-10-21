@@ -5,12 +5,14 @@
  * Each step reads the cursor, asks equipment.c what the frame's input does,
  * and carries that out: the sounds and the member's card are siblings, run
  * as the original's JSRs reach them (menu_run); the member list's scroll
- * bar and the start of its slide, the list's frame, the low-HP marks, the
- * trying on of what is no item of the game's and the frames the screen
- * waits for are the original's, called out to; where a step jumps on to
- * another routine (the member list's move, the slots' pointing, the list's
- * step, back to the main menu), it stops there, and the runtime runs that
- * routine, a port or the original's.
+ * bar and the start of its slide, the low-HP marks and the trying on of
+ * what is no item of the game's are the original's, called out to; the
+ * list's frame is C, called as C; a step that waits for the next frame
+ * waits in the menus' task switch, parked until its task goes on
+ * (menu_wait_a_frame_from); where a step jumps on to another routine (the
+ * member list's move, the slots' pointing, the list's step, back to the
+ * main menu), it stops there, and the runtime runs that routine, a port or
+ * the original's.
  *
  * Shadow mode compares the machine at every call out, the flags a sibling
  * saves as it starts (on the stack under its own calls out) among it. So
@@ -22,6 +24,7 @@
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
+#include "menu/description.h"
 #include "menu/display.h"
 #include "menu/figures.h"
 #include "menu/held_cursors.h"
@@ -43,9 +46,7 @@
 
 /* The original's routines the steps call, by what they do. */
 enum {
-    YIELD = 0xC2821E,                /* the task waits for the next frame */
     MEMBER_SCROLL_BAR = 0xC2A170,    /* the member list's scroll bar set up */
-    FRAME_THE_LIST = 0xC2EA81,       /* a scrolling list's frame laid out: Y places, rows shown */
     LOW_HP_MARKS = 0xC2813C,         /* each character's low-HP mark worked out */
     TRY_ON = 0xC2A5C3,               /* the list's item on the cursor tried on (equipment.c), where it is no item of the game's */
     START_MEMBER_SLIDE = 0xC29D5B,   /* the member list's slide started, if there is a member to bring in */
@@ -62,18 +63,15 @@ enum {
 };
 
 /* What they read (tools/dontcare_check.py checks each): most nothing but the
- * page and the data bank; the list's frame its places in Y; the refusal's
- * sound A's high byte, and the cursor sound as a step's last A and the
- * carry. */
+ * page and the data bank; the refusal's sound A's high byte, and the cursor
+ * sound as a step's last A and the carry. */
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-    READS_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
     READS_A_AND_CARRY = DC_X | DC_Y | DC_N | DC_V | DC_Z,
 };
 
 static bool call(Snes *s, uint32_t site, uint32_t routine) { return menu_call(s, site, routine, READS_NOTHING); }
-static bool yield(Snes *s, uint32_t site) { return menu_call(s, site, YIELD, READS_NOTHING); }
 static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, 0xC2EAC2, menu_play_cursor_sound); }
 
 /* A sound by its number, loaded into A as the original's call does (the
@@ -95,6 +93,7 @@ static void leave_slot_kept(Snes *s, uint8_t kept_before);
 static void leave_list_sum(Snes *s, uint8_t shown_before);
 static void leave_label_copied(Snes *s);
 static void leave_list_drawn(Snes *s);
+static void leave_list_opened(Snes *s, bool typing_started);
 static void leave_member_switched(Snes *s);
 static void leave_panel_tested(Snes *s, uint8_t row_before);
 static void leave_page_turned(Snes *s);
@@ -150,7 +149,7 @@ void menu_choose_equipment_member(Snes *s)
         if (!tick(s, 0xC29C52) || !menu_run(s, 0xC29C55, 0xC2A71E, menu_open_slots_window))
             return;
         TIMED_AS(g, 0xC2A321, menu_equip_show_slots_of_member(g, m_platform(s)));
-        if (!yield(s, 0xC29C5B) || !tick(s, 0xC29C5E))
+        if (!menu_wait_a_frame_from(s, 0xC29C5B) || !tick(s, 0xC29C5E))
             return;
         TIMED_AS(g, 0xC28953, menu_list_what_fits(g));
         TIMED_AS(g, 0xC2A569, menu_equip_draw_list(g));
@@ -192,7 +191,7 @@ void menu_slide_equipment_members(Snes *s)
     GameState *g = state_of(s);
     menu_equip_start_member_slide(g, m_platform(s));
     while (menu_equip_slide_members_a_frame(g))
-        if (!yield(s, 0xC29E3C))
+        if (!menu_wait_a_frame_from(s, 0xC29E3C))
             return;
     menu_equip_finish_member_slide(g);
     menu_set_widths(s, true, false);
@@ -255,7 +254,7 @@ void menu_point_at_equipment_slot(Snes *s)
     uint8_t shown_before = menu_equip_shown(g);
     bool another = menu_equip_list_is_for_another_slot(g);
     ORIGINAL_EFFECT(leave_list_sum(s, shown_before));
-    if (another && (!yield(s, 0xC29EFD) || !menu_run(s, 0xC29F00, 0xC2A45D, menu_redraw_equipment_list)))
+    if (another && (!menu_wait_a_frame_from(s, 0xC29EFD) || !menu_run(s, 0xC29F00, 0xC2A45D, menu_redraw_equipment_list)))
         return;
     menu_restore_p(s);
     m_stop_dont_care(s, 0xC29F04, READS_NOTHING);
@@ -276,7 +275,7 @@ void menu_switch_equipment_member(Snes *s)
         if (!tick(s, 0xC2A043) || !menu_run(s, 0xC2A046, 0xC2A21F, menu_redraw_member_card))
             return;
         TIMED_AS(g, 0xC2A3E2, menu_equip_mark_slots(g));
-        if (!yield(s, 0xC2A04C))
+        if (!menu_wait_a_frame_from(s, 0xC2A04C))
             return;
     }
     menu_restore_p(s);
@@ -397,7 +396,7 @@ void menu_point_along_equipment_list(Snes *s)
         menu_equip_slide_list_a_frame(g);
         while (menu_equip_list_slide_frames_left(g)) {
             TIMED_AS(g, 0xC2EB1F, menu_slide_list_a_frame(g));
-            if (!yield(s, 0xC29FB4))
+            if (!menu_wait_a_frame_from(s, 0xC29FB4))
                 return;
             menu_equip_slide_list_a_frame(g);
         }
@@ -436,11 +435,11 @@ void menu_show_equipment_panel(Snes *s)
     uint8_t row_before = menu_member_row(g);
     menu_equip_panel_lay_out_list(g, pf);
     menu_set_widths(s, false, false);
-    if (!yield(s, 0xC2A0AC))
+    if (!menu_wait_a_frame_from(s, 0xC2A0AC))
         return;
     menu_set_widths(s, true, false);
     menu_equip_panel_draw_members(g, pf);
-    if (!yield(s, 0xC2A0BD))
+    if (!menu_wait_a_frame_from(s, 0xC2A0BD))
         return;
     menu_equip_panel_set_colour_math(g, pf);
     ORIGINAL_EFFECT(leave_panel_tested(s, row_before));
@@ -485,7 +484,7 @@ void menu_open_slots_window(Snes *s)
     menu_equip_start_slots_slide(g, m_platform(s), &w);
     menu_set_widths(s, true, false);
     do {
-        if (!yield(s, 0xC2A785))
+        if (!menu_wait_a_frame_from(s, 0xC2A785))
             return;
     } while (menu_equip_slide_slots_a_frame(g, &w));
     menu_restore_p(s);
@@ -501,16 +500,16 @@ void menu_close_slots_window(Snes *s)
     Platform *pf = m_platform(s);
     menu_save_p(s);
     menu_set_widths(s, false, false);
-    if (!yield(s, 0xC2A85F))
+    if (!menu_wait_a_frame_from(s, 0xC2A85F))
         return;
     menu_equip_clear_slot_labels(g, pf);
-    if (!yield(s, 0xC2A88F))
+    if (!menu_wait_a_frame_from(s, 0xC2A88F))
         return;
     MenuWindowSlide w;
     menu_equip_start_members_slide(g, &w);
     menu_set_widths(s, true, false);
     do {
-        if (!yield(s, 0xC2A945))
+        if (!menu_wait_a_frame_from(s, 0xC2A945))
             return;
     } while (menu_equip_slide_members_back_a_frame(g, &w));
     menu_restore_p(s);
@@ -544,7 +543,7 @@ void menu_slide_equipment_list_in(Snes *s)
     menu_equip_start_list_slide(g, m_platform(s), &w);
     menu_set_widths(s, true, false);
     while (menu_equip_slide_list_in_a_frame(g, &w))
-        if (!yield(s, 0xC2A511))
+        if (!menu_wait_a_frame_from(s, 0xC2A511))
             return;
     menu_restore_p(s);
     m_rts(s);
@@ -561,15 +560,15 @@ void menu_slide_equipment_list_out(Snes *s)
     menu_equip_start_list_closing(g, m_platform(s), &w);
     menu_set_widths(s, true, false);
     while (menu_equip_slide_list_out_a_frame(g, &w))
-        if (!yield(s, 0xC2A6DC))
+        if (!menu_wait_a_frame_from(s, 0xC2A6DC))
             return;
     menu_equip_rest_the_list_bands(g);
     menu_restore_p(s);
     m_rts(s);
 }
 
-/* The list of what fits made, laid out, its frame (the original's), its
- * bar, the bar's task, and drawn. The drawing leaves the pen past the list
+/* The list of what fits made, laid out with its frame, its bar, the bar's
+ * task, and drawn. The drawing leaves the pen past the list
  * in A. */
 static void make_the_list(Snes *s)
 {
@@ -579,9 +578,7 @@ static void make_the_list(Snes *s)
     TIMED_AS(g, 0xC28953, menu_list_what_fits(g));
     menu_equip_lay_out_list(g);
     menu_set_widths(s, true, true);
-    s->cpu.y = menu_equip_choices(g);
-    if (!menu_call(s, 0xC2A494, FRAME_THE_LIST, READS_Y))
-        return;
+    ORIGINAL_EFFECT(menu_leave_the_list_framed(s, menu_equip_choices(g)));
     menu_equip_set_list_bar(g);
     TIMED_AS(g, 0xC28B93, menu_start_the_scroll_bar(g));
     TIMED_AS(g, 0xC2A569, menu_equip_draw_list(g));
@@ -618,8 +615,11 @@ void menu_open_equipment_list(Snes *s)
     ORIGINAL_EFFECT(menu_leave_load(s, 0x42));
     if (!menu_run(s, 0xC2A432, 0xC2A463, menu_make_equipment_list))
         return;
+    bool typing_starts = false;
+    ORIGINAL_EFFECT(typing_starts = menu_equip_opening_starts_typing(g));
     menu_equip_open_the_list(g);
     menu_equip_settle_the_list(g);
+    ORIGINAL_EFFECT(leave_list_opened(s, typing_starts));
     menu_restore_p(s);
     m_stop_at_own(s, CURSOR_SOUND, READS_A_AND_CARRY);
 }
@@ -638,7 +638,7 @@ void menu_back_to_equipment_slots(Snes *s)
     if (!menu_run(s, 0xC2A650, MEMBER_CARD, menu_draw_member_card) || !call(s, 0xC2A653, LOW_HP_MARKS))
         return;
     menu_equip_redraw_slots(g, pf);
-    if (!yield(s, 0xC2A661))
+    if (!menu_wait_a_frame_from(s, 0xC2A661))
         return;
     ORIGINAL_EFFECT(menu_leave_load(s, 0x2E));
     if (!menu_run(s, 0xC2A664, 0xC2A697, menu_slide_equipment_list_out)
@@ -786,6 +786,16 @@ static void leave_label_copied(Snes *s)
 
 /* The list drawn: the pen past its last row in A. */
 static void leave_list_drawn(Snes *s) { s->cpu.a = menu_equip_list_end(); }
+
+/* The description ($C2:F2F3) leaves A clear where it started typing, and
+ * the original's last load before the cursor's sound is the cursor's place
+ * on the list. */
+static void leave_list_opened(Snes *s, bool typing_started)
+{
+    if (typing_started)
+        menu_leave_typing_started(s);
+    m_set_a8(s, menu_cursor_index(state_of(s)));
+}
 
 /* The member switched to is compared with the list's last row as the list
  * is laid out for it: from the last row on the list scrolls (the row loaded),

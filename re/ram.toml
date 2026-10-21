@@ -7426,7 +7426,11 @@ source = "game/menu/save_screen.c, game/menu/sprites.c, game/menu/tasks.c"
   [[var.field]]
   name = "list_rows"
   offset = 0
-  meaning = "A scrolling list's frame ($C2:EA81): the rows it shows, which its caller leaves here"
+  meaning = "A scrolling list's frame ($C2:EA81): the rows it shows, which its caller leaves here, and the frame the rows in view (fewer, for a list with fewer places)"
+  [[var.field]]
+  name = "list_places_past"
+  offset = 1
+  meaning = "A scrolling list's frame ($C2:EA81): the places past the rows in view, as it leaves them (scaffolding; game/menu/lists.c)"
   [[var.field]]
   name = "band_value"
   offset = 0
@@ -8284,6 +8288,14 @@ page = "menu"
 subsystem = "menu"
 meaning = "Where the cursor was when this frame's input was read: the menus play the cursor's sound where it has moved since"
 source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_byte_the_mode_before_left"
+addr = "7E:0082"
+page = "menu"
+subsystem = "menu"
+meaning = "A byte the menus never write, left by the mode before them (the sprite-object mode's upload queue, a scene's countdown): the shop reads it, after its list has slid, as the high byte of where the cursor was as the frame's input was read, comparing that with where the cursor is as words"
+source = "game/menu/shop_bridge.c, menu_choose_shop_equipment $C2:D778"
 
 [[var]]
 name = "menu_screen"

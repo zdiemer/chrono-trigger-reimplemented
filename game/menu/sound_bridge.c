@@ -21,17 +21,14 @@
 #include "port/native.h"
 #include "vars.h"
 
-/* The driver, which reads the accumulator's high byte of the registers; the
- * task switch, which waits for a frame and reads none of them; the screen's
- * fade out, which reads the accumulator's high byte. */
+/* The driver, which reads the accumulator's high byte of the registers, and
+ * the screen's fade out, which reads the same. */
 enum { SOUND_DRIVER = 0xC70004, SEND_THE_SONG = 0xC2CBF3, SEND_THE_FADE = 0xC2CC09 };
-enum { YIELD = 0xC2821E, FADE_OUT = 0xC283CA, MUSIC_PLAYING_WAIT = 0xC2CBE0, TASK_ENDS = 0xC2CBE8 };
+enum { FADE_OUT = 0xC283CA, MUSIC_PLAYING_WAIT = 0xC2CBE0, TASK_ENDS = 0xC2CBE8 };
 enum {
     READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
 };
-
-static bool yield(Snes *s, uint32_t site) { return menu_call(s, site, YIELD, READS_NOTHING); }
 
 static bool send_at(Snes *s, uint32_t jsl, AudioCommand c)
 {
@@ -79,7 +76,7 @@ static bool wait_for_the_fade(Snes *s, uint32_t asked_at, uint32_t yield_at)
         menu_set_widths(s, true, false);
         if (au_music_fade_left(m_platform(s), PF_AT(asked_at)) == 0)
             return true;
-        if (!yield(s, yield_at))
+        if (!menu_wait_a_frame_from(s, yield_at))
             return false;
     }
 }

@@ -10531,3 +10531,197 @@ worst stretch, 64,755 clocks once in 785 (the limit 50,468), its window's
 work as unevenly timed as before but its stretch no longer split at the
 rider's call; and the techs' choosing's vblank-tail exception goes, within
 its limit now.
+
+## Phase 4a, the shipping mode's fallbacks, chunk 7: the sound driver's CPU half, its waits for the SPC700 in place (`$C7:0000`-`$C7:0A97`)
+
+The fallbacks' stream (history/reimplementation-chunks.md, "Phase 4a, the
+shipping mode's fallbacks, chunk 6", for the one before), chosen by the
+reference play: of its 7.33 M instructions run as the original, 4.4 M were
+the sound driver's CPU half waiting for the SPC700.
+
+**How it was chosen.** The last gate's reference play had the counter
+exchange (`$C7:09DA`, 3.07 M) and the boot's byte loop (`$C7:00B0`, 1.03 M)
+first and second, and `C7:----` (0.29 M) sixth. Taken apart: the first two
+were the leaving pass of the echo waits the ports stopped at, idle entries,
+a pass for each of the 1.5 M messages and 0.5 M boot bytes; `C7:----` was a
+song's upload in a menu task run on as the original, after the menus' vblank
+handler, which moves to a stack of its own, made the runtime take the
+upload's call-out for its callee unwinding (`menus-shop-equip`, 252 K) and
+the fallback measure end the extents under it.
+
+**The waits on the SPC700, in place.** The audio service has four calls more
+at the protocol level (PLATFORM.md, "The CPU half's waits, as built"): a wait
+for an echo, for port 0 to move on, for an echo given up after the original's
+count of polls (true where it came), and the exchange that ends a message,
+which the original makes by calling `$C7:09DA` or `$C7:09EA`. The SNES backend
+waits with the runtime's own machinery: `native_wait_loop`, a new
+`native_wait_loop_or_give_up` for a loop with a second exit, and
+`native_wait_call`, on a wake for port 0 (`native_wake_port0_shows`,
+`_leaves`). In the shipping mode the machine steps a pass of the original's
+poll at a time (42 master clocks, 66 for a poll that counts down) and the port
+goes on when port 0 answers, or the polls run out; after an exchange it also
+lets the routine's return pass (102 clocks, `native_wait_time`): the SPC700
+reads a message's last two bytes after it echoes, and without that the next
+message's port 3 overwrote every third byte of a song's sequence (found by
+comparing sound memory after the title's song, then by the lockstep). The
+rest is the port's own time, which has to put a message's bytes where the
+original's go: its loads of them through the long pointer, which the port
+doesn't make, are charged before each byte (`ACCESSES_A_LOAD`). Without that
+the next byte reached port 3 2-3 SPC700 cycles after the SPC700 read the
+last in 784,592 of the library's 1.16 M messages; with it, 182, and 8-15
+cycles in all but 8,577, as the original's (`ct_dev --apu-port-margins`, a
+measure at every echo; PLATFORM.md has the numbers). In shadow mode the
+original's loop or routine runs, and the port goes on where the original
+leaves it; a wait on the SPC700 doesn't go on after an interrupt
+as a wait on the handlers does, and doesn't take the exit the original left
+the last wait by (a loop that gives up leaves where it goes round to send
+again). Nothing the runtime lacked but these.
+
+**The command as one port.** `game/core/sound_driver.c` is rewritten. Every
+wait is the port's, so a command runs whole from `$C7:0004` to the driver's
+exit: the chain of entries that went on after each wait, the idle entries
+and the call-outs to the exchange are gone, 43 registered entries down to 9.
+The logic is C over the game's state through `vars.h` (the effects' set, the
+echo's delay and page, the first sample's slot named in `re/ram.toml` for
+what they are, and the lists' ends as a variable of their own), the
+cartridge through the `GameState` accessors the C driver already used
+(`core/sound_data.h`'s `Snes *` duplicates gone), and the cells only the
+original's next instructions read (where it reads in the cartridge, its work
+word, its index and the song's lists) as scaffolding. The slots are a small
+module (a slot's block is its byte; the word's high byte the original keeps
+is the guard's alone), the protocol is messages on a `Link`, each step naming
+the original's site of its exchange, and the data a resource streamed by its
+index (`SoundBytes`, a block, a sequence, a set of effects, a song's
+percussion), the original's long pointer derived from it where only shadow
+mode reads it. The commands read as what the game asks: a command as it is, a
+song (its command, the slots it doesn't use freed, the kept ones moved down,
+the missing loaded, its directory entries, tunings, envelopes, the effects
+where due, its sequence and percussion), command `$70`'s switch of the
+effects and `$71`'s sample. Three routines that wait inside themselves --
+a song's command (`$C7:0A39`), a block's upload (`$C7:0655`), the effects'
+upload (`$C7:0922`) -- are called as C like the rest, inside the original's
+frame for them: shadow mode meets the original at each wait with S and the
+stack compared, and the original has the routine's return address there and,
+for two of them, the flags it pushed, which no port can derive.
+`IN_THE_ORIGINALS_FRAME(g, bytes, ...)` (`game/original_frame.h`,
+scaffolding the native shape compiles out) lowers S by the frame's bytes for
+the routine's work and declares them dead (`native_frame_enter`,
+`native_frame_leave`), so the waits in them meet the original's where it
+stands. The three stay registered, for the original's own calls (where the
+command's guard turns a state away) and to fuzz each alone; the command's
+stretches compare them otherwise (`tools/uncompared_baseline.txt`). The boot is three
+entries: the wait for the boot ROM (`$C7:0050`) and the countdown
+(`$C7:011B`) stay idle entries, now leaving the flags as the original's pass
+does; between them the whole upload is one port. A guard on the command
+(`sound_driver_slots_are_kept`) turns away slots the driver never keeps:
+blocks past a byte, a length short enough to be a block's number (the
+directory's search runs on past the slots into their lengths), a hole among
+the slots in use, a block in two slots more than once; real play never makes
+one.
+
+**The runtime and the measure.** A call-out under an interrupt whose handler
+moves to a stack of its own (the menus' vblank handler) is no longer taken
+for the callee unwinding, nor a port's own stretch under one for the port
+leaving: `Active.handler_away` holds until S is back where the interrupt was
+taken. The command needs the second: a song started in a menu task uploads
+within one port now, its stretches cut by that handler, and without the rule
+the rest of the upload ran as the original under its caller's handback
+(`C2:CBEB`, 89,680 instructions of `$C7` code in `menus-shop-equip`). The
+fallback measure keeps the extents under such an interrupt the same way
+(`dev/fallbacks.c`, `handler_away`). Both reach past the sound driver: the
+healing's rising numbers (`$C2:9093`) are compared past their waits for the
+next frame where those fell under the vblank handler, and code the measure
+counted as `C2:----` and `FF:----` is filed under the extent it runs in. A wait
+on the sound processor meets the original at its loop's head before an exit
+(the exit before that is where the last wait on the loop left): over the 36
+movies against `main`, no wait's interrupted count rose, so none was entered
+past its head. What moved is the sound driver's (the command 103 interrupted
+to 262, its stretches the whole command now, and 283 abandoned to none; a
+block's upload 430 interrupted to none, its 1,026 calls compared inside the
+command's stretches) and about forty menu calls cut by that handler, counted
+abandoned now rather than interrupted (neither compares the call). The vblank check's shipping runs play the C sound driver
+in lockstep beside the original's, so the waits made in place are checked
+where they are made.
+
+**What shadow mode and fuzzing found.** Over the 36 movies, 0 mismatching:
+the command 13,974 calls (261 interrupted: a song's upload spans frames and
+a vblank cuts one of its stretches; every exchange before it is compared);
+the song's command (607 calls), a block's upload (1,026) and the effects'
+upload (72) run inside the command's stretches, which compare them, so their
+own entries count their calls abandoned; the boot's three entries 37 each;
+the sound lockstep identical in every movie, in shadow and in the shipping
+mode. **Fuzzing** (seed 1, `tools/fuzz_routines.toml`, `--apu-loopback`), 0
+mismatching: the command 6,818 of 20,000 (13,163 refused by the guard, 19
+skipped where a wait for port 0 to move on runs out of budget, as the
+loopback never moves it), 20,000 with the slots as the title's song leaves
+them and 17,742 of 20,000 in its `refusals` variant (2,258 skipped so); the
+song's command, the effects' upload (in both variants), the boot, its
+upload, its finish and its two waits 20,000 each; a block's upload 19,682 of
+20,000; and the healing's raising, whose timing moved, 20,000 and its kind
+9,872 (the rest refused by its guard). The loopback confirms every header and wants every
+song, so the `refusals` variants have the SPC700 answer otherwise on port 1
+now and then (`ct_fuzz --apu-port1-flips`, which flips bit 7 of the run's
+first eight reads of port 1 as a random byte of work RAM says): a header it
+doesn't confirm (`send_header`'s count again), a song it doesn't want, the
+moves it turns down (`forget_every_slot`), which the movies reach seldom or
+never. Against `main`'s ports, the block's and the effects' uploads, the
+boot and its finish agree (0 and 0); the two idle loops went from 20,000
+mismatching (a pass declaring its flags dead, which `ct_fuzz` now refuses) to
+0. The command's and the song's command's extents changed (they stopped at
+their first wait before), so their counts aren't comparable.
+
+**Measured.** The reference play: 2.83 M from 7.33 M over the 36 movies, 11.0 KiB from
+13.6 KiB. The sound driver's lines are gone but the boot's two machine waits
+(`C7:0000` 222 and `C7:005F` 74, the passes that leave them): the exchange
+(3.07 M), the boot's bytes (1.03 M), `C7:----` (0.29 M), the command's
+waits (`C7:0004` 28 K) and the routines' (`C7:0A79`, `0A39`, `0A7B`,
+`063D`, `08FF`, 9 K). Outside `$C7` the lines fell by 78 K (2.91 M to
+2.83 M), none of it code that stopped running: the shadow runs' original
+runs as it was recorded whatever the ports do, so what moved is where the
+measure files it. With the measure's fix, the menus' `C2:----` (0.18 M from
+0.34 M) is filed under the extents its code runs in (`C2:F657` 69 K,
+`C2:E921` 68 K, `C2:821E` 23 K, `C2:83CA` 6 K, `C2:8C33` 3 K, `C2:8A45` 2 K
+and five lines under 1 K), and `FF:----` (0.13 M from 0.17 M) the same way:
+the record task's callee in bank `$FF` (from `FF:F56B`, 32 K) under the
+task's handback, `C2:F657`, and the gate screen's (1.9 K a movie) under
+`C2:CE86` in one movie and under its port's comparison in two, the
+instructions at those addresses as many as before. The healing's rising numbers are
+compared now (`C2:9093`, 29 K, and 14 K more of `menus-field-menu`'s). The
+rest, 31 K over the movies that show text and menus, runs under ports'
+comparisons where the measure counted it before (in `fair`, the glyphs
+`C2:5DC4` draws: 45,468 instructions there before, 45,528 now, 1.4 K more
+of them under `menu_text_go_on`'s), and `C3:0E29` rose by 3 K (the attract
+demo, `scene_find_divisor`'s skipped work). At the first review the
+fall was 28 K, as `C2:CBEB` then held 33 K of the sound driver's own code: a
+song's upload in a menu task, run on as the original after the menus'
+vblank handler cut the block's comparison, which the rule for a port's own
+stretch keeps under the command's now (13 instructions left there). `open
+C7:0004` is 102,816 where `open C7:0655` was 7,904: the attract demo ends
+during a song's upload, which the command carries out whole, so the
+original's upload so far lies under its open comparison, where before the
+block being uploaded was a comparison of its own, open since its last
+exchange (25,688 at the first review, once that waited in place). The
+shipping mode over the movies: 0.14 M from 0.18 M instructions; over the
+routes, counted over the frames they keep, 0.04 M as before; together 0.18 M
+from 0.23 M (the shipping mode played the CPU half's waits as idle entries
+already, so what moved there is the menus' call-outs no longer abandoned
+under their vblank handler). No refusal in real play; the native shape runs
+all 36 movies and reaches all ten routes' outcomes. The lockstep beside the
+vblank check's shipping runs is identical in every movie.
+
+**Timing.** Calibrated (`--drifted`): the boot's upload 6,543, the command
+3,251, the song's command 5,576, a block's upload 4,486, and two of the
+menus' rows the runtime's rule moved, `menu_play_cursor_sound` 3,089 and
+`menu_raise_amount_kind` 9,014. The command charges what the original does
+at length and the port in a step (`charge.h`): each byte's load through the
+original's long pointer (`ACCESSES_A_LOAD`), which also puts the bytes on the
+ports where the original's go (the margin above), and its searches of the
+slots and of the song's list, a word a step (`ACCESSES_A_COMPARE`). Its one
+rate then fits all its stretches, at most 9,069 clocks off in vblank (the
+limit 12,617), and it needs no exception. Nor does `menu_raise_amounts`: the
+healing's frames are its kind's (`NATIVE_TIME_AS_SIBLING`, as the original's
+call of `$C2:9047` yields between them), and the kind is calibrated over its
+264 stretches rather than its first six. One exception is new, the main
+menu's opening (`menu_choose_on_main_menu`, worst: 67,208 clocks off, once
+in each of two movies), a stretch the rule for a port's own stretch lets be
+judged (TODO.md).

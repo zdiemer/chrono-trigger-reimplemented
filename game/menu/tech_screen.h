@@ -84,22 +84,19 @@ bool menu_techs_put_the_lister_on_its_record(GameState *g);
 /* ---- The member rows -------------------------------------------------------------------------- */
 
 /* The rows of the members the list shows, each with its sprite (and empty
- * rows as the original draws them past the last); then the scroll bar beside
- * them (once the original has laid out its frame). */
+ * rows as the original draws them past the last); then the list's frame and
+ * the scroll bar beside them. */
 void menu_techs_draw_member_rows(GameState *g, Platform *pf);
 
 /* A member row for the member loaded last, from the drawing origin: its
  * face, name, HP and MP, the MP in the short colour where it has less than
  * the tech on the cursor needs. */
 void menu_techs_draw_member_row(GameState *g, Platform *pf);
-void menu_techs_place_member_bar(GameState *g);
 
 /* ---- The list --------------------------------------------------------------------------------- */
 
-/* The list's frame for the original to lay out, then the list's members'
- * rows: the member's and the tech's other members', each with what it costs
- * them. */
-void menu_techs_frame_the_list(GameState *g);
+/* The list's frame, then the list's members' rows: the member's and the
+ * tech's other members', each with what it costs them. */
 void menu_techs_show_the_list(GameState *g, Platform *pf);
 
 /* On the list the screen's line effects are those at rest (a slide changes

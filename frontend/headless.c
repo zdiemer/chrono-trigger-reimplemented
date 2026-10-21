@@ -50,6 +50,9 @@ int run_headless(Player *pl, const HeadlessOptions *o)
         if (ready == PLAYER_SAVE_DROPS_TIME)
             fprintf(stderr, "the state leaves out %llu master clocks the native routines owed\n",
                     (unsigned long long)player_owed(pl));
+        if (ready == PLAYER_SAVE_HANDS_BACK_A_STEP)
+            fprintf(stderr, "the state holds a menu step waiting for the next frame, which the original's code "
+                            "finishes once it is loaded\n");
         if (ready == PLAYER_SAVE_WAIT) {
             fprintf(stderr, "cannot save state: native routines stayed suspended\n");
             rc = 1;

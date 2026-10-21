@@ -53,14 +53,9 @@ enum { NOT_A_NUMBER = 0x8000 };
 enum { FIXED = 0x80, POWER_BITS = 0x7F, FIXED_FACTOR_BITS = 0x0F, DRAWN_FACTOR_BITS = 0x1F, TAKEN = 0x80,
        ALL_OF_IT = 0x40 };
 
-/* For the original's code and shadow mode: the original goes through the
- * members it heals as the member the menus work on, and leaves that one
- * past the last; it counts them down in the menus' first cell. */
-static void leave_members_healed(GameState *g, uint8_t past)
-{
-    menu_work_on_member(g, past);
-    set_menu_scratch_restoring_members_left(g, 0);
-}
+/* For the original's code and shadow mode: it counts the members it heals
+ * down in the menus' first cell. */
+static void leave_members_healed(GameState *g) { set_menu_scratch_restoring_members_left(g, 0); }
 
 /* ... and the amounts worked out, which it keeps on the menus' page. */
 static void leave_amounts(GameState *g, const uint16_t amounts[DRAWS])
@@ -143,7 +138,11 @@ void menu_heal(GameState *g)
         TIMED_AS(g, 0xC28820, (void)menu_load_member(g, (uint8_t)member));
         heal_member(g, member, amounts);
     }
-    ORIGINAL_EFFECT(leave_members_healed(g, (uint8_t)(first + members)));
+    /* the healing goes through the members as the member the menus work on,
+     * and leaves that one past the last, which the screen after it reads
+     * (the techs screen keeps its high byte as it works on another) */
+    menu_work_on_member(g, (uint8_t)(first + members));
+    ORIGINAL_EFFECT(leave_members_healed(g));
 }
 
 /* ---- The numbers rising ---------------------------------------------------------------------- */
@@ -184,13 +183,10 @@ static uint16_t to_digits(GameState *g, uint16_t amount, MenuAmountKind kind)
     return (uint16_t)digits;
 }
 
-/* For the original's code and shadow mode: the member it looks at kept as
- * the member the menus work on, left past the last (the whole argument,
- * which the original keeps as a word here); the listed members counted,
- * doubled; and the last member's numbers. */
+/* For the original's code and shadow mode: the listed members counted,
+ * doubled, and the last member's numbers. */
 static void leave_ready(GameState *g, unsigned listed, unsigned numbers)
 {
-    menu_work_on_member_only(g, menu_active_members(g));
     set_menu_scratch_amounts_listed_at(g, (uint16_t)(2 * listed));
     set_menu_scratch_member_amounts(g, (uint16_t)numbers);
 }
@@ -224,6 +220,10 @@ void menu_ready_the_amounts(GameState *g)
     }
     set_menu_amounts_listed(g, (uint16_t)listed);
     set_menu_amounts_kinds(g, kinds_shown);
+    /* it looks at each member as the member the menus work on, and leaves
+     * that one past the last, the whole argument a word, which the screen
+     * after it reads (the techs screen keeps its high byte) */
+    menu_work_on_member_only(g, menu_active_members(g));
     ORIGINAL_EFFECT(leave_ready(g, listed, numbers));
 }
 

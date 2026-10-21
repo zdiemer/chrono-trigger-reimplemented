@@ -39,6 +39,22 @@ enum { MENU_JSR_SIZE = 3, MENU_JSL_SIZE = 4 };
 bool menu_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
 bool menu_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
 
+/* The running task's wait for the next frame (or for frames), a call to the
+ * task switch `routine` from the JSR at `site`: the next task goes on, and
+ * this one from the call's return when its turn comes again, frames later.
+ * The port waits parked across the other tasks' turns (native_yield_call_dc,
+ * the tasks' own answer to whether it can still go on, menu_task_goes_on_from)
+ * and goes on with them; true as menu_call's. Where the task never goes on
+ * (stopped or started afresh, or the menus closed), the runtime drops the
+ * port, as the original's routine never finishes either. */
+bool menu_yield(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
+
+/* The wait for the next frame most of the menus' work makes: the task
+ * switch's ($C2:821E), which reads none of the registers, from the JSR at
+ * `site`. */
+enum { MENU_TASK_WAITS_A_FRAME = 0xC2821E, MENU_TASK_WAIT_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+bool menu_wait_a_frame_from(Snes *s, uint32_t site);
+
 /* The same for a routine that comes back with widths of its own. */
 bool menu_call_returning(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, bool a8, bool x8);
 

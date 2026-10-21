@@ -159,6 +159,8 @@ jobs:
         run: build/ci/shadow_test
       - name: debt_test
         run: build/ci/debt_test
+      - name: suspend_test
+        run: build/ci/suspend_test
       - name: fuzz_test
         run: build/ci/fuzz_test
       - name: time_parts_test

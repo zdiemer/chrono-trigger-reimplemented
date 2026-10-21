@@ -18,6 +18,9 @@ applies it:
   instruction `at`, which must not read `set` (with the entry's) before
   setting it; or `at` is the return instruction the port carries out last, and
   the set must be dead after that return;
+- `PF_LOOP_HELD(head, exit, set)`, a wait the shipping mode leaves to the
+  loop's idle entry (`tm_wait_for_handlers_held`): the port stops at `head`
+  there, as `m_stop_dont_care(s, head, set)` would;
 - `m_stop_at_own(s, at, set)`: the same, but the set is the stop's own and the
   entry's isn't added there (shadow mode leaves out `set` alone), so `set` alone
   must be dead at `at`, and the entry's set only where the port returns or makes
@@ -126,6 +129,8 @@ HEADERS = ("runtime/port/native.h", "runtime/cpu/cpu65816.h")
 DEFAULT_COVERAGE = ("traces/coverage-*.txt", "traces/saves/cov-*.txt")
 DEFAULT_CALLS = ("traces/calls-*.txt", "traces/saves/calls-*.txt")
 STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
+# A held wait's origin, PF_LOOP_HELD(head, exit, set): a stop at head.
+HELD_WAITS = ("PF_LOOP_HELD",)
 # The bridges' vocabulary (game/field/bridge.h, game/battle/bridge.h,
 # game/menu/bridge.h): bridge_call(s, site, target, set, machine) and
 # bridge_call_long(...) and bridge_call_on_page (on another page) with field_run and field_run_long (a sibling port run as
@@ -143,8 +148,8 @@ DELEGATES = ("bridge_call", "bridge_call_long", "field_run", "field_run_long", "
              "bridge_call_on_page", "field_run_or_hand_over",
              "battle_call",
              "battle_call_long", "battle_run_dc", "battle_run_long_dc", "menu_call", "menu_call_long", "menu_call_returning",
-             "menu_call_jumped", "field_wait_frame", "battle_wait_frame", "battle_wait_frames", "battle_wait_line",
-             "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under", "battle_wait_frames_under",
+             "menu_call_jumped", "menu_yield", "field_wait_frame", "battle_wait_frame", "battle_wait_frames",
+             "battle_wait_line", "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under", "battle_wait_frames_under",
              "scene_run", "scene_run_long")
 # Calls of a single routine, called (s, site, ...): the routine and the set
 # are these constants (game/battle/wait.h, game/battle/bridge.h), and the call
@@ -153,6 +158,7 @@ FIXED_DELEGATES = {
     "battle_wait_for_the_handler_from": ("BATTLE_HANDLER_WAIT", "BATTLE_WAIT_READS", 2),
     "battle_wait_for_the_next_frame_from": ("BATTLE_NEXT_FRAME_WAIT", "BATTLE_WAIT_READS", 2),
     "battle_send_and_wait": ("BATTLE_SEND", "BATTLE_SEND_READS", 5),
+    "menu_wait_a_frame_from": ("MENU_TASK_WAITS_A_FRAME", "MENU_TASK_WAIT_READS_NOTHING", 2),
 }
 # A step asked for by a port, called (s, site, step, set): a call-out to the
 # steps' dispatch at site declaring set where the dispatch's guard refuses, and
@@ -171,12 +177,13 @@ BRIDGES = {
     "game/battle/steps.c": tuple(TARGET_DELEGATES),
     # a sibling run as C, or the original's call declaring nothing where its preconditions fail
     "game/battle/sound.c": ("battle_play_a_sound_from",),
-    "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_call_jumped", "menu_back"),
+    "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_call_jumped", "menu_back",
+                           "menu_yield", "menu_wait_a_frame_from"),
     "game/scene/bridge.c": ("scene_run", "scene_run_long", "run_entry"),
 }
 BRIDGE_FILE, BRIDGE_BODIES = "game/field/bridge.c", BRIDGES["game/field/bridge.c"]
-DECLARATIONS = (("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS + DELEGATES + tuple(FIXED_DELEGATES)
-                + tuple(TARGET_DELEGATES))
+DECLARATIONS = (("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS + HELD_WAITS + DELEGATES
+                + tuple(FIXED_DELEGATES) + tuple(TARGET_DELEGATES))
 CALL_OUTS = (("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + DELEGATES
              + tuple(FIXED_DELEGATES) + tuple(TARGET_DELEGATES))
 RETURNS = re.compile(r"\bm_rt[sli]\s*\(")
@@ -988,6 +995,10 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                     if len(call.args) != 3:
                         raise Unreadable("PF_CALL_DC takes (site, target, dont_care)")
                     nodes = [parse(a) for a in call.args]
+                elif call.name in HELD_WAITS:
+                    if len(call.args) != 3:
+                        raise Unreadable(f"{call.name} takes (head, exit, dont_care)")
+                    nodes = [parse(call.args[0]), parse(call.args[2])]
                 elif call.name in FIXED_DELEGATES:
                     routine, dont_care, arity = FIXED_DELEGATES[call.name]
                     if len(call.args) != arity:
@@ -1002,7 +1013,7 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                 try:
                     vals = ev.values(nodes, src, f)
                 except Unreadable:
-                    if call.name in STOPS:
+                    if call.name in STOPS or call.name in HELD_WAITS:
                         raise
                     # a target computed at run time (a jump table's): the original's call at the site says
                     vals = [((v[0], None, v[1]), c) for v, c in ev.values([nodes[0], nodes[2]], src, f)]
@@ -1012,7 +1023,7 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                 findings.append(Finding(where, f"can't read {call.name}: {e}"))
                 continue
             for v, _ in vals:
-                if call.name in STOPS:
+                if call.name in STOPS or call.name in HELD_WAITS:
                     decls.append(Decl("stop", src.path, src.line(call.offset), f.name if f else None, v[1] & 0xFFFF,
                                       at=v[0] & 0xFFFFFF, own=call.name == "m_stop_at_own", offset=call.offset))
                 else:

@@ -80,14 +80,18 @@ void menu_task_waits_frames(Snes *s);
 void menu_task_ends(Snes *s);
 void menu_run_the_tasks(Snes *s);
 void menu_wait_for_the_first_frame(Snes *s);
+void menu_start_the_tasks(Snes *s);
+bool menu_tasks_can_start(Snes *s);
 bool menu_task_can_wait(Snes *s);
 bool menu_task_can_end(Snes *s);
 bool menu_tasks_can_run(Snes *s);
+bool menu_task_goes_on_from(Snes *s, uint16_t s_after);
 
 void menu_run_the_main_task(Snes *s);
 void menu_main_task_waits(Snes *s);
 void menu_run_the_cursor_task(Snes *s);
 void menu_run_the_scroll_bar_task(Snes *s);
+void menu_records_task_waits(Snes *s);
 
 /* menu/screens.c: the running screen's step, as the main task's turn runs
  * it; true if it came back to the turn. And the turn's guard: the screen on a

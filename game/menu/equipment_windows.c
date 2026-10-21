@@ -18,9 +18,8 @@
  * name only; it ends at the first place of the list that holds nothing.
  *
  * The windows' slides wait a frame between their steps, so equipment_
- * bridge.c runs them, a frame at a time, with the frames, the list of what
- * fits (the original's $C2:8953), its frame and scroll bar, and the card's
- * figures, still the original's, called out between the steps here. */
+ * bridge.c runs them, a frame at a time, waiting for the next frame between
+ * the steps here. */
 #include "menu/equipment.h"
 
 #include "charge.h"
@@ -28,6 +27,7 @@
 #include "menu/cursor.h"
 #include "menu/description.h"
 #include "menu/display.h"
+#include "menu/lists.h"
 #include "menu/members.h"
 #include "menu/menu_data.h"
 #include "menu/text.h"
@@ -492,26 +492,24 @@ void menu_equip_draw_list(GameState *g)
 
 uint16_t menu_equip_list_end(void) { return (uint16_t)(LIST_FIRST_ROW_AT + LIST_ROWS * ROW_BYTES); }
 
-/* The list of what fits, once the original's $C2:8953 has made it: the
- * scroll bar's track divided among its places past its rows (its frame is
- * the original's $C2:EA81), the list's rows queued, the list at its first
- * row, the slot's place in a character's record, the frame's first place
- * the list's first row, eight rows shown. */
+/* The list of what fits, once it is made (menu_list_what_fits): the
+ * list's rows queued, the list at its first row, the slot's place in a
+ * character's record, and its frame, eight rows shown from its first place,
+ * the scroll bar's track divided among its places past them. */
 enum { LIST_TRACK = 0x1500, FIRST_LIST_PLACE = 4, UPLOAD_LIST_ROWS = 0xFC1B };
 
 void menu_equip_lay_out_list(GameState *g)
 {
-    hw_set_dividend(g, LIST_TRACK);
     menu_queue_fixed_upload(g, UPLOAD_LIST_ROWS);
     set_menu_equip_list_top(g, 0);
     set_menu_equip_record_place(g, menu_slot_record_place(g, menu_equip_slot(g)));
     set_menu_list_first_place(g, FIRST_LIST_PLACE);
-    set_menu_scratch_list_rows(g, LIST_ROWS);
+    TIMED_AS(g, 0xC2EA81, menu_frame_the_list(g, menu_equip_choices(g), LIST_ROWS, LIST_TRACK));
 }
 
 /* After the frame: the bar's span in lines (four a row, through the
  * multiplier, which it leaves with the product) and its thumb at the top;
- * the bar's task (the original's $C2:8B93) then draws it, and the list is
+ * the bar's task (menu_start_the_scroll_bar) then draws it, and the list is
  * drawn. */
 enum { THUMB_LINES_A_ROW = 4 };
 
@@ -641,6 +639,11 @@ void menu_equip_open_the_list(GameState *g)
 {
     schedule_table_copy(g, STAGED_TABLE, LIVE_TABLE, WHOLE_TABLE_BYTES);
     TIMED_AS(g, 0xC2F2F3, menu_describe_item(g, menu_list_items(g, DESCRIBED_PLACE)));
+}
+
+bool menu_equip_opening_starts_typing(const GameState *g)
+{
+    return menu_description_shows_another(g, menu_list_items(g, DESCRIBED_PLACE));
 }
 
 void menu_equip_settle_the_list(GameState *g)

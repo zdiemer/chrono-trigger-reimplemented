@@ -273,4 +273,9 @@ bool menu_equipment_panel_shows(Snes *s);
 bool menu_panel_colours_dim(Snes *s);
 bool menu_panel_colours_show(Snes *s);
 
+/* For the entries' leaves (scaffolding): whether the list's opening starts
+ * typing a description, the item it describes being another than the one
+ * shown, which decides what the original's description leaves in A. */
+bool menu_equip_opening_starts_typing(const GameState *g);
+
 #endif

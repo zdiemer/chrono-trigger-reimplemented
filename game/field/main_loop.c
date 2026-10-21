@@ -56,6 +56,7 @@
 #include "menu/party.h"
 #include "menu/party_leaves.h"
 #include "menu/saves.h"
+#include "platform/timing.h"
 #include "port/native.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -268,14 +269,16 @@ void field_frame(Snes *s)
 }
 
 // $C0:00BA
-/* The main loop's wait for the next frame: its start as C, which stops where
- * it waits (field_finish_frame); the vblank ends the wait, which returns to
- * the loop's next pass. Nothing the pass leaves but A's high byte and the
- * overflow is read after it (the entry's set). */
+/* The main loop's wait for the next frame (field_finish_frame), and once the
+ * vblank has taken the frame the loop's next pass; in the shipping mode the
+ * wait stops at the loop it waits in, which returns to the next pass itself.
+ * Nothing the pass leaves but A's high byte and the overflow is read after it
+ * (the entry's set). */
 void field_wait_for_the_next_frame(Snes *s)
 {
-    (void)field_run_or_hand_over(s, WAIT_FOR_THE_NEXT_FRAME, FIELD_FRAME_WAIT, READS_THE_OVERFLOW, field_finish_frame,
-                                 page(s));
+    if (field_run_or_hand_over(s, WAIT_FOR_THE_NEXT_FRAME, FIELD_FRAME_WAIT, READS_THE_OVERFLOW, field_finish_frame,
+                               page(s)))
+        field_main_loop_goes_round(s);
 }
 
 // $C0:00BD
@@ -405,11 +408,14 @@ void field_close_into_the_scene(Snes *s)
     m_stop_at(s, SCENE_ENGINE, THE_SCENE_READS_A);
 }
 
-/* Where the wait for the vblank goes on: an idle entry of its own
- * (field/frame.c), which reads the vblank's flag into A's low byte; the high
- * byte its callers may read is the count's, as the original leaves it
- * (field/leaves.c). */
-enum { FRAME_WAIT_LOOP = 0xC0EC71 };
+/* The frame done, the main loop waits for the vblank handler to take it.
+ * The wait is the one the field is in at nearly every frame's end, so a
+ * saved machine has to hold it: the shipping mode leaves it to the loop's
+ * idle entry (field/frame.c), which goes on as this does, and the port stops
+ * at the loop (tm_wait_for_handlers_held). The loop reads the count into A's
+ * low byte each pass; the high byte its callers may read is the count's, as
+ * the original leaves it (field/leaves.c). */
+enum { THE_LOOP_LOADS_A_LOW = DC_AL | DC_N | DC_Z };
 
 void field_finish_frame(Snes *s)
 {
@@ -417,5 +423,10 @@ void field_finish_frame(Snes *s)
     finish_frame(g);
     m_sep(s, CPU_FLAG_M);
     s->cpu.a = field_frame_wait_leaves_a(g);
-    m_stop_at(s, FRAME_WAIT_LOOP, DC_AL | DC_N | DC_Z);
+    while (field_frame_pending(g))
+        if (!tm_wait_for_handlers_held(m_platform(s), PF_LOOP_HELD(FIELD_FRAME_WAIT_LOOP, FIELD_FRAME_WAIT_RETURN, THE_LOOP_LOADS_A_LOW)))
+            return;
+    m_set_a8(s, 0);   /* the count the loop read last, taken */
+    m_set_nz8(s, 0);
+    m_rts(s);
 }

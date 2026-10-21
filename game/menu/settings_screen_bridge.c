@@ -38,7 +38,6 @@
 /* ---- The calls out ------------------------------------------------------------------------------- */
 
 enum {
-    YIELD = 0xC2821E,     /* the task waits for the next frame */
     MAIN_MENU = 0xC29A98, /* back to the main menu */
     CURSOR_SOUND = 0xC2EAC2,
     TAKE_OPTION = 0xC2BFD4,
@@ -51,7 +50,6 @@ enum {
     DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
 };
 
-static bool yield(Snes *s, uint32_t site) { return menu_call(s, site, YIELD, READS_NOTHING); }
 static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, CURSOR_SOUND, menu_play_cursor_sound); }
 
 /* The cursor read as C, leaving what the original's reading leaves. */
@@ -403,7 +401,7 @@ void menu_show_settings_panel(Snes *s)
     menu_settings_panel_frame(g, m_platform(s));
     menu_set_widths(s, false, false);
     ORIGINAL_EFFECT(leave_panel_frame(s));
-    if (!yield(s, 0xC2C337))
+    if (!menu_wait_a_frame_from(s, 0xC2C337))
         return;
     menu_settings_panel_show(g, m_platform(s));
     menu_restore_p(s);

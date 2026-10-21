@@ -311,9 +311,9 @@ static void begin_the_value(GameState *g)
 
 /* ---- The entries --------------------------------------------------------------------------------- */
 
-/* The task switch, which waits for the next frame, and the end of a task,
- * which the scheduler goes on from; neither reads the registers. */
-enum { YIELD = 0xC2821E, END_OF_A_TASK = 0xC28216 };
+/* The end of a task, which the scheduler goes on from, and which reads none
+ * of the registers. */
+enum { END_OF_A_TASK = 0xC28216 };
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 // $C2:F2F3
@@ -361,7 +361,7 @@ void menu_type_the_description(Snes *s)
     GameState *g = state_of(s);
     menu_set_widths(s, true, false);
     while (type_a_frame(g))
-        if (!menu_call(s, 0xC2FAA5, YIELD, READS_NOTHING))
+        if (!menu_wait_a_frame_from(s, 0xC2FAA5))
             return;
     m_rts(s);
 }

@@ -122,6 +122,12 @@ void tm_wait_frames(Platform *pf, PfOrigin o, uint8_t frames)
  * they left. */
 void tm_wait_for_handlers(Platform *pf, PfOrigin o) { tm_wait_frame(pf, o); }
 
+bool tm_wait_for_handlers_held(Platform *pf, PfOrigin o)
+{
+    tm_wait_frame(pf, o);
+    return true;
+}
+
 void tm_wait_frame_then_enable(Platform *pf, PfOrigin o, uint8_t sources, uint16_t line)
 {
     tm_wait_frame(pf, o);

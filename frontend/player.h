@@ -141,10 +141,13 @@ bool player_replaying(const Player *pl);
 
 /* Whether to save a state now, after waiting `waited` frames: EXACT if it
  * would keep everything, DROPS_TIME if it would lose the time ports owe
- * (native_owed, player_owed) and waited is SAVE_EXACT_FRAMES or more, WAIT
- * otherwise (a native routine is suspended in a call-out, which a state can
- * never hold, or time is owed and it's early). */
-typedef enum { PLAYER_SAVE_WAIT, PLAYER_SAVE_EXACT, PLAYER_SAVE_DROPS_TIME } PlayerSaveReady;
+ * (native_owed, player_owed) and waited is SAVE_EXACT_FRAMES or more,
+ * HANDS_BACK_A_STEP likewise if the only routines in progress are menu steps
+ * parked in a wait for the next frame (native_parked: a member chosen for an
+ * item, a list sliding), which the state's loading leaves the original's code
+ * to finish from where they wait, WAIT otherwise (a native routine is
+ * suspended in a call-out, which a state can never hold, or it's early). */
+typedef enum { PLAYER_SAVE_WAIT, PLAYER_SAVE_EXACT, PLAYER_SAVE_DROPS_TIME, PLAYER_SAVE_HANDS_BACK_A_STEP } PlayerSaveReady;
 PlayerSaveReady player_save_ready(const Player *pl, long waited);
 uint64_t player_owed(const Player *pl);
 

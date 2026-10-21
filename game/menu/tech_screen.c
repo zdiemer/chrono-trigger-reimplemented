@@ -25,8 +25,8 @@
  * cursor is on the techs (the panel).
  *
  * This file is what the game does; tech_screen_bridge.c runs it on the
- * original's machine, calling out between the parts here to what is still
- * the original's: a list's frame and the frames the screen waits. */
+ * original's machine, waiting for the next frame between the parts here
+ * where the screen does. */
 #include "menu/tech_screen.h"
 
 #include "charge.h"
@@ -169,11 +169,34 @@ static void start_drawing_rows(GameState *g)
     set_menu_text_attribute(g, 0);
 }
 
+/* The member list's scroll bar: twelve lines a member, its thumb at the
+ * list's first member; its span (the frame's) in lines too. The original
+ * multiplies with the multiplier, which it leaves with the span's. */
+enum { LINES_A_MEMBER = 12, MEMBER_BAR_PLACE = 0x1278 };
+
+static uint8_t in_lines(GameState *g, uint8_t members)
+{
+    ORIGINAL_EFFECT(hw_set_multiplicand(g, LINES_A_MEMBER));
+    ORIGINAL_EFFECT((void)hw_multiply_by(g, members));
+    return (uint8_t)(members * LINES_A_MEMBER);
+}
+
+static void place_member_bar(GameState *g)
+{
+    set_menu_scroll_bar_thumb(g, in_lines(g, menu_tech_member_scroll(g)));
+    set_menu_scroll_bar_place(g, MEMBER_BAR_PLACE);
+    set_menu_scroll_bar_span(g, in_lines(g, menu_scroll_bar_span(g)));
+}
+
 // $C2:BA4F
+/* The member list's scroll bar's track. */
+enum { MEMBER_BAR_TRACK = 0x09AA };
+
 /* The rows of the members the list shows from its first, as many as the
  * party can reach up to three, each with its sprite; then, where the party
  * has fewer, empty rows -- as many as the members drawn, as the original
- * counts them. The lister's record is hidden. */
+ * counts them. The lister's record is hidden. Then the list's frame and its
+ * scroll bar. */
 void menu_techs_draw_member_rows(GameState *g, Platform *pf)
 {
     reset_records(g);
@@ -205,27 +228,9 @@ void menu_techs_draw_member_rows(GameState *g, Platform *pf)
         }
     set_menu_tech_rows_to_draw(g, empty);
     set_menu_draw_origin(g, at);
-    set_menu_scratch_list_rows(g, MEMBER_ROWS);
     set_menu_list_first_place(g, FIRST_MEMBER_PLACE);
-}
-
-/* The member list's scroll bar: twelve lines a member, its thumb at the
- * list's first member; its span (the frame's) in lines too. The original
- * multiplies with the multiplier, which it leaves with the span's. */
-enum { LINES_A_MEMBER = 12, MEMBER_BAR_PLACE = 0x1278 };
-
-static uint8_t in_lines(GameState *g, uint8_t members)
-{
-    ORIGINAL_EFFECT(hw_set_multiplicand(g, LINES_A_MEMBER));
-    ORIGINAL_EFFECT((void)hw_multiply_by(g, members));
-    return (uint8_t)(members * LINES_A_MEMBER);
-}
-
-void menu_techs_place_member_bar(GameState *g)
-{
-    set_menu_scroll_bar_thumb(g, in_lines(g, menu_tech_member_scroll(g)));
-    set_menu_scroll_bar_place(g, MEMBER_BAR_PLACE);
-    set_menu_scroll_bar_span(g, in_lines(g, menu_scroll_bar_span(g)));
+    TIMED_AS(g, 0xC2EA81, menu_frame_the_list(g, reachable, MEMBER_ROWS, MEMBER_BAR_TRACK));
+    place_member_bar(g);
 }
 
 /* ---- Opening the screen ------------------------------------------------------------------------ */
@@ -567,12 +572,15 @@ static uint8_t thumb_at_row(GameState *g, uint8_t row)
     return (uint8_t)(row * LINES_A_ROW);
 }
 
-// $C2:BB50
-void menu_techs_frame_the_list(GameState *g)
+/* The list of the member's techs framed: eight rows from its first place,
+ * the scroll bar's track the whole list's, its thumb at the list's top. */
+enum { LIST_BAR_TRACK = 0x1500 };
+
+static void frame_the_list(GameState *g)
 {
     set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_tech_list_top(g)));
     set_menu_list_first_place(g, 0);
-    set_menu_scratch_list_rows(g, LIST_ROWS);
+    TIMED_AS(g, 0xC2EA81, menu_frame_the_list(g, menu_techs_listed(g), LIST_ROWS, LIST_BAR_TRACK));
 }
 
 /* ---- The tech on the cursor -------------------------------------------------------------------- */
@@ -632,8 +640,11 @@ static void draw_tech_members(GameState *g, Platform *pf, uint8_t row, uint16_t 
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
 }
 
+// $C2:BB50
+/* The list framed, then the rows of the tech's members. */
 void menu_techs_show_the_list(GameState *g, Platform *pf)
 {
+    frame_the_list(g);
     set_menu_scroll_bar_span(g, thumb_at_row(g, menu_scroll_bar_span(g)));
     set_menu_scroll_bar_place(g, LIST_BAR_PLACE);
     note_the_pointed_tech(g);

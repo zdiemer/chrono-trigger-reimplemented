@@ -6,13 +6,14 @@
  * The sounds are siblings, run as the original's JSRs reach them
  * (menu_run): each saves P as it starts and calls the sound driver, so the
  * flags the original has at a sound are on the stack there, where shadow
- * mode compares them, and A's high byte goes to the driver. The panel, a
- * list's frame and the making of the list for sale are entries of their
- * own, run the same way, since they call out with the P they save under
- * the calls; so are the equipping's steps' own (a member chosen, its slots,
- * the shoulders' switch), which wait for frames, and the equipment screen's
- * list of what fits and its move along. What is still the original's: a
- * list's frame and the frame's wait. The shop's way out and its fade in are
+ * mode compares them, and A's high byte goes to the driver. The panel is
+ * an entry of its own, run the same way, since it calls out with the P it
+ * saves under the calls; so are the equipping's steps' own (a member
+ * chosen, its slots, the shoulders' switch), which wait for frames, and the
+ * equipment screen's list of what fits and its move along. A list's frame
+ * and the making of the list for sale are C, called as C. A step that waits
+ * for the next frame waits in the menus' task switch, parked until its task
+ * goes on (menu_wait_a_frame_from). The shop's way out and its fade in are
  * jumps the bridges stop at.
  *
  * Before each of those calls a bridge leaves the registers and flags the
@@ -44,29 +45,22 @@
 /* ---- The calls out ------------------------------------------------------------------------------- */
 
 enum {
-    YIELD = 0xC2821E,              /* the task waits for the next frame */
-    FRAME_THE_LIST = 0xC2EA81,     /* a scrolling list's frame laid out: Y places */
     LEAVE_THE_SHOP = 0xC282B2,     /* the menus' way out */
     FADE_IN = 0xC283B2,            /* the screen's fade in started */
     CURSOR_SOUND = 0xC2EAC2,
     REFUSAL_SOUND = 0xC2EACC,
     A_SOUND = 0xC2EABA,
     TAKE_THE_PANEL = 0xC2DD7C,
-    FRAME_A_LIST = 0xC2DD40,
-    LIST_FOR_SALE = 0xC2DECC,
     SET_UP_THE_SHOP = 0xC2DACA,
 };
 
 /* What they read (tools/dontcare_check.py checks each): nothing but the
- * page, the data bank and memory; the description A's low byte; a list's
- * frame Y. */
+ * page, the data bank and memory; the description A's low byte. */
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-    READS_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
     READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
 };
 
-static bool yield(Snes *s, uint32_t site) { return menu_call(s, site, YIELD, READS_NOTHING); }
 static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, CURSOR_SOUND, menu_play_cursor_sound); }
 
 /* The sound a deal makes, loaded into A as the original's call does (the
@@ -78,14 +72,6 @@ static bool play_sound(Snes *s, uint32_t site, uint8_t sound)
     m_set_a8(s, sound);
     ORIGINAL_EFFECT(menu_leave_load(s, sound));
     return menu_run(s, site, A_SOUND, menu_play_sound);
-}
-
-
-/* The goods' count as the original loads it for the list's frame (the
- * original's), which takes it in Y: a word, with the byte after it. */
-static uint16_t goods_offered_as_loaded(const GameState *g)
-{
-    return (uint16_t)(menu_shop_goods_offered(g) | menu_shop_after_the_counts(g) << 8);
 }
 
 /* The description of nothing (item 0, the menus' zero), as the shop opens
@@ -107,6 +93,7 @@ static void leave_nz(Snes *s, uint8_t loaded);
 static void leave_queued(Snes *s, uint16_t record);
 static void leave_buttons_tested(Snes *s);
 static void leave_cursor_compared(Snes *s);
+static void leave_cursor_compared_as_words(Snes *s);
 static void leave_cursor_compared_with_the_start(Snes *s);
 static void leave_tab_chosen(Snes *s);
 static void leave_step_set(Snes *s, uint8_t step);
@@ -116,12 +103,10 @@ static void leave_offer_made(Snes *s, uint8_t limit, bool buying, uint8_t held);
 static void leave_sale_refused(Snes *s, bool for_want_of_room);
 static void leave_place_compared(Snes *s, uint8_t shown_before);
 static void leave_back_from_the_list(Snes *s);
-static void leave_listed(Snes *s, uint8_t c_before);
 static void note_figures_left(GameState *g, uint16_t *left);
 static void leave_panel_member(Snes *s, bool usable, uint8_t character, uint16_t figures_left);
 static void leave_quantity_compared(Snes *s, uint8_t before);
 static void leave_gold_word(Snes *s);
-static void leave_frame_set(Snes *s, uint16_t rows);
 static void leave_word_loaded(Snes *s, uint16_t word);
 static void leave_pushed_up_or_down(Snes *s);
 static void leave_goods_taken(Snes *s);
@@ -241,44 +226,23 @@ void menu_choose_shop_tab(Snes *s)
 /* ---- The lists ----------------------------------------------------------------------------------- */
 
 // $C2:DD40
-/* A list's frame: eight rows shown from the first, the scroll bar's track
- * a whole list's, and the original's frame laid out with the list's count
- * in Y. */
-enum { LIST_BAR_TRACK = 0x5400 };
-
+/* A list's frame, the list's count in Y. */
 void menu_frame_shop_list(Snes *s)
 {
-    GameState *g = state_of(s);
-    menu_save_p(s);
-    menu_shop_frame_list(g);
-    ORIGINAL_EFFECT(leave_frame_set(s, LIST_BAR_TRACK));
-    hw_set_dividend(g, LIST_BAR_TRACK);
-    menu_set_widths(s, false, m_x8(s));
-    if (!menu_call(s, 0xC2DD51, FRAME_THE_LIST, READS_Y))
-        return;
-    menu_restore_p(s);
+    menu_shop_frame_list(state_of(s), (uint8_t)s->cpu.y);
     m_rts(s);
 }
 
-static bool frame_the_list(Snes *s, uint32_t site, uint16_t count)
-{
-    s->cpu.y = count;
-    return menu_run(s, site, FRAME_A_LIST, menu_frame_shop_list);
-}
-
 // $C2:DC7B
-/* The goods' list: its window and rows, its frame (its own), the goods'
- * counts and the bar. */
+/* The goods' list: its window and rows, its frame, the goods' counts and
+ * the bar. */
 void menu_open_goods_list(Snes *s)
 {
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
     menu_shop_open_buying(g, m_platform(s));
-    uint16_t count = goods_offered_as_loaded(g);
-    ORIGINAL_EFFECT(leave_word_loaded(s, count));
-    if (!frame_the_list(s, 0xC2DCAD, count))
-        return;
+    TIMED_AS(g, 0xC2DD40, menu_shop_frame_list(g, menu_shop_goods_offered(g)));
     menu_shop_open_buying_last(g);
     ORIGINAL_EFFECT(leave_queued(s, MENU_UPLOAD_FRONT_LAYER));
     menu_restore_p(s);
@@ -286,19 +250,10 @@ void menu_open_goods_list(Snes *s)
 }
 
 // $C2:DECC
-/* The list for sale made, framed (its own), and settled. */
+/* The list for sale made, framed, and settled. */
 void menu_list_for_sale(Snes *s)
 {
-    GameState *g = state_of(s);
-    menu_save_p(s);
-    menu_set_widths(s, true, true);
-    bool c_before = m_flag(s, CPU_FLAG_C);
-    menu_shop_list_for_sale(g);
-    ORIGINAL_EFFECT(leave_listed(s, c_before));
-    if (!frame_the_list(s, 0xC2DF10, menu_shop_for_sale_listed(g)))
-        return;
-    menu_shop_settle_for_sale(g);
-    menu_restore_p(s);
+    menu_shop_make_the_list_for_sale(state_of(s));
     m_rts(s);
 }
 
@@ -312,8 +267,7 @@ void menu_open_for_sale_list(Snes *s)
     menu_set_widths(s, true, m_x8(s));
     menu_shop_open_selling(g, m_platform(s));
     ORIGINAL_EFFECT(leave_nz(s, menu_shop_sell_row(g)));
-    if (!menu_run(s, 0xC2DEB7, LIST_FOR_SALE, menu_list_for_sale))
-        return;
+    TIMED_AS(g, 0xC2DECC, menu_shop_make_the_list_for_sale(g));
     menu_shop_open_selling_last(g);
     menu_restore_p(s);
     menu_shop_queue_the_list(g);
@@ -364,7 +318,7 @@ static void slide_the_list(Snes *s, bool selling)
     if (menu_shop_list_slide_takes_frames(g))
         while (menu_shop_slide_list_a_frame(g)) {
             TIMED_AS(g, 0xC2EB1F, menu_slide_list_a_frame(g));
-            if (!yield(s, selling ? 0xC2D977 : 0xC2D894))
+            if (!menu_wait_a_frame_from(s, selling ? 0xC2D977 : 0xC2D894))
                 return;
         }
     menu_shop_finish_list_slide(g);
@@ -383,7 +337,7 @@ static void point_along(Snes *s, bool selling)
     TIMED_AS(g, 0xC293BF, to = menu_turn_page(g, top));
     if (to != top) {
         menu_shop_turn_page(g, selling, to);
-        if (!yield(s, selling ? 0xC2D8CA : 0xC2D7E7))
+        if (!menu_wait_a_frame_from(s, selling ? 0xC2D8CA : 0xC2D7E7))
             return;
         take_the_row(s, selling);
         return;
@@ -563,8 +517,7 @@ void menu_choose_how_many_to_sell(Snes *s)
         return;
     menu_shop_back_to_selling(g);
     ORIGINAL_EFFECT(leave_nz(s, SHOP_SELLING));
-    if (!menu_run(s, 0xC2D6BD, LIST_FOR_SALE, menu_list_for_sale))
-        return;
+    TIMED_AS(g, 0xC2DECC, menu_shop_make_the_list_for_sale(g));
     menu_shop_draw_for_sale(g);
     m_rts(s);
 }
@@ -579,6 +532,18 @@ enum { MAKE_THE_LIST = 0xC2A463, POINT_ALONG_THE_LIST = 0xC29F05 };
 enum { EQUIP_SOUND = 0xB5 };
 
 static bool cursor_moved(const GameState *g) { return menu_cursor_index(g) != menu_cursor_frame_start(g); }
+
+/* Where the move along the equipment list has slid it a row (its first row
+ * moved, and no page turned), the original makes that test with the
+ * accumulator 16-bit, as the slide leaves it: each place with the byte after
+ * it, where the cursor last moved from beside a byte the menus never write.
+ * So the shop's cursor ticks again as its list's slide ends wherever those
+ * two differ, whether or not the cursor moved (the equipment screen makes
+ * the same test 8-bit). */
+static bool cursor_moved_or_slid(const GameState *g)
+{
+    return cursor_moved(g) || menu_cursor_left_from(g) != menu_byte_the_mode_before_left(g);
+}
 
 // $C2:D6C3
 /* On the members: choosing one opens its slots, with a tick; going back, or
@@ -622,7 +587,7 @@ void menu_open_shop_member(Snes *s)
     menu_save_p(s);
     menu_set_widths(s, true, false);
     menu_shop_choose_the_member(g, m_platform(s));
-    if (!yield(s, 0xC2E0CF))
+    if (!menu_wait_a_frame_from(s, 0xC2E0CF))
         return;
     set_menu_cursor_index(g, 0);
     if (!menu_run(s, 0xC2E0D4, 0xC2E0F1, menu_show_shop_member_slots))
@@ -667,7 +632,7 @@ void menu_switch_shop_member(Snes *s)
         if (!tick(s, 0xC2E12E))
             return;
         menu_shop_switch_member(g, m_platform(s));
-        if (!yield(s, 0xC2E14B))
+        if (!menu_wait_a_frame_from(s, 0xC2E14B))
             return;
     }
     menu_restore_p(s);
@@ -729,12 +694,15 @@ void menu_choose_shop_equipment(Snes *s)
     read_cursor(s);
     ORIGINAL_EFFECT(leave_buttons_tested(s));
     if (!menu_asked(g, MENU_CHOOSE) && !menu_asked(g, MENU_GO_BACK)) {
+        uint8_t top = menu_equip_list_top(g);
+        bool pages = menu_page_turns(g, top);
         if (!menu_run_any_widths(s, 0xC2D782, POINT_ALONG_THE_LIST, menu_point_along_equipment_list))
             return;
+        bool slid = !pages && menu_equip_list_top(g) != top;
         TIMED_AS(g, 0xC2E162, menu_shop_try_on(g, pf));
         ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_FRONT_LAYER_STRIPS));
-        bool moved = cursor_moved(g);
-        ORIGINAL_EFFECT(leave_cursor_compared(s));
+        bool moved = slid ? cursor_moved_or_slid(g) : cursor_moved(g);
+        ORIGINAL_EFFECT(slid ? leave_cursor_compared_as_words(s) : leave_cursor_compared(s));
         if (moved && !tick(s, 0xC2D78E))
             return;
         m_rts(s);
@@ -819,6 +787,14 @@ static void leave_cursor_compared(Snes *s)
     const GameState *g = state_of(s);
     leave_a_low(s, menu_cursor_frame_start(g));
     menu_leave_compare(s, menu_cursor_frame_start(g), menu_cursor_index(g));
+}
+
+/* The same 16-bit, after a slide: the place loaded as a word, which the
+ * cursor's sound keeps the high byte of. */
+static void leave_cursor_compared_as_words(Snes *s)
+{
+    const GameState *g = state_of(s);
+    s->cpu.a = (uint16_t)(menu_byte_the_mode_before_left(g) << 8 | menu_cursor_frame_start(g));
 }
 
 /* The same compared the other way round. */
@@ -929,24 +905,6 @@ static void leave_back_from_the_list(Snes *s)
     m_set_flag(s, CPU_FLAG_V, true);
 }
 
-/* The list for sale made: its end's zero loaded, the carry of the last
- * item's test against the key items. */
-static void leave_listed(Snes *s, uint8_t c_before)
-{
-    const GameState *g = state_of(s);
-    enum { KEY_ITEMS = 0xF2 };
-    bool carry = c_before;
-    for (unsigned place = 0; place < MENU_INVENTORY_PLACES; place++) {
-        uint8_t item = menu_inventory_item_at(g, place);
-        if (item != 0)
-            carry = item >= KEY_ITEMS;
-    }
-    m_set_flag(s, CPU_FLAG_C, carry);
-    s->cpu.y = menu_shop_for_sale_listed(g);
-    leave_a_low(s, 0);
-    leave_nz(s, 0);
-}
-
 /* The panel's last member: A's high byte where the figures' working out
  * left it (its attack's sum's, before the figures' drawing divides again),
  * or the record's place's, as the character's record was found. */
@@ -972,7 +930,6 @@ static void leave_gold_word(Snes *s)
     s->cpu.a = (uint16_t)((party_gold_low(g) & 0xFF00) | (s->cpu.a & 0xFF));
 }
 
-static void leave_frame_set(Snes *s, uint16_t track) { s->cpu.a = track; }
 
 /* The goods taken: a block move's count loaded, the shop's number's
  * doubling's carry clear. */

@@ -8,7 +8,9 @@
 
 /* $C0:EC71 (loop head inside the wait-for-next-frame routine at $C0:EC60)
  * The main loop waits here for the vblank handler to take the frame it
- * finished (field_frame_pending). Idle entry: one pass of the loop. */
+ * finished (field_frame_pending). Idle entry: one pass of the loop, which the
+ * frame's wait (field_finish_frame) leaves its waiting to in the shipping
+ * mode. */
 void field_wait_for_frame_loop(Snes *s)
 {
     uint8_t pending = field_frame_pending(state_of(s));
@@ -16,7 +18,7 @@ void field_wait_for_frame_loop(Snes *s)
     m_set_nz8(s, pending);
     if (pending != 0)
         return;              /* still waiting: PC stays at the loop head */
-    s->cpu.pc = 0xEC76;      /* the RTS after the loop */
+    s->cpu.pc = (uint16_t)FIELD_FRAME_WAIT_RETURN;
     m_rts(s);
 }
 

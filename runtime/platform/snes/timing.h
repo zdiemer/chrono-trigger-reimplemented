@@ -106,6 +106,14 @@ PF_API void tm_wait_for_handlers(Platform *pf, PfOrigin o)
     native_wait_loop(pf_snes(pf), o.site, o.target, NATIVE_WAKE_HANDLER);
 }
 
+/* The same where the shipping mode leaves the wait to the loop's idle entry,
+ * which a machine copy holds: the port stops at the loop's head and returns
+ * at once (native_wait_loop_held). */
+PF_API bool tm_wait_for_handlers_held(Platform *pf, PfOrigin o)
+{
+    return native_wait_loop_held(pf_snes(pf), o.site, o.target, NATIVE_WAKE_HANDLER, o.dont_care);
+}
+
 /* The line handlers' wait for their line's horizontal blank: the machine
  * steps where the port stands until the line is in it, and no original code
  * runs; shadow mode lets the original's loop on $4212 run (native_wait_loop). */

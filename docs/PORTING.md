@@ -244,6 +244,27 @@ If a callee unwinds past its return address (discarding its caller's frame),
 the native routine is abandoned, since the original's continuation never runs
 either. The report counts these.
 
+**A wait in the middle of a task's work** is the exception: the menus' task
+switch (`$C2:821E`, `$C2:822B`) moves to the next task's stack, which can lie
+above the yielding one's, and comes back to the call's return only when the
+task goes on, frames later. A port makes that call with
+`native_yield_call_dc` (the menus' `menu_yield` and `menu_wait_a_frame_from`,
+`game/menu/bridge.h`), and the runtime parks it: off the routines in progress,
+so the other tasks' ports run and finish above nothing of it, until the
+machine is back at the return with the call's S. Shadow mode compares the call
+where the original makes it and the port's work after it from the return, as
+any call-out's; the fallback measure ends the port's stretch at the yield and
+starts it again there (`NativeObserver.parked`, `.resumed`). The runtime asks
+the caller's `NativeGoesOn` at every frame's start and stack switch whether the
+task can still go on, and drops the port where it can't (docs/MOVIES.md,
+"Suspended routines and owed time"). Ports that come back from a yield go on
+with their own flags, where the original's are whatever its code since set:
+dead as flags, but a routine that saves P (`menu_save_p`) puts them on the
+stack, which shadow mode compares. So the flags of a P a port saves and
+restores itself aren't compared in memory while it is there
+(`native_flags_saved`, `native_flags_restored`); they are compared as P where
+the port restores them, wherever a reader makes them live.
+
 A port doesn't have to run to the end. It can stop at any instruction boundary
 in the original by setting PC (and PB) there and returning. The interpreter
 carries on from there, and `shadow` checks that the original reaches that
@@ -251,8 +272,16 @@ point with the same stack pointer, at the first pass where the machines are
 the same (a loop's head is fine). That covers routines that end by jumping
 rather than returning, and states a port doesn't handle yet.
 
-Save states can't capture a routine suspended in a call-out; `ct_dev` warns
-when `--save-state` is used while one is.
+Shadow mode starts no comparison where the original comes back to the
+address of the routine its innermost comparison is of, with the S it entered
+with, while that comparison's stretch stands: a call pushes its return, so
+this is the routine's own instruction running again in place, a block move's
+MVN once a byte (`memory_move_stub`, `$7E:9690`), and the port stands for it.
+Otherwise each pass would nest a comparison of its own, a byte a level, until
+the runtime's 32 levels skipped the rest.
+
+Save states can't capture a routine suspended in a call-out or parked in a
+yield; `ct_dev` warns when `--save-state` is used while one is.
 
 ### What shadow mode costs
 
@@ -684,6 +713,20 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie <movie> --frames N --native on -
 time stopped and interrupts held, and owes its bus and internal clocks after
 it, as a port would with a `cost_milli` of 1000. It gives up on a routine that
 yields (2 million instructions without a return).
+
+A wait for the vblank handler that a port makes in place (the battle's,
+`tm_wait_for_handlers`) leaves the port suspended at the frame's end. That is
+fine where the wait is now and then, and not where the main thread is in it
+at nearly every frame's end (the field's frame wait, the sprite-object mode's,
+the menus' wait for the frame's uploads): no ct_drive base, and no quick save,
+would ever come. Those waits are `tm_wait_for_handlers_held`
+(`native_wait_loop_held`): the loop has an idle entry, and the code its exit
+goes on to does what the port does after the wait, so the shipping mode stops
+the port at the loop's head and the idle entry carries on; shadow mode waits
+the port through the original's loop and compares what it does after it. The
+port names the loop and what the code from its head doesn't read
+(`PF_LOOP_HELD(head, exit, set)`), which shadow mode compares the port at the
+head without and `tools/dontcare_check.py` checks as a stop there.
 
 ## Interrupt handlers
 

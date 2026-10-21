@@ -179,7 +179,7 @@ enum { GATE_SCREEN_TASK = 0xCECE, GATE_SCREEN_TASK_SLOT = 0x0010 };
 void menu_start_gate_screen(Snes *s)
 {
     GameState *g = state_of(s);
-    m_push8(s, s->cpu.p);
+    menu_save_p(s);
     const VidBg bg3 = { .map_base = GATE_SCREEN_TILEMAP, .map_w = MAP_TILES, .map_h = MAP_TILES };
     vid_set_bg_map(m_platform(s), PF_AT(0xC2CEA2), VID_BG3, &bg3);
     start_counting(g);
@@ -190,11 +190,7 @@ void menu_start_gate_screen(Snes *s)
     set_up_gate_screen(g);
     s->cpu.db = MENU_DATA_BANK;
     s->cpu.y = (uint16_t)(RAM_ABS(RAM_MENU_GATE_SCREEN_STATE) + MENU_GATE_SCREEN_STATE_COUNT);
-    s->cpu.p = m_pull8(s);
-    if (m_x8(s)) {
-        s->cpu.x &= 0xFF;
-        s->cpu.y &= 0xFF;
-    }
+    menu_restore_p(s);
     m_rts(s);
 }
 

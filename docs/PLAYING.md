@@ -288,6 +288,15 @@ end with nothing owed may never come, so after 2 seconds (`SAVE_EXACT_FRAMES`)
 a frame end with only time owed will do: the save leaves that time out and
 says how much on stderr (tens of thousands of master clocks, a scanline is
 1364). A routine suspended is never saved; the save gives up after 30 seconds.
+The one exception is a menu step parked in its wait for the next frame
+(`native_parked`; docs/MOVIES.md, "Suspended routines and owed time"), which
+waits as long as the player takes over a choice (a member to use an item on):
+after the same 2 seconds such a frame end will do, and loading the state has
+the original's code finish the step from its wait, the machine there being the
+original's but for what nothing reads after the wait (checked with `ct_dev
+--load-state` over `menus-field-menu`'s item screen, a state saved with its
+member choice parked: 600 frames on, shadow mode 0 mismatching, the shipping
+mode playing on); `player_save_ready` is the policy both drivers share.
 Measured with `ct_play --save-state` after 3000-8000 frames of three battle
 movies in the shipping mode (18 saves): 10 were exact at once, 4 exact after 8
 to 1320 frames, 2 left out time owed after about 400 frames, and 2 gave up,

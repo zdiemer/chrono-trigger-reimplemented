@@ -94,6 +94,49 @@ those buttons, and loading it restores the base and replays them, which brings
 the routines and the debt back as they were. A state file keeps them beside it,
 `<path>.base` and `<path>.base.pads`.
 
+Two kinds of wait are held by the runtime on purpose, and each says how it is
+saved, restored and dropped (`runtime/port/native.h`; `tests/port/suspend_test.c`
+has a case for each):
+
+- *A yield in the middle of a task's work* (`native_yield_call_dc`; the menus'
+  `menu_yield`, a step waiting for the next frame through the task switch at
+  `$C2:821E`). The port is *parked*: set aside, off the routines in progress, while
+  the other tasks take their turns, and it goes on when the machine is back at
+  the yield's return with its S, frames later. A parked port counts in
+  `native_suspended` (`native_parked` counts them alone), so it is never
+  *saved*: ct_drive keeps its base from before the yield and *restores* the
+  port by replaying from there, as for any suspended routine (a step waits a
+  few frames for a slide, a description typed or the healing's numbers, and
+  as long as the player takes over a choice made a frame at a time, a member
+  to use an item on). ct_play's quick save waits for a frame end with none
+  parked, and after two seconds takes one with only parked steps, which the
+  original's code finishes from their waits once it is loaded (PLAYING.md,
+  "Saves"): the machine at a yield is the original's but for what nothing
+  reads after it. It is
+  *dropped* where its task can't go on from the yield: the runtime asks the
+  menus at every frame's start and every stack switch
+  (`menu_task_goes_on_from`: the task still waiting there, its record keeping
+  the stack the wait kept, or being taken back into it), and a task stopped --
+  every task is, as the menus close -- or started afresh over the wait is
+  dropped, counted abandoned, as the original's routine never finishes either.
+  A second yield to the same return and S drops the first (its stack has been
+  used again). A task that goes on after a drop anyway has the original's code
+  run the rest of its step, as for a port abandoned.
+- *A frame wait the main thread is in at nearly every frame's end* (the
+  field's, `$C0:EC71`; the sprite-object mode's, `$C2:0348`; the menus' wait for
+  the frame's uploads, `$C2:81CA`). A port waiting there in place, as the
+  battle's do, would leave a routine suspended at every frame end, and no base
+  would ever come. So the wait is *held*: `native_wait_loop_held`
+  (`tm_wait_for_handlers_held`) has the shipping mode stop the port at the
+  loop's head, where the idle entry registered there waits and goes on as the
+  port would after it -- the port's continuation is the idle entry. Nothing is
+  suspended, so a copy made then *saves* everything and *restores* exactly with
+  a fresh runtime, and there is nothing to drop. Shadow mode makes the same
+  port wait through the original's loop and compares its work after the wait,
+  and compares the stop at the head the shipping mode makes with the set it
+  declares there (`PF_LOOP_HELD`, checked by `tools/dontcare_check.py` as a
+  stop).
+
 The replay is checked against the copy (their save-state images), and every
 one matches: over both routes in the shipping mode (`route_check --mode
 on:on`), 2507 loads in `beyond_time` and 128 in `telepod_lavos:shell` were

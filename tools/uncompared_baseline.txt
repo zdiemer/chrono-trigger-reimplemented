@@ -48,6 +48,7 @@ event_cmd_play_effect
 event_cmd_play_song
 event_cmd_send_sound_command
 field_fade_in
+field_finish_frame  # run as C by the main loop's wait for the next frame (field_wait_for_the_next_frame), whose stretch compares it and waits through its loop; the original's other calls of it compare it alone
 field_frame_work
 field_load_location
 field_recentre_the_screen
@@ -72,10 +73,14 @@ menu_object_cmd_call_routine_far
 menu_object_cmd_play_effect_on_voices_67
 menu_play_cursor_sound
 menu_point_along_equipment_list
+menu_run_record_task  # the records' task's head, which its loop comes round to inside the stretch of where the task goes on from its wait (menu_record_task_goes_on), which compares it; its start compares it alone
+menu_run_the_cursor_task  # the cursor's task's head, which its loop comes round to inside the stretch of where the task goes on from its wait (menu_cursor_task_goes_on), which compares it; its start compares it alone
 menu_send_sound
 menu_show_shop_member_slots
 menu_type_the_description
 menu_type_the_description_task
+menu_wait_for_frame  # the sprite-object mode's wait from its start, reached by the jump to it inside that entry's stretch (menu_wait_for_frame_jump), which compares it and waits through its loop
+menu_wait_for_the_first_frame  # the menus' wait for the frame's uploads, the task switch's way to it, reached inside the task switch's stretch (menu_task_waits_a_frame and the loops' ports, which wait through it and compare it); compared alone as the menus open
 script_play_sound
 script_play_sound_at
 script_weapon_swing_sound

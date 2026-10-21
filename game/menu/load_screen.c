@@ -595,7 +595,6 @@ void menu_ask_which_to_carry_on_from(Snes *s)
  * rows of graphic (menu_data.h). The record goes where the summary is drawn
  * from. */
 enum { MARKED_RECORD_BANK = 0x7E, FOURTH_ROW_LEFT_X = 0x08 };
-enum { YIELD_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 /* The slot's game gone: the slot no longer in use, its mark on the cartridge
  * spoilt; with no game left, the game no longer counts as finished and the
@@ -612,8 +611,11 @@ static void forget_slot(GameState *g, Platform *pf, uint8_t slot)
 }
 
 /* The label's upload. The original builds its record where the summary is
- * drawn from and queues it from there, and keeps the slot's rows in its
- * first cell. */
+ * drawn from and queues it from there, the summary's byte after the record's
+ * seven going with it as its spare (which nothing reads), and keeps the
+ * slot's rows in its first cell. */
+enum { LABEL_RECORD_BYTES = 7 };
+
 static MenuUpload label_upload(uint8_t slot)
 {
     uint16_t from = (uint16_t)(MENU_CHAPTER_LABELS_AT + slot * MENU_CHAPTER_LABEL_BYTES);
@@ -624,7 +626,7 @@ static MenuUpload label_upload(uint8_t slot)
 static void leave_label_record(GameState *g, uint8_t slot)
 {
     MenuUpload u = label_upload(slot);
-    const uint8_t record[7] = { (uint8_t)u.vram, (uint8_t)(u.vram >> 8), (uint8_t)u.source, (uint8_t)(u.source >> 8),
+    const uint8_t record[LABEL_RECORD_BYTES] = { (uint8_t)u.vram, (uint8_t)(u.vram >> 8), (uint8_t)u.source, (uint8_t)(u.source >> 8),
                                 (uint8_t)(u.source >> 16), (uint8_t)u.size, (uint8_t)(u.size >> 8) };
     for (unsigned i = 0; i < sizeof record; i++)
         set_menu_save_summary_byte(g, i, record[i]);
@@ -649,9 +651,11 @@ void menu_erase_slot(Snes *s)
     menu_set_widths(s, false, false);
     if (!menu_call(s, 0xC2E903, 0xC2D28D, LABEL_LOADER_IGNORES))
         return;
-    if (!menu_call(s, 0xC2E906, 0xC2821E, YIELD_IGNORES))
+    if (!menu_wait_a_frame_from(s, 0xC2E906))
         return;
-    TIMED_AS(g, 0xC2838E, menu_queue_upload(g, label_upload(slot)));
+    MenuUpload label = label_upload(slot);
+    ORIGINAL_EFFECT(label.spare = menu_save_summary_byte(g, LABEL_RECORD_BYTES));
+    TIMED_AS(g, 0xC2838E, menu_queue_upload(g, label));
     TIMED_AS(g, 0xC2D32C, draw_slot_window(g, slot));
     ORIGINAL_EFFECT(leave_design(s));
     menu_restore_p(s);
