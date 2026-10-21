@@ -563,12 +563,19 @@ static bool can_continue(Snes *s, SceneChannel *ch) { return machine_as_expected
 
 /* ---- The program's routines the scripts call ------------------------------------------------- */
 
-/* The routines that are C (scene/title.c, scene/lavos_falls.c), by the value
- * the script holds. */
+/* The routines that are C (scene/title.c, scene/lavos_falls.c,
+ * scene/epoch_dive.c), by the value the script holds. */
 static const struct {
     const SceneScriptRoutine *routines;
     const unsigned *count;
-} routine_tables[] = { { scene_title_routines, &scene_title_routine_count }, { scene_lavos_routines, &scene_lavos_routine_count } };
+} routine_tables[] = { { scene_title_routines, &scene_title_routine_count }, { scene_lavos_routines, &scene_lavos_routine_count },
+                       { scene_dive_routines, &scene_dive_routine_count } };
+
+#if ORIGINAL_EFFECTS
+/* What they leave, in tables parallel to theirs. */
+static const SceneRoutineLeaves *const routine_leaves[] = { scene_title_routine_leaves, scene_lavos_routine_leaves,
+                                                             scene_dive_routine_leaves };
+#endif
 
 static const SceneScriptRoutine *routine_port(uint16_t routine)
 {
@@ -585,10 +592,31 @@ static const SceneScriptRoutine *routine_port(uint16_t routine)
  * stack's imbalance, come back with it on the program's. */
 enum { PROGRAM_DATA_BANK = 0x7E };
 
+/* The registers a routine leaves, from its row of the leaves' tables, for A
+ * from the A it was called with. */
+static void leave_the_registers(Snes *s, const SceneScriptRoutine *r, uint16_t called_with)
+{
+#if ORIGINAL_EFFECTS
+    for (unsigned t = 0; t < sizeof routine_tables / sizeof routine_tables[0]; t++)
+        for (unsigned n = 0; n < *routine_tables[t].count; n++)
+            if (&routine_tables[t].routines[n] == r) {
+                const SceneRoutineLeaves *l = &routine_leaves[t][n];
+                s->cpu.a = l->a(called_with);
+                if (l->rest)
+                    l->rest(s);
+                return;
+            }
+#else
+    (void)s;
+    (void)r;
+    (void)called_with;
+#endif
+}
+
 void scene_script_routine_alone(Snes *s, const SceneScriptRoutine *r)
 {
     r->run(state_of(s), m_platform(s), scene_program_page_at_entry(s).index);
-    ORIGINAL_EFFECT(s->cpu.a = r->leaves_a(s->cpu.a));
+    ORIGINAL_EFFECT(leave_the_registers(s, r, s->cpu.a));
     if (r->leaves_the_program_bank)
         s->cpu.db = PROGRAM_DATA_BANK;
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
@@ -601,11 +629,9 @@ enum { PROGRAM_BANK = 0x7E0000 };
 
 static bool call_present(Snes *s) { return m_code_matches(s, 0x7E37F3, 7, 0x7238FF62A389BBE0ull); }
 
-static void leave_the_call(Snes *s, uint16_t routine, uint16_t a)
-{
-    set_scene_call_script_scratch(state_of(s), scene_program_own(), routine);
-    s->cpu.a = a;
-}
+/* The call keeps the routine it calls where the scenes' random draws stir it
+ * in after it (the Epoch's dive's). */
+static void keep_the_routine_called(GameState *g, uint16_t routine) { scene_leave_for_the_draws(g, routine, TM_ENTROPY_WORDS); }
 
 /* A routine the port has, as C, where the program's code for the call and for
  * it is the code the port stands for: its work on the calling channel, timed
@@ -616,8 +642,9 @@ static bool call_routine_as_c(Snes *s, SceneChannel ch, uint16_t routine)
     if (!r || !call_present(s) || !r->present(s))
         return false;
     GameState *g = state_of(s);
+    keep_the_routine_called(g, routine);
     NATIVE_TIME_AS(s, PROGRAM_BANK | routine, r->run(g, m_platform(s), ch));
-    ORIGINAL_EFFECT(leave_the_call(s, routine, r->leaves_a(routine)));
+    ORIGINAL_EFFECT(leave_the_registers(s, r, routine));
     if (r->leaves_the_program_bank)
         s->cpu.db = PROGRAM_BANK >> 16;
     set_widths16(s);
@@ -632,7 +659,7 @@ static bool call_routine(Snes *s, SceneChannel *ch, uint16_t routine)
 {
     if (call_routine_as_c(s, *ch, routine))
         return true;
-    set_scene_call_script_scratch(state_of(s), scene_program_own(), routine);
+    keep_the_routine_called(state_of(s), routine);
     s->cpu.a = routine;   /* as the original loaded it: some routines read it */
     set_widths16(s);
     m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_X | DC_N | DC_Z);

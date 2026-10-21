@@ -409,11 +409,12 @@ state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
 
 [[routine]]
-name = "scene_race_set_engine_pitch"
+name = "scene_race_pitch_and_move"
 at = "7E:4BD2"
 subsystem = "scene"
 state = "race"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the ride's tail as the ride's own code reaches it: the engine's pitch to the driver's ports, then the bikes' motion, the bikes random"
 
 [[routine]]
 name = "scene_race_ride"
@@ -707,6 +708,21 @@ state = "attract"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--range", "X=0000-1FBF"]
 iterations = 2000
 why = "the source in low RAM, over the scene's cells too: the guard refuses a tile over the row count or the scratch the original packs each row in, which it reads changing"
+
+[[routine]]
+name = "scene_expand_the_plane_tiles"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--widths", "8,16", "--keep", "7E3000-7EB5FF", "--range", "Y=0001-00A0", "--fill", "7E5E44-7E5E45=5E54,5EF8", "--fill", "7E5E4A-7E5E4A=10,30"]
+iterations = 1000
+why = "the program's loop over a picture's tiles, either expansion and the stride each takes, up to the title's 160 tiles"
+
+[[routine]]
+name = "scene_use_loaded_palette"
+subsystem = "scene"
+state = "attract"
+args = ["--keep", "7E3000-7EB5FF"]
+why = "the loaded palette made current, both palettes random"
 
 [[routine]]
 name = "scene_title_expand_plane_tile"
@@ -20476,6 +20492,200 @@ subsystem = "scene"
 state = "dive_from_the_cockpit"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--range", "Y=7BB6-7BB6"]
 why = "the Epoch's dive's table from the cockpit"
+
+[state.dive_leaving]
+movie = "oracle/movies/saves/events-epoch-lavos.ctm"
+frames = 6450
+
+[state.dive_breaking_through]
+movie = "oracle/movies/saves/events-epoch-lavos.ctm"
+frames = 6950
+
+[[routine]]
+name = "scene_dive_set_up"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--fill", "7E0021-7E0022=0000"]
+iterations = 300
+why = "mode 6's setup from the program's mode table, the program kept (its code is the guard's hash; the unpacking and channel 0's first step the original's or their ports, the Epoch's drawing and the main loop's call through their entries); no picture waiting, as the scene's clear leaves the mark (the guard's)"
+
+[[routine]]
+name = "scene_pass_the_shell_across"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task of the dive from outside: channel 0's place and the shell's speed random; half the states enter with the carry set, which the guard refuses (the list leaves it clear at the task's slot), and a few pass far enough off the shell that the guard refuses them"
+
+[[routine]]
+name = "scene_pass_the_shell_down"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the same down the shell, from the cockpit"
+
+[[routine]]
+name = "scene_let_the_shell_fall_away"
+subsystem = "scene"
+state = "dive_leaving"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task as the Epoch leaves the shell: channel 0's place random"
+
+[[routine]]
+name = "scene_check_the_shell"
+variant = "cockpit"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--keep", "7E3000-7EC994", "--fill", "7E0044-7E0045=0000-0003", "--fill", "7E0046-7E0047=00A8,00A9,00AB"]
+why = "from the cockpit: the camera and the perspective's kept camera random, the halves' count kept low (the build's guard refuses what it doesn't build, the original then building it)"
+
+[[routine]]
+name = "scene_check_the_shell"
+variant = "outside"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--keep", "7E3000-7EC994"]
+why = "from outside: the camera random, the lines along the curve"
+
+[[routine]]
+name = "scene_scale_the_epoch"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0021-7E0022=0000,0001", "--fill", "7E0027-7E0028=0031,0048,0060,0080,0091"]
+why = "the main loop's call: the picture waiting or not (the byte after the mark 0, the guard's), at a zoom the scripts give; compared up to the scaler's rows, which stop it"
+
+[[routine]]
+name = "scene_gather_the_epoch"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--d", "0000", "--db", "7F", "--keep", "7E3000-7EC994", "--fill", "7E0021-7E0022=0000"]
+why = "back from the scaler's rows: the gathering into tiles (the matrix code kept with the program), the byte after the picture's mark 0 (the guard's)"
+
+[[routine]]
+name = "scene_send_the_epoch"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task: the picture waiting or not"
+
+[[routine]]
+name = "scene_draw_the_epoch"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0B00-7E0B01=0031,0048,0060,0080,0091", "--fill", "7E0011-7E0012=0000,0040,0080,0100", "--fill", "7E0013-7E0014=0900,0904,0908,0910"]
+why = "a frame task from outside: channel 1's zoom as the scripts give it, its place random, the sprite cursor where frames leave it (the guard refuses a carry set, a point above the picture's reach, or no room)"
+
+[[routine]]
+name = "scene_size_the_trail"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task: the trail's radius random"
+
+[[routine]]
+name = "scene_draw_the_trail"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0B0C-7E0B0D=0004,000A,0011,0018,001F", "--fill", "7E0356-7E0357=E060", "--fill", "7E0358-7E0358=7E"]
+why = "a frame task: the trail's radius under 32 (the guard's), the Epoch's place random, the circle's table where the setup puts it"
+
+[[routine]]
+name = "scene_fly_the_epoch_on"
+subsystem = "scene"
+state = "dive_leaving"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E004C-7E004D=0001,0002,0004", "--fill", "7E004E-7E004F=84F6,84F9,84FC,8506,8530,8533", "--fill", "7E0011-7E0012=0000,0040,0080", "--fill", "7E0013-7E0014=0900,0904,0908"]
+why = "a frame task as the Epoch leaves: its frame at a frame of the table or its start, the frames left few, the sprite cursor where frames leave it"
+
+[[routine]]
+name = "scene_shake_the_cockpit"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E004A-7E004B=0000,0001,0003", "--fill", "7E0B02-7E0B03=0000,0002,0008,0010", "--fill", "7E0011-7E0012=0000,0040", "--fill", "7E0013-7E0014=0900,0904"]
+why = "a frame task from the cockpit: the shaking as the scripts set it, the panel across near its rest, the slot and the beam random"
+
+[[routine]]
+name = "scene_flicker_the_lights"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task from the cockpit: A, X, the carry and the palette's bytes random"
+
+[[routine]]
+name = "scene_follow_the_panel"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task: the panel's line and channel 1's place random (the guard refuses a line above 167)"
+
+[[routine]]
+name = "scene_open_the_light"
+subsystem = "scene"
+state = "dive_breaking_through"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E7BE2-7E7BE2=02-50", "--fill", "7E7BE6-7E7BE6=00-1E"]
+why = "a frame task at the end: the light's table anywhere it goes as it opens"
+
+[[routine]]
+name = "scene_set_the_screen_outside"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the one-off vblank task that sets the screen up from outside"
+
+[[routine]]
+name = "scene_set_the_screen_in_the_cockpit"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the one-off vblank task that sets the screen up from the cockpit"
+
+[[routine]]
+name = "scene_look_from_outside"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--d", "0B00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "a routine channel 1's script calls, on its page through the program's bank"
+
+[[routine]]
+name = "scene_look_from_the_cockpit"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "a routine channel 0's and channel 1's scripts call"
+
+[[routine]]
+name = "scene_fade_the_shell_in"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--d", "0B00", "--db", "7E", "--keep", "7E3000-7EC994", "--fill", "7E0520-7E05AF=00-7F", "--fill", "7E0524-7E0525=00-01", "--fill", "7E0530-7E0531=00-01", "--fill", "7E053C-7E053D=00-01", "--fill", "7E0548-7E0548=00-01", "--fill", "7E0554-7E0555=00-01", "--fill", "7E0560-7E0561=00-01", "--fill", "7E056C-7E056D=00-01"]
+why = "a routine channel 1's script calls as the dive starts"
+
+[[routine]]
+name = "scene_white_out"
+subsystem = "scene"
+state = "dive_breaking_through"
+args = ["--d", "0B00", "--db", "7E", "--keep", "7E3000-7EC994", "--fill", "7E0520-7E05AF=00-7F", "--fill", "7E0524-7E0525=00-01", "--fill", "7E0530-7E0531=00-01", "--fill", "7E053C-7E053D=00-01", "--fill", "7E0548-7E0548=00-01", "--fill", "7E0554-7E0555=00-01", "--fill", "7E0560-7E0561=00-01", "--fill", "7E056C-7E056D=00-01"]
+why = "a routine channel 1's script calls at the end"
+
+[[routine]]
+name = "scene_program_draw_random"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the program's call of the stir, as the dive's tasks draw: A, X, the carry and the widths random, the beam's counters the noise"
+
+[[routine]]
+name = "scene_program_draw_random"
+variant = "palette"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "the same with the data bank on work RAM, as the dive's flames draw: the palette's bytes the noise"
+
+[[routine]]
+name = "scene_draw_random"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--long", "--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the stir called by itself: A, X, the carry and the widths random"
 
 [[routine]]
 name = "script_return_from_call"

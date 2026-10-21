@@ -33,12 +33,13 @@ ESCAPES = {
     "menu/script.c": 1,    # the object scripts' byte commands, which name a register of the picture's by its
                            # address (an ending's sets the sprites' sizes, $2101): whether the console takes it
     "menu/script_bridge.c": 1,  # ... and the write
-    "scene/race.c": 4,     # the buffer clears through the multiplier (one call, three sites), the read
-                           # back out of VRAM at $7E:3D41, and the column at $7E:4671 and the plane at
-                           # $7E:876E, which write the data port's low half alone
-    "scene/screen.c": 5,   # $7E:3843 and the two clears at $7E:3092, whose transfers no call expresses,
-                           # $7E:38E7, whose mode and destination are game data, and $7E:90A7, which
-                           # fills the data port's low half alone past a Mode 7 plane's map
+    "scene/race.c": 3,     # the read back out of VRAM at $7E:3D41, and the column at $7E:4671 and the
+                           # plane at $7E:876E, which write the data port's low half alone
+    "scene/screen.c": 7,   # $7E:3843 and the two clears at $7E:3092, whose transfers no call expresses,
+                           # $7E:38E7 and $7E:38C3, whose modes and destinations are game data, $7E:90A7,
+                           # which fills the data port's low half alone past a Mode 7 plane's map, and the
+                           # buffer clears through the multiplier (one call, the race's three sites and
+                           # the Epoch's dive's)
     "scene/title.c": 2,    # $7E:5AEB, which writes the data port's low half alone, and $7E:59D5, which
                            # carries on from what the channel holds
     "scene/staff_roll.c": 2,  # $7E:90A7 and $7E:8F77, which fill the data port's low half and its high half

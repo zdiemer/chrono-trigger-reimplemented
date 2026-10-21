@@ -242,6 +242,7 @@ add_library(ct_game STATIC
   game/scene/frame.c
   game/scene/guards.c
   game/scene/lavos_falls.c
+  game/scene/epoch_dive.c
   game/scene/math.c
   game/scene/perspective.c
   game/scene/planet.c

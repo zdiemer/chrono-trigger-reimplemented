@@ -1,6 +1,7 @@
-/* Code the game decompresses to $7E:3000 and runs from RAM during the attract
- * sequence and title screen: the scene program, whose ports are in game/scene/
- * (scene/scene.h says where; these belong with them). Every entry here has a guard that checks, by
+/* Code the game decompresses to $7E:3000 and runs from RAM for its scenes --
+ * the attract sequence and the title screen, the Epoch's dive, the endings:
+ * the scene program, whose ports are in game/scene/ (scene/scene.h says
+ * where; these belong with them). Every entry here has a guard that checks, by
  * hash, that RAM holds the code the port was written for: the same addresses
  * hold other code and data at other times. */
 #include "attract/attract.h"
@@ -15,17 +16,19 @@
  * ($7E:302A) once one has. The routine is named by the call's own operand
  * ($7E:3024), which a scene's setup writes: the title's is an empty one (an
  * RTS, $7E:3176), the attract demo's race sets the race's scaling of its
- * pictures there (scene_race_scale_pictures, $7E:51D1), and the endings that
- * share a setup their picture's (scene_ending_scale_picture, $7E:8930).
+ * pictures there (scene_race_scale_pictures, $7E:51D1), the endings that
+ * share a setup their picture's (scene_ending_scale_picture, $7E:8930), and
+ * the Epoch's dive the Epoch's (scene_scale_the_epoch, $7E:8278).
  *
- * A pass with either scaling is a port that calls it through the machine (the
- * scaling stops in the scaler's code, which takes frames) and makes the test.
+ * A pass with any of the scalings is a port that calls it through the machine
+ * (the scaling stops in the scaler's code, which takes frames) and makes the
+ * test.
  * Any other pass is an idle entry, which can't call: it makes the empty
  * routine's pass whole, and with frame work it stops at the routine and the
  * loop's test after it is the original's. */
 enum { WAIT_LOOP = 0x7E3023, FRAME_ROUTINE_OPERAND = 0x7E3024, PROGRAM_RESTART = 0x7E302A };
 enum { CODE_BANK = 0x7E0000, JSR = 0x20, RTS = 0x60, RETURN_FROM_THE_CALL = 0x3025 };
-enum { RACE_SCALING = 0x51D1, ENDINGS_SCALING = 0x8930 };
+enum { RACE_SCALING = 0x51D1, ENDINGS_SCALING = 0x8930, DIVE_SCALING = 0x8278 };
 
 static uint16_t frame_routine(Snes *s)
 {
@@ -39,7 +42,10 @@ static bool loop_present(Snes *s)
     return snes_bus_peek(&s->bus, WAIT_LOOP) == JSR && m_code_matches(s, WAIT_LOOP + 3, 4, 0x2B0A967642BA802Bull);
 }
 
-static bool scales_a_picture(uint16_t routine) { return routine == RACE_SCALING || routine == ENDINGS_SCALING; }
+static bool scales_a_picture(uint16_t routine)
+{
+    return routine == RACE_SCALING || routine == ENDINGS_SCALING || routine == DIVE_SCALING;
+}
 
 bool attract_wait_loop_present(Snes *s) { return loop_present(s) && !scales_a_picture(frame_routine(s)); }
 
@@ -74,10 +80,7 @@ void attract_wait_loop(Snes *s)
 /* One pass with a scaling: the routine, then the test. */
 void attract_frame_pass(Snes *s)
 {
-    if (frame_routine(s) == RACE_SCALING)
-        m_jsr(s, WAIT_LOOP, CODE_BANK | RACE_SCALING);
-    else
-        m_jsr(s, WAIT_LOOP, CODE_BANK | ENDINGS_SCALING);
+    m_jsr(s, WAIT_LOOP, CODE_BANK | frame_routine(s));
     uint16_t over = scene_program_over(state_of(s));
     leave_flag(s, over);
     m_stop_at(s, over ? PROGRAM_RESTART : WAIT_LOOP, 0);

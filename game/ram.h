@@ -8646,6 +8646,11 @@
 #define RAM_SCENE_TURN_MATRIX_COUNT 4u
 #define RAM_SCENE_TURN_MATRIX_STRIDE 0x02u
 #define RAM_SCENE_TURN_MATRIX_DP 0x1Fu       /* page scene */
+/* The Epoch's dive, seen from outside: 1 while the Epoch's picture has been scaled and gathered
+ * into sprite tiles and waits for the vblank to send them, which clears it; the main loop scales
+ * no new picture until then */
+#define RAM_SCENE_DIVE_PICTURE_WAITING 0x7E0021u
+#define RAM_SCENE_DIVE_PICTURE_WAITING_DP 0x21u /* page scene */
 /* In the endings that share $7E:8538: nonzero while the zooming picture has been scaled and
  * gathered into tiles and waits for the vblank to send them, which clears its low byte; the main
  * loop scales no new picture until then [2 bytes] */
@@ -8655,6 +8660,12 @@
  * request leaves the request's state; nothing reads them [2 bytes] */
 #define RAM_SCENE_SCALER_REQUEST_STATE 0x7E0021u
 #define RAM_SCENE_SCALER_REQUEST_STATE_DP 0x21u /* page scene */
+/* The Epoch's dive: the byte after its picture's mark (scene_dive_picture_waiting), which the
+ * original's word-wide test and stores of the mark take along with it; 0 throughout the dive
+ * (the scene's clear leaves it so and the mark's stores write it so), and the guards hold it
+ * there */
+#define RAM_SCENE_DIVE_PICTURE_MARK_HIGH 0x7E0022u
+#define RAM_SCENE_DIVE_PICTURE_MARK_HIGH_DP 0x22u /* page scene */
 /* Bitmap scaler: base address added to a source row's position to point at it [2 bytes] */
 #define RAM_SCENE_SCALER_SOURCE_BASE 0x7E0023u
 #define RAM_SCENE_SCALER_SOURCE_BASE_DP 0x23u /* page scene */
@@ -8798,15 +8809,27 @@
  * step brings to its first row [2 bytes] */
 #define RAM_SCENE_CREDITS_ROW_VRAM 0x7E0048u
 #define RAM_SCENE_CREDITS_ROW_VRAM_DP 0x48u  /* page scene */
+/* The Epoch's dive, seen from the cockpit: how hard the cockpit shakes, the lines a random draw
+ * may move the instrument panel down by, as a mask of the draw (0, 1 or 3, which channel 0's
+ * script sets as the dive goes on) [2 bytes] */
+#define RAM_SCENE_DIVE_SHAKE 0x7E004Au
 /* Where the staff credits' next line of text is, in the program (bank $7E): letters as their
  * character codes, a line ended by '/', the text by a backslash [2 bytes] */
 #define RAM_SCENE_CREDITS_TEXT 0x7E004Au
 #define RAM_SCENE_CREDITS_TEXT_DP 0x4Au      /* page scene */
+/* The Epoch's dive, seen from outside as it leaves: the frames left on the Epoch's frame of
+ * animation (1 as the dive starts, so that the first frame is taken at once) [2 bytes] */
+#define RAM_SCENE_DIVE_EPOCH_FRAMES_LEFT 0x7E004Cu
 /* In the shared endings: how far the zooming picture reaches out from the point it is drawn
  * round, the 8.8 quotient of 8 over its zoom: half its width as it is shown (its low byte is
  * what the drawing reads) [2 bytes] */
 #define RAM_SCENE_ENDING_PICTURE_HALF 0x7E004Cu
 #define RAM_SCENE_ENDING_PICTURE_HALF_DP 0x4Cu /* page scene */
+/* The Epoch's dive, seen from outside as it leaves: the Epoch's frame of animation, as the
+ * address of its sprite list in the program's table of frames (scene_dive_epoch_frames); as the
+ * dive starts, the address three bytes before the first frame's list, so that the next frame is
+ * the first [2 bytes] */
+#define RAM_SCENE_DIVE_EPOCH_FRAME 0x7E004Eu
 /* In the shared endings: where in the second bank of work RAM the frame of the zooming picture
  * to scale next starts, $1200 on by $400 a frame of its animation [2 bytes] */
 #define RAM_SCENE_ENDING_PICTURE_SOURCE 0x7E004Eu
@@ -9273,6 +9296,11 @@
 #define RAM_SCENE_RACE_TURNING 0x7E0A3Au
 #define RAM_SCENE_RACE_TURNING_COUNT 2u
 #define RAM_SCENE_RACE_TURNING_STRIDE 0x02u
+/* The Epoch's dive, seen from outside: the radius of the round head of the Epoch's trail of
+ * light, worked out each frame from how far the Epoch's picture reaches, which a task then gives
+ * channel 1's register 6; kept in channel 1's loop counter 11, which the dive's scripts don't
+ * use [2 bytes] */
+#define RAM_SCENE_DIVE_TRAIL_RADIUS 0x7E0B38u
 /* Lavos falling (mode 4): which of the planet's unpacked sprite tiles goes to each place in
  * VRAM, copied in from the program's resources [96 x $1 bytes, by the place in VRAM, a tile
  * after another] */
@@ -9597,6 +9625,84 @@
 /* Where the program's upload of the map buffer ($7E:783C) sends it in VRAM: the operand of its
  * own load, $6000 as the program is unpacked, which the palace's setup makes 0 [2 bytes] */
 #define RAM_SCENE_MAP_UPLOAD_VRAM 0x7E7841u
+/* The Epoch's dive, seen from the cockpit: the line effect's table of the fixed color, the first
+ * entry's count of lines, the dark above the band of light ahead; it runs down two a frame as
+ * the light opens */
+#define RAM_SCENE_DIVE_LIGHT_ABOVE 0x7E7BE2u
+/* The same table's second entry: its count of lines (with the bit that steps its source a byte a
+ * line), the fog thickening into the light, from scene_dive_fog_thickening */
+#define RAM_SCENE_DIVE_LIGHT_RISING 0x7E7BE5u
+/* The low byte of where that entry reads its colors, a line of scene_dive_fog_thickening, which
+ * moves two lines on a frame once the dark above is gone, so that the band starts brighter */
+#define RAM_SCENE_DIVE_LIGHT_RISING_FROM 0x7E7BE6u
+/* The same table's third entry's count of lines, the top half of the band's brightest part */
+#define RAM_SCENE_DIVE_LIGHT_UPPER_MIDDLE 0x7E7BE8u
+/* The same table's fourth entry's count of lines, the bottom half of the band's brightest part */
+#define RAM_SCENE_DIVE_LIGHT_LOWER_MIDDLE 0x7E7BEBu
+/* The Epoch's dive, seen from the cockpit: the line effect's table of color math, its third
+ * entry's count of lines, those from line 167 down to the instrument panel's top */
+#define RAM_SCENE_DIVE_PANEL_MATH_LINES 0x7E7C36u
+/* The same, in the line effect's table of the BG mode (Mode 7 above the panel, mode 1 for it) */
+#define RAM_SCENE_DIVE_PANEL_MODE_LINES 0x7E7C44u
+/* The same, in the line effect's table of BG1's scroll (the shell's place above the panel) */
+#define RAM_SCENE_DIVE_PANEL_SCROLL_LINES 0x7E7C52u
+/* The Epoch's dive, seen from the cockpit: BG1's scroll across for the instrument panel, in the
+ * same table, against channel 1's place across [2 bytes] */
+#define RAM_SCENE_DIVE_PANEL_SCROLL_X 0x7E7C58u
+/* The low byte of BG1's scroll down for the instrument panel, which puts the panel's first row
+ * on its top line */
+#define RAM_SCENE_DIVE_PANEL_SCROLL_Y 0x7E7C5Au
+/* The Epoch's dive, seen from outside: the line effect's table of window 1's edges, its first
+ * entry's count of lines, those above the head of the Epoch's trail of light */
+#define RAM_SCENE_DIVE_TRAIL_LINES_ABOVE 0x7E7C5Cu
+/* The same table's second entry's count of lines (with the bit that steps its source a line at a
+ * time), the trail's head, from scene_dive_trail_edges */
+#define RAM_SCENE_DIVE_TRAIL_LINES 0x7E7C5Fu
+/* The Epoch's dive, seen from outside: the line effect's table of color math, its first entry's
+ * count of lines, those above the trail's head */
+#define RAM_SCENE_DIVE_TRAIL_MATH_LINES_ABOVE 0x7E7C66u
+/* The same table's second entry's count of lines, the trail's head, which color math lights */
+#define RAM_SCENE_DIVE_TRAIL_MATH_LINES 0x7E7C69u
+/* The Epoch's dive, seen from the cockpit: the four pictures a warning light at the side of the
+ * instrument panel flickers between, each a sprite's tile in the low byte and its attributes in
+ * the high [4 x $2 bytes, by picture] */
+#define RAM_SCENE_DIVE_WARNING_LIGHT_PICTURES 0x7E80E1u
+#define RAM_SCENE_DIVE_WARNING_LIGHT_PICTURES_COUNT 4u
+#define RAM_SCENE_DIVE_WARNING_LIGHT_PICTURES_STRIDE 0x02u
+/* The Epoch's dive, seen from the cockpit: the four pictures a gauge's needle jumps between, two
+ * sprites each, placed across from the gauge's left edge [8 x $4 bytes, by sprite: a picture is
+ * two, the needle's tip and its foot] */
+#define RAM_SCENE_DIVE_NEEDLE_PICTURES 0x7E80E9u
+#define RAM_SCENE_DIVE_NEEDLE_PICTURES_COUNT 8u
+#define RAM_SCENE_DIVE_NEEDLE_PICTURES_STRIDE 0x04u
+#define RAM_SCENE_DIVE_NEEDLE_PICTURES_TILE 0x7E80E9u /* The sprite's tile */
+#define RAM_SCENE_DIVE_NEEDLE_PICTURES_ATTRIBUTES 0x7E80EAu /* Its attributes */
+#define RAM_SCENE_DIVE_NEEDLE_PICTURES_X 0x7E80EBu /* Its place across from the gauge's left edge */
+#define RAM_SCENE_DIVE_NEEDLE_PICTURES_Y 0x7E80ECu /* Its place down, signed, from the list's */
+/* The Epoch's dive, seen from the cockpit: the sprites of the instrument panel's lights, a list
+ * of the program's (its count at $8109): the warning lights at either side of the panel and the
+ * needles of its gauges, left and right, each rewritten every frame to one of their pictures at
+ * random [6 x $4 bytes, by sprite of the panel's lights' list] */
+#define RAM_SCENE_DIVE_LIGHTS 0x7E810Au
+#define RAM_SCENE_DIVE_LIGHTS_COUNT 6u
+#define RAM_SCENE_DIVE_LIGHTS_STRIDE 0x04u
+#define RAM_SCENE_DIVE_LIGHTS_TILE 0x7E810Au /* The sprite's tile */
+#define RAM_SCENE_DIVE_LIGHTS_ATTRIBUTES 0x7E810Bu /* Its attributes */
+#define RAM_SCENE_DIVE_LIGHTS_X 0x7E810Cu    /* Its place across, signed, from the list's */
+#define RAM_SCENE_DIVE_LIGHTS_Y 0x7E810Du    /* Its place down, signed, from the list's */
+/* The Epoch's dive, seen from outside: the count of the sprite list the Epoch's scaled picture
+ * is drawn with, one more than its sprites: eight of them, or the first four for a picture under
+ * half its size */
+#define RAM_SCENE_DIVE_EPOCH_SPRITES 0x7E82B0u
+/* The Epoch's dive, seen from outside as it leaves: the Epoch's frames of animation in the
+ * program, each how many frames it shows and its sprite list; the 22nd is the table's end, whose
+ * length of 0 sends the animation back to the first (its list is the program's code, never read)
+ * [22 x $3 bytes, by frame: the Epoch's 21 frames of animation, then the table's end] */
+#define RAM_SCENE_DIVE_EPOCH_FRAMES 0x7E84F8u
+#define RAM_SCENE_DIVE_EPOCH_FRAMES_COUNT 22u
+#define RAM_SCENE_DIVE_EPOCH_FRAMES_STRIDE 0x03u
+#define RAM_SCENE_DIVE_EPOCH_FRAMES_LENGTH 0x7E84F8u /* How many frames the frame shows for; 0 at the table's end */
+#define RAM_SCENE_DIVE_EPOCH_FRAMES_LIST 0x7E84F9u /* Its sprite list in the program */
 /* The count bytes of the zooming picture's two sprite lists in the program (one more than the
  * sprites drawn): the gathering sets each from the picture's zoom, so the list draws as many of
  * its sprites as the picture covers [2 x $21 bytes, by the picture: 0 the short one, 1 the tall
@@ -9666,9 +9772,42 @@
 #define RAM_SCENE_FIREWORK_BURSTS 0x7EA5B0u
 #define RAM_SCENE_FIREWORK_BURSTS_COUNT 136u
 #define RAM_SCENE_FIREWORK_BURSTS_STRIDE 0x01u
+/* The routine the matrix code generator ($C3:09E9) writes into the program for the race, the
+ * endings and the Epoch's dive to regroup a scaled picture into sprite tiles: 1024 pairs of a
+ * load and a store, the direct page moved on a page every 128 pairs, and a return [5153 x $1
+ * bytes, by byte of the routine] */
+#define RAM_SCENE_MATRIX_CODE 0x7EB574u
+#define RAM_SCENE_MATRIX_CODE_COUNT 5153u
+#define RAM_SCENE_MATRIX_CODE_STRIDE 0x01u
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes] */
 #define RAM_SCENE_RACE_PLANE_COLUMN 0x7EC995u
+/* The Epoch's dive: the fixed color the line effects give a band of 32 lines, line by line,
+ * black to white (its intensity rising from 0 to 31), for the fog where the shell meets the
+ * light [32 x $1 bytes, by line of the band] */
+#define RAM_SCENE_DIVE_FOG_THICKENING 0x7EE000u
+#define RAM_SCENE_DIVE_FOG_THICKENING_COUNT 32u
+#define RAM_SCENE_DIVE_FOG_THICKENING_STRIDE 0x01u
+/* The Epoch's dive: the same band the other way, white to black [32 x $1 bytes, by line of the
+ * band] */
+#define RAM_SCENE_DIVE_FOG_THINNING 0x7EE030u
+#define RAM_SCENE_DIVE_FOG_THINNING_COUNT 32u
+#define RAM_SCENE_DIVE_FOG_THINNING_STRIDE 0x01u
+/* The Epoch's dive, seen from outside: the circle the head of the Epoch's trail is shaped by,
+ * drawn by the iris ($C3:0077) each frame round a point as far in from the screen's top left as
+ * its radius [64 x $2 bytes, by line from the circle's top] */
+#define RAM_SCENE_DIVE_TRAIL_CIRCLE 0x7EE060u
+#define RAM_SCENE_DIVE_TRAIL_CIRCLE_COUNT 64u
+#define RAM_SCENE_DIVE_TRAIL_CIRCLE_STRIDE 0x02u
+#define RAM_SCENE_DIVE_TRAIL_CIRCLE_LEFT 0x7EE060u /* The circle's left edge on the line */
+#define RAM_SCENE_DIVE_TRAIL_CIRCLE_RIGHT 0x7EE061u /* Its right edge */
+/* The Epoch's dive, seen from outside: the window the trail of light is lit in, line by line
+ * from the top of its head: its left edge in the low byte (the circle's, moved to where the
+ * Epoch is), its right edge the screen's in the high byte [64 x $2 bytes, by line of the trail's
+ * head] */
+#define RAM_SCENE_DIVE_TRAIL_EDGES 0x7EE0E0u
+#define RAM_SCENE_DIVE_TRAIL_EDGES_COUNT 64u
+#define RAM_SCENE_DIVE_TRAIL_EDGES_STRIDE 0x02u
 /* The race's scaled road strip, sent to VRAM $5180 each frame [64 bytes] */
 #define RAM_SCENE_RACE_ROAD_STRIP 0x7EE100u
 /* The Epoch's dive, seen from outside: how far each screen line looks onto Lavos's shell, which
@@ -9756,6 +9895,12 @@
 #define RAM_SCENE_CALL_REMAINDER_DP 0xFCu    /* The 32-bit divide's remainder */
 #define RAM_SCENE_CALL_TRANSFER_CONTROL_DP 0xF0u /* The program's own transfer: its channel's mode (how it moves the bytes) */
 #define RAM_SCENE_CALL_TRANSFER_REGISTER_DP 0xF2u /* The program's own transfer: the register it feeds */
+#define RAM_SCENE_CALL_TRANSFER_SOURCE_DP 0xF4u /* The program's transfer from its cells ($7E:38C3): where it reads from in the bank after */
+#define RAM_SCENE_CALL_TRANSFER_SOURCE_BANK_DP 0xF6u /* Its source's bank */
+#define RAM_SCENE_CALL_TRANSFER_BYTES_DP 0xF8u /* How many bytes it moves */
+#define RAM_SCENE_CALL_DIVE_CURVE_STEP_DP 0xF0u /* The Epoch's dive's setup ($7E:7A68): the half step of the sine it makes the shell's curve's last line from */
+#define RAM_SCENE_CALL_DIVE_CURVE_LINES_LEFT_DP 0xF4u /* The same setup: the curve's lines left to make, counted down to 0 */
+#define RAM_SCENE_CALL_DIVE_PANEL_TILE_DP 0xF0u /* The same setup: the next tile of the panel's map, counted up a row at a time from $90 */
 #define RAM_SCENE_CALL_MATRIX_TABLE_OFFSET_DP 0xF0u /* The race's matrix code generator: the table offset of the eighth being written */
 #define RAM_SCENE_CALL_MATRIX_TILE_STEP_DP 0xF2u /* The race's matrix code generator: the tile's offset across a strip, 4 a tile (a byte, its high half 0) */
 #define RAM_SCENE_CALL_MATRIX_PLANE_PAIR_STEP_DP 0xF4u /* The race's matrix code generator: the bitplane pair's offset, 2 a pair (a byte, its high half 0) */
@@ -9769,7 +9914,8 @@
 #define RAM_SCENE_CALL_RACE_GAP_DP 0xFEu     /* The race's placing of a bike: the horizon's gap to the plane's top, less one, kept there across the multiply that shifts the cell after the product; the field's controller read takes it over as the buttons of the frame before (input_previous) */
 #define RAM_SCENE_CALL_RACE_POSE_DP 0xFEu    /* The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of pictures */
 #define RAM_SCENE_CALL_RIPPLE_OFFSET_DP 0xF0u /* The palace's ripple (on the scene's own page): the column offset as it is worked out across the columns, which ends back where it started */
-#define RAM_SCENE_CALL_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page) */
+#define RAM_SCENE_CALL_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, or the address of the register an assignment names */
+#define RAM_SCENE_CALL_STIRRED_DP 0xF0u      /* On the scene's own page: what the program's random draws stir in (game/scene/random.c), whatever the last of its routines to use the cell left there: the 8.8 divide's dividend, the routine of the program a script calls, the word the palettes' frame keeps aside, a warning light's picture or a gauge's place in the Epoch's dive (a byte draw stirs its low byte alone) */
 #define RAM_SCENE_CALL_KEPT_LIST_CLIP_DP 0xF0u /* On the scene's own page: the large sprite list's drop instruction (scene_large_list_clip), which the fireworks keep here while they write it out to draw their bursts */
 #define RAM_SCENE_CALL_ORBIT_FRAME_DP 0xFEu  /* On the scene's own page: twice the frame counter, which the shared endings' orbit keeps here between its sine and its cosine */
 

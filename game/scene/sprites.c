@@ -378,6 +378,12 @@ void scene_draw_sprite_moved(GameState *g, SceneSprite sprite)
 }
 void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped) { load_sprite_list(g, list, clipped); }
 
+/* Where the sprite table's cursor stands in its group of four. */
+uint8_t scene_sprite_place_in_group(const GameState *g)
+{
+    return (uint8_t)(scene_sprite_index(g) % (ENTRY_BYTES * SPRITES_PER_HIGH_BYTE));
+}
+
 /* ---- Guards --------------------------------------------------------------------------------- */
 
 /* The port writes through the named sprite tables, so it takes only what the
@@ -452,36 +458,12 @@ bool scene_sprite_list_fits(Snes *s) { return list_fits(s, false); }
 bool scene_clipped_sprite_list_fits(Snes *s) { return list_fits(s, true); }
 bool scene_sprite_fits(Snes *s) { return cursor_fits(s, 1); }
 
-/* ---- Entries: 16-bit A and index registers, on the scene's page ------------------------- */
+/* ---- What the lists leave, for the wrappers -------------------------------------------------- */
 
-bool scene_hide_rest_of_group_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E3870, 0x1B, 0xB778A96EC9EEDB9Aull) && scene_on_scene_page_low_bank(s) &&
-           high_cursor_in_table(s);
-}
-
-/* Back with 8-bit A, holding the byte it left, and the count it reached and
- * the carry of its last compare, as the original leaves them. */
-void scene_hide_rest_of_group_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    scene_hide_rest_of_group(g);
-    ORIGINAL_EFFECT(s->cpu.a = scene_sprite_high_table_byte(g, cursor(g).high));
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, true));   /* the count of the group's sprites reached, */
-    ORIGINAL_EFFECT(s->cpu.x = SPRITES_PER_HIGH_BYTE);  /* which stays in X */
-    s->cpu.p |= CPU_FLAG_M;
-    m_rts(s);
-}
-
-/* The list at A, small sprites; back, Y is the next free entry. The original's
- * A ends with the list's high byte, which it already has (its low byte isn't
- * read). */
-void scene_load_sprite_list(Snes *s)
-{
-    load_sprite_list(state_of(s), s->cpu.a, false);
-    s->cpu.y = scene_sprite_index(state_of(s));
-    m_rtl(s);
-}
+/* What the program's list routines leave in the registers and flags as they
+ * return, worked out from the list and the sprite table: for the entries
+ * below, and for the ports that draw a list as C where the original called
+ * the routine and hand on what it left (scene.h). None of it is the game's. */
 
 /* What a clipped list leaves, from its last entry: A's high byte is that
  * sprite's X shifted left -- where an X past the right edge is the word $9801,
@@ -513,42 +495,9 @@ uint16_t scene_clipped_list_leaves_a(const GameState *g, uint16_t list, uint16_t
     return clipped_list_leaves(g, list, a, false).a;
 }
 
-static void leave_after_clipped_list(Snes *s, uint16_t list)
+bool scene_clipped_list_leaves_overflow(const GameState *g, uint16_t list)
 {
-    vars_peek(true);
-    ClippedListLeaves left = clipped_list_leaves(state_of(s), list, s->cpu.a, m_flag(s, CPU_FLAG_V));
-    vars_peek(false);
-    s->cpu.a = left.a;
-    m_set_flag(s, CPU_FLAG_V, left.overflow);
-}
-
-/* The list at A, large sprites clipped at the right edge; back, Y is the next
- * free entry, and A and V as above. */
-void scene_load_sprite_list_clipped(Snes *s)
-{
-    uint16_t list = s->cpu.a;
-    load_sprite_list(state_of(s), list, true);
-    leave_after_clipped_list(s, list);
-    s->cpu.y = scene_sprite_index(state_of(s));
-    m_rtl(s);
-}
-
-/* The two forms of the program's list of large sprites, as its code holds
- * them where the callers write it: the test that leaves a sprite out (a
- * branch back to the next sprite where the Y is at the picture's bottom or
- * below, as the program is loaded), or that test written out with two
- * no-operations (the fireworks'). Any other code there is no form the program
- * writes, and the guard hands it to the original. */
-enum { LEAVES_OUT_BELOW_THE_PICTURE_CODE = 0xD8B0, KEEPS_EVERY_SPRITE_CODE = 0xEAEA };
-
-static bool is_a_large_list_form(uint16_t code)
-{
-    return code == KEEPS_EVERY_SPRITE_CODE || code == LEAVES_OUT_BELOW_THE_PICTURE_CODE;
-}
-
-static SceneLargeList large_list_form(uint16_t code)
-{
-    return code == KEEPS_EVERY_SPRITE_CODE ? LIST_KEEPS_EVERY_SPRITE : LIST_LEAVES_OUT_BELOW_THE_PICTURE;
+    return clipped_list_leaves(g, list, 0, false).overflow;
 }
 
 /* What the program's list of large sprites leaves in A: its last sprite's Y
@@ -566,30 +515,17 @@ static uint16_t large_list_leaves_a(const GameState *g, uint16_t list, SceneLarg
     return (uint16_t)((y & 0xFF00) | (scene_sprite_index(g) & (ENTRY_BYTES * SPRITES_PER_HIGH_BYTE - 1)));
 }
 
-/* The list at A, in the form the routine's code holds; back, Y is the next
- * free entry, as the routine keeps it in its cells. */
-void scene_draw_large_sprite_list_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t list = s->cpu.a;
-    SceneLargeList form = large_list_form(scene_large_list_clip(g));
-    scene_draw_large_sprite_list(g, list, form);
-    s->cpu.y = scene_sprite_index(g);
-    ORIGINAL_EFFECT(s->cpu.a = large_list_leaves_a(g, list, form));
-    m_rts(s);
-}
-
 /* What the signed list leaves in A: the next free entry's place in its group
  * of four, over the high byte of its last sprite's X where that sprite went
  * past the right edge (0 otherwise); with no sprite, its count. */
-static uint16_t signed_list_leaves_a(const GameState *g, uint16_t list)
+uint16_t scene_signed_list_leaves_a(const GameState *g, uint16_t list)
 {
     uint8_t sprites = list_sprites(g, list);
     if (!sprites)
         return wram_read8(g, list_address(list));
     int16_t x = signed_list_x(g, listed_byte(g, list, sprites - 1u, LISTED_X));
     uint16_t high = past_the_right_edge(x) ? (uint16_t)((uint16_t)x & 0xFF00) : 0;
-    return (uint16_t)(high | (scene_sprite_index(g) & (ENTRY_BYTES * SPRITES_PER_HIGH_BYTE - 1)));
+    return (uint16_t)(high | scene_sprite_place_in_group(g));
 }
 
 /* The bit of the last sprite's high-table byte, as it is before the list is
@@ -658,6 +594,88 @@ static void leave_signed_list_flags(Snes *s, uint16_t list, bool high_bit_before
     vars_peek(false);
 }
 
+/* ---- Entries: 16-bit A and index registers, on the scene's page ------------------------- */
+
+bool scene_hide_rest_of_group_present(Snes *s)
+{
+    return m_code_matches(s, 0x7E3870, 0x1B, 0xB778A96EC9EEDB9Aull) && scene_on_scene_page_low_bank(s) &&
+           high_cursor_in_table(s);
+}
+
+/* Back with 8-bit A, holding the byte it left, and the count it reached and
+ * the carry of its last compare, as the original leaves them. */
+void scene_hide_rest_of_group_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    scene_hide_rest_of_group(g);
+    ORIGINAL_EFFECT(s->cpu.a = scene_sprite_high_table_byte(g, cursor(g).high));
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, true));   /* the count of the group's sprites reached, */
+    ORIGINAL_EFFECT(s->cpu.x = SPRITES_PER_HIGH_BYTE);  /* which stays in X */
+    s->cpu.p |= CPU_FLAG_M;
+    m_rts(s);
+}
+
+/* The list at A, small sprites; back, Y is the next free entry. The original's
+ * A ends with the list's high byte, which it already has (its low byte isn't
+ * read). */
+void scene_load_sprite_list(Snes *s)
+{
+    load_sprite_list(state_of(s), s->cpu.a, false);
+    s->cpu.y = scene_sprite_index(state_of(s));
+    m_rtl(s);
+}
+
+static void leave_after_clipped_list(Snes *s, uint16_t list)
+{
+    vars_peek(true);
+    ClippedListLeaves left = clipped_list_leaves(state_of(s), list, s->cpu.a, m_flag(s, CPU_FLAG_V));
+    vars_peek(false);
+    s->cpu.a = left.a;
+    m_set_flag(s, CPU_FLAG_V, left.overflow);
+}
+
+/* The list at A, large sprites clipped at the right edge; back, Y is the next
+ * free entry, and A and V as above. */
+void scene_load_sprite_list_clipped(Snes *s)
+{
+    uint16_t list = s->cpu.a;
+    load_sprite_list(state_of(s), list, true);
+    leave_after_clipped_list(s, list);
+    s->cpu.y = scene_sprite_index(state_of(s));
+    m_rtl(s);
+}
+
+/* The two forms of the program's list of large sprites, as its code holds
+ * them where the callers write it: the test that leaves a sprite out (a
+ * branch back to the next sprite where the Y is at the picture's bottom or
+ * below, as the program is loaded), or that test written out with two
+ * no-operations (the fireworks'). Any other code there is no form the program
+ * writes, and the guard hands it to the original. */
+enum { LEAVES_OUT_BELOW_THE_PICTURE_CODE = 0xD8B0, KEEPS_EVERY_SPRITE_CODE = 0xEAEA };
+
+static bool is_a_large_list_form(uint16_t code)
+{
+    return code == KEEPS_EVERY_SPRITE_CODE || code == LEAVES_OUT_BELOW_THE_PICTURE_CODE;
+}
+
+static SceneLargeList large_list_form(uint16_t code)
+{
+    return code == KEEPS_EVERY_SPRITE_CODE ? LIST_KEEPS_EVERY_SPRITE : LIST_LEAVES_OUT_BELOW_THE_PICTURE;
+}
+
+/* The list at A, in the form the routine's code holds; back, Y is the next
+ * free entry, as the routine keeps it in its cells. */
+void scene_draw_large_sprite_list_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint16_t list = s->cpu.a;
+    SceneLargeList form = large_list_form(scene_large_list_clip(g));
+    scene_draw_large_sprite_list(g, list, form);
+    s->cpu.y = scene_sprite_index(g);
+    ORIGINAL_EFFECT(s->cpu.a = large_list_leaves_a(g, list, form));
+    m_rts(s);
+}
+
 /* The list at A; back, Y is the next free entry, as the routine keeps it in
  * its cells, with 16-bit A, and X as it was. */
 void scene_draw_signed_sprite_list_entry(Snes *s)
@@ -668,7 +686,7 @@ void scene_draw_signed_sprite_list_entry(Snes *s)
     ORIGINAL_EFFECT(high_bit_before = last_high_bit_before(g, list));
     scene_draw_signed_sprite_list(g, list);
     s->cpu.y = scene_sprite_index(g);
-    ORIGINAL_EFFECT(s->cpu.a = signed_list_leaves_a(g, list));
+    ORIGINAL_EFFECT(s->cpu.a = scene_signed_list_leaves_a(g, list));
     ORIGINAL_EFFECT(leave_signed_list_flags(s, list, high_bit_before));
     m_rtl(s);
 }
@@ -678,9 +696,11 @@ enum { ATTRIBUTES_CELL = RAM_SCENE_SPRITE_LIST_ATTRIBUTES & 0xFFFF };
 
 /* The routine's code, on the scene's page; a list clear of the sprite tables
  * and of the cells the original works in, which it reads back as it goes. */
+bool scene_signed_sprite_list_code_present(Snes *s) { return m_code_matches(s, 0x7E3A92, 0xB6, 0x25F432D70AF1A949ull); }
+
 bool scene_signed_sprite_list_fits(Snes *s)
 {
-    if (!m_code_matches(s, 0x7E3A92, 0xB6, 0x25F432D70AF1A949ull) || !list_fits(s, true))
+    if (!scene_signed_sprite_list_code_present(s) || !list_fits(s, true))
         return false;
     uint16_t list = s->cpu.a;
     unsigned sprites = (uint8_t)(snes_bus_peek(&s->bus, list_address(list)) - 1);

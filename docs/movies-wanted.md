@@ -190,8 +190,8 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   `battle_work_out_enemy_attack`, `script_point_along` and `battle_apply_damage` (uncommon branches
   inside routines every battle already reaches), plus a few reached for the first time outright,
   `battle_effect_anchor_chase` and `fight_apply_accessory_effects` among them. Recorded again whole once
-  `script_return_from_call`'s guard took the return at the top's going on into it (REIMPLEMENTATION.md,
-  "Phase 4a, the shipping mode's fallbacks, chunk 9"): 118090 frames to the Core beaten, all 20 techs
+  `script_return_from_call`'s guard took the return at the top's going on into it
+  (history/reimplementation-chunks.md, "Phase 4a, the shipping mode's fallbacks, chunk 9"): 118090 frames to the Core beaten, all 20 techs
   cast; shadow clean, no refusal, and in the library.
 - **Not attempted**: zophar chrono-5 (Crono, Marle and Ayla, all but Magus maxed). Its only slot (all
   three point to the same save) stands on an isolated 12,000 B.C. floating island: `ow_bfs` finds its

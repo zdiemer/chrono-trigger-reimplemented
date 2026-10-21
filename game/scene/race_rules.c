@@ -1019,6 +1019,10 @@ static bool ride_code_present(Snes *s) { return m_code_matches(s, 0x7E4788, 0x58
 
 bool scene_race_ride_present(Snes *s) { return on_scene(s) && ride_code_present(s); }
 
+/* The tail sends the pitch straight to the sound driver's ports through the
+ * data bank. */
+bool scene_race_pitch_and_move_present(Snes *s) { return m_bank_reaches_io(s) && scene_race_ride_present(s); }
+
 /* The coast's compares carry the demo's finish lanes as operands
  * (scene_race_finish_lanes), which the hash leaves out. */
 bool scene_race_coast_present(Snes *s)
@@ -1074,6 +1078,19 @@ static void move_and_sound(Snes *s, BikeSounds sounds)
         race_send_engine_pitch(g, m_platform(s));
     move_bikes(g);
     ORIGINAL_EFFECT(leave_last_lane(s));
+    m_rts(s);
+}
+
+// $7E:4BD2
+/* The ride's tail, where the original's own code comes to it in a frame the
+ * bikes run: the engine's pitch to the sound driver, then the bikes' motion. */
+void scene_race_pitch_and_move(Snes *s)
+{
+    GameState *g = state_of(s);
+    race_send_engine_pitch(g, m_platform(s));
+    move_bikes(g);
+    ORIGINAL_EFFECT(leave_last_lane(s));
+    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     m_rts(s);
 }
 

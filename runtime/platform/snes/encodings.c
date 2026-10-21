@@ -171,6 +171,7 @@ static const PfSnesEncoding encodings[] = {
     { 0x7E3850, 0, 0, 7, FROM_REGISTER, STEPS(SB, D, SL, SH, ZL, ZH, C, GO), 0 },          /* ... cleared */
     { 0x7E388D, 0, 0, 7, ONE_REGISTER, STEPS(C, TL, SB, D, SL, SH, ZL, ZH, GO), 0 },       /* the palette */
     { 0x7E38EA, 0, 0, 7, ONE_REGISTER, SCENE_TRANSFER_STEPS, 0 },   /* the loaders' transfer (its mode is data) */
+    { 0x7E38E3, 0, 0, 7, ONE_REGISTER, SCENE_TRANSFER_STEPS, 0 },   /* the transfer from the call cells (the same) */
     { 0x7E36E8, 0, 0, 0, 0, STEPS(C, D, SL, SH, SB, SPZ, IB, SPC), 0 },   /* line effects from descriptors */
     /* the race */
     { 0x7E3C22, 0, 0, 7, FROM_REGISTER, SCENE_TRANSFER_STEPS, 0 },   /* its buffers cleared */
@@ -204,6 +205,10 @@ static const PfSnesEncoding encodings[] = {
     /* Lavos falling */
     { 0x7E5470, 0, 0, 7, ONE_REGISTER, STEPS(P, C, D, SL, SH, SB, ZL, ZH, GO), 0 },    /* its map's rows */
     { 0x7E5476, 0, 0, 7, FIXED_BYTE, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0 },         /* past them blanked */
+    /* the Epoch's dive */
+    { 0x7E7B98, 0, 0, 7, FROM_REGISTER, STEPS(SB, SL, SH, D, ZL, ZH, C, GO), 0 },          /* the scaler's output cleared */
+    { 0x7E8272, 0, 0, 7, WORDS, RACE_UPLOAD_STEPS, 0 },                                 /* the Epoch's picture's tiles */
+    { 0x7E7C2B, 0, 0, 0, 0, STEPS(SL, SH), 0 },                                          /* the light's table restarted */
     /* the endings that share $7E:8538 */
     { 0x7E85B2, 0, 0, 7, FIXED_BYTE, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0 },          /* past the plane blanked */
     { 0x7E864C, 0, 0, 7, WORDS, STEPS(SL, SH, ZL, ZH, TL, TH, C, D, SB, GO), 0 },       /* mode 10's picture */

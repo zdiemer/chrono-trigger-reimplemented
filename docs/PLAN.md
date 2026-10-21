@@ -66,7 +66,7 @@ in place of the ports: the native coverage.
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 3% left (97% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program about 75%, battle frame work 90%, field graphics 92%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (42 movies): 8.3 KiB, 1.66 M instructions (handback 4.3 KiB, unported 4.5 KiB; the 36 before chunk 9 1.19 M, 1.41 M before the comparisons followed stack switches); shipping mode over the movies 2.40 M, 2.31 M of it the Epoch's dive, most of that its code with no port (the 36 before chunk 9 0.07 M, 0.09 M before it), the routes 2.37 M (the Epoch's 2.31 M, the ten before 0.04 M); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (42 movies): 6.6 KiB, 0.95 M instructions (handback 2.6 KiB, unported 4.4 KiB; 1.66 M before chunk 10, the Epoch's dive's 0.41 M of it now 9.5 K); shipping mode over the movies 0.09 M (2.40 M before chunk 10, 2.31 M of it the dive's, now 2.1 K), the routes 0.06 M (2.37 M before); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -225,7 +225,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 306 files, 117 of 94,475 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 307 files, 117 of 95,610 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -279,18 +279,18 @@ docstring says which way it is wrong). **3% of the code is still generated.**
 | battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.3K | 0% | 446 |
 | field engine, events (`$C0`) | 59.4K | 58.3K | 14.0K | 2% | 399 |
 | menus, text, overworld (`$C2`) | 59.1K | 56.6K | 15.7K | 4% | 535 |
-| scene program, RAM (`$7E`) | 24.9K | 19.8K | 2.5K | 21% | 171 |
+| scene program, RAM (`$7E`) | 25.1K | 21.3K | 2.8K | 15% | 196 |
 | battle frame work (`$CD`) | 15.4K | 15.2K | 4.3K | 1% | 224 |
 | field graphics (`$FD`) | 15.1K | 15.0K | 2.2K | 0% | 111 |
 | battle sprites (`$CF`) | 6.8K | 6.8K | 0.2K | 0% | 47 |
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 52 |
 | battle setup (`$CC`) | 4.8K | 4.8K | 0.1K | 0% | 11 |
-| scene engine (`$C3`) | 3.8K | 3.6K | 0.7K | 7% | 31 |
+| scene engine (`$C3`) | 3.8K | 3.6K | 0.6K | 7% | 32 |
 | scene data (`$C6`) | 3.4K | 3.4K | 0.8K | 0% | 32 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.1K | 1% | 9 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
 | console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
-| **total** | **266.5K** | **257.3K** | **56.9K** | **3%** | **2085** |
+| **total** | **266.7K** | **258.8K** | **57.2K** | **3%** | **2111** |
 
 `$CD`, the battle's frame work, is C but for 0.2 KiB: the whole screen script
 language (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"),

@@ -13092,6 +13092,12 @@ enum { SCENE_TURN_MATRIX_COUNT = 4 };   /* by a, b, c, d */
 uint16_t scene_turn_matrix(const GameState *g, unsigned i);
 void set_scene_turn_matrix(GameState *g, unsigned i, uint16_t v);
 
+/* The Epoch's dive, seen from outside: 1 while the Epoch's picture has been scaled and gathered
+ * into sprite tiles and waits for the vblank to send them, which clears it; the main loop scales
+ * no new picture until then */
+uint8_t scene_dive_picture_waiting(const GameState *g);
+void set_scene_dive_picture_waiting(GameState *g, uint8_t v);
+
 /* In the endings that share $7E:8538: nonzero while the zooming picture has been scaled and
  * gathered into tiles and waits for the vblank to send them, which clears its low byte; the main
  * loop scales no new picture until then */
@@ -13102,6 +13108,13 @@ void set_scene_ending_picture_ready(GameState *g, uint16_t v);
  * request leaves the request's state; nothing reads them */
 uint16_t scene_scaler_request_state(const GameState *g);
 void set_scene_scaler_request_state(GameState *g, uint16_t v);
+
+/* The Epoch's dive: the byte after its picture's mark (scene_dive_picture_waiting), which the
+ * original's word-wide test and stores of the mark take along with it; 0 throughout the dive
+ * (the scene's clear leaves it so and the mark's stores write it so), and the guards hold it
+ * there */
+uint8_t scene_dive_picture_mark_high(const GameState *g);
+void set_scene_dive_picture_mark_high(GameState *g, uint8_t v);
 
 /* Bitmap scaler: base address added to a source row's position to point at it */
 uint16_t scene_scaler_source_base(const GameState *g);
@@ -13313,16 +13326,34 @@ void set_scene_title_slides(GameState *g, unsigned i, uint16_t v);
 uint16_t scene_credits_row_vram(const GameState *g);
 void set_scene_credits_row_vram(GameState *g, uint16_t v);
 
+/* The Epoch's dive, seen from the cockpit: how hard the cockpit shakes, the lines a random draw
+ * may move the instrument panel down by, as a mask of the draw (0, 1 or 3, which channel 0's
+ * script sets as the dive goes on) */
+uint16_t scene_dive_shake(const GameState *g);
+void set_scene_dive_shake(GameState *g, uint16_t v);
+
 /* Where the staff credits' next line of text is, in the program (bank $7E): letters as their
  * character codes, a line ended by '/', the text by a backslash */
 uint16_t scene_credits_text(const GameState *g);
 void set_scene_credits_text(GameState *g, uint16_t v);
+
+/* The Epoch's dive, seen from outside as it leaves: the frames left on the Epoch's frame of
+ * animation (1 as the dive starts, so that the first frame is taken at once) */
+uint16_t scene_dive_epoch_frames_left(const GameState *g);
+void set_scene_dive_epoch_frames_left(GameState *g, uint16_t v);
 
 /* In the shared endings: how far the zooming picture reaches out from the point it is drawn
  * round, the 8.8 quotient of 8 over its zoom: half its width as it is shown (its low byte is
  * what the drawing reads) */
 uint16_t scene_ending_picture_half(const GameState *g);
 void set_scene_ending_picture_half(GameState *g, uint16_t v);
+
+/* The Epoch's dive, seen from outside as it leaves: the Epoch's frame of animation, as the
+ * address of its sprite list in the program's table of frames (scene_dive_epoch_frames); as the
+ * dive starts, the address three bytes before the first frame's list, so that the next frame is
+ * the first */
+uint16_t scene_dive_epoch_frame(const GameState *g);
+void set_scene_dive_epoch_frame(GameState *g, uint16_t v);
 
 /* In the shared endings: where in the second bank of work RAM the frame of the zooming picture
  * to scale next starts, $1200 on by $400 a frame of its animation */
@@ -13926,6 +13957,13 @@ enum { SCENE_RACE_TURNING_COUNT = 2 };   /* by 0 turning one way (R), 1 the othe
 uint16_t scene_race_turning(const GameState *g, unsigned i);
 void set_scene_race_turning(GameState *g, unsigned i, uint16_t v);
 
+/* The Epoch's dive, seen from outside: the radius of the round head of the Epoch's trail of
+ * light, worked out each frame from how far the Epoch's picture reaches, which a task then gives
+ * channel 1's register 6; kept in channel 1's loop counter 11, which the dive's scripts don't
+ * use */
+uint16_t scene_dive_trail_radius(const GameState *g);
+void set_scene_dive_trail_radius(GameState *g, uint16_t v);
+
 enum { SCENE_PLANET_TILE_ORDER_COUNT = 96 };   /* by the place in VRAM, a tile after another */
 /* Lavos falling (mode 4): which of the planet's unpacked sprite tiles goes to each place in
  * VRAM, copied in from the program's resources */
@@ -14391,6 +14429,121 @@ void set_scene_turned_map_rows(GameState *g, uint8_t v);
 uint16_t scene_map_upload_vram(const GameState *g);
 void set_scene_map_upload_vram(GameState *g, uint16_t v);
 
+/* The Epoch's dive, seen from the cockpit: the line effect's table of the fixed color, the first
+ * entry's count of lines, the dark above the band of light ahead; it runs down two a frame as
+ * the light opens */
+uint8_t scene_dive_light_above(const GameState *g);
+void set_scene_dive_light_above(GameState *g, uint8_t v);
+
+/* The same table's second entry: its count of lines (with the bit that steps its source a byte a
+ * line), the fog thickening into the light, from scene_dive_fog_thickening */
+uint8_t scene_dive_light_rising(const GameState *g);
+void set_scene_dive_light_rising(GameState *g, uint8_t v);
+
+/* The low byte of where that entry reads its colors, a line of scene_dive_fog_thickening, which
+ * moves two lines on a frame once the dark above is gone, so that the band starts brighter */
+uint8_t scene_dive_light_rising_from(const GameState *g);
+void set_scene_dive_light_rising_from(GameState *g, uint8_t v);
+
+/* The same table's third entry's count of lines, the top half of the band's brightest part */
+uint8_t scene_dive_light_upper_middle(const GameState *g);
+void set_scene_dive_light_upper_middle(GameState *g, uint8_t v);
+
+/* The same table's fourth entry's count of lines, the bottom half of the band's brightest part */
+uint8_t scene_dive_light_lower_middle(const GameState *g);
+void set_scene_dive_light_lower_middle(GameState *g, uint8_t v);
+
+/* The Epoch's dive, seen from the cockpit: the line effect's table of color math, its third
+ * entry's count of lines, those from line 167 down to the instrument panel's top */
+uint8_t scene_dive_panel_math_lines(const GameState *g);
+void set_scene_dive_panel_math_lines(GameState *g, uint8_t v);
+
+/* The same, in the line effect's table of the BG mode (Mode 7 above the panel, mode 1 for it) */
+uint8_t scene_dive_panel_mode_lines(const GameState *g);
+void set_scene_dive_panel_mode_lines(GameState *g, uint8_t v);
+
+/* The same, in the line effect's table of BG1's scroll (the shell's place above the panel) */
+uint8_t scene_dive_panel_scroll_lines(const GameState *g);
+void set_scene_dive_panel_scroll_lines(GameState *g, uint8_t v);
+
+/* The Epoch's dive, seen from the cockpit: BG1's scroll across for the instrument panel, in the
+ * same table, against channel 1's place across */
+uint16_t scene_dive_panel_scroll_x(const GameState *g);
+void set_scene_dive_panel_scroll_x(GameState *g, uint16_t v);
+
+/* The low byte of BG1's scroll down for the instrument panel, which puts the panel's first row
+ * on its top line */
+uint8_t scene_dive_panel_scroll_y(const GameState *g);
+void set_scene_dive_panel_scroll_y(GameState *g, uint8_t v);
+
+/* The Epoch's dive, seen from outside: the line effect's table of window 1's edges, its first
+ * entry's count of lines, those above the head of the Epoch's trail of light */
+uint8_t scene_dive_trail_lines_above(const GameState *g);
+void set_scene_dive_trail_lines_above(GameState *g, uint8_t v);
+
+/* The same table's second entry's count of lines (with the bit that steps its source a line at a
+ * time), the trail's head, from scene_dive_trail_edges */
+uint8_t scene_dive_trail_lines(const GameState *g);
+void set_scene_dive_trail_lines(GameState *g, uint8_t v);
+
+/* The Epoch's dive, seen from outside: the line effect's table of color math, its first entry's
+ * count of lines, those above the trail's head */
+uint8_t scene_dive_trail_math_lines_above(const GameState *g);
+void set_scene_dive_trail_math_lines_above(GameState *g, uint8_t v);
+
+/* The same table's second entry's count of lines, the trail's head, which color math lights */
+uint8_t scene_dive_trail_math_lines(const GameState *g);
+void set_scene_dive_trail_math_lines(GameState *g, uint8_t v);
+
+enum { SCENE_DIVE_WARNING_LIGHT_PICTURES_COUNT = 4 };   /* by picture */
+/* The Epoch's dive, seen from the cockpit: the four pictures a warning light at the side of the
+ * instrument panel flickers between, each a sprite's tile in the low byte and its attributes in
+ * the high */
+uint16_t scene_dive_warning_light_pictures(const GameState *g, unsigned i);
+void set_scene_dive_warning_light_pictures(GameState *g, unsigned i, uint16_t v);
+
+enum { SCENE_DIVE_NEEDLE_PICTURES_COUNT = 8 };   /* by sprite: a picture is two, the needle's tip and its foot */
+/* The sprite's tile */
+uint8_t scene_dive_needle_pictures_tile(const GameState *g, unsigned i);
+void set_scene_dive_needle_pictures_tile(GameState *g, unsigned i, uint8_t v);
+/* Its attributes */
+uint8_t scene_dive_needle_pictures_attributes(const GameState *g, unsigned i);
+void set_scene_dive_needle_pictures_attributes(GameState *g, unsigned i, uint8_t v);
+/* Its place across from the gauge's left edge */
+uint8_t scene_dive_needle_pictures_x(const GameState *g, unsigned i);
+void set_scene_dive_needle_pictures_x(GameState *g, unsigned i, uint8_t v);
+/* Its place down, signed, from the list's */
+uint8_t scene_dive_needle_pictures_y(const GameState *g, unsigned i);
+void set_scene_dive_needle_pictures_y(GameState *g, unsigned i, uint8_t v);
+
+enum { SCENE_DIVE_LIGHTS_COUNT = 6 };   /* by sprite of the panel's lights' list */
+/* The sprite's tile */
+uint8_t scene_dive_lights_tile(const GameState *g, unsigned i);
+void set_scene_dive_lights_tile(GameState *g, unsigned i, uint8_t v);
+/* Its attributes */
+uint8_t scene_dive_lights_attributes(const GameState *g, unsigned i);
+void set_scene_dive_lights_attributes(GameState *g, unsigned i, uint8_t v);
+/* Its place across, signed, from the list's */
+uint8_t scene_dive_lights_x(const GameState *g, unsigned i);
+void set_scene_dive_lights_x(GameState *g, unsigned i, uint8_t v);
+/* Its place down, signed, from the list's */
+uint8_t scene_dive_lights_y(const GameState *g, unsigned i);
+void set_scene_dive_lights_y(GameState *g, unsigned i, uint8_t v);
+
+/* The Epoch's dive, seen from outside: the count of the sprite list the Epoch's scaled picture
+ * is drawn with, one more than its sprites: eight of them, or the first four for a picture under
+ * half its size */
+uint8_t scene_dive_epoch_sprites(const GameState *g);
+void set_scene_dive_epoch_sprites(GameState *g, uint8_t v);
+
+enum { SCENE_DIVE_EPOCH_FRAMES_COUNT = 22 };   /* by frame: the Epoch's 21 frames of animation, then the table's end */
+/* How many frames the frame shows for; 0 at the table's end */
+uint8_t scene_dive_epoch_frames_length(const GameState *g, unsigned i);
+void set_scene_dive_epoch_frames_length(GameState *g, unsigned i, uint8_t v);
+/* Its sprite list in the program */
+uint16_t scene_dive_epoch_frames_list(const GameState *g, unsigned i);
+void set_scene_dive_epoch_frames_list(GameState *g, unsigned i, uint16_t v);
+
 enum { SCENE_ENDING_PICTURE_SPRITE_COUNTS_COUNT = 2 };   /* by the picture: 0 the short one, 1 the tall one */
 /* The count bytes of the zooming picture's two sprite lists in the program (one more than the
  * sprites drawn): the gathering sets each from the picture's zoom, so the list draws as many of
@@ -14466,11 +14619,45 @@ enum { SCENE_FIREWORK_BURSTS_COUNT = 136 };   /* by byte */
 uint8_t scene_firework_bursts(const GameState *g, unsigned i);
 void set_scene_firework_bursts(GameState *g, unsigned i, uint8_t v);
 
+enum { SCENE_MATRIX_CODE_COUNT = 5153 };   /* by byte of the routine */
+/* The routine the matrix code generator ($C3:09E9) writes into the program for the race, the
+ * endings and the Epoch's dive to regroup a scaled picture into sprite tiles: 1024 pairs of a
+ * load and a store, the direct page moved on a page every 128 pairs, and a return */
+uint8_t scene_matrix_code(const GameState *g, unsigned i);
+void set_scene_matrix_code(GameState *g, unsigned i, uint8_t v);
+
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes, one at a time] */
 enum { SCENE_RACE_PLANE_COLUMN_BYTES = 20 };
 uint8_t scene_race_plane_column_byte(const GameState *g, unsigned at);
 void set_scene_race_plane_column_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { SCENE_DIVE_FOG_THICKENING_COUNT = 32 };   /* by line of the band */
+/* The Epoch's dive: the fixed color the line effects give a band of 32 lines, line by line,
+ * black to white (its intensity rising from 0 to 31), for the fog where the shell meets the
+ * light */
+uint8_t scene_dive_fog_thickening(const GameState *g, unsigned line);
+void set_scene_dive_fog_thickening(GameState *g, unsigned line, uint8_t v);
+
+enum { SCENE_DIVE_FOG_THINNING_COUNT = 32 };   /* by line of the band */
+/* The Epoch's dive: the same band the other way, white to black */
+uint8_t scene_dive_fog_thinning(const GameState *g, unsigned line);
+void set_scene_dive_fog_thinning(GameState *g, unsigned line, uint8_t v);
+
+enum { SCENE_DIVE_TRAIL_CIRCLE_COUNT = 64 };   /* by line from the circle's top */
+/* The circle's left edge on the line */
+uint8_t scene_dive_trail_circle_left(const GameState *g, unsigned line);
+void set_scene_dive_trail_circle_left(GameState *g, unsigned line, uint8_t v);
+/* Its right edge */
+uint8_t scene_dive_trail_circle_right(const GameState *g, unsigned line);
+void set_scene_dive_trail_circle_right(GameState *g, unsigned line, uint8_t v);
+
+enum { SCENE_DIVE_TRAIL_EDGES_COUNT = 64 };   /* by line of the trail's head */
+/* The Epoch's dive, seen from outside: the window the trail of light is lit in, line by line
+ * from the top of its head: its left edge in the low byte (the circle's, moved to where the
+ * Epoch is), its right edge the screen's in the high byte */
+uint16_t scene_dive_trail_edges(const GameState *g, unsigned line);
+void set_scene_dive_trail_edges(GameState *g, unsigned line, uint16_t v);
 
 /* The race's scaled road strip, sent to VRAM $5180 each frame [64 bytes, one at a time] */
 enum { SCENE_RACE_ROAD_STRIP_BYTES = 64 };
@@ -14615,6 +14802,25 @@ void set_scene_call_transfer_control(GameState *g, SceneProgramPage page, uint8_
 /* The program's own transfer: the register it feeds */
 uint8_t scene_call_transfer_register(const GameState *g, SceneProgramPage page);
 void set_scene_call_transfer_register(GameState *g, SceneProgramPage page, uint8_t v);
+/* The program's transfer from its cells ($7E:38C3): where it reads from in the bank after */
+uint16_t scene_call_transfer_source(const GameState *g, SceneProgramPage page);
+void set_scene_call_transfer_source(GameState *g, SceneProgramPage page, uint16_t v);
+/* Its source's bank */
+uint8_t scene_call_transfer_source_bank(const GameState *g, SceneProgramPage page);
+void set_scene_call_transfer_source_bank(GameState *g, SceneProgramPage page, uint8_t v);
+/* How many bytes it moves */
+uint16_t scene_call_transfer_bytes(const GameState *g, SceneProgramPage page);
+void set_scene_call_transfer_bytes(GameState *g, SceneProgramPage page, uint16_t v);
+/* The Epoch's dive's setup ($7E:7A68): the half step of the sine it makes the shell's curve's
+ * last line from */
+uint8_t scene_call_dive_curve_step(const GameState *g, SceneProgramPage page);
+void set_scene_call_dive_curve_step(GameState *g, SceneProgramPage page, uint8_t v);
+/* The same setup: the curve's lines left to make, counted down to 0 */
+uint8_t scene_call_dive_curve_lines_left(const GameState *g, SceneProgramPage page);
+void set_scene_call_dive_curve_lines_left(GameState *g, SceneProgramPage page, uint8_t v);
+/* The same setup: the next tile of the panel's map, counted up a row at a time from $90 */
+uint8_t scene_call_dive_panel_tile(const GameState *g, SceneProgramPage page);
+void set_scene_call_dive_panel_tile(GameState *g, SceneProgramPage page, uint8_t v);
 /* The race's matrix code generator: the table offset of the eighth being written */
 uint16_t scene_call_matrix_table_offset(const GameState *g, SceneProgramPage page);
 void set_scene_call_matrix_table_offset(GameState *g, SceneProgramPage page, uint16_t v);
@@ -14668,11 +14874,16 @@ void set_scene_call_race_pose(GameState *g, SceneProgramPage page, uint16_t v);
  * the columns, which ends back where it started */
 uint16_t scene_call_ripple_offset(const GameState *g, SceneProgramPage page);
 void set_scene_call_ripple_offset(GameState *g, SceneProgramPage page, uint16_t v);
-/* A sequence channel's: what the interpreter last kept there -- the command it read, the address
- * of the register an assignment names, or the routine of the program a script calls (on the
- * scene's own page) */
+/* A sequence channel's: what the interpreter last kept there -- the command it read, or the
+ * address of the register an assignment names */
 uint16_t scene_call_script_scratch(const GameState *g, SceneProgramPage page);
 void set_scene_call_script_scratch(GameState *g, SceneProgramPage page, uint16_t v);
+/* On the scene's own page: what the program's random draws stir in (game/scene/random.c),
+ * whatever the last of its routines to use the cell left there: the 8.8 divide's dividend, the
+ * routine of the program a script calls, the word the palettes' frame keeps aside, a warning
+ * light's picture or a gauge's place in the Epoch's dive (a byte draw stirs its low byte alone) */
+uint16_t scene_call_stirred(const GameState *g, SceneProgramPage page);
+void set_scene_call_stirred(GameState *g, SceneProgramPage page, uint16_t v);
 /* On the scene's own page: the large sprite list's drop instruction (scene_large_list_clip),
  * which the fireworks keep here while they write it out to draw their bursts */
 uint16_t scene_call_kept_list_clip(const GameState *g, SceneProgramPage page);

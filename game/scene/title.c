@@ -162,6 +162,21 @@ static void leave_scratch_empty(GameState *g, unsigned planes)
         set_scene_bitplane_scratch_byte(g, TILE_PLANES, 0);
 }
 
+/* The two forms of the expansion, by the program's routine that does each:
+ * the title's tiles of four planes and the endings' of eight. */
+enum { EXPAND_TILE = 0x5E54, EXPAND_WIDE_TILE = 0x5EF8, PROGRAM_BANK = 0x7E0000 };
+
+typedef struct {
+    uint16_t routine;
+    unsigned planes;
+    uint32_t site;   /* where it writes the pixels */
+} TileExpansion;
+
+static const TileExpansion four_planes = { EXPAND_TILE, TILE_PLANES, 0x7E5E75 };
+static const TileExpansion eight_planes = { EXPAND_WIDE_TILE, SCENE_MOST_PLANES, 0x7E5F2E };
+
+static const TileExpansion *expansion_of(unsigned planes) { return planes == TILE_PLANES ? &four_planes : &eight_planes; }
+
 // $7E:5E54, $7E:5EF8
 /* One tile of planar graphics at `tile` (in `bank`), four planes or eight,
  * turned into the plane's pixels: eight rows of eight, each pixel the byte of
@@ -182,7 +197,7 @@ void scene_expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t 
             uint8_t color = 0;
             for (int plane = (int)planes - 1; plane >= 0; plane--)
                 color = (uint8_t)(color << 1 | (plane_bytes[plane] >> pixel & 1));
-            vid_write_vram_byte(pf, PF_AT(planes == TILE_PLANES ? 0x7E5E75 : 0x7E5F2E), true, color);
+            vid_write_vram_byte(pf, PF_AT(expansion_of(planes)->site), true, color);
         }
     }
     ORIGINAL_EFFECT(leave_scratch_empty(g, planes));
@@ -206,6 +221,76 @@ void scene_title_expand_plane_tile(Snes *s) { expand_at_x(s, TILE_PLANES); }
 
 // $7E:5EF8
 void scene_ending_expand_wide_tile(Snes *s) { expand_at_x(s, SCENE_MOST_PLANES); }
+
+// $7E:5E3C
+/* A picture's tiles in the second bank, `count` of them from `first`, each
+ * `step` bytes on from the last, expanded in turn into the plane's pixels.
+ * Returns past the last. */
+uint16_t scene_expand_tiles(GameState *g, Platform *pf, uint16_t first, uint16_t count, unsigned planes, uint16_t step)
+{
+    const TileExpansion *e = expansion_of(planes);
+    uint16_t tile = first;
+    for (uint16_t n = 0; n < count; n++) {
+        TIMED_AS(g, PROGRAM_BANK | e->routine, scene_expand_plane_tile(g, pf, SCENE_UPPER_WORK_RAM, tile, e->planes));
+        tile = (uint16_t)(tile + step);
+    }
+    return tile;
+}
+
+/* The program's loop over a picture's tiles, as its code holds it: the tiles
+ * unpacked from $0200 of the second bank, each expanded by the routine the
+ * loop's call names, which leaves it past the tile's first pair of planes, and
+ * moved on from there by the stride the loop's add holds. The title's loader
+ * runs it as the program's code, with the count of tiles in Y. */
+enum { LOOP_TILES = 0x0200 };
+
+static const TileExpansion *expansion_called(const GameState *g)
+{
+    uint16_t routine = scene_plane_tiles_expander(g);
+    return routine == eight_planes.routine ? &eight_planes : routine == four_planes.routine ? &four_planes : NULL;
+}
+
+static uint16_t expand_the_tiles(GameState *g, Platform *pf, uint16_t tiles)
+{
+    uint16_t step = (uint16_t)(SCENE_PLANE_PAIR_BYTES + scene_plane_tiles_stride(g));
+    return scene_expand_tiles(g, pf, LOOP_TILES, tiles, expansion_called(g)->planes, step);
+}
+
+/* Y the count; back with A and X past the last tile, Y run down to 0, 8-bit
+ * A, the data bank 0 (the byte under the second bank's, which the loop
+ * pushed to set it) and the overflow clear. */
+void scene_expand_the_plane_tiles(Snes *s)
+{
+    uint16_t past = expand_the_tiles(state_of(s), m_platform(s), s->cpu.y);
+    s->cpu.x = past;
+    ORIGINAL_EFFECT(s->cpu.a = past);
+    s->cpu.y = 0;
+    s->cpu.db = 0x00;
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, false));   /* the last move on's, which nothing overflows */
+    s->cpu.p |= CPU_FLAG_M;
+    m_rts(s);
+}
+
+/* The loop's code but for its call's target and its stride, which the scenes
+ * write; a target that is one of the two expansions, whose code is there; a
+ * count of tiles that stays in the bank (a tile is at most 64 bytes). */
+enum { MOST_TILE_BYTES = 0x40, BANK_BYTES = 0x10000 };
+
+bool scene_expand_the_plane_tiles_present(Snes *s)
+{
+    if (!scene_on_scene_page(s) || !m_code_matches(s, 0x7E5E3C, 0x8, 0x7884FAF582D62CB5ull) ||
+        !m_code_matches(s, 0x7E5E46, 0x4, 0x93DABED1891C9B81ull) || !m_code_matches(s, 0x7E5E4B, 0x1, 0xAF63BD4C8601B7DFull) ||
+        !m_code_matches(s, 0x7E5E4C, 0x8, 0x7065FB25F8D6B1D1ull))
+        return false;
+    vars_peek(true);
+    const TileExpansion *e = expansion_called(state_of(s));
+    unsigned reach = LOOP_TILES + (unsigned)s->cpu.y * MOST_TILE_BYTES;
+    vars_peek(false);
+    bool known = e == &four_planes   ? m_code_matches(s, 0x7E5E54, 164, 0xEE4E5864DAEE75ACull)
+                 : e == &eight_planes ? m_code_matches(s, 0x7E5EF8, 0x106, 0x1C904F691D855A78ull)
+                                      : false;
+    return known && s->cpu.y != 0 && reach <= BANK_BYTES;
+}
 
 /* The eight-plane form keeps its row count apart, in the scaler's cell, and
  * reads its tile's sixty-four bytes: the same tile over neither. */
@@ -571,13 +656,6 @@ static void start_ripple(GameState *g, Platform *pf, SceneChannel channel)
 
 static void start_ripple_on(GameState *g, Platform *pf, uint8_t channel) { start_ripple(g, pf, channel); }
 
-/* It leaves the scroll it stored. */
-static uint16_t start_ripple_leaves(uint16_t called_with)
-{
-    (void)called_with;
-    return (uint16_t)RIPPLE_BG1_SCROLL_Y;
-}
-
 void scene_title_start_ripple(Snes *s) { scene_script_routine_alone(s, &scene_title_routines[SCENE_ROW_START_RIPPLE]); }
 
 /* ---- The sprites' colors fading -------------------------------------------------------------------- */
@@ -609,18 +687,6 @@ static void untint_sprite_palette_3(GameState *g, Platform *pf, uint8_t channel)
     (void)pf;
     (void)channel;
     palette_start_fade_to_white(g, TITLE_FADE_SLOT, palette_3_untints);
-}
-
-/* Each stores its slot a byte at a time, the last byte stored over the high
- * byte A came with. */
-static uint16_t darken_sprite_palette_4_leaves(uint16_t called_with)
-{
-    return (uint16_t)((called_with & 0xFF00) | palette_4_darkens.to_level);
-}
-
-static uint16_t untint_sprite_palette_3_leaves(uint16_t called_with)
-{
-    return (uint16_t)((called_with & 0xFF00) | palette_3_untints.to_level);
 }
 
 void scene_title_darken_sprite_palette_4(Snes *s)
@@ -813,11 +879,7 @@ static void send_unpacked(GameState *g, Platform *pf) { TIMED_AS(g, 0x7E38E7, sc
  * tile expanded to a byte a pixel in turn. */
 static void build_plane_pixels(GameState *g, Platform *pf)
 {
-    uint16_t tile = (uint16_t)UNPACKED_GRAPHICS;
-    for (unsigned n = 0; n < PLANE_TILES; n++) {
-        TIMED_AS(g, 0x7E5E54, scene_expand_plane_tile(g, pf, SCENE_UPPER_WORK_RAM, tile, TILE_PLANES));
-        tile = (uint16_t)(tile + scene_plane_tile_bytes(TILE_PLANES));
-    }
+    (void)scene_expand_tiles(g, pf, (uint16_t)UNPACKED_GRAPHICS, PLANE_TILES, TILE_PLANES, scene_plane_tile_bytes(TILE_PLANES));
 }
 
 /* The title's state as it starts: five sprites at the left that slide to
@@ -1271,14 +1333,37 @@ const unsigned scene_title_task_count = sizeof scene_title_tasks / sizeof scene_
 /* ---- The routines the title's scripts call, for the interpreter -------------------------------------- */
 
 const SceneScriptRoutine scene_title_routines[] = {
-    [SCENE_ROW_START_RIPPLE] = { SCENE_ROUTINE_START_RIPPLE, start_ripple_on, scene_title_start_ripple_present,
-                                 start_ripple_leaves, false },
+    [SCENE_ROW_START_RIPPLE] = { SCENE_ROUTINE_START_RIPPLE, start_ripple_on, scene_title_start_ripple_present, false },
     [SCENE_ROW_DARKEN_SPRITE_PALETTE_4] = { SCENE_ROUTINE_DARKEN_SPRITE_PALETTE_4, darken_sprite_palette_4,
-                                            scene_title_darken_sprite_palette_4_present, darken_sprite_palette_4_leaves,
-                                            true },
+                                            scene_title_darken_sprite_palette_4_present, true },
     [SCENE_ROW_UNTINT_SPRITE_PALETTE_3] = { SCENE_ROUTINE_UNTINT_SPRITE_PALETTE_3, untint_sprite_palette_3,
-                                            scene_title_untint_sprite_palette_3_present, untint_sprite_palette_3_leaves,
-                                            true },
+                                            scene_title_untint_sprite_palette_3_present, true },
 };
 const unsigned scene_title_routine_count = sizeof scene_title_routines / sizeof scene_title_routines[0];
+
+#if ORIGINAL_EFFECTS
+/* The ripple's start leaves the scroll it stored; the fades store their slot
+ * a byte at a time, the last byte stored over the high byte A came with. */
+static uint16_t start_ripple_leaves(uint16_t called_with)
+{
+    (void)called_with;
+    return (uint16_t)RIPPLE_BG1_SCROLL_Y;
+}
+
+static uint16_t darken_sprite_palette_4_leaves(uint16_t called_with)
+{
+    return (uint16_t)((called_with & 0xFF00) | palette_4_darkens.to_level);
+}
+
+static uint16_t untint_sprite_palette_3_leaves(uint16_t called_with)
+{
+    return (uint16_t)((called_with & 0xFF00) | palette_3_untints.to_level);
+}
+
+const SceneRoutineLeaves scene_title_routine_leaves[] = {
+    [SCENE_ROW_START_RIPPLE] = { start_ripple_leaves, NULL },
+    [SCENE_ROW_DARKEN_SPRITE_PALETTE_4] = { darken_sprite_palette_4_leaves, NULL },
+    [SCENE_ROW_UNTINT_SPRITE_PALETTE_3] = { untint_sprite_palette_3_leaves, NULL },
+};
+#endif
 

@@ -250,21 +250,25 @@ static void divide_8_8(GameState *g, SceneProgramPage page, uint16_t dividend)
     set_scene_call_divisor_less_one(g, page, (uint16_t)(divisor - 1));
 }
 
-/* The 8.8 fraction of `dividend`'s high byte over `divisor`. The original also
- * leaves the dividend in the first operand's cell, shifted, which every caller
- * here writes over before anything reads it, so this doesn't. */
+/* The divide works through the dividend in the first operand's cell,
+ * shifting its high byte out, with what the caller's carry brought in coming
+ * after it: the cell ends holding the dividend's low byte over that. The
+ * scenes' random draws stir the cell in after it (scene/random.c). The ports'
+ * own divides bring no carry in. */
+enum { CARRY_BEHIND_THE_DIVIDEND = 0x80 };
+
+static void leave_the_dividend(GameState *g, SceneProgramPage page, uint16_t dividend, bool carried_in)
+{
+    set_scene_call_first(g, page, (uint16_t)(dividend << 8 | (carried_in ? CARRY_BEHIND_THE_DIVIDEND : 0)));
+}
+
+/* The 8.8 fraction of `dividend`'s high byte over `divisor`. */
 uint16_t scene_divide_8_8_by(GameState *g, SceneProgramPage page, uint16_t dividend, uint16_t divisor)
 {
     set_scene_call_second(g, page, divisor);
     TIMED_AS(g, 0x7E32E2, divide_8_8(g, page, dividend));
+    leave_the_dividend(g, page, dividend, false);
     return scene_call_fraction(g, page);
-}
-
-/* The original keeps the dividend in the first operand's cell and shifts its
- * high byte out as it goes, bringing the caller's carry in first. */
-static void leave_dividend_high_byte_shifted_out(GameState *g, SceneProgramPage page, uint16_t dividend, bool carry)
-{
-    set_scene_call_first(g, page, (uint16_t)(dividend << 8 | (carry ? 0x80 : 0)));
 }
 
 /* ---- find_divisor --------------------------------------------------------------------------- */
@@ -463,7 +467,7 @@ void scene_divide_8_8(Snes *s)
     SceneProgramPage page = scene_program_page_at_entry(s);
     uint16_t dividend = s->cpu.a;
     divide_8_8(g, page, dividend);
-    ORIGINAL_EFFECT(leave_dividend_high_byte_shifted_out(g, page, dividend, m_flag(s, CPU_FLAG_C)));
+    leave_the_dividend(g, page, dividend, m_flag(s, CPU_FLAG_C));
     m_set_flag(s, CPU_FLAG_C, false);
     m_rts(s);
 }
