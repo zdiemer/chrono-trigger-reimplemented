@@ -36,13 +36,13 @@ ESCAPES = {
     "scene/race.c": 4,     # the buffer clears through the multiplier (one call, three sites), the read
                            # back out of VRAM at $7E:3D41, and the column at $7E:4671 and the plane at
                            # $7E:876E, which write the data port's low half alone
-    "scene/screen.c": 4,   # $7E:3843 and the two clears at $7E:3092, whose transfers no call expresses,
-                           # and $7E:38E7, whose mode and destination are game data
+    "scene/screen.c": 5,   # $7E:3843 and the two clears at $7E:3092, whose transfers no call expresses,
+                           # $7E:38E7, whose mode and destination are game data, and $7E:90A7, which
+                           # fills the data port's low half alone past a Mode 7 plane's map
     "scene/title.c": 2,    # $7E:5AEB, which writes the data port's low half alone, and $7E:59D5, which
                            # carries on from what the channel holds
     "scene/staff_roll.c": 2,  # $7E:90A7 and $7E:8F77, which fill the data port's low half and its high half
                               # alone
-    "scene/endings.c": 1,  # $7E:85B2, which fills the data port's low half alone past the plane
     "scene/rising_palace.c": 2,  # $7E:672C, the map's top filled through the multiplier, and $7E:674D, the
                                  # rest read back out of VRAM after a read of the port that steps it on
 }

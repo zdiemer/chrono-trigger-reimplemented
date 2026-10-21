@@ -417,6 +417,10 @@ typedef enum {
     /* Window 1's right edge alone, which the curtain the menus' attract
      * scene sweeps drives (scene/curtain.c) */
     VID_LINE_WINDOW1_RIGHT,
+    /* Color math's control and its layers, a pair a line, which the Epoch's
+     * dive into Lavos changes down the screen (its setup's descriptors,
+     * programmed by scene/screen.c's setup_line_effects) */
+    VID_LINE_MATH_CONTROL_AND_LAYERS,
     VID_LINE_TARGETS,
 } VidLineTarget;
 
@@ -466,12 +470,12 @@ static inline void vid_line_snes_encoding(VidLineTarget target, uint8_t *mode, u
 {
     static const uint8_t modes[VID_LINE_TARGETS] = {
         4, 1, 1, 3, 3, 3, 0, 0, 4, 4, 4, 1, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2,
-        0, 3, 3, 2, 2, 2, 2, 0, 3, 0,
+        0, 3, 3, 2, 2, 2, 2, 0, 3, 0, 1,
     };
     static const uint8_t regs[VID_LINE_TARGETS] = {
         0x26, 0x26, 0x28, 0x0D, 0x0F, 0x11, 0x32, 0x00, 0x07, 0x2C, 0x30, 0x05,
         0x31, 0x28, 0x29, 0x05, 0x2C, 0x31, 0x0D, 0x0E, 0x10, 0x11, 0x12,
-        0x26, 0x1B, 0x1D, 0x1B, 0x1C, 0x1D, 0x1E, 0x08, 0x1F, 0x27,
+        0x26, 0x1B, 0x1D, 0x1B, 0x1C, 0x1D, 0x1E, 0x08, 0x1F, 0x27, 0x30,
     };
     *mode = modes[target];
     *reg = regs[target];

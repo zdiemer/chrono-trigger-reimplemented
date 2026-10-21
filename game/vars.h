@@ -13201,6 +13201,13 @@ enum { SCENE_PALACE_COLUMN_OFFSETS_COUNT = 64 };   /* by column: the first 32 ac
 uint16_t scene_palace_column_offsets(const GameState *g, unsigned column);
 void set_scene_palace_column_offsets(GameState *g, unsigned column, uint16_t v);
 
+/* The Epoch's dive through Lavos's shell, seen from the cockpit: how many times the perspective
+ * has been built, the shell above and the shell below in turn; its low bit set, the half above
+ * was built last. The scene program clears it as the dive starts, and the dive has no star field
+ * to write it as scaffolding */
+uint16_t scene_shell_halves_built(const GameState *g);
+void set_scene_shell_halves_built(GameState *g, uint16_t v);
+
 /* The planet's scene: nonzero once the script has the stars stop, so that a star that has
  * twinkled is put anew below the screen, out of sight */
 uint16_t scene_twinkles_hidden(const GameState *g);
@@ -13217,9 +13224,17 @@ uint16_t scene_race_demo(const GameState *g);
 void set_scene_race_demo(GameState *g, uint16_t v);
 
 /* What the star field's flight divided the last star's place by: its depth and the nearest
- * distance (scaffolding: nothing reads it) */
+ * distance (scaffolding: no scene with the star field reads it; the race's demo, the title's
+ * ripple, the planet's twinkles and the Epoch's dive read these bytes in their own scenes, each
+ * set or cleared as its scene starts) */
 uint8_t scene_stars_last_distance(const GameState *g);
 void set_scene_stars_last_distance(GameState *g, uint8_t v);
+
+/* The Epoch's dive, seen from the cockpit: the screen line the shell below ends on, the
+ * instrument panel's top ($A8 as the dive starts); it follows channel 1's register 5, which the
+ * dive's sequence moves a line to shake the view */
+uint16_t scene_shell_below_end(const GameState *g);
+void set_scene_shell_below_end(GameState *g, uint16_t v);
 
 /* How far the staff credits have rolled up the screen: their layer's vertical scroll, a pixel
  * every other frame, or a row of 8 a frame when they roll fast */
@@ -13911,6 +13926,12 @@ enum { SCENE_RACE_TURNING_COUNT = 2 };   /* by 0 turning one way (R), 1 the othe
 uint16_t scene_race_turning(const GameState *g, unsigned i);
 void set_scene_race_turning(GameState *g, unsigned i, uint16_t v);
 
+enum { SCENE_PLANET_TILE_ORDER_COUNT = 96 };   /* by the place in VRAM, a tile after another */
+/* Lavos falling (mode 4): which of the planet's unpacked sprite tiles goes to each place in
+ * VRAM, copied in from the program's resources */
+uint8_t scene_planet_tile_order(const GameState *g, unsigned i);
+void set_scene_planet_tile_order(GameState *g, unsigned i, uint8_t v);
+
 enum { SCENE_STARS_COUNT = 128 };   /* by star: its sprite entry's number */
 /* Right of the middle (negative: left) */
 uint8_t scene_stars_across(const GameState *g, unsigned i);
@@ -14154,6 +14175,13 @@ enum { SCENE_RACE_OPENINGS_COUNT = 2 };   /* by which opening */
 /* The two openings the race's camera script can take, one picked at random (the program's data) */
 uint16_t scene_race_openings(const GameState *g, unsigned i);
 void set_scene_race_openings(GameState *g, unsigned i, uint16_t v);
+
+/* Two bytes of the race's code, where the multiplier's registers lie in bank $7E: the palettes'
+ * frame ($7E:37FA) keeps aside the word at $4202 of its data bank, which the Epoch's dive's
+ * sequence calls it with on work RAM's, so it keeps this (the program's data; scaffolding:
+ * nothing reads the copy) */
+uint16_t scene_code_under_the_multiplier(const GameState *g);
+void set_scene_code_under_the_multiplier(GameState *g, uint16_t v);
 
 /* Which way the curtain sweeps as the race ends (2, from the right; 1, from the left, as the
  * attract sequence's own curtain setup at $7E:6838 writes it): the operand of the program's own
@@ -14449,6 +14477,14 @@ enum { SCENE_RACE_ROAD_STRIP_BYTES = 64 };
 uint8_t scene_race_road_strip_byte(const GameState *g, unsigned at);
 void set_scene_race_road_strip_byte(GameState *g, unsigned at, uint8_t v);
 
+enum { SCENE_SHELL_CURVE_COUNT = 224 };   /* by screen line */
+/* The Epoch's dive, seen from outside: how far each screen line looks onto Lavos's shell, which
+ * curves away from the middle of the screen (255 less half of every third byte of a ROM curve at
+ * $C0:F900, made as the dive starts at $7E:7A68); the perspective reads a line's distance from
+ * it where the dive's lines step through it */
+uint8_t scene_shell_curve(const GameState *g, unsigned line);
+void set_scene_shell_curve(GameState *g, unsigned line, uint8_t v);
+
 enum { SCENE_PALACE_LINE_SHIFTS_COUNT = 224 };   /* by line */
 /* The palace's scene: BG1's horizontal scroll on each line, which a per-line effect reads: the
  * shimmer's strength on every other line, the odd lines or the even by the frame */
@@ -14490,6 +14526,12 @@ void set_scene_plane_matrix_bottom_row_d(GameState *g, unsigned line, uint16_t v
 uint8_t scene_title_left_with_a_button(const GameState *g);
 void set_scene_title_left_with_a_button(GameState *g, uint8_t v);
 
+enum { SCENE_PLANET_TILES_COUNT = 1024 };   /* by word: the tile's number times 16, and its word */
+/* Lavos falling (mode 4): the planet's sprite tiles as unpacked, 64 of them, 16 words each, laid
+ * out into VRAM in their list's order */
+uint16_t scene_planet_tiles(const GameState *g, unsigned i);
+void set_scene_planet_tiles(GameState *g, unsigned i, uint16_t v);
+
 enum { SCENE_RACE_PICTURE_COUNT = 1152 };   /* by word of the picture, $10 a row */
 /* A racer's picture as the scaler leaves it (or the Beyond Time ending's), a row of $20 bytes
  * after another, before it is gathered into tiles */
@@ -14518,6 +14560,11 @@ void set_scene_plane_line_above_a(GameState *g, uint16_t v);
  * from scene_plane_matrix_bottom_row's */
 uint16_t scene_plane_line_above_d(const GameState *g);
 void set_scene_plane_line_above_d(GameState *g, uint16_t v);
+
+/* Lavos falling (mode 4): the planet's tiles still to lay out into VRAM, counted down to 0
+ * (scaffolding: nothing reads it after) */
+uint16_t scene_planet_tiles_left(const GameState *g);
+void set_scene_planet_tiles_left(GameState *g, uint16_t v);
 
 /* The first operand: the multiplicand, or the 8.8 divide's dividend */
 uint16_t scene_call_first(const GameState *g, SceneProgramPage page);

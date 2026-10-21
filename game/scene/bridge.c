@@ -7,9 +7,13 @@
  * mechanics are here, apart from the ports' logic (scene/scene.h). */
 #include "scene/race.h"
 
+#include "charge.h"
+#include "original_effects.h"
 #include "platform/audio.h"
+#include "platform/timing.h"
 #include "port/machine.h"
 #include "port/native.h"
+#include "port/vars_ram.h"
 
 /* The main loop hands a racer's picture to the scaler from its routine at
  * $7E:51F4, called from one site per racer, which keeps the data bank to come
@@ -84,6 +88,22 @@ void scene_bridge_start_song(Snes *s, uint32_t call, uint8_t song)
                (AudioCommand){ .command = AU_START_SONG, .p1 = song, .p2 = AU_FULL_VOLUME, .p3 = AU_FULL_VOLUME,
                                .count = 3 });
     scene_bridge_leave(s);
+}
+
+/* ---- The setups' loading and stars ------------------------------------------------------------- */
+
+/* The stars scattered at random ($7E:5777), as a setup has them scattered:
+ * their first draw from what the setup's call before left in A and the carry,
+ * which it hands on unexamined; the overflow the last draw leaves is the
+ * setup's after it. */
+enum { SCATTER_STARS = 0x7E5777 };
+
+void scene_bridge_scatter_stars(Snes *s, uint16_t left_in_a)
+{
+    GameState *g = state_of(s);
+    SceneDraw first = scene_draw_from(left_in_a, m_flag(s, CPU_FLAG_C), TM_ENTROPY_BYTES);
+    TIMED_AS(g, SCATTER_STARS, scene_scatter_stars(g, m_platform(s), first));
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, scene_random_last_overflow()));
 }
 
 /* ---- A sibling run as C ------------------------------------------------------------------------ */

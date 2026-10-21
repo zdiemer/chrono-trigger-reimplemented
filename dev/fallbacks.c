@@ -36,6 +36,8 @@ typedef struct Frame {
     bool interrupt, held;
     uint32_t routine, port;
     uint16_t floor, start;
+    bool call_out;     /* HANDBACK: a port's call-out, the callee it waits for */
+    bool away;         /* ...moved onto a stack of its own (NATIVE_STACK_SWITCH_DISTANCE), until S is back */
     uint64_t hidden;   /* COVERED, a comparison's own (named): what it and its callees have not counted */
     const char *name;  /* COVERED: its port's name where the frame is the comparison's own; NULL for a callee's */
 } Frame;
@@ -78,6 +80,8 @@ struct Fallbacks {
     uint16_t pending_s;         /* ...and its callee starts with this S */
     bool pending_rti;           /* the latest instruction was an RTI */
     uint16_t last_s;            /* S at the latest instruction */
+    bool after_a_call;          /* the latest instruction was a call, whose callee starts with S... */
+    uint16_t callee_s;          /* ...this (unlike `pending`, the hand-offs leave it alone) */
     bool shadow;                /* the runtime observed is in SHADOW mode */
     /* SHADOW: the pass of a wait loop an idle entry stands for, as the
      * original runs it: counted as it runs, and taken back when the loop comes
@@ -268,10 +272,21 @@ static void leave_finished(Fallbacks *f, uint16_t s)
     bool switched = s > f->last_s + MOST_A_STEP_PULLS;
     interrupt_returned_when_back(f, s);
     int kept = handler_away(f, s);
-    while (f->depth > kept && !f->frames[f->depth - 1].held && s > f->frames[f->depth - 1].floor) {
+    if (f->frames[f->depth - 1].away && s <= f->frames[f->depth - 1].floor)
+        f->frames[f->depth - 1].away = false;   /* back on its stack */
+    while (f->depth > kept && !f->frames[f->depth - 1].held && !f->frames[f->depth - 1].away &&
+           s > f->frames[f->depth - 1].floor) {
         Frame *top = &f->frames[f->depth - 1];
         if (switched && top->kind == COVERED && top->name) {
             top->held = true;
+            return;
+        }
+        /* a port's call-out moving onto a stack of its own goes on there,
+         * and ends when it comes back and returns, as the runtime waits for
+         * it (a task switch elsewhere ends the extent it leaves) */
+        if (switched && top->call_out && f->last_s <= top->floor &&
+            (uint32_t)s > (uint32_t)top->floor + NATIVE_STACK_SWITCH_DISTANCE) {
+            top->away = true;
             return;
         }
         f->depth--;
@@ -401,9 +416,11 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 
     /* JSR abs, JSR (abs,X), JSL: the next instruction, if it runs with the
      * return address pushed, is the callee's first */
-    if (op == 0x20 || op == 0xFC || op == 0x22) {
+    f->after_a_call = op == 0x20 || op == 0xFC || op == 0x22;
+    if (f->after_a_call) {
         f->pending = true;
         f->pending_s = (uint16_t)(sp - (op == 0x22 ? 3 : 2));
+        f->callee_s = f->pending_s;
     }
     f->pending_rti = op == 0x40;
     f->last_s = sp;
@@ -523,7 +540,7 @@ static void on_called_out(void *ctx, Snes *s, const NativeEntry *e, uint32_t tar
     uint16_t sp = s->cpu.s;
     f->pass.open = false;
     leave_finished(f, sp);
-    enter(f, (Frame){ .kind = HANDBACK, .routine = target, .port = e->addr, .floor = sp });
+    enter(f, (Frame){ .kind = HANDBACK, .call_out = true, .routine = target, .port = e->addr, .floor = sp });
     f->pending = false;
     count_event(f, EV_CALLOUT, e, target);
 }
@@ -584,7 +601,11 @@ static void on_parked(void *ctx, Snes *s, const NativeEntry *e)
 
 /* ... and its task goes on in it, or (SHADOW) the comparisons nested in its
  * stretch were set aside at its point: from here the port takes over again,
- * as where it was entered, its routine returning above where it was entered. */
+ * as where it was entered, its routine returning above where it was entered.
+ * Where that point is a call it makes (the original at the callee's first
+ * instruction), the port stands at the caller's S, where the call was made:
+ * the callee, a port entered with its return address pushed, is the port's
+ * call-out, not the original going on to another routine. */
 static void on_resumed(void *ctx, Snes *s, const NativeEntry *e, uint16_t entry_s)
 {
     Fallbacks *f = ctx;
@@ -592,9 +613,10 @@ static void on_resumed(void *ctx, Snes *s, const NativeEntry *e, uint16_t entry_
     for (int i = f->depth - 1; i > 0; i--)
         if (f->frames[i].kind == COVERED && f->frames[i].port == e->addr && f->frames[i].name)
             return;   /* its stretch is still there */
+    uint16_t level = f->after_a_call && sp == f->callee_s ? f->last_s : sp;
     take_over(f, sp);
     if (f->shadow)
-        enter(f, (Frame){ .kind = COVERED, .routine = e->addr, .port = e->addr, .floor = entry_s, .start = sp,
+        enter(f, (Frame){ .kind = COVERED, .routine = e->addr, .port = e->addr, .floor = entry_s, .start = level,
                           .name = e->name });
 }
 

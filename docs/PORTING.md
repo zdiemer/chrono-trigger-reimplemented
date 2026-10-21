@@ -242,7 +242,17 @@ called.
 
 If a callee unwinds past its return address (discarding its caller's frame),
 the native routine is abandoned, since the original's continuation never runs
-either. The report counts these.
+either. The report counts these. A callee that moves S in one step from below
+its return to more than a page above it has switched onto a stack of its own
+rather than unwound (the scene program's spread of packed pixels, `$7E:350E`,
+moves S onto the bytes and reads them with `PLA`; the menus' mode, called
+from the overworld's loop, runs its tasks on stacks of their own): the
+comparison waits for S to come back below the return, as for an interrupt
+handler on its own stack, and goes on after the call (`note_stack_switch` in `runtime/port/native.c`;
+the same test keeps a port's stretch from reading the switch as the
+original's return). A stack started afresh at its own base, as the field's
+is, stays within a page and is still an unwinding. `tests/port/shadow_test.c`
+has such a callee.
 
 **A wait in the middle of a task's work** is the exception: the menus' task
 switch (`$C2:821E`, `$C2:822B`) moves to the next task's stack, which can lie

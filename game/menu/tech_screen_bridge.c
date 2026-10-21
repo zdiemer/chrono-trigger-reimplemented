@@ -91,7 +91,7 @@ static void leave_load(Snes *s, uint8_t v);
 static void leave_added(Snes *s, uint8_t a, uint8_t b);
 static void leave_shown_compared(Snes *s, uint8_t before);
 static void leave_cursor_moved_off_the_members(Snes *s);
-static void leave_member_slide_started(Snes *s, TechsMemberSlide slide, uint8_t scroll_before);
+static void leave_member_slide_started(Snes *s, MemberListSlide slide, uint8_t scroll_before);
 static void leave_list_made(Snes *s, uint8_t before);
 static void leave_kind_switched(Snes *s, uint8_t kind_before);
 static void leave_into_the_list(Snes *s);
@@ -158,7 +158,7 @@ void menu_slide_tech_members(Snes *s)
 {
     GameState *g = state_of(s);
     uint8_t scroll = menu_tech_member_scroll(g);
-    TechsMemberSlide slide = menu_techs_slide_members(g);
+    MemberListSlide slide = menu_techs_slide_members(g);
     if (slide == NO_MEMBER_SLIDE) {
         m_rts(s);
         return;
@@ -167,7 +167,7 @@ void menu_slide_tech_members(Snes *s)
     menu_save_p(s);
     menu_set_widths(s, false, false);
     uint32_t site = slide == MEMBERS_SLIDE_UP ? 0xC2B594 : 0xC2B5C3;
-    if (!menu_run_any_widths(s, site, 0xC2B5C8, menu_slide_tech_member_rows))
+    if (!menu_run_or_call(s, site, 0xC2B5C8, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, menu_slide_tech_member_rows))
         return;
     menu_restore_p(s);
     m_rts(s);
@@ -705,7 +705,7 @@ static void leave_cursor_moved_off_the_members(Snes *s)
 
 /* A member slide starting: the new scroll's sign and zero; down the list
  * after the reachable members' test (the carry clear, the add's overflow). */
-static void leave_member_slide_started(Snes *s, TechsMemberSlide slide, uint8_t scroll_before)
+static void leave_member_slide_started(Snes *s, MemberListSlide slide, uint8_t scroll_before)
 {
     const GameState *g = state_of(s);
     leave_load(s, menu_tech_member_scroll(g));
@@ -828,16 +828,17 @@ static void leave_description_asked(Snes *s)
         menu_leave_compare(s, tech, menu_description_item(g));
 }
 
-/* The tech brought in, its row drawn and sent: the sign and zero clear, the
- * carry and the overflow of the list's place worked out, the queue's
- * leavings. */
+/* The tech brought in, its row drawn and sent: the carry and the overflow
+ * of the list's place worked out, the queue's leavings, and the sign and
+ * zero of the upload record's place the queue was handed (the queue gives
+ * its caller's flags back), which the tick's saved P holds. */
 static void leave_tech_row_brought_in(Snes *s)
 {
     const GameState *g = state_of(s);
     uint8_t cursor = menu_cursor_index(g), top = menu_tech_list_top(g);
     menu_leave_queued_upload(s, MENU_UPLOAD_FRONT_LAYER);
     leave_added(s, cursor, top);
-    m_set_flag(s, CPU_FLAG_N, false);
+    m_set_flag(s, CPU_FLAG_N, (MENU_UPLOAD_FRONT_LAYER & 0x8000) != 0);
     m_set_flag(s, CPU_FLAG_Z, false);
 }
 

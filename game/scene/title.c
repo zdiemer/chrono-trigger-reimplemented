@@ -403,7 +403,7 @@ static void swing_the_pendulum(GameState *g)
     /* the cosine is scaled as the word it is, its sign and all, and one more */
     uint16_t across = (uint16_t)(middle_of(scene_multiply16(g, own, (uint16_t)scene_cosine(g, turn), zoom)) + 1);
     int16_t sine = scene_sine(g, turn);
-    uint16_t down = signed_like(middle_of(scene_multiply16(g, own, magnitude_of(sine), zoom)), sine);
+    uint16_t down = (uint16_t)scene_scale_by_256ths(g, own, sine, zoom);
     set_scene_mode7_matrix_a(g, across);
     set_scene_mode7_matrix_d(g, across);
     set_scene_mode7_matrix_b(g, down);
@@ -507,7 +507,7 @@ static void sweep_the_logo(GameState *g, uint16_t timer)
     SceneProgramPage own = scene_program_own();
     set_scene_title_timer(g, timer);
     int16_t across = scene_cosine(g, timer);
-    uint16_t x = signed_like(middle_of(scene_multiply16(g, own, magnitude_of(across), SWEEP_ACROSS)), across);
+    uint16_t x = (uint16_t)scene_scale_by_256ths(g, own, across, SWEEP_ACROSS);
     set_scene_title_logo_x(g, (uint16_t)(x + SWEEP_LEFT + scene_sine_second_half((uint16_t)(timer + 0x100))));
     uint16_t down = magnitude_of_word(middle_of(scene_multiply16(g, own, magnitude_of(scene_sine(g, timer)), SWEEP_DOWN)));
     set_scene_title_logo_y(g, (uint16_t)(down + SWEEP_UP + scene_sine_second_half(timer)));
@@ -549,27 +549,6 @@ bool scene_title_move_logo_present(Snes *s)
     return ok;
 }
 
-/* ---- The routines the scripts call, reached by their addresses ------------------------------------ */
-
-static const SceneScriptRoutine *routine_of(uint16_t routine);
-
-/* The fades set the data bank to the first bank's around their stores, and
- * through the stack's imbalance come back with it on the program's. */
-enum { PROGRAM_DATA_BANK = 0x7E };
-
-/* A routine a caller reaches by its address (the interpreter runs them as C):
- * its work on the channel whose page D is, and back with 16-bit A. */
-static void routine_alone(Snes *s, uint16_t routine)
-{
-    const SceneScriptRoutine *r = routine_of(routine);
-    r->run(state_of(s), m_platform(s), scene_program_page_at_entry(s).index);
-    ORIGINAL_EFFECT(s->cpu.a = r->leaves_a(s->cpu.a));
-    if (r->leaves_the_program_bank)
-        s->cpu.db = PROGRAM_DATA_BANK;
-    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
-    m_rts(s);
-}
-
 /* ---- The ripple ---------------------------------------------------------------------------------- */
 
 bool scene_title_start_ripple_present(Snes *s)
@@ -599,7 +578,7 @@ static uint16_t start_ripple_leaves(uint16_t called_with)
     return (uint16_t)RIPPLE_BG1_SCROLL_Y;
 }
 
-void scene_title_start_ripple(Snes *s) { routine_alone(s, SCENE_ROUTINE_START_RIPPLE); }
+void scene_title_start_ripple(Snes *s) { scene_script_routine_alone(s, &scene_title_routines[SCENE_ROW_START_RIPPLE]); }
 
 /* ---- The sprites' colors fading -------------------------------------------------------------------- */
 
@@ -644,8 +623,15 @@ static uint16_t untint_sprite_palette_3_leaves(uint16_t called_with)
     return (uint16_t)((called_with & 0xFF00) | palette_3_untints.to_level);
 }
 
-void scene_title_darken_sprite_palette_4(Snes *s) { routine_alone(s, SCENE_ROUTINE_DARKEN_SPRITE_PALETTE_4); }
-void scene_title_untint_sprite_palette_3(Snes *s) { routine_alone(s, SCENE_ROUTINE_UNTINT_SPRITE_PALETTE_3); }
+void scene_title_darken_sprite_palette_4(Snes *s)
+{
+    scene_script_routine_alone(s, &scene_title_routines[SCENE_ROW_DARKEN_SPRITE_PALETTE_4]);
+}
+
+void scene_title_untint_sprite_palette_3(Snes *s)
+{
+    scene_script_routine_alone(s, &scene_title_routines[SCENE_ROW_UNTINT_SPRITE_PALETTE_3]);
+}
 
 /* Their code: they set the data bank to the first bank's themselves. */
 bool scene_title_darken_sprite_palette_4_present(Snes *s) { return m_code_matches(s, 0x7E5DB4, 0x35, 0x66F8CACF30C8ED2Aull); }
@@ -692,7 +678,7 @@ static uint16_t wave(GameState *g)
 {
     int16_t sine = scene_sine(g, (uint16_t)(scene_frame_counter(g) << WAVE_STEPS_A_FRAME_SHIFT));
     uint16_t height = scene_channel_register(g, TITLE_CHANNEL, RIPPLE_HEIGHT);
-    return signed_like(middle_of(scene_multiply16(g, scene_program_own(), magnitude_of(sine), height)), sine);
+    return (uint16_t)scene_scale_by_256ths(g, scene_program_own(), sine, height);
 }
 
 // $7E:600E
@@ -801,7 +787,7 @@ enum {
 /* Where the unpacker puts them: the second bank's $0200 for what goes on to
  * VRAM; the palette at $2000 in the bank the fill of BG1's map leaves the
  * unpacker's destination in, the first. */
-enum { UNPACKED_GRAPHICS = 0x7F0200, UNPACKED_PALETTE_AT = 0x2000 };
+enum { UNPACKED_GRAPHICS = SCENE_UNPACK_BUFFER, UNPACKED_PALETTE_AT = 0x2000 };
 
 /* The program's transfer sends what was unpacked a word at a time into
  * VRAM's data port, a byte to each of its two registers. */
@@ -1285,18 +1271,14 @@ const unsigned scene_title_task_count = sizeof scene_title_tasks / sizeof scene_
 /* ---- The routines the title's scripts call, for the interpreter -------------------------------------- */
 
 const SceneScriptRoutine scene_title_routines[] = {
-    { SCENE_ROUTINE_START_RIPPLE, start_ripple_on, scene_title_start_ripple_present, start_ripple_leaves, false },
-    { SCENE_ROUTINE_DARKEN_SPRITE_PALETTE_4, darken_sprite_palette_4, scene_title_darken_sprite_palette_4_present,
-      darken_sprite_palette_4_leaves, true },
-    { SCENE_ROUTINE_UNTINT_SPRITE_PALETTE_3, untint_sprite_palette_3, scene_title_untint_sprite_palette_3_present,
-      untint_sprite_palette_3_leaves, true },
+    [SCENE_ROW_START_RIPPLE] = { SCENE_ROUTINE_START_RIPPLE, start_ripple_on, scene_title_start_ripple_present,
+                                 start_ripple_leaves, false },
+    [SCENE_ROW_DARKEN_SPRITE_PALETTE_4] = { SCENE_ROUTINE_DARKEN_SPRITE_PALETTE_4, darken_sprite_palette_4,
+                                            scene_title_darken_sprite_palette_4_present, darken_sprite_palette_4_leaves,
+                                            true },
+    [SCENE_ROW_UNTINT_SPRITE_PALETTE_3] = { SCENE_ROUTINE_UNTINT_SPRITE_PALETTE_3, untint_sprite_palette_3,
+                                            scene_title_untint_sprite_palette_3_present, untint_sprite_palette_3_leaves,
+                                            true },
 };
 const unsigned scene_title_routine_count = sizeof scene_title_routines / sizeof scene_title_routines[0];
 
-static const SceneScriptRoutine *routine_of(uint16_t routine)
-{
-    for (unsigned n = 0; n < scene_title_routine_count; n++)
-        if (scene_title_routines[n].routine == routine)
-            return &scene_title_routines[n];
-    return &scene_title_routines[0];
-}

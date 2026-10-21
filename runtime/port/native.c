@@ -31,7 +31,7 @@ static void push16_raw(Snes *s, uint16_t v)
 #define MAX_SAVED_FLAGS 16    /* P bytes a port has saved on the stack and not restored yet (native_flags_saved) */
 #define MAX_TIME_SCOPES 16    /* native_time_as scopes a stretch's owner is looked for in (deeper ones nest uncounted) */
 #define MAX_STRETCH_RUNS 8     /* sibling runs one stretch's clocks are tallied for (stretch_owner) */
-#define MAX_SEGMENT_PARTS 48   /* distinct routines one stretch of a port attributes time to (the battle timers' dispatch, a whole turn, reaches more than 32) */
+#define MAX_SEGMENT_PARTS 128  /* distinct routines one stretch of a port attributes time to (the battle timers' dispatch, a whole turn, reaches more than 32; the field's frame, followed through a scene or the menus on their own stacks, more than 48) */
 #define MAX_PARKED 16          /* routines parked in yields at once (the menus run eight tasks) */
 
 /* A native_time_as scope: the routine's table index (-1 the port's own), and
@@ -277,11 +277,13 @@ typedef struct Active {
     bool woke;             /* ...and, for a wait on the handlers, that one has been taken where the port is */
     bool exit_passed;      /* ON, PH_WAIT for the hblank: its exit pass's time has passed (IDLE_EXIT_CLOCKS) */
     bool wait_compared;    /* SHADOW, a wait in the port's loop: the stretch before it was compared */
-    /* PH_CALLOUT: an interrupt taken while the callee runs, and the S it
-     * returns to: until it has, S above the call's return is its handler on
-     * a stack of its own (the menus' vblank handler), not the callee
-     * unwinding past its return. PH_SEGMENT, a port's stretch: the same, S
-     * above the entry's being the handler's, not the original's return. */
+    /* PH_CALLOUT: an interrupt taken while the callee runs, or a stack
+     * switch (stack_switched), and the S it returns to: until it has, S above
+     * the call's return is its handler on a stack of its own (the menus'
+     * vblank handler) or the callee on one, not the callee unwinding past its
+     * return. PH_SEGMENT, a port's stretch: the same, S above the entry's
+     * being the handler's or the switched stack's, not the original's
+     * return. */
     bool handler_away;
     uint16_t handler_returns_s;
     /* SHADOW, PH_LATCH: the original's latches when the port began to wait;
@@ -405,6 +407,7 @@ struct NativeRuntime {
     bool page_report;
     uint64_t step_master, prev_step_master;   /* SHADOW: master clock at the latest two steps */
     uint16_t prev_s;                          /* SHADOW: the original's S at the latest step */
+    uint16_t step_s, before_step_s;           /* the machine's S at the latest two steps (every mode) */
     Snes *timing_copy;                        /* the machine as it was before a port ran, to put it back */
     uint64_t timing_copy_since;
     Snes *timing_scratch;                     /* ORACLE: the machine the generated code is timed on */
@@ -1630,12 +1633,29 @@ static bool wait_point(NativeRuntime *rt, Active *a, Snes *s, uint32_t pc)
     return true;
 }
 
+/* A stack switch past `limit` (a call's return, or an entry's;
+ * NATIVE_STACK_SWITCH_DISTANCE) is not a return past it: the S the code comes
+ * back to is noted as an interrupt's is (Active.handler_away). */
+static void note_stack_switch(NativeRuntime *rt, Active *a, const Snes *s, uint16_t limit)
+{
+    if (!a->handler_away && rt->before_step_s <= limit &&
+        (uint32_t)s->cpu.s > (uint32_t)limit + NATIVE_STACK_SWITCH_DISTANCE) {
+        a->handler_away = true;
+        a->handler_returns_s = rt->before_step_s;
+    }
+}
+
 /* SHADOW: whether the original has returned from the call `a` compares while
  * the port is still running: S above where the call began (past the return
- * address), or for an interrupt entry, an RTI run. */
-static bool returned_from_entry(const Active *a, const Snes *s)
+ * address), or for an interrupt entry, an RTI run; not while the original is
+ * on a stack it switched to (note_stack_switch). */
+static bool returned_from_entry(NativeRuntime *rt, Active *a, const Snes *s)
 {
-    return a->entry->interrupt ? a->returned_by_rti : s->cpu.s > a->entry_s + 1;
+    if (a->entry->interrupt)
+        return a->returned_by_rti;
+    if (a->phase == PH_SEGMENT)   /* where the switch's return is followed (check_top) */
+        note_stack_switch(rt, a, s, (uint16_t)(a->entry_s + 1));
+    return !a->handler_away && s->cpu.s > a->entry_s + 1;
 }
 
 /* Check the innermost active routine against where the machine is now.
@@ -1698,7 +1718,7 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         const Job *j = a->job;
         if (a->handler_away && s->cpu.s >= a->handler_returns_s && s->cpu.s <= a->entry_s + 1)
             a->handler_away = false;   /* the interrupt has returned to the stretch */
-        bool returned = !a->handler_away && returned_from_entry(a, s);
+        bool returned = !a->handler_away && returned_from_entry(rt, a, s);
         if (point_given_up(rt, a, returned)) {
             finish(rt);
             return true;
@@ -1746,7 +1766,7 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             finish(rt);
             return true;
         }
-        if (returned_from_entry(a, s)) {
+        if (returned_from_entry(rt, a, s)) {
             a->mismatched = true;
             detail(rt, "mismatch", a->entry, "original returned without reading the beam where the native routine did");
             finish(rt);
@@ -1824,7 +1844,8 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         return true;
     }
     if (a->handler_away && s->cpu.s >= a->handler_returns_s && s->cpu.s <= j->call_s_after)
-        a->handler_away = false;   /* the interrupt has returned to the callee */
+        a->handler_away = false;   /* the interrupt has returned to the callee, or it to its stack */
+    note_stack_switch(rt, a, s, j->call_s_after);
     if (s->cpu.s > j->call_s_after && !a->handler_away) {
         /* The callee unwound past its own return (discarding the caller's frame);
          * the rest of the routine never runs, natively or originally. */
@@ -2725,6 +2746,8 @@ static int32_t intercept(void *ctx, Snes *s)
         record_step(rt, s);
     rt->prev_step_master = rt->step_master;
     rt->step_master = s->master;
+    rt->before_step_s = rt->step_s;
+    rt->step_s = s->cpu.s;
 
     /* ON: a handler taken where a port waits for one (PH_WAIT), whether the
      * time it owes is still being paid there or not. */

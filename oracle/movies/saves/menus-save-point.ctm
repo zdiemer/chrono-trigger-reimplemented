@@ -1,0 +1,22 @@
+# Save at the End of Time's save point, from its own save screen: load the save (the party stands on the save point), press
+# confirm on it, choose the first slot and answer no to erasing its game, choose the third and answer yes, then go back to
+# the field (route save_point).
+# Save: ctsave12 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# frames 3270
+# sram crc32 D8256243
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 2 DOWN
+2452 2 DOWN
+2484 2 DOWN
+2516 4 A
+2710 3 A
+2803 3 UP
+2836 3 A
+2899 3 DOWN
+2932 3 A
+2995 3 DOWN
+3028 3 DOWN
+3061 3 A
+3124 3 A
+3217 3 B

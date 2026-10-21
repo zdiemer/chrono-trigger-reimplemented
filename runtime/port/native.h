@@ -108,6 +108,15 @@ typedef struct GeneratedIndexEntry {
 
 typedef enum { NATIVE_OFF, NATIVE_SHADOW, NATIVE_ON } NativeMode;
 
+/* A step that takes S from within a call's frames to more than this above
+ * them is a switch onto a stack of the code's own, which it leaves to come
+ * back where it was (the scene program's spread of packed pixels, $7E:350E,
+ * moves S onto the bytes and reads them with PLA), not a return: no chain of
+ * the game's callers is a page deep above a call, and a stack started afresh
+ * at its own base (the field's) is within one. Shadow mode's comparisons and
+ * the fallback measure both follow it (docs/PORTING.md, "Call-outs"). */
+#define NATIVE_STACK_SWITCH_DISTANCE 0x100
+
 #define NATIVE_ERROR_BUCKETS 24
 #define NATIVE_PAGE_SLOTS 16
 

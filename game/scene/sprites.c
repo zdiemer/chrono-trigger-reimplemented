@@ -592,15 +592,84 @@ static uint16_t signed_list_leaves_a(const GameState *g, uint16_t list)
     return (uint16_t)(high | (scene_sprite_index(g) & (ENTRY_BYTES * SPRITES_PER_HIGH_BYTE - 1)));
 }
 
+/* The bit of the last sprite's high-table byte, as it is before the list is
+ * drawn, that the routine's shifts bring down to the byte's second bit by that
+ * sprite: a shift of two for each of the list's sprites before it in the
+ * byte. */
+static bool last_high_bit(const GameState *g, uint16_t list)
+{
+    uint8_t sprites = list_sprites(g, list);
+    if (!sprites)
+        return false;
+    SpriteCursor c = cursor(g);
+    unsigned before_in_the_byte = 0;
+    for (unsigned n = 1; n < sprites; n++) {
+        next_entry(&c);
+        before_in_the_byte = c.entry % (ENTRY_BYTES * SPRITES_PER_HIGH_BYTE) == 0 ? 0 : before_in_the_byte + 1;
+    }
+    return (scene_sprite_high_table_byte(g, c.high) >> (2 * before_in_the_byte + 1)) & 1;
+}
+
+/* Looked at without the port's time charged for it, as the wrapper's leaves
+ * are. */
+static bool last_high_bit_before(const GameState *g, uint16_t list)
+{
+    vars_peek(true);
+    bool bit = last_high_bit(g, list);
+    vars_peek(false);
+    return bit;
+}
+
+/* The flags the routine leaves, which a caller's random draw mixes in (the
+ * Epoch's dive): the count run down (zero, not negative); the overflow of the
+ * last sprite's last sum and the carry of its last test. For a sprite that
+ * would start past the right edge, those of its X's sum and of the shift of
+ * its high-table byte, which pushes out the byte's bit from before the list
+ * was drawn (`high_bit_before`); for any other, its Y's sum's overflow, and
+ * the carry of the sum where the sprite is above the top, or of its compare
+ * with the bottom of the picture. With no sprite, both as it was called. */
+static bool word_sum_overflows(uint16_t a, uint16_t b, uint16_t sum) { return (~(a ^ b) & (a ^ sum) & 0x8000) != 0; }
+
+static void leave_the_last_sprite_s_flags(Snes *s, const GameState *g, uint16_t list, uint8_t sprites,
+                                          bool high_bit_before)
+{
+    uint16_t listed_x = (uint16_t)(int8_t)listed_byte(g, list, sprites - 1u, LISTED_X);
+    uint16_t x = (uint16_t)signed_list_x(g, listed_byte(g, list, sprites - 1u, LISTED_X));
+    if (past_the_right_edge((int16_t)x)) {
+        m_set_flag(s, CPU_FLAG_V, word_sum_overflows(listed_x, scene_sprite_offset_x(g), x));
+        m_set_flag(s, CPU_FLAG_C, high_bit_before);
+        return;
+    }
+    uint16_t listed_y = (uint16_t)(int8_t)listed_byte(g, list, sprites - 1u, LISTED_Y);
+    uint16_t y = (uint16_t)signed_list_y(g, listed_byte(g, list, sprites - 1u, LISTED_Y));
+    m_set_flag(s, CPU_FLAG_V, word_sum_overflows(listed_y, offset_y_word(g), y));
+    m_set_flag(s, CPU_FLAG_C, (int16_t)y < 0 ? (uint32_t)listed_y + offset_y_word(g) > 0xFFFF : y >= BELOW_THE_PICTURE);
+}
+
+static void leave_signed_list_flags(Snes *s, uint16_t list, bool high_bit_before)
+{
+    const GameState *g = state_of(s);
+    m_set_flag(s, CPU_FLAG_N, false);
+    m_set_flag(s, CPU_FLAG_Z, true);
+    vars_peek(true);
+    uint8_t sprites = list_sprites(g, list);
+    if (sprites)
+        leave_the_last_sprite_s_flags(s, g, list, sprites, high_bit_before);
+    vars_peek(false);
+}
+
 /* The list at A; back, Y is the next free entry, as the routine keeps it in
- * its cells, with 16-bit A. */
+ * its cells, with 16-bit A, and X as it was. */
 void scene_draw_signed_sprite_list_entry(Snes *s)
 {
     GameState *g = state_of(s);
     uint16_t list = s->cpu.a;
+    bool high_bit_before = false;
+    ORIGINAL_EFFECT(high_bit_before = last_high_bit_before(g, list));
     scene_draw_signed_sprite_list(g, list);
     s->cpu.y = scene_sprite_index(g);
     ORIGINAL_EFFECT(s->cpu.a = signed_list_leaves_a(g, list));
+    ORIGINAL_EFFECT(leave_signed_list_flags(s, list, high_bit_before));
     m_rtl(s);
 }
 

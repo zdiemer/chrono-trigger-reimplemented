@@ -14,6 +14,17 @@
 /* The list shows three members at a time. */
 enum { MENU_MEMBER_ROWS = 3 };
 
+/* Which way a push slides a member list that shows fewer members than the
+ * party has (the techs screen's, the equipment screen's): up a member, down a
+ * member, or not at all, where it has slid as far as it goes that way. */
+typedef enum { NO_MEMBER_SLIDE, MEMBERS_SLIDE_UP, MEMBERS_SLIDE_DOWN } MemberListSlide;
+
+/* Which way a push past the rows slides such a list, scrolled `scroll`
+ * members down: a push down, down a member where the party has one past the
+ * rows (`one_past_the_rows`); a push up, up a member where the list has slid.
+ * The screen moves its scroll and sets the slide up. */
+MemberListSlide menu_member_slide_for_push(const GameState *g, uint8_t scroll, bool one_past_the_rows);
+
 /* Load the member at `member` in the menus' list of the party into the status
  * record the windows draw from (menu_status_record): false, with nothing
  * loaded, for a place past the last member. */

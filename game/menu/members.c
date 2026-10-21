@@ -19,6 +19,7 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
+#include "menu/cursor.h"
 #include "menu/equipment.h"
 #include "menu/figures.h"
 #include "menu/menu_data.h"
@@ -108,6 +109,13 @@ bool menu_load_character(GameState *g, uint8_t character)
 }
 
 uint8_t menu_member_on_the_cursor(const GameState *g) { return (uint8_t)(menu_member_row(g) + menu_member_scroll(g)); }
+
+MemberListSlide menu_member_slide_for_push(const GameState *g, uint8_t scroll, bool one_past_the_rows)
+{
+    if (menu_pushed(g, MENU_PUSHED_DOWN))
+        return one_past_the_rows ? MEMBERS_SLIDE_DOWN : NO_MEMBER_SLIDE;
+    return (int8_t)(scroll - 1) < 0 ? NO_MEMBER_SLIDE : MEMBERS_SLIDE_UP;
+}
 
 /* ---- The list's rows ----------------------------------------------------------------------------- */
 

@@ -42,19 +42,11 @@
 
 /* ---- The program's arithmetic, as the scenes here use it ------------------------------------- */
 
-/* A sine `value` swung out by `by` 256ths: its magnitude scaled and the sign
- * put back, so that a negative value rounds toward 0. */
-static int16_t swung(GameState *g, SceneProgramPage page, int16_t value, uint16_t by)
-{
-    uint16_t size = value < 0 ? (uint16_t)-value : (uint16_t)value;
-    uint16_t product = (uint16_t)(scene_multiply16(g, page, size, by) >> 8);
-    return value < 0 ? (int16_t)-product : (int16_t)product;
-}
-
-/* The same through the program's signed multiply, where the routine uses
- * that: a negative value rounds away from 0, a step further out than
- * swung's wherever the product has a fraction. */
-static uint16_t swung_signed(GameState *g, SceneProgramPage page, int16_t value, uint16_t by)
+/* A sine `value` scaled by `by` 256ths through the program's signed
+ * multiply, where the routine uses that: a negative value rounds away from
+ * 0, a step further out than scene_scale_by_256ths's wherever the product has
+ * a fraction. */
+static uint16_t scaled_through_signed_multiply(GameState *g, SceneProgramPage page, int16_t value, uint16_t by)
 {
     return (uint16_t)(scene_multiply_signed16(g, page, (uint16_t)value, by) >> 8);
 }
@@ -70,28 +62,26 @@ static void orbit(GameState *g)
     uint16_t twice = (uint16_t)(scene_frame_counter(g) << 1);
     uint16_t size = scene_ending_orbit_size(g);
     ORIGINAL_EFFECT(set_scene_call_orbit_frame(g, scene_program_own(), twice));
-    set_scene_ending_orbit_x(g, (uint16_t)swung(g, scene_program_own(), scene_sine(g, (uint16_t)(twice << 1)), size));
-    set_scene_ending_orbit_y(g, (uint16_t)swung(g, scene_program_own(), scene_cosine(g, twice), size));
+    set_scene_ending_orbit_x(g, (uint16_t)scene_scale_by_256ths(g, scene_program_own(), scene_sine(g, (uint16_t)(twice << 1)), size));
+    set_scene_ending_orbit_y(g, (uint16_t)scene_scale_by_256ths(g, scene_program_own(), scene_cosine(g, twice), size));
 }
 
 /* ---- The flight ------------------------------------------------------------------------------ */
 
-enum { CAMERA = 0, EPOCH = 1 };
+enum { EPOCH = 1 };
 
-/* Channel 0's registers: the camera. Its place on the map, the plane's
- * centre where it is shown flat, its height, turn, horizon and depth, the
- * flat plane's matrix, and how far behind its place it looks from. */
-enum {
-    FLIGHT_HEIGHT = 0, FLIGHT_X = 1, FLIGHT_Y = 2, FLAT_CENTRE_X = 3, FLAT_CENTRE_Y = 4, FLIGHT_TURN = 5,
-    FLIGHT_HORIZON = 6, FLIGHT_DEPTH = 8, FLAT_A = 10, FLAT_B = 11, FLAT_C = 12, FLAT_D = 13, FLIGHT_DISTANCE = 15,
-};
+/* Channel 0's registers: the camera. Its place on the map, its height, turn,
+ * horizon and the plane's top, and, shown flat, the plane's centre and matrix
+ * beside them, are the plane's (scene.h, SCENE_PLANE_*); and how far behind
+ * its place it looks from. */
+enum { FLIGHT_DISTANCE = 15 };
 /* Channel 1's registers: the Epoch. Its zoom and place on the screen, the
  * angle it circles at, how far behind the camera stays, and its reach: how
  * far out it circles, and how fast the map passes under it. */
 enum { EPOCH_ZOOM = 0, EPOCH_X = 1, EPOCH_Y = 2, EPOCH_ANGLE = 5, EPOCH_CAMERA_DISTANCE = 6, EPOCH_REACH = 8 };
 
-static uint16_t camera(const GameState *g, unsigned reg) { return scene_channel_register(g, CAMERA, reg); }
-static void set_camera(GameState *g, unsigned reg, uint16_t v) { set_scene_channel_register(g, CAMERA, reg, v); }
+static uint16_t camera(const GameState *g, unsigned reg) { return scene_channel_register(g, SCENE_CAMERA_CHANNEL, reg); }
+static void set_camera(GameState *g, unsigned reg, uint16_t v) { set_scene_channel_register(g, SCENE_CAMERA_CHANNEL, reg, v); }
 static uint16_t epoch(const GameState *g, unsigned reg) { return scene_channel_register(g, EPOCH, reg); }
 static void set_epoch(GameState *g, unsigned reg, uint16_t v) { set_scene_channel_register(g, EPOCH, reg, v); }
 
@@ -103,22 +93,7 @@ enum { MAP_ROWS = 0x400 };
 
 static void pass_the_map(GameState *g)
 {
-    set_camera(g, FLIGHT_Y, (uint16_t)(camera(g, FLIGHT_Y) + epoch(g, EPOCH_REACH)) & (MAP_ROWS - 1));
-}
-
-// $7E:56B4, $7E:56D1
-/* The flat plane's matrix: turned by the camera's turn and scaled by its
- * height. */
-static void turn_the_flat_plane(GameState *g)
-{
-    SceneProgramPage page = scene_program_channel(CAMERA);
-    uint16_t turn = camera(g, FLIGHT_TURN), height = camera(g, FLIGHT_HEIGHT);
-    int16_t along = swung(g, page, scene_cosine(g, turn), height);
-    set_camera(g, FLAT_A, (uint16_t)along);
-    set_camera(g, FLAT_D, (uint16_t)along);
-    int16_t across = swung(g, page, scene_sine(g, turn), height);
-    set_camera(g, FLAT_B, (uint16_t)across);
-    set_camera(g, FLAT_C, (uint16_t)-across);
+    set_camera(g, SCENE_PLANE_Y, (uint16_t)(camera(g, SCENE_PLANE_Y) + epoch(g, EPOCH_REACH)) & (MAP_ROWS - 1));
 }
 
 /* The flight's check compares the first four of the camera's registers the
@@ -133,7 +108,7 @@ enum { FLIGHT_CAMERA_REGISTERS = 4 };
 static bool update_the_view(GameState *g)
 {
     if (plane_flat(g)) {
-        turn_the_flat_plane(g);
+        scene_turn_the_flat_plane(g);
         return false;
     }
     return scene_keep_the_camera(g, FLIGHT_CAMERA_REGISTERS) != FLIGHT_CAMERA_REGISTERS;
@@ -157,13 +132,13 @@ static void leave_the_distance_turned(GameState *g, uint16_t across, uint16_t do
  * distance. */
 static void place_the_view(GameState *g)
 {
-    SceneProgramPage page = scene_program_channel(CAMERA);
-    uint16_t distance = epoch(g, EPOCH_CAMERA_DISTANCE), turn = camera(g, FLIGHT_TURN);
+    SceneProgramPage page = scene_program_channel(SCENE_CAMERA_CHANNEL);
+    uint16_t distance = epoch(g, EPOCH_CAMERA_DISTANCE), turn = camera(g, SCENE_PLANE_TURN);
     set_camera(g, FLIGHT_DISTANCE, distance);
-    uint16_t down = swung_signed(g, page, scene_cosine(g, turn), distance);
-    uint16_t across = swung_signed(g, page, scene_sine(g, turn), distance);
+    uint16_t down = scaled_through_signed_multiply(g, page, scene_cosine(g, turn), distance);
+    uint16_t across = scaled_through_signed_multiply(g, page, scene_sine(g, turn), distance);
     ORIGINAL_EFFECT(leave_the_distance_turned(g, across, down));
-    uint16_t x = (uint16_t)(camera(g, FLIGHT_X) + across), y = (uint16_t)(camera(g, FLIGHT_Y) + down);
+    uint16_t x = (uint16_t)(camera(g, SCENE_PLANE_X) + across), y = (uint16_t)(camera(g, SCENE_PLANE_Y) + down);
     set_scene_flight_view_x(g, x);
     set_scene_flight_view_centre_x(g, (uint16_t)(x + VIEW_CENTRE_ACROSS));
     set_scene_flight_view_y(g, y);
@@ -182,18 +157,18 @@ static bool left_of_the_map_by_less_than_the_centre(int16_t x) { return x < 0 &&
 
 static void centre_the_flat_plane(GameState *g)
 {
-    uint16_t x = camera(g, FLIGHT_X);
+    uint16_t x = camera(g, SCENE_PLANE_X);
     unsigned lower = left_of_the_map_by_less_than_the_centre((int16_t)x) ? 1u : 0u;
-    set_camera(g, FLAT_CENTRE_X, (uint16_t)(x + FLAT_CENTRE_IN));
-    set_camera(g, FLAT_CENTRE_Y, (uint16_t)(camera(g, FLIGHT_Y) + FLAT_CENTRE_IN + lower));
+    set_camera(g, SCENE_PLANE_CENTRE_X, (uint16_t)(x + FLAT_CENTRE_IN));
+    set_camera(g, SCENE_PLANE_CENTRE_Y, (uint16_t)(camera(g, SCENE_PLANE_Y) + FLAT_CENTRE_IN + lower));
 }
 
 /* The sky's scroll down puts its last line at the horizon. */
 enum { SKY_LAST_LINE = 0x27 };
 
-// $7E:9DBC, $7E:5654
-/* In the vblank: the view sent. Flat, the plane's matrix, its centre the
- * camera's place half a screen in, and its scroll the camera's place.
+// $7E:9DBC
+/* In the vblank: the view sent. Flat, the plane (plane.c), its centre
+ * the camera's place half a screen in, and its scroll the camera's place.
  * Otherwise the plane's centre from the view, and the per-line table's
  * scrolls: the ground's the view's, the sky's against the camera's turn, its
  * last line at the horizon. */
@@ -201,20 +176,15 @@ static void send_the_view(GameState *g, Platform *pf)
 {
     if (plane_flat(g)) {
         centre_the_flat_plane(g);
-        VidMode7 m7 = {
-            .a = (int16_t)camera(g, FLAT_A), .b = (int16_t)camera(g, FLAT_B), .c = (int16_t)camera(g, FLAT_C),
-            .d = (int16_t)camera(g, FLAT_D), .cx = (int16_t)camera(g, FLAT_CENTRE_X), .cy = (int16_t)camera(g, FLAT_CENTRE_Y),
-            .hofs = (int16_t)camera(g, FLIGHT_X), .vofs = (int16_t)camera(g, FLIGHT_Y),
-        };
-        vid_set_mode7(pf, PF_AT(0x7E565A), &m7, VID_M7_MATRIX | VID_M7_CENTER | VID_M7_SCROLL);
+        scene_send_the_flat_plane(g, pf);
         return;
     }
     VidMode7 centre = { .cx = (int16_t)scene_flight_view_centre_x(g), .cy = (int16_t)scene_flight_view_centre_y(g) };
     vid_set_mode7(pf, PF_AT(0x7E9DDE), &centre, VID_M7_CENTER);
     set_scene_flight_view_line_x(g, scene_flight_view_x(g));
     set_scene_flight_view_line_y(g, scene_flight_view_y(g));
-    set_scene_flight_view_sky_x(g, (uint16_t)-camera(g, FLIGHT_TURN));
-    set_scene_flight_view_sky_y(g, (uint16_t)(SKY_LAST_LINE - camera(g, FLIGHT_HORIZON)));
+    set_scene_flight_view_sky_x(g, (uint16_t)-camera(g, SCENE_PLANE_TURN));
+    set_scene_flight_view_sky_y(g, (uint16_t)(SKY_LAST_LINE - camera(g, SCENE_PLANE_HORIZON)));
 }
 
 // $7E:9080
@@ -225,7 +195,7 @@ enum { SKY_PART = 0, GROUND_PART = 1 };
 
 static void set_the_horizon(GameState *g)
 {
-    SceneHorizon h = scene_horizon_lines((uint8_t)camera(g, FLIGHT_HORIZON));
+    SceneHorizon h = scene_horizon_lines((uint8_t)camera(g, SCENE_PLANE_HORIZON));
     const uint8_t lines[] = { [SKY_PART] = h.above, [GROUND_PART] = h.below };
     for (unsigned part = SKY_PART; part <= GROUND_PART; part++) {
         set_scene_flight_mode_line_counts(g, part, lines[part]);
@@ -249,8 +219,8 @@ static void circle_the_epoch(GameState *g)
 {
     SceneProgramPage page = scene_program_channel(EPOCH);
     uint16_t angle = epoch(g, EPOCH_ANGLE), reach = epoch(g, EPOCH_REACH);
-    set_epoch(g, EPOCH_X, (uint16_t)((swung_signed(g, page, scene_sine(g, angle), reach) >> CIRCLE_SHIFT_ACROSS) + CIRCLE_MIDDLE_X));
-    set_epoch(g, EPOCH_Y, (uint16_t)((swung_signed(g, page, scene_cosine(g, angle), reach) >> CIRCLE_SHIFT_DOWN) + CIRCLE_MIDDLE_Y));
+    set_epoch(g, EPOCH_X, (uint16_t)((scaled_through_signed_multiply(g, page, scene_sine(g, angle), reach) >> CIRCLE_SHIFT_ACROSS) + CIRCLE_MIDDLE_X));
+    set_epoch(g, EPOCH_Y, (uint16_t)((scaled_through_signed_multiply(g, page, scene_cosine(g, angle), reach) >> CIRCLE_SHIFT_DOWN) + CIRCLE_MIDDLE_Y));
     scene_ending_show_picture_frame(g, (uint16_t)(-angle - FACING_TURN));
 }
 
@@ -302,7 +272,7 @@ static void twinkle_the_lights(GameState *g)
 /* The same, with the camera turned a step back first. */
 static void turn_back_and_twinkle(GameState *g)
 {
-    set_camera(g, FLIGHT_TURN, (uint16_t)(camera(g, FLIGHT_TURN) - 1));
+    set_camera(g, SCENE_PLANE_TURN, (uint16_t)(camera(g, SCENE_PLANE_TURN) - 1));
     twinkle_the_lights(g);
 }
 
@@ -478,7 +448,7 @@ void scene_pass_the_map(Snes *s)
 {
     GameState *g = state_of(s);
     pass_the_map(g);
-    ORIGINAL_EFFECT(s->cpu.a = camera(g, FLIGHT_Y));
+    ORIGINAL_EFFECT(s->cpu.a = camera(g, SCENE_PLANE_Y));
     m_rts(s);
 }
 
@@ -491,9 +461,9 @@ enum { BUILD_PERSPECTIVE = 0x7E357B, CAMERA_PAGE = 0x0A00 };
 static void leave_the_view_checked(Snes *s, const GameState *g, bool perspective_built)
 {
     if (perspective_built)
-        scene_leave_perspective_registers(s, CAMERA);
+        scene_leave_perspective_registers(s, SCENE_CAMERA_CHANNEL);
     else
-        s->cpu.a = plane_flat(g) ? camera(g, FLAT_C) : camera(g, FLIGHT_DEPTH);
+        s->cpu.a = plane_flat(g) ? camera(g, SCENE_PLANE_C) : camera(g, SCENE_PLANE_TOP);
 }
 
 void scene_check_the_flight_view(Snes *s)
@@ -506,7 +476,7 @@ void scene_check_the_flight_view(Snes *s)
         return;
     }
     if (rebuild)
-        TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, CAMERA));
+        TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, SCENE_CAMERA_CHANNEL));
     ORIGINAL_EFFECT(leave_the_view_checked(s, g, rebuild));
     m_rts(s);
 }

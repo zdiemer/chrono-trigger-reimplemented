@@ -8734,6 +8734,11 @@
 #define RAM_SCENE_PALACE_COLUMN_OFFSETS 0x7E0043u
 #define RAM_SCENE_PALACE_COLUMN_OFFSETS_COUNT 64u
 #define RAM_SCENE_PALACE_COLUMN_OFFSETS_STRIDE 0x02u
+/* The Epoch's dive through Lavos's shell, seen from the cockpit: how many times the perspective
+ * has been built, the shell above and the shell below in turn; its low bit set, the half above
+ * was built last. The scene program clears it as the dive starts, and the dive has no star field
+ * to write it as scaffolding [2 bytes] */
+#define RAM_SCENE_SHELL_HALVES_BUILT 0x7E0044u
 /* The planet's scene: nonzero once the script has the stars stop, so that a star that has
  * twinkled is put anew below the screen, out of sight [2 bytes] */
 #define RAM_SCENE_TWINKLES_HIDDEN 0x7E0044u
@@ -8746,9 +8751,15 @@
 #define RAM_SCENE_RACE_DEMO 0x7E0044u
 #define RAM_SCENE_RACE_DEMO_DP 0x44u         /* page scene */
 /* What the star field's flight divided the last star's place by: its depth and the nearest
- * distance (scaffolding: nothing reads it) */
+ * distance (scaffolding: no scene with the star field reads it; the race's demo, the title's
+ * ripple, the planet's twinkles and the Epoch's dive read these bytes in their own scenes, each
+ * set or cleared as its scene starts) */
 #define RAM_SCENE_STARS_LAST_DISTANCE 0x7E0044u
 #define RAM_SCENE_STARS_LAST_DISTANCE_DP 0x44u /* page scene */
+/* The Epoch's dive, seen from the cockpit: the screen line the shell below ends on, the
+ * instrument panel's top ($A8 as the dive starts); it follows channel 1's register 5, which the
+ * dive's sequence moves a line to shake the view [2 bytes] */
+#define RAM_SCENE_SHELL_BELOW_END 0x7E0046u
 /* How far the staff credits have rolled up the screen: their layer's vertical scroll, a pixel
  * every other frame, or a row of 8 a frame when they roll fast [2 bytes] */
 #define RAM_SCENE_CREDITS_SCROLL 0x7E0046u
@@ -9262,6 +9273,12 @@
 #define RAM_SCENE_RACE_TURNING 0x7E0A3Au
 #define RAM_SCENE_RACE_TURNING_COUNT 2u
 #define RAM_SCENE_RACE_TURNING_STRIDE 0x02u
+/* Lavos falling (mode 4): which of the planet's unpacked sprite tiles goes to each place in
+ * VRAM, copied in from the program's resources [96 x $1 bytes, by the place in VRAM, a tile
+ * after another] */
+#define RAM_SCENE_PLANET_TILE_ORDER 0x7E0C00u
+#define RAM_SCENE_PLANET_TILE_ORDER_COUNT 96u
+#define RAM_SCENE_PLANET_TILE_ORDER_STRIDE 0x01u
 /* The star field the endings and the staff roll fly through: each star's place across and down
  * from the middle of the view, signed bytes, which the field's drift moves every frame; a star
  * is drawn smaller the farther it is (scene_star_depths) [128 x $4 bytes, by star: its sprite
@@ -9419,6 +9436,11 @@
 #define RAM_SCENE_RACE_OPENINGS 0x7E3F66u
 #define RAM_SCENE_RACE_OPENINGS_COUNT 2u
 #define RAM_SCENE_RACE_OPENINGS_STRIDE 0x02u
+/* Two bytes of the race's code, where the multiplier's registers lie in bank $7E: the palettes'
+ * frame ($7E:37FA) keeps aside the word at $4202 of its data bank, which the Epoch's dive's
+ * sequence calls it with on work RAM's, so it keeps this (the program's data; scaffolding:
+ * nothing reads the copy) [2 bytes] */
+#define RAM_SCENE_CODE_UNDER_THE_MULTIPLIER 0x7E4202u
 /* Which way the curtain sweeps as the race ends (2, from the right; 1, from the left, as the
  * attract sequence's own curtain setup at $7E:6838 writes it): the operand of the program's own
  * load, which the setup of the race without its panel writes again */
@@ -9649,6 +9671,13 @@
 #define RAM_SCENE_RACE_PLANE_COLUMN 0x7EC995u
 /* The race's scaled road strip, sent to VRAM $5180 each frame [64 bytes] */
 #define RAM_SCENE_RACE_ROAD_STRIP 0x7EE100u
+/* The Epoch's dive, seen from outside: how far each screen line looks onto Lavos's shell, which
+ * curves away from the middle of the screen (255 less half of every third byte of a ROM curve at
+ * $C0:F900, made as the dive starts at $7E:7A68); the perspective reads a line's distance from
+ * it where the dive's lines step through it [224 x $1 bytes, by screen line] */
+#define RAM_SCENE_SHELL_CURVE 0x7EE260u
+#define RAM_SCENE_SHELL_CURVE_COUNT 224u
+#define RAM_SCENE_SHELL_CURVE_STRIDE 0x01u
 /* The palace's scene: BG1's horizontal scroll on each line, which a per-line effect reads: the
  * shimmer's strength on every other line, the odd lines or the even by the frame [224 x $2
  * bytes, by line] */
@@ -9680,6 +9709,12 @@
 #define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_D 0x7EF48Au /* The matrix's fourth entry: the cosine's, as the first */
 /* 1 where the title was left with a button other than the shoulders (event memory's byte $60) */
 #define RAM_SCENE_TITLE_LEFT_WITH_A_BUTTON 0x7F0060u
+/* Lavos falling (mode 4): the planet's sprite tiles as unpacked, 64 of them, 16 words each, laid
+ * out into VRAM in their list's order [1024 x $2 bytes, by word: the tile's number times 16, and
+ * its word] */
+#define RAM_SCENE_PLANET_TILES 0x7F0200u
+#define RAM_SCENE_PLANET_TILES_COUNT 1024u
+#define RAM_SCENE_PLANET_TILES_STRIDE 0x02u
 /* A racer's picture as the scaler leaves it (or the Beyond Time ending's), a row of $20 bytes
  * after another, before it is gathered into tiles [1152 x $2 bytes, by word of the picture, $10
  * a row] */
@@ -9699,6 +9734,9 @@
 /* The fourth matrix entry of the line above the screen (scene_plane_line_above_a), a bank on
  * from scene_plane_matrix_bottom_row's [2 bytes] */
 #define RAM_SCENE_PLANE_LINE_ABOVE_D 0x7FF486u
+/* Lavos falling (mode 4): the planet's tiles still to lay out into VRAM, counted down to 0
+ * (scaffolding: nothing reads it after) [2 bytes] */
+#define RAM_SCENE_PLANET_TILES_LEFT 0x7FFFFEu
 /* The sixteen bytes a scene program's routine takes its values in and leaves its results in, on
  * whichever page it is called on (the scene's own, or a sequence channel's): the arithmetic's
  * operands and results, the program's transfer's mode and register, the matrix code generator's

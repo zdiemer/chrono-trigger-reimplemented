@@ -433,21 +433,19 @@ static void set_up_member_slide(GameState *g, const MemberSlide *s)
 // $C2:B568
 /* A push past the bottom slides a member on where the party has one past
  * the rows; past the top, one back where the list has slid. */
-TechsMemberSlide menu_techs_slide_members(GameState *g)
+MemberListSlide menu_techs_slide_members(GameState *g)
 {
     uint8_t scroll = menu_tech_member_scroll(g);
-    if (menu_pushed(g, MENU_PUSHED_DOWN)) {
-        if ((uint8_t)(scroll + MEMBER_ROWS) >= (uint8_t)menu_members_reachable(g))
-            return NO_MEMBER_SLIDE;
+    bool one_past_the_rows = (uint8_t)(scroll + MEMBER_ROWS) < (uint8_t)menu_members_reachable(g);
+    MemberListSlide slide = menu_member_slide_for_push(g, scroll, one_past_the_rows);
+    if (slide == MEMBERS_SLIDE_DOWN) {
         set_menu_tech_member_scroll(g, (uint8_t)(scroll + 1));
         set_up_member_slide(g, &SLIDE_DOWN);
-        return MEMBERS_SLIDE_DOWN;
+    } else if (slide == MEMBERS_SLIDE_UP) {
+        set_menu_tech_member_scroll(g, (uint8_t)(scroll - 1));
+        set_up_member_slide(g, &SLIDE_UP);
     }
-    if ((int8_t)(scroll - 1) < 0)
-        return NO_MEMBER_SLIDE;
-    set_menu_tech_member_scroll(g, (uint8_t)(scroll - 1));
-    set_up_member_slide(g, &SLIDE_UP);
-    return MEMBERS_SLIDE_UP;
+    return slide;
 }
 
 /* The rows sit on the front layer from column 5, row 2, ten tiles by

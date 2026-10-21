@@ -214,8 +214,6 @@ static const StaffRollGraphics staff_roll_graphics[] = {
 static const uint32_t staff_roll_graphics_unpacked_at[] = { 0x7E8EF4, 0x7E8F04, 0x7E8F14, 0x7E8F2A };
 enum { STAFF_ROLL_GRAPHICS = sizeof staff_roll_graphics / sizeof staff_roll_graphics[0] };
 
-/* Where the unpacker leaves what goes on to VRAM. */
-enum { UNPACK_BUFFER = 0x7F0200 };
 
 /* Colors copied as they are out of the program's resources (by their number
  * in the list), sixteen at a time: the picture's palette (BG palette 1), and
@@ -291,16 +289,11 @@ static void set_up_layers(Platform *pf)
     vid_set_windows(pf, PF_AT(0x7E8FD2), &(VidWindows){ .win_main = 0, .win_sub = 0 }, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
 }
 
-/* The stars come at the viewer: the star field's speed, kept in channel 1's
- * first register, at -7. */
-enum { STARS_CHANNEL = 1, STARS_SPEED = 0, STARS_COMING = 0xFFF9 };
+/* The stars come at the viewer: the star field's speed at -7. */
+enum { STARS_COMING = 0xFFF9 };
 
 /* The per-line effect: the descriptors at $9023, one channel. */
 enum { STAFF_ROLL_LINE_EFFECTS = 0x9023, STAFF_ROLL_LINE_CHANNELS = 0x01 };
-
-/* The star field's drawing, made to draw every star behind the layers: its
- * branch for the far stars made a branch to the next instruction. */
-enum { EVERY_STAR_BEHIND = 0x0080 };
 
 /* The credits' text, and the row before the map's first, which the first
  * line's step brings to the first. */
@@ -325,19 +318,6 @@ static void play_music_fast(Snes *s)
     set_sound_command_parameters(g, 0, 1);
     m_set_flag(s, CPU_FLAG_M, true);
     au_driver_call(m_platform(s), PF_CALL(0x7E8EB2, SCENE_SEND), SEND_IGNORES);
-}
-
-/* The stars scattered at random, their first draw from what the send left in
- * A and the carry (the original hands them on unexamined); the overflow its
- * last draw leaves goes on to the unpacker. */
-enum { SCATTER_STARS = 0x7E5777 };
-
-static void scatter_stars(Snes *s)
-{
-    GameState *g = state_of(s);
-    SceneDraw first = scene_draw_from(s->cpu.a, m_flag(s, CPU_FLAG_C), TM_ENTROPY_BYTES);
-    TIMED_AS(g, SCATTER_STARS, scene_scatter_stars(g, m_platform(s), first));
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, scene_random_last_overflow()));
 }
 
 /* The program's unpacker ($7E:3691): the resource's place in its list in X,
@@ -399,12 +379,12 @@ static void set_up_staff_roll(Snes *s)
     Platform *pf = m_platform(s);
     play_music_fast(s);
     set_scene_credits_fast(g, (uint8_t)(scene_credits_fast(g) + 1));
-    set_scene_channel_register(g, STARS_CHANNEL, STARS_SPEED, STARS_COMING);
-    scatter_stars(s);
+    set_scene_channel_register(g, SCENE_STAR_FIELD_CHANNEL, SCENE_STAR_FIELD_SPEED, STARS_COMING);
+    scene_bridge_scatter_stars(s, s->cpu.a);
     TIMED_AS(g, 0xFDE275, palette_stop_animations(g));
     copy_colors(g, PICTURE_COLORS, PICTURE_PALETTE);
 
-    set_decompress_dest(g, UNPACK_BUFFER);
+    set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     send_unpacked_as_words(g);
     vid_start_vram_uploads(pf, PF_AT(0x7E8EE8), SCENE_VRAM_WHOLE_WORDS);
     for (unsigned i = 0; i < STAFF_ROLL_GRAPHICS; i++)
@@ -418,7 +398,7 @@ static void set_up_staff_roll(Snes *s)
     TIMED_AS(g, 0x7E36CC, descriptors_end = scene_set_up_line_effects(g, pf, STAFF_ROLL_LINE_EFFECTS));
     set_scene_line_effects(g, STAFF_ROLL_LINE_CHANNELS);
 
-    set_scene_stars_depth_branch(g, EVERY_STAR_BEHIND);
+    set_scene_stars_depth_branch(g, SCENE_EVERY_STAR_BEHIND);
     set_scene_channels_script(g, 0, STAFF_ROLL_SCRIPT);
     first_script_step(s, descriptors_end);
     scroll_credits_on(g, VID_BG3);

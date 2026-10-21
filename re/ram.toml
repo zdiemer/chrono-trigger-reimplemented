@@ -1703,7 +1703,7 @@ addr = "7E:0044"
 page = "scene"
 subsystem = "scene"
 reuses = ["scene_bg3_scroll_x", "scene_race_demo"]
-meaning = "What the star field's flight divided the last star's place by: its depth and the nearest distance (scaffolding: nothing reads it)"
+meaning = "What the star field's flight divided the last star's place by: its depth and the nearest distance (scaffolding: no scene with the star field reads it; the race's demo, the title's ripple, the planet's twinkles and the Epoch's dive read these bytes in their own scenes, each set or cleared as its scene starts)"
 source = "game/scene/stars.c, the flight $7E:579B"
 
 [[var]]
@@ -2129,6 +2129,70 @@ size = 2
 subsystem = "scene"
 meaning = "The branch the race writes into the perspective's loop to build the lines in pairs (the program's data, $3680)"
 source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
+name = "scene_planet_tile_order"
+addr = "7E:0C00"
+count = 96
+index = "the place in VRAM, a tile after another"
+subsystem = "scene"
+reuses = ["scene_tilemap_buffer", "scene_stars", "scene_twinkles"]
+meaning = "Lavos falling (mode 4): which of the planet's unpacked sprite tiles goes to each place in VRAM, copied in from the program's resources"
+source = "game/scene/lavos_falls.c, the setup $7E:53BB (the laying out $7E:54EA)"
+
+[[var]]
+name = "scene_planet_tiles"
+addr = "7F:0200"
+size = 2
+count = 0x400
+index = "word: the tile's number times 16, and its word"
+subsystem = "scene"
+reuses = "scene_race_picture"
+meaning = "Lavos falling (mode 4): the planet's sprite tiles as unpacked, 64 of them, 16 words each, laid out into VRAM in their list's order"
+source = "game/scene/lavos_falls.c, the setup $7E:53BB (the laying out $7E:54EA)"
+
+[[var]]
+name = "scene_planet_tiles_left"
+addr = "7F:FFFE"
+size = 2
+subsystem = "scene"
+meaning = "Lavos falling (mode 4): the planet's tiles still to lay out into VRAM, counted down to 0 (scaffolding: nothing reads it after)"
+source = "game/scene/lavos_falls.c, the setup $7E:53BB (the laying out $7E:54EA)"
+
+[[var]]
+name = "scene_shell_halves_built"
+addr = "7E:0044"
+size = 2
+subsystem = "scene"
+reuses = ["scene_palace_column_offsets", "scene_twinkles_hidden", "scene_stars_last_distance"]
+meaning = "The Epoch's dive through Lavos's shell, seen from the cockpit: how many times the perspective has been built, the shell above and the shell below in turn; its low bit set, the half above was built last. The scene program clears it as the dive starts, and the dive has no star field to write it as scaffolding"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B (the dive's start of the lines, $7E:8042)"
+
+[[var]]
+name = "scene_shell_below_end"
+addr = "7E:0046"
+size = 2
+subsystem = "scene"
+reuses = "scene_palace_column_offsets"
+meaning = "The Epoch's dive, seen from the cockpit: the screen line the shell below ends on, the instrument panel's top ($A8 as the dive starts); it follows channel 1's register 5, which the dive's sequence moves a line to shake the view"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B (the dive's start of the lines, $7E:8042)"
+
+[[var]]
+name = "scene_shell_curve"
+addr = "7E:E260"
+count = 224
+index = "screen line"
+subsystem = "scene"
+meaning = "The Epoch's dive, seen from outside: how far each screen line looks onto Lavos's shell, which curves away from the middle of the screen (255 less half of every third byte of a ROM curve at $C0:F900, made as the dive starts at $7E:7A68); the perspective reads a line's distance from it where the dive's lines step through it"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B (the dive's start of the lines, $7E:801F)"
+
+[[var]]
+name = "scene_code_under_the_multiplier"
+addr = "7E:4202"
+size = 2
+subsystem = "scene"
+meaning = "Two bytes of the race's code, where the multiplier's registers lie in bank $7E: the palettes' frame ($7E:37FA) keeps aside the word at $4202 of its data bank, which the Epoch's dive's sequence calls it with on work RAM's, so it keeps this (the program's data; scaffolding: nothing reads the copy)"
+source = "game/scene/screen.c, scene_animate_the_palettes $7E:37FA"
 
 [[var]]
 name = "scene_perspective_along_product"

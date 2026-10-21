@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "menu/members.h"
 #include "platform/video.h"
 #include "snes/system.h"
 #include "state.h"
@@ -63,12 +64,13 @@ bool menu_equip_push_slides_members(const GameState *g);
 void menu_equip_take_cursor_round_members(GameState *g);
 bool menu_equip_point_at_member(GameState *g);
 
-/* The member list sliding a member along (its start set by the original's
- * $C2:9D5B): the member coming in drawn beside the list and dimmed, then a
+/* The member list sliding a member along (its start set by
+ * menu_equip_slide_members): the member coming in drawn beside the list and dimmed, then a
  * frame at a time the rows move four lines, the scroll bar's thumb with them;
  * then the three rows now in view put back in the list's place. A frame's
  * move returns whether frames are left. */
 void menu_equip_start_member_slide(GameState *g, Platform *pf);
+MemberListSlide menu_equip_slide_members(GameState *g);
 bool menu_equip_slide_members_a_frame(GameState *g);
 void menu_equip_finish_member_slide(GameState *g);
 
@@ -142,7 +144,8 @@ void menu_equip_panel_put_away(GameState *g);
 enum { MENU_EQUIP_LIST_ROWS_UPLOAD = 0xFC1B };
 
 /* What the steps can run on, for their guards: the screen's set-up, the
- * member list's slide as its start (the original's) left it, the panel. */
+ * member list's slide as its start (menu_equip_slide_members) left it, the
+ * panel. */
 bool menu_equip_screen_can_be_set_up(const GameState *g);
 bool menu_equip_member_slide_can_run(const GameState *g);
 bool menu_equip_panel_can_be_shown(const GameState *g);
@@ -220,6 +223,7 @@ void menu_open_equipment(Snes *s);
 void menu_set_up_equipment(Snes *s);
 void menu_choose_equipment_member(Snes *s);
 void menu_point_at_equipment_member(Snes *s);
+void menu_start_sliding_equipment_members(Snes *s);
 void menu_slide_equipment_members(Snes *s);
 void menu_choose_equipment_slot(Snes *s);
 void menu_point_at_equipment_slot(Snes *s);
@@ -262,6 +266,7 @@ bool menu_equipment_sets_up(Snes *s);
 bool menu_equipment_member_step_runs(Snes *s);
 bool menu_equipment_member_is_pointable(Snes *s);
 bool menu_equipment_members_slide(Snes *s);
+bool menu_equipment_members_slide_starts(Snes *s);
 bool menu_equipment_slot_step_runs(Snes *s);
 bool menu_equipment_slot_is_pointable(Snes *s);
 bool menu_equipment_member_switches(Snes *s);

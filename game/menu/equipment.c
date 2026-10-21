@@ -23,9 +23,8 @@
  *
  * This file is what the game does; equipment_bridge.c runs it on the
  * original's machine, calling out to what is still the original's between
- * the parts here: the member list's scroll bar and the start of its slide,
- * the list's frame, the low-HP marks, the trying on of what is no item of
- * the game's, the frames the screen waits. */
+ * the parts here: the member list's scroll bar, the low-HP marks, the trying
+ * on of what is no item of the game's, the frames the screen waits. */
 #include "menu/equipment.h"
 
 #include "charge.h"
@@ -239,14 +238,14 @@ bool menu_equip_point_at_member(GameState *g)
     return another;
 }
 
-/* The slide: the member coming in is drawn where the original's start of the
- * slide put the drawing origin (beside the list, out of view), and dimmed;
- * the list's rows are copied out of view on both layers, next to it, from
- * the list's place to where the slide starts (menu_slide_copy); then twelve
- * frames move the view of them four lines a frame, the line every band of
- * the rows' per-line table shows. At the end the three rows in view are
- * copied back to the list's place, a member further along, and the view put
- * back. */
+/* The slide: the member coming in is drawn where the slide's start put the
+ * drawing origin (menu_equip_slide_members: beside the list, out of view),
+ * and dimmed; the list's rows are copied out of view on both layers, next to
+ * it, from the list's place to where the slide starts (menu_slide_copy);
+ * then twelve frames move the view of them four lines a frame, the line
+ * every band of the rows' per-line table shows. At the end the three rows in
+ * view are copied back to the list's place, a member further along, and the
+ * view put back. */
 enum { SLIDE_FRAMES = 12, LIST_FRONT_LAYER = MENU_FRONT_LAYER_AT, LIST_BACK_LAYER = 0x3E00, ROW_TILES_FROM_ORIGIN = 0x84 };
 enum { LINE_AT_REST = 0x61FF, ROWS_SLID = 0x06 };
 static const MenuTilePlace ROWS_PLACE = { 2, 2 };
@@ -274,6 +273,45 @@ static void copy_rows_on(GameState *g, uint16_t layer, MenuTilePlace from, MenuT
 }
 
 enum { UPLOAD_BG1_SLID = 0xFBEA, UPLOAD_BG2_SLID = 0xFC06, UPLOAD_ROW_LINES = 0xFC45 };
+
+/* Where a slide's member coming in is drawn (above the rows for a slide up,
+ * below them for one down), where the rows are copied to beside it, and the
+ * line the view starts from, which moves four lines a frame the way the list
+ * slides. */
+typedef struct {
+    uint16_t copy_to, row_at, line;
+    int16_t step;
+} MemberSlide;
+
+enum { SLIDE_DOWN_FROM = 0x60EF, SLIDE_UP_FROM = 0x611F, SLIDE_STEP = 4 };
+
+static const MemberSlide SLIDE_UP_A_MEMBER = { 0x2602, 0x3580, SLIDE_UP_FROM, -SLIDE_STEP };
+static const MemberSlide SLIDE_DOWN_A_MEMBER = { 0x2002, 0x3A00, SLIDE_DOWN_FROM, SLIDE_STEP };
+
+static void set_up_member_slide(GameState *g, const MemberSlide *s)
+{
+    set_menu_slide_copy(g, s->copy_to);
+    set_menu_draw_origin(g, s->row_at);
+    set_menu_scroll_step(g, (uint16_t)s->step);
+    set_menu_slide_line(g, s->line);
+}
+
+// $C2:9D5B
+/* A push past the bottom slides the list down a member where the party has
+ * members past the rows; past the top, up one where the list has slid. */
+MemberListSlide menu_equip_slide_members(GameState *g)
+{
+    uint8_t scroll = menu_member_scroll(g);
+    MemberListSlide slide = menu_member_slide_for_push(g, scroll, scroll < menu_member_scroll_most(g));
+    if (slide == MEMBERS_SLIDE_DOWN) {
+        set_menu_member_scroll(g, (uint8_t)(scroll + 1));
+        set_up_member_slide(g, &SLIDE_DOWN_A_MEMBER);
+    } else if (slide == MEMBERS_SLIDE_UP) {
+        set_menu_member_scroll(g, (uint8_t)(scroll - 1));
+        set_up_member_slide(g, &SLIDE_UP_A_MEMBER);
+    }
+    return slide;
+}
 
 // $C2:9DAF
 void menu_equip_start_member_slide(GameState *g, Platform *pf)
@@ -730,7 +768,7 @@ bool menu_equip_screen_can_be_set_up(const GameState *g)
  * from where the rows rest, or up; the member coming in loadable, its row
  * drawable where the start put the drawing origin, and the rows' copies in
  * the buffers. */
-enum { SLIDE_DOWN_FROM = 0x60EF, SLIDE_UP_FROM = 0x611F, SLIDE_STEP = 4, NEW_ROW_LIST = 0xBE0E };
+enum { NEW_ROW_LIST = 0xBE0E };
 
 bool menu_equip_member_slide_can_run(const GameState *g)
 {

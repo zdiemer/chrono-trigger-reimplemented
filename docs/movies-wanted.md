@@ -45,6 +45,8 @@ is that bound over the play's length, for ordering only.
 | | KiB unexecuted | ported | unported |
 |---|--:|--:|--:|
 | all live code not run by any movie | 57.8 | 45.2 | 12.6 |
+| re-measured over the 42 movies of chunk 9 (`menus-sweep`, `menus-save-point`, `events-epoch-lavos`, `battle-black-tyrano`, `battle-guardian` and `battle-tech-sweep` added), with that commit's ports | 40.9 | 37.3 | 3.7 |
+| the same commit without those six movies | 47.4 | 42.3 | 5.1 |
 
 ## Clusters
 
@@ -85,12 +87,12 @@ B.C., 6 the Black Omen, 7 the End of Time, 0 1999 A.D. and the title's).
 
 | Mode | KiB (unported) | Started by |
 |---|--:|---|
-| 5 (`$7E:7092`) | 2.05 | no event script; not seen in the attract demo; unknown |
-| 6 (`$7E:78DD`) | 1.40 | event `$FF $26` at `$1B0` (era 0), a location the attract demo passes without starting it; unknown otherwise |
+| 5 (`$7E:7092`) | 2.05 | no event script; not seen in the attract demo; looks dead (Targets, 8) |
+| 6 (`$7E:78DD`) | 1.40 | event `$FF $26` at `$1B0` (era 0): the winged Epoch flown into Lavos over 1999 A.D.; `events-epoch-lavos` (Targets, 8) |
 | 10/11/14/15 (`$7E:8538`) | 0.74 | the endings (`$FF $2A`/`$2B` at `$051`, `$2E`/`$2F` at `$05A`); paths the three recorded endings don't take |
 | 3 (`$7E:671F`) | 0.62 (+0.16 shared with 5) | the attract demo (`$0384` = `$63` after location `$06B`); event `$FF $23`/`$63` at `$066`-`$06B` (era 6) |
-| 7 (`$7E:6248`) | 0.50 | event `$FF $07` at `$1DC` (era 0, beside the final battle's `$1DA`) |
-| 4 (`$7E:53BB`) | 0.46 | event `$FF $24` at `$12D` (era 4, beside ctsave08 slot 1's `$12F`, Azala and the Black Tyrano) |
+| 7 (`$7E:6248`) | 0.50 | event `$FF $07` at `$1DC` (era 0, beside the final battle's `$1DA`): the Day of Lavos after a loss, which `battle-lavos-gameover` (added after this row) runs; 42 bytes left, mode 8's branch among them (Targets, 8) |
+| 4 (`$7E:53BB`) | 0.46 (ported in chunk 9 but the pixels' spread `$7E:350E`) | event `$FF $24` at `$12D` (era 4, beside ctsave08 slot 1's `$12F`, Azala and the Black Tyrano); `battle-black-tyrano` (Targets, 6) |
 | 1 (`$7E:6B04`) | 0.39 | the attract demo (`$0384` = `$61`); event `$FF $61` at `$1AF`/`$1B1` (the title's), `$0AD`, `$16E` |
 | unattributed | 0.89 | race tasks and program routines no mode's setup reaches statically |
 
@@ -171,7 +173,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   effects (2.17) and screen scripts; up to 10.87 KiB, about 0.7 KiB a minute.
   The rewards' tech learning (0.55) wants a save with tech points to earn instead.
 - **Route**: yes (the battle bot with a policy that walks the tech lists).
-- **Route written, not merged**: `tools/movies/routes/tech_sweep.py` (zophar chrono-trigger slot 1:
+- **Movie**: `battle-tech-sweep` (route `tech_sweep`, 118090 frames, the Core beaten): `tools/movies/routes/tech_sweep.py` (zophar chrono-trigger slot 1:
   Crono, Magus and Marle inside Lavos's shell): walks to the second Lavos form, fights it and then the
   Lavos Core with a policy (`tools/movies/policies.tech_sweep`) that opens Tech on each member's turn and
   takes the first list entry -- by tech id, read from the tech-by-id table at $94D0, not list position,
@@ -187,11 +189,10 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   addresses) no other movie runs, in 28 routines, mostly in `$C1`: the three largest are
   `battle_work_out_enemy_attack`, `script_point_along` and `battle_apply_damage` (uncommon branches
   inside routines every battle already reaches), plus a few reached for the first time outright,
-  `battle_effect_anchor_chase` and `fight_apply_accessory_effects` among them. Shadow clean, but
-  **not added to `oracle/movies/saves/`**: it also makes `script_return_from_call`'s guard
-  (`command_ready`, turning away a battle script state it doesn't model) refuse 8 times, a real gap
-  (docs/TODO.md, "Refusals in real play") rather than an allowlist entry, and the gate's refusals check
-  fails on it. Record the movie once that guard's gap is closed.
+  `battle_effect_anchor_chase` and `fight_apply_accessory_effects` among them. Recorded again whole once
+  `script_return_from_call`'s guard took the return at the top's going on into it (REIMPLEMENTATION.md,
+  "Phase 4a, the shipping mode's fallbacks, chunk 9"): 118090 frames to the Core beaten, all 20 techs
+  cast; shadow clean, no refusal, and in the library.
 - **Not attempted**: zophar chrono-5 (Crono, Marle and Ayla, all but Magus maxed). Its only slot (all
   three point to the same save) stands on an isolated 12,000 B.C. floating island: `ow_bfs` finds its
   whole reachable ground is 57 tiles with no door out and, over 20 laps of it, no random encounter --
@@ -206,7 +207,44 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   item used on the whole party; Settings, a custom button assignment; save from
   a save point (the save screen's own opening, `$C2:D4F8`).
 - **Reaches**: up to 2.08 KiB (1.82 ported) of the menu clusters, about 0.4 KiB a minute.
-- **Route**: possible (the cursors are in RAM); by hand is quicker.
+- **Movie**: `menus-sweep` (route `menu_sweep`, 6424 frames; the `--coverage` cutoff is 6393, the
+  last press out of the controls' rows): the item screen (a Shelter and a Lapis tried on the party
+  -- refused, as this save's party is at full health, after the member window opens with a cursor
+  on every member -- the first weapon's users, the list paged with L down to a Power Tab used on a
+  member after looking at three), the techs screen (the members slid past three rows down and back,
+  Crono's double techs scrolled past eight rows, paged with R and L), the equipment screen (the
+  members slid to a reserve member, a weapon changed, R/L switching member from the slots) and
+  Settings (the window design stepped along its meter and back, the controls set to the player's own
+  with two assignments stepped, Start putting the game's buttons back). It reaches 2.01 KiB of live
+  code no other movie runs, 1.67 ported (`menu_slide_tech_members`, `menu_slide_tech_list`,
+  `menu_point_at_tab_member`, `menu_show_item_users`, `menu_put_cursors_on_every_member`,
+  `menu_step_setting_meter`, `menu_use_tab`, `menu_turn_page`, `menu_switch_equipment_member`,
+  `menu_choose_buttons`) and 0.34 unported (the equipment members' slide `$C2:9D87`-`$9E75`, the
+  button rows `$C2:C20F`-`$C296` and `$C29D`, the window design's `$C2:C5C7`-`$C620`).
+  Shadow found a port bug, fixed in chunk 9: `menu_slide_tech_list` (`$C2:B72F`) left the
+  sign clear in the P its tick saves (`$7E:0A78`, `$20` where the original has `$A0`). Of the 0.34
+  unported, the equipment members' slide start is a port now, and the button rows and the window
+  design were C already (`menu/settings_screen.c`), uncredited by the burndown until its reading of
+  the menus' bridge was fixed (chunk 9). No refusals, no `accessor out of range`. The route reaches its end in the shipping mode (`route_check --mode on:on:c`, frame
+  6461).
+- **Movie**: `menus-save-point` (route `save_point`, ctsave12 slot 2, 3270 frames; cutoff 3219): the
+  save screen a save point opens on its own (menu screen 11, `$C2:D4F8`), which no other movie
+  opens -- `menus-end-of-time` saves through the main menu's Save while standing on the same save
+  point. The End of Time's save point is its script's object `$0D` at tile `$18`,`$16`: standing on
+  it, confirm asks the field for the menus' mode `$40` (event `$C8 $40`, which 35 locations' save
+  points use). The route answers no to saving over the first slot, then saves over the third. It
+  reaches 53 bytes no other movie runs, all ported (`menu_open_save_screen`, the question's no in
+  `menu_answer_whether_to_save_over`). Shadow clean (no mismatch, refusal or `accessor out of
+  range`); the route reaches its end in the shipping mode (frame 3250).
+- **Not reachable**: the exchange's reserve scroll (`$C2:C85B`-`$C2:C972`, 280 bytes, unported), the
+  ledger's "party exchange's panel". It runs only where the reserve holds more than the four rows
+  shown (`menu_exchange_scrolls`, `can_scroll`), and the reserve is the party's record places 3-8
+  that hold a character: with seven characters and three in the active party it holds four at most.
+  The gate's screen (`menus-end-of-time`, and the seven-member ctsave12 slot 2) shows all four
+  without scrolling. Nothing in normal play gives it a fifth; the step off a row the story keeps
+  (`$C2:C9AE`) wants a story point that keeps a member in the party at the End of Time, not
+  identified.
+- **Route**: `menu_sweep`, `save_point`.
 
 ### 4. New Game+ and an erased slot
 - **Save**: technoplaza ct-state16 (a finished cartridge).
@@ -232,6 +270,27 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Reaches**: 1.29 KiB of enemy AI (ported) for the four, plus whatever of the
   animation commands and effects they use; about 0.1 KiB a minute on the AI alone.
 - **Route**: yes (walking, `talk()`, the battle bot).
+- **Movie**: `battle-guardian` (route `guardian`, ctsave02 slot 3, 25751 frames; cutoff 25552, the
+  end kept at the field back in hand): Arris Dome's hall (`$0D6`) through `$0D8` and `$0DD` into the
+  Guardian's room (`$0DB`), where confirm beside its object 9 (tile `$08`,`$13`, before the sealed
+  door; story bit `$7F:00EC` bit 0 clear) wakes the Guardian and its Bits (formation `$93`); the
+  `party` policy won on the 41st try, at frame 23951. It reaches 1.57 KiB no other movie runs,
+  1.56 ported: the Guardian's bringing its Bits back (`battle_enemy_bring_back_turn`, `$C1:9E78`,
+  and its farthest-enemy search and selector), the battle screen scripts of its and the Bits'
+  attacks (`battle_screen_script_center_triangle_on_its_corners`, `..._lay_wedge`,
+  `..._wave_lines`, `$CD:3BAB`), and field drawing paths (`$C0:95E3`, `$9619`, `$8405`); 6 bytes
+  unported (`$CD:0DFA`). Shadow clean: no mismatch, refusal, `page refused` or `accessor out of
+  range`. The route reaches its end in the shipping mode (`route_check --mode on:on:c`: the fight
+  won on the 84th try, frame 22954; the end at 24934).
+- **Not attempted, impractical from the saves there are**: Nizbel II is at `$130`, off Tyrano Lair's
+  hall (`$12A`). ctsave08 slot 1 has it beaten (story bit `$7F:00EE` bit 0); ctsave07 slot 3, the
+  only save before it, stands on the world map outside the lair, whose entrance (`$12B`) is shut
+  until Kino is freed (its door's tiles copied in where `$7F:0063` bit 0 is set) and whose other
+  way in (`$1AE`, a room of Reptites) leads on through the lair's switch rooms: a route through the
+  lair's puzzles, not a walk. MotherBrain (`$10C`, Geno Dome) has no save inside or near the dome
+  (ctsave14 slot 2 stands on the 600 A.D. world map, slot 3 after the fight), and R Series (the
+  factory) none nearer than ctsave03 slot 2 on the 2300 A.D. world map: each is a dungeon of
+  switches and conveyors before the fight.
 
 ### 5b. The Day of Lavos after a loss
 - **Save**: technoplaza ct-state16 slot 2 (Crono and Marle at the fair, New Game+).
@@ -247,7 +306,27 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Save**: ctsave08 slot 1 (`$12F`).
 - **Do**: beat Azala and the Black Tyrano; watch the scene at `$12D`.
 - **Reaches**: mode 4 (0.46 KiB unported) and the Black Tyrano's AI; about 0.08 KiB a minute.
-- **Route**: yes (walking and the battle bot).
+- **Movie**: `battle-black-tyrano` (route `black_tyrano`, 49219 frames; the `--coverage` cutoff is
+  48663, the end kept at the field back in hand after the scene, since a movie stopped while the
+  field loads leaves a comparison open): out of the save point's room through the hall (`$12A`) and
+  the corridor (`$12C`, whose scene -- Azala looking down from the stairs -- starts past tile row
+  20) into the throne room (`$12D`), where confirm at the throne's foot (its objects `$10`-`$14`
+  call object `$15`'s function 3) starts Azala's challenge and the battle (formation `$93`: the
+  Black Tyrano, 10500 HP, slot 3, and Azala, 2700, slot 7). The `party` policy reaches only for
+  Full Tonics, Elixirs and Mega Elixirs, which this save hasn't, so the Tyrano's countdown flame
+  wiped the party 296 times before a win; `policies.party_with_lapis` heals with what the bag holds
+  (a Lapis when two are low, a Mid Tonic for one) and wins without a wipe, at frame 44589. Then
+  Azala's last words and event `$FF $24`, the scene program's mode 4 (Lavos falling) from frame
+  47469, and the field back at `$12D`. It reaches 0.80 KiB no other movie runs, 0.48 unported:
+  mode 4 whole (`$7E:53BB`-`$5529`) and code beside it (`$7E:350E`, `$5855`, `$56EB`, `$55F9`,
+  `$56A9`); ported, `script_point_along`'s branches (`$C1:7447`), field paths (`$C0:964D`, `$9890`,
+  `$8285`) and the battle screen's framed wave. Shadow: no mismatch; `script_return_from_call`'s guard
+  (`$C1:56FB`) refused 24 calls, the gap `tech_sweep` found, until chunk 9 took the return at the top's
+  going on into it. Mode 4 is a port since (`scene/lavos_falls.c`; its pixels' spread `$7E:350E`
+  excepted). No `page refused` or `accessor out of range`. The route reaches its end in the shipping
+  mode (`route_check --mode on:on:c`: won without a wipe at frame 44718, mode 4 from 47598, the
+  field back in hand at 52013).
+- **Route**: `black_tyrano`.
 
 ### 7. The other endings
 - **Saves**: technoplaza ct-state17 and ct-state19 to ct-state26 (New Game+ at each ending's story point).
@@ -257,9 +336,51 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   endings of 30-50 minutes each, about 0.01 KiB a minute.
 - **Route**: yes (`bucket_lavos`, `telepod_lavos` and `beyond_time` are the pattern).
 
+### 8. The scene program's modes 6, 7 and 5
+- **Mode 6** (`$7E:78DD`): location `$1B0` is the party in the winged Epoch over Lavos (event script
+  276, `$FA:8F4F`), which the 1999 A.D. world map's object command `05 B0 03 07 19` enters and, as
+  recorded here, travelling to 1999 A.D. on the time dial goes straight to. Lucca asks "Are we
+  REALLY going on?"; Fight! (object `$0A` function 6, setting variable `$0B`) with the Epoch's
+  wings on (story bit `$7F:00BA` bit 7, set at `$179` after the Blackbird) calls object `$0B`
+  function 3: "We must use the Epoch to break through!", the location set to Lavos's `$1DA` and
+  event `$FF $26`. Without the wings Fight! goes to `$1D2`; Run away back to the 1999 A.D. map.
+  The attract demo passes `$1B0` with story bit `$7F:0057` bit 2 set by the title's `$1AF`/`$1B1`,
+  which sends it back to `$3F0` before any window.
+- **Movie**: `events-epoch-lavos` (route `epoch_lavos`, ctsave14 slot 1, 7792 frames; cutoff 7072,
+  the end stays at the Lavos field's first window because a movie stopped while the field is
+  loading leaves shadow mode's comparison of `field_enter` open and fails): board the Epoch, the
+  time dial one period up from 1000 A.D. (`$7E:0C52` 3 to 2), travel, Fight!, and the dive (mode 6
+  from frame 5502 to about 7140). It reaches 1.57 KiB no other movie runs, 1.40 unported: mode 6's
+  own code (`$7E:78DD`-`$7B9B`, `$7FC4`-`$80E0`, `$8205`-`$82AF`, `$82F5`-`$838A`, `$7BF2`-`$7C2F`,
+  `$81C4`-`$81FA`, `$7F58`-`$7F7C`) and `$7E:38C3`; ported, `overworld_epoch`'s branch and bits of
+  `$C3`. Shadow: no mismatch; three guards refused calls this play makes --
+  `scene_build_perspective` (`$7E:357B`, 202 calls), `scene_animate_the_palettes` (`$7E:37FA`, 2) and
+  `scene_setup_line_effects` (`$7E:36CC`, 2) -- until chunk 9 ported what they turned away (the dive's
+  starts of the lines, the palettes' frame called by a channel's sequence, color math's control and
+  layers by the line). The rest of mode 6 is still the program's (docs/TODO.md). No `page refused` or
+  `accessor out of range`. The route reaches its end in the
+  shipping mode (frame 7722).
+- **Mode 7** (`$7E:6248`): location `$1DC` is the operators' room of the Day of Lavos (event script
+  295, `$FA:E699`); its object `$01` runs `$FF $07` on the room's second visit (story bit
+  `$7F:00AA` bit 5 set by the first). Only the world maps' object command `05 DC 03 07 07` (on
+  `$1F7` and `$1F0`) leads there: the Day of Lavos after a loss to Lavos, which
+  `battle-lavos-gameover` plays -- the mode is the globe behind "But... the future refused to
+  change". Against the library that movie is in, 42 bytes of the mode are left (`$7E:62E5`, mode
+  8's sequence script choice, which shares the entry; no event script uses `$FF $08`/`$28`/`$48`/
+  `$68`, and `$7E:63D9`-`$6405`). No movie needed.
+- **Mode 5** (`$7E:7092`): no way in found. `$C3:0000` stores its A in `$7E:0384` and unpacks the
+  scene program (`$C3:1313` to `$7E:3000`), which takes the mode from `$0384` & `$1F` (table
+  `$7E:3043`). Event `$FF` with operands `$00`-`$7F` reaches it with the operand as the mode
+  (`$C0:3FE0`), and no event script uses `$05`, `$25`, `$45` or `$65`. The only other entry is
+  `$C0:2649` (`LDA #$85`, `JML $C3:0000`), the end of `field_close_into_the_scene` (`$C0:260E`),
+  the field's screen effect 11 in the table at `$C0:21EE`, keyed on `$7E:0139`; nothing found
+  stores 11 there (bank `$C0`'s stores write `$01`-`$04`, `$06`, `$09`, `$0C`, `$0D`, its
+  increments go 7 to 8 and 9 to 10, no long store, no script poke). An indexed store or block
+  move into `$0139` isn't ruled out; read as dead code until one is found.
+
 ### Unknown
 - **Floor switches** (2.10 KiB): no map with a switch of the other shapes is identified.
-- **Mode 5** (2.05 KiB): nothing found that starts it.
+- **Mode 5** (2.05 KiB): nothing found that starts it (Targets, 8).
 - **Field engine**, **battle other**, **enemy movement**, **sound driver** and
   **palette effects** (10.9 KiB together): no trigger identified; expect the
   targets above to reach some of them incidentally.

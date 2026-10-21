@@ -43,7 +43,7 @@
  * second bank of work RAM: its first $200 bytes go into VRAM from its start
  * as they are, and its next $36 tiles of two bitplanes, from $100 bytes in,
  * are widened to four from word $100. */
-enum { LETTERS = 0xAE, UNPACK_BUFFER = 0x7F0200 };
+enum { LETTERS = 0xAE };
 enum { LETTERS_AS_THEY_ARE_BYTES = 0x0200, LETTERS_AS_THEY_ARE_VRAM = 0x0000 };
 enum { NARROW_LETTERS = 0x7F0300, NARROW_LETTER_TILES = 0x36, WIDE_LETTERS_VRAM = 0x0100 };
 
@@ -83,7 +83,7 @@ static void start_loading_the_letters(GameState *g, Platform *pf, uint16_t vram)
     set_scene_call_transfer_control(g, scene_program_own(), SCENE_TRANSFER_WORDS);
     set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
     vid_start_vram_uploads(pf, PF_AT(0x7E6C2E), SCENE_VRAM_WHOLE_WORDS);
-    set_decompress_dest(g, UNPACK_BUFFER);
+    set_decompress_dest(g, SCENE_UNPACK_BUFFER);
 }
 
 /* ... and once it is unpacked, that part sent. */

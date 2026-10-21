@@ -2301,150 +2301,141 @@ shipping mode over the movies and the routes, from 26.2 KiB and 391 million to
 (`--drifted`); the map's building from its six whole stretches, and the
 clear, which no stretch of the library completes, from its loop.
 
-### Phase 4a, the shipping mode's fallbacks, chunk 8: the runtime's waits across a task switch and a frame's end, and the scrolling lists' frame (`$C0:EC60`, `$C2:0346`, `$C2:8190`-`$C2:81CF`, `$C2:F657`-`$C2:F699`, `$C2:EA81`-`$C2:EAB9`)
+### Phase 4a, the shipping mode's fallbacks, chunk 9: six movies into the library, the refusals they found, Lavos falling to the planet, and the Epoch's dive's perspective (`$7E:53BB`-`$7E:5529`, `$7E:55F9`-`$7E:5653`, `$7E:5654`-`$7E:56EA`, `$7E:56EB`-`$7E:576D`, `$7E:5855`, `$7E:801F`-`$7E:8078`, `$7E:81C4`, `$C2:9D5B`-`$C2:9DAE`)
 
 The fallbacks' stream (history/reimplementation-chunks.md, "Phase 4a, the
-shipping mode's fallbacks, chunk 7", for the one before), chosen by what the
-runtime couldn't hold rather than by a routine: a port that waits for the next
-frame where the runtime can't keep it waiting.
+shipping mode's fallbacks, chunk 8", for the one before), chosen by the movies:
+five recorded from routes (docs/movies-wanted.md) and the tech sweep, which
+waited on a refusal, each reaching code no movie ran.
 
-**How it was chosen.** The last gate left two kinds of wait to the original
-(TODO.md's "What the shipping mode's fallbacks' sixth chunk left"). A menus'
-step that waits for the next frame in the middle of its work (a call to the
-task switch, `$C2:821E`) was taken for its callee unwinding wherever the next
-task's stack lay above the yielding one's, and abandoned: the original ran the
-rest of the step though it is C (the healing's rising numbers, the equipment
-screen's slides `$C2:A518`, `$C2:A7B7`, `$C2:A970`, most of `C2:----`). And
-the frame waits the main thread is in at nearly every frame's end (the
-field's `$C0:EC71`, the sprite-object mode's `$C2:0348`, the menus' `$C2:81CA`)
-stayed idle entries a port stops at, since a port waiting there would be
-suspended at every frame end, where ct_drive takes its bases and ct_play its
-quick saves; the reference play counted the pass that leaves each as a
-handback (0.63 M, 0.10 M, and 0.09 M under the menus' task ports that stop
-there).
+**The movies.** `menus-sweep` (6424 frames), `menus-save-point` (3270),
+`events-epoch-lavos` (7792), `battle-black-tyrano` (49219), `battle-guardian`
+(25751) and `battle-tech-sweep` (118090), each made by its route
+(tools/movies/routes/) on this branch's build: the routes reproduced the five
+recorded on chunk 7's byte for byte, since chunk 8 moved only the shipping
+mode's timing. With them the library leaves 40.9 KiB of live code unexecuted
+(3.7 KiB unported), against 47.4 KiB without them (movies-wanted.md, Totals).
+The tech sweep adds about six minutes of shadow run to the gate.
 
-**A yield, parked.** `native_yield_call_dc` makes the call to the task switch
-with the caller's answer to whether the task can still go on
-(`NativeGoesOn`). The runtime takes the routine off the routines in progress
-(a parked list beside them, its machine copy with it in shadow mode), so the
-other tasks' ports run and finish above nothing of it, and puts it back on
-top, in its call-out, when the machine is at the call's return with the
-call's S: from there it goes on as from any call-out, compared at its next
-point. It asks the answer at every frame's start and stack switch and drops
-the routine where it is no (`menu_task_goes_on_from`: the task's record still
-waiting with the stack its wait kept, or the task the scheduler is taking back
-into it; a task stopped, as all are when the menus close, or started afresh
-over the wait, never goes on), counted abandoned; a second yield to the same
-return and S drops the first. Parked routines count in `native_suspended`
-(`native_parked` alone). The menus make it through `menu_yield` and
-`menu_wait_a_frame_from` (`game/menu/bridge.h`), which every screen's local
-`yield` helper became. The fallback measure ends a parked port's stretch at the
-yield and starts it again where it goes on (`NativeObserver.parked`,
-`.resumed`), and an enclosing port's again where the comparisons nested in it
-are set aside at its point (a task's loop's head reached from its wait entered
-at the same S, which ended its stretch).
+**What they found.** One port bug: `menu_slide_tech_list` (`$C2:B72F`) left
+the sign clear in the P its tick saves, where the original's last load before
+the queue's call is the upload record's place (`$FBE3`, sign set); fuzzing the
+tick's call (variant `tick`, stopped at the sound driver) found it in 457 of
+500 states, and none after. Since chunk 8 the slide's comparisons are set aside
+at the main task's point, so the shadow runs no longer see it. And four guards turning away calls real play makes, each
+closed by porting what it turned away rather than an allowlist line:
 
-**A wait, held.** `native_wait_loop_held` (`tm_wait_for_handlers_held`,
-`PF_LOOP_HELD(head, exit, set)`) is a wait whose continuation is the idle entry
-at the loop's head: in the shipping mode (and outside the runtime) the port
-stops there, as it did, and returns at once; shadow mode waits it through the
-original's loop and compares what it does after it, and compares the stop at
-the head with the set it declares there, which `tools/dontcare_check.py` checks
-as a stop. The field's frame wait (`field_finish_frame`, and the main loop's
-next pass after it from `$C0:00BA`), the sprite-object mode's (`$C2:0346`,
-`$C2:046E`, its compare's flags declared dead at both entries) and the menus'
-wait for the frame's uploads (`menu/tasks.c`: the frame's turns after it, timed
-as `$C2:81CF`'s, where its guard would run them) wait so. The records' task
-(`$C2:F657`) runs its loop's wait as C as the main task's and the cursor's do,
-with an entry where it goes on (`$C2:F699`), rather than stopping at it.
+- `scene_build_perspective` (`$7E:357B`, 202 calls in the Epoch's dive). The
+  dive puts its own routines at the program's call that starts the lines: from
+  outside, the shell curving away (`$7E:801F`), each line's distance read off a
+  curve the dive made as it began (`scene_shell_curve`, through the work RAM
+  port: the step `$2C80` is a branch to read the next); from the cockpit, the
+  shell above and below built in turn (`$7E:8042`), nearer two a line toward
+  the top and farther two a line from the middle, the half above counting a
+  frame on the camera. perspective.c now plans the lines once (`lines_of`:
+  first line, end, first distance, how it steps) for the guard, the build and
+  the leaves, so the race's and the endings' lines are the same plan's other
+  cases.
+- `scene_animate_the_palettes` (`$7E:37FA`, 2): the dive's sequence calls it
+  with 8-bit A on a channel's page through work RAM's bank, where the word it
+  keeps aside around the animation is two bytes of the race's code
+  (`scene_code_under_the_multiplier`).
+- `scene_setup_line_effects` (`$7E:36CC`, 2): the dive's table drives color
+  math's control and layers as a pair a line, a target the video service had no
+  name for: `VID_LINE_MATH_CONTROL_AND_LAYERS`, added (the SNES encoding and
+  the observer's state).
+- `script_return_from_call` (`$C1:56FB`, 24 in the Black Tyrano's fight, 8 in
+  the tech sweep): the return at the top (`$C1:5722`) goes on into the plain
+  return where the point is at the top of the screen, as the end unless listed
+  and the throw that waits first already did into theirs (`goes_on_into`,
+  `script_point_at_the_top`).
 
-**What comparing the steps' rest found.** The rest of each step after a yield
-had never been compared: the runtime abandoned it, in shadow mode as in the
-shipping mode. Five ports were wrong there, and the shipping mode now runs
-them: the equipment list's opening left A for the cursor's sound as the
-port's, where the original's description clears it when it starts typing and
-its last load is the cursor's place; the item use's member choice loaded the
-helping test's cell only where it refused, where the original loads it either
-way and a healing saves the flags; the shop's tick after its list's slide
-compared the places as bytes, where the original's accumulator is still
-16-bit from the equipment screen's slide, so it compares where the cursor last
-moved from with a byte the menus never write (`$82`, named
-`menu_byte_the_mode_before_left`), and ticks again as the slide ends
-wherever they differ (the shop tells a slide by the list's first row moving
-where no page turned, `menu_page_turns`, asked before the move); the slot
-erased in the load screen queued its label's record with a spare of 0 where
-the original's is the summary's byte after it, which nothing reads (the
-spare is scaffolding, as the description's uploads' are);
-and the gate screen's start saved P raw. Two were the runtime's: a port's
-flags after a yield are its own, and a routine that saves P puts them on the
-stack, which shadow mode compared, so the flags of a P a port saves and
-restores itself are compared where it restores them (`native_flags_saved`,
-through `menu_save_p`); and a task's stack below what its wait keeps, which the
-original's work popped, was compared once the wait moved to the main stack,
-so the loops' wait declares it dead (`leave_the_task_s_stack_below_uncompared`).
+Refusals in real play: 0, over the 42 movies.
 
-**The tasks as the menus open** (`$C2:8190`, `menu_start_the_tasks` in
-`menu/tasks.c`): the records cleared, the main task and the cursor's started
-from their heads, then the first frame's wait as C.
+**Lavos falls to the planet** (scene mode 4, `scene/lavos_falls.c`): the setup
+(`$7E:53BB`; Lavos's picture, its map widened to the plane's 128, the planet's
+tiles laid out in a list's order, the colours, the scripts, the stars), Lavos
+turning (`$7E:56A9`), the star field swinging round on an angle (`$7E:55F9`,
+`$7E:5855`), the planet's edge drawn (`$7E:56EB`) and the two routines channel
+1's script calls (`$7E:5640`, `$7E:564D`, through script.c's table of routines,
+now one per scene file). The flat plane's turn and send (`$7E:56B4`,
+`$7E:5654`) were beyond_time.c's; they are `scene/plane.c`'s now, Mode 7's
+plane under channel 0's camera, which the Beyond Time ending and Lavos's fall
+both use, and which also sends the dive's plane's scroll and centre in the
+vblank (`$7E:81C4`). The widening of a plane's map (`$7E:37CA`), its blanking
+(`$7E:90A7`), the stars' scatter bridge and the buffers' addresses
+(`SCENE_UNPACK_BUFFER`, `SCENE_PLANE_MAP`) moved where every scene shares them.
+Not ported: the pixels' spread (`$7E:350E`), which reads the packed bytes by
+moving the stack onto them (docs/TODO.md). Shadow mode took S rising above an
+entry or a call's return for a return or an unwinding, so the setup was
+compared only up to the spread; it now tells a switch onto a stack of the
+code's own (more than a page above, `NATIVE_STACK_SWITCH_DISTANCE`) from
+either, and waits for S to come back (`note_stack_switch`; docs/PORTING.md,
+"Call-outs"; `tests/port/shadow_test.c` has such a callee, abandoned at every
+call without it). The setup is now compared to its end inside
+`scene_program_start`'s stretch, which found the port's leftover of the work
+RAM port pointing into bank `$7E` where the original writes the port's bank
+0, since fixed. Fuzzing had found the setup's three resource copies taking the
+program's byte places for the copier's entry numbers (300 of 300 states),
+which shadow mode, blind past the spread then, hadn't.
 
-**The scrolling lists' frame** (`$C2:EA81`, `menu_frame_the_list` in
-`menu/lists.c`): a list's places, the rows it shows and the scroll bar's
-track in, the paging's rows and last top, the cursor's last place, how far it
-scrolls, the bar's span and its thumb's step out, the step what the CPU's
-divider makes of it. The equipment, items, shop and techs screens call it as
-C with their counts, rows and tracks, where they left the rows in the menus'
-first cell and the track in the divider for the original's; and the bridges
-call the routines around it as C too, the shop's list's frame (`$C2:DD40`)
-and its list for sale (`$C2:DECC`), the techs' list (`$C2:BB50`) and member
-rows (`$C2:BA4F`), which no longer call out.
+**The Epoch's dive** (mode 6) stays the program's but for its perspective's
+starts and its plane's place: the rest (docs/TODO.md) mixes whatever registers
+the code before left into its random draws and animates line tables that are
+bytes of the program's image. One consequence lands here: its sprite drawing
+reads the flags the signed sprite list leaves (`$7E:3A97`), so that entry's
+don't-care set narrowed to nothing and its wrapper works them out (the count
+run down; the last sprite's last sum's overflow and its last test's carry,
+which for a sprite past the right edge is a bit of its high-table byte from
+before the list, read by the wrapper), and `scene_multiply`'s V is declared
+live (the perspective's callers read it through it).
 
-**The block move's repeats.** The menus' block move stub (`$7E:9690`, a
-`MVN` and an `RTL` in work RAM) runs its one instruction again for each byte
-it moves, back at the entry with the S it entered with. Shadow mode took each
-pass for a new call and nested a comparison of the stub a level a byte, until
-the runtime's 32 levels skipped the rest (0.14 M instructions over the
-library, 12 K more once the records' task's entry where it goes on stood a
-level deeper under the records' draws). It starts no comparison there now
-while the innermost comparison is the same routine's from the same S, in its
-stretch: the port stands for it (PORTING.md, "Call-outs").
+**The menus.** The equipment members' slide's start (`$C2:9D5B`,
+`menu_start_sliding_equipment_members`) is a port, its slide's settings one
+table as the techs screen's, and the two screens share `MemberListSlide` and
+the decision which way a push slides the list (members.h,
+`menu_member_slide_for_push`). Both starts run their slide where its own guard
+holds and call the original's otherwise (`menu_run_or_call`, menu/bridge.h;
+the slide's guard wants room for three uploads, which the start's doesn't
+ask). The settings' button rows and window design (`$C2:C20F`-`$C2BC`,
+`$C2:C5C7`) were C already; burndown didn't credit them because its reading
+took the menus' bridge's `run` setting the PC for a hand-back
+(dontcare_check.py's `BRIDGES` lists it now, as the scene bridge's
+`run_entry` was), which moved `$C2` from 54.5 to 56.6 KiB counted ported.
 
-**Numbers.** The reference play, 2.83 M to 1.41 M instructions run as the
-original (and 0.16 M under comparisons still open as runs end, 0.10 M of it the
-attract demo's sound command as before, the rest the frame waits' last
-passes): the frame waits' leaving passes (0.63 M, 0.10 M), the menus' frame
-wait's under the tasks' ports (0.09 M), the records' task's hand-back
-(0.08 M) and the steps' rest after their waits gone, and with the block
-move's repeats no longer nesting, the three routines skipped at the nesting
-limit (the stub's 0.14 M, the scene's divisor search `$C3:0E29` 0.34 M, its
-resource copy `$C3:099C` 2 K). Some of what the records'
-task's hand-back held was other tasks' code on stacks within the measure's
-span, and is filed under `C2:----`, `FF:----`, `C2:CE86` and the held cursors'
-hand-back now (`tools/fallback_baseline.txt` says which). The shipping mode
-over the movies 0.14 M to 0.09 M, the routes 0.04 M as they were.
+**Numbers.** Over the 36 movies chunk 8 measured, the reference play is 1.19 M
+instructions run as the original (1.41 M before; no port changed, the drop is
+comparisons followed further: the runtime across stack switches, and the
+measure where it had dropped them at a callee port's entry after nested ones
+were set aside), and the
+shipping mode 0.07 M (0.09 M before). Over the five recorded movies the reference play went from 0.68 M (after
+the guards; the Epoch alone had refused 0.37 M before them) to 0.49 M. Their
+shipping mode is 2.32 M, nearly all of it the dive's (`events-epoch-lavos`, 2.31 M,
+1.94 M of it code with no port): it measured 2.32 M before the ports and 2.18 M
+after at the same estimates, and the recalibration over the 42 movies moved it
+back, as it moved the endings' down, so over the dive it follows the estimates
+more than the ports. With the tech sweep, the library's reference play is 1.66 M
+and its shipping mode 2.40 M; the routes' shipping mode is 2.37 M, nearly all of
+it the Epoch's route and 0.04 M the ten from before, as they were. Burndown: 254.8 KiB of 266.5 KiB to 257.3 KiB (11.7 KiB unported to 9.2, about 2.1 KiB of it the menus' credit above).
 
-Shadow over the 36 movies 0 mismatching (the block move stub 39,382 calls,
-the divisor search 2,095, each compared once and matched); the parked ports' continuations
-compared from where they go on (the records' task where it goes on 11,299
-calls, 11,296 matched; the field's frame wait 209,087, 209,044 matched; the
-sprite-object mode's 31,765, 31,756; the lists' frame's entry 1,139, all
-matched). Fuzz 0 mismatching on every entry this touched (28, among them the
-new `menu_record_task_goes_on`, `menu_frame_the_list` and
-`menu_start_the_tasks`), and after the review's fixes 133 entries of the
-shop, techs, equipment, items, tasks and frame waits, 0 mismatching.
-`tests/port/suspend_test.c` has the runtime's cases: a
-yield parked and going on in the shipping mode and in shadow mode, a task
-dropped for a frame, a task started afresh over its wait, a state saved with
-the step parked that the original's code finishes once loaded (in both
-modes, shadow mode 0 mismatching), the menus' own answer whether a task goes
-on (`menu_task_goes_on_from`, over its records), and a held wait
-nothing suspends at any frame end of, whose save state loads into a fresh
-runtime and plays on identically. Misses none and px-check identical over the
-seven menu movies. Timing: the entries the chunk moved
-recalibrated (`--drifted`); four exceptions for three steps whose stretches after their waits run the slots'
-window, the list's opening and the list for sale's making inline at those
-ports' own rates, and one for the block move stub, whose own calls measure
-4.6% slower than the rate the 36 ports that time it inside their stretches
-fit (`tools/timing_exceptions.txt`). Gate: suite OK.
+Shadow over the 42 movies 0 mismatching: the new entries compare 1,712 turns
+and as many flat plane sends (2,687 with the Beyond Time ending's), 828 swings,
+564 angles, 538 planet draws, the two routines' 3 calls, 1,619 plane places;
+the closed guards' entries 2,909 perspective builds, 85,409 palettes' frames,
+16 line effects' setups, 3,898 returns from a call; the equipment slide's
+start 2. Fuzz 0 mismatching on every entry this touched (tools/fuzz_routines.toml:
+the mode 4 entries, the dive's perspective (`cockpit`, `outside`), palettes
+(`channel`) and line effects (`dive`, `cockpit`) variants, the return at the
+top (`at_the_top`), the tech list's tick, the slide's start 2000/2000), seed 1.
+Misses: none on the movies the ports touch but `events-epoch-lavos`'s, which
+are the dive's own interpreted code; px-check identical over `battle-black-tyrano`,
+`events-epoch-lavos`, `menus-sweep` and `endings-beyond-time`. Timing: 191 rows recalibrated (`--drifted`, over the 42 movies), the new entries among them, and the signed sprite list again once its flag leaves stopped counting their reads as its time (8,823 to 9,474); eight exceptions where the new movies took an entry's stretches in vblank past the limits' minimum or added one long stretch (the tile animations' load and its jump, the description's typing, the button rows, the effect slots' step, the signed sprite list in the dive, the save point's screen, the rewards shared with the reserve; `tools/timing_exceptions.txt`), and one exception dropped that the recalibration made unneeded. With the setup
+compared past the spread, Lavos's fall's setup has a rate of its own (6962,
+worked out from the scene start's stretches it runs in, where its work is a
+part), and a stretch's room for the routines it attributes time to went from 48
+to 128 (`MAX_SEGMENT_PARTS`): the field's frame, followed through a mode on
+stacks of its own, reaches more.
+Gate: suite OK.
 
 ### Phase 4a, timing: the battle frame work's remainders, chunk 2: the rewards' messages, the music round a battle and the field's ends (`$FD:A982`, `$FD:AD17`-`$FD:AE51`, `$FD:DA55`-`$FD:DB97`, `$C0:0005`-`$C0:000D`, `$C0:0AFF`-`$C0:0B27`, `$C0:1B90`-`$C0:1CFB`, `$C0:3B76`-`$C0:3B97`, `$C0:6E27`, `$C0:75A0`)
 
@@ -2754,7 +2745,13 @@ counted); a pass an interrupt cuts is kept aside while the handler runs and
 goes on where the handler returns to it, so it is taken back too. A
 comparison's stretch goes on across a switch of stacks (S rising further in a
 step than an instruction pulls, as the menus' task switch moves it) until the
-runtime says the comparison is over, as an interrupt entry's does. That count changes only when a port does. It costs the shadow runs
+runtime says the comparison is over, as an interrupt entry's does. A port's
+call-out that moves onto a stack of its own and comes back
+(`NATIVE_STACK_SWITCH_DISTANCE`, the pixels' spread) stays the call-out's
+until it returns, as the runtime waits for it; and where the runtime sets the
+comparisons nested in a port's stretch aside at a call the port makes, the
+port's stretch goes on from the caller's level, so the callee, itself a port
+(the scene program's unpacker), doesn't end it. That count changes only when a port does. It costs the shadow runs
 nothing measurable (gato-battle 47 s with it, 49 s without). The shipping
 mode's count is still made, over every movie (`--native on --generated on
 --sound-driver c`, 43 s for the library) and the routes (`route_check
