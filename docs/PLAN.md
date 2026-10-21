@@ -66,7 +66,7 @@ in place of the ports: the native coverage.
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 4% left (96% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program about 75%, battle frame work 90%, field graphics 92%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (36 movies): 13.6 KiB, 7.3 M instructions (handback 2.4 KiB, unported 11.5 KiB); shipping mode with the long routes 5.5 KiB, 0.23 M (the movies 0.18 M, the ten routes 0.04 M over the frames they keep); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (36 movies): 11.0 KiB, 2.8 M instructions (handback 4.7 KiB, unported 8.1 KiB); shipping mode with the long routes 4.9 KiB, 0.18 M (the movies 0.14 M, the ten routes 0.04 M over the frames they keep); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -278,20 +278,20 @@ docstring says which way it is wrong). **4% of the code is still generated.**
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.3K | 0% | 446 |
-| field engine, events (`$C0`) | 59.4K | 58.3K | 14.0K | 2% | 401 |
-| menus, text, overworld (`$C2`) | 59.1K | 55.0K | 14.4K | 7% | 530 |
-| scene program, RAM (`$7E`) | 24.9K | 19.2K | 2.4K | 23% | 161 |
+| field engine, events (`$C0`) | 59.4K | 58.3K | 14.0K | 2% | 399 |
+| menus, text, overworld (`$C2`) | 59.1K | 55.1K | 14.4K | 7% | 531 |
+| scene program, RAM (`$7E`) | 24.9K | 19.3K | 2.4K | 23% | 162 |
 | battle frame work (`$CD`) | 15.4K | 15.2K | 4.3K | 1% | 224 |
 | field graphics (`$FD`) | 15.1K | 15.0K | 2.2K | 0% | 111 |
 | battle sprites (`$CF`) | 6.8K | 6.8K | 0.2K | 0% | 47 |
-| battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 54 |
+| battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 52 |
 | battle setup (`$CC`) | 4.8K | 4.8K | 0.1K | 0% | 11 |
 | scene engine (`$C3`) | 3.8K | 3.6K | 0.7K | 7% | 31 |
 | scene data (`$C6`) | 3.4K | 3.4K | 0.8K | 0% | 32 |
-| sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
+| sound driver (`$C7`) | 2.6K | 2.6K | 0.1K | 1% | 9 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
 | console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
-| **total** | **266.5K** | **255.1K** | **55.5K** | **4%** | **2108** |
+| **total** | **266.5K** | **255.3K** | **55.6K** | **4%** | **2072** |
 
 `$CD`, the battle's frame work, is C but for 0.2 KiB: the whole screen script
 language (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"),
@@ -513,7 +513,7 @@ Epoch, the town's lights, the fireworks and the Mode 7 pictures' vblank
 tasks, with the program's sine and signed multiply as entries (history file, "Phase 4a,
 the shipping mode's fallbacks, chunk 4"), and the Mode 7 picture's tiles'
 expansion (history/reimplementation-chunks.md "Phase 4a, the shipping mode's fallbacks,
-chunk 5"), and the swept window's rider's sprite list (REIMPLEMENTATION.md,
+chunk 5"), and the swept window's rider's sprite list (history/reimplementation-chunks.md,
 "Phase 4a, the shipping mode's fallbacks, chunk 6"). **Next**, by what the
 library reaches: the program's first script step's tail after the sequence
 interpreter's wait for the music (`$7E:3749`, `$C3:0C28`). The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and

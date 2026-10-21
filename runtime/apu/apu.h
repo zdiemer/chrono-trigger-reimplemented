@@ -105,4 +105,10 @@ void apu_run_ahead(Apu *apu, uint32_t master_clocks);
  * that, new frames are dropped (counted in apu->dsp.out_dropped). */
 size_t apu_take_samples(Apu *apu, int16_t *out, size_t max_frames);
 
+/* Development: called for each read the SPC700 makes of a port the main CPU
+ * writes ($F4-$F7), before it reads it, and for each write it makes of one
+ * the main CPU reads, after it (dev/apu_margins.c). NULL: none. */
+extern void (*apu_port_read_observer)(const Apu *apu, uint8_t port);
+extern void (*apu_port_write_observer)(const Apu *apu, uint8_t port);
+
 #endif

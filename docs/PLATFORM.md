@@ -817,7 +817,7 @@ comparison allows per-segment lag.
 
 | Path | What |
 |---|---|
-| `runtime/platform/audio.h` | `au_driver_write`, `au_driver_read`, `au_driver_run_direct`, `au_driver_call` (the protocol level, below `au_command`; the call-out takes the callee's don't-care set since the $C7 pilot, history/reimplementation-waves.md); `AuBackend`, `au_select_backend` |
+| `runtime/platform/audio.h` | `au_driver_write`, `au_driver_read`, `au_driver_run_direct`, `au_driver_call` (the protocol level, below `au_command`; the call-out takes the callee's don't-care set since the $C7 pilot, history/reimplementation-waves.md), and the waits for the SPC700's answer `au_driver_exchange`, `au_driver_wait_echo`, `au_driver_wait_moved`, `au_driver_wait_echo_or_give_up` (below, "The CPU half's waits, as built"); `AuBackend`, `au_select_backend` |
 | `runtime/platform/snes/audio.h` | the SNES backend, which hands the protocol-level calls to APU-direct while one of its runs is in progress |
 | `runtime/platform/direct/` | APU-direct: synchronous runs of the driver, the APU's lead, the sample buffer |
 | `runtime/apu/apu.c` | `Apu.lead`, `apu_run_ahead` |
@@ -895,6 +895,40 @@ CPU half and the scene's send are the SNES backend's implementation of
 them in those two files only. `au_status` stays the call for game code
 polling the driver. `au_boot` wasn't added: no port calls the upload; the
 registry entry at `$C7:0000` is the upload.
+
+**The CPU half's waits, as built** (REIMPLEMENTATION.md, "Phase 4a, the
+shipping mode's fallbacks, chunk 7"). The driver's CPU half waits for the
+SPC700 through four more protocol-level calls, which wait where the port
+stands rather than handing the machine back at the original's loop:
+`au_driver_wait_echo(pf, PF_LOOP(head, exit), value)` until port 0 shows a
+value, `au_driver_wait_moved` until it shows another, and
+`au_driver_wait_echo_or_give_up(pf, PF_LOOP(head, exit), given_up, value,
+tries)`, true where the echo came within the original's count of polls (its
+loop leaves at `given_up` otherwise); and `au_driver_exchange(pf,
+PF_CALL_DC(site, routine, set), value)`, the end of a message: the value on
+port 0 and the wait for its echo, which the original makes by calling
+`$C7:09DA` (or `$C7:09EA`, which takes the value from its cell). The SNES
+backend waits with `native_wait_loop`, `native_wait_loop_or_give_up` and
+`native_wait_call` on a wake for port 0 (`native_wake_port0_shows`,
+`_leaves`; `port/native.h`): in the shipping mode the machine steps a pass of
+the original's poll at a time (42 master clocks, 66 for a poll that counts
+down) and, after an exchange, the time of the routine's return (102,
+`native_wait_time`), since the SPC700 reads a message's last two bytes after
+it echoes and a next message written sooner corrupted every third byte of a
+song's sequence. The port's own time does the rest, and it has to put the
+next message's bytes where the original's go: the loads of them through the
+original's long pointer, which the port doesn't make, are charged before each
+byte (`ACCESSES_A_LOAD`). `ct_dev --apu-port-margins` measures it: at every
+echo, how long after the SPC700's read of port 2 and of port 3 the CPU's next
+byte there comes. Over the movie library in the shipping mode, of 1,157,232
+messages the next byte reached port 3 8-15 SPC700 cycles after the read
+in 1,148,655 and 2-3 cycles after (about 63 master clocks, the least) in
+182, as the original's do (1,499,256 and 193 of 1,511,199, the least the
+same); port 2's least is 5 (the original's 3). Without the charge, port 3's
+came 2-3 cycles after in 784,592 of them; in shadow mode and the tools the original's loop or routine
+runs, the loop with A (and X) as the original sets them before it. APU-direct
+runs the SPC700 ahead a pass at a time instead (`au_direct_wait_port0`).
+A backend without an SPC700 never sees them.
 
 **What changed from the plan, and why.**
 
@@ -2249,7 +2283,9 @@ the shipping mode the port's fiber is suspended where the machine stands,
 its time paid there, and the machine takes its interrupts at that point,
 stepping a line at a time between them, until a handler has been taken
 (`NATIVE_WAKE_HANDLER`) or the picture is at a line, past the vertical blank;
-the original's loop never runs. A line handler's wait for its line's
+the original's loop never runs. (The sound driver's CPU half waits the same
+way on the SPC700's answer on port 0, a pass of its poll at a time: above,
+"The CPU half's waits, as built".) A line handler's wait for its line's
 horizontal blank (`NATIVE_WAKE_HBLANK`, `tm_wait_line_drawn`) steps to the
 blank instead, and goes on no sooner than a pass of the shortest such loop
 into it (`IDLE_EXIT_CLOCKS`), as an idle entry's exit does, so that the

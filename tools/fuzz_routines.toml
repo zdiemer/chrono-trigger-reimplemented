@@ -13796,6 +13796,107 @@ state = "menus"
 args = []
 why = "any state: the clock sets its own direct page"
 
+# ---- core: the sound driver's CPU half (core/sound_driver.c) ----------------------------------
+
+[[routine]]
+name = "sound_driver_command"
+at = "C7:0004"
+subsystem = "core"
+state = "attract"
+args = ["--long", "--apu-loopback", "--fill", "7E1E20-7E1E3F:2=00-3E", "--fill", "7E1E21-7E1E3F:2=00-00", "--fill", "7E1E41-7E1E5F:2=01-2F", "--fill", "7E1EFC-7E1EFC=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E", "--fill", "7E1EFD-7E1EFD=00-00"]
+why = "any command and parameters, the driver's state random but for the slots, which hold what the driver keeps there (blocks 0-62, lengths past a byte, command $71's slot a slot); the guard (sound_driver_slots_are_kept) turns away the states with a hole among the slots in use or a block held twice more than once. The SPC700 is the APU's ports read back (--apu-loopback): every echo comes at once and every header is confirmed, so a wait for port 0 to move on runs out of budget (skipped)"
+
+[[routine]]
+name = "sound_driver_command"
+variant = "slots-kept"
+at = "C7:0004"
+subsystem = "core"
+state = "attract"
+args = ["--long", "--apu-loopback", "--keep", "7E1E20-7E1E81", "--keep", "7E1EF0-7E1EFD", "--fill", "7E1E00-7E1E00=10-17", "--fill", "7E1E01-7E1E01=00-52", "--fill", "7E1E05-7E1E05=80-FF"]
+why = "a song started (commands $10-$17, songs 0-82) with the driver ready and the slots, the echo's delay and the effects as the title's song leaves them"
+
+[[routine]]
+name = "sound_driver_command"
+variant = "refusals"
+at = "C7:0004"
+subsystem = "core"
+state = "attract"
+args = ["--long", "--apu-loopback", "--apu-port1-flips", "7FFFFF", "--keep", "7E1E20-7E1E81", "--keep", "7E1EF0-7E1EFD", "--fill", "7E1E00-7E1E00=10,11,12,13,14,15,16,17,70", "--fill", "7E1E01-7E1E01=00-52", "--fill", "7E1E05-7E1E05=80-FF"]
+why = "as slots-kept, with command $70 too, and the SPC700 answering otherwise on port 1 now and then (--apu-port1-flips, the byte at $7F:FFFF random): a header it doesn't confirm (send_header's count again), a song it doesn't want (the refusal), the moves it turns down (forget_every_slot), none of which the movies reach often or at all"
+
+[[routine]]
+name = "sound_driver_send_song"
+at = "C7:0A39"
+subsystem = "core"
+state = "attract"
+args = ["--db", "00", "--d", "1E00", "--apu-loopback", "--fill", "7E1E01-7E1E01=00-52", "--fill", "7E1E20-7E1E3F:2=00-3E", "--fill", "7E1E21-7E1E3F:2=00-00", "--fill", "7E1E41-7E1E5F:2=01-2F", "--fill", "7E1EFC-7E1EFC=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E", "--fill", "7E1EFD-7E1EFD=00-00"]
+why = "a song's command, songs 0-82, the driver's page and data bank; the driver's answer is the song read back, so it is always wanted"
+
+[[routine]]
+name = "sound_driver_upload_block"
+at = "C7:0655"
+subsystem = "core"
+state = "attract"
+args = ["--db", "00", "--d", "1E00", "--widths", "16,16", "--apu-loopback", "--fill", "7E1E1C-7E1E1C=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E", "--fill", "7E1E1D-7E1E1D=00-00", "--fill", "7E1E20-7E1E3F:2=00-3E", "--fill", "7E1E21-7E1E3F:2=00-00", "--fill", "7E1E41-7E1E5F:2=01-2F", "--fill", "7E1EFC-7E1EFC=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E", "--fill", "7E1EFD-7E1EFD=00-00"]
+why = "a slot to load (its index times 2, as the song's upload leaves it) holding a block 0-62"
+
+[[routine]]
+name = "sound_driver_upload_effects"
+at = "C7:0922"
+subsystem = "core"
+state = "attract"
+args = ["--db", "00", "--d", "1E00", "--apu-loopback"]
+why = "any state on the driver's page: either set of effects, announced as command $70's or a song's"
+
+[[routine]]
+name = "sound_driver_upload_effects"
+variant = "refusals"
+at = "C7:0922"
+subsystem = "core"
+state = "attract"
+args = ["--db", "00", "--d", "1E00", "--apu-loopback", "--apu-port1-flips", "7FFFFF"]
+why = "as the plain run, with the header's kind confirmed only now and then (--apu-port1-flips): its count sent again and the header with it"
+
+[[routine]]
+name = "sound_driver_boot"
+at = "C7:0000"
+subsystem = "core"
+state = "attract"
+args = ["--long", "--apu-loopback"]
+why = "any state: the boot sets its own page and data bank, and stops at the wait for the boot ROM"
+
+[[routine]]
+name = "sound_driver_boot_upload"
+at = "C7:005F"
+subsystem = "core"
+state = "attract"
+args = ["--db", "00", "--d", "1E00", "--apu-loopback"]
+why = "any state on the driver's page: the boot ROM's echoes read back, so the whole program goes up"
+
+[[routine]]
+name = "sound_driver_boot_finish"
+at = "C7:011E"
+subsystem = "core"
+state = "attract"
+args = ["--db", "00", "--d", "1E00", "--widths", "16,16"]
+why = "any state on the driver's page: the caller's registers random on the stack"
+
+[[routine]]
+name = "sound_driver_boot_wait_ready_loop"
+at = "C7:0050"
+subsystem = "core"
+state = "attract"
+args = ["--db", "00", "--d", "1E00", "--apu-loopback", "--range", "X=FFF0-FFFF"]
+why = "a pass of the wait for the boot ROM, X near what the ports read back"
+
+[[routine]]
+name = "sound_driver_boot_delay_loop"
+at = "C7:011B"
+subsystem = "core"
+state = "attract"
+args = ["--db", "00", "--d", "1E00", "--widths", "16,16"]
+why = "a pass of the countdown"
+
 # -- setup: the battle's start (battle/setup*.c)
 
 [[routine]]

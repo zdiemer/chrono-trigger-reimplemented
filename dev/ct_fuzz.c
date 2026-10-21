@@ -4,7 +4,8 @@
  *   ct_fuzz --rom roms/ct-usa.sfc --load-state base.state --routine <name|BBAAAA>
  *           [--iterations N] [--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N]
  *           [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... [--range A|X|Y=lo-hi]...
- *           [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc] [--details N]
+ *           [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback [--apu-port1-flips BBAAAA]]
+ *           [--poison-dc] [--details N]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
  * the N V Z C flags and all of work RAM except the stack page, applies the
@@ -70,7 +71,13 @@
  * Game+'s carrying the party over); the entry's own precondition on P still
  * wins. --apu-loopback makes reads of the APU ports return what the CPU last
  * wrote to them: the SPC700 doesn't run here, so the sound driver's echo waits
- * would otherwise never end. --details N describes the first N mismatches
+ * would otherwise never end. With it, --apu-port1-flips BBAAAA makes the SPC700
+ * answer otherwise now and then on port 1, where the CPU half reads its
+ * decisions (a header confirmed, a song wanted, the moves taken): the byte at
+ * BBAAAA, random as the rest of work RAM, says which of a run's first eight
+ * reads of port 1 come back with bit 7 flipped, a bit a read from its lowest,
+ * and is shifted down a bit at each (so both runs see the same answers, and
+ * leave the same byte). --details N describes the first N mismatches
  * (default 10). Accessors the port called out of range (port/vars_ram.h) are
  * listed after the counts, one `accessor out of range` line per variable.
  *
@@ -119,10 +126,21 @@ static uint8_t *read_file(const char *path, size_t *len)
     return buf;
 }
 
-/* --apu-loopback: the SNES's APU read hook, answering with the CPU's own writes. */
+/* --apu-loopback: the SNES's APU read hook, answering with the CPU's own
+ * writes; and --apu-port1-flips' cell (an offset in work RAM, or -1). */
+static long port1_flips = -1;
+
 static uint8_t apu_loopback_read(void *ctx, uint8_t port)
 {
-    return ((Snes *)ctx)->apu.cpu_in[port & 3];
+    Snes *s = ctx;
+    uint8_t v = s->apu.cpu_in[port & 3];
+    if ((port & 3) == 1 && port1_flips >= 0) {
+        uint8_t *flips = &s->bus.wram[port1_flips];
+        if (*flips & 1)
+            v ^= 0x80;
+        *flips >>= 1;
+    }
+    return v;
 }
 
 int main(int argc, char **argv)
@@ -152,6 +170,14 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--apu-loopback")) {
             apu_loopback = true;
+            continue;
+        }
+        if (!strcmp(a, "--apu-port1-flips") && v) {
+            unsigned long at = strtoul(v, NULL, 16);
+            if (at < 0x7E0000 || at >= 0x7E0000 + SNES_WRAM_SIZE)
+                goto usage;
+            port1_flips = (long)(at - 0x7E0000);
+            i++;
             continue;
         }
         if (!strcmp(a, "--poison-dc")) {
@@ -256,7 +282,7 @@ int main(int argc, char **argv)
 usage:
     fprintf(stderr, "usage: ct_fuzz --rom <rom> --routine <name|BBAAAA> [--load-state f] [--iterations N] "
                     "[--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
-                    "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
+                    "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback [--apu-port1-flips BBAAAA]] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]...\n"
                     "  [--details N]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "

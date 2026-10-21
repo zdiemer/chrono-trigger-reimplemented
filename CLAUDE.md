@@ -72,7 +72,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `--calibrate game/registry.c --drifted`, which rewrites only the entries a new movie moved; docs/REIMPLEMENTATION.md, "The
   timing gate"); no video write in the shipping mode (`--generated on`, `ct_play`'s default) lands on the
   picture where the reference's doesn't, or it is in `tools/vblank_check_exceptions.txt`
-  (`tools/vblank_check.py`); the route scripts reach their outcomes in the shipping mode, with the C
+  (`tools/vblank_check.py`, whose shipping runs also play the C sound driver in lockstep beside the
+  original's, so the CPU half's waits for the SPC700, made where the port stands, are checked there); the route scripts reach their outcomes in the shipping mode, with the C
   sound driver that ships (`tools/movies/route_check.py`, `ct_drive --sound-driver c`; the suite runs
   the fast route, `--long-routes` all of them, which is worth doing before a change to timing or to
   the native runtime lands); the C sound driver matches the original's at every tick of every movie

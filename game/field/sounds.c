@@ -60,10 +60,10 @@ void field_play_the_chest_sound(GameState *g, Platform *pf) { play_at_the_leader
 /* ---- The music round a battle ------------------------------------------------------------------- */
 
 /* The set of effects the driver loads with the next song (the CPU half's
- * cell beside the command, sound_driver_2f00_set): the battle's or the
+ * cell beside the command, sound_driver_effects_asked): the battle's or the
  * field's. */
 enum { FIELD_EFFECTS = 0x00, BATTLE_EFFECTS = 0xFF };
-static void ask_for_effects(GameState *g, uint8_t set) { set_sound_driver_2f00_set(g, set); }
+static void ask_for_effects(GameState *g, uint8_t set) { set_sound_driver_effects_asked(g, set); }
 
 /* The song a lost battle leaves the field with. */
 enum { LOST_SONG = 0x26 };

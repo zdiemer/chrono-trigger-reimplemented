@@ -12,7 +12,7 @@
  *          [--page-report] [--event-reads out.txt] [--sound-lockstep [out.txt]]
  *          [--sound-lockstep-level status|keys|dsp|state] [--sound-lockstep-audio exact|host]
  *          [--sound-lockstep-wav prefix] [--sound-driver original|c] [--mixer dsp|native|check]
- *          [--scaffold-reads [original]] [--fallbacks out.txt]
+ *          [--scaffold-reads [original]] [--fallbacks out.txt] [--apu-port-margins]
  *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC]
  *          [--index-check BBAAAA]...
  *
@@ -119,6 +119,10 @@
  * ports stand for isn't counted, so a movie measures its own play, the same
  * whatever the ports' timing (the gate's ratchet); in the shipping mode it
  * measures where the run went. tools/fallbacks.py reads the file.
+ * --apu-port-margins prints, at the end, how long after the SPC700 read a
+ * message's last two bytes (ports 2-3, after its echo) the CPU's next ones
+ * came, the least and their histogram, and how many came before it read them
+ * (dev/apu_margins.h): the margin the CPU half's waits leave its late reads.
  * Every run also prints a `halted:` line if the machine ended stopped (STP, or
  * without the interpreter at an instruction nothing runs), which the gate's
  * native-shape check fails on.
@@ -148,6 +152,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "apu_margins.h"
 #include "event_reads.h"
 #include "fallbacks.h"
 #include "io_log.h"
@@ -510,7 +515,7 @@ int main(int argc, char **argv)
     const char *zst_path = NULL, *vid_check_path = NULL, *px_check_path = NULL;
     const char *spc_coverage_path = NULL, *dsp_log_path = NULL, *event_reads_path = NULL;
     const char *lockstep_path = NULL, *fallbacks_path = NULL;
-    bool want_vid_check = false, want_px_check = false, want_lockstep = false;
+    bool want_vid_check = false, want_px_check = false, want_lockstep = false, want_margins = false;
     SoundCompareLevel lockstep_level = SOUND_COMPARE_DSP;
     int audio_timing = -1;
     const char *audio_wav = NULL;
@@ -557,6 +562,10 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--sound-lockstep") && (!v || v[0] == '-')) {
             want_lockstep = true;
+            continue;
+        }
+        if (!strcmp(a, "--apu-port-margins")) {
+            want_margins = true;
             continue;
         }
         if (!v) {
@@ -707,7 +716,7 @@ int main(int argc, char **argv)
                         "[--timing-report] [--page-report] [--event-reads out.txt] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
-                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
+                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--apu-port-margins] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
                         "[--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]...\n");
         return 2;
     }
@@ -749,6 +758,8 @@ int main(int argc, char **argv)
     snes.on_frame_top = on_frame_top;
     snes.on_line_ctx = &renderer;
     snes_power_on(&snes);
+    if (want_margins)
+        apu_margins_attach(&snes);
     static char found_sram[1024];
     if (movie.has_sram && !sram_path) {
         if (ct_sram_find(movie.sram_crc, movie_path, rom_path, found_sram, sizeof found_sram) == 0) {
@@ -1125,6 +1136,8 @@ int main(int argc, char **argv)
     }
     if (spc.lockstep && !sound_lockstep_report(spc.lockstep, lockstep_path, stderr))
         rc = 1;
+    if (want_margins)
+        apu_margins_report(stderr);
     if (sound_audio) {
         sound_audio_report(sound_audio, stderr);
         sound_audio_destroy(sound_audio);

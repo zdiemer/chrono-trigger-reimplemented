@@ -10400,3 +10400,134 @@ waits and turn's end, and the Epoch again). The defeat and
 the Day of Lavos's two, with one or two stretches each, take what those
 calibrate to (2,464, 30,988 and 4,408); the fast drift calibrates to the
 drift's own value (2,766). No exception.
+
+## Phase 4a, the shipping mode's fallbacks, chunk 6: the field's and the battle's line handlers whole, the fallback measure's waits and task switches, the endings' rider and the lists' cursor (`$C0:ECCC`-`$C0:ED13`, `$D1:FE97`-`$D1:FEF3`, `$7E:3A92`-`$7E:3B47`, `$C2:EA53`-`$C2:EA80`)
+
+The field's, the battle's, the menus' and the scene program's streams together
+("Phase 4a, the shipping mode's fallbacks, chunk 5", above, for the one
+before), chosen this time by what the **reference play** still ran as the
+original, the shipping mode's count being down to 0.30 M.
+
+**How it was chosen.** The last gate's reference play ran 12.82 M instructions
+of the original's code. Past the sound driver (4.1 M, which PLAN.md keeps for
+the audio work) its largest lines were the field's frame wait
+(`C0:00BA`, 2.50 M), the battle's line handler (`D1:FE97`, 1.32 M), the menus'
+code with no call on record (`C2:----`, 1.45 M), the field's line handler
+(`C0:ECCC`, 0.65 M) and the sprite-object mode's frame wait (`C2:046E`,
+0.16 M). Taken apart by address, none was code a port lacked:
+- `C0:00BA` was the field's frame wait's loop (`$C0:EC71`), an idle entry,
+  counted three passes a frame where the measure means to count one (the
+  pass that leaves), and the field's line handler's exit (`$C0:ED0F`-`$C0:ED13`,
+  1.04 M), which its tail's port, entered after the handler's pushes, left
+  to the original from its first pull, where S rose above its entry;
+- `C0:ECCC` and `D1:FE97` were the line handlers' waits for their line's
+  hblank, idle entries, the pass that leaves each;
+- `C2:----` was 1.08 M of the menus' switch into the next task
+  (`$C2:8209`-`$C2:8215`), which the scheduler's ports do, counted from the
+  switch on because a comparison's extent ended where S rose onto the next
+  task's stack.
+The shipping leftovers TODO.md listed came after: the swept window's rider
+(`$7E:3A97`, 46 K in both counts) and the lists' cursor (`$C2:EA53`). The
+healing's digits and `$C2:A518`, `$C2:A7B7`, `$C2:A970` turned out to be C
+already (below).
+
+**The measure.** Two fixes to `dev/fallbacks.c`, each making it count what
+its definition says (above, "The fallback measure"):
+- a wait loop's pass that an interrupt cuts is kept aside while the handler
+  runs (the handler's own idle loops have passes of their own) and goes on
+  where the handler returns to it, so it is taken back when it comes round,
+  as an uncut pass is; the field's frame wait now counts exactly its frames'
+  leaving passes (5,494 over `field`, from 16,482);
+- a comparison's extent goes on across a switch of stacks (S rising further in
+  a step than an instruction pulls) until the runtime says the comparison is
+  over, as an interrupt entry's already did.
+
+**The line handlers whole.** The field's (`$C0:ECCC`) and the battle's
+(`$D1:FE97`) line handlers were each a head that stopped at the wait for
+the line's hblank, an idle entry on `tm_snes_video_status`, and a tail from
+the wait's exit. Each is one port now, from the interrupt to its `RTI`, as
+the menus' vblank handler became one in chunk 2: the line is let be drawn
+through a new timing call, `tm_wait_line_drawn` (PLATFORM.md, "Timing without
+a beam, as built"), then the picture ends and the time to vblank goes to the
+frame's job. The SNES backend waits through `native_wait_loop` with a new
+wake, `NATIVE_WAKE_HBLANK`: in the shipping mode the machine steps where the
+port stands to the hblank's start and then lets a pass of the shortest such
+loop go by (`IDLE_EXIT_CLOCKS`, as an idle entry's exit does), and where it
+found the blank begun later than that (the line's HDMA holding the processor
+into it) still the pass's tail after its read, the `AND #` and the `BEQ`
+(`POLL_TAIL_CLOCKS`, 24), so the forced blank lands no earlier than the
+original's could and the picture's last line stays whole; in shadow mode the original's loop runs and the port goes on at its
+exit. A host has nothing to wait for. The field's job on its even frames,
+the dialog's pointer and the changed tiles (`$C0:ED15`), and the battle's,
+the alternating frame (`$D1:FE4C`), run as C timed as their own, where they
+were jumps into their entries through the machine. The handlers keep their
+stack, so their comparisons end at the `RTI` without the interrupt flag.
+`ct_fuzz --line-handler` raises the line interrupt and puts the line in its
+hblank, as a line handler finds the machine (nothing advances time there).
+
+**The rider and the lists' cursor.** The program's sprite list with signed
+offsets (`$7E:3A97`, `scene/sprites.c`, `scene_draw_signed_sprite_list`):
+each sprite's X and Y a signed offset from the scene's whole-word offsets, its
+size a bit of its attributes that isn't kept; a sprite left of the picture
+shows with X's 9th bit, one at or past the right edge goes below the
+picture, small, its X left as it was, and one above or below the picture goes
+below it. The swept window's task draws the rider with it as C; the entry
+stays for the program's four other callers, which no movie reaches. The
+lists' cursor (`$C2:EA53`, `menu/lists.c`, `menu_keep_the_cursor_on_the_list`):
+a list that scrolls leaves the cursor to its screen, which scrolls where the
+push took it past the rows, and keeps a held Start repeating fast; a list that
+doesn't wraps the cursor round its places. The four screens' steps run it as
+C, and what the original leaves its callers, the push or the page in A and
+N, is scaffolding worked out from the state (`menu_leave_cursor_kept_on_the_list`).
+The fast repeat's request is one function for the three screens that ask it
+(`menu_ask_for_a_fast_repeat`).
+
+**What it found and left.** The healing's rising numbers (`$C2:9093`) and the
+equipment screen's slides (`$C2:A518`, `$C2:A7B7`, `$C2:A970`) are C, but a
+wait for the next frame in the middle of a step is a call-out to the task
+switch, whose callee moves to the next task's stack; where that lies above the
+yielding task's, the runtime takes it for the callee unwinding past its return
+and abandons the port, in both modes, and the original runs the rest of the
+step when the task goes on (`menu_raise_amount_kind` abandoned 6 of 6 over
+`menus-field-menu`). Keeping such a call-out means knowing when the task will
+never go on, or a routine stays suspended for good: TODO.md. The field's and
+the sprite-object mode's frame waits stay idle entries, though the battle's
+waits wait inside their ports: the main thread is in its wait at nearly every
+frame end there, and a port waiting inside would hold a routine suspended
+across each, which ct_drive's bases and ct_play's saves can't hold (TODO.md).
+
+**What shadow mode and fuzzing found.** Over the 36 movies, 0 mismatching:
+the field's line handler 217,911 calls, the battle's 440,647 (1 interrupted),
+the rider's list 112 and the swept window's task 785, the lists' cursor 6,405
+on its own inside the screens' steps; its five call sites' stretches compare
+the rest. The battle's handler first mismatched at its call to the
+alternating frame on A's high byte, which the original's wait leaves 0 and
+the port's own wait doesn't: run as C, there is no call to compare. The
+rider's list first left the work RAM port's bank byte as 0 where the routine
+writes `$7E`. **Fuzzing** (seed 1, `tools/fuzz_routines.toml`), 0 mismatching:
+the field's line handler 20,000 (half of them the field's own, the rest the
+handler handing back), the battle's 20,000; the rider's list 11,247 of 20,000
+and loosely 5,600 (the guard refuses the rest); the lists' cursor 19,982 of
+20,000, the rest a list whose last place is before its first, which the
+original wraps round for ever and the port ends.
+
+**Measured.** The reference play: 7.33 M from 12.82 M over the 36 movies, 13.6 KiB from 14.0 KiB: the field's frame wait 0.63 M, its leaving passes alone (from 2.50 M), its line handler's and the battle's lines gone (0.65 M and 1.32 M), `C2:----` 0.34 M (from 1.45 M), the sprite-object mode's wait 95 K (from 0.16 M), and the rider's and the lists' cursor's lines gone; the baseline takes the gain with no new line. The shipping mode over the movies:
+4.6 KiB of code and 0.18 M instructions in place of hand ports, from 0.21 M; over the routes, counted over the frames they keep, 0.04 M from 0.09 M; together 0.23 M from 0.30 M. What leads now is the menus' steps' rest after a mid-step wait (`C2:----` 64 K, `C2:9093` 29 K, `C2:A518`, `C2:A7B7`, `C2:A970`), the attract program's frame tasks (`7E:66B0`, `7E:63D5`, `7E:64BF`) and the first script step's tail (`7E:3749`).
+No refusal in real play; the native shape runs all 36 movies and reaches all
+ten routes' outcomes. `--misses` lists nothing and `--px-check` reports every
+frame identical over `field`, `gato-battle`, `menus-field-menu`, `menus-shop-equip` and `endings-beyond-time`. The vblank check found the field's forced blank
+a line late on 6% of its frames where the hblank was seen behind the line's
+HDMA and the whole exit pass added on top; charging only the pass's tail
+there, it lands on the reference's line in every frame. The battle's late one behind the masked
+frame work keeps its exception, now under `battle_irq`.
+
+**Timing.** Calibrated (`--drifted`): the line handlers (the field's 3,356,
+the battle's 4,076), the rider's list 8,904 and the swept window's task
+94,416, the lists' cursor 3,188, and the screens' steps that run the cursor
+as C (the equipment list's pointing 5,163, its item choice 16,184, the
+shop's choices, the items' list and picked item, the techs' members).
+One exception (`tools/timing_exceptions.txt`): the swept window's task's
+worst stretch, 64,755 clocks once in 785 (the limit 50,468), its window's
+work as unevenly timed as before but its stretch no longer split at the
+rider's call; and the techs' choosing's vblank-tail exception goes, within
+its limit now.

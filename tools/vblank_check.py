@@ -12,6 +12,12 @@ $420C, transfer bytes included) by who made it and when it landed: on a
 vblank line, on a picture line in forced blank, or on a picture line with the
 display on (dev/io_log.c; docs/REIMPLEMENTATION.md, "Where video writes land").
 
+The shipping run also plays the C sound driver in lockstep beside the
+original's (`--sound-lockstep --sound-lockstep-level state`): the sound
+driver's CPU half waits for the SPC700 where the port stands there, and an
+upload whose messages reach the ports too soon parts the two drivers, which
+fails the run (docs/SOUND.md, "In the gate").
+
 The two runs desync after a few dozen frames, so this is not a frame-by-frame
 diff. It compares, per routine and register group, *when* each run writes: a
 finding is something the shipping mode does that the same routine never does
@@ -394,8 +400,13 @@ def report(per_movie, routines, exceptions, out=sys.stdout, show_info=True):
 
 def run_one(binary, rom, out, name, path, frames, mode):
     # The shipping mode's run also notes the ports' reads of scaffolding, which
-    # tools/effects_check.py --runs reads from its log.
-    extra = {"ref": ["--generated", "only"], "ship": ["--generated", "on", "--scaffold-reads"]}[mode]
+    # tools/effects_check.py --runs reads from its log, and plays the C sound
+    # driver in lockstep beside the original's: the CPU half's uploads wait on
+    # the SPC700 where the port stands there, and a message's bytes that reached
+    # the ports before the SPC700 had read the last one's would part the two
+    # drivers (ct_dev then exits 1).
+    extra = {"ref": ["--generated", "only"],
+             "ship": ["--generated", "on", "--scaffold-reads", "--sound-lockstep", "--sound-lockstep-level", "state"]}[mode]
     cmd = [str(binary), "--rom", str(rom), "--movie", str(path), "--frames", str(frames),
            "--native", "on", "--io-log", str(out / ("%s-%s.txt" % (name, mode)))] + extra
     started = time.time()

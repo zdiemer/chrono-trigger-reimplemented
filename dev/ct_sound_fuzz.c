@@ -268,8 +268,8 @@ enum { LOAD = 0xFE };
 static bool switch_effect_set(uint8_t set)
 {
     effect_set = set;
-    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_2F00_SET)] = set;
-    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_2F00_SET_SENT)] = set;
+    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_EFFECTS_ASKED)] = set;
+    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_EFFECTS_SENT)] = set;
     if (!send_command(LOAD, 0, 0, 0))
         return false;
     Upload u = { (LOAD + 1) & 0x7F, true };
@@ -322,17 +322,16 @@ static void start_driver(void)
         return;
     }
     for (uint8_t k = 0; k < SOUND_BOOT_BLOCKS; k++) {
-        uint32_t at = sound_boot_block(&snes, (uint16_t)(2 * k));
-        uint16_t length = sound_data_length(&snes, at), to = sound_boot_block_destination(&snes, (uint16_t)(2 * k));
+        uint16_t length = sound_boot_block_length(game(), k), to = sound_boot_block_to(game(), k);
         for (uint16_t i = 0; i < length; i++)
-            a->ram[(uint16_t)(to + i)] = sound_data_byte(&snes, at + 2 + i);
+            a->ram[(uint16_t)(to + i)] = sound_boot_block_byte(game(), k, i);
     }
     a->phase = APU_DRIVER;
     a->spc.pc = 0x0200;
     a->spc.sp = 0xEF;
     a->spc.psw = SPC_FLAG_Z;
-    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_2F00_SET)] = 0;
-    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_2F00_SET_SENT)] = 0;
+    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_EFFECTS_ASKED)] = 0;
+    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_EFFECTS_SENT)] = 0;
     run(20 * FRAME_CLOCKS);
     effect_count = count_effects();
 }
@@ -576,7 +575,7 @@ static void make_song(uint8_t song)
 static bool one_command(void)
 {
     uint32_t r = below(1000);
-    uint8_t songs = sound_song_count(&snes);
+    uint8_t songs = sound_songs(game());
     if (r < 110) {
         static const uint8_t song_commands[] = { 0x10, 0x11, 0x14, 0x15 };
         uint8_t command = song_commands[below(4)];
@@ -590,8 +589,8 @@ static bool one_command(void)
                 song ^= 1;
             make_song(song);
         }
-        uint8_t volume = below(4) ? sound_song_parameter(&snes, song) : (uint8_t)next();
-        uint8_t echo = below(4) ? (uint8_t)(sound_song_reserve(&snes, song) & 0x0F) : (uint8_t)below(8);
+        uint8_t volume = below(4) ? sound_song_volume(game(), song) : (uint8_t)next();
+        uint8_t echo = below(4) ? sound_song_echo_delay(game(), song) : (uint8_t)below(8);
         note("song", command, song, volume, echo);
         bool ok;
         if (hosted) {
@@ -601,8 +600,8 @@ static bool one_command(void)
              * (with another, they can lie where the echo writes, in the
              * original as here) */
             refused = false;
-            uint8_t own_echo = (uint8_t)(sound_song_reserve(&snes, song) & 0x0F);
-            if (volume == sound_song_parameter(&snes, song))
+            uint8_t own_echo = sound_song_echo_delay(game(), song);
+            if (volume == sound_song_volume(game(), song))
                 ok = game_command(command, song, 0, 0);
             else
                 ok = send_command(command, song, volume, own_echo);

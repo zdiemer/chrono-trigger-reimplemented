@@ -47,6 +47,12 @@ void au_direct_call(Snes *s, uint32_t site, uint32_t target);
  * bus clocks) pass on the APU, ahead of the machine. */
 void au_direct_pass(Snes *s);
 
+/* Inside a run: a port's wait on port 0 (`wake`, native_wake_port0_shows or
+ * _leaves): the APU runs ahead a pass of `pass_clocks` at a time until port 0
+ * satisfies it, the run is given up, or (where `passes` isn't 0) that many
+ * passes have gone by. True where port 0 satisfied it. */
+bool au_direct_wait_port0(Snes *s, int32_t wake, uint32_t passes, uint32_t pass_clocks);
+
 /* Host side: stereo frames at 32000 Hz, the ones buffered during runs first. */
 size_t au_direct_take_samples(Snes *s, int16_t *out, size_t max_frames);
 

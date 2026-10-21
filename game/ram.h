@@ -219,9 +219,10 @@
  * upload and the boot store $E0 here, and the driver ignores every command while bit 7 is clear */
 #define RAM_SOUND_DRIVER_SONG 0x7E1E05u
 #define RAM_SOUND_DRIVER_SONG_DP 0x05u       /* page sound */
-/* Cleared before play_song loads blocks; nothing in the game reads it */
-#define RAM_SOUND_DRIVER_UNUSED_0A 0x7E1E0Au
-#define RAM_SOUND_DRIVER_UNUSED_0A_DP 0x0Au  /* page sound */
+/* Zeroed as a song's missing blocks start to load ($C7:0328), and by nothing else; nothing in
+ * the game reads it */
+#define RAM_SOUND_DRIVER_ZEROED_AS_BLOCKS_LOAD 0x7E1E0Au
+#define RAM_SOUND_DRIVER_ZEROED_AS_BLOCKS_LOAD_DP 0x0Au /* page sound */
 /* The driver's work word: the length of the resource being uploaded (the end offset of a boot
  * block), or, while play_song sorts slots, how far the used slots reach, the first free slot,
  * and whether a block move has been answered [2 bytes] */
@@ -231,30 +232,46 @@
  * counts to [2 bytes] */
 #define RAM_SOUND_DRIVER_SONG_IDS_END 0x7E1E0Eu
 #define RAM_SOUND_DRIVER_SONG_IDS_END_DP 0x0Eu /* page sound */
-/* Which of the two data sets goes to SPC700 address $2F00: zero the one at $C7:430B, nonzero the
- * one at $C7:5B0D (command $70 sets it from whether its parameter is nonzero) */
-#define RAM_SOUND_DRIVER_2F00_SET 0x7E1E10u
-#define RAM_SOUND_DRIVER_2F00_SET_DP 0x10u   /* page sound */
-/* The $2F00 data set last asked for, to tell when it changes */
-#define RAM_SOUND_DRIVER_2F00_SET_SENT 0x7E1E11u
-#define RAM_SOUND_DRIVER_2F00_SET_SENT_DP 0x11u /* page sound */
+/* Which set of sound effects the game asks the driver to have at SPC700 $2F00: zero the field's
+ * (at $C7:4309, which the boot also sends), nonzero the battle's ($C7:5B0B). The field sets it
+ * before some songs; command $70 sets it from whether its parameter is nonzero */
+#define RAM_SOUND_DRIVER_EFFECTS_ASKED 0x7E1E10u
+#define RAM_SOUND_DRIVER_EFFECTS_ASKED_DP 0x10u /* page sound */
+/* The set of sound effects the driver was last sent (0 or 1), to tell when the one asked for
+ * differs */
+#define RAM_SOUND_DRIVER_EFFECTS_SENT 0x7E1E11u
+#define RAM_SOUND_DRIVER_EFFECTS_SENT_DP 0x11u /* page sound */
 /* Long pointer to the data being uploaded to the SPC700; for resources from a table the low word
- * is 0 and the offset is in Y. While play_song sorts a song's ids its first word and the word
- * after it ($1E14-$1E15) are pointers into the two id lists, and build_address_table leaves its
- * first word past the $1F80 table [3 bytes] */
+ * is 0 and the offset is in Y. While blocks_of sorts a song's blocks its first word and the word
+ * after it ($1E14-$1E15) are pointers into the two lists, and send_directory leaves its first
+ * word past the directory's entries ($1F80) [3 bytes] */
 #define RAM_SOUND_DRIVER_DATA_POINTER 0x7E1E12u
 #define RAM_SOUND_DRIVER_DATA_POINTER_DP 0x12u /* page sound */
+/* While play_song sorts a song's blocks into its two lists, where each list has got to [2 x $2
+ * bytes, by list: 0 the song's blocks ($1F00), 1 those no slot holds ($1F20)] */
+#define RAM_SOUND_DRIVER_LIST_ENDS 0x7E1E12u
+#define RAM_SOUND_DRIVER_LIST_ENDS_COUNT 2u
+#define RAM_SOUND_DRIVER_LIST_ENDS_STRIDE 0x02u
+#define RAM_SOUND_DRIVER_LIST_ENDS_DP 0x12u  /* page sound */
 /* The slot (times 2) whose block sound_driver_upload_block is uploading [2 bytes] */
 #define RAM_SOUND_DRIVER_LOAD_SLOT 0x7E1E1Cu
 #define RAM_SOUND_DRIVER_LOAD_SLOT_DP 0x1Cu  /* page sound */
 /* Position (times 2) in the list of missing block ids while their blocks are loaded [2 bytes] */
 #define RAM_SOUND_DRIVER_LOAD_INDEX 0x7E1E1Eu
 #define RAM_SOUND_DRIVER_LOAD_INDEX_DP 0x1Eu /* page sound */
-/* The block id loaded in each SPC700 memory slot, 0 for a free slot [16 x $2 bytes, by slot] */
+/* The block loaded in each SPC700 memory slot, 0 for a free slot: the low byte of the word the
+ * original keeps for it, blocks being numbered in a byte [16 x $2 bytes, by slot] */
 #define RAM_SOUND_DRIVER_SLOT_IDS 0x7E1E20u
 #define RAM_SOUND_DRIVER_SLOT_IDS_COUNT 16u
 #define RAM_SOUND_DRIVER_SLOT_IDS_STRIDE 0x02u
 #define RAM_SOUND_DRIVER_SLOT_IDS_DP 0x20u   /* page sound */
+/* The high byte of the word the original keeps for each slot's block: always 0, blocks being
+ * numbered in a byte (the original writes it, always a 0, with the low byte; the port leaves it
+ * alone); the command's guard turns away a state where one isn't [16 x $2 bytes, by slot] */
+#define RAM_SOUND_DRIVER_SLOT_IDS_HIGH 0x7E1E21u
+#define RAM_SOUND_DRIVER_SLOT_IDS_HIGH_COUNT 16u
+#define RAM_SOUND_DRIVER_SLOT_IDS_HIGH_STRIDE 0x02u
+#define RAM_SOUND_DRIVER_SLOT_IDS_HIGH_DP 0x21u /* page sound */
 /* The length of the block loaded in each slot [16 x $2 bytes, by slot] */
 #define RAM_SOUND_DRIVER_SLOT_LENGTHS 0x7E1E40u
 #define RAM_SOUND_DRIVER_SLOT_LENGTHS_COUNT 16u
@@ -274,38 +291,41 @@
  * waits for ($E0 at a block header) */
 #define RAM_SOUND_DRIVER_UPLOAD_COUNTER 0x7E1E84u
 #define RAM_SOUND_DRIVER_UPLOAD_COUNTER_DP 0x84u /* page sound */
-/* The kind upload_2f00_set sends in its header (5 for command $70, 3 otherwise), which the
- * SPC700 answers with */
+/* The kind upload_effects sends in its header (5 for command $70, 3 otherwise), which the SPC700
+ * answers with */
 #define RAM_SOUND_DRIVER_HEADER_KIND 0x7E1E86u
 #define RAM_SOUND_DRIVER_HEADER_KIND_DP 0x86u /* page sound */
-/* The value that sets the slot limit: blocks may not reach SPC700 page $F1 - 8 * it; set from a
- * song's table entry at $C7:241D or command $FC's parameter */
-#define RAM_SOUND_DRIVER_RESERVE 0x7E1EF0u
-#define RAM_SOUND_DRIVER_RESERVE_DP 0xF0u    /* page sound */
-/* Cleared at boot, after the reserve; nothing in the game reads it */
-#define RAM_SOUND_DRIVER_UNUSED_F1 0x7E1EF1u
-#define RAM_SOUND_DRIVER_UNUSED_F1_DP 0xF1u  /* page sound */
-/* High byte of the first SPC700 address blocks may not reach: slots from the first whose address
- * is at or above it are forgotten */
-#define RAM_SOUND_DRIVER_SLOT_LIMIT 0x7E1EF2u
-#define RAM_SOUND_DRIVER_SLOT_LIMIT_DP 0xF2u /* page sound */
-/* Nonzero while the data at SPC700 address $2F00 needs uploading (the $2F00 set changed, or a
- * song's sequence is $0F00 bytes or longer) */
-#define RAM_SOUND_DRIVER_2F00_PENDING 0x7E1EF3u
-#define RAM_SOUND_DRIVER_2F00_PENDING_DP 0xF3u /* page sound */
+/* The echo's delay the driver plays with, which is how much of the top of sound memory its
+ * buffer takes (2 KiB a unit, down from $F0FF): from a song's entry at $C7:241D, or command
+ * $FC's parameter */
+#define RAM_SOUND_DRIVER_ECHO_DELAY 0x7E1EF0u
+#define RAM_SOUND_DRIVER_ECHO_DELAY_DP 0xF0u /* page sound */
+/* Zeroed as the driver starts ($C7:0137), and by nothing else; nothing in the game reads it */
+#define RAM_SOUND_DRIVER_ZEROED_AT_BOOT 0x7E1EF1u
+#define RAM_SOUND_DRIVER_ZEROED_AT_BOOT_DP 0xF1u /* page sound */
+/* The page of sound memory where the echo's buffer starts ($F1 less 8 a unit of its delay): the
+ * slots from the first that ends at or past it are forgotten */
+#define RAM_SOUND_DRIVER_ECHO_PAGE 0x7E1EF2u
+#define RAM_SOUND_DRIVER_ECHO_PAGE_DP 0xF2u  /* page sound */
+/* Nonzero while the set of sound effects must go up again before the next song: the set asked
+ * for changed, or the last song's sequence ($0F00 bytes or more) ran into it (a count of the
+ * reasons) */
+#define RAM_SOUND_DRIVER_EFFECTS_DUE 0x7E1EF3u
+#define RAM_SOUND_DRIVER_EFFECTS_DUE_DP 0xF3u /* page sound */
 /* The SPC700 address after the last loaded block [2 bytes] */
 #define RAM_SOUND_DRIVER_FREE_ADDRESS 0x7E1EF6u
 #define RAM_SOUND_DRIVER_FREE_ADDRESS_DP 0xF6u /* page sound */
 /* The SPC700 address of the first slot, set when the driver starts [2 bytes] */
 #define RAM_SOUND_DRIVER_BASE_ADDRESS 0x7E1EF8u
 #define RAM_SOUND_DRIVER_BASE_ADDRESS_DP 0xF8u /* page sound */
-/* Set to $C700 at boot; nothing in the game reads it [2 bytes] */
-#define RAM_SOUND_DRIVER_UNUSED_FA 0x7E1EFAu
-#define RAM_SOUND_DRIVER_UNUSED_FA_DP 0xFAu  /* page sound */
-/* The slot (times 2) command $71 uploads its block into: the slot of the song's first block id,
- * less 2 [2 bytes] */
-#define RAM_SOUND_DRIVER_UPLOAD_SLOT 0x7E1EFCu
-#define RAM_SOUND_DRIVER_UPLOAD_SLOT_DP 0xFCu /* page sound */
+/* Set to $C700 at boot (the driver's bank in its high byte); nothing in the game reads it [2
+ * bytes] */
+#define RAM_SOUND_DRIVER_UNREAD_BANK_WORD 0x7E1EFAu
+#define RAM_SOUND_DRIVER_UNREAD_BANK_WORD_DP 0xFAu /* page sound */
+/* The slot (times 2) that holds the song's first sample (the last slot holding it), which
+ * command $71 loads another sample into [2 bytes] */
+#define RAM_SOUND_DRIVER_FIRST_SAMPLE_SLOT 0x7E1EFCu
+#define RAM_SOUND_DRIVER_FIRST_SAMPLE_SLOT_DP 0xFCu /* page sound */
 /* The block ids the song being loaded uses (from $C7:0E11, 16 per song) [16 x $2 bytes, by
  * entry; a 0 id ends the list] */
 #define RAM_SOUND_DRIVER_SONG_IDS 0x7E1F00u

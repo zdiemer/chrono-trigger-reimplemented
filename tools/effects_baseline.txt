@@ -115,6 +115,7 @@ game/battle/window.h battle_work16 battle_work[0] battle_work only # the entries
 game/battle/window.h battle_work16 battle_work[1] battle_work only # the entries' operands: the original's callers put them there first, every call
 game/battle/window_leaves.c party_status_carry battle_digits[3] battle_digits
 game/core/memory.c memory_move_stub menu_block_move_stub menu_block_move_stub only                            # the stub's own port reads the banks its caller, the original's code, writes into it; the menus' block move writes the stub only for shadow mode and never calls it
+game/core/sound_driver.c sound_driver_upload_block sound_driver_load_slot sound_driver_load_slot only # the entry's operand: the original's caller ($C7:034F) puts the slot there before every call; the command's own upload, run as C, takes it as a parameter
 game/event/contact.c contact_is_one field_leader_contact_high field_leader_contact_high                       # a guard; the walk's search past the tables writes the contact in scaffolding (field/walk.c, stopped_past_the_tables), and its high byte 0 as the plain write before it does
 game/event/party.c event_member_back_to_the_leader field_leader_contact field_leader_contact                  # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
 game/event/script.h script_byte event_script_byte field_sprite_records

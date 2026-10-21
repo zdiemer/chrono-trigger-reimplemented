@@ -7,132 +7,58 @@
  * driver does with them. A build that loads the data from somewhere other than
  * the ROM image changes this file and nothing in the driver.
  *
- * The resources are located by their address in the ROM, and a resource's
- * bytes are read with sound_data_byte from that address on: the driver keeps
- * its upload position in work RAM as a long pointer
- * (RAM_SOUND_DRIVER_DATA_POINTER), which the game can see, so the address is
- * the one piece of the ROM's layout the driver itself still carries. */
+ * They take the game's state as the handle to the cartridge (rom.h). */
 #ifndef CT_GAME_CORE_SOUND_DATA_H
 #define CT_GAME_CORE_SOUND_DATA_H
 
-#include "port/machine.h"
+#include <stdbool.h>
+
 #include "rom.h"
 
-/* A byte of any of the resources below, at `at`. */
-static inline uint8_t sound_data_byte(Snes *s, uint32_t at) { return m_read8(s, at & 0xFFFFFF); }
-
-/* A resource's 16-bit length prefix: the blocks, the songs, the $2F00 sets and
- * the boot blocks all start with one. */
-static inline uint16_t sound_data_length(Snes *s, uint32_t at)
+/* A resource's bytes, which the CPU half sends in order, three a message (a
+ * block, a song's sequence, a set of effects, a song's percussion): found
+ * once, by the resource's own accessor below, and read by index. The ROM
+ * build's handle is where they are in the cartridge, which only the CPU
+ * half's scaffolding asks for (sound_bytes_place): the original reads them
+ * through a long pointer in work RAM, which shadow mode compares, and sends
+ * data that runs into the next bank from a loop of its own. */
+typedef struct {
+    uint32_t at;
+} SoundBytes;
+static inline uint8_t sound_bytes_byte(const GameState *g, SoundBytes b, uint16_t i) { return rom_read8(g, b.at + i); }
+static inline uint32_t sound_bytes_place(SoundBytes b) { return b.at; }
+/* Whether byte `i` starts one of the cartridge's banks; and whether `length`
+ * bytes from `i` reach the end of the bank they start in. */
+static inline bool sound_bytes_start_a_bank(SoundBytes b, uint16_t i) { return (uint16_t)(b.at + i) == 0; }
+static inline bool sound_bytes_reach_a_banks_end(SoundBytes b, uint16_t i, uint16_t length)
 {
-    return (uint16_t)(sound_data_byte(s, at) | sound_data_byte(s, at + 1) << 8);
+    return (uint32_t)(uint16_t)(b.at + i) + length > 0xFFFFu;
 }
-
-/* ---- The boot upload ($C7:0000) -------------------------------------------------- */
 
 /* The SPC700 driver goes up in six blocks: block k is at $C7:(the word at
  * $C7:0010 + 2k), a length and that many bytes, for SPC700 address (the word
  * at $C7:001C + 2k). The driver's code is block 0, at $0200; block 1 is the
- * first of the two $2F00 sets below. `at` is the original's index, 2k. */
+ * first of the two $2F00 sets below. (Their accessors are below, with what the
+ * sound driver itself loads.) */
 enum { SOUND_BOOT_BLOCKS = 6 };
-static inline uint32_t sound_boot_block(Snes *s, uint16_t at) { return 0xC70000u | m_read16(s, 0xC70010u + at); }
-static inline uint16_t sound_boot_block_destination(Snes *s, uint16_t at) { return m_read16(s, 0xC7001Cu + at); }
-
-/* The length of boot block 2, which goes to SPC700 address $4700: the blocks
- * the songs load are placed after it. Read where the boot reads it, from the
- * block's own length prefix. */
-enum { SOUND_BOOT_BLOCK_2_DESTINATION = 0x4700 };
-static inline uint16_t sound_boot_block_2_length(Snes *s) { return m_read16(s, 0xC740B4u); }
-
-/* ---- Commands ---------------------------------------------------------------------- */
-
-/* Commands $30-$3F stand for four bytes each, a command and its three
- * parameters, from the table at $C7:0A98 (in this ROM: command $10, song
- * $00-$0F, $FF, $FF). */
-static inline uint16_t sound_shortcut_command_word(Snes *s, uint8_t n, uint8_t half)
-{
-    return m_read16(s, 0xC70A98u + 4u * n + 2u * half);
-}
-
-/* The songs whose command gets bit 2 set ($C7:0AD8, ended by a negative byte;
- * empty in this ROM). */
-static inline uint8_t sound_marked_song(Snes *s, uint16_t i) { return m_read8(s, 0xC70AD8u + i); }
-
-/* ---- Songs -------------------------------------------------------------------------- */
-
-/* How many songs there are (the byte at $C7:0AE9: 83). */
-static inline uint8_t sound_song_count(Snes *s) { return m_read8(s, 0xC70AE9u); }
-
-/* song_ptrs ($C7:0D18, 83 entries): where song `song`'s sequence is, a length
- * and the data, which goes to SPC700 address $2000. */
-static inline uint32_t sound_song(Snes *s, uint8_t song)
-{
-    uint32_t at = 0xC70D18u + 3u * song;
-    return m_read16(s, at) | (uint32_t)m_read8(s, at + 2) << 16;
-}
-
-/* The 16 block ids song `song` uses ($C7:0E11, 16 words per song; a 0 ends the
- * list). The index is the original's: word `i` past the song's first, which a
- * caller may take outside the song's 16 (the refused-move path starts one song
- * on and counts down). */
-static inline uint16_t sound_song_block_id(Snes *s, uint8_t song, int16_t i)
-{
-    return m_read16(s, 0xC70E11u + 32u * song + (uint32_t)(int32_t)(2 * i));
-}
-
-/* Two bytes per song ($C7:241D, indexed by the song's low 7 bits): the low
- * nibble of the first is how much SPC700 memory the song keeps for itself at
- * the top (sound_driver.c, set_reserve), the second a parameter sent with the
- * song's command. */
-static inline uint8_t sound_song_reserve(Snes *s, uint8_t song) { return m_read8(s, 0xC7241Du + 2u * (song & 0x7F)); }
-static inline uint8_t sound_song_parameter(Snes *s, uint8_t song)
-{
-    return m_read8(s, 0xC7241Eu + 2u * (song & 0x7F));
-}
 
 /* Song `song`'s percussion: 12 three-byte entries (an instrument, a note and
  * a pan) for SPC700 address $F120, 36 bytes a song from $C7:1871. A track in
  * percussion mode plays its notes' pitch as an index into them
  * (game/sound/sequencer.c). */
 enum { SOUND_PERCUSSION_ENTRIES = 12, SOUND_PERCUSSION_ENTRY_BYTES = 3 };
-static inline uint32_t sound_song_percussion_table(void) { return 0xC71871u; }
-
-/* ---- Blocks ------------------------------------------------------------------------- */
-
-/* sound_block_ptrs ($C7:0AEA, 62 entries): where block `id` (1-62) is, a length
- * and the data, which goes into one of the SPC700 memory slots. The index is
- * the original's 16-bit (id - 1) * 3, so an id of 0 reads before the table as
- * the original does. */
-static inline uint32_t sound_block(Snes *s, uint16_t id)
+static inline SoundBytes sound_song_percussion_bytes(uint8_t song)
 {
-    uint32_t at = 0xC70AEAu + (uint16_t)((id - 1) * 3);
-    return m_read16(s, at) | (uint32_t)m_read8(s, at + 2) << 16;
+    return (SoundBytes){ 0xC71871u + SOUND_PERCUSSION_ENTRIES * SOUND_PERCUSSION_ENTRY_BYTES * song };
 }
 
-/* One word per block id, from three tables that follow sound_block_ptrs: an
- * offset into the block that the driver adds to its slot's address for the
- * second word of its $1E80 entry, where the sample loops from ($C7:0BA4); and
- * the instrument the block's sample is, its tuning ($C7:0C20, to the SPC700's
- * table at $1F40) and its ADSR envelope ($C7:0C9C, to $1FC0). */
-static inline uint16_t sound_block_address_offset(Snes *s, uint16_t id)
-{
-    return m_read16(s, 0xC70BA4u + (uint16_t)((id - 1) * 2));
-}
-static inline uint16_t sound_block_tuning(Snes *s, uint16_t id)
-{
-    return m_read16(s, 0xC70C20u + (uint16_t)((id - 1) * 2));
-}
-static inline uint16_t sound_block_envelope(Snes *s, uint16_t id)
-{
-    return m_read16(s, 0xC70C9Cu + (uint16_t)((id - 1) * 2));
-}
+/* ---- The sets of sound effects ------------------------------------------------------- */
 
-/* ---- The $2F00 sets ----------------------------------------------------------------- */
-
-/* The two data sets for SPC700 address $2F00, each a length and the data: set 0
- * at $C7:4309 (also boot block 1), set 1 at $C7:5B0B. They are the sound
- * effects (game/sound/): a table of the effects' tracks, then the tracks. */
-static inline uint32_t sound_2f00_set(uint8_t set) { return set ? 0xC75B0Bu : 0xC74309u; }
+/* The two sets of sound effects, for SPC700 address $2F00, each a length and
+ * the data: the field's (0) at $C7:4309 (also boot block 1), the battle's (1)
+ * at $C7:5B0B: a table of the effects' tracks, then the tracks. */
+static inline uint32_t sound_effect_set_at(uint8_t set) { return set ? 0xC75B0Bu : 0xC74309u; }
+static inline SoundBytes sound_effect_set_bytes(uint8_t set) { return (SoundBytes){ sound_effect_set_at(set) + 2 }; }
 
 /* ---- What the sound driver itself loads (game/sound/) ------------------------------
  *
@@ -220,13 +146,18 @@ static inline uint8_t sound_song_byte(const GameState *g, uint8_t song, uint16_t
     uint32_t at = sound_song_at(g, song) + 2;
     return rom_read8(g, (at & 0xFF0000u) + (at & 0xFFFFu) + i);
 }
+static inline SoundBytes sound_song_sequence_bytes(const GameState *g, uint8_t song)
+{
+    return (SoundBytes){ sound_song_at(g, song) + 2 };
+}
 
 /* The song's instruments $20 on, the blocks its samples are (a 0 ends them;
- * the driver reads 16 all the same). */
+ * the driver reads 16 all the same). Blocks are numbered in a byte: the
+ * cartridge keeps a word each, its high byte 0. */
 enum { SOUND_SONG_INSTRUMENTS = 16, SOUND_FIRST_SONG_INSTRUMENT = 0x20 };
-static inline uint16_t sound_song_instrument_block(const GameState *g, uint8_t song, uint8_t i)
+static inline uint8_t sound_song_instrument_block(const GameState *g, uint8_t song, uint8_t i)
 {
-    return rom_read16(g, 0xC70E11u + 32u * song + 2u * i);
+    return (uint8_t)rom_read16(g, 0xC70E11u + 32u * song + 2u * i);
 }
 /* A block's instrument: its tuning and envelope. The index is the original's,
  * so block 0 (no block) reads the word before each table, as the CPU half
@@ -242,7 +173,7 @@ static inline uint16_t sound_instrument_envelope(const GameState *g, uint16_t bl
 
 static inline uint8_t sound_song_percussion_byte(const GameState *g, uint8_t song, uint8_t i)
 {
-    return rom_read8(g, sound_song_percussion_table() + SOUND_PERCUSSION_ENTRIES * SOUND_PERCUSSION_ENTRY_BYTES * song + i);
+    return sound_bytes_byte(g, sound_song_percussion_bytes(song), i);
 }
 
 /* ---- What the CPU half's commands read (game/sound/loads.c) ------------------------ */
@@ -278,6 +209,7 @@ static inline uint8_t sound_block_byte(const GameState *g, uint16_t id, uint16_t
 {
     return rom_read8(g, sound_block_data(g, id) + 2 + i);
 }
+static inline SoundBytes sound_block_bytes(const GameState *g, uint16_t id) { return (SoundBytes){ sound_block_data(g, id) + 2 }; }
 static inline uint16_t sound_block_loop(const GameState *g, uint16_t id)
 {
     return rom_read16(g, 0xC70BA4u + (uint16_t)((id - 1) * 2));
@@ -318,10 +250,10 @@ static inline SoundDirectoryEntry sound_boot_directory_entry(const GameState *g,
 
 /* A set of sound effects, as it goes to SPC700 $2F00. */
 enum { SOUND_EFFECT_SETS = 2 };
-static inline uint16_t sound_effect_set_length(const GameState *g, uint8_t set) { return rom_read16(g, sound_2f00_set(set)); }
+static inline uint16_t sound_effect_set_length(const GameState *g, uint8_t set) { return rom_read16(g, sound_effect_set_at(set)); }
 static inline uint8_t sound_effect_set_byte(const GameState *g, uint8_t set, uint16_t i)
 {
-    return rom_read8(g, sound_2f00_set(set) + 2 + i);
+    return rom_read8(g, sound_effect_set_at(set) + 2 + i);
 }
 
 #endif

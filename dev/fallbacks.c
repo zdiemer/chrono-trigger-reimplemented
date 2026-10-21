@@ -90,6 +90,16 @@ struct Fallbacks {
         Pass pass;
     } aside[PASSES_ASIDE];
     uint32_t serials;
+    /* The interrupt taken latest, while it hasn't returned: the S it was
+     * taken at and the extents under it, the interrupted code's. A handler
+     * that moves to a stack of its own (the menus' vblank handler) leaves
+     * them alone: S far above where it was taken is the handler's, not the
+     * interrupted code's having returned (handler_away). */
+    struct {
+        bool on;
+        uint16_t s;
+        int depth;
+    } interrupt;
     Count *slots;
     size_t cap, used;
     struct { uint32_t addr; const char *name; } *ports;   /* the events' ports' names */
@@ -156,6 +166,7 @@ void fallbacks_reset(Fallbacks *f)
     f->pending = false;
     f->pending_rti = false;
     f->pass.open = false;
+    f->interrupt.on = false;
     memset(f->aside, 0, sizeof f->aside);
 }
 
@@ -220,6 +231,21 @@ static void count_hidden(Fallbacks *f)
         }
 }
 
+/* The extents an interrupt's handler can't end: while it runs on a stack of
+ * its own, those under the interrupt (the frames below the depth returned),
+ * which go on when it returns; else none but the base. */
+static int handler_away(const Fallbacks *f, uint16_t s)
+{
+    return f->interrupt.on && s > f->interrupt.s + STACK_SPAN ? f->interrupt.depth : 1;
+}
+
+/* Back above where the interrupt was taken, on its stack: it has returned. */
+static void interrupt_returned_when_back(Fallbacks *f, uint16_t s)
+{
+    if (f->interrupt.on && s > f->interrupt.s && s <= f->interrupt.s + STACK_SPAN)
+        f->interrupt.on = false;
+}
+
 /* Extents the machine has left: S rose above where they began. Where it rose
  * further than an instruction pulls, the stack was switched (the menus' tasks
  * each run on a stack of their own), and a comparison's own stretch goes on
@@ -229,7 +255,9 @@ static void count_hidden(Fallbacks *f)
 static void leave_finished(Fallbacks *f, uint16_t s)
 {
     bool switched = s > f->last_s + MOST_A_STEP_PULLS;
-    while (f->depth > 1 && !f->frames[f->depth - 1].held && s > f->frames[f->depth - 1].floor) {
+    interrupt_returned_when_back(f, s);
+    int kept = handler_away(f, s);
+    while (f->depth > kept && !f->frames[f->depth - 1].held && s > f->frames[f->depth - 1].floor) {
         Frame *top = &f->frames[f->depth - 1];
         if (switched && top->kind == COVERED && top->name) {
             top->held = true;
@@ -254,6 +282,8 @@ static void leave_covered(Fallbacks *f, const NativeEntry *e)
     for (int i = f->depth - 1; i > 0; i--) {
         if (f->frames[i].kind == COVERED && f->frames[i].port == e->addr) {
             f->depth = i;
+            if (f->interrupt.depth > i)
+                f->interrupt.depth = i;
             return;
         }
     }
@@ -332,7 +362,8 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         f->pass.open = false;
 
     Frame eff = f->frames[f->depth - 1];
-    if (f->depth > 1 && !eff.held && eff.floor - sp > STACK_SPAN)
+    int away = handler_away(f, sp);
+    if (f->depth > 1 && !eff.held && (eff.floor - sp > STACK_SPAN || (away > 1 && f->depth <= away)))
         eff = (Frame){ .kind = UNPORTED, .routine = BANK_ONLY, .port = NO_PORT, .floor = sp };
     f->eff = eff;
     uint32_t routine = eff.routine == BANK_ONLY ? BANK_ONLY | (pc & 0xFF0000) : eff.routine;
@@ -375,6 +406,11 @@ CpuStep fallbacks_interpreter(Cpu *cpu)
     Fallbacks *f = current;
     if (f && kind == CPU_STEP_INTERRUPT && cpu == &f->s->cpu) {
         leave_finished(f, cpu->s);
+        if (!f->interrupt.on || handler_away(f, cpu->s) == 1) {
+            f->interrupt.on = true;
+            f->interrupt.s = cpu->s;
+            f->interrupt.depth = f->depth;
+        }
         put_the_pass_aside(f);
         enter(f, (Frame){ .kind = UNPORTED, .interrupt = true, .routine = cpu_pc24(cpu), .port = NO_PORT,
                           .floor = cpu->s });
@@ -504,7 +540,8 @@ static void on_entered(void *ctx, Snes *s, const NativeEntry *e)
     uint16_t sp = s->cpu.s;
     f->pass.open = false;
     leave_finished(f, sp);
-    while (f->depth > 1 && !f->frames[f->depth - 1].held && f->frames[f->depth - 1].start <= sp)
+    int kept = handler_away(f, sp);
+    while (f->depth > kept && !f->frames[f->depth - 1].held && f->frames[f->depth - 1].start <= sp)
         f->depth--;
     f->pending = false;
     f->pending_rti = false;

@@ -1,10 +1,12 @@
 /* The backings for game/cpu_io.h and game/rom.h while the game's state lives in
  * emulated work RAM: the multiplier and divider and the work RAM port, written
  * and read through the bus in bank 0 as the original's code reaches them, so
- * shadow mode and the fuzzer see the same register state; and the cartridge,
- * read on the bus. */
+ * shadow mode and the fuzzer see the same register state; the cartridge,
+ * read on the bus; and the time charged and the original's frames, kept by the
+ * runtime. */
 #include "charge.h"
 #include "cpu_io.h"
+#include "original_frame.h"
 #include "rom.h"
 #include "wram.h"
 
@@ -88,6 +90,10 @@ void charge_uncounted_end(GameState *g, uint32_t mark) { native_uncounted_end(st
 int charge_time_as_begin(GameState *g, uint32_t routine) { return native_time_as(state_snes(g), routine); }
 
 void charge_time_as_end(GameState *g, int was) { native_time_end(state_snes(g), was); }
+
+void original_frame_enter(GameState *g, uint16_t bytes) { native_frame_enter(state_snes(g), bytes); }
+
+void original_frame_leave(GameState *g, uint16_t bytes) { native_frame_leave(state_snes(g), bytes); }
 
 static uint32_t in_bank(uint32_t at, uint32_t offset) { return (at & 0xFF0000u) | (uint16_t)(at + offset); }
 
