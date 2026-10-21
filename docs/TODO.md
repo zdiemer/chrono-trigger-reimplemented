@@ -110,6 +110,28 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Phase 3a work in flight
 
+- **The carry chains kept by the owner's decision** (review-port item 12 lists
+  them, with the dates they were accepted). Each still rates a file down by the
+  rubric's letter and was kept because the original never clears the carry
+  between its adds, so the spilled bit moves something the player sees and
+  shadow mode and fuzzing compare it:
+  - `game/scene/stars.c` (star positions, already isolated in `sum_after`),
+    `race_rules.c`, `race_projection.c`, `race_camera.c`: the race's and the
+    star fields' positions;
+  - `game/scene/curtain.c`: the curtain's adds and subtracts that take in the
+    carry before them;
+  - `game/scene/random.c`: the add with the carry fed back in;
+  - `game/battle/screen_sides.c`, `screen_window.c`, `screen_motion.c`: a
+    window's edges and the screen's motion, a column off where the bit spills;
+  - `game/menu/epoch.c`'s `on_the_screen`: y from the subtraction's no-borrow;
+  - `game/field/line_effects.c`'s `fill_wave_scroll`.
+  The follow-up for each is item 12's own form: work out positions in plain
+  arithmetic and put the spilled bit in one named function per file that says
+  what the player sees (the off-by-one it causes), so the chain leaves the
+  routine's shape; `stars.c`'s `sum_after` is the model. Ask the owner before
+  starting: the decision to keep them stands until then. Natural times are when
+  a file is next reworked, or when the byte-exact gate retires and the
+  behaviour can be kept by the named function alone.
 - **What `tools/portsmell.py` found when it was written** (its baseline,
   `tools/portsmell_baseline.txt`, is the list; each line leaves it as the work
   lands):
