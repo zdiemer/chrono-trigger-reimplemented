@@ -449,6 +449,9 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `battle-golem-twins-gameover.ctm` | ctsave10, 3 | Delta Force, the Golems copying elements, Life revive, party wiped, game over back to the title (the sound driver restarts the SPC700 boot ROM) | 12969 |
 | `battle-lavos-gameover.ctm` | technoplaza ct-state16, 2 | New Game+ at the fair: the telepod's Gate to Lavos, the shell's fight lost with nobody acting, and the Day of Lavos that follows a loss to it: Lavos rising out of the 1999 A.D. world map, the operators' room, the 1000 A.D. world map laid back and turned in Mode 7 under the needles, and the globe behind "But... the future refused to change" (route `lavos_lost`) | 16192 |
 | `battle-tyrano-lair-walls.ctm` | ctsave08, 1 | Volcano and Avian Rex: Volt Bite, Haste, won with an item drop and a level-up | 8042 |
+| `battle-black-tyrano.ctm` | ctsave08, 1 | Tyrano Lair's throne room: Azala and the Black Tyrano beaten with Lapis and Mid Tonics, then Lavos falling to the planet (scene mode 4; route `black_tyrano`) | 49219 |
+| `battle-guardian.ctm` | ctsave02, 3 | Arris Dome: the Guardian and its Bits, which it brings back, beaten (route `guardian`) | 25751 |
+| `battle-tech-sweep.ctm` | zophar chrono-trigger, 1 | Inside Lavos's shell: the second form and the Lavos Core fought with every single and double tech Crono, Magus and Marle have, each cast once (route `tech_sweep`) | 118090 |
 | `late-omen-battles.ctm` | ctsave15, 1 | Black Omen random battles won (results), status Chaos keeping Lucca confused, many single techs, running away from an ambush | 18412 |
 | `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, the dual tech list, Mega Bomb, Confuse, item menus, Life 2 on a fallen Crono | 17762 |
 | `late-omen-zeal.ctm` | ctsave15, 3 | Queen Zeal won (Luminaire, Life 2, Cure 2, Hallation), then the Mammon Machine won (Antipode 3, Mega Bomb, Delta Force, Flare and more) and the start of the Zeal face-and-hands battle | 36922 |
@@ -462,11 +465,14 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `events-prison-escape.ctm` | ctsave01, 3 | Prison countdown captions, the march to the guillotine, Lucca's rescue | 12900 |
 | `events-keepers-dome.ctm` | ctsave09, 1 | Keeper's Dome: the pendant opens the sealed door, Belthasar's hall | 5000 |
 | `events-blackbird.ctm` | ctsave11, 1 | Blackbird escape onto the hull over scrolling clouds | 4400 |
+| `events-epoch-lavos.ctm` | ctsave14, 1 | The winged Epoch dialed to 1999 A.D., Lucca's question over Lavos, Fight!, and the dive through its shell (scene mode 6; route `epoch_lavos`) | 7792 |
 | `menus-field-menu.ctm` | ctsave14, 3 | Every field submenu: equipment, items (use, organize), techs, config, party order, saving | 10600 |
 | `menus-shop-inn.ctm` | ctsave14, 1 | Truce Market buy and sell, resting at the inn | 9702 |
 | `menus-shop-equip.ctm` | ctsave14, 1 | Medina market: down from the shop's tabs to the party, members' equipment changed from there (a member's slots, the list of what fits), weapons and armour bought | 15513 |
 | `menus-epoch.ctm` | ctsave14, 1 | Epoch: Mode 7 flight, map view, time travel between eras, landing, buildings | 8800 |
 | `menus-end-of-time.ctm` | ctsave12, 2 | Party exchange, the Guru of Time, saving over a slot | 8800 |
+| `menus-save-point.ctm` | ctsave12, 2 | The End of Time's save point opening its own save screen: no to saving over the first slot, then a save over the third (route `save_point`) | 3270 |
+| `menus-sweep.ctm` | ctsave14, 1 | The field menu on the 1000 A.D. map: item tabs and users, the techs screen slid past three members and eight techs, the equipment members slid to a reserve member, Settings' window design and custom buttons (route `menu_sweep`) | 6424 |
 | `menus-new-game-plus.ctm` | technoplaza ct-state16 | The load screen of a finished cartridge: the erase question on the second controller answered no, then yes; New Game+ from the fourth row, carrying on from the first slot, the battle mode and naming, onto the 1000 A.D. world map (route `new_game_plus`) | 3116 |
 | `field-65m-bc.ctm` | ctsave05, 1 | The 65,000,000 B.C. world map on foot with followers, into a location and back out (route `field_65m_bc`) | 2921 |
 | `field-65m-bc-dactyl.ctm` | ctsave07, 3 | The 65,000,000 B.C. world map on a dactyl at Tyrano Lair: boarded, flown a short way, landed and got off (route `dactyl_65m_bc`) | 2810 |

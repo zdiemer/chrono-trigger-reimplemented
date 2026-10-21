@@ -563,13 +563,36 @@ static bool can_continue(Snes *s, SceneChannel *ch) { return machine_as_expected
 
 /* ---- The program's routines the scripts call ------------------------------------------------- */
 
-/* The routines that are C (scene/title.c), by the value the script holds. */
+/* The routines that are C (scene/title.c, scene/lavos_falls.c), by the value
+ * the script holds. */
+static const struct {
+    const SceneScriptRoutine *routines;
+    const unsigned *count;
+} routine_tables[] = { { scene_title_routines, &scene_title_routine_count }, { scene_lavos_routines, &scene_lavos_routine_count } };
+
 static const SceneScriptRoutine *routine_port(uint16_t routine)
 {
-    for (unsigned n = 0; n < scene_title_routine_count; n++)
-        if (scene_title_routines[n].routine == routine)
-            return &scene_title_routines[n];
+    for (unsigned t = 0; t < sizeof routine_tables / sizeof routine_tables[0]; t++)
+        for (unsigned n = 0; n < *routine_tables[t].count; n++)
+            if (routine_tables[t].routines[n].routine == routine)
+                return &routine_tables[t].routines[n];
     return NULL;
+}
+
+/* A routine a caller reaches by its address (the interpreter runs them as C):
+ * its work on the channel whose page D is, and back with 16-bit A. Some set
+ * the data bank to the first bank's around their stores and, through the
+ * stack's imbalance, come back with it on the program's. */
+enum { PROGRAM_DATA_BANK = 0x7E };
+
+void scene_script_routine_alone(Snes *s, const SceneScriptRoutine *r)
+{
+    r->run(state_of(s), m_platform(s), scene_program_page_at_entry(s).index);
+    ORIGINAL_EFFECT(s->cpu.a = r->leaves_a(s->cpu.a));
+    if (r->leaves_the_program_bank)
+        s->cpu.db = PROGRAM_DATA_BANK;
+    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
+    m_rts(s);
 }
 
 /* The call reads the routine's address from the scene's own page, where the

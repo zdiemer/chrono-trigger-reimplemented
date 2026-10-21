@@ -70,12 +70,14 @@ static ScriptFlow return_from_call(GameState *g, ScriptChannel channel)
 }
 SCRIPT_OPERATION(return_from_call, channel)
 
+bool script_point_at_the_top(const GameState *g) { return battle_script_point_y(g) == 0; }
+
 // $C1:5722
 /* Back from the subroutine where the point is at the top of the screen (its
  * Y 0), or on past the command, its frame ending. */
 static ScriptFlow return_at_the_top(GameState *g, ScriptChannel channel)
 {
-    if (battle_script_point_y(g) == 0)
+    if (script_point_at_the_top(g))
         return return_from_call(g, channel);
     return SCRIPT_NEXT_FRAME;
 }

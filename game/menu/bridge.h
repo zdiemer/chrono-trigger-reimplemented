@@ -107,6 +107,12 @@ bool menu_run_jumped(Snes *s, uint32_t returns_to, uint32_t routine, void (*entr
  * have. Outside the runtime (ct_fuzz) it never would. */
 bool menu_runs_as_port(Snes *s, uint32_t routine, void (*entry)(Snes *));
 
+/* A sibling run as menu_run_any_widths runs it where the runtime would run it
+ * (menu_runs_as_port), and otherwise the original's call to it from the JSR at
+ * `site`, declaring what it doesn't read of the registers: either way the
+ * widths it comes back with stand, and true as menu_back's. */
+bool menu_run_or_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+
 /* ---- The frame of the routines a bridge stands in for ------------------------------- */
 
 /* Set the accumulator's and the index registers' widths as the original's

@@ -17310,9 +17310,9 @@ name = "menu_slide_tech_members"
 at = "C2:B568"
 subsystem = "menu"
 state = "techs_members"
-args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=0B-0D", "--fill", "7E005A-7E005A=84,88", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=0B-0D", "--fill", "7E005A-7E005A=84,88", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F", "--stop-at-call", "C2B5C8"]
 iterations = 2000
-why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; a push past the rows down or up, the list's slide random; compared up to the slide's first wait for the next frame"
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; a push past the rows down or up, the list's slide random; compared up to the slide, which the start runs as C only under the runtime (menu_run_or_call; fuzzed as menu_slide_tech_member_rows)"
 
 [[routine]]
 name = "menu_slide_tech_member_rows"
@@ -17421,6 +17421,16 @@ state = "techs_triples"
 args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=01", "--fill", "7E0054-7E0054=00,07", "--fill", "7E005A-7E005A=84,88", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0F00-7E0F11=39-65", "--fill", "7E0F12-7E0F17=FF", "--fill", "7E0F30-7E0F41=07-15", "--fill", "7E0F49-7E0F49=12", "--fill", "7E0057-7E0057=0A", "--fill", "7E0F4A-7E0F4A=00-0A", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
 iterations = 2000
 why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; a list of eighteen double techs, its first row within it, the cursor on its first or last row pushed past it; compared up to the slide's first frame's wait"
+
+[[routine]]
+name = "menu_slide_tech_list"
+variant = "tick"
+at = "C2:B72F"
+subsystem = "menu"
+state = "techs_triples"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=01", "--fill", "7E0054-7E0054=00,07", "--fill", "7E005A-7E005A=84,88", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0F00-7E0F11=39-65", "--fill", "7E0F12-7E0F17=FF", "--fill", "7E0F30-7E0F41=07-15", "--fill", "7E0F49-7E0F49=12", "--fill", "7E0057-7E0057=0A", "--fill", "7E0F4A-7E0F4A=00-0A", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F", "--stop-at-call", "C70004"]
+iterations = 2000
+why = "as the plain entry, compared at the tick's call to the sound driver too, where the tick's saved P holds the flags the row's upload left (the sign of the upload record's place: the menus-sweep shadow run found it clear in the port, set in the original)"
 
 [[routine]]
 name = "menu_choose_tech_target"
@@ -20344,3 +20354,145 @@ subsystem = "menu"
 state = "menus"
 args = ["--db", "7E"]
 why = "any state: it clears the tasks' records and starts the two that run all the time, then waits for the first frame (as far as fuzzing goes, the wait's head)"
+
+# ---- Lavos falls to the planet (scene/lavos_falls.c), mode 4, and the Epoch's dive's pieces (mode 6) ----
+
+[state.lavos_falls]
+movie = "oracle/movies/saves/battle-black-tyrano.ctm"
+frames = 47600
+
+[state.dive_from_the_cockpit]
+movie = "oracle/movies/saves/events-epoch-lavos.ctm"
+frames = 5540
+
+[state.dive_from_outside]
+movie = "oracle/movies/saves/events-epoch-lavos.ctm"
+frames = 6000
+
+[[routine]]
+name = "scene_lavos_falls_set_up"
+subsystem = "scene"
+state = "lavos_falls"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
+iterations = 300
+why = "mode 4's setup from the program's mode table, the program kept (its code is the guard's hash; the unpacking, the pixels' spread, the first script step and the stars' scatter the original's or their ports)"
+
+[[routine]]
+name = "scene_turn_lavos"
+subsystem = "scene"
+state = "lavos_falls"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task: the program kept, channel 0's camera random; half the states enter with the carry set, which the guard refuses (the list leaves it clear at the task's slot)"
+
+[[routine]]
+name = "scene_turn_the_field_s_angle"
+subsystem = "scene"
+state = "lavos_falls"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task: channel 1's angle random; half the states enter with the carry set, which the guard refuses"
+
+[[routine]]
+name = "scene_swing_the_field"
+subsystem = "scene"
+state = "lavos_falls"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task: channel 1's angle random, the field's speed and drift worked out from it"
+
+[[routine]]
+name = "scene_draw_the_planet"
+subsystem = "scene"
+state = "lavos_falls"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0011-7E0012=0000,0040,0080,0100", "--fill", "7E0013-7E0014=0900,0904,0908,0910"]
+why = "a frame task: the planet's list kept with the program, the sprite cursor random (the guard refuses one its 28 sprites would run past the tables from)"
+
+[[routine]]
+name = "scene_send_the_flat_plane"
+subsystem = "scene"
+state = "lavos_falls"
+args = ["--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task: channel 0's matrix, centre and scroll random"
+
+[[routine]]
+name = "scene_send_lavos_back"
+subsystem = "scene"
+state = "lavos_falls"
+args = ["--d", "0B00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "a routine channel 1's script calls, on its page through the program's bank"
+
+[[routine]]
+name = "scene_let_lavos_fall"
+subsystem = "scene"
+state = "lavos_falls"
+args = ["--d", "0B00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "a routine channel 1's script calls, on its page through the program's bank"
+
+[[routine]]
+name = "scene_send_the_plane_s_place"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task of the Epoch's dive: channel 0's scroll and centre random"
+
+[[routine]]
+name = "scene_build_perspective"
+variant = "cockpit"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--d", "0A00", "--keep", "7E3000-7EC994", "--fill", "7E0044-7E0045=0000-0003", "--fill", "7E0046-7E0047=00A8,00A9,0081,00E0"]
+why = "the Epoch's dive from the cockpit: the halves built in turn, the shell below ending on the panel's line or another (the guard refuses an end past the screen or above the half's start)"
+
+[[routine]]
+name = "scene_build_perspective"
+variant = "outside"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--d", "0A00", "--keep", "7E3000-7EC994"]
+why = "the Epoch's dive from outside: the lines' distances along the curve, which is random here"
+
+[[routine]]
+name = "scene_animate_the_palettes"
+variant = "channel"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--d", "0B00", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0520-7E05AF=00-7F", "--fill", "7E0524-7E0525=00-01",
+        "--fill", "7E0530-7E0531=00-01", "--fill", "7E053C-7E053D=00-01", "--fill", "7E0548-7E0549=00-01",
+        "--fill", "7E0554-7E0555=00-01", "--fill", "7E0560-7E0561=00-01", "--fill", "7E056C-7E056D=00-01",
+        "--fill", "7E0520-7E0520=80-FF", "--fill", "7E052B-7E052B=C0-FF", "--fill", "7E052C-7E052C=80-FF",
+        "--fill", "7E0537-7E0537=C0-FF"]
+why = "the frame of the animations a channel's sequence asks for itself (the Epoch's dive), on its page through work RAM's bank, any A width; the slots as the plain entry has them"
+
+[[routine]]
+name = "scene_setup_line_effects"
+variant = "dive"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--range", "Y=7B9C-7B9C"]
+why = "the Epoch's dive's table seen from outside, with color math's control and layers among its targets"
+
+[[routine]]
+name = "scene_setup_line_effects"
+variant = "cockpit"
+subsystem = "scene"
+state = "dive_from_the_cockpit"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--range", "Y=7BB6-7BB6"]
+why = "the Epoch's dive's table from the cockpit"
+
+[[routine]]
+name = "script_return_from_call"
+variant = "at_the_top"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=21", "--fill", "7E5D9F-7E5D9F=00", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 4000
+why = "reached from the return at the top's handler ($C1:5722) going on into it, with the point at the top of the screen"
+
+[[routine]]
+name = "menu_start_sliding_equipment_members"
+at = "C2:9D5B"
+subsystem = "menu"
+state = "equipment"
+args = ["--d", "0000", "--db", "7E", "--widths", "8,8", "--keep", "7E7700-7E7FFF", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E0D38-7E0D45", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D5F-7E0D67=00,01,02,03,04,05,06", "--fill", "7E0D11-7E0D11=00,08,10", "--fill", "7E0054-7E0054=00-02", "--fill", "7E0413-7E0413=00-04", "--fill", "7E0FC4-7E0FC4=00-04", "--fill", "7E005A-7E005A=84,88", "--stop-at-call", "C2821E", "--stop-at-call", "C29DAF"]
+iterations = 2000
+why = "the slide's start, a push down or up past the list's edge with the list scrolled anywhere it goes, compared up to the slide it makes, which it runs as C only under the runtime (menu_run_or_call; the slide is fuzzed as menu_slide_equipment_members)"

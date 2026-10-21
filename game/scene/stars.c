@@ -34,9 +34,6 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* The field's speed and drift, in channel 1's registers. */
-enum { FIELD_CHANNEL = 1, FIELD_SPEED = 0, FIELD_DRIFT_ACROSS = 1, FIELD_DRIFT_DOWN = 2 };
-
 enum { STARS = 128, STAR_BYTES = 4, FARTHEST = 0x7F };
 
 /* The view: the middle of the screen the stars are drawn round, and the
@@ -47,11 +44,9 @@ enum { MIDDLE_ACROSS = 0x80, MIDDLE_DOWN = 0x70, NEAREST = 0x80 };
  * nearest drawn in front of the layers and the rest behind them. */
 enum { FIRST_STAR_TILE = 0x60, FIRST_FAR_TILE = 0x68, STAR_BEHIND = 0x02, STAR_IN_FRONT = 0x32 };
 
-/* How the scene has set the drawing (scene_stars_depth_branch): as the
- * program comes, or with every star behind the layers. */
-enum { NEAR_STARS_IN_FRONT = 0x0430, EVERY_STAR_BEHIND = 0x0080 };
 
-static int8_t field_speed(const GameState *g) { return (int8_t)scene_channel_register(g, FIELD_CHANNEL, FIELD_SPEED); }
+static uint16_t field_register(const GameState *g, unsigned reg) { return scene_channel_register(g, SCENE_STAR_FIELD_CHANNEL, reg); }
+static int8_t field_speed(const GameState *g) { return (int8_t)field_register(g, SCENE_STAR_FIELD_SPEED); }
 
 static unsigned star_at(uint16_t entry) { return entry / STAR_BYTES; }
 
@@ -142,7 +137,7 @@ static uint16_t move_star(GameState *g, Platform *pf, unsigned star, uint16_t be
 
 static uint8_t star_attributes(const GameState *g, uint8_t tile)
 {
-    if (scene_stars_depth_branch(g) == EVERY_STAR_BEHIND || tile >= FIRST_FAR_TILE)
+    if (scene_stars_depth_branch(g) == SCENE_EVERY_STAR_BEHIND || tile >= FIRST_FAR_TILE)
         return STAR_BEHIND;
     return STAR_IN_FRONT;
 }
@@ -152,8 +147,8 @@ static uint8_t star_attributes(const GameState *g, uint8_t tile)
 static void draw_star(GameState *g, Flight *f, unsigned star, uint16_t entry, uint16_t moved)
 {
     uint16_t distance = sum_after(moved, scene_star_depths(g, star), NEAREST);
-    uint16_t across = sum_after(distance, scene_stars_across(g, star), (uint8_t)scene_channel_register(g, FIELD_CHANNEL, FIELD_DRIFT_ACROSS));
-    uint16_t down = sum_after(across, scene_stars_down(g, star), (uint8_t)scene_channel_register(g, FIELD_CHANNEL, FIELD_DRIFT_DOWN));
+    uint16_t across = sum_after(distance, scene_stars_across(g, star), (uint8_t)field_register(g, SCENE_STAR_FIELD_DRIFT_ACROSS));
+    uint16_t down = sum_after(across, scene_stars_down(g, star), (uint8_t)field_register(g, SCENE_STAR_FIELD_DRIFT_DOWN));
     set_scene_stars_across(g, star, (uint8_t)across);
     set_scene_stars_down(g, star, (uint8_t)down);
 
@@ -208,7 +203,7 @@ typedef struct {
 /* What drifts, in the order the original picks them: across, down and the
  * speed. */
 enum { DRIFTS = 3 };
-static const unsigned drift_register[DRIFTS] = { FIELD_DRIFT_ACROSS, FIELD_DRIFT_DOWN, FIELD_SPEED };
+static const unsigned drift_register[DRIFTS] = { SCENE_STAR_FIELD_DRIFT_ACROSS, SCENE_STAR_FIELD_DRIFT_DOWN, SCENE_STAR_FIELD_SPEED };
 
 enum { DRIFT_RANGE = 8, DRIFT_LEAST = 4, LONGEST_DRIFT = 0x400, WORD_SPILLED = 0x10000 };
 
@@ -254,7 +249,7 @@ static Drift keep_drifting(GameState *g, Platform *pf, Drift d)
         if (left)
             continue;
         d = pick_drift(g, pf, d, sites[i]);
-        set_scene_channel_register(g, FIELD_CHANNEL, drift_register[i], d.drift);
+        set_scene_channel_register(g, SCENE_STAR_FIELD_CHANNEL, drift_register[i], d.drift);
         set_scene_stars_drift_frames(g, i, frames_held(&d));
     }
     return d;
@@ -265,8 +260,8 @@ static Drift keep_drifting(GameState *g, Platform *pf, Drift d)
 static uint16_t first_motion(const GameState *g)
 {
     for (unsigned i = 0; i < DRIFTS; i++)
-        if (scene_channel_register(g, FIELD_CHANNEL, drift_register[i]))
-            return scene_channel_register(g, FIELD_CHANNEL, drift_register[i]);
+        if (field_register(g, drift_register[i]))
+            return field_register(g, drift_register[i]);
     return 0;
 }
 
@@ -275,7 +270,7 @@ static uint16_t first_motion(const GameState *g)
 static void keep_the_field_moving(GameState *g)
 {
     if (!first_motion(g))
-        set_scene_channel_register(g, FIELD_CHANNEL, FIELD_SPEED, 1);
+        set_scene_channel_register(g, SCENE_STAR_FIELD_CHANNEL, SCENE_STAR_FIELD_SPEED, 1);
 }
 
 /* ---- Entries ---------------------------------------------------------------------------------- */
@@ -312,7 +307,7 @@ static bool flight_code_present(Snes *s)
 static bool flies_from(const GameState *g, uint16_t first)
 {
     uint16_t branch = scene_stars_depth_branch(g);
-    return (branch == NEAR_STARS_IN_FRONT || branch == EVERY_STAR_BEHIND) && first < STARS * STAR_BYTES && first % STAR_BYTES == 0;
+    return (branch == SCENE_NEAR_STARS_IN_FRONT || branch == SCENE_EVERY_STAR_BEHIND) && first < STARS * STAR_BYTES && first % STAR_BYTES == 0;
 }
 
 bool scene_stars_fly_present(Snes *s)

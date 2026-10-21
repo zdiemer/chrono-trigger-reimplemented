@@ -183,6 +183,17 @@ python3 -m tools.movies.routes.beyond_time --prefix work/beyond ...
 Lavos's shell (its first phases, `to_the_shell`) and loses the fight, for the
 Day of Lavos a loss plays.
 
+So do the menu, event and battle movies made for what no movie ran
+([movies-wanted.md](movies-wanted.md), Targets): `menu_sweep`
+(`menus-sweep.ctm`), `save_point` (`menus-save-point.ctm`), `epoch_lavos`
+(`events-epoch-lavos.ctm`), `black_tyrano` (`battle-black-tyrano.ctm`, whose
+fight `policies.party_with_lapis` wins by healing with what the bag holds),
+`guardian` (`battle-guardian.ctm`) and `tech_sweep` (`battle-tech-sweep.ctm`).
+They were recorded on one build and made again on the next before they went
+into the library, which reproduced them byte for byte: the timing change
+between was the shipping mode's alone, which the interpreter's runs don't
+see.
+
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.

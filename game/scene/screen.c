@@ -283,13 +283,39 @@ static TaskLeftovers animate_the_palettes_leaves(const GameState *g, TaskEnd end
                             .overflow_clear = true };
 }
 
-void scene_animate_the_palettes(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_ANIMATE_PALETTES]); }
+/* The Epoch's dive into Lavos (scene mode 6, still the program's own code;
+ * docs/TODO.md) has its sequence run a frame of the
+ * animations itself, from a channel's page with the data bank on work RAM's,
+ * where the word the routine keeps aside is two bytes of the program's own
+ * code, put back as they were; the copy stays in the channel's call cell. */
+static void keep_the_code_under_the_multiplier(GameState *g, SceneChannel ch)
+{
+    set_scene_call_first(g, scene_program_channel(ch), scene_code_under_the_multiplier(g));
+}
 
-/* The task's code, and the animations' room in their slots (core/palette.c). */
+/* As a frame task, or called by a channel's sequence (above). */
+void scene_animate_the_palettes(Snes *s)
+{
+    SceneChannel ch;
+    if (!scene_channel_at(m_direct_page(s), &ch)) {
+        scene_task_alone(s, &scene_screen_tasks[ROW_ANIMATE_PALETTES]);
+        return;
+    }
+    GameState *g = state_of(s);
+    TIMED_AS(g, 0xFDFFF7, palette_animate_a_frame(g));
+    ORIGINAL_EFFECT(keep_the_code_under_the_multiplier(g, ch));
+    scene_leave_task_registers(s, &scene_screen_tasks[ROW_ANIMATE_PALETTES], task_goes_on());
+    m_rts(s);
+}
+
+/* The task's code, and the animations' room in their slots (core/palette.c):
+ * a frame task on the scene's page through the I/O bank, or a channel's
+ * sequence's call on its page through work RAM's. */
 bool scene_animate_the_palettes_present(Snes *s)
 {
-    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E37FA, 0x11, 0x87E8A981D5C5DAFEull) &&
-           palette_animate_runs(s);
+    SceneChannel ch;
+    bool on_a_page = scene_on_scene_page_io_bank(s) || (scene_channel_at(m_direct_page(s), &ch) && s->cpu.db == SCENE_LOWER_WORK_RAM);
+    return on_a_page && m_code_matches(s, 0x7E37FA, 0x11, 0x87E8A981D5C5DAFEull) && palette_animate_runs(s);
 }
 
 /* ---- The screen's fades ---------------------------------------------------------------------- */
@@ -459,13 +485,17 @@ bool scene_transfer_present(Snes *s)
  * destination and length) into the register and in the mode the caller put in
  * the scene's scratch. Both are game data the loaders choose, so it goes
  * through the SNES-only escape; the movies' loaders all feed the VRAM data port. */
+void scene_send_unpacked_as(const GameState *g, Platform *pf, uint8_t mode, uint8_t port_register)
+{
+    const VidSnesTransfer t = { .dest = port_register, .source = decompress_dest(g), .size = decompress_length(g),
+                                .mode_from_data = true, .mode = mode };
+    vid_snes_copy(pf, PF_AT(0x7E38EA), &t);
+}
+
 void scene_send_unpacked(const GameState *g, Platform *pf)
 {
     SceneProgramPage scene = scene_program_own();
-    const VidSnesTransfer t = { .dest = scene_call_transfer_register(g, scene), .source = decompress_dest(g),
-                                .size = decompress_length(g), .mode_from_data = true,
-                                .mode = scene_call_transfer_control(g, scene) };
-    vid_snes_copy(pf, PF_AT(0x7E38EA), &t);
+    scene_send_unpacked_as(g, pf, scene_call_transfer_control(g, scene), scene_call_transfer_register(g, scene));
 }
 
 /* Returns with RTL; nothing it leaves in the registers is read. */
@@ -493,6 +523,38 @@ void scene_copy_resource_to(GameState *g, SceneProgramPage page, unsigned resour
     ORIGINAL_EFFECT(set_scene_call_first(g, page, bytes));
     scene_copy_resource_bytes(g, scene_unpacked_bank(g), scene_resource_offset(g, resource), to, bytes);
     ORIGINAL_EFFECT(charge_block_move(g, bytes));
+}
+
+/* ---- A Mode 7 plane's name table --------------------------------------------------------------- */
+
+/* A name table unpacked 64 tiles a row, each row widened with 64 empty tiles
+ * across the plane's 128, over the buffer's 64 rows whatever a picture uses
+ * of them. */
+enum { UNPACKED_ROWS = 0x40, UNPACKED_ROW_BYTES = 0x40 };
+
+// $7E:37CA
+/* The rows' count, run down to 0, is left in the scene's first cell. */
+void scene_widen_the_plane_map(GameState *g)
+{
+    for (uint32_t row = 0; row < UNPACKED_ROWS; row++) {
+        uint32_t to = SCENE_PLANE_MAP + row * 2 * UNPACKED_ROW_BYTES;
+        wram_copy(g, SCENE_UNPACK_BUFFER + row * UNPACKED_ROW_BYTES, to, UNPACKED_ROW_BYTES);
+        wram_fill8(g, to + UNPACKED_ROW_BYTES, UNPACKED_ROW_BYTES, 0);
+        /* The original moves the row's 64 bytes, then stores the first empty
+         * tile and moves it on over the other 63, one byte on. */
+        ORIGINAL_EFFECT(charge_block_move(g, UNPACKED_ROW_BYTES + (UNPACKED_ROW_BYTES - 1)));
+    }
+    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), 0));
+}
+
+// $7E:90A7
+/* The plane's name table blank past where VRAM's address is: the low bytes of
+ * the next `bytes` words the blank tile. A fill of one half of each word is
+ * what the upload calls don't model, so it goes through the SNES-only escape. */
+void scene_blank_past_the_plane(Platform *pf, PfOrigin site, uint16_t bytes)
+{
+    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = SCENE_BLANK_TILE, .size = bytes };
+    vid_snes_copy(pf, site, &t);
 }
 
 /* The loaded palette and the working one the frame sends, in the first bank. */

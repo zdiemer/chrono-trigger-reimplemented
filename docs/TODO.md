@@ -73,14 +73,39 @@ rest waits, is [PLAN.md](PLAN.md).
 - **The last of `$CF`**: `$CF:FAE2` (259 bytes) and `$CF:FD9E` (231) are the
   bank's unported runs (`python3 tools/burndown.py --uncovered CF`).
 
-- **A refusal the tech sweep's route finds** (`tools/refusal_allowlist.txt`;
-  REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the
-  attract demo's states"). The library makes none now; the tech sweep's
-  route, not yet in it, finds `script_return_from_call` (`$C1:56FB`), whose
-  `command_ready` turns away the sweep's battle script 8 times from frame
-  11015 on; the movie (`tools/movies/routes/tech_sweep.py`) waits on it.
-  `python3 tools/fallbacks.py build/suite/fallbacks --refusals -v` prints it
-  with its first states.
+- **The Epoch's dive into Lavos is mostly the program's** (scene mode 6, `$7E:78DD`
+  on; REIMPLEMENTATION.md, "Phase 4a, the shipping mode's fallbacks, chunk 9").
+  Its perspective's two starts of the lines (`$7E:801F`, `$7E:8042`) and its
+  plane's scroll and centre in the vblank (`$7E:81C4`) are ports; the rest isn't:
+  the setup (`$7E:78DD`, `$7E:7A68`, its curve table and line effects), the
+  views' switches (`$7E:79F8`, `$7E:7A35`, one-shot vblank tasks that leave
+  through the list's exit), the shell's line tables animated by bytes poked into
+  the program's own tables (`$7E:7BF2`, `$7E:7F58`, `$7E:7FCB` with the circle,
+  `$7E:8079`-`$7E:80E0`), the sprites drawn with jitter (`$7E:7F12`, `$7E:7F35`,
+  `$7E:7F7D`, `$7E:82D1`, `$7E:835B`, `$7E:8205`), the frame routine (`$7E:8278`)
+  and the script's routines (`$7E:7ED1`, `$7E:7EE8`, `$7E:7EF8`, `$7E:7F05`,
+  `$7E:82F5`, `$7E:831F`). Two things make it more than a transliteration's
+  work: the jitter's random draws (`$7E:3443`, the stirred number `$C3:02DD`)
+  mix in whatever A, X and the carry the code before left, so a port has to
+  name what it hands the stir, as stars.c does; and the line tables are bytes
+  of the program's image that want names in re/ram.toml first.
+  `events-epoch-lavos` plays all of it.
+- **The pixels' spread is still the program's** (`$7E:350E`, called by Lavos's
+  fall's setup, `scene/lavos_falls.c`): it spreads each packed byte into two
+  pixels through the work RAM port, reading the bytes by moving the stack onto
+  them (`TXS` to `$0BFF`, `PLA`). Shadow mode and the fallback measure follow
+  that switch now (docs/PORTING.md, "Call-outs"), so a port of it, a loop over
+  the bytes, would be compared in `battle-black-tyrano`; its 14,992
+  instructions are the setup's call-out in the reference play.
+- **The attract sequence's credit pages mismatch in fuzzing.** Fuzzing the
+  scene program's start (`scene_program_start`, `scene_setup_and_first_frame`,
+  seed 1, tools/fuzz_routines.toml) mismatches 11 and 39 of 375 states, all of
+  them mode 1 (`scene/credit_pages.c`'s setup): the sprite table's writes
+  (`$2104`, OAM's address one short), the Mode 7 product (`$2134`) and, in
+  some, VRAM's letters. main (3e185a3) shows the same counts, so it predates
+  chunk 9; docs/ports.tsv records 0 for these entries from when they were
+  ported, so something since moved it. Find the state the movies never make
+  or the port's divergence.
 - **The tech sweep's fight never ends in the native shape.** The route
   (`tools/movies/routes/tech_sweep.py`, zophar chrono-trigger slot 1, the Lavos
   Core) reaches its outcome in the shipping mode, but `ct_drive_native_shape`
@@ -2547,7 +2572,7 @@ re-runs the census.
   - the signed sprite list (`$7E:3A97`) has four callers in the program
     besides the rider (`$7E:7F9C`, `$7E:7FB0`, `$7E:7FBF`, `$7E:8386`) that
     no movie reaches: fuzzing alone compares the lists they draw.
-- **What the shipping mode's fallbacks' eighth chunk left** (REIMPLEMENTATION.md, "Phase 4a,
+- **What the shipping mode's fallbacks' eighth chunk left** (history/reimplementation-chunks.md, "Phase 4a,
   the shipping mode's fallbacks, chunk 8"):
   - the fallback measure files code by the extent it runs in, followed with
     the stack, and a task's stack lies within its span of another's: code of

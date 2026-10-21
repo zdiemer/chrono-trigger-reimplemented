@@ -180,6 +180,15 @@ uint32_t scene_multiply16(GameState *g, SceneProgramPage page, uint16_t a, uint1
     return product;
 }
 
+/* A signed `value` (a sine, mostly) scaled by `by` 256ths: its magnitude
+ * scaled and the sign put back, so that a negative value rounds toward 0. */
+int16_t scene_scale_by_256ths(GameState *g, SceneProgramPage page, int16_t value, uint16_t by)
+{
+    uint16_t size = value < 0 ? (uint16_t)-value : (uint16_t)value;
+    uint16_t product = (uint16_t)(scene_multiply16(g, page, size, by) >> 8);
+    return value < 0 ? (int16_t)-product : (int16_t)product;
+}
+
 /* A signed 16-bit value times the signed low byte of `b` (whose whole word the
  * caller leaves in the second operand's cell); the product's low word. */
 int16_t scene_multiply_by_signed_byte(GameState *g, SceneProgramPage page, uint16_t a, uint16_t b)

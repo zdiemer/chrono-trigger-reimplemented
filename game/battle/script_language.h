@@ -142,6 +142,10 @@ bool script_throw_wait_over(const GameState *g, ThrowWait wait);
  * other targets' list (battle/script_flow.c). */
 bool script_ends_unless_listed(const GameState *g, uint8_t listed);
 
+/* Whether a subroutine that returns once the point is at the top of the
+ * screen returns now (battle/script_flow.c). */
+bool script_point_at_the_top(const GameState *g);
+
 /* Every parameter of the language: a row says which operands give the ones
  * its operation takes. */
 #define SCRIPT_PARAMETERS(X)                                                                       \

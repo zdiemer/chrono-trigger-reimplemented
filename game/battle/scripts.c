@@ -257,10 +257,14 @@ bool battle_script_channel_in_y(Snes *s)
 
 /* The commands whose handler goes on into another's once what it found makes
  * the command do what the other does: the end unless listed into the end's
- * where nobody is listed, the throw that waits first into the plain throw's
+ * where nobody is listed, the return at the top into the plain return's where
+ * the point is at the top, the throw that waits first into the plain throw's
  * once its wait is over. Entered so, the command's own operation runs there
  * and does the same. */
-enum { END = 0x00, END_UNLESS_LISTED = 0x25, THROW_WAITING_FIRST = 0xD4, THROW = 0xD6 };
+enum {
+    END = 0x00, RETURN_FROM_CALL = 0x1F, RETURN_AT_THE_TOP = 0x21, END_UNLESS_LISTED = 0x25, THROW_WAITING_FIRST = 0xD4,
+    THROW = 0xD6
+};
 
 /* The end's handler doesn't read the operand the port decides by, so it is
  * read where the game keeps scripts: the ROM's banks or work RAM's, within
@@ -280,6 +284,7 @@ static bool goes_on_into(const GameState *g, uint8_t command, const ScriptOpcode
     case END_UNLESS_LISTED:
         return handler == handlers[END] && operand_where_scripts_are(g)
                && script_ends_unless_listed(g, script_decode(g, row).listed);
+    case RETURN_AT_THE_TOP: return handler == handlers[RETURN_FROM_CALL] && script_point_at_the_top(g);
     case THROW_WAITING_FIRST: return handler == handlers[THROW] && script_throw_wait_over(g, WAIT_BEFORE);
     default: return false;
     }

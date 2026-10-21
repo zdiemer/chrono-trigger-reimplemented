@@ -156,6 +156,30 @@ def party(bot, state, rng, inventory):
     return ("attack", target)
 
 
+LAPIS = 0xCA
+
+
+def party_with_lapis(bot, state, rng, inventory):
+    """`party` for a bag from before the late healing items, which `party` reaches for (Full
+    Tonics, Elixirs, Mega Elixirs): a Lapis when two or more are low, a Mid Tonic when one is.
+    The Black Tyrano's countdown flame leaves Crono, Ayla and Marle at a tenth of their HP on
+    ctsave08, and unhealed the next one wipes them."""
+    members = [slot for slot in range(bot.party) if state.max_hp(slot) > 0]
+    if any(state.hp(slot) == 0 for slot in members):
+        return party(bot, state, rng, inventory)            # revive first
+    threshold = 0.45 + 0.2 * rng.random()
+    low = [slot for slot in members if fraction(state, slot) < threshold]
+    if len(low) >= 2 and rng.random() < 0.9:
+        action = use(inventory, LAPIS, None)
+        if action:
+            return action
+    if low and rng.random() < 0.7:
+        action = use(inventory, MID_TONIC, min(low, key=lambda slot: fraction(state, slot)))
+        if action:
+            return action
+    return party(bot, state, rng, inventory)
+
+
 def crono_and_marle(bot, state, rng, inventory):
     """Crono and Marle (the New Game+ telepod route): Luminaire and Ice 2, Marle heals."""
     member = state.member
@@ -301,6 +325,7 @@ def tracking_do(bot, cast_ids):
 
 POLICIES = {
     "party": party,
+    "party_with_lapis": party_with_lapis,
     "crono_and_marle": crono_and_marle,
     "crono_and_marle_core": crono_and_marle_core,
 }

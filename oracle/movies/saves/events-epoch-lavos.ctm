@@ -1,0 +1,35 @@
+# The winged Epoch flown into Lavos: load the save on the 1000 A.D. world map, board the Epoch, turn the time dial up to
+# 1999 A.D. and travel; over Lavos, answer Lucca's "Are we REALLY going on?" with Fight!, and the scene program's mode 6
+# (event $FF $26) plays the Epoch breaking through, until the first window of Lavos's field (route epoch_lavos).
+# Save: ctsave14 slot 1 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# frames 7792
+# sram crc32 1E34C588
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 2 DOWN
+2452 2 DOWN
+2484 4 A
+2618 16 RIGHT
+2638 3 A
+2711 4 Y
+2815 4 UP
+2875 4 A
+3499 3 A
+3542 3 A
+3587 3 A
+3632 3 A
+3677 3 A
+3722 3 A
+3767 3 A
+3812 3 A
+4127 3 A
+4172 3 A
+4217 3 A
+4262 3 A
+4307 3 A
+4352 3 A
+4587 3 A
+4632 3 A
+4677 3 A
+4722 3 A
+4767 3 A

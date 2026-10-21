@@ -19,7 +19,11 @@
  *   would end it at the move; and is not blind to the work RAM between the
  *   two stacks;
  * - stack bytes a port declares dead (native_stack_dont_care) stay uncompared
- *   at its stop, where it leaves them on the stack.
+ *   at its stop, where it leaves them on the stack;
+ * - a callee that moves S onto a stack of its own, more than a page above
+ *   the call's return, and back (the scene program's spread of packed pixels,
+ *   $7E:350E) is not taken for one unwinding past its return: the routine is
+ *   compared on after it.
  *
  * Each case registers a few routines, runs the program for a few frames in
  * SHADOW mode and reads its counters (native_stats_named) and the mismatches
@@ -90,7 +94,16 @@ static const struct {
                 0x80, 0x87, 0xA6, 0x40, 0x9A, 0x68, 0xFA, 0x40 }, 25 },
     /* 8780 INC $44 : RTS */
     { 0x8780, { 0xE6, 0x44, 0x60 }, 3 },
+    /* 8800 JSR 8880 : INC $48 : RTS (reached from 8500, made a JMP here: SWITCH_PATCH) */
+    { 0x8800, { 0x20, 0x80, 0x88, 0xE6, 0x48, 0x60 }, 6 },
+    /* 8880 the callee that moves the stack: TSX : STX $40 : LDX #$0FFF : TXS : PHA : PLA : INC $46 : LDX $40 :
+     * TXS : RTS */
+    { 0x8880, { 0xBA, 0x86, 0x40, 0xA2, 0xFF, 0x0F, 0x9A, 0x48, 0x68, 0xE6, 0x46, 0xA6, 0x40, 0x9A, 0x60 }, 15 },
 };
+
+/* 8500, the long loop's place, made JMP 8800 for the cases of the callee
+ * that moves the stack. */
+static const uint8_t SWITCH_PATCH[] = { 0x4C, 0x00, 0x88 };
 
 enum { NMI_RETURNS = 0x86, NMI_MOVES = 0x87 };
 
@@ -227,6 +240,18 @@ static void long_after(Snes *s, uint16_t passes, bool wrong)
 }
 static void long_fourth(Snes *s) { long_after(s, 3, false); }
 static void long_wrong(Snes *s) { long_after(s, 3, true); }
+
+/* 8800: the call to the callee that moves the stack, then its own work. */
+enum { MOVES_THE_STACK = 0x008880 };
+
+static void after_the_switch(Snes *s, uint8_t by)
+{
+    m_jsr(s, 0x008800, MOVES_THE_STACK);
+    inc_dp(s, 0x48, by);
+    m_rts(s);
+}
+static void after_the_switch_right(Snes *s) { after_the_switch(s, 1); }
+static void after_the_switch_wrong(Snes *s) { after_the_switch(s, 2); }
 
 /* 8700, the handler that moves the stack: the interrupted X and A kept on the
  * interrupted stack, the data bank 0 (through two bytes pushed and pulled
@@ -437,11 +462,24 @@ int main(void)
     expect("long_wrong", false);
     CHECK(strstr(details, "later passes, then an interrupt"), "%s", details);
 
+    /* a callee that moves to a stack of its own and back: the routine is
+     * compared after it, where its rise above the call's return used to end
+     * the comparison as the callee unwinding */
+    memcpy(rom + 0x8500, SWITCH_PATCH, sizeof SWITCH_PATCH);
+    RUN(true, true, 3, ENTRY(0x008800, after_the_switch_right));
+    expect("after_the_switch_right", true);
+    Counts switched = counts_of("after_the_switch_right");
+    CHECK(switched.abandoned == 0 && switched.matched + 1 >= switched.calls, "after_the_switch_right: calls %u matched "
+          "%u abandoned %u\n%s", switched.calls, switched.matched, switched.abandoned, details);
+    RUN(true, true, 3, ENTRY(0x008800, after_the_switch_wrong));
+    expect("after_the_switch_wrong", false);
+
     free(rom);
 
     /* an interrupt entry whose handler moves to a stack above the interrupted
-     * code's: compared to its RTI (without the flag, the stack's rise ends the
-     * comparison at the move, before the call), where a wrong count and a
+     * code's: compared to its RTI (without the flag, the move is followed as a
+     * stack switch, but the RTI leaves where a routine's return was wanted),
+     * where a wrong count and a
      * stray write between the two stacks are caught; and its entry alone,
      * stopped on the stack it moved to */
     rom = make_rom(NMI_MOVES);
@@ -452,7 +490,7 @@ int main(void)
           handled.calls, handled.matched, details);
     RUN(true, false, 3, ENTRY(0x008700, handler_whole));
     expect("handler_whole", false);
-    CHECK(strstr(details, "original returned without the call to 008780"), "%s", details);
+    CHECK(strstr(details, "original left the routine without returning where the native one did"), "%s", details);
     RUN(true, false, 3, ENTRY(0x008700, handler_wrong, .interrupt = true));
     expect("handler_wrong", false);
     RUN(true, false, 3, ENTRY(0x008700, handler_stray, .interrupt = true));

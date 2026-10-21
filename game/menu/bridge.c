@@ -118,6 +118,17 @@ bool menu_runs_as_port(Snes *s, uint32_t routine, void (*entry)(Snes *))
     return e && e->fn == entry;
 }
 
+bool menu_run_or_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    if (menu_runs_as_port(s, routine, entry))
+        return menu_run_any_widths(s, site, routine, entry);
+    MenuMachine m = menu_machine_now(s);
+    m_jsr_dc(s, site, routine, dont_care);
+    m.a8 = m_m8(s);
+    m.x8 = m_x8(s);
+    return menu_back(s, site + MENU_JSR_SIZE, m);
+}
+
 void menu_set_widths(Snes *s, bool a8, bool x8)
 {
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);

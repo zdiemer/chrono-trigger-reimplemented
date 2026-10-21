@@ -612,6 +612,19 @@ static void run_tasks(Snes *s, SceneTaskList list)
     m_rtl(s);
 }
 
+/* The registers a task leaves as it ends, as its row's leftovers work them
+ * out: Y, A (scaffolding), A's width and the overflow. */
+void scene_leave_task_registers(Snes *s, const SceneTaskPort *port, TaskEnd end)
+{
+    TaskLeftovers l = port->leaves(state_of(s), end);
+    leave_y(s, l);
+    ORIGINAL_EFFECT(leave_a(s, l, (TaskEnd){ end.outcome == TASK_HANDS_OVER ? TASK_GOES_ON : end.outcome, NO_TASK }));
+    if (l.a_8bit)
+        m_set_flag(s, CPU_FLAG_M, true);
+    if (l.overflow_clear)
+        m_set_flag(s, CPU_FLAG_V, false);
+}
+
 /* A task reached by its address, alone: its frame as the list runs it, and
  * back to the list as the original's would come back -- returning, or done
  * through the list's exit that empties its slot, or that hands it over, which
@@ -625,13 +638,7 @@ void scene_task_alone(Snes *s, const SceneTaskPort *port)
     if (port->calls_out)
         m_set_flag(s, CPU_FLAG_M, true);
     TaskEnd end = port->run(g, m_platform(s));
-    TaskLeftovers l = port->leaves(g, end);
-    leave_y(s, l);
-    ORIGINAL_EFFECT(leave_a(s, l, (TaskEnd){ end.outcome == TASK_HANDS_OVER ? TASK_GOES_ON : end.outcome, NO_TASK }));
-    if (l.a_8bit)
-        m_set_flag(s, CPU_FLAG_M, true);
-    if (l.overflow_clear)
-        m_set_flag(s, CPU_FLAG_V, false);
+    scene_leave_task_registers(s, port, end);
     if (end.outcome == TASK_GOES_ON) {
         m_rts(s);
     } else if (end.outcome == TASK_IS_DONE) {

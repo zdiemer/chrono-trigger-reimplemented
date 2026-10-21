@@ -136,7 +136,8 @@ HELD_WAITS = ("PF_LOOP_HELD",)
 # bridge_call_long(...) and bridge_call_on_page (on another page) with field_run and field_run_long (a sibling port run as
 # C under the call's frame, or the same call where its guard refuses), the battle's battle_call(s, site, target, set) and
 # battle_call_long(...), battle_run_dc and battle_run_long_dc (a sibling port run as C, or that call where its guard refuses), the
-# menus' menu_call and menu_call_long (and menu_call_jumped, from a jump through a pointer), and the waits
+# menus' menu_call and menu_call_long (and menu_call_jumped, from a jump through a pointer; menu_run_or_call, a sibling
+# run as C or that call where its guard refuses), and the waits
 # that go through the timing service (field_wait_frame, battle_wait_frame, battle_wait_frames,
 # battle_wait_line: the same arguments, then their own), are
 # m_jsr_dc and m_jsl_dc and a stop of the bridge's own with no set at the
@@ -148,7 +149,7 @@ DELEGATES = ("bridge_call", "bridge_call_long", "field_run", "field_run_long", "
              "bridge_call_on_page", "field_run_or_hand_over",
              "battle_call",
              "battle_call_long", "battle_run_dc", "battle_run_long_dc", "menu_call", "menu_call_long", "menu_call_returning",
-             "menu_call_jumped", "menu_yield", "field_wait_frame", "battle_wait_frame", "battle_wait_frames",
+             "menu_call_jumped", "menu_yield", "menu_run_or_call", "field_wait_frame", "battle_wait_frame", "battle_wait_frames",
              "battle_wait_line", "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under", "battle_wait_frames_under",
              "scene_run", "scene_run_long")
 # Calls of a single routine, called (s, site, ...): the routine and the set
@@ -178,7 +179,7 @@ BRIDGES = {
     # a sibling run as C, or the original's call declaring nothing where its preconditions fail
     "game/battle/sound.c": ("battle_play_a_sound_from",),
     "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_call_jumped", "menu_back",
-                           "menu_yield", "menu_wait_a_frame_from"),
+                           "menu_yield", "menu_wait_a_frame_from", "run", "menu_run_or_call"),
     "game/scene/bridge.c": ("scene_run", "scene_run_long", "run_entry"),
 }
 BRIDGE_FILE, BRIDGE_BODIES = "game/field/bridge.c", BRIDGES["game/field/bridge.c"]

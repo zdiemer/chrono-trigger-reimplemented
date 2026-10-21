@@ -10725,3 +10725,148 @@ call of `$C2:9047` yields between them), and the kind is calibrated over its
 menu's opening (`menu_choose_on_main_menu`, worst: 67,208 clocks off, once
 in each of two movies), a stretch the rule for a port's own stretch lets be
 judged (TODO.md).
+
+## Phase 4a, the shipping mode's fallbacks, chunk 8: the runtime's waits across a task switch and a frame's end, and the scrolling lists' frame (`$C0:EC60`, `$C2:0346`, `$C2:8190`-`$C2:81CF`, `$C2:F657`-`$C2:F699`, `$C2:EA81`-`$C2:EAB9`)
+
+The fallbacks' stream (history/reimplementation-chunks.md, "Phase 4a, the
+shipping mode's fallbacks, chunk 7", for the one before), chosen by what the
+runtime couldn't hold rather than by a routine: a port that waits for the next
+frame where the runtime can't keep it waiting.
+
+**How it was chosen.** The last gate left two kinds of wait to the original
+(TODO.md's "What the shipping mode's fallbacks' sixth chunk left"). A menus'
+step that waits for the next frame in the middle of its work (a call to the
+task switch, `$C2:821E`) was taken for its callee unwinding wherever the next
+task's stack lay above the yielding one's, and abandoned: the original ran the
+rest of the step though it is C (the healing's rising numbers, the equipment
+screen's slides `$C2:A518`, `$C2:A7B7`, `$C2:A970`, most of `C2:----`). And
+the frame waits the main thread is in at nearly every frame's end (the
+field's `$C0:EC71`, the sprite-object mode's `$C2:0348`, the menus' `$C2:81CA`)
+stayed idle entries a port stops at, since a port waiting there would be
+suspended at every frame end, where ct_drive takes its bases and ct_play its
+quick saves; the reference play counted the pass that leaves each as a
+handback (0.63 M, 0.10 M, and 0.09 M under the menus' task ports that stop
+there).
+
+**A yield, parked.** `native_yield_call_dc` makes the call to the task switch
+with the caller's answer to whether the task can still go on
+(`NativeGoesOn`). The runtime takes the routine off the routines in progress
+(a parked list beside them, its machine copy with it in shadow mode), so the
+other tasks' ports run and finish above nothing of it, and puts it back on
+top, in its call-out, when the machine is at the call's return with the
+call's S: from there it goes on as from any call-out, compared at its next
+point. It asks the answer at every frame's start and stack switch and drops
+the routine where it is no (`menu_task_goes_on_from`: the task's record still
+waiting with the stack its wait kept, or the task the scheduler is taking back
+into it; a task stopped, as all are when the menus close, or started afresh
+over the wait, never goes on), counted abandoned; a second yield to the same
+return and S drops the first. Parked routines count in `native_suspended`
+(`native_parked` alone). The menus make it through `menu_yield` and
+`menu_wait_a_frame_from` (`game/menu/bridge.h`), which every screen's local
+`yield` helper became. The fallback measure ends a parked port's stretch at the
+yield and starts it again where it goes on (`NativeObserver.parked`,
+`.resumed`), and an enclosing port's again where the comparisons nested in it
+are set aside at its point (a task's loop's head reached from its wait entered
+at the same S, which ended its stretch).
+
+**A wait, held.** `native_wait_loop_held` (`tm_wait_for_handlers_held`,
+`PF_LOOP_HELD(head, exit, set)`) is a wait whose continuation is the idle entry
+at the loop's head: in the shipping mode (and outside the runtime) the port
+stops there, as it did, and returns at once; shadow mode waits it through the
+original's loop and compares what it does after it, and compares the stop at
+the head with the set it declares there, which `tools/dontcare_check.py` checks
+as a stop. The field's frame wait (`field_finish_frame`, and the main loop's
+next pass after it from `$C0:00BA`), the sprite-object mode's (`$C2:0346`,
+`$C2:046E`, its compare's flags declared dead at both entries) and the menus'
+wait for the frame's uploads (`menu/tasks.c`: the frame's turns after it, timed
+as `$C2:81CF`'s, where its guard would run them) wait so. The records' task
+(`$C2:F657`) runs its loop's wait as C as the main task's and the cursor's do,
+with an entry where it goes on (`$C2:F699`), rather than stopping at it.
+
+**What comparing the steps' rest found.** The rest of each step after a yield
+had never been compared: the runtime abandoned it, in shadow mode as in the
+shipping mode. Five ports were wrong there, and the shipping mode now runs
+them: the equipment list's opening left A for the cursor's sound as the
+port's, where the original's description clears it when it starts typing and
+its last load is the cursor's place; the item use's member choice loaded the
+helping test's cell only where it refused, where the original loads it either
+way and a healing saves the flags; the shop's tick after its list's slide
+compared the places as bytes, where the original's accumulator is still
+16-bit from the equipment screen's slide, so it compares where the cursor last
+moved from with a byte the menus never write (`$82`, named
+`menu_byte_the_mode_before_left`), and ticks again as the slide ends
+wherever they differ (the shop tells a slide by the list's first row moving
+where no page turned, `menu_page_turns`, asked before the move); the slot
+erased in the load screen queued its label's record with a spare of 0 where
+the original's is the summary's byte after it, which nothing reads (the
+spare is scaffolding, as the description's uploads' are);
+and the gate screen's start saved P raw. Two were the runtime's: a port's
+flags after a yield are its own, and a routine that saves P puts them on the
+stack, which shadow mode compared, so the flags of a P a port saves and
+restores itself are compared where it restores them (`native_flags_saved`,
+through `menu_save_p`); and a task's stack below what its wait keeps, which the
+original's work popped, was compared once the wait moved to the main stack,
+so the loops' wait declares it dead (`leave_the_task_s_stack_below_uncompared`).
+
+**The tasks as the menus open** (`$C2:8190`, `menu_start_the_tasks` in
+`menu/tasks.c`): the records cleared, the main task and the cursor's started
+from their heads, then the first frame's wait as C.
+
+**The scrolling lists' frame** (`$C2:EA81`, `menu_frame_the_list` in
+`menu/lists.c`): a list's places, the rows it shows and the scroll bar's
+track in, the paging's rows and last top, the cursor's last place, how far it
+scrolls, the bar's span and its thumb's step out, the step what the CPU's
+divider makes of it. The equipment, items, shop and techs screens call it as
+C with their counts, rows and tracks, where they left the rows in the menus'
+first cell and the track in the divider for the original's; and the bridges
+call the routines around it as C too, the shop's list's frame (`$C2:DD40`)
+and its list for sale (`$C2:DECC`), the techs' list (`$C2:BB50`) and member
+rows (`$C2:BA4F`), which no longer call out.
+
+**The block move's repeats.** The menus' block move stub (`$7E:9690`, a
+`MVN` and an `RTL` in work RAM) runs its one instruction again for each byte
+it moves, back at the entry with the S it entered with. Shadow mode took each
+pass for a new call and nested a comparison of the stub a level a byte, until
+the runtime's 32 levels skipped the rest (0.14 M instructions over the
+library, 12 K more once the records' task's entry where it goes on stood a
+level deeper under the records' draws). It starts no comparison there now
+while the innermost comparison is the same routine's from the same S, in its
+stretch: the port stands for it (PORTING.md, "Call-outs").
+
+**Numbers.** The reference play, 2.83 M to 1.41 M instructions run as the
+original (and 0.16 M under comparisons still open as runs end, 0.10 M of it the
+attract demo's sound command as before, the rest the frame waits' last
+passes): the frame waits' leaving passes (0.63 M, 0.10 M), the menus' frame
+wait's under the tasks' ports (0.09 M), the records' task's hand-back
+(0.08 M) and the steps' rest after their waits gone, and with the block
+move's repeats no longer nesting, the three routines skipped at the nesting
+limit (the stub's 0.14 M, the scene's divisor search `$C3:0E29` 0.34 M, its
+resource copy `$C3:099C` 2 K). Some of what the records'
+task's hand-back held was other tasks' code on stacks within the measure's
+span, and is filed under `C2:----`, `FF:----`, `C2:CE86` and the held cursors'
+hand-back now (`tools/fallback_baseline.txt` says which). The shipping mode
+over the movies 0.14 M to 0.09 M, the routes 0.04 M as they were.
+
+Shadow over the 36 movies 0 mismatching (the block move stub 39,382 calls,
+the divisor search 2,095, each compared once and matched); the parked ports' continuations
+compared from where they go on (the records' task where it goes on 11,299
+calls, 11,296 matched; the field's frame wait 209,087, 209,044 matched; the
+sprite-object mode's 31,765, 31,756; the lists' frame's entry 1,139, all
+matched). Fuzz 0 mismatching on every entry this touched (28, among them the
+new `menu_record_task_goes_on`, `menu_frame_the_list` and
+`menu_start_the_tasks`), and after the review's fixes 133 entries of the
+shop, techs, equipment, items, tasks and frame waits, 0 mismatching.
+`tests/port/suspend_test.c` has the runtime's cases: a
+yield parked and going on in the shipping mode and in shadow mode, a task
+dropped for a frame, a task started afresh over its wait, a state saved with
+the step parked that the original's code finishes once loaded (in both
+modes, shadow mode 0 mismatching), the menus' own answer whether a task goes
+on (`menu_task_goes_on_from`, over its records), and a held wait
+nothing suspends at any frame end of, whose save state loads into a fresh
+runtime and plays on identically. Misses none and px-check identical over the
+seven menu movies. Timing: the entries the chunk moved
+recalibrated (`--drifted`); four exceptions for three steps whose stretches after their waits run the slots'
+window, the list's opening and the list for sale's making inline at those
+ports' own rates, and one for the block move stub, whose own calls measure
+4.6% slower than the rate the 36 ports that time it inside their stretches
+fit (`tools/timing_exceptions.txt`). Gate: suite OK.

@@ -60,7 +60,7 @@ enum {
     ROAD_STRIP = 0x7EE100, ROAD_STRIP_BYTES = 0x0040,
     SCALER_OUTPUT = 0x7F0300, SCALER_OUTPUT_BYTES = 0x0700,
     PLANE_COLUMN_COPY = 0x7EC995, PLANE_COLUMN_BYTES = 0x0013, PLANE_COLUMN_READ_BYTES = 0x0014,
-    PLANE_MAP_HALF = 0x7F2200, PLANE_MAP_HALF_BYTES = 0x2000,
+    PLANE_MAP_HALF_BYTES = 0x2000,
     RACERS_MAP_BYTES = 0x1000,
 };
 
@@ -139,7 +139,7 @@ static void fill_racers_map(Platform *pf)
 void scene_upload_plane_half(Platform *pf)
 {
     vid_start_vram_uploads(pf, PF_AT(0x7E8752), SCENE_VRAM_LOW_BYTES);
-    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = PLANE_MAP_HALF, .size = PLANE_MAP_HALF_BYTES };
+    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = SCENE_PLANE_MAP, .size = PLANE_MAP_HALF_BYTES };
     vid_snes_copy(pf, PF_AT(0x7E876E), &t);
 }
 
@@ -208,7 +208,6 @@ static void first_script_step(Snes *s)
 enum {
     UNPACKED_PALETTE = 0x002000,         /* the first bank, as the unpacker takes it (a bank byte of 0) */
     SCENE_PALETTE = 0x7E2200, PALETTE_BYTES = 0x200,
-    UNPACK_BUFFER = 0x7F0200,            /* the unpacker's output for what goes on to VRAM */
     PLANE_ROW_BYTES = 0x40, PLANE_ROWS_A_HALF = 0x40,
 };
 
@@ -278,7 +277,7 @@ enum { BYTES_ONE_REGISTER = 0x00 };
 void scene_double_plane_rows(GameState *g)
 {
     for (uint32_t row = 0; row < PLANE_ROWS_A_HALF; row++) {
-        uint32_t from = UNPACK_BUFFER + row * PLANE_ROW_BYTES, to = PLANE_MAP_HALF + row * 2 * PLANE_ROW_BYTES;
+        uint32_t from = SCENE_UNPACK_BUFFER + row * PLANE_ROW_BYTES, to = SCENE_PLANE_MAP + row * 2 * PLANE_ROW_BYTES;
         wram_copy(g, from, to, PLANE_ROW_BYTES);
         wram_copy(g, from, to + PLANE_ROW_BYTES, PLANE_ROW_BYTES);
         ORIGINAL_EFFECT(charge_block_move(g, 2 * PLANE_ROW_BYTES));
@@ -326,7 +325,7 @@ static void before_kind(GameState *g, Platform *pf, RaceGraphicsKind kind)
 {
     switch (kind) {
     case PLANE_PIXELS:
-        set_decompress_dest(g, UNPACK_BUFFER);
+        set_decompress_dest(g, SCENE_UNPACK_BUFFER);
         return;
     case TILES:
         vid_start_vram_uploads(pf, PF_AT(0x7E3E03), SCENE_VRAM_WHOLE_WORDS);
@@ -404,7 +403,7 @@ uint32_t scene_mirror_rows(GameState *g, uint32_t to, uint32_t from, uint16_t la
 
 /* The mirroring's two cells in the second bank: the source's offset and a
  * count of runs, both at the start of the unpack buffer. */
-enum { MIRROR_LAST = 0x7F0200, MIRROR_RUNS = 0x7F0202 };
+enum { MIRROR_LAST = SCENE_UNPACK_BUFFER, MIRROR_RUNS = SCENE_UNPACK_BUFFER + 2 };
 enum { MIRROR_RUN_ROWS = 8 };
 
 static void leave_mirror_last(GameState *g, uint16_t last) { wram_write16(g, MIRROR_LAST, last); }

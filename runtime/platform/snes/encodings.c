@@ -201,6 +201,9 @@ static const PfSnesEncoding encodings[] = {
     { 0x7E90BD, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, P, ZL, ZH, C, D, SL, SH, SB, GO), 0 },   /* the credits' tiles blanked */
     { 0x7E8F77, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, ZL, ZH, C, D, SL, SH, P, GO), 0 },       /* ... and set in front */
     { 0x7E9F1D, 0, 0, 7, ONE_REGISTER, STEPS(TL, TH, ZL, ZH, C, D, SL, SH, SB, P, GO), 0 },  /* a row of the credits */
+    /* Lavos falling */
+    { 0x7E5470, 0, 0, 7, ONE_REGISTER, STEPS(P, C, D, SL, SH, SB, ZL, ZH, GO), 0 },    /* its map's rows */
+    { 0x7E5476, 0, 0, 7, FIXED_BYTE, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0 },         /* past them blanked */
     /* the endings that share $7E:8538 */
     { 0x7E85B2, 0, 0, 7, FIXED_BYTE, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0 },          /* past the plane blanked */
     { 0x7E864C, 0, 0, 7, WORDS, STEPS(SL, SH, ZL, ZH, TL, TH, C, D, SB, GO), 0 },       /* mode 10's picture */

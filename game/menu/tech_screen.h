@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "menu/members.h"
 #include "menu/techs.h"
 #include "platform/video.h"
 #include "snes/system.h"
@@ -60,8 +61,7 @@ void menu_techs_mark_kind(GameState *g);
 
 /* The member list slides where there is a member that way: it moves on (or
  * back) a member and the slide is set up. */
-typedef enum { NO_MEMBER_SLIDE, MEMBERS_SLIDE_UP, MEMBERS_SLIDE_DOWN } TechsMemberSlide;
-TechsMemberSlide menu_techs_slide_members(GameState *g);
+MemberListSlide menu_techs_slide_members(GameState *g);
 
 /* The slide: the member coming in drawn above or below the rows and the
  * rows copied out of view beside it; twelve frames of the view moving four

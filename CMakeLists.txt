@@ -238,8 +238,10 @@ add_library(ct_game STATIC
   game/scene/bridge.c
   game/scene/circle.c
   game/scene/curtain.c
+  game/scene/plane.c
   game/scene/frame.c
   game/scene/guards.c
+  game/scene/lavos_falls.c
   game/scene/math.c
   game/scene/perspective.c
   game/scene/planet.c

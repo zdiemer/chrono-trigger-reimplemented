@@ -65,10 +65,6 @@ enum { STEERING_CHANNEL = 0, CREDITS_SCROLL = 2, PICTURE_FRAME = 5 };
 
 static uint16_t picture_register(const GameState *g, unsigned reg) { return scene_channel_register(g, PICTURE_CHANNEL, reg); }
 
-/* Where the unpacker leaves what goes on to VRAM, and other places in the
- * second bank the scenes unpack to. */
-enum { UNPACK_BUFFER = 0x7F0200 };
-
 /* The unpacker's destination moved within its bank, or to the first bank (a
  * bank byte of 0) keeping its address. */
 static void unpack_at(GameState *g, uint16_t at) { set_decompress_dest(g, (decompress_dest(g) & 0xFF0000) | at); }
@@ -304,38 +300,15 @@ static void send_letters_widened(GameState *g, Platform *pf)
     ORIGINAL_EFFECT(hw_port_seek_address(g, (uint16_t)(from + LETTER_TILES * TILE_2BPP_BYTES)));
 }
 
-/* The ground's name table, from what was unpacked: each 64-tile row of it
- * followed by 64 empty tiles, across the plane's 128. */
-enum { GROUND_ROWS = 0x40, GROUND_ROW_BYTES = 0x40, PLANE_MAP_HALF = 0x7F2200 };
-
-// $7E:37CA
-/* The original counts the rows down in the scene's first cell. */
-static void pad_ground_rows(GameState *g)
-{
-    for (uint32_t row = 0; row < GROUND_ROWS; row++) {
-        uint32_t to = PLANE_MAP_HALF + row * 2 * GROUND_ROW_BYTES;
-        wram_copy(g, UNPACK_BUFFER + row * GROUND_ROW_BYTES, to, GROUND_ROW_BYTES);
-        wram_fill8(g, to + GROUND_ROW_BYTES, GROUND_ROW_BYTES, 0);
-        ORIGINAL_EFFECT(charge_block_move(g, 2 * GROUND_ROW_BYTES - 1));
-    }
-    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), 0));
-}
-
 /* Past the plane's name table (which the two halves leave VRAM's address at
  * the end of), the low bytes of the next $1000 words are the blank tile. */
 enum { BLANKED_PAST_THE_PLANE = 0x1000 };
-
-static void blank_past_the_plane(Platform *pf)
-{
-    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = SCENE_BLANK_TILE, .size = BLANKED_PAST_THE_PLANE };
-    vid_snes_copy(pf, PF_AT(0x7E85B2), &t);
-}
 
 /* Mode 10's picture, made of tiles: 320 tile numbers, each picking one of the
  * unpacked tiles, laid out in turn from $D800 in the second bank; the last
  * $800 bytes of it go to VRAM $5C00, and a vblank task of the program's goes on
  * with it. */
-enum { MOSAIC_TILES = 0x140, MOSAIC_TILE_BYTES = 0x20, MOSAIC_TILESET = 0x7F0200, MOSAIC_NUMBERS = 0x7F2200 };
+enum { MOSAIC_TILES = 0x140, MOSAIC_TILE_BYTES = 0x20, MOSAIC_TILESET = SCENE_UNPACK_BUFFER, MOSAIC_NUMBERS = 0x7F2200 };
 enum { MOSAIC = 0x7FD800, MOSAIC_SENT = 0x7FE000, MOSAIC_SENT_BYTES = 0x800, MOSAIC_VRAM = 0x5C00 };
 enum { MOSAIC_TASK = 0x9CE2, MOSAIC_COUNTER = 0x7F8000 };
 
@@ -477,19 +450,10 @@ static void first_script_step(Snes *s, uint16_t picture_script)
     s->cpu.d = 0x0000;
 }
 
-/* The stars' scatter starts its draws from what the original hands its first
- * one unexamined: A as the screen's blanking left it, and the carry the
- * script's call came with, which nothing here touches. The overflow its last
- * draw leaves is what the script routine leaves. */
-enum { SCATTER_STARS = 0x7E5777, BLANKING_LEFT_IN_A = 0x0080 };
-
-static void scatter_stars(Snes *s)
-{
-    GameState *g = state_of(s);
-    SceneDraw first = scene_draw_from(BLANKING_LEFT_IN_A, m_flag(s, CPU_FLAG_C), TM_ENTROPY_BYTES);
-    TIMED_AS(g, SCATTER_STARS, scene_scatter_stars(g, m_platform(s), first));
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, scene_random_last_overflow()));
-}
+/* The stars' scatter starts its draws from A as the screen's blanking left
+ * it, and the carry the script's call came with, which nothing here
+ * touches. */
+enum { BLANKING_LEFT_IN_A = 0x0080 };
 
 
 /* ---- The setup: the ground, the captions, the scripts ------------------------------------------- */
@@ -513,7 +477,7 @@ static void load_letters_and_ground(Snes *s)
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
     vid_start_vram_uploads(pf, PF_AT(0x7E853A), SCENE_VRAM_WHOLE_WORDS);
-    set_decompress_dest(g, UNPACK_BUFFER);
+    set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     vid_set_vram_address(pf, PF_AT(0x7E8543), LETTER_TILES_VRAM);
     unpack(s, 0x7E8549, LETTERS);
     send_letters_widened(g, pf);
@@ -530,12 +494,12 @@ static void load_letters_and_ground(Snes *s)
     vid_start_vram_uploads(pf, PF_AT(0x7E858C), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E8592), 0x0000);
     unpack(s, 0x7E8598, GROUND_MAP_FIRST);
-    pad_ground_rows(g);
+    scene_widen_the_plane_map(g);
     TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
     unpack(s, 0x7E85A5, GROUND_MAP_SECOND);
-    pad_ground_rows(g);
+    scene_widen_the_plane_map(g);
     TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
-    blank_past_the_plane(pf);
+    scene_blank_past_the_plane(pf, PF_AT(0x7E85B2), BLANKED_PAST_THE_PLANE);
 
     vid_start_vram_uploads(pf, PF_AT(0x7E85B7), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E85BD), MORE_SPRITE_TILES_VRAM);
@@ -701,7 +665,7 @@ static SceneProgramPage calling_page(Snes *s)
 static uint16_t load_picture(Snes *s, SceneProgramPage page)
 {
     GameState *g = state_of(s);
-    set_decompress_dest(g, UNPACK_BUFFER);
+    set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     unpack_at(g, PICTURE_FRAMES_AT);
     unpack(s, 0x7E87E9, PICTURE_FRAMES);
     mirror_picture_frames(g);
@@ -734,7 +698,7 @@ static void load_new_ground(Snes *s, SceneProgramPage page)
     Platform *pf = m_platform(s);
     scene_use_loaded_palette(g);
     set_scene_plane_far_color_math(g, FAR_COLOR_MATH);
-    set_decompress_dest(g, UNPACK_BUFFER);
+    set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     unpack(s, 0x7E87B0, NEW_GROUND);
     scene_double_plane_rows(g);
     /* the original counts the rows down in its page's first cell */
@@ -757,8 +721,8 @@ static void start_stars(Snes *s)
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
     blank_the_screen(g, pf, 0x7E8BC0, 0x7E8BC8);
-    scatter_stars(s);
-    set_decompress_dest(g, UNPACK_BUFFER);
+    scene_bridge_scatter_stars(s, BLANKING_LEFT_IN_A);
+    set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
     vid_set_vram_address(pf, PF_AT(0x7E8BDE), STAR_TILES_VRAM);
     unpack(s, 0x7E8BE4, STAR_TILES);
@@ -799,7 +763,7 @@ static void start_mode7_picture(Snes *s)
     Platform *pf = m_platform(s);
     blank_the_screen(g, pf, 0x7E8C25, 0x7E8C2D);
     vid_set_mode7(pf, PF_AT(0x7E8C30), &(VidMode7){ .outside = VID_M7_TRANSPARENT }, VID_M7_SELECT);
-    set_decompress_dest(g, UNPACK_BUFFER);
+    set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
     vid_start_vram_uploads(pf, PF_AT(0x7E8C42), SCENE_VRAM_WHOLE_WORDS);
     unpack(s, 0x7E8C48, PLANE_TILES);
@@ -876,7 +840,7 @@ static bool prepare_credits(Snes *s)
         set_scene_channels_script(g, STEERING_CHANNEL, NO_CREDITS_SCRIPT);
         return false;
     }
-    set_decompress_dest(g, UNPACK_BUFFER);
+    set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     unpack(s, 0x7E8CF8, CREDITS_LETTERS);
     unpack_at(g, CREDITS_PICTURE_AT);
     unpack(s, 0x7E8D04, CREDITS_PICTURE);
@@ -889,7 +853,7 @@ static bool prepare_credits(Snes *s)
 /* The credits' screen: the letters' blank tiles and the map blanked, the
  * per-line effect, the text, and the layers -- the pattern on BG1, the
  * credits on BG2, mode 4, the credits subtracted from what is under them. */
-enum { CREDITS_TILES_VRAM = 0x4000, CREDITS_BLANK_TILES = 0x7F0200, BLANK_TILES_BYTES = 0x200 };
+enum { CREDITS_TILES_VRAM = 0x4000, CREDITS_BLANK_TILES = SCENE_UNPACK_BUFFER, BLANK_TILES_BYTES = 0x200 };
 enum { CREDITS_LINE_EFFECTS = 0x9023, CREDITS_LINE_CHANNELS = 0x01 };
 enum { CREDITS_TEXT = 0xB099, ROW_BEFORE_THE_MAP = 0xFFE0 };
 

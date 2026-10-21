@@ -3,10 +3,11 @@
  * to what is still the original's, and their guards.
  *
  * Each step reads the cursor, asks equipment.c what the frame's input does,
- * and carries that out: the sounds and the member's card are siblings, run
- * as the original's JSRs reach them (menu_run); the member list's scroll
- * bar and the start of its slide, the low-HP marks and the trying on of
- * what is no item of the game's are the original's, called out to; the
+ * and carries that out: the sounds, the member's card and the member list's
+ * slide are siblings, run as the original's JSRs reach them (menu_run; the
+ * slide where its own guard holds, menu_run_or_call); the member list's
+ * scroll bar, the low-HP marks and the trying on of what is no item of the
+ * game's are the original's, called out to; the
  * list's frame is C, called as C; a step that waits for the next frame
  * waits in the menus' task switch, parked until its task goes on
  * (menu_wait_a_frame_from); where a step jumps on to another routine (the
@@ -49,7 +50,6 @@ enum {
     MEMBER_SCROLL_BAR = 0xC2A170,    /* the member list's scroll bar set up */
     LOW_HP_MARKS = 0xC2813C,         /* each character's low-HP mark worked out */
     TRY_ON = 0xC2A5C3,               /* the list's item on the cursor tried on (equipment.c), where it is no item of the game's */
-    START_MEMBER_SLIDE = 0xC29D5B,   /* the member list's slide started, if there is a member to bring in */
 };
 
 /* Where a step jumps on to: the member list's move and the slots' pointing,
@@ -89,6 +89,7 @@ static void leave_buttons_tested(Snes *s);
 static void leave_inventory_changed(Snes *s);
 static void leave_cursor_compared(Snes *s);
 static void leave_member_pointed(Snes *s, uint8_t pointed_before);
+static void leave_member_slide_started(Snes *s, MemberListSlide slide);
 static void leave_slot_kept(Snes *s, uint8_t kept_before);
 static void leave_list_sum(Snes *s, uint8_t shown_before);
 static void leave_label_copied(Snes *s);
@@ -172,7 +173,8 @@ void menu_point_at_equipment_member(Snes *s)
     menu_set_widths(s, true, true);
     if (!menu_equip_member_list_scrolls(g))
         menu_equip_take_cursor_round_members(g);
-    else if (menu_equip_push_slides_members(g) && !call(s, 0xC29D23, START_MEMBER_SLIDE))
+    else if (menu_equip_push_slides_members(g)
+             && !menu_run(s, 0xC29D23, 0xC29D5B, menu_start_sliding_equipment_members))
         return;
     uint8_t pointed_before = menu_member_pointed(g);
     bool another = menu_equip_point_at_member(g);
@@ -183,9 +185,30 @@ void menu_point_at_equipment_member(Snes *s)
     m_stop_at(s, MEMBER_CARD, READS_NOTHING);
 }
 
+// $C2:9D5B
+/* The member list slid up or down a member, where the push brings one: the
+ * slide set up, then made (below). */
+void menu_start_sliding_equipment_members(Snes *s)
+{
+    GameState *g = state_of(s);
+    MemberListSlide slide = menu_equip_slide_members(g);
+    if (slide == NO_MEMBER_SLIDE) {
+        m_rts(s);
+        return;
+    }
+    ORIGINAL_EFFECT(leave_member_slide_started(s, slide));
+    menu_save_p(s);
+    menu_set_widths(s, false, false);
+    uint32_t site = slide == MEMBERS_SLIDE_UP ? 0xC29D82 : 0xC29DAA;
+    if (!menu_run_or_call(s, site, 0xC29DAF, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, menu_slide_equipment_members))
+        return;
+    menu_restore_p(s);
+    m_rts(s);
+}
+
 // $C2:9DAF
-/* The member list's slide, as its start ($C2:9D5B, the original's) set it:
- * a frame at a time, waiting for the next between them. */
+/* The member list's slide, as its start set it: a frame at a time, waiting
+ * for the next between them. */
 void menu_slide_equipment_members(Snes *s)
 {
     GameState *g = state_of(s);
@@ -747,6 +770,17 @@ static void leave_cursor_compared(Snes *s)
     menu_leave_compare(s, menu_cursor_frame_start(g), menu_cursor_index(g));
 }
 
+/* The slide's start leaves its step of the list's place in the flags it
+ * saves under the slide: the place a member up as the step down to it left
+ * them, or as the place's own step on in memory did, after a compare with
+ * the furthest it goes that left the carry clear. */
+static void leave_member_slide_started(Snes *s, MemberListSlide slide)
+{
+    menu_leave_load(s, menu_member_scroll(state_of(s)));
+    if (slide == MEMBERS_SLIDE_DOWN)
+        m_set_flag(s, CPU_FLAG_C, false);
+}
+
 /* The member pointed at, compared with the one before; the sum of the row
  * and the scroll it came from never overflows; and the rows' colouring
  * queued their upload last. */
@@ -920,6 +954,10 @@ bool menu_equipment_member_is_pointable(Snes *s) { return on_the_screen(s) && pe
 static bool members_slide(const GameState *g) { return queue_takes(g, 3) && menu_equip_member_slide_can_run(g); }
 
 bool menu_equipment_members_slide(Snes *s) { return on_the_screen(s) && peek(s, members_slide); }
+
+/* The slide's start reads the push and the list's place; the slide it starts
+ * is run where its own guard holds, and is the original's call otherwise. */
+bool menu_equipment_members_slide_starts(Snes *s) { return on_the_screen(s); }
 
 bool menu_equipment_slot_step_runs(Snes *s) { return on_the_screen(s) && menu_cursor_is_movable(s); }
 

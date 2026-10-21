@@ -468,6 +468,7 @@ static uint8_t effect_unit_len(VidLineTarget target)
     case VID_LINE_COLOR_MATH: return 4;
     case VID_LINE_MODE:
     case VID_LINE_MATH_LAYERS:
+    case VID_LINE_MATH_CONTROL_AND_LAYERS:
     case VID_LINE_SCROLL_BG1_H:
     case VID_LINE_SCROLL_BG1_V:
     case VID_LINE_SCROLL_BG2_V:
@@ -562,6 +563,9 @@ static void effect_apply(VidObserver *ob, VidLineTarget target, int i, uint8_t v
         break;
     case VID_LINE_MATH_LAYERS_ONLY:
         vid_color_math_decode(&ob->state.math, VID_MATH_LAYERS, v);
+        break;
+    case VID_LINE_MATH_CONTROL_AND_LAYERS:
+        vid_color_math_decode(&ob->state.math, i == 0 ? VID_MATH_CONTROL : VID_MATH_LAYERS, v);
         break;
     case VID_LINE_SCROLL_BG1_H:
         set_scroll_h(ob, 0, v);

@@ -31,17 +31,17 @@
 typedef enum { RACER_CRONO, RACER_JOHNNY } Racer;
 
 /* Channel 0's registers, as the race's camera script sets them and the race
- * reads them. */
+ * reads them: those the perspective is built from are the plane's (scene.h). */
 enum {
-    CAMERA_HEIGHT = 0,     /* how high the camera is: the plane's scale (its low byte) */
+    CAMERA_HEIGHT = SCENE_PLANE_HEIGHT, /* how high the camera is: the plane's scale (its low byte) */
     CAMERA_PLACE = 1,      /* where along the track it is, 0-$3FF around */
     CAMERA_DISTANCE = 2,   /* how far it stands from that place */
-    CAMERA_ANGLE = 5,      /* which way it faces, 0-$3FF around */
-    CAMERA_PITCH = 6,      /* how far down the screen the horizon is */
-    CAMERA_PLANE_TOP = 8,  /* where below the horizon the plane's perspective starts */
+    CAMERA_ANGLE = SCENE_PLANE_TURN, /* which way it faces, 0-$3FF around */
+    CAMERA_PITCH = SCENE_PLANE_HORIZON, /* how far down the screen the horizon is */
+    CAMERA_PLANE_TOP = SCENE_PLANE_TOP, /* where below the horizon the plane's perspective starts */
     CAMERA_SPEED = 9,      /* how far it moves along each frame */
     RACE_ANIMATION = 10,   /* the bikes' animation: they change frame every other count */
-    CAMERA_LINES_PAIRED = 11, /* nonzero while the perspective is built a pair of lines at a time */
+    CAMERA_LINES_PAIRED = SCENE_PLANE_LINES_PAIRED, /* nonzero while the perspective is built a pair of lines at a time */
     CAMERA_LEAN = 12,      /* turned into the bikes' poses with the angle */
 };
 
