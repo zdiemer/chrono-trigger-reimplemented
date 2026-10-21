@@ -399,7 +399,9 @@ Each of these is a finding. Every example here comes from this repo.
     items 57 and 119); and `game/battle/screen_motion.c`'s chained
     carry (accepted 2026-10-19); and `game/scene/curtain.c`'s adds and
     subtracts that take in the carry before them and `race_camera.c`'s
-    (accepted 2026-10-20). Don't grade those files down for them.
+    (accepted 2026-10-20); and `game/field/line_effects.c`'s
+    `fill_wave_scroll` (accepted 2026-10-21). Don't grade those files down
+    for them.
 13. **Memory used as registers.** A loop counter or temporary kept in a RAM cell
     and read back (`set_scene_circle_count(g, x); ... x = scene_circle_count(g);`),
     or bytes shifted in place in scratch. CLAUDE.md requires writing the cells the
