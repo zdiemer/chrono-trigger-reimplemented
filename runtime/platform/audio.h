@@ -106,6 +106,27 @@ PF_API bool au_driver_run_direct(Platform *pf, uint32_t lo, uint32_t hi);
  * as logic apart from the registers sets only what the callee takes. */
 PF_API void au_driver_call(Platform *pf, PfOrigin o, uint16_t dont_care);
 
+/* The waits for the SPC700's answer on port 0. Its driver echoes every value
+ * the CPU half puts there, once it has taken the message the value ends.
+ *
+ * au_driver_exchange puts `value` on port 0 and waits for the echo, which is
+ * what the routine at o.target does when called from o.site
+ * (PF_CALL_DC(site, target, what it doesn't read)): SNES backend, in the
+ * shipping mode the port writes and waits where it stands; in shadow mode and
+ * the tools the original's routine runs, with `value` in an 8-bit A, as the
+ * port's own work (native_wait_call). au_driver_wait_echo and
+ * au_driver_wait_moved stand for a loop of the caller's own routine
+ * (PF_LOOP(head, exit)) that waits for port 0 to show `value`, or to show
+ * anything but it (native_wait_loop). APU-direct, inside a run: the SPC700
+ * runs ahead until it answers. A backend with no SPC700 never sees them. */
+PF_API void au_driver_exchange(Platform *pf, PfOrigin o, uint8_t value);
+PF_API void au_driver_wait_echo(Platform *pf, PfOrigin o, uint8_t value);
+PF_API void au_driver_wait_moved(Platform *pf, PfOrigin o, uint8_t value);
+/* au_driver_wait_echo for a loop that polls port 0 at most `tries` times and
+ * then gives up, leaving at `given_up` (the same as the loop's exit where the
+ * code after doesn't care): true where the SPC700 echoed in time. */
+PF_API bool au_driver_wait_echo_or_give_up(Platform *pf, PfOrigin o, uint32_t given_up, uint8_t value, uint16_t tries);
+
 /* A host that plays its own driver in the SPC700's place (the C sound driver,
  * frontend/sound_host.h) takes the CPU half's boot and commands as calls:
  * nothing is uploaded and nothing waits on the ports. au_driver_hosted says

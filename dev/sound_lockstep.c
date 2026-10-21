@@ -312,11 +312,11 @@ static void compare_places(SoundLockstep *l)
         if (start != p->start[i])
             place_differs(l, "start", i, start, p->start[i]);
     }
-    uint8_t reserve = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_RESERVE);
-    uint8_t limit = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_SLOT_LIMIT);
-    uint16_t upload_slot = wram_word(l, RAM_SOUND_DRIVER_UPLOAD_SLOT);
-    uint8_t pending = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_2F00_PENDING);
-    uint8_t set = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_2F00_SET_SENT);
+    uint8_t reserve = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_ECHO_DELAY);
+    uint8_t limit = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_ECHO_PAGE);
+    uint16_t upload_slot = wram_word(l, RAM_SOUND_DRIVER_FIRST_SAMPLE_SLOT);
+    uint8_t pending = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_EFFECTS_DUE);
+    uint8_t set = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_EFFECTS_SENT);
     if (reserve != p->echo_delay || limit != p->echo_page)
         place_differs(l, "echo_delay", 0, (unsigned)(reserve << 8 | limit), (unsigned)(p->echo_delay << 8 | p->echo_page));
     if (upload_slot != 2 * p->instrument_place)
@@ -407,7 +407,7 @@ static void command(SoundLockstep *l, const Apu *apu)
     if (song_start(c.command)) {
         l->song_open = true;
         sync_samples(l);
-        drive(l, ANNOUNCE_SONG, c, snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_2F00_SET));
+        drive(l, ANNOUNCE_SONG, c, snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_EFFECTS_ASKED));
         return;
     }
     drive(l, RUN_COMMAND, c, 0);
@@ -425,7 +425,7 @@ static void upload_header(SoundLockstep *l, const Apu *apu)
         return;
     uint16_t address = (uint16_t)(apu->ram[UPLOAD_ADDRESS] | apu->ram[UPLOAD_ADDRESS + 1] << 8);
     if (address >> 8 == EFFECTS_PAGE && !l->song_open) {
-        uint8_t set = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_2F00_SET_SENT) != 0;
+        uint8_t set = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_EFFECTS_SENT) != 0;
         drive(l, LOAD_EFFECTS, (SoundCommand){ 0 }, set);
         l->loads++;
     } else if (address >> 8 == EFFECTS_PAGE) {

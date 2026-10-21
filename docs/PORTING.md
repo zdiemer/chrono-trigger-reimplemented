@@ -72,7 +72,15 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   the bytes dead while they stay pushed with `native_stack_dont_care`: the
   battle's steps keep the asker's X and Y so, `battle/steps.c`; bytes still
   declared where the port stops stay uncompared at the stop, where a menu
-  task's wait leaves its registers on the task's stack, `menu/tasks.c`). `DC_AH` in a don't-care
+  task's wait leaves its registers on the task's stack, `menu/tasks.c`; a
+  port that does as C the work of a routine the original calls, and meets
+  the original at a wait or a call-out inside it, does it inside the
+  original's frame for it, `IN_THE_ORIGINALS_FRAME(g, bytes, ...)`
+  (`game/original_frame.h`, `native_frame_enter`): S goes down by the
+  frame's bytes, the return address and what the routine pushes on the way
+  in, which are declared dead so, and up again after, so the waits in it
+  meet the original's at its S, `core/sound_driver.c`'s song command and
+  two uploads). `DC_AH` in a don't-care
   set leaves out A's high byte only, for code that works on an 8-bit A and
   leaves the high byte to whatever last set it, and `DC_AL` A's low byte only,
   for code whose callers read A's high byte (a later 16-bit load or `TAX` takes

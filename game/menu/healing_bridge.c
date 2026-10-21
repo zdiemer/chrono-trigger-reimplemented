@@ -113,7 +113,11 @@ void menu_raise_amounts(Snes *s)
         set_menu_amounts_from(g, (uint8_t)(2 * menu_amounts_shown_from((MenuAmountKind)k)));
         menu_set_widths(s, true, true);
         m_set_a8(s, menu_amount_sound((MenuAmountKind)k));
-        if (!menu_run(s, sites[k], 0xC29047, menu_raise_amount_kind))
+        /* the kind's numbers rise a frame at a time, yielding between: its
+         * stretches are the kind's, as the original's call of it is */
+        bool back;
+        NATIVE_TIME_AS_SIBLING(s, 0xC29047, back = menu_run(s, sites[k], 0xC29047, menu_raise_amount_kind));
+        if (!back)
             return;
     }
     menu_set_widths(s, true, true);

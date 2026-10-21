@@ -90,6 +90,22 @@ void au_direct_pass(Snes *s)
     run_ahead(s, clocks);
 }
 
+bool au_direct_wait_port0(Snes *s, int32_t wake, uint32_t passes, uint32_t pass_clocks)
+{
+    au_direct_pass(s);
+    for (uint32_t pass = 0; !native_wake_port0_satisfied(wake, apu_read_port(&s->apu, 0)); pass++) {
+        if (dir.given_up || (passes && pass == passes))
+            return false;
+        if (dir.run_clocks > RUN_LIMIT_CLOCKS) {
+            dir.given_up = true;
+            dir.given_up_runs++;
+            return false;
+        }
+        run_ahead(s, pass_clocks);
+    }
+    return true;
+}
+
 /* Run from PC while it stays in [lo, hi], until it reaches `ret` with S at
  * `s_after` (when s_after >= 0). */
 static void run_loop(Snes *s, uint32_t lo, uint32_t hi, uint32_t ret, int32_t s_after)

@@ -31,7 +31,7 @@ rest waits, is [PLAN.md](PLAN.md).
   but the original's time follows the window's lines and corners as it sweeps
   (a 22% mean error; at worst 64,755 clocks off once in 785 stretches, on
   `tools/timing_exceptions.txt` since the rider's list, run as C inside it,
-  stopped splitting its stretch: REIMPLEMENTATION.md, "Phase 4a, the shipping
+  stopped splitting its stretch: history/reimplementation-chunks.md, "Phase 4a, the shipping
   mode's fallbacks, chunk 6"). Time its work by what it draws -- the lines and
   corners it sweeps, each at a calibrated value through `NATIVE_TIME_AS` on
   a registered piece -- so the exception can go.
@@ -155,10 +155,6 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What core's rewrite left** (history/reimplementation-phase3a.md, "Phase 3a: the controller off the
   machine" and "Phase 3a: the rest of core"):
-  - `sound_driver.c` still reads as translation, and is not to be rewritten: it
-    is the original driver's upload protocol, which the C driver doesn't use
-    (it takes the boot and the commands as calls) and which goes with the
-    original driver when the gate retires for sound (PLAN.md, Phase 4a);
   - what core's review rated "mostly": `palette.c` passes one animation type
     to stand for a family (`ROTATE_DOWN` for both rotations, `FADE_TO_WHITE`
     for every fade, pulse and restore) where a `RunShape` belongs; the held
@@ -2029,12 +2025,16 @@ rest waits, is [PLAN.md](PLAN.md).
   history/reimplementation-waves.md, "Phase 3, wave 1"),
   and the APU-direct backend's audio comparison misses one measure on
   `new-game` (PLATFORM.md, "P1 as built").
-- **The sound driver's waits on time and on the SPC700** (`core/sound_driver.c`):
-  the boot's countdown at `$C7:011B` ($0800 passes, time for the SPC700 to start
-  the driver) and every echo wait stay loops on the machine as idle entries.
-  The Phase 4a port of the driver needs none of them -- there is no SPC700 to
-  wait for once its program is C -- so these loops are deleted by that work
-  rather than fixed by it.
+- **The sound driver's boot, waiting on time** (`core/sound_driver.c`): the
+  boot's countdown at `$C7:011B` ($0800 passes, time for the SPC700 to start
+  the driver) and its first wait at `$C7:0050` (for the boot ROM to show
+  `$BBAA` on two ports, while it writes two others each pass) stay loops on
+  the machine as idle entries; every other wait for the SPC700 is the port's,
+  through the audio service. The countdown wants a wait on time alone, which
+  `native_wait_time` now is in the shipping mode (shadow mode would compare it
+  against the loop), and the first a wait on two ports. Neither costs
+  anything to measure (74 and 222 instructions over the library); the Phase
+  4a port of the driver needs neither, and they go with it.
 
 ## Timing without a beam
 
@@ -2412,11 +2412,9 @@ re-runs the census.
   - What its review left (none blocking after its fixes):
     `battle_wait_music_fade_loop` (`battle/sound.c`) sets the PC by hand, a
     stop-point fragment of `$CD:0D93`'s loop (rubric item 16: port the
-    defeat's battlefield change it is a pass of); `sound_driver_2f00_set`,
-    the set of effects the driver loads with the next song, is named for its
-    address (item 4: name it in the map, with its `_sent` and `_pending`
-    neighbours); `battle_pause_blocked` is written as `$FF`, 1 and 0 in
-    different files (item 10: a bool, or a named state each writer uses);
+    defeat's battlefield change it is a pass of); `battle_pause_blocked` is
+    written as `$FF`, 1 and 0 in different files (item 10: a bool, or a
+    named state each writer uses);
     and the menu window still reaches the description and the target's
     name (`battle_describe`, `battle_name_a_combatant*`, pure C) through
     `battle_run_long` (item 123: call them as C behind a test of their
@@ -2524,7 +2522,18 @@ re-runs the census.
     leader's spot off the map, which no flight makes; the arrival's x
     measured across the map's height (`slow_so_as_not_to_pass`) is the
     original's and kept.
-- **What the shipping mode's fallbacks' sixth chunk left** (REIMPLEMENTATION.md,
+- **The main menu's opening, over-estimated** (`menu_choose_on_main_menu`, on
+  `tools/timing_exceptions.txt` for its worst stretch since the shipping mode's
+  fallbacks' chunk 7, REIMPLEMENTATION.md): a stretch of the main task's turn
+  that opens the menu, drawing its windows and panel, is judged now that a
+  port's stretch under the menus' vblank handler isn't taken for the port
+  leaving, and its estimate, all of it the menus' own ports' parts at their
+  rates, is 163,291 clocks where the original takes 96,084 (once in each of
+  `menus-end-of-time` and `menus-field-menu`). Find the part whose rate the
+  opening's work doesn't fit (the window copies and the sprite table's
+  clearing are the largest), charge it for what it does, and the exception
+  can go.
+- **What the shipping mode's fallbacks' sixth chunk left** (history/reimplementation-chunks.md,
   "Phase 4a, the shipping mode's fallbacks, chunk 6"):
   - **A wait for the next frame in the middle of a menus' step is taken for
     an unwind.** A bridge that yields mid-body (`menu_call` to the task
@@ -2796,8 +2805,13 @@ waits on M5 rather than on a backend.
     `STACK_SPAN` of the one it left (`dev/fallbacks.c`) keeps the extent it
     was in, and a routine reached by a jump rather than a call is filed under
     its caller;
-  - the shadow runs play the original sound driver, so the CPU half's waits
-    for its answers count there (0.9 KiB) and are gone in the shipping mode;
+  - an interrupt whose handler moves to a stack of its own (the menus'
+    vblank handler) keeps the extents under it until S is back above where
+    it was taken (`handler_away`); a handler that never comes back leaves
+    them under the code that follows, which then counts as code with no
+    call on record. None in the library does, and the runtime's rule for a
+    call-out under such a handler, and for a port's own stretch under one,
+    is the same (`Active.handler_away`);
   - the Beyond Time route's replays from a base grew from 30,056 frames to
     44,660 with the battle frame work's remainders' second chunk
     (REIMPLEMENTATION.md, that chunk's "Measured"), which the route measure no longer counts

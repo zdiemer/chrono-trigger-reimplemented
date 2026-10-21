@@ -302,9 +302,10 @@ void set_sound_command_parameters(GameState *g, unsigned i, uint8_t v);
 uint8_t sound_driver_song(const GameState *g);
 void set_sound_driver_song(GameState *g, uint8_t v);
 
-/* Cleared before play_song loads blocks; nothing in the game reads it */
-uint8_t sound_driver_unused_0a(const GameState *g);
-void set_sound_driver_unused_0a(GameState *g, uint8_t v);
+/* Zeroed as a song's missing blocks start to load ($C7:0328), and by nothing else; nothing in
+ * the game reads it */
+uint8_t sound_driver_zeroed_as_blocks_load(const GameState *g);
+void set_sound_driver_zeroed_as_blocks_load(GameState *g, uint8_t v);
 
 /* The driver's work word: the length of the resource being uploaded (the end offset of a boot
  * block), or, while play_song sorts slots, how far the used slots reach, the first free slot,
@@ -317,21 +318,28 @@ void set_sound_driver_work(GameState *g, uint16_t v);
 uint16_t sound_driver_song_ids_end(const GameState *g);
 void set_sound_driver_song_ids_end(GameState *g, uint16_t v);
 
-/* Which of the two data sets goes to SPC700 address $2F00: zero the one at $C7:430B, nonzero the
- * one at $C7:5B0D (command $70 sets it from whether its parameter is nonzero) */
-uint8_t sound_driver_2f00_set(const GameState *g);
-void set_sound_driver_2f00_set(GameState *g, uint8_t v);
+/* Which set of sound effects the game asks the driver to have at SPC700 $2F00: zero the field's
+ * (at $C7:4309, which the boot also sends), nonzero the battle's ($C7:5B0B). The field sets it
+ * before some songs; command $70 sets it from whether its parameter is nonzero */
+uint8_t sound_driver_effects_asked(const GameState *g);
+void set_sound_driver_effects_asked(GameState *g, uint8_t v);
 
-/* The $2F00 data set last asked for, to tell when it changes */
-uint8_t sound_driver_2f00_set_sent(const GameState *g);
-void set_sound_driver_2f00_set_sent(GameState *g, uint8_t v);
+/* The set of sound effects the driver was last sent (0 or 1), to tell when the one asked for
+ * differs */
+uint8_t sound_driver_effects_sent(const GameState *g);
+void set_sound_driver_effects_sent(GameState *g, uint8_t v);
 
 /* Long pointer to the data being uploaded to the SPC700; for resources from a table the low word
- * is 0 and the offset is in Y. While play_song sorts a song's ids its first word and the word
- * after it ($1E14-$1E15) are pointers into the two id lists, and build_address_table leaves its
- * first word past the $1F80 table */
+ * is 0 and the offset is in Y. While blocks_of sorts a song's blocks its first word and the word
+ * after it ($1E14-$1E15) are pointers into the two lists, and send_directory leaves its first
+ * word past the directory's entries ($1F80) */
 uint32_t sound_driver_data_pointer(const GameState *g);
 void set_sound_driver_data_pointer(GameState *g, uint32_t v);
+
+enum { SOUND_DRIVER_LIST_ENDS_COUNT = 2 };   /* by list: 0 the song's blocks ($1F00), 1 those no slot holds ($1F20) */
+/* While play_song sorts a song's blocks into its two lists, where each list has got to */
+uint16_t sound_driver_list_ends(const GameState *g, unsigned i);
+void set_sound_driver_list_ends(GameState *g, unsigned i, uint16_t v);
 
 /* The slot (times 2) whose block sound_driver_upload_block is uploading */
 uint16_t sound_driver_load_slot(const GameState *g);
@@ -342,9 +350,17 @@ uint16_t sound_driver_load_index(const GameState *g);
 void set_sound_driver_load_index(GameState *g, uint16_t v);
 
 enum { SOUND_DRIVER_SLOT_IDS_COUNT = 16 };   /* by slot */
-/* The block id loaded in each SPC700 memory slot, 0 for a free slot */
-uint16_t sound_driver_slot_ids(const GameState *g, unsigned slot);
-void set_sound_driver_slot_ids(GameState *g, unsigned slot, uint16_t v);
+/* The block loaded in each SPC700 memory slot, 0 for a free slot: the low byte of the word the
+ * original keeps for it, blocks being numbered in a byte */
+uint8_t sound_driver_slot_ids(const GameState *g, unsigned slot);
+void set_sound_driver_slot_ids(GameState *g, unsigned slot, uint8_t v);
+
+enum { SOUND_DRIVER_SLOT_IDS_HIGH_COUNT = 16 };   /* by slot */
+/* The high byte of the word the original keeps for each slot's block: always 0, blocks being
+ * numbered in a byte (the original writes it, always a 0, with the low byte; the port leaves it
+ * alone); the command's guard turns away a state where one isn't */
+uint8_t sound_driver_slot_ids_high(const GameState *g, unsigned slot);
+void set_sound_driver_slot_ids_high(GameState *g, unsigned slot, uint8_t v);
 
 enum { SOUND_DRIVER_SLOT_LENGTHS_COUNT = 16 };   /* by slot */
 /* The length of the block loaded in each slot */
@@ -366,29 +382,31 @@ void set_sound_driver_index_scratch(GameState *g, uint16_t v);
 uint8_t sound_driver_upload_counter(const GameState *g);
 void set_sound_driver_upload_counter(GameState *g, uint8_t v);
 
-/* The kind upload_2f00_set sends in its header (5 for command $70, 3 otherwise), which the
- * SPC700 answers with */
+/* The kind upload_effects sends in its header (5 for command $70, 3 otherwise), which the SPC700
+ * answers with */
 uint8_t sound_driver_header_kind(const GameState *g);
 void set_sound_driver_header_kind(GameState *g, uint8_t v);
 
-/* The value that sets the slot limit: blocks may not reach SPC700 page $F1 - 8 * it; set from a
- * song's table entry at $C7:241D or command $FC's parameter */
-uint8_t sound_driver_reserve(const GameState *g);
-void set_sound_driver_reserve(GameState *g, uint8_t v);
+/* The echo's delay the driver plays with, which is how much of the top of sound memory its
+ * buffer takes (2 KiB a unit, down from $F0FF): from a song's entry at $C7:241D, or command
+ * $FC's parameter */
+uint8_t sound_driver_echo_delay(const GameState *g);
+void set_sound_driver_echo_delay(GameState *g, uint8_t v);
 
-/* Cleared at boot, after the reserve; nothing in the game reads it */
-uint8_t sound_driver_unused_f1(const GameState *g);
-void set_sound_driver_unused_f1(GameState *g, uint8_t v);
+/* Zeroed as the driver starts ($C7:0137), and by nothing else; nothing in the game reads it */
+uint8_t sound_driver_zeroed_at_boot(const GameState *g);
+void set_sound_driver_zeroed_at_boot(GameState *g, uint8_t v);
 
-/* High byte of the first SPC700 address blocks may not reach: slots from the first whose address
- * is at or above it are forgotten */
-uint8_t sound_driver_slot_limit(const GameState *g);
-void set_sound_driver_slot_limit(GameState *g, uint8_t v);
+/* The page of sound memory where the echo's buffer starts ($F1 less 8 a unit of its delay): the
+ * slots from the first that ends at or past it are forgotten */
+uint8_t sound_driver_echo_page(const GameState *g);
+void set_sound_driver_echo_page(GameState *g, uint8_t v);
 
-/* Nonzero while the data at SPC700 address $2F00 needs uploading (the $2F00 set changed, or a
- * song's sequence is $0F00 bytes or longer) */
-uint8_t sound_driver_2f00_pending(const GameState *g);
-void set_sound_driver_2f00_pending(GameState *g, uint8_t v);
+/* Nonzero while the set of sound effects must go up again before the next song: the set asked
+ * for changed, or the last song's sequence ($0F00 bytes or more) ran into it (a count of the
+ * reasons) */
+uint8_t sound_driver_effects_due(const GameState *g);
+void set_sound_driver_effects_due(GameState *g, uint8_t v);
 
 /* The SPC700 address after the last loaded block */
 uint16_t sound_driver_free_address(const GameState *g);
@@ -398,14 +416,14 @@ void set_sound_driver_free_address(GameState *g, uint16_t v);
 uint16_t sound_driver_base_address(const GameState *g);
 void set_sound_driver_base_address(GameState *g, uint16_t v);
 
-/* Set to $C700 at boot; nothing in the game reads it */
-uint16_t sound_driver_unused_fa(const GameState *g);
-void set_sound_driver_unused_fa(GameState *g, uint16_t v);
+/* Set to $C700 at boot (the driver's bank in its high byte); nothing in the game reads it */
+uint16_t sound_driver_unread_bank_word(const GameState *g);
+void set_sound_driver_unread_bank_word(GameState *g, uint16_t v);
 
-/* The slot (times 2) command $71 uploads its block into: the slot of the song's first block id,
- * less 2 */
-uint16_t sound_driver_upload_slot(const GameState *g);
-void set_sound_driver_upload_slot(GameState *g, uint16_t v);
+/* The slot (times 2) that holds the song's first sample (the last slot holding it), which
+ * command $71 loads another sample into */
+uint16_t sound_driver_first_sample_slot(const GameState *g);
+void set_sound_driver_first_sample_slot(GameState *g, uint16_t v);
 
 enum { SOUND_DRIVER_SONG_IDS_COUNT = 16 };   /* by entry; a 0 id ends the list */
 /* The block ids the song being loaded uses (from $C7:0E11, 16 per song) */

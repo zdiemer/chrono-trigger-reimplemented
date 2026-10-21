@@ -404,7 +404,7 @@ target_link_libraries(ct_game_native_shape PUBLIC ct_runtime)
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c oracle/src/sram_find.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
-set(CT_DEV_SOURCES dev/ct_dev.c dev/as_port.c dev/event_reads.c dev/fallbacks.c dev/io_log.c dev/misses.c
+set(CT_DEV_SOURCES dev/ct_dev.c dev/apu_margins.c dev/as_port.c dev/event_reads.c dev/fallbacks.c dev/io_log.c dev/misses.c
   dev/px_check.c dev/range_report.c dev/mixer_check.c dev/sound_audio.c dev/sound_compare.c dev/sound_lockstep.c
   dev/sound_state.c dev/vid_check.c frontend/natives.c frontend/sound_host.c)
 add_executable(ct_dev ${CT_DEV_SOURCES})

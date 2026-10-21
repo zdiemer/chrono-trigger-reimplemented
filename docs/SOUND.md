@@ -607,7 +607,14 @@ with the program, and the mixer, that saved it.
 - *The lockstep*, at the `state` level, runs inside every movie's shadow run,
   where the original's timing is kept, for about a twentieth more time; a
   difference anywhere, the samples' places included, or a run without the
-  lockstep's verdict fails (`lockstep`).
+  lockstep's verdict fails (`lockstep`). It also runs in the vblank check's
+  shipping-mode runs, which play the original driver with the CPU half's
+  waits made where the port stands: an upload whose messages reach the ports
+  before the SPC700 has read the last one parts the drivers there, and the
+  run fails (`vblank`). How near the next message comes to that read,
+  `ct_dev --apu-port-margins` measures (PLATFORM.md, "The CPU half's waits,
+  as built"): at the least 3 SPC700 cycles over the library, as the
+  original's.
 - *`ct_sound_fuzz`*, ten runs of 400 commands from seed 1 of each of its four
   kinds (against the original at the `state` level, with the game's songs and
   with made-up ones, and in the SPC700's place, likewise, there with the native

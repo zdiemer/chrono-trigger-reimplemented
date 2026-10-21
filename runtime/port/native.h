@@ -301,6 +301,19 @@ void native_copy_popped_stack(const Snes *original, Snes *native, uint16_t lowes
 void native_stack_dont_care(Snes *s, uint16_t at, uint16_t bytes);
 void native_stack_cared(Snes *s);
 
+/* For a port that runs as C the work of a subroutine the original calls, and
+ * that meets the original inside it (a wait or a call-out there): the
+ * original's frame for the subroutine -- its return address and what it
+ * pushes before it gets there -- is `bytes` on the stack. native_frame_enter
+ * lowers S by that much, so the port's S at its waits and call-outs inside is
+ * the original's, and declares those bytes dead (native_stack_dont_care: the
+ * port never writes them, and shadow mode takes the original's);
+ * native_frame_leave raises S again and forgets them. The machine's S moves in
+ * every mode, so what an interrupt or a call-out pushes in there lands where
+ * the original's does. Frames nest; leave the innermost first. */
+void native_frame_enter(Snes *s, uint16_t bytes);
+void native_frame_leave(Snes *s, uint16_t bytes);
+
 /* For native routines that stop at an instruction of the original rather than
  * returning (setting PC): registers and flags that nothing reads at that point
  * before setting them, which SHADOW mode then doesn't compare there, on top of
@@ -445,7 +458,12 @@ void native_await_latch(Snes *s);
  * pass of the shortest such loop into it, as an idle entry's exit does, nor
  * than that pass's tail after the read where the line's HDMA held the
  * processor past the blank's start, so its writes land no earlier than the
- * original's could), or the picture is at the line
+ * original's could), the sound processor shows a value on the APU's port 0
+ * or has moved it off one (native_wake_port0_shows, native_wake_port0_leaves:
+ * the machine looks once a pass of the original's poll, a compare with the
+ * port and a branch back, NATIVE_PORT0_POLL_CLOCKS, since the sound processor
+ * answers in its own time and a coarser step would see it later than the
+ * original does), or the picture is at the line
  * `wake`, past the vertical blank; no original code runs. In SHADOW mode the original runs its
  * loop: the port's stretch before the wait is compared where the original
  * first comes to the head or the exit with the port's S (its memory, S, the
@@ -464,10 +482,48 @@ void native_await_latch(Snes *s);
  * without the call; SHADOW mode and outside the runtime make the call, as
  * native_call_dc does, but the callee counts as the port's own work (no
  * observer is told of a call-out). */
-enum { NATIVE_WAKE_HANDLER = -1, NATIVE_WAKE_HBLANK = -2 };
+enum { NATIVE_WAKE_HANDLER = -1, NATIVE_WAKE_HBLANK = -2, NATIVE_WAKE_TIME = -3 };
+/* The waits on the APU's port 0, a value each: from NATIVE_WAKE_PORT0_SHOWS
+ * down for "until it shows the value", from NATIVE_WAKE_PORT0_LEAVES down for
+ * "until it shows another". */
+enum { NATIVE_WAKE_PORT0_SHOWS = -0x100, NATIVE_WAKE_PORT0_LEAVES = -0x200, NATIVE_WAKE_PORT0_END = -0x300 };
+enum { NATIVE_PORT0_POLL_CLOCKS = 42 };   /* CMP abs and a taken branch, at FastROM and I/O speed */
+static inline int32_t native_wake_port0_shows(uint8_t value) { return NATIVE_WAKE_PORT0_SHOWS - value; }
+static inline int32_t native_wake_port0_leaves(uint8_t value) { return NATIVE_WAKE_PORT0_LEAVES - value; }
+static inline bool native_wake_is_on_port0(int32_t wake)
+{
+    return wake <= NATIVE_WAKE_PORT0_SHOWS && wake > NATIVE_WAKE_PORT0_END;
+}
+/* Whether port 0 showing `shown` ends a wait on it. */
+static inline bool native_wake_port0_satisfied(int32_t wake, uint8_t shown)
+{
+    if (wake > NATIVE_WAKE_PORT0_LEAVES)
+        return shown == (uint8_t)(NATIVE_WAKE_PORT0_SHOWS - wake);
+    return shown != (uint8_t)(NATIVE_WAKE_PORT0_LEAVES - wake);
+}
 enum { NATIVE_WAIT_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 void native_wait_loop(Snes *s, uint32_t head, uint32_t exit, int32_t wake);
+/* native_wait_loop for a loop that gives up after `passes` passes of
+ * `pass_clocks` each and then leaves at `given_up` (which may be `exit`): ON
+ * mode polls for that long, a pass at a time, the handlers taken meanwhile not
+ * counted; SHADOW mode goes on where the original leaves at either. True
+ * where it ended on what it waited for (SHADOW and outside the runtime: the
+ * original left at `exit`). */
+bool native_wait_loop_or_give_up(Snes *s, uint32_t head, uint32_t exit, uint32_t given_up, int32_t wake,
+                                 uint32_t passes, uint32_t pass_clocks);
 void native_wait_call(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care, int32_t wake);
+/* Whether native_wait_call waits where the port stands rather than making the
+ * call (ON mode, in a port the runtime runs): a caller whose wait routine
+ * also does something before it waits (puts a value on a port) does that
+ * itself then. */
+bool native_waits_in_place(const Snes *s);
+/* ON mode, in a port the runtime runs: the machine stands where the port is
+ * for `clocks` master clocks after the time the port owes, taking interrupts
+ * there, as for a wait (NATIVE_WAKE_TIME): the original's code after what a
+ * wait stands for, which the game can't see but whose time another processor
+ * can (the sound processor reads a message after it echoes it). Nothing in
+ * the other modes. */
+void native_wait_time(Snes *s, uint32_t clocks);
 
 /* Time attribution, for a port that runs another routine's work as C rather
  * than calling out to it: a dispatcher that runs its handlers inline. A port's

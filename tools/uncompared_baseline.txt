@@ -79,3 +79,5 @@ menu_type_the_description_task
 script_play_sound
 script_play_sound_at
 script_weapon_swing_sound
+sound_driver_send_song  # run as C by the command (sound_driver_command), inside the original's frame for it, whose stretch compares it; called by the original's code (where the command's guard refuses), it is compared; fuzzed alone
+sound_driver_upload_block  # run as C by the command (sound_driver_command), inside the original's frame for it, whose stretch compares it; called by the original's code (where the command's guard refuses), it is compared; fuzzed alone
