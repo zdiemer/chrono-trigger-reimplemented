@@ -149,17 +149,23 @@ static void natives_start(Player *pl, NativeMode mode)
 /* In on mode a state can't hold routines suspended in call-outs, nor the time
  * ports have taken that the machine hasn't let pass yet (native_owed): saved
  * then, the routines would be left to the original code and the time dropped.
- * The first is never acceptable; the second is, once waiting for a frame end
- * without it has taken SAVE_EXACT_FRAMES (in a long battle there may be none).
- * In shadow mode the machine runs only the original code, so a save just drops
- * comparisons in progress. */
+ * The first is never acceptable for a routine suspended inside its work; the
+ * second is, once waiting for a frame end without it has taken
+ * SAVE_EXACT_FRAMES (in a long battle there may be none). A menu step parked in
+ * a wait for the next frame is the exception to the first, after as long: it
+ * waits as long as the player chooses (a member for an item), and its task
+ * goes on from the wait in the original's code just as well, the machine at the
+ * wait being the original's but for what nothing reads after it (docs/MOVIES.md,
+ * "Suspended routines and owed time"). In shadow mode the machine runs only the
+ * original code, so a save just drops comparisons in progress. */
 PlayerSaveReady player_save_ready(const Player *pl, long waited)
 {
     if (pl->runtime_mode != NATIVE_ON || (!native_suspended(pl->natives) && !native_owed(pl->natives)))
         return PLAYER_SAVE_EXACT;
-    if (native_suspended(pl->natives) || waited < SAVE_EXACT_FRAMES)
+    bool only_parked = native_suspended(pl->natives) == native_parked(pl->natives);
+    if (!only_parked || waited < SAVE_EXACT_FRAMES)
         return PLAYER_SAVE_WAIT;
-    return PLAYER_SAVE_DROPS_TIME;
+    return native_parked(pl->natives) ? PLAYER_SAVE_HANDS_BACK_A_STEP : PLAYER_SAVE_DROPS_TIME;
 }
 
 uint64_t player_owed(const Player *pl)
@@ -413,6 +419,10 @@ void player_step(Player *pl, uint16_t live)
                 fprintf(stderr, "quick save: no frame ended with nothing owed in %d frames; the state leaves out "
                                 "%llu master clocks the native routines owed\n",
                         SAVE_EXACT_FRAMES, (unsigned long long)player_owed(pl));
+            if (ready == PLAYER_SAVE_HANDS_BACK_A_STEP)
+                fprintf(stderr, "quick save: a menu step waited throughout %d frames; loaded, the original's code "
+                                "finishes it\n",
+                        SAVE_EXACT_FRAMES);
             quick_save(pl);
         } else if (++pl->save_wait > SAVE_WAIT_FRAMES) {
             pl->save_pending = false;

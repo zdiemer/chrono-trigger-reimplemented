@@ -466,6 +466,10 @@ target_link_libraries(shadow_test PRIVATE ct_runtime)
 # How the shipping mode pays a port's time around interrupts (runtime/port/native.c).
 add_executable(debt_test tests/port/debt_test.c)
 target_link_libraries(debt_test PRIVATE ct_runtime)
+# How the runtime holds a port that waits across a task switch or a frame's end, and the
+# menus' answer whether a task goes on from such a wait.
+add_executable(suspend_test tests/port/suspend_test.c)
+target_link_libraries(suspend_test PRIVATE ct_game ct_vars_checked ct_runtime)
 # The fuzzer's core (dev/fuzz.c) on made-up routines and ports.
 add_executable(fuzz_test tests/port/fuzz_test.c dev/fuzz.c)
 target_include_directories(fuzz_test PRIVATE dev)

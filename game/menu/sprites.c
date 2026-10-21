@@ -1562,19 +1562,22 @@ void menu_animate_record(Snes *s)
     m_rts(s);
 }
 
-/* The task stops at its yield ($C2:F696), which the original runs, with a
- * 16-bit accumulator as its loop leaves it; the yield comes back to the
- * task's start, which sets its page again. */
-enum { TASK_YIELD = 0xC2F696 };
-enum { YIELD_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D };
+/* The records' pages, as the original moves its direct page along them. */
+enum { FIRST_RECORD_PAGE = 0x1800, RECORD_PAGE_BYTES = 0x40 };
 
-// $C2:F657
+// $C2:F657, $C2:F699
+/* The records' task, from its start and from its wait: a frame of the
+ * records, then the wait (menu/tasks.c), with a 16-bit accumulator and the
+ * page past the last record as its walk along them leaves them, which the
+ * wait keeps; the task goes on from the wait round its loop to its head,
+ * which sets its page and widths again. */
 void menu_run_record_task(Snes *s)
 {
     run_the_records(state_of(s));
     m_rep(s, CPU_FLAG_M);
     m_sep(s, CPU_FLAG_X);
-    m_stop_at(s, TASK_YIELD, YIELD_IGNORES);
+    s->cpu.d = (uint16_t)(FIRST_RECORD_PAGE + TASK_RECORDS * RECORD_PAGE_BYTES);
+    menu_records_task_waits(s);
 }
 
 // $C2:F69B
@@ -1584,9 +1587,6 @@ void menu_step_record_animation(Snes *s)
     m_rts(s);
 }
 
-/* The records' page, as the original's opening moves its direct page along
- * them. */
-enum { FIRST_RECORD_PAGE = 0x1800, RECORD_PAGE_BYTES = 0x40 };
 
 // $C2:F3CA
 /* The records as the menus open. Each record's load runs as the original's

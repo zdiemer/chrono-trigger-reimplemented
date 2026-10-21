@@ -2176,7 +2176,8 @@
 #define RAM_MENU_SCRATCH_MEMBER_ROW_CHOSEN 0x7E0002u /* The same: the row the cursor is on, which keeps its colours */
 #define RAM_MENU_SCRATCH_MEMBER_ROW_PLACE 0x7E0004u /* The same: where in the tilemap buffer the row it colours starts, a row past the last when done */
 #define RAM_MENU_SCRATCH_MEMBER_ROW_COLOUR 0x7E0006u /* The same: the tiles across a row it colours (low byte) and the colour it gives them (high byte), the last row's left */
-#define RAM_MENU_SCRATCH_LIST_ROWS 0x7E0000u /* A scrolling list's frame ($C2:EA81): the rows it shows, which its caller leaves here */
+#define RAM_MENU_SCRATCH_LIST_ROWS 0x7E0000u /* A scrolling list's frame ($C2:EA81): the rows it shows, which its caller leaves here, and the frame the rows in view (fewer, for a list with fewer places) */
+#define RAM_MENU_SCRATCH_LIST_PLACES_PAST 0x7E0001u /* A scrolling list's frame ($C2:EA81): the places past the rows in view, as it leaves them (scaffolding; game/menu/lists.c) */
 #define RAM_MENU_SCRATCH_BAND_VALUE 0x7E0000u /* The equipment screen's per-line table as a window slides ($C2:AA19): the value of the band it staged last */
 #define RAM_MENU_SCRATCH_SLOT_LABEL 0x7E0000u /* The equipment screen's slot's label ($C2:A38B): the slot doubled, on the way to the label's place in the table */
 #define RAM_MENU_SCRATCH_MARKED_SLOT 0x7E0000u /* The equipment screen's slots' marks ($C2:A3ED): the slot marked */
@@ -2583,6 +2584,12 @@
  * it has moved since */
 #define RAM_MENU_CURSOR_FRAME_START 0x7E0081u
 #define RAM_MENU_CURSOR_FRAME_START_DP 0x81u /* page menu */
+/* A byte the menus never write, left by the mode before them (the sprite-object mode's upload
+ * queue, a scene's countdown): the shop reads it, after its list has slid, as the high byte of
+ * where the cursor was as the frame's input was read, comparing that with where the cursor is as
+ * words */
+#define RAM_MENU_BYTE_THE_MODE_BEFORE_LEFT 0x7E0082u
+#define RAM_MENU_BYTE_THE_MODE_BEFORE_LEFT_DP 0x82u /* page menu */
 /* The member the equipment screen's member list pointed at last, which it compares with to tick
  * the cursor's sound when it points at another */
 #define RAM_MENU_MEMBER_POINTED 0x7E0083u

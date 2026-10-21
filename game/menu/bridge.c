@@ -2,6 +2,7 @@
  * the guards (menu/bridge.h). */
 #include "menu/bridge.h"
 
+#include "menu/menu.h"
 #include "port/native.h"
 
 /* The machine's state a call's check and the guards look at. */
@@ -31,6 +32,18 @@ bool menu_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
     MenuMachine m = menu_machine_now(s);
     m_jsr_dc(s, site, routine, dont_care);
     return menu_back(s, site + MENU_JSR_SIZE, m);
+}
+
+bool menu_yield(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
+{
+    MenuMachine m = menu_machine_now(s);
+    native_yield_call_dc(s, site, routine, false, dont_care, menu_task_goes_on_from);
+    return menu_back(s, site + MENU_JSR_SIZE, m);
+}
+
+bool menu_wait_a_frame_from(Snes *s, uint32_t site)
+{
+    return menu_yield(s, site, MENU_TASK_WAITS_A_FRAME, MENU_TASK_WAIT_READS_NOTHING);
 }
 
 bool menu_call_returning(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, bool a8, bool x8)
@@ -111,11 +124,16 @@ void menu_set_widths(Snes *s, bool a8, bool x8)
     m_sep(s, (uint8_t)((a8 ? CPU_FLAG_M : 0) | (x8 ? CPU_FLAG_X : 0)));
 }
 
-void menu_save_p(Snes *s) { m_push8(s, s->cpu.p); }
+void menu_save_p(Snes *s)
+{
+    m_push8(s, s->cpu.p);
+    native_flags_saved(s);
+}
 
 void menu_restore_p(Snes *s)
 {
     uint8_t p = m_pull8(s);
+    native_flags_restored(s);
     m_rep(s, (uint8_t)~p);   /* the index registers made 8-bit lose their high bytes */
     m_sep(s, p);
 }

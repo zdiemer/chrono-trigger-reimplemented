@@ -66,6 +66,7 @@ typedef struct Pass {
     uint16_t s;
     int n;
     uint32_t keys[PASS_MAX][4];
+    uint64_t hidden;   /* of it, run under a comparison (a port waiting through the loop) */
 } Pass;
 
 struct Fallbacks {
@@ -231,6 +232,16 @@ static void count_hidden(Fallbacks *f)
         }
 }
 
+/* ... and taken back off it, a waiting pass (on_idle). */
+static void take_back_hidden(Fallbacks *f, uint64_t n)
+{
+    for (int i = f->depth - 1; i > 0; i--)
+        if (f->frames[i].kind == COVERED && f->frames[i].name) {
+            f->frames[i].hidden -= n < f->frames[i].hidden ? n : f->frames[i].hidden;
+            return;
+        }
+}
+
 /* The extents an interrupt's handler can't end: while it runs on a stack of
  * its own, those under the interrupt (the frames below the depth returned),
  * which go on when it returns; else none but the base. */
@@ -369,8 +380,11 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
     uint32_t routine = eff.routine == BANK_ONLY ? BANK_ONLY | (pc & 0xFF0000) : eff.routine;
 
     uint8_t op = snes_bus_peek(&s->bus, pc);
-    if (eff.kind == COVERED)
+    if (eff.kind == COVERED) {
         count_hidden(f);
+        if (f->pass.open)
+            f->pass.hidden++;
+    }
     if (eff.kind != COVERED) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));
@@ -534,10 +548,8 @@ static void on_stopped(void *ctx, Snes *s, const NativeEntry *e, uint16_t entry_
  * (the original's code went on to it without returning). In SHADOW mode what
  * the original runs from here is the port's, until it calls out, stops or
  * finishes. */
-static void on_entered(void *ctx, Snes *s, const NativeEntry *e)
+static void take_over(Fallbacks *f, uint16_t sp)
 {
-    Fallbacks *f = ctx;
-    uint16_t sp = s->cpu.s;
     f->pass.open = false;
     leave_finished(f, sp);
     int kept = handler_away(f, sp);
@@ -545,13 +557,51 @@ static void on_entered(void *ctx, Snes *s, const NativeEntry *e)
         f->depth--;
     f->pending = false;
     f->pending_rti = false;
+}
+
+static void on_entered(void *ctx, Snes *s, const NativeEntry *e)
+{
+    Fallbacks *f = ctx;
+    uint16_t sp = s->cpu.s;
+    take_over(f, sp);
     if (f->shadow)
         enter(f, (Frame){ .kind = COVERED, .held = e->interrupt, .routine = cpu_pc24(&s->cpu), .port = e->addr,
                           .floor = sp, .name = e->name });
 }
 
+/* A port yielded to another task: what the other tasks run is theirs, and
+ * in SHADOW mode its stretch so far is over (its comparison isn't: it goes
+ * on when the task does). */
+static void on_parked(void *ctx, Snes *s, const NativeEntry *e)
+{
+    Fallbacks *f = ctx;
+    (void)s;
+    f->pass.open = false;
+    f->pending = false;
+    if (f->shadow)
+        leave_covered(f, e);
+}
+
+/* ... and its task goes on in it, or (SHADOW) the comparisons nested in its
+ * stretch were set aside at its point: from here the port takes over again,
+ * as where it was entered, its routine returning above where it was entered. */
+static void on_resumed(void *ctx, Snes *s, const NativeEntry *e, uint16_t entry_s)
+{
+    Fallbacks *f = ctx;
+    uint16_t sp = s->cpu.s;
+    for (int i = f->depth - 1; i > 0; i--)
+        if (f->frames[i].kind == COVERED && f->frames[i].port == e->addr && f->frames[i].name)
+            return;   /* its stretch is still there */
+    take_over(f, sp);
+    if (f->shadow)
+        enter(f, (Frame){ .kind = COVERED, .routine = e->addr, .port = e->addr, .floor = entry_s, .start = sp,
+                          .name = e->name });
+}
+
 /* SHADOW: a wait loop's head, where an idle entry applies. A pass that came
- * round to it again, at the same S, is the idle port's: taken back. */
+ * round to it again, at the same S, is the idle port's: taken back, and so
+ * is what of it a comparison hid (a port waiting through the loop): its wait
+ * is no work hidden under it. */
 static void on_idle(void *ctx, Snes *s, const NativeEntry *e)
 {
     Fallbacks *f = ctx;
@@ -567,11 +617,13 @@ static void on_idle(void *ctx, Snes *s, const NativeEntry *e)
                 f->by_kind[k[1]]--;
             }
         }
+        take_back_hidden(f, f->pass.hidden);
     }
     f->pass.open = true;
     f->pass.head = pc;
     f->pass.s = s->cpu.s;
     f->pass.n = 0;
+    f->pass.hidden = 0;
 }
 
 static void on_finished(void *ctx, const NativeEntry *e)
@@ -595,7 +647,7 @@ void fallbacks_attach(Fallbacks *f, NativeRuntime *rt, bool shadow)
     NativeObserver o = { .ctx = f, .refused = on_refused, .skipped = on_skipped, .called_out = on_called_out,
                          .stopped = on_stopped, .entered = on_entered,
                          .returned_from_interrupt = on_returned_from_interrupt, .idle = on_idle,
-                         .finished = on_finished };
+                         .finished = on_finished, .parked = on_parked, .resumed = on_resumed };
     native_set_observer(rt, &o);
 }
 

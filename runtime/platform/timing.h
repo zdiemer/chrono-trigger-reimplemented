@@ -73,6 +73,15 @@ PF_API void tm_wait_frames(Platform *pf, PfOrigin o, uint8_t frames);
  * makes as C around the call. A host runs the handlers once a frame, so this
  * is its wait for the next frame. */
 PF_API void tm_wait_for_handlers(Platform *pf, PfOrigin o);
+/* The same for the wait the main thread is in at nearly every frame's end
+ * (the field's frame wait, the sprite-object mode's, the menus' wait for the
+ * frame's uploads), which a saved game has to be able to hold. True where the
+ * port goes on after it, as for tm_wait_for_handlers. A backend may instead
+ * leave the wait to the mode's own code, which waits in its place and goes
+ * on as the port would (the SNES backend's shipping mode, where the loop has
+ * an idle entry, native_wait_loop_held): then false, and the port returns at
+ * once, done. `o` is PF_LOOP_HELD. A host always waits. */
+PF_API bool tm_wait_for_handlers_held(Platform *pf, PfOrigin o);
 /* The same with the frame's handlers off, as a mode brings its screen back
  * after loading it: the main thread waits for the next frame, then turns
  * `sources` on (TM_INT_*) with the line handler at `line`. `o` names the call

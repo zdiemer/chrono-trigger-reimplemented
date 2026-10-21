@@ -4,27 +4,42 @@
  * then waits for its vblank handler: the sprite-object mode's for the next
  * frame to be counted (game/menu/display.c, menu_object_nmi), the menus'
  * for the handler to have sent the uploads the frame queued
- * (menu_nmi_work). Both waits are idle loops the runtime runs a pass at a
- * time. Between its waits the menus' loop runs a turn of each of their
- * tasks (menu/menu.h), which a screen starts and stops. */
+ * (menu_nmi_work). Each mode is in its wait at nearly every frame's end, so
+ * the ports leave the waiting to the loops' idle entries here in the
+ * shipping mode, which a saved machine holds (platform/timing.h,
+ * tm_wait_for_handlers_held), and wait through them themselves elsewhere.
+ * Between its waits the menus' loop runs a turn of each of their tasks
+ * (menu/tasks.c), which a screen starts and stops. */
 #include "menu/menu.h"
 
 #include "core/input.h"
 #include "menu/bridge.h"
 #include "original_effects.h"
+#include "platform/timing.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
 // $C2:0346, $C2:046E (the wait's start, and the jump to it)
-/* The sprite-object mode's wait for the next frame starts from the count it
- * sees now (8-bit A), and waits in its loop. */
+/* The sprite-object mode's wait for the next frame: until the vblank handler
+ * has counted a frame past the one it sees now. The mode is in it at nearly
+ * every frame's end, so a saved machine has to hold it: the shipping mode
+ * leaves it to the loop's idle entry, below, which goes on as this does, and
+ * the port stops at the loop (tm_wait_for_handlers_held). The loop keeps the
+ * count it saw in A, comparing the count with it, and the comparison's flags
+ * are dead after it (the entries' set). */
+enum { FRAME_WAIT_LOOP = 0xC20348, FRAME_WAIT_RETURN = 0xC2034C, THE_LOOP_SETS_THE_FLAGS = DC_N | DC_Z | DC_C };
+
 void menu_wait_for_frame(Snes *s)
 {
-    uint8_t seen = menu_object_frame_counter(state_of(s));
+    GameState *g = state_of(s);
+    uint8_t seen = menu_object_frame_counter(g);
     s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | seen);
     m_set_nz8(s, seen);
-    m_stop_at(s, 0xC20348, DC_N | DC_Z);
+    while (menu_object_frame_counter(g) == seen)
+        if (!tm_wait_for_handlers_held(m_platform(s), PF_LOOP_HELD(FRAME_WAIT_LOOP, FRAME_WAIT_RETURN, THE_LOOP_SETS_THE_FLAGS)))
+            return;
+    m_rts(s);
 }
 
 // $C2:0348 (the loop in the wait for the next frame at $C2:0346)
@@ -35,10 +50,10 @@ void menu_wait_for_frame_loop(Snes *s)
 {
     uint8_t seen = (uint8_t)s->cpu.a;
     if (menu_object_frame_counter(state_of(s)) == seen) {
-        m_stop_at(s, 0xC20348, 0);
+        m_stop_at(s, FRAME_WAIT_LOOP, 0);
         return;
     }
-    s->cpu.pc = 0x034C;   /* the RTS after the loop */
+    s->cpu.pc = (uint16_t)FRAME_WAIT_RETURN;
     m_rts(s);
 }
 

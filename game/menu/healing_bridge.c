@@ -22,10 +22,9 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* The original's task switch, which waits for the next frame, and the end
- * of a task, which the scheduler goes on from; neither reads the
- * registers. */
-enum { YIELD = 0xC2821E, END_OF_A_TASK = 0xC28216 };
+/* The end of a task, which the scheduler goes on from, and which reads none
+ * of the registers. */
+enum { END_OF_A_TASK = 0xC28216 };
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 /* Where the numbers' task starts. */
@@ -60,7 +59,7 @@ void menu_show_amounts(Snes *s)
     menu_ready_the_amounts(g);
     menu_start_task(g, MENU_AMOUNTS_TASK, RAISE_AMOUNTS);
     do
-        if (!menu_call(s, 0xC28FC3, YIELD, READS_NOTHING))
+        if (!menu_wait_a_frame_from(s, 0xC28FC3))
             return;
     while (menu_tasks_state(g, MENU_AMOUNTS_TASK) != 0);
     ORIGINAL_EFFECT(leave_waited(s));
@@ -173,7 +172,7 @@ void menu_raise_amount_kind(Snes *s)
         ORIGINAL_EFFECT(leave_a_frame(g, from, last_digit, menu_amount_height(g, step)));
         step++;
         menu_set_widths(s, false, true);
-        if (!menu_call(s, 0xC2904C, YIELD, READS_NOTHING))
+        if (!menu_wait_a_frame_from(s, 0xC2904C))
             return;
     }
 }

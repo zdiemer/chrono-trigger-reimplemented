@@ -2932,9 +2932,14 @@ void set_menu_scratch_member_row_place(GameState *g, uint16_t v);
  * byte), the last row's left */
 uint16_t menu_scratch_member_row_colour(const GameState *g);
 void set_menu_scratch_member_row_colour(GameState *g, uint16_t v);
-/* A scrolling list's frame ($C2:EA81): the rows it shows, which its caller leaves here */
+/* A scrolling list's frame ($C2:EA81): the rows it shows, which its caller leaves here, and the
+ * frame the rows in view (fewer, for a list with fewer places) */
 uint8_t menu_scratch_list_rows(const GameState *g);
 void set_menu_scratch_list_rows(GameState *g, uint8_t v);
+/* A scrolling list's frame ($C2:EA81): the places past the rows in view, as it leaves them
+ * (scaffolding; game/menu/lists.c) */
+uint8_t menu_scratch_list_places_past(const GameState *g);
+void set_menu_scratch_list_places_past(GameState *g, uint8_t v);
 /* The equipment screen's per-line table as a window slides ($C2:AA19): the value of the band it
  * staged last */
 uint16_t menu_scratch_band_value(const GameState *g);
@@ -3743,6 +3748,13 @@ void set_menu_shop_tab_cursor(GameState *g, uint8_t v);
  * it has moved since */
 uint8_t menu_cursor_frame_start(const GameState *g);
 void set_menu_cursor_frame_start(GameState *g, uint8_t v);
+
+/* A byte the menus never write, left by the mode before them (the sprite-object mode's upload
+ * queue, a scene's countdown): the shop reads it, after its list has slid, as the high byte of
+ * where the cursor was as the frame's input was read, comparing that with where the cursor is as
+ * words */
+uint8_t menu_byte_the_mode_before_left(const GameState *g);
+void set_menu_byte_the_mode_before_left(GameState *g, uint8_t v);
 
 /* The member the equipment screen's member list pointed at last, which it compares with to tick
  * the cursor's sound when it points at another */

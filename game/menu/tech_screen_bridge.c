@@ -4,16 +4,16 @@
  *
  * Each step reads the cursor, asks tech_screen.c what the frame's input
  * does, and carries it out: the sounds are siblings, run as the original's
- * JSRs reach them (menu_run); the list's frame and the frames the screen
- * waits are the original's, called out to. A refused choice jumps to the
- * refusal's sound, as the original's does, and going back from the members
- * to the main menu stops there.
+ * JSRs reach them (menu_run); the list's frame is C, called as C; a step
+ * that waits for the next frame waits in the menus' task switch, parked
+ * until its task goes on (menu_wait_a_frame_from). A refused choice jumps
+ * to the refusal's sound, as the original's does, and going back from the
+ * members to the main menu stops there.
  *
  * The routines a step reaches with a JSR that call out themselves (the moves
  * among the members and the member list's slide, the list's slide, the
- * member rows and the list's frame, the lister's sprite, the descriptions,
- * the window a tech is used from and the pointing in it) are entries of
- * their own, run through menu_run so that the original's frames stand under
+ * lister's sprite, the descriptions, the window a tech is used from and the
+ * pointing in it) are entries of their own, run through menu_run so that the original's frames stand under
  * their calls out: shadow mode compares the stack there, the flags each saves
  * as it starts among it. So before running one, and before a sound (which
  * saves them too), a bridge leaves the flags the original's own instructions
@@ -48,22 +48,18 @@
 
 /* The original's routines the steps call, by what they do. */
 enum {
-    YIELD = 0xC2821E,                  /* the task waits for the next frame */
-    WAIT_FRAMES = 0xC2822B,            /* ... for the frames in A */
+    WAIT_FRAMES = 0xC2822B,            /* the task waits for the frames in A */
     MAIN_MENU = 0xC29A98,              /* back to the main menu */
-    FRAME_THE_LIST = 0xC2EA81,         /* a scrolling list's frame laid out: Y places, rows shown */
 };
 
 /* What they read (tools/dontcare_check.py checks each): most nothing but the
- * page, the data bank and memory; the list's frame Y, the stopping of tasks
- * and the wait for frames A. */
+ * page, the data bank and memory; the stopping of tasks and the wait for
+ * frames A. */
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-    READS_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
     READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
 };
 
-static bool yield(Snes *s, uint32_t site) { return menu_call(s, site, YIELD, READS_NOTHING); }
 static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, 0xC2EAC2, menu_play_cursor_sound); }
 
 /* A refusal the original jumps to: its sound returns to the step's caller. */
@@ -89,9 +85,6 @@ static void stop_tasks(Snes *s, uint8_t tasks)
     TIMED_AS(g, 0xC28255, menu_stop_tasks(g, tasks));
     ORIGINAL_EFFECT(menu_leave_load(s, tasks));
 }
-
-/* The dividend the original's frame of a list divides its track by. */
-enum { MEMBER_BAR_TRACK = 0x09AA, LIST_BAR_TRACK = 0x1500 };
 
 static void leave_buttons_tested(Snes *s);
 static void leave_load(Snes *s, uint8_t v);
@@ -151,7 +144,7 @@ void menu_slide_tech_member_rows(Snes *s)
     menu_techs_start_member_slide(g, m_platform(s));
     menu_set_widths(s, false, false);
     while (menu_techs_slide_members_a_frame(g))
-        if (!yield(s, 0xC2B651))
+        if (!menu_wait_a_frame_from(s, 0xC2B651))
             return;
     menu_techs_finish_member_slide(g);
     menu_set_widths(s, true, false);
@@ -262,18 +255,9 @@ void menu_show_tech_lister(Snes *s)
 }
 
 // $C2:BB50
-/* The list's frame (the original's), then the rows of the tech's members. */
 void menu_show_tech_list(Snes *s)
 {
-    GameState *g = state_of(s);
-    menu_save_p(s);
-    menu_techs_frame_the_list(g);
-    hw_set_dividend(g, LIST_BAR_TRACK);
-    s->cpu.y = (uint16_t)(menu_techs_listed(g) | menu_tech_list_top(g) << 8);
-    if (!menu_call(s, 0xC2BB70, FRAME_THE_LIST, READS_Y))
-        return;
-    menu_techs_show_the_list(g, m_platform(s));
-    menu_restore_p(s);
+    menu_techs_show_the_list(state_of(s), m_platform(s));
     m_rts(s);
 }
 
@@ -309,8 +293,9 @@ static void choose_member(Snes *s)
             return;
         menu_techs_go_to_the_list(g);
         ORIGINAL_EFFECT(leave_load(s, menu_description_stale(g)));
-        if (!menu_run(s, 0xC2B39F, 0xC2B9E1, menu_show_tech_lister) || !menu_run(s, 0xC2B3A2, 0xC2BB50, menu_show_tech_list))
+        if (!menu_run(s, 0xC2B39F, 0xC2B9E1, menu_show_tech_lister))
             return;
+        TIMED_AS(g, 0xC2BB50, menu_techs_show_the_list(g, m_platform(s)));
         menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
         m_rts(s);
         return;
@@ -330,19 +315,9 @@ void menu_lay_out_tech_members(Snes *s)
 }
 
 // $C2:BA4F
-/* The member rows, and the scroll bar's frame (the original's). */
 void menu_draw_tech_member_rows(Snes *s)
 {
-    GameState *g = state_of(s);
-    menu_save_p(s);
-    menu_set_widths(s, true, false);
-    menu_techs_draw_member_rows(g, m_platform(s));
-    hw_set_dividend(g, MEMBER_BAR_TRACK);
-    s->cpu.y = menu_members_reachable(g);
-    if (!menu_call(s, 0xC2BACB, FRAME_THE_LIST, READS_Y))
-        return;
-    menu_techs_place_member_bar(g);
-    menu_restore_p(s);
+    menu_techs_draw_member_rows(state_of(s), m_platform(s));
     m_rts(s);
 }
 
@@ -398,7 +373,7 @@ void menu_slide_tech_list(Snes *s)
     if (took_frames)
         while (menu_techs_slide_list_a_frame(g)) {
             TIMED_AS(g, 0xC2EB1F, menu_slide_list_a_frame(g));
-            if (!yield(s, 0xC2B7A7))
+            if (!menu_wait_a_frame_from(s, 0xC2B7A7))
                 return;
         }
     bool up = menu_list_slid_up(g);
@@ -422,7 +397,7 @@ static void point_along_the_list(Snes *s)
     TIMED_AS(g, 0xC293BF, to = menu_turn_page(g, top));
     if (to != top) {
         menu_techs_turn_page(g, to);
-        if (!yield(s, 0xC2B705))
+        if (!menu_wait_a_frame_from(s, 0xC2B705))
             return;
     } else {
         menu_step_keeps_the_cursor_on_the_list(s);
@@ -452,7 +427,7 @@ void menu_open_tech_targets(Snes *s)
     menu_save_p(s);
     menu_set_widths(s, false, false);
     menu_techs_open_targets(g, pf);
-    if (!yield(s, 0xC2BE98))
+    if (!menu_wait_a_frame_from(s, 0xC2BE98))
         return;
     menu_techs_show_targets(g, pf);
     menu_restore_p(s);
@@ -494,8 +469,7 @@ static void back_to_the_members(Snes *s)
         return;
     menu_techs_back_to_the_members(g);
     ORIGINAL_EFFECT(leave_cursor_moved_off_the_members(s));
-    if (!menu_run(s, 0xC2B3DD, 0xC2BA4F, menu_draw_tech_member_rows))
-        return;
+    TIMED_AS(g, 0xC2BA4F, menu_techs_draw_member_rows(g, m_platform(s)));
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
     m_rts(s);
 }
@@ -608,7 +582,7 @@ void menu_choose_tech_target(Snes *s)
         ORIGINAL_EFFECT(s->cpu.a = 0);
         m_set_a8(s, CAST_FRAMES);
         ORIGINAL_EFFECT(leave_load(s, CAST_FRAMES));
-        if (!menu_call(s, 0xC2B4F9, WAIT_FRAMES, READS_A) || !menu_run(s, 0xC2B4FC, 0xC28F55, menu_heal_and_show))
+        if (!menu_yield(s, 0xC2B4F9, WAIT_FRAMES, READS_A) || !menu_run(s, 0xC2B4FC, 0xC28F55, menu_heal_and_show))
             return;
         uint8_t mp_before = menu_techs_after_casting(g);
         (void)mp_before;
@@ -635,11 +609,10 @@ void menu_show_techs_panel(Snes *s)
     ORIGINAL_EFFECT(leave_panel_member_chosen(s, row));
     (void)row;
     TIMED_AS(g, 0xC2F5A7, menu_load_character_colours(g));
-    if (!yield(s, 0xC2B8F2))
+    if (!menu_wait_a_frame_from(s, 0xC2B8F2))
         return;
     TIMED_AS(g, 0xC2F643, menu_start_the_records(g));
-    if (!menu_run(s, 0xC2B8F8, 0xC2BA4F, menu_draw_tech_member_rows))
-        return;
+    TIMED_AS(g, 0xC2BA4F, menu_techs_draw_member_rows(g, pf));
     menu_techs_panel_show(g, pf);
     menu_restore_p(s);
     m_rts(s);

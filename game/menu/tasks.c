@@ -27,6 +27,7 @@
 #include "menu/cursor.h"
 #include "menu/held_cursors.h"
 #include "original_effects.h"
+#include "platform/timing.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -128,9 +129,10 @@ static uint16_t task_starts(GameState *g, unsigned task)
 enum { FIRST_TASK_STACK = 0x0A3F, TASK_STACK_BYTES = 64 };
 enum { MENUS_BANK = 0xC2, THE_MAIN_STACK = 0x09FF, MENUS_DATA_BANK = 0x7E };
 
-/* Where the menus wait for the frame's uploads to be sent (menu/frame.c's
- * idle entry), which reads none of the registers. */
-enum { WAIT_FOR_THE_UPLOADS = 0xC281CA };
+/* Where the menus wait for the vblank handler to have sent the frame's
+ * uploads (menu/frame.c's idle entry), which reads none of the registers, and
+ * where the frame's turns start once it has. */
+enum { WAIT_FOR_THE_UPLOADS = 0xC281CA, THE_UPLOADS_SENT = 0xC281CF };
 enum { THE_WAIT_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 /* Back into a task where it waited: its registers off its stack, as it
@@ -190,26 +192,53 @@ static void leave_the_page_below(Snes *s, uint16_t stack)
 }
 
 /* No task goes on this frame: back on the menus' main stack and page, the
- * data bank work RAM's, to wait for the frame's uploads. */
-static void wait_for_the_next_frame(Snes *s)
+ * data bank work RAM's, to wait for the frame's uploads to be sent. The
+ * menus are in this wait at nearly every frame's end, so a saved machine has
+ * to hold it: the shipping mode leaves it to the loop's idle entry, which goes
+ * on into the next frame's turns as the port does, and the port stops at the
+ * loop (tm_wait_for_handlers_held). False there. */
+static bool wait_for_the_next_frame(Snes *s)
 {
     ORIGINAL_EFFECT(leave_the_page_below(s, THE_MAIN_STACK));
     s->cpu.s = THE_MAIN_STACK;
     s->cpu.db = MENUS_DATA_BANK;
     s->cpu.d = 0;
     m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_stop_at(s, WAIT_FOR_THE_UPLOADS, THE_WAIT_READS_NOTHING);
+    const GameState *g = state_of(s);
+    while (!menu_vblank_done(g))
+        if (!tm_wait_for_handlers_held(m_platform(s),
+                                       PF_LOOP_HELD(WAIT_FOR_THE_UPLOADS, THE_UPLOADS_SENT, THE_WAIT_READS_NOTHING)))
+            return false;
+    return true;
+}
+
+/* The next frame's turns go on here where the runtime would run them where
+ * the loop leaves (menu_run_the_tasks, whose guard looks at the tasks'
+ * records); otherwise the port stops there, for it to run what it has. */
+static bool the_turns_go_on_here(Snes *s)
+{
+    if (menu_runs_as_port(s, THE_UPLOADS_SENT, menu_run_the_tasks))
+        return true;
+    m_stop_at(s, THE_UPLOADS_SENT, THE_WAIT_READS_NOTHING);
+    return false;
 }
 
 static void take_turn(Snes *s, TaskTurn turn)
 {
-    if (!turn.due)
-        wait_for_the_next_frame(s);
-    else if (turn_starts(&turn))
+    while (!turn.due) {
+        if (!wait_for_the_next_frame(s) || !the_turns_go_on_here(s))
+            return;
+        GameState *g = state_of(s);
+        TIMED_AS(g, THE_UPLOADS_SENT, turn = next_turn(g, 0));
+    }
+    if (turn_starts(&turn))
         start(s, &turn);
     else
         go_back_into(s, turn.task);
 }
+
+/* A turn that isn't due: the menus wait for the next frame. */
+static const TaskTurn NO_TURN = { false, 0, TASK_STOPPED };
 
 /* The task's registers kept on its stack, and where its stack is kept in its
  * record: where it goes on from. Then on the menus' page. */
@@ -244,8 +273,83 @@ void menu_task_ends(Snes *s)
 void menu_run_the_tasks(Snes *s) { take_turn(s, next_turn(state_of(s), 0)); }
 
 // $C2:81B9
-/* The menus, once open, wait for the first frame's uploads. */
-void menu_wait_for_the_first_frame(Snes *s) { wait_for_the_next_frame(s); }
+/* The menus, once open, wait for the first frame's uploads, then take the
+ * frame's turns. */
+void menu_wait_for_the_first_frame(Snes *s) { take_turn(s, NO_TURN); }
+
+/* For the runtime, of a port that waits in the middle of a task's work
+ * (menu_yield): whether the task that waited with the wait's return just
+ * above `s_after` can still go on from there. It can while it waits there --
+ * its record says so, and keeps the stack under the registers the wait kept
+ * -- and while it is the task the scheduler is taking back into it, below the
+ * wait. A task stopped (as every task is when the menus close) or started
+ * afresh, which runs from its stack's top over the wait, never goes on from
+ * it. Only peeks. */
+enum { RETURN_BYTES = 2, KEPT_WITH_BYTE_INDEXES = 5, KEPT_WITH_WORD_INDEXES = 7 };
+
+static bool task_stack_holds(uint16_t at, unsigned *task)
+{
+    uint16_t bottom = FIRST_TASK_STACK + 1 - TASK_STACK_BYTES;
+    if (at < bottom || at > FIRST_TASK_STACK + (MENU_TASKS - 1) * TASK_STACK_BYTES)
+        return false;
+    *task = (unsigned)(at - bottom) / TASK_STACK_BYTES;
+    return true;
+}
+
+bool menu_task_goes_on_from(Snes *s, uint16_t s_after)
+{
+    unsigned task;
+    if (!task_stack_holds(s_after, &task))
+        return false;
+    uint16_t top = (uint16_t)(FIRST_TASK_STACK + task * TASK_STACK_BYTES), now = s->cpu.s;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    uint8_t state = menu_tasks_state(g, task);
+    uint16_t kept = menu_tasks_stack(g, task);
+    bool going_back = state == TASK_RUNNING && running_task(g) == task;
+    vars_peek(false);
+    if (state == TASK_WAITING)
+        return kept == s_after - RETURN_BYTES - KEPT_WITH_BYTE_INDEXES ||
+               kept == s_after - RETURN_BYTES - KEPT_WITH_WORD_INDEXES;
+    return going_back && !(now > s_after && now <= top);
+}
+
+/* ---- The tasks as the menus open ------------------------------------------------------------ */
+
+/* The menus open with none of their tasks but the two that run all the
+ * time, each from its head: the main task in the second record and the
+ * cursor's in the fourth, its sprite the pointing hand. The original clears
+ * the records with a block move from the first's first byte. */
+enum { MAIN_TASK = 1, MAIN_TASK_HEAD = 0x826F, CURSOR_TASK_HEAD = 0xE91B, THE_POINTING_HAND = 0x3020 };
+enum { THE_RECORDS_BYTES = MENU_TASKS * RECORD_BYTES };
+
+static void clear_the_tasks(GameState *g)
+{
+    for (unsigned task = 0; task < MENU_TASKS; task++) {
+        set_menu_tasks_state(g, task, TASK_STOPPED);
+        set_menu_tasks_countdown(g, task, 0);
+        set_menu_tasks_start(g, task, 0);
+        set_menu_tasks_stack(g, task, 0);
+        set_menu_tasks_step(g, task, 0);
+        set_menu_tasks_step_high(g, task, 0);
+    }
+    ORIGINAL_EFFECT(charge_block_move(g, THE_RECORDS_BYTES - 2));
+}
+
+// $C2:8190
+/* The tasks started as the menus open, then the wait for the first frame's
+ * uploads and the frame's turns (its entry's, $C2:81B9). */
+void menu_start_the_tasks(Snes *s)
+{
+    GameState *g = state_of(s);
+    clear_the_tasks(g);
+    menu_start_task(g, MAIN_TASK, MAIN_TASK_HEAD);
+    set_menu_cursor_sprite(g, THE_POINTING_HAND);
+    menu_start_task(g, MENU_CURSOR_TASK, CURSOR_TASK_HEAD);
+    NATIVE_TIME_AS(s, 0xC281B9, menu_wait_for_the_first_frame(s));
+}
+
+bool menu_tasks_can_start(Snes *s) { return m_bank_reaches_low_ram(s); }
 
 /* ---- The tasks that run all the time ------------------------------------------------------- */
 
@@ -255,7 +359,9 @@ void menu_wait_for_the_first_frame(Snes *s) { wait_for_the_next_frame(s); }
  * for frames of its own inside; the cursor's is the menus' sprites hidden and
  * the cursor placed (menu/cursor.c). The scroll bar's task, which a list's
  * screen starts and stops, is the same loop over a frame of the bar's arrows
- * (menu/held_cursors.c). */
+ * (menu/held_cursors.c), and so is the records' (menu/sprites.c). A task's
+ * wait in the middle of its work, which goes on after it rather than round
+ * its loop, is menu_yield's (menu/bridge.h). */
 enum { MAIN_TASK_WAIT = 0xC2826C, CURSOR_TASK_WAIT = 0xC2E91E, SCROLL_BAR_TASK_WAIT = 0xC28C30 };
 
 /* The loop's wait, from its JSR at `site`: run as the JSR reaches it where
@@ -263,7 +369,7 @@ enum { MAIN_TASK_WAIT = 0xC2826C, CURSOR_TASK_WAIT = 0xC2E91E, SCROLL_BAR_TASK_W
  * next task goes on, and this one goes on from the JSR's return on its next
  * turn, into its work again. The wait keeps the registers on the task's
  * stack for that return, where the loops read none of them. */
-enum { THE_WAIT = 0xC2821E, THE_LOOPS_READ_NOTHING_AFTER_IT = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { THE_LOOPS_READ_NOTHING_AFTER_IT = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 /* The index registers the wait keeps, just under the loop's return (X, then
  * Y below it, each a byte or a word), are what the loop's stop declares it
@@ -286,6 +392,24 @@ static void leave_the_kept_index_registers_uncompared(Snes *s, uint16_t dont_car
         native_stack_dont_care(s, (uint16_t)(y_at - FLAGS_BYTES), FLAGS_BYTES);
 }
 
+/* Under what the wait keeps, the task's stack lies below its S while it
+ * waits: nothing reads it, and what the original's work left there (its
+ * subroutines' frames, popped) is the original's own. Shadow mode leaves out
+ * what was popped of the stack the original is on, and the wait moves to
+ * another; so the task's stack under what it keeps isn't compared either. */
+static void leave_the_task_s_stack_below_uncompared(Snes *s)
+{
+    unsigned task;
+    uint16_t sp = s->cpu.s;
+    if (!task_stack_holds(sp, &task))
+        return;
+    uint16_t bottom = (uint16_t)(FIRST_TASK_STACK + 1 - TASK_STACK_BYTES + task * TASK_STACK_BYTES);
+    uint16_t kept = (uint16_t)(RETURN_BYTES + (m_x8(s) ? KEPT_WITH_BYTE_INDEXES : KEPT_WITH_WORD_INDEXES));
+    uint16_t below = (uint16_t)(sp - kept);
+    if (below >= bottom)
+        native_stack_dont_care(s, bottom, (uint16_t)(below - bottom + 1));
+}
+
 /* Under them the wait keeps the flags, the widths with them. Where a loop
  * sets its widths itself, as the original's code has them at the wait (the
  * scroll bar's: A 8-bit from its head, the index registers 16-bit as the
@@ -293,13 +417,21 @@ static void leave_the_kept_index_registers_uncompared(Snes *s, uint16_t dont_car
  * don't read after the wait either; so that byte isn't compared there. */
 static void wait_in_the_loop(Snes *s, uint32_t site, bool widths_its_own)
 {
-    if (menu_runs_as_port(s, THE_WAIT, menu_task_waits_a_frame)) {
+    if (menu_runs_as_port(s, MENU_TASK_WAITS_A_FRAME, menu_task_waits_a_frame)) {
         leave_the_kept_index_registers_uncompared(s, THE_LOOPS_READ_NOTHING_AFTER_IT, widths_its_own);
-        menu_run(s, site, THE_WAIT, menu_task_waits_a_frame);
+        leave_the_task_s_stack_below_uncompared(s);
+        menu_run(s, site, MENU_TASK_WAITS_A_FRAME, menu_task_waits_a_frame);
     } else {
         m_stop_at(s, site, THE_LOOPS_READ_NOTHING_AFTER_IT);
     }
 }
+
+/* The records' task's loop: a frame of the records' sprites (menu/sprites.c),
+ * then the wait, which it waits in with A 16-bit and the index registers
+ * 8-bit, set at its head. */
+enum { RECORDS_TASK_WAIT = 0xC2F696 };
+
+void menu_records_task_waits(Snes *s) { wait_in_the_loop(s, RECORDS_TASK_WAIT, true); }
 
 // $C2:826F
 /* The main task's turn, from its start and from its wait: the screen's step,

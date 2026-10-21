@@ -78,16 +78,16 @@ void menu_shop_back_on_the_tabs(GameState *g, Platform *pf);
 
 /* ---- The lists ---------------------------------------------------------------------------------- */
 
-/* The goods' list opens on its window and rows; once framed (the
- * original's), the goods' counts and the bar. The list for sale opens on
- * its window, is made, framed and settled, then its rows and the bar. */
+/* The goods' list opens on its window and rows; once framed, the goods'
+ * counts and the bar. The list for sale opens on its window, is made,
+ * framed and settled (the cursor and the list's top kept within it, made
+ * afresh as a sale changes it), then its rows and the bar. */
 void menu_shop_open_buying(GameState *g, Platform *pf);
 void menu_shop_open_buying_last(GameState *g);
 void menu_shop_open_selling(GameState *g, Platform *pf);
-void menu_shop_list_for_sale(GameState *g);
-void menu_shop_settle_for_sale(GameState *g);
+void menu_shop_make_the_list_for_sale(GameState *g);
 void menu_shop_open_selling_last(GameState *g);
-void menu_shop_frame_list(GameState *g);
+void menu_shop_frame_list(GameState *g, uint8_t goods);
 
 /* A list's rows, from its top. */
 void menu_shop_draw_rows(GameState *g, bool selling);

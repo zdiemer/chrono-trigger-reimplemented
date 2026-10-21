@@ -66,7 +66,7 @@ in place of the ports: the native coverage.
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 4% left (96% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program about 75%, battle frame work 90%, field graphics 92%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (36 movies): 11.0 KiB, 2.8 M instructions (handback 4.7 KiB, unported 8.1 KiB); shipping mode with the long routes 4.9 KiB, 0.18 M (the movies 0.14 M, the ten routes 0.04 M over the frames they keep); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (36 movies): 8.4 KiB, 1.9 M instructions (handback 2.7 KiB, unported 6.4 KiB); shipping mode with the long routes 2.9 KiB, 0.13 M (the movies 0.09 M, the ten routes 0.04 M over the frames they keep); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -154,15 +154,14 @@ play still runs as the original (`tools/fallbacks.py --by routine`), not by
 which bank has the most unported bytes: a handback is a port calling code that
 isn't ported yet, so retiring it is porting its callee. In order:
 
-1. **The menus and the overworld** (84%): a wait for the next frame in the
-   middle of a screen's step that the runtime keeps rather than abandons,
-   which is what leaves the healing's rising numbers and the equipment
-   screen's slides (`$C2:9093`, `$C2:A518`, `$C2:A7B7`, `$C2:A970`) and
-   most of `C2:----` to the original though they are C (TODO.md, "What the
-   shipping mode's fallbacks' sixth chunk left"); the scrolling lists' frame
-   (`$C2:EA81`) that four screens call out to, and the endings' scenes'
-   line effects behind `$C3:000E` (TODO.md, "What the world map's set up
-   left").
+1. **The menus and the overworld** (84%): what the shipping mode still runs
+   of bank `$C2` is code no port stands for, the screens' own routines still
+   the original's (`C2:----`, the fade out `$C2:83CA`, the gate screen's swirl
+   `$C2:CE86` and the number tiles in `$FF` it calls), and the endings'
+   scenes' line effects behind `$C3:000E` (TODO.md, "What the world map's set
+   up left"); and the fallback measure's filing of one task's code under
+   another's hand-back, which shows where to look (TODO.md, "What the
+   shipping mode's fallbacks' eighth chunk left").
 2. **The scene program**, its unported modes after movies reach them, and
    the title's and the attract program's own frame tasks, which the movies
    run as the original's (`$7E:5D71`, `$7E:6A23`, `$7E:69AF` and their

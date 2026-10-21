@@ -745,13 +745,12 @@ void menu_shop_open_selling_last(GameState *g)
     start_the_scroll_bar(g);
 }
 
-// $C2:DECC
 /* What the party can sell: its items in the inventory's order, but for key
  * items and what the shop won't take; each place's count is written as the
  * list goes, so the place past the last keeps the last count it saw. */
 enum { FOR_SALE_CLEARED = 8, LAST_ROW = SHOP_LIST_ROWS - 1, NOT_FOR_SALE = 0x04, KEY_ITEMS = 0xF2 };
 
-void menu_shop_list_for_sale(GameState *g)
+static void list_for_sale(GameState *g)
 {
     for (unsigned i = 0; i < FOR_SALE_CLEARED; i++)
         set_menu_shop_for_sale(g, i, 0);
@@ -772,7 +771,7 @@ void menu_shop_list_for_sale(GameState *g)
 }
 
 /* Once framed: the cursor and the list's top kept within it. */
-void menu_shop_settle_for_sale(GameState *g)
+static void settle_for_sale(GameState *g)
 {
     if (menu_list_last_place(g) < menu_cursor_index(g))
         set_menu_cursor_index(g, menu_list_last_place(g));
@@ -783,11 +782,24 @@ void menu_shop_settle_for_sale(GameState *g)
 }
 
 // $C2:DD40
-/* A list's frame shows eight rows from its first place. */
-void menu_shop_frame_list(GameState *g)
+/* A list of `goods` framed: eight rows shown from its first place, and the
+ * scroll bar's track a whole list's. */
+enum { LIST_BAR_TRACK = 0x5400 };
+
+void menu_shop_frame_list(GameState *g, uint8_t goods)
 {
-    ORIGINAL_EFFECT(set_menu_scratch_shop_rows_shown(g, SHOP_LIST_ROWS));
     set_menu_list_first_place(g, 0);
+    TIMED_AS(g, 0xC2EA81, menu_frame_the_list(g, goods, SHOP_LIST_ROWS, LIST_BAR_TRACK));
+}
+
+// $C2:DECC
+/* The list for sale made afresh, as the selling opens and after each sale:
+ * framed, and the cursor and the list's top kept within it. */
+void menu_shop_make_the_list_for_sale(GameState *g)
+{
+    list_for_sale(g);
+    TIMED_AS(g, 0xC2DD40, menu_shop_frame_list(g, menu_shop_for_sale_listed(g)));
+    settle_for_sale(g);
 }
 
 /* What the frame's input does on a list. */

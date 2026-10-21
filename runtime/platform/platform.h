@@ -38,6 +38,11 @@ typedef struct {
 /* A loop of the original's that a call stands in for: the instruction it
  * comes back to (`head`) and the first after it (`exit`). */
 #define PF_LOOP(head, exit) ((PfOrigin){ (head), (exit), 0 })
+/* The same for a wait the SNES backend's shipping mode leaves to the
+ * original's loop (tm_wait_for_handlers_held): what the code from `head`
+ * doesn't read, where the port stops there (as m_stop_at's set, which
+ * tools/dontcare_check.py checks the same way). */
+#define PF_LOOP_HELD(head, exit, dont_care) ((PfOrigin){ (head), (exit), (dont_care) })
 
 /* The data a call refers to: a 24-bit game address while the WRAM layout is
  * kept, a host pointer once a subsystem owns its memory. The SNES backend only

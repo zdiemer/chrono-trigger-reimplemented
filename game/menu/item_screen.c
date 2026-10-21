@@ -19,8 +19,8 @@
  * the list beside it while its cursor is on the items (the panel).
  *
  * This file is what the game does; item_screen_bridge.c runs it on the
- * original's machine, calling out between the parts here to what is still
- * the original's: the list's frame and the frames the screen waits. */
+ * original's machine, waiting for the next frame between the parts here
+ * where the screen does. */
 #include "menu/item_screen.h"
 
 #include "charge.h"
@@ -87,10 +87,9 @@ void menu_items_lay_out(GameState *g, Platform *pf)
 {
     menu_draw_windows(g, pf, MENU_WINDOWS_ITEMS_SCREEN);
     set_menu_scroll_bar_place(g, BAR_PLACE);
-    hw_set_dividend(g, BAR_TRACK);
     set_menu_text_attribute(g, 0);
     set_menu_list_first_place(g, 0);
-    set_menu_scratch_list_rows(g, MENU_ITEMS_ROWS);
+    TIMED_AS(g, 0xC2EA81, menu_frame_the_list(g, MENU_ITEMS, MENU_ITEMS_ROWS, BAR_TRACK));
 }
 
 void menu_items_show_bar_at_the_list(GameState *g) { set_menu_scroll_bar_thumb(g, menu_item_list_top(g)); }

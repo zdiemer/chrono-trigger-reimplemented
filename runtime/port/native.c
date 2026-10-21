@@ -27,10 +27,12 @@ static void push16_raw(Snes *s, uint16_t v)
 #define MAX_DETAILS 256
 #define DEFAULT_DETAILS 16
 #define RESUME_SLOTS 4096
-#define MAX_DEAD_STACK 16     /* stack bytes a port has declared don't care at once (native_stack_dont_care) */
+#define MAX_DEAD_STACK 96     /* stack bytes a port has declared don't care at once (native_stack_dont_care): a menu task's stack below its wait, and a few more */
+#define MAX_SAVED_FLAGS 16    /* P bytes a port has saved on the stack and not restored yet (native_flags_saved) */
 #define MAX_TIME_SCOPES 16    /* native_time_as scopes a stretch's owner is looked for in (deeper ones nest uncounted) */
 #define MAX_STRETCH_RUNS 8     /* sibling runs one stretch's clocks are tallied for (stretch_owner) */
 #define MAX_SEGMENT_PARTS 48   /* distinct routines one stretch of a port attributes time to (the battle timers' dispatch, a whole turn, reaches more than 32) */
+#define MAX_PARKED 16          /* routines parked in yields at once (the menus run eight tasks) */
 
 /* A native_time_as scope: the routine's table index (-1 the port's own), and
  * for a sibling's run (native_time_as_sibling) the run's number in its job, 0
@@ -73,6 +75,8 @@ typedef struct Job {
     uint16_t call_s_after;
     uint16_t call_dont_care;
     bool call_waits;           /* JOB_CALLING: native_wait_call's, which stands for the port's own wait */
+    bool call_yields;          /* JOB_CALLING: native_yield_call_dc's, to another task... */
+    NativeGoesOn goes_on;      /* ...and whether the task can still go on from it */
     uint32_t wait_exit;        /* JOB_WAITING: native_wait_loop's exit (its head is call_target)... */
     int32_t wake;              /* ...and what ends the wait (NATIVE_WAKE_HANDLER, or a line) */
     uint32_t wake_clocks;      /* NATIVE_WAKE_TIME: how long it lasts */
@@ -113,6 +117,10 @@ typedef struct Job {
      * (native_stack_dont_care), by address. */
     uint16_t dead_stack[MAX_DEAD_STACK];
     int ndead_stack;
+    /* The P bytes it saved on the stack and hasn't restored yet
+     * (native_flags_saved), innermost last. */
+    uint16_t saved_flags[MAX_SAVED_FLAGS];
+    int nsaved_flags;
     struct Job *next_free;
 } Job;
 
@@ -342,6 +350,19 @@ struct NativeRuntime {
      * (snes_clone_since), and the epoch each was last refreshed at (0: never). */
     Snes *clones[MAX_ACTIVE];
     uint64_t clone_since[MAX_ACTIVE];
+    /* Routines parked in a yield to another task (native_yield_call_dc), each
+     * in PH_CALLOUT with the machine copy it runs on in SHADOW mode (taken
+     * from its level's, which another routine at that level gets afresh) and
+     * that copy's epoch; and the frame and S at the latest step, where a
+     * parked routine's task may have been dropped since. */
+    struct {
+        Active a;
+        Snes *clone;
+        uint64_t since;
+    } parked[MAX_PARKED];
+    int nparked;
+    uint32_t parked_frame;
+    uint16_t parked_s;
     /* ON mode: master clocks native code still owes, where it owes them
      * (paying debt, below). */
     Debt debts[MAX_DEBTS];
@@ -627,6 +648,10 @@ void native_destroy(NativeRuntime *rt)
         active_runtime = NULL;
     while (rt->nactive > 0)
         active_pop(rt);
+    for (int i = 0; i < rt->nparked; i++) {
+        job_abandon(rt->parked[i].a.job);
+        free(rt->parked[i].clone);
+    }
     if (rt->attached && rt->acc)
         rt->attached->cpu.bus = rt->attached_bus;
     for (int i = 0; i < MAX_ACTIVE; i++)
@@ -643,7 +668,8 @@ void native_destroy(NativeRuntime *rt)
     free(rt);
 }
 
-int native_suspended(const NativeRuntime *rt) { return rt->nactive; }
+int native_suspended(const NativeRuntime *rt) { return rt->nactive + rt->nparked; }
+int native_parked(const NativeRuntime *rt) { return rt->nparked; }
 
 uint64_t native_owed(const NativeRuntime *rt)
 {
@@ -907,6 +933,32 @@ static void copy_dead_stack(const Snes *o, Snes *c, const uint16_t *at, int n, b
             c->bus.wram[at[k]] = o->bus.wram[at[k]];
 }
 
+/* The flags of the P bytes a port saved and will restore itself, taken from
+ * the original's where it has the byte pushed too: they are compared as the
+ * registers they become again (native_flags_saved). */
+enum { SAVED_FLAG_BITS = CPU_FLAG_N | CPU_FLAG_V | CPU_FLAG_Z | CPU_FLAG_C };
+
+static void copy_saved_flags(const Snes *o, Snes *c, const uint16_t *at, int n)
+{
+    for (int k = 0; k < n; k++)
+        if (at[k] > o->cpu.s && at[k] < 0x2000)
+            c->bus.wram[at[k]] = (uint8_t)((c->bus.wram[at[k]] & ~SAVED_FLAG_BITS) | (o->bus.wram[at[k]] & SAVED_FLAG_BITS));
+}
+
+void native_flags_saved(Snes *s)
+{
+    Job *j = current_job;
+    if (j && j->m == s && j->nsaved_flags < MAX_SAVED_FLAGS)
+        j->saved_flags[j->nsaved_flags++] = (uint16_t)(s->cpu.s + 1);
+}
+
+void native_flags_restored(Snes *s)
+{
+    Job *j = current_job;
+    if (j && j->m == s && j->nsaved_flags > 0)
+        j->nsaved_flags--;
+}
+
 void native_stack_dont_care(Snes *s, uint16_t at, uint16_t bytes)
 {
     Job *j = current_job;
@@ -1125,10 +1177,12 @@ static bool differs(Active *a, Snes *s, uint16_t dont_care, char *why, size_t n)
      * bytes of work RAM, so a bank-$00 address past them isn't work RAM. */
     for (uint32_t addr = (uint32_t)a->left_low_s + 1; addr <= a->left_s && addr < 0x2000; addr++)
         a->clone->bus.wram[addr] = s->bus.wram[addr];
-    if (a->job)
+    if (a->job) {
         copy_dead_stack(s, a->clone, a->job->dead_stack, a->job->ndead_stack, false);
-    else
+        copy_saved_flags(s, a->clone, a->job->saved_flags, a->job->nsaved_flags);
+    } else {
         copy_dead_stack(s, a->clone, a->left_dead_stack, a->nleft_dead_stack, true);
+    }
     return compare_machines(s, a->clone, dont_care, a->since, why, n);
 }
 
@@ -1221,6 +1275,104 @@ static void finish(NativeRuntime *rt)
             st->matched++;
     }
     active_pop(rt);
+}
+
+/* ---- yields to another task (native_yield_call_dc) ----------------------------- */
+
+/* A parked routine whose task won't go on from its yield: it never finishes,
+ * as the original's routine wouldn't, and is counted so. */
+static void drop_parked(NativeRuntime *rt, int i, const char *why)
+{
+    Active *a = &rt->parked[i].a;
+    NativeStats *st = stats_of(rt, a);
+    if (st->abandoned++ == 0) {
+        char msg[160];
+        snprintf(msg, sizeof msg, "parked in its yield to %06X (return %06X, S %04X): %s", a->job->call_target,
+                 a->job->call_ret, a->job->call_s_after, why);
+        detail(rt, "abandoned", a->entry, msg);
+    }
+    if (rt->mode == NATIVE_SHADOW) {
+        if (a->mismatched)
+            st->mismatched++;
+        else if (a->interrupted)
+            st->interrupted++;
+        else
+            st->matched++;
+    }
+    job_abandon(a->job);
+    free(rt->parked[i].clone);
+    memmove(&rt->parked[i], &rt->parked[i + 1], sizeof rt->parked[0] * (size_t)(rt->nparked - i - 1));
+    rt->nparked--;
+}
+
+/* The innermost routine has just yielded (PH_CALLOUT, the machine at the
+ * task switch): set it aside, its machine copy with it, so that the other
+ * tasks' routines run above nothing of it. A yield to the same return and S
+ * as one parked already means that one's stack has been used again. */
+static void park(NativeRuntime *rt, Snes *s)
+{
+    int level = rt->nactive - 1;
+    Active *a = &rt->active[level];
+    const Job *j = a->job;
+    for (int i = 0; i < rt->nparked; i++) {
+        const Job *k = rt->parked[i].a.job;
+        if (k->call_ret == j->call_ret && k->call_s_after == j->call_s_after) {
+            drop_parked(rt, i, "yielded to again from the same place on the same stack");
+            break;
+        }
+    }
+    if (rt->nparked == MAX_PARKED)
+        drop_parked(rt, 0, "no room for another: the longest parked dropped");
+    if (rt->nparked == 0) {
+        rt->parked_frame = s->frame;
+        rt->parked_s = s->cpu.s;
+    }
+    int at = rt->nparked++;
+    rt->parked[at].a = *a;
+    rt->parked[at].clone = NULL;
+    rt->parked[at].since = 0;
+    if (rt->mode == NATIVE_SHADOW) {
+        rt->parked[at].clone = rt->clones[level];
+        rt->parked[at].since = rt->clone_since[level];
+        rt->clones[level] = NULL;
+        rt->clone_since[level] = 0;
+    }
+    a->job = NULL;
+    a->clone = NULL;
+    rt->nactive--;
+    if (rt->observer.parked)
+        rt->observer.parked(rt->observer.ctx, s, rt->parked[at].a.entry);
+}
+
+/* A parked routine whose task is back at its yield's return with the yield's
+ * S goes back on top, in PH_CALLOUT, to go on as from any call-out. */
+static bool unpark(NativeRuntime *rt, Snes *s, uint32_t pc)
+{
+    for (int i = 0; i < rt->nparked; i++) {
+        const Job *j = rt->parked[i].a.job;
+        if (pc != j->call_ret || s->cpu.s != j->call_s_after)
+            continue;
+        if (rt->nactive == MAX_ACTIVE) {
+            drop_parked(rt, i, "back at its return with no room to go on");
+            return false;
+        }
+        int level = rt->nactive++;
+        Active *a = &rt->active[level];
+        *a = rt->parked[i].a;
+        if (rt->mode == NATIVE_SHADOW) {
+            free(rt->clones[level]);
+            rt->clones[level] = rt->parked[i].clone;
+            rt->clone_since[level] = rt->parked[i].since;
+            a->clone = rt->clones[level];
+        }
+        a->handler_away = false;
+        memmove(&rt->parked[i], &rt->parked[i + 1], sizeof rt->parked[0] * (size_t)(rt->nparked - i - 1));
+        rt->nparked--;
+        if (rt->observer.resumed)
+            rt->observer.resumed(rt->observer.ctx, s, a->entry, a->entry_s);
+        return true;
+    }
+    return false;
 }
 
 /* ON: add time a port owes at where the machine is now. */
@@ -1363,7 +1515,7 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         a->segment_part_overflows = j->part_overflows;
         a->segment_owner = stretch_owner(j);
     }
-    if (rt->mode == NATIVE_ON && j->state == JOB_CALLING && !j->call_waits && rt->observer.called_out)
+    if (rt->mode == NATIVE_ON && j->state == JOB_CALLING && !j->call_waits && !j->call_yields && rt->observer.called_out)
         rt->observer.called_out(rt->observer.ctx, s, a->entry, j->call_target);
     if (rt->mode == NATIVE_ON && j->state == JOB_DONE && !j->returned && rt->observer.stopped)
         rt->observer.stopped(rt->observer.ctx, s, a->entry, a->entry_s);
@@ -1392,6 +1544,8 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
     a->handler_away = false;
     if (rt->mode == NATIVE_ON && !a->job)
         finish(rt);
+    else if (rt->mode == NATIVE_ON && a->job->call_yields)
+        park(rt, s);
 }
 
 /* ON: whether the wait a port is suspended in is over (native_wait_loop,
@@ -1554,13 +1708,17 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             return wait_point(rt, a, s, pc);
         if (pc == j->call_target && s->cpu.s == a->clone->cpu.s) {
             char where[48];
-            snprintf(where, sizeof where, "at call to %06X", j->call_target);
+            snprintf(where, sizeof where, "at call to %06X returning to %06X", j->call_target, j->call_ret);
             if (!reach_point(rt, a, s, j->call_dont_care, where))
                 return false;
             end_segment(rt, a, s);
             a->call_cpu = s->cpu;
             a->phase = PH_CALLOUT;
             a->handler_away = false;
+            if (j->call_yields) {
+                park(rt, s);
+                return true;
+            }
             if (rt->observer.called_out && !j->call_waits)
                 rt->observer.called_out(rt->observer.ctx, s, a->entry, j->call_target);
             return false;
@@ -1753,6 +1911,11 @@ static void settle_nested(NativeRuntime *rt, Snes *s, uint32_t pc)
         if (rt->observer.finished)
             rt->observer.finished(rt->observer.ctx, a->entry);
         active_pop(rt);
+        /* the enclosing comparison covers what the original runs from here,
+         * which an observer that ended its stretch where the nested one began
+         * at the same S (a task's loop's head reached from its wait) is told */
+        if (rt->nactive - 1 == outer && rt->observer.resumed)
+            rt->observer.resumed(rt->observer.ctx, s, enclosing, rt->active[outer].entry_s);
     }
 }
 
@@ -2534,6 +2697,25 @@ static void follow_the_stack(NativeRuntime *rt, const Snes *s, uint32_t pc)
     rt->prev_s = sp;
 }
 
+/* Parked routines whose tasks can't go on from their yields any more, asked
+ * of each (NativeGoesOn) where that may have changed: at a frame's start (a
+ * task stopped, the mode closed) and at a stack switch (another task going
+ * on, or this one started afresh above its yield). */
+static void drop_the_dropped(NativeRuntime *rt, Snes *s)
+{
+    bool new_frame = s->frame != rt->parked_frame;
+    bool switched = s->cpu.s > rt->parked_s + MAX_PULL || s->cpu.s + MAX_PUSH < rt->parked_s;
+    rt->parked_frame = s->frame;
+    rt->parked_s = s->cpu.s;
+    if (!new_frame && !switched)
+        return;
+    for (int i = rt->nparked - 1; i >= 0; i--) {
+        const Job *j = rt->parked[i].a.job;
+        if (!j->goes_on(s, j->call_s_after))
+            drop_parked(rt, i, "its task can't go on from it");
+    }
+}
+
 static int32_t intercept(void *ctx, Snes *s)
 {
     NativeRuntime *rt = ctx;
@@ -2570,6 +2752,16 @@ static int32_t intercept(void *ctx, Snes *s)
         if (result >= 0)
             return result;
     }
+    /* a task back at a parked routine's yield goes on in it (an interrupt
+     * due here is taken first, and returns here) */
+    while (rt->nparked && !interrupt_deliverable(s) && unpark(rt, s, pc)) {
+        while (rt->nactive > 0 && check_top(rt, s, pc, &result)) {
+            if (result >= 0)
+                return result;
+        }
+    }
+    if (rt->nparked)
+        drop_the_dropped(rt, s);
 
     if (interrupt_deliverable(s)) {
         for (int i = 0; i < rt->nactive; i++) {
@@ -2607,6 +2799,18 @@ static int32_t intercept(void *ctx, Snes *s)
                 continue;
             st->calls++;
             return run_block(rt, s, e->fn, e);
+        }
+
+        /* SHADOW: the original back at the start of the routine the innermost
+         * comparison is of, with the S it was entered with, is still inside
+         * that comparison's stretch, not in a new call (a call pushes its
+         * return): a block move's instruction ($7E:9690's MVN) runs again in
+         * place for each byte it moves. So it isn't compared again, which
+         * would nest a comparison a byte. */
+        if (rt->mode == NATIVE_SHADOW && rt->nactive > 0) {
+            const Active *in = &rt->active[rt->nactive - 1];
+            if (in->entry == e && in->phase == PH_SEGMENT && in->entry_s == s->cpu.s)
+                return -1;
         }
 
         st->calls++;
@@ -2684,6 +2888,7 @@ static int32_t intercept(void *ctx, Snes *s)
         a->job->depth = 0;
         a->job->runs = 0;
         a->job->ndead_stack = 0;
+        a->job->nsaved_flags = 0;
         if (rt->observer.entered)
             rt->observer.entered(rt->observer.ctx, s, e);
         if (rt->mode == NATIVE_SHADOW) {
@@ -2830,7 +3035,7 @@ static bool poisoning;
 /* The call from `site`, its return `ret` pushed as the original pushes it (a
  * JSR's or a PER's address less one, a JSL's with its bank first). */
 static void call_out_returning(Snes *s, uint32_t site, uint32_t target, uint32_t ret, bool long_call,
-                               uint16_t dont_care, bool waits)
+                               uint16_t dont_care, bool waits, NativeGoesOn yields)
 {
     uint16_t s_after = s->cpu.s;
     if (long_call)
@@ -2852,6 +3057,8 @@ static void call_out_returning(Snes *s, uint32_t site, uint32_t target, uint32_t
         j->call_s_after = s_after;
         j->call_dont_care = dont_care;
         j->call_waits = waits;
+        j->call_yields = yields != NULL;
+        j->goes_on = yields;
         fiber_switch(fiber_main());
         return;
     }
@@ -2892,20 +3099,27 @@ void native_poison_as_call(Snes *s, uint32_t site, uint32_t target, uint16_t don
         scramble(&s->cpu, (uint16_t)(set & dont_care), bits);
 }
 
-static void call_out(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care, bool waits)
+static void call_out(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care, bool waits,
+                     NativeGoesOn yields)
 {
     uint32_t ret = (site & 0xFF0000) | (uint16_t)(site + (long_call ? 4 : 3));
-    call_out_returning(s, site, target, ret, long_call, dont_care, waits);
+    call_out_returning(s, site, target, ret, long_call, dont_care, waits, yields);
 }
 
 void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care)
 {
-    call_out(s, site, target, long_call, dont_care, false);
+    call_out(s, site, target, long_call, dont_care, false, NULL);
+}
+
+void native_yield_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care,
+                          NativeGoesOn goes_on)
+{
+    call_out(s, site, target, long_call, dont_care, false, goes_on);
 }
 
 void native_jump_call_dc(Snes *s, uint32_t site, uint32_t target, uint32_t returns_to, uint16_t dont_care)
 {
-    call_out_returning(s, site, target, returns_to, false, dont_care, false);
+    call_out_returning(s, site, target, returns_to, false, dont_care, false, NULL);
 }
 
 void native_wait_call(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care, int32_t wake)
@@ -2921,7 +3135,7 @@ void native_wait_call(Snes *s, uint32_t site, uint32_t target, bool long_call, u
         fiber_switch(fiber_main());
         return;
     }
-    call_out(s, site, target, long_call, dont_care, true);
+    call_out(s, site, target, long_call, dont_care, true, NULL);
 }
 
 void native_wait_time(Snes *s, uint32_t clocks)
@@ -2945,24 +3159,33 @@ bool native_waits_in_place(const Snes *s)
     return j && j->m == s && active_runtime && active_runtime->mode == NATIVE_ON;
 }
 
+/* A port's wait in a loop of its own, under the runtime: the machine stands
+ * where the port is (ON), or the original runs the loop (SHADOW), and the port
+ * is compared at its head with `dont_care` left out. */
+static bool wait_in_the_loop(Job *j, uint32_t head, uint32_t exit, uint32_t given_up, int32_t wake, uint32_t passes,
+                             uint32_t pass_clocks, uint16_t dont_care)
+{
+    j->state = JOB_WAITING;
+    j->call_target = head;
+    j->wait_exit = exit;
+    j->wait_given_up = given_up;
+    j->wait_polling = passes * pass_clocks;
+    j->wait_pass_clocks = given_up ? pass_clocks : 0;
+    j->wait_answered = true;
+    j->wake = wake;
+    j->call_dont_care = dont_care;
+    j->call_waits = false;
+    j->call_yields = false;
+    fiber_switch(fiber_main());
+    return j->wait_answered;
+}
+
 bool native_wait_loop_or_give_up(Snes *s, uint32_t head, uint32_t exit, uint32_t given_up, int32_t wake,
                                  uint32_t passes, uint32_t pass_clocks)
 {
     Job *j = current_job;
-    if (j && j->m == s && active_runtime) {
-        j->state = JOB_WAITING;
-        j->call_target = head;
-        j->wait_exit = exit;
-        j->wait_given_up = given_up;
-        j->wait_polling = passes * pass_clocks;
-        j->wait_pass_clocks = given_up ? pass_clocks : 0;
-        j->wait_answered = true;
-        j->wake = wake;
-        j->call_dont_care = NATIVE_WAIT_DONT_CARE;
-        j->call_waits = false;
-        fiber_switch(fiber_main());
-        return j->wait_answered;
-    }
+    if (j && j->m == s && active_runtime)
+        return wait_in_the_loop(j, head, exit, given_up, wake, passes, pass_clocks, NATIVE_WAIT_DONT_CARE);
     /* Outside the runtime: the original's loop, from its head until it leaves
      * (no interrupts come, so a loop that waits for one runs out of steps),
      * unless the tool ends the run at its head (ct_fuzz --stop-at-call). */
@@ -2982,6 +3205,19 @@ bool native_wait_loop_or_give_up(Snes *s, uint32_t head, uint32_t exit, uint32_t
 void native_wait_loop(Snes *s, uint32_t head, uint32_t exit, int32_t wake)
 {
     native_wait_loop_or_give_up(s, head, exit, 0, wake, 0, 0);
+}
+
+bool native_wait_loop_held(Snes *s, uint32_t head, uint32_t exit, int32_t wake, uint16_t dont_care)
+{
+    Job *j = current_job;
+    if (j && j->m == s && active_runtime && active_runtime->mode == NATIVE_SHADOW) {
+        (void)wait_in_the_loop(j, head, exit, 0, wake, 0, 0, (uint16_t)(dont_care | j->entry->dont_care));
+        return true;
+    }
+    s->cpu.pb = (uint8_t)(head >> 16);
+    s->cpu.pc = (uint16_t)head;
+    native_dont_care_at_stop(s, head, dont_care);
+    return false;
 }
 
 void native_call_poison_reset(void)

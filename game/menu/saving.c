@@ -201,7 +201,6 @@ enum { SLOT_HOLDS_A_GAME = 0xFF };
 /* ---- On the original's machine ------------------------------------------------------------------- */
 
 enum {
-    YIELD = 0xC2821E,           /* the task waits for the next frame */
     LEAVE_THE_MENUS = 0xC282B2, /* the menus close, back to the field */
     FADE_IN = 0xC283B2,         /* the screen's fade in started */
     SAVE_IN_THE_SLOT = 0xC2CF0A,
@@ -215,7 +214,6 @@ enum {
 };
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
-static bool yield(Snes *s, uint32_t site) { return menu_call(s, site, YIELD, READS_NOTHING); }
 
 // $C2:D065
 /* The slots, a frame, the summary of the slot last saved in, a frame, and
@@ -227,14 +225,14 @@ void menu_show_save_panel(Snes *s)
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
     draw_the_slots(g, pf);
-    if (!yield(s, 0xC2D07E))
+    if (!menu_wait_a_frame_from(s, 0xC2D07E))
         return;
     make_room_for_the_summary(g);
     menu_set_widths(s, true, false);
     TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, pf));
     menu_queue_fixed_upload(g, MENU_UPLOAD_TEXT_LAYER);
     set_menu_palette_changed(g, 0);
-    if (!yield(s, 0xC2D0AA))
+    if (!menu_wait_a_frame_from(s, 0xC2D0AA))
         return;
     finish_the_screen(g, pf);
     menu_restore_p(s);
@@ -342,11 +340,11 @@ void menu_save_the_game(Snes *s)
         return;
     set_menu_save_slot_in_use(g, slot, SLOT_HOLDS_A_GAME);
     TIMED_AS(g, 0xFFF9FB, saves_save_game(g, m_platform(s), slot));
-    if (!yield(s, 0xC2CF55))
+    if (!menu_wait_a_frame_from(s, 0xC2CF55))
         return;
     if (!menu_run(s, 0xC2CF58, READ_THE_SLOT_SUMMARY, menu_read_slot_summary))
         return;
-    m_stop_at_own(s, YIELD, THE_WAIT_KEEPS_ALL_BUT_A);
+    m_stop_at_own(s, MENU_TASK_WAITS_A_FRAME, THE_WAIT_KEEPS_ALL_BUT_A);
 }
 
 /* The save, from its JSR at `site`: run as C where its port runs, and

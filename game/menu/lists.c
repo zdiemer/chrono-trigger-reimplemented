@@ -4,6 +4,7 @@
 
 #include "charge.h"
 #include "core/input.h"
+#include "cpu_io.h"
 #include "menu/cursor.h"
 #include "menu/bridge.h"
 #include "menu/display.h"
@@ -36,6 +37,71 @@ void menu_move_list_rows(GameState *g, uint16_t rows_at, unsigned shown_bytes, u
     wram_copy(g, past, first, row_bytes);
     ORIGINAL_EFFECT(charge_block_move(g, shown_bytes));
 }
+
+/* ---- The frame ----------------------------------------------------------------------------------- */
+
+// $C2:EA81
+/* A scrolling list laid out: `places` places from the list's first place
+ * (menu_list_first_place), `rows` of them in view at once, or all of them
+ * where it has fewer. It scrolls by the places it has past its rows, and the
+ * paging pages a view's rows at a time as far as that; the cursor's last
+ * place is the view's last row; the scroll bar's span starts as the places
+ * past the rows, and its thumb moves the bar's `track` over them, a share of
+ * it a place. The share is what the CPU's divider makes of it: the track
+ * divided by the places past the rows counted in a byte, wrapped round for a
+ * list shorter than its rows, and all ones where there are none (a bar no
+ * screen draws then). */
+static void leave_the_frame_s_workings(GameState *g, uint8_t shown, uint8_t past, uint16_t track, uint8_t divisor);
+
+void menu_frame_the_list(GameState *g, uint8_t places, uint8_t rows, uint16_t track)
+{
+    uint8_t divisor = (uint8_t)(places - rows);
+    bool fewer = places < rows;
+    uint8_t shown = fewer ? places : rows, past = fewer ? 0 : divisor;
+    set_menu_paging_rows(g, rows);
+    set_menu_list_last_place(g, (uint8_t)((shown ? shown - 1 : 0) + menu_list_first_place(g)));
+    set_menu_list_scroll_most(g, past);
+    set_menu_scroll_bar_span(g, past);
+    set_menu_paging_last_top(g, past);
+    set_menu_scroll_bar_step(g, divisor ? (uint16_t)(track / divisor) : 0xFFFF);
+    ORIGINAL_EFFECT(leave_the_frame_s_workings(g, shown, past, track, divisor));
+}
+
+/* For the original's code and shadow mode: the view's rows and the places
+ * past them in the menus' first two cells, and the divider as the share left
+ * it. */
+static void leave_the_frame_s_workings(GameState *g, uint8_t shown, uint8_t past, uint16_t track, uint8_t divisor)
+{
+    set_menu_scratch_list_rows(g, shown);
+    set_menu_scratch_list_places_past(g, past);
+    hw_set_dividend(g, track);
+    hw_divide_by(g, divisor);
+}
+
+/* The frame's last load, the thumb's step, in a 16-bit A, and the index
+ * registers it worked with 8-bit, their high bytes gone: Y the places, as its
+ * callers give them. */
+void menu_leave_the_list_framed(Snes *s, uint8_t places)
+{
+    s->cpu.a = menu_scroll_bar_step(state_of(s));
+    s->cpu.x &= 0x00FF;
+    s->cpu.y = places;
+}
+
+/* The original's callers leave the view's rows in the menus' first cell and
+ * the track in the divider. */
+void menu_frame_the_list_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint8_t places = (uint8_t)s->cpu.y;
+    menu_frame_the_list(g, places, menu_scratch_list_rows(g), hw_dividend(g));
+    menu_leave_the_list_framed(s, places);
+    m_rts(s);
+}
+
+/* On the menus' page, reaching the list's cells through a data bank that
+ * reaches low RAM. */
+bool menu_list_frame_is_layable(Snes *s) { return menu_on_page_low_ram(s); }
 
 /* ---- The cursor along a list ------------------------------------------------------------------- */
 
@@ -184,7 +250,7 @@ void menu_put_the_list_bands_back(GameState *g)
 /* The task switch a frame of the slide goes on to, which waits for the
  * next frame and returns to the frame's caller; it keeps X, Y and the flags
  * for the caller across the wait. */
-enum { YIELD = 0xC2821E, KEEPS_X_Y_AND_FLAGS = DC_A };
+enum { KEEPS_X_Y_AND_FLAGS = DC_A };
 
 /* For the original's code and shadow mode: X and Y past the last band, as
  * the staging leaves them; the flags are the caller's. */
@@ -208,7 +274,7 @@ void menu_slide_list_a_frame_entry(Snes *s)
 {
     menu_slide_list_a_frame(state_of(s));
     ORIGINAL_EFFECT(leave_bands_staged(s));
-    m_stop_at_own(s, YIELD, KEEPS_X_Y_AND_FLAGS);
+    m_stop_at_own(s, MENU_TASK_WAITS_A_FRAME, KEEPS_X_Y_AND_FLAGS);
 }
 
 /* The screens keep their lists' tables among the menus' per-line tables,
@@ -293,34 +359,51 @@ static const MenuButton PAGE_BACK = MENU_PAGE_ONE_WAY, PAGE_ON = MENU_PAGE_THE_O
  * first row in its cell and leaves the new one there. */
 static void leave_paged_top(GameState *g, uint8_t top) { set_menu_paging_top(g, top); }
 
-// $C2:93BF
-/* A page past either end goes to the end instead, its cursor to the end's
- * place. The sums are a byte's, as the original's: a page back from near
- * the start wraps past the last first row, which is how it finds the
- * start. */
-uint8_t menu_turn_page(GameState *g, uint8_t top)
+/* Where the frame's input pages the list from `top`: a page past either end
+ * goes to the end instead (`to_an_end`). The sums are a byte's, as the
+ * original's: a page back from near the start wraps past the last first row,
+ * which is how it finds the start. */
+static uint8_t paged_to(const GameState *g, uint8_t top, bool *to_an_end)
 {
     uint8_t rows = menu_paging_rows(g), last_top = menu_paging_last_top(g), to = top;
+    *to_an_end = false;
     if (menu_asked(g, PAGE_BACK)) {
         to = (uint8_t)(top - rows);
         if (to >= last_top) {
-            set_menu_cursor_index(g, menu_list_first_place(g));
+            *to_an_end = true;
             to = 0;
         }
     } else if (menu_asked(g, PAGE_ON)) {
         unsigned on = (unsigned)top + rows;
         to = (uint8_t)on;
         if (on > 0xFF || to >= last_top) {
-            set_menu_cursor_index(g, menu_list_last_place(g));
+            *to_an_end = true;
             to = last_top;
         }
     }
+    return to;
+}
+
+// $C2:93BF
+/* Paging to an end puts the cursor on the end's place. */
+uint8_t menu_turn_page(GameState *g, uint8_t top)
+{
+    bool to_an_end;
+    uint8_t to = paged_to(g, top, &to_an_end);
+    if (to_an_end)
+        set_menu_cursor_index(g, menu_asked(g, PAGE_BACK) ? menu_list_first_place(g) : menu_list_last_place(g));
     if (to != top) {
         set_menu_scroll_bar_thumb(g, to);
         set_menu_cursor_frame_start(g, MENU_CURSOR_MOVED_ANYWAY);
     }
     ORIGINAL_EFFECT(leave_paged_top(g, to));
     return to;
+}
+
+bool menu_page_turns(const GameState *g, uint8_t top)
+{
+    bool to_an_end;
+    return paged_to(g, top, &to_an_end) != top;
 }
 
 /* The paging's answer in A: whether a page turned. */

@@ -243,7 +243,16 @@ void native_set_page_report(NativeRuntime *rt, bool on);
  * idle: SHADOW, an idle entry applies here, and the original runs the pass
  * of the wait loop it stands for.
  * finished: SHADOW, the comparison of the port's call is over, however it
- * ended (it returned, stopped, was abandoned or interrupted). */
+ * ended (it returned, stopped, was abandoned or interrupted).
+ * parked: the port yielded to another task (native_yield_call_dc) and is set
+ * aside until its task goes on; the machine is at the task switch's first
+ * instruction, the return address pushed. Nothing it stands for runs until
+ * resumed (in place of called_out, which a yield doesn't send).
+ * resumed: a port's work is its own again from here, as from its entry: a
+ * parked port's task is back at the yield's return, with the S it yielded
+ * with; or (SHADOW) the comparisons nested in a port's stretch were set aside
+ * at its point, and its own goes on. `entry_s` is S as it was when the port
+ * was entered. */
 typedef struct NativeObserver {
     void *ctx;
     void (*refused)(void *ctx, Snes *s, const NativeEntry *entry, const char *why);
@@ -254,6 +263,8 @@ typedef struct NativeObserver {
     void (*returned_from_interrupt)(void *ctx, Snes *s, const NativeEntry *entry);
     void (*idle)(void *ctx, Snes *s, const NativeEntry *entry);
     void (*finished)(void *ctx, const NativeEntry *entry);
+    void (*parked)(void *ctx, Snes *s, const NativeEntry *entry);
+    void (*resumed)(void *ctx, Snes *s, const NativeEntry *entry, uint16_t entry_s);
 } NativeObserver;
 /* Observe ON mode's hand-offs (NULL: stop). The observer is copied. */
 void native_set_observer(NativeRuntime *rt, const NativeObserver *observer);
@@ -300,6 +311,19 @@ void native_copy_popped_stack(const Snes *original, Snes *native, uint16_t lowes
  * when it goes on (menu/tasks.c). Outside the runtime both do nothing. */
 void native_stack_dont_care(Snes *s, uint16_t at, uint16_t bytes);
 void native_stack_cared(Snes *s);
+
+/* For a port that saves P on the stack and restores it itself, as the menus'
+ * routines start and end (PHP ... PLP): native_flags_saved after the push,
+ * native_flags_restored after the pull. While the byte is there its flags
+ * (N, V, Z and C, not the widths) aren't compared in memory: they are the
+ * port's own, which are the original's only where the port works them out,
+ * and the port restores them into P, where they are compared as registers
+ * wherever they are read (a declared set leaves them out only where liveness
+ * agrees they are dead). A port that stops with one still saved has it
+ * compared whole there, since the original's code will restore it. Outside the
+ * runtime both do nothing. */
+void native_flags_saved(Snes *s);
+void native_flags_restored(Snes *s);
 
 /* For a port that runs as C the work of a subroutine the original calls, and
  * that meets the original inside it (a wait or a call-out there): the
@@ -389,9 +413,12 @@ const NativeEntry *native_hand_entry(Snes *s);
 const NativeEntry *native_hand_entry_at(Snes *s, uint32_t addr);
 
 /* Number of registered routines entered and not yet left (suspended in
- * call-outs, or awaiting shadow comparison). Save states taken while this is
- * nonzero can't restore those routines. */
+ * call-outs, parked in a yield to another task, or awaiting shadow
+ * comparison). Save states taken while this is nonzero can't restore those
+ * routines. */
 int native_suspended(const NativeRuntime *rt);
+/* Of those, the ones parked in a yield (native_yield_call_dc). */
+int native_parked(const NativeRuntime *rt);
 
 /* ON mode: master clocks hand ports have taken and the machine hasn't let pass
  * yet (a port's estimated time is charged after it stops, a scanline at a time;
@@ -420,6 +447,37 @@ uint64_t native_owed(const NativeRuntime *rt);
  * the machine's interpreter), with interrupts held off and no time passing. */
 void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call);
 void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care);
+
+/* A yield: a call to the original's task switch (the menus' wait for the next
+ * frame, $C2:821E), which keeps the running task's registers on its stack,
+ * moves to another task's stack and comes back to the call's return, with the
+ * call's S, only when the task goes on, frames later, after any number of other
+ * tasks have run their turns -- or never, where the task is stopped or started
+ * afresh, or the mode closes.
+ *
+ * Under the runtime the routine is parked: taken off the routines in progress,
+ * so that the other tasks' ports run and finish (or park) above nothing of
+ * it, and set aside until the machine is back at the call's return with the
+ * call's S, where it goes on as from any call-out (SHADOW mode compares the
+ * call where the original makes it, and the routine's work after it from
+ * there). `goes_on` says whether the task that yielded with its return at
+ * `s_after` (S before the call pushed it) can still go on from there; the
+ * runtime asks it, on the real machine and only peeking, wherever a parked
+ * routine's task might have been dropped -- at every frame's start and every
+ * stack switch -- and drops the routine where it says no: the routine never
+ * finishes, as the original's code wouldn't (counted abandoned), and nothing
+ * is left suspended for good. A routine whose task goes on after a drop
+ * anyway (stopped, then set waiting again) has the original's code run the
+ * rest, as for a routine abandoned. A second yield to the same return and S
+ * drops the first: its stack has been used again. Parked routines count in
+ * native_suspended: a save state can't hold them, and ct_drive's bases and
+ * ct_play's quick saves wait for a frame end with none (docs/MOVIES.md,
+ * "Suspended routines and owed time").
+ *
+ * Outside the runtime the call is made as native_call_dc makes it. */
+typedef bool (*NativeGoesOn)(Snes *s, uint16_t s_after);
+void native_yield_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care,
+                          NativeGoesOn goes_on);
 /* The same for a call the original makes as a jump through a pointer at
  * `site` (a JMP (abs) whose target it reads at run time), with the return
  * the code before the jump pushed (a PER): the callee returns to `returns_to`,
@@ -512,6 +570,24 @@ void native_wait_loop(Snes *s, uint32_t head, uint32_t exit, int32_t wake);
 bool native_wait_loop_or_give_up(Snes *s, uint32_t head, uint32_t exit, uint32_t given_up, int32_t wake,
                                  uint32_t passes, uint32_t pass_clocks);
 void native_wait_call(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care, int32_t wake);
+/* native_wait_loop for a wait a machine copy has to hold: one the main thread
+ * is in at nearly every frame's end (the field's and the sprite-object mode's
+ * frame waits, the menus' wait for the frame's uploads), where a port waiting
+ * would leave a routine suspended at every frame end, which no save state or
+ * ct_drive base could keep. The loop has an idle entry registered at its head,
+ * and the code its exit goes on to does what the port does after the wait: so
+ * the port's continuation is the idle entry. In ON mode the port doesn't wait:
+ * it stops at the head, `dont_care` being what the code from there doesn't
+ * read (as native_dont_care_at_stop's, the entry's set with it), and this
+ * answers false: the port returns at once, and the idle entry waits and goes on. A copy
+ * of the machine made meanwhile holds everything, since nothing is suspended.
+ * SHADOW mode waits as native_wait_loop does, comparing the port at the head
+ * with that set (so the stop the shipping mode makes there is compared), and
+ * answers true: the port goes on after the wait, so the original's passes of
+ * the loop are the port's wait, and its work after them is compared where it
+ * next meets the original. Outside the runtime (ct_fuzz) it stops at the head
+ * as in ON mode, so a fuzzed port is compared up to its wait. */
+bool native_wait_loop_held(Snes *s, uint32_t head, uint32_t exit, int32_t wake, uint16_t dont_care);
 /* Whether native_wait_call waits where the port stands rather than making the
  * call (ON mode, in a port the runtime runs): a caller whose wait routine
  * also does something before it waits (puts a value on a port) does that
