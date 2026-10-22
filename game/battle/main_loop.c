@@ -41,13 +41,13 @@
 #include "battle/message.h"
 #include "battle/party_turns.h"
 #include "battle/random.h"
+#include "battle/rules_data.h"
 #include "battle/rewards.h"
 #include "battle/targets.h"
 #include "battle/timers.h"
 #include "charge.h"
 #include "original_effects.h"
 #include "port/native.h"
-#include "rom.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -1075,12 +1075,12 @@ void battle_main_loop_tail(Snes *s) { end_pass(s); }
 /* The pass's end has a debugging path the ROM turns on with its last byte, off
  * in the released game, which reads the controller's register: the guard
  * leaves it to the original. */
-static bool peek_rom_byte(Snes *s, uint32_t at)
+static bool debugging_switch_on(Snes *s)
 {
     vars_peek(true);
-    uint8_t v = rom_read8(state_of(s), at);
+    uint8_t on = battle_debugging_switch(state_of(s));
     vars_peek(false);
-    return v;
+    return on != 0;
 }
 
 /* The turn is given to the combatant the timers' order names at the turn's
@@ -1094,4 +1094,4 @@ bool battle_turn_names_combatant(Snes *s)
     return battle_on_page(s) && named;
 }
 
-bool battle_pass_ends_plainly(Snes *s) { return battle_on_page(s) && peek_rom_byte(s, 0xC1FFFF) == 0; }
+bool battle_pass_ends_plainly(Snes *s) { return battle_on_page(s) && !debugging_switch_on(s); }

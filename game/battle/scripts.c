@@ -14,8 +14,8 @@
  * as the original's handler; a command with a bridge (the sound commands,
  * the table below) runs as its handler's entry, called as the original's
  * runner calls it. What a row's
- * needs turn away calls the original's handler, found through the dispatch
- * table below, with the channel's place in the script in
+ * needs turn away calls the original's handler, found through its dispatch
+ * table (battle/script_data.h), with the channel's place in the script in
  * battle_script_pointer, which the handler reads its operands through and
  * moves on past them; a command that lets the channel go on within the frame
  * sets battle_script_continue. */
@@ -23,46 +23,27 @@
 #include "battle/bridge.h"
 #include "battle/effects.h"
 #include "battle/entries.h"
+#include "battle/script_data.h"
 #include "battle/script_language.h"
+#include "charge.h"
 #include "port/native.h"
 #include "vars.h"
 
-/* The original's handlers, in bank C1, by command byte: its dispatch table
- * ($C1:7A6B), which the call-outs and the commands' timing go by. */
-enum { LAST_COMMAND = 0xDA, HANDLER_BANK = 0xC1 };
+/* The last command byte the language has: a byte past it holds the channel. */
+enum { LAST_COMMAND = 0xDA };
 
-static const uint16_t handlers[LAST_COMMAND + 1] = {
-    0x4CF0, 0x4CF7, 0x4D04, 0x4E22, 0x4EA2, 0x4EA2, 0x4EA2, 0x4F1A,
-    0x4F54, 0x4F54, 0x4F54, 0x4F54, 0x4F54, 0x4F54, 0x4F54, 0x4F54,
-    0x4FBF, 0x4FD1, 0x4FE3, 0x51EE, 0x5205, 0x521C, 0x5409, 0x541B,
-    0x542D, 0x5611, 0x566C, 0x567D, 0x5694, 0x56BB, 0x56CC, 0x56FB,
-    0x5714, 0x5722, 0x572C, 0x5743, 0x5756, 0x5769, 0x577D, 0x5806,
-    0x5840, 0x5844, 0x5879, 0x587D, 0x58AB, 0x58DC, 0x58E4, 0x4CF7,
-    0x58EC, 0x58FE, 0x590C, 0x591A, 0x5931, 0x5940, 0x594B, 0x5956,
-    0x5965, 0x5970, 0x597B, 0x5991, 0x59A3, 0x59B9, 0x59B9, 0x59B9,
-    0x59B9, 0x59E4, 0x59FA, 0x5A0C, 0x5A3E, 0x59B9, 0x59B9, 0x623C,
-    0x623C, 0x5A70, 0x5A99, 0x4CF7, 0x4CF7, 0x5A99, 0x5AAF, 0x5AC5,
-    0x5ADB, 0x5ADB, 0x5ADB, 0x5ADB, 0x5ADB, 0x5ADB, 0x4CF7, 0x4CF7,
-    0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x5CF1, 0x5D12, 0x5D18,
-    0x5D1D, 0x5D93, 0x5D93, 0x5D93, 0x5D93, 0x5DC1, 0x5DC1, 0x5DC1,
-    0x5DC1, 0x5DD3, 0x5E87, 0x5EDF, 0x5F13, 0x5F9A, 0x5FA5, 0x5FB3,
-    0x5FC1, 0x5FD3, 0x5FDE, 0x6059, 0x605F, 0x6093, 0x60E6, 0x6154,
-    0x619E, 0x619E, 0x61C1, 0x61C1, 0x61EB, 0x61F5, 0x4CF7, 0x4CF7,
-    0x621B, 0x623C, 0x623C, 0x623C, 0x623C, 0x6258, 0x4CF7, 0x4CF7,
-    0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7,
-    0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7,
-    0x6299, 0x672E, 0x6743, 0x674A, 0x6299, 0x672E, 0x4CF7, 0x4CF7,
-    0x4CF7, 0x4CF7, 0x6751, 0x4CF7, 0x691B, 0x69BA, 0x4CF7, 0x4CF7,
-    0x69C3, 0x6AF0, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7,
-    0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7,
-    0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7,
-    0x6CF3, 0x6F31, 0x6F53, 0x6F75, 0x6F9A, 0x6FEF, 0x4CF7, 0x4CF7,
-    0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7, 0x4CF7,
-    0x6FFC, 0x702B, 0x705A, 0x720E, 0x7349, 0x73AD, 0x7364, 0x740B,
-    0x74B4, 0x753A, 0x7579,
-};
-
-static uint32_t handler_of(uint8_t command) { return (uint32_t)HANDLER_BANK << 16 | handlers[command]; }
+/* The original's handler for a command, which the call-outs and the
+ * commands' timing go by (battle/script_data.h). The runner's read of its
+ * dispatch table is the runner's own time, which the channels' estimate was
+ * calibrated without, so it is left out of it. */
+static uint32_t handler_of(GameState *g, uint8_t command)
+{
+    uint32_t mark = 0;
+    ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
+    uint32_t handler = battle_script_handler(g, command);
+    ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
+    return handler;
+}
 
 /* The commands that still call out to the original's code (the sound
  * driver), whose rows only decode them: each bridge takes the machine and the
@@ -122,7 +103,7 @@ static bool take_up_channel(GameState *g, unsigned channel)
 static void run_operation(Snes *s, uint8_t command, const ScriptOpcode *row)
 {
     GameState *g = state_of(s);
-    NATIVE_TIME_AS(s, handler_of(command), script_move_on(g, row, script_operate(g, row)));
+    NATIVE_TIME_AS(s, handler_of(g, command), script_move_on(g, row, script_operate(g, row)));
     s->cpu.a = 0;
 }
 
@@ -154,7 +135,7 @@ static bool run_channel(Snes *s, unsigned channel)
         } else if (row && script_runs_here(g, row)) {
             /* a bridge runs as its handler, called as the runner calls it */
             enter_as_the_runner_does(s, (uint8_t)command);
-            if (!battle_run(s, 0xC14CD4, handler_of((uint8_t)command), battle_script_command_entry))
+            if (!battle_run(s, 0xC14CD4, handler_of(g, (uint8_t)command), battle_script_command_entry))
                 return false;
         } else {
             enter_as_the_runner_does(s, (uint8_t)command);
@@ -162,7 +143,7 @@ static bool run_channel(Snes *s, unsigned channel)
                command in C doesn't reproduce */
             /* dc-evidence: ct_fuzz --poison-dc battle_run_script_channel, seed 1: 5000 states,
                1994 call-outs scrambled, 0 mismatched */
-            if (!battle_call(s, 0xC14CD4, handler_of((uint8_t)command), DC_AL | DC_N | DC_V | DC_Z | DC_C))
+            if (!battle_call(s, 0xC14CD4, handler_of(g, (uint8_t)command), DC_AL | DC_N | DC_V | DC_Z | DC_C))
                 return false;
         }
         if (!battle_script_continue(g))
@@ -266,14 +247,18 @@ static bool operand_where_scripts_are(const GameState *g)
     return (bank >= FIRST_ROM_BANK || bank == WORK_RAM_BANK || bank == LAST_WORK_RAM_BANK) && (uint16_t)at != BANK_END;
 }
 
+/* A command's handler, as its place in bank C1: what a guard is told it is
+ * entered at. */
+static uint16_t handler_in_bank(const GameState *g, uint8_t command) { return (uint16_t)battle_script_handler(g, command); }
+
 static bool goes_on_into(const GameState *g, uint8_t command, const ScriptOpcode *row, uint16_t handler)
 {
     switch (command) {
     case END_UNLESS_LISTED:
-        return handler == handlers[END] && operand_where_scripts_are(g)
+        return handler == handler_in_bank(g, END) && operand_where_scripts_are(g)
                && script_ends_unless_listed(g, script_decode(g, row).listed);
-    case RETURN_AT_THE_TOP: return handler == handlers[RETURN_FROM_CALL] && script_point_at_the_top(g);
-    case THROW_WAITING_FIRST: return handler == handlers[THROW] && script_throw_wait_over(g, WAIT_BEFORE);
+    case RETURN_AT_THE_TOP: return handler == handler_in_bank(g, RETURN_FROM_CALL) && script_point_at_the_top(g);
+    case THROW_WAITING_FIRST: return handler == handler_in_bank(g, THROW) && script_throw_wait_over(g, WAIT_BEFORE);
     default: return false;
     }
 }
@@ -292,7 +277,7 @@ static bool command_ready(Snes *s, uint16_t handler)
     uint8_t command = battle_script_command(g), offset = battle_script_offset(g);
     const ScriptOpcode *row = command <= LAST_COMMAND ? script_opcode(command) : NULL;
     bool ready = battle_on_page(s) && channel < SCRIPT_CHANNELS && offset == channel * 4 && row && script_runs_here(g, row)
-                 && ((handlers[command] == handler && s->cpu.a == 0 && s->cpu.y == 0)
+                 && ((handler_in_bank(g, command) == handler && s->cpu.a == 0 && s->cpu.y == 0)
                      || goes_on_into(g, command, row, handler));
     vars_peek(false);
     return ready;

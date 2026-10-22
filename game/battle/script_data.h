@@ -1,8 +1,8 @@
-/* Battle: what the animation scripts' places, walks and sounds read from the
- * ROM.
+/* Battle: what the animation scripts' runner, places, walks and sounds read
+ * from the ROM.
  *
- * Every read of cartridge data battle/script_places.c, script_walk.c and
- * script_sound.c make goes through here, named for what the data is (the
+ * Every read of cartridge data battle/scripts.c, script_places.c,
+ * script_walk.c and script_sound.c make goes through here, named for what the data is (the
  * asset seam, docs/PLAN.md Phase 3), at the index the original uses. The
  * accessors take the game's state (game/rom.h), not the machine. */
 #ifndef CT_GAME_BATTLE_SCRIPT_DATA_H
@@ -13,6 +13,17 @@
 
 #include "rom.h"
 #include "state.h"
+
+/* ---- The runner ------------------------------------------------------------------------------ */
+
+/* The original's handler for a command byte, in bank C1: its dispatch table
+ * ($C1:7A6B, a word a command byte). */
+enum { SCRIPT_HANDLER_BANK = 0xC1 };
+
+static inline uint32_t battle_script_handler(const GameState *g, uint8_t command)
+{
+    return (uint32_t)SCRIPT_HANDLER_BANK << 16 | rom_read16(g, 0xC17A6Bu + 2u * command);
+}
 
 /* ---- Places ------------------------------------------------------------------------------- */
 

@@ -69,7 +69,7 @@ in place of the ports: the native coverage.
 | Code run in place of hand ports (`fallbacks.py`) | the reference play (42 movies): 6.6 KiB, 0.95 M instructions (handback 2.6 KiB, unported 4.4 KiB; 1.66 M before chunk 10, the Epoch's dive's 0.41 M of it now 9.5 K); shipping mode over the movies 0.09 M (2.40 M before chunk 10, 2.31 M of it the dive's, now 2.1 K), the routes 0.06 M (2.37 M before); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
-| ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
+| ROM data behind named accessors | every read; the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
 | SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP; the original stays as the gate's reference | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 | How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c` | `main()` boots the game and callers call ports; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
@@ -347,9 +347,8 @@ construction, a hand port only on the paths something exercised); its
 timing gate's threshold; and it reads as source, with no cycle costs
 carried.
 
-It also **holds the asset seam**: every port but one read (`$C1:7A6B` in
-`battle/scripts.c`) reaches ROM data through a named accessor for the resource
-(`*_data.h`), never `m_read8(s, 0xD15E10 + c->x)`, and a new port keeps it that
+It also **holds the asset seam**: every port reaches ROM data through a named
+accessor for the resource (`*_data.h`), never `m_read8(s, 0xD15E10 + c->x)`, and a new port keeps it that
 way. That is what lets Phase 4a point the same call at an extracted file or a
 GBA-format conversion without revisiting the ports. Where a resource
 already has a type from MD2 (MATCHING.md), name the accessor after it. The order should follow what the profile says runs most and
@@ -630,8 +629,7 @@ by an audit; the fourth is the program itself.
      `ct_native`.
 
 **Assets: imported once from the user's ROM, then loaded by name.** The
-ports reach ROM data through named accessors (`*_data.h`), all but
-`battle/scripts.c`'s one read, which goes first. The accessors still read a
+ports reach ROM data through named accessors (`*_data.h`). The accessors still read a
 mapped 4 MiB ROM image by address, which a GBA cannot map (target 2), and
 which keeps the ROM's layout in every build. The plan:
 
