@@ -1,5 +1,7 @@
 #include "files.h"
 
+#include "assets.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -72,6 +74,30 @@ void files_side_path(char *out, size_t n, const char *name_path, const char *dir
         snprintf(out, n, "%s/%.*s%s", dir, stem, name, ext);
     else
         snprintf(out, n, "%.*s%.*s%s", (int)(files_name(dir_of) - dir_of), dir_of, stem, name, ext);
+}
+
+uint8_t *files_asset_pack(const Files *f, const uint8_t *rom, size_t size, bool fresh, size_t *len)
+{
+    bool missing = true;
+    uint8_t *pack = fresh ? NULL : files_read(f->assets, len, false, &missing);
+    if (pack || !missing) {
+        if (!pack)
+            fprintf(stderr, "cannot read %s\n", f->assets);
+        return pack;
+    }
+    const char *why = "";
+    pack = asset_pack_import(rom, size, len, &why);
+    if (!pack) {
+        fprintf(stderr, "cannot import the game's resources: %s\n", why);
+        return NULL;
+    }
+    if (files_write(f->assets, pack, *len, false) != 0) {
+        free(pack);
+        return NULL;
+    }
+    fprintf(stderr, "imported %u resources (%lu bytes) from the ROM into %s\n", (unsigned)asset_catalogue_count,
+            (unsigned long)*len, f->assets);
+    return pack;
 }
 
 int files_save_state(Player *pl, const char *path)

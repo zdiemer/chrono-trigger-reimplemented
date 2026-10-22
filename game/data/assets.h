@@ -31,6 +31,15 @@ extern const char *const asset_codec_names[];
  * other resources, or the same under other names. */
 extern const uint32_t asset_catalogue_version;
 
+/* Where the game's resources come from: the driver supplies a store, as it
+ * keeps the saves (frontend/assets.h makes one over an asset pack, or over a
+ * ROM image). The game asks it for a resource by name and type; `find` gives
+ * the resource's bytes and sets *length, or gives NULL when it hasn't it. */
+typedef struct {
+    const uint8_t *(*find)(void *ctx, const char *name, const char *type, uint32_t *length);
+    void *ctx;
+} AssetStore;
+
 typedef uint16_t AssetId;
 enum { ASSET_NONE = 0xFFFF };
 

@@ -633,25 +633,21 @@ ports reach ROM data through named accessors (`*_data.h`). The accessors still r
 mapped 4 MiB ROM image by address, which a GBA cannot map (target 2), and
 which keeps the ROM's layout in every build. The catalogue of resources the
 accessors read is built (`re/assets.tsv`, PLATFORM.md "The assets, as built"),
-with the check that every read lands in it. The plan from there:
+with the check that every read lands in it, and `ct_play` imports the
+resources into an asset pack beside the saves (on the first launch, or with
+`--import`). The same importer can build the image for a target that can't
+afford the ROM or the decoding (GBA, Wii, GameCube). The plan from there:
 
-1. **An import, once.** On first launch, or with `ct_play --import <rom>`,
-   the importer checks the ROM's CRC32 and writes every resource into a
-   versioned asset pack in the user data directory beside the saves. Later
-   runs load the pack and never need the ROM. The same importer runs on a PC
-   to build the image for a target that can't afford the ROM or the decoding
-   (GBA, Wii, GameCube). Nothing it writes enters the repository: the pack is
-   ROM-derived (CLAUDE.md).
-2. **Loaded by name, through the driver.** The game asks an asset store for a
+1. **Loaded by name, through the driver.** The game asks an asset store for a
    resource by name and type; the driver supplies the store (a file, a
    linked-in image, a browser's storage), as it does saves. Nothing in
    `game/` opens a file or knows a path.
-3. **Raw first.** The pack holds each resource's original bytes, and the
+2. **Raw first.** The pack holds each resource's original bytes, and the
    accessors read the pack instead of ROM addresses. No port changes, and
    shadow mode still compares bytes, so the gate proves the move. This is the
    step a build with no emulator needs ("The native program", above): the
    mapped ROM image leaves with it.
-4. **Decoded next, a resource at a time.** The pack holds the structured
+3. **Decoded next, a resource at a time.** The pack holds the structured
    form: streams decompressed, tiles in a neutral format, palettes as
    colours, text as UTF-8, scripts readable (MATCHING.md's codecs and the
    text and event-script decodings are the start). Each port stops calling
@@ -660,7 +656,7 @@ with the check that every read lands in it. The plan from there:
    replaceable assets come from here; the readable layout as a whole is
    Phase 5's MD3.
 
-Steps 1-3 belong to this phase and can start now: the seam exists, and they
+Steps 1-2 belong to this phase and can start now: the seam exists, and they
 change no port.
 
 ## Phase 4b: the platform milestones

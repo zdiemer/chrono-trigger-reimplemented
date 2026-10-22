@@ -2044,6 +2044,21 @@ shipping-mode runs (`tools/suite.py`). A read through a pointer into work RAM
 (scripts and text the game copies or builds there) isn't the cartridge's and
 isn't counted.
 
+**The import** (`frontend/assets.h`, `assets.c`). `asset_pack_import` takes a
+ROM image, checks its CRC-32 (`2D206BF7`, Chrono Trigger (USA)) and size, and
+makes an asset pack: a header (`CTASSETS`, the format, the count, the
+catalogue's version -- a CRC-32 of its rows -- and the ROM's CRC-32), a
+directory entry a resource (where its bytes are, how many, its name and its
+type) and each resource's original bytes, raw. It reads the ROM through the
+same kind of store the game reads from (`asset_store_rom`), so the pack is
+whatever that store serves; `asset_pack_build` makes one from any store, which
+`assets_test` uses without a ROM. Nothing here opens a file: `ct_play` (its
+driver, `frontend/files.c`, `files_asset_pack`) writes the pack as
+`<rom name>.assets` beside the saves, on the first launch without one and
+again with `ct_play --import <rom>`, which then exits. The pack is ROM-derived
+and gitignored wherever it lands. Over this catalogue it is 4,003,655 bytes,
+3,800,908 of them the resources.
+
 ## Timing without a beam: the native backend
 
 Phase 4a's design ([PLAN.md](PLAN.md)), decided before the backend is

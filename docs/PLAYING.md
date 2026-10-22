@@ -325,6 +325,17 @@ routines suspended throughout, as they did before owed time counted. Loading a
 quick save also restores the SRAM it held, which is written to the `.srm` file
 on the next check.
 
+## The game's resources
+
+The game's data -- its tables, scripts, text, graphics and music -- is
+imported into an asset pack, `<rom name>.assets` beside the saves (the ROM's
+directory, or `--save-dir`). The first launch without one imports it: `ct_play`
+checks that the ROM is Chrono Trigger (USA) by its CRC-32 and copies out every
+resource of the catalogue, each under its name and type, in its original
+bytes ([PLATFORM.md](PLATFORM.md), "The assets, as built"). `ct_play --import
+<rom>` imports it again and exits. The pack is made from your ROM and stays on
+your machine like it; nothing in the repository holds it.
+
 ## Recording test movies
 
 Shadow validation (see [PORTING.md](PORTING.md)) is only as good as the
@@ -424,7 +435,8 @@ holds the rules that keep it that way).
 | `frontend/window.c` | `run_window`: the SDL window, audio device, keyboard and gamepads, and the frame pacing |
 | `frontend/bindings.h`, `bindings.c` | the window's controls: keys and pad inputs to SNES buttons and player actions |
 | `frontend/headless.c` | `run_headless`: `--frames`, `--hold`, `--screenshot`, `--wav` |
-| `frontend/files.h`, `files.c` | the desktop's storage: what the saves are called, and the files they go in |
+| `frontend/files.h`, `files.c` | the desktop's storage: what the saves and the asset pack are called, and the files they go in |
+| `frontend/assets.h`, `assets.c` | the asset pack: the import from a ROM image, and the stores over a pack or a ROM image the game reads its resources from |
 | `frontend/ct_play.c` | the options, which it turns into a player and one driver |
 
 The player advances one frame per `player_step` call, and the buttons it is

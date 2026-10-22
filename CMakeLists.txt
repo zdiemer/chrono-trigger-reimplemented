@@ -562,7 +562,7 @@ if(NOT CT_PLAYER_INTERPRETER_MODE MATCHES "^(ON|FALLBACK|OFF)$")
 endif()
 
 if(CT_SDL2)
-  add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/natives.c frontend/audio_fill.c frontend/window.c
+  add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/natives.c frontend/assets.c frontend/audio_fill.c frontend/window.c
     frontend/headless.c frontend/files.c frontend/bindings.c frontend/sound_host.c)
   # The miss report (dev/misses.h) is the player's log of misses, and of what
   # --interpreted finds.
