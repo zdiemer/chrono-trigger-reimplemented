@@ -2902,6 +2902,42 @@ empty:
 The movies don't see either: their presses drift in the shipping mode
 anyway, and nothing in them checks an outcome.
 
+### The census: how the game is entered
+
+The fallback measure says what of the original still runs; the census says
+why the registry still has to exist (PLAN.md, "The native program, and the
+registry taken down"). `ct_dev --native on --census out.txt` (dev/census.h)
+counts, per registered entry, each time the machine reached its address and
+the runtime ran it, filed under how it got there -- a vector, the original's
+code (generated or interpreted), or a port's hand-off through the machine:
+a call-out, a stop or jump, a task's yield, a return into a frame the
+original's code would have come back to -- with the caller that made it; and
+each time a running port ran the entry's work as C instead (its
+`NATIVE_TIME_AS`/`TIMED_AS` scope naming the entry). Idle entries are filed
+apart, as `wait`: a pass of a wait loop the machine still makes is the timing
+service's to take away, not a caller's. The runtime's census hooks
+(`native_census_hooks`, port/native.h) carry the two counts the observer
+doesn't. `tools/census.py --ct-dev build/main/ct_dev` plays the library and
+adds the files up; `--files` reads ones already written, `--entries` lists
+every entry.
+
+Over the 48 movies (shipping mode, chunk 11's tree): **259 entries are entered
+by the machine, 21.5 M times**, none of them from the original's code -- 1.9 M
+through the vectors, 12.4 M from ports' call-outs, 5.3 M from their stops,
+1.8 M from returns into the original's frames, 0.1 M from the menus' task
+switches -- and 19 wait loops are passed on the machine 406 M times (the menus'
+ready loop and the field's frame wait the most). 1,293 entries are only ever
+run as C. What holds the most entries to the registry, by distinct entries:
+
+| Caller | Entries | Why it goes through the machine |
+|---|---|---|
+| the menus' object list (`$C2:051D`) and an object's script (`$C2:0F63`) | 35, 31 | each object's script and its commands are call-outs into ports |
+| the battle's vblank (`$D1:E77C`) and line handler (`$D1:FE97`) | 20, 17 | the frame's work called out, the handlers entered through the stubs |
+| the menus' main task and task list (`$C2:826F`, `$C2:81CF`) | 19, 11 | tasks switched on the machine's stacks |
+| the field's frame (`$C0:0097`) | 15 | its budgets and the objects' update called out so shadow mode compares them a call at a time |
+| the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
+| the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
+
 ### The last refusals in real play: the attract demo's states
 
 The four refusals the batch before left (1,043 calls at `$7E:424D`,

@@ -45,6 +45,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `--by subsystem`, with `--uncovered BANK` listing the largest unported runs. An estimate, for
   sequencing the port work (docs/PLAN.md); its docstring says which way it is wrong. It counts a
   port that transliterates the assembly as done, so read it with `portstyle.py`.
+- `python3 tools/census.py --ct-dev build/main/ct_dev`: how the game is entered, per registered entry
+  over the library in the shipping mode (`ct_dev --census`): by the machine (a vector, a port's call-out,
+  stop, yield or return) or as C, and the caller holding it to the registry. The count by the machine is
+  what taking the registry down drives to 0 (docs/PLAN.md, "The native program").
 - `python3 tools/portstyle.py`: how much of each port is reimplementation and how much is
   transliterated assembly, per subsystem and per file (`--files`, `--subsystem S`). `--check` is the
   gate's ratchet against `tools/portstyle_baseline.txt`, the files written before the bar existed:

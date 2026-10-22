@@ -288,6 +288,20 @@ void native_set_observer(NativeRuntime *rt, const NativeObserver *observer);
  * --fallbacks). NULL by default, which costs a test per instruction. */
 extern void (*generated_insn_hook)(Snes *s, uint32_t pc24);
 
+/* For the census of how the game is entered (ct_dev --census, dev/census.h):
+ * `entered` is called for every hand entry the runtime runs in ON mode, idle
+ * ones included, as the machine reaches it, with the machine at its entry;
+ * `as_c` for every NATIVE_TIME_AS (or TIMED_AS) scope a running port opens
+ * naming another registered hand entry (`routine`): that routine's work run
+ * as C rather than entered through the machine. Either may be NULL; both are
+ * NULL by default. */
+typedef struct NativeCensusHooks {
+    void *ctx;
+    void (*entered)(void *ctx, Snes *s, const NativeEntry *entry);
+    void (*as_c)(void *ctx, const NativeEntry *by, const NativeEntry *routine);
+} NativeCensusHooks;
+extern NativeCensusHooks native_census_hooks;
+
 /* Install on a system (sets snes->intercept). */
 void native_attach(NativeRuntime *rt, Snes *snes);
 

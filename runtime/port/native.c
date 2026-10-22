@@ -462,6 +462,7 @@ static const NativeRuntime *active_runtime;   /* for synchronous native_call */
 
 uint64_t generated_executed;
 void (*generated_insn_hook)(Snes *s, uint32_t pc24);
+NativeCensusHooks native_census_hooks;
 RcTiming rc_timing = { .limit = UINT32_MAX };
 
 uint64_t native_generated_instructions(void) { return generated_executed; }
@@ -2945,6 +2946,8 @@ static int32_t intercept(void *ctx, Snes *s)
                  * and none turned it away */
                 return -1;
             }
+            if (native_census_hooks.entered)
+                native_census_hooks.entered(native_census_hooks.ctx, s, e);
             running_direct = e;
             e->fn(s);
             running_direct = NULL;
@@ -2985,6 +2988,8 @@ static int32_t intercept(void *ctx, Snes *s)
         a->job->nsaved_flags = 0;
         if (rt->observer.entered)
             rt->observer.entered(rt->observer.ctx, s, e);
+        if (rt->mode == NATIVE_ON && native_census_hooks.entered)
+            native_census_hooks.entered(native_census_hooks.ctx, s, e);
         if (rt->mode == NATIVE_SHADOW) {
             clone_refresh(rt, a, s);
         } else {
@@ -3363,6 +3368,8 @@ static int time_as(Snes *s, uint32_t routine, bool sibling)
         idx = -1;
     } else if (&rt->table[idx] == j->entry) {
         idx = -1;
+    } else if (native_census_hooks.as_c) {
+        native_census_hooks.as_c(native_census_hooks.ctx, j->entry, &rt->table[idx]);
     }
     if (j->depth < MAX_TIME_SCOPES)
         j->scopes[j->depth] = (TimeScope){ idx, sibling ? ++j->runs : 0 };
