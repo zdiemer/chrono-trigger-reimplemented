@@ -1986,6 +1986,64 @@ A study, not a port. It answers, with measurements:
 prototype shows one field frame and one battle frame, rendered from recorded
 `VidFrame`s, on GBA hardware or an emulator.
 
+## The assets: imported once, loaded by name
+
+Phase 4a's "Assets" ([PLAN.md](PLAN.md)): the game's data comes from a store
+the driver supplies rather than from a mapped ROM image, so a build with no
+emulator, or a target that can't map 4 MiB, has it.
+
+### The assets, as built
+
+**The catalogue** (`re/assets.tsv`, written by `tools/assets.py build`). A row
+a resource the ports' accessors read: its name, its type (MD2's, MATCHING.md),
+the ROM range the original keeps it in and the codec that decodes it (`raw`,
+`lz`, `lz:event`, `text:dialog`, `script:battle-animation`, `gfx:plane-pool`,
+...). The rows are regions the matching build extracts ("Build-time
+extraction"), chosen three ways: every region holding an address an accessor
+names (a constant in a `*_data.h` header; the row is named after the
+accessor); every region holding an address `ct_dev --asset-reads` recorded
+over the movies (the accessors that follow a pointer the data holds); and,
+for a `[[resource]]` table any of those is part of, the table and every target
+it names, so a pointer read from it lands in the catalogue whether or not a
+movie followed it (the targets are `<table>.<entry>`). Besides the typed
+`[[data]]` regions, two kinds the extraction writes as raw blobs: a jump table
+the analysis found (`jump-table`), and a run of bytes that is neither code nor
+a typed region (`untyped`). And one it doesn't: `code`, an instruction a reader
+looks at, where the menus' window command lists are read a byte past their
+end. The file holds locations and types, no ROM bytes.
+`game/data/asset_catalogue.c` is generated from it and committed, so a build
+without a ROM has the table; `tests/test_assets.py` fails when it is stale,
+and `tools/assets.py check --rom` (a gate check, `assets`) when a row is no
+longer a region the extraction makes.
+
+Built from the 48 movies' reads in shadow mode, the catalogue has **6087
+resources, 3,800,908 bytes** (91% of the ROM; nothing the accessors read is
+left out):
+
+| Type | Resources | Bytes | Found by |
+|---|--:|--:|---|
+| `lz` | 1371 | 2354164 | the stream tables (`[[resource]]`) |
+| `text` | 3726 | 144144 | the string tables |
+| `spc700` | 149 | 294487 | the sound driver's blocks |
+| `gfx` | 6 | 334592 | banks CF, D0, D2-D5 |
+| `bytes`, `words`, `ptr16`, `ptr24`, `struct` | 759 | 319038 | the accessors' tables |
+| `script` | 19 | 86445 | event, battle, enemy and object scripts |
+| `mixed`, `undetermined` | 30 | 224269 | regions MD2 hasn't split |
+| `untyped` | 11 | 42521 | regions MD2 hasn't typed (`$F6:24B1-7FFF` the largest) |
+| `jump-table` | 4 | 1230 | the handler tables the guards and call-outs read |
+| `code` | 12 | 18 | a byte read past a command list |
+
+174 rows were found by an accessor's constant, 900 by the reads alone, and
+5013 as entries of a table one of those is.
+
+**The check.** Every cartridge read an accessor makes is looked up in the
+catalogue (`asset_containing`, `game/data/assets.c`: a binary search, the last
+hit kept); one that lands in no resource is counted, and `ct_dev` prints an
+`asset outside the catalogue` line, which fails the gate's shadow and
+shipping-mode runs (`tools/suite.py`). A read through a pointer into work RAM
+(scripts and text the game copies or builds there) isn't the cartridge's and
+isn't counted.
+
 ## Timing without a beam: the native backend
 
 Phase 4a's design ([PLAN.md](PLAN.md)), decided before the backend is

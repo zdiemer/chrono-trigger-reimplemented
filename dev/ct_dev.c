@@ -15,7 +15,7 @@
  *          [--sound-lockstep-wav prefix] [--sound-driver original|c] [--mixer dsp|native|check]
  *          [--scaffold-reads [original]] [--fallbacks out.txt] [--apu-port-margins]
  *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC]
- *          [--index-check BBAAAA]...
+ *          [--index-check BBAAAA]... [--asset-reads out.txt]
  *
  * The framebuffer is only drawn for what reads it (--trace, --shot-every,
  * --px-check); otherwise each line computes just the sprite flags the game can
@@ -125,6 +125,11 @@
  * ports stand for isn't counted, so a movie measures its own play, the same
  * whatever the ports' timing (the gate's ratchet); in the shipping mode it
  * measures where the run went. tools/fallbacks.py reads the file.
+ * --asset-reads out.txt writes every cartridge address the ports' accessors
+ * read, a `BB:AAAA-BB:AAAA` range a line, which tools/assets.py builds the
+ * catalogue of resources from. Whatever the options, a run whose accessors
+ * read a byte the catalogue doesn't hold prints an `asset outside the
+ * catalogue` line (dev/asset_report.h), and tools/suite.py fails it.
  * --apu-port-margins prints, at the end, how long after the SPC700 read a
  * message's last two bytes (ports 2-3, after its echo) the CPU's next ones
  * came, the least and their histogram, and how many came before it read them
@@ -164,6 +169,7 @@
 #include "io_log.h"
 #include "misses.h"
 #include "px_check.h"
+#include "asset_report.h"
 #include "range_report.h"
 #include "sound_lockstep.h"
 #include "sound_audio.h"
@@ -556,7 +562,7 @@ int main(int argc, char **argv)
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     const char *zst_path = NULL, *vid_check_path = NULL, *px_check_path = NULL;
     const char *spc_coverage_path = NULL, *dsp_log_path = NULL, *event_reads_path = NULL;
-    const char *lockstep_path = NULL, *fallbacks_path = NULL;
+    const char *lockstep_path = NULL, *fallbacks_path = NULL, *asset_reads_path = NULL;
     bool want_vid_check = false, want_px_check = false, want_lockstep = false, want_margins = false;
     SoundCompareLevel lockstep_level = SOUND_COMPARE_DSP;
     int audio_timing = -1;
@@ -666,6 +672,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--event-reads")) event_reads_path = v;
         else if (!strcmp(a, "--misses")) misses_path = v;
         else if (!strcmp(a, "--fallbacks")) fallbacks_path = v;
+        else if (!strcmp(a, "--asset-reads")) asset_reads_path = v;
         else if (!strcmp(a, "--vid-check")) { vid_check_path = v; want_vid_check = true; }
         else if (!strcmp(a, "--vid-check-from")) { vid_check_from = strtol(v, NULL, 10); want_vid_check = true; }
         else if (!strcmp(a, "--px-check")) { px_check_path = v; want_px_check = true; }
@@ -889,6 +896,8 @@ int main(int argc, char **argv)
         io_log = io_log_create(&snes);
     if (misses_path)
         misses = misses_create(&snes);
+    if (asset_reads_path && asset_reads_start() != 0)
+        return 1;
     if (fallbacks_path) {
         if (native_mode == NATIVE_OFF) {
             fprintf(stderr, "--fallbacks needs --native on or shadow: it measures what runs in place of the hand "
@@ -1095,6 +1104,9 @@ int main(int argc, char **argv)
      * next variable in work RAM, which only the original's layout makes work.
      * tools/suite.py fails a movie that prints one. */
     range_report(stderr);
+    asset_report(stderr);
+    if (asset_reads_path && asset_reads_write(asset_reads_path) != 0)
+        rc = 1;
     if (scaffold_reads)
         scaffold_reads_report(stderr);
     if (scaffold_reads_original)

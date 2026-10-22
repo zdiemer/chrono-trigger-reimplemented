@@ -12,7 +12,9 @@ re/ram.toml declares, which would otherwise show only as a drop in a shadow
 count) and no `accessor out of range` line (a port that called an accessor with
 an index past what re/ram.toml declares, reaching the next variable in work RAM,
 which only the original's layout makes work; both in docs/DISASSEMBLY.md, "The
-accessors"); then the checks
+accessors") and no `asset outside the catalogue` line (a cartridge read that
+lands in no resource of re/assets.tsv, which the asset pack wouldn't hold:
+docs/PLATFORM.md, "The assets, as built"); then the checks
 in CHECKS run, each printing one line: `--native on --generated only` must produce
 a trace identical to `--native off`; every hand port's estimated time must
 stay within the timing gate's limits over the shadow runs' `--timing-report`
@@ -46,7 +48,8 @@ compiled out (ct_dev_native_shape, ct_drive_native_shape) running every movie
 to its end in the shipping mode with nothing the default build's run doesn't
 show -- a failed exit, a hang, a halted machine, an accessor out of range --
 and its routes reaching their outcomes (the fast set; all of them with
---long-routes); and no movie stopping earlier than it did on the hand ports
+--long-routes); and every row of the catalogue of resources still being a
+region the matching build extracts (tools/assets.py check); and no movie stopping earlier than it did on the hand ports
 alone, with no generated code and no interpreter, nor any reaching its end
 other than as the reference play does (tools/strict_check.py, a ratchet
 against tools/strict_baseline.txt). Exit status is 0 only when all of
@@ -79,6 +82,7 @@ from tools import timing_gate  # noqa: E402
 MISMATCH = re.compile(rb"mismatched [1-9]")
 REFUSED = re.compile(rb"^page refused: .*$", re.M)
 OUT_OF_RANGE = re.compile(rb"^accessor out of range: .*$", re.M)
+ASSETS = re.compile(rb"^asset (?:outside the catalogue|differs from the cartridge): .*$", re.M)
 FRAMES = re.compile(r"^# frames (\d+)", re.M)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -128,7 +132,7 @@ def run_movie(binary, rom, out, name, path, frames, lockstep):
     text = log.read_bytes()
     bad = len(MISMATCH.findall(text))
     refused = [r.decode(errors="replace").strip() for r in REFUSED.findall(text)]
-    strays = [r.decode(errors="replace").strip() for r in OUT_OF_RANGE.findall(text)]
+    strays = [r.decode(errors="replace").strip() for r in OUT_OF_RANGE.findall(text) + ASSETS.findall(text)]
     ok = rc == 0 and bad == 0 and not refused and not strays
     detail = "rc=%d mismatching=%d %.0fs" % (rc, bad, time.time() - started)
     if refused or strays:
@@ -270,7 +274,7 @@ def check_routes(args, ctx):
 
 SHIP = ["--native", "on", "--generated", "on", "--sound-driver", "c"]
 HALTED = re.compile(rb"^halted: .*$", re.M)
-SHIP_PROBLEMS = (OUT_OF_RANGE, HALTED, REFUSED)
+SHIP_PROBLEMS = (OUT_OF_RANGE, HALTED, REFUSED, ASSETS)
 
 
 def ship_seconds(frames):
@@ -598,6 +602,15 @@ def check_portsmell(args, ctx):
     return rc == 0, "portsmell", summary, [] if rc == 0 else lines[:-1][-40:]
 
 
+def check_assets(args, ctx):
+    """Every row of the catalogue of resources is still a region the matching
+    build extracts, and the C table is what the catalogue generates
+    (tools/assets.py check, static)."""
+    rc, lines = run_tool([sys.executable, str(ROOT / "tools/assets.py"), "check", "--rom", str(args.rom)])
+    summary = lines[-1] if lines else "no output"
+    return rc == 0, "assets", summary, [] if rc == 0 else lines[:-1][-40:]
+
+
 def check_evidence(args, ctx):
     """With --evidence: the library runs the tools/v_readers.py dc-evidence
     notes cite, made again (tools/dc_evidence.py), so a note can't go stale.
@@ -630,6 +643,7 @@ CHECKS = (
     ("effects", check_effects, "the ratchet on logic that reads scaffolding"),
     ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
     ("portsmell", check_portsmell, "the ratchet on the review rubric's mechanical items"),
+    ("assets", check_assets, "the catalogue of resources against the matching build's regions"),
     ("evidence", check_evidence, "the dc-evidence notes' library runs (only run with --evidence)"),
 )
 

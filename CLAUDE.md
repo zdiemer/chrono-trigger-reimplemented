@@ -64,7 +64,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines, no `page refused` line (a
   guard that turned away a call whose direct page is no instance `re/ram.toml` declares) and no `accessor out
   of range` line (a port that called an accessor with an index past what the map declares, reaching the next
-  variable in work RAM; both in docs/DISASSEMBLY.md, "The accessors");
+  variable in work RAM; both in docs/DISASSEMBLY.md, "The accessors") and no `asset outside the
+  catalogue` line (a cartridge read in no resource of `re/assets.tsv`, which `tools/assets.py check`
+  also holds to the matching build's regions; docs/PLATFORM.md, "The assets, as built");
   `--native on --generated only` produces traces identical to `--native off` (`python3 tools/trace.py
   diff`); every hand port's estimated time stays within the timing gate's limits over the shadow runs
   or is in `tools/timing_exceptions.txt` with a reason (`tools/timing_gate.py`, run by the suite; after

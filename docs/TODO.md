@@ -2097,6 +2097,21 @@ rest waits, is [PLAN.md](PLAN.md).
   decoded). Still open: the pack's format and its versioning; whether the
   battle scripts get a readable form before MD3; which codecs the importer
   needs beyond MATCHING.md's ("Build-time extraction").
+  - **The catalogue's rows MD2 hasn't typed** (PLATFORM.md, "The assets, as
+    built"): 11 `untyped` runs (42521 bytes, `$F6:24B1-7FFF` the largest,
+    which the census also lists as unknown) and 30 `mixed` or `undetermined`
+    regions now have readers -- the accessors that read them -- and want
+    `[[data]]` types with their bounds, which turns their rows into typed
+    ones. The 12 `code` rows are a byte past each of the menus' window
+    command lists (`$C2:C54F` and on) that the list's reader looks at: the
+    format's terminator rule, read from the reader, would say why, and
+    whether the pack needs the byte at all.
+  - **Accessors reading work RAM through `game/rom.h`**: a pointer the data
+    holds can name work RAM (scripts and text the game copies or builds
+    there, `$7E:2C35`, `$7E:98C0`, `$7F:8020-953F` and others over the
+    movies), and the cartridge's reads pass it to the machine. A build
+    without a machine has to read its work RAM there; `script_language.c`'s
+    `script_byte` already tells the two apart, and the others want the same.
 - **Open questions** in PLATFORM.md: battles playing out differently once
   timing changes, widescreen's exposed assumptions (the 0-255 object window at
   `$C0:A88D`, map data beyond VRAM, single-byte battle window positions), and

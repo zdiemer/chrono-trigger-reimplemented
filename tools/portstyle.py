@@ -18,7 +18,7 @@ and test them (`m_lda16`, `m_tax`, `m_asl16`, `m_sep`). Reading and writing
 memory (`m_read8`, `m_write16`, `m_abs`, `m_dp`), calling out (`m_jsr`) and
 handing back (`m_stop_at`) are how a port talks to the machine at all, so they
 are not counted; nor is `runtime/`, which implements the machine, or
-`game/registry.c`, which is a table.
+`game/registry.c` and `game/data/asset_catalogue.c`, which are tables.
 
 The measure is operations per line of the file. It is a smell, not a proof: a
 low score doesn't make a port good, and a routine that genuinely manipulates
@@ -91,7 +91,7 @@ THRESHOLD = 0.10        # operations per line a new port may not exceed
 DEFN = re.compile(r"^(?:static\s+)?[A-Za-z_][\w ]*\**\s*\**(\w+)\s*\(([^;{]*)\)\s*$", re.M)
 MACHINE = re.compile(r"\bSnes\s*\*")
 
-SKIP = {"game/registry.c"}
+SKIP = {"game/registry.c", "game/data/asset_catalogue.c"}
 
 # Scaffolding, marked (game/original_effects.h).
 SCAFFOLDING = re.compile(r"\bORIGINAL_EFFECT\s*\(")

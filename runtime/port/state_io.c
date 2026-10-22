@@ -5,6 +5,7 @@
  * read on the bus; and the time charged and the original's frames, kept by the
  * runtime. */
 #include "charge.h"
+#include "data/assets.h"
 #include "cpu_io.h"
 #include "original_frame.h"
 #include "rom.h"
@@ -13,6 +14,7 @@
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
+#include "port/rom_reads.h"
 
 enum { WRMPYA = 0x004202, WRMPYB = 0x004203, WRDIVL = 0x004204, WRDIVB = 0x004206, RDDIV = 0x004214, RDMPY = 0x004216 };
 enum { WMDATA = 0x002180, WMADDL = 0x002181, WMADDB = 0x002183, WMDATA_LESS_ONE = 0x00217F };
@@ -55,15 +57,38 @@ void hw_port_write(GameState *g, uint8_t v) { m_write8(state_snes(g), WMDATA, v)
 
 void hw_port_leave_spill(GameState *g, uint8_t low) { m_write8(state_snes(g), WMDATA_LESS_ONE, low); }
 
+/* ---- The cartridge (rom.h) -------------------------------------------------------------------- */
+
+static uint8_t *reads_seen;   /* rom_reads_record: a bit a cartridge byte read */
+
+void rom_reads_record(uint8_t *map) { reads_seen = map; }
+
+/* Every read is of a resource the catalogue holds (data/assets.h): one that
+ * isn't is counted, and read from the machine as before. */
+static void note_read(uint32_t at)
+{
+    AssetId id = asset_containing(at);
+    if (id == ASSET_NONE)
+        asset_note_outside(at);
+    if (reads_seen) {
+        uint32_t a = at & 0xFFFFFFu;
+        reads_seen[a >> 3] |= (uint8_t)(1u << (a & 7));
+    }
+}
+
 uint8_t rom_read8(const GameState *g, uint32_t at)
 {
+    note_read(at);
     return vars_peeking() ? snes_bus_peek(&state_snes(g)->bus, at & 0xFFFFFF) : m_read8(state_snes(g), at);
 }
 
 uint16_t rom_read16(const GameState *g, uint32_t at)
 {
-    if (!vars_peeking())
+    if (!vars_peeking()) {
+        note_read(at);
+        note_read(at + 1);
         return m_read16(state_snes(g), at);
+    }
     return (uint16_t)(rom_read8(g, at) | rom_read8(g, at + 1) << 8);
 }
 

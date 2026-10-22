@@ -225,7 +225,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 309 files, 117 of 96,541 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 310 files, 117 of 96,612 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -631,30 +631,27 @@ by an audit; the fourth is the program itself.
 **Assets: imported once from the user's ROM, then loaded by name.** The
 ports reach ROM data through named accessors (`*_data.h`). The accessors still read a
 mapped 4 MiB ROM image by address, which a GBA cannot map (target 2), and
-which keeps the ROM's layout in every build. The plan:
+which keeps the ROM's layout in every build. The catalogue of resources the
+accessors read is built (`re/assets.tsv`, PLATFORM.md "The assets, as built"),
+with the check that every read lands in it. The plan from there:
 
-1. **One catalogue of resources.** Every resource the accessors read gets a
-   row: its name, its type (MD2's types, MATCHING.md), where it lies in the
-   ROM and its codec. It is built from the typed regions the matching build
-   already extracts. The importer, the accessors and a check that every
-   accessor read lands inside a catalogued resource all come from it.
-2. **An import, once.** On first launch, or with `ct_play --import <rom>`,
+1. **An import, once.** On first launch, or with `ct_play --import <rom>`,
    the importer checks the ROM's CRC32 and writes every resource into a
    versioned asset pack in the user data directory beside the saves. Later
    runs load the pack and never need the ROM. The same importer runs on a PC
    to build the image for a target that can't afford the ROM or the decoding
    (GBA, Wii, GameCube). Nothing it writes enters the repository: the pack is
    ROM-derived (CLAUDE.md).
-3. **Loaded by name, through the driver.** The game asks an asset store for a
+2. **Loaded by name, through the driver.** The game asks an asset store for a
    resource by name and type; the driver supplies the store (a file, a
    linked-in image, a browser's storage), as it does saves. Nothing in
    `game/` opens a file or knows a path.
-4. **Raw first.** The pack holds each resource's original bytes, and the
+3. **Raw first.** The pack holds each resource's original bytes, and the
    accessors read the pack instead of ROM addresses. No port changes, and
    shadow mode still compares bytes, so the gate proves the move. This is the
    step a build with no emulator needs ("The native program", above): the
    mapped ROM image leaves with it.
-5. **Decoded next, a resource at a time.** The pack holds the structured
+4. **Decoded next, a resource at a time.** The pack holds the structured
    form: streams decompressed, tiles in a neutral format, palettes as
    colours, text as UTF-8, scripts readable (MATCHING.md's codecs and the
    text and event-script decodings are the start). Each port stops calling
@@ -663,7 +660,7 @@ which keeps the ROM's layout in every build. The plan:
    replaceable assets come from here; the readable layout as a whole is
    Phase 5's MD3.
 
-Steps 1-4 belong to this phase and can start now: the seam exists, and they
+Steps 1-3 belong to this phase and can start now: the seam exists, and they
 change no port.
 
 ## Phase 4b: the platform milestones
@@ -679,7 +676,7 @@ wait behind 4a.
 ## Phase 5: the long tail
 
 - **MD3**, and the decoded half of the assets it enables (Phase 4a,
-  "Assets", step 5): a layout meant to be read rather than reassembled, and
+  "Assets", the decoded step): a layout meant to be read rather than reassembled, and
   the scripts as text. **MD3 is the prerequisite for
   target 3**, the SNES ROM compiled from the reimplementation -- every pointer
   symbolic, so a routine that differs in length can move -- so it comes forward
