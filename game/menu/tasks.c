@@ -369,7 +369,7 @@ enum { MAIN_TASK_WAIT = 0xC2826C, CURSOR_TASK_WAIT = 0xC2E91E, SCROLL_BAR_TASK_W
  * next task goes on, and this one goes on from the JSR's return on its next
  * turn, into its work again. The wait keeps the registers on the task's
  * stack for that return, where the loops read none of them. */
-enum { THE_LOOPS_READ_NOTHING_AFTER_IT = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { THE_LOOPS_READ_NOTHING_AFTER_IT = MENU_TASK_WAIT_READS_NOTHING };
 
 /* The index registers the wait keeps, just under the loop's return (X, then
  * Y below it, each a byte or a word), are what the loop's stop declares it
@@ -415,15 +415,37 @@ static void leave_the_task_s_stack_below_uncompared(Snes *s)
  * scroll bar's: A 8-bit from its head, the index registers 16-bit as the
  * task starts), only the flags in that byte can differ, which the loops
  * don't read after the wait either; so that byte isn't compared there. */
+/* The wait in a task's loop on the task switch's `wait` (its port `entry`),
+ * which reads `reads` of the registers; the frames' wait reads A. */
+static void wait_on(Snes *s, uint32_t site, uint32_t wait, void (*entry)(Snes *), uint16_t reads, bool widths_its_own)
+{
+    if (menu_runs_as_port(s, wait, entry)) {
+        leave_the_kept_index_registers_uncompared(s, reads, widths_its_own);
+        leave_the_task_s_stack_below_uncompared(s);
+        menu_run(s, site, wait, entry);
+    } else {
+        m_stop_at(s, site, reads);
+    }
+}
+
 static void wait_in_the_loop(Snes *s, uint32_t site, bool widths_its_own)
 {
-    if (menu_runs_as_port(s, MENU_TASK_WAITS_A_FRAME, menu_task_waits_a_frame)) {
-        leave_the_kept_index_registers_uncompared(s, THE_LOOPS_READ_NOTHING_AFTER_IT, widths_its_own);
-        leave_the_task_s_stack_below_uncompared(s);
-        menu_run(s, site, MENU_TASK_WAITS_A_FRAME, menu_task_waits_a_frame);
-    } else {
-        m_stop_at(s, site, THE_LOOPS_READ_NOTHING_AFTER_IT);
-    }
+    wait_on(s, site, MENU_TASK_WAITS_A_FRAME, menu_task_waits_a_frame, THE_LOOPS_READ_NOTHING_AFTER_IT, widths_its_own);
+}
+
+void menu_wait_in_the_task_loop(Snes *s, uint32_t site, bool widths_its_own)
+{
+    wait_in_the_loop(s, site, widths_its_own);
+}
+
+/* The same for frames, A's low byte of them: the task switch's wait for
+ * frames ($C2:822B) reads A, and nothing else. */
+enum { THE_LOOPS_READ_THE_FRAMES = MENU_TASK_WAIT_READS_THE_FRAMES };
+
+void menu_wait_frames_in_the_task_loop(Snes *s, uint32_t site, uint8_t frames, bool widths_its_own)
+{
+    m_set_a8(s, frames);
+    wait_on(s, site, MENU_TASK_WAITS_FRAMES, menu_task_waits_frames, THE_LOOPS_READ_THE_FRAMES, widths_its_own);
 }
 
 /* The records' task's loop: a frame of the records' sprites (menu/sprites.c),

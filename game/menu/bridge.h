@@ -55,6 +55,19 @@ bool menu_yield(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
 enum { MENU_TASK_WAITS_A_FRAME = 0xC2821E, MENU_TASK_WAIT_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 bool menu_wait_a_frame_from(Snes *s, uint32_t site);
 
+/* The task switch's wait for frames ($C2:822B), which reads them in A's low
+ * byte and swaps them into the high one (so A is read whole). */
+enum { MENU_TASK_WAITS_FRAMES = 0xC2822B, MENU_TASK_WAIT_READS_THE_FRAMES = MENU_TASK_WAIT_READS_NOTHING & ~DC_A };
+
+/* A task that is a loop -- a frame's work, then the wait from the JSR at
+ * `site`, then round again from its start -- waits (menu/tasks.c): a frame,
+ * or `frames`. `widths_its_own` where the loop sets its widths itself, as
+ * the original's code has them at the wait. Where the runtime wouldn't run
+ * the wait, the port stops at the JSR, declaring what the wait reads
+ * (tools/dontcare_check.py reads it so, from the callers' sites). */
+void menu_wait_in_the_task_loop(Snes *s, uint32_t site, bool widths_its_own);
+void menu_wait_frames_in_the_task_loop(Snes *s, uint32_t site, uint8_t frames, bool widths_its_own);
+
 /* The same for a routine that comes back with widths of its own. */
 bool menu_call_returning(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, bool a8, bool x8);
 
@@ -112,6 +125,12 @@ bool menu_runs_as_port(Snes *s, uint32_t routine, void (*entry)(Snes *));
  * `site`, declaring what it doesn't read of the registers: either way the
  * widths it comes back with stand, and true as menu_back's. */
 bool menu_run_or_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+
+/* The original jumps to a sibling's routine, which never comes back: its
+ * port run where the runtime would run it for the jump (menu_runs_as_port),
+ * timed as its own; otherwise the port stops there, declaring what the
+ * routine doesn't read, for the original to run it. */
+void menu_go_on_in(Snes *s, uint32_t routine, void (*entry)(Snes *), uint16_t dont_care);
 
 /* ---- The frame of the routines a bridge stands in for ------------------------------- */
 

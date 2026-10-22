@@ -15,6 +15,11 @@ bool overworld_pass_on_sound(GameState *g);
 bool overworld_sound_waits(const GameState *g);
 bool overworld_sound_is_being_sent(const GameState *g);
 void overworld_mark_sound_sending(GameState *g, bool sending);
+/* The sound command a request left waiting, to send to the driver: false
+ * where none waits; the mailbox is marked as being sent until
+ * overworld_waiting_sound_sent. */
+bool overworld_take_the_waiting_sound(GameState *g, AudioCommand *waiting);
+void overworld_waiting_sound_sent(GameState *g);
 
 /* Play a song: the request passed on at once if the mailbox lets it, and the
  * song noted as playing where it was. */

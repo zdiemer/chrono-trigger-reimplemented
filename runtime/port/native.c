@@ -286,6 +286,12 @@ typedef struct Active {
      * return. */
     bool handler_away;
     uint16_t handler_returns_s;
+    /* SHADOW: the original moved onto a stack of the routine's own in the
+     * middle of the port's stretch (the menus' entry, onto theirs), and the S
+     * it comes back to: kept across the stretch's call-outs, which are made on
+     * that stack, until S is back within the entry's frames. */
+    bool switched_away;
+    uint16_t switched_returns_s;
     /* SHADOW, PH_LATCH: the original's latches when the port began to wait;
      * and that the stretch the original is catching up with began before the
      * wait, which the stretch's timing goes on from. */
@@ -682,6 +688,17 @@ uint64_t native_owed(const NativeRuntime *rt)
     return clocks;
 }
 
+bool native_compares(const NativeRuntime *rt, uint32_t addr)
+{
+    for (int i = 0; i < rt->nactive; i++)
+        if (rt->active[i].entry->addr == addr)
+            return true;
+    for (int i = 0; i < rt->nparked; i++)
+        if (rt->parked[i].a.entry->addr == addr)
+            return true;
+    return false;
+}
+
 /* The first entry at pc (hand-written ones come first), or -1. */
 static int find_entry(const NativeRuntime *rt, uint32_t pc)
 {
@@ -978,10 +995,19 @@ void native_stack_cared(Snes *s)
         j->ndead_stack = 0;
 }
 
+uint16_t native_frame_dead_direct[MAX_DEAD_STACK];
+int native_nframe_dead_direct;
+
 void native_frame_enter(Snes *s, uint16_t bytes)
 {
     s->cpu.s = (uint16_t)(s->cpu.s - bytes);
-    native_stack_dont_care(s, (uint16_t)(s->cpu.s + 1), bytes);
+    Job *j = current_job;
+    if (j && j->m == s) {
+        native_stack_dont_care(s, (uint16_t)(s->cpu.s + 1), bytes);
+        return;
+    }
+    for (uint16_t k = 0; k < bytes && native_nframe_dead_direct < MAX_DEAD_STACK; k++)
+        native_frame_dead_direct[native_nframe_dead_direct++] = (uint16_t)(s->cpu.s + 1 + k);
 }
 
 void native_frame_leave(Snes *s, uint16_t bytes)
@@ -995,6 +1021,13 @@ void native_frame_leave(Snes *s, uint16_t bytes)
             if (j->dead_stack[k] < lo || j->dead_stack[k] > hi)
                 j->dead_stack[kept++] = j->dead_stack[k];
         j->ndead_stack = kept;
+    } else {
+        uint16_t lo = (uint16_t)(s->cpu.s + 1), hi = (uint16_t)(s->cpu.s + bytes);
+        int kept = 0;
+        for (int k = 0; k < native_nframe_dead_direct; k++)
+            if (native_frame_dead_direct[k] < lo || native_frame_dead_direct[k] > hi)
+                native_frame_dead_direct[kept++] = native_frame_dead_direct[k];
+        native_nframe_dead_direct = kept;
     }
     s->cpu.s = (uint16_t)(s->cpu.s + bytes);
 }
@@ -1472,6 +1505,8 @@ static void poison_return(const NativeEntry *e, Snes *m, bool to_a_bridge)
 }
 
 /* After running native code for `a`: account for it and record where it stopped. */
+static void note_a_port_s_stack_switch(NativeRuntime *rt, const Snes *s, uint16_t entered_at);
+
 static void after_run(NativeRuntime *rt, Active *a, Snes *s)
 {
     Job *j = a->job;
@@ -1545,10 +1580,13 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
     }
     a->phase = rt->mode == NATIVE_ON ? PH_CALLOUT : PH_SEGMENT;
     a->handler_away = false;
-    if (rt->mode == NATIVE_ON && !a->job)
+    if (rt->mode == NATIVE_ON && !a->job) {
+        uint16_t entered_at = a->entry_s;
         finish(rt);
-    else if (rt->mode == NATIVE_ON && a->job->call_yields)
+        note_a_port_s_stack_switch(rt, s, entered_at);
+    } else if (rt->mode == NATIVE_ON && a->job->call_yields) {
         park(rt, s);
+    }
 }
 
 /* ON: whether the wait a port is suspended in is over (native_wait_loop,
@@ -1645,17 +1683,49 @@ static void note_stack_switch(NativeRuntime *rt, Active *a, const Snes *s, uint1
     }
 }
 
+/* ON: a port that finished on another stack, a switch it made itself (the
+ * menus' entry moves to their own): to the routine whose call-out it ran in,
+ * the port's run is one step, from the S it was entered with, so the switch is
+ * noted against that S as note_stack_switch notes one the original makes
+ * instruction by instruction. */
+static void note_a_port_s_stack_switch(NativeRuntime *rt, const Snes *s, uint16_t entered_at)
+{
+    if (!rt->nactive)
+        return;
+    Active *caller = &rt->active[rt->nactive - 1];
+    if (caller->phase != PH_CALLOUT || !caller->job || caller->handler_away)
+        return;
+    uint16_t limit = caller->job->call_s_after;
+    if (entered_at <= limit && (uint32_t)s->cpu.s > (uint32_t)limit + NATIVE_STACK_SWITCH_DISTANCE) {
+        caller->handler_away = true;
+        caller->handler_returns_s = entered_at;
+    }
+}
+
+/* SHADOW: the highest S the original can be at and still be in the call `a`
+ * compares: where the call began, past the return address and the caller's
+ * frame the routine pulls (NativeEntry.pulls). */
+static uint32_t top_of_the_call(const Active *a) { return (uint32_t)a->entry_s + 1u + a->entry->pulls; }
+
 /* SHADOW: whether the original has returned from the call `a` compares while
- * the port is still running: S above where the call began (past the return
- * address), or for an interrupt entry, an RTI run; not while the original is
- * on a stack it switched to (note_stack_switch). */
+ * the port is still running: S above the call's top, or for an interrupt
+ * entry, an RTI run; not while the original is on a stack it switched to
+ * (note_stack_switch). */
 static bool returned_from_entry(NativeRuntime *rt, Active *a, const Snes *s)
 {
     if (a->entry->interrupt)
         return a->returned_by_rti;
-    if (a->phase == PH_SEGMENT)   /* where the switch's return is followed (check_top) */
-        note_stack_switch(rt, a, s, (uint16_t)(a->entry_s + 1));
-    return !a->handler_away && s->cpu.s > a->entry_s + 1;
+    if (a->phase == PH_SEGMENT) {   /* where the switch's return is followed (check_top) */
+        uint16_t limit = (uint16_t)top_of_the_call(a);
+        if (a->switched_away && s->cpu.s >= a->switched_returns_s && s->cpu.s <= limit)
+            a->switched_away = false;
+        if (!a->switched_away && !a->handler_away && rt->before_step_s <= limit &&
+            (uint32_t)s->cpu.s > (uint32_t)limit + NATIVE_STACK_SWITCH_DISTANCE) {
+            a->switched_away = true;
+            a->switched_returns_s = rt->before_step_s;
+        }
+    }
+    return !a->handler_away && !a->switched_away && s->cpu.s > top_of_the_call(a);
 }
 
 /* Check the innermost active routine against where the machine is now.
@@ -1670,7 +1740,8 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             /* Above both the stop point and the entry: an early stop can be
              * below the entry (after pushes), where the original starts. An
              * interrupt entry's original has left once it has run its RTI. */
-            bool left = a->entry->interrupt ? a->returned_by_rti : s->cpu.s > a->ret_s && s->cpu.s > a->entry_s;
+            bool left = a->entry->interrupt ? a->returned_by_rti
+                                             : s->cpu.s > a->ret_s && s->cpu.s > a->entry_s + a->entry->pulls;
             if (point_given_up(rt, a, left)) {
                 finish(rt);
                 return true;
@@ -1716,7 +1787,7 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             return false;
         }
         const Job *j = a->job;
-        if (a->handler_away && s->cpu.s >= a->handler_returns_s && s->cpu.s <= a->entry_s + 1)
+        if (a->handler_away && s->cpu.s >= a->handler_returns_s && s->cpu.s <= top_of_the_call(a))
             a->handler_away = false;   /* the interrupt has returned to the stretch */
         bool returned = !a->handler_away && returned_from_entry(rt, a, s);
         if (point_given_up(rt, a, returned)) {
@@ -2796,7 +2867,7 @@ static int32_t intercept(void *ctx, Snes *s)
                 a->handler_returns_s = s->cpu.s;
             }
             if (a->phase == PH_SEGMENT && !a->handler_away && a->job && !a->entry->interrupt &&
-                s->cpu.s <= a->entry_s + 1) {
+                s->cpu.s <= top_of_the_call(a)) {
                 a->handler_away = true;
                 a->handler_returns_s = s->cpu.s;
             }

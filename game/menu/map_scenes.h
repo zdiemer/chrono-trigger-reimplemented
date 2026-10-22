@@ -16,7 +16,11 @@ bool menu_scene_object_in_view(GameState *g);
 /* A frame of the object that drifts the map along. */
 void menu_scene_drift_the_map(GameState *g, MenuObject self);
 
+/* A scene of the Epoch's arrival keeps where it arrived in the story. */
+void menu_scene_note_the_epoch_s_arrival(GameState *g);
+
 /* The registered entries and their guards. */
+void menu_scene_note_the_epoch_s_arrival_entry(Snes *s);
 void menu_scene_object_in_view_entry(Snes *s);
 void menu_scene_drift_the_map_entry(Snes *s);
 bool menu_scene_object_in_view_runs(Snes *s);

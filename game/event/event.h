@@ -22,6 +22,8 @@ bool event_has_objects(Snes *s);
 bool event_runs_an_object(Snes *s);
 void event_run_map_script(Snes *s);
 bool event_map_script_can_run(Snes *s);
+void event_restart_the_running_object_entry(Snes *s);
+bool event_running_object_can_restart(Snes *s);
 
 /* The commands, by their rows (event/entries.c): entry name, opcode. The
  * operations' entries run the command by its row; the bridges' entries are the

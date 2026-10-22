@@ -27,6 +27,7 @@
 #include "menu/cursor.h"
 #include "menu/description.h"
 #include "menu/display.h"
+#include "menu/held_cursors.h"
 #include "menu/lists.h"
 #include "menu/members.h"
 #include "menu/menu_data.h"
@@ -520,6 +521,38 @@ void menu_equip_set_list_bar(GameState *g)
     ORIGINAL_EFFECT((void)hw_multiply_by(g, THUMB_LINES_A_ROW));
     set_menu_scroll_bar_span(g, (uint8_t)(span * THUMB_LINES_A_ROW));
     set_menu_scroll_bar_thumb(g, 0);
+}
+
+// $C2:A170
+/* The member list's scroll bar, where the party has more members to reach
+ * than its three rows: the thumb travels twelve lines a member the list can
+ * scroll, its step a member the bar's steps over that, from where the list
+ * has scrolled to; and the bar's task started to draw it, beside the list. */
+enum { MEMBER_LINES = 12, MEMBER_BAR_STEPS = 0x7400, MEMBER_BAR_AT = 0x1268 };
+
+static void leave_the_member_bar_worked_out(GameState *g, uint8_t most, uint8_t span)
+{
+    hw_set_multiplicand(g, MEMBER_LINES);
+    (void)hw_multiply_by(g, most);
+    hw_set_dividend(g, MEMBER_BAR_STEPS);
+    hw_divide_by(g, span);
+    (void)hw_multiply_by(g, menu_member_scroll(g));
+}
+
+void menu_equip_show_the_member_bar(GameState *g)
+{
+    uint8_t most = menu_member_scroll_most(g);
+    if (most == 0) {
+        ORIGINAL_EFFECT(hw_set_multiplicand(g, MEMBER_LINES));
+        return;
+    }
+    uint8_t span = (uint8_t)(most * MEMBER_LINES);
+    set_menu_scroll_bar_span(g, span);
+    TIMED_AS(g, 0xC28B93, menu_start_the_scroll_bar(g));
+    set_menu_scroll_bar_step(g, (uint16_t)(MEMBER_BAR_STEPS / span));
+    set_menu_scroll_bar_place(g, MEMBER_BAR_AT);
+    set_menu_scroll_bar_thumb(g, (uint8_t)(menu_member_scroll(g) * MEMBER_LINES));
+    ORIGINAL_EFFECT(leave_the_member_bar_worked_out(g, most, span));
 }
 
 /* The list's scroll bar, at the list window's side or (drawn again for

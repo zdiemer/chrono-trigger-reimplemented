@@ -29,6 +29,7 @@
 #include "menu/bridge.h"
 #include "menu/display.h"
 #include "menu/epoch.h"
+#include "menu/menu.h"
 #include "menu/vram.h"
 #include "original_effects.h"
 #include "overworld/music.h"
@@ -157,11 +158,11 @@ static void enter_the_arm(Snes *s, OverworldMode mode)
 
 static bool wait_for_the_next_frame(Snes *s) { return menu_call(s, 0xC223CF, 0xC2046E, READS_NOTHING | DC_DB); }
 
-/* The wait for frames that sends the sound waiting meanwhile. */
+/* The wait for frames that sends the sound waiting meanwhile (menu/frame.c). */
 static bool wait_frames(Snes *s, uint32_t site, uint16_t frames)
 {
     s->cpu.x = frames;
-    return menu_call(s, site, 0xC20454, READS_X_AND_A_HIGH);
+    return menu_run_or_call(s, site, 0xC20454, READS_X_AND_A_HIGH, menu_wait_frames_sending_the_sound);
 }
 
 /* Starting a script leaves A its address's high byte over its bank (the
@@ -247,13 +248,11 @@ static bool load_the_map(Snes *s, uint32_t site)
 static void send_the_waiting_sound(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!overworld_sound_waits(g))
+    AudioCommand waiting;
+    if (!overworld_take_the_waiting_sound(g, &waiting))
         return;
-    overworld_mark_sound_sending(g, true);
-    AudioCommand waiting = { sound_command(g), sound_command_parameters(g, 0), sound_command_parameters(g, 1),
-                             sound_command_parameters(g, 2), 3 };
     au_command(m_platform(s), PF_CALL_DC(0xC223F9, 0xC70004, DRIVER_IGNORES), waiting);
-    overworld_mark_sound_sending(g, false);
+    overworld_waiting_sound_sent(g);
 }
 
 // $C2:24D5
@@ -488,6 +487,16 @@ void overworld_come_back_from_the_menus(Snes *s)
 {
     if (come_back_from_the_menus(s))
         m_stop_at(s, NEXT_FRAME, READS_NOTHING);
+}
+
+// $C2:2556
+/* Back from the menus, which return here: the mode's screen set up again
+ * first, with the CPU's interrupts masked, the menus having left theirs. */
+void overworld_come_back_to_the_map_s_screen(Snes *s)
+{
+    m_set_flag(s, CPU_FLAG_I, true);
+    if (menu_run_or_call(s, 0xC22557, 0xC20043, READS_NOTHING, menu_object_init_video))
+        NATIVE_TIME_AS(s, 0xC2255A, overworld_come_back_from_the_menus(s));
 }
 
 // $C2:2E23

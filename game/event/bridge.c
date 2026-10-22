@@ -131,11 +131,12 @@ bool event_call_bridge(Snes *s, uint32_t site, uint32_t routine, EventBridge bri
 
 /* ---- Running a turn's commands on the machine ------------------------------------------------ */
 
-/* The original's two dispatches the engine stands in for: its JSR ($5D6E,X)
- * in the per-frame turn and in the openings, and where each returns to. */
-typedef enum { IN_A_TURN, IN_AN_OPENING, IN_THE_MAP_SCRIPT } Dispatch;
-static const uint32_t dispatch_site[] = { 0xC05AB1, 0xC05910, 0xC05977 };     /* by Dispatch */
-static const uint32_t dispatch_return[] = { 0xC05AB4, 0xC05913, 0xC0597A };   /* by Dispatch */
+/* The original's dispatches the engine stands in for: its JSR ($5D6E,X) in
+ * the per-frame turn, in the openings, in the map's own script and in an
+ * object's restart, and where each returns to. */
+typedef enum { IN_A_TURN, IN_AN_OPENING, IN_THE_MAP_SCRIPT, IN_A_RESTART } Dispatch;
+static const uint32_t dispatch_site[] = { 0xC05AB1, 0xC05910, 0xC05977, 0xC059A0 };     /* by Dispatch */
+static const uint32_t dispatch_return[] = { 0xC05AB4, 0xC05913, 0xC0597A, 0xC059A3 };   /* by Dispatch */
 
 /* The registers the original's dispatch leaves a handler: the opcode doubled
  * in A and X (the table's index, with the flags its making leaves: its
@@ -306,6 +307,51 @@ void event_run_map_script(Snes *s)
 
 /* The map's script's: the engine's machine. */
 bool event_map_script_can_run(Snes *s) { return machine_as_the_engine_keeps_it(s); }
+
+// $C0:597D
+/* The running object's script started over (a character's, after a menu
+ * changed the party), on the machine. It returns with 8-bit A holding the
+ * least urgent level and X the object's offset; where the port gives the rest
+ * up, the original's loop goes on from the command it got to. */
+enum { RESTART_LOOP = 0xC05990, THE_RESTART_READS_X = DC_A | DC_Y | DC_N | DC_Z | DC_C };
+
+static void leave_restarted(Snes *s)
+{
+    const GameState *g = state_of(s);
+    uint8_t level = event_object_call_state_level(g, object_current(g));
+    s->cpu.x = field_object_offset(object_current(g));
+    s->cpu.a = level;   /* over the cleared calls' zero, a word */
+    m_set_nz8(s, level);
+}
+
+void event_restart_the_running_object_entry(Snes *s)
+{
+    OnTheMachine m = { s, IN_A_RESTART };
+    EventRunner r = { run_on_the_machine, bank_reaches_low_ram, &m };
+    uint16_t at = 0;
+    switch (event_restart_the_running_object(state_of(s), &r, &at)) {
+    case TURN_HANDED_BACK:
+        return;
+    case TURN_OVER:
+        ORIGINAL_EFFECT(leave_restarted(s));
+        m_rts(s);
+        return;
+    default:
+        hand_over(s, at, RESTART_LOOP, THE_RESTART_READS_X);
+        return;
+    }
+}
+
+/* The running object one of the map's, on the engine's machine. */
+bool event_running_object_can_restart(Snes *s)
+{
+    if (!machine_as_the_engine_keeps_it(s))
+        return false;
+    vars_peek(true);
+    bool ok = object_current_is_one(state_of(s));
+    vars_peek(false);
+    return ok;
+}
 
 // $C0:58DE (inside the map setup routine)
 /* The map's openings, on the machine, and then the party's start on the map

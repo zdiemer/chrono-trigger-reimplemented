@@ -636,17 +636,6 @@ enum {
     EPOCH_BITMAP_AT = 0x7F0A00,
 };
 
-/* The program's unpacker ($7E:3691), still its own: the resource's place in
- * X, unpacked into the destination the setup has set; it reads X, the
- * overflow, the data bank and the direct page, which it hands back. */
-enum { UNPACK = 0x7E3691, UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C };
-
-static void unpack(Snes *s, uint32_t site, uint16_t resource)
-{
-    s->cpu.x = resource;
-    m_jsr_dc(s, site, UNPACK, UNPACK_IGNORES);
-}
-
 /* The shell's map is half a plane, each of its rows doubled across the
  * plane's 128 tiles; the half is sent twice, so the shell repeats down the
  * plane. */
@@ -659,10 +648,10 @@ static void load_the_shell(Snes *s)
     vid_set_vram_address(pf, PF_AT(0x7E78E4), SHELL_PIXELS_VRAM);
     vid_start_vram_uploads(pf, PF_AT(0x7E78E9), SCENE_VRAM_WHOLE_WORDS);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    unpack(s, 0x7E78F2, SHELL_PIXELS);
+    scene_bridge_unpack(s, 0x7E78F2, SHELL_PIXELS);
     scene_choose_transfer(g, scene_pixels_into_high_bytes);
     scene_send_unpacked_by(g, pf, scene_pixels_into_high_bytes);
-    unpack(s, 0x7E7905, SHELL_MAP);
+    scene_bridge_unpack(s, 0x7E7905, SHELL_MAP);
     scene_double_plane_rows(g);
     vid_set_vram_address(pf, PF_AT(0x7E790F), SHELL_MAP_VRAM);
     vid_start_vram_uploads(pf, PF_AT(0x7E7913), SCENE_VRAM_LOW_BYTES);
@@ -680,7 +669,7 @@ static void load_the_colours(Snes *s)
 {
     GameState *g = state_of(s);
     set_decompress_dest(g, DIVE_COLOURS_AT);
-    unpack(s, 0x7E7945, DIVE_COLOURS);
+    scene_bridge_unpack(s, 0x7E7945, DIVE_COLOURS);
     for (unsigned n = 0; n < COPIED_COLOURS; n++)
         set_palette_base(g, COPIED_TO + n, palette_base(g, COPIED_FROM + n));
     ORIGINAL_EFFECT(charge_block_move(g, 2 * COPIED_COLOURS));
@@ -789,15 +778,15 @@ static void make_the_pieces(Snes *s)
     ORIGINAL_EFFECT(leave_the_port_past_the_fog(g));
 
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    unpack(s, 0x7E7ADE, SPRITE_TILES);
+    scene_bridge_unpack(s, 0x7E7ADE, SPRITE_TILES);
     vid_start_vram_uploads(pf, PF_AT(0x7E7AE3), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E7AE9), SPRITE_TILES_VRAM);
     scene_choose_transfer(g, scene_whole_words);
     scene_send_unpacked_by(g, pf, scene_whole_words);
-    unpack(s, 0x7E7AFD, MORE_SPRITE_TILES);
+    scene_bridge_unpack(s, 0x7E7AFD, MORE_SPRITE_TILES);
     vid_set_vram_address(pf, PF_AT(0x7E7B03), MORE_SPRITE_TILES_VRAM);
     scene_send_unpacked_by(g, pf, scene_whole_words);
-    unpack(s, 0x7E7B0D, PANEL_MAP);
+    scene_bridge_unpack(s, 0x7E7B0D, PANEL_MAP);
     vid_set_vram_address(pf, PF_AT(0x7E7B13), PANEL_MAP_VRAM);
     lay_out_the_panel(g, pf);
     ORIGINAL_EFFECT(leave_the_panel_s_count(g));
@@ -813,27 +802,22 @@ static void load_the_epoch(Snes *s)
 {
     GameState *g = state_of(s);
     set_decompress_dest(g, EPOCH_BITMAP_AT);
-    unpack(s, 0x7E7987, EPOCH_PICTURE);
+    scene_bridge_unpack(s, 0x7E7987, EPOCH_PICTURE);
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
     s->cpu.d = 0x0000;   /* the writer works on the scene's page, through bank 0 */
     s->cpu.db = 0x00;
 }
 
 /* The two channels' scripts: channel 0's moves the camera, channel 1's runs
- * the dive. Channel 0's first step is taken at once ($7E:3749), with 16-bit
- * A and the setup's data bank kept under it; it reads Y, which the regrouping
- * routine's writer left past its table, and the overflow it left clear. */
+ * the dive. Channel 0's first step is taken at once, with 16-bit index
+ * registers; it reads Y, which the regrouping routine's writer left past its
+ * table, and the overflow it left clear. The setup goes on in 16-bit A. */
 enum { CAMERA_SCRIPT = 0x7C73, DIVE_SCRIPT = 0x7CF3 };
-enum { FIRST_STEP = 0x7E3749, FIRST_STEP_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
 
 static void first_script_step(Snes *s)
 {
-    m_set_flag(s, CPU_FLAG_M | CPU_FLAG_X, false);
-    m_push8(s, s->cpu.db);
-    s->cpu.y = scene_matrix_writer_leaves_y();
-    m_set_flag(s, CPU_FLAG_V, false);
-    m_jsr_dc(s, 0x7E79AA, FIRST_STEP, FIRST_STEP_IGNORES);
-    s->cpu.db = m_pull8(s);
+    m_set_flag(s, CPU_FLAG_X | CPU_FLAG_V, false);
+    scene_bridge_take_the_first_script_step(s, 0x7E79AA, scene_matrix_writer_leaves_y(), s->cpu.db);
 }
 
 /* The main loop's call each pass scales the Epoch (scene_scale_the_epoch). */

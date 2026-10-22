@@ -1,0 +1,28 @@
+# A floor switch in the Northern Ruins, 600 A.D.: load the save (on the world map beside the ruins), go in, walk to the
+# room at $043 and step on its two-by-three floor switch from the left column, then open the menus and close them
+# (route northern_ruins_switch).
+# Save: ctsave14 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# frames 3811
+# sram crc32 1E34C588
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 2 DOWN
+2452 2 DOWN
+2484 2 DOWN
+2516 4 A
+2650 16 UP
+2670 3 A
+2943 40 UP
+2983 16 RIGHT
+2999 8 UP
+3007 32 RIGHT
+3039 8 UP
+3047 16 RIGHT
+3063 48 UP
+3111 24 RIGHT
+3135 16 UP
+3301 40 DOWN
+3341 40 RIGHT
+3381 24 UP
+3535 3 X
+3628 3 B

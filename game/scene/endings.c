@@ -280,7 +280,7 @@ static void upload_picture(GameState *g, Platform *pf)
 enum { LETTER_TILES_VRAM = 0x5000, LETTER_TILES = 0x80, TILE_ROWS = 8, TILE_2BPP_BYTES = 16 };
 
 // $7E:66B0
-static void send_letters_widened(GameState *g, Platform *pf)
+void scene_send_letters_widened(GameState *g, Platform *pf)
 {
     uint32_t from = (uint32_t)scene_unpacked_bank(g) << 16 | (uint16_t)decompress_dest(g);
     for (unsigned tile = 0; tile < LETTER_TILES; tile++) {
@@ -342,7 +342,7 @@ enum { CAPTION_COLORS = 241, CLEAR_COLOR = 0 };
 static const uint16_t caption_colors[] = { 0x77BD, 0x4631, 0x1CE7 };
 
 // $7E:8772
-static void set_caption_colors(GameState *g)
+void scene_set_caption_colours(GameState *g)
 {
     for (unsigned i = 0; i < sizeof caption_colors / sizeof caption_colors[0]; i++)
         set_palette_base(g, CAPTION_COLORS + i, caption_colors[i]);
@@ -412,35 +412,15 @@ static void set_up_ground_layers(Platform *pf)
 
 /* ---- Where the setups call the original's code ------------------------------------------------ */
 
-/* The program's unpacker ($7E:3691): the resource's place in the program's
- * list in X, into the destination set. It reads nothing else but the overflow,
- * the data bank and the direct page, which it hands back. */
-enum { UNPACK = 0x7E3691, UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C };
-
-static void unpack(Snes *s, uint32_t site, uint16_t resource)
-{
-    s->cpu.x = resource;
-    m_jsr_dc(s, site, UNPACK, UNPACK_IGNORES);
-}
-
-/* The steering script's first step ($7E:3749), called with 16-bit A and the
- * program's bank kept on the stack. It reads Y and the overflow: Y as the
- * picture script's start left it, the overflow clear, as the regrouping code's
- * writer left it. */
-enum { FIRST_STEP = 0x7E3749, FIRST_STEP_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
-
+/* The steering script's first step, under the program's bank. It reads Y and
+ * the overflow: Y as the picture script's start left it, the overflow clear, as
+ * the regrouping code's writer left it. */
 static void first_script_step(Snes *s, uint16_t picture_script)
 {
     s->cpu.db = SCENE_LOWER_WORK_RAM;   /* as the darkening's block move left it */
-    m_push8(s, s->cpu.db);
-    m_set_flag(s, CPU_FLAG_M, false);
-    s->cpu.y = picture_script;
     m_set_flag(s, CPU_FLAG_V, false);
-    m_jsr_dc(s, 0x7E86E6, FIRST_STEP, FIRST_STEP_IGNORES);
+    scene_bridge_first_script_step(s, 0x7E86E6, picture_script);
     set_scene_perspective_start(state_of(s), PERSPECTIVE_FROM_ABOVE_THE_HORIZON);
-    s->cpu.db = m_pull8(s);
-    m_set_flag(s, CPU_FLAG_M, true);
-    s->cpu.d = 0x0000;
 }
 
 /* The stars' scatter starts its draws from A as the screen's blanking left
@@ -472,30 +452,30 @@ static void load_letters_and_ground(Snes *s)
     vid_start_vram_uploads(pf, PF_AT(0x7E853A), SCENE_VRAM_WHOLE_WORDS);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     vid_set_vram_address(pf, PF_AT(0x7E8543), LETTER_TILES_VRAM);
-    unpack(s, 0x7E8549, LETTERS);
-    send_letters_widened(g, pf);
+    scene_bridge_unpack(s, 0x7E8549, LETTERS);
+    scene_send_letters_widened(g, pf);
     set_scene_caption_letter_attributes(g, CAPTION_LETTERS_IN_FRONT);
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
 
     vid_start_vram_uploads(pf, PF_AT(0x7E856F), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E8575), 0x0000);
-    unpack(s, 0x7E857B, GROUND_PIXELS);
+    scene_bridge_unpack(s, 0x7E857B, GROUND_PIXELS);
     send_unpacked_as(g, BYTES_ONE_REGISTER, VID_SNES_VRAM_DATA_HIGH);
     send_unpacked(g, pf);
 
     vid_start_vram_uploads(pf, PF_AT(0x7E858C), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E8592), 0x0000);
-    unpack(s, 0x7E8598, GROUND_MAP_FIRST);
+    scene_bridge_unpack(s, 0x7E8598, GROUND_MAP_FIRST);
     scene_widen_the_plane_map(g);
     TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
-    unpack(s, 0x7E85A5, GROUND_MAP_SECOND);
+    scene_bridge_unpack(s, 0x7E85A5, GROUND_MAP_SECOND);
     scene_widen_the_plane_map(g);
     TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
     scene_blank_past_the_plane(pf, PF_AT(0x7E85B2), BLANKED_PAST_THE_PLANE);
 
     vid_start_vram_uploads(pf, PF_AT(0x7E85B7), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E85BD), MORE_SPRITE_TILES_VRAM);
-    unpack(s, 0x7E85C3, MORE_SPRITE_TILES);
+    scene_bridge_unpack(s, 0x7E85C3, MORE_SPRITE_TILES);
     send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
     send_unpacked(g, pf);
 }
@@ -506,9 +486,9 @@ static void load_mosaic(Snes *s)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
-    unpack(s, 0x7E85E4, MOSAIC_TILESET_RESOURCE);
+    scene_bridge_unpack(s, 0x7E85E4, MOSAIC_TILESET_RESOURCE);
     unpack_at(g, MOSAIC_NUMBERS_AT);
-    unpack(s, 0x7E85F0, MOSAIC_NUMBERS_RESOURCE);
+    scene_bridge_unpack(s, 0x7E85F0, MOSAIC_NUMBERS_RESOURCE);
     lay_out_mosaic(g);
     vid_send_vram(pf, PF_AT(0x7E864C), MOSAIC_VRAM, PF_GAME(MOSAIC_SENT), MOSAIC_SENT_BYTES, NULL);
     scene_add_task(g, SCENE_VBLANK_TASKS, MOSAIC_TASK);
@@ -520,9 +500,9 @@ static void load_ground_colors(Snes *s)
     unpack_into_first_bank(g);
     for (unsigned i = 0; i < GROUND_COPIES; i++)
         scene_copy_resource_to(g, scene_program_own(), ground_copies[i].resource, ground_copies[i].to, ground_copies[i].bytes);
-    set_caption_colors(g);
+    scene_set_caption_colours(g);
     set_decompress_dest(g, (decompress_dest(g) & 0xFF0000) | ENDING_PALETTE_AT);
-    unpack(s, 0x7E869B, ENDING_PALETTE);
+    scene_bridge_unpack(s, 0x7E869B, ENDING_PALETTE);
     scene_use_loaded_palette(g);
     darken_first_colors(g);
 }
@@ -659,7 +639,7 @@ static uint16_t load_picture(Snes *s, SceneProgramPage page)
     GameState *g = state_of(s);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     unpack_at(g, PICTURE_FRAMES_AT);
-    unpack(s, 0x7E87E9, PICTURE_FRAMES);
+    scene_bridge_unpack(s, 0x7E87E9, PICTURE_FRAMES);
     mirror_picture_frames(g);
     return load_picture_colors(g, page);
 }
@@ -691,7 +671,7 @@ static void load_new_ground(Snes *s, SceneProgramPage page)
     scene_use_loaded_palette(g);
     set_scene_plane_far_color_math(g, FAR_COLOR_MATH);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    unpack(s, 0x7E87B0, NEW_GROUND);
+    scene_bridge_unpack(s, 0x7E87B0, NEW_GROUND);
     scene_double_plane_rows(g);
     /* the original counts the rows down in its page's first cell */
     ORIGINAL_EFFECT(set_scene_call_first(g, page, 0));
@@ -717,7 +697,7 @@ static void start_stars(Snes *s)
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
     vid_set_vram_address(pf, PF_AT(0x7E8BDE), STAR_TILES_VRAM);
-    unpack(s, 0x7E8BE4, STAR_TILES);
+    scene_bridge_unpack(s, 0x7E8BE4, STAR_TILES);
     send_unpacked(g, pf);
     set_decompress_dest(g, decompress_dest(g) & 0xFF);
     copy_colors(g, scene_program_own(), STAR_COLORS, STAR_PALETTE, 16);
@@ -754,7 +734,7 @@ static void start_mode7_picture(Snes *s)
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
     vid_start_vram_uploads(pf, PF_AT(0x7E8C42), SCENE_VRAM_WHOLE_WORDS);
-    unpack(s, 0x7E8C48, PLANE_TILES);
+    scene_bridge_unpack(s, 0x7E8C48, PLANE_TILES);
     vid_set_vram_address(pf, PF_AT(0x7E8C4E), PLANE_TILES_VRAM);
     send_unpacked(g, pf);
     vid_set_vram_address(pf, PF_AT(0x7E8C58), 0x0000);
@@ -762,12 +742,12 @@ static void start_mode7_picture(Snes *s)
     /* the overflow of the loop's last move on (to $2B00: none), which the
      * unpacker reads */
     ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, false));
-    unpack(s, 0x7E8C76, PLANE_MAP);
+    scene_bridge_unpack(s, 0x7E8C76, PLANE_MAP);
     vid_set_vram_address(pf, PF_AT(0x7E8C7C), PLANE_MAP_VRAM);
     send_unpacked(g, pf);
     TIMED_AS(g, 0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
     set_decompress_dest(g, PLANE_COLORS_AT);
-    unpack(s, 0x7E8C8E, PLANE_COLORS);
+    scene_bridge_unpack(s, 0x7E8C8E, PLANE_COLORS);
     scene_set_letter_colors(g);
     scene_use_loaded_palette(g);
     TIMED_AS(g, 0x7E388B, scene_send_palette(pf));
@@ -829,11 +809,11 @@ static bool prepare_credits(Snes *s)
         return false;
     }
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    unpack(s, 0x7E8CF8, CREDITS_LETTERS);
+    scene_bridge_unpack(s, 0x7E8CF8, CREDITS_LETTERS);
     unpack_at(g, CREDITS_PICTURE_AT);
-    unpack(s, 0x7E8D04, CREDITS_PICTURE);
+    scene_bridge_unpack(s, 0x7E8D04, CREDITS_PICTURE);
     unpack_at(g, CREDITS_PATTERN_AT);
-    unpack(s, 0x7E8D10, CREDITS_PATTERN);
+    scene_bridge_unpack(s, 0x7E8D10, CREDITS_PATTERN);
     write_pattern_map(g);
     return true;
 }

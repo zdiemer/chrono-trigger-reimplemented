@@ -40,7 +40,9 @@ routines was at its limit). `unported`: no port is involved. Each instruction
 is filed under the routine it belongs to -- the target of the latest call on
 record, the port's own entry for what it hands back after a stop, or `BB:----`,
 its bank, where there is no call on record (the main loop, a task's own stack)
--- and, for the first three, the port. Totals are given as KiB of distinct
+-- and, for the first three, the port. A routine the original reaches with no
+call on record but whose rise the ratchet must see on its own is cut out of
+its bank's line onto one of its own (CUT_OUT). Totals are given as KiB of distinct
 code (each instruction's bytes, once per kind; a bank's mirrors count as the
 bank) and as instructions executed, by kind and by subsystem (the bank's, as
 tools/burndown.py names them).
@@ -90,6 +92,13 @@ INSTRUCTION_SLACK = (0.05, 1000)     # 5% more, plus this many instructions
 # A routine this far below its baseline is reported as a gain to take.
 GAIN = 0.75
 
+# Routines filed under their bank (no call on record) that the baseline follows
+# on a line of their own, as (first address, last address): the window list's
+# copy of an area ($C2:EF05, menu_window_copy_area) and its rows' block moves
+# ($C2:EF2B), whose rise in chunk 11 (an ended comparison no longer covering
+# them) the bank's falling line hid.
+CUT_OUT = ((0xC2EF05, 0xC2EF47),)
+
 INSN = re.compile(r"^insn (\w+) ([0-9A-F]{6}) (\d+) (\d+) ([0-9A-F]{2}(?:[0-9A-F]{4}|----)) (\S+)$")
 EVENT = re.compile(r"^event (\w+) ([0-9A-F]{6}) ([0-9A-F]{6}) (\d+) (\S+)$")
 REFUSAL = re.compile(r"^refusal ([0-9A-F]{6}) (\w+) (\d+) (\S+)$")
@@ -128,6 +137,16 @@ def routine_text(text):
     return fmt(canonical(int(text, 16)))
 
 
+def cut_out(routine, pc):
+    """The line an instruction is filed on: its routine's, or for one filed
+    under its bank, a CUT_OUT routine's where it is one."""
+    if routine.endswith("----"):
+        for first, last in CUT_OUT:
+            if first <= pc <= last:
+                return fmt(first)
+    return routine
+
+
 def routine_subsystem(routine):
     return bank_name(int(routine[:2], 16))
 
@@ -154,7 +173,7 @@ class Measure:
                 kind, pc, length, count, routine, port = m.groups()
                 pc = canonical(int(pc, 16))
                 port = "-" if port == "-" else fmt(int(port, 16))
-                self.insns[(kind, pc, routine_text(routine), port)] += int(count)
+                self.insns[(kind, pc, cut_out(routine_text(routine), pc), port)] += int(count)
                 self.length[pc] = max(self.length.get(pc, 0), int(length))
                 continue
             m = EVENT.match(line)

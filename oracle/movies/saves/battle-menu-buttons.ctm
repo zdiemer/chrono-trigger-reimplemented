@@ -1,0 +1,48 @@
+# The battle menu's other buttons: load the save (all seven at the End of Time), walk into Spekkio's room and start his
+# fight, then at the first menu go right and left to the other members waiting, page the item list with L and R and
+# leave it with B, move across the tech list and leave it, and attack with X; the movie stops in the fight (route
+# battle_menu_buttons).
+# Save: zophar chrono slot 1 (oracle/saves/zophar, zophar.net Chrono Trigger saves).
+# frames 5086
+# sram crc32 DF405EC0
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 4 A
+2674 24 UP
+2698 8 RIGHT
+2706 56 UP
+2762 16 RIGHT
+2778 24 UP
+2802 88 RIGHT
+2890 98 UP
+3048 80 UP
+3128 24 RIGHT
+3152 2 DOWN
+3162 3 A
+3205 3 A
+3248 3 A
+3291 3 A
+3334 3 A
+3377 3 A
+3420 3 A
+3463 3 A
+3506 3 A
+4349 3 RIGHT
+4372 3 RIGHT
+4395 3 LEFT
+4418 3 DOWN
+4441 3 DOWN
+4464 3 A
+4487 3 L
+4510 3 R
+4533 3 R
+4556 3 L
+4579 3 DOWN
+4602 3 B
+4625 3 UP
+4648 3 A
+4671 3 RIGHT
+4694 3 LEFT
+4717 3 B
+4740 3 UP
+4763 3 X

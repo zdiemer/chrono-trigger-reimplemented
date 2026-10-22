@@ -47,6 +47,8 @@ is that bound over the play's length, for ordering only.
 | all live code not run by any movie | 57.8 | 45.2 | 12.6 |
 | re-measured over the 42 movies of chunk 9 (`menus-sweep`, `menus-save-point`, `events-epoch-lavos`, `battle-black-tyrano`, `battle-guardian` and `battle-tech-sweep` added), with that commit's ports | 40.9 | 37.3 | 3.7 |
 | the same commit without those six movies | 47.4 | 42.3 | 5.1 |
+| re-measured at the same commit for the second batch (each movie's own `--coverage`, the union; Clusters) | 40.92 | 37.25 | 3.67 |
+| with the second batch's six movies (`battle-tech-sweep-spekkio`, `field-65m-bc-dactyl-flight`, `field-floor-switch`, `battle-menu-buttons`, `field-factory-switch`, `field-northern-ruins-switch`; in the library since chunk 11) | 36.31 | 32.65 | 3.67 |
 
 ## Clusters
 
@@ -54,34 +56,42 @@ is that bound over the play's length, for ordering only.
 `$FF:D296`: 1 1000 A.D., 2 600 A.D., 3 2300 A.D., 4 65,000,000 B.C., 5 12,000
 B.C., 6 the Black Omen, 7 the End of Time, 0 1999 A.D. and the title's).
 
+Re-measured at the start of the second batch of movies (commit 7ad4bbe, the 42 movies, each
+`--native shadow --coverage`, all clean): 40.92 KiB unexecuted, 37.25 ported. Owners as above; the
+cluster is read from the owner's name and bank -- `script_*`, `battle_screen_*`, `battle_special_*`
+and banks `$CD`/`$CF`/`$D1` the animation commands, `battle_effect_*` the action effects,
+`battle_condition_*`/`battle_select_*` the AI no script names, `battle_enemy_*_turn` the AI by
+enemy, the other `battle_enemy_*` and `battle_search_*` movement, `menu_object_*`, `overworld_*`
+and bank `$C2` below `$8000` (but the typesetter) the world maps, bank `$7E` the scene program --
+so a few owners moved between the battle rows against the first measure: the area searches and
+the aiming (`battle targeting`) were counted with the animation commands before.
+
 | Cluster | KiB | Ported | Trigger |
 |---|--:|--:|---|
-| battle animation commands | 8.70 | 8.70 | rare commands of tech, attack and item animation scripts (`script_*`, `battle_screen_script_*`, `$C1:2D9F`'s inlined handlers); which techs use them isn't mapped (the five header tables at `$CD:5EC6`-`$CD:63F0` aren't tied to tech ids) |
-| field engine | 5.43 | 5.25 | paths no map in the library needs: large (8-, 12-, 24-sprite) objects' frames put back after a battle or menu (`field_put_drawn_frame` `$C0:CB0A`), `field_walk_the_leader`, `field_redraw_after_picture`, `field_stream_the_layers`, `field_update_object_sprites`; maps unknown |
-| scene modes | 7.93 | 1.18 | see the scene program rows below |
-| world-map objects | 10.01 | 6.66 | see the world map rows below |
-| enemy AI, by enemy | 1.95 | 1.95 | see Bosses below |
-| enemy AI no script names | 2.79 | 2.79 | conditions and target selectors no enemy script uses (`battle_condition_acted_on_by_member`, `stands_beside`, `level_with`, `stat_bits`, `could_walk_to`, `is_party_member`, `frames_at_least`, `turn_wait`, `three_on_out`; most `battle_select_*` by status); reachable only through techs' targeting, if at all -- unknown |
-| battle other | 3.15 | 3.11 | `battle_enemy_tech_body` branches, battle windows and cursors, status updates, `battle_frame_work`, `battle_nmi`; unknown |
-| event commands | 2.89 | 2.87 | see Event commands below |
-| menus: other | 2.34 | 1.28 | the party exchange's panel (`$C2:C85B`-`$CCB3`, generated), cursors on every member (an item used on the whole party), `menu_party_services` `$C2:8D8F` |
-| battle action effects | 2.17 | 2.17 | `battle_effect_hit` (1.5 KiB of branches), `inflict`, `steal`, `restore_showing_hp`: uncommon tech and item effects |
-| floor switches | 2.10 | 2.10 | stepping on a floor switch of a shape no movie presses (`$C0:0D45`-`$C0:16DB`); only `endings-telepod-lavos` presses one; which maps hold the others is unknown |
-| enemy movement | 1.28 | 1.28 | enemies that line up, march, charge, keep their distance (`$C1:375C` family) and the walk searches (`$C1:2C02`, `$2CF3`); which enemies is unknown (movement types aren't in the AI scripts) |
-| field screen effects | 1.22 | 0.63 | event `$FF` screen forms: the ripple (`$C0:264F`), closing into a scene, `$C0:405D`-`$4145`, `$C0:28F9`; locations not mapped |
-| menus: items | 0.77 | 0.77 | item screen tabs and members (`menu_use_tab`, `menu_look_at_tab_member`, `menu_raise_figure`, `menu_show_item_users`) |
-| sound driver | 0.59 | 0.59 | `sound_driver_command` branches (`$C7:02E2`, `$C7:0181`): commands no movie's scene sends |
-| battle rewards | 0.55 | 0.45 | learning a single or combination tech, tech points counted to a new tech, `$FD:AD17` |
-| menus: tech screen | 0.52 | 0.52 | scrolling the tech screen past three members or eight techs (`menu_slide_tech_*`) |
-| menus: settings buttons | 0.49 | 0.23 | Settings, custom button assignment (`menu_choose_buttons` `$C2:BF6D`, `$C2:C20F`-`$C286`) |
-| palette effects | 0.46 | 0.46 | `palette_lighten_*`/`darken_*`, `palette_pulse_*`: event palette commands; scripts not mapped |
-| text control codes | 0.45 | 0.45 | typesetter codes no movie's text uses (`$C2:5953`-`$5C77`) |
-| new game plus | 0.36 | 0.36 | starting a New Game+ (`menu_load_carried_over` `$FF:FAED`, `$C2:E6AE`, `$C2:E841`) |
-| menus: equipment | 0.30 | 0.30 | the equipment screen's member slide (`$C2:9DAF`) and switching member there |
-| battle status timers | 0.34 | 0.34 | MP regained (`$C1:8B10`), Slow (`$C1:8975`), HP lost, evasion timers running out: statuses no movie's fights inflict |
-| load screen erase | 0.26 | 0.26 | erasing a slot, and answering no (`$C2:E8B7`, `$C2:E705`) |
-| demo battle | 0.20 | 0.20 | the attract demo's battle (`fight_load_demo_party` `$FD:B2DE`, `battle_demo_next_turn`) |
-| epoch screens | 0.20 | 0.20 | time dial and map view branches (`$C2:6AC8`, `$C2:6736`) |
+| battle animation commands | 5.94 | 5.91 | rare commands of tech, attack and item animation scripts (`script_line_to_a_place`, `script_spiral_*`, `script_chase_to_coordinates`, `battle_screen_script_*`); which techs use them isn't mapped (the five header tables at `$CD:5EC6`-`$CD:63F0` aren't tied to tech ids) |
+| world-map objects | 5.14 | 5.14 | see the world map rows below |
+| field engine | 4.12 | 3.98 | paths no map in the library needs: `field_redraw_after_picture` `$C0:ED31`, large objects' frames put back after a battle or menu (`field_put_drawn_frame` `$C0:CB11`), `field_walk_the_leader`, `field_update_object_sprites`, `field_draw_object_sprites`; maps unknown |
+| scene modes | 3.57 | 0.65 | see the scene program rows below (older than this total) |
+| enemy AI no script names | 3.29 | 3.29 | conditions and target selectors no enemy script uses (`battle_select_members_by_condition`, `battle_condition_acted_on_by_member`, `stands_beside`, `level_with`, `stat_bits`, `could_walk_to`, `is_party_member`, `is_enemy`); reachable only through techs' targeting, if at all -- unknown |
+| event commands | 2.86 | 2.86 | see Event commands below |
+| battle other | 2.55 | 2.55 | `battle_take_menu_input`, `battle_draw_window`, `battle_show_pose_look`, `battle_update_combatant`, `battle_update_combo_members` branches; unknown |
+| floor switches | 2.19 | 2.19 | stepping on a floor switch of a shape no movie presses (`field_handle_requests`'s `$C0:0D45`-`$C0:16DB`) and the map's pressed switches put back as it loads (`field_press_the_remembered_switches` `$C0:28EC`); see Targets, 10 |
+| battle action effects | 1.61 | 1.61 | `battle_effect_hit` (1.2 KiB of branches), `inflict`, `restore_showing_hp`, `steal`, `restore`: uncommon tech and item effects |
+| menus: other | 1.57 | 1.11 | the party exchange's reserve scroll (`$C2:C85B`-`$C2:C972`, generated; not reachable, Targets 3), a shop's how-many question (`menu_choose_how_many_to_buy`), `menu_draw_text`, the naming grid's moves |
+| battle targeting | 1.57 | 1.57 | areas no cast tech's targeting has searched (`battle_find_the_noted_area` `$C1:2332`: beams, circles, the party's triangle, rows), `battle_aim_action`, `battle_choose_targets`: area techs and items |
+| enemy movement | 1.33 | 1.33 | enemies that line up, march, charge, keep their distance (`$C1:375C` family) and the walk searches (`$C1:2C02`, `battle_search_nearer_to_third`); which enemies is unknown (movement types aren't in the AI scripts) |
+| enemy AI, by enemy | 1.16 | 1.16 | see Bosses below |
+| field screen effects | 0.65 | 0.63 | event `$FF` screen forms: `field_move_screen_effect_on` `$C0:2307` (the ripple `$C0:264F` and the effects beside it), `$C0:28C0`; see Targets, 10 |
+| sound driver | 0.59 | 0.57 | `sound_driver_command` branches (`$C7:02E2`, `$C7:0181`): commands no movie's scene sends |
+| battle rewards | 0.52 | 0.52 | tech points counted to a new tech, learning a single or combination tech (`rewards_count_tech_points`, `rewards_learn_*`), `battle_show_the_rewards` `$FD:AD41` |
+| palette effects | 0.46 | 0.46 | `palette_lighten_*`/`darken_*`: the channel modes of event command `$2E`/`$88` fades (Targets, 10) |
+| text control codes | 0.45 | 0.45 | typesetter codes no movie's text uses (`menu_text_go_on`, `$C2:5953`-`$5C77`) |
+| menus: items | 0.37 | 0.37 | `menu_choose_on_item_list`, `menu_use_one_more` (a second of an item used at once), setting items aside |
+| battle status timers | 0.23 | 0.23 | MP regained (`$C1:8B10`), evasion, HP lost, poison and Stop timers running out: statuses no movie's fights inflict |
+| epoch screens | 0.20 | 0.20 | time dial and map view branches (`menu_epoch_time_dial_object` `$C2:6B95`, `menu_epoch_map_matrix`) |
+| menus: exchange | 0.16 | 0.16 | the exchange laid out and its cursor moved where no movie's exchange goes (`menu_lay_out_the_exchange` `$C2:CB3F`) |
+| menus: equipment, tech screen, settings buttons, load screen erase | 0.21 | 0.21 | the leftovers of the menu sweep's rows: the equipment list's slide, a tech chosen, a button's question closed, the erase |
+| other | 0.21 | 0.12 | `$C3:0A8E`, the scene program's boot and frame |
 
 ### The scene program (`$7E`, modes of `$7E:300A`)
 
@@ -98,16 +108,21 @@ B.C., 6 the Black Omen, 7 the End of Time, 0 1999 A.D. and the title's).
 
 ### World maps (object scripts of the `$C2:0000` mode)
 
-| Map | KiB (ported) | Saves on it |
+Re-measured with the clusters: each unexecuted byte goes to the nearest routine at or before it that
+some scene's object script calls (commands `$34`, `$4E`, `$35`/`$42`; `tools/disasm/objscript.py`), and
+to that routine's scenes; the rest is the object commands' own handlers and the overworld's code.
+
+| Map | KiB (all ported) | Saves on it, and what is left |
 |---|--:|---|
-| 65,000,000 B.C. (`$1F3`, scene 3) | 2.63 (0.38) | ctsave05 slots 1, 2; ctsave07 slots 2, 3; ct-state6, ct-state10; zophar chrono-4 slots 2, 3. Handlers `$C2:4CC5`, `$5097`, `$5494`, `$504B` and `$C6:E072`/`$E101` |
-| 1000 A.D. (`$1F0`, scene 0) | 1.67 (1.54) | every 1000 A.D. save; the code is `$C6:E7FA`-`$EE30`, routines a scene 0 script calls with command `$4E`: the Day of Lavos after a loss to Lavos, which `battle-lavos-gameover` (route `lavos_lost`) now plays; commands `$3F`/`$40`/`$08`/`$25` no movie's walk there runs |
-| 12,000 B.C. (`$1F6`, scene 6) | 0.78 (0.78) | zophar chrono-6 slot 2 |
-| 12,000 B.C. (`$1F4`, scene 4) | 0.54 (0.46) + 0.21 shared with 1, 5 | ctsave08 slot 2; ct-state7, ct-state8 |
-| 1999 A.D. (`$1F7`, scene 7) | 0.23 (0.23) | none; the bucket ending and the attract demo pass over it |
-| 12,000 B.C. (`$1F5`, scene 5) | 0.19 (0.16) | zophar chrono-5 (all three slots) |
-| shared by several maps | 1.82 (1.35) | the overworld on foot (`game/overworld/`, ported): an exit to an event (`$C2:2417`), the party's exchange opened from the map, a walk into another region's song (`$C2:3011`-`$C2:309D`), the halts, the walkers' steps while an event's scripts run; generated: the vehicles' controller (`$C2:309E`) and routines several maps' scripts call |
-| scene not attributed | 1.94 (1.44) | object commands no scene's script has (`show_tile_group` `$50`, `copy_byte_slot_to_slot`, `branch_if_slot_no_bit`) and code beside them |
+| 65,000,000 B.C. (`$1F3`, scene 3) | 0.53 (+0.11 shared with 6) | ctsave05 slots 1, 2; ctsave07 slots 2, 3; ct-state6, ct-state10; zophar chrono-4 slots 2, 3. The dactyls' handlers `$C2:4CC5` (the one ridden) and `$C2:5097` (the two that follow), `$C2:5494` (started on the scene's other branch, `$7F:048B`), and the scene's cutscenes' far calls `$C6:E072` (`$7F:071E`, after the map is redrawn and scrolled) and `$C6:E101` (`$7F:09CB`). chrono-4 (after the Black Tyrano) loads onto the map after the fall and plays neither |
+| 12,000 B.C. (`$1F6`, scene 6) | 0.48 | zophar chrono-6 slot 2: `$C2:7BD8`-`$7D5E`, called from scripts at `$7F:068D`-`$06A0`, `$0853`-`$0887`, `$0C0D`, `$0C86` |
+| 12,000 B.C. (`$1F4`, scene 4) | 0.25 | ctsave08 slot 2; ct-state7, ct-state8: `$C6:E170`, `$C6:E694` (six calls at `$7F:13D3`-`$140B`), `$C6:E1FF` |
+| 1999 A.D. (`$1F7`, scene 7) | 0.16 | none; the bucket ending and the attract demo pass over it: `$C2:7A56`, `$7AAF`, `$7ADA`, `$7AEB` |
+| 12,000 B.C. (`$1F5`, scene 5) | 0.12 | zophar chrono-5 (all three slots): `$C6:E5C5` |
+| 1000 A.D. (`$1F0`, scene 0) | 0.10 | every 1000 A.D. save: `$C2:48CD`, `$C2:27DE`, `$C2:7B4F` |
+| 600 A.D. (`$1F1`, scene 1) | 0.07 | `$C2:7911`'s first routine |
+| shared by several maps | 0.97 | the overworld's routines several scenes start: `$C2:3AE2` (`overworld_follow`), `$C2:2F94` (the region's song), `$C2:3264` (`overworld_watch_the_ground`), `$C2:3404` (`overworld_lead`), `$C2:42DD`, `$C2:309E` (the vehicles) |
+| the object commands themselves | 2.63 | handlers whose paths no scene's script reaches in play (`overworld_epoch` 0.33, the irises `$C6:E368`/`$E498`, `show_tile_group`, `move_to_across`/`_down`, `scroll_map_plane`, `drift`, the window lines) |
 
 ### Bosses (enemy AI by script)
 
@@ -124,6 +139,9 @@ B.C., 6 the Black Omen, 7 the End of Time, 0 1999 A.D. and the title's).
 
 ### Event commands (by opcode's locations)
 
+KiB re-measured with the clusters; the locations are the scripts' (`tools/disasm/derive.py`'s
+`event_scripts`, the location records' script word).
+
 | Command | KiB | Locations whose scripts use it |
 |---|--:|---|
 | `$98` move toward object, counted | 0.19 | `$008`, `$192`, `$100` |
@@ -132,13 +150,19 @@ B.C., 6 the Black Omen, 7 the End of Time, 0 1999 A.D. and the title's).
 | `$D6` take out of the party | 0.09 | `$0E6` |
 | `$9D` move by variables, keep facing | 0.08 | `$005` |
 | `$28` if well on screen | 0.08 | `$16B` |
-| `$14`/`$15`/`$13` compare variables, words | 0.19 | `$005`, `$0DF`/`$0E1` (the race), `$1B2`, `$08F`, `$195`-`$1A1` |
-| `$5E`, `$61`, `$60`, `$72`, `$76`, `$50`, `$52`, `$54`, `$59`, `$4D` word arithmetic | 0.40 | `$005`, `$1B2`, `$08F`, `$0DF`/`$0E1`, `$172`-`$17B`, `$199` |
+| `$14`/`$15`/`$13` compare variables, words | 0.23 | `$005`, `$0DF`/`$0E1` (the race), `$1B2`, `$08F`, `$195`-`$1A1` |
+| `$5E`, `$61`, `$60`, `$72`, `$76`, `$50`, `$52`, `$54`, `$59`, `$4D` word arithmetic | 0.41 | `$005`, `$1B2`, `$08F`, `$0DF`/`$0E1`, `$172`-`$17B`, `$199` |
 | `$63`/`$64`/`$69`/`$6B` flags by number | 0.16 | `$1B2`, `$0DF`/`$0E1`, `$066`-`$06B`, `$086`/`$087`, `$1D1` |
 | `$C4` ask (bottom window) | 0.05 | `$0F2`, `$0F3`, `$13B`, `$07A`, `$1D1` |
-| `$D7`, `$C7`, `$CD`, `$CB` items and gold | 0.12 | `$115`; `$175`-`$1BC`; `$1B7`, `$032`, `$09A` |
+| `$D7`, `$C7`, `$CD`, `$CB` items and gold | 0.14 | `$115`; `$175`-`$1BC`; `$1B7`, `$032`, `$09A` |
 | `$DC` location put aside | 0.04 | `$0E4`, `$0E5` |
-| `$7B` launch, `$5D` add variable | 0.13 | no event script uses them |
+| `$7B` launch, `$5D` add variable | 0.12 | no event script uses them |
+| touching an object (`event_touch_contact` `$C0:31B9`), `say` `$C0:2E1E`, sending a member to the reserve `$C0:3967`, `if in view`, the pad tests (`if_pressed_*`, `if_held_*`) | 0.48 | the touch's other paths and the minigames' pad tests; locations not mapped |
+
+Looked into for the second batch (Targets, 11): the fair's locations (`$005` the lower square,
+`$008` the telepod exhibit, `$1B2` Norstein Bekkler's tent, `$1B7` the bell plaza) hold several of
+these, as does Spekkio's room (`$1D1`, the bottom window's question, which
+`battle-tech-sweep-spekkio` reaches).
 
 ## Targets
 
@@ -179,8 +203,8 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   takes the first list entry -- by tech id, read from the tech-by-id table at $94D0, not list position,
   so a double tech is found once whichever partner's turn reaches it first -- that isn't cast yet,
   falling back to Attack once a member's list is exhausted for now (not enough MP, or a tech whose only
-  target needs an ally down); heals and revives with items. Casts the three members' 12 single techs and
-  8 double techs between them (ids 1-5, 9-15, 49-56), each once, well inside the first third of the
+  target needs an ally down); heals and revives with items. Casts 20 single techs (ids 1-5, 9-15,
+  49-56) and no double tech (below), each once, well inside the first third of the
   fight; no triple tech appears for this trio. Its recording, cut to the shortest length (found by
   bisecting the `--coverage` cutoff) that still reaches everything it reaches -- the Lavos Core down to
   its last few hits, not beaten outright, since that's as early as two of its addresses (inside
@@ -193,12 +217,50 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   `script_return_from_call`'s guard took the return at the top's going on into it
   (history/reimplementation-chunks.md, "Phase 4a, the shipping mode's fallbacks, chunk 9"): 118090 frames to the Core beaten, all 20 techs
   cast; shadow clean, no refusal, and in the library.
-- **Not attempted**: zophar chrono-5 (Crono, Marle and Ayla, all but Magus maxed). Its only slot (all
-  three point to the same save) stands on an isolated 12,000 B.C. floating island: `ow_bfs` finds its
-  whole reachable ground is 57 tiles with no door out and, over 20 laps of it, no random encounter --
-  this era's overworld looks to have none. A second movie for Lucca, Robo, Frog and Ayla's own techs,
-  the techs between them, and any triple tech (this trio and Crono/Magus/Marle have none) needs a
-  different starting point than the save gives.
+- **What the first sweep cast** (read again for the second): ids 1-5 are Crono's singles, 9-15
+  Marle's and 49-56 Magus's -- every character's eight come first, Crono's at 1, and the double and
+  triple techs from 57 on -- so it cast no double tech. The policy took the first entry not yet
+  cast and tried it again every turn it was refused: Crono's sixth (a revive, with nobody down) and
+  Marle's eighth stood in front of the rest of their lists, the double techs included.
+- **Movie**: `battle-tech-sweep-spekkio` (route `tech_sweep_spekkio`, zophar chrono slot 1, 134646
+  frames): all seven at the End of Time ($1D0), where Y on the field opens the exchange with the
+  reserve (the gate's screen; from the main menu the exchange only reorders the active three).
+  Spekkio's room ($1D1) is a door away; at these levels (58-63) his form has 10000 HP, attacks took
+  nothing off it, and he gives the fight up once techs have worn him down far enough -- a dozen to
+  thirty techs -- and he can be fought again. Lucca, Robo and Ayla fight him twice, then Crono,
+  Marle and Frog twice, with `policies.tech_sweep` extended: a tech the bot couldn't take is skipped
+  for the turn (`refused`, which fixes the first sweep's blocking), double and triple techs are
+  tried first (`combinations_first`: they need every partner's turn, so a fight that ends early
+  leaves them), and once the lists are swept the strongest tech cast so far finishes the fight
+  (`finish_with_techs`, `damage`). 62 techs cast: Crono 1-5, 7, 8; Marle 9-16; Lucca 17-23; Robo
+  25-30; Frog 33-40; Ayla 41-48; double and triple techs 57-59, 66-68, 78-80, 84, 85, 87-89, 93-95,
+  104. Left: 6 (Crono's revive, nobody down at his turns), 24, 31, 32, 86. Reaches 1.92 KiB no
+  other movie runs, all ported: battle screen scripts (`battle_screen_script_ripple_windows`,
+  `battle_screen_open_band`, `..._orbit_middle`, `..._drift`, `..._orbit_position`,
+  `battle_screen_random_byte`), `battle_draw_window`, the area searches (`$C1:2203`, `$22A4`,
+  `$25A3`), `battle_effect_combatant_orbit`, `battle_effect_steal` (Ayla's Charm),
+  `palette_lighten_red_blue`, `rewards_learn_combination_techs` (the second trio learns a triple
+  tech at the last win), the bottom window's question at Spekkio's (`event_cmd_ask_bottom`) and a
+  text code (`$C2:58B2`). The coverage cutoff is 126855, the rewards' learning; the movie keeps the
+  field back in hand after it. Shadow: no mismatch, no `page refused`, no `accessor out of range`;
+  **`script_jump_to_the_point`'s guard (`$C1:672E`) refused 208 calls**, from frame 108588 (the
+  second trio's first fight; 6674 instructions run as the original). The route reaches its end in
+  the shipping mode (`route_check --mode on:on:c`, frame 192208).
+- **Movie**: `battle-menu-buttons` (route `battle_menu_buttons`, zophar chrono slot 1, 5086 frames;
+  cutoff 4515): Spekkio's fight started as the sweep does, then at the first menu the buttons the
+  bot never presses -- right and left to the other members waiting, the item list paged with L and
+  R and left with B, across the tech list and out, X -- and the movie stops in the fight. It reaches
+  0.36 KiB the 42 movies don't, 0.10 beyond the tech sweep's (`battle_take_menu_input`'s member
+  switch and paging, `$C1:11AE`-`$120E`, `$C1:147B`-`$154A`), all ported. Folded into the sweep's
+  last fight it made that fight 26000 frames longer (its choices went another way), so it stands
+  alone. Shadow: no mismatch, refusal, `page refused` or `accessor out of range`; comparisons still
+  open at the end, as for any movie stopped in a fight. The route reaches its end in the shipping
+  mode (frame 4987).
+- **Not recorded, why**: a third trio (Crono, Lucca and Frog next) would be some 70000 frames more
+  for about 0.4 KiB, the second trio's share (0.46 KiB over 72000 frames, against the first's 1.46
+  over 60000): the rest of the 5.94 KiB of animation commands isn't in the double techs between
+  these characters. zophar chrono-5 (all but Magus maxed) stands on an isolated 12,000 B.C. floating
+  island with no encounters: `ow_bfs` finds its whole reachable ground is 57 tiles with no door.
 
 ### 3. Menu sweep
 - **Save**: ctsave14 slot 1 (seven members).
@@ -335,6 +397,9 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   ending starts modes 5, 6 and 12 (3.47) is unknown. Up to 4.71 KiB over nine
   endings of 30-50 minutes each, about 0.01 KiB a minute.
 - **Route**: yes (`bucket_lavos`, `telepod_lavos` and `beyond_time` are the pattern).
+- **Not recorded in the second batch**: each is a Lavos fight and an ending, 100000-200000 frames in
+  every gate, for at most mode 10's 0.74 KiB (the second batch's re-measure has the whole scene
+  program at 3.57 KiB, 2.92 unported); the cheaper targets came first and took the batch's time.
 
 ### 8. The scene program's modes 6, 7 and 5
 - **Mode 6** (`$7E:78DD`): location `$1B0` is the party in the winged Epoch over Lavos (event script
@@ -378,8 +443,118 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   increments go 7 to 8 and 9 to 10, no long store, no script poke). An indexed store or block
   move into `$0139` isn't ruled out; read as dead code until one is found.
 
+### 9. World maps
+- **Movie**: `field-65m-bc-dactyl-flight` (route `dactyl_flight_65m_bc`, ctsave07 slot 3, 3992
+  frames; cutoff 3911, the landing, the end kept at the party back on foot): `dactyl_65m_bc`'s
+  boarding at Tyrano Lair, then the eight ways flown in turn (40 frames each; a diagonal moves the
+  dactyl along one axis), confirm pressed where no dactyl lands (each spot tried on a machine copy
+  first), the menus opened in flight and closed, the map view's button pressed (Y opens nothing on
+  this map), and ground to land on found by the overworld search pressing confirm. It reaches 0.10
+  KiB no other movie runs, all ported: the following dactyls' turns into the V (`$C2:528A`-`$531B`,
+  `$C2:5374`, `$C2:53D3`) and the leader's turning and refused landing (`$C2:4DF0`-`$4EE1`). The
+  rest of scene 3's dactyl code is their setting down in the air as the map starts with the party
+  flying (`$C2:4D19`, `$C2:50F0`, `$C2:54B5`), which the menus don't do: the map comes back from them
+  with the dactyls as they were. Shadow clean (no mismatch, refusal, `page refused` or `accessor out
+  of range`); the route reaches its end in the shipping mode (frame 3992).
+- **Not recorded, the 12,000 B.C. and the other scenes' code**: what is left of scenes 4, 6 and 7
+  is cutscenes on the map: scene 4's script starts one of twelve scripts by the bits of
+  `$7E:1BA8`-`$1BAC` (`$7F:0414`-`$044B`), scene 6's by `$1BA8` bit 3 and `$1BAD` bits 1-5 (its
+  `$C2:7BD8`-`$7D5E` calls, at `$7F:0632` on, follow a redrawn map, a song and the tile streamer),
+  and scene 3's far calls `$C6:E072`/`$E101` are in its cutscenes after `$7F:06F1`. Those bits are
+  set by the story event that leaves for the map at that moment, so each is a play from a save at
+  that story point, which none of the saves is: zophar chrono-4 (just after the Black Tyrano) loads
+  onto the map after the fall and plays neither of scene 3's.
+
+### 10. Floor switches, palette commands, screen effects, text codes (static research)
+- **Floor switches** (`$C0:0D45`-`$C0:16DB`): a switch is BG1 map tiles whose bottom row has the
+  step event (upper attribute bit 4), the bottom tile `$E6` (one by two), `$EC`/`$EE` (two by two,
+  left/right column) or `$FA`/`$FC` (two by three); the press's path is per shape and column. Found
+  by loading every location in turn from an End of Time state (diagnostic pokes of the next
+  location and the field's request, `$7E:0112`/`$0117`) and reading BG1 (`$7E:3000`) and the upper
+  attributes (`$7E:7000`), kept to the record's edges: such tiles in 52 locations. The ones near a
+  save: Lucca's house `$004` (two by two at (7, 10), (2, 4); two by three at (10, 4)), Arris Dome
+  `$0D7`-`$0D9`, `$0DD` (two by three), the Northern Ruins `$042`-`$045`, `$049` (two by three,
+  one map with several records), `$0E5`-`$0E8` (two by three), `$100`, `$10C`, `$170`/`$171`/`$176`.
+  The one by two is only on the title's `$1AF`/`$1B1` and `$1FE`. Executed before: the detection
+  and the two by two's right column (`$C0:1014`-`$11C8`, the telepod ending).
+- **Movie**: `field-floor-switch` (route `floor_switches`, ctsave14 slot 1, 3501 frames; cutoff 3260):
+  into Lucca's house from the 1000 A.D. map and onto its two by two at (7, 10) from the left column,
+  then the menus opened and closed, which sets the map's screen up afresh and presses the switch
+  again from the steps the map remembers. Reaches 0.50 KiB no other movie runs, all ported: that
+  column's press (`$C0:0E5F`-`$1013`) and the press again (`field_press_the_remembered_switches`
+  `$C0:28E1`, `$C0:28F9`). Shadow clean; the route reaches its end in the shipping mode (frame 3521).
+  The house's other two switches are on tiles no walk in the house reaches. Every two by three
+  above is pressed from below in a diagnostic test (each location loaded by a poke, the party put
+  beside the switch, then a walk search), the left column each time. Arris Dome's `$0D7` and `$0D9`
+  aren't among the rooms the guardian route's `$0D6`, `$0D8`, `$0DD` and `$0DB` lead to; Geno Dome (`$100`,
+  `$10C`) has no save near. The factory's are: its hall (`$0E4`) is the first door from ctsave03
+  slot 2's spot on the 2300 A.D. map.
+- **Movie**: `field-factory-switch` (route `factory_switch`, ctsave03 slot 2, 8387 frames; cutoff
+  8252): into the factory's hall, the active party's order changed from the main menu's exchange,
+  the hall's console checked (object `$08`: with Robo not leading, the security's robots attack;
+  the `party` policy wins without a wipe), the left door (object `$09`, tile (4, 5), confirm then up)
+  to the lab side (`$0E5`), and onto its two by three at (25, 15)-(26, 15), which the search steps
+  onto from the right column. Reaches 1.27 KiB no other movie runs, all ported: the two by three's
+  right column (`$C0:1454`-`$16DB`), `field_redraw_after_picture` (`$C0:EE8B`-`$EFD0`, as the door's
+  scene hands the field back), `event_cmd_set_location_put_aside` (`$DC`, the door's), the main
+  menu's exchange laid out for a reorder (`$C2:CC4F`-`$CD2B`), `$C2:6180`, the battle's cursors.
+  Shadow clean (no mismatch, refusal, `page refused` or `accessor out of range`); the route reaches
+  its end in the shipping mode (frame 7329). The lab side's other exits weren't found by a walk
+  search, so `$0E6`-`$0E8`'s switches stay unpressed.
+- **Movie**: `field-northern-ruins-switch` (route `northern_ruins_switch`, ctsave14 slot 2, 3811
+  frames; cutoff 3666): the rooms at `$041`-`$049` are the Northern Ruins (one map with
+  several records, the carpenter's and Cyrus's grave among them), whose entrance is a step from
+  ctsave14 slot 2's spot on the 600 A.D. map. Into `$041`, on to `$043`, onto its two by three at
+  (58, 38)-(59, 38) from the left column, then the menus opened and closed. It reaches 0.72 KiB
+  beyond the batch's other movies (1.07 against the 42), all ported: the two by three's left column
+  (`$C0:11C9`-`$1453`) and its press again (`$C0:297D`-`$29B9`). Shadow clean; the route reaches its
+  end in the shipping mode (frame 3811). `$042`'s two by three is pressed from the left as well, 66
+  steps in. Left of the floor switches: the one by two (only on the title's maps and `$1FE`).
+
+- **Palette commands** (`palette_lighten_*`/`darken_*`): event commands `$2E` (the screen's colours)
+  and `$88` (an object's) with a fade form, `$4n` lightening or `$5n` darkening, `n` the channels
+  (`game/core/palette.c`'s tables: lightening 1 red, 2 green, 3 red and green, 4 blue; darkening 1
+  green and blue, 3 blue, 4 red and green, 5 green, 6 red); pulses come from location sets and the
+  battle, no event command. By the scripts: lighten green at `$185`, `$1A3` (`$2E`) and `$0F4`
+  (Death Peak's wind slope, `$88`); lighten red and green at `$13C`, `$13F`, `$144`, `$145` (the
+  Black Omen, `$88`); lighten blue at `$049`, `$188`-`$190`; darken blue at `$057`, `$09B`, `$0CB`,
+  `$0CC`, `$0CE`, `$14E`, `$18E`, `$18F`, `$192`; darken red and green at `$004`, `$056`, `$0CD`,
+  `$123`, `$18C`, `$1A3`, `$1A0`; darken green at `$0CC`; darken red at `$07A`. Left after this batch:
+  `darken_red_blue` (no event script's form; the battle's), `lighten_green`, `darken_green`,
+  `darken_red`, `darken_blue` and the pulses, 0.38 KiB. `battle-tech-sweep-spekkio` reaches
+  `lighten_red_blue`, a battle script's.
+- **Screen effects** (`$C0:2307`, effects 6-12 of `$C0:21EE`): event `$FF`'s modes `$95` (at `$01A`,
+  `$1B6`, `$1B8`, `$1B9`: the Gate opened at the fair's telepod and its arrivals), `$96`, `$9B`, `$9E`
+  (`$0AC`), `$99` (`$109`) and `$9A` (`$1AD`) are the ones no movie runs; `$9D` no script uses.
+  `$95` is the telepod incident: tried from technoplaza ct-state16 slot 2 (New Game+ at the fair):
+  talking to Lucca at the exhibit (`$008`, object `$0D`) runs Crono's demo and takes the story
+  counter `$7F:0000` from 8 to `$0C`, and walking down below row 12 starts the next scene, but Marle's
+  turn wasn't brought on in the time tried, so no movie.
+- **Text control codes** (`$C2:5953`-`$5C77`): what is left is the 16- and 24-bit numbers
+  (`$C2:5972`-`$59C7`) and the inserts' tails; of the field's dialogs only the jetbike race's
+  scoreboard (`$0DF`/`$0E1`) shows a 16-bit number.
+
+### 11. Event commands at the fair (looked into, not recorded)
+- **Saves**: ctsave11 slot 3, ctsave12, ctsave13, ctsave14 slot 1 (on the 1000 A.D. map, 131 silver
+  points at `$7F:0052`; zophar chrono-3 slot 1 80, chrono-2 65, chrono-trigger 50).
+- **`$005`** (the lower square): its startup's arithmetic and comparisons (its script's `L03A0` on, as
+  `tools/disasm/eventscript.py` decodes it: var from memory, random, subtract and add words, compare
+  variables) run only with `$7F:005D` bit 7 set,
+  which ctsave14 slot 1 hasn't. The strength test (object `$1A`, tile (5, 34); `move_by_variables`,
+  `$9D`) is reached from (89, 586) facing up; pressing confirm there ran only its button test
+  (`event_cmd_if_held_a`).
+- **`$1B2`** (Bekkler's tent, from `$005` in 67 steps): Bekkler (object `$0B`, function 1) offers
+  three games (the script's `L0846`; the clone game at `L0328` for 40 points: compare variables,
+  random, shifts; another for 80); no spot the party reached made him answer, so the games weren't
+  played.
+- **Death Peak** (`$0F4`, a step from ctsave11 slot 3's spot on the 2300 A.D. map; `$7F:007C` is
+  3 there, so the object at tile (55, 48) whose confirm runs `$88` lighten green is shown): the wind
+  (script variable `$0C`, `$7F:0218`) is calm for the first 108 frames after the party comes in
+  and then blows, and a party caught outside the shelter of the tree at tile (55, 49-50) is blown
+  back out to the map. The tree is 177 pixels up the slope; dashing up covers about 120 in the calm,
+  so no movie.
+
 ### Unknown
-- **Floor switches** (2.10 KiB): no map with a switch of the other shapes is identified.
 - **Mode 5** (2.05 KiB): nothing found that starts it (Targets, 8).
 - **Field engine**, **battle other**, **enemy movement**, **sound driver** and
   **palette effects** (10.9 KiB together): no trigger identified; expect the

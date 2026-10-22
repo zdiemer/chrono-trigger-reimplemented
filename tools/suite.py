@@ -46,7 +46,11 @@ compiled out (ct_dev_native_shape, ct_drive_native_shape) running every movie
 to its end in the shipping mode with nothing the default build's run doesn't
 show -- a failed exit, a hang, a halted machine, an accessor out of range --
 and its routes reaching their outcomes (the fast set; all of them with
---long-routes). Exit status is 0 only when all of that holds.
+--long-routes); and no movie stopping earlier than it did on the hand ports
+alone, with no generated code and no interpreter, nor any reaching its end
+other than as the reference play does (tools/strict_check.py, a ratchet
+against tools/strict_baseline.txt). Exit status is 0 only when all of
+that holds.
 
 Each movie's frame count comes from its own `# frames N` header, and a movie
 that starts from a cartridge save finds it by CRC-32 among the committed ones
@@ -54,7 +58,8 @@ that starts from a cartridge save finds it by CRC-32 among the committed ones
 
 Output goes under the build directory (`--out`, default build/suite): a log per
 movie, a one-line status per movie, and the coverage and call files the shadow
-runs collect, which are ROM-derived and stay out of the repository.
+runs collect and their end states (end-<movie>.bin, the strict check's reference),
+which are ROM-derived and stay out of the repository.
 """
 
 import argparse
@@ -113,7 +118,8 @@ def run_movie(binary, rom, out, name, path, frames, lockstep):
            "--frames", str(frames), "--native", "shadow", "--timing-report", "--page-report",
            "--coverage", str(out / ("cov-%s.txt" % name)),
            "--calls", str(out / ("calls-%s.txt" % name)),
-           "--fallbacks", str(out / "fallbacks" / "shadow" / ("%s.txt" % name))]
+           "--fallbacks", str(out / "fallbacks" / "shadow" / ("%s.txt" % name)),
+           "--end-state", str(out / ("end-%s.bin" % name))]
     if lockstep:
         cmd += ["--sound-lockstep", "--sound-lockstep-level", "state"]
     started = time.time()
@@ -542,6 +548,23 @@ def check_uncompared(args, ctx):
     return rc == 0, "uncompared", summary, [] if rc == 0 else lines[:-1][-40:]
 
 
+def check_strict(args, ctx):
+    """How far the hand ports alone carry each movie: every movie strict
+    (ct_dev --native on --generated off --no-interpreter strict --sound-driver
+    c), none stopping earlier than tools/strict_baseline.txt says it reaches
+    (tools/strict_check.py --check), and each that reaches its end ending as
+    the reference play does, the shadow runs' end states. It needs no shadow
+    mode, so it is quick; over a subset of the library (--movies, --only) it
+    checks those."""
+    cmd = [sys.executable, str(ROOT / "tools/strict_check.py"), "--ct-dev", str(ctx["binary"]), "--rom", str(args.rom),
+           "--check", "-j", str(max(1, min(ctx["jobs"], 2))), "--reference", str(args.out)]
+    if not ctx["complete"]:
+        cmd += ["--movies"] + list(ctx["movies"])
+    rc, lines = run_tool(cmd)
+    summary = lines[-1] if lines else "no output"
+    return rc == 0, "strict", summary, [] if rc == 0 else [l for l in lines[:-1] if "<--" in l or "not in" in l][-40:]
+
+
 def check_effects(args, ctx):
     """No port reads, as logic, what some port writes only as scaffolding
     (tools/effects_check.py, a ratchet against its baseline): in the source,
@@ -603,6 +626,7 @@ CHECKS = (
     ("sound-fuzz", check_sound_fuzz, "the short ct_sound_fuzz runs"),
     ("dontcare", check_dontcare, "the don't-care declarations against liveness"),
     ("uncompared", check_uncompared, "the ratchet on hand ports the shadow runs mostly leave uncompared"),
+    ("strict", check_strict, "the ratchet on how far the hand ports alone carry each movie"),
     ("effects", check_effects, "the ratchet on logic that reads scaffolding"),
     ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
     ("portsmell", check_portsmell, "the ratchet on the review rubric's mechanical items"),
@@ -641,7 +665,7 @@ def main():
 
     jobs = args.jobs or max(1, (os.cpu_count() or 2) // 2)
     args.out.mkdir(parents=True, exist_ok=True)
-    for stale in args.out.glob("status-*.txt"):
+    for stale in list(args.out.glob("status-*.txt")) + list(args.out.glob("end-*.bin")):
         stale.unlink()
     shutil.rmtree(args.out / "fallbacks" / "shadow", ignore_errors=True)
     (args.out / "fallbacks" / "shadow").mkdir(parents=True)

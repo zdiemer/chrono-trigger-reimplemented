@@ -1,0 +1,34 @@
+# A longer dactyl flight on the 65,000,000 B.C. world map: load the save (standing beside a dactyl at Tyrano Lair), board
+# it, fly the eight ways in turn, press confirm over ground no dactyl lands on, open the menus in the air and close them,
+# press the map view's button, then land and get off (route dactyl_flight_65m_bc).
+# Save: ctsave07 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# frames 3992
+# sram crc32 7AA2049D
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 4 A
+2554 16 DOWN
+2574 16 DOWN
+2594 16 RIGHT
+2614 3 A
+2737 40 LEFT
+2787 40 UP+LEFT
+2837 40 UP
+2887 40 UP+RIGHT
+2937 40 RIGHT
+2987 40 DOWN+RIGHT
+3037 40 DOWN
+3087 40 DOWN+LEFT
+3137 24 LEFT
+3161 3 A
+3204 3 X
+3327 3 B
+3370 3 B
+3533 20 RIGHT
+3553 3 Y
+3676 20 UP
+3696 3 B
+3849 20 LEFT
+3869 16 DOWN
+3889 16 RIGHT
+3909 3 A

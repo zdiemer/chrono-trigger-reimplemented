@@ -204,8 +204,8 @@ static void keep_found_position(GameState *g, unsigned slot, BattlePoint at)
 }
 
 /* The original counts the slots in a cell, which the places don't read. The
- * count it ends at, POSITION_SLOTS, is the lift the original's jumps to the
- * script's point take from there (battle/script_language.h). */
+ * count it ends at, POSITION_SLOTS, is the lift a jump to the script's point
+ * takes from there (battle/script_moves.c), so it is kept plainly. */
 enum { LEFT_POSITION_SLOT = 0x10 };
 static void leave_position_slot(GameState *g, unsigned slot)
 {
@@ -317,6 +317,7 @@ void battle_update_animation_positions(Snes *s)
         }
         keep_found_position(g, slot, at);
     }
-    ORIGINAL_EFFECT(leave_position_slot(g, POSITION_SLOTS));
+    battle_leave_jump_lift(g, POSITION_SLOTS);
+    ORIGINAL_EFFECT(set_battle_work(g, LEFT_POSITION_SLOT + 1, 0));
     m_rts(s);
 }

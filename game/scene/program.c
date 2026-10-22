@@ -85,7 +85,7 @@ static void as_the_screen_s_setup_leaves_it(Snes *s)
  * attract sequence's pages of credits (scene/credit_pages.c), the title's
  * (scene/title.c), the palace rising (scene/rising_palace.c), Lavos falling
  * to the planet (scene/lavos_falls.c), the Epoch's dive (scene/epoch_dive.c),
- * the shared endings' (scene/endings.c)
+ * the planet's (scene/planet.c), the shared endings' (scene/endings.c)
  * and the staff roll's (scene/staff_roll.c) are C;
  * the attract sequence's other scenes, and the ones no movie reaches, are
  * still the original's, called by the routine the program's own table names
@@ -94,7 +94,7 @@ enum { SCENE_MODE_BITS = 0x1F, SCENE_MODES = 16, PROGRAM_BANK = 0x7E0000 };
 
 typedef enum {
     MODE_RACE = 0, MODE_CREDITS_PAGE = 1, MODE_TITLE = 2, MODE_RISING_PALACE = 3, MODE_LAVOS_FALLS = 4, MODE_EPOCH_DIVE = 6,
-    MODE_ATTRACT_RACE = 9,
+    MODE_PLANET_LOST = 7, MODE_PLANET_ENDING = 8, MODE_ATTRACT_RACE = 9,
     MODE_ENDING = 10, MODE_ENDING_TOO = 11, MODE_STAFF_ROLL = 13, MODE_ENDING_AGAIN = 14, MODE_LAST_ENDING = 15,
 } SceneMode;
 
@@ -102,6 +102,7 @@ typedef enum {
 enum {
     RACE_SET_UP = 0x7E3B48, CREDIT_PAGES_SET_UP = 0x7E6B04, TITLE_SET_UP = 0x7E5978, PALACE_SET_UP = 0x7E671F,
     ENDINGS_SET_UP = 0x7E8538, STAFF_ROLL_SET_UP = 0x7E8EA8, LAVOS_FALLS_SET_UP = 0x7E53BB, EPOCH_DIVE_SET_UP = 0x7E78DD,
+    PLANET_SET_UP = 0x7E6248,
 };
 
 static const struct {
@@ -117,6 +118,8 @@ static const struct {
     { MODE_RISING_PALACE, PALACE_SET_UP, scene_palace_set_up_scene, scene_palace_set_up_present, false },
     { MODE_LAVOS_FALLS, LAVOS_FALLS_SET_UP, scene_lavos_falls_set_up_scene, scene_lavos_falls_set_up_present, false },
     { MODE_EPOCH_DIVE, EPOCH_DIVE_SET_UP, scene_dive_set_up_scene, scene_dive_set_up_present, true },
+    { MODE_PLANET_LOST, PLANET_SET_UP, scene_planet_set_up_scene, scene_planet_set_up_present, false },
+    { MODE_PLANET_ENDING, PLANET_SET_UP, scene_planet_set_up_scene, scene_planet_set_up_present, false },
     { MODE_ATTRACT_RACE, RACE_SET_UP, scene_race_set_up_scene, scene_race_set_up_present, false },
     { MODE_ENDING, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
     { MODE_ENDING_TOO, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },

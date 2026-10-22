@@ -8,8 +8,8 @@
  * keeping it on its row as the list or the reserve scrolls and slides; or
  * put a cursor on every active member for a healing of them all (a
  * tonic's, a tech's), each blinking in its own time. The menus' seventh task draws
- * them a frame at a time (its turns are the original's loops, which call a
- * frame of each here), and stopping the task takes them away. A list that
+ * them, a frame each turn and then a wait for the next (their tasks, at the end
+ * of the file), and stopping the task takes them away. A list that
  * scrolls has a scroll bar beside it, which the fifth task draws.
  *
  * Every blink is a countdown: a held cursor's runs down the bits its blink
@@ -20,6 +20,7 @@
 #include "menu/held_cursors.h"
 
 #include "cpu_io.h"
+#include "charge.h"
 #include "menu/bridge.h"
 #include "menu/menu.h"
 #include "original_effects.h"
@@ -370,16 +371,46 @@ void menu_hold_the_cursor_on_a_member_entry(Snes *s)
     m_rts(s);
 }
 
-/* The member's cursor's task draws a frame and waits for the next through
- * the task switch, which reads no register, and then draws again. */
-enum { WAIT_FOR_THE_NEXT_FRAME = 0xC28A91, READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+/* ---- Their tasks -------------------------------------------------------------------------------- */
 
-// $C2:8A45
-void menu_draw_the_cursor_held_on_a_member_entry(Snes *s)
+/* The held cursors' tasks (MENU_HELD_CURSORS_TASK), each from its start and
+ * from its wait: the cursor a screen holds on what was picked (an item on the
+ * list, a member), or on each active member, drawn a frame at a time. They
+ * wait in the task's 16-bit widths, but the member's, whose drawing makes A
+ * 8-bit. */
+enum { HELD_CURSOR_WAIT = 0xC28AB5, LIST_CURSOR_WAIT = 0xC289F5, MEMBER_CURSOR_WAIT = 0xC28A91,
+       MEMBERS_CURSORS_WAIT = 0xC28AF8 };
+
+// $C2:8AB2, $C2:8AB8
+void menu_run_the_held_cursor_task(Snes *s)
+{
+    GameState *g = state_of(s);
+    TIMED_AS(g, 0xC28ABA, menu_draw_the_held_cursor(g));
+    menu_wait_in_the_task_loop(s, HELD_CURSOR_WAIT, false);
+}
+
+// $C2:89F2, $C2:89F8
+void menu_run_the_list_cursor_task(Snes *s)
+{
+    GameState *g = state_of(s);
+    TIMED_AS(g, 0xC289FA, menu_draw_the_cursor_held_on_the_list(g));
+    menu_wait_in_the_task_loop(s, LIST_CURSOR_WAIT, false);
+}
+
+// $C2:8A45, $C2:8A94
+void menu_run_the_member_cursor_task(Snes *s)
 {
     menu_draw_the_cursor_held_on_a_member(state_of(s));
     menu_set_widths(s, true, m_x8(s));
-    m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_NOTHING);
+    menu_wait_in_the_task_loop(s, MEMBER_CURSOR_WAIT, true);
+}
+
+// $C2:8AF5, $C2:8AFB
+void menu_run_the_members_cursors_task(Snes *s)
+{
+    GameState *g = state_of(s);
+    TIMED_AS(g, 0xC28AFD, menu_draw_cursors_on_every_member(g));
+    menu_wait_in_the_task_loop(s, MEMBERS_CURSORS_WAIT, false);
 }
 
 // $C2:8B93

@@ -202,6 +202,9 @@ void menu_equip_show_list_window(GameState *g, Platform *pf);
 void menu_equip_place_list_bar(GameState *g, bool again);
 void menu_equip_lay_out_list(GameState *g);
 void menu_equip_set_list_bar(GameState *g);
+/* The member list's scroll bar worked out and its task started, where the
+ * party has more members to reach than the list's three rows. */
+void menu_equip_show_the_member_bar(GameState *g);
 void menu_equip_draw_list(GameState *g);
 uint16_t menu_equip_list_end(void);
 void menu_equip_draw_list_row(GameState *g, uint16_t at);

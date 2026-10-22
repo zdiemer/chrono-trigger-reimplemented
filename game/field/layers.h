@@ -143,6 +143,12 @@ bool field_tile_copy_overflow(const GameState *g, bool before);
  * leaves its callers. */
 void field_find_layer_edges(GameState *g);
 bool field_layer_edges_overflow(const GameState *g);
+/* A layer put back at the top left of its tile map (its place and scroll 0),
+ * and the edges found again, as a whole map drawn afresh is sent. */
+void field_put_the_layer_at_its_start(GameState *g, FieldLayer layer);
+void field_put_bg1_at_its_start(Snes *s);
+void field_put_bg2_at_its_start(Snes *s);
+void field_put_bg3_at_its_start(Snes *s);
 /* For the original's code (field/leaves.c): what the edges' working out
  * leaves in the registers -- where in its tile map the last layer's column
  * right of the view starts and the row above the view it starts on

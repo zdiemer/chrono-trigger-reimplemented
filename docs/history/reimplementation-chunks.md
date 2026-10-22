@@ -11005,3 +11005,136 @@ part), and a stretch's room for the routines it attributes time to went from 48
 to 128 (`MAX_SEGMENT_PARTS`): the field's frame, followed through a mode on
 stacks of its own, reaches more.
 Gate: suite OK.
+
+## Phase 4a, the shipping mode's fallbacks, chunk 10: the Epoch's dive into Lavos, and the program's stirred draw (`$7E:78DD`-`$7E:7B9B`, `$7E:79F8`-`$7E:7A67`, `$7E:7BF2`-`$7E:7C2F`, `$7E:7EC7`-`$7E:7F04`, `$7E:7F12`-`$7E:8108`, `$7E:81F1`, `$7E:8205`-`$7E:838A`, `$7E:3443`, `$C3:02DD`, `$7E:38C3`)
+
+The fallbacks' stream (this file, "Phase 4a, the
+shipping mode's fallbacks, chunk 9", for the one before), chosen by the
+shipping mode: after chunk 9 the Epoch's dive (scene mode 6) was 2.31 M of
+the movies' 2.40 M instructions run as the original, nearly all of it the
+program's main loop spinning on the dive's frame routine while its picture
+waited for the vblank, and the rest the dive's tasks and the stir they draw
+from.
+
+**The dive** (`scene/epoch_dive.c`) is the whole mode now: its setup, the
+frame's and the vblank's tasks of both views, the views' switches, the
+routines its scripts call, and its frame routine, which the main loop's pass
+runs as C (attract/main_loop.c takes it beside the race's and the endings'
+scalings). The scene cuts between the cockpit -- the shell above and below
+on the Mode 7 plane, the panel shaking, its warning lights and gauges'
+needles flickering, a band of light ahead that opens at the end -- and the
+view from outside, where the Epoch streaks into the shell as a trail of light
+whose round head is the Epoch's scaled picture. Three things made it more than
+a translation's work, each now named:
+
+- **What the random draws are salted with.** The cockpit's draws go on from
+  whatever the code before left: the panel's place across, the task's slot,
+  where the sprite table's cursor stands in its group of four after the
+  lights are drawn (`scene_sprite_place_in_group`; the guard holds the lights'
+  last sprite on the picture, where that is all the drawing leaves), a
+  warning light's picture, a gauge's place. The panel's lights draw with the
+  data bank on work RAM, so the stir's reads of the beam land on two colours
+  of the palette as loaded: `scene_draw_random_off_the_palette` takes them as
+  its noise, which is what the program has there.
+- **The line tables are the program's own bytes.** The tasks move their
+  counts and sources as the panel shakes, the trail moves and the light
+  opens; each is a variable in re/ram.toml (`scene_dive_panel_*`,
+  `scene_dive_trail_*`, `scene_dive_light_*`), as are the bands of fog the
+  setup makes, the trail's circle and window, the panel's lights' list and
+  the pictures they take, and the Epoch's frames of animation as it leaves
+  (a table of records from its first frame, which the port steps through by
+  index; the program's pointer into it is decoded in one place).
+- **The frame's task lists are copied whole** by a block move from the
+  program (`$7E:7ED1`, `$7E:7EE8`), which the analysis didn't follow, so it
+  knew no caller of the tasks they hold and liveness took every register as
+  read after them. tools/disasm/derive.py now reads a block move into a task
+  list from the program's own image as the tasks it holds.
+
+Where the original's carry moves a pixel, a named function keeps it: the
+trail's left edge (`trail_edge`, a pixel further right on each line after one
+whose edge is on the screen while the Epoch is left of the screen's edge),
+and the shell's wrap a pixel short where it passes its start
+(`round_the_shell`). The guards refuse the states where a borrow or a carry
+the game never makes would change the sum (the shell passing more than 32767
+pixels round, a panel above line 167, the Epoch's point above its picture's
+reach), so the rest is written plainly.
+
+**The program's stirred draw** (`$7E:3443`, `$C3:02DD`) is a registered entry
+too, for the code that still calls it with its registers; random.c's stir is
+split at its noise so the palette's form shares it. Two of the program's
+routines moved where scenes share them: the transfer from the scene's call
+cells (`$7E:38C3`, `scene_send_from`, which keeps its parameters in the cells
+plainly: the multiply carries in the byte after its product, where the count
+lies) and the race's buffer clear through the multiplier
+(`scene_clear_buffer`). What the script routines leave in the registers (A,
+and for the dive's Y and the overflow, which the interpreter hands on to the
+sound driver) is a table parallel to each file's routines, which the build
+without the original's effects compiles out. Where the scenes repeated one
+another, one operation now serves them: a bitmap handed to the scaler
+(`scene_scaler_start`, the dive's, the endings' and the race's), the loop over
+a picture's tiles (`scene_expand_tiles`, the title's two and the endings'),
+the unpacked send in the way a setup chooses (`scene_choose_transfer`,
+`scene_send_unpacked_by`), the way into the scaler's rows (bridge.c), and the
+regrouping routine's writer, which points the work RAM port at the routine's
+place in the program (`scene_matrix_code`) itself rather than taking the
+cursor its caller left (it still writes through the port, as the original
+does: the timing gate reckons a port write and a work RAM write apart).
+
+**Three of the reference play's handbacks outside the dive**, each the
+original's code going on past an entry that stood for the start of it: the
+race's tail (`$7E:4BD2`, 228K instructions), where the ride's own code comes
+to the engine's pitch every frame and the bikes' motion ran as the original
+after it -- the entry is `scene_race_pitch_and_move` now, through the motion
+to the routine's return, beside the ride's port that does the same in C --
+and at every movie's boot the title loader's loop over the plane's tiles
+(`$7E:5E3C`, `scene_expand_the_plane_tiles`, either expansion and its
+stride as the loop's code holds them) and the palette made current
+(`$7E:38AF`). The dive's draws stir in the scene's first call cell, which
+the native shape had read stale (`tools/effects_check.py`'s runs): it has one
+name as the stir reads it (`scene_call_stirred`), random.c lists what leaves
+something there, and those writers go through its one writer
+(`scene_leave_for_the_draws`): the scene scripts' interpreter the routine a
+script calls, the palettes' frame task the word it keeps aside (`$7E:37FA`),
+the dive's lights a warning light's picture and a gauge's place. The 8.8
+divide leaves its dividend there plainly, from C and from its entry alike.
+
+**Numbers.** The shipping mode over the 42 movies is 0.09 M instructions run
+as the original (2.40 M before; the dive 2.31 M to 2,134, the 36 older movies
+0.07 M as they were), the routes 0.06 M (2.37 M before; the Epoch's route
+2.31 M to 2,134). The reference play over the 42 movies is 0.95 M (1.66 M
+before; the 36 older movies 1.19 M to 0.89 M, of it the race's tail 228 K and
+the title's tiles and palette at boot 82 K; the dive 0.41 M to 9,507, most of that its script's
+waits for the sound CPU, which the shipping mode runs as an idle entry). What
+the reference play still counts is mostly code no port stands for in the
+menus, the field and `$FF` (0.50 M) and the attract demo's race set up inside a
+stretch whose comparison is set aside (`$7E:3ECD`-`$7E:3F13`, 0.13 M; the
+shipping mode runs it as C). Burndown: 257.3 KiB of 266.5 KiB to 258.8 KiB of
+266.7 KiB (the analysis found 0.2 KiB more of the dive once it read the task
+lists' block moves).
+
+Shadow over the 42 movies 0 mismatching: the dive's 25 entries compare in
+`events-epoch-lavos` (its frame routine's 362,203 passes, 241 interrupted,
+and its gathering's 847, 201 interrupted, where the scaler's rows run across
+frames; the tasks' 2,717 perspective checks, 1,098 shakes and panel
+follows, 737 flickers, 521 and 1,098 passes of the shell, 204 Epochs drawn,
+185 trails; the setup inside the program's start, to its end), the stir's
+entries 2,950 and 2,948 (the rest inside the stars' and the curtain's latch
+waits), the race's tail 4,363, the tile loop 46 and the palette 59. Fuzz 0
+mismatching on every new entry (tools/fuzz_routines.toml, seed 1; two new
+states, `dive_leaving` and `dive_breaking_through`): 0/300 the setup, 0 on
+each task over 61 to 2000 states each compared (the rest the guards': the
+list's carry, a place far round the shell), the stir 0/3000 in both forms.
+Paths no movie reaches and only fuzzing checks: the Epoch's frame table
+going back to its first frame, the light's table once the fog has reached
+its brightest, a 16-bit entry into the tile loop (refused: the original's
+first expansion then runs 16-bit). Misses: only the dive's two step
+instructions the program rewrites into the perspective's loop
+(`$7E:3634`, run interpreted in `--generated only`), as before; px-check
+identical over `events-epoch-lavos`, `events-jetbike-race` and `title-start`.
+Timing: the new entries and five that drifted calibrated (`--drifted`, over
+the 42 movies; `scene_program_start` 4441 to 15362 now that the dive's setup
+runs as C inside its stretch), no new exception; after the review's fixes
+`scene_scale_the_epoch`, `scene_send_the_epoch` (the picture's mark a byte),
+`scene_flicker_the_lights` (the gauge left as a byte) and
+`scene_race_place_bikes` (the 8.8 divide leaving its dividend) again. Gate:
+suite OK.

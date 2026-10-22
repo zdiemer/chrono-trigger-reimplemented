@@ -5,8 +5,9 @@
  * left side, three rows at a time. A row is the member's face, name, level
  * and figures, drawn by a window command list from the member's record, which
  * the menus first copy where the status windows draw from (a member's
- * loading); a member whose HP is down to a tenth of its greatest has it drawn
- * marked. The row the cursor is on keeps its colours and the others are
+ * loading); a member whose HP is down to a tenth of the HP its restoring stops
+ * at has it drawn marked, against a mark each character's is worked out to as
+ * the menus open and after the equipment screen changes what a member wears. The row the cursor is on keeps its colours and the others are
  * dimmed. With more members than three the list scrolls, and a scroll bar
  * beside it shows how far (menu/equipment.c slides it).
  *
@@ -115,6 +116,57 @@ MemberListSlide menu_member_slide_for_push(const GameState *g, uint8_t scroll, b
     if (menu_pushed(g, MENU_PUSHED_DOWN))
         return one_past_the_rows ? MEMBERS_SLIDE_DOWN : NO_MEMBER_SLIDE;
     return (int8_t)(scroll - 1) < 0 ? NO_MEMBER_SLIDE : MEMBERS_SLIDE_UP;
+}
+
+/* ---- The low-HP marks ---------------------------------------------------------------------------- */
+
+/* A member's HP shows in the low HP's colour once it is down to a tenth of
+ * the HP its restoring stops at (menu_note_member_face_and_hp). */
+enum { LOW_HP_FRACTION = 10 };
+
+/* For the original's code and shadow mode: the divider as the last mark's
+ * division leaves it. */
+static void leave_the_last_division(GameState *g)
+{
+    hw_set_dividend(g, character_records_hp_cap(g, CHARACTERS - 1));
+    hw_divide_by(g, LOW_HP_FRACTION);
+}
+
+// $C2:813C
+void menu_work_out_low_hp_marks(GameState *g)
+{
+    for (unsigned character = 0; character < CHARACTERS; character++)
+        set_menu_low_hp_marks(g, character, (uint16_t)(character_records_hp_cap(g, character) / LOW_HP_FRACTION));
+    ORIGINAL_EFFECT(leave_the_last_division(g));
+}
+
+/* What its loop leaves: the last mark in A, the record past the last in X and
+ * the last mark's place in Y. */
+static void leave_the_marks_worked_out(Snes *s)
+{
+    enum { PAST_THE_RECORDS = CHARACTERS * RAM_CHARACTER_RECORDS_STRIDE, LAST_MARK_PLACE = 2 * CHARACTERS };
+    s->cpu.a = menu_low_hp_marks(state_of(s), CHARACTERS - 1);
+    s->cpu.x = PAST_THE_RECORDS;
+    s->cpu.y = LAST_MARK_PLACE;
+}
+
+void menu_work_out_low_hp_marks_entry(Snes *s)
+{
+    menu_work_out_low_hp_marks(state_of(s));
+    ORIGINAL_EFFECT(leave_the_marks_worked_out(s));
+    m_rts(s);
+}
+
+/* The original walks the records from the menus' zero word, which their
+ * opening clears, on the menus' page with the data bank on work RAM's. */
+bool menu_low_hp_marks_are_workable(Snes *s)
+{
+    if (!menu_on_page_work_ram(s))
+        return false;
+    vars_peek(true);
+    bool ok = menu_zero(state_of(s)) == 0;
+    vars_peek(false);
+    return ok;
 }
 
 /* ---- The list's rows ----------------------------------------------------------------------------- */

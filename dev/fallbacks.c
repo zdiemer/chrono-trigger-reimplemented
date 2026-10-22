@@ -73,6 +73,7 @@ typedef struct Pass {
 
 struct Fallbacks {
     Snes *s;
+    const NativeRuntime *rt;    /* the runtime observed */
     Frame frames[MAX_FRAMES];
     int depth;                  /* frames[0] is the base */
     Frame eff;                  /* what the latest instruction was counted as */
@@ -561,16 +562,29 @@ static void on_stopped(void *ctx, Snes *s, const NativeEntry *e, uint16_t entry_
     count_event(f, EV_HANDBACK, e, pc);
 }
 
+/* SHADOW: an extent that is a comparison's own, of one the runtime still
+ * makes. */
+static bool still_compared(const Fallbacks *f, const Frame *frame)
+{
+    return f->shadow && frame->kind == COVERED && frame->name && f->rt && native_compares(f->rt, frame->port);
+}
+
 /* A hand port takes over: extents begun at its level or below it are over
  * (the original's code went on to it without returning). In SHADOW mode what
  * the original runs from here is the port's, until it calls out, stops or
- * finishes. */
-static void take_over(Fallbacks *f, uint16_t sp)
+ * finishes. Where `nested` is set an enclosing comparison's own extent stays,
+ * if the runtime still makes the comparison: an entry the original reaches
+ * inside a port's stretch at the port's own S (a registered address on the
+ * routine's path, the field's pass going on from a step) is compared nested
+ * in it, and once it is set aside the enclosing comparison goes on covering
+ * what the original runs, until the runtime says it is over. */
+static void take_over(Fallbacks *f, uint16_t sp, bool nested)
 {
     f->pass.open = false;
     leave_finished(f, sp);
     int kept = handler_away(f, sp);
-    while (f->depth > kept && !f->frames[f->depth - 1].held && f->frames[f->depth - 1].start <= sp)
+    while (f->depth > kept && !f->frames[f->depth - 1].held && f->frames[f->depth - 1].start <= sp &&
+           !(nested && still_compared(f, &f->frames[f->depth - 1])))
         f->depth--;
     f->pending = false;
     f->pending_rti = false;
@@ -580,7 +594,7 @@ static void on_entered(void *ctx, Snes *s, const NativeEntry *e)
 {
     Fallbacks *f = ctx;
     uint16_t sp = s->cpu.s;
-    take_over(f, sp);
+    take_over(f, sp, true);
     if (f->shadow)
         enter(f, (Frame){ .kind = COVERED, .held = e->interrupt, .routine = cpu_pc24(&s->cpu), .port = e->addr,
                           .floor = sp, .name = e->name });
@@ -614,7 +628,7 @@ static void on_resumed(void *ctx, Snes *s, const NativeEntry *e, uint16_t entry_
         if (f->frames[i].kind == COVERED && f->frames[i].port == e->addr && f->frames[i].name)
             return;   /* its stretch is still there */
     uint16_t level = f->after_a_call && sp == f->callee_s ? f->last_s : sp;
-    take_over(f, sp);
+    take_over(f, sp, false);
     if (f->shadow)
         enter(f, (Frame){ .kind = COVERED, .routine = e->addr, .port = e->addr, .floor = entry_s, .start = level,
                           .name = e->name });
@@ -666,6 +680,7 @@ static void on_returned_from_interrupt(void *ctx, Snes *s, const NativeEntry *e)
 void fallbacks_attach(Fallbacks *f, NativeRuntime *rt, bool shadow)
 {
     f->shadow = shadow;
+    f->rt = rt;
     NativeObserver o = { .ctx = f, .refused = on_refused, .skipped = on_skipped, .called_out = on_called_out,
                          .stopped = on_stopped, .entered = on_entered,
                          .returned_from_interrupt = on_returned_from_interrupt, .idle = on_idle,

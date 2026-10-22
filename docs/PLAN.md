@@ -225,7 +225,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 307 files, 117 of 95,610 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 309 files, 117 of 96,541 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -301,9 +301,9 @@ battlefield put back and the messages (history/reimplementation-chunks.md,
 script runner's hand-back for a byte past the language's last command
 (`$CD:165F`, which no script has), the wait for a line of the picture
 (`$CD:3B82`, the timing service's `tm_wait_line` already) and script command
-`$C1`'s jump to it (`$CD:1D93`, in no movie), a battle lost on the screen
-effects' battlefield (`$CD:0D93`, `$CD:0DA2`, which no movie reaches), and the
-jump stubs `$CD:0000`, `$CD:0012` and `$CD:0039`. The fallback measure still
+`$C1`'s jump to it (`$CD:1D93`, in no movie), and the jump stub `$CD:0012`
+(the battle lost on the screen effects' battlefield, `$CD:0D93`, and the stubs
+`$CD:0000` and `$CD:0039` are ports now, which strict mode met). The fallback measure still
 counts the frame work's code the timers' dispatcher reaches (above, "The
 order now").
 
@@ -513,14 +513,17 @@ tasks, with the program's sine and signed multiply as entries (history file, "Ph
 the shipping mode's fallbacks, chunk 4"), and the Mode 7 picture's tiles'
 expansion (history/reimplementation-chunks.md "Phase 4a, the shipping mode's fallbacks,
 chunk 5"), and the swept window's rider's sprite list (history/reimplementation-chunks.md,
-"Phase 4a, the shipping mode's fallbacks, chunk 6"). **Next**, by what the
-library reaches: the program's first script step's tail after the sequence
-interpreter's wait for the music (`$7E:3749`, `$C3:0C28`). The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and
-`$7E:8A01`-`$7E:8B51` no movie reaches. The attract sequence's two scenes (modes 1 and 3) are ports (REIMPLEMENTATION.md,
+"Phase 4a, the shipping mode's fallbacks, chunk 6"). So are the channels'
+scripts going on after the sequence interpreter's wait for the music
+(`$7E:3753`, `$7E:375E`, `$C3:0C28`) and the planet seen from space as the
+game is lost or ends (modes 7 and 8; REIMPLEMENTATION.md, "Phase 4a, the
+shipping mode's fallbacks, chunk 11"), as are Lavos falling and the Epoch's
+dive (modes 4 and 6; history file, chunks 9 and 10). The attract sequence's two scenes (modes 1 and 3) are ports (REIMPLEMENTATION.md,
 "Phase 4a, the native frame: the attract sequence's pages of credits and the
-palace rising"). The program's other scenes (modes 4-8, whose routines lie
-around the title's between `$7E:53BB` and `$7E:7FC3`) wait for a movie that
-reaches them: none does, so a port there would rest on fuzzing alone.
+palace rising"). **Next**, by what the library reaches: the program's first
+script step (`$7E:3749`), still run as the original inside comparisons. The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and
+`$7E:8A01`-`$7E:8B51` no movie reaches, so a port there would rest on fuzzing
+alone.
 
 **What `$FD` has left** after wave 1 (docs/history/reimplementation-waves.md, "Phase 3,
 wave 1: bank `$FD`"), the time warp (`game/warp/`) and the location's
@@ -551,25 +554,22 @@ by an audit; the fourth is the program itself.
   already makes the sound from the voices with no S-DSP.
 - **The native frame.** The power-on path and the interrupts' entries are
   hand ports (`core/console.c`; history/reimplementation-chunks.md, "Phase 3, field and events: the
-  console's start and the field's frame"), and so are the field's first start
-  and main loop, and the scene program's start and the title from its setup
-  to its end: `ct_play --generated off --interpreted stop` (PLAYING.md) runs
-  the field's first start, the program's start into the title, the title's
-  frames and its scripts' routines, the music fading out and the screen going
-  dark, the scene's end into the menus' attract scene and its curtain, the
-  attract sequence's pages of credits and its field scenes, the change of
-  place an event makes at once between them, and into the attract's battle,
-  to frame 3779, and stops at `$CD:0000`, the jump stub the battle's start
-  (`battle/from_field.c`) reaches the battle screen's setup through
-  (`$CD:0039`, then the port at `$D1:F1B0`; REIMPLEMENTATION.md, "Phase 4a,
-  timing: the battle frame work's remainders, chunk 2"). Over 3,000 frames
-  from power-on `--interpreted log` lists nothing; over 20,000 nothing in the
-  scene program, the field or bank `$FD`, and 204 addresses (from 513): the
-  battle's as the attract's battle plays them (`$C1`, 195, most of them the
-  party's poses `$C1:35DD`-`$C1:3713` the setup ends with, which are C now
-  and await a new count, and its jump stubs at `$C1:0003`-`$C1:0058`), and
-  the stubs `$C0:0002`, `$CC:F062`, `$CD:0000`, `$CD:0003` and `$CD:0039`.
-  Next: the stubs, then on to the load screen and a new game.
+  console's start and the field's frame"), and so is everything the library's
+  48 movies run: `ct_dev --native on --generated off --no-interpreter strict
+  --sound-driver c`, the hand ports and the C sound driver with no code
+  generated from the ROM and no interpreter, carries every movie to its end,
+  and `tools/strict_check.py --check` holds it there (PLAYING.md, "Without the
+  interpreter"; REIMPLEMENTATION.md, "Phase 4a, the shipping mode's fallbacks,
+  chunk 11"). What closed the last gaps were the joints between ports: the
+  jump stubs the banks are entered through, the waits a routine makes by
+  jumping into a task switch, and the places the original's code comes back
+  to after a stretch that is no longer one on the machine. The library is the
+  limit now, not the ports: what no movie reaches (docs/movies-wanted.md) is
+  where the hand ports alone stop, and the next movies are what extends this.
+  Next: step 3 of "The native program" below, the skeleton, since C now covers
+  whole plays, and the fallbacks the reference play still counts (the
+  fallback measure, REIMPLEMENTATION.md), which are the original's code run
+  inside comparisons where the ports' C would run in the product.
 
   **Timing** (PLATFORM.md, "Timing without a beam, as built"): the calls and
   their host backend are built, the field's budgets, the menus' task switch

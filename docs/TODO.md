@@ -105,6 +105,43 @@ rest waits, is [PLAN.md](PLAN.md).
   chunk 9; docs/ports.tsv records 0 for these entries from when they were
   ported, so something since moved it. Find the state the movies never make
   or the port's divergence.
+- **What the hand ports alone left** (REIMPLEMENTATION.md, "Phase 4a, the
+  shipping mode's fallbacks, chunk 11"):
+  - Entries no movie's shadow run compares, checked by fuzzing alone: the
+    defeat on the screen effects' battlefield (`$CD:0D93`, fuzzed only up to
+    the music's fade, its first call), the planet's count down to the reset
+    (`$7E:63F5`) and its fade out (`$7E:6403`), the warp's long trip
+    (`$FD:DA00`, `$FD:DA03`) and the world map scene's note of the Epoch's
+    arrival (`$C6:EE31`). Strict mode's own timing reached them; a movie that
+    plays them would compare them.
+  - Entries that run nested inside another port's stretch and are compared
+    only through it (tools/uncompared_baseline.txt): the field frame's
+    continuations (`$C0:00A4`-`$C0:00B7`), the battle's setup (`$C1:0023`, its
+    calls interrupted), its screen's setup for the field (`$CD:0000`) and the
+    planet's setup (`$7E:6248`, one call, inside the scene's first frame).
+  - The scene scripts' interpreter differs from the original in about one
+    random state in 17,500, in a channel's word register (`scene_run_sequence`
+    at seeds 2 and 3, its continuation after a wait, `$C3:0C28`, at seed 1;
+    tools/fuzz_routines.toml): a command reached only from a random script
+    place. Find the command.
+  - Two entries that are a lone return: `$7E:3753`
+    (`scene_channel_script_comes_back`, the program's RTS back to a script
+    step's caller) and `$C3:0B02` (`scene_sequence_returns`, the scene
+    interpreter's RTL). A channel's turn that waited for the music goes on
+    frames later from `$C3:0C28` and comes back through them, so its way back
+    is the return addresses the original left on the stack (review-port item
+    85): acceptable in a bridge, but the control flow is still the original's
+    call stack. They go when a channel's wait is C state the interpreter's own
+    loop resumes, as the field pass's steps are a C table
+    (`field/main_loop.c`).
+  - An object's script started over (`$C0:597D`) reads the script past what
+    the map declares on random states (`accessor out of range` in fuzzing,
+    `event_script`): its guard doesn't bound where the object's first
+    function starts.
+- **The menus' `$C2:5DC4`** (21,444 of the reference play's instructions over
+  the 48 movies, no port; tools/fallback_baseline.txt): the largest of the
+  menus' code the original still runs inside the menus' comparisons, after
+  the scene program's arrangers (above). Find what it does and port it.
 - **The tech sweep's fight never ends in the native shape.** The route
   (`tools/movies/routes/tech_sweep.py`, zophar chrono-trigger slot 1, the Lavos
   Core) reaches its outcome in the shipping mode, but `ct_drive_native_shape`
@@ -149,6 +186,11 @@ rest waits, is [PLAN.md](PLAN.md).
     window's edges and the screen's motion, a column off where the bit spills;
   - `game/menu/epoch.c`'s `on_the_screen`: y from the subtraction's no-borrow;
   - `game/field/line_effects.c`'s `fill_wave_scroll`.
+  Found but not yet decided (not on item 12's list; ask the owner):
+  `game/overworld/setup.c`'s `character_tiles`, whose doubled byte's top bit
+  is added back in as the original's rotate carries it, so an empty place's
+  byte (top bit set) reaches round the bank (found by chunk 11's review; it
+  was on main before that chunk).
   The follow-up for each is item 12's own form: work out positions in plain
   arithmetic and put the spilled bit in one named function per file that says
   what the player sees (the off-by-one it causes), so the chain leaves the
@@ -216,28 +258,22 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What battle's rewrite left** (history/reimplementation-phase3a.md, "Phase 3a: the battle off the
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
-  - The original's routines the battle still calls out to: one of the
-    battle's ten steps' routines (`$C1:0023`; the dispatch
-    `$C1:0003` is `battle/steps.c`) and the rewards' gold `$C1:D0A2`;
+  - The original's routines the battle still calls out to: the rewards' gold
+    `$C1:D0A2` (and the set-up step, `$C1:0023`, a port now, is still called
+    through the dispatch's call-out, `battle/steps.c`, rather than as C:
+    run as C under the dispatch's frame, its waits broke the call chain);
     from an enemy's turn (history/reimplementation-waves.md,
     "Phase 3, wave 2: the enemies' minds"), an enemy's
-    coming in `$FD:B438`, the calling in
-    `$FD:A990` and the action's showing
-    `$C1:BFA4`/`$C1:EC7F`; what an effect's working out turns away to the
+    coming in `$FD:B438` and the calling in
+    `$FD:A990`; what an effect's working out turns away to the
     original (history/reimplementation-chunks.md, "Phase 3, battle chunk 4: the party's working
     out"): a hit that steals as well (no record has one); the effect's start a status's timer asks for
     (`$C1:EC7F`); the
     pose's setup `$C1:308C`, and an animation that names no movement
     (`$C1:3760`'s table past its nine rows, no animation the battle gives);
-    the decompressor from the effect graphics loader; from a member that comes back once (history/reimplementation-chunks.md, "Phase 3,
-    battle: the leftovers"), the showing's step `$C1:BFA4`/`$C1:EC7F`; from
-    the battle's start, the battle screen's setup `$CD:0000` (`$D1:F1B0`),
-    the wait tail's callee from the frame
-    work, an effect's graphics
-    loaded `$D1:ECF3`; and from the battle's close, a battle lost on the screen
-    effects' battlefield (`$CD:0D93`, which no movie reaches). The battle
-    screen's setup is reached through its jump stub (`$CD:0000` to `$CD:0039`),
-    where the strict native run stops now (PLAN.md, "The native frame").
+    the decompressor from the effect graphics loader; and from the battle's
+    start, the wait tail's callee from the frame work and an effect's graphics
+    loaded `$D1:ECF3`.
   - What the screen script's rows still turn away to the original
     (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"), none of it a
     call the library makes: the drift `$D7` where its amount's high byte,
@@ -355,11 +391,14 @@ rest waits, is [PLAN.md](PLAN.md).
     others on the other targets' channel, whose loop takes its place in the
     list from the overlap test's answer, are left to the original too (no
     movie reaches them). The jumps to the script's point (`$99`, `$9B`, `$9D`)
-    run as C, lifting by `POINT_JUMP_LIFT`, only while `$90`
-    (`battle_jump_lift`), a work cell the original shares, holds the 6 the
-    animation slots' loop leaves there each frame; a jump given its own lift or
-    a walk's search earlier in the frame overwrites it, and the original's jump
-    then lifts by that (no movie has one). The throw's last step `$C1:7364` is
+    lift by whatever `$90` (`battle_jump_lift`) holds, a work cell the
+    original shares: most often the 6 the animation slots' loop leaves there
+    each frame, but the last jump's own lift, an area search's side, the tech
+    list's last tech, a blink's place in the list or a walk's way back when one
+    ran since (Spekkio's fight in `battle-tech-sweep-spekkio` reaches it). Every
+    writer leaves it plainly through `battle_leave_jump_lift` (`battle/battle.h`);
+    what the lift should be in game terms, once the storage leaves the RAM
+    image, is open. The throw's last step `$C1:7364` is
     entered by `$D4`'s handler once its wait runs out (`$C1:734F`); where the
     original runs `$D4` its guard turns that entry away too (180 calls in the
     library). Each wants deciding in game terms before the storage leaves the
@@ -1848,6 +1887,19 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Matching disassembly
 
+- **The `matching` target fails its closure check C2** (on main since chunk
+  10 too, with or without coverage files): the frame list's call through its
+  tasks (`$7E:3998`, `JSR ($0950,X)`) has among the targets the sequence
+  scripts derive (`seqscript.tasks_0920`, re/hints.toml) a task at `$7E:F820`,
+  which no RAM section holds, so its context never returns and the call goes
+  on with assumed widths ("call at 7E:399B"; the loop's PLP puts the widths
+  back, so nothing is mis-decoded). Find the script command whose operand that
+  is: a section for the code loaded there, or the operand shown to be data.
+  With the Epoch's dive's coverage files in the build it also reports
+  `$7E:3662` executed but not reached statically (the dive rewrites the
+  program's `$7E:3634` loop), which wants a patch of the program's image
+  (re/hints.toml; docs/DISASSEMBLY.md). `cmake --build` stops at it; build
+  with `-- -k 0`, or name the targets.
 - **MD2 leftovers** (MATCHING.md, "MD2 as built"): `$F6:24B1-7FFF` and other
   gaps (42590 census-unknown bytes), plus 228.3 KiB still typed `mixed`.
   The D0 graphics pool, CF 2bpp graphics, E4 sprite records and E5 exit lists
@@ -2437,10 +2489,6 @@ re-runs the census.
     the data bank `$00` and A `$0100` on the machine for the driver's calls,
     which read A's high byte; they go when the driver's command entry is
     called as C.
-  - The strict native run stops at the jump stubs into the battle screen's
-    setup (`$CD:0000`, `$CD:0039`; `battle/from_field.c` calls them), and
-    then meets `$CD:0003`, `$C0:0002` and `$CC:F062` and the battle's stubs
-    at `$C1:0003`-`$C1:0058` (PLAN.md, "The native frame").
   - What its review left (none blocking after its fixes):
     `battle_wait_music_fade_loop` (`battle/sound.c`) sets the PC by hand, a
     stop-point fragment of `$CD:0D93`'s loop (rubric item 16: port the

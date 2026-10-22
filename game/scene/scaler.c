@@ -15,13 +15,15 @@
  * port draws a row per call and stops at the row loop's head ($C3:0309, an
  * entry of its own): each row is compared on its own.
  *
- * The original never clears the carry between its sums, and two of them move
+ * The original never clears the carry between its sums, and three of them move
  * what the player sees: a row's samples start 1/256 of a pixel further on when
- * its source row lies further along the bitmap than the last row's
- * (sample_nudge), and a row's source is picked 1/128 of a row further on when
- * the call before left the carry set (the entry's `row_nudge`). The rest of its
- * carries come from sums that wrap past the end of the bank, which no scene's
- * bitmap reaches, and the entry's guard hands such bitmaps to the original. */
+ * its source row lies further along the bitmap than the last row's, a sample
+ * whose position wrapped past the row's 256th pixel moves those after it on by
+ * 1/256 (group_positions), and a row's source is picked 1/128
+ * of a row further on when the call before left the carry set (the entry's
+ * `row_nudge`). The rest of its carries come from sums that wrap past the end
+ * of the bank, which no scene's bitmap reaches, and the entry's guard hands
+ * such bitmaps to the original. */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -31,11 +33,14 @@
 #include "vars.h"
 #include "wram.h"
 
-enum { ROW_BYTES = 0x20, PLANES = 4, GROUP = 8, GROUPS_PER_PAIR = 2, SAMPLES_PER_PAIR = GROUP * GROUPS_PER_PAIR };
+enum { ROW_BYTES = 0x20, PLANES = 4, GROUP = 8, GROUPS_PER_PAIR = 2 };
 /* The positions are fixed point: a sample's along its row in 1/256ths of a
  * pixel, a row's down the bitmap in 1/128ths of a row, whose source is $40
  * bytes. */
 enum { PIXEL_UNITS = 256, ROW_UNITS = 128, SOURCE_ROW_BYTES = 0x40 };
+/* What the original's 16-bit sums hold, positions along a row or bytes in the
+ * bank. */
+enum { POSITIONS = 0x10000 };
 
 /* The row loop's head, where the port stops after each row. */
 enum { ROW_LOOP = 0xC30309 };
@@ -67,11 +72,6 @@ void scene_scaler_start(GameState *g, SceneScaling bitmap)
 
 /* ---- Sampling ---------------------------------------------------------------------------------- */
 
-/* A row's samples start 1/256 of a pixel further on when its source row lies
- * further along the bitmap than the last one's (the original's comparison of
- * the two carries into the first step). */
-static uint16_t sample_nudge(bool row_moved_on) { return row_moved_on ? 1 : 0; }
-
 /* The pixel at `position` (in PIXEL_UNITS) along the source row at `source`. */
 static uint8_t pixel(const GameState *g, uint16_t source, uint16_t position)
 {
@@ -102,22 +102,43 @@ static void leave_samples(GameState *g, const uint8_t pixels[GROUP], uint8_t las
     set_scene_scaler_pair_counter(g, 0);
 }
 
+/* Where a group of eight samples falls along its source row, each a step on
+ * from the last (in PIXEL_UNITS), the first from `last`. A bitmap stretched so
+ * wide that its samples run past the row's 256th pixel wraps back to the row's
+ * start, and the original's add takes the bit that spilled from that sum into
+ * the next: every wrap moves the samples after it on by 1/256 of a pixel, which
+ * the player sees where it carries one of them onto the next source pixel. The
+ * bit goes no further than the group, whose packing clears it. `moved_on` moves
+ * the first sample on by 1/256 too (the row's first group: see the top of the
+ * file). Returns the last sample's position. */
+static uint16_t group_positions(uint16_t last, uint16_t step, bool moved_on, uint16_t positions[GROUP])
+{
+    for (unsigned i = 0; i < GROUP; i++) {
+        uint32_t sum = (uint32_t)last + step + (moved_on ? 1 : 0);
+        last = positions[i] = (uint16_t)sum;
+        moved_on = sum >= POSITIONS;
+    }
+    return last;
+}
+
 /* One output row sampled from the source row at `source`, into the graphics at
- * the plane pointer. */
+ * the plane pointer, a group of eight samples at a time. The first sample is
+ * moved on where the row's source lies further along the bitmap than the last
+ * row's (the original's comparison of the two). */
 static void sample_row(GameState *g, uint16_t source, bool row_moved_on)
 {
-    uint16_t step = scene_scaler_column_step(g), nudge = sample_nudge(row_moved_on);
+    uint16_t step = scene_scaler_column_step(g);
     uint16_t planes = scene_scaler_plane_output(g);
-    uint32_t samples = (uint32_t)scene_scaler_pairs(g) * SAMPLES_PER_PAIR;
+    uint32_t groups = (uint32_t)scene_scaler_pairs(g) * GROUPS_PER_PAIR;
     uint8_t pixels[GROUP] = { 0 };
     uint16_t position = 0;
-    for (uint32_t k = 0; k < samples; k++) {
-        position = (uint16_t)((k + 1) * step + nudge);
-        pixels[k % GROUP] = pixel(g, source, position);
-        if (k % GROUP == GROUP - 1) {
-            pack_planes(g, planes, pixels);
-            planes = (uint16_t)(planes + PLANES);
-        }
+    for (uint32_t group = 0; group < groups; group++) {
+        uint16_t positions[GROUP];
+        position = group_positions(position, step, group == 0 && row_moved_on, positions);
+        for (unsigned i = 0; i < GROUP; i++)
+            pixels[i] = pixel(g, source, positions[i]);
+        pack_planes(g, planes, pixels);
+        planes = (uint16_t)(planes + PLANES);
     }
     ORIGINAL_EFFECT(leave_samples(g, pixels, wram_read8(g, in_scaler_bank(source, (uint16_t)(position / PIXEL_UNITS + 1)))));
 }
@@ -194,14 +215,13 @@ static RowOutcome scale_row(GameState *g, bool row_nudge)
 
 /* ---- Entries: 16-bit A and index registers, on the scene's page, bank $7F ------------------- */
 
-/* The bitmaps the port draws: in the scaler's bank, with no sum of the row's
- * wrapping past the end of the bank -- neither a sample's position along its
- * source row nor the plane pointer -- and the source's samples in the bank, and
- * a source limit a row's position can be compared with either way (at most
- * $8000; the original compares by the sign of the difference). Past those the
- * original's carries reach its samples and its reads its own scratch, and the
- * bitmap is the original's to draw. No scene's reaches them. */
-enum { POSITIONS = 0x10000, LARGEST_LIMIT = 0x8000, SAMPLES_REACH = 0x0101 };
+/* The bitmaps the port draws: in the scaler's bank, with the plane pointer
+ * not wrapping past the end of the bank, the source's samples in the bank,
+ * and a source limit a row's position can be compared with either way (at
+ * most $8000; the original compares by the sign of the difference). Past
+ * those the original's carries reach its plane pointer and its reads its own
+ * scratch, and the bitmap is the original's to draw. No scene's reaches them. */
+enum { LARGEST_LIMIT = 0x8000, SAMPLES_REACH = 0x0101 };
 
 bool scene_scaler_in_its_bank(Snes *s)
 {
@@ -210,15 +230,13 @@ bool scene_scaler_in_its_bank(Snes *s)
     vars_peek(true);
     GameState *g = state_of(s);
     uint32_t pairs = scene_scaler_pairs(g) ? scene_scaler_pairs(g) : 0x10000u;
-    uint32_t step = scene_scaler_column_step(g);
     uint32_t planes = scene_scaler_plane_output(g);
     uint32_t base = scene_scaler_source_base(g), limit = scene_scaler_source_limit(g);
     vars_peek(false);
-    bool positions_fit = pairs * SAMPLES_PER_PAIR * step + 1 < POSITIONS;
     bool planes_fit = planes + pairs * GROUPS_PER_PAIR * PLANES <= POSITIONS;
     bool limit_compares = limit <= LARGEST_LIMIT;
     bool source_in_bank = limit == 0 || base + (limit - 1) + SAMPLES_REACH <= POSITIONS;
-    return positions_fit && planes_fit && limit_compares && source_in_bank;
+    return planes_fit && limit_compares && source_in_bank;
 }
 
 /* The flags the original leaves where the bitmap ends: those of its measure of

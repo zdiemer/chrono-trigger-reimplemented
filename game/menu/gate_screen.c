@@ -9,11 +9,12 @@
  * frame the task turns the swirl (menu_turn_gate_swirl): the layer drifts a
  * pixel right and up every fourth frame, and each of sixteen bands of lines
  * is scrolled across by its place on a wave that moves on a step every frame
- * and back one every fourth, which the screen's per-line effect applies. The
- * rest of the screen's task is still the original's. */
+ * and back one every fourth, which the screen's per-line effect applies. */
 #include "menu/gate_screen.h"
 
+#include "charge.h"
 #include "menu/bridge.h"
+#include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "original_effects.h"
 #include "platform/video.h"
@@ -167,15 +168,15 @@ void menu_turn_gate_swirl_entry(Snes *s)
     m_rtl(s);
 }
 
-/* The screen's frame task ($C2:CECE), added in the menus' task slot $10 by
- * $C2:8249, the original's. The setup is copied with a block move, which
- * leaves the data bank on work RAM's and Y past the state, which the caller
- * reads. */
-enum { GATE_SCREEN_TASK = 0xCECE, GATE_SCREEN_TASK_SLOT = 0x0010 };
+/* The screen's frame task ($C2:CECE), in the menus' third task, the one the
+ * description's typing has on other screens. */
+enum { GATE_SCREEN_TASK = 0xCECE };
 
 // $C2:CE9D
-/* The original keeps its caller's P on the stack round the task's call, and
- * puts it back as it returns. */
+/* The original keeps its caller's P on the stack round the task's start, and
+ * puts it back as it returns. The setup is copied with a block move, which
+ * leaves the data bank on work RAM's and Y past the state, which the caller
+ * reads. */
 void menu_start_gate_screen(Snes *s)
 {
     GameState *g = state_of(s);
@@ -183,15 +184,30 @@ void menu_start_gate_screen(Snes *s)
     const VidBg bg3 = { .map_base = GATE_SCREEN_TILEMAP, .map_w = MAP_TILES, .map_h = MAP_TILES };
     vid_set_bg_map(m_platform(s), PF_AT(0xC2CEA2), VID_BG3, &bg3);
     start_counting(g);
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    s->cpu.a = GATE_SCREEN_TASK;
-    s->cpu.x = GATE_SCREEN_TASK_SLOT;
-    m_jsr_dc(s, 0xC2CEB1, 0xC28249, DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB);
+    menu_set_widths(s, false, false);
+    menu_start_task(g, MENU_DESCRIPTION_TASK, GATE_SCREEN_TASK);
     set_up_gate_screen(g);
     s->cpu.db = MENU_DATA_BANK;
     s->cpu.y = (uint16_t)(RAM_ABS(RAM_MENU_GATE_SCREEN_STATE) + MENU_GATE_SCREEN_STATE_COUNT);
     menu_restore_p(s);
     m_rts(s);
+}
+
+/* The swirl's per-line scroll is the menus' fifth line effect. */
+enum { SWIRL_LINE_EFFECT = 0x10, FRAMES_A_TURN = 2, THE_TASK_S_WAIT = 0xC2CECB };
+
+// $C2:CECE (with $C2:CEC2, its wait)
+/* The screen's task: the swirl turned, its line effect kept on, and two
+ * frames waited, round and round. The original waits with the turn's last
+ * band's scroll in A's high byte. */
+void menu_run_the_gate_screen_task(Snes *s)
+{
+    GameState *g = state_of(s);
+    TIMED_AS(g, 0xFFF716, menu_turn_gate_swirl(g));
+    menu_set_widths(s, true, m_x8(s));   /* the turn keeps the index registers' width */
+    set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | SWIRL_LINE_EFFECT));
+    s->cpu.a = (uint16_t)(menu_gate_swirl(g, BANDS - 1) & 0xFF00);
+    menu_wait_frames_in_the_task_loop(s, THE_TASK_S_WAIT, FRAMES_A_TURN, true);
 }
 
 /* The screen's routines run on the menus' page with the data bank on work

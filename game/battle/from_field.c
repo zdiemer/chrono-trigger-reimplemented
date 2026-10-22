@@ -203,7 +203,7 @@ static void on_the_battle(Snes *s)
     s->cpu.db = BATTLE_DATA_BANK;
 }
 
-/* The battle's screen is set up ($CD:0000), the original's still; and the
+/* The battle's screen is set up ($CD:0000, battle/opening.c); and the
  * main loop starts the battle ($C1:8000). */
 enum { SET_UP_SCREEN = 0xCD0000, MAIN_LOOP = 0xC18000, READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS };
 
@@ -216,7 +216,7 @@ void battle_start_from_field(Snes *s)
     before_the_screen(g);
     s->cpu.a = 0;
     s->cpu.x = 0;
-    if (!battle_call_long(s, 0xCFFB8E, SET_UP_SCREEN, READS_NOTHING))
+    if (!battle_run_long_dc(s, 0xCFFB8E, SET_UP_SCREEN, READS_NOTHING, battle_set_the_screen_up_for_the_field))
         return;
     take_in_the_fight(g);
     m_stop_at(s, MAIN_LOOP, READS_NOTHING);

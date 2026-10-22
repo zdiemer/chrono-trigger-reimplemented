@@ -38,6 +38,21 @@ void overworld_mark_sound_sending(GameState *g, bool sending)
     set_menu_sound_mailbox(g, sending ? MAILBOX_SENDING : MAILBOX_EMPTY);
 }
 
+/* The sound command a request left waiting in the driver's cells, if one
+ * waits, marked as being sent while the caller sends it; and the mailbox
+ * empty again after. */
+bool overworld_take_the_waiting_sound(GameState *g, AudioCommand *waiting)
+{
+    if (!overworld_sound_waits(g))
+        return false;
+    overworld_mark_sound_sending(g, true);
+    *waiting = (AudioCommand){ sound_command(g), sound_command_parameters(g, 0), sound_command_parameters(g, 1),
+                               sound_command_parameters(g, 2), 3 };
+    return true;
+}
+
+void overworld_waiting_sound_sent(GameState *g) { overworld_mark_sound_sending(g, false); }
+
 // $C2:2ED9
 /* Pass the request on to the driver's cells, unless one is being sent, or
  * one waits there that is younger than it (overworld_pass_on_sound_entry

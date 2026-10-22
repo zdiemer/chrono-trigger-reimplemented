@@ -7,8 +7,9 @@
  * (display.c), and then build what every screen draws from: the fonts' and
  * windows' graphics, the three save slots' summaries, the party as the menus
  * list it, the player's settings unpacked into a cell each, the characters'
- * sprites, the items and the characters' figures. The screen itself is picked
- * after (the caller's mode), and the menus' tasks start ($C2:8190).
+ * sprites, the items and the characters' figures, and last each character's
+ * low-HP mark (menu/members.c). The screen itself is picked after (the
+ * caller's mode), and the menus' tasks start ($C2:8190).
  *
  * Several of those are still the original's; the opening is a bridge that
  * calls them, and the ones in C are run as C. */
@@ -20,6 +21,7 @@
 #include "menu/display.h"
 #include "menu/graphics.h"
 #include "menu/items.h"
+#include "menu/members.h"
 #include "menu/save_screen.h"
 #include "menu/sprites.h"
 #include "original_effects.h"
@@ -173,10 +175,11 @@ static void leave_stubs_moved(Snes *s) { s->cpu.a |= 0xFF00; }
  * checks each). */
 enum { SETUP_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 enum { OPENING_ENDS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { LOW_HP_MARKS = 0xC2813C };
 
 // $C2:8096
-/* The opening, up to the characters' figures ($C2:813C), which it runs into
- * and the port stops at. */
+/* The opening, which ends in the characters' low-HP marks ($C2:813C, which
+ * it runs into). */
 static bool open_the_menus(Snes *s)
 {
     GameState *g = state_of(s);
@@ -202,7 +205,12 @@ static bool open_the_menus(Snes *s)
     TIMED_AS(g, 0xC292F4, menu_unpack_settings(g));
     if (!menu_run(s, 0xC28136, 0xC2F3CA, menu_load_record_sprites) || !menu_run(s, 0xC28139, 0xC29875, menu_build_items))
         return false;
-    m_stop_at(s, 0xC2813C, OPENING_ENDS);
+    if (!menu_low_hp_marks_are_workable(s)) {
+        m_stop_at(s, LOW_HP_MARKS, OPENING_ENDS);
+        return false;
+    }
+    TIMED_AS(g, LOW_HP_MARKS, menu_work_out_low_hp_marks(g));
+    m_rts(s);
     return true;
 }
 

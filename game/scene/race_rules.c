@@ -976,7 +976,7 @@ static bool begin_ending(GameState *g)
 
 static void count_down_to_end(GameState *g)
 {
-    set_scene_race_end_wait(g, END_WAIT);
+    set_scene_end_wait(g, END_WAIT);
     set_menu_scene_flag(g, 0);
 }
 
@@ -984,8 +984,8 @@ static void count_down_to_end(GameState *g)
 /* The frames before the scene ends, counted down; at 0 the program is over. */
 static void leave(GameState *g)
 {
-    uint16_t left = (uint16_t)(scene_race_end_wait(g) - 1);
-    set_scene_race_end_wait(g, left);
+    uint16_t left = (uint16_t)(scene_end_wait(g) - 1);
+    set_scene_end_wait(g, left);
     if (left == 0)
         set_scene_program_over(g, marked(scene_program_over(g)));
 }

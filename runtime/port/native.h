@@ -93,6 +93,11 @@ typedef struct NativeEntry {
      * bytes between the two stacks stay compared. docs/PORTING.md, "Interrupt
      * handlers". */
     bool interrupt;
+    /* The bytes of its caller's frame the routine pulls before it goes on (a
+     * list's loop going on where the call it made came back to it, frames
+     * after the call; scene/frame.c). SHADOW mode counts the original as
+     * returned only once S is above them too. */
+    uint8_t pulls;
 } NativeEntry;
 
 /* Where generated code can continue at an instruction that isn't an entry
@@ -346,6 +351,11 @@ void native_flags_restored(Snes *s);
  * the original's does. Frames nest; leave the innermost first. */
 void native_frame_enter(Snes *s, uint16_t bytes);
 void native_frame_leave(Snes *s, uint16_t bytes);
+/* Outside the runtime (ct_fuzz) the bytes of the frames entered and not yet
+ * left are kept here instead, for the tool to leave uncompared as shadow mode
+ * does; it clears the count before each call. */
+extern uint16_t native_frame_dead_direct[];
+extern int native_nframe_dead_direct;
 
 /* For native routines that stop at an instruction of the original rather than
  * returning (setting PC): registers and flags that nothing reads at that point
@@ -428,6 +438,10 @@ const NativeEntry *native_hand_entry_at(Snes *s, uint32_t addr);
 int native_suspended(const NativeRuntime *rt);
 /* Of those, the ones parked in a yield (native_yield_call_dc). */
 int native_parked(const NativeRuntime *rt);
+/* SHADOW: whether the routine registered at `addr` has a comparison under
+ * way: entered and not yet left, or parked in a yield. For an observer that
+ * keeps its own account of the comparisons (dev/fallbacks.c). */
+bool native_compares(const NativeRuntime *rt, uint32_t addr);
 
 /* ON mode: master clocks hand ports have taken and the machine hasn't let pass
  * yet (a port's estimated time is charged after it stops, a scanline at a time;

@@ -100,6 +100,15 @@ static uint16_t function_start(GameState *g, FieldObject object, uint8_t functio
     return object_function_start(g, object, function);
 }
 
+/* An object started over forgets every call it was interrupted in: nothing
+ * to come back to at any level, and itself at the least urgent. */
+void object_forget_its_calls(GameState *g, FieldObject object)
+{
+    for (uint8_t level = 0; level <= LOWEST_LEVEL; level++)
+        set_place(g, place_of(object, level), 0);
+    set_event_object_call_state_level(g, object, LOWEST_LEVEL);
+}
+
 /* ---- Making a call ------------------------------------------------------------------------ */
 
 typedef enum { TAKES_CALLS, REFUSES_CALLS, PASSED_OVER } Answer;

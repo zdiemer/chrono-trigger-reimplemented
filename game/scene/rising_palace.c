@@ -449,23 +449,12 @@ const unsigned scene_palace_task_count = sizeof scene_palace_tasks / sizeof scen
 
 /* ---- Entries ----------------------------------------------------------------------------------- */
 
-/* The scripts' first step ($7E:3749): channel 0's, which runs the first
- * command of channel 1's too. It is called with 16-bit A, under the setup's
- * data bank kept on the stack, and reads Y -- the setup's load of channel
- * 1's script -- and the overflow as the dispatch left it. It comes back with
- * the program's bank as the data bank, which the setup puts back, and the
- * scene's direct page in 8-bit A. */
-enum { FIRST_STEP = 0x7E3749, FIRST_STEP_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
-
+/* The scripts' first step: channel 0's, which runs the first command of
+ * channel 1's too. It reads Y -- the setup's load of channel 1's script -- and
+ * the overflow as the dispatch left it. */
 static void take_the_scripts_first_step(Snes *s)
 {
-    m_push8(s, s->cpu.db);
-    m_set_flag(s, CPU_FLAG_M, false);
-    s->cpu.y = scene_channels_script(state_of(s), PALACE_CHANNEL);
-    m_jsr_dc(s, 0x7E6792, FIRST_STEP, FIRST_STEP_IGNORES);
-    s->cpu.db = m_pull8(s);
-    s->cpu.d = 0x0000;
-    m_set_flag(s, CPU_FLAG_M, true);
+    scene_bridge_first_script_step(s, 0x7E6792, scene_channels_script(state_of(s), PALACE_CHANNEL));
 }
 
 /* Entered with 8-bit A. Back, the direct page is the scene's, the data bank

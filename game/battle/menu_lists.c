@@ -19,6 +19,7 @@
 
 #include <string.h>
 
+#include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/setup_data.h"
@@ -132,7 +133,7 @@ static void leave_tech_list_buffer(GameState *g, uint8_t last_entry, int last_te
         NameTiles name = battle_name_tiles(text);
         battle_leave_name_buffer(g, text, &name);
         battle_leave_work16(g, CELL_ID, (uint8_t)last_tech);
-        battle_leave_work16(g, CELL_ID_TIMES_FOUR, (uint16_t)(4 * last_tech));
+        battle_leave_work8(g, CELL_ID_TIMES_FOUR + 1, (uint8_t)((4 * last_tech) >> 8));
     }
     if (is_tech(last_entry))
         return;
@@ -158,6 +159,10 @@ void battle_lay_out_tech_list(GameState *g)
     }
     ORIGINAL_EFFECT(leave_tech_list_cells(g, start, scroll));
     ORIGINAL_EFFECT(leave_tech_list_buffer(g, entry, last_tech));
+    /* The last tech's id times four stays in the cell a jump to the script's
+     * point takes its lift from (battle.h). */
+    if (last_tech >= 0)
+        battle_leave_jump_lift(g, (uint8_t)(4 * last_tech));
 }
 
 // $C1:0AD3

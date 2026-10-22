@@ -245,28 +245,80 @@ bool field_location_is_a_number(Snes *s)
     return ok;
 }
 
+/* The main loop's pass: its steps in order, each called from its site.
+ * The dialog window's step is reached by a long call. A's high byte and the
+ * overflow pass from each step to the next as the steps leave them. */
+typedef enum {
+    PAUSE_AND_MENUS_STEP, REQUESTS_STEP, WALK_STEP, CONFIRM_STEP, DIALOG_WINDOW_STEP, SCREEN_EFFECT_STEP,
+    SCRIPT_LAYERS_STEP, FRAME_WORK_STEP, PASS_STEPS,
+} PassStep;
+
+static const struct {
+    uint32_t site, routine;
+    uint16_t reads;
+    void (*entry)(Snes *);
+    bool long_call;
+} the_pass[PASS_STEPS] = {
+    [PAUSE_AND_MENUS_STEP] = { 0xC000A1, PAUSE_AND_MENUS, READS_A_HIGH_AND_THE_OVERFLOW, field_pause_and_menus, false },
+    [REQUESTS_STEP] = { 0xC000A4, REQUESTS, READS_A_HIGH_AND_THE_OVERFLOW, field_handle_requests, false },
+    [WALK_STEP] = { 0xC000A7, WALK, READS_NOTHING, field_walk_the_leader, false },
+    [CONFIRM_STEP] = { 0xC000AA, CONFIRM, READS_THE_OVERFLOW, field_press_confirm, false },
+    [DIALOG_WINDOW_STEP] = { 0xC000AD, FIELD_DIALOG_WINDOW_STEP_ENTRY, READS_THE_OVERFLOW, field_dialog_window_step_entry,
+                             true },
+    [SCREEN_EFFECT_STEP] = { 0xC000B1, SCREEN_EFFECT, READS_THE_OVERFLOW, field_move_screen_effect_on, false },
+    [SCRIPT_LAYERS_STEP] = { 0xC000B4, SCRIPT_LAYERS, READS_THE_OVERFLOW, field_do_script_layer_work, false },
+    [FRAME_WORK_STEP] = { 0xC000B7, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, false },
+};
+
+/* The pass from its `first` step on, up to the wait for the next frame. A
+ * step that hands its routine over to the original (a guard refused it, or it
+ * stopped where the original goes on) ends the port's part, and the pass goes
+ * on with the next step from the step's return (field_frame_goes_on). */
+static void run_the_pass_from(Snes *s, PassStep first)
+{
+    BridgeMachine m = page(s);
+    for (PassStep step = first; step < PASS_STEPS; step++) {
+        bool back = the_pass[step].long_call
+                        ? field_run_long(s, the_pass[step].site, the_pass[step].routine, the_pass[step].reads,
+                                         the_pass[step].entry, m)
+                        : field_run_or_hand_over(s, the_pass[step].site, the_pass[step].routine, the_pass[step].reads,
+                                                 the_pass[step].entry, m);
+        if (!back)
+            return;
+    }
+    m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
+}
+
 // $C0:0097
-/* One pass of the main loop, up to the wait for the next frame. A's high byte
- * and the overflow pass from each step to the next as the steps leave them.
- * The pass stops at the wait rather than calling it: the wait spans the
- * frame's end, and a pass still running there would be a native routine held
- * over every frame, which a machine copy can only rebuild by replaying input
- * (ct_drive, docs/MOVIES.md). The wait is an entry of its own, and sets A for
- * the next pass itself. */
+/* One pass of the main loop, up to the wait for the next frame: the frame's
+ * presses taken, then the steps. The pass stops at the wait rather than
+ * calling it: the wait spans the frame's end, and a pass still running there
+ * would be a native routine held over every frame, which a machine copy can
+ * only rebuild by replaying input (ct_drive, docs/MOVIES.md). The wait is an
+ * entry of its own, and sets A for the next pass itself. */
 void field_frame(Snes *s)
 {
     latch_presses(state_of(s));
-    BridgeMachine m = page(s);
-    if (field_run_or_hand_over(s, 0xC000A1, PAUSE_AND_MENUS, READS_A_HIGH_AND_THE_OVERFLOW, field_pause_and_menus, m) &&
-        field_run_or_hand_over(s, 0xC000A4, REQUESTS, READS_A_HIGH_AND_THE_OVERFLOW, field_handle_requests, m) &&
-        field_run_or_hand_over(s, 0xC000A7, WALK, READS_NOTHING, field_walk_the_leader, m) &&
-        field_run_or_hand_over(s, 0xC000AA, CONFIRM, READS_THE_OVERFLOW, field_press_confirm, m) &&
-        field_run_long(s, 0xC000AD, FIELD_DIALOG_WINDOW_STEP_ENTRY, READS_THE_OVERFLOW, field_dialog_window_step_entry, m) &&
-        field_run_or_hand_over(s, 0xC000B1, SCREEN_EFFECT, READS_THE_OVERFLOW, field_move_screen_effect_on, m) &&
-        field_run_or_hand_over(s, 0xC000B4, SCRIPT_LAYERS, READS_THE_OVERFLOW, field_do_script_layer_work, m) &&
-        field_run_or_hand_over(s, 0xC000B7, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, m))
-        m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
+    run_the_pass_from(s, PAUSE_AND_MENUS_STEP);
 }
+
+/* The pass going on after a step whose routine came back to it itself: a
+ * request answered over frames, which ends by jumping to the frame's wait
+ * that returns to the pass, or a step the original ran. */
+// $C0:00A4
+void field_frame_goes_on_with_the_requests(Snes *s) { run_the_pass_from(s, REQUESTS_STEP); }
+// $C0:00A7
+void field_frame_goes_on_with_the_walk(Snes *s) { run_the_pass_from(s, WALK_STEP); }
+// $C0:00AA
+void field_frame_goes_on_with_confirm(Snes *s) { run_the_pass_from(s, CONFIRM_STEP); }
+// $C0:00AD
+void field_frame_goes_on_with_the_dialog_window(Snes *s) { run_the_pass_from(s, DIALOG_WINDOW_STEP); }
+// $C0:00B1
+void field_frame_goes_on_with_the_screen_effect(Snes *s) { run_the_pass_from(s, SCREEN_EFFECT_STEP); }
+// $C0:00B4
+void field_frame_goes_on_with_the_script_layers(Snes *s) { run_the_pass_from(s, SCRIPT_LAYERS_STEP); }
+// $C0:00B7
+void field_frame_goes_on_with_the_frame_work(Snes *s) { run_the_pass_from(s, FRAME_WORK_STEP); }
 
 // $C0:00BA
 /* The main loop's wait for the next frame (field_finish_frame), and once the

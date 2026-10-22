@@ -21,6 +21,14 @@ enum { BATTLE_PARTY_SIZE = 3, BATTLE_ENEMIES = 8, BATTLE_COMBATANTS = BATTLE_PAR
 
 static inline bool battle_slot_is_party(unsigned slot) { return slot < BATTLE_PARTY_SIZE; }
 
+/* How the next jump to the script's point lifts (battle/script_moves.c) is
+ * whatever the battle's shared work cell holds when it starts: the work of
+ * other routines lands there too -- the animation slots' places each frame,
+ * the tech list's last tech, an area search's side, a blink's place in the
+ * other targets' list, a walk's way back -- and the jump lifts by what the
+ * last of them left. Each leaves its value through here, as game state. */
+static inline void battle_leave_jump_lift(GameState *g, uint8_t lift) { set_battle_jump_lift(g, lift); }
+
 /* An enemy marked (in its placement's kind) to stay on the field after the
  * battle: beaten, it stays where it is (battle/beaten_enemies.c), and the
  * field keeps it, taking away an enemy whose kind is left 0

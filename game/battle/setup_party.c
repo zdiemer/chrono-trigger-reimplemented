@@ -290,6 +290,11 @@ static void set_start_frame(GameState *g, unsigned slot, uint8_t frame)
         set_battle_marker_frame_unchecked(g, slot + 1, frame);
 }
 
+uint8_t setup_start_frame(const GameState *g, unsigned slot)
+{
+    return slot + 1 < BATTLE_COMBATANTS ? battle_marker_frame(g, slot + 1) : battle_marker_frame_unchecked(g, slot + 1);
+}
+
 void setup_place_combatant(GameState *g, unsigned slot)
 {
     set_battle_object_x(g, battle_object_of(slot), start_x(g, slot));

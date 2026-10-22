@@ -314,12 +314,14 @@ EventTurnEnd event_run_turn(GameState *g, FieldObject object, const EventRunner 
  * openings' end, the object count doubled, in event_object_end. */
 static void leave_openings_end(GameState *g, uint8_t count) { set_event_object_end(g, (uint16_t)(count * 2)); }
 
-/* An object's opening: its script up to its first zero byte, after which the
- * per-frame turns carry on. */
-static EventTurnEnd run_opening(GameState *g, FieldObject object, const EventRunner *r, uint16_t *stopped_at)
+/* An object's opening is its script's first function. */
+enum { OPENING_FUNCTION = 0 };
+
+/* An object's script run from `at` up to its first zero byte, all at once:
+ * the running object then goes on past the zero byte in its per-frame turns.
+ * `*stopped_at` is where it stopped, the zero byte where it got there. */
+static EventTurnEnd run_to_the_first_zero(GameState *g, uint16_t at, const EventRunner *r, uint16_t *stopped_at)
 {
-    uint16_t at = event_object_script_position(g, object);
-    object_make_current_recognised(g, object);   /* the map setup sets the whole word ($C0:58FB) */
     EventStep st;
     for (;;) {
         *stopped_at = at;
@@ -337,6 +339,29 @@ static EventTurnEnd run_opening(GameState *g, FieldObject object, const EventRun
         return TURN_NOT_OURS;
     set_event_object_script_position(g, object_current(g), (uint16_t)(at + 1));
     return TURN_OVER;
+}
+
+/* An object's opening: its script up to its first zero byte, after which the
+ * per-frame turns carry on. */
+static EventTurnEnd run_opening(GameState *g, FieldObject object, const EventRunner *r, uint16_t *stopped_at)
+{
+    uint16_t at = event_object_script_position(g, object);
+    object_make_current_recognised(g, object);   /* the map setup sets the whole word ($C0:58FB) */
+    return run_to_the_first_zero(g, at, r, stopped_at);
+}
+
+// $C0:597D
+/* The running object starts over in its script, as each character on the
+ * map does after a menu changed the party: its opening run again from its
+ * script's start, as at the map's start; then every call it was interrupted
+ * in forgotten, the object at the least urgent level. */
+EventTurnEnd event_restart_the_running_object(GameState *g, const EventRunner *r, uint16_t *stopped_at)
+{
+    uint16_t at = object_function_start(g, object_current(g), OPENING_FUNCTION);
+    EventTurnEnd end = run_to_the_first_zero(g, at, r, stopped_at);
+    if (end == TURN_OVER)
+        object_forget_its_calls(g, object_current(g));
+    return end;
 }
 
 /* The map's own script is object 0's: as the map starts, and again as it

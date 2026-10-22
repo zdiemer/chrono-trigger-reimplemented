@@ -129,6 +129,17 @@ bool menu_run_or_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     return menu_back(s, site + MENU_JSR_SIZE, m);
 }
 
+void menu_go_on_in(Snes *s, uint32_t routine, void (*entry)(Snes *), uint16_t dont_care)
+{
+    if (!menu_runs_as_port(s, routine, entry)) {
+        m_stop_at(s, routine, dont_care);
+        return;
+    }
+    s->cpu.pb = (uint8_t)(routine >> 16);
+    s->cpu.pc = (uint16_t)routine;
+    NATIVE_TIME_AS(s, routine, entry(s));
+}
+
 void menu_set_widths(Snes *s, bool a8, bool x8)
 {
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);

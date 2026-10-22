@@ -318,12 +318,17 @@ static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s, bool must_step, 
     return false;
 }
 
-/* What the original popped, taken as the port's: it is dead. */
+/* What the original popped, taken as the port's: it is dead. So are the
+ * bytes of the original's frames the port stands inside (native_frame_enter),
+ * which it never writes. */
 static void copy_popped(const Snes *orig, Snes *native, const Popped *popped)
 {
     native_copy_popped_stack(orig, native, popped->low);
     for (uint32_t addr = (uint32_t)popped->left_low + 1; addr <= popped->left_s && addr < 0x2000; addr++)
         native->bus.wram[addr] = orig->bus.wram[addr];
+    for (int k = 0; k < native_nframe_dead_direct; k++)
+        if (native_frame_dead_direct[k] < 0x2000)
+            native->bus.wram[native_frame_dead_direct[k]] = orig->bus.wram[native_frame_dead_direct[k]];
 }
 
 /* ---- describing a mismatch in full ------------------------------------------------ */
@@ -574,6 +579,7 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         native_stop_at_direct = 0;
         native_stop_own_direct = false;
         native_returned_direct = false;
+        native_nframe_dead_direct = 0;
         if (!native_fiber)
             native_fiber = fiber_create(native_fiber_main, NULL);
         fiber_switch(native_fiber);

@@ -5,6 +5,7 @@
  *   ct_dev --rom roms/ct-usa.sfc --frames 1800 [--movie m.ctm] [--trace out.cttr]
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
+ *          [--end-state out.bin]
  *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--generated off|on|only]
  *          [--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]
  *          [--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
@@ -25,6 +26,10 @@
  * disassembler's liveness analysis knows about callers it can't see statically.
  * --load-state resumes from a state saved by --save-state (docs/RUNTIME.md, "Save states");
  * frame numbers, and so movie input, continue from the saved frame.
+ * --end-state writes work RAM and then save RAM as they stand when the run ends
+ * (raw, SNES_WRAM_SIZE and SNES_SRAM_SIZE bytes): what tools/strict_check.py
+ * compares a run's end with the reference play's by. ROM-derived; keep it out
+ * of the repository.
  * --load-zst starts from a ZSNES 1.51 save state (snes/zst.h) at frame F (--frame,
  * default 0; --frames stays the frame to stop before). Such a run can't be
  * replayed from power-on and the import approximates some state, so it's for
@@ -64,7 +69,8 @@
  * way a player built without the interpreter does (docs/GENERATED.md, "Without the
  * interpreter"): interrupt entry, WAI and STP without the interpreter, and an
  * instruction no native code runs stops the run (strict, exit status 1) or runs
- * on the interpreter and is reported (fallback).
+ * on the interpreter and is reported (fallback: each place the interpreter is
+ * entered at, the first time, with its frame, up to 400 of them).
  * --audio direct selects the APU-direct audio backend (platform/direct/audio.h):
  * the sound driver's upload and commands take no main-CPU time. It needs
  * --native on with the ported routines, and can't keep the original's timing,
@@ -198,19 +204,44 @@ static PxCheck *px_check;
 static int no_interpreter;
 static unsigned long miss_steps;
 
+/* --no-interpreter fallback names each place the interpreter is entered at, the
+ * first time it is: the start of a run of misses, with the frame, which is
+ * where --no-interpreter strict would stop if the earlier ones were ported. */
+enum { MISS_STARTS_SEEN = 1 << 13, MISS_STARTS_NAMED = 400 };
+static uint32_t miss_starts[MISS_STARTS_SEEN];
+static uint32_t miss_run_end;
+
+static bool first_time_entered(uint32_t pc)
+{
+    for (uint32_t i = (pc * 0x9E3779B1u) >> 19;; i = (i + 1) & (MISS_STARTS_SEEN - 1)) {
+        if (miss_starts[i] == pc + 1)
+            return false;
+        if (!miss_starts[i]) {
+            miss_starts[i] = pc + 1;
+            return true;
+        }
+    }
+}
+
 static bool on_miss(void *ctx, Snes *snes)
 {
     (void)ctx;
     char what[160];
-    if (no_interpreter == 2 || miss_steps < 10)
-        misses_describe(snes, what, sizeof what);
+    uint32_t pc = cpu_pc24(&snes->cpu);
+    bool m8 = snes->cpu.e || (snes->cpu.p & CPU_FLAG_M), x8 = snes->cpu.e || (snes->cpu.p & CPU_FLAG_X);
+    bool starts_a_run = pc != miss_run_end;
+    miss_run_end = pc + (uint32_t)misses_instruction_length(snes_bus_peek(&snes->bus, pc), m8, x8);
     if (no_interpreter == 2) {
+        misses_describe(snes, what, sizeof what);
         fprintf(stderr, "frame %u: no generated code for %s; stopping (--no-interpreter strict)\n",
                 (unsigned)snes->frame, what);
         return false;
     }
-    if (miss_steps++ < 10)
+    if (starts_a_run && miss_steps < MISS_STARTS_NAMED && first_time_entered(pc)) {
+        miss_steps++;
+        misses_describe(snes, what, sizeof what);
         fprintf(stderr, "frame %u: no generated code for %s; interpreting it\n", (unsigned)snes->frame, what);
+    }
     return true;   /* --misses counts it through the instruction hook */
 }
 
@@ -410,6 +441,17 @@ static int write_coverage(const Coverage *cov, const char *path)
     return fclose(f);
 }
 
+/* --end-state: work RAM, then save RAM. */
+static int write_end_state(const char *path, const Snes *snes)
+{
+    FILE *f = fopen(path, "wb");
+    if (!f)
+        return -1;
+    bool ok = fwrite(snes->bus.wram, 1, SNES_WRAM_SIZE, f) == SNES_WRAM_SIZE
+              && fwrite(snes->bus.sram, 1, SNES_SRAM_SIZE, f) == SNES_SRAM_SIZE;
+    return fclose(f) == 0 && ok ? 0 : -1;
+}
+
 static uint8_t *read_file(const char *path, size_t *len)
 {
     FILE *f = fopen(path, "rb");
@@ -507,7 +549,7 @@ static bool poison_site(uint32_t site, uint32_t target, uint64_t *bits, uint16_t
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
-    const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
+    const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL, *end_state = NULL;
     bool c_sound_driver = false;
     SoundMixer mixer = SOUND_MIXER_DSP;
     bool mixer_given = false;
@@ -582,6 +624,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--load-zst")) zst_path = v;
         else if (!strcmp(a, "--frame")) start_frame = strtol(v, NULL, 10);
         else if (!strcmp(a, "--save-state")) save_state = v;
+        else if (!strcmp(a, "--end-state")) end_state = v;
         else if (!strcmp(a, "--sram")) sram_path = v;
         else if (!strcmp(a, "--status-every")) status_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-every")) shot_every = strtol(v, NULL, 10);
@@ -710,7 +753,7 @@ int main(int argc, char **argv)
     if (!rom_path || frames < 0 || (shot_every > 0 && !shot_dir)) {
         fprintf(stderr, "usage: ct_dev --rom <rom> --frames N [--movie m.ctm] [--trace out.cttr] "
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
-                        "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
+                        "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] [--end-state f] "
                         "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--include name-prefix]... "
                         "[--generated off|on|only] [--port-timing estimate|oracle] [--port-horizon strict|interrupts] "
                         "[--timing-report] [--page-report] [--event-reads out.txt] "
@@ -1033,6 +1076,10 @@ int main(int argc, char **argv)
         fprintf(stderr, "warning: saving with time the native routines owe; the state drops it\n");
     if (save_state && snes_state_save(&snes, save_state) != 0) {
         fprintf(stderr, "cannot save state %s\n", save_state);
+        rc = 1;
+    }
+    if (end_state && write_end_state(end_state, &snes) != 0) {
+        fprintf(stderr, "cannot write %s\n", end_state);
         rc = 1;
     }
     if (native_mode != NATIVE_OFF) {

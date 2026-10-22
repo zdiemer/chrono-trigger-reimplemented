@@ -115,16 +115,17 @@ static uint8_t mark_the_way_back(GameState *g, uint8_t walker, uint8_t goal, uin
 
 /* What the search leaves in its work cells: where its last ring's scan came
  * to and the last cell any ring looked round (none, for a walker at cell 0,
- * whose rings all end at once), the next ring's size, the walker's cell,
- * where the way back came to, how many times the last ring saw the goal (or
- * that it gave up), and its steps (run out past the walker, once the way back
- * is marked). */
-enum { LEFT_SCAN = 0x00, LEFT_LOOKED_ROUND = 0x02, LEFT_RING_SIZE = 0x04, LEFT_WALKER = 0x0E, LEFT_WAY_BACK = 0x10,
+ * whose rings all end at once), the next ring's size, the walker's cell, how
+ * many times the last ring saw the goal (or that it gave up), and its steps
+ * (run out past the walker, once the way back is marked). Where the way back
+ * came to (the goal, when it gave up) lands on the cell the next jump to the
+ * script's point lifts by, and is left as game state (battle.h). */
+enum { LEFT_SCAN = 0x00, LEFT_LOOKED_ROUND = 0x02, LEFT_RING_SIZE = 0x04, LEFT_WALKER = 0x0E,
        LEFT_REACHED = 0x12, LEFT_STEPS = 0x14, STEPS_RUN_OUT = 0xFF };
 
 typedef struct {
     Ring last_ring;
-    uint8_t last_looked_round, walker, way_back, steps;
+    uint8_t last_looked_round, walker, steps;
     bool gave_up;
 } SearchEnd;
 
@@ -135,7 +136,6 @@ static void leave_search(GameState *g, SearchEnd end)
         script_leave(g, LEFT_LOOKED_ROUND, end.last_looked_round);
     script_leave(g, LEFT_RING_SIZE, end.last_ring.next_ring_size);
     script_leave(g, LEFT_WALKER, end.walker);
-    script_leave(g, LEFT_WAY_BACK, end.way_back);
     script_leave(g, LEFT_REACHED, end.gave_up ? GAVE_UP : end.last_ring.goal_seen);
     script_leave_word(g, LEFT_STEPS, end.gave_up ? end.steps : STEPS_RUN_OUT);
 }
@@ -171,12 +171,14 @@ bool battle_find_way(GameState *g, BattlePoint from, BattlePoint to)
             break;
         move_out_a_ring(g, ring.next_ring_size);
         if (++steps == STEPS_SEARCHED) {
-            ORIGINAL_EFFECT(leave_search(g, (SearchEnd){ ring, last_looked_round, walker, goal, steps, true }));
+            ORIGINAL_EFFECT(leave_search(g, (SearchEnd){ ring, last_looked_round, walker, steps, true }));
+            battle_leave_jump_lift(g, goal);
             return false;
         }
     }
     uint8_t way_back = mark_the_way_back(g, walker, goal, steps);
-    ORIGINAL_EFFECT(leave_search(g, (SearchEnd){ ring, last_looked_round, walker, way_back, steps, false }));
+    ORIGINAL_EFFECT(leave_search(g, (SearchEnd){ ring, last_looked_round, walker, steps, false }));
+    battle_leave_jump_lift(g, way_back);
     return true;
 }
 
