@@ -137,16 +137,6 @@ enum {
     LAVOS_COLOURS_AT = 0x2200, SPRITE_COLOURS_AT = 0x2300, LAVOS_COLOURS_BYTES = 0x20, SPRITE_COLOURS_BYTES = 0x40,
 };
 
-/* The program's unpacker ($7E:3691): the resource's place in its list in X,
- * unpacked into the destination set. It reads X and the overflow. */
-enum { UNPACK = 0x7E3691, UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C };
-
-static void unpack(Snes *s, uint32_t site, uint16_t resource)
-{
-    s->cpu.x = resource;
-    m_jsr_dc(s, site, UNPACK, UNPACK_IGNORES);
-}
-
 /* Lavos's picture comes packed two pixels to a byte, and Mode 7 takes a byte
  * a pixel: the program's spread ($7E:350E) makes each byte two, from where the
  * unpacker left them in low RAM into the unpack buffer, the packed count in Y
@@ -218,7 +208,7 @@ static void load_lavos(Snes *s)
     vid_start_vram_uploads(pf, PF_AT(0x7E53BD), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E53C3), LAVOS_VRAM);
     set_decompress_dest(g, LOW_RAM_BUFFER);
-    unpack(s, 0x7E53D2, LAVOS_PIXELS);
+    scene_bridge_unpack(s, 0x7E53D2, LAVOS_PIXELS);
     uint16_t packed = decompress_length(g);
     set_decompress_length(g, (uint16_t)(2 * packed));
     spread_the_pixels(s, packed);
@@ -234,13 +224,13 @@ static void load_the_sprites(Snes *s)
     Platform *pf = m_platform(s);
     copy_into_the_first_bank(g, PLANET_TILE_ORDER, (uint16_t)LOW_RAM_BUFFER, TILES_LAID_OUT);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    unpack(s, 0x7E541B, PLANET_TILES);
+    scene_bridge_unpack(s, 0x7E541B, PLANET_TILES);
     vid_set_vram_address(pf, PF_AT(0x7E5421), PLANET_TILES_VRAM);
     lay_out_the_planet_tiles(g, pf);
     ORIGINAL_EFFECT(leave_the_tiles_laid_out(g));
     scene_choose_transfer(g, scene_whole_words);
     vid_set_vram_address(pf, PF_AT(0x7E5434), STAR_TILES_VRAM);
-    unpack(s, 0x7E543A, STAR_TILES);
+    scene_bridge_unpack(s, 0x7E543A, STAR_TILES);
     scene_send_unpacked_by(g, pf, scene_whole_words);
 }
 
@@ -248,7 +238,7 @@ static void load_lavos_s_map(Snes *s)
 {
     GameState *g = state_of(s);
     vid_set_vram_address(m_platform(s), PF_AT(0x7E5444), LAVOS_VRAM);
-    unpack(s, 0x7E544A, LAVOS_MAP);
+    scene_bridge_unpack(s, 0x7E544A, LAVOS_MAP);
     scene_widen_the_plane_map(g);
     send_the_map(m_platform(s));
 }
@@ -265,23 +255,6 @@ static void load_the_colours(GameState *g)
 /* The two channels' scripts: channel 0 brings Lavos in, channel 1 swings the
  * stars and calls the fall. */
 enum { LAVOS_SCRIPT = 0x552A, FIELD_SCRIPT = 0x5568 };
-
-/* The script's first step ($7E:3749), called with 16-bit A and the setup's
- * data bank kept under it. It reads Y and the overflow: Y past the sprites'
- * colours, as their copy left it, and the overflow as the setup was entered
- * with it. */
-enum { FIRST_STEP = 0x7E3749, FIRST_STEP_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C, SCENE_PAGE = 0x0000 };
-
-static void first_script_step(Snes *s)
-{
-    m_push8(s, s->cpu.db);
-    m_set_flag(s, CPU_FLAG_M, false);
-    s->cpu.y = (uint16_t)(SPRITE_COLOURS_AT + SPRITE_COLOURS_BYTES);
-    m_jsr_dc(s, 0x7E54B4, FIRST_STEP, FIRST_STEP_IGNORES);
-    s->cpu.db = m_pull8(s);
-    m_set_flag(s, CPU_FLAG_M, true);
-    s->cpu.d = SCENE_PAGE;
-}
 
 /* The screen until the script brings the plane in: the sprites alone on the
  * main screen, nothing on the sub screen. Then the layers: Mode 7, the plane
@@ -325,7 +298,9 @@ static void set_up_lavos_falls(Snes *s)
     set_scene_channels_script(g, SCENE_CAMERA_CHANNEL, LAVOS_SCRIPT);
     set_scene_channels_script(g, SCENE_STAR_FIELD_CHANNEL, FIELD_SCRIPT);
     show_the_sprites_alone(m_platform(s));
-    first_script_step(s);
+    /* The script's first step: Y past the sprites' colours, as their copy
+     * left it (scene/bridge.c). */
+    scene_bridge_first_script_step(s, 0x7E54B4, (uint16_t)(SPRITE_COLOURS_AT + SPRITE_COLOURS_BYTES));
     scene_bridge_scatter_stars(s, s->cpu.a);
     set_up_the_layers(g, m_platform(s));
 }

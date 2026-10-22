@@ -18,6 +18,7 @@
 #include "cpu_io.h"
 #include "field/bridge.h"
 #include "field/field.h"
+#include "charge.h"
 #include "field/scratch.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -191,6 +192,30 @@ void field_find_layer_edges(GameState *g)
         store_layer_edges(g, layer, field_layer_map_base(g, layer), &e);
     }
     ORIGINAL_EFFECT(leave_for_original(g, right, above, &e));
+}
+
+static void put_the_layer_at_its_start(GameState *g, FieldLayer layer)
+{
+    set_field_layer_position_x(g, layer, 0);
+    set_field_layer_position_y(g, layer, 0);
+    set_field_layer_scroll_h(g, layer, 0);
+    set_field_layer_scroll_v(g, layer, 0);
+    TIMED_AS(g, 0xC07F9A, field_find_layer_edges(g));
+}
+
+// $C0:74D4, $C0:74E8, $C0:74F7
+/* A layer put back at the top left of its tile map, its place and its scroll
+ * both 0, as a whole map drawn afresh is sent from there; and every layer's
+ * edges found again for it. */
+void field_put_the_layer_at_its_start(GameState *g, FieldLayer layer)
+{
+    /* the original has a routine for each layer, which the work is timed as */
+    switch (layer) {
+    case FIELD_BG1: TIMED_AS(g, 0xC074D4, put_the_layer_at_its_start(g, FIELD_BG1)); break;
+    case FIELD_BG2: TIMED_AS(g, 0xC074E8, put_the_layer_at_its_start(g, FIELD_BG2)); break;
+    case FIELD_BG3: TIMED_AS(g, 0xC074F7, put_the_layer_at_its_start(g, FIELD_BG3)); break;
+    default: break;
+    }
 }
 
 /* ---- Scrolling -------------------------------------------------------------------------- */
@@ -542,6 +567,21 @@ void field_compute_layer_edges(Snes *s)
     m_set_flag(s, CPU_FLAG_M, true);
     m_rts(s);
 }
+
+/* It leaves the edges' overflow, as the edges' own entry does, and A
+ * 8-bit. */
+static void put_at_its_start(Snes *s, FieldLayer layer)
+{
+    GameState *g = state_of(s);
+    field_put_the_layer_at_its_start(g, layer);
+    m_set_flag(s, CPU_FLAG_V, field_layer_edges_overflow(g));
+    m_set_flag(s, CPU_FLAG_M, true);
+    m_rts(s);
+}
+
+void field_put_bg1_at_its_start(Snes *s) { put_at_its_start(s, FIELD_BG1); }
+void field_put_bg2_at_its_start(Snes *s) { put_at_its_start(s, FIELD_BG2); }
+void field_put_bg3_at_its_start(Snes *s) { put_at_its_start(s, FIELD_BG3); }
 
 /* Nothing they leave in the registers is read after (the entries' don't-care
  * sets). */

@@ -320,36 +320,19 @@ static void play_music_fast(Snes *s)
     au_driver_call(m_platform(s), PF_CALL(0x7E8EB2, SCENE_SEND), SEND_IGNORES);
 }
 
-/* The program's unpacker ($7E:3691): the resource's place in its list in X,
- * and the unpacking into the destination set. */
-enum { UNPACK = 0x7E3691, UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C };
-
-static void unpack(Snes *s, uint32_t site, uint16_t resource)
-{
-    s->cpu.x = resource;
-    m_jsr_dc(s, site, UNPACK, UNPACK_IGNORES);
-}
-
-/* The script's first step ($7E:3749), called with 16-bit A and the program's
- * bank as the data bank, which the program sets from a word it pushes: the
- * word's other byte, 0, waits on the stack to be the data bank again after.
- * It reads Y and the overflow as the per-line effects' setup leaves them:
- * where the descriptors end, and clear. It comes back on its channel's page;
- * the program sets the layers up on the PPU's registers' and leaves the
- * direct page on the scene's. */
-enum { FIRST_STEP = 0x7E3749, FIRST_STEP_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C, SCENE_PAGE = 0x0000 };
+/* The script's first step, with the program's bank as the data bank, which
+ * the program sets from a word it pushes: the word's other byte, 0, waits on
+ * the stack to be the data bank again after. It reads Y and the overflow as
+ * the per-line effects' setup leaves them: where the descriptors end, and
+ * clear. */
+enum { BANK_AFTER_THE_STEP = 0x00 };
 
 static void first_script_step(Snes *s, uint16_t descriptors_end)
 {
-    m_push8(s, 0x00);
     s->cpu.db = SCENE_LOWER_WORK_RAM;
-    m_set_flag(s, CPU_FLAG_M, false);
-    s->cpu.y = descriptors_end;
     m_set_flag(s, CPU_FLAG_V, false);
-    m_jsr_dc(s, 0x7E8F94, FIRST_STEP, FIRST_STEP_IGNORES);
-    s->cpu.db = m_pull8(s);
-    m_set_flag(s, CPU_FLAG_M, true);
-    s->cpu.d = SCENE_PAGE;
+    scene_bridge_take_the_first_script_step(s, 0x7E8F94, descriptors_end, BANK_AFTER_THE_STEP);
+    scene_bridge_back_on_the_scene_s_page(s);
 }
 
 /* The program's transfer of what the unpacker made, a word at a time into
@@ -365,7 +348,7 @@ static void load_graphics(Snes *s, uint32_t unpack_site, const StaffRollGraphics
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
     vid_set_vram_address(pf, PF_AT(gr->vram_site), gr->vram);
-    unpack(s, unpack_site, gr->resource);
+    scene_bridge_unpack(s, unpack_site, gr->resource);
     if (gr->bytes)
         set_decompress_length(g, gr->bytes);
     TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));

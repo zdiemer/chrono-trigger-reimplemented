@@ -277,7 +277,12 @@ def tech_list_entries(bot, member):
     return [(entry, tech_id) for entry, tech_id in enumerate(ids) if tech_id < 0xFB]
 
 
-def tech_sweep(cast_ids, healer_threshold=0.5, self_threshold=0.35):
+# Tech ids from here on are double and triple techs (each character's eight single techs come first).
+FIRST_COMBINATION_TECH = 57
+
+
+def tech_sweep(cast_ids, healer_threshold=0.5, self_threshold=0.35, refused=None, finish_with_techs=False,
+               combinations_first=False, damage=None):
     """A policy that casts every tech a party's members' lists can show, once
     each: on a member's turn, the next tech list entry whose id isn't in
     `cast_ids` yet (singles before doubles before triples, as the list orders
@@ -287,38 +292,93 @@ def tech_sweep(cast_ids, healer_threshold=0.5, self_threshold=0.35):
     tech's partners) share the one record of what has already been cast; wrap
     `Bot.do` (see tools/movies/routes/tech_sweep.py) to add to it when a tech
     is actually taken, since a dimmed entry here is skipped, not cast.
+
+    `refused`, when given, is a set the same wrap fills with the ids of techs
+    the bot tried and couldn't take (not enough MP, a partner's turn not come,
+    a revive with nobody down) and empties whenever a tech is taken. Without
+    it the first such entry is tried again every turn and blocks the rest of
+    its list -- a revive tech ahead of the double techs, which is how the first
+    sweep cast none of them. With it the policy goes on to the next entry, and
+    tries the refused ones first while an ally is down, when a revive can be
+    taken.
+
+    `combinations_first` tries the double and triple techs before the singles:
+    they can only be taken while every partner's turn has come, so they are
+    the ones a fight that ends early leaves uncast.
+
+    `finish_with_techs` casts a tech already cast where an attack would be the
+    fallback: for an enemy only techs hurt (Spekkio's form at the End of Time
+    takes nothing from an attack), whose fight would otherwise never end once
+    the lists are swept. With `damage` (tech id to the most the enemies' HP
+    fell after it, which tracking_do keeps) it takes the strongest of them,
+    else one at random.
     """
     def policy(bot, state, rng, inventory):
         member = state.member
         members = [slot for slot in range(bot.party) if state.max_hp(slot) > 0]
+        listed = tech_list_entries(bot, member)
+        entries = [(entry, tech_id) for entry, tech_id in listed if tech_id not in cast_ids]
+        if combinations_first:
+            entries.sort(key=lambda e: e[1] < FIRST_COMBINATION_TECH)
+        if refused is not None and any(state.hp(slot) == 0 for slot in members):
+            for entry, tech_id in entries:
+                if tech_id in refused:
+                    refused.discard(tech_id)
+                    return ("tech", entry, None)
         action = survival(state, rng, inventory, member, members,
                           healer_threshold=healer_threshold, self_threshold=self_threshold)
         if action:
             return action
-        for entry, tech_id in tech_list_entries(bot, member):
-            if tech_id not in cast_ids:
+        for entry, tech_id in entries:
+            if refused is None or tech_id not in refused:
                 return ("tech", entry, None)
+        if finish_with_techs:
+            again = [(entry, tech_id) for entry, tech_id in listed if refused is None or tech_id not in refused]
+            if damage:
+                strong = sorted(again, key=lambda e: -damage.get(e[1], 0))[:2]
+                if strong and damage.get(strong[0][1], 0) > 0:
+                    return ("tech", rng.choice(strong)[0], None)
+            if again:
+                return ("tech", rng.choice(again)[0], None)
         living = enemies(state)
         return ("attack", rng.choice(living) if living else None)
     return policy
 
 
-def tracking_do(bot, cast_ids):
+def tracking_do(bot, cast_ids, refused=None, damage=None):
     """Wrap `bot.do` so a tech the bot actually takes (not one tried and found
     dimmed) is added to `cast_ids` by id, not by list position: the member and
     the list entry are read before the action runs (`bot.do` moves the menu on
     to the next member once it succeeds), then turned into a tech id through
-    the same table `tech_list_entries` reads."""
+    the same table `tech_list_entries` reads. With `refused` (tech_sweep's), a
+    tech tried and not taken goes there, and the set is emptied once one is.
+    With `damage`, a dict, the drop in the enemies' HP from one action to the
+    next is credited to the tech taken last (the most seen for each id), for
+    tech_sweep's `finish_with_techs`."""
     original = bot.do
+    last = []
 
     def do(action):
         member = bot.state.member
-        ok = original(action)
-        if ok and action[0] == "tech":
+        if damage is not None:
+            standing = sum(bot.state.hp(slot) for slot in enemies(bot.state))
+            if last:
+                tech_id, before = last.pop()
+                damage[tech_id] = max(damage.get(tech_id, 0), before - standing)
+        tech_id = None
+        if action[0] == "tech":
             base = bot.machine.b(A.BATTLE_TECH_LIST_BASE + member)
             tech_id = bot.machine.b(A.BATTLE_TECH_LIST_IDS + base + action[1])
-            if tech_id < 0xFB:
+        ok = original(action)
+        if tech_id is not None and tech_id < 0xFB:
+            if ok:
                 cast_ids.add(tech_id)
+                if refused is not None:
+                    refused.clear()
+                if damage is not None:
+                    last.append((tech_id, standing))
+            elif refused is not None:
+                refused.add(tech_id)
         return ok
     bot.do = do
 

@@ -449,15 +449,13 @@ static const SceneTaskPort *port_of(SceneTask task, SceneTaskList list)
 /* The program's routines, which the lists' values are the addresses of. */
 enum { PROGRAM_BANK = 0x7E0000 };
 
-/* A task done takes itself off the list (its slot in the list the scripts
- * keep; the frame's copy is the frame's work's), or hands its slot to the
- * task that follows it. */
-static void end_the_task(GameState *g, unsigned slot, TaskEnd end)
+/* A task done takes itself off its list (for the frame's tasks, its slot in
+ * the list the scripts keep; the frame's copy is the frame's work's), or
+ * hands its slot to the task that follows it. */
+static void end_the_task(GameState *g, SceneTaskList list, unsigned slot, TaskEnd end)
 {
-    if (end.outcome == TASK_IS_DONE)
-        set_scene_tasks(g, slot, NO_TASK);
-    else if (end.outcome == TASK_HANDS_OVER)
-        set_scene_tasks(g, slot, end.next);
+    if (end.outcome == TASK_IS_DONE || end.outcome == TASK_HANDS_OVER)
+        set_task_at(g, list, slot, end.next);
 }
 
 /* What a task leaves for the code after it: Y for the next task, and A (A's
@@ -477,8 +475,16 @@ static void leave_a(Snes *s, TaskLeftovers l, TaskEnd end)
         s->cpu.a = l.a_high_as_called ? (uint16_t)((s->cpu.a & 0xFF00) | (l.a & 0x00FF)) : l.a;
 }
 
-/* The list's exits, in its own code, where a task that is done jumps. */
-enum { TASK_LEAVES = 0x7E39A7, TASK_HANDS_OVER_EXIT = 0x7E39B1 };
+/* The lists' exits, in their own code, where a task that is done jumps: the
+ * frame list's two, and the vblank list's, which takes a task off it. */
+enum { TASK_LEAVES = 0x7E39A7, TASK_HANDS_OVER_EXIT = 0x7E39B1, VBLANK_TASK_LEAVES = 0x7E39DE };
+
+static bool is_an_exit(SceneTaskList list, uint32_t at)
+{
+    if (list == SCENE_VBLANK_TASKS)
+        return at == VBLANK_TASK_LEAVES;
+    return at == TASK_LEAVES || at == TASK_HANDS_OVER_EXIT;
+}
 
 /* A list's loop calls a task from its own code (the frame list's at
  * $7E:3998, the vblank list's at $7E:39CF), with the data bank, the slot, P
@@ -507,6 +513,108 @@ static void unwind_the_task_s_frames(Snes *s)
     c->db = m_pull8(s);
 }
 
+/* The tasks whose ports take the machine, by the program's routine the value
+ * on the list is the address of: run as the list's call reaches them, timed
+ * as their own routines, where their guards hold (scene_run); a task with no
+ * row here or in the tables above is the original's. The rows are the tasks
+ * the library's runs reach, in shadow mode and in the shipping mode. */
+static const struct {
+    uint32_t routine;
+    void (*entry)(Snes *);
+} machine_tasks[] = {
+    /* the scripts' channels' first steps and the vblank list's uploads */
+    { 0x7E3749, scene_run_channel_0_script },
+    { 0x7E3754, scene_run_channel_1_script },
+    { 0x7E3843, scene_clear_sprite_table },
+    { 0x7E388B, scene_upload_palette },
+    /* the jet bike race's */
+    { 0x7E3D72, scene_race_sweep_curtain },
+    { 0x7E416D, scene_race_settle_camera },
+    { 0x7E424D, scene_race_wait_to_leave },
+    { 0x7E428B, scene_race_move_along },
+    { 0x7E42BD, scene_race_keep_controller },
+    { 0x7E42CE, scene_race_check_perspective },
+    { 0x7E4339, scene_race_turn_camera },
+    { 0x7E43F2, scene_race_move_camera },
+    { 0x7E4447, scene_race_aim_camera },
+    { 0x7E449C, scene_race_follow_finish },
+    { 0x7E44CE, scene_race_drain_score },
+    { 0x7E44FE, scene_race_set_horizon },
+    { 0x7E4643, scene_race_upload_column_rom },
+    { 0x7E464D, scene_race_upload_column_ram },
+    { 0x7E4677, scene_race_coast },
+    { 0x7E4755, scene_race_await_victory_song },
+    { 0x7E485D, scene_race_ride },
+    { 0x7E4D0D, scene_race_place_bikes },
+    { 0x7E4F54, scene_race_draw },
+    { 0x7E5221, scene_race_upload_tilemap },
+    /* Lavos falling to the planet's */
+    { 0x7E55F9, scene_turn_the_field_s_angle },
+    { 0x7E5654, scene_send_the_flat_plane_entry },
+    { 0x7E56A9, scene_turn_lavos },
+    { 0x7E56EB, scene_draw_the_planet },
+    { 0x7E579B, scene_stars_fly },
+    { 0x7E5855, scene_swing_the_field },
+    /* the planet's and the rising palace's */
+    { 0x7E63D5, scene_wait_for_a_button_to_restart },
+    { 0x7E63F5, scene_count_down_to_the_restart },
+    { 0x7E64BF, scene_show_the_planet_s_caption },
+    { 0x7E6844, scene_sweep_the_palace_curtain },
+    /* the Epoch's dive's */
+    { 0x7E79F8, scene_set_the_screen_outside },
+    { 0x7E7A35, scene_set_the_screen_in_the_cockpit },
+    { 0x7E7BF2, scene_open_the_light },
+    { 0x7E7F12, scene_pass_the_shell_across },
+    { 0x7E7F35, scene_pass_the_shell_down },
+    { 0x7E7F58, scene_follow_the_panel },
+    { 0x7E7F7D, scene_shake_the_cockpit },
+    { 0x7E7FC4, scene_size_the_trail },
+    { 0x7E7FCB, scene_draw_the_trail },
+    { 0x7E8079, scene_flicker_the_lights },
+    { 0x7E81C4, scene_send_the_plane_s_place_entry },
+    { 0x7E81F1, scene_let_the_shell_fall_away },
+    { 0x7E8205, scene_draw_the_epoch },
+    { 0x7E824A, scene_send_the_epoch },
+    { 0x7E82D1, scene_check_the_shell },
+    { 0x7E835B, scene_fly_the_epoch_on },
+    /* the endings' pictures and credits */
+    { 0x7E8850, scene_ending_place_picture },
+    { 0x7E891B, scene_ending_pick_picture_frame },
+    { 0x7E89C0, scene_ending_upload_picture },
+    { 0x7E8C05, scene_clear_sprite_high_bits },
+    { 0x7E8D56, scene_ending_show_credits },
+    { 0x7E8E44, scene_ending_show_last_scene },
+    { 0x7E8E88, scene_ending_scroll_bg2 },
+    /* the flight beyond time's, the star fields' drift, the captions' and the staff roll's */
+    { 0x7E9080, scene_set_the_flight_horizon },
+    { 0x7E90C1, scene_pass_the_map },
+    { 0x7E9897, scene_stars_start_drift },
+    { 0x7E98AC, scene_stars_keep_drifting },
+    { 0x7E992A, scene_circle_the_epoch },
+    { 0x7E997D, scene_sway_the_epoch },
+    { 0x7E999C, scene_stars_fly_after_captions },
+    { 0x7E99B5, scene_keep_the_orbit },
+    { 0x7E99FA, scene_ending_draw_the_end },
+    { 0x7E9A0C, scene_ending_sweep_window },
+    { 0x7E9ABD, scene_check_the_flight_view },
+    { 0x7E9AF3, scene_place_the_flight_view },
+    { 0x7E9B4F, scene_turn_captions },
+    { 0x7E9BF9, scene_burst_the_fireworks },
+    { 0x7E9D48, scene_twinkle_the_lights },
+    { 0x7E9DBC, scene_send_the_flight_view },
+    { 0x7E9E2B, scene_send_the_picture },
+    { 0x7E9E7B, scene_roll_credits },
+    { 0x7E9EFC, scene_upload_credits },
+};
+
+static void (*machine_task(SceneTask task))(Snes *)
+{
+    for (unsigned i = 0; i < sizeof machine_tasks / sizeof machine_tasks[0]; i++)
+        if (machine_tasks[i].routine == (PROGRAM_BANK | task))
+            return machine_tasks[i].entry;
+    return NULL;
+}
+
 static TaskEnd run_the_original_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask task)
 {
     Cpu *c = &s->cpu;
@@ -523,14 +631,13 @@ static TaskEnd run_the_original_task(Snes *s, SceneTaskList list, unsigned slot,
         m_set_flag(s, CPU_FLAG_M, true);
     }
     uint32_t call = vblank ? VBLANK_TASK_CALL : FRAME_TASK_CALL;
-    if (scene_run(s, call, PROGRAM_BANK | task, THE_TASKS_READ_ANYTHING, NULL)) {
+    if (scene_run(s, call, PROGRAM_BANK | task, THE_TASKS_READ_ANYTHING, machine_task(task))) {
         unwind_the_task_s_frames(s);
         c->x = index;
         return task_goes_on();
     }
     uint32_t at = cpu_pc24(c);
-    bool at_an_exit = !vblank && (at == TASK_LEAVES || at == TASK_HANDS_OVER_EXIT) &&
-                      c->s == (uint16_t)(below_the_call - (JSR_SIZE - 1));
+    bool at_an_exit = is_an_exit(list, at) && c->s == (uint16_t)(below_the_call - (JSR_SIZE - 1));
     if (!at_an_exit)
         return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
     native_dont_care_at_stop(s, 0, 0);   /* the stop is the loop's, which goes on as C */
@@ -541,7 +648,7 @@ static TaskEnd run_the_original_task(Snes *s, SceneTaskList list, unsigned slot,
     }
     (void)m_pull16(s);
     unwind_the_task_s_frames(s);
-    set_scene_tasks(state_of(s), slot, end.next);
+    end_the_task(state_of(s), list, slot, end);
     return end;
 }
 
@@ -586,22 +693,23 @@ static TaskEnd run_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask ta
     TaskLeftovers l = port->leaves(g, end);
     leave_y(s, l);
     ORIGINAL_EFFECT(leave_a(s, l, end));
-    end_the_task(g, slot, end);
+    end_the_task(g, list, slot, end);
     s->cpu.x = index;
     return end;
 }
 
 // $7E:398A, $7E:39BE
-/* Every task on a list, in order; the list is read again after each task,
- * which can change it. A is the last task's, or 0 where the last slot was
- * empty; the carry is the loop's compare. A task the original runs that
- * leaves some other way than the list's own is the original's from there. */
-static void run_tasks(Snes *s, SceneTaskList list)
+/* Every task on a list from slot `first` on, in order; the list is read again
+ * after each task, which can change it. A is the last task's, or 0 where the
+ * last slot was empty; the carry is the loop's compare. A task the original
+ * runs that leaves some other way than the list's own is the original's from
+ * there. */
+static void run_tasks_from(Snes *s, SceneTaskList list, unsigned first)
 {
     GameState *g = state_of(s);
     unsigned count = list_length(list);
     m_set_flag(s, CPU_FLAG_M, false);
-    for (unsigned slot = 0; slot < count; slot++) {
+    for (unsigned slot = first; slot < count; slot++) {
         SceneTask task = list == SCENE_VBLANK_TASKS ? scene_early_tasks(g, slot) : scene_tasks_running(g, slot);
         if (task == NO_TASK)
             s->cpu.a = 0;
@@ -609,6 +717,7 @@ static void run_tasks(Snes *s, SceneTaskList list)
             return;
         m_set_flag(s, CPU_FLAG_C, slot + 1 == count);   /* the loop's compare; its X, N and Z aren't read */
     }
+    m_set_flag(s, CPU_FLAG_C, true);   /* the last compare's, at the list's end, from wherever it went on */
     m_rtl(s);
 }
 
@@ -651,7 +760,23 @@ void scene_task_alone(Snes *s, const SceneTaskPort *port)
 
 /* The frame's tasks, from the copy of the list the frame's work made, each
  * called with 16-bit A. */
+static void run_tasks(Snes *s, SceneTaskList list) { run_tasks_from(s, list, 0); }
+
 void scene_run_frame_tasks(Snes *s) { run_tasks(s, SCENE_FRAME_TASKS); }
 
 /* The vblank tasks, each called with 8-bit A and the direct page in A. */
 void scene_run_vblank_tasks(Snes *s) { run_tasks(s, SCENE_VBLANK_TASKS); }
+
+// $7E:399B, $7E:39D2
+/* A list going on after a task it called came back to it itself, frames
+ * later (a channel's script that waited for the music, scene/script.c): the
+ * frames the list kept under the call unwound, the slot's among them, and the
+ * list's tasks after it. */
+static void go_on_after_the_task(Snes *s, SceneTaskList list)
+{
+    unwind_the_task_s_frames(s);
+    run_tasks_from(s, list, s->cpu.x / 2u + 1u);
+}
+
+void scene_frame_tasks_go_on(Snes *s) { go_on_after_the_task(s, SCENE_FRAME_TASKS); }
+void scene_vblank_tasks_go_on(Snes *s) { go_on_after_the_task(s, SCENE_VBLANK_TASKS); }

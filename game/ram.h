@@ -467,6 +467,10 @@
 /* How far the story has got: the event scripts' main count (event memory $000), which most of
  * the game's turns of the story raise */
 #define RAM_STORY_LINE 0x7F0000u
+/* Nonzero once the menus, entered for the load screen at power-on, have set a new game's state
+ * up and started the game over from its reset (event memory $61); until then that is what
+ * entering them for the load screen does */
+#define RAM_STORY_NEW_GAME_SET_UP 0x7F0061u
 /* What the story holds the party to (event memory $BA): bit 0 set, the party is held as it is
  * (no switching members, some sitting fights out, the story's items offered), and bit 1 with it,
  * a fight not among those the battle's flags mark */
@@ -2853,10 +2857,13 @@
 #define RAM_MENU_SAVED_LOCATION_Y 0x7E04FFu  /* And down it */
 /* The caller's stack pointer, put back when the menus return [2 bytes] */
 #define RAM_MENU_CALLER_STACK 0x7E0920u
-/* The accumulator the caller entered the menus with */
-#define RAM_MENU_ENTRY_A 0x7E0A00u
-/* The X register the caller entered the menus with [2 bytes] */
-#define RAM_MENU_ENTRY_X 0x7E0A01u
+/* Which of the menus their caller asked for (MenuOpening, menu/display.c): the load screen, the
+ * main menu, a shop, the naming, the gate's exchange, a save point's screen; the screen they
+ * open on is looked up from it */
+#define RAM_MENU_ASKED_FOR 0x7E0A00u
+/* What the menus' caller asked for them with (a shop's number, a character to name), which the
+ * screen they open on takes as its argument (menu_screen_argument) [2 bytes] */
+#define RAM_MENU_ASKED_WITH 0x7E0A01u
 /* The menus' queue of VRAM uploads, sent in vblank from the last entry down [32 x $8 bytes, by
  * queue entry (the byte count in $0D11, 8 per entry, reaches $0D00)] */
 #define RAM_MENU_VRAM_QUEUE 0x7E0C00u
@@ -2913,6 +2920,11 @@
 #define RAM_MENU_CURSOR_DIRECTION 0x7E0D1Eu
 /* Nonzero keeps the cursor where it is against the next push; the push clears it */
 #define RAM_MENU_CURSOR_HELD 0x7E0D1Fu
+/* How far the menus' fade moves the screen's brightness each step: 2 as a screen fades in, -2 as
+ * the menus fade out; the original's fade reads it back between its steps */
+#define RAM_MENU_FADE_STEP 0x7E0D20u
+/* Frames between the menus' fade's steps (1) */
+#define RAM_MENU_FADE_FRAMES 0x7E0D21u
 /* How far a list moves each frame while it slides a row along (signed: 4 lines down, -4 up), 0
  * at rest; the item lists' slide frame ($C2:EB1F) and the rows' move after it ($C2:9FDE) read
  * its sign from the low byte [2 bytes] */
@@ -4936,9 +4948,10 @@
 #define RAM_BATTLE_WORK_STRIDE 0x01u
 #define RAM_BATTLE_WORK_DP 0x80u             /* page battle */
 /* How a jump lifts, as the jump commands that give it leave it ($C1:629E; 0 twice its height, 2
- * once and bouncing at half, else once); the jumps to the script's point take what is here,
- * which in every battle the movies reach is 6, the count the animation slots' places loop ends
- * at each frame ($C1:4231) */
+ * once and bouncing at half, else once); the jumps to the script's point take what is here: most
+ * often 6, the count the animation slots' places loop ends at each frame ($C1:4231), but what a
+ * jump, a walk's search or a color list left since, when one ran (Spekkio's fight in
+ * battle-tech-sweep-spekkio) */
 #define RAM_BATTLE_JUMP_LIFT 0x7E0090u
 #define RAM_BATTLE_JUMP_LIFT_DP 0x90u        /* page battle */
 /* The enemy whose animation effect runs, a word: the enemies' movements ($C1:3772 and on) and
@@ -9143,6 +9156,10 @@
  * the script sets it as a word, the step counts the low byte */
 #define RAM_SCENE_PLANET_FADE_STEPS 0x7E0366u
 #define RAM_SCENE_PLANET_FADE_STEPS_DP 0x66u /* page decompress */
+/* The planet's scene: the high byte of the word the script's fades set the steps left as
+ * (scene_planet_fade_steps), 0, which nothing reads */
+#define RAM_SCENE_PLANET_FADE_STEPS_HIGH 0x7E0367u
+#define RAM_SCENE_PLANET_FADE_STEPS_HIGH_DP 0x67u /* page decompress */
 /* Who won the jet bike race, for the story to read after the scene: 1 Crono, 2 Johnny */
 #define RAM_SCENE_RACE_WINNER 0x7E0380u
 /* What Crono's winning score earns, for the story to read: a prize for a lucky number in the low
@@ -9195,8 +9212,9 @@
  * survives from one showing to the next: the camera takes one of its two scripts on odd showings
  * and the other on even [2 bytes] */
 #define RAM_SCENE_RACE_DEMO_SHOWINGS 0x7E0397u
-/* Frames left before the race's scene ends, once a button has been pressed after it [2 bytes] */
-#define RAM_SCENE_RACE_END_WAIT 0x7E0399u
+/* Frames left before the scene ends once a button has been pressed: the race's, and the
+ * planet's, which the game starts again from its reset after [2 bytes] */
+#define RAM_SCENE_END_WAIT 0x7E0399u
 /* Where the scene program is in the game's table of random bytes ($C0:FE00): each draw steps it
  * on */
 #define RAM_SCENE_RANDOM_STEP 0x7E039Bu
@@ -9916,6 +9934,7 @@
 #define RAM_SCENE_CALL_RIPPLE_OFFSET_DP 0xF0u /* The palace's ripple (on the scene's own page): the column offset as it is worked out across the columns, which ends back where it started */
 #define RAM_SCENE_CALL_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, or the address of the register an assignment names */
 #define RAM_SCENE_CALL_STIRRED_DP 0xF0u      /* On the scene's own page: what the program's random draws stir in (game/scene/random.c), whatever the last of its routines to use the cell left there: the 8.8 divide's dividend, the routine of the program a script calls, the word the palettes' frame keeps aside, a warning light's picture or a gauge's place in the Epoch's dive (a byte draw stirs its low byte alone) */
+#define RAM_SCENE_CALL_CALLED_ROUTINE_DP 0xF0u /* On the scene's own page: the program's routine a script calls, which the interpreter puts here for the program's call through the cell ($7E:37F3) */
 #define RAM_SCENE_CALL_KEPT_LIST_CLIP_DP 0xF0u /* On the scene's own page: the large sprite list's drop instruction (scene_large_list_clip), which the fireworks keep here while they write it out to draw their bursts */
 #define RAM_SCENE_CALL_ORBIT_FRAME_DP 0xFEu  /* On the scene's own page: twice the frame counter, which the shared endings' orbit keeps here between its sine and its cosine */
 

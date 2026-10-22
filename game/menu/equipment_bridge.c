@@ -5,10 +5,11 @@
  * Each step reads the cursor, asks equipment.c what the frame's input does,
  * and carries that out: the sounds, the member's card and the member list's
  * slide are siblings, run as the original's JSRs reach them (menu_run; the
- * slide where its own guard holds, menu_run_or_call); the member list's
- * scroll bar, the low-HP marks and the trying on of what is no item of the
- * game's are the original's, called out to; the
- * list's frame is C, called as C; a step that waits for the next frame
+ * slide where its own guard holds, menu_run_or_call); the trying on of what
+ * is no item of the game's is the original's, called out to, and so are the
+ * low-HP marks where theirs can't be worked out as C; the member list's scroll
+ * bar, the marks otherwise and the list's frame are C, called as C; a step
+ * that waits for the next frame
  * waits in the menus' task switch, parked until its task goes on
  * (menu_wait_a_frame_from); where a step jumps on to another routine (the
  * member list's move, the slots' pointing, the list's step, back to the
@@ -47,7 +48,6 @@
 
 /* The original's routines the steps call, by what they do. */
 enum {
-    MEMBER_SCROLL_BAR = 0xC2A170,    /* the member list's scroll bar set up */
     LOW_HP_MARKS = 0xC2813C,         /* each character's low-HP mark worked out */
     TRY_ON = 0xC2A5C3,               /* the list's item on the cursor tried on (equipment.c), where it is no item of the game's */
 };
@@ -126,8 +126,7 @@ void menu_set_up_equipment(Snes *s)
     TIMED_AS(g, 0xC290FC, menu_set_items_aside(g));
     menu_equip_set_up_screen(g, m_platform(s));
     menu_set_widths(s, true, false);
-    if (!call(s, 0xC2A15D, MEMBER_SCROLL_BAR))
-        return;
+    menu_equip_show_the_member_bar(g);
     menu_equip_show_screen(g);
     menu_restore_p(s);
     m_stop_dont_care(s, 0xC2A16F, READS_NOTHING);
@@ -540,16 +539,14 @@ void menu_close_slots_window(Snes *s)
 }
 
 // $C2:A2CD
-/* Back on the members, the member scroll bar set up (the original's)
- * between. */
+/* Back on the members, the member scroll bar set up again between. */
 void menu_back_to_equipment_members(Snes *s)
 {
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
     menu_equip_back_on_the_members(g, m_platform(s));
-    if (!call(s, 0xC2A2ED, MEMBER_SCROLL_BAR))
-        return;
+    menu_equip_show_the_member_bar(g);
     menu_equip_rest_the_member_rows(g);
     menu_restore_p(s);
     m_rts(s);
@@ -648,8 +645,8 @@ void menu_open_equipment_list(Snes *s)
 }
 
 // $C2:A64D
-/* Back on the slots: the card again (its own), the low-HP marks (the
- * original's), the member's row and the marks, a frame, the list window
+/* Back on the slots: the card again (its own), the low-HP marks worked out
+ * again, the member's row and the marks, a frame, the list window
  * sliding out and the list drawn again (both their own), and the slots at
  * rest. */
 void menu_back_to_equipment_slots(Snes *s)
@@ -658,7 +655,11 @@ void menu_back_to_equipment_slots(Snes *s)
     Platform *pf = m_platform(s);
     menu_save_p(s);
     menu_set_widths(s, false, false);
-    if (!menu_run(s, 0xC2A650, MEMBER_CARD, menu_draw_member_card) || !call(s, 0xC2A653, LOW_HP_MARKS))
+    if (!menu_run(s, 0xC2A650, MEMBER_CARD, menu_draw_member_card))
+        return;
+    if (menu_low_hp_marks_are_workable(s))
+        TIMED_AS(g, LOW_HP_MARKS, menu_work_out_low_hp_marks(g));
+    else if (!call(s, 0xC2A653, LOW_HP_MARKS))
         return;
     menu_equip_redraw_slots(g, pf);
     if (!menu_wait_a_frame_from(s, 0xC2A661))

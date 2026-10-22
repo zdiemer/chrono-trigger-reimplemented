@@ -386,6 +386,43 @@ void warp_shortest_frame(Snes *s) { run_a_frame(s, WARP_SHORTEST, 0xFDDAC1, 0xFD
 // $FD:DB27 (after the wait at $FD:DB24)
 void warp_flickering_frame(Snes *s) { run_a_frame(s, WARP_FLICKERING, 0xFDDB24, 0xFDDB8D); }
 
+/* ---- Each kind's start, and its main loop's wait ------------------------------------------------- */
+
+/* The warp's start and the main loop's wait for the next frame, which the
+ * kinds' starts and loops call (warp/bridge.c runs them as the original's
+ * JSRs do). The wait stops at its loop, which returns to the frame after it
+ * (warp_long_frame and the others). */
+enum { SET_UP = 0xFDDB97, WAIT_FOR_FRAME = 0xFDEAEB };
+
+static void wait_for_the_frame_from(Snes *s, uint32_t site) { (void)warp_run_from(s, site, WAIT_FOR_FRAME, warp_wait_for_frame); }
+
+/* The warp starts, the flickering one with its flicker at its pattern's
+ * start, and its main loop goes round: a frame waited for, then made. */
+static void start(Snes *s, WarpKindId id, uint32_t start, uint32_t wait)
+{
+    if (!warp_run_from(s, start, SET_UP, warp_set_up))
+        return;
+    if (kinds[id].flickers)
+        set_warp_flicker(state_of(s), 0);
+    wait_for_the_frame_from(s, wait);
+}
+
+// $FD:DA00
+void warp_start_the_long_trip(Snes *s) { start(s, WARP_LONG, 0xFDDA00, 0xFDDA03); }
+// $FD:DA5F
+void warp_start_the_short_trip(Snes *s) { start(s, WARP_SHORT, 0xFDDA5F, 0xFDDA62); }
+// $FD:DABE
+void warp_start_the_shortest_trip(Snes *s) { start(s, WARP_SHORTEST, 0xFDDABE, 0xFDDAC1); }
+// $FD:DB1D
+void warp_start_the_flickering_trip(Snes *s) { start(s, WARP_FLICKERING, 0xFDDB1D, 0xFDDB24); }
+
+// $FD:DA03, $FD:DA62, $FD:DAC1, $FD:DB24
+/* Each kind's main loop going round, after a frame made. */
+void warp_long_trip_waits(Snes *s) { wait_for_the_frame_from(s, 0xFDDA03); }
+void warp_short_trip_waits(Snes *s) { wait_for_the_frame_from(s, 0xFDDA62); }
+void warp_shortest_trip_waits(Snes *s) { wait_for_the_frame_from(s, 0xFDDAC1); }
+void warp_flickering_trip_waits(Snes *s) { wait_for_the_frame_from(s, 0xFDDB24); }
+
 // $FD:EAC8
 /* The warp's end begins, a call of its own so that the picture's line effects
  * stop where the original stops them. What it leaves in A nobody reads. */

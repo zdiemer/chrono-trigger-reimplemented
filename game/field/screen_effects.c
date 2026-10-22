@@ -35,6 +35,7 @@
 #include "field/bridge.h"
 #include "field/display.h"
 #include "field/field.h"
+#include "field/layers.h"
 #include "field/parts.h"
 #include "field/streaming.h"
 #include "platform/timing.h"
@@ -523,7 +524,6 @@ enum {
     CURTAIN_SWEEP = 0xC3000E,     /* bank $C3's step of the curtain ($C3:01E4) */
     FRAME_WAIT = 0xC0EC60,        /* waits for the next frame */
     DRAW_BG1 = 0xC075E9,          /* BG1's tiles drawn into the staging, on the layers' page */
-    SEND_BG1 = 0xC074D4, SEND_BG2 = 0xC074E8, SEND_BG3 = 0xC074F7,   /* a staged tile map readied for its send */
 };
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 /* The curtain's routine saves every register and its flags and puts them
@@ -577,7 +577,10 @@ static void field_hands_over(GameState *g, Platform *pf)
 static bool close_into_the_scene(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!draw_bg1(s, 0xC02617) || !call(s, 0xC0261B, SEND_BG1) || !refresh(s, 0xC0261E))
+    if (!draw_bg1(s, 0xC02617))
+        return false;
+    field_put_the_layer_at_its_start(g, FIELD_BG1);
+    if (!refresh(s, 0xC0261E))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG1);
     if (!call(s, 0xC02625, FRAME_WAIT) || !field_run(s, 0xC02628, FIELD_BATTLE_BEGINS_ENTRY, READS_NOTHING, field_battle_begins, on_the_field_page(s, false)) || !refresh(s, 0xC0262B) ||
@@ -619,8 +622,11 @@ enum { THE_LAST_WAIT = DC_A | DC_N | DC_Z };
 static bool play_the_ripple(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!draw_bg1(s, 0xC02658) || !call(s, 0xC0265C, SEND_BG2) || !call(s, 0xC0265F, SEND_BG3) ||
-        !refresh(s, 0xC02662))
+    if (!draw_bg1(s, 0xC02658))
+        return false;
+    field_put_the_layer_at_its_start(g, FIELD_BG2);
+    field_put_the_layer_at_its_start(g, FIELD_BG3);
+    if (!refresh(s, 0xC02662))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG2);
     ripple_begins(g);

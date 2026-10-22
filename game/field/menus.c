@@ -44,6 +44,7 @@
 #include "charge.h"
 #include "core/display.h"
 #include "core/input.h"
+#include "event/event.h"
 #include "event/variables.h"
 #include "field/bridge.h"
 #include "field/parts.h"
@@ -120,11 +121,12 @@ static void script_menu_shown(GameState *g)
 
 /* ---- The routines it calls on the machine ---------------------------------------------------- */
 
-/* The original's routines. */
+/* The original's routines, and the engine's restart of the running object
+ * (event/bridge.c), run as C. */
 enum {
     MENUS = 0xC28000,               /* the menus, at the mode in A */
     FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
-    OBJECT_START = 0xC0597D,        /* runs the current object's start in its script */
+    OBJECT_START = 0xC0597D,        /* the running object starts over in its script */
 };
 
 /* Ports this file runs through field_run, by the routines they stand for. */
@@ -135,11 +137,6 @@ enum {
     READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
     READS_THE_MODE = DC_AH | DC_Y | DC_C,               /* the menus keep the flags and take A and X */
 };
-
-static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
-{
-    return bridge_call(s, site, routine, dont_care, on_the_field_page(s, false));
-}
 
 static bool wait_frame(Snes *s, uint32_t site)
 {
@@ -470,7 +467,8 @@ void field_bring_the_party_back(Snes *s)
             if (!field_link_is_object(link))
                 continue;
             object_make_current(g, field_linked_object(link));
-            if (!call(s, character_starts[i].site, OBJECT_START, READS_THE_OVERFLOW))
+            if (!field_run(s, character_starts[i].site, OBJECT_START, READS_THE_OVERFLOW,
+                           event_restart_the_running_object_entry, on_the_field_page(s, false)))
                 return;
         }
         party_taken_as_loaded(g);

@@ -76,6 +76,9 @@ void setup_party_objects(GameState *g);
 bool setup_party_is_real(const GameState *g);
 bool setup_remembered_cursors_real(const GameState *g);
 void setup_place_combatant(GameState *g, unsigned slot);
+/* The frame each combatant's object starts with, kept a byte on from its
+ * marker's frame (setup_party.c). */
+uint8_t setup_start_frame(const GameState *g, unsigned slot);
 
 /* battle/setup_enemies.c: the enemies. */
 void setup_enemies(GameState *g);

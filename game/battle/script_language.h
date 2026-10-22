@@ -229,26 +229,16 @@ typedef struct {
  * Where it isn't, the original's handler runs, whose indexed writes reach past
  * the tables, but for the waits on an animation, which take a combatant
  * channel whose subject is nobody too (an ending's script runs on a channel
- * for a partner the party doesn't have; script_poses.c). The jumps to the
- * script's point need the usual lift besides (below). */
+ * for a partner the party doesn't have; script_poses.c). */
 typedef enum {
     NEEDS_NOTHING, NEEDS_SUBJECTS, NEEDS_A_COMBATANT_CHANNEL, NEEDS_ONE_MOVER, NEEDS_EFFECT, NEEDS_COLORS,
-    NEEDS_A_SCREEN_EFFECT, NEEDS_SUBJECTS_AND_A_QUIET_PLACE, NEEDS_SUBJECTS_AND_THE_USUAL_LIFT,
+    NEEDS_A_SCREEN_EFFECT, NEEDS_SUBJECTS_AND_A_QUIET_PLACE,
     NEEDS_SUBJECTS_OR_NOBODY, NEEDS_A_PLACE_APART_FROM_THE_SOUND
 } ScriptNeeds;
 
 /* The subject of a combatant channel for no one: an empty place of the
  * action's (a partner the party doesn't have). */
 enum { SCRIPT_NOBODY = 0xFF };
-
-/* The lift a jump to the script's point takes: once, at full bounce. The
- * original takes it from a work cell it shares with other work ($90), which
- * the animation slots' frame leaves at their count, 6, and which a jump
- * given its own lift, or a walk's search, overwrites until the next frame;
- * the rows lift by the 6, and leave a jump to the original while the cell
- * holds anything else (battle/scripts.c looks). */
-enum { POINT_JUMP_LIFT = 6 };
-bool script_point_jump_lift_as_usual(const GameState *g);
 
 typedef struct {
     uint8_t command;

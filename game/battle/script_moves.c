@@ -386,11 +386,14 @@ SCRIPT_OPERATION(put, channel, length, aim, x, y, place)
 /* ---- Jumps ----------------------------------------------------------------------------------- */
 
 /* How a jump lifts: by its height twice over (a combatant's sprite) or once,
- * and how fast it bounces back up off a fall: full, or at half. A jump to the
- * script's point has no lift of its own, and lifts once at full bounce
- * (POINT_JUMP_LIFT, battle/script_language.h). The original leaves a lift
- * the command gives where it takes that one from. */
-enum { LIFTED_TWICE = 0, BOUNCES_AT_HALF = 2, FULL_BOUNCE = 0xFFFF, HALF_BOUNCE = 0x7FFF, LEFT_LIFT = 0x10 };
+ * and how fast it bounces back up off a fall: full, or at half. A jump to a
+ * place gives its lift, and the battle keeps it in a cell other work shares
+ * (battle_jump_lift); a jump to the script's point gives none and takes
+ * whatever the cell holds: most often 6, which the animation slots' places
+ * leave there each frame (battle/objects.c), so it lifts once at full bounce,
+ * but the lift of a jump earlier in the frame, or what a walk or a color
+ * list left there, when one ran since. */
+enum { LIFTED_TWICE = 0, BOUNCES_AT_HALF = 2, FULL_BOUNCE = 0xFFFF, HALF_BOUNCE = 0x7FFF };
 
 static uint16_t bounce_of(uint8_t lift) { return lift == BOUNCES_AT_HALF ? HALF_BOUNCE : FULL_BOUNCE; }
 
@@ -462,7 +465,9 @@ static ScriptFlow jump(GameState *g, ScriptChannel ch, uint8_t length, ScriptAim
 {
     ORIGINAL_EFFECT(script_leave(g, LEFT_DOWNWARD, downward));
     if (aim == AIM_AT_A_PLACE) /* the jumps that give their lift */
-        ORIGINAL_EFFECT(script_leave(g, LEFT_LIFT, lift));
+        set_battle_jump_lift(g, lift);
+    else
+        lift = battle_jump_lift(g);
     BattlePoint to = script_aim(g, aim, 0, 0, place);
     ORIGINAL_EFFECT(script_leave(g, LEFT_LENGTH, length));
     if (ch.kind == SCRIPT_OTHER_TARGETS)
@@ -984,7 +989,6 @@ SCRIPT_OPERATION(flicker, channel, radius, period, frames)
 #define AT_COORDINATES .aim = CONSTANT(AIM_AT_COORDINATES)
 #define AT_THE_POINT .aim = CONSTANT(AIM_AT_THE_POINT)
 #define AT_A_PLACE .aim = CONSTANT(AIM_AT_A_PLACE)
-#define POINT_LIFT .lift = CONSTANT(POINT_JUMP_LIFT)
 
 SCRIPT_OPCODES(script_move_opcodes,
     { 0x10, OPERATION(line), AT_COORDINATES, .x = OPERAND(1), .y = OPERAND(2), .length = 3, .needs = NEEDS_SUBJECTS },
@@ -997,11 +1001,11 @@ SCRIPT_OPCODES(script_move_opcodes,
     { 0x1A, OPERATION(put), AT_THE_POINT, .length = 1, .needs = NEEDS_SUBJECTS },
     { 0x1B, OPERATION(put), AT_A_PLACE, .place = OPERAND(1), .length = 2, .needs = NEEDS_SUBJECTS },
     { 0x98, OPERATION(jump), AT_A_PLACE, .lift = OPERAND(1), .place = OPERAND(2), .length = 3, .needs = NEEDS_SUBJECTS },
-    { 0x99, OPERATION(jump), AT_THE_POINT, POINT_LIFT, .length = 2, .needs = NEEDS_SUBJECTS_AND_THE_USUAL_LIFT },
+    { 0x99, OPERATION(jump), AT_THE_POINT, .length = 2, .needs = NEEDS_SUBJECTS },
     { 0x9A, OPERATION(jump), AT_A_PLACE, .lift = OPERAND(1), .place = OPERAND(2), .downward = CONSTANT(true), .length = 3, .needs = NEEDS_SUBJECTS },
-    { 0x9B, OPERATION(jump), AT_THE_POINT, POINT_LIFT, .downward = CONSTANT(true), .length = 2, .needs = NEEDS_SUBJECTS_AND_THE_USUAL_LIFT },
+    { 0x9B, OPERATION(jump), AT_THE_POINT, .downward = CONSTANT(true), .length = 2, .needs = NEEDS_SUBJECTS },
     { 0x9C, OPERATION(jump), AT_A_PLACE, .lift = OPERAND(1), .place = OPERAND(2), .short_hop = CONSTANT(true), .length = 3, .needs = NEEDS_SUBJECTS },
-    { 0x9D, OPERATION(jump), AT_THE_POINT, POINT_LIFT, .short_hop = CONSTANT(true), .length = 2, .needs = NEEDS_SUBJECTS_AND_THE_USUAL_LIFT },
+    { 0x9D, OPERATION(jump), AT_THE_POINT, .short_hop = CONSTANT(true), .length = 2, .needs = NEEDS_SUBJECTS },
     { 0xA2, OPERATION(spiral_out), .length = 1, .needs = NEEDS_SUBJECTS },
     { 0xA8, OPERATION(spiral_for), .frames = OPERAND(1), .length = 2, .needs = NEEDS_SUBJECTS },
     { 0xA9, OPERATION(spiral_for), .frames = OPERAND(1), .stops_at_others = CONSTANT(true), .length = 2, .needs = NEEDS_ONE_MOVER },

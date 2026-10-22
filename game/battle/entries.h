@@ -761,6 +761,13 @@ bool battle_return_ready(Snes *s);
 /* battle/opening.c */
 void battle_party_faces_the_enemies(Snes *s);
 bool battle_opening_ready(Snes *s);
+void battle_set_up(Snes *s);
+void battle_play_out_the_defeat_end(Snes *s);
+void battle_set_up_after_the_graphics(Snes *s);
+bool battle_combatants_graphics_known(Snes *s);
+void battle_start_the_frame_work(GameState *g);
+void battle_start_the_frame_work_entry(Snes *s);
+void battle_set_the_screen_up_for_the_field(Snes *s);
 
 /* battle/effect_animation.c */
 void battle_animate_effects(Snes *s);

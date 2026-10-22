@@ -87,18 +87,6 @@ static ScriptBridge bridge_of(uint8_t command)
     return NULL;
 }
 
-/* The jumps to the script's point run as C only while the cell the original
- * takes their lift from holds the usual one (battle/script_language.h): a
- * look at the original's state, as a guard's. */
-bool script_point_jump_lift_as_usual(const GameState *g)
-{
-    bool was = vars_peeking();
-    vars_peek(true);
-    bool usual = battle_jump_lift(g) == POINT_JUMP_LIFT;
-    vars_peek(was);
-    return usual;
-}
-
 static uint32_t channel_place(const GameState *g, unsigned channel) { return battle_script_pointers(g, channel); }
 static void set_channel_place(GameState *g, unsigned channel, uint32_t at) { set_battle_script_pointers(g, channel, at); }
 

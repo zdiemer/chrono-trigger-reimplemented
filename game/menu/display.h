@@ -27,9 +27,12 @@ void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes);
 void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t at, uint16_t bytes);
 
 /* The mode at $C2:800E (the menus proper) */
+void menu_mode_enter(Snes *s);
 void menu_mode_start(Snes *s);
 void menu_mode_return(Snes *s);
 void menu_mode_restart(Snes *s);
+void menu_close(Snes *s);
+void menu_close_for_the_game(Snes *s);
 void menu_nmi_enter(Snes *s);
 void menu_nmi_work(Snes *s);
 bool menu_nmi_work_runs(Snes *s);

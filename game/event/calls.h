@@ -20,6 +20,10 @@ enum { EVENT_LEVELS = 8 };
 /* Where one of an object's functions starts in the map's script. */
 uint16_t object_function_start(const GameState *g, FieldObject object, uint8_t function);
 
+/* An object started over forgets the calls it was interrupted in, at every
+ * level, and runs at the least urgent. */
+void object_forget_its_calls(GameState *g, FieldObject object);
+
 /* Whether calls reach the object: it doesn't refuse them for now, and it is
  * reachable (field/object.h). */
 bool object_takes_calls(const GameState *g, FieldObject object);

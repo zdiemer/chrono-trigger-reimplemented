@@ -30,6 +30,7 @@
 
 #include "battle/aim_data.h"
 #include "battle/arith.h"
+#include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/positions.h"
@@ -123,13 +124,16 @@ static bool within_angles(uint8_t angle, uint8_t from, uint8_t to, bool past_a_t
 }
 
 /* The cells the searches loop over the side in: its end and the next slot,
- * which the loop leaves at the end. */
-enum { CELL_END = 0x90, CELL_SLOT = 0x8E, CELL_LEFT_OUT = 0x92 };
+ * which the loop leaves at the end. The end's cell is the one a jump to the
+ * script's point takes its lift from (battle.h), so the end is left there as
+ * game state; the rest is for shadow mode. */
+enum { CELL_END_HIGH = 0x91, CELL_SLOT = 0x8E, CELL_LEFT_OUT = 0x92 };
 
 static void leave_side(GameState *g, Side side)
 {
-    battle_leave_work16(g, CELL_END, side.end);
-    battle_leave_work16(g, CELL_SLOT, side.end);
+    battle_leave_jump_lift(g, side.end);
+    ORIGINAL_EFFECT(battle_leave_work8(g, CELL_END_HIGH, 0));
+    ORIGINAL_EFFECT(battle_leave_work16(g, CELL_SLOT, side.end));
 }
 
 /* ---- The beam ------------------------------------------------------------------------------------ */
@@ -204,7 +208,7 @@ static void find_in_beam(GameState *g, AreaAsked a)
             add_find(g, &f, slot);
     }
     ORIGINAL_EFFECT(leave_beam(g, &left, &right, a.toward));
-    ORIGINAL_EFFECT(leave_side(g, side));
+    leave_side(g, side);
     put_placed_first(g, a.among_party, a.toward);
 }
 
@@ -255,7 +259,7 @@ static void find_in_circle(GameState *g, AreaAsked a)
             add_find(g, &f, slot);
     }
     ORIGINAL_EFFECT(leave_circle(g, a.centre, across, down, last));
-    ORIGINAL_EFFECT(leave_side(g, side));
+    leave_side(g, side);
     put_placed_first(g, a.among_party, a.centre);
 }
 
@@ -291,7 +295,7 @@ static void find_in_row(GameState *g, AreaAsked a)
             add_find(g, &f, slot);
     }
     ORIGINAL_EFFECT(leave_row(g, a.centre, top, bottom));
-    ORIGINAL_EFFECT(leave_side(g, side));
+    leave_side(g, side);
     set_battle_area_found(g, 0, a.centre);
 }
 
@@ -383,7 +387,7 @@ static void find_in_party_triangle(GameState *g)
             add_find(g, &f, slot);
     }
     ORIGINAL_EFFECT(leave_triangle(g, c));
-    ORIGINAL_EFFECT(leave_side(g, side));
+    leave_side(g, side);
     battle_close_up_finds(g);
 }
 

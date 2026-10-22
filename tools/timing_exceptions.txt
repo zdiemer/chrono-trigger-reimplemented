@@ -97,8 +97,8 @@ field_load_tile_looks worst unpacks the tiles' looks while the screen is blanked
 field_load_bg3_tile_looks drift as field_load_bg3_graphics, for BG3's tile looks
 field_unpack_the_map worst unpacks a location's map while the screen is blanked, its time following the packed data: 5.8% error in calls of 1.34 million clocks, ending a load sooner or later
 field_set_up_after_a_menu worst brings the field back after a menu with the screen blanked: the map's unpacking and the screen's setup under it are C at their estimates, at most 300121 clocks in calls of 1.42 million, with the screen blanked
+overworld_come_back_to_the_map_s_screen worst brings the world map back after the menus with the screen blanked: the menus' video setup and the map's way back under it are C at their own estimates (attributed, cost_milli 1), at most 220103 clocks in calls of 623243 on average, with the screen blanked
 field_refresh_effects drift runs the screen effects' and the layers' frame work inline, attributed (cost_milli 1); what is left over-estimates by 6%, writing RAM
-field_walk_a_frame drift walks the party a frame inline, attributed (cost_milli 1); +0.77% over 1203 clocks a call, writing RAM
 # The leader's walk, now run as C under the frame's stretch: its own time has
 # two kinds of call, a step and a step that recentres the screen, and the
 # calibration that removes its drift (6755) leaves the short ones' tail; at its
@@ -166,3 +166,26 @@ menu_choose_buttons vblank-tail the settings' button rows' step, whose time foll
 battle_step_effect_slots vblank-tail steps every effect slot a frame, its time following the slots in use (7.8% mean error); the tech sweep's effects take 1.25% of its 323,766 stretches in vblank a scanline's three quarters off, and the vblank check finds no video write moved
 menu_open_save_screen worst the save point's own save screen opening, one stretch over the library (menus-save-point) and that interrupted: it spans the frames the screen's windows open over, which its estimate doesn't hold; no video write moves
 rewards_share_with_reserve worst shares a battle's rewards with the reserve members, its time following how many there are and what each levels; one stretch of 26 (the new movies' fights) is off by 51573 clocks against 50468, in the rewards' messages, where no video write moves
+
+# The hand ports alone (the shipping mode's fallbacks, chunk 11; REIMPLEMENTATION.md): the joints
+# between ports, which run the rest of a list or a pass as C at the rates of the ports they run
+# inline, and the second batch of movies' stretches of older ports. The vblank check finds none of
+# their writes moved.
+scene_run_frame_tasks vblank-tail the scene's frame tasks, which run the registered tasks as C at those tasks' own rates (scene/frame.c), so a list's time carries their spread (the curtains', the race's): 32% of 9,487 stretches in vblank off by a line or more, at most 5436 clocks (4 lines), writing the RAM tables and sprite table the next vblank sends
+scene_run_frame_tasks worst the same list over a frame whose tasks run long (the race, the endings): at most 67472 clocks in calls of 68379 on average, writing RAM
+scene_frame_tasks_go_on vblank-tail the frame list going on from the slot after a task that came back to it, the rest of the list run as scene_run_frame_tasks runs it and off by what it is off by: 81% of 11,414 stretches in vblank off by a line or more, at most 6546 clocks (5 lines)
+scene_frame_tasks_go_on worst the same, at most 68117 clocks in calls of 55683 on average, writing RAM
+scene_run_vblank_tasks vblank-tail the scene's vblank tasks, the registered ones run as C at their own rates: 17% of its stretches off by a line or more, at most 3072 clocks (2 lines), all inside vblank
+scene_vblank_tasks_go_on vblank-tail the vblank list going on from the slot after a task that came back to it, as scene_run_vblank_tasks: 26% off by a line or more, at most 2947 clocks, all inside vblank
+field_frame_goes_on_with_the_requests vblank-tail the field's frame from its pass's step, the frame's work after it run inline and attributed as field_frame's: 12% of its stretches in vblank off by a line or more, at most 4395 clocks (3 lines), writing RAM the next vblank sends
+field_frame_goes_on_with_the_walk vblank-tail the same from the walk's step: 12% off by a line or more, at most 4380 clocks
+field_frame_goes_on_with_confirm worst the field's frame from the confirm step on, the frame's work inline as field_frame's: at most 87934 clocks, in a frame whose scripts and objects run long, writing RAM the next vblank sends
+field_frame_goes_on_with_the_dialog_window worst the same from the dialog window's step: at most 87935 clocks
+field_frame_goes_on_with_the_screen_effect worst the same from the screen effect's step: at most 88037 clocks
+battle_screen_script_draw_circle vblank-tail draws a circle into the screen script's RAM tables, its time following the circle's size; the second batch's fights (Spekkio's) brought 131 stretches in vblank, 55% off by a line or more, at most 2075 clocks
+battle_upload_alternating_vram vblank-tail the alternating VRAM upload in vblank: 1.14% of 730,110 stretches off by 1024 clocks or more, at most 1296 clocks (under a line), with the second batch's fights
+event_cmd_copy_tiles worst copies a block of the map's tiles, its time following the block's size: the floor switches' movies' copies at most 51467 clocks (the limit 50468), writing the RAM tile maps the next vblank sends
+field_copy_tiles worst the same copy from the field's own call: at most 50846 clocks
+menu_note_rock_techs vblank-tail notes which rock techs the party has, its time following the party's members and their records: 16% of its 120 stretches in vblank off by a line, at most 1076 clocks
+menu_show_what_the_party_wears vblank-tail shows the party's wear on the field's sprites, run as C by the menus' close now (menu/display.c): 1.8% of its stretches in vblank off by a line, at most 1180 clocks, writing RAM
+menu_window_copy_bytes vblank-tail copies a window's bytes into the menus' tilemap buffer in RAM, its time following the window's size: 2.6% of its stretches in vblank off by a line or more, at most 1944 clocks

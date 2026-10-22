@@ -65,6 +65,15 @@ void menu_scene_drift_the_map(GameState *g, MenuObject self)
     TIMED_AS(g, 0xC20568, menu_map_scroll(g, FIRST_PLANE, MENU_ACROSS, A_TILE));
 }
 
+/* ---- Where the Epoch arrives -------------------------------------------------------------------- */
+
+// $C6:EE31
+/* A scene of the Epoch arriving somewhere through time keeps where in the
+ * story (story_epoch_arrivals), for the scenes after it to go by: the script
+ * hands the place over in the mode's first cell, where the routines it calls
+ * answer it too. */
+void menu_scene_note_the_epoch_s_arrival(GameState *g) { set_story_epoch_arrivals(g, menu_object_scratch_answer(g)); }
+
 /* ---- The entries ------------------------------------------------------------------------------- */
 
 /* The routine leaves the running object's slot in X and the carry of its
@@ -100,6 +109,18 @@ void menu_scene_drift_the_map_entry(Snes *s)
     menu_scene_drift_the_map(g, menu_object_running(g));
     m_set_flag(s, CPU_FLAG_C, false);
     m_rts(s);
+}
+
+// $C6:EE31
+/* It leaves the place in A, with the flags of its load. */
+void menu_scene_note_the_epoch_s_arrival_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    menu_scene_note_the_epoch_s_arrival(g);
+    uint8_t place = story_epoch_arrivals(g);
+    m_set_a8(s, place);
+    m_set_nz8(s, place);
+    m_rtl(s);
 }
 
 bool menu_scene_object_in_view_runs(Snes *s) { return menu_object_can_move(s); }

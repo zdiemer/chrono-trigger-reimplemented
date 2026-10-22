@@ -210,7 +210,8 @@ void battle_wait_window_slide_loop(Snes *s)
 
 // $CC:F05B (in the battle's setup, $CC:ED87)
 /* Wait for the battle's graphics to have loaded: the vblank handler loads
- * them a step a frame (battle_load_graphics). */
+ * them a step a frame (battle_load_graphics). Once they have, the setup's
+ * graphics return to the setup ($CC:F062). */
 enum { GRAPHICS_LOADED = 4 };
 
 void battle_wait_graphics_loaded_loop(Snes *s)
@@ -219,5 +220,5 @@ void battle_wait_graphics_loaded_loop(Snes *s)
     m_set_a8(s, step);
     m_cmp8(s, step, GRAPHICS_LOADED);
     if (step == GRAPHICS_LOADED)
-        s->cpu.pc = 0xF062;
+        m_rtl(s);
 }

@@ -34,6 +34,7 @@
 #include "menu/vram.h"
 #include "menu/windows.h"
 #include "original_effects.h"
+#include "original_frame.h"
 #include "overworld/overworld.h"
 #include "platform/audio.h"
 #include "port/machine.h"
@@ -331,31 +332,37 @@ static bool play_the_saved_sound(Snes *s)
 // $C2:CF37
 /* Save the game in the slot shown: the sound, the slot marked as holding a
  * game, the game written; a frame on, the slot's summary read back; and a
- * frame's wait, from which the task goes on into its caller. */
-void menu_save_the_game(Snes *s)
+ * frame's wait, which the original jumps to, so that the task goes on from it
+ * into the save's caller. False where the port stops. */
+static bool save_up_to_the_last_wait(Snes *s)
 {
     GameState *g = state_of(s);
     uint8_t slot = menu_save_slot_shown(g);
     if (!play_the_saved_sound(s))
-        return;
+        return false;
     set_menu_save_slot_in_use(g, slot, SLOT_HOLDS_A_GAME);
     TIMED_AS(g, 0xFFF9FB, saves_save_game(g, m_platform(s), slot));
-    if (!menu_wait_a_frame_from(s, 0xC2CF55))
-        return;
-    if (!menu_run(s, 0xC2CF58, READ_THE_SLOT_SUMMARY, menu_read_slot_summary))
-        return;
-    m_stop_at_own(s, MENU_TASK_WAITS_A_FRAME, THE_WAIT_KEEPS_ALL_BUT_A);
+    return menu_wait_a_frame_from(s, 0xC2CF55) && menu_run(s, 0xC2CF58, READ_THE_SLOT_SUMMARY, menu_read_slot_summary);
 }
 
-/* The save, from its JSR at `site`: run as C where its port runs, and
- * otherwise the original's, which reads A's high byte as its call to the
- * driver does. True only where the original's came back, frames later: the
- * port stops in its last wait. */
+void menu_save_the_game(Snes *s)
+{
+    if (save_up_to_the_last_wait(s))
+        m_stop_at_own(s, MENU_TASK_WAITS_A_FRAME, THE_WAIT_KEEPS_ALL_BUT_A);
+}
+
+/* The save, from its JSR at `site`: as C where its port runs, inside the
+ * original's frame for it, with the last wait returning to the call's
+ * return; otherwise the original's, which reads A's high byte as its call to
+ * the driver does. True where it came back, frames later. */
 static bool save_from(Snes *s, uint32_t site)
 {
-    if (menu_runs_as_port(s, SAVE_THE_GAME, menu_save_the_game))
-        return menu_run(s, site, SAVE_THE_GAME, menu_save_the_game);
-    return menu_call(s, site, SAVE_THE_GAME, READS_A_HIGH);
+    if (!menu_runs_as_port(s, SAVE_THE_GAME, menu_save_the_game))
+        return menu_call(s, site, SAVE_THE_GAME, READS_A_HIGH);
+    bool saved = false;
+    NATIVE_TIME_AS(s, SAVE_THE_GAME,
+                   IN_THE_ORIGINALS_FRAME(state_of(s), ORIGINAL_RETURN_BYTES, saved = save_up_to_the_last_wait(s)));
+    return saved && menu_yield(s, site, MENU_TASK_WAITS_A_FRAME, THE_WAIT_KEEPS_ALL_BUT_A);
 }
 
 /* The slot saved in shown, and the upload's registers left as its queueing

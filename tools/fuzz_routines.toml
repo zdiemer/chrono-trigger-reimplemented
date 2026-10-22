@@ -20394,6 +20394,14 @@ iterations = 300
 why = "mode 4's setup from the program's mode table, the program kept (its code is the guard's hash; the unpacking, the pixels' spread, the first script step and the stars' scatter the original's or their ports)"
 
 [[routine]]
+name = "scene_planet_set_up"
+subsystem = "scene"
+state = "lavos_falls"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
+iterations = 300
+why = "modes 7 and 8's setup from the program's mode table, the program kept (its code and the routines it runs as C are the guard's hash; the unpacking, the first script step and the stars put out the original's or their ports)"
+
+[[routine]]
 name = "scene_turn_lavos"
 subsystem = "scene"
 state = "lavos_falls"
@@ -20706,3 +20714,487 @@ state = "equipment"
 args = ["--d", "0000", "--db", "7E", "--widths", "8,8", "--keep", "7E7700-7E7FFF", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E0D38-7E0D45", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D5F-7E0D67=00,01,02,03,04,05,06", "--fill", "7E0D11-7E0D11=00,08,10", "--fill", "7E0054-7E0054=00-02", "--fill", "7E0413-7E0413=00-04", "--fill", "7E0FC4-7E0FC4=00-04", "--fill", "7E005A-7E005A=84,88", "--stop-at-call", "C2821E", "--stop-at-call", "C29DAF"]
 iterations = 2000
 why = "the slide's start, a push down or up past the list's edge with the list scrolled anywhere it goes, compared up to the slide it makes, which it runs as C only under the runtime (menu_run_or_call; the slide is fuzzed as menu_slide_equipment_members)"
+
+# ---- the shipping mode's fallbacks, chunk 11: what strict mode stopped at ----------------------------
+
+[state.planet]
+movie = "oracle/movies/saves/battle-lavos-gameover.ctm"
+frames = 15000
+
+[[routine]]
+name = "menu_mode_enter"
+at = "C2:8000"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the table's way in, which goes on to the menus' entry"
+
+[[routine]]
+name = "menu_close"
+at = "C2:82B2"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2980-7E2982=00-06", "--stop-at-call", "C2822B", "--stop-at-call", "C2821E"]
+iterations = 2000
+why = "the menus' page and data bank, the active members characters (the wear's guard), up to the fade's first wait"
+
+[[routine]]
+name = "menu_close_for_the_game"
+at = "C2:8320"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2980-7E2982=00-06", "--stop-at-call", "C2822B", "--stop-at-call", "C2821E"]
+iterations = 2000
+why = "as menu_close"
+
+[[routine]]
+name = "menu_start_the_fade_in"
+at = "C2:83B2"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page"
+
+[[routine]]
+name = "menu_fade_in_task"
+at = "C2:83BD"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--stop-at-call", "C2821E"]
+iterations = 2000
+why = "the menus' page and data bank, up to the task's first wait"
+
+[[routine]]
+name = "menu_fade_the_screen_out"
+at = "C2:83CA"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--stop-at-call", "C2822B", "--stop-at-call", "C2821E"]
+iterations = 2000
+why = "the menus' page and data bank, any brightness, up to the first wait (a step taken, or the screen dark at once)"
+
+[[routine]]
+name = "menu_work_out_low_hp_marks"
+at = "C2:813C"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00"]
+iterations = 2000
+why = "the menus' zero word cleared, as their opening leaves it (the guard's); the records random"
+
+[[routine]]
+name = "menu_wait_frames_sending_the_sound"
+at = "C2:0454"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "7E", "--stop-at-call", "C20346"]
+iterations = 2000
+why = "the object mode's page, up to the first frame's wait"
+
+[[routine]]
+name = "menu_held_cursor_task"
+at = "C2:8AB2"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--widths", "16,16", "--fill", "7E0D9C-7E0D9C=00-29", "--stop-at-call", "C2821E"]
+iterations = 3000
+why = "16-bit as a task starts, the held cursor at one of the cursor's places (the guard's), up to its wait"
+
+[[routine]]
+name = "menu_list_cursor_task"
+at = "C2:89F2"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--widths", "16,16", "--stop-at-call", "C2821E"]
+iterations = 3000
+why = "16-bit as a task starts, up to its wait"
+
+[[routine]]
+name = "menu_members_cursors_task"
+at = "C2:8AF5"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--widths", "16,16", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D9C-7E0D9C=00-26", "--fill", "7E0073-7E0073=01-03", "--stop-at-call", "C2821E"]
+iterations = 3000
+why = "16-bit as a task starts, one to three active members from a held place that leaves them room (the guard's), up to its wait"
+
+[[routine]]
+name = "menu_gate_screen_task"
+at = "C2:CECE"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00", "--stop-at-call", "C2822B"]
+iterations = 2000
+why = "the menus' page and data bank with their zero word (the swirl's guard), up to its wait"
+
+[[routine]]
+name = "menu_scene_note_the_epoch_s_arrival"
+at = "C6:EE31"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script's call command on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "field_put_bg1_at_its_start"
+at = "C0:74D4"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+iterations = 2000
+why = "any page (it sets the layers'), the positions and bases random"
+
+[[routine]]
+name = "field_put_bg2_at_its_start"
+at = "C0:74E8"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+iterations = 2000
+why = "as field_put_bg1_at_its_start"
+
+[[routine]]
+name = "field_put_bg3_at_its_start"
+at = "C0:74F7"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+iterations = 2000
+why = "as field_put_bg1_at_its_start"
+
+[[routine]]
+name = "field_frame_goes_on_with_the_requests"
+at = "C0:00A4"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 2000
+why = "the field's page: the main loop's pass from its requests on, to its wait for the vblank"
+
+[[routine]]
+name = "field_frame_goes_on_with_the_walk"
+at = "C0:00A7"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 2000
+why = "as field_frame_goes_on_with_the_requests, from the walk on"
+
+[[routine]]
+name = "field_frame_goes_on_with_confirm"
+at = "C0:00AA"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 2000
+why = "as field_frame_goes_on_with_the_requests, from the confirm button on"
+
+[[routine]]
+name = "field_frame_goes_on_with_the_dialog_window"
+at = "C0:00AD"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 2000
+why = "as field_frame_goes_on_with_the_requests, from the dialog window on"
+
+[[routine]]
+name = "field_frame_goes_on_with_the_screen_effect"
+at = "C0:00B1"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 2000
+why = "as field_frame_goes_on_with_the_requests, from the screen effect on"
+
+[[routine]]
+name = "field_frame_goes_on_with_the_script_layers"
+at = "C0:00B4"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 2000
+why = "as field_frame_goes_on_with_the_requests, from the scripts' layer work on"
+
+[[routine]]
+name = "field_frame_goes_on_with_the_frame_work"
+at = "C0:00B7"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 2000
+why = "as field_frame_goes_on_with_the_requests, the frame's work alone"
+
+[[routine]]
+name = "event_restart_the_running_object"
+at = "C0:597D"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00,02,04,06,08,0A,0C,0E", "--fill", "7E016E-7E016E=00-00"]
+iterations = 2000
+why = "one of the map's first objects running, its opening's commands by their rows, or through the table"
+
+[[routine]]
+name = "overworld_come_back_to_the_map_s_screen"
+at = "C2:2556"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--stop-at-call", "C22C93"]
+iterations = 2000
+why = "as overworld_back_from_the_menus, the mode's screen set up first"
+
+[[routine]]
+name = "battle_set_up"
+at = "C1:0023"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2980-7E2982=00-06", "--fill", "7E96F8-7E96FF=00-00",
+        "--fill", "7EAA63-7EAA63=00-00", "--fill", "7E2C7C-7E2C97=00-09", "--stop-at-call", "CCED87"]
+iterations = 1000
+why = "the battle's page with a party of characters, as the setup's state's guard takes it, up to the graphics' setup, which waits for their load"
+
+[[routine]]
+name = "battle_set_up_after_the_graphics"
+at = "C1:0031"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--keep", "7E1C00-7E1CFF", "--keep", "7E9000-7EFFFF",
+        "--stop-at-call", "CD000C"]
+iterations = 2000
+why = "the battle's page, A's high byte clear, the battle's own combatants and their graphics' pointers kept (into the ROM; a pointer into the I/O registers reads open bus), up to the window's opening, which waits"
+
+[[routine]]
+name = "battle_start_the_frame_work"
+at = "CD:0003"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 1000
+why = "the battle's page"
+
+[[routine]]
+name = "battle_set_the_screen_up_for_the_field"
+at = "CD:0000"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 1000
+why = "the battle's page, through the bank's table to the screen's setup"
+
+[[routine]]
+name = "battle_play_out_the_defeat_end"
+at = "CD:0D93"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--stop-at-call", "CD039E"]
+iterations = 2000
+why = "on the battle's page; up to the music's fade, its first call, which waits for the sound driver (its own row fuzzes it)"
+
+[[routine]]
+name = "warp_start_the_long_trip"
+at = "FD:DA00"
+subsystem = "warp"
+state = "warp"
+args = ["--stop-at-call", "FDEADA"]
+iterations = 200
+why = "as warp_set_up, through the kind's start"
+
+[[routine]]
+name = "warp_start_the_short_trip"
+at = "FD:DA5F"
+subsystem = "warp"
+state = "warp"
+args = ["--stop-at-call", "FDEADA"]
+iterations = 200
+why = "as warp_set_up, through the kind's start"
+
+[[routine]]
+name = "warp_start_the_shortest_trip"
+at = "FD:DABE"
+subsystem = "warp"
+state = "warp"
+args = ["--stop-at-call", "FDEADA"]
+iterations = 200
+why = "as warp_set_up, through the kind's start"
+
+[[routine]]
+name = "warp_start_the_flickering_trip"
+at = "FD:DB1D"
+subsystem = "warp"
+state = "warp"
+args = ["--stop-at-call", "FDEADA"]
+iterations = 200
+why = "as warp_set_up, through the kind's start"
+
+[[routine]]
+name = "warp_long_trip_waits"
+at = "FD:DA03"
+subsystem = "warp"
+state = "warp"
+args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+iterations = 2000
+why = "the warp's page and its zero word (the guard's): the main loop's wait, to its loop"
+
+[[routine]]
+name = "warp_short_trip_waits"
+at = "FD:DA62"
+subsystem = "warp"
+state = "warp"
+args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+iterations = 2000
+why = "as warp_long_trip_waits"
+
+[[routine]]
+name = "warp_shortest_trip_waits"
+at = "FD:DAC1"
+subsystem = "warp"
+state = "warp"
+args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+iterations = 2000
+why = "as warp_long_trip_waits"
+
+[[routine]]
+name = "warp_flickering_trip_waits"
+at = "FD:DB24"
+subsystem = "warp"
+state = "warp"
+args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+iterations = 2000
+why = "as warp_long_trip_waits"
+
+[[routine]]
+name = "scene_call_the_scripts_routine"
+at = "7E:37F3"
+subsystem = "scene"
+state = "lavos_falls"
+args = ["--long", "--d", "0B00", "--db", "7E", "--keep", "7E3000-7EC994", "--fill", "7E00F0-7E00F1=564D", "--stop-at-call", "7E564D"]
+iterations = 2000
+why = "the program kept, a channel's page, the routine the cell names one of the scene's (Lavos sent back), compared at its call"
+
+[[routine]]
+name = "scene_sequence_goes_on_after_the_wait"
+at = "C3:0C28"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "8,16", "--keep", "7E3000-7EB5FF", "--fill", "7E0A21-7E0A21=30-B5",
+        "--budget", "8000000"]
+why = "as scene_run_sequence, on from the command after a wait"
+
+[[routine]]
+name = "scene_sequence_returns"
+at = "C3:0B02"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0A00", "--db", "7E"]
+iterations = 200
+why = "the interpreter's own return to its caller"
+
+[[routine]]
+name = "scene_channel_script_comes_back"
+at = "7E:3753"
+subsystem = "scene"
+state = "attract"
+args = ["--keep", "7E3000-7EB5FF"]
+iterations = 1000
+why = "the program kept: the step's return"
+
+[[routine]]
+name = "scene_frame_tasks_go_on"
+at = "7E:399B"
+subsystem = "scene"
+state = "race"
+args = ["--jump", "--s", "01F0", "--fill", "7E01F1-7E01F3=00", "--fill", "7E01F4-7E01F4=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E", "--fill", "7E01F5-7E01F5=00",
+        "--fill", "7E01F6-7E01F6=7E", "--fill", "7E01F7-7E01F7=22", "--fill", "7E01F8-7E01F8=30", "--fill", "7E01F9-7E01F9=7E",
+        "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0950-7E096F=00-00"]
+why = "gone on to from a task's return, the list's frame under it (D, P, the slot, the data bank) and a return to the program's loop laid on the stack; the task table emptied"
+
+[[routine]]
+name = "scene_frame_tasks_go_on"
+at = "7E:399B"
+variant = "kept"
+subsystem = "scene"
+state = "race"
+args = ["--jump", "--s", "01F0", "--fill", "7E01F1-7E01F3=00", "--fill", "7E01F4-7E01F4=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E", "--fill", "7E01F5-7E01F5=00",
+        "--fill", "7E01F6-7E01F6=7E", "--fill", "7E01F7-7E01F7=22", "--fill", "7E01F8-7E01F8=30", "--fill", "7E01F9-7E01F9=7E",
+        "--db", "7E", "--keep", "7E3000-7EB5FF", "--keep", "7E0950-7E096F"]
+iterations = 1000
+why = "gone on to from a task's return, the list's frame under it (D, P, the slot, the data bank) and a return to the program's loop laid on the stack; the race's own task table, so the tasks after the slot run"
+
+[[routine]]
+name = "scene_vblank_tasks_go_on"
+at = "7E:39D2"
+subsystem = "scene"
+state = "race"
+args = ["--jump", "--s", "01F0", "--fill", "7E01F1-7E01F3=00", "--fill", "7E01F4-7E01F4=00,02,04,06,08,0A,0C,0E", "--fill", "7E01F5-7E01F5=00",
+        "--fill", "7E01F6-7E01F6=7E", "--fill", "7E01F7-7E01F7=22", "--fill", "7E01F8-7E01F8=30", "--fill", "7E01F9-7E01F9=7E",
+        "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0940-7E094F=00-00"]
+why = "gone on to from a task's return, the list's frame under it (D, P, the slot, the data bank) and a return to the program's loop laid on the stack; the task table emptied"
+
+[[routine]]
+name = "scene_vblank_tasks_go_on"
+at = "7E:39D2"
+variant = "kept"
+subsystem = "scene"
+state = "race"
+args = ["--jump", "--s", "01F0", "--fill", "7E01F1-7E01F3=00", "--fill", "7E01F4-7E01F4=00,02,04,06,08,0A,0C,0E", "--fill", "7E01F5-7E01F5=00",
+        "--fill", "7E01F6-7E01F6=7E", "--fill", "7E01F7-7E01F7=22", "--fill", "7E01F8-7E01F8=30", "--fill", "7E01F9-7E01F9=7E",
+        "--db", "7E", "--keep", "7E3000-7EB5FF", "--keep", "7E0940-7E094F"]
+iterations = 1000
+why = "gone on to from a task's return, the list's frame under it (D, P, the slot, the data bank) and a return to the program's loop laid on the stack; the race's own task table, so the tasks after the slot run"
+
+[[routine]]
+name = "scene_fade_the_planet_through"
+at = "7E:63FE"
+subsystem = "scene"
+state = "planet"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EB5FF"]
+iterations = 1000
+why = "a routine channel 0's script calls, on its page through the program's bank"
+
+[[routine]]
+name = "scene_fade_the_planet_out"
+at = "7E:6403"
+subsystem = "scene"
+state = "planet"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EB5FF"]
+iterations = 1000
+why = "as scene_fade_the_planet_through"
+
+[[routine]]
+name = "scene_fade_the_planet_out_slowly"
+at = "7E:6422"
+subsystem = "scene"
+state = "planet"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EB5FF"]
+iterations = 1000
+why = "as scene_fade_the_planet_through"
+
+[[routine]]
+name = "scene_show_the_planet_s_caption"
+at = "7E:64BF"
+subsystem = "scene"
+state = "planet"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00"]
+iterations = 2000
+why = "the program kept on the scene's page, the sprite cursor at the table's start so the caption fits (the drawing's guard)"
+
+[[routine]]
+name = "scene_wait_for_a_button_to_restart"
+at = "7E:63D5"
+subsystem = "scene"
+state = "planet"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0920-7E093F=00-00", "--stop-at-call", "7E377E"]
+iterations = 2000
+why = "the program kept on the scene's page, the data bank on the I/O registers' (the send's guard), the frame list with room; any buttons, up to the sound's send"
+
+[[routine]]
+name = "scene_count_down_to_the_restart"
+at = "7E:63F5"
+subsystem = "scene"
+state = "planet"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EB5FF"]
+iterations = 2000
+why = "the program kept: any count, the reset at its end"

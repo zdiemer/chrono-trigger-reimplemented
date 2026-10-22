@@ -179,7 +179,6 @@ static bool answer_step_event(Snes *s)
 enum {
     FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
     PALETTE_ANIMATION = 0xFDFFF7,   /* the original's jump to it */
-    SEND_BG1 = 0xC074D4, SEND_BG2 = 0xC074E8, SEND_BG3 = 0xC074F7,   /* a layer's tile map sent after a copy */
     BATTLE = 0xC10000,
     /* the field taken up after the battle (field/battle_return.c): a port
      * that runs frames and ends by going on into another, which only a call
@@ -279,7 +278,7 @@ static bool answer_chest(Snes *s)
 
 /* The layers a copy changed (field_tile_copy_queued_maps), drawn again and
  * sent: BG1, BG2 or BG3 alone, or BG1 and BG2 (below). A layer is drawn on the
- * layers' page, its tile map prepared to send, and the vblank told to move it
+ * layers' page and put back at its map's start, and the vblank told to move it
  * to the layer's place (field_map_transition); after it the frame's effects
  * are refreshed and the layers' scroll put where the screen is. Each layer
  * alone has its own copy of the calls, by where each is; BG3's ends with a
@@ -288,17 +287,17 @@ typedef enum { QUEUED_BG1 = 1, QUEUED_BG2 = 2, QUEUED_BG1_AND_BG2 = 3, QUEUED_BG
 
 static const struct {
     void (*draw)(Snes *);
-    uint32_t draw_routine, prepare_routine;
+    uint32_t draw_routine;
     FieldMapMove move;
     bool waits_itself;
-    uint32_t draw_site, prepare_site, refresh_site, wait_site, refresh_after_site, scroll_site, last_wait_site;
+    uint32_t draw_site, refresh_site, wait_site, refresh_after_site, scroll_site, last_wait_site;
 } alone[FIELD_LAYERS] = {
-    [FIELD_BG1] = { field_draw_bg1_at_the_load, DRAW_BG1, SEND_BG1, FIELD_MOVE_TO_BG1, false,
-                    0xC017A9, 0xC017AD, 0xC017B0, 0xC017B9, 0xC017BC, 0xC017BF, 0 },
-    [FIELD_BG2] = { field_draw_bg2_at_the_load, DRAW_BG2, SEND_BG2, FIELD_MOVE_TO_BG2, false,
-                    0xC017D2, 0xC017D6, 0xC017D9, 0xC017E2, 0xC017E5, 0xC017E8, 0 },
-    [FIELD_BG3] = { field_draw_bg3_at_the_load, DRAW_BG3, SEND_BG3, FIELD_MOVE_TO_BG3, true,
-                    0xC0186F, 0xC01873, 0xC01876, 0xC0187F, 0xC01882, 0xC01885, 0xC01888 },
+    [FIELD_BG1] = { field_draw_bg1_at_the_load, DRAW_BG1, FIELD_MOVE_TO_BG1, false,
+                    0xC017A9, 0xC017B0, 0xC017B9, 0xC017BC, 0xC017BF, 0 },
+    [FIELD_BG2] = { field_draw_bg2_at_the_load, DRAW_BG2, FIELD_MOVE_TO_BG2, false,
+                    0xC017D2, 0xC017D9, 0xC017E2, 0xC017E5, 0xC017E8, 0 },
+    [FIELD_BG3] = { field_draw_bg3_at_the_load, DRAW_BG3, FIELD_MOVE_TO_BG3, true,
+                    0xC0186F, 0xC01876, 0xC0187F, 0xC01882, 0xC01885, 0xC01888 },
 };
 
 /* BG1 and the transition base trade places: the copy's second pass sends
@@ -321,9 +320,10 @@ static bool send_one_layer(Snes *s, FieldLayer layer)
 {
     GameState *g = state_of(s);
     if (!field_run_on_page(s, alone[layer].draw_site, alone[layer].draw_routine, READS_NOTHING, alone[layer].draw,
-                           FIELD_LAYERS_PAGE) ||
-        !call(s, alone[layer].prepare_site, alone[layer].prepare_routine, READS_NOTHING) ||
-        !refresh(s, alone[layer].refresh_site))
+                           FIELD_LAYERS_PAGE))
+        return false;
+    field_put_the_layer_at_its_start(g, layer);
+    if (!refresh(s, alone[layer].refresh_site))
         return false;
     set_field_map_transition(g, alone[layer].move);
     set_field_tile_copy_queued_maps(g, 0);
@@ -351,15 +351,17 @@ static bool send_bg1_and_bg2(Snes *s)
         !field_run_on_page(s, 0xC01817, DRAW_BG2, READS_NOTHING, field_draw_bg2_at_the_load, FIELD_LAYERS_PAGE))
         return false;
     trade_bg1_base(g);
-    if (!call(s, 0xC01825, SEND_BG1, READS_NOTHING) || !call(s, 0xC01828, SEND_BG2, READS_NOTHING) ||
-        !refresh(s, 0xC0182B))
+    field_put_the_layer_at_its_start(g, FIELD_BG1);
+    field_put_the_layer_at_its_start(g, FIELD_BG2);
+    if (!refresh(s, 0xC0182B))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG2);
     if (!wait_frame(s, 0xC01832) ||
         !field_run_on_page(s, 0xC0183E, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, FIELD_LAYERS_PAGE))
         return false;
     trade_bg1_base(g);
-    if (!call(s, 0xC0184C, SEND_BG1, READS_NOTHING) || !refresh(s, 0xC0184F))
+    field_put_the_layer_at_its_start(g, FIELD_BG1);
+    if (!refresh(s, 0xC0184F))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG1);
     if (!wait_frame(s, 0xC01856) || !refresh(s, 0xC01859) ||

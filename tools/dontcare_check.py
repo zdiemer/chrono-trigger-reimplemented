@@ -129,6 +129,14 @@ HEADERS = ("runtime/port/native.h", "runtime/cpu/cpu65816.h")
 DEFAULT_COVERAGE = ("traces/coverage-*.txt", "traces/saves/cov-*.txt")
 DEFAULT_CALLS = ("traces/calls-*.txt", "traces/saves/calls-*.txt")
 STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
+# A jump to a sibling's routine (game/menu/bridge.h, menu_go_on_in(s, at,
+# entry, set)): its port run as C, or a stop at `at` declaring `set` where the
+# runtime wouldn't run it; read as a stop, its arguments at these places.
+# The menus' task loops' waits (game/menu/bridge.h) are stops at their site
+# declaring the named set the wait reads.
+STOP_DELEGATES = {"menu_go_on_in": (1, 3),
+                  "menu_wait_in_the_task_loop": (1, "MENU_TASK_WAIT_READS_NOTHING"),
+                  "menu_wait_frames_in_the_task_loop": (1, "MENU_TASK_WAIT_READS_THE_FRAMES")}
 # A held wait's origin, PF_LOOP_HELD(head, exit, set): a stop at head.
 HELD_WAITS = ("PF_LOOP_HELD",)
 # The bridges' vocabulary (game/field/bridge.h, game/battle/bridge.h,
@@ -160,6 +168,9 @@ FIXED_DELEGATES = {
     "battle_wait_for_the_next_frame_from": ("BATTLE_NEXT_FRAME_WAIT", "BATTLE_WAIT_READS", 2),
     "battle_send_and_wait": ("BATTLE_SEND", "BATTLE_SEND_READS", 5),
     "menu_wait_a_frame_from": ("MENU_TASK_WAITS_A_FRAME", "MENU_TASK_WAIT_READS_NOTHING", 2),
+    "menu_fade_out_from": ("MENU_TASK_WAITS_A_FRAME", "MENU_FADE_S_LAST_WAIT_READS_ALL", 2),
+    "scene_bridge_unpack": ("SCENE_UNPACK", "SCENE_UNPACK_IGNORES", 3),
+    "scene_bridge_first_script_step": ("SCENE_FIRST_STEP", "SCENE_FIRST_STEP_IGNORES", 3),
 }
 # A step asked for by a port, called (s, site, step, set): a call-out to the
 # steps' dispatch at site declaring set where the dispatch's guard refuses, and
@@ -179,11 +190,14 @@ BRIDGES = {
     # a sibling run as C, or the original's call declaring nothing where its preconditions fail
     "game/battle/sound.c": ("battle_play_a_sound_from",),
     "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_call_jumped", "menu_back",
-                           "menu_yield", "menu_wait_a_frame_from", "run", "menu_run_or_call"),
-    "game/scene/bridge.c": ("scene_run", "scene_run_long", "run_entry"),
+                           "menu_yield", "menu_wait_a_frame_from", "run", "menu_run_or_call", "menu_go_on_in"),
+    "game/scene/bridge.c": ("scene_run", "scene_run_long", "run_entry", "scene_bridge_unpack",
+                            "scene_bridge_take_the_first_script_step", "scene_bridge_first_script_step"),
+    "game/menu/tasks.c": ("wait_on", "wait_in_the_loop", "menu_wait_in_the_task_loop", "menu_wait_frames_in_the_task_loop"),
+    "game/menu/fades.c": ("fade_from", "menu_fade_out_from"),
 }
 BRIDGE_FILE, BRIDGE_BODIES = "game/field/bridge.c", BRIDGES["game/field/bridge.c"]
-DECLARATIONS = (("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS + HELD_WAITS + DELEGATES
+DECLARATIONS = (("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS + tuple(STOP_DELEGATES) + HELD_WAITS + DELEGATES
                 + tuple(FIXED_DELEGATES) + tuple(TARGET_DELEGATES))
 CALL_OUTS = (("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + DELEGATES
              + tuple(FIXED_DELEGATES) + tuple(TARGET_DELEGATES))
@@ -987,6 +1001,12 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                     if len(call.args) != 3:
                         raise Unreadable(f"{call.name} takes (s, at, dont_care)")
                     nodes = [parse(call.args[1]), parse(call.args[2])]
+                elif call.name in STOP_DELEGATES:
+                    at, dc = STOP_DELEGATES[call.name]
+                    last = max(at, dc) if isinstance(dc, int) else at
+                    if len(call.args) <= last:
+                        raise Unreadable(f"{call.name} takes {last + 1} arguments")
+                    nodes = [parse(call.args[at]), parse(call.args[dc]) if isinstance(dc, int) else parse(dc)]
                 elif call.name == "au_driver_call":
                     origin = parse(call.args[1])
                     if origin[0] != "call" or origin[1] != "PF_CALL":
@@ -1014,7 +1034,7 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                 try:
                     vals = ev.values(nodes, src, f)
                 except Unreadable:
-                    if call.name in STOPS or call.name in HELD_WAITS:
+                    if call.name in STOPS or call.name in STOP_DELEGATES or call.name in HELD_WAITS:
                         raise
                     # a target computed at run time (a jump table's): the original's call at the site says
                     vals = [((v[0], None, v[1]), c) for v, c in ev.values([nodes[0], nodes[2]], src, f)]
@@ -1024,7 +1044,7 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                 findings.append(Finding(where, f"can't read {call.name}: {e}"))
                 continue
             for v, _ in vals:
-                if call.name in STOPS or call.name in HELD_WAITS:
+                if call.name in STOPS or call.name in STOP_DELEGATES or call.name in HELD_WAITS:
                     decls.append(Decl("stop", src.path, src.line(call.offset), f.name if f else None, v[1] & 0xFFFF,
                                       at=v[0] & 0xFFFFFF, own=call.name == "m_stop_at_own", offset=call.offset))
                 else:

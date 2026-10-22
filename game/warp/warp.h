@@ -47,7 +47,20 @@ void warp_leave_work_word(GameState *g, unsigned cell, uint16_t v);
 
 /* ---- The entries (warp/warp.c) ------------------------------------------------------------------- */
 
+/* warp/bridge.c: a sibling's entry run as C as the original's JSR at `site`
+ * calls `routine`, under the return it pushes and timed as the routine: true
+ * where it came back to the call's return. */
+bool warp_run_from(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
+
 void warp_set_up(Snes *s);
+void warp_start_the_long_trip(Snes *s);
+void warp_start_the_short_trip(Snes *s);
+void warp_start_the_shortest_trip(Snes *s);
+void warp_start_the_flickering_trip(Snes *s);
+void warp_long_trip_waits(Snes *s);
+void warp_short_trip_waits(Snes *s);
+void warp_shortest_trip_waits(Snes *s);
+void warp_flickering_trip_waits(Snes *s);
 void warp_long_frame(Snes *s);
 void warp_short_frame(Snes *s);
 void warp_shortest_frame(Snes *s);

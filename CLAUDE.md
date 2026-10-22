@@ -94,7 +94,13 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `tools/fallback_baseline.txt`, with the shipping mode's count over the movies and routes reported
   beside it; docs/REIMPLEMENTATION.md, "The fallback measure"); no hand port's guard refuses a call real play
   makes -- in the shadow runs, the movies in the shipping mode or the routes -- unless
-  `tools/refusal_allowlist.txt` says why (`tools/fallbacks.py --refusals`); and the build with the
+  `tools/refusal_allowlist.txt` says why (`tools/fallbacks.py --refusals`); every movie gets as far on the
+  hand ports alone -- no generated code, no interpreter, the C sound driver -- as `tools/strict_baseline.txt`
+  says, a movie that reaches its end doing so with no failed exit, hang, `halted:`, `accessor out of range` or
+  `page refused` line, and one the line marks `end` ending with the saved game and save RAM the reference
+  play's (`tools/strict_check.py --check`, a ratchet run by the suite, against the shadow runs' `ct_dev
+  --end-state`; `ct_dev --native on --generated off --no-interpreter strict --sound-driver c`; docs/PLAYING.md,
+  "Without the interpreter"); and the build with the
   ports' scaffolding compiled out (`ct_dev_native_shape`, `ct_drive_native_shape`) runs every movie
   to its end in the shipping mode with no failed exit, hang, `halted:` line, `accessor out of range`
   or `page refused` line the default build's run doesn't show, and its routes reach their outcomes

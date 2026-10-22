@@ -100,6 +100,7 @@ bool menu_run_the_screen_s_step(Snes *s);
 bool menu_screen_step_is_known(Snes *s);
 
 /* menu/frame.c */
+void menu_wait_frames_sending_the_sound(Snes *s);
 void menu_wait_for_frame_loop(Snes *s);
 void menu_wait_for_frame(Snes *s);
 void menu_take_the_frames_input(Snes *s);

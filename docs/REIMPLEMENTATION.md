@@ -2301,138 +2301,190 @@ shipping mode over the movies and the routes, from 26.2 KiB and 391 million to
 (`--drifted`); the map's building from its six whole stretches, and the
 clear, which no stretch of the library completes, from its loop.
 
-### Phase 4a, the shipping mode's fallbacks, chunk 10: the Epoch's dive into Lavos, and the program's stirred draw (`$7E:78DD`-`$7E:7B9B`, `$7E:79F8`-`$7E:7A67`, `$7E:7BF2`-`$7E:7C2F`, `$7E:7EC7`-`$7E:7F04`, `$7E:7F12`-`$7E:8108`, `$7E:81F1`, `$7E:8205`-`$7E:838A`, `$7E:3443`, `$C3:02DD`, `$7E:38C3`)
+### Phase 4a, the shipping mode's fallbacks, chunk 11: the hand ports alone, every movie to its end (`$C2:8000`-`$C2:8341`, `$C2:83B2`-`$C2:8403`, `$C2:813C`, `$C2:940D`, `$C2:89F2`-`$C2:8AFB`, `$C2:CECE`, `$C2:0454`, `$C2:2556`, `$C6:EE31`, `$C0:00A4`-`$C0:00B7`, `$C0:74D4`-`$C0:74F7`, `$C0:597D`, `$C1:0023`-`$C1:003C`, `$CD:0000`, `$CD:0003`, `$CD:0D93`, `$FD:DA00`-`$FD:DB24`, `$7E:37F3`, `$7E:3753`, `$7E:375E`, `$C3:0C28`, `$7E:399B`, `$7E:39D2`, `$7E:6248`-`$7E:64BF`)
 
 The fallbacks' stream (history/reimplementation-chunks.md, "Phase 4a, the
-shipping mode's fallbacks, chunk 9", for the one before), chosen by the
-shipping mode: after chunk 9 the Epoch's dive (scene mode 6) was 2.31 M of
-the movies' 2.40 M instructions run as the original, nearly all of it the
-program's main loop spinning on the dive's frame routine while its picture
-waited for the vblank, and the rest the dive's tasks and the stir they draw
-from.
+shipping mode's fallbacks, chunk 10", for the one before), chosen by a new
+measure: how far each movie gets on the hand ports alone. `ct_dev --native on
+--generated off --no-interpreter strict --sound-driver c` runs no code
+generated from the ROM and no interpreter, so the first instruction no port
+runs ends the run. Before this chunk no movie got past frame 3,779: 41 of the
+42 stopped at the menus' way in (`$C2:8000`) by frame 1,699, and the attract
+demo at the battle screen's setup (`$CD:0000`). Now all 48 reach their end.
+`tools/strict_check.py` makes the runs, and its `--check` is the gate's
+ratchet against `tools/strict_baseline.txt`, a line per movie: `end`,
+`drifts`, or the frame it must reach, and why; the suite runs it with -j 2
+(PLAYING.md, "Without the interpreter"). Reaching the last frame counts only
+with a clean exit and no `halted:`, `accessor out of range` or `page refused`
+line, and the end is compared with the reference play's: the saved game (the
+eight runs of work RAM a save holds) and save RAM, less the play clock and the
+battles' random start, from `ct_dev --end-state` beside the suite's shadow
+runs. A whole end state can't be compared: the strict run is the shipping
+mode's byte for byte (new-game was measured so), and the shipping mode, with
+its ports' estimated time, runs ahead or behind the original, so at
+new-game's last frame its story count is 3 where the reference's is still 0,
+and the menu movie's work RAM differs in 713 bytes of timers, animation and
+scroll. So the saved game is what is compared: 31 of the 48 movies end
+with the reference's, and 17 drift, each line saying how (the fights' turns
+landing otherwise and ending with other HP and items, a menu's cursor buying
+other things, the party standing elsewhere at the last frame).
 
-**The dive** (`scene/epoch_dive.c`) is the whole mode now: its setup, the
-frame's and the vblank's tasks of both views, the views' switches, the
-routines its scripts call, and its frame routine, which the main loop's pass
-runs as C (attract/main_loop.c takes it beside the race's and the endings'
-scalings). The scene cuts between the cockpit -- the shell above and below
-on the Mode 7 plane, the panel shaking, its warning lights and gauges'
-needles flickering, a band of light ahead that opens at the end -- and the
-view from outside, where the Epoch streaks into the shell as a trail of light
-whose round head is the Epoch's scaled picture. Three things made it more than
-a translation's work, each now named:
+What stood in the way was mostly not code but its joints: the jump stubs the
+banks are entered through, the waits a routine makes by jumping into a task
+switch, and the places the original's code comes back to after a stretch that
+no longer exists as a stretch on the machine. Each is now a port of what the
+game does there:
 
-- **What the random draws are salted with.** The cockpit's draws go on from
-  whatever the code before left: the panel's place across, the task's slot,
-  where the sprite table's cursor stands in its group of four after the
-  lights are drawn (`scene_sprite_place_in_group`; the guard holds the lights'
-  last sprite on the picture, where that is all the drawing leaves), a
-  warning light's picture, a gauge's place. The panel's lights draw with the
-  data bank on work RAM, so the stir's reads of the beam land on two colours
-  of the palette as loaded: `scene_draw_random_off_the_palette` takes them as
-  its noise, which is what the program has there.
-- **The line tables are the program's own bytes.** The tasks move their
-  counts and sources as the panel shakes, the trail moves and the light
-  opens; each is a variable in re/ram.toml (`scene_dive_panel_*`,
-  `scene_dive_trail_*`, `scene_dive_light_*`), as are the bands of fog the
-  setup makes, the trail's circle and window, the panel's lights' list and
-  the pictures they take, and the Epoch's frames of animation as it leaves
-  (a table of records from its first frame, which the port steps through by
-  index; the program's pointer into it is decoded in one place).
-- **The frame's task lists are copied whole** by a block move from the
-  program (`$7E:7ED1`, `$7E:7EE8`), which the analysis didn't follow, so it
-  knew no caller of the tasks they hold and liveness took every register as
-  read after them. tools/disasm/derive.py now reads a block move into a task
-  list from the program's own image as the tasks it holds.
+- **The menus' way in and out** (`menu/display.c`, `menu/fades.c`). The
+  entry keeps its caller's registers, asks what it was called for (the menus'
+  own names now, `menu_asked_for` and `menu_asked_with`), and either starts a
+  game afresh -- the load screen asked for before any game is set up, the
+  story's flag for it in `re/ram.toml` (`story_new_game_set_up`) -- or moves to
+  the menus' own stack, opens, and starts the tasks. The two ways out stop
+  every task, show what the party wears again and fade the screen out, then
+  return or restart. The fades are one function, a step of brightness a frame
+  until full or black, run inside the original's frame for its routine
+  (`IN_THE_ORIGINALS_FRAME`); a fade out that reaches black hands the last
+  frame's wait the step's sum and its flags, as the original does.
+- **Waits that are jumps.** Where the original ends a routine by jumping into
+  the task switch so that it returns to its caller a frame later, the port
+  runs the routine as C inside the original's frame (`IN_THE_ORIGINALS_FRAME`)
+  and yields from the caller's site (`menu_yield`); where a task's loop
+  waits, `menu_wait_in_the_task_loop` and `menu_wait_frames_in_the_task_loop`
+  (menu/tasks.c, one wait on the task switch's two entries), which the held
+  cursors' tasks, the gate screen's and the save's last wait call.
+  `menu_go_on_in` is a jump to a sibling's port: run as C where the runtime
+  would, a stop declaring the set otherwise. The menus' way in (`$C2:8000`),
+  a jump to the mode's start, stays a stop the runtime takes to the start's
+  entry: run as C there, or the start registered at both, the start's
+  call-outs fall inside the way in's comparison, which shadow mode hands to
+  the start's nested one, and all 48 movies mismatched.
+- **The continuations.** A task the scene program's lists called can come back
+  to the list frames later (a script that waited for the music); the lists'
+  continuations (`$7E:399B`, `$7E:39D2`) run the rest of the list from the
+  slot after it, and the list's exits and the vblank list's own exit are the
+  loop's (scene/frame.c). A task whose port takes the machine (the race's,
+  the Epoch's dive's, the endings', the channels' first steps) is a row of
+  the lists' table by its routine, run as the list's call reaches it; the 76
+  rows are the tasks the library's runs reach, in shadow mode and shipping. The field's frame is a table of its pass's steps,
+  any of which it can go on from (`field/main_loop.c`), and the channels'
+  scripts and the sequence after its wait go on in C (`scene/script.c`).
+- **The battle's setup and its stubs** (`battle/opening.c`): the setup up to
+  the graphics' load and after it, the frame work's first mode, the screen's
+  setup for the field (`$CD:0000`), and the defeat on the screen effects'
+  battlefield (`$CD:0D93`). The setup step stays a call-out from the steps'
+  dispatch: run as C under the dispatch's frame, its waits broke the call
+  chain (`battle/steps.c`).
+- **The planet** (`scene/planet.c`): the setup of the planet seen from space
+  as the game is lost and as it ends (modes 7 and 8), the fades its scripts
+  call, its caption, and its wait for a button and count down to the reset.
+- And the warp's four trips' starts and waits, an object's script started
+  over (`event/engine.c`), the field's layers put back at their starts, the
+  member bar, the low HP marks, the overworld's way back from the menus and
+  the object mode's frames' wait sending the music.
 
-Where the original's carry moves a pixel, a named function keeps it: the
-trail's left edge (`trail_edge`, a pixel further right on each line after one
-whose edge is on the screen while the Epoch is left of the screen's edge),
-and the shell's wrap a pixel short where it passes its start
-(`round_the_shell`). The guards refuse the states where a borrow or a carry
-the game never makes would change the sum (the shell passing more than 32767
-pixels round, a panel above line 167, the Epoch's point above its picture's
-reach), so the rest is written plainly.
+Two guards turned real play away and are ports now. **The battle's point
+jump** (`$C1:672E`, `$C1:6743`, `$C1:674A`) takes its lift from a direct-page
+cell other work shares (`$90`, `battle_jump_lift`); the port took the usual
+value, 6, and refused anything else, which Spekkio's fight in
+`battle-tech-sweep-spekkio` met 208 times. It reads the cell now, and every
+writer that lands on it leaves it as game state, through one helper
+(`battle_leave_jump_lift`, battle/battle.h): the animation slots' places, an
+area search's side, the tech list's last tech, a blink's place in the other
+targets' list and a walk's way back (the last two had left it only as
+scaffolding, which the native shape would have read stale; chunk 11's review
+found it). **The scaler's sample positions** (`$C3:0309`) wrap past 16 bits
+for a racer drawn at a sixteenth of its size, which strict mode's timing
+reaches in `events-jetbike-race-won`; the wrap's carry moves the samples after
+it on by 1/256 of a pixel, as the original's sum does, kept in one function
+(`group_positions`) that says so.
 
-**The program's stirred draw** (`$7E:3443`, `$C3:02DD`) is a registered entry
-too, for the code that still calls it with its registers; random.c's stir is
-split at its noise so the palette's form shares it. Two of the program's
-routines moved where scenes share them: the transfer from the scene's call
-cells (`$7E:38C3`, `scene_send_from`, which keeps its parameters in the cells
-plainly: the multiply carries in the byte after its product, where the count
-lies) and the race's buffer clear through the multiplier
-(`scene_clear_buffer`). What the script routines leave in the registers (A,
-and for the dive's Y and the overflow, which the interpreter hands on to the
-sound driver) is a table parallel to each file's routines, which the build
-without the original's effects compiles out. Where the scenes repeated one
-another, one operation now serves them: a bitmap handed to the scaler
-(`scene_scaler_start`, the dive's, the endings' and the race's), the loop over
-a picture's tiles (`scene_expand_tiles`, the title's two and the endings'),
-the unpacked send in the way a setup chooses (`scene_choose_transfer`,
-`scene_send_unpacked_by`), the way into the scaler's rows (bridge.c), and the
-regrouping routine's writer, which points the work RAM port at the routine's
-place in the program (`scene_matrix_code`) itself rather than taking the
-cursor its caller left (it still writes through the port, as the original
-does: the timing gate reckons a port write and a work RAM write apart).
+**Runtime.** Shadow mode notes a port that finished on a stack it switched to
+(`note_a_port_s_stack_switch`) and keeps a stretch's stack switch across its
+call-outs. A registered entry can declare the bytes of its caller's frame it
+pulls (`NativeEntry.pulls`): the lists' continuations pull the six their loop
+keeps under a call, and the original is counted as returned only above them.
+`ct_dev --fallbacks` prints each run-start address the first time it is
+entered, and `ct_dev --end-state` writes work RAM and save RAM at a run's end
+(the strict check's comparison). `ct_fuzz` leaves the bytes of an original's
+frame a port stands inside uncompared, as shadow mode does
+(`native_frame_dead_direct`): the menus' ways out fade inside the fade's frame
+without writing its return address, which fuzzing otherwise counted in 1,636
+of 2,000 states. tools/dontcare_check.py reads the menus' task-loop waits as stops,
+and the fade, the scene's unpacker and its first script step as fixed
+delegates.
 
-**Three of the reference play's handbacks outside the dive**, each the
-original's code going on past an entry that stood for the start of it: the
-race's tail (`$7E:4BD2`, 228K instructions), where the ride's own code comes
-to the engine's pitch every frame and the bikes' motion ran as the original
-after it -- the entry is `scene_race_pitch_and_move` now, through the motion
-to the routine's return, beside the ride's port that does the same in C --
-and at every movie's boot the title loader's loop over the plane's tiles
-(`$7E:5E3C`, `scene_expand_the_plane_tiles`, either expansion and its
-stride as the loop's code holds them) and the palette made current
-(`$7E:38AF`). The dive's draws stir in the scene's first call cell, which
-the native shape had read stale (`tools/effects_check.py`'s runs): it has one
-name as the stir reads it (`scene_call_stirred`), random.c lists what leaves
-something there, and those writers go through its one writer
-(`scene_leave_for_the_draws`): the scene scripts' interpreter the routine a
-script calls, the palettes' frame task the word it keeps aside (`$7E:37FA`),
-the dive's lights a warning light's picture and a gauge's place. The 8.8
-divide leaves its dividend there plainly, from C and from its entry alike.
+**The fallback measure** (dev/fallbacks.c) had counted code an enclosing
+comparison covers as the original's in place of ports. The field's pass's
+continuations (`$C0:00A4`-`$C0:00B7`) are entries the original reaches inside
+`field_frame`'s stretch at the pass's own S, and a port taking over there
+ended every extent begun at that S, the enclosing comparison's own among
+them: a request answered over frames (a script's menu, a tile copy) was then
+counted as unported although `field_frame` went on comparing it, and so were
+the gate's swirl under the exchange and the race's setup under the scene's
+first frame. An entered port now leaves an enclosing comparison's extent in
+place while the runtime still makes that comparison (`native_compares`,
+runtime/port/native.h); one the runtime has ended goes as before, which also
+uncovers 767 instructions of the field movie's window list (`$C2:EF05`) a
+comparison that had ended still covered. Address by address against chunk
+10's measure over its 42 movies, that window copy is the only code counted
+now that wasn't then; the rest of the fall below is the measure's fix and the
+ports together (the race's setup's mirroring, `$7E:3ED3`, 98,672 of it, and the
+field's event loop at `$C0:5900`, now under comparisons that cover them). The
+window copy rose inside the menus' falling `C2:----` line, which no call on
+record files it under, so tools/fallbacks.py now cuts it out onto a line of
+its own (`CUT_OUT`, `C2:EF05`, 4,705 instructions) for the ratchet to hold.
 
-**Numbers.** The shipping mode over the 42 movies is 0.09 M instructions run
-as the original (2.40 M before; the dive 2.31 M to 2,134, the 36 older movies
-0.07 M as they were), the routes 0.06 M (2.37 M before; the Epoch's route
-2.31 M to 2,134). The reference play over the 42 movies is 0.95 M (1.66 M
-before; the 36 older movies 1.19 M to 0.89 M, of it the race's tail 228 K and
-the title's tiles and palette at boot 82 K; the dive 0.41 M to 9,507, most of that its script's
-waits for the sound CPU, which the shipping mode runs as an idle entry). What
-the reference play still counts is mostly code no port stands for in the
-menus, the field and `$FF` (0.50 M) and the attract demo's race set up inside a
-stretch whose comparison is set aside (`$7E:3ECD`-`$7E:3F13`, 0.13 M; the
-shipping mode runs it as C). Burndown: 257.3 KiB of 266.5 KiB to 258.8 KiB of
-266.7 KiB (the analysis found 0.2 KiB more of the dive once it read the task
-lists' block moves).
+**The `open` lines** (what the original ran under a comparison still open when
+a movie ended, which the headline leaves out) rose with the chunk, 0.24 M
+over the 48 movies against 0.21 M over chunk 10's 42: three movies end inside
+a member's action now that the step's dispatch is C (`open C1:B967`,
+battle-tech-sweep 17,858, late-omen-zeal 10,562, late-lavos
+7,617; chunk 10 had 32,045 under the dispatch's own comparison, `open
+C1:0003`, and counted the rest of battle-tech-sweep's as the original's before
+the measure kept a live comparison's extent), late-omen-terramutant ends inside
+an action's showing (`open C1:AC57`, 14,042), the new battle-menu-buttons
+inside the expired timers' dispatch (12,916 of `open C1:8290`), and
+endings-telepod-lavos inside the field's frame (3,515 of `open C0:0097`).
+The shipping mode runs none of the original's code over the same 48 movies,
+so none of it is code without a port: it is a port's own work the movie's end
+cut short, whose part a port might hand back the measure can't tell before
+the comparison closes. Each line's reason says which movies it is.
 
-Shadow over the 42 movies 0 mismatching: the dive's 25 entries compare in
-`events-epoch-lavos` (its frame routine's 362,203 passes, 241 interrupted,
-and its gathering's 847, 201 interrupted, where the scaler's rows run across
-frames; the tasks' 2,717 perspective checks, 1,098 shakes and panel
-follows, 737 flickers, 521 and 1,098 passes of the shell, 204 Epochs drawn,
-185 trails; the setup inside the program's start, to its end), the stir's
-entries 2,950 and 2,948 (the rest inside the stars' and the curtain's latch
-waits), the race's tail 4,363, the tile loop 46 and the palette 59. Fuzz 0
-mismatching on every new entry (tools/fuzz_routines.toml, seed 1; two new
-states, `dive_leaving` and `dive_breaking_through`): 0/300 the setup, 0 on
-each task over 61 to 2000 states each compared (the rest the guards': the
-list's carry, a place far round the shell), the stir 0/3000 in both forms.
-Paths no movie reaches and only fuzzing checks: the Epoch's frame table
-going back to its first frame, the light's table once the fog has reached
-its brightest, a 16-bit entry into the tile loop (refused: the original's
-first expansion then runs 16-bit). Misses: only the dive's two step
-instructions the program rewrites into the perspective's loop
-(`$7E:3634`, run interpreted in `--generated only`), as before; px-check
-identical over `events-epoch-lavos`, `events-jetbike-race` and `title-start`.
-Timing: the new entries and five that drifted calibrated (`--drifted`, over
-the 42 movies; `scene_program_start` 4441 to 15362 now that the dive's setup
-runs as C inside its stretch), no new exception; after the review's fixes
-`scene_scale_the_epoch`, `scene_send_the_epoch` (the picture's mark a byte),
-`scene_flicker_the_lights` (the gauge left as a byte) and
-`scene_race_place_bikes` (the 8.8 divide leaving its dividend) again. Gate:
-suite OK.
+**The second batch of movies** joins the library: `battle-tech-sweep-spekkio`
+(134,646 frames), `field-65m-bc-dactyl-flight` (3,992),
+`field-floor-switch` (3,501), `battle-menu-buttons` (5,086),
+`field-factory-switch` (8,387) and `field-northern-ruins-switch` (3,811),
+their routes re-run on this build and the movies they wrote identical
+(docs/movies-wanted.md). In the shipping mode the first trio's second fight
+leaves the party where the cell search can't land in Spekkio's narrow
+doorway, so the route edges there a frame at a time when the search misses
+(`edge_to`, tools/movies/routes/tech_sweep_spekkio.py); the reference play,
+where the search finds it, is unchanged.
+
+**Numbers.** Strict mode: 0 of the 42 movies reached their end before (41
+stopped at `$C2:8000` by frame 1,699, the attract demo at `$CD:0000` at 3,778);
+all 48 do now, 31 of them ending with the reference play's saved game. The shipping mode (`--native on --generated on --sound-driver
+c`) runs none of the original's code over the 48 movies (0.09 M instructions
+over 42 before), and 18,033 over the 21 routes (0.06 M), all hand-backs: the
+program's start's in the Black Tyrano's route (14,992, `$7E:350E`), the vblank
+list's and the battle's calling in (`$FD:A990`). Reference play over chunk 10's
+42 movies 0.95 M to 0.54 M, 0.55 M over the 48; its baseline takes the new
+movies, and lines that are the same code filed under a new port's hand-back
+(`$7E:398A`, `$FD:DA62`) or hidden under a comparison open at a movie's end
+say so (tools/fallback_baseline.txt). The burndown: 259.6K of 266.7K ported
+(258.8K before), 2,168 entries (2,111). The timing gate's exceptions add the
+joints' list runs and the field's pass going on (they run the steps' and
+tasks' ports inline at those ports' rates), the second batch's longer
+stretches of older ports and the world map's way back from the menus with the
+screen blanked (tools/timing_exceptions.txt); the vblank check's add the
+warp's end, a frame early in the shipping mode. The warp's four starts had
+`warp_set_up`'s cost copied onto them; calibrated, it is 1 (their own work is
+a store between two calls timed as their routines, and their estimates were
+exact over the library either way), the long trip's, which no movie takes,
+given the others' value, and the warp's end still comes a frame early. The planet's setup (`$7E:6248`) is an entry as the other setups
+are: its one call over the library runs inside the scene's first frame's
+comparison, which matched, and fuzzing it is 0 of 900.
 
 ### Phase 4a, timing: the battle frame work's remainders, chunk 2: the rewards' messages, the music round a battle and the field's ends (`$FD:A982`, `$FD:AD17`-`$FD:AE51`, `$FD:DA55`-`$FD:DB97`, `$C0:0005`-`$C0:000D`, `$C0:0AFF`-`$C0:0B27`, `$C0:1B90`-`$C0:1CFB`, `$C0:3B76`-`$C0:3B97`, `$C0:6E27`, `$C0:75A0`)
 

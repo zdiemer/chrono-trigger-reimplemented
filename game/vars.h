@@ -678,6 +678,12 @@ void set_save_slot_summaries_header_byte(GameState *g, unsigned slot, unsigned a
 uint8_t story_line(const GameState *g);
 void set_story_line(GameState *g, uint8_t v);
 
+/* Nonzero once the menus, entered for the load screen at power-on, have set a new game's state
+ * up and started the game over from its reset (event memory $61); until then that is what
+ * entering them for the load screen does */
+uint8_t story_new_game_set_up(const GameState *g);
+void set_story_new_game_set_up(GameState *g, uint8_t v);
+
 /* What the story holds the party to (event memory $BA): bit 0 set, the party is held as it is
  * (no switching members, some sitting fights out, the story's items offered), and bit 1 with it,
  * a fight not among those the battle's flags mark */
@@ -4172,13 +4178,16 @@ void set_menu_saved_location_y(GameState *g, uint8_t v);
 uint16_t menu_caller_stack(const GameState *g);
 void set_menu_caller_stack(GameState *g, uint16_t v);
 
-/* The accumulator the caller entered the menus with */
-uint8_t menu_entry_a(const GameState *g);
-void set_menu_entry_a(GameState *g, uint8_t v);
+/* Which of the menus their caller asked for (MenuOpening, menu/display.c): the load screen, the
+ * main menu, a shop, the naming, the gate's exchange, a save point's screen; the screen they
+ * open on is looked up from it */
+uint8_t menu_asked_for(const GameState *g);
+void set_menu_asked_for(GameState *g, uint8_t v);
 
-/* The X register the caller entered the menus with */
-uint16_t menu_entry_x(const GameState *g);
-void set_menu_entry_x(GameState *g, uint16_t v);
+/* What the menus' caller asked for them with (a shop's number, a character to name), which the
+ * screen they open on takes as its argument (menu_screen_argument) */
+uint16_t menu_asked_with(const GameState *g);
+void set_menu_asked_with(GameState *g, uint16_t v);
 
 enum { MENU_VRAM_QUEUE_COUNT = 32 };   /* by queue entry (the byte count in $0D11, 8 per entry, reaches $0D00) */
 /* VRAM word address */
@@ -4264,6 +4273,15 @@ void set_menu_cursor_direction(GameState *g, uint8_t v);
 /* Nonzero keeps the cursor where it is against the next push; the push clears it */
 uint8_t menu_cursor_held(const GameState *g);
 void set_menu_cursor_held(GameState *g, uint8_t v);
+
+/* How far the menus' fade moves the screen's brightness each step: 2 as a screen fades in, -2 as
+ * the menus fade out; the original's fade reads it back between its steps */
+uint8_t menu_fade_step(const GameState *g);
+void set_menu_fade_step(GameState *g, uint8_t v);
+
+/* Frames between the menus' fade's steps (1) */
+uint8_t menu_fade_frames(const GameState *g);
+void set_menu_fade_frames(GameState *g, uint8_t v);
 
 /* How far a list moves each frame while it slides a row along (signed: 4 lines down, -4 up), 0
  * at rest; the item lists' slide frame ($C2:EB1F) and the rows' move after it ($C2:9FDE) read
@@ -7641,9 +7659,10 @@ uint8_t battle_work(const GameState *g, unsigned i);
 void set_battle_work(GameState *g, unsigned i, uint8_t v);
 
 /* How a jump lifts, as the jump commands that give it leave it ($C1:629E; 0 twice its height, 2
- * once and bouncing at half, else once); the jumps to the script's point take what is here,
- * which in every battle the movies reach is 6, the count the animation slots' places loop ends
- * at each frame ($C1:4231) */
+ * once and bouncing at half, else once); the jumps to the script's point take what is here: most
+ * often 6, the count the animation slots' places loop ends at each frame ($C1:4231), but what a
+ * jump, a walk's search or a color list left since, when one ran (Spekkio's fight in
+ * battle-tech-sweep-spekkio) */
 uint8_t battle_jump_lift(const GameState *g);
 void set_battle_jump_lift(GameState *g, uint8_t v);
 
@@ -13733,6 +13752,11 @@ void set_scene_planet_fade_colours(GameState *g, uint16_t v);
 uint8_t scene_planet_fade_steps(const GameState *g);
 void set_scene_planet_fade_steps(GameState *g, uint8_t v);
 
+/* The planet's scene: the high byte of the word the script's fades set the steps left as
+ * (scene_planet_fade_steps), 0, which nothing reads */
+uint8_t scene_planet_fade_steps_high(const GameState *g);
+void set_scene_planet_fade_steps_high(GameState *g, uint8_t v);
+
 /* Who won the jet bike race, for the story to read after the scene: 1 Crono, 2 Johnny */
 uint8_t scene_race_winner(const GameState *g);
 void set_scene_race_winner(GameState *g, uint8_t v);
@@ -13821,9 +13845,10 @@ void set_scene_reset_disabled(GameState *g, uint8_t v);
 uint16_t scene_race_demo_showings(const GameState *g);
 void set_scene_race_demo_showings(GameState *g, uint16_t v);
 
-/* Frames left before the race's scene ends, once a button has been pressed after it */
-uint16_t scene_race_end_wait(const GameState *g);
-void set_scene_race_end_wait(GameState *g, uint16_t v);
+/* Frames left before the scene ends once a button has been pressed: the race's, and the
+ * planet's, which the game starts again from its reset after */
+uint16_t scene_end_wait(const GameState *g);
+void set_scene_end_wait(GameState *g, uint16_t v);
 
 /* Where the scene program is in the game's table of random bytes ($C0:FE00): each draw steps it
  * on */
@@ -14884,6 +14909,10 @@ void set_scene_call_script_scratch(GameState *g, SceneProgramPage page, uint16_t
  * light's picture or a gauge's place in the Epoch's dive (a byte draw stirs its low byte alone) */
 uint16_t scene_call_stirred(const GameState *g, SceneProgramPage page);
 void set_scene_call_stirred(GameState *g, SceneProgramPage page, uint16_t v);
+/* On the scene's own page: the program's routine a script calls, which the interpreter puts here
+ * for the program's call through the cell ($7E:37F3) */
+uint16_t scene_call_called_routine(const GameState *g, SceneProgramPage page);
+void set_scene_call_called_routine(GameState *g, SceneProgramPage page, uint16_t v);
 /* On the scene's own page: the large sprite list's drop instruction (scene_large_list_clip),
  * which the fireworks keep here while they write it out to draw their bursts */
 uint16_t scene_call_kept_list_clip(const GameState *g, SceneProgramPage page);

@@ -192,7 +192,12 @@ fight `policies.party_with_lapis` wins by healing with what the bag holds),
 They were recorded on one build and made again on the next before they went
 into the library, which reproduced them byte for byte: the timing change
 between was the shipping mode's alone, which the interpreter's runs don't
-see.
+see. The second batch joined the same way, made again on chunk 11's build and
+identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
+`dactyl_flight_65m_bc` (`field-65m-bc-dactyl-flight.ctm`), `floor_switches`
+(`field-floor-switch.ctm`), `battle_menu_buttons` (`battle-menu-buttons.ctm`),
+`factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
+(`field-northern-ruins-switch.ctm`).
 
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in

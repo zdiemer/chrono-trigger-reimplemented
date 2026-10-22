@@ -24,8 +24,10 @@
  * carry after (tools/dontcare_check.py checks both). */
 enum { STEP_READS_A_AND_OVERFLOW = DC_X | DC_Y | DC_N | DC_Z, STEP_READS_A = STEP_READS_A_AND_OVERFLOW | DC_V };
 
-/* The routine of each step, its hand port where it has one, and what it
- * doesn't read of what the dispatch hands it. */
+/* The routine of each step, its hand port where the dispatch runs it as C,
+ * and what it doesn't read of what the dispatch hands it. The setup is
+ * called as the original's routine, whose ports (battle/opening.c) go on over
+ * frames from the waits they stop at, which a C call can't hold. */
 static const struct {
     uint32_t routine;
     void (*entry)(Snes *);

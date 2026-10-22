@@ -242,6 +242,9 @@ enum {
     SCENE_ROUTINE_LOOK_FROM_THE_COCKPIT = 0x7EE8,
     SCENE_ROUTINE_FADE_THE_SHELL_IN = 0x82F5,
     SCENE_ROUTINE_WHITE_OUT = 0x831F,
+    SCENE_ROUTINE_FADE_THE_PLANET_THROUGH = 0x63FE,     /* scene/planet.c */
+    SCENE_ROUTINE_FADE_THE_PLANET_OUT = 0x6403,
+    SCENE_ROUTINE_FADE_THE_PLANET_OUT_SLOWLY = 0x6422,
 };
 
 /* A routine a script calls, as C: its work on the calling channel; and the
@@ -267,6 +270,7 @@ typedef struct {
 extern const SceneRoutineLeaves scene_title_routine_leaves[];
 extern const SceneRoutineLeaves scene_lavos_routine_leaves[];
 extern const SceneRoutineLeaves scene_dive_routine_leaves[];
+extern const SceneRoutineLeaves scene_planet_routine_leaves[];
 #endif
 
 /* The tables' rows, by routine. */
@@ -279,6 +283,8 @@ extern const SceneScriptRoutine scene_lavos_routines[];
 extern const unsigned scene_lavos_routine_count;
 extern const SceneScriptRoutine scene_dive_routines[];
 extern const unsigned scene_dive_routine_count;
+extern const SceneScriptRoutine scene_planet_routines[];
+extern const unsigned scene_planet_routine_count;
 /* scene/script.c: a routine of those tables reached by its address, as its
  * registered entry: its row's work. */
 void scene_script_routine_alone(Snes *s, const SceneScriptRoutine *r);
@@ -592,6 +598,11 @@ void scene_boot_line_irq_blank(Snes *s);
 void scene_copy_resource(Snes *s);
 void scene_copy_resource_to_upper_ram(Snes *s);
 void scene_unpack_resource(Snes *s);
+void scene_call_the_scripts_routine(Snes *s);
+void scene_sequence_returns(Snes *s);
+void scene_sequence_goes_on_after_the_wait(Snes *s);
+void scene_channel_script_comes_back(Snes *s);
+bool scene_scripts_routine_call_present(Snes *s);
 bool scene_unpack_present(Snes *s);
 /* `count` bytes of bank $FE from `from` into `bank` at `to`, as those two
  * copy them. */
@@ -605,6 +616,12 @@ void scene_frame_work(Snes *s);
 bool scene_pause_is_a_switch(Snes *s);
 bool scene_frame_tasks_present(Snes *s);
 bool scene_vblank_tasks_present(Snes *s);
+/* A list going on where a task it called came back to it, frames after the
+ * call, from under the frame the list keeps under each call (its data bank,
+ * the slot, P and D), which the entries pull. */
+enum { SCENE_TASK_CALL_FRAME = 6 };
+void scene_frame_tasks_go_on(Snes *s);
+void scene_vblank_tasks_go_on(Snes *s);
 void scene_run_frame_tasks(Snes *s);
 void scene_run_vblank_tasks(Snes *s);
 
@@ -750,6 +767,28 @@ void scene_bridge_enter(Snes *s, uint32_t call);
  * what the setup's last call left in A (`left_in_a`) and the carry. */
 void scene_bridge_scatter_stars(Snes *s, uint16_t left_in_a);
 void scene_bridge_leave(Snes *s);
+/* scene/bridge.c: the program's unpacker ($7E:3691) from the JSR at `site`:
+ * the resource's place in the program's list in X, unpacked into the
+ * destination set; it reads X and the overflow, the data bank and the direct
+ * page, which it hands back. And a script's first step ($7E:3749), from the
+ * JSR at `site`, with 16-bit A and the bank the setup goes on with kept under
+ * it (most keep their own data bank; the staff roll's 0), which reads Y (`y`,
+ * as the setup's last load left it) and the overflow, as the setup leaves it;
+ * the setups then go back on the scene's page with 8-bit A, all but the
+ * Epoch's dive's, which goes on in 16-bit A. */
+enum { SCENE_UNPACK = 0x7E3691, SCENE_UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C };
+enum { SCENE_FIRST_STEP = 0x7E3749, SCENE_FIRST_STEP_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
+void scene_bridge_unpack(Snes *s, uint32_t site, uint16_t resource);
+void scene_bridge_take_the_first_script_step(Snes *s, uint32_t site, uint16_t y, uint8_t kept_bank);
+void scene_bridge_back_on_the_scene_s_page(Snes *s);
+/* Both, keeping the setup's own data bank. */
+void scene_bridge_first_script_step(Snes *s, uint32_t site, uint16_t y);
+
+/* What the program's palette made current ($7E:38AF) and the palette
+ * animations' stop ($FD:FFEE) leave in Y, which a script's first step and the
+ * driver's call after them read: past the working palette's copy, and past
+ * the animations' last slot (scaffolding). */
+enum { SCENE_Y_PAST_THE_WORKING_PALETTE = 0x2400, SCENE_Y_PAST_THE_ANIMATIONS_SLOTS = 0x0090 };
 /* scene/bridge.c: a sibling port's registered entry run as C, as the
  * original's JSR (JSL) at `site` calls `routine`: under the return address the
  * call pushes, where the sibling's own call-outs and stops need it, and timed
@@ -789,6 +828,21 @@ void scene_credit_pages_set_up(Snes *s);
 bool scene_show_the_credits_page_present(Snes *s);
 void scene_show_the_credits_page(Snes *s);
 /* scene/planet.c (the program in RAM) */
+bool scene_planet_set_up_scene(Snes *s);
+bool scene_planet_set_up_present(Snes *s);
+void scene_planet_set_up(Snes *s);
+void scene_fade_the_planet_through(Snes *s);
+void scene_fade_the_planet_out(Snes *s);
+void scene_fade_the_planet_out_slowly(Snes *s);
+bool scene_fade_the_planet_through_present(Snes *s);
+bool scene_fade_the_planet_out_present(Snes *s);
+bool scene_fade_the_planet_out_slowly_present(Snes *s);
+void scene_show_the_planet_s_caption(Snes *s);
+bool scene_planet_s_caption_present(Snes *s);
+void scene_wait_for_a_button_to_restart(Snes *s);
+bool scene_wait_for_a_button_to_restart_present(Snes *s);
+void scene_count_down_to_the_restart(Snes *s);
+bool scene_count_down_to_the_restart_present(Snes *s);
 void scene_step_the_planet_s_colours(Snes *s);
 bool scene_step_the_planet_s_colours_present(Snes *s);
 void scene_twinkle_the_stars(Snes *s);
@@ -832,6 +886,13 @@ bool scene_credits_test_present(Snes *s);
 void scene_go_on_after_the_credits(Snes *s);
 bool scene_fade_in_the_picture_present(Snes *s);
 void scene_fade_in_the_picture(Snes *s);
+/* scene/endings.c: the captions' letters, unpacked as 2-bit tiles, sent to
+ * VRAM as 4-bit ones (the upper two planes empty), where the VRAM port is;
+ * and the captions' colours, in the last sprite palette, with black behind
+ * everything. The endings' and the planet's setups load both. */
+void scene_send_letters_widened(GameState *g, Platform *pf);
+void scene_set_caption_colours(GameState *g);
+
 /* scene/endings.c (the program in RAM) */
 bool scene_ending_set_up_present(Snes *s);
 void scene_ending_set_up(Snes *s);

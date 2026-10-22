@@ -535,19 +535,19 @@ static bool show_action(Snes *s) { return battle_run(s, 0xC18E47, 0xC1AC57, batt
 
 /* ---- The turn ---------------------------------------------------------------------------- */
 
-/* The action is shown (the battle's step 4, $C1:BFA4, through the
- * original's steps' dispatch) and its hits land (battle/damage.c). */
+/* The action is shown, the battle's step 4 asked for from the original's
+ * routine for it ($C1:BFA4), whose return the ask is made under, and its hits
+ * land (battle/damage.c). The step takes A's high byte along, as the caller
+ * left it, and the overflow flag, which it keeps with the flags across its
+ * frame waits. */
+enum { STEP_READS_A_AND_OVERFLOW = DC_X | DC_Y | DC_N | DC_Z };
+
 static bool start_showing(Snes *s)
 {
-    /* the step takes A's high byte along, as the caller left it; the overflow
-     * flag it saves with the flags across its frame waits is read by nothing
-     * after, so the effect worked out before hands it none (dc-evidence:
-     * tools/v_readers.py C1:BFA4: V dead, its tables' indexes at most $FE (A's
-     * high byte known clear, on the battle's direct page $0000); ct_dev
-     * --poison-set V at each site over the library, calls with V inverted:
-     * C1AC57 441; 0 differing) */
-    if (!battle_call(s, 0xC1AC57, 0xC1BFA4, DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
+    battle_push_the_return(s, 0xC1AC57);
+    if (!battle_take_step(s, 0xC1BFA6, BATTLE_STEP_SHOW_ACTION, STEP_READS_A_AND_OVERFLOW))
         return false;
+    battle_pull_the_return(s);
     GameState *g = state_of(s);
     TIMED_AS(g, 0xC1EC7F, battle_apply_damage(g));
     return true;

@@ -34,6 +34,7 @@ static inline uint8_t saves_times_finished(Platform *pf, PfOrigin o) { return sv
 /* Once the game has been finished, the load screen offers a New Game+. */
 static inline bool saves_finished(Platform *pf, PfOrigin o) { return sv_read8(pf, o, SAVES_FINISHED) != 0; }
 static inline void saves_forget_finished(Platform *pf, PfOrigin o) { sv_write8(pf, o, SAVES_FINISHED, 0); }
+static inline void saves_forget_times_finished(Platform *pf, PfOrigin o) { sv_write8(pf, o, SAVES_TIMES_FINISHED, 0); }
 static inline void saves_note_finished(Platform *pf, PfOrigin o) { sv_write8(pf, o, SAVES_FINISHED, 0xFF); }
 
 /* A slot holds a game while its mark (a word) is the one the save writes; the

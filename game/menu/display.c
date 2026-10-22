@@ -21,8 +21,12 @@
 #include "core/console.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
+#include "menu/fades.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
+#include "menu/opening.h"
+#include "menu/party.h"
+#include "menu/saves.h"
 #include "menu/screen_objects.h"
 #include "menu/vram.h"
 #include "original_effects.h"
@@ -115,16 +119,95 @@ static void blank_and_stop(Platform *pf, const uint32_t site[4])
     vid_enable_line_effects(pf, PF_AT(site[3]), 0x00);
 }
 
+/* The openings the menus' callers ask for, in A as they enter: the screen
+ * each opens on is the ROM's (menu_screen_opened_on). One opens on a screen
+ * whose only step closes the menus again, for what opening and closing them
+ * do to the party's records and the field's sprites. The first entry for the
+ * load screen at power-on doesn't open the menus at all (starts_afresh). */
+typedef enum {
+    MENU_OPEN_LOAD_SCREEN, MENU_OPEN_MAIN_MENU, MENU_OPEN_SHOP, MENU_OPEN_NAMING, MENU_OPEN_ONLY_TO_CLOSE,
+    MENU_OPEN_GATE_EXCHANGE, MENU_OPEN_SAVE_POINT,
+} MenuOpening;
+
+/* The menus' own stack, under the tasks' (menu/tasks.c), and the boot's,
+ * which the game starts again on. */
+enum { MENUS_STACK = 0x09FF, BOOT_STACK = 0x06FF };
+
+/* The game started afresh: what the menus do the first time they are entered
+ * for the load screen after power-on, before any game has been played. A new
+ * game's state is set up, noted as done, the cartridge's record that the game
+ * was finished forgotten, and the menus' frame count kept for the battle's
+ * random numbers; then the game starts again from its reset, which comes to
+ * the load screen through the title. */
+static bool starts_afresh(const GameState *g)
+{
+    return menu_asked_for(g) == MENU_OPEN_LOAD_SCREEN && !story_new_game_set_up(g);
+}
+
+static void start_a_game_afresh(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, 0xC2956E, saves_start_a_new_game(g));
+    set_story_new_game_set_up(g, 1);
+    saves_forget_finished(pf, PF_AT(0xC28053));
+    saves_forget_times_finished(pf, PF_AT(0xC28057));
+    set_frames_at_leaving(g, menu_frame_counter(g));
+}
+
+/* The screen the menus open on takes what the caller asked with -- a shop's
+ * number, a character to name -- as its argument, in the argument's low byte. */
+static void give_the_screen_what_was_asked(GameState *g)
+{
+    set_menu_screen_argument(g, (uint16_t)((menu_screen_argument(g) & 0xFF00) | (uint8_t)menu_asked_with(g)));
+}
+
+/* The menus open on the screen asked for, taking what the caller asked with
+ * as its argument; the play time runs, held buttons repeat from the next
+ * frame, and the vblank handler and the controllers' reading are on. */
+static void open_on_the_screen(GameState *g, Platform *pf)
+{
+    MenuOpening opening = (MenuOpening)menu_asked_for(g);
+    give_the_screen_what_was_asked(g);
+    set_play_time_stopped(g, 0);
+    set_menu_screen(g, menu_screen_opened_on(g, opening));
+    set_input_repeat_delay(g, 1);
+    set_input_repeat_countdown(g, 1);
+    tm_enable_interrupts(pf, PF_AT(0xC28087), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
+}
+
+/* What the routines the entry runs as C or calls read of the registers
+ * (tools/dontcare_check.py checks each): the opening moves to the menus'
+ * page as it starts, which the port moves to first, and reads none of them;
+ * nor does the tasks' start. */
+enum {
+    THE_TASKS_START_READING_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+    THE_OPENING_SETS_ITS_PAGE = THE_TASKS_START_READING_NOTHING | DC_D,
+};
+
+/* Entering the menus reads every register the caller hands it: what it asks
+ * for and with, its page, data bank, flags and stack. */
+enum { MENU_MODE_START = 0xC2800E, THE_START_READS_ALL = 0 };
+
+// $C2:8000
+/* The first of the menus' bank's three ways in (the frame's input, $C2:8002,
+ * and the party's services, $C2:8004, are the others), which the field and the
+ * scenes call: a jump to the mode's start, which the runtime takes to the
+ * start's own entry. Run here as C (menu_go_on_in), the start's call-outs
+ * would be made inside this entry's comparison, and shadow mode hands them to
+ * the start's, which the original reaches nested in it: every movie
+ * mismatched so (chunk 11's review fixes). */
+void menu_mode_enter(Snes *s) { m_stop_at(s, MENU_MODE_START, THE_START_READS_ALL); }
+
 // $C2:800E
 /* Entering the menus: the caller's direct page, data bank and flags kept on
- * its stack, the menus' data bank, and the mode and argument the caller
- * entered with kept for the menus to read; then the screen blanked while it is
- * set up. Stops at the stack switch at $C2:8039, which the original carries on
- * with. */
+ * its stack, for the menus' return to put back; the menus' data bank; what the
+ * caller asked for kept; and the screen blanked while it is set up. Then the menus
+ * move to their own stack, open, and start their tasks, which run until a
+ * screen closes them -- or the game starts afresh. */
 void menu_mode_start(Snes *s)
 {
     static const uint32_t sites[4] = { 0xC28025, 0xC2802B, 0xC28031, 0xC28035 };
     GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
     m_set_flag(s, CPU_FLAG_I, true);
     m_set_flag(s, CPU_FLAG_C, false);
     m_push16(s, s->cpu.d);
@@ -132,11 +215,24 @@ void menu_mode_start(Snes *s)
     m_push8(s, s->cpu.p);
     m_sep(s, CPU_FLAG_M);
     m_rep(s, CPU_FLAG_X);
-    s->cpu.db = 0x7E;
-    set_menu_entry_a(g, (uint8_t)s->cpu.a);
-    set_menu_entry_x(g, s->cpu.x);
-    blank_and_stop(m_platform(s), sites);
-    m_stop_at(s, 0xC28039, 0);
+    s->cpu.db = MENU_DATA_BANK;
+    set_menu_asked_for(g, (uint8_t)s->cpu.a);
+    set_menu_asked_with(g, s->cpu.x);
+    blank_and_stop(pf, sites);
+    set_menu_caller_stack(g, s->cpu.s);
+    if (starts_afresh(g)) {
+        start_a_game_afresh(g, pf);
+        NATIVE_TIME_AS(s, 0xC2832F, menu_mode_restart(s));
+        return;
+    }
+    s->cpu.s = MENUS_STACK;
+    s->cpu.d = MENU_PAGE;
+    if (!menu_run_or_call(s, 0xC28068, 0xC28096, THE_OPENING_SETS_ITS_PAGE, menu_open))
+        return;
+    open_on_the_screen(g, pf);
+    menu_set_widths(s, true, true);
+    m_set_flag(s, CPU_FLAG_I, false);
+    menu_go_on_in(s, 0xC28190, menu_start_the_tasks, THE_TASKS_START_READING_NOTHING);
 }
 
 // $C2:82C1
@@ -164,8 +260,41 @@ void menu_mode_restart(Snes *s)
 {
     static const uint32_t sites[4] = { 0xC28331, 0xC28337, 0xC2833D, 0xC28341 };
     blank_and_stop(m_platform(s), sites);
-    s->cpu.s = 0x06FF;
+    s->cpu.s = BOOT_STACK;
     m_stop_at(s, 0xC00000, 0);
+}
+
+/* Closing the menus, from whichever screen closes them: every task stopped
+ * but the one closing them, which goes on; what the party wears shown on the
+ * field's sprites again; and the screen faded out. Then either back to the
+ * caller (menu_mode_return) or, from the load screen, on to the game, which
+ * starts again from its reset with the game loaded (menu_mode_restart). */
+enum { EVERY_TASK = 0xFF };
+enum { THE_WEAR_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+/* Each of the two ways out calls what the original calls from its own
+ * sites: the wear's, then the fade's. */
+static bool close_the_menus(Snes *s, uint32_t wear_shown_from, uint32_t faded_out_from)
+{
+    GameState *g = state_of(s);
+    menu_set_widths(s, true, false);
+    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, EVERY_TASK));
+    return menu_run_or_call(s, wear_shown_from, 0xC2834D, THE_WEAR_IGNORES, menu_show_what_the_party_wears)
+           && menu_fade_out_from(s, faded_out_from);
+}
+
+// $C2:82B2
+void menu_close(Snes *s)
+{
+    if (close_the_menus(s, 0xC282BB, 0xC282BE))
+        NATIVE_TIME_AS(s, 0xC282C1, menu_mode_return(s));
+}
+
+// $C2:8320
+void menu_close_for_the_game(Snes *s)
+{
+    if (close_the_menus(s, 0xC28329, 0xC2832C))
+        NATIVE_TIME_AS(s, 0xC2832F, menu_mode_restart(s));
 }
 
 /* The mode's frame: the screen blanked while it sends what the frame built,
@@ -950,20 +1079,30 @@ static const VidScreen loader_screen = {
     .vram_port = { .step = 1, .after_high = true },
 };
 
+/* The console stopped for the setup: no interrupts, timers, transfers or
+ * per-line effects, and the cartridge read at its fast speed. */
+static void stop_the_console(Platform *pf)
+{
+    tm_enable_interrupts(pf, PF_AT(0xC294C0), 0);
+    tm_reset_timers(pf, PF_AT(0xC294C2));
+    vid_stop_uploads(pf, PF_AT(0xC294C6));
+    vid_enable_line_effects(pf, PF_AT(0xC294C8), 0x00);
+    tm_fast_rom(pf, PF_AT(0xC294CC), true);
+}
+
+static void clear_the_screens_memory(GameState *g, Platform *pf);
+
 // $C2:940D
-/* Set the loader's screen up. Stops at $C2:94B8, where the routine moves on
- * to the CPU registers; the caller's data bank, direct page and flags are kept
- * on the stack for $C2:94D5 to put back. */
+/* Set the loader's screen up, with the console stopped, and clear all of
+ * VRAM and the screen's buffers in work RAM ($C2:94D5). */
 void menu_init_video(Snes *s)
 {
-    m_push8(s, s->cpu.db);
-    m_push16(s, s->cpu.d);
-    m_push8(s, s->cpu.p);
-    m_rep(s, CPU_FLAG_X);
-    m_sep(s, CPU_FLAG_M);
-    s->cpu.db = 0x00;
-    vid_apply_screen(m_platform(s), PF_AT(0xC2940D), &loader_screen);
-    m_stop_at(s, 0xC294B8, 0);
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    vid_apply_screen(pf, PF_AT(0xC2940D), &loader_screen);
+    stop_the_console(pf);
+    clear_the_screens_memory(g, pf);
+    m_rts(s);
 }
 
 /* A stretch of work RAM cleared with the byte at $C2:9510 through the work
@@ -980,16 +1119,20 @@ void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes)
 
 // $C2:94D5
 /* The rest of that setup: VRAM filled from word 0 with the word at $C2:9510,
- * then three stretches of work RAM cleared with it; and the caller's flags,
- * direct page and data bank put back. */
-void menu_init_video_memory(Snes *s)
+ * then three stretches of work RAM cleared with it. */
+static void clear_the_screens_memory(GameState *g, Platform *pf)
 {
     static const struct { uint16_t at, bytes; } stretches[3] = { { 0x0C00, 0x1200 }, { 0x2E00, 0xD200 }, { 0x0000, 0x0100 } };
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     vid_send_vram_fill(pf, PF_AT(0xC294D8), 0x0000, PF_GAME(0xC29510), 0xFFFF, NULL);
     for (int i = 0; i < 3; i++)
-        NATIVE_TIME_AS(s, 0xC29512, menu_clear_memory(g, pf, stretches[i].at, stretches[i].bytes));
+        TIMED_AS(g, 0xC29512, menu_clear_memory(g, pf, stretches[i].at, stretches[i].bytes));
+}
+
+/* Its entry, where the setup goes on: the caller's flags, direct page and
+ * data bank put back after. */
+void menu_init_video_memory(Snes *s)
+{
+    clear_the_screens_memory(state_of(s), m_platform(s));
     m_pull_flags(s);
     s->cpu.d = m_pull16(s);
     s->cpu.db = m_pull8(s);

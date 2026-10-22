@@ -1,0 +1,57 @@
+# How each library movie ends on the hand ports alone (tools/strict_check.py):
+# `ct_dev --native on --generated off --no-interpreter strict --sound-driver c`.
+# A line per movie: `end` (its last frame, with no halt, stray accessor or
+# refused page, and the saved game and save RAM as the reference play leaves
+# them, but for the play clock and the battles' random start), `drifts` (the
+# same, but the shipping mode's own timing has moved the play, so the saved
+# game differs from the reference's where the line says), or the frame it must
+# reach; then after `#` why. The gate fails where a movie does worse;
+# `--update` takes a movie that does better.
+attract-demo end
+fair-companion end
+fair end
+field end
+gato-battle drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (46 byte(s) of the saved game (character_records, $7E:2613, $7E:2616, $7E:262B, $7E:262D, $7E:263D, ...))
+menu end
+new-game drifts  # the shipping mode runs the opening ahead of the original: by the last frame the story's count has gone on to 3, the reference's still 0 (1 byte(s) of the saved game (event_memory))
+title-start end
+battle-black-tyrano drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (203 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
+battle-golem-twins-gameover end
+battle-guardian drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (71 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, ...); 296 byte(s) of save RAM)
+battle-lavos-gameover end
+battle-magus end
+battle-menu-buttons end
+battle-tech-sweep-spekkio drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (37 byte(s) of the saved game (inventory_counts, $7E:263D, $7E:263F, $7E:2640, $7E:268D, $7E:268F, ...))
+battle-tech-sweep drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (805 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
+battle-tyrano-lair-walls end
+endings-beyond-time drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way, and the save made after differs (54 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, ...); 4189 byte(s) of save RAM)
+endings-bucket-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (49 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:26A3, $7E:26A4, ...))
+endings-telepod-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (574 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
+events-blackbird end
+events-end-of-time-gate end
+events-epoch-lavos end
+events-jetbike-race-won end
+events-jetbike-race end
+events-keepers-dome end
+events-prison-escape end
+field-12kbc-1f4 end
+field-12kbc-1f5 end
+field-12kbc-1f6 end
+field-65m-bc-dactyl-flight end
+field-65m-bc-dactyl end
+field-65m-bc end
+field-factory-switch drifts  # its fight ends otherwise and the party stands elsewhere at the last frame (19 byte(s) of the saved game (character_records, $7E:2607, $7E:26F3, $7E:26F7, battle_setup_flags, location, ...))
+field-floor-switch end
+field-northern-ruins-switch end
+late-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (43 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, ...); 185 byte(s) of save RAM)
+late-omen-battles drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (18 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2653, $7E:2654, $7E:2657, ...))
+late-omen-terramutant end
+late-omen-zeal drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (31 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2653, $7E:2654, $7E:2657, ...))
+menus-end-of-time end
+menus-epoch drifts  # the presses land on other frames, and the party ends at another place with another song (23 byte(s) of the saved game (current_song, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...))
+menus-field-menu end
+menus-new-game-plus end
+menus-save-point end
+menus-shop-equip drifts  # the presses land on other frames, and the shop's cursor buys and equips other things (50 byte(s) of the saved game (inventory_items, inventory_counts, $7E:2627, $7E:2628, $7E:2629, $7E:263D, ...))
+menus-shop-inn drifts  # the presses land on other frames, and the party ends at another place (13 byte(s) of the saved game (menu_past_the_names, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...))
+menus-sweep drifts  # the presses land on other frames, and the menus' cursor uses and moves other items (118 byte(s) of the saved game (inventory_items, inventory_counts, $7E:26AB, $7E:26CF, $7E:26D6, $7E:2719, ...))

@@ -25,10 +25,14 @@
 
 #include "charge.h"
 #include "original_effects.h"
+#include "platform/audio.h"
 #include "port/machine.h"
+#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
+#include "core/palette.h"
+#include "platform/video.h"
 
 /* ---- The planet's colours ------------------------------------------------------------------- */
 
@@ -238,6 +242,336 @@ static TaskLeftovers twinkle_the_stars_leaves(const GameState *g, TaskEnd end)
     else if (last_star_frame == STAR_PUT_ANEW)
         l = (TaskLeftovers){ .a_set = true, .a = TWINKLES_END, .a_8bit = true, .y_set = true, .y = scene_twinkles_hidden(g) };
     return l;
+}
+
+/* ---- Where the script fades the planet to -------------------------------------------------------- */
+
+/* The scene's two sets of colours the planet fades toward, unpacked by the
+ * setup: the last it ends on, and the one mode 7's fade passes through
+ * first. Each fade steps the scene's colours from the working palette's 32nd,
+ * 192 of them, 32 steps, the screen's own fade's period a step every eight
+ * frames. */
+enum { LAST_COLOURS = 0xB574, COLOURS_ON_THE_WAY = 0xB774, FROM_THE_32ND = 0x40 };
+enum { FADED_COLOURS = 0xC0, FADE_STEPS = 0x20, SCREEN_FADE_FRAMES = 8, FADED_PALETTE = 0x2240 };
+/* The slow fade's step comes round once in 32 frames. */
+enum { SLOW_FADE_PERIOD = 0x1F };
+
+static void fade_toward(GameState *g, uint16_t colours)
+{
+    set_scene_planet_fade_toward(g, (uint16_t)(colours + FROM_THE_32ND));
+    set_scene_planet_fade_steps(g, FADE_STEPS);
+    ORIGINAL_EFFECT(set_scene_planet_fade_steps_high(g, 0));   /* the original sets the steps as a word */
+}
+
+// $7E:63FE, $7E:6403
+/* Fade the planet toward a set of colours, the screen's fade slowed to a
+ * step every eight frames. */
+static void fade_the_planet_toward(GameState *g, uint16_t colours)
+{
+    fade_toward(g, colours);
+    set_scene_fade_period(g, SCREEN_FADE_FRAMES);
+    set_scene_fade_countdown(g, SCREEN_FADE_FRAMES);
+    set_scene_planet_fade_palette(g, FADED_PALETTE);
+    set_scene_planet_fade_colours(g, FADED_COLOURS);
+}
+
+static void fade_the_planet_through(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    fade_the_planet_toward(g, COLOURS_ON_THE_WAY);
+}
+
+static void fade_the_planet_out(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    fade_the_planet_toward(g, LAST_COLOURS);
+}
+
+// $7E:6422
+/* On from the colours the planet has faded through, to the last, a step
+ * every 32 frames. */
+static void fade_the_planet_out_slowly(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    fade_toward(g, LAST_COLOURS);
+    set_scene_planet_fade_period(g, SLOW_FADE_PERIOD);
+}
+
+/* The routines' code. */
+bool scene_fade_the_planet_through_present(Snes *s) { return m_code_matches(s, 0x7E63FE, 0x24, 0x69FB288B5034BD32ull); }
+bool scene_fade_the_planet_out_present(Snes *s) { return m_code_matches(s, 0x7E6403, 0x1F, 0x1D0B762344A2A669ull); }
+bool scene_fade_the_planet_out_slowly_present(Snes *s) { return m_code_matches(s, 0x7E6422, 0x17, 0x49E214FE941AF74Full); }
+
+enum { SCENE_ROW_FADE_THE_PLANET_THROUGH, SCENE_ROW_FADE_THE_PLANET_OUT, SCENE_ROW_FADE_THE_PLANET_OUT_SLOWLY };
+
+const SceneScriptRoutine scene_planet_routines[] = {
+    [SCENE_ROW_FADE_THE_PLANET_THROUGH] = { SCENE_ROUTINE_FADE_THE_PLANET_THROUGH, fade_the_planet_through,
+                                             scene_fade_the_planet_through_present, false },
+    [SCENE_ROW_FADE_THE_PLANET_OUT] = { SCENE_ROUTINE_FADE_THE_PLANET_OUT, fade_the_planet_out,
+                                        scene_fade_the_planet_out_present, false },
+    [SCENE_ROW_FADE_THE_PLANET_OUT_SLOWLY] = { SCENE_ROUTINE_FADE_THE_PLANET_OUT_SLOWLY, fade_the_planet_out_slowly,
+                                                scene_fade_the_planet_out_slowly_present, false },
+};
+const unsigned scene_planet_routine_count = sizeof scene_planet_routines / sizeof scene_planet_routines[0];
+
+#if ORIGINAL_EFFECTS
+/* The fades leave A as their last load: the colours' count, or the slow
+ * fade's period, whose high byte is the steps' word's. */
+static uint16_t leaves_the_count(uint16_t called_with)
+{
+    (void)called_with;
+    return FADED_COLOURS;
+}
+static uint16_t leaves_the_period(uint16_t called_with)
+{
+    (void)called_with;
+    return SLOW_FADE_PERIOD;
+}
+
+const SceneRoutineLeaves scene_planet_routine_leaves[] = {
+    [SCENE_ROW_FADE_THE_PLANET_THROUGH] = { leaves_the_count, NULL },
+    [SCENE_ROW_FADE_THE_PLANET_OUT] = { leaves_the_count, NULL },
+    [SCENE_ROW_FADE_THE_PLANET_OUT_SLOWLY] = { leaves_the_period, NULL },
+};
+#endif
+
+void scene_fade_the_planet_through(Snes *s)
+{
+    scene_script_routine_alone(s, &scene_planet_routines[SCENE_ROW_FADE_THE_PLANET_THROUGH]);
+}
+void scene_fade_the_planet_out(Snes *s) { scene_script_routine_alone(s, &scene_planet_routines[SCENE_ROW_FADE_THE_PLANET_OUT]); }
+void scene_fade_the_planet_out_slowly(Snes *s)
+{
+    scene_script_routine_alone(s, &scene_planet_routines[SCENE_ROW_FADE_THE_PLANET_OUT_SLOWLY]);
+}
+
+/* ---- The end of the scene ------------------------------------------------------------------------ */
+
+/* The scene's caption, the program's text "But... the future refused to
+ * change.", drawn every frame by a task of the script's while it is up. */
+enum { THE_FUTURE_REFUSED_TO_CHANGE = 0x6644, CAPTION_DRAWING = 0x7E64CA };
+enum { THE_DRAWING_READS_X = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+// $7E:64BF
+void scene_show_the_planet_s_caption(Snes *s)
+{
+    s->cpu.x = THE_FUTURE_REFUSED_TO_CHANGE;
+    m_set_nz16(s, THE_FUTURE_REFUSED_TO_CHANGE);
+    m_jump_to(s, CAPTION_DRAWING);
+    if (!scene_draw_caption_present(s)) {
+        m_stop_at(s, CAPTION_DRAWING, THE_DRAWING_READS_X);
+        return;
+    }
+    NATIVE_TIME_AS(s, CAPTION_DRAWING, scene_draw_caption(s));
+}
+
+/* After the caption, the script's last task waits for a button: then a
+ * sound, the screen darkens (the program's darkening, a task of its own), and
+ * the task hands its slot to the countdown to the scene's end, after which the
+ * game starts again from its reset. */
+enum { RESTART_SOUND = 0x81, RESTART_SOUND_PARAMETER = 0x40, COUNT_DOWN_TO_THE_RESTART = 0x63F5 };
+enum { SCENE_SEND = 0x7E377E, THE_SEND_READS_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C };
+/* The list's exit that hands the task's slot over reads the task that takes
+ * it in X; the reset reads none of the registers but Y, which the countdown
+ * leaves as it was (the liveness can't rule it out down the field's start). */
+enum { HAND_THE_SLOT_OVER = 0x7E39B1, THE_HAND_OVER_READS_X = DC_A | DC_N | DC_V | DC_Z | DC_C,
+       CONSOLE_RESET = 0x00FF00, THE_RESET_MAY_READ_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C };
+
+static void ask_for_the_restart_sound(GameState *g)
+{
+    set_sound_command(g, RESTART_SOUND);
+    set_sound_command_parameters(g, 0, RESTART_SOUND_PARAMETER);
+    set_sound_command_parameters(g, 1, 0);
+}
+
+// $7E:63D5
+void scene_wait_for_a_button_to_restart(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (scene_joypad(g) == 0) {
+        ORIGINAL_EFFECT(s->cpu.a = 0);   /* the controller's load */
+        m_set_nz16(s, 0);
+        m_rts(s);
+        return;
+    }
+    ask_for_the_restart_sound(g);
+    au_driver_call(m_platform(s), PF_CALL(0x7E63E5, SCENE_SEND), THE_SEND_READS_Y);
+    TIMED_AS(g, 0x7E395E, (void)scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_DARKEN));
+    s->cpu.x = COUNT_DOWN_TO_THE_RESTART;
+    m_stop_at_own(s, HAND_THE_SLOT_OVER, THE_HAND_OVER_READS_X);
+}
+
+// $7E:63F5
+void scene_count_down_to_the_restart(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint16_t left = (uint16_t)(scene_end_wait(g) - 1);
+    set_scene_end_wait(g, left);
+    m_set_nz16(s, left);
+    if (left != 0) {
+        m_rts(s);
+        return;
+    }
+    m_stop_at(s, CONSOLE_RESET, THE_RESET_MAY_READ_Y);
+}
+
+/* The tasks' code, on the scene's page; the wait's send's, and the list's
+ * room for the darkening. */
+bool scene_planet_s_caption_present(Snes *s) { return m_code_matches(s, 0x7E64BF, 0x06, 0x95BAD85F81FC3237ull); }
+
+bool scene_wait_for_a_button_to_restart_present(Snes *s)
+{
+    if (!scene_on_scene_page(s) || !m_code_matches(s, 0x7E63D5, 0x20, 0x04BAEB7BD16D9B0Eull) || !scene_send_sound_command_present(s))
+        return false;
+    vars_peek(true);
+    bool room = scene_task_listed(state_of(s), SCENE_FRAME_TASKS, NO_TASK);
+    vars_peek(false);
+    return room;
+}
+
+bool scene_count_down_to_the_restart_present(Snes *s) { return m_code_matches(s, 0x7E63F5, 0x09, 0xD8B581955D8D3E20ull); }
+
+/* ---- The setup ------------------------------------------------------------------------------------ */
+
+/* The scene's graphics, by their resources in the program's list: the
+ * captions' letters, as 4-bit sprite tiles at $4000; the stars' sprites at
+ * $4800; the planet's tiles at $5000 and its map at $7000. */
+enum { LETTERS = 0x63, STAR_SPRITES = 0x5D, PLANET_TILES = 0xCF, PLANET_MAP = 0xB1 };
+enum { LETTERS_VRAM = 0x4000, STAR_SPRITES_VRAM = 0x4800, PLANET_TILES_VRAM = 0x5000, PLANET_MAP_VRAM = 0x7000 };
+
+/* Its colours, unpacked into the program's bank: the loaded palette's from the
+ * 16th and from the 224th, and the two sets the planet fades toward. */
+enum { COLOURS = 0x54, LAST_COLOURS_RESOURCE = 0x57, COLOURS_ON_THE_WAY_RESOURCE = 0x5A, LATE_COLOURS = 0x60 };
+enum { COLOURS_AT = 0x2020, LATE_COLOURS_AT = 0x21C0 };
+
+/* The scripts: mode 7's, the Day of Lavos's end, and mode 8's, an ending's. */
+enum { MODE_BITS = 0x0F, AN_ENDING_S_PLANET = 8, LOST_SCRIPT = 0x633D, ENDING_SCRIPT = 0x63A6 };
+
+/* Frames from the button to the scene's end. */
+enum { END_WAIT = 0x80 };
+
+static void unpack_at(GameState *g, uint16_t at) { set_decompress_dest(g, (decompress_dest(g) & 0xFF0000u) | at); }
+
+/* The unpacked graphics sent a word at a time; and the transfer's mode kept
+ * in its cell's low byte, the high byte cleared, which the stars' random draws
+ * stir in next (scene/random.c). */
+static void send_unpacked_words(GameState *g, Platform *pf)
+{
+    set_scene_call_transfer_control(g, scene_program_own(), SCENE_TRANSFER_WORDS);
+    set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
+    TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
+}
+
+static void load_the_graphics(Snes *s)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    vid_start_vram_uploads(pf, PF_AT(0x7E624A), SCENE_VRAM_WHOLE_WORDS);
+    set_decompress_dest(g, SCENE_UNPACK_BUFFER);
+    vid_set_vram_address(pf, PF_AT(0x7E6253), LETTERS_VRAM);
+    scene_bridge_unpack(s, 0x7E6259, LETTERS);
+    scene_send_letters_widened(g, pf);
+    vid_set_vram_address(pf, PF_AT(0x7E6265), STAR_SPRITES_VRAM);
+    scene_bridge_unpack(s, 0x7E626B, STAR_SPRITES);
+    send_unpacked_words(g, pf);
+    scene_bridge_unpack(s, 0x7E627F, PLANET_TILES);
+    vid_set_vram_address(pf, PF_AT(0x7E6285), PLANET_TILES_VRAM);
+    TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
+    vid_set_vram_address(pf, PF_AT(0x7E628F), PLANET_MAP_VRAM);
+    scene_bridge_unpack(s, 0x7E6295, PLANET_MAP);
+    TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
+}
+
+/* The original clears the call cells' second byte as it loads the colours,
+ * which nothing the setup runs after it reads. */
+static void clear_the_call_cells_second_byte(GameState *g)
+{
+    SceneProgramPage scene = scene_program_own();
+    set_scene_call_first(g, scene, (uint16_t)(scene_call_first(g, scene) & 0x00FF));
+}
+
+static void load_the_colours(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_decompress_dest(g, COLOURS_AT);
+    ORIGINAL_EFFECT(clear_the_call_cells_second_byte(g));
+    scene_bridge_unpack(s, 0x7E62AA, COLOURS);
+    unpack_at(g, LAST_COLOURS);
+    scene_bridge_unpack(s, 0x7E62B6, LAST_COLOURS_RESOURCE);
+    unpack_at(g, COLOURS_ON_THE_WAY);
+    scene_bridge_unpack(s, 0x7E62C2, COLOURS_ON_THE_WAY_RESOURCE);
+    scene_set_caption_colours(g);
+    unpack_at(g, LATE_COLOURS_AT);
+    scene_bridge_unpack(s, 0x7E62D1, LATE_COLOURS);
+    TIMED_AS(g, 0x7E38AF, scene_use_loaded_palette(g));
+}
+
+/* The screen: Mode 3, the planet on BG1 (its map at $7000, its tiles at
+ * $5000), set 72 pixels in and 52 down from the top left; the sprites on the
+ * sub screen, added onto the planet; both screens masked by every window. */
+static const VidBg planet_bg1 = { VID_TILEMAP(0x7000, 32, 32) };
+enum { PLANET_ACROSS = -72, PLANET_DOWN = -52, EVERY_WINDOW = 0x1F };
+static const VidColorMath sprites_added = { .sub_screen = true, .layers = VID_BG1_BIT };
+
+static void set_up_the_screen(Platform *pf)
+{
+    vid_set_mode(pf, PF_AT(0x7E6303), &(VidMode){ .mode = 3 });
+    vid_set_bg_map(pf, PF_AT(0x7E6308), VID_BG1, &planet_bg1);
+    vid_set_bg_chars(pf, PF_AT(0x7E630D), VID_BG1, PLANET_TILES_VRAM, 0x0000);
+    vid_set_scroll(pf, PF_AT(0x7E6312), VID_BG1, (uint16_t)PLANET_ACROSS, 0, VID_SCROLL_H);
+    vid_set_scroll(pf, PF_AT(0x7E631C), VID_BG1, 0, (uint16_t)PLANET_DOWN, VID_SCROLL_V);
+    vid_set_color_math(pf, PF_AT(0x7E6327), &sprites_added, VID_MATH_CONTROL | VID_MATH_LAYERS);
+    vid_set_screens(pf, PF_AT(0x7E632D), VID_BG1_BIT, VID_OBJ_BIT, VID_SCREEN_MAIN | VID_SCREEN_SUB);
+    vid_set_windows(pf, PF_AT(0x7E6333), &(VidWindows){ .win_main = EVERY_WINDOW, .win_sub = EVERY_WINDOW },
+                    VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
+}
+
+/* Putting the stars out, as its entry runs (scene_put_out_the_stars, which
+ * refuses a carry the original would add in); it reads nothing else, and
+ * leaves the overflow clear for the setup's callers. */
+enum { PUT_OUT_THE_STARS = 0x7E6598, THE_STARS_READ_THE_CARRY = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z };
+
+// $7E:6248
+/* The planet's scene set up, from the program's mode table (modes 7 and 8):
+ * its graphics and colours loaded, the mode's script started, the stars put
+ * out, the palette animations stopped and the screen laid out; and the
+ * scene's end a few seconds after the button the script's last task waits
+ * for. True unless a call-out stopped it. */
+bool scene_planet_set_up_scene(Snes *s)
+{
+    GameState *g = state_of(s);
+    load_the_graphics(s);
+    load_the_colours(s);
+    bool an_ending = (scene_flags(g) & MODE_BITS) == AN_ENDING_S_PLANET;
+    set_scene_channels_script(g, SCENE_CAMERA_CHANNEL, an_ending ? ENDING_SCRIPT : LOST_SCRIPT);
+    scene_bridge_first_script_step(s, 0x7E62F0, SCENE_Y_PAST_THE_WORKING_PALETTE);
+    if (!scene_run(s, 0x7E62FA, PUT_OUT_THE_STARS, THE_STARS_READ_THE_CARRY, scene_put_out_the_stars))
+        return false;
+    TIMED_AS(g, 0xFDFFEE, palette_stop_animations(g));
+    ORIGINAL_EFFECT(s->cpu.y = SCENE_Y_PAST_THE_ANIMATIONS_SLOTS);
+    set_up_the_screen(m_platform(s));
+    set_scene_end_wait(g, END_WAIT);
+    return true;
+}
+
+void scene_planet_set_up(Snes *s)
+{
+    if (scene_planet_set_up_scene(s))
+        m_rts(s);
+}
+
+/* The setup's code, and the program's routines it runs as C: the unpacker's
+ * destination set, the letters' widening, the transfer, the captions'
+ * colours, the palette made current. */
+bool scene_planet_set_up_present(Snes *s)
+{
+    return scene_on_scene_page(s) && m_bank_reaches_io(s) && m_code_matches(s, 0x7E6248, 0xF5, 0xC63E429D7ED112C2ull) &&
+           m_code_matches(s, 0x7E89ED, 0x14, 0x22A581F747CC4E58ull) && m_code_matches(s, 0x7E66B0, 0x2D, 0x668182BFFD2B1A5Bull) &&
+           scene_transfer_present(s) && m_code_matches(s, 0x7E8772, 0x1E, 0xACB5DF9A02DD40EAull) &&
+           m_code_matches(s, 0x7E38AF, 0x14, 0xD31DAC893D4743DCull);
 }
 
 /* ---- The rows ------------------------------------------------------------------------------- */

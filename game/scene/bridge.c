@@ -68,6 +68,35 @@ void scene_bridge_scale_scene_picture(Snes *s, ScenePictureScaling which)
 
 enum { JSR_SIZE_HERE = 3 };
 
+/* ---- The program's unpacker and a script's first step ----------------------------------------- */
+
+void scene_bridge_unpack(Snes *s, uint32_t site, uint16_t resource)
+{
+    s->cpu.x = resource;
+    m_jsr_dc(s, site, SCENE_UNPACK, SCENE_UNPACK_IGNORES);
+}
+
+void scene_bridge_take_the_first_script_step(Snes *s, uint32_t site, uint16_t y, uint8_t kept_bank)
+{
+    m_push8(s, kept_bank);
+    m_set_flag(s, CPU_FLAG_M, false);
+    s->cpu.y = y;
+    m_jsr_dc(s, site, SCENE_FIRST_STEP, SCENE_FIRST_STEP_IGNORES);
+    s->cpu.db = m_pull8(s);
+}
+
+void scene_bridge_back_on_the_scene_s_page(Snes *s)
+{
+    m_set_flag(s, CPU_FLAG_M, true);
+    s->cpu.d = SCENE_PAGE;
+}
+
+void scene_bridge_first_script_step(Snes *s, uint32_t site, uint16_t y)
+{
+    scene_bridge_take_the_first_script_step(s, site, y, s->cpu.db);
+    scene_bridge_back_on_the_scene_s_page(s);
+}
+
 void scene_bridge_enter(Snes *s, uint32_t call) { m_push16(s, (uint16_t)(call + JSR_SIZE_HERE - 1)); }
 
 void scene_bridge_leave(Snes *s) { (void)m_pull16(s); }

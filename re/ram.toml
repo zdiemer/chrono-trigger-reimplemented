@@ -1239,6 +1239,11 @@ offset = 0x0
 size = 2
 meaning = "On the scene's own page: what the program's random draws stir in (game/scene/random.c), whatever the last of its routines to use the cell left there: the 8.8 divide's dividend, the routine of the program a script calls, the word the palettes' frame keeps aside, a warning light's picture or a gauge's place in the Epoch's dive (a byte draw stirs its low byte alone)"
 [[var.field]]
+name = "called_routine"
+offset = 0x0
+size = 2
+meaning = "On the scene's own page: the program's routine a script calls, which the interpreter puts here for the program's call through the cell ($7E:37F3)"
+[[var.field]]
 name = "kept_list_clip"
 offset = 0x0
 size = 2
@@ -2665,12 +2670,12 @@ meaning = "Frames left before the fade's next step; a store of the period as a w
 source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
 
 [[var]]
-name = "scene_race_end_wait"
+name = "scene_end_wait"
 addr = "7E:0399"
 size = 2
 subsystem = "scene"
-meaning = "Frames left before the race's scene ends, once a button has been pressed after it"
-source = "game/scene/race_rules.c, scene_race_wait_to_leave $7E:424D, scene_race_leave $7E:4283"
+meaning = "Frames left before the scene ends once a button has been pressed: the race's, and the planet's, which the game starts again from its reset after"
+source = "game/scene/race_rules.c, scene_race_wait_to_leave $7E:424D, scene_race_leave $7E:4283; game/scene/planet.c, the setup $7E:6248 and the wait $7E:63D5"
 
 [[var]]
 name = "scene_random_step"
@@ -6054,6 +6059,14 @@ meaning = "The planet's scene: steps the colours have left to take, one each tim
 source = "game/scene/planet.c, the colours' step $7E:6439"
 
 [[var]]
+name = "scene_planet_fade_steps_high"
+addr = "7E:0367"
+page = "decompress"
+subsystem = "scene"
+meaning = "The planet's scene: the high byte of the word the script's fades set the steps left as (scene_planet_fade_steps), 0, which nothing reads"
+source = "game/scene/planet.c, the fades $7E:63FE, $7E:6403, $7E:6422"
+
+[[var]]
 name = "scene_planet_fade_target_part"
 addr = "7E:03F0"
 size = 2
@@ -8627,6 +8640,20 @@ source = "game/menu/vram.c, menu_queue_vram_upload $C2:8385, menu_queue_built_vr
   meaning = "Copied with the record the queue takes it from; nothing reads it"
 
 [[var]]
+name = "menu_fade_step"
+addr = "7E:0D20"
+subsystem = "menu"
+meaning = "How far the menus' fade moves the screen's brightness each step: 2 as a screen fades in, -2 as the menus fade out; the original's fade reads it back between its steps"
+source = "game/menu/fades.c, the fade $C2:83D0"
+
+[[var]]
+name = "menu_fade_frames"
+addr = "7E:0D21"
+subsystem = "menu"
+meaning = "Frames between the menus' fade's steps (1)"
+source = "game/menu/fades.c, the fade $C2:83D0"
+
+[[var]]
 name = "menu_caller_stack"
 addr = "7E:0920"
 size = 2
@@ -8643,18 +8670,18 @@ meaning = "The stack pointer of the code the menus' vblank handler interrupted, 
 source = "game/menu/display.c, menu_nmi_enter $C2:840E and menu_nmi_work $C2:842A"
 
 [[var]]
-name = "menu_entry_a"
+name = "menu_asked_for"
 addr = "7E:0A00"
 subsystem = "menu"
-meaning = "The accumulator the caller entered the menus with"
+meaning = "Which of the menus their caller asked for (MenuOpening, menu/display.c): the load screen, the main menu, a shop, the naming, the gate's exchange, a save point's screen; the screen they open on is looked up from it"
 source = "game/menu/display.c, menu_mode_start $C2:800E"
 
 [[var]]
-name = "menu_entry_x"
+name = "menu_asked_with"
 addr = "7E:0A01"
 size = 2
 subsystem = "menu"
-meaning = "The X register the caller entered the menus with"
+meaning = "What the menus' caller asked for them with (a shop's number, a character to name), which the screen they open on takes as its argument (menu_screen_argument)"
 source = "game/menu/display.c, menu_mode_start $C2:800E"
 
 [[var]]
@@ -24179,6 +24206,13 @@ meaning = "What the story holds the party to (event memory $BA): bit 0 set, the 
 source = "game/battle/from_field.c, take_in_the_fight ($CF:FB65); game/menu/techs.c members_reachable; game/menu/items.c note_story_and_place"
 
 [[var]]
+name = "story_new_game_set_up"
+addr = "7F:0061"
+subsystem = "core"
+meaning = "Nonzero once the menus, entered for the load screen at power-on, have set a new game's state up and started the game over from its reset (event memory $61); until then that is what entering them for the load screen does"
+source = "game/menu/display.c, menu_mode_start $C2:8042"
+
+[[var]]
 name = "story_game_notes"
 addr = "7F:01CF"
 subsystem = "core"
@@ -24670,5 +24704,5 @@ addr = "7E:0090"
 page = "battle"
 reuses = "battle_work"
 subsystem = "battle"
-meaning = "How a jump lifts, as the jump commands that give it leave it ($C1:629E; 0 twice its height, 2 once and bouncing at half, else once); the jumps to the script's point take what is here, which in every battle the movies reach is 6, the count the animation slots' places loop ends at each frame ($C1:4231)"
-source = "game/battle/script_moves.c jump $C1:6299; game/battle/objects.c battle_update_animation_positions $C1:4212"
+meaning = "How a jump lifts, as the jump commands that give it leave it ($C1:629E; 0 twice its height, 2 once and bouncing at half, else once); the jumps to the script's point take what is here: most often 6, the count the animation slots' places loop ends at each frame ($C1:4231), but what a jump, a walk's search or a color list left since, when one ran (Spekkio's fight in battle-tech-sweep-spekkio)"
+source = "game/battle/script_moves.c jump $C1:6299; game/battle/objects.c battle_update_animation_positions $C1:4212; game/battle/menu_lists.c battle_lay_out_tech_list $C1:0A88; game/battle/area_search.c leave_side $C1:25A3, $C1:2701, $C1:2332, $C1:23A4; game/battle/script_colors.c blink $C1:5F13; game/battle/script_walk.c battle_find_way $C1:4A71; all through battle_leave_jump_lift (battle/battle.h)"

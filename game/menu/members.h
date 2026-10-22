@@ -52,6 +52,12 @@ void menu_work_on_member_only(GameState *g, uint8_t member);
 uint8_t menu_member_character(const GameState *g);
 bool menu_member_record_is_a_characters(const GameState *g);
 
+/* Each character's low-HP mark, a tenth of the HP its restoring stops at,
+ * worked out as the menus open and after the equipment screen changes what a
+ * member wears: a member row draws the member's HP marked once it is down to
+ * its mark. */
+void menu_work_out_low_hp_marks(GameState *g);
+
 /* What a member row's window list reads besides the record, noted for the
  * record loaded: the character's face and name, and whether its HP is low. */
 void menu_note_member_face_and_hp(GameState *g);
@@ -95,6 +101,8 @@ bool menu_member_rows_can_be_drawn_from(const GameState *g, uint8_t first);
 void menu_leave_member_rows_coloured(Snes *s);
 
 /* The entries (game/registry.c). */
+void menu_work_out_low_hp_marks_entry(Snes *s);
+bool menu_low_hp_marks_are_workable(Snes *s);
 void menu_load_member_entry(Snes *s);
 void menu_note_member_face(Snes *s);
 void menu_draw_member_row_entry(Snes *s);

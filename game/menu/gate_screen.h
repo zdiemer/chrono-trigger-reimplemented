@@ -17,6 +17,7 @@ void menu_turn_gate_swirl(GameState *g);
 void menu_draw_gate_screen(Snes *s);
 void menu_turn_gate_swirl_entry(Snes *s);
 void menu_start_gate_screen(Snes *s);
+void menu_run_the_gate_screen_task(Snes *s);
 bool menu_gate_screen_runs(Snes *s);
 bool menu_gate_swirl_turns(Snes *s);
 

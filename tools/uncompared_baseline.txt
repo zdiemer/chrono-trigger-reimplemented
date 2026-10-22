@@ -42,8 +42,10 @@ battle_start_action_showing
 battle_turn_comes  # run as C by the step dispatch as a member's turn comes (battle_run_a_step, from the timers' dispatch), whose stretch compares it; fuzzed alone
 battle_wait_for_the_handler  # run as C by the frame work's wait for the next frame (battle_run), whose stretch compares it; called on its own, it is compared
 battle_wait_for_the_next_frame  # run as C by the waits for some frames and the transfer (battle_run), whose stretches compare it; called on its own, it is compared
+battle_wait_for_the_small_handler  # run as C by the battle's close's waits (battle/closing.c, battle_run), whose stretches compare it; the second batch of movies' battles take it past 100 calls; fuzzed alone
 battle_wait_some_frames  # its own loop comes back to its entry, each pass inside the stretch its first call stands for, which compares them
 battle_wait_step  # run as C by the battle's steps' dispatch (battle_run_a_step, battle_run_dc_under), whose stretches compare it; fuzzed alone up to its first wait
+battle_work_out_enemy_tech  # a long work-out an interrupt falls in, which leaves the call to the original (127 of Spekkio's 133 in battle-tech-sweep-spekkio); the rest are compared, and it is fuzzed alone
 battle_work_out_member_tech
 event_cmd_cast_npc
 event_cmd_fade_music
@@ -52,6 +54,13 @@ event_cmd_play_song
 event_cmd_send_sound_command
 field_fade_in
 field_finish_frame  # run as C by the main loop's wait for the next frame (field_wait_for_the_next_frame), whose stretch compares it and waits through its loop; the original's other calls of it compare it alone
+field_frame_goes_on_with_confirm  # the field's frame going on from a step of its pass, which the original's code comes to after that step of every pass inside the frame's stretch (field_frame), which compares it; fuzzed alone
+field_frame_goes_on_with_the_dialog_window  # the field's frame going on from a step of its pass, which the original's code comes to after that step of every pass inside the frame's stretch (field_frame), which compares it; fuzzed alone
+field_frame_goes_on_with_the_frame_work  # the field's frame going on from a step of its pass, which the original's code comes to after that step of every pass inside the frame's stretch (field_frame), which compares it; fuzzed alone
+field_frame_goes_on_with_the_requests  # the field's frame going on from a step of its pass, which the original's code comes to after that step of every pass inside the frame's stretch (field_frame), which compares it; where the pass comes back to it after a stretch that is gone (the menus, a battle) it is compared; fuzzed alone
+field_frame_goes_on_with_the_screen_effect  # the field's frame going on from a step of its pass, which the original's code comes to after that step of every pass inside the frame's stretch (field_frame), which compares it; fuzzed alone
+field_frame_goes_on_with_the_script_layers  # the field's frame going on from a step of its pass, which the original's code comes to after that step of every pass inside the frame's stretch (field_frame), which compares it; fuzzed alone
+field_frame_goes_on_with_the_walk  # the field's frame going on from a step of its pass, which the original's code comes to after that step of every pass inside the frame's stretch (field_frame), which compares it; where the pass comes back to it after a stretch that is gone (the menus, a battle) it is compared; fuzzed alone
 field_frame_work
 field_load_location
 field_recentre_the_screen
@@ -84,7 +93,11 @@ menu_type_the_description
 menu_type_the_description_task
 menu_wait_for_frame  # the sprite-object mode's wait from its start, reached by the jump to it inside that entry's stretch (menu_wait_for_frame_jump), which compares it and waits through its loop
 menu_wait_for_the_first_frame  # the menus' wait for the frame's uploads, the task switch's way to it, reached inside the task switch's stretch (menu_task_waits_a_frame and the loops' ports, which wait through it and compare it); compared alone as the menus open
+menu_wait_frames_sending_the_sound  # run as C by the world map's waits for frames (overworld/main_loop.c, menu_run_or_call), whose stretches compare it; called by the original's code, it is compared; fuzzed alone
+scene_call_the_scripts_routine  # run as C by the scene scripts' interpreter for the routine a script calls (scene/script.c, scene_run_long), whose stretch compares it; called by the original's code, it is compared; fuzzed alone
+scene_race_sweep_curtain  # a frame task the scene's frame list runs as C as its call reaches it (scene/frame.c), whose stretch compares it; fuzzed alone
 scene_sound_back_to_normal  # run as C by the scene program's start (scene_program_start) as a scene begins, whose stretch compares it; called on its own, it is compared
+scene_sweep_the_palace_curtain  # a frame task the scene's frame list runs as C as its call reaches it (scene/frame.c), whose stretch compares it; fuzzed alone
 script_play_sound
 script_play_sound_at
 script_weapon_hit_sound  # run as its handler by a channel's run (battle_run_script_channel), whose stretch compares it; the tech sweep's many weapon hits take it past half; fuzzed alone

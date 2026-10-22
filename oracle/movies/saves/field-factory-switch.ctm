@@ -1,0 +1,68 @@
+# The factory's floor switch, 2300 A.D.: load the save (on the world map beside the factory), go in, change the active
+# party's order from the main menu, check the entrance hall's console (its security robots attack), win the fight, take
+# the left door to the lab side and step on its two-by-three floor switch (route factory_switch).
+# Save: ctsave03 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# frames 8387
+# sram crc32 3A9BE857
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 2 DOWN
+2452 2 DOWN
+2484 2 DOWN
+2516 4 A
+2650 16 UP
+2670 3 A
+2853 3 X
+2916 3 RIGHT
+2944 3 RIGHT
+2972 3 RIGHT
+3000 3 RIGHT
+3028 3 A
+3091 3 A
+3124 3 DOWN
+3157 3 A
+3220 3 B
+3263 3 B
+3306 3 B
+3349 3 B
+3482 72 UP
+3554 8 LEFT
+3562 2 UP
+3572 3 A
+4115 3 A
+4148 3 A
+4366 2 A
+4481 2 A
+4486 2 A
+4749 2 DOWN
+4754 2 A
+4767 2 A
+4773 2 A
+4781 2 A
+4787 2 A
+5590 2 A
+5595 2 A
+5920 2 DOWN
+5923 2 A
+5939 2 A
+5944 2 A
+5952 2 A
+5958 2 A
+7175 8 UP
+7183 40 RIGHT
+7223 96 UP
+7319 32 LEFT
+7351 24 UP
+7375 64 LEFT
+7439 16 UP
+7455 40 LEFT
+7495 72 UP
+7567 16 LEFT
+7583 2 UP
+7593 3 A
+7656 2 UP
+7666 3 A
+7729 20 UP
+8049 48 DOWN
+8097 72 LEFT
+8169 88 UP

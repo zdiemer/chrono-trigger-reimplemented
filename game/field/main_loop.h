@@ -16,6 +16,13 @@
 void field_first_start(Snes *s);
 void field_enter(Snes *s);
 void field_frame(Snes *s);
+void field_frame_goes_on_with_the_requests(Snes *s);
+void field_frame_goes_on_with_the_walk(Snes *s);
+void field_frame_goes_on_with_confirm(Snes *s);
+void field_frame_goes_on_with_the_dialog_window(Snes *s);
+void field_frame_goes_on_with_the_screen_effect(Snes *s);
+void field_frame_goes_on_with_the_script_layers(Snes *s);
+void field_frame_goes_on_with_the_frame_work(Snes *s);
 void field_frame_work(Snes *s);
 void field_refresh_effects(Snes *s);
 void field_walk_a_frame(Snes *s);

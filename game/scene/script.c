@@ -564,17 +564,17 @@ static bool can_continue(Snes *s, SceneChannel *ch) { return machine_as_expected
 /* ---- The program's routines the scripts call ------------------------------------------------- */
 
 /* The routines that are C (scene/title.c, scene/lavos_falls.c,
- * scene/epoch_dive.c), by the value the script holds. */
+ * scene/epoch_dive.c, scene/planet.c), by the value the script holds. */
 static const struct {
     const SceneScriptRoutine *routines;
     const unsigned *count;
 } routine_tables[] = { { scene_title_routines, &scene_title_routine_count }, { scene_lavos_routines, &scene_lavos_routine_count },
-                       { scene_dive_routines, &scene_dive_routine_count } };
+                       { scene_dive_routines, &scene_dive_routine_count }, { scene_planet_routines, &scene_planet_routine_count } };
 
 #if ORIGINAL_EFFECTS
 /* What they leave, in tables parallel to theirs. */
 static const SceneRoutineLeaves *const routine_leaves[] = { scene_title_routine_leaves, scene_lavos_routine_leaves,
-                                                             scene_dive_routine_leaves };
+                                                             scene_dive_routine_leaves, scene_planet_routine_leaves };
 #endif
 
 static const SceneScriptRoutine *routine_port(uint16_t routine)
@@ -652,18 +652,23 @@ static bool call_routine_as_c(Snes *s, SceneChannel ch, uint16_t routine)
 }
 
 // $C3:0C51
-/* A routine of the program, which $7E:37F3 calls through the scene's own page:
- * the routine's address is what that call reads. As C where the port has it;
- * the original's otherwise. */
-static bool call_routine(Snes *s, SceneChannel *ch, uint16_t routine)
+/* A routine of the program, which the program's call ($7E:37F3) calls
+ * through the scene's own page, where the routine's address is kept. As C
+ * where the port has it; otherwise through that call, which the routine came
+ * back from with the machine as the interpreter runs or otherwise, or stopped
+ * in, where the original carries on. */
+typedef enum { ROUTINE_CAME_BACK, ROUTINE_LEFT_IT_ELSEWHERE, ROUTINE_STOPPED } RoutineCall;
+
+static RoutineCall call_routine(Snes *s, SceneChannel *ch, uint16_t routine)
 {
     if (call_routine_as_c(s, *ch, routine))
-        return true;
+        return ROUTINE_CAME_BACK;
     keep_the_routine_called(state_of(s), routine);
     s->cpu.a = routine;   /* as the original loaded it: some routines read it */
     set_widths16(s);
-    m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_X | DC_N | DC_Z);
-    return can_continue(s, ch);
+    if (!scene_run_long(s, 0xC30C58, 0x7E37F3, DC_X | DC_N | DC_Z, scene_call_the_scripts_routine))
+        return ROUTINE_STOPPED;
+    return can_continue(s, ch) ? ROUTINE_CAME_BACK : ROUTINE_LEFT_IT_ELSEWHERE;
 }
 
 // $C3:0BD4
@@ -683,6 +688,24 @@ static bool send_sound(Snes *s, SceneChannel *ch)
                                .count = 3 });
     return can_continue(s, ch);
 }
+
+// $7E:37F3
+/* The program's call of the routine a script calls, through the cell the
+ * interpreter puts it in on the scene's own page, with A the routine as the
+ * interpreter leaves it: back to the interpreter once it has run. What the
+ * routines read of the rest is theirs, so the call declares nothing. */
+enum { THE_CALL_THROUGH_THE_CELL = 0x7E37F6, THE_ROUTINES_READ_ANYTHING = 0 };
+
+void scene_call_the_scripts_routine(Snes *s)
+{
+    uint16_t routine = scene_call_called_routine(state_of(s), scene_program_own());
+    s->cpu.x = 0;
+    m_set_nz16(s, 0);
+    if (scene_run(s, THE_CALL_THROUGH_THE_CELL, PROGRAM_BANK | routine, THE_ROUTINES_READ_ANYTHING, NULL))
+        m_rtl(s);
+}
+
+bool scene_scripts_routine_call_present(Snes *s) { return call_present(s); }
 
 /* After a command's call-out, the script moves on past the operand word it was
  * on. Where the callee left the machine other than the port expects, the port
@@ -782,11 +805,16 @@ static RunEnd run(Snes *s, SceneChannel ch)
             m_stop_at(s, 0xC30C2A, DC_X | DC_N | DC_Z | DC_C);
             return RUN_STOPPED;
         case ROUTINE_CALL:
-            if (!call_routine(s, &ch, flow.routine)) {
+            switch (call_routine(s, &ch, flow.routine)) {
+            case ROUTINE_CAME_BACK:
+                past_the_call(g, ch);
+                continue;
+            case ROUTINE_LEFT_IT_ELSEWHERE:
                 m_stop_at(s, ROUTINE_CALL_RETURN, 0);
                 return RUN_STOPPED;
+            case ROUTINE_STOPPED:
+                return RUN_STOPPED;
             }
-            past_the_call(g, ch);
             continue;
         case SOUND_SEND:
             if (!send_sound(s, &ch)) {
@@ -831,16 +859,43 @@ bool scene_sequence_waits_on_channel(Snes *s)
 
 /* ---- The wait for the music ------------------------------------------------------------------ */
 
-/* $C3:0C28, where the wait goes on, isn't an entry, so after the wait the rest
- * of that run is the original's. It could be: the store command's own path runs
- * through it, but an entry the original reaches inside a run shadow mode is
- * comparing no longer takes the run's call-outs (docs/PORTING.md, Call-outs). */
+// $C3:0C28
+/* Where the wait goes on, the level's operand past: the rest of the channel's
+ * turn, as the interpreter's run has it, back to the interpreter's own return.
+ * The store command's own path runs through here too, inside a run shadow
+ * mode compares, where the run's comparison takes the original's call-outs
+ * first (settle_nested, runtime/port/native.c) and this one goes uncompared. */
+void scene_sequence_goes_on_after_the_wait(Snes *s)
+{
+    GameState *g = state_of(s);
+    SceneChannel ch = 0;
+    machine_as_expected(s, &ch);
+    set_script(g, ch, (uint16_t)(script(g, ch) + 1));
+    if (run(s, ch) == RUN_STOPPED)
+        return;
+    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
+    m_rts(s);
+}
+
+// $C3:0B02
+/* The interpreter's own return to its caller, where a turn that went on after
+ * a wait comes back to. */
+void scene_sequence_returns(Snes *s) { m_rtl(s); }
+
+/* The interpreter's run is the routine under its JSR at $C3:0AFF, whose
+ * return is the interpreter's own RTL ($C3:0B02). */
+static void return_from_the_interpreter(Snes *s)
+{
+    m_rts(s);
+    m_rtl(s);
+}
 
 // $C3:0C2A
 /* One pass of the wait: the music's progress (scene/sound.c) against the level
  * after the command; at the level or past it the wait is over, and until then
- * the script stays on the command and the channel's turn ends. Idle entry: A is
- * what the original compared last, and the flags its compare's. */
+ * the script stays on the command and the channel's turn ends, back to the
+ * interpreter's caller. Idle entry: A is what the original compared last, and
+ * the flags its compare's. */
 void scene_script_wait_for_sound(Snes *s)
 {
     GameState *g = state_of(s);
@@ -863,7 +918,7 @@ void scene_script_wait_for_sound(Snes *s)
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     set_script(g, ch, (uint16_t)(script(g, ch) - 1));
     m_set_nz16(s, script(g, ch));
-    m_rts(s);
+    return_from_the_interpreter(s);
 }
 
 /* ---- A channel's script started from the program ------------------------------------------------ */
@@ -887,5 +942,11 @@ static void run_from_the_program(Snes *s, SceneChannel ch, uint32_t call)
 
 void scene_run_channel_0_script(Snes *s) { run_from_the_program(s, 0, 0x7E374F); }
 void scene_run_channel_1_script(Snes *s) { run_from_the_program(s, 1, 0x7E375A); }
+
+// $7E:3753, $7E:375E
+/* Where a channel's run comes back to the program after the interpreter
+ * stopped in the middle of it (the wait for the music, which returns there
+ * frames later): the program's return to the step's caller. */
+void scene_channel_script_comes_back(Snes *s) { m_rts(s); }
 
 bool scene_channel_script_start_present(Snes *s) { return m_code_matches(s, 0x7E3749, 22, 0xB1CDD688B2BFDC2Aull); }

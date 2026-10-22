@@ -165,10 +165,14 @@ static void leave_blink(GameState *g, uint8_t length, uint8_t set, uint8_t perio
     script_leave(g, LEFT_BLINK_SET, set);
     script_leave(g, LEFT_PERIOD, period);
 }
+/* The place in the list lands on the cell the next jump to the script's point
+ * lifts by, so it is left as game state (battle.h). */
 static void leave_place_in_list(GameState *g, ScriptChannel ch, unsigned place)
 {
-    if (ch.kind == SCRIPT_OTHER_TARGETS)
-        script_leave_word(g, LEFT_PLACE_IN_LIST, (uint8_t)place);
+    if (ch.kind != SCRIPT_OTHER_TARGETS)
+        return;
+    battle_leave_jump_lift(g, (uint8_t)place);
+    ORIGINAL_EFFECT(script_leave(g, LEFT_PLACE_IN_LIST + 1, 0));
 }
 
 // $C1:5F13
@@ -196,7 +200,8 @@ static ScriptFlow blink(GameState *g, ScriptChannel channel, uint8_t length, uin
         bool flashing;
         if (!blink_due(g, combatant, period, &flashing))
             continue;
-        ORIGINAL_EFFECT((script_leave(g, LEFT_LENGTH, TURNED_OVER), leave_place_in_list(g, channel, k)));
+        ORIGINAL_EFFECT(script_leave(g, LEFT_LENGTH, TURNED_OVER));
+        leave_place_in_list(g, channel, k);
         if (!flashing) {
             restore(g, channel);
             return SCRIPT_STAY;
@@ -204,7 +209,7 @@ static ScriptFlow blink(GameState *g, ScriptChannel channel, uint8_t length, uin
         flash(g, channel, set);
         return SCRIPT_AGAIN;
     }
-    ORIGINAL_EFFECT(leave_place_in_list(g, channel, k));
+    leave_place_in_list(g, channel, k);
     return SCRIPT_STAY;
 }
 SCRIPT_OPERATION(blink, channel, length, set, period)

@@ -95,6 +95,27 @@ is how far the hand ports alone carry the game. The list goes to
 the title bar shows `[hand ports]` or `[generated code]` with the count. A
 build without `CT_ROM` is enough for `--generated off`.
 
+`ct_dev --native on --generated off --no-interpreter strict --sound-driver c`
+is the same for a movie: the hand ports and the C sound driver alone, the first
+instruction no port runs ending the run (`frame F: no generated code for
+BB:AAAA ...; stopping`). `tools/strict_check.py` plays every library movie so,
+and its `--check` is the gate's ratchet against `tools/strict_baseline.txt`. A
+movie that gets to its last frame has to get there cleanly -- exit 0, no
+`halted:`, `accessor out of range` or `page refused` line -- and its end is
+compared with the reference play's (`ct_dev --end-state`, from the suite's
+shadow runs, which run the original's code): the saved game, the eight runs
+of work RAM a save holds (the party, the items, the story's flags, where the
+party is), and save RAM, but for the play clock and the menus' frame count the
+battles start their random numbers from, which the ports' own timing writes.
+A movie whose saved game is the reference's is `end`; one whose isn't is
+`drifts`, the line saying what differs: the hand ports estimate their own
+time, so a movie's presses land on other frames, a cursor stops on another
+item, a battle's blows land otherwise, and the story gets a step further by
+the last frame. The strict run ends where the shipping mode's does, byte for
+byte, so the drift is the shipping mode's own; the routes, which play to a
+goal rather than to a frame, are what answers for it. Every movie reaches its
+end; 31 of the 48 as the reference play does.
+
 A misses file is a coverage file, so feeding it back is adding it to the
 build's coverage and rebuilding, which generates blocks for that code:
 

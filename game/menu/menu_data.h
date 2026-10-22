@@ -1120,6 +1120,13 @@ static inline uint16_t menu_gate_palette_colour(const GameState *g, unsigned i) 
 static inline uint16_t menu_gate_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFF6FEu + 2u * i); }
 static inline uint16_t menu_gate_wave(const GameState *g, unsigned i) { return rom_read16(g, 0xFFF759u + 2u * i); }
 
+/* ---- The menus' way in ------------------------------------------------------------------- */
+
+/* The screen the menus open on for each of the openings their callers ask
+ * for ($C2:808F, a byte each: MenuOpening to MenuScreen). */
+enum { MENU_OPENINGS = 7 };
+static inline uint8_t menu_screen_opened_on(const GameState *g, uint8_t opening) { return rom_read8(g, 0xC2808Fu + opening); }
+
 /* ---- The screens' steps ------------------------------------------------------------------- */
 
 /* Where the original keeps each screen's list of steps, by the screen's

@@ -36,6 +36,11 @@ EventTurnEnd event_run_turn(GameState *g, FieldObject object, const EventRunner 
  * byte, all at once. `object` is the one the openings got to. */
 EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, FieldObject *object, uint16_t *stopped_at);
 
+/* The running object's script started over, as a character's is after a
+ * menu changed the party: its opening up to its first zero byte, and the
+ * calls it was in forgotten. */
+EventTurnEnd event_restart_the_running_object(GameState *g, const EventRunner *r, uint16_t *stopped_at);
+
 /* The map's own script, as the map starts or comes back: object 0's second
  * function, up to its first zero byte, all at once. */
 EventTurnEnd event_run_map_script_commands(GameState *g, const EventRunner *r, uint16_t *stopped_at);

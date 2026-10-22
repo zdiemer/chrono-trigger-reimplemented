@@ -20,8 +20,7 @@
  *     seconds, and the battlefield changes to the one the victory shows, with
  *     its song. A battle that didn't end in a win, on the gradient's
  *     battlefield or the screen effects', changes to a defeat's battlefield
- *     instead, with the same song (still the original's, $CD:0D93: no movie
- *     loses one);
+ *     instead, with the same song;
  *   - the battle's small vblank handler takes over, fading the picture out
  *     (battle/display.c), and once the music's fade has run out the field's
  *     music is put back (field/sounds.c).
@@ -231,6 +230,32 @@ static bool play_out_the_boss_end(Snes *s)
     return let_the_screen_settle(s);
 }
 
+/* ---- A defeat's end on those battlefields -------------------------------------------------------- */
+
+/* The battlefield a defeat shows. */
+enum { DEFEAT_BATTLEFIELD = 0x87 };
+
+// $CD:0D93
+/* A battle not won on an HP gradient's battlefield or the screen effects'
+ * ends on the defeat's battlefield: the enemies' rule dropped, the music
+ * faded out, and the defeat's battlefield shown with its song, its screen
+ * scripts let run out. */
+static bool play_out_the_defeat_end(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_battle_enemy_rule(g, 0);
+    if (!fade_the_music_and_wait(s, 0xCD0D96, 0xCD0D99, 0xCD0D9C))
+        return false;
+    s->cpu.x = DEFEAT_BATTLEFIELD;
+    if (!battle_run(s, 0xCD0DA5, 0xCD0D62, battle_change_to_the_battlefield))
+        return false;
+    do
+        if (!battle_wait_for_the_handler_from(s, 0xCD0DA8))
+            return false;
+    while (battle_screen_scripts_running(g));
+    return true;
+}
+
 /* ---- The display closed down ------------------------------------------------------------------ */
 
 /* The battle's background flags as it ends: bit 7 lets the field's song go
@@ -290,7 +315,7 @@ static bool close_the_display(Snes *s)
         if (!battle_run(s, 0xCD03FF, 0xCD0DB1, battle_play_out_the_boss_end))
             return false;
     } else if ((battle_background_flags(g) & (BATTLE_BACKGROUND_HAS_GRADIENT | BATTLE_BACKGROUND_EFFECTS_BATTLEFIELD)) && !won) {
-        if (!battle_call(s, 0xCD040A, 0xCD0D93, BATTLE_WAIT_READS))
+        if (!battle_run_dc(s, 0xCD040A, 0xCD0D93, BATTLE_WAIT_READS, battle_play_out_the_defeat_end))
             return false;
     }
     battle_arrange_the_lines(g, LEAVING);
@@ -357,6 +382,16 @@ void battle_play_out_the_boss_end(Snes *s)
     if (!play_out_the_boss_end(s))
         return;
     leave_the_settled_compare(s);
+    m_rts(s);
+}
+
+/* It ends on the scripts' flag's load. */
+void battle_play_out_the_defeat_end(Snes *s)
+{
+    if (!play_out_the_defeat_end(s))
+        return;
+    m_set_a8(s, 0);
+    m_set_nz8(s, 0);
     m_rts(s);
 }
 

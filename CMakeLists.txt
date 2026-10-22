@@ -157,6 +157,7 @@ add_library(ct_game STATIC
   game/menu/equipment_bridge.c
   game/menu/equipment_windows.c
   game/menu/exchange.c
+  game/menu/fades.c
   game/menu/exchange_bridge.c
   game/menu/figures.c
   game/menu/frame.c
@@ -231,6 +232,7 @@ add_library(ct_game STATIC
   game/sound/songs.c
   game/sound/voices.c
   game/attract/main_loop.c
+  game/warp/bridge.c
   game/warp/circle.c
   game/warp/picture.c
   game/warp/warp.c

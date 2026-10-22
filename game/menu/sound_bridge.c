@@ -6,7 +6,7 @@
  * the fade's; the driver is called from inside them ($C2:CBF3, $C2:CC09),
  * so their returns are on the stack while it runs, and a bridge puts them
  * there. The waits for a fade are the menus' task switch, called out a
- * frame at a time; the screen's own fade out is called out too. The wait
+ * frame at a time, and the screen's own fade out waits too (menu/fades.c). The wait
  * for the gate's song to be playing spins on the sound processor's port
  * without letting a frame go by: it is an idle loop here
  * (menu_wait_for_menu_music_playing_loop), and the time it takes is the
@@ -14,6 +14,7 @@
 #include "menu/sound.h"
 
 #include "menu/bridge.h"
+#include "menu/fades.h"
 #include "menu/menu.h"
 #include "original_effects.h"
 #include "platform/audio.h"
@@ -21,10 +22,11 @@
 #include "port/native.h"
 #include "vars.h"
 
-/* The driver, which reads the accumulator's high byte of the registers, and
- * the screen's fade out, which reads the same. */
+/* The driver, which reads the accumulator's high byte of the registers. */
 enum { SOUND_DRIVER = 0xC70004, SEND_THE_SONG = 0xC2CBF3, SEND_THE_FADE = 0xC2CC09 };
-enum { FADE_OUT = 0xC283CA, MUSIC_PLAYING_WAIT = 0xC2CBE0, TASK_ENDS = 0xC2CBE8 };
+/* The wait for the music, and the task's end ($C2:8216), which its exit jumps
+ * to ($C2:CBE8). */
+enum { MUSIC_PLAYING_WAIT = 0xC2CBE0, TASK_ENDS = 0xC28216 };
 enum {
     READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
@@ -134,7 +136,7 @@ void menu_switch_back_to_the_field_song(Snes *s)
     bool played = menu_gate_song_played(g);
     if (played && !send_fade(s, 0xC2CC1D, menu_fade_the_song_out()))
         return;
-    if (!menu_call(s, 0xC2CC20, FADE_OUT, READS_A_HIGH))
+    if (!menu_fade_out_from(s, 0xC2CC20))
         return;
     if (played
         && (!wait_for_the_fade(s, 0xC2CC28, 0xC2CC2E)
