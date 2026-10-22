@@ -153,6 +153,8 @@ jobs:
         run: build/ci/fiber_test
       - name: timing_test
         run: build/ci/timing_test
+      - name: tasks_test
+        run: build/ci/tasks_test
       - name: state_test
         run: build/ci/state_test
       - name: shadow_test

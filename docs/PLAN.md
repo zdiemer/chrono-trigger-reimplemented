@@ -225,7 +225,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 309 files, 117 of 96,541 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 311 files, 117 of 96,714 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -566,10 +566,11 @@ by an audit; the fourth is the program itself.
   to after a stretch that is no longer one on the machine. The library is the
   limit now, not the ports: what no movie reaches (docs/movies-wanted.md) is
   where the hand ports alone stop, and the next movies are what extends this.
-  Next: step 3 of "The native program" below, the skeleton, since C now covers
-  whole plays, and the fallbacks the reference play still counts (the
-  fallback measure, REIMPLEMENTATION.md), which are the original's code run
-  inside comparisons where the ports' C would run in the product.
+  Next: step 4 of "The native program" below, `ct_native`, now that C covers
+  whole plays and the program's top exists, and the fallbacks the reference play
+  still counts (the fallback measure, REIMPLEMENTATION.md), which are the
+  original's code run inside comparisons where the ports' C would run in the
+  product.
 
   **Timing** (PLATFORM.md, "Timing without a beam, as built"): the calls and
   their host backend are built, the field's budgets, the menus' task switch
@@ -578,9 +579,8 @@ by an audit; the fourth is the program itself.
   still made on the machine (the field's `$C0:EC60` the largest, which needs
   a wait a machine copy can hold before it takes the battle's shape; the
   line handlers wait for their line through `tm_wait_line_drawn`), the host
-  backend's place in `ct_native`, and the
-  menus' tasks, which each need a coroutine of their own or a rewrite to
-  resume.
+  backend's place in `ct_native`, and the menus' tasks' bodies as functions of the
+  game's state for their coroutines (`core/tasks.c`) to run.
 
 - **The native program, and the registry taken down.** Today the emulated
   CPU walks the ROM from its reset vector, and a port runs because the
@@ -592,21 +592,16 @@ by an audit; the fourth is the program itself.
   them by accident. The census (`tools/census.py`; REIMPLEMENTATION.md, "The
   census: how the game is entered") measures it: the count entered by the
   machine, in the table above, is the number this item drives to 0, and it
-  names the caller that still holds each entry to the registry.
+  names the caller that still holds each entry to the registry. The program's
+  top is `game/core/program.c` (a boot, the main thread, the vblank and line
+  handlers sent where the mode's stubs say), which the console's entries call
+  on the machine; the menus' tasks have their coroutines (`core/tasks.c`).
   2. **Ports call ports.** Where a port reaches another port through a
      call-out (`portsmell`'s `sibling-through-machine` already finds these), it
      calls the C function, keeping the callee's time with `NATIVE_TIME_AS`.
      This happens anyway as subsystems finish; the census says where it is
      still owed: the menus' object scripts, the battle's handlers, timers and
      frame dispatch, the menus' tasks and the field's frame hold the most.
-  3. **The skeleton.** `game/` gets the program's top: a boot function, the
-     main thread and the menus' tasks as coroutines (`runtime/port/fiber.h`)
-     whose frame waits yield to the driver, and the frame's work -- the vblank handler,
-     the line handler -- as functions the driver calls each frame, in place
-     of the interrupt vectors and the RAM trampolines the game points them
-     through. The power-on item above ports what those entries do; this
-     step makes them functions the driver calls rather than addresses the
-     CPU jumps to.
   4. **A slice with nothing under it, early.** A build target (`ct_native`)
      that links `game/`, `runtime/platform/` with its host backends and
      `fiber.h`, and none of the emulator, the generated C or the registry,

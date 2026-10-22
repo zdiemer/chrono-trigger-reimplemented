@@ -27,7 +27,7 @@
 #include "battle/frame.h"
 #include "battle/message.h"
 #include "battle/screen_lines.h"
-#include "core/console.h"
+#include "core/program.h"
 #include "field/sounds.h"
 #include "original_effects.h"
 #include "platform/timing.h"
@@ -296,8 +296,8 @@ static bool set_the_screen_up(Snes *s)
     GameState *g = state_of(s);
     s->cpu.db = BATTLE_DATA_BANK;
     s->cpu.d = BATTLE_PAGE;
-    console_install_vblank_handler(g, BATTLE_VBLANK_HANDLER);
-    console_install_line_handler(g, BATTLE_LINE_HANDLER);
+    program_install_vblank_handler(g, BATTLE_VBLANK_HANDLER);
+    program_install_line_handler(g, BATTLE_LINE_HANDLER);
     if (!battle_run_long(s, 0xD1F1D7, SCROLL_MAP_LAYERS, battle_scroll_map_layers))
         return false;
     NATIVE_TIME_AS(s, 0xCD0C9D, battle_take_the_start_settings(g));

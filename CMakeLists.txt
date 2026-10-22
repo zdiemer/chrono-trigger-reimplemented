@@ -76,6 +76,8 @@ target_compile_definitions(ct_vars_checked PRIVATE CT_ACCESSOR_CHECKS)
 add_library(ct_game STATIC
   game/registry.c
   game/core/console.c
+  game/core/program.c
+  game/core/tasks.c
   game/core/display.c
   game/core/input.c
   game/core/memory.c
@@ -464,6 +466,9 @@ target_compile_definitions(ct_platform_native PUBLIC CT_PLATFORM_EXTERN)
 target_include_directories(ct_platform_native PUBLIC runtime)
 add_executable(timing_test tests/port/timing_test.c)
 target_link_libraries(timing_test PRIVATE ct_platform_native)
+add_executable(tasks_test tests/port/tasks_test.c game/core/tasks.c)
+target_include_directories(tasks_test PRIVATE game)
+target_link_libraries(tasks_test PRIVATE ct_platform_native)
 add_executable(state_test tests/port/state_test.c)
 target_link_libraries(state_test PRIVATE ct_runtime)
 add_executable(shadow_test tests/port/shadow_test.c)

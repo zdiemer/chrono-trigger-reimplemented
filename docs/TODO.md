@@ -1348,7 +1348,7 @@ rest waits, is [PLAN.md](PLAN.md).
   wants to sit beside `field_map_names_a_bg3_set`; `palettes.c`'s
   `SlotLooked` shapes only scaffolding, and `slot << 1`/`>> 1` is an
   unnamed palette encoding; `field_kept_party_script_tiles` packs `y<<8|x` by
-  hand; `battle_return.c` names `0xC00715` bare; `console_install_*_handler`
+  hand; `battle_return.c` names `0xC00715` bare; `program_install_*_handler`
   takes a ROM address where a later target wants a handler identity.
   `field_walk_the_leader`'s vblank-tail timing exception (11.6% of calls) has
   a real cause, the step that recentres the screen: give that path its own
@@ -2154,9 +2154,11 @@ re-runs the census.
 - **The menus' tasks are coroutines of their own.** The scheduler and the
   turns of the main task and the cursor's are C (`menu/tasks.c`), but each
   task runs on its own stack and waits from deep in its calls (the
-  description typed a letter a frame, a step that draws over frames),
-  so a build with no machine runs a fiber per task besides the main thread's
-  (the host backend resumes whichever fiber waited), or the tasks rewritten to
+  description typed a letter a frame, a step that draws over frames).
+  `core/tasks.c` is the build with no machine's half: a fiber per task, run in
+  slot order once a frame, each waiting where it is (`tasks_test`); what is
+  missing is the tasks' bodies as functions of the game's state for it to run.
+  The other way is the tasks rewritten to
   resume, each a state machine called once a frame: the way for a target that
   can't afford nine 512 KiB stacks (PLAN.md, "What that makes
   scaffolding").
