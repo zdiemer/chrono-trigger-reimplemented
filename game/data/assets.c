@@ -1,5 +1,10 @@
-/* The catalogue's lookups: which resource a cartridge address lies in. */
+/* The catalogue's lookups -- which resource a cartridge address lies in -- and
+ * the cartridge's reads (game/rom.h), served from the driver's store. */
 #include "data/assets.h"
+
+#include <stddef.h>
+
+#include "rom.h"
 
 /* The cartridge is HiROM: banks $C0-$FF hold it whole, banks $40-$7D mirror
  * them, and the upper half of each of banks $00-$3F and $80-$BF mirrors the
@@ -51,4 +56,48 @@ void asset_note_outside(uint32_t at)
         return;   /* work RAM a pointer in the data names: not the cartridge's */
     if (outside.count++ == 0)
         outside.first = at & 0xFFFFFFu;
+}
+
+/* ---- The store ---------------------------------------------------------------------------------- */
+
+static const AssetStore *store;
+
+void assets_use(const AssetStore *s)
+{
+    store = s;
+    for (uint16_t i = 0; i < asset_catalogue_count; i++)
+        asset_served[i] = (AssetServed){ NULL, 0 };
+}
+
+/* The store's copy of the cartridge byte at `at`, or NULL: the address is in
+ * no resource (counted), there is no store, or it hasn't the resource. A
+ * resource is asked for once, by name and type, and what the store answers
+ * kept. */
+static const uint8_t *served(uint32_t at)
+{
+    AssetId id = asset_containing(at);
+    if (id == ASSET_NONE) {
+        asset_note_outside(at);
+        return NULL;
+    }
+    if (!store)
+        return NULL;
+    const AssetEntry *e = &asset_catalogue[id];
+    AssetServed *s = &asset_served[id];
+    if (!s->asked) {
+        uint32_t length = 0;
+        s->bytes = store->find(store->ctx, e->name, asset_type_names[e->type], &length);
+        if (length != e->length)
+            s->bytes = NULL;
+        s->asked = 1;
+    }
+    return s->bytes ? s->bytes + (cartridge_address(at) - e->at) : NULL;
+}
+
+uint8_t rom_read8(const GameState *g, uint32_t at) { return rom_cartridge_read(g, at, served(at)); }
+
+uint16_t rom_read16(const GameState *g, uint32_t at)
+{
+    uint8_t low = rom_read8(g, at);
+    return (uint16_t)(low | rom_read8(g, at + 1) << 8);
 }

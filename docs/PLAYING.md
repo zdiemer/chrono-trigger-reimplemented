@@ -327,14 +327,17 @@ on the next check.
 
 ## The game's resources
 
-The game's data -- its tables, scripts, text, graphics and music -- is
-imported into an asset pack, `<rom name>.assets` beside the saves (the ROM's
+The game's data -- its tables, scripts, text, graphics and music -- is read
+from an asset pack, `<rom name>.assets` beside the saves (the ROM's
 directory, or `--save-dir`). The first launch without one imports it: `ct_play`
 checks that the ROM is Chrono Trigger (USA) by its CRC-32 and copies out every
 resource of the catalogue, each under its name and type, in its original
 bytes ([PLATFORM.md](PLATFORM.md), "The assets, as built"). `ct_play --import
-<rom>` imports it again and exits. The pack is made from your ROM and stays on
-your machine like it; nothing in the repository holds it.
+<rom>` imports it again and exits, and a pack made by a build with another
+catalogue of resources is imported again on launch. The pack is made from your
+ROM and stays on your machine like it; nothing in the repository holds it. The
+player still needs the ROM itself, for the original's code the machine runs
+beside the ports.
 
 ## Recording test movies
 

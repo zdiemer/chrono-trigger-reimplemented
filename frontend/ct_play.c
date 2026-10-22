@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "assets.h"
 #include "bindings.h"
 #include "driver.h"
 #include "files.h"
@@ -467,7 +468,8 @@ int main(int argc, char **argv)
     files_side_path(files.assets, sizeof files.assets, rom_path, rom_path, save_dir, ".assets");
 
     /* The game's resources: imported from the ROM on the first launch, or
-     * again when asked. */
+     * again when asked or when the pack is of another catalogue, and read
+     * from the pack from then on. */
     size_t pack_len = 0;
     uint8_t *pack = files_asset_pack(&files, rom + header, rom_len - header, import_only, &pack_len);
     if (!pack || import_only) {
@@ -475,7 +477,22 @@ int main(int argc, char **argv)
         free(rom);
         return pack ? 0 : 1;
     }
-    free(pack);
+    const char *why = "";
+    AssetPack *assets = asset_pack_open(pack, pack_len, &why);
+    if (!assets) {
+        fprintf(stderr, "%s: %s\n", files.assets, why);
+        free(pack);
+        pack = files_asset_pack(&files, rom + header, rom_len - header, true, &pack_len);
+        assets = pack ? asset_pack_open(pack, pack_len, &why) : NULL;
+        if (!assets) {
+            free(pack);
+            free(rom);
+            return 1;
+        }
+    }
+    static AssetStore store;
+    asset_pack_store(assets, &store);
+    assets_use(&store);
 
     if (movie_path) {
         ct_movie movie;
@@ -582,6 +599,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "recorded %lu frames to %s\n", (unsigned long)pl.track.frames, record_path);
     files_flush(&files, &pl);
     player_finish(&pl);
+    assets_use(NULL);
+    asset_pack_close(assets);
+    free(pack);
     free(rom);
     return rc;
 }

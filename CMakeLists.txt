@@ -65,14 +65,10 @@ target_include_directories(ct_runtime PUBLIC runtime PRIVATE game)
 # (CT_ACCESSOR_CHECKS; docs/DISASSEMBLY.md, "The accessors"), for ct_dev, ct_fuzz
 # and the tests; ct_vars has no check at all, for ct_play and ct_drive. Every
 # executable that links ct_game links one of them.
-# The catalogue of resources (game/data/assets.h) is game/'s too, and its own
-# library, since the backing looks every cartridge read up in it.
-add_library(ct_assets STATIC game/data/assets.c game/data/asset_catalogue.c)
-target_include_directories(ct_assets PUBLIC game)
 foreach(vars ct_vars ct_vars_checked)
   add_library(${vars} STATIC runtime/port/vars_ram.c runtime/port/state_io.c)
   target_include_directories(${vars} PRIVATE game)
-  target_link_libraries(${vars} PUBLIC ct_runtime ct_assets)
+  target_link_libraries(${vars} PUBLIC ct_runtime)
 endforeach()
 target_compile_definitions(ct_vars_checked PRIVATE CT_ACCESSOR_CHECKS)
 
@@ -86,6 +82,8 @@ add_library(ct_game STATIC
   game/core/palette.c
   game/core/sound_driver.c
   game/core/tile_animation.c
+  game/data/assets.c
+  game/data/asset_catalogue.c
   game/data/decompress.c
   game/event/animation.c
   game/event/bridge.c
@@ -415,7 +413,7 @@ target_include_directories(ct_trace PUBLIC oracle/src)
 
 set(CT_DEV_SOURCES dev/ct_dev.c dev/apu_margins.c dev/asset_report.c dev/as_port.c dev/event_reads.c dev/fallbacks.c dev/io_log.c dev/misses.c
   dev/px_check.c dev/range_report.c dev/mixer_check.c dev/sound_audio.c dev/sound_compare.c dev/sound_lockstep.c
-  dev/sound_state.c dev/vid_check.c frontend/natives.c frontend/sound_host.c)
+  dev/sound_state.c dev/vid_check.c frontend/assets.c frontend/natives.c frontend/sound_host.c)
 add_executable(ct_dev ${CT_DEV_SOURCES})
 target_include_directories(ct_dev PRIVATE frontend)
 target_link_libraries(ct_dev PRIVATE ct_game ct_vars_checked ct_generated ct_runtime ct_trace)
@@ -492,6 +490,13 @@ add_executable(sound_test tests/port/sound_test.c dev/sound_compare.c frontend/s
 target_include_directories(sound_test PRIVATE dev frontend)
 target_link_libraries(sound_test PRIVATE ct_game ct_vars_checked ct_runtime)
 # The accessors generated from re/ram.toml, and the page kinds' D mapping.
+# The asset pack and the reads through a store, with no ROM and no machine
+# (tests/frontend/assets_test.c is the backing of game/rom.h a build without
+# one gives).
+add_executable(assets_test tests/frontend/assets_test.c frontend/assets.c game/data/assets.c
+  game/data/asset_catalogue.c)
+target_include_directories(assets_test PRIVATE frontend game)
+
 add_executable(vars_test tests/port/vars_test.c)
 target_include_directories(vars_test PRIVATE game)
 target_link_libraries(vars_test PRIVATE ct_vars_checked ct_runtime)

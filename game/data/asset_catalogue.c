@@ -6115,6 +6115,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFFFF5u, 11u, "battle_screen_script_byte", 6, 4 },
 };
 
+AssetServed asset_served[6087];
+
 const uint16_t asset_catalogue_count = 6087;
 
 const uint32_t asset_catalogue_version = 0x936255EEu;

@@ -40,6 +40,20 @@ typedef struct {
     void *ctx;
 } AssetStore;
 
+/* Read the resources from `store` from now on: the driver's to call, before
+ * the game runs or between frames. NULL reads them from the cartridge the
+ * machine maps, as there was no store before. The store must outlive its use;
+ * each resource is asked for once, and what the store answers kept. */
+void assets_use(const AssetStore *store);
+
+/* What a store answered for each resource of the catalogue (generated beside
+ * it, a slot a row). */
+typedef struct {
+    const uint8_t *bytes;   /* NULL: the store hasn't it */
+    uint8_t asked;
+} AssetServed;
+extern AssetServed asset_served[];
+
 typedef uint16_t AssetId;
 enum { ASSET_NONE = 0xFFFF };
 

@@ -15,7 +15,7 @@
  *          [--sound-lockstep-wav prefix] [--sound-driver original|c] [--mixer dsp|native|check]
  *          [--scaffold-reads [original]] [--fallbacks out.txt] [--apu-port-margins]
  *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC]
- *          [--index-check BBAAAA]... [--asset-reads out.txt]
+ *          [--index-check BBAAAA]... [--asset-reads out.txt] [--assets pack]
  *
  * The framebuffer is only drawn for what reads it (--trace, --shot-every,
  * --px-check); otherwise each line computes just the sprite flags the game can
@@ -127,7 +127,11 @@
  * measures where the run went. tools/fallbacks.py reads the file.
  * --asset-reads out.txt writes every cartridge address the ports' accessors
  * read, a `BB:AAAA-BB:AAAA` range a line, which tools/assets.py builds the
- * catalogue of resources from. Whatever the options, a run whose accessors
+ * catalogue of resources from. --assets pack reads the ports' resources from
+ * the asset pack at that path, as ct_play does, importing it from the ROM
+ * first where there is none (frontend/assets.h); without it they come from the
+ * machine's cartridge. A read whose pack byte isn't the cartridge's prints an
+ * `asset differs from the cartridge` line. Whatever the options, a run whose accessors
  * read a byte the catalogue doesn't hold prints an `asset outside the
  * catalogue` line (dev/asset_report.h), and tools/suite.py fails it.
  * --apu-port-margins prints, at the end, how long after the SPC700 read a
@@ -562,7 +566,8 @@ int main(int argc, char **argv)
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     const char *zst_path = NULL, *vid_check_path = NULL, *px_check_path = NULL;
     const char *spc_coverage_path = NULL, *dsp_log_path = NULL, *event_reads_path = NULL;
-    const char *lockstep_path = NULL, *fallbacks_path = NULL, *asset_reads_path = NULL;
+    const char *lockstep_path = NULL, *fallbacks_path = NULL, *asset_reads_path = NULL,
+               *assets_path = NULL;
     bool want_vid_check = false, want_px_check = false, want_lockstep = false, want_margins = false;
     SoundCompareLevel lockstep_level = SOUND_COMPARE_DSP;
     int audio_timing = -1;
@@ -673,6 +678,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--misses")) misses_path = v;
         else if (!strcmp(a, "--fallbacks")) fallbacks_path = v;
         else if (!strcmp(a, "--asset-reads")) asset_reads_path = v;
+        else if (!strcmp(a, "--assets")) assets_path = v;
         else if (!strcmp(a, "--vid-check")) { vid_check_path = v; want_vid_check = true; }
         else if (!strcmp(a, "--vid-check-from")) { vid_check_from = strtol(v, NULL, 10); want_vid_check = true; }
         else if (!strcmp(a, "--px-check")) { px_check_path = v; want_px_check = true; }
@@ -767,7 +773,8 @@ int main(int argc, char **argv)
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
                         "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--apu-port-margins] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
-                        "[--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]...\n");
+                        "[--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]... "
+                        "[--asset-reads out.txt] [--assets pack]\n");
         return 2;
     }
     if (zst_path && load_state) {
@@ -792,6 +799,8 @@ int main(int argc, char **argv)
     size_t header = rom_len % 0x8000 == 0x200 ? 0x200 : 0;
     const uint8_t *image = rom + header;
     size_t image_len = rom_len - header;
+    if (assets_path && asset_pack_use(assets_path, image, image_len) != 0)
+        return 1;
 
     ct_movie movie = { 0 };
     if (movie_path && ct_movie_load(&movie, movie_path) != 0)

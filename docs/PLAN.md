@@ -69,7 +69,7 @@ in place of the ports: the native coverage.
 | Code run in place of hand ports (`fallbacks.py`) | the reference play (42 movies): 6.6 KiB, 0.95 M instructions (handback 2.6 KiB, unported 4.4 KiB; 1.66 M before chunk 10, the Epoch's dive's 0.41 M of it now 9.5 K); shipping mode over the movies 0.09 M (2.40 M before chunk 10, 2.31 M of it the dive's, now 2.1 K), the routes 0.06 M (2.37 M before); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
-| ROM data behind named accessors | every read; the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
+| ROM data behind named accessors | every read, served from an asset pack imported once from the user's ROM (`ct_play`) or from the cartridge (`ct_dev` without `--assets`); the decompressor still reads its streams on the machine | the resources decoded, a resource at a time (Phase 4a, "Assets") |
 | SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP; the original stays as the gate's reference | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 | How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c` | `main()` boots the game and callers call ports; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
@@ -225,7 +225,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 310 files, 117 of 96,612 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 310 files, 117 of 96,646 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -629,35 +629,30 @@ by an audit; the fourth is the program itself.
      `ct_native`.
 
 **Assets: imported once from the user's ROM, then loaded by name.** The
-ports reach ROM data through named accessors (`*_data.h`). The accessors still read a
-mapped 4 MiB ROM image by address, which a GBA cannot map (target 2), and
-which keeps the ROM's layout in every build. The catalogue of resources the
-accessors read is built (`re/assets.tsv`, PLATFORM.md "The assets, as built"),
-with the check that every read lands in it, and `ct_play` imports the
-resources into an asset pack beside the saves (on the first launch, or with
-`--import`). The same importer can build the image for a target that can't
-afford the ROM or the decoding (GBA, Wii, GameCube). The plan from there:
+ports reach ROM data through named accessors (`*_data.h`), every byte of it in
+a resource of the catalogue (`re/assets.tsv`), and read it from a store the
+driver supplies: `ct_play`'s is an asset pack it imports from the ROM once,
+beside the saves (PLATFORM.md, "The assets, as built"). The same importer can
+build the image for a target that can't afford the ROM or the decoding (GBA,
+Wii, GameCube). What is left:
 
-1. **Loaded by name, through the driver.** The game asks an asset store for a
-   resource by name and type; the driver supplies the store (a file, a
-   linked-in image, a browser's storage), as it does saves. Nothing in
-   `game/` opens a file or knows a path.
-2. **Raw first.** The pack holds each resource's original bytes, and the
-   accessors read the pack instead of ROM addresses. No port changes, and
-   shadow mode still compares bytes, so the gate proves the move. This is the
-   step a build with no emulator needs ("The native program", above): the
-   mapped ROM image leaves with it.
-3. **Decoded next, a resource at a time.** The pack holds the structured
+1. **The decompressor through the store.** `data/decompress.c` reads its
+   streams on the machine by the pointer the loaders leave; the streams are
+   in the catalogue, so its rewrite (it is on the portstyle backlog) reads
+   them as resources, and the last cartridge read outside the store goes. A
+   build with no emulator ("The native program", above) needs it.
+2. **Decoded next, a resource at a time.** The pack holds the structured
    form: streams decompressed, tiles in a neutral format, palettes as
    colours, text as UTF-8, scripts readable (MATCHING.md's codecs and the
    text and event-script decodings are the start). Each port stops calling
    the original's decoder for that resource, a reviewed change per resource,
-   in step with its subsystem retiring the gate. Widescreen, translations and
-   replaceable assets come from here; the readable layout as a whole is
+   in step with its subsystem retiring the gate, and its accessors name the
+   resource rather than the address it was kept at. Widescreen, translations
+   and replaceable assets come from here; the readable layout as a whole is
    Phase 5's MD3.
 
-Steps 1-2 belong to this phase and can start now: the seam exists, and they
-change no port.
+The first belongs to this phase; the second goes resource by resource with
+the subsystems.
 
 ## Phase 4b: the platform milestones
 

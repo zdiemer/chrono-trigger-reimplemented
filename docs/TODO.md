@@ -2094,8 +2094,8 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Assets as data files rather than ROM reads** (PLAN.md, Phase 4a,
   "Assets", which decides the shape: a catalogue, an import once into a pack
   in the user data directory, loaded by name through the driver, raw before
-  decoded). Still open: the pack's format and its versioning; whether the
-  battle scripts get a readable form before MD3; which codecs the importer
+  decoded; the raw pack is built, PLATFORM.md "The assets, as built"). Still
+  open: whether the battle scripts get a readable form before MD3; which codecs the importer
   needs beyond MATCHING.md's ("Build-time extraction").
   - **The catalogue's rows MD2 hasn't typed** (PLATFORM.md, "The assets, as
     built"): 11 `untyped` runs (42521 bytes, `$F6:24B1-7FFF` the largest,
@@ -2106,6 +2106,14 @@ rest waits, is [PLAN.md](PLAN.md).
     command lists (`$C2:C54F` and on) that the list's reader looks at: the
     format's terminator rule, read from the reader, would say why, and
     whether the pack needs the byte at all.
+  - **The accessors' addresses are keys** (PLATFORM.md, "The assets, as
+    built"): each accessor still computes where the original kept its data,
+    and the read finds the resource by it. Naming the resource in the
+    accessor instead goes with decoding it (PLAN.md, "Assets"); until then a
+    pack can't move a resource, only serve it.
+  - **The importer's codecs**: the pack is raw; `codec` in the catalogue says
+    what a decoded pack would apply to each resource, and nothing applies it
+    yet.
   - **Accessors reading work RAM through `game/rom.h`**: a pointer the data
     holds can name work RAM (scripts and text the game copies or builds
     there, `$7E:2C35`, `$7E:98C0`, `$7F:8020-953F` and others over the

@@ -14,7 +14,10 @@ an index past what re/ram.toml declares, reaching the next variable in work RAM,
 which only the original's layout makes work; both in docs/DISASSEMBLY.md, "The
 accessors") and no `asset outside the catalogue` line (a cartridge read that
 lands in no resource of re/assets.tsv, which the asset pack wouldn't hold:
-docs/PLATFORM.md, "The assets, as built"); then the checks
+docs/PLATFORM.md, "The assets, as built"). The ports read their resources from
+an asset pack the suite imports from the ROM first (`ct_dev --assets`), as
+ct_play does, and a read whose pack byte isn't the cartridge's prints an
+`asset differs from the cartridge` line, which fails the run too; then the checks
 in CHECKS run, each printing one line: `--native on --generated only` must produce
 a trace identical to `--native off`; every hand port's estimated time must
 stay within the timing gate's limits over the shadow runs' `--timing-report`
@@ -114,6 +117,22 @@ def collect(only, names):
     return out
 
 
+# The asset pack the ports read their resources from, imported by main().
+PACK_ARGS = []
+
+
+def import_assets(binary, rom, pack):
+    """A fresh asset pack at `pack`, imported from the ROM by ct_dev, which the
+    shadow and shipping-mode runs read from (ct_dev --assets)."""
+    if pack.exists():
+        pack.unlink()
+    rc = subprocess.call([str(binary), "--rom", str(rom), "--assets", str(pack), "--frames", "1"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    if rc != 0 or not pack.exists():
+        sys.exit("%s: ct_dev couldn't import the asset pack" % pack)
+    PACK_ARGS[:] = ["--assets", str(pack)]
+
+
 def run_movie(binary, rom, out, name, path, frames, lockstep):
     """One shadow run, with the sound lockstep beside it unless `lockstep` is
     false (it adds about a twentieth to the run). Returns (name, ok, detail)."""
@@ -123,7 +142,7 @@ def run_movie(binary, rom, out, name, path, frames, lockstep):
            "--coverage", str(out / ("cov-%s.txt" % name)),
            "--calls", str(out / ("calls-%s.txt" % name)),
            "--fallbacks", str(out / "fallbacks" / "shadow" / ("%s.txt" % name)),
-           "--end-state", str(out / ("end-%s.bin" % name))]
+           "--end-state", str(out / ("end-%s.bin" % name))] + PACK_ARGS
     if lockstep:
         cmd += ["--sound-lockstep", "--sound-lockstep-level", "state"]
     started = time.time()
@@ -286,7 +305,7 @@ def ship_seconds(frames):
 def ship_movie(binary, rom, log, path, frames, extra):
     """One movie in the shipping mode. Returns (exit status or None if it hung,
     the log's problem lines)."""
-    cmd = [str(binary), "--rom", str(rom), "--movie", str(path), "--frames", str(frames)] + SHIP + extra
+    cmd = [str(binary), "--rom", str(rom), "--movie", str(path), "--frames", str(frames)] + SHIP + PACK_ARGS + extra
     with open(log, "wb") as fh:
         try:
             rc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, timeout=ship_seconds(frames)).returncode
@@ -690,6 +709,7 @@ def main():
     # Longest first: the three endings are more than half the suite, and one
     # started late sets the wall time while the other workers sit idle.
     movies.sort(key=lambda m: -m[2])
+    import_assets(binary, args.rom, args.out / "ct-usa.assets")
     print("%d movies, %d at a time" % (len(movies), jobs), flush=True)
 
     bad_movies = []

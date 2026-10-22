@@ -171,6 +171,8 @@ jobs:
         run: build/ci/sound_test
       - name: bindings_test
         run: build/ci/bindings_test
+      - name: assets_test
+        run: build/ci/assets_test
       # The full suites (5.12M and 256k cases) take seconds, so every job runs them.
       - name: 65816 SingleStepTests (interpreter)
         run: build/ci/sst_runner tests/cpu/data/*.bin

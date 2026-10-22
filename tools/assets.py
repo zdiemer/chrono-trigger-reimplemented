@@ -350,7 +350,8 @@ def generate_c(rows: list[Row]) -> str:
     for r in rows:
         out.append(f'    {{ 0x{r.at:06X}u, {r.end - r.at + 1}u, "{r.name}", {TYPES.index(r.type)}, '
                    f'{codecs.index(r.codec)} }},')
-    out += ["};", "", f"const uint16_t asset_catalogue_count = {len(rows)};", "",
+    out += ["};", "", f"AssetServed asset_served[{len(rows)}];", "",
+            f"const uint16_t asset_catalogue_count = {len(rows)};", "",
             f"const uint32_t asset_catalogue_version = 0x{catalogue_version(rows):08X}u;", ""]
     return "\n".join(out)
 

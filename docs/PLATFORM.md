@@ -2059,6 +2059,42 @@ again with `ct_play --import <rom>`, which then exits. The pack is ROM-derived
 and gitignored wherever it lands. Over this catalogue it is 4,003,655 bytes,
 3,800,908 of them the resources.
 
+**Loaded by name** (`game/data/assets.h`, `assets.c`; `game/rom.h`). The driver
+gives the game an `AssetStore` with `assets_use`, as it keeps the saves: a
+`find` that answers a resource's name and type with its bytes. `game/` never
+opens a file or knows a path. The accessors are unchanged: each still says
+where the original keeps its data, and that address is now a key. `rom_read8`
+looks it up in the catalogue, asks the store for that resource by name and
+type the first time (`asset_served` keeps the answer, a slot a row) and reads
+the byte at the address's offset in it. What is left of the machine is one
+call to the backing, `rom_cartridge_read`: with the machine
+(`runtime/port/state_io.c`) it makes the original's access, so the ports' time
+estimates, which count their bus accesses, don't move, and checks the store's
+byte against the cartridge's, counting a difference (`ct_dev` prints `asset
+differs from the cartridge`, which fails the gate); where the store has no copy
+-- no store, or an address in work RAM -- the machine's byte is the read's. A
+build without a machine gives the store's byte (`tests/frontend/assets_test.c`
+is that backing, and `assets_test` reads every resource through a pack built
+from made-up bytes, its mirrors among them, with no ROM).
+
+Who supplies which store: `ct_play` reads its pack (`<rom name>.assets`, the
+first launch importing it, a pack of another catalogue imported again);
+`ct_dev --assets <pack>` does the same, and the gate runs every shadow and
+shipping-mode movie that way, from a pack the suite imports first, so each
+accessor read is the pack's byte checked against the cartridge's; without
+`--assets`, and in `ct_drive`, `ct_fuzz` and the tests, there is no store and
+the machine's cartridge serves the reads, as before. `asset_store_rom`
+(`frontend/assets.h`) is a store over a ROM image in memory, for a build that
+has the ROM but no machine. Over the movies with the pack, shadow mode
+compares as before: 0 mismatches, no read outside the catalogue and none that
+differs; a pack with a byte in 997 changed makes ports mismatch and prints
+both lines.
+
+What still reads the mapped ROM: the original's code (the emulator), and the
+one port that reads cartridge data on the machine rather than through an
+accessor, the decompressor (`data/decompress.c`, on the portstyle backlog),
+which reads the streams the catalogue holds by the pointer the loaders leave.
+
 ## Timing without a beam: the native backend
 
 Phase 4a's design ([PLAN.md](PLAN.md)), decided before the backend is
