@@ -8,12 +8,13 @@
  * uses them writes the same bytes and shadow mode still compares them. The
  * second backing, which holds the same values in its own storage, replaces this
  * file per subsystem once no generated code touches that subsystem's state
- * (docs/PLAN.md, "Phase 3a"); nothing in game/ changes with it. */
+ * (docs/PLAN.md, "Phase 3a"); nothing in game/ changes with it.
+ *
+ * Built with CT_VARS_HOST (ct_native, docs/PLAYING.md, "The native program"), the
+ * same layout is held in the host's memory instead (port/state_host.h): the bytes
+ * at the original's addresses, with no machine behind them. */
 #include "vars.h"
 
-#include "port/machine.h"
-#include "port/native.h"
-#include "port/scaffold_reads.h"
 #include "port/vars_pages.h"
 #include "port/vars_ram.h"
 #include "wram.h"
@@ -22,6 +23,19 @@
 static bool peeking;
 void vars_peek(bool on) { peeking = on; }
 bool vars_peeking(void) { return peeking; }
+
+#ifdef CT_VARS_HOST
+
+#include "port/state_host.h"
+
+static uint8_t r8(const GameState *g, uint32_t a) { return state_host_read8(g, a); }
+static void w8(GameState *g, uint32_t a, uint8_t v) { state_host_write8(g, a, v); }
+
+#else
+
+#include "port/machine.h"
+#include "port/native.h"
+#include "port/scaffold_reads.h"
 
 /* A value of the width the map gives, low byte first, as the 65816 stores it. */
 static uint8_t r8(const GameState *g, uint32_t a)
@@ -33,15 +47,17 @@ static uint8_t r8(const GameState *g, uint32_t a)
     return v;
 }
 
-static uint16_t r16(const GameState *g, uint32_t a) { return (uint16_t)(r8(g, a) | r8(g, a + 1) << 8); }
-static uint32_t r24(const GameState *g, uint32_t a) { return (uint32_t)r16(g, a) | (uint32_t)r8(g, a + 2) << 16; }
-static uint32_t r32(const GameState *g, uint32_t a) { return (uint32_t)r16(g, a) | (uint32_t)r16(g, a + 2) << 16; }
-
 static void w8(GameState *g, uint32_t a, uint8_t v)
 {
     m_write8(state_snes(g), a, v);
     scaffold_note_write(state_snes(g), a);   /* ct_dev --scaffold-reads */
 }
+
+#endif
+
+static uint16_t r16(const GameState *g, uint32_t a) { return (uint16_t)(r8(g, a) | r8(g, a + 1) << 8); }
+static uint32_t r24(const GameState *g, uint32_t a) { return (uint32_t)r16(g, a) | (uint32_t)r8(g, a + 2) << 16; }
+static uint32_t r32(const GameState *g, uint32_t a) { return (uint32_t)r16(g, a) | (uint32_t)r16(g, a + 2) << 16; }
 
 static void w16(GameState *g, uint32_t a, uint16_t v)
 {

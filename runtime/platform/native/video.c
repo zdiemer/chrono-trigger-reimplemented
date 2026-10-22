@@ -23,3 +23,23 @@ void vid_send_vram_and_wait(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData
     for (uint32_t i = 0; i < len; i++)   /* the address wraps round VRAM, as the SNES's does */
         vram[(at + i) % VID_HOST_VRAM_BYTES] = src.ptr[i];
 }
+
+/* No transfers wait for the vblank on a host: the sends are made at once. */
+void vid_stop_uploads(Platform *pf, PfOrigin o) { (void)pf, (void)o; }
+
+void vid_enable_line_effects(Platform *pf, PfOrigin o, uint8_t slots)
+{
+    (void)o;
+    pf->video.line_effects = slots;
+}
+
+/* What a screen sets is kept as far as the host has somewhere to keep it: the
+ * display. The rest has no host half until the picture is drawn from the
+ * calls (docs/PLAN.md, Phase 4a, "Video fed by service calls"). */
+void vid_apply_screen(Platform *pf, PfOrigin o, const VidScreen *screen)
+{
+    (void)o;
+    if (screen->display)
+        pf->video.display = *screen->display;
+    pf->video.screens_applied++;
+}

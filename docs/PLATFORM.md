@@ -2224,13 +2224,16 @@ enabled. The main thread is a fiber (`runtime/port/fiber.h`), and a wait
 resumes whichever fiber made it, so the menus' tasks can be fibers the main
 thread runs in turn; the
 acknowledges answer "pending" inside their own handler; `tm_host_picture_lines`
-is where the picture ends (the line handler's line and those above it). No
-build links it with the game yet -- `ct_play` still runs on the emulated
-machine, whose interrupts need the SNES backend -- so `tests/port/timing_test.c`
-runs a made-up game on it: the frame's order, a handler switched on or off
-mid-frame, a wait twenty calls deep, the acknowledges, the budget, the
-parity, the generator's replay and the pads. It is the backend `ct_native`
-(PLAN.md, "The native program", step 4) links.
+is where the picture ends (the line handler's line and those above it).
+`ct_native` (PLAYING.md, "The native program") links it with the game's
+program (`core/program.c`'s main thread and handlers), so far as far as the
+boot; `ct_play` still runs on the emulated machine, whose interrupts need the
+SNES backend. `tests/port/timing_test.c` runs a made-up game on it: the
+frame's order, a handler switched on or off mid-frame, a wait twenty calls
+deep, the acknowledges, the budget, the parity, the generator's replay and
+the pads. Of video, the host half keeps what the boot sets (the VRAM sends,
+the display, the line effects' slots) and draws nothing yet (TODO.md, "The
+native program").
 
 **The budgets, measured exactly in shadow mode.** A port that reads the beam
 runs on a copy of the machine whose beam stands where the copy was last made:

@@ -50,10 +50,15 @@ typedef struct {
     uint32_t entropy;       /* tm_entropy's generator */
 } TmHost;
 
-/* Video memory, as the calls that have a host half so far leave it. */
+/* Video memory, and the picture's settings, as the calls that have a host half
+ * so far leave them: kept, not yet drawn (no renderer takes them: docs/TODO.md,
+ * "The native program"). */
 enum { VID_HOST_VRAM_BYTES = 0x10000 };
 typedef struct {
     uint8_t vram[VID_HOST_VRAM_BYTES];
+    VidDisplay display;          /* the latest a screen set */
+    uint8_t line_effects;        /* vid_enable_line_effects' slots */
+    uint32_t screens_applied;
 } VidHost;
 
 struct Platform {

@@ -1,0 +1,46 @@
+/* The game's state with no machine under it: the backing of game/state.h,
+ * vars.h, cpu_io.h, wram.h, charge.h and original_frame.h for ct_native
+ * (docs/PLAYING.md, "The native program").
+ *
+ * The layout is the original's, as the RAM-backed accessors have it
+ * (runtime/port/vars_ram.c, built with CT_VARS_HOST): work RAM's 128 KiB and the
+ * cartridge's 8 KiB of save RAM held in the host's memory and reached at the
+ * original's addresses, and the multiplier, divider and work RAM port worked
+ * out in C rather than by registers. The time a port is charged has nothing to
+ * be charged to, and the original's frames nothing to stand in for. What the
+ * handle is stays this file's business: game/ never sees inside it.
+ *
+ * An access the backing has no memory for -- a register, or anything outside
+ * work RAM, save RAM and the cartridge -- is a machine assumption the build
+ * found: it is counted, the first few kept, and the access reads 0. The
+ * cartridge's data is read through port/rom_image.h. */
+#ifndef CT_PORT_STATE_HOST_H
+#define CT_PORT_STATE_HOST_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "state.h"
+
+/* A fresh state: work RAM as the console powers on (zero here; the original
+ * leaves it to the chips) and save RAM from `sram` (8 KiB), or erased. */
+GameState *state_host_create(const uint8_t *sram);
+void state_host_destroy(GameState *g);
+
+uint8_t state_host_read8(const GameState *g, uint32_t addr);
+void state_host_write8(GameState *g, uint32_t addr, uint8_t v);
+
+/* The cartridge's save RAM, for the driver to keep (the save service's own
+ * host half doesn't exist yet: TODO.md, "The native program"). */
+enum { STATE_HOST_SRAM_BYTES = 0x2000 };
+const uint8_t *state_host_sram(const GameState *g);
+
+/* Accesses the backing had no memory for: how many, and the first few addresses. */
+enum { STATE_HOST_STRAYS_KEPT = 8 };
+unsigned long state_host_strays(const GameState *g, uint32_t *first, unsigned *kept);
+
+/* Where the program went no further than its C reaches (program_needs_the_machine,
+ * game/core/program.h): the routine only the machine runs, and what it is. */
+bool state_host_stopped(const GameState *g, uint32_t *routine, const char **what);
+
+#endif

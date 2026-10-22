@@ -566,8 +566,8 @@ by an audit; the fourth is the program itself.
   to after a stretch that is no longer one on the machine. The library is the
   limit now, not the ports: what no movie reaches (docs/movies-wanted.md) is
   where the hand ports alone stop, and the next movies are what extends this.
-  Next: step 4 of "The native program" below, `ct_native`, now that C covers
-  whole plays and the program's top exists, and the fallbacks the reference play
+  Next: "The native program" below, now that C covers whole plays and the
+  program's top and `ct_native` exist, and the fallbacks the reference play
   still counts (the fallback measure, REIMPLEMENTATION.md), which are the
   original's code run inside comparisons where the ports' C would run in the
   product.
@@ -579,7 +579,7 @@ by an audit; the fourth is the program itself.
   still made on the machine (the field's `$C0:EC60` the largest, which needs
   a wait a machine copy can hold before it takes the battle's shape; the
   line handlers wait for their line through `tm_wait_line_drawn`), the host
-  backend's place in `ct_native`, and the menus' tasks' bodies as functions of the
+  backend's other services, and the menus' tasks' bodies as functions of the
   game's state for their coroutines (`core/tasks.c`) to run.
 
 - **The native program, and the registry taken down.** Today the emulated
@@ -595,22 +595,27 @@ by an audit; the fourth is the program itself.
   names the caller that still holds each entry to the registry. The program's
   top is `game/core/program.c` (a boot, the main thread, the vblank and line
   handlers sent where the mode's stubs say), which the console's entries call
-  on the machine; the menus' tasks have their coroutines (`core/tasks.c`).
+  on the machine and `ct_native` (PLAYING.md, "The native program") calls
+  with nothing under it; the menus' tasks have their coroutines
+  (`core/tasks.c`).
   2. **Ports call ports.** Where a port reaches another port through a
      call-out (`portsmell`'s `sibling-through-machine` already finds these), it
      calls the C function, keeping the callee's time with `NATIVE_TIME_AS`.
      This happens anyway as subsystems finish; the census says where it is
      still owed: the menus' object scripts, the battle's handlers, timers and
      frame dispatch, the menus' tasks and the field's frame hold the most.
-  4. **A slice with nothing under it, early.** A build target (`ct_native`)
-     that links `game/`, `runtime/platform/` with its host backends and
-     `fiber.h`, and none of the emulator, the generated C or the registry,
-     run as soon as boot, the title and a few field maps are ported. Its
-     link errors and its first frames are the list of what still assumes a
-     machine -- a wait on the beam, code run from RAM, a port that reads a
-     register -- found while there is time to change course, not after the
-     last port. It is a measurement, not the product, until the rest
-     arrives.
+  3. **`ct_native` to the title, then a few field maps.** `ct_native` runs
+     the boot and stops at frame 1 at the field's first start (`$C0:000E`),
+     the first step only the machine runs; `ct_native_whole`, the whole of
+     `game/` linked the same way, is the list of what still assumes a
+     machine (TODO.md, "The native program"). Next, in order: the field's
+     first start and entry as functions of the game's state (their call-out
+     to the sound driver's boot and their stops are what hold them), the
+     modes' handlers as functions in `core/program.c`'s table, and the host
+     video backend over the observer, so the frames it reaches can be seen
+     and compared with `ct_play`'s. Each step is measured by how far
+     `ct_native` gets and by `ct_native_whole`'s count; it is a measurement,
+     not the product, until the rest arrives.
   5. **Per subsystem, the registry goes with the gate.** When a subsystem
      retires the gate ("Retiring the gate, deliberately", above), its rows
      leave `game/registry.c`, its entry wrappers and leaves files are
