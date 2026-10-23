@@ -6,6 +6,7 @@
  * runtime. */
 #include "charge.h"
 #include "core/program.h"
+#include "data/assets.h"
 #include "cpu_io.h"
 #include "original_frame.h"
 #include "rom.h"
@@ -14,6 +15,7 @@
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
+#include "port/rom_reads.h"
 
 enum { WRMPYA = 0x004202, WRMPYB = 0x004203, WRDIVL = 0x004204, WRDIVB = 0x004206, RDDIV = 0x004214, RDMPY = 0x004216 };
 enum { WMDATA = 0x002180, WMADDL = 0x002181, WMADDB = 0x002183, WMDATA_LESS_ONE = 0x00217F };
@@ -56,16 +58,31 @@ void hw_port_write(GameState *g, uint8_t v) { m_write8(state_snes(g), WMDATA, v)
 
 void hw_port_leave_spill(GameState *g, uint8_t low) { m_write8(state_snes(g), WMDATA_LESS_ONE, low); }
 
-uint8_t rom_read8(const GameState *g, uint32_t at)
-{
-    return vars_peeking() ? snes_bus_peek(&state_snes(g)->bus, at & 0xFFFFFF) : m_read8(state_snes(g), at);
-}
+/* ---- The cartridge (rom.h) -------------------------------------------------------------------- */
 
-uint16_t rom_read16(const GameState *g, uint32_t at)
+static uint8_t *reads_seen;   /* rom_reads_record: a bit a cartridge byte read */
+
+void rom_reads_record(uint8_t *map) { reads_seen = map; }
+
+static AssetFault differs;   /* rom_differing_reads */
+
+const AssetFault *rom_differing_reads(void) { return &differs; }
+
+/* The machine reads the byte as the original's access would, with its time,
+ * and the store's copy, where there is one, is what the read gives. */
+uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *served)
 {
-    if (!vars_peeking())
-        return m_read16(state_snes(g), at);
-    return (uint16_t)(rom_read8(g, at) | rom_read8(g, at + 1) << 8);
+    if (reads_seen) {
+        uint32_t a = at & 0xFFFFFFu;
+        reads_seen[a >> 3] |= (uint8_t)(1u << (a & 7));
+    }
+    Snes *s = state_snes(g);
+    uint8_t v = vars_peeking() ? snes_bus_peek(&s->bus, at & 0xFFFFFF) : m_read8(s, at);
+    if (!served)
+        return v;
+    if (*served != v && differs.count++ == 0)
+        differs.first = at & 0xFFFFFFu;
+    return *served;
 }
 
 /* ---- Time charged (charge.h) and plain moves (wram.h) ------------------------------------------ */

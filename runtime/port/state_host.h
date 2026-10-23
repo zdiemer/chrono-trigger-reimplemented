@@ -13,7 +13,8 @@
  * An access the backing has no memory for -- a register, or anything outside
  * work RAM, save RAM and the cartridge -- is a machine assumption the build
  * found: it is counted, the first few kept, and the access reads 0. The
- * cartridge's data is read through port/rom_image.h. */
+ * cartridge's data is read from the asset store (game/data/assets.h), with
+ * port/rom_host.c the backing of game/rom.h. */
 #ifndef CT_PORT_STATE_HOST_H
 #define CT_PORT_STATE_HOST_H
 

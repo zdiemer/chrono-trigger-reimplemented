@@ -5,6 +5,8 @@ roms/
 *.swc
 *.fig
 *.srm
+# The asset pack ct_play and ct_dev import from the ROM (frontend/assets.h)
+*.assets
 !oracle/saves/**/*.srm
 *.spc
 

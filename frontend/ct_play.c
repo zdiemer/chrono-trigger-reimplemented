@@ -7,7 +7,11 @@
  *           [--movie m.ctm [--movie-frames N]] [--record out.ctm] [--sram save.srm] [--load-zst in.zst]
  *   ct_play --rom <rom> --frames N [--screenshot out.png] [--hold BUTTONS@FIRST-LAST]...
  *           [--load-state f] [--save-state f] [--movie m.ctm] [--record out.ctm] [--wav out.wav]
+ *   ct_play --import <rom> [--save-dir dir]
  *
+ * The game's resources come from an asset pack beside the saves, imported once
+ * from the ROM (frontend/assets.h): on the first launch without one, or again
+ * with --import, which writes it and exits.
  * This file turns the options into a player (player.h), the desktop's storage
  * (files.h) and one of two drivers (driver.h): run_window, or with --frames
  * run_headless, which runs a fixed number of frames without a display, for
@@ -31,6 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "assets.h"
 #include "bindings.h"
 #include "driver.h"
 #include "files.h"
@@ -87,7 +92,10 @@ static void usage(FILE *out)
             "                       state loads only with the mixer it was saved with\n"
             "  --renderer R         native: draw each frame from the video service's frame state (default);\n"
             "                       scanline: the reference renderer, line by line from the PPU registers\n"
-            "  --save-dir DIR       where <rom name>.srm and <rom name>.state go (default: the ROM's directory)\n"
+            "  --save-dir DIR       where <rom name>.srm, <rom name>.state and the asset pack <rom name>.assets go\n"
+            "                       (default: the ROM's directory)\n"
+            "  --import ROM         import the game's resources from ROM into the asset pack again, and exit (the\n"
+            "                       first launch without a pack imports it)\n"
             "  --keys F             read key and gamepad bindings from F, one INPUT = ACTION a line (default:\n"
             "                       " KEYS_FILE " next to ct_play, if there is one)\n"
             "  --bind INPUT=ACTION  bind a key or pad input, after the key file (repeatable); for example\n"
@@ -172,6 +180,7 @@ int main(int argc, char **argv)
     const char *rom_path = NULL, *save_dir = NULL, *screenshot = NULL;
     const char *load_state_path = NULL, *save_state_path = NULL, *movie_path = NULL, *sram_file = NULL;
     const char *zst_path = NULL;
+    bool import_only = false;
     int movie_sram = 0;
     uint32_t movie_sram_crc = 0;
     static Player pl;   /* large; keep it off the stack */
@@ -221,6 +230,10 @@ int main(int argc, char **argv)
             return 2;
         }
         if (!strcmp(a, "--rom")) rom_path = v;
+        else if (!strcmp(a, "--import")) {
+            rom_path = v;
+            import_only = true;
+        }
         else if (!strcmp(a, "--scale")) scale = strtol(v, NULL, 10);
         else if (!strcmp(a, "--aspect")) {
             if (!strcmp(v, "4:3")) display->pixel_aspect = 4.0 / 3.0 * RENDER_HEIGHT / RENDER_WIDTH;
@@ -452,6 +465,34 @@ int main(int argc, char **argv)
     bool own_list = !CT_PLAYER_NO_INTERPRETER && pl.interpreted != PLAYER_INTERPRETED_RUN;
     files_side_path(files.misses, sizeof files.misses, rom_path, rom_path, save_dir,
                     own_list ? ".interpreted.txt" : ".misses.txt");
+    files_side_path(files.assets, sizeof files.assets, rom_path, rom_path, save_dir, ".assets");
+
+    /* The game's resources: imported from the ROM on the first launch, or
+     * again when asked or when the pack is of another catalogue, and read
+     * from the pack from then on. */
+    size_t pack_len = 0;
+    uint8_t *pack = files_asset_pack(&files, rom + header, rom_len - header, import_only, &pack_len);
+    if (!pack || import_only) {
+        free(pack);
+        free(rom);
+        return pack ? 0 : 1;
+    }
+    const char *why = "";
+    AssetPack *assets = asset_pack_open(pack, pack_len, &why);
+    if (!assets) {
+        fprintf(stderr, "%s: %s\n", files.assets, why);
+        free(pack);
+        pack = files_asset_pack(&files, rom + header, rom_len - header, true, &pack_len);
+        assets = pack ? asset_pack_open(pack, pack_len, &why) : NULL;
+        if (!assets) {
+            free(pack);
+            free(rom);
+            return 1;
+        }
+    }
+    static AssetStore store;
+    asset_pack_store(assets, &store);
+    assets_use(&store);
 
     if (movie_path) {
         ct_movie movie;
@@ -558,6 +599,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "recorded %lu frames to %s\n", (unsigned long)pl.track.frames, record_path);
     files_flush(&files, &pl);
     player_finish(&pl);
+    assets_use(NULL);
+    asset_pack_close(assets);
+    free(pack);
     free(rom);
     return rc;
 }

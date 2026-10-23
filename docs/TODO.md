@@ -2094,9 +2094,50 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Assets as data files rather than ROM reads** (PLAN.md, Phase 4a,
   "Assets", which decides the shape: a catalogue, an import once into a pack
   in the user data directory, loaded by name through the driver, raw before
-  decoded). Still open: the pack's format and its versioning; whether the
-  battle scripts get a readable form before MD3; which codecs the importer
+  decoded; the raw pack is built, PLATFORM.md "The assets, as built"). Still
+  open: whether the battle scripts get a readable form before MD3; which codecs the importer
   needs beyond MATCHING.md's ("Build-time extraction").
+  - **The catalogue's rows MD2 hasn't typed** (PLATFORM.md, "The assets, as
+    built"): 11 `untyped` runs (42521 bytes, `$F6:24B1-7FFF` the largest,
+    which the census also lists as unknown) and 30 `mixed` or `undetermined`
+    regions now have readers -- the accessors that read them -- and want
+    `[[data]]` types with their bounds, which turns their rows into typed
+    ones. The 12 `code` rows are a byte past each of the menus' window
+    command lists (`$C2:C54F` and on) that the list's reader looks at: the
+    format's terminator rule, read from the reader, would say why, and
+    whether the pack needs the byte at all.
+  - **The accessors' addresses are keys** (PLATFORM.md, "The assets, as
+    built"): each accessor still computes where the original kept its data,
+    and the read finds the resource by it. Naming the resource in the
+    accessor instead goes with decoding it (PLAN.md, "Assets"); until then a
+    pack can't move a resource, only serve it.
+  - **Video transfers from cartridge addresses** bypass the store: the menus'
+    VRAM fills and copy (`menu/display.c`: `menu_clear_all_of_vram`,
+    `clear_the_screens_memory`'s fill, `menu_copy_rom_to_memory`) and the
+    battle's tile blocks (`battle/uploads.c`, `send_block`) take a ROM
+    address as their source, which the SNES backend
+    sends by DMA from the bus and a host backend can't read. They want the
+    resource's bytes from the store as `PfData`'s host pointer, which shadow
+    mode can still compare by the address.
+  - **What the asset pack's review left** (none blocking): the `asset
+    differs from the cartridge` check compares two copies made from the same
+    ROM, so it tests only the importer's address mapping, not the pack's
+    content against anything independent; `asset_served` is 6087 slots, about
+    48 KB of RAM on a GBA, and every byte read is a binary search (with the
+    last hit kept), where a target wants the slots in ROM or a smaller
+    catalogue and accessors that name their resource; and the handler table at
+    `$C1:7A6B` (`battle/script_data.h`) is code addresses of the original's,
+    made a pack resource only because `battle/scripts.c`'s call-outs and time
+    tags need them, which goes when those handlers are ports.
+  - **The importer's codecs**: the pack is raw; `codec` in the catalogue says
+    what a decoded pack would apply to each resource, and nothing applies it
+    yet.
+  - **Accessors reading work RAM through `game/rom.h`**: a pointer the data
+    holds can name work RAM (scripts and text the game copies or builds
+    there, `$7E:2C35`, `$7E:98C0`, `$7F:8020-953F` and others over the
+    movies), and the cartridge's reads pass it to the machine. A build
+    without a machine has to read its work RAM there; `script_language.c`'s
+    `script_byte` already tells the two apart, and the others want the same.
 - **Open questions** in PLATFORM.md: battles playing out differently once
   timing changes, widescreen's exposed assumptions (the 0-255 object window at
   `$C0:A88D`, map data beyond VRAM, single-byte battle window positions), and
@@ -2766,9 +2807,10 @@ list, by kind, is what `game/` still asks of one.
   from wrappers). The native player (`frontend/sound_native.c`) repeats
   `sound_host.c`'s echo waits and command queue over its own ports: the two
   want one core, which `ct_play` needs when it becomes `ct_native`.
-- **ROM data.** `ct_native` reads the cartridge from the ROM file's bytes
-  (`runtime/port/rom_image.c`), the seam the asset pack replaces; on the
-  machine `rom.h` still reads the emulated bus.
+- **ROM data.** `ct_native` reads the game's data from the asset pack through
+  the store; what still reads cartridge addresses outside it, the
+  decompressor and the video transfers from ROM, is under "Assets as data
+  files" (Platform).
 
 ## Targets beyond the desktop SNES build
 
@@ -2783,8 +2825,8 @@ waits on M5 rather than on a backend.
   address a mode installs, where they want a handler identity; `core/tasks.c`
   is called only by `tasks_test` until the menus use it; `dev/census.c`'s
   `census_destroy` leaves the runtime's observer pointing at the freed census;
-  `state_host.c` and `rom_image.c` each carry the HiROM address map, which
-  wants one copy.
+  `state_host.c` and `game/data/assets.c` each carry the HiROM address map,
+  which wants one copy.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in

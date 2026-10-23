@@ -1986,6 +1986,122 @@ A study, not a port. It answers, with measurements:
 prototype shows one field frame and one battle frame, rendered from recorded
 `VidFrame`s, on GBA hardware or an emulator.
 
+## The assets: imported once, loaded by name
+
+Phase 4a's "Assets" ([PLAN.md](PLAN.md)): the game's data comes from a store
+the driver supplies rather than from a mapped ROM image, so a build with no
+emulator, or a target that can't map 4 MiB, has it.
+
+### The assets, as built
+
+**The catalogue** (`re/assets.tsv`, written by `tools/assets.py build`). A row
+a resource the ports' accessors read: its name, its type (MD2's, MATCHING.md),
+the ROM range the original keeps it in and the codec that decodes it (`raw`,
+`lz`, `lz:event`, `text:dialog`, `script:battle-animation`, `gfx:plane-pool`,
+...). The rows are regions the matching build extracts ("Build-time
+extraction"), chosen three ways: every region holding an address an accessor
+names (a constant in a `*_data.h` header; the row is named after the
+accessor); every region holding an address `ct_dev --asset-reads` recorded
+over the movies (the accessors that follow a pointer the data holds); and,
+for a `[[resource]]` table any of those is part of, the table and every target
+it names, so a pointer read from it lands in the catalogue whether or not a
+movie followed it (the targets are `<table>.<entry>`). Besides the typed
+`[[data]]` regions, two kinds the extraction writes as raw blobs: a jump table
+the analysis found (`jump-table`), and a run of bytes that is neither code nor
+a typed region (`untyped`). And one it doesn't: `code`, an instruction a reader
+looks at, where the menus' window command lists are read a byte past their
+end. The file holds locations and types, no ROM bytes.
+`game/data/asset_catalogue.c` is generated from it and committed, so a build
+without a ROM has the table; `tests/test_assets.py` fails when it is stale,
+and `tools/assets.py check --rom` (a gate check, `assets`) when a row is no
+longer a region the extraction makes.
+
+Built from the 48 movies' reads in shadow mode, the catalogue has **6087
+resources, 3,800,908 bytes** (91% of the ROM; nothing the accessors read is
+left out):
+
+| Type | Resources | Bytes | Found by |
+|---|--:|--:|---|
+| `lz` | 1371 | 2354164 | the stream tables (`[[resource]]`) |
+| `text` | 3726 | 144144 | the string tables |
+| `spc700` | 149 | 294487 | the sound driver's blocks |
+| `gfx` | 6 | 334592 | banks CF, D0, D2-D5 |
+| `bytes`, `words`, `ptr16`, `ptr24`, `struct` | 759 | 319038 | the accessors' tables |
+| `script` | 19 | 86445 | event, battle, enemy and object scripts |
+| `mixed`, `undetermined` | 30 | 224269 | regions MD2 hasn't split |
+| `untyped` | 11 | 42521 | regions MD2 hasn't typed (`$F6:24B1-7FFF` the largest) |
+| `jump-table` | 4 | 1230 | the handler tables the guards and call-outs read |
+| `code` | 12 | 18 | a byte read past a command list |
+
+174 rows were found by an accessor's constant, 900 by the reads alone, and
+5013 as entries of a table one of those is.
+
+**The check.** Every cartridge read an accessor makes is looked up in the
+catalogue (`asset_containing`, `game/data/assets.c`: a binary search, the last
+hit kept); one that lands in no resource is counted, and `ct_dev` prints an
+`asset outside the catalogue` line, which fails the gate's shadow and
+shipping-mode runs (`tools/suite.py`). A read through a pointer into work RAM
+(scripts and text the game copies or builds there) isn't the cartridge's and
+isn't counted.
+
+**The import** (`frontend/assets.h`, `assets.c`). `asset_pack_import` takes a
+ROM image, checks its CRC-32 (`2D206BF7`, Chrono Trigger (USA)) and size, and
+makes an asset pack: a header (`CTASSETS`, the format, the count, the
+catalogue's version -- a CRC-32 of its rows -- and the ROM's CRC-32), a
+directory entry a resource (where its bytes are, how many, its name and its
+type) and each resource's original bytes, raw. It reads the ROM through the
+same kind of store the game reads from (`asset_store_rom`), so the pack is
+whatever that store serves; `asset_pack_build` makes one from any store, which
+`assets_test` uses without a ROM. Nothing here opens a file: `ct_play` (its
+driver, `frontend/files.c`, `files_asset_pack`) writes the pack as
+`<rom name>.assets` beside the saves, on the first launch without one and
+again with `ct_play --import <rom>`, which then exits. The pack is ROM-derived
+and gitignored wherever it lands. Over this catalogue it is 4,003,655 bytes,
+3,800,908 of them the resources.
+
+**Loaded by name** (`game/data/assets.h`, `assets.c`; `game/rom.h`). The driver
+gives the game an `AssetStore` with `assets_use`, as it keeps the saves: a
+`find` that answers a resource's name and type with its bytes. `game/` never
+opens a file or knows a path. The accessors are unchanged: each still says
+where the original keeps its data, and that address is now a key. `rom_read8`
+looks it up in the catalogue, asks the store for that resource by name and
+type the first time (`asset_served` keeps the answer, a slot a row) and reads
+the byte at the address's offset in it. What is left of the machine is one
+call to the backing, `rom_cartridge_read`: with the machine
+(`runtime/port/state_io.c`) it makes the original's access, so the ports' time
+estimates, which count their bus accesses, don't move, and checks the store's
+byte against the cartridge's, counting a difference (`ct_dev` prints `asset
+differs from the cartridge`, which fails the gate); where the store has no copy
+-- no store, or an address in work RAM -- the machine's byte is the read's. A
+build without a machine gives the store's byte (`tests/frontend/assets_test.c`
+is that backing, and `assets_test` reads every resource through a pack built
+from made-up bytes, its mirrors among them, with no ROM).
+
+Who supplies which store: `ct_play` reads its pack (`<rom name>.assets`, the
+first launch importing it, a pack of another catalogue imported again);
+`ct_dev --assets <pack>` does the same, and the gate runs every shadow and
+shipping-mode movie that way, from a pack the suite imports first, so each
+accessor read is the pack's byte checked against the cartridge's; without
+`--assets`, and in `ct_drive`, `ct_fuzz` and the tests, there is no store and
+the machine's cartridge serves the reads, as before. `asset_store_rom`
+(`frontend/assets.h`) is a store over a ROM image in memory, for a build that
+has the ROM but no machine. Over the movies with the pack, shadow mode
+compares as before: 0 mismatches, no read outside the catalogue and none that
+differs; a pack with a byte in 997 changed makes ports mismatch and prints
+both lines.
+
+What still reads the mapped ROM: the original's code (the emulator); the one
+port that reads cartridge data on the machine rather than through an accessor,
+the decompressor (`data/decompress.c`, on the portstyle backlog), which reads
+the streams the catalogue holds by the pointer the loaders leave; and the video
+service's transfers whose source is a cartridge address (`PF_GAME` of a ROM
+address: the menus' VRAM fills and ROM copy in `menu/display.c`, the battle's
+tile blocks in `battle/uploads.c`), which the SNES backend sends by DMA from
+the bus. `ct_native` (docs/PLAYING.md, "The native program") reads the game's
+data from the pack and maps no ROM: `runtime/port/rom_host.c` is its backing
+of `game/rom.h`, the store's byte, and the host's memory where the store has
+none.
+
 ## Timing without a beam: the native backend
 
 Phase 4a's design ([PLAN.md](PLAN.md)), decided before the backend is
