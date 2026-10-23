@@ -59,6 +59,11 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   checks and the rubric items each stands for, `--files` per file). `--check` is the gate's ratchet
   against `tools/portsmell_baseline.txt`. A port clears its findings before it is submitted, so a
   review spends its reading on the items that need a reader (`.claude/skills/review-port/`).
+- `python3 tools/machine_joints.py`: what in `game/` still needs the emulated machine, counted from the
+  source (registered entries, returns through the emulated stack, stops, call-outs, register escapes,
+  video calls with no host backend, scaffolding writes; `--files` per file). With `tools/census.py`'s
+  run-time count, the measure of how far the native program is from no emulator (docs/PLAN.md,
+  "What done means, measured").
 - `python3 -m tools.generate.show BB:AAAA... [--m 8 --x 16]`: routines as drafts for their hand ports, to
   stdout, never into the repo. **Ask for every routine of a chunk in one run**: the analysis is solved
   once for the whole run and is nearly all of its time, so four drafts cost the same 27 seconds as one.
