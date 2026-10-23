@@ -2837,6 +2837,21 @@ waits on M5 rather than on a backend.
   `state_host.c` and `game/data/assets.c` each carry the HiROM address map,
   which wants one copy; CLAUDE.md's command and CI lists don't name `ct_native`,
   `ct_native_whole` or `tasks_test`.
+- **What ct_native's field and title review left** (none rated translation):
+  the field's and scenes' C state sequences that only `ct_native` runs sit
+  beside the machine entries shadow mode checks, two copies that can drift with
+  nothing gating the C one -- `object_view.c` against `field_update_visibility`,
+  `object_update.c` against `update_object` and `resort_party`, `main_loop.c`
+  against `field_frame_work` and `the_pass`, `menus.c` against
+  `field_pause_and_menus`, `location.c` against `field_start_location_song`; make
+  each entry a thin wrapper over its sequence through callbacks, as
+  `draw_queued_frames` and `run_queued_turns` do. `object_view_updated` skips
+  the guard `field_view_change_in_the_tables`. New functions sit under other
+  functions' comments in `frames.c`, `object_view.c` and `screen_effects.c`.
+  `scene/frame.c`'s switch picking the scene program's routines by ROM address
+  repeats its table; give the table a C column. `data/decompress.c` adds up
+  `accesses` along every path; count segments, controls and references and
+  work the charge out once.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in
