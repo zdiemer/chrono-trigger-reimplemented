@@ -13,7 +13,7 @@
  *          [--page-report] [--event-reads out.txt] [--sound-lockstep [out.txt]]
  *          [--sound-lockstep-level status|keys|dsp|state] [--sound-lockstep-audio exact|host]
  *          [--sound-lockstep-wav prefix] [--sound-driver original|c] [--mixer dsp|native|check]
- *          [--scaffold-reads [original]] [--fallbacks out.txt] [--apu-port-margins]
+ *          [--scaffold-reads [original]] [--fallbacks out.txt] [--census out.txt] [--apu-port-margins]
  *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC]
  *          [--index-check BBAAAA]...
  *
@@ -125,6 +125,12 @@
  * ports stand for isn't counted, so a movie measures its own play, the same
  * whatever the ports' timing (the gate's ratchet); in the shipping mode it
  * measures where the run went. tools/fallbacks.py reads the file.
+ * --census out.txt (with --native on; not with --fallbacks) counts, for each
+ * registered entry, how often the machine entered it -- through a vector,
+ * from the original's code, or from a port's call-out, stop, yield or return
+ * -- and how often a port ran its work as C, with the caller that made each
+ * (dev/census.h): what still holds the entry to the registry.
+ * tools/census.py reads the files.
  * --apu-port-margins prints, at the end, how long after the SPC700 read a
  * message's last two bytes (ports 2-3, after its echo) the CPU's next ones
  * came, the least and their histogram, and how many came before it read them
@@ -160,6 +166,7 @@
 
 #include "apu_margins.h"
 #include "event_reads.h"
+#include "census.h"
 #include "fallbacks.h"
 #include "io_log.h"
 #include "misses.h"
@@ -196,6 +203,7 @@ static IoLog *io_log;
 static EventReads *event_reads;
 static Misses *misses;
 static Fallbacks *fallbacks;
+static Census *census;
 static bool scaffold_reads_original;   /* --scaffold-reads original */
 static VidCheck *vid_check;
 static PxCheck *px_check;
@@ -336,6 +344,8 @@ static void on_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
         misses_note(misses, pc, p, e);
     if (fallbacks)
         fallbacks_note(fallbacks, pc, p, e);
+    if (census)
+        census_note(census, pc);
     if (scaffold_reads_original)
         scaffold_reads_note_pc(pc);
     bool m = e || (p & CPU_FLAG_M), x = e || (p & CPU_FLAG_X);
@@ -556,7 +566,7 @@ int main(int argc, char **argv)
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     const char *zst_path = NULL, *vid_check_path = NULL, *px_check_path = NULL;
     const char *spc_coverage_path = NULL, *dsp_log_path = NULL, *event_reads_path = NULL;
-    const char *lockstep_path = NULL, *fallbacks_path = NULL;
+    const char *lockstep_path = NULL, *fallbacks_path = NULL, *census_path = NULL;
     bool want_vid_check = false, want_px_check = false, want_lockstep = false, want_margins = false;
     SoundCompareLevel lockstep_level = SOUND_COMPARE_DSP;
     int audio_timing = -1;
@@ -666,6 +676,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--event-reads")) event_reads_path = v;
         else if (!strcmp(a, "--misses")) misses_path = v;
         else if (!strcmp(a, "--fallbacks")) fallbacks_path = v;
+        else if (!strcmp(a, "--census")) census_path = v;
         else if (!strcmp(a, "--vid-check")) { vid_check_path = v; want_vid_check = true; }
         else if (!strcmp(a, "--vid-check-from")) { vid_check_from = strtol(v, NULL, 10); want_vid_check = true; }
         else if (!strcmp(a, "--px-check")) { px_check_path = v; want_px_check = true; }
@@ -759,7 +770,7 @@ int main(int argc, char **argv)
                         "[--timing-report] [--page-report] [--event-reads out.txt] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
-                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--apu-port-margins] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
+                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--census out.txt] [--apu-port-margins] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
                         "[--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]...\n");
         return 2;
     }
@@ -901,12 +912,22 @@ int main(int argc, char **argv)
         }
         fallbacks_attach(fallbacks, natives, native_mode == NATIVE_SHADOW);
     }
+    if (census_path) {
+        if (native_mode != NATIVE_ON || fallbacks_path) {
+            fprintf(stderr, "--census needs --native on, and not --fallbacks: it takes the runtime's observer\n");
+            return 2;
+        }
+        if (!(census = census_create(&snes, natives))) {
+            fprintf(stderr, "out of memory\n");
+            return 1;
+        }
+    }
     if (event_reads_path)
         event_reads = event_reads_create(&snes);
     if (nindex_checks && (native_mode != NATIVE_OFF || use_generated))
         fprintf(stderr, "warning: --index-check sees only what the interpreter runs; use --native off --generated off\n");
     if (coverage_path || calls_path || insn_stats || io_log_path || misses_path || event_reads_path || nindex_checks ||
-        fallbacks_path || scaffold_reads_original) {
+        fallbacks_path || census_path || scaffold_reads_original) {
         snes.cpu.on_insn = on_insn;
         snes.cpu.on_insn_ctx = &cov;
     }
@@ -1148,6 +1169,14 @@ int main(int argc, char **argv)
         }
     }
     fallbacks_destroy(fallbacks);
+    if (census) {
+        census_summary(census, stderr);
+        if (census_write(census, census_path) != 0) {
+            fprintf(stderr, "cannot write %s\n", census_path);
+            rc = 1;
+        }
+    }
+    census_destroy(census);
     if (event_reads && event_reads_write(event_reads, event_reads_path, stderr) != 0) {
         fprintf(stderr, "cannot write %s\n", event_reads_path);
         rc = 1;

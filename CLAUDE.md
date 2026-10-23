@@ -24,17 +24,17 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - Main build: `cmake -S . -B build/main -G Ninja -DCT_ROM=roms/ct-usa.sfc
   "-DCT_GENERATED_COVERAGE=traces/coverage-*.txt;traces/saves/cov-*.txt"
   "-DCT_GENERATED_CALLS=traces/calls-*.txt;traces/saves/calls-*.txt" && cmake --build build/main` builds
-  `ct_dev` (ROM on our runtime, writes `.cttr` traces; see docs/RUNTIME.md), `ct_play` (docs/PLAYING.md),
+  `ct_dev` (ROM on our runtime, writes `.cttr` traces; see docs/RUNTIME.md), `ct_play` (docs/PLAYING.md), `ct_native` (the game with no emulator under it; docs/PLAYING.md, "The native program"),
   `ct_fuzz`, the conformance runners, the C generated from the ROM (docs/GENERATED.md) and the matching
   reassembly check (docs/MATCHING.md). Coverage and call files are optional, gitignored inputs.
 - CPU tests: `python3 tests/cpu/fetch_sst.py` and `python3 tests/apu/fetch_sst_spc700.py` once, then
   `build/main/sst_runner tests/cpu/data/*.bin`, `build/main/sst_generated_runner tests/cpu/data/*.bin`,
   `build/main/generated_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
-  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `vars_test`, `sound_test` and `timing_test` need no data; `build/main/ct_sound_fuzz` checks
+  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `vars_test`, `sound_test`, `timing_test` and `tasks_test` need no data; `build/main/ct_sound_fuzz` checks
   the C sound driver against the original's in lockstep (docs/SOUND.md).
 - CI (`.github/workflows/ci.yml`): Linux gcc and clang, macOS Apple clang, Windows MSYS2 MinGW gcc, all
-  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `vars_test`, `sound_test`, `timing_test`,
-  the conformance runners (test data cached) and builds `ct_play` and the oracle. Code must build
+  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `vars_test`, `sound_test`, `timing_test`, `tasks_test`,
+  the conformance runners (test data cached) and builds `ct_play`, `ct_native` and the oracle. Code must build
   warning-free on all four and tests must pass without a ROM. Docs-only changes don't trigger it.
 - Movies: `oracle/movies/*.ctm` from power-on, and `oracle/movies/saves/*.ctm` from cartridge saves
   (`--sram`; each header names its save and frame count; docs/RUNTIME.md). Record new ones with
@@ -45,6 +45,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `--by subsystem`, with `--uncovered BANK` listing the largest unported runs. An estimate, for
   sequencing the port work (docs/PLAN.md); its docstring says which way it is wrong. It counts a
   port that transliterates the assembly as done, so read it with `portstyle.py`.
+- `python3 tools/census.py --ct-dev build/main/ct_dev`: how the game is entered, per registered entry
+  over the library in the shipping mode (`ct_dev --census`): by the machine (a vector, a port's call-out,
+  stop, yield or return) or as C, and the caller holding it to the registry. The count by the machine is
+  what taking the registry down drives to 0 (docs/PLAN.md, "The native program").
 - `python3 tools/portstyle.py`: how much of each port is reimplementation and how much is
   transliterated assembly, per subsystem and per file (`--files`, `--subsystem S`). `--check` is the
   gate's ratchet against `tools/portstyle_baseline.txt`, the files written before the bar existed:

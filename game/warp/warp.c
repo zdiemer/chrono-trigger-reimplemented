@@ -27,7 +27,7 @@
 #include "warp/warp_data.h"
 
 #include "charge.h"
-#include "core/console.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "platform/timing.h"
@@ -100,8 +100,8 @@ static void start_the_warp(GameState *g, Platform *pf)
     vid_set_display(pf, PF_AT(0xFDDBAD), &(VidDisplay){ .brightness = FULL_BRIGHTNESS, .blank = true });
     tm_enable_interrupts(pf, PF_AT(0xFDDBB0), 0);
     set_warp_zero(g, 0);
-    console_install_vblank_handler(g, WARP_VBLANK_HANDLER);
-    console_install_line_handler(g, WARP_LINE_HANDLER);
+    program_install_vblank_handler(g, WARP_VBLANK_HANDLER);
+    program_install_line_handler(g, WARP_LINE_HANDLER);
     keep_the_story_flags(g);
     warp_draw_picture(g, pf);
     set_warp_circle_tables_built(g, 0);

@@ -37,7 +37,7 @@
 #include "battle/sound.h"
 #include "battle/wait.h"
 #include "charge.h"
-#include "core/console.h"
+#include "core/program.h"
 #include "field/sounds.h"
 #include "platform/audio.h"
 #include "vars.h"
@@ -321,7 +321,7 @@ static bool close_the_display(Snes *s)
     battle_arrange_the_lines(g, LEAVING);
     if (!battle_wait_for_the_handler_from(s, 0xCD0415))
         return false;
-    console_install_vblank_handler(g, SMALL_VBLANK_HANDLER);
+    program_install_vblank_handler(g, SMALL_VBLANK_HANDLER);
     set_battle_scratch(g, FADE_FROM, battle_brightness(g));
     do
         if (!wait_for_the_small_handler(s, 0xCD0428))

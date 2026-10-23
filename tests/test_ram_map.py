@@ -289,7 +289,8 @@ class TestAccessors(unittest.TestCase):
                      "#define IN_RANGE(g, var, accessor, bound, index, limit) ((void)0)"):
             with self.subTest(line=line):
                 self.assertIn(line, c)
-        on, off = c.index("#ifdef CT_ACCESSOR_CHECKS"), c.index("#else")
+        on = c.index("#ifdef CT_ACCESSOR_CHECKS")
+        off = c.index("#else", on)
         self.assertLess(on, c.index("static void out_of_range("))
         self.assertLess(c.index("static void out_of_range("), off)
 

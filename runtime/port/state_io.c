@@ -5,6 +5,7 @@
  * read on the bus; and the time charged and the original's frames, kept by the
  * runtime. */
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "original_frame.h"
 #include "rom.h"
@@ -124,4 +125,13 @@ void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes)
     for (uint32_t i = 0; i < bytes; i++)
         m_write8(s, in_bank(to, i), m_read8(s, in_bank(from, i)));
     native_uncounted_end(s, mark);
+}
+
+/* ---- Where the program's C ends (core/program.h) --------------------------------------------- */
+
+/* On the machine the program goes on from there by address: the CPU reaches
+ * the routine's entry, so nothing stops. */
+void program_needs_the_machine(GameState *g, uint32_t routine, const char *what)
+{
+    (void)g, (void)routine, (void)what;
 }

@@ -66,13 +66,13 @@ in place of the ports: the native coverage.
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 3% left (97% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program about 75%, battle frame work 90%, field graphics 92%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (42 movies): 6.6 KiB, 0.95 M instructions (handback 2.6 KiB, unported 4.4 KiB; 1.66 M before chunk 10, the Epoch's dive's 0.41 M of it now 9.5 K); shipping mode over the movies 0.09 M (2.40 M before chunk 10, 2.31 M of it the dive's, now 2.1 K), the routes 0.06 M (2.37 M before); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (48 movies): 0.55 M instructions (0.95 M over 42 before chunk 11); shipping mode over the movies 0, the routes 18 K (all hand-backs: the program's start's in the Black Tyrano's route, the vblank list's and the battle's calling in); the hand ports alone (`strict_check.py`) carry all 48 movies to their end; no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "Phase 4a, the shipping mode's fallbacks, chunk 11") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
 | SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP; the original stays as the gate's reference | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
-| How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c` | `main()` boots the game and callers call ports; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
+| How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c`. Census (`tools/census.py`, shipping mode, 48 movies): 259 entries entered by the machine, 21.5 M times (vector 1.9 M, a port's call-out 12.4 M, its stop 5.3 M, its return 1.8 M, a task's yield 0.1 M; none from the original's code), and 19 wait loops still passed on the machine 406 M times; 1,293 entries run only as C | `main()` boots the game and callers call ports; census 0; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
 
 **Burndown overstates how native the game is.** It counts a port's whole
 reach as done, including what the port hands back to the original at run
@@ -225,7 +225,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 309 files, 117 of 96,541 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 311 files, 117 of 96,714 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -566,10 +566,11 @@ by an audit; the fourth is the program itself.
   to after a stretch that is no longer one on the machine. The library is the
   limit now, not the ports: what no movie reaches (docs/movies-wanted.md) is
   where the hand ports alone stop, and the next movies are what extends this.
-  Next: step 3 of "The native program" below, the skeleton, since C now covers
-  whole plays, and the fallbacks the reference play still counts (the
-  fallback measure, REIMPLEMENTATION.md), which are the original's code run
-  inside comparisons where the ports' C would run in the product.
+  Next: "The native program" below, now that C covers whole plays and the
+  program's top and `ct_native` exist, and the fallbacks the reference play
+  still counts (the fallback measure, REIMPLEMENTATION.md), which are the
+  original's code run inside comparisons where the ports' C would run in the
+  product.
 
   **Timing** (PLATFORM.md, "Timing without a beam, as built"): the calls and
   their host backend are built, the field's budgets, the menus' task switch
@@ -578,9 +579,8 @@ by an audit; the fourth is the program itself.
   still made on the machine (the field's `$C0:EC60` the largest, which needs
   a wait a machine copy can hold before it takes the battle's shape; the
   line handlers wait for their line through `tm_wait_line_drawn`), the host
-  backend's place in `ct_native`, and the
-  menus' tasks, which each need a coroutine of their own or a rewrite to
-  resume.
+  backend's other services, and the menus' tasks' bodies as functions of the
+  game's state for their coroutines (`core/tasks.c`) to run.
 
 - **The native program, and the registry taken down.** Today the emulated
   CPU walks the ROM from its reset vector, and a port runs because the
@@ -589,35 +589,33 @@ by an audit; the fourth is the program itself.
   gate run the original beside the port, and it is scaffolding like the rest:
   a shipped build has a `main()` that boots the game and callers that call
   ports. It is taken down in deliberate steps, each its own commit, none of
-  them by accident:
-  1. **Measure it.** A census from a shipping-mode run (`ct_dev --native on
-     --generated on`): for each registered entry, how often it was entered by
-     the machine (from generated code, the interpreter or a vector) and how
-     often a port called it as C. The count entered by the machine is the
-     number this item drives to 0, and goes in the table above. The census
-     names which caller still holds each entry to the registry.
+  them by accident. The census (`tools/census.py`; REIMPLEMENTATION.md, "The
+  census: how the game is entered") measures it: the count entered by the
+  machine, in the table above, is the number this item drives to 0, and it
+  names the caller that still holds each entry to the registry. The program's
+  top is `game/core/program.c` (a boot, the main thread, the vblank and line
+  handlers sent where the mode's stubs say), which the console's entries call
+  on the machine and `ct_native` (PLAYING.md, "The native program") calls
+  with nothing under it; the menus' tasks have their coroutines
+  (`core/tasks.c`).
   2. **Ports call ports.** Where a port reaches another port through a
      call-out (`portsmell`'s `sibling-through-machine` already finds these), it
      calls the C function, keeping the callee's time with `NATIVE_TIME_AS`.
      This happens anyway as subsystems finish; the census says where it is
-     still owed.
-  3. **The skeleton.** `game/` gets the program's top: a boot function, the
-     main thread and the menus' tasks as coroutines (`runtime/port/fiber.h`)
-     whose frame waits yield to the driver, and the frame's work -- the vblank handler,
-     the line handler -- as functions the driver calls each frame, in place
-     of the interrupt vectors and the RAM trampolines the game points them
-     through. The power-on item above ports what those entries do; this
-     step makes them functions the driver calls rather than addresses the
-     CPU jumps to.
-  4. **A slice with nothing under it, early.** A build target (`ct_native`)
-     that links `game/`, `runtime/platform/` with its host backends and
-     `fiber.h`, and none of the emulator, the generated C or the registry,
-     run as soon as boot, the title and a few field maps are ported. Its
-     link errors and its first frames are the list of what still assumes a
-     machine -- a wait on the beam, code run from RAM, a port that reads a
-     register -- found while there is time to change course, not after the
-     last port. It is a measurement, not the product, until the rest
-     arrives.
+     still owed: the menus' object scripts, the battle's handlers, timers and
+     frame dispatch, the menus' tasks and the field's frame hold the most.
+  3. **`ct_native` to the title, then a few field maps.** `ct_native` runs
+     the boot and stops at frame 1 at the field's first start (`$C0:000E`),
+     the first step only the machine runs; `ct_native_whole`, the whole of
+     `game/` linked the same way, is the list of what still assumes a
+     machine (TODO.md, "The native program"). Next, in order: the field's
+     first start and entry as functions of the game's state (their call-out
+     to the sound driver's boot and their stops are what hold them), the
+     modes' handlers as functions in `core/program.c`'s table, and the host
+     video backend over the observer, so the frames it reaches can be seen
+     and compared with `ct_play`'s. Each step is measured by how far
+     `ct_native` gets and by `ct_native_whole`'s count; it is a measurement,
+     not the product, until the rest arrives.
   5. **Per subsystem, the registry goes with the gate.** When a subsystem
      retires the gate ("Retiring the gate, deliberately", above), its rows
      leave `game/registry.c`, its entry wrappers and leaves files are

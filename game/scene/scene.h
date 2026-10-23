@@ -65,6 +65,7 @@
 #include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
+#include "port/native.h"
 #include "snes/system.h"
 #include "state.h"
 #include "vars.h"
