@@ -107,8 +107,9 @@ static void leave_the_cells(GameState *g, const Workings *l)
         set_decompress_scratch(g, l->reference_at);
 }
 
-/* The original's time, which the timing gate measures the port by
- * (charge.h): it reads the stream and writes the output as the port does,
+/* The original's time, which the timing gate measures the port by, and
+ * the native shape keeps (charge.h; charged plainly, not as scaffolding): it
+ * reads the stream and writes the output as the port does,
  * but keeps its place, its bits and its counts in its direct page's cells,
  * reading and writing them at each step where the port keeps them in locals.
  * Those accesses, by what it does: its cells set up, and read again at the
@@ -189,9 +190,8 @@ uint16_t unpack_stream(GameState *g)
     ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
     ORIGINAL_EFFECT(leave_the_cells(g, &l));
     ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-    ORIGINAL_EFFECT(charge_as(g, UNPACK_STREAM_ENTRY, accesses));
+    charge_as(g, UNPACK_STREAM_ENTRY, accesses);
     (void)mark;
-    (void)accesses;
     return length;
 }
 

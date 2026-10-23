@@ -105,6 +105,7 @@ menu_new_game_setting	bytes	C2:FBCE	C2:FCB1	raw	accessor menu_new_game_setting
 scene_matrix_table	words	C3:09D9	C3:09E8	raw	accessor scene_matrix_table
 attract_resource_ptrs.0	lz	C3:1200	C3:1312	lz	attract_resource_ptrs entry
 attract_resource_ptrs.1	lz	C3:1313	C3:7A2B	lz	attract_resource_ptrs entry
+mixed_c37a2c	mixed	C3:7A2C	C3:8B6B	raw	read
 scene_script_ptrs.0	lz	C3:8B6C	C3:97D6	lz	scene_script_ptrs entry
 scene_script_ptrs.1	lz	C3:97D7	C3:9F40	lz	scene_script_ptrs entry
 scene_script_ptrs.2	lz	C3:9F41	C3:A606	lz	scene_script_ptrs entry
@@ -184,6 +185,7 @@ menu_scene_stream.10	lz	C5:ED14	C5:F364	lz	menu_scene_stream entry
 menu_scene_stream.11	lz	C6:0000	C6:07B5	lz	menu_scene_stream entry
 menu_scene_stream.12	lz	C6:07B6	C6:0E99	lz	menu_scene_stream entry
 menu_scene_stream.13	lz	C6:0E9A	C6:1E70	lz	menu_scene_stream entry
+mixed_c61e71	mixed	C6:1E71	C6:2410	raw	read
 overworld_place_lists.0	lz	C6:2411	C6:25DE	lz	overworld_place_lists entry
 overworld_place_lists.1	lz	C6:25DF	C6:2798	lz	overworld_place_lists entry
 overworld_place_lists.2	lz	C6:2799	C6:2833	lz	overworld_place_lists entry

@@ -128,6 +128,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xC309D9u, 16u, "scene_matrix_table", 1, 4 },
     { 0xC31200u, 275u, "attract_resource_ptrs.0", 7, 2 },
     { 0xC31313u, 26393u, "attract_resource_ptrs.1", 7, 2 },
+    { 0xC37A2Cu, 4416u, "mixed_c37a2c", 5, 4 },
     { 0xC38B6Cu, 3179u, "scene_script_ptrs.0", 7, 2 },
     { 0xC397D7u, 1898u, "scene_script_ptrs.1", 7, 2 },
     { 0xC39F41u, 1734u, "scene_script_ptrs.2", 7, 2 },
@@ -207,6 +208,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xC60000u, 1974u, "menu_scene_stream.11", 7, 2 },
     { 0xC607B6u, 1764u, "menu_scene_stream.12", 7, 2 },
     { 0xC60E9Au, 4055u, "menu_scene_stream.13", 7, 2 },
+    { 0xC61E71u, 1440u, "mixed_c61e71", 5, 4 },
     { 0xC62411u, 462u, "overworld_place_lists.0", 7, 2 },
     { 0xC625DFu, 442u, "overworld_place_lists.1", 7, 2 },
     { 0xC62799u, 155u, "overworld_place_lists.2", 7, 2 },
@@ -6115,8 +6117,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFFFF5u, 11u, "battle_screen_script_byte", 6, 4 },
 };
 
-AssetServed asset_served[6087];
+AssetServed asset_served[6089];
 
-const uint16_t asset_catalogue_count = 6087;
+const uint16_t asset_catalogue_count = 6089;
 
-const uint32_t asset_catalogue_version = 0x936255EEu;
+const uint32_t asset_catalogue_version = 0xDDF01F79u;
