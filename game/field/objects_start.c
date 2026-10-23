@@ -28,10 +28,13 @@
 #include "field/palettes.h"
 #include "field/scratch.h"
 #include "field/sprites.h"
+#include "field/walk.h"
 
 #include "charge.h"
 #include "cpu_io.h"
+#include "core/program.h"
 #include "event/calls.h"
+#include "event/engine.h"
 #include "event/event.h"
 #include "field/bridge.h"
 #include "menu/party.h"
@@ -228,6 +231,52 @@ void field_set_up_the_objects(Snes *s)
         return;
     show_what_the_party_wears(s);
     m_rts(s);
+}
+
+/* ---- The objects set up, as C ------------------------------------------------------------------ */
+
+/* The party's start on the map after the openings ($C0:9DC3), and the
+ * openings' place in the setup ($C0:58DE), which time them. */
+enum { PARTY_STARTS = 0xC09DC3 };
+
+/* A turn of scripts that ran its course; one that didn't is where the
+ * program goes no further, its runner having said where, or the setup's
+ * routine saying it here. */
+static bool ran_its_course(GameState *g, EventTurnEnd end, uint32_t routine)
+{
+    if (end == TURN_OVER)
+        return true;
+    if (end != TURN_HANDED_BACK)
+        program_needs_the_machine(g, routine, "a script the event engine hands to the original");
+    return false;
+}
+
+// $C0:56A6
+bool field_objects_set_up(GameState *g, Platform *pf)
+{
+    set_field_script_line_limit(g, SCRIPTS_STOP_AT_LINE);
+    set_field_animation_line_limit(g, ANIMATION_STOPS_AT_LINE);
+    field_forget_the_queued_transfers(g);
+    field_objects_let_go(g, true);
+    TIMED_AS(g, FIELD_START_THE_OBJECTS_ENTRY, field_objects_start_afresh(g, pf));
+    EventAsC c = { g, pf };
+    EventRunner r = event_runner_as_c(&c);
+    FieldObject object;
+    uint16_t at;
+    EventTurnEnd end = TURN_OVER;
+    TIMED_AS(g, OPENINGS, end = event_run_openings(g, &r, &object, &at));
+    if (!ran_its_course(g, end, OPENINGS))
+        return false;
+    if (!party_start_fits(g)) {
+        program_needs_the_machine(g, PARTY_STARTS, "the party's start where the port doesn't take it");
+        return false;
+    }
+    TIMED_AS(g, PARTY_STARTS, party_start_on_the_map(g));
+    TIMED_AS(g, MAP_SCRIPT_STARTS, end = event_run_map_script_commands(g, &r, &at));
+    if (!ran_its_course(g, end, MAP_SCRIPT_STARTS))
+        return false;
+    TIMED_AS(g, MENUS_SERVICES, party_wear_it_shows(g));
+    return true;
 }
 
 /* The guards: on the field's page with the data bank $00, a count of objects

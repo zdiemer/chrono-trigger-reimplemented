@@ -2,6 +2,8 @@
 #ifndef CT_GAME_FIELD_MAP_H
 #define CT_GAME_FIELD_MAP_H
 
+#include <stdbool.h>
+
 #include "snes/system.h"
 #include "state.h"
 
@@ -14,6 +16,10 @@
 void field_ask_to_unpack_the_map(GameState *g);
 void field_take_the_map_in(GameState *g);
 void field_mark_the_exits(GameState *g);
+
+/* The three in order, and the tile maps unpacked; false where their sizes
+ * are none the port takes, and the map is unpacked but its tile maps aren't. */
+bool field_load_the_map(GameState *g);
 
 // $C0:A33B
 void field_unpack_the_map(Snes *s);

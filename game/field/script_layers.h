@@ -29,6 +29,8 @@ void field_load_the_credits_letters(Snes *s);
 
 /* The main loop's turn at it ($C0:274D), and its guard. */
 void field_do_script_layer_work(Snes *s);
+/* The scripts' layer work for the frame, as C. */
+void field_script_layers_worked(GameState *g);
 bool field_script_layer_work_can_run(Snes *s);
 
 #endif

@@ -22,10 +22,15 @@ void display_blank_and_stop(Platform *pf)
 
 /* It masks the CPU's interrupts too and leaves the data bank 0; what it
  * leaves in A and the flags nobody reads (the entry's set). */
-static void go_dark(Snes *s)
+void display_leaves_the_machine_dark(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_I, true);
     s->cpu.db = 0x00;
+}
+
+static void go_dark(Snes *s)
+{
+    display_leaves_the_machine_dark(s);
     display_blank_and_stop(m_platform(s));
 }
 

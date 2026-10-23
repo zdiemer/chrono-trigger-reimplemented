@@ -65,7 +65,7 @@ static bool odd_frame(uint8_t count) { return count & 1; }
 
 // $FD:E022
 /* Count the frame on, and send this frame's half of the slots. */
-static void send_animated_tiles(GameState *g, Platform *pf)
+void tile_animations_send(GameState *g, Platform *pf)
 {
     vid_start_vram_uploads(pf, PF_AT(0xFDE02B), VID_VRAM_WORD_PORT);
     uint8_t count = (uint8_t)(tile_animation_frame(g) + 1);
@@ -233,6 +233,6 @@ bool tile_animation_upload_runs(Snes *s)
  * in A, X and Y nobody reads (the entry's set). */
 void tile_animation_upload(Snes *s)
 {
-    send_animated_tiles(state_of(s), m_platform(s));
+    tile_animations_send(state_of(s), m_platform(s));
     m_rtl(s);
 }

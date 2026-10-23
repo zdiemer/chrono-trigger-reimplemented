@@ -493,38 +493,101 @@ what `ct_play` becomes (PLAN.md, "The native program, and the registry taken
 down"). It is a measurement, not yet a player:
 
 ```sh
-build/main/ct_native --rom roms/ct-usa.sfc [--frames N] [--sram save.srm]
+build/main/ct_native --rom roms/ct-usa.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]
 ```
 
-It links `game/core/program.c` (the program's top: the boot, the main thread,
-the vblank and line handlers sent wherever the running mode's stubs say), the
-platform services' host backends (`runtime/platform/native/`), the coroutines
-(`runtime/port/fiber.h`) and the game's state held in the host's memory --
-the accessors' backing built with `CT_VARS_HOST`, beside
+With `--movie` the first controller presses what the movie's frames say,
+frame for frame; the native program's frames aren't the machine's (nothing
+in it takes the original's time), so a movie's presses land where they will.
+
+It links the whole of `game/` but `game/registry.c` -- the program's top in
+`game/core/program.c` (the boot, the main thread, the vblank and line
+handlers sent wherever the running mode's stubs say) and every port -- with
+the platform services' host backends (`runtime/platform/native/`), the
+coroutines (`runtime/port/fiber.h`) and the game's state held in the host's
+memory (the accessors' backing built with `CT_VARS_HOST`, beside
 `runtime/port/state_host.c`, with the multiplier, divider and work RAM port
-worked out in C -- and none of the CPU, the PPU, the APU, the generated code or
-`game/registry.c`. The game's data comes from the asset pack, read through the
-store (`game/data/assets.h`; "The game's resources", above): `<rom name>.assets`
+worked out in C), and none of the CPU, the PPU, the APU or the generated code.
+The game's data comes from the asset pack, read through the store
+(`game/data/assets.h`; "The game's resources", above): `<rom name>.assets`
 beside the ROM, or `--assets`, imported from the ROM where there is none. The
 ROM is read only to import it; no image of it is mapped
-(`runtime/port/rom_host.c`). Like the shipping shape, it is built without the ports'
-scaffolding, and it builds without a ROM.
+(`runtime/port/rom_host.c`). Like the shipping shape, it is built without the
+ports' scaffolding, and it builds without a ROM.
 
-The driver (`frontend/ct_native.c`) starts the host timing backend with the
+Nothing in it makes a machine, so the entry wrappers and bridges `game/`
+still has, which take a `Snes *`, are linked but never reached: the program
+calls the functions of the game's state they stand in front of. What they
+call of the machine -- the emulated bus, the runtime's call-outs, stops and
+returns, shadow mode's declarations, the time estimates -- is
+`runtime/port/no_machine.c`, each definition ending the program with what was
+reached. That file is the list of what `game/` still asks of a machine, and
+it shrinks as the wrappers leave.
+
+The host backends answer every service call the game makes. Video folds the
+calls into the picture's state through the development system's observer
+(`runtime/platform/observe.h`), reading the game's memory through the
+driver's reader; nothing draws it yet. The SNES's escapes a host has no
+meaning for are counted and reported, but for the field's memory clear,
+whose meaning is the multiplier's product copied over work RAM. Audio plays
+the C sound driver (`game/sound/`) in the sound processor's place
+(`frontend/sound_native.c`, the native counterpart of `sound_host.c`): the
+CPU half hands it the boot and the commands as calls, the game's sends
+through the service reach the CPU half as C (`sound_driver_send`), the
+scenes' commands come on the ports, and the driver's time passes a frame at
+a time and while the game waits on a port. Saves read and write the save
+RAM the driver loaded.
+
+The driver (`frontend/ct_native.c`) starts the host backends with the
 program and runs its frames headless: the vblank handler, the main thread as a
-coroutine until it waits for the frame, the line handler. Where the program's
-next step is still only a machine entry, `program_needs_the_machine` stops it
-and the driver says where (exit status 1):
+coroutine until it waits for the frame, the line handler, then a frame of the
+sound driver's time. Where the program's next step is still only a machine
+entry, `program_needs_the_machine` stops it and the driver says where (exit
+status 1):
 
 ```
-frame 1: the program's C goes no further: $C0:000E, the field engine's first start, runs only on the machine
+frame 2093: the program's C goes no further: $C2:0000, the menus' mode, for a screen drawn with sprites, runs only on the machine
 ```
 
-So far the boot runs as C -- the console's registers and the power-on screen
--- and the field's first start is the first step only the machine runs. It
-reports any access the host had no memory for (a register; none so far). What
-the rest of the game still assumes of a machine is TODO.md's "The native
-program", measured by linking all of `game/` the same way (`ct_native_whole`,
-built only when asked for, and expected to fail). The menus' tasks have their
-coroutines (`game/core/tasks.c`, checked by `tasks_test`) for when their
-bodies are functions of the game's state.
+So far the boot and the field run as C. At power-on the field's handlers
+are installed, the screen goes dark, work RAM is cleared, the sound driver
+boots and the cartridge's saves are looked at. Then the field is entered at
+location 0: the location loaded (its song, tile set, map and event script),
+its sprites built afresh, its objects started with their openings and the
+map's own script run by the event engine as C (`event_runner_as_c`), its
+screen set up and faded in; and its main loop runs a pass a frame -- the
+pause and the menus, the requests (a location change starts the field again
+at the new place), the leader's walk, the confirm button, the dialog
+window, the screen effect, the scripts' layer work, and the frame's work
+(the objects' turns and moves, the line effects, the palettes, the frames
+drawn, the sprite table) -- with the field's vblank and line handlers as C
+in `core/program.c`'s table. The next location's script ends the field into
+the title, a scene: the scene engine boots it and unpacks its program into
+work RAM, whose data (the scripts, the sprite lists) the C reads; the
+program starts (the sound put back to normal, the first screen), the title
+is set up and its song started and waited for, and its frames run -- the
+NMI's frame work with its two task lists as C, the sequence scripts'
+channels turned as C (`scene_channel_turn`) -- until a script ends the
+scene, when the game goes back to the field (`scene_runs`,
+`scene/program.c`; the main thread goes between the two, `core/program.c`).
+Left alone, the title gives way to the attract demo: the field again, until
+it enters the menus' mode for a screen drawn with sprites. With
+`new-game.ctm`'s presses, Start ends the title and the field's next script
+asks for a menu (frame 1676, `$C0:0C76`): the menus are the next step only
+the machine runs.
+
+The field's steps as the program calls them (`field_runs`,
+`field/main_loop.c`) are functions of the game's state beside the entries
+the machine reaches: where an entry's work had no call into the machine,
+the entry calls the same function; where the machine needs its frames and
+call-outs to compare a step with the original's (the budgets' turns, the
+song's calls to the driver), the program's sequence calls the step's C and
+the entry keeps its bridge. Where a step meets a state the port doesn't take
+-- a guard that would hand the call to the original on the machine -- or a
+request, an event command or a menu only the machine runs yet, the program
+stops there and says which. It reports any access the host had no memory
+for (a register; none so far), and any video escape it couldn't follow.
+What the rest of the game still assumes of a machine is TODO.md's "The
+native program". The menus' tasks have their coroutines (`game/core/tasks.c`,
+checked by `tasks_test`) for when their bodies are functions of the game's
+state.

@@ -27,7 +27,9 @@
  * the list's exits, and stops where the original waits. */
 #include "scene/scene.h"
 
+#include "charge.h"
 #include "core/input.h"
+#include "core/program.h"
 #include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/input.h"
@@ -756,6 +758,94 @@ void scene_task_alone(Snes *s, const SceneTaskPort *port)
         s->cpu.x = end.next;
         m_stop_at_own(s, TASK_HANDS_OVER_EXIT, THE_HAND_OVER_READS_THE_NEXT_TASK_TOO);
     }
+}
+
+/* ---- The frame as C, with no machine ------------------------------------------------------------ */
+
+/* The program's routines on the lists the port has as C beside the tasks'
+ * own: the channels' turns, the sprites hidden and the palette sent. Each
+ * stays on its list. */
+static bool program_routine_as_c(GameState *g, Platform *pf, SceneTask task)
+{
+    switch (PROGRAM_BANK | task) {
+    case 0x7E3749: return scene_channel_turn(g, pf, 0) == SCENE_TURN_ENDED;
+    case 0x7E3754: return scene_channel_turn(g, pf, 1) == SCENE_TURN_ENDED;
+    case 0x7E3843: scene_hide_every_sprite(pf); return true;
+    case 0x7E388B: scene_send_palette(pf); return true;
+    default:
+        program_needs_the_machine(g, PROGRAM_BANK | task, "a scene's task only the machine runs");
+        return false;
+    }
+}
+
+/* A list's tasks in order, the list read again after each, which can change
+ * it; false where a task is the machine's yet. */
+static bool run_tasks_as_c(GameState *g, Platform *pf, SceneTaskList list)
+{
+    unsigned count = list_length(list);
+    for (unsigned slot = 0; slot < count; slot++) {
+        SceneTask task = list == SCENE_VBLANK_TASKS ? scene_early_tasks(g, slot) : scene_tasks_running(g, slot);
+        if (task == NO_TASK)
+            continue;
+        const SceneTaskPort *port = port_of(task, list);
+        if (port) {
+            TaskEnd end = task_goes_on();
+            TIMED_AS(g, PROGRAM_BANK | task, end = port->run(g, pf));
+            end_the_task(g, list, slot, end);
+            continue;
+        }
+        bool done = false;
+        TIMED_AS(g, PROGRAM_BANK | task, done = program_routine_as_c(g, pf, task));
+        if (!done)
+            return false;
+    }
+    return true;
+}
+
+// $C3:08D0
+bool scene_frame_work_as_c(GameState *g, Platform *pf)
+{
+    (void)begin_frame(g, pf);
+    if (!is_paused(g) && !run_tasks_as_c(g, pf, SCENE_VBLANK_TASKS))
+        return false;
+    after_vblank_tasks(g, pf);
+    switch (read_controller(g, pf)) {
+    case PAD_BUSY: break;
+    case PAD_RESET:
+        program_needs_the_machine(g, 0x00FF00, "the reset the controller asks for in a scene");
+        return false;
+    case PAD_READ:
+        if (press_pause(g, scene_joypad(g)) != PAUSE_UNCHANGED)
+            scene_sends_the_command(g, pf);
+        break;
+    }
+    if (is_paused(g))
+        dim_for_pause(g, pf);
+    else if (!run_tasks_as_c(g, pf, SCENE_FRAME_TASKS))
+        return false;
+    install_handler(g, FRAME_HANDLER);
+    return true;
+}
+
+// $C3:08B3
+void scene_vblank(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, 0xC308D0, done = scene_frame_work_as_c(g, pf));
+    uint8_t song;
+    if (!done || !song_to_send(g, &song))
+        return;
+    au_command(pf, PF_CALL_DC(0xC309D1, 0xC70004, DC_AL | DC_X | DC_N | DC_Z | DC_C),
+               (AudioCommand){ .command = PLAY_SONG, .p1 = song, .p2 = SONG_VOLUME_AS_IS, .p3 = SONG_ECHO_AS_IS,
+                               .count = 3 });
+    set_sending_song(g, false);
+}
+
+// $C3:08C9
+void scene_vblank_while_working(GameState *g, Platform *pf)
+{
+    (void)g;
+    (void)tm_ack_vblank(pf, PF_AT(0xC308CB));
 }
 
 /* The frame's tasks, from the copy of the list the frame's work made, each

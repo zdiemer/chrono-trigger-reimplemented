@@ -10,6 +10,7 @@
  * time with its music, and whether the music is playing. The race's engine is its own message (scene/race.c). */
 #include "scene/scene.h"
 
+#include "charge.h"
 #include "platform/audio.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -162,6 +163,27 @@ static void into_the_buffer(GameState *g, unsigned n)
     set_sound_command_parameters(g, 0, back_to_normal[n].p1);
     set_sound_command_parameters(g, 1, back_to_normal[n].p2);
 }
+
+/* As C: the command in the buffer sent, and the driver's echo waited for. */
+static void send_and_wait_for_the_echo(GameState *g, Platform *pf)
+{
+    uint8_t command = send_sound_command(g, pf);
+    au_driver_wait_echo(pf, PF_LOOP(0x7E379B, 0x7E37A5), command);
+}
+
+void scene_sound_back_to_normal_as_c(GameState *g, Platform *pf)
+{
+    if (scene_flags(g) & SCENE_FLAG_NO_SONGS)
+        return;
+    for (unsigned n = 0; n < BACK_TO_NORMAL; n++) {
+        into_the_buffer(g, n);
+        TIMED_AS(g, SCENE_SEND, send_and_wait_for_the_echo(g, pf));
+    }
+}
+
+void scene_sends_the_command(GameState *g, Platform *pf) { TIMED_AS(g, SCENE_SEND, send_and_wait_for_the_echo(g, pf)); }
+
+bool scene_music_is_playing(Platform *pf) { return music_playing(pf) != 0; }
 
 // $7E:3177
 void scene_sound_back_to_normal(Snes *s)

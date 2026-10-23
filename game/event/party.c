@@ -18,6 +18,7 @@
 #include "battle/battle.h"
 #include "charge.h"
 #include "event/bridge.h"
+#include "event/engine.h"
 #include "event/calls.h"
 #include "event/party.h"
 #include "field/palettes.h"
@@ -455,6 +456,33 @@ void event_cmd_send_to_the_reserve(Snes *s)
     NATIVE_TIME_AS(s, MENUS_SERVICES, ((void)party_send_to_the_reserve(g, character), shown(g)));
     ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_SEND_TO_THE_RESERVE, &call));
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), go_on });
+}
+
+/* ---- As C, with no machine ------------------------------------------------------------------ */
+
+/* The commands that call the menus' services, as C: the carry the
+ * original's dispatch leaves them is clear. */
+enum { THE_DISPATCH_LEAVES_THE_CARRY = false };
+
+bool event_bring_into_the_party_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    enum { LENGTH = 2 };
+    uint8_t character = event_decode(g, pf, event_opcode(0xD3), at).character;
+    TIMED_AS(g, MENUS_SERVICES, ((void)party_bring_in(g, character), shown(g)));
+    object_joins_the_party(g, character);
+    *step = (EventStep){ (uint16_t)(at + LENGTH), THE_DISPATCH_LEAVES_THE_CARRY };
+    return true;
+}
+
+bool event_send_to_the_reserve_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    enum { LENGTH = 2 };
+    uint8_t character = event_decode(g, pf, event_opcode(0xD4), at).character;
+    bool go_on = goes_on_after_sending(g, character, THE_DISPATCH_LEAVES_THE_CARRY);
+    member_steps_out(g, character);
+    TIMED_AS(g, MENUS_SERVICES, ((void)party_send_to_the_reserve(g, character), shown(g)));
+    *step = (EventStep){ (uint16_t)(at + LENGTH), go_on };
+    return true;
 }
 
 /* Their guards: the menus' services read the active party as characters

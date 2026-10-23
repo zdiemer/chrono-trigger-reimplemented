@@ -16,6 +16,7 @@
 #include "field/palettes.h"
 #include "field/cast.h"
 #include "field/sprites.h"
+#include "field/object_update.h"
 
 #include "charge.h"
 #include "cpu_io.h"
@@ -325,6 +326,35 @@ bool field_view_can_run(Snes *s)
 }
 
 /* The current object's (8-bit X). */
+/* The view step as C: the object comes into view or leaves it, its row
+ * joined or left. False where the row's links are none the port takes,
+ * the program going no further there (core/program.h). */
+bool object_view_updated(GameState *g, FieldObject obj)
+{
+    bool inside = belongs_in_view(g, obj);
+    bool was_in_view = object_in_view(g, obj);
+    if (inside) {
+        if (!was_in_view) {
+            come_into_view(g, obj);
+            (void)take_what_it_needs(g, obj);
+            return object_rows_step(g, obj, true);
+        }
+        return true;
+    }
+    if (was_in_view) {
+        object_set_in_view(g, obj, false);
+        give_up_what_it_had(g, obj);
+        if (!object_rows_step(g, obj, false))
+            return false;
+        after_leaving_view(g, obj);
+    }
+    object_hurry_animation(g, obj);
+    return true;
+}
+
+/* An object that matters only on the screen, checked against it. */
+void object_window_only_checked(GameState *g, FieldObject obj) { (void)check_on_screen(g, obj); }
+
 void field_update_object_visibility(Snes *s)
 {
     if (field_update_visibility(s, (FieldObject)field_current_object_slot(s)))

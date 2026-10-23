@@ -382,6 +382,13 @@ typedef unsigned SceneChannel;
 uint16_t scene_channel_register(const GameState *g, SceneChannel ch, unsigned n);
 void set_scene_channel_register(GameState *g, SceneChannel ch, unsigned n, uint16_t v);
 
+/* scene/script.c: a channel's turn as C, for a program with no machine under
+ * it: its script run until a command ends the turn; or until a command, or a
+ * routine it calls, is one only the machine runs yet, where the program goes
+ * no further (core/program.h). */
+typedef enum { SCENE_TURN_ENDED, SCENE_TURN_NEEDS_THE_MACHINE } SceneTurn;
+SceneTurn scene_channel_turn(GameState *g, Platform *pf, SceneChannel ch);
+
 /* scene/sound.c: how far the music has got. The sound driver shows it on a
  * port, which two reads that agree say is steady (not being changed as it is
  * read); its progress is a level from 0 to 15 that the song sets as it plays. */
@@ -390,6 +397,13 @@ typedef struct {
     bool steady;
 } MusicStatus;
 MusicStatus scene_music_status(Platform *pf);
+/* As C, for a program with no machine under it: the sound put back to normal
+ * as a scene starts and ends, each command sent through the program's own
+ * send and its echo waited for; that send alone, of the command in the
+ * buffer; and whether the music has started playing. */
+void scene_sound_back_to_normal_as_c(GameState *g, Platform *pf);
+void scene_sends_the_command(GameState *g, Platform *pf);
+bool scene_music_is_playing(Platform *pf);
 uint8_t scene_music_progress(MusicStatus music);
 bool scene_music_reached(MusicStatus music, uint8_t level);
 
@@ -590,6 +604,14 @@ SceneProgramPage scene_program_page_at_entry(const Snes *s);
 
 /* scene/boot.c */
 void scene_boot(Snes *s);
+/* As C, for a program with no machine under it: the boot with its flags,
+ * the program unpacked into work RAM (true where the scene runs with the line
+ * interrupt); the boot's two handlers; and a resource unpacked by its place
+ * in the program's table. */
+bool scene_boots(GameState *g, Platform *pf, uint8_t flags);
+void scene_boot_vblank(GameState *g, Platform *pf);
+void scene_boot_line(GameState *g, Platform *pf);
+void scene_unpacks(GameState *g, uint16_t resource);
 bool scene_boot_bank_reaches_io(Snes *s);
 void scene_boot_nmi(Snes *s);
 void scene_boot_line_irq(Snes *s);
@@ -611,6 +633,15 @@ void scene_copy_resource_bytes(GameState *g, uint8_t bank, uint16_t from, uint16
 
 /* scene/frame.c */
 void scene_nmi(Snes *s);
+/* As C, for a program with no machine under it: the frame's work, and the
+ * NMI handlers -- the frame's (the work, then the song), and the one that
+ * only acknowledges while it runs. The work is false where a task is one
+ * only the machine runs yet, the program going no further there. */
+bool scene_frame_work_as_c(GameState *g, Platform *pf);
+void scene_vblank(GameState *g, Platform *pf);
+void scene_vblank_while_working(GameState *g, Platform *pf);
+enum { SCENE_FRAME_HANDLER = 0xC308B3, SCENE_HANDLER_WHILE_WORKING = 0xC308C9, SCENE_BOOT_VBLANK = 0xC30548,
+       SCENE_BOOT_LINE = 0xC30529 };
 void scene_nmi_while_working(Snes *s);
 void scene_line_irq_ack(Snes *s);
 void scene_frame_work(Snes *s);
@@ -675,6 +706,9 @@ void scene_title_set_up(Snes *s);
  * call-out of its stopped. The title's then waits for its song, in the
  * original's loop. */
 bool scene_title_set_up_scene(Snes *s);
+/* The title's setup as C, for a program with no machine under it (the song
+ * started, not waited for); false where a step is the machine's yet. */
+bool scene_title_set_up_as_c(GameState *g, Platform *pf);
 void scene_title_wait_for_its_song(Snes *s);
 bool scene_race_set_up_scene(Snes *s);
 bool scene_ending_set_up_scene(Snes *s);
@@ -801,6 +835,14 @@ enum { SCENE_Y_PAST_THE_WORKING_PALETTE = 0x2400, SCENE_Y_PAST_THE_ANIMATIONS_SL
 bool scene_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 bool scene_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 
+
+/* scene/program.c: the scene program as C, for a program with no machine
+ * under it: booted with its flags, started, set up, its frames run until a
+ * script ends it, and ended, the game going back to the field's start; false
+ * where a step is the machine's yet, the program going no further there
+ * (core/program.h). And the program's end's display stopped (screen.c). */
+bool scene_runs(GameState *g, Platform *pf, uint8_t flags);
+void scene_stops_the_display(Platform *pf);
 
 /* scene/program.c (the program in RAM): its start, the pieces of it its waits
  * cut, and its end. */

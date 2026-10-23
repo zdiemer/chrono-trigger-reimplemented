@@ -21,6 +21,12 @@ enum { FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY = 0xC00005 };
 void field_rebuild_the_line_effects(Snes *s);
 bool field_line_effects_can_be_rebuilt(Snes *s);
 
+/* As a screen is set up: the line effects' values, their tables built, and
+ * them set up for the first frame ($C0:0B28's three calls); and the tables
+ * built for the next frame ($FD:C2C1's work). */
+void field_line_effects_ready(GameState *g, Platform *pf);
+void field_line_effects_build(GameState *g);
+
 void field_setup_line_effects(Snes *s);
 void field_init_line_effect_values(Snes *s);
 void field_build_line_effect_tables(Snes *s);

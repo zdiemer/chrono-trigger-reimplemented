@@ -585,6 +585,8 @@ void field_put_bg3_at_its_start(Snes *s) { put_at_its_start(s, FIELD_BG3); }
 
 /* Nothing they leave in the registers is read after (the entries' don't-care
  * sets). */
+void field_layer_scroll_updated(GameState *g) { update_layer_scroll(g); }
+
 void field_update_layer_scroll(Snes *s)
 {
     update_layer_scroll(state_of(s));

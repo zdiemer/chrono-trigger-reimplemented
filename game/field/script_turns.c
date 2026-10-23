@@ -20,6 +20,9 @@
 #include "platform/timing.h"
 
 #include "original_effects.h"
+#include "charge.h"
+#include "core/program.h"
+#include "event/engine.h"
 #include "field/bridge.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -181,6 +184,31 @@ void field_run_queued_turns(Snes *s)
         return;
     m_sep(s, CPU_FLAG_M);
     m_rts(s);
+}
+
+/* ---- As C, with no machine ------------------------------------------------------------------ */
+
+/* Each turn the event engine's, its commands as C (event/engine.h). */
+static bool take_turn_as_c(void *ctx, FieldObject obj)
+{
+    EventAsC *c = ctx;
+    EventRunner r = event_runner_as_c(c);
+    uint16_t at;
+    EventTurnEnd end = TURN_OVER;
+    TIMED_AS(c->game, RUN_A_TURN, end = event_run_turn(c->game, obj, &r, &at));
+    if (end == TURN_OVER)
+        return true;
+    if (end != TURN_HANDED_BACK)
+        program_needs_the_machine(c->game, RUN_A_TURN, "a turn the event engine hands to the original");
+    return false;
+}
+
+void field_queue_the_due_turns(GameState *g) { queue_due_turns(g); }
+
+bool field_queued_turns_run(GameState *g, Platform *pf)
+{
+    EventAsC c = { g, pf };
+    return run_queued_turns(g, pf, take_turn_as_c, &c) != TURN_WENT_ELSEWHERE;
 }
 
 /* ---- The guards ------------------------------------------------------------------------------- */

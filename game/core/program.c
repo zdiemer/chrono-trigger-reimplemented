@@ -19,6 +19,9 @@
 #include "core/program.h"
 
 #include "cpu_io.h"
+#include "field/field.h"
+#include "field/main_loop.h"
+#include "scene/scene.h"
 #include "original_effects.h"
 #include "platform/input.h"
 #include "platform/timing.h"
@@ -112,8 +115,8 @@ static const struct {
     const char *name;
     ProgramHandler run;
 } handlers[] = {
-    { 0xC0EA63, "the field's vblank handler", 0 },
-    { 0xC0ECCC, "the field's line handler", 0 },
+    { FIELD_VBLANK_HANDLER, "the field's vblank handler", field_vblank },
+    { FIELD_LINE_HANDLER, "the field's line handler", field_line },
     { 0xC2840E, "the menus' vblank handler", 0 },
     { 0xC28472, "the menus' line handler", 0 },
     { 0xC2015E, "the menus' screens' vblank handler", 0 },
@@ -121,10 +124,10 @@ static const struct {
     { 0xD1E77C, "the battle's vblank handler", 0 },
     { 0xD1FE97, "the battle's line handler", 0 },
     { 0xD1F4C0, "the battle's closing vblank handler", 0 },
-    { 0xC30548, "a scene's boot's vblank handler", 0 },
-    { 0xC30529, "a scene's boot's line handler", 0 },
-    { 0xC308B3, "a scene program's vblank handler", 0 },
-    { 0xC308C9, "a scene program's vblank handler while it works", 0 },
+    { SCENE_BOOT_VBLANK, "a scene's boot's vblank handler", scene_boot_vblank },
+    { SCENE_BOOT_LINE, "a scene's boot's line handler", scene_boot_line },
+    { SCENE_FRAME_HANDLER, "a scene program's vblank handler", scene_vblank },
+    { SCENE_HANDLER_WHILE_WORKING, "a scene program's vblank handler while it works", scene_vblank_while_working },
     { 0xFDDE15, "the warp's vblank handler", 0 },
     { 0xFDDE87, "the warp's line handler", 0 },
 };
@@ -151,7 +154,7 @@ void program_line(GameState *g, Platform *pf) { take(g, pf, program_line_stub(g)
 
 /* ---- The main thread ------------------------------------------------------------------------- */
 
-enum { FIELD_FIRST_START = 0xC0000E };
+enum { FIELD_ENTER = 0xC0005D };
 
 /* Where the program's next step is still a machine entry, it waits there,
  * frame after frame, for nothing: the build says where it stopped. */
@@ -162,8 +165,18 @@ static void go_no_further(GameState *g, Platform *pf, uint32_t routine, const ch
         tm_wait_frame(pf, PF_AT(routine));
 }
 
+/* After power-on the game goes between the field and the scenes: the field
+ * runs until it ends into a scene (an event's), the scene until its script
+ * ends it, and the field starts again. */
 void program_main_thread(GameState *g, Platform *pf)
 {
     program_boot(g, pf);
-    go_no_further(g, pf, FIELD_FIRST_START, "the field engine's first start");
+    field_power_on(g, pf);
+    for (;;) {
+        field_runs(g, pf);
+        uint8_t scene;
+        if (program_went_no_further(g) || !program_next_scene(g, &scene) || !scene_runs(g, pf, scene))
+            break;
+    }
+    go_no_further(g, pf, FIELD_ENTER, "the field's entry");
 }

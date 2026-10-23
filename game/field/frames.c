@@ -521,6 +521,12 @@ FieldFrameSent field_frame_sent(const GameState *g, FieldObject obj)
  * and the menus' BVC at $C2:F7D9; tools/v_readers.py --after C0:CAD9 has it
  * read. No decision of the field's reads it (banks $C0 and $FD have no
  * branch on it). */
+bool field_frame_part_drawn(GameState *g, FieldObject obj)
+{
+    FrameBuild outcome = draw_next_frame(g, obj);
+    return outcome == FRAME_PART_DRAWN || outcome == FRAME_WAITS;
+}
+
 void field_draw_next_frame(Snes *s)
 {
     GameState *g = state_of(s);
@@ -562,6 +568,17 @@ static FrameDrawing draw_on_the_machine(void *ctx, FieldObject obj, bool alone)
         return FRAME_DRAWING_WENT_ELSEWHERE;
     return m_flag(s, CPU_FLAG_C) ? FRAME_HAS_MORE_PARTS : FRAME_WHOLE;
 }
+
+static FrameDrawing draw_as_c(void *ctx, FieldObject obj, bool alone)
+{
+    (void)alone;
+    GameState *g = ctx;
+    bool more = false;
+    TIMED_AS(g, DRAW_A_FRAME, more = field_frame_part_drawn(g, obj));
+    return more ? FRAME_HAS_MORE_PARTS : FRAME_WHOLE;
+}
+
+void field_queued_frames_drawn(GameState *g, Platform *pf) { (void)draw_queued_frames(g, pf, draw_as_c, g); }
 
 /* With 8-bit A and index registers, as the original returns. */
 void field_draw_queued_frames(Snes *s)

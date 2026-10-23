@@ -9,7 +9,6 @@
 #include "port/machine.h"
 #include "port/vars_ram.h"
 
-enum { FIELD_VBLANK_HANDLER = 0xC0EA63, FIELD_LINE_HANDLER = 0xC0ECCC };
 
 // $C0:0B64
 void field_take_the_vblank_interrupt(GameState *g) { program_install_vblank_handler(g, FIELD_VBLANK_HANDLER); }

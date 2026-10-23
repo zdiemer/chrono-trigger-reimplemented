@@ -359,6 +359,14 @@ enum { FIELD_INSTALL_NMI_ENTRY = 0xC00B64, FIELD_INSTALL_IRQ_ENTRY = 0xC00B75 };
 void field_install_nmi(Snes *s);
 void field_install_irq(Snes *s);
 
+/* The handlers they install, as C for a program with no machine under it:
+ * the vblank's (field/nmi.c), which sends the frame's work and takes the
+ * frame's input, and the line's (field/display.c), which ends the picture
+ * and sends the dialog's pointer or the animated tiles after it. */
+enum { FIELD_VBLANK_HANDLER = 0xC0EA63, FIELD_LINE_HANDLER = 0xC0ECCC };
+void field_vblank(GameState *g, Platform *pf);
+void field_line(GameState *g, Platform *pf);
+
 /* field/nmi.c */
 void field_nmi(Snes *s);
 
@@ -389,6 +397,10 @@ bool field_lines_up_with_an_object(Snes *s);
 /* field/script_turns.c: the objects counted down to their scripts' turns and
  * queued, and the queued turns run while the frame has time. */
 void field_queue_due_turns(Snes *s);
+/* The same two as C: the second false where a turn is one the event engine
+ * hands to the original, the program going no further there. */
+void field_queue_the_due_turns(GameState *g);
+bool field_queued_turns_run(GameState *g, Platform *pf);
 void field_run_queued_turns(Snes *s);
 bool field_turns_can_be_counted(Snes *s);
 bool field_turns_can_run(Snes *s);
@@ -401,7 +413,11 @@ void field_read_animation_frame(Snes *s);
 bool field_object_delays_in_bank(Snes *s);
 bool field_object_frames_in_bank(Snes *s);
 
-/* field/object_view.c */
+/* field/object_view.c. The view step as C (false where a row's links are
+ * none the port takes, the program going no further there), and an object
+ * that matters only on the screen checked against it. */
+bool object_view_updated(GameState *g, FieldObject obj);
+void object_window_only_checked(GameState *g, FieldObject obj);
 void field_update_object_visibility(Snes *s);
 void field_update_object_in_window(Snes *s);
 

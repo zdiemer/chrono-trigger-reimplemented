@@ -152,3 +152,17 @@ void program_needs_the_machine(GameState *g, uint32_t routine, const char *what)
 {
     (void)g, (void)routine, (void)what;
 }
+
+bool program_went_no_further(const GameState *g)
+{
+    (void)g;
+    return false;
+}
+
+void program_goes_on_to_a_scene(GameState *g, uint8_t scene) { (void)g, (void)scene; }
+
+bool program_next_scene(GameState *g, uint8_t *scene)
+{
+    (void)g, (void)scene;
+    return false;
+}

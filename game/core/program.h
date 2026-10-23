@@ -57,5 +57,15 @@ ProgramStub program_line_stub(const GameState *g);
  * with no machine (runtime/port/state_host.c) the program stops there and the
  * driver says where. `what` names it for the report. */
 void program_needs_the_machine(GameState *g, uint32_t routine, const char *what);
+/* Whether it has: the program's C stops where it comes back to the main
+ * thread. Never on the machine. */
+bool program_went_no_further(const GameState *g);
+
+/* Where a mode that ends sends the program next, which the main thread takes
+ * when the mode returns to it: a scene of the scene engine's, the field
+ * ending into it. The state's backing keeps it; on the machine the address
+ * the mode jumps to is how the program goes on, and these are never called. */
+void program_goes_on_to_a_scene(GameState *g, uint8_t scene);
+bool program_next_scene(GameState *g, uint8_t *scene);
 
 #endif

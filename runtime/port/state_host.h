@@ -31,10 +31,10 @@ void state_host_destroy(GameState *g);
 uint8_t state_host_read8(const GameState *g, uint32_t addr);
 void state_host_write8(GameState *g, uint32_t addr, uint8_t v);
 
-/* The cartridge's save RAM, for the driver to keep (the save service's own
- * host half doesn't exist yet: TODO.md, "The native program"). */
+/* The cartridge's save RAM, which the driver hands the save service's host
+ * half (runtime/platform/native/host.h) and keeps. */
 enum { STATE_HOST_SRAM_BYTES = 0x2000 };
-const uint8_t *state_host_sram(const GameState *g);
+uint8_t *state_host_sram(GameState *g);
 
 /* Accesses the backing had no memory for: how many, and the first few addresses. */
 enum { STATE_HOST_STRAYS_KEPT = 8 };

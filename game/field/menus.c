@@ -42,6 +42,7 @@
 #include "field/walk.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "core/display.h"
 #include "core/input.h"
 #include "event/event.h"
@@ -391,6 +392,36 @@ void field_pause_and_menus(Snes *s)
         return;
     }
     m_rts(s);
+}
+
+/* The pause and the menus as C: the dialog window moved with Start, and a
+ * choice's buttons taken. False where the pause or a menu opens, which only
+ * the machine runs yet: the program goes no further there. */
+enum { PAUSE_AND_MENUS = 0xC018D9 };
+
+bool field_pause_and_menus_as_c(GameState *g)
+{
+    if (start_pauses(g)) {
+        program_needs_the_machine(g, PAUSE_AND_MENUS, "the pause");
+        return false;
+    }
+    if (assigned_pressed(g, ASSIGNED_START)) {
+        if (dialog_window_open(g)) {
+            TIMED_AS(g, PRESS_START, move_dialog_window(g));
+        } else if (start_opens_menu(g) && menus_may_open(g)) {
+            program_needs_the_machine(g, PRESS_START, "a menu Start opens");
+            return false;
+        }
+    }
+    if (assigned_pressed(g, ASSIGNED_MENU)) {
+        if (menus_may_open(g)) {
+            program_needs_the_machine(g, PAUSE_AND_MENUS, "a menu the menu button opens");
+            return false;
+        }
+    } else if (dialog_choice_waiting(g)) {
+        TIMED_AS(g, FIELD_TAKE_CHOICE_BUTTONS_ENTRY, field_take_choice_buttons(g, dialog_choice_active(g)));
+    }
+    return true;
 }
 
 // $C0:1985

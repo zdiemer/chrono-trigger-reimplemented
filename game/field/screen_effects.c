@@ -31,6 +31,7 @@
 #include "field/main_loop.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "core/display.h"
 #include "field/bridge.h"
 #include "field/display.h"
@@ -654,6 +655,19 @@ enum { STEP_TABLE_SITE = 0xC021EA };
 /* On the field's page, with 8-bit A and 16-bit index registers. A, X, Y and
  * the flags but V are dead after it; V is as it came, but for the
  * searchlight, which leaves the overflow of its last corner's move. */
+/* As C, where the step is the effect's own; false where it sweeps a
+ * curtain, closes the field into a scene or plays the ripple, which only the
+ * machine runs yet (the program goes no further). */
+enum { SCREEN_EFFECT = 0xC021E1 };
+
+bool field_screen_effect_moved_on(GameState *g)
+{
+    if (move_on_a_step(g) == STEP_DONE)
+        return true;
+    program_needs_the_machine(g, SCREEN_EFFECT, "a screen effect's curtain, its close into a scene or its ripple");
+    return false;
+}
+
 void field_move_screen_effect_on(Snes *s)
 {
     GameState *g = state_of(s);

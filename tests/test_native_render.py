@@ -32,6 +32,11 @@ ALLOWED_INCLUDES = {
     "platform/timing.h",
     "platform/input.h",
     "port/fiber.h",
+    # the host's video backend keeps the picture's state in the observer, which
+    # folds the video service's calls into a VidFrame and knows no registers
+    "platform/observe.h",
+    # and its saves are the save service's
+    "platform/save.h",
 }
 
 # The hardware model's types and functions. `snes_extra*` is excluded: those are

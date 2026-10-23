@@ -33,6 +33,8 @@
  * the original. */
 #include "scene/scene.h"
 
+#include "charge.h"
+#include "core/program.h"
 #include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/video.h"
@@ -821,6 +823,74 @@ static RunEnd run(Snes *s, SceneChannel ch)
                 m_stop_at(s, SOUND_CALL_RETURN, 0);
                 return RUN_STOPPED;
             }
+            past_the_call(g, ch);
+            continue;
+        }
+    }
+}
+
+/* ---- A channel's turn as C, with no machine ---------------------------------------------------- */
+
+/* The program's routine a script calls, as C where the port has it; false
+ * where it is the original's yet. */
+static bool routine_as_c(GameState *g, Platform *pf, SceneChannel ch, uint16_t routine)
+{
+    const SceneScriptRoutine *r = routine_port(routine);
+    if (!r) {
+        program_needs_the_machine(g, PROGRAM_BANK | routine, "a routine a scene's script calls");
+        return false;
+    }
+    keep_the_routine_called(g, routine);
+    TIMED_AS(g, PROGRAM_BANK | routine, r->run(g, pf, ch));
+    return true;
+}
+
+/* The wait for the music, as the original's loop makes a pass of it: at the
+ * level (or past it) the script goes on past the level; until then it stays
+ * on the command, and the channel's turn ends. The driver a host plays shows
+ * its status steadily. */
+static bool music_waited_for(GameState *g, Platform *pf, SceneChannel ch)
+{
+    MusicStatus music = scene_music_status(pf);
+    if (scene_music_reached(music, script_byte(g, script(g, ch)))) {
+        set_script(g, ch, (uint16_t)(script(g, ch) + 1));
+        return true;
+    }
+    set_script(g, ch, (uint16_t)(script(g, ch) - 1));
+    return false;
+}
+
+// $C3:0AFF
+SceneTurn scene_channel_turn(GameState *g, Platform *pf, SceneChannel ch)
+{
+    for (;;) {
+        uint16_t at = script(g, ch);
+        Command c = { g, pf, ch, at, script_byte(g, at) };
+        const ScriptRow *row = row_of(c.opcode);
+        if (row->takes && !row->takes(&c, row)) {
+            program_needs_the_machine(g, handlers[handler_of[low_nibble(&c)]], "a scene command the port doesn't take");
+            return SCENE_TURN_NEEDS_THE_MACHINE;
+        }
+        ScriptFlow flow = row->run(&c, row);
+        switch (flow.kind) {
+        case GO_ON:
+            continue;
+        case END_OF_TURN:
+            return SCENE_TURN_ENDED;
+        case WAITING:
+            if (!music_waited_for(g, pf, ch))
+                return SCENE_TURN_ENDED;
+            continue;
+        case ROUTINE_CALL:
+            if (!routine_as_c(g, pf, ch, flow.routine))
+                return SCENE_TURN_NEEDS_THE_MACHINE;
+            past_the_call(g, ch);
+            continue;
+        case SOUND_SEND:
+            au_command(pf, PF_CALL_DC(0xC30BE9, 0xC70004, DC_AL | DC_X | DC_N | DC_Z),
+                       (AudioCommand){ .command = sound_command(g), .p1 = sound_command_parameters(g, 0),
+                                       .p2 = sound_command_parameters(g, 1), .p3 = sound_command_parameters(g, 2),
+                                       .count = 3 });
             past_the_call(g, ch);
             continue;
         }

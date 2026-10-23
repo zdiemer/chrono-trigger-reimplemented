@@ -16,6 +16,12 @@ bool field_queued_frames_can_be_drawn(Snes *s);
 #include "field/object.h"
 #include "platform/platform.h"
 
+/* A part of the object's next frame drawn (field_draw_next_frame's work),
+ * as C: true while more of it is to draw. */
+bool field_frame_part_drawn(GameState *g, FieldObject obj);
+/* The frame queue drawn through, while the frame has time, as C. */
+void field_queued_frames_drawn(GameState *g, Platform *pf);
+
 /* The frame an object's tiles show put straight onto its records (after a
  * battle, field/battle_return.c), and whether the port can for the object. */
 void object_put_drawn_frame_back(GameState *g, FieldObject obj);

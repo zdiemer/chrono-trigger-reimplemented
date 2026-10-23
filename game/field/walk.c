@@ -35,6 +35,7 @@
 
 #include "charge.h"
 #include "core/input.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "field/bridge.h"
 #include "field/field.h"
@@ -43,6 +44,7 @@
 #include "field/parts.h"
 #include "field/party.h"
 #include "field/scratch.h"
+#include "field/streaming.h"
 #include "port/machine.h"
 #include "vars.h"
 
@@ -1052,6 +1054,23 @@ static bool scroll_the_layers(Snes *s, uint32_t scroll_site, uint32_t edges_site
 
 static void on_the_layers_page(Snes *s) { m_push16(s, s->cpu.d), s->cpu.d = FIELD_LAYERS_PAGE; }
 static void back_on_the_field_page(Snes *s) { s->cpu.d = m_pull16(s); }
+
+/* The same as C: the leader walked, and the layers scrolled and streamed
+ * after it; false where the layers' maps don't repeat within the map's
+ * tables, which only the original streams (the program goes no further). */
+enum { LAYER_SCROLL = 0xC091AC, LAYERS_STREAMED = 0xC093E1 };
+
+bool field_the_leader_walks(GameState *g)
+{
+    leader_walks(g);
+    TIMED_AS(g, LAYER_SCROLL, field_layer_scroll_updated(g));
+    if (!layers_repeat_within_the_maps(g)) {
+        program_needs_the_machine(g, LAYERS_STREAMED, "layers the port doesn't stream");
+        return false;
+    }
+    TIMED_AS(g, LAYERS_STREAMED, stream_the_layers(g));
+    return true;
+}
 
 void field_walk_the_leader(Snes *s)
 {

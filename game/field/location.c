@@ -216,16 +216,13 @@ static const uint32_t kept_blocks[TILE_SET_BLOCKS - TILE_SET_BLOCKS_IN_VRAM] = {
  * BG3's. */
 enum { TILE_LOOKS = RAM_FIELD_TILE_LOOKS, BG3_TILE_LOOKS = RAM_FIELD_BG3_TILE_LOOKS };
 
-/* The unpacker ($C3:0002): what to unpack and where to, in its own cells. It
- * puts every register back. */
-enum { UNPACKER = 0xC30002, THE_UNPACKER_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
-
-static bool unpack(Snes *s, uint32_t site, uint32_t from, uint32_t to)
+/* A stream unpacked (data/decompress.h), named in the unpacker's cells and
+ * timed as the unpacker. */
+static void unpack(GameState *g, uint32_t from, uint32_t to)
 {
-    GameState *g = state_of(s);
     set_decompress_source(g, from);
     set_decompress_dest(g, to);
-    return field_run_long(s, site, UNPACKER, THE_UNPACKER_IGNORES, decompress, on_the_field_page(s, false));
+    TIMED_AS(g, UNPACK_STREAM_ENTRY, (void)unpack_stream(g));
 }
 
 /* For the original's code and shadow mode: the last block, set or the like
@@ -241,10 +238,6 @@ static void leave_the_list(GameState *g, uint8_t set)
     set_field_tile_set_list_place(g, tile_set_blocks_place(set) + TILE_SET_BLOCKS - 1);
 }
 
-/* The unpacks' sites, block by block: each of the tile graphics' first six
- * from its own routine's one, the last two from theirs. */
-enum { VRAM_BLOCK_UNPACK = 0xC06D5D, FIRST_KEPT_UNPACK = 0xC06D93, SECOND_KEPT_UNPACK = 0xC06DCA };
-
 /* Where the six blocks for VRAM go, each described as a transfer whether the
  * set has the block or not. */
 static FieldTransfer vram_block_transfer(unsigned n)
@@ -256,15 +249,11 @@ static FieldTransfer vram_block_transfer(unsigned n)
 
 // $C0:0960 (with $C0:6D2F and $C0:6D65 for the blocks)
 /* The tile set's graphics. A location with no tile set loads none. */
-void field_load_tile_graphics(Snes *s)
+static void load_tile_graphics(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     uint8_t set = the_record(g).tile_set;
-    if (set == NO_TILE_SET) {
-        m_rts(s);
+    if (set == NO_TILE_SET)
         return;
-    }
     uint8_t last = NO_GRAPHICS_BLOCK;
     for (unsigned n = 0; n < TILE_SET_BLOCKS; n++) {
         uint8_t block = tile_set_block(g, set, n);
@@ -274,107 +263,151 @@ void field_load_tile_graphics(Snes *s)
             continue;
         last = block;
         if (n < TILE_SET_BLOCKS_IN_VRAM) {
-            if (!unpack(s, VRAM_BLOCK_UNPACK, graphics_block_address(g, block), UNPACKED_TILES))
-                return;
+            unpack(g, graphics_block_address(g, block), UNPACKED_TILES);
             TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, pf, vram_block_transfer(n)));
         } else {
-            uint32_t site = n == TILE_SET_BLOCKS_IN_VRAM ? FIRST_KEPT_UNPACK : SECOND_KEPT_UNPACK;
-            if (!unpack(s, site, graphics_block_address(g, block), kept_blocks[n - TILE_SET_BLOCKS_IN_VRAM]))
-                return;
+            unpack(g, graphics_block_address(g, block), kept_blocks[n - TILE_SET_BLOCKS_IN_VRAM]);
         }
     }
     if (last != NO_GRAPHICS_BLOCK)
         ORIGINAL_EFFECT(leave_last_worked(g, last));
     ORIGINAL_EFFECT(leave_the_list(g, set));
-    m_rts(s);
 }
 
 // $C0:6DCF
 /* BG3's graphics: a block of its own, where the location has one; where it
  * has none the field notes so, and BG3 keeps what it had. */
-void field_load_bg3_graphics(Snes *s)
+static void load_bg3_graphics(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
     uint8_t block = the_record(g).bg3_tile_set;
     if (block == NO_TILE_SET) {
         field_map_names_a_bg3_set(g, false);
-        m_rts(s);
         return;
     }
-    if (!unpack(s, 0xC06E03, graphics_block_address(g, block), BG3_UNPACKED_TILES))
-        return;
+    unpack(g, graphics_block_address(g, block), BG3_UNPACKED_TILES);
     FieldTransfer t = { .vram = BG3_VRAM_TILES, .mode = TRANSFER_WORDS, .source = BG3_UNPACKED_TILES,
                         .size = BLOCK_TILES };
-    TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, m_platform(s), t));
+    TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, pf, t));
     ORIGINAL_EFFECT(leave_last_worked(g, (uint16_t)(3 * block)));
-    m_rts(s);
 }
 
 // $C0:09DD
 /* How BG1's and BG2's map tiles are made of the tile set's tiles. */
-void field_load_tile_looks(Snes *s)
+static void load_tile_looks(GameState *g)
 {
-    GameState *g = state_of(s);
     uint8_t set = the_record(g).tile_set;
-    if (set != NO_TILE_SET) {
-        ORIGINAL_EFFECT(leave_last_worked(g, set));
-        if (!unpack(s, 0xC00A0F, tile_looks_address(g, set), TILE_LOOKS))
-            return;
-    }
-    m_rts(s);
+    if (set == NO_TILE_SET)
+        return;
+    ORIGINAL_EFFECT(leave_last_worked(g, set));
+    unpack(g, tile_looks_address(g, set), TILE_LOOKS);
 }
 
 // $C0:0A14
 /* ... and BG3's, where the location has a set for it. */
-void field_load_bg3_tile_looks(Snes *s)
+static void load_bg3_tile_looks(GameState *g)
 {
-    GameState *g = state_of(s);
     uint8_t set = the_record(g).bg3_tile_set;
-    if (field_map_has_no_bg3_set(g) == 0 && set != NO_TILE_SET) {
-        ORIGINAL_EFFECT(leave_last_worked(g, set));
-        if (!unpack(s, 0xC00A4A, bg3_tile_looks_address(g, set), BG3_TILE_LOOKS))
-            return;
-    }
-    m_rts(s);
+    if (field_map_has_no_bg3_set(g) != 0 || set == NO_TILE_SET)
+        return;
+    ORIGINAL_EFFECT(leave_last_worked(g, set));
+    unpack(g, bg3_tile_looks_address(g, set), BG3_TILE_LOOKS);
 }
 
 // $C0:1B53
 /* The location's song. Where a screen keeps the song that is playing
  * (menu_song_kept), the song playing is started again. Otherwise the music
  * comes back to full volume at once, and the location's song, if it has one,
- * starts and is kept as the song playing. The driver ($C7:0004, through the
- * audio service) reads nothing of the registers, and hands A's high byte back
- * as it found it, which the loading after it ANDs away. */
-#define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
-enum { SOUND_DRIVER = 0xC70004, SONG_SITE = 0xC01B8B, SONG_RETURNS = 0xC01B8F };
+ * starts and is kept as the song playing. */
 
-static bool play(Snes *s, uint8_t song)
+static const AudioCommand full_volume = { .command = AU_FADE_MUSIC, .p1 = 0, .p2 = AU_FULL_VOLUME,
+                                          .p3 = AU_FULL_VOLUME, .count = 3 };
+
+/* The driver ($C7:0004, through the audio service) reads nothing of the
+ * registers, and hands A's high byte back as it found it, which the loading
+ * after it ANDs away. */
+#define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
+enum { SOUND_DRIVER = 0xC70004, SONG_SITE = 0xC01B8B, SONG_RETURNS = 0xC01B8F, FADE_SITE = 0xC01B73,
+       FADE_RETURNS = 0xC01B77 };
+
+static void play(Platform *pf, uint8_t song)
 {
-    au_play_song(m_platform(s), PF_CALL_DC(SONG_SITE, SOUND_DRIVER, DRIVER_IGNORES), song);
-    return bridge_back(s, SONG_RETURNS, on_the_field_page(s, false));
+    au_play_song(pf, PF_CALL_DC(SONG_SITE, SOUND_DRIVER, DRIVER_IGNORES), song);
 }
 
+static void bring_the_music_to_full_volume(Platform *pf)
+{
+    au_command(pf, PF_CALL_DC(FADE_SITE, SOUND_DRIVER, DRIVER_IGNORES), full_volume);
+}
+
+/* The location's song, if it has one, kept as the song playing; false where
+ * it has none. */
+static bool keep_the_locations_song(GameState *g)
+{
+    uint8_t song = the_record(g).song;
+    if (song >= NO_LOCATION_SONG)
+        return false;
+    set_current_song(g, song);
+    return true;
+}
+
+static void start_the_location_song(GameState *g, Platform *pf)
+{
+    if (menu_song_kept(g)) {
+        play(pf, current_song(g));
+        return;
+    }
+    bring_the_music_to_full_volume(pf);
+    if (keep_the_locations_song(g))
+        play(pf, current_song(g));
+}
+
+/* ---- Where the tile set's loading meets the original ------------------------------------------- */
+
+void field_load_tile_graphics(Snes *s)
+{
+    load_tile_graphics(state_of(s), m_platform(s));
+    m_rts(s);
+}
+
+void field_load_bg3_graphics(Snes *s)
+{
+    load_bg3_graphics(state_of(s), m_platform(s));
+    m_rts(s);
+}
+
+void field_load_tile_looks(Snes *s)
+{
+    load_tile_looks(state_of(s));
+    m_rts(s);
+}
+
+void field_load_bg3_tile_looks(Snes *s)
+{
+    load_bg3_tile_looks(state_of(s));
+    m_rts(s);
+}
+
+/* The song's calls to the driver are the machine's, each a call-out whose
+ * return the bridge checks. */
 void field_start_location_song(Snes *s)
 {
     GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
     if (menu_song_kept(g)) {
-        if (play(s, current_song(g)))
+        play(pf, current_song(g));
+        if (bridge_back(s, SONG_RETURNS, on_the_field_page(s, false)))
             m_rts(s);
         return;
     }
-    AudioCommand full_volume = { .command = AU_FADE_MUSIC, .p1 = 0, .p2 = AU_FULL_VOLUME, .p3 = AU_FULL_VOLUME,
-                                 .count = 3 };
-    au_command(m_platform(s), PF_CALL_DC(0xC01B73, SOUND_DRIVER, DRIVER_IGNORES), full_volume);
-    if (!bridge_back(s, 0xC01B77, on_the_field_page(s, false)))
+    bring_the_music_to_full_volume(pf);
+    if (!bridge_back(s, FADE_RETURNS, on_the_field_page(s, false)))
         return;
-    uint8_t song = the_record(g).song;
-    if (song >= NO_LOCATION_SONG) {
-        m_rts(s);
-        return;
+    if (keep_the_locations_song(g)) {
+        play(pf, current_song(g));
+        if (!bridge_back(s, SONG_RETURNS, on_the_field_page(s, false)))
+            return;
     }
-    set_current_song(g, song);
-    if (play(s, song))
-        m_rts(s);
+    m_rts(s);
 }
 
 /* ---- The palette, the layers' state and the script -------------------------------------------- */
@@ -456,17 +489,85 @@ static void copy_the_built_in_commands(GameState *g)
     (void)bytes;
 }
 
-/* ---- The routines it calls on the machine ---------------------------------------------------- */
+/* The script's place in the table of scripts is its number tripled, which the
+ * original adds up from the number in its first scratch cell; its callers read
+ * the last sum's overflow, which the unpacker's call keeps. */
+static bool tripling_overflows(uint16_t script)
+{
+    uint16_t twice = (uint16_t)(script + script);
+    return field_add_with_carry_overflows16(twice, script, script >> 15);
+}
 
-/* The ports it runs as C, by the routines they stand for. */
+static uint16_t the_locations_script(const GameState *g) { return location_script(g, location_record_offset(g)); }
+
+// $C0:56D4
+/* The location's event script, with the built-in commands after it; false
+ * where it doesn't fit, which is the original's error screen. */
+static bool load_the_script(GameState *g)
+{
+    uint16_t script = the_locations_script(g);
+    ORIGINAL_EFFECT(leave_last_worked(g, script));
+    unpack(g, field_packed_script(g, script), SCRIPT_BUFFER);
+    if (!script_fits(g))
+        return false;
+    copy_the_built_in_commands(g);
+    return true;
+}
+
+/* ---- The location loaded ---------------------------------------------------------------------- */
+
+/* The routines its steps stand for, which time them. */
 enum {
     LOCATION_SONG = 0xC01B53, TILE_GRAPHICS = 0xC00960, BG3_GRAPHICS = 0xC06DCF, TILE_LOOKS_ROUTINE = 0xC009DD,
-    BG3_TILE_LOOKS_ROUTINE = 0xC00A14, LINE_EFFECTS = 0xFDC2C1,
-    LINE_EFFECTS_SET_UP = 0xFDC1EE, WHOLE_FIGURE = 0xC0E12A,
-    PALETTE_LOADED = 0xC07084, LAYERS_STATE_CLEARED = 0xC07F7E, SCRIPT_UNPACKED = 0xC056D4,
-    MAP_SCRIPT_STARTS = 0xC0595C,
-    TILE_ANIMATIONS = 0xFDDE98, PALETTE_ANIMATIONS = 0xFDE292,
+    BG3_TILE_LOOKS_ROUTINE = 0xC00A14, PALETTE_LOADED = 0xC07084, LAYERS_STATE_CLEARED = 0xC07F7E,
+    SCRIPT_UNPACKED = 0xC056D4, TILE_ANIMATIONS = 0xFDDE98, PALETTE_ANIMATIONS = 0xFDE292,
 };
+
+/* The tile set's graphics, the palette and the layers' state, which come
+ * before the map; and the tiles' looks, which come after it. */
+static void load_the_graphics(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, TILE_GRAPHICS, load_tile_graphics(g, pf));
+    TIMED_AS(g, BG3_GRAPHICS, load_bg3_graphics(g, pf));
+    TIMED_AS(g, PALETTE_LOADED, field_load_location_palette(g));
+    TIMED_AS(g, LAYERS_STATE_CLEARED, field_clear_the_layers_state(g, pf));
+}
+
+static void load_the_tile_looks(GameState *g)
+{
+    TIMED_AS(g, TILE_LOOKS_ROUTINE, load_tile_looks(g));
+    TIMED_AS(g, BG3_TILE_LOOKS_ROUTINE, load_bg3_tile_looks(g));
+}
+
+static void load_the_animations(GameState *g)
+{
+    TIMED_AS(g, TILE_ANIMATIONS, tile_animations_load(g));
+    TIMED_AS(g, PALETTE_ANIMATIONS, palette_load_location_animations(g));
+}
+
+// $C0:00F4
+bool field_load_the_location(GameState *g, Platform *pf)
+{
+    find_the_record(g);
+    TIMED_AS(g, LOCATION_SONG, start_the_location_song(g, pf));
+    load_the_graphics(g, pf);
+    bool loaded = false;
+    TIMED_AS(g, FIELD_UNPACK_THE_MAP_ENTRY, loaded = field_load_the_map(g));
+    if (!loaded)
+        return false;
+    load_the_tile_looks(g);
+    TIMED_AS(g, SCRIPT_UNPACKED, loaded = load_the_script(g));
+    if (!loaded)
+        return false;
+    load_the_animations(g);
+    return true;
+}
+
+/* ---- The routines it calls on the machine ---------------------------------------------------- */
+
+/* The ports the setting up after a menu runs on the machine, by the routines
+ * they stand for. */
+enum { LINE_EFFECTS = 0xFDC2C1, LINE_EFFECTS_SET_UP = 0xFDC1EE, WHOLE_FIGURE = 0xC0E12A, MAP_SCRIPT_STARTS = 0xC0595C };
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
@@ -475,37 +576,27 @@ enum {
 
 static BridgeMachine page(const Snes *s) { return on_the_field_page(s, false); }
 
-
 /* The location's graphics, map and scripts, from the original's calls at
- * the sites given, in the order both loadings make them. */
+ * the sites given, in the order both loadings make them: the map and the
+ * script are entries of their own, where the original's code takes over a
+ * map or a script the port doesn't. */
 static const struct {
-    uint32_t tile_graphics, bg3_graphics, map, looks, bg3_looks, script;
+    uint32_t map, script;
 } loading_sites[] = {
-    { 0xC000FA, 0xC000FD, 0xC00106, 0xC00109, 0xC0010C, 0xC0010F },
-    { 0xC001C3, 0xC001C6, 0xC001CF, 0xC001D2, 0xC001D5, 0xC001D8 },
+    { 0xC00106, 0xC0010F },
+    { 0xC001CF, 0xC001D8 },
 };
 typedef enum { ENTERING, AFTER_A_MENU } Loading;
 
-/* The palette and the layers' state, which call nothing. */
-static void load_the_palette_and_clear_the_layers(Snes *s)
-{
-    GameState *g = state_of(s);
-    TIMED_AS(g, PALETTE_LOADED, field_load_location_palette(g));
-    TIMED_AS(g, LAYERS_STATE_CLEARED, field_clear_the_layers_state(g, m_platform(s)));
-}
-
 static bool load_graphics_map_and_scripts(Snes *s, Loading loading)
 {
+    GameState *g = state_of(s);
     const BridgeMachine m = page(s);
-    if (!field_run(s, loading_sites[loading].tile_graphics, TILE_GRAPHICS, READS_NOTHING, field_load_tile_graphics, m) ||
-        !field_run(s, loading_sites[loading].bg3_graphics, BG3_GRAPHICS, READS_NOTHING, field_load_bg3_graphics, m))
+    load_the_graphics(g, m_platform(s));
+    if (!field_run(s, loading_sites[loading].map, FIELD_UNPACK_THE_MAP_ENTRY, READS_NOTHING, field_unpack_the_map, m))
         return false;
-    load_the_palette_and_clear_the_layers(s);
-    return field_run(s, loading_sites[loading].map, FIELD_UNPACK_THE_MAP_ENTRY, READS_NOTHING, field_unpack_the_map, m) &&
-           field_run(s, loading_sites[loading].looks, TILE_LOOKS_ROUTINE, READS_NOTHING, field_load_tile_looks, m) &&
-           field_run(s, loading_sites[loading].bg3_looks, BG3_TILE_LOOKS_ROUTINE, READS_NOTHING,
-                     field_load_bg3_tile_looks, m) &&
-           field_run(s, loading_sites[loading].script, SCRIPT_UNPACKED, READS_NOTHING, field_load_the_script, m);
+    load_the_tile_looks(g);
+    return field_run(s, loading_sites[loading].script, SCRIPT_UNPACKED, READS_NOTHING, field_load_the_script, m);
 }
 
 /* ---- The entries ------------------------------------------------------------------------------- */
@@ -517,7 +608,6 @@ static void leave_the_place_in_a(Snes *s)
     s->cpu.a = (uint16_t)((location_record_offset(state_of(s)) & 0xFF00) | (s->cpu.a & 0x00FF));
 }
 
-// $C0:00F4
 void field_load_location(Snes *s)
 {
     find_the_record(state_of(s));
@@ -525,9 +615,7 @@ void field_load_location(Snes *s)
     if (!field_run(s, 0xC000F7, LOCATION_SONG, READS_A_HIGH, field_start_location_song, page(s)) ||
         !load_graphics_map_and_scripts(s, ENTERING))
         return;
-    GameState *g = state_of(s);
-    TIMED_AS(g, TILE_ANIMATIONS, tile_animations_load(g));
-    TIMED_AS(g, PALETTE_ANIMATIONS, palette_load_location_animations(g));
+    load_the_animations(state_of(s));
     m_rts(s);
 }
 
@@ -543,36 +631,20 @@ void field_clear_the_layers_state_entry(Snes *s)
     m_rts(s);
 }
 
-/* The script's place in the table of scripts is its number tripled, which the
- * original adds up from the number in its first scratch cell; its callers read
- * the last sum's overflow, which the unpacker's call keeps. */
-static bool tripling_overflows(uint16_t script)
-{
-    uint16_t twice = (uint16_t)(script + script);
-    return field_add_with_carry_overflows16(twice, script, script >> 15);
-}
-
 /* Where the script doesn't fit, the original's check and its error screen,
  * from its call, which reads nothing but the overflow its callers keep. */
 enum { SCRIPT_CHECKED = 0xC05703, THE_CHECK_READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
-// $C0:56D4
 void field_load_the_script(Snes *s)
 {
     GameState *g = state_of(s);
-    uint16_t script = location_script(g, location_record_offset(g));
-    ORIGINAL_EFFECT(leave_last_worked(g, script));
-    m_set_flag(s, CPU_FLAG_V, tripling_overflows(script));
-    if (!unpack(s, 0xC056FF, field_packed_script(g, script), SCRIPT_BUFFER))
-        return;
-    if (!script_fits(g)) {
+    m_set_flag(s, CPU_FLAG_V, tripling_overflows(the_locations_script(g)));
+    if (!load_the_script(g)) {
         m_stop_at(s, SCRIPT_CHECKED, THE_CHECK_READS_THE_OVERFLOW);
         return;
     }
-    copy_the_built_in_commands(g);
     m_rts(s);
 }
-
 /* The script's guard: on the field's page, whose cells name the location's
  * record, with the data bank reaching low RAM, where the unpacker's cells
  * are. */

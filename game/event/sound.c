@@ -9,6 +9,7 @@
  * which check what the driver left before going on. The waits only read the
  * driver's status, and are operations like any other. */
 #include "event/bridge.h"
+#include "event/engine.h"
 
 #include "platform/audio.h"
 
@@ -29,80 +30,159 @@ static void leave_parse_at_the_call(Snes *s, uint16_t y) { s->cpu.y = y; }
 /* The script goes on at `resume`, the object's turn over for this frame. */
 static void finish(Snes *s, uint16_t resume) { event_return(s, (EventStep){ resume, false }); }
 
+/* ---- The commands to the driver ------------------------------------------------------------- */
+
+/* Each command's sends, from its handler's calls of the driver. */
+
 // $C0:3C11
 /* Play a sound effect, from the middle. */
-void event_cmd_play_effect(Snes *s)
+enum { PLAY_EFFECT = 0xE8, PLAY_EFFECT_BYTES = 2 };
+static void play_effect(Platform *pf, const EventCommand *c)
 {
-    uint16_t at = event_command_offset(s);
-    uint16_t resume = (uint16_t)(at + 2);
-    uint8_t effect = event_command_of(s, 0xE8).effect;
-    BridgeMachine as = event_machine(s, false);
-    ORIGINAL_EFFECT(event_keep_offset(state_of(s), (uint16_t)(resume - 1)));
-    ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
-    au_play_effect(m_platform(s), PF_CALL_DC(0xC03C26, 0xC70004, DRIVER_IGNORES), effect, AU_CENTRE);
-    if (bridge_back(s, 0xC03C2A, as))
-        finish(s, resume);
+    au_play_effect(pf, PF_CALL_DC(0xC03C26, 0xC70004, DRIVER_IGNORES), c->effect, AU_CENTRE);
 }
 
 // $C0:3C2F
 /* Play a song, which the game remembers as the one playing. */
-void event_cmd_play_song(Snes *s)
+enum { PLAY_SONG = 0xEA, PLAY_SONG_BYTES = 2 };
+static void play_song(GameState *g, Platform *pf, const EventCommand *c)
 {
-    GameState *g = state_of(s);
-    uint16_t at = event_command_offset(s);
-    uint16_t resume = (uint16_t)(at + 2);
-    uint8_t song = event_command_of(s, 0xEA).song;
-    BridgeMachine as = event_machine(s, false);
-    set_current_song(g, song);
-    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(resume - 1)));
-    ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
-    au_play_song(m_platform(s), PF_CALL_DC(0xC03C43, 0xC70004, DRIVER_IGNORES), song);
-    if (bridge_back(s, 0xC03C47, as))
-        finish(s, resume);
+    set_current_song(g, c->song);
+    au_play_song(pf, PF_CALL_DC(0xC03C43, 0xC70004, DRIVER_IGNORES), c->song);
 }
 
 // $C0:3C4C
 /* Fade the music to a volume over a number of steps, and bring both pairs
- * of effect voices to full volume at once. */
-void event_cmd_fade_music(Snes *s)
+ * of effect voices to full volume at once: three sends, the music's, then
+ * each pair's. */
+enum { FADE_MUSIC = 0xEB, FADE_MUSIC_BYTES = 3 };
+static void fade_the_music(Platform *pf, const EventCommand *c)
 {
-    uint16_t at = event_command_offset(s);
-    uint16_t resume = (uint16_t)(at + 3);
-    EventCommand c = event_command_of(s, 0xEB);
-    Platform *pf = m_platform(s);
-    BridgeMachine as = event_machine(s, false);
-    ORIGINAL_EFFECT(event_keep_offset(state_of(s), (uint16_t)(resume - 1)));
-    ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
     /* the original also leaves $FF as the third parameter, which the fade
      * doesn't read */
-    AudioCommand fade = { .command = AU_FADE_MUSIC, .p1 = c.steps, .p2 = c.volume, .p3 = AU_FULL_VOLUME, .count = 3 };
+    AudioCommand fade = { .command = AU_FADE_MUSIC, .p1 = c->steps, .p2 = c->volume, .p3 = AU_FULL_VOLUME, .count = 3 };
     au_command(pf, PF_CALL_DC(0xC03C69, 0xC70004, DRIVER_IGNORES), fade);
-    if (!bridge_back(s, 0xC03C6D, as))
-        return;
-    au_fade(pf, PF_CALL_DC(0xC03C7C, 0xC70004, DRIVER_IGNORES), AU_FADE_EFFECTS, 0, AU_FULL_VOLUME);
-    if (!bridge_back(s, 0xC03C80, as))
-        return;
-    au_fade(pf, PF_CALL_DC(0xC03C8F, 0xC70004, DRIVER_IGNORES), AU_FADE_MORE_EFFECTS, 0, AU_FULL_VOLUME);
-    if (bridge_back(s, 0xC03C93, as))
-        finish(s, resume);
+}
+static void bring_the_effects_up(Platform *pf, unsigned pair)
+{
+    static const struct {
+        uint32_t site;
+        uint8_t what;
+    } pairs[] = { { 0xC03C7C, AU_FADE_EFFECTS }, { 0xC03C8F, AU_FADE_MORE_EFFECTS } };
+    au_fade(pf, PF_CALL_DC(pairs[pair].site, 0xC70004, DRIVER_IGNORES), pairs[pair].what, 0, AU_FULL_VOLUME);
 }
 
 // $C0:3C98
 /* Send the driver a command of the script's choosing, with two parameters:
  * whatever the language has no command for (a tempo slide, a mute). */
+enum { SEND_SOUND_COMMAND = 0xEC, SEND_SOUND_COMMAND_BYTES = 4 };
+static void send_the_command(Platform *pf, const EventCommand *c)
+{
+    AudioCommand command = { .command = c->sound_command, .p1 = c->first_argument, .p2 = c->second_argument,
+                             .count = 2 };
+    au_command(pf, PF_CALL_DC(0xC03CB4, 0xC70004, DRIVER_IGNORES), command);
+}
+
+/* As C: each command's sends, and the turn over with the script after it. */
+static EventCommand command_at(GameState *g, Platform *pf, uint8_t opcode, uint16_t at)
+{
+    return event_decode(g, pf, event_opcode(opcode), at);
+}
+static bool after(EventStep *step, uint16_t at, uint16_t bytes)
+{
+    *step = (EventStep){ (uint16_t)(at + bytes), false };
+    return true;
+}
+
+bool event_play_effect_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    EventCommand c = command_at(g, pf, PLAY_EFFECT, at);
+    play_effect(pf, &c);
+    return after(step, at, PLAY_EFFECT_BYTES);
+}
+
+bool event_play_song_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    EventCommand c = command_at(g, pf, PLAY_SONG, at);
+    play_song(g, pf, &c);
+    return after(step, at, PLAY_SONG_BYTES);
+}
+
+bool event_fade_music_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    EventCommand c = command_at(g, pf, FADE_MUSIC, at);
+    fade_the_music(pf, &c);
+    bring_the_effects_up(pf, 0);
+    bring_the_effects_up(pf, 1);
+    return after(step, at, FADE_MUSIC_BYTES);
+}
+
+bool event_send_sound_command_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    EventCommand c = command_at(g, pf, SEND_SOUND_COMMAND, at);
+    send_the_command(pf, &c);
+    return after(step, at, SEND_SOUND_COMMAND_BYTES);
+}
+
+/* On the machine each send is a call of the driver's CPU half, whose return
+ * the bridge checks; Y is where the handler's parse of the operands
+ * stopped, and the offset kept is the one before the script goes on. */
+static bool sent(Snes *s, uint32_t returns_to, BridgeMachine as) { return bridge_back(s, returns_to, as); }
+
+static void as_at_the_call(Snes *s, uint16_t at, uint16_t kept)
+{
+    ORIGINAL_EFFECT(event_keep_offset(state_of(s), kept));
+    ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
+}
+
+void event_cmd_play_effect(Snes *s)
+{
+    uint16_t at = event_command_offset(s);
+    EventCommand c = event_command_of(s, PLAY_EFFECT);
+    BridgeMachine as = event_machine(s, false);
+    as_at_the_call(s, at, (uint16_t)(at + PLAY_EFFECT_BYTES - 1));
+    play_effect(m_platform(s), &c);
+    if (sent(s, 0xC03C2A, as))
+        finish(s, (uint16_t)(at + PLAY_EFFECT_BYTES));
+}
+
+void event_cmd_play_song(Snes *s)
+{
+    uint16_t at = event_command_offset(s);
+    EventCommand c = event_command_of(s, PLAY_SONG);
+    BridgeMachine as = event_machine(s, false);
+    as_at_the_call(s, at, (uint16_t)(at + PLAY_SONG_BYTES - 1));
+    play_song(state_of(s), m_platform(s), &c);
+    if (sent(s, 0xC03C47, as))
+        finish(s, (uint16_t)(at + PLAY_SONG_BYTES));
+}
+
+void event_cmd_fade_music(Snes *s)
+{
+    uint16_t at = event_command_offset(s);
+    EventCommand c = event_command_of(s, FADE_MUSIC);
+    BridgeMachine as = event_machine(s, false);
+    as_at_the_call(s, at, (uint16_t)(at + FADE_MUSIC_BYTES - 1));
+    fade_the_music(m_platform(s), &c);
+    if (!sent(s, 0xC03C6D, as))
+        return;
+    bring_the_effects_up(m_platform(s), 0);
+    if (!sent(s, 0xC03C80, as))
+        return;
+    bring_the_effects_up(m_platform(s), 1);
+    if (sent(s, 0xC03C93, as))
+        finish(s, (uint16_t)(at + FADE_MUSIC_BYTES));
+}
+
 void event_cmd_send_sound_command(Snes *s)
 {
-    GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
-    uint16_t resume = (uint16_t)(at + 4);
-    EventCommand c = event_command_of(s, 0xEC);
+    EventCommand c = event_command_of(s, SEND_SOUND_COMMAND);
     BridgeMachine as = event_machine(s, false);
-    AudioCommand command = { .command = c.sound_command, .p1 = c.first_argument, .p2 = c.second_argument, .count = 2 };
-    ORIGINAL_EFFECT(event_keep_offset(g, resume));
-    ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
-    au_command(m_platform(s), PF_CALL_DC(0xC03CB4, 0xC70004, DRIVER_IGNORES), command);
-    if (bridge_back(s, 0xC03CB8, as))
-        finish(s, resume);
+    as_at_the_call(s, at, (uint16_t)(at + SEND_SOUND_COMMAND_BYTES));
+    send_the_command(m_platform(s), &c);
+    if (sent(s, 0xC03CB8, as))
+        finish(s, (uint16_t)(at + SEND_SOUND_COMMAND_BYTES));
 }
 
 // $C0:3CBC

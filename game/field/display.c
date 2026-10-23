@@ -428,6 +428,18 @@ static bool begin_line_handler(const GameState *g, Platform *pf)
     return true;
 }
 
+// $C0:ECCC
+/* The handler as C, for a program with no machine under it. */
+void field_line(GameState *g, Platform *pf)
+{
+    if (!begin_line_handler(g, pf))
+        return;
+    if (!(field_display_flags(g) & FIELD_SECOND_TABLE_SET))
+        TIMED_AS(g, 0xC0ED15, redraw_after_the_picture(g, pf));
+    else
+        TIMED_AS(g, TILE_ANIMATIONS_SEND_ENTRY, tile_animations_send(g, pf));
+}
+
 // $C0:ECCC (installed at the $0504 line-interrupt stub by field_install_irq)
 /* The field's line interrupt, at the line its picture ends after. Where it is
  * the field's, it ends the picture (begin_line_handler); then the time to

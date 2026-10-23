@@ -96,6 +96,13 @@ static uint16_t vram_mapped(const VidObserver *ob)
     return (uint16_t)(a & 0x7FFF);
 }
 
+/* The `i`th byte of the data an upload names: the game's, through `read`, or
+ * a host's own. */
+static uint8_t data_byte(const VidObserver *ob, PfData src, uint32_t i)
+{
+    return src.ptr ? src.ptr[i] : ob->read(ob->ctx, src.addr + i);
+}
+
 static void vram_put(VidObserver *ob, bool high, uint8_t v)
 {
     ob->vram[(uint16_t)((vram_mapped(ob) << 1) + (high ? 1 : 0))] = v;
@@ -356,10 +363,8 @@ void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32
     if (len == 0)
         return;
     ob->vram_addr = vram_addr;
-    for (uint32_t i = 0; i < len; i++) {
-        uint32_t a = src.addr + (fill ? (i & 1) : i);
-        vram_put(ob, (i & 1) != 0, ob->read(ob->ctx, a));
-    }
+    for (uint32_t i = 0; i < len; i++)
+        vram_put(ob, (i & 1) != 0, data_byte(ob, src, fill ? (i & 1) : i));
 }
 
 void vid_obs_upload_vram_half(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len,
@@ -371,7 +376,7 @@ void vid_obs_upload_vram_half(VidObserver *ob, uint16_t vram_addr, PfData src, u
         return;
     ob->vram_addr = vram_addr;
     for (uint32_t i = 0; i < len; i++)
-        vram_put(ob, half == VID_VRAM_HIGH_BYTES, ob->read(ob->ctx, src.addr + i));
+        vram_put(ob, half == VID_VRAM_HIGH_BYTES, data_byte(ob, src, i));
 }
 
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count)
@@ -380,8 +385,8 @@ void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t
         return;
     uint8_t at = first;
     for (uint16_t i = 0; i < count; i++) {
-        uint8_t lo = ob->read(ob->ctx, src.addr + 2u * i);
-        uint8_t hi = ob->read(ob->ctx, src.addr + 2u * i + 1);
+        uint8_t lo = data_byte(ob, src, 2u * i);
+        uint8_t hi = data_byte(ob, src, 2u * i + 1);
         ob->cgram[at++] = (uint16_t)((hi & 0x7F) << 8 | lo);
     }
     ob->palette_dirty = true;
@@ -390,7 +395,7 @@ void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t
 void vid_obs_upload_oam(VidObserver *ob, PfData oam)
 {
     for (uint32_t i = 0; i < sizeof ob->oam; i++)
-        ob->oam[i] = ob->read(ob->ctx, oam.addr + i);
+        ob->oam[i] = data_byte(ob, oam, i);
 }
 
 void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len)

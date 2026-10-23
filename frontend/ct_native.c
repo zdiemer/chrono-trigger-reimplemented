@@ -27,9 +27,11 @@
 
 #include "assets.h"
 #include "core/program.h"
+#include "movie.h"
 #include "data/assets.h"
 #include "platform/native/host.h"
 #include "port/state_host.h"
+#include "sound_native.h"
 
 enum { ROM_BYTES = 0x400000 };
 
@@ -49,11 +51,14 @@ static uint8_t *read_file(const char *path, long want, long *got)
     return bytes;
 }
 
+static uint8_t read_game(void *ctx, uint32_t addr) { return state_host_read8(ctx, addr); }
+static void write_game(void *ctx, uint32_t addr, uint8_t v) { state_host_write8(ctx, addr, v); }
+
 static void run_main_thread(Platform *pf, void *ctx) { program_main_thread(ctx, pf); }
 static void run_vblank(Platform *pf, void *ctx) { program_vblank(ctx, pf); }
 static void run_line(Platform *pf, void *ctx) { program_line(ctx, pf); }
 
-static void report_strays(const GameState *g)
+static void report_strays(const GameState *g, const Platform *pf)
 {
     uint32_t first[STATE_HOST_STRAYS_KEPT];
     unsigned kept;
@@ -64,6 +69,10 @@ static void report_strays(const GameState *g)
             fprintf(stderr, " $%02X:%04X", (unsigned)(first[i] >> 16), (unsigned)(first[i] & 0xFFFF));
         fprintf(stderr, "\n");
     }
+    const VidHost *v = &pf->video;
+    if (v->escapes)
+        fprintf(stderr, "escapes: %lu video call(s) only the SNES has a meaning for, the first at $%02X:%04X\n",
+                (unsigned long)v->escapes, (unsigned)(v->first_escape >> 16), (unsigned)(v->first_escape & 0xFFFF));
     const AssetFault *out = asset_outside_reads();
     if (out->count)
         fprintf(stderr, "strays: %lu cartridge read(s) outside the catalogue of resources, the first at $%02X:%04X\n",
@@ -125,13 +134,14 @@ static uint8_t *load_pack(const char *path, const char *rom_path, AssetPack **pa
 
 int main(int argc, char **argv)
 {
-    const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL;
+    const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL, *movie_path = NULL;
     unsigned long frames = 600;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--rom") && v) rom_path = v, i++;
         else if (!strcmp(a, "--sram") && v) sram_path = v, i++;
         else if (!strcmp(a, "--assets") && v) pack_path = v, i++;
+        else if (!strcmp(a, "--movie") && v) movie_path = v, i++;
         else if (!strcmp(a, "--frames") && v) frames = strtoul(v, NULL, 10), i++;
         else {
             fprintf(stderr, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm]\n");
@@ -151,6 +161,9 @@ int main(int argc, char **argv)
     uint8_t *pack_bytes = load_pack(pack_path, rom_path, &pack);
     if (!pack_bytes)
         return 2;
+    ct_movie movie;
+    if (movie_path && ct_movie_load(&movie, movie_path) != 0)
+        return 2;
     static AssetStore store;
     asset_pack_store(pack, &store);
     assets_use(&store);
@@ -167,11 +180,21 @@ int main(int argc, char **argv)
         return 2;
     }
 
+    pf.save.bytes = state_host_sram(g);
+    vid_host_start(&pf, read_game, write_game, g);
+    SoundNative *sound = sound_native_create(g, &pf);
+    if (!sound) {
+        fprintf(stderr, "ct_native: out of memory\n");
+        return 2;
+    }
     tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g }, 1);
     int rc = 0;
     unsigned long frame = 0;
     while (frame < frames) {
+        if (movie_path)
+            in_host_set(&pf, 0, ct_movie_buttons(&movie, (uint32_t)frame));
         tm_host_frame(&pf);
+        sound_native_frame(sound);
         frame++;
         uint32_t routine;
         const char *what;
@@ -184,9 +207,13 @@ int main(int argc, char **argv)
     }
     fprintf(stderr, "ct_native: %lu frame(s); the screen set up %u time(s), %s\n", frame,
             (unsigned)pf.video.screens_applied, pf.video.display.blank ? "blanked" : "showing");
-    report_strays(g);
+    report_strays(g, &pf);
+    sound_native_destroy(sound);
+    vid_host_stop(&pf);
     state_host_destroy(g);
     free(sram);
+    if (movie_path)
+        ct_movie_free(&movie);
     assets_use(NULL);
     asset_pack_close(pack);
     free(pack_bytes);

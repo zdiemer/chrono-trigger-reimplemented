@@ -255,6 +255,7 @@ int main(void)
     static Platform asking;
     TmHostProgram ask = { asking_main, asking_vblank, NULL, NULL };
     order_len = 0;
+    vid_host_start(&asking, NULL, NULL, NULL);
     tm_host_start(&asking, &ask, 1);
     for (int i = 0; i < 6; i++) {
         tm_host_frame(&asking);
@@ -263,9 +264,10 @@ int main(void)
     order[order_len] = 0;
     CHECK(strcmp(order, "M|Vm|V|V|VwM|Vm|") == 0, "the handler's answer and the frames waited: %s", order);
     CHECK(asking_frames_done == 1, "one round sent (%d)", asking_frames_done);
-    CHECK(asking.video.vram[0xFFFE] == 0x12 && asking.video.vram[0xFFFF] == 0x34 && asking.video.vram[0] == 0x56
-              && asking.video.vram[1] == 0x78,
+    const uint8_t *vram = vid_host_picture(&asking)->vram;
+    CHECK(vram[0xFFFE] == 0x12 && vram[0xFFFF] == 0x34 && vram[0] == 0x56 && vram[1] == 0x78,
           "the bytes in VRAM from word $7FFF on, wrapping");
+    vid_host_stop(&asking);
 
     printf("timing_test: %s\n", failures ? "FAILED" : "ok");
     return failures != 0;

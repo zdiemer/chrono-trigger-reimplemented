@@ -66,6 +66,8 @@ static void stop_display(Platform *pf)
  * own), and the game handed back to the field (scene/program.c). */
 enum { SOUND_CALL = 0x7E3038, SOUND_BACK_TO_NORMAL = 0x7E3177, THE_SOUND_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
+void scene_stops_the_display(Platform *pf) { stop_display(pf); }
+
 void scene_program_restart(Snes *s)
 {
     stop_display(m_platform(s));

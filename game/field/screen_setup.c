@@ -36,6 +36,7 @@
 #include "field/objects_start.h"
 #include "field/palettes.h"
 #include "field/sprites.h"
+#include "core/program.h"
 #include "field/streaming.h"
 #include "field/switches.h"
 #include "field/walk.h"
@@ -359,6 +360,21 @@ static void leave_y_and_the_overflow(Snes *s)
     m_set_flag(s, CPU_FLAG_V, field_layer_edges_overflow(state_of(s)));
 }
 
+/* The dialog window's looks, the window design's tiles and colours, the
+ * choice pointer's tiles and the field's own sprites. */
+static void put_up_the_window(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, FIELD_SEND_WINDOW_DESIGN_ENTRY, field_send_the_window_design(g, pf));
+    field_colour_the_window(g);
+    TIMED_AS(g, FIELD_BUILD_WINDOW_FRAME_ENTRY, field_build_the_window_frame(g));
+    TIMED_AS(g, FIELD_SEND_WINDOW_FRAME_ENTRY, field_send_the_window_frame(g, pf));
+    TIMED_AS(g, FIELD_BUILD_TEXT_AREA_ENTRY, field_build_the_text_area(g));
+    TIMED_AS(g, FIELD_SEND_TEXT_AREA_ENTRY, field_send_the_text_area(g, pf));
+    field_send_the_fields_own_sprites(g, pf);
+    sprites_hide_the_first(g, FIRST_SPRITES_HIDDEN);
+    TIMED_AS(g, FIELD_SEND_CHOICE_POINTER_ENTRY, field_send_the_choice_pointer(g, pf));
+}
+
 // $C0:286C
 /* The screen set up from nothing (above). Returns for the routine, with the
  * location's dark setting in A (Z set where it is 0); false where the port
@@ -378,15 +394,7 @@ static bool set_the_screen_up(Snes *s)
     if (!field_run(s, 0xC02881, DRAW_THE_OBJECTS, THE_OBJECTS_READ_Y_AND_THE_OVERFLOW, field_draw_the_objects_in_view,
                    page(s)))
         return false;
-    TIMED_AS(g, FIELD_SEND_WINDOW_DESIGN_ENTRY, field_send_the_window_design(g, pf));
-    field_colour_the_window(g);
-    TIMED_AS(g, FIELD_BUILD_WINDOW_FRAME_ENTRY, field_build_the_window_frame(g));
-    TIMED_AS(g, FIELD_SEND_WINDOW_FRAME_ENTRY, field_send_the_window_frame(g, pf));
-    TIMED_AS(g, FIELD_BUILD_TEXT_AREA_ENTRY, field_build_the_text_area(g));
-    TIMED_AS(g, FIELD_SEND_TEXT_AREA_ENTRY, field_send_the_text_area(g, pf));
-    field_send_the_fields_own_sprites(g, pf);
-    sprites_hide_the_first(g, FIRST_SPRITES_HIDDEN);
-    TIMED_AS(g, FIELD_SEND_CHOICE_POINTER_ENTRY, field_send_the_choice_pointer(g, pf));
+    put_up_the_window(g, pf);
     if (!field_run_table_step(s, 0xC028A1, ready_the_line_effects))
         return false;
     tm_wait_frame_then_enable(pf, PF_CALL_DC(0xC028A1, SCREEN_ON, READS_NOTHING), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD,
@@ -403,6 +411,97 @@ void field_set_the_screen_up(Snes *s)
 {
     if (set_the_screen_up(s))
         m_rts(s);
+}
+
+/* ---- The screen set up, as C ------------------------------------------------------------------ */
+
+/* Where a step is one only the machine runs yet (its state is none the
+ * port takes), the program goes no further (core/program.h). */
+static bool machine_only(GameState *g, uint32_t routine, const char *what)
+{
+    program_needs_the_machine(g, routine, what);
+    return false;
+}
+
+static bool draw_and_send_a_layer_as_c(GameState *g, Platform *pf, unsigned layer)
+{
+    if (!layer_drawing_fits(g, layer))
+        return machine_only(g, drawing[layer].routine, "a layer the port doesn't draw");
+    TIMED_AS(g, drawing[layer].routine, draw_layer_at_the_maps_load(g, layer));
+    set_field_transfer_vram(g, field_layer_map_base(g, layer));
+    bool whole = layer != FIELD_BG1 && (field_layer_drawn_whole(g) & FIELD_LAYER_BIT(layer));
+    TIMED_AS(g, whole ? FIELD_SEND_STAGED_SCREENS_ENTRY : FIELD_SEND_STAGED_SCREEN_ENTRY,
+             field_send_staged_layer(g, pf, whole));
+    return true;
+}
+
+// $C0:0A50
+static bool draw_the_map_as_c(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, CHESTS_MARK_THE_MAP_ENTRY, chests_mark_the_map(g));
+    TIMED_AS(g, SET_THE_VIDEO_MODE, field_set_the_video_mode(pf));
+    TIMED_AS(g, SHOW_THE_SCREENS, field_show_the_maps_screens(g, pf));
+    place_the_screen(g);
+    place_the_layers_maps(g);
+    if (!draw_and_send_a_layer_as_c(g, pf, FIELD_BG1) || !draw_and_send_a_layer_as_c(g, pf, FIELD_BG2))
+        return false;
+    if (draws_bg3(g) && !draw_and_send_a_layer_as_c(g, pf, FIELD_BG3))
+        return false;
+    if (!layers_repeat_within_the_maps(g))
+        return machine_only(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "columns the port doesn't bring in");
+    TIMED_AS(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, stream_the_right_columns(g));
+    if (field_bg3_map_size(g) != 0)
+        set_field_layer_map_size(g, FIELD_BG3, field_bg3_map_size(g));
+    return true;
+}
+
+// $C0:B0E6 (with $C0:B127 for each)
+static bool draw_at_once_as_c(GameState *g, Platform *pf, FieldObject obj)
+{
+    TIMED_AS(g, FIELD_UPDATE_SCREEN_POSITION_ENTRY, object_update_screen_position(g, obj));
+    if (!field_rows_are_exact(g, obj))
+        return machine_only(g, FIELD_JOIN_ROW_ENTRY, "a row the port doesn't join");
+    TIMED_AS(g, FIELD_JOIN_ROW_ENTRY, object_join_row(g, obj));
+    set_field_vram_queue_end(g, 0);
+    bool more = true;
+    while (more)
+        TIMED_AS(g, FIELD_DRAW_NEXT_FRAME_ENTRY, more = field_frame_part_drawn(g, obj));
+    TIMED_AS(g, UPLOAD_THE_QUEUE, field_upload_queued_transfers(g, pf));
+    TIMED_AS(g, FIELD_RELEASE_FRAME_AREAS_ENTRY, sprites_release_frame_areas(g, obj));
+    return true;
+}
+
+static bool draw_the_objects_in_view_as_c(GameState *g, Platform *pf)
+{
+    unsigned objects = event_object_count(g);
+    for (FieldObject obj = 0; obj < objects; obj++) {
+        object_make_current(g, obj);
+        if (may_come_into_view(g, obj) && object_in_view_at_the_start(g, obj) && !draw_at_once_as_c(g, pf, obj))
+            return false;
+    }
+    bool built = false;
+    TIMED_AS(g, SPRITE_TABLE, built = field_sprite_table_built(g));
+    return built || machine_only(g, SPRITE_TABLE, "a sprite table the port doesn't build");
+}
+
+bool field_screen_set_up(GameState *g, Platform *pf)
+{
+    if (!field_remembered_switches_on_the_map(g))
+        return machine_only(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "switches the port doesn't press again");
+    TIMED_AS(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, field_press_the_remembered_switches(g));
+    if (!draw_the_map_as_c(g, pf))
+        return false;
+    field_objects_let_go(g, false);
+    bool done = false;
+    TIMED_AS(g, DRAW_THE_OBJECTS, done = draw_the_objects_in_view_as_c(g, pf));
+    if (!done)
+        return false;
+    put_up_the_window(g, pf);
+    field_line_effects_ready(g, pf);
+    tm_wait_frame_then_enable(pf, PF_CALL_DC(0xC028A1, SCREEN_ON, READS_NOTHING), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD,
+                              FIELD_PICTURE_LAST_LINE);
+    field_finish_the_frame(g, pf);
+    return true;
 }
 
 /* ---- The fade in -------------------------------------------------------------------------------- */
@@ -463,6 +562,43 @@ static void fade_in(Snes *s, FadeInKind kind)
     m_set_a8(s, shown);
     m_set_nz8(s, shown);
     m_rts(s);
+}
+
+/* A frame of the fade in, as C. */
+static bool a_brighter_frame_as_c(GameState *g, Platform *pf)
+{
+    set_field_brightness(g, (uint8_t)(field_brightness(g) + 1));
+    uint8_t control = field_player_control(g);
+    hand_the_party_to_the_player(g, false);
+    bool done = false;
+    TIMED_AS(g, WALK, done = field_the_leader_walks(g));
+    if (!done)
+        return false;
+    set_field_player_control(g, control);
+    TIMED_AS(g, FIELD_FRAME_WORK_ENTRY, done = field_frame_work_done(g, pf));
+    if (!done)
+        return false;
+    field_finish_the_frame(g, pf);
+    return true;
+}
+
+bool field_fade_in_as_c(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, FIELD_SET_THE_SCREEN_UP_ENTRY, done = field_screen_set_up(g, pf));
+    if (!done)
+        return false;
+    uint8_t shown = field_setting_1e(g);
+    if (shown == 0) {
+        do {
+            if (!a_brighter_frame_as_c(g, pf))
+                return false;
+            shown = field_brightness(g);
+        } while (still_brightening(shown));
+    }
+    set_field_setting_1e(g, 0);
+    start_play_clock(g);
+    return true;
 }
 
 // $C0:2848

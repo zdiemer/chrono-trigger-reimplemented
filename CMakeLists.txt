@@ -463,7 +463,9 @@ target_include_directories(fiber_test PRIVATE runtime)
 # (CT_PLATFORM_EXTERN) rather than the SNES backend's. timing_test runs a made-up
 # game's frames on them.
 add_library(ct_platform_native STATIC runtime/platform/native/timing.c runtime/platform/native/input.c
-  runtime/platform/native/video.c runtime/port/fiber.c)
+  runtime/platform/native/video.c runtime/platform/native/audio.c runtime/platform/native/save.c
+  runtime/platform/native_escapes.c
+  runtime/platform/observe.c runtime/platform/voices.c runtime/platform/native/mixer.c runtime/port/fiber.c)
 target_compile_definitions(ct_platform_native PUBLIC CT_PLATFORM_EXTERN)
 target_include_directories(ct_platform_native PUBLIC runtime)
 add_executable(timing_test tests/port/timing_test.c)
@@ -472,30 +474,28 @@ add_executable(tasks_test tests/port/tasks_test.c game/core/tasks.c)
 target_include_directories(tasks_test PRIVATE game)
 target_link_libraries(tasks_test PRIVATE ct_platform_native)
 
-# The native program (docs/PLAYING.md, "The native program"): game/'s program
+# The native program (docs/PLAYING.md, "The native program"): the whole of game/
 # with the platform services' host backends under it, and none of the CPU, the
 # PPU, the APU, the generated code or the registry. The game's state is held in
 # the host's memory: the accessors' backing built with CT_VARS_HOST, beside
 # state_host.c, and the game's data read from the asset pack through the store
 # (frontend/assets.c, game/data/assets.h; rom_host.c the cartridge's backing,
 # with no ROM image mapped). Built, like the shipping shape, without
-# the ports' scaffolding. It links only what the program's C reaches today;
-# ct_native_whole links the whole of game/ the same way and is expected to
-# fail: its undefined references are the list of what still assumes a machine
-# (docs/TODO.md, "The native program"), so it is built only when asked for.
+# the ports' scaffolding. Nothing in it makes a machine, so the entry wrappers
+# and bridges game/ still has are never reached; what they call of the machine
+# is no_machine.c, the list of what game/ still asks of one (docs/TODO.md,
+# "The native program").
 add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/state_host.c runtime/port/rom_host.c)
 target_compile_definitions(ct_state_host PRIVATE CT_VARS_HOST CT_WITHOUT_ORIGINAL_EFFECTS)
 target_include_directories(ct_state_host PUBLIC game)
 target_link_libraries(ct_state_host PUBLIC ct_platform_native)
-set(CT_NATIVE_GAME_SOURCES game/core/program.c game/core/tasks.c game/data/assets.c game/data/asset_catalogue.c)
-add_executable(ct_native frontend/ct_native.c frontend/assets.c ${CT_NATIVE_GAME_SOURCES})
+set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
+list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c)
+add_executable(ct_native frontend/ct_native.c frontend/assets.c frontend/sound_native.c oracle/src/movie.c runtime/port/no_machine.c
+  ${CT_NATIVE_GAME_SOURCES})
 target_compile_definitions(ct_native PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
+target_include_directories(ct_native PRIVATE frontend oracle/src)
 target_link_libraries(ct_native PRIVATE ct_state_host ct_platform_native)
-set(CT_NATIVE_WHOLE_SOURCES ${CT_GAME_SOURCES})
-list(REMOVE_ITEM CT_NATIVE_WHOLE_SOURCES game/registry.c)
-add_executable(ct_native_whole EXCLUDE_FROM_ALL frontend/ct_native.c frontend/assets.c ${CT_NATIVE_WHOLE_SOURCES})
-target_compile_definitions(ct_native_whole PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
-target_link_libraries(ct_native_whole PRIVATE ct_state_host ct_platform_native)
 add_executable(state_test tests/port/state_test.c)
 target_link_libraries(state_test PRIVATE ct_runtime)
 add_executable(shadow_test tests/port/shadow_test.c)

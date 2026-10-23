@@ -174,6 +174,8 @@ enum { FIELD_UNPACK_TILE_MAPS_ENTRY = 0xC0A521 };
 /* field/layers.c */
 void field_compute_layer_edges(Snes *s);
 void field_update_layer_scroll(Snes *s);
+/* The layers' scroll moved on for the frame ($C0:91AC), as C. */
+void field_layer_scroll_updated(GameState *g);
 void field_unpack_tile_maps(Snes *s);
 bool field_unpack_stays_clear(Snes *s);
 
