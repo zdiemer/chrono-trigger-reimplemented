@@ -11,6 +11,10 @@
 #include "rom.h"
 #include "state.h"
 
+/* Whether the battle's debugging path at the end of a pass is on: the bank's
+ * last byte ($C1:FFFF), zero in the released game. */
+static inline uint8_t battle_debugging_switch(const GameState *g) { return rom_read8(g, 0xC1FFFFu); }
+
 /* The table of 256 random numbers the battle draws from ($FD:BA61). */
 static inline uint8_t battle_random_number(const GameState *g, uint8_t at) { return rom_read8(g, 0xFDBA61u + at); }
 

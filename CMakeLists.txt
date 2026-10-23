@@ -84,6 +84,8 @@ add_library(ct_game STATIC
   game/core/palette.c
   game/core/sound_driver.c
   game/core/tile_animation.c
+  game/data/assets.c
+  game/data/asset_catalogue.c
   game/data/decompress.c
   game/event/animation.c
   game/event/bridge.c
@@ -411,9 +413,9 @@ target_link_libraries(ct_game_native_shape PUBLIC ct_runtime)
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c oracle/src/sram_find.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
-set(CT_DEV_SOURCES dev/ct_dev.c dev/apu_margins.c dev/as_port.c dev/census.c dev/event_reads.c dev/fallbacks.c dev/io_log.c dev/misses.c
+set(CT_DEV_SOURCES dev/ct_dev.c dev/apu_margins.c dev/asset_report.c dev/as_port.c dev/census.c dev/event_reads.c dev/fallbacks.c dev/io_log.c dev/misses.c
   dev/px_check.c dev/range_report.c dev/mixer_check.c dev/sound_audio.c dev/sound_compare.c dev/sound_lockstep.c
-  dev/sound_state.c dev/vid_check.c frontend/natives.c frontend/sound_host.c)
+  dev/sound_state.c dev/vid_check.c frontend/assets.c frontend/natives.c frontend/sound_host.c)
 add_executable(ct_dev ${CT_DEV_SOURCES})
 target_include_directories(ct_dev PRIVATE frontend)
 target_link_libraries(ct_dev PRIVATE ct_game ct_vars_checked ct_generated ct_runtime ct_trace)
@@ -474,23 +476,24 @@ target_link_libraries(tasks_test PRIVATE ct_platform_native)
 # with the platform services' host backends under it, and none of the CPU, the
 # PPU, the APU, the generated code or the registry. The game's state is held in
 # the host's memory: the accessors' backing built with CT_VARS_HOST, beside
-# state_host.c, and the cartridge read from a ROM file's bytes (rom_image.c,
-# the seam the asset pack replaces). Built, like the shipping shape, without
+# state_host.c, and the game's data read from the asset pack through the store
+# (frontend/assets.c, game/data/assets.h; rom_host.c the cartridge's backing,
+# with no ROM image mapped). Built, like the shipping shape, without
 # the ports' scaffolding. It links only what the program's C reaches today;
 # ct_native_whole links the whole of game/ the same way and is expected to
 # fail: its undefined references are the list of what still assumes a machine
 # (docs/TODO.md, "The native program"), so it is built only when asked for.
-add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/state_host.c runtime/port/rom_image.c)
+add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/state_host.c runtime/port/rom_host.c)
 target_compile_definitions(ct_state_host PRIVATE CT_VARS_HOST CT_WITHOUT_ORIGINAL_EFFECTS)
 target_include_directories(ct_state_host PUBLIC game)
 target_link_libraries(ct_state_host PUBLIC ct_platform_native)
-set(CT_NATIVE_GAME_SOURCES game/core/program.c game/core/tasks.c)
-add_executable(ct_native frontend/ct_native.c ${CT_NATIVE_GAME_SOURCES})
+set(CT_NATIVE_GAME_SOURCES game/core/program.c game/core/tasks.c game/data/assets.c game/data/asset_catalogue.c)
+add_executable(ct_native frontend/ct_native.c frontend/assets.c ${CT_NATIVE_GAME_SOURCES})
 target_compile_definitions(ct_native PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
 target_link_libraries(ct_native PRIVATE ct_state_host ct_platform_native)
 set(CT_NATIVE_WHOLE_SOURCES ${CT_GAME_SOURCES})
 list(REMOVE_ITEM CT_NATIVE_WHOLE_SOURCES game/registry.c)
-add_executable(ct_native_whole EXCLUDE_FROM_ALL frontend/ct_native.c ${CT_NATIVE_WHOLE_SOURCES})
+add_executable(ct_native_whole EXCLUDE_FROM_ALL frontend/ct_native.c frontend/assets.c ${CT_NATIVE_WHOLE_SOURCES})
 target_compile_definitions(ct_native_whole PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
 target_link_libraries(ct_native_whole PRIVATE ct_state_host ct_platform_native)
 add_executable(state_test tests/port/state_test.c)
@@ -517,6 +520,13 @@ add_executable(sound_test tests/port/sound_test.c dev/sound_compare.c frontend/s
 target_include_directories(sound_test PRIVATE dev frontend)
 target_link_libraries(sound_test PRIVATE ct_game ct_vars_checked ct_runtime)
 # The accessors generated from re/ram.toml, and the page kinds' D mapping.
+# The asset pack and the reads through a store, with no ROM and no machine
+# (tests/frontend/assets_test.c is the backing of game/rom.h a build without
+# one gives).
+add_executable(assets_test tests/frontend/assets_test.c frontend/assets.c game/data/assets.c
+  game/data/asset_catalogue.c)
+target_include_directories(assets_test PRIVATE frontend game)
+
 add_executable(vars_test tests/port/vars_test.c)
 target_include_directories(vars_test PRIVATE game)
 target_link_libraries(vars_test PRIVATE ct_vars_checked ct_runtime)
@@ -587,7 +597,7 @@ if(NOT CT_PLAYER_INTERPRETER_MODE MATCHES "^(ON|FALLBACK|OFF)$")
 endif()
 
 if(CT_SDL2)
-  add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/natives.c frontend/audio_fill.c frontend/window.c
+  add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/natives.c frontend/assets.c frontend/audio_fill.c frontend/window.c
     frontend/headless.c frontend/files.c frontend/bindings.c frontend/sound_host.c)
   # The miss report (dev/misses.h) is the player's log of misses, and of what
   # --interpreted finds.

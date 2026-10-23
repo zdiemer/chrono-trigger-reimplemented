@@ -325,6 +325,20 @@ routines suspended throughout, as they did before owed time counted. Loading a
 quick save also restores the SRAM it held, which is written to the `.srm` file
 on the next check.
 
+## The game's resources
+
+The game's data -- its tables, scripts, text, graphics and music -- is read
+from an asset pack, `<rom name>.assets` beside the saves (the ROM's
+directory, or `--save-dir`). The first launch without one imports it: `ct_play`
+checks that the ROM is Chrono Trigger (USA) by its CRC-32 and copies out every
+resource of the catalogue, each under its name and type, in its original
+bytes ([PLATFORM.md](PLATFORM.md), "The assets, as built"). `ct_play --import
+<rom>` imports it again and exits, and a pack made by a build with another
+catalogue of resources is imported again on launch. The pack is made from your
+ROM and stays on your machine like it; nothing in the repository holds it. The
+player still needs the ROM itself, for the original's code the machine runs
+beside the ports.
+
 ## Recording test movies
 
 Shadow validation (see [PORTING.md](PORTING.md)) is only as good as the
@@ -424,7 +438,8 @@ holds the rules that keep it that way).
 | `frontend/window.c` | `run_window`: the SDL window, audio device, keyboard and gamepads, and the frame pacing |
 | `frontend/bindings.h`, `bindings.c` | the window's controls: keys and pad inputs to SNES buttons and player actions |
 | `frontend/headless.c` | `run_headless`: `--frames`, `--hold`, `--screenshot`, `--wav` |
-| `frontend/files.h`, `files.c` | the desktop's storage: what the saves are called, and the files they go in |
+| `frontend/files.h`, `files.c` | the desktop's storage: what the saves and the asset pack are called, and the files they go in |
+| `frontend/assets.h`, `assets.c` | the asset pack: the import from a ROM image, and the stores over a pack or a ROM image the game reads its resources from |
 | `frontend/ct_play.c` | the options, which it turns into a player and one driver |
 
 The player advances one frame per `player_step` call, and the buttons it is
@@ -488,9 +503,11 @@ platform services' host backends (`runtime/platform/native/`), the coroutines
 the accessors' backing built with `CT_VARS_HOST`, beside
 `runtime/port/state_host.c`, with the multiplier, divider and work RAM port
 worked out in C -- and none of the CPU, the PPU, the APU, the generated code or
-`game/registry.c`. The cartridge's data comes from the ROM file's bytes the
-driver loads into a buffer (`runtime/port/rom_image.c`): one seam, which the
-asset pack replaces. Like the shipping shape, it is built without the ports'
+`game/registry.c`. The game's data comes from the asset pack, read through the
+store (`game/data/assets.h`; "The game's resources", above): `<rom name>.assets`
+beside the ROM, or `--assets`, imported from the ROM where there is none. The
+ROM is read only to import it; no image of it is mapped
+(`runtime/port/rom_host.c`). Like the shipping shape, it is built without the ports'
 scaffolding, and it builds without a ROM.
 
 The driver (`frontend/ct_native.c`) starts the host timing backend with the

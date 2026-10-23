@@ -30,10 +30,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - CPU tests: `python3 tests/cpu/fetch_sst.py` and `python3 tests/apu/fetch_sst_spc700.py` once, then
   `build/main/sst_runner tests/cpu/data/*.bin`, `build/main/sst_generated_runner tests/cpu/data/*.bin`,
   `build/main/generated_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
-  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `vars_test`, `sound_test`, `timing_test` and `tasks_test` need no data; `build/main/ct_sound_fuzz` checks
+  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `assets_test`, `vars_test`, `sound_test`, `timing_test` and `tasks_test` need no data; `build/main/ct_sound_fuzz` checks
   the C sound driver against the original's in lockstep (docs/SOUND.md).
 - CI (`.github/workflows/ci.yml`): Linux gcc and clang, macOS Apple clang, Windows MSYS2 MinGW gcc, all
-  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `vars_test`, `sound_test`, `timing_test`, `tasks_test`,
+  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `assets_test`, `vars_test`, `sound_test`, `timing_test`, `tasks_test`,
   the conformance runners (test data cached) and builds `ct_play`, `ct_native` and the oracle. Code must build
   warning-free on all four and tests must pass without a ROM. Docs-only changes don't trigger it.
 - Movies: `oracle/movies/*.ctm` from power-on, and `oracle/movies/saves/*.ctm` from cartridge saves
@@ -73,7 +73,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines, no `page refused` line (a
   guard that turned away a call whose direct page is no instance `re/ram.toml` declares) and no `accessor out
   of range` line (a port that called an accessor with an index past what the map declares, reaching the next
-  variable in work RAM; both in docs/DISASSEMBLY.md, "The accessors");
+  variable in work RAM; both in docs/DISASSEMBLY.md, "The accessors") and no `asset outside the
+  catalogue` line (a cartridge read in no resource of `re/assets.tsv`, which `tools/assets.py check`
+  also holds to the matching build's regions; docs/PLATFORM.md, "The assets, as built");
   `--native on --generated only` produces traces identical to `--native off` (`python3 tools/trace.py
   diff`); every hand port's estimated time stays within the timing gate's limits over the shadow runs
   or is in `tools/timing_exceptions.txt` with a reason (`tools/timing_gate.py`, run by the suite; after
