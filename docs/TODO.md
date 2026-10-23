@@ -2722,8 +2722,8 @@ symbols are undefined from 236 of `game/`'s objects. Grouped:
   every entry wrapper; a sibling found in the registry by address
   (`native_hand_entry`) in the five bridges (`battle/bridge.c`,
   `battle/steps.c`, `field/bridge.c`, `menu/bridge.c`, `scene/bridge.c`).
-  These go as each subsystem's ports call ports (PLAN.md's step 2) and its
-  wrappers leave (step 5).
+  These go as each subsystem's ports call ports (PLAN.md's step 1) and its
+  wrappers leave (step 3).
 - **The machine's memory and registers.** `snes_bus_read`, `_write` and
   `_peek` from 224 of the 236 objects: the wrappers' registers, page, data
   bank and stack, the guards' peeks, and what the logic still reads by
@@ -2787,6 +2787,14 @@ generated code (PLAN.md, Phase 3), so anything needing the *game* to know
 something -- a screen coordinate, a menu's shape, where a resource lives --
 waits on M5 rather than on a backend.
 
+- **What the native program's review left** (none rated translation):
+  `core/program.h` and `program.c`'s handler table are keyed by the ROM
+  address a mode installs, where they want a handler identity; `core/tasks.c`
+  is called only by `tasks_test` until the menus use it; `dev/census.c`'s
+  `census_destroy` leaves the runtime's observer pointing at the freed census;
+  `state_host.c` and `rom_image.c` each carry the HiROM address map, which
+  wants one copy; CLAUDE.md's command and CI lists don't name `ct_native`,
+  `ct_native_whole` or `tasks_test`.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in

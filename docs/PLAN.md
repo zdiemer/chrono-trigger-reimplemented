@@ -598,13 +598,13 @@ by an audit; the fourth is the program itself.
   on the machine and `ct_native` (PLAYING.md, "The native program") calls
   with nothing under it; the menus' tasks have their coroutines
   (`core/tasks.c`).
-  2. **Ports call ports.** Where a port reaches another port through a
+  1. **Ports call ports.** Where a port reaches another port through a
      call-out (`portsmell`'s `sibling-through-machine` already finds these), it
      calls the C function, keeping the callee's time with `NATIVE_TIME_AS`.
      This happens anyway as subsystems finish; the census says where it is
      still owed: the menus' object scripts, the battle's handlers, timers and
      frame dispatch, the menus' tasks and the field's frame hold the most.
-  3. **`ct_native` to the title, then a few field maps.** `ct_native` runs
+  2. **`ct_native` to the title, then a few field maps.** `ct_native` runs
      the boot and stops at frame 1 at the field's first start (`$C0:000E`),
      the first step only the machine runs; `ct_native_whole`, the whole of
      `game/` linked the same way, is the list of what still assumes a
@@ -616,13 +616,13 @@ by an audit; the fourth is the program itself.
      and compared with `ct_play`'s. Each step is measured by how far
      `ct_native` gets and by `ct_native_whole`'s count; it is a measurement,
      not the product, until the rest arrives.
-  5. **Per subsystem, the registry goes with the gate.** When a subsystem
+  3. **Per subsystem, the registry goes with the gate.** When a subsystem
      retires the gate ("Retiring the gate, deliberately", above), its rows
      leave `game/registry.c`, its entry wrappers and leaves files are
      deleted, its entries become ordinary functions its callers call, and
      its guards become assertions. The dev build keeps the registry for the
      subsystems still under the gate.
-  6. **Last, the machine leaves the product.** When no subsystem is under
+  4. **Last, the machine leaves the product.** When no subsystem is under
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is
      `ct_native`.
