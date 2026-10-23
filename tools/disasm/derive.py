@@ -12,9 +12,10 @@ covered, is a problem, reported by the analysis and failing the matching
 build's closure check.
 """
 
+import itertools
 from dataclasses import dataclass, field
 
-from .codeargs import call_sites, callees, flow, register_values
+from .codeargs import _CLOBBER, _TRANSFER, call_sites, callees, flow, register_values
 from .cpu import Mode
 from .memmap import bus_to_offset, fmt
 
@@ -264,6 +265,44 @@ def _pointer_stores(an, fl, pcs, problems, entries=frozenset()):
     return out
 
 
+def _paired_values(an, fl, pc, regs):
+    """The tuples of constant values `regs` hold together before `pc`, one per path
+    into it, or None. Where more than one register takes several values, the
+    values are paired by the path that sets them (the dive's two lists, $7E:7ED1
+    and $7E:7EE8, share one block move with a source and a length each), not
+    crossed: crossing them reads a list with the other's length."""
+    vals = [register_values(an, pc, r, fl) for r in regs]
+    if not all(vals):
+        return None
+    if sum(len(v) > 1 for v in vals) <= 1:
+        return set(itertools.product(*vals))
+    cur = pc
+    for _ in range(64):
+        sources = ([fl.pred[cur]] if cur in fl.pred else []) + sorted(fl.branches.get(cur, ()))
+        if len(sources) != 1:
+            break
+        cur = sources[0]
+        name = next(iter(an.code[cur].values())).name
+        if any(name.startswith("LD" + r) or name in _CLOBBER[r] or _TRANSFER.get(name, ("",))[0] == r
+               for r in regs):
+            return None
+    else:
+        return None
+    out = set()
+    for src in sources:
+        insn = next(iter(an.code[src].values()))
+        path = []
+        for r in regs:
+            if insn.name == "LD" + r and insn.mode in (Mode.IMM_M, Mode.IMM_X):
+                path.append({insn.operand})
+            else:
+                path.append(register_values(an, src, r, fl))
+        if not all(path) or any(len(v) > 1 for v in path):
+            return None
+        out.add(tuple(next(iter(v)) for v in path))
+    return out
+
+
 def derive_seqscript(an, fl) -> Derivation:
     from . import seqscript
     d = Derivation()
@@ -307,18 +346,18 @@ def derive_seqscript(an, fl) -> Derivation:
         insn = next(iter(an.code[pc].values()))
         if insn.name != "MVN" or insn.operand != 0x7E7E:
             continue
-        ys, xs, counts = (register_values(an, pc, r, fl) for r in ("Y", "X", "A"))
+        ys = register_values(an, pc, "Y", fl)
         if not ys or not ys & set(SEQ_TASK_LIST_STARTS):
             continue
-        if not xs or not counts or len(ys) != 1:
+        copies = _paired_values(an, fl, pc, ("X", "A"))
+        if not copies or len(ys) != 1:
             d.problems.append(f"{fmt(pc)}: a task list copied whose source or length isn't a constant")
             continue
         lst = SEQ_TASK_LIST_STARTS[next(iter(ys))]
-        for x in xs:
-            for n in counts:
-                words = {an.u16(0x7E0000 | (x + 2 * i)) for i in range((n + 1) // 2)}
-                tasks[lst] |= {0x7E0000 | w for w in words if w}
-                static += len(words)
+        for x, n in copies:
+            words = {an.u16(0x7E0000 | (x + 2 * i)) for i in range((n + 1) // 2)}
+            tasks[lst] |= {0x7E0000 | w for w in words if w}
+            static += len(words)
     d.targets["call"] = set(parse.calls)
     d.targets["tasks_0920"] = tasks["0920"]
     d.targets["tasks_0940"] = tasks["0940"]
