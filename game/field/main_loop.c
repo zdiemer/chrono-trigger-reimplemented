@@ -30,7 +30,9 @@
 #include "field/main_loop.h"
 #include "field/dialog_window.h"
 #include "field/field.h"
+#include "field/frames.h"
 #include "field/line_effects.h"
+#include "field/object_update.h"
 #include "field/menus.h"
 #include "field/party.h"
 #include "field/requests.h"
@@ -46,6 +48,7 @@
 #include "charge.h"
 #include "original_effects.h"
 #include "core/console.h"
+#include "core/program.h"
 #include "core/palette.h"
 #include "core/display.h"
 #include "core/sound_driver.h"
@@ -98,6 +101,15 @@ static void finish_frame(GameState *g)
 {
     party_stands_another_frame(g);
     set_field_frame_pending(g, (uint8_t)(field_frame_pending(g) + 1));
+}
+
+/* The frame done, as C: the vblank handler takes it, and the main loop waits
+ * for it to. */
+void field_finish_the_frame(GameState *g, Platform *pf)
+{
+    finish_frame(g);
+    while (field_frame_pending(g))
+        tm_wait_frame(pf, PF_AT(FIELD_FRAME_WAIT_LOOP));
 }
 
 /* ---- The routines it calls on the machine ------------------------------------------------------- */
@@ -205,6 +217,35 @@ void field_power_on(GameState *g, Platform *pf)
     wake(g, pf);
     TIMED_AS(g, SOUND_DRIVER_BOOT, (void)sound_driver_host_boots(g, pf));
     TIMED_AS(g, MENUS_SERVICES, start_from_the_saves(g, pf));
+}
+
+// $C0:005D
+/* The field entered, as C: dark, its handlers taken, its state started, the
+ * location loaded, its sprites built afresh, its objects set up, its steps
+ * forgotten and its screen faded in. False where a step is the machine's
+ * yet, the program going no further there (core/program.h). */
+bool field_enter_the_location(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
+    take_the_interrupts(g);
+    if (location_is_the_menus(g)) {
+        program_needs_the_machine(g, MENUS_SCREENS, "the menus' mode, for a screen drawn with sprites");
+        return false;
+    }
+    TIMED_AS(g, START, field_start_state(g));
+    bool done = false;
+    TIMED_AS(g, FIELD_LOAD_LOCATION_ENTRY, done = field_load_the_location(g, pf));
+    if (!done) {
+        program_needs_the_machine(g, FIELD_LOAD_LOCATION_ENTRY, "a location whose map or script the port doesn't take");
+        return false;
+    }
+    TIMED_AS(g, FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY, sprites_all_to_build_afresh(g));
+    TIMED_AS(g, FIELD_SET_UP_THE_OBJECTS_ENTRY, done = field_objects_set_up(g, pf));
+    if (!done)
+        return false;
+    TIMED_AS(g, FIELD_FORGET_THE_STEPS_ENTRY, field_forget_the_steps(g));
+    TIMED_AS(g, FIELD_FADE_IN_ENTRY, done = field_fade_in_as_c(g, pf));
+    return done;
 }
 
 /* On the machine the driver may be the original's, whose boot waits on the
@@ -381,6 +422,74 @@ void field_frame_work(Snes *s)
         m_stop_at(s, SPRITE_TABLE, 0);
 }
 
+/* The frame's work as C (a build with no machine calls the budgets' turns
+ * and frames as C too). False where a step is one the port doesn't take,
+ * the program going no further there. */
+bool field_frame_work_done(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, TURNS_DUE, field_queue_the_due_turns(g));
+    TIMED_AS(g, SCRIPT_TURNS, done = field_queued_turns_run(g, pf));
+    if (!done)
+        return false;
+    TIMED_AS(g, LINE_EFFECTS, field_line_effects_build(g));
+    TIMED_AS(g, PALETTE_ANIMATION, palette_animate_a_frame(g));
+    TIMED_AS(g, UPDATE_OBJECTS, done = field_objects_updated(g));
+    if (!done)
+        return false;
+    TIMED_AS(g, SPRITE_FRAMES, field_queued_frames_drawn(g, pf));
+    TIMED_AS(g, SPRITE_TABLE, done = field_sprite_table_built(g));
+    if (!done)
+        program_needs_the_machine(g, SPRITE_TABLE, "a sprite table the port doesn't build");
+    return done;
+}
+
+// $C0:0097
+/* A pass of the main loop as C, up to and through the wait for the next
+ * frame. False where a step is the machine's yet, the program going no
+ * further there. */
+FieldPass field_runs_a_pass(GameState *g, Platform *pf)
+{
+    latch_presses(g);
+    bool done = false;
+    TIMED_AS(g, PAUSE_AND_MENUS, done = field_pause_and_menus_as_c(g));
+    if (!done)
+        return FIELD_PASS_STOPS;
+    FieldPass requests = FIELD_PASS_GOES_ON;
+    TIMED_AS(g, REQUESTS, requests = field_requests_handled(g, pf));
+    if (requests != FIELD_PASS_GOES_ON)
+        return requests;
+    TIMED_AS(g, WALK, done = field_the_leader_walks(g));
+    if (!done)
+        return FIELD_PASS_STOPS;
+    TIMED_AS(g, CONFIRM, field_confirm_pressed(g));
+    TIMED_AS(g, FIELD_DIALOG_WINDOW_STEP_ENTRY, field_dialog_window_step(g));
+    TIMED_AS(g, SCREEN_EFFECT, done = field_screen_effect_moved_on(g));
+    if (!done)
+        return FIELD_PASS_STOPS;
+    TIMED_AS(g, SCRIPT_LAYERS, field_script_layers_worked(g));
+    TIMED_AS(g, FIELD_FRAME_WORK_ENTRY, done = field_frame_work_done(g, pf));
+    if (!done)
+        return FIELD_PASS_STOPS;
+    TIMED_AS(g, FIELD_FRAME_WAIT, field_finish_the_frame(g, pf));
+    return FIELD_PASS_GOES_ON;
+}
+
+// $C0:005D (and $C0:0000, its start again for a new place)
+void field_runs(GameState *g, Platform *pf)
+{
+    for (;;) {
+        if (!field_enter_the_location(g, pf))
+            return;
+        FieldPass pass;
+        do
+            pass = field_runs_a_pass(g, pf);
+        while (pass == FIELD_PASS_GOES_ON);
+        if (pass == FIELD_PASS_STOPS)
+            return;
+    }
+}
+
 // $C0:00DE
 /* The effects refreshed for the next frame: the line effects' tables built
  * and the palettes animated. */
@@ -452,6 +561,21 @@ static void start_the_scene(Snes *s, uint8_t scene)
         m_stop_at(s, FLICKERING_WARP, THE_SCENE_READS_A);
     else
         m_stop_at(s, SCENE_ENGINE, THE_SCENE_READS_A);
+}
+
+/* As C: the scene engine's scene the field ends into is the program's next
+ * step (core/program.c, scene_runs); a time gate's tunnel only the machine
+ * runs yet (core/program.h). */
+void field_scene_starts(GameState *g, uint8_t scene)
+{
+    if (scene < SCENE_LONG_WARP)
+        program_goes_on_to_a_scene(g, scene);
+    else
+        program_needs_the_machine(g, scene == SCENE_LONG_WARP      ? LONG_WARP
+                                     : scene == SCENE_SHORT_WARP    ? SHORT_WARP
+                                     : scene == SCENE_SHORTEST_WARP ? SHORTEST_WARP
+                                                                     : FLICKERING_WARP,
+                                  "the time gate's tunnel the field ends into");
 }
 
 /* The scene's number in A, over the field's page's low byte (which the

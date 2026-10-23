@@ -493,8 +493,12 @@ what `ct_play` becomes (PLAN.md, "The native program, and the registry taken
 down"). It is a measurement, not yet a player:
 
 ```sh
-build/main/ct_native --rom roms/ct-usa.sfc [--assets pack] [--frames N] [--sram save.srm]
+build/main/ct_native --rom roms/ct-usa.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]
 ```
+
+With `--movie` the first controller presses what the movie's frames say,
+frame for frame; the native program's frames aren't the machine's (nothing
+in it takes the original's time), so a movie's presses land where they will.
 
 It links the whole of `game/` but `game/registry.c` -- the program's top in
 `game/core/program.c` (the boot, the main thread, the vblank and line
@@ -542,16 +546,48 @@ entry, `program_needs_the_machine` stops it and the driver says where (exit
 status 1):
 
 ```
-frame 1: the program's C goes no further: $C0:005D, the field's entry, runs only on the machine
+frame 2093: the program's C goes no further: $C2:0000, the menus' mode, for a screen drawn with sprites, runs only on the machine
 ```
 
-So far the boot and the field's first start run as C: the console's
-registers and the power-on screen, the field's handlers installed, the screen
-dark, work RAM cleared, the sound driver booted, and the cartridge's saves
-looked at, which starts a new game where there are none. The field's entry
-is the first step only the machine runs. It reports any access the host had
-no memory for (a register; none so far), and any video escape it couldn't
-follow. What the rest of the game still assumes of a machine is TODO.md's
-"The native program". The menus' tasks have their coroutines
-(`game/core/tasks.c`, checked by `tasks_test`) for when their bodies are
-functions of the game's state.
+So far the boot and the field run as C. At power-on the field's handlers
+are installed, the screen goes dark, work RAM is cleared, the sound driver
+boots and the cartridge's saves are looked at. Then the field is entered at
+location 0: the location loaded (its song, tile set, map and event script),
+its sprites built afresh, its objects started with their openings and the
+map's own script run by the event engine as C (`event_runner_as_c`), its
+screen set up and faded in; and its main loop runs a pass a frame -- the
+pause and the menus, the requests (a location change starts the field again
+at the new place), the leader's walk, the confirm button, the dialog
+window, the screen effect, the scripts' layer work, and the frame's work
+(the objects' turns and moves, the line effects, the palettes, the frames
+drawn, the sprite table) -- with the field's vblank and line handlers as C
+in `core/program.c`'s table. The next location's script ends the field into
+the title, a scene: the scene engine boots it and unpacks its program into
+work RAM, whose data (the scripts, the sprite lists) the C reads; the
+program starts (the sound put back to normal, the first screen), the title
+is set up and its song started and waited for, and its frames run -- the
+NMI's frame work with its two task lists as C, the sequence scripts'
+channels turned as C (`scene_channel_turn`) -- until a script ends the
+scene, when the game goes back to the field (`scene_runs`,
+`scene/program.c`; the main thread goes between the two, `core/program.c`).
+Left alone, the title gives way to the attract demo: the field again, until
+it enters the menus' mode for a screen drawn with sprites. With
+`new-game.ctm`'s presses, Start ends the title and the field's next script
+asks for a menu (frame 1676, `$C0:0C76`): the menus are the next step only
+the machine runs.
+
+The field's steps as the program calls them (`field_runs`,
+`field/main_loop.c`) are functions of the game's state beside the entries
+the machine reaches: where an entry's work had no call into the machine,
+the entry calls the same function; where the machine needs its frames and
+call-outs to compare a step with the original's (the budgets' turns, the
+song's calls to the driver), the program's sequence calls the step's C and
+the entry keeps its bridge. Where a step meets a state the port doesn't take
+-- a guard that would hand the call to the original on the machine -- or a
+request, an event command or a menu only the machine runs yet, the program
+stops there and says which. It reports any access the host had no memory
+for (a register; none so far), and any video escape it couldn't follow.
+What the rest of the game still assumes of a machine is TODO.md's "The
+native program". The menus' tasks have their coroutines (`game/core/tasks.c`,
+checked by `tasks_test`) for when their bodies are functions of the game's
+state.

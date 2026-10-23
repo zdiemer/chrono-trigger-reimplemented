@@ -63,7 +63,9 @@ def main():
         assert run.exit_to(CORRIDOR), "the corridor before the throne room"
         run.checkpoint("corridor")
     if start <= 3:
-        row = CORRIDOR_SCENE_ROW * 16 - 4
+        # Past the row the scene starts, which stops the leader within a pixel or two of it, wherever the
+        # frame's phase puts the step.
+        row = CORRIDOR_SCENE_ROW * 16
         assert run.walk(lambda m, px, py: py < row) is not None, "up the corridor to Azala's look down"
         assert run.wait_control(), "Azala gone up the stairs"
         assert run.exit_to(THRONE_ROOM), "the throne room"

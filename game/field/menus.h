@@ -5,8 +5,11 @@
 #include <stdbool.h>
 
 #include "snes/system.h"
+#include "state.h"
 
 void field_pause_and_menus(Snes *s);
+/* The same as C, false where the pause or a menu opens (the machine's yet). */
+bool field_pause_and_menus_as_c(GameState *g);
 /* The menu a script asked for, from the main loop's requests
  * (field/requests.c): true where it came back to the main loop's caller's
  * state, false where it stopped. */

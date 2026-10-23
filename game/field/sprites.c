@@ -924,7 +924,26 @@ static void start_ranges(GameState *g)
 
 // $C0:B271
 /* Build the frame's sprite table: every object in view, the rows from the
- * bottom of the screen up, then the ranges' leftovers hidden. */
+ * bottom of the screen up, then the ranges' leftovers hidden. As C where
+ * every draw is one the port makes; false otherwise, with nothing built. */
+bool field_sprite_table_built(GameState *g)
+{
+    if (!every_draw_is_own(g))
+        return false;
+    start_ranges(g);
+    open_table_stream(g);
+    object_recognise_current(g);   /* the building clears the byte after the link */
+    for (int row = FIELD_ROWS - 1; row >= 0; row--)
+        for (FieldLink link = row_first_object(g, (unsigned)row); field_link_is_object(link);) {
+            FieldObject obj = field_linked_object(link);
+            object_make_current(g, obj);
+            TIMED_AS(g, DRAW, (void)update_and_draw(g, obj));
+            link = object_next_in_row(g, obj);
+        }
+    hide_leftovers(g);
+    return true;
+}
+
 void field_build_sprite_table(Snes *s)
 {
     GameState *g = state_of(s);

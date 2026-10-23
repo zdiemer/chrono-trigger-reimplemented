@@ -24,6 +24,8 @@ struct GameState {
     unsigned long strays;
     uint32_t stray[STATE_HOST_STRAYS_KEPT];
     bool stopped;
+    bool scene_next;          /* the program goes on to a scene (program_goes_on_to_a_scene) */
+    uint8_t scene;
     uint32_t stopped_at;
     const char *stopped_what;
 };
@@ -209,6 +211,23 @@ void original_frame_enter(GameState *g, uint16_t bytes) { (void)g, (void)bytes; 
 void original_frame_leave(GameState *g, uint16_t bytes) { (void)g, (void)bytes; }
 
 /* ---- Where the program's C ends (core/program.h) --------------------------------------------- */
+
+bool program_went_no_further(const GameState *g) { return g->stopped; }
+
+void program_goes_on_to_a_scene(GameState *g, uint8_t scene)
+{
+    g->scene_next = true;
+    g->scene = scene;
+}
+
+bool program_next_scene(GameState *g, uint8_t *scene)
+{
+    if (!g->scene_next)
+        return false;
+    g->scene_next = false;
+    *scene = g->scene;
+    return true;
+}
 
 void program_needs_the_machine(GameState *g, uint32_t routine, const char *what)
 {

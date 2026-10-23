@@ -241,6 +241,8 @@ static void do_the_layer_work(GameState *g)
  * the flags but V are dead after it; a credits line leaves V clear (the
  * sum its send's size is worked out with never overflows), and the rest,
  * the staging's blank among them, as it came. */
+void field_script_layers_worked(GameState *g) { do_the_layer_work(g); }
+
 void field_do_script_layer_work(Snes *s)
 {
     GameState *g = state_of(s);

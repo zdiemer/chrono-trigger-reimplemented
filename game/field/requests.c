@@ -30,6 +30,7 @@
 #include "field/walk.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "core/display.h"
 #include "field/sprites.h"
 #include "field/streaming.h"
@@ -476,6 +477,48 @@ static bool answer_requests(Snes *s)
     if (asked(g, FIELD_REQUEST_BATTLE))
         return answer_battle(s);
     return true;
+}
+
+/* ---- As C, with no machine ------------------------------------------------------------------ */
+
+/* The requests a program with no machine answers as C so far: a location
+ * change. The rest stop it where they are asked for (core/program.h). */
+static const struct {
+    uint8_t request;
+    uint32_t routine;
+    const char *what;
+} only_the_machines[] = {
+    { FIELD_REQUEST_MENUS, 0xC00C76, "a menu a script asked for" },
+    { FIELD_REQUEST_STEP_EVENT, 0xC00C76, "a step on an event's tile" },
+    { FIELD_REQUEST_OPEN_CHEST, 0xC016DC, "a chest opened" },
+    { FIELD_REQUEST_TILE_COPY, 0xC01779, "a tile copy" },
+    { FIELD_REQUEST_BATTLE, 0xC00C76, "a battle" },
+};
+
+// $C0:0C8F
+static FieldPass change_location_as_c(GameState *g, Platform *pf)
+{
+    if (field_dims_a_step(g))
+        return FIELD_PASS_GOES_ON;
+    TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
+    keep_where_the_party_was(g);
+    field_move_to_the_next_place(g);
+    return FIELD_STARTS_ANEW;
+}
+
+FieldPass field_requests_handled(GameState *g, Platform *pf)
+{
+    field_step_screen_changes(g);
+    if (field_requests(g) == 0)
+        return FIELD_PASS_GOES_ON;
+    if (asked(g, FIELD_REQUEST_LOCATION_CHANGE))
+        return change_location_as_c(g, pf);
+    for (unsigned i = 0; i < sizeof only_the_machines / sizeof only_the_machines[0]; i++)
+        if (asked(g, only_the_machines[i].request)) {
+            program_needs_the_machine(g, only_the_machines[i].routine, only_the_machines[i].what);
+            return FIELD_PASS_STOPS;
+        }
+    return FIELD_PASS_GOES_ON;
 }
 
 void field_handle_requests(Snes *s)

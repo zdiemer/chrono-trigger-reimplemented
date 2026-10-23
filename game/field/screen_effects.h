@@ -81,6 +81,8 @@ uint16_t screen_searchlight_speed(uint8_t from, uint8_t to, uint8_t frames);
 /* The step the main loop runs ($C0:21E1), and its guard: an effect the port
  * draws as the original does. */
 void field_move_screen_effect_on(Snes *s);
+/* As C, false where a step is the machine's yet. */
+bool field_screen_effect_moved_on(GameState *g);
 bool field_screen_effect_can_move_on(Snes *s);
 
 #endif

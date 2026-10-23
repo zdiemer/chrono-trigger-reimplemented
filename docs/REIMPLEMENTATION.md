@@ -2938,6 +2938,50 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
+### The native program through the field and the title
+
+`ct_native` (PLAYING.md, "The native program") links the whole of `game/`:
+the entry wrappers come along but nothing makes the `Snes` they take, and
+what they call of the machine is `runtime/port/no_machine.c`, whose list
+replaced `ct_native_whole`'s link failure as the measure of what `game/`
+asks of a machine. Every service has a host backend (video into the
+observer, audio playing the C sound driver, saves), so the program's
+progress is a matter of its own C: it now runs the boot and the field --
+the first start, location 0, the change to the next, their scripts, frames
+and handlers -- and then the title's scene: the scene engine boots it and
+unpacks its program, whose data the C reads where the original's code
+would, and the program's start, the title's setup, its frames (the NMI's
+frame work with both task lists, the sequence scripts' channels) and its end
+run as C until the game goes back to the field (`scene_runs`). Left alone the
+title gives way to the attract demo, which stops at frame 2093 at the menus'
+mode; with `new-game.ctm`'s presses the field after the title asks for a
+menu at frame 1676.
+
+How the ports were made to call each other, by kind:
+
+- **An entry whose work calls nothing on the machine** became a function
+  of the game's state, which the entry calls and the program calls too:
+  the unpacker (`unpack_stream`, the last file on the transcription
+  backlog, rewritten), the location's tile sets, looks and script, the
+  map's loading, the vblank handler's sends, the line handler. Where a
+  caller ran it through `field_run`, the caller now runs it as C, timed as
+  its routine; shadow mode still compares it on its own, the original's
+  entry into it starting a nested comparison.
+- **An entry whose callees the machine pairs a call at a time** (the budgets'
+  turns and frames, the song's calls to the driver, the screen's setup and
+  fade in, the main loop's pass, the field's entry) keeps its bridge, and the
+  program has the same steps as C beside it, the steps' work shared: two
+  sequences of one routine until the field retires the gate (TODO.md, "The
+  native program").
+- **An interpreter's machine runner has a runner as C beside it**
+  (`event_runner_as_c`): each command's operation, and for a bridge the C of
+  its work where it has one (`EVENT_BRIDGES_AS_C`: the sound commands and
+  the screen command so far).
+- **Where the C meets a state its port doesn't take, or a step only the
+  machine runs yet,** the program stops and names it
+  (`program_needs_the_machine`), as a guard on the machine hands the call to
+  the original.
+
 ### The last refusals in real play: the attract demo's states
 
 The four refusals the batch before left (1,043 calls at `$7E:424D`,

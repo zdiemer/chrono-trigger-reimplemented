@@ -251,36 +251,43 @@ void field_take_the_map_in(GameState *g) { take_the_header(g); take_the_repeats_
 
 void field_mark_the_exits(GameState *g) { mark_the_exits(g); }
 
-/* ---- Where it meets the original ---------------------------------------------------------------- */
-
-/* The unpacker ($C3:0002), a port that puts every register back; and the
- * tile maps' unpacking, a port run as C where its sizes are ones its guard
- * takes (every map the game loads), and otherwise the original's, on the
- * layers' page. */
-enum { UNPACKER = 0xC30002, THE_UNPACKER_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
-enum { THE_TILE_MAPS_IGNORE = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-/* For the original's tile maps' unpacking, called where its port won't run:
- * it is entered with the layers' page's high byte in A's, which the original
- * set D through. */
-static void leave_the_page_in_a(Snes *s) { s->cpu.a = (uint16_t)((FIELD_LAYERS_PAGE & 0xFF00) | (s->cpu.a & 0x00FF)); }
+/* The tile maps' unpacking is a port run as C where its sizes are ones its
+ * guard takes: every map the game loads. */
+static void unpack_the_map(GameState *g)
+{
+    field_ask_to_unpack_the_map(g);
+    TIMED_AS(g, UNPACK_STREAM_ENTRY, (void)unpack_stream(g));
+    field_take_the_map_in(g);
+}
 
 // $C0:A33B
+bool field_load_the_map(GameState *g)
+{
+    unpack_the_map(g);
+    if (!field_tile_maps_fit(g))
+        return false;
+    TIMED_AS(g, FIELD_UNPACK_TILE_MAPS_ENTRY, field_unpack_the_tile_maps(g));
+    field_mark_the_exits(g);
+    return true;
+}
+
+/* ---- Where it meets the original ---------------------------------------------------------------- */
+
+/* Tile maps the port doesn't take are the original's, on the layers' page;
+ * it is entered with the layers' page's high byte in A's, which the original
+ * set D through. */
+enum { THE_TILE_MAPS_IGNORE = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+static void leave_the_page_in_a(Snes *s) { s->cpu.a = (uint16_t)((FIELD_LAYERS_PAGE & 0xFF00) | (s->cpu.a & 0x00FF)); }
+
 void field_unpack_the_map(Snes *s)
 {
     GameState *g = state_of(s);
-    field_ask_to_unpack_the_map(g);
-    if (!field_run_long(s, 0xC0A366, UNPACKER, THE_UNPACKER_IGNORES, decompress, on_the_field_page(s, false)))
-        return;
-    field_take_the_map_in(g);
-    if (field_tile_maps_fit(g)) {
-        TIMED_AS(g, FIELD_UNPACK_TILE_MAPS_ENTRY, field_unpack_the_tile_maps(g));
-    } else {
+    if (!field_load_the_map(g)) {
         ORIGINAL_EFFECT(leave_the_page_in_a(s));
         if (!bridge_call_on_page(s, 0xC0A500, FIELD_UNPACK_TILE_MAPS_ENTRY, THE_TILE_MAPS_IGNORE, FIELD_LAYERS_PAGE))
             return;
+        field_mark_the_exits(g);
     }
-    field_mark_the_exits(g);
     m_rts(s);
 }
 

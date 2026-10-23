@@ -27,6 +27,7 @@
 
 #include "assets.h"
 #include "core/program.h"
+#include "movie.h"
 #include "data/assets.h"
 #include "platform/native/host.h"
 #include "port/state_host.h"
@@ -133,13 +134,14 @@ static uint8_t *load_pack(const char *path, const char *rom_path, AssetPack **pa
 
 int main(int argc, char **argv)
 {
-    const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL;
+    const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL, *movie_path = NULL;
     unsigned long frames = 600;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--rom") && v) rom_path = v, i++;
         else if (!strcmp(a, "--sram") && v) sram_path = v, i++;
         else if (!strcmp(a, "--assets") && v) pack_path = v, i++;
+        else if (!strcmp(a, "--movie") && v) movie_path = v, i++;
         else if (!strcmp(a, "--frames") && v) frames = strtoul(v, NULL, 10), i++;
         else {
             fprintf(stderr, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm]\n");
@@ -158,6 +160,9 @@ int main(int argc, char **argv)
     AssetPack *pack;
     uint8_t *pack_bytes = load_pack(pack_path, rom_path, &pack);
     if (!pack_bytes)
+        return 2;
+    ct_movie movie;
+    if (movie_path && ct_movie_load(&movie, movie_path) != 0)
         return 2;
     static AssetStore store;
     asset_pack_store(pack, &store);
@@ -186,6 +191,8 @@ int main(int argc, char **argv)
     int rc = 0;
     unsigned long frame = 0;
     while (frame < frames) {
+        if (movie_path)
+            in_host_set(&pf, 0, ct_movie_buttons(&movie, (uint32_t)frame));
         tm_host_frame(&pf);
         sound_native_frame(sound);
         frame++;
@@ -205,6 +212,8 @@ int main(int argc, char **argv)
     vid_host_stop(&pf);
     state_host_destroy(g);
     free(sram);
+    if (movie_path)
+        ct_movie_free(&movie);
     assets_use(NULL);
     asset_pack_close(pack);
     free(pack_bytes);

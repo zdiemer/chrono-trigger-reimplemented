@@ -2737,27 +2737,58 @@ re-runs the census.
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
 `ct_native` links the whole of `game/` but `registry.c`, with every service's
-host backend, and runs the boot and the field's first start; it stops at
-frame 1 at the field's entry (`$C0:005D`), the first step only the machine
-runs. What the wrappers and bridges call of the machine is
+host backend, and runs the boot, the field and the title's scene; it stops
+at frame 2093 where the attract demo enters the menus' mode (`$C2:0000`),
+or with `new-game.ctm`'s presses at frame 1676 where the field's script
+after the title asks for a menu (`$C0:0C76`): the first steps only the
+machine runs. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
-- **The program's next steps are machine entries.** The field's entry is a
-  bridge whose steps are entries run under the machine's frames
-  (`field_run`): the location's loading (the song, the tile sets, the map,
-  the script, each unpack now a function of the game's state,
-  `unpack_stream`), the objects' setup, which runs the map's script through
-  the event engine's machine runner (`event/bridge.c`; the engine takes a
-  runner, and a native one is a table of the commands' C), and the fade in,
-  which runs the field's frames: the walk, the frame's work (its budgets
-  and the objects' update are call-outs on purpose, so shadow mode compares
-  them a call at a time) and the frame wait. Then the main loop, and every
-  mode's vblank and line handler, an entry on the machine's stack (it saves
-  the interrupted registers, moves the page and the data bank, calls out):
-  `core/program.c`'s table has a row for each and a function for none. The
-  census (REIMPLEMENTATION.md, "The census") counts the rest: 259 entries
-  the machine still enters, 21.5 M times over the library.
+- **The program's next step is the menus.** `ct_native` runs the field and
+  the title's scene as C; the menus' mode (`$C2:0000`, a screen drawn with
+  sprites, which the attract demo enters) and the menus a script asks for
+  (`$C0:0C76`, the one after the title) are the next steps, their tasks
+  wanting the coroutines `core/tasks.c` has for them. Every mode's vblank
+  and line handler but the field's and the scenes' is still an entry on the
+  machine's stack (it saves the interrupted registers, moves the page and the
+  data bank, calls out): `core/program.c`'s table has functions for those
+  two modes' and for none of the rest.
+- **What the scene program still hands the machine as the program runs it.**
+  The title's setup is the one setup as C (`scene_title_set_up_as_c`); the
+  others, the scripts' commands and routines with no C, and the tasks with
+  no C (the lists' runner as C has the tasks' own table and four of the
+  program's routines) stop the program where they are met. The C reads the
+  program's data where the boot unpacks it, and doesn't check, as the
+  entries' guards do on the machine, that the unpacked code is the one the
+  ports were written for. A scene's main loop runs its frame routine where
+  the title's is empty; the race's, the endings' and the dive's scalings
+  aren't called yet. The title's plane's rest filled from a blank tile
+  (`$7E:5AEB`, `vid_snes_copy` with the site's mode) is an escape the host
+  counts. The census (REIMPLEMENTATION.md, "The census") counts
+  the rest: 259 entries the machine still enters, 21.1 M times over the
+  library.
+- **What the field still hands the machine as the program runs it.** Where
+  the field's C meets a state its port doesn't take (an entry's guard, which
+  on the machine hands the call to the original) or a step only the machine
+  runs yet, `ct_native` stops there and says which: the pause and the menus
+  (`field/menus.c`), every request but a location change (a script's menu,
+  a step, a chest, a tile copy, a battle: `field/requests.c`), a screen
+  effect's curtain, close or ripple, the field's restart a script asks for,
+  and the event commands with a bridge and no C beside it (19 of the 23 in
+  `EVENT_BRIDGES`: the sound commands and the screen command have theirs,
+  `EVENT_BRIDGES_AS_C`, event/engine.h). Each wants its C as the program
+  meets it.
+- **Two sequences of one routine.** Where the machine needs a step's frames
+  and call-outs to compare it with the original's -- the field's entry, the
+  screen's setup and fade in, the main loop's pass, the frame's work and its
+  budgets, the vblank handler's calls, the event bridges' sends -- the entry
+  keeps its bridge and the program has the same steps in order as C
+  (`field_enter_the_location`, `field_screen_set_up`, `field_fade_in_as_c`,
+  `field_runs_a_pass`, `field_frame_work_done`, `field_vblank`, the
+  `*_as_c` bridges), the steps' work shared. They are one routine written
+  twice until the field retires the gate (PLAN.md's step 3), when the
+  bridges go; until then a change to one wants the other.
 - **Control flow through the machine.** Call-outs into entries by address
   (`native_call_dc`, `native_yield_call_dc`, `native_jump_call_dc`), stops
   at the original's addresses (`m_stop_at`, the `native_*dont_care_at_stop`

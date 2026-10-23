@@ -15,6 +15,9 @@ enum { FIELD_SPRITE_TABLE_ADDRESS = 0x0700 };
 void sprites_hide_all_next_frame(GameState *g);
 void sprites_hide_the_first(GameState *g, unsigned count);
 void field_build_sprite_table(Snes *s);
+/* The same as C, where every draw is one the port makes (false otherwise,
+ * with nothing built). */
+bool field_sprite_table_built(GameState *g);
 void field_draw_object_sprites(Snes *s);
 void field_update_object_sprites(Snes *s);
 void field_position_sprites(Snes *s);

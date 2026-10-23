@@ -33,6 +33,7 @@
  * line effects read: those are the one place the port spells where a variable
  * is (game/ram.h), as values it writes, never to reach memory. */
 #include "field/line_effects.h"
+#include "charge.h"
 #include "field/layers.h"
 
 #include "cpu_io.h"
@@ -830,6 +831,20 @@ static void after_shading(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_V, field_add_overflows8((uint8_t)(SHADED_LINES * 2), (uint8_t)(SHADING_STEP * 2)));
 }
+
+/* The line effects readied for a screen's first frame: their values, their
+ * tables built and set up, each timed as the routine it is. */
+enum { LINE_EFFECT_VALUES = 0xFDC124, LINE_EFFECTS_BUILT = 0xFDC2C1, LINE_EFFECTS_SET_UP = 0xFDC1EE };
+
+void field_line_effects_ready(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, LINE_EFFECT_VALUES, init_line_effect_values(g));
+    TIMED_AS(g, LINE_EFFECTS_BUILT, build_line_effect_tables(g));
+    TIMED_AS(g, LINE_EFFECTS_SET_UP, (void)field_set_up_line_effects(g, pf));
+}
+
+/* The tables built for the next frame. */
+void field_line_effects_build(GameState *g) { build_line_effect_tables(g); }
 
 void field_init_line_effect_values(Snes *s)
 {

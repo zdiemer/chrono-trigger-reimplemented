@@ -45,4 +45,32 @@ EventTurnEnd event_restart_the_running_object(GameState *g, const EventRunner *r
  * function, up to its first zero byte, all at once. */
 EventTurnEnd event_run_map_script_commands(GameState *g, const EventRunner *r, uint16_t *stopped_at);
 
+/* A runner with no machine under it: each command's operation as C, timed as
+ * its handler. A command only the machine runs yet (a bridge, or a state the
+ * port doesn't take) hands the turn back, the program stopping there
+ * (core/program.h, program_needs_the_machine). */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} EventAsC;
+EventRunner event_runner_as_c(EventAsC *c);
+
+/* The bridges' work as C, for a program with no machine under it (the
+ * runner as C, above): each takes the command at `at` and says where the
+ * script goes, or false where the turn ends with the field (the program going
+ * on, or no further, from where the command said: core/program.h). A bridge
+ * with none here is the machine's yet. */
+#define EVENT_BRIDGES_AS_C(X) \
+    X(event_play_effect_as_c, 0xE8) \
+    X(event_play_song_as_c, 0xEA) \
+    X(event_fade_music_as_c, 0xEB) \
+    X(event_send_sound_command_as_c, 0xEC) \
+    X(event_screen_command_as_c, 0xFF) \
+    X(event_copy_data_as_c, 0x4E) \
+    X(event_bring_into_the_party_as_c, 0xD3) \
+    X(event_send_to_the_reserve_as_c, 0xD4)
+
+#define EVENT_DECLARE_AS_C(name, opcode) bool name(GameState *g, Platform *pf, uint16_t at, EventStep *step);
+EVENT_BRIDGES_AS_C(EVENT_DECLARE_AS_C)
+
 #endif

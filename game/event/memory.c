@@ -10,6 +10,7 @@
  * event_source_pointer and event_target_pointer); nothing but the command
  * itself reads them back, so they are kept as scaffolding. */
 #include "event/bridge.h"
+#include "event/engine.h"
 #include "event/variables.h"
 
 #include "wram.h"
@@ -92,6 +93,13 @@ static EventStep copy_data(GameState *g, uint16_t destination, uint8_t bank, uin
         from++, to++;
     }
     return (EventStep){ from, true };
+}
+
+bool event_copy_data_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    EventCommand c = event_decode(g, pf, event_opcode(0x4E), at);
+    *step = copy_data(g, c.destination, c.bank, c.size, at);
+    return true;
 }
 
 /* $4E's entry, a bridge for the stack: the original keeps the data bank on

@@ -21,9 +21,23 @@ static void unmodelled(Platform *pf, PfOrigin o)
  * 0). The rest -- transfers into VRAM programmed from the game's tables -- the
  * observer follows only with the SNES's channel settings, which a host
  * doesn't have. */
+/* A transfer into VRAM's data port whose mode the game's data gives (the
+ * scene programs' loaders' and uploads'): the observer follows it, with the
+ * port it sets. */
+static bool into_vram_by_its_data(const VidSnesTransfer *t)
+{
+    return t->mode_from_data && (t->dest == VID_SNES_VRAM_DATA_LOW || t->dest == VID_SNES_VRAM_DATA_HIGH);
+}
+
 void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t)
 {
     VidHost *v = &pf->video;
+    if (into_vram_by_its_data(t)) {
+        if (t->port)
+            vid_obs_vram_port(v->observer, t->port);
+        vid_obs_snes_transfer(v->observer, t, t->mode);
+        return;
+    }
     if (t->dest != VID_SNES_MULTIPLIER_PRODUCT) {
         unmodelled(pf, o);
         return;

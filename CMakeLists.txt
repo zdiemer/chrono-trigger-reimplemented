@@ -491,10 +491,10 @@ target_include_directories(ct_state_host PUBLIC game)
 target_link_libraries(ct_state_host PUBLIC ct_platform_native)
 set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
 list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c)
-add_executable(ct_native frontend/ct_native.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
+add_executable(ct_native frontend/ct_native.c frontend/assets.c frontend/sound_native.c oracle/src/movie.c runtime/port/no_machine.c
   ${CT_NATIVE_GAME_SOURCES})
 target_compile_definitions(ct_native PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
-target_include_directories(ct_native PRIVATE frontend)
+target_include_directories(ct_native PRIVATE frontend oracle/src)
 target_link_libraries(ct_native PRIVATE ct_state_host ct_platform_native)
 add_executable(state_test tests/port/state_test.c)
 target_link_libraries(state_test PRIVATE ct_runtime)

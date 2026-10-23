@@ -11,6 +11,7 @@
  * the uncompressed ones are copied from the bank as they are. */
 #include "scene/scene.h"
 
+#include "charge.h"
 #include "data/decompress.h"
 
 #include "platform/timing.h"
@@ -85,6 +86,18 @@ void scene_boot(Snes *s)
     m_stop_at(s, PROGRAM_START, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
 }
 
+/* The program unpacked into work RAM, as C (the decompressor's call from the
+ * boot, $C3:006F): the program's code isn't run, but its data -- the scripts,
+ * the sprite lists, the tables -- is what the C reads. */
+enum { THE_DECOMPRESSOR = 0xC30557 };
+
+bool scene_boots(GameState *g, Platform *pf, uint8_t flags)
+{
+    bool line_irq = boot(g, pf, flags);
+    TIMED_AS(g, THE_DECOMPRESSOR, (void)unpack_stream(g));
+    return line_irq;
+}
+
 /* ---- The boot's interrupt handlers ---------------------------------------------------------- */
 
 // $C3:0548
@@ -93,6 +106,12 @@ static void boot_vblank(Platform *pf)
 {
     tm_ack_vblank(pf, PF_AT(0xC3054B));
     vid_set_display(pf, PF_AT(0xC30551), &(VidDisplay){ .brightness = FULL_BRIGHTNESS });
+}
+
+void scene_boot_vblank(GameState *g, Platform *pf)
+{
+    (void)g;
+    boot_vblank(pf);
 }
 
 void scene_boot_nmi(Snes *s)
@@ -149,6 +168,15 @@ void scene_boot_line_irq_wait_hblank_loop(Snes *s)
         s->cpu.pc = 0x0540;
 }
 
+/* The line interrupt as C: acknowledged, and the rest of the picture blank
+ * from the line it came on (a host has no beam to wait for the hblank on). */
+void scene_boot_line(GameState *g, Platform *pf)
+{
+    (void)g;
+    (void)tm_ack_line_irq(pf, PF_AT(0xC3052C));
+    vid_set_display(pf, PF_AT(0xC30542), &(VidDisplay){ .blank = true });
+}
+
 // $C3:0540
 /* In hblank: blank the screen, A's low byte back, and return. */
 void scene_boot_line_irq_blank(Snes *s)
@@ -194,6 +222,14 @@ void scene_copy_resource_to_upper_ram(Snes *s) { copy_resource_entry(s, SCENE_UP
 enum { UNPACK_CALL = 0x7E36A4, DECOMPRESSOR = 0xC30557, THE_DECOMPRESSOR_READS_NOTHING = DC_A | DC_X | DC_N | DC_Z | DC_C };
 
 // $7E:3691
+/* One of the program's resources unpacked as C, by its place in the
+ * resource table, to where the caller has set the unpacker's destination. */
+void scene_unpacks(GameState *g, uint16_t resource)
+{
+    set_decompress_source(g, scene_resource_stream(g, resource));
+    TIMED_AS(g, THE_DECOMPRESSOR, (void)unpack_stream(g));
+}
+
 /* One of the program's resources unpacked, by its place in the resource table
  * (a byte offset, in X), to where the caller has set the unpacker's
  * destination. It keeps its caller's flags on the stack around the

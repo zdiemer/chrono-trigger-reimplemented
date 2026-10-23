@@ -24,6 +24,9 @@
 #include "event/party.h"
 #include "event/variables.h"
 
+#include "charge.h"
+#include "core/program.h"
+
 /* ---- The table, by opcode ------------------------------------------------------------- */
 
 static const EventOpcodes *const every_file[] = {
@@ -419,3 +422,49 @@ EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, FieldObject 
     } while (next != count);
     return TURN_OVER;
 }
+
+/* ---- The commands as C, with no machine ------------------------------------------------------ */
+
+/* The handlers are in bank $C0, where the table names them; a command's time
+ * is its handler's. */
+enum { HANDLERS_BANK = 0xC00000 };
+
+typedef bool (*BridgeAsC)(GameState *g, Platform *pf, uint16_t at, EventStep *step);
+
+static BridgeAsC bridge_as_c(uint8_t opcode)
+{
+    switch (opcode) {
+#define EVENT_AS_C_CASE(name, op) case op: return name;
+    EVENT_BRIDGES_AS_C(EVENT_AS_C_CASE)
+#undef EVENT_AS_C_CASE
+    default: return NULL;
+    }
+}
+
+static bool run_as_c(void *ctx, uint16_t at, EventStep *step)
+{
+    EventAsC *c = ctx;
+    uint8_t opcode = script_byte(c->game, at);
+    const EventOpcode *row = event_opcode(opcode);
+    uint32_t handler = HANDLERS_BANK | command_handler(c->game, opcode);
+    BridgeAsC bridge = bridge_as_c(opcode);
+    if (row && !row->run && bridge && event_runs_here(c->game, row, at)) {
+        bool goes_on = false;
+        TIMED_AS(c->game, handler, goes_on = bridge(c->game, c->pf, at, step));
+        return goes_on;
+    }
+    if (!row || !row->run || !event_runs_here(c->game, row, at)) {
+        program_needs_the_machine(c->game, handler, "an event command only the machine runs");
+        return false;
+    }
+    TIMED_AS(c->game, handler, *step = event_perform(c->game, c->pf, row, at));
+    return true;
+}
+
+static bool always_ours(void *ctx)
+{
+    (void)ctx;
+    return true;
+}
+
+EventRunner event_runner_as_c(EventAsC *c) { return (EventRunner){ run_as_c, always_ours, c }; }

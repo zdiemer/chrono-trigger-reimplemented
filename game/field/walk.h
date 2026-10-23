@@ -31,6 +31,9 @@ bool party_start_fits(const GameState *g);
 /* The registered entries: the walk and the recentring, which run the
  * original's layers' scroll and screen edges after them; and their guards. */
 void field_walk_the_leader(Snes *s);
+/* The same as C, the layers scrolled and streamed after the leader; false
+ * where the layers are none the port streams, the program going no further. */
+bool field_the_leader_walks(GameState *g);
 void field_recentre_the_screen(Snes *s);
 bool field_walk_can_run(Snes *s);
 bool field_recentring_can_run(Snes *s);

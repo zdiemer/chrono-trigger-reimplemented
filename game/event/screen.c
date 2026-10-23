@@ -14,8 +14,11 @@
 #include "charge.h"
 #include "core/display.h"
 #include "core/palette.h"
+#include "core/program.h"
+#include "event/engine.h"
 #include "field/field.h"
 #include "field/layers.h"
+#include "field/main_loop.h"
 #include "field/screen_effects.h"
 #include "field/script_layers.h"
 #include "field/walk.h"
@@ -434,6 +437,49 @@ void event_screen_party_routine(Snes *s)
     ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_GAME_FINISHED, &call));
     s->cpu.x = resume;
     m_rts(s);
+}
+
+/* ---- As C, with no machine ------------------------------------------------------------------ */
+
+// $C0:3FBB
+/* The field ends for a scene, as C: the fade out a frame at a time, the
+ * leader walking and the palettes animating, and the screen dark; the scene
+ * the field ends into is the program's next step (field/main_loop.h), which
+ * only the machine runs yet. False where the walk is the machine's. */
+static bool end_the_field_for_a_scene_as_c(GameState *g, Platform *pf, uint8_t scene)
+{
+    set_field_scene_to_start(g, scene);
+    while (field_dims_a_step(g)) {
+        bool walked = false;
+        TIMED_AS(g, WALK_THE_LEADER, walked = field_the_leader_walks(g));
+        if (!walked)
+            return false;
+        TIMED_AS(g, PALETTE_ANIMATION, palette_animate_a_frame(g));
+        TIMED_AS(g, FRAME_WAIT, field_finish_the_frame(g, pf));
+    }
+    TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
+    field_scene_starts(g, scene);
+    return false;
+}
+
+bool event_screen_command_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    EventCommand c = event_decode(g, pf, event_opcode(0xFF), at);
+    if (c.screen_command < FIRST_SCREEN_COMMAND)
+        return end_the_field_for_a_scene_as_c(g, pf, c.screen_command);
+    unsigned i = screen_command_index(c.screen_command);
+    if (screen_commands[i].kind == RESTARTS_THE_FIELD) {
+        program_needs_the_machine(g, SCREEN_DISPATCH, "the field's restart a script asks for");
+        return false;
+    }
+    if (screen_commands[i].kind == CALLS_PARTY_ROUTINE) {
+        TIMED_AS(g, MENUS_SERVICES, (party_note_the_game_finished(pf), party_wear_it_shows(g)));
+        *step = (EventStep){ (uint16_t)(at + SCREEN_COMMAND_LENGTH), false };
+        return true;
+    }
+    bool done = run_screen_command(g, c.screen_command, (uint8_t)c.x, (uint8_t)c.y, c.radius);
+    *step = (EventStep){ done ? (uint16_t)(at + screen_commands[i].length) : at, false };
+    return true;
 }
 
 // $C0:3FAF

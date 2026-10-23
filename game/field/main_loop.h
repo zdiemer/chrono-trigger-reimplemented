@@ -7,6 +7,7 @@
 
 #include "snes/system.h"
 #include "platform/platform.h"
+#include "field/requests.h"
 #include "state.h"
 
 /* field/main_loop.c: the entries. The field's first start at power-on, its
@@ -17,6 +18,9 @@ void field_first_start(Snes *s);
 /* The first start as the program calls it, with a host playing the sound
  * driver: up to the field's entry. */
 void field_power_on(GameState *g, Platform *pf);
+/* The field's entry as the program calls it, through the fade in; false where
+ * a step is the machine's yet, the program going no further there. */
+bool field_enter_the_location(GameState *g, Platform *pf);
 void field_enter(Snes *s);
 void field_frame(Snes *s);
 void field_frame_goes_on_with_the_requests(Snes *s);
@@ -38,6 +42,25 @@ void field_start_again(Snes *s);
 void field_start_the_scene(Snes *s);
 void field_close_into_the_scene(Snes *s);
 bool field_location_is_a_number(Snes *s);
+
+/* The frame done and the wait for the vblank handler to take it ($C0:EC60),
+ * as C. */
+void field_finish_the_frame(GameState *g, Platform *pf);
+/* The frame's work as C ($C0:00BF): the objects' scripts and moves, the
+ * line effects and the palettes for the next frame, the objects' new frames
+ * drawn and their sprites put in the table. False where a step is one the
+ * port doesn't take, the program going no further there. */
+bool field_frame_work_done(GameState *g, Platform *pf);
+/* A pass of the main loop as C ($C0:0097), through the wait for the next
+ * frame; false where a step is the machine's yet, the program going no
+ * further there. */
+FieldPass field_runs_a_pass(GameState *g, Platform *pf);
+/* The field as the program runs it: entered, its main loop passes, entered
+ * again for each new place; it returns where a step is the machine's yet. */
+void field_runs(GameState *g, Platform *pf);
+/* The field ended for scene `scene` (an event command's: below $80 the scene
+ * engine's, from $80 the time gate's tunnels), as C: where the program goes. */
+void field_scene_starts(GameState *g, uint8_t scene);
 
 /* The routines, for the ports that run them as C. */
 enum {
@@ -65,6 +88,9 @@ bool field_leader_readable(const GameState *g);
 void field_put_aside(GameState *g);
 
 void field_load_location(Snes *s);
+/* The location the party is in loaded, as C: false where its map's tile maps
+ * or its script are none the port takes (the original's, on the machine). */
+bool field_load_the_location(GameState *g, Platform *pf);
 void field_put_aside_for_a_menu(Snes *s);
 void field_set_up_after_a_menu(Snes *s);
 void field_start_location_song(Snes *s);

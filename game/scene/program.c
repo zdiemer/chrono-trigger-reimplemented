@@ -30,6 +30,7 @@
 #include "charge.h"
 #include "original_effects.h"
 #include "core/console.h"
+#include "core/program.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -316,3 +317,65 @@ bool scene_program_start_present(Snes *s)
 bool scene_setup_present(Snes *s) { return (s->cpu.a & 0xFF00) == 0 && scene_program_start_present(s); }
 
 bool scene_program_end_present(Snes *s) { return m_code_matches(s, 0x7E303B, 8, 0xF200A66DE169CF3Aull); }
+
+/* ---- The program as C, with no machine ------------------------------------------------------------ */
+
+/* The setups the port has as C for a program with no machine: the title's. */
+static bool set_up_as_c(GameState *g, Platform *pf, uint8_t mode)
+{
+    if (mode == MODE_TITLE) {
+        bool done = false;
+        TIMED_AS(g, TITLE_SET_UP, done = scene_title_set_up_as_c(g, pf));
+        return done;
+    }
+    program_needs_the_machine(g, PROGRAM_BANK | scene_program_setups(g, mode), "a scene's setup only the machine runs");
+    return false;
+}
+
+/* The title's setup waits for its song to start playing ($7E:5AAA), a frame
+ * at a time where a host has the driver's time pass. */
+enum { MUSIC_WAIT = 0x7E5AAA };
+
+// $7E:300D
+static bool first_frame_as_c(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, 0x7E388B, scene_send_palette(pf));
+    tm_wait_frame(pf, PF_CALL_DC(FIRST_WAIT, FRAME_WAIT, THE_WAIT_READS_NOTHING));
+    bool done = false;
+    TIMED_AS(g, FRAME_WORK, done = scene_frame_work_as_c(g, pf));
+    if (!done)
+        return false;
+    tm_enable_interrupts(pf, PF_AT(0x7E3019), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
+    set_scene_program_over(g, 0);
+    set_scene_paused(g, 0);
+    return true;
+}
+
+// $7E:3000 (and the boot, $C3:0000, before it; the main loop, $7E:3023, and the end, $7E:302A, after)
+bool scene_runs(GameState *g, Platform *pf, uint8_t flags)
+{
+    (void)scene_boots(g, pf, flags);
+    reset_the_program(g);
+    bool title_coming_back = false;
+    TIMED_AS(g, 0x7E3092, title_coming_back = scene_clear_the_work_ram(g, pf, FADE_PACE));
+    if (!title_coming_back) {
+        if (!(scene_flags(g) & SCENE_FLAG_NO_SONGS)) {
+            set_scene_song(g, NO_SONG);
+            TIMED_AS(g, SOUND_BACK_TO_NORMAL, scene_sound_back_to_normal_as_c(g, pf));
+        }
+        start_from_the_first_screen(g, pf);
+    }
+    uint8_t mode = scene_flags(g) & SCENE_MODE_BITS;
+    if (!set_up_as_c(g, pf, mode))
+        return false;
+    if (mode == MODE_TITLE)
+        while (!scene_music_is_playing(pf))
+            tm_wait_frame(pf, PF_AT(MUSIC_WAIT));
+    if (!first_frame_as_c(g, pf))
+        return false;
+    while (!scene_program_over(g))
+        tm_wait_frame(pf, PF_AT(MAIN_LOOP));
+    scene_stops_the_display(pf);
+    TIMED_AS(g, SOUND_BACK_TO_NORMAL, scene_sound_back_to_normal_as_c(g, pf));
+    return true;
+}

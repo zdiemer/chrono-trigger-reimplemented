@@ -18,6 +18,8 @@
 #include "field/object_update.h"
 #include "field/object.h"
 
+#include "charge.h"
+#include "core/program.h"
 #include "field/bridge.h"
 #include "field/field.h"
 #include "field/scratch.h"
@@ -285,6 +287,18 @@ static bool tick(Snes *s, unsigned update, FieldObject obj)
     return true;
 }
 
+bool object_rows_step(GameState *g, FieldObject obj, bool join)
+{
+    if (!field_rows_are_exact(g, obj)) {
+        program_needs_the_machine(g, join ? FIELD_JOIN_ROW_ENTRY : FIELD_LEAVE_ROW_ENTRY,
+                                  "a row whose links the port doesn't take");
+        return false;
+    }
+    TIMED_AS(g, join ? FIELD_JOIN_ROW_ENTRY : FIELD_LEAVE_ROW_ENTRY,
+             join ? object_join_row(g, obj) : object_leave_row(g, obj));
+    return true;
+}
+
 bool field_rows_step_as_c(Snes *s, FieldObject obj, bool join)
 {
     GameState *g = state_of(s);
@@ -375,6 +389,65 @@ static bool resort_party(Snes *s)
 static void leave_loop_end(GameState *g, uint8_t count)
 {
     set_event_object_end(g, (uint16_t)((event_object_end(g) & 0xFF00) | (uint8_t)(count * 2)));
+}
+
+/* ---- The update, as C ------------------------------------------------------------------------ */
+
+/* An object's step and, in view, the rest of its update. False where a step
+ * is one the port doesn't take, the program going no further there. */
+static bool update_object_as_c(GameState *g, bool party_member, FieldObject obj)
+{
+    if (party_member)
+        TIMED_AS(g, MOVE_PARTY_MEMBER, (void)party_member_take_step(g, obj));
+    else
+        TIMED_AS(g, MOVE, (void)object_take_step(g, obj));
+    bool viewed = false;
+    TIMED_AS(g, VIEW, viewed = object_view_updated(g, obj));
+    if (!viewed)
+        return false;
+    if (!object_in_view(g, obj))
+        return true;
+    if (!field_tick_is_exact(g, obj)) {
+        program_needs_the_machine(g, TICK, "an animation tick the port doesn't take");
+        return false;
+    }
+    TIMED_AS(g, TICK, object_animation_tick(g, obj));
+    if (!object_rows_step(g, obj, false))
+        return false;
+    TIMED_AS(g, PLACE_ON_SCREEN, object_update_screen_position(g, obj));
+    return object_rows_step(g, obj, true);
+}
+
+static bool resort_party_as_c(GameState *g)
+{
+    static const unsigned members[2] = { 1, 0 };
+    for (unsigned i = 0; i < 2; i++) {
+        FieldLink link = party_member_link(g, members[i]);
+        if (!field_link_is_object(link) || object_view(g, field_linked_object(link)) == OUT_OF_VIEW)
+            continue;
+        FieldObject obj = field_linked_object(link);
+        object_make_current(g, obj);
+        if (!object_rows_step(g, obj, false) || !object_rows_step(g, obj, true))
+            return false;
+    }
+    return true;
+}
+
+bool field_objects_updated(GameState *g)
+{
+    uint8_t count = event_object_count(g);
+    UpdateKind kind;
+    for (FieldObject obj = 0;; obj++) {
+        object_make_current(g, obj);
+        kind = update_kind(g, obj);
+        if (kind == UPDATE_WINDOW_ONLY)
+            TIMED_AS(g, WINDOW_ONLY, object_window_only_checked(g, obj));
+        else if (kind != UPDATE_SKIP && !update_object_as_c(g, kind == UPDATE_PARTY, obj))
+            return false;
+        if (obj + 1 >= count)
+            break;
+    }
+    return kind == UPDATE_PARTY || resort_party_as_c(g);
 }
 
 // $C0:A810

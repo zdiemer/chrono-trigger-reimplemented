@@ -32,6 +32,7 @@
 #include "core/palette.h"
 #include "cpu_io.h"
 #include "original_effects.h"
+#include "platform/audio.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -1008,6 +1009,65 @@ bool scene_title_set_up_scene(Snes *s)
     m_set_flag(s, CPU_FLAG_M, true);
     ORIGINAL_EFFECT(leave_a_on_the_registers_page(s));
     scene_bridge_start_song(s, SONG_CALL, TITLE_SONG);
+    return true;
+}
+
+/* ---- The setup as C, with no machine ------------------------------------------------------------ */
+
+/* Each resource unpacked by the program's unpacker, to where the setup has
+ * pointed it, then sent to VRAM where the next step says. */
+static void unpack_as_c(GameState *g, uint16_t resource) { TIMED_AS(g, UNPACKER, scene_unpacks(g, resource)); }
+
+/* The title's song started, as the program's call of the driver starts it. */
+static void start_the_song(Platform *pf)
+{
+    au_command(pf, PF_CALL_DC(0x7E3775, 0xC70004, DC_AL | DC_X | DC_N | DC_Z | DC_C | DC_D),
+               (AudioCommand){ .command = AU_START_SONG, .p1 = TITLE_SONG, .p2 = AU_FULL_VOLUME, .p3 = AU_FULL_VOLUME,
+                               .count = 3 });
+}
+
+// $7E:5978
+bool scene_title_set_up_as_c(GameState *g, Platform *pf)
+{
+    set_decompress_dest(g, UNPACKED_GRAPHICS);
+    vid_start_vram_uploads(pf, PF_AT(0x7E597D), SCENE_VRAM_WHOLE_WORDS);
+    vid_set_vram_address(pf, PF_AT(0x7E5983), SPRITE_TILES_VRAM);
+    unpack_as_c(g, SPRITE_TILES_RESOURCE);
+    set_scene_call_transfer_control(g, scene_program_own(), WORDS_TO_TWO_REGISTERS);
+    set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
+    send_unpacked(g, pf);
+    unpack_as_c(g, LAYER_TILES_RESOURCE);
+    vid_set_vram_address(pf, PF_AT(0x7E59A3), LAYER_TILES_VRAM);
+    send_unpacked(g, pf);
+    vid_set_vram_address(pf, PF_AT(0x7E59AD), PLANE_VRAM);
+    build_plane_pixels(g, pf);
+    unpack_as_c(g, BG1_MAP_RESOURCE);
+    vid_set_vram_address(pf, PF_AT(0x7E59BF), BG1_MAP_VRAM);
+    send_unpacked(g, pf);
+    unpack_as_c(g, BG2_MAP_RESOURCE);
+    vid_set_vram_address(pf, PF_AT(0x7E59CF), BG2_MAP_VRAM);
+    send_unpacked(g, pf);
+    TIMED_AS(g, 0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
+    fill_bg1_map(g, pf, WHOLE_WORDS_PORT);
+    set_decompress_dest(g, (decompress_dest(g) & 0xFF0000u) | UNPACKED_PALETTE_AT);
+    unpack_as_c(g, PALETTE_RESOURCE);
+    scene_use_loaded_palette(g);
+    set_scene_channels_script(g, TITLE_CHANNEL, FIRST_SCRIPT);
+    SceneTurn turn = SCENE_TURN_ENDED;
+    TIMED_AS(g, CHANNEL_0_STEP, turn = scene_channel_turn(g, pf, TITLE_CHANNEL));
+    if (turn != SCENE_TURN_ENDED)
+        return false;
+    the_title_starts(g);
+    set_palette_working(g, LOGO_HIGHLIGHT, WHITE);
+    set_palette_base(g, LOGO_HIGHLIGHT, WHITE);
+    set_up_pendulum(pf);
+    set_scene_brightness(g, FULL_BRIGHTNESS);
+    set_scene_fade_period(g, FADE_EVERY_FRAME);
+    set_scene_fade_countdown(g, FADE_EVERY_FRAME);
+    TIMED_AS(g, 0xFDFFEE, palette_stop_animations(g));
+    set_scene_song(g, TITLE_SONG);
+    set_scene_song_playing(g, TITLE_SONG);
+    start_the_song(pf);
     return true;
 }
 

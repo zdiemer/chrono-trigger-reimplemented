@@ -331,6 +331,13 @@ static void give_the_gift(GameState *g, ChestGift gift)
  * worked it out. */
 static void leave_overflow(Snes *s) { m_set_flag(s, CPU_FLAG_V, event_overflow_left(m_flag(s, CPU_FLAG_V))); }
 
+void field_confirm_pressed(GameState *g)
+{
+    ChestGift gift = press_confirm(g);
+    if (gift.kind != GIFT_NOTHING)
+        give_the_gift(g, gift);
+}
+
 void field_press_confirm(Snes *s)
 {
     GameState *g = state_of(s);
