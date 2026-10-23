@@ -2090,10 +2090,17 @@ compares as before: 0 mismatches, no read outside the catalogue and none that
 differs; a pack with a byte in 997 changed makes ports mismatch and prints
 both lines.
 
-What still reads the mapped ROM: the original's code (the emulator), and the
-one port that reads cartridge data on the machine rather than through an
-accessor, the decompressor (`data/decompress.c`, on the portstyle backlog),
-which reads the streams the catalogue holds by the pointer the loaders leave.
+What still reads the mapped ROM: the original's code (the emulator); the one
+port that reads cartridge data on the machine rather than through an accessor,
+the decompressor (`data/decompress.c`, on the portstyle backlog), which reads
+the streams the catalogue holds by the pointer the loaders leave; and the video
+service's transfers whose source is a cartridge address (`PF_GAME` of a ROM
+address: the menus' VRAM fills and ROM copy in `menu/display.c`, the battle's
+tile blocks in `battle/uploads.c`), which the SNES backend sends by DMA from
+the bus. `ct_native` (docs/PLAYING.md, "The native program") reads the game's
+data from the pack and maps no ROM: `runtime/port/rom_host.c` is its backing
+of `game/rom.h`, the store's byte, and the host's memory where the store has
+none.
 
 ## Timing without a beam: the native backend
 
@@ -2333,13 +2340,16 @@ enabled. The main thread is a fiber (`runtime/port/fiber.h`), and a wait
 resumes whichever fiber made it, so the menus' tasks can be fibers the main
 thread runs in turn; the
 acknowledges answer "pending" inside their own handler; `tm_host_picture_lines`
-is where the picture ends (the line handler's line and those above it). No
-build links it with the game yet -- `ct_play` still runs on the emulated
-machine, whose interrupts need the SNES backend -- so `tests/port/timing_test.c`
-runs a made-up game on it: the frame's order, a handler switched on or off
-mid-frame, a wait twenty calls deep, the acknowledges, the budget, the
-parity, the generator's replay and the pads. It is the backend `ct_native`
-(PLAN.md, "The native program", step 4) links.
+is where the picture ends (the line handler's line and those above it).
+`ct_native` (PLAYING.md, "The native program") links it with the game's
+program (`core/program.c`'s main thread and handlers), so far as far as the
+boot; `ct_play` still runs on the emulated machine, whose interrupts need the
+SNES backend. `tests/port/timing_test.c` runs a made-up game on it: the
+frame's order, a handler switched on or off mid-frame, a wait twenty calls
+deep, the acknowledges, the budget, the parity, the generator's replay and
+the pads. Of video, the host half keeps what the boot sets (the VRAM sends,
+the display, the line effects' slots) and draws nothing yet (TODO.md, "The
+native program").
 
 **The budgets, measured exactly in shadow mode.** A port that reads the beam
 runs on a copy of the machine whose beam stands where the copy was last made:

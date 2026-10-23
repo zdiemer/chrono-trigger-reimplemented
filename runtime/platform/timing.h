@@ -124,6 +124,16 @@ PF_API TmEntropy tm_entropy(Platform *pf, PfOrigin o, TmEntropyWidth width);
 
 #ifdef CT_PLATFORM_SNES
 #include "platform/snes/timing.h"
+#else
+/* The SNES backend's escapes (platform/snes/timing.h), declared so that code
+ * still using them compiles against another backend: the beam's status, which
+ * the idle entries' wait loops poll, and the word the field's parity was read
+ * with. A backend with no beam has no answer for either, so none defines
+ * them, and a build that reaches them fails to link: each use is a wait on
+ * the beam still to come off it (docs/TODO.md, "The native program"). */
+enum { TM_SNES_IN_VBLANK = 0x80, TM_SNES_IN_HBLANK = 0x40, TM_SNES_JOYPAD_BUSY = 0x01 };
+uint8_t tm_snes_video_status(Platform *pf, PfOrigin o);
+uint16_t tm_snes_odd_frame_read(void);
 #endif
 
 #endif

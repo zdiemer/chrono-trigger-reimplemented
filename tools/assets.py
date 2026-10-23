@@ -153,12 +153,12 @@ def extraction(rom: bytes):
     # as an untyped blob.
     taken = Taken(len(rom))
     for start, end, *_ in ordered:
-        taken[bus_to_offset(start):bus_to_offset(end) + 1] = b"" * (end - start + 1)
+        taken[bus_to_offset(start):bus_to_offset(end) + 1] = b"\x01" * (end - start + 1)
     for pc, variants in an.code.items():
         o = bus_to_offset(pc)
         if o is not None:
             size = max(insn.size for insn in variants.values())
-            taken[o:o + size] = b"" * len(taken[o:o + size])
+            taken[o:o + size] = b"\x02" * len(taken[o:o + size])
             for k in range(size):
                 taken.insn.setdefault(o + k, (o, size))
     return ordered, tables, taken

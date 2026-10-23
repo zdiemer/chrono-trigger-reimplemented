@@ -485,3 +485,46 @@ uses `snes_state_write`/`snes_state_read`, `zst_import`, `ct_movie_parse`/
 `ct_movie_format` and `misses_parse`/`misses_format`, and the path functions the
 development tools call (`snes_state_save`, `zst_import_file`, `ct_movie_load`,
 `misses_write`) are wrappers over them.
+
+### The native program
+
+`ct_native` is the game with no emulator under it, the first version of
+what `ct_play` becomes (PLAN.md, "The native program, and the registry taken
+down"). It is a measurement, not yet a player:
+
+```sh
+build/main/ct_native --rom roms/ct-usa.sfc [--frames N] [--sram save.srm]
+```
+
+It links `game/core/program.c` (the program's top: the boot, the main thread,
+the vblank and line handlers sent wherever the running mode's stubs say), the
+platform services' host backends (`runtime/platform/native/`), the coroutines
+(`runtime/port/fiber.h`) and the game's state held in the host's memory --
+the accessors' backing built with `CT_VARS_HOST`, beside
+`runtime/port/state_host.c`, with the multiplier, divider and work RAM port
+worked out in C -- and none of the CPU, the PPU, the APU, the generated code or
+`game/registry.c`. The game's data comes from the asset pack, read through the
+store (`game/data/assets.h`; "The game's resources", above): `<rom name>.assets`
+beside the ROM, or `--assets`, imported from the ROM where there is none. The
+ROM is read only to import it; no image of it is mapped
+(`runtime/port/rom_host.c`). Like the shipping shape, it is built without the ports'
+scaffolding, and it builds without a ROM.
+
+The driver (`frontend/ct_native.c`) starts the host timing backend with the
+program and runs its frames headless: the vblank handler, the main thread as a
+coroutine until it waits for the frame, the line handler. Where the program's
+next step is still only a machine entry, `program_needs_the_machine` stops it
+and the driver says where (exit status 1):
+
+```
+frame 1: the program's C goes no further: $C0:000E, the field engine's first start, runs only on the machine
+```
+
+So far the boot runs as C -- the console's registers and the power-on screen
+-- and the field's first start is the first step only the machine runs. It
+reports any access the host had no memory for (a register; none so far). What
+the rest of the game still assumes of a machine is TODO.md's "The native
+program", measured by linking all of `game/` the same way (`ct_native_whole`,
+built only when asked for, and expected to fail). The menus' tasks have their
+coroutines (`game/core/tasks.c`, checked by `tasks_test`) for when their
+bodies are functions of the game's state.

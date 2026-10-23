@@ -19,10 +19,10 @@ int asset_reads_write(const char *path);
  * another catalogue. Returns 0, or -1 after printing why not. */
 int asset_pack_use(const char *path, const uint8_t *rom, size_t size);
 
-/* An `asset outside the catalogue` line if any read landed in no resource
- * (tools/suite.py fails the run). Returns how many lines it printed. */
+/* An `asset outside the catalogue` line if any read landed in no resource,
+ * and an `asset differs from the cartridge` line if any read's store byte
+ * wasn't the machine's (a pack that isn't the ROM's); tools/suite.py fails a
+ * run that prints either. Returns how many lines it printed. */
 unsigned asset_report(FILE *f);
-/* The same for an `asset differs from the cartridge` line: a read whose
- * store's byte isn't the machine's (a pack that isn't the ROM's). */
 
 #endif

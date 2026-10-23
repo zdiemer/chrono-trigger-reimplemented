@@ -18,7 +18,7 @@
 #include "menu/display.h"
 
 #include "charge.h"
-#include "core/console.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/fades.h"
@@ -760,8 +760,8 @@ enum { MENU_OBJECT_VBLANK_HANDLER = 0xC2015E, NO_LINE_HANDLER = 0xC20345 };
 
 void menu_object_take_the_interrupts(GameState *g)
 {
-    console_install_vblank_handler(g, MENU_OBJECT_VBLANK_HANDLER);
-    console_install_line_handler(g, NO_LINE_HANDLER);
+    program_install_vblank_handler(g, MENU_OBJECT_VBLANK_HANDLER);
+    program_install_line_handler(g, NO_LINE_HANDLER);
 }
 
 /* Where the uploads the mode builds are put together, in work RAM. */

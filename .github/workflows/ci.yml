@@ -135,6 +135,10 @@ jobs:
         run: cmake --build build/ci --target ct_game_native_shape
       - name: Check that ct_play was built
         run: test -f build/ci/ct_play || test -f build/ci/ct_play.exe
+      # The native program (docs/PLAYING.md, "The native program"): the game linked
+      # with no emulator, generated code or registry, which its target doesn't link.
+      - name: Check that ct_native was built
+        run: test -f build/ci/ct_native || test -f build/ci/ct_native.exe
       - name: Check that the interpreter isn't linked into ct_play
         if: contains(matrix.configure, 'CT_PLAYER_INTERPRETER=OFF')
         run: |
@@ -153,6 +157,8 @@ jobs:
         run: build/ci/fiber_test
       - name: timing_test
         run: build/ci/timing_test
+      - name: tasks_test
+        run: build/ci/tasks_test
       - name: state_test
         run: build/ci/state_test
       - name: shadow_test
