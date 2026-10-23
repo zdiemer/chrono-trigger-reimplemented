@@ -2216,7 +2216,7 @@ call it (below).
 | `in_ready(pf, o)` | `$4212` bit 0 clear | true |
 
 The host backend is `runtime/platform/native/` (`host.h`, `timing.c`,
-`input.c`), compiled with `CT_PLATFORM_EXTERN` into `ct_platform_native`. The
+`input.c`, and `video.c`, `audio.c` and `save.c` for the other services), compiled with `CT_PLATFORM_EXTERN` into `ct_platform_native`. The
 driver calls `tm_host_start` with the game's main thread and its two handlers,
 then `tm_host_frame` once a displayed frame: the vblank handler if enabled,
 the main thread resumed until its `tm_wait_frame`, the line handler if
@@ -2225,14 +2225,15 @@ resumes whichever fiber made it, so the menus' tasks can be fibers the main
 thread runs in turn; the
 acknowledges answer "pending" inside their own handler; `tm_host_picture_lines`
 is where the picture ends (the line handler's line and those above it).
-`ct_native` (PLAYING.md, "The native program") links it with the game's
-program (`core/program.c`'s main thread and handlers), so far as far as the
-boot; `ct_play` still runs on the emulated machine, whose interrupts need the
-SNES backend. `tests/port/timing_test.c` runs a made-up game on it: the
+`ct_native` (PLAYING.md, "The native program") links it with the whole of
+`game/` and runs the program (`core/program.c`'s main thread and handlers),
+so far through the boot and the field's first start; `ct_play` still runs on
+the emulated machine, whose interrupts need the SNES backend. `tests/port/timing_test.c` runs a made-up game on it: the
 frame's order, a handler switched on or off mid-frame, a wait twenty calls
 deep, the acknowledges, the budget, the parity, the generator's replay and
-the pads. Of video, the host half keeps what the boot sets (the VRAM sends,
-the display, the line effects' slots) and draws nothing yet (TODO.md, "The
+the pads. Of video, the host half folds every call into the observer's
+picture state and draws nothing yet; audio plays the C sound driver in the
+sound processor's place, and saves keep the driver's save RAM (TODO.md, "The
 native program").
 
 **The budgets, measured exactly in shadow mode.** A port that reads the beam

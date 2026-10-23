@@ -19,6 +19,7 @@
 #include "core/program.h"
 
 #include "cpu_io.h"
+#include "field/main_loop.h"
 #include "original_effects.h"
 #include "platform/input.h"
 #include "platform/timing.h"
@@ -151,7 +152,7 @@ void program_line(GameState *g, Platform *pf) { take(g, pf, program_line_stub(g)
 
 /* ---- The main thread ------------------------------------------------------------------------- */
 
-enum { FIELD_FIRST_START = 0xC0000E };
+enum { FIELD_ENTER = 0xC0005D };
 
 /* Where the program's next step is still a machine entry, it waits there,
  * frame after frame, for nothing: the build says where it stopped. */
@@ -165,5 +166,6 @@ static void go_no_further(GameState *g, Platform *pf, uint32_t routine, const ch
 void program_main_thread(GameState *g, Platform *pf)
 {
     program_boot(g, pf);
-    go_no_further(g, pf, FIELD_FIRST_START, "the field engine's first start");
+    field_power_on(g, pf);
+    go_no_further(g, pf, FIELD_ENTER, "the field's entry");
 }

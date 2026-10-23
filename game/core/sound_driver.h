@@ -4,7 +4,16 @@
 #ifndef CT_GAME_CORE_SOUND_DRIVER_H
 #define CT_GAME_CORE_SOUND_DRIVER_H
 
+#include "platform/audio.h"
 #include "snes/system.h"
+#include "state.h"
+
+/* With a host that plays a driver of its own (au_driver_hosted): the boot,
+ * false where no host takes it; and a command the game sends, as au_command
+ * sends it, through the buffer to the host, which a build with no machine
+ * calls in place of the call the machine makes. */
+bool sound_driver_host_boots(GameState *g, Platform *pf);
+void sound_driver_send(GameState *g, Platform *pf, AudioCommand c);
 
 /* The guard every entry but $C7:0000 and $C7:0004 has: the driver's data bank
  * ($00) and direct page ($1E00). */

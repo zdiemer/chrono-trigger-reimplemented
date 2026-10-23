@@ -14,6 +14,9 @@
  * (the objects' turns and their sprites), the effects' refresh, a frame of
  * the leader's walk alone, and the start of the wait for the next frame. */
 void field_first_start(Snes *s);
+/* The first start as the program calls it, with a host playing the sound
+ * driver: up to the field's entry. */
+void field_power_on(GameState *g, Platform *pf);
 void field_enter(Snes *s);
 void field_frame(Snes *s);
 void field_frame_goes_on_with_the_requests(Snes *s);

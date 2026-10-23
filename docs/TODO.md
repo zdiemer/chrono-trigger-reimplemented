@@ -2693,52 +2693,50 @@ re-runs the census.
 
 ## The native program
 
-What still assumes a machine, as `ct_native` and its measurement found it
-(PLAYING.md, "The native program"; PLAN.md, "The native program, and the
-registry taken down"). `ct_native` links the program's C and runs the boot,
-then stops at frame 1 at the field engine's first start (`$C0:000E`), the
-first step only the machine runs. `ct_native_whole` links the whole of
-`game/` (but `registry.c`) the same way, with no emulator, and fails:
-`cmake --build build/main --target ct_native_whole -- -k 0`, then count the
-`undefined reference` lines by symbol and by object. At the first build, 101
-symbols are undefined from 236 of `game/`'s objects. Grouped:
+What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
+native program"; PLAN.md, "The native program, and the registry taken down").
+`ct_native` links the whole of `game/` but `registry.c`, with every service's
+host backend, and runs the boot and the field's first start; it stops at
+frame 1 at the field's entry (`$C0:005D`), the first step only the machine
+runs. What the wrappers and bridges call of the machine is
+`runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
+list, by kind, is what `game/` still asks of one.
 
-- **The program's next steps are machine entries.** The field's first start
-  mixes its own C (the interrupts taken, work RAM cleared, the saves looked
-  at) with a call-out to the sound driver's boot through the machine and a
-  stop at the field's entry (`$C0:005D`): it is the next step to make a
-  function of the game's state, then the field's entry, its steps and its
-  frame, for `ct_native` to reach the title. Every mode's vblank and line
-  handler is an entry on the machine's stack (it saves the interrupted
-  registers, moves the page and the data bank, calls out): `core/program.c`'s
-  table has a row for each and a function for none. The census
-  (REIMPLEMENTATION.md, "The census") counts the rest: 259 entries the
-  machine still enters, 21.5 M times over the library.
+- **The program's next steps are machine entries.** The field's entry is a
+  bridge whose steps are entries run under the machine's frames
+  (`field_run`): the location's loading (the song, the tile sets, the map,
+  the script, each unpack now a function of the game's state,
+  `unpack_stream`), the objects' setup, which runs the map's script through
+  the event engine's machine runner (`event/bridge.c`; the engine takes a
+  runner, and a native one is a table of the commands' C), and the fade in,
+  which runs the field's frames: the walk, the frame's work (its budgets
+  and the objects' update are call-outs on purpose, so shadow mode compares
+  them a call at a time) and the frame wait. Then the main loop, and every
+  mode's vblank and line handler, an entry on the machine's stack (it saves
+  the interrupted registers, moves the page and the data bank, calls out):
+  `core/program.c`'s table has a row for each and a function for none. The
+  census (REIMPLEMENTATION.md, "The census") counts the rest: 259 entries
+  the machine still enters, 21.5 M times over the library.
 - **Control flow through the machine.** Call-outs into entries by address
-  (`native_call_dc`, `native_yield_call_dc`, `native_jump_call_dc`) in 19
-  files; stops at the original's addresses (`m_stop_at`, the
-  `native_*dont_care_at_stop` pair) in 74; returns through the emulated stack
-  (`m_rts`, `m_rtl`, `m_rti`: `native_note_return`/`_rti`) in 217, which is
-  every entry wrapper; a sibling found in the registry by address
-  (`native_hand_entry`) in the five bridges (`battle/bridge.c`,
-  `battle/steps.c`, `field/bridge.c`, `menu/bridge.c`, `scene/bridge.c`).
-  These go as each subsystem's ports call ports (PLAN.md's step 1) and its
-  wrappers leave (step 3).
+  (`native_call_dc`, `native_yield_call_dc`, `native_jump_call_dc`), stops
+  at the original's addresses (`m_stop_at`, the `native_*dont_care_at_stop`
+  pair), returns through the emulated stack (`m_rts`, `m_rtl`, `m_rti`:
+  `native_note_return`/`_rti`, every entry wrapper), and a sibling found in
+  the registry by address (`native_hand_entry`) in the five bridges
+  (`battle/bridge.c`, `battle/steps.c`, `field/bridge.c`, `menu/bridge.c`,
+  `scene/bridge.c`). These go as each subsystem's ports call ports (PLAN.md's
+  step 1) and its wrappers leave (step 3).
 - **The machine's memory and registers.** `snes_bus_read`, `_write` and
-  `_peek` from 224 of the 236 objects: the wrappers' registers, page, data
-  bank and stack, the guards' peeks, and what the logic still reads by
-  address. The link can't tell those apart; the wrappers leaving will.
-  The game's state itself needs no machine: `ct_native` holds it in the
-  host's memory (`runtime/port/state_host.c`, the accessors' backing built
-  with `CT_VARS_HOST`).
+  `_peek`: the wrappers' registers, page, data bank and stack, the guards'
+  peeks, and what the logic still reads by address. The game's state itself
+  needs no machine: `ct_native` holds it in the host's memory.
 - **Time charged to the runtime.** `NATIVE_TIME_AS` and its kin
-  (`native_time_as`, `_end`, `_sibling`, `native_uncounted_*`) in 53 files take
-  the machine: tags for the timing gate, nothing to a host. They want the
-  game's state as their handle, as `TIMED_AS` (charge.h) has, whose host half
-  is a no-op.
+  (`native_time_as`, `_end`, `_sibling`, `native_uncounted_*`) take the
+  machine: tags for the timing gate. They want the game's state as their
+  handle, as `TIMED_AS` (charge.h) has, whose host half is a no-op.
 - **Waits on the beam.** `tm_snes_video_status`, the SNES backend's read of
-  the beam's status, from `field/frame.c`, `scene/boot.c` and `warp/warp.c`
-  (the idle entries' passes); and the 19 wait loops the census still sees
+  the beam's status, from the idle entries' passes (`field/frame.c`,
+  `scene/boot.c`, `warp/warp.c`); and the 19 wait loops the census still sees
   passed on the machine (406 M passes: the menus' ready loop `$C2:81CA` and
   the field's frame wait `$C0:EC71` the most), each wanting the timing
   service's wait ("Timing without a beam", above).
@@ -2748,36 +2746,29 @@ symbols are undefined from 236 of `game/`'s objects. Grouped:
   interrupts' stubs at `$00:0500` and `$00:0504`, which `core/program.c` now
   reads as data. A native scene program is its C entries called from the
   scene's boot, not a program unpacked into memory.
-- **Ports that name a register.** The SNES escapes `vid_snes_copy`,
-  `vid_snes_write_register`, `vid_snes_takes_register` and
-  `vid_snes_send_palette_into_memory` (`battle/uploads.c`,
-  `field/display.c`, `menu/display.c`, `menu/script.c`,
-  `menu/script_bridge.c`, `scene/race.c`, `scene/rising_palace.c`,
-  `scene/screen.c`, `scene/staff_roll.c`, `scene/title.c`; tests/
-  test_platform_lint.py's list), and `au_voices_snes_register` in the sound
-  driver.
-- **Services with no host half.** Video: 35 calls from 39 files, the VRAM
-  address and sends, the display, windows, Mode 7, the layers, the line
-  effects (`vid_set_vram_address` the most). What it would take: the
-  development system's observer (`runtime/platform/observe.c`) already folds
-  every video call into a `VidFrame` with no registers, reading the game's
-  memory through a callback, and the native renderer draws a `VidFrame` pixel
-  for pixel as `render.c` (`ct_dev --px-check`); the host video backend is
-  each `vid_*` call forwarding its arguments to the observer's `vid_obs_*`,
-  with `state_host_read8` as its reader, and the driver calling
-  `vid_obs_frame_start`, `vid_obs_line` for each line and `vid_render_frame`
-  once a frame. Audio: 32 files, the sound driver's CPU half talking to an
-  SPC700 (`au_driver_*`, `au_command`, `au_status`), which a host playing the
-  C driver wants as calls. Saves: `sv_read8`, `sv_write8` and `sv_peek8` from
-  the five save files of the menus, which the host's save RAM in
-  `state_host.c` would answer.
+- **Ports that name a register.** The SNES escapes have host halves
+  (`runtime/platform/native_escapes.c`) that follow what a host can: the field's memory clear (`vid_snes_copy` from the
+  multiplier's product) clears the memory, the sprites' setting a script
+  writes by its address (`vid_snes_write_register`) is the setting, and the
+  battle's palette sent into memory (`vid_snes_send_palette_into_memory`)
+  is sent. The rest of `vid_snes_copy`'s and `vid_snes_transfer`'s uses
+  (`battle/uploads.c`, `menu/display.c`, `scene/race.c`,
+  `scene/rising_palace.c`, `scene/screen.c`, `scene/staff_roll.c`;
+  tests/test_platform_lint.py's list) are transfers into VRAM programmed from
+  the game's tables, which only the SNES's channel settings say the meaning
+  of: the host counts them and the driver reports the first.
+- **What the host backends don't do yet.** Video keeps the picture's state
+  in the observer and draws nothing: the host video backend proper is the
+  driver calling `vid_host_picture` and a renderer drawing the `VidFrame`
+  (`ct_dev --px-check`'s, pixel for pixel as `render.c`). Audio mixes the
+  voices and throws the frames away; `au_driver_call`, the scene's call into
+  the original's send to the sound processor, ends the program (it comes only
+  from wrappers). The native player (`frontend/sound_native.c`) repeats
+  `sound_host.c`'s echo waits and command queue over its own ports: the two
+  want one core, which `ct_play` needs when it becomes `ct_native`.
 - **ROM data.** `ct_native` reads the cartridge from the ROM file's bytes
   (`runtime/port/rom_image.c`), the seam the asset pack replaces; on the
   machine `rom.h` still reads the emulated bus.
-- **What only compiled on the machine.** `scene/scene.h` used the don't-care
-  bits without including `port/native.h`, reaching them through the SNES
-  backend's headers; the SNES timing escapes had no declaration for another
-  backend (now declared, with no definition, so a use is a link error).
 
 ## Targets beyond the desktop SNES build
 
@@ -2793,8 +2784,7 @@ waits on M5 rather than on a backend.
   is called only by `tasks_test` until the menus use it; `dev/census.c`'s
   `census_destroy` leaves the runtime's observer pointing at the freed census;
   `state_host.c` and `rom_image.c` each carry the HiROM address map, which
-  wants one copy; CLAUDE.md's command and CI lists don't name `ct_native`,
-  `ct_native_whole` or `tasks_test`.
+  wants one copy.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in

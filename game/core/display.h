@@ -16,5 +16,8 @@ void display_blank_and_stop_interrupts(Snes *s);
  * interrupts masked too and the data bank $00, as the routine leaves the
  * machine, and timed as the routine. */
 void display_go_dark(Snes *s);
+/* What it leaves of the machine alone, for a port that stops the screen
+ * itself. */
+void display_leaves_the_machine_dark(Snes *s);
 
 #endif

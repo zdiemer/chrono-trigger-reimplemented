@@ -481,33 +481,60 @@ down"). It is a measurement, not yet a player:
 build/main/ct_native --rom roms/ct-usa.sfc [--frames N] [--sram save.srm]
 ```
 
-It links `game/core/program.c` (the program's top: the boot, the main thread,
-the vblank and line handlers sent wherever the running mode's stubs say), the
-platform services' host backends (`runtime/platform/native/`), the coroutines
-(`runtime/port/fiber.h`) and the game's state held in the host's memory --
-the accessors' backing built with `CT_VARS_HOST`, beside
+It links the whole of `game/` but `game/registry.c` -- the program's top in
+`game/core/program.c` (the boot, the main thread, the vblank and line
+handlers sent wherever the running mode's stubs say) and every port -- with
+the platform services' host backends (`runtime/platform/native/`), the
+coroutines (`runtime/port/fiber.h`) and the game's state held in the host's
+memory (the accessors' backing built with `CT_VARS_HOST`, beside
 `runtime/port/state_host.c`, with the multiplier, divider and work RAM port
-worked out in C -- and none of the CPU, the PPU, the APU, the generated code or
-`game/registry.c`. The cartridge's data comes from the ROM file's bytes the
-driver loads into a buffer (`runtime/port/rom_image.c`): one seam, which the
-asset pack replaces. Like the shipping shape, it is built without the ports'
-scaffolding, and it builds without a ROM.
+worked out in C), and none of the CPU, the PPU, the APU or the generated code.
+The cartridge's data comes from the ROM file's bytes the driver loads into a
+buffer (`runtime/port/rom_image.c`): one seam, which the asset pack replaces.
+Like the shipping shape, it is built without the ports' scaffolding, and it
+builds without a ROM.
 
-The driver (`frontend/ct_native.c`) starts the host timing backend with the
+Nothing in it makes a machine, so the entry wrappers and bridges `game/`
+still has, which take a `Snes *`, are linked but never reached: the program
+calls the functions of the game's state they stand in front of. What they
+call of the machine -- the emulated bus, the runtime's call-outs, stops and
+returns, shadow mode's declarations, the time estimates -- is
+`runtime/port/no_machine.c`, each definition ending the program with what was
+reached. That file is the list of what `game/` still asks of a machine, and
+it shrinks as the wrappers leave.
+
+The host backends answer every service call the game makes. Video folds the
+calls into the picture's state through the development system's observer
+(`runtime/platform/observe.h`), reading the game's memory through the
+driver's reader; nothing draws it yet. The SNES's escapes a host has no
+meaning for are counted and reported, but for the field's memory clear,
+whose meaning is the multiplier's product copied over work RAM. Audio plays
+the C sound driver (`game/sound/`) in the sound processor's place
+(`frontend/sound_native.c`, the native counterpart of `sound_host.c`): the
+CPU half hands it the boot and the commands as calls, the game's sends
+through the service reach the CPU half as C (`sound_driver_send`), the
+scenes' commands come on the ports, and the driver's time passes a frame at
+a time and while the game waits on a port. Saves read and write the save
+RAM the driver loaded.
+
+The driver (`frontend/ct_native.c`) starts the host backends with the
 program and runs its frames headless: the vblank handler, the main thread as a
-coroutine until it waits for the frame, the line handler. Where the program's
-next step is still only a machine entry, `program_needs_the_machine` stops it
-and the driver says where (exit status 1):
+coroutine until it waits for the frame, the line handler, then a frame of the
+sound driver's time. Where the program's next step is still only a machine
+entry, `program_needs_the_machine` stops it and the driver says where (exit
+status 1):
 
 ```
-frame 1: the program's C goes no further: $C0:000E, the field engine's first start, runs only on the machine
+frame 1: the program's C goes no further: $C0:005D, the field's entry, runs only on the machine
 ```
 
-So far the boot runs as C -- the console's registers and the power-on screen
--- and the field's first start is the first step only the machine runs. It
-reports any access the host had no memory for (a register; none so far). What
-the rest of the game still assumes of a machine is TODO.md's "The native
-program", measured by linking all of `game/` the same way (`ct_native_whole`,
-built only when asked for, and expected to fail). The menus' tasks have their
-coroutines (`game/core/tasks.c`, checked by `tasks_test`) for when their
-bodies are functions of the game's state.
+So far the boot and the field's first start run as C: the console's
+registers and the power-on screen, the field's handlers installed, the screen
+dark, work RAM cleared, the sound driver booted, and the cartridge's saves
+looked at, which starts a new game where there are none. The field's entry
+is the first step only the machine runs. It reports any access the host had
+no memory for (a register; none so far), and any video escape it couldn't
+follow. What the rest of the game still assumes of a machine is TODO.md's
+"The native program". The menus' tasks have their coroutines
+(`game/core/tasks.c`, checked by `tasks_test`) for when their bodies are
+functions of the game's state.

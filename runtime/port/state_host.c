@@ -40,7 +40,7 @@ GameState *state_host_create(const uint8_t *sram)
 
 void state_host_destroy(GameState *g) { free(g); }
 
-const uint8_t *state_host_sram(const GameState *g) { return g->sram; }
+uint8_t *state_host_sram(GameState *g) { return g->sram; }
 
 unsigned long state_host_strays(const GameState *g, uint32_t *first, unsigned *kept)
 {

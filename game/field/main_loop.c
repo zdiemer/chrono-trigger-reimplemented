@@ -48,6 +48,7 @@
 #include "core/console.h"
 #include "core/palette.h"
 #include "core/display.h"
+#include "core/sound_driver.h"
 #include "core/input.h"
 #include "event/contact.h"
 #include "field/bridge.h"
@@ -184,20 +185,39 @@ static void leave_the_page_in_a(Snes *s) { s->cpu.a = (uint16_t)((FIELD_PAGE & 0
 /* The field's entry reads none of the registers the power-on leaves. */
 enum { ENTERING_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
+/* At power-on, before the sound driver starts: the field's handlers on the
+ * interrupts, the screen dark, and work RAM cleared. */
+static void wake(GameState *g, Platform *pf)
+{
+    take_the_interrupts(g);
+    TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
+    for (unsigned i = 0; i < POWER_ON_CLEARS; i++)
+        TIMED_AS(g, FIELD_FILL_MEMORY_ENTRY, field_clear_memory(g, pf, power_on_clears[i].from, power_on_clears[i].bytes));
+}
+
 // $C0:000E
-/* The field's first start, at power-on: the cartridge's saves looked at,
- * which starts a new game where there are none (menu/saves.h). The menus'
+/* The field's first start, at power-on: the sound driver started, and the
+ * cartridge's saves looked at, which starts a new game where there are none
+ * (menu/saves.h). Here the driver is one a host plays (core/sound_driver.h),
+ * and the field's entry follows. */
+void field_power_on(GameState *g, Platform *pf)
+{
+    wake(g, pf);
+    TIMED_AS(g, SOUND_DRIVER_BOOT, (void)sound_driver_host_boots(g, pf));
+    TIMED_AS(g, MENUS_SERVICES, start_from_the_saves(g, pf));
+}
+
+/* On the machine the driver may be the original's, whose boot waits on the
+ * sound processor across frames: a call the machine makes. The menus'
  * service keeps the X and Y it is given as its arguments, which this one
  * doesn't read: the original leaves the last clear's size in X. */
 void field_first_start(Snes *s)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
-    take_the_interrupts(g);
     s->cpu.d = FIELD_PAGE;
-    display_go_dark(s);
-    for (unsigned i = 0; i < POWER_ON_CLEARS; i++)
-        TIMED_AS(g, FIELD_FILL_MEMORY_ENTRY, field_clear_memory(g, pf, power_on_clears[i].from, power_on_clears[i].bytes));
+    display_leaves_the_machine_dark(s);
+    wake(g, pf);
     s->cpu.x = power_on_clears[POWER_ON_CLEARS - 1].bytes;
     ORIGINAL_EFFECT(leave_the_page_in_a(s));
     if (!bridge_call_long(s, 0xC00053, SOUND_DRIVER_BOOT, THE_BOOT_IGNORES, page(s)))

@@ -225,8 +225,9 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 311 files, 117 of 96,714 lines, is left on the backlog**: `data/decompress.c`,
-the one line in `tools/portstyle_baseline.txt`. What is still on the machine
+**0 of 311 files is left on the backlog**: the last, `data/decompress.c`, is
+rewritten (the unpacker as a function of the game's state, which the native
+program calls), and `tools/portstyle_baseline.txt` lists none. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
 
@@ -604,18 +605,21 @@ by an audit; the fourth is the program itself.
      This happens anyway as subsystems finish; the census says where it is
      still owed: the menus' object scripts, the battle's handlers, timers and
      frame dispatch, the menus' tasks and the field's frame hold the most.
-  2. **`ct_native` to the title, then a few field maps.** `ct_native` runs
-     the boot and stops at frame 1 at the field's first start (`$C0:000E`),
-     the first step only the machine runs; `ct_native_whole`, the whole of
-     `game/` linked the same way, is the list of what still assumes a
-     machine (TODO.md, "The native program"). Next, in order: the field's
-     first start and entry as functions of the game's state (their call-out
-     to the sound driver's boot and their stops are what hold them), the
-     modes' handlers as functions in `core/program.c`'s table, and the host
-     video backend over the observer, so the frames it reaches can be seen
-     and compared with `ct_play`'s. Each step is measured by how far
-     `ct_native` gets and by `ct_native_whole`'s count; it is a measurement,
-     not the product, until the rest arrives.
+  2. **`ct_native` to the title, then a few field maps.** `ct_native` links
+     the whole of `game/` with every service's host backend under it, the
+     wrappers' calls into the machine answered by `runtime/port/no_machine.c`,
+     which nothing it runs reaches (PLAYING.md, "The native program"); it
+     runs the boot and the field's first start, and stops at frame 1 at the
+     field's entry (`$C0:005D`), the first step only the machine runs. Next,
+     in order: the field's entry and its steps as functions of the game's
+     state (the location's loading, the objects' setup with the map's script,
+     which wants the event engine's runner as C, and the fade in, which runs
+     the field's frames), the field's frame and its vblank handler as a
+     function in `core/program.c`'s table, then the event that starts the
+     title's scene. Each step is measured by how far `ct_native` gets and by
+     what `no_machine.c` still lists; it is a measurement, not the product,
+     until the rest arrives. The host video backend draws nothing yet: the
+     observer's frame is there for a renderer to take.
   3. **Per subsystem, the registry goes with the gate.** When a subsystem
      retires the gate ("Retiring the gate, deliberately", above), its rows
      leave `game/registry.c`, its entry wrappers and leaves files are
