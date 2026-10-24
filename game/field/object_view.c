@@ -19,6 +19,7 @@
 #include "field/object_update.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "ram.h"
 #include "field/bridge.h"
@@ -237,27 +238,51 @@ static void give_up_what_it_had(GameState *g, FieldObject obj)
     TIMED_AS(g, FIELD_GIVE_UP_SPRITE_BLOCK_ENTRY, object_give_up_sprite_block(g, obj));
 }
 
-/* ---- Where it meets the original ---------------------------------------------------------- */
+/* ---- The view step ------------------------------------------------------------------------ */
 
-/* The overflow of the window's lower edge's sum, which the callers read where
- * nothing after it sets one. */
-static bool bottom_overflows(const GameState *g, uint8_t by)
+/* How the view step's row is joined or left, which is the one step it makes
+ * that the port doesn't always take: as C, or on the machine, where the
+ * original's routine joins or leaves the rows whose links the port doesn't
+ * take. False where it didn't come back. And, on the machine, what taking a
+ * palette or a block leaves for the original's callers; none as C. */
+typedef struct {
+    bool (*rows)(void *ctx, FieldObject obj, bool join);
+    void (*took_what_it_needs)(void *ctx);
+} ViewSteps;
+
+typedef enum { OUT_OF_SIGHT, IN_SIGHT, VIEW_WENT_ELSEWHERE } ViewUpdate;
+
+// $C0:A88D
+/* Every frame, for each object the update runs: the object comes into view
+ * when it is inside the view's window and can be seen, taking what it needs
+ * and joining its row; it leaves view when it is outside, giving those up,
+ * leaving its row and ending a dialog waiting on it; and out of view, a
+ * one-off animation it was playing is hurried to its end. */
+static ViewUpdate update_view(GameState *g, FieldObject obj, const ViewSteps *steps, void *ctx)
 {
-    return field_add_overflows8(field_screen_bottom(g), by);
-}
-
-/* The rows' step (field/object_update.c) as C, timed as the routine it is;
- * where the rows' links are ones its entry's guard would turn away, the
- * entry is called, and the original runs it. Nothing it is entered with is
- * read but the overflow. */
-enum { ROWS_CALL_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
-
-static bool rows_step(Snes *s, uint32_t site, FieldObject obj, bool join)
-{
-    if (field_rows_step_as_c(s, obj, join))
-        return true;
-    return bridge_call(s, site, join ? FIELD_JOIN_ROW_ENTRY : FIELD_LEAVE_ROW_ENTRY, ROWS_CALL_DONT_CARE,
-                       on_the_field_page(s, true));
+    if (object_can_be_seen(g, obj))
+        ORIGINAL_EFFECT(leave_window(g, view_window(g)));
+    bool inside = belongs_in_view(g, obj);
+    bool was_in_view = object_in_view(g, obj);
+    if (inside) {
+        if (!was_in_view) {
+            come_into_view(g, obj);
+            if (take_what_it_needs(g, obj) && steps->took_what_it_needs)
+                steps->took_what_it_needs(ctx);
+            if (!steps->rows(ctx, obj, true))
+                return VIEW_WENT_ELSEWHERE;
+        }
+        return IN_SIGHT;
+    }
+    if (was_in_view) {
+        object_set_in_view(g, obj, false);
+        give_up_what_it_had(g, obj);
+        if (!steps->rows(ctx, obj, false))
+            return VIEW_WENT_ELSEWHERE;
+        after_leaving_view(g, obj);
+    }
+    object_hurry_animation(g, obj);
+    return OUT_OF_SIGHT;
 }
 
 bool field_view_changes(const GameState *g, unsigned obj)
@@ -276,38 +301,67 @@ bool field_view_change_in_the_tables(const GameState *g, FieldObject obj)
     return object_takes_a_palette_the_tables_hold(g, obj) && (role.disabled || role.kind <= ROLE_LEFT_ALONE);
 }
 
-// $C0:A88D
-/* The carry says whether the object is in view. False where the bridge
+/* ---- As C ----------------------------------------------------------------------------------- */
+
+static bool rows_as_c(void *ctx, FieldObject obj, bool join) { return object_rows_step(ctx, obj, join); }
+
+enum { VIEW = 0xC0A88D };
+
+bool object_view_updated(GameState *g, FieldObject obj)
+{
+    if (field_view_changes(g, obj) && !field_view_change_in_the_tables(g, obj)) {
+        program_needs_the_machine(g, VIEW, "an object coming into view or leaving it with tables the port doesn't read");
+        return false;
+    }
+    static const ViewSteps as_c = { rows_as_c, NULL };
+    return update_view(g, obj, &as_c, g) != VIEW_WENT_ELSEWHERE;
+}
+
+/* An object that matters only on the screen, checked against it. */
+void object_window_only_checked(GameState *g, FieldObject obj) { (void)check_on_screen(g, obj); }
+
+/* ---- Where it meets the original ---------------------------------------------------------- */
+
+/* The overflow of the window's lower edge's sum, which the callers read where
+ * nothing after it sets one. */
+static bool bottom_overflows(const GameState *g, uint8_t by)
+{
+    return field_add_overflows8(field_screen_bottom(g), by);
+}
+
+/* The rows' step (field/object_update.c) as C, timed as the routine it is;
+ * where the rows' links are ones its entry's guard would turn away, the
+ * entry is called from the view's own call, and the original runs it.
+ * Nothing it is entered with is read but the overflow. */
+enum { ROWS_CALL_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+enum { JOIN_SITE = 0xC0A90B, LEAVE_SITE = 0xC0A921 };
+
+static bool rows_on_the_machine(void *ctx, FieldObject obj, bool join)
+{
+    Snes *s = ctx;
+    if (field_rows_step_as_c(s, obj, join))
+        return true;
+    return bridge_call(s, join ? JOIN_SITE : LEAVE_SITE, join ? FIELD_JOIN_ROW_ENTRY : FIELD_LEAVE_ROW_ENTRY,
+                       ROWS_CALL_DONT_CARE, on_the_field_page(s, true));
+}
+
+/* Taking colours or a block leaves the overflow clear, which the original's
+ * callers read where nothing after it sets one. */
+static void clear_the_overflow(void *ctx) { m_set_flag((Snes *)ctx, CPU_FLAG_V, false); }
+
+/* The carry says whether the object is in view; the overflow is the window's
+ * lower edge's, for an object that can be seen. False where the bridge
  * stopped. The object is the current one, which the steps read. */
 bool field_update_visibility(Snes *s, FieldObject obj)
 {
     GameState *g = state_of(s);
-    bool inside = belongs_in_view(g, obj);
-    if (object_can_be_seen(g, obj)) {
-        ORIGINAL_EFFECT(leave_window(g, view_window(g)));
+    if (object_can_be_seen(g, obj))
         m_set_flag(s, CPU_FLAG_V, bottom_overflows(g, WIDER_BELOW));
-    }
-    bool was_in_view = object_in_view(g, obj);
-    if (inside) {
-        if (!was_in_view) {
-            come_into_view(g, obj);
-            if (take_what_it_needs(g, obj))
-                m_set_flag(s, CPU_FLAG_V, false);
-            if (!rows_step(s, 0xC0A90B, obj, true))
-                return false;
-        }
-        m_set_flag(s, CPU_FLAG_C, true);
-        return true;
-    }
-    if (was_in_view) {
-        object_set_in_view(g, obj, false);
-        give_up_what_it_had(g, obj);
-        if (!rows_step(s, 0xC0A921, obj, false))
-            return false;
-        after_leaving_view(g, obj);
-    }
-    object_hurry_animation(g, obj);
-    m_set_flag(s, CPU_FLAG_C, false);
+    static const ViewSteps on_the_machine = { rows_on_the_machine, clear_the_overflow };
+    ViewUpdate view = update_view(g, obj, &on_the_machine, s);
+    if (view == VIEW_WENT_ELSEWHERE)
+        return false;
+    m_set_flag(s, CPU_FLAG_C, view == IN_SIGHT);
     return true;
 }
 
@@ -326,35 +380,6 @@ bool field_view_can_run(Snes *s)
 }
 
 /* The current object's (8-bit X). */
-/* The view step as C: the object comes into view or leaves it, its row
- * joined or left. False where the row's links are none the port takes,
- * the program going no further there (core/program.h). */
-bool object_view_updated(GameState *g, FieldObject obj)
-{
-    bool inside = belongs_in_view(g, obj);
-    bool was_in_view = object_in_view(g, obj);
-    if (inside) {
-        if (!was_in_view) {
-            come_into_view(g, obj);
-            (void)take_what_it_needs(g, obj);
-            return object_rows_step(g, obj, true);
-        }
-        return true;
-    }
-    if (was_in_view) {
-        object_set_in_view(g, obj, false);
-        give_up_what_it_had(g, obj);
-        if (!object_rows_step(g, obj, false))
-            return false;
-        after_leaving_view(g, obj);
-    }
-    object_hurry_animation(g, obj);
-    return true;
-}
-
-/* An object that matters only on the screen, checked against it. */
-void object_window_only_checked(GameState *g, FieldObject obj) { (void)check_on_screen(g, obj); }
-
 void field_update_object_visibility(Snes *s)
 {
     if (field_update_visibility(s, (FieldObject)field_current_object_slot(s)))

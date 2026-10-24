@@ -122,13 +122,29 @@ enum {
     ORIGINAL_REFERENCE = 11, ORIGINAL_ITEM_GOES_ON = 4, ORIGINAL_CONTROL_DONE = 3,
 };
 
+/* What the unpacking came to, counted as it goes: the turns of its loop,
+ * the segments' headers, the control bytes, the references, and the items
+ * the control bytes said. Every control byte's run ends with its last item;
+ * the others go on to the next. */
+typedef struct {
+    uint32_t turns, segments, controls, references, items;
+} Counts;
+
+static uint32_t original_accesses(const Counts *n)
+{
+    return ORIGINAL_START_AND_END + n->turns * ORIGINAL_LOOK_AT_THE_SEGMENT + n->segments * ORIGINAL_SEGMENT +
+           n->controls * (ORIGINAL_CONTROL + ORIGINAL_CONTROL_DONE) + n->references * ORIGINAL_REFERENCE +
+           (n->items - n->controls) * ORIGINAL_ITEM_GOES_ON;
+}
+
 /* The first segment's length, and so where it ends, comes first. */
 enum { FIRST_LENGTH_BYTES = 2, HEADER_BYTES = 3, BITS_IN_A_CONTROL = 8, HEADER_BITS = 0x3F };
 
 // $C3:0557 (entered through the jump at $C3:0002)
 uint16_t unpack_stream(GameState *g)
 {
-    uint32_t mark = 0, accesses = ORIGINAL_START_AND_END;
+    uint32_t mark = 0;
+    Counts n = { 0 };
     uint32_t from = decompress_source(g), to = decompress_dest(g);
     Stream in = { g, (uint8_t)(from >> 16), (uint16_t)(from + FIRST_LENGTH_BYTES) };
     uint16_t first_length = (uint16_t)(rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
@@ -138,12 +154,12 @@ uint16_t unpack_stream(GameState *g)
     bool long_runs = rom_read8(g, (uint32_t)in.bank << 16 | l.segment_end) & LONG_RUNS;
 
     for (;;) {
-        accesses += ORIGINAL_LOOK_AT_THE_SEGMENT;
+        n.turns++;
         if (in.at == l.segment_end) {
             uint8_t bits = stream_byte(&in, 0) & HEADER_BITS;
             if (!bits)
                 break;
-            accesses += ORIGINAL_SEGMENT;
+            n.segments++;
             l.bits_left = bits;
             l.segment_end = (uint16_t)(stream_word(&in, 1) + (uint16_t)from);
             in.at += HEADER_BYTES;
@@ -156,18 +172,18 @@ uint16_t unpack_stream(GameState *g)
             in.at += 1 + BITS_IN_A_CONTROL;
             continue;
         }
-        accesses += ORIGINAL_CONTROL;
+        n.controls++;
         in.at++;
         bool reference = control & 1;
         l.control = control >> 1;
         l.controlled = true;
-        for (;;) {
+        for (;; n.items++) {
             if (reference) {
                 Reference r = reference_at(&in, long_runs);
                 l.referred = true;
                 l.run_length = (uint8_t)(r.length_less_three + 2);
                 l.reference_at = in.at;
-                accesses += ORIGINAL_REFERENCE;
+                n.references++;
                 copy_run(&out, r);
                 in.at += 2;
             } else {
@@ -175,11 +191,10 @@ uint16_t unpack_stream(GameState *g)
                 in.at++;
             }
             if (--l.bits_left == 0) {
-                accesses += ORIGINAL_CONTROL_DONE;
+                n.items++;
                 l.bits_left = BITS_IN_A_CONTROL;
                 break;
             }
-            accesses += ORIGINAL_ITEM_GOES_ON;
             reference = l.control & 1;
             l.control >>= 1;
         }
@@ -190,7 +205,7 @@ uint16_t unpack_stream(GameState *g)
     ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
     ORIGINAL_EFFECT(leave_the_cells(g, &l));
     ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-    charge_as(g, UNPACK_STREAM_ENTRY, accesses);
+    charge_as(g, UNPACK_STREAM_ENTRY, original_accesses(&n));
     (void)mark;
     return length;
 }

@@ -226,35 +226,93 @@ static UpdateKind update_kind(const GameState *g, FieldObject obj)
     return !role.disabled && role.kind == ROLE_WINDOW_ONLY ? UPDATE_WINDOW_ONLY : UPDATE_OBJECT;
 }
 
-/* ---- Where the update meets the original ------------------------------------------------ */
-
-/* The overflow of the object's vertical position's difference from the
- * screen's, which placing it on the screen leaves for the original's code. */
-static bool screen_position_overflow(const GameState *g, FieldObject obj)
+/* For the original's code and shadow mode: the update keeps where its loop
+ * ends, the object count doubled, in the byte event_object_end's low byte
+ * is. */
+static void leave_loop_end(GameState *g, uint8_t count)
 {
-    uint16_t pixels = (uint16_t)(object_position(g, obj).y / POSITION_PIXEL);
-    return field_subtract_overflows16(pixels, screen_origin(g).y);
+    set_event_object_end(g, (uint16_t)((event_object_end(g) & 0xFF00) | (uint8_t)(count * 2)));
 }
 
-/* The object update's steps are this module's own (the move, the view, the
- * animation's tick, the rows, the screen position), run as C and timed as the
- * routines they are. The update is still a bridge: where an object comes
- * into view or leaves it, the view step calls the original's routines, so
- * there it is called as its entry; and where the state is one the tick's or
- * the rows' entries' guards would turn away, the entry is called instead, and
- * the original runs it. The update goes on after a call only where it came
- * back with 8-bit A and X, the field's page and the data bank it had. Nothing
- * the steps are entered with is read but the overflow, which they carry
- * through. Whether the view step left the object in view is read from the
- * object, not from the carry it answers in. */
-enum { STEP_ENTRY_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+/* Which of the update's calls a step is made from: an object's update, a
+ * party member's, or the party's re-sort, for its second member or its
+ * first. On the machine each is the original's call of the step, which a
+ * step the port doesn't take is made from. */
+typedef enum { OBJECTS_UPDATE, PARTY_UPDATE, RESORT_SECOND, RESORT_FIRST } UpdateCall;
 
-static bool call_step(Snes *s, uint32_t site, uint32_t routine)
+/* The update's steps, run as C or on the machine (below): the object's move,
+ * its view, its animation's tick, its row left or joined, its place on the
+ * screen, and the screen's own check for an object that matters only on it.
+ * The view, the tick and the rows are false where they didn't come back. */
+typedef struct {
+    void (*move)(void *ctx, FieldObject obj, bool party_member);
+    bool (*view)(void *ctx, UpdateCall call, FieldObject obj);
+    bool (*tick)(void *ctx, UpdateCall call, FieldObject obj);
+    bool (*rows)(void *ctx, UpdateCall call, FieldObject obj, bool join);
+    void (*place)(void *ctx, FieldObject obj);
+    void (*window_only)(void *ctx, FieldObject obj);
+} UpdateSteps;
+
+/* An object's step and, in view, the rest of its update. */
+static bool update_object(GameState *g, const UpdateSteps *steps, void *ctx, UpdateCall call, FieldObject obj)
 {
-    return bridge_call(s, site, routine, STEP_ENTRY_DONT_CARE, on_the_field_page(s, true));
+    steps->move(ctx, obj, call == PARTY_UPDATE);
+    if (!steps->view(ctx, call, obj))
+        return false;
+    if (!object_in_view(g, obj))
+        return true;
+    if (!steps->tick(ctx, call, obj) || !steps->rows(ctx, call, obj, false))
+        return false;
+    steps->place(ctx, obj);
+    return steps->rows(ctx, call, obj, true);
 }
 
-/* The steps' entries, which the update runs as C and calls where it can't. */
+/* After everyone has moved: the second party member and then the first,
+ * where in view, are put back at the front of their rows, so that they are
+ * drawn over the other objects on the same row. */
+static bool resort_party(GameState *g, const UpdateSteps *steps, void *ctx)
+{
+    static const struct {
+        unsigned member;
+        UpdateCall call;
+    } order[2] = { { 1, RESORT_SECOND }, { 0, RESORT_FIRST } };
+    for (unsigned i = 0; i < 2; i++) {
+        FieldLink link = party_member_link(g, order[i].member);
+        if (!field_link_is_object(link) || object_view(g, field_linked_object(link)) == OUT_OF_VIEW)
+            continue;
+        FieldObject obj = field_linked_object(link);
+        object_make_current(g, obj);
+        if (!steps->rows(ctx, order[i].call, obj, false) || !steps->rows(ctx, order[i].call, obj, true))
+            return false;
+    }
+    return true;
+}
+
+// $C0:A810
+/* Every frame: update each object slot up to the event's object count, and
+ * re-sort the party. A map whose last object is a party member leaves the
+ * party as it is: the original's party members' update returns from the
+ * loop without the re-sort. False where a step didn't come back. */
+static bool update_objects(GameState *g, const UpdateSteps *steps, void *ctx)
+{
+    uint8_t count = event_object_count(g);
+    ORIGINAL_EFFECT(leave_loop_end(g, count));
+    UpdateKind kind;
+    for (FieldObject obj = 0;; obj++) {
+        object_make_current(g, obj);
+        kind = update_kind(g, obj);
+        if (kind == UPDATE_WINDOW_ONLY)
+            steps->window_only(ctx, obj);
+        else if (kind != UPDATE_SKIP &&
+                 !update_object(g, steps, ctx, kind == UPDATE_PARTY ? PARTY_UPDATE : OBJECTS_UPDATE, obj))
+            return false;
+        if (obj + 1 >= count)
+            break;
+    }
+    return kind == UPDATE_PARTY || resort_party(g, steps, ctx);
+}
+
+/* The steps' entries, which the update runs inline, and calls where it can't. */
 enum {
     MOVE = 0xC0AA07,
     MOVE_PARTY_MEMBER = 0xC0AAFD,
@@ -264,221 +322,181 @@ enum {
     PLACE_ON_SCREEN = 0xC0AB45,
 };
 
-/* Where the update calls each step from, by update: the other objects', and
- * the party members'; and where the party's re-sort calls the rows, for the
- * second member and the first. */
-enum { OBJECTS_UPDATE, PARTY_UPDATE };
-static const struct {
-    uint32_t view, tick, leave_row, join_row;
-} update_sites[] = {
-    [OBJECTS_UPDATE] = { 0xC0A82D, 0xC0A832, 0xC0A835, 0xC0A83B },
-    [PARTY_UPDATE] = { 0xC0A873, 0xC0A878, 0xC0A87B, 0xC0A881 },
-};
-static const struct {
-    uint32_t leave_row, join_row;
-} resort_sites[] = { { 0xC0A852, 0xC0A855 }, { 0xC0A864, 0xC0A867 } };
+/* ---- The rows' step ------------------------------------------------------------------------- */
 
-static bool tick(Snes *s, unsigned update, FieldObject obj)
+/* The rows' step inline, timed as the routine it is, where the rows' links
+ * are ones its entry's guard takes; false where they aren't. */
+static bool rows_step_taken(GameState *g, FieldObject obj, bool join)
 {
-    GameState *g = state_of(s);
-    if (!field_tick_is_exact(g, obj))
-        return call_step(s, update_sites[update].tick, TICK);
-    NATIVE_TIME_AS(s, TICK, object_animation_tick(g, obj));
-    return true;
-}
-
-bool object_rows_step(GameState *g, FieldObject obj, bool join)
-{
-    if (!field_rows_are_exact(g, obj)) {
-        program_needs_the_machine(g, join ? FIELD_JOIN_ROW_ENTRY : FIELD_LEAVE_ROW_ENTRY,
-                                  "a row whose links the port doesn't take");
+    if (!field_rows_are_exact(g, obj))
         return false;
-    }
     TIMED_AS(g, join ? FIELD_JOIN_ROW_ENTRY : FIELD_LEAVE_ROW_ENTRY,
              join ? object_join_row(g, obj) : object_leave_row(g, obj));
     return true;
 }
 
-bool field_rows_step_as_c(Snes *s, FieldObject obj, bool join)
-{
-    GameState *g = state_of(s);
-    if (!field_rows_are_exact(g, obj))
-        return false;
-    if (join)
-        NATIVE_TIME_AS(s, FIELD_JOIN_ROW_ENTRY, object_join_row(g, obj));
-    else
-        NATIVE_TIME_AS(s, FIELD_LEAVE_ROW_ENTRY, object_leave_row(g, obj));
-    return true;
-}
+bool field_rows_step_as_c(Snes *s, FieldObject obj, bool join) { return rows_step_taken(state_of(s), obj, join); }
 
-static bool leave_row(Snes *s, uint32_t site, FieldObject obj)
+bool object_rows_step(GameState *g, FieldObject obj, bool join)
 {
-    return field_rows_step_as_c(s, obj, false) || call_step(s, site, FIELD_LEAVE_ROW_ENTRY);
-}
-
-static bool join_row(Snes *s, uint32_t site, FieldObject obj)
-{
-    return field_rows_step_as_c(s, obj, true) || call_step(s, site, FIELD_JOIN_ROW_ENTRY);
-}
-
-static void place_on_screen(Snes *s, FieldObject obj)
-{
-    GameState *g = state_of(s);
-    NATIVE_TIME_AS(s, PLACE_ON_SCREEN, object_update_screen_position(g, obj));
-    m_set_flag(s, CPU_FLAG_V, screen_position_overflow(g, obj));
-}
-
-static void move(Snes *s, unsigned update, FieldObject obj)
-{
-    if (update == PARTY_UPDATE)
-        NATIVE_TIME_AS(s, MOVE_PARTY_MEMBER, field_move_object_step(s, obj, true));
-    else
-        NATIVE_TIME_AS(s, MOVE, field_move_object_step(s, obj, false));
-}
-
-/* The view step, as C where the object stays in or out of view (it calls
- * nothing then), and called as its entry where it comes or goes: those call
- * the original's routines, which shadow mode compares as the view's own
- * calls, not the update's. */
-static bool view(Snes *s, unsigned update, FieldObject obj)
-{
-    if (field_view_changes(state_of(s), obj))
-        return call_step(s, update_sites[update].view, VIEW);
-    bool done;
-    NATIVE_TIME_AS(s, VIEW, done = field_update_visibility(s, obj));
-    return done;
-}
-
-/* An object's step and, in view, the rest of its update. False where the
- * port stopped. */
-static bool update_object(Snes *s, unsigned update, FieldObject obj)
-{
-    move(s, update, obj);
-    if (!view(s, update, obj))
-        return false;
-    if (!object_in_view(state_of(s), obj))
+    if (rows_step_taken(g, obj, join))
         return true;
-    if (!tick(s, update, obj) || !leave_row(s, update_sites[update].leave_row, obj))
-        return false;
-    place_on_screen(s, obj);
-    return join_row(s, update_sites[update].join_row, obj);
+    program_needs_the_machine(g, join ? FIELD_JOIN_ROW_ENTRY : FIELD_LEAVE_ROW_ENTRY,
+                              "a row whose links the port doesn't take");
+    return false;
 }
 
-/* After everyone has moved: the second party member and then the first,
- * where in view, are put back at the front of their rows, so that they are
- * drawn over the other objects on the same row. */
-static bool resort_party(Snes *s)
-{
-    GameState *g = state_of(s);
-    static const unsigned members[2] = { 1, 0 };
-    for (unsigned i = 0; i < 2; i++) {
-        FieldLink link = party_member_link(g, members[i]);
-        if (!field_link_is_object(link) || object_view(g, field_linked_object(link)) == OUT_OF_VIEW)
-            continue;
-        FieldObject obj = field_linked_object(link);
-        object_make_current(g, obj);
-        if (!leave_row(s, resort_sites[i].leave_row, obj) || !join_row(s, resort_sites[i].join_row, obj))
-            return false;
-    }
-    return true;
-}
+/* ---- As C ------------------------------------------------------------------------------------ */
 
-/* For the original's code and shadow mode: the update keeps where its loop
- * ends, the object count doubled, in the byte event_object_end's low byte
- * is. */
-static void leave_loop_end(GameState *g, uint8_t count)
+static void move_as_c(void *ctx, FieldObject obj, bool party_member)
 {
-    set_event_object_end(g, (uint16_t)((event_object_end(g) & 0xFF00) | (uint8_t)(count * 2)));
-}
-
-/* ---- The update, as C ------------------------------------------------------------------------ */
-
-/* An object's step and, in view, the rest of its update. False where a step
- * is one the port doesn't take, the program going no further there. */
-static bool update_object_as_c(GameState *g, bool party_member, FieldObject obj)
-{
+    GameState *g = ctx;
     if (party_member)
         TIMED_AS(g, MOVE_PARTY_MEMBER, (void)party_member_take_step(g, obj));
     else
         TIMED_AS(g, MOVE, (void)object_take_step(g, obj));
+}
+
+static bool view_as_c(void *ctx, UpdateCall call, FieldObject obj)
+{
+    (void)call;
+    GameState *g = ctx;
     bool viewed = false;
     TIMED_AS(g, VIEW, viewed = object_view_updated(g, obj));
-    if (!viewed)
-        return false;
-    if (!object_in_view(g, obj))
-        return true;
+    return viewed;
+}
+
+static bool tick_as_c(void *ctx, UpdateCall call, FieldObject obj)
+{
+    (void)call;
+    GameState *g = ctx;
     if (!field_tick_is_exact(g, obj)) {
         program_needs_the_machine(g, TICK, "an animation tick the port doesn't take");
         return false;
     }
     TIMED_AS(g, TICK, object_animation_tick(g, obj));
-    if (!object_rows_step(g, obj, false))
-        return false;
-    TIMED_AS(g, PLACE_ON_SCREEN, object_update_screen_position(g, obj));
-    return object_rows_step(g, obj, true);
+    return true;
 }
 
-static bool resort_party_as_c(GameState *g)
+static bool rows_as_c(void *ctx, UpdateCall call, FieldObject obj, bool join)
 {
-    static const unsigned members[2] = { 1, 0 };
-    for (unsigned i = 0; i < 2; i++) {
-        FieldLink link = party_member_link(g, members[i]);
-        if (!field_link_is_object(link) || object_view(g, field_linked_object(link)) == OUT_OF_VIEW)
-            continue;
-        FieldObject obj = field_linked_object(link);
-        object_make_current(g, obj);
-        if (!object_rows_step(g, obj, false) || !object_rows_step(g, obj, true))
-            return false;
-    }
-    return true;
+    (void)call;
+    return object_rows_step(ctx, obj, join);
+}
+
+static void place_as_c(void *ctx, FieldObject obj)
+{
+    GameState *g = ctx;
+    TIMED_AS(g, PLACE_ON_SCREEN, object_update_screen_position(g, obj));
+}
+
+static void window_only_as_c(void *ctx, FieldObject obj)
+{
+    GameState *g = ctx;
+    TIMED_AS(g, WINDOW_ONLY, object_window_only_checked(g, obj));
 }
 
 bool field_objects_updated(GameState *g)
 {
-    uint8_t count = event_object_count(g);
-    UpdateKind kind;
-    for (FieldObject obj = 0;; obj++) {
-        object_make_current(g, obj);
-        kind = update_kind(g, obj);
-        if (kind == UPDATE_WINDOW_ONLY)
-            TIMED_AS(g, WINDOW_ONLY, object_window_only_checked(g, obj));
-        else if (kind != UPDATE_SKIP && !update_object_as_c(g, kind == UPDATE_PARTY, obj))
-            return false;
-        if (obj + 1 >= count)
-            break;
-    }
-    return kind == UPDATE_PARTY || resort_party_as_c(g);
+    static const UpdateSteps as_c = { move_as_c, view_as_c, tick_as_c, rows_as_c, place_as_c, window_only_as_c };
+    return update_objects(g, &as_c, g);
 }
 
-// $C0:A810
-/* Every frame: update each object slot up to the event's object count, and
- * re-sort the party. A map whose last object is a party member leaves the
- * party as it is: the original's party members' update returns from the
- * loop without the re-sort. */
+/* ---- On the machine ------------------------------------------------------------------------ */
+
+/* The overflow of the object's vertical position's difference from the
+ * screen's, which placing it on the screen leaves for the original's code. */
+static bool screen_position_overflow(const GameState *g, FieldObject obj)
+{
+    uint16_t pixels = (uint16_t)(object_position(g, obj).y / POSITION_PIXEL);
+    return field_subtract_overflows16(pixels, screen_origin(g).y);
+}
+
+/* On the machine the steps leave the flags their entries leave, for the
+ * original's code after the update. Where an object comes into view or
+ * leaves it, the view step is called as its entry, from the update's own
+ * call: shadow mode compares the original's routines it reaches as the
+ * view's calls, not the update's. And where the state is one the tick's or
+ * the rows' entries' guards would turn away, the entry is called instead, and
+ * the original runs it. The update goes on after a call only where it came
+ * back with 8-bit A and X, the field's page and the data bank it had. Nothing
+ * the steps are entered with is read but the overflow, which they carry
+ * through. Whether the view step left the object in view is read from the
+ * object, not from the carry it answers in. */
+enum { STEP_ENTRY_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+
+/* Where the update calls each step from, by call. */
+static const struct {
+    uint32_t view, tick, leave_row, join_row;
+} sites[] = {
+    [OBJECTS_UPDATE] = { 0xC0A82D, 0xC0A832, 0xC0A835, 0xC0A83B },
+    [PARTY_UPDATE] = { 0xC0A873, 0xC0A878, 0xC0A87B, 0xC0A881 },
+    [RESORT_SECOND] = { 0, 0, 0xC0A852, 0xC0A855 },
+    [RESORT_FIRST] = { 0, 0, 0xC0A864, 0xC0A867 },
+};
+
+static bool call_step(Snes *s, uint32_t site, uint32_t routine)
+{
+    return bridge_call(s, site, routine, STEP_ENTRY_DONT_CARE, on_the_field_page(s, true));
+}
+
+static void move_on_the_machine(void *ctx, FieldObject obj, bool party_member)
+{
+    Snes *s = ctx;
+    if (party_member)
+        NATIVE_TIME_AS(s, MOVE_PARTY_MEMBER, field_move_object_step(s, obj, true));
+    else
+        NATIVE_TIME_AS(s, MOVE, field_move_object_step(s, obj, false));
+}
+
+static bool view_on_the_machine(void *ctx, UpdateCall call, FieldObject obj)
+{
+    Snes *s = ctx;
+    if (field_view_changes(state_of(s), obj))
+        return call_step(s, sites[call].view, VIEW);
+    bool done;
+    NATIVE_TIME_AS(s, VIEW, done = field_update_visibility(s, obj));
+    return done;
+}
+
+static bool tick_on_the_machine(void *ctx, UpdateCall call, FieldObject obj)
+{
+    Snes *s = ctx;
+    GameState *g = state_of(s);
+    if (!field_tick_is_exact(g, obj))
+        return call_step(s, sites[call].tick, TICK);
+    NATIVE_TIME_AS(s, TICK, object_animation_tick(g, obj));
+    return true;
+}
+
+static bool rows_on_the_machine(void *ctx, UpdateCall call, FieldObject obj, bool join)
+{
+    Snes *s = ctx;
+    if (rows_step_taken(state_of(s), obj, join))
+        return true;
+    return join ? call_step(s, sites[call].join_row, FIELD_JOIN_ROW_ENTRY)
+                : call_step(s, sites[call].leave_row, FIELD_LEAVE_ROW_ENTRY);
+}
+
+static void place_on_the_machine(void *ctx, FieldObject obj)
+{
+    Snes *s = ctx;
+    GameState *g = state_of(s);
+    NATIVE_TIME_AS(s, PLACE_ON_SCREEN, object_update_screen_position(g, obj));
+    m_set_flag(s, CPU_FLAG_V, screen_position_overflow(g, obj));
+}
+
+static void window_only_on_the_machine(void *ctx, FieldObject obj)
+{
+    Snes *s = ctx;
+    NATIVE_TIME_AS(s, WINDOW_ONLY, field_update_in_window(s, obj));
+}
+
 void field_update_objects(Snes *s)
 {
-    GameState *g = state_of(s);
-    uint8_t count = event_object_count(g);
-    ORIGINAL_EFFECT(leave_loop_end(g, count));
-    FieldObject obj = 0;
-    UpdateKind kind;
-    for (;;) {
-        object_make_current(g, obj);
-        kind = update_kind(g, obj);
-        bool ok = true;
-        if (kind == UPDATE_WINDOW_ONLY)
-            NATIVE_TIME_AS(s, WINDOW_ONLY, field_update_in_window(s, obj));
-        else if (kind == UPDATE_PARTY)
-            ok = update_object(s, PARTY_UPDATE, obj);
-        else if (kind == UPDATE_OBJECT)
-            ok = update_object(s, OBJECTS_UPDATE, obj);
-        if (!ok)
-            return;
-        if (obj + 1 >= count)
-            break;
-        obj++;
-    }
-    if (kind == UPDATE_PARTY || resort_party(s))
+    static const UpdateSteps on_the_machine = { move_on_the_machine, view_on_the_machine, tick_on_the_machine,
+                                                rows_on_the_machine, place_on_the_machine, window_only_on_the_machine };
+    if (update_objects(state_of(s), &on_the_machine, s))
         m_rts(s);
 }
 

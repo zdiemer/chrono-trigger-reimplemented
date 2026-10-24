@@ -511,6 +511,14 @@ FieldFrameSent field_frame_sent(const GameState *g, FieldObject obj)
 
 /* ---- The entry ------------------------------------------------------------------------------ */
 
+/* A part of the object's next frame drawn, as C: true where the object stays
+ * at the queue's head, with more of its frame to draw. */
+bool field_frame_part_drawn(GameState *g, FieldObject obj)
+{
+    FrameBuild outcome = draw_next_frame(g, obj);
+    return outcome == FRAME_PART_DRAWN || outcome == FRAME_WAITS;
+}
+
 // $C0:CAD9
 /* The current object (8-bit X). The carry says the object stays at the
  * queue's head, with more of its frame to draw. The overflow is worked out
@@ -521,12 +529,6 @@ FieldFrameSent field_frame_sent(const GameState *g, FieldObject obj)
  * and the menus' BVC at $C2:F7D9; tools/v_readers.py --after C0:CAD9 has it
  * read. No decision of the field's reads it (banks $C0 and $FD have no
  * branch on it). */
-bool field_frame_part_drawn(GameState *g, FieldObject obj)
-{
-    FrameBuild outcome = draw_next_frame(g, obj);
-    return outcome == FRAME_PART_DRAWN || outcome == FRAME_WAITS;
-}
-
 void field_draw_next_frame(Snes *s)
 {
     GameState *g = state_of(s);

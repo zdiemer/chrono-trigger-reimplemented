@@ -369,76 +369,114 @@ bool field_open_script_menu(Snes *s)
     return false;
 }
 
+/* ---- The buttons, each frame ------------------------------------------------------------------ */
+
+/* The pause and the menus, which only the machine runs yet; each false where
+ * it didn't come back to the field's frame. As C they stop the program
+ * there (core/program.h). */
+typedef struct {
+    bool (*pause)(void *ctx);
+    bool (*press_start)(void *ctx);
+    bool (*open_menu)(void *ctx, MenuOpener opener);
+} MenuSteps;
+
+// $C0:1985
+/* The Start assignment: an open dialog window moves to the other end of the
+ * screen; with none open, the Start assignment's menu opens once the story
+ * is far enough on. */
+static bool press_start(GameState *g, const MenuSteps *steps, void *ctx)
+{
+    if (dialog_window_open(g)) {
+        move_dialog_window(g);
+        return true;
+    }
+    return !(start_opens_menu(g) && menus_may_open(g)) || steps->open_menu(ctx, OPENED_BY_START);
+}
+
+// $C0:18D9
+/* Once a frame: Start pauses, the Start assignment does what it does, the
+ * menu button opens the main menu, and otherwise a choice waiting takes the
+ * buttons. False where a step didn't come back. */
+static bool pause_and_menus(GameState *g, const MenuSteps *steps, void *ctx)
+{
+    if (start_pauses(g) && !steps->pause(ctx))
+        return false;
+    if (assigned_pressed(g, ASSIGNED_START) && !steps->press_start(ctx))
+        return false;
+    if (!assigned_pressed(g, ASSIGNED_MENU)) {
+        if (dialog_choice_waiting(g))
+            TIMED_AS(g, FIELD_TAKE_CHOICE_BUTTONS_ENTRY, field_take_choice_buttons(g, dialog_choice_active(g)));
+        return true;
+    }
+    return !menus_may_open(g) || steps->open_menu(ctx, OPENED_BY_MENU_BUTTON);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------- */
+
+enum { PAUSE_AND_MENUS = 0xC018D9 };
+
+static bool pause_as_c(void *ctx)
+{
+    program_needs_the_machine(ctx, PAUSE_AND_MENUS, "the pause");
+    return false;
+}
+
+static bool open_menu_as_c(void *ctx, MenuOpener opener)
+{
+    if (opener == OPENED_BY_START)
+        program_needs_the_machine(ctx, PRESS_START, "a menu Start opens");
+    else
+        program_needs_the_machine(ctx, PAUSE_AND_MENUS, "a menu the menu button opens");
+    return false;
+}
+
+static bool press_start_as_c(void *ctx);
+static const MenuSteps as_c = { pause_as_c, press_start_as_c, open_menu_as_c };
+
+static bool press_start_as_c(void *ctx)
+{
+    GameState *g = ctx;
+    bool back = false;
+    TIMED_AS(g, PRESS_START, back = press_start(g, &as_c, g));
+    return back;
+}
+
+bool field_pause_and_menus_as_c(GameState *g) { return pause_and_menus(g, &as_c, g); }
+
 /* ---- The entries ------------------------------------------------------------------------------ */
 
 enum { PRESS_START_CALL = 0xC0191D };
 
-// $C0:18D9
+static bool pause_on_the_machine(void *ctx) { return pause(ctx); }
+
+static bool press_start_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run(s, PRESS_START_CALL, PRESS_START, READS_NOTHING, field_press_start, on_the_field_page(s, false));
+}
+
+static bool open_menu_on_the_machine(void *ctx, MenuOpener opener) { return open_menu(ctx, opener); }
+
+static const MenuSteps on_the_machine = { pause_on_the_machine, press_start_on_the_machine, open_menu_on_the_machine };
+
 /* The field's page, 8-bit A, 16-bit X. What it leaves in the registers is the
  * routines' it called, or what it came in with: A's high byte and the
  * overflow are read after it. */
 void field_pause_and_menus(Snes *s)
 {
-    GameState *g = state_of(s);
-    if (start_pauses(g) && !pause(s))
-        return;
-    if (assigned_pressed(g, ASSIGNED_START) &&
-        !field_run(s, PRESS_START_CALL, PRESS_START, READS_NOTHING, field_press_start, on_the_field_page(s, false)))
-        return;
-    if (!assigned_pressed(g, ASSIGNED_MENU)) {
-        if (dialog_choice_waiting(g))
-            TIMED_AS(g, FIELD_TAKE_CHOICE_BUTTONS_ENTRY, field_take_choice_buttons(g, dialog_choice_active(g)));
-    } else if (menus_may_open(g) && !open_menu(s, OPENED_BY_MENU_BUTTON)) {
-        return;
-    }
-    m_rts(s);
+    if (pause_and_menus(state_of(s), &on_the_machine, s))
+        m_rts(s);
 }
 
-/* The pause and the menus as C: the dialog window moved with Start, and a
- * choice's buttons taken. False where the pause or a menu opens, which only
- * the machine runs yet: the program goes no further there. */
-enum { PAUSE_AND_MENUS = 0xC018D9 };
-
-bool field_pause_and_menus_as_c(GameState *g)
-{
-    if (start_pauses(g)) {
-        program_needs_the_machine(g, PAUSE_AND_MENUS, "the pause");
-        return false;
-    }
-    if (assigned_pressed(g, ASSIGNED_START)) {
-        if (dialog_window_open(g)) {
-            TIMED_AS(g, PRESS_START, move_dialog_window(g));
-        } else if (start_opens_menu(g) && menus_may_open(g)) {
-            program_needs_the_machine(g, PRESS_START, "a menu Start opens");
-            return false;
-        }
-    }
-    if (assigned_pressed(g, ASSIGNED_MENU)) {
-        if (menus_may_open(g)) {
-            program_needs_the_machine(g, PAUSE_AND_MENUS, "a menu the menu button opens");
-            return false;
-        }
-    } else if (dialog_choice_waiting(g)) {
-        TIMED_AS(g, FIELD_TAKE_CHOICE_BUTTONS_ENTRY, field_take_choice_buttons(g, dialog_choice_active(g)));
-    }
-    return true;
-}
-
-// $C0:1985
-/* The Start assignment. As for field_pause_and_menus; the story's test
- * leaves the overflow its subtraction makes (field/leaves.c). */
+/* As for field_pause_and_menus; the story's test leaves the overflow its
+ * subtraction makes (field/leaves.c). */
 void field_press_start(Snes *s)
 {
     GameState *g = state_of(s);
-    if (dialog_window_open(g)) {
-        move_dialog_window(g);
+    if (!dialog_window_open(g))
+        m_set_flag(s, CPU_FLAG_V, field_story_test_overflow(g));
+    if (press_start(g, &on_the_machine, s))
         m_rts(s);
-        return;
-    }
-    m_set_flag(s, CPU_FLAG_V, field_story_test_overflow(g));
-    if (start_opens_menu(g) && menus_may_open(g) && !open_menu(s, OPENED_BY_START))
-        return;
-    m_rts(s);
 }
 
 /* ---- The party after a menu ------------------------------------------------------------------- */

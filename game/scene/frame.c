@@ -515,106 +515,134 @@ static void unwind_the_task_s_frames(Snes *s)
     c->db = m_pull8(s);
 }
 
+/* The program's routines on the lists that a build with no machine runs as
+ * C: the channels' turns, the sprites hidden and the palette sent. Each
+ * stays on its list. */
+static bool channel_0_turn(GameState *g, Platform *pf) { return scene_channel_turn(g, pf, 0) == SCENE_TURN_ENDED; }
+static bool channel_1_turn(GameState *g, Platform *pf) { return scene_channel_turn(g, pf, 1) == SCENE_TURN_ENDED; }
+
+static bool hide_every_sprite(GameState *g, Platform *pf)
+{
+    (void)g;
+    scene_hide_every_sprite(pf);
+    return true;
+}
+
+static bool send_palette(GameState *g, Platform *pf)
+{
+    (void)g;
+    scene_send_palette(pf);
+    return true;
+}
+
 /* The tasks whose ports take the machine, by the program's routine the value
  * on the list is the address of: run as the list's call reaches them, timed
  * as their own routines, where their guards hold (scene_run); a task with no
  * row here or in the tables above is the original's. The rows are the tasks
- * the library's runs reach, in shadow mode and in the shipping mode. */
+ * the library's runs reach, in shadow mode and in the shipping mode. Those a
+ * build with no machine runs have it as C too. */
 static const struct {
     uint32_t routine;
     void (*entry)(Snes *);
+    bool (*as_c)(GameState *, Platform *);
 } machine_tasks[] = {
     /* the scripts' channels' first steps and the vblank list's uploads */
-    { 0x7E3749, scene_run_channel_0_script },
-    { 0x7E3754, scene_run_channel_1_script },
-    { 0x7E3843, scene_clear_sprite_table },
-    { 0x7E388B, scene_upload_palette },
+    { 0x7E3749, scene_run_channel_0_script, channel_0_turn },
+    { 0x7E3754, scene_run_channel_1_script, channel_1_turn },
+    { 0x7E3843, scene_clear_sprite_table, hide_every_sprite },
+    { 0x7E388B, scene_upload_palette, send_palette },
     /* the jet bike race's */
-    { 0x7E3D72, scene_race_sweep_curtain },
-    { 0x7E416D, scene_race_settle_camera },
-    { 0x7E424D, scene_race_wait_to_leave },
-    { 0x7E428B, scene_race_move_along },
-    { 0x7E42BD, scene_race_keep_controller },
-    { 0x7E42CE, scene_race_check_perspective },
-    { 0x7E4339, scene_race_turn_camera },
-    { 0x7E43F2, scene_race_move_camera },
-    { 0x7E4447, scene_race_aim_camera },
-    { 0x7E449C, scene_race_follow_finish },
-    { 0x7E44CE, scene_race_drain_score },
-    { 0x7E44FE, scene_race_set_horizon },
-    { 0x7E4643, scene_race_upload_column_rom },
-    { 0x7E464D, scene_race_upload_column_ram },
-    { 0x7E4677, scene_race_coast },
-    { 0x7E4755, scene_race_await_victory_song },
-    { 0x7E485D, scene_race_ride },
-    { 0x7E4D0D, scene_race_place_bikes },
-    { 0x7E4F54, scene_race_draw },
-    { 0x7E5221, scene_race_upload_tilemap },
+    { 0x7E3D72, scene_race_sweep_curtain, NULL },
+    { 0x7E416D, scene_race_settle_camera, NULL },
+    { 0x7E424D, scene_race_wait_to_leave, NULL },
+    { 0x7E428B, scene_race_move_along, NULL },
+    { 0x7E42BD, scene_race_keep_controller, NULL },
+    { 0x7E42CE, scene_race_check_perspective, NULL },
+    { 0x7E4339, scene_race_turn_camera, NULL },
+    { 0x7E43F2, scene_race_move_camera, NULL },
+    { 0x7E4447, scene_race_aim_camera, NULL },
+    { 0x7E449C, scene_race_follow_finish, NULL },
+    { 0x7E44CE, scene_race_drain_score, NULL },
+    { 0x7E44FE, scene_race_set_horizon, NULL },
+    { 0x7E4643, scene_race_upload_column_rom, NULL },
+    { 0x7E464D, scene_race_upload_column_ram, NULL },
+    { 0x7E4677, scene_race_coast, NULL },
+    { 0x7E4755, scene_race_await_victory_song, NULL },
+    { 0x7E485D, scene_race_ride, NULL },
+    { 0x7E4D0D, scene_race_place_bikes, NULL },
+    { 0x7E4F54, scene_race_draw, NULL },
+    { 0x7E5221, scene_race_upload_tilemap, NULL },
     /* Lavos falling to the planet's */
-    { 0x7E55F9, scene_turn_the_field_s_angle },
-    { 0x7E5654, scene_send_the_flat_plane_entry },
-    { 0x7E56A9, scene_turn_lavos },
-    { 0x7E56EB, scene_draw_the_planet },
-    { 0x7E579B, scene_stars_fly },
-    { 0x7E5855, scene_swing_the_field },
+    { 0x7E55F9, scene_turn_the_field_s_angle, NULL },
+    { 0x7E5654, scene_send_the_flat_plane_entry, NULL },
+    { 0x7E56A9, scene_turn_lavos, NULL },
+    { 0x7E56EB, scene_draw_the_planet, NULL },
+    { 0x7E579B, scene_stars_fly, NULL },
+    { 0x7E5855, scene_swing_the_field, NULL },
     /* the planet's and the rising palace's */
-    { 0x7E63D5, scene_wait_for_a_button_to_restart },
-    { 0x7E63F5, scene_count_down_to_the_restart },
-    { 0x7E64BF, scene_show_the_planet_s_caption },
-    { 0x7E6844, scene_sweep_the_palace_curtain },
+    { 0x7E63D5, scene_wait_for_a_button_to_restart, NULL },
+    { 0x7E63F5, scene_count_down_to_the_restart, NULL },
+    { 0x7E64BF, scene_show_the_planet_s_caption, NULL },
+    { 0x7E6844, scene_sweep_the_palace_curtain, NULL },
     /* the Epoch's dive's */
-    { 0x7E79F8, scene_set_the_screen_outside },
-    { 0x7E7A35, scene_set_the_screen_in_the_cockpit },
-    { 0x7E7BF2, scene_open_the_light },
-    { 0x7E7F12, scene_pass_the_shell_across },
-    { 0x7E7F35, scene_pass_the_shell_down },
-    { 0x7E7F58, scene_follow_the_panel },
-    { 0x7E7F7D, scene_shake_the_cockpit },
-    { 0x7E7FC4, scene_size_the_trail },
-    { 0x7E7FCB, scene_draw_the_trail },
-    { 0x7E8079, scene_flicker_the_lights },
-    { 0x7E81C4, scene_send_the_plane_s_place_entry },
-    { 0x7E81F1, scene_let_the_shell_fall_away },
-    { 0x7E8205, scene_draw_the_epoch },
-    { 0x7E824A, scene_send_the_epoch },
-    { 0x7E82D1, scene_check_the_shell },
-    { 0x7E835B, scene_fly_the_epoch_on },
+    { 0x7E79F8, scene_set_the_screen_outside, NULL },
+    { 0x7E7A35, scene_set_the_screen_in_the_cockpit, NULL },
+    { 0x7E7BF2, scene_open_the_light, NULL },
+    { 0x7E7F12, scene_pass_the_shell_across, NULL },
+    { 0x7E7F35, scene_pass_the_shell_down, NULL },
+    { 0x7E7F58, scene_follow_the_panel, NULL },
+    { 0x7E7F7D, scene_shake_the_cockpit, NULL },
+    { 0x7E7FC4, scene_size_the_trail, NULL },
+    { 0x7E7FCB, scene_draw_the_trail, NULL },
+    { 0x7E8079, scene_flicker_the_lights, NULL },
+    { 0x7E81C4, scene_send_the_plane_s_place_entry, NULL },
+    { 0x7E81F1, scene_let_the_shell_fall_away, NULL },
+    { 0x7E8205, scene_draw_the_epoch, NULL },
+    { 0x7E824A, scene_send_the_epoch, NULL },
+    { 0x7E82D1, scene_check_the_shell, NULL },
+    { 0x7E835B, scene_fly_the_epoch_on, NULL },
     /* the endings' pictures and credits */
-    { 0x7E8850, scene_ending_place_picture },
-    { 0x7E891B, scene_ending_pick_picture_frame },
-    { 0x7E89C0, scene_ending_upload_picture },
-    { 0x7E8C05, scene_clear_sprite_high_bits },
-    { 0x7E8D56, scene_ending_show_credits },
-    { 0x7E8E44, scene_ending_show_last_scene },
-    { 0x7E8E88, scene_ending_scroll_bg2 },
+    { 0x7E8850, scene_ending_place_picture, NULL },
+    { 0x7E891B, scene_ending_pick_picture_frame, NULL },
+    { 0x7E89C0, scene_ending_upload_picture, NULL },
+    { 0x7E8C05, scene_clear_sprite_high_bits, NULL },
+    { 0x7E8D56, scene_ending_show_credits, NULL },
+    { 0x7E8E44, scene_ending_show_last_scene, NULL },
+    { 0x7E8E88, scene_ending_scroll_bg2, NULL },
     /* the flight beyond time's, the star fields' drift, the captions' and the staff roll's */
-    { 0x7E9080, scene_set_the_flight_horizon },
-    { 0x7E90C1, scene_pass_the_map },
-    { 0x7E9897, scene_stars_start_drift },
-    { 0x7E98AC, scene_stars_keep_drifting },
-    { 0x7E992A, scene_circle_the_epoch },
-    { 0x7E997D, scene_sway_the_epoch },
-    { 0x7E999C, scene_stars_fly_after_captions },
-    { 0x7E99B5, scene_keep_the_orbit },
-    { 0x7E99FA, scene_ending_draw_the_end },
-    { 0x7E9A0C, scene_ending_sweep_window },
-    { 0x7E9ABD, scene_check_the_flight_view },
-    { 0x7E9AF3, scene_place_the_flight_view },
-    { 0x7E9B4F, scene_turn_captions },
-    { 0x7E9BF9, scene_burst_the_fireworks },
-    { 0x7E9D48, scene_twinkle_the_lights },
-    { 0x7E9DBC, scene_send_the_flight_view },
-    { 0x7E9E2B, scene_send_the_picture },
-    { 0x7E9E7B, scene_roll_credits },
-    { 0x7E9EFC, scene_upload_credits },
+    { 0x7E9080, scene_set_the_flight_horizon, NULL },
+    { 0x7E90C1, scene_pass_the_map, NULL },
+    { 0x7E9897, scene_stars_start_drift, NULL },
+    { 0x7E98AC, scene_stars_keep_drifting, NULL },
+    { 0x7E992A, scene_circle_the_epoch, NULL },
+    { 0x7E997D, scene_sway_the_epoch, NULL },
+    { 0x7E999C, scene_stars_fly_after_captions, NULL },
+    { 0x7E99B5, scene_keep_the_orbit, NULL },
+    { 0x7E99FA, scene_ending_draw_the_end, NULL },
+    { 0x7E9A0C, scene_ending_sweep_window, NULL },
+    { 0x7E9ABD, scene_check_the_flight_view, NULL },
+    { 0x7E9AF3, scene_place_the_flight_view, NULL },
+    { 0x7E9B4F, scene_turn_captions, NULL },
+    { 0x7E9BF9, scene_burst_the_fireworks, NULL },
+    { 0x7E9D48, scene_twinkle_the_lights, NULL },
+    { 0x7E9DBC, scene_send_the_flight_view, NULL },
+    { 0x7E9E2B, scene_send_the_picture, NULL },
+    { 0x7E9E7B, scene_roll_credits, NULL },
+    { 0x7E9EFC, scene_upload_credits, NULL },
 };
 
-static void (*machine_task(SceneTask task))(Snes *)
+static int machine_task_row(SceneTask task)
 {
     for (unsigned i = 0; i < sizeof machine_tasks / sizeof machine_tasks[0]; i++)
         if (machine_tasks[i].routine == (PROGRAM_BANK | task))
-            return machine_tasks[i].entry;
-    return NULL;
+            return (int)i;
+    return -1;
+}
+
+static void (*machine_task(SceneTask task))(Snes *)
+{
+    int row = machine_task_row(task);
+    return row < 0 ? NULL : machine_tasks[row].entry;
 }
 
 static TaskEnd run_the_original_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask task)
@@ -762,20 +790,14 @@ void scene_task_alone(Snes *s, const SceneTaskPort *port)
 
 /* ---- The frame as C, with no machine ------------------------------------------------------------ */
 
-/* The program's routines on the lists the port has as C beside the tasks'
- * own: the channels' turns, the sprites hidden and the palette sent. Each
- * stays on its list. */
+/* A program's routine on a list, as C where its row has it so. */
 static bool program_routine_as_c(GameState *g, Platform *pf, SceneTask task)
 {
-    switch (PROGRAM_BANK | task) {
-    case 0x7E3749: return scene_channel_turn(g, pf, 0) == SCENE_TURN_ENDED;
-    case 0x7E3754: return scene_channel_turn(g, pf, 1) == SCENE_TURN_ENDED;
-    case 0x7E3843: scene_hide_every_sprite(pf); return true;
-    case 0x7E388B: scene_send_palette(pf); return true;
-    default:
-        program_needs_the_machine(g, PROGRAM_BANK | task, "a scene's task only the machine runs");
-        return false;
-    }
+    int row = machine_task_row(task);
+    if (row >= 0 && machine_tasks[row].as_c)
+        return machine_tasks[row].as_c(g, pf);
+    program_needs_the_machine(g, PROGRAM_BANK | task, "a scene's task only the machine runs");
+    return false;
 }
 
 /* A list's tasks in order, the list read again after each, which can change

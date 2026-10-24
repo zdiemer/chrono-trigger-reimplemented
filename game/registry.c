@@ -2443,7 +2443,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC02C41, .name = "field_scroll_layers", .fn = field_scroll_layers, NEEDS_M8_X16_BINARY,
       .cost_milli = 7131, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC0A88D, .name = "field_update_object_visibility", .fn = field_update_object_visibility,
-      NEEDS_M8_X8_BINARY, .cost_milli = 3715, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z,
+      NEEDS_M8_X8_BINARY, .cost_milli = 3338, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z,
       .guard = field_view_can_run },
     { .addr = 0xC07170, .name = "field_take_palette", .fn = field_take_palette, NEEDS_M8_X8_BINARY, .cost_milli = 7954,
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_palette_can_be_taken },
@@ -2468,7 +2468,7 @@ const NativeEntry game_natives[] = {
       .cost_milli = 2597, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_second_member_can_follow },
     /* per-frame object update loop and its steps; 8-bit A and X */
     { .addr = 0xC0A810, .name = "field_update_objects", .fn = field_update_objects, NEEDS_M8_X8,
-      .cost_milli = 4963, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_objects_counted },
+      .cost_milli = 4896, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_objects_counted },
     { .addr = 0xC0A947, .name = "field_update_object_in_window", .fn = field_update_object_in_window,
       NEEDS_M8_X8_BINARY, .cost_milli = 3949, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z,
       .guard = field_current_object_low_bank },

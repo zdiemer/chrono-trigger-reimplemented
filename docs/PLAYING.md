@@ -577,12 +577,13 @@ asks for a menu (frame 1676, `$C0:0C76`): the menus are the next step only
 the machine runs.
 
 The field's steps as the program calls them (`field_runs`,
-`field/main_loop.c`) are functions of the game's state beside the entries
-the machine reaches: where an entry's work had no call into the machine,
-the entry calls the same function; where the machine needs its frames and
-call-outs to compare a step with the original's (the budgets' turns, the
-song's calls to the driver), the program's sequence calls the step's C and
-the entry keeps its bridge. Where a step meets a state the port doesn't take
+`field/main_loop.c`) are functions of the game's state that the entries
+the machine reaches run too: where an entry's work had no call into the
+machine, the entry calls the same function; where the machine needs its
+frames and call-outs to compare a step with the original's (the budgets'
+turns, the song's calls to the driver, the pass's steps), the entry and the
+program run one sequence whose steps are callbacks, the entry's calling
+the step from the original's call. Where a step meets a state the port doesn't take
 -- a guard that would hand the call to the original on the machine -- or a
 request, an event command or a menu only the machine runs yet, the program
 stops there and says which. It reports any access the host had no memory

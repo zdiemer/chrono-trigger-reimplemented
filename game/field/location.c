@@ -313,12 +313,6 @@ static void load_bg3_tile_looks(GameState *g)
     unpack(g, bg3_tile_looks_address(g, set), BG3_TILE_LOOKS);
 }
 
-// $C0:1B53
-/* The location's song. Where a screen keeps the song that is playing
- * (menu_song_kept), the song playing is started again. Otherwise the music
- * comes back to full volume at once, and the location's song, if it has one,
- * starts and is kept as the song playing. */
-
 static const AudioCommand full_volume = { .command = AU_FADE_MUSIC, .p1 = 0, .p2 = AU_FULL_VOLUME,
                                           .p3 = AU_FULL_VOLUME, .count = 3 };
 
@@ -350,15 +344,42 @@ static bool keep_the_locations_song(GameState *g)
     return true;
 }
 
-static void start_the_location_song(GameState *g, Platform *pf)
+/* Whether a call to the sound driver came back to the song's start, at
+ * `returns`: always as C; on the machine, the driver's call is a call-out
+ * whose return the bridge checks. */
+typedef bool (*DriverCameBack)(void *ctx, uint32_t returns);
+
+// $C0:1B53
+/* The location's song. Where a screen keeps the song that is playing
+ * (menu_song_kept), the song playing is started again. Otherwise the music
+ * comes back to full volume at once, and the location's song, if it has one,
+ * starts and is kept as the song playing. False where a call to the driver
+ * didn't come back. */
+static bool start_the_location_song(GameState *g, Platform *pf, DriverCameBack back, void *ctx)
 {
     if (menu_song_kept(g)) {
         play(pf, current_song(g));
-        return;
+        return back(ctx, SONG_RETURNS);
     }
     bring_the_music_to_full_volume(pf);
-    if (keep_the_locations_song(g))
-        play(pf, current_song(g));
+    if (!back(ctx, FADE_RETURNS))
+        return false;
+    if (!keep_the_locations_song(g))
+        return true;
+    play(pf, current_song(g));
+    return back(ctx, SONG_RETURNS);
+}
+
+static bool came_back_as_c(void *ctx, uint32_t returns)
+{
+    (void)ctx, (void)returns;
+    return true;
+}
+
+static bool came_back_on_the_machine(void *ctx, uint32_t returns)
+{
+    Snes *s = ctx;
+    return bridge_back(s, returns, on_the_field_page(s, false));
 }
 
 /* ---- Where the tile set's loading meets the original ------------------------------------------- */
@@ -387,27 +408,10 @@ void field_load_bg3_tile_looks(Snes *s)
     m_rts(s);
 }
 
-/* The song's calls to the driver are the machine's, each a call-out whose
- * return the bridge checks. */
 void field_start_location_song(Snes *s)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    if (menu_song_kept(g)) {
-        play(pf, current_song(g));
-        if (bridge_back(s, SONG_RETURNS, on_the_field_page(s, false)))
-            m_rts(s);
-        return;
-    }
-    bring_the_music_to_full_volume(pf);
-    if (!bridge_back(s, FADE_RETURNS, on_the_field_page(s, false)))
-        return;
-    if (keep_the_locations_song(g)) {
-        play(pf, current_song(g));
-        if (!bridge_back(s, SONG_RETURNS, on_the_field_page(s, false)))
-            return;
-    }
-    m_rts(s);
+    if (start_the_location_song(state_of(s), m_platform(s), came_back_on_the_machine, s))
+        m_rts(s);
 }
 
 /* ---- The palette, the layers' state and the script -------------------------------------------- */
@@ -545,22 +549,78 @@ static void load_the_animations(GameState *g)
     TIMED_AS(g, PALETTE_ANIMATIONS, palette_load_location_animations(g));
 }
 
-// $C0:00F4
-bool field_load_the_location(GameState *g, Platform *pf)
+/* The location's loading, entering it and after a menu, whose steps that
+ * are entries of their own -- the song, the map and the script -- run as C
+ * or on the machine (below). Each is false where it went no further: as C, a
+ * map or a script the port doesn't take; on the machine, a call that didn't
+ * come back as the field runs. */
+typedef enum { ENTERING, AFTER_A_MENU } Loading;
+typedef struct {
+    bool (*song)(void *ctx);
+    bool (*map)(void *ctx, Loading loading);
+    bool (*script)(void *ctx, Loading loading);
+} LoadSteps;
+
+/* The location's graphics, map and scripts, in the order both loadings make
+ * them. */
+static bool load_graphics_map_and_scripts(GameState *g, Platform *pf, const LoadSteps *steps, void *ctx,
+                                          Loading loading)
 {
-    find_the_record(g);
-    TIMED_AS(g, LOCATION_SONG, start_the_location_song(g, pf));
     load_the_graphics(g, pf);
-    bool loaded = false;
-    TIMED_AS(g, FIELD_UNPACK_THE_MAP_ENTRY, loaded = field_load_the_map(g));
-    if (!loaded)
+    if (!steps->map(ctx, loading))
         return false;
     load_the_tile_looks(g);
-    TIMED_AS(g, SCRIPT_UNPACKED, loaded = load_the_script(g));
-    if (!loaded)
+    return steps->script(ctx, loading);
+}
+
+// $C0:00F4
+static bool load_location(GameState *g, Platform *pf, const LoadSteps *steps, void *ctx)
+{
+    find_the_record(g);
+    if (!steps->song(ctx) || !load_graphics_map_and_scripts(g, pf, steps, ctx, ENTERING))
         return false;
     load_the_animations(g);
     return true;
+}
+
+/* ---- As C ------------------------------------------------------------------------------------- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} LoadAsC;
+
+static bool song_as_c(void *ctx)
+{
+    LoadAsC *c = ctx;
+    bool back = false;
+    TIMED_AS(c->game, LOCATION_SONG, back = start_the_location_song(c->game, c->pf, came_back_as_c, NULL));
+    return back;
+}
+
+static bool map_as_c(void *ctx, Loading loading)
+{
+    (void)loading;
+    LoadAsC *c = ctx;
+    bool loaded = false;
+    TIMED_AS(c->game, FIELD_UNPACK_THE_MAP_ENTRY, loaded = field_load_the_map(c->game));
+    return loaded;
+}
+
+static bool script_as_c(void *ctx, Loading loading)
+{
+    (void)loading;
+    LoadAsC *c = ctx;
+    bool loaded = false;
+    TIMED_AS(c->game, SCRIPT_UNPACKED, loaded = load_the_script(c->game));
+    return loaded;
+}
+
+bool field_load_the_location(GameState *g, Platform *pf)
+{
+    static const LoadSteps as_c = { song_as_c, map_as_c, script_as_c };
+    LoadAsC c = { g, pf };
+    return load_location(g, pf, &as_c, &c);
 }
 
 /* ---- The routines it calls on the machine ---------------------------------------------------- */
@@ -576,30 +636,16 @@ enum {
 
 static BridgeMachine page(const Snes *s) { return on_the_field_page(s, false); }
 
-/* The location's graphics, map and scripts, from the original's calls at
- * the sites given, in the order both loadings make them: the map and the
- * script are entries of their own, where the original's code takes over a
- * map or a script the port doesn't. */
+/* The song, the map and the script from the original's calls at the sites
+ * given, by loading: the map and the script are entries of their own, where
+ * the original's code takes over a map or a script the port doesn't. */
+enum { SONG_SITE_ENTERING = 0xC000F7 };
 static const struct {
     uint32_t map, script;
 } loading_sites[] = {
-    { 0xC00106, 0xC0010F },
-    { 0xC001CF, 0xC001D8 },
+    [ENTERING] = { 0xC00106, 0xC0010F },
+    [AFTER_A_MENU] = { 0xC001CF, 0xC001D8 },
 };
-typedef enum { ENTERING, AFTER_A_MENU } Loading;
-
-static bool load_graphics_map_and_scripts(Snes *s, Loading loading)
-{
-    GameState *g = state_of(s);
-    const BridgeMachine m = page(s);
-    load_the_graphics(g, m_platform(s));
-    if (!field_run(s, loading_sites[loading].map, FIELD_UNPACK_THE_MAP_ENTRY, READS_NOTHING, field_unpack_the_map, m))
-        return false;
-    load_the_tile_looks(g);
-    return field_run(s, loading_sites[loading].script, SCRIPT_UNPACKED, READS_NOTHING, field_load_the_script, m);
-}
-
-/* ---- The entries ------------------------------------------------------------------------------- */
 
 /* For shadow mode: the original works the record's place out in A, and its
  * high byte stays there for the song's calls to the driver. */
@@ -608,15 +654,35 @@ static void leave_the_place_in_a(Snes *s)
     s->cpu.a = (uint16_t)((location_record_offset(state_of(s)) & 0xFF00) | (s->cpu.a & 0x00FF));
 }
 
+static bool song_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    ORIGINAL_EFFECT(leave_the_place_in_a(s));
+    return field_run(s, SONG_SITE_ENTERING, LOCATION_SONG, READS_A_HIGH, field_start_location_song, page(s));
+}
+
+static bool map_on_the_machine(void *ctx, Loading loading)
+{
+    Snes *s = ctx;
+    return field_run(s, loading_sites[loading].map, FIELD_UNPACK_THE_MAP_ENTRY, READS_NOTHING, field_unpack_the_map,
+                     page(s));
+}
+
+static bool script_on_the_machine(void *ctx, Loading loading)
+{
+    Snes *s = ctx;
+    return field_run(s, loading_sites[loading].script, SCRIPT_UNPACKED, READS_NOTHING, field_load_the_script,
+                     page(s));
+}
+
+static const LoadSteps on_the_machine = { song_on_the_machine, map_on_the_machine, script_on_the_machine };
+
+/* ---- The entries ------------------------------------------------------------------------------- */
+
 void field_load_location(Snes *s)
 {
-    find_the_record(state_of(s));
-    ORIGINAL_EFFECT(leave_the_place_in_a(s));
-    if (!field_run(s, 0xC000F7, LOCATION_SONG, READS_A_HIGH, field_start_location_song, page(s)) ||
-        !load_graphics_map_and_scripts(s, ENTERING))
-        return;
-    load_the_animations(state_of(s));
-    m_rts(s);
+    if (load_location(state_of(s), m_platform(s), &on_the_machine, s))
+        m_rts(s);
 }
 
 void field_load_location_palette_entry(Snes *s)
@@ -689,7 +755,7 @@ void field_set_up_after_a_menu(Snes *s)
     if (!field_run_long(s, 0xC001B0, LINE_EFFECTS_SET_UP, READS_NOTHING, field_setup_line_effects, page(s)))
         return;
     sprites_hide_all_next_frame(g);
-    if (!load_graphics_map_and_scripts(s, AFTER_A_MENU))
+    if (!load_graphics_map_and_scripts(g, m_platform(s), &on_the_machine, s, AFTER_A_MENU))
         return;
     put_back_what_the_party_was_told(g);
     if (!field_run(s, 0xC00206, MAP_SCRIPT_STARTS, READS_THE_OVERFLOW, event_run_map_script, page(s)) ||

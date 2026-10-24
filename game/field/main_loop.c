@@ -219,35 +219,6 @@ void field_power_on(GameState *g, Platform *pf)
     TIMED_AS(g, MENUS_SERVICES, start_from_the_saves(g, pf));
 }
 
-// $C0:005D
-/* The field entered, as C: dark, its handlers taken, its state started, the
- * location loaded, its sprites built afresh, its objects set up, its steps
- * forgotten and its screen faded in. False where a step is the machine's
- * yet, the program going no further there (core/program.h). */
-bool field_enter_the_location(GameState *g, Platform *pf)
-{
-    TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
-    take_the_interrupts(g);
-    if (location_is_the_menus(g)) {
-        program_needs_the_machine(g, MENUS_SCREENS, "the menus' mode, for a screen drawn with sprites");
-        return false;
-    }
-    TIMED_AS(g, START, field_start_state(g));
-    bool done = false;
-    TIMED_AS(g, FIELD_LOAD_LOCATION_ENTRY, done = field_load_the_location(g, pf));
-    if (!done) {
-        program_needs_the_machine(g, FIELD_LOAD_LOCATION_ENTRY, "a location whose map or script the port doesn't take");
-        return false;
-    }
-    TIMED_AS(g, FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY, sprites_all_to_build_afresh(g));
-    TIMED_AS(g, FIELD_SET_UP_THE_OBJECTS_ENTRY, done = field_objects_set_up(g, pf));
-    if (!done)
-        return false;
-    TIMED_AS(g, FIELD_FORGET_THE_STEPS_ENTRY, field_forget_the_steps(g));
-    TIMED_AS(g, FIELD_FADE_IN_ENTRY, done = field_fade_in_as_c(g, pf));
-    return done;
-}
-
 /* On the machine the driver may be the original's, whose boot waits on the
  * sound processor across frames: a call the machine makes. The menus'
  * service keeps the X and Y it is given as its arguments, which this one
@@ -270,28 +241,128 @@ void field_first_start(Snes *s)
     m_stop_at(s, ENTER, ENTERING_READS_NOTHING);
 }
 
-// $C0:005D (and $C0:0000, the field's start for the other modes)
-/* The field entered. For the menus' screens, the menus' mode takes the
- * machine; what it reads of the registers is the data bank alone. */
-void field_enter(Snes *s)
+/* ---- The field entered ---------------------------------------------------------------------- */
+
+/* Its steps after the handlers, which are entries of their own: the field's
+ * state started, the location loaded, its sprites built afresh, its objects
+ * set up, its steps forgotten and its screen faded in. As C, each is false
+ * where it is a step the port doesn't take, the program going no further
+ * there; on the machine each is called from the original's call of it. */
+static bool start_as_c(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
-    display_go_dark(s);
+    (void)pf;
+    field_start_state(g);
+    return true;
+}
+
+static bool load_as_c(GameState *g, Platform *pf)
+{
+    if (field_load_the_location(g, pf))
+        return true;
+    program_needs_the_machine(g, FIELD_LOAD_LOCATION_ENTRY, "a location whose map or script the port doesn't take");
+    return false;
+}
+
+static bool sprites_afresh_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    sprites_all_to_build_afresh(g);
+    return true;
+}
+
+static bool forget_the_steps_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    field_forget_the_steps(g);
+    return true;
+}
+
+typedef enum { START_STEP, LOAD_STEP, SPRITES_STEP, OBJECTS_STEP, FORGET_STEP, FADE_IN_STEP, ENTERING_STEPS } EnterStep;
+
+static const struct {
+    uint32_t site, routine;
+    void (*entry)(Snes *);
+    bool (*as_c)(GameState *, Platform *);
+} entering[ENTERING_STEPS] = {
+    [START_STEP] = { 0xC00085, START, field_start, start_as_c },
+    [LOAD_STEP] = { 0xC00088, FIELD_LOAD_LOCATION_ENTRY, field_load_location, load_as_c },
+    [SPRITES_STEP] = { 0xC0008B, FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY, field_build_the_sprites_afresh,
+                       sprites_afresh_as_c },
+    [OBJECTS_STEP] = { 0xC0008E, FIELD_SET_UP_THE_OBJECTS_ENTRY, field_set_up_the_objects, field_objects_set_up },
+    [FORGET_STEP] = { 0xC00091, FIELD_FORGET_THE_STEPS_ENTRY, field_forget_the_steps_entry, forget_the_steps_as_c },
+    [FADE_IN_STEP] = { 0xC00094, FIELD_FADE_IN_ENTRY, field_fade_in, field_fade_in_as_c },
+};
+
+/* A step of the entry run, or the menus' mode taking over for a screen
+ * drawn with sprites; false where the field goes no further. */
+typedef struct {
+    bool (*step)(void *ctx, EnterStep step);
+    void (*to_the_menus)(void *ctx);
+} EnterSteps;
+
+// $C0:005D (and $C0:0000, the field's start for the other modes)
+/* The field entered, the screen dark: its handlers taken, and for a map its
+ * steps; the locations from $1F0 go to the menus' mode instead. False where
+ * it went no further. */
+static bool enter_the_location(GameState *g, Platform *pf, const EnterSteps *steps, void *ctx)
+{
+    TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
     take_the_interrupts(g);
     if (location_is_the_menus(g)) {
-        m_stop_at(s, MENUS_SCREENS, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D);
-        return;
+        steps->to_the_menus(ctx);
+        return false;
     }
+    for (EnterStep step = START_STEP; step < ENTERING_STEPS; step++)
+        if (!steps->step(ctx, step))
+            return false;
+    return true;
+}
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} PassAsC;
+
+static bool enter_step_as_c(void *ctx, EnterStep step)
+{
+    PassAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, entering[step].routine, done = entering[step].as_c(c->game, c->pf));
+    return done;
+}
+
+static void to_the_menus_as_c(void *ctx)
+{
+    PassAsC *c = ctx;
+    program_needs_the_machine(c->game, MENUS_SCREENS, "the menus' mode, for a screen drawn with sprites");
+}
+
+bool field_enter_the_location(GameState *g, Platform *pf)
+{
+    static const EnterSteps as_c = { enter_step_as_c, to_the_menus_as_c };
+    PassAsC c = { g, pf };
+    return enter_the_location(g, pf, &as_c, &c);
+}
+
+static bool enter_step_on_the_machine(void *ctx, EnterStep step)
+{
+    Snes *s = ctx;
+    return field_run(s, entering[step].site, entering[step].routine, READS_NOTHING, entering[step].entry, page(s));
+}
+
+/* What the menus' mode reads of the registers is the data bank alone. */
+static void to_the_menus_on_the_machine(void *ctx)
+{
+    m_stop_at(ctx, MENUS_SCREENS, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D);
+}
+
+void field_enter(Snes *s)
+{
+    static const EnterSteps on_the_machine = { enter_step_on_the_machine, to_the_menus_on_the_machine };
+    display_leaves_the_machine_dark(s);
     s->cpu.d = FIELD_PAGE;
-    if (!field_run(s, 0xC00085, START, READS_NOTHING, field_start, page(s)) ||
-        !field_run(s, 0xC00088, FIELD_LOAD_LOCATION_ENTRY, READS_NOTHING, field_load_location, page(s)) ||
-        !field_run(s, 0xC0008B, FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY, READS_NOTHING, field_build_the_sprites_afresh,
-                   page(s)) ||
-        !field_run(s, 0xC0008E, FIELD_SET_UP_THE_OBJECTS_ENTRY, READS_NOTHING, field_set_up_the_objects, page(s)) ||
-        !field_run(s, 0xC00091, FIELD_FORGET_THE_STEPS_ENTRY, READS_NOTHING, field_forget_the_steps_entry, page(s)) ||
-        !field_run(s, 0xC00094, FIELD_FADE_IN_ENTRY, READS_NOTHING, field_fade_in, page(s)))
-        return;
-    m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW);
+    if (enter_the_location(state_of(s), m_platform(s), &on_the_machine, s))
+        m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW);
 }
 
 /* The guard: a location the game keeps, its number in the word's low bits
@@ -306,9 +377,177 @@ bool field_location_is_a_number(Snes *s)
     return ok;
 }
 
-/* The main loop's pass: its steps in order, each called from its site.
- * The dialog window's step is reached by a long call. A's high byte and the
- * overflow pass from each step to the next as the steps leave them. */
+/* ---- The frame's work ----------------------------------------------------------------------- */
+
+/* Its steps, as C, false where one is a step the port doesn't take (a build
+ * with no machine calls the budgets' turns and frames, and the objects'
+ * update, as C too). */
+static bool turns_due_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    field_queue_the_due_turns(g);
+    return true;
+}
+
+static bool line_effects_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    field_line_effects_build(g);
+    return true;
+}
+
+static bool palettes_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    palette_animate_a_frame(g);
+    return true;
+}
+
+static bool objects_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    return field_objects_updated(g);
+}
+
+static bool frames_as_c(GameState *g, Platform *pf)
+{
+    field_queued_frames_drawn(g, pf);
+    return true;
+}
+
+/* In order, each with the original's call of it: its entry where the port
+ * runs it as C under the call, none where it is a port called on the machine
+ * as the original's call (a budget, or the update), and the index
+ * registers' width it is called with. The line effects' tables and the
+ * palettes are reached by long calls. */
+static const struct {
+    uint32_t site, routine;
+    void (*entry)(Snes *);
+    bool long_call, x8;
+    bool (*as_c)(GameState *, Platform *);
+} frame_work[] = {
+    { 0xC000C1, TURNS_DUE, field_queue_due_turns, false, true, turns_due_as_c },
+    { 0xC000C4, SCRIPT_TURNS, NULL, false, true, field_queued_turns_run },
+    { 0xC000C7, LINE_EFFECTS, field_build_line_effect_tables, true, true, line_effects_as_c },
+    { 0xC000CD, PALETTE_ANIMATION, palette_animate, true, false, palettes_as_c },
+    { 0xC000D3, UPDATE_OBJECTS, NULL, false, true, objects_as_c },
+    { 0xC000D6, SPRITE_FRAMES, NULL, false, true, frames_as_c },
+};
+enum { FRAME_WORK_STEPS = sizeof frame_work / sizeof frame_work[0] };
+
+// $C0:00BF
+/* The frame's work: the objects' scripts and the line effects for the next
+ * frame, the palettes animated, the objects moved and their new frames
+ * drawn, and their sprites put in the table, which `table` does. False where
+ * a step went no further. */
+typedef bool (*FrameWorkStep)(void *ctx, unsigned step);
+
+static bool do_the_frame_work(FrameWorkStep step, void *ctx)
+{
+    for (unsigned i = 0; i < FRAME_WORK_STEPS; i++)
+        if (!step(ctx, i))
+            return false;
+    return true;
+}
+
+static bool frame_work_step_as_c(void *ctx, unsigned step)
+{
+    PassAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, frame_work[step].routine, done = frame_work[step].as_c(c->game, c->pf));
+    return done;
+}
+
+bool field_frame_work_done(GameState *g, Platform *pf)
+{
+    PassAsC c = { g, pf };
+    if (!do_the_frame_work(frame_work_step_as_c, &c))
+        return false;
+    bool built = false;
+    TIMED_AS(g, SPRITE_TABLE, built = field_sprite_table_built(g));
+    if (!built)
+        program_needs_the_machine(g, SPRITE_TABLE, "a sprite table the port doesn't build");
+    return built;
+}
+
+static bool frame_work_step_on_the_machine(void *ctx, unsigned step)
+{
+    Snes *s = ctx;
+    if (frame_work[step].x8 != m_x8(s)) {
+        if (frame_work[step].x8)
+            m_sep(s, CPU_FLAG_X);
+        else
+            m_rep(s, CPU_FLAG_X);
+    }
+    BridgeMachine m = frame_work[step].x8 ? page_x8(s) : page(s);
+    if (!frame_work[step].entry)
+        return bridge_call(s, frame_work[step].site, frame_work[step].routine, READS_THE_OVERFLOW, m);
+    if (frame_work[step].long_call)
+        return field_run_long(s, frame_work[step].site, frame_work[step].routine, READS_THE_OVERFLOW,
+                              frame_work[step].entry, m);
+    return field_run(s, frame_work[step].site, frame_work[step].routine, READS_THE_OVERFLOW, frame_work[step].entry, m);
+}
+
+/* On 8-bit index registers but for the palettes and the sprite table, which
+ * returns for this routine. */
+void field_frame_work(Snes *s)
+{
+    if (!do_the_frame_work(frame_work_step_on_the_machine, s))
+        return;
+    m_rep(s, CPU_FLAG_X);
+    if (!field_go_on_with(s, SPRITE_TABLE, field_build_sprite_table))
+        m_stop_at(s, SPRITE_TABLE, 0);
+}
+
+/* ---- The main loop's pass ------------------------------------------------------------------- */
+
+/* Its steps, as C: where the pass goes after each. */
+static FieldPass goes_on(bool back) { return back ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS; }
+
+static FieldPass pause_and_menus_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    return goes_on(field_pause_and_menus_as_c(g));
+}
+
+static FieldPass walk_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    return goes_on(field_the_leader_walks(g));
+}
+
+static FieldPass confirm_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    field_confirm_pressed(g);
+    return FIELD_PASS_GOES_ON;
+}
+
+static FieldPass dialog_window_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    field_dialog_window_step(g);
+    return FIELD_PASS_GOES_ON;
+}
+
+static FieldPass screen_effect_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    return goes_on(field_screen_effect_moved_on(g));
+}
+
+static FieldPass script_layers_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    field_script_layers_worked(g);
+    return FIELD_PASS_GOES_ON;
+}
+
+static FieldPass frame_work_as_c(GameState *g, Platform *pf) { return goes_on(field_frame_work_done(g, pf)); }
+
+/* The pass's steps in order, each called from its site. The dialog
+ * window's step is reached by a long call. A's high byte and the overflow
+ * pass from each step to the next as the steps leave them. */
 typedef enum {
     PAUSE_AND_MENUS_STEP, REQUESTS_STEP, WALK_STEP, CONFIRM_STEP, DIALOG_WINDOW_STEP, SCREEN_EFFECT_STEP,
     SCRIPT_LAYERS_STEP, FRAME_WORK_STEP, PASS_STEPS,
@@ -319,67 +558,121 @@ static const struct {
     uint16_t reads;
     void (*entry)(Snes *);
     bool long_call;
+    FieldPass (*as_c)(GameState *, Platform *);
 } the_pass[PASS_STEPS] = {
-    [PAUSE_AND_MENUS_STEP] = { 0xC000A1, PAUSE_AND_MENUS, READS_A_HIGH_AND_THE_OVERFLOW, field_pause_and_menus, false },
-    [REQUESTS_STEP] = { 0xC000A4, REQUESTS, READS_A_HIGH_AND_THE_OVERFLOW, field_handle_requests, false },
-    [WALK_STEP] = { 0xC000A7, WALK, READS_NOTHING, field_walk_the_leader, false },
-    [CONFIRM_STEP] = { 0xC000AA, CONFIRM, READS_THE_OVERFLOW, field_press_confirm, false },
+    [PAUSE_AND_MENUS_STEP] = { 0xC000A1, PAUSE_AND_MENUS, READS_A_HIGH_AND_THE_OVERFLOW, field_pause_and_menus, false,
+                               pause_and_menus_as_c },
+    [REQUESTS_STEP] = { 0xC000A4, REQUESTS, READS_A_HIGH_AND_THE_OVERFLOW, field_handle_requests, false,
+                        field_requests_handled },
+    [WALK_STEP] = { 0xC000A7, WALK, READS_NOTHING, field_walk_the_leader, false, walk_as_c },
+    [CONFIRM_STEP] = { 0xC000AA, CONFIRM, READS_THE_OVERFLOW, field_press_confirm, false, confirm_as_c },
     [DIALOG_WINDOW_STEP] = { 0xC000AD, FIELD_DIALOG_WINDOW_STEP_ENTRY, READS_THE_OVERFLOW, field_dialog_window_step_entry,
-                             true },
-    [SCREEN_EFFECT_STEP] = { 0xC000B1, SCREEN_EFFECT, READS_THE_OVERFLOW, field_move_screen_effect_on, false },
-    [SCRIPT_LAYERS_STEP] = { 0xC000B4, SCRIPT_LAYERS, READS_THE_OVERFLOW, field_do_script_layer_work, false },
-    [FRAME_WORK_STEP] = { 0xC000B7, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, false },
+                             true, dialog_window_as_c },
+    [SCREEN_EFFECT_STEP] = { 0xC000B1, SCREEN_EFFECT, READS_THE_OVERFLOW, field_move_screen_effect_on, false,
+                             screen_effect_as_c },
+    [SCRIPT_LAYERS_STEP] = { 0xC000B4, SCRIPT_LAYERS, READS_THE_OVERFLOW, field_do_script_layer_work, false,
+                             script_layers_as_c },
+    [FRAME_WORK_STEP] = { 0xC000B7, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, false,
+                          frame_work_as_c },
 };
 
-/* The pass from its `first` step on, up to the wait for the next frame. A
- * step that hands its routine over to the original (a guard refused it, or it
- * stopped where the original goes on) ends the port's part, and the pass goes
- * on with the next step from the step's return (field_frame_goes_on). */
-static void run_the_pass_from(Snes *s, PassStep first)
+// $C0:0097
+/* A pass of the main loop from its `first` step on, up to the wait for the
+ * next frame: the frame's presses latched where it starts, then the steps.
+ * Where the pass goes after a step that doesn't go on: the field started
+ * anew for a new place, or no further. */
+typedef FieldPass (*PassStepRun)(void *ctx, PassStep step);
+
+static FieldPass run_the_pass_from(GameState *g, PassStep first, PassStepRun run, void *ctx)
 {
-    BridgeMachine m = page(s);
+    if (first == PAUSE_AND_MENUS_STEP)
+        latch_presses(g);
     for (PassStep step = first; step < PASS_STEPS; step++) {
-        bool back = the_pass[step].long_call
-                        ? field_run_long(s, the_pass[step].site, the_pass[step].routine, the_pass[step].reads,
-                                         the_pass[step].entry, m)
-                        : field_run_or_hand_over(s, the_pass[step].site, the_pass[step].routine, the_pass[step].reads,
-                                                 the_pass[step].entry, m);
-        if (!back)
-            return;
+        FieldPass after = run(ctx, step);
+        if (after != FIELD_PASS_GOES_ON)
+            return after;
     }
-    m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
+    return FIELD_PASS_GOES_ON;
 }
 
-// $C0:0097
-/* One pass of the main loop, up to the wait for the next frame: the frame's
- * presses taken, then the steps. The pass stops at the wait rather than
- * calling it: the wait spans the frame's end, and a pass still running there
- * would be a native routine held over every frame, which a machine copy can
- * only rebuild by replaying input (ct_drive, docs/MOVIES.md). The wait is an
- * entry of its own, and sets A for the next pass itself. */
-void field_frame(Snes *s)
+static FieldPass pass_step_as_c(void *ctx, PassStep step)
 {
-    latch_presses(state_of(s));
-    run_the_pass_from(s, PAUSE_AND_MENUS_STEP);
+    PassAsC *c = ctx;
+    FieldPass after = FIELD_PASS_STOPS;
+    TIMED_AS(c->game, the_pass[step].routine, after = the_pass[step].as_c(c->game, c->pf));
+    return after;
 }
+
+/* As C the pass goes through the wait for the next frame. */
+FieldPass field_runs_a_pass(GameState *g, Platform *pf)
+{
+    PassAsC c = { g, pf };
+    FieldPass after = run_the_pass_from(g, PAUSE_AND_MENUS_STEP, pass_step_as_c, &c);
+    if (after == FIELD_PASS_GOES_ON)
+        TIMED_AS(g, FIELD_FRAME_WAIT, field_finish_the_frame(g, pf));
+    return after;
+}
+
+// $C0:005D (and $C0:0000, its start again for a new place)
+void field_runs(GameState *g, Platform *pf)
+{
+    for (;;) {
+        if (!field_enter_the_location(g, pf))
+            return;
+        FieldPass pass;
+        do
+            pass = field_runs_a_pass(g, pf);
+        while (pass == FIELD_PASS_GOES_ON);
+        if (pass == FIELD_PASS_STOPS)
+            return;
+    }
+}
+
+/* On the machine, a step that hands its routine over to the original (a
+ * guard refused it, or it stopped where the original goes on) ends the
+ * port's part, and the pass goes on with the next step from the step's
+ * return (field_frame_goes_on). */
+static FieldPass pass_step_on_the_machine(void *ctx, PassStep step)
+{
+    Snes *s = ctx;
+    bool back = the_pass[step].long_call
+                    ? field_run_long(s, the_pass[step].site, the_pass[step].routine, the_pass[step].reads,
+                                     the_pass[step].entry, page(s))
+                    : field_run_or_hand_over(s, the_pass[step].site, the_pass[step].routine, the_pass[step].reads,
+                                             the_pass[step].entry, page(s));
+    return goes_on(back);
+}
+
+static void pass_on_the_machine_from(Snes *s, PassStep first)
+{
+    if (run_the_pass_from(state_of(s), first, pass_step_on_the_machine, s) == FIELD_PASS_GOES_ON)
+        m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
+}
+
+/* On the machine the pass stops at the wait rather than calling it: the
+ * wait spans the frame's end, and a pass still running there would be a
+ * native routine held over every frame, which a machine copy can only
+ * rebuild by replaying input (ct_drive, docs/MOVIES.md). The wait is an
+ * entry of its own, and sets A for the next pass itself. */
+void field_frame(Snes *s) { pass_on_the_machine_from(s, PAUSE_AND_MENUS_STEP); }
 
 /* The pass going on after a step whose routine came back to it itself: a
  * request answered over frames, which ends by jumping to the frame's wait
  * that returns to the pass, or a step the original ran. */
 // $C0:00A4
-void field_frame_goes_on_with_the_requests(Snes *s) { run_the_pass_from(s, REQUESTS_STEP); }
+void field_frame_goes_on_with_the_requests(Snes *s) { pass_on_the_machine_from(s, REQUESTS_STEP); }
 // $C0:00A7
-void field_frame_goes_on_with_the_walk(Snes *s) { run_the_pass_from(s, WALK_STEP); }
+void field_frame_goes_on_with_the_walk(Snes *s) { pass_on_the_machine_from(s, WALK_STEP); }
 // $C0:00AA
-void field_frame_goes_on_with_confirm(Snes *s) { run_the_pass_from(s, CONFIRM_STEP); }
+void field_frame_goes_on_with_confirm(Snes *s) { pass_on_the_machine_from(s, CONFIRM_STEP); }
 // $C0:00AD
-void field_frame_goes_on_with_the_dialog_window(Snes *s) { run_the_pass_from(s, DIALOG_WINDOW_STEP); }
+void field_frame_goes_on_with_the_dialog_window(Snes *s) { pass_on_the_machine_from(s, DIALOG_WINDOW_STEP); }
 // $C0:00B1
-void field_frame_goes_on_with_the_screen_effect(Snes *s) { run_the_pass_from(s, SCREEN_EFFECT_STEP); }
+void field_frame_goes_on_with_the_screen_effect(Snes *s) { pass_on_the_machine_from(s, SCREEN_EFFECT_STEP); }
 // $C0:00B4
-void field_frame_goes_on_with_the_script_layers(Snes *s) { run_the_pass_from(s, SCRIPT_LAYERS_STEP); }
+void field_frame_goes_on_with_the_script_layers(Snes *s) { pass_on_the_machine_from(s, SCRIPT_LAYERS_STEP); }
 // $C0:00B7
-void field_frame_goes_on_with_the_frame_work(Snes *s) { run_the_pass_from(s, FRAME_WORK_STEP); }
+void field_frame_goes_on_with_the_frame_work(Snes *s) { pass_on_the_machine_from(s, FRAME_WORK_STEP); }
 
 // $C0:00BA
 /* The main loop's wait for the next frame (field_finish_frame), and once the
@@ -397,98 +690,6 @@ void field_wait_for_the_next_frame(Snes *s)
 // $C0:00BD
 /* Back from the wait, the main loop goes round. */
 void field_main_loop_goes_round(Snes *s) { m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW); }
-
-// $C0:00BF
-/* The frame's work, on 8-bit index registers but for the palettes and the
- * sprite table: the objects' scripts and the line effects for the next
- * frame, the palettes animated, the objects moved and their new frames drawn,
- * and their sprites put in the table, which returns for this routine. */
-void field_frame_work(Snes *s)
-{
-    m_sep(s, CPU_FLAG_X);
-    if (!field_run(s, 0xC000C1, TURNS_DUE, READS_THE_OVERFLOW, field_queue_due_turns, page_x8(s)) ||
-        !bridge_call(s, 0xC000C4, SCRIPT_TURNS, READS_THE_OVERFLOW, page_x8(s)) ||
-        !field_run_long(s, 0xC000C7, LINE_EFFECTS, READS_THE_OVERFLOW, field_build_line_effect_tables, page_x8(s)))
-        return;
-    m_rep(s, CPU_FLAG_X);
-    if (!field_run_long(s, 0xC000CD, PALETTE_ANIMATION, READS_THE_OVERFLOW, palette_animate, page(s)))
-        return;
-    m_sep(s, CPU_FLAG_X);
-    if (!bridge_call(s, 0xC000D3, UPDATE_OBJECTS, READS_THE_OVERFLOW, page_x8(s)) ||
-        !bridge_call(s, 0xC000D6, SPRITE_FRAMES, READS_THE_OVERFLOW, page_x8(s)))
-        return;
-    m_rep(s, CPU_FLAG_X);
-    if (!field_go_on_with(s, SPRITE_TABLE, field_build_sprite_table))
-        m_stop_at(s, SPRITE_TABLE, 0);
-}
-
-/* The frame's work as C (a build with no machine calls the budgets' turns
- * and frames as C too). False where a step is one the port doesn't take,
- * the program going no further there. */
-bool field_frame_work_done(GameState *g, Platform *pf)
-{
-    bool done = false;
-    TIMED_AS(g, TURNS_DUE, field_queue_the_due_turns(g));
-    TIMED_AS(g, SCRIPT_TURNS, done = field_queued_turns_run(g, pf));
-    if (!done)
-        return false;
-    TIMED_AS(g, LINE_EFFECTS, field_line_effects_build(g));
-    TIMED_AS(g, PALETTE_ANIMATION, palette_animate_a_frame(g));
-    TIMED_AS(g, UPDATE_OBJECTS, done = field_objects_updated(g));
-    if (!done)
-        return false;
-    TIMED_AS(g, SPRITE_FRAMES, field_queued_frames_drawn(g, pf));
-    TIMED_AS(g, SPRITE_TABLE, done = field_sprite_table_built(g));
-    if (!done)
-        program_needs_the_machine(g, SPRITE_TABLE, "a sprite table the port doesn't build");
-    return done;
-}
-
-// $C0:0097
-/* A pass of the main loop as C, up to and through the wait for the next
- * frame. False where a step is the machine's yet, the program going no
- * further there. */
-FieldPass field_runs_a_pass(GameState *g, Platform *pf)
-{
-    latch_presses(g);
-    bool done = false;
-    TIMED_AS(g, PAUSE_AND_MENUS, done = field_pause_and_menus_as_c(g));
-    if (!done)
-        return FIELD_PASS_STOPS;
-    FieldPass requests = FIELD_PASS_GOES_ON;
-    TIMED_AS(g, REQUESTS, requests = field_requests_handled(g, pf));
-    if (requests != FIELD_PASS_GOES_ON)
-        return requests;
-    TIMED_AS(g, WALK, done = field_the_leader_walks(g));
-    if (!done)
-        return FIELD_PASS_STOPS;
-    TIMED_AS(g, CONFIRM, field_confirm_pressed(g));
-    TIMED_AS(g, FIELD_DIALOG_WINDOW_STEP_ENTRY, field_dialog_window_step(g));
-    TIMED_AS(g, SCREEN_EFFECT, done = field_screen_effect_moved_on(g));
-    if (!done)
-        return FIELD_PASS_STOPS;
-    TIMED_AS(g, SCRIPT_LAYERS, field_script_layers_worked(g));
-    TIMED_AS(g, FIELD_FRAME_WORK_ENTRY, done = field_frame_work_done(g, pf));
-    if (!done)
-        return FIELD_PASS_STOPS;
-    TIMED_AS(g, FIELD_FRAME_WAIT, field_finish_the_frame(g, pf));
-    return FIELD_PASS_GOES_ON;
-}
-
-// $C0:005D (and $C0:0000, its start again for a new place)
-void field_runs(GameState *g, Platform *pf)
-{
-    for (;;) {
-        if (!field_enter_the_location(g, pf))
-            return;
-        FieldPass pass;
-        do
-            pass = field_runs_a_pass(g, pf);
-        while (pass == FIELD_PASS_GOES_ON);
-        if (pass == FIELD_PASS_STOPS)
-            return;
-    }
-}
 
 // $C0:00DE
 /* The effects refreshed for the next frame: the line effects' tables built
