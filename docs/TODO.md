@@ -2862,6 +2862,23 @@ waits on M5 rather than on a backend.
   `census_destroy` leaves the runtime's observer pointing at the freed census;
   `state_host.c` and `game/data/assets.c` each carry the HiROM address map,
   which wants one copy.
+- **What the one-copy review left** (none rated translation): in
+  `object_update.c`, `UpdateCall`'s `RESORT_SECOND`/`RESORT_FIRST` and the
+  `call` argument threaded through the view, tick and rows exist only to pick
+  the machine's call sites, which its own context could track;
+  `object_view.c`'s `took_what_it_needs` callback exists only to clear V, which
+  the wrapper can derive from the state after the call; `main_loop.c`'s
+  `frame_work` rows mix the machine's columns (`long_call`, `x8`, `entry`) with
+  `as_c`, which wants a parallel table, and its eight one-line `*_as_c`
+  adapters want each C step its own signature.
+- **ct_native's runtime, as the menus will find it.** A draft of the menus'
+  tasks on coroutines took ct_native with `new-game.ctm` to frame 3243, the
+  world map, and needed three fixes on the way: `runtime/port/rom_host.c`
+  recurses without end on a cartridge byte in no resource of the catalogue,
+  where it wants to stop with the address; the host doesn't carry out the
+  menus' fills and copies through work RAM's port, so their buffers are never
+  cleared; and the host starts work RAM at 0 where the reference starts it at
+  `$55`.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in
