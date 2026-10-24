@@ -2969,10 +2969,19 @@ How the ports were made to call each other, by kind:
   entry into it starting a nested comparison.
 - **An entry whose callees the machine pairs a call at a time** (the budgets'
   turns and frames, the song's calls to the driver, the screen's setup and
-  fade in, the main loop's pass, the field's entry) keeps its bridge, and the
-  program has the same steps as C beside it, the steps' work shared: two
-  sequences of one routine until the field retires the gate (TODO.md, "The
-  native program").
+  fade in, the main loop's pass, the field's entry) keeps its bridge. The
+  routine is one sequence of the game's state that both run, its steps
+  callbacks: on the machine a step is called from the original's call, leaves
+  the flags the original's callers read and hands what the port doesn't take
+  to the original; as C it runs the step, or stops the program there. The
+  budgets were first (`draw_queued_frames`, `run_queued_turns`); then the
+  field's entry, the location's loading and song, the main loop's pass and
+  the frame's work (each a table of steps, the entry and its C in two
+  columns), the objects' update (`UpdateSteps`: the move, the view, the
+  tick, the rows, the place, the window-only check) and view (`ViewSteps`,
+  whose C now checks the view's guard too), and the pause and the menus
+  (`MenuSteps`). So shadow mode compares the sequence `ct_native` runs. The
+  ones still written twice are TODO.md's ("The native program").
 - **An interpreter's machine runner has a runner as C beside it**
   (`event_runner_as_c`): each command's operation, and for a bridge the C of
   its work where it has one (`EVENT_BRIDGES_AS_C`: the sound commands and

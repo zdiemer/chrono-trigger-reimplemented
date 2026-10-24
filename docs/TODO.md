@@ -2779,16 +2779,20 @@ list, by kind, is what `game/` still asks of one.
   `EVENT_BRIDGES`: the sound commands and the screen command have theirs,
   `EVENT_BRIDGES_AS_C`, event/engine.h). Each wants its C as the program
   meets it.
-- **Two sequences of one routine.** Where the machine needs a step's frames
-  and call-outs to compare it with the original's -- the field's entry, the
-  screen's setup and fade in, the main loop's pass, the frame's work and its
-  budgets, the vblank handler's calls, the event bridges' sends -- the entry
-  keeps its bridge and the program has the same steps in order as C
-  (`field_enter_the_location`, `field_screen_set_up`, `field_fade_in_as_c`,
-  `field_runs_a_pass`, `field_frame_work_done`, `field_vblank`, the
-  `*_as_c` bridges), the steps' work shared. They are one routine written
-  twice until the field retires the gate (PLAN.md's step 3), when the
-  bridges go; until then a change to one wants the other.
+- **Two sequences of one routine.** The field's entry, its location's
+  loading and song, the main loop's pass, the frame's work, the objects'
+  update and view and the pause and menus are one sequence each, which the
+  entry and the program both run, their steps callbacks (REIMPLEMENTATION.md,
+  "The native program through the field and the title"). Still written twice,
+  the machine's beside the program's: the screen's setup and fade in
+  (`field_screen_set_up`, `field_fade_in_as_c`), the objects' setup
+  (`field_objects_set_up`), the vblank handler's calls (`field_vblank`), a
+  location change's request (`field_requests_handled`), the leader's walk
+  (`field_the_leader_walks`), the screen effect's step
+  (`field_screen_effect_moved_on`), the scene's frame work and its lists
+  (`scene_frame_work_as_c`, `run_tasks_as_c`) and the event bridges'
+  `*_as_c` sends. Each wants the same shape; until then a change to one
+  wants the other, and nothing gates the program's copy.
 - **Control flow through the machine.** Call-outs into entries by address
   (`native_call_dc`, `native_yield_call_dc`, `native_jump_call_dc`), stops
   at the original's addresses (`m_stop_at`, the `native_*dont_care_at_stop`
@@ -2858,21 +2862,6 @@ waits on M5 rather than on a backend.
   `census_destroy` leaves the runtime's observer pointing at the freed census;
   `state_host.c` and `game/data/assets.c` each carry the HiROM address map,
   which wants one copy.
-- **What ct_native's field and title review left** (none rated translation):
-  the field's and scenes' C state sequences that only `ct_native` runs sit
-  beside the machine entries shadow mode checks, two copies that can drift with
-  nothing gating the C one -- `object_view.c` against `field_update_visibility`,
-  `object_update.c` against `update_object` and `resort_party`, `main_loop.c`
-  against `field_frame_work` and `the_pass`, `menus.c` against
-  `field_pause_and_menus`, `location.c` against `field_start_location_song`; make
-  each entry a thin wrapper over its sequence through callbacks, as
-  `draw_queued_frames` and `run_queued_turns` do. `object_view_updated` skips
-  the guard `field_view_change_in_the_tables`. New functions sit under other
-  functions' comments in `frames.c`, `object_view.c` and `screen_effects.c`.
-  `scene/frame.c`'s switch picking the scene program's routines by ROM address
-  repeats its table; give the table a C column. `data/decompress.c` adds up
-  `accesses` along every path; count segments, controls and references and
-  work the charge out once.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in

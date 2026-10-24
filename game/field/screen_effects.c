@@ -652,9 +652,6 @@ static bool play_the_ripple(Snes *s)
  * ripple) run as the original's table runs them, from its JSR. */
 enum { STEP_TABLE_SITE = 0xC021EA };
 
-/* On the field's page, with 8-bit A and 16-bit index registers. A, X, Y and
- * the flags but V are dead after it; V is as it came, but for the
- * searchlight, which leaves the overflow of its last corner's move. */
 /* As C, where the step is the effect's own; false where it sweeps a
  * curtain, closes the field into a scene or plays the ripple, which only the
  * machine runs yet (the program goes no further). */
@@ -668,6 +665,9 @@ bool field_screen_effect_moved_on(GameState *g)
     return false;
 }
 
+/* On the field's page, with 8-bit A and 16-bit index registers. A, X, Y and
+ * the flags but V are dead after it; V is as it came, but for the
+ * searchlight, which leaves the overflow of its last corner's move. */
 void field_move_screen_effect_on(Snes *s)
 {
     GameState *g = state_of(s);
