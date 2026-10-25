@@ -2875,6 +2875,20 @@ waits on M5 rather than on a backend.
   `frame_work` rows mix the machine's columns (`long_call`, `x8`, `entry`) with
   `as_c`, which wants a parallel table, and its eight one-line `*_as_c`
   adapters want each C step its own signature.
+- **What the menus' tasks review left** (none rated translation; `naming.c`
+  and `save_screen.c` the weakest): their register notes
+  (`BUTTONS_TESTED`, `NOTE_CHAPTER_FOUND` carrying the compare's operands) and
+  call-site addresses ride through the shared logic, where the machine-side
+  callbacks could derive them, and the `site` parameter hides them from
+  portsmell's flag-note check; `cursor.c`'s `bool *fast` and
+  `screen_setup.c`'s `uint8_t *shown` out-parameters exist only for the
+  wrapper's registers; `screens.c`'s dispatch by routine address repeats
+  `naming.c`'s `steps[].routine`; `techs.c`'s guard
+  `menu_party_techs_can_be_noted` tests a high byte only the original's code
+  leaves, which with no machine is always the power-on clear's 0, so in
+  ct_native it guards nothing: say so, or drop the test from the C path. The
+  review rubric wants an item for scaffolding notes routed through a steps
+  callback.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in
