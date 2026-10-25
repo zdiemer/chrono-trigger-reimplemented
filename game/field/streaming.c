@@ -24,6 +24,7 @@
 #include "field/streaming.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "field/bridge.h"
 #include "field/field.h"
@@ -604,6 +605,22 @@ bool field_streaming_can_run(Snes *s)
     bool ok = layers_repeat_within_the_maps(state_of(s));
     vars_peek(false);
     return ok;
+}
+
+/* The drawings at a map's load as C, each with its entry's guard's state
+ * half: BG2's drawing fitting the staging buffers, BG1's and BG3's every
+ * layer's map repeating within the map's tables. */
+static const uint32_t drawing_entries[] = { [FIELD_BG1] = 0xC075E9, [FIELD_BG2] = 0xC078EC, [FIELD_BG3] = 0xC07CB5 };
+
+bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)
+{
+    bool fits = layer == FIELD_BG2 ? layer_drawing_fits(g, FIELD_BG2) : layers_repeat_within_the_maps(g);
+    if (!fits) {
+        program_needs_the_machine(g, drawing_entries[layer], "a layer the port doesn't draw at the map's load");
+        return false;
+    }
+    TIMED_AS(g, drawing_entries[layer], draw_layer_at_the_maps_load(g, layer));
+    return true;
 }
 
 /* The drawings at a map's load, on the layers' page; they leave nothing in

@@ -273,11 +273,15 @@ static void put_the_multiplier_back(GameState *g, uint16_t kept)
 
 // $7E:37FA
 /* A frame task: the palettes animate a frame (core/palette.c, through bank
- * $FD's jump to them). */
+ * $FD's jump to them), where every slot holds an animation the port takes,
+ * as the task's guard has it; otherwise the program goes no further. */
 static TaskEnd animate_the_palettes_task(GameState *g, Platform *pf)
 {
     (void)pf;
-    TIMED_AS(g, 0xFDFFF7, palette_animate_a_frame(g));
+    bool animated = false;
+    TIMED_AS(g, 0xFDFFF7, animated = palette_animated_as_c(g));
+    if (!animated)
+        return task_goes_on();
     keep_the_multiplier_s_word(g, MULTIPLIER_READ_BACK);
     ORIGINAL_EFFECT(put_the_multiplier_back(g, MULTIPLIER_READ_BACK));
     return task_goes_on();
@@ -305,8 +309,10 @@ static void keep_the_code_under_the_multiplier(GameState *g, SceneChannel ch)
 
 void scene_animate_the_palettes_for(GameState *g, SceneChannel ch)
 {
-    TIMED_AS(g, 0xFDFFF7, palette_animate_a_frame(g));
-    ORIGINAL_EFFECT(keep_the_code_under_the_multiplier(g, ch));
+    bool animated = false;
+    TIMED_AS(g, 0xFDFFF7, animated = palette_animated_as_c(g));
+    if (animated)
+        ORIGINAL_EFFECT(keep_the_code_under_the_multiplier(g, ch));
 }
 
 /* As a frame task, or called by a channel's sequence (above). */

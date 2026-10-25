@@ -43,7 +43,13 @@ void field_main_loop_goes_round(Snes *s);
 void field_start_again(Snes *s);
 void field_start_the_scene(Snes *s);
 void field_close_into_the_scene(Snes *s);
+/* The field's close's scene as C ($C0:2643): where the program goes. */
+void field_closed_into_the_scene(GameState *g);
 bool field_location_is_a_number(Snes *s);
+/* A frame of the leader's walk alone as C ($C0:00EB): the walk, the effects
+ * refreshed and the wait for the next frame; false where a step is one the
+ * port doesn't take, the program going no further there. */
+bool field_walked_a_frame(GameState *g, Platform *pf);
 
 /* The frame done and the wait for the vblank handler to take it ($C0:EC60),
  * as C. */

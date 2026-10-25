@@ -11283,3 +11283,53 @@ walkers, the vehicles and the sign (the overworld's handlers, which only a
 map the party walks runs), the map view and the time dial, and the menus
 opened from the map, which go as far as the menus' own C does (TODO.md,
 "The native program").
+
+#### The native program through Crono's house to the fair
+
+With the world map as C (the section before this one, "The native program
+through the world map"), `new-game.ctm`'s presses took
+`ct_native` into Crono's house, where it stopped at frame 4798: an event
+command that casts a person whose graphics must be unpacked (`$C0:4590`).
+Each step after it was taken as it was met, in the same shape -- one
+sequence the machine's entry and the program run, its steps callbacks:
+
+- **The casts of a person and an enemy** (`$C0:4590`, `$C0:46DF`): the
+  casting's two halves either side of the unpacking, the unpacker a
+  callback (`SetUnpacker`; on the machine the original's from each
+  command's call, its sites and the too-far stops a table's rows), now
+  bridges with C (`EVENT_BRIDGES_AS_C`).
+- **A tile copy** (`$C0:1779`, a request): the screen's recentring a frame
+  at a time, the copy, and the layers it changed drawn and sent, each call a
+  row of a table (`tile_copy_calls`: the routine and the original's site),
+  run by one sequence (`copy_the_tiles`) whose step is a call; on the machine
+  the original's calls and the jump to the frame wait the pass goes on
+  from, as C the ports' functions with their guards' state halves. The
+  recentring and the leader's walk became one sequence each with the
+  layers' scroll a callback (`walk.c`), which took the walk off TODO.md's
+  list of steps written twice.
+- **The world map walked on foot** (`overworld/handlers.c`): the overworld's
+  handlers -- the walkers, the vehicles, the places' watcher, the music, the
+  sign, the Epoch and the dactyls -- and the routines its scenes call (the
+  song of where the party is, the sign's label, the Epoch's scenes), as rows
+  of the sprite-object mode's C tables; the walkers' and the Epoch's scripts
+  on the interpreter as C. Their guards' state halves moved here from
+  `entries.c`, whose guards are now each the handler's machine half and the
+  row's state half (`menu_object_handler_takes`).
+
+So `new-game.ctm` plays to its end, and `fair.ctm`'s presses cross the world
+map into Leene Square, the fair (location `$005`, where the reference play
+of the movie ends), and on to the end of the run. The attract demo still
+stops at frame 2551, at a screen effect only the machine runs (its curtain,
+its close into a scene or its ripple, `$C0:21E1`).
+
+**Measured.** Shadow mode over the library: 0 mismatches; the entries whose
+work became a sequence compare every call real play makes
+(`event_cmd_cast_npc` 971, `event_cmd_cast_enemy` 662,
+`field_handle_requests` 238,533, `field_recentre_the_screen` 323,
+`field_walk_the_leader` 244,514, `overworld_lead` 18,356 with 4
+interrupted, `overworld_follow` 36,712, `overworld_start_the_location_song`
+32). Refusals in real play: 0; fallbacks unchanged. The census: 259 entries
+the machine enters, as before. `tools/machine_joints.py`: 179 stops (180).
+Timing: no row recalibrated. The moved guards' reads of slot cells the
+menus proper also use as scaffolding are four baseline lines of the same
+kind as the ones they moved with.

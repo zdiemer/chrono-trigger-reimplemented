@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
 #include "vars.h"
@@ -81,8 +82,10 @@ uint16_t screen_searchlight_speed(uint8_t from, uint8_t to, uint8_t frames);
 /* The step the main loop runs ($C0:21E1), and its guard: an effect the port
  * draws as the original does. */
 void field_move_screen_effect_on(Snes *s);
-/* As C, false where a step is the machine's yet. */
-bool field_screen_effect_moved_on(GameState *g);
+/* As C, with the guard's state half first: false where a step is the
+ * machine's yet, or where the field closes into its scene, which is where
+ * the program goes next. */
+bool field_screen_effect_moved_on(GameState *g, Platform *pf);
 bool field_screen_effect_can_move_on(Snes *s);
 
 #endif

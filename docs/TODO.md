@@ -2739,9 +2739,9 @@ What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
 `ct_native` links the whole of `game/` but `registry.c`, with every service's
 host backend, and runs the boot, the field, the title's scene, the menus
-a script asks for and the world maps; it stops at frame 2551 where the
-attract demo's field meets a screen effect only the machine runs
-(`$C0:21E1`), the first step only the machine runs there, and with
+a script asks for and the world maps; it stops at frame 2584 where the
+attract demo's field has closed into a scene whose setup only the machine
+runs (the credits' page, `$7E:6B04`), and with
 `new-game.ctm`'s or `fair.ctm`'s presses it plays the movie to its end (the
 fair's, in Leene Square). What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
@@ -2779,8 +2779,7 @@ list, by kind, is what `game/` still asks of one.
   step as C (the main menu's, the load screen's, a shop's), a party the
   put-aside or the bringing back doesn't take (`field/menus.c`), every
   request but a location change, a script's menu and a tile copy (a step, a
-  chest, a battle: `field/requests.c`), a screen
-  effect's curtain, close or ripple, the field's restart a script asks for,
+  chest, a battle: `field/requests.c`), the field's restart a script asks for,
   and the event commands with a bridge and no C beside it (13 of the 23 in
   `EVENT_BRIDGES`; `EVENT_BRIDGES_AS_C`, event/engine.h, has the rest).
   Each wants its C as the program meets it.
@@ -2793,8 +2792,7 @@ list, by kind, is what `game/` still asks of one.
   (`field_screen_set_up`), the objects' setup
   (`field_objects_set_up`), the vblank handler's calls (`field_vblank`), a
   location change's request and a script's menu's (`field_requests_handled`;
-  the tile copy's is one sequence, `copy_the_tiles`), the screen effect's step
-  (`field_screen_effect_moved_on`), the scene's frame work and its lists
+  the tile copy's is one sequence, `copy_the_tiles`), the scene's frame work and its lists
   (`scene_frame_work_as_c`, `run_tasks_as_c`) and the event bridges'
   `*_as_c` sends. Each wants the same shape; until then a change to one
   wants the other, and nothing gates the program's copy.
@@ -2900,9 +2898,6 @@ waits on M5 rather than on a backend.
   `bool *sent` exists only for A's leftover; `menu/line_effects.c`'s
   `FAR_CALL_X`/`NEAR_CALL_X` feed the dispatch's X into `step_the_curtain`'s
   `salt`, which wants naming for what it is and the comment there agreeing.
-  The scene's callers of `palette_animate_a_frame` (`scene/rising_palace.c`,
-  `scene/screen.c` twice) skip `every_slot_fits`, which the field's now check
-  through `palette_animated_as_c`.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in

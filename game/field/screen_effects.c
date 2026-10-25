@@ -20,7 +20,10 @@
  * - The ripple: a copy of BG1, waving, seen through a circle that opens,
  *   holds and closes, over two and a half seconds; and the field's close
  *   into a scene. Both run on over frames of their own, and call on the
- *   original's routines between them.
+ *   field's other work between them (BG1 drawn, the effects refreshed, a
+ *   frame waited, the field put aside), as the curtain calls on bank $C3's
+ *   sweep: one sequence each, whose calls the program makes as C and the
+ *   machine's entry from the original's calls.
  *
  * The window tables are double-buffered with the line effects: a frame's
  * shape goes into the table of the set the line effects aren't reading, which
@@ -480,92 +483,52 @@ bool screen_ripple_played(GameState *g)
 
 void screen_effect_start(GameState *g, ScreenEffect effect) { set_field_screen_effect(g, effect); }
 
-/* ---- A frame's step ----------------------------------------------------------------------------- */
-
-/* What a frame's step leaves to the machine: nothing, the curtain's sweep
- * between the field's two halves of the step, or the field's close into the
- * scene or the ripple, which run on with the original's routines. */
-typedef enum { STEP_DONE, STEP_SWEEPS_THE_CURTAIN, STEP_CLOSES_THE_FIELD, STEP_PLAYS_THE_RIPPLE } EffectStep;
-
-// $C0:21E1
-static EffectStep move_on_a_step(GameState *g)
-{
-    switch (field_screen_effect_now(g)) {
-    case HOLE_OPENING: circle_opens_a_step(g, &HOLE_CIRCLE); return STEP_DONE;
-    case HOLE_CLOSING: circle_closes_a_step(g, &HOLE_CIRCLE, hole_gone); return STEP_DONE;
-    case OVAL_OPENING: circle_opens_a_step(g, &OVAL_CIRCLE); return STEP_DONE;
-    case OVAL_CLOSING: circle_closes_a_step(g, &OVAL_CIRCLE, oval_gone); return STEP_DONE;
-    case OVAL_GONE: oval_gone(g); return STEP_DONE;
-    case SEARCHLIGHT: searchlight_step(g); return STEP_DONE;
-    case BG3_IN_A_CIRCLE:
-    case BG3_IN_A_CIRCLE_SECOND: bg3_in_a_circle(g); return STEP_DONE;
-    case BG3_BLENDED_ROUND_A_CIRCLE:
-    case BG3_BLENDED_ROUND_A_CIRCLE_SECOND: bg3_blended_round_a_circle(g); return STEP_DONE;
-    case CURTAIN:
-        if (!curtain_sweeping(g)) {
-            curtain_done(g);
-            return STEP_DONE;
-        }
-        cut_with_the_curtain(g);
-        return STEP_SWEEPS_THE_CURTAIN;
-    case ON_TO_THE_SCENE: return STEP_CLOSES_THE_FIELD;
-    case RIPPLE: return STEP_PLAYS_THE_RIPPLE;
-    default: return STEP_DONE;   /* none, or the ripple played and waiting to be seen */
-    }
-}
-
-/* ---- Where it meets the original ---------------------------------------------------------------
+/* ---- The steps that run over frames ------------------------------------------------------------
  *
- * The curtain's sweep, the ripple and the field's close call the original's
- * routines between the field's own work; each is a bridge, calling them as
- * the original does on the field's page and stopping where they don't come
- * back as it. */
+ * The curtain's sweep, the field's close into a scene and the ripple call
+ * on the field's other work between their own: bank $C3's sweep, BG1 drawn
+ * as at a map's load, the effects refreshed, a frame waited, the battle's
+ * start that puts the field aside. Each is one sequence here, whose calls
+ * are callbacks: the program makes them as C, and the machine's entry from
+ * the original's calls of them. */
 
-enum {
-    CURTAIN_SWEEP = 0xC3000E,     /* bank $C3's step of the curtain ($C3:01E4) */
-    FRAME_WAIT = 0xC0EC60,        /* waits for the next frame */
-    DRAW_BG1 = 0xC075E9,          /* BG1's tiles drawn into the staging, on the layers' page */
-};
-enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-/* The curtain's routine saves every register and its flags and puts them
- * back, and reads none but X, which it saves on the stack where the analysis
- * counts it read: the port hands it the original's, the step's index in the
- * dispatch's table, doubled. */
-enum { CURTAIN_READS_X = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C, CURTAIN_INDEX = (CURTAIN - 1) * 2 };
+/* The moments of the close and the ripple a call is made at. */
+typedef enum {
+    CLOSE_BEGINS,       /* BG1 drawn and sent, a frame */
+    CLOSE_ENDS,         /* the field put aside, a frame */
+    RIPPLE_BEGINS,      /* BG1 drawn and sent, the copy waving, a frame */
+    RIPPLE_SETTLING,    /* the frames of each stretch */
+    RIPPLE_GROWING,
+    RIPPLE_HOLDING,
+    RIPPLE_SHRINKING,
+    RIPPLE_ENDS,        /* the copy gone, the last frame */
+    MOMENTS
+} Moment;
 
-static bool call(Snes *s, uint32_t site, uint32_t routine)
-{
-    return bridge_call(s, site, routine, READS_NOTHING, on_the_field_page(s, false));
-}
+typedef struct {
+    bool (*sweep_the_curtain)(void *ctx);
+    bool (*draw_bg1)(void *ctx, Moment at);
+    bool (*refresh)(void *ctx, Moment at);
+    bool (*wait_a_frame)(void *ctx, Moment at);
+    bool (*battle_set_up)(void *ctx);
+    void (*the_scene_starts)(void *ctx);
+} EffectCalls;
 
-/* The effects refreshed for the next frame, a port of the field's
- * (field/main_loop.c) run as C. */
-static bool refresh(Snes *s, uint32_t site)
+/* A frame of the curtain: the picture cut with it, the sweep a step on, and
+ * window 2's line effect showing it. */
+static bool curtain_a_frame(GameState *g, const EffectCalls *calls, void *ctx)
 {
-    return field_run(s, site, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects,
-                     on_the_field_page(s, false));
-}
-static bool draw_bg1(Snes *s, uint32_t site)
-{
-    return field_run_on_page(s, site, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, FIELD_LAYERS_PAGE);
-}
-
-// $C0:22D8
-static bool sweep_the_curtain(Snes *s)
-{
-    s->cpu.x = CURTAIN_INDEX;
-    if (!bridge_call_long(s, 0xC022FA, CURTAIN_SWEEP, CURTAIN_READS_X, on_the_field_page(s, false)))
+    cut_with_the_curtain(g);
+    if (!calls->sweep_the_curtain(ctx))
         return false;
-    curtain_swept_a_step(state_of(s));
+    curtain_swept_a_step(g);
     return true;
 }
 
 /* The field's last frames before the scene: BG1 drawn and sent, a frame, the
- * field's state put aside, a frame; then the vblank and the controllers'
- * interrupts alone, no line effects, and the line interrupt off. The original
- * starts the scene on a fresh stack ($C0:2643), which is its to do. */
-enum { THE_SCENE_STARTS = 0xC02643, AS_THE_SCENE_STARTS = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
-
+ * field's state put aside as for a battle, a frame; then the vblank and the
+ * controllers' interrupts alone, no line effects, and the line interrupt
+ * off; and the scene starts. */
 static void field_hands_over(GameState *g, Platform *pf)
 {
     tm_enable_interrupts(pf, PF_AT(0xC02633), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
@@ -574,96 +537,289 @@ static void field_hands_over(GameState *g, Platform *pf)
 }
 
 // $C0:260E
-/* It never comes back: the port stops, there or before. */
-static bool close_into_the_scene(Snes *s)
+/* It never comes back to the main loop: false always. */
+static bool close_into_the_scene(GameState *g, Platform *pf, const EffectCalls *calls, void *ctx)
 {
-    GameState *g = state_of(s);
-    if (!draw_bg1(s, 0xC02617))
+    if (!calls->draw_bg1(ctx, CLOSE_BEGINS))
         return false;
     field_put_the_layer_at_its_start(g, FIELD_BG1);
-    if (!refresh(s, 0xC0261E))
+    if (!calls->refresh(ctx, CLOSE_BEGINS))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG1);
-    if (!call(s, 0xC02625, FRAME_WAIT) || !field_run(s, 0xC02628, FIELD_BATTLE_BEGINS_ENTRY, READS_NOTHING, field_battle_begins, on_the_field_page(s, false)) || !refresh(s, 0xC0262B) ||
-        !call(s, 0xC0262E, FRAME_WAIT))
+    if (!calls->wait_a_frame(ctx, CLOSE_BEGINS) || !calls->battle_set_up(ctx) || !calls->refresh(ctx, CLOSE_ENDS) ||
+        !calls->wait_a_frame(ctx, CLOSE_ENDS))
         return false;
-    field_hands_over(g, m_platform(s));
-    m_stop_at_own(s, THE_SCENE_STARTS, AS_THE_SCENE_STARTS);
+    field_hands_over(g, pf);
+    calls->the_scene_starts(ctx);
     return false;
 }
 
-/* A stretch of the ripple: each frame the circle drawn (where it shows) and
- * its radius moved on, the frame's effects refreshed, and a frame waited.
- * The original counts the frames in a cell across the waits, which the port
- * leaves as it has it there. */
-typedef enum { CIRCLE_NOT_SHOWN, CIRCLE_SHOWN } RippleCircle;
+/* The ripple's stretches: how many frames each lasts, and how its circle
+ * grows a frame where it shows. The original counts the frames in a cell
+ * across the waits, which the port leaves as it has it there. */
+static const struct {
+    Moment moment;
+    uint8_t frames;
+    bool shown;
+    int8_t growth;
+} ripple_stretches[] = {
+    { RIPPLE_SETTLING, RIPPLE_SETTLES, false, 0 },
+    { RIPPLE_GROWING, RIPPLE_GROWS, true, RIPPLE_GROWTH },
+    { RIPPLE_HOLDING, RIPPLE_HOLDS, true, 0 },
+    { RIPPLE_SHRINKING, RIPPLE_SHRINKS, true, -RIPPLE_GROWTH },
+};
+enum { RIPPLE_STRETCHES = sizeof ripple_stretches / sizeof ripple_stretches[0] };
 
-static bool ripple_stretch(Snes *s, uint8_t frames, RippleCircle circle, int8_t growth, uint32_t refresh_site,
-                           uint32_t wait_site)
+static bool ripple_stretch(GameState *g, unsigned stretch, const EffectCalls *calls, void *ctx)
 {
-    GameState *g = state_of(s);
-    for (uint8_t left = frames; left != 0; left--) {
-        if (circle == CIRCLE_SHOWN) {
+    Moment at = ripple_stretches[stretch].moment;
+    for (uint8_t left = ripple_stretches[stretch].frames; left != 0; left--) {
+        if (ripple_stretches[stretch].shown) {
             draw_the_ripple(g);
-            set_field_circle_radius(g, (uint8_t)(field_circle_radius(g) + growth));
+            set_field_circle_radius(g, (uint8_t)(field_circle_radius(g) + ripple_stretches[stretch].growth));
         }
         ORIGINAL_EFFECT(set_field_ripple_frames_left(g, left));
-        if (!refresh(s, refresh_site) || !call(s, wait_site, FRAME_WAIT))
+        if (!calls->refresh(ctx, at) || !calls->wait_a_frame(ctx, at))
             return false;
     }
     ORIGINAL_EFFECT(set_field_ripple_frames_left(g, 0));
     return true;
 }
 
-/* The original jumps to the frame wait at its end, which returns for it; the
- * port stops there, so it never comes back itself. */
-enum { THE_LAST_WAIT = DC_A | DC_N | DC_Z };
-
 // $C0:264F
-static bool play_the_ripple(Snes *s)
+/* The ripple, over its frames: the copy settling, then its circle opening,
+ * held and closing; the script sees it played. */
+static bool play_the_ripple(GameState *g, const EffectCalls *calls, void *ctx)
 {
-    GameState *g = state_of(s);
-    if (!draw_bg1(s, 0xC02658))
+    if (!calls->draw_bg1(ctx, RIPPLE_BEGINS))
         return false;
     field_put_the_layer_at_its_start(g, FIELD_BG2);
     field_put_the_layer_at_its_start(g, FIELD_BG3);
-    if (!refresh(s, 0xC02662))
+    if (!calls->refresh(ctx, RIPPLE_BEGINS))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG2);
     ripple_begins(g);
     ORIGINAL_EFFECT(set_field_ripple_frames_left(g, RIPPLE_SETTLES));
-    if (!call(s, 0xC02688, FRAME_WAIT))
+    if (!calls->wait_a_frame(ctx, RIPPLE_BEGINS))
         return false;
-    if (!ripple_stretch(s, RIPPLE_SETTLES, CIRCLE_NOT_SHOWN, 0, 0xC0268B, 0xC0268E))
-        return false;
-    ripple_circle_opens(g);
-    if (!ripple_stretch(s, RIPPLE_GROWS, CIRCLE_SHOWN, RIPPLE_GROWTH, 0xC026C1, 0xC026C4) ||
-        !ripple_stretch(s, RIPPLE_HOLDS, CIRCLE_SHOWN, 0, 0xC026D4, 0xC026D7) ||
-        !ripple_stretch(s, RIPPLE_SHRINKS, CIRCLE_SHOWN, -RIPPLE_GROWTH, 0xC026EB, 0xC026EE))
-        return false;
+    for (unsigned stretch = 0; stretch < RIPPLE_STRETCHES; stretch++) {
+        if (ripple_stretches[stretch].moment == RIPPLE_GROWING)
+            ripple_circle_opens(g);
+        if (!ripple_stretch(g, stretch, calls, ctx))
+            return false;
+    }
     ripple_ends(g);
-    if (!refresh(s, 0xC0271F))
-        return false;
-    m_stop_at_own(s, FRAME_WAIT, THE_LAST_WAIT);
-    return false;
+    return calls->refresh(ctx, RIPPLE_ENDS) && calls->wait_a_frame(ctx, RIPPLE_ENDS);
 }
 
-/* The steps that call the original's routines (the curtain, the close, the
- * ripple) run as the original's table runs them, from its JSR. */
-enum { STEP_TABLE_SITE = 0xC021EA };
+/* ---- A frame's step ----------------------------------------------------------------------------- */
 
-/* As C, where the step is the effect's own; false where it sweeps a
- * curtain, closes the field into a scene or plays the ripple, which only the
- * machine runs yet (the program goes no further). */
+// $C0:21E1
+/* False where it went no further: a call the machine's yet, or the field's
+ * close, which ends it. */
+static bool move_on_a_step(GameState *g, Platform *pf, const EffectCalls *calls, void *ctx)
+{
+    switch (field_screen_effect_now(g)) {
+    case HOLE_OPENING: circle_opens_a_step(g, &HOLE_CIRCLE); return true;
+    case HOLE_CLOSING: circle_closes_a_step(g, &HOLE_CIRCLE, hole_gone); return true;
+    case OVAL_OPENING: circle_opens_a_step(g, &OVAL_CIRCLE); return true;
+    case OVAL_CLOSING: circle_closes_a_step(g, &OVAL_CIRCLE, oval_gone); return true;
+    case OVAL_GONE: oval_gone(g); return true;
+    case SEARCHLIGHT: searchlight_step(g); return true;
+    case BG3_IN_A_CIRCLE:
+    case BG3_IN_A_CIRCLE_SECOND: bg3_in_a_circle(g); return true;
+    case BG3_BLENDED_ROUND_A_CIRCLE:
+    case BG3_BLENDED_ROUND_A_CIRCLE_SECOND: bg3_blended_round_a_circle(g); return true;
+    case CURTAIN:
+        if (!curtain_sweeping(g)) {
+            curtain_done(g);
+            return true;
+        }
+        return curtain_a_frame(g, calls, ctx);
+    case ON_TO_THE_SCENE: return close_into_the_scene(g, pf, calls, ctx);
+    case RIPPLE: return play_the_ripple(g, calls, ctx);
+    default: return true;   /* none, or the ripple played and waiting to be seen */
+    }
+}
+
+/* Whether this frame's step calls on the field's other work. */
+static bool calls_on_the_field(const GameState *g)
+{
+    switch (field_screen_effect_now(g)) {
+    case CURTAIN: return curtain_sweeping(g);
+    case ON_TO_THE_SCENE:
+    case RIPPLE: return true;
+    default: return false;
+    }
+}
+
+/* The guard's state half: an effect the original's table has (past them it
+ * runs into its error trap); and for the searchlight, a shape
+ * field/window_shape.c draws as the original does. */
+static bool effect_fits(const GameState *g)
+{
+    ScreenEffect effect = field_screen_effect_now(g);
+    return effect < SCREEN_EFFECTS && (effect != SEARCHLIGHT || field_window_shape_starts_on_a_line(g));
+}
+
+/* ---- As C ---------------------------------------------------------------------------------------- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} AsC;
+
+/* The curtain's step, scene/curtain.c's; its stir takes the X the
+ * original's dispatch hands it, the curtain's place in the table, doubled. */
+enum { CURTAIN_STEP = 0xC301E4, CURTAIN_INDEX = (CURTAIN - 1) * 2 };
+
+static bool sweep_the_curtain(void *ctx)
+{
+    AsC *c = ctx;
+    GameState *g = c->game;
+    if (!scene_curtain_table_fits(scene_curtain_table_bank(g), scene_curtain_table(g))) {
+        program_needs_the_machine(g, CURTAIN_STEP, "a curtain whose table the port doesn't sweep");
+        return false;
+    }
+    TIMED_AS(g, CURTAIN_STEP, scene_curtain_step(g, c->pf, CURTAIN_INDEX));
+    return true;
+}
+
+static bool draw_bg1(void *ctx, Moment at)
+{
+    (void)at;
+    return field_layer_drawn_at_the_load(((AsC *)ctx)->game, FIELD_BG1);
+}
+
+static bool refresh_the_effects(void *ctx, Moment at)
+{
+    (void)at;
+    AsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(c->game));
+    return done;
+}
+
+static bool wait_for_the_frame(void *ctx, Moment at)
+{
+    (void)at;
+    AsC *c = ctx;
+    TIMED_AS(c->game, FIELD_FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
+    return true;
+}
+
+static bool put_the_field_aside(void *ctx)
+{
+    AsC *c = ctx;
+    FieldBattleStart start = FIELD_BATTLE_START_STOPPED;
+    TIMED_AS(c->game, FIELD_BATTLE_BEGINS_ENTRY, start = field_battle_set_up(c->game, c->pf));
+    return start != FIELD_BATTLE_START_STOPPED;
+}
+
+static void start_the_scene(void *ctx) { field_closed_into_the_scene(((AsC *)ctx)->game); }
+
 enum { SCREEN_EFFECT = 0xC021E1 };
 
-bool field_screen_effect_moved_on(GameState *g)
+bool field_screen_effect_moved_on(GameState *g, Platform *pf)
 {
-    if (move_on_a_step(g) == STEP_DONE)
-        return true;
-    program_needs_the_machine(g, SCREEN_EFFECT, "a screen effect's curtain, its close into a scene or its ripple");
-    return false;
+    static const EffectCalls as_c = { sweep_the_curtain, draw_bg1, refresh_the_effects, wait_for_the_frame, put_the_field_aside,
+                                      start_the_scene };
+    if (!effect_fits(g)) {
+        program_needs_the_machine(g, SCREEN_EFFECT, "a screen effect the port doesn't draw");
+        return false;
+    }
+    AsC c = { g, pf };
+    return move_on_a_step(g, pf, &as_c, &c);
 }
+
+/* ---- On the machine ------------------------------------------------------------------------------
+ *
+ * Each call is the original's from its own site, on the field's page; where
+ * a call doesn't come back as the original's does, the port stops there. */
+
+enum {
+    CURTAIN_SWEEP = 0xC3000E,     /* the scene engine's jump to the curtain's step */
+    DRAW_BG1 = 0xC075E9,          /* BG1's tiles drawn into the staging, on the layers' page */
+};
+enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+/* The curtain's routine saves every register and its flags and puts them
+ * back, and reads none but X, which it saves on the stack where the analysis
+ * counts it read: the port hands it the original's. */
+enum { CURTAIN_READS_X = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+/* The original's calls at each moment: BG1's drawing, the refresh and the
+ * wait. The ripple's last wait is a jump, which returns for the step. */
+static const struct {
+    uint32_t draw_bg1, refresh, wait;
+} calls_at[MOMENTS] = {
+    [CLOSE_BEGINS] = { 0xC02617, 0xC0261E, 0xC02625 },
+    [CLOSE_ENDS] = { 0, 0xC0262B, 0xC0262E },
+    [RIPPLE_BEGINS] = { 0xC02658, 0xC02662, 0xC02688 },
+    [RIPPLE_SETTLING] = { 0, 0xC0268B, 0xC0268E },
+    [RIPPLE_GROWING] = { 0, 0xC026C1, 0xC026C4 },
+    [RIPPLE_HOLDING] = { 0, 0xC026D4, 0xC026D7 },
+    [RIPPLE_SHRINKING] = { 0, 0xC026EB, 0xC026EE },
+    [RIPPLE_ENDS] = { 0, 0xC0271F, 0 },
+};
+
+// $C0:22D8
+static bool sweep_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    s->cpu.x = CURTAIN_INDEX;
+    return bridge_call_long(s, 0xC022FA, CURTAIN_SWEEP, CURTAIN_READS_X, on_the_field_page(s, false));
+}
+
+static bool draw_bg1_on_the_machine(void *ctx, Moment at)
+{
+    return field_run_on_page(ctx, calls_at[at].draw_bg1, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load,
+                             FIELD_LAYERS_PAGE);
+}
+
+static bool refresh_on_the_machine(void *ctx, Moment at)
+{
+    Snes *s = ctx;
+    return field_run(s, calls_at[at].refresh, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects,
+                     on_the_field_page(s, false));
+}
+
+/* At the ripple's end the port stops at the wait the original jumps to. */
+enum { THE_LAST_WAIT = DC_A | DC_N | DC_Z };
+
+static bool wait_on_the_machine(void *ctx, Moment at)
+{
+    Snes *s = ctx;
+    if (at == RIPPLE_ENDS) {
+        m_stop_at_own(s, FIELD_FRAME_WAIT, THE_LAST_WAIT);
+        return false;
+    }
+    return bridge_call(s, calls_at[at].wait, FIELD_FRAME_WAIT, READS_NOTHING, on_the_field_page(s, false));
+}
+
+static bool battle_set_up_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run(s, 0xC02628, FIELD_BATTLE_BEGINS_ENTRY, READS_NOTHING, field_battle_begins,
+                     on_the_field_page(s, false));
+}
+
+/* The original starts the scene on a fresh stack ($C0:2643), which is its
+ * own entry. */
+enum { THE_SCENE_STARTS = 0xC02643, AS_THE_SCENE_STARTS = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+
+static void the_scene_starts_on_the_machine(void *ctx) { m_stop_at_own(ctx, THE_SCENE_STARTS, AS_THE_SCENE_STARTS); }
+
+static bool step_on_the_machine(Snes *s)
+{
+    static const EffectCalls on_the_machine = { sweep_on_the_machine,   draw_bg1_on_the_machine,
+                                                refresh_on_the_machine, wait_on_the_machine,
+                                                battle_set_up_on_the_machine, the_scene_starts_on_the_machine };
+    return move_on_a_step(state_of(s), m_platform(s), &on_the_machine, s);
+}
+
+/* The steps that call on the field run as the original's table runs them,
+ * from its JSR. */
+enum { STEP_TABLE_SITE = 0xC021EA };
 
 /* On the field's page, with 8-bit A and 16-bit index registers. A, X, Y and
  * the flags but V are dead after it; V is as it came, but for the
@@ -672,31 +828,23 @@ void field_move_screen_effect_on(Snes *s)
 {
     GameState *g = state_of(s);
     bool searchlight = field_screen_effect_now(g) == SEARCHLIGHT;
-    switch (move_on_a_step(g)) {
-    case STEP_SWEEPS_THE_CURTAIN:
-        if (!field_run_table_step(s, STEP_TABLE_SITE, sweep_the_curtain))
-            return;
-        break;
-    case STEP_CLOSES_THE_FIELD: field_run_table_step(s, STEP_TABLE_SITE, close_into_the_scene); return;
-    case STEP_PLAYS_THE_RIPPLE: field_run_table_step(s, STEP_TABLE_SITE, play_the_ripple); return;
-    default: break;
-    }
+    bool back = calls_on_the_field(g) ? field_run_table_step(s, STEP_TABLE_SITE, step_on_the_machine)
+                                      : step_on_the_machine(s);
+    if (!back)
+        return;
     if (searchlight)
         m_set_flag(s, CPU_FLAG_V, field_searchlight_overflow(g));
     m_rts(s);
 }
 
-/* The guard: on the field's page with the data bank $00; an effect the
- * original's table has (past them it runs into its error trap); and for the
- * searchlight, a shape field/window_shape.c draws as the original does. */
+/* The guard: on the field's page with the data bank $00, and its state
+ * half. */
 bool field_screen_effect_can_move_on(Snes *s)
 {
     if (!field_on_page_bank_zero(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    ScreenEffect effect = field_screen_effect_now(g);
-    bool ok = effect < SCREEN_EFFECTS && (effect != SEARCHLIGHT || field_window_shape_starts_on_a_line(g));
+    bool ok = effect_fits(state_of(s));
     vars_peek(false);
     return ok;
 }

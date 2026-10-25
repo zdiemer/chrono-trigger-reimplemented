@@ -628,9 +628,14 @@ static bool every_slot_fits(const GameState *g)
     return true;
 }
 
+/* The check takes none of the animations' time: the scene's tasks run it on
+ * the machine too, where its reads would be charged as theirs. */
 bool palette_animated_as_c(GameState *g)
 {
-    if (!every_slot_fits(g)) {
+    vars_peek(true);
+    bool fits = every_slot_fits(g);
+    vars_peek(false);
+    if (!fits) {
         program_needs_the_machine(g, 0xFDE39C, "palette animations the port doesn't take");
         return false;
     }

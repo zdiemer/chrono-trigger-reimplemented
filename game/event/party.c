@@ -772,18 +772,23 @@ void event_party_back_together(Snes *s)
 /* Its guard: on the field's page; the members there are objects the tables
  * hold at levels the places hold, and the cell the original names them in
  * holds only their offsets (it adds its whole word to a place's). */
-bool event_party_back_can_run(Snes *s)
+bool party_can_come_back_together(const GameState *g)
 {
-    if (!field_on_page_low_bank(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
     bool ok = field_leader_contact_high(g) == 0;
     for (PartyPlace place = PARTY_FIRST_MEMBER; place < PARTY_PLACES && ok && place_taken(g, place); place++) {
         FieldLink link = party_member_link(g, place);
         ok = field_link_names_object(link) &&
              event_object_call_state_level(g, field_linked_object(link)) < EVENT_LEVELS;
     }
+    return ok;
+}
+
+bool event_party_back_can_run(Snes *s)
+{
+    if (!field_on_page_low_bank(s))
+        return false;
+    vars_peek(true);
+    bool ok = party_can_come_back_together(state_of(s));
     vars_peek(false);
     return ok;
 }
