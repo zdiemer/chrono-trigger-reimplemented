@@ -124,22 +124,22 @@ static bool fade_in_task(GameState *g, FadeWait first_frame, FadeWait between, v
 
 /* ---- As C, from inside a task (menu/tasks.c's coroutines) ----------------------------------- */
 
-static bool wait_as_c(void *ctx)
+static bool wait(void *ctx)
 {
-    menu_task_waits_as_c(ctx, FRAMES_A_STEP);
+    menu_task_waits(ctx, FRAMES_A_STEP);
     return true;
 }
 
-void menu_fade_out_as_c(GameState *g)
+void menu_fade_to_black(GameState *g)
 {
-    if (fade_out(g, wait_as_c, g, true).end == FADE_AT_BLACK)
-        menu_task_waits_as_c(g, 1);
+    if (fade_out(g, wait, g, true).end == FADE_AT_BLACK)
+        menu_task_waits(g, 1);
 }
 
-void menu_fade_in_task_as_c(GameState *g, Platform *pf)
+void menu_fade_in_task(GameState *g, Platform *pf)
 {
     (void)pf;
-    (void)fade_in_task(g, wait_as_c, wait_as_c, g);
+    (void)fade_in_task(g, wait, wait, g);
 }
 
 /* ---- On the machine ------------------------------------------------------------------------ */
@@ -218,7 +218,7 @@ static bool first_frame_on_the_machine(void *ctx)
     return true;
 }
 
-void menu_fade_in_task(Snes *s)
+void menu_fade_in_task_entry(Snes *s)
 {
     if (fade_in_task(state_of(s), first_frame_on_the_machine, wait_on_the_machine, s))
         menu_go_on_in(s, THE_TASK_ENDS, menu_task_ends, ENDING_READS_NOTHING);

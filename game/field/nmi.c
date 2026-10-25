@@ -228,7 +228,7 @@ static bool edge_upload_asked(const GameState *g, unsigned k)
     return field_layer_upload_flags(g, k / 3) & (1u << (k % 3));
 }
 
-static bool edges_as_c(const GameState *g)
+static bool edges(const GameState *g)
 {
     for (unsigned k = 0; k < FIELD_EDGE_UPLOADS; k++)
         if (edge_upload_asked(g, k) && !field_layer_edges_fit(g))
@@ -260,7 +260,7 @@ void field_vblank(GameState *g, Platform *pf)
     start_vblank(pf);
     if (field_frame_pending(g) != 0 && !work_before_the_queue(g, pf)) {
         upload_the_queue(g, pf);
-        if (!edges_as_c(g)) {
+        if (!edges(g)) {
             program_needs_the_machine(g, FIELD_VBLANK_HANDLER, "layers' edges the port doesn't upload");
             return;
         }

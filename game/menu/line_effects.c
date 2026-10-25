@@ -490,7 +490,7 @@ bool menu_curtain_can_step(Snes *s)
 /* ---- As C ------------------------------------------------------------------------------------- */
 
 /* The routines as the program calls them from a script (menu/handlers.h). */
-static bool advance_as_c(GameState *g, Platform *pf, MenuObject self, bool far)
+static bool advance_routine(GameState *g, Platform *pf, MenuObject self, bool far)
 {
     (void)pf, (void)self, (void)far;
     (void)advance_the_line_tables(g);
@@ -498,7 +498,7 @@ static bool advance_as_c(GameState *g, Platform *pf, MenuObject self, bool far)
 }
 
 #define STARTER(name, site, slot, target)                                            \
-    static bool name##_as_c(GameState *g, Platform *pf, MenuObject self, bool far) \
+    static bool name##_routine(GameState *g, Platform *pf, MenuObject self, bool far) \
     {                                                                                \
         (void)self, (void)far;                                                       \
         menu_start_line_effect(g, pf, site, slot, target);                           \
@@ -510,7 +510,7 @@ STARTER(window1_lines_3, 0xC6E45A, 1, VID_LINE_WINDOW1)
 STARTER(window2_lines, 0xC6E352, 2, VID_LINE_WINDOW2)
 STARTER(window2_lines_2, 0xC6E482, 2, VID_LINE_WINDOW2)
 
-static bool bg1_scroll_lines_as_c(GameState *g, Platform *pf, MenuObject self, bool far)
+static bool bg1_scroll_lines_routine(GameState *g, Platform *pf, MenuObject self, bool far)
 {
     (void)far;
     start_the_bg1_scroll_lines(g, pf, self);
@@ -518,7 +518,7 @@ static bool bg1_scroll_lines_as_c(GameState *g, Platform *pf, MenuObject self, b
 }
 
 #define IRIS(name, draw, slot)                                                       \
-    static bool name##_as_c(GameState *g, Platform *pf, MenuObject self, bool far) \
+    static bool name##_routine(GameState *g, Platform *pf, MenuObject self, bool far) \
     {                                                                                \
         (void)pf, (void)far;                                                         \
         draw(g, self, slot);                                                         \
@@ -529,7 +529,7 @@ IRIS(squashed_iris_2, squashed_iris, 2)
 IRIS(capsule_iris_1, capsule_iris, 1)
 IRIS(capsule_iris_2, capsule_iris, 2)
 
-static bool start_the_curtain_as_c(GameState *g, Platform *pf, MenuObject self, bool far)
+static bool start_the_curtain_routine(GameState *g, Platform *pf, MenuObject self, bool far)
 {
     (void)far;
     start_the_curtain(g, pf, self);
@@ -540,24 +540,24 @@ static bool start_the_curtain_as_c(GameState *g, Platform *pf, MenuObject self, 
  * as the interpreter's dispatch leaves it (the far call's). */
 enum { FAR_CALL_X = 2 * 0x4E, NEAR_CALL_X = 2 * 0x34 };
 
-static bool step_the_curtain_as_c(GameState *g, Platform *pf, MenuObject self, bool far)
+static bool step_the_curtain_routine(GameState *g, Platform *pf, MenuObject self, bool far)
 {
     step_the_curtain(g, pf, self, far ? FAR_CALL_X : NEAR_CALL_X);
     return true;
 }
 
 MENU_SCRIPT_ROUTINES(menu_line_effect_routines,
-    { 0xC6E568, "slot 1's values moved on", NULL, advance_as_c },
-    { 0xC6E000, "window 1's edges line by line", NULL, window1_lines_as_c },
-    { 0xC6E318, "window 1's edges line by line", NULL, window1_lines_2_as_c },
-    { 0xC6E448, "window 1's edges line by line", NULL, window1_lines_3_as_c },
-    { 0xC6E340, "window 2's edges line by line", NULL, window2_lines_as_c },
-    { 0xC6E470, "window 2's edges line by line", NULL, window2_lines_2_as_c },
-    { 0xC6E595, "the first plane's scroll line by line", NULL, bg1_scroll_lines_as_c },
-    { 0xC6E368, "a squashed iris on slot 1", squashed_iris_takes, squashed_iris_1_as_c },
-    { 0xC6E391, "a squashed iris on slot 2", squashed_iris_takes, squashed_iris_2_as_c },
-    { 0xC6E498, "a capsule iris on slot 1", capsule_iris_takes, capsule_iris_1_as_c },
-    { 0xC6E4BE, "a capsule iris on slot 2", capsule_iris_takes, capsule_iris_2_as_c },
-    { 0xC6E241, "a curtain started", curtain_takes, start_the_curtain_as_c },
-    { 0xC6E27E, "a curtain's step", curtain_step_takes, step_the_curtain_as_c },
+    { 0xC6E568, "slot 1's values moved on", NULL, advance_routine },
+    { 0xC6E000, "window 1's edges line by line", NULL, window1_lines_routine },
+    { 0xC6E318, "window 1's edges line by line", NULL, window1_lines_2_routine },
+    { 0xC6E448, "window 1's edges line by line", NULL, window1_lines_3_routine },
+    { 0xC6E340, "window 2's edges line by line", NULL, window2_lines_routine },
+    { 0xC6E470, "window 2's edges line by line", NULL, window2_lines_2_routine },
+    { 0xC6E595, "the first plane's scroll line by line", NULL, bg1_scroll_lines_routine },
+    { 0xC6E368, "a squashed iris on slot 1", squashed_iris_takes, squashed_iris_1_routine },
+    { 0xC6E391, "a squashed iris on slot 2", squashed_iris_takes, squashed_iris_2_routine },
+    { 0xC6E498, "a capsule iris on slot 1", capsule_iris_takes, capsule_iris_1_routine },
+    { 0xC6E4BE, "a capsule iris on slot 2", capsule_iris_takes, capsule_iris_2_routine },
+    { 0xC6E241, "a curtain started", curtain_takes, start_the_curtain_routine },
+    { 0xC6E27E, "a curtain's step", curtain_step_takes, step_the_curtain_routine },
 );

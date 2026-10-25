@@ -560,7 +560,7 @@ are installed, the screen goes dark, work RAM is cleared, the sound driver
 boots and the cartridge's saves are looked at. Then the field is entered at
 location 0: the location loaded (its song, tile set, map and event script),
 its sprites built afresh, its objects started with their openings and the
-map's own script run by the event engine as C (`event_runner_as_c`), its
+map's own script run by the event engine as C (`event_runner`), its
 screen set up and faded in; and its main loop runs a pass a frame -- the
 pause and the menus, the requests (a location change starts the field again
 at the new place), the leader's walk, the confirm button, the dialog
@@ -582,7 +582,7 @@ runs as C too (`overworld_runs`, `overworld/main_loop.c`): the mode starts
 (`$C2:0000`), the map is set up from its record's streams (the unpacker as
 C), and the overworld's loop runs a pass a frame, with the mode's vblank
 handler in `core/program.c`'s table: the frame sent, the input taken, and
-every object's turn (`menu_objects_run_as_c`), each handler and each
+every object's turn (`menu_objects_run`), each handler and each
 routine a command script calls a row of a C table (`menu/handlers.c`) --
 the scene's scripts on the interpreter as C, the fades, the layer over the
 map, the irises and curtains, the drifting map. The scene leaves for the
@@ -621,7 +621,10 @@ machine, the entry calls the same function; where the machine needs its
 frames and call-outs to compare a step with the original's (the budgets'
 turns, the song's calls to the driver, the pass's steps), the entry and the
 program run one sequence whose steps are callbacks, the entry's calling
-the step from the original's call. Where a step meets a state the port doesn't take
+the step from the original's call. The program's function takes the plain
+name (`field_fade_in`); where it would share a name with the machine's, the
+machine's entry is `field_fade_in_entry` (its registry name unchanged) and a
+step's machine callback is `*_on_the_machine`. Where a step meets a state the port doesn't take
 -- a guard that would hand the call to the original on the machine -- or a
 request, an event command or a menu only the machine runs yet, the program
 stops there and says which. It reports any access the host had no memory

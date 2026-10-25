@@ -19,7 +19,7 @@ void menu_send_upload_queue(GameState *g, Platform *pf);
  * where it is whole, the program going no further otherwise. */
 bool menu_upload_queue_is_whole(const GameState *g);
 bool menu_block_move_is_a_buffer(const GameState *g);
-bool menu_upload_queue_sent_as_c(GameState *g, Platform *pf);
+bool menu_upload_queue_sent(GameState *g, Platform *pf);
 void menu_send_palette(GameState *g, Platform *pf);
 
 /* Ask the next vblank to copy a per-line table into the place its channel
@@ -42,7 +42,7 @@ typedef enum { MENUS_WENT_NO_FURTHER, MENUS_CLOSED, MENUS_START_THE_GAME_AGAIN }
 MenuModeEnd menu_mode_runs(GameState *g, Platform *pf, uint8_t asked_for, uint16_t asked_with);
 void menu_vblank(GameState *g, Platform *pf);
 void menu_line(GameState *g, Platform *pf);
-void menu_close_as_c(GameState *g, Platform *pf, bool for_the_game);
+void menu_close(GameState *g, Platform *pf, bool for_the_game);
 enum { MENU_VBLANK_HANDLER = 0xC2840E, MENU_LINE_HANDLER = 0xC28472 };
 
 /* The mode on the machine */
@@ -50,7 +50,7 @@ void menu_mode_enter(Snes *s);
 void menu_mode_start(Snes *s);
 void menu_mode_return(Snes *s);
 void menu_mode_restart(Snes *s);
-void menu_close(Snes *s);
+void menu_close_entry(Snes *s);
 void menu_close_for_the_game(Snes *s);
 void menu_nmi_enter(Snes *s);
 void menu_nmi_work(Snes *s);

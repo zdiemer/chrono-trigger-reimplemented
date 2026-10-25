@@ -116,7 +116,7 @@ MENU_SCRIPT_ENTRIES(MENU_SCRIPT_DECLARE_ENTRY)
 #undef MENU_SCRIPT_DECLARE_ENTRY
 
 /* The interpreter ($C2:0F63), run as a slot's handler, and its guard. */
-void menu_run_object_script(Snes *s);
+void menu_run_object_script_entry(Snes *s);
 bool menu_object_script_runs(Snes *s);
 
 #endif

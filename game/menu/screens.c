@@ -194,19 +194,19 @@ bool menu_run_the_screen_s_step(Snes *s) { return run_the_step(s, running_step(s
 static const struct {
     uint16_t routine;
     NamingStep step;
-} steps_as_c[] = {
+} steps[] = {
     { 0xE1ED, NAMING_OPEN_THE_SCREEN }, { 0xE21E, NAMING_NAME_THE_CHARACTER }, { 0xE236, NAMING_CHOOSE_BATTLE_MODE },
     { 0xE201, NAMING_OPEN_THE_NAMING }, { 0xE209, NAMING_WAIT_TO_NAME },
 };
 
 /* As C, from inside the main task, timed as the step's own routine. */
-bool menu_screen_step_as_c(GameState *g, Platform *pf)
+bool menu_run_the_screen_step(GameState *g, Platform *pf)
 {
     const Step *step = running_step(g);
-    for (unsigned i = 0; step && i < sizeof steps_as_c / sizeof steps_as_c[0]; i++)
-        if (steps_as_c[i].routine == step->routine) {
+    for (unsigned i = 0; step && i < sizeof steps / sizeof steps[0]; i++)
+        if (steps[i].routine == step->routine) {
             bool back = false;
-            TIMED_AS(g, MENUS_BANK | step->routine, back = menu_naming_step_as_c(g, pf, steps_as_c[i].step));
+            TIMED_AS(g, MENUS_BANK | step->routine, back = menu_naming_step(g, pf, steps[i].step));
             return back;
         }
     program_needs_the_machine(g, step ? MENUS_BANK | step->routine : THE_JUMP_TO_THE_STEP,

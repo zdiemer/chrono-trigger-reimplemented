@@ -103,7 +103,7 @@ void field_put_aside_for_a_menu(Snes *s);
 void field_set_up_after_a_menu(Snes *s);
 /* The same as C ($C0:01A5): false where a step is the machine's yet, the
  * program going no further there. */
-bool field_set_up_again_as_c(GameState *g, Platform *pf);
+bool field_set_up_again(GameState *g, Platform *pf);
 /* Whether the party's places are ones the field keeps for a menu as the port
  * does: the leader an object or none, the members objects the tables hold or
  * none (the put-aside's guard). */

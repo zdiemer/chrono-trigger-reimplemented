@@ -201,7 +201,7 @@ static void finish_the_palace(GameState *g, Platform *pf)
 
     TIMED_AS(g, 0xFDE275, palette_stop_animations(g));
     fade_the_palace(g, false, EVERY_FRAME, AS_LOADED, AS_LOADED);
-    TIMED_AS(g, 0xFDE39C, (void)palette_animated_as_c(g));
+    TIMED_AS(g, 0xFDE39C, (void)palette_animated(g));
     set_scene_curtain_table_bank(g, SCENE_LOWER_WORK_RAM);
     set_scene_curtain_table(g, CURTAIN_TABLE);
     set_scene_curtain_steps(g, 0);

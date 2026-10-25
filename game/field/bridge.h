@@ -145,7 +145,7 @@ bool field_rows_are_exact(const GameState *g, unsigned obj);
 /* The rows' steps as C, timed as the routines they are, where the rows' links
  * are ones the entries' guards take; false where the caller must call the
  * entry instead (field/object_update.c, the object update and the view). */
-bool field_rows_step_as_c(Snes *s, FieldObject obj, bool join);
+bool field_rows_step(Snes *s, FieldObject obj, bool join);
 enum { FIELD_LEAVE_ROW_ENTRY = 0xC0A98A, FIELD_JOIN_ROW_ENTRY = 0xC0A9CD };
 
 /* The object update's steps that are entries of their own, for the update to

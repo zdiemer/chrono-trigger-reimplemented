@@ -553,7 +553,7 @@ static ScriptEnd run_the_running_object_s_script(Snes *s)
 
 // $C2:0F63
 /* The interpreter as a slot's handler. */
-void menu_run_object_script(Snes *s)
+void menu_run_object_script_entry(Snes *s)
 {
     if (run_the_running_object_s_script(s) != SCRIPT_GAVE_BACK)
         m_rts(s);

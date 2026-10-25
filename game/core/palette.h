@@ -48,7 +48,7 @@ void palette_animate_a_frame(GameState *g);
 uint16_t palette_animations_leave(void);
 /* The same as the program runs it: where the guard's state half doesn't take
  * the slots, the program goes no further (false). */
-bool palette_animated_as_c(GameState *g);
+bool palette_animated(GameState *g);
 
 void palette_animate(Snes *s);
 void palette_clear_animations(Snes *s);

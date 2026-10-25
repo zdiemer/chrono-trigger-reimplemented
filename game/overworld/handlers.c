@@ -330,21 +330,21 @@ typedef struct {
     MenuObject self;
 } ScriptOf;
 
-static WalkerScriptEnd walker_script_as_c(void *ctx, WalkerScriptRun run)
+static WalkerScriptEnd walker_script(void *ctx, WalkerScriptRun run)
 {
     (void)run;
     ScriptOf *o = ctx;
-    switch (menu_run_object_script_as_c(o->game, o->pf, o->self)) {
+    switch (menu_run_object_script(o->game, o->pf, o->self)) {
     case MENU_TURN_DONE: return WALKER_SCRIPT_DONE;
     case MENU_TURN_GOES_ON: return WALKER_SCRIPT_WAITS;
     default: return WALKER_SCRIPT_HANDED_OVER;
     }
 }
 
-static ScriptEnd epoch_scene_as_c(void *ctx)
+static ScriptEnd epoch_scene(void *ctx)
 {
     ScriptOf *o = ctx;
-    switch (menu_run_object_script_as_c(o->game, o->pf, o->self)) {
+    switch (menu_run_object_script(o->game, o->pf, o->self)) {
     case MENU_TURN_DONE: return SCRIPT_DONE;
     case MENU_TURN_GOES_ON: return SCRIPT_WAITING;
     default: return SCRIPT_GAVE_BACK;
@@ -356,21 +356,21 @@ static MenuTurn goes_on_unless(bool went_no_further) { return went_no_further ? 
 static MenuTurn lead(GameState *g, Platform *pf, MenuObject self)
 {
     ScriptOf o = { g, pf, self };
-    WalkerScripts scripts = { walker_script_as_c, &o };
+    WalkerScripts scripts = { walker_script, &o };
     return goes_on_unless(!overworld_lead(g, self, &scripts));
 }
 
 static MenuTurn follow(GameState *g, Platform *pf, MenuObject self)
 {
     ScriptOf o = { g, pf, self };
-    WalkerScripts scripts = { walker_script_as_c, &o };
+    WalkerScripts scripts = { walker_script, &o };
     return goes_on_unless(!overworld_follow(g, self, &scripts));
 }
 
 static MenuTurn fly_the_epoch(GameState *g, Platform *pf, MenuObject self)
 {
     ScriptOf o = { g, pf, self };
-    EpochScripts scripts = { epoch_scene_as_c, &o };
+    EpochScripts scripts = { epoch_scene, &o };
     return goes_on_unless(!overworld_fly_the_epoch(g, self, &scripts));
 }
 

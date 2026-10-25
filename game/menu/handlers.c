@@ -76,13 +76,13 @@ static bool pass_on_sound(void *ctx)
     return true;
 }
 
-static const MenuScriptRoutine *script_routine_as_c(uint32_t routine);
+static const MenuScriptRoutine *script_routine(uint32_t routine);
 
 static bool call_routine(void *ctx, uint32_t routine, bool far)
 {
     ScriptAsC *c = ctx;
     uint32_t at = far ? routine & 0xFFFFFFu : HANDLERS_BANK | (uint16_t)routine;
-    const MenuScriptRoutine *r = script_routine_as_c(at);
+    const MenuScriptRoutine *r = script_routine(at);
     MenuObject self = menu_object_running(c->game);
     if (!r || (r->takes && !r->takes(c->game, self))) {
         program_needs_the_machine(c->game, at, r ? r->name : "a routine a script calls with no C");
@@ -120,7 +120,7 @@ static ScriptFlow run_a_command(void *ctx, MenuObject self, uint32_t at)
     return f;
 }
 
-MenuTurn menu_run_object_script_as_c(GameState *g, Platform *pf, MenuObject self)
+MenuTurn menu_run_object_script(GameState *g, Platform *pf, MenuObject self)
 {
     ScriptAsC c = { g, pf, 0, { 0 } };
     c.services = (ScriptServices){ scroll_map, redraw_map, pass_on_sound, call_routine, set_console_byte, &c };
@@ -138,7 +138,7 @@ MenuTurn menu_run_object_script_as_c(GameState *g, Platform *pf, MenuObject self
 static MenuTurn run_the_script(GameState *g, Platform *pf, MenuObject self)
 {
     MenuTurn t = MENU_TURN_WENT_NO_FURTHER;
-    TIMED_AS(g, HANDLERS_BANK | MENU_SCRIPT_HANDLER, t = menu_run_object_script_as_c(g, pf, self));
+    TIMED_AS(g, HANDLERS_BANK | MENU_SCRIPT_HANDLER, t = menu_run_object_script(g, pf, self));
     return t;
 }
 
@@ -190,7 +190,7 @@ MENU_HANDLERS(menu_handlers,
 static const MenuHandlers *const HANDLER_TABLES[] = { &menu_handlers, &overworld_handlers };
 enum { HANDLER_TABLES_COUNT = sizeof HANDLER_TABLES / sizeof HANDLER_TABLES[0] };
 
-const MenuHandler *menu_handler_as_c(uint16_t handler)
+const MenuHandler *menu_handler(uint16_t handler)
 {
     for (unsigned t = 0; t < HANDLER_TABLES_COUNT; t++)
         for (unsigned i = 0; i < HANDLER_TABLES[t]->count; i++)
@@ -209,7 +209,7 @@ static const MenuScriptRoutines *const ROUTINE_TABLES[] = {
 };
 enum { ROUTINE_TABLES_COUNT = sizeof ROUTINE_TABLES / sizeof ROUTINE_TABLES[0] };
 
-static const MenuScriptRoutine *script_routine_as_c(uint32_t routine)
+static const MenuScriptRoutine *script_routine(uint32_t routine)
 {
     for (unsigned t = 0; t < ROUTINE_TABLES_COUNT; t++)
         for (unsigned i = 0; i < ROUTINE_TABLES[t]->count; i++)

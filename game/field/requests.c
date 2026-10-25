@@ -242,7 +242,7 @@ enum { FIELD_STARTS_AGAIN = 0xC00CC0, AS_THE_FIELD_STARTS = DC_A | DC_X | DC_Y |
 // $C0:0C8F
 /* A step of the fade a frame; dark, the change made. False where the port
  * has handed the field's new start to the original. */
-static bool change_location(Snes *s)
+static bool change_location_on_the_machine(Snes *s)
 {
     GameState *g = state_of(s);
     if (field_dims_a_step(g))
@@ -436,7 +436,7 @@ typedef struct {
     Platform *pf;
 } TileCopyAsC;
 
-static bool tile_copy_call_as_c(void *ctx, TileCopyCall call)
+static bool tile_copy_call(void *ctx, TileCopyCall call)
 {
     TileCopyAsC *c = ctx;
     GameState *g = c->game;
@@ -455,7 +455,7 @@ static bool tile_copy_call_as_c(void *ctx, TileCopyCall call)
         }
         TIMED_AS(g, COPY_TILES, map_copy_tiles(g));
         return true;
-    case TC_PALETTES: TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated_as_c(g)); return done;
+    case TC_PALETTES: TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g)); return done;
     case TC_DRAW_BG1: return field_layer_drawn_at_the_load(g, FIELD_BG1);
     case TC_DRAW_BG2: return field_layer_drawn_at_the_load(g, FIELD_BG2);
     case TC_DRAW_BG3: return field_layer_drawn_at_the_load(g, FIELD_BG3);
@@ -567,7 +567,7 @@ static bool answer_requests(Snes *s)
 {
     GameState *g = state_of(s);
     if (asked(g, FIELD_REQUEST_LOCATION_CHANGE))
-        return change_location(s);
+        return change_location_on_the_machine(s);
     if (asked(g, FIELD_REQUEST_MENUS))
         return field_open_script_menu(s);
     if (asked(g, FIELD_REQUEST_STEP_EVENT) && !answer_step_event(s))
@@ -596,7 +596,7 @@ static const struct {
 };
 
 // $C0:0C8F
-static FieldPass change_location_as_c(GameState *g, Platform *pf)
+static FieldPass change_location(GameState *g, Platform *pf)
 {
     if (field_dims_a_step(g))
         return FIELD_PASS_GOES_ON;
@@ -612,7 +612,7 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
     if (field_requests(g) == 0)
         return FIELD_PASS_GOES_ON;
     if (asked(g, FIELD_REQUEST_LOCATION_CHANGE))
-        return change_location_as_c(g, pf);
+        return change_location(g, pf);
     if (asked(g, FIELD_REQUEST_MENUS))
         return field_script_menu_opened(g, pf);
     for (unsigned i = 0; i < sizeof only_the_machines / sizeof only_the_machines[0]; i++)
@@ -622,7 +622,7 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
         }
     if (asked(g, FIELD_REQUEST_TILE_COPY)) {
         TileCopyAsC c = { g, pf };
-        return copy_the_tiles(g, tile_copy_call_as_c, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
+        return copy_the_tiles(g, tile_copy_call, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
     }
     if (asked(g, FIELD_REQUEST_BATTLE)) {
         program_needs_the_machine(g, 0xC0188C, "a battle");

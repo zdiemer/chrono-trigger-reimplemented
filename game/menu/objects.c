@@ -252,12 +252,12 @@ typedef struct {
  * guard's state half takes the object; any other, or one that leaves the
  * running object elsewhere than a slot, is the machine's yet, and the
  * program goes no further there. */
-static bool turn_as_c(void *ctx, uint16_t address, uint16_t handler, bool *done)
+static bool turn(void *ctx, uint16_t address, uint16_t handler, bool *done)
 {
     TurnsAsC *c = ctx;
     GameState *g = c->game;
     MenuObject self = menu_object_at_address(address);
-    const MenuHandler *h = menu_handler_as_c(handler);
+    const MenuHandler *h = menu_handler(handler);
     if (!h || !h->run) {
         program_needs_the_machine(g, HANDLERS_BANK | handler, h ? h->name : "an object's handler with no C");
         return false;
@@ -278,10 +278,10 @@ static bool turn_as_c(void *ctx, uint16_t address, uint16_t handler, bool *done)
     return true;
 }
 
-bool menu_objects_run_as_c(GameState *g, Platform *pf)
+bool menu_objects_run(GameState *g, Platform *pf)
 {
     TurnsAsC c = { g, pf };
-    return run_the_objects(g, turn_as_c, &c);
+    return run_the_objects(g, turn, &c);
 }
 
 /* ---- On the machine ---- */

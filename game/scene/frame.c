@@ -341,7 +341,7 @@ bool scene_pause_is_a_switch(Snes *s)
 
 /* Entered with 16-bit index registers; back, the callers read A's high byte and
  * the carry as the original leaves them. */
-void scene_frame_work(Snes *s)
+void scene_frame_work_entry(Snes *s)
 {
     if (frame_work(s))
         m_rtl(s);
@@ -691,7 +691,7 @@ static void as_the_list_calls(Snes *s, SceneTaskList list, SceneTask task)
 
 /* A task the port has as C runs where the program's code for it is the code
  * the port stands for, in binary mode, as every list runs. */
-static bool runs_as_c(Snes *s, const SceneTaskPort *port)
+static bool runs(Snes *s, const SceneTaskPort *port)
 {
     return port && !m_flag(s, CPU_FLAG_D) && port->present(s);
 }
@@ -703,7 +703,7 @@ static bool runs_as_c(Snes *s, const SceneTaskPort *port)
 static TaskEnd run_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask task)
 {
     const SceneTaskPort *port = port_of(task, list);
-    if (!runs_as_c(s, port))
+    if (!runs(s, port))
         return run_the_original_task(s, list, slot, task);
     GameState *g = state_of(s);
     TaskEnd end = task_goes_on();
@@ -791,7 +791,7 @@ void scene_task_alone(Snes *s, const SceneTaskPort *port)
 /* ---- The frame as C, with no machine ------------------------------------------------------------ */
 
 /* A program's routine on a list, as C where its row has it so. */
-static bool program_routine_as_c(GameState *g, Platform *pf, SceneTask task)
+static bool program_routine(GameState *g, Platform *pf, SceneTask task)
 {
     int row = machine_task_row(task);
     if (row >= 0 && machine_tasks[row].as_c)
@@ -802,7 +802,7 @@ static bool program_routine_as_c(GameState *g, Platform *pf, SceneTask task)
 
 /* A list's tasks in order, the list read again after each, which can change
  * it; false where a task is the machine's yet. */
-static bool run_tasks_as_c(GameState *g, Platform *pf, SceneTaskList list)
+static bool run_tasks(GameState *g, Platform *pf, SceneTaskList list)
 {
     unsigned count = list_length(list);
     for (unsigned slot = 0; slot < count; slot++) {
@@ -819,7 +819,7 @@ static bool run_tasks_as_c(GameState *g, Platform *pf, SceneTaskList list)
             continue;
         }
         bool done = false;
-        TIMED_AS(g, PROGRAM_BANK | task, done = program_routine_as_c(g, pf, task));
+        TIMED_AS(g, PROGRAM_BANK | task, done = program_routine(g, pf, task));
         if (!done)
             return false;
     }
@@ -827,10 +827,10 @@ static bool run_tasks_as_c(GameState *g, Platform *pf, SceneTaskList list)
 }
 
 // $C3:08D0
-bool scene_frame_work_as_c(GameState *g, Platform *pf)
+bool scene_frame_work(GameState *g, Platform *pf)
 {
     (void)begin_frame(g, pf);
-    if (!is_paused(g) && !run_tasks_as_c(g, pf, SCENE_VBLANK_TASKS))
+    if (!is_paused(g) && !run_tasks(g, pf, SCENE_VBLANK_TASKS))
         return false;
     after_vblank_tasks(g, pf);
     switch (read_controller(g, pf)) {
@@ -845,7 +845,7 @@ bool scene_frame_work_as_c(GameState *g, Platform *pf)
     }
     if (is_paused(g))
         dim_for_pause(g, pf);
-    else if (!run_tasks_as_c(g, pf, SCENE_FRAME_TASKS))
+    else if (!run_tasks(g, pf, SCENE_FRAME_TASKS))
         return false;
     install_handler(g, FRAME_HANDLER);
     return true;
@@ -855,7 +855,7 @@ bool scene_frame_work_as_c(GameState *g, Platform *pf)
 void scene_vblank(GameState *g, Platform *pf)
 {
     bool done = false;
-    TIMED_AS(g, 0xC308D0, done = scene_frame_work_as_c(g, pf));
+    TIMED_AS(g, 0xC308D0, done = scene_frame_work(g, pf));
     uint8_t song;
     if (!done || !song_to_send(g, &song))
         return;
@@ -874,12 +874,12 @@ void scene_vblank_while_working(GameState *g, Platform *pf)
 
 /* The frame's tasks, from the copy of the list the frame's work made, each
  * called with 16-bit A. */
-static void run_tasks(Snes *s, SceneTaskList list) { run_tasks_from(s, list, 0); }
+static void run_tasks_on_the_machine(Snes *s, SceneTaskList list) { run_tasks_from(s, list, 0); }
 
-void scene_run_frame_tasks(Snes *s) { run_tasks(s, SCENE_FRAME_TASKS); }
+void scene_run_frame_tasks(Snes *s) { run_tasks_on_the_machine(s, SCENE_FRAME_TASKS); }
 
 /* The vblank tasks, each called with 8-bit A and the direct page in A. */
-void scene_run_vblank_tasks(Snes *s) { run_tasks(s, SCENE_VBLANK_TASKS); }
+void scene_run_vblank_tasks(Snes *s) { run_tasks_on_the_machine(s, SCENE_VBLANK_TASKS); }
 
 // $7E:399B, $7E:39D2
 /* A list going on after a task it called came back to it itself, frames

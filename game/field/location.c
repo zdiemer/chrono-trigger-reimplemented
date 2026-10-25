@@ -372,7 +372,7 @@ static bool start_the_location_song(GameState *g, Platform *pf, DriverCameBack b
     return back(ctx, SONG_RETURNS);
 }
 
-static bool came_back_as_c(void *ctx, uint32_t returns)
+static bool came_back(void *ctx, uint32_t returns)
 {
     (void)ctx, (void)returns;
     return true;
@@ -632,15 +632,15 @@ typedef struct {
     Platform *pf;
 } LoadAsC;
 
-static bool song_as_c(void *ctx)
+static bool song(void *ctx)
 {
     LoadAsC *c = ctx;
     bool back = false;
-    TIMED_AS(c->game, LOCATION_SONG, back = start_the_location_song(c->game, c->pf, came_back_as_c, NULL));
+    TIMED_AS(c->game, LOCATION_SONG, back = start_the_location_song(c->game, c->pf, came_back, NULL));
     return back;
 }
 
-static bool map_as_c(void *ctx, Loading loading)
+static bool map(void *ctx, Loading loading)
 {
     (void)loading;
     LoadAsC *c = ctx;
@@ -649,7 +649,7 @@ static bool map_as_c(void *ctx, Loading loading)
     return loaded;
 }
 
-static bool script_as_c(void *ctx, Loading loading)
+static bool script(void *ctx, Loading loading)
 {
     (void)loading;
     LoadAsC *c = ctx;
@@ -658,25 +658,25 @@ static bool script_as_c(void *ctx, Loading loading)
     return loaded;
 }
 
-static bool effects_built_as_c(void *ctx)
+static bool effects_built(void *ctx)
 {
     LoadAsC *c = ctx;
     TIMED_AS(c->game, LINE_EFFECTS, field_line_effects_build(c->game));
     return true;
 }
 
-static bool effects_set_up_as_c(void *ctx)
+static bool effects_set_up(void *ctx)
 {
     LoadAsC *c = ctx;
     TIMED_AS(c->game, LINE_EFFECTS_SET_UP, (void)field_set_up_line_effects(c->game, c->pf));
     return true;
 }
 
-static bool map_script_as_c(void *ctx)
+static bool map_script(void *ctx)
 {
     LoadAsC *c = ctx;
     EventAsC e = { c->game, c->pf };
-    EventRunner r = event_runner_as_c(&e);
+    EventRunner r = event_runner(&e);
     uint16_t at;
     EventTurnEnd end = TURN_OVER;
     TIMED_AS(c->game, MAP_SCRIPT_STARTS, end = event_run_map_script_commands(c->game, &r, &at));
@@ -687,15 +687,15 @@ static bool map_script_as_c(void *ctx)
     return false;
 }
 
-static bool figure_as_c(void *ctx, FieldObject obj)
+static bool figure(void *ctx, FieldObject obj)
 {
     LoadAsC *c = ctx;
     TIMED_AS(c->game, WHOLE_FIGURE, object_draw_whole_figure(c->game, c->pf, obj));
     return true;
 }
 
-static const LoadSteps as_c = { song_as_c, map_as_c, script_as_c, effects_built_as_c, effects_set_up_as_c,
-                                map_script_as_c, figure_as_c };
+static const LoadSteps as_c = { song, map, script, effects_built, effects_set_up,
+                                map_script, figure };
 
 bool field_load_the_location(GameState *g, Platform *pf)
 {
@@ -706,7 +706,7 @@ bool field_load_the_location(GameState *g, Platform *pf)
 static bool party_places_readable(const GameState *g);
 static bool gathering_can_be_finished(const GameState *g);
 
-bool field_set_up_again_as_c(GameState *g, Platform *pf)
+bool field_set_up_again(GameState *g, Platform *pf)
 {
     if (!gathering_can_be_finished(g)) {
         program_needs_the_machine(g, FIELD_SET_UP_AGAIN_ENTRY, "a gathering cut short the port doesn't finish");

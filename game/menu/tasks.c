@@ -538,21 +538,21 @@ void menu_run_the_scroll_bar_task(Snes *s)
  * work as C is found by its start, as the original's is by its address. */
 typedef void (*MenuTaskAsC)(GameState *g, Platform *pf);
 
-static void main_task_as_c(GameState *g, Platform *pf);
-static void cursor_task_as_c(GameState *g, Platform *pf);
+static void main_task(GameState *g, Platform *pf);
+static void cursor_task(GameState *g, Platform *pf);
 
 static const struct {
     uint16_t start;
     MenuTaskAsC run;
-} tasks_as_c[] = {
-    { MAIN_TASK_HEAD, main_task_as_c },
-    { CURSOR_TASK_HEAD, cursor_task_as_c },
-    { MENU_FADE_IN_TASK_START, menu_fade_in_task_as_c },
-    { MENU_TYPE_A_DESCRIPTION, menu_type_the_description_task_as_c },
-    { MENU_TYPE_A_SETTING, menu_type_the_setting_task_as_c },
-    { MENU_TYPE_A_VALUE, menu_type_the_value_task_as_c },
+} tasks[] = {
+    { MAIN_TASK_HEAD, main_task },
+    { CURSOR_TASK_HEAD, cursor_task },
+    { MENU_FADE_IN_TASK_START, menu_fade_in_task },
+    { MENU_TYPE_A_DESCRIPTION, menu_type_the_description_task },
+    { MENU_TYPE_A_SETTING, menu_type_the_setting_task },
+    { MENU_TYPE_A_VALUE, menu_type_the_value_task },
 };
-enum { TASKS_AS_C = sizeof tasks_as_c / sizeof tasks_as_c[0] };
+enum { TASKS_AS_C = sizeof tasks / sizeof tasks[0] };
 
 /* The menus' coroutines while they are open, and whether a task has closed
  * them: the one closing them waits for good, and the turns end there. */
@@ -569,20 +569,20 @@ static void run_a_task(GameState *g, Platform *pf, void *arg)
         (void)record_the_end(g);
 }
 
-void menu_tasks_open_as_c(GameState *g, Platform *pf)
+void menu_tasks_open(GameState *g, Platform *pf)
 {
     tasks_init(&the_tasks, g, pf);
     closed = false;
     start_the_tasks(g);
 }
 
-void menu_task_waits_as_c(GameState *g, uint8_t frames)
+void menu_task_waits(GameState *g, uint8_t frames)
 {
     (void)record_the_wait(g, frames);
     tasks_wait_a_frame(&the_tasks);
 }
 
-void menu_tasks_closed_as_c(void)
+void menu_tasks_closed(void)
 {
     closed = true;
     for (;;)
@@ -592,18 +592,18 @@ void menu_tasks_closed_as_c(void)
 /* A task's turn: from its start, its work found by it, or from where it
  * waited, in the screen step it waited in. False where its work is none the
  * port has as C, or the turn closed the menus. */
-static bool take_a_turn_as_c(GameState *g, const TaskTurn *turn)
+static bool take_a_turn(GameState *g, const TaskTurn *turn)
 {
     if (turn_starts(turn)) {
         uint16_t at = task_starts(g, turn->task);
         unsigned i = 0;
-        while (i < TASKS_AS_C && tasks_as_c[i].start != at)
+        while (i < TASKS_AS_C && tasks[i].start != at)
             i++;
         if (i == TASKS_AS_C) {
             program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | at, "a menus' task only the machine runs");
             return false;
         }
-        tasks_start(&the_tasks, (uint8_t)turn->task, run_a_task, (void *)&tasks_as_c[i].run);
+        tasks_start(&the_tasks, (uint8_t)turn->task, run_a_task, (void *)&tasks[i].run);
     } else {
         task_goes_on(g, turn->task);
     }
@@ -612,15 +612,15 @@ static bool take_a_turn_as_c(GameState *g, const TaskTurn *turn)
 }
 
 // $C2:81CF
-MenuTurns menu_tasks_take_the_turns_as_c(GameState *g)
+MenuTurns menu_tasks_take_the_turns(GameState *g)
 {
     for (TaskTurn turn = next_turn(g, 0); turn.due; turn = next_turn(g, turn.task + 1))
-        if (!take_a_turn_as_c(g, &turn))
+        if (!take_a_turn(g, &turn))
             return closed ? MENU_TURNS_CLOSED : MENU_TURNS_WENT_NO_FURTHER;
     return MENU_TURNS_TAKEN;
 }
 
-void menu_tasks_end_as_c(void) { tasks_end(&the_tasks); }
+void menu_tasks_end(void) { tasks_end(&the_tasks); }
 
 /* The two tasks that run all the time, as C: their turns over and over, the
  * wait coming back each next frame, until a step goes no further. */
@@ -629,32 +629,32 @@ typedef struct {
     Platform *pf;
 } LoopAsC;
 
-static bool screen_step_as_c(void *ctx)
+static bool screen_step(void *ctx)
 {
     LoopAsC *c = ctx;
-    return menu_screen_step_as_c(c->game, c->pf);
+    return menu_run_the_screen_step(c->game, c->pf);
 }
 
-static bool loop_waits_as_c(void *ctx)
+static bool loop_waits(void *ctx)
 {
     LoopAsC *c = ctx;
-    menu_task_waits_as_c(c->game, 1);
+    menu_task_waits(c->game, 1);
     return true;
 }
 
-static void main_task_as_c(GameState *g, Platform *pf)
+static void main_task(GameState *g, Platform *pf)
 {
     LoopAsC c = { g, pf };
-    while (main_task_turn(screen_step_as_c, loop_waits_as_c, &c))
+    while (main_task_turn(screen_step, loop_waits, &c))
         ;
 }
 
 /* The cursor's turns while its guard's state half takes them; otherwise the
  * program goes no further there. */
-static void cursor_task_as_c(GameState *g, Platform *pf)
+static void cursor_task(GameState *g, Platform *pf)
 {
     LoopAsC c = { g, pf };
-    while (menu_cursor_can_be_placed(g) && cursor_task_turn(g, loop_waits_as_c, &c))
+    while (menu_cursor_can_be_placed(g) && cursor_task_turn(g, loop_waits, &c))
         ;
     if (!menu_cursor_can_be_placed(g))
         program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | CURSOR_TASK_HEAD, "a cursor the port doesn't place");

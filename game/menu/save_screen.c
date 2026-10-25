@@ -767,9 +767,9 @@ typedef struct {
     Platform *pf;
 } SlotsAsC;
 
-static bool slot_routine_as_c(void *ctx, SlotRoutine routine, uint32_t site);
-static void slot_note_as_c(void *ctx, SlotNote note, uint8_t a, uint8_t b) { (void)ctx, (void)note, (void)a, (void)b; }
-static const SlotCalls slots_as_c = { slot_routine_as_c, slot_note_as_c };
+static bool slot_routine(void *ctx, SlotRoutine routine, uint32_t site);
+static void slot_note(void *ctx, SlotNote note, uint8_t a, uint8_t b) { (void)ctx, (void)note, (void)a, (void)b; }
+static const SlotCalls slots = { slot_routine, slot_note };
 
 static bool chapter_label_drawable(const GameState *g);
 static bool labels_drawable(const GameState *g);
@@ -799,7 +799,7 @@ static bool slot_routine_takes(const SlotsAsC *c, SlotRoutine routine)
     return false;
 }
 
-static bool slot_routine_as_c(void *ctx, SlotRoutine routine, uint32_t site)
+static bool slot_routine(void *ctx, SlotRoutine routine, uint32_t site)
 {
     (void)site;
     SlotsAsC *c = ctx;
@@ -811,9 +811,9 @@ static bool slot_routine_as_c(void *ctx, SlotRoutine routine, uint32_t site)
     switch (routine) {
     case CHAPTER_LABEL: TIMED_AS(c->game, 0xC2D296, draw_chapter_label(c->game)); break;
     case SLOT_NAME: TIMED_AS(c->game, 0xC2D2C4, draw_slot_name(c->game)); break;
-    case SLOT_SUMMARY: TIMED_AS(c->game, 0xC2D19F, back = read_slot_summary(c->game, c->pf, &slots_as_c, c)); break;
+    case SLOT_SUMMARY: TIMED_AS(c->game, 0xC2D19F, back = read_slot_summary(c->game, c->pf, &slots, c)); break;
     case DESIGN_AND_CHAPTER:
-        TIMED_AS(c->game, 0xC2D266, back = read_design_and_chapter(c->game, c->pf, &slots_as_c, c));
+        TIMED_AS(c->game, 0xC2D266, back = read_design_and_chapter(c->game, c->pf, &slots, c));
         break;
     }
     return back;
@@ -826,7 +826,7 @@ bool menu_save_slots_read(GameState *g, Platform *pf)
         return false;
     }
     SlotsAsC c = { g, pf };
-    return read_save_slots(g, pf, &slots_as_c, &c);
+    return read_save_slots(g, pf, &slots, &c);
 }
 
 /* ---- On the machine ----------------------------------------------------------------------------- */

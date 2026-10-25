@@ -13,15 +13,15 @@
  * ($C0:2824, after a menu); the objects in view drawn at once ($C0:B0E6), and
  * its guard. */
 void field_set_the_screen_up(Snes *s);
-void field_fade_in(Snes *s);
+void field_fade_in_entry(Snes *s);
 /* The screen set up and faded in, as C, the frame's work going on as it
  * brightens; false where a step is the machine's yet, the program going no
  * further there (core/program.h). */
 bool field_screen_set_up(GameState *g, Platform *pf);
-bool field_fade_in_as_c(GameState *g, Platform *pf);
+bool field_fade_in(GameState *g, Platform *pf);
 /* The same after a menu, the effects only going on as it brightens. */
-bool field_fade_in_after_a_menu_as_c(GameState *g, Platform *pf);
-void field_fade_in_after_a_menu(Snes *s);
+bool field_fade_in_after_a_menu(GameState *g, Platform *pf);
+void field_fade_in_after_a_menu_entry(Snes *s);
 void field_draw_the_objects_in_view(Snes *s);
 bool field_objects_in_view_can_be_drawn(Snes *s);
 enum { FIELD_SET_THE_SCREEN_UP_ENTRY = 0xC0286C, FIELD_FADE_IN_ENTRY = 0xC02848, FIELD_FADE_IN_AFTER_A_MENU_ENTRY = 0xC02824 };

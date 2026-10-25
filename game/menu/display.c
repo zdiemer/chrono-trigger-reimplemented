@@ -250,47 +250,47 @@ typedef struct {
     MenuModeEnd end;
 } ModeAsC;
 
-static ModeAsC *running_as_c;
+static ModeAsC *running;
 
-static void start_again_as_c(void *ctx)
+static void start_again(void *ctx)
 {
     ModeAsC *c = ctx;
     TIMED_AS(c->game, 0xC2832F, blank_and_stop(c->pf, restart_sites));
     c->end = MENUS_START_THE_GAME_AGAIN;
 }
 
-static bool opened_as_c(void *ctx)
+static bool opened(void *ctx)
 {
     ModeAsC *c = ctx;
     bool opened = false;
-    TIMED_AS(c->game, 0xC28096, opened = menu_opens_as_c(c->game, c->pf));
+    TIMED_AS(c->game, 0xC28096, opened = menu_opens(c->game, c->pf));
     return opened;
 }
 
 /* Each frame's turns once the vblank handler has sent what the last frame
  * queued, until a task closes the menus or goes no further. */
-static void tasks_as_c(void *ctx)
+static void tasks(void *ctx)
 {
     ModeAsC *c = ctx;
-    menu_tasks_open_as_c(c->game, c->pf);
+    menu_tasks_open(c->game, c->pf);
     MenuTurns turns;
     do {
         while (!menu_vblank_done(c->game))
             tm_wait_frame(c->pf, PF_AT(0xC281CA));
-        TIMED_AS(c->game, 0xC281CF, turns = menu_tasks_take_the_turns_as_c(c->game));
+        TIMED_AS(c->game, 0xC281CF, turns = menu_tasks_take_the_turns(c->game));
     } while (turns == MENU_TURNS_TAKEN);
-    menu_tasks_end_as_c();
+    menu_tasks_end();
     if (turns != MENU_TURNS_CLOSED)
         c->end = MENUS_WENT_NO_FURTHER;
 }
 
 MenuModeEnd menu_mode_runs(GameState *g, Platform *pf, uint8_t asked_for, uint16_t asked_with)
 {
-    static const ModeSteps as_c = { start_again_as_c, opened_as_c, tasks_as_c };
+    static const ModeSteps as_c = { start_again, opened, tasks };
     ModeAsC c = { g, pf, MENUS_WENT_NO_FURTHER };
-    running_as_c = &c;
+    running = &c;
     run_the_mode(g, pf, asked_for, asked_with, &as_c, &c);
-    running_as_c = NULL;
+    running = NULL;
     return c.end;
 }
 
@@ -396,35 +396,35 @@ typedef struct {
     bool for_the_game;
 } CloseAsC;
 
-static bool wear_shown_as_c(void *ctx)
+static bool wear_shown(void *ctx)
 {
     CloseAsC *c = ctx;
     TIMED_AS(c->game, 0xC2834D, party_wear_it_shows(c->game));
     return true;
 }
 
-static bool faded_out_as_c(void *ctx)
+static bool faded_out(void *ctx)
 {
     CloseAsC *c = ctx;
-    TIMED_AS(c->game, 0xC283CA, menu_fade_out_as_c(c->game));
+    TIMED_AS(c->game, 0xC283CA, menu_fade_to_black(c->game));
     return true;
 }
 
-static void leave_as_c(void *ctx)
+static void leave(void *ctx)
 {
     CloseAsC *c = ctx;
     if (c->for_the_game)
         TIMED_AS(c->game, 0xC2832F, blank_and_stop(c->pf, restart_sites));
     else
         TIMED_AS(c->game, 0xC282C1, blank_and_stop(c->pf, return_sites));
-    if (running_as_c)
-        running_as_c->end = c->for_the_game ? MENUS_START_THE_GAME_AGAIN : MENUS_CLOSED;
-    menu_tasks_closed_as_c();
+    if (running)
+        running->end = c->for_the_game ? MENUS_START_THE_GAME_AGAIN : MENUS_CLOSED;
+    menu_tasks_closed();
 }
 
-void menu_close_as_c(GameState *g, Platform *pf, bool for_the_game)
+void menu_close(GameState *g, Platform *pf, bool for_the_game)
 {
-    static const CloseCalls as_c = { wear_shown_as_c, faded_out_as_c, leave_as_c };
+    static const CloseCalls as_c = { wear_shown, faded_out, leave };
     CloseAsC c = { g, pf, for_the_game };
     close_the_menus(g, &as_c, &c);
 }
@@ -450,7 +450,7 @@ static bool faded_out_for_the_game(void *ctx) { return menu_fade_out_from(ctx, 0
 
 static void on_to_the_game(void *ctx) { NATIVE_TIME_AS((Snes *)ctx, 0xC2832F, menu_mode_restart(ctx)); }
 
-void menu_close(Snes *s)
+void menu_close_entry(Snes *s)
 {
     static const CloseCalls closing = { wear_shown_back_to_the_caller, faded_out_back_to_the_caller,
                                         back_to_the_caller };
@@ -556,7 +556,7 @@ typedef struct {
 
 /* As C, the frame's work and the queue each where its guard takes them; the
  * program goes no further otherwise. */
-static bool frame_sent_as_c(void *ctx)
+static bool frame_sent(void *ctx)
 {
     VblankAsC *c = ctx;
     if (!menu_block_move_is_a_buffer(c->game)) {
@@ -564,10 +564,10 @@ static bool frame_sent_as_c(void *ctx)
         return false;
     }
     TIMED_AS(c->game, 0xC285D6, (void)send_the_frame(c->game, c->pf));
-    return menu_upload_queue_sent_as_c(c->game, c->pf);
+    return menu_upload_queue_sent(c->game, c->pf);
 }
 
-static bool input_taken_as_c(void *ctx)
+static bool input_taken(void *ctx)
 {
     VblankAsC *c = ctx;
     bool taken = false;
@@ -577,7 +577,7 @@ static bool input_taken_as_c(void *ctx)
 
 void menu_vblank(GameState *g, Platform *pf)
 {
-    static const VblankCalls as_c = { frame_sent_as_c, input_taken_as_c };
+    static const VblankCalls as_c = { frame_sent, input_taken };
     VblankAsC c = { g, pf };
     TIMED_AS(g, 0xC2842A, (void)menus_vblank(g, pf, &as_c, &c));
 }
@@ -770,7 +770,7 @@ void menu_send_upload_queue(GameState *g, Platform *pf)
     }
 }
 
-bool menu_upload_queue_sent_as_c(GameState *g, Platform *pf)
+bool menu_upload_queue_sent(GameState *g, Platform *pf)
 {
     if (!menu_upload_queue_is_whole(g)) {
         program_needs_the_machine(g, 0xC28663, "an upload queue the port doesn't send");
@@ -1231,7 +1231,7 @@ typedef struct {
 
 /* Each step where its guard's state half takes it; the program goes no
  * further otherwise. */
-static bool object_frame_step_as_c(void *ctx, ObjectFrameStep step)
+static bool object_frame_step(void *ctx, ObjectFrameStep step)
 {
     ObjectVblankAsC *c = ctx;
     GameState *g = c->game;
@@ -1261,7 +1261,7 @@ static bool object_frame_step_as_c(void *ctx, ObjectFrameStep step)
         TIMED_AS(g, 0xC2034D, menu_hide_the_sprites(g));
         return true;
     case RUN_THE_OBJECTS:
-        TIMED_AS(g, 0xC2051D, done = menu_objects_run_as_c(g, pf));
+        TIMED_AS(g, 0xC2051D, done = menu_objects_run(g, pf));
         return done;
     case DRAW_THE_SPRITE_LIST:
         if (!menu_sprite_list_can_be_drawn(g)) {
@@ -1278,7 +1278,7 @@ static bool object_frame_step_as_c(void *ctx, ObjectFrameStep step)
 void menu_object_vblank(GameState *g, Platform *pf)
 {
     ObjectVblankAsC c = { g, pf };
-    TIMED_AS(g, MENU_OBJECT_VBLANK_HANDLER, (void)object_mode_vblank(g, pf, object_frame_step_as_c, &c));
+    TIMED_AS(g, MENU_OBJECT_VBLANK_HANDLER, (void)object_mode_vblank(g, pf, object_frame_step, &c));
 }
 
 /* The mode has no line handler: the line interrupt only returns. */

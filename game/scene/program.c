@@ -149,7 +149,7 @@ static void enter_as_the_dispatch_does(Snes *s, uint8_t mode)
  * names for its mode. */
 enum { SETUP_DISPATCH = 0x7E300A, THE_SETUPS_MAY_READ_ANYTHING = 0 };
 
-static void first_frame(Snes *s);
+static void first_frame_on_the_machine(Snes *s);
 
 /* The scene's setup as C where it is a port and the program's code for it is
  * the code the port stands for, then its first frame. Every setup still
@@ -175,12 +175,12 @@ static void set_the_scene_up(Snes *s)
             return;
         }
         scene_bridge_leave(s);
-        first_frame(s);
+        first_frame_on_the_machine(s);
         return;
     }
     uint16_t original_setup = scene_program_setups(state_of(s), mode);
     if (scene_run(s, SETUP_DISPATCH, PROGRAM_BANK | original_setup, THE_SETUPS_MAY_READ_ANYTHING, NULL))
-        first_frame(s);
+        first_frame_on_the_machine(s);
 }
 
 /* ---- The scene's first frame ------------------------------------------------------------------- */
@@ -199,13 +199,13 @@ enum {
 /* The palette the setup made sent, a frame waited out, the frame's work done
  * once, and the vblank and line interrupts and the controllers' reading on;
  * the scene neither over nor paused, the main loop runs (16-bit A). */
-static void first_frame(Snes *s)
+static void first_frame_on_the_machine(Snes *s)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
     TIMED_AS(g, 0x7E388B, scene_send_palette(pf));
     tm_wait_frame(pf, PF_CALL_DC(FIRST_WAIT, FRAME_WAIT, THE_WAIT_READS_NOTHING));
-    if (!scene_run_long(s, FRAME_WORK_CALL, FRAME_WORK, THE_FRAME_WORK_READS_Y_AND_THE_OVERFLOW, scene_frame_work))
+    if (!scene_run_long(s, FRAME_WORK_CALL, FRAME_WORK, THE_FRAME_WORK_READS_Y_AND_THE_OVERFLOW, scene_frame_work_entry))
         return;
     tm_enable_interrupts(pf, PF_AT(0x7E3019), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
     set_scene_program_over(g, 0);
@@ -242,7 +242,7 @@ void scene_program_start(Snes *s)
         if (!(scene_flags(g) & SCENE_FLAG_NO_SONGS)) {
             set_scene_song(g, NO_SONG);
             ORIGINAL_EFFECT(leave_the_clear_s_page_in_a(s));
-            if (!scene_run(s, SOUND_CALL, SOUND_BACK_TO_NORMAL, THE_SOUND_READS_NOTHING, scene_sound_back_to_normal))
+            if (!scene_run(s, SOUND_CALL, SOUND_BACK_TO_NORMAL, THE_SOUND_READS_NOTHING, scene_sound_back_to_normal_entry))
                 return;
         }
         start_from_the_first_screen(g, pf);
@@ -267,7 +267,7 @@ void scene_program_goes_on(Snes *s)
 void scene_setup_and_first_frame(Snes *s) { set_the_scene_up(s); }
 
 /* The first frame, where a setup that waited returns. */
-void scene_first_frame(Snes *s) { first_frame(s); }
+void scene_first_frame(Snes *s) { first_frame_on_the_machine(s); }
 
 /* ---- The program's end ------------------------------------------------------------------------------ */
 
@@ -327,12 +327,12 @@ static const struct {
     uint32_t routine;
     bool (*set_up)(GameState *g, Platform *pf);
 } c_setups[] = {
-    { MODE_TITLE, TITLE_SET_UP, scene_title_set_up_as_c },
+    { MODE_TITLE, TITLE_SET_UP, scene_title_set_up },
     { MODE_CREDITS_PAGE, CREDIT_PAGES_SET_UP, scene_credit_pages_set_up },
 };
 enum { C_SETUPS = sizeof c_setups / sizeof c_setups[0] };
 
-static bool set_up_as_c(GameState *g, Platform *pf, uint8_t mode)
+static bool set_up(GameState *g, Platform *pf, uint8_t mode)
 {
     for (unsigned n = 0; n < C_SETUPS; n++) {
         if (c_setups[n].mode != mode)
@@ -350,12 +350,12 @@ static bool set_up_as_c(GameState *g, Platform *pf, uint8_t mode)
 enum { MUSIC_WAIT = 0x7E5AAA };
 
 // $7E:300D
-static bool first_frame_as_c(GameState *g, Platform *pf)
+static bool first_frame(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0x7E388B, scene_send_palette(pf));
     tm_wait_frame(pf, PF_CALL_DC(FIRST_WAIT, FRAME_WAIT, THE_WAIT_READS_NOTHING));
     bool done = false;
-    TIMED_AS(g, FRAME_WORK, done = scene_frame_work_as_c(g, pf));
+    TIMED_AS(g, FRAME_WORK, done = scene_frame_work(g, pf));
     if (!done)
         return false;
     tm_enable_interrupts(pf, PF_AT(0x7E3019), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
@@ -374,21 +374,21 @@ bool scene_runs(GameState *g, Platform *pf, uint8_t flags)
     if (!title_coming_back) {
         if (!(scene_flags(g) & SCENE_FLAG_NO_SONGS)) {
             set_scene_song(g, NO_SONG);
-            TIMED_AS(g, SOUND_BACK_TO_NORMAL, scene_sound_back_to_normal_as_c(g, pf));
+            TIMED_AS(g, SOUND_BACK_TO_NORMAL, scene_sound_back_to_normal(g, pf));
         }
         start_from_the_first_screen(g, pf);
     }
     uint8_t mode = scene_flags(g) & SCENE_MODE_BITS;
-    if (!set_up_as_c(g, pf, mode))
+    if (!set_up(g, pf, mode))
         return false;
     if (mode == MODE_TITLE)
         while (!scene_music_is_playing(pf))
             tm_wait_frame(pf, PF_AT(MUSIC_WAIT));
-    if (!first_frame_as_c(g, pf))
+    if (!first_frame(g, pf))
         return false;
     while (!scene_program_over(g))
         tm_wait_frame(pf, PF_AT(MAIN_LOOP));
     scene_stops_the_display(pf);
-    TIMED_AS(g, SOUND_BACK_TO_NORMAL, scene_sound_back_to_normal_as_c(g, pf));
+    TIMED_AS(g, SOUND_BACK_TO_NORMAL, scene_sound_back_to_normal(g, pf));
     return true;
 }

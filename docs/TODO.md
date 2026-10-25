@@ -1594,7 +1594,7 @@ rest waits, is [PLAN.md](PLAN.md).
   input"):
   - the world map's loads reach the unpacker through a callback
     (`overworld/setup.c`'s `Unpacker`): the program's is C
-    (`overworld_unpacker_as_c`), the machine's calls the original's for
+    (`overworld_unpacker`), the machine's calls the original's for
     shadow mode to pair; once the comparison retires, the loads call
     `unpack_stream` plainly;
   - `overworld_back_from_the_menus` is fuzzed up to the map's reload, which
@@ -2196,11 +2196,11 @@ re-runs the census.
 - **The menus' tasks with no body as C.** Each task's body is one function
   of the game's state whose waits are callbacks, run a turn at a time by the
   machine's entry and through by a coroutine (`core/tasks.c`) with no
-  machine; `menu/tasks.c`'s table of the starts it has (`tasks_as_c`) holds
+  machine; `menu/tasks.c`'s table of the starts it has (`tasks`) holds
   the main task's, the cursor's, the fade in's and the typing's. The scroll
   bar's, the records', the held cursors', the healing numbers' and the gate's
   song's stop `ct_native` where they start, and a screen step with no C
-  beside the naming's (`menu/screens.c`'s `steps_as_c`) stops it where it is
+  beside the naming's (`menu/screens.c`'s `steps`) stops it where it is
   reached. The other way for the tasks is each rewritten to resume, a state
   machine called once a frame: the way for a target that can't afford nine
   512 KiB stacks (PLAN.md, "What that makes scaffolding").
@@ -2760,7 +2760,7 @@ list, by kind, is what `game/` still asks of one.
   of the rest.
 - **What the scene program still hands the machine as the program runs it.**
   The title's and the credits' page's setups are the setups as C
-  (`scene_title_set_up_as_c`, `scene_credit_pages_set_up`); the
+  (`scene_title_set_up`, `scene_credit_pages_set_up`); the
   others, the scripts' commands and routines with no C, and the tasks with
   no C (the lists' runner as C has the tasks' own table and four of the
   program's routines) stop the program where they are met. The C reads the
@@ -2794,8 +2794,8 @@ list, by kind, is what `game/` still asks of one.
   (`field_objects_set_up`), the vblank handler's calls (`field_vblank`), a
   location change's request and a script's menu's (`field_requests_handled`;
   the tile copy's is one sequence, `copy_the_tiles`), the scene's frame work and its lists
-  (`scene_frame_work_as_c`, `run_tasks_as_c`) and the event bridges'
-  `*_as_c` sends. Each wants the same shape; until then a change to one
+  (`scene_frame_work`, `run_tasks`) and the event bridges'
+  C sends. Each wants the same shape; until then a change to one
   wants the other, and nothing gates the program's copy.
 - **Control flow through the machine.** Call-outs into entries by address
   (`native_call_dc`, `native_yield_call_dc`, `native_jump_call_dc`), stops
@@ -2873,7 +2873,7 @@ waits on M5 rather than on a backend.
   `object_view.c`'s `took_what_it_needs` callback exists only to clear V, which
   the wrapper can derive from the state after the call; `main_loop.c`'s
   `frame_work` rows mix the machine's columns (`long_call`, `x8`, `entry`) with
-  `as_c`, which wants a parallel table, and its eight one-line `*_as_c`
+  `as_c`, which wants a parallel table, and its eight one-line C
   adapters want each C step its own signature.
 - **What the menus' tasks review left** (none rated translation; `naming.c`
   and `save_screen.c` the weakest): their register notes

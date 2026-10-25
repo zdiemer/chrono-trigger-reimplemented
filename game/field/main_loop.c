@@ -250,14 +250,14 @@ void field_first_start(Snes *s)
  * set up, its steps forgotten and its screen faded in. As C, each is false
  * where it is a step the port doesn't take, the program going no further
  * there; on the machine each is called from the original's call of it. */
-static bool start_as_c(GameState *g, Platform *pf)
+static bool start(GameState *g, Platform *pf)
 {
     (void)pf;
     field_start_state(g);
     return true;
 }
 
-static bool load_as_c(GameState *g, Platform *pf)
+static bool load(GameState *g, Platform *pf)
 {
     if (field_load_the_location(g, pf))
         return true;
@@ -265,14 +265,14 @@ static bool load_as_c(GameState *g, Platform *pf)
     return false;
 }
 
-static bool sprites_afresh_as_c(GameState *g, Platform *pf)
+static bool sprites_afresh(GameState *g, Platform *pf)
 {
     (void)pf;
     sprites_all_to_build_afresh(g);
     return true;
 }
 
-static bool forget_the_steps_as_c(GameState *g, Platform *pf)
+static bool forget_the_steps(GameState *g, Platform *pf)
 {
     (void)pf;
     field_forget_the_steps(g);
@@ -286,13 +286,13 @@ static const struct {
     void (*entry)(Snes *);
     bool (*as_c)(GameState *, Platform *);
 } entering[ENTERING_STEPS] = {
-    [START_STEP] = { 0xC00085, START, field_start, start_as_c },
-    [LOAD_STEP] = { 0xC00088, FIELD_LOAD_LOCATION_ENTRY, field_load_location, load_as_c },
+    [START_STEP] = { 0xC00085, START, field_start, start },
+    [LOAD_STEP] = { 0xC00088, FIELD_LOAD_LOCATION_ENTRY, field_load_location, load },
     [SPRITES_STEP] = { 0xC0008B, FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY, field_build_the_sprites_afresh,
-                       sprites_afresh_as_c },
+                       sprites_afresh },
     [OBJECTS_STEP] = { 0xC0008E, FIELD_SET_UP_THE_OBJECTS_ENTRY, field_set_up_the_objects, field_objects_set_up },
-    [FORGET_STEP] = { 0xC00091, FIELD_FORGET_THE_STEPS_ENTRY, field_forget_the_steps_entry, forget_the_steps_as_c },
-    [FADE_IN_STEP] = { 0xC00094, FIELD_FADE_IN_ENTRY, field_fade_in, field_fade_in_as_c },
+    [FORGET_STEP] = { 0xC00091, FIELD_FORGET_THE_STEPS_ENTRY, field_forget_the_steps_entry, forget_the_steps },
+    [FADE_IN_STEP] = { 0xC00094, FIELD_FADE_IN_ENTRY, field_fade_in_entry, field_fade_in },
 };
 
 /* A step of the entry run, or the world map taking over, which the menus'
@@ -329,7 +329,7 @@ typedef struct {
     Platform *pf;
 } PassAsC;
 
-static bool enter_step_as_c(void *ctx, EnterStep step)
+static bool enter_step(void *ctx, EnterStep step)
 {
     PassAsC *c = ctx;
     bool done = false;
@@ -337,7 +337,7 @@ static bool enter_step_as_c(void *ctx, EnterStep step)
     return done;
 }
 
-static bool to_the_world_map_as_c(void *ctx)
+static bool to_the_world_map(void *ctx)
 {
     PassAsC *c = ctx;
     OverworldEnd end = OVERWORLD_WENT_NO_FURTHER;
@@ -347,7 +347,7 @@ static bool to_the_world_map_as_c(void *ctx)
 
 bool field_enter_the_location(GameState *g, Platform *pf)
 {
-    static const EnterSteps as_c = { enter_step_as_c, to_the_world_map_as_c };
+    static const EnterSteps as_c = { enter_step, to_the_world_map };
     PassAsC c = { g, pf };
     return enter_the_location(g, pf, &as_c, &c);
 }
@@ -391,33 +391,33 @@ bool field_location_is_a_number(Snes *s)
 /* Its steps, as C, false where one is a step the port doesn't take (a build
  * with no machine calls the budgets' turns and frames, and the objects'
  * update, as C too). */
-static bool turns_due_as_c(GameState *g, Platform *pf)
+static bool turns_due(GameState *g, Platform *pf)
 {
     (void)pf;
     field_queue_the_due_turns(g);
     return true;
 }
 
-static bool line_effects_as_c(GameState *g, Platform *pf)
+static bool line_effects(GameState *g, Platform *pf)
 {
     (void)pf;
     field_line_effects_build(g);
     return true;
 }
 
-static bool palettes_as_c(GameState *g, Platform *pf)
+static bool palettes(GameState *g, Platform *pf)
 {
     (void)pf;
-    return palette_animated_as_c(g);
+    return palette_animated(g);
 }
 
-static bool objects_as_c(GameState *g, Platform *pf)
+static bool objects(GameState *g, Platform *pf)
 {
     (void)pf;
     return field_objects_updated(g);
 }
 
-static bool frames_as_c(GameState *g, Platform *pf)
+static bool frames(GameState *g, Platform *pf)
 {
     field_queued_frames_drawn(g, pf);
     return true;
@@ -434,12 +434,12 @@ static const struct {
     bool long_call, x8;
     bool (*as_c)(GameState *, Platform *);
 } frame_work[] = {
-    { 0xC000C1, TURNS_DUE, field_queue_due_turns, false, true, turns_due_as_c },
+    { 0xC000C1, TURNS_DUE, field_queue_due_turns, false, true, turns_due },
     { 0xC000C4, SCRIPT_TURNS, NULL, false, true, field_queued_turns_run },
-    { 0xC000C7, LINE_EFFECTS, field_build_line_effect_tables, true, true, line_effects_as_c },
-    { 0xC000CD, PALETTE_ANIMATION, palette_animate, true, false, palettes_as_c },
-    { 0xC000D3, UPDATE_OBJECTS, NULL, false, true, objects_as_c },
-    { 0xC000D6, SPRITE_FRAMES, NULL, false, true, frames_as_c },
+    { 0xC000C7, LINE_EFFECTS, field_build_line_effect_tables, true, true, line_effects },
+    { 0xC000CD, PALETTE_ANIMATION, palette_animate, true, false, palettes },
+    { 0xC000D3, UPDATE_OBJECTS, NULL, false, true, objects },
+    { 0xC000D6, SPRITE_FRAMES, NULL, false, true, frames },
 };
 enum { FRAME_WORK_STEPS = sizeof frame_work / sizeof frame_work[0] };
 
@@ -458,7 +458,7 @@ static bool do_the_frame_work(FrameWorkStep step, void *ctx)
     return true;
 }
 
-static bool frame_work_step_as_c(void *ctx, unsigned step)
+static bool frame_work_step(void *ctx, unsigned step)
 {
     PassAsC *c = ctx;
     bool done = false;
@@ -469,7 +469,7 @@ static bool frame_work_step_as_c(void *ctx, unsigned step)
 bool field_frame_work_done(GameState *g, Platform *pf)
 {
     PassAsC c = { g, pf };
-    if (!do_the_frame_work(frame_work_step_as_c, &c))
+    if (!do_the_frame_work(frame_work_step, &c))
         return false;
     bool built = false;
     TIMED_AS(g, SPRITE_TABLE, built = field_sprite_table_built(g));
@@ -512,41 +512,41 @@ void field_frame_work(Snes *s)
 /* Its steps, as C: where the pass goes after each. */
 static FieldPass goes_on(bool back) { return back ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS; }
 
-static FieldPass pause_and_menus_as_c(GameState *g, Platform *pf) { return goes_on(field_pause_and_menus_as_c(g, pf)); }
+static FieldPass pause_and_menus(GameState *g, Platform *pf) { return goes_on(field_pause_and_menus(g, pf)); }
 
-static FieldPass walk_as_c(GameState *g, Platform *pf)
+static FieldPass walk(GameState *g, Platform *pf)
 {
     (void)pf;
     return goes_on(field_the_leader_walks(g));
 }
 
-static FieldPass confirm_as_c(GameState *g, Platform *pf)
+static FieldPass confirm(GameState *g, Platform *pf)
 {
     (void)pf;
     field_confirm_pressed(g);
     return FIELD_PASS_GOES_ON;
 }
 
-static FieldPass dialog_window_as_c(GameState *g, Platform *pf)
+static FieldPass dialog_window(GameState *g, Platform *pf)
 {
     (void)pf;
     field_dialog_window_step(g);
     return FIELD_PASS_GOES_ON;
 }
 
-static FieldPass screen_effect_as_c(GameState *g, Platform *pf)
+static FieldPass screen_effect(GameState *g, Platform *pf)
 {
     return goes_on(field_screen_effect_moved_on(g, pf));
 }
 
-static FieldPass script_layers_as_c(GameState *g, Platform *pf)
+static FieldPass script_layers(GameState *g, Platform *pf)
 {
     (void)pf;
     field_script_layers_worked(g);
     return FIELD_PASS_GOES_ON;
 }
 
-static FieldPass frame_work_as_c(GameState *g, Platform *pf) { return goes_on(field_frame_work_done(g, pf)); }
+static FieldPass frame_work_done(GameState *g, Platform *pf) { return goes_on(field_frame_work_done(g, pf)); }
 
 /* The pass's steps in order, each called from its site. The dialog
  * window's step is reached by a long call. A's high byte and the overflow
@@ -563,20 +563,20 @@ static const struct {
     bool long_call;
     FieldPass (*as_c)(GameState *, Platform *);
 } the_pass[PASS_STEPS] = {
-    [PAUSE_AND_MENUS_STEP] = { 0xC000A1, PAUSE_AND_MENUS, READS_A_HIGH_AND_THE_OVERFLOW, field_pause_and_menus, false,
-                               pause_and_menus_as_c },
+    [PAUSE_AND_MENUS_STEP] = { 0xC000A1, PAUSE_AND_MENUS, READS_A_HIGH_AND_THE_OVERFLOW, field_pause_and_menus_entry, false,
+                               pause_and_menus },
     [REQUESTS_STEP] = { 0xC000A4, REQUESTS, READS_A_HIGH_AND_THE_OVERFLOW, field_handle_requests, false,
                         field_requests_handled },
-    [WALK_STEP] = { 0xC000A7, WALK, READS_NOTHING, field_walk_the_leader, false, walk_as_c },
-    [CONFIRM_STEP] = { 0xC000AA, CONFIRM, READS_THE_OVERFLOW, field_press_confirm, false, confirm_as_c },
+    [WALK_STEP] = { 0xC000A7, WALK, READS_NOTHING, field_walk_the_leader, false, walk },
+    [CONFIRM_STEP] = { 0xC000AA, CONFIRM, READS_THE_OVERFLOW, field_press_confirm, false, confirm },
     [DIALOG_WINDOW_STEP] = { 0xC000AD, FIELD_DIALOG_WINDOW_STEP_ENTRY, READS_THE_OVERFLOW, field_dialog_window_step_entry,
-                             true, dialog_window_as_c },
+                             true, dialog_window },
     [SCREEN_EFFECT_STEP] = { 0xC000B1, SCREEN_EFFECT, READS_THE_OVERFLOW, field_move_screen_effect_on, false,
-                             screen_effect_as_c },
+                             screen_effect },
     [SCRIPT_LAYERS_STEP] = { 0xC000B4, SCRIPT_LAYERS, READS_THE_OVERFLOW, field_do_script_layer_work, false,
-                             script_layers_as_c },
+                             script_layers },
     [FRAME_WORK_STEP] = { 0xC000B7, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, false,
-                          frame_work_as_c },
+                          frame_work_done },
 };
 
 // $C0:0097
@@ -598,7 +598,7 @@ static FieldPass run_the_pass_from(GameState *g, PassStep first, PassStepRun run
     return FIELD_PASS_GOES_ON;
 }
 
-static FieldPass pass_step_as_c(void *ctx, PassStep step)
+static FieldPass pass_step(void *ctx, PassStep step)
 {
     PassAsC *c = ctx;
     FieldPass after = FIELD_PASS_STOPS;
@@ -611,7 +611,7 @@ static FieldPass pass_step_as_c(void *ctx, PassStep step)
 FieldPass field_runs_a_pass(GameState *g, Platform *pf)
 {
     PassAsC c = { g, pf };
-    FieldPass after = run_the_pass_from(g, PAUSE_AND_MENUS_STEP, pass_step_as_c, &c);
+    FieldPass after = run_the_pass_from(g, PAUSE_AND_MENUS_STEP, pass_step, &c);
     if (after == FIELD_PASS_GOES_ROUND)
         return FIELD_PASS_GOES_ON;
     if (after == FIELD_PASS_GOES_ON)
@@ -711,22 +711,22 @@ static bool refresh_effects(const EffectsSteps *steps, void *ctx)
     return steps->line_effects(ctx) && steps->palettes(ctx);
 }
 
-static bool refreshed_line_effects_as_c(void *ctx)
+static bool refreshed_line_effects(void *ctx)
 {
     TIMED_AS((GameState *)ctx, LINE_EFFECTS, field_line_effects_build(ctx));
     return true;
 }
 
-static bool refreshed_palettes_as_c(void *ctx)
+static bool refreshed_palettes(void *ctx)
 {
     bool done = false;
-    TIMED_AS((GameState *)ctx, PALETTE_ANIMATION, done = palette_animated_as_c(ctx));
+    TIMED_AS((GameState *)ctx, PALETTE_ANIMATION, done = palette_animated(ctx));
     return done;
 }
 
 bool field_effects_refreshed(GameState *g)
 {
-    static const EffectsSteps as_c = { refreshed_line_effects_as_c, refreshed_palettes_as_c };
+    static const EffectsSteps as_c = { refreshed_line_effects, refreshed_palettes };
     return refresh_effects(&as_c, g);
 }
 

@@ -335,7 +335,7 @@ static bool rows_step_taken(GameState *g, FieldObject obj, bool join)
     return true;
 }
 
-bool field_rows_step_as_c(Snes *s, FieldObject obj, bool join) { return rows_step_taken(state_of(s), obj, join); }
+bool field_rows_step(Snes *s, FieldObject obj, bool join) { return rows_step_taken(state_of(s), obj, join); }
 
 bool object_rows_step(GameState *g, FieldObject obj, bool join)
 {
@@ -348,7 +348,7 @@ bool object_rows_step(GameState *g, FieldObject obj, bool join)
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 
-static void move_as_c(void *ctx, FieldObject obj, bool party_member)
+static void move(void *ctx, FieldObject obj, bool party_member)
 {
     GameState *g = ctx;
     if (party_member)
@@ -357,7 +357,7 @@ static void move_as_c(void *ctx, FieldObject obj, bool party_member)
         TIMED_AS(g, MOVE, (void)object_take_step(g, obj));
 }
 
-static bool view_as_c(void *ctx, UpdateCall call, FieldObject obj)
+static bool view(void *ctx, UpdateCall call, FieldObject obj)
 {
     (void)call;
     GameState *g = ctx;
@@ -366,7 +366,7 @@ static bool view_as_c(void *ctx, UpdateCall call, FieldObject obj)
     return viewed;
 }
 
-static bool tick_as_c(void *ctx, UpdateCall call, FieldObject obj)
+static bool tick(void *ctx, UpdateCall call, FieldObject obj)
 {
     (void)call;
     GameState *g = ctx;
@@ -378,19 +378,19 @@ static bool tick_as_c(void *ctx, UpdateCall call, FieldObject obj)
     return true;
 }
 
-static bool rows_as_c(void *ctx, UpdateCall call, FieldObject obj, bool join)
+static bool rows(void *ctx, UpdateCall call, FieldObject obj, bool join)
 {
     (void)call;
     return object_rows_step(ctx, obj, join);
 }
 
-static void place_as_c(void *ctx, FieldObject obj)
+static void place(void *ctx, FieldObject obj)
 {
     GameState *g = ctx;
     TIMED_AS(g, PLACE_ON_SCREEN, object_update_screen_position(g, obj));
 }
 
-static void window_only_as_c(void *ctx, FieldObject obj)
+static void window_only(void *ctx, FieldObject obj)
 {
     GameState *g = ctx;
     TIMED_AS(g, WINDOW_ONLY, object_window_only_checked(g, obj));
@@ -398,7 +398,7 @@ static void window_only_as_c(void *ctx, FieldObject obj)
 
 bool field_objects_updated(GameState *g)
 {
-    static const UpdateSteps as_c = { move_as_c, view_as_c, tick_as_c, rows_as_c, place_as_c, window_only_as_c };
+    static const UpdateSteps as_c = { move, view, tick, rows, place, window_only };
     return update_objects(g, &as_c, g);
 }
 

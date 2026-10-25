@@ -630,7 +630,7 @@ static bool every_slot_fits(const GameState *g)
 
 /* The check takes none of the animations' time: the scene's tasks run it on
  * the machine too, where its reads would be charged as theirs. */
-bool palette_animated_as_c(GameState *g)
+bool palette_animated(GameState *g)
 {
     vars_peek(true);
     bool fits = every_slot_fits(g);

@@ -489,7 +489,7 @@ Each of these is a finding. Every example here comes from this repo.
     accessors"), and `ct_fuzz` lists those random states reach; what neither
     reaches is still the reviewer's to read for.
 29. **Guards that duplicate the logic.** A guard that re-runs the routine to
-    predict it (`field_view_unchanged`, `draws_as_c`) is shadow mode's structure
+    predict it (`field_view_unchanged`, `draws`) is shadow mode's structure
     leaking into the file's shape.
 30. **Call-site arithmetic.** `first + 3`, `site + 3`, "the party's copy of the
     loop": the ROM's code layout used as control data. Name each target for

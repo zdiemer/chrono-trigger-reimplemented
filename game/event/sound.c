@@ -94,21 +94,21 @@ static bool after(EventStep *step, uint16_t at, uint16_t bytes)
     return true;
 }
 
-bool event_play_effect_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+bool event_play_effect(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = command_at(g, pf, PLAY_EFFECT, at);
     play_effect(pf, &c);
     return after(step, at, PLAY_EFFECT_BYTES);
 }
 
-bool event_play_song_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+bool event_play_song(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = command_at(g, pf, PLAY_SONG, at);
     play_song(g, pf, &c);
     return after(step, at, PLAY_SONG_BYTES);
 }
 
-bool event_fade_music_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+bool event_fade_music(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = command_at(g, pf, FADE_MUSIC, at);
     fade_the_music(pf, &c);
@@ -117,7 +117,7 @@ bool event_fade_music_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *s
     return after(step, at, FADE_MUSIC_BYTES);
 }
 
-bool event_send_sound_command_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+bool event_send_sound_command(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = command_at(g, pf, SEND_SOUND_COMMAND, at);
     send_the_command(pf, &c);

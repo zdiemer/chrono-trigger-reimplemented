@@ -189,10 +189,10 @@ void field_run_queued_turns(Snes *s)
 /* ---- As C, with no machine ------------------------------------------------------------------ */
 
 /* Each turn the event engine's, its commands as C (event/engine.h). */
-static bool take_turn_as_c(void *ctx, FieldObject obj)
+static bool take_turn(void *ctx, FieldObject obj)
 {
     EventAsC *c = ctx;
-    EventRunner r = event_runner_as_c(c);
+    EventRunner r = event_runner(c);
     uint16_t at;
     EventTurnEnd end = TURN_OVER;
     TIMED_AS(c->game, RUN_A_TURN, end = event_run_turn(c->game, obj, &r, &at));
@@ -208,7 +208,7 @@ void field_queue_the_due_turns(GameState *g) { queue_due_turns(g); }
 bool field_queued_turns_run(GameState *g, Platform *pf)
 {
     EventAsC c = { g, pf };
-    return run_queued_turns(g, pf, take_turn_as_c, &c) != TURN_WENT_ELSEWHERE;
+    return run_queued_turns(g, pf, take_turn, &c) != TURN_WENT_ELSEWHERE;
 }
 
 /* ---- The guards ------------------------------------------------------------------------------- */

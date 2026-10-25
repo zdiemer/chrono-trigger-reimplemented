@@ -9,10 +9,10 @@
 #include "snes/system.h"
 #include "state.h"
 
-void field_pause_and_menus(Snes *s);
+void field_pause_and_menus_entry(Snes *s);
 /* The same as C: false where a step is the machine's yet (the menus), the
  * program going no further there. */
-bool field_pause_and_menus_as_c(GameState *g, Platform *pf);
+bool field_pause_and_menus(GameState *g, Platform *pf);
 /* The menu a script asked for, from the main loop's requests
  * (field/requests.c): true where it came back to the main loop's caller's
  * state, false where it stopped. */

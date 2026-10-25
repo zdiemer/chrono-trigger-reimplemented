@@ -478,7 +478,7 @@ void event_cmd_send_to_the_reserve(Snes *s)
  * original's dispatch leaves them is clear. */
 enum { THE_DISPATCH_LEAVES_THE_CARRY = false };
 
-bool event_bring_into_the_party_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+bool event_bring_into_the_party(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     enum { LENGTH = 2 };
     uint8_t character = event_decode(g, pf, event_opcode(0xD3), at).character;
@@ -507,7 +507,7 @@ bool event_if_recruited(GameState *g, Platform *pf, uint16_t at, EventStep *step
     return asked(g, pf, at, step, 0xCF, PARTY_RECORD_PLACES);
 }
 
-bool event_send_to_the_reserve_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+bool event_send_to_the_reserve(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     enum { LENGTH = 2 };
     uint8_t character = event_decode(g, pf, event_opcode(0xD4), at).character;

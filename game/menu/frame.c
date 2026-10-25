@@ -48,7 +48,7 @@ typedef struct {
     Platform *pf;
 } FrameAsC;
 
-static bool a_frame_as_c(void *ctx)
+static bool a_frame(void *ctx)
 {
     tm_wait_frame(((FrameAsC *)ctx)->pf, PF_AT(FRAME_WAIT_LOOP));
     return true;
@@ -57,7 +57,7 @@ static bool a_frame_as_c(void *ctx)
 void menu_wait_for_the_next_frame(GameState *g, Platform *pf)
 {
     FrameAsC c = { g, pf };
-    TIMED_AS(g, FRAME_WAIT, (void)wait_for_the_next_frame(g, menu_object_frame_counter(g), a_frame_as_c, &c));
+    TIMED_AS(g, FRAME_WAIT, (void)wait_for_the_next_frame(g, menu_object_frame_counter(g), a_frame, &c));
 }
 
 static bool a_frame_held(void *ctx)
@@ -127,7 +127,7 @@ static bool wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t f
     return true;
 }
 
-static bool a_frame_left_as_c(void *ctx, uint16_t left)
+static bool a_frame_left(void *ctx, uint16_t left)
 {
     (void)left;
     FrameAsC *c = ctx;
@@ -135,11 +135,11 @@ static bool a_frame_left_as_c(void *ctx, uint16_t left)
     return true;
 }
 
-static void frame_done_as_c(void *ctx) { (void)ctx; }
+static void frame_done(void *ctx) { (void)ctx; }
 
-void menu_wait_frames_as_c(GameState *g, Platform *pf, uint16_t frames)
+void menu_wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames)
 {
-    static const FramesLeft as_c = { a_frame_left_as_c, frame_done_as_c };
+    static const FramesLeft as_c = { a_frame_left, frame_done };
     FrameAsC c = { g, pf };
     bool sent = false;
     TIMED_AS(g, 0xC20454, (void)wait_frames_sending_the_sound(g, pf, frames, &as_c, &c, &sent));
@@ -156,7 +156,7 @@ static bool a_frame_left_on_the_machine(void *ctx, uint16_t left)
 
 static void frame_done_on_the_machine(void *ctx) { ORIGINAL_EFFECT((void)m_pull16((Snes *)ctx)); }
 
-void menu_wait_frames_sending_the_sound(Snes *s)
+void menu_wait_frames_sending_the_sound_entry(Snes *s)
 {
     static const FramesLeft on_the_machine = { a_frame_left_on_the_machine, frame_done_on_the_machine };
     bool sent = false;

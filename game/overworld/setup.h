@@ -39,7 +39,7 @@ void overworld_clear_the_sign_label(GameState *g);
  * call to it reaches it. */
 Unpacker overworld_unpacker_on_the_machine(Snes *s);
 /* The unpacker as C (data/decompress.h). */
-Unpacker overworld_unpacker_as_c(GameState *g);
+Unpacker overworld_unpacker(GameState *g);
 
 /* The registered entries and their guards. */
 void overworld_set_up_entry(Snes *s);

@@ -705,7 +705,7 @@ static const struct {
     [NAMING_CHECK_THE_NAME] = { 0xC2E3E0, check_the_name },
 };
 
-bool menu_naming_step(GameState *g, Platform *pf, NamingStep step, const NamingSteps *n, void *ctx)
+bool menu_naming_step_with(GameState *g, Platform *pf, NamingStep step, const NamingSteps *n, void *ctx)
 {
     return steps[step].run(g, pf, n, ctx);
 }
@@ -724,13 +724,13 @@ typedef struct {
     Platform *pf;
 } NamingAsC;
 
-static void read_cursor_as_c(void *ctx)
+static void read_cursor(void *ctx)
 {
     NamingAsC *c = ctx;
     TIMED_AS(c->game, 0xC2E984, menu_read_cursor(c->game));
 }
 
-static bool sound_as_c(void *ctx, uint32_t site, MenuSound sound)
+static bool sound(void *ctx, uint32_t site, MenuSound sound)
 {
     (void)site;
     NamingAsC *c = ctx;
@@ -738,26 +738,26 @@ static bool sound_as_c(void *ctx, uint32_t site, MenuSound sound)
     return true;
 }
 
-static bool routine_as_c(void *ctx, NamingRoutine routine);
+static bool routine(void *ctx, NamingRoutine routine);
 
-static void note_as_c(void *ctx, NamingNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
+static void note(void *ctx, NamingNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
 
 /* The steps' ends, as the menus' own as C: the fade in's task started, the
  * screen faded out, or the menus closed, which never comes back. */
-static bool ends_as_c(void *ctx, NamingEnd end)
+static bool ends(void *ctx, NamingEnd end)
 {
     NamingAsC *c = ctx;
     switch (end) {
     case NAMING_FADES_IN: TIMED_AS(c->game, 0xC283B2, menu_start_the_fade_in(c->game)); break;
-    case NAMING_FADES_OUT: TIMED_AS(c->game, 0xC283CA, menu_fade_out_as_c(c->game)); break;
-    case NAMING_LEAVES_THE_MENUS: menu_close_as_c(c->game, c->pf, false); break;
+    case NAMING_FADES_OUT: TIMED_AS(c->game, 0xC283CA, menu_fade_to_black(c->game)); break;
+    case NAMING_LEAVES_THE_MENUS: menu_close(c->game, c->pf, false); break;
     }
     return true;
 }
 
-static const NamingSteps as_c = { read_cursor_as_c, sound_as_c, routine_as_c, note_as_c, ends_as_c };
+static const NamingSteps as_c = { read_cursor, sound, routine, note, ends };
 
-static bool routine_as_c(void *ctx, NamingRoutine routine)
+static bool routine(void *ctx, NamingRoutine routine)
 {
     NamingAsC *c = ctx;
     if (!menu_naming_is_whole(c->game)) {
@@ -769,7 +769,7 @@ static bool routine_as_c(void *ctx, NamingRoutine routine)
     return back;
 }
 
-bool menu_naming_step_as_c(GameState *g, Platform *pf, NamingStep step)
+bool menu_naming_step(GameState *g, Platform *pf, NamingStep step)
 {
     if (!takes(g, steps[step].takes)) {
         program_needs_the_machine(g, steps[step].routine, "a naming the port doesn't take");

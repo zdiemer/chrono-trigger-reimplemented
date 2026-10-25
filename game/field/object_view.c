@@ -303,7 +303,7 @@ bool field_view_change_in_the_tables(const GameState *g, FieldObject obj)
 
 /* ---- As C ----------------------------------------------------------------------------------- */
 
-static bool rows_as_c(void *ctx, FieldObject obj, bool join) { return object_rows_step(ctx, obj, join); }
+static bool rows(void *ctx, FieldObject obj, bool join) { return object_rows_step(ctx, obj, join); }
 
 enum { VIEW = 0xC0A88D };
 
@@ -313,7 +313,7 @@ bool object_view_updated(GameState *g, FieldObject obj)
         program_needs_the_machine(g, VIEW, "an object coming into view or leaving it with tables the port doesn't read");
         return false;
     }
-    static const ViewSteps as_c = { rows_as_c, NULL };
+    static const ViewSteps as_c = { rows, NULL };
     return update_view(g, obj, &as_c, g) != VIEW_WENT_ELSEWHERE;
 }
 
@@ -339,7 +339,7 @@ enum { JOIN_SITE = 0xC0A90B, LEAVE_SITE = 0xC0A921 };
 static bool rows_on_the_machine(void *ctx, FieldObject obj, bool join)
 {
     Snes *s = ctx;
-    if (field_rows_step_as_c(s, obj, join))
+    if (field_rows_step(s, obj, join))
         return true;
     return bridge_call(s, join ? JOIN_SITE : LEAVE_SITE, join ? FIELD_JOIN_ROW_ENTRY : FIELD_LEAVE_ROW_ENTRY,
                        ROWS_CALL_DONT_CARE, on_the_field_page(s, true));

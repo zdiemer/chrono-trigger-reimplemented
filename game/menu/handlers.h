@@ -34,7 +34,7 @@ typedef struct {
 } MenuHandler;
 
 /* The row of a handler, or NULL where it has none. */
-const MenuHandler *menu_handler_as_c(uint16_t handler);
+const MenuHandler *menu_handler(uint16_t handler);
 
 /* A file's handlers, which it lists beside its entries. */
 typedef struct {
@@ -47,7 +47,7 @@ typedef struct {
 
 /* Every object's turn this frame as C (menu/objects.c): false where one went
  * no further. */
-bool menu_objects_run_as_c(GameState *g, Platform *pf);
+bool menu_objects_run(GameState *g, Platform *pf);
 
 /* A routine a command script calls by its address (24-bit, `far` where the
  * command named its bank): the guard's state half, which takes the running
@@ -83,6 +83,6 @@ extern const MenuScriptRoutines overworld_routines;
  * services as C: whether the object waits for the next frame or is done. A
  * command the port doesn't run, or a service that meets a step only the
  * machine runs, goes no further. */
-MenuTurn menu_run_object_script_as_c(GameState *g, Platform *pf, MenuObject self);
+MenuTurn menu_run_object_script(GameState *g, Platform *pf, MenuObject self);
 
 #endif
