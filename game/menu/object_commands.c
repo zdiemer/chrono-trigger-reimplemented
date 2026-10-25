@@ -670,7 +670,7 @@ void menu_object_load_second_mode7_palette(Snes *s)
 /* The routines as the program calls them from a script (menu/handlers.h): the
  * same work as the entries above, with nothing of the machine's to leave. */
 #define ROUTINE(name)                                                                \
-    static bool name##_as_c(GameState *g, Platform *pf, MenuObject self, bool far) \
+    static bool name##_routine(GameState *g, Platform *pf, MenuObject self, bool far) \
     {                                                                                \
         (void)pf, (void)self, (void)far;                                             \
         name(g, self);                                                               \
@@ -708,7 +708,7 @@ ROUTINE(ask)
 
 /* The pictures are unpacked by the decompressor as C. */
 #define PICTURE(name, kind, number, buffer)                                          \
-    static bool name##_as_c(GameState *g, Platform *pf, MenuObject self, bool far) \
+    static bool name##_routine(GameState *g, Platform *pf, MenuObject self, bool far) \
     {                                                                                \
         (void)pf, (void)self, (void)far;                                             \
         (void)name_scene_resource(g, kind, number, buffer);                          \
@@ -721,28 +721,28 @@ PICTURE(second_graphics, MENU_SCENE_GRAPHICS, SECOND_GRAPHICS, MODE7_GRAPHICS_BU
 PICTURE(second_palette, MENU_SCENE_PALETTES, SECOND_PALETTE, MODE7_PALETTE_BUFFER)
 
 MENU_SCRIPT_ROUTINES(menu_scene_routines,
-    { 0xC6E237, "the scene's mode read", NULL, read_the_scene_mode_as_c },
-    { 0xC6E2AF, "the scene's flag cleared", NULL, clear_the_scene_flag_as_c },
-    { 0xC6E63D, "the song kept", NULL, keep_the_song_as_c },
-    { 0xC6E644, "the song let go", NULL, let_the_song_go_as_c },
-    { 0xC6E583, "the second plane bobbed", NULL, bob_as_c },
-    { 0xC6E590, "the second plane raised", NULL, raise_as_c },
-    { 0xC6E77F, "an object falling faster", NULL, fall_faster_as_c },
-    { 0xC6E2B5, "the layer drifting with an object", NULL, drift_the_layer_as_c },
-    { 0xC6E6D0, "an object jolted", NULL, jolt_as_c },
-    { 0xC2754D, "an object put under the view", view_is_on_the_map, place_under_the_view_as_c },
-    { 0xC27575, "an object put under the stretch", view_is_on_the_map, place_under_the_stretch_as_c },
-    { 0xC27598, "an object given a random velocity", view_is_on_the_map, give_random_velocity_as_c },
-    { 0xC279E0, "an object stepped right at random", NULL, step_right_at_random_as_c },
-    { 0xC27A0C, "an object put in the east stretch", NULL, place_in_the_east_as_c },
-    { 0xC27A31, "an object put in the west stretch", NULL, place_in_the_west_as_c },
-    { 0xC27860, "the party hidden", NULL, hide_as_c },
-    { 0xC2786F, "the party kept", NULL, keep_as_c },
-    { 0xC27888, "the party brought back", NULL, bring_back_as_c },
-    { 0xC27B44, "the scene marked as played", NULL, mark_played_as_c },
-    { 0xC27BC4, "the story asked", NULL, ask_as_c },
-    { 0xC6E028, "the scenes' Mode 7 graphics", NULL, shared_graphics_as_c },
-    { 0xC6E04D, "the scenes' Mode 7 colours", NULL, shared_palette_as_c },
-    { 0xC6E64A, "a scene's second Mode 7 graphics", NULL, second_graphics_as_c },
-    { 0xC6E66F, "a scene's second Mode 7 colours", NULL, second_palette_as_c },
+    { 0xC6E237, "the scene's mode read", NULL, read_the_scene_mode_routine },
+    { 0xC6E2AF, "the scene's flag cleared", NULL, clear_the_scene_flag_routine },
+    { 0xC6E63D, "the song kept", NULL, keep_the_song_routine },
+    { 0xC6E644, "the song let go", NULL, let_the_song_go_routine },
+    { 0xC6E583, "the second plane bobbed", NULL, bob_routine },
+    { 0xC6E590, "the second plane raised", NULL, raise_routine },
+    { 0xC6E77F, "an object falling faster", NULL, fall_faster_routine },
+    { 0xC6E2B5, "the layer drifting with an object", NULL, drift_the_layer_routine },
+    { 0xC6E6D0, "an object jolted", NULL, jolt_routine },
+    { 0xC2754D, "an object put under the view", view_is_on_the_map, place_under_the_view_routine },
+    { 0xC27575, "an object put under the stretch", view_is_on_the_map, place_under_the_stretch_routine },
+    { 0xC27598, "an object given a random velocity", view_is_on_the_map, give_random_velocity_routine },
+    { 0xC279E0, "an object stepped right at random", NULL, step_right_at_random_routine },
+    { 0xC27A0C, "an object put in the east stretch", NULL, place_in_the_east_routine },
+    { 0xC27A31, "an object put in the west stretch", NULL, place_in_the_west_routine },
+    { 0xC27860, "the party hidden", NULL, hide_routine },
+    { 0xC2786F, "the party kept", NULL, keep_routine },
+    { 0xC27888, "the party brought back", NULL, bring_back_routine },
+    { 0xC27B44, "the scene marked as played", NULL, mark_played_routine },
+    { 0xC27BC4, "the story asked", NULL, ask_routine },
+    { 0xC6E028, "the scenes' Mode 7 graphics", NULL, shared_graphics_routine },
+    { 0xC6E04D, "the scenes' Mode 7 colours", NULL, shared_palette_routine },
+    { 0xC6E64A, "a scene's second Mode 7 graphics", NULL, second_graphics_routine },
+    { 0xC6E66F, "a scene's second Mode 7 colours", NULL, second_palette_routine },
 );

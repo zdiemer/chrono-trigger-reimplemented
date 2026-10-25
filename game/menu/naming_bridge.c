@@ -106,7 +106,7 @@ static const NamingSteps on_the_machine = { read_cursor, sound, routine, note, e
 
 static void step(Snes *s, NamingStep at)
 {
-    if (menu_naming_step(state_of(s), m_platform(s), at, &on_the_machine, s))
+    if (menu_naming_step_with(state_of(s), m_platform(s), at, &on_the_machine, s))
         m_rts(s);
 }
 

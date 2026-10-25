@@ -382,7 +382,7 @@ enum { THE_SCENE_STARTS = 0xC03FD6, AS_THE_SCENE_STARTS = DC_A | DC_X | DC_Y | D
  * The original then starts the scene on a fresh stack, reading its number
  * from where the command keeps it: the scene engine's, or from $80 the time
  * gate's tunnels (bank $FD's). */
-static void end_the_field_for_a_scene(Snes *s, uint8_t scene)
+static void end_the_field_for_a_scene_on_the_machine(Snes *s, uint8_t scene)
 {
     GameState *g = state_of(s);
     BridgeMachine as = event_machine(s, false);
@@ -446,7 +446,7 @@ void event_screen_party_routine(Snes *s)
  * leader walking and the palettes animating, and the screen dark; the scene
  * the field ends into is the program's next step (field/main_loop.h), which
  * only the machine runs yet. False where the walk is the machine's. */
-static bool end_the_field_for_a_scene_as_c(GameState *g, Platform *pf, uint8_t scene)
+static bool end_the_field_for_a_scene(GameState *g, Platform *pf, uint8_t scene)
 {
     set_field_scene_to_start(g, scene);
     while (field_dims_a_step(g)) {
@@ -455,7 +455,7 @@ static bool end_the_field_for_a_scene_as_c(GameState *g, Platform *pf, uint8_t s
         if (!walked)
             return false;
         bool animated = false;
-        TIMED_AS(g, PALETTE_ANIMATION, animated = palette_animated_as_c(g));
+        TIMED_AS(g, PALETTE_ANIMATION, animated = palette_animated(g));
         if (!animated)
             return false;
         TIMED_AS(g, FRAME_WAIT, field_finish_the_frame(g, pf));
@@ -465,11 +465,11 @@ static bool end_the_field_for_a_scene_as_c(GameState *g, Platform *pf, uint8_t s
     return false;
 }
 
-bool event_screen_command_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = event_decode(g, pf, event_opcode(0xFF), at);
     if (c.screen_command < FIRST_SCREEN_COMMAND)
-        return end_the_field_for_a_scene_as_c(g, pf, c.screen_command);
+        return end_the_field_for_a_scene(g, pf, c.screen_command);
     unsigned i = screen_command_index(c.screen_command);
     if (screen_commands[i].kind == RESTARTS_THE_FIELD) {
         program_needs_the_machine(g, SCREEN_DISPATCH, "the field's restart a script asks for");
@@ -493,7 +493,7 @@ void event_cmd_screen_command(Snes *s)
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, 0xFF);
     if (c.screen_command < FIRST_SCREEN_COMMAND) {
-        end_the_field_for_a_scene(s, c.screen_command);
+        end_the_field_for_a_scene_on_the_machine(s, c.screen_command);
         return;
     }
     unsigned i = screen_command_index(c.screen_command);

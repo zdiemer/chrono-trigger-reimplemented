@@ -171,7 +171,7 @@ static void send_and_wait_for_the_echo(GameState *g, Platform *pf)
     au_driver_wait_echo(pf, PF_LOOP(0x7E379B, 0x7E37A5), command);
 }
 
-void scene_sound_back_to_normal_as_c(GameState *g, Platform *pf)
+void scene_sound_back_to_normal(GameState *g, Platform *pf)
 {
     if (scene_flags(g) & SCENE_FLAG_NO_SONGS)
         return;
@@ -186,7 +186,7 @@ void scene_sends_the_command(GameState *g, Platform *pf) { TIMED_AS(g, SCENE_SEN
 bool scene_music_is_playing(Platform *pf) { return music_playing(pf) != 0; }
 
 // $7E:3177
-void scene_sound_back_to_normal(Snes *s)
+void scene_sound_back_to_normal_entry(Snes *s)
 {
     GameState *g = state_of(s);
     if (scene_flags(g) & SCENE_FLAG_NO_SONGS) {

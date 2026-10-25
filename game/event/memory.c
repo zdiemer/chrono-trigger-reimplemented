@@ -95,7 +95,7 @@ static EventStep copy_data(GameState *g, uint16_t destination, uint8_t bank, uin
     return (EventStep){ from, true };
 }
 
-bool event_copy_data_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+bool event_copy_data(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = event_decode(g, pf, event_opcode(0x4E), at);
     *step = copy_data(g, c.destination, c.bank, c.size, at);

@@ -24,7 +24,7 @@ void menu_pack_settings(GameState *g);
 
 void menu_open(Snes *s);
 /* The same as C: false where a step is the machine's yet. */
-bool menu_opens_as_c(GameState *g, Platform *pf);
+bool menu_opens(GameState *g, Platform *pf);
 void menu_list_party_entry(Snes *s);
 void menu_unpack_settings_entry(Snes *s);
 bool menu_opening_runs(Snes *s);

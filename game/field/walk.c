@@ -1086,7 +1086,7 @@ static bool recentre(GameState *g, ScrollTheLayers scroll, void *ctx)
  * (the program goes no further). */
 enum { LAYER_SCROLL = 0xC091AC, LAYERS_STREAMED = 0xC093E1 };
 
-static bool scroll_as_c(void *ctx, LayersScroll after)
+static bool scroll(void *ctx, LayersScroll after)
 {
     (void)after;
     GameState *g = ctx;
@@ -1108,7 +1108,7 @@ bool field_the_leader_walks(GameState *g)
         program_needs_the_machine(g, THE_WALK, "a walk the port doesn't take");
         return false;
     }
-    return walk_the_leader(g, scroll_as_c, g);
+    return walk_the_leader(g, scroll, g);
 }
 
 /* The guard's state half: the leader an object the tables hold. */
@@ -1120,7 +1120,7 @@ bool field_the_screen_recentres(GameState *g)
         program_needs_the_machine(g, 0xC0885A, "a recentring with no leader the tables hold");
         return false;
     }
-    return recentre(g, scroll_as_c, g);
+    return recentre(g, scroll, g);
 }
 
 /* On the machine, each from its own calls. */

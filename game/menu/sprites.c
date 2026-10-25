@@ -1643,7 +1643,7 @@ static bool load_record_sprites(GameState *g, LoadRecord load, void *ctx)
 }
 
 /* As C, the unpacker called as C. */
-static bool unpack_as_c(void *ctx)
+static bool unpack_the_sprite(void *ctx)
 {
     GameState *g = ctx;
     TIMED_AS(g, UNPACK_STREAM_ENTRY, (void)unpack_stream(g));
@@ -1655,7 +1655,7 @@ static bool opening_records_fit(const GameState *g);
 
 /* Each load where its guard's state half takes it; otherwise the program goes
  * no further there. */
-static bool load_as_c(void *ctx, unsigned record)
+static bool load(void *ctx, unsigned record)
 {
     GameState *g = ctx;
     if (!record_sprite_loadable(g, record)) {
@@ -1663,7 +1663,7 @@ static bool load_as_c(void *ctx, unsigned record)
         return false;
     }
     bool loaded = false;
-    TIMED_AS(g, 0xC2F422, loaded = load_the_record_sprite(g, record, unpack_as_c, g));
+    TIMED_AS(g, 0xC2F422, loaded = load_the_record_sprite(g, record, unpack_the_sprite, g));
     return loaded;
 }
 
@@ -1673,7 +1673,7 @@ bool menu_record_sprites_loaded(GameState *g)
         program_needs_the_machine(g, 0xC2F3CA, "records' sprites the port doesn't load");
         return false;
     }
-    return load_record_sprites(g, load_as_c, g);
+    return load_record_sprites(g, load, g);
 }
 
 /* On the machine each record's load runs as the original's call reaches it,

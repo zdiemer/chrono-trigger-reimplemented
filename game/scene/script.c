@@ -638,7 +638,7 @@ static void keep_the_routine_called(GameState *g, uint16_t routine) { scene_leav
 /* A routine the port has, as C, where the program's code for the call and for
  * it is the code the port stands for: its work on the calling channel, timed
  * as the routine, with 16-bit A after. False where it isn't. */
-static bool call_routine_as_c(Snes *s, SceneChannel ch, uint16_t routine)
+static bool call_the_ported_routine(Snes *s, SceneChannel ch, uint16_t routine)
 {
     const SceneScriptRoutine *r = routine_port(routine);
     if (!r || !call_present(s) || !r->present(s))
@@ -663,7 +663,7 @@ typedef enum { ROUTINE_CAME_BACK, ROUTINE_LEFT_IT_ELSEWHERE, ROUTINE_STOPPED } R
 
 static RoutineCall call_routine(Snes *s, SceneChannel *ch, uint16_t routine)
 {
-    if (call_routine_as_c(s, *ch, routine))
+    if (call_the_ported_routine(s, *ch, routine))
         return ROUTINE_CAME_BACK;
     keep_the_routine_called(state_of(s), routine);
     s->cpu.a = routine;   /* as the original loaded it: some routines read it */
@@ -833,7 +833,7 @@ static RunEnd run(Snes *s, SceneChannel ch)
 
 /* The program's routine a script calls, as C where the port has it; false
  * where it is the original's yet. */
-static bool routine_as_c(GameState *g, Platform *pf, SceneChannel ch, uint16_t routine)
+static bool routine(GameState *g, Platform *pf, SceneChannel ch, uint16_t routine)
 {
     const SceneScriptRoutine *r = routine_port(routine);
     if (!r) {
@@ -882,7 +882,7 @@ SceneTurn scene_channel_turn(GameState *g, Platform *pf, SceneChannel ch)
                 return SCENE_TURN_ENDED;
             continue;
         case ROUTINE_CALL:
-            if (!routine_as_c(g, pf, ch, flow.routine))
+            if (!routine(g, pf, ch, flow.routine))
                 return SCENE_TURN_NEEDS_THE_MACHINE;
             past_the_call(g, ch);
             continue;

@@ -571,7 +571,7 @@ static FrameDrawing draw_on_the_machine(void *ctx, FieldObject obj, bool alone)
     return m_flag(s, CPU_FLAG_C) ? FRAME_HAS_MORE_PARTS : FRAME_WHOLE;
 }
 
-static FrameDrawing draw_as_c(void *ctx, FieldObject obj, bool alone)
+static FrameDrawing draw_the_frame(void *ctx, FieldObject obj, bool alone)
 {
     (void)alone;
     GameState *g = ctx;
@@ -580,7 +580,7 @@ static FrameDrawing draw_as_c(void *ctx, FieldObject obj, bool alone)
     return more ? FRAME_HAS_MORE_PARTS : FRAME_WHOLE;
 }
 
-void field_queued_frames_drawn(GameState *g, Platform *pf) { (void)draw_queued_frames(g, pf, draw_as_c, g); }
+void field_queued_frames_drawn(GameState *g, Platform *pf) { (void)draw_queued_frames(g, pf, draw_the_frame, g); }
 
 /* With 8-bit A and index registers, as the original returns. */
 void field_draw_queued_frames(Snes *s)

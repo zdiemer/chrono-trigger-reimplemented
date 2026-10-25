@@ -131,7 +131,7 @@ static bool cast_enemy(GameState *g, Platform *pf, FieldObject self, uint8_t ene
 }
 
 /* As C: the unpacker as C. */
-static bool unpack_as_c(void *ctx, FieldSpriteRecord r, SetKind kind)
+static bool unpack(void *ctx, FieldSpriteRecord r, SetKind kind)
 {
     GameState *g = ctx;
     ask_to_unpack(g, r.graphics);
@@ -146,10 +146,10 @@ static void nothing_between(void *ctx, CastGraphics graphics) { (void)ctx, (void
 
 enum { CAST_NPC_LENGTH = 2, CAST_ENEMY_LENGTH = 3 };
 
-bool event_cast_npc_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+bool event_cast_npc(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = event_decode(g, pf, event_opcode(0x82), at);
-    SetUnpacker u = { unpack_as_c, g };
+    SetUnpacker u = { unpack, g };
     CastGraphics graphics;
     if (!cast_npc(g, c.self, c.npc, &u, &graphics))
         return false;
@@ -157,10 +157,10 @@ bool event_cast_npc_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *ste
     return true;
 }
 
-bool event_cast_enemy_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+bool event_cast_enemy(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = event_decode(g, pf, event_opcode(0x83), at);
-    SetUnpacker u = { unpack_as_c, g };
+    SetUnpacker u = { unpack, g };
     CastGraphics graphics;
     if (!cast_enemy(g, pf, c.self, c.enemy, c.slot, &u, &graphics, nothing_between))
         return false;

@@ -93,12 +93,12 @@ bool menu_task_goes_on_from(Snes *s, uint16_t s_after);
  * is one only the machine runs yet; the running task's wait for `frames`
  * frames, from inside it; the menus closed from inside a task, which never
  * comes back; and the tasks' coroutines given back once the menus are. */
-void menu_tasks_open_as_c(GameState *g, Platform *pf);
+void menu_tasks_open(GameState *g, Platform *pf);
 typedef enum { MENU_TURNS_TAKEN, MENU_TURNS_CLOSED, MENU_TURNS_WENT_NO_FURTHER } MenuTurns;
-MenuTurns menu_tasks_take_the_turns_as_c(GameState *g);
-void menu_task_waits_as_c(GameState *g, uint8_t frames);
-void menu_tasks_closed_as_c(void);
-void menu_tasks_end_as_c(void);
+MenuTurns menu_tasks_take_the_turns(GameState *g);
+void menu_task_waits(GameState *g, uint8_t frames);
+void menu_tasks_closed(void);
+void menu_tasks_end(void);
 
 void menu_run_the_main_task(Snes *s);
 void menu_main_task_waits(Snes *s);
@@ -112,7 +112,7 @@ void menu_records_task_waits(Snes *s);
 bool menu_run_the_screen_s_step(Snes *s);
 /* The same as C, from inside the main task: false where the step is one the
  * port doesn't have as C, the program going no further there. */
-bool menu_screen_step_as_c(GameState *g, Platform *pf);
+bool menu_run_the_screen_step(GameState *g, Platform *pf);
 bool menu_screen_step_is_known(Snes *s);
 
 /* menu/frame.c */
@@ -120,8 +120,8 @@ bool menu_screen_step_is_known(Snes *s);
  * count the next frame, and for `frames` frames (0 is 65,536), sending after
  * each the sound command a request left waiting. */
 void menu_wait_for_the_next_frame(GameState *g, Platform *pf);
-void menu_wait_frames_as_c(GameState *g, Platform *pf, uint16_t frames);
-void menu_wait_frames_sending_the_sound(Snes *s);
+void menu_wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames);
+void menu_wait_frames_sending_the_sound_entry(Snes *s);
 void menu_wait_for_frame_loop(Snes *s);
 void menu_wait_for_frame(Snes *s);
 void menu_take_the_frames_input(Snes *s);

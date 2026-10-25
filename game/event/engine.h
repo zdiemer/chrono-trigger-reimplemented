@@ -53,7 +53,7 @@ typedef struct {
     GameState *game;
     Platform *pf;
 } EventAsC;
-EventRunner event_runner_as_c(EventAsC *c);
+EventRunner event_runner(EventAsC *c);
 
 /* The bridges' work as C, for a program with no machine under it (the
  * runner as C, above): each takes the command at `at` and says where the
@@ -61,20 +61,20 @@ EventRunner event_runner_as_c(EventAsC *c);
  * on, or no further, from where the command said: core/program.h). A bridge
  * with none here is the machine's yet. */
 #define EVENT_BRIDGES_AS_C(X) \
-    X(event_play_effect_as_c, 0xE8) \
-    X(event_play_song_as_c, 0xEA) \
-    X(event_fade_music_as_c, 0xEB) \
-    X(event_send_sound_command_as_c, 0xEC) \
-    X(event_screen_command_as_c, 0xFF) \
-    X(event_copy_data_as_c, 0x4E) \
-    X(event_bring_into_the_party_as_c, 0xD3) \
-    X(event_send_to_the_reserve_as_c, 0xD4) \
+    X(event_play_effect, 0xE8) \
+    X(event_play_song, 0xEA) \
+    X(event_fade_music, 0xEB) \
+    X(event_send_sound_command, 0xEC) \
+    X(event_screen_command, 0xFF) \
+    X(event_copy_data, 0x4E) \
+    X(event_bring_into_the_party, 0xD3) \
+    X(event_send_to_the_reserve, 0xD4) \
     X(event_if_in_the_active_party, 0xD2) \
     X(event_if_recruited, 0xCF) \
     X(event_go_now, 0xE1) \
     X(event_go_now_raising_1e, 0xDF) \
-    X(event_cast_npc_as_c, 0x82) \
-    X(event_cast_enemy_as_c, 0x83)
+    X(event_cast_npc, 0x82) \
+    X(event_cast_enemy, 0x83)
 
 #define EVENT_DECLARE_AS_C(name, opcode) bool name(GameState *g, Platform *pf, uint16_t at, EventStep *step);
 EVENT_BRIDGES_AS_C(EVENT_DECLARE_AS_C)

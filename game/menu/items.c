@@ -347,7 +347,7 @@ static void leave_tables_built(GameState *g) { set_menu_scratch_graphics_count(g
 // $C2:9875
 /* The menus' item tables built as they open, the party's techs and
  * everyone's figures noted, and the bytes after the names copied. */
-void menu_items_built(GameState *g)
+void menu_build_the_items(GameState *g)
 {
     menu_build_item_tables(g);
     ORIGINAL_EFFECT(leave_tables_built(g));
@@ -359,7 +359,7 @@ void menu_items_built(GameState *g)
 void menu_build_items(Snes *s)
 {
     menu_save_p(s);
-    menu_items_built(state_of(s));
+    menu_build_the_items(state_of(s));
     menu_set_widths(s, true, false);
     s->cpu.db = MENU_DATA_BANK;   /* as the tables' block moves leave it */
     menu_restore_p(s);
@@ -421,13 +421,13 @@ bool menu_items_are_buildable(Snes *s)
     return ok;
 }
 
-bool menu_items_built_as_c(GameState *g)
+bool menu_items_built(GameState *g)
 {
     if (!menu_items_can_be_built(g)) {
         program_needs_the_machine(g, 0xC29875, "item tables the port doesn't build");
         return false;
     }
-    menu_items_built(g);
+    menu_build_the_items(g);
     return true;
 }
 

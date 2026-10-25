@@ -868,7 +868,7 @@ static bool every_draw_is_own(const GameState *g)
     return true;
 }
 
-static void draw_as_c(Snes *s, FieldObject obj)
+static void draw_by_the_port(Snes *s, FieldObject obj)
 {
     GameState *g = state_of(s);
     RecordsWork work = records_work(g, obj);
@@ -899,7 +899,7 @@ static bool draw(Snes *s, FieldObject obj, unsigned row, unsigned site, bool as_
 {
     object_make_current(state_of(s), obj);
     if (as_c) {
-        draw_as_c(s, obj);
+        draw_by_the_port(s, obj);
         return true;
     }
     uint16_t row_count = (uint16_t)(row * 2);

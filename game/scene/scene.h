@@ -401,7 +401,7 @@ MusicStatus scene_music_status(Platform *pf);
  * as a scene starts and ends, each command sent through the program's own
  * send and its echo waited for; that send alone, of the command in the
  * buffer; and whether the music has started playing. */
-void scene_sound_back_to_normal_as_c(GameState *g, Platform *pf);
+void scene_sound_back_to_normal(GameState *g, Platform *pf);
 void scene_sends_the_command(GameState *g, Platform *pf);
 bool scene_music_is_playing(Platform *pf);
 uint8_t scene_music_progress(MusicStatus music);
@@ -637,14 +637,14 @@ void scene_nmi(Snes *s);
  * NMI handlers -- the frame's (the work, then the song), and the one that
  * only acknowledges while it runs. The work is false where a task is one
  * only the machine runs yet, the program going no further there. */
-bool scene_frame_work_as_c(GameState *g, Platform *pf);
+bool scene_frame_work(GameState *g, Platform *pf);
 void scene_vblank(GameState *g, Platform *pf);
 void scene_vblank_while_working(GameState *g, Platform *pf);
 enum { SCENE_FRAME_HANDLER = 0xC308B3, SCENE_HANDLER_WHILE_WORKING = 0xC308C9, SCENE_BOOT_VBLANK = 0xC30548,
        SCENE_BOOT_LINE = 0xC30529 };
 void scene_nmi_while_working(Snes *s);
 void scene_line_irq_ack(Snes *s);
-void scene_frame_work(Snes *s);
+void scene_frame_work_entry(Snes *s);
 bool scene_pause_is_a_switch(Snes *s);
 bool scene_frame_tasks_present(Snes *s);
 bool scene_vblank_tasks_present(Snes *s);
@@ -700,7 +700,7 @@ bool scene_setup_line_effects_present(Snes *s);
 void scene_setup_line_effects(Snes *s);
 
 /* scene/title.c (the program in RAM) */
-void scene_title_set_up(Snes *s);
+void scene_title_set_up_entry(Snes *s);
 /* The setups as the program's dispatch runs them (scene/program.c): each
  * leaves the registers as its routine returns them, and is true unless a
  * call-out of its stopped. The title's then waits for its song, in the
@@ -708,7 +708,7 @@ void scene_title_set_up(Snes *s);
 bool scene_title_set_up_scene(Snes *s);
 /* The title's setup as C, for a program with no machine under it (the song
  * started, not waited for); false where a step is the machine's yet. */
-bool scene_title_set_up_as_c(GameState *g, Platform *pf);
+bool scene_title_set_up(GameState *g, Platform *pf);
 void scene_title_wait_for_its_song(Snes *s);
 bool scene_race_set_up_scene(Snes *s);
 bool scene_ending_set_up_scene(Snes *s);
@@ -1162,7 +1162,7 @@ bool scene_race_pick_opening_present(Snes *s);
 void scene_race_pick_opening(Snes *s);
 
 /* scene/sound.c (the program in RAM) */
-void scene_sound_back_to_normal(Snes *s);
+void scene_sound_back_to_normal_entry(Snes *s);
 bool scene_sound_back_to_normal_present(Snes *s);
 bool scene_wait_for_music_present(Snes *s);
 void scene_wait_for_music_loop(Snes *s);

@@ -8,7 +8,7 @@
  * the left, so a wave runs across the picture. The endings come back to it.
  *
  * Its pieces here:
- * - the setup (scene_title_set_up), as the program's dispatch calls it: the
+ * - the setup (scene_title_set_up_entry), as the program's dispatch calls it: the
  *   title's resources unpacked (scene/boot.c) and sent to VRAM -- the sprites'
  *   tiles, the layers' tiles, the plane's pixels (built from 4-bit tiles, a
  *   row at a time: expand_plane_tile) and its name table, and BG1's and BG2's
@@ -62,7 +62,7 @@ bool scene_title_loader_present(Snes *s)
 }
 
 /* A block begins where its graphics go in VRAM; the port stops where the loader
- * goes on to unpack them, which reads none of the registers. */
+ * goes on to unpack_on_the_machine them, which reads none of the registers. */
 static void begin_block(Snes *s, uint16_t vram, uint32_t site, uint32_t stop)
 {
     vid_set_vram_address(m_platform(s), PF_AT(site), vram);
@@ -867,7 +867,7 @@ enum { PLANE_TILES = 0xA0 };
  * from the setup's own calls; it reads X, the resource, and the overflow. */
 enum { UNPACKER = 0x7E3691, THE_UNPACKER_READS_X_AND_THE_OVERFLOW = DC_A | DC_Y | DC_N | DC_Z | DC_C };
 
-static bool unpack(Snes *s, uint32_t site, uint16_t resource)
+static bool unpack_on_the_machine(Snes *s, uint32_t site, uint16_t resource)
 {
     s->cpu.x = resource;
     return scene_run(s, site, UNPACKER, THE_UNPACKER_READS_X_AND_THE_OVERFLOW, scene_unpack_resource);
@@ -967,29 +967,29 @@ bool scene_title_set_up_scene(Snes *s)
     set_decompress_dest(g, UNPACKED_GRAPHICS);
     vid_start_vram_uploads(pf, PF_AT(0x7E597D), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E5983), SPRITE_TILES_VRAM);
-    if (!unpack(s, 0x7E5989, SPRITE_TILES_RESOURCE))
+    if (!unpack_on_the_machine(s, 0x7E5989, SPRITE_TILES_RESOURCE))
         return false;
     set_scene_call_transfer_control(g, scene_program_own(), WORDS_TO_TWO_REGISTERS);
     set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
     send_unpacked(g, pf);
-    if (!unpack(s, 0x7E599D, LAYER_TILES_RESOURCE))
+    if (!unpack_on_the_machine(s, 0x7E599D, LAYER_TILES_RESOURCE))
         return false;
     vid_set_vram_address(pf, PF_AT(0x7E59A3), LAYER_TILES_VRAM);
     send_unpacked(g, pf);
     vid_set_vram_address(pf, PF_AT(0x7E59AD), PLANE_VRAM);
     build_plane_pixels(g, pf);
-    if (!unpack(s, 0x7E59B9, BG1_MAP_RESOURCE))
+    if (!unpack_on_the_machine(s, 0x7E59B9, BG1_MAP_RESOURCE))
         return false;
     vid_set_vram_address(pf, PF_AT(0x7E59BF), BG1_MAP_VRAM);
     send_unpacked(g, pf);
-    if (!unpack(s, 0x7E59C9, BG2_MAP_RESOURCE))
+    if (!unpack_on_the_machine(s, 0x7E59C9, BG2_MAP_RESOURCE))
         return false;
     vid_set_vram_address(pf, PF_AT(0x7E59CF), BG2_MAP_VRAM);
     send_unpacked(g, pf);
     TIMED_AS(g, 0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
     fill_bg1_map(g, pf, WHOLE_WORDS_PORT);
     set_decompress_dest(g, (decompress_dest(g) & 0xFF0000u) | UNPACKED_PALETTE_AT);
-    if (!unpack(s, 0x7E59FA, PALETTE_RESOURCE))
+    if (!unpack_on_the_machine(s, 0x7E59FA, PALETTE_RESOURCE))
         return false;
     scene_use_loaded_palette(g);
     set_scene_channels_script(g, TITLE_CHANNEL, FIRST_SCRIPT);
@@ -1016,7 +1016,7 @@ bool scene_title_set_up_scene(Snes *s)
 
 /* Each resource unpacked by the program's unpacker, to where the setup has
  * pointed it, then sent to VRAM where the next step says. */
-static void unpack_as_c(GameState *g, uint16_t resource) { TIMED_AS(g, UNPACKER, scene_unpacks(g, resource)); }
+static void unpack(GameState *g, uint16_t resource) { TIMED_AS(g, UNPACKER, scene_unpacks(g, resource)); }
 
 /* The title's song started, as the program's call of the driver starts it. */
 static void start_the_song(Platform *pf)
@@ -1027,30 +1027,30 @@ static void start_the_song(Platform *pf)
 }
 
 // $7E:5978
-bool scene_title_set_up_as_c(GameState *g, Platform *pf)
+bool scene_title_set_up(GameState *g, Platform *pf)
 {
     set_decompress_dest(g, UNPACKED_GRAPHICS);
     vid_start_vram_uploads(pf, PF_AT(0x7E597D), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E5983), SPRITE_TILES_VRAM);
-    unpack_as_c(g, SPRITE_TILES_RESOURCE);
+    unpack(g, SPRITE_TILES_RESOURCE);
     set_scene_call_transfer_control(g, scene_program_own(), WORDS_TO_TWO_REGISTERS);
     set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
     send_unpacked(g, pf);
-    unpack_as_c(g, LAYER_TILES_RESOURCE);
+    unpack(g, LAYER_TILES_RESOURCE);
     vid_set_vram_address(pf, PF_AT(0x7E59A3), LAYER_TILES_VRAM);
     send_unpacked(g, pf);
     vid_set_vram_address(pf, PF_AT(0x7E59AD), PLANE_VRAM);
     build_plane_pixels(g, pf);
-    unpack_as_c(g, BG1_MAP_RESOURCE);
+    unpack(g, BG1_MAP_RESOURCE);
     vid_set_vram_address(pf, PF_AT(0x7E59BF), BG1_MAP_VRAM);
     send_unpacked(g, pf);
-    unpack_as_c(g, BG2_MAP_RESOURCE);
+    unpack(g, BG2_MAP_RESOURCE);
     vid_set_vram_address(pf, PF_AT(0x7E59CF), BG2_MAP_VRAM);
     send_unpacked(g, pf);
     TIMED_AS(g, 0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
     fill_bg1_map(g, pf, WHOLE_WORDS_PORT);
     set_decompress_dest(g, (decompress_dest(g) & 0xFF0000u) | UNPACKED_PALETTE_AT);
-    unpack_as_c(g, PALETTE_RESOURCE);
+    unpack(g, PALETTE_RESOURCE);
     scene_use_loaded_palette(g);
     set_scene_channels_script(g, TITLE_CHANNEL, FIRST_SCRIPT);
     SceneTurn turn = SCENE_TURN_ENDED;
@@ -1075,7 +1075,7 @@ bool scene_title_set_up_as_c(GameState *g, Platform *pf)
  * to the program's first frame. */
 void scene_title_wait_for_its_song(Snes *s) { m_stop_at(s, MUSIC_WAIT, THE_WAIT_READS_A_HIGH_AND_THE_OVERFLOW); }
 
-void scene_title_set_up(Snes *s)
+void scene_title_set_up_entry(Snes *s)
 {
     if (scene_title_set_up_scene(s))
         scene_title_wait_for_its_song(s);

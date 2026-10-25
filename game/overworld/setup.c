@@ -631,7 +631,7 @@ static bool unpack_on_the_machine(void *ctx, uint32_t site, uint32_t stream, uin
 Unpacker overworld_unpacker_on_the_machine(Snes *s) { return (Unpacker){ unpack_on_the_machine, s }; }
 
 /* As C, the unpacker called as C. */
-static bool unpack_as_c(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
+static bool unpack_the_stream(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
 {
     (void)site;
     GameState *g = ctx;
@@ -641,7 +641,7 @@ static bool unpack_as_c(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
     return true;
 }
 
-Unpacker overworld_unpacker_as_c(GameState *g) { return (Unpacker){ unpack_as_c, g }; }
+Unpacker overworld_unpacker(GameState *g) { return (Unpacker){ unpack_the_stream, g }; }
 
 static Unpacker on_the_machine(Snes *s) { return overworld_unpacker_on_the_machine(s); }
 

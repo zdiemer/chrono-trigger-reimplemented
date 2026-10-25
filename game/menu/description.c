@@ -335,7 +335,7 @@ typedef enum { TYPE_THE_DESCRIPTION, TYPE_THE_SETTING, TYPE_THE_VALUE } TypingTa
 typedef bool (*Typing)(void *ctx, uint32_t site);
 
 // $C2:FA9F, $C2:F9B2, $C2:FA06
-static bool typing_task(GameState *g, TypingTask task, Typing type, void *ctx)
+static bool typing_task_with(GameState *g, TypingTask task, Typing type, void *ctx)
 {
     switch (task) {
     case TYPE_THE_DESCRIPTION: return type(ctx, 0xC2FA9F);
@@ -353,9 +353,9 @@ static bool typing_task(GameState *g, TypingTask task, Typing type, void *ctx)
 
 /* As C, from inside the task's coroutine (menu/tasks.c), timed as the typing's
  * routine. */
-static bool wait_as_c(void *ctx)
+static bool wait(void *ctx)
 {
-    menu_task_waits_as_c(ctx, 1);
+    menu_task_waits(ctx, 1);
     return true;
 }
 
@@ -366,7 +366,7 @@ static bool typing_task_can_start(const GameState *g, TypingTask task);
 
 /* Each typing and each task where its guard's state half takes it; otherwise
  * the program goes no further there. */
-static bool type_as_c(void *ctx, uint32_t site)
+static bool type(void *ctx, uint32_t site)
 {
     (void)site;
     GameState *g = ctx;
@@ -375,36 +375,36 @@ static bool type_as_c(void *ctx, uint32_t site)
         return false;
     }
     bool typed = false;
-    TIMED_AS(g, 0xC2FAA8, typed = type_the_text(g, wait_as_c, g));
+    TIMED_AS(g, 0xC2FAA8, typed = type_the_text(g, wait, g));
     return typed;
 }
 
-static void typing_task_as_c(GameState *g, TypingTask task)
+static void typing_task(GameState *g, TypingTask task)
 {
     static const uint32_t starts[] = { 0xC2FA9F, 0xC2F9B2, 0xC2FA06 };
     if (!typing_task_can_start(g, task)) {
         program_needs_the_machine(g, starts[task], "a typing task the port doesn't start");
         return;
     }
-    (void)typing_task(g, task, type_as_c, g);
+    (void)typing_task_with(g, task, type, g);
 }
 
-void menu_type_the_description_task_as_c(GameState *g, Platform *pf)
+void menu_type_the_description_task(GameState *g, Platform *pf)
 {
     (void)pf;
-    typing_task_as_c(g, TYPE_THE_DESCRIPTION);
+    typing_task(g, TYPE_THE_DESCRIPTION);
 }
 
-void menu_type_the_setting_task_as_c(GameState *g, Platform *pf)
+void menu_type_the_setting_task(GameState *g, Platform *pf)
 {
     (void)pf;
-    typing_task_as_c(g, TYPE_THE_SETTING);
+    typing_task(g, TYPE_THE_SETTING);
 }
 
-void menu_type_the_value_task_as_c(GameState *g, Platform *pf)
+void menu_type_the_value_task(GameState *g, Platform *pf)
 {
     (void)pf;
-    typing_task_as_c(g, TYPE_THE_VALUE);
+    typing_task(g, TYPE_THE_VALUE);
 }
 
 /* ---- The entries --------------------------------------------------------------------------------- */
@@ -473,13 +473,13 @@ static bool type_on_the_machine(void *ctx, uint32_t site)
 
 static void typing_task_on_the_machine(Snes *s, TypingTask task)
 {
-    if (typing_task(state_of(s), task, type_on_the_machine, s))
+    if (typing_task_with(state_of(s), task, type_on_the_machine, s))
         m_stop_at(s, END_OF_A_TASK, READS_NOTHING);
 }
 
-void menu_type_the_description_task(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_DESCRIPTION); }
-void menu_type_the_setting_task(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_SETTING); }
-void menu_type_the_value_task(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_VALUE); }
+void menu_type_the_description_task_entry(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_DESCRIPTION); }
+void menu_type_the_setting_task_entry(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_SETTING); }
+void menu_type_the_value_task_entry(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_VALUE); }
 
 /* ---- The guards ---------------------------------------------------------------------------------- */
 

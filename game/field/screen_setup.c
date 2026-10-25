@@ -143,7 +143,7 @@ static bool draw_a_layer(Snes *s, unsigned layer)
 
 /* The layer drawn and sent to its place: both screens where it is drawn
  * whole. */
-static bool draw_and_send_a_layer(Snes *s, unsigned layer)
+static bool draw_and_send_a_layer_on_the_machine(Snes *s, unsigned layer)
 {
     GameState *g = state_of(s);
     if (!draw_a_layer(s, layer))
@@ -168,7 +168,7 @@ static bool draws_bg3(const GameState *g)
  * false where a call it made didn't come back as the field runs. */
 enum { SET_THE_VIDEO_MODE = 0xFDC0D7, SHOW_THE_SCREENS = 0xC0A509 };
 
-static bool draw_the_map(Snes *s)
+static bool draw_the_map_on_the_machine(Snes *s)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
@@ -177,9 +177,9 @@ static bool draw_the_map(Snes *s)
     TIMED_AS(g, SHOW_THE_SCREENS, field_show_the_maps_screens(g, pf));
     place_the_screen(g);
     place_the_layers_maps(g);
-    if (!draw_and_send_a_layer(s, FIELD_BG1) || !draw_and_send_a_layer(s, FIELD_BG2))
+    if (!draw_and_send_a_layer_on_the_machine(s, FIELD_BG1) || !draw_and_send_a_layer_on_the_machine(s, FIELD_BG2))
         return false;
-    if (draws_bg3(g) && !draw_and_send_a_layer(s, FIELD_BG3))
+    if (draws_bg3(g) && !draw_and_send_a_layer_on_the_machine(s, FIELD_BG3))
         return false;
     if (layers_repeat_within_the_maps(g))
         TIMED_AS(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, stream_the_right_columns(g));
@@ -209,11 +209,11 @@ static bool draw_a_frame_part(Snes *s, bool *came_back)
  * the port stopped. */
 enum { JOINS_ITS_ROW_READS = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, UPLOAD_THE_QUEUE = 0xC0B1B2 };
 
-static bool draw_at_once(Snes *s, FieldObject obj)
+static bool draw_at_once_on_the_machine(Snes *s, FieldObject obj)
 {
     GameState *g = state_of(s);
     TIMED_AS(g, FIELD_UPDATE_SCREEN_POSITION_ENTRY, object_update_screen_position(g, obj));
-    if (!field_rows_step_as_c(s, obj, true) &&
+    if (!field_rows_step(s, obj, true) &&
         !bridge_call(s, 0xC0B104, FIELD_JOIN_ROW_ENTRY, JOINS_ITS_ROW_READS, on_the_field_page(s, true)))
         return false;
     set_field_vram_queue_end(g, 0);
@@ -282,7 +282,7 @@ void field_draw_the_objects_in_view(Snes *s)
         object_make_current(g, obj);
         if (!may_come_into_view(g, obj) || !object_in_view_at_the_start(g, obj))
             continue;
-        if (!draw_at_once(s, obj))
+        if (!draw_at_once_on_the_machine(s, obj))
             return;
     }
     m_rep(s, CPU_FLAG_X);
@@ -387,7 +387,7 @@ static bool set_the_screen_up(Snes *s)
         TIMED_AS(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, field_press_the_remembered_switches(g));
     else if (!bridge_call(s, 0xC0286C, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, READS_NOTHING, page(s)))
         return false;
-    if (!field_run_table_step(s, 0xC0286F, draw_the_map))
+    if (!field_run_table_step(s, 0xC0286F, draw_the_map_on_the_machine))
         return false;
     field_objects_let_go(g, false);   /* a map's screen starts with no object holding anything of it */
     ORIGINAL_EFFECT(leave_y_and_the_overflow(s));
@@ -423,7 +423,7 @@ static bool machine_only(GameState *g, uint32_t routine, const char *what)
     return false;
 }
 
-static bool draw_and_send_a_layer_as_c(GameState *g, Platform *pf, unsigned layer)
+static bool draw_and_send_a_layer(GameState *g, Platform *pf, unsigned layer)
 {
     if (!layer_drawing_fits(g, layer))
         return machine_only(g, drawing[layer].routine, "a layer the port doesn't draw");
@@ -436,16 +436,16 @@ static bool draw_and_send_a_layer_as_c(GameState *g, Platform *pf, unsigned laye
 }
 
 // $C0:0A50
-static bool draw_the_map_as_c(GameState *g, Platform *pf)
+static bool draw_the_map(GameState *g, Platform *pf)
 {
     TIMED_AS(g, CHESTS_MARK_THE_MAP_ENTRY, chests_mark_the_map(g));
     TIMED_AS(g, SET_THE_VIDEO_MODE, field_set_the_video_mode(pf));
     TIMED_AS(g, SHOW_THE_SCREENS, field_show_the_maps_screens(g, pf));
     place_the_screen(g);
     place_the_layers_maps(g);
-    if (!draw_and_send_a_layer_as_c(g, pf, FIELD_BG1) || !draw_and_send_a_layer_as_c(g, pf, FIELD_BG2))
+    if (!draw_and_send_a_layer(g, pf, FIELD_BG1) || !draw_and_send_a_layer(g, pf, FIELD_BG2))
         return false;
-    if (draws_bg3(g) && !draw_and_send_a_layer_as_c(g, pf, FIELD_BG3))
+    if (draws_bg3(g) && !draw_and_send_a_layer(g, pf, FIELD_BG3))
         return false;
     if (!layers_repeat_within_the_maps(g))
         return machine_only(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "columns the port doesn't bring in");
@@ -456,7 +456,7 @@ static bool draw_the_map_as_c(GameState *g, Platform *pf)
 }
 
 // $C0:B0E6 (with $C0:B127 for each)
-static bool draw_at_once_as_c(GameState *g, Platform *pf, FieldObject obj)
+static bool draw_at_once(GameState *g, Platform *pf, FieldObject obj)
 {
     TIMED_AS(g, FIELD_UPDATE_SCREEN_POSITION_ENTRY, object_update_screen_position(g, obj));
     if (!field_rows_are_exact(g, obj))
@@ -471,12 +471,12 @@ static bool draw_at_once_as_c(GameState *g, Platform *pf, FieldObject obj)
     return true;
 }
 
-static bool draw_the_objects_in_view_as_c(GameState *g, Platform *pf)
+static bool draw_the_objects_in_view(GameState *g, Platform *pf)
 {
     unsigned objects = event_object_count(g);
     for (FieldObject obj = 0; obj < objects; obj++) {
         object_make_current(g, obj);
-        if (may_come_into_view(g, obj) && object_in_view_at_the_start(g, obj) && !draw_at_once_as_c(g, pf, obj))
+        if (may_come_into_view(g, obj) && object_in_view_at_the_start(g, obj) && !draw_at_once(g, pf, obj))
             return false;
     }
     bool built = false;
@@ -489,11 +489,11 @@ bool field_screen_set_up(GameState *g, Platform *pf)
     if (!field_remembered_switches_on_the_map(g))
         return machine_only(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "switches the port doesn't press again");
     TIMED_AS(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, field_press_the_remembered_switches(g));
-    if (!draw_the_map_as_c(g, pf))
+    if (!draw_the_map(g, pf))
         return false;
     field_objects_let_go(g, false);
     bool done = false;
-    TIMED_AS(g, DRAW_THE_OBJECTS, done = draw_the_objects_in_view_as_c(g, pf));
+    TIMED_AS(g, DRAW_THE_OBJECTS, done = draw_the_objects_in_view(g, pf));
     if (!done)
         return false;
     put_up_the_window(g, pf);
@@ -560,7 +560,7 @@ typedef struct {
     Platform *pf;
 } FadeInAsC;
 
-static bool set_up_as_c(void *ctx, FadeInKind kind)
+static bool set_up(void *ctx, FadeInKind kind)
 {
     (void)kind;
     FadeInAsC *c = ctx;
@@ -569,7 +569,7 @@ static bool set_up_as_c(void *ctx, FadeInKind kind)
     return done;
 }
 
-static bool walk_as_c(void *ctx, FadeInKind kind, uint8_t control)
+static bool walk(void *ctx, FadeInKind kind, uint8_t control)
 {
     (void)kind, (void)control;
     FadeInAsC *c = ctx;
@@ -578,7 +578,7 @@ static bool walk_as_c(void *ctx, FadeInKind kind, uint8_t control)
     return done;
 }
 
-static bool work_as_c(void *ctx, FadeInKind kind)
+static bool work(void *ctx, FadeInKind kind)
 {
     FadeInAsC *c = ctx;
     bool done = true;
@@ -589,7 +589,7 @@ static bool work_as_c(void *ctx, FadeInKind kind)
     return done;
 }
 
-static bool wait_as_c(void *ctx, FadeInKind kind)
+static bool wait(void *ctx, FadeInKind kind)
 {
     (void)kind;
     FadeInAsC *c = ctx;
@@ -597,16 +597,16 @@ static bool wait_as_c(void *ctx, FadeInKind kind)
     return true;
 }
 
-static const FadeInSteps as_c = { set_up_as_c, walk_as_c, work_as_c, wait_as_c };
+static const FadeInSteps as_c = { set_up, walk, work, wait };
 
-bool field_fade_in_as_c(GameState *g, Platform *pf)
+bool field_fade_in(GameState *g, Platform *pf)
 {
     FadeInAsC c = { g, pf };
     uint8_t shown;
     return fade_in(g, WITH_THE_FRAMES_WORK, &as_c, &c, &shown);
 }
 
-bool field_fade_in_after_a_menu_as_c(GameState *g, Platform *pf)
+bool field_fade_in_after_a_menu(GameState *g, Platform *pf)
 {
     FadeInAsC c = { g, pf };
     uint8_t shown;
@@ -668,6 +668,6 @@ static void fade_in_on_the_machine(Snes *s, FadeInKind kind)
     m_rts(s);
 }
 
-void field_fade_in(Snes *s) { fade_in_on_the_machine(s, WITH_THE_FRAMES_WORK); }
+void field_fade_in_entry(Snes *s) { fade_in_on_the_machine(s, WITH_THE_FRAMES_WORK); }
 
-void field_fade_in_after_a_menu(Snes *s) { fade_in_on_the_machine(s, WITH_THE_EFFECTS_ONLY); }
+void field_fade_in_after_a_menu_entry(Snes *s) { fade_in_on_the_machine(s, WITH_THE_EFFECTS_ONLY); }

@@ -1,7 +1,7 @@
 /* Field mode: the pause, and the menus opened from the field.
  *
  * Once a frame the field's main loop looks at the buttons here
- * (field_pause_and_menus):
+ * (field_pause_and_menus_entry):
  * - Start pauses the field while the player has the party (and no script has
  *   locked the pause): the picture dims to half and the play time clock
  *   stops until Start is pressed again.
@@ -379,7 +379,7 @@ static bool bring_the_party_back(GameState *g, StartCharacterOver start_over, vo
 /* The Start assignment: an open dialog window moves to the other end of the
  * screen; with none open, the Start assignment's menu opens once the story
  * is far enough on. */
-static bool press_start(GameState *g, const StopSteps *steps, void *ctx)
+static bool press_start_with(GameState *g, const StopSteps *steps, void *ctx)
 {
     if (dialog_window_open(g)) {
         move_dialog_window(g);
@@ -430,7 +430,7 @@ typedef struct {
     bool game_starts_again;
 } StopAsC;
 
-static bool effects_built_as_c(void *ctx, FieldStop stop)
+static bool effects_built(void *ctx, FieldStop stop)
 {
     (void)stop;
     StopAsC *c = ctx;
@@ -438,7 +438,7 @@ static bool effects_built_as_c(void *ctx, FieldStop stop)
     return true;
 }
 
-static bool wait_as_c(void *ctx, FieldStop stop)
+static bool wait(void *ctx, FieldStop stop)
 {
     (void)stop;
     StopAsC *c = ctx;
@@ -446,7 +446,7 @@ static bool wait_as_c(void *ctx, FieldStop stop)
     return true;
 }
 
-static bool walk_as_c(void *ctx, uint8_t control)
+static bool walk(void *ctx, uint8_t control)
 {
     (void)control;
     StopAsC *c = ctx;
@@ -455,21 +455,21 @@ static bool walk_as_c(void *ctx, uint8_t control)
     return done;
 }
 
-static bool palettes_as_c(void *ctx)
+static bool palettes(void *ctx)
 {
     StopAsC *c = ctx;
     bool done = false;
-    TIMED_AS(c->game, PALETTE_ANIMATION, done = palette_animated_as_c(c->game));
+    TIMED_AS(c->game, PALETTE_ANIMATION, done = palette_animated(c->game));
     return done;
 }
 
-static void dark_as_c(void *ctx)
+static void dark(void *ctx)
 {
     StopAsC *c = ctx;
     TIMED_AS(c->game, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(c->pf));
 }
 
-static bool put_aside_as_c(void *ctx, FieldStop stop)
+static bool put_aside(void *ctx, FieldStop stop)
 {
     (void)stop;
     StopAsC *c = ctx;
@@ -487,7 +487,7 @@ enum { LEFT_BY_KEEPING = 2 * PARTY_PLACES };
 
 /* Where the menus start the game again from its reset (a new game set up,
  * or a game loaded), the field starts anew. */
-static bool menus_as_c(void *ctx, FieldStop stop, FieldMenu menu, MenuArgument argument)
+static bool menus(void *ctx, FieldStop stop, FieldMenu menu, MenuArgument argument)
 {
     (void)stop;
     StopAsC *c = ctx;
@@ -498,21 +498,21 @@ static bool menus_as_c(void *ctx, FieldStop stop, FieldMenu menu, MenuArgument a
     return end == MENUS_CLOSED;
 }
 
-static bool set_up_as_c(void *ctx, FieldStop stop)
+static bool set_up(void *ctx, FieldStop stop)
 {
     (void)stop;
     StopAsC *c = ctx;
     bool done = false;
-    TIMED_AS(c->game, FIELD_SET_UP_AGAIN_ENTRY, done = field_set_up_again_as_c(c->game, c->pf));
+    TIMED_AS(c->game, FIELD_SET_UP_AGAIN_ENTRY, done = field_set_up_again(c->game, c->pf));
     return done;
 }
 
-static bool start_character_over_as_c(void *ctx, unsigned row)
+static bool start_character_over(void *ctx, unsigned row)
 {
     (void)row;
     StopAsC *c = ctx;
     EventAsC e = { c->game, c->pf };
-    EventRunner r = event_runner_as_c(&e);
+    EventRunner r = event_runner(&e);
     uint16_t at;
     EventTurnEnd end = TURN_OVER;
     TIMED_AS(c->game, OBJECT_START, end = event_restart_the_running_object(c->game, &r, &at));
@@ -525,7 +525,7 @@ static bool start_character_over_as_c(void *ctx, unsigned row)
 
 static bool party_links_readable(const GameState *g);
 
-static bool party_back_as_c(void *ctx, FieldStop stop)
+static bool party_back(void *ctx, FieldStop stop)
 {
     (void)stop;
     StopAsC *c = ctx;
@@ -534,11 +534,11 @@ static bool party_back_as_c(void *ctx, FieldStop stop)
         return false;
     }
     bool done = false;
-    TIMED_AS(c->game, BRING_THE_PARTY_BACK, done = bring_the_party_back(c->game, start_character_over_as_c, c));
+    TIMED_AS(c->game, BRING_THE_PARTY_BACK, done = bring_the_party_back(c->game, start_character_over, c));
     return done;
 }
 
-static bool sprites_as_c(void *ctx, FieldStop stop)
+static bool sprites(void *ctx, FieldStop stop)
 {
     (void)stop;
     StopAsC *c = ctx;
@@ -546,31 +546,31 @@ static bool sprites_as_c(void *ctx, FieldStop stop)
     return true;
 }
 
-static bool fade_in_as_c(void *ctx, FieldStop stop)
+static bool fade_in(void *ctx, FieldStop stop)
 {
     (void)stop;
     StopAsC *c = ctx;
     bool done = false;
-    TIMED_AS(c->game, FIELD_FADE_IN_AFTER_A_MENU_ENTRY, done = field_fade_in_after_a_menu_as_c(c->game, c->pf));
+    TIMED_AS(c->game, FIELD_FADE_IN_AFTER_A_MENU_ENTRY, done = field_fade_in_after_a_menu(c->game, c->pf));
     return done;
 }
 
-static const StopSteps as_c = { effects_built_as_c, wait_as_c,  walk_as_c,      palettes_as_c,
-                                dark_as_c,          put_aside_as_c, menus_as_c, set_up_as_c,
-                                party_back_as_c,    sprites_as_c, fade_in_as_c };
+static const StopSteps as_c = { effects_built, wait,  walk,      palettes,
+                                dark,          put_aside, menus, set_up,
+                                party_back,    sprites, fade_in };
 
-static bool press_start_as_c(void *ctx)
+static bool press_start(void *ctx)
 {
     StopAsC *c = ctx;
     bool back = false;
-    TIMED_AS(c->game, PRESS_START, back = press_start(c->game, &as_c, c));
+    TIMED_AS(c->game, PRESS_START, back = press_start_with(c->game, &as_c, c));
     return back;
 }
 
-bool field_pause_and_menus_as_c(GameState *g, Platform *pf)
+bool field_pause_and_menus(GameState *g, Platform *pf)
 {
     StopAsC c = { g, pf, false };
-    return pause_and_menus(g, &as_c, press_start_as_c, &c);
+    return pause_and_menus(g, &as_c, press_start, &c);
 }
 
 FieldPass field_script_menu_opened(GameState *g, Platform *pf)
@@ -691,8 +691,8 @@ static bool fade_in_on_the_machine(void *ctx, FieldStop stop)
     Snes *s = ctx;
     if (stop != OPENED_BY_SCRIPT)
         return field_run(s, sites[stop].fade_in, FIELD_FADE_IN_AFTER_A_MENU_ENTRY, READS_NOTHING,
-                         field_fade_in_after_a_menu, on_the_field_page(s, false));
-    if (!field_go_on_with(s, FADE_IN_TAIL, field_fade_in_after_a_menu))
+                         field_fade_in_after_a_menu_entry, on_the_field_page(s, false));
+    if (!field_go_on_with(s, FADE_IN_TAIL, field_fade_in_after_a_menu_entry))
         m_stop_at_own(s, FADE_IN_TAIL, FADE_IN_READS);
     return false;
 }
@@ -716,20 +716,20 @@ static bool press_start_on_the_machine(void *ctx)
 /* The field's page, 8-bit A, 16-bit X. What it leaves in the registers is the
  * routines' it called, or what it came in with: A's high byte and the
  * overflow are read after it. */
-void field_pause_and_menus(Snes *s)
+void field_pause_and_menus_entry(Snes *s)
 {
     if (pause_and_menus(state_of(s), &on_the_machine, press_start_on_the_machine, s))
         m_rts(s);
 }
 
-/* As for field_pause_and_menus; the story's test leaves the overflow its
+/* As for field_pause_and_menus_entry; the story's test leaves the overflow its
  * subtraction makes (field/leaves.c). */
 void field_press_start(Snes *s)
 {
     GameState *g = state_of(s);
     if (!dialog_window_open(g))
         m_set_flag(s, CPU_FLAG_V, field_story_test_overflow(g));
-    if (press_start(g, &on_the_machine, s))
+    if (press_start_with(g, &on_the_machine, s))
         m_rts(s);
 }
 

@@ -466,31 +466,31 @@ typedef struct {
     const Loop *loop;
 } LoopAsC;
 
-static bool next_frame_as_c(void *ctx)
+static bool next_frame(void *ctx)
 {
     LoopAsC *c = ctx;
     menu_wait_for_the_next_frame(c->game, c->pf);
     return true;
 }
 
-static bool frames_as_c(void *ctx, LoopWait wait)
+static bool frames(void *ctx, LoopWait wait)
 {
     LoopAsC *c = ctx;
-    menu_wait_frames_as_c(c->game, c->pf, loop_waits[wait].frames);
+    menu_wait_frames_sending_the_sound(c->game, c->pf, loop_waits[wait].frames);
     return true;
 }
 
-static bool a_fade_frame_as_c(void *ctx, uint16_t left)
+static bool a_fade_frame(void *ctx, uint16_t left)
 {
     (void)left;
-    return next_frame_as_c(ctx);
+    return next_frame(ctx);
 }
 
 static void nothing_left(void *ctx, OverworldMode mode) { (void)ctx, (void)mode; }
 static void no_script_left(void *ctx, uint32_t script) { (void)ctx, (void)script; }
 static void nothing_to_leave(void *ctx) { (void)ctx; }
 
-static bool map_loaded_as_c(void *ctx, MapLoad load)
+static bool map_loaded(void *ctx, MapLoad load)
 {
     (void)load;
     LoopAsC *c = ctx;
@@ -498,7 +498,7 @@ static bool map_loaded_as_c(void *ctx, MapLoad load)
         program_needs_the_machine(c->game, 0xC22C93, "a world map loaded again that the port doesn't take");
         return false;
     }
-    Unpacker u = overworld_unpacker_as_c(c->game);
+    Unpacker u = overworld_unpacker(c->game);
     bool loaded = false;
     TIMED_AS(c->game, 0xC22C93, loaded = overworld_load_the_map_again(c->game, &u, c->pf));
     return loaded;
@@ -506,7 +506,7 @@ static bool map_loaded_as_c(void *ctx, MapLoad load)
 
 /* The menus as the program runs them (menu/display.c), the mode's screen set
  * up again when they close, and the overworld back. */
-static Pass menus_as_c(void *ctx, OverworldMode mode)
+static Pass menus(void *ctx, OverworldMode mode)
 {
     LoopAsC *c = ctx;
     if (menu_mode_runs(c->game, c->pf, the_menus_screen(mode), 0) != MENUS_CLOSED)
@@ -517,29 +517,29 @@ static Pass menus_as_c(void *ctx, OverworldMode mode)
     return p;
 }
 
-static bool map_view_as_c(void *ctx)
+static bool map_view(void *ctx)
 {
     LoopAsC *c = ctx;
     program_needs_the_machine(c->game, 0xC2631F, "the map view");
     return false;
 }
 
-static bool time_dial_as_c(void *ctx)
+static bool time_dial(void *ctx)
 {
     LoopAsC *c = ctx;
     program_needs_the_machine(c->game, 0xC26A34, "the time dial");
     return false;
 }
 
-static void handed_over_as_c(void *ctx)
+static void handed_over(void *ctx)
 {
     LoopAsC *c = ctx;
     program_needs_the_machine(c->game, 0xC223D2, "a world map's mode the loop doesn't know");
 }
 
 static const LoopSteps as_c = {
-    next_frame_as_c, frames_as_c, a_fade_frame_as_c, nothing_left, no_script_left, nothing_to_leave,
-    nothing_to_leave, map_loaded_as_c, menus_as_c, map_view_as_c, time_dial_as_c, handed_over_as_c,
+    next_frame, frames, a_fade_frame, nothing_left, no_script_left, nothing_to_leave,
+    nothing_to_leave, map_loaded, menus, map_view, time_dial, handed_over,
 };
 
 // $C2:0000 (the mode's start, $C2:000F, the world map's setup, $C2:23A8, and its loop)
@@ -550,7 +550,7 @@ OverworldEnd overworld_runs(GameState *g, Platform *pf)
         program_needs_the_machine(g, 0xC223A8, "a world map the port doesn't set up");
         return OVERWORLD_WENT_NO_FURTHER;
     }
-    Unpacker u = overworld_unpacker_as_c(g);
+    Unpacker u = overworld_unpacker(g);
     bool set_up = false;
     TIMED_AS(g, 0xC223A8, set_up = overworld_set_up(g, &u, pf));
     if (!set_up)
@@ -593,7 +593,7 @@ static bool frames_on_the_machine(void *ctx, LoopWait wait)
 {
     Snes *s = ctx;
     s->cpu.x = loop_waits[wait].frames;
-    return menu_run_or_call(s, loop_waits[wait].site, 0xC20454, READS_X_AND_A_HIGH, menu_wait_frames_sending_the_sound);
+    return menu_run_or_call(s, loop_waits[wait].site, 0xC20454, READS_X_AND_A_HIGH, menu_wait_frames_sending_the_sound_entry);
 }
 
 /* The original keeps its count on the stack across the fade's waits. */

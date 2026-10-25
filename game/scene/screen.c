@@ -72,7 +72,7 @@ void scene_program_restart(Snes *s)
 {
     stop_display(m_platform(s));
     s->cpu.p |= CPU_FLAG_M;
-    if (scene_run(s, SOUND_CALL, SOUND_BACK_TO_NORMAL, THE_SOUND_READS_NOTHING, scene_sound_back_to_normal))
+    if (scene_run(s, SOUND_CALL, SOUND_BACK_TO_NORMAL, THE_SOUND_READS_NOTHING, scene_sound_back_to_normal_entry))
         scene_hand_back_to_the_field(s);
 }
 
@@ -279,7 +279,7 @@ static TaskEnd animate_the_palettes_task(GameState *g, Platform *pf)
 {
     (void)pf;
     bool animated = false;
-    TIMED_AS(g, 0xFDFFF7, animated = palette_animated_as_c(g));
+    TIMED_AS(g, 0xFDFFF7, animated = palette_animated(g));
     if (!animated)
         return task_goes_on();
     keep_the_multiplier_s_word(g, MULTIPLIER_READ_BACK);
@@ -310,7 +310,7 @@ static void keep_the_code_under_the_multiplier(GameState *g, SceneChannel ch)
 void scene_animate_the_palettes_for(GameState *g, SceneChannel ch)
 {
     bool animated = false;
-    TIMED_AS(g, 0xFDFFF7, animated = palette_animated_as_c(g));
+    TIMED_AS(g, 0xFDFFF7, animated = palette_animated(g));
     if (animated)
         ORIGINAL_EFFECT(keep_the_code_under_the_multiplier(g, ch));
 }

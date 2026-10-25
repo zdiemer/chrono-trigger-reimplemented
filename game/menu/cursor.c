@@ -473,17 +473,17 @@ typedef struct {
     Platform *pf;
 } SoundAsC;
 
-static bool sent_as_c(void *ctx, SoundEffectVoices voices, uint8_t sound)
+static bool sent(void *ctx, SoundEffectVoices voices, uint8_t sound)
 {
     send_the_sound(((SoundAsC *)ctx)->pf, voices, sound);
     return true;
 }
 
-static void dropped_as_c(void *ctx) { (void)ctx; }
+static void dropped(void *ctx) { (void)ctx; }
 
 void menu_sound_played(GameState *g, Platform *pf, uint8_t sound)
 {
-    static const SoundCalls as_c = { sent_as_c, dropped_as_c };
+    static const SoundCalls as_c = { sent, dropped };
     SoundAsC c = { g, pf };
     (void)play_a_sound(g, SOUND_EFFECT_ON_VOICES_6_7, sound, &as_c, &c);
 }

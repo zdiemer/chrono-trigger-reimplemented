@@ -141,7 +141,7 @@ static const struct {
 };
 enum { QUIETING_COMMANDS = sizeof QUIETING / sizeof QUIETING[0] };
 
-static void quieten(Platform *pf, unsigned i)
+static void quieten_the_channel(Platform *pf, unsigned i)
 {
     au_command(pf, PF_CALL_DC(QUIETING[i].site, 0xC70004, DRIVER_IGNORES), QUIETING[i].command);
 }
@@ -217,16 +217,16 @@ typedef struct {
     Platform *pf;
 } OpeningAsC;
 
-static bool quieten_as_c(void *ctx, unsigned command)
+static bool quieten(void *ctx, unsigned command)
 {
     OpeningAsC *c = ctx;
-    quieten(c->pf, command);
+    quieten_the_channel(c->pf, command);
     return true;
 }
 
 /* Each where its guard takes it; false where it doesn't, the program going
  * no further there. */
-static bool call_as_c(void *ctx, OpeningCall call)
+static bool call(void *ctx, OpeningCall call)
 {
     OpeningAsC *c = ctx;
     GameState *g = c->game;
@@ -234,25 +234,25 @@ static bool call_as_c(void *ctx, OpeningCall call)
     switch (call) {
     case OPENING_SCREEN: TIMED_AS(g, 0xC2940D, menu_video_set_up(g, c->pf)); break;
     case OPENING_SAVE_SLOTS: TIMED_AS(g, 0xC2D156, back = menu_save_slots_read(g, c->pf)); break;
-    case OPENING_UPLOADS: back = menu_upload_queue_sent_as_c(g, c->pf); break;
+    case OPENING_UPLOADS: back = menu_upload_queue_sent(g, c->pf); break;
     case OPENING_RECORDS: TIMED_AS(g, 0xC2F3CA, back = menu_record_sprites_loaded(g)); break;
-    case OPENING_ITEMS: TIMED_AS(g, 0xC29875, back = menu_items_built_as_c(g)); break;
+    case OPENING_ITEMS: TIMED_AS(g, 0xC29875, back = menu_items_built(g)); break;
     }
     return back;
 }
 
-static void graphics_built_as_c(void *ctx) { (void)ctx; }
+static void graphics_built(void *ctx) { (void)ctx; }
 
 /* The opening clears the zero word the marks' walk starts from. */
-static bool low_hp_marks_as_c(void *ctx)
+static bool low_hp_marks(void *ctx)
 {
     (void)ctx;
     return true;
 }
 
-bool menu_opens_as_c(GameState *g, Platform *pf)
+bool menu_opens(GameState *g, Platform *pf)
 {
-    static const OpeningCalls as_c = { quieten_as_c, call_as_c, graphics_built_as_c, low_hp_marks_as_c };
+    static const OpeningCalls as_c = { quieten, call, graphics_built, low_hp_marks };
     OpeningAsC c = { g, pf };
     return open_the_menus(g, pf, &as_c, &c);
 }
@@ -265,7 +265,7 @@ static bool quieten_on_the_machine(void *ctx, unsigned command)
 {
     Snes *s = ctx;
     MenuMachine m = menu_machine_now(s);
-    quieten(m_platform(s), command);
+    quieten_the_channel(m_platform(s), command);
     return menu_back(s, QUIETING[command].site + MENU_JSL_SIZE, m);
 }
 
