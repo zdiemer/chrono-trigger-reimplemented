@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
 
@@ -13,6 +14,13 @@
  * cursor's tick as it moves, the buzz of a choice refused, and the two a
  * screen can queue (menu_queued_sounds). */
 typedef enum { MENU_SOUND_CURSOR = 0, MENU_SOUND_REFUSAL = 1, MENU_SOUND_6 = 6, MENU_SOUND_7 = 7 } MenuSound;
+/* A menu's sound on the effects' voices, as C: sent where it goes out (as
+ * the routines that play one do on the machine). */
+void menu_sound_played(GameState *g, Platform *pf, uint8_t sound);
+
+/* Whether the cursor stands on one of its menu's places, and the neighbour
+ * the pad pushes it to is one too (what the screens that move it take). */
+bool menu_cursor_can_move(const GameState *g);
 
 /* What the frame's input asks for, as the cursor's reading leaves it
  * (menu_cursor_buttons): choosing, going back, and the two shoulder
@@ -86,6 +94,9 @@ void menu_reset_sprites(Snes *s);
 void menu_clear_sprites_for_cursor(Snes *s);
 void menu_read_cursor_input(Snes *s);
 void menu_take_frame_input(Snes *s);
+/* The same as C: false where the controller's read is none the port takes,
+ * the program going no further there. */
+bool menu_frame_input_taken(GameState *g, Platform *pf);
 bool menu_frame_input_is_takeable(Snes *s);
 void menu_send_sound(Snes *s);
 void menu_send_sound_on_other_voices(Snes *s);

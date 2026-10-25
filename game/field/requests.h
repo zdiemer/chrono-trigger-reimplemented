@@ -11,10 +11,12 @@
 
 void field_step_screen_changes(GameState *g);
 void field_handle_requests(Snes *s);
-/* As C: where the pass goes from the requests, a location change starting
- * the field again for the new place, and a request only the machine answers
- * yet stopping it (the program going no further there). */
-typedef enum { FIELD_PASS_GOES_ON, FIELD_STARTS_ANEW, FIELD_PASS_STOPS } FieldPass;
+/* As C: where the pass goes from the requests: on; the field started again
+ * for a new place after a location change; no further, at a request only the
+ * machine answers yet (the program going no further there); or round the
+ * main loop, the pass over, after a script's menu, whose fade in waited
+ * its own frames. */
+typedef enum { FIELD_PASS_GOES_ON, FIELD_STARTS_ANEW, FIELD_PASS_STOPS, FIELD_PASS_GOES_ROUND } FieldPass;
 FieldPass field_requests_handled(GameState *g, Platform *pf);
 bool field_requests_can_run(Snes *s);
 

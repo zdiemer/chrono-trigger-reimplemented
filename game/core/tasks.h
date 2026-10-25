@@ -54,6 +54,9 @@ void tasks_stop(Tasks *t, uint8_t slot);
 bool tasks_running(const Tasks *t, uint8_t slot);
 /* A frame's turns: each running task, in slot order, until it waits or ends. */
 void tasks_run_a_frame(Tasks *t);
+/* One turn of the task in `slot`, until it waits or ends, for a caller that
+ * keeps the turns' order itself (the menus', menu/tasks.c). */
+void tasks_take_a_turn(Tasks *t, uint8_t slot);
 /* From inside a task: wait for the next frame's turn. */
 void tasks_wait_a_frame(Tasks *t);
 /* Every task stopped, their stacks given back. */

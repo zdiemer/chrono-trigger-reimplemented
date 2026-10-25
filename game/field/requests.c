@@ -482,13 +482,13 @@ static bool answer_requests(Snes *s)
 /* ---- As C, with no machine ------------------------------------------------------------------ */
 
 /* The requests a program with no machine answers as C so far: a location
- * change. The rest stop it where they are asked for (core/program.h). */
+ * change and a script's menu. The rest stop it where they are asked for
+ * (core/program.h). */
 static const struct {
     uint8_t request;
     uint32_t routine;
     const char *what;
 } only_the_machines[] = {
-    { FIELD_REQUEST_MENUS, 0xC00C76, "a menu a script asked for" },
     { FIELD_REQUEST_STEP_EVENT, 0xC00C76, "a step on an event's tile" },
     { FIELD_REQUEST_OPEN_CHEST, 0xC016DC, "a chest opened" },
     { FIELD_REQUEST_TILE_COPY, 0xC01779, "a tile copy" },
@@ -513,6 +513,8 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
         return FIELD_PASS_GOES_ON;
     if (asked(g, FIELD_REQUEST_LOCATION_CHANGE))
         return change_location_as_c(g, pf);
+    if (asked(g, FIELD_REQUEST_MENUS))
+        return field_script_menu_opened(g, pf);
     for (unsigned i = 0; i < sizeof only_the_machines / sizeof only_the_machines[0]; i++)
         if (asked(g, only_the_machines[i].request)) {
             program_needs_the_machine(g, only_the_machines[i].routine, only_the_machines[i].what);

@@ -552,7 +552,7 @@ entry, `program_needs_the_machine` stops it and the driver says where (exit
 status 1):
 
 ```
-frame 2093: the program's C goes no further: $C2:0000, the menus' mode, for a screen drawn with sprites, runs only on the machine
+frame 2093: the program's C goes no further: $C2:0000, the world map, the menus' sprite-object mode, runs only on the machine
 ```
 
 So far the boot and the field run as C. At power-on the field's handlers
@@ -577,10 +577,21 @@ channels turned as C (`scene_channel_turn`) -- until a script ends the
 scene, when the game goes back to the field (`scene_runs`,
 `scene/program.c`; the main thread goes between the two, `core/program.c`).
 Left alone, the title gives way to the attract demo: the field again, until
-it enters the menus' mode for a screen drawn with sprites. With
+it enters a world map (frame 2093), which the menus' sprite-object mode
+shows (`$C2:0000`, `overworld/`): the next step only the machine runs. With
 `new-game.ctm`'s presses, Start ends the title and the field's next script
-asks for a menu (frame 1676, `$C0:0C76`): the menus are the next step only
-the machine runs.
+asks for a menu, and the menus run as C: the field fades out and is put
+aside, the menus' mode opens (`menu_mode_runs`, `menu/display.c`: the
+opening, the effects quietened, the screen set up, the save slots read, the
+records' sprites and the item tables built) on the screen asked for, and
+its tasks run on coroutines (`core/tasks.c`; `menu/tasks.c`'s scheduler,
+the same one the machine's entries keep), a turn each a frame once the
+menus' vblank handler (in `core/program.c`'s table now) has sent what the
+last frame queued: the main task's screen steps, the cursor's, the fade
+in's and the typing's. The naming's screen asks the battle mode first, then
+names Crono; its close fades the screen out and the mode returns to the
+field, which is set up again and faded in, and the script goes on to the
+world map (frame 3243, `$C2:0000`).
 
 The field's steps as the program calls them (`field_runs`,
 `field/main_loop.c`) are functions of the game's state that the entries
@@ -595,6 +606,9 @@ request, an event command or a menu only the machine runs yet, the program
 stops there and says which. It reports any access the host had no memory
 for (a register; none so far), and any video escape it couldn't follow.
 What the rest of the game still assumes of a machine is TODO.md's "The
-native program". The menus' tasks have their coroutines (`game/core/tasks.c`,
-checked by `tasks_test`) for when their bodies are functions of the game's
-state.
+native program". The menus' tasks are the same way: each task's body is one
+function of the game's state whose waits are callbacks, which the machine's
+entry runs a turn at a time (its wait stops at the original's task switch)
+and a coroutine runs through (its wait comes back the next frame); a task
+the C has no body for yet (the scroll bar's, the records', the held
+cursors') stops the program where it starts.

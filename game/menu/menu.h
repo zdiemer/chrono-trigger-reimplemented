@@ -20,6 +20,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
 #include "vars.h"
@@ -87,6 +88,18 @@ bool menu_task_can_end(Snes *s);
 bool menu_tasks_can_run(Snes *s);
 bool menu_task_goes_on_from(Snes *s, uint16_t s_after);
 
+/* The same as C, each task a coroutine (core/tasks.h): the tasks started as
+ * the menus open; a frame's turns, which end where a task closes the menus or
+ * is one only the machine runs yet; the running task's wait for `frames`
+ * frames, from inside it; the menus closed from inside a task, which never
+ * comes back; and the tasks' coroutines given back once the menus are. */
+void menu_tasks_open_as_c(GameState *g, Platform *pf);
+typedef enum { MENU_TURNS_TAKEN, MENU_TURNS_CLOSED, MENU_TURNS_WENT_NO_FURTHER } MenuTurns;
+MenuTurns menu_tasks_take_the_turns_as_c(GameState *g);
+void menu_task_waits_as_c(GameState *g, uint8_t frames);
+void menu_tasks_closed_as_c(void);
+void menu_tasks_end_as_c(void);
+
 void menu_run_the_main_task(Snes *s);
 void menu_main_task_waits(Snes *s);
 void menu_run_the_cursor_task(Snes *s);
@@ -97,6 +110,9 @@ void menu_records_task_waits(Snes *s);
  * it; true if it came back to the turn. And the turn's guard: the screen on a
  * step it has. */
 bool menu_run_the_screen_s_step(Snes *s);
+/* The same as C, from inside the main task: false where the step is one the
+ * port doesn't have as C, the program going no further there. */
+bool menu_screen_step_as_c(GameState *g, Platform *pf);
 bool menu_screen_step_is_known(Snes *s);
 
 /* menu/frame.c */

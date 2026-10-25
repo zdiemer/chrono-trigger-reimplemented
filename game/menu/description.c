@@ -37,7 +37,7 @@
 
 /* Where the typing's task starts: a description, the settings' option and
  * then its value, and its value alone. */
-enum { TYPE_A_DESCRIPTION = 0xFA9F, TYPE_A_SETTING = 0xF9B2, TYPE_A_VALUE = 0xFA06 };
+enum { TYPE_A_DESCRIPTION = MENU_TYPE_A_DESCRIPTION, TYPE_A_SETTING = MENU_TYPE_A_SETTING, TYPE_A_VALUE = MENU_TYPE_A_VALUE };
 
 /* The text layer's tilemap: two bytes a tile, 32 tiles a row. A line of
  * text is two tile rows, its glyphs' top halves and their bottom halves. */
@@ -309,6 +309,82 @@ static void begin_the_value(GameState *g)
     TIMED_AS(g, 0xC257DF, menu_text_start(g));
 }
 
+/* ---- The typing's tasks ------------------------------------------------------------------------- */
+
+/* The task's wait for the next frame between the typing's frames: as C, or
+ * on the machine (below); false where the task never came back. */
+typedef bool (*TypingWait)(void *ctx);
+
+// $C2:FAA8
+/* The text typed to its end, a frame at a time. */
+static bool type_the_text(GameState *g, TypingWait wait, void *ctx)
+{
+    while (type_a_frame(g))
+        if (!wait(ctx))
+            return false;
+    return true;
+}
+
+/* The typing's three tasks, each from its own start: a description typed; a
+ * setting's option typed, then its value after it; and a setting's value
+ * typed again where it has changed. Each typing is the text typed to its end
+ * (above), as C or on the machine, from the original's call of it at `site`;
+ * false where it went no further. The task ends after. */
+typedef enum { TYPE_THE_DESCRIPTION, TYPE_THE_SETTING, TYPE_THE_VALUE } TypingTask;
+typedef bool (*Typing)(void *ctx, uint32_t site);
+
+// $C2:FA9F, $C2:F9B2, $C2:FA06
+static bool typing_task(GameState *g, TypingTask task, Typing type, void *ctx)
+{
+    switch (task) {
+    case TYPE_THE_DESCRIPTION: return type(ctx, 0xC2FA9F);
+    case TYPE_THE_SETTING:
+        begin_the_setting(g);
+        if (!type(ctx, 0xC2F9E8))
+            return false;
+        note_where_the_value_goes(g);
+        break;
+    case TYPE_THE_VALUE: break;
+    }
+    begin_the_value(g);
+    return type(ctx, 0xC2FA43);
+}
+
+/* As C, from inside the task's coroutine (menu/tasks.c), timed as the typing's
+ * routine. */
+static bool wait_as_c(void *ctx)
+{
+    menu_task_waits_as_c(ctx, 1);
+    return true;
+}
+
+static bool type_as_c(void *ctx, uint32_t site)
+{
+    (void)site;
+    GameState *g = ctx;
+    bool typed = false;
+    TIMED_AS(g, 0xC2FAA8, typed = type_the_text(g, wait_as_c, g));
+    return typed;
+}
+
+void menu_type_the_description_task_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    (void)typing_task(g, TYPE_THE_DESCRIPTION, type_as_c, g);
+}
+
+void menu_type_the_setting_task_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    (void)typing_task(g, TYPE_THE_SETTING, type_as_c, g);
+}
+
+void menu_type_the_value_task_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    (void)typing_task(g, TYPE_THE_VALUE, type_as_c, g);
+}
+
 /* ---- The entries --------------------------------------------------------------------------------- */
 
 /* The end of a task, which the scheduler goes on from, and which reads none
@@ -353,57 +429,35 @@ void menu_send_the_typing_entry(Snes *s)
     m_rts(s);
 }
 
+static bool wait_on_the_machine(void *ctx) { return menu_wait_a_frame_from(ctx, 0xC2FAA5); }
+
 // $C2:FAA8
-/* The text typed to its end, a frame at a time, the task waiting for the
- * next frame between. It leaves an 8-bit accumulator. */
+/* It leaves an 8-bit accumulator. */
 void menu_type_the_description(Snes *s)
 {
-    GameState *g = state_of(s);
     menu_set_widths(s, true, false);
-    while (type_a_frame(g))
-        if (!menu_wait_a_frame_from(s, 0xC2FAA5))
-            return;
-    m_rts(s);
+    if (type_the_text(state_of(s), wait_on_the_machine, s))
+        m_rts(s);
 }
 
-static bool type(Snes *s, uint32_t site)
+/* On the machine each typing is a sibling run as the original's JSR reaches
+ * it, with 16-bit registers, and the task's end is the scheduler's. */
+static bool type_on_the_machine(void *ctx, uint32_t site)
 {
+    Snes *s = ctx;
+    menu_set_widths(s, false, false);
     return menu_run_any_widths(s, site, 0xC2FAA8, menu_type_the_description);
 }
 
-// $C2:FA9F
-void menu_type_the_description_task(Snes *s)
+static void typing_task_on_the_machine(Snes *s, TypingTask task)
 {
-    if (!type(s, 0xC2FA9F))
-        return;
-    m_stop_at(s, END_OF_A_TASK, READS_NOTHING);
+    if (typing_task(state_of(s), task, type_on_the_machine, s))
+        m_stop_at(s, END_OF_A_TASK, READS_NOTHING);
 }
 
-// $C2:F9B2
-void menu_type_the_setting_task(Snes *s)
-{
-    GameState *g = state_of(s);
-    begin_the_setting(g);
-    menu_set_widths(s, false, false);
-    if (!type(s, 0xC2F9E8))
-        return;
-    note_where_the_value_goes(g);
-    begin_the_value(g);
-    menu_set_widths(s, false, false);
-    if (!type(s, 0xC2FA43))
-        return;
-    m_stop_at(s, END_OF_A_TASK, READS_NOTHING);
-}
-
-// $C2:FA06
-void menu_type_the_value_task(Snes *s)
-{
-    begin_the_value(state_of(s));
-    menu_set_widths(s, false, false);
-    if (!type(s, 0xC2FA43))
-        return;
-    m_stop_at(s, END_OF_A_TASK, READS_NOTHING);
-}
+void menu_type_the_description_task(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_DESCRIPTION); }
+void menu_type_the_setting_task(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_SETTING); }
+void menu_type_the_value_task(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_VALUE); }
 
 /* ---- The guards ---------------------------------------------------------------------------------- */
 

@@ -31,6 +31,8 @@
 
 #include "charge.h"
 #include "core/palette.h"
+#include "core/program.h"
+#include "event/engine.h"
 #include "core/tile_animation.h"
 #include "cpu_io.h"
 #include "data/decompress.h"
@@ -550,15 +552,21 @@ static void load_the_animations(GameState *g)
 }
 
 /* The location's loading, entering it and after a menu, whose steps that
- * are entries of their own -- the song, the map and the script -- run as C
- * or on the machine (below). Each is false where it went no further: as C, a
- * map or a script the port doesn't take; on the machine, a call that didn't
- * come back as the field runs. */
+ * are entries of their own run as C or on the machine (below): the song, the
+ * map and the script; and after a menu the line effects' tables built and
+ * set up, the map's script started and the figure an event command built
+ * drawn again. Each is false where it went no further: as C, a step the port
+ * doesn't take; on the machine, a call that didn't come back as the field
+ * runs. */
 typedef enum { ENTERING, AFTER_A_MENU } Loading;
 typedef struct {
     bool (*song)(void *ctx);
     bool (*map)(void *ctx, Loading loading);
     bool (*script)(void *ctx, Loading loading);
+    bool (*effects_built)(void *ctx);
+    bool (*effects_set_up)(void *ctx);
+    bool (*map_script)(void *ctx);
+    bool (*figure)(void *ctx, FieldObject obj);
 } LoadSteps;
 
 /* The location's graphics, map and scripts, in the order both loadings make
@@ -582,6 +590,40 @@ static bool load_location(GameState *g, Platform *pf, const LoadSteps *steps, vo
     load_the_animations(g);
     return true;
 }
+
+// $C0:01A5
+/* After a menu, which wrote over the location's graphics, map and scripts:
+ * the field's state back, the line effects ready, every sprite hidden for the
+ * next frame, the location loaded again, what the party's scripts had been
+ * told put back, the map's script started, the figure an event command built
+ * drawn again, and a gathering of the party the menu cut short finished at
+ * once. */
+static bool set_up_after_a_menu(GameState *g, Platform *pf, const LoadSteps *steps, void *ctx)
+{
+    field_bring_the_state_back(g);
+    if (!steps->effects_built(ctx) || !steps->effects_set_up(ctx))
+        return false;
+    sprites_hide_all_next_frame(g);
+    if (!load_graphics_map_and_scripts(g, pf, steps, ctx, AFTER_A_MENU))
+        return false;
+    put_back_what_the_party_was_told(g);
+    if (!steps->map_script(ctx))
+        return false;
+    FieldLink built = field_link_stored(field_built_sprite_object(g));
+    if (field_link_is_object(built)) {
+        FieldObject obj = field_linked_object(built);
+        object_make_current_recognised(g, obj);
+        if (!steps->figure(ctx, obj))
+            return false;
+    }
+    if (gathering_cut_short(g))
+        finish_the_gathering(g);
+    return true;
+}
+
+/* The ports the setting up after a menu runs, by the routines they stand
+ * for. */
+enum { LINE_EFFECTS = 0xFDC2C1, LINE_EFFECTS_SET_UP = 0xFDC1EE, WHOLE_FIGURE = 0xC0E12A, MAP_SCRIPT_STARTS = 0xC0595C };
 
 /* ---- As C ------------------------------------------------------------------------------------- */
 
@@ -616,18 +658,66 @@ static bool script_as_c(void *ctx, Loading loading)
     return loaded;
 }
 
+static bool effects_built_as_c(void *ctx)
+{
+    LoadAsC *c = ctx;
+    TIMED_AS(c->game, LINE_EFFECTS, field_line_effects_build(c->game));
+    return true;
+}
+
+static bool effects_set_up_as_c(void *ctx)
+{
+    LoadAsC *c = ctx;
+    TIMED_AS(c->game, LINE_EFFECTS_SET_UP, (void)field_set_up_line_effects(c->game, c->pf));
+    return true;
+}
+
+static bool map_script_as_c(void *ctx)
+{
+    LoadAsC *c = ctx;
+    EventAsC e = { c->game, c->pf };
+    EventRunner r = event_runner_as_c(&e);
+    uint16_t at;
+    EventTurnEnd end = TURN_OVER;
+    TIMED_AS(c->game, MAP_SCRIPT_STARTS, end = event_run_map_script_commands(c->game, &r, &at));
+    if (end == TURN_OVER)
+        return true;
+    if (end != TURN_HANDED_BACK)
+        program_needs_the_machine(c->game, MAP_SCRIPT_STARTS, "a map's script the event engine hands to the original");
+    return false;
+}
+
+static bool figure_as_c(void *ctx, FieldObject obj)
+{
+    LoadAsC *c = ctx;
+    TIMED_AS(c->game, WHOLE_FIGURE, object_draw_whole_figure(c->game, c->pf, obj));
+    return true;
+}
+
+static const LoadSteps as_c = { song_as_c, map_as_c, script_as_c, effects_built_as_c, effects_set_up_as_c,
+                                map_script_as_c, figure_as_c };
+
 bool field_load_the_location(GameState *g, Platform *pf)
 {
-    static const LoadSteps as_c = { song_as_c, map_as_c, script_as_c };
     LoadAsC c = { g, pf };
     return load_location(g, pf, &as_c, &c);
 }
 
+static bool party_places_readable(const GameState *g);
+static bool gathering_can_be_finished(const GameState *g);
+
+bool field_set_up_again_as_c(GameState *g, Platform *pf)
+{
+    if (!gathering_can_be_finished(g)) {
+        program_needs_the_machine(g, FIELD_SET_UP_AGAIN_ENTRY, "a gathering cut short the port doesn't finish");
+        return false;
+    }
+    LoadAsC c = { g, pf };
+    return set_up_after_a_menu(g, pf, &as_c, &c);
+}
+
 /* ---- The routines it calls on the machine ---------------------------------------------------- */
 
-/* The ports the setting up after a menu runs on the machine, by the routines
- * they stand for. */
-enum { LINE_EFFECTS = 0xFDC2C1, LINE_EFFECTS_SET_UP = 0xFDC1EE, WHOLE_FIGURE = 0xC0E12A, MAP_SCRIPT_STARTS = 0xC0595C };
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
@@ -675,7 +765,41 @@ static bool script_on_the_machine(void *ctx, Loading loading)
                      page(s));
 }
 
-static const LoadSteps on_the_machine = { song_on_the_machine, map_on_the_machine, script_on_the_machine };
+/* The line effects' tables are built with 8-bit index registers. */
+static bool effects_built_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    m_sep(s, CPU_FLAG_X);
+    if (!field_run_long(s, 0xC001AA, LINE_EFFECTS, READS_NOTHING, field_build_line_effect_tables,
+                        on_the_field_page(s, true)))
+        return false;
+    m_rep(s, CPU_FLAG_X);
+    return true;
+}
+
+static bool effects_set_up_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run_long(s, 0xC001B0, LINE_EFFECTS_SET_UP, READS_NOTHING, field_setup_line_effects, page(s));
+}
+
+static bool map_script_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run(s, 0xC00206, MAP_SCRIPT_STARTS, READS_THE_OVERFLOW, event_run_map_script, page(s));
+}
+
+/* The figure's object named in X. */
+static bool figure_on_the_machine(void *ctx, FieldObject obj)
+{
+    Snes *s = ctx;
+    s->cpu.x = field_object_offset(obj);
+    return field_run(s, 0xC00212, WHOLE_FIGURE, DC_A | DC_N | DC_Z | DC_C, field_draw_whole_figure, page(s));
+}
+
+static const LoadSteps on_the_machine = { song_on_the_machine, map_on_the_machine, script_on_the_machine,
+                                          effects_built_on_the_machine, effects_set_up_on_the_machine,
+                                          map_script_on_the_machine, figure_on_the_machine };
 
 /* ---- The entries ------------------------------------------------------------------------------- */
 
@@ -728,42 +852,10 @@ void field_put_aside_for_a_menu(Snes *s)
     m_rts(s);
 }
 
-/* The figure an event command built for an object (field_built_sprite_object),
- * built again, on the field's page with its object named in X. */
-static bool build_the_figure_again(Snes *s)
-{
-    GameState *g = state_of(s);
-    FieldLink built = field_link_stored(field_built_sprite_object(g));
-    if (!field_link_is_object(built))
-        return true;
-    FieldObject obj = field_linked_object(built);
-    object_make_current_recognised(g, obj);
-    s->cpu.x = field_object_offset(obj);
-    return field_run(s, 0xC00212, WHOLE_FIGURE, DC_A | DC_N | DC_Z | DC_C, field_draw_whole_figure, page(s));
-}
-
-// $C0:01A5
 void field_set_up_after_a_menu(Snes *s)
 {
-    GameState *g = state_of(s);
-    field_bring_the_state_back(g);
-    m_sep(s, CPU_FLAG_X);
-    if (!field_run_long(s, 0xC001AA, LINE_EFFECTS, READS_NOTHING, field_build_line_effect_tables,
-                        on_the_field_page(s, true)))
-        return;
-    m_rep(s, CPU_FLAG_X);
-    if (!field_run_long(s, 0xC001B0, LINE_EFFECTS_SET_UP, READS_NOTHING, field_setup_line_effects, page(s)))
-        return;
-    sprites_hide_all_next_frame(g);
-    if (!load_graphics_map_and_scripts(g, m_platform(s), &on_the_machine, s, AFTER_A_MENU))
-        return;
-    put_back_what_the_party_was_told(g);
-    if (!field_run(s, 0xC00206, MAP_SCRIPT_STARTS, READS_THE_OVERFLOW, event_run_map_script, page(s)) ||
-        !build_the_figure_again(s))
-        return;
-    if (gathering_cut_short(g))
-        finish_the_gathering(g);
-    m_rts(s);
+    if (set_up_after_a_menu(state_of(s), m_platform(s), &on_the_machine, s))
+        m_rts(s);
 }
 
 /* The guards: on the field's page with the data bank $00, the party's places
@@ -771,6 +863,11 @@ void field_set_up_after_a_menu(Snes *s)
  * after a menu, a gathering cut short with both members there, their words'
  * high bytes clear too (the original moves them through the words). */
 static bool party_places_readable(const GameState *g)
+{
+    return field_party_can_be_kept(g);
+}
+
+bool field_party_can_be_kept(const GameState *g)
 {
     if (!field_leader_readable(g))
         return false;
@@ -792,18 +889,22 @@ bool field_party_can_be_put_aside(Snes *s)
     return ok;
 }
 
+static bool gathering_can_be_finished(const GameState *g)
+{
+    if (!gathering_cut_short(g))
+        return true;
+    bool ok = party_places_readable(g);
+    for (PartyPlace place = PARTY_FIRST_MEMBER; ok && place < PARTY_PLACES; place++)
+        ok = field_link_is_object(party_member_link(g, place)) && field_party_objects_high(g, place) == 0;
+    return ok;
+}
+
 bool field_can_be_set_up_again(Snes *s)
 {
     if (!field_on_page_bank_zero(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = true;
-    if (gathering_cut_short(g)) {
-        ok = party_places_readable(g);
-        for (PartyPlace place = PARTY_FIRST_MEMBER; ok && place < PARTY_PLACES; place++)
-            ok = field_link_is_object(party_member_link(g, place)) && field_party_objects_high(g, place) == 0;
-    }
+    bool ok = gathering_can_be_finished(state_of(s));
     vars_peek(false);
     return ok;
 }

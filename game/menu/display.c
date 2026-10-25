@@ -21,6 +21,7 @@
 #include "core/program.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
+#include "menu/cursor.h"
 #include "menu/fades.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
@@ -197,17 +198,128 @@ enum { MENU_MODE_START = 0xC2800E, THE_START_READS_ALL = 0 };
  * mismatched so (chunk 11's review fixes). */
 void menu_mode_enter(Snes *s) { m_stop_at(s, MENU_MODE_START, THE_START_READS_ALL); }
 
+/* The blanks the mode's start, its return and its starting the game again
+ * make, each from the original's own sites. */
+static const uint32_t start_sites[4] = { 0xC28025, 0xC2802B, 0xC28031, 0xC28035 };
+static const uint32_t return_sites[4] = { 0xC282C3, 0xC282C9, 0xC282CF, 0xC282D3 };
+static const uint32_t restart_sites[4] = { 0xC28331, 0xC28337, 0xC2833D, 0xC28341 };
+
+/* The mode's steps that are routines of their own, run as C or on the
+ * machine (below): the game started again from its reset ($C2:832F); the
+ * menus opened ($C2:8096), false where that went no further; and the tasks
+ * started and their turns taken until a screen closes the menus ($C2:8190). */
+typedef struct {
+    void (*start_again)(void *ctx);
+    bool (*opened)(void *ctx);
+    void (*tasks)(void *ctx);
+} ModeSteps;
+
 // $C2:800E
-/* Entering the menus: the caller's direct page, data bank and flags kept on
- * its stack, for the menus' return to put back; the menus' data bank; what the
- * caller asked for kept; and the screen blanked while it is set up. Then the menus
- * move to their own stack, open, and start their tasks, which run until a
- * screen closes them -- or the game starts afresh. */
+/* Entering the menus: what the caller asked for kept, and the screen blanked
+ * while it is set up. Then the menus open on the screen asked for and start
+ * their tasks, which run until a screen closes them -- or the game starts
+ * afresh. */
+static void run_the_mode(GameState *g, Platform *pf, uint8_t asked_for, uint16_t asked_with, const ModeSteps *steps,
+                         void *ctx)
+{
+    set_menu_asked_for(g, asked_for);
+    set_menu_asked_with(g, asked_with);
+    blank_and_stop(pf, start_sites);
+    if (starts_afresh(g)) {
+        start_a_game_afresh(g, pf);
+        steps->start_again(ctx);
+        return;
+    }
+    if (!steps->opened(ctx))
+        return;
+    open_on_the_screen(g, pf);
+    steps->tasks(ctx);
+}
+
+/* ---- As C ---- */
+
+/* The mode run by the program, and how it ended: the task closing the menus
+ * says, back to their caller or the game started again from its reset. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+    MenuModeEnd end;
+} ModeAsC;
+
+static ModeAsC *running_as_c;
+
+static void start_again_as_c(void *ctx)
+{
+    ModeAsC *c = ctx;
+    TIMED_AS(c->game, 0xC2832F, blank_and_stop(c->pf, restart_sites));
+    c->end = MENUS_START_THE_GAME_AGAIN;
+}
+
+static bool opened_as_c(void *ctx)
+{
+    ModeAsC *c = ctx;
+    bool opened = false;
+    TIMED_AS(c->game, 0xC28096, opened = menu_opens_as_c(c->game, c->pf));
+    return opened;
+}
+
+/* Each frame's turns once the vblank handler has sent what the last frame
+ * queued, until a task closes the menus or goes no further. */
+static void tasks_as_c(void *ctx)
+{
+    ModeAsC *c = ctx;
+    menu_tasks_open_as_c(c->game, c->pf);
+    MenuTurns turns;
+    do {
+        while (!menu_vblank_done(c->game))
+            tm_wait_frame(c->pf, PF_AT(0xC281CA));
+        TIMED_AS(c->game, 0xC281CF, turns = menu_tasks_take_the_turns_as_c(c->game));
+    } while (turns == MENU_TURNS_TAKEN);
+    menu_tasks_end_as_c();
+    if (turns != MENU_TURNS_CLOSED)
+        c->end = MENUS_WENT_NO_FURTHER;
+}
+
+MenuModeEnd menu_mode_runs(GameState *g, Platform *pf, uint8_t asked_for, uint16_t asked_with)
+{
+    static const ModeSteps as_c = { start_again_as_c, opened_as_c, tasks_as_c };
+    ModeAsC c = { g, pf, MENUS_WENT_NO_FURTHER };
+    running_as_c = &c;
+    run_the_mode(g, pf, asked_for, asked_with, &as_c, &c);
+    running_as_c = NULL;
+    return c.end;
+}
+
+/* ---- On the machine ---- */
+
+static void start_again_on_the_machine(void *ctx) { NATIVE_TIME_AS((Snes *)ctx, 0xC2832F, menu_mode_restart(ctx)); }
+
+/* The menus open on their own stack and page. */
+static bool opened_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    s->cpu.s = MENUS_STACK;
+    s->cpu.d = MENU_PAGE;
+    return menu_run_or_call(s, 0xC28068, 0xC28096, THE_OPENING_SETS_ITS_PAGE, menu_open);
+}
+
+/* The tasks start with an 8-bit accumulator and index registers, the
+ * interrupts let in. */
+static void tasks_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    menu_set_widths(s, true, true);
+    m_set_flag(s, CPU_FLAG_I, false);
+    menu_go_on_in(s, 0xC28190, menu_start_the_tasks, THE_TASKS_START_READING_NOTHING);
+}
+
+/* The caller's direct page, data bank and flags kept on its stack, for the
+ * menus' return to put back, and its stack kept; the menus' data bank; and
+ * what it asks for and with in A and X. */
 void menu_mode_start(Snes *s)
 {
-    static const uint32_t sites[4] = { 0xC28025, 0xC2802B, 0xC28031, 0xC28035 };
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
+    static const ModeSteps on_the_machine = { start_again_on_the_machine, opened_on_the_machine,
+                                              tasks_on_the_machine };
     m_set_flag(s, CPU_FLAG_I, true);
     m_set_flag(s, CPU_FLAG_C, false);
     m_push16(s, s->cpu.d);
@@ -216,23 +328,8 @@ void menu_mode_start(Snes *s)
     m_sep(s, CPU_FLAG_M);
     m_rep(s, CPU_FLAG_X);
     s->cpu.db = MENU_DATA_BANK;
-    set_menu_asked_for(g, (uint8_t)s->cpu.a);
-    set_menu_asked_with(g, s->cpu.x);
-    blank_and_stop(pf, sites);
-    set_menu_caller_stack(g, s->cpu.s);
-    if (starts_afresh(g)) {
-        start_a_game_afresh(g, pf);
-        NATIVE_TIME_AS(s, 0xC2832F, menu_mode_restart(s));
-        return;
-    }
-    s->cpu.s = MENUS_STACK;
-    s->cpu.d = MENU_PAGE;
-    if (!menu_run_or_call(s, 0xC28068, 0xC28096, THE_OPENING_SETS_ITS_PAGE, menu_open))
-        return;
-    open_on_the_screen(g, pf);
-    menu_set_widths(s, true, true);
-    m_set_flag(s, CPU_FLAG_I, false);
-    menu_go_on_in(s, 0xC28190, menu_start_the_tasks, THE_TASKS_START_READING_NOTHING);
+    set_menu_caller_stack(state_of(s), s->cpu.s);
+    run_the_mode(state_of(s), m_platform(s), (uint8_t)s->cpu.a, s->cpu.x, &on_the_machine, s);
 }
 
 // $C2:82C1
@@ -240,8 +337,7 @@ void menu_mode_start(Snes *s)
  * entry kept on it put back. It leaves the stack pointer in X. */
 void menu_mode_return(Snes *s)
 {
-    static const uint32_t sites[4] = { 0xC282C3, 0xC282C9, 0xC282CF, 0xC282D3 };
-    blank_and_stop(m_platform(s), sites);
+    blank_and_stop(m_platform(s), return_sites);
     uint16_t stack = menu_caller_stack(state_of(s));
     s->cpu.x = stack;
     s->cpu.s = stack;
@@ -258,8 +354,7 @@ void menu_mode_return(Snes *s)
  * stack and the reset code at $C0:0000. */
 void menu_mode_restart(Snes *s)
 {
-    static const uint32_t sites[4] = { 0xC28331, 0xC28337, 0xC2833D, 0xC28341 };
-    blank_and_stop(m_platform(s), sites);
+    blank_and_stop(m_platform(s), restart_sites);
     s->cpu.s = BOOT_STACK;
     m_stop_at(s, 0xC00000, 0);
 }
@@ -272,29 +367,98 @@ void menu_mode_restart(Snes *s)
 enum { EVERY_TASK = 0xFF };
 enum { THE_WEAR_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
-/* Each of the two ways out calls what the original calls from its own
- * sites: the wear's, then the fade's. */
-static bool close_the_menus(Snes *s, uint32_t wear_shown_from, uint32_t faded_out_from)
+/* The wear shown, the fade out and the leaving, run as C or on the machine
+ * (below), the first two each false where it went no further. */
+typedef struct {
+    bool (*wear_shown)(void *ctx);
+    bool (*faded_out)(void *ctx);
+    void (*leave)(void *ctx);
+} CloseCalls;
+
+// $C2:82B2, $C2:8320
+static void close_the_menus(GameState *g, const CloseCalls *c, void *ctx)
 {
-    GameState *g = state_of(s);
-    menu_set_widths(s, true, false);
     TIMED_AS(g, 0xC28255, menu_stop_tasks(g, EVERY_TASK));
-    return menu_run_or_call(s, wear_shown_from, 0xC2834D, THE_WEAR_IGNORES, menu_show_what_the_party_wears)
-           && menu_fade_out_from(s, faded_out_from);
+    if (c->wear_shown(ctx) && c->faded_out(ctx))
+        c->leave(ctx);
 }
 
-// $C2:82B2
+/* As C, from inside the task that closes them: the menus' mode returns to
+ * its caller, the program, saying how they closed, and the task never goes
+ * on. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+    bool for_the_game;
+} CloseAsC;
+
+static bool wear_shown_as_c(void *ctx)
+{
+    CloseAsC *c = ctx;
+    TIMED_AS(c->game, 0xC2834D, party_wear_it_shows(c->game));
+    return true;
+}
+
+static bool faded_out_as_c(void *ctx)
+{
+    CloseAsC *c = ctx;
+    TIMED_AS(c->game, 0xC283CA, menu_fade_out_as_c(c->game));
+    return true;
+}
+
+static void leave_as_c(void *ctx)
+{
+    CloseAsC *c = ctx;
+    if (c->for_the_game)
+        TIMED_AS(c->game, 0xC2832F, blank_and_stop(c->pf, restart_sites));
+    else
+        TIMED_AS(c->game, 0xC282C1, blank_and_stop(c->pf, return_sites));
+    if (running_as_c)
+        running_as_c->end = c->for_the_game ? MENUS_START_THE_GAME_AGAIN : MENUS_CLOSED;
+    menu_tasks_closed_as_c();
+}
+
+void menu_close_as_c(GameState *g, Platform *pf, bool for_the_game)
+{
+    static const CloseCalls as_c = { wear_shown_as_c, faded_out_as_c, leave_as_c };
+    CloseAsC c = { g, pf, for_the_game };
+    close_the_menus(g, &as_c, &c);
+}
+
+/* On the machine each of the two ways out calls what the original calls from
+ * its own sites: the wear's, then the fade's; then the mode's return, or its
+ * start of the game again. */
+static bool wear_shown_back_to_the_caller(void *ctx)
+{
+    return menu_run_or_call(ctx, 0xC282BB, 0xC2834D, THE_WEAR_IGNORES, menu_show_what_the_party_wears);
+}
+
+static bool faded_out_back_to_the_caller(void *ctx) { return menu_fade_out_from(ctx, 0xC282BE); }
+
+static void back_to_the_caller(void *ctx) { NATIVE_TIME_AS((Snes *)ctx, 0xC282C1, menu_mode_return(ctx)); }
+
+static bool wear_shown_for_the_game(void *ctx)
+{
+    return menu_run_or_call(ctx, 0xC28329, 0xC2834D, THE_WEAR_IGNORES, menu_show_what_the_party_wears);
+}
+
+static bool faded_out_for_the_game(void *ctx) { return menu_fade_out_from(ctx, 0xC2832C); }
+
+static void on_to_the_game(void *ctx) { NATIVE_TIME_AS((Snes *)ctx, 0xC2832F, menu_mode_restart(ctx)); }
+
 void menu_close(Snes *s)
 {
-    if (close_the_menus(s, 0xC282BB, 0xC282BE))
-        NATIVE_TIME_AS(s, 0xC282C1, menu_mode_return(s));
+    static const CloseCalls closing = { wear_shown_back_to_the_caller, faded_out_back_to_the_caller,
+                                        back_to_the_caller };
+    menu_set_widths(s, true, false);
+    close_the_menus(state_of(s), &closing, s);
 }
 
-// $C2:8320
 void menu_close_for_the_game(Snes *s)
 {
-    if (close_the_menus(s, 0xC28329, 0xC2832C))
-        NATIVE_TIME_AS(s, 0xC2832F, menu_mode_restart(s));
+    static const CloseCalls closing = { wear_shown_for_the_game, faded_out_for_the_game, on_to_the_game };
+    menu_set_widths(s, true, false);
+    close_the_menus(state_of(s), &closing, s);
 }
 
 /* The mode's frame: the screen blanked while it sends what the frame built,
@@ -343,41 +507,105 @@ void menu_nmi_enter(Snes *s)
     m_stop_at(s, 0xC2842A, DC_N | DC_Z | DC_C);
 }
 
+/* The vblank's two calls, run as C or on the machine (below): the frame's
+ * work sent, and the frame's input taken; each false where it went no
+ * further. */
+typedef struct {
+    bool (*frame_sent)(void *ctx);
+    bool (*input_taken)(void *ctx);
+} VblankCalls;
+
 // $C2:842A (the handler's work, after its entry at $C2:840E)
 /* The menus' vblank: counts the frame, sends the frame's work ($C2:85D6) with
  * the per-line effects off and turns them back on after, reads the input and
  * the timers ($C2:8473), and sets the BG mode and the brightness (0 is forced
- * blank); then gives the interrupted code its registers and stack back and
- * returns to it. */
-void menu_nmi_work(Snes *s)
+ * blank). */
+static bool menus_vblank(GameState *g, Platform *pf, const VblankCalls *c, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     (void)tm_ack_vblank(pf, PF_AT(0xC2842A));
     set_menu_frame_counter(g, (uint8_t)(menu_frame_counter(g) + 1));
     vid_set_display(pf, PF_AT(0xC28431), &BLANK);
     if (!(menu_vblank_done(g) & FRAME_READY_BIT)) {
         vid_enable_line_effects(pf, PF_AT(0xC2843C), 0x00);
-        m_jsr_dc(s, 0xC2843F, 0xC285D6, NOTHING_READ);
-        if (!back_as_the_menus_run(s, MENUS_PAGE)) {
-            m_stop_dont_care(s, 0xC28442, 0);
-            return;
-        }
+        if (!c->frame_sent(ctx))
+            return false;
         vid_enable_line_effects(pf, PF_AT(0xC28446), (uint8_t)(menu_line_effects(g) & LINE_EFFECTS));
         set_menu_vblank_done(g, FRAME_SENT);
     }
-    m_jsr_dc(s, 0xC2844D, 0xC28473, INPUT_IGNORES);
-    if (!back_as_the_menus_run(s, MENUS_PAGE)) {
-        m_stop_dont_care(s, 0xC28450, 0);
-        return;
-    }
+    if (!c->input_taken(ctx))
+        return false;
     vid_set_mode(pf, PF_AT(0xC28452), &(VidMode){ .mode = 1, .bg3_priority = true });
     uint8_t brightness = menu_brightness(g);
     VidDisplay display = brightness != 0 ? vid_display_decode(brightness) : BLANK;
     vid_set_display(pf, PF_AT(0xC2845B), &display);
     if (menu_wait_frames(g) != 0)
         set_menu_wait_frames(g, (uint8_t)(menu_wait_frames(g) - 1));
-    m_leave_handler_stack(s, menu_interrupted_stack(g));
+    return true;
+}
+
+static uint16_t send_the_frame(GameState *g, Platform *pf);
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} VblankAsC;
+
+static bool frame_sent_as_c(void *ctx)
+{
+    VblankAsC *c = ctx;
+    TIMED_AS(c->game, 0xC285D6, (void)send_the_frame(c->game, c->pf));
+    TIMED_AS(c->game, 0xC28663, menu_send_upload_queue(c->game, c->pf));
+    return true;
+}
+
+static bool input_taken_as_c(void *ctx)
+{
+    VblankAsC *c = ctx;
+    bool taken = false;
+    TIMED_AS(c->game, 0xC28473, taken = menu_frame_input_taken(c->game, c->pf));
+    return taken;
+}
+
+void menu_vblank(GameState *g, Platform *pf)
+{
+    static const VblankCalls as_c = { frame_sent_as_c, input_taken_as_c };
+    VblankAsC c = { g, pf };
+    TIMED_AS(g, 0xC2842A, (void)menus_vblank(g, pf, &as_c, &c));
+}
+
+/* The menus' line handler returns at once. */
+void menu_line(GameState *g, Platform *pf) { (void)g, (void)pf; }
+
+/* On the machine each call is made from the original's own, and the work
+ * goes on after it only where it came back as the menus run. */
+static bool frame_sent_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    m_jsr_dc(s, 0xC2843F, 0xC285D6, NOTHING_READ);
+    if (back_as_the_menus_run(s, MENUS_PAGE))
+        return true;
+    m_stop_dont_care(s, 0xC28442, 0);
+    return false;
+}
+
+static bool input_taken_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    m_jsr_dc(s, 0xC2844D, 0xC28473, INPUT_IGNORES);
+    if (back_as_the_menus_run(s, MENUS_PAGE))
+        return true;
+    m_stop_dont_care(s, 0xC28450, 0);
+    return false;
+}
+
+/* Then the interrupted code has its registers and stack back, and the
+ * handler returns to it. */
+void menu_nmi_work(Snes *s)
+{
+    static const VblankCalls on_the_machine = { frame_sent_on_the_machine, input_taken_on_the_machine };
+    GameState *g = state_of(s);
+    if (menus_vblank(g, m_platform(s), &on_the_machine, s))
+        m_leave_handler_stack(s, menu_interrupted_stack(g));
 }
 
 enum { SCROLLED_LAYERS = 3 };
@@ -439,14 +667,12 @@ void menu_send_palette(GameState *g, Platform *pf)
 // $C2:85D6
 /* The menus' vblank work: the layers' scroll, the windows, screens and color
  * math, the sprite table, a block move the frame asked for, the palette, and
- * the color math table the frame built (menu_build_math_line_table). Falls
- * through into the VRAM upload queue at $C2:8663, where this port stops; the
- * block move the shadows went out through leaves Y past the register block,
- * and a block move of the frame's past its destination. */
-void menu_vblank_upload(Snes *s)
+ * the color math table the frame built (menu_build_math_line_table). It falls
+ * through into the VRAM upload queue at $C2:8663. The block move the shadows
+ * went out through leaves Y past the register block, and a block move of the
+ * frame's past its destination, which is returned. */
+static uint16_t send_the_frame(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     send_menu_scroll(g, pf);
     send_menu_screen_shadows(g, pf);
     uint16_t y = M_DP_PPU + 0x33;
@@ -455,11 +681,17 @@ void menu_vblank_upload(Snes *s)
         set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) & ~BLOCK_MOVE_ASKED));
         y = move_the_block(g);
     }
-    NATIVE_TIME_AS(s, 0xC286A9, menu_send_palette(g, pf));
+    TIMED_AS(g, 0xC286A9, menu_send_palette(g, pf));
     uint16_t table = (uint16_t)RAM_ABS(RAM_MENU_MATH_LINE_TABLES)
                      + ((menu_math_line_table_offset(g) >> 8) ? RAM_MENU_MATH_LINE_TABLES_STRIDE : 0);
     vid_set_line_table(pf, PF_AT(0xC28660), 0, table);
-    s->cpu.y = y;
+    return y;
+}
+
+/* This port stops where the queue's routine starts. */
+void menu_vblank_upload(Snes *s)
+{
+    s->cpu.y = send_the_frame(state_of(s), m_platform(s));
     s->cpu.db = 0x00;
     m_stop_at(s, 0xC28663, 0);
 }
@@ -1095,13 +1327,16 @@ static void clear_the_screens_memory(GameState *g, Platform *pf);
 // $C2:940D
 /* Set the loader's screen up, with the console stopped, and clear all of
  * VRAM and the screen's buffers in work RAM ($C2:94D5). */
-void menu_init_video(Snes *s)
+void menu_video_set_up(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     vid_apply_screen(pf, PF_AT(0xC2940D), &loader_screen);
     stop_the_console(pf);
     clear_the_screens_memory(g, pf);
+}
+
+void menu_init_video(Snes *s)
+{
+    menu_video_set_up(state_of(s), m_platform(s));
     m_rts(s);
 }
 

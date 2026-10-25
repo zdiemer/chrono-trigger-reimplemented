@@ -115,7 +115,7 @@ void menu_pack_settings(GameState *g)
 
 /* The menus' interrupts: their vblank handler, and a line interrupt handler
  * that returns at once. */
-enum { LONG_JUMP = 0x5C, MENU_VBLANK_HANDLER = 0xC2840E, MENU_LINE_HANDLER = 0xC28472 };
+enum { LONG_JUMP = 0x5C };
 
 static void take_the_interrupts(GameState *g)
 {
@@ -125,29 +125,25 @@ static void take_the_interrupts(GameState *g)
 
 /* The sound effects quietened and the driver's first set of effects taken:
  * silence played on both pairs of effect voices, their volume put back to
- * full at once. */
+ * full at once, each command from its own call. */
 enum { CHOOSE_EFFECT_SET = 0x70, FIRST_EFFECT_SET = 0, SILENCE = 0xFF, AT_ONCE = 1 };
 enum { DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
-static bool quiet_the_effects(Snes *s)
+static const struct {
+    uint32_t site;
+    AudioCommand command;
+} QUIETING[] = {
+    { 0xC280B2, { .command = CHOOSE_EFFECT_SET, .p1 = FIRST_EFFECT_SET, .count = 1 } },
+    { 0xC280C5, { .command = AU_START_EFFECT, .p1 = SILENCE, .p2 = AU_CENTRE, .count = 2 } },
+    { 0xC280CE, { .command = SOUND_EFFECT_ON_VOICES_4_5, .count = 0 } },
+    { 0xC280E1, { .command = AU_FADE_EFFECTS, .p1 = AT_ONCE, .p2 = AU_FULL_VOLUME, .count = 2 } },
+    { 0xC280EA, { .command = AU_FADE_MORE_EFFECTS, .count = 0 } },
+};
+enum { QUIETING_COMMANDS = sizeof QUIETING / sizeof QUIETING[0] };
+
+static void quieten(Platform *pf, unsigned i)
 {
-    static const struct {
-        uint32_t site;
-        AudioCommand command;
-    } COMMANDS[] = {
-        { 0xC280B2, { .command = CHOOSE_EFFECT_SET, .p1 = FIRST_EFFECT_SET, .count = 1 } },
-        { 0xC280C5, { .command = AU_START_EFFECT, .p1 = SILENCE, .p2 = AU_CENTRE, .count = 2 } },
-        { 0xC280CE, { .command = SOUND_EFFECT_ON_VOICES_4_5, .count = 0 } },
-        { 0xC280E1, { .command = AU_FADE_EFFECTS, .p1 = AT_ONCE, .p2 = AU_FULL_VOLUME, .count = 2 } },
-        { 0xC280EA, { .command = AU_FADE_MORE_EFFECTS, .count = 0 } },
-    };
-    for (unsigned i = 0; i < sizeof COMMANDS / sizeof COMMANDS[0]; i++) {
-        MenuMachine m = menu_machine_now(s);
-        au_command(m_platform(s), PF_CALL_DC(COMMANDS[i].site, 0xC70004, DRIVER_IGNORES), COMMANDS[i].command);
-        if (!menu_back(s, COMMANDS[i].site + MENU_JSL_SIZE, m))
-            return false;
-    }
-    return true;
+    au_command(pf, PF_CALL_DC(QUIETING[i].site, 0xC70004, DRIVER_IGNORES), QUIETING[i].command);
 }
 
 /* The layers' vertical scroll a line up, the zero word the menus read, the
@@ -167,55 +163,155 @@ static void clear_the_menus_cells(GameState *g)
         set_menu_members(g, i, BLANK);
 }
 
-/* What the stubs' block move leaves before the sound calls: its count run
- * out, $FFFF, of which the driver's call reads the high byte. */
-static void leave_stubs_moved(Snes *s) { s->cpu.a |= 0xFF00; }
+/* What the opening does that is a routine of the menus' own, run as C or on
+ * the machine (below): a quietening command sent, the screen set up, the
+ * save slots read, the upload queue sent, the records' sprites loaded, the
+ * item tables built, and the low-HP marks worked out where the port takes
+ * them; and where the graphics' building leaves what the original's code
+ * reads (scaffolding). Each false where it went no further. */
+typedef enum { OPENING_SCREEN, OPENING_SAVE_SLOTS, OPENING_UPLOADS, OPENING_RECORDS, OPENING_ITEMS } OpeningCall;
+typedef struct {
+    bool (*quieten)(void *ctx, unsigned command);
+    bool (*call)(void *ctx, OpeningCall call);
+    void (*graphics_built)(void *ctx);
+    bool (*low_hp_marks)(void *ctx);
+} OpeningCalls;
+
+enum { LOW_HP_MARKS = 0xC2813C };
+
+// $C2:8096
+/* The menus opened: their interrupts' handlers taken, the effects quietened,
+ * the screen set up, their cells cleared, their graphics built, the save
+ * slots read, the sprites cleared and the queued uploads sent, the party
+ * listed, the settings unpacked, the records' sprites loaded, the item
+ * tables built, and the characters' low-HP marks worked out (the routine it
+ * runs into, $C2:813C). */
+static bool open_the_menus(GameState *g, Platform *pf, const OpeningCalls *c, void *ctx)
+{
+    take_the_interrupts(g);
+    for (unsigned i = 0; i < QUIETING_COMMANDS; i++)
+        if (!c->quieten(ctx, i))
+            return false;
+    if (!c->call(ctx, OPENING_SCREEN))
+        return false;
+    clear_the_menus_cells(g);
+    TIMED_AS(g, 0xC2968D, menu_build_graphics(g, pf));
+    c->graphics_built(ctx);
+    if (!c->call(ctx, OPENING_SAVE_SLOTS))
+        return false;
+    TIMED_AS(g, 0xC2984A, menu_clear_sprites(g));
+    if (!c->call(ctx, OPENING_UPLOADS))
+        return false;
+    TIMED_AS(g, 0xC2816A, menu_list_party(g));
+    TIMED_AS(g, 0xC292F4, menu_unpack_settings(g));
+    if (!c->call(ctx, OPENING_RECORDS) || !c->call(ctx, OPENING_ITEMS) || !c->low_hp_marks(ctx))
+        return false;
+    TIMED_AS(g, LOW_HP_MARKS, menu_work_out_low_hp_marks(g));
+    return true;
+}
+
+/* ---- As C ------------------------------------------------------------------------------------- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} OpeningAsC;
+
+static bool quieten_as_c(void *ctx, unsigned command)
+{
+    OpeningAsC *c = ctx;
+    quieten(c->pf, command);
+    return true;
+}
+
+static bool call_as_c(void *ctx, OpeningCall call)
+{
+    OpeningAsC *c = ctx;
+    GameState *g = c->game;
+    switch (call) {
+    case OPENING_SCREEN: TIMED_AS(g, 0xC2940D, menu_video_set_up(g, c->pf)); break;
+    case OPENING_SAVE_SLOTS: TIMED_AS(g, 0xC2D156, menu_save_slots_read(g, c->pf)); break;
+    case OPENING_UPLOADS: TIMED_AS(g, 0xC28663, menu_send_upload_queue(g, c->pf)); break;
+    case OPENING_RECORDS: TIMED_AS(g, 0xC2F3CA, menu_record_sprites_loaded(g)); break;
+    case OPENING_ITEMS: TIMED_AS(g, 0xC29875, menu_items_built(g)); break;
+    }
+    return true;
+}
+
+static void graphics_built_as_c(void *ctx) { (void)ctx; }
+
+/* The opening clears the zero word the marks' walk starts from. */
+static bool low_hp_marks_as_c(void *ctx)
+{
+    (void)ctx;
+    return true;
+}
+
+bool menu_opens_as_c(GameState *g, Platform *pf)
+{
+    static const OpeningCalls as_c = { quieten_as_c, call_as_c, graphics_built_as_c, low_hp_marks_as_c };
+    OpeningAsC c = { g, pf };
+    return open_the_menus(g, pf, &as_c, &c);
+}
+
+/* ---- On the machine --------------------------------------------------------------------------- */
+
+/* Each quietening command is a call-out to the driver, whose return the
+ * bridge checks. */
+static bool quieten_on_the_machine(void *ctx, unsigned command)
+{
+    Snes *s = ctx;
+    MenuMachine m = menu_machine_now(s);
+    quieten(m_platform(s), command);
+    return menu_back(s, QUIETING[command].site + MENU_JSL_SIZE, m);
+}
 
 /* Registers the routines the opening calls don't read (tools/dontcare_check.py
  * checks each). */
 enum { SETUP_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 enum { OPENING_ENDS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-enum { LOW_HP_MARKS = 0xC2813C };
 
-// $C2:8096
-/* The opening, which ends in the characters' low-HP marks ($C2:813C, which
- * it runs into). */
-static bool open_the_menus(Snes *s)
+/* The screen's setup is the original's, called; the rest are siblings run as
+ * the original's calls reach them. */
+static bool call_on_the_machine(void *ctx, OpeningCall call)
 {
-    GameState *g = state_of(s);
-    menu_set_widths(s, false, false);
-    s->cpu.d = MENU_PAGE;
-    take_the_interrupts(g);
-    ORIGINAL_EFFECT(leave_stubs_moved(s));
-    menu_set_widths(s, true, false);
-    if (!quiet_the_effects(s))
-        return false;
-    menu_set_widths(s, false, false);
-    if (!menu_call(s, 0xC280F0, 0xC2940D, SETUP_IGNORES))
-        return false;
-    clear_the_menus_cells(g);
-    TIMED_AS(g, 0xC2968D, menu_build_graphics(g, m_platform(s)));
-    menu_leave_graphics_built(s);
-    if (!menu_run(s, 0xC28127, 0xC2D156, menu_read_save_slots))
-        return false;
-    TIMED_AS(g, 0xC2984A, menu_clear_sprites(g));
-    if (!menu_run(s, 0xC2812D, 0xC28663, menu_upload_vram_queue))
-        return false;
-    TIMED_AS(g, 0xC2816A, menu_list_party(g));
-    TIMED_AS(g, 0xC292F4, menu_unpack_settings(g));
-    if (!menu_run(s, 0xC28136, 0xC2F3CA, menu_load_record_sprites) || !menu_run(s, 0xC28139, 0xC29875, menu_build_items))
-        return false;
-    if (!menu_low_hp_marks_are_workable(s)) {
-        m_stop_at(s, LOW_HP_MARKS, OPENING_ENDS);
-        return false;
+    Snes *s = ctx;
+    switch (call) {
+    case OPENING_SCREEN: menu_set_widths(s, false, false); return menu_call(s, 0xC280F0, 0xC2940D, SETUP_IGNORES);
+    case OPENING_SAVE_SLOTS: return menu_run(s, 0xC28127, 0xC2D156, menu_read_save_slots);
+    case OPENING_UPLOADS: return menu_run(s, 0xC2812D, 0xC28663, menu_upload_vram_queue);
+    case OPENING_RECORDS: return menu_run(s, 0xC28136, 0xC2F3CA, menu_load_record_sprites);
+    case OPENING_ITEMS: return menu_run(s, 0xC28139, 0xC29875, menu_build_items);
     }
-    TIMED_AS(g, LOW_HP_MARKS, menu_work_out_low_hp_marks(g));
-    m_rts(s);
-    return true;
+    return false;
 }
 
-void menu_open(Snes *s) { (void)open_the_menus(s); }
+static void graphics_built_on_the_machine(void *ctx) { menu_leave_graphics_built(ctx); }
 
+static bool low_hp_marks_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    if (menu_low_hp_marks_are_workable(s))
+        return true;
+    m_stop_at(s, LOW_HP_MARKS, OPENING_ENDS);
+    return false;
+}
+
+/* What the stubs' block move leaves before the sound calls: its count run
+ * out, $FFFF, of which the driver's call reads the high byte. */
+static void leave_stubs_moved(Snes *s) { s->cpu.a |= 0xFF00; }
+
+void menu_open(Snes *s)
+{
+    static const OpeningCalls on_the_machine = { quieten_on_the_machine, call_on_the_machine,
+                                                 graphics_built_on_the_machine, low_hp_marks_on_the_machine };
+    menu_set_widths(s, false, false);
+    s->cpu.d = MENU_PAGE;
+    ORIGINAL_EFFECT(leave_stubs_moved(s));
+    menu_set_widths(s, true, false);
+    if (open_the_menus(state_of(s), m_platform(s), &on_the_machine, s))
+        m_rts(s);
+}
 // $C2:816A
 void menu_list_party_entry(Snes *s)
 {

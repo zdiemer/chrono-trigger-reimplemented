@@ -2953,9 +2953,11 @@ unpacks its program, whose data the C reads where the original's code
 would, and the program's start, the title's setup, its frames (the NMI's
 frame work with both task lists, the sequence scripts' channels) and its end
 run as C until the game goes back to the field (`scene_runs`). Left alone the
-title gives way to the attract demo, which stops at frame 2093 at the menus'
-mode; with `new-game.ctm`'s presses the field after the title asks for a
-menu at frame 1676.
+title gives way to the attract demo, which stops at frame 2093 where it
+enters a world map (`$C2:0000`, the menus' sprite-object mode); with
+`new-game.ctm`'s presses the field after the title asks for a menu, the
+menus run as C through the battle mode's choice and Crono's naming, and the
+field comes back and goes on to the world map at frame 3243.
 
 How the ports were made to call each other, by kind:
 
@@ -2981,7 +2983,19 @@ How the ports were made to call each other, by kind:
   tick, the rows, the place, the window-only check) and view (`ViewSteps`,
   whose C now checks the view's guard too), and the pause and the menus
   (`MenuSteps`). So shadow mode compares the sequence `ct_native` runs. The
-  ones still written twice are TODO.md's ("The native program").
+  ones still written twice are TODO.md's ("The native program"). The menus
+  a script asks for followed in the same shape: the field's side (the fade
+  out, the put-aside, the set-up again, the fade in after a menu,
+  `StopSteps`), the menus' mode (`ModeSteps`), its opening (`OpeningCalls`),
+  the save slots' reading, the records' loads, the vblank handler's two
+  calls, the close (`CloseCalls`), the naming's steps (`NamingSteps`, the
+  steps moved out of the bridge into `naming.c`), the sounds and the fades;
+  and the tasks' bodies -- the main task's and the cursor's turns, the fade
+  in, the typing -- each one function whose waits are callbacks: the
+  machine's entry runs a turn, its wait the original's task switch, and the
+  coroutine (`core/tasks.c`, one turn of a slot at a time,
+  `tasks_take_a_turn`, for `menu/tasks.c`'s scheduler's order) runs through
+  them, its wait coming back the next frame.
 - **An interpreter's machine runner has a runner as C beside it**
   (`event_runner_as_c`): each command's operation, and for a bridge the C of
   its work where it has one (`EVENT_BRIDGES_AS_C`: the sound commands and

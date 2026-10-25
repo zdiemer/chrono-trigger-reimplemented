@@ -3,6 +3,7 @@
 #ifndef CT_GAME_MENU_OPENING_H
 #define CT_GAME_MENU_OPENING_H
 
+#include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
 
@@ -22,6 +23,8 @@ void menu_unpack_settings(GameState *g);
 void menu_pack_settings(GameState *g);
 
 void menu_open(Snes *s);
+/* The same as C: false where a step is the machine's yet. */
+bool menu_opens_as_c(GameState *g, Platform *pf);
 void menu_list_party_entry(Snes *s);
 void menu_unpack_settings_entry(Snes *s);
 bool menu_opening_runs(Snes *s);

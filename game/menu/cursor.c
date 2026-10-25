@@ -17,6 +17,7 @@
 #include "menu/cursor.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "core/input.h"
 #include "menu/bridge.h"
 #include "menu/menu_data.h"
@@ -365,23 +366,41 @@ enum { SECOND_CONTROLLER = 1 };
 // $C2:8473
 /* The menus' input for the frame, from their vblank: the controller's
  * buttons, the second controller's, a frame of play time, the repeat's
- * pacing, and the going-back hold. */
+ * pacing, and the going-back hold. Where the controller's read doesn't take
+ * the buttons it goes no further, the read's answer said; `fast`, whether
+ * the repeat was asked to go fast as the read began. */
+static ControllerRead take_frame_input(GameState *g, Platform *pf, bool *fast)
+{
+    *fast = ask_fast_repeat(g);
+    ControllerRead read;
+    TIMED_AS(g, 0xC284EC, read = input_read_controller(g, pf));
+    if (read != CONTROLLER_READ)
+        return read;
+    set_second_controller(g, in_read(pf, PF_AT(0xC2848A), SECOND_CONTROLLER));
+    TIMED_AS(g, 0xC285AE, input_tick_play_time(g));
+    pace_repeats(g);
+    note_back_and_start_held(g);
+    return CONTROLLER_READ;
+}
+
+bool menu_frame_input_taken(GameState *g, Platform *pf)
+{
+    bool fast;
+    if (take_frame_input(g, pf, &fast) == CONTROLLER_READ)
+        return true;
+    program_needs_the_machine(g, 0xC284EC, "a controller read the port doesn't take");
+    return false;
+}
+
 void menu_take_frame_input(Snes *s)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    bool fast = ask_fast_repeat(g);
-    ControllerRead read;
-    NATIVE_TIME_AS(s, 0xC284EC, read = input_read_controller(g, pf));
+    bool fast;
+    ControllerRead read = take_frame_input(state_of(s), m_platform(s), &fast);
     if (read != CONTROLLER_READ) {
         enter_the_read(s, fast);
         input_stop_reading(s, read);
         return;
     }
-    set_second_controller(g, in_read(pf, PF_AT(0xC2848A), SECOND_CONTROLLER));
-    NATIVE_TIME_AS(s, 0xC285AE, input_tick_play_time(g));
-    pace_repeats(g);
-    note_back_and_start_held(g);
     m_rts(s);
 }
 
@@ -424,27 +443,72 @@ enum { DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 static void leave_pan(Snes *s) { m_set_a8(s, AU_CENTRE); }
 
-/* Send it: false where the driver came back otherwise than it was called, and
- * the port has stopped where the original carries on. */
-static bool send(Snes *s, SoundEffectVoices voices, uint8_t sound)
+/* The sound sent to the driver, from the original's one call. */
+static void send_the_sound(Platform *pf, SoundEffectVoices voices, uint8_t sound)
 {
+    au_command(pf, PF_CALL_DC(0xC2EB1A, 0xC70004, DRIVER_IGNORES),
+               (AudioCommand){ .command = voices, .p1 = sound, .p2 = AU_CENTRE, .count = 2 });
+}
+
+/* A sound played where it goes out (sound_goes_out), sent as C or on the
+ * machine (below); one that doesn't is dropped, which leaves only what the
+ * original's code reads (scaffolding). False where the send went no
+ * further. */
+typedef struct {
+    bool (*sent)(void *ctx, SoundEffectVoices voices, uint8_t sound);
+    void (*dropped)(void *ctx);
+} SoundCalls;
+
+// $C2:EB03
+static bool play_a_sound(GameState *g, SoundEffectVoices voices, uint8_t sound, const SoundCalls *c, void *ctx)
+{
+    if (sound_goes_out(g, voices, sound))
+        return c->sent(ctx, voices, sound);
+    c->dropped(ctx);
+    return true;
+}
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} SoundAsC;
+
+static bool sent_as_c(void *ctx, SoundEffectVoices voices, uint8_t sound)
+{
+    send_the_sound(((SoundAsC *)ctx)->pf, voices, sound);
+    return true;
+}
+
+static void dropped_as_c(void *ctx) { (void)ctx; }
+
+void menu_sound_played(GameState *g, Platform *pf, uint8_t sound)
+{
+    static const SoundCalls as_c = { sent_as_c, dropped_as_c };
+    SoundAsC c = { g, pf };
+    (void)play_a_sound(g, SOUND_EFFECT_ON_VOICES_6_7, sound, &as_c, &c);
+}
+
+/* On the machine the send is a call-out to the driver: false where the
+ * driver came back otherwise than it was called, and the port has stopped
+ * where the original carries on. */
+static bool sent_on_the_machine(void *ctx, SoundEffectVoices voices, uint8_t sound)
+{
+    Snes *s = ctx;
     MenuMachine m = menu_machine_now(s);
     ORIGINAL_EFFECT(leave_pan(s));
-    au_command(m_platform(s), PF_CALL_DC(0xC2EB1A, 0xC70004, DRIVER_IGNORES),
-               (AudioCommand){ .command = voices, .p1 = sound, .p2 = AU_CENTRE, .count = 2 });
+    send_the_sound(m_platform(s), voices, sound);
     return menu_back(s, 0xC2EB1E, m);
 }
 
 /* A dropped sound leaves the wait's count in the accumulator's low byte. */
 static void leave_wait(Snes *s) { m_set_a8(s, menu_wait_frames(state_of(s))); }
 
+static void dropped_on_the_machine(void *ctx) { ORIGINAL_EFFECT(leave_wait(ctx)); }
+
 static bool play(Snes *s, SoundEffectVoices voices, uint8_t sound)
 {
-    if (!sound_goes_out(state_of(s), voices, sound)) {
-        ORIGINAL_EFFECT(leave_wait(s));
-        return true;
-    }
-    return send(s, voices, sound);
+    static const SoundCalls on_the_machine = { sent_on_the_machine, dropped_on_the_machine };
+    return play_a_sound(state_of(s), voices, sound, &on_the_machine, s);
 }
 
 /* A routine that saves P and calls the send ($C2:EB03) from `site`. */
@@ -532,18 +596,22 @@ bool menu_cursor_is_placeable(Snes *s)
 }
 
 /* The cursor's neighbour a push reaches is one of its menu's places too. */
-bool menu_cursor_is_movable(Snes *s)
+bool menu_cursor_can_move(const GameState *g)
 {
-    if (!menu_on_page_work_ram(s))
-        return false;
-    const GameState *g = state_of(s);
-    vars_peek(true);
     uint8_t at = menu_cursor_index(g), pushes = pad_pushes(g);
     unsigned push = 0;
     while (push < PUSHES && !(pushes >> push & 1))
         push++;
-    bool ok = at < MENU_CURSOR_PLACES_COUNT
-              && (push == PUSHES || (uint8_t)(neighbour(g, at, (CursorPush)push) & ~OUT_OF_THE_MENU) < MENU_CURSOR_PLACES_COUNT);
+    return at < MENU_CURSOR_PLACES_COUNT
+           && (push == PUSHES || (uint8_t)(neighbour(g, at, (CursorPush)push) & ~OUT_OF_THE_MENU) < MENU_CURSOR_PLACES_COUNT);
+}
+
+bool menu_cursor_is_movable(Snes *s)
+{
+    if (!menu_on_page_work_ram(s))
+        return false;
+    vars_peek(true);
+    bool ok = menu_cursor_can_move(state_of(s));
     vars_peek(false);
     return ok;
 }

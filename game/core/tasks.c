@@ -48,24 +48,28 @@ void tasks_stop(Tasks *t, uint8_t slot)
 
 bool tasks_running(const Tasks *t, uint8_t slot) { return slot < TASK_SLOTS && t->running[slot]; }
 
+void tasks_take_a_turn(Tasks *t, uint8_t slot)
+{
+    if (slot >= TASK_SLOTS || !t->running[slot])
+        return;
+    if (!t->started[slot]) {
+        t->fiber[slot] = fiber_create(task_body, &t->self[slot]);
+        if (!t->fiber[slot]) {
+            t->running[slot] = false;   /* no stack for it: it never runs */
+            return;
+        }
+        t->started[slot] = true;
+    }
+    t->turns = fiber_current();
+    t->current = (int8_t)slot;
+    fiber_switch(t->fiber[slot]);
+    t->current = -1;
+}
+
 void tasks_run_a_frame(Tasks *t)
 {
-    for (uint8_t i = 0; i < TASK_SLOTS; i++) {
-        if (!t->running[i])
-            continue;
-        if (!t->started[i]) {
-            t->fiber[i] = fiber_create(task_body, &t->self[i]);
-            if (!t->fiber[i]) {
-                t->running[i] = false;   /* no stack for it: it never runs */
-                continue;
-            }
-            t->started[i] = true;
-        }
-        t->turns = fiber_current();
-        t->current = (int8_t)i;
-        fiber_switch(t->fiber[i]);
-        t->current = -1;
-    }
+    for (uint8_t i = 0; i < TASK_SLOTS; i++)
+        tasks_take_a_turn(t, i);
 }
 
 void tasks_wait_a_frame(Tasks *t) { fiber_switch(t->turns); }

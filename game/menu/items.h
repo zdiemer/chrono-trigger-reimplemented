@@ -75,6 +75,8 @@ bool menu_place_is_noted_as_a_location(const GameState *g);
 bool menu_place_note_is_known(const GameState *g);
 
 void menu_build_items(Snes *s);
+/* The same as C. */
+void menu_items_built(GameState *g);
 void menu_add_operand_items(Snes *s);
 void menu_take_operand_items(Snes *s);
 void menu_ask_who_can_use(Snes *s);

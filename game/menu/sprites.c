@@ -33,6 +33,7 @@
 
 #include "charge.h"
 #include "cpu_io.h"
+#include "data/decompress.h"
 #include "menu/bridge.h"
 #include "menu/items.h"
 #include "menu/menu.h"
@@ -1513,20 +1514,35 @@ enum { UNPACK_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 /* The load's block moves leave the data bank on work RAM. */
 static void leave_data_bank_on_work_ram(Snes *s) { s->cpu.db = MENU_DATA_BANK; }
 
+/* A record's sprite loaded, its graphics unpacked where it needs them: the
+ * unpacker told where they come from and go, and called, as C or on the
+ * machine; false where it went no further. */
+typedef bool (*Unpack)(void *ctx);
+
 // $C2:F422
+static bool load_the_record_sprite(GameState *g, unsigned record, Unpack unpack, void *ctx)
+{
+    Unpacking u = load_record_sprite(g, record);
+    if (!u.unpack)
+        return true;
+    set_decompress_source(g, u.from);
+    set_decompress_dest(g, WORK_RAM_BANK | u.to);
+    return unpack(ctx);
+}
+
+static bool unpack_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    menu_set_widths(s, false, false);
+    return menu_call_long(s, 0xC2F542, 0xC30002, UNPACK_IGNORES);
+}
+
 void menu_load_record_sprite(Snes *s)
 {
-    GameState *g = state_of(s);
     menu_save_p(s);
-    Unpacking u = load_record_sprite(g, record_on_page(s));
     ORIGINAL_EFFECT(leave_data_bank_on_work_ram(s));
-    if (u.unpack) {
-        set_decompress_source(g, u.from);
-        set_decompress_dest(g, WORK_RAM_BANK | u.to);
-        menu_set_widths(s, false, false);
-        if (!menu_call_long(s, 0xC2F542, 0xC30002, UNPACK_IGNORES))
-            return;
-    }
+    if (!load_the_record_sprite(state_of(s), record_on_page(s), unpack_on_the_machine, s))
+        return;
     menu_restore_p(s);
     m_rts(s);
 }
@@ -1588,28 +1604,63 @@ void menu_step_record_animation(Snes *s)
 }
 
 
+/* A record's sprite loaded, as C or on the machine; false where it went no
+ * further. */
+typedef bool (*LoadRecord)(void *ctx, unsigned record);
+
 // $C2:F3CA
-/* The records as the menus open. Each record's load runs as the original's
- * call reaches it, since it may call the unpacker; the animation's start is
- * C. */
-void menu_load_record_sprites(Snes *s)
+/* The records as the menus open: each set up, its sprite loaded and its
+ * animation started; the records past them emptied. */
+static bool load_record_sprites(GameState *g, LoadRecord load, void *ctx)
 {
-    GameState *g = state_of(s);
-    uint16_t page = m_direct_page(s);
-    m_push16(s, page);
-    menu_save_p(s);
     count_record_loaded(g, 0);
     for (unsigned record = 0; record < OPENING_RECORDS_SHOWING; record++) {
-        s->cpu.d = (uint16_t)(FIRST_RECORD_PAGE + record * RECORD_PAGE_BYTES);
         set_up_opening_record(g, record, menu_opening_record_tile(g, record));
-        menu_set_widths(s, true, true);
-        if (!menu_run(s, 0xC2F3EE, 0xC2F422, menu_load_record_sprite))
-            return;
+        if (!load(ctx, record))
+            return false;
         TIMED_AS(g, 0xC2F69D, animate_record(g, record));
         count_record_loaded(g, (uint8_t)(record + 1));
     }
-    s->cpu.d = (uint16_t)(FIRST_RECORD_PAGE + OPENING_RECORDS_SHOWING * RECORD_PAGE_BYTES);
     empty_the_last_records(g);
+    return true;
+}
+
+/* As C, the unpacker called as C. */
+static bool unpack_as_c(void *ctx)
+{
+    GameState *g = ctx;
+    TIMED_AS(g, UNPACK_STREAM_ENTRY, (void)unpack_stream(g));
+    return true;
+}
+
+static bool load_as_c(void *ctx, unsigned record)
+{
+    GameState *g = ctx;
+    bool loaded = false;
+    TIMED_AS(g, 0xC2F422, loaded = load_the_record_sprite(g, record, unpack_as_c, g));
+    return loaded;
+}
+
+void menu_record_sprites_loaded(GameState *g) { (void)load_record_sprites(g, load_as_c, g); }
+
+/* On the machine each record's load runs as the original's call reaches it,
+ * on the record's page, since it may call the unpacker. */
+static bool load_on_the_machine(void *ctx, unsigned record)
+{
+    Snes *s = ctx;
+    s->cpu.d = (uint16_t)(FIRST_RECORD_PAGE + record * RECORD_PAGE_BYTES);
+    menu_set_widths(s, true, true);
+    return menu_run(s, 0xC2F3EE, 0xC2F422, menu_load_record_sprite);
+}
+
+void menu_load_record_sprites(Snes *s)
+{
+    uint16_t page = m_direct_page(s);
+    m_push16(s, page);
+    menu_save_p(s);
+    if (!load_record_sprites(state_of(s), load_on_the_machine, s))
+        return;
+    s->cpu.d = (uint16_t)(FIRST_RECORD_PAGE + OPENING_RECORDS_SHOWING * RECORD_PAGE_BYTES);
     menu_restore_p(s);
     s->cpu.d = m_pull16(s);
     m_rts(s);

@@ -344,17 +344,23 @@ void menu_copy_past_the_names_now(GameState *g) { set_menu_copy_past_the_names(g
 static void leave_tables_built(GameState *g) { set_menu_scratch_graphics_count(g, ARMED); }
 
 // $C2:9875
-void menu_build_items(Snes *s)
+/* The menus' item tables built as they open, the party's techs and
+ * everyone's figures noted, and the bytes after the names copied. */
+void menu_items_built(GameState *g)
 {
-    GameState *g = state_of(s);
-    menu_save_p(s);
     menu_build_item_tables(g);
-    menu_set_widths(s, true, false);
-    s->cpu.db = MENU_DATA_BANK;   /* as the tables' block moves leave it */
     ORIGINAL_EFFECT(leave_tables_built(g));
     TIMED_AS(g, 0xFFF813, menu_note_party_techs(g));
     TIMED_AS(g, 0xC299B2, menu_note_everyones_figures(g));
     menu_copy_past_the_names_now(g);
+}
+
+void menu_build_items(Snes *s)
+{
+    menu_save_p(s);
+    menu_items_built(state_of(s));
+    menu_set_widths(s, true, false);
+    s->cpu.db = MENU_DATA_BANK;   /* as the tables' block moves leave it */
     menu_restore_p(s);
     m_rts(s);
 }

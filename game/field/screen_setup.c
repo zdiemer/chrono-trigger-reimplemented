@@ -508,7 +508,7 @@ bool field_screen_set_up(GameState *g, Platform *pf)
 
 /* The picture brightens a step a frame to full brightness, as the original
  * compares it (a signed difference: a brightness past $8F counts as dark). */
-enum { FULL_BRIGHTNESS = 0x0F };
+enum { FULL_BRIGHTNESS = 0x0F, WALK = 0xC0881E };
 static bool still_brightening(uint8_t brightness) { return (int8_t)(brightness - FULL_BRIGHTNESS) < 0; }
 
 /* Each frame of it the leader walks with the player's control taken away
@@ -516,93 +516,158 @@ static bool still_brightening(uint8_t brightness) { return (int8_t)(brightness -
  * coming back from a menu, the effects only. */
 typedef enum { WITH_THE_FRAMES_WORK, WITH_THE_EFFECTS_ONLY } FadeInKind;
 
+/* Its steps, run as C or on the machine (below): the screen set up, the
+ * leader's walk under the control the fade took away, the frame's work and
+ * the wait for the next frame; each false where it went no further. */
+typedef struct {
+    bool (*set_up)(void *ctx, FadeInKind kind);
+    bool (*walk)(void *ctx, FadeInKind kind, uint8_t control);
+    bool (*work)(void *ctx, FadeInKind kind);
+    bool (*wait)(void *ctx, FadeInKind kind);
+} FadeInSteps;
+
+// $C0:2848, $C0:2824
+/* The screen set up, then, unless the location starts dark, brightened a
+ * step a frame; the play time's clock runs again. False where a step went
+ * no further; `shown` the brightness it ends at, or the dark setting. */
+static bool fade_in(GameState *g, FadeInKind kind, const FadeInSteps *steps, void *ctx, uint8_t *shown)
+{
+    if (!steps->set_up(ctx, kind))
+        return false;
+    *shown = field_setting_1e(g);
+    if (*shown == 0) {
+        do {
+            set_field_brightness(g, (uint8_t)(field_brightness(g) + 1));
+            uint8_t control = field_player_control(g);
+            hand_the_party_to_the_player(g, false);
+            if (!steps->walk(ctx, kind, control))
+                return false;
+            set_field_player_control(g, control);
+            if (!steps->work(ctx, kind) || !steps->wait(ctx, kind))
+                return false;
+            *shown = field_brightness(g);
+        } while (still_brightening(*shown));
+    }
+    set_field_setting_1e(g, 0);
+    start_play_clock(g);
+    return true;
+}
+
+/* ---- As C ----------------------------------------------------------------------------------- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} FadeInAsC;
+
+static bool set_up_as_c(void *ctx, FadeInKind kind)
+{
+    (void)kind;
+    FadeInAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, FIELD_SET_THE_SCREEN_UP_ENTRY, done = field_screen_set_up(c->game, c->pf));
+    return done;
+}
+
+static bool walk_as_c(void *ctx, FadeInKind kind, uint8_t control)
+{
+    (void)kind, (void)control;
+    FadeInAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, WALK, done = field_the_leader_walks(c->game));
+    return done;
+}
+
+static bool work_as_c(void *ctx, FadeInKind kind)
+{
+    FadeInAsC *c = ctx;
+    bool done = true;
+    if (kind == WITH_THE_FRAMES_WORK)
+        TIMED_AS(c->game, FIELD_FRAME_WORK_ENTRY, done = field_frame_work_done(c->game, c->pf));
+    else
+        TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, field_effects_refreshed(c->game));
+    return done;
+}
+
+static bool wait_as_c(void *ctx, FadeInKind kind)
+{
+    (void)kind;
+    FadeInAsC *c = ctx;
+    TIMED_AS(c->game, FIELD_FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
+    return true;
+}
+
+static const FadeInSteps as_c = { set_up_as_c, walk_as_c, work_as_c, wait_as_c };
+
+bool field_fade_in_as_c(GameState *g, Platform *pf)
+{
+    FadeInAsC c = { g, pf };
+    uint8_t shown;
+    return fade_in(g, WITH_THE_FRAMES_WORK, &as_c, &c, &shown);
+}
+
+bool field_fade_in_after_a_menu_as_c(GameState *g, Platform *pf)
+{
+    FadeInAsC c = { g, pf };
+    uint8_t shown;
+    return fade_in(g, WITH_THE_EFFECTS_ONLY, &as_c, &c, &shown);
+}
+
+/* ---- On the machine ------------------------------------------------------------------------- */
+
+/* Each step from the original's call of it, by kind of fade in. The walk
+ * runs under the control the fade keeps on the stack over it. */
 static const struct {
     uint32_t setup, walk, work, wait;
 } fade_in_sites[] = {
     [WITH_THE_FRAMES_WORK] = { 0xC02848, 0xC02854, 0xC0285A, 0xC0285D },
     [WITH_THE_EFFECTS_ONLY] = { 0xC02824, 0xC02830, 0xC02836, 0xC02839 },
 };
-enum { WALK = 0xC0881E, READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+enum { READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
-static bool a_brighter_frame(Snes *s, FadeInKind kind)
+static bool set_up_on_the_machine(void *ctx, FadeInKind kind)
 {
-    GameState *g = state_of(s);
-    set_field_brightness(g, (uint8_t)(field_brightness(g) + 1));
-    uint8_t control = field_player_control(g);
-    hand_the_party_to_the_player(g, false);
-    if (!field_run_holding(s, fade_in_sites[kind].walk, WALK, READS_NOTHING, field_walk_the_leader, page(s), control))
-        return false;
-    set_field_player_control(g, control);
-    bool worked = kind == WITH_THE_FRAMES_WORK
-                      ? field_run(s, fade_in_sites[kind].work, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW,
-                                  field_frame_work, page(s))
-                      : field_run(s, fade_in_sites[kind].work, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING,
-                                  field_refresh_effects, page(s));
-    return worked && field_wait_frame(s, fade_in_sites[kind].wait, FRAME_WAIT, READS_NOTHING, page(s));
+    Snes *s = ctx;
+    return field_run(s, fade_in_sites[kind].setup, FIELD_SET_THE_SCREEN_UP_ENTRY, READS_NOTHING,
+                     field_set_the_screen_up, page(s));
 }
 
-/* The screen set up and faded in; A is left the last brightness, or the
- * dark setting, which the callers' callers read the high byte of only. */
-static void fade_in(Snes *s, FadeInKind kind)
+static bool walk_on_the_machine(void *ctx, FadeInKind kind, uint8_t control)
 {
-    GameState *g = state_of(s);
-    if (!field_run(s, fade_in_sites[kind].setup, FIELD_SET_THE_SCREEN_UP_ENTRY, READS_NOTHING, field_set_the_screen_up,
-                   page(s)))
+    Snes *s = ctx;
+    return field_run_holding(s, fade_in_sites[kind].walk, WALK, READS_NOTHING, field_walk_the_leader, page(s), control);
+}
+
+static bool work_on_the_machine(void *ctx, FadeInKind kind)
+{
+    Snes *s = ctx;
+    if (kind == WITH_THE_FRAMES_WORK)
+        return field_run(s, fade_in_sites[kind].work, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work,
+                         page(s));
+    return field_run(s, fade_in_sites[kind].work, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects,
+                     page(s));
+}
+
+static bool wait_on_the_machine(void *ctx, FadeInKind kind)
+{
+    Snes *s = ctx;
+    return field_wait_frame(s, fade_in_sites[kind].wait, FRAME_WAIT, READS_NOTHING, page(s));
+}
+
+/* A is left the last brightness, or the dark setting, which the callers'
+ * callers read the high byte of only. */
+static void fade_in_on_the_machine(Snes *s, FadeInKind kind)
+{
+    static const FadeInSteps on_the_machine = { set_up_on_the_machine, walk_on_the_machine, work_on_the_machine,
+                                                wait_on_the_machine };
+    uint8_t shown;
+    if (!fade_in(state_of(s), kind, &on_the_machine, s, &shown))
         return;
-    uint8_t shown = field_setting_1e(g);
-    if (shown == 0) {
-        do {
-            if (!a_brighter_frame(s, kind))
-                return;
-            shown = field_brightness(g);
-        } while (still_brightening(shown));
-    }
-    set_field_setting_1e(g, 0);
-    start_play_clock(g);
     m_set_a8(s, shown);
     m_set_nz8(s, shown);
     m_rts(s);
 }
 
-/* A frame of the fade in, as C. */
-static bool a_brighter_frame_as_c(GameState *g, Platform *pf)
-{
-    set_field_brightness(g, (uint8_t)(field_brightness(g) + 1));
-    uint8_t control = field_player_control(g);
-    hand_the_party_to_the_player(g, false);
-    bool done = false;
-    TIMED_AS(g, WALK, done = field_the_leader_walks(g));
-    if (!done)
-        return false;
-    set_field_player_control(g, control);
-    TIMED_AS(g, FIELD_FRAME_WORK_ENTRY, done = field_frame_work_done(g, pf));
-    if (!done)
-        return false;
-    field_finish_the_frame(g, pf);
-    return true;
-}
+void field_fade_in(Snes *s) { fade_in_on_the_machine(s, WITH_THE_FRAMES_WORK); }
 
-bool field_fade_in_as_c(GameState *g, Platform *pf)
-{
-    bool done = false;
-    TIMED_AS(g, FIELD_SET_THE_SCREEN_UP_ENTRY, done = field_screen_set_up(g, pf));
-    if (!done)
-        return false;
-    uint8_t shown = field_setting_1e(g);
-    if (shown == 0) {
-        do {
-            if (!a_brighter_frame_as_c(g, pf))
-                return false;
-            shown = field_brightness(g);
-        } while (still_brightening(shown));
-    }
-    set_field_setting_1e(g, 0);
-    start_play_clock(g);
-    return true;
-}
-
-// $C0:2848
-void field_fade_in(Snes *s) { fade_in(s, WITH_THE_FRAMES_WORK); }
-
-// $C0:2824
-void field_fade_in_after_a_menu(Snes *s) { fade_in(s, WITH_THE_EFFECTS_ONLY); }
+void field_fade_in_after_a_menu(Snes *s) { fade_in_on_the_machine(s, WITH_THE_EFFECTS_ONLY); }

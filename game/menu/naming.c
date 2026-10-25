@@ -25,7 +25,9 @@
 #include "menu/naming.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
+#include "menu/fades.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
 #include "menu/display.h"
@@ -517,4 +519,262 @@ void menu_naming_choose_the_battle_mode(GameState *g)
     set_game_settings(g, 0, (menu_cursor_index(g) & WAITING_CHOICE) ? (uint8_t)(first & ~ACTIVE_BIT) : (uint8_t)(first | ACTIVE_BIT));
     set_menu_screen_step(g, OPENING_THE_NAMING);
     TIMED_AS(g, 0xC28255, menu_stop_tasks(g, SCREENS_TASKS));
+}
+
+/* ---- What the steps take ---------------------------------------------------------------------- */
+
+bool menu_naming_names_one(const GameState *g) { return (uint8_t)menu_screen_argument(g) < NAMES; }
+
+bool menu_naming_is_whole(const GameState *g)
+{
+    return menu_naming_names_one(g) && menu_naming_keeps_the_named_ones_record(g) && menu_name_grid_row(g) < GRID_ROWS
+           && menu_name_grid_column(g) < GRID_COLUMNS && menu_name_letters(g) <= NAME_LETTERS;
+}
+
+/* ---- The screen's steps --------------------------------------------------------------------------- */
+
+/* The steps, as the screen's table has them (menu/screens.c). */
+enum { BATTLE_MODE_STEP = 2 };
+
+// $C2:E201
+/* The naming drawn, then on to its wait as it fades in. */
+static bool open_the_naming(GameState *g, Platform *pf, const NamingSteps *n, void *ctx)
+{
+    TIMED_AS(g, 0xC2E40E, menu_naming_open(g, pf));
+    set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1));
+    return n->ends(ctx, NAMING_FADES_IN);
+}
+
+// $C2:E1ED
+/* At a new game's first naming, the battle mode's screen first; otherwise
+ * the naming. */
+static bool open_naming_screen(GameState *g, Platform *pf, const NamingSteps *n, void *ctx)
+{
+    if (!menu_naming_asks_the_battle_mode_first(g))
+        return open_the_naming(g, pf, n, ctx);
+    TIMED_AS(g, 0xC2E576, menu_naming_open_the_battle_mode(g, pf));
+    set_menu_screen_step(g, BATTLE_MODE_STEP);
+    return n->ends(ctx, NAMING_FADES_IN);
+}
+
+// $C2:E209
+/* Any button takes the cursor to the naming, with a tick. */
+static bool wait_to_name(GameState *g, Platform *pf, const NamingSteps *n, void *ctx)
+{
+    (void)pf;
+    if (menu_naming_waits(g))
+        return true;
+    n->note(ctx, NAMING_NOTE_PRESSED_LOADED, 0);
+    if (!n->sound(ctx, 0xC2E20E, MENU_SOUND_CURSOR))
+        return false;
+    menu_naming_take_the_cursor(g);
+    return true;
+}
+
+// $C2:E236
+/* The mode on the cursor described; choosing one sets it and goes on to
+ * the naming as the screen fades out; a tick where the cursor moved. */
+static bool choose_battle_mode(GameState *g, Platform *pf, const NamingSteps *n, void *ctx)
+{
+    (void)pf;
+    n->read_cursor(ctx);
+    uint8_t shown = menu_description_item(g);
+    TIMED_AS(g, 0xC2E5D3, menu_naming_describe_the_battle_mode(g));
+    n->note(ctx, NAMING_NOTE_MODE_DESCRIBED, shown);
+    n->note(ctx, NAMING_NOTE_BUTTONS_TESTED, 0);
+    if (menu_asked(g, MENU_CHOOSE)) {
+        menu_naming_choose_the_battle_mode(g);
+        return n->ends(ctx, NAMING_FADES_OUT);
+    }
+    bool moved = menu_cursor_index(g) != menu_cursor_frame_start(g);
+    n->note(ctx, NAMING_NOTE_CURSOR_COMPARED, 0);
+    return !moved || n->sound(ctx, 0xC2E248, MENU_SOUND_CURSOR);
+}
+
+// $C2:E2F4
+/* A letter typed or taken back, with a tick; the name drawn again. */
+static bool type_on_the_name_grid(GameState *g, Platform *pf, const NamingSteps *n, void *ctx)
+{
+    NamingTyped t = menu_naming_type(g);
+    if (t == NAMING_LETTER_TAKEN_BACK)
+        n->note(ctx, NAMING_NOTE_LETTERS_LOADED, (uint8_t)menu_name_letters(g));
+    if (t != NAMING_NOTHING_TYPED && !n->sound(ctx, 0xC2E30D, MENU_SOUND_CURSOR))
+        return false;
+    menu_naming_draw_the_name(g, pf);
+    return true;
+}
+
+// $C2:E267
+/* The cursor moved about the grid, with a tick where it did; the typing;
+ * the name and its cursor shown. */
+static bool move_on_the_name_grid(GameState *g, Platform *pf, const NamingSteps *n, void *ctx)
+{
+    (void)pf;
+    bool moved = menu_naming_move_on_the_grid(g);
+    n->note(ctx, NAMING_NOTE_MOVED_ON_THE_GRID, 0);
+    if (moved && !n->sound(ctx, 0xC2E287, MENU_SOUND_CURSOR))
+        return false;
+    n->note(ctx, NAMING_NOTE_BUTTONS_TESTED, 0);
+    if (!n->routine(ctx, NAMING_TYPE_ON_THE_GRID))
+        return false;
+    menu_naming_show_the_name(g);
+    n->note(ctx, NAMING_NOTE_NAME_QUEUED, 0);
+    return true;
+}
+
+// $C2:E3E0
+/* The name kept checked against every character's: where someone has it,
+ * the refusal's buzz. */
+static bool check_the_name(GameState *g, Platform *pf, const NamingSteps *n, void *ctx)
+{
+    (void)pf;
+    bool someone = menu_naming_someone_has_it(g);
+    if (someone) {
+        n->note(ctx, NAMING_NOTE_NAME_FOUND, 0);
+        if (!n->sound(ctx, 0xC2E3FB, MENU_SOUND_REFUSAL))
+            return false;
+    }
+    n->note(ctx, NAMING_NOTE_ANSWERED, !someone);
+    return true;
+}
+
+// $C2:E363
+/* The name kept and checked, and given where it can be. */
+static bool accept_the_name(GameState *g, Platform *pf, const NamingSteps *n, void *ctx)
+{
+    (void)pf;
+    menu_naming_keep_the_name(g);
+    n->note(ctx, NAMING_NOTE_NAME_KEPT, 0);
+    if (!n->routine(ctx, NAMING_CHECK_THE_NAME))
+        return false;
+    bool given = !menu_naming_someone_has_it(g) && menu_naming_give_the_name(g);
+    n->note(ctx, NAMING_NOTE_ANSWERED, given);
+    return true;
+}
+
+// $C2:E21E
+/* A frame of the naming; Start accepts the name, and the menus close once
+ * it is given. */
+static bool name_the_character(GameState *g, Platform *pf, const NamingSteps *n, void *ctx)
+{
+    (void)pf;
+    n->read_cursor(ctx);
+    if (!n->routine(ctx, NAMING_MOVE_ON_THE_GRID))
+        return false;
+    if (!menu_naming_started(g))
+        return true;
+    n->note(ctx, NAMING_NOTE_START_PRESSED, 0);
+    if (!n->routine(ctx, NAMING_ACCEPT_THE_NAME))
+        return false;
+    return !menu_naming_name_given(g) || n->ends(ctx, NAMING_LEAVES_THE_MENUS);
+}
+
+typedef bool (*NamingStepRun)(GameState *g, Platform *pf, const NamingSteps *n, void *ctx);
+
+/* The steps and the routines, with what each takes of the state as the port
+ * does (its entry's guard on the machine): a named one, the naming whole, the
+ * cursor movable. */
+typedef enum { TAKES_NOTHING_MORE = 0, TAKES_A_NAMED_ONE = 1, TAKES_THE_NAMING_WHOLE = 2, TAKES_A_MOVABLE_CURSOR = 4 } NamingTakes;
+
+static const struct {
+    uint32_t routine;
+    NamingStepRun run;
+    NamingTakes takes;
+} steps[] = {
+    [NAMING_OPEN_THE_SCREEN] = { 0xC2E1ED, open_naming_screen, TAKES_A_NAMED_ONE },
+    [NAMING_NAME_THE_CHARACTER] = { 0xC2E21E, name_the_character, TAKES_THE_NAMING_WHOLE | TAKES_A_MOVABLE_CURSOR },
+    [NAMING_CHOOSE_BATTLE_MODE] = { 0xC2E236, choose_battle_mode, TAKES_A_MOVABLE_CURSOR },
+    [NAMING_OPEN_THE_NAMING] = { 0xC2E201, open_the_naming, TAKES_A_NAMED_ONE },
+    [NAMING_WAIT_TO_NAME] = { 0xC2E209, wait_to_name, TAKES_NOTHING_MORE },
+};
+
+static bool takes(const GameState *g, NamingTakes what)
+{
+    return (!(what & TAKES_A_NAMED_ONE) || menu_naming_names_one(g)) &&
+           (!(what & TAKES_THE_NAMING_WHOLE) || menu_naming_is_whole(g)) &&
+           (!(what & TAKES_A_MOVABLE_CURSOR) || menu_cursor_can_move(g));
+}
+
+static const struct {
+    uint32_t routine;
+    NamingStepRun run;
+} routines[] = {
+    [NAMING_MOVE_ON_THE_GRID] = { 0xC2E267, move_on_the_name_grid },
+    [NAMING_TYPE_ON_THE_GRID] = { 0xC2E2F4, type_on_the_name_grid },
+    [NAMING_ACCEPT_THE_NAME] = { 0xC2E363, accept_the_name },
+    [NAMING_CHECK_THE_NAME] = { 0xC2E3E0, check_the_name },
+};
+
+bool menu_naming_step(GameState *g, Platform *pf, NamingStep step, const NamingSteps *n, void *ctx)
+{
+    return steps[step].run(g, pf, n, ctx);
+}
+
+bool menu_naming_routine(GameState *g, Platform *pf, NamingRoutine routine, const NamingSteps *n, void *ctx)
+{
+    return routines[routine].run(g, pf, n, ctx);
+}
+
+uint32_t menu_naming_routine_address(NamingRoutine routine) { return routines[routine].routine; }
+
+/* ---- The steps as C ------------------------------------------------------------------------------- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} NamingAsC;
+
+static void read_cursor_as_c(void *ctx)
+{
+    NamingAsC *c = ctx;
+    TIMED_AS(c->game, 0xC2E984, menu_read_cursor(c->game));
+}
+
+static bool sound_as_c(void *ctx, uint32_t site, MenuSound sound)
+{
+    (void)site;
+    NamingAsC *c = ctx;
+    TIMED_AS(c->game, sound == MENU_SOUND_REFUSAL ? 0xC2EACC : 0xC2EAC2, menu_sound_played(c->game, c->pf, sound));
+    return true;
+}
+
+static bool routine_as_c(void *ctx, NamingRoutine routine);
+
+static void note_as_c(void *ctx, NamingNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
+
+/* The steps' ends, as the menus' own as C: the fade in's task started, the
+ * screen faded out, or the menus closed, which never comes back. */
+static bool ends_as_c(void *ctx, NamingEnd end)
+{
+    NamingAsC *c = ctx;
+    switch (end) {
+    case NAMING_FADES_IN: TIMED_AS(c->game, 0xC283B2, menu_start_the_fade_in(c->game)); break;
+    case NAMING_FADES_OUT: TIMED_AS(c->game, 0xC283CA, menu_fade_out_as_c(c->game)); break;
+    case NAMING_LEAVES_THE_MENUS: menu_close_as_c(c->game, c->pf, false); break;
+    }
+    return true;
+}
+
+static const NamingSteps as_c = { read_cursor_as_c, sound_as_c, routine_as_c, note_as_c, ends_as_c };
+
+static bool routine_as_c(void *ctx, NamingRoutine routine)
+{
+    NamingAsC *c = ctx;
+    if (!menu_naming_is_whole(c->game)) {
+        program_needs_the_machine(c->game, routines[routine].routine, "a naming the port doesn't take");
+        return false;
+    }
+    bool back = false;
+    TIMED_AS(c->game, routines[routine].routine, back = routines[routine].run(c->game, c->pf, &as_c, c));
+    return back;
+}
+
+bool menu_naming_step_as_c(GameState *g, Platform *pf, NamingStep step)
+{
+    if (!takes(g, steps[step].takes)) {
+        program_needs_the_machine(g, steps[step].routine, "a naming the port doesn't take");
+        return false;
+    }
+    NamingAsC c = { g, pf };
+    return steps[step].run(g, pf, &as_c, &c);
 }

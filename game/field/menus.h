@@ -4,16 +4,21 @@
 
 #include <stdbool.h>
 
+#include "field/requests.h"
+#include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
 
 void field_pause_and_menus(Snes *s);
-/* The same as C, false where the pause or a menu opens (the machine's yet). */
-bool field_pause_and_menus_as_c(GameState *g);
+/* The same as C: false where a step is the machine's yet (the menus), the
+ * program going no further there. */
+bool field_pause_and_menus_as_c(GameState *g, Platform *pf);
 /* The menu a script asked for, from the main loop's requests
  * (field/requests.c): true where it came back to the main loop's caller's
  * state, false where it stopped. */
 bool field_open_script_menu(Snes *s);
+/* The same as C: where the pass goes after it. */
+FieldPass field_script_menu_opened(GameState *g, Platform *pf);
 void field_press_start(Snes *s);
 void field_bring_the_party_back(Snes *s);
 bool field_party_can_come_back(Snes *s);
