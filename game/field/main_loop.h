@@ -33,7 +33,7 @@ void field_frame_goes_on_with_the_frame_work(Snes *s);
 void field_frame_work(Snes *s);
 void field_refresh_effects(Snes *s);
 /* The same as C ($C0:00DE): the line effects' tables built, the palettes animated. */
-void field_effects_refreshed(GameState *g);
+bool field_effects_refreshed(GameState *g);
 void field_walk_a_frame(Snes *s);
 void field_finish_frame(Snes *s);
 void field_wait_for_the_next_frame(Snes *s);

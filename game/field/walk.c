@@ -1099,7 +1099,17 @@ static bool scroll_as_c(void *ctx, LayersScroll after)
     return true;
 }
 
-bool field_the_leader_walks(GameState *g) { return walk_the_leader(g, scroll_as_c, g); }
+static bool walk_fits(const GameState *g);
+
+/* As C the walk's guard's state half is checked first. */
+bool field_the_leader_walks(GameState *g)
+{
+    if (!walk_fits(g)) {
+        program_needs_the_machine(g, THE_WALK, "a walk the port doesn't take");
+        return false;
+    }
+    return walk_the_leader(g, scroll_as_c, g);
+}
 
 /* The guard's state half: the leader an object the tables hold. */
 static bool recentring_fits(const GameState *g) { return field_link_names_object(party_member_link(g, PARTY_LEADER)); }

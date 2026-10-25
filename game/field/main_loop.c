@@ -408,8 +408,7 @@ static bool line_effects_as_c(GameState *g, Platform *pf)
 static bool palettes_as_c(GameState *g, Platform *pf)
 {
     (void)pf;
-    palette_animate_a_frame(g);
-    return true;
+    return palette_animated_as_c(g);
 }
 
 static bool objects_as_c(GameState *g, Platform *pf)
@@ -721,14 +720,15 @@ static bool refreshed_line_effects_as_c(void *ctx)
 
 static bool refreshed_palettes_as_c(void *ctx)
 {
-    TIMED_AS((GameState *)ctx, PALETTE_ANIMATION, palette_animate_a_frame(ctx));
-    return true;
+    bool done = false;
+    TIMED_AS((GameState *)ctx, PALETTE_ANIMATION, done = palette_animated_as_c(ctx));
+    return done;
 }
 
-void field_effects_refreshed(GameState *g)
+bool field_effects_refreshed(GameState *g)
 {
     static const EffectsSteps as_c = { refreshed_line_effects_as_c, refreshed_palettes_as_c };
-    (void)refresh_effects(&as_c, g);
+    return refresh_effects(&as_c, g);
 }
 
 /* On the machine each is called from the original's call of it, the line

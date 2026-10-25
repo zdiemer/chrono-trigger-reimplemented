@@ -465,11 +465,11 @@ static bool tile_copy_call_as_c(void *ctx, TileCopyCall call)
         }
         TIMED_AS(g, COPY_TILES, map_copy_tiles(g));
         return true;
-    case TC_PALETTES: TIMED_AS(g, PALETTE_ANIMATION, palette_animate_a_frame(g)); return true;
+    case TC_PALETTES: TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated_as_c(g)); return done;
     case TC_DRAW_BG1: return drawn_as_c(g, FIELD_BG1, DRAW_BG1);
     case TC_DRAW_BG2: return drawn_as_c(g, FIELD_BG2, DRAW_BG2);
     case TC_DRAW_BG3: return drawn_as_c(g, FIELD_BG3, DRAW_BG3);
-    case TC_REFRESH: TIMED_AS(g, FIELD_REFRESH_EFFECTS_ENTRY, field_effects_refreshed(g)); return true;
+    case TC_REFRESH: TIMED_AS(g, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(g)); return done;
     case TC_COLUMNS:
         if (!layers_repeat_within_the_maps(g)) {
             program_needs_the_machine(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "layers the port doesn't stream");
