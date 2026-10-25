@@ -32,6 +32,18 @@ bool menu_given_sprite_script_is_well_formed(const GameState *g, uint8_t script)
  * out: every link a node or a head, and a node free to show a group with. */
 bool menu_sprite_list_is_sound(const GameState *g);
 
+/* The list as the vblank handler works it each frame, around the objects'
+ * turns: emptied, every node back on the free list from the links the mode's
+ * start laid out; the sprite table's sprites all hidden; and, once the
+ * objects have shown their groups, drawn into the sprite table. And the
+ * guards' state halves: the links laid out as the start lays them, and the
+ * list as the mode keeps it. */
+void menu_empty_the_sprite_list(GameState *g);
+void menu_hide_the_sprites(GameState *g);
+void menu_draw_the_sprite_list(GameState *g);
+bool menu_sprite_list_can_be_emptied(const GameState *g);
+bool menu_sprite_list_can_be_drawn(const GameState *g);
+
 /* The menus' records' sprites (the characters on the load screen and the
  * menus' screens): the opening's seven, a record's load, and its animation a
  * frame on, or carried on; and their guards. */

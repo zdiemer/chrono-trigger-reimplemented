@@ -13,6 +13,9 @@
 #include "menu/object.h"
 #include "menu/objects.h"
 
+#include "charge.h"
+#include "core/program.h"
+#include "menu/handlers.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -213,6 +216,76 @@ static void after_its_turn(GameState *g, uint16_t address, bool done)
 /* A handler is a routine of bank C2, which the slot names by its address. */
 enum { HANDLERS_BANK = 0xC20000 };
 
+/* An object's turn: its handler run, saying whether it is done; false where
+ * it went no further. The handler leaves the running object where the loop
+ * goes on from. */
+typedef bool (*TakeATurn)(void *ctx, uint16_t address, uint16_t handler, bool *done);
+
+// $C2:051D
+/* Every object's turn this frame, in slot order: each slot with a handler
+ * runs it, the slot made the running object. */
+static bool run_the_objects(GameState *g, TakeATurn turn, void *ctx)
+{
+    for (uint16_t address = FIRST_SLOT_ADDRESS; address != SLOTS_END; address += SLOT_BYTES) {
+        uint16_t handler = menu_object_slots_handler(g, menu_object_at_address(address));
+        if (handler == 0)
+            continue;
+        set_menu_object_handler(g, handler);
+        set_menu_object_current(g, address);
+        bool done;
+        if (!turn(ctx, address, handler, &done))
+            return false;
+        address = menu_object_current(g);
+        after_its_turn(g, address, done);
+    }
+    return true;
+}
+
+/* ---- As C ---- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} TurnsAsC;
+
+/* A handler with a C row of its own (menu/handlers.h) runs as C where its
+ * guard's state half takes the object; any other, or one that leaves the
+ * running object elsewhere than a slot, is the machine's yet, and the
+ * program goes no further there. */
+static bool turn_as_c(void *ctx, uint16_t address, uint16_t handler, bool *done)
+{
+    TurnsAsC *c = ctx;
+    GameState *g = c->game;
+    MenuObject self = menu_object_at_address(address);
+    const MenuHandler *h = menu_handler_as_c(handler);
+    if (!h || !h->run) {
+        program_needs_the_machine(g, HANDLERS_BANK | handler, h ? h->name : "an object's handler with no C");
+        return false;
+    }
+    if (h->takes && !h->takes(g, self)) {
+        program_needs_the_machine(g, HANDLERS_BANK | handler, h->name);
+        return false;
+    }
+    MenuTurn t = MENU_TURN_WENT_NO_FURTHER;
+    TIMED_AS(g, HANDLERS_BANK | handler, t = h->run(g, c->pf, self));
+    if (t == MENU_TURN_WENT_NO_FURTHER)
+        return false;
+    if (!menu_object_address_names_one(menu_object_current(g))) {
+        program_needs_the_machine(g, HANDLERS_BANK | handler, "a handler that left the running object off its slot");
+        return false;
+    }
+    *done = t == MENU_TURN_DONE;
+    return true;
+}
+
+bool menu_objects_run_as_c(GameState *g, Platform *pf)
+{
+    TurnsAsC c = { g, pf };
+    return run_the_objects(g, turn_as_c, &c);
+}
+
+/* ---- On the machine ---- */
+
 /* The handler runs where it is registered, called as the original's JSR at
  * $C2:053E calls its jump through the slot's handler (menu_object_handler,
  * $C2:0553), which adds nothing to the call but the jump: a ported handler
@@ -220,11 +293,10 @@ enum { HANDLERS_BANK = 0xC20000 };
  * False where it came back in a way the loop can't go on from, or left the
  * running object elsewhere than a slot: the original then carries on from
  * the call. */
-static bool run_handler(Snes *s, uint16_t address, uint16_t handler, bool *done)
+static bool turn_on_the_machine(void *ctx, uint16_t address, uint16_t handler, bool *done)
 {
+    Snes *s = ctx;
     GameState *g = state_of(s);
-    set_menu_object_handler(g, handler);
-    set_menu_object_current(g, address);
     if (address != FIRST_SLOT_ADDRESS) {
         m_set_flag(s, CPU_FLAG_C, false);
         m_set_flag(s, CPU_FLAG_V, false);
@@ -243,22 +315,12 @@ static bool run_handler(Snes *s, uint16_t address, uint16_t handler, bool *done)
 }
 
 // $C2:051D
-/* Every object's turn this frame, in slot order. The loop's own registers
- * are what it leaves: the address past the last slot in A, and the carry of
- * its last comparison. */
+/* The loop's own registers are what it leaves: the address past the last
+ * slot in A, and the carry of its last comparison. */
 void menu_run_objects(Snes *s)
 {
-    GameState *g = state_of(s);
-    for (uint16_t address = FIRST_SLOT_ADDRESS; address != SLOTS_END; address += SLOT_BYTES) {
-        uint16_t handler = menu_object_slots_handler(g, menu_object_at_address(address));
-        if (handler == 0)
-            continue;
-        bool done;
-        if (!run_handler(s, address, handler, &done))
-            return;
-        address = menu_object_current(g);
-        after_its_turn(g, address, done);
-    }
+    if (!run_the_objects(state_of(s), turn_on_the_machine, s))
+        return;
     s->cpu.a = SLOTS_END;
     m_set_flag(s, CPU_FLAG_C, true);
     m_set_flag(s, CPU_FLAG_V, false);
@@ -303,6 +365,17 @@ bool menu_object_handler_runs(Snes *s)
         return false;
     vars_peek(true);
     bool ok = s->cpu.x == menu_object_current(state_of(s));
+    vars_peek(false);
+    return ok;
+}
+
+bool menu_object_handler_takes(Snes *s, bool (*takes)(const GameState *g, MenuObject self))
+{
+    if (!menu_object_handler_runs(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = takes(g, menu_object_running(g));
     vars_peek(false);
     return ok;
 }

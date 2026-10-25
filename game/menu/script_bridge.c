@@ -247,7 +247,7 @@ static uint32_t handler_of(Snes *s, uint8_t opcode);
 static void set_console_byte(void *ctx, uint16_t at, uint8_t v)
 {
     OnTheMachine *m = ctx;
-    vid_snes_write_register(m_platform(m->s), PF_AT(handler_of(m->s, m->opcode)), at, v);
+    script_set_the_consoles_byte(m_platform(m->s), handler_of(m->s, m->opcode), at, v);
 }
 
 /* A routine a script names is called where it is, as the command's call

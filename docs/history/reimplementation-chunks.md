@@ -11138,3 +11138,70 @@ runs as C inside its stretch), no new exception; after the review's fixes
 `scene_flicker_the_lights` (the gauge left as a byte) and
 `scene_race_place_bikes` (the 8.8 divide leaving its dividend) again. Gate:
 suite OK.
+
+#### The native program through the field and the title
+
+`ct_native` (PLAYING.md, "The native program") links the whole of `game/`:
+the entry wrappers come along but nothing makes the `Snes` they take, and
+what they call of the machine is `runtime/port/no_machine.c`, whose list
+replaced `ct_native_whole`'s link failure as the measure of what `game/`
+asks of a machine. Every service has a host backend (video into the
+observer, audio playing the C sound driver, saves), so the program's
+progress is a matter of its own C: it now runs the boot and the field --
+the first start, location 0, the change to the next, their scripts, frames
+and handlers -- and then the title's scene: the scene engine boots it and
+unpacks its program, whose data the C reads where the original's code
+would, and the program's start, the title's setup, its frames (the NMI's
+frame work with both task lists, the sequence scripts' channels) and its end
+run as C until the game goes back to the field (`scene_runs`). Left alone the
+title gives way to the attract demo, which stops at frame 2093 where it
+enters a world map (`$C2:0000`, the menus' sprite-object mode); with
+`new-game.ctm`'s presses the field after the title asks for a menu, the
+menus run as C through the battle mode's choice and Crono's naming, and the
+field comes back and goes on to the world map at frame 3243.
+
+How the ports were made to call each other, by kind:
+
+- **An entry whose work calls nothing on the machine** became a function
+  of the game's state, which the entry calls and the program calls too:
+  the unpacker (`unpack_stream`, the last file on the transcription
+  backlog, rewritten), the location's tile sets, looks and script, the
+  map's loading, the vblank handler's sends, the line handler. Where a
+  caller ran it through `field_run`, the caller now runs it as C, timed as
+  its routine; shadow mode still compares it on its own, the original's
+  entry into it starting a nested comparison.
+- **An entry whose callees the machine pairs a call at a time** (the budgets'
+  turns and frames, the song's calls to the driver, the screen's setup and
+  fade in, the main loop's pass, the field's entry) keeps its bridge. The
+  routine is one sequence of the game's state that both run, its steps
+  callbacks: on the machine a step is called from the original's call, leaves
+  the flags the original's callers read and hands what the port doesn't take
+  to the original; as C it runs the step, or stops the program there. The
+  budgets were first (`draw_queued_frames`, `run_queued_turns`); then the
+  field's entry, the location's loading and song, the main loop's pass and
+  the frame's work (each a table of steps, the entry and its C in two
+  columns), the objects' update (`UpdateSteps`: the move, the view, the
+  tick, the rows, the place, the window-only check) and view (`ViewSteps`,
+  whose C now checks the view's guard too), and the pause and the menus
+  (`MenuSteps`). So shadow mode compares the sequence `ct_native` runs. The
+  ones still written twice are TODO.md's ("The native program"). The menus
+  a script asks for followed in the same shape: the field's side (the fade
+  out, the put-aside, the set-up again, the fade in after a menu,
+  `StopSteps`), the menus' mode (`ModeSteps`), its opening (`OpeningCalls`),
+  the save slots' reading, the records' loads, the vblank handler's two
+  calls, the close (`CloseCalls`), the naming's steps (`NamingSteps`, the
+  steps moved out of the bridge into `naming.c`), the sounds and the fades;
+  and the tasks' bodies -- the main task's and the cursor's turns, the fade
+  in, the typing -- each one function whose waits are callbacks: the
+  machine's entry runs a turn, its wait the original's task switch, and the
+  coroutine (`core/tasks.c`, one turn of a slot at a time,
+  `tasks_take_a_turn`, for `menu/tasks.c`'s scheduler's order) runs through
+  them, its wait coming back the next frame.
+- **An interpreter's machine runner has a runner as C beside it**
+  (`event_runner_as_c`): each command's operation, and for a bridge the C of
+  its work where it has one (`EVENT_BRIDGES_AS_C`: the sound commands and
+  the screen command so far).
+- **Where the C meets a state its port doesn't take, or a step only the
+  machine runs yet,** the program stops and names it
+  (`program_needs_the_machine`), as a guard on the machine hands the call to
+  the original.

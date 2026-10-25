@@ -630,6 +630,19 @@ static bool unpack_on_the_machine(void *ctx, uint32_t site, uint32_t stream, uin
 
 Unpacker overworld_unpacker_on_the_machine(Snes *s) { return (Unpacker){ unpack_on_the_machine, s }; }
 
+/* As C, the unpacker called as C. */
+static bool unpack_as_c(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
+{
+    (void)site;
+    GameState *g = ctx;
+    set_decompress_source(g, stream);
+    set_decompress_dest(g, to);
+    TIMED_AS(g, UNPACKER, (void)unpack_stream(g));
+    return true;
+}
+
+Unpacker overworld_unpacker_as_c(GameState *g) { return (Unpacker){ unpack_as_c, g }; }
+
 static Unpacker on_the_machine(Snes *s) { return overworld_unpacker_on_the_machine(s); }
 
 /* Where the main loop starts. */
@@ -714,13 +727,14 @@ static bool record_noted(const GameState *g)
 
 /* Setting up puts the camera on the party, which must put it on the map to
  * draw it. */
+bool overworld_can_be_set_up(const GameState *g) { return on_a_world_map(g) && menu_map_party_centres_on_the_map(g); }
+
 bool overworld_set_up_runs(Snes *s)
 {
     if (!menu_objects_on_page(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = on_a_world_map(g) && menu_map_party_centres_on_the_map(g);
+    bool ok = overworld_can_be_set_up(state_of(s));
     vars_peek(false);
     return ok;
 }

@@ -25,6 +25,10 @@
 #include "menu/fades.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
+#include "menu/handlers.h"
+#include "menu/objects.h"
+#include "menu/sprites.h"
+#include "core/input.h"
 #include "menu/opening.h"
 #include "menu/party.h"
 #include "menu/saves.h"
@@ -931,20 +935,27 @@ enum { WORLD_MAP_SET_UP = 0xC223A8, MENU_OBJECT_PAGE = 0x0000 };
 
 static void set_up_the_mode(GameState *g, Platform *pf);
 
-void menu_object_mode_start(Snes *s)
+void menu_object_mode_starts(GameState *g, Platform *pf)
 {
-    Platform *pf = m_platform(s);
-    m_set_flag(s, CPU_FLAG_I, true);
-    m_sep(s, CPU_FLAG_M);
-    m_rep(s, CPU_FLAG_X);
     tm_enable_interrupts(pf, PF_AT(0xC20016), 0);
     vid_stop_uploads(pf, PF_AT(0xC20019));
     vid_enable_line_effects(pf, PF_AT(0xC2001C), 0);
     vid_set_display(pf, PF_AT(0xC20021), &(VidDisplay){ .blank = true, .brightness = 0x0F });
     tm_fast_rom(pf, PF_AT(0xC20026), true);
+    set_up_the_mode(g, pf);
+}
+
+/* On the machine the mode starts with the CPU's interrupts masked, an 8-bit
+ * accumulator and 16-bit index registers, on its page with the data bank on
+ * low RAM. */
+void menu_object_mode_start(Snes *s)
+{
+    m_set_flag(s, CPU_FLAG_I, true);
+    m_sep(s, CPU_FLAG_M);
+    m_rep(s, CPU_FLAG_X);
     s->cpu.db = 0x00;
     s->cpu.d = MENU_OBJECT_PAGE;
-    set_up_the_mode(state_of(s), pf);
+    menu_object_mode_starts(state_of(s), m_platform(s));
     m_stop_at_own(s, WORLD_MAP_SET_UP, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
 }
 
@@ -987,7 +998,7 @@ static void clear_arithmetic(GameState *g)
 /* Set the mode's screen up, and the console's own registers as the mode
  * starts them: the controller port's lines released, the arithmetic unit
  * cleared, the timers back at the frame's start. */
-static void set_up_the_screen(GameState *g, Platform *pf)
+void menu_object_set_up_the_screen(GameState *g, Platform *pf)
 {
     vid_apply_screen(pf, PF_AT(0xC20043), &object_mode_screen);
     in_set_io_lines(pf, PF_AT(0xC200F8), IO_LINES_RELEASED);
@@ -997,7 +1008,7 @@ static void set_up_the_screen(GameState *g, Platform *pf)
 
 void menu_object_init_video(Snes *s)
 {
-    set_up_the_screen(state_of(s), m_platform(s));
+    menu_object_set_up_the_screen(state_of(s), m_platform(s));
     m_rts(s);
 }
 
@@ -1029,12 +1040,12 @@ void menu_object_reset_the_mode(GameState *g)
 // $C2:0110
 /* The mode's frame is its own vblank handler's; it has no line handler, so
  * the line interrupt (which it never enables) only returns. */
-enum { MENU_OBJECT_VBLANK_HANDLER = 0xC2015E, NO_LINE_HANDLER = 0xC20345 };
+
 
 void menu_object_take_the_interrupts(GameState *g)
 {
     program_install_vblank_handler(g, MENU_OBJECT_VBLANK_HANDLER);
-    program_install_line_handler(g, NO_LINE_HANDLER);
+    program_install_line_handler(g, MENU_OBJECT_LINE_HANDLER);
 }
 
 /* Where the uploads the mode builds are put together, in work RAM. */
@@ -1053,7 +1064,7 @@ void menu_object_reset_the_upload_queue(GameState *g)
 
 static void set_up_the_mode(GameState *g, Platform *pf)
 {
-    TIMED_AS(g, 0xC20043, set_up_the_screen(g, pf));
+    TIMED_AS(g, 0xC20043, menu_object_set_up_the_screen(g, pf));
     TIMED_AS(g, 0xC2012F, menu_object_reset_the_mode(g));
     TIMED_AS(g, 0xC20110, menu_object_take_the_interrupts(g));
     TIMED_AS(g, 0xC203EF, menu_object_reset_the_upload_queue(g));
@@ -1165,56 +1176,151 @@ static void send_object_frame(GameState *g, Platform *pf)
     place_line_tables(g);
 }
 
-/* The mode's own work after its frame is sent, each a routine of its own
- * called as the original calls it: the uploads it queued, the frame's
- * routine at $C2:8002, then (after the brightness and the per-line effects)
- * its sprites and objects. */
-static bool run_frame_work(Snes *s)
+/* The mode's own work after its frame is sent, each a routine of its own,
+ * run as C or on the machine (below), each false where it went no further:
+ * the uploads it queued, the frame's input (the controller, the button
+ * assignments and the play time, $C2:8002), and around the objects' turns
+ * the sprite list emptied, the sprites hidden and the list drawn. */
+typedef enum {
+    SEND_THE_QUEUE, TAKE_THE_INPUT, EMPTY_THE_SPRITE_LIST, HIDE_THE_SPRITES, RUN_THE_OBJECTS, DRAW_THE_SPRITE_LIST,
+    OBJECT_FRAME_STEPS,
+} ObjectFrameStep;
+typedef bool (*ObjectFrameRun)(void *ctx, ObjectFrameStep step);
+
+// $C2:015E (the work, after the handler keeps the interrupted code's registers)
+/* The sprite-object mode's vblank: counts the frame and, when the main loop
+ * has finished one, sends it (the sprite table, the palette when it changed,
+ * the shadows) and does the mode's own work: the uploads and the input, the
+ * brightness and the per-line effects the frame left, and the objects'
+ * turns, each showing its sprites on the list the frame starts empty, drawn
+ * into the sprite table after them. */
+static bool object_mode_vblank(GameState *g, Platform *pf, ObjectFrameRun run, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    m_jsr_dc(s, 0xC20318, 0xC20405, NOTHING_READ);
-    if (!back_as_the_menus_run(s, OBJECT_MODE_PAGE))
-        return false;
-    if (!menu_run_long(s, 0xC2031B, 0xC28002, menu_take_the_frames_input))
+    (void)tm_ack_vblank(pf, PF_AT(0xC2016D));
+    set_menu_object_frame_counter(g, (uint8_t)(menu_object_frame_counter(g) + 1));
+    if (!(menu_object_frame_state(g) & FRAME_TO_SHOW))
+        return true;
+    send_object_frame(g, pf);
+    if (!run(ctx, SEND_THE_QUEUE) || !run(ctx, TAKE_THE_INPUT))
         return false;
     VidDisplay display = vid_display_decode(menu_screen_display(g));
     vid_set_display(pf, PF_AT(0xC20323), &display);
     vid_enable_line_effects(pf, PF_AT(0xC20328), menu_object_line_effects(g));
-    m_jsr_dc(s, 0xC2032B, 0xC20C4D, NOTHING_READ);
-    if (s->cpu.e || m_m8(s) || m_x8(s) || s->cpu.d != OBJECT_MODE_PAGE)
+    if (!run(ctx, EMPTY_THE_SPRITE_LIST))
         return false;
-    /* the list's reset comes back with a 16-bit accumulator, so the sprites'
-     * count is cleared a word wide, over the running object's low byte */
+    /* the list's emptying comes back with a 16-bit accumulator, so the
+     * sprites' count is cleared a word wide, over the running object's low
+     * byte */
     set_menu_object_sprite_index(g, 0);
     set_menu_object_current(g, (uint16_t)(menu_object_current(g) & 0xFF00));
-    /* The objects' handlers may read Y and the carry and overflow flags (the
-     * handlers are named in work RAM), which the sprites' hiding leaves as the
-     * original does. */
-    static const struct { uint32_t site, routine; uint16_t ignores; } work[3] = {
-        { 0xC20330, 0xC2034D, NOTHING_READ },
-        { 0xC20333, 0xC2051D, DC_A | DC_X | DC_N | DC_Z },
-        { 0xC20336, 0xC20CEA, NOTHING_READ },
-    };
-    for (int i = 0; i < 3; i++) {
-        m_jsr_dc(s, work[i].site, work[i].routine, work[i].ignores);
-        if (!back_as_the_menus_run(s, OBJECT_MODE_PAGE))
+    for (ObjectFrameStep step = HIDE_THE_SPRITES; step < OBJECT_FRAME_STEPS; step++)
+        if (!run(ctx, step))
             return false;
-    }
     set_menu_object_frame_state(g, (uint8_t)(menu_object_frame_state(g) | FRAME_TO_SHOW));
     return true;
 }
 
+/* ---- As C ---- */
+
+static void send_object_queue(GameState *g, Platform *pf);
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} ObjectVblankAsC;
+
+/* Each step where its guard's state half takes it; the program goes no
+ * further otherwise. */
+static bool object_frame_step_as_c(void *ctx, ObjectFrameStep step)
+{
+    ObjectVblankAsC *c = ctx;
+    GameState *g = c->game;
+    Platform *pf = c->pf;
+    bool done = true;
+    switch (step) {
+    case SEND_THE_QUEUE:
+        if (!menu_object_queue_can_be_sent(g)) {
+            program_needs_the_machine(g, 0xC20405, "an upload queue the port doesn't send");
+            return false;
+        }
+        TIMED_AS(g, 0xC20405, send_object_queue(g, pf));
+        return true;
+    case TAKE_THE_INPUT:
+        TIMED_AS(g, 0xC28002, done = input_take_frame(g, pf));
+        if (!done)
+            program_needs_the_machine(g, 0xC28002, "the controller not read, or the reset buttons held");
+        return done;
+    case EMPTY_THE_SPRITE_LIST:
+        if (!menu_sprite_list_can_be_emptied(g)) {
+            program_needs_the_machine(g, 0xC20C4D, "a sprite list whose links the mode's start didn't lay out");
+            return false;
+        }
+        TIMED_AS(g, 0xC20C4D, menu_empty_the_sprite_list(g));
+        return true;
+    case HIDE_THE_SPRITES:
+        TIMED_AS(g, 0xC2034D, menu_hide_the_sprites(g));
+        return true;
+    case RUN_THE_OBJECTS:
+        TIMED_AS(g, 0xC2051D, done = menu_objects_run_as_c(g, pf));
+        return done;
+    case DRAW_THE_SPRITE_LIST:
+        if (!menu_sprite_list_can_be_drawn(g)) {
+            program_needs_the_machine(g, 0xC20CEA, "a sprite list the port doesn't draw");
+            return false;
+        }
+        TIMED_AS(g, 0xC20CEA, menu_draw_the_sprite_list(g));
+        return true;
+    default:
+        return false;
+    }
+}
+
+void menu_object_vblank(GameState *g, Platform *pf)
+{
+    ObjectVblankAsC c = { g, pf };
+    TIMED_AS(g, MENU_OBJECT_VBLANK_HANDLER, (void)object_mode_vblank(g, pf, object_frame_step_as_c, &c));
+}
+
+/* The mode has no line handler: the line interrupt only returns. */
+void menu_object_line(GameState *g, Platform *pf) { (void)g, (void)pf; }
+
+/* ---- On the machine ---- */
+
+/* Each step is called from the original's call of it, and the work goes on
+ * after it only where it came back as the handler runs. The list's emptying
+ * comes back with a 16-bit accumulator. The objects' handlers may read Y and
+ * the carry and overflow flags (the handlers are named in work RAM), which
+ * the sprites' hiding leaves as the original does. */
+static const struct {
+    uint32_t site, routine;
+    uint16_t ignores;
+    bool long_call;
+} object_frame_calls[OBJECT_FRAME_STEPS] = {
+    [SEND_THE_QUEUE] = { 0xC20318, 0xC20405, NOTHING_READ, false },
+    [TAKE_THE_INPUT] = { 0xC2031B, 0xC28002, 0, true },
+    [EMPTY_THE_SPRITE_LIST] = { 0xC2032B, 0xC20C4D, NOTHING_READ, false },
+    [HIDE_THE_SPRITES] = { 0xC20330, 0xC2034D, NOTHING_READ, false },
+    [RUN_THE_OBJECTS] = { 0xC20333, 0xC2051D, DC_A | DC_X | DC_N | DC_Z, false },
+    [DRAW_THE_SPRITE_LIST] = { 0xC20336, 0xC20CEA, NOTHING_READ, false },
+};
+
+static bool object_frame_step_on_the_machine(void *ctx, ObjectFrameStep step)
+{
+    Snes *s = ctx;
+    if (object_frame_calls[step].long_call)
+        return menu_run_long(s, object_frame_calls[step].site, object_frame_calls[step].routine,
+                             menu_take_the_frames_input);
+    m_jsr_dc(s, object_frame_calls[step].site, object_frame_calls[step].routine, object_frame_calls[step].ignores);
+    if (step == EMPTY_THE_SPRITE_LIST)
+        return !s->cpu.e && !m_m8(s) && !m_x8(s) && s->cpu.d == OBJECT_MODE_PAGE;
+    return back_as_the_menus_run(s, OBJECT_MODE_PAGE);
+}
+
 // $C2:015E (installed at the $0501 NMI stub by $C2:0110)
-/* The sprite-object mode's vblank: counts the frame and, when the main loop
- * has finished one, sends it (the sprite table, the palette when it changed,
- * the shadows) and runs the mode's own work. It saves the registers on the
- * stack as an interrupt handler does, and runs on the mode's page with the
- * data bank on low RAM. */
+/* The handler saves the registers on the stack as an interrupt handler
+ * does, and runs on the mode's page with the data bank on low RAM. */
 void menu_object_nmi(Snes *s)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     /* A, X, Y and D, saved a word each and put back the other way round */
     uint16_t *const saved[4] = { &s->cpu.a, &s->cpu.x, &s->cpu.y, &s->cpu.d };
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
@@ -1225,13 +1331,8 @@ void menu_object_nmi(Snes *s)
     m_sep(s, CPU_FLAG_M);
     m_push8(s, 0x00);
     s->cpu.db = m_pull8(s);
-    (void)tm_ack_vblank(pf, PF_AT(0xC2016D));
-    set_menu_object_frame_counter(g, (uint8_t)(menu_object_frame_counter(g) + 1));
-    if (menu_object_frame_state(g) & FRAME_TO_SHOW) {
-        send_object_frame(g, pf);
-        if (!run_frame_work(s))
-            return;
-    }
+    if (!object_mode_vblank(state_of(s), m_platform(s), object_frame_step_on_the_machine, s))
+        return;
     m_rep(s, CPU_FLAG_M);
     s->cpu.db = m_pull8(s);
     for (int i = 3; i >= 0; i--)
@@ -1276,17 +1377,22 @@ void menu_object_upload_vram_queue(Snes *s)
     m_rts(s);
 }
 
-bool menu_object_queue_is_sendable(Snes *s)
+bool menu_object_queue_can_be_sent(const GameState *g)
 {
-    if (m_direct_page(s) != 0 || !m_bank_reaches_low_ram(s))
-        return false;
-    GameState *g = state_of(s);
-    vars_peek(true);
     uint8_t end = menu_object_vram_queue_end(g);
     bool ok = menu_object_queue_is_whole(g);
     for (unsigned r = 0; ok && r < end / MENU_OBJECT_UPLOAD_BYTES; r++)
         ok = uploads_from_memory(r < MENU_OBJECT_VRAM_QUEUE_COUNT ? menu_object_vram_queue_bank(g, r)
                                                                    : menu_object_vram_queue_bank_unchecked(g, r));
+    return ok;
+}
+
+bool menu_object_queue_is_sendable(Snes *s)
+{
+    if (m_direct_page(s) != 0 || !m_bank_reaches_low_ram(s))
+        return false;
+    vars_peek(true);
+    bool ok = menu_object_queue_can_be_sent(state_of(s));
     vars_peek(false);
     return ok;
 }
@@ -1297,7 +1403,7 @@ bool menu_object_queue_is_sendable(Snes *s)
 /* Clear all of VRAM with the word at $C2:26D4, a whole 64 KiB from word 0. */
 void menu_clear_all_of_vram(Platform *pf)
 {
-    vid_send_vram_fill(pf, PF_AT(0xC226AB), 0x0000, PF_GAME(0xC226D4), 0x10000, &word_port);
+    vid_send_vram_fill(pf, PF_AT(0xC226AB), 0x0000, PF_GAME(MENU_VRAM_CLEARING_ZERO), 0x10000, &word_port);
 }
 
 /* It leaves X at 0. */

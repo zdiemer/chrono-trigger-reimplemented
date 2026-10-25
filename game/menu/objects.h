@@ -4,9 +4,13 @@
 #ifndef CT_GAME_MENU_OBJECTS_H
 #define CT_GAME_MENU_OBJECTS_H
 
+#include "menu/object.h"
 #include "snes/system.h"
 
 /* menu/objects.c */
+/* A handler's guard: its machine half (menu_object_handler_runs) and the
+ * state half it names, which takes the running object. */
+bool menu_object_handler_takes(Snes *s, bool (*takes)(const GameState *g, MenuObject self));
 void menu_run_objects(Snes *s);
 void menu_object_spawn(Snes *s);
 void menu_object_spawn_high(Snes *s);

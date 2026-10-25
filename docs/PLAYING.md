@@ -552,7 +552,7 @@ entry, `program_needs_the_machine` stops it and the driver says where (exit
 status 1):
 
 ```
-frame 2093: the program's C goes no further: $C2:0000, the world map, the menus' sprite-object mode, runs only on the machine
+frame 2551: the program's C goes no further: $C0:21E1, a screen effect's curtain, its close into a scene or its ripple, runs only on the machine
 ```
 
 So far the boot and the field run as C. At power-on the field's handlers
@@ -577,8 +577,17 @@ channels turned as C (`scene_channel_turn`) -- until a script ends the
 scene, when the game goes back to the field (`scene_runs`,
 `scene/program.c`; the main thread goes between the two, `core/program.c`).
 Left alone, the title gives way to the attract demo: the field again, until
-it enters a world map (frame 2093), which the menus' sprite-object mode
-shows (`$C2:0000`, `overworld/`): the next step only the machine runs. With
+it enters a world map, which the menus' sprite-object mode shows and which
+runs as C too (`overworld_runs`, `overworld/main_loop.c`): the mode starts
+(`$C2:0000`), the map is set up from its record's streams (the unpacker as
+C), and the overworld's loop runs a pass a frame, with the mode's vblank
+handler in `core/program.c`'s table: the frame sent, the input taken, and
+every object's turn (`menu_objects_run_as_c`), each handler and each
+routine a command script calls a row of a C table (`menu/handlers.c`) --
+the scene's scripts on the interpreter as C, the fades, the layer over the
+map, the irises and curtains, the drifting map. The scene leaves for the
+field at the location it chose, and the field goes on there until a screen
+effect only the machine runs yet (frame 2551). With
 `new-game.ctm`'s presses, Start ends the title and the field's next script
 asks for a menu, and the menus run as C: the field fades out and is put
 aside, the menus' mode opens (`menu_mode_runs`, `menu/display.c`: the
@@ -591,7 +600,9 @@ last frame queued: the main task's screen steps, the cursor's, the fade
 in's and the typing's. The naming's screen asks the battle mode first, then
 names Crono; its close fades the screen out and the mode returns to the
 field, which is set up again and faded in, and the script goes on to the
-world map (frame 3243, `$C2:0000`).
+world map: the opening's bells over Guardia, as C, and then the field in
+Crono's house, until an event command only the machine runs (frame 4798,
+`$C0:4590`, a person cast with graphics to unpack).
 
 The field's steps as the program calls them (`field_runs`,
 `field/main_loop.c`) are functions of the game's state that the entries

@@ -14,6 +14,7 @@
  * Each is an object's handler, never done. */
 #include "menu/top_layer.h"
 
+#include "menu/handlers.h"
 #include "menu/line_effects.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
@@ -241,4 +242,41 @@ void menu_top_layer_wave(Snes *s)
 {
     GameState *g = state_of(s);
     goes_on(s, wave(g, m_platform(s), menu_object_running(g)));
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+/* Each takes its turn and goes on, never done (menu/handlers.c). */
+MenuTurn menu_top_layer_slow_drift_turn(GameState *g, Platform *pf, MenuObject o)
+{
+    (void)pf;
+    (void)slow_drift(g, o);
+    return MENU_TURN_GOES_ON;
+}
+
+MenuTurn menu_top_layer_drift_turn(GameState *g, Platform *pf, MenuObject o)
+{
+    (void)pf;
+    (void)drift(g, o, DRIFT);
+    return MENU_TURN_GOES_ON;
+}
+
+MenuTurn menu_top_layer_fast_drift_turn(GameState *g, Platform *pf, MenuObject o)
+{
+    (void)pf;
+    (void)drift(g, o, FAST_DRIFT);
+    return MENU_TURN_GOES_ON;
+}
+
+MenuTurn menu_top_layer_wave_drift_turn(GameState *g, Platform *pf, MenuObject o)
+{
+    (void)pf;
+    (void)wave_drift(g, o);
+    return MENU_TURN_GOES_ON;
+}
+
+MenuTurn menu_top_layer_wave_turn(GameState *g, Platform *pf, MenuObject o)
+{
+    (void)wave(g, pf, o);
+    return MENU_TURN_GOES_ON;
 }

@@ -15,6 +15,7 @@ battle_debugging_switch	mixed	C1:FDD3	C1:FFFF	raw	accessor battle_debugging_swit
 menu_plane_groups	words	C2:0556	C2:0567	raw	accessor menu_plane_groups
 menu_script_handler	jump-table	C2:0F91	C2:1036	raw	accessor menu_script_handler
 menu_return_flags	bytes	C2:2509	C2:250C	raw	accessor menu_return_flags
+menu_vram_clearing_zero	bytes	C2:26D4	C2:26D5	raw	accessor menu_vram_clearing_zero
 bytes_c22ec1	bytes	C2:2EC1	C2:2ED8	raw	read
 epoch_boarded_in_a_scene	script	C2:31A8	C2:31B1	script:object	accessor epoch_boarded_in_a_scene
 bytes_c2324c	bytes	C2:324C	C2:3263	raw	read

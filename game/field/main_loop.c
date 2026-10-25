@@ -61,6 +61,7 @@
 #include "menu/party.h"
 #include "menu/party_leaves.h"
 #include "menu/saves.h"
+#include "overworld/main_loop.h"
 #include "platform/timing.h"
 #include "port/native.h"
 #include "port/machine.h"
@@ -124,7 +125,7 @@ enum {
     SOUND_DRIVER_BOOT = 0xC70000,
     THE_BOOT_IGNORES = DC_AL | DC_N | DC_V | DC_Z | DC_C,
     MENUS_SERVICES = 0xC28004,       /* the menus' services (menu/party.h), whose time the power-on's is */
-    MENUS_SCREENS = 0xC20000,        /* the world map, in the menus' sprite-object mode */
+    WORLD_MAP = 0xC20000,            /* the world map, in the menus' sprite-object mode */
     PALETTE_ANIMATION = 0xFDFFF7,
 };
 
@@ -294,24 +295,28 @@ static const struct {
     [FADE_IN_STEP] = { 0xC00094, FIELD_FADE_IN_ENTRY, field_fade_in, field_fade_in_as_c },
 };
 
-/* A step of the entry run, or the menus' mode taking over for a screen
- * drawn with sprites; false where the field goes no further. */
+/* A step of the entry run, or the world map taking over, which the menus'
+ * sprite-object mode shows: each false where the field goes no further (the
+ * world map true where it left for the field again). */
 typedef struct {
     bool (*step)(void *ctx, EnterStep step);
-    void (*to_the_menus)(void *ctx);
+    bool (*to_the_world_map)(void *ctx);
 } EnterSteps;
 
 // $C0:005D (and $C0:0000, the field's start for the other modes)
 /* The field entered, the screen dark: its handlers taken, and for a map its
- * steps; the locations from $1F0 go to the menus' mode instead. False where
- * it went no further. */
+ * steps; the locations from $1F0 are the world map's instead, which comes
+ * back to the field's start for the place it leaves for. False where it went
+ * no further. */
 static bool enter_the_location(GameState *g, Platform *pf, const EnterSteps *steps, void *ctx)
 {
-    TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
-    take_the_interrupts(g);
-    if (location_is_the_menus(g)) {
-        steps->to_the_menus(ctx);
-        return false;
+    for (;;) {
+        TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
+        take_the_interrupts(g);
+        if (!location_is_the_menus(g))
+            break;
+        if (!steps->to_the_world_map(ctx))
+            return false;
     }
     for (EnterStep step = START_STEP; step < ENTERING_STEPS; step++)
         if (!steps->step(ctx, step))
@@ -332,15 +337,17 @@ static bool enter_step_as_c(void *ctx, EnterStep step)
     return done;
 }
 
-static void to_the_menus_as_c(void *ctx)
+static bool to_the_world_map_as_c(void *ctx)
 {
     PassAsC *c = ctx;
-    program_needs_the_machine(c->game, MENUS_SCREENS, "the world map, the menus' sprite-object mode");
+    OverworldEnd end = OVERWORLD_WENT_NO_FURTHER;
+    TIMED_AS(c->game, WORLD_MAP, end = overworld_runs(c->game, c->pf));
+    return end == OVERWORLD_LEFT;
 }
 
 bool field_enter_the_location(GameState *g, Platform *pf)
 {
-    static const EnterSteps as_c = { enter_step_as_c, to_the_menus_as_c };
+    static const EnterSteps as_c = { enter_step_as_c, to_the_world_map_as_c };
     PassAsC c = { g, pf };
     return enter_the_location(g, pf, &as_c, &c);
 }
@@ -352,14 +359,15 @@ static bool enter_step_on_the_machine(void *ctx, EnterStep step)
 }
 
 /* What the menus' mode reads of the registers is the data bank alone. */
-static void to_the_menus_on_the_machine(void *ctx)
+static bool to_the_world_map_on_the_machine(void *ctx)
 {
-    m_stop_at(ctx, MENUS_SCREENS, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D);
+    m_stop_at(ctx, WORLD_MAP, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D);
+    return false;
 }
 
 void field_enter(Snes *s)
 {
-    static const EnterSteps on_the_machine = { enter_step_on_the_machine, to_the_menus_on_the_machine };
+    static const EnterSteps on_the_machine = { enter_step_on_the_machine, to_the_world_map_on_the_machine };
     display_leaves_the_machine_dark(s);
     s->cpu.d = FIELD_PAGE;
     if (enter_the_location(state_of(s), m_platform(s), &on_the_machine, s))

@@ -8,6 +8,7 @@
 #include "menu/map_scenes.h"
 
 #include "charge.h"
+#include "menu/handlers.h"
 #include "menu/map.h"
 #include "menu/objects.h"
 #include "original_effects.h"
@@ -125,13 +126,34 @@ void menu_scene_note_the_epoch_s_arrival_entry(Snes *s)
 
 bool menu_scene_object_in_view_runs(Snes *s) { return menu_object_can_move(s); }
 
-/* It scrolls the plane by a tile, which the map keeps room for. */
-bool menu_scene_drift_runs(Snes *s)
+/* ---- As C ---------------------------------------------------------------------------------------- */
+
+/* A routine a script calls to take a decision answers in the mode's first
+ * cell, which the script's next command tests. */
+static bool answer_whether_in_view(GameState *g, Platform *pf, MenuObject self, bool far)
 {
-    if (!menu_object_handler_runs(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_map_can_scroll(state_of(s), 1, menu_map_scroll_records(MENU_ACROSS, 1));
-    vars_peek(false);
-    return ok;
+    (void)pf, (void)self, (void)far;
+    set_menu_object_scratch_answer(g, menu_scene_object_in_view(g));
+    return true;
 }
+
+static bool note_the_epoch_s_arrival(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)self, (void)far;
+    menu_scene_note_the_epoch_s_arrival(g);
+    return true;
+}
+
+MENU_SCRIPT_ROUTINES(menu_map_scene_routines,
+    { 0xC278A1, "whether the object is in view", NULL, answer_whether_in_view },
+    { 0xC6EE31, "the Epoch's arrival noted", NULL, note_the_epoch_s_arrival },
+);
+
+/* It scrolls the plane by a tile, which the map keeps room for. */
+bool menu_scene_drift_takes(const GameState *g, MenuObject self)
+{
+    (void)self;
+    return menu_map_can_scroll(g, 1, menu_map_scroll_records(MENU_ACROSS, 1));
+}
+
+bool menu_scene_drift_runs(Snes *s) { return menu_object_handler_takes(s, menu_scene_drift_takes); }

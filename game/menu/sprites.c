@@ -1395,6 +1395,9 @@ static bool links_are_laid_out(const GameState *g)
     return true;
 }
 
+bool menu_sprite_list_can_be_emptied(const GameState *g) { return links_are_laid_out(g); }
+bool menu_sprite_list_can_be_drawn(const GameState *g) { return list_is_sound(g); }
+
 bool menu_sprites_on_page(Snes *s) { return on_the_mode_page(s); }
 bool menu_sprite_list_takes_a_group(Snes *s) { return on_the_mode_page(s) && peek(s, can_show); }
 bool menu_sprite_list_is_drawable(Snes *s) { return on_the_mode_page(s) && peek(s, list_is_sound); }
@@ -1428,6 +1431,21 @@ static void a8_x16(Snes *s)
     m_sep(s, CPU_FLAG_M);
 }
 
+/* ---- The frame's list, as the vblank handler works it ---- */
+
+// $C2:0C4D
+void menu_empty_the_sprite_list(GameState *g)
+{
+    empty_the_list(g);
+    ORIGINAL_EFFECT(set_menu_object_scratch_reset_rounds(g, 0));
+}
+
+// $C2:034D
+void menu_hide_the_sprites(GameState *g) { hide_all_sprites(g); }
+
+// $C2:0CEA
+void menu_draw_the_sprite_list(GameState *g) { draw_the_list(g); }
+
 // $C2:034D
 /* It narrows Y to a byte on the way (with 8-bit index registers), and its
  * loop's last subtraction borrows without overflowing: what the objects' run
@@ -1444,9 +1462,7 @@ void menu_hide_all_sprites(Snes *s)
 // $C2:0C4D
 void menu_reset_sprite_nodes(Snes *s)
 {
-    GameState *g = state_of(s);
-    empty_the_list(g);
-    ORIGINAL_EFFECT(set_menu_object_scratch_reset_rounds(g, 0));
+    menu_empty_the_sprite_list(state_of(s));
     m_rep(s, CPU_FLAG_M);
     m_rts(s);
 }

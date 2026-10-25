@@ -38,6 +38,7 @@
 #include <stdint.h>
 
 #include "menu/object.h"
+#include "platform/platform.h"
 #include "sound/sound.h"
 #include "state.h"
 
@@ -90,6 +91,8 @@ void script_set_byte_at(GameState *g, MenuObject self, ByteRef b, uint8_t v);
 /* Whether a cell is the console's own rather than low RAM: a register of the
  * picture's, which the scripts set through the services. */
 bool script_byte_is_the_consoles(ByteRef b);
+/* Set it, as the command's handler at `handler` writes it. */
+void script_set_the_consoles_byte(Platform *pf, uint32_t handler, uint16_t at, uint8_t v);
 
 typedef enum {
     BYTE_CLEAR, BYTE_COUNT_UP, BYTE_COUNT_DOWN, BYTE_SET, BYTE_SET_BITS, BYTE_CLEAR_BITS, BYTE_ADD,

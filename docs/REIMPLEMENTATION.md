@@ -2938,72 +2938,83 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
-### The native program through the field and the title
+### The native program through the world map
 
-`ct_native` (PLAYING.md, "The native program") links the whole of `game/`:
-the entry wrappers come along but nothing makes the `Snes` they take, and
-what they call of the machine is `runtime/port/no_machine.c`, whose list
-replaced `ct_native_whole`'s link failure as the measure of what `game/`
-asks of a machine. Every service has a host backend (video into the
-observer, audio playing the C sound driver, saves), so the program's
-progress is a matter of its own C: it now runs the boot and the field --
-the first start, location 0, the change to the next, their scripts, frames
-and handlers -- and then the title's scene: the scene engine boots it and
-unpacks its program, whose data the C reads where the original's code
-would, and the program's start, the title's setup, its frames (the NMI's
-frame work with both task lists, the sequence scripts' channels) and its end
-run as C until the game goes back to the field (`scene_runs`). Left alone the
-title gives way to the attract demo, which stops at frame 2093 where it
-enters a world map (`$C2:0000`, the menus' sprite-object mode); with
-`new-game.ctm`'s presses the field after the title asks for a menu, the
-menus run as C through the battle mode's choice and Crono's naming, and the
-field comes back and goes on to the world map at frame 3243.
+`ct_native` (PLAYING.md, "The native program") stopped where the field
+enters a world map: the locations from `$1F0`, which the menus'
+sprite-object mode shows (`$C2:0000`). The attract demo met it at frame 2093,
+`new-game.ctm`'s presses at frame 3243 (the opening's bells over Guardia).
+The world map now runs as C: the mode's start, the map's setup, the
+overworld's main loop, the mode's vblank and line handlers and the objects
+they run, until the map's scene leaves for the field, whose start takes it to
+the location the scene chose. The attract demo's first world map plays
+through and the field goes on to frame 2551; the new game's opening plays
+through into Crono's house, to frame 4798.
 
-How the ports were made to call each other, by kind:
+The shapes are the field's and the menus' (the section before this one,
+history/reimplementation-chunks.md, "The native program through the field
+and the title"), one sequence each that the machine's entry and the program
+both run:
 
-- **An entry whose work calls nothing on the machine** became a function
-  of the game's state, which the entry calls and the program calls too:
-  the unpacker (`unpack_stream`, the last file on the transcription
-  backlog, rewritten), the location's tile sets, looks and script, the
-  map's loading, the vblank handler's sends, the line handler. Where a
-  caller ran it through `field_run`, the caller now runs it as C, timed as
-  its routine; shadow mode still compares it on its own, the original's
-  entry into it starting a nested comparison.
-- **An entry whose callees the machine pairs a call at a time** (the budgets'
-  turns and frames, the song's calls to the driver, the screen's setup and
-  fade in, the main loop's pass, the field's entry) keeps its bridge. The
-  routine is one sequence of the game's state that both run, its steps
-  callbacks: on the machine a step is called from the original's call, leaves
-  the flags the original's callers read and hands what the port doesn't take
-  to the original; as C it runs the step, or stops the program there. The
-  budgets were first (`draw_queued_frames`, `run_queued_turns`); then the
-  field's entry, the location's loading and song, the main loop's pass and
-  the frame's work (each a table of steps, the entry and its C in two
-  columns), the objects' update (`UpdateSteps`: the move, the view, the
-  tick, the rows, the place, the window-only check) and view (`ViewSteps`,
-  whose C now checks the view's guard too), and the pause and the menus
-  (`MenuSteps`). So shadow mode compares the sequence `ct_native` runs. The
-  ones still written twice are TODO.md's ("The native program"). The menus
-  a script asks for followed in the same shape: the field's side (the fade
-  out, the put-aside, the set-up again, the fade in after a menu,
-  `StopSteps`), the menus' mode (`ModeSteps`), its opening (`OpeningCalls`),
-  the save slots' reading, the records' loads, the vblank handler's two
-  calls, the close (`CloseCalls`), the naming's steps (`NamingSteps`, the
-  steps moved out of the bridge into `naming.c`), the sounds and the fades;
-  and the tasks' bodies -- the main task's and the cursor's turns, the fade
-  in, the typing -- each one function whose waits are callbacks: the
-  machine's entry runs a turn, its wait the original's task switch, and the
-  coroutine (`core/tasks.c`, one turn of a slot at a time,
-  `tasks_take_a_turn`, for `menu/tasks.c`'s scheduler's order) runs through
-  them, its wait coming back the next frame.
-- **An interpreter's machine runner has a runner as C beside it**
-  (`event_runner_as_c`): each command's operation, and for a bridge the C of
-  its work where it has one (`EVENT_BRIDGES_AS_C`: the sound commands and
-  the screen command so far).
-- **Where the C meets a state its port doesn't take, or a step only the
-  machine runs yet,** the program stops and names it
-  (`program_needs_the_machine`), as a guard on the machine hands the call to
-  the original.
+- **The mode's start** (`menu_object_mode_starts`) and **the map's setup**
+  were functions of the game's state already; the setup's unpacker is a
+  callback (`Unpacker`), now with a C one (`overworld_unpacker_as_c`) beside
+  the machine's. The setup's guard has its state half
+  (`overworld_can_be_set_up`), which the program checks first.
+- **The main loop** (`overworld/main_loop.c`): a pass is one function over
+  `LoopSteps`, the waits, the map's loads again, the screens the loop opens
+  and the registers the original's code reads after a step being callbacks.
+  The machine's entry runs a pass from the loop's head and stops where the
+  pass ends (the head again, the field's start, the halt); the program loops
+  over passes until the scene leaves (`overworld_runs`). The waits' sites
+  and frames, and the loads' sites, are table rows, so the don't-care check
+  reads them.
+- **The vblank handler** (`$C2:015E`): its work is one sequence of six steps
+  (the queue, the frame's input, the sprite list emptied, the sprites hidden,
+  the objects run, the list drawn), each a call of the original's on the
+  machine and C in the program, each with its guard's state half; the
+  handler's line twin only returns. Both are rows of `core/program.c`'s table.
+- **The objects' loop** (`$C2:051D`) takes a turn per slot through a
+  callback: on the machine the original's `JSR` through the slot's handler,
+  in the program a row of a C table (`menu/handlers.c`): the command scripts'
+  interpreter, the screen's objects (the fades, the palette rows, the tile
+  streamer, the mosaic), the layer over the map's drifts and wave, and the
+  drifting map. A handler's guard is its machine half
+  (`menu_object_handler_runs`) and a state half the row names
+  (`menu_object_handler_takes`).
+- **The command scripts** run as C on `menu_run_script` with a runner of
+  their own: each command decoded by its row and performed where
+  `menu_script_runs_here` takes it, and the services as C -- the map's scroll
+  and redraw with their guards' state halves, the sound request passed on,
+  and the routines a script calls by address, each a row
+  (`MENU_SCRIPT_ROUTINES`) beside its entry in its own file: the scenes'
+  routines (`object_commands.c`), their line effects, irises and curtain
+  (`line_effects.c`) and the map scenes' (`map_scenes.c`). Where an entry's
+  work was written into the entry, it moved into a function both call.
+
+**Measured.** Shadow mode over the library: 0 mismatches; the entries whose
+work became a sequence compare every call real play makes
+(`menu_object_nmi` 35,503 with 3 interrupted, `menu_run_objects` 34,743 with
+7, `menu_run_object_script` 392,650 with 20, `overworld_main_loop` 30,652
+with 2, `menu_wait_for_frame` 33,776, `menu_wait_frames_sending_the_sound`
+380). Refusals in real play: 0; fallbacks unchanged (the reference play 3.5
+KiB, 554,128 instructions; the shipping mode 0.6 KiB, 18,033). The census:
+259 entries the machine enters, as before -- the machine's entries are the
+same, and what moved is that the program reaches them as C.
+`tools/machine_joints.py`: 180 stops (181), 129 time tags that take the
+machine (132), and the register escapes as they were (24: the scripts'
+write of a picture register, which both runners make, moved into
+`script.c` beside the test of it). Timing: no row recalibrated;
+the frame wait's first draft read the frame count twice and drifted
++47.6%, which reading it once put back. A cartridge word the world map's
+setup clears VRAM with (`$C2:26D4`) joined the catalogue of resources
+(`menu_vram_clearing_zero`), as the menus' clearing zero did.
+
+What the world map still hands the machine when the program runs it: the
+walkers, the vehicles and the sign (the overworld's handlers, which only a
+map the party walks runs), the map view and the time dial, and the menus
+opened from the map, which go as far as the menus' own C does (TODO.md,
+"The native program").
 
 ### The last refusals in real play: the attract demo's states
 
