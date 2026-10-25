@@ -32,6 +32,8 @@ void field_frame_goes_on_with_the_script_layers(Snes *s);
 void field_frame_goes_on_with_the_frame_work(Snes *s);
 void field_frame_work(Snes *s);
 void field_refresh_effects(Snes *s);
+/* The same as C ($C0:00DE): the line effects' tables built, the palettes animated. */
+void field_effects_refreshed(GameState *g);
 void field_walk_a_frame(Snes *s);
 void field_finish_frame(Snes *s);
 void field_wait_for_the_next_frame(Snes *s);
@@ -93,6 +95,13 @@ void field_load_location(Snes *s);
 bool field_load_the_location(GameState *g, Platform *pf);
 void field_put_aside_for_a_menu(Snes *s);
 void field_set_up_after_a_menu(Snes *s);
+/* The same as C ($C0:01A5): false where a step is the machine's yet, the
+ * program going no further there. */
+bool field_set_up_again_as_c(GameState *g, Platform *pf);
+/* Whether the party's places are ones the field keeps for a menu as the port
+ * does: the leader an object or none, the members objects the tables hold or
+ * none (the put-aside's guard). */
+bool field_party_can_be_kept(const GameState *g);
 void field_start_location_song(Snes *s);
 void field_load_tile_graphics(Snes *s);
 void field_load_bg3_graphics(Snes *s);

@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
 
@@ -25,5 +26,12 @@ bool menu_fade_out_from(Snes *s, uint32_t site);
 void menu_fade_the_screen_out(Snes *s);
 void menu_start_the_fade_in_entry(Snes *s);
 void menu_fade_in_task(Snes *s);
+
+/* The same as C, from inside a task (menu/tasks.c's coroutines): the screen
+ * faded out to black and its last frame waited; and the fade in's task, by
+ * its start. */
+void menu_fade_out_as_c(GameState *g);
+enum { MENU_FADE_IN_TASK_START = 0x83BD };
+void menu_fade_in_task_as_c(GameState *g, Platform *pf);
 
 #endif

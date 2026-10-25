@@ -695,6 +695,12 @@ typedef struct {
     bool mode_from_data;
     uint8_t mode;
     const VidVramPort *port;   /* how VRAM steps, where the transfer sets it (vid_snes_copy) */
+    /* A transfer into work RAM's data port (VID_SNES_WRAM_DATA): where in work
+     * RAM the port points, which the game set through its own port (cpu_io.h),
+     * and whether the transfer repeats its source's byte (a clear) rather than
+     * copying a run. The SNES backend has the port; a host writes there. */
+    uint32_t wram_at;
+    bool repeats;
 } VidSnesTransfer;
 /* The escape, with the channel programmed as the original did at the site. */
 PF_API void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t);
@@ -729,6 +735,7 @@ enum {
     VID_SNES_VRAM_DATA_HIGH = 0x19,      /* ... and its high byte */
     VID_SNES_MULTIPLIER_PRODUCT = 0x34,  /* the Mode 7 multiplier's product, which the clears copy */
     VID_SNES_VRAM_READ = 0x39,           /* the VRAM read port */
+    VID_SNES_WRAM_DATA = 0x80,           /* work RAM's data port, which the menus' clears and copies fill */
 };
 
 /* ---- observer (docs/PLATFORM.md, P2) ------------------------------------------

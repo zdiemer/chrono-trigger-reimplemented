@@ -66,16 +66,17 @@ static void leave_the_step_s_sum(Snes *s, uint8_t before, int8_t step)
  * held for a frame, until it is full or black. A fade that reached black has
  * its last frame still to wait; one stopped is where the port stops (the
  * task never came back from a wait). With the end, the brightness the last
- * step started from. */
+ * step started from. The frame's wait between the steps is the task's: as C,
+ * or on the machine (below); false where the task never came back. */
 typedef enum { FADE_DONE, FADE_AT_BLACK, FADE_STOPPED } FadeEnd;
 typedef struct {
     FadeEnd end;
     uint8_t last_from;
 } Fade;
+typedef bool (*FadeWait)(void *ctx);
 
-static Fade fade(Snes *s, int8_t step)
+static Fade fade(GameState *g, int8_t step, FadeWait wait, void *ctx)
 {
-    GameState *g = state_of(s);
     ORIGINAL_EFFECT(leave_the_fade(g, step));
     for (;;) {
         uint8_t before = brightness(g);
@@ -89,33 +90,84 @@ static Fade fade(Snes *s, int8_t step)
             return (Fade){ FADE_DONE, before };
         }
         set_brightness(g, (uint8_t)level);
-        m_set_a8(s, FRAMES_A_STEP);
-        if (!menu_yield(s, BETWEEN_THE_STEPS, WAIT_FRAMES, THE_WAITS_IGNORE_THE_FLAGS))
+        if (!wait(ctx))
             return (Fade){ FADE_STOPPED, before };
     }
 }
 
-/* The same as the original's routine for it, called from the JSR at `site`:
- * the steps inside its frame, then, at black, the last frame's wait, which
- * returns to the caller as the routine's return would. */
-static bool fade_from(Snes *s, uint32_t site, int8_t step)
+/* The fade out, as the routine for it ($C2:83CA) does it, called or jumped
+ * to: the steps, inside its frame where it was called. At black its last
+ * frame's wait, which hands the screen on, is the caller's: as C a frame's
+ * wait, on the machine the task switch's from where the routine was entered. */
+// $C2:83CA
+static Fade fade_out(GameState *g, FadeWait between, void *ctx, bool called)
 {
     Fade f;
-    IN_THE_ORIGINALS_FRAME(state_of(s), ORIGINAL_RETURN_BYTES, f = fade(s, step));
+    if (called)
+        IN_THE_ORIGINALS_FRAME(g, ORIGINAL_RETURN_BYTES, f = fade(g, FADE_OUT_STEP, between, ctx));
+    else
+        f = fade(g, FADE_OUT_STEP, between, ctx);
+    return f;
+}
+
+/* The fade in's task: a frame for the screen to be drawn, then the fade up
+ * to full brightness, called as the routine's; the task ends after. */
+// $C2:83BD
+static bool fade_in_task(GameState *g, FadeWait first_frame, FadeWait between, void *ctx)
+{
+    if (!first_frame(ctx))
+        return false;
+    Fade f;
+    IN_THE_ORIGINALS_FRAME(g, ORIGINAL_RETURN_BYTES, f = fade(g, FADE_IN_STEP, between, ctx));
+    return f.end == FADE_DONE;
+}
+
+/* ---- As C, from inside a task (menu/tasks.c's coroutines) ----------------------------------- */
+
+static bool wait_as_c(void *ctx)
+{
+    menu_task_waits_as_c(ctx, FRAMES_A_STEP);
+    return true;
+}
+
+void menu_fade_out_as_c(GameState *g)
+{
+    if (fade_out(g, wait_as_c, g, true).end == FADE_AT_BLACK)
+        menu_task_waits_as_c(g, 1);
+}
+
+void menu_fade_in_task_as_c(GameState *g, Platform *pf)
+{
+    (void)pf;
+    (void)fade_in_task(g, wait_as_c, wait_as_c, g);
+}
+
+/* ---- On the machine ------------------------------------------------------------------------ */
+
+/* The wait between the steps: the task switch's for the frames in A. */
+static bool wait_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    m_set_a8(s, FRAMES_A_STEP);
+    return menu_yield(s, BETWEEN_THE_STEPS, WAIT_FRAMES, THE_WAITS_IGNORE_THE_FLAGS);
+}
+
+/* Called from the JSR at `site`, the last wait returns to the caller as the
+ * routine's return would. */
+bool menu_fade_out_from(Snes *s, uint32_t site)
+{
+    Fade f = fade_out(state_of(s), wait_on_the_machine, s, true);
     if (f.end != FADE_AT_BLACK)
         return f.end == FADE_DONE;
-    leave_the_step_s_sum(s, f.last_from, step);
+    leave_the_step_s_sum(s, f.last_from, FADE_OUT_STEP);
     return menu_yield(s, site, MENU_TASK_WAITS_A_FRAME, THE_LAST_KEEPS_ALL);
 }
 
-// $C2:83CA
-bool menu_fade_out_from(Snes *s, uint32_t site) { return fade_from(s, site, FADE_OUT_STEP); }
-
-/* The same where a screen's step jumps to it as its last, which returns to
- * the step's caller: at black the last frame's wait is the jump's. */
+/* Jumped to as a screen's step's last, the last wait is the jump's, and
+ * returns to the step's caller. */
 void menu_fade_the_screen_out(Snes *s)
 {
-    Fade f = fade(s, FADE_OUT_STEP);
+    Fade f = fade_out(state_of(s), wait_on_the_machine, s, false);
     switch (f.end) {
     case FADE_AT_BLACK:
         leave_the_step_s_sum(s, f.last_from, FADE_OUT_STEP);
@@ -129,7 +181,7 @@ void menu_fade_the_screen_out(Snes *s)
 /* ---- The fade in, a task of its own ---------------------------------------------------------- */
 
 /* The task's start, in the menus' bank. */
-enum { FADE_IN_TASK = 0, FADE_IN_TASK_START = 0x83BD };
+enum { FADE_IN_TASK = 0, FADE_IN_TASK_START = MENU_FADE_IN_TASK_START };
 
 // $C2:83B2
 void menu_start_the_fade_in(GameState *g) { menu_start_task(g, FADE_IN_TASK, FADE_IN_TASK_START); }
@@ -155,15 +207,19 @@ void menu_start_the_fade_in_entry(Snes *s)
 /* Where the task ends ($C2:8216), which reads nothing the fade leaves. */
 enum { THE_TASK_ENDS = 0xC28216, ENDING_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
-// $C2:83BD
-/* The task: a frame for the screen to be drawn, then the fade up to full
- * brightness, and the task's end. */
+/* The task on the machine: its first frame's wait from the task's start, the
+ * fade from its JSR with an 8-bit accumulator, and the end the scheduler's. */
+static bool first_frame_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    if (!menu_wait_a_frame_from(s, 0xC283BD))
+        return false;
+    menu_set_widths(s, true, false);
+    return true;
+}
+
 void menu_fade_in_task(Snes *s)
 {
-    if (!menu_wait_a_frame_from(s, 0xC283BD))
-        return;
-    menu_set_widths(s, true, false);
-    if (!fade_from(s, 0xC283C4, FADE_IN_STEP))
-        return;
-    menu_go_on_in(s, THE_TASK_ENDS, menu_task_ends, ENDING_READS_NOTHING);
+    if (fade_in_task(state_of(s), first_frame_on_the_machine, wait_on_the_machine, s))
+        menu_go_on_in(s, THE_TASK_ENDS, menu_task_ends, ENDING_READS_NOTHING);
 }

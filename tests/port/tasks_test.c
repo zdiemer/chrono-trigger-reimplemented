@@ -1,7 +1,8 @@
 /* Checks the tasks as coroutines (game/core/tasks.c) on made-up tasks: the
  * turns in slot order once a frame, a wait deep in a task's own calls, a task
- * that ends, one stopped where it waits, a slot started again, and the tasks
- * ended. Exits non-zero on failure.
+ * that ends, one stopped where it waits, a slot started again, a turn of one
+ * slot taken in the caller's order, and the tasks ended. Exits non-zero on
+ * failure.
  *
  *   tasks_test */
 #include <stdio.h>
@@ -98,6 +99,12 @@ int main(void)
     frame();
     frame();
     CHECK(!strcmp(order, "dc|dc|"), "A stopped where it waited, B's slot started again: %s", order);
+
+    order_len = 0;
+    tasks_take_a_turn(&tasks, 2);
+    tasks_take_a_turn(&tasks, 1);
+    tasks_take_a_turn(&tasks, 0);
+    CHECK(!strcmp(order, "cd"), "a turn of each slot in the caller's order, none for a stopped one: %s", order);
 
     tasks_end(&tasks);
     order_len = 0;

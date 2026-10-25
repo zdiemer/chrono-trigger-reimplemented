@@ -19,6 +19,8 @@ void field_fade_in(Snes *s);
  * further there (core/program.h). */
 bool field_screen_set_up(GameState *g, Platform *pf);
 bool field_fade_in_as_c(GameState *g, Platform *pf);
+/* The same after a menu, the effects only going on as it brightens. */
+bool field_fade_in_after_a_menu_as_c(GameState *g, Platform *pf);
 void field_fade_in_after_a_menu(Snes *s);
 void field_draw_the_objects_in_view(Snes *s);
 bool field_objects_in_view_can_be_drawn(Snes *s);

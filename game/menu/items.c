@@ -15,6 +15,7 @@
 #include "menu/items.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/figures.h"
@@ -344,17 +345,23 @@ void menu_copy_past_the_names_now(GameState *g) { set_menu_copy_past_the_names(g
 static void leave_tables_built(GameState *g) { set_menu_scratch_graphics_count(g, ARMED); }
 
 // $C2:9875
-void menu_build_items(Snes *s)
+/* The menus' item tables built as they open, the party's techs and
+ * everyone's figures noted, and the bytes after the names copied. */
+void menu_items_built(GameState *g)
 {
-    GameState *g = state_of(s);
-    menu_save_p(s);
     menu_build_item_tables(g);
-    menu_set_widths(s, true, false);
-    s->cpu.db = MENU_DATA_BANK;   /* as the tables' block moves leave it */
     ORIGINAL_EFFECT(leave_tables_built(g));
     TIMED_AS(g, 0xFFF813, menu_note_party_techs(g));
     TIMED_AS(g, 0xC299B2, menu_note_everyones_figures(g));
     menu_copy_past_the_names_now(g);
+}
+
+void menu_build_items(Snes *s)
+{
+    menu_save_p(s);
+    menu_items_built(state_of(s));
+    menu_set_widths(s, true, false);
+    s->cpu.db = MENU_DATA_BANK;   /* as the tables' block moves leave it */
     menu_restore_p(s);
     m_rts(s);
 }
@@ -399,14 +406,29 @@ void menu_find_item_figures(Snes *s)
  * name places counted from the zero word the menus keep 0; every
  * character's figures and the party's techs are noted after them
  * (menu/figures.c and menu/techs.c, whose guards this takes). */
+bool menu_items_can_be_built(const GameState *g)
+{
+    return menu_everyones_figures_can_be_noted(g) && menu_party_techs_can_be_noted(g) && menu_zero(g) == 0;
+}
+
 bool menu_items_are_buildable(Snes *s)
 {
-    if (!menu_everyones_figures_are_notable(s) || !menu_party_techs_are_notable(s))
+    if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_zero(state_of(s)) == 0;
+    bool ok = menu_items_can_be_built(state_of(s));
     vars_peek(false);
     return ok;
+}
+
+bool menu_items_built_as_c(GameState *g)
+{
+    if (!menu_items_can_be_built(g)) {
+        program_needs_the_machine(g, 0xC29875, "item tables the port doesn't build");
+        return false;
+    }
+    menu_items_built(g);
+    return true;
 }
 
 /* The figures' lookup takes the item looked up last, which is of one of the

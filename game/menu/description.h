@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
 
@@ -51,6 +52,12 @@ void menu_leave_typing_started(Snes *s);
 void menu_start_typing_entry(Snes *s);
 void menu_describe_setting_entry(Snes *s);
 void menu_send_the_typing_entry(Snes *s);
+/* The typing's three tasks, by their starts, as C (menu/tasks.c's
+ * coroutines): a description, a setting's option and value, a value. */
+enum { MENU_TYPE_A_DESCRIPTION = 0xFA9F, MENU_TYPE_A_SETTING = 0xF9B2, MENU_TYPE_A_VALUE = 0xFA06 };
+void menu_type_the_description_task_as_c(GameState *g, Platform *pf);
+void menu_type_the_setting_task_as_c(GameState *g, Platform *pf);
+void menu_type_the_value_task_as_c(GameState *g, Platform *pf);
 void menu_type_the_description_task(Snes *s);
 void menu_type_the_setting_task(Snes *s);
 void menu_type_the_value_task(Snes *s);

@@ -1,15 +1,16 @@
 /* Naming a character on the original's machine: the screen's steps, the
  * routines of them that tick or buzz, and their guards (game/menu/naming.c
- * is the naming).
+ * is the naming, and its steps).
  *
- * The cursor's tick and the refusal's buzz are siblings run as the
- * original's JSRs reach them (menu_run): each saves P as it starts and
- * calls the sound driver, so the flags the original has there are on the
- * stack, where shadow mode compares them; the routines a step reaches with
- * a JSR and that tick are entries of their own, run the same way. The fade
- * in, the fade out and the leaving of the menus are jumps the steps stop at.
- * Before each of those calls a bridge leaves the flags the original's own
- * tests left (scaffolding, at the end of the file). */
+ * The steps are naming.c's, run here with the machine's answers to what they
+ * ask of the menus: the cursor's tick and the refusal's buzz are siblings run
+ * as the original's JSRs reach them (menu_run), each saving P as it starts and
+ * calling the sound driver, so the flags the original has there are on the
+ * stack, where shadow mode compares them; the routines a step reaches with a
+ * JSR and that tick are entries of their own, run the same way. The fade in,
+ * the fade out and the leaving of the menus are jumps the steps stop at.
+ * Before each of those calls a step leaves the flags the original's own tests
+ * left (scaffolding, at the end of the file, at the steps' notes). */
 #include "menu/naming.h"
 
 #include "charge.h"
@@ -33,28 +34,8 @@ enum {
 };
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
-static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, CURSOR_SOUND, menu_play_cursor_sound); }
-
-static void read_cursor(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuCursorRead r = menu_note_cursor_read(g);
-    (void)r;
-    TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
-    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
-}
-
 static void leave_buttons_tested(Snes *s);
 static void leave_mode_described(Snes *s, uint8_t shown);
-
-/* The battle mode under the cursor described. */
-static void describe_the_mode(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t shown = menu_description_item(g);
-    TIMED_AS(g, 0xC2E5D3, menu_naming_describe_the_battle_mode(g));
-    ORIGINAL_EFFECT(leave_mode_described(s, shown));
-}
 static void leave_moved_on_the_grid(Snes *s);
 static void leave_cursor_compared(Snes *s);
 static void leave_answer(Snes *s, bool given);
@@ -62,165 +43,107 @@ static void leave_name_found(Snes *s);
 static void leave_start_pressed(Snes *s);
 static void leave_pressed_loaded(Snes *s);
 
-/* The steps, as the screen's table has them. */
-enum { NAMING = 1, BATTLE_MODE = 2, WAITING_TO_NAME = 4 };
+/* ---- What the steps ask of the menus, on the machine ---------------------------------------------- */
 
-/* ---- Opening ------------------------------------------------------------------------------------- */
+static void read_cursor(void *ctx) { menu_step_reads_the_cursor(ctx); }
+
+static bool sound(void *ctx, uint32_t site, MenuSound sound)
+{
+    Snes *s = ctx;
+    return sound == MENU_SOUND_REFUSAL ? menu_run(s, site, REFUSAL_SOUND, menu_play_refusal_sound)
+                                       : menu_run(s, site, CURSOR_SOUND, menu_play_cursor_sound);
+}
+
+/* The routines' entries, by routine, and the JSRs the steps reach them by. */
+static const struct {
+    void (*entry)(Snes *);
+    uint32_t site;
+} routine_entries[] = {
+    [NAMING_MOVE_ON_THE_GRID] = { menu_move_on_the_name_grid, 0xC2E221 },
+    [NAMING_TYPE_ON_THE_GRID] = { menu_type_on_the_name_grid, 0xC2E28A },
+    [NAMING_ACCEPT_THE_NAME] = { menu_accept_the_name, 0xC2E22C },
+    [NAMING_CHECK_THE_NAME] = { menu_check_the_name, 0xC2E36F },
+};
+
+static bool routine(void *ctx, NamingRoutine r)
+{
+    return menu_run(ctx, routine_entries[r].site, menu_naming_routine_address(r), routine_entries[r].entry);
+}
+
+static void note(void *ctx, NamingNote n, uint8_t value)
+{
+    Snes *s = ctx;
+    switch (n) {
+    case NAMING_NOTE_PRESSED_LOADED: ORIGINAL_EFFECT(leave_pressed_loaded(s)); break;
+    case NAMING_NOTE_MODE_DESCRIBED: ORIGINAL_EFFECT(leave_mode_described(s, value)); break;
+    case NAMING_NOTE_BUTTONS_TESTED: ORIGINAL_EFFECT(leave_buttons_tested(s)); break;
+    case NAMING_NOTE_CURSOR_COMPARED: ORIGINAL_EFFECT(leave_cursor_compared(s)); break;
+    case NAMING_NOTE_LETTERS_LOADED: ORIGINAL_EFFECT(menu_leave_load(s, value)); break;
+    case NAMING_NOTE_MOVED_ON_THE_GRID: ORIGINAL_EFFECT(leave_moved_on_the_grid(s)); break;
+    case NAMING_NOTE_NAME_QUEUED: ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_FRONT_LAYER)); break;
+    case NAMING_NOTE_NAME_FOUND: ORIGINAL_EFFECT(leave_name_found(s)); break;
+    case NAMING_NOTE_ANSWERED: ORIGINAL_EFFECT(leave_answer(s, value != 0)); break;
+    case NAMING_NOTE_NAME_KEPT: ORIGINAL_EFFECT(menu_leave_a_high_byte_set(s)); break; /* the block move that kept it */
+    case NAMING_NOTE_START_PRESSED: ORIGINAL_EFFECT(leave_start_pressed(s)); break;
+    }
+}
+
+/* The steps' ends are the original's jumps, which the port stops at. */
+static bool ends(void *ctx, NamingEnd end)
+{
+    Snes *s = ctx;
+    switch (end) {
+    case NAMING_FADES_IN: m_stop_at(s, FADE_IN, READS_NOTHING); break;
+    case NAMING_FADES_OUT: m_stop_at_own(s, FADE_OUT, READS_A_HIGH); break;
+    case NAMING_LEAVES_THE_MENUS: m_stop_at(s, LEAVE_THE_MENUS, READS_NOTHING); break;
+    }
+    return false;
+}
+
+static const NamingSteps on_the_machine = { read_cursor, sound, routine, note, ends };
+
+/* ---- The steps -------------------------------------------------------------------------------------- */
+
+static void step(Snes *s, NamingStep at)
+{
+    if (menu_naming_step(state_of(s), m_platform(s), at, &on_the_machine, s))
+        m_rts(s);
+}
 
 // $C2:E201
-/* The naming drawn, then on to its wait as it fades in. */
-void menu_open_the_naming(Snes *s)
-{
-    GameState *g = state_of(s);
-    TIMED_AS(g, 0xC2E40E, menu_naming_open(g, m_platform(s)));
-    set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1));
-    m_stop_at(s, FADE_IN, READS_NOTHING);
-}
-
+void menu_open_the_naming(Snes *s) { step(s, NAMING_OPEN_THE_NAMING); }
 // $C2:E1ED
-/* At a new game's first naming, the battle mode's screen first; otherwise
- * the naming. */
-void menu_open_naming_screen(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (!menu_naming_asks_the_battle_mode_first(g)) {
-        menu_open_the_naming(s);
-        return;
-    }
-    TIMED_AS(g, 0xC2E576, menu_naming_open_the_battle_mode(g, m_platform(s)));
-    set_menu_screen_step(g, BATTLE_MODE);
-    m_stop_at(s, FADE_IN, READS_NOTHING);
-}
-
+void menu_open_naming_screen(Snes *s) { step(s, NAMING_OPEN_THE_SCREEN); }
 // $C2:E209
-/* Any button takes the cursor to the naming, with a tick. */
-void menu_wait_to_name(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (menu_naming_waits(g)) {
-        m_rts(s);
-        return;
-    }
-    ORIGINAL_EFFECT(leave_pressed_loaded(s));
-    if (!tick(s, 0xC2E20E))
-        return;
-    menu_naming_take_the_cursor(g);
-    m_rts(s);
-}
-
+void menu_wait_to_name(Snes *s) { step(s, NAMING_WAIT_TO_NAME); }
 // $C2:E236
-/* The mode on the cursor described; choosing one sets it and goes on to
- * the naming as the screen fades out; a tick where the cursor moved. */
-void menu_choose_battle_mode(Snes *s)
+void menu_choose_battle_mode(Snes *s) { step(s, NAMING_CHOOSE_BATTLE_MODE); }
+// $C2:E21E
+void menu_name_the_character(Snes *s) { step(s, NAMING_NAME_THE_CHARACTER); }
+
+/* The routines; the moving and the accepting save P as they start, and put
+ * it back as they end. */
+static void routine_entry(Snes *s, NamingRoutine r, bool keeps_p)
 {
-    GameState *g = state_of(s);
-    read_cursor(s);
-    describe_the_mode(s);
-    ORIGINAL_EFFECT(leave_buttons_tested(s));
-    if (menu_asked(g, MENU_CHOOSE)) {
-        menu_naming_choose_the_battle_mode(g);
-        m_stop_at_own(s, FADE_OUT, READS_A_HIGH);
-        return;
+    if (keeps_p) {
+        menu_save_p(s);
+        menu_set_widths(s, true, m_x8(s));
     }
-    bool moved = menu_cursor_index(g) != menu_cursor_frame_start(g);
-    ORIGINAL_EFFECT(leave_cursor_compared(s));
-    if (moved && !tick(s, 0xC2E248))
+    if (!menu_naming_routine(state_of(s), m_platform(s), r, &on_the_machine, s))
         return;
+    if (keeps_p)
+        menu_restore_p(s);
     m_rts(s);
 }
-
-/* ---- Naming -------------------------------------------------------------------------------------- */
 
 // $C2:E2F4
-/* A letter typed or taken back, with a tick; the name drawn again. */
-void menu_type_on_the_name_grid(Snes *s)
-{
-    GameState *g = state_of(s);
-    NamingTyped t = menu_naming_type(g);
-    if (t == NAMING_LETTER_TAKEN_BACK)
-        ORIGINAL_EFFECT(menu_leave_load(s, (uint8_t)menu_name_letters(g)));
-    if (t != NAMING_NOTHING_TYPED && !tick(s, 0xC2E30D))
-        return;
-    menu_naming_draw_the_name(g, m_platform(s));
-    m_rts(s);
-}
-
+void menu_type_on_the_name_grid(Snes *s) { routine_entry(s, NAMING_TYPE_ON_THE_GRID, false); }
 // $C2:E267
-/* The cursor moved about the grid, with a tick where it did; the typing;
- * the name and its cursor shown. */
-void menu_move_on_the_name_grid(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_save_p(s);
-    menu_set_widths(s, true, m_x8(s));
-    bool moved = menu_naming_move_on_the_grid(g);
-    ORIGINAL_EFFECT(leave_moved_on_the_grid(s));
-    if (moved && !tick(s, 0xC2E287))
-        return;
-    ORIGINAL_EFFECT(leave_buttons_tested(s));
-    if (!menu_run(s, 0xC2E28A, 0xC2E2F4, menu_type_on_the_name_grid))
-        return;
-    menu_naming_show_the_name(g);
-    ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_FRONT_LAYER));
-    menu_restore_p(s);
-    m_rts(s);
-}
-
+void menu_move_on_the_name_grid(Snes *s) { routine_entry(s, NAMING_MOVE_ON_THE_GRID, true); }
 // $C2:E3E0
-/* The name kept checked against every character's: where someone has it,
- * the refusal's buzz. */
-void menu_check_the_name(Snes *s)
-{
-    GameState *g = state_of(s);
-    bool someone = menu_naming_someone_has_it(g);
-    if (someone) {
-        ORIGINAL_EFFECT(leave_name_found(s));
-        if (!menu_run(s, 0xC2E3FB, REFUSAL_SOUND, menu_play_refusal_sound))
-            return;
-    }
-    ORIGINAL_EFFECT(leave_answer(s, !someone));
-    m_rts(s);
-}
-
+void menu_check_the_name(Snes *s) { routine_entry(s, NAMING_CHECK_THE_NAME, false); }
 // $C2:E363
-/* The name kept and checked, and given where it can be: A none where it
- * was given, $FF where it wasn't. */
-void menu_accept_the_name(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_save_p(s);
-    menu_set_widths(s, true, m_x8(s));
-    menu_naming_keep_the_name(g);
-    ORIGINAL_EFFECT(menu_leave_a_high_byte_set(s)); /* the block move that kept the name */
-    if (!menu_run(s, 0xC2E36F, 0xC2E3E0, menu_check_the_name))
-        return;
-    bool given = !menu_naming_someone_has_it(g) && menu_naming_give_the_name(g);
-    ORIGINAL_EFFECT(leave_answer(s, given));
-    menu_restore_p(s);
-    m_rts(s);
-}
-
-// $C2:E21E
-/* A frame of the naming; Start accepts the name, and the menus close once
- * it is given. */
-void menu_name_the_character(Snes *s)
-{
-    GameState *g = state_of(s);
-    read_cursor(s);
-    if (!menu_run(s, 0xC2E221, 0xC2E267, menu_move_on_the_name_grid))
-        return;
-    if (!menu_naming_started(g)) {
-        m_rts(s);
-        return;
-    }
-    ORIGINAL_EFFECT(leave_start_pressed(s));
-    if (!menu_run(s, 0xC2E22C, 0xC2E363, menu_accept_the_name))
-        return;
-    if (menu_naming_name_given(g))
-        m_stop_at(s, LEAVE_THE_MENUS, READS_NOTHING);
-    else
-        m_rts(s);
-}
+void menu_accept_the_name(Snes *s) { routine_entry(s, NAMING_ACCEPT_THE_NAME, true); }
 
 /* ---- The entries of the naming's C ---------------------------------------------------------------- */
 
@@ -345,18 +268,7 @@ static void leave_answer(Snes *s, bool given)
 
 /* ---- The guards ---------------------------------------------------------------------------------- */
 
-/* The naming names one of the seven characters or the Epoch; its grid's
- * cursor within the grid, and the name typed no longer than five
- * letters. */
-enum { NAMED_ONES = 8, GRID_ROWS = 8, GRID_COLUMNS = 10, NAME_LETTERS = 5 };
-
-static bool naming(const GameState *g)
-{
-    return (uint8_t)menu_screen_argument(g) < NAMED_ONES && menu_naming_keeps_the_named_ones_record(g)
-           && menu_name_grid_row(g) < GRID_ROWS
-           && menu_name_grid_column(g) < GRID_COLUMNS && menu_name_letters(g) <= NAME_LETTERS;
-}
-
+/* What the steps take (naming.c), on the menus' page. */
 static bool peek(Snes *s, bool (*test)(const GameState *))
 {
     if (!menu_on_page_work_ram(s))
@@ -367,9 +279,7 @@ static bool peek(Snes *s, bool (*test)(const GameState *))
     return ok;
 }
 
-static bool opens(const GameState *g) { return (uint8_t)menu_screen_argument(g) < NAMED_ONES; }
-
-bool menu_naming_opens(Snes *s) { return peek(s, opens); }
-bool menu_naming_runs(Snes *s) { return peek(s, naming); }
-bool menu_naming_name_is_checkable(Snes *s) { return peek(s, naming); }
-bool menu_naming_step_runs(Snes *s) { return peek(s, naming) && menu_cursor_is_movable(s); }
+bool menu_naming_opens(Snes *s) { return peek(s, menu_naming_names_one); }
+bool menu_naming_runs(Snes *s) { return peek(s, menu_naming_is_whole); }
+bool menu_naming_name_is_checkable(Snes *s) { return peek(s, menu_naming_is_whole); }
+bool menu_naming_step_runs(Snes *s) { return peek(s, menu_naming_is_whole) && menu_cursor_is_movable(s); }

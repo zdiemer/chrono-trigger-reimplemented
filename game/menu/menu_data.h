@@ -235,6 +235,10 @@ static inline uint32_t menu_enemy_name(const GameState *g, uint8_t enemy)
 /* Marle's real name, five glyphs ($C2:6146). */
 enum { MENU_MARLE_REAL_NAME = 0xC26146 };
 
+/* The zero the screen's setup fills VRAM with and clears the menus' buffers
+ * in work RAM with, a fixed transfer's source ($C2:9510). */
+enum { MENU_CLEARING_ZERO = 0xC29510 };
+
 /* ---- Text --------------------------------------------------------------------------------- */
 
 /* The menus' strings, and the numbers they show, wherever the caller's

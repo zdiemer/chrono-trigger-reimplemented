@@ -23,6 +23,10 @@
 #include "menu/menu.h"
 
 #include "charge.h"
+#include "core/program.h"
+#include "core/tasks.h"
+#include "menu/description.h"
+#include "menu/fades.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/held_cursors.h"
@@ -81,24 +85,28 @@ static TaskTurn next_turn(GameState *g, unsigned task)
 // $C2:821E, $C2:822B
 /* The running task waits `frames` frames (a frame, mostly), in the screen
  * step it is in; the next task goes on. Where it goes on from is the
- * machine's, which its entries keep. */
-static TaskTurn task_waits(GameState *g, uint8_t frames)
+ * machine's stack, or the task's coroutine. The task that waited. */
+static unsigned record_the_wait(GameState *g, uint8_t frames)
 {
     unsigned task = running_task(g);
     set_menu_tasks_state(g, task, TASK_WAITING);
     set_menu_tasks_countdown(g, task, frames);
     set_menu_tasks_step(g, task, menu_screen_step(g));
-    return next_turn(g, task + 1);
+    return task;
 }
+
+static TaskTurn task_waits(GameState *g, uint8_t frames) { return next_turn(g, record_the_wait(g, frames) + 1); }
 
 // $C2:8216
 /* The running task ends; the next task goes on. */
-static TaskTurn task_ends(GameState *g)
+static unsigned record_the_end(GameState *g)
 {
     unsigned task = running_task(g);
     set_menu_tasks_state(g, task, TASK_STOPPED);
-    return next_turn(g, task + 1);
+    return task;
 }
+
+static TaskTurn task_ends(GameState *g) { return next_turn(g, record_the_end(g) + 1); }
 
 /* A task going on from where it waited is back in the screen step it waited
  * in. */
@@ -337,15 +345,20 @@ static void clear_the_tasks(GameState *g)
 }
 
 // $C2:8190
-/* The tasks started as the menus open, then the wait for the first frame's
- * uploads and the frame's turns (its entry's, $C2:81B9). */
-void menu_start_the_tasks(Snes *s)
+/* The tasks started as the menus open. */
+static void start_the_tasks(GameState *g)
 {
-    GameState *g = state_of(s);
     clear_the_tasks(g);
     menu_start_task(g, MAIN_TASK, MAIN_TASK_HEAD);
     set_menu_cursor_sprite(g, THE_POINTING_HAND);
     menu_start_task(g, MENU_CURSOR_TASK, CURSOR_TASK_HEAD);
+}
+
+/* Then the wait for the first frame's uploads and the frame's turns (its
+ * entry's, $C2:81B9). */
+void menu_start_the_tasks(Snes *s)
+{
+    start_the_tasks(state_of(s));
     NATIVE_TIME_AS(s, 0xC281B9, menu_wait_for_the_first_frame(s));
 }
 
@@ -455,13 +468,48 @@ enum { RECORDS_TASK_WAIT = 0xC2F696 };
 
 void menu_records_task_waits(Snes *s) { wait_in_the_loop(s, RECORDS_TASK_WAIT, true); }
 
+/* A loop's turn takes a wait for the next frame, as C or on the machine;
+ * false where the task never came back to it. */
+typedef bool (*LoopWait)(void *ctx);
+
 // $C2:826F
 /* The main task's turn, from its start and from its wait: the screen's step,
+ * then the wait. The step is the screen's (menu/screens.c), as C or on the
+ * machine; false where either went no further. */
+static bool main_task_turn(bool (*screen_step)(void *ctx), LoopWait wait, void *ctx)
+{
+    return screen_step(ctx) && wait(ctx);
+}
+
+// $C2:E91B, $C2:E921
+/* The cursor's task's turn: the menus' sprites hidden and the cursor placed,
  * then the wait. */
+static bool cursor_task_turn(GameState *g, LoopWait wait, void *ctx)
+{
+    TIMED_AS(g, 0xC2E92D, menu_reset_sprites_and_cursor(g));
+    return wait(ctx);
+}
+
+/* On the machine a loop's turn is one call of its entry: the wait goes on
+ * into the next task, and the loop's next turn is the entry again, from the
+ * wait's return. */
+static bool screen_step_on_the_machine(void *ctx) { return menu_run_the_screen_s_step(ctx); }
+
+static bool main_task_waits_on_the_machine(void *ctx)
+{
+    wait_in_the_loop(ctx, MAIN_TASK_WAIT, false);
+    return false;
+}
+
+static bool cursor_task_waits_on_the_machine(void *ctx)
+{
+    wait_in_the_loop(ctx, CURSOR_TASK_WAIT, false);
+    return false;
+}
+
 void menu_run_the_main_task(Snes *s)
 {
-    if (menu_run_the_screen_s_step(s))
-        wait_in_the_loop(s, MAIN_TASK_WAIT, false);
+    (void)main_task_turn(screen_step_on_the_machine, main_task_waits_on_the_machine, s);
 }
 
 // $C2:826C
@@ -469,14 +517,8 @@ void menu_run_the_main_task(Snes *s)
  * code (one that ended in a sibling's routine). */
 void menu_main_task_waits(Snes *s) { wait_in_the_loop(s, MAIN_TASK_WAIT, false); }
 
-// $C2:E91B, $C2:E921
 /* The cursor's task (MENU_CURSOR_TASK), from its start and from its wait. */
-void menu_run_the_cursor_task(Snes *s)
-{
-    GameState *g = state_of(s);
-    TIMED_AS(g, 0xC2E92D, menu_reset_sprites_and_cursor(g));
-    wait_in_the_loop(s, CURSOR_TASK_WAIT, false);
-}
+void menu_run_the_cursor_task(Snes *s) { (void)cursor_task_turn(state_of(s), cursor_task_waits_on_the_machine, s); }
 
 // $C2:8BB8, $C2:8C33
 /* The scroll bar's task (MENU_SCROLL_BAR_TASK), from its start and from its
@@ -486,6 +528,136 @@ void menu_run_the_scroll_bar_task(Snes *s)
     menu_set_widths(s, true, false);
     menu_draw_the_scroll_bar(state_of(s));
     wait_in_the_loop(s, SCROLL_BAR_TASK_WAIT, true);
+}
+
+/* ---- As C, on coroutines -------------------------------------------------------------------- */
+
+/* With no machine each task is a coroutine (core/tasks.h), whose stack is
+ * where it goes on from; the records say which takes its turn and when, as
+ * they do on the machine, and the scheduler above is the same one. A task's
+ * work as C is found by its start, as the original's is by its address. */
+typedef void (*MenuTaskAsC)(GameState *g, Platform *pf);
+
+static void main_task_as_c(GameState *g, Platform *pf);
+static void cursor_task_as_c(GameState *g, Platform *pf);
+
+static const struct {
+    uint16_t start;
+    MenuTaskAsC run;
+} tasks_as_c[] = {
+    { MAIN_TASK_HEAD, main_task_as_c },
+    { CURSOR_TASK_HEAD, cursor_task_as_c },
+    { MENU_FADE_IN_TASK_START, menu_fade_in_task_as_c },
+    { MENU_TYPE_A_DESCRIPTION, menu_type_the_description_task_as_c },
+    { MENU_TYPE_A_SETTING, menu_type_the_setting_task_as_c },
+    { MENU_TYPE_A_VALUE, menu_type_the_value_task_as_c },
+};
+enum { TASKS_AS_C = sizeof tasks_as_c / sizeof tasks_as_c[0] };
+
+/* The menus' coroutines while they are open, and whether a task has closed
+ * them: the one closing them waits for good, and the turns end there. */
+static Tasks the_tasks;
+static bool closed;
+
+/* A task's coroutine: its work, then its end, which the next turn reads in
+ * its record. */
+static void run_a_task(GameState *g, Platform *pf, void *arg)
+{
+    const MenuTaskAsC *run = arg;
+    (*run)(g, pf);
+    if (!closed && !program_went_no_further(g))
+        (void)record_the_end(g);
+}
+
+void menu_tasks_open_as_c(GameState *g, Platform *pf)
+{
+    tasks_init(&the_tasks, g, pf);
+    closed = false;
+    start_the_tasks(g);
+}
+
+void menu_task_waits_as_c(GameState *g, uint8_t frames)
+{
+    (void)record_the_wait(g, frames);
+    tasks_wait_a_frame(&the_tasks);
+}
+
+void menu_tasks_closed_as_c(void)
+{
+    closed = true;
+    for (;;)
+        tasks_wait_a_frame(&the_tasks);
+}
+
+/* A task's turn: from its start, its work found by it, or from where it
+ * waited, in the screen step it waited in. False where its work is none the
+ * port has as C, or the turn closed the menus. */
+static bool take_a_turn_as_c(GameState *g, const TaskTurn *turn)
+{
+    if (turn_starts(turn)) {
+        uint16_t at = task_starts(g, turn->task);
+        unsigned i = 0;
+        while (i < TASKS_AS_C && tasks_as_c[i].start != at)
+            i++;
+        if (i == TASKS_AS_C) {
+            program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | at, "a menus' task only the machine runs");
+            return false;
+        }
+        tasks_start(&the_tasks, (uint8_t)turn->task, run_a_task, (void *)&tasks_as_c[i].run);
+    } else {
+        task_goes_on(g, turn->task);
+    }
+    tasks_take_a_turn(&the_tasks, (uint8_t)turn->task);
+    return !closed && !program_went_no_further(g);
+}
+
+// $C2:81CF
+MenuTurns menu_tasks_take_the_turns_as_c(GameState *g)
+{
+    for (TaskTurn turn = next_turn(g, 0); turn.due; turn = next_turn(g, turn.task + 1))
+        if (!take_a_turn_as_c(g, &turn))
+            return closed ? MENU_TURNS_CLOSED : MENU_TURNS_WENT_NO_FURTHER;
+    return MENU_TURNS_TAKEN;
+}
+
+void menu_tasks_end_as_c(void) { tasks_end(&the_tasks); }
+
+/* The two tasks that run all the time, as C: their turns over and over, the
+ * wait coming back each next frame, until a step goes no further. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} LoopAsC;
+
+static bool screen_step_as_c(void *ctx)
+{
+    LoopAsC *c = ctx;
+    return menu_screen_step_as_c(c->game, c->pf);
+}
+
+static bool loop_waits_as_c(void *ctx)
+{
+    LoopAsC *c = ctx;
+    menu_task_waits_as_c(c->game, 1);
+    return true;
+}
+
+static void main_task_as_c(GameState *g, Platform *pf)
+{
+    LoopAsC c = { g, pf };
+    while (main_task_turn(screen_step_as_c, loop_waits_as_c, &c))
+        ;
+}
+
+/* The cursor's turns while its guard's state half takes them; otherwise the
+ * program goes no further there. */
+static void cursor_task_as_c(GameState *g, Platform *pf)
+{
+    LoopAsC c = { g, pf };
+    while (menu_cursor_can_be_placed(g) && cursor_task_turn(g, loop_waits_as_c, &c))
+        ;
+    if (!menu_cursor_can_be_placed(g))
+        program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | CURSOR_TASK_HEAD, "a cursor the port doesn't place");
 }
 
 /* ---- The guards -------------------------------------------------------------------------------- */

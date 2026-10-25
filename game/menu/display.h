@@ -14,6 +14,12 @@ void menu_build_math_table(GameState *g, Platform *pf);
 /* Send the queued VRAM uploads now, emptying the queue; send the working
  * palette now if it has changed. */
 void menu_send_upload_queue(GameState *g, Platform *pf);
+/* The guards' state halves: the upload queue's entries whole and from memory,
+ * and a block move the frame asked for a buffer's. And the queue sent as C
+ * where it is whole, the program going no further otherwise. */
+bool menu_upload_queue_is_whole(const GameState *g);
+bool menu_block_move_is_a_buffer(const GameState *g);
+bool menu_upload_queue_sent_as_c(GameState *g, Platform *pf);
 void menu_send_palette(GameState *g, Platform *pf);
 
 /* Ask the next vblank to copy a per-line table into the place its channel
@@ -26,7 +32,20 @@ void menu_ask_for_the_block_move(GameState *g);
 void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes);
 void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t at, uint16_t bytes);
 
-/* The mode at $C2:800E (the menus proper) */
+/* The mode at $C2:800E (the menus proper) as the program runs it, with no
+ * machine: asked for `asked_for` with `asked_with` (the screen's argument),
+ * until a screen closes them; false where a step is the machine's yet, the
+ * program going no further there. Its vblank and line handlers, and the
+ * menus closed from inside the task that closes them (which never comes
+ * back). */
+typedef enum { MENUS_WENT_NO_FURTHER, MENUS_CLOSED, MENUS_START_THE_GAME_AGAIN } MenuModeEnd;
+MenuModeEnd menu_mode_runs(GameState *g, Platform *pf, uint8_t asked_for, uint16_t asked_with);
+void menu_vblank(GameState *g, Platform *pf);
+void menu_line(GameState *g, Platform *pf);
+void menu_close_as_c(GameState *g, Platform *pf, bool for_the_game);
+enum { MENU_VBLANK_HANDLER = 0xC2840E, MENU_LINE_HANDLER = 0xC28472 };
+
+/* The mode on the machine */
 void menu_mode_enter(Snes *s);
 void menu_mode_start(Snes *s);
 void menu_mode_return(Snes *s);
@@ -65,6 +84,8 @@ void menu_send_the_loaded_palette(Platform *pf);
 void menu_clear_vram(Snes *s);
 void menu_upload_vram(Snes *s);
 void menu_init_video(Snes *s);
+/* The same as C. */
+void menu_video_set_up(GameState *g, Platform *pf);
 void menu_init_video_memory(Snes *s);
 void menu_fill_memory(Snes *s);
 void menu_copy_to_memory(Snes *s);

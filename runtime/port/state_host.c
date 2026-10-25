@@ -10,7 +10,7 @@
 #include "rom.h"
 #include "wram.h"
 
-enum { WRAM_BYTES = 0x20000 };
+enum { WRAM_BYTES = 0x20000, POWER_ON_BYTE = 0x55 };
 
 struct GameState {
     uint8_t wram[WRAM_BYTES];
@@ -35,6 +35,10 @@ GameState *state_host_create(const uint8_t *sram)
     GameState *g = calloc(1, sizeof *g);
     if (!g)
         return NULL;
+    /* work RAM as the reference emulator powers it on, which the game reads
+     * where its own clear at power-on leaves it as it was (the menus' records
+     * of a party not yet joined): a run starts where the reference plays do */
+    memset(g->wram, POWER_ON_BYTE, sizeof g->wram);
     if (sram)
         memcpy(g->sram, sram, sizeof g->sram);
     return g;
@@ -90,6 +94,12 @@ static Place place_of(uint32_t addr, uint32_t *offset)
     if (!system_bank || at >= 0x8000)
         return IN_ROM;
     return NOWHERE;
+}
+
+bool state_host_is_cartridge(uint32_t addr)
+{
+    uint32_t offset;
+    return place_of(addr & 0xFFFFFF, &offset) == IN_ROM;
 }
 
 static void stray(const GameState *g, uint32_t addr)

@@ -21,6 +21,7 @@
 #include "cpu_io.h"
 #include "field/field.h"
 #include "field/main_loop.h"
+#include "menu/display.h"
 #include "scene/scene.h"
 #include "original_effects.h"
 #include "platform/input.h"
@@ -117,8 +118,8 @@ static const struct {
 } handlers[] = {
     { FIELD_VBLANK_HANDLER, "the field's vblank handler", field_vblank },
     { FIELD_LINE_HANDLER, "the field's line handler", field_line },
-    { 0xC2840E, "the menus' vblank handler", 0 },
-    { 0xC28472, "the menus' line handler", 0 },
+    { MENU_VBLANK_HANDLER, "the menus' vblank handler", menu_vblank },
+    { MENU_LINE_HANDLER, "the menus' line handler", menu_line },
     { 0xC2015E, "the menus' screens' vblank handler", 0 },
     { 0xC20345, "the menus' screens' line handler", 0 },
     { 0xD1E77C, "the battle's vblank handler", 0 },

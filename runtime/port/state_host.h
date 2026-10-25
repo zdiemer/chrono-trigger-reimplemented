@@ -23,13 +23,17 @@
 
 #include "state.h"
 
-/* A fresh state: work RAM as the console powers on (zero here; the original
- * leaves it to the chips) and save RAM from `sram` (8 KiB), or erased. */
+/* A fresh state: work RAM as the console powers on (the original leaves it to
+ * the chips; $55 throughout here, as the reference emulator has it) and save
+ * RAM from `sram` (8 KiB), or erased. */
 GameState *state_host_create(const uint8_t *sram);
 void state_host_destroy(GameState *g);
 
 uint8_t state_host_read8(const GameState *g, uint32_t addr);
 void state_host_write8(GameState *g, uint32_t addr, uint8_t v);
+/* Whether an address is the cartridge's, whose bytes the asset store serves
+ * (rom_host.c) rather than the host's memory. */
+bool state_host_is_cartridge(uint32_t addr);
 
 /* The cartridge's save RAM, which the driver hands the save service's host
  * half (runtime/platform/native/host.h) and keeps. */

@@ -2192,17 +2192,17 @@ re-runs the census.
   recorded line by the native renderer (the picture's height,
   `tm_host_picture_lines`), and the other services' host backends ("The
   native program", below).
-- **The menus' tasks are coroutines of their own.** The scheduler and the
-  turns of the main task and the cursor's are C (`menu/tasks.c`), but each
-  task runs on its own stack and waits from deep in its calls (the
-  description typed a letter a frame, a step that draws over frames).
-  `core/tasks.c` is the build with no machine's half: a fiber per task, run in
-  slot order once a frame, each waiting where it is (`tasks_test`); what is
-  missing is the tasks' bodies as functions of the game's state for it to run.
-  The other way is the tasks rewritten to
-  resume, each a state machine called once a frame: the way for a target that
-  can't afford nine 512 KiB stacks (PLAN.md, "What that makes
-  scaffolding").
+- **The menus' tasks with no body as C.** Each task's body is one function
+  of the game's state whose waits are callbacks, run a turn at a time by the
+  machine's entry and through by a coroutine (`core/tasks.c`) with no
+  machine; `menu/tasks.c`'s table of the starts it has (`tasks_as_c`) holds
+  the main task's, the cursor's, the fade in's and the typing's. The scroll
+  bar's, the records', the held cursors', the healing numbers' and the gate's
+  song's stop `ct_native` where they start, and a screen step with no C
+  beside the naming's (`menu/screens.c`'s `steps_as_c`) stops it where it is
+  reached. The other way for the tasks is each rewritten to resume, a state
+  machine called once a frame: the way for a target that can't afford nine
+  512 KiB stacks (PLAN.md, "What that makes scaffolding").
 - **The clock's controller read inside the effect work** (history/reimplementation-chunks.md, "Phase 3,
   battle chunk 4"): the clock's modifier (`$C1:EE27`) runs the frame's input
   work again (`$C2:8002`) mid-work, and the port (`input_take_frame`) can't
@@ -2737,23 +2737,25 @@ re-runs the census.
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
 `ct_native` links the whole of `game/` but `registry.c`, with every service's
-host backend, and runs the boot, the field and the title's scene; it stops
-at frame 2093 where the attract demo enters the menus' mode (`$C2:0000`),
-or with `new-game.ctm`'s presses at frame 1676 where the field's script
-after the title asks for a menu (`$C0:0C76`): the first steps only the
-machine runs. What the wrappers and bridges call of the machine is
+host backend, and runs the boot, the field, the title's scene and the menus
+a script asks for; it stops at frame 2093 where the attract demo enters a
+world map (`$C2:0000`), or with `new-game.ctm`'s presses at frame 3243,
+after the battle mode's choice and Crono's naming, where the field enters
+the next: the first step only the machine runs. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
-- **The program's next step is the menus.** `ct_native` runs the field and
-  the title's scene as C; the menus' mode (`$C2:0000`, a screen drawn with
-  sprites, which the attract demo enters) and the menus a script asks for
-  (`$C0:0C76`, the one after the title) are the next steps, their tasks
-  wanting the coroutines `core/tasks.c` has for them. Every mode's vblank
-  and line handler but the field's and the scenes' is still an entry on the
+- **The program's next step is the world map.** `ct_native` runs the field,
+  the title's scene and the menus a script asks for as C; the world maps (the
+  locations from `$1F0`, which the menus' sprite-object mode shows,
+  `$C2:0000`: `overworld/`, its setup's unpacking, its main loop, the mode's
+  vblank and line handlers at `$C2:015E` and `$C2:0345` and the object
+  scripts they run) are the next step, where the attract demo stops at frame
+  2093 and `new-game.ctm` at frame 3243. Every mode's vblank and line handler
+  but the field's, the scenes' and the menus' is still an entry on the
   machine's stack (it saves the interrupted registers, moves the page and the
   data bank, calls out): `core/program.c`'s table has functions for those
-  two modes' and for none of the rest.
+  three modes' and for none of the rest.
 - **What the scene program still hands the machine as the program runs it.**
   The title's setup is the one setup as C (`scene_title_set_up_as_c`); the
   others, the scripts' commands and routines with no C, and the tasks with
@@ -2771,9 +2773,11 @@ list, by kind, is what `game/` still asks of one.
 - **What the field still hands the machine as the program runs it.** Where
   the field's C meets a state its port doesn't take (an entry's guard, which
   on the machine hands the call to the original) or a step only the machine
-  runs yet, `ct_native` stops there and says which: the pause and the menus
-  (`field/menus.c`), every request but a location change (a script's menu,
-  a step, a chest, a tile copy, a battle: `field/requests.c`), a screen
+  runs yet, `ct_native` stops there and says which: a menu screen with no
+  step as C (the main menu's, the load screen's, a shop's), a party the
+  put-aside or the bringing back doesn't take (`field/menus.c`), every
+  request but a location change and a script's menu (a step, a chest, a tile
+  copy, a battle: `field/requests.c`), a screen
   effect's curtain, close or ripple, the field's restart a script asks for,
   and the event commands with a bridge and no C beside it (19 of the 23 in
   `EVENT_BRIDGES`: the sound commands and the screen command have theirs,
@@ -2784,8 +2788,8 @@ list, by kind, is what `game/` still asks of one.
   update and view and the pause and menus are one sequence each, which the
   entry and the program both run, their steps callbacks (REIMPLEMENTATION.md,
   "The native program through the field and the title"). Still written twice,
-  the machine's beside the program's: the screen's setup and fade in
-  (`field_screen_set_up`, `field_fade_in_as_c`), the objects' setup
+  the machine's beside the program's: the screen's setup
+  (`field_screen_set_up`), the objects' setup
   (`field_objects_set_up`), the vblank handler's calls (`field_vblank`), a
   location change's request (`field_requests_handled`), the leader's walk
   (`field_the_leader_walks`), the screen effect's step
@@ -2871,14 +2875,6 @@ waits on M5 rather than on a backend.
   `frame_work` rows mix the machine's columns (`long_call`, `x8`, `entry`) with
   `as_c`, which wants a parallel table, and its eight one-line `*_as_c`
   adapters want each C step its own signature.
-- **ct_native's runtime, as the menus will find it.** A draft of the menus'
-  tasks on coroutines took ct_native with `new-game.ctm` to frame 3243, the
-  world map, and needed three fixes on the way: `runtime/port/rom_host.c`
-  recurses without end on a cartridge byte in no resource of the catalogue,
-  where it wants to stop with the address; the host doesn't carry out the
-  menus' fills and copies through work RAM's port, so their buffers are never
-  cleared; and the host starts work RAM at 0 where the reference starts it at
-  `$55`.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in

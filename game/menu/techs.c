@@ -480,12 +480,14 @@ void menu_note_rock_techs_entry(Snes *s)
  * 0 whenever the menus open. */
 bool menu_rock_techs_are_notable(Snes *s) { return s->cpu.db == MENU_DATA_BANK; }
 
+bool menu_party_techs_can_be_noted(const GameState *g) { return menu_scratch_tech_parts_placed(g) >> 8 == 0; }
+
 bool menu_party_techs_are_notable(Snes *s)
 {
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_scratch_tech_parts_placed(state_of(s)) >> 8 == 0;
+    bool ok = menu_party_techs_can_be_noted(state_of(s));
     vars_peek(false);
     return ok;
 }

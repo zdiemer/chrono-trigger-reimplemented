@@ -36,6 +36,10 @@ bool menu_sprite_list_is_sound(const GameState *g);
  * menus' screens): the opening's seven, a record's load, and its animation a
  * frame on, or carried on; and their guards. */
 void menu_load_record_sprites(Snes *s);
+/* The same as C ($C2:F3CA): the records set up and loaded as the menus open;
+ * false where a guard's state half doesn't take them, the program going no
+ * further there. */
+bool menu_record_sprites_loaded(GameState *g);
 void menu_load_record_sprite(Snes *s);
 void menu_animate_record(Snes *s);
 void menu_step_record_animation(Snes *s);

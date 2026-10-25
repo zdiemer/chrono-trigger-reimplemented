@@ -8,11 +8,12 @@
  *   game; then the field is entered at location 0, the title's;
  * - entered, from power-on and from every mode that hands back to it (the
  *   menus, the scenes, a game over): the screen dark and the field's
- *   interrupt handlers installed. The locations from $1F0 are not maps but
- *   the menus' screens drawn with sprites (the Epoch's flights and the like),
- *   which the menus' own mode shows. A map's location has the field's state
- *   started (field/start.c), the location loaded (field/location.c), its
- *   objects and their sprites set up, and the screen faded in.
+ *   interrupt handlers installed. The locations from $1F0 are not the
+ *   field's maps but the world maps, drawn with sprites, which the menus'
+ *   sprite-object mode shows (overworld/setup.c). A map's location has the
+ *   field's state started (field/start.c), the location loaded
+ *   (field/location.c), its objects and their sprites set up, and the screen
+ *   faded in.
  *
  * Then the main loop runs, a pass a frame (field_frame): the presses that
  * arrived latched for the scripts; the pause and the menus; what the scripts
@@ -123,7 +124,7 @@ enum {
     SOUND_DRIVER_BOOT = 0xC70000,
     THE_BOOT_IGNORES = DC_AL | DC_N | DC_V | DC_Z | DC_C,
     MENUS_SERVICES = 0xC28004,       /* the menus' services (menu/party.h), whose time the power-on's is */
-    MENUS_SCREENS = 0xC20000,        /* the menus' mode that shows a screen with sprites */
+    MENUS_SCREENS = 0xC20000,        /* the world map, in the menus' sprite-object mode */
     PALETTE_ANIMATION = 0xFDFFF7,
 };
 
@@ -334,7 +335,7 @@ static bool enter_step_as_c(void *ctx, EnterStep step)
 static void to_the_menus_as_c(void *ctx)
 {
     PassAsC *c = ctx;
-    program_needs_the_machine(c->game, MENUS_SCREENS, "the menus' mode, for a screen drawn with sprites");
+    program_needs_the_machine(c->game, MENUS_SCREENS, "the world map, the menus' sprite-object mode");
 }
 
 bool field_enter_the_location(GameState *g, Platform *pf)
@@ -504,11 +505,7 @@ void field_frame_work(Snes *s)
 /* Its steps, as C: where the pass goes after each. */
 static FieldPass goes_on(bool back) { return back ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS; }
 
-static FieldPass pause_and_menus_as_c(GameState *g, Platform *pf)
-{
-    (void)pf;
-    return goes_on(field_pause_and_menus_as_c(g));
-}
+static FieldPass pause_and_menus_as_c(GameState *g, Platform *pf) { return goes_on(field_pause_and_menus_as_c(g, pf)); }
 
 static FieldPass walk_as_c(GameState *g, Platform *pf)
 {
@@ -603,11 +600,14 @@ static FieldPass pass_step_as_c(void *ctx, PassStep step)
     return after;
 }
 
-/* As C the pass goes through the wait for the next frame. */
+/* As C the pass goes through the wait for the next frame, unless a step
+ * sent it round the main loop itself. */
 FieldPass field_runs_a_pass(GameState *g, Platform *pf)
 {
     PassAsC c = { g, pf };
     FieldPass after = run_the_pass_from(g, PAUSE_AND_MENUS_STEP, pass_step_as_c, &c);
+    if (after == FIELD_PASS_GOES_ROUND)
+        return FIELD_PASS_GOES_ON;
     if (after == FIELD_PASS_GOES_ON)
         TIMED_AS(g, FIELD_FRAME_WAIT, field_finish_the_frame(g, pf));
     return after;
@@ -693,14 +693,58 @@ void field_main_loop_goes_round(Snes *s) { m_stop_at(s, MAIN_LOOP, THE_LOOP_READ
 
 // $C0:00DE
 /* The effects refreshed for the next frame: the line effects' tables built
- * and the palettes animated. */
-void field_refresh_effects(Snes *s)
+ * and the palettes animated, each a routine of its own, run as C or on the
+ * machine; false where one went no further. */
+typedef struct {
+    bool (*line_effects)(void *ctx);
+    bool (*palettes)(void *ctx);
+} EffectsSteps;
+
+static bool refresh_effects(const EffectsSteps *steps, void *ctx)
 {
+    return steps->line_effects(ctx) && steps->palettes(ctx);
+}
+
+static bool refreshed_line_effects_as_c(void *ctx)
+{
+    TIMED_AS((GameState *)ctx, LINE_EFFECTS, field_line_effects_build(ctx));
+    return true;
+}
+
+static bool refreshed_palettes_as_c(void *ctx)
+{
+    TIMED_AS((GameState *)ctx, PALETTE_ANIMATION, palette_animate_a_frame(ctx));
+    return true;
+}
+
+void field_effects_refreshed(GameState *g)
+{
+    static const EffectsSteps as_c = { refreshed_line_effects_as_c, refreshed_palettes_as_c };
+    (void)refresh_effects(&as_c, g);
+}
+
+/* On the machine each is called from the original's call of it, the line
+ * effects' tables with 8-bit index registers. */
+static bool line_effects_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
     m_sep(s, CPU_FLAG_X);
     if (!field_run_long(s, 0xC000E0, LINE_EFFECTS, READS_NOTHING, field_build_line_effect_tables, page_x8(s)))
-        return;
+        return false;
     m_rep(s, CPU_FLAG_X);
-    if (field_run_long(s, 0xC000E6, PALETTE_ANIMATION, READS_NOTHING, palette_animate, page(s)))
+    return true;
+}
+
+static bool palettes_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run_long(s, 0xC000E6, PALETTE_ANIMATION, READS_NOTHING, palette_animate, page(s));
+}
+
+void field_refresh_effects(Snes *s)
+{
+    static const EffectsSteps on_the_machine = { line_effects_on_the_machine, palettes_on_the_machine };
+    if (refresh_effects(&on_the_machine, s))
         m_rts(s);
 }
 
