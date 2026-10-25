@@ -47,6 +47,7 @@ menu_repeat_delay	bytes	C2:84D0	C2:84D1	raw	accessor menu_repeat_delay
 menu_math_ramp_color	bytes	C2:8771	C2:8790	raw	accessor menu_math_ramp_color
 menu_item_category_start	bytes	C2:88A7	C2:88AC	raw	accessor menu_item_category_start
 menu_slot_first_item	bytes	C2:89DC	C2:89E3	raw	accessor menu_slot_first_item
+menu_clearing_zero	bytes	C2:9510	C2:9511	raw	accessor menu_clearing_zero
 menu_character_element	bytes	C2:A2C6	C2:A2CC	raw	accessor menu_character_element
 text_c2a3ba	text	C2:A3BA	C2:A3E1	text:menu	read
 menu_slot_record_place	bytes	C2:A4AB	C2:A4AE	raw	accessor menu_slot_record_place

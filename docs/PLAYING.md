@@ -528,15 +528,21 @@ The host backends answer every service call the game makes. Video folds the
 calls into the picture's state through the development system's observer
 (`runtime/platform/observe.h`), reading the game's memory through the
 driver's reader; nothing draws it yet. The SNES's escapes a host has no
-meaning for are counted and reported, but for the field's memory clear,
-whose meaning is the multiplier's product copied over work RAM. Audio plays
+meaning for are counted and reported, but for the two whose meaning is
+memory: the field's clear, the multiplier's product copied over work RAM, and
+the menus' clears and copies through work RAM's data port, which the host
+carries out at the port's address. Audio plays
 the C sound driver (`game/sound/`) in the sound processor's place
 (`frontend/sound_native.c`, the native counterpart of `sound_host.c`): the
 CPU half hands it the boot and the commands as calls, the game's sends
 through the service reach the CPU half as C (`sound_driver_send`), the
 scenes' commands come on the ports, and the driver's time passes a frame at
 a time and while the game waits on a port. Saves read and write the save
-RAM the driver loaded.
+RAM the driver loaded. Work RAM powers on holding `$55` throughout, as the
+reference emulator's does, since the game reads some of it before writing it
+(the menus' records of the members not yet joined). A cartridge byte that no
+resource of the catalogue holds has no answer without the ROM, so a read of
+one stops the program with its address, as a step only the machine runs does.
 
 The driver (`frontend/ct_native.c`) starts the host backends with the
 program and runs its frames headless: the vblank handler, the main thread as a

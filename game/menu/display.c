@@ -1113,7 +1113,8 @@ void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes)
 {
     vid_enable_line_effects(pf, PF_AT(0xC2951B), 0x00);
     hw_port_seek(g, at, 0);
-    const VidSnesTransfer t = { .dest = 0x80, .source = 0xC29510, .size = bytes };
+    const VidSnesTransfer t = { .dest = VID_SNES_WRAM_DATA, .source = MENU_CLEARING_ZERO, .size = bytes,
+                                .wram_at = at, .repeats = true };
     vid_snes_copy(pf, PF_AT(0xC29526), &t);
 }
 
@@ -1123,7 +1124,7 @@ void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes)
 static void clear_the_screens_memory(GameState *g, Platform *pf)
 {
     static const struct { uint16_t at, bytes; } stretches[3] = { { 0x0C00, 0x1200 }, { 0x2E00, 0xD200 }, { 0x0000, 0x0100 } };
-    vid_send_vram_fill(pf, PF_AT(0xC294D8), 0x0000, PF_GAME(0xC29510), 0xFFFF, NULL);
+    vid_send_vram_fill(pf, PF_AT(0xC294D8), 0x0000, PF_GAME(MENU_CLEARING_ZERO), 0xFFFF, NULL);
     for (int i = 0; i < 3; i++)
         TIMED_AS(g, 0xC29512, menu_clear_memory(g, pf, stretches[i].at, stretches[i].bytes));
 }
@@ -1162,7 +1163,7 @@ void menu_fill_memory(Snes *s)
  * memory again, so the SNES-only escape. */
 void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t at, uint16_t bytes)
 {
-    const VidSnesTransfer t = { .dest = 0x80, .source = 0xFF0000u | from, .size = bytes };
+    const VidSnesTransfer t = { .dest = VID_SNES_WRAM_DATA, .source = 0xFF0000u | from, .size = bytes, .wram_at = at };
     hw_port_seek(g, at, 0);
     vid_snes_copy(pf, PF_AT(0xC2954B), &t);
 }

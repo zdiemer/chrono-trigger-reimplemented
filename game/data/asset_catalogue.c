@@ -70,6 +70,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xC28771u, 32u, "menu_math_ramp_color", 0, 4 },
     { 0xC288A7u, 6u, "menu_item_category_start", 0, 4 },
     { 0xC289DCu, 8u, "menu_slot_first_item", 0, 4 },
+    { 0xC29510u, 2u, "menu_clearing_zero", 0, 4 },
     { 0xC2A2C6u, 7u, "menu_character_element", 0, 4 },
     { 0xC2A3BAu, 40u, "text_c2a3ba", 8, 14 },
     { 0xC2A4ABu, 4u, "menu_slot_record_place", 0, 4 },
@@ -6117,8 +6118,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFFFF5u, 11u, "battle_screen_script_byte", 6, 4 },
 };
 
-AssetServed asset_served[6089];
+AssetServed asset_served[6090];
 
-const uint16_t asset_catalogue_count = 6089;
+const uint16_t asset_catalogue_count = 6090;
 
-const uint32_t asset_catalogue_version = 0xDDF01F79u;
+const uint32_t asset_catalogue_version = 0xF9378C69u;

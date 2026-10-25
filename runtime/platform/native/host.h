@@ -60,7 +60,8 @@ typedef struct {
 enum { VID_HOST_LAST_LINE = 224 };
 typedef struct {
     VidObserver *observer;
-    void (*write)(void *ctx, uint32_t addr, uint8_t v);   /* the game's memory, for the one escape that writes it */
+    uint8_t (*read)(void *ctx, uint32_t addr);            /* the game's memory, for the escapes that write it */
+    void (*write)(void *ctx, uint32_t addr, uint8_t v);
     void *ctx;
     VidDisplay display;          /* the latest a call set */
     uint8_t line_effects;        /* vid_enable_line_effects' slots */

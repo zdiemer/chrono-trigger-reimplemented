@@ -19,6 +19,7 @@ void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr),
     VidHost *v = &pf->video;
     vid_obs_destroy(v->observer);
     v->observer = vid_obs_create(read, ctx);
+    v->read = read;
     v->write = write;
     v->ctx = ctx;
 }

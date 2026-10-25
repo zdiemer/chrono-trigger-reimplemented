@@ -16,11 +16,12 @@ static void unmodelled(Platform *pf, PfOrigin o)
         v->first_escape = o.site;
 }
 
-/* The one transfer whose meaning a host knows: the multiplier's product
- * copied over memory, which is how the field clears it (with a product of
- * 0). The rest -- transfers into VRAM programmed from the game's tables -- the
- * observer follows only with the SNES's channel settings, which a host
- * doesn't have. */
+/* The transfers whose meaning a host knows: the multiplier's product copied
+ * over memory, which is how the field clears it (with a product of 0); and
+ * work RAM's data port filled, which is how the menus clear their buffers and
+ * copy tables into them. The rest -- transfers into VRAM programmed from the
+ * game's tables -- the observer follows only with the SNES's channel
+ * settings, which a host doesn't have. */
 /* A transfer into VRAM's data port whose mode the game's data gives (the
  * scene programs' loaders' and uploads'): the observer follows it, with the
  * port it sets. */
@@ -38,12 +39,21 @@ void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t)
         vid_obs_snes_transfer(v->observer, t, t->mode);
         return;
     }
+    uint32_t bytes = t->size ? t->size : 0x10000u;
+    if (t->dest == VID_SNES_WRAM_DATA) {
+        /* work RAM's port steps through both banks, and wraps round them */
+        enum { WORK_RAM = 0x7E0000, WORK_RAM_SPAN = 0x20000 };
+        for (uint32_t i = 0; i < bytes; i++) {
+            uint8_t b = v->read(v->ctx, t->repeats ? t->source : (t->source & 0xFF0000u) | (uint16_t)(t->source + i));
+            v->write(v->ctx, WORK_RAM + (t->wram_at + i) % WORK_RAM_SPAN, b);
+        }
+        return;
+    }
     if (t->dest != VID_SNES_MULTIPLIER_PRODUCT) {
         unmodelled(pf, o);
         return;
     }
     uint8_t product = (uint8_t)(v->multiplicand * v->multiplier);
-    uint32_t bytes = t->size ? t->size : 0x10000u;
     for (uint32_t i = 0; i < bytes; i++)
         v->write(v->ctx, (t->source & 0xFF0000u) | (uint16_t)(t->source + i), product);
 }
