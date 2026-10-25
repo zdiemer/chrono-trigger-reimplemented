@@ -2899,6 +2899,23 @@ waits on M5 rather than on a backend.
   `bool *sent` exists only for A's leftover; `menu/line_effects.c`'s
   `FAR_CALL_X`/`NEAR_CALL_X` feed the dispatch's X into `step_the_curtain`'s
   `salt`, which wants naming for what it is and the comment there agreeing.
+- **What the screen effects' review left** (none rated translation): a `$E1`/`$DF`
+  in a map's script at the load hands back, and `field/main_loop.c`'s
+  `field_runs` returns without asking `program_field_starts_again`, so ct_native
+  stops at the field's entry with `field_again` set; the pass loop's handling
+  wants applying to the load too. `field/screen_effects.c`'s `Moment` is ignored
+  by every C callback and exists only to pick `calls_at`'s call sites;
+  `moment == RIPPLE_GROWING` deciding when the circle opens wants a column;
+  `calls_on_the_field` repeats `move_on_a_step`'s choice between the curtain,
+  the close and the ripple. `main_loop.c`'s `effects_refreshed` and
+  `frame_waited` are `screen_effects.c`'s `refresh_the_effects` and
+  `wait_for_the_frame` again. `event/party.c`'s `ask_after_character` works
+  out `leave_jump`'s target instead of reusing `after_asking`. The credits'
+  page setup has three names (`scene_credit_pages_set_up`, `_entry`, `_scene`).
+  `field_layer_drawn_at_the_load` wants a `FieldLayer`, not `unsigned`.
+  `scene/screen.c`'s `scene_animate_the_palettes_for` records a stop and
+  carries on with the channel's sequence, and `scene/rising_palace.c` ignores
+  the palettes' check (it can't fail there, but says nothing).
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in
