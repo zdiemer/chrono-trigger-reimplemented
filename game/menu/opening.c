@@ -224,18 +224,21 @@ static bool quieten_as_c(void *ctx, unsigned command)
     return true;
 }
 
+/* Each where its guard takes it; false where it doesn't, the program going
+ * no further there. */
 static bool call_as_c(void *ctx, OpeningCall call)
 {
     OpeningAsC *c = ctx;
     GameState *g = c->game;
+    bool back = true;
     switch (call) {
     case OPENING_SCREEN: TIMED_AS(g, 0xC2940D, menu_video_set_up(g, c->pf)); break;
-    case OPENING_SAVE_SLOTS: TIMED_AS(g, 0xC2D156, menu_save_slots_read(g, c->pf)); break;
-    case OPENING_UPLOADS: TIMED_AS(g, 0xC28663, menu_send_upload_queue(g, c->pf)); break;
-    case OPENING_RECORDS: TIMED_AS(g, 0xC2F3CA, menu_record_sprites_loaded(g)); break;
-    case OPENING_ITEMS: TIMED_AS(g, 0xC29875, menu_items_built(g)); break;
+    case OPENING_SAVE_SLOTS: TIMED_AS(g, 0xC2D156, back = menu_save_slots_read(g, c->pf)); break;
+    case OPENING_UPLOADS: back = menu_upload_queue_sent_as_c(g, c->pf); break;
+    case OPENING_RECORDS: TIMED_AS(g, 0xC2F3CA, back = menu_record_sprites_loaded(g)); break;
+    case OPENING_ITEMS: TIMED_AS(g, 0xC29875, back = menu_items_built_as_c(g)); break;
     }
-    return true;
+    return back;
 }
 
 static void graphics_built_as_c(void *ctx) { (void)ctx; }

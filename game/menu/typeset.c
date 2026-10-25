@@ -619,10 +619,12 @@ static bool tiles_are_writable(uint32_t tiles)
            && (at >= TEXT_PAGE_END || (uint32_t)at + LINE_REACH <= TEXT_PAGE || bank == 0x7F);
 }
 
+bool menu_text_can_start(const GameState *g) { return readable(menu_text_strings(g)); }
+
 bool menu_text_is_startable(Snes *s)
 {
     vars_peek(true);
-    bool ok = readable(menu_text_strings(state_of(s)));
+    bool ok = menu_text_can_start(state_of(s));
     vars_peek(false);
     return ok;
 }

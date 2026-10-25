@@ -649,11 +649,15 @@ static void main_task_as_c(GameState *g, Platform *pf)
         ;
 }
 
+/* The cursor's turns while its guard's state half takes them; otherwise the
+ * program goes no further there. */
 static void cursor_task_as_c(GameState *g, Platform *pf)
 {
     LoopAsC c = { g, pf };
-    while (cursor_task_turn(g, loop_waits_as_c, &c))
+    while (menu_cursor_can_be_placed(g) && cursor_task_turn(g, loop_waits_as_c, &c))
         ;
+    if (!menu_cursor_can_be_placed(g))
+        program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | CURSOR_TASK_HEAD, "a cursor the port doesn't place");
 }
 
 /* ---- The guards -------------------------------------------------------------------------------- */

@@ -403,18 +403,23 @@ bool menu_member_figures_are_notable(Snes *s)
 }
 
 /* Every character's: the characters' records hold the game's equipment. */
-bool menu_everyones_figures_are_notable(Snes *s)
+bool menu_everyones_figures_can_be_noted(const GameState *g)
 {
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    GameState *g = state_of(s);
     bool ok = true;
     for (uint8_t character = 0; ok && character < CHARACTER_RECORDS_COUNT; character++)
         for (unsigned slot = 0; ok && slot < MENU_EQUIPMENT_SLOTS; slot++) {
             uint8_t item = character_records_record_byte(g, character, menu_category_slot_place(g, (uint8_t)slot));
             ok = an_item_of_the_games(item, (MenuItemCategory)slot);
         }
+    return ok;
+}
+
+bool menu_everyones_figures_are_notable(Snes *s)
+{
+    if (!menu_on_page_work_ram(s))
+        return false;
+    vars_peek(true);
+    bool ok = menu_everyones_figures_can_be_noted(state_of(s));
     vars_peek(false);
     return ok;
 }

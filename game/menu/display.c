@@ -550,12 +550,17 @@ typedef struct {
     Platform *pf;
 } VblankAsC;
 
+/* As C, the frame's work and the queue each where its guard takes them; the
+ * program goes no further otherwise. */
 static bool frame_sent_as_c(void *ctx)
 {
     VblankAsC *c = ctx;
+    if (!menu_block_move_is_a_buffer(c->game)) {
+        program_needs_the_machine(c->game, 0xC285D6, "a block move over the code the menus' vblank runs it through");
+        return false;
+    }
     TIMED_AS(c->game, 0xC285D6, (void)send_the_frame(c->game, c->pf));
-    TIMED_AS(c->game, 0xC28663, menu_send_upload_queue(c->game, c->pf));
-    return true;
+    return menu_upload_queue_sent_as_c(c->game, c->pf);
 }
 
 static bool input_taken_as_c(void *ctx)
@@ -696,30 +701,48 @@ void menu_vblank_upload(Snes *s)
     m_stop_at(s, 0xC28663, 0);
 }
 
+/* A block move the game asks for moves a buffer, not the code the original
+ * runs it through (the stub in low RAM). */
+enum { BLOCK_MOVE_STUB = 0x9690, BLOCK_MOVE_STUB_END = 0x9694 };
+
+/* The bytes the move asked for covers from `at` on, which runs round its
+ * bank as a block move does. */
+static bool block_move_covers(uint32_t from, uint32_t size, uint16_t at)
+{
+    uint32_t bytes = size ? size : 0x10000u;
+    return (uint16_t)(at - from) < bytes;
+}
+
+bool menu_block_move_is_a_buffer(const GameState *g)
+{
+    if (!(menu_line_effects(g) & BLOCK_MOVE_ASKED))
+        return true;
+    for (uint16_t at = BLOCK_MOVE_STUB; at < BLOCK_MOVE_STUB_END; at++)
+        if (block_move_covers(menu_block_move_dest(g), menu_block_move_size(g), at))
+            return false;
+    return true;
+}
+
 /* The vblank's work runs on the menus' vblank page, with the data bank on the
- * I/O registers; a block move the game asks for moves a buffer, not the code
- * the original runs it through nor the stack it returns on (which the
- * original's move would also read its own return address from). */
+ * I/O registers; the move, if any, a buffer's, and not the stack the original
+ * returns on (which its move would also read its own return address from). */
 bool menu_vblank_work_runs(Snes *s)
 {
-    enum { VBLANK_PAGE = 0x0D00, STUB = 0x9690, STUB_END = 0x9694, STACK_REACH = 0x10 };
+    enum { VBLANK_PAGE = 0x0D00, STACK_REACH = 0x10 };
     if (m_direct_page(s) != VBLANK_PAGE || !m_io_bank(s->cpu.db))
         return false;
     GameState *g = state_of(s);
     vars_peek(true);
-    bool asked = (menu_line_effects(g) & BLOCK_MOVE_ASKED) != 0;
+    bool asked = (menu_line_effects(g) & BLOCK_MOVE_ASKED) != 0, buffer = menu_block_move_is_a_buffer(g);
     uint32_t from = menu_block_move_source(g), to = menu_block_move_dest(g), size = menu_block_move_size(g);
     vars_peek(false);
     if (!asked)
         return true;
-    /* the move's destination runs round its bank, as a block move does */
-    uint32_t bytes = size ? size : 0x10000u;
-    for (uint16_t at = STUB; at < STUB_END; at++)
-        if ((uint16_t)(at - to) < bytes)
-            return false;
+    if (!buffer)
+        return false;
     uint16_t stack = s->cpu.s;
     for (uint16_t at = (uint16_t)(stack - STACK_REACH); at != (uint16_t)(stack + STACK_REACH); at++)
-        if ((uint16_t)(at - to) < bytes || (uint16_t)(at - from) < bytes)
+        if (block_move_covers(to, size, at) || block_move_covers(from, size, at))
             return false;
     return true;
 }
@@ -741,6 +764,16 @@ void menu_send_upload_queue(GameState *g, Platform *pf)
                       PF_GAME((uint32_t)menu_vram_queue_bank(g, i) << 16 | menu_vram_queue_source(g, i)),
                       size ? size : 0x10000u, NULL);
     }
+}
+
+bool menu_upload_queue_sent_as_c(GameState *g, Platform *pf)
+{
+    if (!menu_upload_queue_is_whole(g)) {
+        program_needs_the_machine(g, 0xC28663, "an upload queue the port doesn't send");
+        return false;
+    }
+    TIMED_AS(g, 0xC28663, menu_send_upload_queue(g, pf));
+    return true;
 }
 
 void menu_upload_vram_queue(Snes *s)
@@ -770,16 +803,24 @@ static bool uploads_off_the_stack(uint8_t bank, uint16_t source, uint16_t size, 
 }
 
 /* The queue's entries are whole, no more than it holds, and from memory. */
+bool menu_upload_queue_is_whole(const GameState *g)
+{
+    uint8_t bytes = menu_vram_queue_bytes(g);
+    bool ok = bytes % MENU_UPLOAD_BYTES == 0 && bytes / MENU_UPLOAD_BYTES <= MENU_VRAM_QUEUE_COUNT;
+    for (unsigned i = 0; ok && i < bytes / MENU_UPLOAD_BYTES; i++)
+        ok = uploads_from_memory(menu_vram_queue_bank(g, i));
+    return ok;
+}
+
+/* On the machine, none from the top of the stack either. */
 bool menu_vram_queue_is_whole(Snes *s)
 {
     GameState *g = state_of(s);
     vars_peek(true);
-    uint8_t bytes = menu_vram_queue_bytes(g);
-    bool ok = bytes % MENU_UPLOAD_BYTES == 0 && bytes / MENU_UPLOAD_BYTES <= MENU_VRAM_QUEUE_COUNT;
-    for (unsigned i = 0; ok && i < bytes / MENU_UPLOAD_BYTES; i++)
-        ok = uploads_from_memory(menu_vram_queue_bank(g, i))
-             && uploads_off_the_stack(menu_vram_queue_bank(g, i), menu_vram_queue_source(g, i),
-                                      menu_vram_queue_size(g, i), s->cpu.s);
+    bool ok = menu_upload_queue_is_whole(g);
+    for (unsigned i = 0; ok && i < menu_vram_queue_bytes(g) / MENU_UPLOAD_BYTES; i++)
+        ok = uploads_off_the_stack(menu_vram_queue_bank(g, i), menu_vram_queue_source(g, i),
+                                   menu_vram_queue_size(g, i), s->cpu.s);
     vars_peek(false);
     return ok;
 }

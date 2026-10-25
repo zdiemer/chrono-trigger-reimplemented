@@ -585,12 +585,14 @@ bool menu_cursor_kept_among(const GameState *g, uint8_t first, uint8_t count, bo
 /* ---- The guards -------------------------------------------------------------------------------- */
 
 /* The cursor stands on one of its menu's places. */
+bool menu_cursor_can_be_placed(const GameState *g) { return menu_cursor_index(g) < MENU_CURSOR_PLACES_COUNT; }
+
 bool menu_cursor_is_placeable(Snes *s)
 {
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_cursor_index(state_of(s)) < MENU_CURSOR_PLACES_COUNT;
+    bool ok = menu_cursor_can_be_placed(state_of(s));
     vars_peek(false);
     return ok;
 }

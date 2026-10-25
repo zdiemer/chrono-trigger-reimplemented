@@ -24,6 +24,7 @@
 #include "menu/description.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "menu/bridge.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
@@ -358,31 +359,52 @@ static bool wait_as_c(void *ctx)
     return true;
 }
 
+/* The guards' state halves, below: the typing laid where it fits, and each
+ * task's start. */
+static bool typing_goes_on(const GameState *g);
+static bool typing_task_can_start(const GameState *g, TypingTask task);
+
+/* Each typing and each task where its guard's state half takes it; otherwise
+ * the program goes no further there. */
 static bool type_as_c(void *ctx, uint32_t site)
 {
     (void)site;
     GameState *g = ctx;
+    if (!typing_goes_on(g)) {
+        program_needs_the_machine(g, 0xC2FAA8, "a description the port doesn't type");
+        return false;
+    }
     bool typed = false;
     TIMED_AS(g, 0xC2FAA8, typed = type_the_text(g, wait_as_c, g));
     return typed;
 }
 
+static void typing_task_as_c(GameState *g, TypingTask task)
+{
+    static const uint32_t starts[] = { 0xC2FA9F, 0xC2F9B2, 0xC2FA06 };
+    if (!typing_task_can_start(g, task)) {
+        program_needs_the_machine(g, starts[task], "a typing task the port doesn't start");
+        return;
+    }
+    (void)typing_task(g, task, type_as_c, g);
+}
+
 void menu_type_the_description_task_as_c(GameState *g, Platform *pf)
 {
     (void)pf;
-    (void)typing_task(g, TYPE_THE_DESCRIPTION, type_as_c, g);
+    typing_task_as_c(g, TYPE_THE_DESCRIPTION);
 }
 
 void menu_type_the_setting_task_as_c(GameState *g, Platform *pf)
 {
     (void)pf;
-    (void)typing_task(g, TYPE_THE_SETTING, type_as_c, g);
+    typing_task_as_c(g, TYPE_THE_SETTING);
 }
 
 void menu_type_the_value_task_as_c(GameState *g, Platform *pf)
 {
     (void)pf;
-    (void)typing_task(g, TYPE_THE_VALUE, type_as_c, g);
+    typing_task_as_c(g, TYPE_THE_VALUE);
 }
 
 /* ---- The entries --------------------------------------------------------------------------------- */
@@ -515,7 +537,9 @@ static bool sending_fits(const GameState *g)
 
 bool menu_typing_can_be_sent(Snes *s) { return guarded(s, sending_fits); }
 
-bool menu_typing_can_go_on(Snes *s) { return guarded(s, laying_fits) && menu_text_can_go_on(s); }
+static bool typing_goes_on(const GameState *g) { return laying_fits(g) && menu_text_can_carry_on(g); }
+
+bool menu_typing_can_go_on(Snes *s) { return guarded(s, typing_goes_on); }
 
 static bool value_fits(const GameState *g)
 {
@@ -523,6 +547,19 @@ static bool value_fits(const GameState *g)
            && menu_description_line(g) % TILE_BYTES == 0;
 }
 
-bool menu_setting_typing_can_start(Snes *s) { return menu_on_page_work_ram(s) && menu_text_is_startable(s); }
+static bool typing_task_can_start(const GameState *g, TypingTask task)
+{
+    switch (task) {
+    case TYPE_THE_DESCRIPTION: return typing_goes_on(g);
+    case TYPE_THE_SETTING: return menu_text_can_start(g);
+    case TYPE_THE_VALUE: return value_fits(g) && menu_text_can_start(g);
+    }
+    return false;
+}
 
-bool menu_value_typing_can_start(Snes *s) { return guarded(s, value_fits) && menu_text_is_startable(s); }
+static bool setting_typing_starts(const GameState *g) { return typing_task_can_start(g, TYPE_THE_SETTING); }
+static bool value_typing_starts(const GameState *g) { return typing_task_can_start(g, TYPE_THE_VALUE); }
+
+bool menu_setting_typing_can_start(Snes *s) { return guarded(s, setting_typing_starts); }
+
+bool menu_value_typing_can_start(Snes *s) { return guarded(s, value_typing_starts); }

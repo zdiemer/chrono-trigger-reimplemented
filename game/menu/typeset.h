@@ -61,6 +61,8 @@ bool menu_label_can_be_set(const GameState *g, uint32_t strings, uint8_t string,
  * say what they keep it from). */
 bool menu_text_can_be_typed(const GameState *g, uint32_t strings, uint8_t string, uint32_t tiles);
 bool menu_text_can_carry_on(const GameState *g);
+/* The text's start's guard, its state half: strings the typesetter reads. */
+bool menu_text_can_start(const GameState *g);
 
 /* The entries, and their guards. */
 void menu_text_start_entry(Snes *s);

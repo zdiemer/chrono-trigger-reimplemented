@@ -62,5 +62,7 @@ bool menu_figures_are_workable(Snes *s);
 bool menu_figures_workable_with(const GameState *g, uint8_t place, uint8_t item);
 bool menu_member_figures_are_notable(Snes *s);
 bool menu_everyones_figures_are_notable(Snes *s);
+/* Its state half: every character's equipment items of the game's. */
+bool menu_everyones_figures_can_be_noted(const GameState *g);
 
 #endif

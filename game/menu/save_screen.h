@@ -26,8 +26,10 @@ void menu_put_slot_rows_effect(GameState *g);
 void menu_draw_the_slot_shown(GameState *g, Platform *pf);
 
 void menu_read_save_slots(Snes *s);
-/* The same as C ($C2:D156): the three slots read as the menus open. */
-void menu_save_slots_read(GameState *g, Platform *pf);
+/* The same as C ($C2:D156): the three slots read as the menus open; false
+ * where a guard's state half doesn't take a slot, the program going no
+ * further there. */
+bool menu_save_slots_read(GameState *g, Platform *pf);
 void menu_read_slot_summary(Snes *s);
 void menu_read_design_and_chapter(Snes *s);
 void menu_draw_chapter_label(Snes *s);

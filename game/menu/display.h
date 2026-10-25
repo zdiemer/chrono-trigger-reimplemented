@@ -14,6 +14,12 @@ void menu_build_math_table(GameState *g, Platform *pf);
 /* Send the queued VRAM uploads now, emptying the queue; send the working
  * palette now if it has changed. */
 void menu_send_upload_queue(GameState *g, Platform *pf);
+/* The guards' state halves: the upload queue's entries whole and from memory,
+ * and a block move the frame asked for a buffer's. And the queue sent as C
+ * where it is whole, the program going no further otherwise. */
+bool menu_upload_queue_is_whole(const GameState *g);
+bool menu_block_move_is_a_buffer(const GameState *g);
+bool menu_upload_queue_sent_as_c(GameState *g, Platform *pf);
 void menu_send_palette(GameState *g, Platform *pf);
 
 /* Ask the next vblank to copy a per-line table into the place its channel

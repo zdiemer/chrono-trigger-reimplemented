@@ -15,6 +15,7 @@
 #include "menu/items.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/figures.h"
@@ -405,14 +406,29 @@ void menu_find_item_figures(Snes *s)
  * name places counted from the zero word the menus keep 0; every
  * character's figures and the party's techs are noted after them
  * (menu/figures.c and menu/techs.c, whose guards this takes). */
+bool menu_items_can_be_built(const GameState *g)
+{
+    return menu_everyones_figures_can_be_noted(g) && menu_party_techs_can_be_noted(g) && menu_zero(g) == 0;
+}
+
 bool menu_items_are_buildable(Snes *s)
 {
-    if (!menu_everyones_figures_are_notable(s) || !menu_party_techs_are_notable(s))
+    if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_zero(state_of(s)) == 0;
+    bool ok = menu_items_can_be_built(state_of(s));
     vars_peek(false);
     return ok;
+}
+
+bool menu_items_built_as_c(GameState *g)
+{
+    if (!menu_items_can_be_built(g)) {
+        program_needs_the_machine(g, 0xC29875, "item tables the port doesn't build");
+        return false;
+    }
+    menu_items_built(g);
+    return true;
 }
 
 /* The figures' lookup takes the item looked up last, which is of one of the

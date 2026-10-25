@@ -32,6 +32,7 @@
 #include "menu/sprites.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "data/decompress.h"
 #include "menu/bridge.h"
@@ -1633,15 +1634,31 @@ static bool unpack_as_c(void *ctx)
     return true;
 }
 
+static bool record_sprite_loadable(const GameState *g, unsigned record);
+static bool opening_records_fit(const GameState *g);
+
+/* Each load where its guard's state half takes it; otherwise the program goes
+ * no further there. */
 static bool load_as_c(void *ctx, unsigned record)
 {
     GameState *g = ctx;
+    if (!record_sprite_loadable(g, record)) {
+        program_needs_the_machine(g, 0xC2F422, "a record's sprite the port doesn't load");
+        return false;
+    }
     bool loaded = false;
     TIMED_AS(g, 0xC2F422, loaded = load_the_record_sprite(g, record, unpack_as_c, g));
     return loaded;
 }
 
-void menu_record_sprites_loaded(GameState *g) { (void)load_record_sprites(g, load_as_c, g); }
+bool menu_record_sprites_loaded(GameState *g)
+{
+    if (!opening_records_fit(g)) {
+        program_needs_the_machine(g, 0xC2F3CA, "records' sprites the port doesn't load");
+        return false;
+    }
+    return load_record_sprites(g, load_as_c, g);
+}
 
 /* On the machine each record's load runs as the original's call reaches it,
  * on the record's page, since it may call the unpacker. */
@@ -1796,13 +1813,18 @@ bool menu_record_task_is_runnable(Snes *s)
     return ok;
 }
 
+static bool record_sprite_loadable(const GameState *g, unsigned record)
+{
+    return menu_record_sprite_set(g, record) < SPRITE_SETS;
+}
+
 bool menu_record_sprite_is_loadable(Snes *s)
 {
     unsigned record;
     if (!menu_record_page_of(m_direct_page(s), &record))
         return false;
     vars_peek(true);
-    bool ok = menu_record_sprite_set(state_of(s), record) < SPRITE_SETS;
+    bool ok = record_sprite_loadable(state_of(s), record);
     vars_peek(false);
     return ok;
 }

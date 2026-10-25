@@ -27,6 +27,7 @@
 #include "menu/save_screen.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
@@ -770,10 +771,42 @@ static bool slot_routine_as_c(void *ctx, SlotRoutine routine, uint32_t site);
 static void slot_note_as_c(void *ctx, SlotNote note, uint8_t a, uint8_t b) { (void)ctx, (void)note, (void)a, (void)b; }
 static const SlotCalls slots_as_c = { slot_routine_as_c, slot_note_as_c };
 
+static bool chapter_label_drawable(const GameState *g);
+static bool labels_drawable(const GameState *g);
+static bool summary_readable(const GameState *g, Platform *pf);
+static bool slots_readable(const GameState *g);
+
+/* Each routine where its guard's state half takes it, timed as its own;
+ * otherwise the program goes no further there. */
+static const struct {
+    uint32_t routine;
+    const char *what;
+} slot_routines[] = {
+    [CHAPTER_LABEL] = { 0xC2D296, "a chapter label the port doesn't draw" },
+    [SLOT_NAME] = { 0xC2D2C4, "a slot's name the port doesn't draw" },
+    [SLOT_SUMMARY] = { 0xC2D19F, "a slot's summary the port doesn't read" },
+    [DESIGN_AND_CHAPTER] = { 0xC2D266, "a slot's summary the port doesn't read" },
+};
+
+static bool slot_routine_takes(const SlotsAsC *c, SlotRoutine routine)
+{
+    switch (routine) {
+    case CHAPTER_LABEL: return chapter_label_drawable(c->game);
+    case SLOT_NAME: return labels_drawable(c->game);
+    case SLOT_SUMMARY:
+    case DESIGN_AND_CHAPTER: return summary_readable(c->game, c->pf);
+    }
+    return false;
+}
+
 static bool slot_routine_as_c(void *ctx, SlotRoutine routine, uint32_t site)
 {
     (void)site;
     SlotsAsC *c = ctx;
+    if (!slot_routine_takes(c, routine)) {
+        program_needs_the_machine(c->game, slot_routines[routine].routine, slot_routines[routine].what);
+        return false;
+    }
     bool back = true;
     switch (routine) {
     case CHAPTER_LABEL: TIMED_AS(c->game, 0xC2D296, draw_chapter_label(c->game)); break;
@@ -786,10 +819,14 @@ static bool slot_routine_as_c(void *ctx, SlotRoutine routine, uint32_t site)
     return back;
 }
 
-void menu_save_slots_read(GameState *g, Platform *pf)
+bool menu_save_slots_read(GameState *g, Platform *pf)
 {
+    if (!slots_readable(g)) {
+        program_needs_the_machine(g, 0xC2D156, "save slots the port doesn't read");
+        return false;
+    }
     SlotsAsC c = { g, pf };
-    (void)read_save_slots(g, pf, &slots_as_c, &c);
+    return read_save_slots(g, pf, &slots_as_c, &c);
 }
 
 /* ---- On the machine ----------------------------------------------------------------------------- */
@@ -1026,35 +1063,43 @@ bool menu_slot_rows_effect_is_loadable(Snes *s)
 /* The slots' reading runs on the menus' page with the data bank on work
  * RAM's, and starts its count of the slots from the menus' zero word (which
  * the game keeps 0); each label and summary is of one of the three slots. */
+static bool slots_readable(const GameState *g) { return menu_zero(g) == 0; }
+
 bool menu_save_slots_are_readable(Snes *s)
 {
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_zero(state_of(s)) == 0;
+    bool ok = slots_readable(state_of(s));
     vars_peek(false);
     return ok;
 }
+
+static bool labels_drawable(const GameState *g) { return menu_save_slot_shown(g) < SAVE_SLOTS; }
 
 bool menu_slot_labels_are_drawable(Snes *s)
 {
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_save_slot_shown(state_of(s)) < SAVE_SLOTS;
+    bool ok = labels_drawable(state_of(s));
     vars_peek(false);
     return ok;
 }
 
 /* The chapter label its caller named, one the label setting can take. */
+static bool chapter_label_drawable(const GameState *g)
+{
+    uint16_t at = (uint16_t)(MENU_CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * MENU_CHAPTER_LABEL_BYTES);
+    return labels_drawable(g) && menu_label_can_be_set(g, CHAPTER_LABELS, menu_text_string(g), at);
+}
+
 bool menu_chapter_label_is_drawable(Snes *s)
 {
-    if (!menu_slot_labels_are_drawable(s))
+    if (!menu_on_page_work_ram(s))
         return false;
-    const GameState *g = state_of(s);
     vars_peek(true);
-    uint16_t at = (uint16_t)(MENU_CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * MENU_CHAPTER_LABEL_BYTES);
-    bool ok = menu_label_can_be_set(g, CHAPTER_LABELS, menu_text_string(g), at);
+    bool ok = chapter_label_drawable(state_of(s));
     vars_peek(false);
     return ok;
 }
@@ -1063,25 +1108,29 @@ bool menu_chapter_label_is_drawable(Snes *s)
  * whose party holds characters (the save memory looked at where the bus has
  * it, without the machine's time), and with the menus' zero word 0: the gold
  * a summary hides is written from it. */
-static bool saved_party_is_characters(Snes *s, uint16_t at)
+static bool saved_party_is_characters(Platform *pf, uint16_t at)
 {
     for (unsigned row = 0; row < MEMBER_ROWS; row++) {
-        uint8_t member = sv_peek8(m_platform(s), party_place(saves_game_in_memory(at), row));
+        uint8_t member = sv_peek8(pf, party_place(saves_game_in_memory(at), row));
         if (!(member & NO_MEMBER) && member >= MENU_PORTRAITS)
             return false;
     }
     return true;
 }
 
+static bool summary_readable(const GameState *g, Platform *pf)
+{
+    uint16_t at = menu_slot_game_at(g);
+    return labels_drawable(g) && menu_zero(g) == 0 && at >= SAVES_ON_THE_BUS
+           && (uint32_t)at + SUMMARY_SPAN <= SAVES_ON_THE_BUS + SAVE_SIZE && saved_party_is_characters(pf, at);
+}
+
 bool menu_slot_summary_is_readable(Snes *s)
 {
-    if (!menu_slot_labels_are_drawable(s))
+    if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    uint16_t at = menu_slot_game_at(g);
-    bool zero = menu_zero(g) == 0;
+    bool ok = summary_readable(state_of(s), m_platform(s));
     vars_peek(false);
-    return zero && at >= SAVES_ON_THE_BUS && (uint32_t)at + SUMMARY_SPAN <= SAVES_ON_THE_BUS + SAVE_SIZE
-           && saved_party_is_characters(s, at);
+    return ok;
 }

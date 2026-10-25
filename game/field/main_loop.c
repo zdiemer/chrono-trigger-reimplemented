@@ -693,21 +693,58 @@ void field_main_loop_goes_round(Snes *s) { m_stop_at(s, MAIN_LOOP, THE_LOOP_READ
 
 // $C0:00DE
 /* The effects refreshed for the next frame: the line effects' tables built
- * and the palettes animated. */
-void field_effects_refreshed(GameState *g)
+ * and the palettes animated, each a routine of its own, run as C or on the
+ * machine; false where one went no further. */
+typedef struct {
+    bool (*line_effects)(void *ctx);
+    bool (*palettes)(void *ctx);
+} EffectsSteps;
+
+static bool refresh_effects(const EffectsSteps *steps, void *ctx)
 {
-    TIMED_AS(g, LINE_EFFECTS, field_line_effects_build(g));
-    TIMED_AS(g, PALETTE_ANIMATION, palette_animate_a_frame(g));
+    return steps->line_effects(ctx) && steps->palettes(ctx);
 }
 
-/* On the machine each is called from the original's call of it. */
-void field_refresh_effects(Snes *s)
+static bool refreshed_line_effects_as_c(void *ctx)
 {
+    TIMED_AS((GameState *)ctx, LINE_EFFECTS, field_line_effects_build(ctx));
+    return true;
+}
+
+static bool refreshed_palettes_as_c(void *ctx)
+{
+    TIMED_AS((GameState *)ctx, PALETTE_ANIMATION, palette_animate_a_frame(ctx));
+    return true;
+}
+
+void field_effects_refreshed(GameState *g)
+{
+    static const EffectsSteps as_c = { refreshed_line_effects_as_c, refreshed_palettes_as_c };
+    (void)refresh_effects(&as_c, g);
+}
+
+/* On the machine each is called from the original's call of it, the line
+ * effects' tables with 8-bit index registers. */
+static bool line_effects_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
     m_sep(s, CPU_FLAG_X);
     if (!field_run_long(s, 0xC000E0, LINE_EFFECTS, READS_NOTHING, field_build_line_effect_tables, page_x8(s)))
-        return;
+        return false;
     m_rep(s, CPU_FLAG_X);
-    if (field_run_long(s, 0xC000E6, PALETTE_ANIMATION, READS_NOTHING, palette_animate, page(s)))
+    return true;
+}
+
+static bool palettes_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run_long(s, 0xC000E6, PALETTE_ANIMATION, READS_NOTHING, palette_animate, page(s));
+}
+
+void field_refresh_effects(Snes *s)
+{
+    static const EffectsSteps on_the_machine = { line_effects_on_the_machine, palettes_on_the_machine };
+    if (refresh_effects(&on_the_machine, s))
         m_rts(s);
 }
 

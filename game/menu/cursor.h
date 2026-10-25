@@ -21,6 +21,9 @@ void menu_sound_played(GameState *g, Platform *pf, uint8_t sound);
 /* Whether the cursor stands on one of its menu's places, and the neighbour
  * the pad pushes it to is one too (what the screens that move it take). */
 bool menu_cursor_can_move(const GameState *g);
+/* The cursor's placing's guard, its state half: the cursor on one of its
+ * menu's places. */
+bool menu_cursor_can_be_placed(const GameState *g);
 
 /* What the frame's input asks for, as the cursor's reading leaves it
  * (menu_cursor_buttons): choosing, going back, and the two shoulder
