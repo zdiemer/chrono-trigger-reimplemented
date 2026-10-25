@@ -2890,6 +2890,19 @@ waits on M5 rather than on a backend.
   ct_native it guards nothing: say so, or drop the test from the C path. The
   review rubric wants an item for scaffolding notes routed through a steps
   callback.
+- **What the world map's review left** (none rated translation):
+  `field/requests.c`'s `TileCopyCall` carries the original's 33 call sites
+  through the logic, where it wants the routine and layer and the bridge keeping
+  the sites; `overworld/main_loop.c`'s `arm_entered`, `script_started`,
+  `cpu_stilled` and `flags_given_back` hooks, and
+  `overworld_start_the_location_song`'s `looked_up`, exist only to set
+  registers the wrapper can work out after the call; `menu/frame.c`'s
+  `bool *sent` exists only for A's leftover; `menu/line_effects.c`'s
+  `FAR_CALL_X`/`NEAR_CALL_X` feed the dispatch's X into `step_the_curtain`'s
+  `salt`, which wants naming for what it is and the comment there agreeing.
+  The scene's callers of `palette_animate_a_frame` (`scene/rising_palace.c`,
+  `scene/screen.c` twice) skip `every_slot_fits`, which the field's now check
+  through `palette_animated_as_c`.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in
