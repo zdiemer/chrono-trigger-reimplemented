@@ -170,7 +170,7 @@ static MenuTurn drift_the_map(GameState *g, Platform *pf, MenuObject self)
     return MENU_TURN_GOES_ON;
 }
 
-static const MenuHandler HANDLERS[] = {
+MENU_HANDLERS(menu_handlers,
     { MENU_SCRIPT_HANDLER, "a command script", script_takes, run_the_script },
     { MENU_TILE_STREAMER, "the tile streamer", menu_tile_streamer_takes, menu_stream_tiles_turn },
     { MENU_PALETTE_LOADER, "a palette row's load", menu_palette_loader_takes, menu_load_palette_row_turn },
@@ -185,14 +185,17 @@ static const MenuHandler HANDLERS[] = {
     { 0x7702, "the layer over the map, drifting", NULL, menu_top_layer_drift_turn },
     { 0x77F2, "the layer over the map, drifting fast", NULL, menu_top_layer_fast_drift_turn },
     { 0x7849, "the map drifting along", menu_scene_drift_takes, drift_the_map },
-};
-enum { HANDLER_ROWS = sizeof HANDLERS / sizeof HANDLERS[0] };
+);
+
+static const MenuHandlers *const HANDLER_TABLES[] = { &menu_handlers, &overworld_handlers };
+enum { HANDLER_TABLES_COUNT = sizeof HANDLER_TABLES / sizeof HANDLER_TABLES[0] };
 
 const MenuHandler *menu_handler_as_c(uint16_t handler)
 {
-    for (unsigned i = 0; i < HANDLER_ROWS; i++)
-        if (HANDLERS[i].handler == handler)
-            return &HANDLERS[i];
+    for (unsigned t = 0; t < HANDLER_TABLES_COUNT; t++)
+        for (unsigned i = 0; i < HANDLER_TABLES[t]->count; i++)
+            if (HANDLER_TABLES[t]->rows[i].handler == handler)
+                return &HANDLER_TABLES[t]->rows[i];
     return NULL;
 }
 
@@ -202,6 +205,7 @@ static const MenuScriptRoutines *const ROUTINE_TABLES[] = {
     &menu_scene_routines,
     &menu_line_effect_routines,
     &menu_map_scene_routines,
+    &overworld_routines,
 };
 enum { ROUTINE_TABLES_COUNT = sizeof ROUTINE_TABLES / sizeof ROUTINE_TABLES[0] };
 

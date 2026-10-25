@@ -32,6 +32,8 @@
 #include "charge.h"
 #include "core/program.h"
 #include "core/display.h"
+#include "core/palette.h"
+#include "field/layers.h"
 #include "field/sprites.h"
 #include "field/streaming.h"
 #include "field/layers.h"
@@ -277,28 +279,74 @@ static bool answer_chest(Snes *s)
 
 /* ---- A tile copy ($C0:1779) ----------------------------------------------------------------- */
 
+/* The routines a copy calls, each a port: the screen's step back, the frame's
+ * work, the tiles' copy, the palettes' animation, a layer's drawing at the
+ * map's load, the effects' refresh, the columns right of the view brought
+ * in, and the wait for the next frame. */
+typedef enum {
+    TC_RECENTRE, TC_FRAME_WORK, TC_COPY, TC_PALETTES, TC_DRAW_BG1, TC_DRAW_BG2, TC_DRAW_BG3, TC_REFRESH, TC_COLUMNS,
+    TC_WAIT,
+} TileCopyRoutine;
+
+/* Every call the copy makes, by where the original makes it. A layer sent
+ * alone has its own copy of the calls; BG3's ends with a frame wait of its
+ * own, the others by jumping to the main loop's (TC_LAST_WAIT). */
+typedef enum {
+    RECENTRING, RECENTRING_FRAME_WORK, RECENTRING_WAIT, COPYING, COPYING_PALETTES, COPYING_WAIT,
+    BG1_DRAWN, BG1_REFRESHED, BG1_WAITED, BG1_REFRESHED_AFTER, BG1_COLUMNS,
+    BG2_DRAWN, BG2_REFRESHED, BG2_WAITED, BG2_REFRESHED_AFTER, BG2_COLUMNS,
+    BG3_DRAWN, BG3_REFRESHED, BG3_WAITED, BG3_REFRESHED_AFTER, BG3_COLUMNS, BG3_LAST_WAIT,
+    BOTH_BG1_DRAWN, BOTH_BG1_REFRESHED, BOTH_BG1_WAITED, BOTH_BG2_DRAWN, BOTH_BG2_REFRESHED, BOTH_BG2_WAITED,
+    BOTH_BG1_DRAWN_AGAIN, BOTH_BG1_REFRESHED_AGAIN, BOTH_BG1_WAITED_AGAIN, BOTH_REFRESHED_AFTER, BOTH_COLUMNS,
+    TILE_COPY_CALLS,
+    TC_LAST_WAIT = TILE_COPY_CALLS,
+} TileCopyCall;
+
+static const struct {
+    TileCopyRoutine routine;
+    uint32_t site;
+} tile_copy_calls[TILE_COPY_CALLS] = {
+    [RECENTRING] = { TC_RECENTRE, 0xC01781 },          [RECENTRING_FRAME_WORK] = { TC_FRAME_WORK, 0xC01784 },
+    [RECENTRING_WAIT] = { TC_WAIT, 0xC0178B },         [COPYING] = { TC_COPY, 0xC01790 },
+    [COPYING_PALETTES] = { TC_PALETTES, 0xC01793 },    [COPYING_WAIT] = { TC_WAIT, 0xC01797 },
+    [BG1_DRAWN] = { TC_DRAW_BG1, 0xC017A9 },           [BG1_REFRESHED] = { TC_REFRESH, 0xC017B0 },
+    [BG1_WAITED] = { TC_WAIT, 0xC017B9 },              [BG1_REFRESHED_AFTER] = { TC_REFRESH, 0xC017BC },
+    [BG1_COLUMNS] = { TC_COLUMNS, 0xC017BF },
+    [BG2_DRAWN] = { TC_DRAW_BG2, 0xC017D2 },           [BG2_REFRESHED] = { TC_REFRESH, 0xC017D9 },
+    [BG2_WAITED] = { TC_WAIT, 0xC017E2 },              [BG2_REFRESHED_AFTER] = { TC_REFRESH, 0xC017E5 },
+    [BG2_COLUMNS] = { TC_COLUMNS, 0xC017E8 },
+    [BG3_DRAWN] = { TC_DRAW_BG3, 0xC0186F },           [BG3_REFRESHED] = { TC_REFRESH, 0xC01876 },
+    [BG3_WAITED] = { TC_WAIT, 0xC0187F },              [BG3_REFRESHED_AFTER] = { TC_REFRESH, 0xC01882 },
+    [BG3_COLUMNS] = { TC_COLUMNS, 0xC01885 },          [BG3_LAST_WAIT] = { TC_WAIT, 0xC01888 },
+    [BOTH_BG1_DRAWN] = { TC_DRAW_BG1, 0xC017FE },      [BOTH_BG1_REFRESHED] = { TC_REFRESH, 0xC01802 },
+    [BOTH_BG1_WAITED] = { TC_WAIT, 0xC0180B },         [BOTH_BG2_DRAWN] = { TC_DRAW_BG2, 0xC01817 },
+    [BOTH_BG2_REFRESHED] = { TC_REFRESH, 0xC0182B },   [BOTH_BG2_WAITED] = { TC_WAIT, 0xC01832 },
+    [BOTH_BG1_DRAWN_AGAIN] = { TC_DRAW_BG1, 0xC0183E }, [BOTH_BG1_REFRESHED_AGAIN] = { TC_REFRESH, 0xC0184F },
+    [BOTH_BG1_WAITED_AGAIN] = { TC_WAIT, 0xC01856 },   [BOTH_REFRESHED_AFTER] = { TC_REFRESH, 0xC01859 },
+    [BOTH_COLUMNS] = { TC_COLUMNS, 0xC0185C },
+};
+
+/* A call of the copy's, as C or on the machine (below); false where it went
+ * no further. */
+typedef bool (*TileCopyRun)(void *ctx, TileCopyCall call);
+
 /* The layers a copy changed (field_tile_copy_queued_maps), drawn again and
  * sent: BG1, BG2 or BG3 alone, or BG1 and BG2 (below). A layer is drawn on the
  * layers' page and put back at its map's start, and the vblank told to move it
  * to the layer's place (field_map_transition); after it the frame's effects
- * are refreshed and the layers' scroll put where the screen is. Each layer
- * alone has its own copy of the calls, by where each is; BG3's ends with a
- * frame wait of its own, the others by jumping to the main loop's. */
+ * are refreshed and the layers' scroll put where the screen is. */
 typedef enum { QUEUED_BG1 = 1, QUEUED_BG2 = 2, QUEUED_BG1_AND_BG2 = 3, QUEUED_BG3 = 4 } QueuedMaps;
 
 static const struct {
-    void (*draw)(Snes *);
-    uint32_t draw_routine;
     FieldMapMove move;
-    bool waits_itself;
-    uint32_t draw_site, refresh_site, wait_site, refresh_after_site, scroll_site, last_wait_site;
+    TileCopyCall drawn, refreshed, waited, refreshed_after, columns, last_wait;
 } alone[FIELD_LAYERS] = {
-    [FIELD_BG1] = { field_draw_bg1_at_the_load, DRAW_BG1, FIELD_MOVE_TO_BG1, false,
-                    0xC017A9, 0xC017B0, 0xC017B9, 0xC017BC, 0xC017BF, 0 },
-    [FIELD_BG2] = { field_draw_bg2_at_the_load, DRAW_BG2, FIELD_MOVE_TO_BG2, false,
-                    0xC017D2, 0xC017D9, 0xC017E2, 0xC017E5, 0xC017E8, 0 },
-    [FIELD_BG3] = { field_draw_bg3_at_the_load, DRAW_BG3, FIELD_MOVE_TO_BG3, true,
-                    0xC0186F, 0xC01876, 0xC0187F, 0xC01882, 0xC01885, 0xC01888 },
+    [FIELD_BG1] = { FIELD_MOVE_TO_BG1, BG1_DRAWN, BG1_REFRESHED, BG1_WAITED, BG1_REFRESHED_AFTER, BG1_COLUMNS,
+                    TC_LAST_WAIT },
+    [FIELD_BG2] = { FIELD_MOVE_TO_BG2, BG2_DRAWN, BG2_REFRESHED, BG2_WAITED, BG2_REFRESHED_AFTER, BG2_COLUMNS,
+                    TC_LAST_WAIT },
+    [FIELD_BG3] = { FIELD_MOVE_TO_BG3, BG3_DRAWN, BG3_REFRESHED, BG3_WAITED, BG3_REFRESHED_AFTER, BG3_COLUMNS,
+                    BG3_LAST_WAIT },
 };
 
 /* BG1 and the transition base trade places: the copy's second pass sends
@@ -310,99 +358,163 @@ static void trade_bg1_base(GameState *g)
     set_field_transition_map_base(g, bg1);
 }
 
+// $C0:179A-$C0:17EB, $C0:1867-$C0:188B
+/* One layer alone. */
+static bool send_one_layer(GameState *g, FieldLayer layer, TileCopyRun run, void *ctx)
+{
+    if (!run(ctx, alone[layer].drawn))
+        return false;
+    field_put_the_layer_at_its_start(g, layer);
+    if (!run(ctx, alone[layer].refreshed))
+        return false;
+    set_field_map_transition(g, alone[layer].move);
+    set_field_tile_copy_queued_maps(g, 0);
+    return run(ctx, alone[layer].waited) && run(ctx, alone[layer].refreshed_after) && run(ctx, alone[layer].columns)
+           && run(ctx, alone[layer].last_wait);
+}
+
+// $C0:17EC-$C0:1866
+/* BG1 and BG2: BG1 drawn and sent; then BG2 drawn and sent to BG1's place
+ * while BG1 goes again to the transition's; then BG1 drawn and sent back, a
+ * frame each. */
+static bool send_bg1_and_bg2(GameState *g, TileCopyRun run, void *ctx)
+{
+    if (!run(ctx, BOTH_BG1_DRAWN) || !run(ctx, BOTH_BG1_REFRESHED))
+        return false;
+    set_field_map_transition(g, FIELD_MOVE_TO_THE_LOADERS_PLACE);
+    set_field_tile_copy_queued_maps(g, 0);
+    if (!run(ctx, BOTH_BG1_WAITED) || !run(ctx, BOTH_BG2_DRAWN))
+        return false;
+    trade_bg1_base(g);
+    field_put_the_layer_at_its_start(g, FIELD_BG1);
+    field_put_the_layer_at_its_start(g, FIELD_BG2);
+    if (!run(ctx, BOTH_BG2_REFRESHED))
+        return false;
+    set_field_map_transition(g, FIELD_MOVE_TO_BG2);
+    if (!run(ctx, BOTH_BG2_WAITED) || !run(ctx, BOTH_BG1_DRAWN_AGAIN))
+        return false;
+    trade_bg1_base(g);
+    field_put_the_layer_at_its_start(g, FIELD_BG1);
+    if (!run(ctx, BOTH_BG1_REFRESHED_AGAIN))
+        return false;
+    set_field_map_transition(g, FIELD_MOVE_TO_BG1);
+    return run(ctx, BOTH_BG1_WAITED_AGAIN) && run(ctx, BOTH_REFRESHED_AFTER) && run(ctx, BOTH_COLUMNS)
+           && run(ctx, TC_LAST_WAIT);
+}
+
+// $C0:1779
+/* The screen scrolls back onto the grid a frame at a time, the frame's work
+ * going on, then the tiles are copied and the layers they changed sent; the
+ * main loop's pass goes on after the last frame's wait. */
+static bool copy_the_tiles(GameState *g, TileCopyRun run, void *ctx)
+{
+    answered(g, FIELD_REQUEST_TILE_COPY);
+    screen_starts_recentring(g);
+    for (;;) {
+        if (!run(ctx, RECENTRING) || !run(ctx, RECENTRING_FRAME_WORK))
+            return false;
+        if (screen_is_recentred(g))
+            break;
+        if (!run(ctx, RECENTRING_WAIT))
+            return false;
+    }
+    if (!run(ctx, COPYING) || !run(ctx, COPYING_PALETTES) || !run(ctx, COPYING_WAIT))
+        return false;
+    switch ((QueuedMaps)field_tile_copy_queued_maps(g)) {
+    case QUEUED_BG1: return send_one_layer(g, FIELD_BG1, run, ctx);
+    case QUEUED_BG2: return send_one_layer(g, FIELD_BG2, run, ctx);
+    case QUEUED_BG3: return send_one_layer(g, FIELD_BG3, run, ctx);
+    case QUEUED_BG1_AND_BG2: return send_bg1_and_bg2(g, run, ctx);
+    default: return true;
+    }
+}
+
+/* ---- As C ---- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} TileCopyAsC;
+
+static bool drawn_as_c(GameState *g, FieldLayer layer, uint32_t routine)
+{
+    if (!layer_drawing_fits(g, layer) || !layers_repeat_within_the_maps(g)) {
+        program_needs_the_machine(g, routine, "a layer the port doesn't draw at the map's load");
+        return false;
+    }
+    TIMED_AS(g, routine, draw_layer_at_the_maps_load(g, layer));
+    return true;
+}
+
+static bool tile_copy_call_as_c(void *ctx, TileCopyCall call)
+{
+    TileCopyAsC *c = ctx;
+    GameState *g = c->game;
+    bool done = true;
+    switch (call == TC_LAST_WAIT ? TC_WAIT : tile_copy_calls[call].routine) {
+    case TC_RECENTRE:
+        TIMED_AS(g, RECENTRE, done = field_the_screen_recentres(g));
+        return done;
+    case TC_FRAME_WORK:
+        TIMED_AS(g, FIELD_FRAME_WORK_ENTRY, done = field_frame_work_done(g, c->pf));
+        return done;
+    case TC_COPY:
+        if (!field_tile_copy_is_on_the_map(g)) {
+            program_needs_the_machine(g, COPY_TILES, "a tile copy off the map");
+            return false;
+        }
+        TIMED_AS(g, COPY_TILES, map_copy_tiles(g));
+        return true;
+    case TC_PALETTES: TIMED_AS(g, PALETTE_ANIMATION, palette_animate_a_frame(g)); return true;
+    case TC_DRAW_BG1: return drawn_as_c(g, FIELD_BG1, DRAW_BG1);
+    case TC_DRAW_BG2: return drawn_as_c(g, FIELD_BG2, DRAW_BG2);
+    case TC_DRAW_BG3: return drawn_as_c(g, FIELD_BG3, DRAW_BG3);
+    case TC_REFRESH: TIMED_AS(g, FIELD_REFRESH_EFFECTS_ENTRY, field_effects_refreshed(g)); return true;
+    case TC_COLUMNS:
+        if (!layers_repeat_within_the_maps(g)) {
+            program_needs_the_machine(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "layers the port doesn't stream");
+            return false;
+        }
+        TIMED_AS(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, stream_the_right_columns(g));
+        return true;
+    case TC_WAIT: TIMED_AS(g, FRAME_WAIT, field_finish_the_frame(g, c->pf)); return true;
+    default: return false;
+    }
+}
+
+/* ---- On the machine ---- */
+
 /* The original ends most sends by jumping to the frame wait, which returns
  * to the main loop itself; the port stops there. What the main loop reads
  * after it is what the calls before left. */
 enum { THE_LAST_WAIT = DC_A | DC_N | DC_Z };
 
-// $C0:1779 ($C0:179A-$C0:188B for the layers)
-/* One layer alone. False where the port stopped. */
-static bool send_one_layer(Snes *s, FieldLayer layer)
+static bool tile_copy_call_on_the_machine(void *ctx, TileCopyCall call)
 {
-    GameState *g = state_of(s);
-    if (!field_run_on_page(s, alone[layer].draw_site, alone[layer].draw_routine, READS_NOTHING, alone[layer].draw,
-                           FIELD_LAYERS_PAGE))
+    Snes *s = ctx;
+    if (call == TC_LAST_WAIT) {
+        m_stop_at_own(s, FRAME_WAIT, THE_LAST_WAIT);
         return false;
-    field_put_the_layer_at_its_start(g, layer);
-    if (!refresh(s, alone[layer].refresh_site))
-        return false;
-    set_field_map_transition(g, alone[layer].move);
-    set_field_tile_copy_queued_maps(g, 0);
-    if (!wait_frame(s, alone[layer].wait_site) || !refresh(s, alone[layer].refresh_after_site) ||
-        !bring_in_the_right_columns(s, alone[layer].scroll_site))
-        return false;
-    if (alone[layer].waits_itself)
-        return wait_frame(s, alone[layer].last_wait_site);
-    m_stop_at_own(s, FRAME_WAIT, THE_LAST_WAIT);
-    return false;
-}
-
-/* BG1 and BG2: BG1 drawn and sent; then BG2 drawn and sent to BG1's place
- * while BG1 goes again to the transition's; then BG1 drawn and sent back, a
- * frame each. */
-static bool send_bg1_and_bg2(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (!field_run_on_page(s, 0xC017FE, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, FIELD_LAYERS_PAGE) ||
-        !refresh(s, 0xC01802))
-        return false;
-    set_field_map_transition(g, FIELD_MOVE_TO_THE_LOADERS_PLACE);
-    set_field_tile_copy_queued_maps(g, 0);
-    if (!wait_frame(s, 0xC0180B) ||
-        !field_run_on_page(s, 0xC01817, DRAW_BG2, READS_NOTHING, field_draw_bg2_at_the_load, FIELD_LAYERS_PAGE))
-        return false;
-    trade_bg1_base(g);
-    field_put_the_layer_at_its_start(g, FIELD_BG1);
-    field_put_the_layer_at_its_start(g, FIELD_BG2);
-    if (!refresh(s, 0xC0182B))
-        return false;
-    set_field_map_transition(g, FIELD_MOVE_TO_BG2);
-    if (!wait_frame(s, 0xC01832) ||
-        !field_run_on_page(s, 0xC0183E, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, FIELD_LAYERS_PAGE))
-        return false;
-    trade_bg1_base(g);
-    field_put_the_layer_at_its_start(g, FIELD_BG1);
-    if (!refresh(s, 0xC0184F))
-        return false;
-    set_field_map_transition(g, FIELD_MOVE_TO_BG1);
-    if (!wait_frame(s, 0xC01856) || !refresh(s, 0xC01859) ||
-        !bring_in_the_right_columns(s, 0xC0185C))
-        return false;
-    m_stop_at_own(s, FRAME_WAIT, THE_LAST_WAIT);
-    return false;
-}
-
-// $C0:1779
-/* The screen scrolls back onto the grid a frame at a time, the frame's work
- * going on, then the tiles are copied and the layers they changed sent.
- * False where the port stopped. */
-static bool answer_tile_copy(Snes *s)
-{
-    GameState *g = state_of(s);
-    answered(g, FIELD_REQUEST_TILE_COPY);
-    screen_starts_recentring(g);
-    for (;;) {
-        if (!field_run(s, 0xC01781, RECENTRE, READS_NOTHING, field_recentre_the_screen, on_the_field_page(s, false)) ||
-            !field_run(s, 0xC01784, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work,
-                       on_the_field_page(s, false)))
-            return false;
-        if (screen_is_recentred(g))
-            break;
-        if (!wait_frame(s, 0xC0178B))
-            return false;
     }
-    if (!field_run(s, 0xC01790, COPY_TILES, READS_NOTHING, field_copy_tiles, on_the_field_page(s, false)) ||
-        !bridge_call_long(s, 0xC01793, PALETTE_ANIMATION, READS_NOTHING, on_the_field_page(s, false)) ||
-        !wait_frame(s, 0xC01797))
-        return false;
-    switch ((QueuedMaps)field_tile_copy_queued_maps(g)) {
-    case QUEUED_BG1: return send_one_layer(s, FIELD_BG1);
-    case QUEUED_BG2: return send_one_layer(s, FIELD_BG2);
-    case QUEUED_BG3: return send_one_layer(s, FIELD_BG3);
-    case QUEUED_BG1_AND_BG2: return send_bg1_and_bg2(s);
-    default: return true;
+    uint32_t site = tile_copy_calls[call].site;
+    switch (tile_copy_calls[call].routine) {
+    case TC_RECENTRE: return field_run(s, site, RECENTRE, READS_NOTHING, field_recentre_the_screen, on_the_field_page(s, false));
+    case TC_FRAME_WORK:
+        return field_run(s, site, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, on_the_field_page(s, false));
+    case TC_COPY: return field_run(s, site, COPY_TILES, READS_NOTHING, field_copy_tiles, on_the_field_page(s, false));
+    case TC_PALETTES: return bridge_call_long(s, site, PALETTE_ANIMATION, READS_NOTHING, on_the_field_page(s, false));
+    case TC_DRAW_BG1: return field_run_on_page(s, site, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, FIELD_LAYERS_PAGE);
+    case TC_DRAW_BG2: return field_run_on_page(s, site, DRAW_BG2, READS_NOTHING, field_draw_bg2_at_the_load, FIELD_LAYERS_PAGE);
+    case TC_DRAW_BG3: return field_run_on_page(s, site, DRAW_BG3, READS_NOTHING, field_draw_bg3_at_the_load, FIELD_LAYERS_PAGE);
+    case TC_REFRESH: return refresh(s, site);
+    case TC_COLUMNS: return bring_in_the_right_columns(s, site);
+    case TC_WAIT: return wait_frame(s, site);
+    default: return false;
     }
 }
+
+/* False where the port stopped. */
+static bool answer_tile_copy(Snes *s) { return copy_the_tiles(state_of(s), tile_copy_call_on_the_machine, s); }
 
 /* ---- A battle ($C0:188C) ------------------------------------------------------------------- */
 
@@ -482,8 +594,8 @@ static bool answer_requests(Snes *s)
 /* ---- As C, with no machine ------------------------------------------------------------------ */
 
 /* The requests a program with no machine answers as C so far: a location
- * change and a script's menu. The rest stop it where they are asked for
- * (core/program.h). */
+ * change, a script's menu and a tile copy. The rest stop it where they are
+ * asked for (core/program.h). */
 static const struct {
     uint8_t request;
     uint32_t routine;
@@ -491,8 +603,6 @@ static const struct {
 } only_the_machines[] = {
     { FIELD_REQUEST_STEP_EVENT, 0xC00C76, "a step on an event's tile" },
     { FIELD_REQUEST_OPEN_CHEST, 0xC016DC, "a chest opened" },
-    { FIELD_REQUEST_TILE_COPY, 0xC01779, "a tile copy" },
-    { FIELD_REQUEST_BATTLE, 0xC00C76, "a battle" },
 };
 
 // $C0:0C8F
@@ -520,6 +630,14 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
             program_needs_the_machine(g, only_the_machines[i].routine, only_the_machines[i].what);
             return FIELD_PASS_STOPS;
         }
+    if (asked(g, FIELD_REQUEST_TILE_COPY)) {
+        TileCopyAsC c = { g, pf };
+        return copy_the_tiles(g, tile_copy_call_as_c, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
+    }
+    if (asked(g, FIELD_REQUEST_BATTLE)) {
+        program_needs_the_machine(g, 0xC0188C, "a battle");
+        return FIELD_PASS_STOPS;
+    }
     return FIELD_PASS_GOES_ON;
 }
 

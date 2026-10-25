@@ -2938,83 +2938,55 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
-### The native program through the world map
+### The native program through Crono's house to the fair
 
-`ct_native` (PLAYING.md, "The native program") stopped where the field
-enters a world map: the locations from `$1F0`, which the menus'
-sprite-object mode shows (`$C2:0000`). The attract demo met it at frame 2093,
-`new-game.ctm`'s presses at frame 3243 (the opening's bells over Guardia).
-The world map now runs as C: the mode's start, the map's setup, the
-overworld's main loop, the mode's vblank and line handlers and the objects
-they run, until the map's scene leaves for the field, whose start takes it to
-the location the scene chose. The attract demo's first world map plays
-through and the field goes on to frame 2551; the new game's opening plays
-through into Crono's house, to frame 4798.
+With the world map as C (the section before this one, history file, "The
+native program through the world map"), `new-game.ctm`'s presses took
+`ct_native` into Crono's house, where it stopped at frame 4798: an event
+command that casts a person whose graphics must be unpacked (`$C0:4590`).
+Each step after it was taken as it was met, in the same shape -- one
+sequence the machine's entry and the program run, its steps callbacks:
 
-The shapes are the field's and the menus' (the section before this one,
-history/reimplementation-chunks.md, "The native program through the field
-and the title"), one sequence each that the machine's entry and the program
-both run:
+- **The casts of a person and an enemy** (`$C0:4590`, `$C0:46DF`): the
+  casting's two halves either side of the unpacking, the unpacker a
+  callback (`SetUnpacker`; on the machine the original's from each
+  command's call, its sites and the too-far stops a table's rows), now
+  bridges with C (`EVENT_BRIDGES_AS_C`).
+- **A tile copy** (`$C0:1779`, a request): the screen's recentring a frame
+  at a time, the copy, and the layers it changed drawn and sent, each call a
+  row of a table (`tile_copy_calls`: the routine and the original's site),
+  run by one sequence (`copy_the_tiles`) whose step is a call; on the machine
+  the original's calls and the jump to the frame wait the pass goes on
+  from, as C the ports' functions with their guards' state halves. The
+  recentring and the leader's walk became one sequence each with the
+  layers' scroll a callback (`walk.c`), which took the walk off TODO.md's
+  list of steps written twice.
+- **The world map walked on foot** (`overworld/handlers.c`): the overworld's
+  handlers -- the walkers, the vehicles, the places' watcher, the music, the
+  sign, the Epoch and the dactyls -- and the routines its scenes call (the
+  song of where the party is, the sign's label, the Epoch's scenes), as rows
+  of the sprite-object mode's C tables; the walkers' and the Epoch's scripts
+  on the interpreter as C. Their guards' state halves moved here from
+  `entries.c`, whose guards are now each the handler's machine half and the
+  row's state half (`menu_object_handler_takes`).
 
-- **The mode's start** (`menu_object_mode_starts`) and **the map's setup**
-  were functions of the game's state already; the setup's unpacker is a
-  callback (`Unpacker`), now with a C one (`overworld_unpacker_as_c`) beside
-  the machine's. The setup's guard has its state half
-  (`overworld_can_be_set_up`), which the program checks first.
-- **The main loop** (`overworld/main_loop.c`): a pass is one function over
-  `LoopSteps`, the waits, the map's loads again, the screens the loop opens
-  and the registers the original's code reads after a step being callbacks.
-  The machine's entry runs a pass from the loop's head and stops where the
-  pass ends (the head again, the field's start, the halt); the program loops
-  over passes until the scene leaves (`overworld_runs`). The waits' sites
-  and frames, and the loads' sites, are table rows, so the don't-care check
-  reads them.
-- **The vblank handler** (`$C2:015E`): its work is one sequence of six steps
-  (the queue, the frame's input, the sprite list emptied, the sprites hidden,
-  the objects run, the list drawn), each a call of the original's on the
-  machine and C in the program, each with its guard's state half; the
-  handler's line twin only returns. Both are rows of `core/program.c`'s table.
-- **The objects' loop** (`$C2:051D`) takes a turn per slot through a
-  callback: on the machine the original's `JSR` through the slot's handler,
-  in the program a row of a C table (`menu/handlers.c`): the command scripts'
-  interpreter, the screen's objects (the fades, the palette rows, the tile
-  streamer, the mosaic), the layer over the map's drifts and wave, and the
-  drifting map. A handler's guard is its machine half
-  (`menu_object_handler_runs`) and a state half the row names
-  (`menu_object_handler_takes`).
-- **The command scripts** run as C on `menu_run_script` with a runner of
-  their own: each command decoded by its row and performed where
-  `menu_script_runs_here` takes it, and the services as C -- the map's scroll
-  and redraw with their guards' state halves, the sound request passed on,
-  and the routines a script calls by address, each a row
-  (`MENU_SCRIPT_ROUTINES`) beside its entry in its own file: the scenes'
-  routines (`object_commands.c`), their line effects, irises and curtain
-  (`line_effects.c`) and the map scenes' (`map_scenes.c`). Where an entry's
-  work was written into the entry, it moved into a function both call.
+So `new-game.ctm` plays to its end, and `fair.ctm`'s presses cross the world
+map into Leene Square, the fair (location `$005`, where the reference play
+of the movie ends), and on to the end of the run. The attract demo still
+stops at frame 2551, at a screen effect only the machine runs (its curtain,
+its close into a scene or its ripple, `$C0:21E1`).
 
 **Measured.** Shadow mode over the library: 0 mismatches; the entries whose
 work became a sequence compare every call real play makes
-(`menu_object_nmi` 35,503 with 3 interrupted, `menu_run_objects` 34,743 with
-7, `menu_run_object_script` 392,650 with 20, `overworld_main_loop` 30,652
-with 2, `menu_wait_for_frame` 33,776, `menu_wait_frames_sending_the_sound`
-380). Refusals in real play: 0; fallbacks unchanged (the reference play 3.5
-KiB, 554,128 instructions; the shipping mode 0.6 KiB, 18,033). The census:
-259 entries the machine enters, as before -- the machine's entries are the
-same, and what moved is that the program reaches them as C.
-`tools/machine_joints.py`: 180 stops (181), 129 time tags that take the
-machine (132), and the register escapes as they were (24: the scripts'
-write of a picture register, which both runners make, moved into
-`script.c` beside the test of it). Timing: no row recalibrated;
-the frame wait's first draft read the frame count twice and drifted
-+47.6%, which reading it once put back. A cartridge word the world map's
-setup clears VRAM with (`$C2:26D4`) joined the catalogue of resources
-(`menu_vram_clearing_zero`), as the menus' clearing zero did.
-
-What the world map still hands the machine when the program runs it: the
-walkers, the vehicles and the sign (the overworld's handlers, which only a
-map the party walks runs), the map view and the time dial, and the menus
-opened from the map, which go as far as the menus' own C does (TODO.md,
-"The native program").
+(`event_cmd_cast_npc` 971, `event_cmd_cast_enemy` 662,
+`field_handle_requests` 238,533, `field_recentre_the_screen` 323,
+`field_walk_the_leader` 244,514, `overworld_lead` 18,356 with 4
+interrupted, `overworld_follow` 36,712, `overworld_start_the_location_song`
+32). Refusals in real play: 0; fallbacks unchanged. The census: 259 entries
+the machine enters, as before. `tools/machine_joints.py`: 179 stops (180).
+Timing: no row recalibrated. The moved guards' reads of slot cells the
+menus proper also use as scaffolding are four baseline lines of the same
+kind as the ones they moved with.
 
 ### The last refusals in real play: the attract demo's states
 

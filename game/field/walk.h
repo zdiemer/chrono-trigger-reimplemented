@@ -34,6 +34,9 @@ void field_walk_the_leader(Snes *s);
 /* The same as C, the layers scrolled and streamed after the leader; false
  * where the layers are none the port streams, the program going no further. */
 bool field_the_leader_walks(GameState *g);
+/* The screen's step back toward the party as C, with the layers scrolled
+ * after it; false where the program goes no further. */
+bool field_the_screen_recentres(GameState *g);
 void field_recentre_the_screen(Snes *s);
 bool field_walk_can_run(Snes *s);
 bool field_recentring_can_run(Snes *s);

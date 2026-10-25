@@ -17,6 +17,7 @@
 #include "menu/sprites.h"
 #include "menu/vram.h"
 #include "overworld/frames.h"
+#include "overworld/handlers.h"
 #include "overworld/main_loop.h"
 #include "overworld/music.h"
 #include "overworld/overworld.h"
@@ -77,12 +78,6 @@ static WalkerScripts on_the_machine(WalkerOnTheMachine *w, Snes *s, const uint32
 {
     *w = (WalkerOnTheMachine){ s, { calls[0], calls[1] } };
     return (WalkerScripts){ run_on_the_machine, w };
-}
-
-/* A walker's step after the frame's start over. */
-static OverworldStep step_to_run(const GameState *g, MenuObject walker)
-{
-    return overworld_walkers_start_over(g) ? 0 : overworld_step(g, walker);
 }
 
 // $C2:3404
@@ -279,379 +274,53 @@ void overworld_back_from_the_menus_entry(Snes *s) { overworld_come_back_from_the
 
 /* ---- The guards ---------------------------------------------------------------------------- */
 
-static bool peek(Snes *s, MenuObject *self)
-{
-    if (!menu_object_handler_runs(s))
-        return false;
-    vars_peek(true);
-    *self = menu_object_running(state_of(s));
-    vars_peek(false);
-    return true;
-}
-
-/* A walker's animations are ones the sprite scripts read (the one it has
- * too, unless it sets off, given its standing one first), and the sprite list
- * and the upload queue are as the mode keeps them. */
-static bool animates(const GameState *g, MenuObject walker, PartyPlace place, bool sets_off)
-{
-    return menu_sprite_list_is_sound(g) && menu_object_queue_is_whole(g)
-           && (sets_off || menu_sprite_script_is_well_formed(g, walker))
-           && overworld_animations_are_sound(g, place, overworld_character_in(g, place));
-}
-
-/* The leader moves the map with it: four scrolls a frame at most, a strip of
- * the map each across and two each down; and it turns with whole-pixel paces
- * it sets, its velocity with no fraction (the game sets none). */
-static bool the_map_can_follow(const GameState *g, MenuObject leader)
-{
-    unsigned records = 2 * menu_map_scroll_records(MENU_ACROSS, 1) + 2 * menu_map_scroll_records(MENU_DOWN, 1);
-    MenuPlace v = menu_object_velocity(g, leader);
-    return menu_map_can_scroll(g, 1, records) && menu_map_can_scroll(g, 2, records) && (uint16_t)v.x == 0
-           && (uint16_t)v.y == 0;
-}
-
-/* A walker of the party that is there walks by the original's tables: a
- * travel they have, a step of its table (after the frame's start over), a
- * vehicle the game boards (the tables have a second that nothing sets), a
- * facing of the four; it reads the leader's trail as the game keeps it, and
- * animates. On foot on the map while an event runs, it keeps to the event's
- * steps, and a script it runs is one the interpreter runs (in a bank of
- * scripts, the sprite list as the mode keeps it). */
-typedef struct {
-    OverworldStep on_foot, boarding;
-    bool moves_the_map;
-} WalkerTables;
-
-static bool event_step_runs(const GameState *g, MenuObject walker, PartyPlace place, OverworldStep step)
-{
-    enum { EVENT_SCRIPTS = 0x7F0000 };
-    switch (step) {
-    case WALKER_AWAITS_ITS_SCRIPT:
-        return overworld_event_script_for(g, place) == 0 || menu_object_script_can_run(g, EVENT_SCRIPTS);
-    case WALKER_RUNS_ITS_SCRIPT:
-        return menu_object_script_can_run(g, menu_object_slots_script(g, walker));
-    default:
-        return step < WALKER_STEPS_IN_AN_EVENT;
-    }
-}
-
-static bool walker_runs(const GameState *g, MenuObject walker, PartyPlace place, WalkerTables tables)
-{
-    enum { NOT_FACING_BITS = 0x7C };
-    Travel travel = overworld_party_travel(g);
-    if (travel >= TRAVELS || overworld_event(g) > 1)
-        return false;
-    if (!overworld_place_taken(g, place))
-        return true;
-    OverworldStep step = step_to_run(g, walker);
-    Vehicle vehicle = overworld_vehicle_boarded(g);
-    bool boards_the_game_s = vehicle == NO_VEHICLE || vehicle == VEHICLE_EPOCH || vehicle == VEHICLE_DACTYL;
-    bool sets_off = travel == TRAVEL_ON_FOOT && overworld_on_the_map(g) && step == 0;
-    bool walks = !(menu_object_slots_facing(g, walker) & NOT_FACING_BITS) && overworld_trail_is_kept(g)
-                 && animates(g, walker, place, sets_off) && (!tables.moves_the_map || the_map_can_follow(g, walker));
-    switch (travel) {
-    case TRAVEL_ON_FOOT:
-        if (!overworld_on_the_map(g))
-            return animates(g, walker, place, false);
-        if (overworld_event_running(g))
-            return event_step_runs(g, walker, place, step);
-        return step < tables.on_foot && walks;
-    case TRAVEL_BOARDING:
-        return step < tables.boarding && boards_the_game_s && walks;
-    case TRAVEL_GETTING_OFF:
-        return boards_the_game_s;
-    default:
-        return true;
-    }
-}
-
-bool overworld_leader_runs(Snes *s)
-{
-    MenuObject self;
-    if (!peek(s, &self))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = walker_runs(g, self, PARTY_LEADER, (WalkerTables){ LEADER_STEPS_ON_FOOT, LEADER_STEPS_BOARDING, true });
-    vars_peek(false);
-    return ok;
-}
-
-bool overworld_follower_runs(Snes *s)
-{
-    MenuObject self;
-    if (!peek(s, &self))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    PartyPlace place = (PartyPlace)menu_object_slots_party_place(g, self);
-    bool ok = (place == PARTY_FIRST_MEMBER || place == PARTY_SECOND_MEMBER)
-              && walker_runs(g, self, place, (WalkerTables){ FOLLOWER_STEPS_ON_FOOT, FOLLOWER_STEPS_BOARDING, false });
-    vars_peek(false);
-    return ok;
-}
-
-/* The watcher looks the leader's tile up in lists as a map's setup loads
- * them, and keeps to the original's table of what an event can be. */
-bool overworld_watcher_runs(Snes *s)
-{
-    MenuObject self;
-    if (!peek(s, &self))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = overworld_event(g) <= 1 && overworld_lists_are_loaded(g);
-    vars_peek(false);
-    return ok;
-}
-
-bool overworld_region_song_runs(Snes *s)
-{
-    MenuObject self;
-    if (!peek(s, &self))
-        return false;
-    vars_peek(true);
-    bool ok = overworld_region_song_can_play(state_of(s), self);
-    vars_peek(false);
-    return ok;
-}
-
-bool overworld_sign_runs(Snes *s)
-{
-    MenuObject self;
-    if (!peek(s, &self))
-        return false;
-    vars_peek(true);
-    bool ok = overworld_sign_can_show(state_of(s), self);
-    vars_peek(false);
-    return ok;
-}
-
-/* The controller keeps to the travels and vehicles the game has. */
-bool overworld_vehicles_run(Snes *s)
-{
-    MenuObject self;
-    if (!peek(s, &self))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    enum { BOARDINGS = 4 };
-    bool ok = overworld_party_travel(g) < TRAVELS && overworld_boarding(g) < BOARDINGS;
-    vars_peek(false);
-    return ok;
-}
-
-/* The Epoch keeps to its steps on a world map, faces one of the four ways,
- * animates with sprite scripts the language reads (the one it has too,
- * unless it is set down, given one first, or plays a scene, whose script
- * gives it its own), has the map follow it where it flies, and plays its
- * scenes from a bank of scripts. */
-static bool epoch_animates(const GameState *g, MenuObject epoch, bool given_one_first)
-{
-    static const uint8_t ANIMATIONS[] = { EPOCH_STANDS_WITH_ITS_WINGS, EPOCH_STANDS_WITHOUT_WINGS, EPOCH_TAKES_OFF,
-                                          EPOCH_LANDS };
-    if (!menu_sprite_list_is_sound(g) || !menu_object_queue_is_whole(g)
-        || !(given_one_first || menu_sprite_script_is_well_formed(g, epoch)))
-        return false;
-    for (unsigned i = 0; i < sizeof ANIMATIONS; i++)
-        if (!menu_given_sprite_script_is_well_formed(g, ANIMATIONS[i]))
-            return false;
-    for (uint8_t facing = 0; facing < 4; facing++)
-        if (!menu_given_sprite_script_is_well_formed(g, overworld_epoch_flying_animation(g, false, facing))
-            || !menu_given_sprite_script_is_well_formed(g, overworld_epoch_flying_animation(g, true, facing)))
-            return false;
-    return true;
-}
-
-static bool on_a_world_map(const GameState *g)
-{
-    enum { FIRST_WORLD_MAP = 0x01F0, WORLD_MAPS = 8 };
-    return (uint16_t)(location_id(g) - FIRST_WORLD_MAP) < WORLD_MAPS;
-}
-
-/* In the air the map scrolls with a vehicle at its pace, whole pixels: two a
- * frame at most, across or down. */
-static bool the_map_can_follow_the_vehicle(const GameState *g, MenuObject vehicle, bool flies_a_tile)
-{
-    enum { FASTEST = 2 };
-    unsigned records = 2 * menu_map_scroll_records(MENU_ACROSS, FASTEST) + 2 * menu_map_scroll_records(MENU_DOWN, FASTEST);
-    if (!menu_map_can_scroll(g, 1, records) || !menu_map_can_scroll(g, 2, records))
-        return false;
-    if (!flies_a_tile)
-        return true;
-    MenuPlace v = menu_object_velocity(g, vehicle);
-    int16_t across = (int16_t)menu_pixel(v.x), down = (int16_t)menu_pixel(v.y);
-    return (uint16_t)v.x == 0 && (uint16_t)v.y == 0 && across >= -FASTEST && across <= FASTEST && down >= -FASTEST
-           && down <= FASTEST;
-}
-
-bool overworld_epoch_runs(Snes *s)
-{
-    MenuObject self;
-    if (!peek(s, &self))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    EpochStep step = overworld_epoch_step(g, self);
-    bool ok = step < EPOCH_STEPS && on_a_world_map(g) && menu_object_slots_facing(g, self) < 4
-              && epoch_animates(g, self, step == EPOCH_SETS_DOWN || step == EPOCH_RUNS_A_SCENE);
-    if (ok && (step == EPOCH_FLIES || step == EPOCH_FLIES_A_TILE))
-        ok = the_map_can_follow_the_vehicle(g, self, step == EPOCH_FLIES_A_TILE);
-    if (ok && step == EPOCH_RUNS_A_SCENE)
-        ok = menu_object_script_can_run(g, menu_object_slots_script(g, self));
-    vars_peek(false);
-    return ok;
-}
-
-bool overworld_epoch_second_sprite_runs(Snes *s)
-{
-    MenuObject self;
-    if (!peek(s, &self))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = overworld_step(g, self) < 2 && epoch_animates(g, self, overworld_step(g, self) == 0)
-              && menu_given_sprite_script_is_well_formed(g, VEHICLE_SECOND_SPRITE_STANDING)
-              && menu_given_sprite_script_is_well_formed(g, VEHICLE_SECOND_SPRITE_IN_FLIGHT);
-    vars_peek(false);
-    return ok;
-}
-
-/* The dactyls keep to their steps, face one of the four ways, and animate
- * with sprite scripts the language reads (the one each has too, unless it is
- * set down and given one first); the leader's has the map follow it where it
- * flies, and the others are the second's and the third's, kept near their
- * places in the V (vehicles.h). They read the heading's and the sine's
- * tables through the data bank, which reaches the ROM's first bank. */
-static bool animations_are_sound(const GameState *g, const uint8_t *animations, unsigned count)
-{
-    for (unsigned i = 0; i < count; i++)
-        if (!menu_given_sprite_script_is_well_formed(g, animations[i]))
-            return false;
-    return true;
-}
-
-static bool dactyl_animates(const GameState *g, MenuObject self, bool given_one_first)
-{
-    static const uint8_t ANIMATIONS[] = { DACTYL_STANDS, DACTYL_TAKES_OFF, SECOND_S_DACTYL_TAKES_OFF,
-                                          THIRD_S_DACTYL_TAKES_OFF, VEHICLE_SECOND_SPRITE_STANDING,
-                                          VEHICLE_SECOND_SPRITE_IN_FLIGHT };
-    if (!menu_sprite_list_is_sound(g) || !menu_object_queue_is_whole(g)
-        || !(given_one_first || menu_sprite_script_is_well_formed(g, self))
-        || !animations_are_sound(g, ANIMATIONS, sizeof ANIMATIONS))
-        return false;
-    for (uint8_t facing = 0; facing < 4; facing++)
-        if (!menu_given_sprite_script_is_well_formed(g, overworld_dactyl_flying_animation(g, facing))
-            || !menu_given_sprite_script_is_well_formed(g, overworld_following_dactyl_flying_animation(g, 0, facing))
-            || !menu_given_sprite_script_is_well_formed(g, overworld_following_dactyl_flying_animation(g, 1, facing)))
-            return false;
-    return true;
-}
-
-static bool a_follower(const GameState *g, MenuObject self)
-{
-    PartyPlace place = (PartyPlace)menu_object_slots_party_place(g, self);
-    return place == PARTY_FIRST_MEMBER || place == PARTY_SECOND_MEMBER;
-}
-
-bool overworld_dactyl_runs(Snes *s)
-{
-    MenuObject self;
-    if (!peek(s, &self))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    DactylStep step = (DactylStep)overworld_step(g, self);
-    bool ok = step < DACTYL_STEPS && menu_object_slots_facing(g, self) < 4
-              && dactyl_animates(g, self, step == DACTYL_SETS_DOWN);
-    if (ok && (step == DACTYL_FLIES || step == DACTYL_FLIES_A_TILE))
-        ok = the_map_can_follow_the_vehicle(g, self, step == DACTYL_FLIES_A_TILE);
-    vars_peek(false);
-    return ok;
-}
-
+/* Each is the handler's machine half (its slot in X, on the mode's page) and
+ * the state half overworld/handlers.c has, which the program checks too. */
+bool overworld_leader_runs(Snes *s) { return menu_object_handler_takes(s, overworld_leader_takes); }
+bool overworld_follower_runs(Snes *s) { return menu_object_handler_takes(s, overworld_follower_takes); }
+bool overworld_watcher_runs(Snes *s) { return menu_object_handler_takes(s, overworld_watcher_takes); }
+bool overworld_region_song_runs(Snes *s) { return menu_object_handler_takes(s, overworld_region_song_takes); }
+bool overworld_sign_runs(Snes *s) { return menu_object_handler_takes(s, overworld_sign_takes); }
+bool overworld_vehicles_run(Snes *s) { return menu_object_handler_takes(s, overworld_vehicles_take); }
+bool overworld_epoch_runs(Snes *s) { return menu_object_handler_takes(s, overworld_epoch_takes); }
+bool overworld_epoch_second_sprite_runs(Snes *s) { return menu_object_handler_takes(s, overworld_epoch_second_sprite_takes); }
+bool overworld_dactyl_runs(Snes *s) { return menu_object_handler_takes(s, overworld_dactyl_takes); }
 bool overworld_dactyl_second_sprite_runs(Snes *s)
 {
-    MenuObject self;
-    if (!peek(s, &self))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = overworld_step(g, self) < DACTYL_SECOND_SPRITE_STEPS && overworld_dactyl_flying(g) <= 1
-              && dactyl_animates(g, self, overworld_step(g, self) == 0);
-    vars_peek(false);
-    return ok;
+    return menu_object_handler_takes(s, overworld_dactyl_second_sprite_takes);
 }
 
+/* The followers read the heading's and the sine's tables through the data
+ * bank, which reaches the ROM's first bank. */
 bool overworld_following_dactyl_runs(Snes *s)
 {
-    MenuObject self;
-    if (!peek(s, &self) || !m_bank_is_zero(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    FollowingDactylStep step = (FollowingDactylStep)overworld_step(g, self);
-    bool ok = step < FOLLOWER_STEPS && a_follower(g, self) && menu_object_slots_facing(g, self) < 4
-              && dactyl_animates(g, self, step == FOLLOWER_SETS_DOWN)
-              && overworld_following_dactyl_keeps_near(g, self);
-    vars_peek(false);
-    return ok;
+    return m_bank_is_zero(s) && menu_object_handler_takes(s, overworld_following_dactyl_takes);
 }
 
 bool overworld_following_dactyl_second_sprite_runs(Snes *s)
 {
-    MenuObject self;
-    if (!peek(s, &self))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    FollowingSecondSpriteStep step = (FollowingSecondSpriteStep)overworld_step(g, self);
-    bool ok = step < FOLLOWERS_SPRITE_STEPS && a_follower(g, self)
-              && dactyl_animates(g, self, step == FOLLOWERS_SPRITE_SETS_DOWN)
-              && overworld_following_second_sprite_keeps_near(g, self);
-    vars_peek(false);
-    return ok;
+    return menu_object_handler_takes(s, overworld_following_dactyl_second_sprite_takes);
 }
 
-bool overworld_black_omen_watch_runs(Snes *s)
-{
-    MenuObject self;
-    return peek(s, &self);
-}
-
-/* The test takes the reaches the game's callers name. */
-static bool a_reach_record(uint32_t pointer)
-{
-    static const ReachRecord RECORDS[] = { REACH_OF_THE_PARTY, REACH_OF_THE_EPOCH, REACH_OF_THE_DACTYL,
-                                           REACH_OF_THE_EPOCH_IN_FLIGHT, REACH_OF_THE_DACTYL_FROM_THE_AIR,
-                                           REACH_OF_THE_BLACK_OMEN };
-    for (unsigned i = 0; i < sizeof RECORDS / sizeof RECORDS[0]; i++)
-        if (pointer == (OVERWORLD_REACHES_BANK | RECORDS[i]))
-            return true;
-    return false;
-}
+bool overworld_black_omen_watch_runs(Snes *s) { return menu_object_handler_runs(s); }
 
 bool overworld_reach_test_runs(Snes *s)
 {
     if (!menu_objects_on_page(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = a_reach_record(overworld_scratch_reach_first(g)) && a_reach_record(overworld_scratch_reach_second(g));
+    bool ok = overworld_reach_test_takes(state_of(s));
     vars_peek(false);
     return ok;
 }
 
-/* The scenes' calls are made on an object of the mode, on the map, facing
- * one of the four ways. */
 bool overworld_epoch_scene_call_runs(Snes *s)
 {
     if (!menu_object_can_move(s))
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    MenuObject self = menu_object_running(g);
-    bool ok = menu_object_slots_facing(g, self) < 4 && menu_object_slots_x_pixel(g, self) < MENU_MAP_WIDTH;
+    bool ok = overworld_epoch_scene_call_takes(g, menu_object_running(g));
     vars_peek(false);
     return ok;
 }
@@ -661,17 +330,14 @@ bool overworld_main_loop_runs(Snes *s) { return menu_objects_on_page(s); }
 
 /* ---- The location's song, from a scene's script ------------------------------------------ */
 
-/* The driver ($C7:0004) reads nothing of the registers, and hands back X,
- * the carry and A's high byte as it found them; the script's call command
- * passes X and the carry on, so the wrapper leaves them as the lookup did: X
- * the region (the song table's index), the carry the lookup's last shift,
- * and A's high byte the region word's, clear. A song a screen keeps leaves
+/* The script's call command passes X and the carry on, so the wrapper leaves
+ * them as the lookup did: X the region (the song table's index), the carry
+ * the lookup's last shift, and A's high byte the region word's, clear (the
+ * driver hands them back as it found them). A song a screen keeps leaves
  * them as they came. */
-enum { SOUND_DRIVER = 0xC70004, LOCATION_SONG_SENT = 0xC22F49 };
-#define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
-
-static void leave_the_lookup(Snes *s, LocationSong song)
+static void leave_the_lookup(void *ctx, LocationSong song)
 {
+    Snes *s = ctx;
     if (!song.of_a_region)
         return;
     s->cpu.x = song.region;
@@ -680,24 +346,25 @@ static void leave_the_lookup(Snes *s, LocationSong song)
 }
 
 // $C2:2F0F
+static void looked_up(void *ctx, LocationSong song)
+{
+    ORIGINAL_EFFECT(leave_the_lookup(ctx, song));
+}
+
 void overworld_start_the_location_song_entry(Snes *s)
 {
-    LocationSong song = overworld_location_song(state_of(s));
-    ORIGINAL_EFFECT(leave_the_lookup(s, song));
-    au_command(m_platform(s), PF_CALL_DC(LOCATION_SONG_SENT, SOUND_DRIVER, DRIVER_IGNORES),
-               overworld_song_command(song.song));
+    overworld_start_the_location_song(state_of(s), m_platform(s), looked_up, s);
     m_rts(s);
 }
 
-/* It runs on the mode's page, its place on the region map where it looks a
- * region up. */
+/* It runs on the mode's page. */
 bool overworld_location_song_runs(Snes *s)
 {
     if (!menu_objects_on_page(s))
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = menu_song_kept(g) || overworld_location_has_a_region(g);
+    bool ok = overworld_location_song_takes(g, menu_object_running(g));
     vars_peek(false);
     return ok;
 }

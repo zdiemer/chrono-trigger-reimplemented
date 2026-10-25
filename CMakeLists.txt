@@ -214,6 +214,7 @@ add_library(ct_game STATIC
   game/menu/typeset.c
   game/menu/top_layer.c
   game/menu/handlers.c
+  game/overworld/handlers.c
   game/menu/turning_world.c
   game/menu/vram.c
   game/menu/wave.c

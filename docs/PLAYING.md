@@ -601,8 +601,10 @@ in's and the typing's. The naming's screen asks the battle mode first, then
 names Crono; its close fades the screen out and the mode returns to the
 field, which is set up again and faded in, and the script goes on to the
 world map: the opening's bells over Guardia, as C, and then the field in
-Crono's house, until an event command only the machine runs (frame 4798,
-`$C0:4590`, a person cast with graphics to unpack).
+Crono's house, its people cast and its tiles copied, to the movie's end.
+With `fair.ctm`'s, Crono leaves the house and walks the world map -- the
+walkers, the places' watcher, the music and the sign as C
+(`overworld/handlers.c`) -- into Leene Square, where the movie ends.
 
 The field's steps as the program calls them (`field_runs`,
 `field/main_loop.c`) are functions of the game's state that the entries

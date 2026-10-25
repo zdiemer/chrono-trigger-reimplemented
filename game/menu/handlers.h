@@ -74,6 +74,11 @@ extern const MenuScriptRoutines menu_scene_routines;
 extern const MenuScriptRoutines menu_line_effect_routines;
 extern const MenuScriptRoutines menu_map_scene_routines;
 
+/* The overworld's handlers and the routines its scenes call of it
+ * (overworld/handlers.c). */
+extern const MenuHandlers overworld_handlers;
+extern const MenuScriptRoutines overworld_routines;
+
 /* The object's command script for this frame, each command as C, with the
  * services as C: whether the object waits for the next frame or is done. A
  * command the port doesn't run, or a service that meets a step only the
