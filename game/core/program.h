@@ -67,5 +67,10 @@ bool program_went_no_further(const GameState *g);
  * the mode jumps to is how the program goes on, and these are never called. */
 void program_goes_on_to_a_scene(GameState *g, uint8_t scene);
 bool program_next_scene(GameState *g, uint8_t *scene);
+/* Or the field started again from its start, on a fresh stack, for the
+ * place the party is (a script's change of place made at once): the field
+ * takes it as its pass ends. */
+void program_starts_the_field_again(GameState *g);
+bool program_field_starts_again(GameState *g);
 
 #endif

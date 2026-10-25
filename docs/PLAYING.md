@@ -552,7 +552,7 @@ entry, `program_needs_the_machine` stops it and the driver says where (exit
 status 1):
 
 ```
-frame 2584: the program's C goes no further: $7E:6B04, a scene's setup only the machine runs, runs only on the machine
+frame 3605: the program's C goes no further: $C0:188C, a battle, runs only on the machine
 ```
 
 So far the boot and the field run as C. At power-on the field's handlers
@@ -591,8 +591,11 @@ effects as C (`field_screen_effect_moved_on`: the holes and ovals, the
 searchlight, the curtain swept by `scene/curtain.c`, the ripple and the
 field's close), until it closes into a scene: BG1 drawn and sent, the field
 put aside as for a battle (`field_battle_set_up`), the interrupts handed
-over, and the scene the close leads to started, whose setup -- the credits'
-page -- only the machine runs yet (frame 2584). With
+over, and the scene the close leads to started: a page of the credits, set
+up as C with its letters unpacked by the unpacker as C. The field after it
+goes on through its scripts' changes of place made at once (event `$DF`,
+`$E1`: the field started again, `program_starts_the_field_again`) to a
+battle, which only the machine runs yet (frame 3605). With
 `new-game.ctm`'s presses, Start ends the title and the field's next script
 asks for a menu, and the menus run as C: the field fades out and is put
 aside, the menus' mode opens (`menu_mode_runs`, `menu/display.c`: the

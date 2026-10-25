@@ -2877,7 +2877,7 @@ const NativeEntry game_natives[] = {
       .cost_milli = 11198, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C | DC_D,
       .guard = scene_race_set_up_present },
     /* the attract sequence's pages of credits (scene/credit_pages.c) */
-    { .addr = 0x7E6B04, .name = "scene_credit_pages_set_up", .fn = scene_credit_pages_set_up, NEEDS_M8_X16,
+    { .addr = 0x7E6B04, .name = "scene_credit_pages_set_up", .fn = scene_credit_pages_set_up_entry, NEEDS_M8_X16,
       .cost_milli = 4321, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C | DC_D,
       .guard = scene_credit_pages_set_up_present },
     { .addr = 0x7E6BE5, .name = "scene_show_the_credits_page", .fn = scene_show_the_credits_page, NEEDS_M16_X16,

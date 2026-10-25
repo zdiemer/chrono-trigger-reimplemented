@@ -320,12 +320,25 @@ bool scene_program_end_present(Snes *s) { return m_code_matches(s, 0x7E303B, 8, 
 
 /* ---- The program as C, with no machine ------------------------------------------------------------ */
 
-/* The setups the port has as C for a program with no machine: the title's. */
+/* The setups the port has as C for a program with no machine: the title's
+ * and the credits' page's. */
+static const struct {
+    SceneMode mode;
+    uint32_t routine;
+    bool (*set_up)(GameState *g, Platform *pf);
+} c_setups[] = {
+    { MODE_TITLE, TITLE_SET_UP, scene_title_set_up_as_c },
+    { MODE_CREDITS_PAGE, CREDIT_PAGES_SET_UP, scene_credit_pages_set_up },
+};
+enum { C_SETUPS = sizeof c_setups / sizeof c_setups[0] };
+
 static bool set_up_as_c(GameState *g, Platform *pf, uint8_t mode)
 {
-    if (mode == MODE_TITLE) {
+    for (unsigned n = 0; n < C_SETUPS; n++) {
+        if (c_setups[n].mode != mode)
+            continue;
         bool done = false;
-        TIMED_AS(g, TITLE_SET_UP, done = scene_title_set_up_as_c(g, pf));
+        TIMED_AS(g, c_setups[n].routine, done = c_setups[n].set_up(g, pf));
         return done;
     }
     program_needs_the_machine(g, PROGRAM_BANK | scene_program_setups(g, mode), "a scene's setup only the machine runs");

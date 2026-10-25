@@ -2938,70 +2938,46 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
-### The native program through the field's screen effects
+### The native program to the battles
 
-With Crono's house and the fair as C (the section before this one, history
-file, "The native program through Crono's house to the fair"), the attract
-demo still stopped at frame 2551, on its field after the first world map, at
-a screen effect only the machine ran: `$C0:21E1`'s step had C for the
-effects drawn in a frame (the holes and ovals, the searchlight, BG3 in a
-circle) and handed the machine the three that call on the field's other
-work: the curtain's sweep (bank `$C3`'s), the ripple and the field's close
-into a scene, which run for frames with BG1 drawn, the effects refreshed,
-frames waited and the field put aside between their steps. The C path
-didn't check the entry's guard either (an effect past the table's, a
-searchlight whose shape starts below the picture).
+With the field's screen effects as C (the section before this one, history
+file, "The native program through the field's screen effects"), the attract
+demo stopped at frame 2584, at the setup of the scene its field closes into
+(a page of the credits, `$7E:6B04`), and `fair-companion.ctm` and
+`gato-battle.ctm` at frame 12832, at the fair, on event `$D2`. Each stop
+after them was taken as it was met, in the same shape:
 
-The step is one sequence now (`move_on_a_step`), its calls to the field's
-other work callbacks (`EffectCalls`: the sweep, BG1's drawing, the refresh,
-the frame wait, the battle's start, the scene's), each named by the moment of
-the close or the ripple it is made at (`Moment`); the machine's callbacks
-keep the original's call sites in one table by moment, the program's are the
-ports' functions with their guards' state halves (`field_screen_effect_moved_on`
-checks the step's own first). What it took with it, each one sequence the
-same way:
+- **The credits' page's setup**: one sequence (`set_up_the_page`) whose
+  unpacking of the letters is a callback, the machine's the original's
+  unpacker from the setup's call, the program's the unpacker as C; the scene
+  program's setups as C are a table (`c_setups`) beside the machine's.
+- **Events `$D2` and `$CF`** (whether a character is in the active party, or
+  recruited): what the menus' service answers and where the script goes
+  after it are functions both the entry and the program call
+  (`among_the_record`, `after_asking`), the entry keeping the original's
+  scaffolding around them; as C, bridges in `EVENT_BRIDGES_AS_C`.
+- **Events `$E1` and `$DF`** (a change of place made at once): the place
+  set, a frame waited, the screen blank and the place changed, shared with
+  the machine's two entries either side of its wait; and the field started
+  again from its start, which with no machine is the program's to do: a
+  request the field's loop takes as its pass ends
+  (`program_starts_the_field_again`), as a scene is.
 
-- **The battle's start** (`$C0:024C`), which the close calls to put the
-  field aside: the enemies found, and with none the party brought back
-  together through `event/party.c`'s port and a frame of its walk, a
-  callback (`field_battle_set_up` as C, with its guard's state half and the
-  party's).
-- **A frame of the leader's walk alone** (`$C0:00EB`): the walk, the
-  refresh and the wait, three callbacks (`field_walked_a_frame`).
-- **A layer drawn as at a map's load** (`$C0:75E9` and its two siblings),
-  as C with each entry's guard's state half (`field_layer_drawn_at_the_load`,
-  which the tile copy's C path now calls too: it checked BG2's half for all
-  three).
-
-The scene's callers of the palettes' animation (`scene/screen.c`'s task and
-the Epoch's dive's channel call, `scene/rising_palace.c`'s setup) go through
-`palette_animated_as_c`, the guard's state half every caller on the field
-already checks; and the scene lists' runner as C stops where a task's C
-went no further.
-
-So the attract demo's field closes into its scene as C, and `ct_native`
-stops at frame 2584, at that scene's setup (the credits' page,
-`$7E:6B04`). `fair-companion.ctm` and `gato-battle.ctm` stop at frame
-12832, at the fair, on event `$D2` (`$C0:38E8`), which only the machine
-runs.
+So the attract demo plays on through its credits page and the field after
+it to its first battle (frame 3605, `$C0:188C`); `fair-companion.ctm` plays
+to its end; `gato-battle.ctm` stops at Gato's battle (frame 19179). The
+battle is what every one of them meets next.
 
 **Measured.** Shadow mode over the library: 0 mismatches
-(`field_move_screen_effect_on` 237,748 of 238,260 compared, the rest
-abandoned as before; `field_walk_a_frame` 690 of 696, 6 interrupted;
-`field_battle_begins` 48, every one interrupted as before: its call-out
-waits across frames; `scene_animate_the_palettes` 93,828). No movie reaches
-the ripple or the close on the machine, so those paths are checked only by
-`ct_native` getting through them. Refusals in real play: 0; fallbacks
-unchanged; the census: 259 entries the machine enters, as before.
-`tools/machine_joints.py`: 1,055 returns (1,056). Timing: the palettes'
-check is a peek, so the scene's task takes none of its time; the step and
-the pass's step after it recalibrated (`field_move_screen_effect_on` 3484
-to 2901, `field_frame_goes_on_with_the_screen_effect` 2095 to 2525). The C
-guards' reads of the curtain's table and the leader's contact are three
-baseline lines beside the ones the same cells already have. Fuzzing, seed
-1, `tools/fuzz_compare.py` against `main`'s `ct_fuzz`: the four entries'
-eight runs (the step's curtain, curtain-call and close-ripple variants among
-them) the same as before. Gate: suite OK.
+(`event_cmd_if_in_the_active_party` 366, `event_cmd_if_recruited` 12,
+`event_cmd_go_to_location_now` 42 and `_raising_1e` 38,
+`event_go_now_in_the_dark` 42, every call compared;
+`scene_credit_pages_set_up` 10, all abandoned under the setups' dispatch as
+before). Refusals in real play: 0; fallbacks unchanged; the census: 259
+entries the machine enters, as before. `tools/machine_joints.py` unchanged
+(1,055 returns, 179 stops, 2,099 scaffolding writes). Timing: no row moved
+past its limits. Fuzzing, seed 1, against `main`'s `ct_fuzz`: the six
+entries' eight runs the same as before. Gate: suite OK.
 
 ### The last refusals in real play: the attract demo's states
 

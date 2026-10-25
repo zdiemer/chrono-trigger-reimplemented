@@ -714,6 +714,8 @@ bool scene_race_set_up_scene(Snes *s);
 bool scene_ending_set_up_scene(Snes *s);
 bool scene_staff_roll_set_up_scene(Snes *s);
 bool scene_credit_pages_set_up_scene(Snes *s);
+/* The credits' page's setup as C, the letters unpacked by the unpacker as C. */
+bool scene_credit_pages_set_up(GameState *g, Platform *pf);
 bool scene_palace_set_up_scene(Snes *s);
 bool scene_title_set_up_present(Snes *s);
 bool scene_title_loader_present(Snes *s);
@@ -867,7 +869,7 @@ bool scene_program_end_present(Snes *s);
 void scene_hand_back_to_the_field(Snes *s);
 /* scene/credit_pages.c (the program in RAM) */
 bool scene_credit_pages_set_up_present(Snes *s);
-void scene_credit_pages_set_up(Snes *s);
+void scene_credit_pages_set_up_entry(Snes *s);
 bool scene_show_the_credits_page_present(Snes *s);
 void scene_show_the_credits_page(Snes *s);
 /* scene/planet.c (the program in RAM) */

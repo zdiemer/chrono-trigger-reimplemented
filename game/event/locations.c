@@ -7,6 +7,10 @@
  * field main loop carries it out, and the script waits on it meanwhile. A
  * battle is requested the same way, and the script waits until it is over. */
 #include "event/bridge.h"
+#include "charge.h"
+#include "core/program.h"
+#include "event/engine.h"
+#include "platform/timing.h"
 #include "core/console.h"
 #include "core/display.h"
 #include "event/variables.h"
@@ -115,18 +119,23 @@ static EventFlow fight(GameState *g, uint8_t setup, uint8_t terms)
 }
 EVENT_OPERATION(fight, setup, terms)
 
-// $C0:3B4B
-/* Go to another place at once: the place set as where the party goes next,
- * then a wait for the vblank (the idle entry at $C0:3B71, field/frame.c,
- * where nothing the port could leave in the registers is read) and the
- * change made in the dark (below). */
-static void go_now(Snes *s, uint8_t opcode)
+/* Go to another place at once ($E1, and $DF, which raises field_setting_1e
+ * first): the place set as where the party goes next, a wait for the vblank,
+ * and the change made in the dark -- the screen blank and everything
+ * stopped, the place left kept, the place named made the party's -- and the
+ * field started again from its start. The wait depends on timing, so the
+ * port waits for the next frame instead: the original spins on the vblank
+ * interrupt's flag, racing its own vblank handler for it, and the wait's idle
+ * entry on the machine (field/frame.c) waits instead for what the loop is for,
+ * the vblank, through the timing service (docs/TODO.md, "Frame waits still
+ * made on the machine"). */
+enum { GO_NOW = 0xE1, GO_NOW_RAISING_1E = 0xDF };
+
+static void set_the_place_to_go_now(GameState *g, uint8_t opcode, const EventCommand *c)
 {
-    GameState *g = state_of(s);
-    EventCommand c = event_command_of(s, opcode);
-    ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, c.map_and_how));
-    set_location_as(g, WHERE_IT_GOES_NEXT, location_of(c.map_and_how, c.tile));
-    m_stop_at_own(s, 0xC03B71, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+    if (opcode == GO_NOW_RAISING_1E)
+        raise_setting_1e(g);
+    set_location_as(g, WHERE_IT_GOES_NEXT, location_of(c->map_and_how, c->tile));
 }
 
 /* The place the party is leaving, kept to come back to (the place it goes
@@ -139,38 +148,66 @@ static void keep_the_place_left(GameState *g)
     set_location_previous_flags(g, location_flags(g));
 }
 
+static void the_place_changes(GameState *g)
+{
+    keep_the_place_left(g);
+    field_move_to_the_next_place(g);
+}
+
+// $C0:3B4B, $C0:3B98
+/* On the machine the wait is the idle entry at $C0:3B71, where nothing the
+ * port could leave in the registers is read, which goes on to the change
+ * (below). */
+static void go_now_on_the_machine(Snes *s, uint8_t opcode)
+{
+    GameState *g = state_of(s);
+    EventCommand c = event_command_of(s, opcode);
+    ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, c.map_and_how));
+    set_the_place_to_go_now(g, opcode, &c);
+    m_stop_at_own(s, 0xC03B71, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+}
+
 /* The field starts again from its start, on the game's fresh stack, and
  * loads the place the party is; it reads nothing of the registers. */
 enum { FIELD_STARTS = 0xC00000, THE_FIELD_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 // $C0:3B76 (after the wait for the vblank at $C0:3B71)
-/* The change made at once, in the dark: the screen blank and everything
- * stopped, the place left kept, the place the command named made the party's,
- * and the field started again on the game's fresh stack. The wait before it
- * depends on timing, so it is not part of this: the original spins on the
- * vblank interrupt's flag, racing its own vblank handler for it, and the
- * wait's idle entry (field/frame.c) waits instead for what the loop is for,
- * the vblank, through the timing service, one pass at a time on the machine
- * (docs/TODO.md, "Frame waits still made on the machine"). */
 void event_go_now_in_the_dark(Snes *s)
 {
-    GameState *g = state_of(s);
     display_go_dark(s);
-    keep_the_place_left(g);
-    field_move_to_the_next_place(g);
+    the_place_changes(state_of(s));
     s->cpu.x = CONSOLE_STACK_TOP;
     s->cpu.s = CONSOLE_STACK_TOP;
     m_stop_at(s, FIELD_STARTS, THE_FIELD_READS_NOTHING);
 }
 
-void event_cmd_go_to_location_now(Snes *s) { go_now(s, 0xE1); }
+void event_cmd_go_to_location_now(Snes *s) { go_now_on_the_machine(s, GO_NOW); }
+void event_cmd_go_to_location_now_raising_1e(Snes *s) { go_now_on_the_machine(s, GO_NOW_RAISING_1E); }
 
-// $C0:3B98
-/* The same, raising field_setting_1e. */
-void event_cmd_go_to_location_now_raising_1e(Snes *s)
+/* As C: the script's turn goes no further, and the field starts again. */
+enum { THE_WAIT = 0xC03B71 };
+
+static bool go_now(GameState *g, Platform *pf, uint16_t at, uint8_t opcode)
 {
-    raise_setting_1e(state_of(s));
-    go_now(s, 0xDF);
+    EventCommand c = event_decode(g, pf, event_opcode(opcode), at);
+    set_the_place_to_go_now(g, opcode, &c);
+    tm_wait_frame(pf, PF_AT(THE_WAIT));
+    TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
+    the_place_changes(g);
+    program_starts_the_field_again(g);
+    return false;
+}
+
+bool event_go_now(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    (void)step;
+    return go_now(g, pf, at, GO_NOW);
+}
+
+bool event_go_now_raising_1e(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    (void)step;
+    return go_now(g, pf, at, GO_NOW_RAISING_1E);
 }
 
 #define A_LOCATION .map_and_how = OPERAND_WORD(1), .tile = OPERAND_WORD(3)

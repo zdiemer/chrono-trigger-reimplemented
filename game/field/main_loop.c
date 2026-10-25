@@ -629,7 +629,7 @@ void field_runs(GameState *g, Platform *pf)
         do
             pass = field_runs_a_pass(g, pf);
         while (pass == FIELD_PASS_GOES_ON);
-        if (pass == FIELD_PASS_STOPS)
+        if (pass == FIELD_PASS_STOPS && (program_went_no_further(g) || !program_field_starts_again(g)))
             return;
     }
 }

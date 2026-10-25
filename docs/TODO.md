@@ -2739,10 +2739,10 @@ What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
 `ct_native` links the whole of `game/` but `registry.c`, with every service's
 host backend, and runs the boot, the field, the title's scene, the menus
-a script asks for and the world maps; it stops at frame 2584 where the
-attract demo's field has closed into a scene whose setup only the machine
-runs (the credits' page, `$7E:6B04`), and with
-`new-game.ctm`'s or `fair.ctm`'s presses it plays the movie to its end (the
+a script asks for and the world maps; it stops at frame 3605 at the
+attract demo's first battle (`$C0:188C`), as `gato-battle.ctm`'s presses
+stop it at Gato's, and with `new-game.ctm`'s, `fair.ctm`'s or
+`fair-companion.ctm`'s presses it plays the movie to its end (the
 fair's, in Leene Square). What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
@@ -2759,7 +2759,8 @@ list, by kind, is what `game/` still asks of one.
   `core/program.c`'s table has functions for those four modes' and for none
   of the rest.
 - **What the scene program still hands the machine as the program runs it.**
-  The title's setup is the one setup as C (`scene_title_set_up_as_c`); the
+  The title's and the credits' page's setups are the setups as C
+  (`scene_title_set_up_as_c`, `scene_credit_pages_set_up`); the
   others, the scripts' commands and routines with no C, and the tasks with
   no C (the lists' runner as C has the tasks' own table and four of the
   program's routines) stop the program where they are met. The C reads the
@@ -2780,7 +2781,7 @@ list, by kind, is what `game/` still asks of one.
   put-aside or the bringing back doesn't take (`field/menus.c`), every
   request but a location change, a script's menu and a tile copy (a step, a
   chest, a battle: `field/requests.c`), the field's restart a script asks for,
-  and the event commands with a bridge and no C beside it (13 of the 23 in
+  and the event commands with a bridge and no C beside it (9 of the 23 in
   `EVENT_BRIDGES`; `EVENT_BRIDGES_AS_C`, event/engine.h, has the rest).
   Each wants its C as the program meets it.
 - **Two sequences of one routine.** The field's entry, its location's

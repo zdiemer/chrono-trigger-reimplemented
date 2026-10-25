@@ -223,28 +223,42 @@ static void leave_jump(Snes *s, uint16_t from, uint8_t distance)
 
 /* A condition on the record ($D2, $CF): on after it if the character is
  * among the record's first `places`, otherwise its jump, by the distance in
- * its last operand. The original keeps where the command's character
- * operand ends, and hands it the menus as X. */
+ * its last operand. */
+enum { ASKING_LENGTH = 3, ASKING_JUMP_BYTE = 2 };
+
+static bool among_the_record(GameState *g, uint8_t character, unsigned places)
+{
+    bool there = party_place_of(g, character, places) != NOT_IN_THE_RECORD;
+    shown(g);
+    return there;
+}
+
+static EventStep after_asking(const GameState *g, uint16_t at, bool there)
+{
+    if (there)
+        return (EventStep){ (uint16_t)(at + ASKING_LENGTH), true };
+    uint16_t from = (uint16_t)(at + ASKING_JUMP_BYTE);
+    return (EventStep){ (uint16_t)(from + script_byte(g, from)), true };
+}
+
+/* The original keeps where the command's character operand ends, and hands
+ * it the menus as X. */
 static void ask_after_character(Snes *s, uint8_t opcode, PartyService service, unsigned places)
 {
-    enum { LENGTH = 3, JUMP_BYTE = 2 };
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     uint8_t character = event_command_of(s, opcode).character;
-    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + JUMP_BYTE)));
+    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + ASKING_JUMP_BYTE)));
     PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = menus_called(g, character, (uint16_t)(at + JUMP_BYTE)));
+    ORIGINAL_EFFECT(call = menus_called(g, character, (uint16_t)(at + ASKING_JUMP_BYTE)));
     bool there = false;
-    NATIVE_TIME_AS(s, MENUS_SERVICES, (there = party_place_of(g, character, places) != NOT_IN_THE_RECORD, shown(g)));
+    NATIVE_TIME_AS(s, MENUS_SERVICES, there = among_the_record(g, character, places));
     ORIGINAL_EFFECT(event_menus_answered(s, service, &call));
-    if (there) {
-        event_return(s, (EventStep){ (uint16_t)(at + LENGTH), true });
-        return;
+    if (!there) {
+        uint16_t from = (uint16_t)(at + ASKING_JUMP_BYTE);
+        ORIGINAL_EFFECT(leave_jump(s, from, script_byte(g, from)));
     }
-    uint16_t from = (uint16_t)(at + JUMP_BYTE);
-    uint8_t distance = script_byte(g, from);
-    ORIGINAL_EFFECT(leave_jump(s, from, distance));
-    event_return(s, (EventStep){ (uint16_t)(from + distance), true });
+    event_return(s, after_asking(g, at, there));
 }
 
 // $C0:38E8
@@ -472,6 +486,25 @@ bool event_bring_into_the_party_as_c(GameState *g, Platform *pf, uint16_t at, Ev
     object_joins_the_party(g, character);
     *step = (EventStep){ (uint16_t)(at + LENGTH), THE_DISPATCH_LEAVES_THE_CARRY };
     return true;
+}
+
+static bool asked(GameState *g, Platform *pf, uint16_t at, EventStep *step, uint8_t opcode, unsigned places)
+{
+    uint8_t character = event_decode(g, pf, event_opcode(opcode), at).character;
+    bool there = false;
+    TIMED_AS(g, MENUS_SERVICES, there = among_the_record(g, character, places));
+    *step = after_asking(g, at, there);
+    return true;
+}
+
+bool event_if_in_the_active_party(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    return asked(g, pf, at, step, 0xD2, PARTY_ACTIVE_PLACES);
+}
+
+bool event_if_recruited(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    return asked(g, pf, at, step, 0xCF, PARTY_RECORD_PLACES);
 }
 
 bool event_send_to_the_reserve_as_c(GameState *g, Platform *pf, uint16_t at, EventStep *step)
