@@ -22,7 +22,10 @@
  * it leaves in those and declares the rest dead. */
 #include "menu/object_commands.h"
 
+#include "charge.h"
 #include "cpu_io.h"
+#include "data/decompress.h"
+#include "menu/handlers.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "original_effects.h"
@@ -304,6 +307,45 @@ static void set_story_flag(GameState *g, StoryFlag f)
     set_event_memory_byte(g, f.byte, (uint8_t)(event_memory_byte(g, f.byte) | f.bit));
 }
 
+/* ---- what the scenes ask of themselves -------------------------------------------------------- */
+
+// $C6:E237
+/* The scene's mode, where the script tests it. */
+static void read_the_scene_mode(GameState *g, MenuObject self)
+{
+    (void)self;
+    set_menu_object_scratch_scene_mode(g, scene_mode(g));
+}
+
+// $C6:E2AF
+/* Clear the story flag the scenes clear when they end. */
+static void clear_the_scene_flag(GameState *g, MenuObject self) { (void)self, set_menu_scene_flag(g, 0); }
+
+// $C6:E63D, $C6:E644
+/* Keep the song that is playing through the map screen that follows, or let
+ * the next screen start its own. */
+static void keep_the_song(GameState *g, MenuObject self) { (void)self, set_menu_song_kept(g, 1); }
+static void let_the_song_go(GameState *g, MenuObject self) { (void)self, set_menu_song_kept(g, 0); }
+
+// $C6:E583
+/* Bob the second plane: up where the object's count is odd, down where it
+ * is even. */
+static void bob(GameState *g, MenuObject self) { bob_second_plane(g, menu_object_slots_phase(g, self) & 1); }
+
+// $C6:E590
+static void raise(GameState *g, MenuObject self) { (void)self, bob_second_plane(g, true); }
+
+// $C2:7B44
+static void mark_played(GameState *g, MenuObject self) { (void)self, set_story_flag(g, SCENE_HAS_PLAYED); }
+
+// $C2:7BC4
+/* The answer goes to the mode's first cell, which the script tests next. */
+static void ask(GameState *g, MenuObject self)
+{
+    (void)self;
+    set_menu_object_scratch_answer(g, story_flag(g, SCENE_ASKS_ABOUT));
+}
+
 /* ---- the entries ----------------------------------------------------------------------------- */
 
 /* They run on the mode's page, reaching the object and the scene's cells
@@ -327,58 +369,55 @@ bool menu_object_routine_runs(Snes *s)
 
 /* -- the scene's own state -- */
 
-// $C6:E237
-/* The scene's mode, where the script tests it. The carry is clear. */
-void menu_object_read_scene_mode(Snes *s)
+/* The routines that leave nothing but their return, run on the running
+ * object. */
+static void run_on_the_running(Snes *s, void (*routine)(GameState *g, MenuObject self))
 {
     GameState *g = state_of(s);
-    set_menu_object_scratch_scene_mode(g, scene_mode(g));
+    routine(g, menu_object_running(g));
+}
+
+// $C6:E237
+/* The carry is clear. */
+void menu_object_read_scene_mode(Snes *s)
+{
+    run_on_the_running(s, read_the_scene_mode);
     m_set_flag(s, CPU_FLAG_C, false);
     m_rtl(s);
 }
 
 // $C6:E2AF
-/* Clear the story flag the scenes clear when they end. */
 void menu_object_clear_scene_flag(Snes *s)
 {
-    set_menu_scene_flag(state_of(s), 0);
+    run_on_the_running(s, clear_the_scene_flag);
     m_rtl(s);
 }
 
-/* -- the song -- */
-
 // $C6:E63D
-/* Keep the song that is playing through the map screen that follows. */
 void menu_object_keep_song(Snes *s)
 {
-    set_menu_song_kept(state_of(s), 1);
+    run_on_the_running(s, keep_the_song);
     m_rtl(s);
 }
 
 // $C6:E644
-/* And let the next screen start its own. */
 void menu_object_let_song_go(Snes *s)
 {
-    set_menu_song_kept(state_of(s), 0);
+    run_on_the_running(s, let_the_song_go);
     m_rtl(s);
 }
 
-/* -- motion -- */
-
 // $C6:E583
-/* Bob the second plane: up where the object's count is odd, down where it
- * is even. */
 void menu_object_bob_second_plane(Snes *s)
 {
-    GameState *g = state_of(s);
-    bob_second_plane(g, menu_object_slots_phase(g, menu_object_running(g)) & 1);
+    run_on_the_running(s, bob);
     m_rtl(s);
 }
 
 // $C6:E590
 void menu_object_raise_second_plane(Snes *s)
 {
-    bob_second_plane(state_of(s), true);
+    run_on_the_running(s, raise);
     m_rtl(s);
 }
 
@@ -428,14 +467,20 @@ void menu_object_jolt(Snes *s)
 /* They run on the mode's page with the data bank on the I/O banks, and the
  * view is on the map: its top-left column well under $2000 (the original
  * carries the multiply's top bit into the sum). */
-bool menu_object_can_be_placed(Snes *s)
+static bool view_is_on_the_map(const GameState *g, MenuObject self)
 {
     enum { COLUMNS_THE_SUM_TAKES = 0x2000 };
+    (void)self;
+    return menu_map_column(g, 1) < COLUMNS_THE_SUM_TAKES;
+}
+
+bool menu_object_can_be_placed(Snes *s)
+{
     if (m_direct_page(s) != MODE_PAGE || s->cpu.db != 0x00)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = menu_object_address_names_one(menu_object_current(g)) && menu_map_column(g, 1) < COLUMNS_THE_SUM_TAKES;
+    bool ok = menu_object_address_names_one(menu_object_current(g)) && view_is_on_the_map(g, menu_object_running(g));
     vars_peek(false);
     return ok;
 }
@@ -550,30 +595,35 @@ void menu_object_bring_the_party_back(Snes *s)
 // $C2:7B44
 void menu_object_mark_the_scene_played(Snes *s)
 {
-    set_story_flag(state_of(s), SCENE_HAS_PLAYED);
+    run_on_the_running(s, mark_played);
     m_rts(s);
 }
 
 // $C2:7BC4
-/* The answer goes to the mode's first cell, which the script tests next. */
 void menu_object_ask_the_story(Snes *s)
 {
-    GameState *g = state_of(s);
-    set_menu_object_scratch_answer(g, story_flag(g, SCENE_ASKS_ABOUT));
+    run_on_the_running(s, ask);
     m_rts(s);
 }
 
 /* -- pictures -- */
 
-/* Decompress one of the scenes' resources into its buffer in bank $7F with
- * the original's decompressor (a call-out), which takes the resource's
- * number times three in X and the pointer's bank over its high byte in A. */
-static void load_scene_resource(Snes *s, uint32_t site, MenuSceneResource kind, uint8_t number, uint32_t buffer)
+/* Name one of the scenes' resources and its buffer in bank $7F to the
+ * decompressor; the stream. */
+static uint32_t name_scene_resource(GameState *g, MenuSceneResource kind, uint8_t number, uint32_t buffer)
 {
-    GameState *g = state_of(s);
     uint32_t stream = menu_scene_stream(g, kind, number);
     set_decompress_dest(g, buffer);
     set_decompress_source(g, stream);
+    return stream;
+}
+
+/* On the machine, the original's decompressor (a call-out), which takes the
+ * resource's number times three in X and the pointer's bank over its high
+ * byte in A. */
+static void load_scene_resource(Snes *s, uint32_t site, MenuSceneResource kind, uint8_t number, uint32_t buffer)
+{
+    uint32_t stream = name_scene_resource(state_of(s), kind, number, buffer);
     s->cpu.a = (uint16_t)((stream & 0xFF00) | (uint8_t)(stream >> 16));
     s->cpu.x = (uint16_t)(number * MENU_SCENE_POINTER_BYTES);
     m_set_nz8(s, (uint8_t)(stream >> 16));
@@ -614,3 +664,85 @@ void menu_object_load_second_mode7_palette(Snes *s)
 {
     load_scene_resource(s, 0xC6E68F, MENU_SCENE_PALETTES, SECOND_PALETTE, MODE7_PALETTE_BUFFER);
 }
+
+/* ---- As C ----------------------------------------------------------------------------------- */
+
+/* The routines as the program calls them from a script (menu/handlers.h): the
+ * same work as the entries above, with nothing of the machine's to leave. */
+#define ROUTINE(name)                                                                \
+    static bool name##_as_c(GameState *g, Platform *pf, MenuObject self, bool far) \
+    {                                                                                \
+        (void)pf, (void)self, (void)far;                                             \
+        name(g, self);                                                               \
+        return true;                                                                 \
+    }
+
+static void fall_faster(GameState *g, MenuObject self) { (void)accelerate(g, self); }
+static void drift_the_layer(GameState *g, MenuObject self) { (void)drift(g, self); }
+static void place_in_the_east(GameState *g, MenuObject self) { place_in_the_stretch(g, self, EAST_STRETCH); }
+static void place_in_the_west(GameState *g, MenuObject self) { place_in_the_stretch(g, self, WEST_STRETCH); }
+static void hide(GameState *g, MenuObject self) { (void)self, hide_the_party(g); }
+static void keep(GameState *g, MenuObject self) { (void)self, keep_the_party(g); }
+static void bring_back(GameState *g, MenuObject self) { (void)self, bring_the_party_back(g); }
+
+ROUTINE(read_the_scene_mode)
+ROUTINE(clear_the_scene_flag)
+ROUTINE(keep_the_song)
+ROUTINE(let_the_song_go)
+ROUTINE(bob)
+ROUTINE(raise)
+ROUTINE(fall_faster)
+ROUTINE(drift_the_layer)
+ROUTINE(jolt)
+ROUTINE(place_under_the_view)
+ROUTINE(place_under_the_stretch)
+ROUTINE(give_random_velocity)
+ROUTINE(step_right_at_random)
+ROUTINE(place_in_the_east)
+ROUTINE(place_in_the_west)
+ROUTINE(hide)
+ROUTINE(keep)
+ROUTINE(bring_back)
+ROUTINE(mark_played)
+ROUTINE(ask)
+
+/* The pictures are unpacked by the decompressor as C. */
+#define PICTURE(name, kind, number, buffer)                                          \
+    static bool name##_as_c(GameState *g, Platform *pf, MenuObject self, bool far) \
+    {                                                                                \
+        (void)pf, (void)self, (void)far;                                             \
+        (void)name_scene_resource(g, kind, number, buffer);                          \
+        TIMED_AS(g, UNPACK_STREAM_ENTRY, (void)unpack_stream(g));                    \
+        return true;                                                                 \
+    }
+PICTURE(shared_graphics, MENU_SCENE_GRAPHICS, SHARED_GRAPHICS, MODE7_GRAPHICS_BUFFER)
+PICTURE(shared_palette, MENU_SCENE_PALETTES, SHARED_PALETTE, MODE7_PALETTE_BUFFER)
+PICTURE(second_graphics, MENU_SCENE_GRAPHICS, SECOND_GRAPHICS, MODE7_GRAPHICS_BUFFER)
+PICTURE(second_palette, MENU_SCENE_PALETTES, SECOND_PALETTE, MODE7_PALETTE_BUFFER)
+
+MENU_SCRIPT_ROUTINES(menu_scene_routines,
+    { 0xC6E237, "the scene's mode read", NULL, read_the_scene_mode_as_c },
+    { 0xC6E2AF, "the scene's flag cleared", NULL, clear_the_scene_flag_as_c },
+    { 0xC6E63D, "the song kept", NULL, keep_the_song_as_c },
+    { 0xC6E644, "the song let go", NULL, let_the_song_go_as_c },
+    { 0xC6E583, "the second plane bobbed", NULL, bob_as_c },
+    { 0xC6E590, "the second plane raised", NULL, raise_as_c },
+    { 0xC6E77F, "an object falling faster", NULL, fall_faster_as_c },
+    { 0xC6E2B5, "the layer drifting with an object", NULL, drift_the_layer_as_c },
+    { 0xC6E6D0, "an object jolted", NULL, jolt_as_c },
+    { 0xC2754D, "an object put under the view", view_is_on_the_map, place_under_the_view_as_c },
+    { 0xC27575, "an object put under the stretch", view_is_on_the_map, place_under_the_stretch_as_c },
+    { 0xC27598, "an object given a random velocity", view_is_on_the_map, give_random_velocity_as_c },
+    { 0xC279E0, "an object stepped right at random", NULL, step_right_at_random_as_c },
+    { 0xC27A0C, "an object put in the east stretch", NULL, place_in_the_east_as_c },
+    { 0xC27A31, "an object put in the west stretch", NULL, place_in_the_west_as_c },
+    { 0xC27860, "the party hidden", NULL, hide_as_c },
+    { 0xC2786F, "the party kept", NULL, keep_as_c },
+    { 0xC27888, "the party brought back", NULL, bring_back_as_c },
+    { 0xC27B44, "the scene marked as played", NULL, mark_played_as_c },
+    { 0xC27BC4, "the story asked", NULL, ask_as_c },
+    { 0xC6E028, "the scenes' Mode 7 graphics", NULL, shared_graphics_as_c },
+    { 0xC6E04D, "the scenes' Mode 7 colours", NULL, shared_palette_as_c },
+    { 0xC6E64A, "a scene's second Mode 7 graphics", NULL, second_graphics_as_c },
+    { 0xC6E66F, "a scene's second Mode 7 colours", NULL, second_palette_as_c },
+);

@@ -32,6 +32,7 @@
 
 #include "charge.h"
 #include "core/palette_data.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "platform/video.h"
@@ -624,6 +625,16 @@ static bool every_slot_fits(const GameState *g)
     for (unsigned slot = 0; slot < SLOTS; slot++)
         if (!slot_fits(g, slot, type_of(g, slot)))
             return false;
+    return true;
+}
+
+bool palette_animated_as_c(GameState *g)
+{
+    if (!every_slot_fits(g)) {
+        program_needs_the_machine(g, 0xFDE39C, "palette animations the port doesn't take");
+        return false;
+    }
+    palette_animate_a_frame(g);
     return true;
 }
 

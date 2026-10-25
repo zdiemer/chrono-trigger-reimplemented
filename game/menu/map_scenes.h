@@ -19,6 +19,9 @@ void menu_scene_drift_the_map(GameState *g, MenuObject self);
 /* A scene of the Epoch's arrival keeps where it arrived in the story. */
 void menu_scene_note_the_epoch_s_arrival(GameState *g);
 
+/* The drift's guard's state half. */
+bool menu_scene_drift_takes(const GameState *g, MenuObject self);
+
 /* The registered entries and their guards. */
 void menu_scene_note_the_epoch_s_arrival_entry(Snes *s);
 void menu_scene_object_in_view_entry(Snes *s);

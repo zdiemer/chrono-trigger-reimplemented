@@ -1055,14 +1055,41 @@ static bool scroll_the_layers(Snes *s, uint32_t scroll_site, uint32_t edges_site
 static void on_the_layers_page(Snes *s) { m_push16(s, s->cpu.d), s->cpu.d = FIELD_LAYERS_PAGE; }
 static void back_on_the_field_page(Snes *s) { s->cpu.d = m_pull16(s); }
 
-/* The same as C: the leader walked, and the layers scrolled and streamed
- * after it; false where the layers' maps don't repeat within the map's
- * tables, which only the original streams (the program goes no further). */
-enum { LAYER_SCROLL = 0xC091AC, LAYERS_STREAMED = 0xC093E1 };
+/* The walk and the screen's step back toward the party, each with the layers
+ * scrolled after it -- as C, or on the machine by the original's calls (the
+ * recentring's first step from a call of its own) -- false where the scroll
+ * went no further. */
+typedef enum { SCROLL_AFTER_THE_WALK, SCROLL_AS_RECENTRING_STARTS, SCROLL_AS_IT_RECENTRES } LayersScroll;
+typedef bool (*ScrollTheLayers)(void *ctx, LayersScroll after);
 
-bool field_the_leader_walks(GameState *g)
+// $C0:881E
+static bool walk_the_leader(GameState *g, ScrollTheLayers scroll, void *ctx)
 {
     leader_walks(g);
+    return scroll(ctx, SCROLL_AFTER_THE_WALK);
+}
+
+// $C0:885A
+static bool recentre(GameState *g, ScrollTheLayers scroll, void *ctx)
+{
+    bool starts = (Recentring)field_screen_recentring(g) == RECENTRE_STARTS;
+    if (!screen_recentres(g))
+        return true;
+    if (!scroll(ctx, starts ? SCROLL_AS_RECENTRING_STARTS : SCROLL_AS_IT_RECENTRES))
+        return false;
+    screen_recentring_moved(g);
+    return true;
+}
+
+/* The same as C: the layers scrolled and streamed; false where the layers'
+ * maps don't repeat within the map's tables, which only the original streams
+ * (the program goes no further). */
+enum { LAYER_SCROLL = 0xC091AC, LAYERS_STREAMED = 0xC093E1 };
+
+static bool scroll_as_c(void *ctx, LayersScroll after)
+{
+    (void)after;
+    GameState *g = ctx;
     TIMED_AS(g, LAYER_SCROLL, field_layer_scroll_updated(g));
     if (!layers_repeat_within_the_maps(g)) {
         program_needs_the_machine(g, LAYERS_STREAMED, "layers the port doesn't stream");
@@ -1072,11 +1099,47 @@ bool field_the_leader_walks(GameState *g)
     return true;
 }
 
+static bool walk_fits(const GameState *g);
+
+/* As C the walk's guard's state half is checked first. */
+bool field_the_leader_walks(GameState *g)
+{
+    if (!walk_fits(g)) {
+        program_needs_the_machine(g, THE_WALK, "a walk the port doesn't take");
+        return false;
+    }
+    return walk_the_leader(g, scroll_as_c, g);
+}
+
+/* The guard's state half: the leader an object the tables hold. */
+static bool recentring_fits(const GameState *g) { return field_link_names_object(party_member_link(g, PARTY_LEADER)); }
+
+bool field_the_screen_recentres(GameState *g)
+{
+    if (!recentring_fits(g)) {
+        program_needs_the_machine(g, 0xC0885A, "a recentring with no leader the tables hold");
+        return false;
+    }
+    return recentre(g, scroll_as_c, g);
+}
+
+/* On the machine, each from its own calls. */
+static bool scroll_on_the_machine(void *ctx, LayersScroll after)
+{
+    Snes *s = ctx;
+    switch (after) {
+    case SCROLL_AS_RECENTRING_STARTS: return scroll_the_layers(s, 0xC088B9, 0xC088BC);
+    case SCROLL_AS_IT_RECENTRES: return scroll_the_layers(s, 0xC088DD, 0xC088E0);
+    default: return scroll_the_layers(s, 0xC08852, 0xC08855);
+    }
+}
+
 void field_walk_the_leader(Snes *s)
 {
-    leader_walks(state_of(s));
+    GameState *g = state_of(s);
+    leader_walks(g);
     on_the_layers_page(s);
-    if (!scroll_the_layers(s, 0xC08852, 0xC08855))
+    if (!scroll_on_the_machine(s, SCROLL_AFTER_THE_WALK))
         return;
     back_on_the_field_page(s);
     m_rts(s);
@@ -1085,17 +1148,8 @@ void field_walk_the_leader(Snes *s)
 void field_recentre_the_screen(Snes *s)
 {
     on_the_layers_page(s);
-    bool starts = (Recentring)field_screen_recentring(state_of(s)) == RECENTRE_STARTS;
-    bool moves = screen_recentres(state_of(s));
-    bool came_back = true;
-    if (moves && starts)
-        came_back = scroll_the_layers(s, 0xC088B9, 0xC088BC);
-    else if (moves)
-        came_back = scroll_the_layers(s, 0xC088DD, 0xC088E0);
-    if (!came_back)
+    if (!recentre(state_of(s), scroll_on_the_machine, s))
         return;
-    if (moves)
-        screen_recentring_moved(state_of(s));
     back_on_the_field_page(s);
     m_rts(s);
 }
@@ -1149,8 +1203,7 @@ bool field_recentring_can_run(Snes *s)
     if (!field_on_page_bank_zero(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = field_link_names_object(party_member_link(g, PARTY_LEADER));
+    bool ok = recentring_fits(state_of(s));
     vars_peek(false);
     return ok;
 }

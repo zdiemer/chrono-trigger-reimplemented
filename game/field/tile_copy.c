@@ -124,13 +124,17 @@ void field_copy_tiles(Snes *s)
 /* Its guard: the rectangle and where it goes are on the map (past its edges
  * the original's block moves run on into the next table), and the data bank
  * reaches low RAM. */
+bool field_tile_copy_is_on_the_map(const GameState *g)
+{
+    return map_tile_copy_fits(field_tile_copy_from(g), field_tile_copy_to(g), field_tile_copy_destination(g));
+}
+
 bool field_tile_copy_fits(Snes *s)
 {
     if (!field_on_page_low_bank(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = map_tile_copy_fits(field_tile_copy_from(g), field_tile_copy_to(g), field_tile_copy_destination(g));
+    bool ok = field_tile_copy_is_on_the_map(state_of(s));
     vars_peek(false);
     return ok;
 }

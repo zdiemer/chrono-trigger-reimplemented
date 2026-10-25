@@ -15,6 +15,7 @@
  * The object alternates between the slot's two tables by a frame count, so
  * the one shown is never the one being drawn. */
 #include "menu/line_effects.h"
+#include "menu/handlers.h"
 
 #include "charge.h"
 #include "menu/object.h"
@@ -240,17 +241,24 @@ bool menu_line_effect_can_start(Snes *s)
     return m_direct_page(s) == MODE_PAGE && m_io_bank(s->cpu.db) && running_a_slot(s);
 }
 
+static bool iris_takes(const GameState *g, MenuObject o, bool capsule)
+{
+    uint16_t y = menu_pixel(menu_object_place(g, o).y), radius = menu_object_slots_iris_radius(g, o);
+    uint16_t stretch = menu_object_slots_iris_stretch(g, o);
+    return y < SCREEN_LINES && radius < SCREEN_LINES
+           && (capsule ? stretch >= 2 && stretch < SCREEN_LINES && y >= 1 : radius >= 2);
+}
+
+static bool squashed_iris_takes(const GameState *g, MenuObject o) { return iris_takes(g, o, false); }
+static bool capsule_iris_takes(const GameState *g, MenuObject o) { return iris_takes(g, o, true); }
+
 static bool iris_can_draw(Snes *s, bool capsule)
 {
     if (m_direct_page(s) != MODE_PAGE || !m_bank_reaches_low_ram(s) || !running_a_slot(s))
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    MenuObject o = menu_object_running(g);
-    uint16_t y = menu_pixel(menu_object_place(g, o).y), radius = menu_object_slots_iris_radius(g, o);
-    uint16_t stretch = menu_object_slots_iris_stretch(g, o);
-    bool ok = y < SCREEN_LINES && radius < SCREEN_LINES
-              && (capsule ? stretch >= 2 && stretch < SCREEN_LINES && y >= 1 : radius >= 2);
+    bool ok = iris_takes(g, menu_object_running(g), capsule);
     vars_peek(false);
     return ok;
 }
@@ -259,16 +267,22 @@ bool menu_squashed_iris_can_draw(Snes *s) { return iris_can_draw(s, false); }
 bool menu_capsule_iris_can_draw(Snes *s) { return iris_can_draw(s, true); }
 
 // $C6:E568
-/* Move slot 1's staged values on by four lines. The carry is the second
- * address's running past the end of the bank. */
-void menu_object_advance_line_tables(Snes *s)
+/* Move slot 1's staged values on by four lines; whether the second address
+ * ran past the end of the bank. */
+enum { FOUR_LINES = 8 };
+
+static bool advance_the_line_tables(GameState *g)
 {
-    enum { FOUR_LINES = 8 };
-    GameState *g = state_of(s);
     uint16_t first = menu_object_hdma_pointers(g, 0), second = menu_object_hdma_pointers(g, 1);
     set_menu_object_hdma_pointers(g, 0, (uint16_t)(first + FOUR_LINES));
     set_menu_object_hdma_pointers(g, 1, (uint16_t)(second + FOUR_LINES));
-    m_set_flag(s, CPU_FLAG_C, second > 0xFFFF - FOUR_LINES);
+    return second > 0xFFFF - FOUR_LINES;
+}
+
+/* The carry is the second address's running past the end. */
+void menu_object_advance_line_tables(Snes *s)
+{
+    m_set_flag(s, CPU_FLAG_C, advance_the_line_tables(state_of(s)));
     m_rep(s, CPU_FLAG_M);
     m_rtl(s);
 }
@@ -300,12 +314,18 @@ void menu_object_window2_lines_2(Snes *s) { start_from(s, 0xC6E482, 2, VID_LINE_
 
 // $C6:E595
 /* The first plane's vertical scroll line by line, on slot 3, the object's
- * count starting from nothing. X comes back as the object. */
+ * count starting from nothing. */
+static void start_the_bg1_scroll_lines(GameState *g, Platform *pf, MenuObject o)
+{
+    menu_start_line_effect(g, pf, 0xC6E5A7, 3, VID_LINE_SCROLL_BG1_V);
+    set_menu_object_slots_phase(g, o, 0);
+}
+
+/* X comes back as the object. */
 void menu_object_bg1_scroll_lines(Snes *s)
 {
     GameState *g = state_of(s);
-    menu_start_line_effect(g, m_platform(s), 0xC6E5A7, 3, VID_LINE_SCROLL_BG1_V);
-    set_menu_object_slots_phase(g, menu_object_running(g), 0);
+    start_the_bg1_scroll_lines(g, m_platform(s), menu_object_running(g));
     s->cpu.x = menu_object_current(g);
     m_rtl(s);
 }
@@ -435,13 +455,24 @@ void menu_object_step_curtain(Snes *s)
 
 /* The slot can start, the object's table fits the curtain's, and the stir's
  * cells are reached through a data bank on low RAM. */
+static bool curtain_takes(const GameState *g, MenuObject o)
+{
+    return scene_curtain_table_fits(LINE_TABLE_BANK, menu_object_slots_curtain_table(g, o));
+}
+
+static bool curtain_step_takes(const GameState *g, MenuObject o)
+{
+    (void)o;
+    return scene_curtain_table_fits(scene_curtain_table_bank(g), scene_curtain_table(g));
+}
+
 bool menu_curtain_can_start(Snes *s)
 {
     if (!menu_line_effect_can_start(s) || !m_bank_reaches_low_ram(s))
         return false;
     vars_peek(true);
     GameState *g = state_of(s);
-    bool fits = scene_curtain_table_fits(LINE_TABLE_BANK, menu_object_slots_curtain_table(g, menu_object_running(g)));
+    bool fits = curtain_takes(g, menu_object_running(g));
     vars_peek(false);
     return fits;
 }
@@ -451,8 +482,82 @@ bool menu_curtain_can_step(Snes *s)
     if (!m_bank_reaches_low_ram(s))
         return false;
     vars_peek(true);
-    GameState *g = state_of(s);
-    bool fits = scene_curtain_table_fits(scene_curtain_table_bank(g), scene_curtain_table(g));
+    bool fits = curtain_step_takes(state_of(s), 0);
     vars_peek(false);
     return fits;
 }
+
+/* ---- As C ------------------------------------------------------------------------------------- */
+
+/* The routines as the program calls them from a script (menu/handlers.h). */
+static bool advance_as_c(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)self, (void)far;
+    (void)advance_the_line_tables(g);
+    return true;
+}
+
+#define STARTER(name, site, slot, target)                                            \
+    static bool name##_as_c(GameState *g, Platform *pf, MenuObject self, bool far) \
+    {                                                                                \
+        (void)self, (void)far;                                                       \
+        menu_start_line_effect(g, pf, site, slot, target);                           \
+        return true;                                                                 \
+    }
+STARTER(window1_lines, 0xC6E012, 1, VID_LINE_WINDOW1)
+STARTER(window1_lines_2, 0xC6E32A, 1, VID_LINE_WINDOW1)
+STARTER(window1_lines_3, 0xC6E45A, 1, VID_LINE_WINDOW1)
+STARTER(window2_lines, 0xC6E352, 2, VID_LINE_WINDOW2)
+STARTER(window2_lines_2, 0xC6E482, 2, VID_LINE_WINDOW2)
+
+static bool bg1_scroll_lines_as_c(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)far;
+    start_the_bg1_scroll_lines(g, pf, self);
+    return true;
+}
+
+#define IRIS(name, draw, slot)                                                       \
+    static bool name##_as_c(GameState *g, Platform *pf, MenuObject self, bool far) \
+    {                                                                                \
+        (void)pf, (void)far;                                                         \
+        draw(g, self, slot);                                                         \
+        return true;                                                                 \
+    }
+IRIS(squashed_iris_1, squashed_iris, 1)
+IRIS(squashed_iris_2, squashed_iris, 2)
+IRIS(capsule_iris_1, capsule_iris, 1)
+IRIS(capsule_iris_2, capsule_iris, 2)
+
+static bool start_the_curtain_as_c(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)far;
+    start_the_curtain(g, pf, self);
+    return true;
+}
+
+/* The step's stir takes the caller's X: the call command's opcode doubled,
+ * as the interpreter's dispatch leaves it (the far call's). */
+enum { FAR_CALL_X = 2 * 0x4E, NEAR_CALL_X = 2 * 0x34 };
+
+static bool step_the_curtain_as_c(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    step_the_curtain(g, pf, self, far ? FAR_CALL_X : NEAR_CALL_X);
+    return true;
+}
+
+MENU_SCRIPT_ROUTINES(menu_line_effect_routines,
+    { 0xC6E568, "slot 1's values moved on", NULL, advance_as_c },
+    { 0xC6E000, "window 1's edges line by line", NULL, window1_lines_as_c },
+    { 0xC6E318, "window 1's edges line by line", NULL, window1_lines_2_as_c },
+    { 0xC6E448, "window 1's edges line by line", NULL, window1_lines_3_as_c },
+    { 0xC6E340, "window 2's edges line by line", NULL, window2_lines_as_c },
+    { 0xC6E470, "window 2's edges line by line", NULL, window2_lines_2_as_c },
+    { 0xC6E595, "the first plane's scroll line by line", NULL, bg1_scroll_lines_as_c },
+    { 0xC6E368, "a squashed iris on slot 1", squashed_iris_takes, squashed_iris_1_as_c },
+    { 0xC6E391, "a squashed iris on slot 2", squashed_iris_takes, squashed_iris_2_as_c },
+    { 0xC6E498, "a capsule iris on slot 1", capsule_iris_takes, capsule_iris_1_as_c },
+    { 0xC6E4BE, "a capsule iris on slot 2", capsule_iris_takes, capsule_iris_2_as_c },
+    { 0xC6E241, "a curtain started", curtain_takes, start_the_curtain_as_c },
+    { 0xC6E27E, "a curtain's step", curtain_step_takes, step_the_curtain_as_c },
+);

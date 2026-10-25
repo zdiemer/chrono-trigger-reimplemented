@@ -6,7 +6,16 @@
 #ifndef CT_GAME_OVERWORLD_MAIN_LOOP_H
 #define CT_GAME_OVERWORLD_MAIN_LOOP_H
 
+#include "platform/platform.h"
 #include "snes/system.h"
+#include "state.h"
+
+/* The world map as the program runs it, with no machine: the sprite-object
+ * mode started ($C2:0000), the map set up, and the loop's passes until the
+ * party leaves for the field (the location to enter set), or a step only the
+ * machine runs yet stops the program. */
+typedef enum { OVERWORLD_LEFT, OVERWORLD_WENT_NO_FURTHER } OverworldEnd;
+OverworldEnd overworld_runs(GameState *g, Platform *pf);
 
 void overworld_run_a_frame(Snes *s);
 void overworld_come_back_from_the_menus(Snes *s);

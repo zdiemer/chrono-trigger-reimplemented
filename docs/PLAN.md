@@ -72,8 +72,8 @@ in place of the ports: the native coverage.
 | ROM data behind named accessors | every accessor read, served from an asset pack imported once from the user's ROM (`ct_play`, `ct_native`) or from the cartridge (`ct_dev` without `--assets`); the decompressor's streams and the video transfers from cartridge addresses still go by the bus | the resources decoded, a resource at a time (Phase 4a, "Assets") |
 | SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP; the original stays as the gate's reference | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
-| How far `ct_native` gets, with no emulator under it (PLAYING.md, "The native program") | frame 2093: the boot, the field and the title's scene as C, the attract demo's field to its first world map (`$C2:0000`, the menus' sprite-object mode), which only the machine enters; with `new-game.ctm`'s presses, frame 3243: the menus a script asks for after the title as C, their tasks on coroutines, through the battle mode's choice and Crono's naming, and the field back to the world map; the whole of `game/` linked, every service with a host backend | every movie to its end, as strict mode does |
-| The machine's joints in `game/` (`tools/machine_joints.py`, a count of sites in the source) | 2,169 registered entries; 1,056 returns through the emulated stack (the entry wrappers); 181 stops at the original's addresses; 20 call-outs and 4 registry lookups between ports; 132 time tags that take the machine; 24 register escapes; 497 video calls (each with a host half now, folded into the observer and drawn by nothing); 2,099 scaffolding writes | 0: the registry, the wrappers and the scaffolding gone with the gate, subsystem by subsystem |
+| How far `ct_native` gets, with no emulator under it (PLAYING.md, "The native program") | frame 2551: the boot, the field and the title's scene as C, the attract demo's field, its first world map as C (the menus' sprite-object mode, `$C2:0000`: the setup, the loop, the vblank handler, the objects and their scripts) and the field after it, to a screen effect only the machine runs (`$C0:21E1`); with `new-game.ctm`'s presses, the movie to its end: the menus a script asks for after the title, Crono's naming, the opening's world map and Crono's house; with `fair.ctm`'s, on across the world map on foot into Leene Square, the fair, to the movie's end; the whole of `game/` linked, every service with a host backend | every movie to its end, as strict mode does |
+| The machine's joints in `game/` (`tools/machine_joints.py`, a count of sites in the source) | 2,169 registered entries; 1,056 returns through the emulated stack (the entry wrappers); 179 stops at the original's addresses; 20 call-outs and 4 registry lookups between ports; 129 time tags that take the machine; 24 register escapes; 497 video calls (each with a host half now, folded into the observer and drawn by nothing); 2,099 scaffolding writes | 0: the registry, the wrappers and the scaffolding gone with the gate, subsystem by subsystem |
 | How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c`. Census (`tools/census.py`, shipping mode, 48 movies): 259 entries entered by the machine, 21.1 M times (vector 1.9 M, a port's call-out 12.1 M, its stop 5.2 M, its return 1.7 M, a task's yield 121 K; none from the original's code), and 19 wait loops still passed on the machine 379 M times; 1,296 entries run only as C | `main()` boots the game and callers call ports; census 0; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
 
 **Burndown overstates how native the game is.** It counts a port's whole
@@ -227,7 +227,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**0 of 312 files is left on the backlog**: the last, `data/decompress.c`, is
+**0 of 314 files is left on the backlog**: the last, `data/decompress.c`, is
 rewritten (the unpacker as a function of the game's state, which the native
 program calls), and `tools/portstyle_baseline.txt` lists none. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
@@ -616,16 +616,18 @@ by an audit; the fourth is the program itself.
      field's vblank and line handlers -- through location 0 and the change to
      the next, whose script ends the field into the title, and the scene
      engine as C through the title's frames and back to the field, and the
-     menus a script asks for, their tasks on `core/tasks.c`'s coroutines:
-     left alone it stops at frame 2093, where the attract demo enters its
-     first world map (`$C2:0000`, the menus' sprite-object mode); with
-     `new-game.ctm`'s presses (`--movie`), at frame 3243, past the battle
-     mode's choice and Crono's naming, where the field enters the world map.
-     Next, in order: the world map (`overworld/`, the sprite-object mode's
-     setup, main loop and handlers, the object scripts they run); then the
-     new game's first maps and the menus the player opens (the main menu's
-     and the load screen's steps), each bridge and request the field still
-     hands the machine given its C as it is met.
+     menus a script asks for, their tasks on `core/tasks.c`'s coroutines,
+     and the world maps (`overworld_runs`: the sprite-object mode's start,
+     the map's setup, its loop, its vblank handler and the objects it runs,
+     their handlers and the routines their scripts call as rows of a C
+     table), and the new game's first maps: left alone it stops at frame
+     2551, on the field after the attract demo's first world map, at a
+     screen effect only the machine runs; with `new-game.ctm`'s presses
+     (`--movie`) it plays the movie to its end, and with `fair.ctm`'s it
+     crosses the world map on foot into the fair. Next, in order: the fair's
+     movies past it (`fair-companion.ctm`, `gato-battle.ctm`: the battle),
+     the screen effects the attract demo's field meets, and the menus the
+     player opens (the main menu's and the load screen's steps).
      Each step is measured by how far `ct_native` gets and by what
      `no_machine.c` still lists; it is a measurement, not the product, until
      the rest arrives. The host video backend draws nothing yet: the

@@ -1592,10 +1592,11 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What the world map's set up left** (history/reimplementation-chunks.md, "Phase 3, menus and
   overworld: the world map set up, its scenes' calls and the frame's
   input"):
-  - the world map's loads reach the unpacker through the machine
-    (`overworld/setup.c`'s `Unpacker`): a C unpacker taking a stream and a
-    destination would make them plain calls (the event commands' TODO wants
-    the same);
+  - the world map's loads reach the unpacker through a callback
+    (`overworld/setup.c`'s `Unpacker`): the program's is C
+    (`overworld_unpacker_as_c`), the machine's calls the original's for
+    shadow mode to pair; once the comparison retires, the loads call
+    `unpack_stream` plainly;
   - `overworld_back_from_the_menus` is fuzzed up to the map's reload, which
     random states make through the original's call (a map the loader can't
     take); the reload itself is fuzzed alone (`overworld_load_the_map_again`)
@@ -2737,25 +2738,26 @@ re-runs the census.
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
 `ct_native` links the whole of `game/` but `registry.c`, with every service's
-host backend, and runs the boot, the field, the title's scene and the menus
-a script asks for; it stops at frame 2093 where the attract demo enters a
-world map (`$C2:0000`), or with `new-game.ctm`'s presses at frame 3243,
-after the battle mode's choice and Crono's naming, where the field enters
-the next: the first step only the machine runs. What the wrappers and bridges call of the machine is
+host backend, and runs the boot, the field, the title's scene, the menus
+a script asks for and the world maps; it stops at frame 2551 where the
+attract demo's field meets a screen effect only the machine runs
+(`$C0:21E1`), the first step only the machine runs there, and with
+`new-game.ctm`'s or `fair.ctm`'s presses it plays the movie to its end (the
+fair's, in Leene Square). What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
-- **The program's next step is the world map.** `ct_native` runs the field,
-  the title's scene and the menus a script asks for as C; the world maps (the
-  locations from `$1F0`, which the menus' sprite-object mode shows,
-  `$C2:0000`: `overworld/`, its setup's unpacking, its main loop, the mode's
-  vblank and line handlers at `$C2:015E` and `$C2:0345` and the object
-  scripts they run) are the next step, where the attract demo stops at frame
-  2093 and `new-game.ctm` at frame 3243. Every mode's vblank and line handler
-  but the field's, the scenes' and the menus' is still an entry on the
-  machine's stack (it saves the interrupted registers, moves the page and the
-  data bank, calls out): `core/program.c`'s table has functions for those
-  three modes' and for none of the rest.
+- **What the world map still hands the machine as the program runs it.**
+  The objects' handlers and the routines a script calls run as rows of C
+  tables (`menu/handlers.c`, `overworld/handlers.c`); a handler or a routine
+  with no row stops the program where it starts. The map view and the time
+  dial (`$C2:631F`, `$C2:6A34`) stop it too, and the menus opened from the
+  map go as far as the menus' own C does. Every mode's vblank and line
+  handler but the field's, the scenes', the menus' and the sprite-object
+  mode's is still an entry on the machine's stack (it saves the interrupted
+  registers, moves the page and the data bank, calls out):
+  `core/program.c`'s table has functions for those four modes' and for none
+  of the rest.
 - **What the scene program still hands the machine as the program runs it.**
   The title's setup is the one setup as C (`scene_title_set_up_as_c`); the
   others, the scripts' commands and routines with no C, and the tasks with
@@ -2776,13 +2778,12 @@ list, by kind, is what `game/` still asks of one.
   runs yet, `ct_native` stops there and says which: a menu screen with no
   step as C (the main menu's, the load screen's, a shop's), a party the
   put-aside or the bringing back doesn't take (`field/menus.c`), every
-  request but a location change and a script's menu (a step, a chest, a tile
-  copy, a battle: `field/requests.c`), a screen
+  request but a location change, a script's menu and a tile copy (a step, a
+  chest, a battle: `field/requests.c`), a screen
   effect's curtain, close or ripple, the field's restart a script asks for,
-  and the event commands with a bridge and no C beside it (19 of the 23 in
-  `EVENT_BRIDGES`: the sound commands and the screen command have theirs,
-  `EVENT_BRIDGES_AS_C`, event/engine.h). Each wants its C as the program
-  meets it.
+  and the event commands with a bridge and no C beside it (13 of the 23 in
+  `EVENT_BRIDGES`; `EVENT_BRIDGES_AS_C`, event/engine.h, has the rest).
+  Each wants its C as the program meets it.
 - **Two sequences of one routine.** The field's entry, its location's
   loading and song, the main loop's pass, the frame's work, the objects'
   update and view and the pause and menus are one sequence each, which the
@@ -2791,8 +2792,8 @@ list, by kind, is what `game/` still asks of one.
   the machine's beside the program's: the screen's setup
   (`field_screen_set_up`), the objects' setup
   (`field_objects_set_up`), the vblank handler's calls (`field_vblank`), a
-  location change's request (`field_requests_handled`), the leader's walk
-  (`field_the_leader_walks`), the screen effect's step
+  location change's request and a script's menu's (`field_requests_handled`;
+  the tile copy's is one sequence, `copy_the_tiles`), the screen effect's step
   (`field_screen_effect_moved_on`), the scene's frame work and its lists
   (`scene_frame_work_as_c`, `run_tasks_as_c`) and the event bridges'
   `*_as_c` sends. Each wants the same shape; until then a change to one

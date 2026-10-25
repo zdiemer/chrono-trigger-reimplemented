@@ -239,6 +239,10 @@ enum { MENU_MARLE_REAL_NAME = 0xC26146 };
  * in work RAM with, a fixed transfer's source ($C2:9510). */
 enum { MENU_CLEARING_ZERO = 0xC29510 };
 
+/* The zero the sprite-object mode's screens clear all of VRAM with
+ * ($C2:26D4). */
+enum { MENU_VRAM_CLEARING_ZERO = 0xC226D4 };
+
 /* ---- Text --------------------------------------------------------------------------------- */
 
 /* The menus' strings, and the numbers they show, wherever the caller's

@@ -116,6 +116,11 @@ bool menu_screen_step_as_c(GameState *g, Platform *pf);
 bool menu_screen_step_is_known(Snes *s);
 
 /* menu/frame.c */
+/* The sprite-object mode's main loop waits, as C: for the vblank handler to
+ * count the next frame, and for `frames` frames (0 is 65,536), sending after
+ * each the sound command a request left waiting. */
+void menu_wait_for_the_next_frame(GameState *g, Platform *pf);
+void menu_wait_frames_as_c(GameState *g, Platform *pf, uint16_t frames);
 void menu_wait_frames_sending_the_sound(Snes *s);
 void menu_wait_for_frame_loop(Snes *s);
 void menu_wait_for_frame(Snes *s);

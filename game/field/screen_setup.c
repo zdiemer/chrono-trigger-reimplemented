@@ -585,7 +585,7 @@ static bool work_as_c(void *ctx, FadeInKind kind)
     if (kind == WITH_THE_FRAMES_WORK)
         TIMED_AS(c->game, FIELD_FRAME_WORK_ENTRY, done = field_frame_work_done(c->game, c->pf));
     else
-        TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, field_effects_refreshed(c->game));
+        TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(c->game));
     return done;
 }
 

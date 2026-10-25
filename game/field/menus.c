@@ -458,8 +458,9 @@ static bool walk_as_c(void *ctx, uint8_t control)
 static bool palettes_as_c(void *ctx)
 {
     StopAsC *c = ctx;
-    TIMED_AS(c->game, PALETTE_ANIMATION, palette_animate_a_frame(c->game));
-    return true;
+    bool done = false;
+    TIMED_AS(c->game, PALETTE_ANIMATION, done = palette_animated_as_c(c->game));
+    return done;
 }
 
 static void dark_as_c(void *ctx)

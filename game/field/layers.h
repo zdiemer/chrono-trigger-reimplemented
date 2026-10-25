@@ -131,6 +131,8 @@ void map_copy_tiles(GameState *g);
  * two halves of 32 columns side by side. */
 uint16_t field_tile_map_index(uint16_t column, uint16_t row);
 bool map_tile_copy_fits(uint16_t from, uint16_t to, uint16_t destination);
+/* The copy the game queued fits so (the guard's state half). */
+bool field_tile_copy_is_on_the_map(const GameState *g);
 
 /* What the copy leaves its callers, worked out beside the other field
  * routines' (field/leaves.c): Y and the overflow, as its last table's copy

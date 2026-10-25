@@ -27,6 +27,9 @@ bool overworld_load_the_map_tiles(GameState *g, const Unpacker *u);
  * record is noted, the camera on the map and the upload buffer in work RAM
  * (the game's always are once the map is set up). */
 bool overworld_map_can_be_loaded_again(const GameState *g);
+/* Whether the world map can be set up as it stands: a world map's location,
+ * the camera put on the party on the map (the set up's guard's state half). */
+bool overworld_can_be_set_up(const GameState *g);
 
 /* Clear the label the sign's name is set in (sign.c), where the map view
  * sets its markers too. */
@@ -35,6 +38,8 @@ void overworld_clear_the_sign_label(GameState *g);
 /* The unpacker on the original's machine: its entry run as the original's
  * call to it reaches it. */
 Unpacker overworld_unpacker_on_the_machine(Snes *s);
+/* The unpacker as C (data/decompress.h). */
+Unpacker overworld_unpacker_as_c(GameState *g);
 
 /* The registered entries and their guards. */
 void overworld_set_up_entry(Snes *s);

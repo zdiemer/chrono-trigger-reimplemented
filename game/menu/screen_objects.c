@@ -652,45 +652,25 @@ static bool apart(uint32_t at, unsigned bytes)
 
 /* Each keeps to the steps of its own table, which the original jumps
  * through by the step's number, and starts from a command it can read. */
-static bool handler_on_step(Snes *s, MenuObject *self, unsigned steps, unsigned command_bytes)
+static bool on_step(const GameState *g, MenuObject self, unsigned steps, unsigned command_bytes)
 {
-    if (!menu_object_handler_runs(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    *self = menu_object_running(g);
-    uint8_t step = menu_object_slots_step(g, *self);
-    bool ok = step < steps && (step != 0 || command_bytes == 0 || apart(starting_command(g, *self), command_bytes));
-    vars_peek(false);
-    return ok;
+    uint8_t step = menu_object_slots_step(g, self);
+    return step < steps && (step != 0 || command_bytes == 0 || apart(starting_command(g, self), command_bytes));
 }
 
 static bool colours_apart(uint32_t at) { return apart(at, ROW_BYTES); }
 
 /* The streamer's batches go on through the queue, which the game keeps
  * whole. */
-bool menu_tile_streamer_runs(Snes *s)
+bool menu_tile_streamer_takes(const GameState *g, MenuObject self)
 {
-    MenuObject self;
-    if (!handler_on_step(s, &self, STREAM_STEPS, STREAM_COMMAND_BYTES))
-        return false;
-    vars_peek(true);
-    bool ok = menu_object_queue_is_whole(state_of(s));
-    vars_peek(false);
-    return ok;
+    return on_step(g, self, STREAM_STEPS, STREAM_COMMAND_BYTES) && menu_object_queue_is_whole(g);
 }
 
 /* A row of the palette's sixteen. */
-bool menu_palette_loader_runs(Snes *s)
+bool menu_palette_loader_takes(const GameState *g, MenuObject self)
 {
-    if (!menu_object_handler_runs(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    MenuObject self = menu_object_running(g);
-    bool ok = loader_row(g, self) < PALETTE_ROWS && colours_apart(menu_object_slots_palette_source(g, self));
-    vars_peek(false);
-    return ok;
+    return loader_row(g, self) < PALETTE_ROWS && colours_apart(menu_object_slots_palette_source(g, self));
 }
 
 /* A fade under way works on one of the sixteen rows where it keeps it, its
@@ -707,47 +687,39 @@ static bool counts_are_sound(const GameState *g, MenuObject self)
     return true;
 }
 
-bool menu_palette_fade_runs(Snes *s)
+bool menu_palette_fade_takes(const GameState *g, MenuObject self)
 {
-    MenuObject self;
-    if (!handler_on_step(s, &self, PALETTE_FADE_STEPS, 0))
+    if (!on_step(g, self, PALETTE_FADE_STEPS, 0))
         return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok;
     switch (menu_object_slots_step(g, self)) {
     case FADE_COUNTS:
-        ok = loader_row(g, self) < PALETTE_ROWS && colours_apart(menu_object_slots_palette_source(g, self));
-        break;
+        return loader_row(g, self) < PALETTE_ROWS && colours_apart(menu_object_slots_palette_source(g, self));
     case FADE_STEPS_ON:
-        ok = fade_row(g, self) < PALETTE_ROWS
-             && menu_object_slots_fade_row_at(g, self) == row_address(fade_row(g, self))
-             && menu_object_slots_fade_steps(g, self) < FADE_STEPS && counts_are_sound(g, self);
-        break;
+        return fade_row(g, self) < PALETTE_ROWS
+               && menu_object_slots_fade_row_at(g, self) == row_address(fade_row(g, self))
+               && menu_object_slots_fade_steps(g, self) < FADE_STEPS && counts_are_sound(g, self);
     default:
-        ok = fade_row(g, self) < PALETTE_ROWS;
-        break;
+        return fade_row(g, self) < PALETTE_ROWS;
     }
-    vars_peek(false);
-    return ok;
 }
 
-bool menu_fade_out_runs(Snes *s)
+bool menu_fade_out_takes(const GameState *g, MenuObject self)
 {
-    MenuObject self;
-    return handler_on_step(s, &self, FADE_OUT_STEPS, FADE_COMMAND_BYTES);
+    return on_step(g, self, FADE_OUT_STEPS, FADE_COMMAND_BYTES);
 }
 
-bool menu_fade_in_runs(Snes *s)
+bool menu_fade_in_takes(const GameState *g, MenuObject self) { return on_step(g, self, FADE_IN_STEPS, FADE_COMMAND_BYTES); }
+
+bool menu_mosaic_takes(const GameState *g, MenuObject self)
 {
-    MenuObject self;
-    return handler_on_step(s, &self, FADE_IN_STEPS, FADE_COMMAND_BYTES);
+    return on_step(g, self, MOSAIC_STEPS + 1, MOSAIC_COMMAND_BYTES);
 }
 
-bool menu_mosaic_runs(Snes *s)
-{
-    MenuObject self;
-    return handler_on_step(s, &self, MOSAIC_STEPS + 1, MOSAIC_COMMAND_BYTES);
-}
+bool menu_tile_streamer_runs(Snes *s) { return menu_object_handler_takes(s, menu_tile_streamer_takes); }
+bool menu_palette_loader_runs(Snes *s) { return menu_object_handler_takes(s, menu_palette_loader_takes); }
+bool menu_palette_fade_runs(Snes *s) { return menu_object_handler_takes(s, menu_palette_fade_takes); }
+bool menu_fade_out_runs(Snes *s) { return menu_object_handler_takes(s, menu_fade_out_takes); }
+bool menu_fade_in_runs(Snes *s) { return menu_object_handler_takes(s, menu_fade_in_takes); }
+bool menu_mosaic_runs(Snes *s) { return menu_object_handler_takes(s, menu_mosaic_takes); }
 
 bool menu_palette_can_be_cleared(Snes *s) { return menu_objects_on_page(s); }

@@ -68,7 +68,9 @@ EventRunner event_runner_as_c(EventAsC *c);
     X(event_screen_command_as_c, 0xFF) \
     X(event_copy_data_as_c, 0x4E) \
     X(event_bring_into_the_party_as_c, 0xD3) \
-    X(event_send_to_the_reserve_as_c, 0xD4)
+    X(event_send_to_the_reserve_as_c, 0xD4) \
+    X(event_cast_npc_as_c, 0x82) \
+    X(event_cast_enemy_as_c, 0x83)
 
 #define EVENT_DECLARE_AS_C(name, opcode) bool name(GameState *g, Platform *pf, uint16_t at, EventStep *step);
 EVENT_BRIDGES_AS_C(EVENT_DECLARE_AS_C)

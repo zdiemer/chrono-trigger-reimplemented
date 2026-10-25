@@ -45,6 +45,14 @@ bool menu_fade_in(GameState *g, MenuObject self);
 bool menu_clear_mosaic(GameState *g, MenuObject self);
 bool menu_grow_mosaic(GameState *g, MenuObject self);
 
+/* The guards' state halves: whether each takes the object as it stands. */
+bool menu_tile_streamer_takes(const GameState *g, MenuObject self);
+bool menu_palette_loader_takes(const GameState *g, MenuObject self);
+bool menu_palette_fade_takes(const GameState *g, MenuObject self);
+bool menu_fade_out_takes(const GameState *g, MenuObject self);
+bool menu_fade_in_takes(const GameState *g, MenuObject self);
+bool menu_mosaic_takes(const GameState *g, MenuObject self);
+
 /* The registered entries and their guards. */
 void menu_stream_tiles_entry(Snes *s);
 void menu_load_palette_row_entry(Snes *s);

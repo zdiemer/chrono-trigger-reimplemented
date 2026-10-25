@@ -32,6 +32,14 @@ void script_set_byte_at(GameState *g, MenuObject self, ByteRef b, uint8_t v)
         wram_write8(g, cell_address(b.at), v);
 }
 
+/* A register of the picture's a command sets, the SNES escape (an ending's
+ * scripts set the sprites' sizes so): written as the command's handler at
+ * `handler` writes it. */
+void script_set_the_consoles_byte(Platform *pf, uint32_t handler, uint16_t at, uint8_t v)
+{
+    vid_snes_write_register(pf, PF_AT(handler), at, v);
+}
+
 /* ---- Reading a command -------------------------------------------------------------------------- */
 
 const ScriptOpcode *menu_script_opcode(uint8_t opcode)

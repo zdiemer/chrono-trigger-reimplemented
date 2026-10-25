@@ -67,6 +67,23 @@ void menu_object_reset_the_mode(GameState *g);
 void menu_object_take_the_interrupts(GameState *g);
 void menu_object_reset_the_upload_queue(GameState *g);
 
+/* The mode's start as C ($C2:000F): the screen blanked and everything
+ * stopped, then the screen, the mode's own state, its handlers and its upload
+ * queue set up and its palette cleared. The world map is set up after it
+ * (overworld/setup.c). */
+void menu_object_mode_starts(GameState *g, Platform *pf);
+/* The mode's screen set up ($C2:0043), as it starts and as the world map
+ * comes back from the menus. */
+void menu_object_set_up_the_screen(GameState *g, Platform *pf);
+
+/* The mode's vblank handler as C, and its line handler, which only returns. */
+enum { MENU_OBJECT_VBLANK_HANDLER = 0xC2015E, MENU_OBJECT_LINE_HANDLER = 0xC20345 };
+void menu_object_vblank(GameState *g, Platform *pf);
+void menu_object_line(GameState *g, Platform *pf);
+
+/* The guard's state half for the mode's upload queue: whole, from memory. */
+bool menu_object_queue_can_be_sent(const GameState *g);
+
 void menu_object_mode_start(Snes *s);
 void menu_object_reset_the_mode_entry(Snes *s);
 void menu_object_take_the_interrupts_entry(Snes *s);

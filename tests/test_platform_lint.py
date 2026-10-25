@@ -30,9 +30,9 @@ ESCAPES = {
                            # through work RAM's data bank, whose register writes land in memory
     "field/display.c": 1,  # $C0:2DF1, which copies a PPU register into memory rather than writing one
     "menu/display.c": 2,   # $C2:9512 and $C2:9542, which fill and copy memory through the work RAM port
-    "menu/script.c": 1,    # the object scripts' byte commands, which name a register of the picture's by its
-                           # address (an ending's sets the sprites' sizes, $2101): whether the console takes it
-    "menu/script_bridge.c": 1,  # ... and the write
+    "menu/script.c": 2,    # the object scripts' byte commands, which name a register of the picture's by its
+                           # address (an ending's sets the sprites' sizes, $2101): whether the console takes it,
+                           # and the write, which both the scripts' runners make
     "scene/race.c": 3,     # the read back out of VRAM at $7E:3D41, and the column at $7E:4671 and the
                            # plane at $7E:876E, which write the data port's low half alone
     "scene/screen.c": 7,   # $7E:3843 and the two clears at $7E:3092, whose transfers no call expresses,

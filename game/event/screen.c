@@ -454,7 +454,10 @@ static bool end_the_field_for_a_scene_as_c(GameState *g, Platform *pf, uint8_t s
         TIMED_AS(g, WALK_THE_LEADER, walked = field_the_leader_walks(g));
         if (!walked)
             return false;
-        TIMED_AS(g, PALETTE_ANIMATION, palette_animate_a_frame(g));
+        bool animated = false;
+        TIMED_AS(g, PALETTE_ANIMATION, animated = palette_animated_as_c(g));
+        if (!animated)
+            return false;
         TIMED_AS(g, FRAME_WAIT, field_finish_the_frame(g, pf));
     }
     TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
