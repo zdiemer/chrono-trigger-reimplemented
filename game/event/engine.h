@@ -69,6 +69,10 @@ EventRunner event_runner_as_c(EventAsC *c);
     X(event_copy_data_as_c, 0x4E) \
     X(event_bring_into_the_party_as_c, 0xD3) \
     X(event_send_to_the_reserve_as_c, 0xD4) \
+    X(event_if_in_the_active_party, 0xD2) \
+    X(event_if_recruited, 0xCF) \
+    X(event_go_now, 0xE1) \
+    X(event_go_now_raising_1e, 0xDF) \
     X(event_cast_npc_as_c, 0x82) \
     X(event_cast_enemy_as_c, 0x83)
 

@@ -11283,3 +11283,118 @@ walkers, the vehicles and the sign (the overworld's handlers, which only a
 map the party walks runs), the map view and the time dial, and the menus
 opened from the map, which go as far as the menus' own C does (TODO.md,
 "The native program").
+
+#### The native program through Crono's house to the fair
+
+With the world map as C (the section before this one, "The native program
+through the world map"), `new-game.ctm`'s presses took
+`ct_native` into Crono's house, where it stopped at frame 4798: an event
+command that casts a person whose graphics must be unpacked (`$C0:4590`).
+Each step after it was taken as it was met, in the same shape -- one
+sequence the machine's entry and the program run, its steps callbacks:
+
+- **The casts of a person and an enemy** (`$C0:4590`, `$C0:46DF`): the
+  casting's two halves either side of the unpacking, the unpacker a
+  callback (`SetUnpacker`; on the machine the original's from each
+  command's call, its sites and the too-far stops a table's rows), now
+  bridges with C (`EVENT_BRIDGES_AS_C`).
+- **A tile copy** (`$C0:1779`, a request): the screen's recentring a frame
+  at a time, the copy, and the layers it changed drawn and sent, each call a
+  row of a table (`tile_copy_calls`: the routine and the original's site),
+  run by one sequence (`copy_the_tiles`) whose step is a call; on the machine
+  the original's calls and the jump to the frame wait the pass goes on
+  from, as C the ports' functions with their guards' state halves. The
+  recentring and the leader's walk became one sequence each with the
+  layers' scroll a callback (`walk.c`), which took the walk off TODO.md's
+  list of steps written twice.
+- **The world map walked on foot** (`overworld/handlers.c`): the overworld's
+  handlers -- the walkers, the vehicles, the places' watcher, the music, the
+  sign, the Epoch and the dactyls -- and the routines its scenes call (the
+  song of where the party is, the sign's label, the Epoch's scenes), as rows
+  of the sprite-object mode's C tables; the walkers' and the Epoch's scripts
+  on the interpreter as C. Their guards' state halves moved here from
+  `entries.c`, whose guards are now each the handler's machine half and the
+  row's state half (`menu_object_handler_takes`).
+
+So `new-game.ctm` plays to its end, and `fair.ctm`'s presses cross the world
+map into Leene Square, the fair (location `$005`, where the reference play
+of the movie ends), and on to the end of the run. The attract demo still
+stops at frame 2551, at a screen effect only the machine runs (its curtain,
+its close into a scene or its ripple, `$C0:21E1`).
+
+**Measured.** Shadow mode over the library: 0 mismatches; the entries whose
+work became a sequence compare every call real play makes
+(`event_cmd_cast_npc` 971, `event_cmd_cast_enemy` 662,
+`field_handle_requests` 238,533, `field_recentre_the_screen` 323,
+`field_walk_the_leader` 244,514, `overworld_lead` 18,356 with 4
+interrupted, `overworld_follow` 36,712, `overworld_start_the_location_song`
+32). Refusals in real play: 0; fallbacks unchanged. The census: 259 entries
+the machine enters, as before. `tools/machine_joints.py`: 179 stops (180).
+Timing: no row recalibrated. The moved guards' reads of slot cells the
+menus proper also use as scaffolding are four baseline lines of the same
+kind as the ones they moved with.
+
+#### The native program through the field's screen effects
+
+With Crono's house and the fair as C (the section before this one, "The native program
+through Crono's house to the fair"), the attract
+demo still stopped at frame 2551, on its field after the first world map, at
+a screen effect only the machine ran: `$C0:21E1`'s step had C for the
+effects drawn in a frame (the holes and ovals, the searchlight, BG3 in a
+circle) and handed the machine the three that call on the field's other
+work: the curtain's sweep (bank `$C3`'s), the ripple and the field's close
+into a scene, which run for frames with BG1 drawn, the effects refreshed,
+frames waited and the field put aside between their steps. The C path
+didn't check the entry's guard either (an effect past the table's, a
+searchlight whose shape starts below the picture).
+
+The step is one sequence now (`move_on_a_step`), its calls to the field's
+other work callbacks (`EffectCalls`: the sweep, BG1's drawing, the refresh,
+the frame wait, the battle's start, the scene's), each named by the moment of
+the close or the ripple it is made at (`Moment`); the machine's callbacks
+keep the original's call sites in one table by moment, the program's are the
+ports' functions with their guards' state halves (`field_screen_effect_moved_on`
+checks the step's own first). What it took with it, each one sequence the
+same way:
+
+- **The battle's start** (`$C0:024C`), which the close calls to put the
+  field aside: the enemies found, and with none the party brought back
+  together through `event/party.c`'s port and a frame of its walk, a
+  callback (`field_battle_set_up` as C, with its guard's state half and the
+  party's).
+- **A frame of the leader's walk alone** (`$C0:00EB`): the walk, the
+  refresh and the wait, three callbacks (`field_walked_a_frame`).
+- **A layer drawn as at a map's load** (`$C0:75E9` and its two siblings),
+  as C with each entry's guard's state half (`field_layer_drawn_at_the_load`,
+  which the tile copy's C path now calls too: it checked BG2's half for all
+  three).
+
+The scene's callers of the palettes' animation (`scene/screen.c`'s task and
+the Epoch's dive's channel call, `scene/rising_palace.c`'s setup) go through
+`palette_animated_as_c`, the guard's state half every caller on the field
+already checks; and the scene lists' runner as C stops where a task's C
+went no further.
+
+So the attract demo's field closes into its scene as C, and `ct_native`
+stops at frame 2584, at that scene's setup (the credits' page,
+`$7E:6B04`). `fair-companion.ctm` and `gato-battle.ctm` stop at frame
+12832, at the fair, on event `$D2` (`$C0:38E8`), which only the machine
+runs.
+
+**Measured.** Shadow mode over the library: 0 mismatches
+(`field_move_screen_effect_on` 237,748 of 238,260 compared, the rest
+abandoned as before; `field_walk_a_frame` 690 of 696, 6 interrupted;
+`field_battle_begins` 48, every one interrupted as before: its call-out
+waits across frames; `scene_animate_the_palettes` 93,828). No movie reaches
+the ripple or the close on the machine, so those paths are checked only by
+`ct_native` getting through them. Refusals in real play: 0; fallbacks
+unchanged; the census: 259 entries the machine enters, as before.
+`tools/machine_joints.py`: 1,055 returns (1,056). Timing: the palettes'
+check is a peek, so the scene's task takes none of its time; the step and
+the pass's step after it recalibrated (`field_move_screen_effect_on` 3484
+to 2901, `field_frame_goes_on_with_the_screen_effect` 2095 to 2525). The C
+guards' reads of the curtain's table and the leader's contact are three
+baseline lines beside the ones the same cells already have. Fuzzing, seed
+1, `tools/fuzz_compare.py` against `main`'s `ct_fuzz`: the four entries'
+eight runs (the step's curtain, curtain-call and close-ripple variants among
+them) the same as before. Gate: suite OK.

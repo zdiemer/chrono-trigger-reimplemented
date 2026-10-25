@@ -436,16 +436,6 @@ typedef struct {
     Platform *pf;
 } TileCopyAsC;
 
-static bool drawn_as_c(GameState *g, FieldLayer layer, uint32_t routine)
-{
-    if (!layer_drawing_fits(g, layer) || !layers_repeat_within_the_maps(g)) {
-        program_needs_the_machine(g, routine, "a layer the port doesn't draw at the map's load");
-        return false;
-    }
-    TIMED_AS(g, routine, draw_layer_at_the_maps_load(g, layer));
-    return true;
-}
-
 static bool tile_copy_call_as_c(void *ctx, TileCopyCall call)
 {
     TileCopyAsC *c = ctx;
@@ -466,9 +456,9 @@ static bool tile_copy_call_as_c(void *ctx, TileCopyCall call)
         TIMED_AS(g, COPY_TILES, map_copy_tiles(g));
         return true;
     case TC_PALETTES: TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated_as_c(g)); return done;
-    case TC_DRAW_BG1: return drawn_as_c(g, FIELD_BG1, DRAW_BG1);
-    case TC_DRAW_BG2: return drawn_as_c(g, FIELD_BG2, DRAW_BG2);
-    case TC_DRAW_BG3: return drawn_as_c(g, FIELD_BG3, DRAW_BG3);
+    case TC_DRAW_BG1: return field_layer_drawn_at_the_load(g, FIELD_BG1);
+    case TC_DRAW_BG2: return field_layer_drawn_at_the_load(g, FIELD_BG2);
+    case TC_DRAW_BG3: return field_layer_drawn_at_the_load(g, FIELD_BG3);
     case TC_REFRESH: TIMED_AS(g, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(g)); return done;
     case TC_COLUMNS:
         if (!layers_repeat_within_the_maps(g)) {

@@ -97,6 +97,9 @@ enum { PARTY_ALL_GATHERED = 3 };
 /* After a battle the party comes back together, each member going back to
  * the leader ($C0:034B, $C0:5B1F). */
 void party_back_together(GameState *g);
+/* Its guard's state half: the members there objects the tables hold, at
+ * levels the places hold, and the leader's contact cell an offset alone. */
+bool party_can_come_back_together(const GameState *g);
 void member_back_to_the_leader(GameState *g, FieldObject member);
 void event_party_back_together(Snes *s);
 bool event_party_back_can_run(Snes *s);

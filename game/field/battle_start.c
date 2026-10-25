@@ -29,6 +29,7 @@
 #include "field/party.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "event/party.h"
 #include "field/bridge.h"
@@ -308,32 +309,77 @@ void field_hand_over_to_a_battle(GameState *g)
     hand_over_the_screen(g);
 }
 
-/* ---- The entry ------------------------------------------------------------------------------- */
+/* ---- The start, as one sequence --------------------------------------------------------------- */
 
-/* With no enemy on the screen the party comes back together, the original's
- * routine (event/party.c's port) running a frame of the leader's walk, which
- * only a call can run; nothing the routine leaves in the registers is read. */
-enum { PARTY_BACK_TOGETHER = 0xC0034B, READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+/* With no enemy on the screen the party comes back together and walks a
+ * frame (event/party.c, field/main_loop.c), which the machine runs from the
+ * original's call and the program as C. */
+typedef bool (*BackTogether)(void *ctx);
 
 // $C0:024C
-/* The field's page, 8-bit A and 16-bit index registers. The carry says
- * whether no battle is fought; nothing else it leaves is read. */
-void field_battle_begins(Snes *s)
+static FieldBattleStart battle_begins(GameState *g, BackTogether back_together, void *ctx)
 {
-    GameState *g = state_of(s);
     find_the_enemies(g);
-    if (!enemies_found(g)) {
-        if (!bridge_call(s, 0xC0027E, PARTY_BACK_TOGETHER, READS_NOTHING, on_the_field_page(s, false)))
-            return;
-        m_set_flag(s, CPU_FLAG_C, true);
-        m_rts(s);
-        return;
-    }
+    if (!enemies_found(g))
+        return back_together(ctx) ? FIELD_NO_BATTLE : FIELD_BATTLE_START_STOPPED;
     dialog_shut(g);
     field_hand_over_to_a_battle(g);
     field_put_the_state_aside(g);
     field_party_place_is_the_leaders(g);
-    m_set_flag(s, CPU_FLAG_C, false);
+    return FIELD_BATTLE_SET;
+}
+
+static bool battle_fits(const GameState *g);
+
+/* As C, each with its guard's state half first. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} AsC;
+
+enum { PARTY_BACK_TOGETHER = 0xC0034B };
+
+static bool come_back_together(void *ctx)
+{
+    AsC *c = ctx;
+    if (!party_can_come_back_together(c->game)) {
+        program_needs_the_machine(c->game, PARTY_BACK_TOGETHER, "a party the port doesn't bring back together");
+        return false;
+    }
+    TIMED_AS(c->game, PARTY_BACK_TOGETHER, party_back_together(c->game));
+    return field_walked_a_frame(c->game, c->pf);
+}
+
+FieldBattleStart field_battle_set_up(GameState *g, Platform *pf)
+{
+    if (!battle_fits(g)) {
+        program_needs_the_machine(g, FIELD_BATTLE_BEGINS_ENTRY, "a battle's start the port doesn't take");
+        return FIELD_BATTLE_START_STOPPED;
+    }
+    AsC c = { g, pf };
+    return battle_begins(g, come_back_together, &c);
+}
+
+/* ---- The entry ------------------------------------------------------------------------------- */
+
+/* The party's coming back together is called from the original's call;
+ * nothing it leaves in the registers is read. */
+enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+static bool back_together_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return bridge_call(s, 0xC0027E, PARTY_BACK_TOGETHER, READS_NOTHING, on_the_field_page(s, false));
+}
+
+/* The field's page, 8-bit A and 16-bit index registers. The carry says
+ * whether no battle is fought; nothing else it leaves is read. */
+void field_battle_begins(Snes *s)
+{
+    FieldBattleStart start = battle_begins(state_of(s), back_together_on_the_machine, s);
+    if (start == FIELD_BATTLE_START_STOPPED)
+        return;
+    m_set_flag(s, CPU_FLAG_C, start == FIELD_NO_BATTLE);
     m_rts(s);
 }
 
@@ -349,12 +395,8 @@ static bool tiles_have_a_place(uint8_t tiles)
     return !has_a_battle_place(tiles) || (tiles >= ENEMY_TILES_FROM && battle_place_of_tiles(tiles) < ENEMY_PLACES);
 }
 
-bool field_battle_can_begin(Snes *s)
+static bool battle_fits(const GameState *g)
 {
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
     bool ok = field_party_objects_high(g, PARTY_LEADER) == 0 &&
               field_link_names_object(party_member_link(g, PARTY_LEADER)) && event_object_count(g) < FIELD_OBJECTS;
     for (PartyPlace place = PARTY_FIRST_MEMBER; ok && place < PARTY_PLACES; place++) {
@@ -363,6 +405,15 @@ bool field_battle_can_begin(Snes *s)
     }
     for (FieldObject obj = 1; ok && obj <= event_object_count(g); obj++)
         ok = !an_enemy(g, obj) || tiles_have_a_place((uint8_t)field_object_sprite_tiles(g, obj));
+    return ok;
+}
+
+bool field_battle_can_begin(Snes *s)
+{
+    if (!field_on_page_bank_zero(s))
+        return false;
+    vars_peek(true);
+    bool ok = battle_fits(state_of(s));
     vars_peek(false);
     return ok;
 }

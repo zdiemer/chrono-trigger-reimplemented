@@ -118,6 +118,7 @@ game/core/memory.c memory_move_stub menu_block_move_stub menu_block_move_stub on
 game/core/sound_driver.c sound_driver_upload_block sound_driver_load_slot sound_driver_load_slot only # the entry's operand: the original's caller ($C7:034F) puts the slot there before every call; the command's own upload, run as C, takes it as a parameter
 game/event/contact.c contact_is_one field_leader_contact_high field_leader_contact_high                       # a guard; the walk's search past the tables writes the contact in scaffolding (field/walk.c, stopped_past_the_tables), and its high byte 0 as the plain write before it does
 game/event/party.c event_member_back_to_the_leader field_leader_contact field_leader_contact                  # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
+game/event/party.c party_can_come_back_together field_leader_contact_high field_leader_contact_high # a guard's state half; as contact_is_one's: the high byte 0 is the plain write (set_leader_contact) before any scaffolding one
 game/event/script.h script_byte event_script_byte field_sprite_records
 game/event/script.h script_word event_script_byte field_sprite_records
 game/field/animation.c field_read_animation_frame field_frame_entry_bank field_frame_entry only               # the entry's calling convention: every caller of the frame read sets the tables' bank first (the builders); the C builder passes it
@@ -151,6 +152,8 @@ game/field/object.c object_records_state field_object_sprite_state field_object_
 game/field/object.c object_sprite_priorities field_object_sprite_priority field_object_sprite_priority
 game/field/object_view.c object_view field_object_in_view field_object_in_view
 game/field/screen_effects.c curtain_sweeping scene_curtain_sweep scene_circle_center_x # the curtain's state, which bank $C3's sweep (still the original's) and event $FF set plainly; the circle's scaffolding there is the cells' other use
+game/field/screen_effects.c sweep_the_curtain scene_curtain_table scene_circle_center_y # the guard's state half: the curtain's table, which its start (screen_curtain_drawn) writes plainly before any sweep; the circle's scaffolding there is the cells' other use, and no circle is drawn while a curtain sweeps
+game/field/screen_effects.c sweep_the_curtain scene_curtain_table_bank scene_circle_radius # as the line above
 game/field/sprites.c record_byte field_sprite_records_byte field_sprite_records
 game/field/sprites.c stray_fifth_y_offset field_sprite_records_byte field_sprite_records
 game/field/switches.c field_redraw_changed_tiles field_chest_kind field_chest_kind # set plainly by field_open_chest, which alone asks for the chest's redraw

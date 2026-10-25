@@ -813,6 +813,8 @@ static bool run_tasks_as_c(GameState *g, Platform *pf, SceneTaskList list)
         if (port) {
             TaskEnd end = task_goes_on();
             TIMED_AS(g, PROGRAM_BANK | task, end = port->run(g, pf));
+            if (program_went_no_further(g))
+                return false;
             end_the_task(g, list, slot, end);
             continue;
         }

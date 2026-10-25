@@ -161,6 +161,14 @@ bool program_went_no_further(const GameState *g)
 
 void program_goes_on_to_a_scene(GameState *g, uint8_t scene) { (void)g, (void)scene; }
 
+void program_starts_the_field_again(GameState *g) { (void)g; }
+
+bool program_field_starts_again(GameState *g)
+{
+    (void)g;
+    return false;
+}
+
 bool program_next_scene(GameState *g, uint8_t *scene)
 {
     (void)g, (void)scene;

@@ -536,8 +536,7 @@ static FieldPass dialog_window_as_c(GameState *g, Platform *pf)
 
 static FieldPass screen_effect_as_c(GameState *g, Platform *pf)
 {
-    (void)pf;
-    return goes_on(field_screen_effect_moved_on(g));
+    return goes_on(field_screen_effect_moved_on(g, pf));
 }
 
 static FieldPass script_layers_as_c(GameState *g, Platform *pf)
@@ -630,7 +629,7 @@ void field_runs(GameState *g, Platform *pf)
         do
             pass = field_runs_a_pass(g, pf);
         while (pass == FIELD_PASS_GOES_ON);
-        if (pass == FIELD_PASS_STOPS)
+        if (pass == FIELD_PASS_STOPS && (program_went_no_further(g) || !program_field_starts_again(g)))
             return;
     }
 }
@@ -760,14 +759,72 @@ void field_refresh_effects(Snes *s)
 /* A frame of the leader's walk alone, while the field waits on something of
  * its own: the walk, the effects refreshed, and the wait for the next frame,
  * which returns for this routine (and sets A and its flags first). */
+typedef struct {
+    bool (*walk)(void *ctx);
+    bool (*refresh)(void *ctx);
+    bool (*wait)(void *ctx);
+} WalkFrameSteps;
+
+static bool walk_a_frame(const WalkFrameSteps *steps, void *ctx)
+{
+    return steps->walk(ctx) && steps->refresh(ctx) && steps->wait(ctx);
+}
+
+static bool leader_takes_a_step(void *ctx)
+{
+    PassAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, WALK, done = field_the_leader_walks(c->game));
+    return done;
+}
+
+static bool effects_refreshed(void *ctx)
+{
+    PassAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(c->game));
+    return done;
+}
+
+static bool frame_waited(void *ctx)
+{
+    PassAsC *c = ctx;
+    TIMED_AS(c->game, FIELD_FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
+    return true;
+}
+
+bool field_walked_a_frame(GameState *g, Platform *pf)
+{
+    static const WalkFrameSteps as_c = { leader_takes_a_step, effects_refreshed, frame_waited };
+    PassAsC c = { g, pf };
+    return walk_a_frame(&as_c, &c);
+}
+
+static bool walked_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run(s, 0xC000EB, WALK, READS_NOTHING, field_walk_the_leader, page(s));
+}
+
+static bool refreshed_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run(s, 0xC000EE, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects, page(s));
+}
+
 enum { THE_WAIT_SETS_A = DC_A | DC_N | DC_Z };
+
+static bool waited_on_the_machine(void *ctx)
+{
+    m_stop_at(ctx, FIELD_FRAME_WAIT, THE_WAIT_SETS_A);
+    return false;
+}
 
 void field_walk_a_frame(Snes *s)
 {
-    if (!field_run(s, 0xC000EB, WALK, READS_NOTHING, field_walk_the_leader, page(s)) ||
-        !field_run(s, 0xC000EE, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects, page(s)))
-        return;
-    m_stop_at(s, FIELD_FRAME_WAIT, THE_WAIT_SETS_A);
+    static const WalkFrameSteps on_the_machine = { walked_on_the_machine, refreshed_on_the_machine,
+                                                   waited_on_the_machine };
+    (void)walk_a_frame(&on_the_machine, s);
 }
 
 /* ---- Starting afresh ------------------------------------------------------------------------- */
@@ -851,6 +908,8 @@ void field_start_the_scene(Snes *s)
 // $C0:2643
 /* The field closes into the scene its close leads to (field/screen_effects.c),
  * always the scene engine's, whatever its number. */
+void field_closed_into_the_scene(GameState *g) { program_goes_on_to_a_scene(g, SCENE_FIELD_CLOSES_INTO); }
+
 void field_close_into_the_scene(Snes *s)
 {
     hand_over_the_scene(s, SCENE_FIELD_CLOSES_INTO);

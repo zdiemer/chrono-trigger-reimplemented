@@ -552,7 +552,7 @@ entry, `program_needs_the_machine` stops it and the driver says where (exit
 status 1):
 
 ```
-frame 2551: the program's C goes no further: $C0:21E1, a screen effect's curtain, its close into a scene or its ripple, runs only on the machine
+frame 3605: the program's C goes no further: $C0:188C, a battle, runs only on the machine
 ```
 
 So far the boot and the field run as C. At power-on the field's handlers
@@ -586,8 +586,16 @@ every object's turn (`menu_objects_run_as_c`), each handler and each
 routine a command script calls a row of a C table (`menu/handlers.c`) --
 the scene's scripts on the interpreter as C, the fades, the layer over the
 map, the irises and curtains, the drifting map. The scene leaves for the
-field at the location it chose, and the field goes on there until a screen
-effect only the machine runs yet (frame 2551). With
+field at the location it chose, and the field goes on there, its screen
+effects as C (`field_screen_effect_moved_on`: the holes and ovals, the
+searchlight, the curtain swept by `scene/curtain.c`, the ripple and the
+field's close), until it closes into a scene: BG1 drawn and sent, the field
+put aside as for a battle (`field_battle_set_up`), the interrupts handed
+over, and the scene the close leads to started: a page of the credits, set
+up as C with its letters unpacked by the unpacker as C. The field after it
+goes on through its scripts' changes of place made at once (event `$DF`,
+`$E1`: the field started again, `program_starts_the_field_again`) to a
+battle, which only the machine runs yet (frame 3605). With
 `new-game.ctm`'s presses, Start ends the title and the field's next script
 asks for a menu, and the menus run as C: the field fades out and is put
 aside, the menus' mode opens (`menu_mode_runs`, `menu/display.c`: the
