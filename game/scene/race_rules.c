@@ -1009,7 +1009,126 @@ static bool drain_score(GameState *g)
     return false;
 }
 
-/* ---- Entries -------------------------------------------------------------------------------------- */
+/* ---- The tasks ------------------------------------------------------------------------------------
+ *
+ * Each task's frame is one sequence, run on the machine and as C alike; the
+ * sounds it sends go through the step it is passed (race.h, RaceSends). */
+
+/* The bikes' sounds, then their motion. */
+static void move_and_sound(GameState *g, Platform *pf, BikeSounds sounds, RaceSends send, void *ctx)
+{
+    if (sounds.bumped && !race_song_sending(g))
+        race_send_sound(g, pf, RACE_BUMP_SOUND, send, ctx);
+    if (sounds.running && !race_song_sending(g))
+        race_send_engine_pitch(g, pf);
+    move_bikes(g);
+}
+
+/* The race while it runs: Crono's win hands the slot to his coast, Johnny's
+ * takes the task off the list (his win added what follows). */
+static TaskEnd ride_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
+{
+    BikeSounds sounds = { false, false };
+    switch (ride(g, &sounds)) {
+    case RIDE_CRONO_WON: return task_hands_over(TASK_COAST);
+    case RIDE_JOHNNY_WON: return task_is_done();
+    case RIDE_ON: break;
+    }
+    move_and_sound(g, pf, sounds, send, ctx);
+    return task_goes_on();
+}
+
+/* After Crono's finish. */
+static TaskEnd coast_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
+{
+    coast(g);
+    move_and_sound(g, pf, ride_bikes(g), send, ctx);
+    return task_goes_on();
+}
+
+/* Waiting for the victory song; then the camera settles in the task's place. */
+static TaskEnd await_victory_song_task(GameState *g, Platform *pf)
+{
+    return await_victory_song(g, pf) ? task_hands_over(TASK_SETTLE_CAMERA) : task_goes_on();
+}
+
+/* After the race: any button begins the end, with its sound, and the
+ * countdown takes the task's place. */
+static TaskEnd wait_to_leave_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
+{
+    if (!begin_ending(g))
+        return task_goes_on();
+    if (!race_song_sending(g))
+        race_send_sound(g, pf, RACE_LEAVING_SOUND, send, ctx);
+    count_down_to_end(g);
+    return task_hands_over(TASK_LEAVE);
+}
+
+/* Every fourth frame Crono's score drains; drained, the task is done. */
+enum { DRAIN_EVERY = 4 };
+
+static bool drain_frame(const GameState *g) { return (scene_frame_counter(g) & (DRAIN_EVERY - 1)) == 0; }
+
+static TaskEnd drain_score_task(GameState *g)
+{
+    if (!drain_frame(g) || drain_score(g))
+        return task_goes_on();
+    return task_is_done();
+}
+
+/* ---- The tasks as C -------------------------------------------------------------------------------
+ *
+ * Each checks its guard's state half where the guard has one: the ride's and
+ * the coast's, room on the lists for what they add and the tasks they take
+ * off there. The others are guarded by their code and the page alone. */
+
+static bool ride_lists_fit(const GameState *g);
+static bool coast_lists_fit(const GameState *g);
+
+TaskEnd scene_race_ride(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    if (!ride_lists_fit(g))
+        return scene_task_needs_the_machine(g, 0x7E485D, "a race's frame whose list changes the port doesn't make");
+    return ride_with(g, pf, race_sound, NULL);
+}
+
+TaskEnd scene_race_coast(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    if (!coast_lists_fit(g))
+        return scene_task_needs_the_machine(g, 0x7E4677, "a race's coast whose list changes the port doesn't make");
+    return coast_with(g, pf, race_sound, NULL);
+}
+
+TaskEnd scene_race_await_victory_song(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    return await_victory_song_task(g, pf);
+}
+
+TaskEnd scene_race_wait_to_leave(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    return wait_to_leave_with(g, pf, race_sound, NULL);
+}
+
+TaskEnd scene_race_leave(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    leave(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_race_drain_score(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    return drain_score_task(g);
+}
+
+/* ---- The guards -------------------------------------------------------------------------------- */
 
 /* The race's tasks run with 16-bit A, on the scene's page, with a data bank
  * that reaches low RAM; each is guarded by a hash of the code it stands for. */
@@ -1051,6 +1170,46 @@ bool scene_race_drain_score_present(Snes *s)
     return on_scene(s) && m_code_matches(s, 0x7E44CE, 0x30, 0x7C7DBD61E06D9689ull);
 }
 
+/* The guard hands the task's list changes to the original where the list has
+ * no room or lacks the task taken off, which only states the game never makes
+ * reach. */
+static bool ride_lists_fit(const GameState *g)
+{
+    if (finished(g, RACER_CRONO))
+        return scene_task_listed(g, SCENE_FRAME_TASKS, TASK_TURN_CAMERA);
+    if (finished(g, RACER_JOHNNY))
+        return scene_task_listed(g, SCENE_FRAME_TASKS, TASK_TURN_CAMERA) && scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK);
+    return seam_change(g) == SEAM_KEPT || scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK);
+}
+
+bool scene_race_ride_lists_fit(Snes *s)
+{
+    if (!scene_race_ride_present(s))
+        return false;
+    vars_peek(true);
+    bool fits = ride_lists_fit(state_of(s));
+    vars_peek(false);
+    return fits;
+}
+
+static bool coast_lists_fit(const GameState *g)
+{
+    return (!leaving_now(g) || scene_task_listed(g, SCENE_FRAME_TASKS, NO_TASK)) &&
+           (!seam_passed_again(g) || scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK));
+}
+
+bool scene_race_coast_lists_fit(Snes *s)
+{
+    if (!scene_race_coast_present(s))
+        return false;
+    vars_peek(true);
+    bool fits = coast_lists_fit(state_of(s));
+    vars_peek(false);
+    return fits;
+}
+
+/* ---- On the machine ---------------------------------------------------------------------------- */
+
 /* A task that takes itself off the list leaves through the list's own code,
  * which reads the slot it pushed; one that hands its slot to another task, with
  * X that task. Nothing else they leave is read but A's high byte and Y, which
@@ -1066,21 +1225,6 @@ static void hand_slot_to(Snes *s, uint16_t task)
 /* What the frame's motion leaves in A: Johnny's lane, the last it worked out. */
 static void leave_last_lane(Snes *s) { s->cpu.a = lane(state_of(s), RACER_JOHNNY); }
 
-/* The bikes' sounds, then their motion. */
-static void move_and_sound(Snes *s, BikeSounds sounds)
-{
-    GameState *g = state_of(s);
-    if (sounds.bumped && !race_song_sending(g)) {
-        race_sound_bump(s);
-        m_set_flag(s, CPU_FLAG_M, false);
-    }
-    if (sounds.running && !race_song_sending(g))
-        race_send_engine_pitch(g, m_platform(s));
-    move_bikes(g);
-    ORIGINAL_EFFECT(leave_last_lane(s));
-    m_rts(s);
-}
-
 // $7E:4BD2
 /* The ride's tail, where the original's own code comes to it in a frame the
  * bikes run: the engine's pitch to the sound driver, then the bikes' motion. */
@@ -1094,73 +1238,44 @@ void scene_race_pitch_and_move(Snes *s)
     m_rts(s);
 }
 
-/* The guard hands the task's list changes to the original where the list has
- * no room or lacks the task taken off, which only states the game never makes
- * reach. */
-bool scene_race_ride_lists_fit(Snes *s)
+/* The bikes' tasks, as the list's code takes them back: the slot handed on,
+ * the task off the list (Johnny's win, with A's high byte his script's), or on
+ * after the bikes' motion. */
+static void leave_the_ride(Snes *s, TaskEnd end)
 {
-    if (!scene_race_ride_present(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool fits;
-    if (finished(g, RACER_CRONO))
-        fits = scene_task_listed(g, SCENE_FRAME_TASKS, TASK_TURN_CAMERA);
-    else if (finished(g, RACER_JOHNNY))
-        fits = scene_task_listed(g, SCENE_FRAME_TASKS, TASK_TURN_CAMERA) &&
-               scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK);
-    else
-        fits = seam_change(g) == SEAM_KEPT || scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK);
-    vars_peek(false);
-    return fits;
-}
-
-/* The race's task while it runs. */
-void scene_race_ride(Snes *s)
-{
-    GameState *g = state_of(s);
-    BikeSounds sounds = { false, false };
-    switch (ride(g, &sounds)) {
-    case RIDE_CRONO_WON:
-        hand_slot_to(s, TASK_COAST);
-        return;
-    case RIDE_JOHNNY_WON:
+    switch (end.outcome) {
+    case TASK_HANDS_OVER: hand_slot_to(s, end.next); return;
+    case TASK_IS_DONE:
         s->cpu.a = JOHNNY_WON_SCRIPT;
         m_stop_at(s, REMOVE_THIS_TASK, DC_AL | DC_N | DC_V | DC_Z | DC_C);
         return;
-    case RIDE_ON:
-        break;
+    default:
+        ORIGINAL_EFFECT(leave_last_lane(s));
+        m_rts(s);
+        return;
     }
-    move_and_sound(s, sounds);
 }
 
-bool scene_race_coast_lists_fit(Snes *s)
+/* The race's task while it runs. */
+void scene_race_ride_entry(Snes *s)
 {
-    if (!scene_race_coast_present(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool fits = (!leaving_now(g) || scene_task_listed(g, SCENE_FRAME_TASKS, NO_TASK)) &&
-                (!seam_passed_again(g) || scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK));
-    vars_peek(false);
-    return fits;
+    leave_the_ride(s, ride_with(state_of(s), m_platform(s), race_sound_on_the_machine, s));
 }
 
 /* The race's task after Crono's finish. */
-void scene_race_coast(Snes *s)
+void scene_race_coast_entry(Snes *s)
 {
-    GameState *g = state_of(s);
-    coast(g);
-    move_and_sound(s, ride_bikes(g));
+    leave_the_ride(s, coast_with(state_of(s), m_platform(s), race_sound_on_the_machine, s));
 }
 
 /* Waiting for the victory song, in 8-bit A: its low byte is what the wait last
  * read, which nothing reads. */
-void scene_race_await_victory_song(Snes *s)
+void scene_race_await_victory_song_entry(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_M, true);
-    if (await_victory_song(state_of(s), m_platform(s))) {
-        hand_slot_to(s, TASK_SETTLE_CAMERA);
+    TaskEnd end = await_victory_song_task(state_of(s), m_platform(s));
+    if (end.outcome == TASK_HANDS_OVER) {
+        hand_slot_to(s, end.next);
         return;
     }
     m_rts(s);
@@ -1168,47 +1283,37 @@ void scene_race_await_victory_song(Snes *s)
 
 /* After the race, in 8-bit A: the sound that begins the end is sent from the
  * program's own call, then the countdown takes the task's place. */
-void scene_race_wait_to_leave(Snes *s)
+void scene_race_wait_to_leave_entry(Snes *s)
 {
-    GameState *g = state_of(s);
     m_set_flag(s, CPU_FLAG_M, true);
-    if (!begin_ending(g)) {
-        m_rts(s);
+    TaskEnd end = wait_to_leave_with(state_of(s), m_platform(s), race_sound_on_the_machine, s);
+    if (end.outcome == TASK_HANDS_OVER) {
+        hand_slot_to(s, end.next);
         return;
     }
-    if (!race_song_sending(g))
-        race_sound_leaving(s);
-    count_down_to_end(g);
-    hand_slot_to(s, TASK_LEAVE);
+    m_rts(s);
 }
 
-void scene_race_leave(Snes *s)
+void scene_race_leave_entry(Snes *s)
 {
     leave(state_of(s));
     m_rts(s);
 }
 
-/* Every fourth frame; A is the frame counter's low two bits on the frames
- * between, and the score after the step on the others, whose high byte the
- * list's code reads. */
-enum { DRAIN_EVERY = 4 };
-
-void scene_race_drain_score(Snes *s)
+/* A is the frame counter's low two bits on the frames between, and the score
+ * after the step on the others, whose high byte the list's code reads. */
+void scene_race_drain_score_entry(Snes *s)
 {
     GameState *g = state_of(s);
     uint16_t frame = scene_frame_counter(g) & (DRAIN_EVERY - 1);
-    if (frame != 0) {
-        ORIGINAL_EFFECT(s->cpu.a = frame);
-        m_rts(s);
-        return;
-    }
     uint16_t before = scene_race_score(g);
-    if (!drain_score(g)) {
+    TaskEnd end = drain_score_task(g);
+    if (end.outcome == TASK_IS_DONE) {
         ORIGINAL_EFFECT(s->cpu.a = (uint16_t)(before - LAST_DRAIN));   /* the last subtraction tried */
         m_stop_at(s, REMOVE_THIS_TASK, DC_AL | DC_N | DC_V | DC_Z | DC_C);
         return;
     }
-    ORIGINAL_EFFECT(s->cpu.a = scene_race_score(g));
+    ORIGINAL_EFFECT(s->cpu.a = frame != 0 ? frame : scene_race_score(g));
     m_rts(s);
 }
 

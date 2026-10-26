@@ -2938,91 +2938,59 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
-### The native program through the battle
+### The native program through the attract sequence
 
-With the credits' page and the changes of place made at once as C (the
-history file, "The native program to the battles"), every way `ct_native`
-went stopped at the battle's entry, `$C0:188C`: the attract demo at frame
-3605, `gato-battle.ctm` at frame 19179. The battle is now a mode of the
-program's: the field's request for it (`fight_a_battle`, field/requests.c)
-fights it as C (`battle_fought`, battle/from_field.c) and takes the field up
-again after it (`field_taken_up_after_battle`, field/battle_return.c), and
-the battle's three interrupt handlers are rows of `core/program.c`'s table
-(`battle_vblank`, `battle_line`, `battle_closing_vblank`;
-battle/program.h).
+With the battle as C (the history file, "The native program through the
+battle"), `ct_native` alone stopped at frame 7519, in the attract demo's
+jet bike race, set up as C, at its first frame's tasks (`$7E:5221`): the
+race's tasks were rows of `scene/frame.c`'s table of the tasks whose entries
+take the machine, with no C column. Each has one now, and the next blocker,
+the rising palace's setup (`$7E:671F`, mode 3), the scene the attract demo
+goes on to, is a C setup beside the race's, so the attract sequence runs as
+C from the boot round to the title again and on: `ct_native` alone ran
+200,000 frames without stopping.
 
-Every routine on the way is one sequence with two sets of callbacks, as the
-field's were (the history file, "The native program through the field and
-the title"): the registered entry is a thin wrapper that hands the sequence
-`*_on_the_machine` callbacks, which make the original's calls from their
-sites with the registers it sets up; the program hands it C callbacks, each
-calling the routine's C under `TIMED_AS` once its entry's guard's state half
-(a `const GameState *` function the guard calls too) agrees, and otherwise
-stopping at `battle_needs_the_machine`. What the original leaves in its
-registers for its callers is the machine callbacks' or the wrappers' to set,
-worked out from where the sequence went (`leave_cursor_registers`,
-battle/menu_window.c), never noted inside the logic. Where the C took a
-machine's register (`aim_the_action`'s carry), it is a parameter.
+The table's C column is a `SceneTaskInC` (scene.h): the task's frame on its
+list's slot, returning how it ends (`TaskEnd`, as the tasks that are C
+throughout return), so the list empties a slot or hands it over as C; one
+that needs the machine ends `TASK_LEFT_TO_THE_ORIGINAL` through
+`scene_task_needs_the_machine`. The C function takes the routine's plain name
+(`scene_race_ride`), and the registered `Snes *` wrapper is `*_entry`.
 
-- **The start and the end** (`battle_fought`): the field put aside, the
-  battle's setup (`set_up`, battle/opening.c, with its waits for the
-  graphics and the window's slide made as loops on the timing service's
-  frame), the screen and the display set up, the main loop, and the way
-  back: the last frames, the window closed, the display closed and the
-  field's music back.
-- **The main loop** (`battle_main_loop_runs`, battle/main_loop.c): the
-  original's passes as sequences (`next_frame`, `run_pass`, `take_turns`,
-  `finish_beaten_enemies`) over one table of calls (`LoopCall`), each
-  returning where the original's loop goes on (`LoopGoesOn`). The battle's
-  steps (battle/steps.c) have a C column beside the machine's, as the
-  field's and the menus' tables do.
-- **The frame** (battle/frame.c, nmi.c, wait.c): the vblank's work, the
-  frame's dispatch and update, and the waits for the frame, the handler and
-  a number of frames, as loops the native host answers a frame at a time.
-- **The turns**: the members' (battle/member_turn.c, party_turns.c, the
-  menu's line and window, the aim), the enemies' (enemy_turn.c, with each
-  action's turn a row of a table naming its routine), the action shown
-  (action_showing.c, action_animation.c, scripts.c, screen_script.c), the
-  beaten enemies, the rewards, the party's poses, and the battlefield changed
-  and put back.
-- **The field taken up again** (`$C0:0283`): the party and the enemies put
-  back where the battle kept them, the map, the window frame, the tile
-  looks, the script and the map's script, the chests and the text area, a
-  frame at a time; then the party back together. A game over and the place
-  put aside fade out and start the field afresh; the program takes the
-  second as a request (`program_starts_the_field_again`) and stops at the
-  first.
+- **One sequence per task.** Where the task's frame calls the original's
+  code on the machine, the work is a `*_with` sequence taking the call as a
+  step: the curtain's step (`sweep_curtain_with`, scene/race.c; the palace's
+  `sweep_the_curtain_with`), the perspective's build
+  (`check_perspective_with`, race_camera.c), and the race's own sound effects
+  (`ride_with`, `coast_with`, `wait_to_leave_with`, race_rules.c, through
+  `race_send_sound` and a `RaceSends` step: `race_sound_on_the_machine` from
+  the race's call of the program's send, `race_sound` the send's port). The
+  machine wrapper hands the sequence `*_on_the_machine` steps and sets, from
+  the `TaskEnd`, what the list's code reads (the slot handed over in X, A's
+  high byte); the rest are the same logic function called by both.
+- **The guards' state halves.** The ride's and the coast's room on the lists
+  (`ride_lists_fit`, `coast_lists_fit`), the bikes' placing
+  (`bikes_placeable`), the drawing (`drawing_fits`), the perspective's lines
+  (`scene_perspective_fits`, perspective.c, split from
+  `scene_perspective_as_ported`, whose code hashes stay the machine's half)
+  and the curtain's table (`scene_curtain_stepped`, curtain.c, the step as
+  the scenes' C paths take it) are `const GameState *` functions the guard
+  and the C path both call; the other tasks' guards are their code and page
+  alone. The list's slot is the curtain stir's salt, as X is on the machine.
+- **The palace** (scene/rising_palace.c): its setup is one sequence
+  (`set_up_the_palace_with`) whose scripts' first step is the step, a row of
+  `scene/program.c`'s C setups, and its curtain's sweep the race's shape.
 
-So `gato-battle.ctm` plays to its end (frame 21600), Gato's battle and the
-field after it as C, and the attract demo goes on through its battle to
-frame 7519. A screen script's wait for a line (command `$C1`, `$CD:1D93`),
-which the attract demo's battle has, is the timing service's wait as C; the
-world map's layer shimmering (`$C2:7759`) is a row of `menu/handlers.c`'s
-table; and the jet bike race's setup (`$7E:3B48`), the scene the attract
-demo goes on to, is one sequence (`set_up_the_race`, scene/race.c) whose
-song, unpacking and first script step are callbacks, a C setup in
-`scene/program.c`'s table beside the title's and the credits' page's. The
-race's frame tasks are next: machine entries in `scene/frame.c`'s table with
-no C column. The new guards' state halves read the cells the
-original's callers hand them operands in only on the machine
-(`operands_fit`, battle/aim.c): the C passes them as values.
-
-**Measured.** Shadow mode over the library: 0 mismatches. The census: over `gato-battle.ctm` the same as before (143 entries the
-machine enters, the battle's as entries whose callers are still the
-machine's, since ct_dev runs the registered entries); over the library, 278
-(the tree's, measured afresh). `tools/machine_joints.py`: 177 stops (179 before) and 80 time tags
-that take the machine (129); 503 video calls (497), the C paths' own.
-`tools/effects_check.py`: the renamed functions' lines carried over, with
-reasons, and none where a guard reads what only scaffolding writes.
-Timing: three entries recalibrated (`battle_place_menu_cursors`,
-`battle_load_action_animation`, `battle_step_enemy_effects`, whose sequences
-read a flag or two more than the shapes before them), and
-`battle_frame_dispatch` in `tools/timing_exceptions.txt` (+0.42% against a
-limit of 0.38%, +0.36% before). Fuzzing, seed 1, 2,000 states, `tools/fuzz_compare.py` against `main`'s
-`ct_fuzz`: the 37 runs of the 28 entries the sequences changed most the same
-as before, and `scene_race_set_up` and `menu_object_wave_hdma` the same.
-Gate: suite OK.
-
+**Measured.** Shadow mode over the library: 0 mismatches. Fuzzing, seed 1,
+`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the race's
+and the palace's entries (and the perspective's build): the 42 runs the
+same as before, none mismatching and the guards' refusals unchanged.
+Timing: every entry within its limits, none recalibrated. `tools/effects_check.py`: the field's two lines for the
+curtain's guard (`sweep_the_curtain`) moved to the shared step
+(`scene_curtain_stepped`), which the race and the palace call too; none new.
+`ct_native` with the movies' presses goes as far as before
+(`menu.ctm`'s stop at the main menu's opening, `$C2:99CE`, is the first
+stop left). Gate: suite OK.
 ### The last refusals in real play: the attract demo's states
 
 The four refusals the batch before left (1,043 calls at `$7E:424D`,

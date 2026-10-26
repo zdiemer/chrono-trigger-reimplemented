@@ -1966,8 +1966,10 @@ rest waits, is [PLAN.md](PLAN.md).
   layer, the scroll) would keep the layout in the platform.
 - **No service reads VRAM back.** The palace's setup reads the field's map back
   out of VRAM (`$7E:674D`) through `vid_snes_copy` with
-  `VID_STEP_VRAM_READ_FIRST`; a `vid_*` read-back (or a copy within VRAM)
-  would take it off the SNES-only escape.
+  `VID_STEP_VRAM_READ_FIRST`, and the race's setup its plane's column
+  (`$7E:3D41`); a `vid_*` read-back (or a copy within VRAM) would take both
+  off the SNES-only escape. `ct_native`, which runs both scenes as C now,
+  counts them as escapes and leaves the work RAM they read into as it was.
 - **The gates the event engine opens write their own registers.**
   `saves/events-end-of-time-gate` is the one movie `--vid-check` is not close on
   (3863 of 5599; PLATFORM.md, "P2 as built"): from frame 3864 its gate screen
@@ -2739,10 +2741,9 @@ What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
 `ct_native` links the whole of `game/` but `registry.c`, with every service's
 host backend, and runs the boot, the field, the title's scene, the menus
-a script asks for, the world maps and the battles; it stops at frame 7519
-in the attract demo's jet bike race, set up as C, at its first frame's tasks
-(`$7E:5221`: the race's tasks are machine entries in `scene/frame.c`'s table
-with no C column yet), and with `new-game.ctm`'s, `fair.ctm`'s,
+a script asks for, the world maps and the battles; left alone it runs the
+attract sequence round and on without stopping (the jet bike race and the
+rising palace as C), and with `new-game.ctm`'s, `fair.ctm`'s,
 `fair-companion.ctm`'s or `gato-battle.ctm`'s presses it plays the movie to
 its end; `menu.ctm`'s stop at the main menu's opening (`$C2:99CE`). What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its

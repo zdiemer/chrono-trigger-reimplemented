@@ -394,6 +394,14 @@ enum { MOST_SPRITES = 16 + 9 + 2 + 3 + 6 + 3 + 2 * DIGITS, MOST_BOOSTS = 3, MOST
  * the return Johnny's win writes. */
 enum { MARKERS_DRAWN = 0xA5 };
 
+/* The guard's state half, which the C path checks too. */
+static bool drawing_fits(const GameState *g)
+{
+    uint8_t stop = scene_race_markers_shown(g);
+    return scene_race_boosts(g) <= MOST_BOOSTS && (stop == MARKERS_DRAWN || stop == MARKERS_STOPPED) &&
+           scene_race_crono_lean(g) <= MOST_LEAN && scene_sprites_fit(g, MOST_SPRITES);
+}
+
 bool scene_race_draw_present(Snes *s)
 {
     if (!scene_on_scene_page_low_bank(s) || !m_code_matches(s, 0x7E4F54, 0x20, 0x968623895890694Eull) ||
@@ -404,12 +412,18 @@ bool scene_race_draw_present(Snes *s)
         !m_code_matches(s, 0x7E39F5, 0x88, 0x6EE9408DE106F647ull))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t stop = scene_race_markers_shown(g);
-    bool fits = scene_race_boosts(g) <= MOST_BOOSTS && (stop == MARKERS_DRAWN || stop == MARKERS_STOPPED) &&
-                scene_race_crono_lean(g) <= MOST_LEAN && scene_sprites_fit(g, MOST_SPRITES);
+    bool fits = drawing_fits(state_of(s));
     vars_peek(false);
     return fits;
+}
+
+TaskEnd scene_race_draw(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    if (!drawing_fits(g))
+        return scene_task_needs_the_machine(g, 0x7E4F54, "a race's frame the port's drawing doesn't take");
+    draw(g, pf);
+    return task_goes_on();
 }
 
 /* What the drawing leaves in A and Y, which the list's code hands on: the
@@ -430,7 +444,7 @@ static void leave_registers(Snes *s, bool crono_first)
 
 /* A frame task entered with 16-bit A and the carry clear (the list's own
  * compare, for any slot but the first: the pose's sum takes it in). */
-void scene_race_draw(Snes *s)
+void scene_race_draw_entry(Snes *s)
 {
     GameState *g = state_of(s);
     bool crono_first = crono_nearer(g);

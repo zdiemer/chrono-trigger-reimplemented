@@ -166,8 +166,8 @@ game/field/object.c object_records_state field_object_sprite_state field_object_
 game/field/object.c object_sprite_priorities field_object_sprite_priority field_object_sprite_priority
 game/field/object_view.c object_view field_object_in_view field_object_in_view
 game/field/screen_effects.c curtain_sweeping scene_curtain_sweep scene_circle_center_x # the curtain's state, which bank $C3's sweep (still the original's) and event $FF set plainly; the circle's scaffolding there is the cells' other use
-game/field/screen_effects.c sweep_the_curtain scene_curtain_table scene_circle_center_y # the guard's state half: the curtain's table, which its start (screen_curtain_drawn) writes plainly before any sweep; the circle's scaffolding there is the cells' other use, and no circle is drawn while a curtain sweeps
-game/field/screen_effects.c sweep_the_curtain scene_curtain_table_bank scene_circle_radius # as the line above
+game/scene/curtain.c scene_curtain_stepped scene_curtain_table scene_circle_center_y # the step's guard's state half: the curtain's table, which every sweep's start writes plainly before it (the field's screen_curtain_drawn, the race's set_up_curtain, the palace's finish_the_palace); the circle's scaffolding there is the cells' other use, and no circle is drawn while a curtain sweeps
+game/scene/curtain.c scene_curtain_stepped scene_curtain_table_bank scene_circle_radius # as the line above
 game/field/sprites.c record_byte field_sprite_records_byte field_sprite_records
 game/field/sprites.c stray_fifth_y_offset field_sprite_records_byte field_sprite_records
 game/field/switches.c field_redraw_changed_tiles field_chest_kind field_chest_kind # set plainly by field_open_chest, which alone asks for the chest's redraw

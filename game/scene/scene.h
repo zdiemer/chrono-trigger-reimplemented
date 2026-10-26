@@ -188,6 +188,14 @@ typedef struct {
 } TaskEnd;
 static inline TaskEnd task_goes_on(void) { return (TaskEnd){ TASK_GOES_ON, NO_TASK }; }
 static inline TaskEnd task_is_done(void) { return (TaskEnd){ TASK_IS_DONE, NO_TASK }; }
+static inline TaskEnd task_hands_over(SceneTask next) { return (TaskEnd){ TASK_HANDS_OVER, next }; }
+
+/* A program's task as C, in the build with no machine (scene/frame.c's
+ * table of the tasks whose entries take the machine): its frame on the
+ * list's slot, and how it ends. One that needs the machine says where
+ * (program_needs_the_machine) and ends TASK_LEFT_TO_THE_ORIGINAL. */
+typedef TaskEnd (*SceneTaskInC)(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_task_needs_the_machine(GameState *g, uint32_t routine, const char *what);
 
 /* What a task leaves in the registers for the code after it, which the lists
  * hand on (scaffolding: the frame's work reads A's high byte after the last
@@ -772,14 +780,19 @@ bool scene_race_set_up_present(Snes *s);
 bool scene_race_set_up(GameState *g, Platform *pf);
 void scene_race_set_up_entry(Snes *s);
 bool scene_race_sweep_curtain_present(Snes *s);
-void scene_race_sweep_curtain(Snes *s);
+void scene_race_sweep_curtain_entry(Snes *s);
+TaskEnd scene_race_sweep_curtain(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_move_camera_present(Snes *s);
-void scene_race_move_camera(Snes *s);
+void scene_race_move_camera_entry(Snes *s);
+TaskEnd scene_race_move_camera(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_upload_column_present(Snes *s);
-void scene_race_upload_column_rom(Snes *s);
-void scene_race_upload_column_ram(Snes *s);
+void scene_race_upload_column_rom_entry(Snes *s);
+TaskEnd scene_race_upload_column_rom(GameState *g, Platform *pf, unsigned slot);
+void scene_race_upload_column_ram_entry(Snes *s);
+TaskEnd scene_race_upload_column_ram(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_upload_tilemap_present(Snes *s);
-void scene_race_upload_tilemap(Snes *s);
+void scene_race_upload_tilemap_entry(Snes *s);
+TaskEnd scene_race_upload_tilemap(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_upload_strip_present(Snes *s);
 void scene_race_upload_strip(Snes *s);
 bool scene_race_upload_plane_present(Snes *s);
@@ -794,6 +807,8 @@ bool scene_build_perspective_present(Snes *s);
 void scene_build_perspective_entry(Snes *s);
 bool scene_perspective_as_ported(Snes *s, uint16_t d);
 void scene_leave_perspective_registers(Snes *s, SceneChannel ch);
+/* Its state half, which the C path checks: the lines are ones the port builds. */
+bool scene_perspective_fits(const GameState *g, SceneChannel ch);
 
 /* scene/bridge.c: a scene's song, from the program's routine that starts one,
  * called from a setup at `call`. */
@@ -864,6 +879,9 @@ void scene_sweep_the_curtain(Snes *s);
 void scene_curtain_step(GameState *g, Platform *pf, uint16_t salt);
 void scene_curtain_start(GameState *g, uint8_t sweep, uint16_t table, uint8_t bank);
 bool scene_curtain_table_fits(uint8_t bank, uint16_t table);
+/* The step as a scene's C path takes it, false where only the machine
+ * sweeps its table. */
+bool scene_curtain_stepped(GameState *g, Platform *pf, uint16_t salt);
 void scene_curtain_jump(Snes *s);
 bool scene_sweep_the_curtain_present(Snes *s);
 bool scene_program_end_present(Snes *s);
@@ -900,10 +918,13 @@ bool scene_put_out_the_stars_present(Snes *s);
 
 /* scene/rising_palace.c (the program in RAM) */
 bool scene_palace_set_up_present(Snes *s);
-void scene_palace_set_up(Snes *s);
+void scene_palace_set_up_entry(Snes *s);
+/* The setup as C (scene/program.c's setups with no machine). */
+bool scene_palace_set_up(GameState *g, Platform *pf);
 void scene_send_the_palace_offsets(Snes *s);
 bool scene_send_the_palace_offsets_present(Snes *s);
-void scene_sweep_the_palace_curtain(Snes *s);
+void scene_sweep_the_palace_curtain_entry(Snes *s);
+TaskEnd scene_sweep_the_palace_curtain(GameState *g, Platform *pf, unsigned slot);
 bool scene_sweep_the_palace_curtain_present(Snes *s);
 void scene_ripple_the_palace(Snes *s);
 bool scene_ripple_the_palace_present(Snes *s);
@@ -1123,44 +1144,60 @@ bool scene_race_ride_present(Snes *s);
 bool scene_race_pitch_and_move_present(Snes *s);
 void scene_race_pitch_and_move(Snes *s);
 bool scene_race_ride_lists_fit(Snes *s);
-void scene_race_ride(Snes *s);
+void scene_race_ride_entry(Snes *s);
+TaskEnd scene_race_ride(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_coast_present(Snes *s);
 bool scene_race_coast_lists_fit(Snes *s);
-void scene_race_coast(Snes *s);
+void scene_race_coast_entry(Snes *s);
+TaskEnd scene_race_coast(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_await_victory_song_present(Snes *s);
-void scene_race_await_victory_song(Snes *s);
+void scene_race_await_victory_song_entry(Snes *s);
+TaskEnd scene_race_await_victory_song(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_wait_to_leave_present(Snes *s);
-void scene_race_wait_to_leave(Snes *s);
+void scene_race_wait_to_leave_entry(Snes *s);
+TaskEnd scene_race_wait_to_leave(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_leave_present(Snes *s);
-void scene_race_leave(Snes *s);
+void scene_race_leave_entry(Snes *s);
+TaskEnd scene_race_leave(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_drain_score_present(Snes *s);
-void scene_race_drain_score(Snes *s);
+void scene_race_drain_score_entry(Snes *s);
+TaskEnd scene_race_drain_score(GameState *g, Platform *pf, unsigned slot);
 
 /* scene/race_projection.c (the program in RAM) */
 bool scene_race_place_bikes_present(Snes *s);
-void scene_race_place_bikes(Snes *s);
+void scene_race_place_bikes_entry(Snes *s);
+TaskEnd scene_race_place_bikes(GameState *g, Platform *pf, unsigned slot);
 
 /* scene/race_drawing.c (the program in RAM) */
 bool scene_race_draw_present(Snes *s);
-void scene_race_draw(Snes *s);
+void scene_race_draw_entry(Snes *s);
+TaskEnd scene_race_draw(GameState *g, Platform *pf, unsigned slot);
 
 /* scene/race_camera.c (the program in RAM) */
 bool scene_race_settle_camera_present(Snes *s);
-void scene_race_settle_camera(Snes *s);
+void scene_race_settle_camera_entry(Snes *s);
+TaskEnd scene_race_settle_camera(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_move_along_present(Snes *s);
-void scene_race_move_along(Snes *s);
+void scene_race_move_along_entry(Snes *s);
+TaskEnd scene_race_move_along(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_keep_controller_present(Snes *s);
-void scene_race_keep_controller(Snes *s);
+void scene_race_keep_controller_entry(Snes *s);
+TaskEnd scene_race_keep_controller(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_check_perspective_present(Snes *s);
-void scene_race_check_perspective(Snes *s);
+void scene_race_check_perspective_entry(Snes *s);
+TaskEnd scene_race_check_perspective(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_turn_camera_present(Snes *s);
-void scene_race_turn_camera(Snes *s);
+void scene_race_turn_camera_entry(Snes *s);
+TaskEnd scene_race_turn_camera(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_aim_camera_present(Snes *s);
-void scene_race_aim_camera(Snes *s);
+void scene_race_aim_camera_entry(Snes *s);
+TaskEnd scene_race_aim_camera(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_follow_finish_present(Snes *s);
-void scene_race_follow_finish(Snes *s);
+void scene_race_follow_finish_entry(Snes *s);
+TaskEnd scene_race_follow_finish(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_set_horizon_present(Snes *s);
-void scene_race_set_horizon(Snes *s);
+void scene_race_set_horizon_entry(Snes *s);
+TaskEnd scene_race_set_horizon(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_pick_opening_present(Snes *s);
 void scene_race_pick_opening(Snes *s);
 

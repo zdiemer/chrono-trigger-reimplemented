@@ -674,10 +674,10 @@ void scene_race_upload_plane(Snes *s)
 
 /* ---- The curtain ----------------------------------------------------------------------------- */
 
-/* Without its panel, the race ends behind a curtain (the field's, whose step
- * is still the original's: $C3:000E), a task while it sweeps. Its window's left
- * edge goes through one of two per-line tables, in the program's data, the
- * other each step. */
+/* Without its panel, the race ends behind a curtain (the scene engine's,
+ * scene/curtain.c, reached through its jump at $C3:000E), a task while it
+ * sweeps. Its window's left edge goes through one of two per-line tables, in
+ * the program's data, the other each step. */
 enum { CURTAIN_TABLE_EVEN = 0x3D6B, CURTAIN_TABLE_ODD = 0x3D64, CURTAIN_WINDOW_SLOT = 0 };
 
 bool scene_race_sweep_curtain_present(Snes *s)
@@ -715,12 +715,51 @@ static void leave_curtain_registers(Snes *s)
     m_set_nz16(s, s->cpu.x);
 }
 
-void scene_race_sweep_curtain(Snes *s)
+/* A frame of the sweep: the curtain's step, by `step`, then the window's
+ * edges shown from the table it filled. False where the step went no
+ * further. */
+static bool sweep_curtain_with(GameState *g, Platform *pf, bool (*step)(void *ctx), void *ctx)
 {
-    m_jsl_dc(s, 0x7E3D72, CURTAIN_STEP, CURTAIN_IGNORES);
-    show_curtain_step(state_of(s), m_platform(s));
+    if (!step(ctx))
+        return false;
+    show_curtain_step(g, pf);
+    return true;
+}
+
+static bool curtain_step_on_the_machine(void *ctx)
+{
+    m_jsl_dc(ctx, 0x7E3D72, CURTAIN_STEP, CURTAIN_IGNORES);
+    return true;
+}
+
+void scene_race_sweep_curtain_entry(Snes *s)
+{
+    sweep_curtain_with(state_of(s), m_platform(s), curtain_step_on_the_machine, s);
     ORIGINAL_EFFECT(leave_curtain_registers(s));
     m_rts(s);
+}
+
+/* As C, the step's port, with its guard's state half (scene/curtain.c). Its
+ * stir takes X as the list called the task with, the slot's place in the
+ * list. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+    uint16_t salt;
+} CurtainInC;
+
+static bool curtain_step(void *ctx)
+{
+    CurtainInC *c = ctx;
+    return scene_curtain_stepped(c->game, c->pf, c->salt);
+}
+
+TaskEnd scene_race_sweep_curtain(GameState *g, Platform *pf, unsigned slot)
+{
+    CurtainInC c = { g, pf, (uint16_t)(slot * 2) };
+    if (!sweep_curtain_with(g, pf, curtain_step, &c))
+        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+    return task_goes_on();
 }
 
 /* ---- The race running ----------------------------------------------------------------------- */
@@ -754,11 +793,20 @@ static void keep_camera_sent(GameState *g)
     set_scene_race_view_sent(g, 3, scene_race_view_position(g, 1));
 }
 
-/* Nothing it leaves in the registers is read. */
-void scene_race_move_camera(Snes *s)
+/* The display's tasks below are guarded by their code and the page alone:
+ * as C there is nothing of their guards to check. */
+TaskEnd scene_race_move_camera(GameState *g, Platform *pf, unsigned slot)
 {
-    move_camera(state_of(s), m_platform(s));
-    keep_camera_sent(state_of(s));
+    (void)slot;
+    move_camera(g, pf);
+    keep_camera_sent(g);
+    return task_goes_on();
+}
+
+/* Nothing it leaves in the registers is read. */
+void scene_race_move_camera_entry(Snes *s)
+{
+    scene_race_move_camera(state_of(s), m_platform(s), 0);
     m_rts(s);
 }
 
@@ -776,19 +824,39 @@ static void upload_column(Platform *pf, uint32_t column)
     vid_snes_copy(pf, PF_AT(0x7E4671), &t);
 }
 
-/* Both entries end by jumping into the task list's exit. */
+/* A column is sent once: the task is done, and both entries end by jumping
+ * into the vblank list's exit that takes it off. */
+static TaskEnd send_column_once(Platform *pf, uint32_t column)
+{
+    upload_column(pf, column);
+    return task_is_done();
+}
+
 static void upload_column_entry(Snes *s, uint32_t column)
 {
-    upload_column(m_platform(s), column);
+    (void)send_column_once(m_platform(s), column);
     m_stop_at(s, 0x7E39DE, NOTHING_READ);
 }
 
 // $7E:4643
 /* The column from the plane's name table in the cartridge. */
-void scene_race_upload_column_rom(Snes *s) { upload_column_entry(s, PLANE_MAP_IN_ROM); }
+TaskEnd scene_race_upload_column_rom(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)g;
+    (void)slot;
+    return send_column_once(pf, PLANE_MAP_IN_ROM);
+}
+void scene_race_upload_column_rom_entry(Snes *s) { upload_column_entry(s, PLANE_MAP_IN_ROM); }
+
 // $7E:464D
 /* The column from the race's own copy of it. */
-void scene_race_upload_column_ram(Snes *s) { upload_column_entry(s, PLANE_COLUMN_COPY); }
+TaskEnd scene_race_upload_column_ram(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)g;
+    (void)slot;
+    return send_column_once(pf, PLANE_COLUMN_COPY);
+}
+void scene_race_upload_column_ram_entry(Snes *s) { upload_column_entry(s, PLANE_COLUMN_COPY); }
 
 bool scene_race_upload_tilemap_present(Snes *s)
 {
@@ -816,10 +884,17 @@ static void upload_racers_map(GameState *g, Platform *pf)
     set_scene_race_tilemap_pending(g, scene_race_tilemap_pending(g) & 0xFF00);
 }
 
-/* Nothing it leaves in the registers is read. */
-void scene_race_upload_tilemap(Snes *s)
+TaskEnd scene_race_upload_tilemap(GameState *g, Platform *pf, unsigned slot)
 {
-    upload_racers_map(state_of(s), m_platform(s));
+    (void)slot;
+    upload_racers_map(g, pf);
+    return task_goes_on();
+}
+
+/* Nothing it leaves in the registers is read. */
+void scene_race_upload_tilemap_entry(Snes *s)
+{
+    scene_race_upload_tilemap(state_of(s), m_platform(s), 0);
     m_rts(s);
 }
 
@@ -878,28 +953,48 @@ void race_send_engine_pitch(const GameState *g, Platform *pf)
     au_driver_write(pf, PF_AT(0x7E4BD9), 0, EFFECT_PITCH);
 }
 
-/* The race's own sound effects, sent by the program's send ($7E:377E), which
- * waits for the driver to take each: the command and its effect and pan into
- * the sound command buffer, then the call, with 8-bit A as the program makes
- * it. The send reads none of the registers but Y and the data bank, which it
+/* The race's own sound effects: the bikes bumping, on the second pair of
+ * effect voices, and the button that ends the scene after the race; each at
+ * the centre. */
+enum { BUMP_SOUND = 0x98, LEAVING_SOUND = 0xBA };
+
+static const struct {
+    uint8_t command, effect;
+    uint32_t site;   /* the race's call of the program's send */
+} race_sounds[] = {
+    [RACE_BUMP_SOUND] = { AU_START_OTHER_EFFECT, BUMP_SOUND, 0x7E4BC8 },
+    [RACE_LEAVING_SOUND] = { AU_START_EFFECT, LEAVING_SOUND, 0x7E426D },
+};
+
+void race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send, void *ctx)
+{
+    set_sound_command_parameters(g, 0, race_sounds[sound].effect);
+    set_sound_command_parameters(g, 1, AU_CENTRE);
+    set_sound_command(g, race_sounds[sound].command);
+    send(ctx, g, pf, sound);
+}
+
+/* On the machine, the program's send ($7E:377E), which waits for the driver
+ * to take the command: called with 8-bit A, and the caller's width put back
+ * after. It reads none of the registers but Y and the data bank, which it
  * leaves (and nothing after these calls reads A or the flags it changes). */
 enum { SCENE_SEND = 0x7E377E };
 
-static void send_effect(Snes *s, uint32_t site, uint8_t command, uint8_t effect)
+void race_sound_on_the_machine(void *ctx, GameState *g, Platform *pf, RaceSound sound)
 {
-    GameState *g = state_of(s);
-    set_sound_command_parameters(g, 0, effect);
-    set_sound_command_parameters(g, 1, AU_CENTRE);
-    set_sound_command(g, command);
+    (void)g;
+    Snes *s = ctx;
+    bool a_8bit = m_flag(s, CPU_FLAG_M);
     m_set_flag(s, CPU_FLAG_M, true);
-    au_driver_call(m_platform(s), PF_CALL(site, SCENE_SEND), DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C);
+    au_driver_call(pf, PF_CALL(race_sounds[sound].site, SCENE_SEND), DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C);
+    m_set_flag(s, CPU_FLAG_M, a_8bit);
 }
 
-/* The bikes bumping, on the second pair of effect voices. */
-enum { BUMP_SOUND = 0x98, LEAVING_SOUND = 0xBA };
-
-void race_sound_bump(Snes *s) { send_effect(s, 0x7E4BC8, AU_START_OTHER_EFFECT, BUMP_SOUND); }
-
-/* The button that ends the scene after the race. */
-void race_sound_leaving(Snes *s) { send_effect(s, 0x7E426D, AU_START_EFFECT, LEAVING_SOUND); }
+/* As C, the send's port, timed as the program's send. */
+void race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound)
+{
+    (void)ctx;
+    (void)sound;
+    scene_sends_the_command(g, pf);
+}
 

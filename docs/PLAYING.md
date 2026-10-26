@@ -549,10 +549,10 @@ program and runs its frames headless: the vblank handler, the main thread as a
 coroutine until it waits for the frame, the line handler, then a frame of the
 sound driver's time. Where the program's next step is still only a machine
 entry, `program_needs_the_machine` stops it and the driver says where (exit
-status 1):
+status 1; here with `menu.ctm`'s presses, at the main menu's opening):
 
 ```
-frame 7519: the program's C goes no further: $7E:5221, a scene's task only the machine runs, runs only on the machine
+frame 7417: the program's C goes no further: $C2:99CE, a menu screen's step only the machine runs, runs only on the machine
 ```
 
 So far the boot and the field run as C. At power-on the field's handlers
@@ -600,8 +600,11 @@ put aside, the battle set up, its main loop, its turns and its frames with
 its vblank and line handlers in `core/program.c`'s table, and the field
 taken up again after it (`field_taken_up_after_battle`). The attract demo
 goes on through its next world map into the jet bike race's scene, set up as
-C (`scene_race_set_up`), whose first frame's tasks only the machine runs yet
-(frame 7519). With
+C (`scene_race_set_up`) with its tasks as C (`scene/frame.c`'s table of the
+tasks whose entries take the machine has a C column for each), then the
+rising palace (`scene_palace_set_up`), and round to the title again: left
+alone, `ct_native` runs the attract sequence without stopping (200,000
+frames). With
 `new-game.ctm`'s presses, Start ends the title and the field's next script
 asks for a menu, and the menus run as C: the field fades out and is put
 aside, the menus' mode opens (`menu_mode_runs`, `menu/display.c`: the

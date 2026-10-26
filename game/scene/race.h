@@ -121,10 +121,18 @@ enum {
 
 /* scene/race.c: what the race sends the sound driver -- the engine's pitch
  * (Crono's speed's high byte), and the effects it sends from its own calls,
- * which wait for the driver to take them -- and the road strip to VRAM. */
+ * which wait for the driver to take them -- and the road strip to VRAM.
+ *
+ * An effect is put in the sound command buffer by race_send_sound and sent
+ * by a step the caller passes: on the machine the program's send from the
+ * race's own call (race_sound_on_the_machine, its context the Snes), as C
+ * the send's port (race_sound, no context). */
+typedef enum { RACE_BUMP_SOUND, RACE_LEAVING_SOUND } RaceSound;
+typedef void (*RaceSends)(void *ctx, GameState *g, Platform *pf, RaceSound sound);
+void race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send, void *ctx);
+void race_sound_on_the_machine(void *ctx, GameState *g, Platform *pf, RaceSound sound);
+void race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound);
 void race_send_engine_pitch(const GameState *g, Platform *pf);
-void race_sound_bump(Snes *s);
-void race_sound_leaving(Snes *s);
 void race_upload_road_strip(Platform *pf);
 
 /* scene/sprites.c: the scene's sprites as C calls (small sprites from a
