@@ -44,6 +44,7 @@
 #include "battle/message.h"
 #include "battle/party_turns.h"
 #include "battle/program.h"
+#include "battle/setup.h"
 #include "battle/random.h"
 #include "battle/rules_data.h"
 #include "battle/rewards.h"
@@ -944,34 +945,34 @@ enum {
 /* The running away's message and its action. */
 enum { RAN_AWAY_MESSAGE = 8, RUN_AWAY_ACTION = 0x79 };
 
-static bool step_as_c(LoopAsC *c, BattleStep step) { return battle_step_taken(c->game, c->pf, step); }
+static bool take_the_step(LoopAsC *c, BattleStep step) { return battle_step_taken(c->game, c->pf, step); }
 
-static bool turn_as_c(LoopAsC *c);
+static bool give_the_turn(LoopAsC *c);
 
-static bool call_as_c(void *ctx, LoopCall call, uint8_t arg)
+static bool make_the_loop_s_call(void *ctx, LoopCall call, uint8_t arg)
 {
     LoopAsC *c = ctx;
     GameState *g = c->game;
     (void)arg;
     switch (call) {
     case CALL_START_THE_FIGHT:
-        if (!battle_fight_can_start(g))
+        if (!setup_party_is_real(g))
             return battle_needs_the_machine(g, START_FIGHT, "a fight's start with a party the port doesn't take");
         TIMED_AS(g, START_FIGHT, battle_start_fight(g));
         return true;
-    case CALL_SET_UP: return step_as_c(c, BATTLE_STEP_SET_UP);
+    case CALL_SET_UP: return take_the_step(c, BATTLE_STEP_SET_UP);
     case CALL_NEXT_FRAME:
-    case CALL_DEFEAT_FRAME: return step_as_c(c, BATTLE_STEP_NEXT_FRAME);
-    case CALL_DEFEAT: return step_as_c(c, BATTLE_STEP_DEFEAT);
-    case CALL_VICTORY: return step_as_c(c, BATTLE_STEP_VICTORY);
-    case CALL_OPEN_THE_MENU: return step_as_c(c, BATTLE_STEP_OPEN_MENU);
-    case CALL_ENEMIES_BEATEN: return step_as_c(c, BATTLE_STEP_ENEMIES_BEATEN);
-    case CALL_TURN_IN_THE_PASS: return turn_as_c(c);
+    case CALL_DEFEAT_FRAME: return take_the_step(c, BATTLE_STEP_NEXT_FRAME);
+    case CALL_DEFEAT: return take_the_step(c, BATTLE_STEP_DEFEAT);
+    case CALL_VICTORY: return take_the_step(c, BATTLE_STEP_VICTORY);
+    case CALL_OPEN_THE_MENU: return take_the_step(c, BATTLE_STEP_OPEN_MENU);
+    case CALL_ENEMIES_BEATEN: return take_the_step(c, BATTLE_STEP_ENEMIES_BEATEN);
+    case CALL_TURN_IN_THE_PASS: return give_the_turn(c);
     case CALL_CHECKS_BEGIN:
     case CALL_CHECKS_END: return true;
     case CALL_FINISH_THE_BEATEN: {
         bool done = false;
-        TIMED_AS(g, FINISH_BEATEN, done = finish_beaten_enemies(g, call_as_c, ctx));
+        TIMED_AS(g, FINISH_BEATEN, done = finish_beaten_enemies(g, make_the_loop_s_call, ctx));
         return done;
     }
     case CALL_UPDATE_IN_THE_PASS:
@@ -1060,31 +1061,31 @@ static bool call_as_c(void *ctx, LoopCall call, uint8_t arg)
     }
 }
 
-static bool turn_as_c(LoopAsC *c)
+static bool give_the_turn(LoopAsC *c)
 {
     if (!turn_names_a_combatant(c->game))
         return battle_needs_the_machine(c->game, GIVE_TURN, "a turn whose place names no combatant");
     bool done = false;
-    TIMED_AS(c->game, GIVE_TURN, done = take_turns(c->game, call_as_c, c));
+    TIMED_AS(c->game, GIVE_TURN, done = take_turns(c->game, make_the_loop_s_call, c));
     return done;
 }
 
 bool battle_turn_given(GameState *g, Platform *pf)
 {
     LoopAsC c = { g, pf };
-    return turn_as_c(&c);
+    return give_the_turn(&c);
 }
 
 bool battle_main_loop_runs(GameState *g, Platform *pf)
 {
     LoopAsC c = { g, pf };
-    LoopGoesOn on = start_battle(g, call_as_c, &c);
+    LoopGoesOn on = start_battle(g, make_the_loop_s_call, &c);
     if (on == LOOP_NOT_OURS)
         return battle_needs_the_machine(g, STARTING_WITH_THE_ENEMIES, "a battle with enemies the port doesn't list");
     while (on == LOOP_TO_THE_HEAD) {
-        if (!next_frame(g, call_as_c, &c))
+        if (!next_frame(g, make_the_loop_s_call, &c))
             return false;
-        on = run_pass(g, call_as_c, &c);
+        on = run_pass(g, make_the_loop_s_call, &c);
         if (on == LOOP_TO_THE_TIMERS) {
             TIMED_AS(g, BATTLE_TICK_TIMERS_ENTRY, battle_count_timers_down(g));
             on = battle_timers_seen_to(g, pf) ? LOOP_TO_THE_REST : LOOP_STOPPED;
@@ -1093,7 +1094,7 @@ bool battle_main_loop_runs(GameState *g, Platform *pf)
             break;
         if (debugging_switch_on(g))
             return battle_needs_the_machine(g, PASS_END, "a pass's end with the debugging switch on");
-        TIMED_AS(g, PASS_END, on = end_pass(g, call_as_c, &c));
+        TIMED_AS(g, PASS_END, on = end_pass(g, make_the_loop_s_call, &c));
     }
     return on == LOOP_LEFT;
 }

@@ -480,7 +480,7 @@ typedef struct {
 } ClosingVblankAsC;
 
 /* The line effects' guard's state half: builders that can build them. */
-static bool closing_vblank_as_c(void *ctx, ClosingVblankCall call)
+static bool closing_vblank_call(void *ctx, ClosingVblankCall call)
 {
     ClosingVblankAsC *c = ctx;
     GameState *g = c->game;
@@ -503,5 +503,5 @@ static bool closing_vblank_as_c(void *ctx, ClosingVblankCall call)
 void battle_closing_vblank(GameState *g, Platform *pf)
 {
     ClosingVblankAsC c = { g, pf };
-    (void)take_the_closing_vblank(g, pf, closing_vblank_as_c, &c);
+    (void)take_the_closing_vblank(g, pf, closing_vblank_call, &c);
 }

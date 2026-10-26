@@ -206,7 +206,7 @@ typedef struct {
     Platform *pf;
 } BattleMenuAsC;
 
-static void click_as_c(MenuHost *host, MenuClick click)
+static void click_the_menu(MenuHost *host, MenuClick click)
 {
     (void)click;
     BattleMenuAsC *c = (BattleMenuAsC *)host;
@@ -220,7 +220,7 @@ bool battle_menu_input_taken(GameState *g, Platform *pf)
 {
     if (!battle_menu_window_fits(g) || !battle_menu_frame_fits(g))
         return battle_needs_the_machine(g, 0xC11153, "a menu state the menu's frame doesn't take");
-    BattleMenuAsC c = { { click_as_c }, pf };
+    BattleMenuAsC c = { { click_the_menu }, pf };
     battle_menu_frame(g, battle_menu_buttons(g), &c.host);
     return true;
 }

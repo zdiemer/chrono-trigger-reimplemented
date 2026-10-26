@@ -550,7 +550,7 @@ typedef struct {
     Platform *pf;
 } ShapesAsC;
 
-static bool frame_as_c(void *ctx, bool step)
+static bool wait_for_the_shapes_frame(void *ctx, bool step)
 {
     ShapesAsC *c = ctx;
     bool done = false;
@@ -564,5 +564,5 @@ static bool frame_as_c(void *ctx, bool step)
 bool battle_build_bitmap_shapes(GameState *g, Platform *pf)
 {
     ShapesAsC c = { g, pf };
-    return build_bitmap_shapes_over_a_frame(g, frame_as_c, &c);
+    return build_bitmap_shapes_over_a_frame(g, wait_for_the_shapes_frame, &c);
 }

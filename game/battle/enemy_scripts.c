@@ -548,15 +548,24 @@ static bool choosing_actions_in_table(const GameState *g)
     return actions_in_table(g, battle_script_actions_place(g)) && next_actions_kept_in_table(g);
 }
 
+static bool action_entry_fits_the_tables(const GameState *g, uint8_t action, ScriptPlace at)
+{
+    /* choosing again goes through the choosing's actions too */
+    return action_entry_in_tables(g, action, at) && (action != ACTION_CHOOSE_AGAIN || choosing_actions_in_table(g));
+}
+
+bool enemy_action_entry_fits(const GameState *g, uint8_t action)
+{
+    return working_on_an_enemy(g) && action_entry_fits_the_tables(g, action, battle_script_place(g));
+}
+
 static bool takes_what_the_tables_hold(const Snes *s, const GameState *g, ScriptUse use, uint8_t command)
 {
     ScriptPlace at = battle_script_place(g);
     switch (use) {
     case TAKES_CONDITION: return block_in_tables(g, command, at) && next_actions_kept_in_table(g);
     case TAKES_HELD: return actions_in_table(g, (ScriptPlace)(end_after(g, at) + 1)) && next_actions_kept_in_table(g);
-    case TAKES_ACTION:
-        /* choosing again goes through the choosing's actions too */
-        return action_entry_in_tables(g, command, at) && (command != ACTION_CHOOSE_AGAIN || choosing_actions_in_table(g));
+    case TAKES_ACTION: return action_entry_fits_the_tables(g, command, at);
     case TAKES_SELECTOR: return selector_in_table(enemy_script_byte(g, (ScriptPlace)(at + 1)));
     case TAKES_SELECTOR_IN_A: return battle_selector_in_a(s) < SELECTORS;
     case TAKES_ACTIONS: return choosing_actions_in_table(g);

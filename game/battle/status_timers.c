@@ -342,7 +342,7 @@ typedef struct {
     Platform *pf;
 } TimerAsC;
 
-static bool show_as_c(void *ctx, BattleTimer kind)
+static bool show_the_status_number(void *ctx, BattleTimer kind)
 {
     (void)kind;
     TimerAsC *c = ctx;
@@ -357,6 +357,6 @@ bool battle_run_out_timer_seen_to(GameState *g, Platform *pf, BattleTimer kind)
         return battle_needs_the_machine(g, handlers[kind].routine, "a timer of nobody's the port doesn't see to");
     TimerAsC c = { g, pf };
     bool done = false;
-    TIMED_AS(g, handlers[kind].routine, done = see_to_the_timer(g, kind, show_as_c, &c));
+    TIMED_AS(g, handlers[kind].routine, done = see_to_the_timer(g, kind, show_the_status_number, &c));
     return done;
 }

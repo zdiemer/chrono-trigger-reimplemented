@@ -476,7 +476,7 @@ typedef struct {
     Platform *pf;
 } AfterAsC;
 
-static bool table_as_c(void *ctx)
+static bool build_the_sprite_table(void *ctx)
 {
     GameState *g = ctx;
     bool built = false;
@@ -486,7 +486,7 @@ static bool table_as_c(void *ctx)
     return built;
 }
 
-static bool map_script_as_c(AfterAsC *c)
+static bool map_script(AfterAsC *c)
 {
     EventAsC e = { c->game, c->pf };
     EventRunner r = event_runner(&e);
@@ -504,7 +504,7 @@ static bool map_script_as_c(AfterAsC *c)
  * take and frames that can go back; the party's coming back together, a
  * party it brings back. The game over and the place put aside start the
  * field afresh, which is the program's to do. */
-static bool after_as_c(void *ctx, AfterCall call, FadeOut way)
+static bool after_battle_call(void *ctx, AfterCall call, FadeOut way)
 {
     (void)way;
     AfterAsC *c = ctx;
@@ -523,7 +523,7 @@ static bool after_as_c(void *ctx, AfterCall call, FadeOut way)
             program_needs_the_machine(g, RETURN_FROM_BATTLE, "a party or enemies the port doesn't put back");
             return false;
         }
-        TIMED_AS(g, RETURN_FROM_BATTLE, done = return_from_battle(g, table_as_c, g));
+        TIMED_AS(g, RETURN_FROM_BATTLE, done = return_from_battle(g, build_the_sprite_table, g));
         return done;
     case AFTER_UNPACK_THE_MAP: TIMED_AS(g, FIELD_UNPACK_THE_MAP_ENTRY, done = field_load_the_map(g)); return done;
     case AFTER_WINDOW_FRAME: TIMED_AS(g, FIELD_BUILD_WINDOW_FRAME_ENTRY, field_build_the_window_frame(g)); return true;
@@ -534,7 +534,7 @@ static bool after_as_c(void *ctx, AfterCall call, FadeOut way)
         if (!done)
             program_needs_the_machine(g, SCRIPT_UNPACKED, "a location's script that doesn't fit");
         return done;
-    case AFTER_MAP_SCRIPT: return map_script_as_c(c);
+    case AFTER_MAP_SCRIPT: return map_script(c);
     case AFTER_CHESTS: TIMED_AS(g, CHESTS_MARK_THE_MAP_ENTRY, chests_mark_the_map(g)); return true;
     case AFTER_TEXT_AREA: TIMED_AS(g, FIELD_BUILD_TEXT_AREA_ENTRY, field_build_the_text_area(g)); return true;
     case AFTER_BACK_TOGETHER:
@@ -557,5 +557,5 @@ static bool after_as_c(void *ctx, AfterCall call, FadeOut way)
 bool field_taken_up_after_battle(GameState *g, Platform *pf)
 {
     AfterAsC c = { g, pf };
-    return take_up_after_battle(g, after_as_c, &c);
+    return take_up_after_battle(g, after_battle_call, &c);
 }

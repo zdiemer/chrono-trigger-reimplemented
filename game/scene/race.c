@@ -599,7 +599,7 @@ typedef struct {
     Platform *pf;
 } RaceAsC;
 
-static bool race_as_c(void *ctx, RaceCall call, unsigned unpacking, uint16_t resource)
+static bool race_call(void *ctx, RaceCall call, unsigned unpacking, uint16_t resource)
 {
     (void)unpacking;
     RaceAsC *c = ctx;
@@ -619,7 +619,7 @@ static bool race_as_c(void *ctx, RaceCall call, unsigned unpacking, uint16_t res
 bool scene_race_set_up(GameState *g, Platform *pf)
 {
     RaceAsC c = { g, pf };
-    return set_up_the_race(g, pf, race_as_c, &c);
+    return set_up_the_race(g, pf, race_call, &c);
 }
 
 /* ---- Entry: the setup ------------------------------------------------------------------------------ */

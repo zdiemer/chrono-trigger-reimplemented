@@ -867,7 +867,7 @@ typedef struct {
 
 /* A command the port runs, or the program goes no further at its handler.
  * The one bridge is the wait for a line, the timing service's own. */
-static bool command_as_c(void *ctx, uint8_t opcode, ScreenChannel channel)
+static bool run_a_command(void *ctx, uint8_t opcode, ScreenChannel channel)
 {
     ScriptsAsC *a = ctx;
     GameState *g = a->game;
@@ -884,13 +884,13 @@ static bool command_as_c(void *ctx, uint8_t opcode, ScreenChannel channel)
     return true;
 }
 
-static bool step_as_c(void *ctx, ScreenChannel channel, uint16_t ended)
+static bool step_a_channel(void *ctx, ScreenChannel channel, uint16_t ended)
 {
     (void)ended;
     ScriptsAsC *a = ctx;
     GameState *g = a->game;
     ChannelStep step = CHANNEL_STOPPED;
-    TIMED_AS(g, 0xCD1654, step = step_channel(g, channel, command_as_c, a));
+    TIMED_AS(g, 0xCD1654, step = step_channel(g, channel, run_a_command, a));
     if (step == CHANNEL_BYTE_PAST_THE_LANGUAGE || step == CHANNEL_COMMAND_PAST_ITS_TABLE)
         return battle_needs_the_machine(g, 0xCD1654, "a screen script's byte past the language");
     return step == CHANNEL_STEPPED;
@@ -899,5 +899,5 @@ static bool step_as_c(void *ctx, ScreenChannel channel, uint16_t ended)
 bool battle_screen_scripts_run(GameState *g, Platform *pf)
 {
     ScriptsAsC a = { g, pf };
-    return run_screen_scripts(g, step_as_c, &a);
+    return run_screen_scripts(g, step_a_channel, &a);
 }

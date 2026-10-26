@@ -943,9 +943,10 @@ static bool aim_fits(const GameState *g)
     return rules_fit(g, aim.area, party);
 }
 
-/* The machine's operands, which its callers hand it in cells and the C
- * passes as values: a member's record place, and an item's area rules,
- * none. */
+/* The operands the original's callers hand it in cells: a member's record
+ * place, and an item's area rules, none. The C callers set both cells plainly
+ * just before aiming, and the aim's logic reads neither, so only the
+ * machine's guard checks them. */
 static bool operands_fit(const GameState *g)
 {
     uint8_t actor = battle_actor(g);
@@ -983,7 +984,7 @@ typedef struct {
     Platform *pf;
 } AimAsC;
 
-static bool show_as_c(void *ctx, uint8_t showing)
+static bool show_the_aimed_action(void *ctx, uint8_t showing)
 {
     (void)showing;
     AimAsC *c = ctx;
@@ -998,5 +999,5 @@ bool battle_aim_action(GameState *g, Platform *pf, bool carry)
     if (!aim_fits(g))
         return battle_needs_the_machine(g, 0xC1C1DD, "an action's aim the port doesn't make");
     AimAsC c = { g, pf };
-    return aim_the_action(g, carry, show_as_c, &c) != AIM_STOPPED;
+    return aim_the_action(g, carry, show_the_aimed_action, &c) != AIM_STOPPED;
 }

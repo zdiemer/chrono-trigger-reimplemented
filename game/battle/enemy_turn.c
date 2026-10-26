@@ -732,13 +732,17 @@ typedef struct {
 /* The action turns' calls, each with its guard's state half: the
  * targeting's, an aim the port makes; the message's, one the menus' text code
  * types; the arrivals and the calling in are the original's still. */
-static bool act_as_c(void *ctx, ActCall call, uint8_t arg, bool carry)
+static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
 {
     TurnAsC *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
-    case ACT_TECH_BODY: TIMED_AS(g, TECH_BODY, done = run_action_turn(g, tech_body, TECH_READS, act_as_c, ctx)); return done;
+    case ACT_TECH_BODY:
+        if (!enemy_action_entry_fits(g, ACTION_TECH))
+            return battle_needs_the_machine(g, TECH_BODY, "an enemy's tech the port doesn't take");
+        TIMED_AS(g, TECH_BODY, done = run_action_turn(g, tech_body, TECH_READS, act_out, ctx));
+        return done;
     case ACT_AIM_TECH:
     case ACT_AIM_SET_STATS_THEN_TECH:
     case ACT_AIM_ADD_TO_STATS_THEN_TECH: TIMED_AS(g, AIM, done = battle_aim_action(g, c->pf, carry)); return done;
@@ -749,7 +753,7 @@ static bool act_as_c(void *ctx, ActCall call, uint8_t arg, bool carry)
     }
 }
 
-static bool turn_as_c(void *ctx, TurnCall call)
+static bool take_a_part_of_the_turn(void *ctx, TurnCall call)
 {
     TurnAsC *c = ctx;
     GameState *g = c->game;
@@ -757,7 +761,9 @@ static bool turn_as_c(void *ctx, TurnCall call)
     switch (call) {
     case TURN_ACTION: {
         const ActionTurnRow *row = turn_of(battle_action_kind(g));
-        TIMED_AS(g, row->routine, done = run_action_turn(g, row->turn, row->reads, act_as_c, ctx));
+        if (!enemy_action_entry_fits(g, battle_action_kind(g)))
+            return battle_needs_the_machine(g, row->routine, "an enemy's action the port doesn't take");
+        TIMED_AS(g, row->routine, done = run_action_turn(g, row->turn, row->reads, act_out, ctx));
         return done;
     }
     case TURN_EFFECT: {
@@ -777,7 +783,7 @@ bool battle_enemy_takes_turn(GameState *g, Platform *pf)
     if (!battle_enemy_turn_fits(g))
         return battle_needs_the_machine(g, 0xC18CF9, "an enemy's turn the port doesn't take");
     TurnAsC c = { g, pf };
-    return enemy_turn(g, turn_as_c, &c);
+    return enemy_turn(g, take_a_part_of_the_turn, &c);
 }
 
 /* The action shown: the battle's step 4, and its hits landing. */

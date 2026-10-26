@@ -418,7 +418,7 @@ typedef struct {
     Platform *pf;
 } LoadAsC;
 
-static bool load_as_c(void *ctx, LoadCall call, uint8_t what)
+static bool load_a_piece(void *ctx, LoadCall call, uint8_t what)
 {
     LoadAsC *c = ctx;
     GameState *g = c->game;
@@ -544,7 +544,7 @@ bool battle_attack_up_close_ready(Snes *s)
 
 /* Each kind's loading with its guard's state half: the actor a combatant,
  * and a party member's attack a target to face. */
-static bool kind_as_c(void *ctx, ShowingKind kind)
+static bool load_by_kind(void *ctx, ShowingKind kind)
 {
     LoadAsC *c = ctx;
     GameState *g = c->game;
@@ -552,12 +552,12 @@ static bool kind_as_c(void *ctx, ShowingKind kind)
         return battle_needs_the_machine(g, loaders[kind].routine, "an animation the port doesn't load");
     bool done = false;
     TIMED_AS(g, loaders[kind].routine,
-             done = load_the_animation(g, start_the_animation(g, chosen_for(g, kind), second_half_asked(g)), load_as_c, ctx));
+             done = load_the_animation(g, start_the_animation(g, chosen_for(g, kind), second_half_asked(g)), load_a_piece, ctx));
     return done;
 }
 
 bool battle_load_action_animation(GameState *g, Platform *pf)
 {
     LoadAsC c = { g, pf };
-    return load_action_animation(g, kind_as_c, &c);
+    return load_action_animation(g, load_by_kind, &c);
 }

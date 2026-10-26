@@ -170,7 +170,7 @@ enum { SET_UP_ENTRY = 0xC10023, SET_UP_STATE_ENTRY = 0xCCE2E4, DRAW_WINDOW = 0xC
        SET_UP_GRAPHICS_ENTRY = 0xCCED87, AFTER_THE_GRAPHICS = 0xC10031, OPEN_THE_WINDOW = 0xCD000C,
        FACES_THE_ENEMIES = 0xC10042 };
 
-static bool set_up_as_c(void *ctx, SetUpCall call)
+static bool set_up_a_part(void *ctx, SetUpCall call)
 {
     SetUpAsC *c = ctx;
     GameState *g = c->game;
@@ -197,7 +197,7 @@ static bool set_up_as_c(void *ctx, SetUpCall call)
     }
 }
 
-static bool open_the_window_as_c(void *ctx)
+static bool slide_the_window_open(void *ctx)
 {
     SetUpAsC *c = ctx;
     bool done = false;
@@ -208,12 +208,12 @@ static bool open_the_window_as_c(void *ctx)
 bool battle_set_up_runs(GameState *g, Platform *pf)
 {
     SetUpAsC c = { g, pf };
-    if (!set_up(set_up_as_c, &c))
+    if (!set_up(set_up_a_part, &c))
         return false;
     if (!combatants_graphics_known(g))
         return battle_needs_the_machine(g, AFTER_THE_GRAPHICS, "a combatant's graphics the builder doesn't know");
     bool done = false;
-    TIMED_AS(g, AFTER_THE_GRAPHICS, done = set_up_after_the_graphics(g, open_the_window_as_c, &c));
+    TIMED_AS(g, AFTER_THE_GRAPHICS, done = set_up_after_the_graphics(g, slide_the_window_open, &c));
     if (!done)
         return false;
     while (battle_window_slide_frames(g) != 0)

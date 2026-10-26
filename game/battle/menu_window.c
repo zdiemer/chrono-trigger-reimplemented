@@ -1079,7 +1079,7 @@ void battle_reset_window_frames(Snes *s)
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 
-static bool window_call_as_c(void *ctx, WindowCall call, uint8_t tech, bool carry)
+static bool window_call(void *ctx, WindowCall call, uint8_t tech, bool carry)
 {
     (void)carry;
     GameState *g = ctx;
@@ -1098,7 +1098,7 @@ bool battle_menu_window_drawn(GameState *g, Platform *pf)
     if (!battle_menu_window_fits(g))
         return battle_needs_the_machine(g, 0xC10C2D, "a menu state the window's port doesn't take");
     WindowLeaves left;
-    return draw_menu_window(g, window_call_as_c, g, &left);
+    return draw_menu_window(g, window_call, g, &left);
 }
 
 typedef struct {
@@ -1106,7 +1106,7 @@ typedef struct {
     Platform *pf;
 } MenuAsC;
 
-static bool call_off_as_c(void *ctx)
+static bool call_off_the_combination(void *ctx)
 {
     MenuAsC *c = ctx;
     bool done = false;
@@ -1114,13 +1114,16 @@ static bool call_off_as_c(void *ctx)
     return done;
 }
 
+/* The guard's state half: a menu state the window's port takes. */
 bool battle_update_combo_members(GameState *g, Platform *pf)
 {
+    if (!battle_window_fits(g))
+        return battle_needs_the_machine(g, 0xC1B575, "a menu state the combinations' port doesn't take");
     MenuAsC c = { g, pf };
-    return update_combo_members(g, call_off_as_c, &c);
+    return update_combo_members(g, call_off_the_combination, &c);
 }
 
-static bool name_as_c(void *ctx, uint8_t name, bool with_hp) { return battle_combatant_named(ctx, name, with_hp); }
+static bool name_the_target(void *ctx, uint8_t name, bool with_hp) { return battle_combatant_named(ctx, name, with_hp); }
 
 bool battle_menu_cursors_placed(GameState *g, Platform *pf)
 {
@@ -1128,5 +1131,5 @@ bool battle_menu_cursors_placed(GameState *g, Platform *pf)
     if (!battle_window_fits(g))
         return battle_needs_the_machine(g, 0xC117DD, "a menu state the cursors' port doesn't take");
     CursorsPlaced placed;
-    return place_menu_cursors(g, name_as_c, g, &placed);
+    return place_menu_cursors(g, name_the_target, g, &placed);
 }

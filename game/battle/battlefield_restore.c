@@ -216,7 +216,7 @@ typedef struct {
     Platform *pf;
 } BackAsC;
 
-static bool back_as_c(void *ctx, BackCall call, bool own_layer, bool faded)
+static bool put_back_a_part(void *ctx, BackCall call, bool own_layer, bool faded)
 {
     (void)own_layer;
     (void)faded;
@@ -237,7 +237,7 @@ static bool back_as_c(void *ctx, BackCall call, bool own_layer, bool faded)
 bool battle_put_the_battlefield_back(GameState *g, Platform *pf)
 {
     BackAsC c = { g, pf };
-    return put_the_battlefield_back(g, back_as_c, &c);
+    return put_the_battlefield_back(g, put_back_a_part, &c);
 }
 
 /* ---- The entries ------------------------------------------------------------------------------ */

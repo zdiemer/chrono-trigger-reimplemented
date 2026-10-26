@@ -852,7 +852,7 @@ typedef struct {
 /* The object work, each with its guard's state half: the effects' paths of
  * a kind the game gives; the draw pass, someone on the battlefield; the rest
  * turn away only the page. */
-static bool update_as_c(void *ctx, UpdateCall call)
+static bool update_a_part(void *ctx, UpdateCall call)
 {
     GameState *g = ((FrameAsC *)ctx)->game;
     bool done = true;
@@ -888,7 +888,7 @@ static bool read_the_input(FrameAsC *c)
     return true;
 }
 
-static bool work_as_c(void *ctx, WorkCall call)
+static bool work_a_part(void *ctx, WorkCall call)
 {
     FrameAsC *c = ctx;
     GameState *g = c->game;
@@ -912,7 +912,7 @@ static bool work_as_c(void *ctx, WorkCall call)
         if (!rotation_in_range(g))
             return battle_needs_the_machine(g, FRAME_UPDATE, "a background colors' rotation the port doesn't make");
         UpdateEnds ends = UPDATE_STOPPED;
-        TIMED_AS(g, FRAME_UPDATE, ends = update_the_frame(g, c->pf, update_as_c, c));
+        TIMED_AS(g, FRAME_UPDATE, ends = update_the_frame(g, c->pf, update_a_part, c));
         if (ends == UPDATE_DEMO_ENDS)
             return battle_needs_the_machine(g, DEMO_LEAVES, "a demo battle's end");
         return ends == UPDATE_DONE;
@@ -930,7 +930,7 @@ static bool work_as_c(void *ctx, WorkCall call)
 bool battle_frame_worked(GameState *g, Platform *pf)
 {
     FrameAsC c = { g, pf };
-    return work_the_frame(g, pf, work_as_c, &c);
+    return work_the_frame(g, pf, work_a_part, &c);
 }
 
 /* The tail as C: the sounds and the message with their guards' state halves
@@ -940,7 +940,7 @@ typedef struct {
     Platform *pf;
 } TailAsC;
 
-static bool tail_as_c(void *ctx, TailCall call)
+static bool finish_a_part(void *ctx, TailCall call)
 {
     TailAsC *c = ctx;
     GameState *g = c->game;
@@ -964,5 +964,5 @@ static bool tail_as_c(void *ctx, TailCall call)
 bool battle_frame_wait_finished(GameState *g, Platform *pf)
 {
     TailAsC c = { g, pf };
-    return finish_the_wait(g, tail_as_c, &c);
+    return finish_the_wait(g, finish_a_part, &c);
 }

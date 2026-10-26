@@ -321,7 +321,7 @@ typedef struct {
 
 enum { FRAME_WAIT = 0xC1007E, FRAME_TAIL = 0xCD0009, MENU_WINDOW = 0xC10C2D, STRIKE_THE_POSES = 0xC135DD };
 
-static bool pose_call_as_c(void *ctx, PoseCall call)
+static bool pose_call(void *ctx, PoseCall call)
 {
     PosesAsC *c = ctx;
     GameState *g = c->game;
@@ -333,7 +333,7 @@ static bool pose_call_as_c(void *ctx, PoseCall call)
     case VICTORY_WINDOW:
         TIMED_AS(g, MENU_WINDOW, done = battle_menu_window_drawn(g, c->pf));
         return done;
-    case POSES_STRUCK: TIMED_AS(g, STRIKE_THE_POSES, done = strike_the_poses(g, pose_call_as_c, ctx)); return done;
+    case POSES_STRUCK: TIMED_AS(g, STRIKE_THE_POSES, done = strike_the_poses(g, pose_call, ctx)); return done;
     default: TIMED_AS(g, FRAME_WAIT, done = battle_wait_for_frame(g, c->pf)); return done;
     }
 }
@@ -343,7 +343,7 @@ bool battle_party_strikes_its_poses(GameState *g, Platform *pf)
     if (!poses_fit(g))
         return battle_needs_the_machine(g, 0xC135DD, "poses on graphics the builders don't know");
     PosesAsC c = { g, pf };
-    return pose_call_as_c(&c, POSES_STRUCK);
+    return pose_call(&c, POSES_STRUCK);
 }
 
 bool battle_wins_the_fight(GameState *g, Platform *pf)
@@ -351,7 +351,7 @@ bool battle_wins_the_fight(GameState *g, Platform *pf)
     if (!poses_fit(g) || !battle_pose_looks_fit(g))
         return battle_needs_the_machine(g, 0xC1356D, "a victory with looks or graphics the port doesn't take");
     PosesAsC c = { g, pf };
-    return win(g, pose_call_as_c, &c);
+    return win(g, pose_call, &c);
 }
 
 bool battle_loses_the_fight(GameState *g, Platform *pf)
@@ -359,7 +359,7 @@ bool battle_loses_the_fight(GameState *g, Platform *pf)
     if (!poses_fit(g))
         return battle_needs_the_machine(g, 0xC1354D, "a defeat with graphics the port doesn't take");
     PosesAsC c = { g, pf };
-    return lose(g, pose_call_as_c, &c);
+    return lose(g, pose_call, &c);
 }
 
 /* ---- On the machine ------------------------------------------------------------------------ */

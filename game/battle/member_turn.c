@@ -723,7 +723,7 @@ typedef struct {
 } MemberAsC;
 
 /* Each with its guard's state half where it has one. */
-static bool member_as_c(void *ctx, MemberCall call, bool carry)
+static bool carry_out_a_part(void *ctx, MemberCall call, bool carry)
 {
     MemberAsC *c = ctx;
     GameState *g = c->game;
@@ -750,7 +750,7 @@ bool battle_member_attacks(GameState *g, Platform *pf)
     if (!attacker_fits(g))
         return battle_needs_the_machine(g, MEMBER_ATTACKS, "an attacker past the party");
     MemberAsC c = { g, pf };
-    return attack(g, member_as_c, &c);
+    return attack(g, carry_out_a_part, &c);
 }
 
 bool battle_carry_out_member_action(GameState *g, Platform *pf)
@@ -758,5 +758,5 @@ bool battle_carry_out_member_action(GameState *g, Platform *pf)
     if (!action_fits(g))
         return battle_needs_the_machine(g, 0xC1B967, "a member's action the port doesn't carry out");
     MemberAsC c = { g, pf };
-    return carry_out_action(g, member_as_c, &c);
+    return carry_out_action(g, carry_out_a_part, &c);
 }

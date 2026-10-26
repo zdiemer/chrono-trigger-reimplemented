@@ -134,14 +134,14 @@ typedef struct {
 /* The pause's guard and the menu turn's own guard ask nothing of the game's
  * state that the pause doesn't keep; the message's typing, that the menus'
  * text code can go on from a message being set up. */
-static bool pause_as_c(void *ctx)
+static bool sit_out_a_pause_frame(void *ctx)
 {
     WaitAsC *c = ctx;
     TIMED_AS(c->game, BATTLE_PAUSE_ENTRY, battle_sit_out_the_pause(c->game, c->pf));
     return true;
 }
 
-static bool type_the_message_as_c(void *ctx)
+static bool type_a_letter(void *ctx)
 {
     GameState *g = ((WaitAsC *)ctx)->game;
     if (!battle_message_typing_fits(g))
@@ -150,15 +150,15 @@ static bool type_the_message_as_c(void *ctx)
     return true;
 }
 
-static bool handler_as_c(void *ctx)
+static bool wait_out_the_handler(void *ctx)
 {
     WaitAsC *c = ctx;
     bool done = false;
-    TIMED_AS(c->game, BATTLE_HANDLER_WAIT, done = wait_for_the_handler(c->game, c->pf, pause_as_c, type_the_message_as_c, c));
+    TIMED_AS(c->game, BATTLE_HANDLER_WAIT, done = wait_for_the_handler(c->game, c->pf, sit_out_a_pause_frame, type_a_letter, c));
     return done;
 }
 
-static bool menu_turn_as_c(void *ctx)
+static bool take_a_menu_turn(void *ctx)
 {
     WaitAsC *c = ctx;
     bool done = false;
@@ -166,37 +166,37 @@ static bool menu_turn_as_c(void *ctx)
     return done;
 }
 
-static bool next_frame_as_c(void *ctx, uint8_t left)
+static bool wait_for_a_next_frame(void *ctx, uint8_t left)
 {
     (void)left;
     WaitAsC *c = ctx;
     bool done = false;
-    TIMED_AS(c->game, BATTLE_NEXT_FRAME_WAIT, done = wait_for_the_next_frame(handler_as_c, menu_turn_as_c, c));
+    TIMED_AS(c->game, BATTLE_NEXT_FRAME_WAIT, done = wait_for_the_next_frame(wait_out_the_handler, take_a_menu_turn, c));
     return done;
 }
 
 bool battle_wait_for_frame(GameState *g, Platform *pf)
 {
     WaitAsC c = { g, pf };
-    return wait_for_the_frame(g, pf, pause_as_c, &c);
+    return wait_for_the_frame(g, pf, sit_out_a_pause_frame, &c);
 }
 
 bool battle_wait_for_the_handler(GameState *g, Platform *pf)
 {
     WaitAsC c = { g, pf };
-    return wait_for_the_handler(g, pf, pause_as_c, type_the_message_as_c, &c);
+    return wait_for_the_handler(g, pf, sit_out_a_pause_frame, type_a_letter, &c);
 }
 
 bool battle_wait_for_the_next_frame(GameState *g, Platform *pf)
 {
     WaitAsC c = { g, pf };
-    return wait_for_the_next_frame(handler_as_c, menu_turn_as_c, &c);
+    return wait_for_the_next_frame(wait_out_the_handler, take_a_menu_turn, &c);
 }
 
 bool battle_wait_some_frames(GameState *g, Platform *pf, uint8_t frames)
 {
     WaitAsC c = { g, pf };
-    return wait_some_frames(frames, next_frame_as_c, &c);
+    return wait_some_frames(frames, wait_for_a_next_frame, &c);
 }
 
 /* ---- On the machine ------------------------------------------------------------------------ */

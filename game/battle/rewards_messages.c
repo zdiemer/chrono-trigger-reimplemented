@@ -277,7 +277,7 @@ typedef struct {
     Platform *pf;
 } TellAsC;
 
-static bool tell_as_c(void *ctx, RewardMessage message, unsigned item)
+static bool tell_a_reward(void *ctx, RewardMessage message, unsigned item)
 {
     (void)item;
     TellAsC *c = ctx;
@@ -291,5 +291,5 @@ bool battle_show_the_rewards(GameState *g, Platform *pf)
     if (!rewards_fit(g))
         return battle_needs_the_machine(g, 0xFDAD17, "a double techs' list with no end");
     TellAsC c = { g, pf };
-    return tell_the_rewards(g, tell_as_c, &c);
+    return tell_the_rewards(g, tell_a_reward, &c);
 }

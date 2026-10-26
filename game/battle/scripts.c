@@ -234,7 +234,7 @@ typedef struct {
 
 /* A bridge's command, the sounds, as C; a command whose handler is the
  * original's goes no further. */
-static bool elsewhere_as_c(void *ctx, uint8_t command, const ScriptOpcode *row, CommandRuns runs)
+static bool command_elsewhere(void *ctx, uint8_t command, const ScriptOpcode *row, CommandRuns runs)
 {
     ScriptsAsC *c = ctx;
     GameState *g = c->game;
@@ -248,18 +248,18 @@ static bool elsewhere_as_c(void *ctx, uint8_t command, const ScriptOpcode *row, 
     return true;
 }
 
-static bool channel_as_c(void *ctx, unsigned channel)
+static bool run_a_channel(void *ctx, unsigned channel)
 {
     ScriptsAsC *c = ctx;
     bool done = false;
-    TIMED_AS(c->game, 0xC14C9E, done = run_channel(c->game, channel, elsewhere_as_c, ctx));
+    TIMED_AS(c->game, 0xC14C9E, done = run_channel(c->game, channel, command_elsewhere, ctx));
     return done;
 }
 
 bool battle_run_scripts(GameState *g, Platform *pf)
 {
     ScriptsAsC c = { g, pf };
-    return run_scripts(g, channel_as_c, &c);
+    return run_scripts(g, run_a_channel, &c);
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */

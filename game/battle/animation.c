@@ -740,7 +740,7 @@ void battle_step_enemy_effects(Snes *s)
 /* ---- As C ------------------------------------------------------------------------------------ */
 
 /* A movement the table names none for is the original's. */
-static bool handler_as_c(void *ctx, uint8_t movement)
+static bool movement_with_no_port(void *ctx, uint8_t movement)
 {
     (void)movement;
     return battle_needs_the_machine(ctx, 0xC13760, "an enemy's movement the port doesn't run");
@@ -749,5 +749,5 @@ static bool handler_as_c(void *ctx, uint8_t movement)
 bool battle_enemy_effects_stepped(GameState *g, Platform *pf)
 {
     (void)pf;
-    return step_enemy_effects(g, handler_as_c, g);
+    return step_enemy_effects(g, movement_with_no_port, g);
 }

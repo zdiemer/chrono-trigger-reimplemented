@@ -74,7 +74,7 @@ typedef struct {
     Platform *pf;
 } ClosingAsC;
 
-static bool opening_as_c(void *ctx, OpeningCall call)
+static bool open_a_part(void *ctx, OpeningCall call)
 {
     ClosingAsC *c = ctx;
     if (call == OPENING_SOUND) {
@@ -89,7 +89,7 @@ static bool opening_as_c(void *ctx, OpeningCall call)
 bool battle_window_opened(GameState *g, Platform *pf)
 {
     ClosingAsC c = { g, pf };
-    return open_the_window(g, opening_as_c, &c);
+    return open_the_window(g, open_a_part, &c);
 }
 
 static bool opening_on_the_machine(void *ctx, OpeningCall call)
@@ -503,7 +503,7 @@ void battle_change_to_the_battlefield(Snes *s)
 /* Each with its guard's state half: the music's fade's, whose wait types the
  * message's next letter, a message the menus' text code goes on from; the
  * battlefield's change's, a layout the port builds. */
-static bool closing_as_c(void *ctx, ClosingCall call, uint16_t arg)
+static bool close_a_part(void *ctx, ClosingCall call, uint16_t arg)
 {
     ClosingAsC *c = ctx;
     GameState *g = c->game;
@@ -519,16 +519,16 @@ static bool closing_as_c(void *ctx, ClosingCall call, uint16_t arg)
         fade_the_music_out(pf);
         TIMED_AS(g, BATTLE_SOME_FRAMES_WAIT, done = battle_wait_some_frames(g, pf, FADE_WAIT_FRAMES));
         return done;
-    case CLOSING_THE_WINDOW: TIMED_AS(g, 0xCD0516, done = close_the_window(g, closing_as_c, ctx)); return done;
-    case CLOSING_BOSS_END: TIMED_AS(g, 0xCD0DB1, done = play_out_the_boss_end(g, pf, closing_as_c, ctx)); return done;
-    case CLOSING_DEFEAT_END: TIMED_AS(g, 0xCD0D93, done = play_out_the_defeat_end(g, pf, closing_as_c, ctx)); return done;
+    case CLOSING_THE_WINDOW: TIMED_AS(g, 0xCD0516, done = close_the_window(g, close_a_part, ctx)); return done;
+    case CLOSING_BOSS_END: TIMED_AS(g, 0xCD0DB1, done = play_out_the_boss_end(g, pf, close_a_part, ctx)); return done;
+    case CLOSING_DEFEAT_END: TIMED_AS(g, 0xCD0D93, done = play_out_the_defeat_end(g, pf, close_a_part, ctx)); return done;
     case CLOSING_SMALL_FRAME:
     case CLOSING_LAST_SMALL_FRAME: TIMED_AS(g, 0xCD044A, battle_wait_for_the_small_handler(g, pf)); return true;
     case CLOSING_MUSIC_BACK: TIMED_AS(g, FIELD_MUSIC_BACK_ENTRY, field_bring_the_music_back(g, pf)); return true;
     case BOSS_SETTLE:
-    case BOSS_SETTLE_AGAIN: TIMED_AS(g, 0xCD0DD8, done = let_the_screen_settle(g, closing_as_c, ctx)); return done;
+    case BOSS_SETTLE_AGAIN: TIMED_AS(g, 0xCD0DD8, done = let_the_screen_settle(g, close_a_part, ctx)); return done;
     case BOSS_CHANGE:
-    case DEFEAT_CHANGE: TIMED_AS(g, 0xCD0D62, done = change_to_the_battlefield(pf, arg, closing_as_c, ctx)); return done;
+    case DEFEAT_CHANGE: TIMED_AS(g, 0xCD0D62, done = change_to_the_battlefield(pf, arg, close_a_part, ctx)); return done;
     case SETTLE_TAIL: TIMED_AS(g, 0xCD04AA, done = battle_frame_wait_finished(g, pf)); return done;
     case SONG_KEEP:
     case SONG_KEPT: return true;
@@ -540,5 +540,5 @@ static bool closing_as_c(void *ctx, ClosingCall call, uint16_t arg)
 bool battle_display_closed(GameState *g, Platform *pf)
 {
     ClosingAsC c = { g, pf };
-    return close_the_display(g, pf, closing_as_c, &c);
+    return close_the_display(g, pf, close_a_part, &c);
 }

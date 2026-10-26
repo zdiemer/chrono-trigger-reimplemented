@@ -574,7 +574,7 @@ typedef struct {
 
 /* Each with its guard's state half: the dissolve's, an enemy whose tiles'
  * layout the dissolve's runs have. */
-static bool beaten_as_c(void *ctx, BeatenCall call, BeatenArgs a)
+static bool see_to_a_part(void *ctx, BeatenCall call, BeatenArgs a)
 {
     BeatenAsC *c = ctx;
     GameState *g = c->game;
@@ -595,20 +595,20 @@ static bool beaten_as_c(void *ctx, BeatenCall call, BeatenArgs a)
     case BEATEN_RULE_DISSOLVE:
         if (!dissolves(g, battle_ended_effect_object(g)))
             return battle_needs_the_machine(g, 0xCD00A0, "an enemy whose dissolve the port doesn't run");
-        TIMED_AS(g, 0xCD00A0, done = dissolve(g, battle_ended_effect_object(g), beaten_as_c, ctx));
+        TIMED_AS(g, 0xCD00A0, done = dissolve(g, battle_ended_effect_object(g), see_to_a_part, ctx));
         return done;
-    case BEATEN_RULE_CHANGE: TIMED_AS(g, 0xCD0E05, done = change_the_battlefield(g, a.battlefield, beaten_as_c, ctx)); return done;
+    case BEATEN_RULE_CHANGE: TIMED_AS(g, 0xCD0E05, done = change_the_battlefield(g, a.battlefield, see_to_a_part, ctx)); return done;
     default: TIMED_AS(g, BATTLE_NEXT_FRAME_WAIT, done = battle_wait_for_the_next_frame(g, c->pf)); return done;
     }
 }
 
-static bool see_off_as_c(void *ctx, uint8_t slot)
+static bool see_off_one(void *ctx, uint8_t slot)
 {
     BeatenAsC *c = ctx;
     if (!dissolves(c->game, slot))
         return battle_needs_the_machine(c->game, 0xCD0024, "an enemy whose dissolve the port doesn't run");
     bool done = false;
-    TIMED_AS(c->game, 0xCD0024, done = see_off(c->game, slot, beaten_as_c, ctx));
+    TIMED_AS(c->game, 0xCD0024, done = see_off(c->game, slot, see_to_a_part, ctx));
     return done;
 }
 
@@ -621,6 +621,6 @@ bool battle_see_to_the_beaten_enemies(GameState *g, Platform *pf)
     BeatenAsC c = { g, pf };
     KeptEnemy last_kept;
     bool done = false;
-    TIMED_AS(g, 0xCFFE20, done = see_the_beaten_enemies_off(g, see_off_as_c, &c, &last_kept));
+    TIMED_AS(g, 0xCFFE20, done = see_the_beaten_enemies_off(g, see_off_one, &c, &last_kept));
     return done;
 }

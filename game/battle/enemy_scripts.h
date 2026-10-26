@@ -183,5 +183,10 @@ uint8_t enemy_choosing_result(const GameState *g, uint8_t enemy);
  * the game never leaves a script at can land on bytes that aren't. */
 bool enemy_condition_in_tables(const GameState *g, uint8_t kind, ScriptPlace at);
 bool enemy_action_in_tables(const GameState *g, uint8_t action, ScriptPlace at);
+/* An action's turn's guard's state half (battle_script_entry_ready's, for
+ * the action): an enemy at work in the scripts, the action's entry at the
+ * script's place in the tables, and for choosing again the choosing's actions
+ * too. */
+bool enemy_action_entry_fits(const GameState *g, uint8_t action);
 
 #endif

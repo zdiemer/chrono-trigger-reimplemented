@@ -336,7 +336,7 @@ void battle_update_animation_positions_entry(Snes *s)
         m_rts(s);
 }
 
-static bool other_place_as_c(void *ctx, uint8_t place)
+static bool place_with_no_port(void *ctx, uint8_t place)
 {
     (void)place;
     return battle_needs_the_machine(ctx, 0xC1762E, "a place the scripts follow that the port doesn't find");
@@ -345,5 +345,5 @@ static bool other_place_as_c(void *ctx, uint8_t place)
 bool battle_update_animation_positions(GameState *g, Platform *pf)
 {
     (void)pf;
-    return update_animation_positions(g, other_place_as_c, g);
+    return update_animation_positions(g, place_with_no_port, g);
 }

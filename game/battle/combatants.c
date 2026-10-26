@@ -532,7 +532,7 @@ void battle_update_all_combatants_entry(Snes *s)
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 
-static bool coming_back_as_c(void *ctx, unsigned slot)
+static bool comeback_with_no_port(void *ctx, unsigned slot)
 {
     GameState *g = ctx;
     UpdateEnd update = UPDATED;
@@ -544,5 +544,5 @@ static bool coming_back_as_c(void *ctx, unsigned slot)
 
 bool battle_update_all_combatants(GameState *g)
 {
-    return update_all_combatants(g, coming_back_as_c, g);
+    return update_all_combatants(g, comeback_with_no_port, g);
 }

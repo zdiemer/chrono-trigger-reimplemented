@@ -617,7 +617,7 @@ typedef struct {
     Platform *pf;
 } MessageAsC;
 
-static bool set_out_frame_as_c(void *ctx, bool second)
+static bool set_out_frame(void *ctx, bool second)
 {
     (void)second;
     MessageAsC *c = ctx;
@@ -626,7 +626,7 @@ static bool set_out_frame_as_c(void *ctx, bool second)
     return done;
 }
 
-static bool enemy_message_as_c(void *ctx, EnemyMessageCall call, uint8_t message, uint8_t up)
+static bool enemy_message_call(void *ctx, EnemyMessageCall call, uint8_t message, uint8_t up)
 {
     (void)message;
     (void)up;
@@ -634,7 +634,7 @@ static bool enemy_message_as_c(void *ctx, EnemyMessageCall call, uint8_t message
     GameState *g = c->game;
     bool done = false;
     switch (call) {
-    case ENEMY_SETTING_OUT: TIMED_AS(g, 0xCD027F, done = set_out_the_message(g, WHOLE_MESSAGE, set_out_frame_as_c, ctx)); return done;
+    case ENEMY_SETTING_OUT: TIMED_AS(g, 0xCD027F, done = set_out_the_message(g, WHOLE_MESSAGE, set_out_frame, ctx)); return done;
     case ENEMY_PAUSE: TIMED_AS(g, BATTLE_SOME_FRAMES_WAIT, done = battle_wait_some_frames(g, c->pf, ENEMY_MESSAGE_PAUSE)); return done;
     default: TIMED_AS(g, BATTLE_NEXT_FRAME_WAIT, done = battle_wait_for_the_next_frame(g, c->pf)); return done;
     }
@@ -646,10 +646,10 @@ bool battle_show_an_enemy_message(GameState *g, Platform *pf, uint8_t message)
     if (!can_be_typed(g, ENEMY_MESSAGES, message))
         return battle_needs_the_machine(g, 0xCD0033, "an enemy's message the menus' text code doesn't type");
     MessageAsC c = { g, pf };
-    return show_an_enemy_message(g, message, enemy_message_as_c, &c);
+    return show_an_enemy_message(g, message, enemy_message_call, &c);
 }
 
-static bool pause_frame_as_c(void *ctx, uint8_t left)
+static bool pause_frame(void *ctx, uint8_t left)
 {
     (void)left;
     MessageAsC *c = ctx;
@@ -658,16 +658,16 @@ static bool pause_frame_as_c(void *ctx, uint8_t left)
     return done;
 }
 
-static bool held_as_c(void *ctx, HeldCall call, HeldArgs a)
+static bool hold_a_part(void *ctx, HeldCall call, HeldArgs a)
 {
     MessageAsC *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
     case HELD_SOUND: TIMED_AS(g, BATTLE_PLAY_A_SOUND_ENTRY, battle_play_a_sound(c->pf, a.sound, AU_CENTRE)); return true;
-    case HELD_SETTING_OUT: TIMED_AS(g, 0xCD027F, done = set_out_the_message(g, WHOLE_MESSAGE, set_out_frame_as_c, ctx)); return done;
+    case HELD_SETTING_OUT: TIMED_AS(g, 0xCD027F, done = set_out_the_message(g, WHOLE_MESSAGE, set_out_frame, ctx)); return done;
     case HELD_PAUSE:
-    case HELD_PAUSE_AFTER: TIMED_AS(g, 0xCD020A, done = pause_on_the_message(pause_frame_as_c, ctx)); return done;
+    case HELD_PAUSE_AFTER: TIMED_AS(g, 0xCD020A, done = pause_on_the_message(pause_frame, ctx)); return done;
     case HELD_ESCAPE_FRAMES: TIMED_AS(g, BATTLE_SOME_FRAMES_WAIT, done = battle_wait_some_frames(g, c->pf, RAN_AWAY_FRAMES)); return done;
     default: TIMED_AS(g, BATTLE_NEXT_FRAME_WAIT, done = battle_wait_for_the_next_frame(g, c->pf)); return done;
     }
@@ -679,5 +679,5 @@ bool battle_show_a_battle_message(GameState *g, Platform *pf, uint8_t message)
     if (!can_be_typed(g, BATTLE_MESSAGES, message))
         return battle_needs_the_machine(g, 0xCD0021, "a battle message the menus' text code doesn't type");
     MessageAsC c = { g, pf };
-    return show_a_battle_message(g, message, held_as_c, &c);
+    return show_a_battle_message(g, message, hold_a_part, &c);
 }

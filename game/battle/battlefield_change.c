@@ -617,7 +617,7 @@ static const uint32_t next_frames[] = { 0xCD0F33, 0xCD0F3F };
 static const uint32_t sends[] = { 0xCD0FDA, 0xCD0FFD };
 
 /* As C, the send from where the original makes it. */
-static void send_as_c(Platform *pf, FieldCall call, FieldCallArgs args)
+static void send_a_part(Platform *pf, FieldCall call, FieldCallArgs args)
 {
     PfData from = PF_GAME((uint32_t)WORK_RAM_BANK << 16 | args.buffer);
     switch (call) {
@@ -677,7 +677,7 @@ typedef struct {
     Platform *pf;
 } FieldAsC;
 
-static bool field_as_c(void *ctx, FieldCall call, FieldCallArgs args)
+static bool change_a_part(void *ctx, FieldCall call, FieldCallArgs args)
 {
     FieldAsC *c = ctx;
     GameState *g = c->game;
@@ -692,7 +692,7 @@ static bool field_as_c(void *ctx, FieldCall call, FieldCallArgs args)
     case FIELD_SET_SENT:
     case FIELD_MAP_SENT:
     case FIELD_ROWS_SENT:
-        send_as_c(c->pf, call, args);
+        send_a_part(c->pf, call, args);
         return true;
     default: TIMED_AS(g, BATTLE_NEXT_FRAME_WAIT, done = battle_wait_for_the_next_frame(g, c->pf)); return done;
     }
@@ -702,13 +702,13 @@ static bool field_as_c(void *ctx, FieldCall call, FieldCallArgs args)
  * the ROM has it, fits (or one that keeps BG3 still and builds no map). */
 static bool fits(const GameState *g, uint16_t asked);
 
-static bool load_as_c(void *ctx, uint16_t battlefield)
+static bool load_and_run_it(void *ctx, uint16_t battlefield)
 {
     FieldAsC *c = ctx;
     if (!fits(c->game, battlefield))
         return battle_needs_the_machine(c->game, 0xCD0EBD, "a battlefield whose layout the port doesn't build");
     bool done = false;
-    TIMED_AS(c->game, 0xCD0EBD, done = load_the_battlefield(c->game, battlefield, field_as_c, ctx));
+    TIMED_AS(c->game, 0xCD0EBD, done = load_the_battlefield(c->game, battlefield, change_a_part, ctx));
     return done;
 }
 
@@ -717,14 +717,14 @@ bool battle_change_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
     if (!fits(g, battlefield))
         return battle_needs_the_machine(g, 0xCD0018, "a battlefield whose layout the port doesn't build");
     FieldAsC c = { g, pf };
-    return change_the_battlefield(g, load_as_c, &c, battlefield);
+    return change_the_battlefield(g, load_and_run_it, &c, battlefield);
 }
 
 bool battle_load_effect_tile_rows(GameState *g, Platform *pf, uint8_t first_row_set, bool second)
 {
     FieldAsC c = { g, pf };
-    return second ? load_effect_tile_rows(g, first_row_set, SECOND_SET_FIRST_SLOT, SECOND_SET_SLOTS, field_as_c, &c)
-                  : load_effect_tile_rows(g, first_row_set, 0, FIRST_SET_SLOTS, field_as_c, &c);
+    return second ? load_effect_tile_rows(g, first_row_set, SECOND_SET_FIRST_SLOT, SECOND_SET_SLOTS, change_a_part, &c)
+                  : load_effect_tile_rows(g, first_row_set, 0, FIRST_SET_SLOTS, change_a_part, &c);
 }
 
 /* ---- The entries ------------------------------------------------------------------------------ */
@@ -839,7 +839,7 @@ bool battle_changed_battlefield_fits(Snes *s) { return battlefield_fits(s, s->cp
 bool battle_load_and_run_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
 {
     FieldAsC c = { g, pf };
-    if (!load_as_c(&c, battlefield))
+    if (!load_and_run_it(&c, battlefield))
         return false;
     TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));
     set_battle_screen_scripts_running(g, true);
