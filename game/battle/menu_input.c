@@ -804,7 +804,7 @@ static bool someone_in_a_slot(const GameState *g)
     return false;
 }
 
-static bool menu_frame_fits(const GameState *g)
+bool battle_menu_frame_fits(const GameState *g)
 {
     uint8_t slot = battle_menu_slot(g), member = battle_menu_member(g);
     if (battle_tech_list_being_laid_out(g) || !stolen_item_fits(g))
@@ -840,7 +840,7 @@ bool battle_take_menu_input_ready(Snes *s)
     if (!battle_menu_window_ready(s) || (s->cpu.a & 0xFF00))
         return false;
     vars_peek(true);
-    bool fits = menu_frame_fits(state_of(s));
+    bool fits = battle_menu_frame_fits(state_of(s));
     vars_peek(false);
     return fits;
 }

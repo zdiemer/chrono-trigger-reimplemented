@@ -668,6 +668,16 @@ static bool work_out_ready(Snes *s, ActionTable table)
 }
 
 bool battle_work_out_enemy_tech_ready(Snes *s) { return work_out_ready(s, ENEMY_TECHS); }
+
+bool battle_enemy_action_worked_out(const GameState *g, bool tech)
+{
+    return combatants_named(g) && action_ported(g, tech ? ENEMY_TECHS : ENEMY_ATTACKS);
+}
+
+void battle_work_out_enemy_action(GameState *g, Platform *pf, bool tech)
+{
+    effect_work_out_enemy_action(g, pf, tech ? ENEMY_TECHS : ENEMY_ATTACKS);
+}
 bool battle_work_out_enemy_attack_ready(Snes *s) { return work_out_ready(s, ENEMY_ATTACKS); }
 
 static void work_out_entry(Snes *s, ActionTable table)

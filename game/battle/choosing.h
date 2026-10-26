@@ -175,6 +175,8 @@ void battle_list_stolen_item(GameState *g);
 /* $C1:1153: the menu's frame: the buttons the menu took, the clicks played on
  * `host`. */
 void battle_menu_frame(GameState *g, Buttons pressed, MenuHost *host);
+/* Its guard's state half: the menu as the game keeps it (battle/menu_input.c). */
+bool battle_menu_frame_fits(const GameState *g);
 
 /* Note the stat block of the member whose menu is open (battle_current_stat_block,
  * $CF:FD9E). */

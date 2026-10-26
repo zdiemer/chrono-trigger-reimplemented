@@ -278,4 +278,8 @@ static inline ScreenChannel screen_running_channel(const GameState *g)
 /* The two triangles and the two circles are each one of two. */
 enum { SCREEN_SHAPES = 2, SCREEN_CIRCLES = 2 };
 
+/* The screen scripts' frame ($CD:1609), as C: false where it went no
+ * further. */
+bool battle_screen_scripts_run(GameState *g, Platform *pf);
+
 #endif

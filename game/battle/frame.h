@@ -109,6 +109,9 @@ bool battle_vblank_uploads_in_range(const GameState *g);
 /* And a queued transfer or a block of tiles isn't sent from over the scratch
  * cells or the stack the transfers use. */
 bool battle_transfers_apart(const GameState *g, uint16_t stack);
+/* ... and off the whole of the stack's area, where no machine says where its
+ * top is (the program's C). */
+bool battle_transfers_keep_off_the_stack(const GameState *g);
 
 /* ---- display.c ----------------------------------------------------------------------------- */
 
@@ -167,7 +170,9 @@ void battle_fade_battlefield_layer(GameState *g, bool back_in);
  * (closing.c), and an enemy leaving on its family's or its rule's
  * (beaten_enemies.c). The load is the call at `site`, the battlefield in X,
  * a word, as the caller's TAX leaves it. */
-bool battle_load_and_run_battlefield(Snes *s, uint32_t site, uint16_t battlefield);
+bool battle_load_and_run_battlefield_on_the_machine(Snes *s, uint32_t site, uint16_t battlefield);
+/* ... as C. */
+bool battle_load_and_run_battlefield(GameState *g, Platform *pf, uint16_t battlefield);
 /* The layers' maps and scroll and the screen's settings below the split, as
  * the field hands them to the battle. */
 void battle_take_the_start_settings(GameState *g);
@@ -187,5 +192,33 @@ bool battle_block_upload_ready(Snes *s);
 bool battle_queued_transfer_ready(Snes *s);
 bool battle_vram_transfer_ready(Snes *s);
 bool battle_tile_rows_ready(Snes *s);
+
+/* ---- As C (frame.c, display.c) ---------------------------------------------------------------- */
+
+/* The vblank's frame work for the battle's mode ($CD:0C95): the display's
+ * setup while the battle is set up ($CD:09F1), the frame work in the fight
+ * ($CD:088D). False where it went no further. */
+bool battle_frame_dispatched(GameState *g, Platform *pf);
+bool battle_display_set_up(GameState *g, Platform *pf);
+bool battle_frame_worked(GameState *g, Platform *pf);
+
+/* The menu's turn between two steps of another wait ($C1:0012,
+ * battle/frame_step.c), as C. */
+enum { BATTLE_MENU_TURN_ENTRY = 0xC10012 };
+bool battle_menu_turn(GameState *g, Platform *pf);
+
+/* The frame wait's tail ($CD:04AA, through $CD:0009), as C. */
+bool battle_frame_wait_finished(GameState *g, Platform *pf);
+/* The battlefield put back once the effects are over ($CD:0453,
+ * battle/battlefield_restore.c), as C. */
+bool battle_put_the_battlefield_back(GameState *g, Platform *pf);
+
+/* The frame step: the menu's turn and the frame work's tail ($C1:10FA,
+ * battle/frame_step.c), as C. */
+bool battle_frame_stepped(GameState *g, Platform *pf);
+
+/* The layers' scroll for the frame by the battle's scroll mode ($CD:06B4,
+ * battle/scroll.c), as C; the mode one the table has. */
+void battle_scroll_by_the_mode(GameState *g);
 
 #endif

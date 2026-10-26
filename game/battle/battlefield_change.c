@@ -26,6 +26,8 @@
  * stack. */
 #include "battle/animation_data.h"
 #include "battle/bridge.h"
+#include "battle/program.h"
+#include "platform/video.h"
 #include "battle/entries.h"
 #include "battle/frame.h"
 #include "battle/frame_data.h"
@@ -453,125 +455,112 @@ static void build_the_map(GameState *g, uint16_t tile_set)
 
 /* ---- Loading the battlefield ------------------------------------------------------------------ */
 
-/* A buffer of work RAM sent to VRAM from the main thread, which waits for it
- * to go (battle_send_and_wait). */
+/* The loading's calls, each where the original makes it: a buffer of work
+ * RAM sent to VRAM from the main thread, which waits for it to go; the frame
+ * work's waits, for a number of frames and for the next (battle/wait.c); and
+ * what the original keeps on the stack around them (a word: the battlefield,
+ * the tile set, the set it decodes), which only the machine has. */
+typedef enum {
+    FIELD_FADE_WAIT_GRADIENT, FIELD_FADE_WAIT_LAYER, FIELD_WINDOWS_OFF_FRAME, FIELD_COLOR_MATH_OFF_FRAME,
+    FIELD_SET_SENT, FIELD_MAP_SENT, FIELD_ROWS_FRAME, FIELD_ROWS_SENT, FIELD_KEEP, FIELD_DROP,
+} FieldCall;
+typedef struct {
+    uint16_t word;           /* FIELD_KEEP's */
+    uint16_t buffer, vram, bytes;   /* the sends' */
+    uint8_t frames;          /* the waits for frames' */
+} FieldCallArgs;
+typedef bool (*FieldCalls)(void *ctx, FieldCall call, FieldCallArgs args);
+
 enum { DECODE_BUFFER = 0x2D00, MAP_VRAM = 0x7C00, MAP_BYTES = 0x800 };
 
-static bool send(Snes *s, uint32_t site, uint16_t buffer, uint16_t vram, uint16_t bytes)
+static bool keep(FieldCalls call, void *ctx, uint16_t word) { return call(ctx, FIELD_KEEP, (FieldCallArgs){ .word = word }); }
+static bool drop(FieldCalls call, void *ctx) { return call(ctx, FIELD_DROP, (FieldCallArgs){ 0 }); }
+static bool send(FieldCalls call, void *ctx, FieldCall at, uint16_t buffer, uint16_t vram, uint16_t bytes)
 {
-    return battle_send_and_wait(s, site, (uint32_t)WORK_RAM_BANK << 16 | buffer, vram, bytes);
+    return call(ctx, at, (FieldCallArgs){ .buffer = buffer, .vram = vram, .bytes = bytes });
 }
-
-/* The frame work's wait for a number of frames (battle/wait.h). */
-static bool wait_frames(Snes *s, uint32_t site, uint8_t frames)
+static bool wait_frames(FieldCalls call, void *ctx, FieldCall at, uint8_t frames)
 {
-    return battle_wait_frames(s, site, BATTLE_SOME_FRAMES_WAIT, BATTLE_COUNTING_WAIT_READS, frames);
+    return call(ctx, at, (FieldCallArgs){ .frames = frames });
 }
+static bool next_frame(FieldCalls call, void *ctx, FieldCall at) { return call(ctx, at, (FieldCallArgs){ 0 }); }
 
 // $CD:0EF8-$CD:0F3F
 /* Take the old layer away: fade its colors out where the battle shows it,
  * take it (with the gradient's BG2, where the battlefield has one) off the
  * main screen, and then over two frames the windows' masking and the color
  * math off. */
-static bool take_the_old_layer_away(Snes *s)
+static bool take_the_old_layer_away(GameState *g, FieldCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     if (battle_background_flags(g) & BATTLE_BACKGROUND_HAS_GRADIENT) {
         TIMED_AS(g, 0xCD0E79, fade_the_old_layer_out(g));
-        if (!wait_frames(s, 0xCD0F09, GRADIENT_FADE_FRAMES))
+        if (!wait_frames(call, ctx, FIELD_FADE_WAIT_GRADIENT, GRADIENT_FADE_FRAMES))
             return false;
         set_battle_screen_settings(g, MAIN_SCREEN, battle_screen_settings(g, MAIN_SCREEN) & (uint8_t)~BG2);
     } else {
         if ((battle_start_screens_main(g) | battle_start_screens_sub(g)) & BG3) {
             TIMED_AS(g, 0xCD0E79, fade_the_old_layer_out(g));
-            if (!wait_frames(s, 0xCD0F25, LAYER_FADE_FRAMES))
+            if (!wait_frames(call, ctx, FIELD_FADE_WAIT_LAYER, LAYER_FADE_FRAMES))
                 return false;
         }
         set_battle_screen_settings(g, MAIN_SCREEN, BG1 | BG2 | OBJ);
     }
     set_battle_screen_settings(g, MAIN_WINDOWED, 0);
     set_battle_screen_settings(g, SUB_WINDOWED, 0);
-    if (!battle_wait_for_the_next_frame_from(s, 0xCD0F33))
+    if (!next_frame(call, ctx, FIELD_WINDOWS_OFF_FRAME))
         return false;
     set_battle_split_line_values(g, FIXED_COLOR_VALUE, 0);
     for (unsigned i = 0; i < COLOR_MATH_SETTINGS; i++)
         set_battle_color_math_settings(g, i, 0);
-    return battle_wait_for_the_next_frame_from(s, 0xCD0F3F);
+    return next_frame(call, ctx, FIELD_COLOR_MATH_OFF_FRAME);
 }
 
-/* The original counts the sets in a cell as it goes ($CACE), and keeps the
- * tile set and the set it is decoding on the stack around the transfers. */
-static bool load_the_tile_sets(Snes *s, uint16_t tile_set)
+/* The original counts the sets in a cell as it goes ($CACE). */
+static bool load_the_tile_sets(GameState *g, uint16_t tile_set, FieldCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
-    m_push16(s, tile_set);
+    if (!keep(call, ctx, tile_set))
+        return false;
     for (uint8_t set = 0; set < LAYER_SETS; set++) {
         uint16_t of_set = (uint16_t)(tile_set + set * 2);
         ORIGINAL_EFFECT(set_battle_tile_rows_next(g, set));
-        m_push16(s, of_set);
+        if (!keep(call, ctx, of_set))
+            return false;
         TIMED_AS(g, 0xCD11E4, decode_tile_set(g, of_set));
         if (set == LAST_SET)
             blank_the_empty_tile(g);
-        if (!send(s, 0xCD0FDA, DECODE_BUFFER, battlefield_tile_set_vram(g, set), SET_BYTES))
+        if (!send(call, ctx, FIELD_SET_SENT, DECODE_BUFFER, battlefield_tile_set_vram(g, set), SET_BYTES))
             return false;
         set_battle_battlefield_tiles_replaced(g, (uint8_t)(battle_battlefield_tiles_replaced(g) + 1));
-        m_pull16(s);
+        if (!drop(call, ctx))
+            return false;
     }
     ORIGINAL_EFFECT(set_battle_tile_rows_next(g, LAYER_SETS));
     return true;
 }
 
 // $CD:0EBD
-static bool load_the_battlefield(Snes *s, uint16_t asked)
+static bool load_the_battlefield(GameState *g, uint16_t asked, FieldCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     uint16_t battlefield = battlefield_to_show(g, asked);
     set_battle_background(g, battlefield);
     stop_the_old_effects(g);
-    m_push16(s, battlefield);
-    s->cpu.a = 0; /* what the waits are made with where no fade's wait came first */
-    if (!battle_bg3_stays_still(g) && !take_the_old_layer_away(s))
+    if (!keep(call, ctx, battlefield))
         return false;
-    m_pull16(s);
+    if (!battle_bg3_stays_still(g) && !take_the_old_layer_away(g, call, ctx))
+        return false;
+    if (!drop(call, ctx))
+        return false;
     uint16_t tile_set = take_the_look_and_layout(g, battlefield);
     if (battle_bg3_stays_still(g))
         return true;
     set_up_the_new_layer(g);
-    if (!load_the_tile_sets(s, tile_set))
+    if (!load_the_tile_sets(g, tile_set, call, ctx))
         return false;
     TIMED_AS(g, 0xCD1052, clear_the_map(g));
-    if (!send(s, 0xCD0FFD, MAP_BUFFER, MAP_VRAM, MAP_BYTES))
+    if (!send(call, ctx, FIELD_MAP_SENT, MAP_BUFFER, MAP_VRAM, MAP_BYTES) || !drop(call, ctx))
         return false;
-    m_pull16(s);
     TIMED_AS(g, 0xCD107D, build_the_map(g, tile_set));
     battle_show_background_sets(g);
-    return true;
-}
-
-/* ---- Changing the battlefield ---------------------------------------------------------------- */
-
-// $CD:0D28 (through $CD:0018)
-/* Change the battlefield: its screen scripts stop, it is loaded, and its own
- * scripts start. The battlefield comes in A, a word. */
-static bool change_the_battlefield(Snes *s)
-{
-    GameState *g = state_of(s);
-    set_battle_screen_scripts_running(g, 0);
-    s->cpu.x = s->cpu.a;
-    if (!battle_run(s, 0xCD0D2C, 0xCD0EBD, battle_load_battlefield))
-        return false;
-    TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));
-    return true;
-}
-
-bool battle_load_and_run_battlefield(Snes *s, uint32_t site, uint16_t battlefield)
-{
-    GameState *g = state_of(s);
-    s->cpu.x = battlefield;
-    if (!battle_run(s, site, 0xCD0EBD, battle_load_battlefield))
-        return false;
-    TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));
-    set_battle_screen_scripts_running(g, true);
     return true;
 }
 
@@ -584,21 +573,21 @@ bool battle_load_and_run_battlefield(Snes *s, uint32_t site, uint16_t battlefiel
 enum { FIRST_SET_SLOTS = 4, SECOND_SET_FIRST_SLOT = 4, SECOND_SET_SLOTS = 2, ROW_TILES = 32, ROW_BYTES = 0x400 };
 
 // $CD:1323 (through $CD:0015), $CD:1314 (through $CD:002A)
-static bool load_effect_tile_rows(Snes *s, uint8_t first_row_set, uint8_t first_slot, uint8_t slots)
+static bool load_effect_tile_rows(GameState *g, uint8_t first_row_set, uint8_t first_slot, uint8_t slots,
+                                  FieldCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     uint8_t end = (uint8_t)(first_slot + slots);
     ORIGINAL_EFFECT(set_battle_tile_rows_next(g, first_row_set));
     ORIGINAL_EFFECT(set_battle_tile_rows_slot(g, first_slot));
     ORIGINAL_EFFECT(set_battle_tile_rows_end(g, end));
-    if (!battle_wait_for_the_next_frame_from(s, 0xCD132E))
+    if (!next_frame(call, ctx, FIELD_ROWS_FRAME))
         return false;
     for (uint8_t slot = first_slot; slot != end; slot++) {
         uint8_t row_set = (uint8_t)(first_row_set + (slot - first_slot));
         ORIGINAL_EFFECT(set_battle_tile_rows_next(g, row_set));
         ORIGINAL_EFFECT(set_battle_tile_rows_slot(g, slot));
         TIMED_AS(g, 0xCD1368, battle_decode_tiles(g, row_set, ROW_TILES));
-        if (!send(s, 0xCD1356, DECODE_BUFFER, effect_tile_rows_vram(g, slot), ROW_BYTES))
+        if (!send(call, ctx, FIELD_ROWS_SENT, DECODE_BUFFER, effect_tile_rows_vram(g, slot), ROW_BYTES))
             return false;
     }
     ORIGINAL_EFFECT(set_battle_tile_rows_next(g, (uint8_t)(first_row_set + slots)));
@@ -606,13 +595,146 @@ static bool load_effect_tile_rows(Snes *s, uint8_t first_row_set, uint8_t first_
     return true;
 }
 
+/* ---- Changing the battlefield ---------------------------------------------------------------- */
+
+/* The battlefield's change loads it ($CD:0EBD, `load`, a routine of its own),
+ * and its own scripts start. */
+// $CD:0D28 (through $CD:0018)
+static bool change_the_battlefield(GameState *g, bool (*load)(void *ctx, uint16_t battlefield), void *ctx, uint16_t battlefield)
+{
+    set_battle_screen_scripts_running(g, 0);
+    if (!load(ctx, battlefield))
+        return false;
+    TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));
+    return true;
+}
+
+/* ---- On the machine ------------------------------------------------------------------------ */
+
+/* Each kind of call's sites, in FieldCall's order. */
+static const uint32_t fade_waits[] = { 0xCD0F09, 0xCD0F25 };
+static const uint32_t next_frames[] = { 0xCD0F33, 0xCD0F3F };
+static const uint32_t sends[] = { 0xCD0FDA, 0xCD0FFD };
+
+/* As C, the send from where the original makes it. */
+static void send_a_part(Platform *pf, FieldCall call, FieldCallArgs args)
+{
+    PfData from = PF_GAME((uint32_t)WORK_RAM_BANK << 16 | args.buffer);
+    switch (call) {
+    case FIELD_SET_SENT: vid_send_vram_and_wait(pf, PF_CALL_DC(0xCD0FDA, BATTLE_SEND, BATTLE_SEND_READS), args.vram, from, args.bytes); return;
+    case FIELD_MAP_SENT: vid_send_vram_and_wait(pf, PF_CALL_DC(0xCD0FFD, BATTLE_SEND, BATTLE_SEND_READS), args.vram, from, args.bytes); return;
+    default: vid_send_vram_and_wait(pf, PF_CALL_DC(0xCD1356, BATTLE_SEND, BATTLE_SEND_READS), args.vram, from, args.bytes); return;
+    }
+}
+
+static bool field_on_the_machine(void *ctx, FieldCall call, FieldCallArgs args)
+{
+    Snes *s = ctx;
+    switch (call) {
+    case FIELD_KEEP: m_push16(s, args.word); return true;
+    case FIELD_DROP: m_pull16(s); return true;
+    case FIELD_FADE_WAIT_GRADIENT:
+    case FIELD_FADE_WAIT_LAYER:
+        return battle_wait_frames(s, fade_waits[call - FIELD_FADE_WAIT_GRADIENT], BATTLE_SOME_FRAMES_WAIT,
+                                  BATTLE_COUNTING_WAIT_READS, args.frames);
+    case FIELD_SET_SENT:
+    case FIELD_MAP_SENT: return battle_send_and_wait(s, sends[call - FIELD_SET_SENT], (uint32_t)WORK_RAM_BANK << 16 | args.buffer, args.vram, args.bytes);
+    case FIELD_ROWS_SENT: return battle_send_and_wait(s, 0xCD1356, (uint32_t)WORK_RAM_BANK << 16 | args.buffer, args.vram, args.bytes);
+    case FIELD_ROWS_FRAME: return battle_wait_for_the_next_frame_from(s, 0xCD132E);
+    default: return battle_wait_for_the_next_frame_from(s, next_frames[call - FIELD_WINDOWS_OFF_FRAME]);
+    }
+}
+
+/* What the waits are made with where no fade's wait came first: A clear. */
+static bool load_on_the_machine(Snes *s, uint16_t asked)
+{
+    s->cpu.a = 0;
+    return load_the_battlefield(state_of(s), asked, field_on_the_machine, s);
+}
+
+static bool load_from_the_change(void *ctx, uint16_t battlefield)
+{
+    Snes *s = ctx;
+    s->cpu.x = battlefield;
+    return battle_run(s, 0xCD0D2C, 0xCD0EBD, battle_load_battlefield);
+}
+
+bool battle_load_and_run_battlefield_on_the_machine(Snes *s, uint32_t site, uint16_t battlefield)
+{
+    GameState *g = state_of(s);
+    s->cpu.x = battlefield;
+    if (!battle_run(s, site, 0xCD0EBD, battle_load_battlefield))
+        return false;
+    TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));
+    set_battle_screen_scripts_running(g, true);
+    return true;
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} FieldAsC;
+
+static bool change_a_part(void *ctx, FieldCall call, FieldCallArgs args)
+{
+    FieldAsC *c = ctx;
+    GameState *g = c->game;
+    bool done = false;
+    switch (call) {
+    case FIELD_KEEP:
+    case FIELD_DROP: return true;
+    case FIELD_FADE_WAIT_GRADIENT:
+    case FIELD_FADE_WAIT_LAYER:
+        TIMED_AS(g, BATTLE_SOME_FRAMES_WAIT, done = battle_wait_some_frames(g, c->pf, args.frames));
+        return done;
+    case FIELD_SET_SENT:
+    case FIELD_MAP_SENT:
+    case FIELD_ROWS_SENT:
+        send_a_part(c->pf, call, args);
+        return true;
+    default: TIMED_AS(g, BATTLE_NEXT_FRAME_WAIT, done = battle_wait_for_the_next_frame(g, c->pf)); return done;
+    }
+}
+
+/* The loads with their guards' state halves: a battlefield whose layout, as
+ * the ROM has it, fits (or one that keeps BG3 still and builds no map). */
+static bool fits(const GameState *g, uint16_t asked);
+
+static bool load_and_run_it(void *ctx, uint16_t battlefield)
+{
+    FieldAsC *c = ctx;
+    if (!fits(c->game, battlefield))
+        return battle_needs_the_machine(c->game, 0xCD0EBD, "a battlefield whose layout the port doesn't build");
+    bool done = false;
+    TIMED_AS(c->game, 0xCD0EBD, done = load_the_battlefield(c->game, battlefield, change_a_part, ctx));
+    return done;
+}
+
+bool battle_change_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
+{
+    if (!fits(g, battlefield))
+        return battle_needs_the_machine(g, 0xCD0018, "a battlefield whose layout the port doesn't build");
+    FieldAsC c = { g, pf };
+    return change_the_battlefield(g, load_and_run_it, &c, battlefield);
+}
+
+bool battle_load_effect_tile_rows(GameState *g, Platform *pf, uint8_t first_row_set, bool second)
+{
+    FieldAsC c = { g, pf };
+    return second ? load_effect_tile_rows(g, first_row_set, SECOND_SET_FIRST_SLOT, SECOND_SET_SLOTS, change_a_part, &c)
+                  : load_effect_tile_rows(g, first_row_set, 0, FIRST_SET_SLOTS, change_a_part, &c);
+}
+
 /* ---- The entries ------------------------------------------------------------------------------ */
 
 /* The battlefield's change, the old layer's fade and the effect's rows leave
  * A's high byte clear for their callers. */
-void battle_change_battlefield(Snes *s)
+/* The battlefield comes in A, a word. */
+void battle_change_battlefield_entry(Snes *s)
 {
-    if (!change_the_battlefield(s))
+    if (!change_the_battlefield(state_of(s), load_from_the_change, s, s->cpu.a))
         return;
     s->cpu.a = 0;
     m_rtl(s);
@@ -628,22 +750,22 @@ void battle_fade_old_battlefield_layer(Snes *s)
 /* The battlefield comes in X. */
 void battle_load_battlefield(Snes *s)
 {
-    if (load_the_battlefield(s, s->cpu.x))
+    if (load_on_the_machine(s, s->cpu.x))
         m_rts(s);
 }
 
 /* The first row set comes in A. */
-void battle_load_effect_tile_rows(Snes *s)
+void battle_load_effect_tile_rows_entry(Snes *s)
 {
-    if (!load_effect_tile_rows(s, (uint8_t)s->cpu.a, 0, FIRST_SET_SLOTS))
+    if (!load_effect_tile_rows(state_of(s), (uint8_t)s->cpu.a, 0, FIRST_SET_SLOTS, field_on_the_machine, s))
         return;
     s->cpu.a = 0;
     m_rtl(s);
 }
 
-void battle_load_second_effect_tile_rows(Snes *s)
+void battle_load_second_effect_tile_rows_entry(Snes *s)
 {
-    if (!load_effect_tile_rows(s, (uint8_t)s->cpu.a, SECOND_SET_FIRST_SLOT, SECOND_SET_SLOTS))
+    if (!load_effect_tile_rows(state_of(s), (uint8_t)s->cpu.a, SECOND_SET_FIRST_SLOT, SECOND_SET_SLOTS, field_on_the_machine, s))
         return;
     s->cpu.a = 0;
     m_rtl(s);
@@ -696,15 +818,30 @@ bool battle_battlefield_map_fits(Snes *s)
 
 /* A battlefield that keeps BG3 still builds no map; any other's layout, as
  * the ROM has it, fits. */
+static bool fits(const GameState *g, uint16_t asked)
+{
+    uint16_t battlefield = battlefield_to_show(g, asked);
+    BattlefieldLayout l = battlefield_layout(g, battlefield);
+    return battle_keeps_bg3_still(battlefield) || layout_fits(l.strips, l.rows);
+}
+
 static bool battlefield_fits(Snes *s, uint16_t asked)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    uint16_t battlefield = battlefield_to_show(g, asked);
-    BattlefieldLayout l = battlefield_layout(g, battlefield);
+    bool ok = fits(state_of(s), asked);
     vars_peek(false);
-    return battle_on_page(s) && (battle_keeps_bg3_still(battlefield) || layout_fits(l.strips, l.rows));
+    return battle_on_page(s) && ok;
 }
 
 bool battle_battlefield_fits(Snes *s) { return battlefield_fits(s, s->cpu.x); }
 bool battle_changed_battlefield_fits(Snes *s) { return battlefield_fits(s, s->cpu.a); }
+
+bool battle_load_and_run_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
+{
+    FieldAsC c = { g, pf };
+    if (!load_and_run_it(&c, battlefield))
+        return false;
+    TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));
+    set_battle_screen_scripts_running(g, true);
+    return true;
+}

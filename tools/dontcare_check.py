@@ -484,6 +484,11 @@ class Source:
     def called_names(self, f: Func) -> set:
         return set(re.findall(r"\b(\w+)\s*\(", self.text[f.start:f.end])) - KEYWORDS
 
+    def referenced_names(self, f: Func) -> set:
+        """The names f calls, and those it hands on: a callback passed to the
+        sequence that calls it (a port's machine entry passes its steps)."""
+        return set(re.findall(r"\b([A-Za-z_]\w*)\b", self.text[f.start:f.end])) - KEYWORDS
+
     def locals_of(self, f: Func, name: str) -> list:
         """The expressions a local of f is given, by declaration or assignment."""
         body = self.text[f.start:f.end]
@@ -1054,10 +1059,12 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
     return decls, findings
 
 
-def reaching(sources: list, fn: str) -> set:
+def reaching(sources: list, fn: str, callbacks: bool = False) -> set:
     """(path, function) pairs the function reaches by C calls, itself
-    included. A name is the same file's function if it has one, else a
-    function of that name that isn't static."""
+    included, and with `callbacks` by handing a function on as a callback (a
+    port's machine entry passes its steps to the sequence that calls them). A
+    name is the same file's function if it has one, else a function of that
+    name that isn't static."""
     public = {}
     for src in sources:
         for name, f in src.funcs.items():
@@ -1070,7 +1077,8 @@ def reaching(sources: list, fn: str) -> set:
         if (src.path, name) in out:
             continue
         out.add((src.path, name))
-        for callee in src.called_names(src.funcs[name]):
+        f = src.funcs[name]
+        for callee in src.referenced_names(f) if callbacks else src.called_names(f):
             if callee in src.funcs:
                 work.append((src, callee))
             else:
@@ -1194,9 +1202,9 @@ def evidence_problem(note, d, entries: list, reach: dict, sources: list, fuzz_ro
     if not named:
         return f"its dc-evidence names {routine}, which isn't a registered entry"
     for e in named:
-        if e.name not in reach:
-            reach[e.name] = reaching(sources, e.fn)
-    if not any((d.path, d.func) in reach[e.name] for e in named):
+        if ("callbacks", e.name) not in reach:
+            reach[("callbacks", e.name)] = reaching(sources, e.fn, callbacks=True)
+    if not any((d.path, d.func) in reach[("callbacks", e.name)] for e in named):
         return f"its dc-evidence names {routine}, which doesn't reach {d.func}"
     if int(m.group("mismatched")):
         return f"its dc-evidence run mismatched {m.group('mismatched')} state(s)"

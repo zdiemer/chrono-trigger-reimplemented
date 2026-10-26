@@ -35,6 +35,8 @@
 #include "battle/entries.h"
 #include "battle/enemy_scripts.h"
 #include "battle/inventory.h"
+#include "battle/program.h"
+#include "battle/steps.h"
 #include "battle/random.h"
 #include "battle/setup_data.h"
 #include "battle/timers.h"
@@ -43,25 +45,20 @@
 #include "port/native.h"
 #include "vars.h"
 
-/* The battle's steps read A alone: the overflow flag they save with the flags
- * across their frame waits is read by nothing after (tools/v_readers.py
- * C1:0003), which each call's dc-evidence shows over the states its routine
- * is fuzzed with. */
-enum { STEP_READS_A = DC_X | DC_Y | DC_FLAGS };
-
-/* A step indexes its table with the whole of A, so A's high byte is part of
- * what the ask hands it (battle_take_step puts the step's number in the low
- * byte) and can't be declared dead: it is clear where the original's code
- * before the step clears it, and otherwise what the step before left there. */
-static void clear_a_high_byte(Snes *s) { s->cpu.a &= 0x00FF; }
-
-/* A member's attack on the action's first target ($C1:BFAA), called from
- * bank $FD through the long call at $C1:FDC7. */
-enum { ATTACK_FROM_BANK_FD = 0xC1FDC7 };
-static bool attack(Snes *s, uint32_t site)
-{
-    return battle_run_long(s, site, ATTACK_FROM_BANK_FD, battle_member_attacks_from_bank_fd);
-}
+/* The routines the party's turns call: a member's attack on the action's
+ * first target ($C1:BFAA, through the long call at $C1:FDC7, battle/
+ * member_turn.c) for a member driven to fight, confused, or countering; the
+ * battle's steps -- an action called off (step 2), the enemies beaten seen to
+ * (step 6), each member's menu closed as the party stands down -- and a
+ * waiting member's menu closed ($C1:B961), and a member of a combination
+ * called off while it waited ($FD:A8FE, below). The program makes them as C,
+ * and the machine's entries from the original's calls. */
+typedef enum {
+    PARTY_ATTACK_DRIVEN, PARTY_ATTACK_CONFUSED, PARTY_COUNTER_ATTACK,
+    PARTY_CALLED_OFF_STEP, PARTY_BEATEN_STEP, PARTY_STAND_DOWN_STEP,
+    PARTY_CLOSE_THE_MENU, PARTY_CALL_OFF_WAITING_MEMBER,
+} PartyCall;
+typedef bool (*PartyCalls)(void *ctx, PartyCall call, uint8_t member);
 
 static uint8_t draw(GameState *g, uint8_t lowest, uint8_t limit)
 {
@@ -105,13 +102,12 @@ static uint8_t random_other(GameState *g, uint8_t member)
 }
 
 /* The member attacks `target` as though it had chosen to. */
-static bool attack_for_it(Snes *s, uint32_t site, uint8_t member, uint8_t target)
+static bool attack_for_it(GameState *g, PartyCall attack, uint8_t member, uint8_t target, PartyCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     set_battle_action_targets(g, 0, target);
     set_battle_action_choice(g, CHOSE_AN_ATTACK);
     set_battle_actor(g, member);
-    return attack(s, site);
+    return call(ctx, attack, member);
 }
 
 static void note_acted_for_itself(GameState *g)
@@ -122,16 +118,15 @@ static void note_acted_for_itself(GameState *g)
 // $FD:AB30
 /* The statuses are the ones of the stat block the caller names, the
  * member's own as the game calls it. */
-static bool status_turn(Snes *s, uint8_t member, uint8_t statuses_of)
+static bool status_turn(GameState *g, uint8_t member, uint8_t statuses_of, PartyCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     set_battle_member_turn_mark(g, 0);
     set_battle_member_acts_for_itself(g, 0);
     if (driven_to_fight(g, statuses_of)) {
-        if (member < BATTLE_PARTY_SIZE && !attack_for_it(s, 0xFDAB6E, member, random_enemy(g)))
+        if (member < BATTLE_PARTY_SIZE && !attack_for_it(g, PARTY_ATTACK_DRIVEN, member, random_enemy(g), call, ctx))
             return false;
     } else if (confused(g, statuses_of)) {
-        if (!attack_for_it(s, 0xFDAB9A, member, random_other(g, member)))
+        if (!attack_for_it(g, PARTY_ATTACK_CONFUSED, member, random_other(g, member), call, ctx))
             return false;
     } else {
         return true;
@@ -155,16 +150,12 @@ static void drop_waiting_action(GameState *g, uint8_t member)
 // $C1:B3F9
 /* A member whose status keeps it from acting loses the action it waited
  * with: its menu closes (the battle's step) and its item goes back. */
-static bool cancel_if_unable(Snes *s, uint8_t member)
+static bool cancel_if_unable(GameState *g, uint8_t member, PartyCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     if (!combatant_cant_act(g, member) || battle_member_ready(g, member) == MEMBER_NO_ACTION)
         return true;
     drop_waiting_action(g, member);
-    clear_a_high_byte(s);
-    /* dc-evidence: ct_fuzz --poison-dc battle_cancel_if_unable, seed 1: 5000
-     * states, 4904 call-outs scrambled, 0 mismatched */
-    if (!battle_take_step(s, 0xC1B43B, BATTLE_STEP_CALLED_OFF, STEP_READS_A))
+    if (!call(ctx, PARTY_CALLED_OFF_STEP, member))
         return false;
     TIMED_AS(g, 0xC1B6D1, battle_return_chosen_item(g, member));
     return true;
@@ -192,21 +183,19 @@ enum { COUNTERING_BLOCK_AT = 0x0C };
 /* The members it hit are the action's first three targets. */
 enum { MEMBERS_HIT = BATTLE_PARTY_SIZE };
 
-static bool counter_attack(Snes *s, uint8_t member, bool *attacker_out)
+static bool counter_attack(GameState *g, uint8_t member, bool *attacker_out, PartyCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     set_battle_actor(g, member);
     set_battle_action_targets(g, 0, (uint8_t)battle_turn_slot(g));
-    if (!attack(s, 0xFDACC9))
+    if (!call(ctx, PARTY_COUNTER_ATTACK, member))
         return false;
     *attacker_out = (combatant_stat_byte(g, battle_action_targets(g, 0), STAT_CONDITION) & CONDITION_KNOCKED_OUT) != 0;
     return true;
 }
 
 // $FD:AC6E
-static bool counter_the_attack(Snes *s)
+static bool counter_the_attack(GameState *g, PartyCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     if (battle_action_hit_party(g)) {
         bool attacker_out = false;
         for (uint8_t entry = 0; entry < MEMBERS_HIT && !attacker_out; entry++) {
@@ -219,7 +208,7 @@ static bool counter_the_attack(Snes *s)
                 continue;
             if (!(combatant_stat_byte(g, member, STAT_ACCESSORY_FIRST) & COUNTER_ATTACKS))
                 set_battle_timer_counts_byte(g, BATTLE_TIMER_TURN, member, TURN_AT_ONCE);
-            else if (!counter_attack(s, member, &attacker_out))
+            else if (!counter_attack(g, member, &attacker_out, call, ctx))
                 return false;
         }
         if (!attacker_out)
@@ -269,38 +258,28 @@ void battle_call_off_combination(GameState *g)
             forget_combination(g, member);
 }
 
-/* A member waiting with its action has its menu closed, by the step its
- * caller's code runs for it ($C1:B961, from $FD:A937). */
-enum { CLOSE_MENU_SITE = 0xFDA937, CLOSE_MENU = 0xC1B961 };
-
 // $FD:A8FE
 /* A member of a combination called off, which waited with its action: its
- * action forgotten and its menu closed. The original's code clears A first. */
-static bool call_off_waiting_member(Snes *s, uint8_t member)
+ * action forgotten and its menu closed (the step its caller's code runs for
+ * it). */
+static bool call_off_waiting_member(GameState *g, uint8_t member, PartyCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
-    s->cpu.a = 0;
     if (!battle_member_ready(g, member))
         return true;
     forget_combination(g, member);
     set_battle_step_member(g, member);
-    return battle_run_long(s, CLOSE_MENU_SITE, CLOSE_MENU, battle_member_called_off_step);
+    return call(ctx, PARTY_CLOSE_THE_MENU, member);
 }
-
-/* Each member is seen to by its own call. */
-enum { CALL_OFF_WAITING_MEMBER = 0xFDA8FE };
-static const uint32_t call_off_sites[BATTLE_PARTY_SIZE] = { 0xFDA966, 0xFDA972, 0xFDA97E };
 
 // $FD:A95F
 /* The combination called off while its members waited with their actions. */
-static bool call_off_while_waiting(Snes *s)
+static bool call_off_while_waiting(GameState *g, PartyCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         if (!battle_combo_called_off(g, member))
             continue;
         set_battle_low_scratch(g, BATTLE_ITEM_RETURNING_FOR_AT, member);
-        if (!battle_run(s, call_off_sites[member], CALL_OFF_WAITING_MEMBER, battle_call_off_waiting_member))
+        if (!call(ctx, PARTY_CALL_OFF_WAITING_MEMBER, member))
             return false;
     }
     return true;
@@ -341,9 +320,8 @@ static void count_beaten_now(GameState *g, unsigned enemy)
 enum { TARGET_AT = 0x10 };
 
 // $C1:B762
-static bool see_to_knocked_out(Snes *s)
+static bool see_to_knocked_out(GameState *g, PartyCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         set_battle_enemy_beaten_before(g, enemy, battle_enemy_beaten(g, enemy));
         set_battle_enemy_beaten(g, enemy, 0);
@@ -359,13 +337,8 @@ static bool see_to_knocked_out(Snes *s)
             count_beaten_now(g, slot - BATTLE_FIRST_ENEMY);
     }
     set_battle_reaction_entry(g, BATTLE_ENEMIES);
-    if (battle_enemy_beaten_any(g) && !battle_is_demo(g)) {
-        clear_a_high_byte(s);
-        /* dc-evidence: ct_fuzz --poison-dc battle_see_to_knocked_out_enemies:knocked_out, seed 1:
-         * 5000 states, 4954 call-outs scrambled, 0 mismatched */
-        if (!battle_take_step(s, 0xC1B7D7, BATTLE_STEP_ENEMIES_BEATEN, STEP_READS_A))
-            return false;
-    }
+    if (battle_enemy_beaten_any(g) && !battle_is_demo(g) && !call(ctx, PARTY_BEATEN_STEP, 0))
+        return false;
     uint8_t any = 0;
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         uint8_t beaten = battle_enemy_beaten_before(g, enemy);
@@ -425,21 +398,136 @@ void battle_demo_next_turn(GameState *g)
             set_battle_member_actions_record_byte(g, member, at, demo_member_action_byte(g, demo, member, at));
 }
 
-static const uint32_t stand_down_sites[BATTLE_PARTY_SIZE] = { 0xC1B7F7, 0xC1B800, 0xC1B809 };
-
 // $C1:B7F2
-static bool stand_down(Snes *s)
+static bool stand_down(GameState *g, PartyCalls call, void *ctx)
 {
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        set_battle_step_member(state_of(s), member);
+        set_battle_step_member(g, member);
+        if (!call(ctx, PARTY_STAND_DOWN_STEP, member))
+            return false;
+    }
+    return true;
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} PartyAsC;
+
+enum { CALL_OFF_WAITING_MEMBER = 0xFDA8FE, MEMBER_ATTACKS = 0xC1FDC7, CLOSE_MENU = 0xC1B961 };
+
+static bool party_call(void *ctx, PartyCall call, uint8_t member)
+{
+    PartyAsC *c = ctx;
+    GameState *g = c->game;
+    bool done = false;
+    switch (call) {
+    case PARTY_ATTACK_DRIVEN:
+    case PARTY_ATTACK_CONFUSED:
+    case PARTY_COUNTER_ATTACK: TIMED_AS(g, MEMBER_ATTACKS, done = battle_member_attacks(g, c->pf)); return done;
+    case PARTY_CALLED_OFF_STEP:
+    case PARTY_STAND_DOWN_STEP: return battle_step_taken(g, c->pf, BATTLE_STEP_CALLED_OFF);
+    case PARTY_BEATEN_STEP: return battle_step_taken(g, c->pf, BATTLE_STEP_ENEMIES_BEATEN);
+    case PARTY_CLOSE_THE_MENU:
+        TIMED_AS(g, CLOSE_MENU, done = battle_step_taken(g, c->pf, BATTLE_STEP_CALLED_OFF));
+        return done;
+    default:
+        TIMED_AS(g, CALL_OFF_WAITING_MEMBER, done = call_off_waiting_member(g, member, party_call, ctx));
+        return done;
+    }
+}
+
+/* Each with its guard's state half: the member a party member, the members
+ * hit and the reactions' targets combatants or none. */
+bool battle_member_status_turn(GameState *g, Platform *pf, uint8_t member)
+{
+    PartyAsC c = { g, pf };
+    return status_turn(g, member, member, party_call, &c);
+}
+
+bool battle_cancel_if_unable(GameState *g, Platform *pf, uint8_t member)
+{
+    if (member >= BATTLE_PARTY_SIZE)
+        return battle_needs_the_machine(g, 0xC1B3F9, "a member past the party");
+    PartyAsC c = { g, pf };
+    return cancel_if_unable(g, member, party_call, &c);
+}
+
+bool battle_party_counters(GameState *g, Platform *pf)
+{
+    if (!members_hit_are_combatants(g))
+        return battle_needs_the_machine(g, 0xFDAC6E, "a member hit past the combatants");
+    PartyAsC c = { g, pf };
+    return counter_the_attack(g, party_call, &c);
+}
+
+bool battle_see_to_knocked_out_enemies(GameState *g, Platform *pf)
+{
+    if (!reaction_targets_are_combatants(g))
+        return battle_needs_the_machine(g, 0xC1B762, "a reaction's target past the combatants");
+    PartyAsC c = { g, pf };
+    return see_to_knocked_out(g, party_call, &c);
+}
+
+bool battle_party_stands_down(GameState *g, Platform *pf)
+{
+    PartyAsC c = { g, pf };
+    return stand_down(g, party_call, &c);
+}
+
+bool battle_call_off_waiting_combination(GameState *g, Platform *pf)
+{
+    PartyAsC c = { g, pf };
+    return call_off_while_waiting(g, party_call, &c);
+}
+
+/* ---- On the machine ------------------------------------------------------------------------ */
+
+/* The battle's steps read A alone: the overflow flag they save with the flags
+ * across their frame waits is read by nothing after (tools/v_readers.py
+ * C1:0003), which each call's dc-evidence shows over the states its routine
+ * is fuzzed with. A step indexes its table with the whole of A, so A's high
+ * byte is part of what the ask hands it (battle_take_step puts the step's
+ * number in the low byte) and can't be declared dead: it is clear where the
+ * original's code before the step clears it, and otherwise what the step
+ * before left there. */
+enum { STEP_READS_A = DC_X | DC_Y | DC_FLAGS };
+
+static void clear_a_high_byte(Snes *s) { s->cpu.a &= 0x00FF; }
+
+/* Each member is stood down, and seen to while it waited, from its own call. */
+static const uint32_t stand_down_sites[BATTLE_PARTY_SIZE] = { 0xC1B7F7, 0xC1B800, 0xC1B809 };
+static const uint32_t call_off_sites[BATTLE_PARTY_SIZE] = { 0xFDA966, 0xFDA972, 0xFDA97E };
+
+static bool party_on_the_machine(void *ctx, PartyCall call, uint8_t member)
+{
+    Snes *s = ctx;
+    switch (call) {
+    case PARTY_ATTACK_DRIVEN: return battle_run_long(s, 0xFDAB6E, MEMBER_ATTACKS, battle_member_attacks_from_bank_fd);
+    case PARTY_ATTACK_CONFUSED: return battle_run_long(s, 0xFDAB9A, MEMBER_ATTACKS, battle_member_attacks_from_bank_fd);
+    case PARTY_COUNTER_ATTACK: return battle_run_long(s, 0xFDACC9, MEMBER_ATTACKS, battle_member_attacks_from_bank_fd);
+    case PARTY_CALLED_OFF_STEP:
+        clear_a_high_byte(s);
+        /* dc-evidence: ct_fuzz --poison-dc battle_cancel_if_unable, seed 1: 5000
+         * states, 4904 call-outs scrambled, 0 mismatched */
+        return battle_take_step(s, 0xC1B43B, BATTLE_STEP_CALLED_OFF, STEP_READS_A);
+    case PARTY_BEATEN_STEP:
+        clear_a_high_byte(s);
+        /* dc-evidence: ct_fuzz --poison-dc battle_see_to_knocked_out_enemies:knocked_out, seed 1:
+         * 5000 states, 4954 call-outs scrambled, 0 mismatched */
+        return battle_take_step(s, 0xC1B7D7, BATTLE_STEP_ENEMIES_BEATEN, STEP_READS_A);
+    case PARTY_STAND_DOWN_STEP:
         if (member == 0)
             clear_a_high_byte(s);
         /* dc-evidence: ct_fuzz --poison-dc battle_party_stands_down, seed 1: 5000
          * states, 15000 call-outs scrambled, 0 mismatched */
-        if (!battle_take_step(s, stand_down_sites[member], BATTLE_STEP_CALLED_OFF, STEP_READS_A))
-            return false;
+        return battle_take_step(s, stand_down_sites[member], BATTLE_STEP_CALLED_OFF, STEP_READS_A);
+    case PARTY_CLOSE_THE_MENU: return battle_run_long(s, 0xFDA937, CLOSE_MENU, battle_member_called_off_step);
+    default:
+        return battle_run(s, call_off_sites[member], CALL_OFF_WAITING_MEMBER, battle_call_off_waiting_member_entry);
     }
-    return true;
 }
 
 /* ---- The entries ------------------------------------------------------------------------- */
@@ -460,25 +548,25 @@ bool battle_member_status_turn_ready(Snes *s)
     return battle_on_page(s) && battle_names_stat_block(s->cpu.x) && battle_names_combatant(s->cpu.y);
 }
 
-void battle_member_status_turn(Snes *s)
+void battle_member_status_turn_entry(Snes *s)
 {
-    if (status_turn(s, (uint8_t)s->cpu.y, (uint8_t)battle_slot_of_stat_block(s->cpu.x)))
+    if (status_turn(state_of(s), (uint8_t)s->cpu.y, (uint8_t)battle_slot_of_stat_block(s->cpu.x), party_on_the_machine, s))
         m_rtl(s);
 }
 
 /* The original finds the member's stat block with A's high byte under the
  * member's number, clear as its callers leave it. */
 bool battle_cancel_if_unable_ready(Snes *s) { return battle_on_page_a_high_clear(s) && s->cpu.x < BATTLE_PARTY_SIZE; }
-void battle_cancel_if_unable(Snes *s)
+void battle_cancel_if_unable_entry(Snes *s)
 {
-    if (cancel_if_unable(s, (uint8_t)s->cpu.x))
+    if (cancel_if_unable(state_of(s), (uint8_t)s->cpu.x, party_on_the_machine, s))
         m_rts(s);
 }
 
 bool battle_party_counters_ready(Snes *s) { return peek(s, members_hit_are_combatants); }
-void battle_party_counters(Snes *s)
+void battle_party_counters_entry(Snes *s)
 {
-    if (counter_the_attack(s))
+    if (counter_the_attack(state_of(s), party_on_the_machine, s))
         m_rtl(s);
 }
 
@@ -491,15 +579,18 @@ bool battle_call_off_waiting_member_ready(Snes *s)
     return battle_on_page(s) && member < BATTLE_PARTY_SIZE;
 }
 
-void battle_call_off_waiting_member(Snes *s)
+/* The original's code clears A first. */
+void battle_call_off_waiting_member_entry(Snes *s)
 {
-    if (call_off_waiting_member(s, battle_low_scratch(state_of(s), BATTLE_ITEM_RETURNING_FOR_AT)))
+    s->cpu.a = 0;
+    if (call_off_waiting_member(state_of(s), battle_low_scratch(state_of(s), BATTLE_ITEM_RETURNING_FOR_AT),
+                                party_on_the_machine, s))
         m_rts(s);
 }
 
-void battle_call_off_waiting_combination(Snes *s)
+void battle_call_off_waiting_combination_entry(Snes *s)
 {
-    if (call_off_while_waiting(s))
+    if (call_off_while_waiting(state_of(s), party_on_the_machine, s))
         m_rtl(s);
 }
 
@@ -510,9 +601,9 @@ void battle_call_off_combination_entry(Snes *s)
 }
 
 bool battle_see_to_knocked_out_enemies_ready(Snes *s) { return peek(s, reaction_targets_are_combatants); }
-void battle_see_to_knocked_out_enemies(Snes *s)
+void battle_see_to_knocked_out_enemies_entry(Snes *s)
 {
-    if (see_to_knocked_out(s))
+    if (see_to_knocked_out(state_of(s), party_on_the_machine, s))
         m_rts(s);
 }
 
@@ -530,8 +621,8 @@ void battle_demo_next_turn_entry(Snes *s)
     m_rts(s);
 }
 
-void battle_party_stands_down(Snes *s)
+void battle_party_stands_down_entry(Snes *s)
 {
-    if (stand_down(s))
+    if (stand_down(state_of(s), party_on_the_machine, s))
         m_rts(s);
 }

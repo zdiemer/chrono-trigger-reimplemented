@@ -23,6 +23,7 @@
  * battlefield (the enemies' movements, battle/enemy_movement.c), which the
  * end of this file runs. */
 #include "battle/animation.h"
+#include "battle/program.h"
 
 #include "battle/animation_data.h"
 #include "battle/arith.h"
@@ -685,20 +686,41 @@ static bool movement_runs(const GameState *g, unsigned enemy, uint8_t movement)
            || battle_names_combatant(battle_enemy_target_seen(g, enemy));
 }
 
-/* Run the enemy's animation's movement. What doesn't run as C goes to the
- * handler the ROM's table names, inside the original's subroutine, whose
- * return address is on the stack under the call; the handler finds the
- * enemy in its cell. */
-static bool run_effect(Snes *s, unsigned enemy)
+// $C1:3714
+/* Run the enemies' animation effects that are due, unless they stand still
+ * for the battle menu: each enemy's animation's movement, as C where it
+ * runs (movement_runs), or else (a routine of the original's, `handler`)
+ * the handler the ROM's table names, which finds the enemy in its cell. */
+static bool step_enemy_effects(GameState *g, bool (*handler)(void *ctx, uint8_t movement), void *ctx)
 {
-    GameState *g = state_of(s);
-    uint8_t animation = battle_enemy_animation_loaded(g, enemy);
-    set_battle_effect_kind(g, animation);
-    uint8_t movement = battle_enemy_animation_effect(g, animation);
-    if (movement_runs(g, enemy, movement)) {
-        NATIVE_TIME_AS(s, movement_routines[movement], battle_move_enemy(g, enemy, (EnemyMovement)movement, animation));
+    if (battle_timers_held(g))
         return true;
+    for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
+        give_effect_enemy(g, enemy);
+        uint8_t animation = battle_enemy_animation_loaded(g, enemy);
+        if (animation == NO_EFFECT_ANIMATION || !effect_due(g, enemy))
+            continue;
+        if (!battle_slot_present(g, enemy_slot(enemy)))
+            continue;
+        note_target(g, enemy);
+        if (animation & NO_EFFECT_BIT)
+            continue;
+        set_battle_effect_kind(g, animation);
+        uint8_t movement = battle_enemy_animation_effect(g, animation);
+        if (movement_runs(g, enemy, movement))
+            TIMED_AS(g, movement_routines[movement], battle_move_enemy(g, enemy, (EnemyMovement)movement, animation));
+        else if (!handler(ctx, movement))
+            return false;
     }
+    ORIGINAL_EFFECT(leave_enemy(g, BATTLE_ENEMIES));
+    return true;
+}
+
+/* On the machine the handler is called inside the original's subroutine,
+ * whose return address is on the stack under the call. */
+static bool handler_on_the_machine(void *ctx, uint8_t movement)
+{
+    Snes *s = ctx;
     uint16_t handler = m_jump_table(s, 0xC1, 0x3760, (uint8_t)(movement * 2));
     m_push16(s, 0x3731);
     if (!battle_call(s, 0xC1375C, 0xC10000u | handler, DC_AL | DC_X | DC_Y | DC_FLAGS))
@@ -707,28 +729,25 @@ static bool run_effect(Snes *s, unsigned enemy)
     return true;
 }
 
-// $C1:3714
-/* Run the enemies' animation effects that are due, unless they stand still
- * for the battle menu. The handlers find the enemy in their cell. */
 void battle_step_enemy_effects(Snes *s)
 {
-    GameState *g = state_of(s);
-    if (!battle_timers_held(g)) {
+    if (!battle_timers_held(state_of(s)))
         s->cpu.a = 0;
-        for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
-            give_effect_enemy(g, enemy);
-            uint8_t animation = battle_enemy_animation_loaded(g, enemy);
-            if (animation == NO_EFFECT_ANIMATION || !effect_due(g, enemy))
-                continue;
-            if (!battle_slot_present(g, enemy_slot(enemy)))
-                continue;
-            note_target(g, enemy);
-            if (animation & NO_EFFECT_BIT)
-                continue;
-            if (!run_effect(s, enemy))
-                return;
-        }
-        ORIGINAL_EFFECT(leave_enemy(g, BATTLE_ENEMIES));
-    }
-    m_rts(s);
+    if (step_enemy_effects(state_of(s), handler_on_the_machine, s))
+        m_rts(s);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+/* A movement the table names none for is the original's. */
+static bool movement_with_no_port(void *ctx, uint8_t movement)
+{
+    (void)movement;
+    return battle_needs_the_machine(ctx, 0xC13760, "an enemy's movement the port doesn't run");
+}
+
+bool battle_enemy_effects_stepped(GameState *g, Platform *pf)
+{
+    (void)pf;
+    return step_enemy_effects(g, movement_with_no_port, g);
 }

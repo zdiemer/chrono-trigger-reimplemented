@@ -110,10 +110,15 @@ enum { SONG_DRIVER_IGNORES = DC_AL | DC_X | DC_N | DC_Z | DC_C | DC_D };
 void scene_bridge_start_song(Snes *s, uint32_t call, uint8_t song)
 {
     scene_bridge_enter(s, call);
-    au_command(m_platform(s), PF_CALL_DC(SONG_DRIVER_SITE, SOUND_DRIVER, SONG_DRIVER_IGNORES),
+    scene_start_song(m_platform(s), song);
+    scene_bridge_leave(s);
+}
+
+void scene_start_song(Platform *pf, uint8_t song)
+{
+    au_command(pf, PF_CALL_DC(SONG_DRIVER_SITE, SOUND_DRIVER, SONG_DRIVER_IGNORES),
                (AudioCommand){ .command = AU_START_SONG, .p1 = song, .p2 = AU_FULL_VOLUME, .p3 = AU_FULL_VOLUME,
                                .count = 3 });
-    scene_bridge_leave(s);
 }
 
 /* ---- The setups' loading and stars ------------------------------------------------------------- */

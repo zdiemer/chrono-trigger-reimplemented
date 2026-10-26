@@ -33,6 +33,8 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/sprite_data.h"
+#include "charge.h"
+#include "battle/program.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -479,13 +481,12 @@ enum {
 };
 
 /* The effects the combatant's records put on one side of it. */
-static unsigned draw_effects(Snes *s, unsigned slot, unsigned sprite, bool in_front)
+static unsigned draw_effects(GameState *g, unsigned slot, unsigned sprite, bool in_front)
 {
-    GameState *g = state_of(s);
     for (unsigned row = 0; row < RECORD_ROWS; row++) {
         unsigned record = battle_record_of(slot, row);
         if (effect_on_side(g, battle_object_effect_slots(g, record), in_front))
-            NATIVE_TIME_AS(s, DRAW_EFFECT, sprite = draw_effect(g, record, sprite));
+            TIMED_AS(g, DRAW_EFFECT, sprite = draw_effect(g, record, sprite));
     }
     return sprite;
 }
@@ -494,59 +495,54 @@ static unsigned draw_effects(Snes *s, unsigned slot, unsigned sprite, bool in_fr
 /* In front of the combatant: its numbers while numbers show; its marker
  * while no effect plays, unless markers are held off; otherwise its effects
  * in front. */
-static unsigned draw_in_front(Snes *s, unsigned slot, unsigned sprite)
+static unsigned draw_in_front(GameState *g, unsigned slot, unsigned sprite)
 {
-    GameState *g = state_of(s);
     if (battle_number_step(g))
-        NATIVE_TIME_AS(s, DRAW_NUMBERS, sprite = draw_numbers(g, slot, sprite));
+        TIMED_AS(g, DRAW_NUMBERS, sprite = draw_numbers(g, slot, sprite));
     else if (!battle_effects_running(g) && !battle_markers_held(g))
-        NATIVE_TIME_AS(s, DRAW_MARKER, sprite = draw_marker(g, slot, sprite));
+        TIMED_AS(g, DRAW_MARKER, sprite = draw_marker(g, slot, sprite));
     else
-        sprite = draw_effects(s, slot, sprite, true);
+        sprite = draw_effects(g, slot, sprite, true);
     return sprite;
 }
 
 // $CF:EDF7
 /* Behind it: while effects play and no numbers show, its effects behind. */
-static unsigned draw_behind(Snes *s, unsigned slot, unsigned sprite)
+static unsigned draw_behind(GameState *g, unsigned slot, unsigned sprite)
 {
-    GameState *g = state_of(s);
     if (battle_effects_running(g) && !battle_number_step(g))
-        sprite = draw_effects(s, slot, sprite, false);
+        sprite = draw_effects(g, slot, sprite, false);
     return sprite;
 }
 
 /* An afterimage copies as many tiles as the last combatant whose frame was
  * drawn had parts. */
-static unsigned draw_afterimage(Snes *s, unsigned slot, unsigned sprite, TrailPoint p, uint16_t last_parts)
+static unsigned draw_afterimage(GameState *g, unsigned slot, unsigned sprite, TrailPoint p, uint16_t last_parts)
 {
-    GameState *g = state_of(s);
-    NATIVE_TIME_AS(s, COPY_TILES, copy_combatant_tiles(g, slot, sprite, last_parts));
+    TIMED_AS(g, COPY_TILES, copy_combatant_tiles(g, slot, sprite, last_parts));
     return draw_afterimage_frame(g, slot, sprite, p);
 }
 
 // $CF:E92C
 /* The combatant's afterimages, when they show this frame: its frame at each
  * of its trail's four points. */
-static unsigned draw_afterimages(Snes *s, unsigned slot, unsigned sprite, uint16_t last_parts)
+static unsigned draw_afterimages(GameState *g, unsigned slot, unsigned sprite, uint16_t last_parts)
 {
-    GameState *g = state_of(s);
     ORIGINAL_EFFECT(set_battle_afterimage_object(g, (uint16_t)battle_object_of(slot)));
     if (!afterimages_due(g, slot))
         return sprite;
     for (unsigned point = 0; point < TRAIL_POINTS; point++)
-        NATIVE_TIME_AS(s, DRAW_AFTERIMAGE, sprite = draw_afterimage(s, slot, sprite, trail_point(g, point, slot), last_parts));
+        TIMED_AS(g, DRAW_AFTERIMAGE, sprite = draw_afterimage(g, slot, sprite, trail_point(g, point, slot), last_parts));
     return sprite;
 }
 
 /* The combatant, with what shows in front of it and behind it. */
-static unsigned draw_with_effects(Snes *s, unsigned slot, unsigned sprite, uint8_t parts)
+static unsigned draw_with_effects(GameState *g, unsigned slot, unsigned sprite, uint8_t parts)
 {
-    GameState *g = state_of(s);
-    NATIVE_TIME_AS(s, DRAW_IN_FRONT, sprite = draw_in_front(s, slot, sprite));
-    NATIVE_TIME_AS(s, COPY_TILES, copy_combatant_tiles(g, slot, sprite, parts));
-    NATIVE_TIME_AS(s, DRAW_COMBATANT, sprite = draw_combatant(g, slot, sprite));
-    NATIVE_TIME_AS(s, DRAW_BEHIND, sprite = draw_behind(s, slot, sprite));
+    TIMED_AS(g, DRAW_IN_FRONT, sprite = draw_in_front(g, slot, sprite));
+    TIMED_AS(g, COPY_TILES, copy_combatant_tiles(g, slot, sprite, parts));
+    TIMED_AS(g, DRAW_COMBATANT, sprite = draw_combatant(g, slot, sprite));
+    TIMED_AS(g, DRAW_BEHIND, sprite = draw_behind(g, slot, sprite));
     return sprite;
 }
 
@@ -570,9 +566,8 @@ static void leave_pass_cells(GameState *g, const DrawList *list, uint8_t last_pa
  * part's attributes, and sets high bits between); the port's order is its
  * own. No battle draws more sprites than the buffer holds; random states do
  * (tools/fuzz_routines.toml, the pass's loose variant). */
-static void draw_objects(Snes *s)
+static void draw_objects(GameState *g)
 {
-    GameState *g = state_of(s);
     DrawList list = build_draw_list(g);
     bool drawn_early[BATTLE_COMBATANTS] = { false };
     unsigned sprite = FIRST_FREE_SPRITE;
@@ -584,16 +579,16 @@ static void draw_objects(Snes *s)
         bool shadow = true;
         if (!drawn_early[slot] && parts != 0) {
             last_parts = parts;
-            sprite = draw_with_effects(s, slot, sprite, parts);
+            sprite = draw_with_effects(g, slot, sprite, parts);
             drawn_early[slot] = list.second_entry[slot];
             shadow = !drawn_early[slot];
             if (drawn_early[slot])
                 ORIGINAL_EFFECT(leave_second_entry_mark(g, slot, DRAWN_AT_FIRST_ENTRY));
         }
         if (shadow)
-            NATIVE_TIME_AS(s, DRAW_SHADOW, sprite = draw_shadow(g, slot, sprite));
+            TIMED_AS(g, DRAW_SHADOW, sprite = draw_shadow(g, slot, sprite));
         if (battle_effects_running(g) && e.own && battle_trail_on(g, slot))
-            NATIVE_TIME_AS(s, DRAW_AFTERIMAGES, sprite = draw_afterimages(s, slot, sprite, last_parts));
+            TIMED_AS(g, DRAW_AFTERIMAGES, sprite = draw_afterimages(g, slot, sprite, last_parts));
     }
     ORIGINAL_EFFECT(leave_pass_cells(g, &list, last_parts, sprite));
 }
@@ -684,7 +679,7 @@ static void drawn_up_to(Snes *s, unsigned sprite)
 
 void battle_draw_objects(Snes *s)
 {
-    draw_objects(s);
+    draw_objects(state_of(s));
     s->cpu.d = BATTLE_PAGE;
     m_rts(s);
 }
@@ -692,7 +687,7 @@ void battle_draw_objects(Snes *s)
 /* X the combatant's object. */
 void battle_draw_shadow(Snes *s) { drawn_up_to(s, draw_shadow(state_of(s), slot_of_object(s->cpu.x), next_free(s))); }
 
-void battle_draw_afterimages(Snes *s) { drawn_up_to(s, draw_afterimages(s, slot_being_drawn(s), next_free(s), parts_last_drawn(s))); }
+void battle_draw_afterimages(Snes *s) { drawn_up_to(s, draw_afterimages(state_of(s), slot_being_drawn(s), next_free(s), parts_last_drawn(s))); }
 
 /* Entered with 16-bit A; leaves 8-bit A. */
 void battle_draw_combatant(Snes *s) { drawn_up_to(s, draw_combatant(state_of(s), slot_being_drawn(s), next_free(s))); }
@@ -703,13 +698,13 @@ void battle_draw_afterimage(Snes *s)
     GameState *g = state_of(s);
     TrailPoint p = { battle_draw_scratch(g, 0x32 - 0x2E), battle_draw_scratch(g, 0x33 - 0x2E), battle_draw_scratch(g, 0x34 - 0x2E),
                      battle_draw_scratch(g, 0x35 - 0x2E) };
-    drawn_up_to(s, draw_afterimage(s, slot_being_drawn(s), next_free(s), p, parts_last_drawn(s)));
+    drawn_up_to(s, draw_afterimage(g, slot_being_drawn(s), next_free(s), p, parts_last_drawn(s)));
 }
 
-void battle_draw_in_front(Snes *s) { drawn_up_to(s, draw_in_front(s, slot_being_drawn(s), next_free(s))); }
+void battle_draw_in_front(Snes *s) { drawn_up_to(s, draw_in_front(state_of(s), slot_being_drawn(s), next_free(s))); }
 void battle_draw_marker(Snes *s) { drawn_up_to(s, draw_marker(state_of(s), slot_being_drawn(s), next_free(s))); }
 void battle_draw_numbers(Snes *s) { drawn_up_to(s, draw_numbers(state_of(s), slot_being_drawn(s), next_free(s))); }
-void battle_draw_behind(Snes *s) { drawn_up_to(s, draw_behind(s, slot_being_drawn(s), next_free(s))); }
+void battle_draw_behind(Snes *s) { drawn_up_to(s, draw_behind(state_of(s), slot_being_drawn(s), next_free(s))); }
 
 /* X the record. */
 void battle_draw_effect(Snes *s) { drawn_up_to(s, draw_effect(state_of(s), s->cpu.x, next_free(s))); }
@@ -739,4 +734,14 @@ void battle_copy_frame_tiles(Snes *s)
     copy_tiles(g, (unsigned)(s->cpu.x - SPRITE_ENTRIES_AT) / SPRITE_BYTES, (unsigned)(s->cpu.y - SPRITE_BUFFER_AT) / SPRITE_BYTES,
                battle_draw_tile_groups(g));
     m_rts(s);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+bool battle_objects_drawn(GameState *g)
+{
+    if (!someone_on_battlefield(g))
+        return battle_needs_the_machine(g, 0xCFE83A, "a draw pass with nobody on the battlefield");
+    draw_objects(g);
+    return true;
 }

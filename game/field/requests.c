@@ -20,6 +20,7 @@
  * The field starts again on a fresh stack, which is the original's to do; so
  * are the routines the answers call out to. */
 #include "field/field.h"
+#include "field/battle_return.h"
 #include "field/battle_start.h"
 #include "field/main_loop.h"
 #include "field/menus.h"
@@ -29,6 +30,7 @@
 #include "field/switches.h"
 #include "field/walk.h"
 
+#include "battle/program.h"
 #include "charge.h"
 #include "core/program.h"
 #include "core/display.h"
@@ -515,45 +517,197 @@ static void battle_over(GameState *g)
     set_field_effect_status(g, (uint8_t)(field_effect_status(g) | FIELD_BATTLE_OVER));
 }
 
-/* Where the battle's setup on the field finds none to fight, the field's turn
- * goes on by the original's jump to it, which returns to the main loop. */
-enum { NO_BATTLE_TURN = DC_A | DC_N | DC_Z };
+/* The battle's steps that are other routines: the battle's start on the
+ * field (field/battle_start.c), which finds none to fight or puts the field
+ * aside; the field's turn where it found none; the layers scrolled into
+ * place and the effects built with the field's setup's values, a frame; the
+ * battle (bank $C1's); the field taken up again (field/battle_return.c); the
+ * switches the party stood on pressed again and the sprites' areas freed;
+ * and the field's turn after it. The program makes them as C, and the
+ * machine's entry from the original's calls. */
+typedef struct {
+    FieldBattleStart (*begins)(void *ctx);
+    bool (*no_battle_turn)(void *ctx);
+    bool (*scroll_the_layers)(void *ctx);
+    bool (*effects_refreshed)(void *ctx);
+    bool (*wait_a_frame)(void *ctx);
+    bool (*fight)(void *ctx);
+    bool (*take_up_the_field)(void *ctx);
+    bool (*press_the_switches)(void *ctx);
+    bool (*free_the_sprite_areas)(void *ctx);
+    bool (*field_turn)(void *ctx);
+} BattleSteps;
 
 // $C0:188C
-/* The layers scrolled into place and the effects built with the field's
- * setup's values, the battle fought (bank $C1's), and the field taken up
- * again: its interrupts, its objects and its turn. False where the port
- * stopped. */
-static bool answer_battle(Snes *s)
+/* The battle fought, and the field taken up again: its interrupts, its
+ * objects and its turn. False where a step went no further. */
+static bool fight_a_battle(GameState *g, const BattleSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    if (!field_run(s, 0xC01890, FIELD_BATTLE_BEGINS_ENTRY, READS_NOTHING, field_battle_begins, on_the_field_page(s, false)))
+    FieldBattleStart start = steps->begins(ctx);
+    if (start == FIELD_BATTLE_START_STOPPED)
         return false;
-    if (m_flag(s, CPU_FLAG_C)) {   /* the setup's answer: no battle */
+    if (start == FIELD_NO_BATTLE) {
         battle_over(g);
-        m_stop_at_own(s, FIELD_TURN, NO_BATTLE_TURN);
-        return false;
+        return steps->no_battle_turn(ctx);
     }
-    if (!field_run_long(s, 0xC01895, SCROLL_LAYERS, READS_NOTHING, field_scroll_layers, on_the_field_page(s, false)))
+    if (!steps->scroll_the_layers(ctx))
         return false;
     set_field_display_flags(g, (uint8_t)(field_display_flags(g) | FIELD_DISPLAY_SETUP));
-    if (!refresh(s, 0xC0189D))
+    if (!steps->effects_refreshed(ctx))
         return false;
     set_field_display_flags(g, (uint8_t)(field_display_flags(g) & ~FIELD_DISPLAY_SETUP));
-    if (!wait_frame(s, 0xC018A4))
-        return false;
-    s->cpu.a = field_frame_wait_leaves_a(g);
-    if (!bridge_call_long(s, 0xC018A7, BATTLE, 0, on_the_field_page(s, false)))
+    if (!steps->wait_a_frame(ctx) || !steps->fight(ctx))
         return false;
     TIMED_AS(g, FIELD_INSTALL_NMI_ENTRY, field_take_the_vblank_interrupt(g));
     TIMED_AS(g, FIELD_INSTALL_IRQ_ENTRY, field_take_the_line_interrupt(g));
     battle_over(g);
-    return call(s, 0xC018C1, FIELD_AFTER_BATTLE, READS_NOTHING) &&
-           field_run(s, 0xC018C4, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, READS_NOTHING,
-                     field_press_the_remembered_switches_entry, on_the_field_page(s, false)) &&
-           field_run(s, 0xC018C7, FREE_SPRITE_AREAS, READS_NOTHING, field_free_every_sprite_area,
-                     on_the_field_page(s, false)) &&
-           call(s, 0xC018CA, FIELD_TURN, READS_NOTHING);
+    return steps->take_up_the_field(ctx) && steps->press_the_switches(ctx) && steps->free_the_sprite_areas(ctx) &&
+           steps->field_turn(ctx);
+}
+
+/* On the machine, each from the original's call of it. Where the battle's
+ * setup on the field finds none to fight, the field's turn goes on by the
+ * original's jump to it, which returns to the main loop. */
+enum { NO_BATTLE_TURN = DC_A | DC_N | DC_Z };
+
+static FieldBattleStart begins_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    if (!field_run(s, 0xC01890, FIELD_BATTLE_BEGINS_ENTRY, READS_NOTHING, field_battle_begins, on_the_field_page(s, false)))
+        return FIELD_BATTLE_START_STOPPED;
+    return m_flag(s, CPU_FLAG_C) ? FIELD_NO_BATTLE : FIELD_BATTLE_SET;
+}
+
+static bool no_battle_turn_on_the_machine(void *ctx)
+{
+    m_stop_at_own(ctx, FIELD_TURN, NO_BATTLE_TURN);
+    return false;
+}
+
+static bool scroll_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run_long(s, 0xC01895, SCROLL_LAYERS, READS_NOTHING, field_scroll_layers, on_the_field_page(s, false));
+}
+
+static bool refresh_before_the_battle_on_the_machine(void *ctx) { return refresh(ctx, 0xC0189D); }
+static bool wait_before_the_battle_on_the_machine(void *ctx) { return wait_frame(ctx, 0xC018A4); }
+
+static bool fight_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    s->cpu.a = field_frame_wait_leaves_a(state_of(s));
+    return bridge_call_long(s, 0xC018A7, BATTLE, 0, on_the_field_page(s, false));
+}
+
+static bool take_up_on_the_machine(void *ctx) { return call(ctx, 0xC018C1, FIELD_AFTER_BATTLE, READS_NOTHING); }
+
+static bool press_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run(s, 0xC018C4, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, READS_NOTHING,
+                     field_press_the_remembered_switches_entry, on_the_field_page(s, false));
+}
+
+static bool free_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run(s, 0xC018C7, FREE_SPRITE_AREAS, READS_NOTHING, field_free_every_sprite_area,
+                     on_the_field_page(s, false));
+}
+
+static bool field_turn_on_the_machine(void *ctx) { return call(ctx, 0xC018CA, FIELD_TURN, READS_NOTHING); }
+
+/* False where the port stopped. */
+static bool answer_battle(Snes *s)
+{
+    static const BattleSteps on_the_machine = {
+        begins_on_the_machine, no_battle_turn_on_the_machine, scroll_on_the_machine,
+        refresh_before_the_battle_on_the_machine, wait_before_the_battle_on_the_machine, fight_on_the_machine,
+        take_up_on_the_machine, press_on_the_machine, free_on_the_machine, field_turn_on_the_machine,
+    };
+    return fight_a_battle(state_of(s), &on_the_machine, s);
+}
+
+/* As C, each with its guard's state half first. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} BattleAsC;
+
+static FieldBattleStart battle_begins(void *ctx)
+{
+    BattleAsC *c = ctx;
+    FieldBattleStart start = FIELD_BATTLE_START_STOPPED;
+    TIMED_AS(c->game, FIELD_BATTLE_BEGINS_ENTRY, start = field_battle_set_up(c->game, c->pf));
+    return start;
+}
+
+static bool walk_a_frame(void *ctx)
+{
+    BattleAsC *c = ctx;
+    return field_walked_a_frame(c->game, c->pf);
+}
+
+static bool scroll_the_layers(void *ctx)
+{
+    TIMED_AS(((BattleAsC *)ctx)->game, SCROLL_LAYERS, field_scroll_layers_by_themselves(((BattleAsC *)ctx)->game));
+    return true;
+}
+
+static bool refresh_the_effects(void *ctx)
+{
+    BattleAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(c->game));
+    return done;
+}
+
+static bool wait_for_the_frame(void *ctx)
+{
+    BattleAsC *c = ctx;
+    TIMED_AS(c->game, FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
+    return true;
+}
+
+static bool fight(void *ctx)
+{
+    BattleAsC *c = ctx;
+    return battle_fought(c->game, c->pf);
+}
+
+static bool take_up_the_field(void *ctx)
+{
+    BattleAsC *c = ctx;
+    return field_taken_up_after_battle(c->game, c->pf);
+}
+
+static bool press_the_switches(void *ctx)
+{
+    GameState *g = ((BattleAsC *)ctx)->game;
+    if (!field_remembered_switches_on_the_map(g)) {
+        program_needs_the_machine(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "remembered switches off the map");
+        return false;
+    }
+    TIMED_AS(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, field_press_the_remembered_switches(g));
+    return true;
+}
+
+static bool free_the_sprite_areas(void *ctx)
+{
+    GameState *g = ((BattleAsC *)ctx)->game;
+    TIMED_AS(g, FREE_SPRITE_AREAS, sprites_free_every_frame_area(g));
+    return true;
+}
+
+static FieldPass a_battle_fought(GameState *g, Platform *pf)
+{
+    static const BattleSteps as_c = {
+        battle_begins, walk_a_frame, scroll_the_layers, refresh_the_effects, wait_for_the_frame, fight,
+        take_up_the_field, press_the_switches, free_the_sprite_areas, walk_a_frame,
+    };
+    BattleAsC c = { g, pf };
+    return fight_a_battle(g, &as_c, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
 }
 
 /* ---- The entry ------------------------------------------------------------------------------ */
@@ -624,10 +778,8 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
         TileCopyAsC c = { g, pf };
         return copy_the_tiles(g, tile_copy_call, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
     }
-    if (asked(g, FIELD_REQUEST_BATTLE)) {
-        program_needs_the_machine(g, 0xC0188C, "a battle");
-        return FIELD_PASS_STOPS;
-    }
+    if (asked(g, FIELD_REQUEST_BATTLE))
+        return a_battle_fought(g, pf);
     return FIELD_PASS_GOES_ON;
 }
 

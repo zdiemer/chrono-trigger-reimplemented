@@ -327,11 +327,18 @@ void battle_screen_whiten_palette(Snes *s);
 void battle_screen_whiten_high_rows(Snes *s);
 void battle_screen_move_rows_up(Snes *s);
 void battle_screen_move_rows_down(Snes *s);
-void battle_pause_palette_animation(Snes *s);
+void battle_pause_palette_animation_entry(Snes *s);
+/* The palette animations paused with the battle, or let run again ($D1:F426). */
+void battle_pause_palette_animation(GameState *g);
+enum { BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY = 0xD1F426 };
 void battle_save_palette_kinds(Snes *s);
 
 /* screen_gradient.c */
-void battle_step_hp_gradient(Snes *s);
+void battle_step_hp_gradient_entry(Snes *s);
+/* The HP gradient's step ($D1:EA4B), and its guard's state half: its phase
+ * in range. */
+void battle_step_hp_gradient(GameState *g);
+bool battle_hp_gradient_steps(const GameState *g);
 void battle_find_gradient_phase(Snes *s);
 void battle_gradient_row_rotation(Snes *s);
 void battle_write_gradient_row(Snes *s);
@@ -396,5 +403,13 @@ void battle_set_palette_preset(Snes *s);
 /* screen_setup.c */
 void battle_build_fade_tables(Snes *s);
 void battle_set_the_screen_up(Snes *s);
+/* The screen set up as a battle starts ($D1:F1B0), as C. False where it went
+ * no further. */
+bool battle_screen_set_up(GameState *g, Platform *pf);
+/* The battle's display closed down as the party leaves ($CD:0006,
+ * battle/closing.c), as C. False where it went no further. */
+bool battle_display_closed(GameState *g, Platform *pf);
+/* The battle window opened as the battle starts ($CD:000C), as C. */
+bool battle_window_opened(GameState *g, Platform *pf);
 
 #endif

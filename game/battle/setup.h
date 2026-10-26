@@ -13,9 +13,17 @@
 #include "vars.h"
 
 /* The registered entries (battle/setup.c). */
-void battle_setup_state(Snes *s);
-void battle_setup_graphics(Snes *s);
+void battle_setup_state_entry(Snes *s);
+void battle_setup_graphics_entry(Snes *s);
 bool battle_setup_inputs_are_real(Snes *s);
+
+/* The battle's state set up ($CC:E2E4), and the objects' graphics
+ * ($CC:ED87), whose load the vblank handler then makes a step a frame; and
+ * the state's guard's state half: a party, enemies and remembered cursors
+ * the game makes. */
+void battle_setup_state(GameState *g);
+void battle_setup_graphics(GameState *g);
+bool battle_setup_inputs_fit(const GameState *g);
 bool battle_setup_parts_fit(Snes *s);
 
 /* ---- What the pieces share -------------------------------------------------------------- */

@@ -26,6 +26,7 @@
 
 #include "battle/battle.h"
 #include "original_effects.h"
+#include "platform/platform.h"
 #include "state.h"
 #include "vars.h"
 
@@ -155,6 +156,11 @@ enum { BATTLE_GAUGE_MEMBER = 0x80 };
  * numbers and the gauges (status.c, $C1:05A7). The numbers are left alone
  * while a command window covers them. */
 void battle_redraw_window(GameState *g);
+/* Its guard's state half: the menu's state as the game keeps it. */
+bool battle_window_fits(const GameState *g);
+/* ... and the tech lists as the game keeps them, which the menu window's
+ * tech page takes on trust (battle/menu_window.c). */
+bool battle_menu_window_fits(const GameState *g);
 void battle_show_party_status(GameState *g);
 bool battle_status_numbers_covered(const GameState *g, WindowLayout layout);
 
@@ -173,6 +179,9 @@ void battle_move_cursors_away(GameState *g);
 /* Ask for the battle window's lower rows, where the item list is, to be sent
  * in the next vblank (uploads.c, $CF:FD6A). */
 void battle_send_lower_window_rows(GameState *g);
+/* The window's rows sent ($CF:FD02), and its saved rows ($CF:FD36). */
+void battle_send_window_rows(GameState *g);
+void battle_send_saved_window_rows(GameState *g);
 
 /* ---- Numbers as digit tiles (digits.c) ------------------------------------------------ */
 
@@ -244,5 +253,11 @@ static inline void battle_leave_work16(GameState *g, uint8_t cell, uint16_t v)
 /* What drawing a member's numbers leaves: its stat block where the original
  * works from it, and whether they are shaded (window.c). */
 void battle_leave_member_drawn(GameState *g, unsigned member, bool shaded);
+
+/* The menu window drawn for the page that is open ($C1:0C2D), and the
+ * cursors over the battlefield placed ($C1:17DD), as C: false where they went
+ * no further. */
+bool battle_menu_window_drawn(GameState *g, Platform *pf);
+bool battle_menu_cursors_placed(GameState *g, Platform *pf);
 
 #endif

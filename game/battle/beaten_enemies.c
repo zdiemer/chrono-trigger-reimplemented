@@ -29,6 +29,11 @@
 #include "battle/animation_data.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
+#include "battle/program.h"
+#include "battle/sound.h"
+#include "battle/wait.h"
+#include "battle/frame.h"
+#include "platform/video.h"
 #include "battle/entries.h"
 #include "battle/frame.h"
 #include "battle/frame_data.h"
@@ -147,17 +152,37 @@ static uint32_t tiles_of(const GameState *g, uint8_t slot)
     return (uint32_t)TILE_BUFFER_BANK << 16 | battle_object_tile_buffer(g, slot);
 }
 
+/* Seeing an enemy off calls, each where the original makes it: the frame
+ * work's waits (battle/wait.c) and its tail ($CD:0009), a sound (battle/
+ * sound.c), the dissolve's steps sent to VRAM and waited for, the
+ * battlefield loaded and its scripts run (battle/battlefield_change.c), the
+ * dissolve and the battlefield's change as routines of their own under a
+ * rule, and what the original keeps on the stack around the battlefield's
+ * wait for the old scripts. */
+typedef enum {
+    BEATEN_STILL_FRAMES, BEATEN_STEPS_SENT, BEATEN_DISSOLVE_TAIL, BEATEN_SOUND,
+    BEATEN_OLD_SCRIPTS_BEGIN, BEATEN_OLD_SCRIPTS_FRAME, BEATEN_OLD_SCRIPTS_GONE, BEATEN_LOAD_THE_BATTLEFIELD,
+    BEATEN_NEW_SCRIPTS_FRAME, BEATEN_NEW_SCRIPTS_TAIL, BEATEN_RULE_DISSOLVE, BEATEN_RULE_CHANGE,
+    BEATEN_SEE_OFF_FRAME, BEATEN_SEE_OFF_TAIL,
+} BeatenCall;
+typedef struct {
+    uint8_t slot, pan, battlefield;
+    uint16_t vram, bytes;
+} BeatenArgs;
+typedef bool (*BeatenCalls)(void *ctx, BeatenCall call, BeatenArgs args);
+
+static bool beaten_call(BeatenCalls call, void *ctx, BeatenCall what) { return call(ctx, what, (BeatenArgs){ 0 }); }
+
 // $CD:00A0
 /* An enemy dissolves: where no rule holds, its colors start to fade to white;
  * it holds still for a sixth of a second, then dissolves, each frame's two
  * steps sent to the enemy's place in VRAM and waited for. */
-static bool dissolve(Snes *s, uint8_t slot)
+static bool dissolve(GameState *g, uint8_t slot, BeatenCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     ORIGINAL_EFFECT(set_battle_dissolve_pace(g, DISSOLVE_PACE));
     if (!battle_enemy_rule(g))
         battle_fade_through_the_preset(g, battle_dissolve_fade_kind(g), battle_dissolve_fade(g));
-    if (!battle_wait_frames(s, 0xCD00C1, BATTLE_SOME_FRAMES_WAIT, BATTLE_COUNTING_WAIT_READS, STILL_FRAMES))
+    if (!beaten_call(call, ctx, BEATEN_STILL_FRAMES))
         return false;
     uint8_t place = 0;
     uint16_t vram = setup_upload_vram(g, FIRST_UPLOAD, slot);
@@ -166,8 +191,8 @@ static bool dissolve(Snes *s, uint8_t slot)
             TIMED_AS(g, 0xCD010A, place = dissolve_a_step(g, slot, DISSOLVE_PACE, place));
         leave_the_step_over_the_effect_settings(g, slot);
         ORIGINAL_EFFECT(leave_the_frame(g, slot, frame, place));
-        if (!battle_send_and_wait(s, 0xCD00F8, tiles_of(g, slot), vram, battle_dissolve_bytes(g, battle_object_kind(g, slot)))
-            || !battle_run_long(s, 0xCD00FB, 0xCD04AA, battle_frame_wait_tail))
+        BeatenArgs sent = { .slot = slot, .vram = vram, .bytes = battle_dissolve_bytes(g, battle_object_kind(g, slot)) };
+        if (!call(ctx, BEATEN_STEPS_SENT, sent) || !beaten_call(call, ctx, BEATEN_DISSOLVE_TAIL))
             return false;
     }
     ORIGINAL_EFFECT(set_battle_dissolve_frames(g, DISSOLVE_FRAMES));
@@ -178,37 +203,30 @@ static bool dissolve(Snes *s, uint8_t slot)
 enum { DISSOLVE_SOUND = 0x95 };
 
 // $CD:0093
-static bool dissolve_with_a_sound(Snes *s, uint8_t slot)
+static bool dissolve_with_a_sound(GameState *g, uint8_t slot, BeatenCalls call, void *ctx)
 {
-    if (!battle_play_a_sound_from(s, 0xCD009D, DISSOLVE_SOUND, combatant_x(state_of(s), slot),
-                                  battle_carrying(BATTLE_CARRY_AS_IT_IS)))
+    if (!call(ctx, BEATEN_SOUND, (BeatenArgs){ .pan = combatant_x(g, slot) }))
         return false;
-    return dissolve(s, slot);
+    return dissolve(g, slot, call, ctx);
 }
 
 /* ---- An enemy's battlefield ------------------------------------------------------------------- */
 
 // $CD:0E05, with $CD:0DFA
 /* An enemy leaving changes the battlefield, once the screen scripts running
- * have ended, and waits until the new battlefield's own have. The original
- * keeps the battlefield on the stack while it waits for the old scripts, in a
- * subroutine of its own, and loads it from A as its TAX takes it, high byte
- * and all. */
-static bool change_the_battlefield(Snes *s, uint8_t battlefield)
+ * have ended, and waits until the new battlefield's own have. */
+static bool change_the_battlefield(GameState *g, uint8_t battlefield, BeatenCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
-    BattleFrame kept = battle_keeping_byte(battlefield, BATTLE_CARRY_AS_IT_IS);
-    battle_keep(s, kept);
-    battle_push_the_return(s, 0xCD0E06);
-    while (battle_screen_scripts_running(g))
-        if (!battle_wait_for_the_next_frame_from(s, 0xCD0DFF))
-            return false;
-    battle_pull_the_return(s);
-    battle_stop_keeping(s, kept);
-    if (!battle_load_and_run_battlefield(s, 0xCD0E0B, (uint16_t)((s->cpu.a & 0xFF00) | battlefield)))
+    BeatenArgs args = { .battlefield = battlefield };
+    if (!call(ctx, BEATEN_OLD_SCRIPTS_BEGIN, args))
         return false;
     while (battle_screen_scripts_running(g))
-        if (!battle_wait_for_the_next_frame_from(s, 0xCD0E19) || !battle_run_long(s, 0xCD0E1C, 0xCD04AA, battle_frame_wait_tail))
+        if (!beaten_call(call, ctx, BEATEN_OLD_SCRIPTS_FRAME))
+            return false;
+    if (!call(ctx, BEATEN_OLD_SCRIPTS_GONE, args) || !call(ctx, BEATEN_LOAD_THE_BATTLEFIELD, args))
+        return false;
+    while (battle_screen_scripts_running(g))
+        if (!beaten_call(call, ctx, BEATEN_NEW_SCRIPTS_FRAME) || !beaten_call(call, ctx, BEATEN_NEW_SCRIPTS_TAIL))
             return false;
     return true;
 }
@@ -225,20 +243,13 @@ static void take_bg1_off_the_main_screen(GameState *g)
     set_field_line_screens_main_layers(g, OUTSIDE_THE_WINDOW, (uint8_t)(battle_screen_settings(g, MAIN_SCREEN) & ~BG1));
 }
 
-/* What the original's calls of the dissolve and of the battlefield's change
- * don't read: the index registers and the flags, and of the dissolve's A the
- * low byte. */
-enum { DISSOLVE_READS = DC_AL | DC_X | DC_Y | DC_FLAGS, CHANGE_READS = DC_X | DC_Y | DC_FLAGS };
-
 // $CD:006B
-static bool dissolve_under_the_rule(Snes *s)
+static bool dissolve_under_the_rule(GameState *g, BeatenCalls call, void *ctx)
 {
-    if (!battle_run_long_dc(s, 0xCD006F, 0xCD00A0, DISSOLVE_READS, battle_dissolve_an_enemy))
+    if (!beaten_call(call, ctx, BEATEN_RULE_DISSOLVE)
+        || !call(ctx, BEATEN_RULE_CHANGE, (BeatenArgs){ .battlefield = RULE_BATTLEFIELD }))
         return false;
-    m_set_a8(s, RULE_BATTLEFIELD);
-    if (!battle_run_long_dc(s, 0xCD0075, 0xCD0E05, CHANGE_READS, battle_change_battlefield_as_an_enemy_leaves))
-        return false;
-    take_bg1_off_the_main_screen(state_of(s));
+    take_bg1_off_the_main_screen(g);
     return true;
 }
 
@@ -264,23 +275,65 @@ static WayOut way_out(const GameState *g, uint8_t slot)
 }
 
 // $CD:0043 (through $CD:0024)
-static bool see_off(Snes *s, uint8_t slot)
+static bool see_off(GameState *g, uint8_t slot, BeatenCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     set_battle_ended_effect_object(g, slot);
     do
-        if (!battle_wait_for_the_next_frame_from(s, 0xCD0046) || !battle_run_long(s, 0xCD0049, 0xCD04AA, battle_frame_wait_tail))
+        if (!beaten_call(call, ctx, BEATEN_SEE_OFF_FRAME) || !beaten_call(call, ctx, BEATEN_SEE_OFF_TAIL))
             return false;
     while (battle_background_restore_request(g));
     switch (way_out(g, slot)) {
-    case DISSOLVES_UNDER_THE_RULE:
-        return dissolve_under_the_rule(s);
-    case CHANGES_THE_BATTLEFIELD:
-        return change_the_battlefield(s, FAMILY_BATTLEFIELD);
-    case DISSOLVES:
-        break;
+    case DISSOLVES_UNDER_THE_RULE: return dissolve_under_the_rule(g, call, ctx);
+    case CHANGES_THE_BATTLEFIELD: return change_the_battlefield(g, FAMILY_BATTLEFIELD, call, ctx);
+    case DISSOLVES: break;
     }
-    return dissolve_with_a_sound(s, slot);
+    return dissolve_with_a_sound(g, slot, call, ctx);
+}
+
+/* On the machine: the waits for the old scripts are a subroutine of the
+ * change's own, called with the battlefield kept on the stack; the
+ * battlefield is loaded from A as its TAX takes it, high byte and all. What
+ * the original's calls of the dissolve and of the battlefield's change don't
+ * read: the index registers and the flags, and of the dissolve's A the low
+ * byte. */
+enum { DISSOLVE_READS = DC_AL | DC_X | DC_Y | DC_FLAGS, CHANGE_READS = DC_X | DC_Y | DC_FLAGS };
+
+/* The frame work's tail's calls, by where the original makes them. */
+static uint32_t tail_site(BeatenCall call)
+{
+    return call == BEATEN_DISSOLVE_TAIL ? 0xCD00FB : call == BEATEN_NEW_SCRIPTS_TAIL ? 0xCD0E1C : 0xCD0049;
+}
+
+static bool beaten_on_the_machine(void *ctx, BeatenCall call, BeatenArgs a)
+{
+    Snes *s = ctx;
+    GameState *g = state_of(s);
+    switch (call) {
+    case BEATEN_STILL_FRAMES:
+        return battle_wait_frames(s, 0xCD00C1, BATTLE_SOME_FRAMES_WAIT, BATTLE_COUNTING_WAIT_READS, STILL_FRAMES);
+    case BEATEN_STEPS_SENT: return battle_send_and_wait(s, 0xCD00F8, tiles_of(g, a.slot), a.vram, a.bytes);
+    case BEATEN_DISSOLVE_TAIL:
+    case BEATEN_NEW_SCRIPTS_TAIL:
+    case BEATEN_SEE_OFF_TAIL: return battle_run_long(s, tail_site(call), 0xCD04AA, battle_frame_wait_tail);
+    case BEATEN_SOUND: return battle_play_a_sound_from(s, 0xCD009D, DISSOLVE_SOUND, a.pan, battle_carrying(BATTLE_CARRY_AS_IT_IS));
+    case BEATEN_OLD_SCRIPTS_BEGIN:
+        battle_keep(s, battle_keeping_byte(a.battlefield, BATTLE_CARRY_AS_IT_IS));
+        battle_push_the_return(s, 0xCD0E06);
+        return true;
+    case BEATEN_OLD_SCRIPTS_GONE:
+        battle_pull_the_return(s);
+        battle_stop_keeping(s, battle_keeping_byte(a.battlefield, BATTLE_CARRY_AS_IT_IS));
+        return true;
+    case BEATEN_LOAD_THE_BATTLEFIELD:
+        return battle_load_and_run_battlefield_on_the_machine(s, 0xCD0E0B, (uint16_t)((s->cpu.a & 0xFF00) | a.battlefield));
+    case BEATEN_RULE_DISSOLVE: return battle_run_long_dc(s, 0xCD006F, 0xCD00A0, DISSOLVE_READS, battle_dissolve_an_enemy);
+    case BEATEN_RULE_CHANGE:
+        m_set_a8(s, a.battlefield);
+        return battle_run_long_dc(s, 0xCD0075, 0xCD0E05, CHANGE_READS, battle_change_battlefield_as_an_enemy_leaves);
+    case BEATEN_OLD_SCRIPTS_FRAME: return battle_wait_for_the_next_frame_from(s, 0xCD0DFF);
+    case BEATEN_NEW_SCRIPTS_FRAME: return battle_wait_for_the_next_frame_from(s, 0xCD0E19);
+    default: return battle_wait_for_the_next_frame_from(s, 0xCD0046);
+    }
 }
 
 /* ---- The beaten enemies ---------------------------------------------------------------------- */
@@ -332,18 +385,9 @@ static void leave_the_copy(GameState *g, uint8_t slot)
     set_battle_work(g, LEFT_ENEMY + 1, 0);
 }
 
-/* What the original's call to see an enemy off doesn't read: the index
- * registers and the flags. It keeps the enemy's slot on the stack across it,
- * and calls with the slot in A. */
-enum { SEEING_OFF_READS = DC_X | DC_Y | DC_FLAGS };
-
-static bool call_to_see_off(Snes *s, uint8_t slot)
-{
-    s->cpu.a = slot;
-    ORIGINAL_EFFECT(leave_the_copy(state_of(s), slot));
-    return battle_run_long_dc_under(s, 0xCFFE76, 0xCD0024, SEEING_OFF_READS, battle_see_off_an_enemy,
-                                    battle_keeping_word(slot, BATTLE_CARRY_AS_IT_IS));
-}
+/* Seeing an enemy off is a routine of its own ($CD:0024, above), called
+ * with the enemy. */
+typedef bool (*SeeOff)(void *ctx, uint8_t slot);
 
 /* After the search, where the last enemy it found drawn stayed on the field
  * (none seen off after it), the record's place it worked out stays in its
@@ -354,19 +398,15 @@ typedef struct {
     uint8_t slot;
 } KeptEnemy;
 
-static void leave_the_search(Snes *s, KeptEnemy last_kept)
+static void leave_the_search(GameState *g, KeptEnemy last_kept)
 {
-    if (!last_kept.any)
-        return;
-    s->cpu.a = last_kept.slot;
-    ORIGINAL_EFFECT(set_battle_work(state_of(s), LEFT_RECORD_QUARTERS,
-                                    (uint8_t)((last_kept.slot - BATTLE_FIRST_ENEMY) * RECORD_QUARTERS)));
+    if (last_kept.any)
+        ORIGINAL_EFFECT(set_battle_work(g, LEFT_RECORD_QUARTERS, (uint8_t)((last_kept.slot - BATTLE_FIRST_ENEMY) * RECORD_QUARTERS)));
 }
 
 // $CF:FE20
-static bool see_the_beaten_enemies_off(Snes *s)
+static bool see_the_beaten_enemies_off(GameState *g, SeeOff see_off_an_enemy, void *ctx, KeptEnemy *kept)
 {
-    GameState *g = state_of(s);
     KeptEnemy last_kept = { false, 0 };
     for (uint8_t slot = BATTLE_COMBATANTS - 1; slot >= BATTLE_FIRST_ENEMY; slot--) {
         unsigned enemy = (unsigned)(slot - BATTLE_FIRST_ENEMY);
@@ -381,31 +421,52 @@ static bool see_the_beaten_enemies_off(Snes *s)
                 }
                 last_kept.any = false;
                 take_the_dying_palette(g, slot);
-                if (!call_to_see_off(s, slot))
+                ORIGINAL_EFFECT(leave_the_copy(g, slot));
+                if (!see_off_an_enemy(ctx, slot))
                     return false;
             }
         }
         set_battle_slot_present(g, slot, 0);
     }
-    leave_the_search(s, last_kept);
+    leave_the_search(g, last_kept);
+    *kept = last_kept;
     return true;
+}
+
+/* On the machine: what the original's call to see an enemy off doesn't
+ * read: the index registers and the flags. It keeps the enemy's slot on the
+ * stack across it, and calls with the slot in A. */
+enum { SEEING_OFF_READS = DC_X | DC_Y | DC_FLAGS };
+
+static bool see_off_on_the_machine(void *ctx, uint8_t slot)
+{
+    Snes *s = ctx;
+    s->cpu.a = slot;
+    return battle_run_long_dc_under(s, 0xCFFE76, 0xCD0024, SEEING_OFF_READS, battle_see_off_an_enemy,
+                                    battle_keeping_word(slot, BATTLE_CARRY_AS_IT_IS));
 }
 
 /* ---- The entries ------------------------------------------------------------------------------ */
 
 /* The search ends past the first enemy place, with the carry its last
  * compare leaves set, which the step's asker reads. */
+/* Where the last enemy found drawn stayed on the field (none seen off after
+ * it), its slot is left in A, which leaves A's high byte clear for the step's
+ * asker; otherwise the last call to see an enemy off left it. */
 void battle_see_off_the_beaten_enemies(Snes *s)
 {
-    if (!see_the_beaten_enemies_off(s))
+    KeptEnemy last_kept;
+    if (!see_the_beaten_enemies_off(state_of(s), see_off_on_the_machine, s, &last_kept))
         return;
+    if (last_kept.any)
+        s->cpu.a = last_kept.slot;
     m_set_flag(s, CPU_FLAG_C, true);
     m_rtl(s);
 }
 
 // $C1:006D
 /* The battle's step 6: the work, from its long call. */
-void battle_see_to_the_beaten_enemies(Snes *s)
+void battle_see_to_the_beaten_enemies_entry(Snes *s)
 {
     if (!battle_run_long(s, 0xC1006D, 0xCFFE20, battle_see_off_the_beaten_enemies))
         return;
@@ -415,14 +476,14 @@ void battle_see_to_the_beaten_enemies(Snes *s)
 /* The enemy comes in A. */
 void battle_see_off_an_enemy(Snes *s)
 {
-    if (see_off(s, (uint8_t)s->cpu.a))
+    if (see_off(state_of(s), (uint8_t)s->cpu.a, beaten_on_the_machine, s))
         m_rtl(s);
 }
 
 /* The enemy is the one being seen off. */
 void battle_dissolve_an_enemy(Snes *s)
 {
-    if (dissolve(s, battle_ended_effect_object(state_of(s))))
+    if (dissolve(state_of(s), battle_ended_effect_object(state_of(s)), beaten_on_the_machine, s))
         m_rtl(s);
 }
 
@@ -444,7 +505,7 @@ void battle_dissolve_a_step(Snes *s)
 /* The battlefield comes in A. */
 void battle_change_battlefield_as_an_enemy_leaves(Snes *s)
 {
-    if (change_the_battlefield(s, (uint8_t)s->cpu.a))
+    if (change_the_battlefield(state_of(s), (uint8_t)s->cpu.a, beaten_on_the_machine, s))
         m_rtl(s);
 }
 
@@ -502,4 +563,64 @@ bool battle_seeing_off_the_beaten(Snes *s)
     bool ok = palettes_as_kept(state_of(s));
     vars_peek(false);
     return battle_on_page(s) && ok;
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} BeatenAsC;
+
+/* Each with its guard's state half: the dissolve's, an enemy whose tiles'
+ * layout the dissolve's runs have. */
+static bool see_to_a_part(void *ctx, BeatenCall call, BeatenArgs a)
+{
+    BeatenAsC *c = ctx;
+    GameState *g = c->game;
+    bool done = false;
+    switch (call) {
+    case BEATEN_STILL_FRAMES: TIMED_AS(g, BATTLE_SOME_FRAMES_WAIT, done = battle_wait_some_frames(g, c->pf, STILL_FRAMES)); return done;
+    case BEATEN_STEPS_SENT:
+        vid_send_vram_and_wait(c->pf, PF_CALL_DC(0xCD00F8, BATTLE_SEND, BATTLE_SEND_READS), a.vram,
+                               PF_GAME(tiles_of(g, a.slot)), a.bytes);
+        return true;
+    case BEATEN_DISSOLVE_TAIL:
+    case BEATEN_NEW_SCRIPTS_TAIL:
+    case BEATEN_SEE_OFF_TAIL: TIMED_AS(g, 0xCD04AA, done = battle_frame_wait_finished(g, c->pf)); return done;
+    case BEATEN_SOUND: TIMED_AS(g, BATTLE_PLAY_A_SOUND_ENTRY, battle_play_a_sound(c->pf, DISSOLVE_SOUND, a.pan)); return true;
+    case BEATEN_OLD_SCRIPTS_BEGIN:
+    case BEATEN_OLD_SCRIPTS_GONE: return true;
+    case BEATEN_LOAD_THE_BATTLEFIELD: return battle_load_and_run_battlefield(g, c->pf, a.battlefield);
+    case BEATEN_RULE_DISSOLVE:
+        if (!dissolves(g, battle_ended_effect_object(g)))
+            return battle_needs_the_machine(g, 0xCD00A0, "an enemy whose dissolve the port doesn't run");
+        TIMED_AS(g, 0xCD00A0, done = dissolve(g, battle_ended_effect_object(g), see_to_a_part, ctx));
+        return done;
+    case BEATEN_RULE_CHANGE: TIMED_AS(g, 0xCD0E05, done = change_the_battlefield(g, a.battlefield, see_to_a_part, ctx)); return done;
+    default: TIMED_AS(g, BATTLE_NEXT_FRAME_WAIT, done = battle_wait_for_the_next_frame(g, c->pf)); return done;
+    }
+}
+
+static bool see_off_one(void *ctx, uint8_t slot)
+{
+    BeatenAsC *c = ctx;
+    if (!dissolves(c->game, slot))
+        return battle_needs_the_machine(c->game, 0xCD0024, "an enemy whose dissolve the port doesn't run");
+    bool done = false;
+    TIMED_AS(c->game, 0xCD0024, done = see_off(c->game, slot, see_to_a_part, ctx));
+    return done;
+}
+
+// $C1:006D
+/* The battle's step 6: the beaten enemies seen off. */
+bool battle_see_to_the_beaten_enemies(GameState *g, Platform *pf)
+{
+    if (!palettes_as_kept(g))
+        return battle_needs_the_machine(g, 0xCFFE20, "a beaten enemy's palette past the sprites'");
+    BeatenAsC c = { g, pf };
+    KeptEnemy last_kept;
+    bool done = false;
+    TIMED_AS(g, 0xCFFE20, done = see_the_beaten_enemies_off(g, see_off_one, &c, &last_kept));
+    return done;
 }

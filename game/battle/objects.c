@@ -20,6 +20,7 @@
 #include "battle/arith.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
+#include "battle/program.h"
 #include "battle/entries.h"
 #include "battle/script_language.h"
 #include "charge.h"
@@ -295,12 +296,12 @@ bool battle_scheduler_in_place(Snes *s)
     return battle_on_page(s) && in_place && known;
 }
 
+// $C1:4212
 /* Each slot's position is the place its mode names (battle/script_places.c),
- * worked out afresh. A mode naming a place the game doesn't have is the
- * original's to work out ($C1:762E, which picks it by the mode in A). */
-void battle_update_animation_positions(Snes *s)
+ * worked out afresh. A mode naming a place battle/script_places.c doesn't find
+ * is worked out by the original's routine ($C1:762E, `other_place`), by the mode. */
+static bool update_animation_positions(GameState *g, bool (*other_place)(void *ctx, uint8_t place), void *ctx)
 {
-    GameState *g = state_of(s);
     for (unsigned slot = 0; slot < POSITION_SLOTS; slot++) {
         ORIGINAL_EFFECT(leave_position_slot(g, slot));
         uint8_t place;
@@ -310,14 +311,39 @@ void battle_update_animation_positions(Snes *s)
         if (script_place_known(g, place)) {
             at = script_find_place(g, place);
         } else {
-            s->cpu.a = place;
-            if (!battle_call(s, 0xC1421E, 0xC1762E, DC_X | DC_Y | DC_N | DC_Z | DC_C))
-                return;
+            if (!other_place(ctx, place))
+                return false;
             at = (BattlePoint){ battle_position_found_x(g), battle_position_found_y(g) };
         }
         keep_found_position(g, slot, at);
     }
     battle_leave_jump_lift(g, POSITION_SLOTS);
     ORIGINAL_EFFECT(set_battle_work(g, LEFT_POSITION_SLOT + 1, 0));
-    m_rts(s);
+    return true;
+}
+
+/* On the machine the original's picks the place by the mode in A. */
+static bool other_place_on_the_machine(void *ctx, uint8_t place)
+{
+    Snes *s = ctx;
+    s->cpu.a = place;
+    return battle_call(s, 0xC1421E, 0xC1762E, DC_X | DC_Y | DC_N | DC_Z | DC_C);
+}
+
+void battle_update_animation_positions_entry(Snes *s)
+{
+    if (update_animation_positions(state_of(s), other_place_on_the_machine, s))
+        m_rts(s);
+}
+
+static bool place_with_no_port(void *ctx, uint8_t place)
+{
+    (void)place;
+    return battle_needs_the_machine(ctx, 0xC1762E, "a place the scripts follow that the port doesn't find");
+}
+
+bool battle_update_animation_positions(GameState *g, Platform *pf)
+{
+    (void)pf;
+    return update_animation_positions(g, place_with_no_port, g);
 }

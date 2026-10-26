@@ -136,6 +136,16 @@ void scene_upload_plane_half(Platform *pf)
 
 /* ---- Where the setup calls the original's code ------------------------------------------------- */
 
+/* The setup's calls: the race's song started (the program's call of the
+ * driver), the graphics' loading entered and left as a call of the program's
+ * own (on the machine, its return on the stack), a resource unpacked by the
+ * program's unpacker (scene/boot.c) from the setup's call (`unpacking`, its
+ * place in unpacked_at, below), or with the data bank and direct page kept
+ * across it, and the camera script's first step. False where one went no
+ * further. */
+typedef enum { RACE_SONG_STARTS, RACE_GRAPHICS_ENTERED, RACE_GRAPHICS_LEFT, RACE_UNPACK, RACE_UNPACK_HOLDING, RACE_FIRST_STEP } RaceCall;
+typedef bool (*RaceCalls)(void *ctx, RaceCall call, unsigned unpacking, uint16_t resource);
+
 /* The direct page and the data bank the original has at a call. */
 static void on_page(Snes *s, uint16_t page, uint8_t bank)
 {
@@ -242,10 +252,13 @@ static const RaceGraphics race_graphics[] = {
     { 0x21, LAYER_MAP, BG2_MAP_VRAM, 0x7E3EA3 },
 };
 
-/* The program's call that unpacks each, beside the table. */
-static const uint32_t race_graphics_unpacked_at[] = {
+/* The program's calls that unpack each, beside the table, and then the
+ * racers' pictures' three (below). The setup names a call by its place here. */
+static const uint32_t unpacked_at[] = {
     0x7E3DBF, 0x7E3DD1, 0x7E3DEA, 0x7E3DF7, 0x7E3E19, 0x7E3E29, 0x7E3E39, 0x7E3E7D, 0x7E3E93, 0x7E3EA9,
+    0x7E3B69, 0x7E3B75, 0x7E3BEF,
 };
+enum { CRONO_FIRST_UNPACKED = 10, CRONO_SECOND_UNPACKED = 11, THIRD_UNPACKED = 12 };
 enum { RACE_GRAPHICS = sizeof race_graphics / sizeof race_graphics[0] };
 
 /* A layer's map is the first $800 bytes of what its resource unpacks to. */
@@ -278,34 +291,34 @@ void scene_double_plane_rows(GameState *g)
 /* One of the race's graphics: VRAM pointed at it, unpacked (a call-out: the
  * unpacker is still the original's, from the program's call at
  * `unpack_site`), and sent or kept. */
-static void load_graphics(Snes *s, uint32_t unpack_site, const RaceGraphics *r)
+static bool load_graphics(GameState *g, Platform *pf, unsigned unpacking, const RaceGraphics *r, RaceCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     if (r->vram_site)
         vid_set_vram_address(pf, PF_AT(r->vram_site), r->vram);
-    unpack(s, unpack_site, r->resource);
+    if (!call(ctx, RACE_UNPACK, unpacking, r->resource))
+        return false;
     switch (r->kind) {
     case INTO_PALETTE:
         wram_copy(g, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | UNPACKED_PALETTE, SCENE_PALETTE, PALETTE_BYTES);
         ORIGINAL_EFFECT(charge_block_move(g, PALETTE_BYTES));
-        return;
+        return true;
     case PLANE_PIXELS:
         send_unpacked_as(g, BYTES_ONE_REGISTER, VID_SNES_VRAM_DATA_HIGH);
         TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
-        return;
+        return true;
     case PLANE_MAP_PART:
         scene_double_plane_rows(g);
         TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
-        return;
+        return true;
     case LAYER_MAP:
         set_decompress_length(g, LAYER_MAP_BYTES);
         TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
-        return;
+        return true;
     case TILES:
         TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
-        return;
+        return true;
     }
+    return true;
 }
 
 /* What changes as the graphics go from one kind to the next: past the palette,
@@ -335,10 +348,8 @@ static void before_kind(GameState *g, Platform *pf, RaceGraphicsKind kind)
 
 // $7E:3D8C
 /* The race's graphics: the racers' tilemap blanked, then each in turn. */
-static void load_race_graphics(Snes *s)
+static bool load_race_graphics(GameState *g, Platform *pf, RaceCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     fill_racers_map(pf);
     set_decompress_dest(g, UNPACKED_PALETTE);
     RaceGraphicsKind kind = INTO_PALETTE;
@@ -347,8 +358,10 @@ static void load_race_graphics(Snes *s)
             kind = race_graphics[i].kind;
             before_kind(g, pf, kind);
         }
-        load_graphics(s, race_graphics_unpacked_at[i], &race_graphics[i]);
+        if (!load_graphics(g, pf, i, &race_graphics[i], call, ctx))
+            return false;
     }
+    return true;
 }
 
 /* ---- The racers' pictures ----------------------------------------------------------------------- */
@@ -426,23 +439,26 @@ enum { AFTER_CRONO_MIRRORED = 0x8A00, AFTER_THIRD_MIRRORED = 0xC600, PORT_SECOND
  * page on the stack while it works on them, through the last part's unpacking. */
 enum { CRONO_FIRST_RESOURCE = 0x06, CRONO_SECOND_RESOURCE = 0x09 };
 
-static void load_racers_pictures(Snes *s)
+static bool load_racers_pictures(GameState *g, RaceCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     set_decompress_dest(g, PICTURES);
-    unpack(s, 0x7E3B69, CRONO_FIRST_RESOURCE);
+    if (!call(ctx, RACE_UNPACK, CRONO_FIRST_UNPACKED, CRONO_FIRST_RESOURCE))
+        return false;
     set_decompress_dest(g, CRONO_PICTURES_SECOND);
-    unpack(s, 0x7E3B75, CRONO_SECOND_RESOURCE);
+    if (!call(ctx, RACE_UNPACK, CRONO_SECOND_UNPACKED, CRONO_SECOND_RESOURCE))
+        return false;
     wram_copy(g, PICTURES, CRONO_PICTURES_COPY, CRONO_PICTURES_COPY_BYTES);
     ORIGINAL_EFFECT(charge_block_move(g, CRONO_PICTURES_COPY_BYTES));
     place_crono_blocks(g);
     mirror_crono(g);
     ORIGINAL_EFFECT(leave_mirror_last(g, THIRD_LAST));
     ORIGINAL_EFFECT(hw_port_seek(g, AFTER_CRONO_MIRRORED, PORT_SECOND_BANK));
-    unpack_holding(s, 0x7E3BEF, THIRD_RESOURCE);
+    if (!call(ctx, RACE_UNPACK_HOLDING, THIRD_UNPACKED, THIRD_RESOURCE))
+        return false;
     scene_mirror_rows(g, MIRRORED_THIRD, CRONO_PICTURES_SECOND, THIRD_LAST, THIRD_RUNS * MIRROR_RUN_ROWS);
     ORIGINAL_EFFECT(leave_mirror_runs(g, 0));
     ORIGINAL_EFFECT(hw_port_seek_address(g, AFTER_THIRD_MIRRORED));
+    return true;
 }
 
 /* ---- The race's scripts and the demo's screen ------------------------------------------------------ */
@@ -536,31 +552,74 @@ enum { MAIN_LOOP_SCALES_PICTURES = 0x51D1, PERSPECTIVE_FROM_THE_HORIZON = 0x45B0
  * buffer. */
 enum { MATRIX_DESTINATION = SCENE_TILEMAP_BUFFER, MATRIX_SOURCE = 0x0200 };
 
-void scene_race_set_up(Snes *s)
+static bool set_up_the_race(GameState *g, Platform *pf, RaceCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     mark_the_demo(g);
     if (!(scene_flags(g) & SCENE_FLAG_NO_SONGS)) {
         set_scene_song(g, RACE_SONG);
         set_scene_song_playing(g, RACE_SONG);
-        scene_bridge_start_song(s, 0x7E3B5A, RACE_SONG);
+        if (!call(ctx, RACE_SONG_STARTS, 0, RACE_SONG))
+            return false;
     }
-    scene_bridge_enter(s, 0x7E3B5D);
-    load_race_graphics(s);
-    scene_bridge_leave(s);
-    load_racers_pictures(s);
+    if (!call(ctx, RACE_GRAPHICS_ENTERED, 0, 0) || !load_race_graphics(g, pf, call, ctx)
+        || !call(ctx, RACE_GRAPHICS_LEFT, 0, 0) || !load_racers_pictures(g, call, ctx))
+        return false;
     clear_race_buffers(pf);
     set_scene_scaler_output_end(g, SCALER_OUTPUT_AS_FULL);
     TIMED_AS(g, 0x7E36CC, scene_set_up_line_effects(g, pf, LINE_EFFECT_DESCRIPTORS));
     set_scene_line_effects(g, RACE_LINE_EFFECTS);
     race_start(g);
     choose_scripts(g, pf);
-    first_script_step(s);
+    if (!call(ctx, RACE_FIRST_STEP, 0, 0))
+        return false;
     set_scene_perspective_start(g, PERSPECTIVE_FROM_THE_HORIZON);
     set_scene_main_loop_call(g, MAIN_LOOP_SCALES_PICTURES);
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
     setup_race_maps(pf);
+    return true;
+}
+
+/* On the machine each from the program's own call. */
+static bool race_on_the_machine(void *ctx, RaceCall call, unsigned unpacking, uint16_t resource)
+{
+    Snes *s = ctx;
+    switch (call) {
+    case RACE_SONG_STARTS: scene_bridge_start_song(s, 0x7E3B5A, (uint8_t)resource); return true;
+    case RACE_GRAPHICS_ENTERED: scene_bridge_enter(s, 0x7E3B5D); return true;
+    case RACE_GRAPHICS_LEFT: scene_bridge_leave(s); return true;
+    case RACE_UNPACK: unpack(s, unpacked_at[unpacking], resource); return true;
+    case RACE_UNPACK_HOLDING: unpack_holding(s, unpacked_at[unpacking], resource); return true;
+    default: first_script_step(s); return true;
+    }
+}
+
+/* As C: the unpacker and the camera script's turn are the program's as C. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} RaceAsC;
+
+static bool race_call(void *ctx, RaceCall call, unsigned unpacking, uint16_t resource)
+{
+    (void)unpacking;
+    RaceAsC *c = ctx;
+    switch (call) {
+    case RACE_SONG_STARTS: scene_start_song(c->pf, (uint8_t)resource); return true;
+    case RACE_UNPACK:
+    case RACE_UNPACK_HOLDING: TIMED_AS(c->game, UNPACK, scene_unpacks(c->game, resource)); return true;
+    case RACE_FIRST_STEP: {
+        SceneTurn turn = SCENE_TURN_ENDED;
+        TIMED_AS(c->game, CHANNEL_0_STEP, turn = scene_channel_turn(c->game, c->pf, 0));
+        return turn == SCENE_TURN_ENDED;
+    }
+    default: return true;
+    }
+}
+
+bool scene_race_set_up(GameState *g, Platform *pf)
+{
+    RaceAsC c = { g, pf };
+    return set_up_the_race(g, pf, race_call, &c);
 }
 
 /* ---- Entry: the setup ------------------------------------------------------------------------------ */
@@ -589,7 +648,8 @@ static void leave_y_as_the_writer_does(Snes *s) { s->cpu.y = scene_matrix_writer
 
 bool scene_race_set_up_scene(Snes *s)
 {
-    scene_race_set_up(s);
+    if (!set_up_the_race(state_of(s), m_platform(s), race_on_the_machine, s))
+        return false;
     ORIGINAL_EFFECT(leave_y_as_the_writer_does(s));
     s->cpu.d = 0x0000;
     s->cpu.db = 0x00;

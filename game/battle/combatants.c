@@ -12,6 +12,7 @@
 #include "battle/combatant.h"
 
 #include "battle/bridge.h"
+#include "battle/program.h"
 #include "battle/effect_parts.h"
 #include "battle/effect_work.h"
 #include "battle/entries.h"
@@ -466,7 +467,7 @@ static bool comes_back_shown(Snes *s, uint8_t member)
         return false;
     name_in_message(g, member);
     s->cpu.a = MESSAGE_CAME_BACK;
-    if (!battle_run_long(s, 0xC1B386, SHOW_MESSAGE, battle_show_a_battle_message))
+    if (!battle_run_long(s, 0xC1B386, SHOW_MESSAGE, battle_show_a_battle_message_entry))
         return false;
     after_coming_back(g);
     return true;
@@ -484,30 +485,64 @@ void battle_update_combatant(Snes *s)
 
 // $C1:B223
 /* Update every combatant for the turn, a combatant at a time with its place
- * in the loop in its cell. A member that comes back is updated as the
- * original's loop calls it, with the combatant in X and Y, since its coming
- * back is shown by the original's code; the rest is C. What the callers read back is the carry of the last compare
- * of the search for a party member in the fight: clear when it found the
- * second or the third. */
-void battle_update_all_combatants(Snes *s)
+ * in the loop in its cell. A member that comes back is updated by its own
+ * routine (`coming_back`, $C1:B279), whose coming back is shown by the
+ * action's showing and a message; the rest is C. False where that went no
+ * further. */
+static bool update_all_combatants(GameState *g, bool (*coming_back)(void *ctx, unsigned slot), void *ctx)
 {
-    GameState *g = state_of(s);
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
         ORIGINAL_EFFECT(set_battle_combatant_updating(g, (uint8_t)slot));
         if (combatant_update_comes_back(g, slot)) {
-            s->cpu.y = (uint16_t)slot;
-            s->cpu.x = (uint16_t)(slot * BATTLE_STAT_BLOCK_BYTES);
-            s->cpu.a = 0;
-            if (!battle_run(s, 0xC1B234, 0xC1B279, battle_update_combatant))
-                return;
+            if (!coming_back(ctx, slot))
+                return false;
         } else {
-            NATIVE_TIME_AS(s, 0xC1B279, combatant_update(g, slot));
+            TIMED_AS(g, 0xC1B279, combatant_update(g, slot));
         }
         combatant_after_update(g, slot);
     }
     ORIGINAL_EFFECT(set_battle_combatant_updating(g, BATTLE_COMBATANTS));
     combatants_after_update(g);
+    return true;
+}
+
+/* On the machine the member that comes back is updated as the original's
+ * loop calls it, with the combatant in X and Y. */
+static bool coming_back_on_the_machine(void *ctx, unsigned slot)
+{
+    Snes *s = ctx;
+    s->cpu.y = (uint16_t)slot;
+    s->cpu.x = (uint16_t)(slot * BATTLE_STAT_BLOCK_BYTES);
+    s->cpu.a = 0;
+    return battle_run(s, 0xC1B234, 0xC1B279, battle_update_combatant);
+}
+
+/* What the callers read back is the carry of the last compare of the search
+ * for a party member in the fight: clear when it found the second or the
+ * third. */
+void battle_update_all_combatants_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (!update_all_combatants(g, coming_back_on_the_machine, s))
+        return;
     unsigned member = first_member_fighting(g);
     m_set_flag(s, CPU_FLAG_C, member == 0 || member == BATTLE_PARTY_SIZE);
     m_rts(s);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+static bool comeback_with_no_port(void *ctx, unsigned slot)
+{
+    GameState *g = ctx;
+    UpdateEnd update = UPDATED;
+    TIMED_AS(g, 0xC1B279, update = combatant_update(g, slot));
+    if (update == COMES_BACK_ONCE)
+        return battle_needs_the_machine(g, 0xC1B316, "a member coming back, shown");
+    return true;
+}
+
+bool battle_update_all_combatants(GameState *g)
+{
+    return update_all_combatants(g, comeback_with_no_port, g);
 }

@@ -186,7 +186,7 @@ static void follow_hp(GameState *g)
 // $D1:EA4B
 /* A frame of the HP gradient: fade and show it while a fade runs, or else
  * start one where the level moved. */
-static void step_hp_gradient(GameState *g)
+void battle_step_hp_gradient(GameState *g)
 {
     if (screen_busy(g))
         return;
@@ -199,12 +199,12 @@ static void step_hp_gradient(GameState *g)
 /* ---- The entries ------------------------------------------------------------------------ */
 
 /* The phase picks a turn from 14; the rows start within the colors' repeat. */
-static bool phase_in_range(const GameState *g) { return battle_gradient_phase(g) < GRADIENT_PHASES; }
+bool battle_hp_gradient_steps(const GameState *g) { return battle_gradient_phase(g) < GRADIENT_PHASES; }
 
 bool battle_gradient_page(Snes *s)
 {
     vars_peek(true);
-    bool in_range = phase_in_range(state_of(s));
+    bool in_range = battle_hp_gradient_steps(state_of(s));
     vars_peek(false);
     return battle_screen_page_a_clear(s) && in_range;
 }
@@ -219,9 +219,9 @@ bool battle_gradient_row_is_one(Snes *s)
            && (uint8_t)s->cpu.a <= GRADIENT_COLORS;
 }
 
-void battle_step_hp_gradient(Snes *s)
+void battle_step_hp_gradient_entry(Snes *s)
 {
-    step_hp_gradient(state_of(s));
+    battle_step_hp_gradient(state_of(s));
     s->cpu.a = 0;
     m_rtl(s);
 }

@@ -29,6 +29,8 @@
 #include "battle/effect_parts.h"
 
 #include "battle/bridge.h"
+#include "battle/program.h"
+#include "battle/steps.h"
 #include "battle/combatant.h"
 #include "battle/enemy_actions.h"
 #include "battle/entries.h"
@@ -302,48 +304,35 @@ static void pay_for_tech(GameState *g)
     ORIGINAL_EFFECT(leave_payment_carry(g, &t));
 }
 
-/* ---- The entries ------------------------------------------------------------------------------- */
+/* ---- The turn, as one sequence --------------------------------------------------------------- */
 
-/* The siblings and the call-outs: the targeting, which takes the carry the
- * code before leaves; the messages, and the battle's step. */
-enum {
-    AIM = 0xC1C1DD, SHOW_MESSAGE = 0xCD0021, SHOWING = 0xC1AC57, MEMBER_ATTACKS = 0xC1BFAA,
-    USE_ITEM = 0xC1BF46, WORK_OUT_TECH = 0xC1BF79,
-};
-enum {
-    READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS,
-    READS_A = DC_X | DC_Y | DC_FLAGS,
-};
-
-/* The action shown ($C1:AC57, a sibling), from `site`: it takes A's high byte
- * along to the battle's step, clear here as the original's code leaves it. */
-static bool show_action(Snes *s, uint32_t site)
-{
-    s->cpu.a &= 0x00FF;
-    return battle_run(s, site, SHOWING, battle_start_action_showing);
-}
+/* The turn's calls, each where the original makes it: the targeting
+ * ($C1:C1DD, battle/aim.c), which takes the carry the code before leaves, and
+ * where what it left is past what the port reads, the original's to go on
+ * from; an item used ($C1:BF46, battle/party_work.c), a tech worked out
+ * ($C1:BF79), the action shown ($C1:AC57), the messages a steal tells
+ * ($CD:0021), and the attack ($C1:BFAA, below). */
+typedef enum {
+    MEMBER_ATTACK, MEMBER_AIM_ITEM, MEMBER_AIM_TECH, MEMBER_ITEM_AIMED_PAST, MEMBER_TECH_AIMED_PAST, MEMBER_USE_ITEM,
+    MEMBER_WORK_OUT_TECH, MEMBER_WORK_OUT_ATTACK, MEMBER_SHOW_ITEM, MEMBER_SHOW_TECH, MEMBER_SHOW_ATTACK,
+    MEMBER_ITEM_TAKEN, MEMBER_NOTHING_TO_TAKE,
+} MemberCall;
+typedef bool (*MemberCalls)(void *ctx, MemberCall call, bool carry);
 
 /* The messages a steal's outcome tells: the item taken (named in its
  * variable), and nothing to take. */
 enum { MESSAGE_ITEM_TAKEN = 0x03, MESSAGE_NOTHING_TO_TAKE = 0x0D };
 
-static bool show_message(Snes *s, uint32_t site, uint8_t message)
-{
-    m_set_a8(s, message);
-    return battle_run_long(s, site, SHOW_MESSAGE, battle_show_a_battle_message);
-}
-
 // $C1:BC21
-static bool tell_steal(Snes *s)
+static bool tell_steal(GameState *g, MemberCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     StealOutcome outcome = effect_last_steal(g);
     if (outcome == STEAL_NOT_TRIED || outcome == STEAL_MISSED)
         return true;
     if (outcome == STEAL_NOTHING)
-        return show_message(s, 0xC1BC46, MESSAGE_NOTHING_TO_TAKE);
+        return call(ctx, MEMBER_NOTHING_TO_TAKE, false);
     set_battle_message_item(g, battle_item_taken(g));
-    if (!show_message(s, 0xC1BC30, MESSAGE_ITEM_TAKEN))
+    if (!call(ctx, MEMBER_ITEM_TAKEN, false))
         return false;
     set_battle_member_kept_item_waiting(g, battle_actor(g), 1);
     return true;
@@ -389,20 +378,16 @@ static bool members_read_fit(const GameState *g, bool tech)
     return (!tech && nothing) || last_tech_fits(g, tech && nothing);
 }
 
-/* The targeting (battle/aim.c), from `site`, as its JSR makes it, with the
- * carry its lookup of the tech's members leaves in a cell. Where what it left
- * is past what the port reads (the original's, where the targeting's guard
- * turned the call away), the port stops at the call's return and the
- * original carries on. */
-static bool aim(Snes *s, uint32_t site, bool carry, bool tech)
+/* The targeting, with the carry its lookup of the tech's members leaves in
+ * a cell; where what it left is past what the port reads, the original goes
+ * on. */
+static bool aim(GameState *g, bool carry, bool tech, MemberCalls call, void *ctx)
 {
-    m_set_flag(s, CPU_FLAG_C, carry);
-    if (!battle_run(s, site, AIM, battle_aim_action))
+    if (!call(ctx, tech ? MEMBER_AIM_TECH : MEMBER_AIM_ITEM, carry))
         return false;
-    GameState *g = state_of(s);
     if (targets_fit(g) && members_read_fit(g, tech))
         return true;
-    battle_stop_after_call(s, site);
+    (void)call(ctx, tech ? MEMBER_TECH_AIMED_PAST : MEMBER_ITEM_AIMED_PAST, false);
     return false;
 }
 
@@ -410,9 +395,8 @@ static bool aim(Snes *s, uint32_t site, bool carry, bool tech)
 /* An item: its number is the record's, past the items' first ($BC). Its area
  * rules are none, which the targeting reads in a cell its caller clears. */
 enum { ITEM_TARGETING_CELL = 0x0C };
-static bool use_item(Snes *s, uint8_t member)
+static bool use_item(GameState *g, uint8_t member, MemberCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     for (uint8_t place = 0; place < BATTLE_ACTION_TARGETS_COUNT; place++)
         set_battle_action_targets(g, place, NO_TARGET);
     battle_keep_word(g, ITEM_TARGETING_CELL, 0);
@@ -421,7 +405,7 @@ static bool use_item(Snes *s, uint8_t member)
     set_battle_action_detail(g, (uint8_t)(what - BATTLE_FIRST_ITEM_NUMBER));
     set_battle_action_what(g, (uint8_t)(what - BATTLE_FIRST_ITEM_NUMBER));
     /* the targeting takes the carry of the item's number's subtraction */
-    if (!aim(s, 0xC1BABE, what >= BATTLE_FIRST_ITEM_NUMBER, false))
+    if (!aim(g, what >= BATTLE_FIRST_ITEM_NUMBER, false, call, ctx))
         return false;
     if (!battle_action_came_to_nothing(g)) {
         /* the item's performer is recorded first as the last tech's first
@@ -429,11 +413,11 @@ static bool use_item(Snes *s, uint8_t member)
         record_before_work(g, tech_performer(g), ACTION_ITEM, what);
         battle_keep_byte(g, BATTLE_CLOCK_READS, what);
         targets_to_candidates(g);
-        if (!battle_run(s, 0xC1BB0C, USE_ITEM, battle_use_item))
+        if (!call(ctx, MEMBER_USE_ITEM, false))
             return false;
         record_for_showing(g, battle_actor(g), ACTION_ITEM, (uint8_t)(battle_action_detail(g) + BATTLE_FIRST_ITEM_NUMBER));
         set_battle_action_extra(g, 0);
-        if (!show_action(s, 0xC1BB26))
+        if (!call(ctx, MEMBER_SHOW_ITEM, false))
             return false;
         TIMED_AS(g, 0xFDACEE, battle_clear_numbers_shown(g));
     }
@@ -447,9 +431,8 @@ static bool use_item(Snes *s, uint8_t member)
  * (battle_menu_command), or 3, which the menu never sets. */
 enum { COMMAND_TECH = 1, COMMAND_NO_MENU_SETS = 3 };
 
-static bool perform_tech(Snes *s, uint8_t member)
+static bool perform_tech(GameState *g, uint8_t member, MemberCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     uint8_t command = battle_member_actions_command(g, member);
     if (command != COMMAND_TECH && command != COMMAND_NO_MENU_SETS) {
         TIMED_AS(g, 0xC1BCE1, member_turn_ends(g));
@@ -459,20 +442,20 @@ static bool perform_tech(Snes *s, uint8_t member)
     uint8_t tech = battle_member_actions_what(g, member);
     set_battle_action_detail(g, tech);
     /* the targeting takes the carry of the test of the record's aim, set */
-    if (!aim(s, 0xC1BB88, true, true))
+    if (!aim(g, true, true, call, ctx))
         return false;
     bool performed = false;
     if (!battle_action_came_to_nothing(g)) {
         record_before_work(g, tech_performer(g), ACTION_TECH, tech);
         targets_to_candidates(g);
-        if (!battle_run(s, 0xC1BBD4, WORK_OUT_TECH, battle_work_out_member_tech))
+        if (!call(ctx, MEMBER_WORK_OUT_TECH, false))
             return false;
         performed = !battle_action_came_to_nothing(g) && !battle_tech_blocked(g);
     }
     if (performed) {
         record_for_showing(g, tech_performer(g), ACTION_TECH, battle_action_detail(g));
         pay_for_tech(g);
-        if (!show_action(s, 0xC1BC1E) || !tell_steal(s))
+        if (!call(ctx, MEMBER_SHOW_TECH, false) || !tell_steal(g, call, ctx))
             return false;
         note_enemy_hit(g);
         TIMED_AS(g, 0xFDACEE, battle_clear_numbers_shown(g));
@@ -482,9 +465,9 @@ static bool perform_tech(Snes *s, uint8_t member)
     return true;
 }
 
-static bool carry_out_action(Snes *s)
+// $C1:B967
+static bool carry_out_action(GameState *g, MemberCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     ORIGINAL_EFFECT(set_battle_member_turn_running(g, 1));
     uint8_t member = take_waiting_member(g);
     mark_those_taking_part(g, member);
@@ -501,43 +484,16 @@ static bool carry_out_action(Snes *s)
     set_battle_action_choice(g, choice);
     if (choice & CHOSE_AN_ATTACK) {
         set_battle_action_targets(g, 0, battle_member_actions_target(g, member));
-        if (!battle_run(s, 0xC1BA7D, MEMBER_ATTACKS, battle_member_attacks))
+        if (!call(ctx, MEMBER_ATTACK, false))
             return false;
     } else if (choice & CHOSE_AN_ITEM)
-        return use_item(s, member);
+        return use_item(g, member, call, ctx);
     else if (choice & CHOSE_A_TECH)
-        return perform_tech(s, member);
+        return perform_tech(g, member, call, ctx);
     else if (choice & CHOICE_HELD)
         return true;
     TIMED_AS(g, 0xC1BCE1, member_turn_ends(g));
     return true;
-}
-
-/* What the port carries out: a waiting member in the party (the original
- * looks round the party until it finds one), partners in the party's places,
- * and records reached as the ROM places them. */
-bool battle_carry_out_member_action_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool waiting = false, partners_fit = true;
-    for (unsigned m = 0; m < BATTLE_PARTY_SIZE; m++) {
-        if (battle_member_actions_state(g, m) & MEMBER_ACTION_WAITING)
-            waiting = true;
-        uint8_t partners = battle_member_actions_partners(g, m);
-        if (partners != NO_PARTNERS
-            && (first_partner(partners) >= BATTLE_PARTY_SIZE
-                || (second_partner(partners) != NO_PARTNER && second_partner(partners) >= BATTLE_PARTY_SIZE)))
-            partners_fit = false;
-    }
-    vars_peek(false);
-    return battle_on_page(s) && waiting && partners_fit;
-}
-
-void battle_carry_out_member_action(Snes *s)
-{
-    if (carry_out_action(s))
-        m_rts(s);
 }
 
 // $C1:BFAA
@@ -568,17 +524,16 @@ static void set_up_attack(GameState *g)
     set_battle_action_extra(g, none_first ? NO_CANDIDATE : 0);
 }
 
-static bool attack(Snes *s)
+static bool attack(GameState *g, MemberCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     set_up_attack(g);
     uint8_t fighting = combatant_fighting_as(g, battle_actor(g));
     if (fighting != COMBATANT_NONE) {
         set_battle_action_detail(g, character_attack_tech(g, fighting));
-        if (!battle_run(s, 0xC1C006, WORK_OUT_TECH, battle_work_out_member_tech))
+        if (!call(ctx, MEMBER_WORK_OUT_ATTACK, false))
             return false;
         if (!battle_action_came_to_nothing(g)) {
-            if (!show_action(s, 0xC1C00E))
+            if (!call(ctx, MEMBER_SHOW_ATTACK, false))
                 return false;
             note_enemy_hit(g);
             TIMED_AS(g, 0xFDACEE, battle_clear_numbers_shown(g));
@@ -588,19 +543,104 @@ static bool attack(Snes *s)
     return true;
 }
 
+/* The guards' state halves: a waiting member in the party (the original
+ * looks round the party until it finds one), partners in the party's places,
+ * and records reached as the ROM places them; the attacker in the party's
+ * slots. */
+static bool action_fits(const GameState *g)
+{
+    bool waiting = false, partners_fit = true;
+    for (unsigned m = 0; m < BATTLE_PARTY_SIZE; m++) {
+        if (battle_member_actions_state(g, m) & MEMBER_ACTION_WAITING)
+            waiting = true;
+        uint8_t partners = battle_member_actions_partners(g, m);
+        if (partners != NO_PARTNERS
+            && (first_partner(partners) >= BATTLE_PARTY_SIZE
+                || (second_partner(partners) != NO_PARTNER && second_partner(partners) >= BATTLE_PARTY_SIZE)))
+            partners_fit = false;
+    }
+    return waiting && partners_fit;
+}
+
+static bool attacker_fits(const GameState *g) { return battle_actor(g) < BATTLE_PARTY_SIZE; }
+
+/* ---- On the machine ------------------------------------------------------------------------ */
+
+enum {
+    AIM = 0xC1C1DD, SHOW_MESSAGE = 0xCD0021, SHOWING = 0xC1AC57, MEMBER_ATTACKS = 0xC1BFAA,
+    USE_ITEM = 0xC1BF46, WORK_OUT_TECH = 0xC1BF79,
+};
+
+/* Each call from the original's own: the targeting with the carry it is
+ * handed, the showing taking A's high byte along to the battle's step,
+ * clear here as the original's code leaves it, the messages with theirs in
+ * A. */
+static const uint32_t member_sites[] = {
+    [MEMBER_ATTACK] = 0xC1BA7D, [MEMBER_AIM_ITEM] = 0xC1BABE, [MEMBER_AIM_TECH] = 0xC1BB88,
+    [MEMBER_ITEM_AIMED_PAST] = 0xC1BABE, [MEMBER_TECH_AIMED_PAST] = 0xC1BB88, [MEMBER_USE_ITEM] = 0xC1BB0C,
+    [MEMBER_WORK_OUT_TECH] = 0xC1BBD4, [MEMBER_WORK_OUT_ATTACK] = 0xC1C006, [MEMBER_SHOW_ITEM] = 0xC1BB26,
+    [MEMBER_SHOW_TECH] = 0xC1BC1E, [MEMBER_SHOW_ATTACK] = 0xC1C00E, [MEMBER_ITEM_TAKEN] = 0xC1BC30,
+    [MEMBER_NOTHING_TO_TAKE] = 0xC1BC46,
+};
+
+static bool member_on_the_machine(void *ctx, MemberCall call, bool carry)
+{
+    Snes *s = ctx;
+    uint32_t site = member_sites[call];
+    switch (call) {
+    case MEMBER_ATTACK: return battle_run(s, site, MEMBER_ATTACKS, battle_member_attacks_entry);
+    case MEMBER_AIM_ITEM:
+    case MEMBER_AIM_TECH:
+        m_set_flag(s, CPU_FLAG_C, carry);
+        return battle_run(s, site, AIM, battle_aim_action_entry);
+    case MEMBER_ITEM_AIMED_PAST:
+    case MEMBER_TECH_AIMED_PAST: battle_stop_after_call(s, site); return false;
+    case MEMBER_USE_ITEM: return battle_run(s, site, USE_ITEM, battle_use_item_entry);
+    case MEMBER_WORK_OUT_TECH:
+    case MEMBER_WORK_OUT_ATTACK: return battle_run(s, site, WORK_OUT_TECH, battle_work_out_member_tech_entry);
+    case MEMBER_SHOW_ITEM:
+    case MEMBER_SHOW_TECH:
+    case MEMBER_SHOW_ATTACK:
+        s->cpu.a &= 0x00FF;
+        return battle_run(s, site, SHOWING, battle_start_action_showing);
+    case MEMBER_ITEM_TAKEN:
+        m_set_a8(s, MESSAGE_ITEM_TAKEN);
+        return battle_run_long(s, site, SHOW_MESSAGE, battle_show_a_battle_message_entry);
+    default:
+        m_set_a8(s, MESSAGE_NOTHING_TO_TAKE);
+        return battle_run_long(s, site, SHOW_MESSAGE, battle_show_a_battle_message_entry);
+    }
+}
+
+/* ---- The entries ------------------------------------------------------------------------------- */
+
+bool battle_carry_out_member_action_ready(Snes *s)
+{
+    vars_peek(true);
+    bool fits = action_fits(state_of(s));
+    vars_peek(false);
+    return battle_on_page(s) && fits;
+}
+
+void battle_carry_out_member_action_entry(Snes *s)
+{
+    if (carry_out_action(state_of(s), member_on_the_machine, s))
+        m_rts(s);
+}
+
 /* The member attacking is in the party's slots. */
 bool battle_member_attacks_ready(Snes *s)
 {
     vars_peek(true);
-    bool member = battle_actor(state_of(s)) < BATTLE_PARTY_SIZE;
+    bool member = attacker_fits(state_of(s));
     vars_peek(false);
     return battle_on_page(s) && member;
 }
 
 /* It hands back A's high byte clear. */
-void battle_member_attacks(Snes *s)
+void battle_member_attacks_entry(Snes *s)
 {
-    if (!attack(s))
+    if (!attack(state_of(s), member_on_the_machine, s))
         return;
     s->cpu.a &= 0x00FF;
     m_rts(s);
@@ -611,29 +651,41 @@ void battle_member_attacks(Snes *s)
  * status turn and the party's counters (battle/party_turns.c). */
 void battle_member_attacks_from_bank_fd(Snes *s)
 {
-    if (battle_run(s, 0xC1FDC7, MEMBER_ATTACKS, battle_member_attacks))
+    if (battle_run(s, 0xC1FDC7, MEMBER_ATTACKS, battle_member_attacks_entry))
         m_rtl(s);
 }
 
 /* The main loop's end of a member's turn whose status picked its action,
  * entered with A's high byte clear, which the original indexes by. */
+static bool member_turn_end_fits(const GameState *g)
+{
+    uint8_t partners = battle_member_actions_partners(g, battle_turn_member(g));
+    return battle_actor(g) < BATTLE_PARTY_SIZE && battle_turn_member(g) < BATTLE_PARTY_SIZE
+           && (partners == NO_PARTNERS
+               || (first_partner(partners) < BATTLE_PARTY_SIZE
+                   && (second_partner(partners) == NO_PARTNER || second_partner(partners) < BATTLE_PARTY_SIZE)));
+}
+
 bool battle_end_member_turn_ready(Snes *s)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t partners = battle_member_actions_partners(g, battle_turn_member(g));
-    bool fits = battle_actor(g) < BATTLE_PARTY_SIZE && battle_turn_member(g) < BATTLE_PARTY_SIZE
-                && (partners == NO_PARTNERS
-                    || (first_partner(partners) < BATTLE_PARTY_SIZE
-                        && (second_partner(partners) == NO_PARTNER || second_partner(partners) < BATTLE_PARTY_SIZE)));
+    bool fits = member_turn_end_fits(state_of(s));
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && fits;
 }
 
-void battle_end_member_turn(Snes *s)
+void battle_end_member_turn_entry(Snes *s)
 {
     member_turn_ends(state_of(s));
     m_rts(s);
+}
+
+bool battle_end_member_turn(GameState *g)
+{
+    if (!member_turn_end_fits(g))
+        return battle_needs_the_machine(g, 0xC1BCE1, "a member's turn's end with partners past the party");
+    member_turn_ends(g);
+    return true;
 }
 
 /* A tech's members' waits, entered with its members in the party's slots. */
@@ -661,4 +713,50 @@ void battle_member_called_off_step(Snes *s)
      * 5000 call-outs scrambled, 0 mismatched */
     if (battle_take_step(s, 0xC1B963, BATTLE_STEP_CALLED_OFF, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
         m_rtl(s);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} MemberAsC;
+
+/* Each with its guard's state half where it has one. */
+static bool carry_out_a_part(void *ctx, MemberCall call, bool carry)
+{
+    MemberAsC *c = ctx;
+    GameState *g = c->game;
+    bool done = false;
+    switch (call) {
+    case MEMBER_ATTACK: TIMED_AS(g, MEMBER_ATTACKS, done = battle_member_attacks(g, c->pf)); return done;
+    case MEMBER_AIM_ITEM:
+    case MEMBER_AIM_TECH: TIMED_AS(g, AIM, done = battle_aim_action(g, c->pf, carry)); return done;
+    case MEMBER_ITEM_AIMED_PAST:
+    case MEMBER_TECH_AIMED_PAST: return battle_needs_the_machine(g, member_sites[call], "an aim past what the port reads");
+    case MEMBER_USE_ITEM: TIMED_AS(g, USE_ITEM, done = battle_use_item(g, c->pf)); return done;
+    case MEMBER_WORK_OUT_TECH:
+    case MEMBER_WORK_OUT_ATTACK: TIMED_AS(g, WORK_OUT_TECH, done = battle_work_out_member_tech(g, c->pf)); return done;
+    case MEMBER_SHOW_ITEM:
+    case MEMBER_SHOW_TECH:
+    case MEMBER_SHOW_ATTACK: TIMED_AS(g, SHOWING, done = battle_action_shown(g, c->pf)); return done;
+    case MEMBER_ITEM_TAKEN: TIMED_AS(g, SHOW_MESSAGE, done = battle_show_a_battle_message(g, c->pf, MESSAGE_ITEM_TAKEN)); return done;
+    default: TIMED_AS(g, SHOW_MESSAGE, done = battle_show_a_battle_message(g, c->pf, MESSAGE_NOTHING_TO_TAKE)); return done;
+    }
+}
+
+bool battle_member_attacks(GameState *g, Platform *pf)
+{
+    if (!attacker_fits(g))
+        return battle_needs_the_machine(g, MEMBER_ATTACKS, "an attacker past the party");
+    MemberAsC c = { g, pf };
+    return attack(g, carry_out_a_part, &c);
+}
+
+bool battle_carry_out_member_action(GameState *g, Platform *pf)
+{
+    if (!action_fits(g))
+        return battle_needs_the_machine(g, 0xC1B967, "a member's action the port doesn't carry out");
+    MemberAsC c = { g, pf };
+    return carry_out_action(g, carry_out_a_part, &c);
 }

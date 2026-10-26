@@ -27,6 +27,10 @@
 #include "battle/combatant.h"
 #include "battle/effect_parts.h"
 #include "battle/entries.h"
+#include "battle/frame.h"
+#include "battle/program.h"
+#include "battle/steps.h"
+#include "battle/wait.h"
 #include "battle/script_language.h"
 #include "charge.h"
 #include "original_effects.h"
@@ -238,45 +242,36 @@ static void apply_the_animation_switch(GameState *g)
     }
 }
 
-/* Wait for the next frame ($C1:007E), from the call at `site`: the wait reads
- * none of the registers but A's high byte, which it takes along. */
-enum { FRAME_WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS };
-
-static bool wait_for_the_next_frame(Snes *s, uint32_t site)
-{
-    return battle_wait_frame(s, site, 0xC1007E, FRAME_WAIT_READS);
-}
-
-static bool frame_step(Snes *s, uint32_t site) { return battle_run(s, site, 0xC110FA, battle_frame_step); }
-
-/* The sound effects are cut off: the driver starts an effect of none on
- * their voices. The driver's command routine reads none of the registers. */
-enum { NO_SOUND_EFFECT = 0xFF };
-#define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
-
-static bool cut_off_the_sounds(Snes *s)
-{
-    au_command(m_platform(s), PF_CALL_DC(0xC140DD, 0xC70004, DRIVER_IGNORES),
-               (AudioCommand){ .command = AU_START_EFFECT, .p1 = NO_SOUND_EFFECT, .count = 1 });
-    return battle_back(s, 0xC140DD + BATTLE_JSL_SIZE, BATTLE_PAGE, BATTLE_DATA_BANK);
-}
+/* The showing's calls, each where the original makes it: the battle's wait
+ * for the next frame ($C1:007E), the frame step ($C1:10FA,
+ * battle/frame_step.c), the animation's loading ($C1:4310,
+ * battle/action_animation.c), the places the scripts follow ($C1:4212) and
+ * the scripts' step ($C1:4BBE, battle/scripts.c), the sound effects cut off,
+ * and the frame's phase kept across them (the original keeps it on the
+ * stack). */
+typedef enum {
+    SHOW_FIRST_FRAME, SHOW_FRAME_AFTER_THE_POSES, SHOW_PLAYING_FRAME, SHOW_FINISHING_FRAME, SHOW_LAST_FRAME,
+    SHOW_FALLING_FRAME, SHOW_FALL_SENT_FRAME, SHOW_FALL_SENT_SECOND_FRAME,
+    SHOW_STEP_AFTER_THE_POSES, SHOW_PLAYING_STEP, SHOW_FINISHING_STEP,
+    SHOW_LOAD, SHOW_POSITIONS, SHOW_SCRIPTS, SHOW_CUT_OFF_THE_SOUNDS, SHOW_KEEP_THE_PHASE, SHOW_PHASE_BACK,
+} ShowCall;
+typedef bool (*ShowCalls)(void *ctx, ShowCall call);
 
 /* A frame of the animation playing. */
-static bool play_a_frame(Snes *s)
+static bool play_a_frame(GameState *g, ShowCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
-    if (!wait_for_the_next_frame(s, 0xC140B0))
+    if (!call(ctx, SHOW_PLAYING_FRAME))
         return false;
     TIMED_AS(g, 0xC1423A, battle_take_due_animation_step(g));
-    if (!frame_step(s, 0xC140B6))
+    if (!call(ctx, SHOW_PLAYING_STEP))
         return false;
     TIMED_AS(g, 0xCCF278, battle_animate_effect_frames(g));
     TIMED_AS(g, 0xCCF1E7, battle_step_palette_animations(g));
-    if (!battle_run(s, 0xC140C1, 0xC14212, battle_update_animation_positions))
+    if (!call(ctx, SHOW_POSITIONS))
         return false;
     TIMED_AS(g, 0xCCF110, battle_mark_combatants_on_grid(g));
     TIMED_AS(g, 0xC1283D, battle_update_all_bounds(g));
-    return battle_run(s, 0xC140CB, 0xC14BBE, battle_run_scripts);
+    return call(ctx, SHOW_SCRIPTS);
 }
 
 /* Every combatant takes its pose afresh: the poses' round
@@ -294,76 +289,153 @@ static void take_poses_afresh(GameState *g)
 
 /* A party member the damage shown takes to nothing falls now, and the
  * showing waits for its fall to be sent. */
-static bool members_fall(Snes *s)
+static bool members_fall(GameState *g, ShowCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     if (!a_member_targeted(g))
         return true;
     TIMED_AS(g, 0xC141BE, find_the_members_falling(g));
-    if (!wait_for_the_next_frame(s, 0xC1414B))
+    if (!call(ctx, SHOW_FALLING_FRAME))
         return false;
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (battle_member_falling(g, member))
             show_the_fall(g, member);
     set_battle_reupload_countdown(g, SEND_THE_FALL_AFTER_FRAMES);
-    return wait_for_the_next_frame(s, 0xC141B4) && wait_for_the_next_frame(s, 0xC141B7);
+    return call(ctx, SHOW_FALL_SENT_FRAME) && call(ctx, SHOW_FALL_SENT_SECOND_FRAME);
 }
 
 // $C1:4058
-static bool show_the_action(Snes *s)
+static bool show_the_action(GameState *g, ShowCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     set_battle_orbits_held(g, (uint8_t)(battle_orbits_held(g) + 1));
     TIMED_AS(g, 0xCCF06B, battle_reset_objects(g));
-    if (!wait_for_the_next_frame(s, 0xC1405F))
+    if (!call(ctx, SHOW_FIRST_FRAME))
         return false;
     set_battle_queued_uploads_on(g, 0);
     apply_the_animation_switch(g);
     uint8_t phase = battle_frame_phase(g);
-    m_push8(s, phase);
+    if (!call(ctx, SHOW_KEEP_THE_PHASE))
+        return false;
     ORIGINAL_EFFECT(set_battle_animation_second_set(g, battle_action_extra(g) & ACTION_MISSED));
     TIMED_AS(g, 0xCCF102, forget_poses(g));
-    if (!wait_for_the_next_frame(s, 0xC140A0) || !frame_step(s, 0xC140A3))
+    if (!call(ctx, SHOW_FRAME_AFTER_THE_POSES) || !call(ctx, SHOW_STEP_AFTER_THE_POSES))
         return false;
     set_battle_effects_running(g, (uint8_t)(battle_effects_running(g) + 1));
     TIMED_AS(g, 0xCCF156, list_the_showing(g));
-    if (!battle_run(s, 0xC140AD, 0xC14310, battle_load_action_animation))
+    if (!call(ctx, SHOW_LOAD))
         return false;
-    while (true) {
-        if (!play_a_frame(s))
+    do {
+        if (!play_a_frame(g, call, ctx))
             return false;
-        if (battle_script_signal(g))
-            break;
-    }
-    if (!cut_off_the_sounds(s))
+    } while (!battle_script_signal(g));
+    if (!call(ctx, SHOW_CUT_OFF_THE_SOUNDS))
         return false;
-    while (true) {
-        if (!wait_for_the_next_frame(s, 0xC140E1) || !frame_step(s, 0xC140E4))
+    do {
+        if (!call(ctx, SHOW_FINISHING_FRAME) || !call(ctx, SHOW_FINISHING_STEP))
             return false;
-        if (!battle_screen_scripts_running(g))
-            break;
-    }
-    m_pull8(s);
+    } while (battle_screen_scripts_running(g));
+    if (!call(ctx, SHOW_PHASE_BACK))
+        return false;
     set_battle_frame_phase(g, phase);
     set_battle_color_rotation_on(g, 0);
     stop_the_effects(g);
     enemies_drift_from_where_they_stand(g);
-    if (!wait_for_the_next_frame(s, 0xC14116))
+    if (!call(ctx, SHOW_LAST_FRAME))
         return false;
     TIMED_AS(g, 0xCCF06B, battle_reset_objects(g));
     take_poses_afresh(g);
     set_battle_graphics_upload_request(g, 0);
-    if (!members_fall(s))
+    if (!members_fall(g, call, ctx))
         return false;
     set_battle_effects_running(g, 0);
     return true;
 }
 
+/* The sound effects are cut off: the driver starts an effect of none on
+ * their voices. The driver's command routine reads none of the registers. */
+enum { NO_SOUND_EFFECT = 0xFF };
+#define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
+
+static void cut_off_the_sounds(Platform *pf)
+{
+    au_command(pf, PF_CALL_DC(0xC140DD, 0xC70004, DRIVER_IGNORES),
+               (AudioCommand){ .command = AU_START_EFFECT, .p1 = NO_SOUND_EFFECT, .count = 1 });
+}
+
+/* The guard's state half: the actor is a combatant (the action's subjects
+ * index the objects' places by it). */
+static bool showing_fits(const GameState *g) { return battle_names_combatant(battle_action_actor(g)); }
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} ShowAsC;
+
+enum { FRAME_WAIT = 0xC1007E, FRAME_STEP = 0xC110FA, LOAD = 0xC14310, POSITIONS = 0xC14212, SCRIPTS = 0xC14BBE };
+
+static bool show_a_part(void *ctx, ShowCall call)
+{
+    ShowAsC *c = ctx;
+    GameState *g = c->game;
+    bool done = false;
+    switch (call) {
+    case SHOW_STEP_AFTER_THE_POSES:
+    case SHOW_PLAYING_STEP:
+    case SHOW_FINISHING_STEP: TIMED_AS(g, FRAME_STEP, done = battle_frame_stepped(g, c->pf)); return done;
+    case SHOW_LOAD: TIMED_AS(g, LOAD, done = battle_load_action_animation(g, c->pf)); return done;
+    case SHOW_POSITIONS: TIMED_AS(g, POSITIONS, done = battle_update_animation_positions(g, c->pf)); return done;
+    case SHOW_SCRIPTS: TIMED_AS(g, SCRIPTS, done = battle_run_scripts(g, c->pf)); return done;
+    case SHOW_CUT_OFF_THE_SOUNDS: cut_off_the_sounds(c->pf); return true;
+    case SHOW_KEEP_THE_PHASE:
+    case SHOW_PHASE_BACK: return true;
+    default: TIMED_AS(g, FRAME_WAIT, done = battle_wait_for_frame(g, c->pf)); return done;
+    }
+}
+
+bool battle_show_action(GameState *g, Platform *pf)
+{
+    if (!showing_fits(g))
+        return battle_needs_the_machine(g, 0xC14058, "an action shown whose actor is past the combatants");
+    ShowAsC c = { g, pf };
+    return show_the_action(g, show_a_part, &c);
+}
+
+/* ---- On the machine ------------------------------------------------------------------------ */
+
+/* Wait for the next frame ($C1:007E): the wait reads none of the registers
+ * but A's high byte, which it takes along. */
+enum { FRAME_WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS };
+
+/* The waits for the next frame, and the frame steps, each by its place in
+ * the showing (ShowCall's order). */
+static const uint32_t show_frame_waits[] = { 0xC1405F, 0xC140A0, 0xC140B0, 0xC140E1, 0xC14116, 0xC1414B, 0xC141B4, 0xC141B7 };
+static const uint32_t show_frame_steps[] = { 0xC140A3, 0xC140B6, 0xC140E4 };
+
+static bool show_on_the_machine(void *ctx, ShowCall call)
+{
+    Snes *s = ctx;
+    switch (call) {
+    case SHOW_STEP_AFTER_THE_POSES:
+    case SHOW_PLAYING_STEP:
+    case SHOW_FINISHING_STEP: return battle_run(s, show_frame_steps[call - SHOW_STEP_AFTER_THE_POSES], FRAME_STEP, battle_frame_step);
+    case SHOW_LOAD: return battle_run(s, 0xC140AD, LOAD, battle_load_action_animation_entry);
+    case SHOW_POSITIONS: return battle_run(s, 0xC140C1, POSITIONS, battle_update_animation_positions_entry);
+    case SHOW_SCRIPTS: return battle_run(s, 0xC140CB, SCRIPTS, battle_run_scripts_entry);
+    case SHOW_CUT_OFF_THE_SOUNDS:
+        cut_off_the_sounds(m_platform(s));
+        return battle_back(s, 0xC140DD + BATTLE_JSL_SIZE, BATTLE_PAGE, BATTLE_DATA_BANK);
+    case SHOW_KEEP_THE_PHASE: m_push8(s, battle_frame_phase(state_of(s))); return true;
+    case SHOW_PHASE_BACK: m_pull8(s); return true;
+    default: return battle_wait_frame(s, show_frame_waits[call - SHOW_FIRST_FRAME], FRAME_WAIT, FRAME_WAIT_READS);
+    }
+}
+
 /* The poses' round ends on its last count, which leaves the carry set, and
  * nothing after it touches the carry; the battle's steps hand it back. */
-void battle_show_action(Snes *s)
+void battle_show_action_entry(Snes *s)
 {
-    if (!show_the_action(s))
+    if (!show_the_action(state_of(s), show_on_the_machine, s))
         return;
     m_set_flag(s, CPU_FLAG_C, true);
     m_rts(s);
@@ -401,8 +473,7 @@ void battle_find_the_members_falling_entry(Snes *s)
 bool battle_show_action_ready(Snes *s)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool fits = battle_names_combatant(battle_action_actor(g));
+    bool fits = showing_fits(state_of(s));
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && fits;
 }

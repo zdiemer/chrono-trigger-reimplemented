@@ -111,8 +111,11 @@ bool field_party_can_be_kept(const GameState *g);
 void field_start_location_song(Snes *s);
 void field_load_tile_graphics(Snes *s);
 void field_load_bg3_graphics(Snes *s);
-void field_load_tile_looks(Snes *s);
-void field_load_bg3_tile_looks(Snes *s);
+void field_load_tile_looks_entry(Snes *s);
+/* The tile set's looks loaded, and BG3's, as C ($C0:09DD, $C0:0A14). */
+void field_load_tile_looks(GameState *g);
+void field_load_bg3_tile_looks(GameState *g);
+void field_load_bg3_tile_looks_entry(Snes *s);
 bool field_party_can_be_put_aside(Snes *s);
 /* The location's palette, the map's layers' state cleared, and its event
  * script unpacked with the built-in commands after it. */
@@ -120,7 +123,10 @@ void field_load_location_palette(GameState *g);
 void field_clear_the_layers_state(GameState *g, Platform *pf);
 void field_load_location_palette_entry(Snes *s);
 void field_clear_the_layers_state_entry(Snes *s);
-void field_load_the_script(Snes *s);
+void field_load_the_script_entry(Snes *s);
+/* The location's event script unpacked, as C ($C0:56D4): false where it
+ * doesn't fit, which the original checks. */
+bool field_load_the_script(GameState *g);
 bool field_script_can_be_loaded(Snes *s);
 bool field_can_be_set_up_again(Snes *s);
 enum { FIELD_LOAD_LOCATION_ENTRY = 0xC000F4, FIELD_PUT_ASIDE_ENTRY = 0xC0011B, FIELD_SET_UP_AGAIN_ENTRY = 0xC001A5 };

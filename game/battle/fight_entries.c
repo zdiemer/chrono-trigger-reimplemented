@@ -26,7 +26,7 @@ static bool party_real(Snes *s)
     return real;
 }
 
-static bool members_fighting_real(const GameState *g)
+bool battle_fight_can_start(const GameState *g)
 {
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
         uint8_t character = battle_combatant_fighting(g, member);
@@ -39,7 +39,7 @@ static bool members_fighting_real(const GameState *g)
 static bool fighting_real(Snes *s)
 {
     vars_peek(true);
-    bool real = members_fighting_real(state_of(s));
+    bool real = battle_fight_can_start(state_of(s));
     vars_peek(false);
     return real;
 }

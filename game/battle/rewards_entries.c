@@ -90,11 +90,12 @@ void battle_turn_experience_to_gold_entry(Snes *s)
 }
 
 // $C1:F93E
+bool battle_experience_can_be_shared(const GameState *g) { return members_ready(g) && reserve_ready(g); }
+
 bool battle_share_experience_ready(Snes *s)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ready = members_ready(g) && reserve_ready(g);
+    bool ready = battle_experience_can_be_shared(state_of(s));
     vars_peek(false);
     return battle_on_page(s) && ready;
 }

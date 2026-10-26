@@ -195,7 +195,7 @@ static bool steps_through_frames(uint8_t kind)
 /* Once a frame: when a pause is asked for (a screen command sets it), keep the
  * first eight slots' kinds aside and stop those that step through frames;
  * once it is no longer asked for, put the kinds back. */
-static void pause_palette_animation(GameState *g)
+void battle_pause_palette_animation(GameState *g)
 {
     if (battle_palette_pause_request(g)) {
         if (animation_paused(g))
@@ -270,8 +270,8 @@ void battle_save_palette_kinds(Snes *s)
     m_rts(s);
 }
 
-void battle_pause_palette_animation(Snes *s)
+void battle_pause_palette_animation_entry(Snes *s)
 {
-    pause_palette_animation(state_of(s));
+    battle_pause_palette_animation(state_of(s));
     m_rtl(s);
 }

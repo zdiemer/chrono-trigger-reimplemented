@@ -295,7 +295,7 @@ static void load_bg3_graphics(GameState *g, Platform *pf)
 
 // $C0:09DD
 /* How BG1's and BG2's map tiles are made of the tile set's tiles. */
-static void load_tile_looks(GameState *g)
+void field_load_tile_looks(GameState *g)
 {
     uint8_t set = the_record(g).tile_set;
     if (set == NO_TILE_SET)
@@ -306,7 +306,7 @@ static void load_tile_looks(GameState *g)
 
 // $C0:0A14
 /* ... and BG3's, where the location has a set for it. */
-static void load_bg3_tile_looks(GameState *g)
+void field_load_bg3_tile_looks(GameState *g)
 {
     uint8_t set = the_record(g).bg3_tile_set;
     if (field_map_has_no_bg3_set(g) != 0 || set == NO_TILE_SET)
@@ -398,15 +398,15 @@ void field_load_bg3_graphics(Snes *s)
     m_rts(s);
 }
 
-void field_load_tile_looks(Snes *s)
+void field_load_tile_looks_entry(Snes *s)
 {
-    load_tile_looks(state_of(s));
+    field_load_tile_looks(state_of(s));
     m_rts(s);
 }
 
-void field_load_bg3_tile_looks(Snes *s)
+void field_load_bg3_tile_looks_entry(Snes *s)
 {
-    load_bg3_tile_looks(state_of(s));
+    field_load_bg3_tile_looks(state_of(s));
     m_rts(s);
 }
 
@@ -509,7 +509,7 @@ static uint16_t the_locations_script(const GameState *g) { return location_scrip
 // $C0:56D4
 /* The location's event script, with the built-in commands after it; false
  * where it doesn't fit, which is the original's error screen. */
-static bool load_the_script(GameState *g)
+bool field_load_the_script(GameState *g)
 {
     uint16_t script = the_locations_script(g);
     ORIGINAL_EFFECT(leave_last_worked(g, script));
@@ -541,8 +541,8 @@ static void load_the_graphics(GameState *g, Platform *pf)
 
 static void load_the_tile_looks(GameState *g)
 {
-    TIMED_AS(g, TILE_LOOKS_ROUTINE, load_tile_looks(g));
-    TIMED_AS(g, BG3_TILE_LOOKS_ROUTINE, load_bg3_tile_looks(g));
+    TIMED_AS(g, TILE_LOOKS_ROUTINE, field_load_tile_looks(g));
+    TIMED_AS(g, BG3_TILE_LOOKS_ROUTINE, field_load_bg3_tile_looks(g));
 }
 
 static void load_the_animations(GameState *g)
@@ -654,7 +654,7 @@ static bool script(void *ctx, Loading loading)
     (void)loading;
     LoadAsC *c = ctx;
     bool loaded = false;
-    TIMED_AS(c->game, SCRIPT_UNPACKED, loaded = load_the_script(c->game));
+    TIMED_AS(c->game, SCRIPT_UNPACKED, loaded = field_load_the_script(c->game));
     return loaded;
 }
 
@@ -761,7 +761,7 @@ static bool map_on_the_machine(void *ctx, Loading loading)
 static bool script_on_the_machine(void *ctx, Loading loading)
 {
     Snes *s = ctx;
-    return field_run(s, loading_sites[loading].script, SCRIPT_UNPACKED, READS_NOTHING, field_load_the_script,
+    return field_run(s, loading_sites[loading].script, SCRIPT_UNPACKED, READS_NOTHING, field_load_the_script_entry,
                      page(s));
 }
 
@@ -825,11 +825,11 @@ void field_clear_the_layers_state_entry(Snes *s)
  * from its call, which reads nothing but the overflow its callers keep. */
 enum { SCRIPT_CHECKED = 0xC05703, THE_CHECK_READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
-void field_load_the_script(Snes *s)
+void field_load_the_script_entry(Snes *s)
 {
     GameState *g = state_of(s);
     m_set_flag(s, CPU_FLAG_V, tripling_overflows(the_locations_script(g)));
-    if (!load_the_script(g)) {
+    if (!field_load_the_script(g)) {
         m_stop_at(s, SCRIPT_CHECKED, THE_CHECK_READS_THE_OVERFLOW);
         return;
     }

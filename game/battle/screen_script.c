@@ -29,10 +29,12 @@
 
 #include "battle/bridge.h"
 #include "battle/frame.h"
+#include "battle/program.h"
 #include "charge.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "platform/input.h"
+#include "platform/timing.h"
 #include "port/native.h"
 #include "wram.h"
 
@@ -338,7 +340,7 @@ enum { WAIT_FOR_LINE = 0xCD3B82, DISPATCH_CALL = 0xCD16AF };
 // $CD:1D93
 /* Wait for the picture to reach a line before the channel goes on (the
  * timing service's wait, which a host drawing a frame at a time answers at
- * once). It works nothing out. No script of the game's has the command. */
+ * once). It works nothing out. */
 static bool wait_for_line(Snes *s, const ScreenCommand *c)
 {
     return battle_wait_line(s, DISPATCH_CALL, WAIT_FOR_LINE, DC_X | DC_Y | DC_FLAGS, c->line);
@@ -459,34 +461,52 @@ static void leave_the_machine(Snes *s, uint8_t opcode, const ScreenCommand *c)
 }
 
 // $CD:16A6
-/* Run a command: its operation, or the original's handler. False where the
- * original's code carried on from a call-out. */
-static bool run_command(Snes *s, uint8_t opcode, ScreenChannel channel)
+/* Run a command: its operation, timed as the original's handler; or, where
+ * it has none here, the handler, or a bridge the runner calls with the
+ * machine (BRIDGED, NOT_OURS, the command decoded into `c`). */
+typedef enum { COMMAND_RAN, COMMAND_BRIDGED, COMMAND_NOT_OURS } CommandRun;
+
+static CommandRun run_command(GameState *g, uint8_t opcode, ScreenChannel channel, ScreenCommand *c,
+                              const ScreenOpcode **row_of)
 {
-    GameState *g = state_of(s);
     set_battle_screen_channel(g, (uint16_t)(channel * SCREEN_CHANNEL_RECORD_BYTES));
     uint16_t at = (uint16_t)(screen_place(g) + 1);
     set_battle_screen_script(g, (battle_screen_script(g) & 0xFF0000u) | at);
     const ScreenOpcode *row = screen_opcode(opcode);
-    ScreenCommand c = { 0 };
+    *row_of = row;
+    *c = (ScreenCommand){ 0 };
     if (row)
-        c = decode(g, row, channel, at);
-    if (!runs_here(g, row, &c)) {
+        *c = decode(g, row, channel, at);
+    if (!runs_here(g, row, c))
+        return COMMAND_NOT_OURS;
+    if (row->bridge) {
+        finish_command(g, row, c, screen_on());
+        return COMMAND_BRIDGED;
+    }
+    ScreenFlow flow;
+    TIMED_AS(g, handler_of(opcode), flow = row->operation(g, c));
+    finish_command(g, row, c, flow);
+    return COMMAND_RAN;
+}
+
+/* On the machine: the original's handler from the dispatch's call, or the
+ * bridge. False where the original's code carried on from a call-out. */
+static bool run_command_on_the_machine(Snes *s, uint8_t opcode, ScreenChannel channel)
+{
+    ScreenCommand c;
+    const ScreenOpcode *row;
+    switch (run_command(state_of(s), opcode, channel, &c, &row)) {
+    case COMMAND_NOT_OURS:
         enter_as_the_dispatch_does(s, opcode);
         /* no handler reads the overflow (tools/v_readers.py), which the
            command before it left */
         return battle_call(s, 0xCD16AF, handler_of(opcode), DC_V);
+    case COMMAND_BRIDGED: return row->bridge(s, &c);
+    default:
+        ORIGINAL_EFFECT(leave_the_machine(s, opcode, &c));
+        s->cpu.a = 0;
+        return true;
     }
-    if (row->bridge) {
-        finish_command(g, row, &c, screen_on());
-        return row->bridge(s, &c);
-    }
-    ScreenFlow flow;
-    NATIVE_TIME_AS(s, handler_of(opcode), flow = row->operation(g, &c));
-    finish_command(g, row, &c, flow);
-    ORIGINAL_EFFECT(leave_the_machine(s, opcode, &c));
-    s->cpu.a = 0;
-    return true;
 }
 
 /* ---- A channel's step --------------------------------------------------------------------- */
@@ -526,26 +546,62 @@ static NextByte next_byte_is(uint8_t byte)
     return byte == STEP_ENDS ? NEXT_WAIT : NEXT_FRAME;
 }
 
-/* A byte past the language's last command sends the original's dispatch
- * past its table, into code that isn't a handler. No script of the game's
- * has one; the original's runner goes on from the byte, at the head of its
- * loop, as its own step would come to it. */
-static void hand_the_byte_back(Snes *s, ScreenChannel channel)
+/* How a channel's step ends: done, gone no further in a command's call, or
+ * at a byte past the language's last command, which sends the original's
+ * dispatch past its table, into code that isn't a handler (no script of the
+ * game's has one: the original's runner goes on from the byte, at the head
+ * of its loop, as its own step would come to it), or at a command whose
+ * operand runs its handler's table past its end. */
+typedef enum { CHANNEL_STEPPED, CHANNEL_STOPPED, CHANNEL_BYTE_PAST_THE_LANGUAGE, CHANNEL_COMMAND_PAST_ITS_TABLE } ChannelStep;
+
+/* The swing's kept word ($8C, $8D) names one of four words; the original's
+ * handler jumps through a table of four by the operand's low seven bits, and
+ * past it into code that isn't a handler. No script of the game's has either
+ * command (their rows' needs refuse the rest). */
+enum { KEEP_SWING_WORD = 0x8C, KEEP_WORD_ASIDE = 0x8D, SWING_WORDS = 4 };
+
+static bool runs_past_its_table(const GameState *g, uint8_t byte, uint16_t at)
 {
-    s->cpu.a = 0;
-    s->cpu.x = (uint16_t)(channel * SCREEN_CHANNEL_RECORD_BYTES);
-    m_stop_at_own(s, 0xCD165F, DC_AL | DC_Y | DC_N | DC_Z | DC_C);
+    return (byte == KEEP_SWING_WORD || byte == KEEP_WORD_ASIDE)
+           && (screen_script_byte_at(g, (uint16_t)(at + 1)) & 0x7F) >= SWING_WORDS;
 }
 
-/* The commands are run through the dispatch's entry as the original calls
- * it, with its return on the stack, so that a command's call-outs meet the
- * original's where it makes them. A command whose handler is the original's
- * may leave A's high byte set, which the original then takes into the next
- * frame's place in the graphics; the channel goes on as C only where it
- * didn't (no command the game's scripts use does), and otherwise the
- * original's runner goes on from the dispatch's return. */
-static bool run_command_as_the_original_calls_it(Snes *s, uint8_t opcode, ScreenChannel channel)
+// $CD:1654
+/* Take a channel's step: run its commands (each a routine of its own,
+ * `command`) until it shows a frame, ends its step or ends its script. */
+static ChannelStep step_channel(GameState *g, ScreenChannel channel,
+                                bool (*command)(void *ctx, uint8_t opcode, ScreenChannel channel), void *ctx)
 {
+    set_battle_screen_script(g, battle_screen_channels_place(g, channel));
+    for (;;) {
+        uint16_t at = screen_place(g);
+        uint8_t byte = screen_script_byte_at(g, at);
+        switch (next_byte_is(byte)) {
+        case NEXT_END: set_battle_screen_channels_running(g, channel, 0); return CHANNEL_STEPPED;
+        case NEXT_FRAME: show_frame(g, channel, byte); wait_after(g, channel, at); return CHANNEL_STEPPED;
+        case NEXT_WAIT: wait_after(g, channel, at); return CHANNEL_STEPPED;
+        case NEXT_UNKNOWN: return CHANNEL_BYTE_PAST_THE_LANGUAGE;
+        case NEXT_COMMAND:
+            if (runs_past_its_table(g, byte, at))
+                return CHANNEL_COMMAND_PAST_ITS_TABLE;
+            if (!command(ctx, byte, channel))
+                return CHANNEL_STOPPED;
+            set_battle_screen_script(g, (battle_screen_script(g) & 0xFF0000u) | (uint16_t)(screen_place(g) + 1));
+            break;
+        }
+    }
+}
+
+/* On the machine the commands are run through the dispatch's entry as the
+ * original calls it, with its return on the stack, so that a command's
+ * call-outs meet the original's where it makes them. A command whose handler
+ * is the original's may leave A's high byte set, which the original then
+ * takes into the next frame's place in the graphics; the channel goes on as
+ * C only where it didn't (no command the game's scripts use does), and
+ * otherwise the original's runner goes on from the dispatch's return. */
+static bool command_on_the_machine(void *ctx, uint8_t opcode, ScreenChannel channel)
+{
+    Snes *s = ctx;
     s->cpu.a = opcode;
     s->cpu.x = (uint16_t)(channel * SCREEN_CHANNEL_RECORD_BYTES);
     if (!battle_run(s, 0xCD1695, 0xCD16A6, battle_run_screen_command))
@@ -557,52 +613,24 @@ static bool run_command_as_the_original_calls_it(Snes *s, uint8_t opcode, Screen
     return true;
 }
 
-/* The swing's kept word ($8C, $8D) names one of four words; the original's
- * handler jumps through a table of four by the operand's low seven bits, and
- * past it into code that isn't a handler. No script of the game's has either
- * command (their rows' needs refuse the rest); a step that comes to one
- * naming no word is the original runner's from the command on, as its
- * dispatch is called with the byte in A. */
-enum { KEEP_SWING_WORD = 0x8C, KEEP_WORD_ASIDE = 0x8D, SWING_WORDS = 4 };
-
-static bool runs_past_its_table(const GameState *g, uint8_t byte, uint16_t at)
-{
-    return (byte == KEEP_SWING_WORD || byte == KEEP_WORD_ASIDE)
-           && (screen_script_byte_at(g, (uint16_t)(at + 1)) & 0x7F) >= SWING_WORDS;
-}
-
-static void hand_the_command_back(Snes *s, uint8_t byte, ScreenChannel channel)
-{
-    s->cpu.a = byte;
-    s->cpu.x = (uint16_t)(channel * SCREEN_CHANNEL_RECORD_BYTES);
-    m_stop_at_own(s, 0xCD1695, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-}
-
-// $CD:1654
-/* Take a channel's step: run its commands until it shows a frame, ends its
- * step or ends its script. False where the original's code carried on. */
-static bool step_channel(Snes *s, ScreenChannel channel)
+static bool step_channel_on_the_machine(Snes *s, ScreenChannel channel)
 {
     GameState *g = state_of(s);
-    set_battle_screen_script(g, battle_screen_channels_place(g, channel));
-    for (;;) {
-        uint16_t at = screen_place(g);
-        uint8_t byte = screen_script_byte_at(g, at);
-        switch (next_byte_is(byte)) {
-        case NEXT_END: set_battle_screen_channels_running(g, channel, 0); return true;
-        case NEXT_FRAME: show_frame(g, channel, byte); wait_after(g, channel, at); return true;
-        case NEXT_WAIT: wait_after(g, channel, at); return true;
-        case NEXT_UNKNOWN: hand_the_byte_back(s, channel); return false;
-        case NEXT_COMMAND:
-            if (runs_past_its_table(g, byte, at)) {
-                hand_the_command_back(s, byte, channel);
-                return false;
-            }
-            if (!run_command_as_the_original_calls_it(s, byte, channel))
-                return false;
-            set_battle_screen_script(g, (battle_screen_script(g) & 0xFF0000u) | (uint16_t)(screen_place(g) + 1));
-            break;
-        }
+    switch (step_channel(g, channel, command_on_the_machine, s)) {
+    case CHANNEL_STEPPED: return true;
+    case CHANNEL_BYTE_PAST_THE_LANGUAGE:
+        s->cpu.a = 0;
+        s->cpu.x = (uint16_t)(channel * SCREEN_CHANNEL_RECORD_BYTES);
+        m_stop_at_own(s, 0xCD165F, DC_AL | DC_Y | DC_N | DC_Z | DC_C);
+        return false;
+    case CHANNEL_COMMAND_PAST_ITS_TABLE:
+        /* the original runner's from the command on, its dispatch called
+         * with the byte in A */
+        s->cpu.a = screen_script_byte_at(g, screen_place(g));
+        s->cpu.x = (uint16_t)(channel * SCREEN_CHANNEL_RECORD_BYTES);
+        m_stop_at_own(s, 0xCD1695, DC_Y | DC_N | DC_V | DC_Z | DC_C);
+        return false;
+    default: return false;
     }
 }
 
@@ -634,28 +662,13 @@ static bool step_comes_round(GameState *g, ScreenChannel channel)
     return true;
 }
 
-/* The channel's step is its own routine in the original, called with the
- * count of ended channels on the stack, the channel's offset in X and its
- * pace in A, which the countdown was just set from; it runs
- * as that routine's entry, with its call-outs where the original makes them. */
-static bool step_as_the_original_calls_it(Snes *s, ScreenChannel channel, uint16_t ended)
-{
-    m_push16(s, ended);
-    s->cpu.a = battle_screen_channels_pace(state_of(s), channel);
-    s->cpu.x = (uint16_t)(channel * SCREEN_CHANNEL_RECORD_BYTES);
-    if (!battle_run(s, 0xCD1631, 0xCD1654, battle_run_screen_channel))
-        return false;
-    m_pull16(s);
-    return true;
-}
-
 // $CD:1609
 /* Run the screen scripts for a frame: step each running channel whose step
- * comes round, and when both have ended, end the scripts and ask for the
- * battlefield back. Nothing runs while the battlefield is being put back. */
-static bool run_screen_scripts(Snes *s)
+ * comes round (each a routine of its own, `step`), and when both have ended,
+ * end the scripts and ask for the battlefield back. Nothing runs while the
+ * battlefield is being put back. */
+static bool run_screen_scripts(GameState *g, bool (*step)(void *ctx, ScreenChannel channel, uint16_t ended), void *ctx)
 {
-    GameState *g = state_of(s);
     if (battle_background_restore_request(g) || !battle_screen_scripts_running(g))
         return true;
     set_battle_scroll_mode(g, battle_bg3_stays_still(g) ? BATTLE_SCROLL_STEADY : BATTLE_SCROLL_BG3_MOVING);
@@ -663,13 +676,29 @@ static bool run_screen_scripts(Snes *s)
     for (ScreenChannel channel = 0; channel < SCREEN_CHANNELS; channel++) {
         if (!battle_screen_channels_running(g, channel))
             ended++;
-        else if (step_comes_round(g, channel) && !step_as_the_original_calls_it(s, channel, ended))
+        else if (step_comes_round(g, channel) && !step(ctx, channel, ended))
             return false;
     }
     if (ended == SCREEN_CHANNELS) {
         set_battle_screen_scripts_running(g, 0);
         set_battle_background_restore_request(g, (uint8_t)(battle_background_restore_request(g) + 1));
     }
+    return true;
+}
+
+/* On the machine the channel's step is its own routine, called with the
+ * count of ended channels on the stack, the channel's offset in X and its
+ * pace in A, which the countdown was just set from; it runs as that
+ * routine's entry, with its call-outs where the original makes them. */
+static bool step_on_the_machine(void *ctx, ScreenChannel channel, uint16_t ended)
+{
+    Snes *s = ctx;
+    m_push16(s, ended);
+    s->cpu.a = battle_screen_channels_pace(state_of(s), channel);
+    s->cpu.x = (uint16_t)(channel * SCREEN_CHANNEL_RECORD_BYTES);
+    if (!battle_run(s, 0xCD1631, 0xCD1654, battle_run_screen_channel))
+        return false;
+    m_pull16(s);
     return true;
 }
 
@@ -720,7 +749,7 @@ void battle_start_battlefield_scripts(GameState *g)
 
 void battle_run_screen_scripts(Snes *s)
 {
-    if (run_screen_scripts(s))
+    if (run_screen_scripts(state_of(s), step_on_the_machine, s))
         m_rts(s);
 }
 
@@ -738,7 +767,7 @@ void battle_run_screen_channel(Snes *s)
 {
     uint16_t offset = s->cpu.x;
     m_push16(s, offset);
-    if (!step_channel(s, (ScreenChannel)(offset / SCREEN_CHANNEL_RECORD_BYTES)))
+    if (!step_channel_on_the_machine(s, (ScreenChannel)(offset / SCREEN_CHANNEL_RECORD_BYTES)))
         return;
     s->cpu.x = m_pull16(s);
     m_rts(s);
@@ -748,7 +777,7 @@ void battle_run_screen_channel(Snes *s)
  * comes back in X. */
 void battle_run_screen_command(Snes *s)
 {
-    if (!run_command(s, (uint8_t)s->cpu.a, (ScreenChannel)(s->cpu.x / SCREEN_CHANNEL_RECORD_BYTES)))
+    if (!run_command_on_the_machine(s, (uint8_t)s->cpu.a, (ScreenChannel)(s->cpu.x / SCREEN_CHANNEL_RECORD_BYTES)))
         return;
     s->cpu.x = battle_screen_channel(state_of(s));
     m_rts(s);
@@ -827,4 +856,48 @@ bool battle_screen_triangle_ready(Snes *s)
     bool ready = command_runs_here(state_of(s), screen_opcode(DRAW_TRIANGLE));
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && ready;
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} ScriptsAsC;
+
+/* A command the port runs, or the program goes no further at its handler.
+ * The one bridge is the wait for a line, the timing service's own. */
+static bool run_a_command(void *ctx, uint8_t opcode, ScreenChannel channel)
+{
+    ScriptsAsC *a = ctx;
+    GameState *g = a->game;
+    ScreenCommand c;
+    const ScreenOpcode *row;
+    CommandRun run = COMMAND_NOT_OURS;
+    TIMED_AS(g, 0xCD16A6, run = run_command(g, opcode, channel, &c, &row));
+    if (run == COMMAND_BRIDGED) {
+        tm_wait_line(a->pf, PF_CALL_DC(DISPATCH_CALL, WAIT_FOR_LINE, DC_X | DC_Y | DC_FLAGS), c.line);
+        return true;
+    }
+    if (run != COMMAND_RAN)
+        return battle_needs_the_machine(g, handler_of(opcode), "a screen script's command the port doesn't run");
+    return true;
+}
+
+static bool step_a_channel(void *ctx, ScreenChannel channel, uint16_t ended)
+{
+    (void)ended;
+    ScriptsAsC *a = ctx;
+    GameState *g = a->game;
+    ChannelStep step = CHANNEL_STOPPED;
+    TIMED_AS(g, 0xCD1654, step = step_channel(g, channel, run_a_command, a));
+    if (step == CHANNEL_BYTE_PAST_THE_LANGUAGE || step == CHANNEL_COMMAND_PAST_ITS_TABLE)
+        return battle_needs_the_machine(g, 0xCD1654, "a screen script's byte past the language");
+    return step == CHANNEL_STEPPED;
+}
+
+bool battle_screen_scripts_run(GameState *g, Platform *pf)
+{
+    ScriptsAsC a = { g, pf };
+    return run_screen_scripts(g, step_a_channel, &a);
 }

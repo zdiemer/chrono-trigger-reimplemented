@@ -34,7 +34,7 @@ enum { DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 /* The pause's turn: a paused battle is silenced, waits a frame at a time for
  * the pause to end (the vblank handler still reads Start), and carries on
  * with its sound. */
-static void sit_out_the_pause(GameState *g, Platform *pf)
+void battle_sit_out_the_pause(GameState *g, Platform *pf)
 {
     if (!battle_paused(g))
         return;
@@ -45,9 +45,9 @@ static void sit_out_the_pause(GameState *g, Platform *pf)
     silence(g, pf, PF_CALL_DC(0xCD3E70, 0xC70004, DRIVER_IGNORES), SILENCE_OFF);
 }
 
-void battle_sit_out_the_pause(Snes *s)
+void battle_sit_out_the_pause_entry(Snes *s)
 {
-    sit_out_the_pause(state_of(s), m_platform(s));
+    battle_sit_out_the_pause(state_of(s), m_platform(s));
     m_rts(s);
 }
 
@@ -55,7 +55,7 @@ void battle_sit_out_the_pause(Snes *s)
 /* The pause's turn from another bank: a call of the same. */
 void battle_sit_out_the_pause_long(Snes *s)
 {
-    if (!battle_run(s, 0xCD04A6, 0xCD3E44, battle_sit_out_the_pause))
+    if (!battle_run(s, 0xCD04A6, BATTLE_PAUSE_ENTRY, battle_sit_out_the_pause_entry))
         return;
     m_rtl(s);
 }
@@ -63,7 +63,7 @@ void battle_sit_out_the_pause_long(Snes *s)
 // $CD:3B5F
 /* A sound a screen script asked for, played once, from the frame wait's
  * tail, panned where the script said. */
-static void play_the_script_sound(GameState *g, Platform *pf)
+void battle_play_the_script_sound(GameState *g, Platform *pf)
 {
     if (!battle_script_sound_request(g))
         return;
@@ -86,17 +86,17 @@ static void leave_the_pan(Snes *s, const GameState *g, bool played)
 
 // $CD:3B71
 /* A sound effect played, panned where the caller says. */
-static void play_a_sound(Platform *pf, uint8_t effect, uint8_t pan)
+void battle_play_a_sound(Platform *pf, uint8_t effect, uint8_t pan)
 {
     au_play_effect(pf, PF_CALL_DC(0xCD3B7D, 0xC70004, DRIVER_IGNORES), effect, pan);
 }
 
 /* The effect comes in A and its pan in X; the pan is left in A, as the
  * script's sound leaves it. */
-void battle_play_a_sound(Snes *s)
+void battle_play_a_sound_entry(Snes *s)
 {
     uint8_t pan = (uint8_t)s->cpu.x;
-    play_a_sound(m_platform(s), (uint8_t)s->cpu.a, pan);
+    battle_play_a_sound(m_platform(s), (uint8_t)s->cpu.a, pan);
     m_set_a8(s, pan);
     m_rts(s);
 }
@@ -107,11 +107,11 @@ bool battle_play_a_sound_from(Snes *s, uint32_t site, uint8_t effect, uint8_t pa
     s->cpu.x = pan;
     if (!battle_on_page(s) || !battle_binary_m8_x16(s)) {
         m_set_a8(s, effect);
-        if (!battle_call(s, site, 0xCD3B71, 0))
+        if (!battle_call(s, site, BATTLE_PLAY_A_SOUND_ENTRY, 0))
             return false;
     } else {
         battle_push_the_return(s, site);
-        TIMED_AS(state_of(s), 0xCD3B71, play_a_sound(m_platform(s), effect, pan));
+        TIMED_AS(state_of(s), BATTLE_PLAY_A_SOUND_ENTRY, battle_play_a_sound(m_platform(s), effect, pan));
         battle_pull_the_return(s);
         m_set_a8(s, pan);
     }
@@ -119,11 +119,11 @@ bool battle_play_a_sound_from(Snes *s, uint32_t site, uint8_t effect, uint8_t pa
     return true;
 }
 
-void battle_play_the_script_sound(Snes *s)
+void battle_play_the_script_sound_entry(Snes *s)
 {
     GameState *g = state_of(s);
     bool asked = battle_script_sound_request(g) != 0;
-    play_the_script_sound(g, m_platform(s));
+    battle_play_the_script_sound(g, m_platform(s));
     leave_the_pan(s, g, asked);
     m_rts(s);
 }

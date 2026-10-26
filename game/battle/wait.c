@@ -24,9 +24,12 @@
  * service's, battle/nmi.c.) */
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/frame.h"
 #include "battle/message.h"
 #include "battle/sound.h"
+#include "battle/program.h"
 #include "battle/wait.h"
+#include "charge.h"
 #include "platform/timing.h"
 #include "vars.h"
 
@@ -42,37 +45,31 @@ void battle_sit_out_a_paused_frame(GameState *g, Platform *pf)
         tm_wait_for_handlers(pf, PF_LOOP(0xCD3E5B, 0xCD3E60));
 }
 
-/* The pause's turn, on every pass of a wait: only a paused battle has
- * anything to do in it (battle/sound.c), and it does it from the call at
- * `site` (a JSR, or the JSL of the long form at $CD:0036). */
-static bool give_the_pause_its_turn(Snes *s, uint32_t site, bool long_call)
-{
-    if (!battle_paused(state_of(s)))
-        return true;
-    return long_call ? battle_run_long(s, site, 0xCD0036, battle_sit_out_the_pause_long)
-                     : battle_run(s, site, 0xCD3E44, battle_sit_out_the_pause);
-}
+/* The pause's turn (battle/sound.c) and the message's next letter
+ * (battle/message.c), each a routine of its own, which the program calls as
+ * C and the machine's entries from the original's calls. */
+typedef bool (*WaitCall)(void *ctx);
 
 // $C1:007E
 /* The battle's wait for the next frame: the frame's update asked for, and
  * waited for. A paused battle sits the pause out on a pass of it, and its
- * update, held while paused, comes after. */
-static bool wait_for_the_frame(Snes *s)
+ * update, held while paused, comes after. False where the pause's turn went
+ * no further. */
+static bool wait_for_the_frame(GameState *g, Platform *pf, WaitCall pause, void *ctx)
 {
-    GameState *g = state_of(s);
     set_battle_frame_pending(g, (uint8_t)(battle_frame_pending(g) + 1));
     for (;;) {
-        if (!give_the_pause_its_turn(s, 0xC10080, true))
+        if (battle_paused(g) && !pause(ctx))
             return false;
         if (!battle_frame_pending(g))
             return true;
-        tm_wait_for_handlers(m_platform(s), PF_LOOP(0xC10080, 0xC10088));
+        tm_wait_for_handlers(pf, PF_LOOP(0xC10080, 0xC10088));
     }
 }
 
 // $CF:FCFB
 /* The same as the battle hands back to the field, when there is no pause. */
-static void wait_for_a_last_frame(GameState *g, Platform *pf)
+void battle_wait_for_a_last_frame(GameState *g, Platform *pf)
 {
     set_battle_frame_pending(g, (uint8_t)(battle_frame_pending(g) + 1));
     while (battle_frame_pending(g))
@@ -83,29 +80,141 @@ static void wait_for_a_last_frame(GameState *g, Platform *pf)
 /* The frame work's wait: the vblank handler's frame waited for, the pause
  * given its turn on each pass, then the next letter of a battle message
  * typed. */
-static bool wait_for_the_handler(Snes *s)
+static bool wait_for_the_handler(GameState *g, Platform *pf, WaitCall pause, WaitCall type_the_message, void *ctx)
 {
-    GameState *g = state_of(s);
     set_battle_nmi_pending(g, (uint8_t)(battle_nmi_pending(g) + 1));
     for (;;) {
-        if (!give_the_pause_its_turn(s, 0xCD3E81, false))
+        if (battle_paused(g) && !pause(ctx))
             return false;
         if (!battle_nmi_pending(g))
             break;
-        tm_wait_for_handlers(m_platform(s), PF_LOOP(0xCD3E81, 0xCD3E89));
+        tm_wait_for_handlers(pf, PF_LOOP(0xCD3E81, 0xCD3E89));
     }
-    return battle_run(s, 0xCD3E89, 0xCD04DF, battle_type_the_message_entry);
+    return type_the_message(ctx);
+}
+
+// $CD:3E75
+/* The frame work's wait for the next frame: the handler's frame, then the
+ * menu's turn (battle/frame_step.c). */
+static bool wait_for_the_next_frame(WaitCall handler, WaitCall menu_turn, void *ctx)
+{
+    return handler(ctx) && menu_turn(ctx);
+}
+
+// $CD:3E3B
+/* A number of those (0 is 256). */
+static bool wait_some_frames(uint8_t frames, bool (*next_frame)(void *ctx, uint8_t left), void *ctx)
+{
+    uint8_t left = frames;
+    do {
+        if (!next_frame(ctx, left))
+            return false;
+    } while (--left);
+    return true;
 }
 
 // $CD:044A
 /* The battle's start and end run a small vblank handler of their own
  * (battle_nmi_alternate), which clears what this sets once it has finished a
  * frame. */
-static void wait_for_the_small_handler(GameState *g, Platform *pf)
+void battle_wait_for_the_small_handler(GameState *g, Platform *pf)
 {
     set_battle_alternate_frame_pending(g, 1);
     while (battle_alternate_frame_pending(g))
         tm_wait_for_handlers(pf, PF_LOOP(0xCD044E, 0xCD0452));
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} WaitAsC;
+
+/* The pause's guard and the menu turn's own guard ask nothing of the game's
+ * state that the pause doesn't keep; the message's typing, that the menus'
+ * text code can go on from a message being set up. */
+static bool sit_out_a_pause_frame(void *ctx)
+{
+    WaitAsC *c = ctx;
+    TIMED_AS(c->game, BATTLE_PAUSE_ENTRY, battle_sit_out_the_pause(c->game, c->pf));
+    return true;
+}
+
+static bool type_a_letter(void *ctx)
+{
+    GameState *g = ((WaitAsC *)ctx)->game;
+    if (!battle_message_typing_fits(g))
+        return battle_needs_the_machine(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");
+    TIMED_AS(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message(g));
+    return true;
+}
+
+static bool wait_out_the_handler(void *ctx)
+{
+    WaitAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, BATTLE_HANDLER_WAIT, done = wait_for_the_handler(c->game, c->pf, sit_out_a_pause_frame, type_a_letter, c));
+    return done;
+}
+
+static bool take_a_menu_turn(void *ctx)
+{
+    WaitAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, BATTLE_MENU_TURN_ENTRY, done = battle_menu_turn(c->game, c->pf));
+    return done;
+}
+
+static bool wait_for_a_next_frame(void *ctx, uint8_t left)
+{
+    (void)left;
+    WaitAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, BATTLE_NEXT_FRAME_WAIT, done = wait_for_the_next_frame(wait_out_the_handler, take_a_menu_turn, c));
+    return done;
+}
+
+bool battle_wait_for_frame(GameState *g, Platform *pf)
+{
+    WaitAsC c = { g, pf };
+    return wait_for_the_frame(g, pf, sit_out_a_pause_frame, &c);
+}
+
+bool battle_wait_for_the_handler(GameState *g, Platform *pf)
+{
+    WaitAsC c = { g, pf };
+    return wait_for_the_handler(g, pf, sit_out_a_pause_frame, type_a_letter, &c);
+}
+
+bool battle_wait_for_the_next_frame(GameState *g, Platform *pf)
+{
+    WaitAsC c = { g, pf };
+    return wait_for_the_next_frame(wait_out_the_handler, take_a_menu_turn, &c);
+}
+
+bool battle_wait_some_frames(GameState *g, Platform *pf, uint8_t frames)
+{
+    WaitAsC c = { g, pf };
+    return wait_some_frames(frames, wait_for_a_next_frame, &c);
+}
+
+/* ---- On the machine ------------------------------------------------------------------------ */
+
+/* The pause's turn, from the call at `site` (a JSR, or the JSL of the long
+ * form at $CD:0036). */
+static bool pause_from(Snes *s, uint32_t site, bool long_call)
+{
+    return long_call ? battle_run_long(s, site, 0xCD0036, battle_sit_out_the_pause_long)
+                     : battle_run(s, site, BATTLE_PAUSE_ENTRY, battle_sit_out_the_pause_entry);
+}
+
+static bool frame_pause_on_the_machine(void *ctx) { return pause_from(ctx, 0xC10080, true); }
+static bool handler_pause_on_the_machine(void *ctx) { return pause_from(ctx, 0xCD3E81, false); }
+
+static bool type_the_message_on_the_machine(void *ctx)
+{
+    return battle_run(ctx, 0xCD3E89, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message_entry);
 }
 
 bool battle_wait_for_the_handler_from(Snes *s, uint32_t site)
@@ -123,25 +232,25 @@ bool battle_wait_for_the_next_frame_from(Snes *s, uint32_t site)
 /* The waits leave A's low byte as the test that ended them left it, 0, which
  * their callers don't read; they are declared so (registry.c). */
 
-void battle_wait_for_frame(Snes *s)
+void battle_wait_for_frame_entry(Snes *s)
 {
-    if (!wait_for_the_frame(s))
+    if (!wait_for_the_frame(state_of(s), m_platform(s), frame_pause_on_the_machine, s))
         return;
     m_rts(s);
 }
 
-void battle_wait_for_a_last_frame(Snes *s)
+void battle_wait_for_a_last_frame_entry(Snes *s)
 {
-    wait_for_a_last_frame(state_of(s), m_platform(s));
+    battle_wait_for_a_last_frame(state_of(s), m_platform(s));
     m_rts(s);
 }
 
 /* The original keeps A on the stack while it waits, and hands it back as a
  * pull does. */
-void battle_wait_for_the_handler(Snes *s)
+void battle_wait_for_the_handler_entry(Snes *s)
 {
     m_push8(s, (uint8_t)s->cpu.a);
-    if (!wait_for_the_handler(s))
+    if (!wait_for_the_handler(state_of(s), m_platform(s), handler_pause_on_the_machine, type_the_message_on_the_machine, s))
         return;
     uint8_t kept = m_pull8(s);
     m_set_a8(s, kept);
@@ -149,41 +258,51 @@ void battle_wait_for_the_handler(Snes *s)
     m_rts(s);
 }
 
-// $CD:3E75
 /* The frame work's wait for the next frame: the handler's frame, then the
- * menu's turn (battle/frame_step.c), which reads of the registers A's high
- * byte and the carry. */
+ * menu's turn, which reads of the registers A's high byte and the carry. */
 enum { MENU_TURN_READS_A_HIGH_AND_CARRY = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z };
 
-void battle_wait_for_the_next_frame(Snes *s)
+static bool handler_on_the_machine(void *ctx)
 {
-    if (!battle_run(s, 0xCD3E75, 0xCD3E7D, battle_wait_for_the_handler))
-        return;
-    if (!battle_run_long_dc(s, 0xCD3E78, 0xC10012, MENU_TURN_READS_A_HIGH_AND_CARRY, battle_menu_turn_long))
+    return battle_run(ctx, 0xCD3E75, BATTLE_HANDLER_WAIT, battle_wait_for_the_handler_entry);
+}
+
+static bool menu_turn_on_the_machine(void *ctx)
+{
+    return battle_run_long_dc(ctx, 0xCD3E78, BATTLE_MENU_TURN_ENTRY, MENU_TURN_READS_A_HIGH_AND_CARRY,
+                              battle_menu_turn_long);
+}
+
+void battle_wait_for_the_next_frame_entry(Snes *s)
+{
+    if (!wait_for_the_next_frame(handler_on_the_machine, menu_turn_on_the_machine, s))
         return;
     m_rts(s);
 }
 
-// $CD:3E3B
-/* A number of those, A's low byte (0 is 256); the count goes down in A and
- * on the stack, where the original keeps it. */
-void battle_wait_some_frames(Snes *s)
+/* The count goes down in A and on the stack, where the original keeps it. */
+static bool next_frame_on_the_machine(void *ctx, uint8_t left)
 {
-    uint8_t left = (uint8_t)s->cpu.a;
-    do {
-        m_set_a8(s, left);
-        m_push8(s, left);
-        if (!battle_run(s, 0xCD3E3C, 0xCD3E75, battle_wait_for_the_next_frame))
-            return;
-        left = (uint8_t)(m_pull8(s) - 1);
-    } while (left);
+    Snes *s = ctx;
     m_set_a8(s, left);
+    m_push8(s, left);
+    if (!battle_run(s, 0xCD3E3C, BATTLE_NEXT_FRAME_WAIT, battle_wait_for_the_next_frame_entry))
+        return false;
+    (void)m_pull8(s);
+    return true;
+}
+
+void battle_wait_some_frames_entry(Snes *s)
+{
+    if (!wait_some_frames((uint8_t)s->cpu.a, next_frame_on_the_machine, s))
+        return;
+    m_set_a8(s, 0);
     m_rts(s);
 }
 
-void battle_wait_for_the_small_handler(Snes *s)
+void battle_wait_for_the_small_handler_entry(Snes *s)
 {
-    wait_for_the_small_handler(state_of(s), m_platform(s));
+    battle_wait_for_the_small_handler(state_of(s), m_platform(s));
     m_rts(s);
 }
 

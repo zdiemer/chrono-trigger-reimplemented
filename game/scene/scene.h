@@ -768,7 +768,8 @@ void scene_title_upload_ripple(Snes *s);
 
 /* scene/race.c (the program in RAM) */
 bool scene_race_set_up_present(Snes *s);
-void scene_race_set_up(Snes *s);
+/* The race's setup as C (scene/program.c's setups with no machine). */
+bool scene_race_set_up(GameState *g, Platform *pf);
 void scene_race_set_up_entry(Snes *s);
 bool scene_race_sweep_curtain_present(Snes *s);
 void scene_race_sweep_curtain(Snes *s);
@@ -797,6 +798,8 @@ void scene_leave_perspective_registers(Snes *s, SceneChannel ch);
 /* scene/bridge.c: a scene's song, from the program's routine that starts one,
  * called from a setup at `call`. */
 void scene_bridge_start_song(Snes *s, uint32_t call, uint8_t song);
+/* The song started, as the program's call of the sound driver starts it. */
+void scene_start_song(Platform *pf, uint8_t song);
 /* scene/bridge.c: the frame a call from `call` leaves on the stack, for the
  * calls a port makes as the routine the call reached would. */
 void scene_bridge_enter(Snes *s, uint32_t call);

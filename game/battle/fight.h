@@ -13,8 +13,12 @@
 
 #include "state.h"
 
-/* $C1:FA8B: the whole of it, in order. */
+/* $C1:FA8B: the whole of it, in order. Its guard's state half is the
+ * setup's party as the game makes it (setup_party_is_real, battle/setup.h). */
 void battle_start_fight(GameState *g);
+/* The pieces' guards' state half: every member fighting empty or one of the
+ * characters. */
+bool battle_fight_can_start(const GameState *g);
 
 /* ---- The pieces (each an entry of its own too, battle/entries.h) --------------------------- */
 

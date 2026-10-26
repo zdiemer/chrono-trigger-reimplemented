@@ -27,10 +27,16 @@
 #include "battle/entries.h"
 #include "battle/frame_data.h"
 #include "battle/message.h"
+#include "battle/screen_script.h"
+#include "core/input.h"
+#include "core/palette.h"
+#include "platform/timing.h"
+#include "battle/program.h"
 #include "battle/screen.h"
 #include "battle/screen_data.h"
 #include "battle/sound.h"
 #include "field/field.h"
+#include "charge.h"
 #include "original_effects.h"
 #include "platform/input.h"
 #include "platform/video.h"
@@ -166,10 +172,9 @@ static void end_the_slide(GameState *g)
 
 /* A line of the slide, in the per-line tables (battle/display.c). The frame
  * it counts down is the slide's. */
-static void slide_a_line(Snes *s, bool out)
+static void slide_a_line(GameState *g, bool out)
 {
-    GameState *g = state_of(s);
-    NATIVE_TIME_AS(s, out ? 0xCD0577 : 0xCD053C, battle_slide_the_split(g, out));
+    TIMED_AS(g, out ? 0xCD0577 : 0xCD053C, battle_slide_the_split(g, out));
     uint8_t left = (uint8_t)(battle_window_slide_frames(g) - 1);
     set_battle_window_slide_frames(g, left);
     if (left == 0)
@@ -179,26 +184,25 @@ static void slide_a_line(Snes *s, bool out)
 }
 
 // $CD:05B2
-/* The slide's frame; a slide in ends the frame after its last line. */
-static bool slide_the_window(Snes *s)
+/* The slide's frame; a slide in ends the frame after its last line. True
+ * where a slide in started, its lines laid out the battlefield's way. */
+static bool slide_the_window(GameState *g)
 {
-    GameState *g = state_of(s);
     uint8_t slide = battle_window_slide(g);
     if (slide == BATTLE_SLIDE_STILL)
-        return true;
+        return false;
     if (slide == BATTLE_SLIDE_STARTING_IN) {
         set_battle_alternate_base(g, BATTLEFIELD_ARRANGEMENT);
-        NATIVE_TIME_AS(s, 0xCEEE6E, battle_arrange_line_effects(g, battle_alternate_latched(g)));
-        battle_leave_arrangement_registers(s);
+        TIMED_AS(g, 0xCEEE6E, battle_arrange_line_effects(g, battle_alternate_latched(g)));
         set_battle_window_slide(g, SLIDE_IN_STARTED);
         return true;
     }
     if (!sliding_out(slide) && battle_window_slide_frames(g) == 0) {
         end_the_slide(g);
-        return true;
+        return false;
     }
-    slide_a_line(s, sliding_out(slide));
-    return true;
+    slide_a_line(g, sliding_out(slide));
+    return false;
 }
 
 /* ---- The HP gradient's phase ------------------------------------------------------------- */
@@ -326,8 +330,8 @@ static void rotate_the_colors(GameState *g)
 }
 
 /* A demo battle ends on any button: the screen fades out, and the game goes
- * back to its title. True when it is time to leave. */
-enum { LEAVING_THE_BATTLE = 0x80 };
+ * back to its title ($C0:FF00). True when it is time to leave. */
+enum { LEAVING_THE_BATTLE = 0x80, DEMO_LEAVES = 0xC0FF00 };
 
 static bool any_button_held(Platform *pf)
 {
@@ -388,64 +392,85 @@ static void bring_the_upload_forward(GameState *g)
         set_battle_graphics_upload_request(g, GRAPHICS_UPLOAD_NEXT_FRAME - 1);
 }
 
-/* The frame update's call-outs. Their callees read nothing of the registers
- * but A's high byte, which is 0 here as the original's frame count leaves
- * it. */
-enum { OBJECT_WORK_IGNORES = DC_X | DC_Y | DC_FLAGS | DC_AL };
+/* The frame update's object work, each a routine of its own (battle/
+ * effect_paths.c, battle/object_motion.c, battle/draw_objects.c), and the
+ * effect sprites' attributes kept across it, where the original keeps them on
+ * the stack. */
+typedef enum {
+    UPDATE_PARTY_COLORS, UPDATE_EFFECT_SLOTS, UPDATE_SCRIPTED_MOVES, UPDATE_ANCHORS, UPDATE_TRAILS, UPDATE_NUMBERS,
+    UPDATE_FORMATION, UPDATE_DRAW_OBJECTS, UPDATE_KEEP_THE_ATTRIBUTES, UPDATE_ATTRIBUTES_BACK, UPDATE_CALLS
+} UpdateCall;
 
-static bool object_work(Snes *s, uint32_t site, uint32_t routine)
-{
-    return battle_call(s, site, routine, OBJECT_WORK_IGNORES);
-}
+/* How the frame update ends: on with the frame, gone no further, or a demo
+ * battle's end, which leaves for the title. */
+typedef enum { UPDATE_DONE, UPDATE_STOPPED, UPDATE_DEMO_ENDS } UpdateEnds;
 
 // $CF:E58A
-/* The effect sprites' attributes are kept on the stack across the object
- * work, where the original keeps them, and put back after it. */
-static bool update_the_frame(Snes *s)
+static UpdateEnds update_the_frame(GameState *g, Platform *pf, bool (*call)(void *ctx, UpdateCall call), void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     count_the_blink(g);
     mirror_the_flicker(g);
-    if (!object_work(s, 0xCFE5A7, 0xCFE7D7))
-        return false;
+    if (!call(ctx, UPDATE_PARTY_COLORS))
+        return UPDATE_STOPPED;
     cycle_the_cursor_color(g);
     set_battle_frames(g, battle_frames(g) + 1);
-    s->cpu.a = 0;
     rotate_the_colors(g);
     color_the_cursors(g);
-    m_push8(s, battle_effect_sprite_attributes(g));
-    if (end_the_demo(g, pf)) {
-        m_stop_at_own(s, 0xC0FF00, DC_A | DC_X | DC_FLAGS | DC_DB | DC_D);
-        return false;
-    }
+    uint8_t kept = battle_effect_sprite_attributes(g);
+    if (!call(ctx, UPDATE_KEEP_THE_ATTRIBUTES))
+        return UPDATE_STOPPED;
+    if (end_the_demo(g, pf))
+        return UPDATE_DEMO_ENDS;
     hold_to_run(g, pf);
     tick(g);
-    if (!object_work(s, 0xCFE748, 0xCFEFAF))
-        return false;
+    if (!call(ctx, UPDATE_EFFECT_SLOTS))
+        return UPDATE_STOPPED;
     if (battle_effects_running(g)
-        && (!object_work(s, 0xCFE750, 0xCFEC78) || !object_work(s, 0xCFE753, 0xCFECC2)
-            || !object_work(s, 0xCFE756, 0xCFED18) || !object_work(s, 0xCFE759, 0xCFE781)))
-        return false;
-    if (battle_formation(g) && !object_work(s, 0xCFE761, 0xCFF9D3))
-        return false;
+        && (!call(ctx, UPDATE_SCRIPTED_MOVES) || !call(ctx, UPDATE_ANCHORS) || !call(ctx, UPDATE_TRAILS)
+            || !call(ctx, UPDATE_NUMBERS)))
+        return UPDATE_STOPPED;
+    if (battle_formation(g) && !call(ctx, UPDATE_FORMATION))
+        return UPDATE_STOPPED;
     if (!battle_sprites_frozen(g)) {
         bring_the_upload_forward(g);
-        if (!object_work(s, 0xCFE778, 0xCFE83A))
-            return false;
+        if (!call(ctx, UPDATE_DRAW_OBJECTS))
+            return UPDATE_STOPPED;
     }
     set_battle_frame_pending(g, 0);
-    set_battle_effect_sprite_attributes(g, m_pull8(s));
-    return true;
+    if (!call(ctx, UPDATE_ATTRIBUTES_BACK))
+        return UPDATE_STOPPED;
+    set_battle_effect_sprite_attributes(g, kept);
+    return UPDATE_DONE;
+}
+
+/* On the machine the object work is called from the original's calls; its
+ * callees read nothing of the registers but A's high byte, which is 0 here
+ * as the original's frame count leaves it. */
+enum { OBJECT_WORK_IGNORES = DC_X | DC_Y | DC_FLAGS | DC_AL };
+
+static const struct {
+    uint32_t site, routine;
+} object_work[UPDATE_KEEP_THE_ATTRIBUTES] = {
+    [UPDATE_PARTY_COLORS] = { 0xCFE5A7, 0xCFE7D7 }, [UPDATE_EFFECT_SLOTS] = { 0xCFE748, 0xCFEFAF },
+    [UPDATE_SCRIPTED_MOVES] = { 0xCFE750, 0xCFEC78 }, [UPDATE_ANCHORS] = { 0xCFE753, 0xCFECC2 },
+    [UPDATE_TRAILS] = { 0xCFE756, 0xCFED18 }, [UPDATE_NUMBERS] = { 0xCFE759, 0xCFE781 },
+    [UPDATE_FORMATION] = { 0xCFE761, 0xCFF9D3 }, [UPDATE_DRAW_OBJECTS] = { 0xCFE778, 0xCFE83A },
+};
+
+static bool update_on_the_machine(void *ctx, UpdateCall call)
+{
+    Snes *s = ctx;
+    switch (call) {
+    case UPDATE_KEEP_THE_ATTRIBUTES:
+        s->cpu.a = 0;
+        m_push8(s, battle_effect_sprite_attributes(state_of(s)));
+        return true;
+    case UPDATE_ATTRIBUTES_BACK: (void)m_pull8(s); return true;
+    default: return battle_call(s, object_work[call].site, object_work[call].routine, OBJECT_WORK_IGNORES);
+    }
 }
 
 /* ---- The frame work ----------------------------------------------------------------------- */
-
-/* The frame work's call-outs read nothing of the registers but what each
- * names: the button reading reads Y, the gradient, the sound's and the
- * battlefield's routines A's high byte, which is 0 on the battle's page. */
-enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS, READS_Y = DC_A | DC_X | DC_FLAGS,
-       READS_A_HIGH = DC_X | DC_Y | DC_FLAGS | DC_AL };
 
 /* While paused, the screen is dimmed to half, unless the ROM's debug frame
  * advance is on. */
@@ -454,62 +479,97 @@ static uint8_t paused_brightness(const GameState *g)
     return battle_debug_frame_advance(g) ? battle_brightness(g) : battle_brightness(g) >> 1;
 }
 
-/* The buttons are read and their repeat counted, paused or not. */
-static bool read_the_buttons(Snes *s, uint32_t read_site, uint32_t repeat_site)
+/* The frame's uploads: all of them in the fight, or while the frame work is
+ * cut down, the palette and a queued transfer only. The vblank's other
+ * uploads wait while the window slides or the fight is paused. */
+static void send_the_frame(GameState *g, Platform *pf)
 {
-    return battle_call_long(s, read_site, 0xC28002, READS_Y) && battle_call(s, repeat_site, 0xCD0340, READS_NOTHING);
+    if (battle_frame_work_reduced(g)) {
+        TIMED_AS(g, 0xCD09CE, battle_send_palette(pf));
+        TIMED_AS(g, 0xCD3EB4, battle_send_queued_transfer(g, pf));
+        return;
+    }
+    if (battle_window_slide(g) == BATTLE_SLIDE_STILL)
+        TIMED_AS(g, 0xCD0607, battle_send_block_and_message_tiles(g, pf));
+    TIMED_AS(g, 0xCD3EB4, battle_send_queued_transfer(g, pf));
+    if (!battle_paused(g))
+        TIMED_AS(g, 0xCFE300, battle_send_vblank_uploads(g, pf));
 }
 
-/* The HP gradient, where the battle's background has one: the background's
- * ripple each frame, and the gradient's step on the frames its pace allows.
- * The step takes A's high byte along, which the ripple leaves clear. */
-static bool run_the_gradient(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (!(battle_background_flags(g) & BATTLE_BACKGROUND_HAS_GRADIENT))
-        return true;
-    NATIVE_TIME_AS(s, 0xCEE18E, battle_ripple_background(g));
-    if ((uint8_t)battle_frame_count(g) & battle_gradient_frame_mask(g))
-        return true;
-    s->cpu.a = 0;
-    return battle_call_long(s, 0xCD0985, 0xD1EA4B, READS_A_HIGH);
-}
+/* The frame work's calls on the battle's other routines, each where the
+ * original makes it: the window's slide (twice), the buttons read and their
+ * repeat counted (paused, and at the frame's end), the layers' scroll and
+ * the screen's shake (battle/scroll.c), the HP gradient's step
+ * (battle/screen_gradient.c), the sprites hidden, the frame update (above),
+ * the wait for the line the animation scripts start at, the screen scripts
+ * (battle/screen_script.c), and the palettes paused with the battle and
+ * animated. */
+typedef enum {
+    WORK_SLIDE_FIRST, WORK_SLIDE_SECOND, WORK_READ_PAUSED, WORK_REPEAT_PAUSED, WORK_SCROLL, WORK_SHAKE,
+    WORK_GRADIENT, WORK_HIDE_SPRITES, WORK_UPDATE, WORK_WAIT_FOR_THE_LINE, WORK_SCREEN_SCRIPTS,
+    WORK_PAUSE_PALETTES, WORK_ANIMATE_PALETTES, WORK_READ, WORK_REPEAT,
+} WorkCall;
 
 /* While effects run, the animation scripts' frame starts once the beam is at
  * line 64, unless a script said not to wait. */
 enum { LINE_TO_WAIT_FOR = 0x40 };
 
-static bool wait_for_the_line(Snes *s)
+static bool waits_for_the_line(const GameState *g)
 {
-    GameState *g = state_of(s);
-    if (battle_effect_line_wait_off(g) || !battle_effects_running(g) || battle_sprites_frozen(g))
-        return true;
-    return battle_wait_line(s, 0xCD09AC, 0xCD3B82, DC_X | DC_Y | DC_FLAGS | DC_AH | DC_DB, LINE_TO_WAIT_FOR);
+    return !battle_effect_line_wait_off(g) && battle_effects_running(g) && !battle_sprites_frozen(g);
 }
 
-/* The frame's uploads: all of them in the fight, or while the frame work is
- * cut down, the palette and a queued transfer only. The vblank's other
- * uploads wait while the window slides or the fight is paused. */
-static void send_the_frame(Snes *s)
+// $CD:088D
+static bool work_the_frame(GameState *g, Platform *pf, bool (*call)(void *ctx, WorkCall call), void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    if (battle_frame_work_reduced(g)) {
-        NATIVE_TIME_AS(s, 0xCD09CE, battle_send_palette(pf));
-        NATIVE_TIME_AS(s, 0xCD3EB4, battle_send_queued_transfer(g, pf));
-        return;
+    send_the_frame(g, pf);
+    set_the_windows(g, pf);
+    color_below_the_split(g);
+    square_the_window_top(g);
+    TIMED_AS(g, 0xCD0AEE, battle_show_window_table(g, pf));
+    if (!call(ctx, WORK_SLIDE_FIRST) || !call(ctx, WORK_SLIDE_SECOND))
+        return false;
+    vid_enable_line_effects(pf, PF_AT(0xCD08FE), battle_line_effects_on(g));
+    if (battle_paused(g)) {
+        VidDisplay dimmed = vid_display_decode(paused_brightness(g));
+        vid_set_display(pf, PF_AT(0xCD0916), &dimmed);
+        return call(ctx, WORK_READ_PAUSED) && call(ctx, WORK_REPEAT_PAUSED);
     }
-    if (battle_window_slide(g) == BATTLE_SLIDE_STILL)
-        NATIVE_TIME_AS(s, 0xCD0607, battle_send_block_and_message_tiles(g, pf));
-    NATIVE_TIME_AS(s, 0xCD3EB4, battle_send_queued_transfer(g, pf));
-    if (!battle_paused(g))
-        NATIVE_TIME_AS(s, 0xCFE300, battle_send_vblank_uploads(g, pf));
+    VidDisplay display = vid_display_decode(battle_brightness(g));
+    vid_set_display(pf, PF_AT(0xCD0925), &display);
+    if (!call(ctx, WORK_SCROLL) || !call(ctx, WORK_SHAKE))
+        return false;
+    if (!(battle_frame_count(g) & 1) && battle_window_slide(g) == BATTLE_SLIDE_STILL)
+        choose_the_arrangement(g);
+    if (battle_background_flags(g) & BATTLE_BACKGROUND_HAS_GRADIENT) {
+        TIMED_AS(g, 0xCEE18E, battle_ripple_background(g));
+        if (!((uint8_t)battle_frame_count(g) & battle_gradient_frame_mask(g)) && !call(ctx, WORK_GRADIENT))
+            return false;
+    }
+    if (!battle_keep_sprites(g) && !battle_sprites_frozen(g) && !call(ctx, WORK_HIDE_SPRITES))
+        return false;
+    if (!call(ctx, WORK_UPDATE) || (waits_for_the_line(g) && !call(ctx, WORK_WAIT_FOR_THE_LINE))
+        || !call(ctx, WORK_SCREEN_SCRIPTS))
+        return false;
+    set_battle_sprites_frozen(g, battle_sprites_frozen_setting(g));
+    TIMED_AS(g, 0xCD0B1E, battle_keep_animations_off_the_cycle(g));
+    if (!call(ctx, WORK_PAUSE_PALETTES) || !call(ctx, WORK_ANIMATE_PALETTES))
+        return false;
+    TIMED_AS(g, 0xCD0ADE, battle_turn_the_gradient(g));
+    return call(ctx, WORK_READ) && call(ctx, WORK_REPEAT);
 }
+
+/* On the machine: the frame work runs with the data bank $7E, on the
+ * battle's page. Its call-outs read nothing of the registers but what each
+ * names: the button reading reads Y, the gradient, the sound's and the
+ * battlefield's routines A's high byte, which is 0 on the battle's page. */
+enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS, READS_Y = DC_A | DC_X | DC_FLAGS,
+       READS_A_HIGH = DC_X | DC_Y | DC_FLAGS | DC_AL };
 
 /* The shake puts its offsets on the layers with A's high byte as theirs,
  * which the scroll leaves 0; anything else is the original's. It leaves A's
  * high byte 0. */
-static bool shake_the_screen(Snes *s)
+static bool shake_on_the_machine(Snes *s)
 {
     if (s->cpu.a & 0xFF00)
         return battle_call(s, 0xCD092C, 0xCD0B51, DC_X | DC_Y | DC_FLAGS | DC_AL);
@@ -518,25 +578,43 @@ static bool shake_the_screen(Snes *s)
     return true;
 }
 
-/* The sprites are hidden before the objects draw, unless a script keeps them
- * or they are frozen; the original's clearing leaves A the page (0). */
-static void hide_the_sprites(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (battle_keep_sprites(g) || battle_sprites_frozen(g))
-        return;
-    NATIVE_TIME_AS(s, 0xCEF066, battle_hide_sprites(g));
-    s->cpu.a = BATTLE_PAGE;
-}
-
 /* The frame update, through the original's vector at $C1:000C. It runs here
  * with A's high byte 0, as every call the game makes has it; any other is the
  * original's. */
-static bool update_the_battlefield(Snes *s)
+static bool update_the_battlefield_on_the_machine(Snes *s)
 {
     if (s->cpu.a & 0xFF00)
         return battle_call_long(s, 0xCD0997, 0xC1000C, DC_X | DC_Y | DC_FLAGS | DC_AL);
     return battle_run_long(s, 0xCD0997, 0xCFE58A, battle_frame_update);
+}
+
+static bool work_on_the_machine(void *ctx, WorkCall call)
+{
+    Snes *s = ctx;
+    switch (call) {
+    case WORK_SLIDE_FIRST: return battle_run(s, 0xCD08F5, 0xCD05B2, battle_step_window_slide);
+    case WORK_SLIDE_SECOND: return battle_run(s, 0xCD08F8, 0xCD05B2, battle_step_window_slide);
+    case WORK_READ_PAUSED: return battle_call_long(s, 0xCD091A, 0xC28002, READS_Y);
+    case WORK_REPEAT_PAUSED: return battle_call(s, 0xCD091E, 0xCD0340, READS_NOTHING);
+    case WORK_SCROLL: return battle_scroll_the_layers(s);
+    case WORK_SHAKE: return shake_on_the_machine(s);
+    case WORK_GRADIENT:
+        /* the step takes A's high byte along, which the ripple leaves clear */
+        s->cpu.a = 0;
+        return battle_call_long(s, 0xCD0985, 0xD1EA4B, READS_A_HIGH);
+    case WORK_HIDE_SPRITES:
+        NATIVE_TIME_AS(s, 0xCEF066, battle_hide_sprites(state_of(s)));
+        s->cpu.a = BATTLE_PAGE;   /* as the original's clearing leaves it */
+        return true;
+    case WORK_UPDATE: return update_the_battlefield_on_the_machine(s);
+    case WORK_WAIT_FOR_THE_LINE:
+        return battle_wait_line(s, 0xCD09AC, 0xCD3B82, DC_X | DC_Y | DC_FLAGS | DC_AH | DC_DB, LINE_TO_WAIT_FOR);
+    case WORK_SCREEN_SCRIPTS: return battle_run(s, 0xCD09AF, 0xCD1609, battle_run_screen_scripts);
+    case WORK_PAUSE_PALETTES: return battle_call_long(s, 0xCD09BB, 0xD1F426, READS_NOTHING);
+    case WORK_ANIMATE_PALETTES: return battle_call_long(s, 0xCD09BF, 0xFDFFF7, READS_NOTHING);
+    case WORK_READ: return battle_call_long(s, 0xCD09C6, 0xC28002, READS_Y);
+    default: return battle_call(s, 0xCD09CA, 0xCD0340, READS_NOTHING);
+    }
 }
 
 /* An enemy's rule that cycles the background's colors (battle_enemy_rule,
@@ -568,54 +646,13 @@ void battle_keep_animations_off_the_cycle_entry(Snes *s)
     m_rts(s);
 }
 
-/* Palette animation: the animated slots kept off the background cycle's
- * colors, paused with the battle, and run. */
-static bool animate_the_palettes(Snes *s)
-{
-    NATIVE_TIME_AS(s, 0xCD0B1E, battle_keep_animations_off_the_cycle(state_of(s)));
-    return battle_call_long(s, 0xCD09BB, 0xD1F426, READS_NOTHING) && battle_call_long(s, 0xCD09BF, 0xFDFFF7, READS_NOTHING);
-}
-
-// $CD:088D
-/* The frame work runs with the data bank $7E, on the battle's page. */
-static bool work_the_frame(Snes *s)
-{
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    s->cpu.db = BATTLE_DATA_BANK;
-    send_the_frame(s);
-    set_the_windows(g, pf);
-    color_below_the_split(g);
-    square_the_window_top(g);
-    NATIVE_TIME_AS(s, 0xCD0AEE, battle_show_window_table(g, pf));
-    if (!battle_run(s, 0xCD08F5, 0xCD05B2, battle_step_window_slide)
-        || !battle_run(s, 0xCD08F8, 0xCD05B2, battle_step_window_slide))
-        return false;
-    vid_enable_line_effects(pf, PF_AT(0xCD08FE), battle_line_effects_on(g));
-    if (battle_paused(g)) {
-        VidDisplay dimmed = vid_display_decode(paused_brightness(g));
-        vid_set_display(pf, PF_AT(0xCD0916), &dimmed);
-        return read_the_buttons(s, 0xCD091A, 0xCD091E);
-    }
-    VidDisplay display = vid_display_decode(battle_brightness(g));
-    vid_set_display(pf, PF_AT(0xCD0925), &display);
-    if (!battle_scroll_the_layers(s) || !shake_the_screen(s))
-        return false;
-    if (!(battle_frame_count(g) & 1) && battle_window_slide(g) == BATTLE_SLIDE_STILL)
-        choose_the_arrangement(g);
-    if (!run_the_gradient(s))
-        return false;
-    hide_the_sprites(s);
-    if (!update_the_battlefield(s) || !wait_for_the_line(s) || !battle_run(s, 0xCD09AF, 0xCD1609, battle_run_screen_scripts))
-        return false;
-    set_battle_sprites_frozen(g, battle_sprites_frozen_setting(g));
-    if (!animate_the_palettes(s))
-        return false;
-    NATIVE_TIME_AS(s, 0xCD0ADE, battle_turn_the_gradient(g));
-    return read_the_buttons(s, 0xCD09C6, 0xCD09CA);
-}
-
 /* ---- The frame wait's tail ---------------------------------------------------------------- */
+
+/* The tail's calls: the script's sound and the pause's turn
+ * (battle/sound.c), the battlefield put back (battle/battlefield_restore.c),
+ * an effect's graphics loaded (battle/screen_graphics.c), and the message's
+ * next letter (battle/message.c). */
+typedef enum { TAIL_SCRIPT_SOUND, TAIL_PAUSE, TAIL_BATTLEFIELD_BACK, TAIL_EFFECT_GRAPHICS, TAIL_MESSAGE } TailCall;
 
 // $CD:04AA
 /* After the main loop's wait for the frame: unless paused, a sound a screen
@@ -623,25 +660,36 @@ static bool work_the_frame(Snes *s)
  * waiting on a queued transfer, the battlefield put back once the effects
  * stop, and an effect's graphics loaded where a script asked for them and
  * none are loading; and the next letter of a battle message. */
-static bool finish_the_wait(Snes *s)
+static bool finish_the_wait(GameState *g, bool (*call)(void *ctx, TailCall call), void *ctx)
 {
-    GameState *g = state_of(s);
-    if (!battle_paused(g) && !battle_run(s, 0xCD04AF, 0xCD3B5F, battle_play_the_script_sound))
+    if (!battle_paused(g) && !call(ctx, TAIL_SCRIPT_SOUND))
         return false;
-    if (battle_paused(g) && !battle_run(s, 0xCD04B2, 0xCD3E44, battle_sit_out_the_pause))
+    if (battle_paused(g) && !call(ctx, TAIL_PAUSE))
         return false;
     if (!battle_vram_request_busy(g)) {
-        if (battle_background_restore_request(g) && !battle_effects_running(g)
-            && !battle_run(s, 0xCD04C4, 0xCD0453, battle_put_the_battlefield_back))
+        if (battle_background_restore_request(g) && !battle_effects_running(g) && !call(ctx, TAIL_BATTLEFIELD_BACK))
             return false;
         if (battle_effect_graphics_wanted(g) && !battle_effect_graphics_loading(g)) {
-            m_set_a8(s, battle_effect_graphics_effect(g));
-            if (!battle_call_long(s, 0xCD04D4, 0xD1ECF3, DC_X | DC_Y | DC_FLAGS))
+            if (!call(ctx, TAIL_EFFECT_GRAPHICS))
                 return false;
             set_battle_effect_graphics_wanted(g, 0);
         }
     }
-    return battle_run(s, 0xCD04DB, 0xCD04DF, battle_type_the_message_entry);
+    return call(ctx, TAIL_MESSAGE);
+}
+
+static bool tail_on_the_machine(void *ctx, TailCall call)
+{
+    Snes *s = ctx;
+    switch (call) {
+    case TAIL_SCRIPT_SOUND: return battle_run(s, 0xCD04AF, BATTLE_SCRIPT_SOUND_ENTRY, battle_play_the_script_sound_entry);
+    case TAIL_PAUSE: return battle_run(s, 0xCD04B2, BATTLE_PAUSE_ENTRY, battle_sit_out_the_pause_entry);
+    case TAIL_BATTLEFIELD_BACK: return battle_run(s, 0xCD04C4, 0xCD0453, battle_put_the_battlefield_back_entry);
+    case TAIL_EFFECT_GRAPHICS:
+        m_set_a8(s, battle_effect_graphics_effect(state_of(s)));
+        return battle_call_long(s, 0xCD04D4, 0xD1ECF3, DC_X | DC_Y | DC_FLAGS);
+    default: return battle_run(s, 0xCD04DB, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message_entry);
+    }
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */
@@ -658,6 +706,8 @@ static const struct {
     { 0xCD088D, battle_frame_work },
 };
 
+enum { FRAME_DISPATCH = 0xCD0C95 };
+
 // $CD:0C95
 void battle_frame_dispatch(Snes *s)
 {
@@ -669,15 +719,16 @@ void battle_frame_dispatch(Snes *s)
 
 void battle_frame_work(Snes *s)
 {
-    if (!work_the_frame(s))
+    s->cpu.db = BATTLE_DATA_BANK;
+    if (!work_the_frame(state_of(s), m_platform(s), work_on_the_machine, s))
         return;
     m_rts(s);
 }
 
 void battle_step_window_slide(Snes *s)
 {
-    if (!slide_the_window(s))
-        return;
+    if (slide_the_window(state_of(s)))
+        battle_leave_arrangement_registers(s);
     m_rts(s);
 }
 
@@ -699,14 +750,16 @@ void battle_clear_oam_buffer(Snes *s)
 
 void battle_frame_update(Snes *s)
 {
-    if (!update_the_frame(s))
-        return;
-    m_rtl(s);
+    switch (update_the_frame(state_of(s), m_platform(s), update_on_the_machine, s)) {
+    case UPDATE_DONE: m_rtl(s); return;
+    case UPDATE_DEMO_ENDS: m_stop_at_own(s, DEMO_LEAVES, DC_A | DC_X | DC_FLAGS | DC_DB | DC_D); return;
+    default: return;
+    }
 }
 
 void battle_frame_wait_tail(Snes *s)
 {
-    if (!finish_the_wait(s))
+    if (!finish_the_wait(state_of(s), tail_on_the_machine, s))
         return;
     m_rtl(s);
 }
@@ -715,9 +768,11 @@ void battle_frame_wait_tail(Snes *s)
 /* The map's layers that scroll by themselves, the field's, which the battle's
  * background is a map of: a frame's worth, the field's own work, timed as
  * its routine. */
+void battle_scroll_the_map_layers(GameState *g) { TIMED_AS(g, 0xC02C41, field_scroll_layers_by_themselves(g)); }
+
 void battle_scroll_map_layers(Snes *s)
 {
-    NATIVE_TIME_AS(s, 0xC02C41, field_scroll_layers_by_themselves(state_of(s)));
+    battle_scroll_the_map_layers(state_of(s));
     m_rtl(s);
 }
 
@@ -737,12 +792,16 @@ static bool rotation_in_range(const GameState *g)
              && (battle_background_cycle(g) & 0x0F) == LAST_COLOR);
 }
 
+static bool frame_work_fits(const GameState *g)
+{
+    return battle_vblank_uploads_in_range(g) && rotation_in_range(g) && battle_scroll_mode(g) < BATTLE_SCROLL_MODES;
+}
+
 static bool frame_work_state_ok(Snes *s)
 {
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = battle_vblank_uploads_in_range(g) && battle_transfers_apart(g, s->cpu.s) && rotation_in_range(g)
-              && battle_scroll_mode(g) < BATTLE_SCROLL_MODES;
+    bool ok = frame_work_fits(g) && battle_transfers_apart(g, s->cpu.s);
     vars_peek(false);
     return ok;
 }
@@ -763,4 +822,147 @@ bool battle_frame_dispatch_ready(Snes *s)
     bool a_mode = battle_mode(state_of(s)) < FRAME_MODES;
     vars_peek(false);
     return battle_frame_work_ready(s) && (s->cpu.a & 0xFF00) == 0 && a_mode;
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+/* The guards' state halves: the frame work's, with the transfers kept off
+ * the whole of the stack's area (there is no machine's stack to say where
+ * its top is); the dispatch's, with a mode its table has. */
+static bool frame_work_takes(const GameState *g) { return frame_work_fits(g) && battle_transfers_keep_off_the_stack(g); }
+
+bool battle_frame_dispatched(GameState *g, Platform *pf)
+{
+    uint8_t mode = battle_mode(g);
+    if (mode >= FRAME_MODES || !frame_work_takes(g))
+        return battle_needs_the_machine(g, FRAME_DISPATCH, "the battle's frame work in a state the port doesn't take");
+    bool done = false;
+    if (mode == 0)
+        TIMED_AS(g, frame_work_of[mode].routine, done = battle_display_set_up(g, pf));
+    else
+        TIMED_AS(g, frame_work_of[mode].routine, done = battle_frame_worked(g, pf));
+    return done;
+}
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} FrameAsC;
+
+/* The object work, each with its guard's state half: the effects' paths of
+ * a kind the game gives; the draw pass, someone on the battlefield; the rest
+ * turn away only the page. */
+static bool update_a_part(void *ctx, UpdateCall call)
+{
+    GameState *g = ((FrameAsC *)ctx)->game;
+    bool done = true;
+    switch (call) {
+    case UPDATE_PARTY_COLORS: TIMED_AS(g, object_work[call].routine, battle_cycle_party_colors(g)); return true;
+    case UPDATE_EFFECT_SLOTS:
+        if (!battle_effect_paths_known(g))
+            return battle_needs_the_machine(g, object_work[call].routine, "an effect's path of a kind the port doesn't know");
+        TIMED_AS(g, object_work[call].routine, battle_step_effect_slots(g));
+        return true;
+    case UPDATE_SCRIPTED_MOVES: TIMED_AS(g, object_work[call].routine, battle_step_scripted_moves(g)); return true;
+    case UPDATE_ANCHORS: TIMED_AS(g, object_work[call].routine, battle_update_anchors(g)); return true;
+    case UPDATE_TRAILS: TIMED_AS(g, object_work[call].routine, battle_record_trails(g)); return true;
+    case UPDATE_NUMBERS: TIMED_AS(g, object_work[call].routine, battle_raise_numbers(g)); return true;
+    case UPDATE_FORMATION: TIMED_AS(g, object_work[call].routine, battle_place_formation(g)); return true;
+    case UPDATE_DRAW_OBJECTS: TIMED_AS(g, object_work[call].routine, done = battle_objects_drawn(g)); return done;
+    default: return true;
+    }
+}
+
+/* The frame work's calls, each with its guard's state half where it has
+ * one: the HP gradient's step, its phase in range; the frame update, a
+ * rotation it takes; the input, a controller read and no reset held. */
+enum { FRAMES_INPUT = 0xC28002, BUTTON_REPEAT = 0xCD0340, HP_GRADIENT = 0xD1EA4B, FRAME_UPDATE = 0xCFE58A,
+       LINE_WAIT = 0xCD3B82, SCREEN_SCRIPTS = 0xCD1609, PALETTE_ANIMATION = 0xFDFFF7 };
+
+static bool read_the_input(FrameAsC *c)
+{
+    bool read = false;
+    TIMED_AS(c->game, FRAMES_INPUT, read = input_take_frame(c->game, c->pf));
+    if (!read)
+        return battle_needs_the_machine(c->game, FRAMES_INPUT, "the controller not read, or the reset buttons held");
+    return true;
+}
+
+static bool work_a_part(void *ctx, WorkCall call)
+{
+    FrameAsC *c = ctx;
+    GameState *g = c->game;
+    bool done = false;
+    switch (call) {
+    case WORK_SLIDE_FIRST:
+    case WORK_SLIDE_SECOND: TIMED_AS(g, 0xCD05B2, (void)slide_the_window(g)); return true;
+    case WORK_READ_PAUSED:
+    case WORK_READ: return read_the_input(c);
+    case WORK_REPEAT_PAUSED:
+    case WORK_REPEAT: TIMED_AS(g, BUTTON_REPEAT, battle_update_button_repeat(g)); return true;
+    case WORK_SCROLL: battle_scroll_by_the_mode(g); return true;
+    case WORK_SHAKE: TIMED_AS(g, 0xCD0B51, battle_shake_screen(g)); return true;
+    case WORK_GRADIENT:
+        if (!battle_hp_gradient_steps(g))
+            return battle_needs_the_machine(g, HP_GRADIENT, "an HP gradient's phase out of range");
+        TIMED_AS(g, HP_GRADIENT, battle_step_hp_gradient(g));
+        return true;
+    case WORK_HIDE_SPRITES: TIMED_AS(g, 0xCEF066, battle_hide_sprites(g)); return true;
+    case WORK_UPDATE: {
+        if (!rotation_in_range(g))
+            return battle_needs_the_machine(g, FRAME_UPDATE, "a background colors' rotation the port doesn't make");
+        UpdateEnds ends = UPDATE_STOPPED;
+        TIMED_AS(g, FRAME_UPDATE, ends = update_the_frame(g, c->pf, update_a_part, c));
+        if (ends == UPDATE_DEMO_ENDS)
+            return battle_needs_the_machine(g, DEMO_LEAVES, "a demo battle's end");
+        return ends == UPDATE_DONE;
+    }
+    case WORK_WAIT_FOR_THE_LINE:
+        tm_wait_line(c->pf, PF_CALL_DC(0xCD09AC, LINE_WAIT, DC_X | DC_Y | DC_FLAGS | DC_AH | DC_DB), LINE_TO_WAIT_FOR);
+        return true;
+    case WORK_SCREEN_SCRIPTS: TIMED_AS(g, SCREEN_SCRIPTS, done = battle_screen_scripts_run(g, c->pf)); return done;
+    case WORK_PAUSE_PALETTES: TIMED_AS(g, 0xD1F426, battle_pause_palette_animation(g)); return true;
+    case WORK_ANIMATE_PALETTES: TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g)); return done;
+    default: return false;
+    }
+}
+
+bool battle_frame_worked(GameState *g, Platform *pf)
+{
+    FrameAsC c = { g, pf };
+    return work_the_frame(g, pf, work_a_part, &c);
+}
+
+/* The tail as C: the sounds and the message with their guards' state halves
+ * (the sound's and the pause's turn away only a page). */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} TailAsC;
+
+static bool finish_a_part(void *ctx, TailCall call)
+{
+    TailAsC *c = ctx;
+    GameState *g = c->game;
+    switch (call) {
+    case TAIL_SCRIPT_SOUND: TIMED_AS(g, BATTLE_SCRIPT_SOUND_ENTRY, battle_play_the_script_sound(g, c->pf)); return true;
+    case TAIL_PAUSE: TIMED_AS(g, BATTLE_PAUSE_ENTRY, battle_sit_out_the_pause(g, c->pf)); return true;
+    case TAIL_BATTLEFIELD_BACK: {
+        bool done = false;
+        TIMED_AS(g, 0xCD0453, done = battle_put_the_battlefield_back(g, c->pf));
+        return done;
+    }
+    case TAIL_EFFECT_GRAPHICS: return battle_needs_the_machine(g, 0xD1ECF3, "an effect's graphics loaded");
+    default:
+        if (!battle_message_typing_fits(g))
+            return battle_needs_the_machine(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");
+        TIMED_AS(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message(g));
+        return true;
+    }
+}
+
+bool battle_frame_wait_finished(GameState *g, Platform *pf)
+{
+    TailAsC c = { g, pf };
+    return finish_the_wait(g, finish_a_part, &c);
 }

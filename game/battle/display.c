@@ -21,6 +21,9 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame_data.h"
+#include "battle/program.h"
+#include "core/program.h"
+#include "battle/screen.h"
 #include "charge.h"
 #include "core/palette.h"
 #include "field/line_effects.h"
@@ -251,29 +254,77 @@ enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS };
 /* The palettes' animation, through the original's jump to it. */
 enum { PALETTE_ANIMATION = 0xFDFFF7 };
 
+/* The palettes' animation is paused with the battle (battle/screen_palette.c)
+ * and run (core/palette.c), each a routine of its own. */
+typedef struct {
+    bool (*pause_the_palette_animation)(void *ctx);
+    bool (*animate_the_palettes)(void *ctx);
+} DisplaySetUpCalls;
+
 // $CD:09F1
-/* The setup runs with the data bank $7E from the line effects on. */
-static bool set_the_display_up(Snes *s)
+/* The palette sent, the line effects pointed at their tables, a step of the
+ * graphics loaded, the window's table, the brightness, the layers scrolled
+ * steadily and the palettes animated. False where a call went no further. */
+static bool set_the_display_up(GameState *g, Platform *pf, const DisplaySetUpCalls *calls, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    NATIVE_TIME_AS(s, 0xCD09CE, battle_send_palette(pf));
+    TIMED_AS(g, 0xCD09CE, battle_send_palette(pf));
     point_the_line_effects(pf);
-    s->cpu.db = BATTLE_DATA_BANK;
     if (battle_graphics_load_in_vblank(g))
-        NATIVE_TIME_AS(s, 0xCCE000, load_the_next_step(g, pf));
-    NATIVE_TIME_AS(s, 0xCD0AEE, battle_show_window_table(g, pf));
+        TIMED_AS(g, 0xCCE000, load_the_next_step(g, pf));
+    TIMED_AS(g, 0xCD0AEE, battle_show_window_table(g, pf));
     vid_enable_line_effects(pf, PF_AT(0xCD0AC1), ALL_LINE_EFFECTS);
     VidDisplay display = vid_display_decode(battle_brightness(g));
     vid_set_display(pf, PF_AT(0xCD0AC8), &display);
-    NATIVE_TIME_AS(s, 0xCD06C4, battle_scroll_layers(g, BATTLE_SCROLL_STEADY));
-    s->cpu.a = 0;
-    NATIVE_TIME_AS(s, 0xCD0B1E, battle_keep_animations_off_the_cycle(g));
-    if (!battle_call_long(s, 0xCD0AD2, 0xD1F426, READS_NOTHING) ||
-        !battle_call_long(s, 0xCD0AD6, PALETTE_ANIMATION, READS_NOTHING | DC_DB))
+    TIMED_AS(g, 0xCD06C4, battle_scroll_layers(g, BATTLE_SCROLL_STEADY));
+    TIMED_AS(g, 0xCD0B1E, battle_keep_animations_off_the_cycle(g));
+    if (!calls->pause_the_palette_animation(ctx) || !calls->animate_the_palettes(ctx))
         return false;
-    NATIVE_TIME_AS(s, 0xCD0ADE, battle_turn_the_gradient(g));
+    TIMED_AS(g, 0xCD0ADE, battle_turn_the_gradient(g));
     return true;
+}
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} DisplayAsC;
+
+/* The pause's guard turns away only a page; the animation's, slots it
+ * doesn't take (palette_animated's own). */
+static bool pause_the_palette_animation(void *ctx)
+{
+    GameState *g = ((DisplayAsC *)ctx)->game;
+    TIMED_AS(g, BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY, battle_pause_palette_animation(g));
+    return true;
+}
+
+static bool animate_the_palettes(void *ctx)
+{
+    GameState *g = ((DisplayAsC *)ctx)->game;
+    bool done = false;
+    TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g));
+    return done;
+}
+
+bool battle_display_set_up(GameState *g, Platform *pf)
+{
+    static const DisplaySetUpCalls as_c = { pause_the_palette_animation, animate_the_palettes };
+    DisplayAsC c = { g, pf };
+    return set_the_display_up(g, pf, &as_c, &c);
+}
+
+/* On the machine, from the original's calls, the data bank $7E from the line
+ * effects on. */
+static bool pause_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    s->cpu.db = BATTLE_DATA_BANK;
+    s->cpu.a = 0;
+    return battle_call_long(s, 0xCD0AD2, BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY, READS_NOTHING);
+}
+
+static bool animate_on_the_machine(void *ctx)
+{
+    return battle_call_long(ctx, 0xCD0AD6, PALETTE_ANIMATION, READS_NOTHING | DC_DB);
 }
 
 /* ---- The battle's last vblank handler ---------------------------------------------------- */
@@ -295,7 +346,8 @@ static void scroll_to_the_base(GameState *g, Platform *pf)
 
 void battle_setup_display(Snes *s)
 {
-    if (!set_the_display_up(s))
+    static const DisplaySetUpCalls on_the_machine = { pause_on_the_machine, animate_on_the_machine };
+    if (!set_the_display_up(state_of(s), m_platform(s), &on_the_machine, s))
         return;
     m_rts(s);
 }
@@ -336,11 +388,41 @@ void battle_setup_window_hdma(Snes *s)
     m_rts(s);
 }
 
-/* The field's line effects rebuilt for the picture the battle hands back
- * ($C0:0005, field/line_effects.c), as C where its builders can build and the
- * handler runs as the field's routine is entered, else the original's call
- * from the handler's JSL; either leaves the effects to switch on in A's low
- * byte. */
+/* The closing handler's calls: the palette sent (battle_send_palette's
+ * routine, $CD:09CE), the field's line effects rebuilt for the picture the
+ * battle hands back and turned on ($C0:0005, field/line_effects.c), the
+ * map's layers scrolled (battle/frame.c) and the palettes animated
+ * (core/palette.c). */
+typedef enum { CLOSING_PALETTE, CLOSING_LINE_EFFECTS, CLOSING_MAP_LAYERS, CLOSING_PALETTES } ClosingVblankCall;
+
+// $D1:F4C0
+/* The battle's small vblank handler, as its end fades the picture out: the
+ * fade released, the palette, the field's line effects, the brightness the
+ * fade has reached, the layers at their base scroll, and the map's own scroll
+ * and palette animation. False where a call went no further. */
+static bool take_the_closing_vblank(GameState *g, Platform *pf, bool (*call)(void *ctx, ClosingVblankCall call), void *ctx)
+{
+    vid_enable_line_effects(pf, PF_AT(0xD1F4CE), 0x00);
+    tm_ack_vblank(pf, PF_AT(0xD1F4D2));
+    tm_enable_interrupts(pf, PF_AT(0xD1F4D8), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
+    release_the_fade(g);
+    if (!call(ctx, CLOSING_PALETTE) || !call(ctx, CLOSING_LINE_EFFECTS))
+        return false;
+    VidDisplay display = vid_display_decode(fade_brightness(g));
+    vid_set_display(pf, PF_AT(0xD1F4ED), &display);
+    scroll_to_the_base(g, pf);
+    return call(ctx, CLOSING_MAP_LAYERS) && call(ctx, CLOSING_PALETTES);
+}
+
+/* On the machine: the line effects rebuilt as C where its builders can
+ * build and the handler runs as the field's routine is entered, else the
+ * original's call from the handler's JSL; either leaves the effects to turn
+ * on in A's low byte. The per-line effects' enable is the one write the
+ * handler makes through the data bank, which is the interrupted code's: with
+ * a bank that doesn't reach the registers -- which is how
+ * `battle-golem-twins-gameover` reaches this handler on its way back to the
+ * title -- the store lands in memory, so the port writes the memory byte
+ * instead. */
 static bool rebuild_the_fields_line_effects(Snes *s)
 {
     GameState *g = state_of(s);
@@ -355,42 +437,71 @@ static bool rebuild_the_fields_line_effects(Snes *s)
     return true;
 }
 
-// $D1:F4C0
+static bool closing_vblank_on_the_machine(void *ctx, ClosingVblankCall call)
+{
+    Snes *s = ctx;
+    switch (call) {
+    case CLOSING_PALETTE:
+        m_jsl_dc(s, 0xD1F4DE, 0xCD09CE, DC_A | DC_X | DC_N | DC_Z | DC_C);
+        return battle_widths_m8_x16(s);
+    case CLOSING_LINE_EFFECTS:
+        if (!rebuild_the_fields_line_effects(s))
+            return false;
+        if (m_io_bank(s->cpu.db))
+            vid_enable_line_effects(m_platform(s), PF_AT(0xD1F4E6), (uint8_t)s->cpu.a);
+        else
+            m_write8(s, m_abs(s, M_REG_LINE_EFFECTS), (uint8_t)s->cpu.a);
+        s->cpu.db = BATTLE_DATA_BANK;
+        return true;
+    case CLOSING_MAP_LAYERS:
+        m_jsl_dc(s, 0xD1F549, 0xCD0C89, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
+        return battle_widths_m8_x16(s);
+    default: return battle_run_long(s, 0xD1F54D, PALETTE_ANIMATION, palette_animate) && battle_widths_m8_x16(s);
+    }
+}
+
 /* The handler saves the interrupted code's registers and runs on the battle's
- * page. The per-line effects' enable is the one write it makes through the
- * data bank, which is the interrupted code's: with a bank that doesn't reach
- * the registers -- which is how `battle-golem-twins-gameover` reaches this
- * handler on its way back to the title -- the store lands in memory, so the
- * port writes the memory byte instead. Returns with RTI. */
+ * page. Returns with RTI. */
 void battle_nmi_alternate(Snes *s)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     m_save_interrupted_registers_bank_first(s);
     s->cpu.d = BATTLE_PAGE;
     s->cpu.a = 0;
     m_sep(s, CPU_FLAG_M);
-    vid_enable_line_effects(pf, PF_AT(0xD1F4CE), 0x00);
-    tm_ack_vblank(pf, PF_AT(0xD1F4D2));
-    tm_enable_interrupts(pf, PF_AT(0xD1F4D8), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
-    release_the_fade(g);
-    m_jsl_dc(s, 0xD1F4DE, 0xCD09CE, DC_A | DC_X | DC_N | DC_Z | DC_C);
-    if (!battle_widths_m8_x16(s))
-        return;
-    if (!rebuild_the_fields_line_effects(s))
-        return;
-    if (m_io_bank(s->cpu.db))
-        vid_enable_line_effects(pf, PF_AT(0xD1F4E6), (uint8_t)s->cpu.a);
-    else
-        m_write8(s, m_abs(s, M_REG_LINE_EFFECTS), (uint8_t)s->cpu.a);
-    VidDisplay display = vid_display_decode(fade_brightness(g));
-    vid_set_display(pf, PF_AT(0xD1F4ED), &display);
-    s->cpu.db = BATTLE_DATA_BANK;
-    scroll_to_the_base(g, pf);
-    m_jsl_dc(s, 0xD1F549, 0xCD0C89, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
-    if (!battle_widths_m8_x16(s))
-        return;
-    if (!battle_run_long(s, 0xD1F54D, PALETTE_ANIMATION, palette_animate) || !battle_widths_m8_x16(s))
-        return;
-    m_return_to_interrupted_bank_first(s);
+    if (take_the_closing_vblank(state_of(s), m_platform(s), closing_vblank_on_the_machine, s))
+        m_return_to_interrupted_bank_first(s);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} ClosingVblankAsC;
+
+/* The line effects' guard's state half: builders that can build them. */
+static bool closing_vblank_call(void *ctx, ClosingVblankCall call)
+{
+    ClosingVblankAsC *c = ctx;
+    GameState *g = c->game;
+    bool done = false;
+    switch (call) {
+    case CLOSING_PALETTE: TIMED_AS(g, 0xCD09CE, battle_send_palette(c->pf)); return true;
+    case CLOSING_LINE_EFFECTS: {
+        if (!field_line_effects_can_be_built(g))
+            return battle_needs_the_machine(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, "line effects the port doesn't build");
+        uint8_t effects;
+        TIMED_AS(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, effects = field_rebuild_line_effects(g, c->pf));
+        vid_enable_line_effects(c->pf, PF_AT(0xD1F4E6), effects);
+        return true;
+    }
+    case CLOSING_MAP_LAYERS: TIMED_AS(g, BATTLE_SCROLL_MAP_LAYERS_ENTRY, battle_scroll_the_map_layers(g)); return true;
+    default: TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g)); return done;
+    }
+}
+
+void battle_closing_vblank(GameState *g, Platform *pf)
+{
+    ClosingVblankAsC c = { g, pf };
+    (void)take_the_closing_vblank(g, pf, closing_vblank_call, &c);
 }

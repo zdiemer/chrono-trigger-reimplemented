@@ -41,6 +41,7 @@
 #include "battle/entries.h"
 #include "battle/sprite_data.h"
 #include "cpu_io.h"
+#include "charge.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -727,7 +728,7 @@ static void step_drifts(GameState *g)
  * enemy on the battlefield, the last first, at its place's offset from where
  * the leader is then (the leader moves to its own place too, and the enemies
  * before it follow it there). */
-static void place_formation(GameState *g)
+void battle_place_formation(GameState *g)
 {
     unsigned leader = enemy_slot(battle_formation_leader(g));
     for (int enemy = BATTLE_ENEMIES - 1; enemy >= 0; enemy--) {
@@ -748,16 +749,15 @@ bool battle_effect_handler_ready(Snes *s) { return battle_on_page_a_high_clear(s
  * from the last to the first and then the anchors, and a mover whose timer
  * ran out takes its path's step, in the time of the original's routine for
  * it. */
-static void step_movers(Snes *s, MoverKind kind, unsigned movers)
+static void step_movers(GameState *g, MoverKind kind, unsigned movers)
 {
-    GameState *g = state_of(s);
     for (int index = (int)movers - 1; index >= 0; index--) {
         Mover m = { kind, (uint8_t)index };
         if (!path_due(g, m))
             continue;
         ORIGINAL_EFFECT(leave_loop_cells(g, (unsigned)index));
         PathKind k = path_kind(g, m);
-        NATIVE_TIME_AS(s, mover_is_anchor(m) ? paths[k].anchor_routine : paths[k].combatant_routine, paths[k].step(g, m));
+        TIMED_AS(g, mover_is_anchor(m) ? paths[k].anchor_routine : paths[k].combatant_routine, paths[k].step(g, m));
     }
     ORIGINAL_EFFECT(leave_loop_ended(g));
 }
@@ -766,32 +766,38 @@ static void step_movers(Snes *s, MoverKind kind, unsigned movers)
 /* The frame's paths: while effects play, every mover's; otherwise, unless
  * they are held, the enemies' drifts ($CF:F978, which the original jumps
  * to). */
-void battle_step_effect_slots(Snes *s)
+void battle_step_effect_slots(GameState *g)
 {
-    GameState *g = state_of(s);
     if (battle_effects_running(g)) {
-        step_movers(s, MOVES_COMBATANT, COMBATANT_MOVERS);
-        step_movers(s, MOVES_ANCHOR, ANCHOR_MOVERS);
+        step_movers(g, MOVES_COMBATANT, COMBATANT_MOVERS);
+        step_movers(g, MOVES_ANCHOR, ANCHOR_MOVERS);
     } else if (!battle_orbits_held(g)) {
-        NATIVE_TIME_AS(s, 0xCFF978, step_drifts(g));
+        TIMED_AS(g, 0xCFF978, step_drifts(g));
     }
+}
+
+void battle_step_effect_slots_entry(Snes *s)
+{
+    battle_step_effect_slots(state_of(s));
     m_rts(s);
 }
 
 /* The game gives a running mover one of the eight kinds of path. */
-static bool paths_known(Snes *s)
+bool battle_effect_paths_known(const GameState *g)
 {
-    GameState *g = state_of(s);
-    vars_peek(true);
-    bool known = true;
     for (unsigned e = 0; e < COMBATANT_MOVERS + ANCHOR_MOVERS; e++)
         if (battle_effect_active(g, e) && battle_effect_type(g, e) >= PATH_KINDS)
-            known = false;
-    vars_peek(false);
-    return known;
+            return false;
+    return true;
 }
 
-bool battle_effect_paths_ready(Snes *s) { return battle_effect_handler_ready(s) && paths_known(s); }
+bool battle_effect_paths_ready(Snes *s)
+{
+    vars_peek(true);
+    bool known = battle_effect_paths_known(state_of(s));
+    vars_peek(false);
+    return battle_effect_handler_ready(s) && known;
+}
 
 void battle_step_orbits(Snes *s)
 {
@@ -799,9 +805,9 @@ void battle_step_orbits(Snes *s)
     m_rts(s);
 }
 
-void battle_place_formation(Snes *s)
+void battle_place_formation_entry(Snes *s)
 {
-    place_formation(state_of(s));
+    battle_place_formation(state_of(s));
     m_rts(s);
 }
 

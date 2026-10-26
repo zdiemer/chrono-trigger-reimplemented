@@ -12,6 +12,9 @@
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/program.h"
+#include "battle/steps.h"
+#include "charge.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -24,25 +27,27 @@
  * carry after (tools/dontcare_check.py checks both). */
 enum { STEP_READS_A_AND_OVERFLOW = DC_X | DC_Y | DC_N | DC_Z, STEP_READS_A = STEP_READS_A_AND_OVERFLOW | DC_V };
 
-/* The routine of each step, its hand port where the dispatch runs it as C,
- * and what it doesn't read of what the dispatch hands it. The setup is
- * called as the original's routine, whose ports (battle/opening.c) go on over
- * frames from the waits they stop at, which a C call can't hold. */
+/* The routine of each step, its hand port where the dispatch runs it on the
+ * machine, what it doesn't read of what the dispatch hands it, and the step
+ * as C. The setup is called on the machine as the original's routine, whose
+ * ports (battle/opening.c) go on over frames from the waits they stop at,
+ * which a call there can't hold. */
 static const struct {
     uint32_t routine;
     void (*entry)(Snes *);
     uint16_t dont_care;
+    bool (*as_c)(GameState *g, Platform *pf);
 } STEPS[] = {
-    [BATTLE_STEP_SET_UP] = { 0xC10023, NULL, STEP_READS_A },
-    [BATTLE_STEP_OPEN_MENU] = { 0xC11B19, battle_turn_comes_step, STEP_READS_A },
-    [BATTLE_STEP_CALLED_OFF] = { 0xC11BAA, battle_called_off_step, STEP_READS_A },
-    [BATTLE_STEP_NEXT_FRAME] = { 0xC1106E, battle_wait_step, STEP_READS_A_AND_OVERFLOW },
-    [BATTLE_STEP_SHOW_ACTION] = { 0xC14058, battle_show_action, STEP_READS_A_AND_OVERFLOW },
-    [BATTLE_STEP_SEARCH_TARGET] = { 0xC12986, battle_search_for_target, STEP_READS_A },
-    [BATTLE_STEP_ENEMIES_BEATEN] = { 0xC1006D, battle_see_to_the_beaten_enemies, STEP_READS_A },
-    [BATTLE_STEP_SEARCH_AREA] = { 0xC11FDD, battle_find_the_noted_area, STEP_READS_A },
-    [BATTLE_STEP_VICTORY] = { 0xC1356D, battle_victory_step, STEP_READS_A },
-    [BATTLE_STEP_DEFEAT] = { 0xC1354D, battle_defeat_step, STEP_READS_A },
+    [BATTLE_STEP_SET_UP] = { 0xC10023, NULL, STEP_READS_A, battle_set_up_runs },
+    [BATTLE_STEP_OPEN_MENU] = { 0xC11B19, battle_turn_comes_step, STEP_READS_A, battle_turn_comes },
+    [BATTLE_STEP_CALLED_OFF] = { 0xC11BAA, battle_called_off_step, STEP_READS_A, battle_menu_called_off },
+    [BATTLE_STEP_NEXT_FRAME] = { 0xC1106E, battle_wait_step, STEP_READS_A_AND_OVERFLOW, battle_waits_a_frame },
+    [BATTLE_STEP_SHOW_ACTION] = { 0xC14058, battle_show_action_entry, STEP_READS_A_AND_OVERFLOW, battle_show_action },
+    [BATTLE_STEP_SEARCH_TARGET] = { 0xC12986, battle_search_for_target, STEP_READS_A, NULL },
+    [BATTLE_STEP_ENEMIES_BEATEN] = { 0xC1006D, battle_see_to_the_beaten_enemies_entry, STEP_READS_A, battle_see_to_the_beaten_enemies },
+    [BATTLE_STEP_SEARCH_AREA] = { 0xC11FDD, battle_find_the_noted_area, STEP_READS_A, NULL },
+    [BATTLE_STEP_VICTORY] = { 0xC1356D, battle_victory_step, STEP_READS_A, battle_wins_the_fight },
+    [BATTLE_STEP_DEFEAT] = { 0xC1354D, battle_defeat_step, STEP_READS_A, battle_loses_the_fight },
 };
 enum { STEP_COUNT = sizeof STEPS / sizeof STEPS[0] };
 
@@ -140,4 +145,15 @@ bool battle_take_step(Snes *s, uint32_t site, BattleStep step, uint16_t dont_car
         return false;
     battle_pull_the_return(s);
     return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+bool battle_step_taken(GameState *g, Platform *pf, BattleStep step)
+{
+    if ((unsigned)step >= STEP_COUNT || !STEPS[step].as_c)
+        return battle_needs_the_machine(g, (unsigned)step < STEP_COUNT ? STEPS[step].routine : BATTLE_STEP, "a battle step");
+    bool done = false;
+    TIMED_AS(g, STEPS[step].routine, done = STEPS[step].as_c(g, pf));
+    return done;
 }

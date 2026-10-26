@@ -26,6 +26,8 @@
 #include "battle/entries.h"
 #include "battle/arith.h"
 #include "battle/timers.h"
+#include "battle/program.h"
+#include "battle/steps.h"
 #include "charge.h"
 #include "original_effects.h"
 #include "port/native.h"
@@ -224,25 +226,34 @@ static void set_up_status_showing(GameState *g, uint8_t showing)
  * $C1:895B's call. */
 enum { SHOWING_CALL = 0xC18971 };
 
-void battle_show_status_number(Snes *s)
+void battle_show_status_number_entry(Snes *s)
 {
     set_up_status_showing(state_of(s), (uint8_t)s->cpu.a);
     if (battle_run(s, SHOWING_CALL, 0xC1AC57, battle_start_action_showing))
         m_rts(s);
 }
 
+bool battle_show_status_number(GameState *g, Platform *pf, uint8_t showing)
+{
+    set_up_status_showing(g, showing);
+    bool done = false;
+    TIMED_AS(g, 0xC1AC57, done = battle_action_shown(g, pf));
+    return done;
+}
+
 /* The handlers' calls of $C1:895B, by the kind whose number they show. */
 enum { POISON_SHOWS_CALL = 0xC18945, MAGIC_SHOWS_CALL = 0xC18BB1, SHOW_NUMBER = 0xC1895B };
 
-static bool see_to_run_out_timer(Snes *s, BattleTimer kind)
+// $C1:8876, $C1:88C5, $C1:8975, $C1:89B9, $C1:8A05, $C1:8A51, $C1:8A9D-$C1:8A9F, $C1:8B10, $C1:8BB9, $C1:8C08
+/* A run-out timer seen to, the number its status shows shown as an action
+ * of its own (a routine of its own, `show`); poison is seen to after its
+ * showing. False where the showing went no further. */
+static bool see_to_the_timer(GameState *g, BattleTimer kind, bool (*show)(void *ctx, BattleTimer kind), void *ctx)
 {
-    GameState *g = state_of(s);
     TimerOwner owner = battle_timer_found_run_out(g, kind);
     TimerOutcome outcome = owner.nobody ? nobodys_timer_ran_out(g, kind, owner.slot) : timer_ran_out(g, kind, owner.slot);
     if (outcome == NUMBER_TO_SHOW) {
-        m_set_a8(s, STATUS_NUMBER_SHOWING);
-        uint32_t site = kind == BATTLE_TIMER_POISON ? POISON_SHOWS_CALL : MAGIC_SHOWS_CALL;
-        if (!battle_run(s, site, SHOW_NUMBER, battle_show_status_number))
+        if (!show(ctx, kind))
             return false;
         TIMED_AS(g, 0xFDACEE, battle_clear_numbers_shown(g));
     } else if (outcome == DAMAGE_TO_APPLY) {
@@ -253,18 +264,33 @@ static bool see_to_run_out_timer(Snes *s, BattleTimer kind)
     return true;
 }
 
+/* On the machine the number is shown from the handler's own call. */
+static bool show_on_the_machine(void *ctx, BattleTimer kind)
+{
+    Snes *s = ctx;
+    m_set_a8(s, STATUS_NUMBER_SHOWING);
+    uint32_t site = kind == BATTLE_TIMER_POISON ? POISON_SHOWS_CALL : MAGIC_SHOWS_CALL;
+    return battle_run(s, site, SHOW_NUMBER, battle_show_status_number_entry);
+}
+
 static void handler_entry(Snes *s, BattleTimer kind)
 {
-    if (see_to_run_out_timer(s, kind))
+    if (see_to_the_timer(state_of(s), kind, show_on_the_machine, s))
         m_rts(s);
 }
 
-/* A timer of nobody's that does anything but wear off is the original's: its
- * handler works past every table it touches (battle/timers.h). */
+/* The guard's state half: a timer of nobody's that does anything but wear
+ * off is the original's: its handler works past every table it touches
+ * (battle/timers.h). */
+static bool handler_takes(const GameState *g, BattleTimer kind)
+{
+    return !battle_timer_found_run_out(g, kind).nobody || timed_statuses[kind].effect == WEARS_OFF;
+}
+
 static bool handler_ready(Snes *s, BattleTimer kind)
 {
     vars_peek(true);
-    bool ours = !battle_timer_found_run_out(state_of(s), kind).nobody || timed_statuses[kind].effect == WEARS_OFF;
+    bool ours = handler_takes(state_of(s), kind);
     vars_peek(false);
     return battle_on_page(s) && ours;
 }
@@ -307,4 +333,30 @@ static const struct {
 bool battle_see_to_timer_as_called(Snes *s, uint32_t site, BattleTimer kind)
 {
     return battle_run(s, site, handlers[kind].routine, handlers[kind].entry);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} TimerAsC;
+
+static bool show_the_status_number(void *ctx, BattleTimer kind)
+{
+    (void)kind;
+    TimerAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, SHOW_NUMBER, done = battle_show_status_number(c->game, c->pf, STATUS_NUMBER_SHOWING));
+    return done;
+}
+
+bool battle_run_out_timer_seen_to(GameState *g, Platform *pf, BattleTimer kind)
+{
+    if (!handler_takes(g, kind))
+        return battle_needs_the_machine(g, handlers[kind].routine, "a timer of nobody's the port doesn't see to");
+    TimerAsC c = { g, pf };
+    bool done = false;
+    TIMED_AS(g, handlers[kind].routine, done = see_to_the_timer(g, kind, show_the_status_number, &c));
+    return done;
 }

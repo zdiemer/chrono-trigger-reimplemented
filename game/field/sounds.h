@@ -23,7 +23,12 @@ bool field_sound_at_the_leader_can_play(Snes *s);
  * it is over ($C0:000B): the entries the battle runs, as the original calls
  * them. */
 enum { FIELD_BATTLE_SONG_ENTRY = 0xC00008, FIELD_MUSIC_BACK_ENTRY = 0xC0000B };
-void field_start_the_battle_song(Snes *s);
-void field_bring_the_music_back(Snes *s);
+void field_start_the_battle_song_entry(Snes *s);
+/* The battle's song, or the field's kept through it, and the battle's
+ * effects (field/sounds.c). */
+void field_start_the_battle_song(GameState *g, Platform *pf);
+void field_bring_the_music_back_entry(Snes *s);
+/* The field's music after a battle ($C0:1BE6). */
+void field_bring_the_music_back(GameState *g, Platform *pf);
 
 #endif

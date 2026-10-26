@@ -548,15 +548,24 @@ static bool choosing_actions_in_table(const GameState *g)
     return actions_in_table(g, battle_script_actions_place(g)) && next_actions_kept_in_table(g);
 }
 
+static bool action_entry_fits_the_tables(const GameState *g, uint8_t action, ScriptPlace at)
+{
+    /* choosing again goes through the choosing's actions too */
+    return action_entry_in_tables(g, action, at) && (action != ACTION_CHOOSE_AGAIN || choosing_actions_in_table(g));
+}
+
+bool enemy_action_entry_fits(const GameState *g, uint8_t action)
+{
+    return working_on_an_enemy(g) && action_entry_fits_the_tables(g, action, battle_script_place(g));
+}
+
 static bool takes_what_the_tables_hold(const Snes *s, const GameState *g, ScriptUse use, uint8_t command)
 {
     ScriptPlace at = battle_script_place(g);
     switch (use) {
     case TAKES_CONDITION: return block_in_tables(g, command, at) && next_actions_kept_in_table(g);
     case TAKES_HELD: return actions_in_table(g, (ScriptPlace)(end_after(g, at) + 1)) && next_actions_kept_in_table(g);
-    case TAKES_ACTION:
-        /* choosing again goes through the choosing's actions too */
-        return action_entry_in_tables(g, command, at) && (command != ACTION_CHOOSE_AGAIN || choosing_actions_in_table(g));
+    case TAKES_ACTION: return action_entry_fits_the_tables(g, command, at);
     case TAKES_SELECTOR: return selector_in_table(enemy_script_byte(g, (ScriptPlace)(at + 1)));
     case TAKES_SELECTOR_IN_A: return battle_selector_in_a(s) < SELECTORS;
     case TAKES_ACTIONS: return choosing_actions_in_table(g);
@@ -582,14 +591,18 @@ bool battle_enemy_actions_ready(Snes *s) { return battle_script_entry_ready(s, T
 
 /* The turn starts from the acting enemy alone: a reaction carries out the
  * action its conditions chose, a turn the next the enemy kept. */
+bool battle_enemy_turn_fits(const GameState *g)
+{
+    uint8_t enemy = battle_enemy_acting(g);
+    return enemy < BATTLE_ENEMIES && no_member_comes_back(g)
+           && actions_in_table(g, battle_action_hit_enemy(g) ? battle_script_actions_place(g)
+                                                            : battle_enemy_next_action(g, enemy));
+}
+
 bool battle_enemy_turn_ready(Snes *s)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t enemy = battle_enemy_acting(g);
-    bool ready = enemy < BATTLE_ENEMIES && no_member_comes_back(g)
-                 && actions_in_table(g, battle_action_hit_enemy(g) ? battle_script_actions_place(g)
-                                                                  : battle_enemy_next_action(g, enemy));
+    bool ready = battle_enemy_turn_fits(state_of(s));
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && ready;
 }

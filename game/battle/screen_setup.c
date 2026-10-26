@@ -26,9 +26,11 @@
 #include "battle/entries.h"
 #include "battle/frame.h"
 #include "battle/message.h"
+#include "battle/program.h"
 #include "battle/screen_lines.h"
 #include "core/program.h"
 #include "field/sounds.h"
+#include "charge.h"
 #include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -113,7 +115,7 @@ static void build_fade_tables(GameState *g)
 
 /* The battle's own vblank and line handlers (battle/nmi.c), and the line the
  * line handler runs at: the battlefield's last, where the menus begin. */
-enum { BATTLE_VBLANK_HANDLER = 0xD1E77C, BATTLE_LINE_HANDLER = 0xD1FE97, BATTLE_LINE = 211 };
+enum { BATTLE_LINE = 211 };
 
 /* What the frame work, the screen scripts and the messages keep between
  * frames, as a battle starts: no transfers asked for, no shake, no pause, no
@@ -285,51 +287,109 @@ static void keep_the_row_colors(GameState *g)
         set_battle_kept_row_colors(g, i, palette_base(g, KEPT_FROM_COLOR + i));
 }
 
-/* The original's calls out, by the site each is made from. */
-enum { SCROLL_MAP_LAYERS = 0xCD0C89 };
+/* The routines the setup calls: the map's layers that scroll by themselves
+ * (the field's, battle/frame.c), the message's tiles cleared
+ * (battle/message.c), and the battle's song (field/sounds.c). The program
+ * makes them as C, and the machine's entry from the original's calls. */
+typedef struct {
+    bool (*scroll_the_map_layers)(void *ctx);
+    bool (*clear_the_message_tiles)(void *ctx);
+    bool (*start_the_song)(void *ctx);
+} ScreenSetUpCalls;
 
 // $D1:F1B0
-/* Set the screen up as a battle starts. False where a call-out didn't come
- * back as the battle runs. */
-static bool set_the_screen_up(Snes *s)
+/* Set the screen up as a battle starts. False where a call went no further. */
+static bool set_the_screen_up(GameState *g, Platform *pf, const ScreenSetUpCalls *calls, void *ctx)
 {
-    GameState *g = state_of(s);
-    s->cpu.db = BATTLE_DATA_BANK;
-    s->cpu.d = BATTLE_PAGE;
     program_install_vblank_handler(g, BATTLE_VBLANK_HANDLER);
     program_install_line_handler(g, BATTLE_LINE_HANDLER);
-    if (!battle_run_long(s, 0xD1F1D7, SCROLL_MAP_LAYERS, battle_scroll_map_layers))
+    if (!calls->scroll_the_map_layers(ctx))
         return false;
-    NATIVE_TIME_AS(s, 0xCD0C9D, battle_take_the_start_settings(g));
-    /* the start's settings leave the carry set, as their count of the scroll
-       tables' bands ends; the music's call below keeps it on the stack */
-    m_set_flag(s, CPU_FLAG_C, true);
+    TIMED_AS(g, 0xCD0C9D, battle_take_the_start_settings(g));
     start_the_frame_work(g);
     start_the_effects(g);
     start_the_messages(g);
-    tm_set_line(m_platform(s), PF_AT(0xD1F29A), BATTLE_LINE);
-    NATIVE_TIME_AS(s, 0xD1EA01, battle_start_gradient_phase(g));
+    tm_set_line(pf, PF_AT(0xD1F29A), BATTLE_LINE);
+    TIMED_AS(g, 0xD1EA01, battle_start_gradient_phase(g));
     stop_the_sprite_color_animations(g);
     lay_the_window_lines_out(g);
-    NATIVE_TIME_AS(s, 0xD1F411, battle_keep_palette_kinds(g));
+    TIMED_AS(g, 0xD1F411, battle_keep_palette_kinds(g));
     empty_the_windows(g);
     keep_the_row_colors(g);
-    NATIVE_TIME_AS(s, 0xCEEE6E, battle_arrange_line_effects(g, BATTLEFIELD_ARRANGEMENT));
-    NATIVE_TIME_AS(s, 0xD1F83D, build_fade_tables(g));
-    if (!battle_run_long(s, 0xD1F3FE, 0xCD0235, battle_clear_the_message_tiles_long))
+    TIMED_AS(g, 0xCEEE6E, battle_arrange_line_effects(g, BATTLEFIELD_ARRANGEMENT));
+    TIMED_AS(g, 0xD1F83D, build_fade_tables(g));
+    if (!calls->clear_the_message_tiles(ctx) || !calls->start_the_song(ctx))
         return false;
-    /* the battle's song (field/sounds.c) keeps the data bank, the page and
-       the flags on the stack around its call, where the original keeps them */
+    set_battle_graphics_load_in_vblank(g, 1);
+    return true;
+}
+
+/* ---- As C ---------------------------------------------------------------------------------- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} SetUpAsC;
+
+/* None of the three has a guard of the game's state: the message's clear
+ * and the scroll's turn away only a page or a bank the program has none of. */
+static bool scroll_the_map_layers(void *ctx)
+{
+    GameState *g = ((SetUpAsC *)ctx)->game;
+    TIMED_AS(g, BATTLE_SCROLL_MAP_LAYERS_ENTRY, battle_scroll_the_map_layers(g));
+    return true;
+}
+
+static bool clear_the_message_tiles(void *ctx)
+{
+    GameState *g = ((SetUpAsC *)ctx)->game;
+    TIMED_AS(g, BATTLE_CLEAR_THE_MESSAGE_TILES_ENTRY, battle_clear_the_message_tiles(g));
+    return true;
+}
+
+static bool start_the_song(void *ctx)
+{
+    SetUpAsC *c = ctx;
+    TIMED_AS(c->game, FIELD_BATTLE_SONG_ENTRY, field_start_the_battle_song(c->game, c->pf));
+    return true;
+}
+
+bool battle_screen_set_up(GameState *g, Platform *pf)
+{
+    static const ScreenSetUpCalls as_c = { scroll_the_map_layers, clear_the_message_tiles, start_the_song };
+    SetUpAsC c = { g, pf };
+    return set_the_screen_up(g, pf, &as_c, &c);
+}
+
+/* ---- On the machine ------------------------------------------------------------------------ */
+
+static bool scroll_on_the_machine(void *ctx)
+{
+    return battle_run_long(ctx, 0xD1F1D7, BATTLE_SCROLL_MAP_LAYERS_ENTRY, battle_scroll_map_layers);
+}
+
+/* The start's settings leave the carry set, as their count of the scroll
+ * tables' bands ends; the song's call below keeps it on the stack. */
+static bool clear_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    m_set_flag(s, CPU_FLAG_C, true);
+    return battle_run_long(s, 0xD1F3FE, BATTLE_CLEAR_THE_MESSAGE_TILES_ENTRY, battle_clear_the_message_tiles_long);
+}
+
+/* The battle's song keeps the data bank, the page and the flags on the stack
+ * around its call, where the original keeps them. */
+static bool song_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
     m_push8(s, s->cpu.db);
     m_push16(s, s->cpu.d);
     m_push8(s, s->cpu.p);
-    if (!battle_run_long(s, 0xD1F405, FIELD_BATTLE_SONG_ENTRY, field_start_the_battle_song))
+    if (!battle_run_long(s, 0xD1F405, FIELD_BATTLE_SONG_ENTRY, field_start_the_battle_song_entry))
         return false;
     s->cpu.p = m_pull8(s);
     s->cpu.d = m_pull16(s);
     s->cpu.db = m_pull8(s);
-    set_battle_graphics_load_in_vblank(g, 1);
-    s->cpu.a = 0;
     return true;
 }
 
@@ -343,6 +403,11 @@ void battle_build_fade_tables(Snes *s)
 
 void battle_set_the_screen_up(Snes *s)
 {
-    if (set_the_screen_up(s))
-        m_rtl(s);
+    static const ScreenSetUpCalls on_the_machine = { scroll_on_the_machine, clear_on_the_machine, song_on_the_machine };
+    s->cpu.db = BATTLE_DATA_BANK;
+    s->cpu.d = BATTLE_PAGE;
+    if (!set_the_screen_up(state_of(s), m_platform(s), &on_the_machine, s))
+        return;
+    s->cpu.a = 0;
+    m_rtl(s);
 }

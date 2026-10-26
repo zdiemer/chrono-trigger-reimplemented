@@ -52,7 +52,7 @@ static void raise_number(GameState *g, unsigned slot, uint8_t by)
 /* While the numbers rise: move every combatant's number by the rise's next
  * row (its row of the second table for those that rise by it). A row that
  * ends the first table ends the rise. */
-static void raise_numbers(GameState *g)
+void battle_raise_numbers(GameState *g)
 {
     if (!numbers_rising(g))
         return;
@@ -86,7 +86,7 @@ static uint8_t step_of(const GameState *g, unsigned slot) { return (uint8_t)(LAS
 
 // $CF:EC78
 /* Move each combatant on a scripted move by its move's next step. */
-static void step_scripted_moves(GameState *g)
+void battle_step_scripted_moves(GameState *g)
 {
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
         if (!on_scripted_move(g, slot))
@@ -110,7 +110,7 @@ enum { FOLLOWS_NOTHING = 0x80, FOLLOWS_ANCHOR = 0x40, FOLLOWED_ANCHOR = 0x07 };
 /* Put each anchor where what it follows is, the last anchor first, so that
  * an anchor following one before it takes where that one was put last frame.
  * An anchor following a combatant is where the combatant stands. */
-static void update_anchors(GameState *g)
+void battle_update_anchors(GameState *g)
 {
     for (int anchor = BATTLE_ANCHORS - 1; anchor >= 0; anchor--) {
         uint8_t follows = battle_anchor_sources(g, (unsigned)anchor);
@@ -168,7 +168,7 @@ static bool trail_due(GameState *g, unsigned slot)
 // $CF:ED18
 /* Every few frames, each combatant leaving a trail records where its sprite
  * is, dropping the oldest of its four places. */
-static void record_trails(GameState *g)
+void battle_record_trails(GameState *g)
 {
     for (int slot = BATTLE_COMBATANTS - 1; slot >= 0; slot--) {
         if (!battle_trail_on(g, (unsigned)slot) || !trail_due(g, (unsigned)slot))
@@ -207,7 +207,7 @@ static bool colors_cycle(const GameState *g, unsigned member)
 // $CF:E7D7
 /* Each party member whose colors cycle shows the cycle's next color in the
  * two cycling colors of its sprite palette, the next for its pose. */
-static void cycle_party_colors(GameState *g)
+void battle_cycle_party_colors(GameState *g)
 {
     for (int member = BATTLE_PARTY_SIZE - 1; member >= 0; member--) {
         if (!colors_cycle(g, (unsigned)member))
@@ -230,27 +230,27 @@ static void cycle_party_colors(GameState *g)
  * logic leaves as it is; the rest of what the original leaves is dead
  * (the registry's don't-care sets). */
 
-void battle_raise_numbers(Snes *s)
+void battle_raise_numbers_entry(Snes *s)
 {
-    raise_numbers(state_of(s));
+    battle_raise_numbers(state_of(s));
     m_rts(s);
 }
 
-void battle_step_scripted_moves(Snes *s)
+void battle_step_scripted_moves_entry(Snes *s)
 {
-    step_scripted_moves(state_of(s));
+    battle_step_scripted_moves(state_of(s));
     m_rts(s);
 }
 
-void battle_update_anchors(Snes *s)
+void battle_update_anchors_entry(Snes *s)
 {
-    update_anchors(state_of(s));
+    battle_update_anchors(state_of(s));
     m_rts(s);
 }
 
-void battle_record_trails(Snes *s)
+void battle_record_trails_entry(Snes *s)
 {
-    record_trails(state_of(s));
+    battle_record_trails(state_of(s));
     m_rts(s);
 }
 
@@ -265,10 +265,10 @@ static uint16_t y_after_color_cycle(GameState *g)
     return y;
 }
 
-void battle_cycle_party_colors(Snes *s)
+void battle_cycle_party_colors_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    cycle_party_colors(g);
+    battle_cycle_party_colors(g);
     s->cpu.y = y_after_color_cycle(g);
     m_rts(s);
 }

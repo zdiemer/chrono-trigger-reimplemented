@@ -21,6 +21,8 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/message.h"
+#include "battle/program.h"
+#include "charge.h"
 #include "battle/rewards_work.h"
 #include "original_effects.h"
 #include "vars.h"
@@ -62,29 +64,22 @@ static void leave_the_place(GameState *g, const Telling *t)
         set_battle_rewards_tech_at(g, t->single_tech);
 }
 
-/* The message reads nothing of the registers but which it is, in A. */
-enum { SHOW_A_BATTLE_MESSAGE = 0xCD0021, THE_MESSAGE_READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+/* Each message is shown and waited for until it has been read (a routine of
+ * its own, battle/message.c), the item's with the item's place in the list,
+ * which the original keeps on the stack over it. False where it went no
+ * further. */
+typedef bool (*TellCalls)(void *ctx, RewardMessage message, unsigned item);
 
-/* Show the message, from the original's call at `site`, and wait for it to
- * be read. The message comes in A, its high byte clear, as every call of the
- * original has it (the guard). False where the message handed back to the
- * original. */
-static bool tell(Snes *s, uint32_t site, RewardMessage message, const Telling *t)
+static bool tell(GameState *g, RewardMessage message, const Telling *t, TellCalls call, void *ctx)
 {
-    ORIGINAL_EFFECT(leave_the_place(state_of(s), t));
-    s->cpu.a = (uint16_t)message;
-    return battle_run_long_dc(s, site, SHOW_A_BATTLE_MESSAGE, THE_MESSAGE_READS_A, battle_show_a_battle_message);
+    ORIGINAL_EFFECT(leave_the_place(g, t));
+    return call(ctx, message, 0);
 }
 
-/* An item given. The original keeps its place in the list on the stack over
- * the message, where its code goes on from if the message hands back. */
-static bool tell_an_item(Snes *s, unsigned item, const Telling *t)
+static bool tell_an_item(GameState *g, unsigned item, const Telling *t, TellCalls call, void *ctx)
 {
-    ORIGINAL_EFFECT(leave_the_place(state_of(s), t));
-    s->cpu.a = TELL_ITEM;
-    return battle_run_long_dc_under(s, 0xFDAD7C, SHOW_A_BATTLE_MESSAGE, THE_MESSAGE_READS_A,
-                                    battle_show_a_battle_message,
-                                    battle_keeping_word((uint16_t)item, BATTLE_CARRY_AS_IT_IS));
+    ORIGINAL_EFFECT(leave_the_place(g, t));
+    return call(ctx, TELL_ITEM, item);
 }
 
 /* A figure the message shows, three bytes long. */
@@ -102,22 +97,21 @@ static bool rewarded(const GameState *g, uint8_t reward) { return (battle_reward
  * shared out or given. The tech points are a three-byte sum, of which the
  * original asks only the low word whether there are any: a sum that is a
  * whole multiple of 65,536 goes untold. Then each item given. */
-static bool tell_the_battles_rewards(Snes *s, const Telling *t)
+static bool tell_the_battles_rewards(GameState *g, const Telling *t, TellCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     if (rewarded(g, REWARD_EXPERIENCE) && battle_experience_won(g) != 0) {
         tell_the_figure(g, battle_experience_won(g));
-        if (!tell(s, 0xFDAD2E, TELL_EXPERIENCE, t))
+        if (!tell(g, TELL_EXPERIENCE, t, call, ctx))
             return false;
     }
     if (rewarded(g, REWARD_TECH_POINTS) && battle_tech_points_won_low(g) != 0) {
         tell_the_figure(g, battle_tech_points_won_low(g) | (uint32_t)battle_tech_points_won_high(g) << 16);
-        if (!tell(s, 0xFDAD4B, TELL_TECH_POINTS, t))
+        if (!tell(g, TELL_TECH_POINTS, t, call, ctx))
             return false;
     }
     if (rewarded(g, REWARD_GOLD) && battle_gold_won(g) != 0) {
         tell_the_figure(g, battle_gold_won(g));
-        if (!tell(s, 0xFDAD63, TELL_GOLD, t))
+        if (!tell(g, TELL_GOLD, t, call, ctx))
             return false;
     }
     if (!rewarded(g, REWARD_ITEMS))
@@ -127,7 +121,7 @@ static bool tell_the_battles_rewards(Snes *s, const Telling *t)
         if (won == 0)
             continue;
         set_battle_message_item(g, won);
-        if (!tell_an_item(s, item, t))
+        if (!tell_an_item(g, item, t, call, ctx))
             return false;
     }
     return true;
@@ -141,13 +135,12 @@ enum { OUT_OF_THE_FIGHT = 0xFF };
 /* Every level the member gained, one message each, counting the levels left
  * down to none. A member noted with none left is told 256 times: the original
  * counts down before it asks. */
-static bool tell_the_levels(Snes *s, Telling *t, uint8_t character)
+static bool tell_the_levels(GameState *g, Telling *t, uint8_t character, TellCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     uint8_t *left = &t->levels_left[t->member];
     do {
         set_menu_text_arguments(g, 0, character);
-        if (!tell(s, 0xFDADAE, TELL_LEVEL, t))
+        if (!tell(g, TELL_LEVEL, t, call, ctx))
             return false;
     } while (--*left != 0);
     return true;
@@ -155,9 +148,8 @@ static bool tell_the_levels(Snes *s, Telling *t, uint8_t character)
 
 /* Every single tech the member learned, from its eight places in the list
  * until one names none. */
-static bool tell_the_single_techs(Snes *s, Telling *t, uint8_t character)
+static bool tell_the_single_techs(GameState *g, Telling *t, uint8_t character, TellCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     t->at_the_single_techs = true;
     t->single_tech = (uint8_t)(t->member * PLACES_A_MEMBER);
     do {
@@ -166,7 +158,7 @@ static bool tell_the_single_techs(Snes *s, Telling *t, uint8_t character)
             return true;
         set_menu_text_arguments(g, 0, character);
         set_menu_text_arguments(g, 1, tech);
-        if (!tell(s, 0xFDADF4, TELL_SINGLE_TECH, t))
+        if (!tell(g, TELL_SINGLE_TECH, t, call, ctx))
             return false;
     } while (++t->single_tech % PLACES_A_MEMBER != 0);
     return true;
@@ -174,53 +166,50 @@ static bool tell_the_single_techs(Snes *s, Telling *t, uint8_t character)
 
 /* The double techs the party learned, from where the telling got to: the
  * first member noted with them tells them all, a later one none. */
-static bool tell_the_double_techs(Snes *s, Telling *t)
+static bool tell_the_double_techs(GameState *g, Telling *t, TellCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     for (;; t->double_techs_told++) {
         uint8_t tech = battle_rewards_double_techs(g, t->double_techs_told);
         if (tech == NO_TECH)
             return true;
         set_menu_text_arguments(g, 0, tech);
-        if (!tell(s, 0xFDAE20, TELL_DOUBLE_TECH, t))
+        if (!tell(g, TELL_DOUBLE_TECH, t, call, ctx))
             return false;
     }
 }
 
-static bool tell_a_members_rewards(Snes *s, Telling *t)
+static bool tell_a_members_rewards(GameState *g, Telling *t, TellCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     uint8_t member = t->member;
     uint8_t character = battle_combatant_fighting(g, member);
     if (character == OUT_OF_THE_FIGHT)
         return true;
     uint8_t techs = battle_rewards_techs_noted(g, member);
-    if ((battle_rewards_levels_noted(g, member) & NOTED_LEVEL_GAINED) && !tell_the_levels(s, t, character))
+    if ((battle_rewards_levels_noted(g, member) & NOTED_LEVEL_GAINED) && !tell_the_levels(g, t, character, call, ctx))
         return false;
-    if ((techs & NOTED_SINGLE_TECHS) && !tell_the_single_techs(s, t, character))
+    if ((techs & NOTED_SINGLE_TECHS) && !tell_the_single_techs(g, t, character, call, ctx))
         return false;
-    if ((techs & NOTED_DOUBLE_TECHS) && !tell_the_double_techs(s, t))
+    if ((techs & NOTED_DOUBLE_TECHS) && !tell_the_double_techs(g, t, call, ctx))
         return false;
     if (techs & NOTED_TRIPLE_TECH) {
         set_menu_text_arguments(g, 0, battle_rewards_triple_tech(g));
-        if (!tell(s, 0xFDAE3F, TELL_TRIPLE_TECH, t))
+        if (!tell(g, TELL_TRIPLE_TECH, t, call, ctx))
             return false;
     }
     return true;
 }
 
 // $FD:AD17
-static bool tell_the_rewards(Snes *s)
+static bool tell_the_rewards(GameState *g, TellCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
     Telling t = { .double_techs_told = 0 };
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         t.levels_left[member] = battle_rewards_levels_gained(g, member);
-    if (!tell_the_battles_rewards(s, &t))
+    if (!tell_the_battles_rewards(g, &t, call, ctx))
         return false;
     t.at_the_members = true;
     for (t.member = 0; t.member < BATTLE_PARTY_SIZE; t.member++)
-        if (!tell_a_members_rewards(s, &t))
+        if (!tell_a_members_rewards(g, &t, call, ctx))
             return false;
     ORIGINAL_EFFECT(leave_the_place(g, &t));
     return true;
@@ -230,9 +219,28 @@ static bool tell_the_rewards(Snes *s)
 
 /* The members' count's last compare leaves the carry set, which the main
  * loop's code after the call reads. */
-void battle_show_the_rewards(Snes *s)
+/* On the machine each from the original's call of it, the message in A,
+ * its high byte clear, as every call of the original has it (the guard). The
+ * message reads nothing of the registers but which it is. */
+enum { SHOW_A_BATTLE_MESSAGE = 0xCD0021, THE_MESSAGE_READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+static const uint32_t tell_sites[] = { 0xFDAD2E, 0xFDAD4B, 0xFDAD63, 0xFDAD7C, 0xFDADAE, 0xFDADF4, 0xFDAE20, 0xFDAE3F };
+
+static bool tell_on_the_machine(void *ctx, RewardMessage message, unsigned item)
 {
-    if (!tell_the_rewards(s))
+    Snes *s = ctx;
+    s->cpu.a = (uint16_t)message;
+    if (message == TELL_ITEM)
+        return battle_run_long_dc_under(s, 0xFDAD7C, SHOW_A_BATTLE_MESSAGE, THE_MESSAGE_READS_A,
+                                        battle_show_a_battle_message_entry,
+                                        battle_keeping_word((uint16_t)item, BATTLE_CARRY_AS_IT_IS));
+    return battle_run_long_dc(s, tell_sites[message], SHOW_A_BATTLE_MESSAGE, THE_MESSAGE_READS_A,
+                              battle_show_a_battle_message_entry);
+}
+
+void battle_show_the_rewards_entry(Snes *s)
+{
+    if (!tell_the_rewards(state_of(s), tell_on_the_machine, s))
         return;
     m_set_flag(s, CPU_FLAG_C, true);
     m_rtl(s);
@@ -241,18 +249,47 @@ void battle_show_the_rewards(Snes *s)
 /* The guard: on the battle's page with A's high byte clear, as the main loop
  * calls it, and a member noted with double techs finds the list's end within
  * it (the original reads on past it into the cells after). */
-bool battle_rewards_can_be_shown(Snes *s)
+static bool rewards_fit(const GameState *g)
 {
-    if (!battle_on_page(s) || (s->cpu.a & 0xFF00) != 0)
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
     bool double_techs = false, ended = false;
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         double_techs |= battle_combatant_fighting(g, member) != OUT_OF_THE_FIGHT
                         && (battle_rewards_techs_noted(g, member) & NOTED_DOUBLE_TECHS);
     for (unsigned i = 0; i < BATTLE_REWARDS_DOUBLE_TECHS_COUNT; i++)
         ended |= battle_rewards_double_techs(g, i) == NO_TECH;
-    vars_peek(false);
     return !double_techs || ended;
+}
+
+bool battle_rewards_can_be_shown(Snes *s)
+{
+    if (!battle_on_page(s) || (s->cpu.a & 0xFF00) != 0)
+        return false;
+    vars_peek(true);
+    bool fits = rewards_fit(state_of(s));
+    vars_peek(false);
+    return fits;
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} TellAsC;
+
+static bool tell_a_reward(void *ctx, RewardMessage message, unsigned item)
+{
+    (void)item;
+    TellAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, SHOW_A_BATTLE_MESSAGE, done = battle_show_a_battle_message(c->game, c->pf, (uint8_t)message));
+    return done;
+}
+
+bool battle_show_the_rewards(GameState *g, Platform *pf)
+{
+    if (!rewards_fit(g))
+        return battle_needs_the_machine(g, 0xFDAD17, "a double techs' list with no end");
+    TellAsC c = { g, pf };
+    return tell_the_rewards(g, tell_a_reward, &c);
 }

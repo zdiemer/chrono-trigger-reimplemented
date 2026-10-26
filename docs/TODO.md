@@ -2739,11 +2739,12 @@ What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
 `ct_native` links the whole of `game/` but `registry.c`, with every service's
 host backend, and runs the boot, the field, the title's scene, the menus
-a script asks for and the world maps; it stops at frame 3605 at the
-attract demo's first battle (`$C0:188C`), as `gato-battle.ctm`'s presses
-stop it at Gato's, and with `new-game.ctm`'s, `fair.ctm`'s or
-`fair-companion.ctm`'s presses it plays the movie to its end (the
-fair's, in Leene Square). What the wrappers and bridges call of the machine is
+a script asks for, the world maps and the battles; it stops at frame 7519
+in the attract demo's jet bike race, set up as C, at its first frame's tasks
+(`$7E:5221`: the race's tasks are machine entries in `scene/frame.c`'s table
+with no C column yet), and with `new-game.ctm`'s, `fair.ctm`'s,
+`fair-companion.ctm`'s or `gato-battle.ctm`'s presses it plays the movie to
+its end; `menu.ctm`'s stop at the main menu's opening (`$C2:99CE`). What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
@@ -2779,11 +2780,22 @@ list, by kind, is what `game/` still asks of one.
   runs yet, `ct_native` stops there and says which: a menu screen with no
   step as C (the main menu's, the load screen's, a shop's), a party the
   put-aside or the bringing back doesn't take (`field/menus.c`), every
-  request but a location change, a script's menu and a tile copy (a step, a
-  chest, a battle: `field/requests.c`), the field's restart a script asks for,
+  request but a location change, a script's menu, a tile copy and a battle (a step, a
+  chest: `field/requests.c`), the field's restart a script asks for,
   and the event commands with a bridge and no C beside it (9 of the 23 in
   `EVENT_BRIDGES`; `EVENT_BRIDGES_AS_C`, event/engine.h, has the rest).
   Each wants its C as the program meets it.
+- **What the battle still hands the machine as the program runs it.** The
+  battle runs as C from the field's request to the field taken up after it
+  (REIMPLEMENTATION.md, "The native program through the battle"), each C
+  path behind its entry's guard's state half; where one turns the state
+  away, or a call has no C yet, `battle_needs_the_machine` stops the program
+  there and says which (72 sites: a comeback shown, an enemy called in or
+  coming into the battle, the two search steps, a demo battle's end, an
+  enemy's movement or dissolve the port doesn't run, and the guards' own
+  refusals). After a battle, a game over's start afresh from the title stops
+  the program too (`field/battle_return.c`). Each wants its C as the program
+  meets it.
 - **Two sequences of one routine.** The field's entry, its location's
   loading and song, the main loop's pass, the frame's work, the objects'
   update and view and the pause and menus are one sequence each, which the

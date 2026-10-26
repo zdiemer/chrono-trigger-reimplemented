@@ -74,7 +74,7 @@ static bool keeps_the_field_song(const GameState *g) { return battle_terms(g, BA
 /* The battle's song, saving the field's to come back to, and the battle's
  * effects with it; or, where the event keeps the field's song, the battle's
  * effects alone. */
-static void start_the_battle_song(GameState *g, Platform *pf)
+void field_start_the_battle_song(GameState *g, Platform *pf)
 {
     if (keeps_the_field_song(g)) {
         au_switch_effects(pf, PF_CALL_DC(0xC01BDF, DRIVER, DRIVER_IGNORES), true);
@@ -117,7 +117,7 @@ static void bring_up(Platform *pf, MusicBack after, AudioCommand song)
  * song back where it was saved. Only a defeat brings its song: the result a
  * script sets goes on as a win does, and so does a defeat the battle's terms
  * let the field go on from. */
-static void bring_the_music_back(GameState *g, Platform *pf)
+void field_bring_the_music_back(GameState *g, Platform *pf)
 {
     bool lost = battle_how_it_ended(g) == BATTLE_DEFEATED && !battle_terms(g, BATTLE_TERMS_DEFEAT_GOES_ON);
     if (lost) {
@@ -160,10 +160,10 @@ static void onto_the_fields_page(Snes *s)
     s->cpu.db = 0x00;
 }
 
-void field_start_the_battle_song(Snes *s)
+void field_start_the_battle_song_entry(Snes *s)
 {
     onto_the_fields_page(s);
-    start_the_battle_song(state_of(s), m_platform(s));
+    field_start_the_battle_song(state_of(s), m_platform(s));
     s->cpu.d = m_pull16(s);
     s->cpu.db = m_pull8(s);
     m_rtl(s);
@@ -173,10 +173,10 @@ void field_start_the_battle_song(Snes *s)
  * the other's bytes: the bank is the caller's page's low byte, and the page
  * the caller's bank over its page's high byte. Both callers put theirs back
  * after the call. */
-void field_bring_the_music_back(Snes *s)
+void field_bring_the_music_back_entry(Snes *s)
 {
     onto_the_fields_page(s);
-    bring_the_music_back(state_of(s), m_platform(s));
+    field_bring_the_music_back(state_of(s), m_platform(s));
     s->cpu.db = m_pull8(s);
     s->cpu.d = m_pull16(s);
     m_rtl(s);
