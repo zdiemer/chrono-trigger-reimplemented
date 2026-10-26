@@ -62,9 +62,8 @@ static void convert_enemy_names(GameState *g, LastName *last)
 // $CC:E2E4
 /* The battle's state. Nothing the original leaves in the registers is read
  * after it (the registry's dont_care). */
-void battle_setup_state(Snes *s)
+void battle_setup_state(GameState *g)
 {
-    GameState *g = state_of(s);
     setup_reset_for_new_fight(g);
     setup_sprite_tables(g);
     setup_base_grid(g);
@@ -82,6 +81,11 @@ void battle_setup_state(Snes *s)
     setup_enemies(g);
     convert_enemy_names(g, &last);
     ORIGINAL_EFFECT(setup_leave_name_buffer(g, last.text, last.enemy, &last.tiles));
+}
+
+void battle_setup_state_entry(Snes *s)
+{
+    battle_setup_state(state_of(s));
     m_rtl(s);
 }
 
@@ -90,15 +94,19 @@ void battle_setup_state(Snes *s)
 enum { WAIT_FOR_GRAPHICS = 0xCCF05B };
 
 // $CC:ED87
-void battle_setup_graphics(Snes *s)
+void battle_setup_graphics(GameState *g)
 {
-    GameState *g = state_of(s);
     setup_sprite_entries(g);
     setup_size_bits(g);
     setup_enemy_sprite_attributes(g);
     setup_tiles(g);
     setup_cursor_sprites_and_colors(g);
     setup_uploads(g);
+}
+
+void battle_setup_graphics_entry(Snes *s)
+{
+    battle_setup_graphics(state_of(s));
     m_stop_at(s, WAIT_FOR_GRAPHICS, DC_A | DC_X | DC_Y | DC_FLAGS);
 }
 
@@ -106,13 +114,17 @@ void battle_setup_graphics(Snes *s)
 
 /* The setup runs on the battle's page with its data bank, on a party, enemies
  * and remembered cursors the game makes (setup_party.c, setup_enemies.c). */
+bool battle_setup_inputs_fit(const GameState *g)
+{
+    return setup_party_is_real(g) && setup_enemies_are_real(g) && setup_remembered_cursors_real(g);
+}
+
 bool battle_setup_inputs_are_real(Snes *s)
 {
     if (!battle_on_page(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool real = setup_party_is_real(g) && setup_enemies_are_real(g) && setup_remembered_cursors_real(g);
+    bool real = battle_setup_inputs_fit(state_of(s));
     vars_peek(false);
     return real;
 }

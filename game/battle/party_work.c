@@ -18,6 +18,7 @@
 #include "battle/effect_parts.h"
 
 #include "battle/bridge.h"
+#include "battle/program.h"
 #include "battle/combatant.h"
 #include "battle/enemy_actions.h"
 #include "battle/entries.h"
@@ -440,7 +441,7 @@ bool battle_work_out_member_tech_ready(Snes *s)
  * stopped at a miss: then the carry the part's kind left (battle/entries.h).
  * The member's turn next finds the tech's MP cost by a multiply, which keeps
  * the carry it comes in with in its second number's cell ($C1:BBFA). */
-void battle_work_out_member_tech(Snes *s)
+void battle_work_out_member_tech_entry(Snes *s)
 {
     GameState *g = state_of(s);
     TechOutcome outcome = effect_work_out_member_tech(g, m_platform(s));
@@ -462,9 +463,28 @@ bool battle_use_item_ready(Snes *s)
 }
 
 /* It hands back A's high byte clear. */
-void battle_use_item(Snes *s)
+void battle_use_item_entry(Snes *s)
 {
     effect_use_item(state_of(s), m_platform(s));
     s->cpu.a &= 0x00FF;
     m_rts(s);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+/* Each with its guard's state half: a tech, and an item, the port works out. */
+bool battle_work_out_member_tech(GameState *g, Platform *pf)
+{
+    if (!member_tech_ported(g))
+        return battle_needs_the_machine(g, 0xC1BF79, "a member's tech the port doesn't work out");
+    (void)effect_work_out_member_tech(g, pf);
+    return true;
+}
+
+bool battle_use_item(GameState *g, Platform *pf)
+{
+    if (!item_use_ported(g))
+        return battle_needs_the_machine(g, 0xC1BF46, "an item the port doesn't use");
+    effect_use_item(g, pf);
+    return true;
 }

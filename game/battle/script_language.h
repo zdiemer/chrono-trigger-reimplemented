@@ -28,6 +28,7 @@
 #include <stdint.h>
 
 #include "battle/positions.h"
+#include "platform/platform.h"
 #include "state.h"
 #include "vars.h"
 
@@ -328,5 +329,9 @@ BattlePoint script_point(const GameState *g);
 /* Where a command aims: its coordinates, the script's point, or a place; the
  * battle keeps it as the place last found. */
 BattlePoint script_aim(GameState *g, ScriptAim aim, uint8_t x, uint8_t y, uint8_t place);
+
+/* The sound commands' sound played, by the command's byte ($78-$7D,
+ * battle/script_sound.c), as C. */
+void script_play_the_sound(GameState *g, Platform *pf, uint8_t byte, const ScriptCommand *command);
 
 #endif

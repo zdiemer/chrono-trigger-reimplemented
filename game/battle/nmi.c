@@ -20,6 +20,7 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame.h"
+#include "battle/program.h"
 #include "battle/screen_data.h"
 #include "charge.h"
 #include "core/tile_animation.h"
@@ -29,6 +30,7 @@
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "vars.h"
+#include "wram.h"
 
 /* The handler reads the controller a half at a time, as the original does:
  * Start from its high byte, R and L from its low. */
@@ -142,55 +144,125 @@ static bool came_back(const Snes *s) { return battle_widths_m8_x16(s) && s->cpu.
 
 /* The frame work for the battle's mode reads A's high byte and Y (the block
  * move's end); the game's per-frame work reads nothing. */
-enum { FRAME_WORK = 0xCD0C95, GAME_FRAME = 0xCD0C89 };
+enum { FRAME_WORK = 0xCD0C95, GAME_FRAME = BATTLE_SCROLL_MAP_LAYERS_ENTRY };
+
+/* The handler's calls on the battle's other routines: the scratch moved aside
+ * and back, the frame work for the battle's mode (battle/frame.c), and the
+ * game's per-frame work, the map's layers scrolled. */
+typedef struct {
+    void (*set_the_scratch_aside)(void *ctx);
+    bool (*frame_work)(void *ctx);
+    bool (*map_layers)(void *ctx);
+    void (*put_the_scratch_back)(void *ctx);
+} VblankCalls;
 
 // $D1:E77C
 /* The battle's vblank handler. Unless the last one is still running: the
  * line values latched, the screen blanked for the uploads, the frame work, and
  * unless paused the game's per-frame work and the frame count; then pause and
- * frame advance, and the battle's waits for the frame are released. */
-void battle_nmi(Snes *s)
+ * frame advance, and the battle's waits for the frame are released. False
+ * where a call went no further. */
+static bool take_the_vblank(GameState *g, Platform *pf, const VblankCalls *calls, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    m_save_interrupted_registers_bank_first(s);
-    s->cpu.d = BATTLE_PAGE;
-    s->cpu.a = 0;
-    m_sep(s, CPU_FLAG_M);
     vid_enable_line_effects(pf, PF_AT(0xD1E78A), 0);
     tm_ack_vblank(pf, PF_AT(0xD1E78E));
     tm_enable_interrupts(pf, PF_AT(0xD1E794), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
-    if (battle_interrupt_busy(g)) {
-        m_return_to_interrupted_bank_first(s);
-        return;
-    }
+    if (battle_interrupt_busy(g))
+        return true;
     set_battle_interrupt_busy(g, (uint8_t)(battle_interrupt_busy(g) + 1));
-    m_block_move(s, BATTLE_DATA_BANK, SCRATCH_ASIDE, BATTLE_DATA_BANK, BATTLE_PAGE, SCRATCH_BYTES);
+    calls->set_the_scratch_aside(ctx);
     latch_split_lines(g);
-
-    s->cpu.db = 0x00;
     vid_enable_line_effects(pf, PF_AT(0xD1E7CC), 0);
     tm_reset_beam_latch(pf, PF_AT(0xD1E7CF));
     vid_set_display(pf, PF_AT(0xD1E7D4), &(VidDisplay){ .blank = true });
     vid_start_vram_uploads(pf, PF_AT(0xD1E7D7), VID_VRAM_WORD_PORT);
-    s->cpu.a = 0x0080;
-    m_jsl_dc(s, 0xD1E7DA, FRAME_WORK, DC_X | DC_N | DC_Z | DC_C);
-    if (!came_back(s))
-        return;
+    if (!calls->frame_work(ctx))
+        return false;
     if (!battle_paused(g)) {
-        m_jsl_dc(s, 0xD1E7E3, GAME_FRAME, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
-        if (!came_back(s))
-            return;
+        if (!calls->map_layers(ctx))
+            return false;
         count_frame(g);
     }
     take_pause(g, pf);
     ORIGINAL_EFFECT(restore_math_operands(g));
     take_frame_advance(g, pf);
-
-    m_block_move(s, BATTLE_DATA_BANK, BATTLE_PAGE, BATTLE_DATA_BANK, SCRATCH_ASIDE, SCRATCH_BYTES);
+    calls->put_the_scratch_back(ctx);
     set_battle_interrupt_busy(g, 0);
     set_battle_nmi_pending(g, 0);
-    m_return_to_interrupted_bank_first(s);
+    return true;
+}
+
+/* As C. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} HandlerAsC;
+
+enum { PAGE_CELLS = 0x7E0000 | BATTLE_PAGE, CELLS_ASIDE = 0x7E0000 | SCRATCH_ASIDE };
+
+static void scratch_aside(void *ctx) { wram_copy(((HandlerAsC *)ctx)->game, PAGE_CELLS, CELLS_ASIDE, SCRATCH_BYTES); }
+static void scratch_back(void *ctx) { wram_copy(((HandlerAsC *)ctx)->game, CELLS_ASIDE, PAGE_CELLS, SCRATCH_BYTES); }
+
+static bool frame_work(void *ctx)
+{
+    HandlerAsC *c = ctx;
+    return battle_frame_dispatched(c->game, c->pf);
+}
+
+static bool map_layers(void *ctx)
+{
+    GameState *g = ((HandlerAsC *)ctx)->game;
+    TIMED_AS(g, GAME_FRAME, battle_scroll_the_map_layers(g));
+    return true;
+}
+
+void battle_vblank(GameState *g, Platform *pf)
+{
+    static const VblankCalls as_c = { scratch_aside, frame_work, map_layers, scratch_back };
+    HandlerAsC c = { g, pf };
+    (void)take_the_vblank(g, pf, &as_c, &c);
+}
+
+/* On the machine: the scratch moved with the original's block moves (which
+ * leave Y at the move's end, as the frame work reads it), and the frame work
+ * on the data bank $00 with A $0080, each call from the original's. */
+static void scratch_aside_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    m_block_move(s, BATTLE_DATA_BANK, SCRATCH_ASIDE, BATTLE_DATA_BANK, BATTLE_PAGE, SCRATCH_BYTES);
+    s->cpu.db = 0x00;
+}
+
+static void scratch_back_on_the_machine(void *ctx)
+{
+    m_block_move(ctx, BATTLE_DATA_BANK, BATTLE_PAGE, BATTLE_DATA_BANK, SCRATCH_ASIDE, SCRATCH_BYTES);
+}
+
+static bool frame_work_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    s->cpu.a = 0x0080;
+    m_jsl_dc(s, 0xD1E7DA, FRAME_WORK, DC_X | DC_N | DC_Z | DC_C);
+    return came_back(s);
+}
+
+static bool map_layers_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    m_jsl_dc(s, 0xD1E7E3, GAME_FRAME, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
+    return came_back(s);
+}
+
+void battle_nmi(Snes *s)
+{
+    static const VblankCalls on_the_machine = { scratch_aside_on_the_machine, frame_work_on_the_machine,
+                                                map_layers_on_the_machine, scratch_back_on_the_machine };
+    m_save_interrupted_registers_bank_first(s);
+    s->cpu.d = BATTLE_PAGE;
+    s->cpu.a = 0;
+    m_sep(s, CPU_FLAG_M);
+    if (take_the_vblank(state_of(s), m_platform(s), &on_the_machine, s))
+        m_return_to_interrupted_bank_first(s);
 }
 
 /* It leaves A 8-bit, the last operand it set. */
@@ -257,30 +329,56 @@ static void begin_line_handler(GameState *g, Platform *pf)
 // $D1:FE97
 /* The battle's line handler, at the line its picture ends after: the picture
  * ended (begin_line_handler); then on even frames the alternating-frame
- * setting and on odd ones, unless paused, the tile animation uploads, which
- * run under the flags of the pause's test, pushed; then the math operands
- * back, and return. The page is the battle's and the data bank the
- * registers', as the original's has them at its wait. */
+ * setting and on odd ones, unless paused, the tile animation uploads (a
+ * routine of all the modes', core/tile_animation.c); then the math operands
+ * back. False where the uploads went no further. */
+static bool take_the_line(GameState *g, Platform *pf, bool (*tile_animation_uploads)(void *ctx), void *ctx)
+{
+    begin_line_handler(g, pf);
+    if (!(battle_frame_count(g) & 0x01))
+        TIMED_AS(g, 0xD1FE4C, apply_the_alternate_frame(g));
+    else if (!battle_paused(g) && !tile_animation_uploads(ctx))
+        return false;
+    ORIGINAL_EFFECT(restore_math_operands(g));
+    set_battle_interrupt_busy(g, 0);
+    return true;
+}
+
+/* As C, the uploads' guard turning away only the machine's stack. */
+static bool tile_animation_uploads(void *ctx)
+{
+    HandlerAsC *c = ctx;
+    TIMED_AS(c->game, TILE_ANIMATION_UPLOADS, tile_animations_send(c->game, c->pf));
+    return true;
+}
+
+void battle_line(GameState *g, Platform *pf)
+{
+    HandlerAsC c = { g, pf };
+    (void)take_the_line(g, pf, tile_animation_uploads, &c);
+}
+
+/* On the machine the uploads run under the flags of the pause's test,
+ * pushed. The page is the battle's and the data bank the registers', as the
+ * original's has them at its wait. */
+static bool tile_animation_uploads_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    m_set_a8(s, 0);
+    m_set_nz8(s, 0);
+    m_push8(s, s->cpu.p);
+    if (!battle_run_long(s, 0xD1FEDA, TILE_ANIMATION_UPLOADS, tile_animation_upload) || !battle_widths_m8_x16(s))
+        return false;
+    (void)m_pull8(s);   /* the pause test's flags off the stack; the return puts the interrupted code's back */
+    return true;
+}
+
 void battle_irq(Snes *s)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     m_save_interrupted_registers_bank_first(s);
     s->cpu.d = BATTLE_PAGE;
     s->cpu.db = 0x00;
     m_sep(s, CPU_FLAG_M);
-    begin_line_handler(g, pf);
-    if (!(battle_frame_count(g) & 0x01)) {
-        NATIVE_TIME_AS(s, 0xD1FE4C, apply_the_alternate_frame(g));
-    } else if (!battle_paused(g)) {
-        m_set_a8(s, 0);
-        m_set_nz8(s, 0);
-        m_push8(s, s->cpu.p);
-        if (!battle_run_long(s, 0xD1FEDA, TILE_ANIMATION_UPLOADS, tile_animation_upload) || !battle_widths_m8_x16(s))
-            return;
-        (void)m_pull8(s);   /* the pause test's flags off the stack; the return puts the interrupted code's back */
-    }
-    ORIGINAL_EFFECT(restore_math_operands(g));
-    set_battle_interrupt_busy(g, 0);
-    m_return_to_interrupted_bank_first(s);
+    if (take_the_line(state_of(s), m_platform(s), tile_animation_uploads_on_the_machine, s))
+        m_return_to_interrupted_bank_first(s);
 }

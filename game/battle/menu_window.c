@@ -30,8 +30,11 @@
 #include "battle/combatant.h"
 #include "battle/entries.h"
 #include "battle/message.h"
+#include "battle/party_turns.h"
+#include "battle/program.h"
 #include "battle/window_data.h"
 #include "battle/window_leaves.h"
+#include "charge.h"
 #include "original_effects.h"
 #include "port/native.h"
 #include "vars.h"
@@ -399,25 +402,38 @@ enum { CALLEE_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 /* The settings' bit that asks for the descriptions. */
 enum { DESCRIPTIONS_ON = 0x80 };
 
+/* The menu window's calls: the window's rows sent ($CF:FD02, the saved rows
+ * $CF:FD36, battle/uploads.c), and a tech's description ($CD:0027,
+ * battle/message.c), each with the carry the original has there, which the
+ * request passes on to the menu's callers, and the description with the
+ * tech. */
+typedef enum { WINDOW_ROWS, WINDOW_SAVED_ROWS, WINDOW_DESCRIPTION } WindowCall;
+typedef bool (*WindowCalls)(void *ctx, WindowCall call, uint8_t tech, bool carry);
+
+/* What the window leaves for the original's callers: the carry, where the
+ * drawing set it last, and A cleared where the frames were reloaded. */
+typedef struct {
+    bool carry_set, carry, a_cleared;
+} WindowLeaves;
+
 // $C1:0C49
-/* The window's upload request passes the carry on to the menu's callers, so
- * it is handed the carry the original has there: the redraw's, the party
- * status's, or the command cursor's (clear) (window_leaves.h). */
-static bool show_command_page(Snes *s, GameState *g)
+/* The carry the request is handed is the redraw's, the party status's, or
+ * the command cursor's (clear) (window_leaves.h). */
+static bool show_command_page(GameState *g, WindowCalls call, void *ctx)
 {
     bool carry;
     if (battle_menu_slot(g) != battle_menu_slot_shown(g)) {
         set_battle_menu_slot_shown(g, battle_menu_slot(g));
-        NATIVE_TIME_AS(s, 0xC11C3A, battle_reset_frames(g));
+        TIMED_AS(g, 0xC11C3A, battle_reset_frames(g));
         vars_peek(true);
         carry = window_redraw_carry(g);
         vars_peek(false);
-        NATIVE_TIME_AS(s, 0xC10299, battle_redraw_window(g));
+        TIMED_AS(g, 0xC10299, battle_redraw_window(g));
     } else {
         vars_peek(true);
         PartyStatusNote note = note_party_status(g);
         vars_peek(false);
-        NATIVE_TIME_AS(s, 0xC105A7, battle_show_party_status(g));
+        TIMED_AS(g, 0xC105A7, battle_show_party_status(g));
         vars_peek(true);
         carry = party_status_carry(g, note);
         vars_peek(false);
@@ -428,11 +444,10 @@ static bool show_command_page(Snes *s, GameState *g)
     }
     /* the frames' reset ends on a compare that leaves the carry set */
     if (menu_nobody(battle_menu_member(g))) {
-        NATIVE_TIME_AS(s, 0xC11C3A, battle_reset_frames(g));
+        TIMED_AS(g, 0xC11C3A, battle_reset_frames(g));
         carry = true;
     }
-    m_set_flag(s, CPU_FLAG_C, carry);
-    if (!battle_call_long(s, 0xC10C79, 0xCFFD02, CALLEE_READS_NOTHING))
+    if (!call(ctx, WINDOW_ROWS, 0, carry))
         return false;
     request_frames_upload(g);
     return true;
@@ -454,37 +469,70 @@ static bool tech_page_carry(const GameState *g, unsigned member)
     return false;
 }
 
-/* What laying out the list leaves in A, which the page hands on where
- * nothing after loads it: the list tilemap's place after its four rows. */
-enum { TECH_LIST_LAID_OUT_A = 0x0200 };
-
 // $C1:0C83
-static bool show_tech_page(Snes *s, GameState *g)
+static bool show_tech_page(GameState *g, WindowCalls call, void *ctx, WindowLeaves *left)
 {
     shade_unusable_techs(g);
-    NATIVE_TIME_AS(s, 0xC10A88, battle_lay_out_tech_list(g));
-    s->cpu.a = TECH_LIST_LAID_OUT_A;
+    TIMED_AS(g, 0xC10A88, battle_lay_out_tech_list(g));
     unsigned member = battle_menu_member(g);
     show_tech_list(g);
     show_party_mp(g);
     show_tech_costs(g, member);
     show_tech_cursor(g, member);
     vars_peek(true);
-    m_set_flag(s, CPU_FLAG_C, tech_page_carry(g, member));
+    bool carry = tech_page_carry(g, member);
     vars_peek(false);
-    if (battle_show_descriptions(g) & DESCRIPTIONS_ON) {
-        s->cpu.a = battle_selected_tech_id(g);
-        if (!battle_run_long(s, 0xC10E95, 0xCD0027, battle_describe))
-            return false;
-    }
-    if (!battle_call_long(s, 0xC10E99, 0xCFFD36, CALLEE_READS_NOTHING))
+    bool described = (battle_show_descriptions(g) & DESCRIPTIONS_ON) != 0;
+    if (described && !call(ctx, WINDOW_DESCRIPTION, battle_selected_tech_id(g), carry))
+        return false;
+    if (!call(ctx, WINDOW_SAVED_ROWS, described, carry))
         return false;
     if (battle_frames_reload_request(g)) {
         reload_tech_page_frames(g);
-        m_set_flag(s, CPU_FLAG_C, true);   /* the reload's last count, and its A */
-        s->cpu.a = 0;
+        *left = (WindowLeaves){ true, true, true };   /* the reload's last count, and its A */
     }
     return true;
+}
+
+// $C1:0C2D
+/* Draw the menu window for the page that is open, the member's stat block
+ * noted first. A page past the techs leaves the carry of comparing it with
+ * the tech page's. */
+static bool draw_menu_window(GameState *g, WindowCalls call, void *ctx, WindowLeaves *left)
+{
+    *left = (WindowLeaves){ false, false, false };
+    TIMED_AS(g, 0xCFFD9E, battle_note_menu_stat_block(g, battle_menu_member(g)));
+    switch (battle_menu_page(g)) {
+    case PAGE_COMMANDS: return show_command_page(g, call, ctx);
+    case PAGE_TECHS: return show_tech_page(g, call, ctx, left);
+    default: *left = (WindowLeaves){ true, true, false }; return true;
+    }
+}
+
+/* On the machine, each call from the original's, with the carry it is
+ * handed; the description takes the tech in A, and where there is none the
+ * saved rows take what laying out the list left in A (the list tilemap's
+ * place after its four rows). */
+enum { TECH_LIST_LAID_OUT_A = 0x0200 };
+
+static bool window_call_on_the_machine(void *ctx, WindowCall call, uint8_t tech, bool carry)
+{
+    Snes *s = ctx;
+    switch (call) {
+    case WINDOW_ROWS:
+        m_set_flag(s, CPU_FLAG_C, carry);
+        return battle_call_long(s, 0xC10C79, 0xCFFD02, CALLEE_READS_NOTHING);
+    case WINDOW_DESCRIPTION:
+        m_set_flag(s, CPU_FLAG_C, carry);
+        s->cpu.a = tech;
+        return battle_run_long(s, 0xC10E95, 0xCD0027, battle_describe);
+    default:
+        if (!tech) {   /* no description made */
+            s->cpu.a = TECH_LIST_LAID_OUT_A;
+            m_set_flag(s, CPU_FLAG_C, carry);
+        }
+        return battle_call_long(s, 0xC10E99, 0xCFFD36, CALLEE_READS_NOTHING);
+    }
 }
 
 /* The tech lists as the game keeps them, which the tech page takes on trust:
@@ -511,6 +559,8 @@ static bool tech_lists_kept(const GameState *g)
  * clear wherever the game draws the menu window. */
 bool battle_menu_window_ready_a_clear(Snes *s) { return battle_menu_window_ready(s) && !(s->cpu.a & 0xFF00); }
 
+bool battle_menu_window_fits(const GameState *g) { return battle_window_fits(g) && tech_lists_kept(g); }
+
 bool battle_menu_window_ready(Snes *s)
 {
     if (!battle_window_ready(s))
@@ -527,22 +577,15 @@ bool battle_menu_window_ready(Snes *s)
  * of comparing it with the tech page's. */
 void battle_draw_menu_window(Snes *s)
 {
-    GameState *g = state_of(s);
-    NATIVE_TIME_AS(s, 0xCFFD9E, battle_note_menu_stat_block(g, battle_menu_member(g)));
+    /* the stat block's noting leaves A clear */
     s->cpu.a = 0;
-    switch (battle_menu_page(g)) {
-    case PAGE_COMMANDS:
-        if (!show_command_page(s, g))
-            return;
-        break;
-    case PAGE_TECHS:
-        if (!show_tech_page(s, g))
-            return;
-        break;
-    default:
-        m_set_flag(s, CPU_FLAG_C, true);
-        break;
-    }
+    WindowLeaves left;
+    if (!draw_menu_window(state_of(s), window_call_on_the_machine, s, &left))
+        return;
+    if (left.carry_set)
+        m_set_flag(s, CPU_FLAG_C, left.carry);
+    if (left.a_cleared)
+        s->cpu.a = 0;
     m_rts(s);
 }
 
@@ -782,45 +825,47 @@ enum { CALLEE_READS_A = DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
  * wrote, its high byte clear. */
 enum { CHOOSING_FRAME_LEFT_A = 0x00AA };
 
+/* How the cursors were placed: the path through the placing, which the
+ * machine's wrapper works the registers it hands back out from. */
+typedef enum {
+    PLACED_AS_THEY_WERE,    /* nobody choosing, or no targets: the registers as they came */
+    PLACED_ON_A_GROUP,      /* a group's cursors, which may have gone round */
+    PLACED_ON_A_LONE_TARGET,
+    PLACED_ON_A_NAMED_ENEMY,
+    PLACED_FOLLOWING_THE_TARGET,
+    PLACED_ON_A_COMBINATION,
+    PLACED_ROUND_THE_MEMBER,
+    PLACED_IN_THE_ITEM_LIST_SENT,
+    PLACED_IN_THE_ITEM_LIST_KEPT,
+} CursorsPlaced;
+
+/* The one call placing the cursors makes: a lone enemy target named
+ * ($CD:0030, with its HP $CD:002D, battle/message.c). */
+typedef bool (*NameTarget)(void *ctx, uint8_t name, bool with_hp);
+
 // $C1:19B4
-/* A lone target: its cursor, and on the command page an enemy's name. The
- * carry the original leaves is its last compare's: of the cursor's height
- * where the moved target's frame is followed, else the callee's where the
- * name was shown, else of the target against the enemies on the command page,
- * else of placing the cursor. */
-static bool place_lone_target_cursor(Snes *s, GameState *g, uint8_t target)
+/* A lone target: its cursor, and on the command page an enemy's name. */
+static bool place_lone_target_cursor(GameState *g, uint8_t target, NameTarget name, void *ctx, CursorsPlaced *placed)
 {
     set_battle_single_target(g, target);
     point_cursor_at(g, 0, target);
-    bool carry = cursor_carry(g, target), named = false;
-    if (battle_menu_page(g) == PAGE_COMMANDS) {
-        carry = !battle_slot_is_party(target);
-        if (carry) {
-            bool with_hp = enemy_hp_shown(g, target);
-            s->cpu.a = describe_target(g, target);
-            m_set_flag(s, CPU_FLAG_C, false);   /* the original's doubling of the target, passed on */
-            if (!battle_run_long(s, with_hp ? 0xC11A47 : 0xC11A16, with_hp ? 0xCD002D : 0xCD0030,
-                                 with_hp ? battle_name_a_combatant_with_hp : battle_name_a_combatant))
-                return false;
-            named = true;
-        }
+    *placed = PLACED_ON_A_LONE_TARGET;
+    if (battle_menu_page(g) == PAGE_COMMANDS && !battle_slot_is_party(target)) {
+        if (!name(ctx, describe_target(g, target), enemy_hp_shown(g, target)))
+            return false;
+        *placed = PLACED_ON_A_NAMED_ENEMY;
     }
     show_cursor(g, 0);
-    bool followed = battle_targets_changed(g) && battle_target_moves_frame(g);
-    bool frame_on = battle_alternate_frame(g) != 0;
+    if (battle_targets_changed(g) && battle_target_moves_frame(g))
+        *placed = PLACED_FOLLOWING_THE_TARGET;
     follow_moved_target(g);
-    if (followed)
-        m_set_flag(s, CPU_FLAG_C, oam_buffer_y(g, 0) >= (frame_on ? NEAR_THE_BOTTOM : NEAR_THE_TOP));
-    else if (!named)
-        m_set_flag(s, CPU_FLAG_C, carry);
     return true;
 }
 
 // $C1:1979
 /* While targets are chosen the cursors go on them, unless there were none to
- * choose; on the tech page the list's hand goes first. A group's round leaves
- * the carry set, and A clear, where it went round. */
-static bool place_target_cursors(Snes *s, GameState *g)
+ * choose; on the tech page the list's hand goes first. */
+static bool place_target_cursors(GameState *g, NameTarget name, void *ctx, CursorsPlaced *placed)
 {
     if (menu_nobody(battle_no_targets(g)))
         return true;
@@ -831,16 +876,13 @@ static bool place_target_cursors(Snes *s, GameState *g)
         set_cursor_look(g, cursor);
     if (!menu_nobody(battle_targets(g, 1))) {
         place_group_cursors(g);
-        bool went_round = battle_target_cursor(g) == 0;
-        m_set_flag(s, CPU_FLAG_C, went_round);
-        if (went_round)
-            s->cpu.a = 0;
+        *placed = PLACED_ON_A_GROUP;
         return true;
     }
     uint8_t target = battle_targets(g, 0);
     if (menu_nobody(target))
         return true;
-    return place_lone_target_cursor(s, g, target);
+    return place_lone_target_cursor(g, target, name, ctx, placed);
 }
 
 // $C1:17DD
@@ -848,39 +890,96 @@ static bool place_target_cursors(Snes *s, GameState *g)
  * the targets while they are chosen, on the tech page a combination tech's
  * members or, for a tech of its own, the frame around the member, and the
  * item list's cursor, sending the window when it changed. Placing them takes
- * the buttons the menu gathered. The carry the original leaves: set where a
- * combination has two members (from its end mark), the third's placing where
- * it has three, set after the frame (its loop's last compare), and set where
- * the item list was left as it was. The frame leaves A its high table's
- * byte, its high byte clear. */
-void battle_place_menu_cursors(Snes *s)
+ * the buttons the menu gathered. */
+static bool place_menu_cursors(GameState *g, NameTarget name, void *ctx, CursorsPlaced *placed)
 {
-    GameState *g = state_of(s);
+    *placed = PLACED_AS_THEY_WERE;
     if (menu_nobody(battle_menu_member(g))) {
         battle_move_cursors_away(g);
     } else if (battle_targeting(g)) {
-        if (!place_target_cursors(s, g))
-            return;
+        if (!place_target_cursors(g, name, ctx, placed))
+            return false;
     } else if (battle_menu_page(g) == PAGE_TECHS) {
         if (combination_tech_selected(g)) {
             place_combo_cursors(g);
-            uint8_t partners = battle_selected_tech_partners(g);
-            m_set_flag(s, CPU_FLAG_C, !has_second_partner(partners) || cursor_carry(g, second_partner(partners)));
+            *placed = PLACED_ON_A_COMBINATION;
         } else {
-            NATIVE_TIME_AS(s, 0xC11115, battle_frame_member_choosing(g));
-            s->cpu.a = CHOOSING_FRAME_LEFT_A;
-            m_set_flag(s, CPU_FLAG_C, true);
+            TIMED_AS(g, 0xC11115, battle_frame_member_choosing(g));
+            *placed = PLACED_ROUND_THE_MEMBER;
         }
     } else if (battle_menu_page(g) != PAGE_COMMANDS) {
         if (show_item_cursor(g)) {
-            NATIVE_TIME_AS(s, 0xCFFD6A, battle_send_lower_window_rows(g));
-            s->cpu.a = BATTLE_PAGE;               /* the request's leaving */
-            m_set_flag(s, CPU_FLAG_C, false);   /* the cursor row's doubling, passed on */
+            TIMED_AS(g, 0xCFFD6A, battle_send_lower_window_rows(g));
+            *placed = PLACED_IN_THE_ITEM_LIST_SENT;
         } else {
-            m_set_flag(s, CPU_FLAG_C, true);
+            *placed = PLACED_IN_THE_ITEM_LIST_KEPT;
         }
     }
     set_battle_menu_buttons(g, 0);
+    return true;
+}
+
+/* On the machine the name is the callee's from its own call, the name in A
+ * and the carry the original's doubling of the target leaves, clear. */
+static bool name_on_the_machine(void *ctx, uint8_t name, bool with_hp)
+{
+    Snes *s = ctx;
+    s->cpu.a = name;
+    m_set_flag(s, CPU_FLAG_C, false);
+    return battle_run_long(s, with_hp ? 0xC11A47 : 0xC11A16, with_hp ? 0xCD002D : 0xCD0030,
+                           with_hp ? battle_name_a_combatant_with_hp : battle_name_a_combatant);
+}
+
+/* The registers placing the cursors leaves the original's callers, worked
+ * out from where it went: the carry is the last compare's -- a group's round
+ * set where it went round (with A clear); a lone target's, of the cursor's
+ * height where the moved target's frame is followed (the original compares against the
+ * frame's edge before the following; the frame it turns to gives the same
+ * answer, so the frame after it serves), else of the target
+ * against the enemies on the command page, else of placing the cursor (a named
+ * enemy's is the callee's own); a combination's, set where it has two members
+ * (from its end mark), else the third's placing; set after the frame (its
+ * loop's last compare, with A its byte); clear after the item list's sending
+ * (the cursor row's doubling, with A the request's page), set where it was
+ * left as it was. */
+static void leave_cursor_registers(Snes *s, const GameState *g, CursorsPlaced placed)
+{
+    uint8_t target = battle_single_target(g);
+    uint8_t partners = battle_selected_tech_partners(g);
+    switch (placed) {
+    case PLACED_ON_A_GROUP:
+        m_set_flag(s, CPU_FLAG_C, battle_target_cursor(g) == 0);
+        if (battle_target_cursor(g) == 0)
+            s->cpu.a = 0;
+        break;
+    case PLACED_ON_A_LONE_TARGET:
+        m_set_flag(s, CPU_FLAG_C, battle_menu_page(g) == PAGE_COMMANDS ? false : cursor_carry(g, target));
+        break;
+    case PLACED_FOLLOWING_THE_TARGET:
+        m_set_flag(s, CPU_FLAG_C, oam_buffer_y(g, 0) >= (battle_alternate_frame(g) != 0 ? NEAR_THE_BOTTOM : NEAR_THE_TOP));
+        break;
+    case PLACED_ON_A_COMBINATION:
+        m_set_flag(s, CPU_FLAG_C, !has_second_partner(partners) || cursor_carry(g, second_partner(partners)));
+        break;
+    case PLACED_ROUND_THE_MEMBER:
+        s->cpu.a = CHOOSING_FRAME_LEFT_A;
+        m_set_flag(s, CPU_FLAG_C, true);
+        break;
+    case PLACED_IN_THE_ITEM_LIST_SENT:
+        s->cpu.a = BATTLE_PAGE;
+        m_set_flag(s, CPU_FLAG_C, false);
+        break;
+    case PLACED_IN_THE_ITEM_LIST_KEPT: m_set_flag(s, CPU_FLAG_C, true); break;
+    default: break;
+    }
+}
+
+void battle_place_menu_cursors(Snes *s)
+{
+    CursorsPlaced placed;
+    if (!place_menu_cursors(state_of(s), name_on_the_machine, s, &placed))
+        return;
+    leave_cursor_registers(s, state_of(s), placed);
     m_rts(s);
 }
 
@@ -946,17 +1045,26 @@ static void call_off_combos(GameState *g)
 
 // $C1:B575
 /* Work out whose combination techs are called off, and drop what they had
- * queued (battle/party_turns.c). A's high byte is clear, as the check's
- * calls leave it. */
-void battle_update_combo_members(Snes *s)
+ * queued (`call_off`, a routine of its own, battle/party_turns.c). */
+static bool update_combo_members(GameState *g, bool (*call_off)(void *ctx), void *ctx)
 {
-    GameState *g = state_of(s);
     find_combo_partners(g);
     call_off_combos(g);
+    return call_off(ctx);
+}
+
+/* On the machine, A's high byte clear, as the check's calls leave it. */
+static bool call_off_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
     s->cpu.a = 0;
-    if (!battle_run_long(s, 0xC1B6CC, 0xFDA95F, battle_call_off_waiting_combination))
-        return;
-    m_rts(s);
+    return battle_run_long(s, 0xC1B6CC, 0xFDA95F, battle_call_off_waiting_combination_entry);
+}
+
+void battle_update_combo_members_entry(Snes *s)
+{
+    if (update_combo_members(state_of(s), call_off_on_the_machine, s))
+        m_rts(s);
 }
 
 /* It leaves A's high byte the direct page's (a TDC) and the carry of its
@@ -967,4 +1075,58 @@ void battle_reset_window_frames(Snes *s)
     s->cpu.a = m_direct_page(s) & 0xFF00;
     m_set_flag(s, CPU_FLAG_C, true);
     m_rts(s);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+static bool window_call_as_c(void *ctx, WindowCall call, uint8_t tech, bool carry)
+{
+    (void)carry;
+    GameState *g = ctx;
+    switch (call) {
+    case WINDOW_ROWS: TIMED_AS(g, 0xCFFD02, battle_send_window_rows(g)); return true;
+    case WINDOW_SAVED_ROWS: TIMED_AS(g, 0xCFFD36, battle_send_saved_window_rows(g)); return true;
+    default: return battle_described(g, tech);
+    }
+}
+
+/* The window's guard's state half: the menu's state as the game keeps it,
+ * and the tech lists. */
+bool battle_menu_window_drawn(GameState *g, Platform *pf)
+{
+    (void)pf;
+    if (!battle_menu_window_fits(g))
+        return battle_needs_the_machine(g, 0xC10C2D, "a menu state the window's port doesn't take");
+    WindowLeaves left;
+    return draw_menu_window(g, window_call_as_c, g, &left);
+}
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} MenuAsC;
+
+static bool call_off_as_c(void *ctx)
+{
+    MenuAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, 0xFDA95F, done = battle_call_off_waiting_combination(c->game, c->pf));
+    return done;
+}
+
+bool battle_update_combo_members(GameState *g, Platform *pf)
+{
+    MenuAsC c = { g, pf };
+    return update_combo_members(g, call_off_as_c, &c);
+}
+
+static bool name_as_c(void *ctx, uint8_t name, bool with_hp) { return battle_combatant_named(ctx, name, with_hp); }
+
+bool battle_menu_cursors_placed(GameState *g, Platform *pf)
+{
+    (void)pf;
+    if (!battle_window_fits(g))
+        return battle_needs_the_machine(g, 0xC117DD, "a menu state the cursors' port doesn't take");
+    CursorsPlaced placed;
+    return place_menu_cursors(g, name_as_c, g, &placed);
 }

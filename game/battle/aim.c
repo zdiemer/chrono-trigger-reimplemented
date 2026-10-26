@@ -36,6 +36,7 @@
 #include "battle/arith.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
+#include "battle/program.h"
 #include "battle/choosing.h"
 #include "battle/combatant.h"
 #include "battle/effect_data.h"
@@ -829,32 +830,49 @@ static void search_the_area(GameState *g, const Aiming *a)
 }
 
 // $C1:C1DD
-/* Aim the action. A's high byte goes back clear, as the original's last loads
- * leave it, but after the "no target" showing, which hands back its own. */
-void battle_aim_action(Snes *s)
+/* Aim the action, from the carry its caller leaves; a party tech's area that
+ * finds nobody shows its "no target" showing (the action shown, `show`, a
+ * routine of its own, handed the showing). */
+typedef enum { AIM_STOPPED, AIM_DONE, AIM_SHOWN_NO_TARGET } AimEnds;
+
+static AimEnds aim_the_action(GameState *g, bool carry, bool (*show)(void *ctx, uint8_t showing), void *ctx)
 {
-    GameState *g = state_of(s);
     Aiming a = { 0 };
-    AimProgress progress = aim_up_to_the_area(g, &a, m_flag(s, CPU_FLAG_C));
+    AimProgress progress = aim_up_to_the_area(g, &a, carry);
     leave_aim_cells(g, &a);
     if (progress == SEARCH_THE_AREA) {
         if (a.placed)
             search_the_area(g, &a);
         AreaOutcome outcome = settle_after_search(g, &a);
         if (outcome == SHOW_NO_TARGET) {
-            s->cpu.a = record_no_target_showing(g);
-            if (!battle_run(s, SHOWING_CALL, SHOWING, battle_start_action_showing))
-                return;
+            if (!show(ctx, record_no_target_showing(g)))
+                return AIM_STOPPED;
             came_to_nothing(g);
-            m_rts(s);
-            return;
+            return AIM_SHOWN_NO_TARGET;
         }
         progress = outcome == SETTLED ? AIMED : CAME_TO_NOTHING;
     }
     if (progress == CAME_TO_NOTHING)
         came_to_nothing(g);
-    s->cpu.a &= 0x00FF;
-    m_rts(s);
+    return AIM_DONE;
+}
+
+static bool show_on_the_machine(void *ctx, uint8_t showing)
+{
+    Snes *s = ctx;
+    s->cpu.a = showing;
+    return battle_run(s, SHOWING_CALL, SHOWING, battle_start_action_showing);
+}
+
+/* A's high byte goes back clear, as the original's last loads leave it, but
+ * after the "no target" showing, which hands back its own. */
+void battle_aim_action_entry(Snes *s)
+{
+    switch (aim_the_action(state_of(s), m_flag(s, CPU_FLAG_C), show_on_the_machine, s)) {
+    case AIM_DONE: s->cpu.a &= 0x00FF; m_rts(s); return;
+    case AIM_SHOWN_NO_TARGET: m_rts(s); return;
+    default: return;
+    }
 }
 
 /* ---- What the port aims ------------------------------------------------------------------------- */
@@ -912,11 +930,7 @@ static bool aim_fits(const GameState *g)
     if (actor >= BATTLE_COMBATANTS)
         return false;
     bool party = actor < BATTLE_PARTY_SIZE;
-    if (party && battle_cell_word(g, BATTLE_MEMBER_CELL) != battle_member_record_place(g, actor))
-        return false;
     bool item = party && member_uses_item(g);
-    if (item && battle_cell_word(g, ITEM_AREA_CELL) != NO_AREA)
-        return false;
     if (party && !item && !members_fit(g, battle_action_detail(g)))
         return false;
     ActionAim aim = action_aim(g);
@@ -929,10 +943,23 @@ static bool aim_fits(const GameState *g)
     return rules_fit(g, aim.area, party);
 }
 
+/* The machine's operands, which its callers hand it in cells and the C
+ * passes as values: a member's record place, and an item's area rules,
+ * none. */
+static bool operands_fit(const GameState *g)
+{
+    uint8_t actor = battle_actor(g);
+    if (actor >= BATTLE_PARTY_SIZE)
+        return true;
+    if (battle_cell_word(g, BATTLE_MEMBER_CELL) != battle_member_record_place(g, actor))
+        return false;
+    return !member_uses_item(g) || battle_cell_word(g, ITEM_AREA_CELL) == NO_AREA;
+}
+
 bool battle_aim_action_ready(Snes *s)
 {
     vars_peek(true);
-    bool fits = aim_fits(state_of(s));
+    bool fits = aim_fits(state_of(s)) && operands_fit(state_of(s));
     vars_peek(false);
     return battle_on_page(s) && fits;
 }
@@ -947,4 +974,29 @@ void battle_search_area(Snes *s)
     set_battle_area_shape(g, battle_aim_rule_shape(g));
     NATIVE_TIME_AS(s, 0xC11FDD, battle_search_the_noted_area(s));
     m_rts(s);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} AimAsC;
+
+static bool show_as_c(void *ctx, uint8_t showing)
+{
+    (void)showing;
+    AimAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, SHOWING, done = battle_action_shown(c->game, c->pf));
+    return done;
+}
+
+/* The guard's state half: an aim the port makes. */
+bool battle_aim_action(GameState *g, Platform *pf, bool carry)
+{
+    if (!aim_fits(g))
+        return battle_needs_the_machine(g, 0xC1C1DD, "an action's aim the port doesn't make");
+    AimAsC c = { g, pf };
+    return aim_the_action(g, carry, show_as_c, &c) != AIM_STOPPED;
 }

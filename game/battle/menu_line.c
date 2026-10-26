@@ -20,6 +20,8 @@
 #include "battle/bridge.h"
 #include "battle/choosing.h"
 #include "battle/entries.h"
+#include "battle/program.h"
+#include "battle/steps.h"
 #include "battle/window.h"
 #include "charge.h"
 #include "original_effects.h"
@@ -202,4 +204,25 @@ bool battle_called_off_ready(Snes *s)
     bool ok = battle_step_member(state_of(s)) < BATTLE_PARTY_SIZE;
     vars_peek(false);
     return battle_on_page(s) && ok;
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+/* The steps with their guards' state halves: a party member, and for the
+ * turn a place in the line for it to join. */
+bool battle_turn_comes(GameState *g, Platform *pf)
+{
+    if (battle_step_member(g) >= BATTLE_PARTY_SIZE || battle_menu_queue_length(g) >= BATTLE_MENU_QUEUE_COUNT)
+        return battle_needs_the_machine(g, 0xC11B19, "a turn come with no place in the line");
+    join_the_line(g, pf, battle_step_member(g));
+    return true;
+}
+
+bool battle_menu_called_off(GameState *g, Platform *pf)
+{
+    (void)pf;
+    if (battle_step_member(g) >= BATTLE_PARTY_SIZE)
+        return battle_needs_the_machine(g, 0xC11BAA, "a menu called off for a member past the party");
+    battle_call_off_the_menu(g, battle_step_member(g));
+    return true;
 }

@@ -441,7 +441,7 @@ enum { ITEM_CURSOR_ROWS = 4, FROG_SLOT_STEP = 5 };
  * combatants or nobody, and an ally while an action is aimed at the party;
  * Frog's slot a party slot. A state that breaks these is the original's to
  * run. */
-static bool menu_state_kept(const GameState *g)
+bool battle_window_fits(const GameState *g)
 {
     if (battle_window_layout(g) > 0xFF || !names_member_or_nobody(battle_menu_member(g)))
         return false;
@@ -476,7 +476,7 @@ static bool menu_state_kept(const GameState *g)
 bool battle_window_ready(Snes *s)
 {
     vars_peek(true);
-    bool ready = battle_on_page(s) && menu_state_kept(state_of(s));
+    bool ready = battle_on_page(s) && battle_window_fits(state_of(s));
     vars_peek(false);
     return ready;
 }

@@ -22,6 +22,7 @@
  * around the transfer and the waits, which run the frame work's waits as the
  * original calls them (battle/wait.c). */
 #include "battle/bridge.h"
+#include "battle/program.h"
 #include "battle/entries.h"
 #include "battle/frame.h"
 #include "battle/screen.h"
@@ -148,10 +149,11 @@ enum { TILES_VRAM = 0x5000, TILES_BYTES = 0x0F80 };
 /* A quarter of a second for the picture to settle. */
 enum { SETTLING_FRAMES = 15 };
 
-static bool send_the_kept_tiles(Snes *s, uint32_t site)
-{
-    return battle_send_and_wait(s, site, RAM_FIELD_BG3_TILES_UNPACKED, TILES_VRAM, TILES_BYTES);
-}
+/* The putting back's calls: the kept tiles sent and waited for, and the
+ * frame work's waits (battle/wait.c); with what the original leaves in A and
+ * the carry before the first wait (below). */
+typedef enum { BACK_TILES_SENT, BACK_TESTS_LEFT, BACK_FADED_FRAME, BACK_SETTLING_FRAMES, BACK_LAST_FRAME } BackCall;
+typedef bool (*BackCalls)(void *ctx, BackCall call, bool own_layer, bool faded);
 
 /* The waits pass the carry on to the menu's turn, which reads it, so the port
  * leaves it there as the original's tests do: the battlefield's test sets it
@@ -170,10 +172,9 @@ static void leave_the_tests(Snes *s, const GameState *g, bool own_layer, bool fa
 
 // $CD:0453
 /* Put the battlefield back. */
-static bool put_the_battlefield_back(Snes *s)
+static bool put_the_battlefield_back(GameState *g, BackCalls call, void *ctx)
 {
-    GameState *g = state_of(s);
-    if (!send_the_kept_tiles(s, 0xCD0460))
+    if (!call(ctx, BACK_TILES_SENT, false, false))
         return false;
     set_battle_battlefield_tiles_replaced(g, 0);
     set_battle_scroll_mode(g, BATTLE_SCROLL_STEADY);
@@ -182,26 +183,68 @@ static bool put_the_battlefield_back(Snes *s)
         bool fades = own_layer && shows_its_own_layer(g);
         if (fades)
             TIMED_AS(g, 0xCD0E61, battle_fade_battlefield_layer(g, true));
-        leave_the_tests(s, g, own_layer, fades);
-        if (!battle_wait_for_the_next_frame_from(s, 0xCD048C))
+        if (!call(ctx, BACK_TESTS_LEFT, own_layer, fades) || !call(ctx, BACK_FADED_FRAME, false, false))
             return false;
         TIMED_AS(g, 0xCD0CF6, take_back_the_start_screen(g));
-        if (!battle_wait_frames(s, 0xCD0494, BATTLE_SOME_FRAMES_WAIT, BATTLE_COUNTING_WAIT_READS, SETTLING_FRAMES))
+        if (!call(ctx, BACK_SETTLING_FRAMES, false, false))
             return false;
     }
-    s->cpu.a = 0;
     set_battle_background(g, 0);
     set_battle_background_restore_request(g, 0);
     TIMED_AS(g, 0xCD0E23, battle_restore_kept_colors(g));
-    m_set_flag(s, CPU_FLAG_C, true);
-    return battle_wait_for_the_next_frame_from(s, 0xCD04A2);
+    return call(ctx, BACK_LAST_FRAME, false, false);
+}
+
+static bool back_on_the_machine(void *ctx, BackCall call, bool own_layer, bool faded)
+{
+    Snes *s = ctx;
+    switch (call) {
+    case BACK_TILES_SENT: return battle_send_and_wait(s, 0xCD0460, RAM_FIELD_BG3_TILES_UNPACKED, TILES_VRAM, TILES_BYTES);
+    case BACK_TESTS_LEFT: leave_the_tests(s, state_of(s), own_layer, faded); return true;
+    case BACK_FADED_FRAME: return battle_wait_for_the_next_frame_from(s, 0xCD048C);
+    case BACK_SETTLING_FRAMES:
+        return battle_wait_frames(s, 0xCD0494, BATTLE_SOME_FRAMES_WAIT, BATTLE_COUNTING_WAIT_READS, SETTLING_FRAMES);
+    default:
+        s->cpu.a = 0;
+        m_set_flag(s, CPU_FLAG_C, true);
+        return battle_wait_for_the_next_frame_from(s, 0xCD04A2);
+    }
+}
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} BackAsC;
+
+static bool back_as_c(void *ctx, BackCall call, bool own_layer, bool faded)
+{
+    (void)own_layer;
+    (void)faded;
+    BackAsC *c = ctx;
+    GameState *g = c->game;
+    bool done = false;
+    switch (call) {
+    case BACK_TILES_SENT:
+        vid_send_vram_and_wait(c->pf, PF_CALL_DC(0xCD0460, BATTLE_SEND, BATTLE_SEND_READS), TILES_VRAM,
+                               PF_GAME(RAM_FIELD_BG3_TILES_UNPACKED), TILES_BYTES);
+        return true;
+    case BACK_TESTS_LEFT: return true;
+    case BACK_SETTLING_FRAMES: TIMED_AS(g, BATTLE_SOME_FRAMES_WAIT, done = battle_wait_some_frames(g, c->pf, SETTLING_FRAMES)); return done;
+    default: TIMED_AS(g, BATTLE_NEXT_FRAME_WAIT, done = battle_wait_for_the_next_frame(g, c->pf)); return done;
+    }
+}
+
+bool battle_put_the_battlefield_back(GameState *g, Platform *pf)
+{
+    BackAsC c = { g, pf };
+    return put_the_battlefield_back(g, back_as_c, &c);
 }
 
 /* ---- The entries ------------------------------------------------------------------------------ */
 
-void battle_put_the_battlefield_back(Snes *s)
+void battle_put_the_battlefield_back_entry(Snes *s)
 {
-    if (put_the_battlefield_back(s))
+    if (put_the_battlefield_back(state_of(s), back_on_the_machine, s))
         m_rts(s);
 }
 

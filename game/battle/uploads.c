@@ -31,6 +31,7 @@
 #include "platform/video.h"
 #include "port/native.h"
 #include "ram.h"
+#include "core/console.h"
 #include "vars.h"
 
 /* The described transfers are in words to the VRAM port, as the channel takes
@@ -122,7 +123,7 @@ static void leave_what_the_wait_keeps(Snes *s, const GameState *g, SendWait what
 static bool wait_a_frame(Snes *s, uint32_t site, SendWait what)
 {
     ORIGINAL_EFFECT(leave_what_the_wait_keeps(s, state_of(s), what));
-    return battle_run(s, site, 0xCD3E75, battle_wait_for_the_next_frame);
+    return battle_run(s, site, 0xCD3E75, battle_wait_for_the_next_frame_entry);
 }
 
 /* The menu's turn the waits give reads the carry the original's comparison
@@ -488,6 +489,17 @@ bool battle_transfers_apart(const GameState *g, uint16_t stack)
     return queued_transfer_apart(g, stack) && block_apart(g, stack);
 }
 
+/* The stack's area: from the bottom of the game's stack to its top. */
+enum { STACK_AREA_BOTTOM = 0x0500 };
+
+bool battle_transfers_keep_off_the_stack(const GameState *g)
+{
+    for (uint16_t top = STACK_AREA_BOTTOM + STACK_REACH - 1; top <= CONSOLE_STACK_TOP; top += STACK_REACH)
+        if (!battle_transfers_apart(g, top))
+            return false;
+    return battle_transfers_apart(g, CONSOLE_STACK_TOP);
+}
+
 /* ---- The entries ------------------------------------------------------------------------ */
 
 /* The send reaches the hardware through the data bank the caller left. */
@@ -590,16 +602,20 @@ static void finish_request(Snes *s)
 }
 
 // $CF:FD02
+void battle_send_window_rows(GameState *g) { request_window_rows(g, window_tilemap_in_bank_0(0)); }
+
 void battle_request_window_rows(Snes *s)
 {
-    request_window_rows(state_of(s), window_tilemap_in_bank_0(0));
+    battle_send_window_rows(state_of(s));
     finish_request(s);
 }
 
 // $CF:FD36
+void battle_send_saved_window_rows(GameState *g) { request_window_rows(g, RAM_BATTLE_MENU_TILEMAP); }
+
 void battle_request_saved_window_rows(Snes *s)
 {
-    request_window_rows(state_of(s), RAM_BATTLE_MENU_TILEMAP);
+    battle_send_saved_window_rows(state_of(s));
     finish_request(s);
 }
 

@@ -17,6 +17,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "platform/platform.h"
 #include "state.h"
 
 /* The object that draws the combatant in a battle slot. */
@@ -164,5 +165,9 @@ void battle_mark_combatants_on_grid(GameState *g);
 /* Every combatant's box worked out from where it stands now (battle/objects.c,
  * $C1:283D). */
 void battle_update_all_bounds(GameState *g);
+
+/* The enemies' animation effects that are due run their step ($C1:3714),
+ * as C: false where one went no further. */
+bool battle_enemy_effects_stepped(GameState *g, Platform *pf);
 
 #endif

@@ -339,6 +339,13 @@ void battle_update_scroll_dispatch(Snes *s)
     finish_fill(s);
 }
 
+/* The frame's scroll by the mode, as C. */
+void battle_scroll_by_the_mode(GameState *g)
+{
+    BattleScrollMode mode = scroll_mode(g);
+    TIMED_AS(g, scroll_routines[mode], battle_scroll_layers(g, mode));
+}
+
 /* The frame work's call of the dispatch, which indexes its table with A's
  * high byte too: 0 wherever the game calls it, and anything else is the
  * original's. */

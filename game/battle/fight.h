@@ -15,6 +15,8 @@
 
 /* $C1:FA8B: the whole of it, in order. */
 void battle_start_fight(GameState *g);
+/* Its guard's state half: the party fighting as the game makes it. */
+bool battle_fight_can_start(const GameState *g);
 
 /* ---- The pieces (each an entry of its own too, battle/entries.h) --------------------------- */
 

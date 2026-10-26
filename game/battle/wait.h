@@ -36,12 +36,27 @@ static inline BattleFrame battle_counting(uint8_t left, BattleCarry carry)
     return (BattleFrame){ .kept = { left }, .kept_bytes = 1, .carry = carry };
 }
 
-void battle_wait_for_frame(Snes *s);
-void battle_wait_for_a_last_frame(Snes *s);
-void battle_wait_for_the_handler(Snes *s);
-void battle_wait_for_the_next_frame(Snes *s);
-void battle_wait_some_frames(Snes *s);
-void battle_wait_for_the_small_handler(Snes *s);
+void battle_wait_for_frame_entry(Snes *s);
+void battle_wait_for_a_last_frame_entry(Snes *s);
+void battle_wait_for_the_handler_entry(Snes *s);
+void battle_wait_for_the_next_frame_entry(Snes *s);
+void battle_wait_some_frames_entry(Snes *s);
+void battle_wait_for_the_small_handler_entry(Snes *s);
+
+/* ---- The waits as C ------------------------------------------------------------------------- */
+
+/* The battle's wait for the next frame ($C1:007E); a frame as the battle
+ * hands back to the field ($CF:FCFB); the frame work's waits for its
+ * handler's frame ($CD:3E7D), for the next frame with the menu's turn
+ * ($CD:3E75) and for a number of frames, 0 for 256 ($CD:3E3B); and the
+ * small handler's frame ($CD:044A). False where a call in them went no
+ * further. */
+bool battle_wait_for_frame(GameState *g, Platform *pf);
+void battle_wait_for_a_last_frame(GameState *g, Platform *pf);
+bool battle_wait_for_the_handler(GameState *g, Platform *pf);
+bool battle_wait_for_the_next_frame(GameState *g, Platform *pf);
+bool battle_wait_some_frames(GameState *g, Platform *pf, uint8_t frames);
+void battle_wait_for_the_small_handler(GameState *g, Platform *pf);
 void battle_wait_window_slide_loop(Snes *s);
 void battle_wait_graphics_loaded_loop(Snes *s);
 

@@ -552,7 +552,7 @@ entry, `program_needs_the_machine` stops it and the driver says where (exit
 status 1):
 
 ```
-frame 3605: the program's C goes no further: $C0:188C, a battle, runs only on the machine
+frame 7218: the program's C goes no further: $C2:7759, an object's handler with no C, runs only on the machine
 ```
 
 So far the boot and the field run as C. At power-on the field's handlers
@@ -595,7 +595,12 @@ over, and the scene the close leads to started: a page of the credits, set
 up as C with its letters unpacked by the unpacker as C. The field after it
 goes on through its scripts' changes of place made at once (event `$DF`,
 `$E1`: the field started again, `program_starts_the_field_again`) to a
-battle, which only the machine runs yet (frame 3605). With
+battle, which runs as C (`battle_fought`, `battle/from_field.c`): the field
+put aside, the battle set up, its main loop, its turns and its frames with
+its vblank and line handlers in `core/program.c`'s table, and the field
+taken up again after it (`field_taken_up_after_battle`). The attract demo
+goes on to its next world map, where an object's handler with no C row stops
+it (frame 7218). With
 `new-game.ctm`'s presses, Start ends the title and the field's next script
 asks for a menu, and the menus run as C: the field fades out and is put
 aside, the menus' mode opens (`menu_mode_runs`, `menu/display.c`: the
@@ -612,7 +617,9 @@ world map: the opening's bells over Guardia, as C, and then the field in
 Crono's house, its people cast and its tiles copied, to the movie's end.
 With `fair.ctm`'s, Crono leaves the house and walks the world map -- the
 walkers, the places' watcher, the music and the sign as C
-(`overworld/handlers.c`) -- into Leene Square, where the movie ends.
+(`overworld/handlers.c`) -- into Leene Square, where the movie ends; with
+`gato-battle.ctm`'s, on through the fair to Gato's battle and the field
+after it, to the movie's end.
 
 The field's steps as the program calls them (`field_runs`,
 `field/main_loop.c`) are functions of the game's state that the entries

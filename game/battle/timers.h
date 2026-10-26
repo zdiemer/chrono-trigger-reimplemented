@@ -22,6 +22,7 @@
 #include <stdint.h>
 
 #include "battle/combatant.h"
+#include "platform/platform.h"
 #include "state.h"
 
 /* The kinds, by the status each times: stop, poison, slow, haste, evading
@@ -84,5 +85,11 @@ void battle_count_timers_down(GameState *g);
 /* Look for run-out timers: the party's turn timers shown on their gauges,
  * then, on the passes that look, a run-out timer of each kind marked due. */
 void battle_find_run_out_timers(GameState *g, bool look);
+
+/* The count-down's stretch of the main loop ($C1:8231), and the search with
+ * the handlers of the kinds due ($C1:8290), as C: false where a handler went
+ * no further. */
+enum { BATTLE_TICK_TIMERS_ENTRY = 0xC18231 };
+bool battle_timers_seen_to(GameState *g, Platform *pf);
 
 #endif

@@ -582,14 +582,18 @@ bool battle_enemy_actions_ready(Snes *s) { return battle_script_entry_ready(s, T
 
 /* The turn starts from the acting enemy alone: a reaction carries out the
  * action its conditions chose, a turn the next the enemy kept. */
+bool battle_enemy_turn_fits(const GameState *g)
+{
+    uint8_t enemy = battle_enemy_acting(g);
+    return enemy < BATTLE_ENEMIES && no_member_comes_back(g)
+           && actions_in_table(g, battle_action_hit_enemy(g) ? battle_script_actions_place(g)
+                                                            : battle_enemy_next_action(g, enemy));
+}
+
 bool battle_enemy_turn_ready(Snes *s)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t enemy = battle_enemy_acting(g);
-    bool ready = enemy < BATTLE_ENEMIES && no_member_comes_back(g)
-                 && actions_in_table(g, battle_action_hit_enemy(g) ? battle_script_actions_place(g)
-                                                                  : battle_enemy_next_action(g, enemy));
+    bool ready = battle_enemy_turn_fits(state_of(s));
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && ready;
 }

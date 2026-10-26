@@ -23,6 +23,7 @@
 #include "battle/bridge.h"
 #include "battle/effects.h"
 #include "battle/entries.h"
+#include "battle/program.h"
 #include "battle/script_data.h"
 #include "battle/script_language.h"
 #include "charge.h"
@@ -99,29 +100,31 @@ static bool take_up_channel(GameState *g, unsigned channel)
 }
 
 /* A command whose operation is C: run as the original's handler, whose time
- * it takes, and leaving A clear as every handler does. */
-static void run_operation(Snes *s, uint8_t command, const ScriptOpcode *row)
+ * it takes. */
+static void run_operation(GameState *g, uint8_t command, const ScriptOpcode *row)
 {
-    GameState *g = state_of(s);
-    NATIVE_TIME_AS(s, handler_of(g, command), script_move_on(g, row, script_operate(g, row)));
-    s->cpu.a = 0;
+    TIMED_AS(g, handler_of(g, command), script_move_on(g, row, script_operate(g, row)));
 }
 
-/* The registers the original's runner calls a handler with: the command's
- * byte doubled in X (its table's index), Y and A clear. */
-static void enter_as_the_runner_does(Snes *s, uint8_t command)
+/* How a command the channel comes to runs: its operation, its bridge (the
+ * sound commands, run as their handler's entry), or the original's handler;
+ * and, told after it, that the operation ran. */
+typedef enum { RUN_THE_OPERATION, RUN_THE_BRIDGE, RUN_THE_HANDLER, THE_OPERATION_RAN } CommandRuns;
+
+static CommandRuns how_it_runs(const GameState *g, uint8_t command, const ScriptOpcode *row)
 {
-    s->cpu.x = (uint16_t)(command * 2);
-    s->cpu.y = 0;
-    s->cpu.a = 0;
+    if (!row || !script_runs_here(g, row))
+        return RUN_THE_HANDLER;
+    return bridge_of(command) ? RUN_THE_BRIDGE : RUN_THE_OPERATION;
 }
 
 // $C1:4C9E
 /* Run a channel for a frame: count off a frame of its wait, or run its
- * commands until one ends the frame (or it holds), and keep its place. */
-static bool run_channel(Snes *s, unsigned channel)
+ * commands until one ends the frame (or it holds), and keep its place. A
+ * command that isn't the operation's is the routine `elsewhere` runs. */
+static bool run_channel(GameState *g, unsigned channel,
+                        bool (*elsewhere)(void *ctx, uint8_t command, const ScriptOpcode *row, CommandRuns runs), void *ctx)
 {
-    GameState *g = state_of(s);
     if (take_up_channel(g, channel))
         return true;
     for (;;) {
@@ -130,22 +133,13 @@ static bool run_channel(Snes *s, unsigned channel)
         if (command == HOLDS)
             break;
         const ScriptOpcode *row = script_opcode((uint8_t)command);
-        if (row && script_runs_here(g, row) && !bridge_of((uint8_t)command)) {
-            run_operation(s, (uint8_t)command, row);
-        } else if (row && script_runs_here(g, row)) {
-            /* a bridge runs as its handler, called as the runner calls it */
-            enter_as_the_runner_does(s, (uint8_t)command);
-            if (!battle_run(s, 0xC14CD4, handler_of(g, (uint8_t)command), battle_script_command_entry))
-                return false;
-        } else {
-            enter_as_the_runner_does(s, (uint8_t)command);
-            /* no handler reads the overflow the one before it left, which a
-               command in C doesn't reproduce */
-            /* dc-evidence: ct_fuzz --poison-dc battle_run_script_channel, seed 1: 5000 states,
-               1994 call-outs scrambled, 0 mismatched */
-            if (!battle_call(s, 0xC14CD4, handler_of(g, (uint8_t)command), DC_AL | DC_N | DC_V | DC_Z | DC_C))
-                return false;
+        CommandRuns runs = how_it_runs(g, (uint8_t)command, row);
+        if (runs == RUN_THE_OPERATION) {
+            run_operation(g, (uint8_t)command, row);
+            runs = THE_OPERATION_RAN;
         }
+        if (!elsewhere(ctx, (uint8_t)command, row, runs))
+            return false;
         if (!battle_script_continue(g))
             break;
     }
@@ -153,18 +147,74 @@ static bool run_channel(Snes *s, unsigned channel)
     return true;
 }
 
+/* On the machine: the operation leaves A clear as every handler does; the
+ * registers the original's runner calls a handler with are the command's
+ * byte doubled in X (its table's index), Y and A clear. */
+static void enter_as_the_runner_does(Snes *s, uint8_t command)
+{
+    s->cpu.x = (uint16_t)(command * 2);
+    s->cpu.y = 0;
+    s->cpu.a = 0;
+}
+
+static bool elsewhere_on_the_machine(void *ctx, uint8_t command, const ScriptOpcode *row, CommandRuns runs)
+{
+    (void)row;
+    Snes *s = ctx;
+    GameState *g = state_of(s);
+    if (runs == THE_OPERATION_RAN) {
+        s->cpu.a = 0;
+        return true;
+    }
+    enter_as_the_runner_does(s, command);
+    /* a bridge runs as its handler, called as the runner calls it */
+    if (runs == RUN_THE_BRIDGE)
+        return battle_run(s, 0xC14CD4, handler_of(g, command), battle_script_command_entry);
+    /* no handler reads the overflow the one before it left, which a
+       command in C doesn't reproduce */
+    /* dc-evidence: ct_fuzz --poison-dc battle_run_script_channel, seed 1: 5000 states,
+       1994 call-outs scrambled, 0 mismatched */
+    return battle_call(s, 0xC14CD4, handler_of(g, command), DC_AL | DC_N | DC_V | DC_Z | DC_C);
+}
+
 /* ---- The channels, each frame ------------------------------------------------------------- */
 
-/* Each channel is run from a call of its own in the original ($C1:4C9E is
- * called from a site a channel): the channel's routine is the entry above,
- * and it calls the commands, which is why the frame's run calls it through
- * the machine rather than as C (docs/PORTING.md, "Call-outs"). */
+/* The channels run, each from a call of its own in the original ($C1:4C9E
+ * is called from a site a channel): the channel's routine (`channel`) calls
+ * the commands, which is why the frame's run calls it through the machine
+ * rather than as C there (docs/PORTING.md, "Call-outs"). */
 static const uint16_t channel_calls[SCRIPT_CHANNELS] = {
     0x4BC8, 0x4BD5, 0x4BE2, 0x4BEF, 0x4C04, 0, 0, 0, 0x4C1C, 0x4C2E, 0x4C40, 0x4C52, 0x4C64, 0x4C76, 0x4C88, 0x4C9A,
 };
 
-static bool call_channel(Snes *s, unsigned channel)
+static bool channel_running(const GameState *g, unsigned channel) { return battle_script_running(g, channel) != 0; }
+
+// $C1:4BBE
+/* Run the channels for a frame: the battle's own, the other targets' while
+ * the action has some, and, unless the numbers over the combatants are being
+ * shown, the enemies', each told its enemy. */
+static bool run_scripts(GameState *g, bool (*run)(void *ctx, unsigned channel), void *ctx)
 {
+    for (unsigned channel = 0; channel < OTHER_TARGETS_CHANNEL; channel++)
+        if (channel_running(g, channel) && !run(ctx, channel))
+            return false;
+    if (channel_running(g, OTHER_TARGETS_CHANNEL) && battle_action_other_targets(g) != 0 && !run(ctx, OTHER_TARGETS_CHANNEL))
+        return false;
+    if (battle_number_step(g) != 0)
+        return true;
+    for (unsigned channel = FIRST_EFFECT_CHANNEL; channel < SCRIPT_CHANNELS; channel++) {
+        if (!channel_running(g, channel))
+            continue;
+        set_battle_script_effect(g, (uint8_t)(channel - FIRST_EFFECT_CHANNEL));
+        if (!run(ctx, channel))
+            return false;
+    }
+    return true;
+}
+
+static bool channel_on_the_machine(void *ctx, unsigned channel)
+{
+    Snes *s = ctx;
     s->cpu.y = (uint16_t)channel;
     m_set_a8(s, (uint8_t)(channel * 4));
     /* The channel reads neither X nor the overflow it is called with (the
@@ -175,45 +225,57 @@ static bool call_channel(Snes *s, unsigned channel)
     return battle_call(s, 0xC10000u | channel_calls[channel], 0xC14C9E, DC_X | DC_N | DC_V | DC_Z | DC_C);
 }
 
-static bool channel_running(const GameState *g, unsigned channel) { return battle_script_running(g, channel) != 0; }
+/* ---- As C ------------------------------------------------------------------------------------ */
 
-// $C1:4BBE
-/* Run the channels for a frame: the battle's own, the other targets' while
- * the action has some, and, unless the numbers over the combatants are being
- * shown, the enemies', each told its enemy. */
-static bool run_scripts(Snes *s)
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} ScriptsAsC;
+
+/* A bridge's command, the sounds, as C; a command whose handler is the
+ * original's goes no further. */
+static bool elsewhere_as_c(void *ctx, uint8_t command, const ScriptOpcode *row, CommandRuns runs)
 {
-    GameState *g = state_of(s);
-    for (unsigned channel = 0; channel < OTHER_TARGETS_CHANNEL; channel++)
-        if (channel_running(g, channel) && !call_channel(s, channel))
-            return false;
-    if (channel_running(g, OTHER_TARGETS_CHANNEL) && battle_action_other_targets(g) != 0
-        && !call_channel(s, OTHER_TARGETS_CHANNEL))
-        return false;
-    if (battle_number_step(g) != 0)
+    ScriptsAsC *c = ctx;
+    GameState *g = c->game;
+    if (runs == THE_OPERATION_RAN)
         return true;
-    for (unsigned channel = FIRST_EFFECT_CHANNEL; channel < SCRIPT_CHANNELS; channel++) {
-        if (!channel_running(g, channel))
-            continue;
-        set_battle_script_effect(g, (uint8_t)(channel - FIRST_EFFECT_CHANNEL));
-        if (!call_channel(s, channel))
-            return false;
-    }
+    if (runs != RUN_THE_BRIDGE)
+        return battle_needs_the_machine(g, handler_of(g, command), "an animation script's command the port doesn't run");
+    ScriptCommand decoded = script_decode(g, row);
+    TIMED_AS(g, handler_of(g, command), script_play_the_sound(g, c->pf, command, &decoded));
+    script_move_on(g, row, SCRIPT_NEXT);
     return true;
+}
+
+static bool channel_as_c(void *ctx, unsigned channel)
+{
+    ScriptsAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, 0xC14C9E, done = run_channel(c->game, channel, elsewhere_as_c, ctx));
+    return done;
+}
+
+bool battle_run_scripts(GameState *g, Platform *pf)
+{
+    ScriptsAsC c = { g, pf };
+    return run_scripts(g, channel_as_c, &c);
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */
 
 /* The channel in Y, its pointer's offset in A (four times it). */
+/* The operation leaves A clear as every handler does, where the channel
+ * ran one last. */
 void battle_run_script_channel(Snes *s)
 {
-    if (run_channel(s, s->cpu.y))
+    if (run_channel(state_of(s), s->cpu.y, elsewhere_on_the_machine, s))
         m_rts(s);
 }
 
-void battle_run_scripts(Snes *s)
+void battle_run_scripts_entry(Snes *s)
 {
-    if (run_scripts(s))
+    if (run_scripts(state_of(s), channel_on_the_machine, s))
         m_rts(s);
 }
 

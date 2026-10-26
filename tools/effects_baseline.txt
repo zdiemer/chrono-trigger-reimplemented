@@ -60,11 +60,20 @@ game/battle/enemy_scripts.c enemy_choosing_in_cells battle_script_actions_place 
 game/battle/enemy_scripts.c enemy_choosing_in_cells battle_script_outcome battle_script_outcome
 game/battle/enemy_scripts.c enemy_choosing_in_cells battle_script_place battle_script_place
 game/battle/enemy_turn.c action_to_carry_out battle_script_actions_place battle_script_actions_place
+game/battle/enemy_scripts.c battle_enemy_turn_fits battle_script_actions_place battle_script_actions_place  # the turn's guard reads the place the turn does (action_to_carry_out) only for a reaction, whose hand back writes it plainly before the turn (main_loop.c react, enemy_hand_back_choosing)
 game/battle/enemy_turn.c enemy_turn battle_script_outcome battle_script_outcome
 game/battle/enemy_turn.c move_on battle_script_outcome battle_script_outcome
-game/battle/enemy_turn.c run_action_entry battle_script_place battle_script_place
-game/battle/enemy_turn.c script_enemy battle_enemy_turn battle_enemy_turn
+game/battle/enemy_turn.c run_action_turn battle_script_place battle_script_place  # where the turn reads the script: a reaction's hand back writes it plainly before the turn (main_loop.c react, enemy_hand_back_choosing), as the choosing's entries do
+game/battle/enemy_turn.c add_to_turn_wait_turn battle_enemy_turn battle_enemy_turn  # the enemy at work: the choosing keeps it plainly as it leaves its cells (enemy_leave_choosing), and a reaction's hand back writes it plainly before the turn (main_loop.c react)
+game/battle/enemy_turn.c carry_out_with_message battle_enemy_turn battle_enemy_turn  # the enemy at work: the choosing keeps it plainly as it leaves its cells (enemy_leave_choosing), and a reaction's hand back writes it plainly before the turn (main_loop.c react)
+game/battle/enemy_turn.c die_turn battle_enemy_turn battle_enemy_turn  # the enemy at work: the choosing keeps it plainly as it leaves its cells (enemy_leave_choosing), and a reaction's hand back writes it plainly before the turn (main_loop.c react)
+game/battle/enemy_turn.c leave_turn battle_enemy_turn battle_enemy_turn  # the enemy at work: the choosing keeps it plainly as it leaves its cells (enemy_leave_choosing), and a reaction's hand back writes it plainly before the turn (main_loop.c react)
+game/battle/enemy_turn.c stats_before_tech battle_enemy_turn battle_enemy_turn  # the enemy at work: the choosing keeps it plainly as it leaves its cells (enemy_leave_choosing), and a reaction's hand back writes it plainly before the turn (main_loop.c react)
+game/battle/enemy_turn.c tech_body battle_enemy_turn battle_enemy_turn  # the enemy at work: the choosing keeps it plainly as it leaves its cells (enemy_leave_choosing), and a reaction's hand back writes it plainly before the turn (main_loop.c react)
 game/battle/frame.c update_the_frame battle_effect_sprite_attributes battle_effect_sprite_attributes
+game/battle/frame.c update_on_the_machine battle_effect_sprite_attributes battle_effect_sprite_attributes  # the machine's callback alone: the byte the original keeps on the stack over the objects' work, which the C doesn't keep
+game/battle/menu_line.c battle_menu_called_off battle_step_member battle_effect_sprite_attributes  # the step's member: every asker of the battle's steps 1 and 2 sets it plainly just before it asks (main_loop.c, party_turns.c, member_turn.c, party_poses.c); the effects' drawing's scaffolding is its attributes' write at the same byte, long gone by then
+game/battle/menu_line.c battle_turn_comes battle_step_member battle_effect_sprite_attributes  # the step's member: every asker of the battle's steps 1 and 2 sets it plainly just before it asks (main_loop.c, party_turns.c, member_turn.c, party_poses.c); the effects' drawing's scaffolding is its attributes' write at the same byte, long gone by then
 game/battle/menu_line.c battle_called_off_step battle_step_member battle_effect_sprite_attributes  # the step's member: every asker of the battle's steps 1 and 2 sets it plainly just before it asks (main_loop.c, party_turns.c, member_turn.c, party_poses.c); the effects' drawing's scaffolding is its attributes' write at the same byte, long gone by then
 game/battle/menu_line.c battle_turn_comes_step battle_step_member battle_effect_sprite_attributes  # the step's member: every asker of the battle's steps 1 and 2 sets it plainly just before it asks (main_loop.c, party_turns.c, member_turn.c, party_poses.c); the effects' drawing's scaffolding is its attributes' write at the same byte, long gone by then
 game/battle/menu_window.c tech_page_carry battle_digits[3] battle_digits
@@ -110,7 +119,7 @@ game/battle/uploads.c battle_upload_tile_rows battle_scratch[0] battle_scratch
 game/battle/uploads.c battle_upload_tile_rows battle_scratch[1] battle_scratch
 game/battle/uploads.c battle_vram_transfer battle_scratch[0] battle_scratch
 game/battle/uploads.c battle_vram_transfer battle_scratch[1] battle_scratch
-game/battle/wait.c wait_for_the_small_handler battle_alternate_frame_pending battle_scratch # the wait sets the flag plainly itself, and only the small handler clears it (battle_nmi_alternate)
+game/battle/wait.c battle_wait_for_the_small_handler battle_alternate_frame_pending battle_scratch # the wait sets the flag plainly itself, and only the small handler clears it (battle_nmi_alternate)
 game/battle/window.h battle_work16 battle_work[0] battle_work only # the entries' operands: the original's callers put them there first, every call
 game/battle/window.h battle_work16 battle_work[1] battle_work only # the entries' operands: the original's callers put them there first, every call
 game/battle/window_leaves.c party_status_carry battle_digits[3] battle_digits
@@ -379,7 +388,7 @@ game/battle/draw_objects.c afterimages_due battle_afterimage_period battle_after
 game/battle/enemy_movement.c entry battle_effect_enemy battle_effect_enemy # the entries' operand: the movements' loop leaves the enemy there for each call (battle/animation.c, give_effect_enemy, plain)
 game/battle/enemy_movement.c entry battle_effect_enemy battle_work # the entries' operand: the movements' loop leaves the enemy there for each call (battle/animation.c, give_effect_enemy, plain)
 game/battle/object_motion.c trail_due battle_trail_period battle_trail_period # read only while the combatant's trail is on (draw_objects and record_trails test battle_trail_on first); the scaffolding is stopping a trail, whose periods the original sets from stale work cells, and starting one sets them plainly from its operands (script_poses.c, trail)
-game/battle/party_turns.c battle_call_off_waiting_member battle_low_scratch[20] battle_low_scratch # the entry's operand: its caller leaves the member there for the call (battle/party_turns.c, plain)
+game/battle/party_turns.c battle_call_off_waiting_member_entry battle_low_scratch[20] battle_low_scratch # the entry's operand: its caller leaves the member there for the call (battle/party_turns.c, plain)
 game/battle/party_turns.c has_last_reaction battle_enemy_turn battle_enemy_turn # as the reactions' finding reads it (battle_enemy_find_reactions): whatever the enemies' choosing left last
 game/menu/display.c send_object_shadows menu_object_shadows_bg1_scroll_y menu_window_slide # the sprite-object mode's, which it writes plainly; the scaffolding at the address is the menus proper's (the items and equipment screens')
 game/menu/display.c send_object_shadows menu_object_shadows_bg2_scroll_x menu_window_slide # the sprite-object mode's, which it writes plainly; the scaffolding at the address is the menus proper's (the items and equipment screens')
@@ -994,6 +1003,7 @@ game/overworld/terrain.c overworld_region_at_entry overworld_scratch_region_row 
 game/overworld/terrain.c overworld_region_at_entry overworld_scratch_region_row overworld_scratch  # the entry's operands: the original's callers put them in the cells, every call
 game/battle/aim.c battle_search_area battle_aim_rule_shape battle_member_partners_kept # the entry's operand: the targeting puts the rule's shape there plainly before every call (battle/aim.c place_area); the member's turn's write of its partners is long gone by then
 game/battle/inventory.c battle_return_chosen_item battle_member_actions_what battle_member_actions # read only for an item chosen, whose record the menu fills plainly (battle/menu_input.c chose_item); an attack's record keeps what the original's cell held, as scaffolding, and nothing reads an attack's
+game/battle/inventory.c battle_return_chosen_item battle_member_actions_what[0] battle_member_actions # read only for an item chosen, whose record the menu fills plainly (battle/menu_input.c chose_item); an attack's record keeps what the original's cell held, as scaffolding, and nothing reads an attack's
 game/battle/member_turn.c perform_tech battle_member_actions_what battle_member_actions # read only for a tech chosen, whose record the menu fills plainly (battle/menu_input.c chose_tech); an attack's is scaffolding, never read
 game/battle/member_turn.c use_item battle_member_actions_what battle_member_actions # read only for an item chosen, whose record the menu fills plainly (battle/menu_input.c chose_item); an attack's is scaffolding, never read
 game/battle/name_tiles.c battle_convert_name battle_name_buffer battle_name_buffer # the entry's operand: the original's callers put the name in the buffer first, every call

@@ -32,40 +32,60 @@
  * move past itself adds with, it hands back as it found it. */
 #define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
 
-/* Play an effect on the voices the command names, panned; true where the
- * driver came back to the command's call as the battle runs. */
-static bool play(Snes *s, uint32_t call, uint8_t voices, uint8_t sound, uint8_t pan)
+/* An effect on the voices the command names, panned, from the call the
+ * original makes it at. */
+typedef struct {
+    uint32_t call;
+    uint8_t voices, sound, pan;
+} ScriptSound;
+
+static void play(Platform *pf, ScriptSound sound)
 {
-    au_command(m_platform(s), PF_CALL_DC(call, 0xC70004, DRIVER_IGNORES),
-               (AudioCommand){ .command = voices, .p1 = sound, .p2 = pan, .count = 2 });
-    return battle_back(s, call + BATTLE_JSL_SIZE, BATTLE_PAGE, BATTLE_DATA_BANK);
+    AudioCommand c = { .command = sound.voices, .p1 = sound.sound, .p2 = sound.pan, .count = 2 };
+    switch (sound.call) {
+    case 0xC161B5: au_command(pf, PF_CALL_DC(0xC161B5, 0xC70004, DRIVER_IGNORES), c); return;
+    case 0xC161DF: au_command(pf, PF_CALL_DC(0xC161DF, 0xC70004, DRIVER_IGNORES), c); return;
+    default: au_command(pf, PF_CALL_DC(0xC1620F, 0xC70004, DRIVER_IGNORES), c); return;
+    }
 }
 
 // $C1:619E
 /* A sound effect plays, from the middle. */
-bool script_play_sound_bridge(Snes *s, const ScriptCommand *command)
-{
-    return play(s, 0xC161B5, command->voices, command->sound, AU_CENTRE);
-}
-
 // $C1:61C1
 /* A sound effect plays from where a place is across the screen. */
-bool script_play_sound_at_bridge(Snes *s, const ScriptCommand *command)
-{
-    uint8_t pan = script_find_place(state_of(s), command->place).x;
-    return play(s, 0xC161DF, command->voices, command->sound, pan);
-}
-
 // $C1:61EB, $C1:61F5
 /* The acting member's weapon swings, or hits: its sound plays from where the
  * first channel's subject stands across the screen. */
-bool script_weapon_sound_bridge(Snes *s, const ScriptCommand *command)
+static ScriptSound sound_of(GameState *g, uint8_t byte, const ScriptCommand *command)
 {
-    GameState *g = state_of(s);
-    uint8_t sound = battle_weapon_sound(g, battle_acting_weapon(g), command->hit);
-    uint8_t pan = combatant_x(g, battle_script_subjects(g, 0));
-    return play(s, 0xC1620F, AU_START_EFFECT, sound, pan);
+    switch (byte) {
+    case 0x78:
+    case 0x79: return (ScriptSound){ 0xC161B5, command->voices, command->sound, AU_CENTRE };
+    case 0x7A:
+    case 0x7B: return (ScriptSound){ 0xC161DF, command->voices, command->sound, script_find_place(g, command->place).x };
+    default:
+        return (ScriptSound){ 0xC1620F, AU_START_EFFECT, battle_weapon_sound(g, battle_acting_weapon(g), command->hit),
+                              combatant_x(g, battle_script_subjects(g, 0)) };
+    }
 }
+
+void script_play_the_sound(GameState *g, Platform *pf, uint8_t byte, const ScriptCommand *command)
+{
+    play(pf, sound_of(g, byte, command));
+}
+
+/* On the machine each is a bridge: true where the driver came back to the
+ * command's call as the battle runs. */
+static bool play_on_the_machine(Snes *s, uint8_t byte, const ScriptCommand *command)
+{
+    ScriptSound sound = sound_of(state_of(s), byte, command);
+    play(m_platform(s), sound);
+    return battle_back(s, sound.call + BATTLE_JSL_SIZE, BATTLE_PAGE, BATTLE_DATA_BANK);
+}
+
+bool script_play_sound_bridge(Snes *s, const ScriptCommand *command) { return play_on_the_machine(s, 0x78, command); }
+bool script_play_sound_at_bridge(Snes *s, const ScriptCommand *command) { return play_on_the_machine(s, 0x7A, command); }
+bool script_weapon_sound_bridge(Snes *s, const ScriptCommand *command) { return play_on_the_machine(s, 0x7C, command); }
 
 /* ---- The screen effect ---------------------------------------------------------------------- */
 

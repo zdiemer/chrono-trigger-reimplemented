@@ -19,8 +19,11 @@
 #include "battle/arith.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
+#include "battle/wait.h"
+#include "battle/frame.h"
 #include "battle/entries.h"
 #include "original_effects.h"
+#include "charge.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -515,13 +518,51 @@ void battle_index_effect_animations(Snes *s)
     m_rts(s);
 }
 
-/* It waits for the next frame and lets the frame's work run first. */
-void battle_build_bitmap_shapes(Snes *s)
+// $C1:4943
+/* Up to four of the shapes a frame: the next frame waited for and the frame's
+ * work let run first (`frame`, the wait and then the frame step, routines
+ * of their own). */
+static bool build_bitmap_shapes_over_a_frame(GameState *g, bool (*frame)(void *ctx, bool step), void *ctx)
 {
-    if (!battle_wait_frame(s, 0xC14943, 0xC1007E, DC_AL | DC_X | DC_Y | DC_FLAGS)
-        || !battle_run(s, 0xC14946, 0xC110FA, battle_frame_step))
+    if (!frame(ctx, false) || !frame(ctx, true))
+        return false;
+    build_bitmap_shapes(g);
+    return true;
+}
+
+static bool frame_on_the_machine(void *ctx, bool step)
+{
+    Snes *s = ctx;
+    return step ? battle_run(s, 0xC14946, 0xC110FA, battle_frame_step)
+                : battle_wait_frame(s, 0xC14943, 0xC1007E, DC_AL | DC_X | DC_Y | DC_FLAGS);
+}
+
+void battle_build_bitmap_shapes_entry(Snes *s)
+{
+    if (!build_bitmap_shapes_over_a_frame(state_of(s), frame_on_the_machine, s))
         return;
-    build_bitmap_shapes(state_of(s));
     s->cpu.a = 0;
     m_rts(s);
+}
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} ShapesAsC;
+
+static bool frame_as_c(void *ctx, bool step)
+{
+    ShapesAsC *c = ctx;
+    bool done = false;
+    if (step)
+        TIMED_AS(c->game, 0xC110FA, done = battle_frame_stepped(c->game, c->pf));
+    else
+        TIMED_AS(c->game, 0xC1007E, done = battle_wait_for_frame(c->game, c->pf));
+    return done;
+}
+
+bool battle_build_bitmap_shapes(GameState *g, Platform *pf)
+{
+    ShapesAsC c = { g, pf };
+    return build_bitmap_shapes_over_a_frame(g, frame_as_c, &c);
 }

@@ -11398,3 +11398,44 @@ baseline lines beside the ones the same cells already have. Fuzzing, seed
 1, `tools/fuzz_compare.py` against `main`'s `ct_fuzz`: the four entries'
 eight runs (the step's curtain, curtain-call and close-ripple variants among
 them) the same as before. Gate: suite OK.
+
+#### The native program to the battles
+
+With the field's screen effects as C (the section before this one, history
+file, "The native program through the field's screen effects"), the attract
+demo stopped at frame 2584, at the setup of the scene its field closes into
+(a page of the credits, `$7E:6B04`), and `fair-companion.ctm` and
+`gato-battle.ctm` at frame 12832, at the fair, on event `$D2`. Each stop
+after them was taken as it was met, in the same shape:
+
+- **The credits' page's setup**: one sequence (`set_up_the_page`) whose
+  unpacking of the letters is a callback, the machine's the original's
+  unpacker from the setup's call, the program's the unpacker as C; the scene
+  program's setups as C are a table (`c_setups`) beside the machine's.
+- **Events `$D2` and `$CF`** (whether a character is in the active party, or
+  recruited): what the menus' service answers and where the script goes
+  after it are functions both the entry and the program call
+  (`among_the_record`, `after_asking`), the entry keeping the original's
+  scaffolding around them; as C, bridges in `EVENT_BRIDGES_AS_C`.
+- **Events `$E1` and `$DF`** (a change of place made at once): the place
+  set, a frame waited, the screen blank and the place changed, shared with
+  the machine's two entries either side of its wait; and the field started
+  again from its start, which with no machine is the program's to do: a
+  request the field's loop takes as its pass ends
+  (`program_starts_the_field_again`), as a scene is.
+
+So the attract demo plays on through its credits page and the field after
+it to its first battle (frame 3605, `$C0:188C`); `fair-companion.ctm` plays
+to its end; `gato-battle.ctm` stops at Gato's battle (frame 19179). The
+battle is what every one of them meets next.
+
+**Measured.** Shadow mode over the library: 0 mismatches
+(`event_cmd_if_in_the_active_party` 366, `event_cmd_if_recruited` 12,
+`event_cmd_go_to_location_now` 42 and `_raising_1e` 38,
+`event_go_now_in_the_dark` 42, every call compared;
+`scene_credit_pages_set_up` 10, all abandoned under the setups' dispatch as
+before). Refusals in real play: 0; fallbacks unchanged; the census: 259
+entries the machine enters, as before. `tools/machine_joints.py` unchanged
+(1,055 returns, 179 stops, 2,099 scaffolding writes). Timing: no row moved
+past its limits. Fuzzing, seed 1, against `main`'s `ct_fuzz`: the six
+entries' eight runs the same as before. Gate: suite OK.

@@ -11,6 +11,7 @@
 #include "battle/entries.h"
 #include "battle/main_loop.h"
 #include "battle/status_timers.h"
+#include "charge.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -254,48 +255,99 @@ void battle_tick_timers(Snes *s)
     m_stop_at(s, SEARCH, DC_A | DC_X | DC_Y | DC_FLAGS);
 }
 
-/* Run each due kind's handler, as the original's loop calls them: the kind on
- * the stack under the call and its bit in its cell. The timed statuses'
- * handlers are battle/status_timers.c's, run as the loop's JSR calls them; the
- * turn's is the main loop's (battle/main_loop.c); where it is the original's
- * (a turn that names no combatant), it reads Y, which the search left at the
- * last kind and a handler before it leaves as it likes, and the overflow flag,
- * which the test of the due bits sets from their bit 14. */
-enum { DUE_TEST_OVERFLOW = 0x4000 };
+/* Each due kind's handler run: the timed statuses' (battle/status_timers.c),
+ * the turn's the main loop's (battle/main_loop.c), each a routine of its own
+ * that the program calls as C and the machine's entry from the original's
+ * loop. */
+typedef struct {
+    void (*handlers_begin)(void *ctx);
+    bool (*see_to)(void *ctx, BattleTimer kind);
+} DueCalls;
 
-static bool call_handler(Snes *s, BattleTimer kind)
+static bool run_due_handlers(GameState *g, const DueCalls *calls, void *ctx)
 {
-    s->cpu.x = (uint16_t)(kind * 2);
-    s->cpu.a = 0;
-    if (kind != BATTLE_TIMER_TURN)
-        return battle_see_to_timer_as_called(s, THE_HANDLERS_CALL, kind);
-    m_set_flag(s, CPU_FLAG_V, battle_timer_kinds_due(state_of(s)) & DUE_TEST_OVERFLOW);
-    return battle_take_turn(s, THE_HANDLERS_CALL);
-}
-
-static bool run_due_handlers(Snes *s)
-{
-    GameState *g = state_of(s);
-    s->cpu.y = BATTLE_TIMER_KINDS;
+    calls->handlers_begin(ctx);
     for (unsigned kind = 0; kind < BATTLE_TIMER_KINDS; kind++) {
         ORIGINAL_EFFECT(set_battle_timer_kind_bit(g, due_bit(kind)));
         if (!(battle_timer_kinds_due(g) & due_bit(kind)))
             continue;
-        m_push16(s, (uint16_t)kind);
-        if (!call_handler(s, kind))
+        if (!calls->see_to(ctx, (BattleTimer)kind))
             return false;
-        m_pull16(s);
     }
     ORIGINAL_EFFECT(set_battle_timer_kind_bit(g, 0));
     return true;
 }
 
-void battle_dispatch_expired_timers(Snes *s)
+// $C1:8290
+/* The search, and the handlers of the kinds due on the passes that look.
+ * False where a handler went no further. */
+static bool see_to_the_timers(GameState *g, const DueCalls *calls, void *ctx)
 {
-    GameState *g = state_of(s);
     bool look = pass_looks(g);
     battle_find_run_out_timers(g, look);
-    if (look && !run_due_handlers(s))
-        return;
-    m_stop_at(s, REST_OF_PASS, DC_A | DC_X | DC_Y | DC_FLAGS);
+    return !look || run_due_handlers(g, calls, ctx);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------ */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} TimersAsC;
+
+static void handlers_begin(void *ctx) { (void)ctx; }
+
+static bool see_to(void *ctx, BattleTimer kind)
+{
+    TimersAsC *c = ctx;
+    if (kind == BATTLE_TIMER_TURN)
+        return battle_turn_given(c->game, c->pf);
+    return battle_run_out_timer_seen_to(c->game, c->pf, kind);
+}
+
+bool battle_timers_seen_to(GameState *g, Platform *pf)
+{
+    static const DueCalls as_c = { handlers_begin, see_to };
+    TimersAsC c = { g, pf };
+    bool done = false;
+    TIMED_AS(g, SEARCH, done = see_to_the_timers(g, &as_c, &c));
+    return done;
+}
+
+/* ---- On the machine ------------------------------------------------------------------------ */
+
+/* Each handler is called as the original's loop calls it: the kind on the
+ * stack under the call and its bit in its cell. The timed statuses'
+ * handlers are run as the loop's JSR calls them; where the turn's is the
+ * original's (a turn that names no combatant), it reads Y, which the search
+ * left at the last kind and a handler before it leaves as it likes, and the
+ * overflow flag, which the test of the due bits sets from their bit 14. */
+enum { DUE_TEST_OVERFLOW = 0x4000 };
+
+static void handlers_begin_on_the_machine(void *ctx) { ((Snes *)ctx)->cpu.y = BATTLE_TIMER_KINDS; }
+
+static bool see_to_on_the_machine(void *ctx, BattleTimer kind)
+{
+    Snes *s = ctx;
+    m_push16(s, (uint16_t)kind);
+    s->cpu.x = (uint16_t)(kind * 2);
+    s->cpu.a = 0;
+    bool back;
+    if (kind != BATTLE_TIMER_TURN) {
+        back = battle_see_to_timer_as_called(s, THE_HANDLERS_CALL, kind);
+    } else {
+        m_set_flag(s, CPU_FLAG_V, battle_timer_kinds_due(state_of(s)) & DUE_TEST_OVERFLOW);
+        back = battle_take_turn(s, THE_HANDLERS_CALL);
+    }
+    if (!back)
+        return false;
+    m_pull16(s);
+    return true;
+}
+
+void battle_dispatch_expired_timers(Snes *s)
+{
+    static const DueCalls on_the_machine = { handlers_begin_on_the_machine, see_to_on_the_machine };
+    if (see_to_the_timers(state_of(s), &on_the_machine, s))
+        m_stop_at(s, REST_OF_PASS, DC_A | DC_X | DC_Y | DC_FLAGS);
 }

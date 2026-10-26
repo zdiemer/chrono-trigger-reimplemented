@@ -18,6 +18,7 @@
  * stack (docs/TODO.md, "The native program"). */
 #include "core/program.h"
 
+#include "battle/program.h"
 #include "cpu_io.h"
 #include "field/field.h"
 #include "field/main_loop.h"
@@ -122,9 +123,9 @@ static const struct {
     { MENU_LINE_HANDLER, "the menus' line handler", menu_line },
     { MENU_OBJECT_VBLANK_HANDLER, "the sprite-object mode's vblank handler", menu_object_vblank },
     { MENU_OBJECT_LINE_HANDLER, "the sprite-object mode's line handler", menu_object_line },
-    { 0xD1E77C, "the battle's vblank handler", 0 },
-    { 0xD1FE97, "the battle's line handler", 0 },
-    { 0xD1F4C0, "the battle's closing vblank handler", 0 },
+    { BATTLE_VBLANK_HANDLER, "the battle's vblank handler", battle_vblank },
+    { BATTLE_LINE_HANDLER, "the battle's line handler", battle_line },
+    { BATTLE_CLOSING_VBLANK_HANDLER, "the battle's closing vblank handler", battle_closing_vblank },
     { SCENE_BOOT_VBLANK, "a scene's boot's vblank handler", scene_boot_vblank },
     { SCENE_BOOT_LINE, "a scene's boot's line handler", scene_boot_line },
     { SCENE_FRAME_HANDLER, "a scene program's vblank handler", scene_vblank },

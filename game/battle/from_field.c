@@ -19,6 +19,12 @@
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/main_loop.h"
+#include "battle/program.h"
+#include "battle/screen.h"
+#include "battle/wait.h"
+#include "charge.h"
+#include "core/program.h"
 #include "battle/setup_data.h"
 #include "original_effects.h"
 #include "vars.h"
@@ -186,11 +192,136 @@ static void stand_characters_up(GameState *g)
     }
 }
 
+/* The last frames' phase, and the first sprites hidden: their high bits set,
+ * off the screen and large. */
+enum { LAST_PHASE = 3, HIDDEN_SPRITES = 0xFF };
+
+/* The battle's screen is set up ($CD:0000, battle/opening.c), the main loop
+ * starts the battle ($C1:8000), the frames are waited for with the battle's
+ * last frame wait ($CF:FCFB), which the vblank's work ends, and the display
+ * is closed down ($CD:0006, battle/closing.c). */
+enum { SET_UP_SCREEN = 0xCD0000, MAIN_LOOP = 0xC18000, WAIT_FOR_FRAME = 0xCFFCFB, CLOSE_DISPLAY = 0xCD0006,
+       RETURN_TO_THE_FIELD = 0xC10006, READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS };
+
+/* ---- The way in and the way out, as one sequence each ---------------------------------------- */
+
+// $C1:0000
+/* The battle's memory and screen set up (the screen's a routine of its own,
+ * battle/screen_setup.c), and what the field and the story say about the
+ * fight taken in. False where the screen's setup went no further. */
+static bool come_in_from_the_field(GameState *g, bool (*set_the_screen_up)(void *ctx), void *ctx)
+{
+    before_the_screen(g);
+    if (!set_the_screen_up(ctx))
+        return false;
+    take_in_the_fight(g);
+    return true;
+}
+
+/* The way out waits for its frames and closes the display (battle/closing.c),
+ * each a routine of its own. */
+typedef enum { LAST_FRAME_UPLOADS_OFF, LAST_FRAME_UPLOADS_ON, LAST_FRAME_SPRITES_HIDDEN, LAST_FRAMES } LastFrame;
+typedef struct {
+    bool (*frame_passes)(void *ctx, LastFrame frame);
+    bool (*close_the_display)(void *ctx);
+} WayOutCalls;
+
 /* The last frames: the rotating graphics uploads are let run every other
  * frame until the frame's phase comes round to the last of the four, then
- * stopped, and the first sprites hidden (their high bits set: off the
- * screen, large) for one more frame. */
-enum { LAST_PHASE = 3, HIDDEN_SPRITES = 0xFF };
+ * stopped, and the first sprites hidden for one more frame. */
+static bool last_frames(GameState *g, const WayOutCalls *calls, void *ctx)
+{
+    do {
+        set_battle_queued_uploads_on(g, 0);
+        if (!calls->frame_passes(ctx, LAST_FRAME_UPLOADS_OFF))
+            return false;
+        set_battle_queued_uploads_on(g, 1);
+        if (!calls->frame_passes(ctx, LAST_FRAME_UPLOADS_ON))
+            return false;
+    } while (battle_frame_phase(g) != LAST_PHASE);
+    set_battle_queued_uploads_on(g, 0);
+    set_oam_high_table_byte(g, 0, HIDDEN_SPRITES);
+    return calls->frame_passes(ctx, LAST_FRAME_SPRITES_HIDDEN);
+}
+
+// $C1:0006
+/* What the field keeps handed back, the last frames, everyone with some HP,
+ * and the display closed. False where a call went no further. */
+static bool go_back_to_the_field(GameState *g, const WayOutCalls *calls, void *ctx)
+{
+    hand_back_to_the_field(g);
+    if (!last_frames(g, calls, ctx))
+        return false;
+    stand_characters_up(g);
+    return calls->close_the_display(ctx);
+}
+
+/* The way back's guard's state half: the party as the game has it, each
+ * member a character or no one, and its colors in the sprite palettes (the
+ * party's are the sixth to the eighth). */
+static bool member_colors_in_palette(const GameState *g, unsigned member)
+{
+    return member_first_color(g, member) + MEMBER_COLORS <= PALETTE_COLORS;
+}
+
+static bool party_as_the_game_has_it(const GameState *g)
+{
+    bool characters = true;
+    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
+        uint8_t character = party_members(g, member);
+        characters = characters && ((character & NO_CHARACTER) || character < CHARACTER_RECORDS_COUNT)
+                     && member_colors_in_palette(g, member);
+    }
+    return characters;
+}
+
+/* ---- As C ---------------------------------------------------------------------------------- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} BattleAsC;
+
+bool battle_needs_the_machine(GameState *g, uint32_t routine, const char *what)
+{
+    program_needs_the_machine(g, routine, what);
+    return false;
+}
+
+/* The screen's setup ($CD:0000, through to $D1:F1B0); neither entry has a
+ * guard. */
+static bool screen_set_up(void *ctx)
+{
+    BattleAsC *c = ctx;
+    bool done = false;
+    TIMED_AS(c->game, SET_UP_SCREEN, done = battle_screen_set_up(c->game, c->pf));
+    return done;
+}
+
+static bool frame_passes(void *ctx, LastFrame frame)
+{
+    (void)frame;
+    BattleAsC *c = ctx;
+    TIMED_AS(c->game, WAIT_FOR_FRAME, battle_wait_for_a_last_frame(c->game, c->pf));
+    return true;
+}
+
+static bool display_closed(void *ctx)
+{
+    BattleAsC *c = ctx;
+    return battle_display_closed(c->game, c->pf);
+}
+
+bool battle_fought(GameState *g, Platform *pf)
+{
+    static const WayOutCalls as_c = { frame_passes, display_closed };
+    BattleAsC c = { g, pf };
+    if (!come_in_from_the_field(g, screen_set_up, &c) || !battle_main_loop_runs(g, pf))
+        return false;
+    if (!party_as_the_game_has_it(g))
+        return battle_needs_the_machine(g, RETURN_TO_THE_FIELD, "a battle's end with a party the port doesn't hand back");
+    return go_back_to_the_field(g, &as_c, &c);
+}
 
 /* ---- The entries ---------------------------------------------------------------------------- */
 
@@ -203,84 +334,53 @@ static void on_the_battle(Snes *s)
     s->cpu.db = BATTLE_DATA_BANK;
 }
 
-/* The battle's screen is set up ($CD:0000, battle/opening.c); and the
- * main loop starts the battle ($C1:8000). */
-enum { SET_UP_SCREEN = 0xCD0000, MAIN_LOOP = 0xC18000, READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS };
+static bool screen_set_up_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    s->cpu.a = 0;
+    s->cpu.x = 0;
+    return battle_run_long_dc(s, 0xCFFB8E, SET_UP_SCREEN, READS_NOTHING, battle_set_the_screen_up_for_the_field);
+}
 
 // $C1:0000
 void battle_start_from_field(Snes *s)
 {
     m_save_caller_registers(s);
     on_the_battle(s);
-    GameState *g = state_of(s);
-    before_the_screen(g);
-    s->cpu.a = 0;
-    s->cpu.x = 0;
-    if (!battle_run_long_dc(s, 0xCFFB8E, SET_UP_SCREEN, READS_NOTHING, battle_set_the_screen_up_for_the_field))
-        return;
-    take_in_the_fight(g);
-    m_stop_at(s, MAIN_LOOP, READS_NOTHING);
+    if (come_in_from_the_field(state_of(s), screen_set_up_on_the_machine, s))
+        m_stop_at(s, MAIN_LOOP, READS_NOTHING);
 }
 
-/* A frame, waited for with the battle's last frame wait ($CF:FCFB), which the
- * vblank's work ends. */
-enum { WAIT_FOR_FRAME = 0xCFFCFB };
-
-static bool frame_passes(Snes *s, uint32_t site) { return battle_wait_frame(s, site, WAIT_FOR_FRAME, READS_NOTHING); }
-
-static bool last_frames(Snes *s)
-{
-    GameState *g = state_of(s);
-    do {
-        set_battle_queued_uploads_on(g, 0);
-        if (!frame_passes(s, 0xCFFCB7))
-            return false;
-        set_battle_queued_uploads_on(g, 1);
-        if (!frame_passes(s, 0xCFFCBC))
-            return false;
-    } while (battle_frame_phase(g) != LAST_PHASE);
-    set_battle_queued_uploads_on(g, 0);
-    set_oam_high_table_byte(g, 0, HIDDEN_SPRITES);
-    return frame_passes(s, 0xCFFCCC);
-}
-
-/* The battle's display is closed down ($CD:0006, battle/closing.c), with A's
+/* Each last frame waited for from its own call; the display closed with A's
  * high byte clear. */
-enum { CLOSE_DISPLAY = 0xCD0006 };
+static const uint32_t last_frame_sites[LAST_FRAMES] = { 0xCFFCB7, 0xCFFCBC, 0xCFFCCC };
+
+static bool frame_passes_on_the_machine(void *ctx, LastFrame frame)
+{
+    return battle_wait_frame(ctx, last_frame_sites[frame], WAIT_FOR_FRAME, READS_NOTHING);
+}
+
+static bool display_closed_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    s->cpu.a = 0;
+    return battle_run_long(s, 0xCFFCE9, CLOSE_DISPLAY, battle_close_the_display);
+}
 
 // $C1:0006
 void battle_return_to_field(Snes *s)
 {
-    GameState *g = state_of(s);
-    hand_back_to_the_field(g);
-    if (!last_frames(s))
-        return;
-    stand_characters_up(g);
-    s->cpu.a = 0;
-    if (!battle_run_long(s, 0xCFFCE9, CLOSE_DISPLAY, battle_close_the_display))
-        return;
-    m_return_to_caller_long(s);
+    static const WayOutCalls on_the_machine = { frame_passes_on_the_machine, display_closed_on_the_machine };
+    if (go_back_to_the_field(state_of(s), &on_the_machine, s))
+        m_return_to_caller_long(s);
 }
 
-/* The way back finds the party as the game has it: each member a character
- * or no one, and its colors in the sprite palettes (the party's are the
- * sixth to the eighth); and A's high byte clear as the battle's last step
- * leaves it. */
-static bool member_colors_in_palette(const GameState *g, unsigned member)
-{
-    return member_first_color(g, member) + MEMBER_COLORS <= PALETTE_COLORS;
-}
-
+/* The way back finds the party as the game has it, and A's high byte clear
+ * as the battle's last step leaves it. */
 bool battle_return_ready(Snes *s)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool characters = true;
-    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        uint8_t character = party_members(g, member);
-        characters = characters && ((character & NO_CHARACTER) || character < CHARACTER_RECORDS_COUNT)
-                     && member_colors_in_palette(g, member);
-    }
+    bool characters = party_as_the_game_has_it(state_of(s));
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && characters;
 }

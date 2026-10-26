@@ -14,7 +14,7 @@
 enum { FIRST_REPEAT_DELAY = 15, REPEAT_EVERY_FRAME = 1, AFTER_A_DELAY = 24 };
 
 // $CD:0340
-static void take_buttons(GameState *g)
+void battle_update_button_repeat(GameState *g)
 {
     uint16_t held_before = battle_buttons_held(g);
     uint16_t held = battle_joypad(g);
@@ -40,9 +40,9 @@ static void take_buttons(GameState *g)
         set_battle_repeat_delay(g, (uint16_t)((battle_repeat_delay(g) & 0xFF00) | AFTER_A_DELAY));
 }
 
-void battle_update_button_repeat(Snes *s)
+void battle_update_button_repeat_entry(Snes *s)
 {
-    take_buttons(state_of(s));
+    battle_update_button_repeat(state_of(s));
     m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }
