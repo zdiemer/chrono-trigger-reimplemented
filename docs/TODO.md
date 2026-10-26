@@ -2928,6 +2928,24 @@ waits on M5 rather than on a backend.
   `scene/screen.c`'s `scene_animate_the_palettes_for` records a stop and
   carries on with the channel's sequence, and `scene/rising_palace.c` ignores
   the palettes' check (it can't fail there, but says nothing).
+- **What the battle's review left** (none rated translation):
+  `battle/enemy_turn.c`'s `choose_again_turn` reads choosing cells
+  (`enemy_choosing_in_cells`, `battle_script_actions_place`) whose last writer
+  on a choose-again turn that isn't a reaction can be `enemy_leave_choosing`'s
+  `ORIGINAL_EFFECT`; the effects baseline's line for `choosing_actions_in_table`
+  names that as a plain writer, where the plain ones are `move_on`,
+  `enemy_hand_back_choosing` and `enemy_turn.c`'s own. `party_turns.c`'s
+  `battle_member_status_turn` checks nothing though its comment says each turn
+  has its guard's state half. `battlefield_change.c`'s
+  `battle_load_and_run_battlefield` and its machine twin each spell out the
+  load, the scripts' start and the running flag, and `closing.c`'s fade then
+  wait is written twice. The waits (`wait.c`) check the typing's fit only where
+  typing happens, which wants saying. `tools/timing_exceptions.txt`'s
+  `battle_frame_dispatch` line (+0.42% against 0.38%) names the restructure,
+  not the callee whose time moved onto the dispatcher. `tools/dontcare_check.py`
+  counts every identifier in a body as reached for `dc-evidence`, which could
+  be argument positions only. The combinations' C path checks
+  `battle_window_fits`, stricter than its registry guard (the page alone).
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in
