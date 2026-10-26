@@ -2947,6 +2947,20 @@ waits on M5 rather than on a backend.
   counts every identifier in a body as reached for `dc-evidence`, which could
   be argument positions only. The combinations' C path checks
   `battle_window_fits`, stricter than its registry guard (the page alone).
+- **What the race's tasks' review left** (none rated translation): the
+  curtain task is written twice (`scene/race.c` and `scene/rising_palace.c`
+  each define `CurtainInC`, `curtain_step` and a near-identical sweep; one
+  helper in `curtain.c` taking the slot and how to show the window would do
+  both). `(TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK }` is spelled inline in
+  four files and wants a `task_left_to_the_original()` in `scene.h` beside
+  `task_goes_on`. `race.c`'s `race_sounds` table keeps a column of ROM call
+  addresses that only `race_sound_on_the_machine` uses; it belongs in a table
+  beside that. `rising_palace.c`'s `turn_the_first_channel` runs
+  `TURN_CHANNEL`, which names the channel holding the palace's turn registers
+  and works only because both are 0. `perspective.c`'s `start_is_a_scene_s` wants
+  a better name, `race_camera.c`'s `core/program.h` include sits in the wrong
+  block, and `frame.c`'s `channel_0_turn`/`channel_1_turn` twins want one row
+  carrying the channel.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in
