@@ -15,6 +15,7 @@
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "menu/screen_objects.h"
+#include "menu/top_layer.h"
 #include "overworld/overworld.h"
 #include "original_effects.h"
 #include "platform/video.h"
@@ -73,6 +74,14 @@ static bool wave(GameState *g, Platform *pf, MenuObject self)
         set_menu_slot1_line_values(g, line, (uint16_t)(scroll + sine(g, phase++)));
     ORIGINAL_EFFECT(set_menu_object_scratch_wave_phase(g, phase));
     return true;
+}
+
+// $C2:7759
+/* The object's turn as C: it is never done. */
+MenuTurn menu_shimmer_turn(GameState *g, Platform *pf, MenuObject self)
+{
+    (void)wave(g, pf, self);
+    return MENU_TURN_GOES_ON;
 }
 
 // $C2:7759

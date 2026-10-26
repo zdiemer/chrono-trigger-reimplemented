@@ -552,7 +552,7 @@ entry, `program_needs_the_machine` stops it and the driver says where (exit
 status 1):
 
 ```
-frame 7218: the program's C goes no further: $C2:7759, an object's handler with no C, runs only on the machine
+frame 7519: the program's C goes no further: $7E:5221, a scene's task only the machine runs, runs only on the machine
 ```
 
 So far the boot and the field run as C. At power-on the field's handlers
@@ -599,8 +599,9 @@ battle, which runs as C (`battle_fought`, `battle/from_field.c`): the field
 put aside, the battle set up, its main loop, its turns and its frames with
 its vblank and line handlers in `core/program.c`'s table, and the field
 taken up again after it (`field_taken_up_after_battle`). The attract demo
-goes on to its next world map, where an object's handler with no C row stops
-it (frame 7218). With
+goes on through its next world map into the jet bike race's scene, set up as
+C (`scene_race_set_up`), whose first frame's tasks only the machine runs yet
+(frame 7519). With
 `new-game.ctm`'s presses, Start ends the title and the field's next script
 asks for a menu, and the menus run as C: the field fades out and is put
 aside, the menus' mode opens (`menu_mode_runs`, `menu/display.c`: the

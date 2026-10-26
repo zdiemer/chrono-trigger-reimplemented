@@ -2995,9 +2995,15 @@ machine's register (`aim_the_action`'s carry), it is a parameter.
 
 So `gato-battle.ctm` plays to its end (frame 21600), Gato's battle and the
 field after it as C, and the attract demo goes on through its battle to
-frame 7218, on its next world map, at an object's handler with no C
-(`$C2:7759`). A screen script's wait for a line (command `$C1`, `$CD:1D93`), which
-the attract demo's battle has, is the timing service's wait as C. The new guards' state halves read the cells the
+frame 7519. A screen script's wait for a line (command `$C1`, `$CD:1D93`),
+which the attract demo's battle has, is the timing service's wait as C; the
+world map's layer shimmering (`$C2:7759`) is a row of `menu/handlers.c`'s
+table; and the jet bike race's setup (`$7E:3B48`), the scene the attract
+demo goes on to, is one sequence (`set_up_the_race`, scene/race.c) whose
+song, unpacking and first script step are callbacks, a C setup in
+`scene/program.c`'s table beside the title's and the credits' page's. The
+race's frame tasks are next: machine entries in `scene/frame.c`'s table with
+no C column. The new guards' state halves read the cells the
 original's callers hand them operands in only on the machine
 (`operands_fit`, battle/aim.c): the C passes them as values.
 
@@ -3014,7 +3020,8 @@ read a flag or two more than the shapes before them), and
 `battle_frame_dispatch` in `tools/timing_exceptions.txt` (+0.42% against a
 limit of 0.38%, +0.36% before). Fuzzing, seed 1, 2,000 states, `tools/fuzz_compare.py` against `main`'s
 `ct_fuzz`: the 37 runs of the 28 entries the sequences changed most the same
-as before. Gate: suite OK.
+as before, and `scene_race_set_up` and `menu_object_wave_hdma` the same.
+Gate: suite OK.
 
 ### The last refusals in real play: the attract demo's states
 

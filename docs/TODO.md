@@ -2739,9 +2739,10 @@ What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
 `ct_native` links the whole of `game/` but `registry.c`, with every service's
 host backend, and runs the boot, the field, the title's scene, the menus
-a script asks for, the world maps and the battles; it stops at frame 7218
-at an object's handler with no C on the attract demo's next world map
-(`$C2:7759`), and with `new-game.ctm`'s, `fair.ctm`'s,
+a script asks for, the world maps and the battles; it stops at frame 7519
+in the attract demo's jet bike race, set up as C, at its first frame's tasks
+(`$7E:5221`: the race's tasks are machine entries in `scene/frame.c`'s table
+with no C column yet), and with `new-game.ctm`'s, `fair.ctm`'s,
 `fair-companion.ctm`'s or `gato-battle.ctm`'s presses it plays the movie to
 its end; `menu.ctm`'s stop at the main menu's opening (`$C2:99CE`). What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its

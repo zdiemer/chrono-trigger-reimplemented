@@ -183,6 +183,7 @@ MENU_HANDLERS(menu_handlers,
     { 0x75FD, "the layer over the map, drifting in a wave", NULL, menu_top_layer_wave_drift_turn },
     { 0x7652, "the wave down the layer over the map", NULL, menu_top_layer_wave_turn },
     { 0x7702, "the layer over the map, drifting", NULL, menu_top_layer_drift_turn },
+    { 0x7759, "the layer over the map, shimmering", NULL, menu_shimmer_turn },
     { 0x77F2, "the layer over the map, drifting fast", NULL, menu_top_layer_fast_drift_turn },
     { 0x7849, "the map drifting along", menu_scene_drift_takes, drift_the_map },
 );
