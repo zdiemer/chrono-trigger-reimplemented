@@ -527,12 +527,9 @@ static bool placeable_whatever_the_unit(const GameState *g, uint16_t down)
     return placeable(g, down, units_with(g, down, false), true) && placeable(g, down, units_with(g, down, true), true);
 }
 
-bool scene_race_place_bikes_present(Snes *s)
+/* The guard's state half, which the C path checks too. */
+static bool bikes_placeable(const GameState *g)
 {
-    if (!scene_on_scene_page_io_bank(s) || !placing_code_present(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
     Places p = places_of(g);
     bool fits = horizon_fits(g);
     static const Racer racers[] = { RACER_CRONO, RACER_JOHNNY };
@@ -546,8 +543,27 @@ bool scene_race_place_bikes_present(Snes *s)
         else
             fits = fits && placeable_whatever_the_unit(g, down);
     }
+    return fits;
+}
+
+bool scene_race_place_bikes_present(Snes *s)
+{
+    if (!scene_on_scene_page_io_bank(s) || !placing_code_present(s))
+        return false;
+    vars_peek(true);
+    bool fits = bikes_placeable(state_of(s));
     vars_peek(false);
     return fits;
+}
+
+TaskEnd scene_race_place_bikes(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    if (!bikes_placeable(g))
+        return scene_task_needs_the_machine(g, 0x7E4D0D, "bikes placed where the port's sums don't reach");
+    place_bikes(g);
+    return task_goes_on();
 }
 
 /* What the placing leaves in A and Y, which the list's code hands on: A the
@@ -568,7 +584,7 @@ static void leave_registers(Snes *s, Racer would_be_last)
 
 /* A frame task entered with 16-bit A and index registers and the carry clear
  * (the list's own compare, for any slot but the first). */
-void scene_race_place_bikes(Snes *s)
+void scene_race_place_bikes_entry(Snes *s)
 {
     GameState *g = state_of(s);
     Racer would_be_last = second_placed(places_of(g));

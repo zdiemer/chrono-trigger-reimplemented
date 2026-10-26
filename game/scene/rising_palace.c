@@ -457,25 +457,59 @@ static void take_the_scripts_first_step(Snes *s)
     scene_bridge_first_script_step(s, 0x7E6792, scene_channels_script(state_of(s), PALACE_CHANNEL));
 }
 
+/* The setup: the scene started, the scripts' first step by `first_step`,
+ * then the rest. False where the step went no further. */
+static bool set_up_the_palace_with(GameState *g, Platform *pf, bool (*first_step)(void *ctx), void *ctx)
+{
+    start_the_palace(g, pf);
+    if (!first_step(ctx))
+        return false;
+    finish_the_palace(g, pf);
+    return true;
+}
+
+static bool first_step_on_the_machine(void *ctx)
+{
+    take_the_scripts_first_step(ctx);
+    return true;
+}
+
 /* Entered with 8-bit A. Back, the direct page is the scene's, the data bank
  * the setup's, and Y and the overflow as the palette's frame left them, which
  * the frame's work reads. */
 bool scene_palace_set_up_scene(Snes *s)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    start_the_palace(g, pf);
-    take_the_scripts_first_step(s);
-    finish_the_palace(g, pf);
+    set_up_the_palace_with(state_of(s), m_platform(s), first_step_on_the_machine, s);
     s->cpu.y = palette_animations_leave();
     m_set_flag(s, CPU_FLAG_V, false);
     return true;
 }
 
-void scene_palace_set_up(Snes *s)
+void scene_palace_set_up_entry(Snes *s)
 {
     scene_palace_set_up_scene(s);
     m_rts(s);
+}
+
+/* As C (scene/program.c's setups with no machine): channel 0's turn, which
+ * runs channel 1's first command too. The setup's guard is its code alone. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} PalaceInC;
+
+static bool turn_the_first_channel(void *ctx)
+{
+    PalaceInC *c = ctx;
+    SceneTurn turn = SCENE_TURN_ENDED;
+    TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, TURN_CHANNEL));
+    return turn == SCENE_TURN_ENDED;
+}
+
+bool scene_palace_set_up(GameState *g, Platform *pf)
+{
+    PalaceInC c = { g, pf };
+    return set_up_the_palace_with(g, pf, turn_the_first_channel, &c);
 }
 
 void scene_work_out_the_turn(Snes *s) { scene_task_alone(s, &scene_palace_tasks[ROW_WORK_OUT_THE_TURN]); }
@@ -513,14 +547,52 @@ static void show_the_curtain_step(const GameState *g, Platform *pf)
 }
 
 // $7E:6844
+/* A frame of the sweep: the curtain's step, by `step`, then the window's
+ * edge shown from the half it didn't write. False where the step went no
+ * further. */
+static bool sweep_the_curtain_with(GameState *g, Platform *pf, bool (*step)(void *ctx), void *ctx)
+{
+    if (!step(ctx))
+        return false;
+    show_the_curtain_step(g, pf);
+    return true;
+}
+
+static bool curtain_step_on_the_machine(void *ctx)
+{
+    m_jsl_dc(ctx, 0x7E6844, CURTAIN_STEP, CURTAIN_IGNORES);
+    return true;
+}
+
 /* Back in 8-bit A, as the original returns: its caller may read the width
  * before it sets it again. Nothing else it leaves is read. */
-void scene_sweep_the_palace_curtain(Snes *s)
+void scene_sweep_the_palace_curtain_entry(Snes *s)
 {
-    m_jsl_dc(s, 0x7E6844, CURTAIN_STEP, CURTAIN_IGNORES);
-    show_the_curtain_step(state_of(s), m_platform(s));
+    sweep_the_curtain_with(state_of(s), m_platform(s), curtain_step_on_the_machine, s);
     s->cpu.p |= CPU_FLAG_M;
     m_rts(s);
+}
+
+/* As C, the step's port with its guard's state half (scene/curtain.c), its
+ * stir taking the slot's place in the list as the list hands it. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+    uint16_t salt;
+} CurtainInC;
+
+static bool curtain_step(void *ctx)
+{
+    CurtainInC *c = ctx;
+    return scene_curtain_stepped(c->game, c->pf, c->salt);
+}
+
+TaskEnd scene_sweep_the_palace_curtain(GameState *g, Platform *pf, unsigned slot)
+{
+    CurtainInC c = { g, pf, (uint16_t)(slot * 2) };
+    if (!sweep_the_curtain_with(g, pf, curtain_step, &c))
+        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+    return task_goes_on();
 }
 
 /* ---- The guards -------------------------------------------------------------------------------- */

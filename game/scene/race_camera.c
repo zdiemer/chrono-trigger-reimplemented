@@ -17,6 +17,7 @@
  * lower it. After Johnny's win the camera follows him along, and after Crono's
  * it settles back to where it began. */
 #include "scene/race.h"
+#include "core/program.h"
 
 #include "charge.h"
 #include "original_effects.h"
@@ -325,12 +326,110 @@ bool scene_race_pick_opening_present(Snes *s)
            m_code_matches(s, 0x7E3F59, 0x0D, 0xFEC1A17AFFF3EF75ull) && m_code_matches(s, 0x7E3448, 0x19, 0x092856CFEC289766ull);
 }
 
+/* ---- The tasks as C ---------------------------------------------------------------------------
+ *
+ * The camera's tasks are guarded by their code and the page alone, so as C
+ * there is nothing of their guards to check, but for the perspective's build,
+ * whose lines the port must know (scene_perspective_fits). */
+
+TaskEnd scene_race_settle_camera(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    (void)settle_camera(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_race_move_along(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    move_along(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_race_keep_controller(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    keep_controller(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_race_turn_camera(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    turn_camera(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_race_aim_camera(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    aim_camera(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_race_follow_finish(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    follow_finish(g);
+    return task_goes_on();
+}
+
+/* The horizon, then the road strip sent, which is the task's end. */
+TaskEnd scene_race_set_horizon(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    set_horizon(g);
+    TIMED_AS(g, 0x7E5261, race_upload_road_strip(pf));
+    return task_goes_on();
+}
+
+/* The camera checked against the perspective last built: where it changed,
+ * the perspective is built again on channel 0's page, by `build`. */
+typedef enum { PERSPECTIVE_KEPT, PERSPECTIVE_BUILT, PERSPECTIVE_NOT_BUILT } PerspectiveCheck;
+
+static PerspectiveCheck check_perspective_with(GameState *g, bool (*build)(void *ctx), void *ctx)
+{
+    if (!camera_changed(g))
+        return PERSPECTIVE_KEPT;
+    return build(ctx) ? PERSPECTIVE_BUILT : PERSPECTIVE_NOT_BUILT;
+}
+
+enum { BUILD_PERSPECTIVE = 0x7E357B };
+
+static bool build_perspective(void *ctx)
+{
+    GameState *g = ctx;
+    if (!scene_perspective_fits(g, 0)) {
+        program_needs_the_machine(g, BUILD_PERSPECTIVE, "a race's perspective whose lines the port doesn't build");
+        return false;
+    }
+    TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, 0));
+    return true;
+}
+
+TaskEnd scene_race_check_perspective(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    if (check_perspective_with(g, build_perspective, g) == PERSPECTIVE_NOT_BUILT)
+        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+    return task_goes_on();
+}
+
+/* ---- On the machine ---------------------------------------------------------------------------- */
+
 /* The tasks below set the direct page on channel 0's record for their work,
  * which the list's code puts back; A's high byte, which the list's code may
  * hand on, is what each leaves there last. */
 enum { CHANNEL_0_PAGE = 0x0A00 };
 
-void scene_race_settle_camera(Snes *s)
+void scene_race_settle_camera_entry(Snes *s)
 {
     GameState *g = state_of(s);
     uint16_t distance_before = race_camera(g, CAMERA_DISTANCE);
@@ -340,17 +439,17 @@ void scene_race_settle_camera(Snes *s)
     m_rts(s);
 }
 
-void scene_race_move_along(Snes *s)
+void scene_race_move_along_entry(Snes *s)
 {
-    move_along(state_of(s));
+    scene_race_move_along(state_of(s), m_platform(s), 0);
     ORIGINAL_EFFECT(s->cpu.a = scene_race_center_y(state_of(s)));
     m_rts(s);
 }
 
-void scene_race_keep_controller(Snes *s)
+void scene_race_keep_controller_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    keep_controller(g);
+    scene_race_keep_controller(g, m_platform(s), 0);
     ORIGINAL_EFFECT(s->cpu.a = scene_race_buttons(g));
     m_rts(s);
 }
@@ -359,57 +458,62 @@ void scene_race_keep_controller(Snes *s)
  * the original jumps on to it; where the port doesn't build it (another
  * scene's step written into its loop), the original does, and it reads none
  * of the registers but the page. Unchanged, A is the last register compared. */
-enum { BUILD_PERSPECTIVE = 0x7E357B };
-
-void scene_race_check_perspective(Snes *s)
+static bool build_perspective_on_the_machine(void *ctx)
 {
-    GameState *g = state_of(s);
-    if (!camera_changed(g)) {
-        ORIGINAL_EFFECT(s->cpu.a = race_camera(g, CAMERA_LINES_PAIRED));
-        m_rts(s);
-        return;
-    }
+    Snes *s = ctx;
     if (!scene_perspective_as_ported(s, CHANNEL_0_PAGE)) {
         s->cpu.d = CHANNEL_0_PAGE;
         m_stop_at_own(s, BUILD_PERSPECTIVE, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-        return;
+        return false;
     }
-    TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, 0));
+    TIMED_AS(state_of(s), BUILD_PERSPECTIVE, scene_build_perspective(state_of(s), 0));
     ORIGINAL_EFFECT(scene_leave_perspective_registers(s, 0));
-    m_rts(s);
+    return true;
 }
 
-void scene_race_turn_camera(Snes *s)
+void scene_race_check_perspective_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    switch (check_perspective_with(g, build_perspective_on_the_machine, s)) {
+    case PERSPECTIVE_KEPT:
+        ORIGINAL_EFFECT(s->cpu.a = race_camera(g, CAMERA_LINES_PAIRED));
+        m_rts(s);
+        return;
+    case PERSPECTIVE_BUILT: m_rts(s); return;
+    case PERSPECTIVE_NOT_BUILT: return;
+    }
+}
+
+void scene_race_turn_camera_entry(Snes *s)
 {
     GameState *g = state_of(s);
     PadBits pad = scene_race_buttons(g);
     uint16_t frame = scene_frame_counter(g), height = race_camera(g, CAMERA_HEIGHT);
-    turn_camera(g);
+    scene_race_turn_camera(g, m_platform(s), 0);
     ORIGINAL_EFFECT(s->cpu.a = left_by_height_control(pad, frame, height));
     m_rts(s);
 }
 
-void scene_race_aim_camera(Snes *s)
+void scene_race_aim_camera_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    aim_camera(g);
+    scene_race_aim_camera(g, m_platform(s), 0);
     ORIGINAL_EFFECT(s->cpu.a = scene_race_bg2_scroll_x(g));
     m_rts(s);
 }
 
 /* Vblank tasks: nothing they leave is read but the accumulator's width (the
  * follower works in 16 bits, and returns so). */
-void scene_race_follow_finish(Snes *s)
+void scene_race_follow_finish_entry(Snes *s)
 {
-    follow_finish(state_of(s));
+    scene_race_follow_finish(state_of(s), m_platform(s), 0);
     m_set_flag(s, CPU_FLAG_M, false);
     m_rts(s);
 }
 
-void scene_race_set_horizon(Snes *s)
+void scene_race_set_horizon_entry(Snes *s)
 {
-    set_horizon(state_of(s));
-    TIMED_AS(state_of(s), 0x7E5261, race_upload_road_strip(m_platform(s)));
+    scene_race_set_horizon(state_of(s), m_platform(s), 0);
     m_rts(s);
 }
 

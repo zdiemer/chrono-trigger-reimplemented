@@ -518,21 +518,35 @@ static void unwind_the_task_s_frames(Snes *s)
 /* The program's routines on the lists that a build with no machine runs as
  * C: the channels' turns, the sprites hidden and the palette sent. Each
  * stays on its list. */
-static bool channel_0_turn(GameState *g, Platform *pf) { return scene_channel_turn(g, pf, 0) == SCENE_TURN_ENDED; }
-static bool channel_1_turn(GameState *g, Platform *pf) { return scene_channel_turn(g, pf, 1) == SCENE_TURN_ENDED; }
+static TaskEnd channel_turn(GameState *g, Platform *pf, SceneChannel ch)
+{
+    if (scene_channel_turn(g, pf, ch) != SCENE_TURN_ENDED)
+        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+    return task_goes_on();
+}
+static TaskEnd channel_0_turn(GameState *g, Platform *pf, unsigned slot) { (void)slot; return channel_turn(g, pf, 0); }
+static TaskEnd channel_1_turn(GameState *g, Platform *pf, unsigned slot) { (void)slot; return channel_turn(g, pf, 1); }
 
-static bool hide_every_sprite(GameState *g, Platform *pf)
+static TaskEnd hide_every_sprite(GameState *g, Platform *pf, unsigned slot)
 {
     (void)g;
+    (void)slot;
     scene_hide_every_sprite(pf);
-    return true;
+    return task_goes_on();
 }
 
-static bool send_palette(GameState *g, Platform *pf)
+static TaskEnd send_palette(GameState *g, Platform *pf, unsigned slot)
 {
     (void)g;
+    (void)slot;
     scene_send_palette(pf);
-    return true;
+    return task_goes_on();
+}
+
+TaskEnd scene_task_needs_the_machine(GameState *g, uint32_t routine, const char *what)
+{
+    program_needs_the_machine(g, routine, what);
+    return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
 }
 
 /* The tasks whose ports take the machine, by the program's routine the value
@@ -544,7 +558,7 @@ static bool send_palette(GameState *g, Platform *pf)
 static const struct {
     uint32_t routine;
     void (*entry)(Snes *);
-    bool (*as_c)(GameState *, Platform *);
+    SceneTaskInC run;
 } machine_tasks[] = {
     /* the scripts' channels' first steps and the vblank list's uploads */
     { 0x7E3749, scene_run_channel_0_script, channel_0_turn },
@@ -552,26 +566,27 @@ static const struct {
     { 0x7E3843, scene_clear_sprite_table, hide_every_sprite },
     { 0x7E388B, scene_upload_palette, send_palette },
     /* the jet bike race's */
-    { 0x7E3D72, scene_race_sweep_curtain, NULL },
-    { 0x7E416D, scene_race_settle_camera, NULL },
-    { 0x7E424D, scene_race_wait_to_leave, NULL },
-    { 0x7E428B, scene_race_move_along, NULL },
-    { 0x7E42BD, scene_race_keep_controller, NULL },
-    { 0x7E42CE, scene_race_check_perspective, NULL },
-    { 0x7E4339, scene_race_turn_camera, NULL },
-    { 0x7E43F2, scene_race_move_camera, NULL },
-    { 0x7E4447, scene_race_aim_camera, NULL },
-    { 0x7E449C, scene_race_follow_finish, NULL },
-    { 0x7E44CE, scene_race_drain_score, NULL },
-    { 0x7E44FE, scene_race_set_horizon, NULL },
-    { 0x7E4643, scene_race_upload_column_rom, NULL },
-    { 0x7E464D, scene_race_upload_column_ram, NULL },
-    { 0x7E4677, scene_race_coast, NULL },
-    { 0x7E4755, scene_race_await_victory_song, NULL },
-    { 0x7E485D, scene_race_ride, NULL },
-    { 0x7E4D0D, scene_race_place_bikes, NULL },
-    { 0x7E4F54, scene_race_draw, NULL },
-    { 0x7E5221, scene_race_upload_tilemap, NULL },
+    { 0x7E3D72, scene_race_sweep_curtain_entry, scene_race_sweep_curtain },
+    { 0x7E416D, scene_race_settle_camera_entry, scene_race_settle_camera },
+    { 0x7E424D, scene_race_wait_to_leave_entry, scene_race_wait_to_leave },
+    { 0x7E4283, scene_race_leave_entry, scene_race_leave },
+    { 0x7E428B, scene_race_move_along_entry, scene_race_move_along },
+    { 0x7E42BD, scene_race_keep_controller_entry, scene_race_keep_controller },
+    { 0x7E42CE, scene_race_check_perspective_entry, scene_race_check_perspective },
+    { 0x7E4339, scene_race_turn_camera_entry, scene_race_turn_camera },
+    { 0x7E43F2, scene_race_move_camera_entry, scene_race_move_camera },
+    { 0x7E4447, scene_race_aim_camera_entry, scene_race_aim_camera },
+    { 0x7E449C, scene_race_follow_finish_entry, scene_race_follow_finish },
+    { 0x7E44CE, scene_race_drain_score_entry, scene_race_drain_score },
+    { 0x7E44FE, scene_race_set_horizon_entry, scene_race_set_horizon },
+    { 0x7E4643, scene_race_upload_column_rom_entry, scene_race_upload_column_rom },
+    { 0x7E464D, scene_race_upload_column_ram_entry, scene_race_upload_column_ram },
+    { 0x7E4677, scene_race_coast_entry, scene_race_coast },
+    { 0x7E4755, scene_race_await_victory_song_entry, scene_race_await_victory_song },
+    { 0x7E485D, scene_race_ride_entry, scene_race_ride },
+    { 0x7E4D0D, scene_race_place_bikes_entry, scene_race_place_bikes },
+    { 0x7E4F54, scene_race_draw_entry, scene_race_draw },
+    { 0x7E5221, scene_race_upload_tilemap_entry, scene_race_upload_tilemap },
     /* Lavos falling to the planet's */
     { 0x7E55F9, scene_turn_the_field_s_angle, NULL },
     { 0x7E5654, scene_send_the_flat_plane_entry, NULL },
@@ -583,7 +598,7 @@ static const struct {
     { 0x7E63D5, scene_wait_for_a_button_to_restart, NULL },
     { 0x7E63F5, scene_count_down_to_the_restart, NULL },
     { 0x7E64BF, scene_show_the_planet_s_caption, NULL },
-    { 0x7E6844, scene_sweep_the_palace_curtain, NULL },
+    { 0x7E6844, scene_sweep_the_palace_curtain_entry, scene_sweep_the_palace_curtain },
     /* the Epoch's dive's */
     { 0x7E79F8, scene_set_the_screen_outside, NULL },
     { 0x7E7A35, scene_set_the_screen_in_the_cockpit, NULL },
@@ -790,14 +805,13 @@ void scene_task_alone(Snes *s, const SceneTaskPort *port)
 
 /* ---- The frame as C, with no machine ------------------------------------------------------------ */
 
-/* A program's routine on a list, as C where its row has it so. */
-static bool program_routine(GameState *g, Platform *pf, SceneTask task)
+/* A program's routine on a list's slot, as C where its row has it so. */
+static TaskEnd program_routine(GameState *g, Platform *pf, SceneTask task, unsigned slot)
 {
     int row = machine_task_row(task);
-    if (row >= 0 && machine_tasks[row].as_c)
-        return machine_tasks[row].as_c(g, pf);
-    program_needs_the_machine(g, PROGRAM_BANK | task, "a scene's task only the machine runs");
-    return false;
+    if (row >= 0 && machine_tasks[row].run)
+        return machine_tasks[row].run(g, pf, slot);
+    return scene_task_needs_the_machine(g, PROGRAM_BANK | task, "a scene's task only the machine runs");
 }
 
 /* A list's tasks in order, the list read again after each, which can change
@@ -810,18 +824,14 @@ static bool run_tasks(GameState *g, Platform *pf, SceneTaskList list)
         if (task == NO_TASK)
             continue;
         const SceneTaskPort *port = port_of(task, list);
-        if (port) {
-            TaskEnd end = task_goes_on();
+        TaskEnd end = task_goes_on();
+        if (port)
             TIMED_AS(g, PROGRAM_BANK | task, end = port->run(g, pf));
-            if (program_went_no_further(g))
-                return false;
-            end_the_task(g, list, slot, end);
-            continue;
-        }
-        bool done = false;
-        TIMED_AS(g, PROGRAM_BANK | task, done = program_routine(g, pf, task));
-        if (!done)
+        else
+            TIMED_AS(g, PROGRAM_BANK | task, end = program_routine(g, pf, task, slot));
+        if (end.outcome == TASK_LEFT_TO_THE_ORIGINAL || program_went_no_further(g))
             return false;
+        end_the_task(g, list, slot, end);
     }
     return true;
 }

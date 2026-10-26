@@ -366,23 +366,37 @@ static bool start_known(Snes *s, PerspectiveStart start)
     }
 }
 
-/* The lines the port builds: a step it knows, from a first line on the screen
+/* The guard's state half: a scene's start of the lines, and the lines the
+ * port builds: a step it knows, from a first line on the screen
  * or the line above it to an end on it that the step reaches (a whole line's
  * place in the tables, and in pairs an even number of lines), and along the
  * curve only from the dive's start that aims the work RAM port at it. Past
  * these the loop would run on through memory. */
-static bool lines_known(Snes *s, const GameState *g, SceneChannel ch)
+static bool start_is_a_scene_s(PerspectiveStart start)
+{
+    return start == START_RACE || start == START_ENDING || start == START_SHELL_FROM_OUTSIDE ||
+           start == START_SHELL_FROM_THE_COCKPIT;
+}
+
+bool scene_perspective_fits(const GameState *g, SceneChannel ch)
 {
     PerspectiveStart start = start_routine(g);
     PlaneLines l = next_lines(g, ch);
+    if (!start_is_a_scene_s(start))
+        return false;
     if (l.step.way == DISTANCE_UNKNOWN || l.first < LINE_ABOVE_THE_SCREEN || l.first >= l.end || l.end > SCREEN_LINES)
         return false;
     if ((start == START_RACE || start == START_ENDING) && scene_perspective_end(g) % LINE_BYTES != 0)
         return false;
-    if (l.step.way == DISTANCE_ALONG_THE_CURVE
-        && (start != START_SHELL_FROM_OUTSIDE || !m_code_matches(s, 0x7E3662, 0x0A, 0x11939EFB434666F3ull)))
+    if (l.step.way == DISTANCE_ALONG_THE_CURVE && start != START_SHELL_FROM_OUTSIDE)
         return false;
     return l.step.way != DISTANCE_PAIRED || (l.end - l.first) % 2 == 0;
+}
+
+/* The curve's code, which only the lines along it run. */
+static bool curve_code_known(Snes *s, const GameState *g, SceneChannel ch)
+{
+    return next_lines(g, ch).step.way != DISTANCE_ALONG_THE_CURVE || m_code_matches(s, 0x7E3662, 0x0A, 0x11939EFB434666F3ull);
 }
 
 /* Whether the port builds the perspective for the channel at `d`: on a
@@ -394,7 +408,7 @@ bool scene_perspective_as_ported(Snes *s, uint16_t d)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool known = start_known(s, start_routine(g)) && lines_known(s, g, ch);
+    bool known = scene_perspective_fits(g, ch) && start_known(s, start_routine(g)) && curve_code_known(s, g, ch);
     vars_peek(false);
     return known;
 }

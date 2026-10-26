@@ -17,6 +17,8 @@
  * scene engine's jump ($C3:000E). */
 #include "scene/scene.h"
 
+#include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "port/machine.h"
@@ -156,6 +158,21 @@ void scene_curtain_step(GameState *g, Platform *pf, uint16_t salt)
         wram_write8(g, at, edge);
     }
     ORIGINAL_EFFECT(set_scene_curtain_move(g, run.move));
+}
+
+/* The step as the scenes' C paths take it, with its entry's guard's state
+ * half: a table the step sweeps (scene_curtain_table_fits). Anywhere else the
+ * step is the machine's, and this is false. */
+enum { CURTAIN_STEP_ROUTINE = 0xC301E4 };
+
+bool scene_curtain_stepped(GameState *g, Platform *pf, uint16_t salt)
+{
+    if (!scene_curtain_table_fits(scene_curtain_table_bank(g), scene_curtain_table(g))) {
+        program_needs_the_machine(g, CURTAIN_STEP_ROUTINE, "a curtain whose table the port doesn't sweep");
+        return false;
+    }
+    TIMED_AS(g, CURTAIN_STEP_ROUTINE, scene_curtain_step(g, pf, salt));
+    return true;
 }
 
 /* The step saves every register and its flags and puts them back; the data

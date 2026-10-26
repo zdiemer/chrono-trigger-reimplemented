@@ -321,7 +321,8 @@ bool scene_program_end_present(Snes *s) { return m_code_matches(s, 0x7E303B, 8, 
 /* ---- The program as C, with no machine ------------------------------------------------------------ */
 
 /* The setups the port has as C for a program with no machine: the title's,
- * the credits' page's and the race's (the attract sequence's too). */
+ * the credits' page's, the race's (the attract sequence's too) and the
+ * rising palace's. */
 static const struct {
     SceneMode mode;
     uint32_t routine;
@@ -331,6 +332,7 @@ static const struct {
     { MODE_CREDITS_PAGE, CREDIT_PAGES_SET_UP, scene_credit_pages_set_up },
     { MODE_RACE, RACE_SET_UP, scene_race_set_up },
     { MODE_ATTRACT_RACE, RACE_SET_UP, scene_race_set_up },
+    { MODE_RISING_PALACE, PALACE_SET_UP, scene_palace_set_up },
 };
 enum { C_SETUPS = sizeof c_setups / sizeof c_setups[0] };
 

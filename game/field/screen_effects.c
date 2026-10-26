@@ -671,18 +671,12 @@ typedef struct {
 
 /* The curtain's step, scene/curtain.c's; its stir takes the X the
  * original's dispatch hands it, the curtain's place in the table, doubled. */
-enum { CURTAIN_STEP = 0xC301E4, CURTAIN_INDEX = (CURTAIN - 1) * 2 };
+enum { CURTAIN_INDEX = (CURTAIN - 1) * 2 };
 
 static bool sweep_the_curtain(void *ctx)
 {
     AsC *c = ctx;
-    GameState *g = c->game;
-    if (!scene_curtain_table_fits(scene_curtain_table_bank(g), scene_curtain_table(g))) {
-        program_needs_the_machine(g, CURTAIN_STEP, "a curtain whose table the port doesn't sweep");
-        return false;
-    }
-    TIMED_AS(g, CURTAIN_STEP, scene_curtain_step(g, c->pf, CURTAIN_INDEX));
-    return true;
+    return scene_curtain_stepped(c->game, c->pf, CURTAIN_INDEX);
 }
 
 static bool draw_bg1(void *ctx, Moment at)
