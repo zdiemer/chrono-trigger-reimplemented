@@ -2907,11 +2907,11 @@ const NativeEntry game_natives[] = {
       .cost_milli = 5000, .dont_care = DC_AL | DC_X | DC_N | DC_Z | DC_C, .guard = scene_fade_the_planet_out_present },
     { .addr = 0x7E6422, .name = "scene_fade_the_planet_out_slowly", .fn = scene_fade_the_planet_out_slowly, NEEDS_M16_X16,
       .cost_milli = 5000, .dont_care = DC_AL | DC_X | DC_N | DC_Z | DC_C, .guard = scene_fade_the_planet_out_slowly_present },
-    { .addr = 0x7E64BF, .name = "scene_show_the_planet_s_caption", .fn = scene_show_the_planet_s_caption, NEEDS_M16_X16_BINARY,
+    { .addr = 0x7E64BF, .name = "scene_show_the_planet_s_caption", .fn = scene_show_the_planet_s_caption_entry, NEEDS_M16_X16_BINARY,
       .cost_milli = 6664, .dont_care = DC_N | DC_V | DC_Z | DC_C, .guard = scene_planet_s_caption_present },
-    { .addr = 0x7E63D5, .name = "scene_wait_for_a_button_to_restart", .fn = scene_wait_for_a_button_to_restart,
+    { .addr = 0x7E63D5, .name = "scene_wait_for_a_button_to_restart", .fn = scene_wait_for_a_button_to_restart_entry,
       NEEDS_M16_X16, .cost_milli = 3000, .guard = scene_wait_for_a_button_to_restart_present },
-    { .addr = 0x7E63F5, .name = "scene_count_down_to_the_restart", .fn = scene_count_down_to_the_restart, NEEDS_M16_X16,
+    { .addr = 0x7E63F5, .name = "scene_count_down_to_the_restart", .fn = scene_count_down_to_the_restart_entry, NEEDS_M16_X16,
       .cost_milli = 1000, .guard = scene_count_down_to_the_restart_present },
     { .addr = 0x7E6A51, .name = "scene_darken_the_palace", .fn = scene_darken_the_palace, NEEDS_M16_X16, .cost_milli = 5825,
       .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C, .guard = scene_darken_the_palace_present },
@@ -2946,7 +2946,7 @@ const NativeEntry game_natives[] = {
     /* the star field (scene/stars.c) */
     { .addr = 0x7E53BB, .name = "scene_lavos_falls_set_up", .fn = scene_lavos_falls_set_up, NEEDS_M8_X16, .cost_milli = 6962,
       .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C | DC_D, .guard = scene_lavos_falls_set_up_present },
-    { .addr = 0x7E6248, .name = "scene_planet_set_up", .fn = scene_planet_set_up, NEEDS_M8_X16, .cost_milli = 8621,
+    { .addr = 0x7E6248, .name = "scene_planet_set_up", .fn = scene_planet_set_up_entry, NEEDS_M8_X16, .cost_milli = 8621,
       .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = scene_planet_set_up_present },
     { .addr = 0x7E56A9, .name = "scene_turn_lavos", .fn = scene_turn_lavos, NEEDS_M16_X16_BINARY, .cost_milli = 8481,
       .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D, .guard = scene_turn_lavos_present },
@@ -3025,7 +3025,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0x7E98AC, .name = "scene_stars_keep_drifting", .fn = scene_stars_keep_drifting, NEEDS_M16_X16_BINARY,
       .cost_milli = 1880, .dont_care = DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D, .guard = scene_stars_drift_present },
     /* the captions over the shared endings (scene/captions.c) */
-    { .addr = 0x7E64CA, .name = "scene_draw_caption", .fn = scene_draw_caption, NEEDS_M16_X16_BINARY, .cost_milli = 6664,
+    { .addr = 0x7E64CA, .name = "scene_draw_caption", .fn = scene_draw_caption_entry, NEEDS_M16_X16_BINARY, .cost_milli = 6664,
       .dont_care = DC_N | DC_V | DC_Z | DC_C, .guard = scene_draw_caption_present },
     { .addr = 0x7E9B4F, .name = "scene_turn_captions", .fn = scene_turn_captions, NEEDS_M16_X16_BINARY, .cost_milli = 6601,
       .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C, .guard = scene_turn_captions_present },
@@ -4723,7 +4723,7 @@ const NativeEntry game_natives[] = {
       NEEDS_M8, .idle = true, .guard = warp_bank_reaches_io },
     { .addr = 0xFDEADF, .name = "warp_turn_the_screen_on", .fn = warp_turn_the_screen_on, NEEDS_M8,
       .cost_milli = 4429, .dont_care = DC_AL | DC_N | DC_Z, .guard = warp_bank_reaches_io },
-    { .addr = 0xFDDE15, .name = "warp_vblank", .fn = warp_vblank, .cost_milli = 6710 },
+    { .addr = 0xFDDE15, .name = "warp_vblank", .fn = warp_vblank_entry, .cost_milli = 6710 },
 };
 
 const int game_native_count = (int)(sizeof game_natives / sizeof game_natives[0]);

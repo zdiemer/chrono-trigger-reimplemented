@@ -595,9 +595,9 @@ static const struct {
     { 0x7E579B, scene_stars_fly, NULL },
     { 0x7E5855, scene_swing_the_field, NULL },
     /* the planet's and the rising palace's */
-    { 0x7E63D5, scene_wait_for_a_button_to_restart, NULL },
-    { 0x7E63F5, scene_count_down_to_the_restart, NULL },
-    { 0x7E64BF, scene_show_the_planet_s_caption, NULL },
+    { 0x7E63D5, scene_wait_for_a_button_to_restart_entry, scene_wait_for_a_button_to_restart },
+    { 0x7E63F5, scene_count_down_to_the_restart_entry, scene_count_down_to_the_restart },
+    { 0x7E64BF, scene_show_the_planet_s_caption_entry, scene_show_the_planet_s_caption },
     { 0x7E6844, scene_sweep_the_palace_curtain_entry, scene_sweep_the_palace_curtain },
     /* the Epoch's dive's */
     { 0x7E79F8, scene_set_the_screen_outside, NULL },

@@ -30,6 +30,9 @@ bool overworld_map_can_be_loaded_again(const GameState *g);
 /* Whether the world map can be set up as it stands: a world map's location,
  * the camera put on the party on the map (the set up's guard's state half). */
 bool overworld_can_be_set_up(const GameState *g);
+/* Whether the map's tiles can be loaded as it stands: on a world map whose
+ * record is noted (the tiles' load's guard's state half). */
+bool overworld_map_tiles_can_load(const GameState *g);
 
 /* Clear the label the sign's name is set in (sign.c), where the map view
  * sets its markers too. */

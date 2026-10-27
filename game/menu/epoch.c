@@ -34,6 +34,7 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/display.h"
+#include "menu/handlers.h"
 #include "menu/line_effects.h"
 #include "menu/map_picture.h"
 #include "menu/menu.h"
@@ -1722,6 +1723,41 @@ void menu_epoch_build_map(Snes *s)
  * tiles, and the carry of the sampling's last count; the laying out's size
  * of a row sent, and the carry of moving past the last row's source. */
 enum { COLOURS_AT = 0xAB25 };
+
+/* ---- What a world map's scene calls of the map view ---------------------------------------- */
+
+/* A scene that lays a world map flat in Mode 7 (the Day of Lavos's turning
+ * world, menu/turning_world.c) makes its picture as the map view does: each
+ * map tile's colour sampled, the picture laid out on the plane, and the
+ * view's blue backdrop behind it. */
+static bool sample_the_map_colours(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)self, (void)far;
+    sample_map_colours(g);
+    ORIGINAL_EFFECT(leave_colours_sampled(g));
+    return true;
+}
+
+static bool lay_out_the_map_picture(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)self, (void)far;
+    place_map_picture(g, pf);
+    ORIGINAL_EFFECT(leave_picture_placed(g));
+    return true;
+}
+
+static bool show_the_backdrop(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)self, (void)far;
+    map_view_gradient(g, pf);
+    return true;
+}
+
+MENU_SCRIPT_ROUTINES(menu_map_view_routines,
+    { 0xC26400, "the map's colours sampled", NULL, sample_the_map_colours },
+    { 0xC265B2, "the map's picture laid out", NULL, lay_out_the_map_picture },
+    { 0xC268F4, "the map view's backdrop", NULL, show_the_backdrop },
+);
 
 // $C2:6400
 void menu_epoch_sample_map_colours(Snes *s)

@@ -517,12 +517,15 @@ FieldFrameSent field_frame_sent(const GameState *g, FieldObject obj)
 
 /* ---- The entry ------------------------------------------------------------------------------ */
 
-/* A part of the object's next frame drawn, as C: true where the object stays
- * at the queue's head, with more of its frame to draw. */
+/* A part of the object's next frame drawn, as C: true while more of its
+ * frame is to draw. An object holding a 12-sprite frame never draws it, and
+ * the original's screen setup, which asks again until the frame is whole,
+ * would ask for ever (nothing moves the object on while the screen is set
+ * up, so no movie reaches it); as C the drawing ends there, as the frame
+ * queue's does on a host (FRAME_HELD_TO_THE_NEXT). */
 bool field_frame_part_drawn(GameState *g, FieldObject obj)
 {
-    FrameBuild outcome = draw_next_frame(g, obj);
-    return outcome == FRAME_PART_DRAWN || outcome == FRAME_WAITS;
+    return draw_next_frame(g, obj) == FRAME_PART_DRAWN;
 }
 
 // $C0:CAD9

@@ -25,6 +25,7 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "data/decompress.h"
+#include "menu/display.h"
 #include "menu/handlers.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
@@ -720,6 +721,14 @@ PICTURE(shared_palette, MENU_SCENE_PALETTES, SHARED_PALETTE, MODE7_PALETTE_BUFFE
 PICTURE(second_graphics, MENU_SCENE_GRAPHICS, SECOND_GRAPHICS, MODE7_GRAPHICS_BUFFER)
 PICTURE(second_palette, MENU_SCENE_PALETTES, SECOND_PALETTE, MODE7_PALETTE_BUFFER)
 
+/* A scene that changes the whole picture starts from a clean VRAM. */
+static bool clear_all_of_vram_routine(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)g, (void)self, (void)far;
+    menu_clear_all_of_vram(pf);
+    return true;
+}
+
 MENU_SCRIPT_ROUTINES(menu_scene_routines,
     { 0xC6E237, "the scene's mode read", NULL, read_the_scene_mode_routine },
     { 0xC6E2AF, "the scene's flag cleared", NULL, clear_the_scene_flag_routine },
@@ -745,4 +754,5 @@ MENU_SCRIPT_ROUTINES(menu_scene_routines,
     { 0xC6E04D, "the scenes' Mode 7 colours", NULL, shared_palette_routine },
     { 0xC6E64A, "a scene's second Mode 7 graphics", NULL, second_graphics_routine },
     { 0xC6E66F, "a scene's second Mode 7 colours", NULL, second_palette_routine },
+    { 0xC226A8, "all of VRAM cleared", NULL, clear_all_of_vram_routine },
 );

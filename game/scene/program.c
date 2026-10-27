@@ -321,8 +321,8 @@ bool scene_program_end_present(Snes *s) { return m_code_matches(s, 0x7E303B, 8, 
 /* ---- The program as C, with no machine ------------------------------------------------------------ */
 
 /* The setups the port has as C for a program with no machine: the title's,
- * the credits' page's, the race's (the attract sequence's too) and the
- * rising palace's. */
+ * the credits' page's, the race's (the attract sequence's too), the rising
+ * palace's and the planet's. */
 static const struct {
     SceneMode mode;
     uint32_t routine;
@@ -333,6 +333,8 @@ static const struct {
     { MODE_RACE, RACE_SET_UP, scene_race_set_up },
     { MODE_ATTRACT_RACE, RACE_SET_UP, scene_race_set_up },
     { MODE_RISING_PALACE, PALACE_SET_UP, scene_palace_set_up },
+    { MODE_PLANET_LOST, PLANET_SET_UP, scene_planet_set_up },
+    { MODE_PLANET_ENDING, PLANET_SET_UP, scene_planet_set_up },
 };
 enum { C_SETUPS = sizeof c_setups / sizeof c_setups[0] };
 
@@ -390,8 +392,11 @@ bool scene_runs(GameState *g, Platform *pf, uint8_t flags)
             tm_wait_frame(pf, PF_AT(MUSIC_WAIT));
     if (!first_frame(g, pf))
         return false;
-    while (!scene_program_over(g))
+    while (!scene_program_over(g)) {
         tm_wait_frame(pf, PF_AT(MAIN_LOOP));
+        if (program_console_is_resetting(g))
+            return true;
+    }
     scene_stops_the_display(pf);
     TIMED_AS(g, SOUND_BACK_TO_NORMAL, scene_sound_back_to_normal(g, pf));
     return true;

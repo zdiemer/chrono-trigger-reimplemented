@@ -178,6 +178,9 @@ static CaptionTurn turn_captions(GameState *g)
     return CAPTION_GOES;
 }
 
+/* As C, from a task of a scene's own (the planet's caption, scene/planet.c). */
+void scene_draw_caption(GameState *g, uint16_t text) { (void)draw_caption(g, text); }
+
 /* ---- Entries ---------------------------------------------------------------------------------- */
 
 /* The drawing's code, but for the operands the program writes (the line's
@@ -193,7 +196,7 @@ enum { LONGEST_CAPTION = 0x200 };
 
 /* A caption the port draws: its text ends inside the program's bank, and its
  * letters fit the sprite table from the cursor. */
-static bool caption_fits(const GameState *g, uint16_t text)
+bool scene_caption_fits(const GameState *g, uint16_t text)
 {
     unsigned sprites = 0;
     return (uint32_t)text + LONGEST_CAPTION <= 0x10000 && measure_caption(g, text, LONGEST_CAPTION, &sprites) &&
@@ -205,7 +208,7 @@ bool scene_draw_caption_present(Snes *s)
     if (!scene_on_scene_page(s) || !drawing_present(s))
         return false;
     vars_peek(true);
-    bool fits = caption_fits(state_of(s), s->cpu.x);
+    bool fits = scene_caption_fits(state_of(s), s->cpu.x);
     vars_peek(false);
     return fits;
 }
@@ -214,7 +217,7 @@ bool scene_draw_caption_present(Snes *s)
  * entry and A the end's code, as the original leaves them, and the data bank
  * 0: the original reads the text through the program's bank, pushed as a word
  * whose other byte it then takes as the bank it goes back with. */
-void scene_draw_caption(Snes *s)
+void scene_draw_caption_entry(Snes *s)
 {
     GameState *g = state_of(s);
     s->cpu.x = draw_caption(g, s->cpu.x);
@@ -238,7 +241,7 @@ bool scene_turn_captions_present(Snes *s)
     vars_peek(true);
     const GameState *g = state_of(s);
     uint16_t text = scene_ending_caption_text(g);
-    bool ok = !scene_ending_captions_left(g) || !caption_is_up(g) || (text >= PROGRAM_START && caption_fits(g, text));
+    bool ok = !scene_ending_captions_left(g) || !caption_is_up(g) || (text >= PROGRAM_START && scene_caption_fits(g, text));
     vars_peek(false);
     return ok;
 }

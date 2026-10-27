@@ -896,18 +896,25 @@ void scene_show_the_credits_page(Snes *s);
 /* scene/planet.c (the program in RAM) */
 bool scene_planet_set_up_scene(Snes *s);
 bool scene_planet_set_up_present(Snes *s);
-void scene_planet_set_up(Snes *s);
+void scene_planet_set_up_entry(Snes *s);
+/* As C, for a program with no machine (scene/program.c). */
+bool scene_planet_set_up(GameState *g, Platform *pf);
 void scene_fade_the_planet_through(Snes *s);
 void scene_fade_the_planet_out(Snes *s);
 void scene_fade_the_planet_out_slowly(Snes *s);
 bool scene_fade_the_planet_through_present(Snes *s);
 bool scene_fade_the_planet_out_present(Snes *s);
 bool scene_fade_the_planet_out_slowly_present(Snes *s);
-void scene_show_the_planet_s_caption(Snes *s);
+void scene_show_the_planet_s_caption_entry(Snes *s);
 bool scene_planet_s_caption_present(Snes *s);
-void scene_wait_for_a_button_to_restart(Snes *s);
+void scene_wait_for_a_button_to_restart_entry(Snes *s);
 bool scene_wait_for_a_button_to_restart_present(Snes *s);
-void scene_count_down_to_the_restart(Snes *s);
+void scene_count_down_to_the_restart_entry(Snes *s);
+/* The planet's end's tasks as C (scene/frame.c's table): the caption, the
+ * wait for a button and the countdown to the console's reset. */
+TaskEnd scene_show_the_planet_s_caption(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_wait_for_a_button_to_restart(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_count_down_to_the_restart(GameState *g, Platform *pf, unsigned slot);
 bool scene_count_down_to_the_restart_present(Snes *s);
 void scene_step_the_planet_s_colours(Snes *s);
 bool scene_step_the_planet_s_colours_present(Snes *s);
@@ -1123,7 +1130,12 @@ void scene_stars_keep_drifting(Snes *s);
 
 /* scene/captions.c (the program in RAM) */
 bool scene_draw_caption_present(Snes *s);
-void scene_draw_caption(Snes *s);
+void scene_draw_caption_entry(Snes *s);
+/* A caption drawn from its text, as C, where its guard's state half takes
+ * it: its text ends inside the program's bank and its letters fit the
+ * sprite table. */
+bool scene_caption_fits(const GameState *g, uint16_t text);
+void scene_draw_caption(GameState *g, uint16_t text);
 bool scene_turn_captions_present(Snes *s);
 void scene_turn_captions(Snes *s);
 

@@ -142,6 +142,57 @@ static void leave_shape_before_the_sound(GameState *g, SwitchPress p)
         set_field_switch_shape(g, (uint8_t)p.shape);
 }
 
+/* A step event's and a chest's sounds, and what the machine leaves after
+ * each answer (the original's registers, which its later calls read): the
+ * program plays the sound as C and leaves nothing; the machine's entry calls
+ * the sound from the original's own place, and leaves A's high byte and the
+ * overflow as the original's code does. */
+typedef struct {
+    bool (*switch_sound)(void *ctx, SwitchPress p, uint16_t step);
+    void (*step_answered)(void *ctx, uint16_t step, bool pressed);
+    bool (*chest_sound)(void *ctx);
+    void (*chest_opened)(void *ctx);
+} StepAndChestSteps;
+
+// $C0:0D45-$C0:16DB
+/* A step event: the step remembered, and a switch stepped onto pressed with
+ * its sound and drawn again. False where the sound went no further. */
+static bool answer_step_event_with(GameState *g, const StepAndChestSteps *steps, void *ctx)
+{
+    answered(g, FIELD_REQUEST_STEP_EVENT);
+    uint16_t step = field_step_tile(g);
+    field_remember_step(g, step);
+    SwitchPress p = field_press_switch(g, step);
+    if (!p.pressed) {
+        steps->step_answered(ctx, step, false);
+        return true;
+    }
+    ORIGINAL_EFFECT(leave_shape_before_the_sound(g, p));
+    if (!steps->switch_sound(ctx, p, step))
+        return false;
+    field_queue_switch_redraw(g, p, step);
+    steps->step_answered(ctx, step, true);
+    return true;
+}
+
+// $C0:16DC
+/* A chest the leader opened: its sound, and the chest shown open. The
+ * chest's kind is forgotten before the sound, which only shadow mode's
+ * comparison at the call sees: opening the chest sets it again. False where
+ * the sound went no further. */
+static bool answer_chest_with(GameState *g, const StepAndChestSteps *steps, void *ctx)
+{
+    ORIGINAL_EFFECT(field_chest_opening_starts(g));
+    answered(g, FIELD_REQUEST_OPEN_CHEST);
+    if (!steps->chest_sound(ctx))
+        return false;
+    if (field_open_chest(g))
+        steps->chest_opened(ctx);
+    return true;
+}
+
+/* ---- On the machine ---- */
+
 /* A chest asked for with the step event is opened after it, and its sound
  * reads A's high byte as the step event's code leaves it (field/leaves.c). */
 static void leave_a_for_the_chest(Snes *s, uint16_t step, bool pressed)
@@ -150,33 +201,89 @@ static void leave_a_for_the_chest(Snes *s, uint16_t step, bool pressed)
         s->cpu.a = (uint16_t)(field_step_event_high_a(state_of(s), step, pressed) << 8 | (s->cpu.a & 0xFF));
 }
 
-// $C0:0D45-$C0:16DB
-/* A step event: the step remembered, and a switch stepped onto pressed with
- * its sound. False where the sound's call came back other than it went, and
- * the port has stopped. */
+static bool switch_sound_on_the_machine(void *ctx, SwitchPress p, uint16_t step)
+{
+    Snes *s = ctx;
+    s->cpu.a = (uint16_t)(field_switch_sound_high_a(state_of(s), p, step) << 8 | (s->cpu.a & 0xFF));
+    uint32_t site = p.step_column == 0 ? sound_sites[p.shape].left : sound_sites[p.shape].right;
+    return field_run(s, site, FIELD_SWITCH_SOUND_ENTRY, SOUND_READS_NOTHING, field_play_the_switch_sound_entry,
+                     on_the_field_page(s, false));
+}
+
+static void step_answered_on_the_machine(void *ctx, uint16_t step, bool pressed)
+{
+    Snes *s = ctx;
+    if (pressed)
+        m_set_flag(s, CPU_FLAG_V, field_switch_redraw_overflow(state_of(s)));
+    leave_a_for_the_chest(s, step, pressed);
+}
+
+/* The chest's sound, run from the original's own call. It reads A's high
+ * byte: the step event's where one came before (leave_a_for_the_chest), else
+ * as the main loop called the requests. */
+enum { CHEST_SOUND_SITE = 0xC016EB };
+
+static bool chest_sound_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run(s, CHEST_SOUND_SITE, FIELD_CHEST_SOUND_ENTRY, SOUND_READS_NOTHING,
+                     field_play_the_chest_sound_entry, on_the_field_page(s, false));
+}
+
+static void chest_opened_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    m_set_flag(s, CPU_FLAG_V, field_chest_redraw_overflow(state_of(s)));
+}
+
+static const StepAndChestSteps step_and_chest_on_the_machine = {
+    switch_sound_on_the_machine, step_answered_on_the_machine, chest_sound_on_the_machine,
+    chest_opened_on_the_machine,
+};
+
 static bool answer_step_event(Snes *s)
 {
-    GameState *g = state_of(s);
-    answered(g, FIELD_REQUEST_STEP_EVENT);
-    uint16_t step = field_step_tile(g);
-    field_remember_step(g, step);
-    SwitchPress p = field_press_switch(g, step);
-    if (!p.pressed) {
-        leave_a_for_the_chest(s, step, false);
-        return true;
-    }
-    ORIGINAL_EFFECT(leave_shape_before_the_sound(g, p));
-    s->cpu.a = (uint16_t)(field_switch_sound_high_a(g, p, step) << 8 | (s->cpu.a & 0xFF));
-    unsigned shape = p.shape;
-    uint32_t site = p.step_column == 0 ? sound_sites[shape].left : sound_sites[shape].right;
-    if (!field_run(s, site, FIELD_SWITCH_SOUND_ENTRY, SOUND_READS_NOTHING, field_play_the_switch_sound_entry,
-                   on_the_field_page(s, false)))
+    return answer_step_event_with(state_of(s), &step_and_chest_on_the_machine, s);
+}
+
+static bool answer_chest(Snes *s) { return answer_chest_with(state_of(s), &step_and_chest_on_the_machine, s); }
+
+/* ---- As C ---- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} StepAndChestAsC;
+
+/* A sound at the leader, where its entry's guard would play it: with the
+ * leader one the port reads. */
+static bool sound_at_the_leader(StepAndChestAsC *c, uint32_t entry, void (*play)(GameState *, Platform *))
+{
+    if (!field_leader_readable(c->game)) {
+        program_needs_the_machine(c->game, entry, "a sound at a leader the port doesn't read");
         return false;
-    field_queue_switch_redraw(g, p, step);
-    m_set_flag(s, CPU_FLAG_V, field_switch_redraw_overflow(g));
-    leave_a_for_the_chest(s, step, true);
+    }
+    TIMED_AS(c->game, entry, play(c->game, c->pf));
     return true;
 }
+
+static bool play_the_switch_sound(void *ctx, SwitchPress p, uint16_t step)
+{
+    (void)p, (void)step;
+    return sound_at_the_leader(ctx, FIELD_SWITCH_SOUND_ENTRY, field_play_the_switch_sound);
+}
+
+static bool play_the_chest_sound(void *ctx)
+{
+    return sound_at_the_leader(ctx, FIELD_CHEST_SOUND_ENTRY, field_play_the_chest_sound);
+}
+
+static void nothing_left(void *ctx, uint16_t step, bool pressed) { (void)ctx, (void)step, (void)pressed; }
+static void nothing_left_by_the_chest(void *ctx) { (void)ctx; }
+
+static const StepAndChestSteps step_and_chest_as_c = {
+    play_the_switch_sound, nothing_left, play_the_chest_sound, nothing_left_by_the_chest,
+};
 
 /* ---- Calling on the machine ----------------------------------------------------------------- */
 
@@ -254,29 +361,6 @@ static bool change_location_on_the_machine(Snes *s)
     field_move_to_the_next_place(g);
     m_stop_at_own(s, FIELD_STARTS_AGAIN, AS_THE_FIELD_STARTS);
     return false;
-}
-
-/* ---- A chest ($C0:16DC) --------------------------------------------------------------------- */
-
-/* The chest's sound (field/sounds.c), run from the original's own call. It
- * reads A's high byte (the sound driver keeps it and hands it back): the
- * step event's where one came before (leave_a_for_the_chest), else as the
- * main loop called the requests. The chest's kind is forgotten before the
- * sound, which only shadow mode's comparison at the call sees: opening the
- * chest sets it again. */
-enum { CHEST_SOUND_SITE = 0xC016EB };
-
-static bool answer_chest(Snes *s)
-{
-    GameState *g = state_of(s);
-    ORIGINAL_EFFECT(field_chest_opening_starts(g));
-    answered(g, FIELD_REQUEST_OPEN_CHEST);
-    if (!field_run(s, CHEST_SOUND_SITE, FIELD_CHEST_SOUND_ENTRY, SOUND_READS_NOTHING, field_play_the_chest_sound_entry,
-                   on_the_field_page(s, false)))
-        return false;
-    if (field_open_chest(g))
-        m_set_flag(s, CPU_FLAG_V, field_chest_redraw_overflow(g));
-    return true;
 }
 
 /* ---- A tile copy ($C0:1779) ----------------------------------------------------------------- */
@@ -737,18 +821,6 @@ static bool answer_requests(Snes *s)
 
 /* ---- As C, with no machine ------------------------------------------------------------------ */
 
-/* The requests a program with no machine answers as C so far: a location
- * change, a script's menu and a tile copy. The rest stop it where they are
- * asked for (core/program.h). */
-static const struct {
-    uint8_t request;
-    uint32_t routine;
-    const char *what;
-} only_the_machines[] = {
-    { FIELD_REQUEST_STEP_EVENT, 0xC00C76, "a step on an event's tile" },
-    { FIELD_REQUEST_OPEN_CHEST, 0xC016DC, "a chest opened" },
-};
-
 // $C0:0C8F
 static FieldPass change_location(GameState *g, Platform *pf)
 {
@@ -765,15 +837,19 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
     field_step_screen_changes(g);
     if (field_requests(g) == 0)
         return FIELD_PASS_GOES_ON;
+    if (!field_requests_can_be_answered(g)) {
+        program_needs_the_machine(g, FIELD_HANDLE_REQUESTS_ENTRY, "requests the port doesn't answer");
+        return FIELD_PASS_STOPS;
+    }
     if (asked(g, FIELD_REQUEST_LOCATION_CHANGE))
         return change_location(g, pf);
     if (asked(g, FIELD_REQUEST_MENUS))
         return field_script_menu_opened(g, pf);
-    for (unsigned i = 0; i < sizeof only_the_machines / sizeof only_the_machines[0]; i++)
-        if (asked(g, only_the_machines[i].request)) {
-            program_needs_the_machine(g, only_the_machines[i].routine, only_the_machines[i].what);
-            return FIELD_PASS_STOPS;
-        }
+    StepAndChestAsC sc = { g, pf };
+    if (asked(g, FIELD_REQUEST_STEP_EVENT) && !answer_step_event_with(g, &step_and_chest_as_c, &sc))
+        return FIELD_PASS_STOPS;
+    if (asked(g, FIELD_REQUEST_OPEN_CHEST) && !answer_chest_with(g, &step_and_chest_as_c, &sc))
+        return FIELD_PASS_STOPS;
     if (asked(g, FIELD_REQUEST_TILE_COPY)) {
         TileCopyAsC c = { g, pf };
         return copy_the_tiles(g, tile_copy_call, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
@@ -803,12 +879,8 @@ void field_handle_requests(Snes *s)
  * with it as a 16-bit index). */
 enum { LAST_TILE = 0xFF };
 
-bool field_requests_can_run(Snes *s)
+bool field_requests_can_be_answered(const GameState *g)
 {
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
     uint8_t requests = field_requests(g);
     bool ok = true;
     if ((requests & FIELD_REQUEST_STEP_EVENT) &&
@@ -821,6 +893,15 @@ bool field_requests_can_run(Snes *s)
         ok = ok && field_leader_readable(g);
     if ((requests & FIELD_REQUEST_OPEN_CHEST) && !(requests & (FIELD_REQUEST_LOCATION_CHANGE | FIELD_REQUEST_MENUS)))
         ok = ok && (field_opened_chest_tile(g) >> 8) < FIELD_MAP_ROWS;
+    return ok;
+}
+
+bool field_requests_can_run(Snes *s)
+{
+    if (!field_on_page_bank_zero(s))
+        return false;
+    vars_peek(true);
+    bool ok = field_requests_can_be_answered(state_of(s));
     vars_peek(false);
     return ok;
 }

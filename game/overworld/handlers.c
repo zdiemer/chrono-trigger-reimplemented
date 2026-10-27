@@ -21,6 +21,7 @@
 #include "overworld/music.h"
 #include "overworld/overworld.h"
 #include "overworld/places.h"
+#include "overworld/setup.h"
 #include "overworld/sign.h"
 #include "overworld/terrain.h"
 #include "overworld/vehicles.h"
@@ -447,9 +448,25 @@ static bool carry_the_epoch_round(GameState *g, Platform *pf, MenuObject self, b
     return true;
 }
 
+/* A scene that shows the map in Mode 7 loads its tiles as the map view
+ * does. */
+static bool map_tiles_load(const GameState *g, MenuObject self)
+{
+    (void)self;
+    return overworld_map_tiles_can_load(g);
+}
+
+static bool load_the_map_tiles(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)self, (void)far;
+    Unpacker u = overworld_unpacker(g);
+    return overworld_load_the_map_tiles(g, &u);
+}
+
 MENU_SCRIPT_ROUTINES(overworld_routines,
     { 0xC22F0F, "the song of where the party is", overworld_location_song_takes, start_the_location_song },
     { 0xC25798, "the sign's label cleared", NULL, clear_the_sign_label },
     { 0xC248A9, "the Epoch shown flying", overworld_epoch_scene_call_takes, show_the_epoch_flying },
     { 0xC248CD, "the Epoch carried round the map", overworld_epoch_scene_call_takes, carry_the_epoch_round },
+    { 0xC227DE, "the map's tiles loaded", map_tiles_load, load_the_map_tiles },
 );
