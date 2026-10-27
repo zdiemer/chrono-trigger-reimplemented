@@ -631,14 +631,14 @@ by an audit; the fourth is the program itself.
      the first steps of the equipment, the items, the techs and the
      settings, to the movie's end. From a cartridge save, the load screen,
      the save screens, the party exchange, the game over's start afresh,
-     the switches, the Day of Lavos's turning world and planet, and the
-     time gate's tunnel, and 30 of the 40 save movies to their end. Next:
-     where the others stop (REIMPLEMENTATION.md, "The native program through
-     the field's stops"): the rest of the menus the player opens (the gate's
-     exchange, the shops, the equipment's slots and list, an item moved or
-     used, the techs' list, the settings' meters, buttons and gauge), the
-     time dial and the map view, and the jet bike race's scene routine
-     (`$7E:3F59`), each a stop of
+     the switches, the Day of Lavos's turning world and planet, the
+     time gate's tunnel, the Epoch's time dial and map view and the jet bike
+     race, and 35 of the 40 save movies to their end. Next: where the others
+     stop (REIMPLEMENTATION.md, "The native program through the Epoch's
+     screens and the race's opening"): the rest of the menus the player
+     opens (the gate's exchange, the shops, the equipment's slots and list,
+     an item moved or used, the techs' list, the settings' meters, buttons
+     and gauge), each a stop of
      `program_needs_the_machine` naming its routine (TODO.md, "The native
      program").
      Each step is measured by how far `ct_native` gets and by what

@@ -3155,7 +3155,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0x7E357B, .name = "scene_build_perspective", .fn = scene_build_perspective_entry, NEEDS_M16_X16,
       .cost_milli = 9238, .guard = scene_build_perspective_present },
     { .addr = 0x7E3F59, .name = "scene_race_pick_opening", .fn = scene_race_pick_opening, NEEDS_M16_X16,
-      .cost_milli = 8286, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = scene_race_pick_opening_present },
+      .cost_milli = 8286, .dont_care = DC_X | DC_N | DC_Z | DC_C, .guard = scene_race_pick_opening_present },
     { .addr = 0x7E51D1, .name = "scene_race_scale_pictures", .fn = scene_race_scale_pictures, NEEDS_M16_X16,
       .cost_milli = 3720, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z, .guard = scene_race_scale_pictures_present },
     { .addr = 0x7E51DF, .name = "scene_race_scale_after_crono", .fn = scene_race_scale_after_crono, NEEDS_M16_X16,

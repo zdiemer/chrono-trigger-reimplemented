@@ -11750,3 +11750,91 @@ title and on. The power-on movies and
 the attract sequence go as far as before. Timing: one row recalibrated,
 `menu_answer_whether_to_save_over` from 5,434 to 4,473 (its save now
 reached through the sequence's step). Gate: suite OK.
+
+#### The native program through the field's stops: switches, the turning world and the tunnel
+
+From a cartridge save `ct_native` played 20 of the 40 save movies to their
+end (the history file, "The native program from a cartridge save"). Ten of
+the rest stopped in the field, the world map or the scenes: three at a step
+on an event's tile (`$C0:0C76`), three at a routine a world map's scene calls
+(`$C2:26A8`), and four at the time gate's tunnel the field ends into
+(`$FD:DA5F` and its kin). The chunk followed each movie from its stop until
+it played to its end.
+
+**A switch stepped on, and a chest opened.** The requests' step event
+(`$C0:0D45`-`$C0:16DB`) and chest (`$C0:16DC`) are one sequence each
+(`answer_step_event_with`, `answer_chest_with`, field/requests.c) through
+`StepAndChestSteps`: the switch's sound and the chest's are steps, and so is
+what the machine leaves after each answer for the original's later calls (A's
+high byte for the chest's sound, the overflow), which as C is nothing. The C
+path checks the requests' entry's guard's state half first
+(`field_requests_can_be_answered`, split from `field_requests_can_run`), and
+each sound its own entry's (the leader one the port reads).
+
+**The Day of Lavos's turning world.** The three movies that lose to Lavos
+(and the Beyond Time ending, which shows the same) play the 1000 A.D. world
+map's scene that lays the map flat in Mode 7 and turns it. Its object's
+script calls seven routines by address, each a port already: all of VRAM
+cleared (`$C2:26A8`), the map's tiles loaded (`$C2:27DE`), its colours
+sampled and its picture laid out as the map view does (`$C2:6400`,
+`$C2:65B2`), the view's backdrop (`$C2:68F4`), and the world drawn, started
+turning, turned a frame and its turn handed on (`$C6:E7FA`, `$C6:E90F`,
+`$C6:E9F5`, `$C6:EE23`). Each is a row of a module's `MenuScriptRoutines`
+table now (`menu_map_view_routines` in menu/epoch.c,
+`menu_turning_world_routines` in menu/turning_world.c, and the overworld's
+and the scenes' own), with the state half of its entry's guard as the row's
+`takes` where the guard has one (the tiles' load, the world's drawing and
+turning: each split out of its guard). The script runner clears the carry
+before it reads the routine's result, so what the entries leave in X and the
+carry is the machine's alone.
+
+**The planet seen from space.** The scene after it ("But... the future
+refused to change.", `$7E:6248`) is one sequence through `PlanetSetUpSteps`
+(scene/planet.c): a resource unpacked, the scripts' first step and the stars
+put out are steps; as C the unpacker, the camera channel's turn and the
+stars' port. Its three tasks have C columns in scene/frame.c's table: the
+caption (the drawing's guard's state half, `scene_caption_fits`, split out
+of scene/captions.c), the wait for a button (one sequence with the send as
+its step; as C it checks the list's room for the darkening), and the
+countdown, which on the machine jumps to the console's reset and as C asks
+the program for it (`program_resets_the_console`, core/program.h): the
+scene's loop ends there, and the main thread runs the boot and the field's
+power-on start, as at power-on.
+
+**The time gate's tunnel.** The field's event that ends it into scene
+`$80`-`$83` goes on to the warp as the program's next step, as to a scene
+(`field_scene_starts`); the main thread runs the trip (`warp_runs`,
+warp/warp.c): the warp started and the screen turned on, a frame made after
+each the vblank handler takes (`warp_vblank`, a row of core/program.c's
+handlers now), and at the last the screen dark and the story flags put back,
+then the field's start for the place the event set. The pieces are the
+machine's entries' own; the loop between them is the original's code on the
+machine and `warp_runs` as C (TODO.md, "Two sequences of one routine").
+
+**The screen setup's frame drawing.** An object holding a 12-sprite frame
+never draws it, and the original's screen setup (`$C0:B109`), which asks
+again until the frame is whole, would ask for ever; as C
+(`field_frame_part_drawn`) the drawing ends there, as the frame queue's does
+on a host. No movie reaches it: the original would hang.
+
+**Measured.** Shadow mode over the library, none mismatched: the requests'
+entry 238,533 calls, the warp's vblank 1,691, the planet's caption 1,098
+and its wait for a button 970, the turning world's frame 249 and its turn
+handed on 234, the map's tiles 67 (the world's drawing, its start and one
+tile load interrupted, each once; the countdown's last frame is the reset,
+which no movie's shadow run compares). Fuzzing, seed 1,
+`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the 16
+entries the chunk changed (25 runs with their variants: the requests'
+switches, chest and step-and-chest among them): every run the same as
+before, none mismatching and the guards' refusals unchanged.
+`tools/effects_check.py`: none new (seven lines renamed with the turn's
+handing on, one for the frame's guard's state half reading the turning
+object's tilt, which its start writes plainly). `ct_native` from a
+cartridge save: 30 of the 40 save movies play to their end (20 did): the
+three switch movies, the four that end through the tunnel
+(battle-lavos-gameover, endings-bucket-lavos, endings-telepod-lavos,
+events-end-of-time-gate), and the three through the turning world, the
+planet and the reset (battle-tech-sweep, endings-beyond-time,
+late-lavos); the other ten stop where they did. The power-on movies and
+the attract sequence go as far as before. No timing row moved. Gate:
+suite OK.

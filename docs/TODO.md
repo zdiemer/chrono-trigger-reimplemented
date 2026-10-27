@@ -633,9 +633,9 @@ rest waits, is [PLAN.md](PLAN.md).
       `BUTTON_*` and `ASSIGNED_*` belong;
     - `start_dial_objects` hands each digit its period through the running
       object's own slot and restores it; set the started slot's instead;
-    - the dial's and the map view's screen setup runs in the `Snes *` entry,
-      about 25 shadow writes in the original's order: split the runs without
-      call-outs into `GameState`/`Platform` functions;
+    - the dial's and the map view's screen setup (`show_the_time_dial_with`,
+      `show_the_map_view_with`) is about 25 shadow writes in the original's
+      order: one `VidScreen` value each would say what the screen is;
     - `draw_map_tile`/`draw_map_picture` return the last group only for the
       leftovers;
     - `upload_gate_rows` accepts a count of 0 and a table anywhere; the guard
@@ -2659,8 +2659,7 @@ list, by kind, is what `game/` still asks of one.
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
   tables (`menu/handlers.c`, `overworld/handlers.c`); a handler or a routine
-  with no row stops the program where it starts. The map view and the time
-  dial (`$C2:631F`, `$C2:6A34`) stop it too, and the menus opened from the
+  with no row stops the program where it starts. The menus opened from the
   map go as far as the menus' own C does. `core/program.c`'s handler table
   has functions for the field's, the menus', the sprite-object mode's, the
   battle's (and its closing's), a scene's boot's, a scene program's and the
@@ -2716,13 +2715,11 @@ list, by kind, is what `game/` still asks of one.
   the same shape: the step one `*_with` sequence whose machine entry passes
   `*_on_the_machine` steps.
 - **Where the save movies stop.** From a cartridge save `ct_native` plays
-  30 of the 40 save movies to their end; the others stop where the program
+  35 of the 40 save movies to their end; the others stop where the program
   meets what has no C yet (REIMPLEMENTATION.md, "The native program through
-  the field's stops"): the time dial and the map view (`$C2:6A34`,
-  `$C2:631F`; events-epoch-lavos, menus-shop-equip, menus-epoch), the jet
-  bike race's scene routine (`$7E:3F59`; both race movies), and the menus
-  above (the gate's exchange `$C2:C7AC`, the equipment's slots window
-  `$C2:A71E`, an item moved `$C2:AAC8`, a shop `$C2:D52B`).
+  the Epoch's screens and the race's opening"): the menus above (the gate's
+  exchange `$C2:C7AC`, the equipment's slots window `$C2:A71E`, an item moved
+  `$C2:AAC8`, a shop `$C2:D52B`).
 - **The menus' steps' notes carry machine work.** In the items', the techs'
   and the settings' sequences (menu/item_screen.c, tech_screen.c,
   settings_screen.c) a note is where the machine both leaves the original's

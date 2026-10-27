@@ -635,8 +635,10 @@ the cursor among them, and a game loaded or a New Game+ carried over, out
 of the menus into the game, and the save screens and the party exchange, and after a game over the title again;
 the switches a step presses, the time gate's tunnel, and the Day of Lavos
 lost (the world turning, the planet, and the console's reset to the title);
-30 of the save movies play to their end (REIMPLEMENTATION.md, "The native
-program through the field's stops", says where the others stop).
+the Epoch's time dial and map view, and the jet bike race from its opening;
+35 of the save movies play to their end (REIMPLEMENTATION.md, "The native
+program through the Epoch's screens and the race's opening", says where the
+others stop).
 
 The field's steps as the program calls them (`field_runs`,
 `field/main_loop.c`) are functions of the game's state that the entries

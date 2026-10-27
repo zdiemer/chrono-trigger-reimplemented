@@ -2938,93 +2938,68 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
-### The native program through the field's stops: switches, the turning world and the tunnel
+### The native program through the Epoch's screens and the race's opening
 
-From a cartridge save `ct_native` played 20 of the 40 save movies to their
-end (the history file, "The native program from a cartridge save"). Ten of
-the rest stopped in the field, the world map or the scenes: three at a step
-on an event's tile (`$C0:0C76`), three at a routine a world map's scene calls
-(`$C2:26A8`), and four at the time gate's tunnel the field ends into
-(`$FD:DA5F` and its kin). The chunk followed each movie from its stop until
-it played to its end.
+From a cartridge save `ct_native` played 30 of the 40 save movies to their
+end (the history file, "The native program through the field's stops").
+Five of the rest stopped outside the menus proper: three where the world
+map's loop opens the Epoch's time dial or its map view (`$C2:6A34`,
+`$C2:631F`; events-epoch-lavos, menus-shop-equip, menus-epoch), and both
+race movies at the routine the jet bike race's first script calls to pick
+its opening (`$7E:3F59`). The chunk took those stops.
 
-**A switch stepped on, and a chest opened.** The requests' step event
-(`$C0:0D45`-`$C0:16DB`) and chest (`$C0:16DC`) are one sequence each
-(`answer_step_event_with`, `answer_chest_with`, field/requests.c) through
-`StepAndChestSteps`: the switch's sound and the chest's are steps, and so is
-what the machine leaves after each answer for the original's later calls (A's
-high byte for the chest's sound, the overflow), which as C is nothing. The C
-path checks the requests' entry's guard's state half first
-(`field_requests_can_be_answered`, split from `field_requests_can_run`), and
-each sound its own entry's (the leader one the port reads).
+**The two screens, one sequence each.** The map view and the time dial
+(`show_the_map_view_with`, `show_the_time_dial_with`, menu/epoch.c) run
+their Mode 7 setup, their builders and their loop until the menus' mode
+leaves them through `EpochScreenSteps`: VRAM cleared, the map view's marker
+glyphs loaded (`$C2:6965`), its plane built from the world map's tiles
+(`$C2:63DF`), the gate built (`$C2:7389`) and each of its three streams
+unpacked (`$C2:71F9`), the typesetter's start and call, a frame waited, frames
+waited while the sound's requests go on, and what starting a script leaves in
+A. On the machine each is the original's call at its site (a table of sites
+the machine's steps alone read); as C each is the port, behind the state
+half of its entry's guard (the map's tiles' load, the slot the dial's
+graphics count in, the typesetter's two). The builders the screens call are
+sequences too (`load_map_view_graphics_with`, `build_map_view_from`,
+`build_the_dial_with`, `load_gate_stream_from`), their registered entries
+passing the machine's steps or its unpacker, so the screens and their
+entries share one copy. Two loads of A's low byte the old wrappers made
+before waits that read only its high byte went: liveness has them dead.
 
-**The Day of Lavos's turning world.** The three movies that lose to Lavos
-(and the Beyond Time ending, which shows the same) play the 1000 A.D. world
-map's scene that lays the map flat in Mode 7 and turns it. Its object's
-script calls seven routines by address, each a port already: all of VRAM
-cleared (`$C2:26A8`), the map's tiles loaded (`$C2:27DE`), its colours
-sampled and its picture laid out as the map view does (`$C2:6400`,
-`$C2:65B2`), the view's backdrop (`$C2:68F4`), and the world drawn, started
-turning, turned a frame and its turn handed on (`$C6:E7FA`, `$C6:E90F`,
-`$C6:E9F5`, `$C6:EE23`). Each is a row of a module's `MenuScriptRoutines`
-table now (`menu_map_view_routines` in menu/epoch.c,
-`menu_turning_world_routines` in menu/turning_world.c, and the overworld's
-and the scenes' own), with the state half of its entry's guard as the row's
-`takes` where the guard has one (the tiles' load, the world's drawing and
-turning: each split out of its guard). The script runner clears the carry
-before it reads the routine's result, so what the entries leave in X and the
-carry is the machine's alone.
+**The screens' objects.** The world map's loop runs each object's handler
+as a row of a C table (menu/handlers.c); the screens' seven -- the map
+view's cursor and its three markers, the dial, the gate's spin and the
+digits -- are rows of `menu_epoch_handlers` now, each with its guard's state
+half split out of the machine's guard (`cursor_takes`, `dial_takes`,
+`spin_takes`, `marker_takes`, `digit_takes`). The dial's buzz, sent on the
+machine from the handler's own call, goes through `au_command` as C.
 
-**The planet seen from space.** The scene after it ("But... the future
-refused to change.", `$7E:6248`) is one sequence through `PlanetSetUpSteps`
-(scene/planet.c): a resource unpacked, the scripts' first step and the stars
-put out are steps; as C the unpacker, the camera channel's turn and the
-stars' port. Its three tasks have C columns in scene/frame.c's table: the
-caption (the drawing's guard's state half, `scene_caption_fits`, split out
-of scene/captions.c), the wait for a button (one sequence with the send as
-its step; as C it checks the list's room for the darkening), and the
-countdown, which on the machine jumps to the console's reset and as C asks
-the program for it (`program_resets_the_console`, core/program.h): the
-scene's loop ends there, and the main thread runs the boot and the field's
-power-on start, as at power-on.
+**The race's opening.** `$7E:3F59` was a port already; it had no row in the
+scene script's routine tables, so the program stopped where the race's first
+script called it. Its row is in `scene_race_routines` (scene/race_camera.c),
+and the opening goes to the calling channel's script, as the original's
+store on its direct page does; the guard no longer insists on channel 0. As
+a row it leaves A as the original's last load does, the opening it picked:
+the interpreter's stop after it reads A's high byte, so the entry no longer
+declares A don't-care.
 
-**The time gate's tunnel.** The field's event that ends it into scene
-`$80`-`$83` goes on to the warp as the program's next step, as to a scene
-(`field_scene_starts`); the main thread runs the trip (`warp_runs`,
-warp/warp.c): the warp started and the screen turned on, a frame made after
-each the vblank handler takes (`warp_vblank`, a row of core/program.c's
-handlers now), and at the last the screen dark and the story flags put back,
-then the field's start for the place the event set. The pieces are the
-machine's entries' own; the loop between them is the original's code on the
-machine and `warp_runs` as C (TODO.md, "Two sequences of one routine").
-
-**The screen setup's frame drawing.** An object holding a 12-sprite frame
-never draws it, and the original's screen setup (`$C0:B109`), which asks
-again until the frame is whole, would ask for ever; as C
-(`field_frame_part_drawn`) the drawing ends there, as the frame queue's does
-on a host. No movie reaches it: the original would hang.
-
-**Measured.** Shadow mode over the library, none mismatched: the requests'
-entry 238,533 calls, the warp's vblank 1,691, the planet's caption 1,098
-and its wait for a button 970, the turning world's frame 249 and its turn
-handed on 234, the map's tiles 67 (the world's drawing, its start and one
-tile load interrupted, each once; the countdown's last frame is the reset,
-which no movie's shadow run compares). Fuzzing, seed 1,
-`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the 16
-entries the chunk changed (25 runs with their variants: the requests'
-switches, chest and step-and-chest among them): every run the same as
-before, none mismatching and the guards' refusals unchanged.
-`tools/effects_check.py`: none new (seven lines renamed with the turn's
-handing on, one for the frame's guard's state half reading the turning
-object's tilt, which its start writes plainly). `ct_native` from a
-cartridge save: 30 of the 40 save movies play to their end (20 did): the
-three switch movies, the four that end through the tunnel
-(battle-lavos-gameover, endings-bucket-lavos, endings-telepod-lavos,
-events-end-of-time-gate), and the three through the turning world, the
-planet and the reset (battle-tech-sweep, endings-beyond-time,
-late-lavos); the other ten stop where they did. The power-on movies and
-the attract sequence go as far as before. No timing row moved. Gate:
-suite OK.
+**Measured.** Shadow mode over the library, none mismatched: the dial's
+digits 15,365 calls, the dial and the gate's spin 2,195 each (the spin 5
+interrupted), the map view's cursor 166 and its markers 104 each, the gate
+stream's load 15 and the gate's build 5, the race's pick 2; the two screens
+span frames, so their calls are abandoned, as before. Fuzzing, seed 1,
+`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the 14
+entries changed: every run the same as before; the race's pick has a
+second variant on the second channel's page, which the branch point's guard
+refused and which now compares all 20,000 states, none mismatching.
+`tools/effects_check.py`: the handlers' state halves read the objects' steps,
+periods and the gate window's bank, which their starts write plainly; their
+lines are the old guards' (`animates` among them), renamed, with the reasons
+the old ones had. `ct_native` from a cartridge save: 35 of the 40 save
+movies play to their end (30 did): events-epoch-lavos, menus-shop-equip and
+menus-epoch through the dial and the map view, and both race movies; the
+other five stop where they did. The power-on movies and the attract sequence
+go as far as before. No timing row moved.
 
 ### The last refusals in real play: the attract demo's states
 

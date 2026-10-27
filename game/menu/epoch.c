@@ -33,6 +33,7 @@
 
 #include "charge.h"
 #include "cpu_io.h"
+#include "core/program.h"
 #include "menu/display.h"
 #include "menu/handlers.h"
 #include "menu/line_effects.h"
@@ -45,6 +46,7 @@
 #include "menu/vram.h"
 #include "original_effects.h"
 #include "overworld/setup.h"
+#include "platform/audio.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -1314,93 +1316,83 @@ static bool in_area(GameState *g, MenuObject o)
 
 bool menu_epoch_kept_off_the_ground(GameState *g, MenuObject epoch) { return in_area(g, epoch); }
 
-/* ---- The bridges: the screens on the machine -------------------------------------------------- */
+/* ---- The screens, as one sequence each -------------------------------------------------------- */
 
-/* Registers the original's routines the screens call don't read
- * (tools/dontcare_check.py checks each). */
-enum {
-    READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-    READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-    READS_X = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,
-    READS_X_AND_A_HIGH = DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_AL,
-};
+/* Which screen a step is for, where the two make it at different places. */
+typedef enum { THE_MAP_VIEW, THE_TIME_DIAL } EpochScreen;
 
-/* The loaders and builders that call out to the original's decompressor and
- * graphics loader are called as the original calls them, through the
- * machine: they are entries of their own (registered, each a port), which
- * shadow mode compares and the timing gate measures on their own. */
+/* The waits the screens make while the sound's requests go on: the map view
+ * as it closes, the dial as it opens and as it closes. */
+typedef enum { MAP_VIEW_CLOSING, DIAL_OPENING, DIAL_CLOSING } EpochWait;
+static const uint16_t epoch_wait_frames[] = { [MAP_VIEW_CLOSING] = 0x11, [DIAL_OPENING] = 0x12, [DIAL_CLOSING] = 0x12 };
 
-// $C2:6965
-/* Set the view's marker glyphs (the typesetter's start and a call), and send
- * them to VRAM $6200. */
-static void load_map_view_graphics(Snes *s)
+/* The dial's streams: the tiles from bank C3, the palette and the tilemap's
+ * rows from bank C6, each unpacked into bank $7F where the stream's table
+ * says. */
+typedef enum { GATE_TILES_STREAM, GATE_PALETTE_STREAM, GATE_ROWS_STREAM } GateStream;
+static const uint8_t gate_stream_bank[] = { [GATE_TILES_STREAM] = 0xC3, [GATE_PALETTE_STREAM] = 0xC6,
+                                            [GATE_ROWS_STREAM] = 0xC6 };
+
+/* What the screens ask of whatever runs them. On the machine each is the
+ * original's call: the routines the menus still enter by address (VRAM
+ * cleared, a frame waited, frames waited while the sound's requests go on),
+ * and the screens' own builders, which are entries of their own that shadow
+ * mode compares and the timing gate measures; as C each is the port, behind
+ * the state half of its entry's guard. Each but the clear is false where it
+ * went no further. */
+typedef struct {
+    void (*clear_vram)(void *ctx, EpochScreen screen);
+    bool (*load_markers)(void *ctx);
+    bool (*build_map)(void *ctx);
+    bool (*build_gate)(void *ctx);
+    bool (*load_stream)(void *ctx, GateStream stream);
+    bool (*start_text)(void *ctx);
+    bool (*set_glyphs)(void *ctx);
+    bool (*wait_a_frame)(void *ctx, EpochScreen screen);
+    bool (*wait_frames)(void *ctx, EpochWait wait);
+    /* A script started, which on the machine leaves A what the waits after
+     * it read. */
+    void (*script_begun)(void *ctx, uint32_t script);
+} EpochScreenSteps;
+
+/* What both screens do first: the menus' VRAM cleared, the mode's upload
+ * queue reset and every object slot freed. */
+static void clear_the_screen_with(GameState *g, EpochScreen screen, const EpochScreenSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    NATIVE_TIME_AS(s, 0xC25798, overworld_clear_the_sign_label(g));   /* clear the loader's buffer */
-    request_map_view_graphics(g);
-    m_jsl_dc(s, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D);
-    set_menu_text_budget(g, MAP_VIEW_GLYPHS);
-    m_jsl_dc(s, 0xC269C4, 0xC25823, READS_NOTHING | DC_D);
-    vid_send_vram(m_platform(s), PF_AT(0xC269C8), 0x6200, PF_GAME(RAM_MENU_MAP_GRAPHICS), 0x0400, &after_high);
-}
-
-// $C2:63DF
-/* Load the world map's tiles (overworld/setup.c), then build the view's
- * plane from them. False where the unpacker stopped. */
-static bool build_map_view_on_the_machine(Snes *s)
-{
-    Unpacker u = overworld_unpacker_on_the_machine(s);
-    bool loaded;
-    NATIVE_TIME_AS(s, 0xC227DE, loaded = overworld_load_the_map_tiles(state_of(s), &u));
-    if (!loaded)
-        return false;
-    build_map_view(state_of(s), m_platform(s));
-    return true;
-}
-
-/* The routines both screens call: the menus' VRAM cleared (menu/display.c's
- * entry), the mode reset, every object slot freed, a frame waited, a number
- * of frames waited while the sound's requests go on. */
-static void clear_the_screen(Snes *s, uint32_t clear_vram)
-{
-    m_jsr_dc(s, clear_vram, 0xC226A8, READS_NOTHING);
-    GameState *g = state_of(s);
-    NATIVE_TIME_AS(s, 0xC203EF, menu_object_reset_the_upload_queue(g));
-    NATIVE_TIME_AS(s, 0xC20471, menu_free_every_object(g));
-    m_sep(s, CPU_FLAG_M);
-}
-
-static void wait_frames(Snes *s, uint32_t site, uint16_t frames)
-{
-    s->cpu.x = frames;
-    m_jsr_dc(s, site, 0xC20454, READS_X_AND_A_HIGH);
+    steps->clear_vram(ctx, screen);
+    TIMED_AS(g, 0xC203EF, menu_object_reset_the_upload_queue(g));
+    TIMED_AS(g, 0xC20471, menu_free_every_object(g));
 }
 
 /* The screen runs until the menus' mode leaves `mode`, a frame at a time. */
-static void run_until_the_mode_changes(Snes *s, uint32_t site, uint8_t mode)
+static bool run_until_the_mode_changes_with(GameState *g, EpochScreen screen, uint8_t mode,
+                                            const EpochScreenSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
     do
-        m_jsr_dc(s, site, 0xC2046E, READS_NOTHING | DC_DB);
+        if (!steps->wait_a_frame(ctx, screen))
+            return false;
     while (menu_mode(g) == mode);
-    m_set_a8(s, menu_mode(g));
+    return true;
+}
+
+static void start_a_script_with(GameState *g, uint32_t script, const EpochScreenSteps *steps, void *ctx)
+{
+    TIMED_AS(g, 0xC204D9, menu_start_script(g, script, MENU_ORDINARY_SLOT));
+    steps->script_begun(ctx, script);
 }
 
 /* The screen shows from the next frame: the mode sends its frame and palette,
  * and the vblank and joypad interrupts are on. */
-static void show_from_the_next_frame(Snes *s, uint32_t site)
+static void show_from_the_next_frame(GameState *g, Platform *pf, uint32_t site)
 {
-    GameState *g = state_of(s);
     set_menu_object_frame_state(g, (uint8_t)(menu_object_frame_state(g) | SEND_FRAME_AND_PALETTE));
-    tm_enable_interrupts(m_platform(s), PF_AT(site), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
+    tm_enable_interrupts(pf, PF_AT(site), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
 }
 
 /* And back to the menus' own display as it ends. */
-static void back_to_the_menus(Snes *s, uint32_t sprites_site, uint32_t interrupts_site, uint32_t uploads_site,
-                              uint32_t effects_site)
+static void back_to_the_menus(GameState *g, Platform *pf, uint32_t sprites_site, uint32_t interrupts_site,
+                              uint32_t uploads_site, uint32_t effects_site)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     set_menu_object_shadows_bg_mode(g, MENU_BG_MODE);
     const VidObjConfig menus = { .size_select = 3, .base = 0x0000, .name_select = 0 };
     vid_set_obj_config(pf, PF_AT(sprites_site), &menus);
@@ -1409,12 +1401,33 @@ static void back_to_the_menus(Snes *s, uint32_t sprites_site, uint32_t interrupt
     vid_enable_line_effects(pf, PF_AT(effects_site), 0);
 }
 
-/* Starting a script leaves A its address's high byte over its bank, which
- * the frames' wait after it reads. */
-static void start_script_as_the_original(Snes *s, uint32_t script)
+// $C2:6965
+/* Set the view's marker glyphs (the typesetter's start and a call), and send
+ * them to VRAM $6200. */
+static bool load_map_view_graphics_with(GameState *g, Platform *pf, const EpochScreenSteps *steps, void *ctx)
 {
-    menu_start_script(state_of(s), script, MENU_ORDINARY_SLOT);
-    s->cpu.a = (uint16_t)((script & 0xFF00) | (uint8_t)(script >> 16));
+    TIMED_AS(g, 0xC25798, overworld_clear_the_sign_label(g));   /* clear the loader's buffer */
+    request_map_view_graphics(g);
+    if (!steps->start_text(ctx))
+        return false;
+    set_menu_text_budget(g, MAP_VIEW_GLYPHS);
+    if (!steps->set_glyphs(ctx))
+        return false;
+    vid_send_vram(pf, PF_AT(0xC269C8), 0x6200, PF_GAME(RAM_MENU_MAP_GRAPHICS), 0x0400, &after_high);
+    return true;
+}
+
+// $C2:63DF
+/* Load the world map's tiles (overworld/setup.c), then build the view's
+ * plane from them. False where the unpacker stopped. */
+static bool build_map_view_from(GameState *g, Platform *pf, const Unpacker *u)
+{
+    bool loaded = false;
+    TIMED_AS(g, 0xC227DE, loaded = overworld_load_the_map_tiles(g, u));
+    if (!loaded)
+        return false;
+    build_map_view(g, pf);
+    return true;
 }
 
 // $C2:631F
@@ -1423,64 +1436,47 @@ static void start_script_as_the_original(Snes *s, uint32_t script)
  * its script started, and the screen run until the menus' mode leaves it. */
 enum { MAP_VIEW_MODE = 0x06, BACKDROP = 0x20, MAP_VIEW_CURSOR = 0x666C, MAP_VIEW_SCRIPT = 0xC269F8 };
 
-void menu_epoch_map_screen(Snes *s)
+static bool show_the_map_view_with(GameState *g, Platform *pf, const EpochScreenSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     set_menu_object_shadows_bg_mode(g, MODE_7);
     const VidObjConfig sprites = { .size_select = 3, .base = 0x6000, .name_select = 0 };
     vid_set_obj_config(pf, PF_AT(0xC26325), &sprites);
     set_menu_object_shadows_math_control(g, 0);
     set_menu_object_shadows_math_layers(g, BACKDROP);
-    clear_the_screen(s, 0xC2632E);
-    m_jsr_dc(s, 0xC26337, 0xC26965, READS_NOTHING);
-    NATIVE_TIME_AS(s, 0xC268F4, map_view_gradient(g, pf));
-    m_jsr_dc(s, 0xC2633D, 0xC263DF, READS_NOTHING);
+    clear_the_screen_with(g, THE_MAP_VIEW, steps, ctx);
+    if (!steps->load_markers(ctx))
+        return false;
+    TIMED_AS(g, 0xC268F4, map_view_gradient(g, pf));
+    if (!steps->build_map(ctx))
+        return false;
 
     vid_send_vram(pf, PF_AT(0xC26340), 0x6000, PF_GAME(MENU_MAP_VIEW_TILES), 0x0020, &after_high);
     vid_send_vram(pf, PF_AT(0xC26367), 0x6020, PF_GAME(MENU_MAP_VIEW_MORE_TILES), 0x0020, &after_high);
     enum { VIEW_COLOURS = 0x100, VIEW_COLOUR_BYTES = 0x21 };
     set_menu_object_palette_byte(g, 0, 0);
     set_menu_object_palette_byte(g, 1, 0);
-    uint32_t silenced = native_uncounted_begin(s);
+    uint32_t silenced = charge_uncounted_begin(g);
     for (unsigned i = 0; i < VIEW_COLOUR_BYTES; i++)
         set_menu_object_palette_byte(g, VIEW_COLOURS + i, menu_map_view_colour_byte(g, i));
-    native_uncounted_end(s, silenced);
+    charge_uncounted_end(g, silenced);
     ORIGINAL_EFFECT(charge_block_move(g, VIEW_COLOUR_BYTES));
-    m_sep(s, CPU_FLAG_M);
 
     MenuObject cursor;
-    NATIVE_TIME_AS(s, 0xC2048A, (void)menu_start_object(g, MAP_VIEW_CURSOR, MENU_ORDINARY_SLOT, &cursor));
-    NATIVE_TIME_AS(s, 0xC204D9, start_script_as_the_original(s, MAP_VIEW_SCRIPT));
-    show_from_the_next_frame(s, 0xC263B7);
-    run_until_the_mode_changes(s, 0xC263BA, MAP_VIEW_MODE);
-    wait_frames(s, 0xC263C7, 0x11);
-    back_to_the_menus(s, 0xC263D0, 0xC263D5, 0xC263D8, 0xC263DB);
-    m_rts(s);
+    TIMED_AS(g, 0xC2048A, (void)menu_start_object(g, MAP_VIEW_CURSOR, MENU_ORDINARY_SLOT, &cursor));
+    start_a_script_with(g, MAP_VIEW_SCRIPT, steps, ctx);
+    show_from_the_next_frame(g, pf, 0xC263B7);
+    if (!run_until_the_mode_changes_with(g, THE_MAP_VIEW, MAP_VIEW_MODE, steps, ctx)
+        || !steps->wait_frames(ctx, MAP_VIEW_CLOSING))
+        return false;
+    back_to_the_menus(g, pf, 0xC263D0, 0xC263D5, 0xC263D8, 0xC263DB);
+    return true;
 }
 
-/* Load one of the dial's streams from the bank the caller names into bank
- * $7F with the decompressor, from the JSL at $C2:721B. */
-static void load_gate_stream(Snes *s, uint8_t stream, uint8_t bank)
+// $C2:71F9
+static bool load_gate_stream_from(GameState *g, const Unpacker *u, uint8_t stream, uint8_t bank)
 {
-    GameState *g = state_of(s);
-    set_decompress_source(g, (uint32_t)bank << 16 | menu_gate_stream_source(g, stream));
-    set_decompress_dest(g, (uint32_t)EXTRA_RAM_BANK << 16 | menu_gate_stream_dest(g, stream));
-    m_jsl_dc(s, 0xC2721B, 0xC30002, READS_NOTHING | DC_DB | DC_D);
-}
-
-/* The streams: the tiles from bank C3, the palette and the tilemap's rows
- * from bank C6. */
-enum { GATE_TILES_STREAM = 0, GATE_PALETTE_STREAM = 1, GATE_ROWS_STREAM = 2 };
-
-/* The loader takes the stream's number in the mode's cell at $08 and its
- * bank in A. */
-static void load_gate_stream_as_the_original(Snes *s, uint32_t jsr_site, uint8_t stream, uint8_t bank)
-{
-    enum { STREAM_CELL = 0x08 };
-    set_menu_object_scratch_bytes_byte(state_of(s), STREAM_CELL, stream);
-    m_set_a8(s, bank);
-    m_jsr_dc(s, jsr_site, 0xC271F9, READS_A | DC_AH);
+    return u->unpack(u->ctx, 0xC2721B, (uint32_t)bank << 16 | menu_gate_stream_source(g, stream),
+                     (uint32_t)EXTRA_RAM_BANK << 16 | menu_gate_stream_dest(g, stream));
 }
 
 // $C2:7389
@@ -1488,24 +1484,25 @@ static void load_gate_stream_as_the_original(Snes *s, uint32_t jsr_site, uint8_t
  * its picture, and the objects that drive it. */
 enum { GATE_TILE_VRAM = 0x6400, GATE_TILEMAP_VRAM = 0x6000, GATE_TILEMAP_ROWS = 0x40, GATE_TILES_BYTES = 0x800 };
 
-static void build_the_dial(Snes *s)
+static bool build_the_dial_with(GameState *g, Platform *pf, const EpochScreenSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    load_gate_stream_as_the_original(s, 0xC2738D, GATE_TILES_STREAM, 0xC3);
+    if (!steps->load_stream(ctx, GATE_TILES_STREAM))
+        return false;
     vid_send_vram(pf, PF_AT(0xC27393), GATE_TILE_VRAM, PF_GAME(RAM_MENU_GATE_TILES), GATE_TILES_BYTES, &after_high);
     ORIGINAL_EFFECT(leave_rows_asked_for(g, MENU_GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE));
-    NATIVE_TIME_AS(s, 0xC272D8, upload_gate_rows(g, pf, GATE_TILEMAP_ROWS, MENU_GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE,
-                                                 GATE_TILEMAP_VRAM));
-    load_gate_stream_as_the_original(s, 0xC273DC, GATE_PALETTE_STREAM, 0xC6);
+    TIMED_AS(g, 0xC272D8, upload_gate_rows(g, pf, GATE_TILEMAP_ROWS, MENU_GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE,
+                                           GATE_TILEMAP_VRAM));
+    if (!steps->load_stream(ctx, GATE_PALETTE_STREAM))
+        return false;
     keep_dial_palette(g);
-    load_gate_stream_as_the_original(s, 0xC27408, GATE_ROWS_STREAM, 0xC6);
-    NATIVE_TIME_AS(s, 0xC27254, upload_gate_tiles(g, pf));
+    if (!steps->load_stream(ctx, GATE_ROWS_STREAM))
+        return false;
+    TIMED_AS(g, 0xC27254, upload_gate_tiles(g, pf));
     ORIGINAL_EFFECT(leave_gate_tiles(g));
-    NATIVE_TIME_AS(s, 0xC27361, unpack_gate_pixels(g));
-    NATIVE_TIME_AS(s, 0xC2722C, upload_gate_pixels(pf));
+    TIMED_AS(g, 0xC27361, unpack_gate_pixels(g));
+    TIMED_AS(g, 0xC2722C, upload_gate_pixels(pf));
     start_dial_objects(g);
-    s->cpu.a = (uint16_t)((DIAL_LAST_SCRIPT & 0xFF00) | (uint8_t)(DIAL_LAST_SCRIPT >> 16));
+    return true;
 }
 
 // $C2:6A34
@@ -1517,11 +1514,9 @@ enum { DIAL_MODE = 0x08, DIAL_SCROLL_X = 0xFF80, DIAL_SCROLL_Y = 0xFF90, UNIT_HI
 enum { WINDOW1_ON_COLOUR = 0x20, BG1_AND_SPRITES = 0x11, MATH_INSIDE_THE_WINDOW = 0x10, MATH_LAYERS = 0x17 };
 enum { FIXED_LEVEL = 0x0F };
 
-void menu_epoch_time_dial_screen(Snes *s)
+static bool show_the_time_dial_with(GameState *g, Platform *pf, const EpochScreenSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    clear_the_screen(s, 0xC26A34);
+    clear_the_screen_with(g, THE_TIME_DIAL, steps, ctx);
     set_menu_object_shadows_bg_mode(g, MODE_7);
     const VidObjConfig sprites = { .size_select = 0, .base = 0x6000, .name_select = 0 };
     vid_set_obj_config(pf, PF_AT(0xC26A43), &sprites);
@@ -1549,15 +1544,252 @@ void menu_epoch_time_dial_screen(Snes *s)
     set_menu_object_shadows_fixed_red(g, FIXED_LEVEL);
     set_menu_object_shadows_fixed_green(g, FIXED_LEVEL);
     set_menu_gate_flags(g, 0);
-    m_jsr_dc(s, 0xC26A8A, 0xC27389, READS_NOTHING);
-    show_from_the_next_frame(s, 0xC26A93);
-    m_set_a8(s, 0x81);
-    wait_frames(s, 0xC26A99, 0x12);
-    run_until_the_mode_changes(s, 0xC26A9C, DIAL_MODE);
-    NATIVE_TIME_AS(s, 0xC204D9, start_script_as_the_original(s, DIAL_ENDING_SCRIPT));
-    wait_frames(s, 0xC26AB1, 0x12);
-    back_to_the_menus(s, 0xC26ABA, 0xC26ABE, 0xC26AC1, 0xC26AC4);
-    m_rts(s);
+    if (!steps->build_gate(ctx))
+        return false;
+    show_from_the_next_frame(g, pf, 0xC26A93);
+    if (!steps->wait_frames(ctx, DIAL_OPENING) || !run_until_the_mode_changes_with(g, THE_TIME_DIAL, DIAL_MODE, steps, ctx))
+        return false;
+    start_a_script_with(g, DIAL_ENDING_SCRIPT, steps, ctx);
+    if (!steps->wait_frames(ctx, DIAL_CLOSING))
+        return false;
+    back_to_the_menus(g, pf, 0xC26ABA, 0xC26ABE, 0xC26AC1, 0xC26AC4);
+    return true;
+}
+
+/* ---- On the machine ---- */
+
+/* Registers the original's routines the screens call don't read
+ * (tools/dontcare_check.py checks each). */
+enum {
+    READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+    READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+    READS_X_AND_A_HIGH = DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_AL,
+};
+
+/* Where the original makes each call, in the order of the screens, the
+ * waits and the streams. */
+static const uint32_t clear_sites[] = { 0xC2632E, 0xC26A34 };
+static const uint32_t frame_sites[] = { 0xC263BA, 0xC26A9C };
+static const uint32_t wait_sites[] = { 0xC263C7, 0xC26A99, 0xC26AB1 };
+static const uint32_t stream_sites[] = { 0xC2738D, 0xC273DC, 0xC27408 };
+
+/* The clear comes back with a 16-bit accumulator; the screens go on with an
+ * 8-bit one. */
+static void clear_vram_on_the_machine(void *ctx, EpochScreen screen)
+{
+    Snes *s = ctx;
+    m_jsr_dc(s, clear_sites[screen], 0xC226A8, READS_NOTHING);
+    m_sep(s, CPU_FLAG_M);
+}
+
+static bool load_markers_on_the_machine(void *ctx)
+{
+    m_jsr_dc(ctx, 0xC26337, 0xC26965, READS_NOTHING);
+    return true;
+}
+
+static bool build_map_on_the_machine(void *ctx)
+{
+    m_jsr_dc(ctx, 0xC2633D, 0xC263DF, READS_NOTHING);
+    return true;
+}
+
+static bool build_gate_on_the_machine(void *ctx)
+{
+    m_jsr_dc(ctx, 0xC26A8A, 0xC27389, READS_NOTHING);
+    return true;
+}
+
+/* The loader takes the stream's number in the mode's cell at $08 and its
+ * bank in A. */
+static bool load_stream_on_the_machine(void *ctx, GateStream stream)
+{
+    enum { STREAM_CELL = 0x08 };
+    Snes *s = ctx;
+    set_menu_object_scratch_bytes_byte(state_of(s), STREAM_CELL, (uint8_t)stream);
+    m_set_a8(s, gate_stream_bank[stream]);
+    m_jsr_dc(s, stream_sites[stream], 0xC271F9, READS_A | DC_AH);
+    return true;
+}
+
+static bool start_text_on_the_machine(void *ctx)
+{
+    m_jsl_dc(ctx, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D);
+    return true;
+}
+
+static bool set_glyphs_on_the_machine(void *ctx)
+{
+    m_jsl_dc(ctx, 0xC269C4, 0xC25823, READS_NOTHING | DC_D);
+    return true;
+}
+
+static bool wait_a_frame_on_the_machine(void *ctx, EpochScreen screen)
+{
+    m_jsr_dc(ctx, frame_sites[screen], 0xC2046E, READS_NOTHING | DC_DB);
+    return true;
+}
+
+static bool wait_frames_on_the_machine(void *ctx, EpochWait wait)
+{
+    Snes *s = ctx;
+    s->cpu.x = epoch_wait_frames[wait];
+    m_jsr_dc(s, wait_sites[wait], 0xC20454, READS_X_AND_A_HIGH);
+    return true;
+}
+
+/* Starting a script leaves A its address's high byte over its bank, which
+ * the frames' wait after it reads. */
+static void script_begun_on_the_machine(void *ctx, uint32_t script)
+{
+    Snes *s = ctx;
+    s->cpu.a = (uint16_t)((script & 0xFF00) | (uint8_t)(script >> 16));
+}
+
+static const EpochScreenSteps screen_steps_on_the_machine = {
+    clear_vram_on_the_machine, load_markers_on_the_machine, build_map_on_the_machine, build_gate_on_the_machine,
+    load_stream_on_the_machine, start_text_on_the_machine, set_glyphs_on_the_machine, wait_a_frame_on_the_machine,
+    wait_frames_on_the_machine, script_begun_on_the_machine,
+};
+
+/* The loader's own call to the decompressor ($C2:721B, its one site). */
+static bool unpack_by_the_loader_s_call(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
+{
+    (void)site;
+    Snes *s = ctx;
+    GameState *g = state_of(s);
+    set_decompress_source(g, stream);
+    set_decompress_dest(g, to);
+    m_jsl_dc(s, 0xC2721B, 0xC30002, READS_NOTHING | DC_DB | DC_D);
+    return true;
+}
+
+/* ---- As C ---- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} ScreenInC;
+
+static void clear_all_of_vram(void *ctx, EpochScreen screen)
+{
+    (void)screen;
+    ScreenInC *c = ctx;
+    TIMED_AS(c->game, 0xC226A8, menu_clear_all_of_vram(c->pf));
+}
+
+static const EpochScreenSteps screen_steps_in_c;
+
+static bool load_the_markers(void *ctx)
+{
+    ScreenInC *c = ctx;
+    bool loaded = false;
+    TIMED_AS(c->game, 0xC26965, loaded = load_map_view_graphics_with(c->game, c->pf, &screen_steps_in_c, c));
+    return loaded;
+}
+
+static bool build_the_map(void *ctx)
+{
+    ScreenInC *c = ctx;
+    if (!overworld_map_tiles_can_load(c->game)) {
+        program_needs_the_machine(c->game, 0xC263DF, "a map view of a map the port doesn't load");
+        return false;
+    }
+    Unpacker u = overworld_unpacker(c->game);
+    bool built = false;
+    TIMED_AS(c->game, 0xC263DF, built = build_map_view_from(c->game, c->pf, &u));
+    return built;
+}
+
+static bool build_the_gate(void *ctx)
+{
+    ScreenInC *c = ctx;
+    if (!menu_object_address_names_one(menu_object_current(c->game))) {
+        program_needs_the_machine(c->game, 0xC27389, "a time dial built with no object running");
+        return false;
+    }
+    bool built = false;
+    TIMED_AS(c->game, 0xC27389, built = build_the_dial_with(c->game, c->pf, &screen_steps_in_c, c));
+    return built;
+}
+
+static bool load_a_stream(void *ctx, GateStream stream)
+{
+    ScreenInC *c = ctx;
+    Unpacker u = overworld_unpacker(c->game);
+    bool loaded = false;
+    TIMED_AS(c->game, 0xC271F9, loaded = load_gate_stream_from(c->game, &u, (uint8_t)stream, gate_stream_bank[stream]));
+    return loaded;
+}
+
+static bool start_the_text(void *ctx)
+{
+    ScreenInC *c = ctx;
+    if (!menu_text_can_start(c->game)) {
+        program_needs_the_machine(c->game, 0xC257DF, "a text the typesetter doesn't start");
+        return false;
+    }
+    TIMED_AS(c->game, 0xC257DF, menu_text_start(c->game));
+    return true;
+}
+
+static bool set_the_glyphs(void *ctx)
+{
+    ScreenInC *c = ctx;
+    if (!menu_text_can_carry_on(c->game)) {
+        program_needs_the_machine(c->game, 0xC25823, "a text the typesetter doesn't go on with");
+        return false;
+    }
+    TIMED_AS(c->game, 0xC25823, menu_text_go_on(c->game));
+    return true;
+}
+
+static bool wait_for_the_next_frame(void *ctx, EpochScreen screen)
+{
+    (void)screen;
+    ScreenInC *c = ctx;
+    menu_wait_for_the_next_frame(c->game, c->pf);
+    return true;
+}
+
+static bool wait_frames_sending_the_sound(void *ctx, EpochWait wait)
+{
+    ScreenInC *c = ctx;
+    menu_wait_frames_sending_the_sound(c->game, c->pf, epoch_wait_frames[wait]);
+    return true;
+}
+
+static void nothing_left(void *ctx, uint32_t script) { (void)ctx, (void)script; }
+
+static const EpochScreenSteps screen_steps_in_c = {
+    clear_all_of_vram, load_the_markers, build_the_map, build_the_gate, load_a_stream, start_the_text,
+    set_the_glyphs, wait_for_the_next_frame, wait_frames_sending_the_sound, nothing_left,
+};
+
+bool menu_epoch_map_view_shown(GameState *g, Platform *pf)
+{
+    ScreenInC c = { g, pf };
+    return show_the_map_view_with(g, pf, &screen_steps_in_c, &c);
+}
+
+bool menu_epoch_time_dial_shown(GameState *g, Platform *pf)
+{
+    ScreenInC c = { g, pf };
+    return show_the_time_dial_with(g, pf, &screen_steps_in_c, &c);
+}
+
+// $C2:631F
+void menu_epoch_map_screen(Snes *s)
+{
+    if (show_the_map_view_with(state_of(s), m_platform(s), &screen_steps_on_the_machine, s))
+        m_rts(s);
+}
+
+// $C2:6A34
+void menu_epoch_time_dial_screen(Snes *s)
+{
+    if (show_the_time_dial_with(state_of(s), m_platform(s), &screen_steps_on_the_machine, s))
+        m_rts(s);
 }
 
 /* ---- The entries ---------------------------------------------------------------------------- */
@@ -1579,72 +1811,61 @@ bool menu_epoch_object_runs(Snes *s)
 
 /* The objects whose handlers go by steps are on one of theirs: the original
  * jumps through a table of them, and past its end into code. */
-static bool on_a_step(Snes *s, uint8_t steps)
+static bool cursor_takes(const GameState *g, MenuObject cursor)
 {
-    if (!menu_epoch_object_runs(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = menu_object_slots_step(g, menu_object_running(g)) < steps;
-    vars_peek(false);
-    return ok;
+    return menu_object_slots_step(g, cursor) <= CURSOR_WALKS_BACK;
 }
 
-bool menu_epoch_cursor_runs(Snes *s) { return on_a_step(s, CURSOR_WALKS_BACK + 1); }
 /* The dial draws its window in the tables its first step put in work RAM. */
-bool menu_epoch_dial_runs(Snes *s)
+static bool dial_takes(const GameState *g, MenuObject dial)
 {
-    if (!on_a_step(s, DIAL_TURNS + 1))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
+    uint8_t step = menu_object_slots_step(g, dial);
     uint8_t bank = menu_object_scratch_gate_window_bank(g);
-    bool ok = menu_object_slots_step(g, menu_object_running(g)) == DIAL_STARTS || bank == WORK_RAM_BANK
-              || bank == EXTRA_RAM_BANK;
-    vars_peek(false);
-    return ok;
+    return step <= DIAL_TURNS && (step == DIAL_STARTS || bank == WORK_RAM_BANK || bank == EXTRA_RAM_BANK);
 }
-bool menu_epoch_spin_runs(Snes *s) { return on_a_step(s, 2); }
+
+static bool spin_takes(const GameState *g, MenuObject spin) { return menu_object_slots_step(g, spin) < 2; }
 
 /* The markers and the digits run a sprite script, which reads as the
  * language wherever the game gives one (menu/sprites.c): the one the object
  * has, once it has set its own up, and the ones a digit is given for its
  * period; the sprite list is as the mode lays it out and the upload queue
  * whole. */
-static bool animates(const GameState *g, MenuObject o)
+static bool marker_takes(const GameState *g, MenuObject o)
 {
     return menu_sprite_list_is_sound(g) && menu_object_queue_is_whole(g)
            && (menu_object_slots_step(g, o) == 0 || menu_sprite_script_is_well_formed(g, o));
 }
 
-bool menu_epoch_marker_runs(Snes *s)
+static bool digit_takes(const GameState *g, MenuObject digit)
+{
+    uint8_t step = menu_object_slots_step(g, digit);
+    uint8_t period = menu_object_slots_period(g, digit);
+    /* A hidden digit shows nothing until it is given its showing script. */
+    bool hidden = step <= DIGIT_HIDDEN;
+    return step <= DIGIT_HIDING && menu_sprite_list_is_sound(g) && menu_object_queue_is_whole(g)
+           && (hidden || menu_sprite_script_is_well_formed(g, digit))
+           && menu_given_sprite_script_is_well_formed(g, menu_digit_show_script(g, period))
+           && menu_given_sprite_script_is_well_formed(g, menu_digit_hide_script(g, period));
+}
+
+/* On the machine, each also runs on the menus' page with its slot in X. */
+static bool runs_and_takes(Snes *s, bool (*takes)(const GameState *g, MenuObject o))
 {
     if (!menu_epoch_object_runs(s))
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = animates(g, menu_object_running(g));
+    bool ok = takes(g, menu_object_running(g));
     vars_peek(false);
     return ok;
 }
 
-bool menu_epoch_digit_runs(Snes *s)
-{
-    if (!on_a_step(s, DIGIT_HIDING + 1))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    MenuObject digit = menu_object_running(g);
-    uint8_t period = menu_object_slots_period(g, digit);
-    /* A hidden digit shows nothing until it is given its showing script. */
-    bool hidden = menu_object_slots_step(g, digit) <= DIGIT_HIDDEN;
-    bool ok = menu_sprite_list_is_sound(g) && menu_object_queue_is_whole(g)
-              && (hidden || menu_sprite_script_is_well_formed(g, digit))
-              && menu_given_sprite_script_is_well_formed(g, menu_digit_show_script(g, period))
-              && menu_given_sprite_script_is_well_formed(g, menu_digit_hide_script(g, period));
-    vars_peek(false);
-    return ok;
-}
+bool menu_epoch_cursor_runs(Snes *s) { return runs_and_takes(s, cursor_takes); }
+bool menu_epoch_dial_runs(Snes *s) { return runs_and_takes(s, dial_takes); }
+bool menu_epoch_spin_runs(Snes *s) { return runs_and_takes(s, spin_takes); }
+bool menu_epoch_marker_runs(Snes *s) { return runs_and_takes(s, marker_takes); }
+bool menu_epoch_digit_runs(Snes *s) { return runs_and_takes(s, digit_takes); }
 
 /* A slot's object is running: the dial's graphics count the digits' periods
  * in its slot. */
@@ -1709,7 +1930,8 @@ static void handler_returns(Snes *s, bool done, bool wide)
 /* It comes back with an 8-bit accumulator. */
 void menu_epoch_build_map(Snes *s)
 {
-    if (!build_map_view_on_the_machine(s))
+    Unpacker u = overworld_unpacker_on_the_machine(s);
+    if (!build_map_view_from(state_of(s), m_platform(s), &u))
         return;
     m_sep(s, CPU_FLAG_M);
     m_rts(s);
@@ -1759,6 +1981,70 @@ MENU_SCRIPT_ROUTINES(menu_map_view_routines,
     { 0xC268F4, "the map view's backdrop", NULL, show_the_backdrop },
 );
 
+/* ---- The screens' objects as C (menu/handlers.h) ------------------------------------------- */
+
+/* Each object's turn, which the vblank handler runs: the cursor done once it
+ * has walked back, a marker once it isn't shown, and the dial, its gate's
+ * spin and its digits never. */
+static MenuTurn cursor_turn(GameState *g, Platform *pf, MenuObject self)
+{
+    (void)pf;
+    return menu_turn_done_if(map_view_cursor(g, self) == CURSOR_DONE);
+}
+
+static MenuTurn party_marker_turn(GameState *g, Platform *pf, MenuObject self)
+{
+    (void)pf;
+    return menu_turn_done_if(party_marker(g, self) != MARKER_SHOWN);
+}
+
+static MenuTurn epoch_marker_turn(GameState *g, Platform *pf, MenuObject self)
+{
+    (void)pf;
+    return menu_turn_done_if(epoch_marker(g, self) != MARKER_SHOWN);
+}
+
+static MenuTurn landing_marker_turn(GameState *g, Platform *pf, MenuObject self)
+{
+    (void)pf;
+    return menu_turn_done_if(landing_marker(g, self) != MARKER_SHOWN);
+}
+
+/* The buzz of a period the party is at goes to the sound driver from the
+ * dial's own call. */
+enum { BUZZ_SENT = 0xC26BE9, SOUND_DRIVER = 0xC70004 };
+
+static MenuTurn dial_turn(GameState *g, Platform *pf, MenuObject self)
+{
+    if (time_dial(g, pf, self) == DIAL_BUZZES)
+        au_command(pf, PF_CALL_DC(BUZZ_SENT, SOUND_DRIVER, READS_X_AND_A_HIGH),
+                   (AudioCommand){ .command = SOUND_EFFECT_ON_VOICES_6_7, .p1 = BUZZ_EFFECT, .p2 = BUZZ_PAN, .count = 2 });
+    return MENU_TURN_GOES_ON;
+}
+
+static MenuTurn spin_turn(GameState *g, Platform *pf, MenuObject self)
+{
+    gate_spin(g, pf, self);
+    return MENU_TURN_GOES_ON;
+}
+
+static MenuTurn digit_turn(GameState *g, Platform *pf, MenuObject self)
+{
+    (void)pf;
+    dial_digit(g, self);
+    return MENU_TURN_GOES_ON;
+}
+
+MENU_HANDLERS(menu_epoch_handlers,
+    { 0x666C, "the map view's cursor", cursor_takes, cursor_turn },
+    { 0x67FA, "the map view's marker of the party", marker_takes, party_marker_turn },
+    { 0x683B, "the map view's marker of the Epoch", marker_takes, epoch_marker_turn },
+    { 0x68A3, "the map view's marker of the landing", marker_takes, landing_marker_turn },
+    { DIAL_HANDLER, "the time dial", dial_takes, dial_turn },
+    { SPIN_HANDLER, "the time gate's spin", spin_takes, spin_turn },
+    { DIGIT_HANDLER, "a time dial's digit", digit_takes, digit_turn },
+);
+
 // $C2:6400
 void menu_epoch_sample_map_colours(Snes *s)
 {
@@ -1787,8 +2073,8 @@ void menu_epoch_place_map_picture(Snes *s)
 // $C2:6965
 void menu_epoch_load_map_graphics(Snes *s)
 {
-    load_map_view_graphics(s);
-    m_rts(s);
+    if (load_map_view_graphics_with(state_of(s), m_platform(s), &screen_steps_on_the_machine, s))
+        m_rts(s);
 }
 
 // $C2:666C
@@ -1909,8 +2195,9 @@ void menu_epoch_time_dial_digit(Snes *s)
 /* The stream's number is in the mode's cell at $08, its bank in A. */
 void menu_epoch_load_gate_stream(Snes *s)
 {
-    load_gate_stream(s, menu_object_scratch_bytes_byte(state_of(s), 0x08), (uint8_t)s->cpu.a);
-    m_rts(s);
+    Unpacker u = { unpack_by_the_loader_s_call, s };
+    if (load_gate_stream_from(state_of(s), &u, menu_object_scratch_bytes_byte(state_of(s), 0x08), (uint8_t)s->cpu.a))
+        m_rts(s);
 }
 
 // $C2:722C
@@ -1954,7 +2241,9 @@ void menu_epoch_expand_gate_nibbles(Snes *s)
 // $C2:7389
 void menu_epoch_gate_graphics(Snes *s)
 {
-    build_the_dial(s);
+    if (!build_the_dial_with(state_of(s), m_platform(s), &screen_steps_on_the_machine, s))
+        return;
+    s->cpu.a = (uint16_t)((DIAL_LAST_SCRIPT & 0xFF00) | (uint8_t)(DIAL_LAST_SCRIPT >> 16));
     m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }
