@@ -198,11 +198,70 @@ bool menu_techs_members_are_drawable(const GameState *g);
 bool menu_techs_list_is_pointable(const GameState *g);
 bool menu_techs_member_is_listable(const GameState *g);
 
+/* What the steps below take of the state, as their entries' guards do: the
+ * opening; the members' step (and the moves among them). */
+bool menu_techs_can_open(const GameState *g);
+bool menu_techs_can_move_among_members(const GameState *g);
+
+/* ---- The opening and the members, one sequence for the machine and for C ---------------------- */
+
+/* The screen's opening ($C2:B35D), its member list laid out ($C2:B365), the
+ * choice among the members ($C2:B36D) and the moves among them ($C2:B520)
+ * are each one sequence, which the machine's entries (tech_screen_bridge.c)
+ * and the program as C both run, asking the menus for what differs through
+ * TechsSteps.
+ *
+ * The places the sequences tick from. */
+typedef enum { TECHS_AT_THE_OPENING, TECHS_AT_ANOTHER_LIST, TECHS_AT_A_MEMBER_CHOSEN } TechsPlace;
+
+/* Where the machine does what only it needs: the flags the original's tests
+ * left, the P a routine saves and the widths it sets. */
+typedef enum {
+    TECHS_NOTE_OPENED,             /* the screen opened (the step), its set-up starting */
+    TECHS_NOTE_ROCKS_NOTED,        /* the rocks' techs noted */
+    TECHS_NOTE_SET_UP,             /* the scroll bar started, the set-up done */
+    TECHS_NOTE_BUTTONS_TESTED,     /* the cursor's buttons tested */
+    TECHS_NOTE_SHOWN_COMPARED,     /* the list shown compared with this one before */
+    TECHS_NOTE_LISTED,             /* the member's techs listed (how many) */
+    TECHS_NOTE_DESCRIPTION_STALE,  /* on to the list, the description's state loaded */
+    TECHS_NOTE_KIND_SWITCHED,      /* the kind switched, from this one */
+    TECHS_NOTE_CURSOR_KEPT,        /* the cursor kept on the members */
+    TECHS_NOTE_LIST_MADE,          /* the member's list made, this one shown before */
+    TECHS_NOTE_KIND_DESCRIBED,     /* the kind's caption shown */
+    TECHS_NOTE_ROWS_QUEUED,        /* the rows queued */
+} TechsNote;
+
+/* What the sequences ask: the cursor read, a tick, the refusal the step ends
+ * on, the moves among the members, the member list slid, the kind's caption,
+ * the lister shown, the way back to the main menu, a note. Each false where
+ * it went no further. */
+typedef struct {
+    void (*read_cursor)(void *ctx);
+    bool (*tick)(void *ctx, TechsPlace at);
+    bool (*refuse)(void *ctx);
+    bool (*move_among_members)(void *ctx);
+    bool (*slide_members)(void *ctx);
+    bool (*describe_the_kind)(void *ctx);
+    bool (*show_the_lister)(void *ctx);
+    bool (*back_to_the_main_menu)(void *ctx);
+    void (*note)(void *ctx, TechsNote note, uint8_t value);
+} TechsSteps;
+
+bool menu_open_techs_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_choose_tech_member_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_move_among_tech_members_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+
+/* As C, from the menus' main task; false where the program went no
+ * further. */
+bool menu_open_techs(GameState *g, Platform *pf);
+bool menu_lay_out_tech_members(GameState *g, Platform *pf);
+bool menu_choose_tech_member(GameState *g, Platform *pf);
+
 /* ---- The entries (game/menu/tech_screen_bridge.c) --------------------------------------------- */
 
-void menu_open_techs(Snes *s);
-void menu_lay_out_tech_members(Snes *s);
-void menu_choose_tech_member(Snes *s);
+void menu_open_techs_entry(Snes *s);
+void menu_lay_out_tech_members_entry(Snes *s);
+void menu_choose_tech_member_entry(Snes *s);
 void menu_choose_tech(Snes *s);
 void menu_choose_tech_target(Snes *s);
 void menu_move_among_tech_members(Snes *s);

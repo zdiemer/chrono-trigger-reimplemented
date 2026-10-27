@@ -549,10 +549,11 @@ program and runs its frames headless: the vblank handler, the main thread as a
 coroutine until it waits for the frame, the line handler, then a frame of the
 sound driver's time. Where the program's next step is still only a machine
 entry, `program_needs_the_machine` stops it and the driver says where (exit
-status 1; here with `menu.ctm`'s presses, at the main menu's opening):
+status 1; here from a cartridge save with `saves/menus-field-menu.ctm`'s
+presses, at the load screen's opening):
 
 ```
-frame 7417: the program's C goes no further: $C2:99CE, a menu screen's step only the machine runs, runs only on the machine
+frame 1692: the program's C goes no further: $C2:E613, a menu screen's step only the machine runs, runs only on the machine
 ```
 
 So far the boot and the field run as C. At power-on the field's handlers
@@ -623,7 +624,12 @@ With `fair.ctm`'s, Crono leaves the house and walks the world map -- the
 walkers, the places' watcher, the music and the sign as C
 (`overworld/handlers.c`) -- into Leene Square, where the movie ends; with
 `gato-battle.ctm`'s, on through the fair to Gato's battle and the field
-after it, to the movie's end.
+after it, to the movie's end. With `menu.ctm`'s, Crono opens the main menu
+in his house: its opening, its choosing and its panels, and the equipment,
+the items, the techs and the settings opened from it and left again, each
+step the menus' main task runs a row of `menu/screens.c`'s table with a C
+column, and the scroll bar's and the records' tasks on their coroutines;
+then the menu closed, to the movie's end.
 
 The field's steps as the program calls them (`field_runs`,
 `field/main_loop.c`) are functions of the game's state that the entries

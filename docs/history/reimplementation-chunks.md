@@ -11524,3 +11524,57 @@ limit of 0.38%, +0.36% before). Fuzzing, seed 1, 2,000 states, `tools/fuzz_compa
 `ct_fuzz`: the 37 runs of the 28 entries the sequences changed most the same
 as before, and `scene_race_set_up` and `menu_object_wave_hdma` the same.
 Gate: suite OK.
+
+#### The native program through the attract sequence
+
+With the battle as C (the history file, "The native program through the
+battle"), `ct_native` alone stopped at frame 7519, in the attract demo's
+jet bike race, set up as C, at its first frame's tasks (`$7E:5221`): the
+race's tasks were rows of `scene/frame.c`'s table of the tasks whose entries
+take the machine, with no C column. Each has one now, and the next blocker,
+the rising palace's setup (`$7E:671F`, mode 3), the scene the attract demo
+goes on to, is a C setup beside the race's, so the attract sequence runs as
+C from the boot round to the title again and on: `ct_native` alone ran
+200,000 frames without stopping.
+
+The table's C column is a `SceneTaskInC` (scene.h): the task's frame on its
+list's slot, returning how it ends (`TaskEnd`, as the tasks that are C
+throughout return), so the list empties a slot or hands it over as C; one
+that needs the machine ends `TASK_LEFT_TO_THE_ORIGINAL` through
+`scene_task_needs_the_machine`. The C function takes the routine's plain name
+(`scene_race_ride`), and the registered `Snes *` wrapper is `*_entry`.
+
+- **One sequence per task.** Where the task's frame calls the original's
+  code on the machine, the work is a `*_with` sequence taking the call as a
+  step: the curtain's step (`sweep_curtain_with`, scene/race.c; the palace's
+  `sweep_the_curtain_with`), the perspective's build
+  (`check_perspective_with`, race_camera.c), and the race's own sound effects
+  (`ride_with`, `coast_with`, `wait_to_leave_with`, race_rules.c, through
+  `race_send_sound` and a `RaceSends` step: `race_sound_on_the_machine` from
+  the race's call of the program's send, `race_sound` the send's port). The
+  machine wrapper hands the sequence `*_on_the_machine` steps and sets, from
+  the `TaskEnd`, what the list's code reads (the slot handed over in X, A's
+  high byte); the rest are the same logic function called by both.
+- **The guards' state halves.** The ride's and the coast's room on the lists
+  (`ride_lists_fit`, `coast_lists_fit`), the bikes' placing
+  (`bikes_placeable`), the drawing (`drawing_fits`), the perspective's lines
+  (`scene_perspective_fits`, perspective.c, split from
+  `scene_perspective_as_ported`, whose code hashes stay the machine's half)
+  and the curtain's table (`scene_curtain_stepped`, curtain.c, the step as
+  the scenes' C paths take it) are `const GameState *` functions the guard
+  and the C path both call; the other tasks' guards are their code and page
+  alone. The list's slot is the curtain stir's salt, as X is on the machine.
+- **The palace** (scene/rising_palace.c): its setup is one sequence
+  (`set_up_the_palace_with`) whose scripts' first step is the step, a row of
+  `scene/program.c`'s C setups, and its curtain's sweep the race's shape.
+
+**Measured.** Shadow mode over the library: 0 mismatches. Fuzzing, seed 1,
+`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the race's
+and the palace's entries (and the perspective's build): the 42 runs the
+same as before, none mismatching and the guards' refusals unchanged.
+Timing: every entry within its limits, none recalibrated. `tools/effects_check.py`: the field's two lines for the
+curtain's guard (`sweep_the_curtain`) moved to the shared step
+(`scene_curtain_stepped`), which the race and the palace call too; none new.
+`ct_native` with the movies' presses goes as far as before
+(`menu.ctm`'s stop at the main menu's opening, `$C2:99CE`, is the first
+stop left). Gate: suite OK.

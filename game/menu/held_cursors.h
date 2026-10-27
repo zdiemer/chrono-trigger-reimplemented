@@ -32,6 +32,9 @@ void menu_draw_cursors_on_every_member(GameState *g);
  * arrows. */
 void menu_start_the_scroll_bar(GameState *g);
 void menu_draw_the_scroll_bar(GameState *g);
+/* The scroll bar's thumb on the screen, which drawing it takes (its task's
+ * guard's state half). */
+bool menu_scroll_bar_can_be_drawn(const GameState *g);
 
 /* The registered entries ($C2:8A98, $C2:8ABA, $C2:89E4, $C2:89FA,
  * $C2:8A31, $C2:8A45, $C2:8AD5, $C2:8AFD, $C2:8B93) and their guards; the

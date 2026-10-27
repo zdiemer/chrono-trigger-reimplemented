@@ -30,6 +30,7 @@
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/held_cursors.h"
+#include "menu/sprites.h"
 #include "original_effects.h"
 #include "platform/timing.h"
 #include "port/machine.h"
@@ -522,7 +523,8 @@ void menu_run_the_cursor_task(Snes *s) { (void)cursor_task_turn(state_of(s), cur
 
 // $C2:8BB8, $C2:8C33
 /* The scroll bar's task (MENU_SCROLL_BAR_TASK), from its start and from its
- * wait, which it waits in with A 8-bit and the index registers 16-bit. */
+ * wait: a frame of its arrows, then the wait, which it waits in with A 8-bit
+ * and the index registers 16-bit. */
 void menu_run_the_scroll_bar_task(Snes *s)
 {
     menu_set_widths(s, true, false);
@@ -540,6 +542,10 @@ typedef void (*MenuTaskAsC)(GameState *g, Platform *pf);
 
 static void main_task(GameState *g, Platform *pf);
 static void cursor_task(GameState *g, Platform *pf);
+static void scroll_bar_task(GameState *g, Platform *pf);
+static void records_task(GameState *g, Platform *pf);
+
+enum { SCROLL_BAR_TASK_HEAD = 0x8BB8, RECORDS_TASK_HEAD = 0xF657 };
 
 static const struct {
     uint16_t start;
@@ -547,6 +553,8 @@ static const struct {
 } tasks[] = {
     { MAIN_TASK_HEAD, main_task },
     { CURSOR_TASK_HEAD, cursor_task },
+    { SCROLL_BAR_TASK_HEAD, scroll_bar_task },
+    { RECORDS_TASK_HEAD, records_task },
     { MENU_FADE_IN_TASK_START, menu_fade_in_task },
     { MENU_TYPE_A_DESCRIPTION, menu_type_the_description_task },
     { MENU_TYPE_A_SETTING, menu_type_the_setting_task },
@@ -658,6 +666,31 @@ static void cursor_task(GameState *g, Platform *pf)
         ;
     if (!menu_cursor_can_be_placed(g))
         program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | CURSOR_TASK_HEAD, "a cursor the port doesn't place");
+}
+
+/* The scroll bar's turns while its guard's state half takes them, each
+ * frame's arrows timed as its entry's. */
+static void scroll_bar_task(GameState *g, Platform *pf)
+{
+    (void)pf;
+    enum { FIRST_TURN = 0xC28BB8, LATER_TURNS = 0xC28C33 };
+    for (uint32_t turn = FIRST_TURN; menu_scroll_bar_can_be_drawn(g); turn = LATER_TURNS) {
+        TIMED_AS(g, turn, menu_draw_the_scroll_bar(g));
+        menu_task_waits(g, 1);
+    }
+    program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | SCROLL_BAR_TASK_HEAD, "a scroll bar the port doesn't draw");
+}
+
+/* The records' turns, the same way. */
+static void records_task(GameState *g, Platform *pf)
+{
+    (void)pf;
+    enum { FIRST_TURN = 0xC2F657, LATER_TURNS = 0xC2F699 };
+    for (uint32_t turn = FIRST_TURN; menu_records_can_run(g); turn = LATER_TURNS) {
+        TIMED_AS(g, turn, menu_run_the_records(g));
+        menu_task_waits(g, 1);
+    }
+    program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | RECORDS_TASK_HEAD, "records the port doesn't run");
 }
 
 /* ---- The guards -------------------------------------------------------------------------------- */

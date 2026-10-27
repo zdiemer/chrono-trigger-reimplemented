@@ -473,25 +473,21 @@ void menu_show_member_element(Snes *s)
 enum { EQUIPPED_AT = 0x30A2 };
 
 // $C2:A22F
-/* The card of the member the cursor is on; false where a call-out came back
- * otherwise than it was called, and the port has stopped. */
-static bool draw_member_card(Snes *s)
+/* The card of the member the cursor is on. */
+void menu_draw_member_card(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
-    menu_set_widths(s, true, m_x8(s));
     menu_start_member_card(g);
     TIMED_AS(g, 0xC29137, menu_note_member_figures(g));
-    menu_draw_member_card_window(g, m_platform(s));
+    menu_draw_member_card_window(g, pf);
     TIMED_AS(g, 0xC2A6F0, menu_equip_draw_equipped(g, EQUIPPED_AT));
     menu_finish_member_card(g);
-    return true;
 }
 
-void menu_draw_member_card(Snes *s)
+void menu_draw_member_card_entry(Snes *s)
 {
     menu_save_p(s);
-    if (!draw_member_card(s))
-        return;
+    menu_set_widths(s, true, m_x8(s));
+    menu_draw_member_card(state_of(s), m_platform(s));
     menu_restore_p(s);
     m_rts(s);
 }
@@ -510,7 +506,7 @@ void menu_redraw_member_card(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, false, false);
-    if (!menu_run(s, 0xC2A222, 0xC2A22F, menu_draw_member_card))
+    if (!menu_run(s, 0xC2A222, 0xC2A22F, menu_draw_member_card_entry))
         return;
     if (!record_names_a_character(g)) {
         m_stop_at(s, ROW_AFTER_THE_CARD, ROW_READS_NOTHING);

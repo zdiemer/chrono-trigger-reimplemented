@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "platform/audio.h"
 #include "platform/video.h"
 #include "snes/system.h"
 #include "state.h"
@@ -167,11 +168,65 @@ bool menu_settings_on_an_option(const GameState *g);
 bool menu_settings_on_a_layout(const GameState *g);
 bool menu_settings_on_a_button_row(const GameState *g);
 bool menu_settings_describable(const GameState *g);
+/* The opening, the options' step (the cursor movable besides), an option
+ * taken: what their entries' guards take of the state. */
+bool menu_settings_can_open(const GameState *g);
+bool menu_settings_can_choose(const GameState *g);
+bool menu_settings_option_can_be_taken(const GameState *g);
+
+/* ---- The opening and the options, one sequence for the machine and for C ---------------------- */
+
+/* The screen's opening ($C2:BF3D), the options' step ($C2:BF45) and an
+ * option taken ($C2:BFD4) are each one sequence, which the machine's entries
+ * (settings_screen_bridge.c) and the program as C both run, asking the menus
+ * for what differs through SettingsSteps.
+ *
+ * The places the sequences tick from. */
+typedef enum { SETTINGS_AT_THE_OPENING, SETTINGS_AT_THE_CURSOR_MOVED, SETTINGS_AT_AN_OPTION_CHOSEN } SettingsPlace;
+
+/* Where the machine leaves what the original's tests left (scaffolding),
+ * and the P an option's taking saves round its handler. */
+typedef enum {
+    SETTINGS_NOTE_EDITING_TESTED,  /* whether a speed or the design is being set, tested */
+    SETTINGS_NOTE_PACKED,          /* the settings packed as the screen is left */
+    SETTINGS_NOTE_BUTTONS_TESTED,  /* the cursor's buttons tested */
+    SETTINGS_NOTE_CURSOR_COMPARED, /* the cursor compared with where it started */
+    SETTINGS_NOTE_OPTION_PICKED,   /* this option's handler picked */
+    SETTINGS_NOTE_HANDLED,         /* its handler done */
+    SETTINGS_NOTE_SHOWN,           /* the option shown, the buttons loaded */
+} SettingsNote;
+
+/* What the sequences ask: the cursor read, a tick, the option taken, the
+ * option's handler, the way back to the main menu, a note. Each false where
+ * it went no further. */
+typedef struct {
+    void (*read_cursor)(void *ctx);
+    bool (*tick)(void *ctx, SettingsPlace at);
+    bool (*take_the_option)(void *ctx);
+    bool (*handle)(void *ctx, SettingsOption option);
+    bool (*back_to_the_main_menu)(void *ctx);
+    void (*note)(void *ctx, SettingsNote note, uint8_t value);
+} SettingsSteps;
+
+bool menu_open_settings_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx);
+bool menu_choose_setting_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx);
+bool menu_take_setting_option_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx);
+
+/* The stereo option's handler ($C2:C017): flipped where chosen, and then
+ * the sound driver told the mode (menu_settings_send_sound_output), through
+ * `send`; false where it went no further. */
+bool menu_settings_set_sound_output(GameState *g, bool (*send)(void *ctx), void *ctx);
+void menu_settings_send_sound_output(GameState *g, Platform *pf);
+
+/* As C, from the menus' main task; false where the program went no
+ * further. */
+bool menu_open_settings(GameState *g, Platform *pf);
+bool menu_choose_setting(GameState *g, Platform *pf);
 
 /* ---- The entries (game/menu/settings_screen_bridge.c) ------------------------------------------- */
 
-void menu_open_settings(Snes *s);
-void menu_choose_setting(Snes *s);
+void menu_open_settings_entry(Snes *s);
+void menu_choose_setting_entry(Snes *s);
 void menu_choose_buttons(Snes *s);
 void menu_choose_gauge_layout(Snes *s);
 void menu_take_setting_option(Snes *s);

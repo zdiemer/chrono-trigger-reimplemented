@@ -199,13 +199,89 @@ void menu_items_after_one_used(GameState *g);
 bool menu_items_list_is_pointable(const GameState *g);
 bool menu_items_rows_can_be_drawn(const GameState *g);
 
+/* What the steps below take of the state, as their entries' guards do: the
+ * opening, the list's step (and pointing at an item on it), the sort. */
+bool menu_items_can_open(const GameState *g);
+bool menu_items_can_point_along_the_list(const GameState *g);
+bool menu_items_can_sort(const GameState *g);
+
+/* An item's description drawn (item 0, an empty place's, a blank one);
+ * the item on the cursor noted and its description drawn ($C2:AD2E). */
+void menu_items_describe(GameState *g, uint8_t item);
+void menu_items_describe_the_cursors_item(GameState *g);
+
+/* ---- The steps, one sequence for the machine and for C ---------------------------------------- */
+
+/* The screen's opening ($C2:AA40), its commands ($C2:AA4A), its list
+ * ($C2:AA86) and the pointing along it ($C2:AC3A, $C2:AC59), and the sort
+ * ($C2:AB4A) are each one sequence, which the machine's entries
+ * (item_screen_bridge.c) and the program as C both run, asking the menus for
+ * what differs through ItemsSteps.
+ *
+ * The places the sequences tick or wait from. */
+typedef enum {
+    ITEMS_AT_THE_OPENING,         /* the screen opening */
+    ITEMS_AT_A_COMMAND_POINTED,   /* the cursor moved among the commands */
+    ITEMS_AT_A_COMMAND_CHOSEN,    /* a command chosen */
+    ITEMS_AT_AN_ITEM_PICKED_UP,   /* an item picked up off the list */
+    ITEMS_AT_THE_LIST_LEFT,       /* back from the list to the commands */
+    ITEMS_AT_A_LISTED_ITEM_POINTED, /* the cursor moved to another row */
+    ITEMS_AT_THE_SORT,            /* the sort made, a frame's wait */
+} ItemsPlace;
+
+/* Where the machine does what only it needs (main_menu.h's MainMenuNote
+ * says how): the flags the original's tests left, and the P a routine saves
+ * and the widths it sets, at these points. */
+typedef enum {
+    ITEMS_NOTE_OPENED,              /* the screen opened, its set-up starting */
+    ITEMS_NOTE_LIST_FRAMED,         /* the list's frame drawn */
+    ITEMS_NOTE_SET_UP,              /* the set-up done */
+    ITEMS_NOTE_BUTTONS_TESTED,      /* the cursor's buttons tested */
+    ITEMS_NOTE_CURSOR_COMPARED,     /* the cursor compared with where it started */
+    ITEMS_NOTE_PICKED_UP,           /* an item picked up, the step ending */
+    ITEMS_NOTE_POINTING,            /* pointing along the list starting */
+    ITEMS_NOTE_PAGING_ANSWERED,     /* the paging's answer: a page turned (1) or not */
+    ITEMS_NOTE_ROWS_REDRAWN,        /* a page's rows drawn again */
+    ITEMS_NOTE_PLACE_COMPARED,      /* the cursor's row kept and compared */
+    ITEMS_NOTE_ROWS_QUEUED,         /* the list's rows queued */
+    ITEMS_NOTE_CURSOR_KEPT,         /* the cursor kept on the list */
+    ITEMS_NOTE_ENDS_COMPARED,       /* the list's ends compared, no slide */
+} ItemsNote;
+
+/* What the sequences ask: the cursor read, a tick, a frame's wait, the
+ * item on the cursor described, the list slid a row, the way back to the
+ * main menu, a note. Each false where it went no further. */
+typedef struct {
+    void (*read_cursor)(void *ctx);
+    bool (*tick)(void *ctx, ItemsPlace at);
+    bool (*wait)(void *ctx, ItemsPlace at);
+    bool (*describe)(void *ctx);
+    bool (*slide_the_list)(void *ctx);
+    bool (*back_to_the_main_menu)(void *ctx);
+    void (*note)(void *ctx, ItemsNote note, uint8_t value);
+} ItemsSteps;
+
+bool menu_open_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
+bool menu_choose_item_command_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
+bool menu_choose_on_item_list_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
+bool menu_point_along_the_item_list_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
+bool menu_point_at_listed_item_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
+bool menu_sort_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
+
+/* As C, from the menus' main task; false where the program went no
+ * further. */
+bool menu_open_items(GameState *g, Platform *pf);
+bool menu_choose_item_command(GameState *g, Platform *pf);
+bool menu_choose_on_item_list(GameState *g, Platform *pf);
+bool menu_sort_items(GameState *g, Platform *pf);
+
 /* ---- The entries (game/menu/item_screen_bridge.c) --------------------------------------------- */
 
-void menu_open_items(Snes *s);
-void menu_choose_item_command(Snes *s);
-void menu_choose_on_item_list(Snes *s);
+void menu_open_items_entry(Snes *s);
+void menu_choose_item_command_entry(Snes *s);
+void menu_choose_on_item_list_entry(Snes *s);
 void menu_move_picked_item(Snes *s);
-void menu_sort_items(Snes *s);
+void menu_sort_items_entry(Snes *s);
 void menu_close_item_users(Snes *s);
 void menu_point_at_listed_item(Snes *s);
 void menu_describe_listed_item(Snes *s);

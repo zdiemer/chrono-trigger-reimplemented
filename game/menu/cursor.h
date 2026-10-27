@@ -18,6 +18,13 @@ typedef enum { MENU_SOUND_CURSOR = 0, MENU_SOUND_REFUSAL = 1, MENU_SOUND_6 = 6, 
  * the routines that play one do on the machine). */
 void menu_sound_played(GameState *g, Platform *pf, uint8_t sound);
 
+/* What a screen's step does as C, each timed as the routine the machine
+ * calls for it: the cursor read for the frame, the cursor's tick, and the
+ * buzz of a choice refused. */
+void menu_read_the_cursor_for_a_step(GameState *g);
+void menu_tick(GameState *g, Platform *pf);
+void menu_buzz(GameState *g, Platform *pf);
+
 /* Whether the cursor stands on one of its menu's places, and the neighbour
  * the pad pushes it to is one too (what the screens that move it take). */
 bool menu_cursor_can_move(const GameState *g);

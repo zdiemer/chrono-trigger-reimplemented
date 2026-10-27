@@ -75,6 +75,11 @@ void menu_empty_the_character_records(GameState *g);
 void menu_start_the_records(GameState *g);
 void menu_load_character_colours(GameState *g);
 
+/* A frame of the records' task ($C2:F657): each record's sprite drawn and
+ * animated; and what a frame of it takes (its entry's guard's state half). */
+void menu_run_the_records(GameState *g);
+bool menu_records_can_run(const GameState *g);
+
 /* The three colours of the weapon a character wears, which its sprite
  * palette ends with ($C2:F5ED). */
 typedef struct {

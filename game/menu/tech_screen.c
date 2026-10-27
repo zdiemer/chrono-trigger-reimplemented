@@ -30,15 +30,19 @@
 #include "menu/tech_screen.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
 #include "menu/display.h"
+#include "menu/held_cursors.h"
 #include "menu/item_screen.h"
 #include "menu/lists.h"
+#include "menu/main_menu.h"
 #include "menu/members.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
+#include "menu/party.h"
 #include "menu/sprites.h"
 #include "menu/text.h"
 #include "menu/tiles.h"
@@ -1156,6 +1160,23 @@ void menu_techs_panel_show(GameState *g, Platform *pf)
     menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER);
 }
 
+// $C2:B8DA
+/* The panel: its windows, the sprites' colours, a frame, the records' task,
+ * the member rows, the tabs, colours and colour math. */
+bool menu_show_techs_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
+{
+    uint8_t row = menu_tech_member_row(g);
+    menu_techs_panel_lay_out(g, pf);
+    n->note(ctx, MAIN_MENU_NOTE_TECHS_MEMBER_CHOSEN, row);
+    TIMED_AS(g, 0xC2F5A7, menu_load_character_colours(g));
+    if (!n->wait(ctx, MAIN_MENU_AT_THE_TECHS_LAID_OUT))
+        return false;
+    TIMED_AS(g, 0xC2F643, menu_start_the_records(g));
+    TIMED_AS(g, 0xC2BA4F, menu_techs_draw_member_rows(g, pf));
+    menu_techs_panel_show(g, pf);
+    return true;
+}
+
 // $C2:B960
 void menu_techs_panel_put_away(GameState *g, Platform *pf)
 {
@@ -1181,6 +1202,16 @@ bool menu_techs_members_are_drawable(const GameState *g)
             return false;
     return true;
 }
+
+/* The panel: room for its three uploads, its members, a tab, and its
+ * windows; putting it away, room for its upload. */
+bool menu_techs_panel_can_show(const GameState *g)
+{
+    return menu_upload_queue_takes(g, 3) && menu_techs_members_are_drawable(g) && menu_tech_category(g) < MENU_TECH_KINDS
+           && menu_window_list_drawable(g, PANEL_WINDOWS);
+}
+
+bool menu_techs_panel_can_go(const GameState *g) { return menu_upload_queue_takes(g, 1); }
 
 /* The member's list as the screen made it: within its places, every tech
  * one of the game's and its group one of the groups. */
@@ -1210,4 +1241,203 @@ bool menu_techs_list_is_pointable(const GameState *g)
             return false;
     }
     return menu_tech_list_row(g) + top < (listed > 0 ? listed : 1);
+}
+
+/* The opening: room for its uploads and its colours, its windows, the
+ * member row one of the list's. */
+bool menu_techs_can_open(const GameState *g)
+{
+    return menu_upload_queue_takes(g, 3) && menu_palette_changes_have_room(g) && menu_window_list_drawable(g, SCREEN_WINDOWS)
+           && menu_tech_member_row(g) < MENU_MEMBER_ROWS;
+}
+
+/* Among the members: room for the uploads, the member's list as made, the
+ * cursor on the member rows' places. */
+bool menu_techs_can_move_among_members(const GameState *g)
+{
+    return menu_upload_queue_takes(g, 4) && menu_techs_member_is_listable(g) && menu_cursor_index(g) >= FIRST_MEMBER_PLACE
+           && menu_cursor_index(g) < FIRST_MEMBER_PLACE + MENU_MEMBER_ROWS;
+}
+
+/* ---- The opening and the members ---------------------------------------------------------------- */
+
+// $C2:B35D, $C2:B979
+/* A tick, the screen's windows, the rocks' triple techs worked out and
+ * noted, the scroll bar's task, and the sprites. */
+bool menu_open_techs_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+{
+    if (!n->tick(ctx, TECHS_AT_THE_OPENING))
+        return false;
+    menu_techs_open(g, pf);
+    n->note(ctx, TECHS_NOTE_OPENED, menu_screen_step(g));
+    TIMED_AS(g, 0xC282E1, party_rocks_teach(g));
+    menu_techs_note_rock_techs(g);
+    n->note(ctx, TECHS_NOTE_ROCKS_NOTED, 0);
+    TIMED_AS(g, 0xC28B93, menu_start_the_scroll_bar(g));
+    n->note(ctx, TECHS_NOTE_SET_UP, 0);
+    menu_techs_show(g);
+    return true;
+}
+
+// $C2:B520
+/* Left and right switch the kind; up and down move among the members, the
+ * cursor kept on their list, sliding the list past its ends; the member's
+ * list made where it is another, the kind's tab, its caption, and the rows
+ * sent. */
+bool menu_move_among_tech_members_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+{
+    (void)pf;
+    uint8_t kind_before = menu_tech_category(g);
+    menu_techs_switch_kind(g);
+    n->note(ctx, TECHS_NOTE_KIND_SWITCHED, kind_before);
+    TIMED_AS(g, 0xC2EA53, menu_keep_the_cursor_on_the_list(g));
+    n->note(ctx, TECHS_NOTE_CURSOR_KEPT, 0);
+    if (menu_techs_push_slides_members(g) && !n->slide_members(ctx))
+        return false;
+    uint8_t before = menu_tech_list_shown(g);
+    menu_techs_point_at_member(g);
+    menu_techs_mark_kind(g);
+    n->note(ctx, TECHS_NOTE_LIST_MADE, before);
+    if (!n->describe_the_kind(ctx))
+        return false;
+    n->note(ctx, TECHS_NOTE_KIND_DESCRIBED, 0);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
+    n->note(ctx, TECHS_NOTE_ROWS_QUEUED, 0);
+    return true;
+}
+
+// $C2:B36D
+/* Among the members: choosing goes into the member's list (a tick, the
+ * lister, the list) where it has a tech, else is refused; going back leaves
+ * for the main menu; else the moves, and a tick where the list is
+ * another. */
+bool menu_choose_tech_member_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+{
+    uint8_t before = menu_techs_note_list_shown(g);
+    n->read_cursor(ctx);
+    TechsMemberChoice c = menu_techs_choose_member(g);
+    n->note(ctx, TECHS_NOTE_BUTTONS_TESTED, 0);
+    switch (c) {
+    case TECHS_MEMBERS_LEFT: return n->back_to_the_main_menu(ctx);
+    case TECHS_MEMBER_POINTED_AT: {
+        if (!n->move_among_members(ctx))
+            return false;
+        bool changed = menu_techs_list_changed(g, before);
+        n->note(ctx, TECHS_NOTE_SHOWN_COMPARED, before);
+        return !changed || n->tick(ctx, TECHS_AT_ANOTHER_LIST);
+    }
+    case TECHS_MEMBER_CHOSEN: break;
+    }
+    n->note(ctx, TECHS_NOTE_LISTED, menu_techs_listed(g));
+    if (!menu_techs_member_has_techs(g))
+        return n->refuse(ctx);
+    if (!n->tick(ctx, TECHS_AT_A_MEMBER_CHOSEN))
+        return false;
+    menu_techs_go_to_the_list(g);
+    n->note(ctx, TECHS_NOTE_DESCRIPTION_STALE, menu_description_stale(g));
+    if (!n->show_the_lister(ctx))
+        return false;
+    TIMED_AS(g, 0xC2BB50, menu_techs_show_the_list(g, pf));
+    menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
+    return true;
+}
+
+/* ---- The opening and the members as C ----------------------------------------------------------- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} TechsAsC;
+
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((TechsAsC *)ctx)->game); }
+
+static bool tick(void *ctx, TechsPlace at)
+{
+    (void)at;
+    TechsAsC *c = ctx;
+    menu_tick(c->game, c->pf);
+    return true;
+}
+
+static bool refuse(void *ctx)
+{
+    TechsAsC *c = ctx;
+    menu_buzz(c->game, c->pf);
+    return true;
+}
+
+static bool only_on_the_machine(TechsAsC *c, uint32_t routine, const char *what)
+{
+    program_needs_the_machine(c->game, routine, what);
+    return false;
+}
+
+static const TechsSteps as_c;
+
+static bool move_among_members(void *ctx)
+{
+    TechsAsC *c = ctx;
+    if (!menu_techs_can_move_among_members(c->game))
+        return only_on_the_machine(c, 0xC2B520, "a techs screen the port doesn't take");
+    bool back = false;
+    TIMED_AS(c->game, 0xC2B520, back = menu_move_among_tech_members_with(c->game, c->pf, &as_c, c));
+    return back;
+}
+
+static bool slide_members(void *ctx) { return only_on_the_machine(ctx, 0xC2B568, "the techs' member list slid"); }
+
+/* The kind's caption, where its entry's guard would take the state: the
+ * moves before it can leave the cursor where the guard wouldn't. */
+static bool describe_the_kind(void *ctx)
+{
+    TechsAsC *c = ctx;
+    if (!menu_techs_can_move_among_members(c->game))
+        return only_on_the_machine(c, 0xC2BE16, "a techs screen the port doesn't take");
+    TIMED_AS(c->game, 0xC2BE16, menu_techs_describe_kind(c->game));
+    return true;
+}
+
+static bool show_the_lister(void *ctx) { return only_on_the_machine(ctx, 0xC2B9E1, "the techs' lister shown"); }
+
+static bool back_to_the_main_menu(void *ctx)
+{
+    TechsAsC *c = ctx;
+    return menu_back_to_the_main_menu(c->game, c->pf);
+}
+
+static void note(void *ctx, TechsNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
+
+static const TechsSteps as_c = {
+    read_cursor, tick, refuse, move_among_members, slide_members, describe_the_kind, show_the_lister, back_to_the_main_menu, note,
+};
+
+static bool members_step_takes(const GameState *g) { return menu_cursor_can_move(g) && menu_techs_can_move_among_members(g); }
+
+bool menu_open_techs(GameState *g, Platform *pf)
+{
+    TechsAsC c = { g, pf };
+    if (!menu_techs_can_open(g))
+        return only_on_the_machine(&c, 0xC2B35D, "a techs screen the port doesn't take");
+    return menu_open_techs_with(g, pf, &as_c, &c);
+}
+
+bool menu_choose_tech_member(GameState *g, Platform *pf)
+{
+    TechsAsC c = { g, pf };
+    if (!members_step_takes(g))
+        return only_on_the_machine(&c, 0xC2B36D, "a techs screen the port doesn't take");
+    return menu_choose_tech_member_with(g, pf, &as_c, &c);
+}
+
+// $C2:B365
+/* The member list's windows, and on among the members this frame. */
+bool menu_lay_out_tech_members(GameState *g, Platform *pf)
+{
+    TechsAsC c = { g, pf };
+    if (!members_step_takes(g))
+        return only_on_the_machine(&c, 0xC2B365, "a techs screen the port doesn't take");
+    menu_techs_lay_out_members(g, pf);
+    bool back = false;
+    TIMED_AS(g, 0xC2B36D, back = menu_choose_tech_member_with(g, pf, &as_c, &c));
+    return back;
 }

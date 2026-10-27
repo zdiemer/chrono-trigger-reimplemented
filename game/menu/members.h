@@ -111,7 +111,9 @@ void menu_draw_member_rows_entry(Snes *s);
 void menu_colour_member_rows_entry(Snes *s);
 void menu_colour_member_row_entry(Snes *s);
 void menu_show_member_element(Snes *s);
-void menu_draw_member_card(Snes *s);
+void menu_draw_member_card_entry(Snes *s);
+/* The card of the member the cursor is on, as C ($C2:A22F). */
+void menu_draw_member_card(GameState *g, Platform *pf);
 void menu_redraw_member_card(Snes *s);
 
 bool menu_member_is_loadable(Snes *s);

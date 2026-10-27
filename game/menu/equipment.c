@@ -28,6 +28,7 @@
 #include "menu/equipment.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
@@ -35,6 +36,7 @@
 #include "menu/display.h"
 #include "menu/figures.h"
 #include "menu/lists.h"
+#include "menu/main_menu.h"
 #include "menu/members.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
@@ -756,7 +758,34 @@ void menu_equip_panel_put_away(GameState *g)
     set_menu_line_effects(g, PANEL_LINE_EFFECTS);
 }
 
+// $C2:A051
+/* The panel: the list laid out, a frame, the time and the rows, a frame,
+ * the colour math and the member's card, then the screen behind dimmed. */
+bool menu_show_equipment_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
+{
+    uint8_t row_before = menu_member_row(g);
+    menu_equip_panel_lay_out_list(g, pf);
+    if (!n->wait(ctx, MAIN_MENU_AT_THE_EQUIPMENT_LAID_OUT))
+        return false;
+    menu_equip_panel_draw_members(g, pf);
+    if (!n->wait(ctx, MAIN_MENU_AT_THE_EQUIPMENT_DRAWN))
+        return false;
+    menu_equip_panel_set_colour_math(g, pf);
+    n->note(ctx, MAIN_MENU_NOTE_EQUIPMENT_TESTED, row_before);
+    if (!n->member_card(ctx))
+        return false;
+    menu_equip_panel_dim(g);
+    return true;
+}
+
 /* ---- What the steps can run on (the guards') --------------------------------------------------- */
+
+/* The panel's: room for its four uploads and its colours, and the panel
+ * drawable. */
+bool menu_equipment_panel_can_show(const GameState *g)
+{
+    return menu_upload_queue_takes(g, 4) && menu_palette_changes_have_room(g) && menu_equip_panel_can_be_shown(g);
+}
 
 bool menu_equip_screen_can_be_set_up(const GameState *g)
 {
@@ -798,4 +827,172 @@ bool menu_equip_panel_can_be_shown(const GameState *g)
     uint8_t row = menu_member_row(g) < active ? menu_member_row(g) : (uint8_t)(active - 1);
     return menu_member_rows_can_be_drawn_from(g, first) && menu_member_card_can_be_drawn_for(g, (uint8_t)(row + first))
            && menu_window_list_drawable(g, PANEL_WINDOW);
+}
+
+/* The set-up: room for its upload, and the screen drawable. */
+bool menu_equip_can_set_up(const GameState *g) { return menu_upload_queue_takes(g, 1) && menu_equip_screen_can_be_set_up(g); }
+
+/* Choosing a member: room for an upload, and the cursor movable. */
+bool menu_equip_can_choose_a_member(const GameState *g) { return menu_upload_queue_takes(g, 1) && menu_cursor_can_move(g); }
+
+/* Pointing at a member: the cursor on one of the list's rows, the rows'
+ * upload. */
+bool menu_equip_can_point_at_a_member(const GameState *g)
+{
+    return menu_cursor_index(g) < MENU_MEMBER_ROWS && menu_members_reachable(g) <= MENU_MEMBERS_COUNT
+           && menu_member_scroll(g) < MENU_MEMBERS_COUNT && menu_upload_queue_takes(g, 1);
+}
+
+/* ---- The opening and the members ---------------------------------------------------------------- */
+
+// $C2:A11A
+void menu_equip_set_up(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, 0xC290FC, menu_set_items_aside(g));
+    menu_equip_set_up_screen(g, pf);
+    menu_equip_show_the_member_bar(g);
+    menu_equip_show_screen(g);
+}
+
+// $C2:9C31
+/* The screen's first step: a tick, on to choosing a member, and the screen
+ * set up. */
+bool menu_open_equipment_with(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx)
+{
+    (void)pf;
+    if (!n->tick(ctx, EQUIPMENT_AT_THE_OPENING))
+        return false;
+    menu_equip_open(g);
+    return n->ends(ctx, EQUIPMENT_SETS_UP_THE_SCREEN);
+}
+
+// $C2:9C39
+/* A member chosen: a tick, the slots' window and the member's slots drawn, a
+ * frame, a tick, and the list of what fits the slot made, drawn and queued;
+ * going back leaves for the main menu, and a push points at another member. */
+bool menu_choose_equipment_member_with(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx)
+{
+    n->read_cursor(ctx);
+    MemberChoice c = menu_equip_choose_member(g);
+    n->note(ctx, EQUIPMENT_NOTE_MEMBER_STEP_TESTED, 0);
+    switch (c) {
+    case MEMBER_LEFT_FOR_THE_MAIN_MENU: return n->ends(ctx, EQUIPMENT_GOES_BACK_TO_THE_MAIN_MENU);
+    case MEMBER_POINTED_AT: return n->ends(ctx, EQUIPMENT_POINTS_AT_A_MEMBER);
+    case MEMBER_CHOSEN: break;
+    }
+    if (!n->tick(ctx, EQUIPMENT_AT_THE_MEMBER_CHOSEN) || !n->open_the_slots_window(ctx))
+        return false;
+    TIMED_AS(g, 0xC2A321, menu_equip_show_slots_of_member(g, pf));
+    if (!n->wait(ctx, EQUIPMENT_AT_THE_SLOTS_DRAWN) || !n->tick(ctx, EQUIPMENT_AT_THE_SLOTS_DRAWN))
+        return false;
+    TIMED_AS(g, 0xC28953, menu_list_what_fits(g));
+    TIMED_AS(g, 0xC2A569, menu_equip_draw_list(g));
+    menu_equip_queue_list_rows(g);
+    return true;
+}
+
+// $C2:9D17
+/* The cursor among the members: the list goes round or slides, the rows are
+ * coloured, a tick where it points at another member, and on to the card. */
+bool menu_point_at_equipment_member_with(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx)
+{
+    (void)pf;
+    if (!menu_equip_member_list_scrolls(g))
+        menu_equip_take_cursor_round_members(g);
+    else if (menu_equip_push_slides_members(g) && !n->slide_members(ctx))
+        return false;
+    uint8_t pointed_before = menu_member_pointed(g);
+    bool another = menu_equip_point_at_member(g);
+    n->note(ctx, EQUIPMENT_NOTE_MEMBER_POINTED, pointed_before);
+    if (another && !n->tick(ctx, EQUIPMENT_AT_THE_MEMBER_POINTED))
+        return false;
+    return n->ends(ctx, EQUIPMENT_SHOWS_THE_CARD);
+}
+
+/* ---- The opening and the members as C ----------------------------------------------------------- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} EquipmentAsC;
+
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((EquipmentAsC *)ctx)->game); }
+
+static bool tick(void *ctx, EquipmentPlace at)
+{
+    (void)at;
+    EquipmentAsC *c = ctx;
+    menu_tick(c->game, c->pf);
+    return true;
+}
+
+static bool only_on_the_machine(EquipmentAsC *c, uint32_t routine, const char *what)
+{
+    program_needs_the_machine(c->game, routine, what);
+    return false;
+}
+
+static bool slide_members(void *ctx) { return only_on_the_machine(ctx, 0xC29D5B, "the equipment's member list slid"); }
+
+static bool open_the_slots_window(void *ctx) { return only_on_the_machine(ctx, 0xC2A71E, "the equipment's slots window opened"); }
+
+static bool wait(void *ctx, EquipmentPlace at)
+{
+    (void)at;
+    EquipmentAsC *c = ctx;
+    menu_task_waits(c->game, 1);
+    return true;
+}
+
+static void note(void *ctx, EquipmentNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
+
+static const EquipmentSteps as_c;
+
+static bool not_taken(EquipmentAsC *c, uint32_t routine)
+{
+    return only_on_the_machine(c, routine, "an equipment screen the port doesn't take");
+}
+
+/* The steps' ends: the routine each goes on in, as C where its entry's
+ * guard would take the state, timed as its own. */
+static bool ends(void *ctx, EquipmentEnd end)
+{
+    EquipmentAsC *c = ctx;
+    GameState *g = c->game;
+    bool back = true;
+    switch (end) {
+    case EQUIPMENT_SETS_UP_THE_SCREEN:
+        if (!menu_equip_can_set_up(g))
+            return not_taken(c, 0xC2A11A);
+        TIMED_AS(g, 0xC2A11A, menu_equip_set_up(g, c->pf));
+        return true;
+    case EQUIPMENT_POINTS_AT_A_MEMBER:
+        if (!menu_equip_can_point_at_a_member(g))
+            return not_taken(c, 0xC29D17);
+        TIMED_AS(g, 0xC29D17, back = menu_point_at_equipment_member_with(g, c->pf, &as_c, c));
+        return back;
+    case EQUIPMENT_SHOWS_THE_CARD:
+        if (!menu_member_card_can_be_drawn(g))
+            return not_taken(c, 0xC2A22F);
+        TIMED_AS(g, 0xC2A22F, menu_draw_member_card(g, c->pf));
+        return true;
+    case EQUIPMENT_GOES_BACK_TO_THE_MAIN_MENU: return menu_back_to_the_main_menu(g, c->pf);
+    }
+    return false;
+}
+
+static const EquipmentSteps as_c = { read_cursor, tick, slide_members, open_the_slots_window, wait, note, ends };
+
+bool menu_open_equipment(GameState *g, Platform *pf)
+{
+    EquipmentAsC c = { g, pf };
+    return menu_open_equipment_with(g, pf, &as_c, &c);
+}
+
+bool menu_choose_equipment_member(GameState *g, Platform *pf)
+{
+    EquipmentAsC c = { g, pf };
+    if (!menu_equip_can_choose_a_member(g))
+        return only_on_the_machine(&c, 0xC29C39, "an equipment screen the port doesn't take");
+    return menu_choose_equipment_member_with(g, pf, &as_c, &c);
 }

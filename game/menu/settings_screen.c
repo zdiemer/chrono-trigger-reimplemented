@@ -31,10 +31,12 @@
 #include "menu/settings_screen.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
 #include "menu/display.h"
 #include "menu/graphics.h"
+#include "menu/main_menu.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/opening.h"
@@ -781,6 +783,20 @@ void menu_settings_panel_show(GameState *g, Platform *pf)
     menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER);
 }
 
+// $C2:C2FF
+/* The panel's frame, a frame's wait, then the rest of it. */
+bool menu_show_settings_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
+{
+    menu_settings_panel_frame(g, pf);
+    n->note(ctx, MAIN_MENU_NOTE_SETTINGS_FRAMED, 0);
+    if (!n->wait(ctx, MAIN_MENU_AT_THE_SETTINGS_FRAMED))
+        return false;
+    menu_settings_panel_show(g, pf);
+    return true;
+}
+
+bool menu_settings_panel_can_show(const GameState *g) { return menu_window_list_drawable(g, PANEL_FRAME); }
+
 // $C2:C397
 /* The main menu leaving the settings: its line effects, the description's
  * icon taken away. */
@@ -789,4 +805,175 @@ void menu_settings_panel_put_away(GameState *g)
     set_menu_line_effects(g, PANEL_LINE_EFFECTS);
     put_icon_blank(g);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
+}
+
+/* ---- The opening and the options ---------------------------------------------------------------- */
+
+// $C2:C017
+bool menu_settings_set_sound_output(GameState *g, bool (*send)(void *ctx), void *ctx)
+{
+    return !menu_settings_flip_option(g, SETTINGS_STEREO) || send(ctx);
+}
+
+// $C2:BF3D
+/* A tick, then the screen. */
+bool menu_open_settings_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx)
+{
+    if (!n->tick(ctx, SETTINGS_AT_THE_OPENING))
+        return false;
+    menu_settings_open(g, pf);
+    return true;
+}
+
+// $C2:BF45
+/* Going back leaves for the main menu, unless a speed or the design is
+ * being set: then the option takes it back, as it takes every other input;
+ * a tick where the cursor moved. */
+bool menu_choose_setting_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx)
+{
+    (void)pf;
+    menu_settings_hold_line_effects(g);
+    n->read_cursor(ctx);
+    if (menu_settings_leaving(g)) {
+        n->note(ctx, SETTINGS_NOTE_EDITING_TESTED, 0);
+        menu_settings_leave(g);
+        n->note(ctx, SETTINGS_NOTE_PACKED, 0);
+        return n->back_to_the_main_menu(ctx);
+    }
+    n->note(ctx, menu_asked(g, MENU_GO_BACK) ? SETTINGS_NOTE_EDITING_TESTED : SETTINGS_NOTE_BUTTONS_TESTED, 0);
+    if (!n->take_the_option(ctx))
+        return false;
+    bool moved = menu_cursor_index(g) != menu_cursor_frame_start(g);
+    n->note(ctx, SETTINGS_NOTE_CURSOR_COMPARED, 0);
+    return !moved || n->tick(ctx, SETTINGS_AT_THE_CURSOR_MOVED);
+}
+
+// $C2:BFD4
+/* The option the cursor is on handled, then shown; a tick where the player
+ * chose. */
+bool menu_take_setting_option_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx)
+{
+    (void)pf;
+    SettingsOption option = menu_settings_take_option(g);
+    n->note(ctx, SETTINGS_NOTE_OPTION_PICKED, option);
+    if (!n->handle(ctx, option))
+        return false;
+    n->note(ctx, SETTINGS_NOTE_HANDLED, 0);
+    menu_settings_show_option(g);
+    n->note(ctx, SETTINGS_NOTE_SHOWN, 0);
+    return !menu_asked(g, MENU_CHOOSE) || n->tick(ctx, SETTINGS_AT_AN_OPTION_CHOSEN);
+}
+
+/* ---- The opening and the options as C ----------------------------------------------------------- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} SettingsAsC;
+
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((SettingsAsC *)ctx)->game); }
+
+static bool tick(void *ctx, SettingsPlace at)
+{
+    (void)at;
+    SettingsAsC *c = ctx;
+    menu_tick(c->game, c->pf);
+    return true;
+}
+
+static const SettingsSteps as_c;
+
+static bool take_the_option(void *ctx)
+{
+    SettingsAsC *c = ctx;
+    if (!menu_settings_option_can_be_taken(c->game)) {
+        program_needs_the_machine(c->game, 0xC2BFD4, "a setting the port doesn't take");
+        return false;
+    }
+    bool back = false;
+    TIMED_AS(c->game, 0xC2BFD4, back = menu_take_setting_option_with(c->game, c->pf, &as_c, c));
+    return back;
+}
+
+static bool send(void *ctx)
+{
+    SettingsAsC *c = ctx;
+    menu_settings_send_sound_output(c->game, c->pf);
+    return true;
+}
+
+/* Each option's handler as C, timed as its routine; the meters' and the
+ * design's step through a routine of their own only the machine runs yet. */
+typedef enum { HANDLER_STEREO, HANDLER_FLIP, HANDLER_SPEEDS, HANDLER_GAUGE, HANDLER_CONTROLS, HANDLER_ONLY_ON_THE_MACHINE } HandlerKind;
+static const struct {
+    uint32_t routine;
+    HandlerKind kind;
+} handlers[SETTINGS_OPTION_COUNT] = {
+    [SETTINGS_STEREO] = { 0xC2C017, HANDLER_STEREO },
+    [SETTINGS_ACTIVE_TIME] = { 0xC2C06E, HANDLER_FLIP },
+    [SETTINGS_KEEP_MENU_CURSORS] = { 0xC2C038, HANDLER_FLIP },
+    [SETTINGS_KEEP_BATTLE_COMMAND] = { 0xC2C04A, HANDLER_FLIP },
+    [SETTINGS_KEEP_BATTLE_LISTS] = { 0xC2C05C, HANDLER_FLIP },
+    [SETTINGS_SPEEDS] = { 0xC2C0A7, HANDLER_SPEEDS },
+    [SETTINGS_WINDOW_DESIGN] = { 0xC2C12C, HANDLER_ONLY_ON_THE_MACHINE },
+    [SETTINGS_BATTLE_GAUGE] = { 0xC2C080, HANDLER_GAUGE },
+    [SETTINGS_CONTROLS] = { 0xC2C0E9, HANDLER_CONTROLS },
+    [SETTINGS_DESCRIPTIONS] = { 0xC2C095, HANDLER_FLIP },
+    [SETTINGS_BATTLE_SPEED] = { 0xC2C0B9, HANDLER_ONLY_ON_THE_MACHINE },
+    [SETTINGS_MESSAGE_SPEED] = { 0xC2C0D1, HANDLER_ONLY_ON_THE_MACHINE },
+};
+
+static void run_the_handler(SettingsAsC *c, SettingsOption option)
+{
+    GameState *g = c->game;
+    switch (handlers[option].kind) {
+    case HANDLER_STEREO: (void)menu_settings_set_sound_output(g, send, c); break;
+    case HANDLER_FLIP: (void)menu_settings_flip_option(g, option); break;
+    case HANDLER_SPEEDS: menu_settings_take_speeds(g); break;
+    case HANDLER_GAUGE: menu_settings_take_gauge(g); break;
+    case HANDLER_CONTROLS: (void)menu_settings_take_controls(g); break;
+    case HANDLER_ONLY_ON_THE_MACHINE: break;
+    }
+}
+
+static bool handle(void *ctx, SettingsOption option)
+{
+    SettingsAsC *c = ctx;
+    if (handlers[option].kind == HANDLER_ONLY_ON_THE_MACHINE) {
+        program_needs_the_machine(c->game, handlers[option].routine, "a setting's meter only the machine steps");
+        return false;
+    }
+    TIMED_AS(c->game, handlers[option].routine, run_the_handler(c, option));
+    return true;
+}
+
+static bool back_to_the_main_menu(void *ctx)
+{
+    SettingsAsC *c = ctx;
+    return menu_back_to_the_main_menu(c->game, c->pf);
+}
+
+static void note(void *ctx, SettingsNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
+
+static const SettingsSteps as_c = { read_cursor, tick, take_the_option, handle, back_to_the_main_menu, note };
+
+static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(const GameState *),
+                 bool (*run)(GameState *, Platform *, const SettingsSteps *, void *))
+{
+    if (!takes(g)) {
+        program_needs_the_machine(g, routine, "a settings screen the port doesn't take");
+        return false;
+    }
+    SettingsAsC c = { g, pf };
+    return run(g, pf, &as_c, &c);
+}
+
+bool menu_open_settings(GameState *g, Platform *pf)
+{
+    return step(g, pf, 0xC2BF3D, menu_settings_can_open, menu_open_settings_with);
+}
+
+bool menu_choose_setting(GameState *g, Platform *pf)
+{
+    return step(g, pf, 0xC2BF45, menu_settings_can_choose, menu_choose_setting_with);
 }

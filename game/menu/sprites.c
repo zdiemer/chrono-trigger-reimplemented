@@ -1299,7 +1299,7 @@ static bool animation_moves_on(GameState *g, unsigned record)
 }
 
 // $C2:F657
-static void run_the_records(GameState *g)
+void menu_run_the_records(GameState *g)
 {
     set_menu_record_blocks_sent(g, 0);
     set_menu_record_blocks_sent_high(g, 0);
@@ -1606,7 +1606,7 @@ enum { FIRST_RECORD_PAGE = 0x1800, RECORD_PAGE_BYTES = 0x40 };
  * which sets its page and widths again. */
 void menu_run_record_task(Snes *s)
 {
-    run_the_records(state_of(s));
+    menu_run_the_records(state_of(s));
     m_rep(s, CPU_FLAG_M);
     m_sep(s, CPU_FLAG_X);
     s->cpu.d = (uint16_t)(FIRST_RECORD_PAGE + TASK_RECORDS * RECORD_PAGE_BYTES);
@@ -1792,7 +1792,7 @@ bool menu_record_frame_is_showable(Snes *s)
  * worth (four sprites at most, as the menus' records do), and every record
  * whose animation may move on this frame can be animated with the blocks
  * the records before it could queue. */
-static bool task_pass_is_runnable(const GameState *g)
+bool menu_records_can_run(const GameState *g)
 {
     if (!queue_is_whole(g))
         return false;
@@ -1824,7 +1824,7 @@ bool menu_record_task_is_runnable(Snes *s)
     if (s->cpu.db != MENU_DATA_BANK)
         return false;
     vars_peek(true);
-    bool ok = task_pass_is_runnable(state_of(s));
+    bool ok = menu_records_can_run(state_of(s));
     vars_peek(false);
     return ok;
 }

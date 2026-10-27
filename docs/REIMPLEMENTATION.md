@@ -2938,59 +2938,74 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
-### The native program through the attract sequence
+### The native program through the main menu
 
-With the battle as C (the history file, "The native program through the
-battle"), `ct_native` alone stopped at frame 7519, in the attract demo's
-jet bike race, set up as C, at its first frame's tasks (`$7E:5221`): the
-race's tasks were rows of `scene/frame.c`'s table of the tasks whose entries
-take the machine, with no C column. Each has one now, and the next blocker,
-the rising palace's setup (`$7E:671F`, mode 3), the scene the attract demo
-goes on to, is a C setup beside the race's, so the attract sequence runs as
-C from the boot round to the title again and on: `ct_native` alone ran
-200,000 frames without stopping.
+With the attract sequence as C (the history file, "The native program
+through the attract sequence"), the first stop left was the menus the player
+opens: `menu.ctm` stopped at frame 7417, the main menu's opening (`$C2:99CE`),
+a step of `menu/screens.c`'s table with no C. The chunk followed the movie:
+each stop named the next routine, until the movie played to its end (frame
+8900; 30,000 frames without a stop). The stops on the way, in order, were
+the main menu's opening and choosing, the equipment's opening (`$C2:9C31`),
+the items' (`$C2:AA40`), the scroll bar's task (`$C2:8BB8`), the records'
+task the techs' panel starts (`$C2:F657`), the techs' opening (`$C2:B35D`)
+and the settings' (`$C2:BF3D`).
 
-The table's C column is a `SceneTaskInC` (scene.h): the task's frame on its
-list's slot, returning how it ends (`TaskEnd`, as the tasks that are C
-throughout return), so the list empties a slot or hands it over as C; one
-that needs the machine ends `TASK_LEFT_TO_THE_ORIGINAL` through
-`scene_task_needs_the_machine`. The C function takes the routine's plain name
-(`scene_race_ride`), and the registered `Snes *` wrapper is `*_entry`.
+Every step is one sequence, the shape the rest of the tree has: the
+registered entry is a thin wrapper (`*_entry` where the C takes the plain
+name) handing a `*_with` sequence its `*_on_the_machine` steps, and the
+program hands it C steps. A screen's steps are a struct of callbacks
+(`MainMenuSteps`, `EquipmentSteps`, `ItemsSteps`, `TechsSteps`,
+`SettingsSteps`): the cursor read, a tick from a named place (an enum the
+bridge's table turns into the original's call site), a frame's wait, the
+siblings the original reaches by a JSR (the panel, the member card, the
+description, the moves among the techs' members, an option's handler), the
+way back to the main menu, and the notes where the machine leaves what the
+original's tests left. As C the siblings are their C under `TIMED_AS`, the
+ticks and the cursor read `menu_tick` and `menu_read_the_cursor_for_a_step`
+(menu/cursor.c), a wait `menu_task_waits`, and the way back
+`menu_back_to_the_main_menu`; a sibling with no C yet (a list's slide, the
+slots' window, the techs' lister, the settings' meters, the exchange's and
+saving's panels) stops at `program_needs_the_machine` naming its routine.
 
-- **One sequence per task.** Where the task's frame calls the original's
-  code on the machine, the work is a `*_with` sequence taking the call as a
-  step: the curtain's step (`sweep_curtain_with`, scene/race.c; the palace's
-  `sweep_the_curtain_with`), the perspective's build
-  (`check_perspective_with`, race_camera.c), and the race's own sound effects
-  (`ride_with`, `coast_with`, `wait_to_leave_with`, race_rules.c, through
-  `race_send_sound` and a `RaceSends` step: `race_sound_on_the_machine` from
-  the race's call of the program's send, `race_sound` the send's port). The
-  machine wrapper hands the sequence `*_on_the_machine` steps and sets, from
-  the `TaskEnd`, what the list's code reads (the slot handed over in X, A's
-  high byte); the rest are the same logic function called by both.
-- **The guards' state halves.** The ride's and the coast's room on the lists
-  (`ride_lists_fit`, `coast_lists_fit`), the bikes' placing
-  (`bikes_placeable`), the drawing (`drawing_fits`), the perspective's lines
-  (`scene_perspective_fits`, perspective.c, split from
-  `scene_perspective_as_ported`, whose code hashes stay the machine's half)
-  and the curtain's table (`scene_curtain_stepped`, curtain.c, the step as
-  the scenes' C paths take it) are `const GameState *` functions the guard
-  and the C path both call; the other tasks' guards are their code and page
-  alone. The list's slot is the curtain stir's salt, as X is on the machine.
-- **The palace** (scene/rising_palace.c): its setup is one sequence
-  (`set_up_the_palace_with`) whose scripts' first step is the step, a row of
-  `scene/program.c`'s C setups, and its curtain's sweep the race's shape.
+- **The guards' state halves.** Each C path checks what its entry's guard
+  takes of the state, a `const GameState *` function the guard calls too:
+  the main menu's (`menu_main_menu_can_open`, `_can_choose`,
+  `_can_come_back`, `_panel_can_show`), the panels'
+  (`menu_equipment_panel_can_show` and the items', techs' and settings'),
+  the screens' (`menu_equip_can_set_up`, `_can_choose_a_member`,
+  `_can_point_at_a_member`; `menu_items_can_open`,
+  `_can_point_along_the_list`, `_can_sort`; `menu_techs_can_open`,
+  `_can_move_among_members`; `menu_settings_can_open`, `_can_choose`,
+  `menu_settings_option_can_be_taken`), the card's
+  (`menu_member_card_can_be_drawn`), and the two tasks'
+  (`menu_scroll_bar_can_be_drawn`, `menu_records_can_run`). The upload
+  queue's room, which three bridges each worked out, is one function
+  (`menu_upload_queue_takes`, menu/vram.c).
+- **The table.** `menu/screens.c`'s rows have a C column beside the machine
+  entry; the naming's row is `menu_naming_step`, which reads the step it is
+  on, as the other screens' rows would. `menu/tasks.c`'s coroutines have the
+  scroll bar's and the records' bodies: each frame's work timed as its entry,
+  then the wait, while its guard's state half holds.
+- **The machine's side.** Where the original's code saves P or sets the
+  widths between the steps' calls, the wrapper does it round the sequence, a
+  wait's table row sets them for the wait (the main menu's panels), or, in
+  the items', techs' and settings' sequences, the note at that point does
+  (TODO.md, "The menus' steps' notes carry machine work").
 
-**Measured.** Shadow mode over the library: 0 mismatches. Fuzzing, seed 1,
-`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the race's
-and the palace's entries (and the perspective's build): the 42 runs the
-same as before, none mismatching and the guards' refusals unchanged.
-Timing: every entry within its limits, none recalibrated. `tools/effects_check.py`: the field's two lines for the
-curtain's guard (`sweep_the_curtain`) moved to the shared step
-(`scene_curtain_stepped`), which the race and the palace call too; none new.
-`ct_native` with the movies' presses goes as far as before
-(`menu.ctm`'s stop at the main menu's opening, `$C2:99CE`, is the first
-stop left). Gate: suite OK.
+**Measured.** Shadow mode over `menu.ctm`: the changed entries 0 mismatched.
+Fuzzing, seed 1, `tools/fuzz_compare.py` against the branch point's
+`ct_fuzz` over the 31 entries the sequences changed (35 runs, the settings'
+with their second variant): every run the same as before, none mismatching
+and the guards' refusals unchanged. `tools/effects_check.py`: the eight
+reads the bridges' guards and steps made of cells written plainly moved with
+them to the shared functions (their baseline lines renamed), and the records'
+guard, once a static the check didn't see, has its two lines with why;
+`tools/dontcare_check.py`: none. `ct_native` with the other movies' presses
+and alone goes as far as before; from a cartridge save,
+`saves/menus-field-menu.ctm` stops at the load screen's opening
+(`$C2:E613`), the next menus to give a C path. Timing: every entry within
+its limits, none recalibrated. Gate: suite OK.
 ### The last refusals in real play: the attract demo's states
 
 The four refusals the batch before left (1,043 calls at `$7E:424D`,

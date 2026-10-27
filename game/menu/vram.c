@@ -124,6 +124,16 @@ bool menu_upload_queue_has_room(Snes *s)
     return m_bank_reaches_low_ram(s) && queued_bytes_now(s) % RECORD_BYTES == 0;
 }
 
+/* A step that queues `uploads` finds the queue holding whole records, with
+ * room for them (it holds 32). */
+enum { QUEUE_HOLDS_BYTES = 32 * MENU_UPLOAD_BYTES };
+
+bool menu_upload_queue_takes(const GameState *g, unsigned uploads)
+{
+    unsigned queued = menu_vram_queue_bytes(g);
+    return queued % MENU_UPLOAD_BYTES == 0 && queued + MENU_UPLOAD_BYTES * uploads <= QUEUE_HOLDS_BYTES;
+}
+
 /* And builds a record apart from the queue's entry it goes into, inside the
  * bank. */
 bool menu_built_upload_is_apart(Snes *s)
