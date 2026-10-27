@@ -85,8 +85,6 @@ static void leave_up_or_down_tested(Snes *s);
 static void leave_row_changed(Snes *s, uint8_t paging_before);
 
 
-/* ---- Opening the screen -------------------------------------------------------------------------- */
-
 /* ---- The opening and the options: what the sequences ask, on the machine ----------------------- */
 
 static const uint32_t TICKS_AT[] = {

@@ -1191,9 +1191,16 @@ static bool wait(void *ctx, ItemsPlace at)
     return true;
 }
 
-static bool describe_as_c(void *ctx)
+/* The item on the cursor described, where its entry's guard would take the
+ * state: the cursor kept on the list before it can stand where the guard
+ * wouldn't. */
+static bool describe(void *ctx)
 {
     ItemsAsC *c = ctx;
+    if (!menu_items_can_point_along_the_list(c->game)) {
+        program_needs_the_machine(c->game, 0xC2AD2E, "an items list the port doesn't take");
+        return false;
+    }
     TIMED_AS(c->game, 0xC2AD2E, menu_items_describe_the_cursors_item(c->game));
     return true;
 }
@@ -1213,7 +1220,7 @@ static bool back_to_the_main_menu(void *ctx)
 
 static void note(void *ctx, ItemsNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
 
-static const ItemsSteps as_c = { read_cursor, tick, wait, describe_as_c, slide_the_list, back_to_the_main_menu, note };
+static const ItemsSteps as_c = { read_cursor, tick, wait, describe, slide_the_list, back_to_the_main_menu, note };
 
 /* A step as C where its entry's guard would take the state; otherwise the
  * program goes no further there. */

@@ -1245,7 +1245,6 @@ bool menu_techs_list_is_pointable(const GameState *g)
 
 /* The opening: room for its uploads and its colours, its windows, the
  * member row one of the list's. */
-
 bool menu_techs_can_open(const GameState *g)
 {
     return menu_upload_queue_takes(g, 3) && menu_palette_changes_have_room(g) && menu_window_list_drawable(g, SCREEN_WINDOWS)
@@ -1387,9 +1386,13 @@ static bool move_among_members(void *ctx)
 
 static bool slide_members(void *ctx) { return only_on_the_machine(ctx, 0xC2B568, "the techs' member list slid"); }
 
+/* The kind's caption, where its entry's guard would take the state: the
+ * moves before it can leave the cursor where the guard wouldn't. */
 static bool describe_the_kind(void *ctx)
 {
     TechsAsC *c = ctx;
+    if (!menu_techs_can_move_among_members(c->game))
+        return only_on_the_machine(c, 0xC2BE16, "a techs screen the port doesn't take");
     TIMED_AS(c->game, 0xC2BE16, menu_techs_describe_kind(c->game));
     return true;
 }

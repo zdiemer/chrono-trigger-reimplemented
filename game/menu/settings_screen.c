@@ -895,7 +895,7 @@ static bool take_the_option(void *ctx)
     return back;
 }
 
-static bool send_as_c(void *ctx)
+static bool send(void *ctx)
 {
     SettingsAsC *c = ctx;
     menu_settings_send_sound_output(c->game, c->pf);
@@ -927,7 +927,7 @@ static void run_the_handler(SettingsAsC *c, SettingsOption option)
 {
     GameState *g = c->game;
     switch (handlers[option].kind) {
-    case HANDLER_STEREO: (void)menu_settings_set_sound_output(g, send_as_c, c); break;
+    case HANDLER_STEREO: (void)menu_settings_set_sound_output(g, send, c); break;
     case HANDLER_FLIP: (void)menu_settings_flip_option(g, option); break;
     case HANDLER_SPEEDS: menu_settings_take_speeds(g); break;
     case HANDLER_GAUGE: menu_settings_take_gauge(g); break;
