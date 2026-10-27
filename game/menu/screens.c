@@ -105,8 +105,10 @@ static const Step naming_steps[] = {
     { 0xE201, menu_open_the_naming, menu_naming_step }, { 0xE209, menu_wait_to_name, menu_naming_step },
 };
 static const Step load_steps[] = {
-    { 0xE613, menu_open_load_screen, NULL }, { 0xE61B, menu_choose_on_load_screen, NULL },
-    { 0xE6AE, menu_choose_game_to_carry_on_from, NULL }, { 0xE705, menu_answer_erase, NULL },
+    { 0xE613, menu_open_load_screen_entry, menu_open_load_screen },
+    { 0xE61B, menu_choose_on_load_screen_entry, menu_choose_on_load_screen },
+    { 0xE6AE, menu_choose_game_to_carry_on_from_entry, menu_choose_game_to_carry_on_from },
+    { 0xE705, menu_answer_erase_entry, menu_answer_erase },
 };
 
 #define STEPS_OF(list) { list, sizeof list / sizeof list[0] }

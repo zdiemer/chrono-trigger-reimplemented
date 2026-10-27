@@ -20,14 +20,19 @@
  *   cartridge. No movie reaches it.
  *
  * Loading a game and the state a new one starts from are the save code's
- * (menu/saves.c); leaving the menus
- * for the game is the menus' own exit ($C2:8320), where the port stops. */
+ * (menu/saves.c); leaving the menus for the game is the menus' own exit
+ * ($C2:8320).
+ *
+ * Each step is one sequence (LoadScreenSteps, load_screen.h) that the
+ * program runs as C, below, and the machine's entries run with the
+ * original's calls (load_screen_bridge.c). */
 #include "menu/load_screen.h"
 
 #include "charge.h"
-#include "menu/bridge.h"
+#include "core/program.h"
 #include "menu/cursor.h"
 #include "menu/display.h"
+#include "menu/fades.h"
 #include "menu/menu_data.h"
 #include "menu/save_screen.h"
 #include "menu/saves.h"
@@ -113,12 +118,10 @@ static void keep_next_label_tile(GameState *g, uint8_t first)
 }
 
 /* For the original's code and shadow mode: it draws each row from the
- * drawing origin and counts the slots in the slot shown's cell, which it
- * leaves past the last. */
+ * drawing origin, which it leaves past the last. */
 static void leave_rows_drawn(GameState *g)
 {
     set_menu_draw_origin(g, (uint16_t)(SLOT_ROWS_AT + MENU_SAVE_SLOTS * WINDOW_ROW_BYTES));
-    set_menu_save_slot_shown(g, MENU_SAVE_SLOTS);
 }
 
 // $C2:D10D, $C2:D131
@@ -135,6 +138,9 @@ void menu_draw_slot_rows(GameState *g)
         TIMED_AS(g, 0xC2D32C, draw_slot_window(g, slot));
     }
     keep_next_label_tile(g, (uint8_t)(LABEL_TILES_A_SLOT * (MENU_SAVE_SLOTS + 1)));
+    /* it counts the slots in the slot shown's cell, which it leaves past the
+     * last: no slot shown until the screen picks one */
+    set_menu_save_slot_shown(g, MENU_SAVE_SLOTS);
     ORIGINAL_EFFECT(leave_rows_drawn(g));
 }
 
@@ -144,13 +150,6 @@ void menu_draw_the_slots(GameState *g, Platform *pf)
 {
     menu_draw_windows(g, pf, SCREEN_WINDOWS);
     TIMED_AS(g, 0xC2D10D, menu_draw_slot_rows(g));
-}
-
-// $C2:D10D
-void menu_draw_slot_rows_entry(Snes *s)
-{
-    menu_draw_slot_rows(state_of(s));
-    m_rts(s);
 }
 
 /* ---- Opening the screen ------------------------------------------------------------------------ */
@@ -201,72 +200,40 @@ static void finish_screen(GameState *g, Platform *pf)
     menu_queue_fixed_upload(g, MENU_UPLOAD_TEXT_LAYER_WHOLE);
 }
 
-/* The flags the screen's drawing has as it calls the summary's drawing and
- * showing, which those save as they start: the last load before each. */
-static void leave_start_slot_loaded(Snes *s, uint8_t slot)
-{
-    menu_leave_load(s, slot);
-    m_set_flag(s, CPU_FLAG_C, true);   /* the rows' last count, at three */
-}
-
 // $C2:E7C3
 /* Draw the load screen: its windows, the slots' rows, the summary of the slot
  * the cursor starts on, the panel around it, and the rest. */
-static bool draw_load_screen(Snes *s)
+bool menu_draw_load_screen_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    menu_set_widths(s, true, m_x8(s));
     menu_draw_the_slots(g, pf);
     uint8_t slot = slot_to_start_on(g, pf);
     set_menu_save_slot_shown(g, slot);
     set_menu_cursor_index(g, slot);
-    ORIGINAL_EFFECT(leave_start_slot_loaded(s, slot));
+    n->note(ctx, LOAD_NOTE_START_SLOT, slot);
     TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, pf));
     set_menu_text_attribute(g, 0);
     menu_draw_windows(g, pf, SUMMARY_PANEL);
-    if (!menu_run(s, 0xC2E7F3, 0xC2E743, menu_show_save_slot))
+    if (!n->show_the_slot(ctx, LOAD_AT_THE_OPENING_SHOW))
         return false;
     finish_screen(g, pf);
     return true;
 }
 
-void menu_draw_load_screen(Snes *s)
-{
-    menu_save_p(s);
-    if (!draw_load_screen(s))
-        return;
-    menu_restore_p(s);
-    m_rts(s);
-}
-
-/* The dispatch's return: every step returns into the main task's yield. A
- * step that goes back to choosing leaves 16-bit widths behind it. */
-static void leave_wide(Snes *s) { menu_set_widths(s, false, false); }
-
 // $C2:E613
-/* The screen's first step: drawn, then on to choosing, and the fade in
- * started by the menus' own task start ($C2:83B2, the original's), where the
- * port stops. */
-enum { FADE_IN_START = 0xC283B2 };
-enum { FADE_IN_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-void menu_open_load_screen(Snes *s)
+/* The screen's first step: drawn, then on to choosing as it fades in. */
+bool menu_open_load_screen_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
 {
-    GameState *g = state_of(s);
-    if (!menu_run(s, 0xC2E613, 0xC2E7C3, menu_draw_load_screen))
-        return;
+    (void)pf;
+    if (!n->draw(ctx))
+        return false;
     set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1));
-    m_stop_at(s, FADE_IN_START, FADE_IN_IGNORES);
+    return n->ends(ctx, LOAD_FADES_IN);
 }
 
 /* ---- Choosing ---------------------------------------------------------------------------------- */
 
 /* The steps. */
 enum { STEP_CHOOSING = 1, STEP_CARRY_ON_FROM = 2, STEP_ERASING = 3 };
-
-/* The buttons (menu/cursor.c): choosing is bit 7, going back bit 6. */
-enum { CHOSE = 0x80, WENT_BACK = 0x40 };
 
 /* Holding Select and Start on the second controller asks to erase the slot
  * the cursor is on. */
@@ -324,20 +291,17 @@ static void start_the_new_game(GameState *g, Platform *pf)
  * carries on from; the slot's header gives way to the question's label. */
 enum { QUESTION_LABEL = 3, QUESTION_LABEL_AT = 0x5E00, QUESTION_LABEL_TABLE = 0xFFCF3B };
 
-static void ask_which_to_carry_on_from(GameState *g)
+/* The question's label, once drawn: two strips of it over the header. */
+enum { LABEL_TOP_AT = 0x52C8, LABEL_TOP_COLUMNS = 8, LABEL_TOP_TILE = 0x3021,
+       LABEL_BOTTOM_AT = 0x5348, LABEL_BOTTOM_COLUMNS = 9, LABEL_BOTTOM_TILE = 0x3062 };
+
+void menu_ask_which_game_to_carry_on_from(GameState *g)
 {
     /* counted in its first byte: the second, read with it, never carries */
     uint16_t taken = menu_save_header_taken(g);
     set_menu_save_header_taken(g, (uint16_t)((taken & 0xFF00) | (uint8_t)(taken + 1)));
     set_menu_load_destination(g, QUESTION_LABEL_AT);
-}
-
-/* The question's label, once drawn: two strips of it over the header. */
-enum { LABEL_TOP_AT = 0x52C8, LABEL_TOP_COLUMNS = 8, LABEL_TOP_TILE = 0x3021,
-       LABEL_BOTTOM_AT = 0x5348, LABEL_BOTTOM_COLUMNS = 9, LABEL_BOTTOM_TILE = 0x3062 };
-
-static void show_question_label(GameState *g)
-{
+    TIMED_AS(g, 0xC2F90C, (void)menu_set_label(g, QUESTION_LABEL_TABLE, QUESTION_LABEL, QUESTION_LABEL_AT));
     TIMED_AS(g, 0xC2FBB4, (void)menu_lay_out_strip(g, LABEL_TOP_AT, LABEL_TOP_COLUMNS, LABEL_TOP_TILE));
     TIMED_AS(g, 0xC2FBB4, (void)menu_lay_out_strip(g, LABEL_BOTTOM_AT, LABEL_BOTTOM_COLUMNS, LABEL_BOTTOM_TILE));
     menu_queue_fixed_upload(g, MENU_UPLOAD_CARRY_ON_LABEL);
@@ -346,54 +310,35 @@ static void show_question_label(GameState *g)
 
 /* Leaving the menus for the game: the sound driver told whether to play in
  * stereo (the settings' bit 3), the menus' frame count kept for the battle's
- * random numbers; then the menus' exit ($C2:8320), where the port stops. */
+ * random numbers; then out of the menus. */
 enum { SOUND_OUTPUT = 0xF3, STEREO_SETTING = 0x08 };
 enum { DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-enum { EXIT_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
-static void leave_for_the_game(Snes *s)
+void menu_send_the_sound_output(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
-    MenuMachine m = menu_machine_now(s);
-    au_command(m_platform(s), PF_CALL_DC(0xC2E6A1, 0xC70004, DRIVER_IGNORES),
+    au_command(pf, PF_CALL_DC(0xC2E6A1, 0xC70004, DRIVER_IGNORES),
                (AudioCommand){ .command = SOUND_OUTPUT, .p1 = (uint8_t)(game_settings(g, 0) & STEREO_SETTING), .count = 1 });
-    if (!menu_back(s, 0xC2E6A5, m))
-        return;
-    set_frames_at_leaving(g, menu_frame_counter(g));
-    m_stop_at_own(s, 0xC28320, EXIT_IGNORES);
 }
 
-/* ---- The steps on the machine ------------------------------------------------------------------ */
-
-/* The steps are bridges: they run the menus' routines that make calls of
- * their own (the cursor's reading, the slot's showing, the sounds, a New
- * Game+'s load) as the original's JSRs reach them. Where one of those routines saves P as it
- * starts, the flags the original has there are on the stack under the call
- * that follows, where shadow mode compares them, so each step leaves them
- * first, from the comparison or test the original has just made. */
-
-static void leave_compare(Snes *s, uint8_t a, uint8_t b) { menu_leave_compare(s, a, b); }
-static void leave_load(Snes *s, uint8_t v) { menu_leave_load(s, v); }
-static void leave_moved(Snes *s)
+static bool leave_for_the_game(GameState *g, const LoadScreenSteps *n, void *ctx)
 {
-    const GameState *g = state_of(s);
-    menu_leave_compare(s, menu_cursor_frame_start(g), menu_cursor_index(g));
+    if (!n->sound_output_sent(ctx))
+        return false;
+    set_frames_at_leaving(g, menu_frame_counter(g));
+    return n->ends(ctx, LOAD_LEAVES_FOR_THE_GAME);
 }
-static void leave_carry(Snes *s, bool c) { m_set_flag(s, CPU_FLAG_C, c); }
-
-static bool tick(Snes *s, uint32_t at) { return menu_run(s, at, 0xC2EAC2, menu_play_cursor_sound); }
 
 /* No choice this frame: the slot the cursor is on shown, and a tick where it
  * moved. */
-static bool show_and_tick(Snes *s, uint32_t show_at, uint32_t tick_at)
+static bool show_and_tick(GameState *g, const LoadScreenSteps *n, void *ctx, LoadScreenPlace show_at,
+                          LoadScreenPlace tick_at)
 {
-    GameState *g = state_of(s);
-    if (!menu_run(s, show_at, 0xC2E743, menu_show_save_slot))
+    if (!n->show_the_slot(ctx, show_at))
         return false;
     if (menu_cursor_frame_start(g) == menu_cursor_index(g))
         return true;
-    ORIGINAL_EFFECT(leave_moved(s));
-    return tick(s, tick_at);
+    n->note(ctx, LOAD_NOTE_MOVED, 0);
+    return n->tick(ctx, tick_at);
 }
 
 /* A slot chosen: the game goes on in it. */
@@ -403,94 +348,76 @@ static void choose_slot(GameState *g, uint8_t slot)
     set_save_slot_chosen(g, slot);
 }
 
-/* The load comes back with A's high byte clear, which the sound command's
- * call carries on to the menus' exit. */
-static void leave_loaded(Snes *s) { menu_leave_a_high_byte_clear(s); }
-
 /* Its game loaded; then out to the game. */
-static void load_and_leave(Snes *s, uint8_t slot)
+static bool load_and_leave(GameState *g, const LoadScreenSteps *n, void *ctx, uint8_t slot)
 {
-    GameState *g = state_of(s);
     choose_slot(g, slot);
-    TIMED_AS(g, 0xFFFAA3, saves_load_game(g, m_platform(s), slot));
-    ORIGINAL_EFFECT(leave_loaded(s));
-    leave_for_the_game(s);
+    if (!n->load(ctx))
+        return false;
+    n->note(ctx, LOAD_NOTE_LOADED, 0);
+    return leave_for_the_game(g, n, ctx);
 }
 
 /* A New Game+ carries on from the slot's game; then out to the game. */
-static void carry_on_and_leave(Snes *s, uint8_t slot)
+static bool carry_on_and_leave(GameState *g, const LoadScreenSteps *n, void *ctx, uint8_t slot)
 {
-    choose_slot(state_of(s), slot);
-    if (!menu_run_long(s, 0xC2E6D8, 0xFFFAED, menu_load_carried_over))
-        return;
-    leave_for_the_game(s);
+    choose_slot(g, slot);
+    return n->carry_on(ctx) && leave_for_the_game(g, n, ctx);
 }
 
-/* The fourth row chosen: a new game's state (the original's), marked new;
- * then a New Game+ asks which game to carry on from, and a new game leaves
- * for the game, to be saved in the first empty slot. */
-static void start_new_game(Snes *s)
+/* A new game, saved later in the first slot with no game: out to it. */
+static bool leave_for_a_new_game(GameState *g, const LoadScreenSteps *n, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    start_the_new_game(g, pf);
-    /* the registers as setting up the state leaves them: a new game hands
-     * A's high byte on to the sound command's call, whose driver keeps it on
-     * its stack */
-    ORIGINAL_EFFECT(menu_leave_new_game_set_up(s));
-    if (new_game_plus_chosen(g, pf)) {
-        set_menu_save_slot_in_use(g, FOURTH_ROW, 0);
-        ORIGINAL_EFFECT(leave_compare(s, NEW_GAME_PLUS_X, NEW_GAME_PLUS_X));
-        if (!menu_run(s, 0xC2E67D, 0xC2E841, menu_ask_which_to_carry_on_from))
-            return;
-        set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1));
-        m_rts(s);
-        return;
-    }
     set_save_slot_chosen(g, slot_for_a_new_game(g));
-    leave_for_the_game(s);
+    return leave_for_the_game(g, n, ctx);
+}
+
+/* The fourth row chosen: a new game's state, marked new; then a New Game+
+ * asks which game to carry on from, and a new game leaves for the game. */
+static bool start_new_game(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
+{
+    start_the_new_game(g, pf);
+    n->note(ctx, LOAD_NOTE_NEW_GAME_SET_UP, 0);
+    if (!new_game_plus_chosen(g, pf))
+        return leave_for_a_new_game(g, n, ctx);
+    set_menu_save_slot_in_use(g, FOURTH_ROW, 0);
+    n->note(ctx, LOAD_NOTE_NEW_GAME_PLUS, 0);
+    if (!n->ask_which_to_carry_on_from(ctx))
+        return false;
+    set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1));
+    return true;
 }
 
 // $C2:E61B
 /* Choosing: Select and Start held on the second controller ask to erase the
  * slot the cursor is on; otherwise the cursor moves and shows each slot, and
  * a choice loads the slot's game or starts a new one. */
-void menu_choose_on_load_screen(Snes *s)
+bool menu_choose_on_load_screen_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
 {
-    GameState *g = state_of(s);
-    uint8_t second = (uint8_t)(second_controller(g) >> 8), slot = menu_cursor_index(g);
-    if (erase_asked(g) && slot < FOURTH_ROW) {
+    if (erase_asked(g) && menu_cursor_index(g) < FOURTH_ROW) {
         set_menu_screen_step(g, STEP_ERASING);
-        ORIGINAL_EFFECT(leave_load(s, STEP_ERASING));
-        ORIGINAL_EFFECT(leave_carry(s, false));
-        if (!tick(s, 0xC2E62C))
-            return;
-        ask_to_erase(g, m_platform(s));
-        m_rts(s);
-        return;
+        n->note(ctx, LOAD_NOTE_ERASE_ASKED, STEP_ERASING);
+        if (!n->tick(ctx, LOAD_AT_THE_ERASE_ASKED_TICK))
+            return false;
+        ask_to_erase(g, pf);
+        return true;
     }
-    ORIGINAL_EFFECT(second != ERASE_BUTTONS ? leave_compare(s, second, ERASE_BUTTONS) : leave_compare(s, slot, FOURTH_ROW));
-    menu_step_reads_the_cursor_and_tests_its_buttons(s);
-    if (!(menu_cursor_buttons(g) & CHOSE)) {
-        if (show_and_tick(s, 0xC2E63A, 0xC2E643))
-            m_rts(s);
-        return;
-    }
-    if (!tick(s, 0xC2E647))
-        return;
-    menu_set_widths(s, true, true);
-    slot = menu_cursor_index(g);
-    if (slot < FOURTH_ROW)
-        load_and_leave(s, slot);
-    else
-        start_new_game(s);
+    n->note(ctx, LOAD_NOTE_NOT_ERASING, 0);
+    n->read_cursor(ctx);
+    if (!menu_asked(g, MENU_CHOOSE))
+        return show_and_tick(g, n, ctx, LOAD_AT_THE_CHOOSING_SHOW, LOAD_AT_THE_CHOOSING_MOVE_TICK);
+    if (!n->tick(ctx, LOAD_AT_THE_CHOSEN_TICK))
+        return false;
+    n->byte_wide(ctx);
+    uint8_t slot = menu_cursor_index(g);
+    return slot < FOURTH_ROW ? load_and_leave(g, n, ctx, slot) : start_new_game(g, pf, n, ctx);
 }
 
 // $C2:E6AE
 /* Which game a New Game+ carries on from: as choosing, without the fourth
  * row; going back returns to choosing, with the cursor on the fourth row and
  * the header given back. */
-enum { HEADER_ROWS_AT = 0x52C0, HEADER_ROWS_BYTES = 0x100 };
+enum { HEADER_ROWS_BYTES = 0x100 };
 
 static void back_to_choosing(GameState *g)
 {
@@ -503,103 +430,69 @@ static void back_to_choosing(GameState *g)
     menu_queue_fixed_upload(g, MENU_UPLOAD_TEXT_LAYER);
 }
 
-void menu_choose_game_to_carry_on_from(Snes *s)
+bool menu_choose_game_to_carry_on_from_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
 {
-    GameState *g = state_of(s);
-    menu_step_reads_the_cursor_and_tests_its_buttons(s);
-    uint8_t buttons = menu_cursor_buttons(g);
-    if (!(buttons & (CHOSE | WENT_BACK))) {
-        if (show_and_tick(s, 0xC2E6B8, 0xC2E6C1))
-            m_rts(s);
-        return;
-    }
-    uint32_t tick_at = (buttons & CHOSE) ? 0xC2E6C5 : 0xC2E6DF;
-    if (!tick(s, tick_at))
-        return;
-    if (!(buttons & CHOSE)) {
+    (void)pf;
+    n->read_cursor(ctx);
+    bool chose = menu_asked(g, MENU_CHOOSE);
+    if (!chose && !menu_asked(g, MENU_GO_BACK))
+        return show_and_tick(g, n, ctx, LOAD_AT_THE_CARRY_ON_SHOW, LOAD_AT_THE_CARRY_ON_MOVE_TICK);
+    if (!n->tick(ctx, chose ? LOAD_AT_THE_CARRY_ON_CHOSEN_TICK : LOAD_AT_THE_CARRY_ON_BACK_TICK))
+        return false;
+    if (!chose) {
         back_to_choosing(g);
-        ORIGINAL_EFFECT(leave_wide(s));
-        m_rts(s);
-        return;
+        n->note(ctx, LOAD_NOTE_BACK_TO_CHOOSING, 0);
+        return true;
     }
-    menu_set_widths(s, true, true);
+    n->byte_wide(ctx);
     uint8_t slot = menu_cursor_index(g);
-    if (slot < FOURTH_ROW) {
-        carry_on_and_leave(s, slot);
-        return;
-    }
-    set_save_slot_chosen(g, slot_for_a_new_game(g));
-    leave_for_the_game(s);
+    return slot < FOURTH_ROW ? carry_on_and_leave(g, n, ctx, slot) : leave_for_a_new_game(g, n, ctx);
 }
 
 // $C2:E705
 /* Erasing: yes or no to the question; going back is a no. Either way the
  * question closes and the cursor goes back to the slot. */
-void menu_answer_erase(Snes *s)
+bool menu_answer_erase_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
 {
-    GameState *g = state_of(s);
-    menu_step_reads_the_cursor_and_tests_its_buttons(s);
-    uint8_t buttons = menu_cursor_buttons(g);
-    if (!(buttons & (CHOSE | WENT_BACK))) {
-        if (menu_cursor_index(g) != menu_cursor_frame_start(g)) {
-            ORIGINAL_EFFECT(leave_compare(s, menu_cursor_index(g), menu_cursor_frame_start(g)));
-            if (!tick(s, 0xC2E715))
-                return;
-        }
-        m_rts(s);
-        return;
+    n->read_cursor(ctx);
+    bool chose = menu_asked(g, MENU_CHOOSE);
+    if (!chose && !menu_asked(g, MENU_GO_BACK)) {
+        if (menu_cursor_index(g) == menu_cursor_frame_start(g))
+            return true;
+        n->note(ctx, LOAD_NOTE_ANSWER_MOVED, 0);
+        return n->tick(ctx, LOAD_AT_THE_ERASE_MOVE_TICK);
     }
-    if (!(buttons & CHOSE))
+    if (!chose)
         set_menu_cursor_index(g, ERASE_NO);
-    menu_draw_windows(g, m_platform(s), ERASE_QUESTION_CLOSED);
-    /* the list leaves A clear, and a no hands its high byte on to the sound's
-     * call, whose driver keeps it on its stack */
-    ORIGINAL_EFFECT(menu_leave_a_high_byte_clear(s));
+    menu_draw_windows(g, pf, ERASE_QUESTION_CLOSED);
+    n->note(ctx, LOAD_NOTE_ANSWERED, 0);
     if (menu_cursor_index(g) == ERASE_YES) {
-        ORIGINAL_EFFECT(leave_compare(s, ERASE_YES, ERASE_YES));
-        if (!menu_run(s, 0xC2E729, 0xC2E8B7, menu_erase_slot))
-            return;
+        n->note(ctx, LOAD_NOTE_ERASE_YES, 0);
+        if (!n->erase(ctx))
+            return false;
     }
     set_menu_line_effects(g, ANSWERED_LINE_EFFECTS);
     set_menu_cursor_index(g, menu_kept_cursor(g));
     set_menu_screen_step(g, STEP_CHOOSING);
-    ORIGINAL_EFFECT(leave_load(s, STEP_CHOOSING));
-    ORIGINAL_EFFECT(leave_carry(s, true));
-    if (!tick(s, 0xC2E73A))
-        return;
+    n->note(ctx, LOAD_NOTE_CHOOSING_AGAIN, STEP_CHOOSING);
+    if (!n->tick(ctx, LOAD_AT_THE_ERASE_ANSWERED_TICK))
+        return false;
     menu_queue_fixed_upload(g, MENU_UPLOAD_SLOT_TILEMAP_2);
-    m_rts(s);
-}
-
-/* The question's label is set by the typesetter (menu_set_label) into the
- * header's graphic, with 8-bit A. */
-
-// $C2:E841
-void menu_ask_which_to_carry_on_from(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_save_p(s);
-    menu_set_widths(s, true, false);
-    ask_which_to_carry_on_from(g);
-    TIMED_AS(g, 0xC2F90C, (void)menu_set_label(g, QUESTION_LABEL_TABLE, QUESTION_LABEL, QUESTION_LABEL_AT));
-    show_question_label(g);
-    menu_restore_p(s);
-    m_rts(s);
+    return true;
 }
 
 /* ---- Erasing a slot ------------------------------------------------------------------------------ */
 
 /* The slot's row redrawn empty: its label cleared and drawn again with the
- * empty slot's (by $C2:D28D, the original's, from the JSR at $C2:E903), and
- * after a frame ($C2:821E, the task's yield) queued: the slot's chapter's two
- * rows of graphic (menu_data.h). The record goes where the summary is drawn
- * from. */
+ * empty slot's, and after a frame queued: the slot's chapter's two rows of
+ * graphic (menu_data.h). Only the machine runs it yet
+ * (load_screen_bridge.c); this is what it does to the game. */
 enum { MARKED_RECORD_BANK = 0x7E, FOURTH_ROW_LEFT_X = 0x08 };
 
 /* The slot's game gone: the slot no longer in use, its mark on the cartridge
  * spoilt; with no game left, the game no longer counts as finished and the
  * fourth row's cursor goes back to its first choice. */
-static void forget_slot(GameState *g, Platform *pf, uint8_t slot)
+void menu_forget_slot(GameState *g, Platform *pf, uint8_t slot)
 {
     set_menu_save_slot_in_use(g, slot, 0);
     set_menu_save_slot_design(g, slot, 0);
@@ -610,85 +503,23 @@ static void forget_slot(GameState *g, Platform *pf, uint8_t slot)
     }
 }
 
-/* The label's upload. The original builds its record where the summary is
- * drawn from and queues it from there, the summary's byte after the record's
- * seven going with it as its spare (which nothing reads), and keeps the
- * slot's rows in its first cell. */
-enum { LABEL_RECORD_BYTES = 7 };
-
-static MenuUpload label_upload(uint8_t slot)
+/* The label's upload, from where the slots' chapter labels are drawn. */
+MenuUpload menu_slot_label_upload(uint8_t slot)
 {
     uint16_t from = (uint16_t)(MENU_CHAPTER_LABELS_AT + slot * MENU_CHAPTER_LABEL_BYTES);
     return (MenuUpload){ (uint16_t)(MENU_CHAPTER_LABELS_VRAM + slot * MENU_CHAPTER_LABEL_VRAM_WORDS),
                          (uint32_t)MARKED_RECORD_BANK << 16 | from, MENU_CHAPTER_LABEL_BYTES, 0 };
 }
 
-static void leave_label_record(GameState *g, uint8_t slot)
-{
-    MenuUpload u = label_upload(slot);
-    const uint8_t record[LABEL_RECORD_BYTES] = { (uint8_t)u.vram, (uint8_t)(u.vram >> 8), (uint8_t)u.source, (uint8_t)(u.source >> 8),
-                                (uint8_t)(u.source >> 16), (uint8_t)u.size, (uint8_t)(u.size >> 8) };
-    for (unsigned i = 0; i < sizeof record; i++)
-        set_menu_save_summary_byte(g, i, record[i]);
-    set_menu_scratch_erased_slot_rows(g, (uint16_t)(slot << 8));
-}
-
-/* The slot's window's drawing leaves the player's design in A. */
-static void leave_design(Snes *s) { s->cpu.a = (uint8_t)(game_settings(state_of(s), 1) & DESIGN_BITS); }
-
-enum { LABEL_LOADER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };   /* $C2:D28D */
-
-// $C2:E8B7
-void menu_erase_slot(Snes *s)
-{
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    uint8_t slot = menu_save_slot_shown(g);
-    menu_save_p(s);
-    menu_set_widths(s, true, true);
-    forget_slot(g, pf, slot);
-    ORIGINAL_EFFECT(leave_label_record(g, slot));
-    menu_set_widths(s, false, false);
-    if (!menu_call(s, 0xC2E903, 0xC2D28D, LABEL_LOADER_IGNORES))
-        return;
-    if (!menu_wait_a_frame_from(s, 0xC2E906))
-        return;
-    MenuUpload label = label_upload(slot);
-    ORIGINAL_EFFECT(label.spare = menu_save_summary_byte(g, LABEL_RECORD_BYTES));
-    TIMED_AS(g, 0xC2838E, menu_queue_upload(g, label));
-    TIMED_AS(g, 0xC2D32C, draw_slot_window(g, slot));
-    ORIGINAL_EFFECT(leave_design(s));
-    menu_restore_p(s);
-    m_rts(s);
-}
-
 void menu_redraw_slot_window(GameState *g, uint8_t slot) { draw_slot_window(g, slot); }
 
-// $C2:D32C
-void menu_draw_slot_window(Snes *s)
-{
-    GameState *g = state_of(s);
-    draw_slot_window(g, menu_save_slot_shown(g));
-    ORIGINAL_EFFECT(leave_design(s));
-    m_rts(s);
-}
+/* ---- What the steps take ------------------------------------------------------------------------- */
 
-/* ---- The guards --------------------------------------------------------------------------------- */
-
-/* The screen runs on the menus' page with the data bank on work RAM's; what
+/* The screen runs with room in the upload queue for what a step queues; what
  * the game gives its steps besides is what the routines they run take: a
  * cursor on one of the four rows with a place to move to, at least one slot
- * with a game and summaries whose members are characters (menu/save_screen.c),
- * the sounds' cells, and room in the upload queue for what a step queues. */
-enum { QUEUE_BYTES = 0x100, MOST_UPLOADS_A_STEP = 6, MOST_UPLOADS_OPENING = 8 };
-
-static bool queue_takes(Snes *s, unsigned uploads)
-{
-    vars_peek(true);
-    unsigned queued = menu_vram_queue_bytes(state_of(s));
-    vars_peek(false);
-    return queued % MENU_UPLOAD_BYTES == 0 && queued + MENU_UPLOAD_BYTES * uploads <= QUEUE_BYTES;
-}
+ * with a game and summaries whose members are characters (menu/save_screen.c). */
+enum { MOST_UPLOADS_A_STEP = 6, MOST_UPLOADS_OPENING = 8 };
 
 /* The screen's cursor moves between its four rows: each row's neighbours are
  * rows (the top bit marks a push that leaves them, which the screen's places
@@ -697,16 +528,28 @@ enum { LEAVES_THE_ROWS = 0x80 };
 
 static bool is_row(uint8_t place) { return (uint8_t)(place & ~LEAVES_THE_ROWS) <= FOURTH_ROW; }
 
-static bool cursor_stays_on_the_rows(Snes *s)
+static bool cursor_stays_on_the_rows(const GameState *g)
 {
-    const GameState *g = state_of(s);
-    vars_peek(true);
-    bool ok = true;
     for (uint8_t row = 0; row <= FOURTH_ROW; row++)
-        ok = ok && is_row(menu_cursor_places_up(g, row)) && is_row(menu_cursor_places_down(g, row))
-             && is_row(menu_cursor_places_left(g, row)) && is_row(menu_cursor_places_right(g, row));
-    vars_peek(false);
-    return ok;
+        if (!is_row(menu_cursor_places_up(g, row)) || !is_row(menu_cursor_places_down(g, row))
+            || !is_row(menu_cursor_places_left(g, row)) || !is_row(menu_cursor_places_right(g, row)))
+            return false;
+    return true;
+}
+
+bool menu_load_screen_can_choose(const GameState *g)
+{
+    return menu_cursor_can_move(g) && cursor_stays_on_the_rows(g) && menu_load_screen_slot_can_show(g)
+           && menu_upload_queue_takes(g, MOST_UPLOADS_A_STEP);
+}
+
+/* The opening's drawing: the slot the cartridge says was saved last is one of
+ * the rows. (The colour math records it builds its table from are the
+ * screen's own lists'.) The save memory is looked at without its time. */
+bool menu_load_screen_can_draw(const GameState *g, Platform *pf)
+{
+    return menu_upload_queue_takes(g, MOST_UPLOADS_OPENING) && sv_peek8(pf, SAVES_LAST_SLOT) <= FOURTH_ROW
+           && menu_save_slots_can_show(g);
 }
 
 /* The erase question's answer: the cursor on yes or no, whose neighbours are
@@ -714,51 +557,151 @@ static bool cursor_stays_on_the_rows(Snes *s)
  * cursor kept for going back on one of the rows. */
 static bool is_answer(uint8_t place) { return place == ERASE_YES || place == ERASE_NO; }
 
-bool menu_erase_is_answerable(Snes *s)
+bool menu_erase_can_be_answered(const GameState *g)
 {
-    if (!menu_on_page_work_ram(s) || !menu_sounds_on_page(s) || !queue_takes(s, MOST_UPLOADS_A_STEP)
-        || !menu_cursor_is_movable(s) || !menu_palette_change_counts(s))
-        return false;
-    const GameState *g = state_of(s);
-    vars_peek(true);
     uint8_t at = menu_cursor_index(g);
-    bool ok = is_answer(at) && is_answer((uint8_t)(menu_cursor_places_up(g, at) & ~LEAVES_THE_ROWS))
-              && is_answer((uint8_t)(menu_cursor_places_down(g, at) & ~LEAVES_THE_ROWS))
-              && is_answer((uint8_t)(menu_cursor_places_left(g, at) & ~LEAVES_THE_ROWS))
-              && is_answer((uint8_t)(menu_cursor_places_right(g, at) & ~LEAVES_THE_ROWS))
-              && menu_save_slot_shown(g) < MENU_SAVE_SLOTS && menu_kept_cursor(g) <= FOURTH_ROW;
-    vars_peek(false);
+    return menu_upload_queue_takes(g, MOST_UPLOADS_A_STEP) && menu_cursor_can_move(g)
+           && menu_palette_changes_have_room(g) && is_answer(at)
+           && is_answer((uint8_t)(menu_cursor_places_up(g, at) & ~LEAVES_THE_ROWS))
+           && is_answer((uint8_t)(menu_cursor_places_down(g, at) & ~LEAVES_THE_ROWS))
+           && is_answer((uint8_t)(menu_cursor_places_left(g, at) & ~LEAVES_THE_ROWS))
+           && is_answer((uint8_t)(menu_cursor_places_right(g, at) & ~LEAVES_THE_ROWS))
+           && menu_save_slot_shown(g) < MENU_SAVE_SLOTS && menu_kept_cursor(g) <= FOURTH_ROW;
+}
+
+/* ---- The steps as C ------------------------------------------------------------------------------- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} LoadScreenAsC;
+
+static const LoadScreenSteps as_c;
+
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((LoadScreenAsC *)ctx)->game); }
+
+static bool tick(void *ctx, LoadScreenPlace at)
+{
+    (void)at;
+    LoadScreenAsC *c = ctx;
+    menu_tick(c->game, c->pf);
+    return true;
+}
+
+/* The routines the steps reach, each where its entry's guard would take the
+ * state as the step has left it; otherwise the program goes no further. */
+static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
+{
+    if (!ok)
+        program_needs_the_machine(g, routine, what);
     return ok;
 }
 
-bool menu_load_screen_runs(Snes *s)
+static bool show_the_slot(void *ctx, LoadScreenPlace at)
 {
-    return menu_on_page_work_ram(s) && menu_cursor_is_movable(s) && cursor_stays_on_the_rows(s)
-           && menu_save_slots_are_showable(s) && menu_sounds_on_page(s) && queue_takes(s, MOST_UPLOADS_A_STEP);
-}
-
-/* The opening's drawing: the slot the cartridge says was saved last is one of
- * the rows. (The colour math records it builds its table from are the
- * screen's own lists'.) */
-bool menu_load_screen_draws(Snes *s)
-{
-    if (!menu_on_page_work_ram(s) || !queue_takes(s, MOST_UPLOADS_OPENING))
+    (void)at;
+    LoadScreenAsC *c = ctx;
+    if (!takes(c->game, menu_load_screen_slot_can_show(c->game), 0xC2E743, "a save slot the port doesn't show"))
         return false;
-    vars_peek(true);
-    bool ok = sv_peek8(m_platform(s), SAVES_LAST_SLOT) <= FOURTH_ROW && menu_save_slots_can_show(state_of(s));
-    vars_peek(false);
-    return ok;
+    bool back = false;
+    TIMED_AS(c->game, 0xC2E743, back = menu_show_save_slot_with(c->game, c->pf, &as_c, c));
+    return back;
 }
 
-/* A slot's window is one of the three rows', and the colours it loads can be
- * counted as a change (menu/windows.c). The guards look at the save memory
- * without the machine's time. */
-bool menu_slot_window_is_drawable(Snes *s)
+static bool draw(void *ctx)
 {
-    if (!menu_on_page_work_ram(s) || !menu_palette_change_counts(s))
+    LoadScreenAsC *c = ctx;
+    if (!takes(c->game, menu_load_screen_can_draw(c->game, c->pf), 0xC2E7C3, "a load screen the port doesn't draw"))
         return false;
-    vars_peek(true);
-    bool ok = menu_save_slot_shown(state_of(s)) < MENU_SAVE_SLOTS;
-    vars_peek(false);
-    return ok;
+    bool back = false;
+    TIMED_AS(c->game, 0xC2E7C3, back = menu_draw_load_screen_with(c->game, c->pf, &as_c, c));
+    return back;
+}
+
+static bool ask_which_to_carry_on_from(void *ctx)
+{
+    LoadScreenAsC *c = ctx;
+    TIMED_AS(c->game, 0xC2E841, menu_ask_which_game_to_carry_on_from(c->game));
+    return true;
+}
+
+static bool load(void *ctx)
+{
+    LoadScreenAsC *c = ctx;
+    if (!takes(c->game, menu_save_code_can_run(c->game), 0xFFFAA3, "a saved game the port doesn't load"))
+        return false;
+    TIMED_AS(c->game, 0xFFFAA3, saves_load_game(c->game, c->pf, menu_save_slot_shown(c->game)));
+    return true;
+}
+
+static bool carry_on(void *ctx)
+{
+    LoadScreenAsC *c = ctx;
+    if (!takes(c->game, menu_carry_over_can_run(c->game), 0xFFFAED, "a New Game+ the port doesn't carry over"))
+        return false;
+    TIMED_AS(c->game, 0xFFFAED, saves_carry_over(c->game, c->pf, menu_save_slot_shown(c->game)));
+    return true;
+}
+
+static bool erase(void *ctx)
+{
+    LoadScreenAsC *c = ctx;
+    program_needs_the_machine(c->game, 0xC2E8B7, "a slot's erasing, which only the machine runs");
+    return false;
+}
+
+static bool sound_output_sent(void *ctx)
+{
+    LoadScreenAsC *c = ctx;
+    menu_send_the_sound_output(c->game, c->pf);
+    return true;
+}
+
+static void byte_wide(void *ctx) { (void)ctx; }
+
+static void note(void *ctx, LoadScreenNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
+
+/* The steps' ends, as the menus' own as C: the fade in's task started, or
+ * the menus closed for the game (which never comes back to the screen). */
+static bool ends(void *ctx, LoadScreenEnd end)
+{
+    LoadScreenAsC *c = ctx;
+    switch (end) {
+    case LOAD_FADES_IN: TIMED_AS(c->game, 0xC283B2, menu_start_the_fade_in(c->game)); break;
+    case LOAD_LEAVES_FOR_THE_GAME: menu_close(c->game, c->pf, true); break;
+    }
+    return true;
+}
+
+static const LoadScreenSteps as_c = { read_cursor, tick, show_the_slot, draw, ask_which_to_carry_on_from, load,
+                                      carry_on, erase, sound_output_sent, byte_wide, note, ends };
+
+/* A step as C where its entry's guard would take the state. */
+static bool step(GameState *g, Platform *pf, bool ok, uint32_t routine,
+                 bool (*run)(GameState *, Platform *, const LoadScreenSteps *, void *))
+{
+    if (!takes(g, ok, routine, "a load screen the port doesn't take"))
+        return false;
+    LoadScreenAsC c = { g, pf };
+    return run(g, pf, &as_c, &c);
+}
+
+bool menu_open_load_screen(GameState *g, Platform *pf)
+{
+    return step(g, pf, menu_load_screen_can_draw(g, pf), 0xC2E613, menu_open_load_screen_with);
+}
+
+bool menu_choose_on_load_screen(GameState *g, Platform *pf)
+{
+    return step(g, pf, menu_load_screen_can_choose(g), 0xC2E61B, menu_choose_on_load_screen_with);
+}
+
+bool menu_choose_game_to_carry_on_from(GameState *g, Platform *pf)
+{
+    return step(g, pf, menu_load_screen_can_choose(g), 0xC2E6AE, menu_choose_game_to_carry_on_from_with);
+}
+
+bool menu_answer_erase(GameState *g, Platform *pf)
+{
+    return step(g, pf, menu_erase_can_be_answered(g), 0xC2E705, menu_answer_erase_with);
 }

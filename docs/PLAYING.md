@@ -550,10 +550,10 @@ coroutine until it waits for the frame, the line handler, then a frame of the
 sound driver's time. Where the program's next step is still only a machine
 entry, `program_needs_the_machine` stops it and the driver says where (exit
 status 1; here from a cartridge save with `saves/menus-field-menu.ctm`'s
-presses, at the load screen's opening):
+presses, at the equipment's slots window):
 
 ```
-frame 1692: the program's C goes no further: $C2:E613, a menu screen's step only the machine runs, runs only on the machine
+frame 3651: the program's C goes no further: $C2:A71E, the equipment's slots window opened, runs only on the machine
 ```
 
 So far the boot and the field run as C. At power-on the field's handlers
@@ -629,7 +629,12 @@ in his house: its opening, its choosing and its panels, and the equipment,
 the items, the techs and the settings opened from it and left again, each
 step the menus' main task runs a row of `menu/screens.c`'s table with a C
 column, and the scroll bar's and the records' tasks on their coroutines;
-then the menu closed, to the movie's end.
+then the menu closed, to the movie's end. From a cartridge save
+(`--sram`) the game starts on the load screen, as C too: its slots drawn,
+the cursor among them, and a game loaded or a New Game+ carried over, out
+of the menus into the game; 16 of the save movies play to their end
+(REIMPLEMENTATION.md, "The native program from a cartridge save", says
+where the others stop).
 
 The field's steps as the program calls them (`field_runs`,
 `field/main_loop.c`) are functions of the game's state that the entries

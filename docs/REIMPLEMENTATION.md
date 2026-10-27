@@ -2938,74 +2938,60 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
-### The native program through the main menu
+### The native program from a cartridge save
 
-With the attract sequence as C (the history file, "The native program
-through the attract sequence"), the first stop left was the menus the player
-opens: `menu.ctm` stopped at frame 7417, the main menu's opening (`$C2:99CE`),
-a step of `menu/screens.c`'s table with no C. The chunk followed the movie:
-each stop named the next routine, until the movie played to its end (frame
-8900; 30,000 frames without a stop). The stops on the way, in order, were
-the main menu's opening and choosing, the equipment's opening (`$C2:9C31`),
-the items' (`$C2:AA40`), the scroll bar's task (`$C2:8BB8`), the records'
-task the techs' panel starts (`$C2:F657`), the techs' opening (`$C2:B35D`)
-and the settings' (`$C2:BF3D`).
+With the main menu as C (the history file, "The native program through the
+main menu"), every power-on movie played to its end in `ct_native`, and every
+movie that starts from a cartridge save stopped at frame 1692 on the load
+screen's opening (`$C2:E613`), the first step of `menu/screens.c`'s table it
+meets with no C. The chunk followed the save movies from there.
 
-Every step is one sequence, the shape the rest of the tree has: the
-registered entry is a thin wrapper (`*_entry` where the C takes the plain
-name) handing a `*_with` sequence its `*_on_the_machine` steps, and the
-program hands it C steps. A screen's steps are a struct of callbacks
-(`MainMenuSteps`, `EquipmentSteps`, `ItemsSteps`, `TechsSteps`,
-`SettingsSteps`): the cursor read, a tick from a named place (an enum the
-bridge's table turns into the original's call site), a frame's wait, the
-siblings the original reaches by a JSR (the panel, the member card, the
-description, the moves among the techs' members, an option's handler), the
-way back to the main menu, and the notes where the machine leaves what the
-original's tests left. As C the siblings are their C under `TIMED_AS`, the
-ticks and the cursor read `menu_tick` and `menu_read_the_cursor_for_a_step`
-(menu/cursor.c), a wait `menu_task_waits`, and the way back
-`menu_back_to_the_main_menu`; a sibling with no C yet (a list's slide, the
-slots' window, the techs' lister, the settings' meters, the exchange's and
-saving's panels) stops at `program_needs_the_machine` naming its routine.
+**The load screen.** Its four steps (the opening, choosing, which game a New
+Game+ carries on from, the erase question's answer), its drawing (`$C2:E7C3`)
+and the slot under the cursor shown (`$C2:E743`, save_screen.c) are each one
+sequence through `LoadScreenSteps`, the main menu's shape: the cursor read, a
+tick from a named place, the slot shown, the screen drawn, the New Game+'s
+question, the load and the carrying over, the erase, the sound output's
+command, the notes, and the step's end (the fade in, or the menus left for
+the game). The machine's answers are `load_screen_bridge.c`'s (each sibling
+run as the original's JSR reaches it, the driver's command a call out, the
+ends the jumps the steps stop at); the one piece of machine work between
+calls, the byte-wide registers the original's code sets after a choice, is a
+callback of its own (`byte_wide`), a no-op as C. As C each sibling checks its
+entry's guard's state half where the step has moved the cursor or the slot:
+the slot shown (`menu_load_screen_slot_can_show`), the drawing
+(`menu_load_screen_can_draw`, which peeks save memory), the load
+(`menu_save_code_can_run`) and the carrying over (`menu_carry_over_can_run`);
+the steps' own are `menu_load_screen_can_choose` and
+`menu_erase_can_be_answered`. A slot's erasing (`$C2:E8B7`), which no movie
+reaches, stops at `program_needs_the_machine`. The slots' rows' drawing
+leaving no slot shown (its count past the last) is a plain write now: the
+screens set the slot shown plainly before anything reads it, and the 21
+effects-baseline lines that answered the scaffolding write went with it.
 
-- **The guards' state halves.** Each C path checks what its entry's guard
-  takes of the state, a `const GameState *` function the guard calls too:
-  the main menu's (`menu_main_menu_can_open`, `_can_choose`,
-  `_can_come_back`, `_panel_can_show`), the panels'
-  (`menu_equipment_panel_can_show` and the items', techs' and settings'),
-  the screens' (`menu_equip_can_set_up`, `_can_choose_a_member`,
-  `_can_point_at_a_member`; `menu_items_can_open`,
-  `_can_point_along_the_list`, `_can_sort`; `menu_techs_can_open`,
-  `_can_move_among_members`; `menu_settings_can_open`, `_can_choose`,
-  `menu_settings_option_can_be_taken`), the card's
-  (`menu_member_card_can_be_drawn`), and the two tasks'
-  (`menu_scroll_bar_can_be_drawn`, `menu_records_can_run`). The upload
-  queue's room, which three bridges each worked out, is one function
-  (`menu_upload_queue_takes`, menu/vram.c).
-- **The table.** `menu/screens.c`'s rows have a C column beside the machine
-  entry; the naming's row is `menu_naming_step`, which reads the step it is
-  on, as the other screens' rows would. `menu/tasks.c`'s coroutines have the
-  scroll bar's and the records' bodies: each frame's work timed as its entry,
-  then the wait, while its guard's state half holds.
-- **The machine's side.** Where the original's code saves P or sets the
-  widths between the steps' calls, the wrapper does it round the sequence, a
-  wait's table row sets them for the wait (the main menu's panels), or, in
-  the items', techs' and settings' sequences, the note at that point does
-  (TODO.md, "The menus' steps' notes carry machine work").
+**The field's frames on a host.** The first save movie past the load screen
+(`saves/battle-golem-twins-gameover.ctm`) hung: an object holding its frame
+(layout 12) answers the frame queue's drawing with "wait" until the next
+frame, and the original asks again until the beam ends the frame's time,
+which a host's `tm_frame_time_left` never does. The C path's drawing ends
+the frame there (`FRAME_HELD_TO_THE_NEXT`, field/frames.c); the machine's
+asks as before.
 
-**Measured.** Shadow mode over `menu.ctm`: the changed entries 0 mismatched.
-Fuzzing, seed 1, `tools/fuzz_compare.py` against the branch point's
-`ct_fuzz` over the 31 entries the sequences changed (35 runs, the settings'
-with their second variant): every run the same as before, none mismatching
-and the guards' refusals unchanged. `tools/effects_check.py`: the eight
-reads the bridges' guards and steps made of cells written plainly moved with
-them to the shared functions (their baseline lines renamed), and the records'
-guard, once a static the check didn't see, has its two lines with why;
-`tools/dontcare_check.py`: none. `ct_native` with the other movies' presses
-and alone goes as far as before; from a cartridge save,
-`saves/menus-field-menu.ctm` stops at the load screen's opening
-(`$C2:E613`), the next menus to give a C path. Timing: every entry within
-its limits, none recalibrated. Gate: suite OK.
+**Measured.** Fuzzing, seed 1, `tools/fuzz_compare.py` against the branch
+point's `ct_fuzz` over the 17 load screen and slot entries the sequences
+changed (with their `new_game_plus`, `at-the-sound` and `narrow` variants):
+every run the same as before, none mismatching and the guards' refusals
+unchanged. `tools/effects_check.py`: none new. `ct_native` from a cartridge
+save, with each movie's presses: 16 of the 40 save movies play to their end
+(none did); the rest stop at the game over's start afresh from the title
+(`$C0:000E`, four movies), a routine a world map's script calls (`$C2:26A8`,
+three), the time gate's tunnel (`$FD:DA5F` and kin, four), the gate's
+exchange (`$C2:C7AC`, two), the time dial and the map view (`$C2:6A34`,
+`$C2:631F`, three), a scene's routine (`$7E:3F59`, two), a step on an
+event's tile (`$C0:0C76`, two), the equipment's slots window (`$C2:A71E`), a
+main menu panel (`$C2:9B54`), the save point's save screen (`$C2:D4F8`), a
+shop (`$C2:D52B`) and a menus' task (`$C2:89F2`). The power-on movies and
+the attract sequence go as far as before. Gate: suite OK.
 ### The last refusals in real play: the attract demo's states
 
 The four refusals the batch before left (1,043 calls at `$7E:424D`,

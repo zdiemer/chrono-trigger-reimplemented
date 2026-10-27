@@ -11578,3 +11578,72 @@ curtain's guard (`sweep_the_curtain`) moved to the shared step
 `ct_native` with the movies' presses goes as far as before
 (`menu.ctm`'s stop at the main menu's opening, `$C2:99CE`, is the first
 stop left). Gate: suite OK.
+
+#### The native program through the main menu
+
+With the attract sequence as C (the history file, "The native program
+through the attract sequence"), the first stop left was the menus the player
+opens: `menu.ctm` stopped at frame 7417, the main menu's opening (`$C2:99CE`),
+a step of `menu/screens.c`'s table with no C. The chunk followed the movie:
+each stop named the next routine, until the movie played to its end (frame
+8900; 30,000 frames without a stop). The stops on the way, in order, were
+the main menu's opening and choosing, the equipment's opening (`$C2:9C31`),
+the items' (`$C2:AA40`), the scroll bar's task (`$C2:8BB8`), the records'
+task the techs' panel starts (`$C2:F657`), the techs' opening (`$C2:B35D`)
+and the settings' (`$C2:BF3D`).
+
+Every step is one sequence, the shape the rest of the tree has: the
+registered entry is a thin wrapper (`*_entry` where the C takes the plain
+name) handing a `*_with` sequence its `*_on_the_machine` steps, and the
+program hands it C steps. A screen's steps are a struct of callbacks
+(`MainMenuSteps`, `EquipmentSteps`, `ItemsSteps`, `TechsSteps`,
+`SettingsSteps`): the cursor read, a tick from a named place (an enum the
+bridge's table turns into the original's call site), a frame's wait, the
+siblings the original reaches by a JSR (the panel, the member card, the
+description, the moves among the techs' members, an option's handler), the
+way back to the main menu, and the notes where the machine leaves what the
+original's tests left. As C the siblings are their C under `TIMED_AS`, the
+ticks and the cursor read `menu_tick` and `menu_read_the_cursor_for_a_step`
+(menu/cursor.c), a wait `menu_task_waits`, and the way back
+`menu_back_to_the_main_menu`; a sibling with no C yet (a list's slide, the
+slots' window, the techs' lister, the settings' meters, the exchange's and
+saving's panels) stops at `program_needs_the_machine` naming its routine.
+
+- **The guards' state halves.** Each C path checks what its entry's guard
+  takes of the state, a `const GameState *` function the guard calls too:
+  the main menu's (`menu_main_menu_can_open`, `_can_choose`,
+  `_can_come_back`, `_panel_can_show`), the panels'
+  (`menu_equipment_panel_can_show` and the items', techs' and settings'),
+  the screens' (`menu_equip_can_set_up`, `_can_choose_a_member`,
+  `_can_point_at_a_member`; `menu_items_can_open`,
+  `_can_point_along_the_list`, `_can_sort`; `menu_techs_can_open`,
+  `_can_move_among_members`; `menu_settings_can_open`, `_can_choose`,
+  `menu_settings_option_can_be_taken`), the card's
+  (`menu_member_card_can_be_drawn`), and the two tasks'
+  (`menu_scroll_bar_can_be_drawn`, `menu_records_can_run`). The upload
+  queue's room, which three bridges each worked out, is one function
+  (`menu_upload_queue_takes`, menu/vram.c).
+- **The table.** `menu/screens.c`'s rows have a C column beside the machine
+  entry; the naming's row is `menu_naming_step`, which reads the step it is
+  on, as the other screens' rows would. `menu/tasks.c`'s coroutines have the
+  scroll bar's and the records' bodies: each frame's work timed as its entry,
+  then the wait, while its guard's state half holds.
+- **The machine's side.** Where the original's code saves P or sets the
+  widths between the steps' calls, the wrapper does it round the sequence, a
+  wait's table row sets them for the wait (the main menu's panels), or, in
+  the items', techs' and settings' sequences, the note at that point does
+  (TODO.md, "The menus' steps' notes carry machine work").
+
+**Measured.** Shadow mode over `menu.ctm`: the changed entries 0 mismatched.
+Fuzzing, seed 1, `tools/fuzz_compare.py` against the branch point's
+`ct_fuzz` over the 31 entries the sequences changed (35 runs, the settings'
+with their second variant): every run the same as before, none mismatching
+and the guards' refusals unchanged. `tools/effects_check.py`: the eight
+reads the bridges' guards and steps made of cells written plainly moved with
+them to the shared functions (their baseline lines renamed), and the records'
+guard, once a static the check didn't see, has its two lines with why;
+`tools/dontcare_check.py`: none. `ct_native` with the other movies' presses
+and alone goes as far as before; from a cartridge save,
+`saves/menus-field-menu.ctm` stops at the load screen's opening
+(`$C2:E613`), the next menus to give a C path. Timing: every entry within
+its limits, none recalibrated. Gate: suite OK.

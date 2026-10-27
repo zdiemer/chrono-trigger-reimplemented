@@ -27,7 +27,6 @@ game/menu/cursor.c                           return-address-pushed    3
 game/menu/display.c                          sibling-through-machine  4
 game/menu/epoch.c                            enum-types-nothing       1
 game/menu/epoch.c                            sibling-through-machine  7
-game/menu/load_screen.c                      flag-note-in-logic       1  # the wrapper's entry state for the erase's call-out on that branch, not a note in the logic
 game/scene/boot.c                            sibling-through-machine  1
 game/scene/frame.c                           flag-note-in-logic       1
 game/scene/frame.c                           return-address-pushed    2

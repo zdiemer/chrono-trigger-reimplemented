@@ -31,6 +31,7 @@
 #include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
+#include "menu/load_screen.h"
 #include "menu/menu_data.h"
 #include "menu/saves.h"
 #include "menu/text.h"
@@ -296,19 +297,6 @@ enum { MOVED_RIGHT = 0x01, MOVED_LEFT = 0x02, MOVED_UP = 0x08 };
 /* The fourth row's two choices are $70 apart across the screen. */
 enum { FOURTH_ROW_CHOICES_APART = 0x70 };
 
-/* The P the slot's drawing saves as it starts: the original's compare with
- * the fourth row leaves its carry there (where the game is finished), and its
- * last load before the call its zero and negative clear. */
-static void leave_fourth_row_compare(Snes *s, uint8_t slot) { m_set_flag(s, CPU_FLAG_C, slot >= FOURTH_ROW); }
-static void leave_last_load(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_Z, false);
-}
-/* Flipping the fourth row's choice leaves the new place's zero and negative
- * in the P the cursor's sound saves as it starts. */
-static void leave_flipped_place(Snes *s, uint8_t x) { menu_leave_load(s, x); }
-
 /* Off an empty slot: back up the list when the cursor moved up, and down it
  * otherwise, round the four rows. */
 static uint8_t skip_empty_slots(GameState *g, uint8_t slot)
@@ -333,9 +321,9 @@ static void clear_slot_tilemap(GameState *g)
 
 /* The rows' effect with the slot's row marked, and its tilemap cleared for
  * its summary. */
-static void make_room_for_the_slot(Snes *s, GameState *g)
+static void make_room_for_the_slot(GameState *g)
 {
-    NATIVE_TIME_AS(s, 0xC2CFFB, menu_put_slot_rows_effect(g));
+    TIMED_AS(g, 0xC2CFFB, menu_put_slot_rows_effect(g));
     clear_slot_tilemap(g);
 }
 
@@ -359,30 +347,27 @@ static const uint16_t SAVE_SCREEN_UPLOADS[3] = { MENU_UPLOAD_SLOT_TILEMAP_2, MEN
 
 // $C2:E743
 /* Show the slot the cursor is on: off the empty slots; on the fourth row, left
- * or right flips between its choices; then the slot rows' effect, and the
- * slot's summary drawn and queued. */
-static bool show_save_slot(Snes *s)
+ * or right flips between its choices, with a tick; then the slot rows'
+ * effect, and the slot's summary drawn and queued. */
+bool menu_show_save_slot_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
 {
-    GameState *g = state_of(s);
-    menu_set_widths(s, true, true);   /* its own widths, which cut the index registers to a byte */
     uint8_t slot = skip_empty_slots(g, menu_cursor_index(g));
     set_menu_cursor_index(g, slot);
-    bool finished = saves_finished(m_platform(s), PF_AT(0xC2E75D));
+    bool finished = saves_finished(pf, PF_AT(0xC2E75D));
     if (finished)
-        ORIGINAL_EFFECT(leave_fourth_row_compare(s, slot));
+        n->note(ctx, LOAD_NOTE_FOURTH_ROW_COMPARED, slot);
     if (finished && slot == FOURTH_ROW && (menu_cursor_moves(g) & (MOVED_RIGHT | MOVED_LEFT))) {
         uint8_t x = (uint8_t)(menu_cursor_places_x(g, FOURTH_ROW) ^ FOURTH_ROW_CHOICES_APART);
         set_menu_cursor_places_x(g, FOURTH_ROW, x);
-        ORIGINAL_EFFECT(leave_flipped_place(s, x));
-        if (!menu_run(s, 0xC2E777, 0xC2EAC2, menu_play_cursor_sound))
+        n->note(ctx, LOAD_NOTE_FOURTH_ROW_FLIPPED, x);
+        if (!n->tick(ctx, LOAD_AT_THE_FOURTH_ROW_FLIP_TICK))
             return false;
     }
     set_menu_save_slot_shown(g, slot);
     set_menu_save_slot_marked(g, (uint8_t)((slot + 1) & ROW_MASK));
-    make_room_for_the_slot(s, g);
-    s->cpu.db = MENU_DATA_BANK;   /* the clearing's block moves leave it there */
-    menu_set_widths(s, false, false);
-    ORIGINAL_EFFECT(leave_last_load(s));
+    make_room_for_the_slot(g);
+    TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, pf));
+    queue_the_slot(g, LOAD_SCREEN_UPLOADS);
     return true;
 }
 
@@ -415,7 +400,7 @@ static bool move_among_the_slots(Snes *s)
         if (!menu_run(s, 0xC2CFAF, 0xC2EAC2, menu_play_cursor_sound))
             return false;
     }
-    make_room_for_the_slot(s, g);
+    make_room_for_the_slot(g);
     if (menu_save_slot_in_use(g, slot) != 0)
         TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, m_platform(s)));
     queue_the_slot(g, SAVE_SCREEN_UPLOADS);
@@ -466,14 +451,18 @@ void menu_draw_save_slot(Snes *s)
 }
 
 // $C2:E743
+/* It saves P as it starts and puts it back as it ends, and runs with byte
+ * wide registers; the clearing's block moves leave the data bank on work
+ * RAM's. */
 void menu_show_save_slot(Snes *s)
 {
-    GameState *g = state_of(s);
     menu_save_p(s);
-    if (!show_save_slot(s))
+    menu_set_widths(s, true, true);
+    LoadScreenOnTheMachine m = { s };
+    if (!menu_show_save_slot_with(state_of(s), m_platform(s), &menu_load_screen_on_the_machine, &m))
         return;
-    TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, m_platform(s)));
-    queue_the_slot(g, LOAD_SCREEN_UPLOADS);
+    leave_block_move_bank(s);
+    menu_set_widths(s, false, false);
     ORIGINAL_EFFECT(leave_last_upload(s, MENU_UPLOAD_SLOT_TILEMAP_3));
     menu_restore_p(s);
     m_rts(s);
@@ -1009,13 +998,17 @@ bool menu_save_slots_can_show(const GameState *g)
     return any && drawable && drawing_counts(g);
 }
 
+bool menu_load_screen_slot_can_show(const GameState *g)
+{
+    return menu_cursor_index(g) < SLOT_ROWS && menu_save_slots_can_show(g);
+}
+
 bool menu_save_slots_are_showable(Snes *s)
 {
     if (!menu_on_page(s) || !m_bank_reaches_low_ram(s))
         return false;
-    GameState *g = state_of(s);
     vars_peek(true);
-    bool ok = menu_cursor_index(g) < SLOT_ROWS && menu_save_slots_can_show(g);
+    bool ok = menu_load_screen_slot_can_show(state_of(s));
     vars_peek(false);
     return ok;
 }
