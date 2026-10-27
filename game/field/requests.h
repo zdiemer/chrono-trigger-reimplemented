@@ -18,6 +18,11 @@ void field_handle_requests(Snes *s);
  * its own frames. */
 typedef enum { FIELD_PASS_GOES_ON, FIELD_STARTS_ANEW, FIELD_PASS_STOPS, FIELD_PASS_GOES_ROUND } FieldPass;
 FieldPass field_requests_handled(GameState *g, Platform *pf);
+/* The requests' entry's guard (field_requests_can_run), and its state half,
+ * which the C path checks too: a switch stepped on and a chest opened inside
+ * the map, and a location change's leader one the port reads. */
 bool field_requests_can_run(Snes *s);
+bool field_requests_can_be_answered(const GameState *g);
+enum { FIELD_HANDLE_REQUESTS_ENTRY = 0xC00C76 };
 
 #endif

@@ -36,6 +36,7 @@
 
 #include "charge.h"
 #include "cpu_io.h"
+#include "menu/handlers.h"
 #include "menu/line_effects.h"
 #include "menu/map_picture.h"
 #include "menu/menu.h"
@@ -369,41 +370,60 @@ enum { LOW_RAM_END = 0x2000, MAP_BYTES = MENU_MAP_ROWS * MENU_MAP_COLUMNS + 1, G
 
 static bool above_low_ram(uint16_t at, uint32_t bytes) { return at >= LOW_RAM_END && (uint32_t)at + bytes <= 0x10000; }
 
+static bool world_can_be_drawn(const GameState *g, MenuObject self)
+{
+    (void)self;
+    const Plane planes[2] = { the_land(g), over_the_land(g) };
+    bool ok = true;
+    for (unsigned i = 0; i < 2; i++)
+        ok = ok && above_low_ram(planes[i].map, MAP_BYTES) && above_low_ram(planes[i].groups, GROUPS_BYTES);
+    return ok;
+}
+
 bool menu_world_can_be_drawn(Snes *s)
 {
     if (m_direct_page(s) != 0x0000 || !m_bank_reaches_low_ram(s))
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    const Plane planes[2] = { the_land(g), over_the_land(g) };
-    bool ok = true;
-    for (unsigned i = 0; i < 2; i++)
-        ok = ok && above_low_ram(planes[i].map, MAP_BYTES) && above_low_ram(planes[i].groups, GROUPS_BYTES);
+    bool ok = world_can_be_drawn(g, menu_object_running(g));
     vars_peek(false);
     return ok;
 }
 
 /* The turn reaches the CPU's multiplier and divider through a data bank of
  * $00, on the mode's page, for the object running. */
+static bool world_can_be_turned(const GameState *g, MenuObject self)
+{
+    (void)self;
+    return menu_object_address_names_one(menu_object_current(g));
+}
+
 bool menu_world_can_be_turned(Snes *s)
 {
     if (m_direct_page(s) != 0x0000 || s->cpu.db != 0x00)
         return false;
     vars_peek(true);
-    bool ok = menu_object_address_names_one(menu_object_current(state_of(s)));
+    const GameState *g = state_of(s);
+    bool ok = world_can_be_turned(g, menu_object_running(g));
     vars_peek(false);
     return ok;
 }
 
 /* A frame reads its tilt's step from the tilts' table, so the tilt is one of
  * them, as every one the scene sets is. */
+static bool world_can_turn_a_frame(const GameState *g, MenuObject self)
+{
+    return world_can_be_turned(g, self) && menu_object_slots_world_tilt(g, self) < MENU_WORLD_TILTS;
+}
+
 bool menu_world_can_turn_a_frame(Snes *s)
 {
-    if (!menu_world_can_be_turned(s))
+    if (m_direct_page(s) != 0x0000 || s->cpu.db != 0x00)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = menu_object_slots_world_tilt(g, menu_object_running(g)) < MENU_WORLD_TILTS;
+    bool ok = world_can_turn_a_frame(g, menu_object_running(g));
     vars_peek(false);
     return ok;
 }
@@ -458,13 +478,58 @@ void menu_object_turn_the_world(Snes *s)
 }
 
 // $C6:EE23
-/* The angle moved by the turn handed on; the carry is the add's. */
+/* The angle moved by the turn the frame's work handed on. True where it
+ * went round past a whole turn. */
+static bool hand_the_turn_on(GameState *g, MenuObject o)
+{
+    uint16_t angle = menu_object_slots_phase(g, o), turn = menu_object_scratch_world_turn_handed_on(g);
+    set_menu_object_slots_phase(g, o, (uint16_t)(angle + turn));
+    return angle + turn > 0xFFFF;
+}
+
+/* The carry is the add's. */
 void menu_object_turn_the_world_on(Snes *s)
 {
     GameState *g = state_of(s);
-    MenuObject o = menu_object_running(g);
-    uint16_t angle = menu_object_slots_phase(g, o), turn = menu_object_scratch_world_turn_handed_on(g);
-    set_menu_object_slots_phase(g, o, (uint16_t)(angle + turn));
+    bool round = hand_the_turn_on(g, menu_object_running(g));
     m_rep(s, CPU_FLAG_M);
-    leave_for_the_script(s, menu_object_current(g), angle + turn > 0xFFFF);
+    leave_for_the_script(s, menu_object_current(g), round);
 }
+
+/* ---- As the program's scene calls them ------------------------------------------------------- */
+
+static bool draw_the_world_routine(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)self, (void)far;
+    draw_the_world(g, pf, the_land(g), over_the_land(g));
+    return true;
+}
+
+static bool start_turning_routine(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)far;
+    start_the_world_turning(g, pf, self);
+    TIMED_AS(g, 0xC6E9F5, turn_a_frame(g, self));
+    return true;
+}
+
+static bool turn_routine(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)far;
+    turn_a_frame(g, self);
+    return true;
+}
+
+static bool hand_the_turn_on_routine(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)far;
+    (void)hand_the_turn_on(g, self);
+    return true;
+}
+
+MENU_SCRIPT_ROUTINES(menu_turning_world_routines,
+    { 0xC6E7FA, "the world drawn", world_can_be_drawn, draw_the_world_routine },
+    { 0xC6E90F, "the world starting to turn", world_can_be_turned, start_turning_routine },
+    { 0xC6E9F5, "the world turned a frame", world_can_turn_a_frame, turn_routine },
+    { 0xC6EE23, "the world's turn handed on", world_can_be_turned, hand_the_turn_on_routine },
+);

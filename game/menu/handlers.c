@@ -206,6 +206,8 @@ static const MenuScriptRoutines *const ROUTINE_TABLES[] = {
     &menu_scene_routines,
     &menu_line_effect_routines,
     &menu_map_scene_routines,
+    &menu_map_view_routines,
+    &menu_turning_world_routines,
     &overworld_routines,
 };
 enum { ROUTINE_TABLES_COUNT = sizeof ROUTINE_TABLES / sizeof ROUTINE_TABLES[0] };

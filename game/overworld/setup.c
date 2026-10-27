@@ -762,13 +762,14 @@ bool overworld_graphics_finish_runs(Snes *s) { return menu_objects_on_page(s) &&
 
 /* The map's tiles load on a world map whose record is noted (the map view's
  * plane is built from them too: menu/epoch.c). */
+bool overworld_map_tiles_can_load(const GameState *g) { return on_a_world_map(g) && record_noted(g); }
+
 bool overworld_map_tiles_run(Snes *s)
 {
     if (!menu_objects_on_page(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = on_a_world_map(g) && record_noted(g);
+    bool ok = overworld_map_tiles_can_load(state_of(s));
     vars_peek(false);
     return ok;
 }

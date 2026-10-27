@@ -24,6 +24,7 @@
 #include "field/main_loop.h"
 #include "menu/display.h"
 #include "scene/scene.h"
+#include "warp/warp.h"
 #include "original_effects.h"
 #include "platform/input.h"
 #include "platform/timing.h"
@@ -130,8 +131,8 @@ static const struct {
     { SCENE_BOOT_LINE, "a scene's boot's line handler", scene_boot_line },
     { SCENE_FRAME_HANDLER, "a scene program's vblank handler", scene_vblank },
     { SCENE_HANDLER_WHILE_WORKING, "a scene program's vblank handler while it works", scene_vblank_while_working },
-    { 0xFDDE15, "the warp's vblank handler", 0 },
-    { 0xFDDE87, "the warp's line handler", 0 },
+    { WARP_VBLANK_HANDLER, "the warp's vblank handler", warp_vblank },
+    { WARP_LINE_HANDLER, "the warp's line handler", 0 },
 };
 enum { HANDLERS = sizeof handlers / sizeof handlers[0] };
 
@@ -168,9 +169,10 @@ static void go_no_further(GameState *g, Platform *pf, uint32_t routine, const ch
 }
 
 /* After power-on the game goes between the field and the scenes: the field
- * runs until it ends into a scene (an event's), the scene until its script
- * ends it, and the field starts again. A game over starts the game afresh
- * from the title, as the field's first start did at power-on. */
+ * runs until it ends into a scene (an event's) or a time gate's tunnel, the
+ * scene until its script ends it, and the field starts again. A game over
+ * starts the game afresh from the title, as the field's first start did at
+ * power-on; a scene that resets the console starts it from the boot. */
 void program_main_thread(GameState *g, Platform *pf)
 {
     program_boot(g, pf);
@@ -184,8 +186,15 @@ void program_main_thread(GameState *g, Platform *pf)
             continue;
         }
         uint8_t scene;
-        if (!program_next_scene(g, &scene) || !scene_runs(g, pf, scene))
+        if (!program_next_scene(g, &scene))
             break;
+        bool ran = scene < WARP_FIRST_SCENE ? scene_runs(g, pf, scene) : warp_runs(g, pf, scene);
+        if (!ran)
+            break;
+        if (program_console_resets(g)) {
+            program_boot(g, pf);
+            field_power_on(g, pf);
+        }
     }
     go_no_further(g, pf, FIELD_ENTER, "the field's entry");
 }

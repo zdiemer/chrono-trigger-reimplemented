@@ -73,6 +73,10 @@ typedef struct {
 extern const MenuScriptRoutines menu_scene_routines;
 extern const MenuScriptRoutines menu_line_effect_routines;
 extern const MenuScriptRoutines menu_map_scene_routines;
+/* The map view's routines a scene calls too (menu/epoch.c), and the Day of
+ * Lavos's turning world's (menu/turning_world.c). */
+extern const MenuScriptRoutines menu_map_view_routines;
+extern const MenuScriptRoutines menu_turning_world_routines;
 
 /* The overworld's handlers and the routines its scenes call of it
  * (overworld/handlers.c). */

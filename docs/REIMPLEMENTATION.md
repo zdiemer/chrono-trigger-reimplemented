@@ -2938,108 +2938,94 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
-### The native program from a cartridge save
+### The native program through the field's stops: switches, the turning world and the tunnel
 
-With the main menu as C (the history file, "The native program through the
-main menu"), every power-on movie played to its end in `ct_native`, and every
-movie that starts from a cartridge save stopped at frame 1692 on the load
-screen's opening (`$C2:E613`), the first step of `menu/screens.c`'s table it
-meets with no C. The chunk followed the save movies from there.
+From a cartridge save `ct_native` played 20 of the 40 save movies to their
+end (the history file, "The native program from a cartridge save"). Ten of
+the rest stopped in the field, the world map or the scenes: three at a step
+on an event's tile (`$C0:0C76`), three at a routine a world map's scene calls
+(`$C2:26A8`), and four at the time gate's tunnel the field ends into
+(`$FD:DA5F` and its kin). The chunk followed each movie from its stop until
+it played to its end.
 
-**The load screen.** Its four steps (the opening, choosing, which game a New
-Game+ carries on from, the erase question's answer), its drawing (`$C2:E7C3`)
-and the slot under the cursor shown (`$C2:E743`, save_screen.c) are each one
-sequence through `LoadScreenSteps`, the main menu's shape: the cursor read, a
-tick from a named place, the slot shown, the screen drawn, the New Game+'s
-question, the load and the carrying over, the erase, the sound output's
-command, the notes, and the step's end (the fade in, or the menus left for
-the game). The machine's answers are `load_screen_bridge.c`'s (each sibling
-run as the original's JSR reaches it, the driver's command a call out, the
-ends the jumps the steps stop at); the one piece of machine work between
-calls, the byte-wide registers the original's code sets after a choice, is a
-callback of its own (`byte_wide`), a no-op as C. As C each sibling checks its
-entry's guard's state half where the step has moved the cursor or the slot:
-the slot shown (`menu_load_screen_slot_can_show`), the drawing
-(`menu_load_screen_can_draw`, which peeks save memory), the load
-(`menu_save_code_can_run`) and the carrying over (`menu_carry_over_can_run`);
-the steps' own are `menu_load_screen_can_choose` and
-`menu_erase_can_be_answered`. A slot's erasing (`$C2:E8B7`), which no movie
-reaches, stops at `program_needs_the_machine`. The slots' rows' drawing
-leaving no slot shown (its count past the last) is a plain write now: the
-screens set the slot shown plainly before anything reads it, and the 21
-effects-baseline lines that answered the scaffolding write went with it.
+**A switch stepped on, and a chest opened.** The requests' step event
+(`$C0:0D45`-`$C0:16DB`) and chest (`$C0:16DC`) are one sequence each
+(`answer_step_event_with`, `answer_chest_with`, field/requests.c) through
+`StepAndChestSteps`: the switch's sound and the chest's are steps, and so is
+what the machine leaves after each answer for the original's later calls (A's
+high byte for the chest's sound, the overflow), which as C is nothing. The C
+path checks the requests' entry's guard's state half first
+(`field_requests_can_be_answered`, split from `field_requests_can_run`), and
+each sound its own entry's (the leader one the port reads).
 
-**Saving.** The main menu's panel for it (`$C2:D065`), both save screens'
-steps (a save point's, `$C2:D4F8` and `$C2:D506`; the main menu's,
-`$C2:CEDC` and `$C2:CEFD`; the question before a game is saved over and the
-step no code moves to, `$C2:CF61` and `$C2:CF92`), saving in the slot
-(`$C2:CF0A`), the save up to its last wait (`$C2:CF37`) and the slots' frame
-as the cursor moves among them (`$C2:CFA2`, save_screen.c) are each one
-sequence through `SavingSteps` (saving_bridge.c the machine's side): the
-panel's waits, the save's sound (a call out on the machine), its frame and
-the summary read back, the layout over the panel and the slot saved shown
-are steps of their own, each as C checking its entry's guard's state half
-where the step has moved the cursor or the slot. The save's last wait,
-which the original jumps to so the task goes on from it into the save's
-caller, is the machine's frame around the call as before and a frame's wait
-as C. The main menu's panels as C take saving's (`menu_show_save_panel`).
+**The Day of Lavos's turning world.** The three movies that lose to Lavos
+(and the Beyond Time ending, which shows the same) play the 1000 A.D. world
+map's scene that lays the map flat in Mode 7 and turns it. Its object's
+script calls seven routines by address, each a port already: all of VRAM
+cleared (`$C2:26A8`), the map's tiles loaded (`$C2:27DE`), its colours
+sampled and its picture laid out as the map view does (`$C2:6400`,
+`$C2:65B2`), the view's backdrop (`$C2:68F4`), and the world drawn, started
+turning, turned a frame and its turn handed on (`$C6:E7FA`, `$C6:E90F`,
+`$C6:E9F5`, `$C6:EE23`). Each is a row of a module's `MenuScriptRoutines`
+table now (`menu_map_view_routines` in menu/epoch.c,
+`menu_turning_world_routines` in menu/turning_world.c, and the overworld's
+and the scenes' own), with the state half of its entry's guard as the row's
+`takes` where the guard has one (the tiles' load, the world's drawing and
+turning: each split out of its guard). The script runner clears the carry
+before it reads the routine's result, so what the entries leave in X and the
+carry is the machine's alone.
 
-**The party exchange.** The main menu's exchange (its opening `$C2:C627`,
-the first and second choices `$C2:C65D` and `$C2:C6B9`), the gate's first
-choice (`$C2:C7E0`), the screen's layout (`$C2:CAF3`), the cursor's move
-(`$C2:C805`) and the panel (`$C2:C9E5`) are each one sequence through
-`ExchangeSteps`. The machine's work between the original's calls is steps
-of their own: the register widths (`widths`), and the frames of the two
-routines the reserve's slide waits inside, which the machine keeps on its
-stack round the slide's frames (`slide`); as C both are no-ops. The cursor's
-move and the layout are siblings each step re-checks the guard of as C. The
-gate's screen's opening (`$C2:C7AC`: its song's task, the swirl, the gate's
-sprite on its record's page) stays on the machine, and as C the panel's
-gate sprite and the place's song back stop at `program_needs_the_machine`.
-The held cursors' tasks (`$C2:89F2`, `$C2:8A45`, `$C2:8AB2`, `$C2:8AF5`:
-the cursor held on a list's item, on a member, on a slot, and on each
-member) are `menu/tasks.c` coroutines now, each frame's drawing timed as its
-entry while its guard's state half holds, as the scroll bar's.
+**The planet seen from space.** The scene after it ("But... the future
+refused to change.", `$7E:6248`) is one sequence through `PlanetSetUpSteps`
+(scene/planet.c): a resource unpacked, the scripts' first step and the stars
+put out are steps; as C the unpacker, the camera channel's turn and the
+stars' port. Its three tasks have C columns in scene/frame.c's table: the
+caption (the drawing's guard's state half, `scene_caption_fits`, split out
+of scene/captions.c), the wait for a button (one sequence with the send as
+its step; as C it checks the list's room for the darkening), and the
+countdown, which on the machine jumps to the console's reset and as C asks
+the program for it (`program_resets_the_console`, core/program.h): the
+scene's loop ends there, and the main thread runs the boot and the field's
+power-on start, as at power-on.
 
-**The game over's start afresh.** After a game over the original goes dark
-and jumps to the field's first start (`$C0:000E`) on a fresh stack: the
-title, then the load screen again. As C the field's taking up after the
-battle blanks the screen and tells the program
-(`program_starts_afresh_from_the_title`, core/program.h), and the main
-thread, as the field returns, runs the field's power-on start
-(`field_power_on`) again, as at power-on, and goes on.
+**The time gate's tunnel.** The field's event that ends it into scene
+`$80`-`$83` goes on to the warp as the program's next step, as to a scene
+(`field_scene_starts`); the main thread runs the trip (`warp_runs`,
+warp/warp.c): the warp started and the screen turned on, a frame made after
+each the vblank handler takes (`warp_vblank`, a row of core/program.c's
+handlers now), and at the last the screen dark and the story flags put back,
+then the field's start for the place the event set. The pieces are the
+machine's entries' own; the loop between them is the original's code on the
+machine and `warp_runs` as C (TODO.md, "Two sequences of one routine").
 
-**The field's frames on a host.** The first save movie past the load screen
-(`saves/battle-golem-twins-gameover.ctm`) hung: an object holding its frame
-(layout 12) answers the frame queue's drawing with "wait" until the next
-frame, and the original asks again until the beam ends the frame's time,
-which a host's `tm_frame_time_left` never does. The C path's drawing ends
-the frame there (`FRAME_HELD_TO_THE_NEXT`, field/frames.c); the machine's
-asks as before.
+**The screen setup's frame drawing.** An object holding a 12-sprite frame
+never draws it, and the original's screen setup (`$C0:B109`), which asks
+again until the frame is whole, would ask for ever; as C
+(`field_frame_part_drawn`) the drawing ends there, as the frame queue's does
+on a host. No movie reaches it: the original would hang.
 
-**Measured.** Shadow mode: the save screens' entries compared in
-`saves/menus-field-menu.ctm` and `saves/menus-save-point.ctm` (the slots'
-frame 504 calls, the question 209, saving in the slot 3, the save itself
-abandoned at its last wait as before), and the exchange's and the held
-cursors' over the movies that open them (the cursor's move 2,270 calls,
-the choices 2,292, the held cursors' tasks 3,898), none mismatched. Fuzzing, seed 1,
-`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the 17
-load screen and slot entries the sequences changed (with their
-`new_game_plus`, `at-the-sound` and `narrow` variants) and the 13 saving
-entries, the 15 of the exchange and the held cursors: every run the same as before, none mismatching and the guards'
-refusals unchanged. `tools/effects_check.py`: none new. `ct_native` from a
-cartridge save, with each movie's presses: 20 of the 40 save movies play to
-their end (none did); the rest stop at a routine a world map's script calls (`$C2:26A8`,
-three), the time gate's tunnel (`$FD:DA5F` and kin, four), the gate's
-exchange (`$C2:C7AC`, two), the time dial and the map view (`$C2:6A34`,
-`$C2:631F`, three), a scene's routine (`$7E:3F59`, two), a step on an
-event's tile (`$C0:0C76`, three), the equipment's slots window (`$C2:A71E`),
-an item moved on the items' list (`$C2:AAC8`) and a shop (`$C2:D52B`).
-The four that lose a battle on purpose go through the game over to the
-title and on. The power-on movies and
-the attract sequence go as far as before. Timing: one row recalibrated,
-`menu_answer_whether_to_save_over` from 5,434 to 4,473 (its save now
-reached through the sequence's step). Gate: suite OK.
+**Measured.** Shadow mode over the library, none mismatched: the requests'
+entry 238,533 calls, the warp's vblank 1,691, the planet's caption 1,098
+and its wait for a button 970, the turning world's frame 249 and its turn
+handed on 234, the map's tiles 67 (the world's drawing, its start and one
+tile load interrupted, each once; the countdown's last frame is the reset,
+which no movie's shadow run compares). Fuzzing, seed 1,
+`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the 16
+entries the chunk changed (25 runs with their variants: the requests'
+switches, chest and step-and-chest among them): every run the same as
+before, none mismatching and the guards' refusals unchanged.
+`tools/effects_check.py`: none new (seven lines renamed with the turn's
+handing on, one for the frame's guard's state half reading the turning
+object's tilt, which its start writes plainly). `ct_native` from a
+cartridge save: 30 of the 40 save movies play to their end (20 did): the
+three switch movies, the four that end through the tunnel
+(battle-lavos-gameover, endings-bucket-lavos, endings-telepod-lavos,
+events-end-of-time-gate), and the three through the turning world, the
+planet and the reset (battle-tech-sweep, endings-beyond-time,
+late-lavos); the other ten stop where they did. The power-on movies and
+the attract sequence go as far as before. No timing row moved. Gate:
+suite OK.
+
 ### The last refusals in real play: the attract demo's states
 
 The four refusals the batch before left (1,043 calls at `$7E:424D`,

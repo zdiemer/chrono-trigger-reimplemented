@@ -24,6 +24,7 @@
 #include "scene/scene.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "original_effects.h"
 #include "platform/audio.h"
 #include "port/machine.h"
@@ -356,7 +357,7 @@ enum { THE_FUTURE_REFUSED_TO_CHANGE = 0x6644, CAPTION_DRAWING = 0x7E64CA };
 enum { THE_DRAWING_READS_X = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 // $7E:64BF
-void scene_show_the_planet_s_caption(Snes *s)
+void scene_show_the_planet_s_caption_entry(Snes *s)
 {
     s->cpu.x = THE_FUTURE_REFUSED_TO_CHANGE;
     m_set_nz16(s, THE_FUTURE_REFUSED_TO_CHANGE);
@@ -365,7 +366,16 @@ void scene_show_the_planet_s_caption(Snes *s)
         m_stop_at(s, CAPTION_DRAWING, THE_DRAWING_READS_X);
         return;
     }
-    NATIVE_TIME_AS(s, CAPTION_DRAWING, scene_draw_caption(s));
+    NATIVE_TIME_AS(s, CAPTION_DRAWING, scene_draw_caption_entry(s));
+}
+
+TaskEnd scene_show_the_planet_s_caption(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf, (void)slot;
+    if (!scene_caption_fits(g, THE_FUTURE_REFUSED_TO_CHANGE))
+        return scene_task_needs_the_machine(g, CAPTION_DRAWING, "a caption the port doesn't draw");
+    TIMED_AS(g, CAPTION_DRAWING, scene_draw_caption(g, THE_FUTURE_REFUSED_TO_CHANGE));
+    return task_goes_on();
 }
 
 /* After the caption, the script's last task waits for a button: then a
@@ -388,34 +398,77 @@ static void ask_for_the_restart_sound(GameState *g)
 }
 
 // $7E:63D5
-void scene_wait_for_a_button_to_restart(Snes *s)
+/* The send (`send`, on the machine the program's own from the task's call)
+ * waits for the driver to take the sound. */
+static TaskEnd wait_for_a_button_with(GameState *g, Platform *pf, void (*send)(void *ctx, Platform *pf), void *ctx)
 {
-    GameState *g = state_of(s);
-    if (scene_joypad(g) == 0) {
+    if (scene_joypad(g) == 0)
+        return task_goes_on();
+    ask_for_the_restart_sound(g);
+    send(ctx, pf);
+    TIMED_AS(g, 0x7E395E, (void)scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_DARKEN));
+    return task_hands_over(COUNT_DOWN_TO_THE_RESTART);
+}
+
+static void send_on_the_machine(void *ctx, Platform *pf)
+{
+    (void)ctx;
+    au_driver_call(pf, PF_CALL(0x7E63E5, SCENE_SEND), THE_SEND_READS_Y);
+}
+
+void scene_wait_for_a_button_to_restart_entry(Snes *s)
+{
+    TaskEnd end = wait_for_a_button_with(state_of(s), m_platform(s), send_on_the_machine, s);
+    if (end.outcome == TASK_GOES_ON) {
         ORIGINAL_EFFECT(s->cpu.a = 0);   /* the controller's load */
         m_set_nz16(s, 0);
         m_rts(s);
         return;
     }
-    ask_for_the_restart_sound(g);
-    au_driver_call(m_platform(s), PF_CALL(0x7E63E5, SCENE_SEND), THE_SEND_READS_Y);
-    TIMED_AS(g, 0x7E395E, (void)scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_DARKEN));
-    s->cpu.x = COUNT_DOWN_TO_THE_RESTART;
+    s->cpu.x = end.next;
     m_stop_at_own(s, HAND_THE_SLOT_OVER, THE_HAND_OVER_READS_X);
 }
 
-// $7E:63F5
-void scene_count_down_to_the_restart(Snes *s)
+static void send(void *ctx, Platform *pf) { scene_sends_the_command(ctx, pf); }
+
+/* As C, with its guard's state half: room on the frame's list for the
+ * darkening. */
+TaskEnd scene_wait_for_a_button_to_restart(GameState *g, Platform *pf, unsigned slot)
 {
-    GameState *g = state_of(s);
+    (void)slot;
+    if (!scene_task_listed(g, SCENE_FRAME_TASKS, NO_TASK))
+        return scene_task_needs_the_machine(g, 0x7E63D5, "no room on the frame's list for the darkening");
+    return wait_for_a_button_with(g, pf, send, g);
+}
+
+// $7E:63F5
+/* A frame of the wait before the restart: true once it is over. */
+static bool count_down(GameState *g)
+{
     uint16_t left = (uint16_t)(scene_end_wait(g) - 1);
     set_scene_end_wait(g, left);
-    m_set_nz16(s, left);
-    if (left != 0) {
+    return left == 0;
+}
+
+void scene_count_down_to_the_restart_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    bool over = count_down(g);
+    m_set_nz16(s, scene_end_wait(g));
+    if (!over) {
         m_rts(s);
         return;
     }
     m_stop_at(s, CONSOLE_RESET, THE_RESET_MAY_READ_Y);
+}
+
+/* As C, the reset the program's main thread takes (core/program.h). */
+TaskEnd scene_count_down_to_the_restart(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf, (void)slot;
+    if (count_down(g))
+        program_resets_the_console(g);
+    return task_goes_on();
 }
 
 /* The tasks' code, on the scene's page; the wait's send's, and the list's
@@ -465,23 +518,51 @@ static void send_unpacked_words(GameState *g, Platform *pf)
     TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
 }
 
-static void load_the_graphics(Snes *s)
+/* The setup's steps that are other routines: a resource unpacked by the
+ * program's unpacker, the scripts' first step and the stars put out. The program makes them as C, the machine's entry
+ * from the original's calls. */
+/* What the setup unpacks, in its order, each from its own call of the
+ * program's unpacker. */
+typedef enum {
+    UNPACK_LETTERS, UNPACK_STAR_SPRITES, UNPACK_PLANET_TILES, UNPACK_PLANET_MAP, UNPACK_COLOURS, UNPACK_LAST_COLOURS,
+    UNPACK_COLOURS_ON_THE_WAY, UNPACK_LATE_COLOURS, PLANET_UNPACKS
+} PlanetUnpack;
+
+static const struct {
+    uint32_t site;
+    uint16_t resource;
+} planet_unpacks[PLANET_UNPACKS] = {
+    [UNPACK_LETTERS] = { 0x7E6259, LETTERS },
+    [UNPACK_STAR_SPRITES] = { 0x7E626B, STAR_SPRITES },
+    [UNPACK_PLANET_TILES] = { 0x7E627F, PLANET_TILES },
+    [UNPACK_PLANET_MAP] = { 0x7E6295, PLANET_MAP },
+    [UNPACK_COLOURS] = { 0x7E62AA, COLOURS },
+    [UNPACK_LAST_COLOURS] = { 0x7E62B6, LAST_COLOURS_RESOURCE },
+    [UNPACK_COLOURS_ON_THE_WAY] = { 0x7E62C2, COLOURS_ON_THE_WAY_RESOURCE },
+    [UNPACK_LATE_COLOURS] = { 0x7E62D1, LATE_COLOURS },
+};
+
+typedef struct {
+    void (*unpack)(void *ctx, PlanetUnpack which);
+    bool (*first_step)(void *ctx);
+    bool (*put_out_the_stars)(void *ctx);
+} PlanetSetUpSteps;
+
+static void load_the_graphics(GameState *g, Platform *pf, const PlanetSetUpSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     vid_start_vram_uploads(pf, PF_AT(0x7E624A), SCENE_VRAM_WHOLE_WORDS);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     vid_set_vram_address(pf, PF_AT(0x7E6253), LETTERS_VRAM);
-    scene_bridge_unpack(s, 0x7E6259, LETTERS);
+    steps->unpack(ctx, UNPACK_LETTERS);
     scene_send_letters_widened(g, pf);
     vid_set_vram_address(pf, PF_AT(0x7E6265), STAR_SPRITES_VRAM);
-    scene_bridge_unpack(s, 0x7E626B, STAR_SPRITES);
+    steps->unpack(ctx, UNPACK_STAR_SPRITES);
     send_unpacked_words(g, pf);
-    scene_bridge_unpack(s, 0x7E627F, PLANET_TILES);
+    steps->unpack(ctx, UNPACK_PLANET_TILES);
     vid_set_vram_address(pf, PF_AT(0x7E6285), PLANET_TILES_VRAM);
     TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
     vid_set_vram_address(pf, PF_AT(0x7E628F), PLANET_MAP_VRAM);
-    scene_bridge_unpack(s, 0x7E6295, PLANET_MAP);
+    steps->unpack(ctx, UNPACK_PLANET_MAP);
     TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
 }
 
@@ -493,19 +574,18 @@ static void clear_the_call_cells_second_byte(GameState *g)
     set_scene_call_first(g, scene, (uint16_t)(scene_call_first(g, scene) & 0x00FF));
 }
 
-static void load_the_colours(Snes *s)
+static void load_the_colours(GameState *g, const PlanetSetUpSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
     set_decompress_dest(g, COLOURS_AT);
     ORIGINAL_EFFECT(clear_the_call_cells_second_byte(g));
-    scene_bridge_unpack(s, 0x7E62AA, COLOURS);
+    steps->unpack(ctx, UNPACK_COLOURS);
     unpack_at(g, LAST_COLOURS);
-    scene_bridge_unpack(s, 0x7E62B6, LAST_COLOURS_RESOURCE);
+    steps->unpack(ctx, UNPACK_LAST_COLOURS);
     unpack_at(g, COLOURS_ON_THE_WAY);
-    scene_bridge_unpack(s, 0x7E62C2, COLOURS_ON_THE_WAY_RESOURCE);
+    steps->unpack(ctx, UNPACK_COLOURS_ON_THE_WAY);
     scene_set_caption_colours(g);
     unpack_at(g, LATE_COLOURS_AT);
-    scene_bridge_unpack(s, 0x7E62D1, LATE_COLOURS);
+    steps->unpack(ctx, UNPACK_LATE_COLOURS);
     TIMED_AS(g, 0x7E38AF, scene_use_loaded_palette(g));
 }
 
@@ -529,38 +609,104 @@ static void set_up_the_screen(Platform *pf)
                     VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
 }
 
-/* Putting the stars out, as its entry runs (scene_put_out_the_stars, which
- * refuses a carry the original would add in); it reads nothing else, and
- * leaves the overflow clear for the setup's callers. */
-enum { PUT_OUT_THE_STARS = 0x7E6598, THE_STARS_READ_THE_CARRY = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z };
-
 // $7E:6248
 /* The planet's scene set up, from the program's mode table (modes 7 and 8):
  * its graphics and colours loaded, the mode's script started, the stars put
  * out, the palette animations stopped and the screen laid out; and the
  * scene's end a few seconds after the button the script's last task waits
- * for. True unless a call-out stopped it. */
-bool scene_planet_set_up_scene(Snes *s)
+ * for. False where a step went no further. */
+static bool set_up_the_planet_with(GameState *g, Platform *pf, const PlanetSetUpSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    load_the_graphics(s);
-    load_the_colours(s);
+    load_the_graphics(g, pf, steps, ctx);
+    load_the_colours(g, steps, ctx);
     bool an_ending = (scene_flags(g) & MODE_BITS) == AN_ENDING_S_PLANET;
     set_scene_channels_script(g, SCENE_CAMERA_CHANNEL, an_ending ? ENDING_SCRIPT : LOST_SCRIPT);
-    scene_bridge_first_script_step(s, 0x7E62F0, SCENE_Y_PAST_THE_WORKING_PALETTE);
-    if (!scene_run(s, 0x7E62FA, PUT_OUT_THE_STARS, THE_STARS_READ_THE_CARRY, scene_put_out_the_stars))
+    if (!steps->first_step(ctx) || !steps->put_out_the_stars(ctx))
         return false;
     TIMED_AS(g, 0xFDFFEE, palette_stop_animations(g));
-    ORIGINAL_EFFECT(s->cpu.y = SCENE_Y_PAST_THE_ANIMATIONS_SLOTS);
-    set_up_the_screen(m_platform(s));
+    set_up_the_screen(pf);
     set_scene_end_wait(g, END_WAIT);
     return true;
 }
 
-void scene_planet_set_up(Snes *s)
+/* ---- On the machine ---- */
+
+/* Putting the stars out, as its entry runs (scene_put_out_the_stars, which
+ * refuses a carry the original would add in); it reads nothing else, and
+ * leaves the overflow clear for the setup's callers. */
+enum { PUT_OUT_THE_STARS = 0x7E6598, THE_STARS_READ_THE_CARRY = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z };
+
+static void unpack_on_the_machine(void *ctx, PlanetUnpack which)
+{
+    scene_bridge_unpack(ctx, planet_unpacks[which].site, planet_unpacks[which].resource);
+}
+
+static bool first_step_on_the_machine(void *ctx)
+{
+    scene_bridge_first_script_step(ctx, 0x7E62F0, SCENE_Y_PAST_THE_WORKING_PALETTE);
+    return true;
+}
+
+static bool put_out_the_stars_on_the_machine(void *ctx)
+{
+    return scene_run(ctx, 0x7E62FA, PUT_OUT_THE_STARS, THE_STARS_READ_THE_CARRY, scene_put_out_the_stars);
+}
+
+/* True unless a call-out stopped it. The palette animations' stop leaves Y
+ * past their slots, as the original's loop does. */
+bool scene_planet_set_up_scene(Snes *s)
+{
+    static const PlanetSetUpSteps on_the_machine = {
+        unpack_on_the_machine, first_step_on_the_machine, put_out_the_stars_on_the_machine,
+    };
+    if (!set_up_the_planet_with(state_of(s), m_platform(s), &on_the_machine, s))
+        return false;
+    ORIGINAL_EFFECT(s->cpu.y = SCENE_Y_PAST_THE_ANIMATIONS_SLOTS);
+    return true;
+}
+
+void scene_planet_set_up_entry(Snes *s)
 {
     if (scene_planet_set_up_scene(s))
         m_rts(s);
+}
+
+/* ---- As C ---- */
+
+/* scene/program.c's setups with no machine: the setup's and the stars'
+ * guards are their code alone. The scripts' first step is the camera
+ * channel's turn. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} PlanetInC;
+
+static void unpack_the_resource(void *ctx, PlanetUnpack which)
+{
+    PlanetInC *c = ctx;
+    TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, planet_unpacks[which].resource));
+}
+
+static bool turn_the_camera_channel(void *ctx)
+{
+    PlanetInC *c = ctx;
+    SceneTurn turn = SCENE_TURN_ENDED;
+    TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, SCENE_CAMERA_CHANNEL));
+    return turn == SCENE_TURN_ENDED;
+}
+
+static bool stars_put_out(void *ctx)
+{
+    PlanetInC *c = ctx;
+    TIMED_AS(c->game, PUT_OUT_THE_STARS, put_out_the_stars(c->game));
+    return true;
+}
+
+bool scene_planet_set_up(GameState *g, Platform *pf)
+{
+    static const PlanetSetUpSteps as_c = { unpack_the_resource, turn_the_camera_channel, stars_put_out };
+    PlanetInC c = { g, pf };
+    return set_up_the_planet_with(g, pf, &as_c, &c);
 }
 
 /* The setup's code, and the program's routines it runs as C: the unpacker's

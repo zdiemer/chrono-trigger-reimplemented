@@ -17,7 +17,8 @@ bool field_queued_frames_can_be_drawn(Snes *s);
 #include "platform/platform.h"
 
 /* A part of the object's next frame drawn (field_draw_next_frame's work),
- * as C: true while more of it is to draw. */
+ * as C: true while more of it is to draw; false too where the object holds
+ * a frame it never draws (field/frames.c). */
 bool field_frame_part_drawn(GameState *g, FieldObject obj);
 /* The frame queue drawn through, while the frame has time, as C. */
 void field_queued_frames_drawn(GameState *g, Platform *pf);

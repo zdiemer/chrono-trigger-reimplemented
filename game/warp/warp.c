@@ -86,7 +86,7 @@ static void put_back_the_story_flags(GameState *g)
 
 /* ---- The start ----------------------------------------------------------------------------------- */
 
-enum { WARP_VBLANK_HANDLER = 0xFDDE15, WARP_LINE_HANDLER = 0xFDDE87, FULL_BRIGHTNESS = 15 };
+enum { FULL_BRIGHTNESS = 15 };
 
 // $FD:DB97 (up to its wait for the vblank, $FD:EADA)
 /* Everything stopped and the screen dark, the warp's handlers installed, the
@@ -492,7 +492,7 @@ void warp_turn_the_screen_on(Snes *s)
     m_rts(s);
 }
 
-void warp_vblank(Snes *s)
+void warp_vblank_entry(Snes *s)
 {
     take_the_frame(state_of(s), m_platform(s));
     m_rti(s);
@@ -500,13 +500,70 @@ void warp_vblank(Snes *s)
 
 /* The warp's routines index from the zero it keeps (warp_zero), which the
  * start sets and nothing changes. */
+static bool keeps_its_zero(const GameState *g) { return warp_zero(g) == 0; }
+
 bool warp_on_its_page(Snes *s)
 {
     if (m_direct_page(s) != WARP_PAGE || !m_bank_reaches_io(s))
         return false;
     vars_peek(true);
-    bool zero = warp_zero(state_of(s)) == 0;
+    bool zero = keeps_its_zero(state_of(s));
     vars_peek(false);
     return zero;
 }
+
+/* ---- As C, with no machine ----------------------------------------------------------------------- */
+
+/* The kind of trip a field's event asks for by its scene's number (from
+ * WARP_FIRST_SCENE): the longest first, then shorter, and the flickering one
+ * for the rest. */
+static WarpKindId kind_of(uint8_t scene)
+{
+    switch (scene) {
+    case WARP_FIRST_SCENE: return WARP_LONG;
+    case WARP_FIRST_SCENE + 1: return WARP_SHORT;
+    case WARP_FIRST_SCENE + 2: return WARP_SHORTEST;
+    default: return WARP_FLICKERING;
+    }
+}
+
+/* The main loop's wait for the vblank handler to take the frame made. */
+static void wait_for_the_frame_taken(GameState *g, Platform *pf)
+{
+    set_warp_frame_ended(g, 0);
+    while (warp_frame_ended(g) == 0)
+        tm_wait_frame(pf, PF_AT(FRAME_WAIT_LOOP));
+    set_warp_frame_ended(g, 0);
+}
+
+/* The trip, from the field's end to the field's start again: the warp
+ * started and the screen turned on, a frame made after each the vblank
+ * handler takes, and on the last the screen dark and the story flags put
+ * back. False where a step's guard would turn its state away. */
+bool warp_runs(GameState *g, Platform *pf, uint8_t scene)
+{
+    WarpKindId id = kind_of(scene);
+    const WarpKind *k = &kinds[id];
+    TIMED_AS(g, SET_UP, start_the_warp(g, pf));
+    tm_wait_frame_then_enable(pf, PF_CALL_DC(THE_SCREEN_ON_CALL, SCREEN_ON, READS_NOTHING),
+                              TM_INT_VBLANK | TM_INT_AUTO_JOYPAD, TM_LINE_UNCHANGED);
+    set_warp_frame(g, 0);
+    if (k->flickers)
+        set_warp_flicker(g, 0);
+    bool goes_on = true;
+    while (goes_on) {
+        TIMED_AS(g, WAIT_FOR_FRAME, wait_for_the_frame_taken(g, pf));
+        if (!keeps_its_zero(g)) {
+            program_needs_the_machine(g, k->frame_entry, "a warp whose zero has moved");
+            return false;
+        }
+        TIMED_AS(g, k->frame_entry, goes_on = make_a_frame(g, pf, k));
+    }
+    TIMED_AS(g, GO_DARK, go_dark(pf));
+    TIMED_AS(g, PUT_BACK_THE_STORY_FLAGS, put_back_the_story_flags(g));
+    return true;
+}
+
+/* The warp's vblank handler as C (core/program.c's table). */
+void warp_vblank(GameState *g, Platform *pf) { take_the_frame(g, pf); }
 bool warp_bank_reaches_io(Snes *s) { return m_bank_reaches_io(s); }

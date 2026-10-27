@@ -72,7 +72,15 @@ void warp_wait_for_frame(Snes *s);
 void warp_wait_for_frame_loop(Snes *s);
 void warp_screen_on_wait_for_vblank_loop(Snes *s);
 void warp_turn_the_screen_on(Snes *s);
-void warp_vblank(Snes *s);
+void warp_vblank_entry(Snes *s);
+
+/* As C, for a program with no machine (core/program.c): the trip a field's
+ * event asks for, by its scene's number (WARP_FIRST_SCENE on), from the
+ * field's end to its start again, false where a step went no further; and
+ * the warp's vblank handler. */
+enum { WARP_FIRST_SCENE = 0x80, WARP_VBLANK_HANDLER = 0xFDDE15, WARP_LINE_HANDLER = 0xFDDE87 };
+bool warp_runs(GameState *g, Platform *pf, uint8_t scene);
+void warp_vblank(GameState *g, Platform *pf);
 
 /* The guards: the warp's own page, with the data bank reaching the I/O
  * registers and the warp's zero in place (its frames, its waits and its end);

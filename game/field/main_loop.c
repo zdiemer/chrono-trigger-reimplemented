@@ -873,20 +873,10 @@ static void start_the_scene(Snes *s, uint8_t scene)
         m_stop_at(s, SCENE_ENGINE, THE_SCENE_READS_A);
 }
 
-/* As C: the scene engine's scene the field ends into is the program's next
- * step (core/program.c, scene_runs); a time gate's tunnel only the machine
- * runs yet (core/program.h). */
-void field_scene_starts(GameState *g, uint8_t scene)
-{
-    if (scene < SCENE_LONG_WARP)
-        program_goes_on_to_a_scene(g, scene);
-    else
-        program_needs_the_machine(g, scene == SCENE_LONG_WARP      ? LONG_WARP
-                                     : scene == SCENE_SHORT_WARP    ? SHORT_WARP
-                                     : scene == SCENE_SHORTEST_WARP ? SHORTEST_WARP
-                                                                     : FLICKERING_WARP,
-                                  "the time gate's tunnel the field ends into");
-}
+/* As C: the scene the field ends into, the scene engine's or a time gate's
+ * tunnel, is the program's next step (core/program.c: scene_runs,
+ * warp_runs). */
+void field_scene_starts(GameState *g, uint8_t scene) { program_goes_on_to_a_scene(g, scene); }
 
 /* The scene's number in A, over the field's page's low byte (which the
  * original moves into A's high byte on the way). */
