@@ -207,7 +207,7 @@ rest waits, is [PLAN.md](PLAN.md).
     battle's `effect_amounts.c`, `enemy_turn.c`, `member_stats.c`,
     `member_turn.c`, `rewards_techs.c`, `tech_records.c`, event's
     `movement.c`, scene's `frame.c`; each to become
-    one leaves derivation from the final state. Five more are on the baseline
+    one leaves derivation from the final state. Three more are on the baseline
     with a reason (a wrapper's entry state for a call-out, a shared wrapper's
     exit, the scene interpreter's per-command derivation).
   - 10 return frames pushed by hand outside a bridge (rubric items 85, 101) in
@@ -2661,18 +2661,19 @@ list, by kind, is what `game/` still asks of one.
   tables (`menu/handlers.c`, `overworld/handlers.c`); a handler or a routine
   with no row stops the program where it starts. The map view and the time
   dial (`$C2:631F`, `$C2:6A34`) stop it too, and the menus opened from the
-  map go as far as the menus' own C does. Every mode's vblank and line
-  handler but the field's, the scenes', the menus' and the sprite-object
-  mode's is still an entry on the machine's stack (it saves the interrupted
-  registers, moves the page and the data bank, calls out):
-  `core/program.c`'s table has functions for those four modes' and for none
-  of the rest.
+  map go as far as the menus' own C does. `core/program.c`'s handler table
+  has functions for the field's, the menus', the sprite-object mode's, the
+  battle's (and its closing's), a scene's boot's, a scene program's and the
+  warp's vblank; the warp's line handler has none, and a handler the table
+  doesn't name is still an entry on the machine's stack (it saves the
+  interrupted registers, moves the page and the data bank, calls out).
 - **What the scene program still hands the machine as the program runs it.**
-  The title's and the credits' page's setups are the setups as C
-  (`scene_title_set_up`, `scene_credit_pages_set_up`); the
-  others, the scripts' commands and routines with no C, and the tasks with
-  no C (the lists' runner as C has the tasks' own table and four of the
-  program's routines) stop the program where they are met. The C reads the
+  The title's, the credits' page's, the race's (both modes), the rising
+  palace's and the planet's (both modes) setups are the setups as C
+  (`scene/program.c`'s `c_setups`); the others (Lavos falling, the Epoch's
+  dive, the endings, the staff roll), the scripts' commands and routines with
+  no C, and the tasks with no C column in `scene/frame.c`'s table stop the
+  program where they are met. The C reads the
   program's data where the boot unpacks it, and doesn't check, as the
   entries' guards do on the machine, that the unpacked code is the one the
   ports were written for. A scene's main loop runs its frame routine where
@@ -2775,7 +2776,7 @@ list, by kind, is what `game/` still asks of one.
 - **Waits on the beam.** `tm_snes_video_status`, the SNES backend's read of
   the beam's status, from the idle entries' passes (`field/frame.c`,
   `scene/boot.c`, `warp/warp.c`); and the 19 wait loops the census still sees
-  passed on the machine (406 M passes: the menus' ready loop `$C2:81CA` and
+  passed on the machine (379 M passes: the menus' ready loop `$C2:81CA` and
   the field's frame wait `$C0:EC71` the most), each wanting the timing
   service's wait ("Timing without a beam", above).
 - **Code run from RAM.** 29 of the entries the machine enters are code in work
@@ -2812,8 +2813,8 @@ list, by kind, is what `game/` still asks of one.
 ## Targets beyond the desktop SNES build
 
 Wanted, none of them scoped as milestones. Each says what the design already
-carries and what it doesn't; what they share is that the game side is still 73%
-generated code (PLAN.md, Phase 3), so anything needing the *game* to know
+carries and what it doesn't; what they share is that the game side's ports
+still run against the emulated machine (PLAN.md, "The native program"), so anything needing the *game* to know
 something -- a screen coordinate, a menu's shape, where a resource lives --
 waits on M5 rather than on a backend.
 
@@ -3032,9 +3033,8 @@ waits on M5 rather than on a backend.
     ROM plays. A call-out to unported code is a real `JSL` there, so the
     incremental shape the project already has carries over.
   - **Ports written for it.** The ports run against an emulated machine: they take
-    a `Snes *`, read through `m_read8`, and the transcription-style ones move
-    emulated registers about (`python3 tools/portstyle.py`: 62 of 86 files, 76%
-    of the lines, which PLAN.md's Phase 3a rewrites before anything else). A
+    a `Snes *` at their entries and read through `m_read8`, though none is
+    left on the transcription backlog (`python3 tools/portstyle.py`). A
     65816 build needs each routine's logic apart from
     the original's calling convention, which is also what the readability bar
     asks for; CLAUDE.md's porting rules say so, and `tests/test_port_subset.py`
