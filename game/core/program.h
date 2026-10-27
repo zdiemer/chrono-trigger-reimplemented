@@ -72,5 +72,10 @@ bool program_next_scene(GameState *g, uint8_t *scene);
  * takes it as its pass ends. */
 void program_starts_the_field_again(GameState *g);
 bool program_field_starts_again(GameState *g);
+/* Or the game started afresh from the title, as at power-on, the field's
+ * first start on a fresh stack (a game over): the main thread takes it as
+ * the field returns. */
+void program_starts_afresh_from_the_title(GameState *g);
+bool program_starts_afresh(GameState *g);
 
 #endif

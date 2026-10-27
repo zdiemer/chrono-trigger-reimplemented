@@ -2808,10 +2808,9 @@ list, by kind, is what `game/` still asks of one.
   the same shape: the step one `*_with` sequence whose machine entry passes
   `*_on_the_machine` steps.
 - **Where the save movies stop.** From a cartridge save `ct_native` plays
-  16 of the 40 save movies to their end; the others stop where the program
+  20 of the 40 save movies to their end; the others stop where the program
   meets what has no C yet (REIMPLEMENTATION.md, "The native program from a
-  cartridge save", has the list): the game over's start afresh from the
-  title (`$C0:000E`), the time gate's tunnel the field ends into
+  cartridge save", has the list): the time gate's tunnel the field ends into
   (`$FD:DA5F` and its kin), a routine a world map's script calls
   (`$C2:26A8`), the time dial and the map view (`$C2:6A34`, `$C2:631F`), a
   scene's routine (`$7E:3F59`), a step on an event's tile (`$C0:0C76`), and
@@ -2832,8 +2831,7 @@ list, by kind, is what `game/` still asks of one.
   there and says which (72 sites: a comeback shown, an enemy called in or
   coming into the battle, the two search steps, a demo battle's end, an
   enemy's movement or dissolve the port doesn't run, and the guards' own
-  refusals). After a battle, a game over's start afresh from the title stops
-  the program too (`field/battle_return.c`). Each wants its C as the program
+  refusals). Each wants its C as the program
   meets it.
 - **Two sequences of one routine.** The field's entry, its location's
   loading and song, the main loop's pass, the frame's work, the objects'

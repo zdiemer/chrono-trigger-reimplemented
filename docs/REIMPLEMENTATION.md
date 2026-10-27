@@ -3001,6 +3001,14 @@ the cursor held on a list's item, on a member, on a slot, and on each
 member) are `menu/tasks.c` coroutines now, each frame's drawing timed as its
 entry while its guard's state half holds, as the scroll bar's.
 
+**The game over's start afresh.** After a game over the original goes dark
+and jumps to the field's first start (`$C0:000E`) on a fresh stack: the
+title, then the load screen again. As C the field's taking up after the
+battle blanks the screen and tells the program
+(`program_starts_afresh_from_the_title`, core/program.h), and the main
+thread, as the field returns, runs the field's power-on start
+(`field_power_on`) again, as at power-on, and goes on.
+
 **The field's frames on a host.** The first save movie past the load screen
 (`saves/battle-golem-twins-gameover.ctm`) hung: an object holding its frame
 (layout 12) answers the frame queue's drawing with "wait" until the next
@@ -3020,14 +3028,15 @@ load screen and slot entries the sequences changed (with their
 `new_game_plus`, `at-the-sound` and `narrow` variants) and the 13 saving
 entries, the 15 of the exchange and the held cursors: every run the same as before, none mismatching and the guards'
 refusals unchanged. `tools/effects_check.py`: none new. `ct_native` from a
-cartridge save, with each movie's presses: 16 of the 40 save movies play to
-their end (none did); the rest stop at the game over's start afresh from the title
-(`$C0:000E`, four movies), a routine a world map's script calls (`$C2:26A8`,
+cartridge save, with each movie's presses: 20 of the 40 save movies play to
+their end (none did); the rest stop at a routine a world map's script calls (`$C2:26A8`,
 three), the time gate's tunnel (`$FD:DA5F` and kin, four), the gate's
 exchange (`$C2:C7AC`, two), the time dial and the map view (`$C2:6A34`,
 `$C2:631F`, three), a scene's routine (`$7E:3F59`, two), a step on an
 event's tile (`$C0:0C76`, three), the equipment's slots window (`$C2:A71E`),
-an item moved on the items' list (`$C2:AAC8`) and a shop (`$C2:D52B`). The power-on movies and
+an item moved on the items' list (`$C2:AAC8`) and a shop (`$C2:D52B`).
+The four that lose a battle on purpose go through the game over to the
+title and on. The power-on movies and
 the attract sequence go as far as before. Timing: one row recalibrated,
 `menu_answer_whether_to_save_over` from 5,434 to 4,473 (its save now
 reached through the sequence's step). Gate: suite OK.

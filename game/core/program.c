@@ -169,15 +169,22 @@ static void go_no_further(GameState *g, Platform *pf, uint32_t routine, const ch
 
 /* After power-on the game goes between the field and the scenes: the field
  * runs until it ends into a scene (an event's), the scene until its script
- * ends it, and the field starts again. */
+ * ends it, and the field starts again. A game over starts the game afresh
+ * from the title, as the field's first start did at power-on. */
 void program_main_thread(GameState *g, Platform *pf)
 {
     program_boot(g, pf);
     field_power_on(g, pf);
     for (;;) {
         field_runs(g, pf);
+        if (program_went_no_further(g))
+            break;
+        if (program_starts_afresh(g)) {
+            field_power_on(g, pf);
+            continue;
+        }
         uint8_t scene;
-        if (program_went_no_further(g) || !program_next_scene(g, &scene) || !scene_runs(g, pf, scene))
+        if (!program_next_scene(g, &scene) || !scene_runs(g, pf, scene))
             break;
     }
     go_no_further(g, pf, FIELD_ENTER, "the field's entry");
