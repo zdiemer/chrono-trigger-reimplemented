@@ -70,16 +70,7 @@ rest waits, is [PLAN.md](PLAN.md).
   they move on the frames after the random mixer latched the beam, not every
   other frame. Shadow mode compares the runtime with itself; the oracle's
   traces of the Beyond Time ending would show it.
-- **The last of `$CF`**: `$CF:FAE2` (259 bytes) and `$CF:FD9E` (231) are the
-  bank's unported runs (`python3 tools/burndown.py --uncovered CF`).
 
-- **The one-off vblank tasks leave through the program's exit.** The race's
-  column uploads, the endings' and the Epoch's dive's view switches
-  (`$7E:79F8`, `$7E:7A35`) take themselves off the vblank list by jumping to
-  the list's exit (`$7E:39DE`), which the frame list's runner handles as C
-  (`scene/frame.c`, `run_the_original_task`) but the vblank list's doesn't:
-  the rest of that frame's vblank list runs as the original's. Handle the
-  vblank list's exit as the frame list's is, and those tasks become rows.
 - **The pixels' spread is still the program's** (`$7E:350E`, called by Lavos's
   fall's setup, `scene/lavos_falls.c`): it spreads each packed byte into two
   pixels through the work RAM port, reading the bytes by moving the stack onto
@@ -203,27 +194,25 @@ rest waits, is [PLAN.md](PLAN.md).
   lands):
   - 20 `source` lines in `re/ram.toml` cite files that no longer exist
     (`game/battle/stats.c`, `math.c`, `gauges.c`): rubric item 25, a map fix.
-  - 17 call-outs reach one of our own registered ports through the machine
+  - 15 call-outs reach one of our own registered ports through the machine
     (`game/menu/epoch.c` 7, `game/menu/display.c` 4, `game/battle/display.c` 2,
-    one each in `battle/nmi.c`, `field/display.c`, `scene/boot.c`,
+    one each in `scene/boot.c`,
     `scene/frame.c`): rubric items 22 and 61, each to become a C call behind a
     helper that tests the guard (`event_call_bridge`'s shape).
-  - 4 enums nothing takes as a type (`MenuPage`, `AssignedSet`, `MenuSound`,
+  - 2 enums nothing takes as a type (`AssignedSet`,
     `DialStep`): rubric item 33, type the parameters that carry them.
-  - 2 comments that admit they don't know what they describe
-    (`game/battle/frame.h`, `game/battle/screen_gradient.c`): rubric item 17.
   The four bridges' `s->cpu.pc` comparisons are on the baseline with a reason:
   asking whether a call-out returned to its site is not entry identity.
-  - 9 flag notes inside a loop or a game branch (rubric items 93, 105):
+  - 8 flag notes inside a loop or a game branch (rubric items 93, 105):
     battle's `effect_amounts.c`, `enemy_turn.c`, `member_stats.c`,
     `member_turn.c`, `rewards_techs.c`, `tech_records.c`, event's
-    `movement.c`, menu's `save_screen.c`, scene's `frame.c`; each to become
+    `movement.c`, scene's `frame.c`; each to become
     one leaves derivation from the final state. Five more are on the baseline
     with a reason (a wrapper's entry state for a call-out, a shared wrapper's
     exit, the scene interpreter's per-command derivation).
-  - 12 return frames pushed by hand outside a bridge (rubric items 85, 101) in
-    `attract/main_loop.c`, battle's `animation.c`, `enemy_turn.c`,
-    `main_loop.c`, `screen_beam.c`, `core/input.c`, `menu/cursor.c` (3) and
+  - 10 return frames pushed by hand outside a bridge (rubric items 85, 101) in
+    `attract/main_loop.c`, battle's `animation.c`,
+    `main_loop.c`, `core/input.c`, `menu/cursor.c` (3) and
     scene's `frame.c` (2) and `script.c`: register the inlined subroutine as
     its own entry, or port the call-out that needs the frame.
 
@@ -267,9 +256,7 @@ rest waits, is [PLAN.md](PLAN.md).
     coming in `$FD:B438` and the calling in
     `$FD:A990`; what an effect's working out turns away to the
     original (history/reimplementation-chunks.md, "Phase 3, battle chunk 4: the party's working
-    out"): a hit that steals as well (no record has one); the effect's start a status's timer asks for
-    (`$C1:EC7F`); the
-    pose's setup `$C1:308C`, and an animation that names no movement
+    out"): a hit that steals as well (no record has one); an animation that names no movement
     (`$C1:3760`'s table past its nine rows, no animation the battle gives);
     the decompressor from the effect graphics loader; and from the battle's
     start, the wait tail's callee from the frame work and an effect's graphics
@@ -300,9 +287,6 @@ rest waits, is [PLAN.md](PLAN.md).
     layout it starts in where nothing reads it back (`battle_start_layout`):
     find a reader (the field's code, a script's poke) or call them dead.
     `battle_restore_keeps_screen` is read and never set but there.
-  - `$CE:E1C7`-`$CE:E292`, an unrolled byte copy next to the ripple's step,
-    is code nothing the analysis knows reaches (`re/hints.toml` keeps it
-    `unreached`); the burndown counts it as bank `$CE`'s 5% left.
   - The screen script's model triangles (`$BA`, `$BB`, `$BE`) clear the low
     byte of `battle_turn_slot` ($22): the original hands its rotation the
     triangle's size as a word in `$21`-`$22` (`battle/screen_shapes.c`,
@@ -658,8 +642,6 @@ rest waits, is [PLAN.md](PLAN.md).
       should refuse what the game never passes;
     - `sine()` is written three times (`epoch.c`, `top_layer.c`, `wave.c`),
       and `OBJECTS_HELD`/`SCREEN_OFF` twice;
-    - the End of Time's gate screen (`menu_start_gate_screen`) is not an
-      Epoch screen and wants its own file;
     - sign-bit compares, an uncommented `_unchecked` read in `group_pixel`,
       and the numbered entries `menu_object_window1_lines_2`/`_3`.
 
@@ -716,8 +698,8 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Shadow mode pairs a bridge's calls in order** (a tooling gap, not a port
   fix). A bridge that may or may not call the original's code has to predict,
   in its guard, whether it will, because shadow mode pairs the port's call-outs
-  with the original's in order: the field's `field_view_changes`,
-  `every_draw_is_own` and `records_work_is_own` are those predictions
+  with the original's in order: the field's `field_view_changes` and
+  `every_draw_is_own` are those predictions
   (review-port item 29, guards that duplicate the logic). Pairing call-outs by
   site and routine rather than by order would let the guards go.
 - **Coverage that field's rewrite thinned.** Inlining the object update's
@@ -925,8 +907,7 @@ rest waits, is [PLAN.md](PLAN.md).
   decided"). Poses 1, 10 and 11 have looks (`pose_looks.c`) no status gives.
 - **What the battlefield's change left** (REIMPLEMENTATION.md, "Phase 3, battle: the
   battlefield changed and an effect's rows of its tiles"): the rest of the original
-  that loads a battlefield, the screen effects' battlefield's end (`$CD:0D93`-`$CD:0DA2`, a battle
-  lost there, which no movie reaches) and `$CD:0E05`, which call the ports; and
+  that loads a battlefield, which calls the ports; and
   the map buffer's clear (`$CD:1052`), whose every call in the library spans
   the vblank handler, so its `cost_milli` is an estimate from its loop (the
   original's time over the port's accesses in the shadow runs) the timing gate
@@ -1016,16 +997,14 @@ rest waits, is [PLAN.md](PLAN.md).
   at line 135 saying why, and its `sweep` wants a `CurtainSweep` type;
   `menu/line_effects.c`'s `as_the_curtain_leaves_it` rebuilds C and V by
   hand (declare them don't-care if the liveness analysis agrees), and
-  `curtain_shown` repeats the scene's rule; `menu/frame.c` should name its
-  literal `0xC20348`.
+  `curtain_shown` repeats the scene's rule.
 - **What the boot path's second review left** (none rated translation;
   the tables now follow the interpreter rule): `screen.c`'s
   `end_the_scene` adds 1 to a byte through a word accessor, and ending the
   scene is written three ways (`script.c`, `race_rules.c`'s `marked`);
   five one-line `*_leaves` twins in `screen.c` exist because `leaves`
   (`scene.h`) isn't given the task; `run` takes `uint8_t channel`, forcing
-  an adapter in `title.c`; `title.c`'s `routine_of` falls back to row 0 on
-  no match and repeats `script.c`'s lookup, and `PROGRAM_DATA_BANK`
+  an adapter in `title.c`; `PROGRAM_DATA_BANK`
   restates `script.c`'s `PROGRAM_BANK`; `CALMS_EVERY = 0x1F` is a mask
   named as a period; `program.c`'s title special case is a mode test where
   the table wants a column, and `MODE_ENDING_TOO`/`MODE_ENDING_AGAIN` don't
@@ -1038,8 +1017,8 @@ rest waits, is [PLAN.md](PLAN.md).
   in the original's wait for its song (`$7E:5AAA`); with the decompressor and
   the wait as C the frame goes. The title's setup still makes its unpacks and
   first script step as calls through the machine to ports (`scene_run`), and
-  `run_the_first_script` keeps D and DB on the machine stack; the race's,
-  endings' and staff roll's the same (`m_jsr_dc`). `math.c`'s
+  `run_the_first_script` keeps D and DB on the machine stack; the race's does
+  the same (`m_jsr_dc`). `math.c`'s
   `scene_divide32` takes a carry only a leftover uses, and
   `scene_sine_second_half` exports a carry; `tile_animation.c` threads
   `LoadLeft` through `load_slot` for scaffolding; `location.c`'s built-in
@@ -1083,12 +1062,7 @@ rest waits, is [PLAN.md](PLAN.md).
   (`reset_disabled = 1` aside); scaffolding written through
   `set_scene_race_picture`, an accessor named for the race;
   `attract/main_loop.c` picks between two calls that differ only in
-  address with an if/else. In `tools/timing_exceptions.txt`,
-  `scene_ending_set_up`'s reason names constant work and the unpacker but
-  not mode 10's mosaic, the path its time follows, and
-  `scene_ending_load_picture` gives the ground variant's "at most 542602",
-  where its own mechanism is the interrupt splitting a call of fixed work:
-  check both against the gate's output.
+  address with an if/else.
 
 - **What the world map's setup review left** (none rated translation; the
   `menu_epoch_build_map` guard is a real precondition and the main loop's
@@ -1157,8 +1131,7 @@ rest waits, is [PLAN.md](PLAN.md).
   `screen_objects.c`'s handlers read the starting command's operands by
   position (decode once into named values), `moved()` reproduces byte
   wrapping for inputs the game never produces, and the display byte is
-  rebuilt only to be decoded (also `display.c`); `epoch.c` writes
-  `(location_flags & ~0x03) | facing` three times, leaves the
+  rebuilt only to be decoded (also `display.c`); `epoch.c` leaves the
   `EPOCH_ARRIVALS` locations and rows unnamed, and `keep_a_stray_spot` should
   name the writer that resets the spot; `vehicles.c`'s `LOCATION_NUMBER`
   repeats `field_data.h`'s `LOCATION_NUMBER_BITS`, and the vehicles in the
@@ -1184,8 +1157,8 @@ rest waits, is [PLAN.md](PLAN.md).
   the map's size is written in five places (from `MENU_MAP_WIDTH/HEIGHT`),
   and native storage must decide what the wall search's read past the map
   returns; `main_loop.c`'s `OVERWORLD_ASIDE` lists raw work-RAM addresses
-  (`0x7EB000` unexplained), story flags are read by index and bit, and
-  `enter_the_arm` sets A and X with no reader named; event cells written as
+  (`0x7EB000` unexplained), and story flags are read by index and bit;
+  event cells written as
   `1`; `walk.c` decides the ground news twice; `sign.c` patches a sprite
   script at an offset; `music.c` has a bare `3`. Fallbacks still to retire:
   the main loop's
@@ -1201,10 +1174,7 @@ rest waits, is [PLAN.md](PLAN.md).
   build skips; that path runs every time the panel shows with an empty
   active row, so show the skip is invisible or keep the halving, and the
   TODO's "field's tables" is wrong (the words land on `battle_*` cells at
-  `$7E:A5A2`-`A6A0`); `exchange_bridge.c`'s guards redefine `NO_ONE`,
-  `STAYS` and `NOBODY_CHOSEN` and decode the rows themselves (export the
-  decoders from `exchange.h`), and test a party byte with the row's empty
-  bit (`party_place_is_empty`); the same "free" test is written two ways in
+  `$7E:A5A2`-`A6A0`); the same "free" test is written two ways in
   `exchange.c`; the window lists and label strips are raw buffer and ROM
   addresses; `TWO = 2`; window edges packed `right<<8|left`; screen bits as
   `0x17`; the held cursor's shift written as a byte and read as a word; a
@@ -1231,8 +1201,7 @@ rest waits, is [PLAN.md](PLAN.md).
   a comment above the wrong function; `someone_has_it` run twice; the naming guard redefines the grid's constants;
   `shop_equipment.c` has a dead `any`, an unexplained `stale - 1`,
   scaffolding written every pass, and writes the status record by byte
-  offset; `description.c`'s `item_row_fits` checks nothing; the effects
-  baseline's `menu_shop_member_cursor` line carries the save slot's reason.
+  offset; `description.c`'s `item_row_fits` checks nothing.
 
 - **What the party's services' review left** (merged with the services and
   the healing; none rated translation): `AYLA`, the record size `0x50` and
@@ -1293,7 +1262,7 @@ rest waits, is [PLAN.md](PLAN.md).
   `raise_the_figure` adds a word across two record bytes for a figure the cap
   rules out (`+1`, and a guard refusing 255);
   `point_along_the_list` repeats `point_at_listed_item`'s tail;
-  `leave_use_found` re-runs `use_of` and the slide leave repeats
+  the slide leave repeats
   `slide_brings_a_row` with `0xF0`; `hide_the_scroll_bar_and_cursor` takes
   two cells down as one word with a borrow; `hide_the_scroll_bar`, the scroll bar's thumb at a row (`thumb_at_row`,
   also the techs screen's) and the equipped-slot layout `0x27` are copied
@@ -1301,7 +1270,7 @@ rest waits, is [PLAN.md](PLAN.md).
   set to `FIRST_MEMBER_PLACE`, `menu_leave_load(s, 0x62/0x42/0x2E)` literals,
   `& 0xFF00` merges, `hw_set_dividend` and the list-rows scratch in logic
   files, `menu_items_after_*` named by position, `put_bands_at_rest` taking
-  byte offsets, `menu_items_used_up`'s ignored result, and the cursor's item
+  byte offsets, and the cursor's item
   written to a cell and read back.
 
 - **What the techs screen left** (`menu/tech_screen.c`; none blocking): the
@@ -1340,15 +1309,14 @@ rest waits, is [PLAN.md](PLAN.md).
   through `set_field_direction`) -- name the second use in the map or use
   `original_cell8`; `location_description_at` takes a byte offset (take the
   location, return the record);
-  `screen_corner` is in `battle_start.c` and `battle_return.c`, and
-  `refresh()` in `requests.c` and `screen_effects.c`; BG3's tiles at VRAM
+  `screen_corner` is in `battle_start.c` and `battle_return.c`; BG3's tiles at VRAM
   `0x5000` and the bank `$7F` buffers (`0x7F5080`, `0x7F6000`, `0x7F7000`)
   are literals, and `main_loop.c`'s `power_on_clears` uses raw ranges;
   `location.c` tests `field_map_has_no_bg3_set(g) == 0` where a bool query
   wants to sit beside `field_map_names_a_bg3_set`; `palettes.c`'s
   `SlotLooked` shapes only scaffolding, and `slot << 1`/`>> 1` is an
   unnamed palette encoding; `field_kept_party_script_tiles` packs `y<<8|x` by
-  hand; `battle_return.c` names `0xC00715` bare; `program_install_*_handler`
+  hand; `program_install_*_handler`
   takes a ROM address where a later target wants a handler identity.
   `field_walk_the_leader`'s vblank-tail timing exception (11.6% of calls) has
   a real cause, the step that recentres the screen: give that path its own
@@ -1364,7 +1332,7 @@ rest waits, is [PLAN.md](PLAN.md).
   screen-effects chunk; none blocking): `draw_circle` and
   `draw_the_searchlight` hand `scene_circle_draw`/`field_draw_window_shape`
   their inputs through cells -- pass them as parameters and keep the cells as
-  scaffolding; the bytes of `field_line_screens`, `field_line_bg_maps` and
+  scaffolding; the bytes of `field_line_bg_maps` and
   `field_line_wave_bg2` want fields in re/ram.toml (and `BG2_WAVES` a
   meaning); `as_the_dispatch_has_it` sets A/X/C/V on every `$FF` path where
   only the restart and `$9F` paths need it (only V-clear matters on the C
@@ -1453,18 +1421,8 @@ rest waits, is [PLAN.md](PLAN.md).
   first chunks"). Each is a value the native build reads stale unless shown
   otherwise; answering one deletes its line. What the library's shipping-mode
   runs catch (`ct_dev --native on --scaffold-reads`), by subsystem:
-  - field and event: `field_current_object`'s high byte (`$016E`), which only
-    scaffolding clears (`event/engine.c`'s `leave_current_as_a_word`,
-    `field/sprites.c`'s `leave_current_object_as_byte`), is read as part of the
-    word by `object_current_is_one` and `object_make_current`, in
-    `event_run_init_scripts`, `event_run_object_script`, `field_update_objects`
-    and `field_build_sprite_table`: in the native build it is whatever last
-    wrote the word;
   - menus: `menu_scratch` (`$0001`), read by `menu_draw_member_portrait`
-    where its own scaffolding wrote it last; `menu_object_wave_hdma` reads
-    `menu_wave_phase` (`$01E2`) once after `event_run_object_script`'s
-    scaffolding wrote that byte (`menus-end-of-time`), which may be a field
-    cell over the same byte rather than the menus' own.
+    where its own scaffolding wrote it last.
   The source check's findings on main are broader (battle 87, field 29,
   event 3, menu 103, scene 15, core 1, by element, after the battle's and the
   menus' first chunks; `python3 tools/effects_check.py`): most
@@ -1524,8 +1482,7 @@ rest waits, is [PLAN.md](PLAN.md).
   its high byte is live and gives a stop the entry's set; `DC_AL` and
   `m_stop_at_own` would let it name exactly what is dead. Among the ports,
   `python3 tools/dontcare_check.py --list` has 300 declarations that could add
-  `DC_AL` (`could add`), `battle_step_effect_slots` still carrying the handlers'
-  A through its loop among them, and entries whose sets a stop kept small
+  `DC_AL` (`could add`), and entries whose sets a stop kept small
   (`battle_update_combatant`, `event_run_object_script`, `menu_run_objects`,
   `field_object_in_the_way`, the event dialog and condition commands).
 - **Two answers to "what is dead after this returns", and only one is
@@ -1692,17 +1649,6 @@ rest waits, is [PLAN.md](PLAN.md).
     and a Lapis, more than ten places of items) would keep them checked.
 - **What the menus' fifth chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   equipment screen and its member list"):
-  - what the equipment screen's steps call out to is still the original's: the list of what fits (`$C2:8953`), the lists' sliding (`$C2:EA53`,
-    `$C2:EB9B`, `$C2:EB1F`), the low-HP marks (`$C2:813C`), the tasks' stop
-    (`$C2:8255`) and the main menu (`$C2:9A98`);
-  - the member slide's start (`$C2:9D5B`) and the member list's scroll bar
-    (`$C2:A170`) stay the original's: each saves P after a count of its own
-    (the new first row, the row and scroll's sum) and calls out under it
-    (every frame's yield, the bar's task), which a port could only match with
-    a flag note. A way to declare a saved P's flags dead where liveness has
-    them dead after its `PLP` (the sibling runs' frames, the sounds' P under
-    the driver's call) would take the notes out of `menu/equipment_bridge.c`
-    and `menu/load_screen.c` and let these two be ported;
   - the library never slides the member list, switches members with the
     shoulder assignments, slides the list of what fits or refuses a slot, and
     the main menu's panel is interrupted on its one call in each movie that
@@ -1733,14 +1679,6 @@ rest waits, is [PLAN.md](PLAN.md).
     helpers want one header (`menu/tiles.h` beside `menu/windows.c`'s) and
     one `menu_note_palette_changed`; and the smaller notes on `cursor.c`,
     `sprites.c` and `tiles.c`.
-  - a bridge that falls back to the original (`menu_back` stopping at its
-    return because the machine didn't come back as the port expected) is
-    counted nowhere: the entry's calls still match, since the original runs
-    the rest, so a check that fails on almost every call looks like a clean
-    port. The per-frame input's check after the play time's tick held the
-    tick's page to the controller's and fell back on nearly every call until
-    a debug build showed it. A per-site count of those fallbacks in the
-    shadow report (native.c's entry stats) would show it at once;
   - the `bucket_lavos` route's last fight (Lavos's core) took 311 tries and
     about 2.5 hours in the chunk's `--long-routes` run, ending at frame
     211,229, where two earlier runs won every fight at the first try and
@@ -1870,12 +1808,6 @@ rest waits, is [PLAN.md](PLAN.md).
   drafts now give those cells scratch names (REIMPLEMENTATION.md, "The tooling pass
   after wave 1: the analysis"). Filing them where both subsystems see them (`core`, or
   entries on the menu's page) would name them again.
-- **Stops after a call-out that changed the widths.** Ports that give up there
-  (`battle_step_effect_slots`' `call`, the menus' `widths_are` checks) leave PC
-  at the call's return address without declaring it; with a don't-care set on
-  the entry, shadow mode and `ct_fuzz` report it if it ever happens, but the
-  check can't see the point. None of the movies reaches one; declaring them
-  (`m_stop_dont_care` at the return address) would make them checkable.
 - **Gaps in the vblank check** (REIMPLEMENTATION.md, "Where video writes land"), which
   the suite runs with seven findings accepted (REIMPLEMENTATION.md, "The timing gate"): a
   hand port's region ends at its last service call, so the reference's work in
@@ -2091,9 +2023,6 @@ rest waits, is [PLAN.md](PLAN.md).
       taps (`SOUND_ECHO_TAPS`); `update_voices` and its loading-tick copy
       duplicate each other; `stop_music` followed by restoring the song ids it
       cleared (the music fade's end).
-  - **Controllers.** `in_host_set` is already the one host entry point per
-    frame, so this is an SDL GameController call into it plus bindings (see
-    Player and tooling).
 - **Assets as data files rather than ROM reads** (PLAN.md, Phase 4a,
   "Assets", which decides the shape: a catalogue, an import once into a pack
   in the user data directory, loaded by name through the driver, raw before
@@ -2145,13 +2074,7 @@ rest waits, is [PLAN.md](PLAN.md).
   timing changes, widescreen's exposed assumptions (the 0-255 object window at
   `$C0:A88D`, map data beyond VRAM, single-byte battle window positions), and
   GBA's constraints.
-- **P1 leftovers**: `$217F` mirror writes still come from unported video code
-  (the battle's triangle and circle rasterizers `$CD:3810`-`$CD:3B05`, which
-  write the window table through the work RAM port with 16-bit stores, so each
-  edge's low byte also lands on APU port 3, as the quadrilaterals' `$D1:F9E7`
-  did before it was C and left that byte as scaffolding, `hw_port_leave_spill`;
-  history/reimplementation-waves.md, "Phase 3, wave 1"),
-  and the APU-direct backend's audio comparison misses one measure on
+- **P1 leftovers**: the APU-direct backend's audio comparison misses one measure on
   `new-game` (PLATFORM.md, "P1 as built").
 - **The sound driver's boot, waiting on time** (`core/sound_driver.c`): the
   boot's countdown at `$C7:011B` ($0800 passes, time for the SPC700 to start
@@ -2244,21 +2167,14 @@ re-runs the census.
     page, though both are ports now: a C call timed as each would drop the
     machine from the walk's entry, once their own rows can be calibrated
     without their own calls (they have no other callers);
-  - a chest's gift goes to the party through the battle bank's inventory
-    service (`$C1:8003`, A 1 for an item, 4 for gold) as a call-out. The
-    service is C now (`battle/inventory.h`, history/reimplementation-chunks.md, "Phase 3, battle
-    chunk 6"): the confirm button can call `battle_inventory_add` and
-    `battle_give_gold` instead, timed as the service;
-  - from chunk 2's review: name `field_exit`'s record size. The four collision nudges of the walk
+  - from chunk 2's review: the four collision nudges of the walk
     (`field/walk.c`, across, along and the two aslant) are near-identical and
     want one `nudge_around`; `look()` slows a climb as a side effect of
     looking, which wants to be visible at its callers. The climb's note
     reuses the layers' wrap cell (`field_layer_edge_wrap`'s low byte), a
     second meaning the map should name. The confirm button's `Search` keeps
     scaffolding-only fields (`passed`, `measured`, `last_measured`) beside
-    the result. `battle_event_flags`' bits want one enum, shared by
-    `event/party.c` (`PARTY_STAYS_PUT`) and `battle/sound.c`
-    (`KEEPS_FIELD_SONG`);
+    the result;
   - `field_message_mark` (`$02A1`) is cleared by the chests' message and the
     battle's (`$CD:0264`), and nothing read so far reads it;
   - the walk's guard still leaves to the original a map object count of 0
@@ -2353,9 +2269,7 @@ re-runs the census.
     tile map writes directly;
   - the map's whole-screen drawing leaves the edge runs' wrap cell 0, the
     count its loop ran down (`field_layer_edge_wrap`'s low byte), which the
-    edges then read: a third use of that cell, with the climb's note;
-  - the map's other loaders around the drawing (`$C0:7199`, 1104 bytes left
-    in the run) are the original's.
+    edges then read: a third use of that cell, with the climb's note.
 - **What the screen's setup and the objects' setup left**
   (history/reimplementation-chunks.md, "Phase 3, field and events: the screen
   set up, the map unpacked, the objects started"):
@@ -2727,12 +2641,6 @@ re-runs the census.
   is ported around it, and an entry at `$CD:3B82` would make the service's
   own call of the original recurse into the port: decide whether a native
   build keeps the wait at all, and take it out of the service if not.
-- **The timer resets.** `$C2:0043` past `$C2:00F2` and `$C2:940D` past
-  `$C2:94B8` clear `$4207-$420A` in a run of CPU register writes (where the
-  menu ports stop). Nothing enables the timers after them, so natively they
-  are nothing; the boot (`$FD:C000`, `core/console.c`) and the time warp's
-  screen (`$FD:EB81`, `warp/picture.c`) make the same clear through
-  `tm_reset_timers`, which these can take too.
 
 ## The native program
 
@@ -2779,9 +2687,8 @@ list, by kind, is what `game/` still asks of one.
   on the machine hands the call to the original) or a step only the machine
   runs yet, `ct_native` stops there and says which: a menu screen with no
   step as C (below), a party the
-  put-aside or the bringing back doesn't take (`field/menus.c`), every
-  request but a location change, a script's menu, a tile copy and a battle (a step, a
-  chest: `field/requests.c`), the field's restart a script asks for,
+  put-aside or the bringing back doesn't take (`field/menus.c`), the
+  field's restart a script asks for,
   and the event commands with a bridge and no C beside it (9 of the 23 in
   `EVENT_BRIDGES`; `EVENT_BRIDGES_AS_C`, event/engine.h, has the rest).
   Each wants its C as the program meets it.
@@ -2912,8 +2819,7 @@ waits on M5 rather than on a backend.
 
 - **What the native program's review left** (none rated translation):
   `core/program.h` and `program.c`'s handler table are keyed by the ROM
-  address a mode installs, where they want a handler identity; `core/tasks.c`
-  is called only by `tasks_test` until the menus use it; `dev/census.c`'s
+  address a mode installs, where they want a handler identity; `dev/census.c`'s
   `census_destroy` leaves the runtime's observer pointing at the freed census;
   `state_host.c` and `game/data/assets.c` each carry the HiROM address map,
   which wants one copy.
@@ -3195,14 +3101,10 @@ waits on M5 rather than on a backend.
   (100k-170k frame runs), the addresses each route needs, and re-running a
   route when the timing model changes, since routes survive drift but the
   movies they record don't.
-- **The four boss fights** (movies-wanted.md, "Boss fights") are unattempted beyond finding
-  where each save starts. `ctsave02` slot 3 lands already inside Arris Dome at `$0D6`'s own
-  room (Guardian's), not on the world map, but walking to the sprites visible there and
-  talking to each of the dozen or so nearby objects (an `objscript` sweep, not a person's
-  guess) found no battle trigger; the Guardian may need a terminal or switch elsewhere in the
-  room, or a specific approach the sweep didn't try. `ctsave03` slot 2 (R Series, the
+- **The boss fights other than the Guardian's** (movies-wanted.md, "Boss fights") are unattempted beyond finding
+  where each save starts. `ctsave03` slot 2 (R Series, the
   factory), `ctsave07` slot 3 (Nizbel II, Tyrano Lair) and `ctsave14` slot 2 (MotherBrain,
-  Geno Dome) all start on the world map at the dungeon's door instead, needing a walk in and
+  Geno Dome) all start on the world map at the dungeon's door, needing a walk in and
   down to the boss room neither attempted nor mapped this pass.
 - **zophar `chrono-7`** (everything maxed at the fair) is unused: its Lucca
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
@@ -3393,10 +3295,6 @@ waits on M5 rather than on a backend.
   - `game/attract/` is the same scene program (its main loop and idle waits)
     and belongs in `game/scene/`; the two headers point at each other until
     attract is next reworked.
-- **An endings concept.** The endings have no routines in `game/scene/` of
-  their own -- they are the program's scripts, using the iris, the scaler and
-  the arithmetic -- so there is nothing to hold one yet; when their script
-  routines are ported, they want a file of their own.
 - **`scene/scene_data.h` reads bank `$FE` by address** (`scene_data_byte`,
   which the resource copies use): the asset seam wants a named accessor for
   each resource the table at `$FE:0000` points to.
