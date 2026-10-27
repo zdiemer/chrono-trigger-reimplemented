@@ -2199,11 +2199,10 @@ re-runs the census.
   of the game's state whose waits are callbacks, run a turn at a time by the
   machine's entry and through by a coroutine (`core/tasks.c`) with no
   machine; `menu/tasks.c`'s table of the starts it has (`tasks`) holds
-  the main task's, the cursor's, the fade in's and the typing's. The scroll
-  bar's, the records', the held cursors', the healing numbers' and the gate's
-  song's stop `ct_native` where they start, and a screen step with no C
-  beside the naming's (`menu/screens.c`'s `steps`) stops it where it is
-  reached. The other way for the tasks is each rewritten to resume, a state
+  the main task's, the cursor's, the fade in's, the typing's, the scroll
+  bar's and the records'. The held cursors', the healing numbers' and the
+  gate's song's stop `ct_native` where they start, and a screen step with no
+  C column in `menu/screens.c`'s table stops it where it is reached. The other way for the tasks is each rewritten to resume, a state
   machine called once a frame: the way for a target that can't afford nine
   512 KiB stacks (PLAN.md, "What that makes scaffolding").
 - **The clock's controller read inside the effect work** (history/reimplementation-chunks.md, "Phase 3,
@@ -2744,8 +2743,8 @@ host backend, and runs the boot, the field, the title's scene, the menus
 a script asks for, the world maps and the battles; left alone it runs the
 attract sequence round and on without stopping (the jet bike race and the
 rising palace as C), and with `new-game.ctm`'s, `fair.ctm`'s,
-`fair-companion.ctm`'s or `gato-battle.ctm`'s presses it plays the movie to
-its end; `menu.ctm`'s stop at the main menu's opening (`$C2:99CE`). What the wrappers and bridges call of the machine is
+`fair-companion.ctm`'s, `gato-battle.ctm`'s or `menu.ctm`'s presses it plays
+the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
@@ -2779,13 +2778,38 @@ list, by kind, is what `game/` still asks of one.
   the field's C meets a state its port doesn't take (an entry's guard, which
   on the machine hands the call to the original) or a step only the machine
   runs yet, `ct_native` stops there and says which: a menu screen with no
-  step as C (the main menu's, the load screen's, a shop's), a party the
+  step as C (below), a party the
   put-aside or the bringing back doesn't take (`field/menus.c`), every
   request but a location change, a script's menu, a tile copy and a battle (a step, a
   chest: `field/requests.c`), the field's restart a script asks for,
   and the event commands with a bridge and no C beside it (9 of the 23 in
   `EVENT_BRIDGES`; `EVENT_BRIDGES_AS_C`, event/engine.h, has the rest).
   Each wants its C as the program meets it.
+- **What the menus the player opens still hand the machine.** The main
+  menu's steps and its four panels, and the steps `menu.ctm` reaches of the
+  equipment (its opening, the member choice and pointing), the items (the
+  opening, the commands, the list and the sort), the techs (the opening, the
+  member list laid out, the member choice and the moves among the members)
+  and the settings (the opening, the options, an option taken) run as C
+  (REIMPLEMENTATION.md, "The native program through the main menu"); where
+  one of them meets what has no C yet, `program_needs_the_machine` stops the
+  program there and says which: the exchange's and saving's panels
+  (`$C2:C9E5`, `$C2:D065`), the equipment's slots window (`$C2:A71E`) and its
+  member list's slide (`$C2:9D5B`), the items list's slide (`$C2:AC3A`), the
+  techs' member slide and lister (`$C2:B568`, `$C2:B9E1`), the settings'
+  design and speed meters (`$C2:C12C`, `$C2:C0B9`, `$C2:C0D1`). Every other
+  step of those screens, and the exchange's, saving's, the load screen's and
+  the shops', has no C column in `menu/screens.c`'s table yet. Each wants
+  the same shape: the step one `*_with` sequence whose machine entry passes
+  `*_on_the_machine` steps.
+- **The menus' steps' notes carry machine work.** In the items', the techs'
+  and the settings' sequences (menu/item_screen.c, tech_screen.c,
+  settings_screen.c) a note is where the machine both leaves the original's
+  flags and saves or restores P and sets the widths the original's code has
+  at that point (the opening's set-up, the pointing, an option's handler).
+  Splitting the second out as the subroutine it is on the machine (a step
+  callback for the set-up, as the main menu's panels are) would leave the
+  notes scaffolding only.
 - **What the battle still hands the machine as the program runs it.** The
   battle runs as C from the field's request to the field taken up after it
   (REIMPLEMENTATION.md, "The native program through the battle"), each C

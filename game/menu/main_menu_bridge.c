@@ -1,12 +1,16 @@
-/* The main menu on the original's machine: its steps, the panels' showing
- * and putting away, and their guards (game/menu/main_menu.c is the menu).
+/* The main menu on the original's machine: its steps' and the panels'
+ * answers, their entries and their guards (game/menu/main_menu.c is the menu,
+ * and its sequences).
  *
- * Each option's panel is its screen's own (menu/<screen>.c). Showing one
- * waits for frames as it draws, so the main menu runs the screen's entry as
- * the original's JSR through its table reaches it (menu_run): the panels'
- * table here is that table, by option. Putting one away is C, called as C.
- * The cursor's tick and the leaving of the menus, and the fade in as the
- * menu opens, are jumps the steps stop at. */
+ * The sequences are main_menu.c's, run here with the machine's answers to
+ * what they ask: each option's panel is its screen's own entry, which waits
+ * for frames as it draws, run as the original's JSR through its table
+ * reaches it (menu_run), and so are the main menu's panel, the cursor's tick
+ * and the member card; a frame's wait is the task switch's, from the
+ * original's call at each place. The fade in as the menu opens, the leaving
+ * of the menus and the tick a step ends on are jumps the steps stop at.
+ * Before each call a sequence leaves the flags the original's own tests left
+ * (scaffolding, at the notes). */
 #include "menu/main_menu.h"
 
 #include "charge.h"
@@ -15,6 +19,7 @@
 #include "menu/equipment.h"
 #include "menu/exchange.h"
 #include "menu/item_screen.h"
+#include "menu/members.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/saving.h"
@@ -33,19 +38,16 @@ enum {
     LEAVE_THE_MENUS = 0xC282B2,   /* the menus close, back to the field */
     FADE_IN = 0xC283B2,           /* the screen's fade in started */
     CURSOR_SOUND = 0xC2EAC2,
+    SHOW_THE_PANEL = 0xC29B54,
+    MEMBER_CARD = 0xC2A22F,
 };
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_A_AND_CARRY = DC_X | DC_Y | DC_N | DC_V | DC_Z,
 };
 
-static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, CURSOR_SOUND, menu_play_cursor_sound); }
-
-/* ---- The panels ---------------------------------------------------------------------------------- */
-
-/* Each option's panel is shown by its screen's own entry, which waits for
- * frames as it draws, run as the original's JSR through its table reaches
- * it; its guard is the entry's own. */
+/* Each option's panel is shown by its screen's own entry, run as the
+ * original's JSR through its table reaches it. */
 typedef struct {
     uint32_t at;
     void (*entry)(Snes *);
@@ -60,29 +62,43 @@ static const PanelShown PANELS_SHOWN[MENU_MAIN_MENU_OPTIONS] = {
     [MAIN_MENU_SAVING] = { 0xC2D065, menu_show_save_panel, menu_save_panel_shows },
 };
 
-/* Putting a panel away waits for nothing: each screen's is C, its time its
- * entry's, with the entry's guard. */
+/* Putting a panel away waits for nothing: each screen's is C, with its
+ * entry's guard. */
 static bool (*const PANEL_GOES[MENU_MAIN_MENU_OPTIONS])(Snes *) = {
     [MAIN_MENU_EQUIPMENT] = menu_panel_colours_show, [MAIN_MENU_ITEMS] = menu_items_panel_goes,
     [MAIN_MENU_TECHS] = menu_techs_panel_goes,         [MAIN_MENU_SETTINGS] = menu_settings_panel_goes,
     [MAIN_MENU_EXCHANGE] = menu_exchange_panel_goes,   [MAIN_MENU_SAVING] = menu_on_page_work_ram,
 };
 
-static void put_the_panel_away(GameState *g, Platform *pf, MainMenuOption option)
+/* The original's call at each place, and for a wait, the widths its code
+ * has at the wait and sets after it (the code between is C, which reads
+ * none of them). */
+typedef enum { KEEP_WIDTHS, A16_X16, A8_X16 } Widths;
+static const struct {
+    uint32_t site;
+    Widths before, after;
+} places[MAIN_MENU_PLACES] = {
+    [MAIN_MENU_AT_THE_OPENING_PANEL] = { 0xC29A13, KEEP_WIDTHS, KEEP_WIDTHS },
+    [MAIN_MENU_AT_THE_NEW_OPTION_PANEL] = { 0xC29A70, KEEP_WIDTHS, KEEP_WIDTHS },
+    [MAIN_MENU_AT_THE_NEW_OPTION_TICK] = { 0xC29A73, KEEP_WIDTHS, KEEP_WIDTHS },
+    [MAIN_MENU_AT_THE_EQUIPMENT_LAID_OUT] = { 0xC2A0AC, A16_X16, A8_X16 },
+    [MAIN_MENU_AT_THE_EQUIPMENT_DRAWN] = { 0xC2A0BD, KEEP_WIDTHS, KEEP_WIDTHS },
+    [MAIN_MENU_AT_THE_ITEMS_LAID_OUT] = { 0xC2AD7F, KEEP_WIDTHS, KEEP_WIDTHS },
+    [MAIN_MENU_AT_THE_ITEMS_DRAWN] = { 0xC2ADA1, A8_X16, KEEP_WIDTHS },
+    [MAIN_MENU_AT_THE_TECHS_LAID_OUT] = { 0xC2B8F2, KEEP_WIDTHS, KEEP_WIDTHS },
+    [MAIN_MENU_AT_THE_SETTINGS_FRAMED] = { 0xC2C337, A16_X16, KEEP_WIDTHS },
+};
+
+static void set_widths(Snes *s, Widths w)
 {
-    switch (option) {
-    case MAIN_MENU_EQUIPMENT: TIMED_AS(g, 0xC2A101, menu_equip_panel_put_away(g)); break;
-    case MAIN_MENU_ITEMS: TIMED_AS(g, 0xC2ADC3, menu_items_panel_put_away(g)); break;
-    case MAIN_MENU_TECHS: TIMED_AS(g, 0xC2B960, menu_techs_panel_put_away(g, pf)); break;
-    case MAIN_MENU_SETTINGS: TIMED_AS(g, 0xC2C397, menu_settings_panel_put_away(g)); break;
-    case MAIN_MENU_EXCHANGE: TIMED_AS(g, 0xC2CAE6, menu_exchange_panel_put_away(g)); break;
-    case MAIN_MENU_SAVING: TIMED_AS(g, 0xC2D0DB, menu_put_save_panel_away_now(g)); break;
-    }
+    if (w != KEEP_WIDTHS)
+        menu_set_widths(s, w == A8_X16, false);
 }
 
-/* For the original's code and shadow mode: it picks the panel by the
- * option doubled, in A and X, which the panel saves the flags of as it
- * starts. */
+/* ---- What the original's tests leave (scaffolding) ----------------------------------------------- */
+
+/* It picks the panel by the option doubled, in A and X, which the panel
+ * saves the flags of as it starts. */
 static void leave_option_doubled(Snes *s, uint8_t option)
 {
     s->cpu.a = (uint16_t)(2 * option);
@@ -91,83 +107,42 @@ static void leave_option_doubled(Snes *s, uint8_t option)
     m_set_flag(s, CPU_FLAG_C, false);
 }
 
-// $C2:9B54
-/* The option's panel, then the main menu over it. */
-void menu_show_main_menu_panel(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t option = menu_main_menu_option(g);
-    menu_save_p(s);
-    menu_set_widths(s, true, m_x8(s));
-    ORIGINAL_EFFECT(leave_option_doubled(s, option));
-    const PanelShown *p = &PANELS_SHOWN[option];
-    if (!menu_run(s, 0xC29B5D, p->at, p->entry))
-        return;
-    TIMED_AS(g, 0xC29B8F, menu_draw_main_menu(g, m_platform(s)));
-    ORIGINAL_EFFECT(menu_leave_a_high_byte_set(s));
-    menu_restore_p(s);
-    m_rts(s);
-}
-
-// $C2:9B71
-/* The option's panel put away, the main menu over the screen again, and the
- * back layer queued. */
-static void put_the_main_menu_panel_away(GameState *g, Platform *pf)
-{
-    put_the_panel_away(g, pf, (MainMenuOption)menu_main_menu_option(g));
-    TIMED_AS(g, 0xC29B8F, menu_draw_main_menu(g, pf));
-    menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER);
-}
-
-/* What it leaves: the panel's pick, then the queue's registers. */
+/* What putting a panel away leaves: the panel's pick, then the queue's
+ * registers. */
 static void leave_panel_put_away(Snes *s, uint8_t option)
 {
     leave_option_doubled(s, option);
     menu_leave_queued_upload(s, MENU_UPLOAD_BACK_LAYER);
 }
 
-void menu_put_main_menu_panel_away(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t option = menu_main_menu_option(g);
-    (void)option;
-    put_the_main_menu_panel_away(g, m_platform(s));
-    ORIGINAL_EFFECT(leave_panel_put_away(s, option));
-    m_rts(s);
-}
-
-/* ---- The steps ----------------------------------------------------------------------------------- */
-
-/* For the original's code and shadow mode: the flags its own tests leave
- * as it runs the panel, which saves them as it starts. Opening, they are
- * the techs' member list's row folded into its first three: a compare of
- * the row with three (the row and the list's scroll added, which sets the
- * overflow), and a load of none where it doesn't fit. */
-typedef struct {
-    uint8_t row, scroll;
-} RowAndScroll;
-
-static RowAndScroll note_techs_row(const GameState *g)
-{
-    vars_peek(true);
-    RowAndScroll r = { menu_tech_member_row(g), menu_setting_keep_menu_cursors(g) ? menu_tech_member_scroll(g) : 0 };
-    vars_peek(false);
-    return r;
-}
-
+/* Opening, the techs' member list's row folded into its first three: a
+ * compare of the row with three (the row and the list's scroll added, which
+ * sets the overflow), and a load of none where it doesn't fit. The row and
+ * scroll are noted before the menu opens. */
 enum { MEMBER_ROWS = 3 };
 
-static void leave_techs_row_folded(Snes *s, RowAndScroll r)
+static void note_techs_row(MainMenuOnTheMachine *m)
 {
-    uint8_t member = (uint8_t)(r.row + r.scroll);
-    m_set_flag(s, CPU_FLAG_V, ((r.row ^ member) & (r.scroll ^ member) & 0x80) != 0);
+    const GameState *g = state_of(m->s);
+    vars_peek(true);
+    m->techs_row = menu_tech_member_row(g);
+    m->techs_scroll = menu_setting_keep_menu_cursors(g) ? menu_tech_member_scroll(g) : 0;
+    vars_peek(false);
+}
+
+static void leave_techs_row_folded(const MainMenuOnTheMachine *m)
+{
+    Snes *s = m->s;
+    uint8_t row = m->techs_row, scroll = m->techs_scroll;
+    uint8_t member = (uint8_t)(row + scroll);
+    m_set_flag(s, CPU_FLAG_V, ((row ^ member) & (scroll ^ member) & 0x80) != 0);
     menu_leave_compare(s, member, MEMBER_ROWS);
     if (member >= MEMBER_ROWS)
         menu_leave_load(s, 0);
 }
 
-/* Moving, they are a compare of the cursor with the option it was on, the
- * go-back button tested, and a load of the panels' tasks. */
+/* Moving, a compare of the cursor with the option it was on, the go-back
+ * button tested, and a load of the panels' tasks. */
 static void leave_moved(Snes *s, uint8_t from)
 {
     const GameState *g = state_of(s);
@@ -176,62 +151,116 @@ static void leave_moved(Snes *s, uint8_t from)
     menu_leave_load(s, MENU_PANELS_TASKS);
 }
 
-// $C2:99CE
-/* The menu opened, its panel, then on to choosing as it fades in. */
-void menu_open_main_menu(Snes *s)
+/* ---- What the sequences ask of the menus, on the machine ----------------------------------------- */
+
+static Snes *machine(void *ctx) { return ((MainMenuOnTheMachine *)ctx)->s; }
+
+static void read_cursor(void *ctx) { menu_step_reads_the_cursor(machine(ctx)); }
+
+static bool tick(void *ctx, MainMenuPlace at)
 {
-    GameState *g = state_of(s);
-    RowAndScroll techs_row = note_techs_row(g);
-    (void)techs_row;
-    if (!menu_main_menu_open(g)) {
-        m_stop_at(s, LEAVE_THE_MENUS, READS_NOTHING);
-        return;
-    }
-    ORIGINAL_EFFECT(leave_techs_row_folded(s, techs_row));
-    if (!menu_run(s, 0xC29A13, 0xC29B54, menu_show_main_menu_panel))
-        return;
-    set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1));
-    m_stop_at(s, FADE_IN, READS_NOTHING);
+    return menu_run(machine(ctx), places[at].site, CURSOR_SOUND, menu_play_cursor_sound);
 }
 
-// $C2:9A1B
-/* Choosing an option opens its screen and going back closes the menus; the
- * cursor moved to another option shows its panel, with a tick. */
-void menu_choose_on_main_menu(Snes *s)
+static bool wait(void *ctx, MainMenuPlace at)
 {
-    GameState *g = state_of(s);
-    set_menu_cursor_index(g, menu_main_menu_option(g));
-    menu_step_reads_the_cursor(s);
-    switch (menu_main_menu_choose(g)) {
-    case MAIN_MENU_OPTION_CHOSEN: menu_main_menu_open_option(g, m_platform(s)); break;
-    case MAIN_MENU_LEFT: m_stop_at(s, LEAVE_THE_MENUS, READS_NOTHING); return;
-    case MAIN_MENU_STAYED: menu_main_menu_keep_the_time(g); break;
-    case MAIN_MENU_MOVED: {
-        uint8_t from = menu_main_menu_option(g);
-        (void)from;
-        menu_main_menu_move_to(g, (MainMenuOption)menu_cursor_index(g));
-        ORIGINAL_EFFECT(leave_moved(s, from));
-        if (!menu_run(s, 0xC29A70, 0xC29B54, menu_show_main_menu_panel) || !tick(s, 0xC29A73))
-            return;
-        break;
+    Snes *s = machine(ctx);
+    set_widths(s, places[at].before);
+    if (!menu_wait_a_frame_from(s, places[at].site))
+        return false;
+    set_widths(s, places[at].after);
+    return true;
+}
+
+static bool show_the_panel(void *ctx, MainMenuPlace at)
+{
+    return menu_run(machine(ctx), places[at].site, SHOW_THE_PANEL, menu_show_main_menu_panel);
+}
+
+static bool option_panel(void *ctx, MainMenuOption option)
+{
+    const PanelShown *p = &PANELS_SHOWN[option];
+    return menu_run(machine(ctx), 0xC29B5D, p->at, p->entry);
+}
+
+static bool member_card(void *ctx) { return menu_run(machine(ctx), 0xC2A0C3, MEMBER_CARD, menu_draw_member_card_entry); }
+
+static void note(void *ctx, MainMenuNote n, uint8_t value)
+{
+    MainMenuOnTheMachine *m = ctx;
+    Snes *s = m->s;
+    (void)value;
+    switch (n) {
+    case MAIN_MENU_NOTE_OPENING: ORIGINAL_EFFECT(note_techs_row(m)); break;
+    case MAIN_MENU_NOTE_TECHS_ROW_FOLDED: ORIGINAL_EFFECT(leave_techs_row_folded(m)); break;
+    case MAIN_MENU_NOTE_MOVED_FROM: ORIGINAL_EFFECT(leave_moved(s, value)); break;
+    case MAIN_MENU_NOTE_OPTION_PICKED: ORIGINAL_EFFECT(leave_option_doubled(s, value)); break;
+    case MAIN_MENU_NOTE_DRAWN: ORIGINAL_EFFECT(menu_leave_a_high_byte_set(s)); break;
+    case MAIN_MENU_NOTE_PANEL_PUT_AWAY: ORIGINAL_EFFECT(leave_panel_put_away(s, value)); break;
+    case MAIN_MENU_NOTE_EQUIPMENT_TESTED: ORIGINAL_EFFECT(menu_leave_equipment_panel_tested(s, value)); break;
+    case MAIN_MENU_NOTE_TECHS_MEMBER_CHOSEN: ORIGINAL_EFFECT(menu_leave_techs_panel_member_chosen(s, value)); break;
+    case MAIN_MENU_NOTE_SETTINGS_FRAMED: ORIGINAL_EFFECT(menu_leave_settings_panel_frame(s)); break;
     }
+}
+
+/* The steps' ends are the original's jumps, which the port stops at. */
+static bool ends(void *ctx, MainMenuEnd end)
+{
+    Snes *s = machine(ctx);
+    switch (end) {
+    case MAIN_MENU_FADES_IN: m_stop_at(s, FADE_IN, READS_NOTHING); break;
+    case MAIN_MENU_LEAVES_THE_MENUS: m_stop_at(s, LEAVE_THE_MENUS, READS_NOTHING); break;
+    case MAIN_MENU_TICKS_AS_IT_ENDS: m_stop_at_own(s, CURSOR_SOUND, READS_A_AND_CARRY); break;
     }
+    return false;
+}
+
+const MainMenuSteps menu_main_menu_on_the_machine = { read_cursor, tick, wait, show_the_panel, option_panel, member_card, note, ends };
+
+/* ---- The entries --------------------------------------------------------------------------------- */
+
+static void step(Snes *s, bool (*run)(GameState *, Platform *, const MainMenuSteps *, void *))
+{
+    MainMenuOnTheMachine m = { s, 0, 0 };
+    if (run(state_of(s), m_platform(s), &menu_main_menu_on_the_machine, &m))
+        m_rts(s);
+}
+
+// $C2:99CE
+void menu_open_main_menu_entry(Snes *s) { step(s, menu_open_main_menu_with); }
+
+// $C2:9A1B
+void menu_choose_on_main_menu_entry(Snes *s) { step(s, menu_choose_on_main_menu_with); }
+
+// $C2:9A98
+void menu_back_to_the_main_menu_entry(Snes *s)
+{
+    menu_set_widths(s, true, false);
+    step(s, menu_back_to_the_main_menu_with);
+}
+
+// $C2:9B54
+/* It saves P as it starts and puts it back as it ends. */
+void menu_show_main_menu_panel(Snes *s)
+{
+    menu_save_p(s);
+    menu_set_widths(s, true, m_x8(s));
+    MainMenuOnTheMachine m = { s, 0, 0 };
+    if (!menu_show_main_menu_panel_with(state_of(s), m_platform(s), &menu_main_menu_on_the_machine, &m))
+        return;
+    menu_restore_p(s);
     m_rts(s);
 }
 
-// $C2:9A98
-/* Back from a screen: its panel put away, the main menu chosen on again,
- * and a tick. */
-void menu_back_to_the_main_menu(Snes *s)
+// $C2:9B71
+void menu_put_main_menu_panel_away_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    menu_set_widths(s, true, false);
-    menu_main_menu_come_back(g);
     uint8_t option = menu_main_menu_option(g);
     (void)option;
-    TIMED_AS(g, 0xC29B71, put_the_main_menu_panel_away(g, m_platform(s)));
+    menu_put_main_menu_panel_away(g, m_platform(s));
     ORIGINAL_EFFECT(leave_panel_put_away(s, option));
-    m_stop_at_own(s, CURSOR_SOUND, READS_A_AND_CARRY);
+    m_rts(s);
 }
 
 // $C2:9AAD
@@ -251,8 +280,6 @@ void menu_draw_main_menu_entry(Snes *s)
 
 /* ---- The guards ---------------------------------------------------------------------------------- */
 
-static bool on_an_option(const GameState *g) { return menu_main_menu_option(g) < MENU_MAIN_MENU_OPTIONS; }
-
 static bool peek(Snes *s, bool (*test)(const GameState *))
 {
     if (!menu_on_page_work_ram(s))
@@ -263,25 +290,11 @@ static bool peek(Snes *s, bool (*test)(const GameState *))
     return ok;
 }
 
-/* The menu opens on an option, with the screens' member lists' rows within
- * their three. */
-static bool opens(const GameState *g)
-{
-    return on_an_option(g) || (menu_member_count(g) != 0 && menu_setting_keep_menu_cursors(g) == 0);
-}
+static bool on_an_option(const GameState *g) { return menu_main_menu_option(g) < MENU_MAIN_MENU_OPTIONS; }
 
-bool menu_main_menu_opens(Snes *s) { return peek(s, opens); }
+bool menu_main_menu_opens(Snes *s) { return peek(s, menu_main_menu_can_open); }
 
-/* Choosing: the cursor on an option, and every push keeping it among the
- * six. */
-static bool choosing(const GameState *g)
-{
-    return on_an_option(g) && menu_cursor_kept_among(g, 0, MENU_MAIN_MENU_OPTIONS, false);
-}
-
-bool menu_main_menu_step_runs(Snes *s) { return peek(s, choosing) && menu_cursor_is_movable(s); }
-
-bool menu_main_menu_comes_back(Snes *s) { return peek(s, on_an_option) && menu_main_menu_panel_goes(s); }
+bool menu_main_menu_step_runs(Snes *s) { return peek(s, menu_main_menu_can_choose) && menu_cursor_is_movable(s); }
 
 static bool drawable(const GameState *g) { return on_an_option(g) && menu_main_menu_drawable(g); }
 
@@ -302,3 +315,5 @@ static bool panel_runs(Snes *s, bool put_away)
 bool menu_main_menu_panel_shows(Snes *s) { return panel_runs(s, false); }
 
 bool menu_main_menu_panel_goes(Snes *s) { return panel_runs(s, true); }
+
+bool menu_main_menu_comes_back(Snes *s) { return peek(s, on_an_option) && menu_main_menu_panel_goes(s); }

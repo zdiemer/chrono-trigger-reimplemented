@@ -769,8 +769,9 @@ static bool routine(void *ctx, NamingRoutine routine)
     return back;
 }
 
-bool menu_naming_step(GameState *g, Platform *pf, NamingStep step)
+bool menu_naming_step(GameState *g, Platform *pf)
 {
+    NamingStep step = (NamingStep)menu_screen_step(g);
     if (!takes(g, steps[step].takes)) {
         program_needs_the_machine(g, steps[step].routine, "a naming the port doesn't take");
         return false;

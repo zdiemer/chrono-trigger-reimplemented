@@ -488,6 +488,14 @@ void menu_sound_played(GameState *g, Platform *pf, uint8_t sound)
     (void)play_a_sound(g, SOUND_EFFECT_ON_VOICES_6_7, sound, &as_c, &c);
 }
 
+void menu_read_the_cursor_for_a_step(GameState *g) { TIMED_AS(g, 0xC2E984, menu_read_cursor(g)); }
+
+// $C2:EAC2
+void menu_tick(GameState *g, Platform *pf) { TIMED_AS(g, 0xC2EAC2, menu_sound_played(g, pf, MENU_SOUND_CURSOR)); }
+
+// $C2:EACC
+void menu_buzz(GameState *g, Platform *pf) { TIMED_AS(g, 0xC2EACC, menu_sound_played(g, pf, MENU_SOUND_REFUSAL)); }
+
 /* On the machine the send is a call-out to the driver: false where the
  * driver came back otherwise than it was called, and the port has stopped
  * where the original carries on. */

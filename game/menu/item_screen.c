@@ -24,16 +24,20 @@
 #include "menu/item_screen.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "menu/cursor.h"
+#include "menu/description.h"
 #include "menu/display.h"
 #include "menu/figures.h"
 #include "menu/held_cursors.h"
 #include "menu/items.h"
 #include "menu/lists.h"
+#include "menu/main_menu.h"
 #include "menu/members.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
+#include "menu/sprites.h"
 #include "menu/text.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
@@ -613,6 +617,21 @@ void menu_items_panel_show(GameState *g, Platform *pf)
     menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER);
 }
 
+// $C2:AD50
+/* The panel: its window and colours, a frame, the rows, a frame, the colour
+ * math and the sprites. */
+bool menu_show_items_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
+{
+    menu_items_panel_lay_out(g, pf);
+    if (!n->wait(ctx, MAIN_MENU_AT_THE_ITEMS_LAID_OUT))
+        return false;
+    menu_items_panel_draw_rows(g);
+    if (!n->wait(ctx, MAIN_MENU_AT_THE_ITEMS_DRAWN))
+        return false;
+    menu_items_panel_show(g, pf);
+    return true;
+}
+
 // $C2:ADC3
 void menu_items_panel_put_away(GameState *g)
 {
@@ -981,7 +1000,246 @@ static bool items_are_the_games(const GameState *g)
 
 bool menu_items_rows_can_be_drawn(const GameState *g) { return menu_item_list_top(g) <= LAST_TOP && items_are_the_games(g); }
 
+/* The panel: room for its three uploads, its rows and its windows. */
+bool menu_items_panel_can_show(const GameState *g)
+{
+    return menu_upload_queue_takes(g, 3) && menu_items_rows_can_be_drawn(g) && menu_window_list_drawable(g, MENU_WINDOWS_ITEMS_PANEL);
+}
+
 bool menu_items_list_is_pointable(const GameState *g)
 {
     return menu_items_rows_can_be_drawn(g) && menu_cursor_index(g) < MENU_ITEMS_ROWS && menu_item_list_row(g) < MENU_ITEMS_ROWS;
 }
+
+/* The opening: room for its upload and its colours, its windows, the list's
+ * row one of the cursor's places. */
+bool menu_items_can_open(const GameState *g)
+{
+    return menu_upload_queue_takes(g, 1) && menu_palette_changes_have_room(g)
+           && menu_window_list_drawable(g, MENU_WINDOWS_ITEMS_SCREEN) && menu_item_list_row(g) < MENU_CURSOR_PLACES_COUNT;
+}
+
+bool menu_items_can_point_along_the_list(const GameState *g)
+{
+    return menu_upload_queue_takes(g, 2) && menu_items_list_is_pointable(g);
+}
+
+bool menu_items_can_sort(const GameState *g) { return menu_upload_queue_takes(g, 1) && menu_items_rows_can_be_drawn(g); }
+
+/* ---- The steps ----------------------------------------------------------------------------------- */
+
+/* The description of an item (menu/description.h); item 0, an empty
+ * place's, has a blank one. */
+enum { BLANK_DESCRIPTION = 0x00 };
+void menu_items_describe(GameState *g, uint8_t item) { TIMED_AS(g, 0xC2F2F3, menu_describe_item(g, item)); }
+
+// $C2:AD2E
+void menu_items_describe_the_cursors_item(GameState *g) { menu_items_describe(g, menu_items_note_the_cursors_item(g)); }
+
+// $C2:AA40, $C2:ADD0
+/* A tick, on to the list, and the screen set up: the party's items set
+ * aside first, the list's frame, the scroll bar's task and the sprites'
+ * colours between its parts. */
+bool menu_open_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    if (!n->tick(ctx, ITEMS_AT_THE_OPENING))
+        return false;
+    menu_items_open(g);
+    n->note(ctx, ITEMS_NOTE_OPENED, 0);
+    TIMED_AS(g, 0xC290FC, menu_set_items_aside(g));
+    menu_items_lay_out(g, pf);
+    n->note(ctx, ITEMS_NOTE_LIST_FRAMED, 0);
+    menu_items_show_bar_at_the_list(g);
+    TIMED_AS(g, 0xC28B93, menu_start_the_scroll_bar(g));
+    menu_items_put_the_cursor_back(g);
+    TIMED_AS(g, 0xC2F5A7, menu_load_character_colours(g));
+    menu_items_show_screen(g);
+    n->note(ctx, ITEMS_NOTE_SET_UP, 0);
+    return true;
+}
+
+// $C2:AA4A
+/* A command chosen: a tick, then the list or the sort; going back, the main
+ * menu; the cursor moved, a tick. */
+bool menu_choose_item_command_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    (void)pf;
+    n->read_cursor(ctx);
+    ItemsCommandChoice c = menu_items_choose_command(g);
+    n->note(ctx, ITEMS_NOTE_BUTTONS_TESTED, 0);
+    switch (c) {
+    case COMMANDS_LEFT: return n->back_to_the_main_menu(ctx);
+    case COMMAND_POINTED_AT:
+        n->note(ctx, ITEMS_NOTE_CURSOR_COMPARED, 0);
+        return menu_cursor_frame_start(g) == menu_cursor_index(g) || n->tick(ctx, ITEMS_AT_A_COMMAND_POINTED);
+    case COMMAND_LIST_CHOSEN:
+    case COMMAND_SORT_CHOSEN:
+    case COMMAND_NOTHING_CHOSEN: break;
+    }
+    if (!n->tick(ctx, ITEMS_AT_A_COMMAND_CHOSEN))
+        return false;
+    menu_items_take_command(g, c);
+    return true;
+}
+
+// $C2:AC59
+/* The item described, the cursor's row kept, a tick where the cursor moved,
+ * and the list queued. */
+bool menu_point_at_listed_item_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    (void)pf;
+    if (!n->describe(ctx))
+        return false;
+    bool moved = menu_items_keep_the_cursors_row(g);
+    n->note(ctx, ITEMS_NOTE_PLACE_COMPARED, 0);
+    if (moved && !n->tick(ctx, ITEMS_AT_A_LISTED_ITEM_POINTED))
+        return false;
+    menu_items_queue_rows(g);
+    n->note(ctx, ITEMS_NOTE_ROWS_QUEUED, 0);
+    return true;
+}
+
+// $C2:AC3A
+/* The cursor moved along the list: a page turned and drawn again; or kept
+ * within the rows, the list slid a row where the push brings one. */
+bool menu_point_along_the_item_list_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    n->note(ctx, ITEMS_NOTE_POINTING, 0);
+    uint8_t top = menu_item_list_top(g), to = top;
+    TIMED_AS(g, 0xC293BF, to = menu_turn_page(g, top));
+    n->note(ctx, ITEMS_NOTE_PAGING_ANSWERED, to != top);
+    if (to != top) {
+        menu_items_turn_page(g, to);
+        n->note(ctx, ITEMS_NOTE_ROWS_REDRAWN, 0);
+        bool moved = menu_items_keep_the_cursors_row(g);
+        n->note(ctx, ITEMS_NOTE_PLACE_COMPARED, 0);
+        if (moved && !n->tick(ctx, ITEMS_AT_A_LISTED_ITEM_POINTED))
+            return false;
+        menu_items_queue_rows(g);
+        n->note(ctx, ITEMS_NOTE_ROWS_QUEUED, 0);
+        return true;
+    }
+    TIMED_AS(g, 0xC2EA53, menu_keep_the_cursor_on_the_list(g));
+    n->note(ctx, ITEMS_NOTE_CURSOR_KEPT, 0);
+    if (menu_items_slide_brings_a_row(g))
+        return n->slide_the_list(ctx);
+    n->note(ctx, ITEMS_NOTE_ENDS_COMPARED, 0);
+    return menu_point_at_listed_item_with(g, pf, n, ctx);
+}
+
+// $C2:AA86
+/* An item picked up: a tick, and the second cursor's task. Back: a tick,
+ * the commands, and the description cleared. */
+bool menu_choose_on_item_list_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    menu_items_put_nothing_in_hand(g);
+    n->read_cursor(ctx);
+    ItemsListChoice c = menu_items_choose_on_the_list(g);
+    n->note(ctx, ITEMS_NOTE_BUTTONS_TESTED, 0);
+    switch (c) {
+    case LIST_ITEM_PICKED_UP:
+        if (!n->tick(ctx, ITEMS_AT_AN_ITEM_PICKED_UP))
+            return false;
+        menu_items_pick_up(g);
+        n->note(ctx, ITEMS_NOTE_PICKED_UP, 0);
+        return true;
+    case LIST_LEFT:
+        if (!n->tick(ctx, ITEMS_AT_THE_LIST_LEFT))
+            return false;
+        menu_items_back_to_the_commands(g);
+        menu_items_describe(g, BLANK_DESCRIPTION);
+        return true;
+    case LIST_POINTED_AT: break;
+    }
+    return menu_point_along_the_item_list_with(g, pf, n, ctx);
+}
+
+// $C2:AB4A
+/* The sort, a frame, and the list drawn again. */
+bool menu_sort_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    (void)pf;
+    TIMED_AS(g, 0xC2AB62, menu_items_sort(g));
+    if (!n->wait(ctx, ITEMS_AT_THE_SORT))
+        return false;
+    menu_items_after_sorting(g);
+    return true;
+}
+
+/* ---- The steps as C ------------------------------------------------------------------------------- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} ItemsAsC;
+
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((ItemsAsC *)ctx)->game); }
+
+static bool tick(void *ctx, ItemsPlace at)
+{
+    (void)at;
+    ItemsAsC *c = ctx;
+    menu_tick(c->game, c->pf);
+    return true;
+}
+
+static bool wait(void *ctx, ItemsPlace at)
+{
+    (void)at;
+    ItemsAsC *c = ctx;
+    menu_task_waits(c->game, 1);
+    return true;
+}
+
+static bool describe_as_c(void *ctx)
+{
+    ItemsAsC *c = ctx;
+    TIMED_AS(c->game, 0xC2AD2E, menu_items_describe_the_cursors_item(c->game));
+    return true;
+}
+
+static bool slide_the_list(void *ctx)
+{
+    ItemsAsC *c = ctx;
+    program_needs_the_machine(c->game, 0xC2AC3A, "the items list slid a row");
+    return false;
+}
+
+static bool back_to_the_main_menu(void *ctx)
+{
+    ItemsAsC *c = ctx;
+    return menu_back_to_the_main_menu(c->game, c->pf);
+}
+
+static void note(void *ctx, ItemsNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
+
+static const ItemsSteps as_c = { read_cursor, tick, wait, describe_as_c, slide_the_list, back_to_the_main_menu, note };
+
+/* A step as C where its entry's guard would take the state; otherwise the
+ * program goes no further there. */
+static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(const GameState *),
+                 bool (*run)(GameState *, Platform *, const ItemsSteps *, void *))
+{
+    if (!takes(g)) {
+        program_needs_the_machine(g, routine, "an items screen the port doesn't take");
+        return false;
+    }
+    ItemsAsC c = { g, pf };
+    return run(g, pf, &as_c, &c);
+}
+
+bool menu_open_items(GameState *g, Platform *pf) { return step(g, pf, 0xC2AA40, menu_items_can_open, menu_open_items_with); }
+
+bool menu_choose_item_command(GameState *g, Platform *pf)
+{
+    return step(g, pf, 0xC2AA4A, menu_cursor_can_move, menu_choose_item_command_with);
+}
+
+static bool list_step_takes(const GameState *g) { return menu_cursor_can_move(g) && menu_items_can_point_along_the_list(g); }
+
+bool menu_choose_on_item_list(GameState *g, Platform *pf)
+{
+    return step(g, pf, 0xC2AA86, list_step_takes, menu_choose_on_item_list_with);
+}
+
+bool menu_sort_items(GameState *g, Platform *pf) { return step(g, pf, 0xC2AB4A, menu_items_can_sort, menu_sort_items_with); }

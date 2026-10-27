@@ -39,62 +39,74 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* A step: the original's routine for it, in the menus' bank, and its hand
- * port. */
+/* A step: the original's routine for it, in the menus' bank, its hand
+ * port's machine entry, and the port as C where the program has it (from
+ * inside the main task; false where it went no further). */
 typedef struct {
     uint16_t routine;
     void (*port)(Snes *);
+    bool (*as_c)(GameState *g, Platform *pf);
 } Step;
 
 /* Each screen's steps, in the order the screen names them. */
-static const Step main_menu_steps[] = { { 0x99CE, menu_open_main_menu }, { 0x9A1B, menu_choose_on_main_menu } };
+static const Step main_menu_steps[] = {
+    { 0x99CE, menu_open_main_menu_entry, menu_open_main_menu },
+    { 0x9A1B, menu_choose_on_main_menu_entry, menu_choose_on_main_menu },
+};
 static const Step equipment_steps[] = {
-    { 0x9C31, menu_open_equipment }, { 0x9C39, menu_choose_equipment_member },
-    { 0x9C70, menu_choose_equipment_slot }, { 0x9CA5, menu_choose_equipment_item },
+    { 0x9C31, menu_open_equipment_entry, menu_open_equipment },
+    { 0x9C39, menu_choose_equipment_member_entry, menu_choose_equipment_member },
+    { 0x9C70, menu_choose_equipment_slot, NULL }, { 0x9CA5, menu_choose_equipment_item, NULL },
 };
 static const Step item_steps[] = {
-    { 0xAA40, menu_open_items }, { 0xAA4A, menu_choose_item_command }, { 0xAA86, menu_choose_on_item_list },
-    { 0xAAC8, menu_move_picked_item }, { 0xAB4A, menu_sort_items }, { 0xAC1D, menu_close_item_users },
+    { 0xAA40, menu_open_items_entry, menu_open_items },
+    { 0xAA4A, menu_choose_item_command_entry, menu_choose_item_command },
+    { 0xAA86, menu_choose_on_item_list_entry, menu_choose_on_item_list },
+    { 0xAAC8, menu_move_picked_item, NULL }, { 0xAB4A, menu_sort_items_entry, menu_sort_items }, { 0xAC1D, menu_close_item_users, NULL },
 };
 static const Step tech_steps[] = {
-    { 0xB35D, menu_open_techs }, { 0xB365, menu_lay_out_tech_members }, { 0xB36D, menu_choose_tech_member },
-    { 0xB3AE, menu_choose_tech }, { 0xB48E, menu_choose_tech_target },
+    { 0xB35D, menu_open_techs_entry, menu_open_techs },
+    { 0xB365, menu_lay_out_tech_members_entry, menu_lay_out_tech_members },
+    { 0xB36D, menu_choose_tech_member_entry, menu_choose_tech_member },
+    { 0xB3AE, menu_choose_tech, NULL }, { 0xB48E, menu_choose_tech_target, NULL },
 };
 static const Step settings_steps[] = {
-    { 0xBF3D, menu_open_settings }, { 0xBF45, menu_choose_setting }, { 0xBF6D, menu_choose_buttons },
-    { 0xBF9F, menu_choose_gauge_layout },
+    { 0xBF3D, menu_open_settings_entry, menu_open_settings },
+    { 0xBF45, menu_choose_setting_entry, menu_choose_setting }, { 0xBF6D, menu_choose_buttons, NULL },
+    { 0xBF9F, menu_choose_gauge_layout, NULL },
 };
 static const Step exchange_steps[] = {
-    { 0xC627, menu_open_exchange }, { 0xC65D, menu_choose_first_to_exchange },
-    { 0xC6B9, menu_choose_second_to_exchange },
+    { 0xC627, menu_open_exchange, NULL }, { 0xC65D, menu_choose_first_to_exchange, NULL },
+    { 0xC6B9, menu_choose_second_to_exchange, NULL },
 };
 /* The slots, then the question before a game is saved over and a step no
  * code moves to, which a save point's save screen shares. */
 static const Step save_steps[] = {
-    { 0xCEDC, menu_open_saving }, { 0xCEFD, menu_choose_slot_to_save_in }, { 0xCF61, menu_answer_whether_to_save_over },
-    { 0xCF92, menu_close_the_question_on_a_button },
+    { 0xCEDC, menu_open_saving, NULL }, { 0xCEFD, menu_choose_slot_to_save_in, NULL }, { 0xCF61, menu_answer_whether_to_save_over, NULL },
+    { 0xCF92, menu_close_the_question_on_a_button, NULL },
 };
 static const Step gate_exchange_steps[] = {
-    { 0xC7AC, menu_open_exchange_at_the_gate }, { 0xC7E0, menu_choose_first_at_the_gate },
-    { 0xC6B9, menu_choose_second_to_exchange },
+    { 0xC7AC, menu_open_exchange_at_the_gate, NULL }, { 0xC7E0, menu_choose_first_at_the_gate, NULL },
+    { 0xC6B9, menu_choose_second_to_exchange, NULL },
 };
 static const Step save_point_steps[] = {
-    { 0xD4F8, menu_open_save_screen }, { 0xD506, menu_choose_on_save_screen }, { 0xCF61, menu_answer_whether_to_save_over },
-    { 0xCF92, menu_close_the_question_on_a_button },
+    { 0xD4F8, menu_open_save_screen, NULL }, { 0xD506, menu_choose_on_save_screen, NULL }, { 0xCF61, menu_answer_whether_to_save_over, NULL },
+    { 0xCF92, menu_close_the_question_on_a_button, NULL },
 };
 static const Step shop_steps[] = {
-    { 0xD52B, menu_open_shop }, { 0xD546, menu_choose_shop_tab }, { 0xD58B, menu_choose_goods },
-    { 0xD645, menu_choose_for_sale }, { 0xD690, menu_choose_how_many_to_sell },
-    { 0xD618, menu_choose_how_many_to_buy }, { 0xD6C3, menu_choose_shop_member },
-    { 0xD715, menu_choose_shop_slot }, { 0xD778, menu_choose_shop_equipment },
+    { 0xD52B, menu_open_shop, NULL }, { 0xD546, menu_choose_shop_tab, NULL }, { 0xD58B, menu_choose_goods, NULL },
+    { 0xD645, menu_choose_for_sale, NULL }, { 0xD690, menu_choose_how_many_to_sell, NULL },
+    { 0xD618, menu_choose_how_many_to_buy, NULL }, { 0xD6C3, menu_choose_shop_member, NULL },
+    { 0xD715, menu_choose_shop_slot, NULL }, { 0xD778, menu_choose_shop_equipment, NULL },
 };
 static const Step naming_steps[] = {
-    { 0xE1ED, menu_open_naming_screen }, { 0xE21E, menu_name_the_character }, { 0xE236, menu_choose_battle_mode },
-    { 0xE201, menu_open_the_naming }, { 0xE209, menu_wait_to_name },
+    { 0xE1ED, menu_open_naming_screen, menu_naming_step }, { 0xE21E, menu_name_the_character, menu_naming_step },
+    { 0xE236, menu_choose_battle_mode, menu_naming_step },
+    { 0xE201, menu_open_the_naming, menu_naming_step }, { 0xE209, menu_wait_to_name, menu_naming_step },
 };
 static const Step load_steps[] = {
-    { 0xE613, menu_open_load_screen }, { 0xE61B, menu_choose_on_load_screen },
-    { 0xE6AE, menu_choose_game_to_carry_on_from }, { 0xE705, menu_answer_erase },
+    { 0xE613, menu_open_load_screen, NULL }, { 0xE61B, menu_choose_on_load_screen, NULL },
+    { 0xE6AE, menu_choose_game_to_carry_on_from, NULL }, { 0xE705, menu_answer_erase, NULL },
 };
 
 #define STEPS_OF(list) { list, sizeof list / sizeof list[0] }
@@ -189,29 +201,18 @@ static bool run_the_step(Snes *s, const Step *step)
 // $C2:826F
 bool menu_run_the_screen_s_step(Snes *s) { return run_the_step(s, running_step(state_of(s))); }
 
-/* The steps a build with no machine runs as C, by their routines: the
- * naming's (menu/naming.c). */
-static const struct {
-    uint16_t routine;
-    NamingStep step;
-} steps[] = {
-    { 0xE1ED, NAMING_OPEN_THE_SCREEN }, { 0xE21E, NAMING_NAME_THE_CHARACTER }, { 0xE236, NAMING_CHOOSE_BATTLE_MODE },
-    { 0xE201, NAMING_OPEN_THE_NAMING }, { 0xE209, NAMING_WAIT_TO_NAME },
-};
-
 /* As C, from inside the main task, timed as the step's own routine. */
 bool menu_run_the_screen_step(GameState *g, Platform *pf)
 {
     const Step *step = running_step(g);
-    for (unsigned i = 0; step && i < sizeof steps / sizeof steps[0]; i++)
-        if (steps[i].routine == step->routine) {
-            bool back = false;
-            TIMED_AS(g, MENUS_BANK | step->routine, back = menu_naming_step(g, pf, steps[i].step));
-            return back;
-        }
-    program_needs_the_machine(g, step ? MENUS_BANK | step->routine : THE_JUMP_TO_THE_STEP,
-                              "a menu screen's step only the machine runs");
-    return false;
+    if (!step || !step->as_c) {
+        program_needs_the_machine(g, step ? MENUS_BANK | step->routine : THE_JUMP_TO_THE_STEP,
+                                  "a menu screen's step only the machine runs");
+        return false;
+    }
+    bool back = false;
+    TIMED_AS(g, MENUS_BANK | step->routine, back = step->as_c(g, pf));
+    return back;
 }
 
 /* On the menus' page, the running screen on a step its table has. */

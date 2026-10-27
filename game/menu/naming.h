@@ -99,9 +99,9 @@ typedef struct {
 bool menu_naming_step_with(GameState *g, Platform *pf, NamingStep step, const NamingSteps *n, void *ctx);
 bool menu_naming_routine(GameState *g, Platform *pf, NamingRoutine routine, const NamingSteps *n, void *ctx);
 uint32_t menu_naming_routine_address(NamingRoutine routine);
-/* A step as C, from inside the menus' main task: false where it went no
- * further (a state the port doesn't take). */
-bool menu_naming_step(GameState *g, Platform *pf, NamingStep step);
+/* The screen's step it is on, as C, from inside the menus' main task: false
+ * where it went no further (a state the port doesn't take). */
+bool menu_naming_step(GameState *g, Platform *pf);
 
 /* The steps and entries ($C2:E1ED, $C2:E201, $C2:E209, $C2:E21E, $C2:E236;
  * $C2:E267, $C2:E2F4, $C2:E363, $C2:E3E0; $C2:E40E, $C2:E545, $C2:E34A,

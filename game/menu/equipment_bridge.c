@@ -31,6 +31,7 @@
 #include "menu/figures.h"
 #include "menu/held_cursors.h"
 #include "menu/lists.h"
+#include "menu/main_menu.h"
 #include "menu/members.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
@@ -96,7 +97,7 @@ static void leave_label_copied(Snes *s);
 static void leave_list_drawn(Snes *s);
 static void leave_list_opened(Snes *s, bool typing_started);
 static void leave_member_switched(Snes *s);
-static void leave_panel_tested(Snes *s, uint8_t row_before);
+
 static void leave_page_turned(Snes *s);
 static void leave_row_found(Snes *s);
 static void leave_row_noted(Snes *s, uint8_t row);
@@ -104,30 +105,84 @@ static void leave_list_rows_queued(Snes *s);
 
 /* ---- Opening the screen ------------------------------------------------------------------------ */
 
-// $C2:9C31
-/* The screen's first step: a tick, on to choosing a member, and the screen
- * set up ($C2:A11A, which the original jumps to). */
-void menu_open_equipment(Snes *s)
+/* ---- The opening and the members: what the sequences ask, on the machine ----------------------- */
+
+/* The original's call at each place the sequences tick or wait from. */
+static const uint32_t TICKS_AT[] = {
+    [EQUIPMENT_AT_THE_OPENING] = 0xC29C31, [EQUIPMENT_AT_THE_MEMBER_CHOSEN] = 0xC29C52,
+    [EQUIPMENT_AT_THE_SLOTS_DRAWN] = 0xC29C5E, [EQUIPMENT_AT_THE_MEMBER_POINTED] = 0xC29D54,
+};
+
+static void read_cursor_on_the_machine(void *ctx) { menu_step_reads_the_cursor(ctx); }
+static bool tick_on_the_machine(void *ctx, EquipmentPlace at) { return tick(ctx, TICKS_AT[at]); }
+
+static bool slide_members_on_the_machine(void *ctx)
 {
-    if (!tick(s, 0xC29C31))
-        return;
-    menu_equip_open(state_of(s));
-    m_stop_at(s, SET_UP_SCREEN, READS_NOTHING);
+    return menu_run(ctx, 0xC29D23, 0xC29D5B, menu_start_sliding_equipment_members);
 }
 
+static bool open_the_slots_window_on_the_machine(void *ctx)
+{
+    return menu_run(ctx, 0xC29C55, 0xC2A71E, menu_open_slots_window);
+}
+
+/* The slots drawn are the one place the steps wait from. */
+static bool wait_on_the_machine(void *ctx, EquipmentPlace at)
+{
+    (void)at;
+    return menu_wait_a_frame_from(ctx, 0xC29C5B);
+}
+
+static void note_on_the_machine(void *ctx, EquipmentNote note, uint8_t value)
+{
+    Snes *s = ctx;
+    (void)value;
+    switch (note) {
+    case EQUIPMENT_NOTE_MEMBER_STEP_TESTED: ORIGINAL_EFFECT(leave_member_step_tested(s)); break;
+    case EQUIPMENT_NOTE_MEMBER_POINTED: ORIGINAL_EFFECT(leave_member_pointed(s, value)); break;
+    }
+}
+
+/* The steps' ends are the original's jumps, which the port stops at; the
+ * pointing puts back the P it saved first. */
+static bool ends_on_the_machine(void *ctx, EquipmentEnd end)
+{
+    Snes *s = ctx;
+    switch (end) {
+    case EQUIPMENT_SETS_UP_THE_SCREEN: m_stop_at(s, SET_UP_SCREEN, READS_NOTHING); break;
+    case EQUIPMENT_POINTS_AT_A_MEMBER: m_stop_at(s, POINT_AT_MEMBER, READS_NOTHING); break;
+    case EQUIPMENT_SHOWS_THE_CARD:
+        menu_restore_p(s);
+        m_stop_at(s, MEMBER_CARD, READS_NOTHING);
+        break;
+    case EQUIPMENT_GOES_BACK_TO_THE_MAIN_MENU: m_stop_at(s, MAIN_MENU, READS_NOTHING); break;
+    }
+    return false;
+}
+
+static const EquipmentSteps on_the_machine = {
+    read_cursor_on_the_machine, tick_on_the_machine, slide_members_on_the_machine, open_the_slots_window_on_the_machine,
+    wait_on_the_machine,        note_on_the_machine, ends_on_the_machine,
+};
+
+static void step(Snes *s, bool (*run)(GameState *, Platform *, const EquipmentSteps *, void *))
+{
+    if (run(state_of(s), m_platform(s), &on_the_machine, s))
+        m_rts(s);
+}
+
+/* ---- Opening the screen ------------------------------------------------------------------------ */
+
+// $C2:9C31
+void menu_open_equipment_entry(Snes *s) { step(s, menu_open_equipment_with); }
+
 // $C2:A11A
-/* The screen set up, the party's items set aside first and the scroll bar
- * last. It returns for the step. */
+/* The screen set up; it returns for the step. */
 void menu_set_up_equipment(Snes *s)
 {
-    GameState *g = state_of(s);
     menu_save_p(s);
-    menu_set_widths(s, false, false);
-    TIMED_AS(g, 0xC290FC, menu_set_items_aside(g));
-    menu_equip_set_up_screen(g, m_platform(s));
+    menu_equip_set_up(state_of(s), m_platform(s));
     menu_set_widths(s, true, false);
-    menu_equip_show_the_member_bar(g);
-    menu_equip_show_screen(g);
     menu_restore_p(s);
     m_stop_dont_care(s, 0xC2A16F, READS_NOTHING);
     m_rts(s);
@@ -136,52 +191,15 @@ void menu_set_up_equipment(Snes *s)
 /* ---- Choosing a member ------------------------------------------------------------------------- */
 
 // $C2:9C39
-/* A member chosen: a tick, the slots' window and the member's slots drawn, a
- * frame, a tick, and the list of what fits the slot made, drawn and queued. */
-void menu_choose_equipment_member(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_step_reads_the_cursor(s);
-    MemberChoice c = menu_equip_choose_member(g);
-    ORIGINAL_EFFECT(leave_member_step_tested(s));
-    switch (c) {
-    case MEMBER_CHOSEN:
-        if (!tick(s, 0xC29C52) || !menu_run(s, 0xC29C55, 0xC2A71E, menu_open_slots_window))
-            return;
-        TIMED_AS(g, 0xC2A321, menu_equip_show_slots_of_member(g, m_platform(s)));
-        if (!menu_wait_a_frame_from(s, 0xC29C5B) || !tick(s, 0xC29C5E))
-            return;
-        TIMED_AS(g, 0xC28953, menu_list_what_fits(g));
-        TIMED_AS(g, 0xC2A569, menu_equip_draw_list(g));
-        menu_equip_queue_list_rows(g);
-        m_rts(s);
-        return;
-    case MEMBER_LEFT_FOR_THE_MAIN_MENU: m_stop_at(s, MAIN_MENU, READS_NOTHING); return;
-    case MEMBER_POINTED_AT: m_stop_at(s, POINT_AT_MEMBER, READS_NOTHING); return;
-    }
-}
+void menu_choose_equipment_member_entry(Snes *s) { step(s, menu_choose_equipment_member_with); }
 
 // $C2:9D17
-/* The cursor among the members: the list goes round or slides, the rows are
- * coloured, a tick where it points at another member, and on to the card
- * ($C2:A22F, which the original jumps to). */
+/* It saves P as it starts. */
 void menu_point_at_equipment_member(Snes *s)
 {
-    GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, true);
-    if (!menu_equip_member_list_scrolls(g))
-        menu_equip_take_cursor_round_members(g);
-    else if (menu_equip_push_slides_members(g)
-             && !menu_run(s, 0xC29D23, 0xC29D5B, menu_start_sliding_equipment_members))
-        return;
-    uint8_t pointed_before = menu_member_pointed(g);
-    bool another = menu_equip_point_at_member(g);
-    ORIGINAL_EFFECT(leave_member_pointed(s, pointed_before));
-    if (another && !tick(s, 0xC29D54))
-        return;
-    menu_restore_p(s);
-    m_stop_at(s, MEMBER_CARD, READS_NOTHING);
+    step(s, menu_point_at_equipment_member_with);
 }
 
 // $C2:9D5B
@@ -450,24 +468,11 @@ void menu_forget_weapon(Snes *s)
  * frame, the colour math and the card, then dimmed. */
 void menu_show_equipment_panel(Snes *s)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     menu_save_p(s);
     menu_set_widths(s, true, true);
-    uint8_t row_before = menu_member_row(g);
-    menu_equip_panel_lay_out_list(g, pf);
-    menu_set_widths(s, false, false);
-    if (!menu_wait_a_frame_from(s, 0xC2A0AC))
+    MainMenuOnTheMachine m = { s, 0, 0 };
+    if (!menu_show_equipment_panel_with(state_of(s), m_platform(s), &menu_main_menu_on_the_machine, &m))
         return;
-    menu_set_widths(s, true, false);
-    menu_equip_panel_draw_members(g, pf);
-    if (!menu_wait_a_frame_from(s, 0xC2A0BD))
-        return;
-    menu_equip_panel_set_colour_math(g, pf);
-    ORIGINAL_EFFECT(leave_panel_tested(s, row_before));
-    if (!menu_run(s, 0xC2A0C3, MEMBER_CARD, menu_draw_member_card))
-        return;
-    menu_equip_panel_dim(g);
     menu_restore_p(s);
     m_rts(s);
 }
@@ -655,7 +660,7 @@ void menu_back_to_equipment_slots(Snes *s)
     Platform *pf = m_platform(s);
     menu_save_p(s);
     menu_set_widths(s, false, false);
-    if (!menu_run(s, 0xC2A650, MEMBER_CARD, menu_draw_member_card))
+    if (!menu_run(s, 0xC2A650, MEMBER_CARD, menu_draw_member_card_entry))
         return;
     if (menu_low_hp_marks_are_workable(s))
         TIMED_AS(g, LOW_HP_MARKS, menu_work_out_low_hp_marks(g));
@@ -852,7 +857,7 @@ static void leave_member_switched(Snes *s)
  * worked out without overflowing, and the clock's digits' place loaded. */
 enum { CLOCK_DIGITS = 0x0402 };
 
-static void leave_panel_tested(Snes *s, uint8_t row_before)
+void menu_leave_equipment_panel_tested(Snes *s, uint8_t row_before)
 {
     const GameState *g = state_of(s);
     menu_leave_load(s, (uint8_t)(CLOCK_DIGITS >> 8));
@@ -898,13 +903,7 @@ static void leave_list_rows_queued(Snes *s)
 /* The steps run on the menus' page with the data bank on work RAM's, play
  * their sounds there, and queue whole uploads with room for what a step
  * queues. */
-enum { QUEUE_BYTES = 0x100 };
-
-static bool queue_takes(const GameState *g, unsigned uploads)
-{
-    unsigned queued = menu_vram_queue_bytes(g);
-    return queued % MENU_UPLOAD_BYTES == 0 && queued + MENU_UPLOAD_BYTES * uploads <= QUEUE_BYTES;
-}
+static bool queue_takes(const GameState *g, unsigned uploads) { return menu_upload_queue_takes(g, uploads); }
 
 static bool on_the_screen(Snes *s) { return menu_on_page_work_ram(s) && menu_sounds_on_page(s); }
 
@@ -931,26 +930,14 @@ static bool peek(Snes *s, bool (*test)(const GameState *))
 
 bool menu_equipment_opens(Snes *s) { return on_the_screen(s); }
 
-static bool screen_sets_up(const GameState *g) { return queue_takes(g, 1) && menu_equip_screen_can_be_set_up(g); }
-
-bool menu_equipment_sets_up(Snes *s) { return on_the_screen(s) && peek(s, screen_sets_up); }
-
-static bool member_step_runs(const GameState *g) { return queue_takes(g, 1); }
+bool menu_equipment_sets_up(Snes *s) { return on_the_screen(s) && peek(s, menu_equip_can_set_up); }
 
 bool menu_equipment_member_step_runs(Snes *s)
 {
-    return on_the_screen(s) && menu_cursor_is_movable(s) && peek(s, member_step_runs);
+    return on_the_screen(s) && menu_cursor_is_movable(s) && peek(s, menu_equip_can_choose_a_member);
 }
 
-/* Pointing at a member: the cursor on one of the list's rows, the rows'
- * upload. */
-static bool member_is_pointable(const GameState *g)
-{
-    return menu_cursor_index(g) < MENU_MEMBER_ROWS && menu_members_reachable(g) <= MENU_MEMBERS_COUNT
-           && menu_member_scroll(g) < MENU_MEMBERS_COUNT && queue_takes(g, 1);
-}
-
-bool menu_equipment_member_is_pointable(Snes *s) { return on_the_screen(s) && peek(s, member_is_pointable); }
+bool menu_equipment_member_is_pointable(Snes *s) { return on_the_screen(s) && peek(s, menu_equip_can_point_at_a_member); }
 
 static bool members_slide(const GameState *g) { return queue_takes(g, 3) && menu_equip_member_slide_can_run(g); }
 
@@ -1003,14 +990,7 @@ static bool weapon_is_forgettable(const GameState *g) { return menu_member_row(g
 
 bool menu_equipment_weapon_is_forgettable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, weapon_is_forgettable); }
 
-/* The panel: room for its uploads and the palette's changes besides what
- * it draws. */
-static bool panel_shows(const GameState *g)
-{
-    return queue_takes(g, 4) && menu_palette_changes_have_room(g) && menu_equip_panel_can_be_shown(g);
-}
-
-bool menu_equipment_panel_shows(Snes *s) { return on_the_screen(s) && peek(s, panel_shows); }
+bool menu_equipment_panel_shows(Snes *s) { return on_the_screen(s) && peek(s, menu_equipment_panel_can_show); }
 
 /* The dimmed colours go whole into the palette where Y points, from its
  * first colour on. */

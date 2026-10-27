@@ -220,11 +220,67 @@ void menu_equip_rest_the_list_bands(GameState *g);
 void menu_equip_redraw_slots(GameState *g, Platform *pf);
 void menu_equip_slots_at_rest(GameState *g);
 
+/* The screen set up as it opens ($C2:A11A): the party's items set aside,
+ * the windows and the member list, its scroll bar, and the screen shown. */
+void menu_equip_set_up(GameState *g, Platform *pf);
+
+/* ---- The opening and the members, one sequence for the machine and for C ---------------------- */
+
+/* The screen's opening ($C2:9C31), choosing a member ($C2:9C39) and pointing
+ * at one ($C2:9D17) are each one sequence, which the machine's entries
+ * (equipment_bridge.c) and the program as C both run, asking the menus for
+ * what differs through EquipmentSteps.
+ *
+ * The places the sequences tick or wait from. */
+typedef enum {
+    EQUIPMENT_AT_THE_OPENING,       /* the screen opening */
+    EQUIPMENT_AT_THE_MEMBER_CHOSEN, /* a member chosen */
+    EQUIPMENT_AT_THE_SLOTS_DRAWN,   /* ... the slots drawn, a frame on */
+    EQUIPMENT_AT_THE_MEMBER_POINTED, /* another member pointed at */
+} EquipmentPlace;
+
+/* How a step ends: on to the screen's set-up, to pointing at a member, to
+ * the member's card, or back to the main menu. */
+typedef enum {
+    EQUIPMENT_SETS_UP_THE_SCREEN, EQUIPMENT_POINTS_AT_A_MEMBER, EQUIPMENT_SHOWS_THE_CARD, EQUIPMENT_GOES_BACK_TO_THE_MAIN_MENU,
+} EquipmentEnd;
+
+/* Where the machine leaves what the original's tests left (scaffolding). */
+typedef enum { EQUIPMENT_NOTE_MEMBER_STEP_TESTED, EQUIPMENT_NOTE_MEMBER_POINTED } EquipmentNote;
+
+/* What the sequences ask: the cursor read, a tick, the member list slid by
+ * a member, the slots' window opened, a frame's wait, a note, the end. Each
+ * false where it went no further. */
+typedef struct {
+    void (*read_cursor)(void *ctx);
+    bool (*tick)(void *ctx, EquipmentPlace at);
+    bool (*slide_members)(void *ctx);
+    bool (*open_the_slots_window)(void *ctx);
+    bool (*wait)(void *ctx, EquipmentPlace at);
+    void (*note)(void *ctx, EquipmentNote note, uint8_t value);
+    bool (*ends)(void *ctx, EquipmentEnd end);
+} EquipmentSteps;
+
+bool menu_open_equipment_with(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx);
+bool menu_choose_equipment_member_with(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx);
+bool menu_point_at_equipment_member_with(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx);
+
+/* What they take of the state, as their entries' guards do: the set-up,
+ * choosing a member, pointing at one. */
+bool menu_equip_can_set_up(const GameState *g);
+bool menu_equip_can_choose_a_member(const GameState *g);
+bool menu_equip_can_point_at_a_member(const GameState *g);
+
+/* As C, from the menus' main task; false where the program went no
+ * further. */
+bool menu_open_equipment(GameState *g, Platform *pf);
+bool menu_choose_equipment_member(GameState *g, Platform *pf);
+
 /* ---- The entries (game/menu/equipment_bridge.c) ----------------------------------------------- */
 
-void menu_open_equipment(Snes *s);
+void menu_open_equipment_entry(Snes *s);
 void menu_set_up_equipment(Snes *s);
-void menu_choose_equipment_member(Snes *s);
+void menu_choose_equipment_member_entry(Snes *s);
 void menu_point_at_equipment_member(Snes *s);
 void menu_start_sliding_equipment_members(Snes *s);
 void menu_slide_equipment_members(Snes *s);

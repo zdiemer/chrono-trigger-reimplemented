@@ -25,6 +25,7 @@
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
+#include "menu/main_menu.h"
 #include "menu/menu_data.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
@@ -82,50 +83,15 @@ static void leave_rows_left_unkept(Snes *s);
 static void leave_start_tested(Snes *s);
 static void leave_up_or_down_tested(Snes *s);
 static void leave_row_changed(Snes *s, uint8_t paging_before);
-static void leave_panel_frame(Snes *s);
+
 
 /* ---- Opening the screen -------------------------------------------------------------------------- */
 
-// $C2:BF3D
-/* A tick, then the screen. */
-void menu_open_settings(Snes *s)
-{
-    if (!tick(s, 0xC2BF3D))
-        return;
-    menu_settings_open(state_of(s), m_platform(s));
-    m_rts(s);
-}
+/* ---- The opening and the options: what the sequences ask, on the machine ----------------------- */
 
-/* ---- The options --------------------------------------------------------------------------------- */
-
-// $C2:BF45
-/* Going back leaves for the main menu, unless a speed or the design is
- * being set: then the option takes it back, as it takes every other input;
- * a tick where the cursor moved. */
-void menu_choose_setting(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_settings_hold_line_effects(g);
-    read_cursor(s);
-    if (menu_settings_leaving(g)) {
-        ORIGINAL_EFFECT(leave_editing_tested(s));
-        menu_settings_leave(g);
-        ORIGINAL_EFFECT(leave_packed(s));
-        m_stop_at(s, MAIN_MENU, READS_NOTHING);
-        return;
-    }
-    if (menu_asked(g, MENU_GO_BACK))
-        ORIGINAL_EFFECT(leave_editing_tested(s));
-    else
-        ORIGINAL_EFFECT(leave_buttons_tested(s));
-    if (!menu_run(s, 0xC2BF52, TAKE_OPTION, menu_take_setting_option))
-        return;
-    bool moved = menu_cursor_index(g) != menu_cursor_frame_start(g);
-    ORIGINAL_EFFECT(leave_cursor_compared(s));
-    if (moved && !tick(s, 0xC2BF5B))
-        return;
-    m_rts(s);
-}
+static const uint32_t TICKS_AT[] = {
+    [SETTINGS_AT_THE_OPENING] = 0xC2BF3D, [SETTINGS_AT_THE_CURSOR_MOVED] = 0xC2BF5B, [SETTINGS_AT_AN_OPTION_CHOSEN] = 0xC2BFFA,
+};
 
 /* Each option's handler, by the option: the original's routine, which the
  * JSR through its table at $C2:BFFF reaches, and its entry. */
@@ -147,44 +113,109 @@ static const struct {
     [SETTINGS_MESSAGE_SPEED] = { 0xC2C0D1, menu_step_message_speed },
 };
 
+static void read_cursor_on_the_machine(void *ctx) { read_cursor(ctx); }
+static bool tick_on_the_machine(void *ctx, SettingsPlace at) { return tick(ctx, TICKS_AT[at]); }
+
+static bool take_the_option_on_the_machine(void *ctx)
+{
+    return menu_run(ctx, 0xC2BF52, TAKE_OPTION, menu_take_setting_option);
+}
+
+static bool handle_on_the_machine(void *ctx, SettingsOption option)
+{
+    return menu_run(ctx, 0xC2BFE0, OPTION_HANDLERS[option].routine, OPTION_HANDLERS[option].entry);
+}
+
+static bool back_to_the_main_menu_on_the_machine(void *ctx)
+{
+    m_stop_at(ctx, MAIN_MENU, READS_NOTHING);
+    return false;
+}
+
+/* The flags the original's tests leave, and the P the taking saves round
+ * the option's handler. */
+static void note_on_the_machine(void *ctx, SettingsNote note, uint8_t value)
+{
+    Snes *s = ctx;
+    switch (note) {
+    case SETTINGS_NOTE_EDITING_TESTED: ORIGINAL_EFFECT(leave_editing_tested(s)); break;
+    case SETTINGS_NOTE_PACKED: ORIGINAL_EFFECT(leave_packed(s)); break;
+    case SETTINGS_NOTE_BUTTONS_TESTED: ORIGINAL_EFFECT(leave_buttons_tested(s)); break;
+    case SETTINGS_NOTE_CURSOR_COMPARED: ORIGINAL_EFFECT(leave_cursor_compared(s)); break;
+    case SETTINGS_NOTE_OPTION_PICKED:
+        ORIGINAL_EFFECT(leave_option_doubled(s, (SettingsOption)value));
+        menu_save_p(s);
+        break;
+    case SETTINGS_NOTE_HANDLED: menu_restore_p(s); break;
+    case SETTINGS_NOTE_SHOWN:
+        ORIGINAL_EFFECT(leave_queued(s));
+        ORIGINAL_EFFECT(leave_buttons_loaded(s));
+        break;
+    }
+}
+
+static const SettingsSteps on_the_machine = {
+    read_cursor_on_the_machine, tick_on_the_machine,
+    take_the_option_on_the_machine, handle_on_the_machine,
+    back_to_the_main_menu_on_the_machine, note_on_the_machine,
+};
+
+static bool run(Snes *s, bool (*with)(GameState *, Platform *, const SettingsSteps *, void *))
+{
+    return with(state_of(s), m_platform(s), &on_the_machine, s);
+}
+
+/* ---- Opening the screen, the options ------------------------------------------------------------- */
+
+// $C2:BF3D
+void menu_open_settings_entry(Snes *s)
+{
+    if (run(s, menu_open_settings_with))
+        m_rts(s);
+}
+
+// $C2:BF45
+void menu_choose_setting_entry(Snes *s)
+{
+    if (run(s, menu_choose_setting_with))
+        m_rts(s);
+}
+
 // $C2:BFD4
-/* The option the cursor is on handled, then shown; a tick where the player
- * chose. */
+/* It saves P as it starts, and puts it back as it ends. */
 void menu_take_setting_option(Snes *s)
 {
-    GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
-    SettingsOption option = menu_settings_take_option(g);
-    ORIGINAL_EFFECT(leave_option_doubled(s, option));
-    menu_save_p(s);
-    if (!menu_run(s, 0xC2BFE0, OPTION_HANDLERS[option].routine, OPTION_HANDLERS[option].entry))
-        return;
-    menu_restore_p(s);
-    menu_settings_show_option(g);
-    ORIGINAL_EFFECT(leave_queued(s));
-    ORIGINAL_EFFECT(leave_buttons_loaded(s));
-    if (menu_asked(g, MENU_CHOOSE) && !tick(s, 0xC2BFFA))
+    if (!run(s, menu_take_setting_option_with))
         return;
     menu_restore_p(s);
     m_rts(s);
 }
 
-/* The sound driver told the mode the player chose (stereo or mono). */
+/* The sound driver told the mode the player chose (stereo or mono), from
+ * the original's call, as C and on the machine. */
 enum { SOUND_OUTPUT = 0xF3 };
+
+void menu_settings_send_sound_output(GameState *g, Platform *pf)
+{
+    au_command(pf, PF_CALL_DC(0xC2C033, SOUND_DRIVER, DRIVER_IGNORES),
+               (AudioCommand){ .command = SOUND_OUTPUT, .p1 = menu_settings_sound_output(g), .count = 1 });
+}
+
+static bool send_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    MenuMachine m = menu_machine_now(s);
+    menu_settings_send_sound_output(state_of(s), m_platform(s));
+    return menu_back(s, 0xC2C037, m);
+}
 
 // $C2:C017
 void menu_set_sound_output(Snes *s)
 {
-    GameState *g = state_of(s);
-    if (menu_settings_flip_option(g, SETTINGS_STEREO)) {
-        MenuMachine m = menu_machine_now(s);
-        au_command(m_platform(s), PF_CALL_DC(0xC2C033, SOUND_DRIVER, DRIVER_IGNORES),
-                   (AudioCommand){ .command = SOUND_OUTPUT, .p1 = menu_settings_sound_output(g), .count = 1 });
-        if (!menu_back(s, 0xC2C037, m))
-            return;
-    }
-    m_rts(s);
+    if (menu_settings_set_sound_output(state_of(s), send_on_the_machine, s))
+        m_rts(s);
 }
 
 #define FLIP_ENTRY(name, option)                         \
@@ -396,14 +427,10 @@ void menu_choose_buttons(Snes *s)
 /* The panel's frame, a frame's wait, then the rest of it. */
 void menu_show_settings_panel(Snes *s)
 {
-    GameState *g = state_of(s);
     menu_save_p(s);
-    menu_settings_panel_frame(g, m_platform(s));
-    menu_set_widths(s, false, false);
-    ORIGINAL_EFFECT(leave_panel_frame(s));
-    if (!menu_wait_a_frame_from(s, 0xC2C337))
+    MainMenuOnTheMachine m = { s, 0, 0 };
+    if (!menu_show_settings_panel_with(state_of(s), m_platform(s), &menu_main_menu_on_the_machine, &m))
         return;
-    menu_settings_panel_show(g, m_platform(s));
     menu_restore_p(s);
     m_rts(s);
 }
@@ -580,7 +607,7 @@ static void leave_row_changed(Snes *s, uint8_t paging_before)
 }
 
 /* The panel's frame: the boxes' block move run out, the flags of its count. */
-static void leave_panel_frame(Snes *s)
+void menu_leave_settings_panel_frame(Snes *s)
 {
     s->cpu.a = 0xFFFF;
     s->cpu.x = 0x0D90;
@@ -629,28 +656,33 @@ static bool peek(Snes *s, bool (*test)(const GameState *))
     return ok;
 }
 
-static bool opens(const GameState *g)
+bool menu_settings_can_open(const GameState *g)
 {
     return menu_screen_step(g) == SETTINGS_OPENING && menu_settings_cursor(g) < SETTINGS_OPTION_COUNT
            && menu_window_list_drawable(g, 0xC1F6);
 }
 
-bool menu_settings_screen_opens(Snes *s) { return on_the_menus_page(s) && menu_sounds_on_page(s) && peek(s, opens); }
+bool menu_settings_screen_opens(Snes *s)
+{
+    return on_the_menus_page(s) && menu_sounds_on_page(s) && peek(s, menu_settings_can_open);
+}
 
 static bool options_step(const GameState *g) { return menu_settings_on_an_option(g) && menu_settings_describable(g); }
+
+bool menu_settings_can_choose(const GameState *g) { return options_step(g) && menu_cursor_can_move(g); }
 
 bool menu_settings_options_step_runs(Snes *s)
 {
     return on_the_menus_page(s) && menu_cursor_is_movable(s) && peek(s, options_step);
 }
 
-static bool option_takeable(const GameState *g)
+bool menu_settings_option_can_be_taken(const GameState *g)
 {
     return place_among(menu_cursor_index(g), 0, SETTINGS_OPTION_COUNT) && menu_settings_boxes(g, SETTINGS_CHOOSING_GAUGE) == 0
            && menu_settings_describable(g);
 }
 
-bool menu_setting_option_is_takeable(Snes *s) { return on_the_menus_page(s) && peek(s, option_takeable); }
+bool menu_setting_option_is_takeable(Snes *s) { return on_the_menus_page(s) && peek(s, menu_settings_option_can_be_taken); }
 
 static bool buttons_step(const GameState *g) { return menu_settings_on_a_button_row(g); }
 
@@ -669,8 +701,8 @@ bool menu_setting_meter_steps(Snes *s)
     return on_the_menus_page(s) && meter_of(s->cpu.x, &meter);
 }
 
-static bool panel_shows(const GameState *g) { return menu_window_list_drawable(g, 0xC19C); }
 
-bool menu_settings_panel_shows(Snes *s) { return on_the_menus_page(s) && peek(s, panel_shows); }
+
+bool menu_settings_panel_shows(Snes *s) { return on_the_menus_page(s) && peek(s, menu_settings_panel_can_show); }
 
 bool menu_settings_panel_goes(Snes *s) { return on_the_menus_page(s); }

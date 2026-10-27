@@ -312,7 +312,7 @@ void menu_draw_the_scroll_bar(GameState *g)
 
 /* The original works the thumb's line out a byte at a time, carrying where
  * a byte overflows; a line on the screen never does. */
-static bool thumb_on_the_screen(const GameState *g)
+bool menu_scroll_bar_can_be_drawn(const GameState *g)
 {
     enum { LINES = 0x100 };
     return thumb_line(g) < LINES;
@@ -425,7 +425,7 @@ bool menu_scroll_bar_is_drawable(Snes *s)
     if (!menu_on_page_work_ram(s) || m_x8(s))
         return false;
     vars_peek(true);
-    bool ok = thumb_on_the_screen(state_of(s));
+    bool ok = menu_scroll_bar_can_be_drawn(state_of(s));
     vars_peek(false);
     return ok;
 }
