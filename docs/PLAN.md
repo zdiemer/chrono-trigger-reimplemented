@@ -630,10 +630,10 @@ by an audit; the fourth is the program itself.
      With `menu.ctm`'s, the main menu the player opens, its panels and
      the first steps of the equipment, the items, the techs and the
      settings, to the movie's end. From a cartridge save, the load screen,
-     the save screens and 17 of the 40 save movies to their end. Next: where the others
-     stop (REIMPLEMENTATION.md, "The native program from a cartridge
-     save"): the rest of the menus the player opens (the exchange's panel
-     and screens, the shops, the equipment's slots and
+     the save screens, the party exchange and 16 of the 40 save movies to
+     their end. Next: where the others stop (REIMPLEMENTATION.md, "The
+     native program from a cartridge save"): the rest of the menus the
+     player opens (the gate's exchange, the shops, the equipment's slots and
      list, an item moved or used, the techs' list, the settings' meters,
      buttons and gauge), the game over's start afresh, the time gate's
      tunnel, the time dial and the map view, each a stop of

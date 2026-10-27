@@ -115,16 +115,126 @@ bool menu_exchange_slide_a_frame(GameState *g, ExchangeSlide *slide);
 void menu_exchange_end_the_slide(GameState *g);
 void menu_exchange_settle_the_cursor(GameState *g);
 
+/* ---- The steps, one sequence for the machine and for C ---------------------------------------- */
+
+/* The main menu's exchange's steps, the gate's choosing of the first, the
+ * screen's layout, the cursor's move and the panel are each one sequence,
+ * which the machine's entries (exchange_bridge.c) and the program as C both
+ * run; what differs is what they ask of the menus, through ExchangeSteps.
+ *
+ * The places the sequences tick, wait or move the cursor from (the
+ * machine's table gives the original's call at each). */
+typedef enum {
+    EXCHANGE_AT_THE_OPENING_TICK,       /* the main menu's exchange opened */
+    EXCHANGE_AT_THE_FIRST_MOVE,         /* the screen laid out: the cursor's first move */
+    EXCHANGE_AT_THE_FIRST_S_MOVE,       /* choosing the first: the cursor moved */
+    EXCHANGE_AT_THE_FIRST_S_MOVE_TICK,  /* ... and come to rest elsewhere */
+    EXCHANGE_AT_THE_FIRST_CHOSEN_TICK,  /* the first chosen */
+    EXCHANGE_AT_THE_SECOND_S_MOVE,      /* choosing the second: the cursor moved */
+    EXCHANGE_AT_THE_SECOND_S_MOVE_TICK, /* ... and come to rest elsewhere */
+    EXCHANGE_AT_THE_SECOND_CHOSEN_TICK, /* the second chosen, or the choice let go */
+    EXCHANGE_AT_THE_GATE_S_MOVE,        /* the gate's choosing of the first: the cursor moved */
+    EXCHANGE_AT_THE_GATE_S_MOVE_TICK,   /* ... and come to rest elsewhere */
+    EXCHANGE_AT_THE_SLIDE,              /* a frame of the reserve's slide */
+    EXCHANGE_AT_THE_SLIDE_TICK,         /* the slide's end */
+    EXCHANGE_AT_THE_PANEL_LISTED,       /* the panel: a frame after its rows are listed */
+    EXCHANGE_AT_THE_ROWS_DRAWN,         /* ... and after they are drawn */
+    EXCHANGE_PLACES
+} ExchangePlace;
+
+/* The register widths the original's code sets between the steps' calls,
+ * the machine's alone (a no-op as C). */
+typedef enum { EXCHANGE_BYTE_WIDE, EXCHANGE_INDEX_WIDE, EXCHANGE_WIDE } ExchangeWidths;
+
+/* The reserve's slide runs inside two routines the original's cursor move
+ * calls, each saving P: the machine keeps their frames round the slide's
+ * frames (the slide begun back or on, ended, and left). */
+typedef enum {
+    EXCHANGE_SLIDE_BEGINS_BACK, EXCHANGE_SLIDE_BEGINS_ON, EXCHANGE_SLIDE_ENDED, EXCHANGE_SLIDE_LEFT,
+} ExchangeSlideFrame;
+
+/* Where the machine leaves what the original's own tests left (scaffolding). */
+typedef enum {
+    EXCHANGE_NOTE_REFUSED,          /* not two to swap */
+    EXCHANGE_NOTE_CHOOSING_STARTED, /* the cursor on the first free row */
+    EXCHANGE_NOTE_BAR_WORKED_OUT,   /* the screen drawn, its scroll bar worked out */
+    EXCHANGE_NOTE_SCREEN_SHOWN,     /* the screen queued */
+    EXCHANGE_NOTE_INPUT_TESTED,     /* the frame's buttons tested */
+    EXCHANGE_NOTE_ROW_TESTED,       /* the row under the cursor tested for someone who stays */
+    EXCHANGE_NOTE_SWAPPED,          /* the two members swapped */
+    EXCHANGE_NOTE_CURSOR_COMPARED,  /* the cursor compared with where the frame found it */
+} ExchangeNote;
+
+/* How a step ends: a buzz and back to the main menu where there aren't two
+ * to swap, on into the screen's layout, back to the main menu, or the menus
+ * left (from the gate's screen). */
+typedef enum {
+    EXCHANGE_BUZZES, EXCHANGE_LAYS_OUT_THE_SCREEN, EXCHANGE_BACK_TO_THE_MAIN_MENU, EXCHANGE_LEAVES_THE_MENUS,
+} ExchangeEnd;
+
+/* What the sequences ask: the cursor read, a tick, a frame's wait, the
+ * cursor's move ($C2:C805), the gate's sprite loaded onto its record
+ * (the panel at the gate), the place's song back (leaving the gate's
+ * screen), the machine's frames round the slide, the register widths, a
+ * note, and the step's end. Each false where it went no further. */
+typedef struct {
+    void (*read_cursor)(void *ctx);
+    bool (*tick)(void *ctx, ExchangePlace at);
+    bool (*wait)(void *ctx, ExchangePlace at);
+    bool (*move_the_cursor)(void *ctx, ExchangePlace at);
+    bool (*gate_sprite)(void *ctx);
+    bool (*place_song_back)(void *ctx);
+    void (*slide)(void *ctx, ExchangeSlideFrame frame);
+    void (*widths)(void *ctx, ExchangeWidths widths);
+    void (*note)(void *ctx, ExchangeNote note);
+    bool (*ends)(void *ctx, ExchangeEnd end);
+} ExchangeSteps;
+
+/* The steps ($C2:C627 the opening, $C2:C65D the first, $C2:C6B9 the second,
+ * $C2:C7E0 the gate's first), the layout ($C2:CAF3), the cursor's move
+ * ($C2:C805) and the panel ($C2:C9E5), through `n`. */
+bool menu_open_exchange_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
+bool menu_choose_first_to_exchange_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
+bool menu_choose_second_to_exchange_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
+bool menu_choose_first_at_the_gate_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
+bool menu_lay_out_the_exchange_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
+bool menu_move_the_exchange_cursor_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
+bool menu_show_exchange_panel_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
+
+/* What the steps take of the state, as their entries' guards do: the
+ * opening, the layout, the cursor's move, a choosing step, the panel, and
+ * the gate's screen's opening. */
+bool menu_exchange_can_open(const GameState *g);
+bool menu_exchange_can_lay_out(const GameState *g);
+bool menu_exchange_cursor_can_move(const GameState *g);
+bool menu_exchange_step_can_run(const GameState *g);
+bool menu_exchange_panel_can_show(const GameState *g);
+bool menu_exchange_can_open_at_the_gate(const GameState *g);
+
+/* As C: the panel, from the main menu's (false where the program went no
+ * further), and the steps, from the menus' main task. */
+bool menu_show_exchange_panel(GameState *g, Platform *pf);
+bool menu_open_exchange(GameState *g, Platform *pf);
+bool menu_choose_first_to_exchange(GameState *g, Platform *pf);
+bool menu_choose_second_to_exchange(GameState *g, Platform *pf);
+bool menu_choose_first_at_the_gate(GameState *g, Platform *pf);
+
+/* The machine's side (exchange_bridge.c). */
+typedef struct {
+    Snes *s;
+} ExchangeOnTheMachine;
+extern const ExchangeSteps menu_exchange_on_the_machine;
+
 /* ---- The entries (game/menu/exchange_bridge.c) ------------------------------------------------- */
 
-void menu_open_exchange(Snes *s);
+void menu_open_exchange_entry(Snes *s);
 void menu_lay_out_the_exchange(Snes *s);
 void menu_move_the_exchange_cursor(Snes *s);
-void menu_choose_first_to_exchange(Snes *s);
-void menu_choose_second_to_exchange(Snes *s);
+void menu_choose_first_to_exchange_entry(Snes *s);
+void menu_choose_second_to_exchange_entry(Snes *s);
 void menu_open_exchange_at_the_gate(Snes *s);
-void menu_choose_first_at_the_gate(Snes *s);
-void menu_show_exchange_panel(Snes *s);
+void menu_choose_first_at_the_gate_entry(Snes *s);
+void menu_show_exchange_panel_entry(Snes *s);
 void menu_put_exchange_panel_away(Snes *s);
 
 bool menu_exchange_opens(Snes *s);

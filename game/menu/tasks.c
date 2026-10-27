@@ -544,8 +544,14 @@ static void main_task(GameState *g, Platform *pf);
 static void cursor_task(GameState *g, Platform *pf);
 static void scroll_bar_task(GameState *g, Platform *pf);
 static void records_task(GameState *g, Platform *pf);
+static void held_cursor_task(GameState *g, Platform *pf);
+static void list_cursor_task(GameState *g, Platform *pf);
+static void member_cursor_task(GameState *g, Platform *pf);
+static void members_cursors_task(GameState *g, Platform *pf);
 
 enum { SCROLL_BAR_TASK_HEAD = 0x8BB8, RECORDS_TASK_HEAD = 0xF657 };
+enum { HELD_CURSOR_TASK_HEAD = 0x8AB2, LIST_CURSOR_TASK_HEAD = 0x89F2, MEMBER_CURSOR_TASK_HEAD = 0x8A45,
+       MEMBERS_CURSORS_TASK_HEAD = 0x8AF5 };
 
 static const struct {
     uint16_t start;
@@ -555,6 +561,10 @@ static const struct {
     { CURSOR_TASK_HEAD, cursor_task },
     { SCROLL_BAR_TASK_HEAD, scroll_bar_task },
     { RECORDS_TASK_HEAD, records_task },
+    { HELD_CURSOR_TASK_HEAD, held_cursor_task },
+    { LIST_CURSOR_TASK_HEAD, list_cursor_task },
+    { MEMBER_CURSOR_TASK_HEAD, member_cursor_task },
+    { MEMBERS_CURSORS_TASK_HEAD, members_cursors_task },
     { MENU_FADE_IN_TASK_START, menu_fade_in_task },
     { MENU_TYPE_A_DESCRIPTION, menu_type_the_description_task },
     { MENU_TYPE_A_SETTING, menu_type_the_setting_task },
@@ -691,6 +701,59 @@ static void records_task(GameState *g, Platform *pf)
         menu_task_waits(g, 1);
     }
     program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | RECORDS_TASK_HEAD, "records the port doesn't run");
+}
+
+/* The held cursors' turns, the same way: a frame's drawing timed as the
+ * task's entry from its start, then from its wait. */
+typedef struct {
+    uint16_t head, later;
+    bool (*can_be_drawn)(const GameState *g);
+    void (*draw)(GameState *g);
+    const char *what;
+} HeldCursorTask;
+
+static bool always(const GameState *g) { return (void)g, true; }
+
+static void held_cursor_turns(GameState *g, const HeldCursorTask *t)
+{
+    for (uint32_t turn = (uint32_t)MENUS_BANK << 16 | t->head; t->can_be_drawn(g);
+         turn = (uint32_t)MENUS_BANK << 16 | t->later) {
+        TIMED_AS(g, turn, t->draw(g));
+        menu_task_waits(g, 1);
+    }
+    program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | t->head, t->what);
+}
+
+static void held_cursor_task(GameState *g, Platform *pf)
+{
+    (void)pf;
+    static const HeldCursorTask t = { HELD_CURSOR_TASK_HEAD, 0x8AB8, menu_held_cursor_can_be_drawn,
+                                      menu_draw_the_held_cursor, "a held cursor the port doesn't draw" };
+    held_cursor_turns(g, &t);
+}
+
+static void list_cursor_task(GameState *g, Platform *pf)
+{
+    (void)pf;
+    static const HeldCursorTask t = { LIST_CURSOR_TASK_HEAD, 0x89F8, always, menu_draw_the_cursor_held_on_the_list,
+                                      "a list's held cursor the port doesn't draw" };
+    held_cursor_turns(g, &t);
+}
+
+static void member_cursor_task(GameState *g, Platform *pf)
+{
+    (void)pf;
+    static const HeldCursorTask t = { MEMBER_CURSOR_TASK_HEAD, 0x8A94, menu_member_cursor_can_be_drawn,
+                                      menu_draw_the_cursor_held_on_a_member, "a member's held cursor the port doesn't draw" };
+    held_cursor_turns(g, &t);
+}
+
+static void members_cursors_task(GameState *g, Platform *pf)
+{
+    (void)pf;
+    static const HeldCursorTask t = { MEMBERS_CURSORS_TASK_HEAD, 0x8AFB, menu_members_cursors_can_be_drawn,
+                                      menu_draw_cursors_on_every_member, "the members' cursors the port doesn't draw" };
+    held_cursor_turns(g, &t);
 }
 
 /* ---- The guards -------------------------------------------------------------------------------- */

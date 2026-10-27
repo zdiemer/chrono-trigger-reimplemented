@@ -434,15 +434,19 @@ bool menu_scroll_bar_is_drawable(Snes *s)
  * RAM's, at places of the cursor's table (its 42); the members' for the
  * one to three active ones (with none, the original's loop runs round its
  * count's 65536). */
-bool menu_held_cursor_is_drawable(Snes *s)
+bool menu_held_cursor_can_be_drawn(const GameState *g) { return menu_held_cursor(g) < MENU_CURSOR_PLACES_COUNT; }
+
+static bool peek(Snes *s, bool (*test)(const GameState *))
 {
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_held_cursor(state_of(s)) < MENU_CURSOR_PLACES_COUNT;
+    bool ok = test(state_of(s));
     vars_peek(false);
     return ok;
 }
+
+bool menu_held_cursor_is_drawable(Snes *s) { return peek(s, menu_held_cursor_can_be_drawn); }
 
 /* The list's cursor is drawn at one of the list's places, whatever the
  * sums give; the member's at a place of the cursor's table, a reserve one
@@ -451,26 +455,18 @@ bool menu_list_cursor_is_drawable(Snes *s) { return menu_on_page_work_ram(s); }
 
 enum { RESERVE_PLACES = 6 };
 
-bool menu_member_cursor_is_drawable(Snes *s)
+bool menu_member_cursor_can_be_drawn(const GameState *g)
 {
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = menu_held_cursor(g) < MENU_CURSOR_PLACES_COUNT && menu_held_reserve_top(g) < RESERVE_PLACES
-              && menu_reserve_top(g) < RESERVE_PLACES;
-    vars_peek(false);
-    return ok;
+    return menu_held_cursor(g) < MENU_CURSOR_PLACES_COUNT && menu_held_reserve_top(g) < RESERVE_PLACES
+           && menu_reserve_top(g) < RESERVE_PLACES;
 }
 
-bool menu_members_cursors_are_drawable(Snes *s)
+bool menu_member_cursor_is_drawable(Snes *s) { return peek(s, menu_member_cursor_can_be_drawn); }
+
+bool menu_members_cursors_can_be_drawn(const GameState *g)
 {
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = menu_active_members(g) >= 1 && menu_active_members(g) <= MEMBERS_CURSORS
-              && menu_held_cursor(g) + menu_active_members(g) <= MENU_CURSOR_PLACES_COUNT;
-    vars_peek(false);
-    return ok;
+    return menu_active_members(g) >= 1 && menu_active_members(g) <= MEMBERS_CURSORS
+           && menu_held_cursor(g) + menu_active_members(g) <= MENU_CURSOR_PLACES_COUNT;
 }
+
+bool menu_members_cursors_are_drawable(Snes *s) { return peek(s, menu_members_cursors_can_be_drawn); }

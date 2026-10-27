@@ -2984,6 +2984,23 @@ which the original jumps to so the task goes on from it into the save's
 caller, is the machine's frame around the call as before and a frame's wait
 as C. The main menu's panels as C take saving's (`menu_show_save_panel`).
 
+**The party exchange.** The main menu's exchange (its opening `$C2:C627`,
+the first and second choices `$C2:C65D` and `$C2:C6B9`), the gate's first
+choice (`$C2:C7E0`), the screen's layout (`$C2:CAF3`), the cursor's move
+(`$C2:C805`) and the panel (`$C2:C9E5`) are each one sequence through
+`ExchangeSteps`. The machine's work between the original's calls is steps
+of their own: the register widths (`widths`), and the frames of the two
+routines the reserve's slide waits inside, which the machine keeps on its
+stack round the slide's frames (`slide`); as C both are no-ops. The cursor's
+move and the layout are siblings each step re-checks the guard of as C. The
+gate's screen's opening (`$C2:C7AC`: its song's task, the swirl, the gate's
+sprite on its record's page) stays on the machine, and as C the panel's
+gate sprite and the place's song back stop at `program_needs_the_machine`.
+The held cursors' tasks (`$C2:89F2`, `$C2:8A45`, `$C2:8AB2`, `$C2:8AF5`:
+the cursor held on a list's item, on a member, on a slot, and on each
+member) are `menu/tasks.c` coroutines now, each frame's drawing timed as its
+entry while its guard's state half holds, as the scroll bar's.
+
 **The field's frames on a host.** The first save movie past the load screen
 (`saves/battle-golem-twins-gameover.ctm`) hung: an object holding its frame
 (layout 12) answers the frame queue's drawing with "wait" until the next
@@ -2995,21 +3012,22 @@ asks as before.
 **Measured.** Shadow mode: the save screens' entries compared in
 `saves/menus-field-menu.ctm` and `saves/menus-save-point.ctm` (the slots'
 frame 504 calls, the question 209, saving in the slot 3, the save itself
-abandoned at its last wait as before), none mismatched. Fuzzing, seed 1,
+abandoned at its last wait as before), and the exchange's and the held
+cursors' over the movies that open them (the cursor's move 2,270 calls,
+the choices 2,292, the held cursors' tasks 3,898), none mismatched. Fuzzing, seed 1,
 `tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the 17
 load screen and slot entries the sequences changed (with their
 `new_game_plus`, `at-the-sound` and `narrow` variants) and the 13 saving
-entries: every run the same as before, none mismatching and the guards'
+entries, the 15 of the exchange and the held cursors: every run the same as before, none mismatching and the guards'
 refusals unchanged. `tools/effects_check.py`: none new. `ct_native` from a
-cartridge save, with each movie's presses: 17 of the 40 save movies play to
+cartridge save, with each movie's presses: 16 of the 40 save movies play to
 their end (none did); the rest stop at the game over's start afresh from the title
 (`$C0:000E`, four movies), a routine a world map's script calls (`$C2:26A8`,
 three), the time gate's tunnel (`$FD:DA5F` and kin, four), the gate's
 exchange (`$C2:C7AC`, two), the time dial and the map view (`$C2:6A34`,
 `$C2:631F`, three), a scene's routine (`$7E:3F59`, two), a step on an
-event's tile (`$C0:0C76`, two), the equipment's slots window (`$C2:A71E`), a
-main menu panel (`$C2:9B54`), a
-shop (`$C2:D52B`) and a menus' task (`$C2:89F2`). The power-on movies and
+event's tile (`$C0:0C76`, three), the equipment's slots window (`$C2:A71E`),
+an item moved on the items' list (`$C2:AAC8`) and a shop (`$C2:D52B`). The power-on movies and
 the attract sequence go as far as before. Timing: one row recalibrated,
 `menu_answer_whether_to_save_over` from 5,434 to 4,473 (its save now
 reached through the sequence's step). Gate: suite OK.

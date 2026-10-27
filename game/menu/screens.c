@@ -76,8 +76,9 @@ static const Step settings_steps[] = {
     { 0xBF9F, menu_choose_gauge_layout, NULL },
 };
 static const Step exchange_steps[] = {
-    { 0xC627, menu_open_exchange, NULL }, { 0xC65D, menu_choose_first_to_exchange, NULL },
-    { 0xC6B9, menu_choose_second_to_exchange, NULL },
+    { 0xC627, menu_open_exchange_entry, menu_open_exchange },
+    { 0xC65D, menu_choose_first_to_exchange_entry, menu_choose_first_to_exchange },
+    { 0xC6B9, menu_choose_second_to_exchange_entry, menu_choose_second_to_exchange },
 };
 /* The slots, then the question before a game is saved over and a step no
  * code moves to, which a save point's save screen shares. */
@@ -88,8 +89,9 @@ static const Step save_steps[] = {
     { 0xCF92, menu_close_the_question_on_a_button_entry, menu_close_the_question_on_a_button },
 };
 static const Step gate_exchange_steps[] = {
-    { 0xC7AC, menu_open_exchange_at_the_gate, NULL }, { 0xC7E0, menu_choose_first_at_the_gate, NULL },
-    { 0xC6B9, menu_choose_second_to_exchange, NULL },
+    { 0xC7AC, menu_open_exchange_at_the_gate, NULL },
+    { 0xC7E0, menu_choose_first_at_the_gate_entry, menu_choose_first_at_the_gate },
+    { 0xC6B9, menu_choose_second_to_exchange_entry, menu_choose_second_to_exchange },
 };
 static const Step save_point_steps[] = {
     { 0xD4F8, menu_open_save_screen_entry, menu_open_save_screen },
