@@ -2985,6 +2985,20 @@ waits on M5 rather than on a backend.
   a better name, `race_camera.c`'s `core/program.h` include sits in the wrong
   block, and `frame.c`'s `channel_0_turn`/`channel_1_turn` twins want one row
   carrying the channel.
+- **What the main menu's review left** (none rated translation): the menus'
+  `*Place` enums (`MainMenuPlace`, `EquipmentPlace`, `ItemsPlace`,
+  `TechsPlace`, `SettingsPlace`) are the original's call sites one to one, and
+  the C side ignores them (the naming's `NamingNote` is the precedent).
+  `main_menu.h` declares machine types and helpers (`MainMenuOnTheMachine`,
+  `menu_main_menu_on_the_machine`, the `menu_leave_*_panel_*(Snes *)`) that
+  belong in a bridge header. `settings_screen.c`'s `handlers[]` repeats the
+  bridge's `OPTION_HANDLERS` routine column; one table, or the bridge takes
+  the kind from the logic. `menu_settings_can_open`, `_can_choose` and
+  `_option_can_be_taken` are declared in the logic header but defined in
+  `settings_screen_bridge.c`, and `can_open` spells the window list as
+  `0xC1F6`. `tasks.c` loops on the task's ROM address and uses it as the
+  `TIMED_AS` tag, where a first-pass flag and two literal tags would read
+  better.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in
