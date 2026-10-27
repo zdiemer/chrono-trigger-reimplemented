@@ -178,6 +178,7 @@ add_library(ct_game STATIC
   game/menu/line_effects.c
   game/menu/lists.c
   game/menu/load_screen.c
+  game/menu/load_screen_bridge.c
   game/menu/main_menu.c
   game/menu/main_menu_bridge.c
   game/menu/members.c
@@ -194,6 +195,7 @@ add_library(ct_game STATIC
   game/menu/save_screen.c
   game/menu/saves.c
   game/menu/saving.c
+  game/menu/saving_bridge.c
   game/menu/script.c
   game/menu/screen_objects.c
   game/menu/script_bridge.c

@@ -27,6 +27,7 @@ struct GameState {
     bool scene_next;          /* the program goes on to a scene (program_goes_on_to_a_scene) */
     uint8_t scene;
     bool field_again;         /* the field starts again (program_starts_the_field_again) */
+    bool afresh;              /* the game starts afresh from the title (program_starts_afresh_from_the_title) */
     uint32_t stopped_at;
     const char *stopped_what;
 };
@@ -247,6 +248,15 @@ bool program_field_starts_again(GameState *g)
     bool again = g->field_again;
     g->field_again = false;
     return again;
+}
+
+void program_starts_afresh_from_the_title(GameState *g) { g->afresh = true; }
+
+bool program_starts_afresh(GameState *g)
+{
+    bool afresh = g->afresh;
+    g->afresh = false;
+    return afresh;
 }
 
 void program_needs_the_machine(GameState *g, uint32_t routine, const char *what)

@@ -58,8 +58,8 @@ static const PanelShown PANELS_SHOWN[MENU_MAIN_MENU_OPTIONS] = {
     [MAIN_MENU_ITEMS] = { 0xC2AD50, menu_show_items_panel, menu_items_panel_shows },
     [MAIN_MENU_TECHS] = { 0xC2B8DA, menu_show_techs_panel, menu_techs_panel_shows },
     [MAIN_MENU_SETTINGS] = { 0xC2C2FF, menu_show_settings_panel, menu_settings_panel_shows },
-    [MAIN_MENU_EXCHANGE] = { 0xC2C9E5, menu_show_exchange_panel, menu_exchange_panel_shows },
-    [MAIN_MENU_SAVING] = { 0xC2D065, menu_show_save_panel, menu_save_panel_shows },
+    [MAIN_MENU_EXCHANGE] = { 0xC2C9E5, menu_show_exchange_panel_entry, menu_exchange_panel_shows },
+    [MAIN_MENU_SAVING] = { 0xC2D065, menu_show_save_panel_entry, menu_save_panel_shows },
 };
 
 /* Putting a panel away waits for nothing: each screen's is C, with its

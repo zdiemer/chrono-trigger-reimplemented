@@ -76,22 +76,28 @@ static const Step settings_steps[] = {
     { 0xBF9F, menu_choose_gauge_layout, NULL },
 };
 static const Step exchange_steps[] = {
-    { 0xC627, menu_open_exchange, NULL }, { 0xC65D, menu_choose_first_to_exchange, NULL },
-    { 0xC6B9, menu_choose_second_to_exchange, NULL },
+    { 0xC627, menu_open_exchange_entry, menu_open_exchange },
+    { 0xC65D, menu_choose_first_to_exchange_entry, menu_choose_first_to_exchange },
+    { 0xC6B9, menu_choose_second_to_exchange_entry, menu_choose_second_to_exchange },
 };
 /* The slots, then the question before a game is saved over and a step no
  * code moves to, which a save point's save screen shares. */
 static const Step save_steps[] = {
-    { 0xCEDC, menu_open_saving, NULL }, { 0xCEFD, menu_choose_slot_to_save_in, NULL }, { 0xCF61, menu_answer_whether_to_save_over, NULL },
-    { 0xCF92, menu_close_the_question_on_a_button, NULL },
+    { 0xCEDC, menu_open_saving_entry, menu_open_saving },
+    { 0xCEFD, menu_choose_slot_to_save_in_entry, menu_choose_slot_to_save_in },
+    { 0xCF61, menu_answer_whether_to_save_over_entry, menu_answer_whether_to_save_over },
+    { 0xCF92, menu_close_the_question_on_a_button_entry, menu_close_the_question_on_a_button },
 };
 static const Step gate_exchange_steps[] = {
-    { 0xC7AC, menu_open_exchange_at_the_gate, NULL }, { 0xC7E0, menu_choose_first_at_the_gate, NULL },
-    { 0xC6B9, menu_choose_second_to_exchange, NULL },
+    { 0xC7AC, menu_open_exchange_at_the_gate, NULL },
+    { 0xC7E0, menu_choose_first_at_the_gate_entry, menu_choose_first_at_the_gate },
+    { 0xC6B9, menu_choose_second_to_exchange_entry, menu_choose_second_to_exchange },
 };
 static const Step save_point_steps[] = {
-    { 0xD4F8, menu_open_save_screen, NULL }, { 0xD506, menu_choose_on_save_screen, NULL }, { 0xCF61, menu_answer_whether_to_save_over, NULL },
-    { 0xCF92, menu_close_the_question_on_a_button, NULL },
+    { 0xD4F8, menu_open_save_screen_entry, menu_open_save_screen },
+    { 0xD506, menu_choose_on_save_screen_entry, menu_choose_on_save_screen },
+    { 0xCF61, menu_answer_whether_to_save_over_entry, menu_answer_whether_to_save_over },
+    { 0xCF92, menu_close_the_question_on_a_button_entry, menu_close_the_question_on_a_button },
 };
 static const Step shop_steps[] = {
     { 0xD52B, menu_open_shop, NULL }, { 0xD546, menu_choose_shop_tab, NULL }, { 0xD58B, menu_choose_goods, NULL },
@@ -105,8 +111,10 @@ static const Step naming_steps[] = {
     { 0xE201, menu_open_the_naming, menu_naming_step }, { 0xE209, menu_wait_to_name, menu_naming_step },
 };
 static const Step load_steps[] = {
-    { 0xE613, menu_open_load_screen, NULL }, { 0xE61B, menu_choose_on_load_screen, NULL },
-    { 0xE6AE, menu_choose_game_to_carry_on_from, NULL }, { 0xE705, menu_answer_erase, NULL },
+    { 0xE613, menu_open_load_screen_entry, menu_open_load_screen },
+    { 0xE61B, menu_choose_on_load_screen_entry, menu_choose_on_load_screen },
+    { 0xE6AE, menu_choose_game_to_carry_on_from_entry, menu_choose_game_to_carry_on_from },
+    { 0xE705, menu_answer_erase_entry, menu_answer_erase },
 };
 
 #define STEPS_OF(list) { list, sizeof list / sizeof list[0] }

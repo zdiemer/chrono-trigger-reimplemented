@@ -540,24 +540,28 @@ bool menu_power_on_runs(Snes *s)
 /* The save and the loads run on the menus' page with the data bank on work
  * RAM's, for one of the three slots; they start their table of runs from the
  * menus' zero word, which is 0 whenever the menus run. */
+bool menu_save_code_can_run(const GameState *g) { return menu_save_slot_shown(g) < MENU_SAVE_SLOTS && menu_zero(g) == 0; }
+
 bool menu_save_code_runs(Snes *s)
 {
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_save_slot_shown(state_of(s)) < MENU_SAVE_SLOTS && menu_zero(state_of(s)) == 0;
+    bool ok = menu_save_code_can_run(state_of(s));
     vars_peek(false);
     return ok;
 }
 
 /* A New Game+ runs as the save code does, with the active party's members
  * characters, as the services that put their equipment back read them. */
+bool menu_carry_over_can_run(const GameState *g) { return menu_save_code_can_run(g) && party_record_shows_characters(g); }
+
 bool menu_carry_over_runs(Snes *s)
 {
-    if (!menu_save_code_runs(s))
+    if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = party_record_shows_characters(state_of(s));
+    bool ok = menu_carry_over_can_run(state_of(s));
     vars_peek(false);
     return ok;
 }

@@ -31,6 +31,10 @@ void menu_read_save_slots(Snes *s);
  * further there. */
 bool menu_save_slots_read(GameState *g, Platform *pf);
 void menu_read_slot_summary(Snes *s);
+/* A slot's summary read back once its game is saved ($C2:D19F), as C; false
+ * where its guard's state half doesn't take it, the program going no
+ * further there. */
+bool menu_slot_summary_read_back(GameState *g, Platform *pf);
 void menu_read_design_and_chapter(Snes *s);
 void menu_draw_chapter_label(Snes *s);
 void menu_draw_empty_label(Snes *s);

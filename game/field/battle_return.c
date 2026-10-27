@@ -545,7 +545,8 @@ static bool after_battle_call(void *ctx, AfterCall call, FadeOut way)
         TIMED_AS(g, PARTY_BACK_TOGETHER, party_back_together(g));
         return true;
     case AFTER_THE_TITLE:
-        program_needs_the_machine(g, THE_TITLE, "the game over's start afresh from the title");
+        TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(c->pf));
+        program_starts_afresh_from_the_title(g);
         return false;
     default:
         TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(c->pf));

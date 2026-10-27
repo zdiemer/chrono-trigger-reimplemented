@@ -57,4 +57,12 @@ bool menu_members_cursors_are_drawable(Snes *s);
 bool menu_list_cursor_is_drawable(Snes *s);
 bool menu_member_cursor_is_drawable(Snes *s);
 
+/* What the held cursors' tasks take of the state, as their entries' guards
+ * do: the held cursor's place one of the cursor's table, the member's too
+ * with the reserve's tops among its six places, and the members' cursors
+ * for one to three active members. (The list's takes nothing.) */
+bool menu_held_cursor_can_be_drawn(const GameState *g);
+bool menu_member_cursor_can_be_drawn(const GameState *g);
+bool menu_members_cursors_can_be_drawn(const GameState *g);
+
 #endif

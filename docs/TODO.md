@@ -2791,17 +2791,30 @@ list, by kind, is what `game/` still asks of one.
   opening, the commands, the list and the sort), the techs (the opening, the
   member list laid out, the member choice and the moves among the members)
   and the settings (the opening, the options, an option taken) run as C
-  (REIMPLEMENTATION.md, "The native program through the main menu"); where
+  (docs/history/reimplementation-chunks.md, "The native program through the
+  main menu"); the save screens and the party exchange do too
+  (REIMPLEMENTATION.md, "The native program from a cartridge save"); where
   one of them meets what has no C yet, `program_needs_the_machine` stops the
-  program there and says which: the exchange's and saving's panels
-  (`$C2:C9E5`, `$C2:D065`), the equipment's slots window (`$C2:A71E`) and its
+  program there and says which: the gate's exchange's opening (`$C2:C7AC`,
+  its song's task, swirl and gate sprite) and the place's song back as it
+  closes (`$C2:CC0E`), the equipment's slots window (`$C2:A71E`) and its
   member list's slide (`$C2:9D5B`), the items list's slide (`$C2:AC3A`), the
   techs' member slide and lister (`$C2:B568`, `$C2:B9E1`), the settings'
-  design and speed meters (`$C2:C12C`, `$C2:C0B9`, `$C2:C0D1`). Every other
-  step of those screens, and the exchange's, saving's, the load screen's and
-  the shops', has no C column in `menu/screens.c`'s table yet. Each wants
+  design and speed meters (`$C2:C12C`, `$C2:C0B9`, `$C2:C0D1`), and on the
+  load screen (as C: REIMPLEMENTATION.md, "The native program from a
+  cartridge save") a slot's erasing (`$C2:E8B7`). Every other step of those
+  screens, and the shops', has no C column in
+  `menu/screens.c`'s table yet. Each wants
   the same shape: the step one `*_with` sequence whose machine entry passes
   `*_on_the_machine` steps.
+- **Where the save movies stop.** From a cartridge save `ct_native` plays
+  20 of the 40 save movies to their end; the others stop where the program
+  meets what has no C yet (REIMPLEMENTATION.md, "The native program from a
+  cartridge save", has the list): the time gate's tunnel the field ends into
+  (`$FD:DA5F` and its kin), a routine a world map's script calls
+  (`$C2:26A8`), the time dial and the map view (`$C2:6A34`, `$C2:631F`), a
+  scene's routine (`$7E:3F59`), a step on an event's tile (`$C0:0C76`), and
+  the menus above.
 - **The menus' steps' notes carry machine work.** In the items', the techs'
   and the settings' sequences (menu/item_screen.c, tech_screen.c,
   settings_screen.c) a note is where the machine both leaves the original's
@@ -2818,8 +2831,7 @@ list, by kind, is what `game/` still asks of one.
   there and says which (72 sites: a comeback shown, an enemy called in or
   coming into the battle, the two search steps, a demo battle's end, an
   enemy's movement or dissolve the port doesn't run, and the guards' own
-  refusals). After a battle, a game over's start afresh from the title stops
-  the program too (`field/battle_return.c`). Each wants its C as the program
+  refusals). Each wants its C as the program
   meets it.
 - **Two sequences of one routine.** The field's entry, its location's
   loading and song, the main loop's pass, the frame's work, the objects'

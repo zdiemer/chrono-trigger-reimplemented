@@ -163,6 +163,14 @@ void program_goes_on_to_a_scene(GameState *g, uint8_t scene) { (void)g, (void)sc
 
 void program_starts_the_field_again(GameState *g) { (void)g; }
 
+void program_starts_afresh_from_the_title(GameState *g) { (void)g; }
+
+bool program_starts_afresh(GameState *g)
+{
+    (void)g;
+    return false;
+}
+
 bool program_field_starts_again(GameState *g)
 {
     (void)g;

@@ -461,8 +461,10 @@ void object_put_drawn_frame_back(GameState *g, FieldObject obj)
  * queue (the original's code went on elsewhere), and it is left as it was. */
 typedef enum { QUEUE_DRAWN, QUEUE_OUT_OF_TIME, DRAWING_WENT_ELSEWHERE } QueueDrawn;
 
-/* An object's frame drawn, a part at a time for the larger layouts. */
-typedef enum { FRAME_WHOLE, FRAME_HAS_MORE_PARTS, FRAME_DRAWING_WENT_ELSEWHERE } FrameDrawing;
+/* An object's frame drawn, a part at a time for the larger layouts; or, as
+ * C, the object first in the queue holding its frame until the next one
+ * (FRAME_WAITS), which no further call this frame changes. */
+typedef enum { FRAME_WHOLE, FRAME_HAS_MORE_PARTS, FRAME_HELD_TO_THE_NEXT, FRAME_DRAWING_WENT_ELSEWHERE } FrameDrawing;
 typedef FrameDrawing (*DrawFrame)(void *ctx, FieldObject obj, bool alone);
 
 // $C0:CA76
@@ -484,6 +486,10 @@ static QueueDrawn draw_queued_frames(GameState *g, Platform *pf, DrawFrame draw,
         FrameDrawing drawn = draw(ctx, front.first, front.alone);
         if (drawn == FRAME_DRAWING_WENT_ELSEWHERE)
             return DRAWING_WENT_ELSEWHERE;
+        /* the original asks again until the beam ends the frame's time; a
+         * host's time doesn't run out, so the frame's drawing ends here */
+        if (drawn == FRAME_HELD_TO_THE_NEXT)
+            return QUEUE_OUT_OF_TIME;
         if (drawn == FRAME_WHOLE)
             object_frame_queue_take_first(g, front.alone);
     }
@@ -575,9 +581,11 @@ static FrameDrawing draw_the_frame(void *ctx, FieldObject obj, bool alone)
 {
     (void)alone;
     GameState *g = ctx;
-    bool more = false;
-    TIMED_AS(g, DRAW_A_FRAME, more = field_frame_part_drawn(g, obj));
-    return more ? FRAME_HAS_MORE_PARTS : FRAME_WHOLE;
+    FrameBuild outcome = FRAME_NO_NEXT;
+    TIMED_AS(g, DRAW_A_FRAME, outcome = draw_next_frame(g, obj));
+    if (outcome == FRAME_WAITS)
+        return FRAME_HELD_TO_THE_NEXT;
+    return outcome == FRAME_PART_DRAWN ? FRAME_HAS_MORE_PARTS : FRAME_WHOLE;
 }
 
 void field_queued_frames_drawn(GameState *g, Platform *pf) { (void)draw_queued_frames(g, pf, draw_the_frame, g); }
