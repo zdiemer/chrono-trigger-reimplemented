@@ -2286,9 +2286,9 @@ re-runs the census.
   the frame builder"):
   - a 12-sprite object holding a frame is never drawn and stays at the
     queue's head, so the queue spends the rest of its lines on it every
-    frame; the port keeps that, and a native build without the scanline
-    budget (PLAN.md's beam-coupled routines) has to decide what the
-    queue does instead;
+    frame; the port keeps that on the machine, and the C path ends the
+    frame's drawing there (`field/frames.c`), since a host's time never runs
+    out;
   - a frame is drawn into the staging areas in bank `$7F` and sent to VRAM by
     the queue the vblank empties; a native renderer could take the frame's
     tiles as they are drawn, and the areas, their claims and the queue would
@@ -3011,6 +3011,25 @@ waits on M5 rather than on a backend.
   `0xC1F6`. `tasks.c` loops on the task's ROM address and uses it as the
   `TIMED_AS` tag, where a first-pass flag and two literal tags would read
   better.
+- **What the save screens' review left** (none rated translation):
+  - `field/screen_setup.c`'s `while (more) field_frame_part_drawn(...)` counts
+    `FRAME_WAITS` as more parts, so on the C path a 12-sprite object holding
+    its frame during screen setup would spin for ever. Find whether it is
+    reachable, or end the loop as `field/frames.c` now does.
+  - `saving.c` works around name clashes with `menu_show_the_slot_saved_now`
+    and `menu_put_save_panel_away_now`: the C functions want the plain names
+    and the machine ones `*_entry`. Its two `// $C2:CF21` around a forwarder
+    have `SLOT_HOLDS_A_GAME` stranded between them. Machine entries named
+    nearly like their C logic want `*_entry`: `menu_ask_which_to_carry_on_from`
+    (beside `menu_ask_which_game_to_carry_on_from`), `menu_draw_slot_window`
+    (beside `menu_redraw_slot_window`), `menu_draw_load_screen`.
+  - `LoadScreenPlace`, `SavingPlace` and `ExchangePlace` are the original's
+    call sites one to one, as the main menu's are, and some notes run only
+    under a game branch (`menu_show_save_slot_with`'s fourth row).
+  - `tasks.c`'s held cursors' table spells its resume addresses as bare
+    literals beside named heads, and computes its timing tags.
+  - `load_screen.c` reads and rewrites one byte of a word (`& 0xFF00`), which
+    wants the RAM map narrowed.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in

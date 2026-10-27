@@ -482,7 +482,7 @@ static bool summary_read_back(void *ctx)
     return menu_slot_summary_read_back(c->game, c->pf);
 }
 
-static bool show_the_slot_saved_as_c(void *ctx)
+static bool show_the_saved_slot(void *ctx)
 {
     SavingAsC *c = ctx;
     if (!takes(c->game, menu_slot_saved_can_show(c->game), 0xC2CF21, "a slot saved the port doesn't show"))
@@ -523,7 +523,7 @@ static bool ends(void *ctx, SavingEnd end)
 }
 
 static const SavingSteps as_c = { read_cursor, tick, wait, panel, lay_out, save, saved_sound, summary_read_back,
-                                  show_the_slot_saved_as_c, note, ends };
+                                  show_the_saved_slot, note, ends };
 
 /* The panel as C, where its entry's guard would take the state. */
 bool menu_show_save_panel(GameState *g, Platform *pf)
