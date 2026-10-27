@@ -2969,6 +2969,21 @@ leaving no slot shown (its count past the last) is a plain write now: the
 screens set the slot shown plainly before anything reads it, and the 21
 effects-baseline lines that answered the scaffolding write went with it.
 
+**Saving.** The main menu's panel for it (`$C2:D065`), both save screens'
+steps (a save point's, `$C2:D4F8` and `$C2:D506`; the main menu's,
+`$C2:CEDC` and `$C2:CEFD`; the question before a game is saved over and the
+step no code moves to, `$C2:CF61` and `$C2:CF92`), saving in the slot
+(`$C2:CF0A`), the save up to its last wait (`$C2:CF37`) and the slots' frame
+as the cursor moves among them (`$C2:CFA2`, save_screen.c) are each one
+sequence through `SavingSteps` (saving_bridge.c the machine's side): the
+panel's waits, the save's sound (a call out on the machine), its frame and
+the summary read back, the layout over the panel and the slot saved shown
+are steps of their own, each as C checking its entry's guard's state half
+where the step has moved the cursor or the slot. The save's last wait,
+which the original jumps to so the task goes on from it into the save's
+caller, is the machine's frame around the call as before and a frame's wait
+as C. The main menu's panels as C take saving's (`menu_show_save_panel`).
+
 **The field's frames on a host.** The first save movie past the load screen
 (`saves/battle-golem-twins-gameover.ctm`) hung: an object holding its frame
 (layout 12) answers the frame queue's drawing with "wait" until the next
@@ -2977,21 +2992,27 @@ which a host's `tm_frame_time_left` never does. The C path's drawing ends
 the frame there (`FRAME_HELD_TO_THE_NEXT`, field/frames.c); the machine's
 asks as before.
 
-**Measured.** Fuzzing, seed 1, `tools/fuzz_compare.py` against the branch
-point's `ct_fuzz` over the 17 load screen and slot entries the sequences
-changed (with their `new_game_plus`, `at-the-sound` and `narrow` variants):
-every run the same as before, none mismatching and the guards' refusals
-unchanged. `tools/effects_check.py`: none new. `ct_native` from a cartridge
-save, with each movie's presses: 16 of the 40 save movies play to their end
-(none did); the rest stop at the game over's start afresh from the title
+**Measured.** Shadow mode: the save screens' entries compared in
+`saves/menus-field-menu.ctm` and `saves/menus-save-point.ctm` (the slots'
+frame 504 calls, the question 209, saving in the slot 3, the save itself
+abandoned at its last wait as before), none mismatched. Fuzzing, seed 1,
+`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the 17
+load screen and slot entries the sequences changed (with their
+`new_game_plus`, `at-the-sound` and `narrow` variants) and the 13 saving
+entries: every run the same as before, none mismatching and the guards'
+refusals unchanged. `tools/effects_check.py`: none new. `ct_native` from a
+cartridge save, with each movie's presses: 17 of the 40 save movies play to
+their end (none did); the rest stop at the game over's start afresh from the title
 (`$C0:000E`, four movies), a routine a world map's script calls (`$C2:26A8`,
 three), the time gate's tunnel (`$FD:DA5F` and kin, four), the gate's
 exchange (`$C2:C7AC`, two), the time dial and the map view (`$C2:6A34`,
 `$C2:631F`, three), a scene's routine (`$7E:3F59`, two), a step on an
 event's tile (`$C0:0C76`, two), the equipment's slots window (`$C2:A71E`), a
-main menu panel (`$C2:9B54`), the save point's save screen (`$C2:D4F8`), a
+main menu panel (`$C2:9B54`), a
 shop (`$C2:D52B`) and a menus' task (`$C2:89F2`). The power-on movies and
-the attract sequence go as far as before. Gate: suite OK.
+the attract sequence go as far as before. Timing: one row recalibrated,
+`menu_answer_whether_to_save_over` from 5,434 to 4,473 (its save now
+reached through the sequence's step). Gate: suite OK.
 ### The last refusals in real play: the attract demo's states
 
 The four refusals the batch before left (1,043 calls at `$7E:424D`,

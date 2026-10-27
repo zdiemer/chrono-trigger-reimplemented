@@ -632,7 +632,7 @@ column, and the scroll bar's and the records' tasks on their coroutines;
 then the menu closed, to the movie's end. From a cartridge save
 (`--sram`) the game starts on the load screen, as C too: its slots drawn,
 the cursor among them, and a game loaded or a New Game+ carried over, out
-of the menus into the game; 16 of the save movies play to their end
+of the menus into the game, and the save screens; 17 of the save movies play to their end
 (REIMPLEMENTATION.md, "The native program from a cartridge save", says
 where the others stop).
 

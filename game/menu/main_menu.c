@@ -378,8 +378,8 @@ bool menu_main_menu_can_choose(const GameState *g)
 
 static bool drawable_on_an_option(const GameState *g) { return on_an_option(g) && menu_main_menu_drawable(g); }
 
-/* The option's panel can be shown by its screen as C (the exchange's and
- * saving's are shown only on the machine yet), or put away (only the
+/* The option's panel can be shown by its screen as C (the exchange's is
+ * shown only on the machine yet), or put away (only the
  * techs' takes anything for that: room for its upload). */
 static bool option_panel_can_show(const GameState *g, MainMenuOption option)
 {
@@ -388,8 +388,8 @@ static bool option_panel_can_show(const GameState *g, MainMenuOption option)
     case MAIN_MENU_ITEMS: return menu_items_panel_can_show(g);
     case MAIN_MENU_TECHS: return menu_techs_panel_can_show(g);
     case MAIN_MENU_SETTINGS: return menu_settings_panel_can_show(g);
-    case MAIN_MENU_EXCHANGE:
-    case MAIN_MENU_SAVING: return false;
+    case MAIN_MENU_SAVING: return menu_save_panel_can_show(g);
+    case MAIN_MENU_EXCHANGE: return false;
     }
     return false;
 }
@@ -444,6 +444,14 @@ static bool show_the_panel(void *ctx, MainMenuPlace at)
     return back;
 }
 
+/* Saving's panel waits for its frames as saving's own sequence does, as C
+ * (menu/saving.c). */
+static bool show_save_panel(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
+{
+    (void)n, (void)ctx;
+    return menu_show_save_panel(g, pf);
+}
+
 /* The panels shown as C, by option (show_the_panel has turned away the
  * others). */
 static const struct {
@@ -454,6 +462,7 @@ static const struct {
     [MAIN_MENU_ITEMS] = { 0xC2AD50, menu_show_items_panel_with },
     [MAIN_MENU_TECHS] = { 0xC2B8DA, menu_show_techs_panel_with },
     [MAIN_MENU_SETTINGS] = { 0xC2C2FF, menu_show_settings_panel_with },
+    [MAIN_MENU_SAVING] = { 0xC2D065, show_save_panel },
 };
 
 static bool option_panel(void *ctx, MainMenuOption option)

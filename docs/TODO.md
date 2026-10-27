@@ -2791,21 +2791,22 @@ list, by kind, is what `game/` still asks of one.
   opening, the commands, the list and the sort), the techs (the opening, the
   member list laid out, the member choice and the moves among the members)
   and the settings (the opening, the options, an option taken) run as C
-  (REIMPLEMENTATION.md, "The native program through the main menu"); where
-  one of them meets what has no C yet, `program_needs_the_machine` stops the
-  program there and says which: the exchange's and saving's panels
-  (`$C2:C9E5`, `$C2:D065`), the equipment's slots window (`$C2:A71E`) and its
+  (docs/history/reimplementation-chunks.md, "The native program through the
+  main menu"); the save screens do too (REIMPLEMENTATION.md, "The native
+  program from a cartridge save"); where one of them meets what has no C
+  yet, `program_needs_the_machine` stops the program there and says which:
+  the exchange's panel (`$C2:C9E5`), the equipment's slots window (`$C2:A71E`) and its
   member list's slide (`$C2:9D5B`), the items list's slide (`$C2:AC3A`), the
   techs' member slide and lister (`$C2:B568`, `$C2:B9E1`), the settings'
   design and speed meters (`$C2:C12C`, `$C2:C0B9`, `$C2:C0D1`), and on the
   load screen (as C: REIMPLEMENTATION.md, "The native program from a
   cartridge save") a slot's erasing (`$C2:E8B7`). Every other step of those
-  screens, and the exchange's, saving's and the shops', has no C column in
+  screens, and the exchange's and the shops', has no C column in
   `menu/screens.c`'s table yet. Each wants
   the same shape: the step one `*_with` sequence whose machine entry passes
   `*_on_the_machine` steps.
 - **Where the save movies stop.** From a cartridge save `ct_native` plays
-  16 of the 40 save movies to their end; the others stop where the program
+  17 of the 40 save movies to their end; the others stop where the program
   meets what has no C yet (REIMPLEMENTATION.md, "The native program from a
   cartridge save", has the list): the game over's start afresh from the
   title (`$C0:000E`), the time gate's tunnel the field ends into

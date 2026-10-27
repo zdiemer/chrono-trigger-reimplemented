@@ -195,6 +195,7 @@ add_library(ct_game STATIC
   game/menu/save_screen.c
   game/menu/saves.c
   game/menu/saving.c
+  game/menu/saving_bridge.c
   game/menu/script.c
   game/menu/screen_objects.c
   game/menu/script_bridge.c

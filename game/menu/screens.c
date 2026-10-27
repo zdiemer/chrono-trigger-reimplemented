@@ -82,16 +82,20 @@ static const Step exchange_steps[] = {
 /* The slots, then the question before a game is saved over and a step no
  * code moves to, which a save point's save screen shares. */
 static const Step save_steps[] = {
-    { 0xCEDC, menu_open_saving, NULL }, { 0xCEFD, menu_choose_slot_to_save_in, NULL }, { 0xCF61, menu_answer_whether_to_save_over, NULL },
-    { 0xCF92, menu_close_the_question_on_a_button, NULL },
+    { 0xCEDC, menu_open_saving_entry, menu_open_saving },
+    { 0xCEFD, menu_choose_slot_to_save_in_entry, menu_choose_slot_to_save_in },
+    { 0xCF61, menu_answer_whether_to_save_over_entry, menu_answer_whether_to_save_over },
+    { 0xCF92, menu_close_the_question_on_a_button_entry, menu_close_the_question_on_a_button },
 };
 static const Step gate_exchange_steps[] = {
     { 0xC7AC, menu_open_exchange_at_the_gate, NULL }, { 0xC7E0, menu_choose_first_at_the_gate, NULL },
     { 0xC6B9, menu_choose_second_to_exchange, NULL },
 };
 static const Step save_point_steps[] = {
-    { 0xD4F8, menu_open_save_screen, NULL }, { 0xD506, menu_choose_on_save_screen, NULL }, { 0xCF61, menu_answer_whether_to_save_over, NULL },
-    { 0xCF92, menu_close_the_question_on_a_button, NULL },
+    { 0xD4F8, menu_open_save_screen_entry, menu_open_save_screen },
+    { 0xD506, menu_choose_on_save_screen_entry, menu_choose_on_save_screen },
+    { 0xCF61, menu_answer_whether_to_save_over_entry, menu_answer_whether_to_save_over },
+    { 0xCF92, menu_close_the_question_on_a_button_entry, menu_close_the_question_on_a_button },
 };
 static const Step shop_steps[] = {
     { 0xD52B, menu_open_shop, NULL }, { 0xD546, menu_choose_shop_tab, NULL }, { 0xD58B, menu_choose_goods, NULL },

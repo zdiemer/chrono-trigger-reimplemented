@@ -265,7 +265,7 @@ game/menu/members.c menu_member_rows_can_be_drawn_from menu_zero menu_object_spr
 game/menu/object_commands.c drift menu_object_shadows_bg3_scroll_x menu_save_member_row
 game/menu/object_script.c move_top_layer menu_object_shadows_bg3_scroll_x menu_save_member_row
 game/menu/save_screen.c drawing_counts menu_zero menu_object_sprite_script # the menus' zero word, which their opening writes plainly, read while the save screen's frame peeks whether it applies; the scaffolding at the address is the sprite-object mode's
-game/menu/save_screen.c move_among_the_slots menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly just before, the frame's choosing; the scaffolding at the address is the sprite-object mode's
+game/menu/save_screen.c menu_move_among_the_slots_with menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly just before, the frame's choosing; the scaffolding at the address is the sprite-object mode's
 game/menu/save_screen.c draw_member_rows menu_save_summary_byte menu_save_summary
 game/menu/save_screen.c draw_the_rows_portrait menu_save_member_row menu_save_member_row
 game/menu/save_screen.c draw_the_rows_portrait menu_scratch_save_member menu_object_scratch
@@ -1129,7 +1129,7 @@ game/scene/planet.c stars_hidden scene_twinkles_hidden scene_stars_last_distance
 game/scene/planet.c twinkle_the_stars_leaves scene_twinkles_hidden scene_stars_last_distance           # as stars_hidden
 game/scene/planet.c scene_put_out_the_stars scene_twinkles_hidden scene_stars_last_distance            # as stars_hidden
 game/menu/saving.c about_to_save_over menu_cursor_index menu_object_sprite_script                         # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
-game/menu/saving.c menu_answer_whether_to_save_over menu_cursor_index menu_object_sprite_script           # as about_to_save_over
+game/menu/saving.c menu_answer_whether_to_save_over_with menu_cursor_index menu_object_sprite_script           # as about_to_save_over
 game/battle/beaten_enemies.c battle_dissolve_a_step battle_dissolve_pace battle_dissolve_pace only # the step's entry's operand: only the original's dissolve calls it, which sets the pace before its first step ($CD:00A2); the C dissolve passes its pace to the step as C
 game/battle/beaten_enemies.c battle_dissolve_a_step battle_dissolve_place battle_dissolve_place # the step's entry's operand: only the original's dissolve calls it, which clears the place before its first step ($CD:00C7) and keeps the step's; the C dissolve keeps the place in a local
 game/scene/sprites.c moved_x scene_sprite_offset_x scene_sprite_offset_x # the fireworks' leftover offset (beyond_time.c) differs from the plain writes only in the high bytes, the last firework's place read as words; this reads the low byte, each firework's place, which the plain write leaves too

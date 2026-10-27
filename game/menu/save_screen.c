@@ -32,6 +32,7 @@
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/load_screen.h"
+#include "menu/saving.h"
 #include "menu/menu_data.h"
 #include "menu/saves.h"
 #include "menu/text.h"
@@ -390,19 +391,18 @@ static uint8_t show_the_slot_under_the_cursor(GameState *g, uint8_t slot)
  * drawn afresh: a tick where the cursor came to it from another slot, the
  * slot's row marked, its summary drawn when it holds a game, and the whole
  * queued. */
-static bool move_among_the_slots(Snes *s)
+bool menu_move_among_the_slots_with(GameState *g, Platform *pf, const SavingSteps *n, void *ctx)
 {
-    GameState *g = state_of(s);
     uint8_t slot = menu_cursor_index(g);
     uint8_t was = show_the_slot_under_the_cursor(g, slot);
     if (slot != was) {
-        ORIGINAL_EFFECT(menu_leave_compare(s, slot, was));
-        if (!menu_run(s, 0xC2CFAF, 0xC2EAC2, menu_play_cursor_sound))
+        n->note(ctx, SAVING_NOTE_MOVED_AMONG, was);
+        if (!n->tick(ctx, SAVING_AT_THE_SLOT_MOVE_TICK))
             return false;
     }
     make_room_for_the_slot(g);
     if (menu_save_slot_in_use(g, slot) != 0)
-        TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, m_platform(s)));
+        TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, pf));
     queue_the_slot(g, SAVE_SCREEN_UPLOADS);
     return true;
 }
@@ -469,10 +469,12 @@ void menu_show_save_slot(Snes *s)
 }
 
 // $C2:CFA2
+/* It saves P as it starts and puts it back as it ends. */
 void menu_move_among_the_slots(Snes *s)
 {
     menu_save_p(s);
-    if (!move_among_the_slots(s))
+    SavingOnTheMachine m = { s };
+    if (!menu_move_among_the_slots_with(state_of(s), m_platform(s), &menu_saving_on_the_machine, &m))
         return;
     menu_restore_p(s);
     m_rts(s);
@@ -806,6 +808,14 @@ static bool slot_routine(void *ctx, SlotRoutine routine, uint32_t site)
         break;
     }
     return back;
+}
+
+/* A slot's summary read back as C after a save, where its guard's state
+ * half takes it. */
+bool menu_slot_summary_read_back(GameState *g, Platform *pf)
+{
+    SlotsAsC c = { g, pf };
+    return slot_routine(&c, SLOT_SUMMARY, 0xC2CF58);
 }
 
 bool menu_save_slots_read(GameState *g, Platform *pf)

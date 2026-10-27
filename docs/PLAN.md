@@ -227,7 +227,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**0 of 315 files is left on the backlog**: the last, `data/decompress.c`, is
+**0 of 316 files is left on the backlog**: the last, `data/decompress.c`, is
 rewritten (the unpacker as a function of the game's state, which the native
 program calls), and `tools/portstyle_baseline.txt` lists none. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
@@ -629,11 +629,11 @@ by an audit; the fourth is the program itself.
      `gato-battle.ctm`'s presses (`--movie`) it plays the movie to its end.
      With `menu.ctm`'s, the main menu the player opens, its panels and
      the first steps of the equipment, the items, the techs and the
-     settings, to the movie's end. From a cartridge save, the load screen
-     and 16 of the 40 save movies to their end. Next: where the others
+     settings, to the movie's end. From a cartridge save, the load screen,
+     the save screens and 17 of the 40 save movies to their end. Next: where the others
      stop (REIMPLEMENTATION.md, "The native program from a cartridge
-     save"): the rest of the menus the player opens (the exchange's and
-     saving's panels and screens, the shops, the equipment's slots and
+     save"): the rest of the menus the player opens (the exchange's panel
+     and screens, the shops, the equipment's slots and
      list, an item moved or used, the techs' list, the settings' meters,
      buttons and gauge), the game over's start afresh, the time gate's
      tunnel, the time dial and the map view, each a stop of
