@@ -3028,6 +3028,28 @@ waits on M5 rather than on a backend.
     literals beside named heads, and computes its timing tags.
   - `load_screen.c` reads and rewrites one byte of a word (`& 0xFF00`), which
     wants the RAM map narrowed.
+- **What the field's stops' review left** (none rated translation):
+  - `field/requests.c`'s C path checks the requests' guard after
+    `field_step_screen_changes`, the machine entry's guard before it, and the
+    guard's `field_is_dark` can change with the fade's step: check whether the
+    machine guard lets a location change through, on the fade's last frame,
+    without checking the leader is readable.
+  - `warp/warp.c`'s `warp_runs` puts the shared pieces together a second time
+    beside the machine's chained entries (the start beside `warp_set_up`, the
+    frame wait beside `warp_wait_for_frame`, the end beside `warp_end`); share a
+    begin and an end of the trip, the machine's page check a step. `kind_of`
+    spells the warp kinds as `WARP_FIRST_SCENE + n` where the field names them
+    (`SCENE_LONG_WARP`, ...); one definition.
+  - `scene/planet.c`'s `planet_unpacks` keeps the machine's ROM call sites in
+    a column beside the resources; a table only the machine step reads. Two
+    comments sit back to back above `PlanetUnpack`.
+  - `menu/turning_world.c`'s `world_can_be_turned` takes `self` and reads
+    `menu_object_current` instead; `hand_the_turn_on` returns the unsigned
+    add's carry as "went round past a whole turn", which wants saying for a
+    negative turn.
+  - `field/requests.c`'s `StepAndChestAsC`, `step_and_chest_as_c` and the
+    older `TileCopyAsC` want names for what they are (the "AsC" types and
+    tables tree-wide are the same item).
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in
