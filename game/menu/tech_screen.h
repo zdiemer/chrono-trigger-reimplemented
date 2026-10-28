@@ -249,8 +249,6 @@ typedef enum {
     TECHS_AT_THE_TARGETS_LEFT,      /* back from that window */
     TECHS_AT_THE_TARGETS_CLOSING,   /* ... the window closing */
     TECHS_AT_THE_CAST,              /* the user casting, the cast's frames */
-    TECHS_AT_THE_TARGETS_REOPENING, /* the window drawn again after the healing */
-    TECHS_AT_THE_TARGETS_REOPENED,
 } TechsPlace;
 
 /* The frames the user's casting takes before the healing. */
@@ -266,6 +264,7 @@ typedef enum {
     TECHS_POINTS_AT_A_TARGET,          /* $C2:B823 */
     TECHS_POINTS_AT_A_MEMBER_TO_RESTORE, /* $C2:B83E */
     TECHS_HEALS_AND_SHOWS,             /* $C2:8F55 */
+    TECHS_REOPENS_THE_TARGETS,         /* $C2:BE79, run on into after the healing */
 } TechsRoutine;
 
 /* Where the machine does what only it needs: the flags the original's tests

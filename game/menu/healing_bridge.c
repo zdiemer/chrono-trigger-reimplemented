@@ -202,7 +202,7 @@ bool menu_amounts_can_rise(Snes *s)
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_amounts_can_rise_now(state_of(s));
+    bool ok = menu_amounts_kind_can_rise(state_of(s));
     vars_peek(false);
     return ok;
 }

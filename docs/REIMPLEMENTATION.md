@@ -2991,7 +2991,8 @@ tech described, the targets' window and pointing (`$C2:B72F`, `$C2:BE01`,
 button rows (`$C2:BF6D`). The gate's exchange's opening (`$C2:C7AC`): the
 gate's song changed, played in a task and changed back (`$C2:CB8B`,
 `$C2:CBBF`, `$C2:CC0E`; the task a row of the tasks' table, its wait for the
-song spinning on the driver's status as the battle's close does), the
+song looking at the driver's status once a frame: TODO.md, "The gate's wait
+for its song to play"), the
 panel's gate sprite, the swirl unpacked and drawn (`$FF:F677`) and the gate
 screen started (`$C2:CE9D`) with its frame task as C (`$C2:CECE`), and the
 fade in. Past the gate, battle-tech-sweep-spekkio met the event commands

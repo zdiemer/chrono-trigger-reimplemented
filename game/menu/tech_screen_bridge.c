@@ -229,14 +229,11 @@ static void registers_on_the_machine(void *ctx, TechsPlace at)
     case TECHS_AT_THE_LIST_SLIDING: menu_set_widths(s, false, false); break;
     case TECHS_AT_THE_LIST_SLID: menu_set_widths(s, true, false); break;
     case TECHS_AT_THE_TARGETS_CLOSING: menu_set_widths(s, false, false); break;
-    case TECHS_AT_THE_TARGETS_REOPENING:
-        menu_save_p(s);
-        menu_set_widths(s, false, false);
-        break;
-    case TECHS_AT_THE_TARGETS_REOPENED: menu_restore_p(s); break;
     default: break;
     }
 }
+
+static const TechsSteps on_the_machine;
 
 static bool run_on_the_machine(void *ctx, TechsRoutine r)
 {
@@ -255,6 +252,15 @@ static bool run_on_the_machine(void *ctx, TechsRoutine r)
     case TECHS_POINTS_AT_A_TARGET: return menu_run(s, 0xC2B491, 0xC2B823, menu_point_at_tech_target);
     case TECHS_POINTS_AT_A_MEMBER_TO_RESTORE: return menu_run(s, 0xC2B826, 0xC2B83E, menu_point_at_member_to_restore_entry);
     case TECHS_HEALS_AND_SHOWS: return menu_run(s, 0xC2B4FC, 0xC28F55, menu_heal_and_show_entry);
+    /* The original runs on into the window's routine, which saves P as it
+     * starts and puts it back as it ends: inline, not a call. */
+    case TECHS_REOPENS_THE_TARGETS:
+        menu_save_p(s);
+        menu_set_widths(s, false, false);
+        if (!menu_open_tech_targets_with(state_of(s), m_platform(s), &on_the_machine, s))
+            return false;
+        menu_restore_p(s);
+        return true;
     }
     return false;
 }

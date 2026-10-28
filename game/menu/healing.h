@@ -87,7 +87,7 @@ bool menu_show_amounts(GameState *g, Platform *pf);
 void menu_raise_amounts_task(GameState *g, Platform *pf);
 bool menu_healing_can_run(const GameState *g);
 bool menu_amounts_can_show(const GameState *g);
-bool menu_amounts_can_rise_now(const GameState *g);
+bool menu_amounts_kind_can_rise(const GameState *g);
 enum { MENU_RAISE_AMOUNTS_TASK_START = 0x9016 };
 
 /* The registered entries ($C2:8F55, $C2:8F6C, $C2:8E2D, the task $C2:9016

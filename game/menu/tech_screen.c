@@ -1448,7 +1448,8 @@ static bool run(void *ctx, TechsRoutine r)
             return only_on_the_machine(c, 0xC2BE33, "a techs screen the port doesn't take");
         TIMED_AS(c->game, 0xC2BE33, menu_techs_describe_tech(c->game));
         return true;
-    case TECHS_OPENS_THE_TARGETS: return sequence(c, 0xC2BE79, menu_techs_targets_can_run, menu_open_tech_targets_with);
+    case TECHS_OPENS_THE_TARGETS:
+    case TECHS_REOPENS_THE_TARGETS: return sequence(c, 0xC2BE79, menu_techs_targets_can_run, menu_open_tech_targets_with);
     case TECHS_POINTS_AT_A_TARGET: return sequence(c, 0xC2B823, menu_techs_targets_can_run, menu_point_at_tech_target_with);
     case TECHS_POINTS_AT_A_MEMBER_TO_RESTORE: {
         bool done = false;
@@ -1813,6 +1814,7 @@ bool menu_point_at_tech_target_with(GameState *g, Platform *pf, const TechsSteps
  * among the members. */
 bool menu_choose_tech_target_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
 {
+    (void)pf;
     n->read_cursor(ctx);
     if (!n->run(ctx, TECHS_POINTS_AT_A_TARGET))
         return false;
@@ -1841,11 +1843,7 @@ bool menu_choose_tech_target_with(GameState *g, Platform *pf, const TechsSteps *
         if (!n->wait(ctx, TECHS_AT_THE_CAST) || !n->run(ctx, TECHS_HEALS_AND_SHOWS))
             return false;
         n->note(ctx, TECHS_NOTE_COST_TAKEN, menu_techs_after_casting(g));
-        n->registers_at(ctx, TECHS_AT_THE_TARGETS_REOPENING);
-        if (!menu_open_tech_targets_with(g, pf, n, ctx))
-            return false;
-        n->registers_at(ctx, TECHS_AT_THE_TARGETS_REOPENED);
-        return true;
+        return n->run(ctx, TECHS_REOPENS_THE_TARGETS);
     }
     return false;
 }

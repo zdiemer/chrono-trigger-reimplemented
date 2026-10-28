@@ -187,13 +187,16 @@ static bool screen_faded_out(void *ctx)
     return true;
 }
 
-/* The original spins on the driver's status without letting a frame go by;
- * the driver a host plays runs on while the game waits on it. */
+/* The original spins on the driver's status without letting a frame go by
+ * (an idle loop on the machine, sound_bridge.c), so it waits as long as the
+ * driver takes to start the song. Nothing here may spin on a device: the
+ * driver a host plays passes its time with the frames, so as C the task
+ * looks again once a frame, until the song's tracks are playing. */
 static bool music_waited_for(void *ctx)
 {
     SongInC *n = ctx;
     while (au_music_playing(n->pf, PF_AT(0xC2CBE0)) == 0)
-        ;
+        menu_task_waits(n->game, 1);
     return true;
 }
 

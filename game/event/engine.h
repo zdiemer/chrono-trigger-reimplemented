@@ -74,7 +74,10 @@ EventRunner event_runner(EventAsC *c);
     X(event_go_now, 0xE1) \
     X(event_go_now_raising_1e, 0xDF) \
     X(event_cast_npc, 0x82) \
-    X(event_cast_enemy, 0x83)     X(event_fill_hp_and_mp, 0xF8)     X(event_fill_hp, 0xF9)     X(event_fill_mp, 0xFA)
+    X(event_cast_enemy, 0x83) \
+    X(event_fill_hp_and_mp, 0xF8) \
+    X(event_fill_hp, 0xF9) \
+    X(event_fill_mp, 0xFA)
 
 #define EVENT_DECLARE_AS_C(name, opcode) bool name(GameState *g, Platform *pf, uint16_t at, EventStep *step);
 EVENT_BRIDGES_AS_C(EVENT_DECLARE_AS_C)

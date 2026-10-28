@@ -401,7 +401,7 @@ static bool run_in_c(void *ctx, HealingRoutine r, uint8_t value)
         TIMED_AS(g, 0xC28F6C, done = menu_show_amounts_with(g, &healing_in_c, c));
         return done;
     case HEALING_RAISES_A_KIND:
-        if (!menu_amounts_can_rise_now(g))
+        if (!menu_amounts_kind_can_rise(g))
             return not_taken(g, 0xC29047, "amounts the port doesn't raise");
         TIMED_AS(g, 0xC29047, done = menu_raise_amount_kind_with(g, &healing_in_c, c));
         return done;
@@ -452,7 +452,7 @@ bool menu_healing_can_run(const GameState *g)
 
 bool menu_amounts_can_show(const GameState *g) { return menu_active_members(g) <= MP_SHOWN; }
 
-bool menu_amounts_can_rise_now(const GameState *g)
+bool menu_amounts_kind_can_rise(const GameState *g)
 {
     bool ok = false;
     for (unsigned k = 0; k < MENU_AMOUNT_KINDS; k++)

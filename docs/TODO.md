@@ -2108,9 +2108,12 @@ re-runs the census.
   task spins on the sound processor's status (`au_music_playing`) until the
   driver says the song's tracks are playing, without letting a frame go by,
   so how long it waits is the driver's time to start the song. It is an
-  idle entry on the original's machine; a host playing the C driver answers
-  at once. The native backend wants it as a wait the audio service owns (a
-  call that comes back once the song plays).
+  idle entry on the original's machine. As C (`music_waited_for`,
+  menu/sound.c) the task looks once a frame, since reading the status passes
+  none of the player's time, so it waits whole frames where the original
+  waits the driver's time. The native backend wants it as a wait the audio
+  service owns: a call that passes the player's time until the song plays,
+  and gives up saying where, as the native backend's `wait_on_port0` does.
 
 - **The host backend in a build.** `runtime/platform/native/` runs
   `ct_native`'s frames (PLAYING.md, "The native program"), but only as far as
