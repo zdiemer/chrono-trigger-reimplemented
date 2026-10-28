@@ -633,9 +633,9 @@ rest waits, is [PLAN.md](PLAN.md).
       `BUTTON_*` and `ASSIGNED_*` belong;
     - `start_dial_objects` hands each digit its period through the running
       object's own slot and restores it; set the started slot's instead;
-    - the dial's and the map view's screen setup runs in the `Snes *` entry,
-      about 25 shadow writes in the original's order: split the runs without
-      call-outs into `GameState`/`Platform` functions;
+    - the dial's and the map view's screen setup (`show_the_time_dial_with`,
+      `show_the_map_view_with`) is about 25 shadow writes in the original's
+      order: one `VidScreen` value each would say what the screen is;
     - `draw_map_tile`/`draw_map_picture` return the last group only for the
       leftovers;
     - `upload_gate_rows` accepts a count of 0 and a table anywhere; the guard
@@ -2108,9 +2108,12 @@ re-runs the census.
   task spins on the sound processor's status (`au_music_playing`) until the
   driver says the song's tracks are playing, without letting a frame go by,
   so how long it waits is the driver's time to start the song. It is an
-  idle entry on the original's machine; a host playing the C driver answers
-  at once. The native backend wants it as a wait the audio service owns (a
-  call that comes back once the song plays).
+  idle entry on the original's machine. As C (`music_waited_for`,
+  menu/sound.c) the task looks once a frame, since reading the status passes
+  none of the player's time, so it waits whole frames where the original
+  waits the driver's time. The native backend wants it as a wait the audio
+  service owns: a call that passes the player's time until the song plays,
+  and gives up saying where, as the native backend's `wait_on_port0` does.
 
 - **The host backend in a build.** `runtime/platform/native/` runs
   `ct_native`'s frames (PLAYING.md, "The native program"), but only as far as
@@ -2659,8 +2662,7 @@ list, by kind, is what `game/` still asks of one.
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
   tables (`menu/handlers.c`, `overworld/handlers.c`); a handler or a routine
-  with no row stops the program where it starts. The map view and the time
-  dial (`$C2:631F`, `$C2:6A34`) stop it too, and the menus opened from the
+  with no row stops the program where it starts. The menus opened from the
   map go as far as the menus' own C does. `core/program.c`'s handler table
   has functions for the field's, the menus', the sprite-object mode's, the
   battle's (and its closing's), a scene's boot's, a scene program's and the
@@ -2701,28 +2703,22 @@ list, by kind, is what `game/` still asks of one.
   and the settings (the opening, the options, an option taken) run as C
   (docs/history/reimplementation-chunks.md, "The native program through the
   main menu"); the save screens and the party exchange do too
-  (REIMPLEMENTATION.md, "The native program from a cartridge save"); where
-  one of them meets what has no C yet, `program_needs_the_machine` stops the
-  program there and says which: the gate's exchange's opening (`$C2:C7AC`,
-  its song's task, swirl and gate sprite) and the place's song back as it
-  closes (`$C2:CC0E`), the equipment's slots window (`$C2:A71E`) and its
-  member list's slide (`$C2:9D5B`), the items list's slide (`$C2:AC3A`), the
-  techs' member slide and lister (`$C2:B568`, `$C2:B9E1`), the settings'
-  design and speed meters (`$C2:C12C`, `$C2:C0B9`, `$C2:C0D1`), and on the
-  load screen (as C: REIMPLEMENTATION.md, "The native program from a
-  cartridge save") a slot's erasing (`$C2:E8B7`). Every other step of those
-  screens, and the shops', has no C column in
-  `menu/screens.c`'s table yet. Each wants
-  the same shape: the step one `*_with` sequence whose machine entry passes
-  `*_on_the_machine` steps.
+  (REIMPLEMENTATION.md, "The native program from a cartridge save"), and so
+  do the rest of the equipment's, the items', the techs', the settings' and
+  the gate's exchange's steps (REIMPLEMENTATION.md, "The native program
+  through the menus the player opens"); where one of them meets what has no
+  C yet, `program_needs_the_machine` stops the program there and says which:
+  the items list's slide (`$C2:AC3A`), an item tried on that is no item of
+  the game's (`$C2:A5C3`), a member's row whose record names no character
+  (`$C2:A225`), and on the load screen a slot's erasing (`$C2:E8B7`). The
+  shops' nine steps have no C column in `menu/screens.c`'s table yet. Each
+  wants the same shape: the step one `*_with` sequence whose machine entry
+  passes `*_on_the_machine` steps.
 - **Where the save movies stop.** From a cartridge save `ct_native` plays
-  30 of the 40 save movies to their end; the others stop where the program
-  meets what has no C yet (REIMPLEMENTATION.md, "The native program through
-  the field's stops"): the time dial and the map view (`$C2:6A34`,
-  `$C2:631F`; events-epoch-lavos, menus-shop-equip, menus-epoch), the jet
-  bike race's scene routine (`$7E:3F59`; both race movies), and the menus
-  above (the gate's exchange `$C2:C7AC`, the equipment's slots window
-  `$C2:A71E`, an item moved `$C2:AAC8`, a shop `$C2:D52B`).
+  39 of the 40 save movies to their end; menus-shop-inn stops at the shop's
+  opening (`$C2:D52B`), whose steps (above) are the menus' last with no C.
+  The shop's bridges (`menu/shop_bridge.c`) reach the equipment's sequences
+  too, for the member a shop's equipment is tried on.
 - **The menus' steps' notes carry machine work.** In the items', the techs'
   and the settings' sequences (menu/item_screen.c, tech_screen.c,
   settings_screen.c) a note is where the machine both leaves the original's

@@ -51,6 +51,9 @@ void menu_load_record_sprites(Snes *s);
 /* The same as C ($C2:F3CA): the records set up and loaded as the menus open;
  * false where a guard's state half doesn't take them, the program going no
  * further there. */
+/* One record's sprite loaded as C ($C2:F422), where its guard's state half
+ * takes it; false where the program went no further. */
+bool menu_record_sprite_loaded(GameState *g, unsigned record);
 bool menu_record_sprites_loaded(GameState *g);
 void menu_load_record_sprite(Snes *s);
 void menu_animate_record(Snes *s);

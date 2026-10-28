@@ -13,10 +13,12 @@
 #include "menu/gate_screen.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "menu/bridge.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "original_effects.h"
+#include "overworld/setup.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -143,16 +145,39 @@ enum { UNPACKER = 0xC30002, UNPACKER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V 
 enum { SWIRL_GRAPHICS_UNPACKED_TO = 0x7EB000 };
 
 // $FF:F677
-void menu_draw_gate_screen(Snes *s)
+/* The swirl's graphics unpacked, then the swirl drawn. */
+static bool draw_the_gate_screen_with(GameState *g, const Unpacker *u)
 {
-    GameState *g = state_of(s);
-    menu_save_p(s);
-    set_decompress_source(g, MENU_GATE_PACKED_GRAPHICS);
-    set_decompress_dest(g, SWIRL_GRAPHICS_UNPACKED_TO);
-    menu_set_widths(s, false, false);
-    if (!menu_call_long(s, 0xFFF690, UNPACKER, UNPACKER_IGNORES))
-        return;
+    if (!u->unpack(u->ctx, 0xFFF690, MENU_GATE_PACKED_GRAPHICS, SWIRL_GRAPHICS_UNPACKED_TO))
+        return false;
     menu_draw_gate_swirl(g);
+    return true;
+}
+
+bool menu_draw_gate_screen(GameState *g)
+{
+    Unpacker u = overworld_unpacker(g);
+    return draw_the_gate_screen_with(g, &u);
+}
+
+/* The unpacker called as the original's long call reaches it, with 16-bit
+ * registers. */
+static bool unpack_by_the_swirl_s_call(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
+{
+    (void)site;
+    Snes *s = ctx;
+    set_decompress_source(state_of(s), stream);
+    set_decompress_dest(state_of(s), to);
+    menu_set_widths(s, false, false);
+    return menu_call_long(s, 0xFFF690, UNPACKER, UNPACKER_IGNORES);
+}
+
+void menu_draw_gate_screen_entry(Snes *s)
+{
+    menu_save_p(s);
+    Unpacker u = { unpack_by_the_swirl_s_call, s };
+    if (!draw_the_gate_screen_with(state_of(s), &u))
+        return;
     menu_restore_p(s);
     m_rtl(s);
 }
@@ -168,25 +193,27 @@ void menu_turn_gate_swirl_entry(Snes *s)
     m_rtl(s);
 }
 
-/* The screen's frame task ($C2:CECE), in the menus' third task, the one the
- * description's typing has on other screens. */
-enum { GATE_SCREEN_TASK = 0xCECE };
-
 // $C2:CE9D
+/* BG3's tilemap moved, the screen's counts from zero, its frame task
+ * started, and its state set up. */
+void menu_start_gate_screen(GameState *g, Platform *pf)
+{
+    const VidBg bg3 = { .map_base = GATE_SCREEN_TILEMAP, .map_w = MAP_TILES, .map_h = MAP_TILES };
+    vid_set_bg_map(pf, PF_AT(0xC2CEA2), VID_BG3, &bg3);
+    start_counting(g);
+    menu_start_task(g, MENU_DESCRIPTION_TASK, MENU_GATE_SCREEN_TASK_START);
+    set_up_gate_screen(g);
+}
+
 /* The original keeps its caller's P on the stack round the task's start, and
  * puts it back as it returns. The setup is copied with a block move, which
  * leaves the data bank on work RAM's and Y past the state, which the caller
  * reads. */
-void menu_start_gate_screen(Snes *s)
+void menu_start_gate_screen_entry(Snes *s)
 {
-    GameState *g = state_of(s);
     menu_save_p(s);
-    const VidBg bg3 = { .map_base = GATE_SCREEN_TILEMAP, .map_w = MAP_TILES, .map_h = MAP_TILES };
-    vid_set_bg_map(m_platform(s), PF_AT(0xC2CEA2), VID_BG3, &bg3);
-    start_counting(g);
+    menu_start_gate_screen(state_of(s), m_platform(s));
     menu_set_widths(s, false, false);
-    menu_start_task(g, MENU_DESCRIPTION_TASK, GATE_SCREEN_TASK);
-    set_up_gate_screen(g);
     s->cpu.db = MENU_DATA_BANK;
     s->cpu.y = (uint16_t)(RAM_ABS(RAM_MENU_GATE_SCREEN_STATE) + MENU_GATE_SCREEN_STATE_COUNT);
     menu_restore_p(s);
@@ -200,12 +227,28 @@ enum { SWIRL_LINE_EFFECT = 0x10, FRAMES_A_TURN = 2, THE_TASK_S_WAIT = 0xC2CECB }
 /* The screen's task: the swirl turned, its line effect kept on, and two
  * frames waited, round and round. The original waits with the turn's last
  * band's scroll in A's high byte. */
+static void turn_the_swirl(GameState *g)
+{
+    TIMED_AS(g, 0xFFF716, menu_turn_gate_swirl(g));
+    set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | SWIRL_LINE_EFFECT));
+}
+
+/* As C, each turn where the task's guard's state half takes it. */
+void menu_gate_screen_task(GameState *g, Platform *pf)
+{
+    (void)pf;
+    while (menu_gate_swirl_can_turn(g)) {
+        turn_the_swirl(g);
+        menu_task_waits(g, FRAMES_A_TURN);
+    }
+    program_needs_the_machine(g, 0xC2CECE, "a gate's swirl the port doesn't turn");
+}
+
 void menu_run_the_gate_screen_task(Snes *s)
 {
     GameState *g = state_of(s);
-    TIMED_AS(g, 0xFFF716, menu_turn_gate_swirl(g));
+    turn_the_swirl(g);
     menu_set_widths(s, true, m_x8(s));   /* the turn keeps the index registers' width */
-    set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | SWIRL_LINE_EFFECT));
     s->cpu.a = (uint16_t)(menu_gate_swirl(g, BANDS - 1) & 0xFF00);
     menu_wait_frames_in_the_task_loop(s, THE_TASK_S_WAIT, FRAMES_A_TURN, true);
 }
@@ -216,12 +259,14 @@ bool menu_gate_screen_runs(Snes *s) { return menu_on_page_work_ram(s); }
 
 /* The swirl's bands are counted from the menus' zero word, which is 0
  * whenever the menus run. */
+bool menu_gate_swirl_can_turn(const GameState *g) { return menu_zero(g) == 0; }
+
 bool menu_gate_swirl_turns(Snes *s)
 {
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_zero(state_of(s)) == 0;
+    bool ok = menu_gate_swirl_can_turn(state_of(s));
     vars_peek(false);
     return ok;
 }

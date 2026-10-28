@@ -27,8 +27,6 @@
 enum { END_OF_A_TASK = 0xC28216 };
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
-/* Where the numbers' task starts. */
-enum { RAISE_AMOUNTS = 0x9016 };
 
 /* ---- The healing --------------------------------------------------------------------------------- */
 
@@ -40,88 +38,19 @@ void menu_heal_entry(Snes *s)
     m_rts(s);
 }
 
-/* ---- Showing the amounts ------------------------------------------------------------------------- */
+/* ---- What the sequences ask, on the machine ----------------------------------------------------- */
 
 /* What the showing hands back in A: the task's state, none, as its wait
  * read it, a word or a byte; a byte keeps the high byte of the task's start
  * it was loaded with. */
 static void leave_waited(Snes *s)
 {
-    s->cpu.a = m_flag(s, CPU_FLAG_M) ? (uint16_t)(RAISE_AMOUNTS & 0xFF00) : 0;
+    s->cpu.a = m_flag(s, CPU_FLAG_M) ? (uint16_t)(MENU_RAISE_AMOUNTS_TASK_START & 0xFF00) : 0;
 }
-
-// $C2:8F6C
-/* The amounts made ready and their task started; then the wait for it to
- * finish, a frame at a time. */
-void menu_show_amounts(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_ready_the_amounts(g);
-    menu_start_task(g, MENU_AMOUNTS_TASK, RAISE_AMOUNTS);
-    do
-        if (!menu_wait_a_frame_from(s, 0xC28FC3))
-            return;
-    while (menu_tasks_state(g, MENU_AMOUNTS_TASK) != 0);
-    ORIGINAL_EFFECT(leave_waited(s));
-    m_rts(s);
-}
-
-/* The healing's numbers' colours, which the showing uses. */
-static void colour_the_amounts(GameState *g)
-{
-    for (unsigned i = 0; i < MENU_AMOUNT_COLOURS; i++)
-        set_menu_palette(g, MENU_FIRST_AMOUNT_COLOUR + i, menu_rom_colour(g, MENU_ROM_AMOUNT_COLOURS, i));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * MENU_AMOUNT_COLOURS));
-}
-
-// $C2:8F55
-/* The healing, then its numbers in their colours, waited out. */
-void menu_heal_and_show(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_save_p(s);
-    menu_set_widths(s, false, false);
-    TIMED_AS(g, 0xC28E2D, menu_heal(g));
-    colour_the_amounts(g);
-    s->cpu.db = MENU_DATA_BANK;   /* as the colours' block move leaves it */
-    if (!menu_run(s, 0xC28F67, 0xC28F6C, menu_show_amounts))
-        return;
-    menu_restore_p(s);
-    m_rts(s);
-}
-
-/* ---- The task ------------------------------------------------------------------------------------ */
 
 /* For the original's code and shadow mode: the task shifts each kind's bit
  * out of the kinds to show as it takes it. */
 static void leave_kinds_left(GameState *g, uint8_t kinds) { set_menu_amounts_kinds(g, kinds); }
-
-// $C2:9016
-/* Each kind that rises, its own way, then the task's end. */
-void menu_raise_amounts(Snes *s)
-{
-    static const uint32_t sites[MENU_AMOUNT_KINDS] = { 0xC29029, 0xC29041 };
-    GameState *g = state_of(s);
-    uint8_t kinds = (uint8_t)menu_amounts_kinds(g);
-    for (unsigned k = 0; k < MENU_AMOUNT_KINDS; k++) {
-        ORIGINAL_EFFECT(leave_kinds_left(g, (uint8_t)(kinds >> (k + 1))));
-        if (!(kinds & 1u << k))
-            continue;
-        set_menu_amounts_step(g, menu_amounts_path_start((MenuAmountKind)k));
-        set_menu_amounts_last_digit(g, (uint8_t)(menu_amounts_digits((MenuAmountKind)k) - 1));
-        set_menu_amounts_from(g, (uint8_t)(2 * menu_amounts_shown_from((MenuAmountKind)k)));
-        menu_set_widths(s, true, true);
-        m_set_a8(s, menu_amount_sound((MenuAmountKind)k));
-        /* the kind's numbers rise a frame at a time, yielding between: its
-         * stretches are the kind's, as the original's call of it is */
-        bool back;
-        NATIVE_TIME_AS_SIBLING(s, 0xC29047, back = menu_run(s, sites[k], 0xC29047, menu_raise_amount_kind));
-        if (!back)
-            return;
-    }
-    menu_set_widths(s, true, true);
-    m_stop_at(s, END_OF_A_TASK, READS_NOTHING);
-}
 
 /* What a frame leaves in the menus' cells: where its loop over the members
  * got to, the height, the last member's number as it read it, and of the
@@ -150,31 +79,94 @@ static void leave_a_frame(GameState *g, uint8_t from, uint8_t last_digit, uint8_
     }
 }
 
+static const struct {
+    uint32_t site;
+} WAITS_AT[] = { [HEALING_AT_THE_AMOUNTS_SHOWN] = { 0xC28FC3 }, [HEALING_AT_THE_RISING_WAIT] = { 0xC2904C } };
+
+static bool wait_on_the_machine(void *ctx, HealingPlace at) { return menu_wait_a_frame_from(ctx, WAITS_AT[at].site); }
+
+/* The colours' block move leaves the data bank on the menus' data; the
+ * rise's frames run with an 8-bit accumulator, its waits with a 16-bit one. */
+static void registers_on_the_machine(void *ctx, HealingPlace at)
+{
+    Snes *s = ctx;
+    switch (at) {
+    case HEALING_AT_THE_COLOURS: s->cpu.db = MENU_DATA_BANK; break;
+    case HEALING_AT_THE_RISING_WAIT: menu_set_widths(s, false, true); break;
+    default: menu_set_widths(s, true, true); break;
+    }
+}
+
+/* Each kind rises from its own call; its stretches are the kind's, as the
+ * original's call of it is. The kind's sound goes in A. */
+static const uint32_t KIND_SITES[MENU_AMOUNT_KINDS] = { 0xC29029, 0xC29041 };
+
+static bool run_on_the_machine(void *ctx, HealingRoutine r, uint8_t value)
+{
+    Snes *s = ctx;
+    bool back = false;
+    switch (r) {
+    case HEALING_SHOWS_THE_AMOUNTS: return menu_run(s, 0xC28F67, 0xC28F6C, menu_show_amounts_entry);
+    case HEALING_RAISES_A_KIND:
+        m_set_a8(s, menu_amount_sound((MenuAmountKind)value));
+        NATIVE_TIME_AS_SIBLING(s, 0xC29047, back = menu_run(s, KIND_SITES[value], 0xC29047, menu_raise_amount_kind));
+        return back;
+    case HEALING_SENDS_THE_KIND_S_SOUND: return menu_run(s, 0xC29047, 0xC2EAF9, menu_send_sound_on_other_voices);
+    }
+    return false;
+}
+
+static void note_on_the_machine(void *ctx, HealingNote note, uint8_t value)
+{
+    Snes *s = ctx;
+    GameState *g = state_of(s);
+    switch (note) {
+    case HEALING_NOTE_WAITED: ORIGINAL_EFFECT(leave_waited(s)); break;
+    case HEALING_NOTE_KINDS_LEFT: ORIGINAL_EFFECT(leave_kinds_left(g, value)); break;
+    case HEALING_NOTE_A_FRAME_RISEN:
+        ORIGINAL_EFFECT(leave_a_frame(g, menu_amounts_from(g), menu_amounts_last_digit(g), menu_amount_height(g, value)));
+        break;
+    case HEALING_NOTE_RISEN: m_set_a8(s, menu_amount_height(g, value)); break;
+    }
+}
+
+/* The task ends through the scheduler's end of a task. */
+static bool ends_on_the_machine(void *ctx)
+{
+    m_stop_at(ctx, END_OF_A_TASK, READS_NOTHING);
+    return false;
+}
+
+static const HealingSteps on_the_machine = {
+    wait_on_the_machine, registers_on_the_machine, run_on_the_machine, note_on_the_machine, ends_on_the_machine,
+};
+
+// $C2:8F6C
+void menu_show_amounts_entry(Snes *s)
+{
+    if (menu_show_amounts_with(state_of(s), &on_the_machine, s))
+        m_rts(s);
+}
+
+// $C2:8F55
+void menu_heal_and_show_entry(Snes *s)
+{
+    menu_save_p(s);
+    menu_set_widths(s, false, false);
+    if (!menu_heal_and_show_with(state_of(s), &on_the_machine, s))
+        return;
+    menu_restore_p(s);
+    m_rts(s);
+}
+
+// $C2:9016
+void menu_raise_amounts(Snes *s) { (void)menu_raise_amounts_with(state_of(s), &on_the_machine, s); }
+
 // $C2:9047
-/* A kind's numbers rising: its sound, then a frame at a time along its
- * path, yielding between frames, until the path ends. The kind comes in the
- * menus' cells: where its path is, its last digit and where its amounts
- * start. */
 void menu_raise_amount_kind(Snes *s)
 {
-    GameState *g = state_of(s);
-    if (!menu_run(s, 0xC29047, 0xC2EAF9, menu_send_sound_on_other_voices))
-        return;
-    uint8_t step = menu_amounts_step(g), last_digit = menu_amounts_last_digit(g), from = menu_amounts_from(g);
-    for (;;) {
-        menu_set_widths(s, true, true);
-        set_menu_amounts_step(g, (uint8_t)(step + 1));
-        if (!menu_raise_numbers_a_frame(g, (uint8_t)(from / 2), (uint8_t)(last_digit + 1), step)) {
-            m_set_a8(s, menu_amount_height(g, step));
-            m_rts(s);
-            return;
-        }
-        ORIGINAL_EFFECT(leave_a_frame(g, from, last_digit, menu_amount_height(g, step)));
-        step++;
-        menu_set_widths(s, false, true);
-        if (!menu_wait_a_frame_from(s, 0xC2904C))
-            return;
-    }
+    if (menu_raise_amount_kind_with(state_of(s), &on_the_machine, s))
+        m_rts(s);
 }
 
 /* ---- The guards ------------------------------------------------------------------------------------ */
@@ -186,9 +178,7 @@ bool menu_healing_runs(Snes *s)
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    GameState *g = state_of(s);
-    bool every = (menu_use_effect(g) & MENU_USE_FOR_EVERY_MEMBER) != 0;
-    bool ok = every ? menu_active_members(g) <= MP_SHOWN : menu_use_member(g) < MP_SHOWN;
+    bool ok = menu_healing_can_run(state_of(s));
     vars_peek(false);
     return ok;
 }
@@ -200,7 +190,7 @@ bool menu_amounts_can_be_shown(Snes *s)
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_active_members(state_of(s)) <= MP_SHOWN;
+    bool ok = menu_amounts_can_show(state_of(s));
     vars_peek(false);
     return ok;
 }
@@ -212,12 +202,7 @@ bool menu_amounts_can_rise(Snes *s)
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    GameState *g = state_of(s);
-    bool ok = false;
-    for (unsigned k = 0; k < MENU_AMOUNT_KINDS; k++)
-        ok = ok || (menu_amounts_from(g) == 2 * menu_amounts_shown_from((MenuAmountKind)k)
-                    && menu_amounts_last_digit(g) == menu_amounts_digits((MenuAmountKind)k) - 1);
-    ok = ok && menu_amounts_listed(g) >= 1 && menu_amounts_listed(g) <= MP_SHOWN;
+    bool ok = menu_amounts_kind_can_rise(state_of(s));
     vars_peek(false);
     return ok;
 }

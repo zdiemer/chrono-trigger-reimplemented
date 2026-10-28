@@ -18,6 +18,7 @@
 #include "menu/members.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
@@ -159,12 +160,14 @@ void menu_work_out_low_hp_marks_entry(Snes *s)
 
 /* The original walks the records from the menus' zero word, which their
  * opening clears, on the menus' page with the data bank on work RAM's. */
+bool menu_low_hp_marks_can_be_worked_out(const GameState *g) { return menu_zero(g) == 0; }
+
 bool menu_low_hp_marks_are_workable(Snes *s)
 {
     if (!menu_on_page_work_ram(s))
         return false;
     vars_peek(true);
-    bool ok = menu_zero(state_of(s)) == 0;
+    bool ok = menu_low_hp_marks_can_be_worked_out(state_of(s));
     vars_peek(false);
     return ok;
 }
@@ -501,21 +504,70 @@ enum { ROW_AFTER_THE_CARD = 0xC2A225, ROW_READS_NOTHING = DC_A | DC_X | DC_Y | D
 
 static bool record_names_a_character(const GameState *g);
 
-void menu_redraw_member_card(Snes *s)
+/* What the redraw asks: the card drawn, and the row left to the original
+ * where the record names no character. */
+typedef struct {
+    bool (*draw_card)(void *ctx);
+    bool (*leave_the_row)(void *ctx);
+} CardRedrawSteps;
+
+static bool redraw_member_card_with(GameState *g, Platform *pf, const CardRedrawSteps *n, void *ctx)
 {
-    GameState *g = state_of(s);
+    if (!n->draw_card(ctx))
+        return false;
+    if (!record_names_a_character(g))
+        return n->leave_the_row(ctx);
+    set_menu_draw_origin(g, FIRST_ROW);
+    TIMED_AS(g, 0xC2A216, menu_draw_member_row(g, pf));
+    return true;
+}
+
+static bool draw_card_on_the_machine(void *ctx) { return menu_run(ctx, 0xC2A222, 0xC2A22F, menu_draw_member_card_entry); }
+
+static bool leave_the_row_on_the_machine(void *ctx)
+{
+    m_stop_at(ctx, ROW_AFTER_THE_CARD, ROW_READS_NOTHING);
+    return false;
+}
+
+void menu_redraw_member_card_entry(Snes *s)
+{
+    static const CardRedrawSteps on_the_machine = { draw_card_on_the_machine, leave_the_row_on_the_machine };
     menu_save_p(s);
     menu_set_widths(s, false, false);
-    if (!menu_run(s, 0xC2A222, 0xC2A22F, menu_draw_member_card_entry))
+    if (!redraw_member_card_with(state_of(s), m_platform(s), &on_the_machine, s))
         return;
-    if (!record_names_a_character(g)) {
-        m_stop_at(s, ROW_AFTER_THE_CARD, ROW_READS_NOTHING);
-        return;
-    }
-    set_menu_draw_origin(g, FIRST_ROW);
-    TIMED_AS(g, 0xC2A216, menu_draw_member_row(g, m_platform(s)));
     menu_restore_p(s);
     m_rts(s);
+}
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} CardInC;
+
+static bool draw_the_card(void *ctx)
+{
+    CardInC *c = ctx;
+    if (!menu_member_card_can_be_drawn(c->game)) {
+        program_needs_the_machine(c->game, 0xC2A22F, "a member card the port doesn't draw");
+        return false;
+    }
+    TIMED_AS(c->game, 0xC2A22F, menu_draw_member_card(c->game, c->pf));
+    return true;
+}
+
+static bool leave_the_row(void *ctx)
+{
+    program_needs_the_machine(((CardInC *)ctx)->game, ROW_AFTER_THE_CARD, "a member's row whose record names no character");
+    return false;
+}
+
+bool menu_redraw_member_card(GameState *g, Platform *pf)
+{
+    static const CardRedrawSteps in_c = { draw_the_card, leave_the_row };
+    CardInC c = { g, pf };
+    return redraw_member_card_with(g, pf, &in_c, &c);
 }
 
 /* ---- The guards ---------------------------------------------------------------------------------- */

@@ -4,8 +4,14 @@
 #define CT_GAME_MENU_EPOCH_H
 
 #include "menu/object.h"
+#include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
+
+/* The map view and the time dial as the program runs them: each from its
+ * start until the menus' mode leaves it. False where one went no further. */
+bool menu_epoch_map_view_shown(GameState *g, Platform *pf);
+bool menu_epoch_time_dial_shown(GameState *g, Platform *pf);
 
 /* The map view */
 void menu_epoch_map_screen(Snes *s);

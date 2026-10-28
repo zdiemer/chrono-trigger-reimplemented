@@ -70,22 +70,7 @@ static bool send_song_and_fade(Snes *s, uint32_t call, AudioCommand song, AudioC
     return true;
 }
 
-/* A wait for the music's fade to run out, a frame at a time: the driver
- * counts the steps it has left. */
-static bool wait_for_the_fade(Snes *s, uint32_t asked_at, uint32_t yield_at)
-{
-    for (;;) {
-        menu_set_widths(s, true, false);
-        if (au_music_fade_left(m_platform(s), PF_AT(asked_at)) == 0)
-            return true;
-        if (!menu_wait_a_frame_from(s, yield_at))
-            return false;
-    }
-}
-
 /* The task that starts the gate's song (menu_start_task). */
-enum { PLAY_THE_GATE_SONG = 0xCBBF };
-
 /* For the original's code and shadow mode: the flags its tests leave, which
  * its caller keeps on the stack as it draws the panel -- the song compared
  * with the gate's where that is the one playing, otherwise a load of
@@ -100,49 +85,66 @@ static void leave_song_decided(Snes *s)
         m_set_flag(s, CPU_FLAG_C, true);
 }
 
-// $C2:CB8B
-/* The place's song faded out, and the task started that brings the gate's
- * in; the original comes back with 16-bit registers where it started it. */
-void menu_switch_to_the_gate_song(Snes *s)
+/* Where the original calls the fade's and the song's routines from. */
+static const uint32_t SENT_FROM[] = {
+    [GATE_SONG_FADED_OUT] = 0xC2CBB0, [GATE_SONG_STARTED] = 0xC2CBDD,
+    [GATE_SONG_FADED_OUT_AGAIN] = 0xC2CC1D, [PLACE_SONG_STARTED_AGAIN] = 0xC2CC4B,
+};
+static const struct {
+    uint32_t site;
+} FADE_WAITS_AT[] = { [GATE_SONG_AT_THE_GATE_S_FADE] = { 0xC2CBC7 }, [GATE_SONG_AT_THE_PLACE_S_FADE] = { 0xC2CC2E } };
+
+static bool sent_on_the_machine(void *ctx, GateSongSend at, AudioCommand c) { return send_fade(ctx, SENT_FROM[at], c); }
+
+static bool song_and_fade_sent_on_the_machine(void *ctx, GateSongSend at, AudioCommand song, AudioCommand fade)
 {
-    GameState *g = state_of(s);
-    if (menu_gate_song_wanted(g)) {
-        if (!send_fade(s, 0xC2CBB0, menu_fade_the_song_out()))
-            return;
-        menu_set_widths(s, false, false);
-        menu_start_task(g, MENU_DESCRIPTION_TASK, PLAY_THE_GATE_SONG);
-    }
-    ORIGINAL_EFFECT(leave_song_decided(s));
-    m_rts(s);
+    return send_song_and_fade(ctx, SENT_FROM[at], song, fade);
+}
+
+static bool wait_on_the_machine(void *ctx, GateSongPlace at) { return menu_wait_a_frame_from(ctx, FADE_WAITS_AT[at].site); }
+
+/* The waits for a fade ask with 8-bit A; the task starts with 16-bit
+ * registers. */
+static void registers_on_the_machine(void *ctx, GateSongPlace at)
+{
+    if (at == GATE_SONG_AT_THE_TASK_S_START)
+        menu_set_widths(ctx, false, false);
+    else
+        menu_set_widths(ctx, true, false);
+}
+
+static bool screen_faded_out_on_the_machine(void *ctx) { return menu_fade_out_from(ctx, 0xC2CC20); }
+
+/* The wait for the song to be playing is an idle loop of its own. */
+static bool music_waited_for_on_the_machine(void *ctx)
+{
+    m_stop_at(ctx, MUSIC_PLAYING_WAIT, READS_NOTHING);
+    return false;
+}
+
+static void decided_on_the_machine(void *ctx) { ORIGINAL_EFFECT(leave_song_decided(ctx)); }
+
+static const GateSongSteps on_the_machine = {
+    sent_on_the_machine, song_and_fade_sent_on_the_machine, wait_on_the_machine, registers_on_the_machine,
+    screen_faded_out_on_the_machine, music_waited_for_on_the_machine, decided_on_the_machine,
+};
+
+// $C2:CB8B
+/* The original comes back with 16-bit registers where it started the task. */
+void menu_switch_to_the_gate_song_entry(Snes *s)
+{
+    if (menu_switch_to_the_gate_song_with(state_of(s), m_platform(s), &on_the_machine, s))
+        m_rts(s);
 }
 
 // $C2:CBBF
-/* The task: once the fade has run out, the gate's song, its volume brought
- * up at once; then the wait for it to be playing, which ends the task. */
-void menu_play_the_gate_song(Snes *s)
-{
-    if (!wait_for_the_fade(s, 0xC2CBC1, 0xC2CBC7)
-        || !send_song_and_fade(s, 0xC2CBDD, menu_start_the_gate_song(), menu_bring_the_song_up()))
-        return;
-    m_stop_at(s, MUSIC_PLAYING_WAIT, READS_NOTHING);
-}
+void menu_play_the_gate_song_entry(Snes *s) { (void)menu_play_the_gate_song_with(state_of(s), m_platform(s), &on_the_machine, s); }
 
 // $C2:CC0E
-/* The gate's song faded out with the screen, and the place's back from
- * where the driver saved it, fading in. */
-void menu_switch_back_to_the_field_song(Snes *s)
+void menu_switch_back_to_the_field_song_entry(Snes *s)
 {
-    GameState *g = state_of(s);
-    bool played = menu_gate_song_played(g);
-    if (played && !send_fade(s, 0xC2CC1D, menu_fade_the_song_out()))
-        return;
-    if (!menu_fade_out_from(s, 0xC2CC20))
-        return;
-    if (played
-        && (!wait_for_the_fade(s, 0xC2CC28, 0xC2CC2E)
-            || !send_song_and_fade(s, 0xC2CC4B, menu_start_the_place_song_again(g), menu_fade_the_place_song_in(g))))
-        return;
-    m_rts(s);
+    if (menu_switch_back_to_the_field_song_with(state_of(s), m_platform(s), &on_the_machine, s))
+        m_rts(s);
 }
 
 // $C2:CBE0

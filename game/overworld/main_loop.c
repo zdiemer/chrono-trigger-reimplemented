@@ -520,15 +520,17 @@ static Pass menus(void *ctx, OverworldMode mode)
 static bool map_view(void *ctx)
 {
     LoopAsC *c = ctx;
-    program_needs_the_machine(c->game, 0xC2631F, "the map view");
-    return false;
+    bool shown = false;
+    TIMED_AS(c->game, 0xC2631F, shown = menu_epoch_map_view_shown(c->game, c->pf));
+    return shown;
 }
 
 static bool time_dial(void *ctx)
 {
     LoopAsC *c = ctx;
-    program_needs_the_machine(c->game, 0xC26A34, "the time dial");
-    return false;
+    bool shown = false;
+    TIMED_AS(c->game, 0xC26A34, shown = menu_epoch_time_dial_shown(c->game, c->pf));
+    return shown;
 }
 
 static void handed_over(void *ctx)

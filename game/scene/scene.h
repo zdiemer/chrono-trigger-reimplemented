@@ -254,6 +254,7 @@ enum {
     SCENE_ROUTINE_FADE_THE_PLANET_THROUGH = 0x63FE,     /* scene/planet.c */
     SCENE_ROUTINE_FADE_THE_PLANET_OUT = 0x6403,
     SCENE_ROUTINE_FADE_THE_PLANET_OUT_SLOWLY = 0x6422,
+    SCENE_ROUTINE_PICK_THE_RACE_S_OPENING = 0x3F59,     /* scene/race_camera.c */
 };
 
 /* A routine a script calls, as C: its work on the calling channel; and the
@@ -280,6 +281,7 @@ extern const SceneRoutineLeaves scene_title_routine_leaves[];
 extern const SceneRoutineLeaves scene_lavos_routine_leaves[];
 extern const SceneRoutineLeaves scene_dive_routine_leaves[];
 extern const SceneRoutineLeaves scene_planet_routine_leaves[];
+extern const SceneRoutineLeaves scene_race_routine_leaves[];
 #endif
 
 /* The tables' rows, by routine. */
@@ -294,6 +296,8 @@ extern const SceneScriptRoutine scene_dive_routines[];
 extern const unsigned scene_dive_routine_count;
 extern const SceneScriptRoutine scene_planet_routines[];
 extern const unsigned scene_planet_routine_count;
+extern const SceneScriptRoutine scene_race_routines[];
+extern const unsigned scene_race_routine_count;
 /* scene/script.c: a routine of those tables reached by its address, as its
  * registered entry: its row's work. */
 void scene_script_routine_alone(Snes *s, const SceneScriptRoutine *r);

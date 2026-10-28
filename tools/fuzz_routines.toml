@@ -552,7 +552,15 @@ name = "scene_race_pick_opening"
 subsystem = "scene"
 state = "race"
 args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
-why = "channel 0's script calls it, on its page, with the data bank on the program's"
+why = "a channel's script calls it, on its page, with the data bank on the program's"
+
+[[routine]]
+name = "scene_race_pick_opening"
+variant = "second_channel"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0B00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "the same called from the second channel's script: the opening goes to the calling channel, as the original's store on its page does"
 
 [[routine]]
 name = "scene_gather_picture"

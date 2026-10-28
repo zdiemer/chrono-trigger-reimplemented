@@ -85,6 +85,7 @@ static const struct {
     [EXCHANGE_AT_THE_SLIDE_TICK] = { 0xC2C944, KEEP_WIDTHS, KEEP_WIDTHS },
     [EXCHANGE_AT_THE_PANEL_LISTED] = { 0xC2CA2D, KEEP_WIDTHS, KEEP_WIDTHS },
     [EXCHANGE_AT_THE_ROWS_DRAWN] = { 0xC2CA33, KEEP_WIDTHS, WIDE },
+    [EXCHANGE_AT_THE_GATE_SONG_WAIT] = { 0xC2C7D0, KEEP_WIDTHS, KEEP_WIDTHS },
 };
 
 static void leave_choosing_started(Snes *s);
@@ -136,26 +137,28 @@ enum { GATE_RECORD_PAGE = 0x19C0 };
 static bool gate_sprite(void *ctx)
 {
     Snes *s = machine(ctx);
-    GameState *g = state_of(s);
-    ORIGINAL_EFFECT(leave_panel_picked(s));
-    menu_save_p(s);
-    m_push16(s, 0xC9F7 + MENU_JSR_SIZE - 1);
-    m_push16(s, s->cpu.d);
-    s->cpu.d = GATE_RECORD_PAGE;
-    menu_exchange_put_the_gate_sprite_on_its_record(g);
     ORIGINAL_EFFECT(leave_gate_sprite_record(s));
-    if (!menu_run(s, 0xC2CAB0, LOAD_A_RECORD_SPRITE, menu_load_record_sprite))
-        return false;
-    menu_exchange_gate_sprite_loaded(g);
-    s->cpu.d = m_pull16(s);
-    (void)m_pull16(s);
-    menu_restore_p(s);
-    return true;
+    return menu_run(s, 0xC2CAB0, LOAD_A_RECORD_SPRITE, menu_load_record_sprite);
 }
 
 static bool place_song_back(void *ctx)
 {
-    return menu_run(machine(ctx), 0xC2C7FF, SWITCH_BACK_TO_THE_FIELD_SONG, menu_switch_back_to_the_field_song);
+    return menu_run(machine(ctx), 0xC2C7FF, SWITCH_BACK_TO_THE_FIELD_SONG, menu_switch_back_to_the_field_song_entry);
+}
+
+/* The gate's screen's routines, each where the original calls it from. */
+static bool run_on_the_machine(void *ctx, ExchangeRoutine r)
+{
+    Snes *s = machine(ctx);
+    switch (r) {
+    case EXCHANGE_SWITCHES_TO_THE_GATE_SONG:
+        return menu_run_any_widths(s, 0xC2C7B6, SWITCH_TO_THE_GATE_SONG, menu_switch_to_the_gate_song_entry);
+    case EXCHANGE_SHOWS_THE_PANEL: return menu_run_any_widths(s, 0xC2C7B9, SHOW_THE_PANEL, menu_show_exchange_panel_entry);
+    case EXCHANGE_LAYS_OUT_THE_GATE_SCREEN: return menu_run(s, 0xC2C7C5, LAY_OUT_THE_SCREEN, menu_lay_out_the_exchange);
+    case EXCHANGE_DRAWS_THE_SWIRL: return menu_run_long(s, 0xC2CE86, DRAW_THE_SWIRL, menu_draw_gate_screen_entry);
+    case EXCHANGE_STARTS_THE_GATE_SCREEN: return menu_run(s, 0xC2C7DA, START_THE_GATE_SCREEN, menu_start_gate_screen_entry);
+    }
+    return false;
 }
 
 /* The slide waits for its frames inside two calls the cursor's move makes:
@@ -188,6 +191,25 @@ static void slide(void *ctx, ExchangeSlideFrame frame)
         menu_restore_p(s);
         (void)m_pull16(s);
         break;
+    /* The panel's window routine ($C2:CA67, called through its table from
+     * $C2:C9F7 with the panel's P saved) keeps the direct page on the stack
+     * as it moves it to the record. */
+    case EXCHANGE_ON_THE_GATE_S_RECORD:
+        ORIGINAL_EFFECT(leave_panel_picked(s));
+        menu_save_p(s);
+        m_push16(s, 0xC9F7 + MENU_JSR_SIZE - 1);
+        m_push16(s, s->cpu.d);
+        s->cpu.d = GATE_RECORD_PAGE;
+        break;
+    case EXCHANGE_OFF_THE_GATE_S_RECORD:
+        s->cpu.d = m_pull16(s);
+        (void)m_pull16(s);
+        menu_restore_p(s);
+        break;
+    /* The swirl is drawn from $C2:CE86, a routine of its own called from
+     * $C2:C7C8. */
+    case EXCHANGE_SWIRL_BEGINS: m_push16(s, 0xC7C8 + MENU_JSR_SIZE - 1); break;
+    case EXCHANGE_SWIRL_ENDS: (void)m_pull16(s); break;
     }
 }
 
@@ -213,6 +235,8 @@ static void note(void *ctx, ExchangeNote n)
     case EXCHANGE_NOTE_ROW_TESTED: ORIGINAL_EFFECT(leave_row_tested(s)); break;
     case EXCHANGE_NOTE_SWAPPED: ORIGINAL_EFFECT(leave_swapped(s)); break;
     case EXCHANGE_NOTE_CURSOR_COMPARED: ORIGINAL_EFFECT(leave_cursor_compared(s)); break;
+    case EXCHANGE_NOTE_STEP_COUNTED: ORIGINAL_EFFECT(leave_step_counted(s)); break;
+    case EXCHANGE_NOTE_SWIRL_SHOWN: ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_TEXT_LAYER_WHOLE)); break;
     }
 }
 
@@ -225,12 +249,13 @@ static bool ends(void *ctx, ExchangeEnd end)
     case EXCHANGE_LAYS_OUT_THE_SCREEN: m_stop_at(s, LAY_OUT_THE_SCREEN, READS_NOTHING); break;
     case EXCHANGE_BACK_TO_THE_MAIN_MENU: m_stop_at(s, MAIN_MENU, READS_NOTHING); break;
     case EXCHANGE_LEAVES_THE_MENUS: m_stop_at(s, LEAVE_THE_MENUS, READS_NOTHING); break;
+    case EXCHANGE_FADES_IN: m_stop_at(s, FADE_IN, READS_NOTHING); break;
     }
     return false;
 }
 
 const ExchangeSteps menu_exchange_on_the_machine = { read_cursor, tick, wait, move_the_cursor, gate_sprite,
-                                                     place_song_back, slide, widths, note, ends };
+                                                     place_song_back, slide, widths, note, ends, run_on_the_machine };
 
 /* ---- The entries --------------------------------------------------------------------------------- */
 
@@ -307,47 +332,10 @@ void menu_put_exchange_panel_away(Snes *s)
     m_rts(s);
 }
 
-/* ---- The gate's screen, on the machine alone yet ------------------------------------------------- */
-
-/* The gate's swirl, its graphics unpacked by the swirl's own routine, which
- * the original calls from $C2:CE86, a routine of its own called from
- * $C2:C7C8. */
-static bool show_the_swirl(Snes *s)
-{
-    m_push16(s, 0xC7C8 + MENU_JSR_SIZE - 1);
-    if (!menu_run_long(s, 0xC2CE86, DRAW_THE_SWIRL, menu_draw_gate_screen))
-        return false;
-    menu_exchange_show_the_swirl(state_of(s));
-    ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_TEXT_LAYER_WHOLE));
-    (void)m_pull16(s);
-    return true;
-}
+/* ---- The gate's screen ---------------------------------------------------------------------------- */
 
 // $C2:C7AC
-/* At the gate: laid out as the event asks, the gate's song started, the
- * panel and the screen over it, the swirl behind; once the song is playing,
- * the gate's screen started, and on to choosing as it fades in. */
-void menu_open_exchange_at_the_gate(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_exchange_lay_out_for_the_gate(g, (uint8_t)menu_screen_argument(g));
-    if (!menu_run_any_widths(s, 0xC2C7B6, SWITCH_TO_THE_GATE_SONG, menu_switch_to_the_gate_song)
-        || !menu_run_any_widths(s, 0xC2C7B9, SHOW_THE_PANEL, menu_show_exchange_panel_entry))
-        return;
-    menu_set_widths(s, true, true);
-    menu_exchange_start_choosing(g, 0);
-    menu_set_widths(s, true, false);
-    ORIGINAL_EFFECT(leave_step_counted(s));
-    if (!menu_run(s, 0xC2C7C5, LAY_OUT_THE_SCREEN, menu_lay_out_the_exchange) || !show_the_swirl(s))
-        return;
-    while (menu_tasks_state(g, MENU_DESCRIPTION_TASK) != 0)
-        if (!menu_wait_a_frame_from(s, 0xC2C7D0))
-            return;
-    menu_exchange_show_the_gate(g);
-    if (!menu_run(s, 0xC2C7DA, START_THE_GATE_SCREEN, menu_start_gate_screen))
-        return;
-    m_stop_at(s, FADE_IN, READS_NOTHING);
-}
+void menu_open_exchange_at_the_gate_entry(Snes *s) { step(s, menu_open_exchange_at_the_gate_with); }
 
 /* ---- What the original's instructions leave (scaffolding) --------------------------------------- */
 

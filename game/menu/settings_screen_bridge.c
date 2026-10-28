@@ -89,6 +89,22 @@ static void leave_row_changed(Snes *s, uint8_t paging_before);
 
 static const uint32_t TICKS_AT[] = {
     [SETTINGS_AT_THE_OPENING] = 0xC2BF3D, [SETTINGS_AT_THE_CURSOR_MOVED] = 0xC2BF5B, [SETTINGS_AT_AN_OPTION_CHOSEN] = 0xC2BFFA,
+    [SETTINGS_AT_A_METER_STEPPED] = 0xC2C17F, [SETTINGS_AT_THE_DESIGN_TOGGLED] = 0xC2C15A,
+    [SETTINGS_AT_A_GAUGE_TAKEN] = 0xC2BFC1,   [SETTINGS_AT_THE_BUTTONS_LEFT] = 0xC2BF8C,
+    [SETTINGS_AT_THE_BUTTONS_RESET] = 0xC2C18C, [SETTINGS_AT_THE_BUTTONS_KEPT] = 0xC2C1B2,
+    [SETTINGS_AT_A_ROW_CHANGED] = 0xC2C1FD,
+};
+
+/* The meter a call steps is its setting's cell, as the original's callers
+ * hand it over in X, from each meter's call. */
+enum { BATTLE_SPEED_CELL = 0x0D8B, MESSAGE_SPEED_CELL = 0x0D90, WINDOW_DESIGN_CELL = 0x0D8C };
+static const struct {
+    uint32_t site;
+    uint16_t cell;
+} METERS[SETTINGS_OPTION_COUNT] = {
+    [SETTINGS_BATTLE_SPEED] = { 0xC2C0BC, BATTLE_SPEED_CELL },
+    [SETTINGS_MESSAGE_SPEED] = { 0xC2C0D4, MESSAGE_SPEED_CELL },
+    [SETTINGS_WINDOW_DESIGN] = { 0xC2C134, WINDOW_DESIGN_CELL },
 };
 
 /* Each option's handler, by the option: the original's routine, which the
@@ -130,6 +146,13 @@ static bool back_to_the_main_menu_on_the_machine(void *ctx)
     return false;
 }
 
+static bool step_meter_on_the_machine(void *ctx, SettingsOption meter)
+{
+    Snes *s = ctx;
+    s->cpu.x = METERS[meter].cell;
+    return menu_run(s, METERS[meter].site, STEP_METER, menu_step_setting_meter);
+}
+
 /* The flags the original's tests leave, and the P the taking saves round
  * the option's handler. */
 static void note_on_the_machine(void *ctx, SettingsNote note, uint8_t value)
@@ -149,13 +172,56 @@ static void note_on_the_machine(void *ctx, SettingsNote note, uint8_t value)
         ORIGINAL_EFFECT(leave_queued(s));
         ORIGINAL_EFFECT(leave_buttons_loaded(s));
         break;
+    case SETTINGS_NOTE_METER_UNMOVED:
+        ORIGINAL_EFFECT(s->cpu.a = 0);
+        ORIGINAL_EFFECT(leave_flags(s, 0, m_flag(s, CPU_FLAG_V), m_flag(s, CPU_FLAG_C)));
+        break;
+    case SETTINGS_NOTE_METER_SHOWN: ORIGINAL_EFFECT(leave_meter_shown(s)); break;
+    case SETTINGS_NOTE_DESIGN_LOADED: ORIGINAL_EFFECT(leave_design_loaded(s)); break;
+    case SETTINGS_NOTE_DESIGN_TOGGLED: ORIGINAL_EFFECT(leave_design_toggled(s, value != 0)); break;
+    case SETTINGS_NOTE_GAUGE_LEFT: ORIGINAL_EFFECT(leave_gauge_left(s)); break;
+    case SETTINGS_NOTE_GAUGE_POINTED: ORIGINAL_EFFECT(leave_cursor_compared_with_the_start(s)); break;
+    case SETTINGS_NOTE_GAUGE_TAKEN:
+        ORIGINAL_EFFECT(leave_queued(s));
+        ORIGINAL_EFFECT(leave_gauge_taken(s));
+        break;
+    case SETTINGS_NOTE_ROWS_KEPT: ORIGINAL_EFFECT(leave_rows_kept(s)); break;
+    case SETTINGS_NOTE_ROWS_LEFT_UNKEPT: ORIGINAL_EFFECT(leave_rows_left_unkept(s)); break;
+    case SETTINGS_NOTE_QUEUED: ORIGINAL_EFFECT(leave_queued(s)); break;
+    case SETTINGS_NOTE_START_TESTED: ORIGINAL_EFFECT(leave_start_tested(s)); break;
+    case SETTINGS_NOTE_UP_OR_DOWN_TESTED: ORIGINAL_EFFECT(leave_up_or_down_tested(s)); break;
+    case SETTINGS_NOTE_ROW_CHANGED: ORIGINAL_EFFECT(leave_row_changed(s, value)); break;
     }
+}
+
+/* The widths and P the button rows' step sets. */
+static void registers_on_the_machine(void *ctx, SettingsPlace at)
+{
+    Snes *s = ctx;
+    switch (at) {
+    case SETTINGS_AT_THE_BUTTONS_TAKEN:
+        menu_save_p(s);
+        menu_set_widths(s, true, m_x8(s));
+        break;
+    case SETTINGS_AT_A_ROW_S_BUTTON: menu_set_widths(s, true, true); break;
+    case SETTINGS_AT_THE_BUTTONS_DONE: menu_restore_p(s); break;
+    default: break;
+    }
+}
+
+/* The original jumps to the cursor's sound, which returns to the step's
+ * caller. */
+static bool ends_with_a_tick_on_the_machine(void *ctx)
+{
+    menu_play_cursor_sound(ctx);
+    return false;
 }
 
 static const SettingsSteps on_the_machine = {
     read_cursor_on_the_machine, tick_on_the_machine,
     take_the_option_on_the_machine, handle_on_the_machine,
     back_to_the_main_menu_on_the_machine, note_on_the_machine,
+    step_meter_on_the_machine, registers_on_the_machine, ends_with_a_tick_on_the_machine,
 };
 
 static bool run(Snes *s, bool (*with)(GameState *, Platform *, const SettingsSteps *, void *))
@@ -257,10 +323,6 @@ void menu_take_controls(Snes *s)
 
 /* ---- The meters ---------------------------------------------------------------------------------- */
 
-/* The meter a call steps is its setting's cell, as the original's callers
- * hand it over in X. */
-enum { BATTLE_SPEED_CELL = 0x0D8B, MESSAGE_SPEED_CELL = 0x0D90, WINDOW_DESIGN_CELL = 0x0D8C };
-
 static bool meter_of(uint16_t cell, SettingsOption *meter)
 {
     switch (cell) {
@@ -272,151 +334,52 @@ static bool meter_of(uint16_t cell, SettingsOption *meter)
 }
 
 // $C2:C164
-/* A push left or right steps the meter, with a tick. */
+/* The meter it steps is the setting's cell its caller hands over in X. */
 void menu_step_setting_meter(Snes *s)
 {
-    GameState *g = state_of(s);
     SettingsOption meter = SETTINGS_BATTLE_SPEED;
     (void)meter_of(s->cpu.x, &meter);
-    bool stepped = meter == SETTINGS_WINDOW_DESIGN ? menu_settings_step_design(g) : menu_settings_step_meter(g, meter);
-    if (!stepped) {
-        ORIGINAL_EFFECT(s->cpu.a = 0);
-        ORIGINAL_EFFECT(leave_flags(s, 0, m_flag(s, CPU_FLAG_V), m_flag(s, CPU_FLAG_C)));
+    if (menu_step_setting_meter_with(state_of(s), meter, &on_the_machine, s))
         m_rts(s);
-        return;
-    }
-    ORIGINAL_EFFECT(leave_meter_shown(s));
-    if (!tick(s, 0xC2C17F))
-        return;
-    m_rts(s);
-}
-
-static bool step_meter(Snes *s, uint32_t site, uint16_t cell)
-{
-    s->cpu.x = cell;
-    return menu_run(s, site, STEP_METER, menu_step_setting_meter);
 }
 
 // $C2:C0B9
 void menu_step_battle_speed(Snes *s)
 {
-    if (!step_meter(s, 0xC2C0BC, BATTLE_SPEED_CELL))
-        return;
-    menu_settings_leave_the_meters(state_of(s));
-    m_rts(s);
+    if (menu_step_speed_with(state_of(s), SETTINGS_BATTLE_SPEED, &on_the_machine, s))
+        m_rts(s);
 }
 
 // $C2:C0D1
 void menu_step_message_speed(Snes *s)
 {
-    if (!step_meter(s, 0xC2C0D4, MESSAGE_SPEED_CELL))
-        return;
-    menu_settings_leave_the_meters(state_of(s));
-    m_rts(s);
+    if (menu_step_speed_with(state_of(s), SETTINGS_MESSAGE_SPEED, &on_the_machine, s))
+        m_rts(s);
 }
 
 // $C2:C12C
-/* While the design is being chosen its meter steps and the windows take
- * it; choosing or going back starts or ends the choosing, with a tick. */
 void menu_step_window_design(Snes *s)
 {
-    GameState *g = state_of(s);
-    bool was_choosing = menu_settings_choosing_design(g);
-    if (was_choosing) {
-        if (!step_meter(s, 0xC2C134, WINDOW_DESIGN_CELL))
-            return;
-        menu_settings_show_design(g);
-        ORIGINAL_EFFECT(leave_design_loaded(s));
-    }
-    if (menu_settings_toggle_design_choice(g)) {
-        ORIGINAL_EFFECT(leave_design_toggled(s, was_choosing));
-        if (!tick(s, 0xC2C15A))
-            return;
-    }
-    menu_settings_hold_cursor_on_the_design(g);
-    m_rts(s);
+    if (menu_step_window_design_with(state_of(s), &on_the_machine, s))
+        m_rts(s);
 }
 
 /* ---- The battle gauge's layouts ------------------------------------------------------------------ */
 
 // $C2:BF9F
-/* Choosing or going back returns to the options with a tick, which the
- * original jumps to; a move to another layout takes it, with a tick. */
-void menu_choose_gauge_layout(Snes *s)
+void menu_choose_gauge_layout_entry(Snes *s)
 {
-    GameState *g = state_of(s);
-    read_cursor(s);
-    switch (menu_settings_choose_gauge_layout(g)) {
-    case GAUGE_CHOSEN:
-        menu_settings_back_from_the_gauge(g);
-        ORIGINAL_EFFECT(leave_gauge_left(s));
-        menu_play_cursor_sound(s);
-        return;
-    case GAUGE_POINTED_AT:
-        ORIGINAL_EFFECT(leave_cursor_compared_with_the_start(s));
+    if (run(s, menu_choose_gauge_layout_with))
         m_rts(s);
-        return;
-    case GAUGE_MOVED:
-        menu_settings_take_gauge_layout(g);
-        ORIGINAL_EFFECT(leave_queued(s));
-        ORIGINAL_EFFECT(leave_gauge_taken(s));
-        if (!tick(s, 0xC2BFC1))
-            return;
-        m_rts(s);
-        return;
-    }
 }
 
 /* ---- The button rows ----------------------------------------------------------------------------- */
 
 // $C2:BF6D, $C2:C183
-/* Leaving the rows (with a tick) goes back to the controls. Otherwise
- * Start or a push up or down (with a tick) puts back or keeps; then the
- * row's button steps with a push left or right, with a tick. */
-void menu_choose_buttons(Snes *s)
+void menu_choose_buttons_entry(Snes *s)
 {
-    GameState *g = state_of(s);
-    read_cursor(s);
-    SettingsButtonsInput input = menu_settings_take_buttons_input(g);
-    if (input == BUTTONS_KEPT_AND_LEFT || input == BUTTONS_LEFT) {
-        if (input == BUTTONS_KEPT_AND_LEFT) {
-            menu_settings_keep_the_rows(g);
-            ORIGINAL_EFFECT(leave_rows_kept(s));
-        } else
-            ORIGINAL_EFFECT(leave_rows_left_unkept(s));
-        if (!tick(s, 0xC2BF8C))
-            return;
-        menu_settings_leave_the_buttons(g);
-        ORIGINAL_EFFECT(leave_queued(s));
+    if (run(s, menu_choose_buttons_with))
         m_rts(s);
-        return;
-    }
-    ORIGINAL_EFFECT(leave_buttons_tested(s));
-    menu_save_p(s);
-    menu_set_widths(s, true, m_x8(s));
-    if (input == BUTTONS_RESET) {
-        ORIGINAL_EFFECT(leave_start_tested(s));
-        if (!tick(s, 0xC2C18C))
-            return;
-        menu_settings_reset_buttons(g);
-    } else if (input == BUTTONS_KEPT) {
-        ORIGINAL_EFFECT(leave_up_or_down_tested(s));
-        if (!tick(s, 0xC2C1B2))
-            return;
-        menu_settings_keep_buttons(g);
-    }
-    menu_set_widths(s, true, true);
-    if (menu_settings_give_row_button(g)) {
-        uint8_t paging_before = menu_settings_buttons(g, SETTINGS_PAGE_ONE_WAY);
-        menu_settings_show_row_change(g);
-        ORIGINAL_EFFECT(leave_row_changed(s, paging_before));
-        if (!tick(s, 0xC2C1FD))
-            return;
-    }
-    menu_restore_p(s);
-    menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
-    ORIGINAL_EFFECT(leave_queued(s));
-    m_rts(s);
 }
 
 /* ---- The main menu's panel ----------------------------------------------------------------------- */
@@ -692,6 +655,8 @@ bool menu_settings_buttons_step_runs(Snes *s)
 static bool gauge_step(const GameState *g) { return menu_settings_on_a_layout(g) && menu_settings_describable(g); }
 
 bool menu_settings_gauge_step_runs(Snes *s) { return on_the_menus_page(s) && menu_cursor_is_movable(s) && peek(s, gauge_step); }
+bool menu_settings_can_choose_buttons(const GameState *g) { return buttons_step(g); }
+bool menu_settings_can_choose_a_layout(const GameState *g) { return gauge_step(g); }
 
 bool menu_setting_meter_steps(Snes *s)
 {

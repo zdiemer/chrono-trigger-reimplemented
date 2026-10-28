@@ -78,6 +78,10 @@ extern const MenuScriptRoutines menu_map_scene_routines;
 extern const MenuScriptRoutines menu_map_view_routines;
 extern const MenuScriptRoutines menu_turning_world_routines;
 
+/* The Epoch's screens' objects: the map view's cursor and markers, the time
+ * dial, its gate's spin and its digits (menu/epoch.c). */
+extern const MenuHandlers menu_epoch_handlers;
+
 /* The overworld's handlers and the routines its scenes call of it
  * (overworld/handlers.c). */
 extern const MenuHandlers overworld_handlers;

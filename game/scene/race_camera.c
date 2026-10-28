@@ -280,14 +280,15 @@ static void keep_controller(GameState *g)
 /* ---- The opening ------------------------------------------------------------------------------- */
 
 // $7E:3F59
-/* Channel 0's script calls this to pick one of the race's two openings at
- * random: where the script goes on. */
+/* The race's first script calls this to pick one of its two openings at
+ * random: where the calling script goes on. */
 enum { OPENING_PICK = 2 };
 
-static void pick_opening(GameState *g)
+static void pick_opening(GameState *g, Platform *pf, uint8_t channel)
 {
+    (void)pf;
     unsigned which = (scene_next_random_byte(g) & OPENING_PICK) / OPENING_PICK;
-    set_scene_channels_script(g, 0, scene_race_openings(g, which));
+    set_scene_channels_script(g, channel, scene_race_openings(g, which));
 }
 
 /* ---- Entries ---------------------------------------------------------------------------------- */
@@ -317,14 +318,31 @@ bool scene_race_set_horizon_present(Snes *s)
     return on_scene(s) && m_code_matches(s, 0x7E44FE, 0x21, 0x7880D3E3796835BFull) && scene_race_upload_strip_present(s);
 }
 
-/* Called by channel 0's script, on its page, with the data bank on the
+/* Called by a channel's script, on its page, with the data bank on the
  * program's (where its table of openings is). */
 bool scene_race_pick_opening_present(Snes *s)
 {
     SceneChannel ch;
-    return scene_channel_at(m_direct_page(s), &ch) && ch == 0 && s->cpu.db == SCENE_LOWER_WORK_RAM &&
+    return scene_channel_at(m_direct_page(s), &ch) && s->cpu.db == SCENE_LOWER_WORK_RAM &&
            m_code_matches(s, 0x7E3F59, 0x0D, 0xFEC1A17AFFF3EF75ull) && m_code_matches(s, 0x7E3448, 0x19, 0x092856CFEC289766ull);
 }
+
+/* The routines the race's scripts call, as the interpreter runs them
+ * (scene/script.c). */
+const SceneScriptRoutine scene_race_routines[] = {
+    { SCENE_ROUTINE_PICK_THE_RACE_S_OPENING, pick_opening, scene_race_pick_opening_present, false },
+};
+const unsigned scene_race_routine_count = sizeof scene_race_routines / sizeof scene_race_routines[0];
+
+#if ORIGINAL_EFFECTS
+/* The pick leaves the opening it picked in A: the calling channel's script. */
+static uint16_t leaves_a_as_called(uint16_t called_with) { return called_with; }
+static void leaves_the_opening(Snes *s) { s->cpu.a = scene_channels_script(state_of(s), scene_program_page_at_entry(s).index); }
+
+const SceneRoutineLeaves scene_race_routine_leaves[] = {
+    { leaves_a_as_called, leaves_the_opening },
+};
+#endif
 
 /* ---- The tasks as C ---------------------------------------------------------------------------
  *
@@ -517,9 +535,5 @@ void scene_race_set_horizon_entry(Snes *s)
     m_rts(s);
 }
 
-/* The script's call: what it leaves in A and X isn't read. */
-void scene_race_pick_opening(Snes *s)
-{
-    pick_opening(state_of(s));
-    m_rts(s);
-}
+/* The script's call: what it leaves in X isn't read. */
+void scene_race_pick_opening(Snes *s) { scene_script_routine_alone(s, &scene_race_routines[0]); }

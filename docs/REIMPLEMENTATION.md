@@ -2938,93 +2938,95 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
-### The native program through the field's stops: switches, the turning world and the tunnel
+### The native program through the menus the player opens
 
-From a cartridge save `ct_native` played 20 of the 40 save movies to their
-end (the history file, "The native program from a cartridge save"). Ten of
-the rest stopped in the field, the world map or the scenes: three at a step
-on an event's tile (`$C0:0C76`), three at a routine a world map's scene calls
-(`$C2:26A8`), and four at the time gate's tunnel the field ends into
-(`$FD:DA5F` and its kin). The chunk followed each movie from its stop until
-it played to its end.
+From a cartridge save `ct_native` played 35 of the 40 save movies to their
+end (the history file, "The native program through the Epoch's screens and
+the race's opening"). Four of the rest stopped in the menus: menus-field-menu
+at the equipment's slots window (`$C2:A71E`), menus-sweep at an item moved
+(`$C2:AAC8`), and battle-tech-sweep-spekkio and menus-end-of-time at the
+End of Time gate's exchange (`$C2:C7AC`); the fifth, menus-shop-inn, at a
+shop (`$C2:D52B`). The chunk followed the four through every step they
+reach: the equipment's slots and list, the items moved and used with the
+healing they show, the techs' list and the members a tech is used on, the
+settings' meters, gauge layouts and button rows, and the gate's exchange
+with its song and swirl. The shop it left (TODO.md, "Where the save movies
+stop").
 
-**A switch stepped on, and a chest opened.** The requests' step event
-(`$C0:0D45`-`$C0:16DB`) and chest (`$C0:16DC`) are one sequence each
-(`answer_step_event_with`, `answer_chest_with`, field/requests.c) through
-`StepAndChestSteps`: the switch's sound and the chest's are steps, and so is
-what the machine leaves after each answer for the original's later calls (A's
-high byte for the chest's sound, the overflow), which as C is nothing. The C
-path checks the requests' entry's guard's state half first
-(`field_requests_can_be_answered`, split from `field_requests_can_run`), and
-each sound its own entry's (the leader one the port reads).
+**One shape throughout.** Each step, and each routine a step goes on to, is
+one `*_with` sequence of the screen's (menu/equipment.c, item_screen.c,
+tech_screen.c, settings_screen.c, exchange.c, healing.c, sound.c), asking
+what differs through the screen's steps struct: a tick, a frame's wait, a
+note (what the original's tests leave, scaffolding), and two the screens
+lacked: `registers_at`, the widths and the P a routine saves or sets where
+the original's code does, and `run`, a sibling routine the original reaches
+by a call, named by an enum. On the machine `run` is the original's call at
+its site, from a table only the machine's step reads, and `registers_at` the
+width or P change; as C, `run` is the sibling's own sequence or port behind
+the state half of its entry's guard (split out of the guard where it was
+static), and `registers_at` nothing. The registered entries are thin
+wrappers passing the machine's steps; where a C function now takes a
+routine's plain name, its wrapper is `<name>_entry` (registry names
+unchanged).
 
-**The Day of Lavos's turning world.** The three movies that lose to Lavos
-(and the Beyond Time ending, which shows the same) play the 1000 A.D. world
-map's scene that lays the map flat in Mode 7 and turns it. Its object's
-script calls seven routines by address, each a port already: all of VRAM
-cleared (`$C2:26A8`), the map's tiles loaded (`$C2:27DE`), its colours
-sampled and its picture laid out as the map view does (`$C2:6400`,
-`$C2:65B2`), the view's backdrop (`$C2:68F4`), and the world drawn, started
-turning, turned a frame and its turn handed on (`$C6:E7FA`, `$C6:E90F`,
-`$C6:E9F5`, `$C6:EE23`). Each is a row of a module's `MenuScriptRoutines`
-table now (`menu_map_view_routines` in menu/epoch.c,
-`menu_turning_world_routines` in menu/turning_world.c, and the overworld's
-and the scenes' own), with the state half of its entry's guard as the row's
-`takes` where the guard has one (the tiles' load, the world's drawing and
-turning: each split out of its guard). The script runner clears the carry
-before it reads the routine's result, so what the entries leave in X and the
-carry is the machine's alone.
+**What came with it.** The equipment's member list's slide (`$C2:9D5B`),
+its slots window opening and closing (`$C2:A71E`, `$C2:A85C`), the list of
+what fits made, drawn, slid in and out (`$C2:A463`, `$C2:A45D`, `$C2:A4AF`,
+`$C2:A697`), pointing at a slot and the shoulders' switch (`$C2:9ECD`,
+`$C2:A00B`), the card redrawn (`$C2:A21F`, members.c) and back on the slots
+(`$C2:A64D`). An item's use (`$C2:B0AB`) and its kinds (a tonic, by chance,
+the party's rest, a tab), the member window (`$C2:AF42`), a tab's pointing
+and raise (`$C2:B24A`, `$C2:B275`, `$C2:B2A7`), one more used (`$C2:B31C`),
+and the item's users closed (`$C2:AC1D`). The healing shown, its numbers'
+task and each kind's rise (`$C2:8F55`, `$C2:8F6C`, `$C2:9016`, `$C2:9047`),
+the task a C row of menu/tasks.c's table; the sound on the effects' other
+voices as C (`$C2:EAF9`). The cursor among the members a healing is used on
+(`$C2:B83E`, `$C2:B870`), which the items and the techs share. The techs'
+member list slid (`$C2:B568`, `$C2:B5C8`), the lister and its sprite
+(`$C2:B9E1`, `$C2:BA09`; one record's sprite load as C, sprites.c), choosing
+a tech and its targets (`$C2:B3AE`, `$C2:B48E`) with the list's slide, the
+tech described, the targets' window and pointing (`$C2:B72F`, `$C2:BE01`,
+`$C2:BE79`, `$C2:B823`). The settings' meters and the design (`$C2:C164`,
+`$C2:C0B9`, `$C2:C0D1`, `$C2:C12C`), the gauge's layouts (`$C2:BF9F`) and the
+button rows (`$C2:BF6D`). The gate's exchange's opening (`$C2:C7AC`): the
+gate's song changed, played in a task and changed back (`$C2:CB8B`,
+`$C2:CBBF`, `$C2:CC0E`; the task a row of the tasks' table, its wait for the
+song looking at the driver's status once a frame: TODO.md, "The gate's wait
+for its song to play"), the
+panel's gate sprite, the swirl unpacked and drawn (`$FF:F677`) and the gate
+screen started (`$C2:CE9D`) with its frame task as C (`$C2:CECE`), and the
+fade in. Past the gate, battle-tech-sweep-spekkio met the event commands
+that fill the party's HP and MP (`$F8`-`$FA`, `$C0:3E5C`-`$C0:3E75`): one
+sequence, with C bridges in the event engine's table.
 
-**The planet seen from space.** The scene after it ("But... the future
-refused to change.", `$7E:6248`) is one sequence through `PlanetSetUpSteps`
-(scene/planet.c): a resource unpacked, the scripts' first step and the stars
-put out are steps; as C the unpacker, the camera channel's turn and the
-stars' port. Its three tasks have C columns in scene/frame.c's table: the
-caption (the drawing's guard's state half, `scene_caption_fits`, split out
-of scene/captions.c), the wait for a button (one sequence with the send as
-its step; as C it checks the list's room for the darkening), and the
-countdown, which on the machine jumps to the console's reset and as C asks
-the program for it (`program_resets_the_console`, core/program.h): the
-scene's loop ends there, and the main thread runs the boot and the field's
-power-on start, as at power-on.
+A cursor read with the cursor held (the item users' close) is one helper,
+`menu_hold_and_read_the_cursor`, whose machine form notes what the read
+leaves before the hold, as the original's order has it.
 
-**The time gate's tunnel.** The field's event that ends it into scene
-`$80`-`$83` goes on to the warp as the program's next step, as to a scene
-(`field_scene_starts`); the main thread runs the trip (`warp_runs`,
-warp/warp.c): the warp started and the screen turned on, a frame made after
-each the vblank handler takes (`warp_vblank`, a row of core/program.c's
-handlers now), and at the last the screen dark and the story flags put back,
-then the field's start for the place the event set. The pieces are the
-machine's entries' own; the loop between them is the original's code on the
-machine and `warp_runs` as C (TODO.md, "Two sequences of one routine").
-
-**The screen setup's frame drawing.** An object holding a 12-sprite frame
-never draws it, and the original's screen setup (`$C0:B109`), which asks
-again until the frame is whole, would ask for ever; as C
-(`field_frame_part_drawn`) the drawing ends there, as the frame queue's does
-on a host. No movie reaches it: the original would hang.
-
-**Measured.** Shadow mode over the library, none mismatched: the requests'
-entry 238,533 calls, the warp's vblank 1,691, the planet's caption 1,098
-and its wait for a button 970, the turning world's frame 249 and its turn
-handed on 234, the map's tiles 67 (the world's drawing, its start and one
-tile load interrupted, each once; the countdown's last frame is the reset,
-which no movie's shadow run compares). Fuzzing, seed 1,
-`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the 16
-entries the chunk changed (25 runs with their variants: the requests'
-switches, chest and step-and-chest among them): every run the same as
-before, none mismatching and the guards' refusals unchanged.
-`tools/effects_check.py`: none new (seven lines renamed with the turn's
-handing on, one for the frame's guard's state half reading the turning
-object's tilt, which its start writes plainly). `ct_native` from a
-cartridge save: 30 of the 40 save movies play to their end (20 did): the
-three switch movies, the four that end through the tunnel
-(battle-lavos-gameover, endings-bucket-lavos, endings-telepod-lavos,
-events-end-of-time-gate), and the three through the turning world, the
-planet and the reset (battle-tech-sweep, endings-beyond-time,
-late-lavos); the other ten stop where they did. The power-on movies and
-the attract sequence go as far as before. No timing row moved. Gate:
-suite OK.
+**Measured.** Shadow mode over the library, none mismatched: the
+equipment's slot step 724 calls and its item step 633, pointing at a slot
+712 and along the list 1,440; an item moved 322 and the users closed 63;
+the techs' list step 788, its targets 222 and the cursor among the members
+a healing is used on 532; the settings' meter 935, the design 726, the
+speeds 218 and 222, the gauge's layouts 160 and the button rows 208; the
+gate screen's task 1,213; the steps and routines that wait across frames
+(the windows' slides, the item's use and the healing shown, the gate's
+opening and its swirl) are abandoned where their frames end, as their
+callers' steps are. Fuzzing, seed 1, `tools/fuzz_compare.py` against the
+branch point's `ct_fuzz` over the 81 entries the chunk changed (98 runs with
+their variants): it found the techs' new tick places missing from the
+machine's table of sites (the list's slide, a tech chosen, its targets),
+which the movies' runs and the C path never meet; fixed, every run is the
+same as before. `tools/effects_check.py`: the bridges' reads that moved into
+the sequences keep their lines and reasons under the sequences' names, and
+two new state halves read the menus' zero word, which the menus' opening
+writes plainly. One timing row moved: `menu_raise_amount_kind` (`$C2:9047`),
+its sound now a step, recalibrated from 9102 to 8670. `ct_native` from a
+cartridge save: 39 of the 40 save movies play to their end (35 did):
+menus-field-menu, menus-sweep, menus-end-of-time and
+battle-tech-sweep-spekkio; menus-shop-inn stops at the shop's opening
+(`$C2:D52B`), where it did. The power-on movies and the attract sequence go
+as far as before.
 
 ### The last refusals in real play: the attract demo's states
 

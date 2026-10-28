@@ -189,27 +189,45 @@ void event_cmd_party_routine_0a(Snes *s)
     event_return(s, (EventStep){ resume, m_flag(s, CPU_FLAG_C) });
 }
 
-/* Every character's HP filled, then (or alone) every character's MP. For
- * the original's code and shadow mode, the menus keep the command's offset
- * past its opcode and the X of the dispatch, the second call what the first
- * left. */
+/* Every character's HP filled, then (or alone) every character's MP, each
+ * through the menus' services; `answered` follows each, saying whether the
+ * other follows. */
+static void fill_with(GameState *g, bool hp, bool mp, void (*answered)(void *ctx, PartyService done, bool more), void *ctx)
+{
+    if (hp) {
+        TIMED_AS(g, MENUS_SERVICES, (party_fill_hp(g), shown(g)));
+        answered(ctx, SERVICE_FILL_HP, mp);
+    }
+    if (mp) {
+        TIMED_AS(g, MENUS_SERVICES, (party_fill_mp(g), shown(g)));
+        answered(ctx, SERVICE_FILL_MP, false);
+    }
+}
+
+/* For the original's code and shadow mode, the menus keep the command's
+ * offset past its opcode and the X of the dispatch, the second call what the
+ * first left. */
+typedef struct {
+    Snes *s;
+    PartyServiceCall call;
+} FillOnTheMachine;
+
+static void answered_on_the_machine(void *ctx, PartyService done, bool more)
+{
+    FillOnTheMachine *m = ctx;
+    ORIGINAL_EFFECT(event_menus_answered(m->s, done, &m->call));
+    if (more)
+        ORIGINAL_EFFECT(m->call = menus_called(state_of(m->s), party_service_y(state_of(m->s), done), party_service_x(done)));
+}
+
 static void fill(Snes *s, bool hp, bool mp)
 {
     GameState *g = state_of(s);
     uint16_t resume = (uint16_t)(event_command_offset(s) + 1);
     ORIGINAL_EFFECT(event_keep_offset(g, resume));
-    PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = menus_called(g, resume, s->cpu.x));
-    if (hp) {
-        NATIVE_TIME_AS(s, MENUS_SERVICES, (party_fill_hp(g), shown(g)));
-        ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_FILL_HP, &call));
-    }
-    if (mp) {
-        if (hp)
-            ORIGINAL_EFFECT(call = menus_called(g, party_service_y(g, SERVICE_FILL_HP), party_service_x(SERVICE_FILL_HP)));
-        NATIVE_TIME_AS(s, MENUS_SERVICES, (party_fill_mp(g), shown(g)));
-        ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_FILL_MP, &call));
-    }
+    FillOnTheMachine m = { s, { 0 } };
+    ORIGINAL_EFFECT(m.call = menus_called(g, resume, s->cpu.x));
+    fill_with(g, hp, mp, answered_on_the_machine, &m);
     event_return(s, (EventStep){ resume, m_flag(s, CPU_FLAG_C) });
 }
 
@@ -495,6 +513,33 @@ static bool asked(GameState *g, Platform *pf, uint16_t at, EventStep *step, uint
     TIMED_AS(g, MENUS_SERVICES, there = among_the_record(g, character, places));
     *step = after_asking(g, at, there);
     return true;
+}
+
+static void nothing_answered(void *ctx, PartyService done, bool more) { (void)ctx, (void)done, (void)more; }
+
+static bool filled(GameState *g, uint16_t at, EventStep *step, bool hp, bool mp)
+{
+    fill_with(g, hp, mp, nothing_answered, NULL);
+    *step = (EventStep){ (uint16_t)(at + 1), THE_DISPATCH_LEAVES_THE_CARRY };
+    return true;
+}
+
+bool event_fill_hp_and_mp(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    (void)pf;
+    return filled(g, at, step, true, true);
+}
+
+bool event_fill_hp(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    (void)pf;
+    return filled(g, at, step, true, false);
+}
+
+bool event_fill_mp(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    (void)pf;
+    return filled(g, at, step, false, true);
 }
 
 bool event_if_in_the_active_party(GameState *g, Platform *pf, uint16_t at, EventStep *step)

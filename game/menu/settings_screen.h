@@ -182,7 +182,19 @@ bool menu_settings_option_can_be_taken(const GameState *g);
  * for what differs through SettingsSteps.
  *
  * The places the sequences tick from. */
-typedef enum { SETTINGS_AT_THE_OPENING, SETTINGS_AT_THE_CURSOR_MOVED, SETTINGS_AT_AN_OPTION_CHOSEN } SettingsPlace;
+typedef enum {
+    SETTINGS_AT_THE_OPENING, SETTINGS_AT_THE_CURSOR_MOVED, SETTINGS_AT_AN_OPTION_CHOSEN,
+    SETTINGS_AT_A_METER_STEPPED,    /* a speed's or the design's meter stepped */
+    SETTINGS_AT_THE_DESIGN_TOGGLED, /* the design's choosing started or ended */
+    SETTINGS_AT_A_GAUGE_TAKEN,      /* another gauge layout taken */
+    SETTINGS_AT_THE_BUTTONS_LEFT,   /* back from the button rows to the controls */
+    SETTINGS_AT_THE_BUTTONS_TAKEN,  /* the button rows' input taken */
+    SETTINGS_AT_THE_BUTTONS_RESET,  /* the buttons put back as they were */
+    SETTINGS_AT_THE_BUTTONS_KEPT,   /* the buttons kept, the cursor moved */
+    SETTINGS_AT_A_ROW_S_BUTTON,     /* a row's button stepped */
+    SETTINGS_AT_A_ROW_CHANGED,      /* ... and shown changed */
+    SETTINGS_AT_THE_BUTTONS_DONE,   /* the rows' step done */
+} SettingsPlace;
 
 /* Where the machine leaves what the original's tests left (scaffolding),
  * and the P an option's taking saves round its handler. */
@@ -194,11 +206,24 @@ typedef enum {
     SETTINGS_NOTE_OPTION_PICKED,   /* this option's handler picked */
     SETTINGS_NOTE_HANDLED,         /* its handler done */
     SETTINGS_NOTE_SHOWN,           /* the option shown, the buttons loaded */
+    SETTINGS_NOTE_METER_UNMOVED,   /* a meter not stepped */
+    SETTINGS_NOTE_METER_SHOWN,     /* a meter stepped and drawn */
+    SETTINGS_NOTE_DESIGN_LOADED,   /* the design taken by the windows */
+    SETTINGS_NOTE_DESIGN_TOGGLED,  /* the design's choosing toggled (it was on: 1) */
+    SETTINGS_NOTE_GAUGE_LEFT,      /* back from the gauge layouts */
+    SETTINGS_NOTE_GAUGE_POINTED,   /* the cursor compared with where it started */
+    SETTINGS_NOTE_GAUGE_TAKEN,     /* a gauge layout taken */
+    SETTINGS_NOTE_ROWS_KEPT,       /* the button rows kept as the player leaves */
+    SETTINGS_NOTE_ROWS_LEFT_UNKEPT, /* ... or left as they were */
+    SETTINGS_NOTE_QUEUED,          /* the front layer queued */
+    SETTINGS_NOTE_START_TESTED,    /* Start tested */
+    SETTINGS_NOTE_UP_OR_DOWN_TESTED, /* a push up or down tested */
+    SETTINGS_NOTE_ROW_CHANGED,     /* a row's button changed (the paging's before) */
 } SettingsNote;
 
 /* What the sequences ask: the cursor read, a tick, the option taken, the
- * option's handler, the way back to the main menu, a note. Each false where
- * it went no further. */
+ * option's handler, the way back to the main menu, a note, a meter stepped
+ * ($C2:C164). Each false where it went no further. */
 typedef struct {
     void (*read_cursor)(void *ctx);
     bool (*tick)(void *ctx, SettingsPlace at);
@@ -206,11 +231,28 @@ typedef struct {
     bool (*handle)(void *ctx, SettingsOption option);
     bool (*back_to_the_main_menu)(void *ctx);
     void (*note)(void *ctx, SettingsNote note, uint8_t value);
+    bool (*step_meter)(void *ctx, SettingsOption meter);
+    void (*registers_at)(void *ctx, SettingsPlace at);
+    /* The step ends on the cursor's sound, its last. */
+    bool (*ends_with_a_tick)(void *ctx);
 } SettingsSteps;
 
 bool menu_open_settings_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx);
 bool menu_choose_setting_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx);
 bool menu_take_setting_option_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx);
+/* A meter stepped by a push ($C2:C164), a speed's handler ($C2:C0B9,
+ * $C2:C0D1) and the design's ($C2:C12C). */
+bool menu_step_setting_meter_with(GameState *g, SettingsOption meter, const SettingsSteps *n, void *ctx);
+bool menu_step_speed_with(GameState *g, SettingsOption speed, const SettingsSteps *n, void *ctx);
+bool menu_step_window_design_with(GameState *g, const SettingsSteps *n, void *ctx);
+/* The gauge's layouts ($C2:BF9F) and the button rows ($C2:BF6D). */
+bool menu_choose_gauge_layout_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx);
+bool menu_choose_buttons_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx);
+bool menu_choose_gauge_layout(GameState *g, Platform *pf);
+bool menu_choose_buttons(GameState *g, Platform *pf);
+/* Their guards' state halves (settings_screen_bridge.c). */
+bool menu_settings_can_choose_buttons(const GameState *g);
+bool menu_settings_can_choose_a_layout(const GameState *g);
 
 /* The stereo option's handler ($C2:C017): flipped where chosen, and then
  * the sound driver told the mode (menu_settings_send_sound_output), through
@@ -227,8 +269,8 @@ bool menu_choose_setting(GameState *g, Platform *pf);
 
 void menu_open_settings_entry(Snes *s);
 void menu_choose_setting_entry(Snes *s);
-void menu_choose_buttons(Snes *s);
-void menu_choose_gauge_layout(Snes *s);
+void menu_choose_buttons_entry(Snes *s);
+void menu_choose_gauge_layout_entry(Snes *s);
 void menu_take_setting_option(Snes *s);
 void menu_set_sound_output(Snes *s);
 void menu_flip_active_time(Snes *s);

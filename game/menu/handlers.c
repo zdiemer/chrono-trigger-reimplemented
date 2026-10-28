@@ -188,7 +188,7 @@ MENU_HANDLERS(menu_handlers,
     { 0x7849, "the map drifting along", menu_scene_drift_takes, drift_the_map },
 );
 
-static const MenuHandlers *const HANDLER_TABLES[] = { &menu_handlers, &overworld_handlers };
+static const MenuHandlers *const HANDLER_TABLES[] = { &menu_handlers, &menu_epoch_handlers, &overworld_handlers };
 enum { HANDLER_TABLES_COUNT = sizeof HANDLER_TABLES / sizeof HANDLER_TABLES[0] };
 
 const MenuHandler *menu_handler(uint16_t handler)
