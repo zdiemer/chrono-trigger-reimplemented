@@ -11838,3 +11838,66 @@ planet and the reset (battle-tech-sweep, endings-beyond-time,
 late-lavos); the other ten stop where they did. The power-on movies and
 the attract sequence go as far as before. No timing row moved. Gate:
 suite OK.
+
+#### The native program through the Epoch's screens and the race's opening
+
+From a cartridge save `ct_native` played 30 of the 40 save movies to their
+end (the history file, "The native program through the field's stops").
+Five of the rest stopped outside the menus proper: three where the world
+map's loop opens the Epoch's time dial or its map view (`$C2:6A34`,
+`$C2:631F`; events-epoch-lavos, menus-shop-equip, menus-epoch), and both
+race movies at the routine the jet bike race's first script calls to pick
+its opening (`$7E:3F59`). The chunk took those stops.
+
+**The two screens, one sequence each.** The map view and the time dial
+(`show_the_map_view_with`, `show_the_time_dial_with`, menu/epoch.c) run
+their Mode 7 setup, their builders and their loop until the menus' mode
+leaves them through `EpochScreenSteps`: VRAM cleared, the map view's marker
+glyphs loaded (`$C2:6965`), its plane built from the world map's tiles
+(`$C2:63DF`), the gate built (`$C2:7389`) and each of its three streams
+unpacked (`$C2:71F9`), the typesetter's start and call, a frame waited, frames
+waited while the sound's requests go on, and what starting a script leaves in
+A. On the machine each is the original's call at its site (a table of sites
+the machine's steps alone read); as C each is the port, behind the state
+half of its entry's guard (the map's tiles' load, the slot the dial's
+graphics count in, the typesetter's two). The builders the screens call are
+sequences too (`load_map_view_graphics_with`, `build_map_view_from`,
+`build_the_dial_with`, `load_gate_stream_from`), their registered entries
+passing the machine's steps or its unpacker, so the screens and their
+entries share one copy. Two loads of A's low byte the old wrappers made
+before waits that read only its high byte went: liveness has them dead.
+
+**The screens' objects.** The world map's loop runs each object's handler
+as a row of a C table (menu/handlers.c); the screens' seven -- the map
+view's cursor and its three markers, the dial, the gate's spin and the
+digits -- are rows of `menu_epoch_handlers` now, each with its guard's state
+half split out of the machine's guard (`cursor_takes`, `dial_takes`,
+`spin_takes`, `marker_takes`, `digit_takes`). The dial's buzz, sent on the
+machine from the handler's own call, goes through `au_command` as C.
+
+**The race's opening.** `$7E:3F59` was a port already; it had no row in the
+scene script's routine tables, so the program stopped where the race's first
+script called it. Its row is in `scene_race_routines` (scene/race_camera.c),
+and the opening goes to the calling channel's script, as the original's
+store on its direct page does; the guard no longer insists on channel 0. As
+a row it leaves A as the original's last load does, the opening it picked:
+the interpreter's stop after it reads A's high byte, so the entry no longer
+declares A don't-care.
+
+**Measured.** Shadow mode over the library, none mismatched: the dial's
+digits 15,365 calls, the dial and the gate's spin 2,195 each (the spin 5
+interrupted), the map view's cursor 166 and its markers 104 each, the gate
+stream's load 15 and the gate's build 5, the race's pick 2; the two screens
+span frames, so their calls are abandoned, as before. Fuzzing, seed 1,
+`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the 14
+entries changed: every run the same as before; the race's pick has a
+second variant on the second channel's page, which the branch point's guard
+refused and which now compares all 20,000 states, none mismatching.
+`tools/effects_check.py`: the handlers' state halves read the objects' steps,
+periods and the gate window's bank, which their starts write plainly; their
+lines are the old guards' (`animates` among them), renamed, with the reasons
+the old ones had. `ct_native` from a cartridge save: 35 of the 40 save
+movies play to their end (30 did): events-epoch-lavos, menus-shop-equip and
+menus-epoch through the dial and the map view, and both race movies; the
+other five stop where they did. The power-on movies and the attract sequence
+go as far as before. No timing row moved.

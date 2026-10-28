@@ -224,57 +224,147 @@ void menu_equip_slots_at_rest(GameState *g);
  * the windows and the member list, its scroll bar, and the screen shown. */
 void menu_equip_set_up(GameState *g, Platform *pf);
 
-/* ---- The opening and the members, one sequence for the machine and for C ---------------------- */
+/* ---- The screen's steps, one sequence each for the machine and for C ---------------------------- */
 
-/* The screen's opening ($C2:9C31), choosing a member ($C2:9C39) and pointing
- * at one ($C2:9D17) are each one sequence, which the machine's entries
+/* Each of the screen's steps -- the opening ($C2:9C31), choosing a member
+ * ($C2:9C39), a slot ($C2:9C70) or an item ($C2:9CA5) -- and the routines
+ * they go on to is one sequence, which the machine's entries
  * (equipment_bridge.c) and the program as C both run, asking the menus for
  * what differs through EquipmentSteps.
  *
- * The places the sequences tick or wait from. */
+ * The places the sequences tick, wait or set the machine's registers from. */
 typedef enum {
     EQUIPMENT_AT_THE_OPENING,       /* the screen opening */
     EQUIPMENT_AT_THE_MEMBER_CHOSEN, /* a member chosen */
     EQUIPMENT_AT_THE_SLOTS_DRAWN,   /* ... the slots drawn, a frame on */
     EQUIPMENT_AT_THE_MEMBER_POINTED, /* another member pointed at */
+    EQUIPMENT_AT_THE_SLOTS_SLIDING, /* the slots' window sliding in, a frame at a time */
+    EQUIPMENT_AT_THE_SLOTS_LEFT,    /* back from the slots to the members */
+    EQUIPMENT_AT_THE_SLOT_CHOSEN,   /* a slot chosen */
+    EQUIPMENT_AT_THE_SLOT_MOVED,    /* the cursor on another slot */
+    EQUIPMENT_AT_THE_SLOT_POINTED,  /* ... the list of what fits it drawn a frame on */
+    EQUIPMENT_AT_THE_MEMBER_SWITCHED, /* the shoulder assignments' next member */
+    EQUIPMENT_AT_THE_SLOTS_GOING,   /* the slots' window going: a frame, */
+    EQUIPMENT_AT_THE_SLOTS_GONE,    /* ... and another, */
+    EQUIPMENT_AT_THE_MEMBERS_SLIDING_BACK, /* ... then the member rows back down */
+    EQUIPMENT_AT_THE_LIST_SLIDING_IN, /* the list's window sliding in */
+    EQUIPMENT_AT_THE_LIST_SLIDING_OUT, /* ... and out */
+    EQUIPMENT_AT_THE_LIST_BEING_MADE, /* the list of what fits made */
+    EQUIPMENT_AT_THE_LIST_FRAMED,   /* ... and its frame laid out */
+    EQUIPMENT_AT_THE_SLOTS_REDRAWN, /* back on the slots, a frame on */
+    EQUIPMENT_AT_THE_ITEM_LEFT,     /* back from the list to the slots */
+    EQUIPMENT_AT_THE_ITEM_POINTED,  /* the cursor along the list */
+    EQUIPMENT_AT_THE_PAGE_TURNED,   /* the list paged */
+    EQUIPMENT_AT_THE_ROW_BROUGHT_IN, /* a row brought in past the list's end */
+    EQUIPMENT_AT_THE_LIST_ROWS_SLIDING, /* ... and the rows sliding a frame at a time */
+    EQUIPMENT_AT_THE_MEMBER_SLIDE_STARTING, /* the member list's slide about to run */
+    EQUIPMENT_AT_THE_MEMBER_SLIDE_ENDED, /* ... and run */
+    EQUIPMENT_AT_THE_MEMBERS_SLIDING, /* the member rows sliding, a frame at a time */
+    EQUIPMENT_AT_THE_MEMBERS_SLID,  /* ... and at rest */
 } EquipmentPlace;
 
+/* The routines the steps go on to and come back from (each a registered
+ * entry, run on the machine where the original calls it). */
+typedef enum {
+    EQUIPMENT_SLIDES_MEMBERS,              /* the member list slid by a member ($C2:9D5B) */
+    EQUIPMENT_SLIDES_THE_MEMBER_ROWS_UP,   /* its rows' slide ($C2:9DAF) */
+    EQUIPMENT_SLIDES_THE_MEMBER_ROWS_DOWN,
+    EQUIPMENT_OPENS_THE_SLOTS_WINDOW,      /* $C2:A71E */
+    EQUIPMENT_CLOSES_THE_SLOTS_WINDOW,     /* $C2:A85C */
+    EQUIPMENT_SWITCHES_MEMBERS,            /* $C2:A00B */
+    EQUIPMENT_REDRAWS_THE_CARD,            /* the card and the member's row ($C2:A21F) */
+    EQUIPMENT_DRAWS_THE_CARD,              /* $C2:A22F */
+    EQUIPMENT_REDRAWS_THE_LIST_FOR_THE_SLOT, /* $C2:A45D, from the slots */
+    EQUIPMENT_REDRAWS_THE_LIST_ON_THE_SLOTS, /* $C2:A45D, back on them */
+    EQUIPMENT_MAKES_THE_LIST,              /* $C2:A463 */
+    EQUIPMENT_SLIDES_THE_LIST_IN,          /* $C2:A4AF */
+    EQUIPMENT_SLIDES_THE_LIST_OUT,         /* $C2:A697 */
+    EQUIPMENT_GOES_BACK_ON_THE_SLOTS,      /* $C2:A64D */
+    EQUIPMENT_POINTS_ALONG_THE_LIST,       /* $C2:9F05 */
+    EQUIPMENT_WORKS_OUT_LOW_HP_MARKS,      /* $C2:813C */
+    EQUIPMENT_PLAYS_THE_PUT_ON_SOUND,      /* $C2:EABA */
+    EQUIPMENT_FORGETS_THE_WEAPON,          /* $C2:9CFC */
+    EQUIPMENT_TRIES_IT_ON,                 /* the item on the cursor tried on */
+} EquipmentRoutine;
+
 /* How a step ends: on to the screen's set-up, to pointing at a member, to
- * the member's card, or back to the main menu. */
+ * the member's card, back to the main menu, to pointing at a slot, on to the
+ * list of what fits, the refusal's buzz, back to the members, or the list's
+ * tick as it opens. */
 typedef enum {
     EQUIPMENT_SETS_UP_THE_SCREEN, EQUIPMENT_POINTS_AT_A_MEMBER, EQUIPMENT_SHOWS_THE_CARD, EQUIPMENT_GOES_BACK_TO_THE_MAIN_MENU,
+    EQUIPMENT_POINTS_AT_A_SLOT, EQUIPMENT_GOES_ON_TO_THE_LIST, EQUIPMENT_REFUSES, EQUIPMENT_GOES_BACK_TO_THE_MEMBERS,
+    EQUIPMENT_TICKS_ON_THE_LIST,
 } EquipmentEnd;
 
-/* Where the machine leaves what the original's tests left (scaffolding). */
-typedef enum { EQUIPMENT_NOTE_MEMBER_STEP_TESTED, EQUIPMENT_NOTE_MEMBER_POINTED } EquipmentNote;
+/* Where the machine leaves what the original's tests and loads left
+ * (scaffolding). */
+typedef enum {
+    EQUIPMENT_NOTE_MEMBER_STEP_TESTED, EQUIPMENT_NOTE_MEMBER_POINTED, EQUIPMENT_NOTE_SLOT_STEP_TESTED,
+    EQUIPMENT_NOTE_LABEL_COPIED, EQUIPMENT_NOTE_SLOT_KEPT, EQUIPMENT_NOTE_LIST_SUM, EQUIPMENT_NOTE_MEMBER_SWITCHED,
+    EQUIPMENT_NOTE_BUTTONS_TESTED, EQUIPMENT_NOTE_INVENTORY_CHANGED, EQUIPMENT_NOTE_CURSOR_LOADED,
+    EQUIPMENT_NOTE_CURSOR_COMPARED, EQUIPMENT_NOTE_CURSOR_KEPT, EQUIPMENT_NOTE_PAGE_TURNED, EQUIPMENT_NOTE_LIST_DRAWN,
+    EQUIPMENT_NOTE_ROW_NOTED, EQUIPMENT_NOTE_ROW_FOUND, EQUIPMENT_NOTE_LIST_ROWS_QUEUED, EQUIPMENT_NOTE_LIST_FRAMED,
+    EQUIPMENT_NOTE_LIST_OPENED, EQUIPMENT_NOTE_LIST_WINDOW_SHOWN, EQUIPMENT_NOTE_LIST_BAR_PLACED,
+    EQUIPMENT_NOTE_SLOTS_REDRAWN, EQUIPMENT_NOTE_MEMBER_SLIDE_STARTED,
+} EquipmentNote;
 
-/* What the sequences ask: the cursor read, a tick, the member list slid by
- * a member, the slots' window opened, a frame's wait, a note, the end. Each
- * false where it went no further. */
+/* What the sequences ask: the cursor read, a tick, a frame's wait, the
+ * machine's registers as the original's code sets them, a routine run, a
+ * note, the end. Each false where it went no further. */
 typedef struct {
     void (*read_cursor)(void *ctx);
     bool (*tick)(void *ctx, EquipmentPlace at);
-    bool (*slide_members)(void *ctx);
-    bool (*open_the_slots_window)(void *ctx);
     bool (*wait)(void *ctx, EquipmentPlace at);
+    void (*registers_at)(void *ctx, EquipmentPlace at);
+    bool (*run)(void *ctx, EquipmentRoutine routine);
     void (*note)(void *ctx, EquipmentNote note, uint8_t value);
     bool (*ends)(void *ctx, EquipmentEnd end);
 } EquipmentSteps;
 
-bool menu_open_equipment_with(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx);
-bool menu_choose_equipment_member_with(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx);
-bool menu_point_at_equipment_member_with(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx);
+typedef bool EquipmentSequence(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx);
+EquipmentSequence menu_open_equipment_with, menu_choose_equipment_member_with, menu_point_at_equipment_member_with,
+    menu_open_the_slots_window_with, menu_close_the_slots_window_with, menu_choose_equipment_slot_with,
+    menu_point_at_equipment_slot_with, menu_switch_equipment_member_with, menu_choose_equipment_item_with,
+    menu_point_along_equipment_list_with, menu_open_the_equipment_list_with, menu_slide_the_equipment_list_in_with,
+    menu_slide_the_equipment_list_out_with, menu_make_the_equipment_list_with, menu_redraw_the_equipment_list_with,
+    menu_back_on_the_equipment_slots_with, menu_start_sliding_equipment_members_with,
+    menu_slide_equipment_members_with;
+
+/* Back on the members from the slots ($C2:A2CD): the member list again, its
+ * scroll bar, the rows at rest. */
+void menu_equip_back_to_the_members(GameState *g, Platform *pf);
+
+/* The sound of an item put on. */
+enum { MENU_EQUIP_PUT_ON_SOUND = 0xB5 };
 
 /* What they take of the state, as their entries' guards do: the set-up,
  * choosing a member, pointing at one. */
 bool menu_equip_can_set_up(const GameState *g);
 bool menu_equip_can_choose_a_member(const GameState *g);
 bool menu_equip_can_point_at_a_member(const GameState *g);
+/* And the guards' state halves of the rest (equipment_bridge.c): the slots'
+ * window sliding in and out, pointing at a slot or switching members,
+ * back on the members, the list's opening, drawing, sliding and pointing,
+ * back on the slots, choosing an item, the weapon's byte forgotten. */
+bool menu_equip_slots_window_can_slide(const GameState *g);
+bool menu_equip_members_can_slide(const GameState *g);
+bool menu_equip_can_point_at_a_slot(const GameState *g);
+bool menu_equip_members_can_come_back(const GameState *g);
+bool menu_equip_list_can_open(const GameState *g);
+bool menu_equip_list_can_be_drawn(const GameState *g);
+bool menu_equip_list_can_slide(const GameState *g);
+bool menu_equip_list_can_be_pointed_along(const GameState *g);
+bool menu_equip_slots_can_come_back(const GameState *g);
+bool menu_equip_can_choose_an_item(const GameState *g);
+bool menu_equip_weapon_can_be_forgotten(const GameState *g);
 
 /* As C, from the menus' main task; false where the program went no
  * further. */
 bool menu_open_equipment(GameState *g, Platform *pf);
 bool menu_choose_equipment_member(GameState *g, Platform *pf);
+bool menu_choose_equipment_slot(GameState *g, Platform *pf);
+bool menu_choose_equipment_item(GameState *g, Platform *pf);
 
 /* ---- The entries (game/menu/equipment_bridge.c) ----------------------------------------------- */
 
@@ -284,10 +374,10 @@ void menu_choose_equipment_member_entry(Snes *s);
 void menu_point_at_equipment_member(Snes *s);
 void menu_start_sliding_equipment_members(Snes *s);
 void menu_slide_equipment_members(Snes *s);
-void menu_choose_equipment_slot(Snes *s);
+void menu_choose_equipment_slot_entry(Snes *s);
 void menu_point_at_equipment_slot(Snes *s);
-void menu_switch_equipment_member(Snes *s);
-void menu_choose_equipment_item(Snes *s);
+void menu_switch_equipment_member_entry(Snes *s);
+void menu_choose_equipment_item_entry(Snes *s);
 void menu_point_along_equipment_list(Snes *s);
 void menu_move_equipment_list_rows(Snes *s);
 void menu_forget_weapon(Snes *s);

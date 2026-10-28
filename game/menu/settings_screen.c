@@ -864,6 +864,121 @@ bool menu_take_setting_option_with(GameState *g, Platform *pf, const SettingsSte
     return !menu_asked(g, MENU_CHOOSE) || n->tick(ctx, SETTINGS_AT_AN_OPTION_CHOSEN);
 }
 
+// $C2:C164
+/* A push left or right steps the meter, with a tick. */
+bool menu_step_setting_meter_with(GameState *g, SettingsOption meter, const SettingsSteps *n, void *ctx)
+{
+    bool stepped = meter == SETTINGS_WINDOW_DESIGN ? menu_settings_step_design(g) : menu_settings_step_meter(g, meter);
+    if (!stepped) {
+        n->note(ctx, SETTINGS_NOTE_METER_UNMOVED, 0);
+        return true;
+    }
+    n->note(ctx, SETTINGS_NOTE_METER_SHOWN, 0);
+    return n->tick(ctx, SETTINGS_AT_A_METER_STEPPED);
+}
+
+// $C2:C0B9, $C2:C0D1
+/* A speed's meter stepped; choosing or going back leaves it for the speeds'
+ * box. */
+bool menu_step_speed_with(GameState *g, SettingsOption speed, const SettingsSteps *n, void *ctx)
+{
+    if (!n->step_meter(ctx, speed))
+        return false;
+    menu_settings_leave_the_meters(g);
+    return true;
+}
+
+// $C2:C12C
+/* While the design is being chosen its meter steps and the windows take
+ * it; choosing or going back starts or ends the choosing, with a tick. */
+bool menu_step_window_design_with(GameState *g, const SettingsSteps *n, void *ctx)
+{
+    bool was_choosing = menu_settings_choosing_design(g);
+    if (was_choosing) {
+        if (!n->step_meter(ctx, SETTINGS_WINDOW_DESIGN))
+            return false;
+        menu_settings_show_design(g);
+        n->note(ctx, SETTINGS_NOTE_DESIGN_LOADED, 0);
+    }
+    if (menu_settings_toggle_design_choice(g)) {
+        n->note(ctx, SETTINGS_NOTE_DESIGN_TOGGLED, was_choosing);
+        if (!n->tick(ctx, SETTINGS_AT_THE_DESIGN_TOGGLED))
+            return false;
+    }
+    menu_settings_hold_cursor_on_the_design(g);
+    return true;
+}
+
+// $C2:BF9F
+/* Choosing or going back returns to the options with a tick; a move to
+ * another layout takes it, with a tick. */
+bool menu_choose_gauge_layout_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx)
+{
+    (void)pf;
+    n->read_cursor(ctx);
+    switch (menu_settings_choose_gauge_layout(g)) {
+    case GAUGE_CHOSEN:
+        menu_settings_back_from_the_gauge(g);
+        n->note(ctx, SETTINGS_NOTE_GAUGE_LEFT, 0);
+        return n->ends_with_a_tick(ctx);
+    case GAUGE_POINTED_AT: n->note(ctx, SETTINGS_NOTE_GAUGE_POINTED, 0); return true;
+    case GAUGE_MOVED:
+        menu_settings_take_gauge_layout(g);
+        n->note(ctx, SETTINGS_NOTE_GAUGE_TAKEN, 0);
+        return n->tick(ctx, SETTINGS_AT_A_GAUGE_TAKEN);
+    }
+    return false;
+}
+
+// $C2:BF6D, $C2:C183
+/* Leaving the rows (with a tick) goes back to the controls. Otherwise
+ * Start or a push up or down (with a tick) puts back or keeps; then the
+ * row's button steps with a push left or right, with a tick. */
+bool menu_choose_buttons_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx)
+{
+    (void)pf;
+    n->read_cursor(ctx);
+    SettingsButtonsInput input = menu_settings_take_buttons_input(g);
+    if (input == BUTTONS_KEPT_AND_LEFT || input == BUTTONS_LEFT) {
+        if (input == BUTTONS_KEPT_AND_LEFT) {
+            menu_settings_keep_the_rows(g);
+            n->note(ctx, SETTINGS_NOTE_ROWS_KEPT, 0);
+        } else {
+            n->note(ctx, SETTINGS_NOTE_ROWS_LEFT_UNKEPT, 0);
+        }
+        if (!n->tick(ctx, SETTINGS_AT_THE_BUTTONS_LEFT))
+            return false;
+        menu_settings_leave_the_buttons(g);
+        n->note(ctx, SETTINGS_NOTE_QUEUED, 0);
+        return true;
+    }
+    n->note(ctx, SETTINGS_NOTE_BUTTONS_TESTED, 0);
+    n->registers_at(ctx, SETTINGS_AT_THE_BUTTONS_TAKEN);
+    if (input == BUTTONS_RESET) {
+        n->note(ctx, SETTINGS_NOTE_START_TESTED, 0);
+        if (!n->tick(ctx, SETTINGS_AT_THE_BUTTONS_RESET))
+            return false;
+        menu_settings_reset_buttons(g);
+    } else if (input == BUTTONS_KEPT) {
+        n->note(ctx, SETTINGS_NOTE_UP_OR_DOWN_TESTED, 0);
+        if (!n->tick(ctx, SETTINGS_AT_THE_BUTTONS_KEPT))
+            return false;
+        menu_settings_keep_buttons(g);
+    }
+    n->registers_at(ctx, SETTINGS_AT_A_ROW_S_BUTTON);
+    if (menu_settings_give_row_button(g)) {
+        uint8_t paging_before = menu_settings_buttons(g, SETTINGS_PAGE_ONE_WAY);
+        menu_settings_show_row_change(g);
+        n->note(ctx, SETTINGS_NOTE_ROW_CHANGED, paging_before);
+        if (!n->tick(ctx, SETTINGS_AT_A_ROW_CHANGED))
+            return false;
+    }
+    n->registers_at(ctx, SETTINGS_AT_THE_BUTTONS_DONE);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
+    n->note(ctx, SETTINGS_NOTE_QUEUED, 0);
+    return true;
+}
+
 /* ---- The opening and the options as C ----------------------------------------------------------- */
 
 typedef struct {
@@ -902,9 +1017,8 @@ static bool send(void *ctx)
     return true;
 }
 
-/* Each option's handler as C, timed as its routine; the meters' and the
- * design's step through a routine of their own only the machine runs yet. */
-typedef enum { HANDLER_STEREO, HANDLER_FLIP, HANDLER_SPEEDS, HANDLER_GAUGE, HANDLER_CONTROLS, HANDLER_ONLY_ON_THE_MACHINE } HandlerKind;
+/* Each option's handler as C, timed as its routine. */
+typedef enum { HANDLER_STEREO, HANDLER_FLIP, HANDLER_SPEEDS, HANDLER_GAUGE, HANDLER_CONTROLS, HANDLER_METER, HANDLER_DESIGN } HandlerKind;
 static const struct {
     uint32_t routine;
     HandlerKind kind;
@@ -915,15 +1029,15 @@ static const struct {
     [SETTINGS_KEEP_BATTLE_COMMAND] = { 0xC2C04A, HANDLER_FLIP },
     [SETTINGS_KEEP_BATTLE_LISTS] = { 0xC2C05C, HANDLER_FLIP },
     [SETTINGS_SPEEDS] = { 0xC2C0A7, HANDLER_SPEEDS },
-    [SETTINGS_WINDOW_DESIGN] = { 0xC2C12C, HANDLER_ONLY_ON_THE_MACHINE },
+    [SETTINGS_WINDOW_DESIGN] = { 0xC2C12C, HANDLER_DESIGN },
     [SETTINGS_BATTLE_GAUGE] = { 0xC2C080, HANDLER_GAUGE },
     [SETTINGS_CONTROLS] = { 0xC2C0E9, HANDLER_CONTROLS },
     [SETTINGS_DESCRIPTIONS] = { 0xC2C095, HANDLER_FLIP },
-    [SETTINGS_BATTLE_SPEED] = { 0xC2C0B9, HANDLER_ONLY_ON_THE_MACHINE },
-    [SETTINGS_MESSAGE_SPEED] = { 0xC2C0D1, HANDLER_ONLY_ON_THE_MACHINE },
+    [SETTINGS_BATTLE_SPEED] = { 0xC2C0B9, HANDLER_METER },
+    [SETTINGS_MESSAGE_SPEED] = { 0xC2C0D1, HANDLER_METER },
 };
 
-static void run_the_handler(SettingsAsC *c, SettingsOption option)
+static bool run_the_handler(SettingsAsC *c, SettingsOption option)
 {
     GameState *g = c->game;
     switch (handlers[option].kind) {
@@ -932,19 +1046,27 @@ static void run_the_handler(SettingsAsC *c, SettingsOption option)
     case HANDLER_SPEEDS: menu_settings_take_speeds(g); break;
     case HANDLER_GAUGE: menu_settings_take_gauge(g); break;
     case HANDLER_CONTROLS: (void)menu_settings_take_controls(g); break;
-    case HANDLER_ONLY_ON_THE_MACHINE: break;
+    case HANDLER_METER: return menu_step_speed_with(g, option, &as_c, c);
+    case HANDLER_DESIGN: return menu_step_window_design_with(g, &as_c, c);
     }
+    return true;
 }
 
 static bool handle(void *ctx, SettingsOption option)
 {
     SettingsAsC *c = ctx;
-    if (handlers[option].kind == HANDLER_ONLY_ON_THE_MACHINE) {
-        program_needs_the_machine(c->game, handlers[option].routine, "a setting's meter only the machine steps");
-        return false;
-    }
-    TIMED_AS(c->game, handlers[option].routine, run_the_handler(c, option));
-    return true;
+    bool handled = false;
+    TIMED_AS(c->game, handlers[option].routine, handled = run_the_handler(c, option));
+    return handled;
+}
+
+/* A meter stepped, timed as its routine. */
+static bool a_meter_stepped(void *ctx, SettingsOption meter)
+{
+    SettingsAsC *c = ctx;
+    bool stepped = false;
+    TIMED_AS(c->game, 0xC2C164, stepped = menu_step_setting_meter_with(c->game, meter, &as_c, c));
+    return stepped;
 }
 
 static bool back_to_the_main_menu(void *ctx)
@@ -955,7 +1077,18 @@ static bool back_to_the_main_menu(void *ctx)
 
 static void note(void *ctx, SettingsNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
 
-static const SettingsSteps as_c = { read_cursor, tick, take_the_option, handle, back_to_the_main_menu, note };
+static void registers_at(void *ctx, SettingsPlace at) { (void)ctx, (void)at; }
+
+static bool ends_with_a_tick(void *ctx)
+{
+    SettingsAsC *c = ctx;
+    menu_tick(c->game, c->pf);
+    return true;
+}
+
+static const SettingsSteps as_c = {
+    read_cursor, tick, take_the_option, handle, back_to_the_main_menu, note, a_meter_stepped, registers_at, ends_with_a_tick,
+};
 
 static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(const GameState *),
                  bool (*run)(GameState *, Platform *, const SettingsSteps *, void *))
@@ -976,4 +1109,14 @@ bool menu_open_settings(GameState *g, Platform *pf)
 bool menu_choose_setting(GameState *g, Platform *pf)
 {
     return step(g, pf, 0xC2BF45, menu_settings_can_choose, menu_choose_setting_with);
+}
+
+static bool buttons_step_takes(const GameState *g) { return menu_cursor_can_move(g) && menu_settings_can_choose_buttons(g); }
+static bool layout_step_takes(const GameState *g) { return menu_cursor_can_move(g) && menu_settings_can_choose_a_layout(g); }
+
+bool menu_choose_buttons(GameState *g, Platform *pf) { return step(g, pf, 0xC2BF6D, buttons_step_takes, menu_choose_buttons_with); }
+
+bool menu_choose_gauge_layout(GameState *g, Platform *pf)
+{
+    return step(g, pf, 0xC2BF9F, layout_step_takes, menu_choose_gauge_layout_with);
 }

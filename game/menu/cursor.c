@@ -418,6 +418,20 @@ void menu_step_reads_the_cursor(Snes *s)
     ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
 }
 
+void menu_hold_and_read_the_cursor(GameState *g)
+{
+    set_menu_cursor_held(g, (uint8_t)(menu_cursor_held(g) + 1));
+    TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
+}
+
+void menu_step_holds_and_reads_the_cursor(Snes *s)
+{
+    GameState *g = state_of(s);
+    MenuCursorRead r = menu_note_cursor_read(g);
+    menu_hold_and_read_the_cursor(g);
+    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
+}
+
 void menu_step_reads_the_cursor_and_tests_its_buttons(Snes *s)
 {
     menu_step_reads_the_cursor(s);
@@ -488,6 +502,21 @@ void menu_sound_played(GameState *g, Platform *pf, uint8_t sound)
     (void)play_a_sound(g, SOUND_EFFECT_ON_VOICES_6_7, sound, &as_c, &c);
 }
 
+// $C2:EAF9
+/* A sound on the effects' other voices, sent whatever the wait. */
+static bool play_on_other_voices(GameState *g, uint8_t sound, const SoundCalls *c, void *ctx)
+{
+    set_menu_wait_frames(g, 0);
+    return play_a_sound(g, SOUND_EFFECT_ON_VOICES_4_5, sound, c, ctx);
+}
+
+void menu_sound_played_on_other_voices(GameState *g, Platform *pf, uint8_t sound)
+{
+    static const SoundCalls as_c = { sent, dropped };
+    SoundAsC c = { g, pf };
+    (void)play_on_other_voices(g, sound, &as_c, &c);
+}
+
 void menu_read_the_cursor_for_a_step(GameState *g) { TIMED_AS(g, 0xC2E984, menu_read_cursor(g)); }
 
 // $C2:EAC2
@@ -513,9 +542,10 @@ static void leave_wait(Snes *s) { m_set_a8(s, menu_wait_frames(state_of(s))); }
 
 static void dropped_on_the_machine(void *ctx) { ORIGINAL_EFFECT(leave_wait(ctx)); }
 
+static const SoundCalls on_the_machine = { sent_on_the_machine, dropped_on_the_machine };
+
 static bool play(Snes *s, SoundEffectVoices voices, uint8_t sound)
 {
-    static const SoundCalls on_the_machine = { sent_on_the_machine, dropped_on_the_machine };
     return play_a_sound(state_of(s), voices, sound, &on_the_machine, s);
 }
 
@@ -540,11 +570,9 @@ void menu_send_sound(Snes *s)
 }
 
 // $C2:EAF9
-/* A sound on the effects' other voices, sent whatever the wait. */
 void menu_send_sound_on_other_voices(Snes *s)
 {
-    set_menu_wait_frames(state_of(s), 0);
-    if (play(s, SOUND_EFFECT_ON_VOICES_4_5, (uint8_t)s->cpu.a))
+    if (play_on_other_voices(state_of(s), (uint8_t)s->cpu.a, &on_the_machine, s))
         m_rts(s);
 }
 

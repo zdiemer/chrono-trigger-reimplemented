@@ -29,7 +29,10 @@
 #include "menu/fades.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
+#include "menu/gate_screen.h"
+#include "menu/healing.h"
 #include "menu/held_cursors.h"
+#include "menu/sound.h"
 #include "menu/sprites.h"
 #include "original_effects.h"
 #include "platform/timing.h"
@@ -569,6 +572,9 @@ static const struct {
     { MENU_TYPE_A_DESCRIPTION, menu_type_the_description_task },
     { MENU_TYPE_A_SETTING, menu_type_the_setting_task },
     { MENU_TYPE_A_VALUE, menu_type_the_value_task },
+    { MENU_RAISE_AMOUNTS_TASK_START, menu_raise_amounts_task },
+    { MENU_GATE_SONG_TASK_START, menu_play_the_gate_song },
+    { MENU_GATE_SCREEN_TASK_START, menu_gate_screen_task },
 };
 enum { TASKS_AS_C = sizeof tasks / sizeof tasks[0] };
 

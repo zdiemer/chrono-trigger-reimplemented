@@ -2700,26 +2700,22 @@ list, by kind, is what `game/` still asks of one.
   and the settings (the opening, the options, an option taken) run as C
   (docs/history/reimplementation-chunks.md, "The native program through the
   main menu"); the save screens and the party exchange do too
-  (REIMPLEMENTATION.md, "The native program from a cartridge save"); where
-  one of them meets what has no C yet, `program_needs_the_machine` stops the
-  program there and says which: the gate's exchange's opening (`$C2:C7AC`,
-  its song's task, swirl and gate sprite) and the place's song back as it
-  closes (`$C2:CC0E`), the equipment's slots window (`$C2:A71E`) and its
-  member list's slide (`$C2:9D5B`), the items list's slide (`$C2:AC3A`), the
-  techs' member slide and lister (`$C2:B568`, `$C2:B9E1`), the settings'
-  design and speed meters (`$C2:C12C`, `$C2:C0B9`, `$C2:C0D1`), and on the
-  load screen (as C: REIMPLEMENTATION.md, "The native program from a
-  cartridge save") a slot's erasing (`$C2:E8B7`). Every other step of those
-  screens, and the shops', has no C column in
-  `menu/screens.c`'s table yet. Each wants
-  the same shape: the step one `*_with` sequence whose machine entry passes
-  `*_on_the_machine` steps.
+  (REIMPLEMENTATION.md, "The native program from a cartridge save"), and so
+  do the rest of the equipment's, the items', the techs', the settings' and
+  the gate's exchange's steps (REIMPLEMENTATION.md, "The native program
+  through the menus the player opens"); where one of them meets what has no
+  C yet, `program_needs_the_machine` stops the program there and says which:
+  the items list's slide (`$C2:AC3A`), an item tried on that is no item of
+  the game's (`$C2:A5C3`), a member's row whose record names no character
+  (`$C2:A225`), and on the load screen a slot's erasing (`$C2:E8B7`). The
+  shops' nine steps have no C column in `menu/screens.c`'s table yet. Each
+  wants the same shape: the step one `*_with` sequence whose machine entry
+  passes `*_on_the_machine` steps.
 - **Where the save movies stop.** From a cartridge save `ct_native` plays
-  35 of the 40 save movies to their end; the others stop where the program
-  meets what has no C yet (REIMPLEMENTATION.md, "The native program through
-  the Epoch's screens and the race's opening"): the menus above (the gate's
-  exchange `$C2:C7AC`, the equipment's slots window `$C2:A71E`, an item moved
-  `$C2:AAC8`, a shop `$C2:D52B`).
+  39 of the 40 save movies to their end; menus-shop-inn stops at the shop's
+  opening (`$C2:D52B`), whose steps (above) are the menus' last with no C.
+  The shop's bridges (`menu/shop_bridge.c`) reach the equipment's sequences
+  too, for the member a shop's equipment is tried on.
 - **The menus' steps' notes carry machine work.** In the items', the techs'
   and the settings' sequences (menu/item_screen.c, tech_screen.c,
   settings_screen.c) a note is where the machine both leaves the original's

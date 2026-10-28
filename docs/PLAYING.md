@@ -636,9 +636,12 @@ of the menus into the game, and the save screens and the party exchange, and aft
 the switches a step presses, the time gate's tunnel, and the Day of Lavos
 lost (the world turning, the planet, and the console's reset to the title);
 the Epoch's time dial and map view, and the jet bike race from its opening;
-35 of the save movies play to their end (REIMPLEMENTATION.md, "The native
-program through the Epoch's screens and the race's opening", says where the
-others stop).
+the menus the player opens through the equipment's slots and list, an item
+moved or used and the healing it shows, the techs' list and the members a
+tech is used on, the settings' meters, gauge and buttons, and the End of
+Time gate's exchange with its song and swirl; 39 of the save movies play to
+their end, all but the shop's (REIMPLEMENTATION.md, "The native program
+through the menus the player opens").
 
 The field's steps as the program calls them (`field_runs`,
 `field/main_loop.c`) are functions of the game's state that the entries

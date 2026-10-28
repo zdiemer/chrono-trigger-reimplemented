@@ -22,6 +22,8 @@
  * original's machine, waiting for the next frame between the parts here
  * where the screen does. */
 #include "menu/item_screen.h"
+#include "menu/tech_screen.h"
+#include "menu/healing.h"
 
 #include "charge.h"
 #include "core/program.h"
@@ -310,12 +312,7 @@ void menu_items_show_users(GameState *g, Platform *pf)
 
 // $C2:AC1D
 /* The window stays while the cursor is held; any button closes it. */
-bool menu_items_users_closed(GameState *g)
-{
-    set_menu_cursor_held(g, (uint8_t)(menu_cursor_held(g) + 1));
-    TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
-    return chose(g) || went_back(g);
-}
+bool menu_items_users_closed(const GameState *g) { return chose(g) || went_back(g); }
 
 void menu_items_close_users(GameState *g)
 {
@@ -1154,6 +1151,252 @@ bool menu_choose_on_item_list_with(GameState *g, Platform *pf, const ItemsSteps 
     return menu_point_along_the_item_list_with(g, pf, n, ctx);
 }
 
+/* The tasks the move stops: the second cursor's (the fourth's bit). */
+enum { HELD_CURSOR_TASK = 0x40 };
+
+// $C2:AAC8
+/* With an item picked up: put down elsewhere (a tick, the two swapped) or
+ * back, a frame, the list drawn again; put down on itself, its use. Then the
+ * second cursor's task stopped. Otherwise the cursor moves along the list. */
+bool menu_move_picked_item_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    n->read_cursor(ctx);
+    ItemsMoveChoice c = menu_items_choose_where(g);
+    n->note(ctx, ITEMS_NOTE_BUTTONS_TESTED, 0);
+    switch (c) {
+    case MOVE_POINTED_AT: return menu_point_along_the_item_list_with(g, pf, n, ctx);
+    case MOVE_PUT_DOWN:
+        if (!n->tick(ctx, ITEMS_AT_THE_PICKED_ITEM_PUT))
+            return false;
+        menu_items_swap_with_the_picked(g);
+        /* fall through */
+    case MOVE_LEFT:
+        if (!n->wait(ctx, ITEMS_AT_THE_LIST_PUT_BACK))
+            return false;
+        menu_items_back_to_the_list(g);
+        n->note(ctx, ITEMS_NOTE_ROWS_QUEUED, 0);
+        break;
+    case MOVE_ON_ITSELF:
+        if (!n->tick(ctx, ITEMS_AT_THE_PICKED_ITEM_PUT))
+            return false;
+        switch (menu_items_use_of_the_picked(g)) {
+        case USING_FROM_THE_MENU:
+            n->note(ctx, ITEMS_NOTE_EFFECT_TESTED, 0);
+            if (!n->run(ctx, ITEMS_USES_THE_ITEM))
+                return false;
+            menu_items_back_to_the_list_unchanged(g);
+            break;
+        case USING_SHOWS_USERS:
+            menu_items_start_showing_users(g);
+            TIMED_AS(g, 0xC2AE91, menu_items_show_users(g, pf));
+            break;
+        case USING_DOES_NOTHING: menu_items_back_to_the_list_unchanged(g); break;
+        }
+        break;
+    }
+    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, HELD_CURSOR_TASK));
+    return true;
+}
+
+/* ---- An item used from the menu ------------------------------------------------------------------- */
+
+// $C2:B0AB
+/* The item's use looked up, and used its way: a tonic's healing, a healing
+ * by chance, the party's rest, a tab's figure; or nothing. */
+bool menu_use_item_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    (void)pf;
+    ItemUseKind kind = menu_items_look_up_use(g, menu_item_operand(g));
+    n->note(ctx, ITEMS_NOTE_USE_FOUND, 0);
+    switch (kind) {
+    case USE_RESTORES: return n->run(ctx, ITEMS_USES_A_RESTORING_ITEM);
+    case USE_RESTORES_BY_CHANCE: return n->run(ctx, ITEMS_USES_AN_ITEM_BY_CHANCE);
+    case USE_RESTS_THE_PARTY: return n->run(ctx, ITEMS_RESTS_THE_PARTY);
+    case USE_RAISES_A_FIGURE: return n->run(ctx, ITEMS_USES_A_TAB);
+    case USE_DOES_NOTHING: break;
+    }
+    return true;
+}
+
+/* The member window closed with a tick: the records reset, the second
+ * cursor's task stopped, the window's layer cleared and queued. */
+static bool leave_the_member_window_with(GameState *g, const ItemsSteps *n, void *ctx)
+{
+    if (!n->tick(ctx, ITEMS_AT_THE_MEMBER_WINDOW_LEFT))
+        return false;
+    menu_items_close_member_window(g);
+    TIMED_AS(g, 0xC2F566, menu_reset_character_records(g));
+    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, HELD_CURSOR_TASK));
+    n->note(ctx, ITEMS_NOTE_HELD_CURSOR_STOPPED, 0);
+    menu_items_clear_member_window(g);
+    return true;
+}
+
+/* The member window an item is used from, the same for a tonic and a tab:
+ * opened, then a frame at a time the cursor among the members (a tonic's
+ * pointing is the techs screen's healing's, a tab's looks at the member's
+ * figure), and choosing uses the item where it helps and buzzes where it
+ * doesn't, until the player goes back. */
+static bool choose_members_to_use_on_with(GameState *g, ItemUseKind kind, const ItemsSteps *n, void *ctx)
+{
+    bool tab = kind == USE_RAISES_A_FIGURE;
+    ItemsPlace members = tab ? ITEMS_AT_THE_TAB_S_MEMBERS : ITEMS_AT_THE_TONIC_S_MEMBERS;
+    menu_items_start_member_choice(g);
+    n->note(ctx, ITEMS_NOTE_MEMBER_CHOICE_STARTED, (uint8_t)kind);
+    if (!n->run(ctx, tab ? ITEMS_OPENS_THE_MEMBER_WINDOW_FOR_A_TAB : ITEMS_OPENS_THE_MEMBER_WINDOW_FOR_A_TONIC))
+        return false;
+    if (!tab && menu_items_restores_every_member(g))
+        TIMED_AS(g, 0xC28AD5, menu_put_cursors_on_every_member(g));
+    for (;;) {
+        if (!n->wait(ctx, members))
+            return false;
+        n->read_cursor(ctx);
+        if (!n->run(ctx, tab ? ITEMS_POINTS_AT_A_TAB_MEMBER : ITEMS_POINTS_AT_A_MEMBER_TO_RESTORE))
+            return false;
+        ItemsMemberChoice c = menu_items_choose_member(g);
+        n->note(ctx, ITEMS_NOTE_BUTTONS_TESTED, 0);
+        if (c == MEMBERS_LEFT)
+            return leave_the_member_window_with(g, n, ctx);
+        if (c == MEMBER_POINTED_AT_TO_USE_ON)
+            continue;
+        n->note(ctx, ITEMS_NOTE_HELP_LOADED, 0);
+        if (!menu_items_use_helps(g)) {
+            if (!n->refuse(ctx, members))
+                return false;
+            continue;
+        }
+        bool used = tab ? n->run(ctx, ITEMS_RAISES_THE_FIGURE) && n->run(ctx, ITEMS_USES_ONE_MORE_TAB)
+                        : n->run(ctx, ITEMS_HEALS_AND_SHOWS) && n->run(ctx, ITEMS_USES_ONE_MORE_TONIC);
+        if (!used)
+            return false;
+    }
+}
+
+// $C2:B17F
+/* A tonic: its strength, then the members. */
+bool menu_use_restoring_item_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    (void)pf;
+    menu_items_set_restore_strength(g);
+    return choose_members_to_use_on_with(g, USE_RESTORES, n, ctx);
+}
+
+// $C2:B107
+/* An item by chance: its outcome drawn, then as a tonic. */
+bool menu_use_item_by_chance_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    menu_items_draw_a_chance(g);
+    return menu_use_restoring_item_with(g, pf, n, ctx);
+}
+
+// $C2:B1F8
+/* The party's rest, then the members. */
+bool menu_rest_the_party_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    (void)pf;
+    menu_items_set_party_rest(g);
+    return choose_members_to_use_on_with(g, USE_RESTS_THE_PARTY, n, ctx);
+}
+
+// $C2:B200
+/* A tab: its figure, then the members it raises it for. */
+bool menu_use_tab_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    (void)pf;
+    n->registers_at(ctx, ITEMS_AT_THE_TAB_S_FIGURE);
+    menu_items_set_figure_raised(g, menu_item_operand(g));
+    n->registers_at(ctx, ITEMS_AT_THE_TAB_S_MEMBERS);
+    return choose_members_to_use_on_with(g, USE_RAISES_A_FIGURE, n, ctx);
+}
+
+// $C2:AF42
+/* The member window opened over the list: the window, the records reset,
+ * its lines; a frame; the members drawn and their records started; a frame;
+ * their sprites shown. */
+bool menu_open_member_window_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    menu_items_open_member_window(g, pf);
+    TIMED_AS(g, 0xC2F566, menu_reset_character_records(g));
+    menu_items_lay_out_member_window_lines(g);
+    if (!n->wait(ctx, ITEMS_AT_THE_MEMBER_WINDOW_OPENING))
+        return false;
+    menu_items_draw_members(g, pf);
+    menu_items_hide_member_sprites(g);
+    TIMED_AS(g, 0xC2F643, menu_start_the_records(g));
+    if (!n->wait(ctx, ITEMS_AT_THE_MEMBER_WINDOW_DRAWN))
+        return false;
+    menu_items_show_member_sprites(g);
+    return true;
+}
+
+// $C2:B275
+/* A tab's member pointed at, a tick where it is another, and looked at. */
+bool menu_look_at_tab_member_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    (void)pf;
+    uint8_t before = menu_use_member(g);
+    bool another = menu_items_point_at_a_member(g);
+    n->note(ctx, ITEMS_NOTE_MEMBER_COMPARED, before);
+    if (another && !n->tick(ctx, ITEMS_AT_A_TAB_MEMBER_POINTED))
+        return false;
+    menu_items_look_at_the_member(g);
+    n->note(ctx, ITEMS_NOTE_MEMBER_LOOKED_AT, 0);
+    return true;
+}
+
+// $C2:B24A
+/* The cursor taken round the members, and the member looked at. */
+bool menu_point_at_tab_member_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    (void)pf;
+    menu_items_take_the_cursor_round(g);
+    if (!n->run(ctx, ITEMS_LOOKS_AT_THE_TAB_MEMBER))
+        return false;
+    menu_items_after_looking(g);
+    n->note(ctx, ITEMS_NOTE_BLOCKS_SET, 0);
+    return true;
+}
+
+// $C2:B2A7
+/* A tab used: its sparkle and amount shown, the figure raised, and the
+ * member's figures worked out again. */
+bool menu_raise_figure_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    (void)pf;
+    menu_items_show_the_raise(g);
+    if (!n->run(ctx, ITEMS_SHOWS_THE_RAISE_S_AMOUNTS))
+        return false;
+    n->registers_at(ctx, ITEMS_AT_THE_FIGURE_RAISED);
+    menu_items_raise_the_figure(g);
+    TIMED_AS(g, 0xC29137, menu_note_member_figures(g));
+    n->note(ctx, ITEMS_NOTE_FIGURES_NOTED, 0);
+    return true;
+}
+
+// $C2:B31C
+void menu_items_use_one_more(GameState *g, Platform *pf)
+{
+    menu_items_use_one(g);
+    menu_items_describe(g, menu_items_picked_item(g));
+    menu_items_draw_members(g, pf);
+    menu_items_after_one_used(g);
+}
+
+// $C2:AC1D
+/* Who can equip the item shown until a button: then a tick, and back. */
+bool menu_close_item_users_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
+{
+    (void)pf;
+    n->read_cursor_held(ctx);
+    if (!menu_items_users_closed(g))
+        return true;
+    n->note(ctx, ITEMS_NOTE_USERS_BUTTONS_LOADED, 0);
+    if (!n->tick(ctx, ITEMS_AT_THE_USERS_CLOSED))
+        return false;
+    menu_items_close_users(g);
+    return true;
+}
+
 // $C2:AB4A
 /* The sort, a frame, and the list drawn again. */
 bool menu_sort_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
@@ -1174,6 +1417,7 @@ typedef struct {
 } ItemsAsC;
 
 static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((ItemsAsC *)ctx)->game); }
+static void read_cursor_held(void *ctx) { menu_hold_and_read_the_cursor(((ItemsAsC *)ctx)->game); }
 
 static bool tick(void *ctx, ItemsPlace at)
 {
@@ -1220,7 +1464,73 @@ static bool back_to_the_main_menu(void *ctx)
 
 static void note(void *ctx, ItemsNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
 
-static const ItemsSteps as_c = { read_cursor, tick, wait, describe, slide_the_list, back_to_the_main_menu, note };
+static bool refuse(void *ctx, ItemsPlace at)
+{
+    (void)at;
+    ItemsAsC *c = ctx;
+    menu_buzz(c->game, c->pf);
+    return true;
+}
+
+static void registers_at(void *ctx, ItemsPlace at) { (void)ctx, (void)at; }
+
+static const ItemsSteps as_c;
+
+static bool not_taken(ItemsAsC *c, uint32_t routine)
+{
+    program_needs_the_machine(c->game, routine, "an item's use the port doesn't take");
+    return false;
+}
+
+/* A routine of the use as C where its entry's guard would take the state,
+ * timed as its own. */
+static bool sequence(ItemsAsC *c, uint32_t routine, bool (*takes)(const GameState *), ItemsSequence *run)
+{
+    if (!takes(c->game))
+        return not_taken(c, routine);
+    bool done = false;
+    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &as_c, c));
+    return done;
+}
+
+static bool run(void *ctx, ItemsRoutine r)
+{
+    ItemsAsC *c = ctx;
+    GameState *g = c->game;
+    bool done = false;
+    switch (r) {
+    case ITEMS_USES_THE_ITEM: return sequence(c, 0xC2B0AB, menu_items_use_can_run, menu_use_item_with);
+    case ITEMS_USES_A_RESTORING_ITEM: return sequence(c, 0xC2B17F, menu_items_use_can_run, menu_use_restoring_item_with);
+    case ITEMS_USES_AN_ITEM_BY_CHANCE: return sequence(c, 0xC2B107, menu_items_use_can_run, menu_use_item_by_chance_with);
+    case ITEMS_RESTS_THE_PARTY: return sequence(c, 0xC2B1F8, menu_items_use_can_run, menu_rest_the_party_with);
+    case ITEMS_USES_A_TAB: return sequence(c, 0xC2B200, menu_items_use_can_run, menu_use_tab_with);
+    case ITEMS_OPENS_THE_MEMBER_WINDOW_FOR_A_TONIC:
+    case ITEMS_OPENS_THE_MEMBER_WINDOW_FOR_A_TAB:
+        return sequence(c, 0xC2AF42, menu_items_member_window_can_run, menu_open_member_window_with);
+    case ITEMS_POINTS_AT_A_MEMBER_TO_RESTORE:
+        TIMED_AS(g, 0xC2B83E, done = menu_point_at_member_to_restore(g, c->pf));
+        return done;
+    case ITEMS_POINTS_AT_A_TAB_MEMBER:
+        return sequence(c, 0xC2B24A, menu_items_tab_member_can_be_pointed, menu_point_at_tab_member_with);
+    case ITEMS_LOOKS_AT_THE_TAB_MEMBER:
+        return sequence(c, 0xC2B275, menu_items_tab_member_can_be_pointed, menu_look_at_tab_member_with);
+    case ITEMS_HEALS_AND_SHOWS: TIMED_AS(g, 0xC28F55, done = menu_heal_and_show(g, c->pf)); return done;
+    case ITEMS_RAISES_THE_FIGURE: return sequence(c, 0xC2B2A7, menu_items_figure_can_be_raised, menu_raise_figure_with);
+    case ITEMS_SHOWS_THE_RAISE_S_AMOUNTS: TIMED_AS(g, 0xC28F6C, done = menu_show_amounts(g, c->pf)); return done;
+    case ITEMS_USES_ONE_MORE_TONIC:
+    case ITEMS_USES_ONE_MORE_TAB:
+        if (!menu_items_member_window_can_run(g))
+            return not_taken(c, 0xC2B31C);
+        TIMED_AS(g, 0xC2B31C, menu_items_use_one_more(g, c->pf));
+        return true;
+    }
+    return false;
+}
+
+static const ItemsSteps as_c = {
+    read_cursor, read_cursor_held, tick, wait, describe, slide_the_list, back_to_the_main_menu, note, refuse, registers_at,
+    run,
+};
 
 /* A step as C where its entry's guard would take the state; otherwise the
  * program goes no further there. */
@@ -1247,6 +1557,16 @@ static bool list_step_takes(const GameState *g) { return menu_cursor_can_move(g)
 bool menu_choose_on_item_list(GameState *g, Platform *pf)
 {
     return step(g, pf, 0xC2AA86, list_step_takes, menu_choose_on_item_list_with);
+}
+
+bool menu_move_picked_item(GameState *g, Platform *pf)
+{
+    return step(g, pf, 0xC2AAC8, menu_items_can_move_the_picked, menu_move_picked_item_with);
+}
+
+bool menu_close_item_users(GameState *g, Platform *pf)
+{
+    return step(g, pf, 0xC2AC1D, menu_cursor_can_move, menu_close_item_users_with);
 }
 
 bool menu_sort_items(GameState *g, Platform *pf) { return step(g, pf, 0xC2AB4A, menu_items_can_sort, menu_sort_items_with); }

@@ -17,6 +17,8 @@ typedef enum { MENU_SOUND_CURSOR = 0, MENU_SOUND_REFUSAL = 1, MENU_SOUND_6 = 6, 
 /* A menu's sound on the effects' voices, as C: sent where it goes out (as
  * the routines that play one do on the machine). */
 void menu_sound_played(GameState *g, Platform *pf, uint8_t sound);
+/* A sound on the effects' other voices, sent whatever the wait ($C2:EAF9). */
+void menu_sound_played_on_other_voices(GameState *g, Platform *pf, uint8_t sound);
 
 /* What a screen's step does as C, each timed as the routine the machine
  * calls for it: the cursor read for the frame, the cursor's tick, and the
@@ -96,6 +98,11 @@ void menu_leave_cursor_read(Snes *s, MenuCursorRead r);
  * with the flags of the test of the buttons the original's steps make after
  * it (a BIT of menu_cursor_buttons against the accumulator it leaves). */
 void menu_step_reads_the_cursor(Snes *s);
+/* The cursor read held (a step that waits on any button): the hold counted
+ * and the cursor read, as C; and on the machine, leaving what the read
+ * leaves, noted before the hold. */
+void menu_hold_and_read_the_cursor(GameState *g);
+void menu_step_holds_and_reads_the_cursor(Snes *s);
 void menu_step_reads_the_cursor_and_tests_its_buttons(Snes *s);
 
 /* The entries. */

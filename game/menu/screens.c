@@ -56,24 +56,26 @@ static const Step main_menu_steps[] = {
 static const Step equipment_steps[] = {
     { 0x9C31, menu_open_equipment_entry, menu_open_equipment },
     { 0x9C39, menu_choose_equipment_member_entry, menu_choose_equipment_member },
-    { 0x9C70, menu_choose_equipment_slot, NULL }, { 0x9CA5, menu_choose_equipment_item, NULL },
+    { 0x9C70, menu_choose_equipment_slot_entry, menu_choose_equipment_slot },
+    { 0x9CA5, menu_choose_equipment_item_entry, menu_choose_equipment_item },
 };
 static const Step item_steps[] = {
     { 0xAA40, menu_open_items_entry, menu_open_items },
     { 0xAA4A, menu_choose_item_command_entry, menu_choose_item_command },
     { 0xAA86, menu_choose_on_item_list_entry, menu_choose_on_item_list },
-    { 0xAAC8, menu_move_picked_item, NULL }, { 0xAB4A, menu_sort_items_entry, menu_sort_items }, { 0xAC1D, menu_close_item_users, NULL },
+    { 0xAAC8, menu_move_picked_item_entry, menu_move_picked_item }, { 0xAB4A, menu_sort_items_entry, menu_sort_items }, { 0xAC1D, menu_close_item_users_entry, menu_close_item_users },
 };
 static const Step tech_steps[] = {
     { 0xB35D, menu_open_techs_entry, menu_open_techs },
     { 0xB365, menu_lay_out_tech_members_entry, menu_lay_out_tech_members },
     { 0xB36D, menu_choose_tech_member_entry, menu_choose_tech_member },
-    { 0xB3AE, menu_choose_tech, NULL }, { 0xB48E, menu_choose_tech_target, NULL },
+    { 0xB3AE, menu_choose_tech_entry, menu_choose_tech },
+    { 0xB48E, menu_choose_tech_target_entry, menu_choose_tech_target },
 };
 static const Step settings_steps[] = {
     { 0xBF3D, menu_open_settings_entry, menu_open_settings },
-    { 0xBF45, menu_choose_setting_entry, menu_choose_setting }, { 0xBF6D, menu_choose_buttons, NULL },
-    { 0xBF9F, menu_choose_gauge_layout, NULL },
+    { 0xBF45, menu_choose_setting_entry, menu_choose_setting }, { 0xBF6D, menu_choose_buttons_entry, menu_choose_buttons },
+    { 0xBF9F, menu_choose_gauge_layout_entry, menu_choose_gauge_layout },
 };
 static const Step exchange_steps[] = {
     { 0xC627, menu_open_exchange_entry, menu_open_exchange },
@@ -89,7 +91,7 @@ static const Step save_steps[] = {
     { 0xCF92, menu_close_the_question_on_a_button_entry, menu_close_the_question_on_a_button },
 };
 static const Step gate_exchange_steps[] = {
-    { 0xC7AC, menu_open_exchange_at_the_gate, NULL },
+    { 0xC7AC, menu_open_exchange_at_the_gate_entry, menu_open_exchange_at_the_gate },
     { 0xC7E0, menu_choose_first_at_the_gate_entry, menu_choose_first_at_the_gate },
     { 0xC6B9, menu_choose_second_to_exchange_entry, menu_choose_second_to_exchange },
 };

@@ -30,6 +30,9 @@
  *
  * The bridges on the original's machine are menu/exchange_bridge.c. */
 #include "menu/exchange.h"
+#include "menu/sound.h"
+#include "menu/gate_screen.h"
+#include "menu/fades.h"
 
 #include "charge.h"
 #include "core/program.h"
@@ -342,7 +345,7 @@ enum { PANEL_FRAMES = 3 };
 enum {
     MAIN_MENU_PANEL_WINDOWS = 0xBF48, GATE_PANEL_WINDOWS = 0xBF05, SCREEN_WINDOWS = 0xBF7B,
     GATE_LABEL = 4, GATE_LABEL_WITH_A_RULE = 5, GATE_LABEL_AT = 0x5E00, UPLOAD_GATE_LABEL = 0xCAD9,
-    GATE_RECORD = 7, GATE_SPRITE = 0x48, GATE_SPRITE_SET = 1, GATE_SPRITE_Y = 0xCA, GATE_SPRITE_X = 0x20, GATE_SPRITE_COLOURS = 0x20,
+    GATE_RECORD = MENU_EXCHANGE_GATE_RECORD, GATE_SPRITE = 0x48, GATE_SPRITE_SET = 1, GATE_SPRITE_Y = 0xCA, GATE_SPRITE_X = 0x20, GATE_SPRITE_COLOURS = 0x20,
 };
 static const struct {
     uint16_t at, columns, first_tile;
@@ -971,8 +974,14 @@ bool menu_choose_second_to_exchange_with(GameState *g, Platform *pf, const Excha
 bool menu_show_exchange_panel_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx)
 {
     menu_exchange_panel_start(g, pf);
-    if (menu_exchange_panel_shows_the_gate(g) && !n->gate_sprite(ctx))
-        return false;
+    if (menu_exchange_panel_shows_the_gate(g)) {
+        n->slide(ctx, EXCHANGE_ON_THE_GATE_S_RECORD);
+        menu_exchange_put_the_gate_sprite_on_its_record(g);
+        if (!n->gate_sprite(ctx))
+            return false;
+        menu_exchange_gate_sprite_loaded(g);
+        n->slide(ctx, EXCHANGE_OFF_THE_GATE_S_RECORD);
+    }
     n->widths(ctx, EXCHANGE_WIDE);
     menu_exchange_panel_colours(g);
     if (!n->wait(ctx, EXCHANGE_AT_THE_PANEL_LISTED))
@@ -982,6 +991,37 @@ bool menu_show_exchange_panel_with(GameState *g, Platform *pf, const ExchangeSte
         return false;
     menu_exchange_panel_finish(g, pf);
     return true;
+}
+
+// $C2:C7AC
+/* At the gate: laid out as the event asks, the gate's song started, the
+ * panel and the screen over it, the swirl behind; once the song is playing,
+ * the gate's screen started, and on to choosing as it fades in. */
+bool menu_open_exchange_at_the_gate_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx)
+{
+    (void)pf;
+    menu_exchange_lay_out_for_the_gate(g, (uint8_t)menu_screen_argument(g));
+    if (!n->run(ctx, EXCHANGE_SWITCHES_TO_THE_GATE_SONG) || !n->run(ctx, EXCHANGE_SHOWS_THE_PANEL))
+        return false;
+    n->widths(ctx, EXCHANGE_BYTE_WIDE);
+    menu_exchange_start_choosing(g, 0);
+    n->widths(ctx, EXCHANGE_INDEX_WIDE);
+    n->note(ctx, EXCHANGE_NOTE_STEP_COUNTED);
+    if (!n->run(ctx, EXCHANGE_LAYS_OUT_THE_GATE_SCREEN))
+        return false;
+    n->slide(ctx, EXCHANGE_SWIRL_BEGINS);
+    if (!n->run(ctx, EXCHANGE_DRAWS_THE_SWIRL))
+        return false;
+    menu_exchange_show_the_swirl(g);
+    n->note(ctx, EXCHANGE_NOTE_SWIRL_SHOWN);
+    n->slide(ctx, EXCHANGE_SWIRL_ENDS);
+    while (menu_tasks_state(g, MENU_DESCRIPTION_TASK) != 0)
+        if (!n->wait(ctx, EXCHANGE_AT_THE_GATE_SONG_WAIT))
+            return false;
+    menu_exchange_show_the_gate(g);
+    if (!n->run(ctx, EXCHANGE_STARTS_THE_GATE_SCREEN))
+        return false;
+    return n->ends(ctx, EXCHANGE_FADES_IN);
 }
 
 /* ---- What the steps take ------------------------------------------------------------------------- */
@@ -1167,15 +1207,34 @@ static bool move_the_cursor(void *ctx, ExchangePlace at)
     return back;
 }
 
-static bool gate_sprite(void *ctx)
-{
-    program_needs_the_machine(((ExchangeAsC *)ctx)->game, 0xC2F422, "the gate's sprite, which only the machine loads");
-    return false;
-}
+static bool gate_sprite(void *ctx) { return menu_record_sprite_loaded(((ExchangeAsC *)ctx)->game, MENU_EXCHANGE_GATE_RECORD); }
 
 static bool place_song_back(void *ctx)
 {
-    program_needs_the_machine(((ExchangeAsC *)ctx)->game, 0xC2CC0E, "the place's song back, which only the machine plays");
+    ExchangeAsC *c = ctx;
+    bool back = false;
+    TIMED_AS(c->game, 0xC2CC0E, back = menu_switch_back_to_the_field_song(c->game, c->pf));
+    return back;
+}
+
+/* The gate's screen's routines as C, where their entries' guards take the
+ * state. */
+static bool run(void *ctx, ExchangeRoutine r)
+{
+    ExchangeAsC *c = ctx;
+    GameState *g = c->game;
+    bool done = false;
+    switch (r) {
+    case EXCHANGE_SWITCHES_TO_THE_GATE_SONG: TIMED_AS(g, 0xC2CB8B, done = menu_switch_to_the_gate_song(g, c->pf)); return done;
+    case EXCHANGE_SHOWS_THE_PANEL: TIMED_AS(g, 0xC2C9E5, done = menu_show_exchange_panel(g, c->pf)); return done;
+    case EXCHANGE_LAYS_OUT_THE_GATE_SCREEN:
+        if (!takes(g, menu_exchange_can_lay_out(g), 0xC2CAF3, "an exchange the port doesn't lay out"))
+            return false;
+        TIMED_AS(g, 0xC2CAF3, done = menu_lay_out_the_exchange_with(g, c->pf, &as_c, c));
+        return done;
+    case EXCHANGE_DRAWS_THE_SWIRL: TIMED_AS(g, 0xFFF677, done = menu_draw_gate_screen(g)); return done;
+    case EXCHANGE_STARTS_THE_GATE_SCREEN: TIMED_AS(g, 0xC2CE9D, menu_start_gate_screen(g, c->pf)); return true;
+    }
     return false;
 }
 
@@ -1202,12 +1261,13 @@ static bool ends(void *ctx, ExchangeEnd end)
         break;
     case EXCHANGE_BACK_TO_THE_MAIN_MENU: back = menu_back_to_the_main_menu(g, c->pf); break;
     case EXCHANGE_LEAVES_THE_MENUS: menu_close(g, c->pf, false); break;
+    case EXCHANGE_FADES_IN: TIMED_AS(g, 0xC283B2, menu_start_the_fade_in(g)); break;
     }
     return back;
 }
 
 static const ExchangeSteps as_c = { read_cursor, tick, wait, move_the_cursor, gate_sprite, place_song_back,
-                                    slide, widths, note, ends };
+                                    slide, widths, note, ends, run };
 
 /* The panel as C, where its entry's guard would take the state. */
 bool menu_show_exchange_panel(GameState *g, Platform *pf)
@@ -1241,6 +1301,11 @@ bool menu_choose_first_to_exchange(GameState *g, Platform *pf)
 bool menu_choose_second_to_exchange(GameState *g, Platform *pf)
 {
     return step(g, pf, menu_exchange_step_can_run(g), 0xC2C6B9, menu_choose_second_to_exchange_with);
+}
+
+bool menu_open_exchange_at_the_gate(GameState *g, Platform *pf)
+{
+    return step(g, pf, menu_exchange_can_open_at_the_gate(g), 0xC2C7AC, menu_open_exchange_at_the_gate_with);
 }
 
 bool menu_choose_first_at_the_gate(GameState *g, Platform *pf)

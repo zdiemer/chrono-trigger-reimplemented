@@ -1667,6 +1667,8 @@ static bool load(void *ctx, unsigned record)
     return loaded;
 }
 
+bool menu_record_sprite_loaded(GameState *g, unsigned record) { return load(g, record); }
+
 bool menu_record_sprites_loaded(GameState *g)
 {
     if (!opening_records_fit(g)) {

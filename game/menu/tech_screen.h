@@ -182,6 +182,23 @@ bool menu_restoring_point_at_member(GameState *g);
 void menu_restoring_look_for_help(GameState *g);
 bool menu_restoring_every_member(const GameState *g);
 
+/* The cursor among the members a healing (a tonic's or a tech's) is used on
+ * ($C2:B83E) and the member it is on noted ($C2:B870), one sequence each for
+ * the machine and for C: a tick, the noting as its own routine, and where
+ * the machine leaves what the original's tests left. */
+typedef enum { RESTORING_NOTE_POINTED, RESTORING_NOTE_HELP_LOOKED_FOR, RESTORING_NOTE_BLOCKS_SET } RestoringNote;
+typedef struct {
+    bool (*tick)(void *ctx);
+    bool (*note_the_member)(void *ctx);
+    void (*note)(void *ctx, RestoringNote note, uint8_t value);
+} RestoringSteps;
+bool menu_point_at_member_to_restore_with(GameState *g, const RestoringSteps *n, void *ctx);
+bool menu_note_member_to_restore_with(GameState *g, const RestoringSteps *n, void *ctx);
+/* As C, where the pointing's guard's state half takes the state; false where
+ * the program went no further. */
+bool menu_point_at_member_to_restore(GameState *g, Platform *pf);
+bool menu_restoring_can_point(const GameState *g);
+
 /* ---- The main menu's panel -------------------------------------------------------------------- */
 
 /* With the main menu's cursor on the techs, the member rows are drawn
@@ -212,7 +229,44 @@ bool menu_techs_can_move_among_members(const GameState *g);
  * TechsSteps.
  *
  * The places the sequences tick from. */
-typedef enum { TECHS_AT_THE_OPENING, TECHS_AT_ANOTHER_LIST, TECHS_AT_A_MEMBER_CHOSEN } TechsPlace;
+typedef enum {
+    TECHS_AT_THE_OPENING, TECHS_AT_ANOTHER_LIST, TECHS_AT_A_MEMBER_CHOSEN,
+    TECHS_AT_THE_MEMBERS_SLIDING,   /* the member rows sliding, a frame at a time */
+    TECHS_AT_THE_MEMBERS_SLID,      /* ... and at rest */
+    TECHS_AT_THE_SLIDE_STARTING,    /* the member list's slide about to run */
+    TECHS_AT_THE_SLIDE_ENDED,       /* ... and run */
+    TECHS_AT_THE_LISTER_S_RECORD,   /* the lister's record about to take its sprite */
+    TECHS_AT_THE_LIST_POINTING,     /* the cursor along the list, starting */
+    TECHS_AT_THE_LIST_POINTED,      /* ... and done */
+    TECHS_AT_A_PAGE_TURNED,         /* the list paged, a frame on */
+    TECHS_AT_A_TECH_POINTED,        /* the cursor on another tech */
+    TECHS_AT_A_TECH_BROUGHT_IN,     /* a tech brought in past the list's end */
+    TECHS_AT_THE_LIST_SLIDING,      /* ... the list sliding a frame at a time */
+    TECHS_AT_THE_LIST_SLID,         /* ... and at rest */
+    TECHS_AT_A_TECH_CHOSEN,         /* a tech chosen to use */
+    TECHS_AT_THE_LIST_LEFT,         /* back from the list to the members */
+    TECHS_AT_THE_TARGETS_OPENING,   /* the window of the members it is used on, a frame on */
+    TECHS_AT_THE_TARGETS_LEFT,      /* back from that window */
+    TECHS_AT_THE_TARGETS_CLOSING,   /* ... the window closing */
+    TECHS_AT_THE_CAST,              /* the user casting, the cast's frames */
+    TECHS_AT_THE_TARGETS_REOPENING, /* the window drawn again after the healing */
+    TECHS_AT_THE_TARGETS_REOPENED,
+} TechsPlace;
+
+/* The frames the user's casting takes before the healing. */
+enum { MENU_TECHS_CAST_FRAMES = 10 };
+
+/* The routines the member list's slide and the lister go on to. */
+typedef enum {
+    TECHS_SLIDES_THE_ROWS_UP, TECHS_SLIDES_THE_ROWS_DOWN, TECHS_LOADS_THE_LISTER, TECHS_LOADS_THE_RECORD_SPRITE,
+    TECHS_SLIDES_THE_LIST,             /* $C2:B72F */
+    TECHS_DESCRIBES_THE_POINTED_TECH,  /* $C2:BE01 */
+    TECHS_DESCRIBES_THE_TECH,          /* $C2:BE33 */
+    TECHS_OPENS_THE_TARGETS,           /* $C2:BE79 */
+    TECHS_POINTS_AT_A_TARGET,          /* $C2:B823 */
+    TECHS_POINTS_AT_A_MEMBER_TO_RESTORE, /* $C2:B83E */
+    TECHS_HEALS_AND_SHOWS,             /* $C2:8F55 */
+} TechsRoutine;
 
 /* Where the machine does what only it needs: the flags the original's tests
  * left, the P a routine saves and the widths it sets. */
@@ -229,6 +283,25 @@ typedef enum {
     TECHS_NOTE_LIST_MADE,          /* the member's list made, this one shown before */
     TECHS_NOTE_KIND_DESCRIBED,     /* the kind's caption shown */
     TECHS_NOTE_ROWS_QUEUED,        /* the rows queued */
+    TECHS_NOTE_MEMBERS_SLIDING,    /* the member list's slide started, its way */
+    TECHS_NOTE_INTO_THE_LIST,      /* the lister shown */
+    TECHS_NOTE_LISTER_TESTED,      /* the lister's sprite compared, the one it had */
+    TECHS_NOTE_LINE_EFFECTS_HELD,  /* the list step's line effects held */
+    TECHS_NOTE_LIST_ROW_COMPARED,  /* the cursor's row kept and compared */
+    TECHS_NOTE_LIST_TOP_LOADED,    /* no slide: the list's top loaded */
+    TECHS_NOTE_TECH_ROW_BROUGHT_IN, /* a tech's row brought in */
+    TECHS_NOTE_LIST_SLID,          /* the list slid (up: 1) */
+    TECHS_NOTE_DESCRIPTION_ASKED,  /* another tech's description asked for */
+    TECHS_NOTE_TECH_LOOKED_AT,     /* the tech's use looked at (the use) */
+    TECHS_NOTE_TECH_USED,          /* the tech used (on every member: 1) */
+    TECHS_NOTE_TASKS_STOPPED,      /* tasks stopped (their bits) */
+    TECHS_NOTE_OFF_THE_MEMBERS,    /* the cursor moved off the members */
+    TECHS_NOTE_A_CLEARED,          /* the accumulator cleared */
+    TECHS_NOTE_LINE_TABLES_QUEUED, /* the line tables' upload queued */
+    TECHS_NOTE_NO_HELP,            /* the healing doesn't help */
+    TECHS_NOTE_CAST,               /* the user cast */
+    TECHS_NOTE_COST_TAKEN,         /* the MP taken (the MP before) */
+    TECHS_NOTE_USERS_MP_LOOKED_AT, /* the user's MP looked at */
 } TechsNote;
 
 /* What the sequences ask: the cursor read, a tick, the refusal the step ends
@@ -245,11 +318,38 @@ typedef struct {
     bool (*show_the_lister)(void *ctx);
     bool (*back_to_the_main_menu)(void *ctx);
     void (*note)(void *ctx, TechsNote note, uint8_t value);
+    bool (*wait)(void *ctx, TechsPlace at);
+    void (*registers_at)(void *ctx, TechsPlace at);
+    bool (*run)(void *ctx, TechsRoutine routine);
 } TechsSteps;
 
 bool menu_open_techs_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
 bool menu_choose_tech_member_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
 bool menu_move_among_tech_members_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+/* The member list slid ($C2:B568), its rows' slide ($C2:B5C8), the lister
+ * shown ($C2:B9E1) and its sprite ($C2:BA09). */
+bool menu_slide_tech_members_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_slide_tech_member_rows_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_show_tech_lister_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_load_tech_lister_sprite_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+/* Choosing a tech ($C2:B3AE) and the members it is used on ($C2:B48E), and
+ * their routines: the list slid ($C2:B72F), the tech described ($C2:BE01),
+ * the window of members it is used on ($C2:BE79), the cursor among them
+ * ($C2:B823). */
+bool menu_choose_tech_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_choose_tech_target_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_slide_tech_list_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_describe_pointed_tech_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_open_tech_targets_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_point_at_tech_target_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_choose_tech(GameState *g, Platform *pf);
+bool menu_choose_tech_target(GameState *g, Platform *pf);
+/* The targets' guard's state half (tech_screen_bridge.c). */
+bool menu_techs_targets_can_run(const GameState *g);
+/* The lister's guard's state half (tech_screen_bridge.c). */
+bool menu_techs_lister_can_show(const GameState *g);
+/* The record the lister shows the member on. */
+enum { MENU_TECHS_LISTER_RECORD = 7 };
 
 /* As C, from the menus' main task; false where the program went no
  * further. */
@@ -262,15 +362,15 @@ bool menu_choose_tech_member(GameState *g, Platform *pf);
 void menu_open_techs_entry(Snes *s);
 void menu_lay_out_tech_members_entry(Snes *s);
 void menu_choose_tech_member_entry(Snes *s);
-void menu_choose_tech(Snes *s);
-void menu_choose_tech_target(Snes *s);
+void menu_choose_tech_entry(Snes *s);
+void menu_choose_tech_target_entry(Snes *s);
 void menu_move_among_tech_members(Snes *s);
 void menu_slide_tech_members(Snes *s);
 void menu_slide_tech_member_rows(Snes *s);
 void menu_slide_tech_list(Snes *s);
 void menu_point_at_tech_target(Snes *s);
-void menu_point_at_member_to_restore(Snes *s);
-void menu_note_member_to_restore(Snes *s);
+void menu_point_at_member_to_restore_entry(Snes *s);
+void menu_note_member_to_restore_entry(Snes *s);
 void menu_show_techs_panel(Snes *s);
 void menu_put_techs_panel_away(Snes *s);
 void menu_show_tech_lister(Snes *s);
