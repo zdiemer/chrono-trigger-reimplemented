@@ -2953,6 +2953,28 @@ waits on M5 rather than on a backend.
   - `field/requests.c`'s `StepAndChestAsC`, `step_and_chest_as_c` and the
     older `TileCopyAsC` want names for what they are (the "AsC" types and
     tables tree-wide are the same item).
+- **What the last save stops' review left** (none rated translation):
+  - Steps enums name one routine split by call site, so the machine table can
+    pick the site (`EQUIPMENT_REDRAWS_THE_LIST_FOR_THE_SLOT`/`_ON_THE_SLOTS`,
+    `EQUIPMENT_SLIDES_THE_MEMBER_ROWS_UP`/`_DOWN`, `TECHS_SLIDES_THE_ROWS_UP`/
+    `_DOWN`, `ITEMS_OPENS_THE_MEMBER_WINDOW_FOR_A_TONIC`/`_TAB`,
+    `ITEMS_USES_ONE_MORE_TONIC`/`_TAB`); the logic's enum wants the routine,
+    the machine side working the site out from its own context.
+  - `registers_at` places that only bracket a `run` (`*_SLIDE_STARTING`/
+    `_ENDED`) belong in the machine's `run` for that routine, as the techs'
+    targets reopening now does; equipment has 27 places. The exchange calls
+    the same hook `slide`/`widths` and carries non-slide places on it; one
+    name across the screens.
+  - `menu_raise_amount_kind_with` works the kind out from cells and ignores
+    the kind `run` passes.
+  - `menu/epoch.c`'s machine steps still `m_jsr` into the file's own
+    registered ports (`$C2:6965`, `$C2:63DF`, `$C2:7389`, `$C2:71F9`).
+  - `event/party.c`'s `fill_with` takes a `bool more` only the machine's
+    leftover reads; `equipment_bridge.c`'s scaffolding loads unnamed literals
+    (`0x42`, `0x62`, `0x2E`).
+  - `menu/sound.c`'s `music_waited_for` waits a frame per check on the C path
+    with no limit, where the original waits the driver's own time (the audio
+    service that gives up with a message is the item under Platform).
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in
