@@ -555,24 +555,49 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   so no movie.
 
 ### 12. The side quests
-No movie plays a side quest's events or bosses: the library's movies from the side-quest saves
-(`ctsave12`-`ctsave14`) open menus and shops, ride the Epoch, press the Northern Ruins' switch and
-dive into Lavos. The fantasyanime saves step through them in one order (oracle/saves/README.md),
+`events-fionas-forest` plays Robo's side quest, including Retinite. The other library movies
+from the side-quest saves (`ctsave12`-`ctsave14`) open menus and shops, ride the Epoch, press the
+Northern Ruins' switch and dive into Lavos. The fantasyanime saves step through them in one order (oracle/saves/README.md),
 so each quest has a save just before it; which slot is the nearest, and what of each the library
 already runs, is for its route to establish.
 
 | Quest | Save before it | What it plays | Bosses |
 |---|---|---|---|
 | Ozzie's Fort | ctsave12 slot 2 (slot 3 after it) | the fort, the chain trap | Flea, Slash, Great Ozzie |
-| Fiona's forest | ctsave12 slot 3 (ctsave13 slot 1 after it) | Robo's 400 years: the forest's replanting, the campfire | -- |
+| Fiona's forest | ctsave12 slot 3 (ctsave13 slot 1 after it) | `events-fionas-forest`: the sapling, Sunken Desert, Robo's 400 years, reunion and campfire | Retinite |
 | Lucca's mother | after Fiona's forest | the gate to 990 A.D. and the password typed against the clock; `ct_drive`'s machine copies make the timed part a search | -- |
 | The Rainbow Shell | ctsave13 slots 1-2 (slot 3 after it) | the Giant's Claw, the shell taken to Guardia Castle and the trial | Rust Tyrano |
 | The Sun Stone | ctsave13 slot 3 (ctsave14 slot 1 after it) | the Sun Palace, the stone charged across the eras | Son of Sun |
 | Cyrus's grave | ctsave14 slot 1 (slot 2 after it; `field-northern-ruins-switch` presses one switch) | the Northern Ruins and Cyrus's ghost, the Masamune's power restored | Hero's Grave guardians |
 | Geno Dome | ctsave14 slot 2 (Targets, 5) | the conveyors and doors | Atropos XR, MotherBrain |
 
-Each is an event-heavy play the native program hasn't met: the event commands, scene work and
-bosses they reach are where `ct_native`'s next stops are likely to be.
+The remaining quests' event commands, scene work and bosses are where `ct_native`'s next
+stops are likely to be.
+
+- **Movie**: `events-fionas-forest` (route `fionas_forest`, ctsave12 slot 3, 36440 frames).
+  The nearest save has `$7F:019E = 0`, `$7F:01A3 = 2` (Retinite unbeaten), and
+  `$7F:00F7` bit 1 clear; ctsave13 slot 1 already has the forest restored. The route first
+  saves the sapling in the Last Village (`$1A8`) in 12,000 B.C., then enters the Sunken
+  Desert (`$09F`/`$0A0`/`$0A1`) in 600 A.D. It wins the central encounter and Retinite
+  (field back at frame 26652), leaves Robo with Fiona (`$09E`, frame 29059), crosses
+  400 years in the Epoch and recovers him in the shrine (`$039`). The campfire (`$1B4`)
+  ends with Lucca controllable in 1000 A.D.; `$7F:019E & 7 = 7`, `$7F:007C` bit 4 and
+  `$7F:006D` bit 0 confirm the reunion and campfire. The optional trip to Lucca's mother
+  remains a separate target.
+  Its shadow coverage is 139886 ROM instruction bytes; 828 bytes (0.81 KiB), all ported,
+  are absent from the other 48 movies' coverage. These include the sand's movement and
+  party trail paths, `battle_condition_stat_at_least` (`$C1:9130`),
+  `event_cmd_send_to_the_reserve` (`$C0:394E`), and event word subtraction (`$C0:6AC9`).
+  Shadow is clean: zero mismatches, no `page refused`, no `accessor out of range`, and
+  no uncatalogued asset reads. The full generated-only replay matches the reference trace.
+  The departure's two guards refuse 60 calls each, recorded as gaps in `tools/refusal_allowlist.txt` and TODO's
+  "Refusals in real play"; they are not shadow mismatches.
+  `ct_native` runs all 36440 frames without a stop (four video escapes, first `$7E:5AEB`,
+  the existing title-screen escape in TODO). Strict mode also reaches the last frame,
+  but timing moves the inputs: 131 saved-game bytes differ (inventory counts and character
+  records among them), recorded as `drifts` in `tools/strict_baseline.txt`.
+  The narrowed suite (`--movies events-fionas-forest -j 1`) ends with `suite OK`, including
+  its static checks; the calibrated timing exceptions are documented in `tools/timing_exceptions.txt`.
 
 ### 13. The story events no movie plays
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's

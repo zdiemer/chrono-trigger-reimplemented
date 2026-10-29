@@ -199,9 +199,39 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
-Each starts from the technoplaza cartridge save its movie header names
-(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
-`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
+`fionas_forest` (`events-fionas-forest.ctm`, 36440 frames) starts from
+fantasyanime ctsave12 slot 3. The forest flags (`$7F:019E`) and Retinite's
+defeated bit (`$7F:01A3` bit 0) are clear. The sapling's bit (`$7F:00F7`
+bit 1) is clear too, so the route first visits the Last Village in 12,000 B.C.
+and chooses to plant it. Crono, Robo and Marle cross the Sunken Desert,
+win its central encounter and defeat Retinite: Ice 2 softens its defenses,
+Confuse and Uzzi Punch kill the upper half, legs, then core. Keeping the core
+alive avoids the fiercer attacks after its death. The route leaves Robo with
+Fiona in 600 A.D., flies the Epoch forward 400 years, recovers him at the
+shrine and plays the campfire through Lucca back in hand in 1000 A.D.
+It ends before her optional gate to the past. Machine copies search the
+moving sand and retry battles; only successful inputs become the movie.
+The movie adds 828 bytes of executed code over the other 48 movies, all ported:
+the sand and party trail, Retinite's stat condition, and event arithmetic and
+party removal. Its dialogue table at `$FF:6B00` and its 185 strings join the
+asset catalogue; the catalogue contains locations and types, not ROM data.
+`ct_native` and strict mode both run to frame 36440 without stopping; strict
+mode ends with 131 saved-game bytes different from the reference, so its
+baseline is `drifts`. The departure's guard gaps are in TODO's "Refusals in
+real play" and `tools/refusal_allowlist.txt`.
+Shadow reports zero mismatches, no refused page or out-of-range accessor,
+and no uncatalogued asset reads; its 120 guard refusals are the two documented
+departure gaps. Sound lockstep matches all 111713 ticks, and the full
+36440-frame generated-only trace matches the reference.
+Timing costs are calibrated with `--drifted` over this movie; the eleven
+remaining timing exceptions record the measured paths and limits. Its
+calibrated shipping-mode vblank check has zero unexcepted findings.
+The narrowed suite (`--movies events-fionas-forest -j 1`), including its static
+checks, ends with `suite OK`.
+
+Each starts from the cartridge save its movie header names, under
+`oracle/saves/`, which is the route's `SAVE`; `--sram` picks another.
+The save collection's README records its source.
 `--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and

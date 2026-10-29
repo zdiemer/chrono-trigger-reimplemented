@@ -190,3 +190,17 @@ field_copy_tiles worst the same copy from the field's own call: at most 50846 cl
 menu_note_rock_techs vblank-tail notes which rock techs the party has, its time following the party's members and their records: 16% of its 120 stretches in vblank off by a line, at most 1076 clocks
 menu_show_what_the_party_wears vblank-tail shows the party's wear on the field's sprites, run as C by the menus' close now (menu/display.c): 1.8% of its stretches in vblank off by a line, at most 1180 clocks, writing RAM
 menu_window_copy_bytes vblank-tail copies a window's bytes into the menus' tilemap buffer in RAM, its time following the window's size: 2.6% of its stretches in vblank off by a line or more, at most 1944 clocks
+
+# events-fionas-forest alone, after --calibrate --drifted: the remaining path-dependent
+# estimates. Its calibrated shipping-mode vblank check has 0 unexcepted findings.
+battle_dispatch_expired_timers worst Retinite's turn dispatch, its actions timed at their own rates: at most 53234 clocks off on the picture, just over the 50468-clock limit; the narrowed vblank check is clean
+battle_record_trails vblank-tail records active combatants' trail points in RAM, its work following which trails are due: 1.81% of 5734 vblank stretches off by a line, at most 1603 clocks
+battle_see_to_knocked_out_enemies worst Retinite's multipart defeat, its work following the beaten parts: at most 52855 clocks off on the picture; the narrowed vblank check is clean
+battle_see_to_the_beaten_enemies worst the same defeat's enclosing work, at most 54343 clocks off on the picture; the narrowed vblank check is clean
+field_draw_the_objects_in_view vblank-worst draws the location's visible objects and builds the sprite table in RAM, its work following the objects: one vblank stretch off by 17196 clocks; the narrowed vblank check is clean
+field_nmi vblank-tail the forest route's field uploads: 1.51% of 26184 vblank stretches off by a line, at most 6303 clocks; the calibrated shipping-mode vblank check has no new misplaced video writes
+menu_choose_equipment_member drift the slots' window and cursor work is attributed to its parts; its own cost_milli is already 1, leaving +19.01% over 125 stretches after the parts' calibration, writing menu buffers and the upload queue in RAM
+menu_choose_on_main_menu drift the main menu step's parts leave +1.41% over 343 stretches at cost_milli 1, which no smaller positive scalar can fix; it writes menu buffers and the upload queue, and the narrowed vblank check is clean
+menu_map_scroll_x vblank-tail the menu plane's horizontal scroll follows whether a tile edge queues a strip: 14.29% of 343 vblank stretches off by a line, at most 1163 clocks, writing the queue in RAM
+overworld_epoch vblank-tail the Epoch's movement, landing and time travel take different paths: 23.15% of 298 vblank stretches off by a line, at most 2924 clocks; the narrowed vblank check is clean
+overworld_lead vblank-tail the world-map leader's movement and contacts take different paths: 2.20% of 1546 vblank stretches off by a line, at most 2857 clocks; the narrowed vblank check is clean

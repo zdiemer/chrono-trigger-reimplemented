@@ -5,3 +5,5 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C03002 event_cmd_walk_with_the_party guard # gap: events-fionas-forest, Robo leaving Fiona's house; the party step invariant refuses the scripted departure (docs/TODO.md, Refusals in real play).
+C0A2CE field_second_member_follows guard # gap: events-fionas-forest, Robo leaving Fiona's house; the follower invariant refuses the scripted departure (docs/TODO.md, Refusals in real play).

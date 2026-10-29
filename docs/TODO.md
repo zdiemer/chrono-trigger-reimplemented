@@ -7,6 +7,17 @@ lost. Each line says where the detail lives. Milestones themselves are in
 and [PLATFORM.md](PLATFORM.md); which of these to work on next, and why the
 rest waits, is [PLAN.md](PLAN.md).
 
+## Refusals in real play
+
+- `events-fionas-forest`: Robo's departure from Fiona's house refuses
+  `event_cmd_walk_with_the_party` (`$C0:3002`) and `field_second_member_follows`
+  (`$C0:A2CE`) 60 times each in shadow mode, beginning at frame 28389.
+  The command enters with X=`$0160`, Y=`$016D`, D=`$0100`; the follower enters
+  with X=`$0004`, Y=`$006D`, D=`$0100`. Their guards require the current object
+  to match the member's link and the trail places to hold. Both are `gap` entries
+  in `tools/refusal_allowlist.txt`; determine which formation invariant the
+  departure violates and handle that scripted state. Shadow reports no mismatches.
+
 ## Correctness and accuracy
 
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
