@@ -166,10 +166,10 @@ static const struct {
     [EQUIPMENT_CLOSES_THE_SLOTS_WINDOW] = { 0xC29C9F, 0xC2A85C, menu_close_slots_window },
     [EQUIPMENT_SLIDES_THE_LIST_IN] = { 0xC2A41D, 0xC2A4AF, menu_slide_equipment_list_in },
     [EQUIPMENT_SLIDES_THE_LIST_OUT] = { 0xC2A664, 0xC2A697, menu_slide_equipment_list_out },
-    [EQUIPMENT_MAKES_THE_LIST] = { 0xC2A432, 0xC2A463, menu_make_equipment_list },
+    [EQUIPMENT_MAKES_THE_LIST] = { 0xC2A432, 0xC2A463, menu_make_equipment_list_entry },
     [EQUIPMENT_DRAWS_THE_CARD] = { 0xC2A650, MEMBER_CARD, menu_draw_member_card_entry },
     [EQUIPMENT_GOES_BACK_ON_THE_SLOTS] = { 0xC29CEC, 0xC2A64D, menu_back_to_equipment_slots },
-    [EQUIPMENT_POINTS_ALONG_THE_LIST] = { 0xC29CAF, 0xC29F05, menu_point_along_equipment_list },
+    [EQUIPMENT_POINTS_ALONG_THE_LIST] = { 0xC29CAF, 0xC29F05, menu_point_along_equipment_list_entry },
 };
 
 static bool run_on_the_machine(void *ctx, EquipmentRoutine r)
@@ -348,7 +348,7 @@ void menu_choose_equipment_item_entry(Snes *s) { step(s, menu_choose_equipment_i
 
 // $C2:9F05
 /* The slide leaves a 16-bit accumulator. */
-void menu_point_along_equipment_list(Snes *s)
+void menu_point_along_equipment_list_entry(Snes *s)
 {
     menu_set_widths(s, true, m_x8(s));
     step(s, menu_point_along_equipment_list_with);
@@ -443,7 +443,7 @@ static void made(Snes *s, bool (*run)(GameState *, Platform *, const EquipmentSt
 }
 
 // $C2:A463
-void menu_make_equipment_list(Snes *s) { made(s, menu_make_the_equipment_list_with); }
+void menu_make_equipment_list_entry(Snes *s) { made(s, menu_make_the_equipment_list_with); }
 
 // $C2:A45D
 void menu_redraw_equipment_list(Snes *s) { made(s, menu_redraw_the_equipment_list_with); }

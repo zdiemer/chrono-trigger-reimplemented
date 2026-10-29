@@ -2706,19 +2706,14 @@ list, by kind, is what `game/` still asks of one.
   (REIMPLEMENTATION.md, "The native program from a cartridge save"), and so
   do the rest of the equipment's, the items', the techs', the settings' and
   the gate's exchange's steps (REIMPLEMENTATION.md, "The native program
-  through the menus the player opens"); where one of them meets what has no
-  C yet, `program_needs_the_machine` stops the program there and says which:
-  the items list's slide (`$C2:AC3A`), an item tried on that is no item of
-  the game's (`$C2:A5C3`), a member's row whose record names no character
-  (`$C2:A225`), and on the load screen a slot's erasing (`$C2:E8B7`). The
-  shops' nine steps have no C column in `menu/screens.c`'s table yet. Each
-  wants the same shape: the step one `*_with` sequence whose machine entry
-  passes `*_on_the_machine` steps.
-- **Where the save movies stop.** From a cartridge save `ct_native` plays
-  39 of the 40 save movies to their end; menus-shop-inn stops at the shop's
-  opening (`$C2:D52B`), whose steps (above) are the menus' last with no C.
-  The shop's bridges (`menu/shop_bridge.c`) reach the equipment's sequences
-  too, for the member a shop's equipment is tried on.
+  through the menus the player opens"), and the shops' (REIMPLEMENTATION.md,
+  "The native program through the shops"); where one of them meets what has
+  no C yet, `program_needs_the_machine` stops the program there and says
+  which: the items list's slide (`$C2:AC3A`), an item tried on that is no
+  item of the game's (`$C2:A5C3`), a member's row whose record names no
+  character (`$C2:A225`), on the load screen a slot's erasing (`$C2:E8B7`),
+  and a shop whose state a step's entry's guard turns away ("a shop the port
+  doesn't take", menu/shop_steps.c).
 - **The menus' steps' notes carry machine work.** In the items', the techs'
   and the settings' sequences (menu/item_screen.c, tech_screen.c,
   settings_screen.c) a note is where the machine both leaves the original's

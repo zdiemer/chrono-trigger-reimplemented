@@ -58,6 +58,8 @@ void menu_note_everyones_figures_entry(Snes *s);
 void menu_set_items_aside_entry(Snes *s);
 void menu_put_items_back_entry(Snes *s);
 bool menu_figures_are_workable(Snes *s);
+/* Its state half: what the member has on all items of the game's. */
+bool menu_figures_can_be_worked_out(const GameState *g);
 /* The same with `item` tried on in the record's `place`. */
 bool menu_figures_workable_with(const GameState *g, uint8_t place, uint8_t item);
 bool menu_member_figures_are_notable(Snes *s);

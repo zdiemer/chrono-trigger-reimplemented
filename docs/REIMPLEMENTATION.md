@@ -2950,8 +2950,8 @@ shop (`$C2:D52B`). The chunk followed the four through every step they
 reach: the equipment's slots and list, the items moved and used with the
 healing they show, the techs' list and the members a tech is used on, the
 settings' meters, gauge layouts and button rows, and the gate's exchange
-with its song and swirl. The shop it left (TODO.md, "Where the save movies
-stop").
+with its song and swirl. The shop it left (below, "The native program
+through the shops").
 
 **One shape throughout.** Each step, and each routine a step goes on to, is
 one `*_with` sequence of the screen's (menu/equipment.c, item_screen.c,
@@ -3027,6 +3027,46 @@ menus-field-menu, menus-sweep, menus-end-of-time and
 battle-tech-sweep-spekkio; menus-shop-inn stops at the shop's opening
 (`$C2:D52B`), where it did. The power-on movies and the attract sequence go
 as far as before.
+
+### The native program through the shops
+
+The last save movie `ct_native` didn't play to its end, menus-shop-inn,
+stopped at a shop's opening (`$C2:D52B`): the shop's nine steps had no C
+column in `menu/screens.c`'s table. Their bridges (`menu/shop_bridge.c`)
+were the machine's own code, with the decisions in `menu/shop.c` and
+`shop_equipment.c` between the original's calls.
+
+**The same shape as the menus'.** Each step and each routine a step goes on
+to that waits or calls out is one `*_with` sequence in `menu/shop_steps.c`:
+the opening and the set-up (`$C2:D52B`, `$C2:DACA`), the panel
+(`$C2:DD7C`), the tabs (`$C2:D546`), the goods and the list for sale
+(`$C2:D58B`, `$C2:D645`, their row taken, a page turned and the list slid
+a row), the quantity (`$C2:D618`, `$C2:D690`, its change by a push), and
+the equipping from the shop: the members (`$C2:D6C3`), a member chosen
+(`$C2:E0A5`), its slots (`$C2:E0F1`), the shoulders' switch (`$C2:E108`),
+a slot (`$C2:D715`) and the list of what fits (`$C2:D778`). `ShopSteps`
+has the menus' `note`, `registers_at` and `run`, with a tick, a wait and the
+ends (the fade in, the way out, a list's opening, the refusal's buzz); a
+note's value is a word, since a few leaves take two bytes of the state
+before (the room and the held count of an offer, the members compared, the
+total before a push). On the machine `run` is the original's call from a
+table of sites and the sounds' loads; as C, each routine's sequence behind
+its guard's state half (`menu_shop_can_be_opened` and the rest, split out
+of `shop_bridge.c`'s guards, and `menu_figures_can_be_worked_out` out of
+the figures' guard). The two lists' openings (`$C2:DC7B`, `$C2:DE98`)
+make no call-out and are one C function each, which their entries wrap. The
+equipment screen's list of what fits and its move along (`$C2:A463`,
+`$C2:9F05`) are the equipment's sequences; their C forms take the plain
+names (`menu_make_equipment_list`, `menu_point_along_equipment_list`) and
+the machine's wrappers became `*_entry`, as the shop's nine steps did.
+
+**Measured.** `ct_native` from a cartridge save: all 40 save movies play to
+their end (39 did), menus-shop-inn and menus-shop-equip among them. The gate
+over the library passes, the shop's entries compared in shadow mode with none
+mismatched; `tools/effects_check.py`'s lines for the bridges' reads moved
+with them into the sequences. Fuzzing, seed 1, `tools/fuzz_compare.py`
+over the shop's 28 entries and the equipment's two the shop shares (with
+their variants, at most 2,000 states each): none mismatched.
 
 ### The last refusals in real play: the attract demo's states
 
