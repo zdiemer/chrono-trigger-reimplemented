@@ -5,3 +5,7 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C0881E field_walk_the_leader guard # gap: events-ocean-palace-lavos, Zeal's fall has no leader the object tables hold; docs/TODO.md, Refusals in real play
+C0885A field_recentre_the_screen guard # gap: events-ocean-palace-lavos, Zeal's fall recentres with no leader the object tables hold; docs/TODO.md, Refusals in real play
+C6E498 menu_object_capsule_iris_1 guard # gap: events-ocean-palace-lavos, Zeal's fall uses capsule iris geometry outside the port's guard; docs/TODO.md, Refusals in real play
+C6E4BE menu_object_capsule_iris_2 guard # gap: events-ocean-palace-lavos, Zeal's fall uses capsule iris geometry outside the port's guard; docs/TODO.md, Refusals in real play

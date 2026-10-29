@@ -216,6 +216,55 @@ A route is a list of phases, each ending in a checkpoint file. Re-running it
 resumes at the last phase that finished, so a failing phase can be iterated on
 without replaying the hour before it. Delete the checkpoints to start over.
 
+### The Ocean Palace finale
+
+`golem_twins` starts from fantasyanime ctsave10 slot 3. Crono, Marle and Lucca
+alternate Lightning 2, Ice 2 and Fire 2, hitting both Golems and changing what
+they copy. The recorded fight wins without backtracking at frame 15912;
+Dalton's departure returns control at 19102. The route returns to the save
+point, saves slot 3 and closes the menus. `battle-golem-twins` is 20216 frames;
+it adds no instruction bytes beyond the other movies, but records the victory
+and produces the next movie's cartridge save. The route writes `<prefix>.srm`
+from battery RAM after saving; the interpreter's copy is committed as
+`oracle/saves/recorded/ocean-palace-after-twins.srm` (CRC-32 `1D74BE21`).
+
+`ocean_palace_lavos` loads that save and records `events-ocean-palace-lavos`,
+30364 frames. Through the cleared Twins room (`$19E`) to the Mammon Machine
+(`$19F`), speak to the Nu blocking the corridor and approach the machine.
+Lavos rises at frame 8169 (`$1D3`); the scripted loss leads to `$1A7`, where
+Crono's last walk is in hand at 14219. Walking forward starts his fall;
+Schala sends the survivors away, and Zeal's destruction starts on `$1F4` at
+20338. The party reaches the Last Village hut (`$1A9`) at 26248, wakes, and
+accepts Marle, Lucca and Robo in the party exchange. The movie ends after
+the hut reloads and movement is verified, with story counter `$CD`.
+
+`--coverage` records 104088 instruction bytes for the Twins and 98326 for the
+finale. Against existing coverage from the other 49 movies, the finale adds
+1037 bytes (1.01 KiB),
+all credited to ports by the static coverage measure: the capsule iris and
+world-map object-script work (`$C6:E448`-`$E6CF`, `$C2:16FA`-`$1758`,
+`$C2:191F`-`$1946`, `$C2:7BD1`), event movement and item removal, and field
+drawing. Four guards still refuse real calls in Zeal's fall; their gaps are
+in [TODO.md](TODO.md#refusals-in-real-play). The finale also first uses the
+dialogue tables at `$F9:B000` and `$FF:6B00`: the tables and their 443 and 185
+strings are now catalogued by range, without including their bytes. Splitting
+at a real save keeps both movies below 40000 frames; no machine state or
+memory edit is a movie input.
+
+Both movies' shadow runs have zero mismatches, page refusals or out-of-range
+accessors. Strict mode (`--native on --generated off --no-interpreter strict
+--sound-driver c`) reaches both final frames, but differs from the reference
+in 58 saved-game bytes each and, for the Twins, 224 SRAM bytes: both have
+`drifts` baselines. `ct_native` reaches both frame counts (exit 0) without a
+missing-C stop, but reports four/two unsupported video calls, first at `$7E:5AEB`;
+the finale ends blanked. That playback gap is in TODO.md, "The native program".
+Timing is calibrated with `--drifted` over this pair; the fallback baseline
+retains the library's existing rows and adds the newly reached fallbacks.
+The narrowed gate, `python tools/suite.py --ct-dev build/main/ct_dev.exe -j 1
+--movies battle-golem-twins events-ocean-palace-lavos` (with the ROM supplied
+by `--rom`), ends with `suite OK`, including the static checks. Native-shape
+playback completes both movies, and sound lockstep is identical.
+
 ## What the route runner does
 
 `tools/movies/campaign.py`:

@@ -582,7 +582,7 @@ no movie; the slot named is the nearest found from the README, for the route to 
 
 | Era | Event | Save before it | Boss |
 |---|---|---|---|
-| 12,000 B.C. | The Ocean Palace's end: Lavos rises, Crono falls, Zeal's fall | after ctsave10 slot 3 (the Golem Twins) | Lavos (the loss is scripted) |
+| 12,000 B.C. | The Ocean Palace's end: `events-ocean-palace-lavos` | recorded ocean-palace-after-twins slot 3, made by `battle-golem-twins` from ctsave10 slot 3 | Lavos (the loss is scripted) |
 | 2300 A.D. | Death Peak: the wind, the Time Egg, Crono brought back | ctsave11 slot 3, ctsave12 slot 1 | Lavos Spawn |
 | 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra |
 | 1000 A.D. | The trial | ctsave01 slot 3 is after it; a save before is to find | -- |
@@ -595,10 +595,37 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 12,000 B.C. | Mt. Woe | ctsave09 slot 3 | Giga Gaia |
 | several | The Blackbird's end and the Epoch's wings | ctsave11 | Dalton Plus |
 
+- **Movies, the Ocean Palace**: `battle-golem-twins` (route `golem_twins`, ctsave10
+  slot 3, 20216 frames) wins with alternating Lightning 2, Ice 2 and Fire 2
+  (frame 15912, no retries), watches Dalton leave, returns to the save point,
+  saves slot 3 and closes the menus. It adds no unique instruction bytes, but
+  supplies the reproducible cartridge save `recorded/ocean-palace-after-twins.srm`.
+  `events-ocean-palace-lavos` (route `ocean_palace_lavos`, that save's slot 3,
+  30364 frames) passes `$19E` to `$19F`, speaks to the Nu in the corridor,
+  approaches the Mammon Machine, loses the scripted Lavos fight (`$1D3`), walks
+  Crono forward at `$1A7`, and plays his fall, Schala's escape and Zeal's
+  destruction (`$1F4`). It reaches the Last Village hut (`$1A9`) at 26248;
+  after waking and closing the party exchange, the field is in hand at 30364,
+  story counter `$CD`. This adds 1037 bytes (1.01 KiB) beyond the other 49 movies,
+  statically credited to ports: the capsule iris (`$C6:E448`-`$E567`), world-map
+  script work (`$C6:E595`-`$E6CF`, `$C2:16FA`-`$1758`, `$C2:191F`-`$1946`,
+  `$C2:7BD1`), event movement/item removal and field drawing. Four real-play
+  guard gaps remain (TODO.md, "Refusals in real play"). The newly read dialogue
+  tables `$F9:B000` and `$FF:6B00` and their 443 and 185 strings have catalogue
+  metadata, not asset bytes.
+  Both shadow runs have zero mismatches, page refusals and out-of-range
+  accessors. Strict mode reaches both ends with saved-game drift (58 bytes
+  each, plus 224 SRAM bytes for the Twins), recorded in the strict baseline.
+  `ct_native` reaches both frame counts (exit 0) but reports four/two unsupported
+  video calls, first at `$7E:5AEB`; the finale ends blanked, a playback gap
+  recorded in TODO.md, "The native program". The reference movie reaches the
+  requested ending; native playback still needs that follow-up.
+  The narrowed one-job suite for these two movies ends with `suite OK`,
+  including static checks, native-shape playback and identical sound lockstep.
+
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.
-The Ocean Palace's end and Crono's return are the story's largest scripted scenes, so they come
-first.
+Crono's return is the next of the story's largest scripted scenes to record.
 
 ### 14. The original's known glitches
 A faithful port reproduces the original's mistakes, so plays that lean on its documented glitches

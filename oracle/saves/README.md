@@ -8,6 +8,17 @@ needs by the CRC-32 in its `# sram crc32` line, so `--sram` is optional; see
 
 Each movie's `# Save:` line names the file below and the slot it loads.
 
+## recorded/
+
+`ocean-palace-after-twins.srm`, slot 3: the Ocean Palace save point after winning
+the Golem Twins and watching Dalton leave (story counter `$C9`). Made from
+fantasyanime `ctsave10-ocean_palace.srm`, slot 3, by route `golem_twins`:
+`battle-golem-twins.ctm` records the victory, return to the save point and save
+over slot 3. The route exports only the cartridge's 8192 bytes of battery RAM
+to `<prefix>.srm`; slots 1 and 2 remain the source save's. This is the starting
+save for `events-ocean-palace-lavos.ctm`, keeping the fight and finale in two
+short movies. No memory edits or machine snapshots are involved.
+
 ## fantasyanime/
 
 From the Chrono Trigger saves at fantasyanime.com/squaresoft/ctsaves-srm.htm,

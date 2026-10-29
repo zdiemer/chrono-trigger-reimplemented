@@ -9,6 +9,13 @@
 # after the line -- is how the list empties. A new finding is answered the same
 # way before it merges: a line added here says why.
 
+run menu_object_capsule_iris_1 field_window_shape_edge # aliases scene_circle_radius: set_up_circle writes the word plainly before scene_circle_draw; the capsule guard requires radius < 256, so its scaffolding byte normalization writes the same value
+run menu_object_capsule_iris_1 field_window_shape_table # aliases the low byte of scene_circle_center_y: set_up_circle writes the word plainly before scene_circle_draw; the capsule guard requires y < 256, so its scaffolding byte normalization writes the same value
+run menu_object_capsule_iris_1 scene_circle_center_y # set_up_circle writes the word plainly before scene_circle_draw; the capsule guard requires y < 256, so its scaffolding byte normalization writes the same value
+run menu_object_capsule_iris_2 field_window_shape_edge # aliases scene_circle_radius: set_up_circle writes the word plainly before scene_circle_draw; the capsule guard requires radius < 256, so its scaffolding byte normalization writes the same value
+run menu_object_capsule_iris_2 field_window_shape_table # aliases the low byte of scene_circle_center_y: set_up_circle writes the word plainly before scene_circle_draw; the capsule guard requires y < 256, so its scaffolding byte normalization writes the same value
+run menu_object_capsule_iris_2 scene_circle_center_y # set_up_circle writes the word plainly before scene_circle_draw; the capsule guard requires y < 256, so its scaffolding byte normalization writes the same value
+
 game/battle/animation.c posing battle_work[20] battle_work
 game/battle/animation.c posing battle_work[21] battle_work
 game/battle/arith.c battle_multiply_8x8 battle_multiply_factors[0] battle_multiply_factors                    # the entry's operands: the original's callers put them in the cells, every call

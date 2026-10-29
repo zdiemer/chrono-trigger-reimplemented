@@ -2645,6 +2645,47 @@ re-runs the census.
   own call of the original recurse into the port: decide whether a native
   build keeps the wait at all, and take it out of the service if not.
 
+## Refusals in real play
+
+`events-ocean-palace-lavos` reaches four guard gaps during Zeal's fall. Its
+reference shadow run has no mismatches, page refusals or out-of-range accessors,
+but hands these calls back to the original. The entries are recorded as gaps in
+`tools/refusal_allowlist.txt`; remove each line when its port takes the state.
+
+- `$C6:E498` / `$C6:E4BE`, `menu_object_capsule_iris_1` / `_2`: 50 and 30
+  refused calls, first at frames 20871 and 21154, with X `$009C`.
+  `menu_capsule_iris_can_draw` restricts the centre, radius and stretch; the
+  world-map scene's capsule geometry falls outside those bounds.
+- `$C0:885A`, `field_recentre_the_screen`: one refused call at frame 21566,
+  with Y `$FFFE`, during the field cutaway in Zeal's fall. The guard requires a
+  party leader link naming an object in the field tables.
+- `$C0:881E`, `field_walk_the_leader`: 811 refused calls, first at frame
+  23503, also with Y `$FFFE`. The scripted scene runs the field without a
+  valid leader link. The native program needs the corresponding scene state
+  supported, rather than a wider unchecked object-table access.
+
+The two Ocean Palace movies also expose comparison coverage gaps:
+`menu_object_cmd_scroll_map` abandons 1669 of 3132 calls (1463 matched), and
+`battle_dispatch_expired_timers` has 310 of 615 calls interrupted (305 matched).
+Neither mismatches. Their narrowed sample crosses the uncompared check's 50%
+threshold; `tools/uncompared_baseline.txt` records it. Establish comparisons
+covering those missing stretches before treating these samples as full evidence.
+
+`battle_frame_work` also exceeds the vblank timing tail on this pair: 217 of
+11901 stretches differ by at least 1024 clocks (maximum 1537), although its
+mean error is 143 clocks and net drift is -0.07%. Its inline alternating VRAM
+upload already has a timing exception; the Twins exercise 306 of that upload's
+stretches over 1024 clocks. The vblank check finds no moved writes. The caller
+now has a documented `vblank-tail` exception too; retain this sample when
+improving the upload's timing, rather than moving the caller's calibrated mean.
+
+The finale's six capsule-iris scaffold-read findings are answered in
+`tools/effects_baseline.txt`: `set_up_circle` plainly supplies the centre and
+radius, and the guard bounds both below 256. `scene_circle_draw`'s scaffolding
+only normalizes those already bounded words to the same byte values. The
+reported field-window names alias the circle operands; no new game-code fix is
+needed for these reads.
+
 ## The native program
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
@@ -2658,6 +2699,17 @@ rising palace as C), and with `new-game.ctm`'s, `fair.ctm`'s,
 the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
+
+- **Ocean Palace movie playback.** `battle-golem-twins` and
+  `events-ocean-palace-lavos` run for their full 20216 and 30364 frames in
+  `ct_native` (exit 0), without a missing-C stop, but both report unsupported video
+  calls: four and two respectively, first at `$7E:5AEB`. The finale ends with
+  the screen blanked (the Twins run ends showing), so frame completion is not
+  evidence that the native program plays these scenes correctly. Diagnose its
+  playback and video escapes. Strict `ct_dev --native on --generated off
+  --no-interpreter strict --sound-driver c` also reaches both ends, with
+  58 saved-game bytes differing from reference in each, plus 224 SRAM bytes
+  for the Twins; these are `drifts` entries in `tools/strict_baseline.txt`.
 
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
