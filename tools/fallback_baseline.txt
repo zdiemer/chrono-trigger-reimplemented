@@ -4,17 +4,17 @@
 # A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes
 # on one, is a new fallback, and needs its reason. An `open PORT` line is what the original ran
 # under that port's comparisons still open when a run ended, which hides it from the rest.
-7E:---- 96725 16  # no port yet (scene program (RAM))
+7E:---- 94970 16  # no port yet (scene program (RAM))
 7E:3023 11133 8  # handback by attract_frame_pass (scene program (RAM))
-7E:3092 1159 51  # handback by scene_clear_work_ram (scene program (RAM))
-7E:3176 1400 1  # handback by scene_boot, scene_run_vblank_tasks (scene program (RAM))
-7E:31B0 532 15  # handback by scene_boot (scene program (RAM))
+7E:3092 1140 51  # handback by scene_clear_work_ram (scene program (RAM))
+7E:3176 1399 1  # handback by scene_boot, scene_run_vblank_tasks (scene program (RAM))
+7E:31B0 525 15  # handback by scene_boot (scene program (RAM))
 7E:347A 21 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:3495 4 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:34E3 13 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:350E 14992 46  # handback by scene_program_start (scene program (RAM)): the pixels' spread, Lavos's fall's call-out (TODO.md, "The pixels' spread is still the program's"), counted under 7E:---- until the measure followed its stack switch (chunk 9's review)
-7E:375F 495 26  # handback by scene_title_set_up_pendulum (scene program (RAM))
-7E:377E 1869 6  # handback by scene_send_sound_command (scene program (RAM))
+7E:375F 486 26  # handback by scene_title_set_up_pendulum (scene program (RAM))
+7E:377E 1839 6  # handback by scene_send_sound_command (scene program (RAM))
 7E:398A 50356 23  # handback by scene_run_frame_tasks (scene program (RAM)); the sequence's wait for the music ($C3:0C2A-$C3:0C40) in endings-beyond-time, a task the frame list leaves to the original (scene/frame.c) and the wait an idle entry shadow mode skips; the same code was filed under $7E:3749's and $7E:3754's hand-backs before chunk 11 made the list a port
 7E:399B 1004 23  # handback by scene_frame_tasks_go_on (scene program (RAM)); the same wait where the list goes on after a task came back to it (chunk 11's continuation)
 7E:44CE 1 1  # handback by scene_race_drain_score (scene program (RAM))
@@ -22,18 +22,18 @@
 7E:464D 4 1  # handback by scene_race_upload_column_ram (scene program (RAM))
 7E:4755 3 4  # handback by scene_race_await_victory_song (scene program (RAM))
 7E:485D 4 5  # handback by scene_race_ride (scene program (RAM))
-7E:597B 495 26  # handback by scene_title_load_sprite_graphics (scene program (RAM))
-7E:59A0 55 4  # handback by scene_title_load_layer_tiles (scene program (RAM))
-7E:59AA 220 12  # handback by scene_title_load_plane_graphics (scene program (RAM))
-7E:59BC 165 10  # handback by scene_title_load_bg1_map (scene program (RAM))
-7E:59CC 55 3  # handback by scene_title_load_bg2_map (scene program (RAM))
-7E:59D5 2310 104  # handback by scene_title_fill_bg1_map (scene program (RAM))
-7E:5A59 385 20  # handback by scene_title_set_up_pendulum (scene program (RAM))
-7E:5AB2 55 4  # handback by scene_run_sequence, scene_title_load_bg2_map (scene program (RAM))
-7E:5B99 51 1  # handback by scene_run_frame_tasks (scene program (RAM))
-7E:5BBF 51 1  # handback by scene_run_frame_tasks (scene program (RAM))
-7E:5C98 52 1  # handback by scene_title_move_logo (scene program (RAM))
-7E:5D32 53 1  # handback by scene_run_frame_tasks (scene program (RAM))
+7E:597B 486 26  # handback by scene_title_load_sprite_graphics (scene program (RAM))
+7E:59A0 54 4  # handback by scene_title_load_layer_tiles (scene program (RAM))
+7E:59AA 216 12  # handback by scene_title_load_plane_graphics (scene program (RAM))
+7E:59BC 162 10  # handback by scene_title_load_bg1_map (scene program (RAM))
+7E:59CC 54 3  # handback by scene_title_load_bg2_map (scene program (RAM))
+7E:59D5 2268 104  # handback by scene_title_fill_bg1_map (scene program (RAM))
+7E:5A59 378 20  # handback by scene_title_set_up_pendulum (scene program (RAM))
+7E:5AB2 54 4  # handback by scene_run_sequence, scene_title_load_bg2_map (scene program (RAM))
+7E:5B99 50 1  # handback by scene_run_frame_tasks (scene program (RAM))
+7E:5BBF 50 1  # handback by scene_run_frame_tasks (scene program (RAM))
+7E:5C98 51 1  # handback by scene_title_move_logo (scene program (RAM))
+7E:5D32 52 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:6A51 6 4  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:6A74 6 4  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:6A97 2 1  # handback by scene_run_frame_tasks (scene program (RAM))
@@ -60,8 +60,8 @@
 7E:9F8A 11 31  # handback by scene_run_sequence (scene program (RAM))
 7E:9FC8 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:9FEA 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
-C0:---- 636 123  # no port yet (field engine, events)
-C0:0B38 932 5  # handback by field_enter, field_fade_in, field_fade_in_after_a_menu (field engine, events)
+C0:---- 632 123  # no port yet (field engine, events)
+C0:0B38 918 5  # handback by field_enter, field_fade_in, field_fade_in_after_a_menu (field engine, events)
 C0:4F61 22476 118  # refused by event_cmd_move_to_tile (field engine, events)
 C0:5A93 84 5  # handback by event_run_object_script (field engine, events)
 C0:5B95 4410 18  # refused by field_object_in_the_way (field engine, events)
@@ -70,7 +70,7 @@ C0:88E5 5135 9  # refused by field_walk_the_leader (field engine, events)
 C0:8A6D 5135 9  # refused by field_walk_the_leader (field engine, events)
 C0:9175 11297 19  # refused by field_walk_the_leader (field engine, events)
 C0:99DE 5135 9  # refused by field_walk_the_leader (field engine, events)
-C2:---- 163372 1744  # no port yet (menus, text, overworld); $C2:CBE0-$C2:CBE8, the gate song task's wait for the sound driver once in menus-shop-equip, the same code as before, filed here rather than under the song task's hand-back since chunk 8's review changed where the shop's and the runtime's comparisons start and end
+C2:---- 162943 1744  # no port yet (menus, text, overworld); $C2:CBE0-$C2:CBE8, the gate song task's wait for the sound driver once in menus-shop-equip, the same code as before, filed here rather than under the song task's hand-back since chunk 8's review changed where the shop's and the runtime's comparisons start and end
 C2:0009 14 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
 C2:42DD 11 21  # refused by overworld_epoch (menus, text, overworld)
 C2:5DC4 21444 230  # no port yet (menus, text, overworld)
@@ -81,15 +81,15 @@ C2:DBE8 405 54  # no port yet (menus, text, overworld)
 C2:DC1E 1055 86  # no port yet (menus, text, overworld)
 C2:DCBE 685 28  # no port yet (menus, text, overworld)
 C2:EF05 4705 29  # no port yet (menus, text, overworld): the window list's copy of an area and its rows' block moves, cut out of C2:---- (tools/fallbacks.py, CUT_OUT): fair-companion and gato-battle 1431 each, fair and field 767 each, menu, menus-new-game-plus and new-game 103 each, which an ended comparison's extent had covered in the measure until chunk 11, when it rose inside the bank's falling line
-C2:EFBE 4510 137  # no port yet (menus, text, overworld)
+C2:EFBE 4430 137  # no port yet (menus, text, overworld)
 C2:F1DA 112 49  # no port yet (menus, text, overworld)
-C2:F20B 601 24  # no port yet (menus, text, overworld)
+C2:F20B 590 24  # no port yet (menus, text, overworld)
 C2:F626 525 29  # no port yet (menus, text, overworld)
 C2:FD58 1760 46  # no port yet (menus, text, overworld)
 C2:FD68 1815 47  # no port yet (menus, text, overworld)
 C3:0C28 10 23  # handback by scene_sequence_goes_on_after_the_wait (scene engine); the wait's first instructions after the sequence goes on, the same code as $7E:398A's
-C7:0000 318 15  # handback by sound_driver_boot (sound driver)
-C7:005F 106 3  # handback by sound_driver_boot_start (sound driver)
+C7:0000 312 15  # handback by sound_driver_boot (sound driver)
+C7:005F 104 3  # handback by sound_driver_boot_start (sound driver)
 FD:---- 12 7  # no port yet (field graphics)
 FD:A990 2048 222  # handback by battle_dispatch_expired_timers (field graphics)
 FD:DA62 3048 7  # handback by warp_short_trip_waits (field graphics); the warp's frame wait, the same code filed under warp_short_frame ($FD:DA65) before chunk 11 ported the trip's start
@@ -100,7 +100,7 @@ FF:---- 162359 189  # no port yet (misc): the number tiles' and the records' ban
 open 7E:3003 5 0  # hidden under scene_setup_and_first_frame's comparison, still open when a run ended
 open C0:0000 15 0  # hidden under field_enter's comparison, still open when a run ended; a movie that ends as the field starts
 open C0:0097 3557 0  # hidden under field_frame's comparison, still open when a run ended: endings-telepod-lavos 3515, which ends in the field's frame whose pass now covers the steps it goes on from (chunk 11, the fallback measure keeping its extent), and 6 each in seven fights' movies
-open C0:00BA 59 0  # hidden under field_wait_for_the_next_frame's comparison, still open when a run ended: the movies end in the frame wait, which the port waits through in shadow mode; what is left is the waits' last passes, which the idle entry stands for
+open C0:00BA 57 0  # hidden under field_wait_for_the_next_frame's comparison, still open when a run ended: the movies end in the frame wait, which the port waits through in shadow mode; what is left is the waits' last passes, which the idle entry stands for
 open C0:2824 179 0  # hidden under field_fade_in_after_a_menu's comparison, still open when a run ended; menus-save-point ends as the field fades in after the menu
 open C0:EC60 9 0  # hidden under field_finish_frame's comparison, still open when a run ended
 open C1:007E 6271 0  # hidden under battle_wait_for_frame's comparison, still open when a run ended
