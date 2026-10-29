@@ -1,0 +1,45 @@
+# The fair's strength test: start the swing, time the second A press, ring the bell, and collect one silver point (route fair_strength).
+# Save: ctsave14 slot 1 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# frames 4276
+# sram crc32 1E34C588
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 2 DOWN
+2452 2 DOWN
+2484 4 A
+2618 16 UP
+2638 16 LEFT
+2658 16 UP
+2678 16 UP
+2698 16 RIGHT
+2718 16 UP
+2738 16 UP
+2758 16 UP
+2778 16 UP
+2798 16 UP
+2818 16 UP
+2838 16 RIGHT
+2858 16 UP
+2878 16 RIGHT
+2898 16 UP
+2918 16 RIGHT
+2938 16 UP
+2958 16 UP
+2978 16 RIGHT
+2998 16 RIGHT
+3018 16 UP
+3038 4 A
+3252 176 UP
+3428 32 LEFT
+3460 32 UP
+3492 192 LEFT
+3684 32 DOWN
+3716 32 LEFT
+3748 16 DOWN
+3764 40 LEFT
+3804 2 UP
+3814 3 A
+3883 3 A
+3976 3 A
+4016 3 A
+4056 3 A

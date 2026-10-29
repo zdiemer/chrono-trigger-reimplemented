@@ -540,9 +540,17 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **`$005`** (the lower square): its startup's arithmetic and comparisons (its script's `L03A0` on, as
   `tools/disasm/eventscript.py` decodes it: var from memory, random, subtract and add words, compare
   variables) run only with `$7F:005D` bit 7 set,
-  which ctsave14 slot 1 hasn't. The strength test (object `$1A`, tile (5, 34); `move_by_variables`,
-  `$9D`) is reached from (89, 586) facing up; pressing confirm there ran only its button test
-  (`event_cmd_if_held_a`).
+  which ctsave14 slot 1 hasn't.
+- **Movie**: `events-fair-strength` (route `fair_strength`, ctsave14 slot 1, 4276 frames; the
+  field back in hand at 4186): face up below object `$1A` (tile (5, 34)), around (89, 584),
+  press A to begin, then press A again when local `$14` reaches 21. The first press calls the
+  leader's function 3, whose back-and-forth walk measures the hit; the earlier attempt stopped
+  at its held-A test. The bell rings, silver points rise from 131 to 132 and the square returns
+  to the player. Reaches 87 bytes (0.08 KiB) beyond the previous library and `events-fair-clone`,
+  all ported: `event_cmd_move_by_variables` (`$C0:4F0A`-`$4F60`). Shadow clean: 0 mismatched,
+  no refusal, `page refused` or `accessor out of range`. Strict mode reaches the end with the
+  same saved game and SRAM. `ct_native` reaches all 4276 frames without a stop, though its
+  independently timed replay ends with the screen blanked.
 - **`$1B2`** (Bekkler's tent, from `$005` at tile (43, 29)): Bekkler's object `$0B`, function 1
   (`L0846`), accepts confirm while local variable `$0B` is zero. Stand around (134, 149), face up
   and press A; wait through his move to tile (8, 5) before the greeting opens. The game choice

@@ -31,6 +31,7 @@ events-blackbird end
 events-end-of-time-gate end
 events-epoch-lavos end
 events-fair-clone drifts  # timing loses the clone game: $7F:005E bit 0 stays clear instead of awarding Crono's clone
+events-fair-strength end
 events-jetbike-race-won end
 events-jetbike-race end
 events-keepers-dome end

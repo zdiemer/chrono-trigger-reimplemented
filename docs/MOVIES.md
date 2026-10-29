@@ -209,6 +209,13 @@ greeting; the route waits for it, then for the choice window to accept input.
 The tent entrance is lower-square tile `(43,29)`. Short waypoint searches
 keep the large square's machine-copy count bounded.
 
+`fair_strength` (`events-fair-strength.ctm`, ctsave14 slot 1, 4276 frames)
+rings the strength-test bell and wins one silver point. Confirm below object
+`$1A` starts the leader's back-and-forth movement; a second A press chooses
+its strength. The route searches a machine copy for local `$14` reaching 21,
+then replays just that delay and the winning press. It ends with the square
+back in hand and verifies that silver points rose from 131 to 132.
+
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
