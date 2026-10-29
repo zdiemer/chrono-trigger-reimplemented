@@ -643,6 +643,23 @@ no movie; the slot named is the nearest found from the README, for the route to 
   with the screen showing; strict also reaches the limit, differing from
   the reference by 35 saved-game bytes (`drifts`). Neither has a code stop.
 
+- **Zombor movie**: `battle-zombor` (route `zombor`, ctsave04 slot 1,
+  26320 frames). The save starts outside Zenan Bridge at story `$54`, with
+  Jerky in the inventory. Delivering it sets `$57`; agreeing to defend the
+  bridge sets `$7F:019A` bit 0. The movie defeats both troop encounters,
+  then Zombor's 800-HP lower and 960-HP upper bodies. The fight ends at
+  25420; field control returns in `$087` at 26320, story `$5A` (which the
+  encounter sets before combat, so the route also checks the victory and
+  field control). Against the previous 48 movies plus Yakra and Dragon
+  Tank, it adds 172 instruction addresses / 369 bytes: notably
+  `battle_enemy_marches` (`$C1:3F5A`), `battle_inventory_take`
+  (`$C1:D056`), and event facing/flag commands. Shadow has zero mismatches,
+  refusals, out-of-range accessors or uncatalogued reads; sound lockstep
+  matches for 81810 ticks. No fallback baseline increase is needed.
+  `ct_native` reaches the limit with its screen blanked; strict stops at
+  20301 on the `$C0:1AAC` `field_press_confirm` guard. These are TODO gaps,
+  with the guard recorded in the refusal allowlist.
+
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.
 The Ocean Palace's end and Crono's return are the story's largest scripted scenes, so they come

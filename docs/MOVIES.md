@@ -229,7 +229,17 @@ strict saved game differing from the reference by 35 bytes. Its 631 new
 instruction bytes are mostly the Tank's large field and battle sprite paths
 (see Targets 13 in `movies-wanted.md`).
 
-Each starts from the technoplaza cartridge save its movie header names
+`zombor` (`battle-zombor.ctm`, 26320 frames) shares the early-boss helpers.
+It loads ctsave04 slot 1 at story `$54`, delivers the Jerky supplies, agrees
+to defend Zenan Bridge, defeats both groups of Ozzie's troops, and defeats
+Zombor. Ice targets the upper body; Fire and Lightning target the lower.
+It ends on the bridge with field control and story `$5A`. Shadow is clean;
+the 369 new instruction bytes include enemy marching and battle inventory
+removal. Strict stops at frame 20301 on the `field_press_confirm` guard;
+`ct_native` reaches the frame limit with its screen blanked. Both gaps are
+recorded in `TODO.md`.
+
+The older routes above start from the technoplaza cartridge save their movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
 `--prefix` is where the run's checkpoints, log and

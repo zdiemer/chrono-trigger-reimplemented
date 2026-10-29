@@ -2645,6 +2645,15 @@ re-runs the census.
   own call of the original recurse into the port: decide whether a native
   build keeps the wait at all, and take it out of the service if not.
 
+## Refusals in real play
+
+- **Zombor's strict replay refuses `field_press_confirm`.** `battle-zombor`
+  stops at frame 20301, `$C0:1AAC`, with A=$0000, X=$0000, Y=$0090,
+  S=$06FD, D=$0100, DB=$00, P=$22. Its reference shadow run has no refusal.
+  Locate the strict replay's divergent field state and make the guard's
+  valid case work; the `gap` entry in `refusal_allowlist.txt` records this
+  remaining work, without claiming that the strict inputs win the battle.
+
 ## The native program
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
@@ -2668,6 +2677,11 @@ list, by kind, is what `game/` still asks of one.
   run. Strict mode reaches the same limit without a machine-code
   stop, but differs from the reference by 128 saved-game bytes. Input replay
   alone does not establish native completion of the Cathedral route.
+
+- **Zombor's native replay ends with the screen blanked.** `battle-zombor`
+  reaches 26320 frames without a hard stop, with six screen setups and two
+  SNES-only video calls (first `$7E:5AEB`). Locate the divergent screen with
+  a state-driven run; reaching the movie's limit does not prove victory.
 
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C

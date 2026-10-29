@@ -5,3 +5,4 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C01AAC field_press_confirm guard # gap: battle-zombor strict replay refuses at frame 20301; shadow has no refusal; docs/TODO.md, Refusals in real play

@@ -13,7 +13,7 @@ def battle_ready(run):
 def approach_battle(run, direction):
     """Keep walking past arrival scenes until a battle menu opens."""
     for _ in range(8):
-        assert advance(run, direction, lambda: battle_ready(run)), "the boss approach"
+        assert advance(run, direction, lambda: battle_ready(run)), ("the boss approach", run.map_id(), run.me())
         if battle_ready(run):
             return
         assert run.dialogs_until(lambda: battle_ready(run) or run.machine.b(PLAYER_CONTROL), 12000)
@@ -28,7 +28,7 @@ def settle(run, seed=1):
     machine = run.machine
     start, stable = machine.frame, 0
     while machine.frame - start < 10000:
-        if machine.b(BATTLE_MENU_MEMBER) < 0x80:
+        if battle_ready(run):
             fight(run, seed=seed)
             return
         if machine.b(PLAYER_CONTROL) and not run.dialog() and run.find_player() is not None:
@@ -166,6 +166,16 @@ def early_party(bot, state, rng, inventory):
     if character == 2 and state.mp(state.member) >= 1:
         return ("tech", 0, target)
     return ("attack", target)
+
+
+def battle_item(bot, item, target):
+    """Find a usable item in the battle list, which retains depleted slots."""
+    records = bot.machine.peek(0x7E1580, 256 * 5)
+    for index in range(256):
+        record = records[index * 5:index * 5 + 5]
+        if record[0] == item and record[3]:
+            return ("item", index, target)
+    return None
 
 
 def fight(run, seed=1, party=3, policy=early_party, after=True):
