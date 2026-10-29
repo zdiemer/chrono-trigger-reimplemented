@@ -16,6 +16,7 @@ menu end
 new-game drifts  # the shipping mode runs the opening ahead of the original: by the last frame the story's count has gone on to 3, the reference's still 0 (1 byte(s) of the saved game (event_memory))
 title-start end
 battle-black-tyrano drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (203 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
+battle-dragon-tank drifts  # differs from the reference: 35 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2613, $7E:2616, $7E:262B, ...)
 battle-golem-twins-gameover end
 battle-guardian drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (71 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, ...); 296 byte(s) of save RAM)
 battle-lavos-gameover end

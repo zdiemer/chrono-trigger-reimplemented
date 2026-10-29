@@ -586,7 +586,7 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 2300 A.D. | Death Peak: the wind, the Time Egg, Crono brought back | ctsave11 slot 3, ctsave12 slot 1 | Lavos Spawn |
 | 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra (`yakra` hand run, below) |
 | 1000 A.D. | The trial | ctsave01 slot 3 is after it; a save before is to find | -- |
-| 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank |
+| 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank (`battle-dragon-tank`) |
 | 2300 A.D. | Robo repaired at Proto Dome | between ctsave02 and ctsave03 | -- |
 | 600 A.D. | Zenan Bridge | ctsave04 slot 1 | Zombor |
 | 600 A.D. | Denadoro and the Masamune | ctsave04 slot 2 | Masa & Mune (`battle-denadoro` may hold the fight) |
@@ -625,6 +625,23 @@ no movie; the slot named is the nearest found from the README, for the route to 
   rows. The narrow timing calibration changes scalars only; its remaining
   data-dependent timing tails are documented in `timing_exceptions.txt`,
   with no unallowed finding in the shipping-mode video-write check.
+- **Dragon Tank movie**: `battle-dragon-tank` (route `dragon_tank`, ctsave02
+  slot 1, 16042 frames). The save is in `$01D`, story `$2E`, with `$7F:0199`
+  bit 2 clear. The route enters the bridge (`$01C`), continues left after
+  the arrival scene returns control, and defeats the head (600 HP) before
+  the body (266 HP) and wheels (208 HP), using physical attacks and the
+  available Tonics. The fight ends at 14722; after its destruction scene,
+  the field is back in hand at 16042 with `$7F:0199` bit 2 set. It reaches
+  290 instruction addresses (631 bytes) absent from the previous 48 movies
+  and the Yakra hand run: large field sprite paths in
+  `field_draw_object_sprites` (`$C0:B5CB` onward) and
+  `field_rebuild_12_sprites` (`$C0:C820` onward), plus
+  `battle_setup_graphics` and `battle_copy_frame_tiles` (`$CF:EBEB` onward).
+  Shadow is clean: zero mismatches, guard/page refusals, out-of-range
+  accessors or uncatalogued reads; sound lockstep is identical over 49989
+  ticks. No fallback baseline increase is needed. `ct_native` reaches 16042
+  with the screen showing; strict also reaches the limit, differing from
+  the reference by 35 saved-game bytes (`drifts`). Neither has a code stop.
 
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.

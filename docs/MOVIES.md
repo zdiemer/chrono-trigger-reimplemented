@@ -219,6 +219,16 @@ python3 -m tools.movies.routes.yakra --prefix build/yakra/run \
 python3 tools/suite.py --ct-dev build/main/ct_dev -j 1 --movies battle-yakra
 ```
 
+`dragon_tank` (`battle-dragon-tank.ctm`, 16042 frames) uses the same early-boss
+helpers. It loads ctsave02 slot 1 in the prison tower (`$01D`, story `$2E`),
+walks onto the bridge (`$01C`), continues after the arrival scene, and defeats
+the Tank's head before its other parts with physical attacks. The movie ends
+after the destruction scene, with field control and `$7F:0199` bit 2 set.
+Shadow is clean; `ct_native` and strict mode reach the frame limit, with the
+strict saved game differing from the reference by 35 bytes. Its 631 new
+instruction bytes are mostly the Tank's large field and battle sprite paths
+(see Targets 13 in `movies-wanted.md`).
+
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.

@@ -6,6 +6,23 @@ STORY = 0x7F0000
 PLAYER_CONTROL = 0x7E011F
 
 
+def battle_ready(run):
+    return run.machine.b(BATTLE_MENU_MEMBER) < 0x80 and run.machine.w(0x7E5E32) > 0
+
+
+def approach_battle(run, direction):
+    """Keep walking past arrival scenes until a battle menu opens."""
+    for _ in range(8):
+        assert advance(run, direction, lambda: battle_ready(run)), "the boss approach"
+        if battle_ready(run):
+            return
+        assert run.dialogs_until(lambda: battle_ready(run) or run.machine.b(PLAYER_CONTROL), 12000)
+        if battle_ready(run):
+            return
+        assert run.wait_control()
+    raise AssertionError("too many scenes before the boss")
+
+
 def settle(run, seed=1):
     """A script can briefly enable movement while still staging a battle."""
     machine = run.machine
@@ -153,8 +170,7 @@ def early_party(bot, state, rng, inventory):
 
 def fight(run, seed=1, party=3, policy=early_party, after=True):
     """Win one battle, then wait for the field to answer the pad again."""
-    assert run.dialogs_until(lambda: run.machine.b(BATTLE_MENU_MEMBER) < 0x80
-                            and run.machine.w(0x7E5E32) > 0, 8000), "a battle menu"
+    assert run.dialogs_until(lambda: battle_ready(run), 8000), "a battle menu"
     seen = False
 
     def won(r, state):
