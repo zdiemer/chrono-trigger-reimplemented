@@ -4,12 +4,14 @@
 # Picked from the whole library's `--native shadow --coverage` runs: a greedy
 # cover, each step taking the movie that adds the most code no movie before it
 # ran (ROM code bytes and RAM instruction starts) per frame played, then the
-# movies the checks need. Over the 50 movies of its making it keeps 96.2% of
+# movies the checks need. Over the 53 movies of its making it keeps 96.2% of
 # the library's ROM code bytes and 95.7% of its RAM instruction starts for 29%
 # of the frames and 24% of the shadow runs' time. Left out are the long
 # discovery movies (the Lavos endings but one, the tech sweeps, MotherBrain,
-# the R Series, the Black Tyrano, Zeal), each of which adds at most 0.6% of the
-# code for 4-15% of the time, and short ones whose code the sample already runs.
+# the R Series, the Black Tyrano, Zeal), each of which adds at most 0.9% of the
+# code for 4-15% of the time, and short ones whose code the sample already runs
+# (the Magic Cave and after-the-fall movies, made to find ct_native's stops,
+# add 0 and 15 bytes).
 # Re-pick it when the library changes much (docs/MOVIES.md, "Adding it to the
 # library"); the bytes below are what each added when it was picked, in order.
 
@@ -36,6 +38,7 @@ battle-golem-twins-gameover  # the Golem Twins and a game over
 battle-guardian  # the Guardian and its Bits
 menus-shop-equip  # buying and equipping
 late-omen-terramutant  # a two-part boss, Delta Force, the dual tech list
+battle-denadoro  # the Denadoro Mountains' monsters, which no other movie fights
 # what the checks and the subsystems need
 endings-beyond-time  # the endings: the staff roll and the scene program's ending modes (1737 RAM starts), the sound loads they make
 menus-end-of-time  # the End of Time's menus and save

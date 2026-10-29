@@ -188,15 +188,14 @@ menu_note_rock_techs vblank-tail notes which rock techs the party has, its time 
 menu_show_what_the_party_wears vblank-tail shows the party's wear on the field's sprites, run as C by the menus' close now (menu/display.c): 1.8% of its stretches in vblank off by a line, at most 1180 clocks, writing RAM
 menu_window_copy_bytes vblank-tail copies a window's bytes into the menus' tilemap buffer in RAM, its time following the window's size: 2.6% of its stretches in vblank off by a line or more, at most 1944 clocks
 
-# The library with the R Series and MotherBrain movies (50 movies), after one
-# drift-only calibration over all of it (timing_gate.py --calibrate --drifted).
-# Each was measured over the whole library; the vblank check over the same
-# library finds no video write moved onto the picture.
-battle_see_to_knocked_out_enemies worst the knocked-out enemies' pass carries the death animations it dispatches, which vary with how many fall at once (MotherBrain's and the R Series' fights): at most 50492 clocks off against a 50468 limit over 8734 stretches, none in vblank
-battle_see_to_the_beaten_enemies worst the beaten enemies' pass carries the same dispatched animation work: at most 50473 clocks off against a 50468 limit over 5957 stretches, none in vblank
-battle_set_up_after_the_graphics drift the set-up after a battle's graphics load is its callees' work (cost_milli 1, each callee at its own rate), +1.30% over 257 stretches of 29370 clocks on average, 2 in vblank and those within 20 clocks
-battle_step_the_poses drift a pose step's graphics building is attributed at the frame graphics' rate, which over- and undershoots with the poses built; recalibrating trades it against battle_strike_the_poses, which runs it inline, rather than settling either: +0.98% over 6976 stretches, none in vblank
-battle_strike_the_poses drift the victory and defeat poses run battle_step_the_poses inline and carry its attribution: +0.99% over 7120 stretches, none in vblank
-field_after_battle drift kept at the value that fits its vblank stretches (605 of 675, each within 925 clocks): calibrating its drift away (cost_milli 25302) puts 84% of them a line or more off; -1.16% over the 675
-field_nmi vblank-tail the pending frame's sprite queue, edge uploads and display work vary under their attributed rates, and Geno Dome's and the factory's field interrupts take the library just past the limit: 1.01% of 682152 stretches off by a line or more, at most 6406 clocks
-field_press_the_remembered_switches vblank-tail the remembered switches' presses follow how many switches a room remembers (the factory's and Geno Dome's rooms): 2.70% of its 111 vblank stretches off by a line or more, at most 1769 clocks
+
+# The library with the R Series, MotherBrain and the three movies from where
+# ct_native stops (53 movies), after one drift-only calibration over all of it
+# (timing_gate.py --calibrate --drifted). Each was measured over the whole
+# library; the vblank check over the same library finds no video write moved
+# onto the picture.
+battle_set_up_after_the_graphics drift the set-up after a battle's graphics load is mostly its callees' work, each at its own rate, so its own share calibrates to next to nothing (1) against its cost_milli of 1006: +1.54% over 260 stretches of 29032 clocks on average, 2 in vblank and those within 20 clocks
+battle_step_the_poses drift a pose step's graphics building is attributed at the frame graphics' rate, which over- and undershoots with the poses built; recalibrating trades it against battle_strike_the_poses, which runs it inline, rather than settling either: +2.01% over 7104 stretches, none in vblank
+battle_strike_the_poses drift the victory and defeat poses run battle_step_the_poses inline and carry its attribution: +1.92% over 7251 stretches, none in vblank
+field_after_battle drift kept at the value that fits its vblank stretches (606 of 677, each within 926 clocks): calibrating its drift away (cost_milli 25349) puts most of them a line or more off; -1.16% over the 677
+field_press_the_remembered_switches vblank-tail the remembered switches' presses follow how many switches a room remembers (the factory's and Geno Dome's rooms): 2.68% of its 112 vblank stretches off by a line or more, at most 1773 clocks
