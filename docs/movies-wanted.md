@@ -443,13 +443,210 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 ### 7. The other endings
 - **Saves**: technoplaza ct-state17 and ct-state19 to ct-state26 (New Game+ at each ending's story point).
 - **Do**: beat Lavos at that point and watch the ending.
-- **Reaches**: mode 10's unrun paths (0.74 KiB), mode 7 at `$1DC` (0.50); which
-  ending starts modes 5, 6 and 12 (3.47) is unknown. Up to 4.71 KiB over nine
-  endings of 30-50 minutes each, about 0.01 KiB a minute.
+- **Measured**: the first eight scratch recordings below add no new `$7E` scene
+  code and start none of modes 5, 6, 10/11/14/15 or 12. Reunion starts modes 11
+  and 15, adding nine scene instruction bytes at `$7E:8CE9`-`$8CF1`; the rest of
+  those paths already runs in the 48-movie library. The earlier 4.71 KiB
+  estimate was an upper bound, not coverage these saves demonstrate.
+  Mode 7's loss sequence and mode 6's Epoch dive already have separate movies
+  (target 8). None of these nine routes starts modes 5, 10, 14 or 12.
 - **Route**: yes (`bucket_lavos`, `telepod_lavos` and `beyond_time` are the pattern).
-- **Not recorded in the second batch**: each is a Lavos fight and an ending, 100000-200000 frames in
-  every gate, for at most mode 10's 0.74 KiB (the second batch's re-measure has the whole scene
-  program at 3.57 KiB, 2.92 unported); the cheaper targets came first and took the batch's time.
+- **Hand-run routes**: these long recordings stay in scratch storage, outside `oracle/movies`.
+  Their routes are in `tools/suite.py`'s `HAND_RUN_ROUTES`, excluded even from `--long-routes`;
+  regenerate and check them explicitly (MOVIES.md). `tools/movies/other_endings.py` shares the
+  Lavos fights and recording setup, and reuses `telepod_lavos.to_the_shell` for the fair.
+- **The Successor of Guardia**: `successor_of_guardia`, technoplaza ct-state17 slot 2,
+  129223 frames. Crono and Marle enter the right telepod, beat the shell (13145), inner Lavos
+  (44875) and Core (117187), without a wipe, return to the fair, and speak to the royal guard
+  below the fountain. The royal family's reveal at `$04F` leads to Frog and Leene at `$057`,
+  their credits, heart and The End. Completion checks object 0's final halt at script offset
+  `$0270` in `$057`, after its fade, then keeps another 120 frames; the final screen was inspected.
+  Identification is from the save's RAM and the game: `$7F:0000 = $27`, and location `$052`'s
+  script 9 (`$FD:9000`) selects `$27 <= story < $2D`, sets `$7F:006E = 5`, and returns to `$008`.
+  That flag enables lower-square objects `$1B`/`$1C`, whose conversations start `$04F`.
+  Against the coverage union of all 48 library movies, this recording adds 159 instruction
+  bytes (0.16 KiB): party removal (`$C0:3967`-`$3992`, `$39E1`-`$39F3`), field paths,
+  battle aiming (`$C1:C8CC`-`$C8E9`), and palette paths including darkening blue
+  (`$FD:E6A1`-`$E6D0`). **No new `$7E` scene-program code**; none of modes 5, 6, 10/11/14/15
+  or 12 starts in this ending. Shadow: 0 mismatched, 0 refusals, no `page refused`,
+  `accessor out of range` or asset diagnostics; sound lockstep identical. `ct_native` and
+  strict mode both run all 129223 frames and exit 0 without a stop. Fixed-input completion
+  in those modes does not establish the ending's outcome when their timing drifts.
+  Shipping-mode `route_check --mode on:on:c` passes at frame 176603, all fights without a wipe;
+  its six restores away from a base replay exactly, and the C sound driver reports no dropped
+  commands or samples placed over echo. No movie was added to the library, so the narrowed
+  movie suite and its aggregate baselines do not apply. The route-check unit tests and the
+  static don't-care, port-style, port-smell, source-effects and asset checks pass.
+- **The Legendary Hero**: `legendary_hero`, technoplaza ct-state19 slot 2, 144640 frames.
+  The bucket, Day of Lavos, shell with its boss imitations, inner Lavos and Core; all fights
+  without a wipe (won at 56952, 85846 and 130160). The ending plays Robo and Atropos's reunion,
+  Tata's journey to the throne, Crono, Marle and Lucca in place of the villains, and the
+  interleaved staff credits through The End. The save's `$7F:0000 = $5D` selects
+  `$54 <= story < $66` in `$052`, setting `$7F:01AB = 1` and entering `$025`. That ending flag
+  advances through 6: `$025`, `$02C`, `$025`, `$02D`, `$025`, `$026`, `$025`, `$03C`, `$025`,
+  `$02E`, `$025`. Completion requires flag 6 and object 0's final wait/jump loop at `$042B`,
+  after the last fade-in; The End was inspected. Coverage against the 48 library movies adds
+  **one byte**, the field-object loop's return at `$C0:A88C`, and no `$7E` scene-program code.
+  None of modes 5, 6, 10/11/14/15 or 12 starts in this ending. Shadow exits 0: no mismatches,
+  refusals, page/accessor/asset diagnostics; sound lockstep identical. `ct_native` stops at
+  frame 14237, `$FD:B438`, "an enemy coming into the battle"; strict mode runs all 144640
+  frames and exits 0 without a stop. Shipping-mode `route_check --mode on:on:c` passes at
+  frame 168451 without a wipe; all 12 restores replay exactly, with no C sound-driver errors.
+- **The Unknown Past**: `unknown_past`, technoplaza ct-state20 slot 2, 160225 frames.
+  The shared bucket route beats the shell (75692), inner Lavos (103155) and Core (144665).
+  Inner Lavos needed 24 retries; the recording retains only the winning input. Story
+  `$7F:0000 = $69` takes `$052`'s `$66 <= story < $75` branch, sets `$7F:01AA = 1`, and enters
+  `$025`. Credits alternate with `$024`, `$11A`, `$03F`, `$026`, and `$02B`, returning to `$025`
+  after each. The last interlude has flag 6: object 0 waits at `$03F2` for object 8's Robo dance,
+  which reveals The End and loops at `$04A9`. The route checks both objects and keeps another
+  120 frames; the final picture was inspected. Coverage adds 92 instruction bytes over the
+  48-movie library, in field/battle/menu paths (`$C0:BDE7` onward, `$C1:1574`-`$15E6`,
+  `$C1:C8CC`-`$C8E9`, `$C2:8CF6`), **none in the `$7E` scene program**. This ending starts none
+  of modes 5, 6, 10/11/14/15 or 12. Shadow exits 0 with zero mismatches and refusals, no
+  page/accessor/asset diagnostics and identical sound lockstep. `ct_native` and strict mode
+  both run all 160225 input frames and exit 0 without a stop. Shipping-mode
+  `route_check --mode on:on:c` reaches The End at frame 146361; all 12 restores replay exactly,
+  with no C sound-driver errors.
+- **The People of the Times**: `people_of_the_times`, technoplaza ct-state21 slot 2,
+  160570 frames. Story `$7F:0000 = $7E` takes `$052`'s `$75 <= story < $84` branch to `$05B`.
+  The route beats the shell (59176), inner Lavos (85378) and Core (149750), without a wipe,
+  then follows the character
+  credits through `$05B`, `$05C`, `$05D`, `$05E`, `$05F` and The End. It requires object 1's
+  final loop at `$035C` in `$05F` and another 120 frames; the final picture was inspected.
+  The default Core seed is 2, the other fights' 1: with Core seed 1, the reference stalled
+  before the reveal, object 1 at `$033D`, CPU waiting for the sound command echo at `$C7:0635`.
+  Another 9000 frames and button probes did not release it. Replaying from the Core checkpoint
+  with seed 2 completed the ending; neither run used pokes. The sound stall is in TODO.md.
+  Coverage adds 16 instruction bytes over the 48-movie library (`$C0:CFEE`-`$D0A8`),
+  **no new `$7E` scene-program code**. None of modes 5, 6, 10/11/14/15 or 12 starts.
+  Shadow exits 0 with zero mismatches and refusals, no page/accessor/asset diagnostics,
+  and identical sound lockstep. `ct_native` and strict mode run all 160570 input frames
+  and exit 0 without a stop. Shipping-mode `route_check --mode on:on:c` reaches The End at
+  frame 146552; all 12 restores replay exactly, with no C sound-driver errors.
+- **The Oath**: `the_oath`, technoplaza ct-state22 slot 2, 159243 frames. The shared bucket
+  route beats the shell (65635), inner Lavos (99411) and Core (134683); the Core needed
+  18 retries, of which only the winning input is kept. Story `$7F:0000 = $87` takes `$052`'s
+  `$84 <= story < $8A` branch, setting `$7F:00DF` bit 0 and entering `$159`. Frog's farewell,
+  journey through Magus's castle and duel alternate with `$1CC`'s credits: `$159`, `$1CC`,
+  `$0A5`, `$1CC`, `$0A9`, `$1CC`, `$0AD`, `$1CC`, `$0B0`, `$1CC`, `$0AE`, `$1CC`, `$1BF`,
+  `$1CC`, `$0AC`, `$1CC`, `$0A5`. Completion requires `$E0 = 8`, `$DF` bit 1, and object
+  `$0D`'s halt at `$0579` in the last castle scene. It keeps another 600 frames for The End's
+  palette fade (32 steps at 15 frames each) and a final hold; the final picture was inspected.
+  This route exposed a bot-table error: Frog's healing entries were Water 2 and Heal.
+  The names at `$CC:15C4`, tech records at `$CC:1BEB` and effect costs at `$CC:253B`
+  identify Heal as entry 3 (2 MP) and Cure 2 as entry 6 (5 MP); `policies.py` now uses them.
+  Its shared `party_lavos_core` policy preserves healing but clears the left bit with physical
+  attacks before using area techs, then targets the body and exposed Core. It uses Robo's
+  learned Shock (entry 7, 17 MP), which reaches both, and restores MP for these windows.
+  No game code changed. Shipping-mode `route_check --mode on:on:c` reaches The End at 161581:
+  shell 70794, inner Lavos 103021, Core 137441, each without a wipe in the retained play.
+  The final check resumed the Core checkpoint after adjusting only the Core policy; that
+  restore replayed exactly, with no C sound-driver errors. The preceding full run had already
+  played the same shell and inner fights with Frog's corrected healing table.
+  Shadow exits 0 with zero mismatches and refusals, no page/accessor/asset diagnostics,
+  and identical sound lockstep (499496 ticks, 25 loads). Coverage adds 181 instruction
+  bytes over the 48-movie library, including `$C0:AC48`-`$AC68`, battle paths in `$C1`
+  and `$CD:1E27`-`$1E33`, **no new `$7E` scene-program code**. None of modes 5, 6,
+  10/11/14/15 or 12 starts. `ct_native` and strict mode complete all 159243 input
+  frames with exit 0 and no stop.
+- **Dino Age**: `dino_age`, technoplaza ct-state23 slot 2, 176261 frames. Story
+  `$7F:0000 = $8E` takes `$052`'s `$8A <= story < $99` branch, sets `$7F:015C = 1`
+  and enters `$10F`. The shared bucket route wins the shell (103936), inner Lavos
+  (133140) and Core (160761), all without a wipe. Credits and Reptite/character
+  vignettes alternate through `$10F`, `$002`, `$10F`, `$001`, `$10F`, `$00C`,
+  `$10F`, `$0FC`, `$10F`, `$10E`, `$10F`. Completion requires `$015C = 7` and
+  object 7's final song loop at `$03FD`, after Ayla's fall and The End's reveal,
+  plus 120 frames; the final picture was inspected. A first attempt stopped making
+  progress after a failed Attack at frame 75811: the item list stayed open, Lavos
+  had 637 HP, and the bot waited for the command menu. A saved probe at 80000
+  confirmed this. `Bot.do` now backs out of an unexpected list after a failed
+  Attack, matching its existing Tech/Item recovery; the same shell replay finishes.
+  The 39 movie-tool and route-check tests pass.
+  Coverage adds 31 instruction bytes over the 48-movie library, in `$C0`, `$C1`
+  and `$CD`, **no new `$7E` scene-program code**. None of modes 5, 6, 10/11/14/15
+  or 12 starts. Shadow exits 0 with zero mismatches and refusals, no page/accessor/asset
+  diagnostics, and identical sound lockstep (553865 ticks, 24 loads). Core seed 2 is
+  the default. Seed 1 finishes at 193389 but has one shadow mismatch in `battle_irq`
+  (`$D1:FE97`): at the wait, PPU `$210F` is `FF` in the original and `00` in native
+  code, also at 15 later passes before the original leaves. That failure reproduces
+  from the Core checkpoint with generated comparisons off; TODO.md keeps it open.
+  `ct_native` stops at frame 15100 in `$FD:B438`, an enemy coming into the battle;
+  strict mode completes all 176261 frames and exits 0. TODO.md records the native stop too.
+  Shipping-mode `route_check --mode on:on:c` reaches The End at 142332 without a
+  wipe; all 12 restores replay exactly, with no C sound-driver errors.
+- **What the Prophet Seeks**: `what_the_prophet_seeks`, technoplaza ct-state24 slot 2,
+  131287 frames. Story `$7F:0000 = $9F` selects `$052`'s `$99 <= story < $D4`
+  branch, outside Memory Lane's `$A2 <= story < $AB` range: `$F7` bit 7 and `$190`.
+  The shared bucket route beats the shell (69092), inner Lavos (95529) and Core
+  (115627), without a wipe. Vignettes and credits run through `$190`, `$0CB`,
+  `$14E`, `$09B`, `$192`, `$194`, `$18E`, `$1A0`, `$18F`, `$19E`, `$190`.
+  The first `$190` pass sets `$F8` bit 7; `$19E` sets bit 6 to select the last pass.
+  Completion checks both bits cleared and object 0 halted at `$01B6` in `$190`,
+  then keeps 120 more frames. The final The End picture was inspected.
+  Shadow exits 0 with zero mismatches, no page/accessor/asset diagnostics, and
+  identical sound lockstep (411801 ticks, 24 loads). Two guards refuse three calls
+  each at frames 119033-119035 in `$190`: `event_cmd_walk_with_the_party` (`$C0:3002`)
+  and `field_second_member_follows` (`$C0:A2CE`). The second party link is `$80`,
+  empty; their `gap` allowlist entries and RAM evidence are in TODO.md's Refusals
+  in real play. Coverage adds 377 instruction bytes over the 48-movie library,
+  **no new `$7E` scene-program code**; none of modes 5, 6, 10/11/14/15 or 12 starts.
+  The first check also exposed a missing dialog resource: `$D8:D000` entry 77,
+  `$D8:DD14`-`$DD25`, is a real final line, not a sentinel. Correcting the table's
+  count to 78 and rebuilding the catalogue removes that diagnostic; all previous
+  resources retain their ranges. The catalogue check (6092 resources) and all 42
+  asset/movie-tool/route-check tests pass. No game routine was ported.
+  `ct_native` and strict mode complete all 131287 input frames with exit 0 and
+  no stop. Shipping-mode `route_check --mode on:on:c` reaches The End at 140017
+  without a wipe; all 12 restores replay exactly, with no C sound-driver errors.
+- **Memory Lane**: `memory_lane`, technoplaza ct-state25 slot 2, 167063 frames.
+  Story `$7F:0000 = $A2` selects `$052`'s `$A2 <= story < $AB` branch to `$0EF`.
+  The shared bucket route beats the shell (94053), inner Lavos (122829) and Core
+  (157883), without a wipe. Marle and Lucca review the men, Crono interrupts,
+  and The End appears. Completion requires `$0EF` object `$0E`'s loop at `$059E`,
+  after its call-and-wait for the final reveal, plus 120 frames; the final picture
+  was inspected.
+  Shadow exits 0 with zero mismatches, no page/accessor/asset diagnostics and identical
+  sound lockstep (525128 ticks, 24 loads). Seven `field_walk_the_leader` (`$C0:881E`)
+  refusals at frames 166496-166502 are a `gap` in the allowlist and TODO.md: the
+  ending's upward exit carries the leader through Y `$FFxx`, which its guard rejects.
+  Coverage adds 111 instruction bytes over the 48-movie library, **no new `$7E`
+  scene-program code**; none of modes 5, 6, 10/11/14/15 or 12 starts.
+  The final dialog at `$DE:C000` entry `$BA`, `$DE:E29D`-`$E2B0`, was missing from
+  the catalogue. Correcting the table count to 187 fixes that diagnostic without
+  changing any old resource range. The catalogue check (6093 resources) and all 42
+  asset/movie-tool/route-check tests pass. `ct_native` and strict mode complete all
+  167063 input frames with exit 0 and no stop.
+  Shipping-mode `route_check --mode on:on:c` reaches The End at 127246 without a
+  wipe; all 12 restores replay exactly, with no C sound-driver errors.
+- **Reunion**: `reunion`, technoplaza ct-state26 slot 2, 123341 frames. Marle,
+  Lucca and Robo enter the right telepod and beat the shell (16619), inner Lavos
+  (54295) and Core (86129), without a wipe. The save layout at `$FF:FA7B` restores
+  story `$D4`; `$052`'s dispatcher sees Crono absent and `$6D` bit 7 clear, sets
+  `$6E = 4`, and selects `$054`. The route verifies the story after map loading
+  restores bank `$7F`, then verifies `$6E = 4` on arriving at the End of Time.
+  Gaspar wakes the companions; talking to Robo, Frog and Ayla brings the departure
+  counter to four (the absent Magus counts himself in during setup). Crossing
+  column `$13` starts the return to the Moonlight Parade. The route walks to the
+  telepod farewells, returns to the bell, and speaks to the King from the north.
+  `$051` calls mode 11 at frame 108801 (`$7E:0384 = $2B`), then the maps are
+  `$02D/$105/$08E/$05A`. `$05A` calls mode 15 at 115441 (`$2F`), followed by
+  `$056` and `$058`. Completion requires both observed modes and `$058` object 0's
+  final halt at `$0052`, after The End's reveal, plus 120 frames; the picture was
+  inspected. Modes 5, 6, 10, 14 and 12 do not start.
+  Coverage adds 126 instruction bytes (64 new instruction starts) over all 48
+  library movies. The **nine new `$7E` scene bytes**, at `$8CE9/$8CEC/$8CEF`,
+  select mode 15's continuation script without another staff roll. Shadow exits 0
+  with zero mismatches, no page/accessor/asset diagnostics and identical sound
+  lockstep (387382 ticks, six loads). It reports eight guard refusals at three
+  entries, described in TODO.md's Refusals in real play. `ct_native` and strict
+  mode complete all 123341 input frames with exit 0 and no stop.
+  The two movement refusals are the departure's Y `$FFxx`; three visibility
+  and three palette-release refusals check an odd sharing link despite the
+  script owning the palettes. All have `gap` reasons in the allowlist.
+  Shipping-mode `route_check --mode on:on:c` reaches The End at 125438,
+  with the shell, inner Lavos and Core beaten at 16744, 49078 and 88617 without
+  a wipe. It observes modes 11 and 15, all 459 restores replay exactly, and
+  the C sound driver reports no errors.
 
 ### 8. The scene program's modes 6, 7 and 5
 - **Mode 6** (`$7E:78DD`): location `$1B0` is the party in the winged Epoch over Lavos (event script

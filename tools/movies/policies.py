@@ -26,7 +26,7 @@ CHARACTER_TECHS = {
     1: dict(revive=(7, 15), heal_one=(6, 5), one=[(5, 8), (2, 2)]),                             # Marle
     2: dict(all=[(7, 20), (6, 15), (3, 3)], one=[(5, 8), (2, 2)]),                              # Lucca
     3: dict(heal_all=(4, 3), heal_one=(1, 2), all=[(6, 14), (2, 3)], one=[(5, 12), (0, 1)]),    # Robo
-    4: dict(heal_all=(5, 10), heal_one=(3, 2)),                                                 # Frog
+    4: dict(heal_all=(3, 2), heal_one=(6, 5)),                                                  # Frog
     5: dict(),                                                                                  # Ayla
     6: dict(all=[(7, 20), (5, 10)], one=[(0, 8), (1, 8), (2, 8)]),                              # Magus
 }
@@ -154,6 +154,36 @@ def party(bot, state, rng, inventory):
         if state.mp(member) >= cost and tech_known(bot, member, index) and rng.random() < 0.6:
             return ("tech", index, target)
     return ("attack", target)
+
+
+def party_lavos_core(bot, state, rng, inventory):
+    """Keep party's healing; clear the left bit with physical attacks first.
+
+    Then use the strongest known area tech on the body and exposed core.
+    Robo's Shock (entry 7, 17 MP) reaches them both; his generic policy's
+    Area Bomb depends on where he stands. Restore MP for these short windows.
+    """
+    action = party(bot, state, rng, inventory)
+    character = party_ids(bot)[state.member]
+    techs = CHARACTER_TECHS.get(character, {})
+    offensive = {index for index, _ in techs.get("all", []) + techs.get("one", [])}
+    if action[0] != "attack" and not (action[0] == "tech" and action[1] in offensive):
+        return action
+    if state.hp(7) > 0:
+        return ("attack", 7)
+    area = (7, 17) if character == 3 else next(iter(techs.get("all", [])), None)
+    if area and tech_known(bot, state.member, area[0]):
+        if state.mp(state.member) >= area[1]:
+            return ("tech", area[0], None)
+        ether = use(inventory, HYPER_ETHER, state.member)
+        if ether:
+            return ether
+    target = 3 if state.hp(3) > 0 else 9
+    if action[0] == "attack":
+        return ("attack", target)
+    if action[2] is not None:
+        return ("tech", action[1], target)
+    return action
 
 
 LAPIS = 0xCA
@@ -457,6 +487,7 @@ def tracking_do(bot, cast_ids, refused=None, damage=None):
 
 POLICIES = {
     "party": party,
+    "party_lavos_core": party_lavos_core,
     "party_with_lapis": party_with_lapis,
     "r_series": r_series,
     "motherbrain": motherbrain,

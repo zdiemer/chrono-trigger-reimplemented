@@ -7,6 +7,58 @@ lost. Each line says where the detail lives. Milestones themselves are in
 and [PLATFORM.md](PLATFORM.md); which of these to work on next, and why the
 rest waits, is [PLAN.md](PLAN.md).
 
+## Refusals in real play
+
+- **Reunion's departure and parade.** `reunion` (ct-state26 slot 2,
+  123341-frame scratch movie) has eight guard refusals at three entries.
+  `field_walk_the_leader` (`$C0:881E`) refuses frames 94157-94158 at `$054`:
+  the scripted departure carries leader Y through `$FFC1/$FF4A` before `$FED3`
+  at 94159. Leader X is `$108D`, party links `$02/$04/$80`, map mask `$3F3F`;
+  `clear_of_the_end` requires Y below `$FF00`. The refusal has A `$0100`,
+  X `$0710`, Y `$FFFE`, D `$0100`, DB `$00`, P `$23`.
+  At `$050`, `field_update_object_visibility` (`$C0:A88D`) and
+  `field_give_up_palette` (`$C0:734C`) each refuse frames 96984, 97676 and
+  99975. Object `$14` has palette `$0E` (slot 7), older/newer links `$00/$01`
+  at `$7E:0B28`, and all palette-slot heads `$80`. The newer link is odd,
+  which `object_palette_links_in_the_tables` rejects. But `$7E:0154 = $80`:
+  the script owns the palettes, so `object_give_up_palette` returns before
+  reading any sharer. Both guards still require those unused links to be valid.
+  The first visibility refusal has A `$0000`, X `$0028`, Y `$0046`, D `$0100`,
+  DB `$00`, P `$32`; palette release has A `$0080`, X `$0004`, Y `$0046`,
+  D `$0100`, DB `$00`, P `$33`. These are `gap` reasons in the allowlist.
+  Shadow has no mismatches or page/accessor/asset diagnostics; native and
+  strict modes complete the input. The shipping route reaches The End at
+  125438. No game routine was changed.
+
+- **Memory Lane's exit off the stage.** `memory_lane` (ct-state25 slot 2,
+  167063-frame scratch movie) refuses `field_walk_the_leader` (`$C0:881E`)
+  seven times at frames 166496-166502 in `$0EF`. Its scripted upward exit
+  wraps the leader's Y coordinate: at frame 166497 the party links are
+  `$02/$04/$06`, leader X is `$0880`, Y `$FFD4`, and map mask `$0F0F`.
+  Y decreases through `$FFAD/$FF86/$FF5F/$FF38/$FF11` before `$FEEA` at
+  166503. `field_walk_can_run`'s `clear_of_the_end` requires Y below `$FF00`,
+  so these are real states its guard rejects. The refusal has A `$0300`,
+  X `$0710`, Y `$FFFE`, D `$0100`, DB `$00`, P `$23`. It is a `gap` entry
+  in `tools/refusal_allowlist.txt`; no page refusal or out-of-range accessor.
+  The route reaches The End in reference and shipping modes; `ct_native`
+  and strict mode complete the movie's input. No game routine was changed.
+
+- **The Prophet ending's transient party links.** `what_the_prophet_seeks`
+  (ct-state24 slot 2, 131287-frame scratch movie) reaches The End, but its
+  reference play refuses `event_cmd_walk_with_the_party` (`$C0:3002`) and
+  `field_second_member_follows` (`$C0:A2CE`) three times each, at frames
+  119033-119035 in `$190`, before the first vignette's `$0CB` transition.
+  A saved reference frame 119034 has party links `$02/$06/$80` at
+  `$7E:0197/0199/019B` and trail positions `$00/$00/$00` at `$7E:01AB`.
+  `$80` is an empty link; the guards require the second party link to name
+  the stepping object. The event refusal has A/X `$0160`, Y `$0207`, D `$0100`,
+  DB `$00`, P `$20`; the follower has A `$0101`, X `$0006`, Y `$0007`,
+  D `$0100`, DB `$00`, P `$30`. Both are `gap` reasons in
+  `tools/refusal_allowlist.txt`, pending support for this transient state.
+  There is no page refusal or out-of-range accessor. `ct_native` and strict
+  mode complete this movie's input; their timing does not prove the refused
+  reference state is supported. No game routine was changed.
+
 ## Correctness and accuracy
 
 - **Geno Dome timing attribution.** The narrowed `battle-motherbrain` calibration
@@ -54,6 +106,24 @@ rest waits, is [PLAN.md](PLAN.md).
   definition of done (PORTING.md); ports registered before that without a
   recorded fuzz run should get one, subsystem by subsystem as Phase 3a
   rewrites it (PLAN.md): a rewritten port needs fuzzing anyway.
+- **Dino Age's battle interrupt mismatches in real play.** The hand-run
+  `dino_age` route (technoplaza ct-state23 slot 2, 193389-frame scratch movie;
+  MOVIES.md) reaches The End in the reference and shipping modes, but its full
+  `ct_dev --native shadow` replay exits 1. `battle_irq` (`$D1:FE97`,
+  `game/battle/nmi.c`) has one mismatch: at the wait, PPU `$210F` is `FF` in
+  the original and `00` in native code; the next 15 passes still differ before
+  the original leaves. Generated blocks have zero mismatches; sound lockstep
+  is identical (608049 ticks, 24 loads), with zero refusals and no page,
+  accessor or asset diagnostics. This is not a guard refusal to allowlist.
+  It also reproduces with `--generated off` from the Core checkpoint at
+  frame 133140 through 177869; the ending-only interval 177869-193389 is clean.
+  The cause is not established, and no game code was changed. This recording
+  used Core seed 1. The route now defaults to Core seed 2: it finishes at 176261,
+  with a clean full shadow replay and identical final PNG. To reproduce the
+  failure, set this route's `core_seed_offset` to 0, regenerate its movie in
+  scratch storage, then replay all 193389 frames with ct-state23's SRAM and
+  `--native shadow`. Strict mode completes both inputs; `ct_native`'s
+  separate `$FD:B438` stop is recorded under the native program below.
 - **IRQ timing simplifications** (RUNTIME.md, "Interrupt timing"): hardware's
   ~3.5-dot trigger delay isn't modeled, and an IRQ pending across `CLI` is
   taken one instruction early.
@@ -2685,6 +2755,16 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
+- **An enemy entering a battle in the hand-run endings.** The Legendary Hero
+  recording (`legendary_hero`, technoplaza ct-state19 slot 2; MOVIES.md) stops
+  `ct_native` at frame 14237 in `$FD:B438`, "an enemy coming into the battle".
+  Its shadow run has no mismatch or refusal; strict mode completes its
+  144640-frame input without stopping. This is a native-program stop, not a
+  guard refusal to add to `refusal_allowlist.txt`.
+  Dino Age (`dino_age`, ct-state23 slot 2, 176261-frame scratch movie) stops at
+  the same entry at frame 15100; strict mode completes its full input. Its
+  separate shadow mismatch is recorded under Correctness and accuracy above.
+
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
   tables (`menu/handlers.c`, `overworld/handlers.c`); a handler or a routine
@@ -3151,11 +3231,16 @@ waits on M5 rather than on a backend.
     597 registry entries (14%) are never entered by any movie** -- `$C2` 28,
     `$C6` 22, `$D1` 9, `$C3` 8, `$FD` 7, `$C7` 6 -- and those rest on fuzzing
     alone. Each wave since the pilot has found bugs there.
-- **Endings: three of about thirteen are recorded** (Beyond Time, the telepod
-  ending, the bucket ending). Reunion needs a route to Lavos from "The Time
-  Egg" (no Epoch reachable from that save); the rest are unrecorded and cheap
-  now (MOVIES.md), since an ending is chosen by where and when Lavos is beaten
-  plus story flags, and `oracle/saves/` has 51 saves to start from.
+- **Sound-command echo stall in The People of the Times.** The hand-run
+  `people_of_the_times` route (technoplaza ct-state21 slot 2), with all fight
+  seeds 1, wins Lavos and reaches `$05F`, then stays black before The End.
+  At frame 181083 its object 1 is at script offset `$033D`, wait count 0,
+  and the CPU cycles through `$C7:0635`-`$063B`, waiting for the sound command
+  echo; the SPC700 cycles at `$101E`/`$1024`. Another 9000 frames and probes
+  with A, B, Start, Up, X and Y leave it there. Replaying from the Core with
+  seed 2 wins at 149750 and finishes at 160570; that is the route's default.
+  This is a reference-runtime stall, not a guard refusal. Its cause is not
+  established; no game code was changed to work around it.
 - **Content no movie plays at all**: most sidequests, and much of the endgame
   beyond the Black Omen. That is the likeliest home of the dark code in `$C0`
   and `$C2`, since sidequests are event scripts and menus. Driving them is

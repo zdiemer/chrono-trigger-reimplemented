@@ -251,7 +251,11 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 # Routes run by hand rather than in every --long-routes gate: the tech sweep
 # fights for about forty minutes for under a KiB of code no movie runs
 # (docs/movies-wanted.md, "Every tech").
-HAND_RUN_ROUTES = {"tech_sweep"}
+# The other New Game+ endings take over 100,000 frames apiece. Their
+# scratch movies and shipping routes are checked by hand (MOVIES.md).
+HAND_RUN_ROUTES = {"tech_sweep", "successor_of_guardia", "legendary_hero", "unknown_past",
+                   "people_of_the_times", "the_oath", "dino_age", "what_the_prophet_seeks",
+                   "memory_lane", "reunion"}
 
 
 def all_routes():
