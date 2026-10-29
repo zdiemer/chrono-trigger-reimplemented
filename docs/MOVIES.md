@@ -199,6 +199,26 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
+`yakra` starts at ctsave01 slot 2, outside the Cathedral in 600 A.D. It loads
+story progress `$12`, finds Leene's pin, defeats the Naga-ettes, recruits Frog,
+plays the entrance organ, crosses the guarded halls and both switch rooms,
+plays the inner organ, and defeats Yakra. The 71287-frame recording ends in
+`$0C6` with the field back in hand and `$7F:01ED = 1`; returning to the castle
+with Leene is a later interaction. Its shared loading, encounter handling,
+settings and early-party battle policy live in `routes/_early_bosses.py`.
+
+This is a hand run: `yakra` is in `HAND_RUN_ROUTES`, and
+`oracle/movies/hand/battle-yakra.ctm` is outside the default movie library.
+Movies in `hand/` are selected only by an explicit `--movies <name>` in the
+suite and strict checker, so the long recording can still receive the same
+narrow checks without joining the coordinator's default gate.
+
+```sh
+python3 -m tools.movies.routes.yakra --prefix build/yakra/run \
+    --movie oracle/movies/hand/battle-yakra.ctm
+python3 tools/suite.py --ct-dev build/main/ct_dev -j 1 --movies battle-yakra
+```
+
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.

@@ -2659,6 +2659,16 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
+- **Yakra's native replay ends with the screen blanked.** The hand movie
+  `battle-yakra` (ctsave01 slot 2, 71287 frames) originally stopped at frame
+  4032, `$F9:B006`, because the Cathedral's dialogue table was missing from
+  the asset catalogue. Adding that table's existing extracted resources
+  removes the stop. `ct_native` now reaches the frame limit, reports six
+  screen setups and a blanked screen; locate that screen with a state-driven
+  run. Strict mode reaches the same limit without a machine-code
+  stop, but differs from the reference by 128 saved-game bytes. Input replay
+  alone does not establish native completion of the Cathedral route.
+
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
   tables (`menu/handlers.c`, `overworld/handlers.c`); a handler or a routine

@@ -584,7 +584,7 @@ no movie; the slot named is the nearest found from the README, for the route to 
 |---|---|---|---|
 | 12,000 B.C. | The Ocean Palace's end: Lavos rises, Crono falls, Zeal's fall | after ctsave10 slot 3 (the Golem Twins) | Lavos (the loss is scripted) |
 | 2300 A.D. | Death Peak: the wind, the Time Egg, Crono brought back | ctsave11 slot 3, ctsave12 slot 1 | Lavos Spawn |
-| 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra |
+| 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra (`yakra` hand run, below) |
 | 1000 A.D. | The trial | ctsave01 slot 3 is after it; a save before is to find | -- |
 | 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank |
 | 2300 A.D. | Robo repaired at Proto Dome | between ctsave02 and ctsave03 | -- |
@@ -594,6 +594,37 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 12,000 B.C. | Zeal's palace and the Mammon Machine | ctsave08 slots 2-3 | -- |
 | 12,000 B.C. | Mt. Woe | ctsave09 slot 3 | Giga Gaia |
 | several | The Blackbird's end and the Epoch's wings | ctsave11 | Dalton Plus |
+
+- **Yakra hand run**: `battle-yakra` (route `yakra`, ctsave01 slot 2,
+  71287 frames, in `oracle/movies/hand/`, outside the default library). The
+  slot is on the 600 A.D. world map (`$1F1`), story `$12`, before the pin and
+  Frog's arrival, rather than at the boss door. It plays the Cathedral
+  (`$081`), the Naga-ettes and Frog's naming, the entrance organ, the inner
+  hall (`$082`), the switches and inner organ (`$083`), the guarded corridor
+  (`$084`), and Yakra (`$0C6`, enemy `$90`, 920 HP). Yakra falls at frame
+  69207; the rescue scene ends with field control at 71287 and `$7F:01ED = 1`.
+  Story `$1B` is set by the later return-to-castle interaction, beyond this
+  movie's endpoint. The exploratory route was 81704 frames; choosing faster
+  settings, using learned early techs and taking the right staircase first
+  shortened it, but no route near 40000 frames was found. It remains in
+  `HAND_RUN_ROUTES`; a library-length recording of this boss is still wanted.
+  Only the winning inputs are kept; no diagnostic writes were used.
+  It reaches 491 instruction addresses (1036 instruction bytes) absent from
+  the previous 48 movies, including `script_spiral_out` (`$C1:6751`),
+  `battle_condition_other_kind_present` (`$C1:9656`), and tech-learning rewards
+  (`$C1:F39A`, `$FD:AD17`). The first asset-backed replay exposed the already
+  described but uncatalogued `$F9:B000` dialogue table; its 444 extracted
+  resources are now in the catalogue. `ct_native` consequently passes its
+  original frame-4032 stop at `$F9:B006` and reaches the frame limit, reporting
+  a blanked screen. Strict mode also reaches the limit, with 128 saved-game
+  bytes differing from the reference; its baseline is `drifts`. Neither
+  result is a claim that the fixed inputs finish the boss on native timing.
+  The rebuilt shadow run is clean: zero mismatches, guard refusals, page
+  refusals, out-of-range accessors or uncatalogued reads; sound lockstep is
+  identical over 220210 ticks. The fallback ratchet needs no new baseline
+  rows. The narrow timing calibration changes scalars only; its remaining
+  data-dependent timing tails are documented in `timing_exceptions.txt`,
+  with no unallowed finding in the shipping-mode video-write check.
 
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.

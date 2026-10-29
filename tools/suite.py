@@ -104,6 +104,9 @@ def collect(only, names):
         groups.append(sorted((ROOT / "oracle/movies").glob("*.ctm")))
     if only in ("all", "saves"):
         groups.append(sorted((ROOT / "oracle/movies/saves").glob("*.ctm")))
+        # Long hand runs are opt-in, even when the full library is selected.
+        if names:
+            groups.append(sorted((ROOT / "oracle/movies/hand").glob("*.ctm")))
     out = []
     for paths in groups:
         for p in paths:
@@ -160,7 +163,7 @@ def run_movie(binary, rom, out, name, path, frames, lockstep):
     return name, ok, detail
 
 
-def trace_check(binary, rom, out, movie, frames):
+def trace_check(binary, rom, out, movie, frames, jobs=2):
     """`--generated only` against `--native off` on one movie. Returns (ok, detail).
 
     The two runs are given their own copy of the binary so they can run at once
@@ -180,6 +183,8 @@ def trace_check(binary, rom, out, movie, frames):
                "--frames", str(frames), "--trace", str(traces[tag])] + extra
         with open(out / ("trace-%s.log" % tag), "wb") as fh:
             procs.append(subprocess.Popen(cmd, stdout=fh, stderr=subprocess.STDOUT))
+        if jobs == 1:
+            procs[-1].wait()
     if any(p.wait() != 0 for p in procs):
         return False, "a trace run failed"
     diff = subprocess.run([sys.executable, "-m", "tools.trace", "diff",
@@ -199,7 +204,7 @@ def trace_check(binary, rom, out, movie, frames):
 
 def check_trace(args, ctx):
     """`--generated only` against `--native off` on one movie."""
-    ok, detail = trace_check(ctx["binary"], args.rom, args.out, args.trace_movie, args.trace_frames)
+    ok, detail = trace_check(ctx["binary"], args.rom, args.out, args.trace_movie, args.trace_frames, ctx["jobs"])
     return ok, "trace identity (%s)" % args.trace_movie, detail, []
 
 
@@ -246,9 +251,9 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 
 
 # Routes run by hand rather than in every --long-routes gate: the tech sweep
-# fights for about forty minutes for under a KiB of code no movie runs
-# (docs/movies-wanted.md, "Every tech").
-HAND_RUN_ROUTES = {"tech_sweep"}
+# fights for about forty minutes for under a KiB of code no movie runs;
+# Yakra's nearest cartridge save requires the whole Cathedral dungeon.
+HAND_RUN_ROUTES = {"tech_sweep", "yakra"}
 
 
 def all_routes():

@@ -55,3 +55,4 @@ menus-save-point end
 menus-shop-equip drifts  # the presses land on other frames, and the shop's cursor buys and equips other things (50 byte(s) of the saved game (inventory_items, inventory_counts, $7E:2627, $7E:2628, $7E:2629, $7E:263D, ...))
 menus-shop-inn drifts  # the presses land on other frames, and the party ends at another place (13 byte(s) of the saved game (menu_past_the_names, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...))
 menus-sweep drifts  # the presses land on other frames, and the menus' cursor uses and moves other items (118 byte(s) of the saved game (inventory_items, inventory_counts, $7E:26AB, $7E:26CF, $7E:26D6, $7E:2719, ...))
+battle-yakra drifts  # differs from the reference: 128 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...)
