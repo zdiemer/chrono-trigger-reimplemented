@@ -18,6 +18,9 @@
 # vblank and outlast it (loads, setups, the load screen's frame): their error
 # moves work on the picture, and `worst` judges it there.
 
+# The field interrupt's residual work varies with its transition and upload paths.
+field_nmi vblank-tail Death Peak's varying transition, tile-queue and edge-upload paths: 1.60% of 43296 vblank stretches off by 1024 clocks or more after drift calibration, at most 4129 clocks (about 3 lines, below the vblank-worst bound); the three movies' video-write check finds no newly visible writes
+
 # The decompressor: a call is 260-290 lines on average (a frame is 262),
 # seven times the length of vblank, and interrupts are taken during its time: its error
 # moves the end of a load (by 6% of it on average), not a video write. Its time

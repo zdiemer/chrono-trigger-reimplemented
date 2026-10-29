@@ -1,0 +1,18 @@
+# Death Peak, 2300 A.D.: enter the wind slope, reach the first shelter and speak to the guide,
+# turn it into a tree, cross to the second tree and climb to the next field (route death_peak_wind).
+# Crossings are searched on machine copies; only successful inputs are kept.
+# Save: ctsave11 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# frames 4676
+# sram crc32 C6FD718D
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 4 A
+2924 16 UP
+2944 3 A
+3037 170 B+UP
+3207 3 A
+3300 3 A
+3604 12 B+RIGHT
+3616 604 B+UP
+4220 12 B+RIGHT
+4232 264 B+UP

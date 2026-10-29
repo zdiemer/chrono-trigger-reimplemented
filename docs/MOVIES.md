@@ -216,6 +216,63 @@ A route is a list of phases, each ending in a checkpoint file. Re-running it
 resumes at the last phase that finished, so a failing phase can be iterated on
 without replaying the hour before it. Delete the checkpoints to start over.
 
+## Death Peak and Crono's return
+
+Three movies keep this climb short enough to replay separately. Both original saves have
+the Chrono Trigger, the clone and the Keeper's instructions completed; neither has beaten
+a Lavos Spawn. The routes check those prerequisites rather than changing the save.
+
+| Movie | Route and start | Frames | End |
+|---|---|---:|---|
+| `events-death-peak-wind` | `death_peak_wind`, ctsave11 slot 3 | 4676 | Both tree shelters passed; field beyond the wind in hand |
+| `events-death-peak-ascent` | `death_peak`, ctsave12 slot 1 | 23852 | Two Lavos Spawn beaten, cave opened, slippery ridge crossed; saved at the last save point |
+| `events-death-peak` | `death_peak_return`, routes/death-peak-summit slot 1 | 23856 | Third Spawn beaten, shell climbed, Time Egg and clone used; Crono returned and End of Time field in hand |
+
+The wind route searches departure delays on machine copies. The first tree needs the
+party to stand still during a gust; at the second it must keep pressing UP to stay sheltered.
+The ascent searches paths to named cave entrances and ledges, checking both the destination
+map and proximity to the intended entrance because several exits share a destination map.
+All three Spawn fights target only the head: Marle's Ice, Lucca's Fire and Robo's Uzzi Punch,
+with healing and Ether when needed. All three won on their first battle attempt.
+
+The ascent makes `oracle/saves/routes/death-peak-summit.srm` through the game's save menu;
+its route also exports that cartridge SRAM beside its scratch checkpoints. The return route
+starts there, pushes the empty shell under the ladder (tile 16, 15), and climbs it. On the
+narrow landing only UP moves, so it walks off the landing before testing for field control.
+At the summit the Time Egg takes the party to the frozen Ocean Palace. The clone is exchanged
+for Crono, the return scene finishes, and the route verifies his return flag and the two
+quest items' removal. Machine copies and input logs stay in scratch storage; the library
+contains only the successful controller inputs and the cartridge save.
+
+Coverage against the cached reference coverage of the preceding 48 movies adds 2153 ROM
+instruction bytes across the batch. Individually the wind, ascent and return add 154, 1071
+and 1699 bytes against that earlier library; against the earlier library plus the other two
+new movies their unique contributions are 0, 445 and 1014 bytes. The wind remains the only
+movie playing both tree shelters and the guide's transformation. The ascent uniquely
+exercises single- and combination-tech learning in the Spawn rewards (`$C1:F39A`, `$C1:F4DF`,
+`$C1:F533`, `$FD:AD17`). The return adds the circular BG3 screen effects (`$C0:2514` onward),
+shell contact and movement paths, quest-item removal and the large field-object drawing
+paths (`$C0:C820` onward). Its dialogue also needs the already-described `$F9:B000` string
+table and its 443 text resources added to the asset catalogue; these are metadata only.
+
+`ct_native` reaches all three frame limits with exit 0 and no stop: wind/ascent/return
+report 2/4/4 video escapes, first at `$7E:5AEB`, and end with the screen blanked/blanked/showing.
+Its own frame timing does not establish that these fixed inputs reached the route goals.
+Strict mode (`--native on --generated off --no-interpreter strict --sound-driver c`) also
+reaches every frame limit without a stop. Wind ends as the reference does; ascent and return
+drift (78 and 89 saved-game bytes, plus 79 and 208 SRAM bytes respectively), recorded in
+`tools/strict_baseline.txt`. The fallback baseline needs no increase. The narrowed run's
+tile decoder has 150 interrupted calls and 126 matching calls, with none abandoned; its
+uncompared-baseline reason also records the preceding library's 6190 matching calls.
+All three shadow replays are clean: zero mismatches or guard refusals, no `page refused`
+or `accessor out of range`, and identical sound lockstep. The return's generated-only trace
+matches the interpreter for all 23856 frames. Drift-only calibration updates 239 timing
+estimates for this narrowed run; `field_nmi`'s remaining 1.60% vblank tail (maximum 4129
+clocks) is documented in the timing exceptions and TODO, with no newly visible video writes.
+The suite's trace pair now also respects `-j 1`, so this gate runs one game process at a time.
+The narrowed `suite.py -j 1 --movies events-death-peak-wind events-death-peak-ascent
+events-death-peak` run, including its static checks, ends `suite OK`.
+
 ## What the route runner does
 
 `tools/movies/campaign.py`:

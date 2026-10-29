@@ -9,6 +9,7 @@ battle_carry_out_member_action
 battle_change_battlefield
 battle_clear_battlefield_map
 battle_click_cursor
+battle_decode_tile_row  # Death Peak's narrowed run has 150 of 276 calls interrupted by an interrupt in the original's stretch; the other 126 compare and match, with none abandoned. The preceding 48-movie reference logs also have 6190 matched and 4802 interrupted calls, no mismatches; the whole-row decode writes its tile buffer in RAM.
 battle_draw_menu_window
 battle_effect_hit
 battle_enemy_message_turn  # run as C by the expired timers' dispatch (battle_dispatch_expired_timers) as the Lavos Core's turns come, whose stretch compares it; fuzzed alone

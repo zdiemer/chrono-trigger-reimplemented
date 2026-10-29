@@ -465,6 +465,9 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `events-prison-escape.ctm` | ctsave01, 3 | Prison countdown captions, the march to the guillotine, Lucca's rescue | 12900 |
 | `events-keepers-dome.ctm` | ctsave09, 1 | Keeper's Dome: the pendant opens the sealed door, Belthasar's hall | 5000 |
 | `events-blackbird.ctm` | ctsave11, 1 | Blackbird escape onto the hull over scrolling clouds | 4400 |
+| `events-death-peak-wind.ctm` | ctsave11, 3 | Death Peak's guide becomes a tree; shelter through the gusts at both trees and reach the next field (route `death_peak_wind`) | 4676 |
+| `events-death-peak-ascent.ctm` | ctsave12, 1 | First two Lavos Spawn beaten, middle cave opened, slippery ridge crossed, cartridge save at the last save point (route `death_peak`) | 23852 |
+| `events-death-peak.ctm` | routes/death-peak-summit, 1 | Final Lavos Spawn beaten, shell pushed and climbed, summit Time Egg, clone exchanged for Crono, End of Time field back in hand (route `death_peak_return`) | 23856 |
 | `events-epoch-lavos.ctm` | ctsave14, 1 | The winged Epoch dialed to 1999 A.D., Lucca's question over Lavos, Fight!, and the dive through its shell (scene mode 6; route `epoch_lavos`) | 7792 |
 | `menus-field-menu.ctm` | ctsave14, 3 | Every field submenu: equipment, items (use, organize), techs, config, party order, saving | 10600 |
 | `menus-shop-inn.ctm` | ctsave14, 1 | Truce Market buy and sell, resting at the inn | 9702 |
