@@ -8,8 +8,9 @@ battle_build_bitmap_shapes
 battle_carry_out_member_action
 battle_change_battlefield
 battle_clear_battlefield_map
-battle_decode_tile_row  # battle-motherbrain interrupts 358 of 624 tile-row decodes; the other 266 match. Focused fuzz_compare seed 1: 1000 completed comparisons, 0 mismatches, with the existing whole-row constraints.
 battle_click_cursor
+battle_decode_tile_row  # battle-motherbrain interrupts 358 of 624 tile-row decodes; the other 266 match. Focused fuzz_compare seed 1: 1000 completed comparisons, 0 mismatches, with the existing whole-row constraints.
+battle_dissolve_an_enemy  # run as C by the beaten enemies' pass (battle_see_to_the_beaten_enemies, an enemy's dissolve rule), whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
 battle_draw_menu_window
 battle_effect_hit
 battle_enemy_message_turn  # run as C by the expired timers' dispatch (battle_dispatch_expired_timers) as the Lavos Core's turns come, whose stretch compares it; fuzzed alone
@@ -35,12 +36,17 @@ battle_play_a_sound  # run as C by the window's opening and the battle's message
 battle_put_the_battlefield_back  # run as C by the frame wait's tail and the display's close (battle_run), whose stretches compare it; fuzzed alone up to its first wait
 battle_run_a_step  # run as C by the ports that ask for steps (battle_take_step: the main loop's, a member's action called off, the party standing down, the knocked-out enemies seen to), whose stretches compare it; called by the original's code, it is compared, and fuzzed alone at each step's call
 battle_run_scripts
+battle_see_off_an_enemy  # run as C by the beaten enemies' pass (battle_see_off_the_beaten_enemies), whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
+battle_see_off_the_beaten_enemies  # run as C by the beaten enemies' pass (battle_see_to_the_beaten_enemies), whose stretch compares it; the 20 of 117 calls made alone are compared; battle-motherbrain and battle-r-series take it past 100 calls
+battle_see_to_the_beaten_enemies  # run as C by the battle's steps (battle_run_a_step) as enemies fall, whose stretch compares it; the 20 of 117 calls made alone are compared; battle-motherbrain and battle-r-series take it past 100 calls
 battle_set_out_the_message  # run as C by the battle's own and an enemy's message (battle_run), whose stretches compare it; fuzzed alone up to its first wait
 battle_set_up_double_techs
 battle_setup_display
+battle_show_a_battle_message  # run as C by the battle's own messages (running away, an item taken, the rewards), whose stretches compare it; battle-motherbrain and battle-r-series take it past 100 calls
 battle_show_action
 battle_show_an_enemy_message  # run as C by the enemies' turns (battle_run_long), whose stretches compare it; fuzzed alone up to setting the message out
 battle_start_action_showing
+battle_strike_the_poses  # run as C by the party's poses at a fight's end (battle_strike_the_poses_as_their_own), whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
 battle_turn_comes  # run as C by the step dispatch as a member's turn comes (battle_run_a_step, from the timers' dispatch), whose stretch compares it; fuzzed alone
 battle_wait_for_the_handler  # run as C by the frame work's wait for the next frame (battle_run), whose stretch compares it; called on its own, it is compared
 battle_wait_for_the_next_frame  # run as C by the waits for some frames and the transfer (battle_run), whose stretches compare it; called on its own, it is compared
@@ -85,6 +91,7 @@ menu_move_picked_item  # a screen's step the menus' main task's turn runs as C (
 menu_object_cmd_call_routine
 menu_object_cmd_call_routine_far
 menu_object_cmd_play_effect_on_voices_67
+menu_object_cmd_redraw_map  # run as C by the menus' object script (menu_run_object_script) as a script redraws the map, whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
 menu_play_cursor_sound
 menu_point_along_equipment_list
 menu_run_record_task  # the records' task's head, which its loop comes round to inside the stretch of where the task goes on from its wait (menu_record_task_goes_on), which compares it; its start compares it alone
@@ -106,3 +113,4 @@ script_weapon_hit_sound  # run as its handler by a channel's run (battle_run_scr
 script_weapon_swing_sound
 sound_driver_send_song  # run as C by the command (sound_driver_command), inside the original's frame for it, whose stretch compares it; called by the original's code (where the command's guard refuses), it is compared; fuzzed alone
 sound_driver_upload_block  # run as C by the command (sound_driver_command), inside the original's frame for it, whose stretch compares it; called by the original's code (where the command's guard refuses), it is compared; fuzzed alone
+sound_driver_upload_effects  # run as C by the sound driver's command (sound_driver_command: a song's effects sent, the effects switched), whose stretch compares it; never called alone in play; battle-motherbrain and battle-r-series take it past 100 calls
