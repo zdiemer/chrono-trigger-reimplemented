@@ -134,7 +134,3 @@ def play_ending(*, save, title, ending, entry="telepod", party=2, story=None,
         # --until closes the run itself before raising RouteDone.
         if not run.logfile.closed:
             run.close()
-
-
-def telepod_ending(**kwargs):
-    play_ending(**kwargs)

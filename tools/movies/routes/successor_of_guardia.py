@@ -1,6 +1,6 @@
 """The Successor of Guardia, technoplaza ct-state17 slot 2."""
 from ..campaign import run_route
-from ..other_endings import telepod_ending
+from ..other_endings import play_ending
 
 SAVE = "oracle/saves/technoplaza/ct-state17.srm"
 
@@ -35,7 +35,7 @@ def ending(run):
 
 
 def main():
-    telepod_ending(save=SAVE, title="The Successor of Guardia", ending=ending)
+    play_ending(save=SAVE, title="The Successor of Guardia", ending=ending)
 
 
 if __name__ == "__main__":
