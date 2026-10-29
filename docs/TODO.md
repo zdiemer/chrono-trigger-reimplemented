@@ -2647,6 +2647,14 @@ re-runs the census.
 
 ## The native program
 
+- **Castle movie input on the native program.** `battle-castle-slash` with its ctsave06
+  cartridge save supplied to `ct_native --sram` runs all 39278 frames without a reported
+  stop, but ends with the screen blanked after four setups. Its fixed movie input does not
+  establish the castle outcome on the native program's different timing. Investigate the
+  blank screen and drive the native program from state to check the fight itself. The
+  shipping `ct_drive` route does beat both Slash forms and regain field control; strict
+  mode reaches the movie's end with saved-game drift.
+
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
 `ct_native` links the whole of `game/` but `registry.c`, with every service's

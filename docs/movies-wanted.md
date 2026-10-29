@@ -354,6 +354,26 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   factory) none nearer than ctsave03 slot 2 on the 2300 A.D. world map: each is a dungeon of
   switches and conveyors before the fight.
 
+- **Movie**: `battle-castle-slash` (route `castle_slash`, ctsave06 slot 2, 39278 frames;
+  cutoff 39128, the defeat flag, then the field back in hand): visit the castle's empty wings,
+  return to the hall (`$0A6`) for Ozzie's ambush, take the left passage (`$1D5`) around its
+  guards to Slash's room (`$0A9`), defeat the henchmen summoned by object 9, then speak to
+  Slash (object 11) and win both the unarmed and sword fights (enemies `$9D` and `$9E`).
+  The policy reads learned single techs from the party record, uses Crono's Spincut, attacks
+  with Frog, and heals and restores MP with the save's items. Slot 2 has story counter `$87`
+  and `$7F:00A3 = $00`; slot 3 is already past both bosses, with `$A3 = $7E` (Slash defeated
+  `$04`, Flea defeated `$08`). The route searches machine copies against the destination map
+  and position, waiting for requested map changes and treating the entrance's loss of control
+  as a scene to finish before walking on. It reaches the field after Slash in the shipping mode
+  at frame 40254, with no inexact restores or dropped sound commands.
+  Against the preceding 48 movies it adds 860 bytes (0.84 KiB): enemy line-up and marching
+  (`$C1:3959`-`$3A3C`, `$3F5A`-`$4020`), keeping distance, farthest-member search and selection
+  (`$C1:29FB`, `$A4E0`), and the field's contact handling (`$C0:31B9`-`$326B`). Shadow clean:
+  zero mismatches or refusals, no `page refused` or `accessor out of range`, sound lockstep
+  identical. Strict reaches all 39278 frames with saved-game drift; `ct_native`, given the
+  cartridge save explicitly, also runs all frames without a reported stop but ends blanked
+  after four screen setups, so that run does not establish the fight's outcome (TODO.md).
+
 ### 5b. The Day of Lavos after a loss
 - **Save**: technoplaza ct-state16 slot 2 (Crono and Marle at the fair, New Game+).
 - **Do**: take the right telepod's Gate to Lavos and lose the shell's fight.
