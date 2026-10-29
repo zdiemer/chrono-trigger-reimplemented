@@ -57,3 +57,27 @@ Chrono Trigger saves from zophar.net, renamed to their archive names:
 | `chrono-6` | New Game+ with maxed stats; "The New King"; "The Fated Hour" |
 | `chrono-7` | New Game+ at the first save point, everyone maxed (for the endings) |
 | `chrono-trigger` | Before the final fight, level 50+, all side quests and techs; New Game+ |
+
+## routes/
+
+Cartridge saves made by playing the route scripts, then saving through the
+game's menu. These contain SRAM only, not machine copies.
+
+| File | Slot | Progress | CRC-32 |
+|---|---|---|---|
+| `luccas-mother-before-campfire` | 1 | Outside Fiona's shrine in 1000 A.D.; Robo restoring the forest, before the campfire and Lara's rescue | `42DD86E1` |
+
+`luccas-mother-before-campfire.srm` was played from technoplaza `ct-state11`
+slot 1: defeat Retinite, leave Robo with Fiona in 600 A.D., fly the Epoch to
+1000 A.D., land and save. `tools/movies/routes/prepare_luccas_mother.py`
+repeats those prerequisites and exports the game's SRAM; its long movie is a
+hand-run route kept outside the library. The library's `luccas_mother` route
+starts from this boundary. The preparation's 40031-frame replay reproduces
+this SRAM byte for byte.
+
+The stock saves bracket too much: fantasyanime `ctsave12` slot 3 still has
+the desert closed (`$7F:00F7 = $00`), while `ctsave13` slot 1 has Lara already
+saved (`$7F:007C = $96`). `ct-state11` slot 1 has the seed planted
+(`$7F:00F7 = $0A`) but Retinite unbeaten (`$7F:01A3` bit 0 clear).
+The prepared save has `$7F:019E = $F9` (Robo working, not recovered) and
+`$7F:007C = $0E` (campfire and rescue still unplayed).

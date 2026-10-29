@@ -555,17 +555,18 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   so no movie.
 
 ### 12. The side quests
-No movie plays a side quest's events or bosses: the library's movies from the side-quest saves
+`events-luccas-mother` plays the campfire and Lara's rescue; the other side quests still need
+their events and bosses recorded. The earlier movies from the side-quest saves
 (`ctsave12`-`ctsave14`) open menus and shops, ride the Epoch, press the Northern Ruins' switch and
 dive into Lavos. The fantasyanime saves step through them in one order (oracle/saves/README.md),
-so each quest has a save just before it; which slot is the nearest, and what of each the library
-already runs, is for its route to establish.
+but that order does not guarantee a save before every scene: `ctsave13` already has Lara
+rescued, and `ctsave12` has not opened Fiona's desert. Each route must confirm the flags.
 
 | Quest | Save before it | What it plays | Bosses |
 |---|---|---|---|
 | Ozzie's Fort | ctsave12 slot 2 (slot 3 after it) | the fort, the chain trap | Flea, Slash, Great Ozzie |
 | Fiona's forest | ctsave12 slot 3 (ctsave13 slot 1 after it) | Robo's 400 years: the forest's replanting, the campfire | -- |
-| Lucca's mother | after Fiona's forest | the gate to 990 A.D. and the password typed against the clock; `ct_drive`'s machine copies make the timed part a search | -- |
+| Lucca's mother | routes/luccas-mother-before-campfire, slot 1 | `events-luccas-mother`: campfire, gate to 990 A.D., timed password, Lara saved and GreenDream received | -- |
 | The Rainbow Shell | ctsave13 slots 1-2 (slot 3 after it) | the Giant's Claw, the shell taken to Guardia Castle and the trial | Rust Tyrano |
 | The Sun Stone | ctsave13 slot 3 (ctsave14 slot 1 after it) | the Sun Palace, the stone charged across the eras | Son of Sun |
 | Cyrus's grave | ctsave14 slot 1 (slot 2 after it; `field-northern-ruins-switch` presses one switch) | the Northern Ruins and Cyrus's ghost, the Masamune's power restored | Hero's Grave guardians |
@@ -573,6 +574,48 @@ already runs, is for its route to establish.
 
 Each is an event-heavy play the native program hasn't met: the event commands, scene work and
 bosses they reach are where `ct_native`'s next stops are likely to be.
+
+- **Movie**: `events-luccas-mother` (route `luccas_mother`, 15701 frames,
+  about 4 minutes 22 seconds). From the prepared cartridge save, recover Robo
+  at Fiona's shrine (`$039`), hear the campfire conversation (`$1B4`), follow
+  Lucca through the red gate (`$053`) to her bedroom in 990 A.D. (`$00A`), and
+  enter the workshop (`$004`) through the front room (`$003`). When Lara is
+  caught, reach the console and enter L, A, R, A. Copies of the console state
+  let the route retry: three-frame taps with 8- or 16-frame gaps fail;
+  eight-frame holds with 24-frame gaps, after four idle frames, succeed.
+  `$7F:007C` bit 7 proves Lara was saved, rather than merely that the prompt
+  closed. Return to Robo, receive the GreenDream (`$AA`) and end with control
+  on the 1000 A.D. world map, proved by a movement probe on a copy.
+- **Save**: `prepare_luccas_mother` starts from technoplaza `ct-state11`
+  slot 1, whose seed is planted (`$7F:00F7 = $0A`) and Retinite is unbeaten
+  (`$7F:01A3` bit 0 clear). It defeats Retinite, leaves Robo restoring the
+  forest, flies to 1000 A.D. and saves through the menu. The library starts
+  there (`$7F:019E = $F9`, `$7F:007C = $0E`); the long prerequisite is a
+  `HAND_RUN_ROUTES` entry, 40031 frames, with its movie kept outside the library.
+  Replaying the preparation reproduces the saved SRAM byte for byte. The save's
+  provenance is in [oracle/saves/README.md](../oracle/saves/README.md#routes).
+- **Coverage**: 60.88 KiB of instructions executed (58.49 KiB in ROM);
+  150 bytes (0.15 KiB)
+  no other movie in the preceding 48-movie library executes, all ported.
+  These include the held A/L/R event commands (`$C0:66C6`, `$6705`, `$670F`),
+  sending a member to reserve (`$C0:3967`-`$3993`, `$39E1`-`$39F3`), taking
+  formation (`$C0:3346`-`$334F`), field drawing and walking paths.
+- **Checks**: shadow clean, zero mismatches, guard refusals, `page refused`
+  or `accessor out of range`; sound lockstep identical. The last dialogue
+  exposed the omitted final entry of the `$FF:4460` string table; its count
+  is now 81, with `strings_ff4460.80` catalogued at `$FF:582A`-`$583C`.
+  Strict mode completes and matches the reference saved game and SRAM.
+  The shipping run exposes the existing row-tail alias into object 0's
+  in-view flag (`field_update_objects`, `$7E:0F00`, 984 reads from frame
+  12470). It is recorded with its cause as a gap in the effects baseline
+  and TODO's "What only the original's memory has, past the object tables";
+  native-shape completion does not establish identical intermediate drawing.
+  `ct_native` stops at frame 3120 on Robo's recruitment (`$C0:38BE`,
+  `event_cmd_recruit`); see TODO's "The native program". Timing is calibrated
+  for the narrowed run with `--drifted`; the existing fallback baseline
+  already covers this movie's original-code paths.
+  The narrowed suite (`--movies events-luccas-mother -j 1`), including its
+  static checks, ends with `suite OK`.
 
 ### 13. The story events no movie plays
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's

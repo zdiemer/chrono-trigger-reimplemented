@@ -199,9 +199,32 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
-Each starts from the technoplaza cartridge save its movie header names
-(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
-`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
+`luccas_mother` records `events-luccas-mother.ctm` (15701 frames): recover
+Robo at Fiona's shrine, the campfire, the red gate to 990 A.D., save Lara
+with the machine's timed L, A, R, A password, and return for Robo's
+GreenDream. It ends on the 1000 A.D. world map with control back, checking
+Lara's saved bit (`$7F:007C` bit 7), the gift and a movement probe on a copy.
+The password search restores the console checkpoint between attempts:
+three-frame taps miss the script's checks; eight-frame holds separated by
+24 released frames succeed. Only the winning inputs enter the movie.
+The bedroom's direct workshop exit reaches an isolated balcony; the route
+goes through the front room to reach the console beside the machine.
+
+Its save is `routes/luccas-mother-before-campfire.srm`, slot 1, made through
+normal play from technoplaza `ct-state11`. `prepare_luccas_mother` plays the
+Retinite and forest prerequisites and saves through the menu; it belongs to
+`HAND_RUN_ROUTES`, with its 40031-frame movie outside the library. Its replay
+reproduces the prepared SRAM byte for byte. The stock `ctsave13`
+already has Lara rescued, and `ctsave12` has not opened the desert
+([save provenance](../oracle/saves/README.md#routes)). Shadow is clean,
+including sound lockstep; strict mode completes and matches the reference
+end state. `ct_native` stops at frame 3120, recruiting Robo (`$C0:38BE`).
+The [side-quest account](movies-wanted.md#12-the-side-quests) records its
+coverage and the visibility-flag alias observed by the effects check.
+
+Each route's `SAVE` and movie header name its cartridge save in `oracle/saves/`;
+the [save README](../oracle/saves/README.md) lists their sources and slots.
+`--sram` picks another.
 `--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and

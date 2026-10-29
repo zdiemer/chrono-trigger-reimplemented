@@ -5997,6 +5997,7 @@ strings_ff4460.76	text	FF:573B	FF:5757	text:dialog	strings_ff4460 entry
 strings_ff4460.77	text	FF:5758	FF:5782	text:dialog	strings_ff4460 entry
 strings_ff4460.78	text	FF:5783	FF:57AF	text:dialog	strings_ff4460 entry
 strings_ff4460.79	text	FF:57B0	FF:5829	text:dialog	strings_ff4460 entry
+strings_ff4460.80	text	FF:582A	FF:583C	text:dialog	strings_ff4460 entry
 strings_ff8400	ptr16	FF:8400	FF:844D	raw	read
 strings_ff8400.0	text	FF:844E	FF:8473	text:dialog	strings_ff8400 entry
 strings_ff8400.1	text	FF:8474	FF:84A0	text:dialog	strings_ff8400 entry

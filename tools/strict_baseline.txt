@@ -33,6 +33,7 @@ events-epoch-lavos end
 events-jetbike-race-won end
 events-jetbike-race end
 events-keepers-dome end
+events-luccas-mother end
 events-prison-escape end
 field-12kbc-1f4 end
 field-12kbc-1f5 end

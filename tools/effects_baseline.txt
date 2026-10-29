@@ -9,6 +9,8 @@
 # after the line -- is how the list empties. A new finding is answered the same
 # way before it merges: a line added here says why.
 
+run field_update_objects field_object_in_view # gap: events-luccas-mother reads $7E:0F00 after object_leave_row's none-link write (984 reads from frame 12470); the row tail's previous link aliases object 0's in-view flag, which object_view distinguishes from zero. The movie and native-shape end checks pass, but native storage still needs a decision on this alias and its intermediate drawing (TODO.md, "What only the original's memory has, past the object tables").
+
 game/battle/animation.c posing battle_work[20] battle_work
 game/battle/animation.c posing battle_work[21] battle_work
 game/battle/arith.c battle_multiply_8x8 battle_multiply_factors[0] battle_multiply_factors                    # the entry's operands: the original's callers put them in the cells, every call
