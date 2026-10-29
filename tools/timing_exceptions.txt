@@ -196,3 +196,10 @@ menu_window_copy_bytes vblank-tail copies a window's bytes into the menus' tilem
 battle_record_trails vblank-tail the active combatants' trails shift four positions in RAM only when their countdowns expire; 1.33% of 7530 vblank stretches off by 1024 clocks or more, at most 1676 clocks, and no video write moves in the Rainbow Shell trial
 field_nmi vblank-tail the field's varying sprite queue, layer edges and menus' frame: 1.24% of 51814 vblank stretches off by 1024 clocks or more after calibration, at most 6273 clocks (below the quarter-vblank worst limit); the Rainbow Shell trial's vblank check finds no unlisted video-write movement
 menu_choose_on_main_menu drift the main menu's opening inherits its window and panel parts' estimates, as its worst exception: +1.84% over 173 stretches in the Rainbow Shell trial even with its own cost_milli at the minimum 1; it prepares RAM buffers and queues, and the vblank check finds no unlisted video-write movement
+
+# Proto Dome after drift-only calibration; the narrowed vblank check has no
+# unlisted video-write movement. Follow-ups: TODO.md.
+battle_step_the_poses drift opening/victory poses inherit the frame-graphics estimate when a member's animation advances; +9.04% over 256 stretches in Proto Dome despite its own cost_milli at the minimum 1, max 11038 clocks, none in vblank
+battle_strike_the_poses drift the 64-frame pose sequence includes the pose steps and frame-tail estimates; +4.20% over 262 stretches in Proto Dome despite its own cost_milli at the minimum 1, max 13861 clocks, none in vblank
+field_frame_goes_on_with_confirm vblank-tail field continuation includes the varying dialog and frame work; 3.93% of 7505 vblank stretches off by 1024 clocks or more in Proto Dome, max 1949 clocks, with zero net drift after calibration and no unlisted video-write movement
+field_frame_goes_on_with_the_dialog_window vblank-tail the same continuation after confirm: 3.93% of 7505 vblank stretches off by 1024 clocks or more in Proto Dome, max 1137 clocks, with zero net drift after calibration and no unlisted video-write movement

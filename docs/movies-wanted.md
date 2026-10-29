@@ -619,7 +619,6 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra |
 | 1000 A.D. | The trial | ctsave01 slot 3 is after it; a save before is to find | -- |
 | 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank |
-| 2300 A.D. | Robo repaired at Proto Dome | ctsave03 slot 1 | -- |
 | 600 A.D. | Zenan Bridge | ctsave04 slot 1 | Zombor |
 | 600 A.D. | Denadoro and the Masamune | ctsave04 slot 2 | Masa & Mune (`battle-denadoro` may hold the fight) |
 | 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel |
@@ -632,8 +631,24 @@ The save flags narrow two of these targets: ctsave03 slot 1 has story counter
 `$3C` with Robo in the party. ctsave11 slot 1 is at story `$CF`, with Blackbird
 stage `$7F:00D2 = $00` and the Epoch's wings bit (`$7F:00BA` bit 7) clear;
 slot 2 is already at story `$D2`, Blackbird stage `$0A`, and wings acquired.
-Only these save checks were completed in the trial recording attempt; Robo's
-repair and Dalton Plus remain unrecorded.
+`events-proto-dome.ctm` now plays Robo's repair from ctsave03 slot 1 in 24717
+frames: the Lab 32 race approach, both Proto Dome encounters, Lucca repairing
+Robo, his introduction and naming, and the party choice. It ends with control
+in the dome, story `$3C`, repair stage `$0F`, and Crono/Robo/Lucca in the party.
+Shadow clean (zero mismatches, guard refusals, refused pages, out-of-range
+accesses, or missing catalogue entries). Its coverage adds 147 ROM bytes and
+71 instruction addresses including RAM beyond the original 48 movies, chiefly
+the enemy AI's other-kind and enemy-identity conditions. No new or increased
+fallback. `ct_native` runs all frames but ends blanked after four screen setups;
+the repair's completion is not established. Strict mode consumes every frame without a halt but ends in Proto Dome at
+story `$37`, repair stage `$00`, with Robo still absent (59 saved-game bytes
+differ).
+The 60 interrupted tile-row decoder calls (of 102) were checked separately:
+5000 differential-fuzz cases with the existing constraints all matched, none
+skipped; the other 42 movie calls matched in shadow. Drift-only timing
+calibration updated 204 estimates; four residual exceptions are documented in
+TODO.md, with no unlisted video-write movement. The narrowed suite, including its static checks, ended `suite OK`.
+Dalton Plus remains unrecorded.
 
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.

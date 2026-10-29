@@ -34,6 +34,7 @@ events-jetbike-race-won end
 events-jetbike-race end
 events-keepers-dome end
 events-prison-escape end
+events-proto-dome drifts  # consumes all 24717 frames without a halt, but ends at story $37, repair stage $00, Robo absent (59 saved-game bytes differ)
 events-rainbow-shell-trial drifts  # hand-run recording kept outside the library; input timing ends in the treasury ($01A), trial stage $02 without the fragment; differs from the reference: 81 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...)
 field-12kbc-1f4 end
 field-12kbc-1f5 end

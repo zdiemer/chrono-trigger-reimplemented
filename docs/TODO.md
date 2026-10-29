@@ -2564,6 +2564,15 @@ re-runs the census.
     leader's spot off the map, which no flight makes; the arrival's x
     measured across the map's height (`slow_so_as_not_to_pass`) is the
     original's and kept.
+- **Timing spread in Proto Dome** (`tools/timing_exceptions.txt`). The opening
+  and victory poses inherit the frame-graphics and frame-tail estimates:
+  `battle_step_the_poses` drifts +9.04% over 256 stretches and
+  `battle_strike_the_poses` +4.20% over 262 even with their own estimates at
+  the minimum 1. Neither has a vblank stretch. The field continuations from
+  confirm and the dialog window have zero net drift after calibration but
+  3.93% of 7505 vblank stretches off by at least 1024 clocks (maxima 1949 and
+  1137). Diagnose the inherited estimates and the variable dialog/frame work;
+  the Proto Dome video-write check found no unlisted movement.
 - **Timing spread in the Rainbow Shell trial** (`tools/timing_exceptions.txt`).
   After drift-only calibration, `battle_record_trails` has 1.33% of its 7530
   vblank stretches off by at least 1024 clocks (maximum 1676): its RAM history
@@ -2669,6 +2678,13 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
+- **Proto Dome recording in the native program.** `events-proto-dome` consumes
+  all 24717 frames without a reported `ct_native` stop, but ends blanked after
+  four screen setups and two SNES-only video escapes (first `$7E:5AEB`).
+  Establish the first lost transition through Lab 32 and the dome. Strict mode
+  also consumes every frame without a halt, but misses the repair: story `$37`,
+  repair stage `$00`, Robo absent, 59 saved-game bytes different. Diagnose the
+  timed-input drift separately from any native stop.
 - **Rainbow Shell trial recording in the native program.** The hand-run
   `rainbow_shell_trial` recording (47547 frames, ctsave13 slot 2; MOVIES.md)
   completes the trial in the reference play. `ct_native` consumes all 47547

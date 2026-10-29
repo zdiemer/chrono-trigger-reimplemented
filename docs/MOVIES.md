@@ -216,6 +216,33 @@ A route is a list of phases, each ending in a checkpoint file. Re-running it
 resumes at the last phase that finished, so a failing phase can be iterated on
 without replaying the hour before it. Delete the checkpoints to start over.
 
+## Robo repaired at Proto Dome
+
+`proto_dome` records `events-proto-dome.ctm` from ctsave03 slot 1 in 24717
+frames. Its approach reuses the winning Lab 32 race inputs, then enters Proto
+Dome, wins both Bugger encounters, examines Robo, and plays Lucca's repair and
+his introduction. It accepts the name Robo and takes Lucca along, ending with
+field control in Proto Dome and party Crono/Robo/Lucca. The starting story
+counter is `$37`, with repair stage `$7F:0148 = $00` and Robo absent; the end
+is story `$3C`, repair stage `$0F`. Slot 2 is already after the repair.
+
+Shadow clean: zero mismatches, guard refusals, refused pages, out-of-range
+accesses, or missing catalogue entries. Coverage adds 147 ROM bytes (71 new
+instruction addresses including RAM) beyond the original 48-movie library,
+notably `battle_condition_other_kind_present` (`$C1:9656`) and
+`battle_condition_is_enemy` (`$C1:8F87`), plus the field's dash-button condition
+and animation line limit. The fallback check found no new or increased use.
+`ct_native` consumes all 24717 frames without reporting a stop, but ends blanked
+after four screen setups; completion of the repair is not established.
+Strict mode consumes every frame without a halt but ends in Proto Dome at
+story `$37`, repair stage `$00`, with Robo still absent (59 saved-game bytes
+differ).
+The 60 interrupted tile-row decoder calls (of 102) were checked separately:
+5000 differential-fuzz cases with the existing constraints all matched, none
+skipped; the other 42 movie calls matched in shadow. Drift-only timing
+calibration updated 204 estimates; four residual exceptions are documented in
+TODO.md, with no unlisted video-write movement. The narrowed suite, including its static checks, ended `suite OK`.
+
 ## The Rainbow Shell trial as a hand-run route
 
 `rainbow_shell_trial` starts from ctsave13 slot 2 and reaches the King's
