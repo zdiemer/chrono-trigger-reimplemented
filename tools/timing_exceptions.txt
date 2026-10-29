@@ -190,3 +190,19 @@ field_copy_tiles worst the same copy from the field's own call: at most 50846 cl
 menu_note_rock_techs vblank-tail notes which rock techs the party has, its time following the party's members and their records: 16% of its 120 stretches in vblank off by a line, at most 1076 clocks
 menu_show_what_the_party_wears vblank-tail shows the party's wear on the field's sprites, run as C by the menus' close now (menu/display.c): 1.8% of its stretches in vblank off by a line, at most 1180 clocks, writing RAM
 menu_window_copy_bytes vblank-tail copies a window's bytes into the menus' tilemap buffer in RAM, its time following the window's size: 2.6% of its stretches in vblank off by a line or more, at most 1944 clocks
+
+# battle-unequipped-armor, narrowed calibration: the pose and menu dispatchers'
+# attributed children alone exceed their reference stretches, so even an own
+# cost_milli of 1 cannot fit them. The coordinator's combined gate must remeasure
+# these with the rest of the library; these lines describe the remaining limits.
+battle_step_the_poses drift the three members' pose frames build graphics only when their countdown expires; their attributed graphics costs exceed these 384 stretches' original time even with own cost 1 (+48%), writing RAM for the held uploads
+battle_strike_the_poses drift the 64-frame pose loop includes the same attributed pose steps; their costs alone exceed these 393 stretches (+40% at own cost 1), with an explicit wait between frames
+menu_choose_equipment_member drift choosing a member opens the slots and draws the empty equipment list; the attributed slot/list work exceeds these 125 stretches even at own cost 1 (+17%); existing vblank-tail exception covers its window opening
+menu_run_the_main_task drift the menu task's screen step and wait are attributed to their own entries; their costs exceed these 103 stretches even at own cost 1 (+1.75%), with at most 245 clocks error
+battle_find_due_animation worst the pose's due animation builds its changed frame's graphics in RAM, with uploads held until the next frame; at most 58204 clocks in 5469 stretches after the narrowed calibration
+battle_step_the_poses worst the same pose-frame graphics work: at most 56590 clocks in 384 stretches, writing RAM while uploads are held
+battle_strike_the_poses worst the same work inside the pose loop: at most 56414 clocks in 393 stretches, with explicit frame waits
+field_build_line_effect_tables vblank-tail builds the next frame's line-effect tables in RAM; 4 of 195 stretches in vblank off by 1024 clocks or more, at most 1107 (under one line)
+field_frame_goes_on_with_confirm vblank-tail the rest of the field frame after confirm, its work attributed to field_frame: 1.54% of 2861 stretches in vblank off by 1024 clocks or more, at most 1792, writing the next frame's RAM tables
+field_frame_goes_on_with_the_dialog_window vblank-tail the same from the dialog-window step: 1.50% of 2861 stretches, at most 1068 clocks (under one line)
+field_nmi vblank-tail the field's vblank uploads and input have data-dependent work; 2.20% of 12934 stretches off by 1024 clocks or more, at most 3786 (under three lines); the movie's shipping vblank check reports no new picture-band violations

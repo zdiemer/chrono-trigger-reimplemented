@@ -5,3 +5,8 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C01AAC field_press_confirm guard # gap: battle-unequipped-armor, shipping/strict playback, Truce Canyon at frame 7594 (D=0100 DB=00 P=22); the field confirm guard rejects the contact/search/chest state. See docs/TODO.md, Refusals in real play.
+C2A45D menu_redraw_equipment_list guard # gap: battle-unequipped-armor shadow, 4 refusals; the empty list retains inventory-screen bytes beyond its zero terminator, and the drawing guard checks all eight rows. See docs/TODO.md, Refusals in real play.
+C2A463 menu_make_equipment_list guard # gap: battle-unequipped-armor shadow, 4 refusals; same empty-list drawing guard, checking unused rows past the terminator. See docs/TODO.md, Refusals in real play.
+C2A569 menu_draw_equipment_list guard # gap: battle-unequipped-armor shadow, 4 refusals; same empty-list drawing guard, checking unused rows past the terminator. See docs/TODO.md, Refusals in real play.
+C2A59A menu_draw_equipment_list_row guard # gap: battle-unequipped-armor shadow, 32 refusals; the row wrapper uses the same whole-list guard and rejects unused rows past the terminator. See docs/TODO.md, Refusals in real play.

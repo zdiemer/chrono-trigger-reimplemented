@@ -7,7 +7,39 @@ lost. Each line says where the detail lives. Milestones themselves are in
 and [PLATFORM.md](PLATFORM.md); which of these to work on next, and why the
 rest waits, is [PLAN.md](PLAN.md).
 
+## Refusals in real play
+
+- **Unequipped-armor movie, field confirm**: `battle-unequipped-armor` reaches
+  a guard refusal at `$C0:1AAC` (`field_press_confirm`,
+  `game/event/contact.c`) in shipping/strict playback at frame 7594, in Truce Canyon:
+  `A=0000 X=0000 Y=0090 S=06FD D=0100 DB=00 P=22 E=0`.
+  `confirm_fits` checks the leader, object-search/contact and chest state;
+  which predicate fails still needs isolating. Shadow does not refuse this entry.
+  `tools/refusal_allowlist.txt` records this as a gap, not a supported native
+  state. No gameplay logic was changed for the movie.
+- **Empty equipment list after the inventory screen**: the same movie's shadow
+  run refuses `$C2:A45D`, `$C2:A463`, `$C2:A569` four times each and `$C2:A59A`
+  32 times, starting at frame 3533. `list_is_drawable` in
+  `game/menu/equipment_bridge.c` checks eight rows even after the zero terminator;
+  the actual drawing repeats the blank terminator row. The inventory visit leaves
+  unused list bytes behind (`$FF`), so the guard rejects an empty list the original
+  can draw. These four entries and their fallback counts are recorded as gaps;
+  no `page refused`, invalid accessor or mismatch occurs.
+
 ## Correctness and accuracy
+
+- **Empty first equipment list preserves its item operand.** `menu_list_what_fits`
+  (`$C2:8953`, `game/menu/equipment.c`) initializes `last_asked` to zero and writes
+  it back even when no inventory item fits the slot. The original only writes
+  `$7E:04C9` when an item falls in the slot's range. Opening equipment immediately
+  from ctsave04 slot 2 therefore mismatches once (`F1` original, `00` native).
+  `unequipped_armor` visits an empty inventory row first, which leaves zero on both
+  sides through normal controls. The underlying scratch-byte discrepancy is still open.
+- **Native items-list scrolling**: `ct_native` playing `battle-unequipped-armor`
+  stops at frame 3147, `$C2:AC3A`: "the items list slid a row, runs only on the
+  machine". This is during the initial inventory visit, before the unequip.
+  The hand-port runtime can run the movie's menu sequence; the host program's
+  item-list continuation still needs a C path.
 
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
   the original (battles play out differently). That difference is accepted

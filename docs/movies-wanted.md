@@ -608,10 +608,77 @@ won't sync here; each is a `ct_drive` route from a save, written from the glitch
 
 | Glitch | What it does | Status |
 |---|---|---|
-| Unequipped armor or helm (US) | a slot left empty (the Blackbird's events allow it; elsewhere only with no spare piece the member could wear) doubles the member's magic damage and cuts the magic damage it takes by about 90%, Fire and non-elemental excepted | queued: a route, the damage compared in a fight |
+| Unequipped armor or helm (US) | each empty slot adds 10 magic and 15 resistance to Lightning, Shadow and Water; two slots reduce incoming damage to about 12-14%, while outgoing damage depends on level and magic | `battle-unequipped-armor`, ctsave04 slot 2, 22859 frames: Marle empties both slots and beats Spekkio; Ice 244-246 versus 157-159 equipped, incoming Ice 15 versus 108 and Lightning 20 versus 171 (comparison on a machine copy; details below) |
 | 98 slots of one kind of equipment | the equipment screen reaches memory far outside the inventory | waits on the native program's reads past a table's end (TODO.md, "The native program") |
 | Item duplication | the glitched any% run duplicates items within one reset | mechanism to work out from the run |
 | New Game+ save corruption | a reset in the middle of a frame leaves a half-written value in the save: maxed stats, nearly any equipment | needs a reset mid-frame, which neither `ct_drive` nor `ct_native` models |
+
+- **Movie**: `battle-unequipped-armor` (route `unequipped_armor`, ctsave04 slot 2, 22859
+  frames; last damaging hit 21969, then Spekkio's dialogue and the field back in hand). This
+  save is outside Denadoro with no spare armor, helmets or weapons, but spare accessories.
+  First visit an empty inventory row: this leaves the item operand at zero through normal
+  controls, avoiding the existing port's scratch-byte mismatch on an empty first equipment
+  list (original preserves `$7E:04C9`, native clears it; this save initially leaves `$F1`).
+  On Crono's accessory slot, R+Up changes to Marle's armor; A twice equips the empty list's
+  item zero. L returns to Crono's armor, which now lists the armor Marle removed; R+Up and
+  A twice empty Marle's helmet. The party crosses Zenan Bridge, wins both Truce Canyon
+  ambushes, takes the gate to the End of Time, and beats the 800-HP Spekkio with Marle's Ice.
+  No memory writes or edited saves; the searches restore machine copies and keep only the
+  chosen inputs. The comparison restores the pre-fight room, puts her Iron Helm and Titan
+  Vest back on through the menus, and wins the same fight; it is not another library movie.
+- **The menu bug**: `game/menu/equipment.c`, `menu_equip_list_is_for_another_slot`
+  (`$C2:9ECD`'s sequence), caches only `menu_equip_slot + menu_member_worked_on`.
+  R+Up or L+Down without wrapping changes the two in opposite directions, keeping that
+  sum and the old `menu_equip_choices`. `menu_equip_choose_slot` (`$C2:9C70`) accepts the
+  stale nonzero count. Opening the list rebuilds it (`$C2:8953`), now containing only its
+  zero terminator, and `menu_equip_put_on_the_chosen_item` (`$C2:9CC1`) returns the worn
+  piece to the inventory and stores zero in the character's slot. A replacement that fits
+  prevents the empty selection, which is why this save needs no selling first.
+- **The battle bug**: `game/battle/member_stats.c`, `set_up_member_stats` (`$C1:CE3A`),
+  subtracts the category's first item in a byte even when the item is zero. Armor uses
+  `$08C0 + 6 * uint8_t(0-$5A)` and helmets `$0986 + 6 * uint8_t(0-$7B)`; both select
+  `$CC:0CA4`. Its boost index `$21` selects +10 magic (`$FD:B141`, `$FD:B14D`), and its
+  affinity `$EF` adds 15 to the first three elements (`$C1:CF69`), excluding Fire.
+  `effect_modifiers.c`'s element modifier (`$C1:EF39`) divides by that affinity; an attack
+  without an element skips it. These are hidden resistances, not the magic-defence stat.
+  Marle's magic is 41 empty versus 21 equipped, and affinities are `[34,34,35,4]` versus
+  `[4,4,5,4]` (Lightning, Shadow, Water, Fire). `effect_amounts.c`'s magic formula
+  (`$C1:E0F5`) uses `power * 12 * (level + magic) / 15`, followed by variance, defence
+  and modifiers: a fixed doubling of outgoing damage is not the rule.
+- **Measured**: empty, Marle's four Ice numbers are 244, 245, 246, 246 (the last removes
+  Spekkio's remaining 65 HP); equipped, her six are 158, 157, 158, 157, 157, 159.
+  Spekkio's Ice (`$2A`) takes 15 from her empty versus 108 equipped; Lightning (`$2B`)
+  takes 20 versus 171. His weaker Water attack (`$0D`) also takes 11 in the movie.
+  The ratio expected before variance is 5/35 for Water and 4/34 for Lightning: about
+  86% and 88% less damage. The equipped comparison's Fire (`$25`) takes 134; an empty
+  diagnostic attempt took 130, consistent with Fire's unchanged divisor of 4. Damage
+  is read from the displayed-number records and checked against HP changes; the two
+  fights have different random variance. The description and button combination are
+  also documented by [Chrono Speedruns](https://chrono.wikidot.com/glitches) and
+  [inichi's original account](https://tasvideos.org/Forum/Topics/7364?CurrentPage=1&Highlight=181766).
+- **Coverage and validation**: 121.04 KiB of ROM code in `--coverage`, including
+  502 bytes (0.49 KiB) absent from the other 48 movies' coverage; no new RAM-code
+  entry addresses. These include the higher-affinity branches (`$C1:CF7F`,
+  `$C1:CFA1`), farthest-member targeting (`$C1:A4E0`), family-dependent status
+  effects (`$C1:EED0`), enemy/field movement, and the inventory's downward row
+  slide (`$C2:AC6E`-`$C2:AD14`, 156 bytes). Shadow: 0 mismatches, no `page refused`,
+  invalid accessor or asset-range error; C sound lockstep identical (70395 ticks).
+  The empty equipment-list drawing guards refuse 44 calls at four entries;
+  shipping and strict playback encounter `field_press_confirm`'s guard at frame
+  7594, `$C0:1AAC`. These are gap lines in `tools/refusal_allowlist.txt` and
+  `docs/TODO.md`, with the five new shadow fallback routines added to the existing
+  baseline. Strict stops there; `ct_native` stops earlier, at frame 3147,
+  `$C2:AC3A`, the inventory-list slide's machine-only continuation. The route was
+  run from the save through its end with the interpreter, producing this movie.
+  Timing was recalibrated with `--calibrate game/registry.c --drifted` on this
+  narrowed run; the remaining dispatcher and timing-tail limits have measured
+  reasons in `tools/timing_exceptions.txt` for the coordinator's combined gate.
+  The scroll-bar task's abandoned comparisons are recorded in the uncompared
+  baseline. The 7200-frame generated-only/reference trace check was run serially
+  (no divergence); `suite.py --no-trace` avoids its two concurrent trace processes.
+  The narrowed suite (`-j 1 --movies battle-unequipped-armor --no-trace`) ends
+  **`suite OK`**, including its static checks, shipping vblank check, sound fuzz,
+  and movie/fast-route checks with scaffolding compiled out. No full suite was run.
 
 ### Unknown
 - **Mode 5** (2.05 KiB): nothing found that starts it (Targets, 8).

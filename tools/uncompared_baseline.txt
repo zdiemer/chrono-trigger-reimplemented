@@ -87,6 +87,7 @@ menu_play_cursor_sound
 menu_point_along_equipment_list
 menu_run_record_task  # the records' task's head, which its loop comes round to inside the stretch of where the task goes on from its wait (menu_record_task_goes_on), which compares it; its start compares it alone
 menu_run_the_cursor_task  # the cursor's task's head, which its loop comes round to inside the stretch of where the task goes on from its wait (menu_cursor_task_goes_on), which compares it; its start compares it alone
+menu_scroll_bar_task  # battle-unequipped-armor: the task head loops inside menu_scroll_bar_task_goes_on, whose 1178 calls all compare; the 12 starts compare alone, no mismatch (game/menu/tasks.c)
 menu_send_sound
 menu_show_shop_member_slots
 menu_type_the_description
