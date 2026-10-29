@@ -9,6 +9,19 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Refusals in real play
 
+- **Memory Lane's exit off the stage.** `memory_lane` (ct-state25 slot 2,
+  167063-frame scratch movie) refuses `field_walk_the_leader` (`$C0:881E`)
+  seven times at frames 166496-166502 in `$0EF`. Its scripted upward exit
+  wraps the leader's Y coordinate: at frame 166497 the party links are
+  `$02/$04/$06`, leader X is `$0880`, Y `$FFD4`, and map mask `$0F0F`.
+  Y decreases through `$FFAD/$FF86/$FF5F/$FF38/$FF11` before `$FEEA` at
+  166503. `field_walk_can_run`'s `clear_of_the_end` requires Y below `$FF00`,
+  so these are real states its guard rejects. The refusal has A `$0300`,
+  X `$0710`, Y `$FFFE`, D `$0100`, DB `$00`, P `$23`. It is a `gap` entry
+  in `tools/refusal_allowlist.txt`; no page refusal or out-of-range accessor.
+  The route reaches The End in reference and shipping modes; `ct_native`
+  and strict mode complete the movie's input. No game routine was changed.
+
 - **The Prophet ending's transient party links.** `what_the_prophet_seeks`
   (ct-state24 slot 2, 131287-frame scratch movie) reaches The End, but its
   reference play refuses `event_cmd_walk_with_the_party` (`$C0:3002`) and
@@ -3171,7 +3184,7 @@ waits on M5 rather than on a backend.
   seed 2 wins at 149750 and finishes at 160570; that is the route's default.
   This is a reference-runtime stall, not a guard refusal. Its cause is not
   established; no game code was changed to work around it.
-- **Remaining ending routes**: technoplaza ct-state25 and ct-state26,
+- **Remaining ending route**: technoplaza ct-state26,
   including Reunion from "The Time Egg" (no Epoch reachable from that save).
   These belong among the hand-run routes, with scratch recordings rather than
   another 100,000-200,000 frames each in every gate (MOVIES.md;

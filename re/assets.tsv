@@ -1384,6 +1384,7 @@ strings_dec000.182	text	DE:E235	DE:E24A	text:dialog	strings_dec000 entry
 strings_dec000.183	text	DE:E24B	DE:E25B	text:dialog	strings_dec000 entry
 strings_dec000.184	text	DE:E25C	DE:E26F	text:dialog	strings_dec000 entry
 strings_dec000.185	text	DE:E270	DE:E29C	text:dialog	strings_dec000 entry
+strings_dec000.186	text	DE:E29D	DE:E2B0	text:dialog	strings_dec000 entry
 strings_dee300	ptr16	DE:E300	DE:E421	raw	read
 strings_dee300.0	text	DE:E422	DE:E435	text:dialog	strings_dee300 entry
 strings_dee300.1	text	DE:E436	DE:E444	text:dialog	strings_dee300 entry

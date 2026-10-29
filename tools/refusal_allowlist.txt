@@ -7,3 +7,4 @@
 # reference play; movies: the shipping mode) or a route.
 C03002 event_cmd_walk_with_the_party guard # gap: what_the_prophet_seeks, frames 119033-119035 at $190; the second party link is the empty marker during the ending transition (docs/TODO.md, Refusals in real play).
 C0A2CE field_second_member_follows guard # gap: what_the_prophet_seeks, the same three frames; the second party link does not name the stepping object (docs/TODO.md, Refusals in real play).
+C0881E field_walk_the_leader guard # gap: memory_lane, frames 166496-166502 at $0EF; the scripted exit carries the leader through Y=$FFxx, outside clear_of_the_end (docs/TODO.md, Refusals in real play).

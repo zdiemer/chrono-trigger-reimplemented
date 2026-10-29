@@ -3908,7 +3908,8 @@ format = "dialog"
 
 [[resource]]
 at = "DE:C000"
-count = 186
+# Memory Lane's final dialog uses entry 186 ($BA), at DE:E29D.
+count = 187
 slots = 187
 kind = "ptr16"
 bank = "DE"

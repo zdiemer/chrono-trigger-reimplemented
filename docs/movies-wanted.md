@@ -393,11 +393,11 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 ### 7. The other endings
 - **Saves**: technoplaza ct-state17 and ct-state19 to ct-state26 (New Game+ at each ending's story point).
 - **Do**: beat Lavos at that point and watch the ending.
-- **Measured so far**: the seven checked scratch recordings below add no new `$7E` scene
+- **Measured so far**: the eight checked scratch recordings below add no new `$7E` scene
   code and start none of modes 5, 6, 10/11/14/15 or 12. The earlier 4.71 KiB
   estimate was an upper bound, not coverage these saves had demonstrated.
   Mode 7's loss sequence and mode 6's Epoch dive already have separate movies
-  (target 8). The two remaining saves' dispatcher findings are below.
+  (target 8). The remaining save's dispatcher findings are below.
 - **Route**: yes (`bucket_lavos`, `telepod_lavos` and `beyond_time` are the pattern).
 - **Hand-run routes**: these long recordings stay in scratch storage, outside `oracle/movies`.
   Their routes are in `tools/suite.py`'s `HAND_RUN_ROUTES`, excluded even from `--long-routes`;
@@ -546,14 +546,32 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   `ct_native` and strict mode complete all 131287 input frames with exit 0 and
   no stop. Shipping-mode `route_check --mode on:on:c` reaches The End at 140017
   without a wipe; all 12 restores replay exactly, with no C sound-driver errors.
-- **Remaining**: ct-state25 and ct-state26. Reading the slot's RAM regions using
-  the save layout at `$FF:FA7B` gives story counters `$A2` and `$D4`.
-  Ct-state25's `$A2` selects **Memory Lane**, `$0EF`; its final object `$0E` loop is
-  `$059E`. Ct-state26's `$D4`, absent Crono and clear `$6D` select **Reunion**,
+- **Memory Lane**: `memory_lane`, technoplaza ct-state25 slot 2, 167063 frames.
+  Story `$7F:0000 = $A2` selects `$052`'s `$A2 <= story < $AB` branch to `$0EF`.
+  The shared bucket route beats the shell (94053), inner Lavos (122829) and Core
+  (157883), without a wipe. Marle and Lucca review the men, Crono interrupts,
+  and The End appears. Completion requires `$0EF` object `$0E`'s loop at `$059E`,
+  after its call-and-wait for the final reveal, plus 120 frames; the final picture
+  was inspected.
+  Shadow exits 0 with zero mismatches, no page/accessor/asset diagnostics and identical
+  sound lockstep (525128 ticks, 24 loads). Seven `field_walk_the_leader` (`$C0:881E`)
+  refusals at frames 166496-166502 are a `gap` in the allowlist and TODO.md: the
+  ending's upward exit carries the leader through Y `$FFxx`, which its guard rejects.
+  Coverage adds 111 instruction bytes over the 48-movie library, **no new `$7E`
+  scene-program code**; none of modes 5, 6, 10/11/14/15 or 12 starts.
+  The final dialog at `$DE:C000` entry `$BA`, `$DE:E29D`-`$E2B0`, was missing from
+  the catalogue. Correcting the table count to 187 fixes that diagnostic without
+  changing any old resource range. The catalogue check (6093 resources) and all 42
+  asset/movie-tool/route-check tests pass. `ct_native` and strict mode complete all
+  167063 input frames with exit 0 and no stop.
+  Shipping-mode `route_check --mode on:on:c` reaches The End at 127246 without a
+  wipe; all 12 restores replay exactly, with no C sound-driver errors.
+- **Remaining**: ct-state26. Reading the slot's RAM regions using the save layout
+  at `$FF:FA7B` gives story `$D4`. Its absent Crono and clear `$6D` select **Reunion**,
   `$6E = 4` and `$054`. That script requires speaking to Gaspar and the companions
   before the fair, telepod farewells and King. The `$051` and `$05A` scripts then
   select modes 11 and 15; `$056` leads to `$058`, whose final object 0 halt is `$0052`.
-  These last two identifications are from the saves and event scripts, not played outcomes.
+  This identification is from the save and event scripts, not a played outcome.
 
 ### 8. The scene program's modes 6, 7 and 5
 - **Mode 6** (`$7E:78DD`): location `$1B0` is the party in the winged Epoch over Lavos (event script

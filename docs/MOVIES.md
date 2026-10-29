@@ -329,6 +329,26 @@ the 42 asset/movie-tool/route-check tests pass.
 stop. Shipping-mode `route_check --mode on:on:c` reaches The End at 140017,
 without a wipe; all 12 restores replay exactly, with no C sound-driver errors.
 
+`memory_lane` (technoplaza ct-state25 slot 2, 167063 frames) plays the bucket,
+Lavos, Marle and Lucca's review of the men, Crono's interruption and The End.
+The shell, inner Lavos and Core finish at 94053, 122829 and 157883 without a
+wipe. Story `$A2` selects `$052`'s `$A2 <= story < $AB` branch to `$0EF`.
+The route advances the dialogue and requires object `$0E`'s final loop at
+`$059E`, after the call that reveals The End, plus 120 frames. The final
+picture was inspected.
+Shadow exits 0 with zero mismatches, no page/accessor/asset diagnostics and
+identical sound lockstep (525128 ticks, 24 loads). The seven refusals of
+`field_walk_the_leader` (`$C0:881E`) are a documented `gap`: the final upward
+exit carries the leader through Y `$FFxx`, outside the guard's accepted range.
+Coverage adds 111 instruction bytes over the 48-movie library, none in `$7E`;
+none of modes 5, 6, 10/11/14/15 or 12 starts. The missing final dialog resource,
+`$DE:C000` entry `$BA` at `$DE:E29D`-`$E2B0`, is now catalogued by correcting
+the table count to 187. All old resource ranges remain unchanged; the catalogue
+check (6093 resources) and 42 asset/movie-tool/route-check tests pass.
+`ct_native` and strict mode complete all 167063 input frames with exit 0 and no stop.
+Shipping-mode `route_check --mode on:on:c` reaches The End at 127246 without a
+wipe; all 12 restores replay exactly, with no C sound-driver errors.
+
 So do the menu, event and battle movies made for what no movie ran
 ([movies-wanted.md](movies-wanted.md), Targets): `menu_sweep`
 (`menus-sweep.ctm`), `save_point` (`menus-save-point.ctm`), `epoch_lavos`
