@@ -159,6 +159,44 @@ def party(bot, state, rng, inventory):
 LAPIS = 0xCA
 
 
+def motherbrain(bot, state, rng, inventory):
+    """Clear the Displays and finish before MotherBrain's repeated stat gains.
+
+    Her action $15 makes a long fight increasingly expensive. Prefer the
+    party's magic each turn over the general policy's random physical attacks.
+    Robo supplies group healing; individual healing is reserved for low HP.
+    """
+    member = state.member
+    character = party_ids(bot)[member]
+    members = range(bot.party)
+    dead = [i for i in members if not state.hp(i)]
+    if dead:
+        if character == 1 and state.mp(member) >= 15 and tech_known(bot, member, 7):
+            return ("tech", 7, dead[0])
+        action = use(inventory, REVIVE, dead[0])
+        if action:
+            return action
+    alive = [i for i in members if state.hp(i)]
+    low = [i for i in alive if fraction(state, i) < 0.5]
+    if character == 3 and len(low) >= 2 and state.mp(member) >= 3 and tech_known(bot, member, 4):
+        return ("tech", 4, None)
+    if alive:
+        lowest = min(alive, key=lambda i: fraction(state, i))
+        if fraction(state, lowest) < 0.25:
+            if character == 1 and state.mp(member) >= 5 and tech_known(bot, member, 6):
+                return ("tech", 6, lowest)
+            action = use(inventory, FULL_TONIC, lowest)
+            if action:
+                return action
+    spells = {1: [(5, 8), (2, 2)], 2: [(7, 20), (5, 8), (2, 2)],
+              3: [(7, 17), (2, 3)]}.get(character, [])
+    for index, cost in spells:
+        if state.mp(member) >= cost and tech_known(bot, member, index):
+            return ("tech", index, None)
+    action = use(inventory, HYPER_ETHER, member)
+    return action or ("attack", (enemies(state) or [3])[0])
+
+
 def party_with_lapis(bot, state, rng, inventory):
     """`party` for a bag from before the late healing items, which `party` reaches for (Full
     Tonics, Elixirs, Mega Elixirs): a Lapis when two or more are low, a Mid Tonic when one is.
@@ -386,6 +424,7 @@ def tracking_do(bot, cast_ids, refused=None, damage=None):
 POLICIES = {
     "party": party,
     "party_with_lapis": party_with_lapis,
+    "motherbrain": motherbrain,
     "crono_and_marle": crono_and_marle,
     "crono_and_marle_core": crono_and_marle_core,
 }

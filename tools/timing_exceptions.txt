@@ -190,3 +190,20 @@ field_copy_tiles worst the same copy from the field's own call: at most 50846 cl
 menu_note_rock_techs vblank-tail notes which rock techs the party has, its time following the party's members and their records: 16% of its 120 stretches in vblank off by a line, at most 1076 clocks
 menu_show_what_the_party_wears vblank-tail shows the party's wear on the field's sprites, run as C by the menus' close now (menu/display.c): 1.8% of its stretches in vblank off by a line, at most 1180 clocks, writing RAM
 menu_window_copy_bytes vblank-tail copies a window's bytes into the menus' tilemap buffer in RAM, its time following the window's size: 2.6% of its stretches in vblank off by a line or more, at most 1944 clocks
+
+# Geno Dome (battle-motherbrain), measured over this movie alone: the dungeon's
+# object/script mix and the battles' pose work differ from the library mean.
+# The movie's vblank check finds no new video-write timing failures. These
+# remaining limits are not fixed by --calibrate --drifted; the pose attribution
+# follow-up is in docs/TODO.md.
+battle_frame_work vblank-tail Geno Dome's combatant/script mix: 2.74% of 51767 stretches in vblank off by a line or more, at most 1602 clocks; the movie's video-write check is clean
+battle_step_the_poses drift the pose graphics attributed to their own routines exceed these stretches' original time after Geno Dome calibration; the remaining body is already at cost_milli 1; writes frame graphics in RAM, with no new video-write timing failures
+battle_strike_the_poses drift the same pose-step attribution carried by the victory/defeat pose sequence; its remaining body is already at cost_milli 1; the movie's video-write check is clean
+field_nmi vblank-tail Geno Dome's field interrupt mix: 1.40% of 138158 stretches off by a line or more, at most 6461 clocks; the movie's video-write check finds no new failure
+menu_run_object_script vblank-tail Geno Dome's menus and Epoch script mix: 1.06% of 5269 stretches in vblank off by a line or more, at most 1364 clocks; no new video-write timing failures
+battle_step_the_poses worst the pose graphics' attributed work varies by the frames built: after Geno Dome calibration, at most 119090 clocks of error in 1984 stretches, none wholly in vblank; the movie's video-write check is clean; same attribution follow-up as its drift exception
+battle_strike_the_poses worst the enclosing pose sequence carries that graphics error: at most 118903 clocks in 2030 stretches, none wholly in vblank; same follow-up and clean video-write check as battle_step_the_poses
+battle_dispatch_expired_timers worst the due timers dispatch the battle's turns and animation work at their own calibrated rates; Geno Dome has at most 107699 clocks of error in 2064 stretches, none wholly in vblank; no new video-write timing failures
+battle_find_due_animation worst the animation queue's scan and the work it dispatches vary with the queued animations: Geno Dome has at most 58789 clocks of error in 27422 stretches, while its 11 stretches wholly in vblank are at most 2139 clocks off; no new video-write timing failures
+battle_see_to_knocked_out_enemies worst Geno Dome's multiple-enemy defeats carry the dispatched death-animation work: at most 89558 clocks of error in 358 stretches, none wholly in vblank; no new video-write timing failures
+battle_see_to_the_beaten_enemies worst the enclosing defeated-enemy pass carries that animation work: at most 111619 clocks of error in 1990 stretches, none wholly in vblank; no new video-write timing failures

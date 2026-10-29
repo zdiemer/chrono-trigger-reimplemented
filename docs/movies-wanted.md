@@ -344,15 +344,43 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   unported (`$CD:0DFA`). Shadow clean: no mismatch, refusal, `page refused` or `accessor out of
   range`. The route reaches its end in the shipping mode (`route_check --mode on:on:c`: the fight
   won on the 84th try, frame 22954; the end at 24934).
+- **Movie**: `battle-motherbrain` (route `motherbrain`, ctsave14 slot 2, 135481 frames):
+  from the 600 A.D. world map, board the Epoch and travel to 2300 A.D.; enter Geno Dome
+  (`$0F8`), lead with Robo, clear the five conveyor battles (`$07E`) and solve the
+  main floor (`$100`). The first and third code switches open the doll's approach;
+  carrying the charging pod's electricity to the doll and escort pods sets
+  `$7F:013E` bits 2 and 1. The far elevator and upper corridor reach the conveyor
+  switch. Escort object 8 must follow around the corridor corners and across that
+  belt to the guard at tile `(7,36)`, setting `$7F:013C` bit 7. Both dolls collected
+  (bits 1 and 2), Robo beats Atropos alone on `$10C`; the dolls placed on its two
+  pedestals open MotherBrain's room. The existing `party` policy wins both bosses
+  without a retry in this recording. The route's fresh-start check reaches its
+  end at frame 150806, using `policies.motherbrain` to prioritize magic before
+  the boss's stat gains; that fight wins without a retry too. MotherBrain's
+  defeat sets `$7F:013B` bit 4 and returns the party to the world map; the movie
+  re-enters `$0F8` and ends with field control.
+  `--coverage` adds 1244 bytes (1.21 KiB) beyond the other 48 movies, all ported:
+  351 bytes in `battle_enemy_add_to_stats_then_tech_turn` (`$C1:A20B`),
+  `battle_select_weakest_enemy`, the spiral-out screen script, counted object
+  movement, the remembered-switch check, and event flag commands. Shadow is clean:
+  0 mismatches, no refusals, `page refused` or `accessor out of range`; sound
+  lockstep is identical. All four calls of the new boss action are interrupted
+  by NMI, so its new instruction coverage is not four completed shadow comparisons.
+  Focused fuzzing with the existing constraints (1000 states, seed 1) completes
+  868 comparisons of that action with no mismatch; the new tile-row and
+  message-pause uncompared entries are recorded in `tools/uncompared_baseline.txt`.
+  `ct_native` and strict mode both run all 135481 frames without stopping;
+  strict ends with 323 saved-game bytes different from the reference (`drifts`).
+  The native host reports four SNES-only video escapes, first at `$7E:5AEB`.
+  The narrowed reference fallback check has no new or increased routine, and
+  neither reference nor shipping runs have a guard refusal.
 - **Not attempted, impractical from the saves there are**: Nizbel II is at `$130`, off Tyrano Lair's
   hall (`$12A`). ctsave08 slot 1 has it beaten (story bit `$7F:00EE` bit 0); ctsave07 slot 3, the
   only save before it, stands on the world map outside the lair, whose entrance (`$12B`) is shut
   until Kino is freed (its door's tiles copied in where `$7F:0063` bit 0 is set) and whose other
   way in (`$1AE`, a room of Reptites) leads on through the lair's switch rooms: a route through the
-  lair's puzzles, not a walk. MotherBrain (`$10C`, Geno Dome) has no save inside or near the dome
-  (ctsave14 slot 2 stands on the 600 A.D. world map, slot 3 after the fight), and R Series (the
-  factory) none nearer than ctsave03 slot 2 on the 2300 A.D. world map: each is a dungeon of
-  switches and conveyors before the fight.
+  lair's puzzles, not a walk. R Series (the factory) has none nearer than ctsave03
+  slot 2 on the 2300 A.D. world map, with switches and conveyors before the fight.
 
 ### 5b. The Day of Lavos after a loss
 - **Save**: technoplaza ct-state16 slot 2 (Crono and Marle at the fair, New Game+).
