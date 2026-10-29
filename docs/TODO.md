@@ -3132,7 +3132,7 @@ waits on M5 rather than on a backend.
   seed 2 wins at 149750 and finishes at 160570; that is the route's default.
   This is a reference-runtime stall, not a guard refusal. Its cause is not
   established; no game code was changed to work around it.
-- **Remaining ending routes**: technoplaza ct-state22 through ct-state26,
+- **Remaining ending routes**: technoplaza ct-state23 through ct-state26,
   including Reunion from "The Time Egg" (no Epoch reachable from that save).
   These belong among the hand-run routes, with scratch recordings rather than
   another 100,000-200,000 frames each in every gate (MOVIES.md;

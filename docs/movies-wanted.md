@@ -469,7 +469,33 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   and identical sound lockstep. `ct_native` and strict mode run all 160570 input frames
   and exit 0 without a stop. Shipping-mode `route_check --mode on:on:c` reaches The End at
   frame 146552; all 12 restores replay exactly, with no C sound-driver errors.
-- **Remaining**: ct-state22 through ct-state26. For ct-state19 through ct-state26, reading the
+- **The Oath**: `the_oath`, technoplaza ct-state22 slot 2, 159243 frames. The shared bucket
+  route beats the shell (65635), inner Lavos (99411) and Core (134683); the Core needed
+  18 retries, of which only the winning input is kept. Story `$7F:0000 = $87` takes `$052`'s
+  `$84 <= story < $8A` branch, setting `$7F:00DF` bit 0 and entering `$159`. Frog's farewell,
+  journey through Magus's castle and duel alternate with `$1CC`'s credits: `$159`, `$1CC`,
+  `$0A5`, `$1CC`, `$0A9`, `$1CC`, `$0AD`, `$1CC`, `$0B0`, `$1CC`, `$0AE`, `$1CC`, `$1BF`,
+  `$1CC`, `$0AC`, `$1CC`, `$0A5`. Completion requires `$E0 = 8`, `$DF` bit 1, and object
+  `$0D`'s halt at `$0579` in the last castle scene. It keeps another 600 frames for The End's
+  palette fade (32 steps at 15 frames each) and a final hold; the final picture was inspected.
+  This route exposed a bot-table error: Frog's healing entries were Water 2 and Heal.
+  The names at `$CC:15C4`, tech records at `$CC:1BEB` and effect costs at `$CC:253B`
+  identify Heal as entry 3 (2 MP) and Cure 2 as entry 6 (5 MP); `policies.py` now uses them.
+  Its shared `party_lavos_core` policy preserves healing but clears the left bit with physical
+  attacks before using area techs, then targets the body and exposed Core. It uses Robo's
+  learned Shock (entry 7, 17 MP), which reaches both, and restores MP for these windows.
+  No game code changed. Shipping-mode `route_check --mode on:on:c` reaches The End at 161581:
+  shell 70794, inner Lavos 103021, Core 137441, each without a wipe in the retained play.
+  The final check resumed the Core checkpoint after adjusting only the Core policy; that
+  restore replayed exactly, with no C sound-driver errors. The preceding full run had already
+  played the same shell and inner fights with Frog's corrected healing table.
+  Shadow exits 0 with zero mismatches and refusals, no page/accessor/asset diagnostics,
+  and identical sound lockstep (499496 ticks, 25 loads). Coverage adds 181 instruction
+  bytes over the 48-movie library, including `$C0:AC48`-`$AC68`, battle paths in `$C1`
+  and `$CD:1E27`-`$1E33`, **no new `$7E` scene-program code**. None of modes 5, 6,
+  10/11/14/15 or 12 starts. `ct_native` and strict mode complete all 159243 input
+  frames with exit 0 and no stop.
+- **Remaining**: ct-state23 through ct-state26. For ct-state19 through ct-state26, reading the
   slot's RAM regions using the save layout at `$FF:FA7B` gives story counters `$5D`, `$69`, `$7E`, `$87`, `$8E`, `$9F`, `$A2`,
   `$D4`, respectively. `$052` selects their first ending locations as `$025`, `$025`, `$05B`,
   `$159`, `$10F`, `$190`, `$0EF`, and `$054` (the last save has no Crono). These are dispatcher

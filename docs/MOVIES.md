@@ -184,7 +184,7 @@ Lavos's shell (its first phases, `to_the_shell`) and loses the fight, for the
 Day of Lavos a loss plays.
 
 The other New Game+ endings are hand-run routes: a Lavos fight and ending takes
-100,000-200,000 frames, so `HAND_RUN_ROUTES` in `tools/suite.py` excludes them
+over 100,000 frames, so `HAND_RUN_ROUTES` in `tools/suite.py` excludes them
 from the gates, including `--long-routes`. Their recordings belong in scratch
 storage, not `oracle/movies`. `tools/movies/other_endings.py` shares the fights
 and recording setup; the routes supply the ending's walks and completion checks.
@@ -257,6 +257,28 @@ none in `$7E`; none of modes 5, 6, 10/11/14/15 or 12 starts. `ct_native` and str
 mode run the whole input with exit 0 and no stop. Shipping-mode `route_check`
 (`on:on:c`) reaches The End at frame 146552; all 12 restores replay exactly,
 with no C sound-driver errors.
+
+`the_oath` (technoplaza ct-state22 slot 2, 159243 frames) plays the bucket and
+Lavos, Frog's farewell and journey through Magus's castle, the duel, interleaved
+credits and The End over the castle. Story `$87` selects `$159` and `$DF` bit 0.
+The route checks `$E0 = 8`, `$DF` bit 1 and object `$0D`'s final halt in `$0A5`,
+then keeps 600 frames so The End's slow palette fade finishes. The Core needed
+18 retries; the movie retains only winning input. It exposed incorrect Frog
+healing entries in `policies.py`: the ROM's names and MP costs identify Heal as
+entry 3 (2 MP), Cure 2 as entry 6 (5 MP). The corrected table and shared
+`party_lavos_core` policy (physical attacks on the left bit before area techs,
+then the body and exposed Core) keep this party from wasting its healing.
+The Core policy uses Robo's learned Shock (entry 7, 17 MP) and restores MP for
+the strongest known area techs. Shipping-mode `route_check` (`on:on:c`) reaches
+The End at 161581, the retained fights all without a wipe. The final check
+resumed the Core checkpoint after changing only that fight's policy; the
+restore replayed exactly, with no C sound-driver errors. The earlier full run
+had played the same shell and inner fights with the corrected healing table.
+Shadow exits 0 with zero mismatches and refusals, no page/accessor/asset
+diagnostics, and identical sound lockstep (499496 ticks, 25 loads). Coverage
+adds 181 instruction bytes over the 48-movie library, in field and battle code,
+none in `$7E`; none of modes 5, 6, 10/11/14/15 or 12 starts. `ct_native` and
+strict mode complete all 159243 input frames with exit 0 and no stop.
 
 So do the menu, event and battle movies made for what no movie ran
 ([movies-wanted.md](movies-wanted.md), Targets): `menu_sweep`

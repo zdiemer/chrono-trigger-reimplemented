@@ -51,7 +51,7 @@ def bucket_to_shell(run, start):
         run.checkpoint("shell")
 
 
-def watch_ending(run, *, selected, done, max_frames=48000):
+def watch_ending(run, *, selected, done, max_frames=48000, settle_frames=120):
     """Watch an automatic ending, proving both its selection and its finish."""
     machine = run.machine
     start, seen, selection_seen = machine.frame, [], False
@@ -69,7 +69,7 @@ def watch_ending(run, *, selected, done, max_frames=48000):
             machine.screenshot("%s_ending_%d.png" % (run.prefix, machine.frame))
         selection_seen |= bool(selected())
         if selection_seen and done():
-            machine.run(120)
+            machine.run(settle_frames)
             assert done(), "the ending remains at its finish"
             run.say("ending maps", " ".join(seen))
             return
@@ -84,7 +84,7 @@ def watch_ending(run, *, selected, done, max_frames=48000):
     raise AssertionError("ending did not finish: maps %s, selection seen %s" % (seen, selection_seen))
 
 
-def lavos(run, start, *, party, seed, core_seed_offset=0):
+def lavos(run, start, *, party, seed, core_seed_offset=0, core_policy=None):
     """The shell, cavern and two inner fights, shared by the ending routes."""
     policy = "crono_and_marle" if party == 2 else "party"
     if start <= 3:
@@ -102,12 +102,13 @@ def lavos(run, start, *, party, seed, core_seed_offset=0):
         def core_beaten(r, state):
             return (state.max_hp(9) == 30000 and state.hp(9) == 0
                     and any(state.hp(slot) for slot in range(party)))
-        run.fight("crono_and_marle_core" if party == 2 else "party", core_beaten,
+        run.fight(core_policy or ("crono_and_marle_core" if party == 2 else "party"), core_beaten,
                   party=party, seed=seed + core_seed_offset)
         run.checkpoint("ending")
 
 
-def play_ending(*, save, title, ending, entry="telepod", party=2, story=None, core_seed_offset=0):
+def play_ending(*, save, title, ending, entry="telepod", party=2, story=None,
+                core_seed_offset=0, core_policy=None):
     args = route_arguments(title, save=save)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
               native=args.native, generated=args.generated, sound=args.sound_driver, until=args.until)
@@ -116,7 +117,8 @@ def play_ending(*, save, title, ending, entry="telepod", party=2, story=None, co
         (to_the_shell if entry == "telepod" else bucket_to_shell)(run, start)
         if story is not None and start <= 6:
             assert run.machine.b(0x7F0000) == story, "the save's story counter"
-        lavos(run, start, party=party, seed=args.seed, core_seed_offset=core_seed_offset)
+        lavos(run, start, party=party, seed=args.seed, core_seed_offset=core_seed_offset,
+              core_policy=core_policy)
         ending(run)
         run.machine.screenshot(run.prefix + "_end.png")
         if args.movie:
