@@ -8,6 +8,17 @@ needs by the CRC-32 in its `# sram crc32` line, so `--sram` is optional; see
 
 Each movie's `# Save:` line names the file below and the slot it loads.
 
+## routes/
+
+`sun-stone-planted.srm`: slot 1 at the End of Time's save point, after beating
+Son of Sun and planting the Moon Stone in the prehistoric Sun Keep. Written
+by the game's save screen in `tools.movies.routes.sun_stone_save`, starting
+from fantasyanime `ctsave13-side_quests2.srm` slot 3 (26252 frames). The kept
+inputs replay to identical SRAM. Crono, Lucca and Marle are active; quest byte
+`$7F:013A` is `$07`. The source save already includes the Jerky gift to the
+Porre mayor's ancestor (`$7F:01D2` bit 2). Slots 2 and 3 retain the source
+cartridge's saves. This is cartridge SRAM, not a machine snapshot.
+
 ## fantasyanime/
 
 From the Chrono Trigger saves at fantasyanime.com/squaresoft/ctsaves-srm.htm,

@@ -574,6 +574,14 @@ already runs, is for its route to establish.
 Each is an event-heavy play the native program hasn't met: the event commands, scene work and
 bosses they reach are where `ct_native`'s next stops are likely to be.
 
+- **Sun Stone preparation**: the hand-run `sun_stone_save` reuses the Son of Sun fight and
+  Moon Stone placement routes, then writes slot 1 at the End of Time's save point (26252
+  frames). Its movie stays outside the library; `oracle/saves/routes/sun-stone-planted.srm`
+  is the game's own cartridge save, reproduced byte for byte by replaying the kept inputs.
+  The stone is planted (`$7F:013A = $07`), and the source ctsave13 slot 3 already has the
+  Jerky gift to the mayor's ancestor. The theft, recovery and rewards can start from this
+  save without repeating the boss. No machine writes or edited SRAM.
+
 ### 13. The story events no movie plays
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's
 castle, the dactyls, the Black Tyrano, the Keeper's Dome, the Golem Twins, the Blackbird, the

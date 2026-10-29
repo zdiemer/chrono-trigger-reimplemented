@@ -218,6 +218,23 @@ without replaying the hour before it. Delete the checkpoints to start over.
 
 ## What the route runner does
 
+### Preparing a Sun Stone cartridge save
+
+`sun_stone_save` is a hand-run route in `HAND_RUN_ROUTES`. It reuses
+`son_of_sun` and `sun_stone`: load ctsave13 slot 3, win Son of Sun, take the
+Moon Stone, and plant it in 65,000,000 B.C.'s Sun Keep. Then board the Epoch,
+travel to the End of Time, choose Disembark in its cockpit, and save to slot 1
+at the field's save point. The route exports the game's SRAM as
+`<prefix>.srm`; its 26252-frame movie stays outside the library. Replaying
+the kept inputs from power-on with the worktree's build produces identical
+SRAM. No pokes are used. The resulting cartridge save is
+`oracle/saves/routes/sun-stone-planted.srm` (see the saves README).
+
+The placement leaves `$7F:013A` at `$07`, with no Moon Stone in the bag. The
+save point's trigger is tile (24, 22); its sprite's anchor is lower than the
+tile's centre. The route walks onto the tile, faces left, opens the save
+screen, and accepts overwriting slot 1. Its previous slots remain intact.
+
 `tools/movies/campaign.py`:
 
 - **Dialogue.** `$7E:0127` is non-zero while a text window waits, so A is pressed
