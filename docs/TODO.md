@@ -2970,6 +2970,24 @@ waits on M5 rather than on a backend.
   - `menu/sound.c`'s `music_waited_for` waits a frame per check on the C path
     with no limit, where the original waits the driver's own time (the audio
     service that gives up with a message is the item under Platform).
+- **What the shops' review left** (`menu/shop_steps.c` mostly, the rest hand):
+  - The C callbacks share their `ShopSteps` members' names (`read_cursor`,
+    `tick`, `wait`, `registers_at`, `run`, `note`, `ends`), as the equipment's
+    and the main menu's do; `dontcare_check` misreads a callback named like
+    its member.
+  - Locals kept only for the scaffolding's notes (`left_by_the_last`,
+    `shown_before`, `total_before`), two bytes packed into one note, and the
+    literal register loads (`note(..., LOADED, 0x13/0x80/1)`) belong in the
+    bridge's leave helpers.
+  - `DEAL_SOUND` is defined in both `shop_steps.c` and `shop_bridge.c`.
+  - Trying on (`$C2:E162`) runs after a move along the list without
+    re-checking its own guard; safe while the move leaves that guard's state
+    alone.
+  - `ShopPlace` and `ShopRoutine` have a member per call site (the panel four
+    times), and `for_the_list` adds to the enum to reach the selling member:
+    the same split as the last save stops' first item.
+  - `menu_figures_are_workable` (`figures.c`) repeats the test of the new
+    `menu_figures_can_be_worked_out` rather than calling it.
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in
