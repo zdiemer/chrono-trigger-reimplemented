@@ -199,6 +199,16 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
+`fair_clone` (`events-fair-clone.ctm`, ctsave14 slot 1, 8335 frames) pays
+40 silver points at Norstein Bekkler's tent, copies all 22 poses and returns
+to the lower square with control restored. The route reads the pose and
+answer-window variables and presses R, L, A or Y accordingly. Bekkler's
+object `$0B` function 1 accepts confirm from below, around `(134,149)` facing
+up, while local variable `$0B` is zero. His move to tile `(8,5)` precedes his
+greeting; the route waits for it, then for the choice window to accept input.
+The tent entrance is lower-square tile `(43,29)`. Short waypoint searches
+keep the large square's machine-copy count bounded.
+
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.

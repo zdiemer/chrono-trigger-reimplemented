@@ -534,7 +534,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   (`$C2:5972`-`$59C7`) and the inserts' tails; of the field's dialogs only the jetbike race's
   scoreboard (`$0DF`/`$0E1`) shows a 16-bit number.
 
-### 11. Event commands at the fair (looked into, not recorded)
+### 11. Event commands at the fair
 - **Saves**: ctsave11 slot 3, ctsave12, ctsave13, ctsave14 slot 1 (on the 1000 A.D. map, 131 silver
   points at `$7F:0052`; zophar chrono-3 slot 1 80, chrono-2 65, chrono-trigger 50).
 - **`$005`** (the lower square): its startup's arithmetic and comparisons (its script's `L03A0` on, as
@@ -543,10 +543,22 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   which ctsave14 slot 1 hasn't. The strength test (object `$1A`, tile (5, 34); `move_by_variables`,
   `$9D`) is reached from (89, 586) facing up; pressing confirm there ran only its button test
   (`event_cmd_if_held_a`).
-- **`$1B2`** (Bekkler's tent, from `$005` in 67 steps): Bekkler (object `$0B`, function 1) offers
-  three games (the script's `L0846`; the clone game at `L0328` for 40 points: compare variables,
-  random, shifts; another for 80); no spot the party reached made him answer, so the games weren't
-  played.
+- **`$1B2`** (Bekkler's tent, from `$005` at tile (43, 29)): Bekkler's object `$0B`, function 1
+  (`L0846`), accepts confirm while local variable `$0B` is zero. Stand around (134, 149), face up
+  and press A; wait through his move to tile (8, 5) before the greeting opens. The game choice
+  must finish showing before DOWN selects 40 points (`dialog_choice_active`, `$7E:0162`, is 2
+  when it accepts input). A short wait after confirm can mistake his movement for no response.
+- **Movie**: `events-fair-clone` (route `fair_clone`, ctsave14 slot 1, 8335 frames; the field
+  back in hand at 8245): load the save, walk to the fair and the tent, pay 40 of the save's 131
+  silver points, copy all 22 poses, receive the clone and return to `$005`. Local `$08` counts
+  poses, `$10` selects R/L/A/Y and `$11=$80` opens the answer window. Reaches 167 bytes
+  (0.16 KiB) no other movie in the preceding 48-movie library runs, all ported: variable-to-variable
+  comparisons (`$C0:6361`-`$63A3`), random shifts (`$C0:658F`-`$65A9`), held-button tests
+  (`$C0:66C6`, `$66F9`, `$6705`-`$6718`) and choice-pointer drawing (`$C0:F08B`-`$F0AA`).
+  Shadow clean: 0 mismatched, no refusal, `page refused` or `accessor out of range`.
+  `ct_native` reaches all 8335 frames without stopping; its timing differs from the movie's.
+  Strict mode also reaches the end, but loses the timed game: the clone flag (`$7F:005E` bit 0)
+  remains clear, the only differing saved-game byte. Its baseline is `drifts`.
 - **Death Peak** (`$0F4`, a step from ctsave11 slot 3's spot on the 2300 A.D. map; `$7F:007C` is
   3 there, so the object at tile (55, 48) whose confirm runs `$88` lighten green is shown): the wind
   (script variable `$0C`, `$7F:0218`) is calm for the first 108 frames after the party comes in
