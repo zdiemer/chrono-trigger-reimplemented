@@ -393,11 +393,13 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 ### 7. The other endings
 - **Saves**: technoplaza ct-state17 and ct-state19 to ct-state26 (New Game+ at each ending's story point).
 - **Do**: beat Lavos at that point and watch the ending.
-- **Measured so far**: the eight checked scratch recordings below add no new `$7E` scene
-  code and start none of modes 5, 6, 10/11/14/15 or 12. The earlier 4.71 KiB
-  estimate was an upper bound, not coverage these saves had demonstrated.
+- **Measured**: the first eight scratch recordings below add no new `$7E` scene
+  code and start none of modes 5, 6, 10/11/14/15 or 12. Reunion starts modes 11
+  and 15, adding nine scene instruction bytes at `$7E:8CE9`-`$8CF1`; the rest of
+  those paths already runs in the 48-movie library. The earlier 4.71 KiB
+  estimate was an upper bound, not coverage these saves demonstrate.
   Mode 7's loss sequence and mode 6's Epoch dive already have separate movies
-  (target 8). The remaining save's dispatcher findings are below.
+  (target 8). None of these nine routes starts modes 5, 10, 14 or 12.
 - **Route**: yes (`bucket_lavos`, `telepod_lavos` and `beyond_time` are the pattern).
 - **Hand-run routes**: these long recordings stay in scratch storage, outside `oracle/movies`.
   Their routes are in `tools/suite.py`'s `HAND_RUN_ROUTES`, excluded even from `--long-routes`;
@@ -566,12 +568,35 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   167063 input frames with exit 0 and no stop.
   Shipping-mode `route_check --mode on:on:c` reaches The End at 127246 without a
   wipe; all 12 restores replay exactly, with no C sound-driver errors.
-- **Remaining**: ct-state26. Reading the slot's RAM regions using the save layout
-  at `$FF:FA7B` gives story `$D4`. Its absent Crono and clear `$6D` select **Reunion**,
-  `$6E = 4` and `$054`. That script requires speaking to Gaspar and the companions
-  before the fair, telepod farewells and King. The `$051` and `$05A` scripts then
-  select modes 11 and 15; `$056` leads to `$058`, whose final object 0 halt is `$0052`.
-  This identification is from the save and event scripts, not a played outcome.
+- **Reunion**: `reunion`, technoplaza ct-state26 slot 2, 123341 frames. Marle,
+  Lucca and Robo enter the right telepod and beat the shell (16619), inner Lavos
+  (54295) and Core (86129), without a wipe. The save layout at `$FF:FA7B` restores
+  story `$D4`; `$052`'s dispatcher sees Crono absent and `$6D` bit 7 clear, sets
+  `$6E = 4`, and selects `$054`. The route verifies the story after map loading
+  restores bank `$7F`, then verifies `$6E = 4` on arriving at the End of Time.
+  Gaspar wakes the companions; talking to Robo, Frog and Ayla brings the departure
+  counter to four (the absent Magus counts himself in during setup). Crossing
+  column `$13` starts the return to the Moonlight Parade. The route walks to the
+  telepod farewells, returns to the bell, and speaks to the King from the north.
+  `$051` calls mode 11 at frame 108801 (`$7E:0384 = $2B`), then the maps are
+  `$02D/$105/$08E/$05A`. `$05A` calls mode 15 at 115441 (`$2F`), followed by
+  `$056` and `$058`. Completion requires both observed modes and `$058` object 0's
+  final halt at `$0052`, after The End's reveal, plus 120 frames; the picture was
+  inspected. Modes 5, 6, 10, 14 and 12 do not start.
+  Coverage adds 126 instruction bytes (64 new instruction starts) over all 48
+  library movies. The **nine new `$7E` scene bytes**, at `$8CE9/$8CEC/$8CEF`,
+  select mode 15's continuation script without another staff roll. Shadow exits 0
+  with zero mismatches, no page/accessor/asset diagnostics and identical sound
+  lockstep (387382 ticks, six loads). It reports eight guard refusals at three
+  entries, described in TODO.md's Refusals in real play. `ct_native` and strict
+  mode complete all 123341 input frames with exit 0 and no stop.
+  The two movement refusals are the departure's Y `$FFxx`; three visibility
+  and three palette-release refusals check an odd sharing link despite the
+  script owning the palettes. All have `gap` reasons in the allowlist.
+  Shipping-mode `route_check --mode on:on:c` reaches The End at 125438,
+  with the shell, inner Lavos and Core beaten at 16744, 49078 and 88617 without
+  a wipe. It observes modes 11 and 15, all 459 restores replay exactly, and
+  the C sound driver reports no errors.
 
 ### 8. The scene program's modes 6, 7 and 5
 - **Mode 6** (`$7E:78DD`): location `$1B0` is the party in the winged Epoch over Lavos (event script

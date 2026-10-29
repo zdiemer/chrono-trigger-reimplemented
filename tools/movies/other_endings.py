@@ -116,7 +116,9 @@ def play_ending(*, save, title, ending, entry="telepod", party=2, story=None,
         start = run.start_at(TELEPOD_PHASES if entry == "telepod" else BUCKET_PHASES)
         (to_the_shell if entry == "telepod" else bucket_to_shell)(run, start)
         if story is not None and start <= 6:
-            assert run.machine.b(0x7F0000) == story, "the save's story counter"
+            # Map loading temporarily borrows bank $7F before restoring flags.
+            assert run.dialogs_until(lambda: run.machine.b(0x7F0000) == story, 2000), \
+                "the save's story counter"
         lavos(run, start, party=party, seed=args.seed, core_seed_offset=core_seed_offset,
               core_policy=core_policy)
         ending(run)

@@ -9,6 +9,27 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Refusals in real play
 
+- **Reunion's departure and parade.** `reunion` (ct-state26 slot 2,
+  123341-frame scratch movie) has eight guard refusals at three entries.
+  `field_walk_the_leader` (`$C0:881E`) refuses frames 94157-94158 at `$054`:
+  the scripted departure carries leader Y through `$FFC1/$FF4A` before `$FED3`
+  at 94159. Leader X is `$108D`, party links `$02/$04/$80`, map mask `$3F3F`;
+  `clear_of_the_end` requires Y below `$FF00`. The refusal has A `$0100`,
+  X `$0710`, Y `$FFFE`, D `$0100`, DB `$00`, P `$23`.
+  At `$050`, `field_update_object_visibility` (`$C0:A88D`) and
+  `field_give_up_palette` (`$C0:734C`) each refuse frames 96984, 97676 and
+  99975. Object `$14` has palette `$0E` (slot 7), older/newer links `$00/$01`
+  at `$7E:0B28`, and all palette-slot heads `$80`. The newer link is odd,
+  which `object_palette_links_in_the_tables` rejects. But `$7E:0154 = $80`:
+  the script owns the palettes, so `object_give_up_palette` returns before
+  reading any sharer. Both guards still require those unused links to be valid.
+  The first visibility refusal has A `$0000`, X `$0028`, Y `$0046`, D `$0100`,
+  DB `$00`, P `$32`; palette release has A `$0080`, X `$0004`, Y `$0046`,
+  D `$0100`, DB `$00`, P `$33`. These are `gap` reasons in the allowlist.
+  Shadow has no mismatches or page/accessor/asset diagnostics; native and
+  strict modes complete the input. The shipping route reaches The End at
+  125438. No game routine was changed.
+
 - **Memory Lane's exit off the stage.** `memory_lane` (ct-state25 slot 2,
   167063-frame scratch movie) refuses `field_walk_the_leader` (`$C0:881E`)
   seven times at frames 166496-166502 in `$0EF`. Its scripted upward exit
@@ -3184,11 +3205,6 @@ waits on M5 rather than on a backend.
   seed 2 wins at 149750 and finishes at 160570; that is the route's default.
   This is a reference-runtime stall, not a guard refusal. Its cause is not
   established; no game code was changed to work around it.
-- **Remaining ending route**: technoplaza ct-state26,
-  including Reunion from "The Time Egg" (no Epoch reachable from that save).
-  These belong among the hand-run routes, with scratch recordings rather than
-  another 100,000-200,000 frames each in every gate (MOVIES.md;
-  movies-wanted.md, target 7).
 - **Content no movie plays at all**: most sidequests, and much of the endgame
   beyond the Black Omen. That is the likeliest home of the dark code in `$C0`
   and `$C2`, since sidequests are event scripts and menus. Driving them is

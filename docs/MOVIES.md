@@ -349,6 +349,35 @@ check (6093 resources) and 42 asset/movie-tool/route-check tests pass.
 Shipping-mode `route_check --mode on:on:c` reaches The End at 127246 without a
 wipe; all 12 restores replay exactly, with no C sound-driver errors.
 
+`reunion` (technoplaza ct-state26 slot 2, 123341 frames) plays the telepod and
+Lavos with Marle, Lucca and Robo, the End of Time conversations, Moonlight
+Parade, telepod farewells, King, Reunion's special scenes, credits and The End.
+The shell, inner Lavos and Core finish at 16619, 54295 and 86129 without a wipe.
+Story `$D4`, Crono's absence and clear `$6D` bit 7 select `$6E = 4` and `$054`
+in the `$052` dispatcher. The shared story check waits for map loading to
+restore bank `$7F`; Reunion also checks `$6E = 4` at the End of Time.
+After Gaspar wakes the companions, talking to Robo, Frog and Ayla prepares
+their departure; the absent Magus counts himself in at setup. Crossing column
+`$13` returns to the fair. The King is approached from the north after the
+telepod farewells. RAM proves scene mode 11 at frame 108801 and mode 15 at
+115441 (`$7E:0384 = $2B/$2F`). The final maps are
+`$051/$02D/$105/$08E/$05A/$056/$058`; completion requires both modes and
+`$058` object 0's final halt at `$0052`, then another 120 frames. The End
+picture was inspected. None of modes 5, 6, 10, 14 or 12 starts.
+Coverage adds 126 instruction bytes (64 starts) over the 48-movie library,
+including nine `$7E` scene bytes at `$8CE9/$8CEC/$8CEF`: mode 15's continuation
+without another staff roll. The other eight new ending routes add no scene
+code. Shadow exits 0 with zero mismatches, no page/accessor/asset diagnostics
+and identical sound lockstep (387382 ticks, six loads). It exposes eight guard
+refusals at three entries, documented in TODO.md's Refusals in real play.
+`ct_native` and strict mode complete all 123341 input frames with exit 0 and no stop.
+The two movement refusals are the departure's Y `$FFxx`; three visibility
+and three palette-release refusals check an odd sharing link even though
+the script owns the palettes. All are `gap` reasons in the refusal allowlist.
+Shipping-mode `route_check --mode on:on:c` reaches The End at 125438, all
+three fights without a wipe (16744, 49078 and 88617). It observes modes 11
+and 15, all 459 restores replay exactly, and the C sound driver reports no errors.
+
 So do the menu, event and battle movies made for what no movie ran
 ([movies-wanted.md](movies-wanted.md), Targets): `menu_sweep`
 (`menus-sweep.ctm`), `save_point` (`menus-save-point.ctm`), `epoch_lavos`
