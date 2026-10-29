@@ -338,7 +338,10 @@ build/main/ct_dev --rom roms/ct-usa.sfc --sram save.srm --movie m.ctm --frames N
 Adding it to the library (`oracle/movies/saves/`) moves the gate's measures
 that sum over the library, the timing gate's drift and the fallback ratchet's
 counts; [REIMPLEMENTATION.md](REIMPLEMENTATION.md), "The timing gate", says what a batch of movies
-needs ("Adding movies").
+needs ("Adding movies"), and those measures are taken over `suite.py --all-movies`. A new movie
+joins the gate's default sample (`tools/gate_movies.txt`) only where it earns its time there: code
+no sampled movie runs, at a good rate per frame, or something a check needs. A long movie made to
+find code or `ct_native`'s stops usually stays in the library alone, run by `--all-movies`.
 
 **Routes are timing-independent; movies are not.** A route reads the machine, so
 it still works after the hardware model's timing changes — re-run it and it
@@ -374,7 +377,7 @@ frames are not `on:on`'s. `ct_drive`'s machine copies and state files then
 hold the driver's fields beside the machine's, and it exits 1 at `quit` where
 the host dropped a command or placed a sample where the echo was writing,
 which the route reports as failed. The original driver's runs in the shipping
-mode are the vblank check's, over every movie, so the suite doesn't run the
+mode are the vblank check's, over every movie the gate runs, so the suite doesn't run the
 routes in `on:on` as well.
 
 A long run can be cut short (a time limit on the session running it, a

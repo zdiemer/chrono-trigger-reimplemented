@@ -321,7 +321,7 @@ def open_names(m):
     return {"open " + port: name for (port, name) in m.open}
 
 
-def check(m, baseline_path, out):
+def check(m, baseline_path, out, subset=False):
     base, bad = read_baseline(baseline_path)
     now = m.routines()
     new, rose, gains = [], [], []
@@ -357,7 +357,10 @@ def check(m, baseline_path, out):
         out.write("rose: %s %d instructions (baseline %d), %d bytes (baseline %d): %s\n"
                   % (routine, n, bn, b, bb, said(routine, row)))
     summary = "%s; %d routine(s) new, %d rose, %d malformed" % (totals_line(m), len(new), len(rose), len(bad))
-    if gains or gone:
+    if subset:
+        # a routine the subset doesn't reach isn't gone, nor less of it a gain
+        summary += "; over a subset of the library, so nothing fell or went (--update takes the whole library's)"
+    elif gains or gone:
         summary += "; %d fell and %d went (--update takes the gain)" % (len(gains), len(gone))
     out.write(summary + "\n")
     return not (new or rose or bad)
@@ -454,6 +457,8 @@ def main(argv=None):
     ap.add_argument("--check", action="store_true", help="the ratchet against the baseline")
     ap.add_argument("--refusals", action="store_true", help="refusals against the allowlist")
     ap.add_argument("--update", action="store_true", help="rewrite the baseline from these counts")
+    ap.add_argument("--subset", action="store_true",
+                    help="--check: the counts are a subset of the library's, so report no gains or lines gone")
     ap.add_argument("--totals", action="store_true", help="one line: the totals by kind")
     ap.add_argument("--baseline", type=pathlib.Path, default=BASELINE)
     ap.add_argument("--allowlist", type=pathlib.Path, default=ALLOWLIST)
@@ -475,7 +480,7 @@ def main(argv=None):
     if args.check or args.refusals:
         ok = True
         if args.check:
-            ok &= check(m, args.baseline, sys.stdout)
+            ok &= check(m, args.baseline, sys.stdout, args.subset)
         if args.refusals:
             ok &= refusals(m, args.allowlist, sys.stdout, args.verbose)
         return 0 if ok else 1

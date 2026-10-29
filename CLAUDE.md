@@ -69,7 +69,14 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   once for the whole run and is nearly all of its time, so four drafts cost the same 27 seconds as one.
   `tools.generate.draftcheck` shadows drafts in a scratch tree (docs/PORTING.md, "From a draft to a port").
 - Validation: `python3 tools/suite.py --ct-dev build/main/ct_dev` runs the gate and exits 0 only when
-  it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). The gate
+  it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). By default
+  it runs the gate's sample of the movie library, `tools/gate_movies.txt` (a greedy cover of the
+  library's shadow coverage per frame played, plus what each check needs, each line with its reason);
+  `--all-movies` runs the whole library. Run `--all-movies` before merging a change to timing or to
+  the native runtime, and for every recalibration or baseline update (`--calibrate`, `--update`,
+  `--prune`), which take the whole library's numbers; on the sample the ratchets drop no baseline
+  line and report nothing gone for a movie it doesn't run, and the timing gate judges only its worst
+  cases (drift and the vblank tail are means over the library, judged by `--all-movies`). "Every movie" below means every movie run. The gate
   is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines, no `page refused` line (a
   guard that turned away a call whose direct page is no instance `re/ram.toml` declares) and no `accessor out
   of range` line (a port that called an accessor with an index past what the map declares, reaching the next
@@ -79,7 +86,7 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `--native on --generated only` produces traces identical to `--native off` (`python3 tools/trace.py
   diff`); every hand port's estimated time stays within the timing gate's limits over the shadow runs
   or is in `tools/timing_exceptions.txt` with a reason (`tools/timing_gate.py`, run by the suite; after
-  adding a port, recalibrate with its `--calibrate game/registry.c`, and after adding a movie with
+  adding a port, recalibrate with its `--calibrate game/registry.c` over an `--all-movies` run's logs, and after adding a movie with
   `--calibrate game/registry.c --drifted`, which rewrites only the entries a new movie moved; docs/REIMPLEMENTATION.md, "The
   timing gate"); no video write in the shipping mode (`--generated on`, `ct_play`'s default) lands on the
   picture where the reference's doesn't, or it is in `tools/vblank_check_exceptions.txt`

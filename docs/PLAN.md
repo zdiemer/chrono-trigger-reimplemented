@@ -177,7 +177,12 @@ isn't ported yet, so retiring it is porting its callee. In order:
 
 ## The validation gate
 
-Nothing lands without it, and it is the same gate for every phase:
+Nothing lands without it, and it is the same gate for every phase. It runs
+over the gate's sample of the movie library (`tools/gate_movies.txt`, a greedy
+cover of the library's code per frame played plus what each check needs) by
+default, and over the whole library with `--all-movies`, which is run before
+a change to timing or to the native runtime merges and for every
+recalibration or baseline update; "every movie" below is every movie run:
 
 - every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines,
   no `page refused` lines (a guard that turned away a call on a direct
@@ -380,15 +385,16 @@ because the merge costs, not the porting, are what a new wave gets wrong.
   and additive-only changes to `runtime/platform/*.h`. Calibration
   (`tools/timing_gate.py --calibrate game/registry.c`) rewrites every measured
   `cost_milli`, so an agent commits only its own subsystem's.
-- **Each agent validates its own branch** with the full gate and
-  `--long-routes`, and fuzzes every entry it writes or rewrites. The gate's
+- **Each agent validates its own branch** with the gate and
+  `--long-routes` (`--all-movies` too where the branch changes timing or
+  the runtime), and fuzzes every entry it writes or rewrites. The gate's
   effects check holds the branch to the native shape: a read by the logic of
   what a port writes only as scaffolding is answered before the merge, not
   added to its baseline unexplained (PORTING.md, "Scaffolding").
 - **Whoever merges** takes them one at a time, and after each: regenerates
   `game/ram.h` from the merged `re/ram.toml` (`python3 tools/ram_map.py
   header`), recomputes the burndown for this table, and runs the **full gate
-  with `--long-routes` on the merged tree**, because a tree combining two
+  with `--all-movies --long-routes` on the merged tree**, because a tree combining two
   branches is one nobody has gated. Doc conflicts are usually both sides
   appended; a status row two agents changed takes both edits.
 - **A change is reviewed for how it reads before it merges.** A reader

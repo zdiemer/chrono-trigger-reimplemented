@@ -565,7 +565,8 @@ that calibrates its own, so a batch of movies is added this way:
 1. Write the movies (a route's `--movie`, docs/MOVIES.md) into
    `oracle/movies/saves/` with their headers, and add their rows to RUNTIME.md's
    table.
-2. Run the suite. The fallback ratchet's instruction counts grow with the
+2. Run the suite over the whole library (`--all-movies`: the default sample
+   leaves most new movies out, and every number below is the library's). The fallback ratchet's instruction counts grow with the
    library, so `python3 tools/fallbacks.py build/suite/fallbacks/shadow --update`
    takes them (a routine whose distinct bytes rose is original code the new
    movies run in place of a port: say which in the commit; the world-map walks
@@ -576,7 +577,7 @@ that calibrates its own, so a batch of movies is added this way:
    sets only the entries over the bound to their calibrated values, going round
    again for the dispatchers that run a recalibrated handler inline, and leaves
    the rest of the registry alone (15 rows for the world-map movies).
-3. Run the suite again (the shipping mode's checks move with the values). What
+3. Run the suite again, `--all-movies` (the shipping mode's checks move with the values). What
    is left over is a real finding: a vblank or worst limit, which calibration
    doesn't move, belongs to an entry whose time follows data its estimate
    doesn't follow; make it follow (a charge per unit of work, `game/charge.h`,
@@ -584,8 +585,14 @@ that calibrates its own, so a batch of movies is added this way:
    an exception with the vblank check's word that no write moved.
 
 An entry over a limit fails unless `tools/timing_exceptions.txt` lists it
-for that limit with a reason; an exception an entry no longer needs is reported,
-so the list doesn't go stale.
+for that limit with a reason; an exception an entry no longer needs is reported
+over the whole library (`--all-movies`; the sample can't tell an exception no
+longer needed from one only its other movies need), so the list doesn't go stale.
+The gate's default sample (`tools/gate_movies.txt`) is judged on the worst
+cases only: drift and the vblank tail are shares of every stretch, and a subset
+of scenes moves them against costs calibrated to the whole library (over the
+sample alone, 305 entries were past the drift limit that the library holds
+within it), so those two are `--all-movies`'s to judge, as calibration is.
 
 **Exceptions** (6 entries, 11 limits). Each is an entry whose time follows its
 data in a way one scalar can't, and whose error was shown not to reach the
@@ -712,7 +719,8 @@ few lines per entry to each shadow log, and parsing 26 logs takes under a
 second. The suite at `-j 2` runs its 26 shadow movies in about 520-550 seconds
 (716 in the baseline run, on a busier machine).
 
-    python3 tools/suite.py --ct-dev build/main/ct_dev -j 2        # the gate, timing check included
+    python3 tools/suite.py --ct-dev build/main/ct_dev -j 2        # the gate (its sample), timing check included
+    python3 tools/suite.py --ct-dev build/main/ct_dev -j 2 --all-movies   # the whole library, to calibrate from
     python3 tools/timing_gate.py build/suite/shadow-*.log --table # every entry's numbers
     python3 tools/timing_gate.py build/suite/shadow-*.log --calibrate game/registry.c
 
