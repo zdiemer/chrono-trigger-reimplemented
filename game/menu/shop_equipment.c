@@ -194,7 +194,7 @@ static void turn_the_back_layer_to(GameState *g, uint8_t screen)
     set_menu_scroll_y(g, BACK_LAYER, (uint16_t)(menu_scroll_y(g, BACK_LAYER) % LINES_A_SCREEN + screen * LINES_A_SCREEN));
 }
 
-/* A frame later: the cursor on the first slot (the bridge marks the slots
+/* A frame later: the cursor on the first slot (the step marks the slots
  * and makes the slot's list), the effects, nothing described, and every
  * member dimmed but the one chosen. */
 void menu_shop_open_the_members_slots(GameState *g)
@@ -232,7 +232,7 @@ uint8_t menu_shop_member_by_the_shoulders(const GameState *g)
 }
 
 // $C2:E108
-/* Another member (the bridge has the shop work on it): loaded, its
+/* Another member (the step has the shop work on it): loaded, its
  * equipment window, every member dimmed but it, and the slot on the cursor
  * marked. */
 void menu_shop_switch_member(GameState *g, Platform *pf)
@@ -245,7 +245,7 @@ void menu_shop_switch_member(GameState *g, Platform *pf)
 }
 
 /* Choosing a slot takes the cursor back where it was as the frame began
- * (the bridge does), whatever pushed it. */
+ * (the step does), whatever pushed it. */
 ShopSlotsChoice menu_shop_choose_a_slot(const GameState *g)
 {
     if (menu_asked(g, MENU_CHOOSE))
@@ -310,7 +310,7 @@ void menu_shop_try_on(GameState *g, Platform *pf)
 }
 
 /* The item tried on put on (menu_equip_put_on_the_chosen_item, which the
- * bridge runs before the sound of it): the member's figures written back,
+ * step runs before the sound of it): the member's figures written back,
  * its equipment drawn again. */
 void menu_shop_after_putting_on(GameState *g)
 {

@@ -365,6 +365,10 @@ bool menu_open_equipment(GameState *g, Platform *pf);
 bool menu_choose_equipment_member(GameState *g, Platform *pf);
 bool menu_choose_equipment_slot(GameState *g, Platform *pf);
 bool menu_choose_equipment_item(GameState *g, Platform *pf);
+/* ... and the list of what fits made and moved along, which the shop's
+ * equipping shares. */
+bool menu_make_equipment_list(GameState *g, Platform *pf);
+bool menu_point_along_equipment_list(GameState *g, Platform *pf);
 
 /* ---- The entries (game/menu/equipment_bridge.c) ----------------------------------------------- */
 
@@ -378,7 +382,7 @@ void menu_choose_equipment_slot_entry(Snes *s);
 void menu_point_at_equipment_slot(Snes *s);
 void menu_switch_equipment_member_entry(Snes *s);
 void menu_choose_equipment_item_entry(Snes *s);
-void menu_point_along_equipment_list(Snes *s);
+void menu_point_along_equipment_list_entry(Snes *s);
 void menu_move_equipment_list_rows(Snes *s);
 void menu_forget_weapon(Snes *s);
 void menu_show_equipment_panel(Snes *s);
@@ -387,7 +391,7 @@ void menu_show_panel_colours(Snes *s);
 void menu_back_to_equipment_members(Snes *s);
 void menu_open_equipment_list(Snes *s);
 void menu_redraw_equipment_list(Snes *s);
-void menu_make_equipment_list(Snes *s);
+void menu_make_equipment_list_entry(Snes *s);
 void menu_slide_equipment_list_in(Snes *s);
 void menu_slide_equipment_list_out(Snes *s);
 void menu_back_to_equipment_slots(Snes *s);

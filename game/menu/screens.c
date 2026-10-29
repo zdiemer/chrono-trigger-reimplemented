@@ -102,10 +102,15 @@ static const Step save_point_steps[] = {
     { 0xCF92, menu_close_the_question_on_a_button_entry, menu_close_the_question_on_a_button },
 };
 static const Step shop_steps[] = {
-    { 0xD52B, menu_open_shop, NULL }, { 0xD546, menu_choose_shop_tab, NULL }, { 0xD58B, menu_choose_goods, NULL },
-    { 0xD645, menu_choose_for_sale, NULL }, { 0xD690, menu_choose_how_many_to_sell, NULL },
-    { 0xD618, menu_choose_how_many_to_buy, NULL }, { 0xD6C3, menu_choose_shop_member, NULL },
-    { 0xD715, menu_choose_shop_slot, NULL }, { 0xD778, menu_choose_shop_equipment, NULL },
+    { 0xD52B, menu_open_shop_entry, menu_open_shop },
+    { 0xD546, menu_choose_shop_tab_entry, menu_choose_shop_tab },
+    { 0xD58B, menu_choose_goods_entry, menu_choose_goods },
+    { 0xD645, menu_choose_for_sale_entry, menu_choose_for_sale },
+    { 0xD690, menu_choose_how_many_to_sell_entry, menu_choose_how_many_to_sell },
+    { 0xD618, menu_choose_how_many_to_buy_entry, menu_choose_how_many_to_buy },
+    { 0xD6C3, menu_choose_shop_member_entry, menu_choose_shop_member },
+    { 0xD715, menu_choose_shop_slot_entry, menu_choose_shop_slot },
+    { 0xD778, menu_choose_shop_equipment_entry, menu_choose_shop_equipment },
 };
 static const Step naming_steps[] = {
     { 0xE1ED, menu_open_naming_screen, menu_naming_step }, { 0xE21E, menu_name_the_character, menu_naming_step },

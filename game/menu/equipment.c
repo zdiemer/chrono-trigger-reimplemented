@@ -1416,3 +1416,18 @@ bool menu_choose_equipment_item(GameState *g, Platform *pf)
         return not_taken(&c, 0xC29CA5);
     return menu_choose_equipment_item_with(g, pf, &as_c, &c);
 }
+
+/* The list of what fits made ($C2:A463), and the cursor moved along it
+ * ($C2:9F05), as C for the shop's equipping, where their entries' guards
+ * would take the state. */
+bool menu_make_equipment_list(GameState *g, Platform *pf)
+{
+    EquipmentAsC c = { g, pf };
+    return sequence(&c, 0xC2A463, menu_equip_list_can_be_drawn, menu_make_the_equipment_list_with);
+}
+
+bool menu_point_along_equipment_list(GameState *g, Platform *pf)
+{
+    EquipmentAsC c = { g, pf };
+    return sequence(&c, 0xC29F05, menu_equip_list_can_be_pointed_along, menu_point_along_equipment_list_with);
+}

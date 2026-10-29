@@ -204,6 +204,7 @@ add_library(ct_game STATIC
   game/menu/settings_screen_bridge.c
   game/menu/shop.c
   game/menu/shop_bridge.c
+  game/menu/shop_steps.c
   game/menu/shop_equipment.c
   game/menu/sound.c
   game/menu/sound_bridge.c

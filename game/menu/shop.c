@@ -32,6 +32,7 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/cursor.h"
+#include "menu/description.h"
 #include "menu/digits.h"
 #include "menu/display.h"
 #include "menu/held_cursors.h"
@@ -801,6 +802,26 @@ void menu_shop_make_the_list_for_sale(GameState *g)
     TIMED_AS(g, 0xC2DD40, menu_shop_frame_list(g, menu_shop_for_sale_listed(g)));
     settle_for_sale(g);
 }
+
+// $C2:DC7B
+void menu_shop_open_the_goods(GameState *g, Platform *pf)
+{
+    menu_shop_open_buying(g, pf);
+    TIMED_AS(g, 0xC2DD40, menu_shop_frame_list(g, menu_shop_goods_offered(g)));
+    menu_shop_open_buying_last(g);
+}
+
+// $C2:DE98
+void menu_shop_open_the_list_for_sale(GameState *g, Platform *pf)
+{
+    menu_shop_open_selling(g, pf);
+    TIMED_AS(g, 0xC2DECC, menu_shop_make_the_list_for_sale(g));
+    menu_shop_open_selling_last(g);
+    menu_shop_queue_the_list(g);
+}
+
+// $C2:E012
+void menu_shop_describe_nothing(GameState *g) { TIMED_AS(g, 0xC2F2F3, menu_describe_item(g, (uint8_t)menu_zero(g))); }
 
 /* What the frame's input does on a list. */
 ShopListChoice menu_shop_choose_on_the_list(const GameState *g)

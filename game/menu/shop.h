@@ -1,6 +1,7 @@
 /* A shop: what the game does (game/menu/shop.c, and the equipping from it
- * in game/menu/shop_equipment.c) and the entries that run it on the
- * original's machine (game/menu/shop_bridge.c). */
+ * in game/menu/shop_equipment.c), its steps as one sequence each for the
+ * machine and for C (game/menu/shop_steps.c), and the entries that run them
+ * on the original's machine (game/menu/shop_bridge.c). */
 #ifndef CT_GAME_MENU_SHOP_H
 #define CT_GAME_MENU_SHOP_H
 
@@ -70,9 +71,9 @@ void menu_shop_stop_holding(GameState *g);
 void menu_shop_leave_the_tabs(GameState *g);
 bool menu_shop_buying_chosen(const GameState *g);
 
-/* Back from a list: the cursor on its tab, the panel for nothing (drawn
- * by the bridge); then every character standing, the tabs' windows, the
- * bar stopped, the held cursor going on. */
+/* Back from a list: the cursor on its tab, the panel for nothing (its own
+ * routine); then every character standing, the tabs' windows, the bar
+ * stopped, the held cursor going on. */
 void menu_shop_back_from_the_list(GameState *g, bool selling);
 void menu_shop_back_on_the_tabs(GameState *g, Platform *pf);
 
@@ -158,7 +159,7 @@ ShopMembersChoice menu_shop_choose_a_member(const GameState *g);
 void menu_shop_back_up_to_the_tabs(GameState *g, Platform *pf);
 
 /* A member chosen: loaded and its equipment window drawn; a frame later
- * (the bridge marks the slot on the cursor and makes its list), the
+ * (the step marks the slot on the cursor and makes its list), the
  * window's effects, nothing described, the others dimmed. */
 void menu_shop_choose_the_member(GameState *g, Platform *pf);
 void menu_shop_open_the_members_slots(GameState *g);
@@ -183,6 +184,16 @@ void menu_shop_compare_figures(GameState *g, Platform *pf);
 void menu_shop_after_putting_on(GameState *g);
 void menu_shop_out_of_the_list(GameState *g, Platform *pf);
 
+/* The description of nothing (item 0), as the shop opens and comes back to
+ * its tabs ($C2:E012). */
+void menu_shop_describe_nothing(GameState *g);
+
+/* The goods' list opened whole ($C2:DC7B): its window and rows, framed, the
+ * goods' counts and the bar. The list for sale opened whole ($C2:DE98): its
+ * window, the list made, its rows, the bar, and queued. */
+void menu_shop_open_the_goods(GameState *g, Platform *pf);
+void menu_shop_open_the_list_for_sale(GameState *g, Platform *pf);
+
 /* ---- What the steps can run on (the guards') ----------------------------------------------------- */
 
 bool menu_shop_can_open(const GameState *g);
@@ -190,27 +201,157 @@ bool menu_shop_members_are_shown(const GameState *g);
 bool menu_shop_on_a_list(const GameState *g, bool selling);
 bool menu_shop_gold_within_the_most(const GameState *g);
 
+/* The guards' state halves (shop_bridge.c), for the program as C: the shop
+ * opened or set up; on the tabs (the panel, a list opened, down to the
+ * members); on the goods or the list for sale; on the quantity; on the
+ * members; a member chosen; the member's slots and its list (the figures
+ * workable with what the party has on, menu_figures_can_be_worked_out). */
+bool menu_shop_can_be_opened(const GameState *g);
+bool menu_shop_is_on_the_tabs(const GameState *g);
+bool menu_shop_is_on_a_list(const GameState *g, bool selling);
+bool menu_shop_is_on_the_quantity(const GameState *g);
+bool menu_shop_is_on_the_members(const GameState *g);
+bool menu_shop_member_can_be_chosen(const GameState *g);
+bool menu_shop_member_can_be_equipped(const GameState *g);
+
+/* ---- The shop's steps, one sequence each for the machine and for C ------------------------------ */
+
+/* Each of the shop's steps ($C2:D52B to $C2:D778) and the routines they go
+ * on to is one sequence (game/menu/shop_steps.c), which the machine's entries
+ * (shop_bridge.c) and the program as C both run, asking for what differs
+ * through ShopSteps.
+ *
+ * The places the sequences tick, wait or set the machine's registers from;
+ * where buying and selling run the same code from two places, the selling's
+ * follows the buying's. */
+typedef enum {
+    SHOP_AT_THE_SET_UP_DRAWN,          /* the shop's windows drawn as it opens */
+    SHOP_AT_THE_SET_UP_STANDING,       /* ... its members standing, before the panel */
+    SHOP_AT_THE_PANEL_MEMBERS,         /* the panel's members, one by one */
+    SHOP_AT_THE_TAB_CHOSEN,            /* a tab chosen */
+    SHOP_AT_THE_TABS_POINTED,          /* the cursor moved on the tabs */
+    SHOP_AT_THE_ROW_TAKEN,             /* the row on the cursor taken, buying */
+    SHOP_AT_THE_ROW_TAKEN_FOR_SALE,    /* ... selling */
+    SHOP_AT_THE_ROW_BROUGHT_IN,        /* a row slid in, buying */
+    SHOP_AT_THE_ROW_BROUGHT_IN_FOR_SALE,
+    SHOP_AT_THE_LIST_SLIDING,          /* the list's rows sliding, a frame at a time, buying */
+    SHOP_AT_THE_LIST_SLIDING_FOR_SALE,
+    SHOP_AT_THE_PAGE_TURNED,           /* the list paged, buying */
+    SHOP_AT_THE_PAGE_TURNED_FOR_SALE,
+    SHOP_AT_THE_POINTING,              /* the cursor along a list */
+    SHOP_AT_THE_TABS_AGAIN,            /* back from a list to the tabs */
+    SHOP_AT_THE_OFFER,                 /* the quantity window opening, buying */
+    SHOP_AT_THE_OFFER_FOR_SALE,
+    SHOP_AT_THE_QUANTITY_CLOSED,       /* back on the list from the quantity, buying */
+    SHOP_AT_THE_QUANTITY_CLOSED_FOR_SALE,
+    SHOP_AT_THE_QUANTITY_CHANGING,     /* the quantity's change by a push */
+    SHOP_AT_THE_QUANTITY_CHANGED,      /* ... made */
+    SHOP_AT_THE_MEMBER_CHOSEN,         /* a member chosen */
+    SHOP_AT_THE_MEMBERS_LEFT,          /* back up from the members */
+    SHOP_AT_THE_MEMBER_POINTED,        /* the cursor among the members */
+    SHOP_AT_THE_MEMBERS_WINDOW_DRAWN,  /* the member's equipment window drawn, a frame on */
+    SHOP_AT_THE_MEMBER_SWITCHING,      /* the shoulders' member taken */
+    SHOP_AT_THE_MEMBER_SWITCHED,       /* ... and shown, a frame on */
+    SHOP_AT_THE_SLOT_CHOSEN,           /* a slot chosen */
+    SHOP_AT_THE_SLOTS_LEFT,            /* back from the slots to the members */
+    SHOP_AT_THE_SLOT_POINTED,          /* the cursor among the slots */
+    SHOP_AT_THE_ITEM_POINTED,          /* the cursor along the list of what fits */
+    SHOP_AT_THE_ITEM_LEFT,             /* out of the list of what fits */
+} ShopPlace;
+
+/* The routines the steps go on to and come back from (each a registered
+ * entry, or a sound, run on the machine where the original calls it). */
+typedef enum {
+    SHOP_SETS_UP,                      /* the shop set up ($C2:DACA) */
+    SHOP_SHOWS_THE_PANEL_AS_IT_OPENS,  /* the panel ($C2:DD7C), as the shop opens */
+    SHOP_SHOWS_THE_PANEL_FOR_A_GOOD,   /* ... for a row of the goods */
+    SHOP_SHOWS_THE_PANEL_FOR_A_SALE,   /* ... for a row for sale */
+    SHOP_SHOWS_THE_PANEL_FOR_NOTHING,  /* ... back on the tabs */
+    SHOP_PLAYS_THE_DEAL_SOUND,         /* the deal's sound ($C2:EABA), bought */
+    SHOP_PLAYS_THE_DEAL_SOUND_FOR_SALE, /* ... sold */
+    SHOP_OPENS_THE_MEMBER,             /* a member chosen ($C2:E0A5) */
+    SHOP_SHOWS_THE_SLOTS_AS_THEY_OPEN, /* the member's slots ($C2:E0F1), as they open */
+    SHOP_SHOWS_THE_SLOTS,              /* ... on the slots' step */
+    SHOP_SWITCHES_THE_MEMBER,          /* the shoulders' switch ($C2:E108) */
+    SHOP_MAKES_THE_LIST,               /* the equipment screen's list of what fits ($C2:A463) */
+    SHOP_POINTS_ALONG_THE_LIST,        /* ... its move along ($C2:9F05) */
+    SHOP_PLAYS_THE_PUT_ON_SOUND,       /* the sound of an item put on ($C2:EABA) */
+} ShopRoutine;
+
+/* How a step ends: on to the fade in as the shop opens, out of the menus,
+ * on to the goods' list or the list for sale, or the refusal's buzz (a
+ * jump to it, or a slot's, the original's stop). */
+typedef enum {
+    SHOP_FADES_IN, SHOP_LEAVES, SHOP_OPENS_THE_GOODS, SHOP_OPENS_THE_LIST_FOR_SALE, SHOP_REFUSES,
+    SHOP_REFUSES_A_SLOT,
+} ShopEnd;
+
+/* Where the machine leaves what the original's tests and loads left
+ * (scaffolding); the value says what the note needs of the state before. */
+typedef enum {
+    SHOP_NOTE_GOODS_TAKEN, SHOP_NOTE_LOADED, SHOP_NOTE_PANEL_DONE, SHOP_NOTE_BUTTONS_TESTED, SHOP_NOTE_TAB_CHOSEN,
+    SHOP_NOTE_STEP_SET, SHOP_NOTE_FRONT_LAYER_QUEUED, SHOP_NOTE_STRIPS_QUEUED, SHOP_NOTE_CURSOR_COMPARED,
+    SHOP_NOTE_CURSOR_COMPARED_AS_WORDS, SHOP_NOTE_CURSOR_COMPARED_WITH_THE_START, SHOP_NOTE_PLACE_ADDED,
+    SHOP_NOTE_PLACE_COMPARED, SHOP_NOTE_SLIDE_TESTED, SHOP_NOTE_CURSOR_KEPT, SHOP_NOTE_BACK_FROM_THE_LIST,
+    SHOP_NOTE_ROOM_REFUSED, SHOP_NOTE_GOLD_REFUSED, SHOP_NOTE_OFFER_TO_BUY, SHOP_NOTE_SALE_REFUSED,
+    SHOP_NOTE_OFFER_TO_SELL, SHOP_NOTE_INVENTORY_CHANGED, SHOP_NOTE_GOLD_WORD, SHOP_NOTE_QUANTITY_QUEUED,
+    SHOP_NOTE_QUANTITY_COMPARED, SHOP_NOTE_TOTAL_ADDED, SHOP_NOTE_PUSHED_UP_OR_DOWN, SHOP_NOTE_MEMBERS_COMPARED,
+    SHOP_NOTE_BAR_PLACE_LOADED,
+} ShopNote;
+
+/* What the sequences ask: the cursor read, a tick, a frame's wait, the
+ * machine's registers as the original's code sets them, a routine run, a
+ * note, the end. Each false where it went no further. */
+typedef struct {
+    void (*read_cursor)(void *ctx);
+    bool (*tick)(void *ctx, ShopPlace at);
+    bool (*wait)(void *ctx, ShopPlace at);
+    void (*registers_at)(void *ctx, ShopPlace at);
+    bool (*run)(void *ctx, ShopRoutine routine);
+    void (*note)(void *ctx, ShopNote note, uint32_t value);
+    bool (*ends)(void *ctx, ShopEnd end);
+} ShopSteps;
+
+typedef bool ShopSequence(GameState *g, Platform *pf, const ShopSteps *n, void *ctx);
+ShopSequence menu_open_shop_with, menu_set_up_shop_with, menu_show_shop_item_panel_with, menu_choose_shop_tab_with,
+    menu_choose_goods_with, menu_choose_for_sale_with, menu_choose_how_many_to_buy_with,
+    menu_choose_how_many_to_sell_with, menu_choose_shop_member_with, menu_open_shop_member_with,
+    menu_show_shop_member_slots_with, menu_switch_shop_member_with, menu_choose_shop_slot_with,
+    menu_choose_shop_equipment_with;
+
+/* The shop's steps as C, from the menus' main task; false where the program
+ * went no further. */
+bool menu_open_shop(GameState *g, Platform *pf);
+bool menu_choose_shop_tab(GameState *g, Platform *pf);
+bool menu_choose_goods(GameState *g, Platform *pf);
+bool menu_choose_for_sale(GameState *g, Platform *pf);
+bool menu_choose_how_many_to_sell(GameState *g, Platform *pf);
+bool menu_choose_how_many_to_buy(GameState *g, Platform *pf);
+bool menu_choose_shop_member(GameState *g, Platform *pf);
+bool menu_choose_shop_slot(GameState *g, Platform *pf);
+bool menu_choose_shop_equipment(GameState *g, Platform *pf);
+
 /* ---- The entries (game/menu/shop_bridge.c) ------------------------------------------------------- */
 
-void menu_open_shop(Snes *s);
+void menu_open_shop_entry(Snes *s);
 void menu_set_up_shop(Snes *s);
 void menu_show_shop_item_panel(Snes *s);
-void menu_choose_shop_tab(Snes *s);
+void menu_choose_shop_tab_entry(Snes *s);
 void menu_frame_shop_list(Snes *s);
 void menu_open_goods_list(Snes *s);
 void menu_list_for_sale(Snes *s);
 void menu_open_for_sale_list(Snes *s);
-void menu_choose_goods(Snes *s);
-void menu_choose_for_sale(Snes *s);
-void menu_choose_how_many_to_buy(Snes *s);
-void menu_choose_how_many_to_sell(Snes *s);
+void menu_choose_goods_entry(Snes *s);
+void menu_choose_for_sale_entry(Snes *s);
+void menu_choose_how_many_to_buy_entry(Snes *s);
+void menu_choose_how_many_to_sell_entry(Snes *s);
 
-void menu_choose_shop_member(Snes *s);
+void menu_choose_shop_member_entry(Snes *s);
 void menu_open_shop_member(Snes *s);
 void menu_show_shop_member_slots(Snes *s);
 void menu_switch_shop_member(Snes *s);
-void menu_choose_shop_slot(Snes *s);
-void menu_choose_shop_equipment(Snes *s);
+void menu_choose_shop_slot_entry(Snes *s);
+void menu_choose_shop_equipment_entry(Snes *s);
 void menu_frame_shop_quantity(Snes *s);
 void menu_describe_nothing(Snes *s);
 void menu_go_down_to_shop_members(Snes *s);

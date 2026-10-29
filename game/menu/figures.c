@@ -380,6 +380,8 @@ bool menu_figures_workable_with(const GameState *g, uint8_t place, uint8_t item)
     return true;
 }
 
+bool menu_figures_can_be_worked_out(const GameState *g) { return equipment_is_the_games(g); }
+
 bool menu_figures_are_workable(Snes *s)
 {
     if (!menu_on_page_work_ram(s))
