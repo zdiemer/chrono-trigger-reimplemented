@@ -575,6 +575,25 @@ Each is an event-heavy play the native program hasn't met: the event commands, s
 bosses they reach are where `ct_native`'s next stops are likely to be.
 
 ### 13. The story events no movie plays
+
+- **North Cape, 12,000 B.C.**: `events-magus-joins` (route `magus_joins`,
+  ctsave11 slot 2, 13663 frames): leave the Earthbound Village (`$1A9`) for
+  the post-flood world map (`$1F6`), enter North Cape (`$1AC`), examine the
+  glimmer (object `$10` at tile (7, 6)), and play Magus's scene and flashback.
+  Refuse the fight, walk south to his offer, accept the default name and
+  close the party screen; end with the field back in hand and `$7F:0138`
+  bit 0 set. The starting flags confirm the nearest save: story progress
+  `$7F:0000 = $D2`, `$7F:0138 = 0`; ctsave11 slot 3 and every ctsave12 slot
+  already have Magus recruited. Marle, Lucca and Robo are the active party.
+  Against the preceding 48 movies it reaches 0.08 KiB (83 bytes) no other
+  movie runs, all ported: flags selected by number (`$C0:6B20`-`$6B4A`),
+  screen tint (`$C0:3D50`-`$3D5E`), and small field/dialog/palette branches.
+  Shadow has 0 mismatches, no `page refused` or `accessor out of range`;
+  164 guard refusals in the flashback are the hidden-leader gap recorded
+  in TODO.md and `tools/refusal_allowlist.txt`. `ct_native` stops at frame
+  8531 at `$C0:881E` ("a walk the port doesn't take"); strict mode stops at
+  frame 8561 at the same entry, before the fight/refuse choice.
+
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's
 castle, the dactyls, the Black Tyrano, the Keeper's Dome, the Golem Twins, the Blackbird, the
 Black Omen and Lavos. The rest of the story has saves just before it (oracle/saves/README.md) and

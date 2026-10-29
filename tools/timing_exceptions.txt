@@ -18,6 +18,9 @@
 # vblank and outlast it (loads, setups, the load screen's frame): their error
 # moves work on the picture, and `worst` judges it there.
 
+field_build_line_effect_tables vblank-tail North Cape's flashback and dialog shapes: 4 of 116 in-vblank stretches exceed 1024 clocks, maximum 2120 after drift calibration; builds RAM tables and the movie's shipping-mode vblank check has no failing findings
+overworld_lead vblank-tail the short walk from Earthbound Village to North Cape mixes idle, walking and entrance paths: 38 of 551 in-vblank stretches exceed 1024 clocks, maximum 3152 after drift calibration; updates RAM state and the movie's shipping-mode vblank check has no failing findings
+
 # The decompressor: a call is 260-290 lines on average (a frame is 262),
 # seven times the length of vblank, and interrupts are taken during its time: its error
 # moves the end of a load (by 6% of it on average), not a video write. Its time

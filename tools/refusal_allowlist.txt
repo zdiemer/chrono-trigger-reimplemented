@@ -5,3 +5,4 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C0881E field_walk_the_leader guard # gap: North Cape's flashback refuses the leader's walk (events-magus-joins and battle-magus-north-cape, first reference frame 8612); see docs/TODO.md, Refusals in real play.

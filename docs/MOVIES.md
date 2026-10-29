@@ -199,9 +199,23 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
-Each starts from the technoplaza cartridge save its movie header names
-(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
-`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
+`magus_joins` (`events-magus-joins.ctm`, 13663 frames) starts from fantasyanime
+ctsave11 slot 2 in the Earthbound Village, walks to North Cape, plays Magus's
+flashback, refuses the fight and recruits him. It keeps his default name,
+closes the party screen and stops with the field back in hand. The save's
+story progress is `$D2` and `$7F:0138` is zero; ctsave11 slot 3 and ctsave12
+already have recruitment bit 0 set. `north_cape` contains the shared route
+and checkpoints the fight question so its branches can be tried independently.
+Its new coverage against the preceding 48 movies is 83 bytes, all ported,
+including the event's flags selected by number (`$C0:6B20`-`$6B4A`) and
+screen-tint paths. The flashback's hidden-leader guard refusal is a recorded
+gap in TODO.md; no game logic was changed. The dialogue resources it newly
+reads are catalogued as metadata, with their bytes remaining in the user's ROM.
+`ct_native` stops at frame 8531 and strict mode at frame 8561, both at
+`$C0:881E`, before the fight/refuse choice.
+
+Each starts from the cartridge save its movie header names, committed under
+`oracle/saves/` and selected by the route's `SAVE`; `--sram` picks another.
 `--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and
