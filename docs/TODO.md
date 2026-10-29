@@ -3122,7 +3122,17 @@ waits on M5 rather than on a backend.
     597 registry entries (14%) are never entered by any movie** -- `$C2` 28,
     `$C6` 22, `$D1` 9, `$C3` 8, `$FD` 7, `$C7` 6 -- and those rest on fuzzing
     alone. Each wave since the pilot has found bugs there.
-- **Remaining ending routes**: technoplaza ct-state21 through ct-state26,
+- **Sound-command echo stall in The People of the Times.** The hand-run
+  `people_of_the_times` route (technoplaza ct-state21 slot 2), with all fight
+  seeds 1, wins Lavos and reaches `$05F`, then stays black before The End.
+  At frame 181083 its object 1 is at script offset `$033D`, wait count 0,
+  and the CPU cycles through `$C7:0635`-`$063B`, waiting for the sound command
+  echo; the SPC700 cycles at `$101E`/`$1024`. Another 9000 frames and probes
+  with A, B, Start, Up, X and Y leave it there. Replaying from the Core with
+  seed 2 wins at 149750 and finishes at 160570; that is the route's default.
+  This is a reference-runtime stall, not a guard refusal. Its cause is not
+  established; no game code was changed to work around it.
+- **Remaining ending routes**: technoplaza ct-state22 through ct-state26,
   including Reunion from "The Time Egg" (no Epoch reachable from that save).
   These belong among the hand-run routes, with scratch recordings rather than
   another 100,000-200,000 frames each in every gate (MOVIES.md;

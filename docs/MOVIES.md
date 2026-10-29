@@ -243,6 +243,21 @@ run the entire input with exit 0 and no stop. Shipping-mode `route_check`
 (`on:on:c`) reaches The End at frame 146361; all 12 restores replay exactly,
 with no C sound-driver errors.
 
+`people_of_the_times` (technoplaza ct-state21 slot 2, 160570 frames) plays the
+bucket, all three Lavos fights and the character credits through The End.
+Story `$7E` selects `$05B`; the route follows the credits to `$05F` and checks
+object 1's final loop at `$035C`. The default Core seed is 2 (the other fights
+use 1). Seed 1 won the battle but the reference sound driver stalled before
+the final reveal, waiting for a command echo at `$C7:0635`; another 9000 frames
+and button probes did not release it. Seed 2, retried from the Core checkpoint,
+finishes. The helper accepts a Core seed offset so that input can be regenerated.
+Shadow exits 0 with zero mismatches and refusals, no page/accessor/asset diagnostics
+and identical sound lockstep. Coverage adds 16 instruction bytes over the library,
+none in `$7E`; none of modes 5, 6, 10/11/14/15 or 12 starts. `ct_native` and strict
+mode run the whole input with exit 0 and no stop. Shipping-mode `route_check`
+(`on:on:c`) reaches The End at frame 146552; all 12 restores replay exactly,
+with no C sound-driver errors.
+
 So do the menu, event and battle movies made for what no movie ran
 ([movies-wanted.md](movies-wanted.md), Targets): `menu_sweep`
 (`menus-sweep.ctm`), `save_point` (`menus-save-point.ctm`), `epoch_lavos`
