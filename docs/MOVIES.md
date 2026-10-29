@@ -216,6 +216,12 @@ its strength. The route searches a machine copy for local `$14` reaching 21,
 then replays just that delay and the winning press. It ends with the square
 back in hand and verifies that silver points rose from 131 to 132.
 
+`fair_shuffle` (`events-fair-shuffle.ctm`, ctsave14 slot 1, 6866 frames)
+pays 10 silver points and follows the requested soldier through Bekkler's
+shuffle. Local `$0C` names the soldier, whose object identity (`$14`-`$16`)
+survives the permutation. The route identifies soldier 3, verifies Crono's
+Poyozo Doll flag, and ends outside with the field back in hand.
+
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.

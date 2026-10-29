@@ -567,6 +567,15 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   `ct_native` reaches all 8335 frames without stopping; its timing differs from the movie's.
   Strict mode also reaches the end, but loses the timed game: the clone flag (`$7F:005E` bit 0)
   remains clear, the only differing saved-game byte. Its baseline is `drifts`.
+- **Movie**: `events-fair-shuffle` (route `fair_shuffle`, ctsave14 slot 1, 6866 frames; the field
+  back in hand at 6776): pay 10 points, watch the three soldiers name themselves and shuffle,
+  identify the requested soldier (3 in this recording) and win Crono's Poyozo Doll. Local `$0C`
+  names the target; objects `$14`-`$16` keep their identities through the permutation chosen by
+  `$0E`. This adds no CPU instruction bytes beyond the preceding 48 movies plus the clone and
+  strength movies, but covers the unplayed shuffle and reward sequence. Shadow clean: 0
+  mismatched, no refusal, `page refused` or `accessor out of range`. Strict reaches all frames
+  but loses the game (`$7F:005D` bit 0 stays clear), its only saved-game difference; baseline
+  `drifts`. `ct_native` reaches all frames without a stop, ending with its screen blanked.
 - **Death Peak** (`$0F4`, a step from ctsave11 slot 3's spot on the 2300 A.D. map; `$7F:007C` is
   3 there, so the object at tile (55, 48) whose confirm runs `$88` lighten green is shown): the wind
   (script variable `$0C`, `$7F:0218`) is calm for the first 108 frames after the party comes in
