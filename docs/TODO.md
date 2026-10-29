@@ -39,6 +39,24 @@ rest waits, is [PLAN.md](PLAN.md).
   definition of done (PORTING.md); ports registered before that without a
   recorded fuzz run should get one, subsystem by subsystem as Phase 3a
   rewrites it (PLAN.md): a rewritten port needs fuzzing anyway.
+- **Dino Age's battle interrupt mismatches in real play.** The hand-run
+  `dino_age` route (technoplaza ct-state23 slot 2, 193389-frame scratch movie;
+  MOVIES.md) reaches The End in the reference and shipping modes, but its full
+  `ct_dev --native shadow` replay exits 1. `battle_irq` (`$D1:FE97`,
+  `game/battle/nmi.c`) has one mismatch: at the wait, PPU `$210F` is `FF` in
+  the original and `00` in native code; the next 15 passes still differ before
+  the original leaves. Generated blocks have zero mismatches; sound lockstep
+  is identical (608049 ticks, 24 loads), with zero refusals and no page,
+  accessor or asset diagnostics. This is not a guard refusal to allowlist.
+  It also reproduces with `--generated off` from the Core checkpoint at
+  frame 133140 through 177869; the ending-only interval 177869-193389 is clean.
+  The cause is not established, and no game code was changed. This recording
+  used Core seed 1. The route now defaults to Core seed 2: it finishes at 176261,
+  with a clean full shadow replay and identical final PNG. To reproduce the
+  failure, set this route's `core_seed_offset` to 0, regenerate its movie in
+  scratch storage, then replay all 193389 frames with ct-state23's SRAM and
+  `--native shadow`. Strict mode completes both inputs; `ct_native`'s
+  separate `$FD:B438` stop is recorded under the native program below.
 - **IRQ timing simplifications** (RUNTIME.md, "Interrupt timing"): hardware's
   ~3.5-dot trigger delay isn't modeled, and an IRQ pending across `CLI` is
   taken one instruction early.
@@ -2665,6 +2683,9 @@ list, by kind, is what `game/` still asks of one.
   Its shadow run has no mismatch or refusal; strict mode completes its
   144640-frame input without stopping. This is a native-program stop, not a
   guard refusal to add to `refusal_allowlist.txt`.
+  Dino Age (`dino_age`, ct-state23 slot 2, 176261-frame scratch movie) stops at
+  the same entry at frame 15100; strict mode completes its full input. Its
+  separate shadow mismatch is recorded under Correctness and accuracy above.
 
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
@@ -3132,7 +3153,7 @@ waits on M5 rather than on a backend.
   seed 2 wins at 149750 and finishes at 160570; that is the route's default.
   This is a reference-runtime stall, not a guard refusal. Its cause is not
   established; no game code was changed to work around it.
-- **Remaining ending routes**: technoplaza ct-state23 through ct-state26,
+- **Remaining ending routes**: technoplaza ct-state24 through ct-state26,
   including Reunion from "The Time Egg" (no Epoch reachable from that save).
   These belong among the hand-run routes, with scratch recordings rather than
   another 100,000-200,000 frames each in every gate (MOVIES.md;

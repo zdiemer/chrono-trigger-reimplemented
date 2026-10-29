@@ -280,6 +280,31 @@ adds 181 instruction bytes over the 48-movie library, in field and battle code,
 none in `$7E`; none of modes 5, 6, 10/11/14/15 or 12 starts. `ct_native` and
 strict mode complete all 159243 input frames with exit 0 and no stop.
 
+`dino_age` (technoplaza ct-state23 slot 2, 176261 frames) plays the bucket,
+Lavos, the Reptite version of Crono's home and the other character vignettes,
+interleaved credits, Ayla's fall and The End. Story `$8E` takes `$052`'s
+`$8A <= story < $99` branch, setting `$7F:015C = 1` and entering `$10F`.
+The route requires its seventh pass, object 7's final song loop at `$03FD`,
+and 120 more frames; the final picture was inspected. The shell, inner Lavos
+and Core finish at 103936, 133140 and 160761, without a wipe.
+This save exposed a bot recovery gap: an Attack chosen while the command
+cursor was still restoring could open the remembered item list. After that
+failed action the bot waited forever for a command menu. `Bot.do` now presses
+B to leave that unexpected list, as its Tech/Item failure paths already do.
+Replaying the shell checkpoint passes the same failure and finishes the fight.
+Coverage adds 31 instruction bytes over the 48-movie library (`$C0:72B2`-`$72B3`
+and battle paths in `$C1`/`$CD`), no new `$7E` scene code; none of modes 5, 6,
+10/11/14/15 or 12 starts. Shadow exits 0 with zero mismatches and refusals,
+no page/accessor/asset diagnostics, and identical sound lockstep (553865 ticks,
+24 loads). Core seed 2 is the default: seed 1 finishes at 193389 but has one
+`battle_irq` (`$D1:FE97`) shadow mismatch, PPU `$210F` original `FF`, native
+`00`, at the wait and 15 later passes. That issue remains in TODO.md; it also
+reproduces from the Core checkpoint with generated comparisons off. `ct_native`
+stops at frame 15100 in `$FD:B438`, an enemy coming into the battle; strict mode
+completes all 176261 frames with exit 0. TODO.md tracks the native stop too.
+Shipping-mode `route_check --mode on:on:c` reaches The End at 142332, all three
+fights without a wipe, all 12 restores exact, and no C sound-driver errors.
+
 So do the menu, event and battle movies made for what no movie ran
 ([movies-wanted.md](movies-wanted.md), Targets): `menu_sweep`
 (`menus-sweep.ctm`), `save_point` (`menus-save-point.ctm`), `epoch_lavos`
