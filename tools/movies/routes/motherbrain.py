@@ -83,8 +83,10 @@ def seek(run, x, y, goal=None, battle_var=11, max_nodes=3800):
     return result is not None
 
 
-def walk_to(run, x, y, goal=None, battle_var=11):
-    """Walk a floor, resolving the encounters that take control along the way."""
+def walk_to(run, x, y, goal=None, battle_var=11, fight=None):
+    """Walk a floor, resolving the encounters that take control along the way
+    (with `fight`, given the run, where an encounter needs other than the
+    whole party's fight)."""
     m = run.machine
     for _ in range(12):
         assert run.wait_control(), "field control before walking"
@@ -98,7 +100,7 @@ def walk_to(run, x, y, goal=None, battle_var=11):
             assert run.wait_control(), "floor speech finishes"
             continue
         assert run.dialogs_until(lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80, 6000), "encounter starts"
-        fight_once(run)
+        (fight or fight_once)(run)
     raise AssertionError("too many encounters on the walk")
 
 
@@ -355,14 +357,19 @@ def main():
             m.run(120)
             assert run.map_id() == "7f00"
             take_lift(run, "0c01")
-            # A patrol on the upper floor may still be alive. Resolve it with
-            # the whole party before entering Atropos's trigger rectangle.
-            walk_to(run, 504, 696,
-                    lambda: run.me()[0] < 528 and run.me()[1] > 672, battle_var=9)
-            assert run.dialogs_until(lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80, 6000)
-            assert m.b(A.PARTY_MEMBERS) == 3 and all(
-                m.b(A.PARTY_MEMBERS + i) >= 0x80 for i in (1, 2)), "Robo's solo fight"
-            fight_once(run, party=1)
+            # A patrol on the upper floor may still be alive: the whole party
+            # fights it. Walk on until Atropos's scene interrupts the walk and
+            # Robo, the party split for it, fights alone. The walk's goal is
+            # the fight won, not a place: stopped as the party steps inside
+            # the trigger's rectangle, mid-step, the scene can stand still
+            # with the party never split (the shipping mode's timing left
+            # the party at (525, 699) after the patrol and showed it).
+            def solo():
+                return m.b(A.PARTY_MEMBERS) == 3 and all(
+                    m.b(A.PARTY_MEMBERS + i) >= 0x80 for i in (1, 2))
+
+            walk_to(run, 504, 696, lambda: bool(m.b(0x7F013B) & 0x20), battle_var=9,
+                    fight=lambda r: fight_once(r, party=1 if solo() else 3))
             assert run.wait_control(12000)
             assert m.b(0x7F013B) & 0x20, "Atropos defeated"
             run.checkpoint("atropos_won")

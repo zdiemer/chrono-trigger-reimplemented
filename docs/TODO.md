@@ -226,6 +226,20 @@ rest waits, is [PLAN.md](PLAN.md).
   Find what logic reads a cell only scaffolding writes there
   (`ct_dev --scaffold-reads original`, the route's frames) and make the two
   builds agree. The route runs by hand (`tools/suite.py`'s `HAND_RUN_ROUTES`).
+- **Atropos's scene stands still in the native shape.** The `motherbrain`
+  route reaches its outcome in the shipping mode, but with
+  `ct_drive_native_shape` the scene on Geno Dome's upper floor (`$10C`) opens
+  its two dialogs and then stands still, the party never split for Robo's
+  fight, from each of the four places the route's search entered its trigger
+  ((523, 699), (526, 695), (520, 683), and the old route's stop at (525, 699),
+  which stalled the default build too). The default build's run of the
+  route, replayed by `ct_dev --scaffold-reads original`, shows the original's
+  code reading scaffolding only at frame 159688, after both fights
+  (`menu_object_wave_hdma`, `$7E:01E2`-`$01E3`), so the cause is not traced:
+  a port's logic reading what only scaffolding writes, or the native shape's
+  own timing, which isn't the default build's ("The fallback measure's
+  edges", below), meeting a race in the scene.
+  Excepted in `tools/native_shape_exceptions.txt` until found.
 - **An ending's menu script sets the sprites' sizes by `$2101`.** The menus'
   object scripts' byte command `$13` names its cell by address, and an ending
   writes the sprites' size and tile-place register through it; the port hands
