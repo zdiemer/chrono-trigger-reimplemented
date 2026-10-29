@@ -2094,6 +2094,17 @@ the timing registers, what each is for, the native backend, and the rewrites
 below; its "as built" says what is done. `python3 tools/timing_census.py`
 re-runs the census.
 
+- **Factory route timing estimates.** `battle-r-series` leaves five timing
+  exceptions after drift-only calibration: the anchor jump and enemy orbit
+  updates' vblank tails, `field_nmi`'s tail, the exchange's second-choice tail,
+  and `battle_step_the_poses`'s +2.96% drift with its own estimate already at 1.
+  The jump/orbit and exchange paths vary within a routine; the field handler
+  and pose step also carry their callees' estimated time. The narrowed
+  video-write check adds no failing finding. Recheck against the combined
+  movie library, then refine the estimates that remain over their limits;
+  `tools/timing_exceptions.txt` records the measured tails and why they are
+  allowed.
+
 - **What the timing service's review left** (none rated translation): the
   objects' turn queue and its guard walk (`queue_in_the_tables`) are written
   twice, in `field/script_turns.c` and `battle/animation.c` -- one

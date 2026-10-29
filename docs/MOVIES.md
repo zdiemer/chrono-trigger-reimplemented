@@ -212,6 +212,20 @@ that phase's checkpoint is written. A route ends by printing `outcome reached
 along the way, and a check of its goal at the end (the Dream Team all spoken
 to; the farewells at the Gate and the King in the Beyond Time ending).
 
+`r_series` (`battle-r-series.ctm`, 65437 frames) takes ctsave03 slot 2 from the 2300 A.D.
+world map through the Factory Ruins' lab security doors and fights. The
+location exit lists and the scripts for `$0E5`, `$0E6` and `$0EB` establish
+the path: the upper lab console opens the ladder, the lower console opens
+both security doors, and the basement code reader accepts X, A, B, Y without
+requiring the warehouse cranes. The route holds each code button until its
+acceptance variable changes. Restoring power sets story `$3F`; escaping the
+shutters and returning up the lab corridor starts the R Series scene.
+The `r_series` battle policy uses Crono and Lucca's Fire Whirl and Cyclone,
+with the early save's healing items. The movie continues through Robo's
+rescue and repair and the Gate trip, ending with the field back in hand at
+the End of Time. Its battle-start check requires all six initialized robot
+stat records, since the menu byte alone briefly looks ready during loading.
+
 A route is a list of phases, each ending in a checkpoint file. Re-running it
 resumes at the last phase that finished, so a failing phase can be iterated on
 without replaying the hour before it. Delete the checkpoints to start over.
