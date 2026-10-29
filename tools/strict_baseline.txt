@@ -21,6 +21,7 @@ battle-guardian drifts  # the fights' turns land on other frames, so they end wi
 battle-lavos-gameover end
 battle-magus end
 battle-menu-buttons end
+battle-son-of-sun drifts  # timed presses drift on the hand ports: the party's inventory and character records differ from the reference; the state-driven son_of_sun route wins separately with the C sound driver
 battle-tech-sweep-spekkio drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (37 byte(s) of the saved game (inventory_counts, $7E:263D, $7E:263F, $7E:2640, $7E:268D, $7E:268F, ...))
 battle-tech-sweep drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (805 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 battle-tyrano-lair-walls end

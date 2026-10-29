@@ -248,7 +248,9 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 # Routes run by hand rather than in every --long-routes gate: the tech sweep
 # fights for about forty minutes for under a KiB of code no movie runs
 # (docs/movies-wanted.md, "Every tech").
-HAND_RUN_ROUTES = {"tech_sweep"}
+# The Sun Stone placement repeats son_of_sun's fight before extending it;
+# its hand-run movie stays outside the library.
+HAND_RUN_ROUTES = {"tech_sweep", "sun_stone"}
 
 
 def all_routes():
