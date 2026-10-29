@@ -243,8 +243,8 @@ game/menu/glyphs.c glyph_in_cells menu_glyph_right_pixels menu_glyph_right_pixel
 game/menu/glyphs.c pen_in_cells menu_glyph_pen_column menu_glyph_pen_column only                                 # the glyph drawer's own entries ($C2:5E36, $C2:5F07, $C2:5E89) take the glyph and the pen from the cells the original's setter ($C2:5DC4) leaves them in; that setter is typeset.c's now, which draws through menu_put_glyph with parameters, so only the original's code, calling the entries, reads them
 game/menu/glyphs.c pen_in_cells menu_glyph_pen_offset menu_glyph_pen_offset only                                 # the glyph drawer's own entries ($C2:5E36, $C2:5F07, $C2:5E89) take the glyph and the pen from the cells the original's setter ($C2:5DC4) leaves them in; that setter is typeset.c's now, which draws through menu_put_glyph with parameters, so only the original's code, calling the entries, reads them
 game/menu/line_effects.c capsule_fill_end scene_circle_center_y scene_circle_center_y
-game/menu/line_effects.c capsule_iris scene_circle_center_y scene_circle_center_y
-game/menu/line_effects.c capsule_iris scene_circle_radius scene_circle_radius
+game/menu/line_effects.c capsule_iris scene_circle_center_y scene_circle_center_y # set_up_circle(as_words=true) writes the whole word plainly; iris_takes bounds y below 256, so the circle's scaffolding writes the same value back
+game/menu/line_effects.c capsule_iris scene_circle_radius scene_circle_radius # set_up_circle(as_words=true) writes the whole word plainly; iris_takes bounds radius below 256, so the circle's scaffolding writes the same value back
 game/menu/line_effects.c set_up_circle scene_circle_center_x scene_circle_center_x
 game/menu/line_effects.c set_up_circle scene_circle_center_y scene_circle_center_y
 game/menu/line_effects.c set_up_circle scene_circle_radius scene_circle_radius
@@ -1238,3 +1238,9 @@ game/overworld/handlers.c event_step_runs menu_object_slots_script menu_exchange
 game/overworld/handlers.c overworld_epoch_takes menu_object_slots_script menu_exchange_layout_high # as the line above
 game/overworld/handlers.c overworld_epoch_scene_call_takes menu_object_slots_x_pixel menu_description_glyphs_sent_pad # the sprite-object mode's slot, which its objects' starts write plainly; the scaffolding at the address is a menu screen's
 game/overworld/sign.c overworld_sign_can_show menu_object_vram_queue_end menu_window_operands # the sprite-object mode's queue's end, which its reset and every queueing write plainly (as menu_object_queue_is_whole's line); the scaffolding at the address is the menus' window operands
+run menu_object_capsule_iris_1 field_window_shape_table # events-zeal-palace: aliases the circle centre y word; set_up_circle(as_words=true) writes it plainly and iris_takes bounds it below 256, so leave_center_and_radius_as_bytes writes the same value back
+run menu_object_capsule_iris_1 scene_circle_center_y # events-zeal-palace: aliases the circle centre y word; set_up_circle(as_words=true) writes it plainly and iris_takes bounds it below 256, so leave_center_and_radius_as_bytes writes the same value back
+run menu_object_capsule_iris_1 field_window_shape_edge # events-zeal-palace: aliases the circle radius word; set_up_circle(as_words=true) writes it plainly and iris_takes bounds it below 256, so leave_center_and_radius_as_bytes writes the same value back
+run menu_object_capsule_iris_2 field_window_shape_table # events-zeal-palace: aliases the circle centre y word; set_up_circle(as_words=true) writes it plainly and iris_takes bounds it below 256, so leave_center_and_radius_as_bytes writes the same value back
+run menu_object_capsule_iris_2 scene_circle_center_y # events-zeal-palace: aliases the circle centre y word; set_up_circle(as_words=true) writes it plainly and iris_takes bounds it below 256, so leave_center_and_radius_as_bytes writes the same value back
+run menu_object_capsule_iris_2 field_window_shape_edge # events-zeal-palace: aliases the circle radius word; set_up_circle(as_words=true) writes it plainly and iris_takes bounds it below 256, so leave_center_and_radius_as_bytes writes the same value back

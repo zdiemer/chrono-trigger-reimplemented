@@ -13,11 +13,13 @@ def approach(run, x, y, *, world=False, limit=3900):
         # World-map steps are eight pixels. Longer presses can skip a narrow
         # junction or the only tile from which an entrance accepts confirm.
         step, rest, cell = 8, 8, 8
+        priority = 3.0
         directions = ("UP", "RIGHT", "DOWN", "LEFT")
     else:
         assert run.find_player() is not None, "a player for the walking search"
         pos = run.me
         step, rest, cell = 8, 0, 6
+        priority = 1.5
         directions = ("UP", "RIGHT", "DOWN", "LEFT", "UP+RIGHT", "UP+LEFT", "DOWN+RIGHT", "DOWN+LEFT")
 
     def key(px, py):
@@ -60,7 +62,7 @@ def approach(run, x, y, *, world=False, limit=3900):
                 slots.append(next_slot)
                 parents[next_slot] = (slot, direction)
                 elapsed = cost + step + rest
-                heapq.heappush(queue, (elapsed + 1.5 * distance(px, py), elapsed, next_slot))
+                heapq.heappush(queue, (elapsed + priority * distance(px, py), elapsed, next_slot))
         if found:
             slot, direction = found
             moves.append(direction)

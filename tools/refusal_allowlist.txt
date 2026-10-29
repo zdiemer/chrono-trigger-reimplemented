@@ -5,3 +5,5 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C6E498 menu_object_capsule_iris_1 guard # gap: events-zeal-palace's Skyway iris reaches centre y=0, outside the capsule guard's y>=1 range; TODO.md, Refusals in real play
+C6E4BE menu_object_capsule_iris_2 guard # gap: events-zeal-palace's Skyway iris reaches centre y=0, outside the capsule guard's y>=1 range; TODO.md, Refusals in real play

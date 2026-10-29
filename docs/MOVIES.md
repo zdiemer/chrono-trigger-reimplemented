@@ -216,6 +216,29 @@ Strict mode reaches the frame limit with saved-game drift. `ct_native` reports
 no stop but ends blanked after three screen setups; this is an open follow-up
 in TODO.md, not evidence that it completes the scene.
 
+`zeal_palace` (`events-zeal-palace.ctm`, 20011 frames) starts from ctsave08
+slot 2, in the snowfield at story `$9F`, with Schala's meeting flag
+(`$7F:00F4` bit 4) clear. Slot 3 is already at `$AB`, after exile. It takes
+the Skyways and land bridge, then the mountain's two paired teleporters to
+the palace. Short overworld steps reach the entrances; releasing UP in each
+mountain beam avoids stepping back into its return beam. Directed walks
+through the palace reach Schala and Janus, then the sealed-door hall. The
+route checks the meeting flag and story `$A2` after Schala opens the door,
+then enters the Mammon Machine room and confirms before it to charge the
+pendant. It ends at `$14B`, story `$A5`, with the field back in hand.
+It adds 190 instruction addresses (423 bytes) beyond the preceding 49 movies,
+chiefly the Skyway capsule irises (`$C6:E448`-`$E567`) and green palette
+brightening (`$FD:E98F`-`$E9C9`). The irises expose 77 guard refusals at
+`$C6:E498`/`$C6:E4BE`, recorded as gaps in the refusal allowlist and TODO.md.
+The new dialogue reads select the `$F9:B000` pointer table and its 443 strings
+into the asset catalogue; the catalogue holds their addresses and types.
+Shadow replay has zero mismatches, refused pages, out-of-range accessors or
+uncatalogued reads, and sound lockstep is identical. Strict mode stops at
+frame 4109 on `$C6:E4BE`; `ct_native` stops at frame 4106 on the same iris.
+The effects baseline records six runtime reads of the circle's centre and
+radius words: the capsule setup writes them plainly, its guard bounds both
+below 256, and the circle's scaffolding writes those same values back.
+
 Each starts from the cartridge save its movie header names, archived under
 `oracle/saves/` (the archive sources are in its README) and named by the
 route's `SAVE`; `--sram` picks another.

@@ -9,14 +9,15 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
-- **Giga Gaia's timing spread after drift calibration.** Its narrowed replay
+- **Zeal's timing spread after drift calibration.** The two movies' narrowed replay
   leaves worst-case errors of 58387, 57545 and 58882 clocks in
   `battle_dispatch_expired_timers`, `battle_see_to_knocked_out_enemies` and
   `battle_see_to_the_beaten_enemies`; `battle_frame_work` and `field_nmi` exceed
-  the vblank tail frequency at 1.73% and 1.36%, with maxima of 1428 and 4210
-  clocks. The title setup's worst error is 59055 clocks in a 5496794-clock
-  setup. These are in `tools/timing_exceptions.txt`: the shipping replay has
-  no failing video-write findings. Revisit the timing spread over the combined
+  the vblank tail frequency at 1.73% and 1.47%, with maxima of 1428 and 5890
+  clocks. `palette_fade_to_white` updates the working palette in RAM, with
+  all 130 vblank stretches off by at least 1024 clocks, at most 1480, despite
+  zero mean drift. These are in `tools/timing_exceptions.txt`: the shipping
+  replays have no failing video-write findings. Revisit the timing spread over the combined
   library before changing the ports or their attribution.
 
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
@@ -2654,6 +2655,19 @@ re-runs the census.
   is ported around it, and an entry at `$CD:3B82` would make the service's
   own call of the original recurse into the port: decide whether a native
   build keeps the wait at all, and take it out of the service if not.
+
+## Refusals in real play
+
+- **Zeal's Skyway capsule irises.** `events-zeal-palace` reaches guards
+  `$C6:E498` (`menu_object_capsule_iris_1`, 39 refusals) and `$C6:E4BE`
+  (`menu_object_capsule_iris_2`, 38 refusals). The first shadow refusals are
+  frames 4149 and 4148 respectively. Replay snapshots at frames 4149 and 5499
+  show iris centres at y=0 (radii 2/5, stretches 140/8); `iris_takes` in
+  `menu/line_effects.c` requires y>=1. Support the top-line centre before
+  removing these gap lines from `tools/refusal_allowlist.txt` and the two
+  new fallback rows (18330 instructions). `ct_native` stops at frame 4106
+  on `$C6:E4BE`, "a capsule iris on slot 2"; strict mode stops at frame 4109
+  on the same entry.
 
 ## The native program
 

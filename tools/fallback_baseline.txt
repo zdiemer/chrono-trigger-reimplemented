@@ -80,6 +80,8 @@ C2:F626 525 29  # no port yet (menus, text, overworld)
 C2:FD58 1760 46  # no port yet (menus, text, overworld)
 C2:FD68 1815 47  # no port yet (menus, text, overworld)
 C3:0C28 10 23  # handback by scene_sequence_goes_on_after_the_wait (scene engine); the wait's first instructions after the sequence goes on, the same code as $7E:398A's
+C6:E498 9842 141  # events-zeal-palace: refused by menu_object_capsule_iris_1 at the Skyway's top-line centre; gap in TODO.md, Refusals in real play
+C6:E4BE 8488 139  # events-zeal-palace: refused by menu_object_capsule_iris_2 at the Skyway's top-line centre; gap in TODO.md, Refusals in real play
 C7:0000 294 15  # handback by sound_driver_boot (sound driver)
 C7:005F 98 3  # handback by sound_driver_boot_start (sound driver)
 FD:---- 12 7  # no port yet (field graphics)

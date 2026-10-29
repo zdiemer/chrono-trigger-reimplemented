@@ -35,6 +35,7 @@ events-jetbike-race-won end
 events-jetbike-race end
 events-keepers-dome end
 events-prison-escape end
+events-zeal-palace 4109  # C6:E4BE: the Skyway capsule iris reaches centre y=0; guard gap in TODO.md, Refusals in real play
 field-12kbc-1f4 end
 field-12kbc-1f5 end
 field-12kbc-1f6 end

@@ -591,7 +591,7 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 600 A.D. | Zenan Bridge | ctsave04 slot 1 | Zombor |
 | 600 A.D. | Denadoro and the Masamune | ctsave04 slot 2 | Masa & Mune (`battle-denadoro` may hold the fight) |
 | 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel |
-| 12,000 B.C. | Zeal's palace and the Mammon Machine | ctsave08 slots 2-3 | -- |
+| 12,000 B.C. | Zeal's palace and the Mammon Machine (`events-zeal-palace`, recorded below) | ctsave08 slot 2 | -- |
 | 12,000 B.C. | Mt. Woe (`battle-giga-gaia`, recorded below) | ctsave09 slot 3 | Giga Gaia |
 | several | The Blackbird's end and the Epoch's wings | ctsave11 | Dalton Plus |
 
@@ -599,6 +599,25 @@ Death Peak was looked into before (Targets, 11) and left: the party has to reach
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.
 The Ocean Palace's end and Crono's return are the story's largest scripted scenes, so they come
 first.
+
+- **Movie**: `events-zeal-palace` (route `zeal_palace`, ctsave08 slot 2,
+  20011 frames). Slot 2 has story `$9F`, map `$1F4`, and Schala's meeting flag
+  (`$7F:00F4` bit 4) clear; slot 3 is already at `$AB`, after exile. The route
+  takes the Skyways, land bridge and mountain teleporters to the palace,
+  meets Schala and Janus, watches Schala open the sealed door (`$A2`), and
+  charges the pendant at the Mammon Machine. It ends at `$14B`, story `$A5`,
+  with control restored. The mountain beams need UP released before arrival
+  at their paired beam; the palace's large hall uses directed doorway walks.
+  Beyond the preceding 49 movies it adds 190 instruction addresses (423 bytes),
+  chiefly the Skyway capsule iris setup and drawing (`$C6:E448`-`$E567`), the
+  overworld followers (`$C2:3D0A`-`$3D28`), field movement and green palette
+  brightening (`$FD:E98F`-`$E9C9`). The 77 capsule-iris guard refusals at
+  `$C6:E498`/`$C6:E4BE` are gaps in the refusal allowlist and TODO.md: their
+  centre reaches y=0, outside the guard's supported range. `ct_native` stops
+  at frame 4106 on `$C6:E4BE`; strict mode stops there at frame 4109. Shadow
+  has zero mismatches, refused pages, out-of-range accessors or uncatalogued
+  reads; sound lockstep is identical. Dialogue reads add the `$F9:B000` pointer table
+  and its 443 strings to the asset catalogue, preserving the earlier rows.
 
 - **Movie**: `battle-giga-gaia` (route `giga_gaia`, ctsave09 slot 3, 33261 frames):
   the save's story counter is `$B4`, on Mt. Woe's `$189`, with the summit's arrival
