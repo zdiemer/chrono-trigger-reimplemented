@@ -344,12 +344,45 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   unported (`$CD:0DFA`). Shadow clean: no mismatch, refusal, `page refused` or `accessor out of
   range`. The route reaches its end in the shipping mode (`route_check --mode on:on:c`: the fight
   won on the 84th try, frame 22954; the end at 24934).
-- **Not attempted, impractical from the saves there are**: Nizbel II is at `$130`, off Tyrano Lair's
-  hall (`$12A`). ctsave08 slot 1 has it beaten (story bit `$7F:00EE` bit 0); ctsave07 slot 3, the
-  only save before it, stands on the world map outside the lair, whose entrance (`$12B`) is shut
-  until Kino is freed (its door's tiles copied in where `$7F:0063` bit 0 is set) and whose other
-  way in (`$1AE`, a room of Reptites) leads on through the lair's switch rooms: a route through the
-  lair's puzzles, not a walk. MotherBrain (`$10C`, Geno Dome) has no save inside or near the dome
+- **Movie**: `battle-nizbel-ii` (route `nizbel_ii`, ctsave07 slot 3, 148758 frames): from the
+  65,000,000 B.C. world map into Tyrano Lair (`$12B`), through the Reptites' room (`$1AE`) to
+  Kino's prison (`$12E`). After the guards, crossing column 55 again brings Kino to the gate;
+  confirm from below it starts his rescue. Kino frees the other prisoners on the return through
+  `$1AE`, then opens the entrance's other door (`$7F:005C` bit 4). Through the switch room's
+  western exit to the upper hall (`$12A`) and the teleport maze (`$131`): follow its warps to
+  `(29,47)`, then target the warp to `(15,39)` beside the exit. The lower stairs (`$12E`) lead
+  to the hall's middle section and `$12F`, where the right floor switch opens the inner door
+  and the wall switch at `(29,5)` sets `$7F:00ED` bit 7, opening Nizbel II's room (`$130`).
+  The route fights the hall encounters on both visits, uses a Shelter at the boss room's save
+  point, and walks to its far end to start formation `$92` (Nizbel II, 6500 HP). The
+  `nizbel_ii` policy uses learned lightning techs, Cure/Kiss, Lapis and Ethers; it wins without
+  a retry at frame 146238. The end waits for the victory messages and field control. The story
+  bit `$7F:00EE` bit 0 is set before the fight, so the route checks enemy HP and surviving party
+  members for victory, not that bit alone. ctsave08 slot 1 has the fight already beaten.
+  Against the other 48 movies, it adds 480 instruction starts, 1.05 KiB (1080 bytes), all
+  ported: `battle_enemy_add_to_stats_turn` (`$C1:A188`), `battle_condition_stat_at_least`
+  (`$C1:9130`), `battle_condition_is_enemy` (`$C1:8F87`), `script_spiral_out` (`$C1:6751`),
+  enemy distance keeping, and reward and tech-learning paths. Shadow exits 0 with zero
+  mismatches, refusals, `page refused` or `accessor out of range` findings; all 464784
+  sound-lockstep ticks are identical. `ct_native` runs all 148758
+  frames without stopping, ending blanked (four video escapes, first `$7E:5AEB`). Strict mode
+  also reaches the frame limit without stopping, but differs from shadow in 177 saved-game
+  bytes (inventory counts and character records among them); its baseline is `drifts`.
+  The route also passes from scratch in shipping mode (`route_check --mode on:on:c`): the
+  boss falls without a retry at frame 116158, and the field is back in hand at 117868,
+  with no refusals. The native-shape route also wins and returns field control (frame 119257).
+  Drift-only calibration updates 159 timing costs. `field_after_battle` needs a
+  `vblank-tail` timing exception: its shared scalar fits the field returns but overestimates
+  the Golem Twins game-over movie's button polling (at most 1173 clocks, less than one
+  scanline), which makes no video writes itself and waits for the next frame between walks.
+  The added fights cross the uncompared-call reporting thresholds for ten existing entries;
+  their baseline explains the enclosing comparisons or interrupts, backed by focused fuzzing
+  with the existing constraints (68000 states, zero mismatches). Calibration also moves the
+  fixed Terra Mutant movie's strict play to `drifts` (270 saved-game bytes) and exposes one
+  already-documented wrong-bank tech lookup in the Spekkio sweep. Its effects-baseline entry
+  records the observed read and the preceding zero values that make the scaffolding clears
+  redundant in that run. No fallback or refusal baseline changes are needed.
+- **Not attempted, impractical from the saves there are**: MotherBrain (`$10C`, Geno Dome) has no save inside or near the dome
   (ctsave14 slot 2 stands on the 600 A.D. world map, slot 3 after the fight), and R Series (the
   factory) none nearer than ctsave03 slot 2 on the 2300 A.D. world map: each is a dungeon of
   switches and conveyors before the fight.

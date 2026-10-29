@@ -199,9 +199,21 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
-Each starts from the technoplaza cartridge save its movie header names
-(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
-`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
+`nizbel_ii` (`battle-nizbel-ii.ctm`) starts outside Tyrano Lair on ctsave07
+slot 3, frees Kino, crosses the switch rooms and teleport maze, opens Nizbel
+II's door, rests with a Shelter at his room's save point, and wins the fight.
+The route uses the location exits and event scripts for its itinerary and
+live field searches for each walk. Its maze search targets the exit warp's
+destination so it cannot keep choosing a nearby return warp; at a corner
+landing it tests a step away before asking the usual control check again.
+`policies.nizbel_ii` resolves learned techs by id, uses lightning against the
+boss's defence, and heals and restores MP with this save's supplies. The movie
+ends after the victory messages with field control restored. See Targets, 5
+in [movies-wanted.md](movies-wanted.md) for its coverage and validation.
+
+Each starts from the cartridge save its movie header names, also given by the
+route's `SAVE`; `--sram` picks another. The saves are under
+`oracle/saves/technoplaza/` or `oracle/saves/fantasyanime/`.
 `--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and

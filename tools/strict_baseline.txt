@@ -21,6 +21,7 @@ battle-guardian drifts  # the fights' turns land on other frames, so they end wi
 battle-lavos-gameover end
 battle-magus end
 battle-menu-buttons end
+battle-nizbel-ii drifts  # differs from the reference: 177 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, $7E:260C, ...)
 battle-tech-sweep-spekkio drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (37 byte(s) of the saved game (inventory_counts, $7E:263D, $7E:263F, $7E:2640, $7E:268D, $7E:268F, ...))
 battle-tech-sweep drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (805 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 battle-tyrano-lair-walls end
@@ -45,7 +46,7 @@ field-floor-switch end
 field-northern-ruins-switch end
 late-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (43 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, ...); 185 byte(s) of save RAM)
 late-omen-battles drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (18 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2653, $7E:2654, $7E:2657, ...))
-late-omen-terramutant end
+late-omen-terramutant drifts  # after the Nizbel II library timing calibration, the fixed presses land on different battle turns; reaches all 17762 frames, differing in 270 saved-game bytes (inventory_items, inventory_counts, character_records, ...)
 late-omen-zeal drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (31 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2653, $7E:2654, $7E:2657, ...))
 menus-end-of-time end
 menus-epoch drifts  # the presses land on other frames, and the party ends at another place with another song (23 byte(s) of the saved game (current_song, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...))

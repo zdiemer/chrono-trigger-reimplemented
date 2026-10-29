@@ -9,8 +9,10 @@ battle_carry_out_member_action
 battle_change_battlefield
 battle_clear_battlefield_map
 battle_click_cursor
+battle_dissolve_an_enemy  # run as C by battle_see_off_an_enemy inside the beaten-enemies step; the enclosing step's comparison covers the dissolve and its waits; Nizbel II's lair encounters take it past 100 calls; also fuzzed alone with the existing constraints, zero mismatches
 battle_draw_menu_window
 battle_effect_hit
+battle_effect_item_restore  # interrupts leave 99 of 195 item-restoration stretches to the original; the other 96 calls compare and match, with the lair's healing taking the interrupted share just past half; also fuzzed alone with the existing constraints, zero mismatches
 battle_enemy_message_turn  # run as C by the expired timers' dispatch (battle_dispatch_expired_timers) as the Lavos Core's turns come, whose stretch compares it; fuzzed alone
 battle_enemy_set_stats_then_tech_turn  # run as C by the expired timers' dispatch (battle_dispatch_expired_timers) as the Lavos Core's turns come, whose stretch compares it; fuzzed alone
 battle_enemy_takes_turn
@@ -29,17 +31,24 @@ battle_load_item_animation  # loaded as C inside a battle's step (battle_run_a_s
 battle_load_second_effect_tile_rows
 battle_load_tech_animation
 battle_member_attacks
+battle_pause_on_the_message  # run as C by the held-message sequence (battle/message.c, battle_run_dc), inside the rewards' or battle message's enclosing comparison; the lair's rewards take it past 100 calls; also fuzzed alone with the existing constraints, zero mismatches
 battle_play_a_sound  # run as C by the window's opening and the battle's messages (battle_run), whose stretches compare it; called by the original's code, it is compared
 battle_put_the_battlefield_back  # run as C by the frame wait's tail and the display's close (battle_run), whose stretches compare it; fuzzed alone up to its first wait
 battle_run_a_step  # run as C by the ports that ask for steps (battle_take_step: the main loop's, a member's action called off, the party standing down, the knocked-out enemies seen to), whose stretches compare it; called by the original's code, it is compared, and fuzzed alone at each step's call
 battle_run_scripts
+battle_see_off_an_enemy  # run as C by battle_see_off_the_beaten_enemies, inside the battle step's enclosing comparison; the lair's defeated enemies take it past 100 calls; also fuzzed alone with the existing constraints, zero mismatches
+battle_see_off_the_beaten_enemies  # run as C by battle_see_to_the_beaten_enemies and the battle-step dispatch, whose enclosing comparisons cover it; 17 calls also compare on their own; also fuzzed alone with the existing constraints, zero mismatches
+battle_see_to_the_beaten_enemies  # run as C by battle_run_a_step, inside the main loop's or party turn's enclosing comparison; 17 calls also compare on their own, and the lair takes it past 100 calls; also fuzzed alone with the existing constraints, zero mismatches
 battle_set_out_the_message  # run as C by the battle's own and an enemy's message (battle_run), whose stretches compare it; fuzzed alone up to its first wait
 battle_set_up_double_techs
 battle_setup_display
+battle_show_a_battle_message  # run as C by battle_show_the_rewards and the member/main-loop message calls (battle_run_long), whose enclosing comparisons cover it; the lair's rewards take it past 100 calls; also fuzzed alone with the existing constraints, zero mismatches
 battle_show_action
 battle_show_an_enemy_message  # run as C by the enemies' turns (battle_run_long), whose stretches compare it; fuzzed alone up to setting the message out
 battle_start_action_showing
+battle_strike_the_poses  # run as C by battle_victory_step and the opening's poses (battle_strike_the_poses_as_their_own), whose enclosing comparisons cover it; the lair's fights take it past 100 calls; also fuzzed alone with the existing constraints, zero mismatches
 battle_turn_comes  # run as C by the step dispatch as a member's turn comes (battle_run_a_step, from the timers' dispatch), whose stretch compares it; fuzzed alone
+battle_use_item  # interrupts leave 128 of 254 item-workout stretches to the original; the other 126 calls compare and match, with the lair's item use taking the interrupted share just past half; also fuzzed alone with the existing constraints, zero mismatches
 battle_wait_for_the_handler  # run as C by the frame work's wait for the next frame (battle_run), whose stretch compares it; called on its own, it is compared
 battle_wait_for_the_next_frame  # run as C by the waits for some frames and the transfer (battle_run), whose stretches compare it; called on its own, it is compared
 battle_wait_for_the_small_handler  # run as C by the battle's close's waits (battle/closing.c, battle_run), whose stretches compare it; the second batch of movies' battles take it past 100 calls; fuzzed alone
@@ -104,3 +113,4 @@ script_weapon_hit_sound  # run as its handler by a channel's run (battle_run_scr
 script_weapon_swing_sound
 sound_driver_send_song  # run as C by the command (sound_driver_command), inside the original's frame for it, whose stretch compares it; called by the original's code (where the command's guard refuses), it is compared; fuzzed alone
 sound_driver_upload_block  # run as C by the command (sound_driver_command), inside the original's frame for it, whose stretch compares it; called by the original's code (where the command's guard refuses), it is compared; fuzzed alone
+sound_driver_upload_effects  # run as C by sound_driver_command, whose enclosing comparison covers the effects upload; the lair's loads take it past 100 calls, and the sound-lockstep checks compare every movie's driver state and sample placement; also fuzzed alone with the existing constraints, zero mismatches
