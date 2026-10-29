@@ -16,6 +16,7 @@ menu end
 new-game drifts  # the shipping mode runs the opening ahead of the original: by the last frame the story's count has gone on to 3, the reference's still 0 (1 byte(s) of the saved game (event_memory))
 title-start end
 battle-black-tyrano drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (203 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
+battle-denadoro drifts  # the fight's turns land on other frames, so it ends with other HP, MP, experience and items used (43 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2616, $7E:262B, ...))
 battle-golem-twins-gameover end
 battle-guardian drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (71 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, ...); 296 byte(s) of save RAM)
 battle-lavos-gameover end
@@ -35,10 +36,12 @@ events-epoch-lavos end
 events-jetbike-race-won end
 events-jetbike-race end
 events-keepers-dome end
+events-magic-cave 3550  # the forest of Frog's memory loads 64 objects, one past what the move to a tile takes (C0:4F61)
 events-prison-escape end
 field-12kbc-1f4 end
 field-12kbc-1f5 end
 field-12kbc-1f6 end
+field-12kbc-after-the-fall 3076  # the winged Epoch's first frame on the world map after the fall, which its guard turns away (C2:42DD)
 field-65m-bc-dactyl-flight end
 field-65m-bc-dactyl end
 field-65m-bc end

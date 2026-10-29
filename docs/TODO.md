@@ -2820,6 +2820,16 @@ list, by kind, is what `game/` still asks of one.
   character (`$C2:A225`), on the load screen a slot's erasing (`$C2:E8B7`),
   and a shop whose state a step's entry's guard turns away ("a shop the port
   doesn't take", menu/shop_steps.c).
+- **Where the save movies stop.** From a cartridge save `ct_native` plays
+  43 of the 45 save movies to their end; the two below ("Refusals in real
+  play") stop at the guards they meet.
+  A survey made to find more (a route from every save point no movie
+  started at -- ctsave01 1-2, 02 1-2, 04 1-2, 05 2, 06 1-3, 09 2-3, 10 1-2,
+  11 2-3, 13 1-3, technoplaza ct-state1 to 14 -- loading the slot, walking
+  out of the map and into the next; and a fight walked into from twelve of
+  them) found only those two: every other walk, and the two fights found
+  (in the Denadoro Mountains, `battle-denadoro`, and Magus's castle), play
+  to their end.
 - **The menus' steps' notes carry machine work.** In the items', the techs'
   and the settings' sequences (menu/item_screen.c, tech_screen.c,
   settings_screen.c) a note is where the machine both leaves the original's
@@ -2916,6 +2926,42 @@ list, by kind, is what `game/` still asks of one.
   RAM wherever an accessor may run past its end (the glitch reproduced byte
   for byte), or name the reachable overruns, make each a defined, bounded
   result, and leave the arbitrary-memory glitches out of scope.
+
+## Refusals in real play
+
+Guards that turn away a call real play makes. On the machine the original
+runs the call, so shadow mode and the shipping mode pass; the hand ports
+alone (`strict_check.py`) and `ct_native` stop there. Each is a gap line in
+`tools/refusal_allowlist.txt`, which comes out when the port takes the state.
+Ranked by how much play they block:
+
+- **A map of 64 objects** (`events-magic-cave`, ctsave06 slot 1, from frame
+  3490 in `ct_native`, 3550 in strict mode). At the Magic Cave's
+  mountainside (`$0A3`) Frog, holding the Masamune, remembers: the scene
+  moves to a forest (`$077`) whose event script declares 64 objects
+  (`$7F:2000` = `$40`), and the object search starts at the count, one past
+  the 64 slots, which `object_search_fits` (field/motion.c) doesn't take.
+  So the moves to a tile (`$C0:4F61`, event `$96`/`$97`/`$9A`/`$A0`/`$A1`;
+  614 refusals) and the check for an object in the way (`$C0:5B95`, 490)
+  hand the forest's whole scene to the original. Every scene in a map with
+  64 objects stops here; what the original's search reads at slot 64 is the
+  first thing to establish.
+- **The leader parked past the range's end** (`events-magic-cave`, from
+  frame 5129 to its end, 1027 refusals). On the bridge where Glenn and Cyrus
+  talk (`$087`) the flashback parks the party's objects at (`$FF80`,
+  `$FFFF`), and the leader's walk (`$C0:881E`, `field_walk_the_leader`)
+  refuses a leader whose place is past `CLEAR_OF_THE_END` (field/walk.c),
+  where the original's sums carry. What the original's walk does with the
+  party parked there is the thing to establish.
+- **The winged Epoch's first frame after Zeal's fall**
+  (`field-12kbc-after-the-fall`, ctsave11 slot 2, frame 3076, once). Walking
+  out of the Earthbound Village onto the 12000 B.C. map after the fall
+  (`$1F6`), where the Epoch stands parked with its wings, its handler's guard
+  (`$C2:42DD`, `overworld_epoch_takes`, overworld/handlers.c) turns away its
+  first frame and takes every frame after; technoplaza ct-state9 walks out
+  of the same village onto the same map and doesn't stop. Which of the guard's
+  conditions refuses (its step, the sprite scripts it animates by, the map's
+  scroll) is not yet looked at.
 
 ## Targets beyond the desktop SNES build
 

@@ -481,6 +481,9 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `field-12kbc-1f4.ctm` | ctsave08, 2 | The 12,000 B.C. world map at `$1F4`, into a location and back out (route `field_12kbc_1f4`) | 2953 |
 | `field-12kbc-1f5.ctm` | zophar chrono-5, 1 | The 12,000 B.C. world map at `$1F5`, likewise (route `field_12kbc_1f5`) | 2993 |
 | `field-12kbc-1f6.ctm` | zophar chrono-6, 2 | The 12,000 B.C. world map at `$1F6`, likewise (route `field_12kbc_1f6`) | 2873 |
+| `field-12kbc-after-the-fall.ctm` | ctsave11, 2 | Out of the Earthbound Village onto the frozen 12,000 B.C. map after Zeal's fall, the winged Epoch parked beside it, into the next location and back out (route `last_village_12kbc`) | 9269 |
+| `events-magic-cave.ctm` | ctsave06, 1 | The Magic Cave's mountainside: the party walks up to the rock and Frog, holding the Masamune, remembers: the forest, then Glenn and Cyrus on the bridge, a few lines in (route `magic_cave`) | 6156 |
+| `battle-denadoro.ctm` | ctsave04, 2 | Into the Denadoro Mountains from the world map, up to the monsters until they attack, the fight won (route `denadoro_fight`) | 9532 |
 
 All run in shadow mode with no mismatches. Making them found two hangs in the
 development system, both fixed: the location-change vblank wait (see Interrupt

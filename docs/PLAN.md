@@ -65,8 +65,8 @@ in place of the ports: the native coverage.
 | | Now | Done when |
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 3% left (97% has a port) | 0% |
-| Native coverage: of the code real play runs, the share that runs as hand ports | 100% over the 48 movies (the hand ports alone carry each to its end, `strict_check.py`); what no movie runs is unmeasured: 36.3 KiB of live code, 32.7 KiB of it ported and so far unchecked (movies-wanted.md, "Totals") | 100%, over a library that reaches all of the game |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (48 movies): 0.55 M instructions (0.95 M over 42 before chunk 11); shipping mode over the movies 0, the routes 18 K (all hand-backs: the program's start's in the Black Tyrano's route, the vblank list's and the battle's calling in); the hand ports alone (`strict_check.py`) carry all 48 movies to their end; no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "Phase 4a, the shipping mode's fallbacks, chunk 11") | 0, no refusal, the native shape passing |
+| Native coverage: of the code real play runs, the share that runs as hand ports | 100% over 49 of the 51 movies (the hand ports alone carry each to its end, `strict_check.py`); the other two stop at guards that refuse play only they reach (TODO.md, "Refusals in real play"); what no movie runs is unmeasured: 36.3 KiB of live code, 32.7 KiB of it ported and so far unchecked (movies-wanted.md, "Totals") | 100%, over a library that reaches all of the game |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (48 movies): 0.55 M instructions (0.95 M over 42 before chunk 11); shipping mode over the movies 0, the routes 18 K (all hand-backs: the program's start's in the Black Tyrano's route, the vblank list's and the battle's calling in); the hand ports alone (`strict_check.py`) carry 49 of the 51 movies to their end; 4 entries refuse in real play, all in the two movies that stop, each a gap in `tools/refusal_allowlist.txt` (TODO.md, "Refusals in real play"); the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "Phase 4a, the shipping mode's fallbacks, chunk 11") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 29% of 9,029 functions take a `Snes *` (scene 42%, menus 35%, battle and field 26%) | entry wrappers only, then none |
 | ROM data behind named accessors | every accessor read, served from an asset pack imported once from the user's ROM (`ct_play`, `ct_native`) or from the cartridge (`ct_dev` without `--assets`); the decompressor's streams and the video transfers from cartridge addresses still go by the bus | the resources decoded, a resource at a time (Phase 4a, "Assets") |
@@ -565,7 +565,9 @@ by an audit; the fourth is the program itself.
   console's start and the field's frame"), and so is everything the library's
   48 movies run: `ct_dev --native on --generated off --no-interpreter strict
   --sound-driver c`, the hand ports and the C sound driver with no code
-  generated from the ROM and no interpreter, carries every movie to its end,
+  generated from the ROM and no interpreter, carries every movie to its end
+  but two added to find where it doesn't (`events-magic-cave`,
+  `field-12kbc-after-the-fall`; TODO.md, "Refusals in real play"),
   and `tools/strict_check.py --check` holds it there (PLAYING.md, "Without the
   interpreter"; REIMPLEMENTATION.md, "Phase 4a, the shipping mode's fallbacks,
   chunk 11"). What closed the last gaps were the joints between ports: the
@@ -639,8 +641,9 @@ by an audit; the fourth is the program itself.
      the save screens, the party exchange, the game over's start afresh,
      the switches, the Day of Lavos's turning world and planet, the
      time gate's tunnel, the Epoch's time dial and map view, the jet bike
-     race, the menus the player opens and the shops, and all 40 save movies
-     to their end (REIMPLEMENTATION.md, "The native program through the
+     race, the menus the player opens and the shops, and 43 of the 45 save
+     movies to their end (the other two stop at guards in play only they reach:
+     TODO.md, "Refusals in real play") (REIMPLEMENTATION.md, "The native program through the
      shops"). Next: the stops of `program_needs_the_machine` that no movie
      meets yet, each naming its routine (TODO.md, "The native program").
      Each step is measured by how far `ct_native` gets and by what
