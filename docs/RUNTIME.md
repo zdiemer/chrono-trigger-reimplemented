@@ -452,6 +452,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `battle-black-tyrano.ctm` | ctsave08, 1 | Tyrano Lair's throne room: Azala and the Black Tyrano beaten with Lapis and Mid Tonics, then Lavos falling to the planet (scene mode 4; route `black_tyrano`) | 49219 |
 | `battle-guardian.ctm` | ctsave02, 3 | Arris Dome: the Guardian and its Bits, which it brings back, beaten (route `guardian`) | 25751 |
 | `battle-r-series.ctm` | ctsave03, 2 | Factory Ruins: the lab security consoles, power and shutter escape, then the six R Series beaten by Crono and Lucca; Robo's repair and the Gate trip to the End of Time, with field control returned (route `r_series`) | 65437 |
+| `battle-motherbrain.ctm` | ctsave14, 2 | Epoch to 2300 A.D.; Geno Dome's conveyors, charged pods, dolls and escort; Atropos and MotherBrain beaten, shutdown and field control regained (route `motherbrain`) | 135481 |
 | `battle-tech-sweep.ctm` | zophar chrono-trigger, 1 | Inside Lavos's shell: the second form and the Lavos Core fought with every single and double tech Crono, Magus and Marle have, each cast once (route `tech_sweep`) | 118090 |
 | `late-omen-battles.ctm` | ctsave15, 1 | Black Omen random battles won (results), status Chaos keeping Lucca confused, many single techs, running away from an ambush | 18412 |
 | `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, the dual tech list, Mega Bomb, Confuse, item menus, Life 2 on a fallen Crono | 17762 |

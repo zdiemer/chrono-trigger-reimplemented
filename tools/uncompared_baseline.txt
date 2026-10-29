@@ -8,6 +8,7 @@ battle_build_bitmap_shapes
 battle_carry_out_member_action
 battle_change_battlefield
 battle_clear_battlefield_map
+battle_decode_tile_row  # battle-motherbrain interrupts 358 of 624 tile-row decodes; the other 266 match. Focused fuzz_compare seed 1: 1000 completed comparisons, 0 mismatches, with the existing whole-row constraints.
 battle_click_cursor
 battle_draw_menu_window
 battle_effect_hit
@@ -29,6 +30,7 @@ battle_load_item_animation  # loaded as C inside a battle's step (battle_run_a_s
 battle_load_second_effect_tile_rows
 battle_load_tech_animation
 battle_member_attacks
+battle_pause_on_the_message  # called as C by the held-message sequence; all 124 calls in battle-motherbrain are abandoned inside that sequence. Existing fuzz constraints, seed 1: 8 comparisons up to the first wait, 0 mismatches (992 guard skips); this does not independently compare the whole timed pause.
 battle_play_a_sound  # run as C by the window's opening and the battle's messages (battle_run), whose stretches compare it; called by the original's code, it is compared
 battle_put_the_battlefield_back  # run as C by the frame wait's tail and the display's close (battle_run), whose stretches compare it; fuzzed alone up to its first wait
 battle_run_a_step  # run as C by the ports that ask for steps (battle_take_step: the main loop's, a member's action called off, the party standing down, the knocked-out enemies seen to), whose stretches compare it; called by the original's code, it is compared, and fuzzed alone at each step's call

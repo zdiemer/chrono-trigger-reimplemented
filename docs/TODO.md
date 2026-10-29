@@ -9,6 +9,21 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **Geno Dome timing attribution.** The narrowed `battle-motherbrain` calibration
+  leaves `battle_step_the_poses` and `battle_strike_the_poses` with a body cost of
+  1: their attributed graphics work already exceeds the measured original
+  stretches. Check the pose graphics' path-dependent charges before removing
+  their drift and worst-case exceptions. The battle's defeated-enemy passes,
+  due-animation scan and timer dispatcher also carry large worst-case errors.
+  The same movie exposes field-NMI, battle-frame and menu-script vblank-tail
+  exceptions; its rebuilt video-write check has no new failures. Reassess these against the combined library when
+  the movies are merged; the calibration here is deliberately from the narrowed
+  run, not a new full-library measurement.
+- **Compare the whole held-message pause.** `battle-motherbrain` abandons all
+  124 calls of `battle_pause_on_the_message` inside its enclosing message
+  sequence. The focused seed-1 fuzz run compares eight accepted states up to
+  the first wait, with no mismatch, but does not independently compare the
+  complete timed pause (`tools/uncompared_baseline.txt`).
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
   the original (battles play out differently). That difference is accepted
   (REIMPLEMENTATION.md, "Can a hand port be exact?"); the timing gate bounds the errors
@@ -3153,10 +3168,10 @@ waits on M5 rather than on a backend.
   (100k-170k frame runs), the addresses each route needs, and re-running a
   route when the timing model changes, since routes survive drift but the
   movies they record don't.
-- **The boss fights other than the Guardian's** (movies-wanted.md, "Boss fights") are unattempted beyond finding
+- **The R Series and Nizbel II fights** (movies-wanted.md, "Boss fights") are unattempted beyond finding
   where each save starts. `ctsave03` slot 2 (R Series, the
-  factory), `ctsave07` slot 3 (Nizbel II, Tyrano Lair) and `ctsave14` slot 2 (MotherBrain,
-  Geno Dome) all start on the world map at the dungeon's door, needing a walk in and
+  factory) and `ctsave07` slot 3 (Nizbel II, Tyrano Lair) start on the world map
+  at the dungeon's door, needing a walk in and
   down to the boss room neither attempted nor mapped this pass.
 - **zophar `chrono-7`** (everything maxed at the fair) is unused: its Lucca
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
