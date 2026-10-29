@@ -2645,6 +2645,15 @@ re-runs the census.
   own call of the original recurse into the port: decide whether a native
   build keeps the wait at all, and take it out of the service if not.
 
+## Shadow comparison gaps
+
+The early-boss shadow runs also expose a comparison gap in the held-message
+path: `battle_pause_on_the_message` has 168 calls, all abandoned, when run
+as C inside `battle_show_a_battle_message`. Its sixteen frame waits have no
+independent shadow return in these runs. Message typing and clearing still
+compare; add an isolated comparison for the pause itself. This is recorded
+in `uncompared_baseline.txt`.
+
 ## Refusals in real play
 
 - **Zombor's strict replay refuses `field_press_confirm`.** `battle-zombor`
@@ -2682,6 +2691,12 @@ list, by kind, is what `game/` still asks of one.
   reaches 26320 frames without a hard stop, with six screen setups and two
   SNES-only video calls (first `$7E:5AEB`). Locate the divergent screen with
   a state-driven run; reaching the movie's limit does not prove victory.
+
+- **Nizbel's native replay ends with the screen blanked.** The hand movie
+  `battle-nizbel` reaches 57673 frames without a hard stop, with six screen
+  setups and two SNES-only video calls (first `$7E:5AEB`). Strict mode also
+  reaches the limit, with a 128-byte saved-game difference. Locate the
+  divergent screen with a state-driven run before claiming native victory.
 
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C

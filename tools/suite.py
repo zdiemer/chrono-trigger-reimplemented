@@ -253,7 +253,7 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 # Routes run by hand rather than in every --long-routes gate: the tech sweep
 # fights for about forty minutes for under a KiB of code no movie runs;
 # Yakra's nearest cartridge save requires the whole Cathedral dungeon.
-HAND_RUN_ROUTES = {"tech_sweep", "yakra"}
+HAND_RUN_ROUTES = {"tech_sweep", "yakra", "nizbel"}
 
 
 def all_routes():

@@ -20,6 +20,7 @@ battle_enemy_tech_turn
 battle_frame_update
 battle_frame_work
 battle_give_turn
+battle_pause_on_the_message  # the held-message path runs its sixteen-frame pause as C inside battle_show_a_battle_message; all 168 early-boss calls are abandoned, with no independent shadow return; message typing/clearing still compare, but the pause needs an isolated comparison (docs/TODO.md)
 battle_hp_loss_timer_ran_out
 battle_let_the_screen_settle  # its loop's head is the entry: the original comes round to it on every pass inside the boss's end, whose stretch compares it; fuzzed alone up to its first wait
 battle_load_action_animation

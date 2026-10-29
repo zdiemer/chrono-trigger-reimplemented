@@ -23,13 +23,13 @@ def approach_battle(run, direction):
     raise AssertionError("too many scenes before the boss")
 
 
-def settle(run, seed=1):
+def settle(run, seed=1, policy=None):
     """A script can briefly enable movement while still staging a battle."""
     machine = run.machine
     start, stable = machine.frame, 0
     while machine.frame - start < 10000:
         if battle_ready(run):
-            fight(run, seed=seed)
+            fight(run, seed=seed, policy=policy or early_party)
             return
         if machine.b(PLAYER_CONTROL) and not run.dialog() and run.find_player() is not None:
             stable += 1
@@ -72,7 +72,7 @@ def walk_through(run, direction, goal, seed=1, interact=False):
     raise AssertionError("too many encounters in one corridor")
 
 
-def search_through(run, goal, seed=1, inside=lambda x, y: True):
+def search_through(run, goal, seed=1, inside=lambda x, y: True, policy=None):
     """Search a room, stopping to resolve scripted encounters on the way."""
     from .. import bfs
     machine = run.machine
@@ -87,7 +87,7 @@ def search_through(run, goal, seed=1, inside=lambda x, y: True):
         assert moves is not None, "a way through the room"
         if goal(machine, *run.me()):
             return
-        settle(run, seed)
+        settle(run, seed, policy)
     raise AssertionError("too many encounters in one room")
 
 

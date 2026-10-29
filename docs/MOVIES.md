@@ -239,6 +239,21 @@ removal. Strict stops at frame 20301 on the `field_press_confirm` guard;
 `ct_native` reaches the frame limit with its screen blanked. Both gaps are
 recorded in `TODO.md`.
 
+`nizbel` is also a hand run, recorded as
+`oracle/movies/hand/battle-nizbel.ctm` (57673 frames). From ctsave05 slot 2,
+story `$7B`, it enters the Reptite Lair, descends the three holes and wins
+the encounters through the lower rooms and hall. Crono's Lightning lowers
+Nizbel's defense; the party uses physical attacks, Aura and the items in
+the battle menu. The movie wins at 54768 and ends in Ioka (`$113`) after
+recovering the Gate Key and Ayla's farewell, with story `$7D` and the field
+back in hand. The route is in `HAND_RUN_ROUTES`; select `battle-nizbel`
+explicitly to run its narrowed suite checks.
+Its rebuilt shadow run is clean after adding the existing prehistoric
+dialogue table's catalogue metadata. `ct_native` reaches the limit with its
+screen blanked; strict reaches it with a 128-byte saved-game difference.
+Its 385 new instruction bytes and the native limitation are recorded in
+`movies-wanted.md` and `TODO.md`.
+
 The older routes above start from the technoplaza cartridge save their movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.

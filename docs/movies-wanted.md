@@ -588,9 +588,9 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 1000 A.D. | The trial | ctsave01 slot 3 is after it; a save before is to find | -- |
 | 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank (`battle-dragon-tank`) |
 | 2300 A.D. | Robo repaired at Proto Dome | between ctsave02 and ctsave03 | -- |
-| 600 A.D. | Zenan Bridge | ctsave04 slot 1 | Zombor |
+| 600 A.D. | Zenan Bridge | ctsave04 slot 1 | Zombor (`battle-zombor`) |
 | 600 A.D. | Denadoro and the Masamune | ctsave04 slot 2 | Masa & Mune (`battle-denadoro` may hold the fight) |
-| 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel |
+| 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel (hand run `battle-nizbel`) |
 | 12,000 B.C. | Zeal's palace and the Mammon Machine | ctsave08 slots 2-3 | -- |
 | 12,000 B.C. | Mt. Woe | ctsave09 slot 3 | Giga Gaia |
 | several | The Blackbird's end and the Epoch's wings | ctsave11 | Dalton Plus |
@@ -659,6 +659,37 @@ no movie; the slot named is the nearest found from the README, for the route to 
   `ct_native` reaches the limit with its screen blanked; strict stops at
   20301 on the `$C0:1AAC` `field_press_confirm` guard. These are TODO gaps,
   with the guard recorded in the refusal allowlist.
+
+- **Nizbel hand run**: `battle-nizbel` (route `nizbel`, ctsave05 slot 2,
+  57673 frames). The save is outside the Reptite Lair (`$1F3`, story `$7B`),
+  with Crono, Ayla and Marle. The route enters `$11B`, takes the open hole
+  in `$11C`, clears the enemies guarding holes in `$11D` and `$11E`, then
+  crosses `$11F` and `$120` to Nizbel's chamber (`$121`). A constrained
+  search on the bottom floor shortened the approach, but no complete play
+  under 40000 frames was found. It remains outside the default library in
+  `oracle/movies/hand/`, and `nizbel` is in `HAND_RUN_ROUTES`.
+  Lightning lowers Nizbel's defense; physical attacks, Aura, Tonics and
+  Ethers finish the fight at 54768. The post-fight scene sets story `$7C`
+  and returns the Gate Key; the return to Ioka and Ayla's farewell set `$7D`.
+  At 57673 the field is back in hand in `$113`, with the Gate Key in the bag.
+  It adds 172 instruction addresses / 385 bytes beyond the previous 48
+  movies and the other three early-boss recordings: variable comparisons
+  (`$C0:6361`), `battle_condition_is_enemy` (`$C1:8F87`) and enemy state
+  changes at `$C1:9CB3`, among others. The first shadow run had zero
+  mismatches but reported an uncatalogued read at `$D8:DE9C`. The existing
+  `$D8:DD80` dialogue table was already extracted; adding its 256 missing
+  catalogue entries supplies metadata, without adding cartridge bytes or
+  porting game logic. The rebuilt shadow run is clean: zero mismatches,
+  guard/page refusals, out-of-range accessors or uncatalogued reads.
+  Sound lockstep matches for 178633 ticks. No fallback
+  baseline increase is needed. `ct_native` reaches the limit with a blanked
+  screen; strict reaches it with 128 saved-game bytes different (`drifts`).
+  The native limitation is recorded in TODO.
+
+The four recordings share loading, settings, encounter navigation and battle
+helpers. Their combined shadow measurements recalibrate only drifted timing
+scalars; the automatic layer scrolling and field continuations retain
+documented data-dependent timing tails. No game logic was ported.
 
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.
