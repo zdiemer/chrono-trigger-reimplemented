@@ -199,6 +199,23 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
+`mud_imp` records `battle-mud-imp.ctm` (37817 frames) from ctsave09 slot 2,
+Terra Cave's settlement. Its story counter is `$AE`, below the boss script's
+`$B4` threshold; slot 3 is already `$B4`. The route walks into `$184`, wins the
+two Beast encounters, then focuses Lightning, Ice and Fire on Mud Imp while
+healing with Mid Tonics and Lapis. The Imp's defeat makes both coloured Beasts
+leave. It stops with the field back in hand, without climbing Mt. Woe.
+Shadow is clean, including sound lockstep, with no refusal, `page refused` or
+`accessor out of range`. It adds 570 executed bytes beyond the preceding 48
+movies, all ported. Strict mode runs every frame but ends with different saved
+game data (`drifts` in its baseline). `ct_native` reports no explicit stop in
+37817 frames, but finishes blanked with two video escapes, first `$7E:5AEB`;
+that fixed-input run does not establish that the native program plays the fight.
+The narrowed gate recalibrates 199 drifting registry costs. Its remaining
+`field_nmi` vblank-tail finding is recorded in `tools/timing_exceptions.txt`
+and TODO.md; the video-write check has no failing findings. The fallback
+baseline needs no increase for this narrowed run.
+
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.

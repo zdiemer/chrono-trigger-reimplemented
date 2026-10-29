@@ -593,12 +593,30 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel |
 | 12,000 B.C. | Zeal's palace and the Mammon Machine | ctsave08 slots 2-3 | -- |
 | 12,000 B.C. | Mt. Woe | ctsave09 slot 3 | Giga Gaia |
+| 12,000 B.C. | Terra Cave | ctsave09 slot 2 | Mud Imp, Red and Blue Beasts (`battle-mud-imp`, below) |
 | several | The Blackbird's end and the Epoch's wings | ctsave11 | Dalton Plus |
 
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.
 The Ocean Palace's end and Crono's return are the story's largest scripted scenes, so they come
 first.
+
+- **Movie**: `battle-mud-imp` (route `mud_imp`, ctsave09 slot 2, 37817 frames;
+  victory at 36527, the end kept at the field back in hand): the settlement
+  (`$17C`) into `$184`, the two Beast pairs on rows 47 and 29, and the Mud Imp
+  with Blue and Red Beast on row 17. The save's story counter (`$7F:0000`) is
+  `$AE`; the boss script requires less than `$B4`, which slot 3 already has.
+  The boss policy focuses basic magic on the Imp, using Mid Tonics and Lapis
+  to survive; its defeat makes the Beasts leave. All three fights win without
+  a wipe. It reaches 570 bytes (0.56 KiB) no movie in the preceding 48 runs,
+  all ported: `script_spiral_out` (`$C1:675B`-`$6915`), enemy spacing
+  (`battle_enemy_keeps_distance`, `$C1:3AC4`-`$3B5F`), and tech-point counting,
+  learning and reward messages (`$C1:F3AF`-`$F532`, `$FD:ADC9`-`$AE04`).
+  Shadow clean: zero mismatches and no refusal, `page refused` or `accessor
+  out of range`; sound lockstep identical. Strict mode runs all frames with
+  no stop, but its final saved game differs (`drifts`). `ct_native` reports no
+  explicit stop in 37817 frames; it ends blanked with two video escapes, first
+  `$7E:5AEB`, so this is not evidence of a native boss victory.
 
 ### 14. The original's known glitches
 A faithful port reproduces the original's mistakes, so plays that lean on its documented glitches

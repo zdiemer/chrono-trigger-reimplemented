@@ -9,6 +9,13 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **Terra Cave's field timing.** `battle-mud-imp` puts `field_nmi` over the
+  vblank-tail limit: 1.72% of 5592 wholly-vblank stretches differ by at least
+  1024 clocks (maximum 3165), despite mean drift below 1%. The movie's video
+  check finds no failing picture writes. Refine the estimate for the field's
+  conditional upload work and remove its `tools/timing_exceptions.txt` line;
+  the movie records this gap without changing game code.
+
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
   the original (battles play out differently). That difference is accepted
   (REIMPLEMENTATION.md, "Can a hand port be exact?"); the timing gate bounds the errors
