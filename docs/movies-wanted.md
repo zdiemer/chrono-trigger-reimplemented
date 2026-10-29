@@ -438,7 +438,22 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   frame 14237, `$FD:B438`, "an enemy coming into the battle"; strict mode runs all 144640
   frames and exits 0 without a stop. Shipping-mode `route_check --mode on:on:c` passes at
   frame 168451 without a wipe; all 12 restores replay exactly, with no C sound-driver errors.
-- **Remaining**: ct-state20 through ct-state26. For ct-state19 through ct-state26, reading the
+- **The Unknown Past**: `unknown_past`, technoplaza ct-state20 slot 2, 160225 frames.
+  The shared bucket route beats the shell (75692), inner Lavos (103155) and Core (144665).
+  Inner Lavos needed 24 retries; the recording retains only the winning input. Story
+  `$7F:0000 = $69` takes `$052`'s `$66 <= story < $75` branch, sets `$7F:01AA = 1`, and enters
+  `$025`. Credits alternate with `$024`, `$11A`, `$03F`, `$026`, and `$02B`, returning to `$025`
+  after each. The last interlude has flag 6: object 0 waits at `$03F2` for object 8's Robo dance,
+  which reveals The End and loops at `$04A9`. The route checks both objects and keeps another
+  120 frames; the final picture was inspected. Coverage adds 92 instruction bytes over the
+  48-movie library, in field/battle/menu paths (`$C0:BDE7` onward, `$C1:1574`-`$15E6`,
+  `$C1:C8CC`-`$C8E9`, `$C2:8CF6`), **none in the `$7E` scene program**. This ending starts none
+  of modes 5, 6, 10/11/14/15 or 12. Shadow exits 0 with zero mismatches and refusals, no
+  page/accessor/asset diagnostics and identical sound lockstep. `ct_native` and strict mode
+  both run all 160225 input frames and exit 0 without a stop. Shipping-mode
+  `route_check --mode on:on:c` reaches The End at frame 146361; all 12 restores replay exactly,
+  with no C sound-driver errors.
+- **Remaining**: ct-state21 through ct-state26. For ct-state19 through ct-state26, reading the
   slot's RAM regions using the save layout at `$FF:FA7B` gives story counters `$5D`, `$69`, `$7E`, `$87`, `$8E`, `$9F`, `$A2`,
   `$D4`, respectively. `$052` selects their first ending locations as `$025`, `$025`, `$05B`,
   `$159`, `$10F`, `$190`, `$0EF`, and `$054` (the last save has no Crono). These are dispatcher

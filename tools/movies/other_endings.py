@@ -55,7 +55,13 @@ def watch_ending(run, *, selected, done, max_frames=48000):
     """Watch an automatic ending, proving both its selection and its finish."""
     machine = run.machine
     start, seen, selection_seen = machine.frame, [], False
+    scene_flags = machine.b(0x7E0384)
+    run.say("ending initial scene flags", "%02X" % scene_flags, "frame", machine.frame)
     while machine.frame - start < max_frames:
+        flags = machine.b(0x7E0384)
+        if flags != scene_flags:
+            run.say("ending scene flags", "%02X -> %02X" % (scene_flags, flags), "frame", machine.frame)
+            scene_flags = flags
         here = run.map_id()
         if not seen or seen[-1] != here:
             seen.append(here)
@@ -72,6 +78,9 @@ def watch_ending(run, *, selected, done, max_frames=48000):
             machine.run(37)
         else:
             machine.run(20)
+    machine.save_state(run.prefix + "_unfinished_ending.st")
+    machine.screenshot(run.prefix + "_unfinished_ending.png")
+    run.say("ending object positions in script", machine.peek(0x7E1180, 64).hex())
     raise AssertionError("ending did not finish: maps %s, selection seen %s" % (seen, selection_seen))
 
 

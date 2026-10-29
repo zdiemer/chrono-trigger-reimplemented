@@ -3122,7 +3122,7 @@ waits on M5 rather than on a backend.
     597 registry entries (14%) are never entered by any movie** -- `$C2` 28,
     `$C6` 22, `$D1` 9, `$C3` 8, `$FD` 7, `$C7` 6 -- and those rest on fuzzing
     alone. Each wave since the pilot has found bugs there.
-- **Remaining ending routes**: technoplaza ct-state20 through ct-state26,
+- **Remaining ending routes**: technoplaza ct-state21 through ct-state26,
   including Reunion from "The Time Egg" (no Epoch reachable from that save).
   These belong among the hand-run routes, with scratch recordings rather than
   another 100,000-200,000 frames each in every gate (MOVIES.md;

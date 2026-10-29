@@ -231,6 +231,18 @@ strict mode runs all frames with exit 0. The shipping route (`on:on:c`) reaches
 The End at frame 168451 without a wipe; all 12 restores replay exactly and the
 C sound driver reports no errors.
 
+`unknown_past` (technoplaza ct-state20 slot 2, 160225 frames) shares the bucket
+and Lavos fights, then plays the credits and character vignettes through Robo's
+dance and The End. Story `$69` selects `$1AA = 1`; completion checks flag 6,
+object 0 waiting for Robo and Robo's final wait loop. Inner Lavos needed 24
+retries, with only winning input retained. Shadow exits 0 with zero mismatches
+or refusals, no page/accessor/asset diagnostics and identical sound lockstep.
+Coverage adds 92 instruction bytes over the library, no `$7E` scene code;
+none of modes 5, 6, 10/11/14/15 or 12 starts. `ct_native` and strict mode both
+run the entire input with exit 0 and no stop. Shipping-mode `route_check`
+(`on:on:c`) reaches The End at frame 146361; all 12 restores replay exactly,
+with no C sound-driver errors.
+
 So do the menu, event and battle movies made for what no movie ran
 ([movies-wanted.md](movies-wanted.md), Targets): `menu_sweep`
 (`menus-sweep.ctm`), `save_point` (`menus-save-point.ctm`), `epoch_lavos`
