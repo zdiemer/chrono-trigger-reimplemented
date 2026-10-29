@@ -639,9 +639,11 @@ the Epoch's time dial and map view, and the jet bike race from its opening;
 the menus the player opens through the equipment's slots and list, an item
 moved or used and the healing it shows, the techs' list and the members a
 tech is used on, the settings' meters, gauge and buttons, and the End of
-Time gate's exchange with its song and swirl; 39 of the save movies play to
-their end, all but the shop's (REIMPLEMENTATION.md, "The native program
-through the menus the player opens").
+Time gate's exchange with its song and swirl; 40 of the 43 save movies play
+to their end, all but the shop's (REIMPLEMENTATION.md, "The native program
+through the menus the player opens") and two made to find where it stops,
+Frog's memory at the Magic Cave and the winged Epoch's map after Zeal's fall
+(TODO.md, "Refusals in real play").
 
 The field's steps as the program calls them (`field_runs`,
 `field/main_loop.c`) are functions of the game's state that the entries

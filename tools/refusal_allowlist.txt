@@ -5,3 +5,7 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C04F61 event_cmd_move_to_tile guard # gap: a map of 64 objects, whose search starts one past the tables (object_search_fits); events-magic-cave, the forest of Frog's memory ($077)
+C05B95 field_object_in_the_way guard # gap: the same 64 objects' search (object_search_fits); events-magic-cave, the forest ($077)
+C0881E field_walk_the_leader guard # gap: the leader parked at ($FF80, $FFFF), past the 16-bit range's end (clear_of_the_end); events-magic-cave, the bridge of Frog's memory ($087)
+C242DD overworld_epoch guard # gap: the winged Epoch's first frame on the 12000 B.C. map after the fall ($1F6); field-12kbc-after-the-fall

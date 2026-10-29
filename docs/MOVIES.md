@@ -199,6 +199,23 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
+A third batch went looking for where the native program stops rather than
+for code no movie runs: a throwaway route loaded every save point no movie
+started from and walked out of its map and into the next, and another walked
+up to the nearest objects until one attacked, and each run was played in
+`ct_native` and on the hand ports alone (TODO.md, "The native program",
+"Where the save movies stop"). What stopped, and a fight of a place no
+movie fought in, became routes: `magic_cave` (`events-magic-cave.ctm`),
+`last_village_12kbc` (`field-12kbc-after-the-fall.ctm`) and `denadoro_fight`
+(`battle-denadoro.ctm`), the last walking into its fight with
+`tools/movies/encounter.py` (the nearest objects in turn, the next map when
+none attacks; and if that finds none, a wider search from the checkpoint
+before it, for the shipping mode, whose timing has the monsters elsewhere).
+A fight inside Magus's castle (ctsave06 slot 3) was found the same way but
+left out: the way from the castle's hall into the next room (`$0A8`) that
+the interpreter's search found, it found only at some frames, and in the
+shipping mode at none.
+
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.

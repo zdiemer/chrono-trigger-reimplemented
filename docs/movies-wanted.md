@@ -554,6 +554,22 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   back out to the map. The tree is 177 pixels up the slope; dashing up covers about 120 in the calm,
   so no movie.
 
+### 12. Where the native program stops (recorded)
+- **What it was for**: not code no movie runs but states no movie reaches, which only
+  `ct_native` and the hand ports alone show (TODO.md, "Refusals in real play"). The survey and
+  the routes are in MOVIES.md ("Routes").
+- **Movies**: `events-magic-cave` (route `magic_cave`, ctsave06 slot 1, 6156 frames) and
+  `field-12kbc-after-the-fall` (`last_village_12kbc`, ctsave11 slot 2, 9269) stop there;
+  `battle-denadoro` (`denadoro_fight`, ctsave04 slot 2, 9532) fights monsters no other movie
+  fights.
+- **Code**: little that the 48 movies' union didn't run (each one's `--coverage` against it,
+  ROM banks): 0 instructions for the magic cave, 7 in `$C2` for the walk after the fall, 31
+  (`$C1` 25) for Denadoro's fight. The scenes' scripts and the monsters' AI are data, which the
+  instruction count doesn't see.
+- **Left out**: a fight inside Magus's castle (ctsave06 slot 3; 13 instructions more), whose way
+  from the hall into the next room the route's search finds only at some frames (MOVIES.md,
+  "Routes").
+
 ### Unknown
 - **Mode 5** (2.05 KiB): nothing found that starts it (Targets, 8).
 - **Field engine**, **battle other**, **enemy movement**, **sound driver** and
