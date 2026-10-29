@@ -199,9 +199,26 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
-Each starts from the technoplaza cartridge save its movie header names
-(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
-`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
+`cyrus` (`events-cyrus.ctm`, 39872 frames) starts from ctsave14 slot 1,
+before the Northern Ruins repairs. It takes the carpenter's request in
+600 A.D., borrows the tools from his counterpart's family in 1000 A.D.,
+returns them and commissions the repairs. The three left-wing guardian
+groups are beaten, that floor is repaired for 2000 G, and Frog replaces
+Crono for Cyrus's grave: the ghost, Masa and Mune, and the Masamune restored.
+The route checks the repair and completion flags, Frog's upgraded weapon,
+and player control at the end. Slot 2, used by `northern_ruins_switch`, is
+already after this quest. The right-wing treasure rooms need no visit.
+Its waypoint searches use machine copies and retain only successful walks;
+the fights use the `party` policy. Shadow has 0 mismatches and no refusals;
+strict mode reaches the end with five character-record bytes differing.
+The route also reaches its checked outcome in shipping mode
+(`--native on --generated on --sound-driver c`), at frame 38104.
+`ct_native` consumes all frames without a reported stop, but ends blanked,
+so that run does not establish the quest's outcome. See Targets, 12 in
+[movies-wanted.md](movies-wanted.md) for the coverage and native stops.
+
+Each starts from the cartridge save its movie header names, under
+`oracle/saves/`, which is the route's `SAVE`; `--sram` picks another.
 `--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and

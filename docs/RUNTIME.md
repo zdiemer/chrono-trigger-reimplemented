@@ -451,6 +451,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `battle-tyrano-lair-walls.ctm` | ctsave08, 1 | Volcano and Avian Rex: Volt Bite, Haste, won with an item drop and a level-up | 8042 |
 | `battle-black-tyrano.ctm` | ctsave08, 1 | Tyrano Lair's throne room: Azala and the Black Tyrano beaten with Lapis and Mid Tonics, then Lavos falling to the planet (scene mode 4; route `black_tyrano`) | 49219 |
 | `battle-guardian.ctm` | ctsave02, 3 | Arris Dome: the Guardian and its Bits, which it brings back, beaten (route `guardian`) | 25751 |
+| `events-cyrus.ctm` | ctsave14, 1 | Choras's tools and repairs, the Northern Ruins' left-wing guardians, Cyrus's ghost and the restored Masamune (route `cyrus`) | 39872 |
 | `battle-tech-sweep.ctm` | zophar chrono-trigger, 1 | Inside Lavos's shell: the second form and the Lavos Core fought with every single and double tech Crono, Magus and Marle have, each cast once (route `tech_sweep`) | 118090 |
 | `late-omen-battles.ctm` | ctsave15, 1 | Black Omen random battles won (results), status Chaos keeping Lucca confused, many single techs, running away from an ambush | 18412 |
 | `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, the dual tech list, Mega Bomb, Confuse, item menus, Life 2 on a fallen Crono | 17762 |

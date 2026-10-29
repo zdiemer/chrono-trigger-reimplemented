@@ -26,6 +26,17 @@ rest waits, is [PLAN.md](PLAN.md).
   be too once their handlers are entries. Adding a movie or a port means
   recalibrating, since the drift limit holds only for the measured value.
   `--generated only` stays exact.
+- **Cyrus's battle timing attribution.** After drift-only calibration on
+  `events-cyrus`, `battle_step_the_poses` and `battle_strike_the_poses`
+  have attributed work exceeding their reference totals: their own rates
+  clamp to 1 and still drift +86.03% and +72.91%. Check the shared graphics
+  rate and nested timing attribution across the library before changing
+  either port. The worst errors are 78364 and 78179 clocks; the timer
+  dispatch, due-animation scheduler and beaten-enemy step also exceed the
+  picture's worst-error limit in these three fights. These and three small
+  field/menu vblank tails are measured in `tools/timing_exceptions.txt`.
+  The narrowed vblank check has no new findings, and the shipping route
+  wins all three fights and reaches the restored Masamune with field control.
 - **Charge the endings' swept window by its lines.** `scene_ending_sweep_window`
   (`$7E:9A0C`, `game/scene/endings.c`) carries one calibrated `cost_milli`,
   but the original's time follows the window's lines and corners as it sweeps
@@ -2659,6 +2670,15 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
+- **Cyrus's fixed movie ends blanked in `ct_native`.** `events-cyrus`
+  (ctsave14 slot 1, 39872 frames) consumes all its inputs without a reported
+  missing C handler, but the display is blanked after 12 screen setups.
+  It reports two SNES-only video escapes, first `$7E:5AEB`. Establish how
+  far the input gets and whether the native timing misses an interaction;
+  consuming the frames does not establish the repaired ruins or restored
+  Masamune. The reference route reaches both and returns field control;
+  strict `ct_dev` reaches the movie's end with five character-record bytes
+  differing from the reference, not a handler stop.
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
   tables (`menu/handlers.c`, `overworld/handlers.c`); a handler or a routine

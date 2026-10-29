@@ -555,7 +555,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   so no movie.
 
 ### 12. The side quests
-No movie plays a side quest's events or bosses: the library's movies from the side-quest saves
+`events-cyrus` plays Cyrus's side quest. The earlier library's movies from the side-quest saves
 (`ctsave12`-`ctsave14`) open menus and shops, ride the Epoch, press the Northern Ruins' switch and
 dive into Lavos. The fantasyanime saves step through them in one order (oracle/saves/README.md),
 so each quest has a save just before it; which slot is the nearest, and what of each the library
@@ -571,8 +571,42 @@ already runs, is for its route to establish.
 | Cyrus's grave | ctsave14 slot 1 (slot 2 after it; `field-northern-ruins-switch` presses one switch) | the Northern Ruins and Cyrus's ghost, the Masamune's power restored | Hero's Grave guardians |
 | Geno Dome | ctsave14 slot 2 (Targets, 5) | the conveyors and doors | Atropos XR, MotherBrain |
 
-Each is an event-heavy play the native program hasn't met: the event commands, scene work and
-bosses they reach are where `ct_native`'s next stops are likely to be.
+These event-heavy plays exercise event commands, scene work and bosses that
+the earlier library did not reach, and may expose `ct_native`'s next stops.
+
+- **Movie**: `events-cyrus` (route `cyrus`, ctsave14 slot 1, 39872 frames):
+  the carpenter's request in Choras, 600 A.D.; his counterpart's loan and
+  the tools collected from the family in 1000 A.D.; the tools delivered,
+  the first repair, all three guardian groups in the ruins' left wing
+  (`$042`), and the carpenter's 2000 G repair of that floor. Frog replaces
+  Crono, reaches the grave (`$049`), speaks with Cyrus's ghost, and receives
+  the restored Masamune from Masa and Mune. The field is back in hand at
+  the end. Slot 1 has `$7F:019F = $00`, `$7F:01A3` bit 6 clear and Frog's
+  weapon `$7E:2769 = $3D`; slot 2 has `$EE`, the completion bit set, and
+  weapon `$42`. The movie ends with repair flags `$26`, the completion
+  bit set and weapon `$42`: only the left wing needs clearing and the
+  paid repair; the right wing's treasure rooms are outside this play.
+  It reaches 0.29 KiB (298 bytes) no other movie runs, all ported, measured
+  against the other 48 movies' cached coverage: the overworld's region-song
+  fade and restart (`$C2:3011`-`$309D`, with gaps), the event's item given
+  from a variable and item removal (`$C0:37C7`-`$37F8`), and taking the last
+  inventory item (`$C1:D056`-`$D085`, with gaps); smaller field, battle and
+  overworld paths account for the rest. Shadow clean: 0 mismatches, no
+  guard refusals, `page refused` or `accessor out of range`; the C sound
+  driver matches all 122254 ticks. The route also reaches the restored sword
+  and field control in shipping mode (`--native on --generated on
+  --sound-driver c`), at frame 38104. Strict mode (`--native on --generated off
+  --no-interpreter strict --sound-driver c`) reaches all 39872 frames, with
+  five saved-game bytes differing in `character_records` (first addresses
+  `$7E:2607`, `$7E:26A3`, `$7E:26A4`, `$7E:26A7`), recorded as `drifts` in
+  the strict baseline. `ct_native` reports no stop through all 39872 frames,
+  but ends blanked after 12 screen setups, with two SNES-only video escapes
+  (first `$7E:5AEB`); this does not establish quest completion in that
+  frontend (TODO.md, "The native program").
+  Drift-only calibration updates 217 registry estimates. Eight entries
+  retain measured timing exceptions (ten limit lines), including pose
+  timing attribution that cannot be fitted with a positive remaining rate;
+  TODO.md records the follow-up. The narrowed vblank check has no new findings.
 
 ### 13. The story events no movie plays
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's

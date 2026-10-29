@@ -190,3 +190,17 @@ field_copy_tiles worst the same copy from the field's own call: at most 50846 cl
 menu_note_rock_techs vblank-tail notes which rock techs the party has, its time following the party's members and their records: 16% of its 120 stretches in vblank off by a line, at most 1076 clocks
 menu_show_what_the_party_wears vblank-tail shows the party's wear on the field's sprites, run as C by the menus' close now (menu/display.c): 1.8% of its stretches in vblank off by a line, at most 1180 clocks, writing RAM
 menu_window_copy_bytes vblank-tail copies a window's bytes into the menus' tilemap buffer in RAM, its time following the window's size: 2.6% of its stretches in vblank off by a line or more, at most 1944 clocks
+
+# events-cyrus, after --calibrate --drifted: the narrowed vblank check has
+# no new findings, and the shipping route reaches the restored sword and
+# field control. The pose estimates need a follow-up (TODO.md, accuracy).
+battle_dispatch_expired_timers worst dispatches the due battle timers and their handlers, whose paths vary with the statuses and turn: events-cyrus has 85 stretches, none wholly in vblank, at most 66195 clocks off; the vblank check finds no new moved video write
+battle_find_due_animation worst the due object's animation may build graphics or wait for an upload: events-cyrus has 3456 stretches, at most 51996 clocks off on the picture (1867 in vblank); it prepares graphics for a later upload, and the vblank check finds no new moved video write
+battle_see_to_the_beaten_enemies worst carries the enemies' removal, effects and waits, with 290 interrupt-bounded stretches in events-cyrus, none wholly in vblank; at most 67719 clocks off, and no new moved video write in the vblank check
+battle_step_the_poses drift the pose frames' attributed graphics and stat-block work already exceed their reference totals in events-cyrus, so the remaining cost clamps to 1 and still drifts +86.03%; the work builds queued graphics, no stretch is wholly in vblank, and the vblank check finds no new moved video write; TODO.md tracks the timing attribution
+battle_step_the_poses worst the same pose frames: at most 78364 clocks off, building graphics for the following upload; the shipping route completes all three fights and the vblank check finds no new moved video write
+battle_strike_the_poses drift carries the poses' steps and their attributed graphics work, whose excess leaves the remaining cost clamped to 1: +72.91% in events-cyrus, with none of its 393 stretches wholly in vblank; no new moved video write in the vblank check, and the shipping route reaches its outcome
+battle_strike_the_poses worst the same poses and their frame waits: at most 78179 clocks off; no new moved video write in the vblank check
+event_cmd_move_in_direction vblank-tail moves an event object's position in RAM: 2 of 134 stretches wholly in vblank in events-cyrus exceed 1024 clocks, at most 1099; no new moved video write in the vblank check
+menu_object_cmd_for_frames_animating vblank-tail counts an object's animation frames, its path following the animation state: 1.11% of 16549 stretches wholly in vblank in events-cyrus exceed 1024 clocks, at most 1039; no new moved video write in the vblank check
+menu_run_object_script vblank-tail the object's script carries its commands' varying paths: 1.54% of 25553 stretches wholly in vblank in events-cyrus exceed 1024 clocks, at most 1628; no new moved video write in the vblank check
