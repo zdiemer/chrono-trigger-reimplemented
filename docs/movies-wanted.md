@@ -574,6 +574,32 @@ already runs, is for its route to establish.
 Each is an event-heavy play the native program hasn't met: the event commands, scene work and
 bosses they reach are where `ct_native`'s next stops are likely to be.
 
+### 13. The story events no movie plays
+The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's
+castle, the dactyls, the Black Tyrano, the Keeper's Dome, the Golem Twins, the Blackbird, the
+Black Omen and Lavos. The rest of the story has saves just before it (oracle/saves/README.md) and
+no movie; the slot named is the nearest found from the README, for the route to confirm.
+
+| Era | Event | Save before it | Boss |
+|---|---|---|---|
+| 12,000 B.C. | The Ocean Palace's end: Lavos rises, Crono falls, Zeal's fall | after ctsave10 slot 3 (the Golem Twins) | Lavos (the loss is scripted) |
+| 2300 A.D. | Death Peak: the wind, the Time Egg, Crono brought back | ctsave11 slot 3, ctsave12 slot 1 | Lavos Spawn |
+| 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra |
+| 1000 A.D. | The trial | ctsave01 slot 3 is after it; a save before is to find | -- |
+| 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank |
+| 2300 A.D. | Robo repaired at Proto Dome | between ctsave02 and ctsave03 | -- |
+| 600 A.D. | Zenan Bridge | ctsave04 slot 1 | Zombor |
+| 600 A.D. | Denadoro and the Masamune | ctsave04 slot 2 | Masa & Mune (`battle-denadoro` may hold the fight) |
+| 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel |
+| 12,000 B.C. | Zeal's palace and the Mammon Machine | ctsave08 slots 2-3 | -- |
+| 12,000 B.C. | Mt. Woe | ctsave09 slot 3 | Giga Gaia |
+| several | The Blackbird's end and the Epoch's wings | ctsave11 | Dalton Plus |
+
+Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
+shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.
+The Ocean Palace's end and Crono's return are the story's largest scripted scenes, so they come
+first.
+
 ### Unknown
 - **Mode 5** (2.05 KiB): nothing found that starts it (Targets, 8).
 - **Field engine**, **battle other**, **enemy movement**, **sound driver** and
