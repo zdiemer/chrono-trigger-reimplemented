@@ -37,6 +37,7 @@ void tm_host_start(Platform *pf, const TmHostProgram *program, uint32_t seed)
 void tm_host_frame(Platform *pf)
 {
     TmHost *t = &pf->timing;
+    vid_host_frame_begins(pf);
     if ((t->interrupts & TM_INT_VBLANK) && t->program.vblank) {
         t->part = TM_HOST_IN_VBLANK;
         t->program.vblank(pf, t->program.ctx);

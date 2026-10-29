@@ -2659,6 +2659,30 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
+- **Long movies desync in `ct_native`.** A movie's presses are the
+  reference play's, frame for frame, and the native program's frames aren't
+  the machine's, so a long movie goes elsewhere: its end is reached, its
+  picture shows, and the game is somewhere the reference never was.
+  Measured with `ct_native --locations` against the shipping mode's
+  `$7E:0100` (`tools/trace.py peek`): `battle-ozzies-fort` keeps to the
+  reference's places to its end, within 60 frames; `events-cyrus` to the
+  frame until the Northern Ruins' battle (18185), which native never wins
+  (Crono at 877 HP where the reference's has 694 and has won by 20000);
+  `battle-zombor` enters Zenan Bridge at 3359, where the reference stands on
+  the world map until 18716 (the presses meant for the map play in the
+  field); `battle-giga-gaia` leaves `$18B` never, the reference at 4232;
+  `battle-dragon-tank` loses its battle, game over at 12246; and
+  `battle-lavos-gameover` reaches the planet's "the future refused to
+  change" while the reference still holds the operator's dialog. Battles
+  are where it shows most: their menus wait and their blows land by the
+  frame. `tools/native_check.py` reports each movie's end state against the
+  reference play's (`drifts`), but only the dark screen fails the gate. To
+  make a movie a measure of the native program rather than of where its
+  presses land: compare the places entered, in order, with the reference's
+  (a `ct_dev --locations` beside `ct_native`'s), and drive the long movies'
+  native runs by their routes (`ct_drive`'s scripts react to the game's
+  state, docs/MOVIES.md) instead of by recorded presses.
+
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
   tables (`menu/handlers.c`, `overworld/handlers.c`); a handler or a routine

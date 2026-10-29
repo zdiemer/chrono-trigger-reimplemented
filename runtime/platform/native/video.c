@@ -1,9 +1,15 @@
 /* Video service, host backend (runtime/platform/native/host.h): every call
  * folded into the picture's state by the observer (platform/observe.h), which
  * keeps VRAM, the palette, the sprite table and every setting as the calls
- * leave them, and expands the line effects from the game's tables. Nothing
- * is drawn yet: the observer's frame is what a renderer would draw
- * (docs/TODO.md, "The native program").
+ * leave them, and expands the line effects from the game's tables. The
+ * observer's frame (vid_host_picture) is what the native renderer draws.
+ *
+ * The handlers run whole, one after the other, with no beam: the vblank
+ * handler, the main thread, then the line handler, which ends the picture at
+ * its line. What the line handler changes of the display and the line effects
+ * (the rest blanked, the per-line settings off) applies below its line, and
+ * from the next frame's top until a call sets it again, as the SNES's
+ * registers keep it (docs/PLATFORM.md, "The model").
  *
  * The data a call names is the game's, read through the reader the driver
  * gives (vid_host_start). A host makes every send at once: it has no picture
@@ -30,30 +36,89 @@ void vid_host_stop(Platform *pf)
     pf->video.observer = NULL;
 }
 
+/* The lines above what the line handler changed show the frame's display and
+ * line effects, the rest the changes. */
 const VidFrame *vid_host_picture(Platform *pf)
 {
-    VidObserver *ob = pf->video.observer;
+    VidHost *v = &pf->video;
+    VidObserver *ob = v->observer;
+    vid_obs_display(ob, &v->display);
+    vid_obs_enable_line_effects(ob, v->line_effects);
     vid_obs_frame_start(ob);
-    for (uint16_t line = 0; line <= VID_HOST_LAST_LINE; line++)
+    for (uint16_t line = 0; line <= VID_HOST_LAST_LINE; line++) {
+        if (v->below_from && line == v->below_from) {
+            if (v->below_display)
+                vid_obs_display(ob, &v->display_below);
+            if (v->below_line_effects)
+                vid_obs_enable_line_effects(ob, v->line_effects_below);
+        }
         vid_obs_line(ob, line);
+    }
     return vid_obs_frame(ob);
+}
+
+void vid_host_frame_begins(Platform *pf)
+{
+    VidHost *v = &pf->video;
+    if (v->below_display) {
+        v->display = v->display_below;
+        vid_obs_display(v->observer, &v->display);
+    }
+    if (v->below_line_effects) {
+        v->line_effects = v->line_effects_below;
+        vid_obs_enable_line_effects(v->observer, v->line_effects);
+    }
+    v->below_from = 0;
+    v->below_display = v->below_line_effects = false;
 }
 
 static VidObserver *ob(Platform *pf) { return pf->video.observer; }
 
 /* ---- The picture's settings ------------------------------------------------------------------- */
 
-void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d)
+/* A change the line handler makes shows from the line after its own (the
+ * lines the picture keeps, tm_host_picture_lines). */
+static uint16_t below_the_line_handler(const Platform *pf)
 {
-    (void)o;
-    pf->video.display = *d;
+    return pf->timing.part == TM_HOST_IN_LINE ? (uint16_t)(pf->timing.line + 1) : 0;
+}
+
+/* Whether a change from line `from` is one below a line of the picture (not
+ * its top, nor past its end); the first such line the frame's changes start
+ * from. */
+static bool from_a_line(Platform *pf, uint16_t from)
+{
+    if (from == 0 || from > VID_HOST_LAST_LINE)
+        return false;
+    if (!pf->video.below_from || from < pf->video.below_from)
+        pf->video.below_from = from;
+    return true;
+}
+
+static void display_from(Platform *pf, uint16_t from, const VidDisplay *d)
+{
+    VidHost *v = &pf->video;
+    if (from_a_line(pf, from)) {
+        v->below_display = true;
+        v->display_below = *d;
+        return;
+    }
+    v->display = *d;
+    v->below_display = false;
     vid_obs_display(ob(pf), d);
 }
 
+void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d)
+{
+    (void)o;
+    display_from(pf, below_the_line_handler(pf), d);
+}
+
+/* At the line given, or below the line handler's. */
 void vid_raster_display(Platform *pf, PfOrigin o, uint16_t line, const VidDisplay *d)
 {
-    (void)line;
-    vid_set_display(pf, o, d);
+    (void)o;
+    display_from(pf, line == VID_AT_LINE_HANDLER ? below_the_line_handler(pf) : line, d);
 }
 
 void vid_set_mode(Platform *pf, PfOrigin o, const VidMode *m) { (void)o; vid_obs_mode(ob(pf), m); }
@@ -138,7 +203,14 @@ void vid_set_line_table(Platform *pf, PfOrigin o, uint8_t slot, uint16_t table)
 void vid_enable_line_effects(Platform *pf, PfOrigin o, uint8_t slots)
 {
     (void)o;
-    pf->video.line_effects = slots;
+    VidHost *v = &pf->video;
+    if (from_a_line(pf, below_the_line_handler(pf))) {
+        v->below_line_effects = true;
+        v->line_effects_below = slots;
+        return;
+    }
+    v->line_effects = slots;
+    v->below_line_effects = false;
     vid_obs_enable_line_effects(ob(pf), slots);
 }
 

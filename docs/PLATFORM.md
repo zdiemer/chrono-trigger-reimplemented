@@ -2225,7 +2225,13 @@ The driver calls the game once per displayed frame, and a frame is:
 
 The picture is the video state the vblank handler left, with the per-line
 effects and the calls that name a line (`vid_raster_display`) applied from
-their lines. A video call from the main thread applies from the next frame. On
+their lines. What the line handler changes of the display and the line
+effects (where the field, the battles and the scene boot end their picture:
+the rest blanked, the per-line settings off) applies below its line too, and
+holds from the next frame's top until a call sets it again, as the SNES's
+registers keep it (`runtime/platform/native/video.c`; taken as the whole
+frame's, it blanked the picture, or lost the text layer and garbled the
+backgrounds with the per-line settings). A video call from the main thread applies from the next frame. On
 the SNES such a write lands wherever the beam is, and where that is inside the
 picture the vblank check lists it as an exception
 (`tools/vblank_check_exceptions.txt`); a native build shows it a frame later,

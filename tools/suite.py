@@ -55,7 +55,10 @@ and its routes reaching their outcomes (the fast set; all of them with
 region the matching build extracts (tools/assets.py check); and no movie stopping earlier than it did on the hand ports
 alone, with no generated code and no interpreter, nor any reaching its end
 other than as the reference play does (tools/strict_check.py, a ratchet
-against tools/strict_baseline.txt). Exit status is 0 only when all of
+against tools/strict_baseline.txt); and every movie in the native program
+(ct_native, the game with no emulator) neither crashing nor ending on a dark
+screen, where each stops and whether it ends as the reference play does being
+reported (tools/native_check.py). Exit status is 0 only when all of
 that holds.
 
 Each movie's frame count comes from its own `# frames N` header, and a movie
@@ -588,6 +591,25 @@ def check_strict(args, ctx):
     return rc == 0, "strict", summary, [] if rc == 0 else [l for l in lines[:-1] if "<--" in l or "not in" in l][-40:]
 
 
+def check_native(args, ctx):
+    """Every movie in the native program (ct_native, beside ct_dev), none ending
+    on a dark screen or crashing (tools/native_check.py --check); where each
+    stops, and whether it ends as the shadow runs' reference play does, are
+    reported with it. Over a subset of the library (--movies, --only) it checks
+    those."""
+    native = ctx["binary"].with_name("ct_native" + ctx["binary"].suffix)
+    if not native.exists():
+        return False, "native", "%s isn't built" % native.name, []
+    cmd = [sys.executable, str(ROOT / "tools/native_check.py"), "--ct-native", str(native), "--rom", str(args.rom),
+           "--check", "-j", str(max(1, min(ctx["jobs"], 2))), "--reference", str(args.out)] + PACK_ARGS
+    if not ctx["complete"]:
+        cmd += ["--movies"] + list(ctx["movies"])
+    rc, lines = run_tool(cmd)
+    summary = lines[-1] if lines else "no output"
+    return rc == 0, "native", summary, [] if rc == 0 else [l for l in lines[:-1] if ": dark" in l or ": crashed" in l
+                                                           or ": hung" in l][-40:]
+
+
 def check_effects(args, ctx):
     """No port reads, as logic, what some port writes only as scaffolding
     (tools/effects_check.py, a ratchet against its baseline): in the source,
@@ -659,6 +681,7 @@ CHECKS = (
     ("dontcare", check_dontcare, "the don't-care declarations against liveness"),
     ("uncompared", check_uncompared, "the ratchet on hand ports the shadow runs mostly leave uncompared"),
     ("strict", check_strict, "the ratchet on how far the hand ports alone carry each movie"),
+    ("native", check_native, "the movies in the native program, none ending dark"),
     ("effects", check_effects, "the ratchet on logic that reads scaffolding"),
     ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
     ("portsmell", check_portsmell, "the ratchet on the review rubric's mechanical items"),

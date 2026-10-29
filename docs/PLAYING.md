@@ -494,11 +494,30 @@ down"). It is a measurement, not yet a player:
 
 ```sh
 build/main/ct_native --rom roms/ct-usa.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]
+                     [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations]
 ```
 
 With `--movie` the first controller presses what the movie's frames say,
 frame for frame; the native program's frames aren't the machine's (nothing
-in it takes the original's time), so a movie's presses land where they will.
+in it takes the original's time), so a movie's presses land where they will,
+and a long movie goes elsewhere than its reference play: TODO.md, "The native
+program". `--locations` lists each place the run enters, with its frame, to
+set beside the reference's (`tools/trace.py peek <trace> '$7E:0100' --len 2`
+over a `ct_dev` trace); `--end-state` writes work RAM and save RAM at the end,
+as `ct_dev --end-state` does.
+
+Each frame's picture is drawn by the native renderer
+(`runtime/platform/native/render.c`) from the video service's state, and the
+run ends saying whether it is showing and the longest stretch it was black
+(`picture: dark since frame F ...`); `--shot-every` writes every Nth as a PNG.
+`tools/native_check.py` runs every library movie so, and the gate fails a
+movie that ends on a dark screen: getting to the last frame says nothing of
+the picture. That is how the line handlers' end of the picture was found
+taken as the whole frame's (the field's, the battles' and the scene boot's
+blank and line effects off below line 211, which left a picture blank, or with
+no text layer and its backgrounds garbled where the per-line settings were
+lost): the native video backend keeps what the line handler changes for the
+lines below it (PLATFORM.md, "The model").
 
 It links the whole of `game/` but `game/registry.c` -- the program's top in
 `game/core/program.c` (the boot, the main thread, the vblank and line
@@ -527,7 +546,7 @@ it shrinks as the wrappers leave.
 The host backends answer every service call the game makes. Video folds the
 calls into the picture's state through the development system's observer
 (`runtime/platform/observe.h`), reading the game's memory through the
-driver's reader; nothing draws it yet. The SNES's escapes a host has no
+driver's reader, and the driver draws the frame it makes. The SNES's escapes a host has no
 meaning for are counted and reported, but for the two whose meaning is
 memory: the field's clear, the multiplier's product copied over work RAM, and
 the menus' clears and copies through work RAM's data port, which the host
