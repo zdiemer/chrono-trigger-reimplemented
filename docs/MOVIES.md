@@ -222,6 +222,13 @@ shuffle. Local `$0C` names the soldier, whose object identity (`$14`-`$16`)
 survives the permutation. The route identifies soldier 3, verifies Crono's
 Poyozo Doll flag, and ends outside with the field back in hand.
 
+`fair_rescue` (`events-fair-rescue.ctm`, ctsave14 slot 1, 7681 frames)
+pays 80 points, pushes all three monsters back with the rock launchers, and
+rescues the companion. It checks the companion's fall counter and uses the
+candy at 190 (four times in this recording); clearing the monsters alone
+does not prove a win. The route verifies the cat-award flag and returns to
+the lower square, whose cat-care arithmetic now runs on entry.
+
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
