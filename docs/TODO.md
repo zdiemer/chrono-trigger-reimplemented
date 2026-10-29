@@ -9,6 +9,16 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **Giga Gaia's timing spread after drift calibration.** Its narrowed replay
+  leaves worst-case errors of 58387, 57545 and 58882 clocks in
+  `battle_dispatch_expired_timers`, `battle_see_to_knocked_out_enemies` and
+  `battle_see_to_the_beaten_enemies`; `battle_frame_work` and `field_nmi` exceed
+  the vblank tail frequency at 1.73% and 1.36%, with maxima of 1428 and 4210
+  clocks. The title setup's worst error is 59055 clocks in a 5496794-clock
+  setup. These are in `tools/timing_exceptions.txt`: the shipping replay has
+  no failing video-write findings. Revisit the timing spread over the combined
+  library before changing the ports or their attribution.
+
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
   the original (battles play out differently). That difference is accepted
   (REIMPLEMENTATION.md, "Can a hand port be exact?"); the timing gate bounds the errors
@@ -2658,6 +2668,14 @@ rising palace as C), and with `new-game.ctm`'s, `fair.ctm`'s,
 the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
+
+- **Giga Gaia's movie in the native program.** `battle-giga-gaia` consumes
+  all 33261 frames without a reported machine-only entry, but ends blanked
+  after only three screen setups (two SNES video escapes, first `$7E:5AEB`).
+  Find where progress stalls; reaching the frame limit does not establish
+  the rescue or the field outcome. The same movie in strict `ct_dev` reaches
+  its frame limit without stopping, with 572 saved-game bytes different from
+  reference play under native timing.
 
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C

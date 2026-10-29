@@ -199,9 +199,26 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
-Each starts from the technoplaza cartridge save its movie header names
-(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
-`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
+`giga_gaia` (`battle-giga-gaia.ctm`, 33261 frames) starts from ctsave09 slot 3,
+on Mt. Woe at story `$B4`, before the summit's arrival flag (`$7F:01A0` bit 3).
+It crosses the last bridges, beats Giga Gaia and its regenerating arms, frees
+Melchior and watches the mountain fall, then closes the Terra Cave conversation
+until the field is back in hand (`$17E`, story `$BA`). Its checkpoint search
+includes the map level in each position: a bridge and the path under it lead
+to different places. At the northern chain's end it holds UP into the exit;
+at the summit it approaches the crystal and confirms. The battle policy uses
+Lightning 2, Ice 2 and Fire 2 against the arms, Spincut against the head, and
+the save's healing items. The recorded fight wins without backtracking.
+Shadow replay is clean, including sound lockstep, with no guard refusals;
+coverage adds 137 instruction addresses (301 bytes) to the previous 48 movies,
+including the overworld object drift used during the mountain's fall.
+Strict mode reaches the frame limit with saved-game drift. `ct_native` reports
+no stop but ends blanked after three screen setups; this is an open follow-up
+in TODO.md, not evidence that it completes the scene.
+
+Each starts from the cartridge save its movie header names, archived under
+`oracle/saves/` (the archive sources are in its README) and named by the
+route's `SAVE`; `--sram` picks another.
 `--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and

@@ -592,13 +592,30 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 600 A.D. | Denadoro and the Masamune | ctsave04 slot 2 | Masa & Mune (`battle-denadoro` may hold the fight) |
 | 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel |
 | 12,000 B.C. | Zeal's palace and the Mammon Machine | ctsave08 slots 2-3 | -- |
-| 12,000 B.C. | Mt. Woe | ctsave09 slot 3 | Giga Gaia |
+| 12,000 B.C. | Mt. Woe (`battle-giga-gaia`, recorded below) | ctsave09 slot 3 | Giga Gaia |
 | several | The Blackbird's end and the Epoch's wings | ctsave11 | Dalton Plus |
 
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.
 The Ocean Palace's end and Crono's return are the story's largest scripted scenes, so they come
 first.
+
+- **Movie**: `battle-giga-gaia` (route `giga_gaia`, ctsave09 slot 3, 33261 frames):
+  the save's story counter is `$B4`, on Mt. Woe's `$189`, with the summit's arrival
+  flag (`$7F:01A0` bit 3) clear. Across `$18B` to `$18D`, confirm at the crystal,
+  defeat Giga Gaia and its regenerating arms, free Melchior and watch Mt. Woe fall;
+  the Terra Cave conversation ends at `$17E`, story `$BA`, with control restored.
+  The fight needs no backtrack. The walking search keeps the map level as well as
+  position, so it can cross the bridges and the paths beneath them; a held UP at
+  the northern chain's end enters the summit. Against the previous 48 movies it
+  reaches 137 new instruction addresses (301 ROM bytes): chiefly
+  `menu_object_drift` (`$C6:E2B5`-`$E317`), the overworld object sound command
+  (`$C2:191F`-`$1946`), the field's walk, scroll and follower poses, and the enemy
+  revival's `$C1:9EEE`-`$9EFA`. Shadow clean: zero mismatches, refusals, refused
+  pages or out-of-range accessors; sound lockstep identical. Strict mode reaches
+  all 33261 frames with saved-game drift (572 bytes). `ct_native` reports no
+  stop, but ends blanked after three screen setups; TODO.md records the stalled
+  progress, since this does not establish a completed native playthrough.
 
 ### 14. The original's known glitches
 A faithful port reproduces the original's mistakes, so plays that lean on its documented glitches

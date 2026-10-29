@@ -18,6 +18,15 @@
 # vblank and outlast it (loads, setups, the load screen's frame): their error
 # moves work on the picture, and `worst` judges it there.
 
+# Giga Gaia after drift calibration on its movie. The shipping-mode vblank
+# check has no failing findings; TODO.md tracks the remaining timing spread.
+battle_dispatch_expired_timers worst Giga Gaia's due-timer dispatch: max 58387 clocks, mean absolute error 3.6% and drift +0.25%; the shipping replay has no newly misplaced video write
+battle_see_to_knocked_out_enemies worst Giga Gaia's knocked-out enemy reactions: max 57545 clocks, mean absolute error 34.5% with zero mean drift; the shipping replay has no newly misplaced video write
+battle_see_to_the_beaten_enemies worst Giga Gaia's beaten-enemy work: max 58882 clocks, mean absolute error 12.1% and drift +0.01%; the shipping replay has no newly misplaced video write
+battle_frame_work vblank-tail Giga Gaia's frame work: 1.73% of vblank stretches off by at least 1024 clocks, max 1428 (1.05 lines), with -0.02% drift; the shipping replay has no newly misplaced video write
+field_nmi vblank-tail Giga Gaia's field transitions and rescue: 1.36% of vblank stretches off by at least 1024 clocks, max 4210 (3.09 lines), with -0.08% drift; the shipping replay has no newly misplaced video write
+scene_title_set_up worst the movie's title setup after its callees' drift calibration: max 59055 clocks in a 5496794-clock setup (1.1%), moving when the setup ends; the shipping replay has no newly misplaced video write
+
 # The decompressor: a call is 260-290 lines on average (a frame is 262),
 # seven times the length of vblank, and interrupts are taken during its time: its error
 # moves the end of a load (by 6% of it on average), not a video write. Its time
