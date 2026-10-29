@@ -180,6 +180,40 @@ def party_with_lapis(bot, state, rng, inventory):
     return party(bot, state, rng, inventory)
 
 
+def r_series(bot, state, rng, inventory):
+    """Crono and Lucca against the factory's two columns of R Series robots.
+
+    Their middle slots (4 and 9) center Fire Whirl on a column. Read its
+    entry from the live list: combination techs follow the learned singles,
+    so they do not have a fixed menu index. The early save has Tonics and
+    Mid Tonics, but none of the late healing items the general policy uses.
+    """
+    member = state.member
+    for slot in range(2):
+        if not state.hp(slot):
+            action = use(inventory, REVIVE, slot)
+            if action:
+                return action
+    lowest = min(range(2), key=lambda slot: fraction(state, slot))
+    if fraction(state, lowest) < 0.5 + 0.15 * rng.random():
+        for item in (MID_TONIC, TONIC):
+            action = use(inventory, item, lowest)
+            if action:
+                return action
+    living = enemies(state)
+    if not living:
+        return ("attack", None)
+    target = next((slot for slot in (4, 9) if slot in living), living[0])
+    if state.mp(0) >= 2 and state.mp(1) >= 3 and rng.random() < 0.9:
+        base = bot.machine.b(A.BATTLE_TECH_LIST_BASE + member)
+        entries = bot.machine.peek(A.BATTLE_TECH_LIST_IDS + base, 20)
+        if 0x3C in entries:                         # Fire Whirl
+            return ("tech", entries.index(0x3C), target)
+    if member == 0 and state.mp(0) >= 2:
+        return ("tech", 0, target)                  # Cyclone
+    return ("attack", min(living, key=lambda slot: state.hp(slot)))
+
+
 def crono_and_marle(bot, state, rng, inventory):
     """Crono and Marle (the New Game+ telepod route): Luminaire and Ice 2, Marle heals."""
     member = state.member
@@ -386,6 +420,7 @@ def tracking_do(bot, cast_ids, refused=None, damage=None):
 POLICIES = {
     "party": party,
     "party_with_lapis": party_with_lapis,
+    "r_series": r_series,
     "crono_and_marle": crono_and_marle,
     "crono_and_marle_core": crono_and_marle_core,
 }

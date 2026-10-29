@@ -344,14 +344,36 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   unported (`$CD:0DFA`). Shadow clean: no mismatch, refusal, `page refused` or `accessor out of
   range`. The route reaches its end in the shipping mode (`route_check --mode on:on:c`: the fight
   won on the 84th try, frame 22954; the end at 24934).
+- **Movie**: `battle-r-series` (route `r_series`, ctsave03 slot 2, 65437 frames): the
+  Factory Ruins entrance (`$0E4`), upper lab (`$0E5`), lower lab (`$0E6`) and basement
+  (`$0EB`). The lab consoles open the ladder and lower security doors; the basement
+  code reader checks X, A, B, Y directly, without a warehouse-crane prerequisite.
+  Power sets story `$3F`; after Robo holds the closing shutters, the return up the
+  lab corridor triggers the six R Series robots and removes Robo from the party.
+  Crono and Lucca win with the `r_series` policy (Fire Whirl, Cyclone and the save's
+  healing items), without backtracking, at frame 59107. Robo's rescue and repair
+  and the Gate trip follow; the movie ends at the End of Time (`$1D0`, story `$48`),
+  with the field back in hand, rather than during a location load.
+  Its shadow run covers 131499 ROM code bytes. Against the archived shadow
+  coverage of the other 48 movies, it adds 910 ROM code bytes (0.89 KiB), all
+  under hand-port comparisons, with no new RAM-code
+  instruction starts: enemy identity,
+  reach and battlefield-half tests (`$C1:8F87`, `$C1:925D`, `$C1:93E6`), learning
+  and announcing single/double techs (`rewards_count_tech_points`,
+  `rewards_learn_single_tech`, `battle_show_the_rewards`), remembered floor switches,
+  held-button event tests and removing Robo from the active party. Shadow clean:
+  no mismatches, refusals, `page refused` or `accessor out of range`; sound lockstep
+  identical. Strict mode runs all 65437 frames with timing drift in the saved game.
+  `ct_native` also runs the full length without a stop, reporting two video escapes
+  (first `$7E:5AEB`, the title's plane fill); neither fixed-input native replay is a
+  check that the route's outcome survives native timing.
 - **Not attempted, impractical from the saves there are**: Nizbel II is at `$130`, off Tyrano Lair's
   hall (`$12A`). ctsave08 slot 1 has it beaten (story bit `$7F:00EE` bit 0); ctsave07 slot 3, the
   only save before it, stands on the world map outside the lair, whose entrance (`$12B`) is shut
   until Kino is freed (its door's tiles copied in where `$7F:0063` bit 0 is set) and whose other
   way in (`$1AE`, a room of Reptites) leads on through the lair's switch rooms: a route through the
   lair's puzzles, not a walk. MotherBrain (`$10C`, Geno Dome) has no save inside or near the dome
-  (ctsave14 slot 2 stands on the 600 A.D. world map, slot 3 after the fight), and R Series (the
-  factory) none nearer than ctsave03 slot 2 on the 2300 A.D. world map: each is a dungeon of
+  (ctsave14 slot 2 stands on the 600 A.D. world map, slot 3 after the fight): a dungeon of
   switches and conveyors before the fight.
 
 ### 5b. The Day of Lavos after a loss

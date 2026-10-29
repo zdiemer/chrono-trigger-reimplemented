@@ -190,3 +190,12 @@ field_copy_tiles worst the same copy from the field's own call: at most 50846 cl
 menu_note_rock_techs vblank-tail notes which rock techs the party has, its time following the party's members and their records: 16% of its 120 stretches in vblank off by a line, at most 1076 clocks
 menu_show_what_the_party_wears vblank-tail shows the party's wear on the field's sprites, run as C by the menus' close now (menu/display.c): 1.8% of its stretches in vblank off by a line, at most 1180 clocks, writing RAM
 menu_window_copy_bytes vblank-tail copies a window's bytes into the menus' tilemap buffer in RAM, its time following the window's size: 2.6% of its stretches in vblank off by a line or more, at most 1944 clocks
+
+# Factory Ruins, measured over battle-r-series after drift-only calibration.
+# The narrowed video-write check adds no failing finding; recheck these with
+# the combined library (TODO.md, "Factory route timing estimates").
+battle_effect_anchor_jump vblank-tail the jump's moving and finishing branches update an anchor in RAM; 2.30% of 478 vblank stretches off by 1024 clocks or more, at most 1225 clocks (less than one scanline), with no new picture-write finding in battle-r-series
+battle_step_orbits vblank-tail the number of enemies whose drift is due varies within the loop, which updates combatant positions in RAM; 1.10% of 10940 vblank stretches off by 1024 clocks or more, at most 2022 clocks, with no new picture-write finding in battle-r-series
+battle_step_the_poses drift cost_milli is already 1: graphics rebuilding charged at battle_build_frame_graphics' rate leaves +2.96% drift over 1024 stretches, none wholly in vblank; pose steps build RAM with uploads held until the alternate frame, and battle-r-series adds no picture-write finding
+field_nmi vblank-tail the pending frame's sprite queue, edge uploads and display work vary under their attributed rates; 1.23% of 45026 vblank stretches off by 1024 clocks or more, at most 6168 clocks; battle-r-series' shipping-mode video-write check adds no failing finding
+menu_choose_second_to_exchange vblank-tail the two swap frames among 132 vblank stretches do more work than cursor polls, swapping party rows in RAM and queuing their upload; 1.52% off by 1024 clocks or more, at most 7079 clocks, with no new picture-write finding in battle-r-series
