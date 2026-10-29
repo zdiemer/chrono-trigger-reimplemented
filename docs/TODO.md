@@ -2658,7 +2658,9 @@ in `uncompared_baseline.txt`.
 
 - **Zombor's strict replay refuses `field_press_confirm`.** `battle-zombor`
   stops at frame 20301, `$C0:1AAC`, with A=$0000, X=$0000, Y=$0090,
-  S=$06FD, D=$0100, DB=$00, P=$22. Its reference shadow run has no refusal.
+  S=$06FD, D=$0100, DB=$00, P=$22. The shipping replay refuses at the same
+  frame and state, then uses the original code. Its reference shadow run
+  has no refusal.
   Locate the strict replay's divergent field state and make the guard's
   valid case work; the `gap` entry in `refusal_allowlist.txt` records this
   remaining work, without claiming that the strict inputs win the battle.

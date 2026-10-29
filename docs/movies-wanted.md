@@ -642,6 +642,12 @@ no movie; the slot named is the nearest found from the README, for the route to 
   ticks. No fallback baseline increase is needed. `ct_native` reaches 16042
   with the screen showing; strict also reaches the limit, differing from
   the reference by 35 saved-game bytes (`drifts`). Neither has a code stop.
+  The combined effects check exposed the grid's party-off-grid traversal:
+  it scans slots 3 through 13, so object 23's Y aliases the drawn frame's X
+  at `$7E:1D2E`. The existing frame-X store now stays outside
+  `ORIGINAL_EFFECT`, since the grid consumes it as game state. This removes
+  the scratch reads attributed to `battle_dispatch_expired_timers` and
+  `battle_carry_out_member_action` without adding a new port.
 
 - **Zombor movie**: `battle-zombor` (route `zombor`, ctsave04 slot 1,
   26320 frames). The save starts outside Zenan Bridge at story `$54`, with
@@ -658,7 +664,8 @@ no movie; the slot named is the nearest found from the README, for the route to 
   matches for 81810 ticks. No fallback baseline increase is needed.
   `ct_native` reaches the limit with its screen blanked; strict stops at
   20301 on the `$C0:1AAC` `field_press_confirm` guard. These are TODO gaps,
-  with the guard recorded in the refusal allowlist.
+  with the guard recorded in the refusal allowlist. The shipping replay
+  refuses at that same frame and state, then uses the original code.
 
 - **Nizbel hand run**: `battle-nizbel` (route `nizbel`, ctsave05 slot 2,
   57673 frames). The save is outside the Reptite Lair (`$1F3`, story `$7B`),
@@ -688,8 +695,15 @@ no movie; the slot named is the nearest found from the README, for the route to 
 
 The four recordings share loading, settings, encounter navigation and battle
 helpers. Their combined shadow measurements recalibrate only drifted timing
-scalars; the automatic layer scrolling and field continuations retain
-documented data-dependent timing tails. No game logic was ported.
+scalars; the field continuations retain documented data-dependent timing
+tails. No new game routines were ported; the existing frame-coordinate
+store was corrected as described above.
+The final narrowed suite selecting these four recordings with `-j 1`
+ends `suite OK`: all four shadow replays are clean, both fast routes pass,
+all four native-shape replays reach their limits, and the effects check has
+zero new findings and zero runtime scratch-state reads. Sound lockstep
+matches over 530642 ticks. The strict baselines retain the limitations
+above; the successful gate does not claim native boss victories.
 
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.

@@ -206,6 +206,10 @@ plays the inner organ, and defeats Yakra. The 71287-frame recording ends in
 `$0C6` with the field back in hand and `$7F:01ED = 1`; returning to the castle
 with Leene is a later interaction. Its shared loading, encounter handling,
 settings and early-party battle policy live in `routes/_early_bosses.py`.
+Shadow is clean, and the route adds 1036 instruction bytes beyond the
+previous library. `ct_native` reaches the limit with its screen blanked;
+strict reaches it with a 128-byte saved-game difference. The coverage and
+remaining native limitations are recorded in `movies-wanted.md` and `TODO.md`.
 
 This is a hand run: `yakra` is in `HAND_RUN_ROUTES`, and
 `oracle/movies/hand/battle-yakra.ctm` is outside the default movie library.
@@ -253,6 +257,14 @@ dialogue table's catalogue metadata. `ct_native` reaches the limit with its
 screen blanked; strict reaches it with a 128-byte saved-game difference.
 Its 385 new instruction bytes and the native limitation are recorded in
 `movies-wanted.md` and `TODO.md`.
+
+Check all four recordings, including the two hand runs, with one game
+process at a time (set `CT_ROM` to the existing cartridge image):
+
+```sh
+python3 tools/suite.py --ct-dev build/main/ct_dev --rom "$CT_ROM" -j 1 \
+    --movies battle-yakra battle-dragon-tank battle-zombor battle-nizbel
+```
 
 The older routes above start from the technoplaza cartridge save their movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
