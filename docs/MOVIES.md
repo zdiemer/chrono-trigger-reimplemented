@@ -305,6 +305,30 @@ completes all 176261 frames with exit 0. TODO.md tracks the native stop too.
 Shipping-mode `route_check --mode on:on:c` reaches The End at 142332, all three
 fights without a wipe, all 12 restores exact, and no C sound-driver errors.
 
+`what_the_prophet_seeks` (technoplaza ct-state24 slot 2, 131287 frames) plays
+the bucket, Lavos, the Prophet ending's vignettes, interleaved credits and The End.
+The shell, inner Lavos and Core finish at 69092, 95529 and 115627 without a wipe.
+Story `$9F` selects `$052`'s `$99 <= story < $D4` branch, outside Memory Lane's
+`$A2 <= story < $AB` range: `$F7` bit 7 and location `$190`. The route observes
+that selection, then requires the last `$190` pass to clear `$F8` bits 6/7 and
+halt object 0 at `$01B6`. Another 120 frames retain the finished picture,
+which was inspected.
+Shadow exits 0 with zero mismatches, no page/accessor/asset diagnostics, and
+identical sound lockstep (411801 ticks, 24 loads). It exposes two guard gaps,
+three refusals each: `event_cmd_walk_with_the_party` (`$C0:3002`) and
+`field_second_member_follows` (`$C0:A2CE`) while `$190` has an empty second-party
+link. They are `gap` entries in `refusal_allowlist.txt` and TODO.md's Refusals
+in real play. Coverage adds 377 instruction bytes over the 48-movie library,
+none in `$7E`; none of modes 5, 6, 10/11/14/15 or 12 starts.
+This ending also proves `$D8:D000`'s entry 77 is a real 18-byte dialog at
+`$D8:DD14`, rather than a sentinel. Its resource count is now 78 and the
+catalogue includes it, fixing the original asset diagnostic. All previous
+resource ranges remain unchanged; the rebuilt catalogue's 6092 resources and
+the 42 asset/movie-tool/route-check tests pass.
+`ct_native` and strict mode complete all 131287 input frames with exit 0 and no
+stop. Shipping-mode `route_check --mode on:on:c` reaches The End at 140017,
+without a wipe; all 12 restores replay exactly, with no C sound-driver errors.
+
 So do the menu, event and battle movies made for what no movie ran
 ([movies-wanted.md](movies-wanted.md), Targets): `menu_sweep`
 (`menus-sweep.ctm`), `save_point` (`menus-save-point.ctm`), `epoch_lavos`

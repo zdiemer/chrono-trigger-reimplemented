@@ -847,6 +847,7 @@ strings_d8d000.73	text	D8:DC01	D8:DC30	text:dialog	strings_d8d000 entry
 strings_d8d000.74	text	D8:DC31	D8:DC87	text:dialog	strings_d8d000 entry
 strings_d8d000.75	text	D8:DC88	D8:DCA7	text:dialog	strings_d8d000 entry
 strings_d8d000.76	text	D8:DCA8	D8:DD13	text:dialog	strings_d8d000 entry
+strings_d8d000.77	text	D8:DD14	D8:DD25	text:dialog	strings_d8d000 entry
 setup_character_graphics.0	lz	D9:0000	D9:0726	lz	setup_character_graphics entry
 setup_character_graphics.1	lz	D9:0727	D9:0DE5	lz	setup_character_graphics entry
 setup_character_graphics.2	lz	D9:0DE6	D9:1330	lz	setup_character_graphics entry

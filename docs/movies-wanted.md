@@ -393,11 +393,11 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 ### 7. The other endings
 - **Saves**: technoplaza ct-state17 and ct-state19 to ct-state26 (New Game+ at each ending's story point).
 - **Do**: beat Lavos at that point and watch the ending.
-- **Measured so far**: the six scratch recordings below add no new `$7E` scene
+- **Measured so far**: the seven checked scratch recordings below add no new `$7E` scene
   code and start none of modes 5, 6, 10/11/14/15 or 12. The earlier 4.71 KiB
   estimate was an upper bound, not coverage these saves had demonstrated.
   Mode 7's loss sequence and mode 6's Epoch dive already have separate movies
-  (target 8). The three remaining saves' dispatcher findings are below.
+  (target 8). The two remaining saves' dispatcher findings are below.
 - **Route**: yes (`bucket_lavos`, `telepod_lavos` and `beyond_time` are the pattern).
 - **Hand-run routes**: these long recordings stay in scratch storage, outside `oracle/movies`.
   Their routes are in `tools/suite.py`'s `HAND_RUN_ROUTES`, excluded even from `--long-routes`;
@@ -522,19 +522,38 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   strict mode completes all 176261 frames and exits 0. TODO.md records the native stop too.
   Shipping-mode `route_check --mode on:on:c` reaches The End at 142332 without a
   wipe; all 12 restores replay exactly, with no C sound-driver errors.
-- **Remaining**: ct-state24 through ct-state26. For ct-state19 through ct-state26, reading the
-  slot's RAM regions using the save layout at `$FF:FA7B` gives story counters `$5D`, `$69`, `$7E`, `$87`, `$8E`, `$9F`, `$A2`,
-  `$D4`, respectively. `$052` selects their first ending locations as `$025`, `$025`, `$05B`,
-  `$159`, `$10F`, `$190`, `$0EF`, and `$054` (the last save has no Crono). These are dispatcher
-  findings, not completed routes or coverage claims.
-  In particular, ct-state24's `$9F` selects **What the Prophet Seeks**, `$F7` bit 7
-  and `$190`; its last `$190` pass clears `$F8` bits 6/7 and halts object 0 at `$01B6`.
+- **What the Prophet Seeks**: `what_the_prophet_seeks`, technoplaza ct-state24 slot 2,
+  131287 frames. Story `$7F:0000 = $9F` selects `$052`'s `$99 <= story < $D4`
+  branch, outside Memory Lane's `$A2 <= story < $AB` range: `$F7` bit 7 and `$190`.
+  The shared bucket route beats the shell (69092), inner Lavos (95529) and Core
+  (115627), without a wipe. Vignettes and credits run through `$190`, `$0CB`,
+  `$14E`, `$09B`, `$192`, `$194`, `$18E`, `$1A0`, `$18F`, `$19E`, `$190`.
+  The first `$190` pass sets `$F8` bit 7; `$19E` sets bit 6 to select the last pass.
+  Completion checks both bits cleared and object 0 halted at `$01B6` in `$190`,
+  then keeps 120 more frames. The final The End picture was inspected.
+  Shadow exits 0 with zero mismatches, no page/accessor/asset diagnostics, and
+  identical sound lockstep (411801 ticks, 24 loads). Two guards refuse three calls
+  each at frames 119033-119035 in `$190`: `event_cmd_walk_with_the_party` (`$C0:3002`)
+  and `field_second_member_follows` (`$C0:A2CE`). The second party link is `$80`,
+  empty; their `gap` allowlist entries and RAM evidence are in TODO.md's Refusals
+  in real play. Coverage adds 377 instruction bytes over the 48-movie library,
+  **no new `$7E` scene-program code**; none of modes 5, 6, 10/11/14/15 or 12 starts.
+  The first check also exposed a missing dialog resource: `$D8:D000` entry 77,
+  `$D8:DD14`-`$DD25`, is a real final line, not a sentinel. Correcting the table's
+  count to 78 and rebuilding the catalogue removes that diagnostic; all previous
+  resources retain their ranges. The catalogue check (6092 resources) and all 42
+  asset/movie-tool/route-check tests pass. No game routine was ported.
+  `ct_native` and strict mode complete all 131287 input frames with exit 0 and
+  no stop. Shipping-mode `route_check --mode on:on:c` reaches The End at 140017
+  without a wipe; all 12 restores replay exactly, with no C sound-driver errors.
+- **Remaining**: ct-state25 and ct-state26. Reading the slot's RAM regions using
+  the save layout at `$FF:FA7B` gives story counters `$A2` and `$D4`.
   Ct-state25's `$A2` selects **Memory Lane**, `$0EF`; its final object `$0E` loop is
   `$059E`. Ct-state26's `$D4`, absent Crono and clear `$6D` select **Reunion**,
   `$6E = 4` and `$054`. That script requires speaking to Gaspar and the companions
   before the fair, telepod farewells and King. The `$051` and `$05A` scripts then
   select modes 11 and 15; `$056` leads to `$058`, whose final object 0 halt is `$0052`.
-  These last three identifications are from the saves and event scripts, not played outcomes.
+  These last two identifications are from the saves and event scripts, not played outcomes.
 
 ### 8. The scene program's modes 6, 7 and 5
 - **Mode 6** (`$7E:78DD`): location `$1B0` is the party in the winged Epoch over Lavos (event script

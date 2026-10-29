@@ -7,6 +7,24 @@ lost. Each line says where the detail lives. Milestones themselves are in
 and [PLATFORM.md](PLATFORM.md); which of these to work on next, and why the
 rest waits, is [PLAN.md](PLAN.md).
 
+## Refusals in real play
+
+- **The Prophet ending's transient party links.** `what_the_prophet_seeks`
+  (ct-state24 slot 2, 131287-frame scratch movie) reaches The End, but its
+  reference play refuses `event_cmd_walk_with_the_party` (`$C0:3002`) and
+  `field_second_member_follows` (`$C0:A2CE`) three times each, at frames
+  119033-119035 in `$190`, before the first vignette's `$0CB` transition.
+  A saved reference frame 119034 has party links `$02/$06/$80` at
+  `$7E:0197/0199/019B` and trail positions `$00/$00/$00` at `$7E:01AB`.
+  `$80` is an empty link; the guards require the second party link to name
+  the stepping object. The event refusal has A/X `$0160`, Y `$0207`, D `$0100`,
+  DB `$00`, P `$20`; the follower has A `$0101`, X `$0006`, Y `$0007`,
+  D `$0100`, DB `$00`, P `$30`. Both are `gap` reasons in
+  `tools/refusal_allowlist.txt`, pending support for this transient state.
+  There is no page refusal or out-of-range accessor. `ct_native` and strict
+  mode complete this movie's input; their timing does not prove the refused
+  reference state is supported. No game routine was changed.
+
 ## Correctness and accuracy
 
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
@@ -3153,7 +3171,7 @@ waits on M5 rather than on a backend.
   seed 2 wins at 149750 and finishes at 160570; that is the route's default.
   This is a reference-runtime stall, not a guard refusal. Its cause is not
   established; no game code was changed to work around it.
-- **Remaining ending routes**: technoplaza ct-state24 through ct-state26,
+- **Remaining ending routes**: technoplaza ct-state25 and ct-state26,
   including Reunion from "The Time Egg" (no Epoch reachable from that save).
   These belong among the hand-run routes, with scratch recordings rather than
   another 100,000-200,000 frames each in every gate (MOVIES.md;
