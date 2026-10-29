@@ -566,10 +566,42 @@ already runs, is for its route to establish.
 | Ozzie's Fort | ctsave12 slot 2 (slot 3 after it) | the fort, the chain trap | Flea, Slash, Great Ozzie |
 | Fiona's forest | ctsave12 slot 3 (ctsave13 slot 1 after it) | Robo's 400 years: the forest's replanting, the campfire | -- |
 | Lucca's mother | after Fiona's forest | the gate to 990 A.D. and the password typed against the clock; `ct_drive`'s machine copies make the timed part a search | -- |
-| The Rainbow Shell | ctsave13 slots 1-2 (slot 3 after it) | the Giant's Claw, the shell taken to Guardia Castle and the trial | Rust Tyrano |
+| The Rainbow Shell | ctsave13 slots 1-2 (slot 3 after it) | the Giant's Claw, the shell taken to Guardia Castle and the trial | Rust Tyrano, Yakra XIII |
 | The Sun Stone | ctsave13 slot 3 (ctsave14 slot 1 after it) | the Sun Palace, the stone charged across the eras | Son of Sun |
 | Cyrus's grave | ctsave14 slot 1 (slot 2 after it; `field-northern-ruins-switch` presses one switch) | the Northern Ruins and Cyrus's ghost, the Masamune's power restored | Hero's Grave guardians |
 | Geno Dome | ctsave14 slot 2 (Targets, 5) | the conveyors and doors | Atropos XR, MotherBrain |
+
+- **Rainbow Shell trial, hand-run route**: `rainbow_shell_trial`, ctsave13 slot 2,
+  47547 frames, ending with control in Guardia Castle (`$015`). The slot has
+  `$7F:00A1` bit 6 set (shell delivered), `$7F:00A2` bit 7 clear (fragment not
+  collected), `$7F:0050` bit 6 clear (King not exonerated), and trial stage
+  `$7F:0069 = $00`; slot 3 already has the fragment and exoneration flags.
+  The route plays the first hearing, treasury fights, the fragment and courtroom
+  interludes, the Chancellor exposed as Yakra XIII, the fight (won at frame
+  41423), and Marle reunited with her father. It ends with the exoneration bit set
+  and stage zero. The recording stays outside the library under `HAND_RUN_ROUTES`.
+  The first successful play took 48156 frames; faster battle/message settings
+  and dialogue confirmation reduced it to 47547, still too long. Preparing a
+  nearer save was attempted from the evidence-collected stage `$10`: the party
+  returned down the court's stairs to `$015`, but neither the exit search nor
+  the attempted walks reached the world map. No edited save or machine state
+  is supplied. A shorter approach or a normal cartridge save before the final
+  hearing remains necessary for `events-rainbow-shell-trial.ctm`.
+  Shadow clean: zero mismatches, refusals, refused pages, out-of-range accesses,
+  or reads outside the catalogue. Coverage adds 391 ROM bytes (0.38 KiB; 179
+  instruction addresses including RAM) beyond the 48 existing movies, notably
+  `battle_condition_stat_at_least` (`$C1:9130`), `battle_enemy_marches`
+  (`$C1:3F5A`), and the curtain transition's `$C0:4145`-`$4180` paths. The final
+  courtroom dialogue also required catalogue entry `strings_f6a000.105`
+  (`$F6:B1F7`-`$B222`); only its metadata is committed. `ct_native` reports no
+  stop through frame 47547 but ends blanked after six screen setups; this is
+  not evidence that it completed the trial (TODO.md, "The native program").
+  Strict mode consumes all 47547 frames without a halt but ends in the treasury
+  (`$01A`), still at trial stage `$02` without the fragment; its inputs have
+  drifted from the reference (81 saved-game bytes differ). Timing calibration with `--drifted`
+  updated 222 estimates for this narrowed run. Three residual timing exceptions
+  are documented in TODO.md, with no unlisted video-write movement; the fallback check found
+  no new or increased fallback. The narrowed suite (including its static checks), with the recording temporarily in the library, ended `suite OK`; the movie was then removed from the library.
 
 Each is an event-heavy play the native program hasn't met: the event commands, scene work and
 bosses they reach are where `ct_native`'s next stops are likely to be.
@@ -587,13 +619,21 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra |
 | 1000 A.D. | The trial | ctsave01 slot 3 is after it; a save before is to find | -- |
 | 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank |
-| 2300 A.D. | Robo repaired at Proto Dome | between ctsave02 and ctsave03 | -- |
+| 2300 A.D. | Robo repaired at Proto Dome | ctsave03 slot 1 | -- |
 | 600 A.D. | Zenan Bridge | ctsave04 slot 1 | Zombor |
 | 600 A.D. | Denadoro and the Masamune | ctsave04 slot 2 | Masa & Mune (`battle-denadoro` may hold the fight) |
 | 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel |
 | 12,000 B.C. | Zeal's palace and the Mammon Machine | ctsave08 slots 2-3 | -- |
 | 12,000 B.C. | Mt. Woe | ctsave09 slot 3 | Giga Gaia |
-| several | The Blackbird's end and the Epoch's wings | ctsave11 | Dalton Plus |
+| several | The Blackbird's end and the Epoch's wings | ctsave11 slot 1 | Dalton Plus |
+
+The save flags narrow two of these targets: ctsave03 slot 1 has story counter
+`$7F:0000 = $37`, before Proto Dome's repair sets `$3C`; slot 2 is already at
+`$3C` with Robo in the party. ctsave11 slot 1 is at story `$CF`, with Blackbird
+stage `$7F:00D2 = $00` and the Epoch's wings bit (`$7F:00BA` bit 7) clear;
+slot 2 is already at story `$D2`, Blackbird stage `$0A`, and wings acquired.
+Only these save checks were completed in the trial recording attempt; Robo's
+repair and Dalton Plus remain unrecorded.
 
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.

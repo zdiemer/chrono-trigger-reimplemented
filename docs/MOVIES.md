@@ -216,6 +216,46 @@ A route is a list of phases, each ending in a checkpoint file. Re-running it
 resumes at the last phase that finished, so a failing phase can be iterated on
 without replaying the hour before it. Delete the checkpoints to start over.
 
+## The Rainbow Shell trial as a hand-run route
+
+`rainbow_shell_trial` starts from ctsave13 slot 2 and reaches the King's
+exoneration with the castle field back in hand at frame 47547. It visits the
+court, retrieves the shell fragment, exposes the Chancellor, defeats Yakra XIII
+(at frame 41423), and plays Marle's reconciliation with her father. The route
+checks the shell-delivered flag, the fragment flag, the trial stage, and the
+King-exonerated flag; it uses only controller inputs, with machine copies for
+walking searches and battle retries.
+
+The recording remains outside the library: it exceeds the short-movie target,
+so `rainbow_shell_trial` is in `HAND_RUN_ROUTES`. To make it locally:
+
+```sh
+python3 -m tools.movies.routes.rainbow_shell_trial --prefix build/trial/route --movie build/trial/events-rainbow-shell-trial.ctm
+```
+
+The original settings took 48156 frames. Choosing the fastest battle and
+message settings in the game's menu and confirming dialogue more often gave
+47547. An attempt to make a nearer cartridge save after collecting the evidence
+did not find a working path out of the castle; no such save was exported.
+The remaining work is a shorter route or a save made through normal play before
+the final hearing (see [movies-wanted.md](movies-wanted.md), Targets, 12).
+
+Shadow clean: zero mismatches, refusals, refused pages, out-of-range accesses,
+or reads outside the catalogue. Coverage adds 391 ROM bytes (0.38 KiB; 179
+instruction addresses including RAM) beyond the 48 existing movies, notably
+`battle_condition_stat_at_least` (`$C1:9130`), `battle_enemy_marches`
+(`$C1:3F5A`), and the curtain transition's `$C0:4145`-`$4180` paths. The final
+courtroom dialogue also required catalogue entry `strings_f6a000.105`
+(`$F6:B1F7`-`$B222`); only its metadata is committed. `ct_native` reports no
+stop through frame 47547 but ends blanked after six screen setups; this is
+not evidence that it completed the trial (TODO.md, "The native program").
+Strict mode consumes all 47547 frames without a halt but ends in the treasury
+(`$01A`), still at trial stage `$02` without the fragment; its inputs have
+drifted from the reference (81 saved-game bytes differ). Timing calibration with `--drifted`
+updated 222 estimates for this narrowed run. Three residual timing exceptions
+are documented in TODO.md, with no unlisted video-write movement; the fallback check found
+no new or increased fallback. The narrowed suite (including its static checks), with the recording temporarily in the library, ended `suite OK`; the movie was then removed from the library.
+
 ## What the route runner does
 
 `tools/movies/campaign.py`:

@@ -3924,7 +3924,8 @@ format = "dialog"
 
 [[resource]]
 at = "F6:A000"
-count = 105
+# The Rainbow Shell trial's final dialogue is entry $69, read at F6:B1F7.
+count = 106
 slots = 106
 kind = "ptr16"
 bank = "F6"

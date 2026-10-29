@@ -2564,6 +2564,16 @@ re-runs the census.
     leader's spot off the map, which no flight makes; the arrival's x
     measured across the map's height (`slow_so_as_not_to_pass`) is the
     original's and kept.
+- **Timing spread in the Rainbow Shell trial** (`tools/timing_exceptions.txt`).
+  After drift-only calibration, `battle_record_trails` has 1.33% of its 7530
+  vblank stretches off by at least 1024 clocks (maximum 1676): its RAM history
+  shifts only for active trails whose countdown expires. `field_nmi` has 1.24%
+  of 51814 vblank stretches over that threshold (maximum 6273, below the
+  quarter-vblank worst limit), with its variable queues, edges and menu work.
+  Attribute these variable paths more precisely. The trial's video-write check
+  has no unlisted movement. The main menu's opening below also drifts +1.84%
+  over 173 stretches with its own scalar already at the minimum 1; its child
+  estimates need the investigation described there.
 - **The main menu's opening, over-estimated** (`menu_choose_on_main_menu`, on
   `tools/timing_exceptions.txt` for its worst stretch since the shipping mode's
   fallbacks' chunk 7, history/reimplementation-chunks.md): a stretch of the main task's turn
@@ -2658,6 +2668,17 @@ rising palace as C), and with `new-game.ctm`'s, `fair.ctm`'s,
 the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
+
+- **Rainbow Shell trial recording in the native program.** The hand-run
+  `rainbow_shell_trial` recording (47547 frames, ctsave13 slot 2; MOVIES.md)
+  completes the trial in the reference play. `ct_native` consumes all 47547
+  frames without an explicit stop, but reports the screen blanked after only
+  six setups. Establish where its inputs cease to follow the reference,
+  particularly around the initial settings menu and the courtroom transitions,
+  before treating this as a native trial completion. Strict mode consumes all frames
+  but ends in the treasury (`$01A`), at trial stage `$02`, without the fragment
+  (81 saved-game bytes differ). Diagnose the input drift separately from a
+  native stop; shadow has no mismatch or refusal.
 
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C

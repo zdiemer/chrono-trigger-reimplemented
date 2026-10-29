@@ -190,3 +190,9 @@ field_copy_tiles worst the same copy from the field's own call: at most 50846 cl
 menu_note_rock_techs vblank-tail notes which rock techs the party has, its time following the party's members and their records: 16% of its 120 stretches in vblank off by a line, at most 1076 clocks
 menu_show_what_the_party_wears vblank-tail shows the party's wear on the field's sprites, run as C by the menus' close now (menu/display.c): 1.8% of its stretches in vblank off by a line, at most 1180 clocks, writing RAM
 menu_window_copy_bytes vblank-tail copies a window's bytes into the menus' tilemap buffer in RAM, its time following the window's size: 2.6% of its stretches in vblank off by a line or more, at most 1944 clocks
+
+# The hand-run Rainbow Shell trial, after drift-only calibration; its narrowed
+# vblank check reports no unlisted video-write movement. Follow-ups: TODO.md.
+battle_record_trails vblank-tail the active combatants' trails shift four positions in RAM only when their countdowns expire; 1.33% of 7530 vblank stretches off by 1024 clocks or more, at most 1676 clocks, and no video write moves in the Rainbow Shell trial
+field_nmi vblank-tail the field's varying sprite queue, layer edges and menus' frame: 1.24% of 51814 vblank stretches off by 1024 clocks or more after calibration, at most 6273 clocks (below the quarter-vblank worst limit); the Rainbow Shell trial's vblank check finds no unlisted video-write movement
+menu_choose_on_main_menu drift the main menu's opening inherits its window and panel parts' estimates, as its worst exception: +1.84% over 173 stretches in the Rainbow Shell trial even with its own cost_milli at the minimum 1; it prepares RAM buffers and queues, and the vblank check finds no unlisted video-write movement
