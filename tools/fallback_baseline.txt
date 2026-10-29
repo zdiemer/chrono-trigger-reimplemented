@@ -63,6 +63,11 @@
 C0:---- 623 123  # no port yet (field engine, events)
 C0:0B38 882 5  # handback by field_enter, field_fade_in, field_fade_in_after_a_menu (field engine, events)
 C0:5A93 82 5  # handback by event_run_object_script (field engine, events)
+C0:881E 500 57  # gap: battle-dalton, refused by field_walk_the_leader during the wing-to-Epoch jump (TODO.md, Refusals in real play)
+C0:88E5 100 9  # gap: battle-dalton, refused by field_walk_the_leader during the wing-to-Epoch jump (TODO.md, Refusals in real play)
+C0:8A6D 100 9  # gap: battle-dalton, refused by field_walk_the_leader during the wing-to-Epoch jump (TODO.md, Refusals in real play)
+C0:9175 220 19  # gap: battle-dalton, refused by field_walk_the_leader during the wing-to-Epoch jump (TODO.md, Refusals in real play)
+C0:99DE 100 9  # gap: battle-dalton, refused by field_walk_the_leader during the wing-to-Epoch jump (TODO.md, Refusals in real play)
 C2:---- 161594 1713  # no port yet (menus, text, overworld); $C2:CBE0-$C2:CBE8, the gate song task's wait for the sound driver once in menus-shop-equip, the same code as before, filed here rather than under the song task's hand-back since chunk 8's review changed where the shop's and the runtime's comparisons start and end
 C2:0009 14 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
 C2:5DC4 21444 230  # no port yet (menus, text, overworld)

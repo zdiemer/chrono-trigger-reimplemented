@@ -624,7 +624,6 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel |
 | 12,000 B.C. | Zeal's palace and the Mammon Machine | ctsave08 slots 2-3 | -- |
 | 12,000 B.C. | Mt. Woe | ctsave09 slot 3 | Giga Gaia |
-| several | The Blackbird's end and the Epoch's wings | ctsave11 slot 1 | Dalton Plus |
 
 The save flags narrow two of these targets: ctsave03 slot 1 has story counter
 `$7F:0000 = $37`, before Proto Dome's repair sets `$3C`; slot 2 is already at
@@ -648,7 +647,35 @@ The 60 interrupted tile-row decoder calls (of 102) were checked separately:
 skipped; the other 42 movie calls matched in shadow. Drift-only timing
 calibration updated 204 estimates; four residual exceptions are documented in
 TODO.md, with no unlisted video-write movement. The narrowed suite, including its static checks, ended `suite OK`.
-Dalton Plus remains unrecorded.
+`battle-dalton.ctm` now plays the Blackbird's end in 39666 frames. Its
+`blackbird-before-dalton` slot 1 is a normal cartridge save prepared from
+ctsave11 slot 1 after `events-blackbird`'s opening, all three equipment
+chests, and the inventory chest. The 74786-frame `blackbird_save` preparation
+is a hand-run route, with its movie outside the library. The new movie
+starts in the cell at story `$CF`, stage zero, with equipment bits
+`$7F:00AF & $07 = $07`, inventory bit `$7F:00BA & $02` set, and wings clear.
+It crosses the ducts and wing, defeats Golem Boss (frame 21922), plays the
+Epoch reveal, defeats Dalton Plus (33954), tests the Epoch's controls, and
+destroys the Blackbird. The landing conversation ends with walking control
+on `$1F6`, stage `$0A` and wings set. See MOVIES.md and the saves README for
+the route and save provenance.
+
+Shadow reports zero mismatches, refused pages, out-of-range accesses, or
+uncatalogued reads. Its 20 walking-guard refusals during the jump onto the
+Epoch are a gap in refusal_allowlist.txt and TODO.md, with five new fallback
+rows and no other new or increased fallback. Coverage adds 392 ROM bytes
+(201 instruction addresses including RAM) beyond the other 49 library
+movies: `event_cmd_set_flags`, in-view conditions, direction-to-target, and
+layer-scroll paths. The `$FF:6B00` dialogue table and its 185 strings were
+added to the catalogue as metadata. `ct_native` consumes all frames with no
+explicit stop but only three screen setups; completion is not established.
+Strict mode halts at frame 25171 at `$C0:881E`, before Dalton Plus. Drift-only
+calibration updates 226 estimates; the residual animation-scheduler timing
+exception is documented in TODO.md, with no unlisted video-write movement.
+The mostly abandoned scrolling-command comparisons were checked separately
+with existing fuzz constraints: 2999 matches, zero mismatches, 46875 guard
+skips and 126 call-out budget skips in 50000 cases.
+The narrowed suite, including its static checks, ended `suite OK`.
 
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.

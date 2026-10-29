@@ -84,6 +84,7 @@ menu_move_picked_item  # a screen's step the menus' main task's turn runs as C (
 menu_object_cmd_call_routine
 menu_object_cmd_call_routine_far
 menu_object_cmd_play_effect_on_voices_67
+menu_object_cmd_scroll_map  # battle-dalton: 184 of 186 calls still running inside menu_run_object_script's stretch at its comparison point, 2 matched; existing objects-state fuzz constraints over 50000 cases gave 2999 matches, 0 mismatches, 46875 guard skips and 126 call-out budget skips
 menu_play_cursor_sound
 menu_point_along_equipment_list
 menu_run_record_task  # the records' task's head, which its loop comes round to inside the stretch of where the task goes on from its wait (menu_record_task_goes_on), which compares it; its start compares it alone

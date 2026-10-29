@@ -5,3 +5,4 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C0881E field_walk_the_leader guard # gap: battle-dalton, 20 calls from frame 26263 as Marle jumps from the wing to the Epoch (map $16B, stage 6); leader Y=$FFBD crosses walk_fits' $FF00 bound; docs/TODO.md, Refusals in real play

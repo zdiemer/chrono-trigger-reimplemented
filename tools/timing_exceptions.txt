@@ -203,3 +203,6 @@ battle_step_the_poses drift opening/victory poses inherit the frame-graphics est
 battle_strike_the_poses drift the 64-frame pose sequence includes the pose steps and frame-tail estimates; +4.20% over 262 stretches in Proto Dome despite its own cost_milli at the minimum 1, max 13861 clocks, none in vblank
 field_frame_goes_on_with_confirm vblank-tail field continuation includes the varying dialog and frame work; 3.93% of 7505 vblank stretches off by 1024 clocks or more in Proto Dome, max 1949 clocks, with zero net drift after calibration and no unlisted video-write movement
 field_frame_goes_on_with_the_dialog_window vblank-tail the same continuation after confirm: 3.93% of 7505 vblank stretches off by 1024 clocks or more in Proto Dome, max 1137 clocks, with zero net drift after calibration and no unlisted video-write movement
+
+# Dalton after drift-only calibration; the video-write check has no unlisted movement.
+battle_find_due_animation worst battle-dalton's scheduler includes optional frame-graphics work in one estimate: max error 53304 clocks over 14735 stretches after drift calibration, none in vblank; the movie's video-write check has no unlisted movement (TODO.md, Timing spread in Dalton)

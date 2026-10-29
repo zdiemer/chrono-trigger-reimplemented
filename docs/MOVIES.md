@@ -216,6 +216,50 @@ A route is a list of phases, each ending in a checkpoint file. Re-running it
 resumes at the last phase that finished, so a failing phase can be iterated on
 without replaying the hour before it. Delete the checkpoints to start over.
 
+## Dalton Plus and the Epoch's wings
+
+`dalton` records `battle-dalton.ctm` in 39666 frames from
+`recorded/blackbird-before-dalton.srm` slot 1. The save was made through the
+cell's normal save-point screen after the opening already played by
+`events-blackbird`, all three equipment chests, and the inventory chest.
+The `blackbird_save` preparation route takes 74786 frames and is in
+`HAND_RUN_ROUTES`; its recording stays outside the library. The save's
+provenance and starting flags are in [the saves README](../oracle/saves/README.md).
+
+The movie takes the ducts to the upper deck, opens the west bulkhead, wins a
+Byte encounter, and crosses the wing by running against its downward drift.
+Golem Boss falls at frame 21922. Dalton's Epoch reveal follows, then Dalton
+Plus (frame 26546; defeated at 33954), the controls tried with Y and X, and
+the Blackbird's destruction. The landing conversation ends on the 12000 B.C.
+world map (`$1F6`), with walking control verified by a step. Blackbird stage
+`$7F:00D2` is `$0A`, and the wings bit `$7F:00BA & $80` is set.
+
+Shadow reports zero mismatches, refused pages, out-of-range accesses, or
+uncatalogued reads. The 20 guard refusals at `field_walk_the_leader`
+(`$C0:881E`, from frame 26263) are a documented gap: Marle's jump onto the
+Epoch takes her Y above the guard's bound. The allowlist and five new
+fallback rows record it; no other fallback is new or increased. Coverage
+adds 392 ROM bytes (201 instruction addresses including RAM) beyond the
+other 49 library movies, including `event_cmd_set_flags` (`$C0:6BF7`),
+in-view conditions, direction-to-target, and layer-scroll paths. The
+previously declared `$FF:6B00` dialogue table and its 185 strings are now
+catalogued; only metadata is committed.
+
+`ct_native` consumes all 39666 frames without an explicit stop, but reports
+only three screen setups, ending with the screen showing; completion is not
+established. Strict mode halts at frame 25171 at `$C0:881E`, before Dalton
+Plus. Drift-only calibration updates 226 estimates; one residual scheduler
+timing exception is documented in TODO.md, with no unlisted video-write
+movement. The scrolling command's 184 abandoned comparisons (of 186, two
+matched) were checked with its existing fuzz constraints: 2999 matches,
+zero mismatches, 46875 guard skips and 126 call-out budget skips in 50000
+cases.
+
+The route was also checked from the prepared cartridge save without its
+development checkpoints, reaching walking control in 39824 frames. Its final
+control check tries another direction when the landing spot blocks the first.
+The narrowed suite, including its static checks, ended `suite OK`.
+
 ## Robo repaired at Proto Dome
 
 `proto_dome` records `events-proto-dome.ctm` from ctsave03 slot 1 in 24717

@@ -2564,6 +2564,14 @@ re-runs the census.
     leader's spot off the map, which no flight makes; the arrival's x
     measured across the map's height (`slow_so_as_not_to_pass`) is the
     original's and kept.
+- **Timing spread in Dalton** (`tools/timing_exceptions.txt`). Drift-only
+  calibration updates 226 estimates for `battle-dalton`. The residual
+  `battle_find_due_animation` worst error is 53304 clocks (limit 50468) over
+  14735 stretches, with mean time 5090 and net drift rounded to zero. None
+  of these stretches is in vblank. Its scheduler includes optional frame
+  graphics construction in one estimate; measure those paths separately
+  when revisiting its timing. This movie's video-write check has no unlisted
+  movement. No game logic was changed for this exception.
 - **Timing spread in Proto Dome** (`tools/timing_exceptions.txt`). The opening
   and victory poses inherit the frame-graphics and frame-tail estimates:
   `battle_step_the_poses` drifts +9.04% over 256 stretches and
@@ -2664,6 +2672,18 @@ re-runs the census.
   own call of the original recurse into the port: decide whether a native
   build keeps the wait at all, and take it out of the service if not.
 
+## Refusals in real play
+
+- **Dalton's Epoch reveal: leader above the coordinate range.**
+  `battle-dalton` refuses `field_walk_the_leader` (`$C0:881E`) 20 times from
+  reference frame 26263, on the Blackbird wing (`$16B`), stage `$7F:00D2 = 6`.
+  Marle is jumping onto the Epoch: the leader link is `$0002`, the map mask
+  `$3F3F`, but her raw Y is `$FFBD`. `walk_fits` rejects Y at or above `$FF00`,
+  where the original's sums carry into slope handling. Reproduce and support
+  that transition before removing the `gap` entry in refusal_allowlist.txt.
+  The narrowed reference run adds five refused fallback rows (103 ROM bytes,
+  1020 instructions) under this entry. No game logic was changed for the movie.
+
 ## The native program
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
@@ -2678,6 +2698,13 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
+- **Dalton recording in the native program.** `battle-dalton` consumes all
+  39666 frames without a reported `ct_native` stop, but reports only three
+  screen setups, ending with the screen showing, and two SNES-only video
+  escapes (first `$7E:5AEB`). Establish where it loses the reference route;
+  this does not establish completion of the Blackbird's destruction. Strict
+  mode halts at frame 25171 at `$C0:881E`, the walking guard gap documented
+  above, before Dalton Plus. No game code was ported for this recording.
 - **Proto Dome recording in the native program.** `events-proto-dome` consumes
   all 24717 frames without a reported `ct_native` stop, but ends blanked after
   four screen setups and two SNES-only video escapes (first `$7E:5AEB`).

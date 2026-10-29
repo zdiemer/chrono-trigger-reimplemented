@@ -250,8 +250,9 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 # Routes run by hand rather than in every --long-routes gate: the tech sweep
 # fights for about forty minutes for under a KiB of code no movie runs
 # (docs/movies-wanted.md, "Every tech"). The complete Rainbow Shell trial
-# also exceeds the short-movie target (docs/MOVIES.md).
-HAND_RUN_ROUTES = {"tech_sweep", "rainbow_shell_trial"}
+# also exceeds the short-movie target, as does preparing the Blackbird
+# cartridge save for Dalton (docs/MOVIES.md).
+HAND_RUN_ROUTES = {"tech_sweep", "rainbow_shell_trial", "blackbird_save"}
 
 
 def all_routes():
