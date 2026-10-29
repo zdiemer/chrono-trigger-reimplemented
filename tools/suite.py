@@ -250,7 +250,7 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 # (docs/movies-wanted.md, "Every tech").
 # The other New Game+ endings take 100,000-200,000 frames apiece. Their
 # scratch movies and shipping routes are checked by hand (MOVIES.md).
-HAND_RUN_ROUTES = {"tech_sweep", "successor_of_guardia"}
+HAND_RUN_ROUTES = {"tech_sweep", "successor_of_guardia", "legendary_hero"}
 
 
 def all_routes():

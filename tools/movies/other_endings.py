@@ -8,6 +8,71 @@ from .routes.telepod_lavos import to_the_shell
 
 
 TELEPOD_PHASES = ["fair", "exhibit", "shell", "cavern", "inner", "core", "ending"]
+BUCKET_PHASES = ["eot", "dayoflavos", "shell", "cavern", "inner", "core", "ending"]
+
+
+def bucket_to_shell(run, start):
+    """Load an End of Time save, examine the bucket, and choose to fight."""
+    machine = run.machine
+    if start <= 0:
+        machine.run(1620)
+        machine.run(5, "START")
+        machine.run(2420 - machine.frame)
+        machine.run(4, "A")
+        for _ in range(200):
+            machine.run(10)
+            if run.map_id() not in ("0000", "b101"):
+                break
+        machine.run(120)
+        assert run.map_id() == "d001", "the End of Time save"
+        run.checkpoint("eot")
+    if start <= 1:
+        assert run.wait_control()
+        assert run.go(552, 316, tolerance=5), "the bucket"
+        machine.run(2, "UP")
+        machine.run(8)
+        for _ in range(6):
+            machine.run(3, "A")
+            machine.run(40)
+            if run.dialog():
+                break
+        run.dialogs_until(lambda: not run.dialog(), 3000)
+        machine.run(30)
+        machine.run(3, "A")
+        machine.run(40)
+        assert run.dialogs_until(lambda: run.map_id() == "d201", 8000), "1999 A.D."
+        run.checkpoint("dayoflavos")
+    if start <= 2:
+        assert run.wait_control()
+        assert run.go(236, 720, tolerance=6)
+        assert run.go(240, 380, tolerance=6)
+        machine.run(100, "UP")
+        assert run.dialogs_until(lambda: run.map_id() == "d301", 20000), "Lavos rises"
+        run.checkpoint("shell")
+
+
+def watch_ending(run, *, selected, done, max_frames=48000):
+    """Watch an automatic ending, proving both its selection and its finish."""
+    machine = run.machine
+    start, seen, selection_seen = machine.frame, [], False
+    while machine.frame - start < max_frames:
+        here = run.map_id()
+        if not seen or seen[-1] != here:
+            seen.append(here)
+            run.say("ending map", here, "frame", machine.frame)
+            machine.screenshot("%s_ending_%d.png" % (run.prefix, machine.frame))
+        selection_seen |= bool(selected())
+        if selection_seen and done():
+            machine.run(120)
+            assert done(), "the ending remains at its finish"
+            run.say("ending maps", " ".join(seen))
+            return
+        if run.dialog():
+            machine.run(3, "A")
+            machine.run(37)
+        else:
+            machine.run(20)
+    raise AssertionError("ending did not finish: maps %s, selection seen %s" % (seen, selection_seen))
 
 
 def lavos(run, start, *, party, seed):
@@ -33,19 +98,21 @@ def lavos(run, start, *, party, seed):
         run.checkpoint("ending")
 
 
-def telepod_ending(*, save, title, ending):
+def play_ending(*, save, title, ending, entry="telepod", party=2, story=None):
     args = route_arguments(title, save=save)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
               native=args.native, generated=args.generated, sound=args.sound_driver, until=args.until)
     try:
-        start = run.start_at(TELEPOD_PHASES)
-        to_the_shell(run, start)
-        lavos(run, start, party=2, seed=args.seed)
+        start = run.start_at(TELEPOD_PHASES if entry == "telepod" else BUCKET_PHASES)
+        (to_the_shell if entry == "telepod" else bucket_to_shell)(run, start)
+        if story is not None and start <= 6:
+            assert run.machine.b(0x7F0000) == story, "the save's story counter"
+        lavos(run, start, party=party, seed=args.seed)
         ending(run)
         run.machine.screenshot(run.prefix + "_end.png")
         if args.movie:
             run.write_movie(args.movie, [
-                "# " + title + ": New Game+ telepod, Lavos shell, inner Lavos and Core, then the ending.",
+                "# " + title + ": New Game+ " + entry + ", Lavos shell, inner Lavos and Core, then the ending.",
                 "# Save: " + save + " slot 2.",
                 "# frames {FRAMES}", "# sram crc32 {CRC}",
                 "# <start_frame> <frame_count> <buttons>"])
@@ -54,3 +121,7 @@ def telepod_ending(*, save, title, ending):
         # --until closes the run itself before raising RouteDone.
         if not run.logfile.closed:
             run.close()
+
+
+def telepod_ending(**kwargs):
+    play_ending(**kwargs)

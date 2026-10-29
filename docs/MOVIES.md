@@ -217,6 +217,20 @@ a narrowed movie-suite run or changes to its aggregate baselines.
 The per-ending evidence and remaining saves are in
 [movies-wanted.md, target 7](movies-wanted.md#7-the-other-endings).
 
+`legendary_hero` (technoplaza ct-state19 slot 2, 144640 frames) shares the
+bucket approach and fights in `other_endings.py`: the shell's boss imitations,
+inner Lavos and Core, then Robo and Atropos, Tata's journey, the party in place
+of the villains, the staff credits and The End. Story `$5D` selects `$1AB = 1`;
+the ending advances it to 6 and finishes in `$025`'s final wait/jump loop,
+which the route checks. All fights win without a wipe. Shadow exits 0 with
+zero mismatches and refusals, no page/accessor/asset diagnostics, and identical
+sound lockstep. It adds one instruction byte over the library (`$C0:A88C`),
+no `$7E` code, and starts none of modes 5, 6, 10/11/14/15 or 12. `ct_native`
+stops at frame 14237 in `$FD:B438`, an enemy coming into battle (TODO.md);
+strict mode runs all frames with exit 0. The shipping route (`on:on:c`) reaches
+The End at frame 168451 without a wipe; all 12 restores replay exactly and the
+C sound driver reports no errors.
+
 So do the menu, event and battle movies made for what no movie ran
 ([movies-wanted.md](movies-wanted.md), Targets): `menu_sweep`
 (`menus-sweep.ctm`), `save_point` (`menus-save-point.ctm`), `epoch_lavos`

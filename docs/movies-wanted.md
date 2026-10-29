@@ -423,8 +423,23 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   commands or samples placed over echo. No movie was added to the library, so the narrowed
   movie suite and its aggregate baselines do not apply. The route-check unit tests and the
   static don't-care, port-style, port-smell, source-effects and asset checks pass.
-- **Remaining**: ct-state19 through ct-state26. Reading the slot's RAM regions using the save
-  layout at `$FF:FA7B` gives story counters `$5D`, `$69`, `$7E`, `$87`, `$8E`, `$9F`, `$A2`,
+- **The Legendary Hero**: `legendary_hero`, technoplaza ct-state19 slot 2, 144640 frames.
+  The bucket, Day of Lavos, shell with its boss imitations, inner Lavos and Core; all fights
+  without a wipe (won at 56952, 85846 and 130160). The ending plays Robo and Atropos's reunion,
+  Tata's journey to the throne, Crono, Marle and Lucca in place of the villains, and the
+  interleaved staff credits through The End. The save's `$7F:0000 = $5D` selects
+  `$54 <= story < $66` in `$052`, setting `$7F:01AB = 1` and entering `$025`. That ending flag
+  advances through 6: `$025`, `$02C`, `$025`, `$02D`, `$025`, `$026`, `$025`, `$03C`, `$025`,
+  `$02E`, `$025`. Completion requires flag 6 and object 0's final wait/jump loop at `$042B`,
+  after the last fade-in; The End was inspected. Coverage against the 48 library movies adds
+  **one byte**, the field-object loop's return at `$C0:A88C`, and no `$7E` scene-program code.
+  None of modes 5, 6, 10/11/14/15 or 12 starts in this ending. Shadow exits 0: no mismatches,
+  refusals, page/accessor/asset diagnostics; sound lockstep identical. `ct_native` stops at
+  frame 14237, `$FD:B438`, "an enemy coming into the battle"; strict mode runs all 144640
+  frames and exits 0 without a stop. Shipping-mode `route_check --mode on:on:c` passes at
+  frame 168451 without a wipe; all 12 restores replay exactly, with no C sound-driver errors.
+- **Remaining**: ct-state20 through ct-state26. For ct-state19 through ct-state26, reading the
+  slot's RAM regions using the save layout at `$FF:FA7B` gives story counters `$5D`, `$69`, `$7E`, `$87`, `$8E`, `$9F`, `$A2`,
   `$D4`, respectively. `$052` selects their first ending locations as `$025`, `$025`, `$05B`,
   `$159`, `$10F`, `$190`, `$0EF`, and `$054` (the last save has no Crono). These are dispatcher
   findings, not completed routes or coverage claims.
