@@ -554,6 +554,26 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   back out to the map. The tree is 177 pixels up the slope; dashing up covers about 120 in the calm,
   so no movie.
 
+### 12. The side quests
+No movie plays a side quest's events or bosses: the library's movies from the side-quest saves
+(`ctsave12`-`ctsave14`) open menus and shops, ride the Epoch, press the Northern Ruins' switch and
+dive into Lavos. The fantasyanime saves step through them in one order (oracle/saves/README.md),
+so each quest has a save just before it; which slot is the nearest, and what of each the library
+already runs, is for its route to establish.
+
+| Quest | Save before it | What it plays | Bosses |
+|---|---|---|---|
+| Ozzie's Fort | ctsave12 slot 2 (slot 3 after it) | the fort, the chain trap | Flea, Slash, Great Ozzie |
+| Fiona's forest | ctsave12 slot 3 (ctsave13 slot 1 after it) | Robo's 400 years: the forest's replanting, the campfire | -- |
+| Lucca's mother | after Fiona's forest | the gate to 990 A.D. and the password typed against the clock; `ct_drive`'s machine copies make the timed part a search | -- |
+| The Rainbow Shell | ctsave13 slots 1-2 (slot 3 after it) | the Giant's Claw, the shell taken to Guardia Castle and the trial | Rust Tyrano |
+| The Sun Stone | ctsave13 slot 3 (ctsave14 slot 1 after it) | the Sun Palace, the stone charged across the eras | Son of Sun |
+| Cyrus's grave | ctsave14 slot 1 (slot 2 after it; `field-northern-ruins-switch` presses one switch) | the Northern Ruins and Cyrus's ghost, the Masamune's power restored | Hero's Grave guardians |
+| Geno Dome | ctsave14 slot 2 (Targets, 5) | the conveyors and doors | Atropos XR, MotherBrain |
+
+Each is an event-heavy play the native program hasn't met: the event commands, scene work and
+bosses they reach are where `ct_native`'s next stops are likely to be.
+
 ### Unknown
 - **Mode 5** (2.05 KiB): nothing found that starts it (Targets, 8).
 - **Field engine**, **battle other**, **enemy movement**, **sound driver** and
