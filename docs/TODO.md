@@ -2800,6 +2800,16 @@ list, by kind, is what `game/` still asks of one.
   the store; what still reads cartridge addresses outside it, the
   decompressor and the video transfers from ROM, is under "Assets as data
   files" (Platform).
+- **Reads past a table's end, as the original's glitches make them.** The
+  original reads and writes past its tables where a player can push it there
+  (the equipment screen with 98 slots of one kind reaches memory far outside
+  the inventory; docs/movies-wanted.md, Targets 14). The gate fails any
+  `accessor out of range`, and `ct_native` keeps the game's state in host
+  memory rather than a SNES work RAM image, so what lies past a table's end is
+  undefined there. To decide: lay the native state out as the original's work
+  RAM wherever an accessor may run past its end (the glitch reproduced byte
+  for byte), or name the reachable overruns, make each a defined, bounded
+  result, and leave the arbitrary-memory glitches out of scope.
 
 ## Targets beyond the desktop SNES build
 

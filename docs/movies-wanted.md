@@ -600,6 +600,19 @@ shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search o
 The Ocean Palace's end and Crono's return are the story's largest scripted scenes, so they come
 first.
 
+### 14. The original's known glitches
+A faithful port reproduces the original's mistakes, so plays that lean on its documented glitches
+test the ports where no ordinary play goes. The speedruns' inputs come from other emulators and
+won't sync here; each is a `ct_drive` route from a save, written from the glitch's description
+(chrono.wikidot.com/glitches; TASVideos submission 2240 and its forum thread).
+
+| Glitch | What it does | Status |
+|---|---|---|
+| Unequipped armor or helm (US) | a slot left empty (the Blackbird's events allow it; elsewhere only with no spare piece the member could wear) doubles the member's magic damage and cuts the magic damage it takes by about 90%, Fire and non-elemental excepted | queued: a route, the damage compared in a fight |
+| 98 slots of one kind of equipment | the equipment screen reaches memory far outside the inventory | waits on the native program's reads past a table's end (TODO.md, "The native program") |
+| Item duplication | the glitched any% run duplicates items within one reset | mechanism to work out from the run |
+| New Game+ save corruption | a reset in the middle of a frame leaves a half-written value in the save: maxed stats, nearly any equipment | needs a reset mid-frame, which neither `ct_drive` nor `ct_native` models |
+
 ### Unknown
 - **Mode 5** (2.05 KiB): nothing found that starts it (Targets, 8).
 - **Field engine**, **battle other**, **enemy movement**, **sound driver** and
