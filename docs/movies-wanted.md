@@ -397,9 +397,37 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   ending starts modes 5, 6 and 12 (3.47) is unknown. Up to 4.71 KiB over nine
   endings of 30-50 minutes each, about 0.01 KiB a minute.
 - **Route**: yes (`bucket_lavos`, `telepod_lavos` and `beyond_time` are the pattern).
-- **Not recorded in the second batch**: each is a Lavos fight and an ending, 100000-200000 frames in
-  every gate, for at most mode 10's 0.74 KiB (the second batch's re-measure has the whole scene
-  program at 3.57 KiB, 2.92 unported); the cheaper targets came first and took the batch's time.
+- **Hand-run routes**: these long recordings stay in scratch storage, outside `oracle/movies`.
+  Their routes are in `tools/suite.py`'s `HAND_RUN_ROUTES`, excluded even from `--long-routes`;
+  regenerate and check them explicitly (MOVIES.md). `tools/movies/other_endings.py` shares the
+  Lavos fights and recording setup, and reuses `telepod_lavos.to_the_shell` for the fair.
+- **The Successor of Guardia**: `successor_of_guardia`, technoplaza ct-state17 slot 2,
+  129223 frames. Crono and Marle enter the right telepod, beat the shell (13145), inner Lavos
+  (44875) and Core (117187), without a wipe, return to the fair, and speak to the royal guard
+  below the fountain. The royal family's reveal at `$04F` leads to Frog and Leene at `$057`,
+  their credits, heart and The End. Completion checks object 0's final halt at script offset
+  `$0270` in `$057`, after its fade, then keeps another 120 frames; the final screen was inspected.
+  Identification is from the save's RAM and the game: `$7F:0000 = $27`, and location `$052`'s
+  script 9 (`$FD:9000`) selects `$27 <= story < $2D`, sets `$7F:006E = 5`, and returns to `$008`.
+  That flag enables lower-square objects `$1B`/`$1C`, whose conversations start `$04F`.
+  Against the coverage union of all 48 library movies, this recording adds 159 instruction
+  bytes (0.16 KiB): party removal (`$C0:3967`-`$3992`, `$39E1`-`$39F3`), field paths,
+  battle aiming (`$C1:C8CC`-`$C8E9`), and palette paths including darkening blue
+  (`$FD:E6A1`-`$E6D0`). **No new `$7E` scene-program code**; none of modes 5, 6, 10/11/14/15
+  or 12 starts in this ending. Shadow: 0 mismatched, 0 refusals, no `page refused`,
+  `accessor out of range` or asset diagnostics; sound lockstep identical. `ct_native` and
+  strict mode both run all 129223 frames and exit 0 without a stop. Fixed-input completion
+  in those modes does not establish the ending's outcome when their timing drifts.
+  Shipping-mode `route_check --mode on:on:c` passes at frame 176603, all fights without a wipe;
+  its six restores away from a base replay exactly, and the C sound driver reports no dropped
+  commands or samples placed over echo. No movie was added to the library, so the narrowed
+  movie suite and its aggregate baselines do not apply. The route-check unit tests and the
+  static don't-care, port-style, port-smell, source-effects and asset checks pass.
+- **Remaining**: ct-state19 through ct-state26. Reading the slot's RAM regions using the save
+  layout at `$FF:FA7B` gives story counters `$5D`, `$69`, `$7E`, `$87`, `$8E`, `$9F`, `$A2`,
+  `$D4`, respectively. `$052` selects their first ending locations as `$025`, `$025`, `$05B`,
+  `$159`, `$10F`, `$190`, `$0EF`, and `$054` (the last save has no Crono). These are dispatcher
+  findings, not completed routes or coverage claims.
 
 ### 8. The scene program's modes 6, 7 and 5
 - **Mode 6** (`$7E:78DD`): location `$1B0` is the party in the winged Epoch over Lavos (event script

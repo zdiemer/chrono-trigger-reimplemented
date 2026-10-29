@@ -183,6 +183,40 @@ python3 -m tools.movies.routes.beyond_time --prefix work/beyond ...
 Lavos's shell (its first phases, `to_the_shell`) and loses the fight, for the
 Day of Lavos a loss plays.
 
+The other New Game+ endings are hand-run routes: a Lavos fight and ending takes
+100,000-200,000 frames, so `HAND_RUN_ROUTES` in `tools/suite.py` excludes them
+from the gates, including `--long-routes`. Their recordings belong in scratch
+storage, not `oracle/movies`. `tools/movies/other_endings.py` shares the fights
+and recording setup; the routes supply the ending's walks and completion checks.
+
+```sh
+python3 -m tools.movies.routes.successor_of_guardia --prefix work/successor/run \
+    --movie work/successor.ctm
+python3 -m tools.movies.route_check --mode on:on:c -j 1 \
+    --scratch work/shipping successor_of_guardia
+```
+
+`successor_of_guardia` (technoplaza ct-state17 slot 2, 129223 frames) plays
+the telepod, all three Lavos fights with Crono and Marle, the return to the fair,
+the royal guard's invitation, the royal family's reveal, and Frog and Leene's
+credits through The End. The save's story counter `$27` selects `$6E = 5` in
+location `$052`'s ending dispatcher; the route verifies that flag and the final
+halt of `$057`'s script, rather than treating a timeout as completion. Short
+waypoints pass east of the fountain and the visitor on the stairs; the guard
+is approached from the north because his south side is beyond the exit.
+Shadow has zero mismatches and refusals, no page/accessor/asset diagnostics,
+and identical sound lockstep. Coverage adds 159 instruction bytes over the
+48-movie library, none in the `$7E` scene program: this ending starts none of
+modes 5, 6, 10/11/14/15 or 12. `ct_native` and strict mode both complete the
+129223-frame input with exit 0 and no stop; that alone does not prove the
+ending in modes whose timing differs. `route_check --mode on:on:c` reaches
+The End at frame 176603, without a wipe; all six restores away from a base
+replay exactly, with no C sound-driver errors. The static checks and route-check
+unit tests pass. Since no movie joins the library, this route does not require
+a narrowed movie-suite run or changes to its aggregate baselines.
+The per-ending evidence and remaining saves are in
+[movies-wanted.md, target 7](movies-wanted.md#7-the-other-endings).
+
 So do the menu, event and battle movies made for what no movie ran
 ([movies-wanted.md](movies-wanted.md), Targets): `menu_sweep`
 (`menus-sweep.ctm`), `save_point` (`menus-save-point.ctm`), `epoch_lavos`

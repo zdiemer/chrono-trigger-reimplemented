@@ -3115,11 +3115,11 @@ waits on M5 rather than on a backend.
     597 registry entries (14%) are never entered by any movie** -- `$C2` 28,
     `$C6` 22, `$D1` 9, `$C3` 8, `$FD` 7, `$C7` 6 -- and those rest on fuzzing
     alone. Each wave since the pilot has found bugs there.
-- **Endings: three of about thirteen are recorded** (Beyond Time, the telepod
-  ending, the bucket ending). Reunion needs a route to Lavos from "The Time
-  Egg" (no Epoch reachable from that save); the rest are unrecorded and cheap
-  now (MOVIES.md), since an ending is chosen by where and when Lavos is beaten
-  plus story flags, and `oracle/saves/` has 51 saves to start from.
+- **Remaining ending routes**: technoplaza ct-state19 through ct-state26,
+  including Reunion from "The Time Egg" (no Epoch reachable from that save).
+  These belong among the hand-run routes, with scratch recordings rather than
+  another 100,000-200,000 frames each in every gate (MOVIES.md;
+  movies-wanted.md, target 7).
 - **Content no movie plays at all**: most sidequests, and much of the endgame
   beyond the Black Omen. That is the likeliest home of the dark code in `$C0`
   and `$C2`, since sidequests are event scripts and menus. Driving them is
