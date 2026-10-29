@@ -163,14 +163,13 @@ def run_movie(binary, rom, out, name, path, frames, lockstep):
 def trace_check(binary, rom, out, movie, frames):
     """`--generated only` against `--native off` on one movie. Returns (ok, detail).
 
-    The two runs are given their own copy of the binary so they can run at once
-    on hosts that lock a running image.
+    Run the reference and generated-code replay in turn, including with -j 1.
+    Keep their separate image names and logs for inspecting a failed comparison.
     """
     movie = ROOT / "oracle/movies" / (movie + ".ctm")
     if not movie.exists():
         return True, "skipped (no %s)" % movie.name
     traces = {}
-    procs = []
     for tag, extra in (("off", ["--native", "off"]),
                        ("only", ["--native", "on", "--generated", "only"])):
         exe = out / ("ct_dev_%s%s" % (tag, binary.suffix))
@@ -179,9 +178,8 @@ def trace_check(binary, rom, out, movie, frames):
         cmd = [str(exe), "--rom", str(rom), "--movie", str(movie),
                "--frames", str(frames), "--trace", str(traces[tag])] + extra
         with open(out / ("trace-%s.log" % tag), "wb") as fh:
-            procs.append(subprocess.Popen(cmd, stdout=fh, stderr=subprocess.STDOUT))
-    if any(p.wait() != 0 for p in procs):
-        return False, "a trace run failed"
+            if subprocess.call(cmd, stdout=fh, stderr=subprocess.STDOUT) != 0:
+                return False, "a trace run failed"
     diff = subprocess.run([sys.executable, "-m", "tools.trace", "diff",
                            str(traces["off"]), str(traces["only"])],
                           cwd=ROOT, capture_output=True, text=True)
