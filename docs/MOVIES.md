@@ -199,9 +199,45 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
-Each starts from the technoplaza cartridge save its movie header names
-(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
-`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
+`rust_tyrano` (`battle-rust-tyrano.ctm`, 23282 frames) starts at Giant's
+Claw's save point in 600 A.D., opens the nearby door and defeats Rust Tyrano
+with Crono, Lucca and Robo. It includes the countdown and fire breath,
+Confuse and Uzzi Punch, healing and MP restoration, and stops with the field
+back in hand in the shell's chamber (`$0C5`). A fresh route run reproduced
+the movie's inputs. Shadow replay has zero mismatches, refusals, refused
+pages or out-of-range accessors. Its coverage adds 54 instruction bytes
+(0.05 KiB, all ported) over the preceding 48 movies: field walking, healing
+and battle reward branches (Targets 12 in movies-wanted.md).
+The shipping-mode route (`on:on:c`) also wins without backtracking, at
+frame 23105, and returns field control at 24605, with zero fallback
+instructions or guard refusals. It restores Crono's MP for Life 2 if a
+party member falls; that recovery branch is unused by the recorded movie.
+`ct_native` runs all 23282 frames without a stop (four existing video
+escapes, first `$7E:5AEB`). Strict mode also reaches the end without a
+stop; its saved game differs in 72 bytes of inventory counts and character
+records, recorded as `drifts` in the strict baseline. The narrowed gate
+requires 177 timing constants recalibrated with `--drifted` and an
+uncompared baseline entry for `battle_apply_damage` (67 interrupted calls,
+56 matched). Two vblank-tail exceptions cover `battle_record_trails` and
+`field_nmi`; the movie's video check finds no writes moved onto the picture
+(TODO.md records the estimates to refine). The combined library needs its
+own timing measurement.
+
+Its starting save is `oracle/saves/routes/rainbow-shell.srm`, slot 1, made
+through the game's own save menu after a Shelter. `rainbow_shell` plays the
+long approach from fantasyanime ctsave13 slot 1: the Epoch to 600 A.D.,
+the ruined throne, cave encounters, floor switches and pits, then the save
+point. The recorded approach takes 55184 frames; it is a hand-run route
+(`HAND_RUN_ROUTES`), with its movie kept outside the library. It exports
+the cartridge SRAM as `<prefix>.srm`; a fresh preparation run reached the
+save point at frame 53687. Replaying the original 55184-frame inputs
+recreated the archived SRAM exactly. Neither route uses memory pokes.
+The archive's slot 2 is already after the boss and shell delivery; slot 3
+is after the trial. The delivery and trial are not in this movie.
+
+Each route starts from the cartridge save its movie header names under
+`oracle/saves/`, which is the route's `SAVE`; `--sram` picks another.
+[The saves' README](../oracle/saves/README.md) records their provenance.
 `--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and

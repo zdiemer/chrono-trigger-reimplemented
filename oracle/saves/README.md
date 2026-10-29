@@ -8,6 +8,17 @@ needs by the CRC-32 in its `# sram crc32` line, so `--sram` is optional; see
 
 Each movie's `# Save:` line names the file below and the slot it loads.
 
+## routes/
+
+`rainbow-shell.srm` is a normal cartridge save made by playing fantasyanime
+ctsave13 slot 1 through Giant's Claw in 600 A.D., using a Shelter at its save
+point and saving over slot 1. The file contains cartridge SRAM, with no memory edits.
+Crono, Lucca and Robo stand at location `$06D`, tile (61, 21), before Rust
+Tyrano (`$7F:01D2` bit 6 clear). The hand-run `rainbow_shell` route reproduces
+the approach and writes `<prefix>.srm`; `rust_tyrano` records the short boss
+movie from this save. The recorded approach took 55184 frames and is kept
+outside the movie library. Slots 2 and 3 retain the source archive's games.
+
 ## fantasyanime/
 
 From the Chrono Trigger saves at fantasyanime.com/squaresoft/ctsaves-srm.htm,
@@ -28,7 +39,7 @@ slots each, stepping through the story:
 | `ctsave10-ocean_palace` | the Ocean Palace entrance, middle and the Golem Twins |
 | `ctsave11-crono_gone` | the Blackbird; the Earthbound Village; Death Peak |
 | `ctsave12-side_quests1` | Death Peak; the End of Time for the side quests; Ozzie's Fort done |
-| `ctsave13-side_quests2` | Fiona's shrine done; the Rainbow Shell quest, midway and done |
+| `ctsave13-side_quests2` | Fiona's shrine done; before Giant's Claw, after shell delivery but before the trial, and after the trial |
 | `ctsave14-side_quests3` | Sun Stone done; Cyrus done; Geno Dome done |
 | `ctsave15-black_omen` | three points in the Black Omen |
 | `ctsave16-lavos` | Lavos |

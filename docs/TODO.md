@@ -9,6 +9,16 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **Refine the Rust Tyrano movie's timing tails.** After recalibrating the
+  narrowed `battle-rust-tyrano` run, `battle_record_trails` (`$CF:ED18`,
+  `battle/object_motion.c`) has 2.54% of its 7123 vblank stretches off by at
+  least 1024 clocks, at most 1538; its work depends on which trails are
+  active and whose countdown expires. `field_nmi` (`$C0:EA63`, `field/nmi.c`)
+  has 1.37% of 5904, at most 3404, across its pending-frame and upload paths.
+  Their mean drifts are 0.00% and +0.06%. Both are accepted in
+  `tools/timing_exceptions.txt`: the movie's vblank check finds no writes
+  moved onto the picture. Measure the merged library and refine those path
+  estimates before removing the exceptions.
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
   the original (battles play out differently). That difference is accepted
   (REIMPLEMENTATION.md, "Can a hand port be exact?"); the timing gate bounds the errors
