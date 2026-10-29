@@ -2659,6 +2659,14 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
+- **Ozzie's Fort movie on the native program.** `battle-ozzies-fort` from ctsave12
+  slot 2 reaches its 39237-frame budget in `ct_native` with exit 0 and no reported
+  stop, but the display is blanked after only five screen setups. Determine where
+  its playback ceases to advance before counting the fort as native coverage;
+  a fixed movie's timing can diverge from the native program. The interpreter's
+  route completes all fort events and returns field control, shadow is clean,
+  and strict mode reaches the budget with saved-game drift. The native run also
+  reports two SNES-only video escapes, first at `$7E:5AEB`.
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
   tables (`menu/handlers.c`, `overworld/handlers.c`); a handler or a routine

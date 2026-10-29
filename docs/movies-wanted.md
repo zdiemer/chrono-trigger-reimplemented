@@ -555,7 +555,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   so no movie.
 
 ### 12. The side quests
-No movie plays a side quest's events or bosses: the library's movies from the side-quest saves
+`battle-ozzies-fort` plays the fort's events and bosses. The other movies from the side-quest saves
 (`ctsave12`-`ctsave14`) open menus and shops, ride the Epoch, press the Northern Ruins' switch and
 dive into Lavos. The fantasyanime saves step through them in one order (oracle/saves/README.md),
 so each quest has a save just before it; which slot is the nearest, and what of each the library
@@ -563,7 +563,7 @@ already runs, is for its route to establish.
 
 | Quest | Save before it | What it plays | Bosses |
 |---|---|---|---|
-| Ozzie's Fort | ctsave12 slot 2 (slot 3 after it) | the fort, the chain trap | Flea, Slash, Great Ozzie |
+| Ozzie's Fort | ctsave12 slot 2 (slot 3 after it, confirmed by flags) | `battle-ozzies-fort`: the fort and final trap | Flea Plus, Super Slash, Great Ozzie |
 | Fiona's forest | ctsave12 slot 3 (ctsave13 slot 1 after it) | Robo's 400 years: the forest's replanting, the campfire | -- |
 | Lucca's mother | after Fiona's forest | the gate to 990 A.D. and the password typed against the clock; `ct_drive`'s machine copies make the timed part a search | -- |
 | The Rainbow Shell | ctsave13 slots 1-2 (slot 3 after it) | the Giant's Claw, the shell taken to Guardia Castle and the trial | Rust Tyrano |
@@ -571,8 +571,27 @@ already runs, is for its route to establish.
 | Cyrus's grave | ctsave14 slot 1 (slot 2 after it; `field-northern-ruins-switch` presses one switch) | the Northern Ruins and Cyrus's ghost, the Masamune's power restored | Hero's Grave guardians |
 | Geno Dome | ctsave14 slot 2 (Targets, 5) | the conveyors and doors | Atropos XR, MotherBrain |
 
-Each is an event-heavy play the native program hasn't met: the event commands, scene work and
+The remaining quests are event-heavy plays the native program hasn't met: the event commands, scene work and
 bosses they reach are where `ct_native`'s next stops are likely to be.
+
+- **Movie**: `battle-ozzies-fort` (route `ozzies_fort`, ctsave12 slot 2, 39237 frames):
+  from the End of Time by Epoch to 600 A.D.; `$0B1`'s introduction, Flea Plus in `$0B7`,
+  `$0B2`'s conveyor, Super Slash in `$0B8`, `$0B3`'s treasure trap (the chest left alone),
+  the three generals in `$0B4`, then `$0B5`'s switch battle, the fall back to `$0B4`,
+  and the return for the cat to spring Ozzie's final trap. Slot 2 has `$7F:01A1 = $00`;
+  slot 3 has `$FF` and `$7F:01A0` bit 7 set. The movie ends with those fort flags set
+  and the field back in hand. The trio's counters make weak attacks expensive: Lucca's
+  Flare, with Crono and Marle healing, wins without a wipe and keeps the whole fort
+  below 40000 frames. Machine-copy searches retain only the winning inputs; no pokes.
+  Its `--coverage` adds 393 bytes (0.38 KiB) beyond the preceding 48 movies, all ported:
+  `event_cmd_set_flags` (`$C0:6BF7`), single-tech learning (`rewards_count_tech_points`,
+  `rewards_reach_next_tech`, `rewards_learn_single_tech`, `$C1:F3AF`-`$F532`), the
+  rewards' messages (`$FD:ADC9`-`$AE04`), the choice pointer (`$C0:F08B`-`$F0AA`), and
+  the Epoch's arrival (`$C6:EE31`), with small status, level-growth and text paths.
+  Shadow: 0 mismatched, no refusal, `page refused` or `accessor out of range`; sound
+  state identical. Strict mode reaches the full frame budget but the saved game
+  drifts. `ct_native` reports no stop, reaches 39237 frames, and leaves its display
+  blanked after five screen setups; completion there is not established (TODO.md).
 
 ### 13. The story events no movie plays
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's

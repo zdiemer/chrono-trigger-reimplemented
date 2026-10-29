@@ -199,9 +199,35 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
-Each starts from the technoplaza cartridge save its movie header names
-(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
-`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
+`ozzies_fort` (`battle-ozzies-fort.ctm`, 39237 frames) starts from fantasyanime
+ctsave12 slot 2 at the End of Time. The fort flags at `$7F:01A1` are `$00` in
+slot 2 and `$FF` in slot 3, including the final trap's bit 7. It boards the
+Epoch, selects 600 A.D., lands east of the fort, and plays Flea Plus, the
+conveyor scene, Super Slash, the treasure trap (walking past the chest), the
+three generals, the switch battle, the fall downstairs and the return for
+the cat to spring the final trap. It ends with all eight fort bits set and
+the field back in hand. Lucca casts Flare against the trio while Crono and
+Marle heal between its counters; machine-copy retries keep only the winning
+inputs. The route stops on each event's trigger row before waiting for its
+dialogue, since the animation can start before the window opens.
+Against the preceding 48 movies, its coverage adds 393 bytes (0.38 KiB), all
+ported: chiefly single-tech learning and the rewards that announce it, plus
+event flag setting and the Epoch arrival. Shadow has no mismatch or refusal;
+the C sound driver's state matches at every tick. Strict mode reaches the
+frame budget with different saved-game state as the inputs drift.
+`ct_native` reports no stop over the same budget but leaves its display
+blanked; that playback does not establish completion of the fort (TODO.md).
+The narrowed timing calibration leaves the screen-command dispatch's varying
+work at 11 of 1029 vblank stretches over 1024 clocks, at most 1949 clocks,
+with no drift; `timing_exceptions.txt` records it beside its channel and
+frame runners. The movie's vblank check finds no unallowed write moved.
+Interrupts leave 113 of 210 tile-row decodes uncompared; the existing isolated
+whole-row fuzz test compares 10000 states with no mismatch or skip (seed 1),
+recorded in `uncompared_baseline.txt`.
+
+Each starts from the cartridge save its movie header names, under
+`oracle/saves/` (whose README records the sources), and names it in the
+route's `SAVE`; `--sram` picks another.
 `--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and
