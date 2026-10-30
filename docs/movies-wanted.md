@@ -1281,6 +1281,8 @@ the earlier library did not reach, and may expose `ct_native`'s next stops.
 
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's
 castle, the dactyls, the Black Tyrano, the Keeper's Dome, the Golem Twins, the Blackbird, North Cape, the
+The library plays the fair, Crono's trial, the prison escape, Arris Dome, the race, the Magic Cave, Magus's
+castle, the dactyls, the Black Tyrano, the Keeper's Dome, the Golem Twins, the Blackbird, the
 Black Omen and Lavos. The rest of the story has saves just before it (oracle/saves/README.md) and
 no movie; the slot named is the nearest found from the README, for the route to confirm.
 
@@ -1294,6 +1296,7 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra (`yakra` hand run, below) |
 | 1000 A.D. | The trial | ctsave01 slot 3 is after it; a save before is to find | -- |
 | 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank (`battle-dragon-tank`) |
+| 1000 A.D. | The trial | routes/cronos-trial slot 1, made by `cronos_trial`; `events-cronos-trial` recorded | -- |
 | 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank |
 | 1000 A.D. | Heckran's Cave | ctsave03 slot 3, then the cave save point | Heckran (`battle-heckran`, below) |
 | 2300 A.D. | Robo repaired at Proto Dome | between ctsave02 and ctsave03 | -- |
@@ -1606,6 +1609,51 @@ Crono's return is the next of the story's largest scripted scenes to record.
   but differs in the saved game (`drifts`). `ct_native` reports no explicit
   stop in 19376 frames, with a screen showing and four video escapes, first
   `$7E:5AEB`; a native boss victory is not established by that run.
+
+- **Movie**: `events-cronos-trial` (route `trial`, routes/cronos-trial slot 1,
+  21214 frames). Marle is brought home to Guardia Castle (`$015`), Crono is
+  arrested, and the courtroom (`$01B`) plays the testimony, the fair
+  flashbacks and the jury's seven votes. Confirm selects the first answer to
+  each question. Five vote not guilty and two guilty (`$7F:0051 = 2`): Crono
+  is acquitted, but sentenced to three days' solitary confinement for running
+  away with Marle. The prison transfer crosses `$01C` and `$01D`; the movie
+  ends in the cell (`$047`), after Crono wakes and answers the pad, with story
+  `$2D` and the trial's phase `$7F:0059 = $10`. The courtroom begins at frame
+  4704, the cell loads at 20584 and control is stable at 21214.
+  `--coverage` adds 9 live code bytes over the preceding 48 movies, all ported
+  (`event_cmd_wait_frames`, `$C0:2FA6`-`$2FAE`); the new coverage is chiefly
+  the courtroom's event scripts and jury logic. Shadow: zero mismatches,
+  no `page refused` or `accessor out of range`, C sound-driver lockstep
+  identical. `field_walk_the_leader` refuses 150 calls during the prison
+  transfer, a documented gap in `tools/refusal_allowlist.txt` and TODO.
+  `ct_native` stops at frame 20629, `$C0:881E`, "a walk the port doesn't
+  take". Strict mode reaches the frame limit but drifts from the reference.
+- **Hand run**: `events-cronos-trial-long` (route `cronos_trial`, ctsave01
+  slot 2, 136868 frames, `oracle/movies/hand/`, outside the default library).
+  No original save sat near the courtroom: slot 2 is on the 600 A.D. world
+  map before the Cathedral, and slot 3 is already in prison. The route reuses
+  `early-bosses`' Cathedral and Yakra stages, then returns Leene to the castle
+  (story `$1C`), restores Marle (`$21`), says farewell to Frog, crosses the
+  forest and Truce Canyon, takes the gate to the fair (`$27`), and brings
+  Marle home. The normal overworld Save menu writes slot 1 outside Guardia
+  Castle at frame 118233; the exported cartridge SRAM is committed as
+  `oracle/saves/routes/cronos-trial.srm` (CRC32 `5B31C425`). Loading it from
+  power-on produced the short movie above. The hand run's courtroom starts
+  at 120358 and its cell loads at 136238. It remains in `HAND_RUN_ROUTES`;
+  both movies contain only pad input, with machine-copy retries and no
+  diagnostic writes.
+  `--coverage` adds 1480 live code bytes over the preceding 48 movies,
+  444 beyond those plus `battle-yakra`, all ported. The latter includes
+  counted moves towards objects (137 bytes) and party members (104),
+  `overworld_region_song` (93), and enemy approach, distance and turn paths.
+  Shadow: zero mismatches, no `page refused` or `accessor out of range`,
+  C sound-driver lockstep identical. There are 913 guard refusals at six
+  entries: the 600 A.D. forest's movement and battle setup, the castle's
+  overworld exit and the transfer to prison. Each is a gap documented in
+  TODO and the refusal allowlist; none was ported for this recording.
+  `ct_native` reaches 136868 frames without an explicit stop, with the
+  screen blank; it does not establish a native completion. Strict mode
+  reaches the frame limit but drifts from the reference saved game and SRAM.
 
 ### 14. The original's known glitches
 A faithful port reproduces the original's mistakes, so plays that lean on its documented glitches

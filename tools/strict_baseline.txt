@@ -50,6 +50,7 @@ events-cyrus drifts  # differs from the reference: 5 byte(s) of the saved game (
 events-death-peak-ascent drifts  # differs from the reference: 78 byte(s) of the saved game (inventory_counts, $7E:2613, $7E:2614, $7E:262B, $7E:262C, $7E:2653, ...); 79 byte(s) of save RAM
 events-death-peak-wind end
 events-death-peak drifts  # differs from the reference: 89 byte(s) of the saved game (inventory_items, inventory_counts, $7E:2613, $7E:2614, $7E:262B, $7E:262C, ...); 208 byte(s) of save RAM
+events-cronos-trial drifts  # differs from the reference: 20 byte(s) of the saved game (current_song, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...)
 events-end-of-time-gate end
 events-epoch-lavos end
 events-fionas-forest drifts  # differs from the reference: 131 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, $7E:260C, ...)
@@ -93,3 +94,4 @@ menus-shop-inn drifts  # the presses land on other frames, and the party ends at
 menus-sweep drifts  # the presses land on other frames, and the menus' cursor uses and moves other items (118 byte(s) of the saved game (inventory_items, inventory_counts, $7E:26AB, $7E:26CF, $7E:26D6, $7E:2719, ...))
 battle-nizbel drifts  # differs from the reference: 128 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...)
 battle-yakra drifts  # differs from the reference: 128 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...)
+events-cronos-trial-long drifts  # differs from the reference: 149 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...); 181 byte(s) of save RAM

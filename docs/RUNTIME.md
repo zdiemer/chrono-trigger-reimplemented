@@ -470,6 +470,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `battle-heckran.ctm` | routes/pre-heckran, 3 | Heckran's Cave: magic, healing and waiting out the water counterattack stance; field control returned (route `heckran`) | 19376 |
 | `battle-castle-slash.ctm` | ctsave06, 2 | Magus's castle: the wings visited, Ozzie's ambush, Slash's henchmen and both Slash fights won; field control restored (route `castle_slash`) | 39278 |
 | `battle-castle-flea.ctm` | ctsave06, 2 | Magus's castle: the wings visited, Ozzie's ambush, the Flea decoy and Flea beaten; field control restored (route `castle_flea`) | 35256 |
+| `events-cronos-trial.ctm` | routes/cronos-trial, 1 | Marle brought home, Crono arrested, courtroom testimony and flashbacks, 5–2 acquittal, three days' confinement, and Crono awake in his cell (route `trial`) | 21214 |
 | `battle-tech-sweep.ctm` | zophar chrono-trigger, 1 | Inside Lavos's shell: the second form and the Lavos Core fought with every single and double tech Crono, Magus and Marle have, each cast once (route `tech_sweep`) | 118090 |
 | `late-omen-battles.ctm` | ctsave15, 1 | Black Omen random battles won (results), status Chaos keeping Lucca confused, many single techs, running away from an ambush | 18412 |
 | `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, the dual tech list, Mega Bomb, Confuse, item menus, Life 2 on a fallen Crono | 17762 |

@@ -666,6 +666,52 @@ The narrowed fallback baseline adds the menu task-start helper `$C2:8249`
 `$C2:F213`-`$F216`; both are outside a registered comparison in reference
 play. Existing library counts are retained. Shipping-mode fallbacks and
 guard refusals remain zero.
+`trial` records `events-cronos-trial.ctm` (21214 frames): bringing Marle home,
+the arrest, courtroom testimony and fair flashbacks, the jury's 5–2 acquittal,
+three days' solitary confinement, and the prison transfer, ending with Crono
+awake in his cell (`$047`, story `$2D`, trial phase `$10`) and responding to
+the pad. It loads slot 1 of `oracle/saves/routes/cronos-trial.srm`, a normal
+cartridge save made outside Guardia Castle by the long route below.
+
+`cronos_trial` is a hand-run route: ctsave01 slot 2 is before the Cathedral,
+and slot 3 is already after the trial. Its 136868-frame movie is
+`oracle/movies/hand/events-cronos-trial-long.ctm`, outside the default library,
+and the route is in `HAND_RUN_ROUTES`. The Cathedral stages and early battle
+policy come from `early-bosses`' Yakra route. The continuation restores Leene,
+reunites Crono and Marle, plays Frog's farewell, crosses Guardia Forest and
+Truce Canyon, takes the gate back to 1000 A.D., and returns Marle to the castle.
+The game's overworld Save menu writes slot 1 before the arrest; the route
+exports that SRAM to `<prefix>-before-trial.srm` for a fresh `trial` recording.
+Machine-copy searches keep only successful walks; neither recording uses
+diagnostic writes. The castle's spiral stairs reuse a location number, the
+forest's two exits share a destination number, and the courtroom testimony
+temporarily revisits the fair, so their route checks account for those cases.
+The Cathedral's `strings_f9b000` catalogue metadata is also reused from
+`early-bosses`, so native asset reads recognize that dialogue pool.
+
+Both recordings pass shadow with zero mismatches, no `page refused`, no
+`accessor out of range`, and matching C sound-driver lockstep. Coverage against
+the preceding 48 movies adds 9 live code bytes for the short movie
+(`event_cmd_wait_frames`) and 1480 for the long one, all already ported.
+The latter adds 444 bytes beyond those movies plus `battle-yakra`, principally
+counted movement towards objects and party members and the overworld's region
+song. The courtroom and jury are new event-script coverage even though their
+engine code was already exercised. Six guard gaps are listed in
+`tools/refusal_allowlist.txt` and TODO's "Refusals in real play".
+The narrowed shipping-mode vblank check reports zero findings outside the
+existing exceptions. Timing was calibrated with `--calibrate game/registry.c
+--drifted` over these two shadow logs; the remaining data-dependent tails
+and minimum-scalar drift are explained in `tools/timing_exceptions.txt`.
+
+`ct_native` stops the short movie at frame 20629, `$C0:881E`, "a walk the
+port doesn't take", during the prison transfer. The long movie reaches its
+136868-frame limit with a blank screen and no explicit stop; that does not
+establish that it completed the story. Strict mode reaches both frame limits
+but drifts from the reference saved state (`tools/strict_baseline.txt`).
+
+Both hand movies and library movies can be named explicitly in the narrowed
+suite; hand movies remain excluded when no names are supplied. With `-j 1`,
+the two trace-identity replays run sequentially too.
 
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in

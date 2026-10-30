@@ -3056,6 +3056,58 @@ needed for these reads.
   blank screen and drive the native program from state to check the fight itself. The
   shipping `ct_drive` routes do beat both Slash forms and Flea and regain field control;
   strict mode reaches both movies' ends with saved-game drift.
+## Shadow comparisons in trial recordings
+
+The two Crono trial movies raise four entries past the uncompared-call
+threshold, recorded with reasons in `tools/uncompared_baseline.txt`:
+`battle_pause_on_the_message` abandons all 116 independent comparisons of
+its held-message pause inside `battle_show_a_battle_message`; it needs an
+isolated comparison. Interrupts cut short 266 of 314
+`field_draw_bg1_at_the_load` calls, 132 of 180 `field_draw_bg2_at_the_load`
+calls and 645 of 1284 `battle_decode_tile_row` calls. Their remaining
+48, 48 and 639 comparisons respectively have zero mismatches. The
+interrupted stretches are a validation gap, not additional successful
+comparisons.
+
+
+The Crono trial recordings expose six guard gaps. Shadow comparisons pass;
+these calls fall back to the original instead of comparing a hand port.
+`tools/refusal_allowlist.txt` keeps them visible until the ports accept the
+states. No game logic was changed for the recordings.
+
+- **600 A.D. Guardia Forest's object searches.** In
+  `events-cronos-trial-long`, `field_object_in_the_way` (`C05B95`, 320
+  refusals) and `event_cmd_move_to_tile` (`C04F61`, 280) first refuse at
+  frame 82179, entering the forest after Frog leaves. The latter's walking
+  guard checks `object_search_fits`; the former also checks the object's
+  facing. `event_cmd_move_toward_party_member` (`C05410`, 160) first refuses
+  at frame 84020, after the first encounter, through the same movement
+  search guard. Diagnose the map's object-search bounds before widening
+  these guards.
+- **600 A.D. Guardia Forest's battle setup.** `field_battle_begins`
+  (`C0024C`) refuses at frames 82673 and 84878 of the long movie. Its
+  `battle_fits` checks the party links, object count and enemies' battle
+  sprite slots; identify which state falls outside those assumptions.
+- **The transfer to prison.** `field_walk_the_leader` (`C0881E`) refuses
+  for 150 frames in each movie, first at frame 133968 of the long one.
+  Its `walk_fits` checks the leader link, search start, map mask and
+  position bounds. The scripted transfer needs that state supported;
+  the recording still reaches Crono's cell with control restored.
+- **Leaving Guardia Castle in 600 A.D.** `overworld_lead` (`C23404`)
+  refuses once at frame 81958 of the long movie, with `X=0DF0`,
+  `D=0000`, `DB=00`, `P=24`. Inspect `overworld_leader_takes`' walker,
+  animation and map-following constraints at the exit.
+
+
+- **Crono's trial movies.** `ct_native` with the normal pre-trial save
+  stops `events-cronos-trial` at frame 20629, `$C0:881E`, "a walk the port
+  doesn't take", during the prison transfer (the walk guard above).
+  `events-cronos-trial-long` reaches its 136868-frame limit without an
+  explicit stop, but its screen is blank, with six screen setups; it has
+  not demonstrated the full journey in native C. Both runs report two
+  SNES-only video escapes, first `$7E:5AEB`. Strict-mode movie inputs
+  reach their limits but end with saved state different from the reference;
+  neither result establishes a native completion of the trial route.
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").

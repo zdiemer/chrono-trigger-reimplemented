@@ -46,6 +46,13 @@ over slot 3 without memory edits. Its long movie and machine checkpoints
 stay in scratch; `battle-heckran` starts from this cartridge save and ends
 after the boss. Run `heckran_prepare --prefix <scratch>` to write the
 preparation's normal cartridge SRAM to `<scratch>.srm`.
+`cronos-trial.srm`: slot 1 is on the 1000 A.D. overworld outside Guardia
+Castle, with Marle in the party and the arrest still ahead (story `$27`, CRC32
+`5B31C425`). The `cronos_trial` hand route plays from fantasyanime ctsave01
+slot 2 through Yakra, Leene's restoration and the return gate, then saves
+through the game's ordinary overworld Save menu. This is the resulting
+8192-byte cartridge save, not a machine state; slots 2 and 3 retain the
+original archive's games. The short `trial` route loads slot 1.
 
 ## fantasyanime/
 

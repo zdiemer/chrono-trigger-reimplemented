@@ -137,3 +137,18 @@ C0:885A 25 49  # Ocean Palace finale: refused by field_recentre_the_screen (fiel
 C2:7BD1 3 7  # Ocean Palace finale: handback by menu_run_object_script (menus, text, overworld)
 C6:E5C5 5835446 120  # Ocean Palace finale: handback by menu_run_object_script (scene data)
 C6:E694 1247 60  # Ocean Palace finale: handback by menu_run_object_script (scene data)
+C0:024C 36 40  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:038F 110 180  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:039B 2918 127  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:041A 170 211  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:04ED 70 89  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:0557 420 167  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:0617 1108 86  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:0918 10704 19  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:5410 7648 158  # gap: Crono trial recordings; refused by event_cmd_move_toward_party_member (field engine, events); docs/TODO.md, Refusals in real play
+C2:3404 74 178  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:391C 131 24  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:3987 25 55  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:39AE 9 19  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:39D5 61 123  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:3ACB 13 23  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play

@@ -6,11 +6,12 @@
 battle_apply_damage  # the narrowed battle-rust-tyrano replay interrupts 67 of 123 calls (54.5%); the other 56 compare cleanly, none is abandoned
 battle_build_battlefield_map
 battle_build_bitmap_shapes
+battle_decode_tile_row  # Crono trial recordings: 645 of 1284 row decodes cross an interrupt (50.2%), none abandoned; the remaining 639 compare with zero mismatches
+battle_pause_on_the_message  # Crono trial hand run: all 116 held-message pauses are abandoned with no independent shadow return; the pause runs as C inside battle_show_a_battle_message and needs an isolated comparison (docs/TODO.md, Shadow comparisons in trial recordings)
 battle_carry_out_member_action
 battle_change_battlefield
 battle_clear_battlefield_map
 battle_click_cursor
-battle_decode_tile_row  # battle-motherbrain interrupts 358 of 624 tile-row decodes; the other 266 match. Focused fuzz_compare seed 1: 1000 completed comparisons, 0 mismatches, with the existing whole-row constraints.
 battle_dissolve_an_enemy  # run as C by the beaten enemies' pass (battle_see_to_the_beaten_enemies, an enemy's dissolve rule), whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
 battle_dispatch_expired_timers  # Ocean Palace pair: 310 of 615 comparisons interrupted, 305 matched, none mismatched; comparison coverage gap tracked in docs/TODO.md, "Refusals in real play"
 battle_draw_menu_window
@@ -24,7 +25,6 @@ battle_enemy_tech_turn
 battle_frame_update
 battle_frame_work
 battle_give_turn
-battle_pause_on_the_message  # the held-message path runs its sixteen-frame pause as C inside battle_show_a_battle_message; all 168 early-boss calls are abandoned, with no independent shadow return; message typing/clearing still compare, but the pause needs an isolated comparison (docs/TODO.md)
 battle_hp_loss_timer_ran_out
 battle_let_the_screen_settle  # its loop's head is the entry: the original comes round to it on every pass inside the boss's end, whose stretch compares it; fuzzed alone up to its first wait
 battle_load_action_animation
@@ -120,3 +120,5 @@ script_weapon_swing_sound
 sound_driver_send_song  # run as C by the command (sound_driver_command), inside the original's frame for it, whose stretch compares it; called by the original's code (where the command's guard refuses), it is compared; fuzzed alone
 sound_driver_upload_block  # run as C by the command (sound_driver_command), inside the original's frame for it, whose stretch compares it; called by the original's code (where the command's guard refuses), it is compared; fuzzed alone
 sound_driver_upload_effects  # run as C by the sound driver's command (sound_driver_command: a song's effects sent, the effects switched), whose stretch compares it; never called alone in play; battle-motherbrain and battle-r-series take it past 100 calls
+field_draw_bg1_at_the_load  # Crono trial recordings: 266 of 314 background-load draws cross an interrupt (84.7%), none abandoned; the remaining 48 compare with zero mismatches
+field_draw_bg2_at_the_load  # Crono trial recordings: 132 of 180 background-load draws cross an interrupt (73.3%), none abandoned; the remaining 48 compare with zero mismatches

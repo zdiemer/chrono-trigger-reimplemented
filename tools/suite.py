@@ -327,7 +327,7 @@ HAND_RUN_ROUTES = {"tech_sweep", "successor_of_guardia", "legendary_hero", "unkn
                    "people_of_the_times", "the_oath", "dino_age", "what_the_prophet_seeks",
                    "memory_lane", "reunion", "prepare_luccas_mother", "sun_stone", "rainbow_shell",
                    "yakra", "nizbel", "rainbow_shell_trial", "blackbird_save", "sun_stone_save",
-                   "heckran_prepare"}
+                   "heckran_prepare", "cronos_trial"}
 
 
 def all_routes():
@@ -794,6 +794,7 @@ def main():
     args = ap.parse_args()
 
     binary = args.ct_dev.resolve()
+    args.out = args.out.resolve()
     if not binary.exists():
         sys.exit("%s: not found (build it first)" % args.ct_dev)
     if not args.rom.exists():
