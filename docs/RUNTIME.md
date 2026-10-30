@@ -40,7 +40,8 @@ from power-on. A third hook, `Apu.host`, runs a program on the host in the
 SPC700's place, and `Apu.host_boot` and `Apu.host_command` hand it the CPU
 half's boot and commands as calls (`au_driver_boot_taken`,
 `au_driver_command_taken`, given the command and the set of effects asked
-for): `ct_play` plays the port that way by default, and `ct_dev` and
+for, each answering the original's time for its upload, which the CPU half
+lets pass; REIMPLEMENTATION.md, "The frame-level time model"): `ct_play` plays the port that way by default, and `ct_dev` and
 `ct_drive --sound-driver c` (`frontend/sound_host.c`). With `--mixer native`
 the host makes the sound too: `Apu.host_mix` takes the cycles the S-DSP would
 have run on, which then isn't run, and `Apu.host_take` hands

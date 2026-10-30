@@ -7,6 +7,7 @@
 
 #include "apu/dsp.h"
 #include "platform/native/mixer.h"
+#include "platform/time_model.h"
 #include "platform/voices_dsp.h"
 #include "port/vars_ram.h"
 #include "sound/sound.h"
@@ -69,6 +70,7 @@ struct SoundHost {
     unsigned took;              /* cycles the host takes over what it did in this call */
     uint32_t wait_left;
     uint32_t fill_cycles;
+    uint32_t starting;          /* cycles until the driver booted starts, its upload's time (platform/time_model.h) */
     Waiting queue[SOUND_QUEUE];
     uint8_t queued;
 
@@ -326,6 +328,7 @@ static void boot(SoundHost *h)
     sound_boot(d, state_of(h->snes), h->voices);
     vars_peek(was);
     h->booted = true;
+    h->starting = time_in_spc_cycles(TIME_SOUND_BOOT);
     h->phase = WAITING;
     h->timer = 0;
     h->queued = 0;
@@ -335,23 +338,37 @@ static void boot(SoundHost *h)
 
 /* ---- The hooks -------------------------------------------------------------------------------- */
 
-static void take_boot(void *ctx, Apu *apu)
+/* The original's time for the boot and for each of the game's commands
+ * (platform/time_model.h), which the CPU half lets pass: what the driver
+ * loaded for the command, and before a song's start what is left of the
+ * echo's wait, which the original's song waited out on the ports. A command
+ * held meanwhile loads at the wait's end, which isn't charged. */
+static uint32_t take_boot(void *ctx, Apu *apu)
 {
     (void)apu;
     boot(ctx);
+    return TIME_SOUND_BOOT;
 }
 
-static void take_command(void *ctx, Apu *apu, const uint8_t bytes[4], uint8_t effects_asked)
+static uint32_t echo_wait_left(const SoundHost *h)
+{
+    return h->phase == ECHO_DRAINING ? h->wait_left + h->fill_cycles : h->phase == ECHO_FILLING ? h->wait_left : 0;
+}
+
+static uint32_t take_command(void *ctx, Apu *apu, const uint8_t bytes[4], uint8_t effects_asked)
 {
     (void)apu;
     SoundHost *h = ctx;
     if (!h->booted)
-        return;
+        return 0;
     Waiting w = { { bytes[0], bytes[1], bytes[2], bytes[3] }, true, effects_asked };
+    uint32_t waited = time_sound_song_start(bytes[0]) ? time_of_spc_cycles(echo_wait_left(h)) : 0;
+    uint32_t sent = h->driver.bytes_sent, moved = h->driver.bytes_moved;
     if (h->phase == WAITING)
         carry_out(h, w);
     else
         hold(h, w);
+    return waited + time_of_sound_command(bytes[0], h->driver.bytes_sent - sent, h->driver.bytes_moved - moved);
 }
 
 /* A command written to the ports: echoed, and carried out (or held while the
@@ -405,6 +422,10 @@ static unsigned run_host(void *ctx, Apu *apu, unsigned cycles)
     SoundHost *h = ctx;
     if (!h->booted)
         return cycles;
+    if (h->starting) {
+        h->starting = cycles < h->starting ? h->starting - cycles : 0;
+        return cycles;
+    }
     h->timer += cycles;
     h->took = 0;
     if (h->phase == WAITING) {
@@ -710,6 +731,8 @@ static void visit_driver(Names *n, SoundDriver *d)
     visit_samples(n, &d->samples);
     U(n, "stray_reads", d->stray_reads);
     U(n, "first_stray_read", d->first_stray_read);
+    U(n, "bytes_sent", d->bytes_sent);
+    U(n, "bytes_moved", d->bytes_moved);
     leave(n, was);
 }
 
@@ -734,6 +757,7 @@ static void visit_host(SnesStateVisitor *v, void *fields)
     U(&n, "timer", h->timer);
     U(&n, "wait_left", h->wait_left);
     U(&n, "fill_cycles", h->fill_cycles);
+    U(&n, "starting", h->starting);
     for (int i = 0; i < SOUND_QUEUE; i++) {
         size_t was = enter(&n, "queue", i);
         snes_state_uint(v, named(&n, "command"), &h->queue[i].command, 1, sizeof h->queue[i].command);

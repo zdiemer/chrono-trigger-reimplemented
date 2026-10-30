@@ -53,6 +53,7 @@ static void load_effect_set(SoundDriver *d, uint8_t set)
     uint16_t length = sound_effect_set_length(d->game, set);
     for (uint16_t i = 0; i < length && SOUND_EFFECTS + i < SOUND_SEQUENCES_END; i++)
         d->sequences[SOUND_EFFECTS - SOUND_SEQUENCES + i] = sound_effect_set_byte(d->game, set, i);
+    d->bytes_sent += length;
 }
 
 // SPC $1044, $10EC
@@ -77,6 +78,7 @@ static void load_song(SoundDriver *d, uint8_t song)
         d->sequences[i] = sound_song_byte(d->game, song, i);
     for (uint8_t i = 0; i < sizeof d->percussion; i++)
         d->percussion[i] = sound_song_percussion_byte(d->game, song, i);
+    d->bytes_sent += loaded + sizeof d->percussion;
     bool listed = true;
     for (uint8_t i = 0; i < SOUND_SONG_INSTRUMENTS; i++) {
         uint16_t block = listed ? sound_song_instrument_block(d->game, song, i) : 0;

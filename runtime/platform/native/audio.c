@@ -41,11 +41,12 @@ void au_select_backend(Platform *pf, AuBackend backend) { (void)pf, (void)backen
 
 bool au_driver_hosted(Platform *pf) { return playing(pf); }
 
+/* The time the original's uploads took is the main thread's to sit out. */
 bool au_driver_boot_taken(Platform *pf)
 {
     if (!playing(pf))
         return false;
-    pf->audio.boot(pf->audio.ctx);
+    tm_host_charge(pf, pf->audio.boot(pf->audio.ctx));
     return true;
 }
 
@@ -53,7 +54,7 @@ bool au_driver_command_taken(Platform *pf, AudioCommand c, uint8_t effects_asked
 {
     if (!playing(pf))
         return false;
-    pf->audio.command(pf->audio.ctx, c, effects_asked);
+    tm_host_charge(pf, pf->audio.command(pf->audio.ctx, c, effects_asked));
     return true;
 }
 

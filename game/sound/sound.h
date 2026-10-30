@@ -224,6 +224,13 @@ typedef struct {
 
     uint32_t stray_reads;              /* reads outside the sound memory kept here, */
     uint16_t first_stray_read;         /* ... the first of them at this address */
+
+    /* The work the original's loads were, counted since the boot, for a host
+     * that keeps the original's time without its uploads (the time model,
+     * docs/REIMPLEMENTATION.md): the bytes its CPU half sent the sound
+     * processor (samples, songs, effects), and the bytes the sound processor
+     * moved down in its memory meanwhile. */
+    uint32_t bytes_sent, bytes_moved;
 } SoundDriver;
 
 /* Start the driver: its tables and the data the boot uploads (the first set

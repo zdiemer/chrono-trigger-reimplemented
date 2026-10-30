@@ -498,13 +498,14 @@ build/main/ct_native --rom roms/ct-usa.sfc [--assets pack] [--frames N] [--sram 
 ```
 
 With `--movie` the first controller presses what the movie's frames say,
-frame for frame; the native program's frames aren't the machine's (nothing
-in it takes the original's time), so a movie's presses land where they will,
-and a long movie goes elsewhere than its reference play: TODO.md, "The native
-program". `--locations` lists each place the run enters, with its frame, to
-set beside the reference's (`tools/trace.py peek <trace> '$7E:0100' --len 2`
-over a `ct_dev` trace); `--end-state` writes work RAM and save RAM at the end,
-as `ct_dev --end-state` does.
+frame for frame; the native program's frames keep the original's time only as
+far as the frame-level time model does (REIMPLEMENTATION.md: the sound
+driver's uploads and a load's unpacking and sends, charged as lag frames, the
+run's last line counting them), so a long movie can still go elsewhere than
+its reference play: TODO.md, "The native program". `--locations` lists each
+place the run enters, with its frame, as `ct_dev --locations` does for the
+reference play, and `tools/places.py` sets the two side by side; `--end-state`
+writes work RAM and save RAM at the end, as `ct_dev --end-state` does.
 
 Each frame's picture is drawn by the native renderer
 (`runtime/platform/native/render.c`) from the video service's state, and the

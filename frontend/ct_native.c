@@ -74,6 +74,7 @@ static void write_game(void *ctx, uint32_t addr, uint8_t v) { state_host_write8(
 static void run_main_thread(Platform *pf, void *ctx) { program_main_thread(ctx, pf); }
 static void run_vblank(Platform *pf, void *ctx) { program_vblank(ctx, pf); }
 static void run_line(Platform *pf, void *ctx) { program_line(ctx, pf); }
+static uint32_t take_owed(void *ctx) { return state_host_take_owed(ctx); }
 
 /* The picture each frame, drawn from the video service's state by the native
  * renderer, and how long it has been dark: nothing on it but black, which is
@@ -299,7 +300,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "ct_native: out of memory\n");
         return 2;
     }
-    tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g }, 1);
+    tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, take_owed }, 1);
     int rc = 0;
     unsigned long frame = 0;
     uint16_t location = 0xFFFF;
@@ -333,6 +334,8 @@ int main(int argc, char **argv)
     }
     fprintf(stderr, "ct_native: %lu frame(s); the screen set up %u time(s), %s\n", frame,
             (unsigned)pf.video.screens_applied, pf.video.display.blank ? "blanked" : "showing");
+    fprintf(stderr, "time: %u lag frame(s), the main thread's work owed the original's time\n",
+            (unsigned)tm_host_lag_frames(&pf));
     if (picture.dark_since)
         fprintf(stderr, "picture: dark since frame %lu (%lu frame(s), to the end)\n", picture.dark_since,
                 frame - picture.dark_since + 1);

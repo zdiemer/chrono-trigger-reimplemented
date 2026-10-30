@@ -18,6 +18,7 @@
 
 #include "platform/native/host.h"
 #include "platform/observe.h"
+#include "platform/time_model.h"
 
 void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr),
                     void (*write)(void *ctx, uint32_t addr, uint8_t v), void *ctx)
@@ -216,6 +217,15 @@ void vid_enable_line_effects(Platform *pf, PfOrigin o, uint8_t slots)
 
 /* ---- Sends ------------------------------------------------------------------------------------- */
 
+/* A send the main thread makes takes the original's transfer time (a load's,
+ * with the screen off; platform/time_model.h); the handlers' sends are the
+ * frame's own. */
+static void charge_send(Platform *pf, uint32_t bytes)
+{
+    if (pf->timing.part == TM_HOST_IN_MAIN)
+        tm_host_charge(pf, time_of_transfer(bytes));
+}
+
 void vid_start_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port)
 {
     (void)o;
@@ -226,12 +236,14 @@ void vid_start_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port)
 void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len, const VidVramPort *port)
 {
     (void)o;
+    charge_send(pf, len);
     vid_obs_upload_vram(ob(pf), vram_addr, src, len, false, port);
 }
 
 void vid_send_vram_and_wait(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len)
 {
     (void)o;
+    charge_send(pf, len);
     vid_obs_upload_vram(ob(pf), vram_addr, src, len, false, &(VidVramPort){ .step = 1, .after_high = true });
 }
 
@@ -246,6 +258,7 @@ void vid_send_vram_half(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src
                         const VidVramPort *port)
 {
     (void)o;
+    charge_send(pf, len);
     vid_obs_upload_vram_half(ob(pf), vram_addr, src, len, half, port);
 }
 
@@ -253,12 +266,14 @@ void vid_send_vram_fill(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData val
                         const VidVramPort *port)
 {
     (void)o;
+    charge_send(pf, len);
     vid_obs_upload_vram(ob(pf), vram_addr, value, len, true, port);
 }
 
 void vid_send_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count)
 {
     (void)o;
+    charge_send(pf, 2u * count);
     vid_obs_upload_palette(ob(pf), first, src, count);
 }
 

@@ -26,9 +26,9 @@ battle-golem-twins-gameover end
 battle-golem-twins drifts  # differs from the reference: 58 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...); 224 byte(s) of save RAM
 battle-guardian drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (71 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, ...); 296 byte(s) of save RAM)
 battle-lavos-gameover drifts  # the outer shell's fight, entered a frame early, lasts 586 frames longer, so the planet's loss plays on to a later song and story step by the last frame (2 byte(s) of the saved game (current_song, event_memory))
-battle-magus drifts  # the presses land on other frames since the vblank handler's switch waits for the port's time, so the party leaves its last place a tile lower (location_previous's y, $7E:0108) and another saved cell differs (2 byte(s) of the saved game ($7E:2747, $7E:0108)); with the oracle's time, or the original sound driver, it ends as the reference
 battle-heckran drifts  # differs from the reference: 63 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
 battle-magus-north-cape 8560  # at C0:881E, North Cape's flashback walk (TODO.md, Refusals in real play); a frame sooner since the batch merged, the same stop
+battle-magus end
 battle-menu-buttons end
 battle-motherbrain drifts  # the fights' turns land on other frames under native timing, so they end with other HP, MP, experience and items used (323 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 battle-mud-imp drifts  # differs from the reference: 65 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
@@ -39,9 +39,9 @@ battle-rust-tyrano drifts  # differs from the reference: 72 byte(s) of the saved
 battle-son-of-sun drifts  # timed presses drift on the hand ports: the party's inventory and character records differ from the reference; the state-driven son_of_sun route wins separately with the C sound driver
 battle-tech-sweep-spekkio drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (37 byte(s) of the saved game (inventory_counts, $7E:263D, $7E:263F, $7E:2640, $7E:268D, $7E:268F, ...))
 battle-tech-sweep drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (805 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
-battle-tyrano-lair-walls drifts  # the fights' turns land on other frames, so they end with other HP and the battle menu's cursors elsewhere (8 byte(s) of the saved game (character_records, $7E:2607, $7E:2657, $7E:2797, battle_remembered_cursors, $7E:2C83))
 battle-unequipped-armor 7594  # at C0:1AAC
 battle-zombor 20301  # at C0:1AAC
+battle-tyrano-lair-walls end
 endings-beyond-time drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way, and the save made after differs (54 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, ...); 4189 byte(s) of save RAM)
 endings-bucket-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (49 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:26A3, $7E:26A4, ...))
 endings-telepod-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (574 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
@@ -76,7 +76,7 @@ field-12kbc-after-the-fall end
 field-65m-bc-dactyl-flight end
 field-65m-bc-dactyl end
 field-65m-bc end
-field-factory-switch drifts  # its fight ends otherwise and the party stands elsewhere at the last frame (19 byte(s) of the saved game (character_records, $7E:2607, $7E:26F3, $7E:26F7, battle_setup_flags, location, ...))
+field-factory-switch end
 field-floor-switch end
 field-northern-ruins-switch end
 late-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (43 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, ...); 185 byte(s) of save RAM)

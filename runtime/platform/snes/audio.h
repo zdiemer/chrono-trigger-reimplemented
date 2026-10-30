@@ -144,22 +144,29 @@ PF_API bool au_driver_wait_echo_or_give_up(Platform *pf, PfOrigin o, uint32_t gi
 
 PF_API bool au_driver_hosted(Platform *pf) { return pf_snes(pf)->apu.host_command != NULL; }
 
+/* The host takes the work at once and answers the original's time for it
+ * (platform/time_model.h), which the machine lets pass where the CPU half
+ * stands, as it would have waited on the ports: the frames an upload took
+ * still go by, and interrupts are taken meanwhile (native_wait_time; the
+ * shipping mode only, as a port's own estimate is). */
 PF_API bool au_driver_boot_taken(Platform *pf)
 {
-    Apu *a = &pf_snes(pf)->apu;
+    Snes *s = pf_snes(pf);
+    Apu *a = &s->apu;
     if (!a->host_boot)
         return false;
-    a->host_boot(a->host_ctx, a);
+    native_wait_time(s, a->host_boot(a->host_ctx, a));
     return true;
 }
 
 PF_API bool au_driver_command_taken(Platform *pf, AudioCommand c, uint8_t effects_asked)
 {
-    Apu *a = &pf_snes(pf)->apu;
+    Snes *s = pf_snes(pf);
+    Apu *a = &s->apu;
     if (!a->host_command)
         return false;
     const uint8_t command[4] = { c.command, c.p1, c.p2, c.p3 };
-    a->host_command(a->host_ctx, a, command, effects_asked);
+    native_wait_time(s, a->host_command(a->host_ctx, a, command, effects_asked));
     return true;
 }
 

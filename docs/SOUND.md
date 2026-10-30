@@ -571,10 +571,14 @@ delay as the original does (holding what comes meanwhile, in order), shows the
 status on the ports, and still answers the commands the scene writes to the
 ports itself. The voices are made into sound by the native mixer (`ct_play`'s and
 `ct_drive`'s default), or with `--mixer dsp` by the emulated S-DSP, frame for
-frame the same (PLATFORM.md, "The native mixer, as built"). A
-command takes no time where the original's took frames over its uploads, so
-the game's timing is not the original's and the mode can't replay a movie
-(from power-on the title music starts about a second sooner). A saved state
+frame the same (PLATFORM.md, "The native mixer, as built"). The boot and each
+command answer the time the original's uploads took, which the CPU half then
+lets pass (`platform/time_model.h`; REIMPLEMENTATION.md, "The frame-level time
+model"): the boot's upload, a song's start, the bytes the driver loaded for it
+(`SoundDriver.bytes_sent`, `bytes_moved`) and before a song what is left of
+the echo's wait, so the game keeps the original's pace over its music within
+a frame or two, and the driver booted starts its time when the original's
+would, at the upload's end. A saved state
 holds the host's and the driver's fields beside the machine's
 (`sound_host_state`, under `sound.`; RUNTIME.md, "Save states"): a state saved
 and loaded again plays on identically (3000 frames from power-on, saved,

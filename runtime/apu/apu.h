@@ -69,9 +69,11 @@ typedef struct Apu {
     void *host_ctx;
     /* Optional, with `host`: the CPU half's boot upload and its commands
      * taken by the host program as calls, in place of the upload and the
-     * ports (platform/audio.h, au_driver_boot_taken). */
-    void (*host_boot)(void *ctx, struct Apu *apu);
-    void (*host_command)(void *ctx, struct Apu *apu, const uint8_t command[4], uint8_t effects_asked);
+     * ports (platform/audio.h, au_driver_boot_taken); each answers the
+     * original's time for what it took, in master clocks
+     * (platform/time_model.h), which the CPU half then lets pass. */
+    uint32_t (*host_boot)(void *ctx, struct Apu *apu);
+    uint32_t (*host_command)(void *ctx, struct Apu *apu, const uint8_t command[4], uint8_t effects_asked);
     /* Optional: the host makes the sound in the S-DSP's place (a native
      * mixer, frontend/sound_host.h): `host_mix` is handed the SPC700 cycles
      * as they pass, where the S-DSP would run on them, and apu_take_samples

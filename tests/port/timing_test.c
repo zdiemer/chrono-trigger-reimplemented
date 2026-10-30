@@ -6,14 +6,16 @@
  * their own handler, the budget and the line wait, the frame parity, the
  * picture's end, the generator's replay, the pads, a wait routine that looks
  * again after the handlers until its request is answered, a wait for a
- * number of frames, and a send to VRAM from the main thread. Exits non-zero
- * on failure.
+ * number of frames, a send to VRAM from the main thread, and the time model's
+ * lag frames (the main thread sitting out the frames its charged work took).
+ * Exits non-zero on failure.
  *
  *   timing_test */
 #include <stdio.h>
 #include <string.h>
 
 #include "platform/native/host.h"
+#include "platform/time_model.h"
 
 static int failures;
 
@@ -166,11 +168,39 @@ static void asking_vblank(Platform *p, void *ctx)
     asked = 0;
 }
 
+/* A fifth game: its main thread's work is charged three frames of the
+ * original's time and a little (an upload, and the work around it, the game's
+ * own count through the program's `owed`), then waits; the handler runs on
+ * meanwhile. */
+static uint32_t game_owes;
+
+static uint32_t lagging_owed(void *ctx)
+{
+    (void)ctx;
+    uint32_t owed = game_owes;
+    game_owes = 0;
+    return owed;
+}
+
+static void lagging_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    tm_enable_interrupts(p, PF_AT(0), TM_INT_VBLANK);
+    for (int pass = 0;; pass++) {
+        note('M');
+        if (pass == 0) {
+            tm_host_charge(p, 2 * TIME_FRAME_CLOCKS);
+            game_owes = TIME_FRAME_CLOCKS + 1;
+        }
+        tm_wait_frame(p, PF_CALL(0, 0));
+    }
+}
+
 static Platform pf;
 
 int main(void)
 {
-    TmHostProgram program = { game_main, game_vblank, game_line, NULL };
+    TmHostProgram program = { game_main, game_vblank, game_line, NULL, NULL };
     tm_host_start(&pf, &program, 12345);
 
     /* frame 1: no handlers yet; the main thread turns them on, and the line
@@ -226,7 +256,7 @@ int main(void)
 
     /* a wait from the task resumes the task, not the main thread */
     static Platform tasks;
-    TmHostProgram with_tasks = { tasks_main, NULL, NULL, NULL };
+    TmHostProgram with_tasks = { tasks_main, NULL, NULL, NULL, NULL };
     order_len = 0;
     tm_host_start(&tasks, &with_tasks, 1);
     for (int i = 0; i < 3; i++) {
@@ -238,7 +268,7 @@ int main(void)
 
     /* the screen brought back: a frame with no handlers, then they come on */
     static Platform back;
-    TmHostProgram bring_back = { bring_back_main, game_vblank, game_line, NULL };
+    TmHostProgram bring_back = { bring_back_main, game_vblank, game_line, NULL, NULL };
     order_len = 0;
     tm_host_start(&back, &bring_back, 1);
     for (int i = 0; i < 3; i++) {
@@ -253,7 +283,7 @@ int main(void)
      * number of frames is that many; the VRAM a send names gets its bytes,
      * the address wrapping round */
     static Platform asking;
-    TmHostProgram ask = { asking_main, asking_vblank, NULL, NULL };
+    TmHostProgram ask = { asking_main, asking_vblank, NULL, NULL, NULL };
     order_len = 0;
     vid_host_start(&asking, NULL, NULL, NULL);
     tm_host_start(&asking, &ask, 1);
@@ -268,6 +298,20 @@ int main(void)
     CHECK(vram[0xFFFE] == 0x12 && vram[0xFFFF] == 0x34 && vram[0] == 0x56 && vram[1] == 0x78,
           "the bytes in VRAM from word $7FFF on, wrapping");
     vid_host_stop(&asking);
+
+    /* three frames and a clock owed: three lag frames, in which the handler
+     * runs and the main thread doesn't */
+    static Platform lagging;
+    TmHostProgram lag = { lagging_main, asking_vblank, NULL, NULL, lagging_owed };
+    order_len = 0;
+    tm_host_start(&lagging, &lag, 1);
+    for (int i = 0; i < 6; i++) {
+        tm_host_frame(&lagging);
+        note('|');
+    }
+    order[order_len] = 0;
+    CHECK(strcmp(order, "M|V|V|V|VM|VM|") == 0, "the main thread sits out the frames it owes: %s", order);
+    CHECK(tm_host_lag_frames(&lagging) == 3, "three lag frames (%u)", tm_host_lag_frames(&lagging));
 
     printf("timing_test: %s\n", failures ? "FAILED" : "ok");
     return failures != 0;

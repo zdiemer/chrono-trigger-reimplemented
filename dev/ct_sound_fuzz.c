@@ -315,9 +315,11 @@ static void start_driver(void)
     effect_set = 0;
     set_overwritten = false;
     if (hosted) {
-        /* the CPU half's boot, which the host takes as a call */
-        a->host_boot(a->host_ctx, a);
-        run(20 * FRAME_CLOCKS);
+        /* the CPU half's boot, which the host takes as a call, and the
+         * upload's time it answers, which the CPU half lets pass before the
+         * driver starts */
+        uint32_t upload = a->host_boot(a->host_ctx, a);
+        run(upload + 20 * FRAME_CLOCKS);
         effect_count = count_effects();
         return;
     }

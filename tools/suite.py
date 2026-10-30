@@ -60,7 +60,9 @@ alone, with no generated code and no interpreter, nor any reaching its end
 other than as the reference play does (tools/strict_check.py, a ratchet
 against tools/strict_baseline.txt); and every movie in the native program
 (ct_native, the game with no emulator) neither crashing nor ending on a dark
-screen, where each stops and whether it ends as the reference play does being
+screen, nor entering fewer of the reference play's places on time than
+tools/places_baseline.txt says (the shadow runs' `--locations`, tools/places.py),
+where each stops and whether it ends as the reference play does being
 reported (tools/native_check.py). Exit status is 0 only when all of
 that holds.
 
@@ -192,7 +194,7 @@ def run_movie(binary, rom, out, name, path, frames, lockstep):
            "--coverage", str(out / ("cov-%s.txt" % name)),
            "--calls", str(out / ("calls-%s.txt" % name)),
            "--fallbacks", str(out / "fallbacks" / "shadow" / ("%s.txt" % name)),
-           "--end-state", str(out / ("end-%s.bin" % name))] + PACK_ARGS
+           "--end-state", str(out / ("end-%s.bin" % name)), "--locations"] + PACK_ARGS
     if lockstep:
         cmd += ["--sound-lockstep", "--sound-lockstep-level", "state"]
     started = time.time()
@@ -689,7 +691,7 @@ def check_native(args, ctx):
     rc, lines = run_tool(cmd)
     summary = lines[-1] if lines else "no output"
     return rc == 0, "native", summary, [] if rc == 0 else [l for l in lines[:-1] if ": dark" in l or ": crashed" in l
-                                                           or ": hung" in l][-40:]
+                                                           or ": hung" in l or "<--" in l or "not in" in l][-40:]
 
 
 def check_effects(args, ctx):

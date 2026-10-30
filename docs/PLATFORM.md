@@ -2346,7 +2346,13 @@ enabled. The main thread is a fiber (`runtime/port/fiber.h`), and a wait
 resumes whichever fiber made it, so the menus' tasks can be fibers the main
 thread runs in turn; the
 acknowledges answer "pending" inside their own handler; `tm_host_picture_lines`
-is where the picture ends (the line handler's line and those above it).
+is where the picture ends (the line handler's line and those above it). The
+original's time for what the main thread did in place of spending frames on
+it (the sound driver's uploads, a load's unpacking and sends) is charged to it
+(`tm_host_charge`, and the game's state's account through
+`TmHostProgram.owed`), and its next wait lasts the frames owed: lag frames, the
+handlers running and the main thread not (REIMPLEMENTATION.md, "The
+frame-level time model").
 `ct_native` (PLAYING.md, "The native program") links it with the whole of
 `game/` and runs the program (`core/program.c`'s main thread and handlers),
 so far through the boot and the field's first start; `ct_play` still runs on

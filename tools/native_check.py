@@ -22,17 +22,24 @@ among oracle/saves) and reports, per movie, one of:
   (the original's code) ends: the saved game and save RAM, compared as
   tools/strict_check.py compares them (`ct_native --end-state`);
 - `drifts`: the same, but the saved game or save RAM differs from the
-  reference's. `ct_native`'s frames aren't the machine's (nothing in it takes
-  the original's time), so a movie's presses, recorded against the original,
-  land on other frames, and a long movie goes elsewhere: a battle lost, a
-  place entered early. The report names what differs, and `--locations` lists
-  the places the run went through, frame by frame, to set beside the
-  reference's (`tools/trace.py peek <trace> '$7E:0100' --len 2`).
+  reference's. `ct_native`'s frames keep the original's time only as well as
+  the frame-level time model does (docs/REIMPLEMENTATION.md), so a movie's
+  presses, recorded against the original, can land on other frames, and a
+  long movie go elsewhere: a battle lost, a place entered early. The report
+  names what differs.
+
+With each, the places the run entered against the reference's
+(tools/places.py): how many it entered on time, among those in the
+reference's order, and where it parted from them.
 
 **The check** (`--check`) fails on a run that ends `dark` or crashes (an exit
-status other than 0, or a hang); the rest is reported. The reference end states
-come from the suite's shadow runs (`--reference DIR`), or from a `--native off`
-run of `ct_dev` here (`--ct-dev`); with neither, the end states aren't compared.
+status other than 0, or a hang), and on one that enters fewer of the
+reference's places on time than tools/places_baseline.txt says (the ratchet
+the time model is held to; `--update-places` takes what a change brings); the
+rest is reported. The reference end states and places come from the suite's
+shadow runs (`--reference DIR`, which run with `--locations`), or from a
+`--native off` run of `ct_dev` here (`--ct-dev`); with neither, they aren't
+compared.
 """
 
 import argparse
@@ -44,7 +51,10 @@ import sys
 import tempfile
 import zlib
 
-from strict_check import ROOT, SavedGame, differences, movies, ram_names, run_ct_dev, seconds_for
+import places
+from strict_check import ROOT, SavedGame, differences, movies, ram_names, reference_play, seconds_for
+
+PLACES_BASELINE = ROOT / "tools/places_baseline.txt"
 
 # A picture black this long at the end has gone blank (10 seconds).
 DARK_FRAMES = 600
@@ -77,27 +87,32 @@ def run_native(binary, rom, path, frames, sram, extra):
         return (e.stderr or b"").decode(errors="replace"), None
 
 
-def reference_end(args, name, path, frames, work):
-    if args.reference:
-        kept = args.reference / ("end-%s.bin" % name)
-        if kept.exists():
-            return kept.read_bytes()
+def reference(args, name, path, frames, work):
+    """The reference play's end state and places: the suite's shadow run's, or
+    a run of the original's code here (--ct-dev); (None, None) with neither."""
     if not args.ct_dev:
-        return None
-    out = work / ("%s.reference.bin" % name)
-    run_ct_dev(args.ct_dev.resolve(), args.rom, path, frames, ["--native", "off", "--end-state", str(out)])
-    return out.read_bytes() if out.exists() else b""
+        end = args.reference / ("end-%s.bin" % name) if args.reference else None
+        return (end.read_bytes() if end and end.exists() else None), places.reference_places(args.reference, name)
+    return reference_play(args.ct_dev.resolve(), args.rom, name, path, frames, args.reference, work)
 
 
 def run_one(args, name, path, frames, sram, extra, saved, names, work):
-    """(how, detail): how the movie ended in ct_native."""
+    """((how, detail), places.Kept or None): how the movie ended in ct_native,
+    and its places against the reference's."""
     if sram is False:
-        return "no save", "its save isn't under oracle/saves"
+        return ("no save", "its save isn't under oracle/saves"), None
     end = work / ("%s.native.bin" % name)
     text, rc = run_native(args.ct_native.resolve(), args.rom, path, frames, sram,
-                          extra + ["--end-state", str(end)] + (["--locations"] if args.logs else []))
+                          extra + ["--end-state", str(end), "--locations"])
     if args.logs:
         (args.logs / ("%s.log" % name)).write_text(text)
+    ref_end, ref_places = reference(args, name, path, frames, work)
+    kept = places.Kept(ref_places, places.parse(text)) if ref_places is not None else None
+    return ended(text, rc, end, frames, ref_end, saved, names), kept
+
+
+def ended(text, rc, end, frames, reference, saved, names):
+    """(how, detail) for a ct_native run, its end state against the reference's."""
     m = STOP.search(text)
     if m:
         return "stopped", "at frame %s of %d, %s (%s)" % (m.group(1), frames, m.group(2), m.group(3))
@@ -108,7 +123,6 @@ def run_one(args, name, path, frames, sram, extra, saved, names, work):
     m = DARK.search(text)
     if m and int(m.group(2)) >= DARK_FRAMES:
         return "dark", "the picture black from frame %s to the end (%s frames)" % (m.group(1), m.group(2))
-    reference = reference_end(args, name, path, frames, work)
     if reference is None:
         return "end", "not compared"
     drift = differences(end.read_bytes() if end.exists() else b"", reference, saved, names)
@@ -126,7 +140,10 @@ def main():
     ap.add_argument("--logs", type=pathlib.Path, help="keep each run's stderr, with the places it went, as <movie>.log")
     ap.add_argument("--reference", type=pathlib.Path,
                     help="the reference end states, end-<movie>.bin (the suite's shadow runs write them)")
-    ap.add_argument("--check", action="store_true", help="fail on a run that ends dark or crashes")
+    ap.add_argument("--check", action="store_true",
+                    help="fail on a run that ends dark or crashes, or enters fewer places on time than its baseline")
+    ap.add_argument("--update-places", action="store_true",
+                    help="write the places each movie enters on time as their baseline (tools/places_baseline.txt)")
     args = ap.parse_args()
 
     rows = movies(set(args.movies))
@@ -149,12 +166,25 @@ def main():
             return name, run_one(args, name, path, frames, save_for(path, saves), extra, saved, names, work)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-            results = dict(pool.map(one, rows))
+            done = dict(pool.map(one, rows))
+    results = {name: outcome for name, (outcome, _kept) in done.items()}
+    kept = {name: k for name, (_outcome, k) in done.items() if k is not None}
 
-    failed = []
+    failed, late = [], []
+    base = read_places_baseline()
     for name, _path, frames in rows:
         how, detail = results[name]
-        print("%s: %s%s" % (name, how, (": " + detail) if detail else ""))
+        line = "%s: %s%s" % (name, how, (": " + detail) if detail else "")
+        if name in kept:
+            line += "; " + kept[name].summary()
+            must = base.get(name)
+            if must is None:
+                late.append(name)
+                line += "  (not in the places' baseline)"
+            elif kept[name].kept < must:
+                late.append(name)
+                line += "  <-- fewer on time than its baseline (%d)" % must
+        print(line)
         if how in ("dark", "crashed", "hung"):
             failed.append(name)
     reached = sum(1 for n, _p, _f in rows if results[n][0] in ("end", "drifts"))
@@ -162,11 +192,44 @@ def main():
     compared = sum(1 for n, _p, _f in rows if results[n][0] == "drifts" or results[n] == ("end", None))
     summary = "%d of %d movies reach their end in the native program, showing; %d of the %d compared as the " \
               "reference play ends" % (reached, len(rows), same, compared)
-    if args.check and failed:
-        print(summary + "; FAILED (dark or crashed): " + ", ".join(failed))
+    if kept:
+        summary += "; %d of the reference's %d places entered on time" % (
+            sum(k.kept for k in kept.values()), sum(k.total for k in kept.values()))
+    if args.update_places:
+        base.update({name: k.kept for name, k in kept.items()})
+        write_places_baseline(base)
+        print(summary + "; places' baseline written")
+        return 0
+    if args.check and (failed or late):
+        print(summary + "; FAILED: " + "; ".join((["dark or crashed: " + ", ".join(failed)] if failed else []) +
+                                                (["places: " + ", ".join(late)] if late else [])))
         return 1
     print(summary)
     return 0
+
+
+PLACES_HEADER = """# How many of the reference play's places each library movie enters on time in
+# the native program (tools/native_check.py, tools/places.py): within
+# places.ON_TIME frames of the reference's frame, among the places it enters in
+# the reference's order. The gate fails a movie that enters fewer;
+# `tools/native_check.py --update-places` takes the counts a change brings.
+"""
+
+
+def read_places_baseline():
+    base = {}
+    if PLACES_BASELINE.exists():
+        for line in PLACES_BASELINE.read_text().splitlines():
+            fields = line.partition("#")[0].split()
+            if len(fields) == 2:
+                base[fields[0]] = int(fields[1])
+    return base
+
+
+def write_places_baseline(base):
+    order = [name for name, _p, _f in movies(set())]
+    lines = [PLACES_HEADER.rstrip("\n")] + ["%s %d" % (name, base[name]) for name in order if name in base]
+    PLACES_BASELINE.write_text("\n".join(lines) + "\n", newline="\n")
 
 
 if __name__ == "__main__":

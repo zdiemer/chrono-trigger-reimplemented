@@ -852,6 +852,107 @@ off by 1024 clocks or more from 1.115% to 0.512% (in vblank, 1.053% to 0.723%).
 None of these writes a video register: they write RAM the next vblank uploads,
 and the vblank check finds no video write moved.
 
+### The frame-level time model
+
+The estimate keeps a port's own time on the machine; a build with no machine
+has none to keep, and a movie's presses, recorded against the original, land
+on the frames the original's time put them on. The time model is what keeps
+those frames where nothing counts clocks: the original's time for the work
+that spends frames, charged as whole frames the main thread sits out.
+`runtime/platform/time_model.h` holds it, constants and pure functions in the
+original machine's master clocks, with no state, no clock and no `Snes`.
+
+**Beside the estimate, not in its place.** On the machine a port's time stays
+its calibrated `cost_milli` estimate, measured and bounded by the timing gate
+above: it is what keeps the shipping mode's video writes where the vblank
+check wants them, frame by frame. The model charges only what no estimate can
+see because the port hands the work away: the C sound driver's boot and
+commands (below). Without a machine there is no bus to count and no registry
+of `cost_milli` linked, and the model is all the time there is: a frame runs
+its handlers and the main thread's work to its wait, and what the original
+spent frames on, its loads, is charged by what they moved. The two backings of `charge.h`
+divide it: `runtime/port/state_io.c` (the machine) puts a charge into the
+port's estimate, as it always has; `runtime/port/state_host.c` (`ct_native`)
+puts it into the model's. At the teardown the estimate and the timing gate
+retire with the machine that measures them; the model's constants, measured
+from it once, and the places' ratchet (below) are what stay.
+
+**What a lag frame is computed from.** From the charges alone. The host timing
+backend (`platform/native/timing.c`) keeps what the main thread owes since it
+last waited (`tm_host_charge`, and the game's state's own account through
+`TmHostProgram.owed`); at its wait for the frame, the frames owed to the
+nearest (the main thread's own work, which nothing counts, takes some of each
+frame too, and half a frame is the even guess) become lag frames, in which the
+vblank and line handlers run and the main thread doesn't, as the original's
+did while it loaded; the rest of the frame goes. A frame's own work is taken
+to fit its frame (`tm_frame_time_left` has time for everything). `timing_test`
+holds the arithmetic.
+
+That last is a choice, tried the other way and measured. Counting the game's
+own reads and writes of its state in `ct_native` (every accessor goes through
+`state_host_read8` and `_write8`) at the ports' mean rate (the original's time
+against their bus clocks in the shadow runs' timing reports, about 5 to 1, 40
+clocks an access), the handlers' share taken off each frame and every whole
+frame past it a lag frame, the attract demo (no presses, so its places are the
+game's own time) kept to the reference far better: 1,229 frames behind at its
+end with the charges alone (2,023 before them), 390 with the work counted.
+But the library as a whole entered fewer places on time (279 and, at 30
+clocks an access, 291, against 296 with the charges alone at the time): a
+mean rate over-charges light frames and under-charges heavy ones, and a
+battle's turns land by the frame. The opening's flight over Guardia shows the
+gap: the original's per-frame work there overruns where the count says it
+fits, and its pan reaches the house 44 frames later than `ct_native`'s. A
+per-mode rate, or the overrunning routines' own rates, is the next step
+(TODO.md, "The native program").
+
+**What is charged, and at what rates** (each measured on the machine; the
+numbers in `time_model.h` with how):
+
+| Work | Charged | From |
+|---|---|---|
+| The sound driver's boot | 7,360,649 clocks (20.6 frames) | the CPU half's port with the original driver, from the boot ROM made ready to the driver's start; one cost, the upload never varies. A host's driver starts its time (its first echo's wait) at the upload's end |
+| A command the CPU half passes on | 3,200 | the same, per command |
+| A song's start | 95,000, plus 405 a byte loaded and 380 a byte the sound processor moves | 70 songs in eight movies: about 94 echoes of tables and the command itself, then three bytes a message with the music stopped (400 to 425 a byte under a light handler) |
+| Command `$70`'s effects, `$71`'s sample | 750 a byte | uploaded with the music playing, the sound processor answering between its ticks |
+| A song's start while the echo's buffer settles | what is left of the wait | the original's song waits on the ports for it |
+| The unpacker (`$C3:0002`), in `ct_native` | 64 a charged access | its charge counts the accesses the original makes to its own cells, which follow the stream; its whole time over new-game's 60 streams (29.0 M clocks in the shadow run) against those accesses |
+| A send to video memory from the main thread, in `ct_native` | 8 a byte | DMA's rate; the handlers' sends are the frame's own |
+
+The sound's are the wall's time under a light vblank handler, and the machine
+lets it pass as a wait (`native_wait_time`, interrupts taken meanwhile). The
+same song loads in about twice the frames under the menus' busy handler
+(`menus-shop-equip`'s songs, 820 to 1,230 clocks a byte), which the model
+doesn't follow. Waiting the CPU half's own time instead, the handlers' on
+top, followed it, but sent the native-shape build's `beyond_time` route into
+a wait it never walked out of, and moved strict mode no further than the
+wall's time (37 movies either way); it was dropped (TODO.md). The C driver
+keeps the count: `SoundDriver.bytes_sent` and `bytes_moved` are
+what it loads (`game/sound/`, a size and no time), and its two hosts
+(`frontend/sound_host.c` on the machine, `frontend/sound_native.c` without)
+answer the boot's and each command's time through the hooks (`Apu.host_boot`,
+`host_command`; `AuHost.boot`, `command`). A song held while the echo settles
+loads at the wait's end, which isn't charged.
+
+**Measured.** The places a run enters, by frame, against the reference play's
+(`tools/places.py`; `ct_dev --locations` and `ct_native --locations`, the
+suite's shadow runs keeping the reference's): how many of the reference's
+places a run enters within 30 frames of the reference's frame, among those it
+enters in the reference's order. Over the 53 library movies (460 places):
+
+| | `ct_native`, places on time | strict mode, movies ending as the reference's |
+|---|---|---|
+| Before | 240 | 34 |
+| The sound driver's time | 294 | 37 (339 places on time) |
+| And loads (`ct_native` only) | 299 | |
+
+Strict mode's three, `battle-magus`, `battle-tyrano-lair-walls` and
+`field-factory-switch`, now end as the reference's, and none ends worse; in
+`ct_native` the title shows 3 frames early where it showed 26 early, and
+`gato-battle` enters 10 of its 11 places on time where it entered 9.
+`tools/native_check.py --check` holds `ct_native` to it, a ratchet on
+`tools/places_baseline.txt`, and `tools/strict_check.py` reports it for strict
+mode.
+
 ## Cleanup into hand ports (M5)
 
 A port starts from a draft, not from the listing:
