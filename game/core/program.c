@@ -108,10 +108,7 @@ ProgramStub program_line_stub(const GameState *g) { return stub_of(irq_vector(g)
 
 /* The handlers the modes install, by the address their stubs name. A row's
  * `run` is the handler as a function of the game's state, which the driver
- * calls; none has one yet: each is still an entry that works on the machine's
- * registers and stack (it saves the interrupted code's, moves the data bank
- * and the page, calls out), and a row gets its function as its handler comes
- * off the machine. */
+ * calls; a handler the table doesn't name stops the program. */
 typedef void (*ProgramHandler)(GameState *g, Platform *pf);
 static const struct {
     uint32_t handler;
@@ -132,7 +129,7 @@ static const struct {
     { SCENE_FRAME_HANDLER, "a scene program's vblank handler", scene_vblank },
     { SCENE_HANDLER_WHILE_WORKING, "a scene program's vblank handler while it works", scene_vblank_while_working },
     { WARP_VBLANK_HANDLER, "the warp's vblank handler", warp_vblank },
-    { WARP_LINE_HANDLER, "the warp's line handler", 0 },
+    { WARP_LINE_HANDLER, "the warp's line handler", warp_line },
 };
 enum { HANDLERS = sizeof handlers / sizeof handlers[0] };
 

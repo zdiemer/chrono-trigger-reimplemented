@@ -2763,9 +2763,9 @@ list, by kind, is what `game/` still asks of one.
   map go as far as the menus' own C does. `core/program.c`'s handler table
   has functions for the field's, the menus', the sprite-object mode's, the
   battle's (and its closing's), a scene's boot's, a scene program's and the
-  warp's vblank; the warp's line handler has none, and a handler the table
-  doesn't name is still an entry on the machine's stack (it saves the
-  interrupted registers, moves the page and the data bank, calls out).
+  warp's handlers; a handler the table doesn't name is still an entry on the
+  machine's stack (it saves the interrupted registers, moves the page and the
+  data bank, calls out).
 - **What the scene program still hands the machine as the program runs it.**
   The title's, the credits' page's, the race's (both modes), the rising
   palace's and the planet's (both modes) setups are the setups as C
