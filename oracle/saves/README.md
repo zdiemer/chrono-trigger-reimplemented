@@ -8,52 +8,6 @@ needs by the CRC-32 in its `# sram crc32` line, so `--sram` is optional; see
 
 Each movie's `# Save:` line names the file below and the slot it loads.
 
-## routes/
-
-`rainbow-shell.srm` is a normal cartridge save made by playing fantasyanime
-ctsave13 slot 1 through Giant's Claw in 600 A.D., using a Shelter at its save
-point and saving over slot 1. The file contains cartridge SRAM, with no memory edits.
-Crono, Lucca and Robo stand at location `$06D`, tile (61, 21), before Rust
-Tyrano (`$7F:01D2` bit 6 clear). The hand-run `rainbow_shell` route reproduces
-the approach and writes `<prefix>.srm`; `rust_tyrano` records the short boss
-movie from this save. The recorded approach took 55184 frames and is kept
-outside the movie library. Slots 2 and 3 retain the source archive's games.
-## recorded/
-
-`ocean-palace-after-twins.srm`, slot 3: the Ocean Palace save point after winning
-the Golem Twins and watching Dalton leave (story counter `$C9`). Made from
-fantasyanime `ctsave10-ocean_palace.srm`, slot 3, by route `golem_twins`:
-`battle-golem-twins.ctm` records the victory, return to the save point and save
-over slot 3. The route exports only the cartridge's 8192 bytes of battery RAM
-to `<prefix>.srm`; slots 1 and 2 remain the source save's. This is the starting
-save for `events-ocean-palace-lavos.ctm`, keeping the fight and finale in two
-short movies. No memory edits or machine snapshots are involved.
-`sun-stone-planted.srm`: slot 1 at the End of Time's save point, after beating
-Son of Sun and planting the Moon Stone in the prehistoric Sun Keep. Written
-by the game's save screen in `tools.movies.routes.sun_stone_save`, starting
-from fantasyanime `ctsave13-side_quests2.srm` slot 3 (26252 frames). The kept
-inputs replay to identical SRAM. Crono, Lucca and Marle are active; quest byte
-`$7F:013A` is `$07`. The source save already includes the Jerky gift to the
-Porre mayor's ancestor (`$7F:01D2` bit 2). Slots 2 and 3 retain the source
-cartridge's saves. This is cartridge SRAM, not a machine snapshot.
-`pre-heckran.srm` (CRC-32 `5E542935`), slot 3: Heckran's Cave save point,
-1000 A.D., location `$031`, story counter `$4E`. Made through the game's
-save menu after 42723 frames of normal play from fantasyanime's ctsave03
-slot 3 (`$4D`, End of Time), using the hand-run `heckran_prepare` route.
-The later ctsave04 slot 1 has `$54`; Heckran's script requires less than
-`$51`. The preparation takes the Medina gate, crosses the cave and saves
-over slot 3 without memory edits. Its long movie and machine checkpoints
-stay in scratch; `battle-heckran` starts from this cartridge save and ends
-after the boss. Run `heckran_prepare --prefix <scratch>` to write the
-preparation's normal cartridge SRAM to `<scratch>.srm`.
-`cronos-trial.srm`: slot 1 is on the 1000 A.D. overworld outside Guardia
-Castle, with Marle in the party and the arrest still ahead (story `$27`, CRC32
-`5B31C425`). The `cronos_trial` hand route plays from fantasyanime ctsave01
-slot 2 through Yakra, Leene's restoration and the return gate, then saves
-through the game's ordinary overworld Save menu. This is the resulting
-8192-byte cartridge save, not a machine state; slots 2 and 3 retain the
-original archive's games. The short `trial` route loads slot 1.
-
 ## fantasyanime/
 
 From the Chrono Trigger saves at fantasyanime.com/squaresoft/ctsaves-srm.htm,
@@ -87,29 +41,6 @@ into a tree (bit 2). Neither has beaten a Lavos Spawn (`$7F:0064` bits 3-5
 clear). Use the former for the wind slope and the latter for the caves and
 summit.
 
-## routes/
-
-Cartridge saves made through the game's save menu by recorded routes:
-
-| File | Origin and slot |
-|---|---|
-| `death-peak-summit` | `events-death-peak-ascent`, from ctsave12 slot 1; slot 1 at Death Peak's last save point (`$1EF`), first two Lavos Spawn beaten, final Spawn still alive; Chrono Trigger and clone held |
-## recorded/
-
-`blackbird-before-dalton.srm`, slot 1, was made by normal play from
-fantasyanime's `ctsave11-crono_gone.srm` slot 1. The `blackbird_save` hand-run
-route plays the 4400-frame `events-blackbird` opening, recovers Marle's,
-Robo's and Lucca's equipment and the inventory, clears the corridor patrols,
-and returns through the ducts to the cell. A Shelter restores the party;
-the normal save-point screen writes slot 1. Preparation took 74786 frames.
-No memory edits or machine state are needed to load it.
-
-The save is in the cell (`$173`), story `$7F:0000 = $CF`, with equipment
-bits `$7F:00AF & $07 = $07` and inventory bit `$7F:00BA & $02` set.
-Blackbird stage `$7F:00D2` is zero and the Epoch's wings bit
-`$7F:00BA & $80` is clear. The source's slot 2 is already after Dalton
-(story `$D2`, Blackbird stage `$0A`, wings set), so it cannot record his fight.
-
 ## technoplaza/
 
 The battery saves in the emuWorks state archives at
@@ -137,12 +68,40 @@ Chrono Trigger saves from zophar.net, renamed to their archive names:
 
 ## routes/
 
-Cartridge saves made by playing the route scripts, then saving through the
-game's menu. These contain SRAM only, not machine copies.
+Cartridge saves made by route scripts that play from a stock save to the scene
+a short movie wants and save there through the game's own save screen. They
+are SRAM only: no memory edits, no machine copies. Slots the route didn't
+write keep the source archive's games. A preparation route whose play is long
+is in `HAND_RUN_ROUTES` (`tools/suite.py`), its movie out of the library; run
+again, a route writes the same SRAM to `<prefix>.srm`.
 
-| File | Slot | Progress | CRC-32 |
+| File | Slot | Where it stands | Made by |
 |---|---|---|---|
-| `luccas-mother-before-campfire` | 1 | Outside Fiona's shrine in 1000 A.D.; Robo restoring the forest, before the campfire and Lara's rescue | `42DD86E1` |
+| `cronos-trial` | 1 | 1000 A.D. overworld outside Guardia Castle, the arrest ahead (story `$27`) | `cronos_trial`, from ctsave01 slot 2 |
+| `pre-heckran` | 3 | Heckran's Cave save point (`$031`, story `$4E`) | `heckran_prepare`, from ctsave03 slot 3 |
+| `luccas-mother-before-campfire` | 1 | outside Fiona's shrine in 1000 A.D., before the campfire and Lara's rescue | `prepare_luccas_mother`, from technoplaza ct-state11 slot 1 |
+| `rainbow-shell` | 1 | Giant's Claw's save point, before Rust Tyrano | `rainbow_shell`, from ctsave13 slot 1 |
+| `sun-stone-planted` | 1 | the End of Time, the Moon Stone planted in prehistory | `sun_stone_save`, from ctsave13 slot 3 |
+| `death-peak-summit` | 1 | Death Peak's last save point (`$1EF`), two Lavos Spawn beaten | `death_peak` (the library's `events-death-peak-ascent`), from ctsave12 slot 1 |
+
+`cronos-trial.srm`: slot 1 is on the 1000 A.D. overworld outside Guardia
+Castle, with Marle in the party and the arrest still ahead (story `$27`, CRC32
+`5B31C425`). The `cronos_trial` hand route plays from fantasyanime ctsave01
+slot 2 through Yakra, Leene's restoration and the return gate, then saves
+through the game's ordinary overworld Save menu. This is the resulting
+8192-byte cartridge save, not a machine state; slots 2 and 3 retain the
+original archive's games. The short `trial` route loads slot 1.
+
+`pre-heckran.srm` (CRC-32 `5E542935`), slot 3: Heckran's Cave save point,
+1000 A.D., location `$031`, story counter `$4E`. Made through the game's
+save menu after 42723 frames of normal play from fantasyanime's ctsave03
+slot 3 (`$4D`, End of Time), using the hand-run `heckran_prepare` route.
+The later ctsave04 slot 1 has `$54`; Heckran's script requires less than
+`$51`. The preparation takes the Medina gate, crosses the cave and saves
+over slot 3 without memory edits. Its long movie and machine checkpoints
+stay in scratch; `battle-heckran` starts from this cartridge save and ends
+after the boss. Run `heckran_prepare --prefix <scratch>` to write the
+preparation's normal cartridge SRAM to `<scratch>.srm`.
 
 `luccas-mother-before-campfire.srm` was played from technoplaza `ct-state11`
 slot 1: defeat Retinite, leave Robo with Fiona in 600 A.D., fly the Epoch to
@@ -158,3 +117,50 @@ saved (`$7F:007C = $96`). `ct-state11` slot 1 has the seed planted
 (`$7F:00F7 = $0A`) but Retinite unbeaten (`$7F:01A3` bit 0 clear).
 The prepared save has `$7F:019E = $F9` (Robo working, not recovered) and
 `$7F:007C = $0E` (campfire and rescue still unplayed).
+
+`rainbow-shell.srm` is a normal cartridge save made by playing fantasyanime
+ctsave13 slot 1 through Giant's Claw in 600 A.D., using a Shelter at its save
+point and saving over slot 1. The file contains cartridge SRAM, with no memory edits.
+Crono, Lucca and Robo stand at location `$06D`, tile (61, 21), before Rust
+Tyrano (`$7F:01D2` bit 6 clear). The hand-run `rainbow_shell` route reproduces
+the approach and writes `<prefix>.srm`; `rust_tyrano` records the short boss
+movie from this save. The recorded approach took 55184 frames and is kept
+outside the movie library. Slots 2 and 3 retain the source archive's games.
+
+`sun-stone-planted.srm`: slot 1 at the End of Time's save point, after beating
+Son of Sun and planting the Moon Stone in the prehistoric Sun Keep. Written
+by the game's save screen in `tools.movies.routes.sun_stone_save`, starting
+from fantasyanime `ctsave13-side_quests2.srm` slot 3 (26252 frames). The kept
+inputs replay to identical SRAM. Crono, Lucca and Marle are active; quest byte
+`$7F:013A` is `$07`. The source save already includes the Jerky gift to the
+Porre mayor's ancestor (`$7F:01D2` bit 2). Slots 2 and 3 retain the source
+cartridge's saves. This is cartridge SRAM, not a machine snapshot.
+
+## recorded/
+
+Cartridge saves made the same way, named for the scene they lead into:
+`ocean-palace-after-twins` by the library's `battle-golem-twins`, and
+`blackbird-before-dalton` by the hand-run `blackbird_save`.
+
+`ocean-palace-after-twins.srm`, slot 3: the Ocean Palace save point after winning
+the Golem Twins and watching Dalton leave (story counter `$C9`). Made from
+fantasyanime `ctsave10-ocean_palace.srm`, slot 3, by route `golem_twins`:
+`battle-golem-twins.ctm` records the victory, return to the save point and save
+over slot 3. The route exports only the cartridge's 8192 bytes of battery RAM
+to `<prefix>.srm`; slots 1 and 2 remain the source save's. This is the starting
+save for `events-ocean-palace-lavos.ctm`, keeping the fight and finale in two
+short movies. No memory edits or machine snapshots are involved.
+
+`blackbird-before-dalton.srm`, slot 1, was made by normal play from
+fantasyanime's `ctsave11-crono_gone.srm` slot 1. The `blackbird_save` hand-run
+route plays the 4400-frame `events-blackbird` opening, recovers Marle's,
+Robo's and Lucca's equipment and the inventory, clears the corridor patrols,
+and returns through the ducts to the cell. A Shelter restores the party;
+the normal save-point screen writes slot 1. Preparation took 74786 frames.
+No memory edits or machine state are needed to load it.
+
+The save is in the cell (`$173`), story `$7F:0000 = $CF`, with equipment
+bits `$7F:00AF & $07 = $07` and inventory bit `$7F:00BA & $02` set.
+Blackbird stage `$7F:00D2` is zero and the Epoch's wings bit
+`$7F:00BA & $80` is clear. The source's slot 2 is already after Dalton
+(story `$D2`, Blackbird stage `$0A`, wings set), so it cannot record his fight.
