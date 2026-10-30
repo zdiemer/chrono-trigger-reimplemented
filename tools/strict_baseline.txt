@@ -20,7 +20,7 @@ battle-denadoro drifts  # the fight's turns land on other frames, so it ends wit
 battle-golem-twins-gameover end
 battle-guardian drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (71 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, ...); 296 byte(s) of save RAM)
 battle-lavos-gameover drifts  # the outer shell's fight, entered a frame early, lasts 586 frames longer, so the planet's loss plays on to a later song and story step by the last frame (2 byte(s) of the saved game (current_song, event_memory))
-battle-magus end
+battle-magus drifts  # the presses land on other frames since the vblank handler's switch waits for the port's time, so the party leaves its last place a tile lower (location_previous's y, $7E:0108) and another saved cell differs (2 byte(s) of the saved game ($7E:2747, $7E:0108)); with the oracle's time, or the original sound driver, it ends as the reference
 battle-menu-buttons end
 battle-motherbrain drifts  # the fights' turns land on other frames under native timing, so they end with other HP, MP, experience and items used (323 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 battle-r-series drifts  # native timing moves the fixed inputs and the fights' turns: 118 byte(s) of the saved game differ (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...); no interpreter stop
