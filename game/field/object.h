@@ -607,10 +607,12 @@ typedef struct {
 ObjectsAhead object_in_the_way(GameState *g, FieldObject obj);
 /* Where the field's searches over the map's objects start -- this one, the
  * leader's walk's and the confirm button's -- one slot past the map's
- * objects, down to the second; and whether that start is inside the tables,
- * which this search's and the confirm button's guards require (the walk
- * handles a start past them, field/walk.c). */
+ * objects, down to the second; whether there is a start (a count of 0 or 128
+ * has none, which no map makes), which this search's guards require; and
+ * whether it is inside the tables, which the confirm button's guard requires
+ * (this search and the walk handle a start past them, field/motion.c). */
 FieldObject object_search_start(const GameState *g);
+bool object_search_starts(const GameState *g);
 bool object_search_fits(const GameState *g);
 
 /* A step to line the object up with its tile's middle, or with another

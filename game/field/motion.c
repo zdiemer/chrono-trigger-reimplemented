@@ -381,19 +381,29 @@ static bool can_block_in_view(const GameState *g, FieldObject other, FieldObject
 /* The search starts at the slot after the last object and runs down to the
  * second. The original doubles the count in a byte, so a count past 127
  * starts from what is left of it (the endings' maps count 163). A start past
- * the tables (a count of 64 to 127) starts on the slots past them, which the
- * leader's walk ports (field/walk.c, stopped_past_the_tables) and this
- * search's and the confirm button's guards still leave to the original; a
- * start of 0 would go round into those slots from slot 0 (it counts round
- * 128), which no map makes. */
+ * the tables (a count of 64 to 127: the forest of Frog's memory counts 64)
+ * starts on the slots past them, which hold nobody: the leader's walk
+ * (field/walk.c, stopped_past_the_tables) and the look for an object in the
+ * way (below) search the map's objects and leave what the original reads
+ * there as scaffolding; the confirm button's guard still leaves such a start
+ * to the original. A start of 0 would go round into those slots from slot 0
+ * (it counts round 128), which no map makes. */
 enum { SEARCH_COUNT_BITS = 0x7F };
 
 FieldObject object_search_start(const GameState *g) { return (FieldObject)(event_object_count(g) & SEARCH_COUNT_BITS); }
+
+bool object_search_starts(const GameState *g) { return object_search_start(g) != 0; }
 
 bool object_search_fits(const GameState *g)
 {
     FieldObject start = object_search_start(g);
     return start != 0 && start < FIELD_OBJECTS;
+}
+
+/* The last of the map's slots a search looks at first. */
+static FieldObject first_slot_in_the_tables(FieldObject start)
+{
+    return start < FIELD_OBJECTS ? start : (FieldObject)(FIELD_OBJECTS - 1);
 }
 
 /* For the original's code and shadow mode (field/scratch.h): the blocking
@@ -468,7 +478,7 @@ static ObjectsAhead look_for_objects_ahead(GameState *g, FieldObject obj, Search
     Facing facing = object_facing(g, obj);
     FieldPosition at = object_position(g, obj);
     ORIGINAL_EFFECT(leave_blocking_check(g, facing, at));
-    for (FieldObject other = object_search_start(g); other != 0; other--) {
+    for (FieldObject other = first_slot_in_the_tables(object_search_start(g)); other != 0; other--) {
         n->passed++;
         if (object_view(g, other) == OUT_OF_VIEW)
             continue;
@@ -484,11 +494,50 @@ static ObjectsAhead look_for_objects_ahead(GameState *g, FieldObject obj, Search
     return r;
 }
 
+/* For shadow mode: what the original meets past the object tables, where a
+ * map's count of 64 to 127 starts its search (field/object.h,
+ * object_past_the_tables), before it comes to the map's objects. A slot
+ * there reads as in view, enabled and solid from the next tables' bytes;
+ * where one is ahead and close, the original stops on it, and where it
+ * measures one and none of the map's, that is the last it measured.
+ *
+ * Whether the game sees it: the forest of Frog's memory ($077) counts 64, so
+ * the slot past the tables reads the leader's priority mode for its view, its
+ * script's place for its role, its acceleration for its solidity and its Y
+ * and velocity for its place; but none of the forest's objects minds others
+ * (events-magic-cave asks 1,470 times), so no search there reaches it, and a
+ * native build looks at the map's objects alone. */
+static ObjectsAhead what_the_original_meets_past_the_tables(const GameState *g, FieldObject obj, FieldObject start,
+                                                            ObjectsAhead r, SearchLength *n)
+{
+    Facing facing = object_facing(g, obj);
+    FieldPosition at = object_position(g, obj);
+    ObjectsAhead past = { false, false, 0 };
+    for (FieldObject slot = start; slot >= FIELD_OBJECTS; slot--) {
+        n->passed++;
+        if (object_view_past_the_tables(g, slot) == OUT_OF_VIEW)
+            continue;
+        n->in_view++;
+        ObjectPastTheTables there = object_past_the_tables(g, slot);
+        if (there.disabled || !object_solid_past_the_tables(g, slot))
+            continue;
+        n->measured++;
+        past = (ObjectsAhead){ false, true, slot };
+        ObjectBearing m = object_bearing(at, there.at, facing, false);
+        if (close_ahead(m) && m.across < REACH)
+            return (ObjectsAhead){ true, true, slot };
+    }
+    return r.measured ? r : past;
+}
+
 // $C0:5B95
 ObjectsAhead object_in_the_way(GameState *g, FieldObject obj)
 {
     SearchLength n = { 0, 0, 0 };
     ObjectsAhead r = look_for_objects_ahead(g, obj, &n);
+    FieldObject start = object_search_start(g);
+    if (start >= FIELD_OBJECTS && field_looks_for_objects(g, obj))
+        ORIGINAL_EFFECT(r = what_the_original_meets_past_the_tables(g, obj, start, r, &n));
     ORIGINAL_EFFECT(leave_target(g, r));
     ORIGINAL_EFFECT(charge_search(g, n));
     return r;
@@ -878,7 +927,7 @@ bool field_object_checks_its_way(Snes *s)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = object_facing_is_one(g, (FieldObject)field_current_object_slot(s)) && object_search_fits(g);
+    bool ok = object_facing_is_one(g, (FieldObject)field_current_object_slot(s)) && object_search_starts(g);
     vars_peek(false);
     return ok;
 }

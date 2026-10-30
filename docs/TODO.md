@@ -2921,17 +2921,6 @@ alone (`strict_check.py`) and `ct_native` stop there. Each is a gap line in
 `tools/refusal_allowlist.txt`, which comes out when the port takes the state.
 Ranked by how much play they block:
 
-- **A map of 64 objects** (`events-magic-cave`, ctsave06 slot 1, from frame
-  3490 in `ct_native`, 3550 in strict mode). At the Magic Cave's
-  mountainside (`$0A3`) Frog, holding the Masamune, remembers: the scene
-  moves to a forest (`$077`) whose event script declares 64 objects
-  (`$7F:2000` = `$40`), and the object search starts at the count, one past
-  the 64 slots, which `object_search_fits` (field/motion.c) doesn't take.
-  So the moves to a tile (`$C0:4F61`, event `$96`/`$97`/`$9A`/`$A0`/`$A1`;
-  614 refusals) and the check for an object in the way (`$C0:5B95`, 490)
-  hand the forest's whole scene to the original. Every scene in a map with
-  64 objects stops here; what the original's search reads at slot 64 is the
-  first thing to establish.
 - **The leader parked past the range's end** (`events-magic-cave`, from
   frame 5129 to its end, 1027 refusals). On the bridge where Glenn and Cyrus
   talk (`$087`) the flashback parks the party's objects at (`$FF80`,

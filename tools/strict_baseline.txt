@@ -36,7 +36,7 @@ events-epoch-lavos end
 events-jetbike-race-won end
 events-jetbike-race end
 events-keepers-dome end
-events-magic-cave 3550  # the forest of Frog's memory loads 64 objects, one past what the move to a tile takes (C0:4F61)
+events-magic-cave 5081  # on the bridge of Frog's memory the party is parked past the range's end, which the leader's walk doesn't take (C0:881E)
 events-prison-escape end
 field-12kbc-1f4 end
 field-12kbc-1f5 end
