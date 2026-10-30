@@ -28,6 +28,7 @@ endings-beyond-time drifts  # the fights' turns land on other frames, so they en
 endings-bucket-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (49 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:26A3, $7E:26A4, ...))
 endings-telepod-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (574 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 events-blackbird end
+events-cronos-trial drifts  # differs from the reference: 20 byte(s) of the saved game (current_song, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...)
 events-end-of-time-gate end
 events-epoch-lavos end
 events-jetbike-race-won end
@@ -55,3 +56,4 @@ menus-save-point end
 menus-shop-equip drifts  # the presses land on other frames, and the shop's cursor buys and equips other things (50 byte(s) of the saved game (inventory_items, inventory_counts, $7E:2627, $7E:2628, $7E:2629, $7E:263D, ...))
 menus-shop-inn drifts  # the presses land on other frames, and the party ends at another place (13 byte(s) of the saved game (menu_past_the_names, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...))
 menus-sweep drifts  # the presses land on other frames, and the menus' cursor uses and moves other items (118 byte(s) of the saved game (inventory_items, inventory_counts, $7E:26AB, $7E:26CF, $7E:26D6, $7E:2719, ...))
+events-cronos-trial-long drifts  # differs from the reference: 149 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...); 181 byte(s) of save RAM

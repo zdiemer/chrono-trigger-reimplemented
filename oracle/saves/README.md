@@ -8,6 +8,16 @@ needs by the CRC-32 in its `# sram crc32` line, so `--sram` is optional; see
 
 Each movie's `# Save:` line names the file below and the slot it loads.
 
+## routes/
+
+`cronos-trial.srm`: slot 1 is on the 1000 A.D. overworld outside Guardia
+Castle, with Marle in the party and the arrest still ahead (story `$27`, CRC32
+`5B31C425`). The `cronos_trial` hand route plays from fantasyanime ctsave01
+slot 2 through Yakra, Leene's restoration and the return gate, then saves
+through the game's ordinary overworld Save menu. This is the resulting
+8192-byte cartridge save, not a machine state; slots 2 and 3 retain the
+original archive's games. The short `trial` route loads slot 1.
+
 ## fantasyanime/
 
 From the Chrono Trigger saves at fantasyanime.com/squaresoft/ctsaves-srm.htm,

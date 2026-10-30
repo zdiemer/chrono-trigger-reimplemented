@@ -112,3 +112,25 @@ open CD:0036 8 0  # hidden under battle_sit_out_the_pause_long's comparison, sti
 open CD:3E44 7 0  # hidden under battle_sit_out_the_pause's comparison, still open when a run ended
 open CD:3E75 3697 0  # hidden under battle_wait_for_the_next_frame's comparison, still open when a run ended
 open FD:ACEE 220 0  # hidden under battle_clear_numbers's comparison, still open when a run ended
+C0:024C 36 40  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:038F 110 180  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:039B 2918 127  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:041A 170 211  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:04ED 70 89  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:0557 420 167  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:0617 1108 86  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:0918 10704 19  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:4F61 10378 107  # gap: Crono trial recordings; refused by event_cmd_move_to_tile (field engine, events); docs/TODO.md, Refusals in real play
+C0:5410 7648 158  # gap: Crono trial recordings; refused by event_cmd_move_toward_party_member (field engine, events); docs/TODO.md, Refusals in real play
+C0:5B95 2862 18  # gap: Crono trial recordings; refused by field_object_in_the_way (field engine, events); docs/TODO.md, Refusals in real play
+C0:881E 7500 57  # gap: Crono trial recordings; refused by field_walk_the_leader (field engine, events); docs/TODO.md, Refusals in real play
+C0:88E5 1500 9  # gap: Crono trial recordings; refused by field_walk_the_leader (field engine, events); docs/TODO.md, Refusals in real play
+C0:8A6D 1500 9  # gap: Crono trial recordings; refused by field_walk_the_leader (field engine, events); docs/TODO.md, Refusals in real play
+C0:9175 3300 19  # gap: Crono trial recordings; refused by field_walk_the_leader (field engine, events); docs/TODO.md, Refusals in real play
+C0:99DE 1500 9  # gap: Crono trial recordings; refused by field_walk_the_leader (field engine, events); docs/TODO.md, Refusals in real play
+C2:3404 74 178  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:391C 131 24  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:3987 25 55  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:39AE 9 19  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:39D5 61 123  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:3ACB 13 23  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play

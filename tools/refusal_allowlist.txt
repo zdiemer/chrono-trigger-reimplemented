@@ -5,3 +5,9 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C0024C field_battle_begins guard # gap: events-cronos-trial-long's two 600 A.D. Guardia Forest battles (first frame 82673) exceed battle_fits; docs/TODO.md, Refusals in real play.
+C04F61 event_cmd_move_to_tile guard # gap: events-cronos-trial-long entering 600 A.D. Guardia Forest (frame 82179), movement's object-search guard; docs/TODO.md, Refusals in real play.
+C05410 event_cmd_move_toward_party_member guard # gap: events-cronos-trial-long after the first 600 A.D. forest battle (frame 84020), movement's object-search guard; docs/TODO.md, Refusals in real play.
+C05B95 field_object_in_the_way guard # gap: events-cronos-trial-long entering 600 A.D. Guardia Forest (frame 82179), blocking-object search; docs/TODO.md, Refusals in real play.
+C0881E field_walk_the_leader guard # gap: both Crono trial movies during the transfer to prison (long frame 133968), walk_fits rejects the scripted walk; docs/TODO.md, Refusals in real play.
+C23404 overworld_lead guard # gap: events-cronos-trial-long leaving Guardia Castle in 600 A.D. (frame 81958), overworld walker state; docs/TODO.md, Refusals in real play.

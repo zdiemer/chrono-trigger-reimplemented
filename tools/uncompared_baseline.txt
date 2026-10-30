@@ -5,6 +5,8 @@
 
 battle_build_battlefield_map
 battle_build_bitmap_shapes
+battle_decode_tile_row  # Crono trial recordings: 645 of 1284 row decodes cross an interrupt (50.2%), none abandoned; the remaining 639 compare with zero mismatches
+battle_pause_on_the_message  # Crono trial hand run: all 116 held-message pauses are abandoned with no independent shadow return; the pause runs as C inside battle_show_a_battle_message and needs an isolated comparison (docs/TODO.md, Shadow comparisons in trial recordings)
 battle_carry_out_member_action
 battle_change_battlefield
 battle_clear_battlefield_map
@@ -104,3 +106,5 @@ script_weapon_hit_sound  # run as its handler by a channel's run (battle_run_scr
 script_weapon_swing_sound
 sound_driver_send_song  # run as C by the command (sound_driver_command), inside the original's frame for it, whose stretch compares it; called by the original's code (where the command's guard refuses), it is compared; fuzzed alone
 sound_driver_upload_block  # run as C by the command (sound_driver_command), inside the original's frame for it, whose stretch compares it; called by the original's code (where the command's guard refuses), it is compared; fuzzed alone
+field_draw_bg1_at_the_load  # Crono trial recordings: 266 of 314 background-load draws cross an interrupt (84.7%), none abandoned; the remaining 48 compare with zero mismatches
+field_draw_bg2_at_the_load  # Crono trial recordings: 132 of 180 background-load draws cross an interrupt (73.3%), none abandoned; the remaining 48 compare with zero mismatches
