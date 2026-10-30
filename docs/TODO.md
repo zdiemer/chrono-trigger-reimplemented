@@ -70,8 +70,7 @@ rest waits, is [PLAN.md](PLAN.md).
   with a clean full shadow replay and identical final PNG. To reproduce the
   failure, set this route's `core_seed_offset` to 0, regenerate its movie in
   scratch storage, then replay all 193389 frames with ct-state23's SRAM and
-  `--native shadow`. Strict mode completes both inputs; `ct_native`'s
-  separate `$FD:B438` stop is recorded under the native program below.
+  `--native shadow`. Strict mode and `ct_native` complete both inputs.
 - **IRQ timing simplifications** (RUNTIME.md, "Interrupt timing"): hardware's
   ~3.5-dot trigger delay isn't modeled, and an IRQ pending across `CLI` is
   taken one instruction early.
@@ -299,8 +298,7 @@ rest waits, is [PLAN.md](PLAN.md).
     through the dispatch's call-out, `battle/steps.c`, rather than as C:
     run as C under the dispatch's frame, its waits broke the call chain);
     from an enemy's turn (history/reimplementation-waves.md,
-    "Phase 3, wave 2: the enemies' minds"), an enemy's
-    coming in `$FD:B438` and the calling in
+    "Phase 3, wave 2: the enemies' minds"), the calling in
     `$FD:A990`; what an effect's working out turns away to the
     original (history/reimplementation-chunks.md, "Phase 3, battle chunk 4: the party's working
     out"): a hit that steals as well (no record has one); an animation that names no movement
@@ -2716,16 +2714,6 @@ rising palace as C), and with `new-game.ctm`'s, `fair.ctm`'s,
 the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
-
-- **An enemy entering a battle in the hand-run endings.** The Legendary Hero
-  recording (`legendary_hero`, technoplaza ct-state19 slot 2; MOVIES.md) stops
-  `ct_native` at frame 14237 in `$FD:B438`, "an enemy coming into the battle".
-  Its shadow run has no mismatch or refusal; strict mode completes its
-  144640-frame input without stopping. This is a native-program stop, not a
-  guard refusal to add to `refusal_allowlist.txt`.
-  Dino Age (`dino_age`, ct-state23 slot 2, 176261-frame scratch movie) stops at
-  the same entry at frame 15100; strict mode completes its full input. Its
-  separate shadow mismatch is recorded under Correctness and accuracy above.
 
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C

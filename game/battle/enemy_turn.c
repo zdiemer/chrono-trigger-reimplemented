@@ -21,6 +21,7 @@
 #include "battle/effect_work.h"
 #include "battle/enemy_actions.h"
 #include "battle/enemy_scripts.h"
+#include "battle/fight.h"
 #include "battle/entries.h"
 #include "battle/message.h"
 #include "battle/random.h"
@@ -178,7 +179,7 @@ static bool effect_shown(GameState *g)
 /* The routines an action's turn calls, each where the original makes it: the
  * tech's body ($C1:9A3D, below), its targeting ($C1:C1DD, battle/aim.c), an
  * enemy's message ($CD:0033, battle/message.c), an enemy coming into the
- * battle set up ($FD:B438, battle/fight_start.c), and enemies called in (the
+ * battle loaded ($FD:B438, battle/fight_enemies.c), and enemies called in (the
  * original's $FD:A990). `arg` is the message or the enemy; the targeting
  * takes the carry the code before it leaves. */
 typedef enum {
@@ -583,10 +584,10 @@ static bool act_on_the_machine(void *ctx, ActCall call, uint8_t arg, bool carry)
         return battle_run(s, aim_sites[call - ACT_AIM_TECH], AIM, battle_aim_action_entry);
     case ACT_ARRIVAL_CHANGE_INTO:
     case ACT_ARRIVAL_BRING_BACK:
-        /* an enemy coming into the battle set up by the original's code,
+        /* an enemy coming into the battle loaded as at the fight's start,
          * with the enemy in X */
         s->cpu.x = arg;
-        return battle_call_long(s, arrival_sites[call - ACT_ARRIVAL_CHANGE_INTO], ARRIVAL, READS_X);
+        return battle_run_long_dc(s, arrival_sites[call - ACT_ARRIVAL_CHANGE_INTO], ARRIVAL, READS_X, fight_load_enemy_entry);
     case ACT_CALL_IN: return battle_call_long(s, 0xC1A3B6, CALL_IN, READS_NOTHING);
     default:
         m_set_a8(s, arg);
@@ -731,7 +732,8 @@ typedef struct {
 
 /* The action turns' calls, each with its guard's state half: the
  * targeting's, an aim the port makes; the message's, one the menus' text code
- * types; the arrivals and the calling in are the original's still. */
+ * types; an arrival, an enemy the fight's start loads; the calling in is the
+ * original's still. */
 static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
 {
     TurnAsC *c = ctx;
@@ -747,7 +749,13 @@ static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
     case ACT_AIM_SET_STATS_THEN_TECH:
     case ACT_AIM_ADD_TO_STATS_THEN_TECH: TIMED_AS(g, AIM, done = battle_aim_action(g, c->pf, carry)); return done;
     case ACT_ARRIVAL_CHANGE_INTO:
-    case ACT_ARRIVAL_BRING_BACK: return battle_needs_the_machine(g, ARRIVAL, "an enemy coming into the battle");
+    case ACT_ARRIVAL_BRING_BACK:
+        /* the enemy's stat block filled from its record, as at the fight's
+         * start (fight_load_enemy_ready's state half: one of the eight) */
+        if (arg >= BATTLE_ENEMIES)
+            return battle_needs_the_machine(g, ARRIVAL, "an enemy coming into the battle past the eight");
+        TIMED_AS(g, ARRIVAL, fight_load_enemy(g, arg));
+        return true;
     case ACT_CALL_IN: return battle_needs_the_machine(g, CALL_IN, "enemies called in");
     default: TIMED_AS(g, ENEMY_MESSAGE, done = battle_show_an_enemy_message(g, c->pf, arg)); return done;
     }
