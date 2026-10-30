@@ -41,7 +41,7 @@ events-prison-escape end
 field-12kbc-1f4 end
 field-12kbc-1f5 end
 field-12kbc-1f6 end
-field-12kbc-after-the-fall 3076  # the winged Epoch's first frame on the world map after the fall, which its guard turns away (C2:42DD)
+field-12kbc-after-the-fall end
 field-65m-bc-dactyl-flight end
 field-65m-bc-dactyl end
 field-65m-bc end

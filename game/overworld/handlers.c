@@ -145,11 +145,14 @@ bool overworld_vehicles_take(const GameState *g, MenuObject self)
     return overworld_party_travel(g) < TRAVELS && overworld_boarding(g) < BOARDINGS;
 }
 
-/* The Epoch keeps to its steps on a world map, faces one of the four ways,
- * animates with sprite scripts the language reads (the one it has too,
- * unless it is set down, given one first, or plays a scene, whose script
- * gives it its own), has the map follow it where it flies, and plays its
- * scenes from a bank of scripts. */
+/* The Epoch keeps to its steps, faces one of the four ways, animates with
+ * sprite scripts the language reads (the one it has too, unless it is set
+ * down, given one first, or plays a scene, whose script gives it its own),
+ * flies on a world map that has the map follow it (its landing looks the
+ * map's no-landing area up by the location), and plays its scenes from a
+ * bank of scripts. Standing, it reads no location: the winged Epoch's first
+ * frame on the 12000 B.C. map after the fall comes while the location is
+ * still the Earthbound Village's. */
 static bool epoch_animates(const GameState *g, MenuObject epoch, bool given_one_first)
 {
     static const uint8_t ANIMATIONS[] = { EPOCH_STANDS_WITH_ITS_WINGS, EPOCH_STANDS_WITHOUT_WINGS, EPOCH_TAKES_OFF,
@@ -192,10 +195,10 @@ static bool the_map_can_follow_the_vehicle(const GameState *g, MenuObject vehicl
 bool overworld_epoch_takes(const GameState *g, MenuObject self)
 {
     EpochStep step = overworld_epoch_step(g, self);
-    bool ok = step < EPOCH_STEPS && on_a_world_map(g) && menu_object_slots_facing(g, self) < 4
+    bool ok = step < EPOCH_STEPS && menu_object_slots_facing(g, self) < 4
               && epoch_animates(g, self, step == EPOCH_SETS_DOWN || step == EPOCH_RUNS_A_SCENE);
     if (ok && (step == EPOCH_FLIES || step == EPOCH_FLIES_A_TILE))
-        ok = the_map_can_follow_the_vehicle(g, self, step == EPOCH_FLIES_A_TILE);
+        ok = on_a_world_map(g) && the_map_can_follow_the_vehicle(g, self, step == EPOCH_FLIES_A_TILE);
     if (ok && step == EPOCH_RUNS_A_SCENE)
         ok = menu_object_script_can_run(g, menu_object_slots_script(g, self));
     return ok;

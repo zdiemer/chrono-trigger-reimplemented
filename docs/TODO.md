@@ -2928,16 +2928,6 @@ Ranked by how much play they block:
   refuses a leader whose place is past `CLEAR_OF_THE_END` (field/walk.c),
   where the original's sums carry. What the original's walk does with the
   party parked there is the thing to establish.
-- **The winged Epoch's first frame after Zeal's fall**
-  (`field-12kbc-after-the-fall`, ctsave11 slot 2, frame 3076, once). Walking
-  out of the Earthbound Village onto the 12000 B.C. map after the fall
-  (`$1F6`), where the Epoch stands parked with its wings, its handler's guard
-  (`$C2:42DD`, `overworld_epoch_takes`, overworld/handlers.c) turns away its
-  first frame and takes every frame after; technoplaza ct-state9 walks out
-  of the same village onto the same map and doesn't stop. Which of the guard's
-  conditions refuses (its step, the sprite scripts it animates by, the map's
-  scroll) is not yet looked at.
-
 - **An enemy tech worked out with no target counted** (the `motherbrain`
   route in the shipping mode, Geno Dome's upper floor after Atropos, frames
   140241 and 146643, twice each). An enemy (combatant 6, then 9) uses enemy
