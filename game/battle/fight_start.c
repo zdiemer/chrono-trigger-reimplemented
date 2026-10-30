@@ -280,7 +280,10 @@ void battle_start_fight(GameState *g)
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         fight_apply_member_bonuses(g, member);
     set_battle_timer_tick_slot(g, 0);
-    ORIGINAL_EFFECT(set_battle_timer_tick_spare(g, 0));
+    /* The game's own write, not scaffolding: a tech's stop after a missed part
+     * reads this word's high byte as tech $2A's (battle/party_work.c,
+     * stops_after_miss), and the clear is what keeps that tech going on. */
+    set_battle_timer_tick_spare(g, 0);
     set_battle_timer_tick_timer(g, 0);
     fight_mark_what_enemies_carry(g);
     fight_number_places(g);

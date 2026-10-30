@@ -1,0 +1,35 @@
+# 600 A.D.: from the world map into the mountainside ($0A3), where the party walks up to the rock and Frog, holding
+# the Masamune, remembers: the forest ($077), then Glenn and Cyrus on the bridge ($087), a few lines (route magic_cave).
+# Save: ctsave06 slot 1 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# frames 6156
+# sram crc32 3B3BAB02
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 2 DOWN
+2452 2 DOWN
+2484 4 A
+2618 16 UP
+2638 3 A
+3621 3 A
+3666 3 A
+3821 3 A
+3866 3 A
+3961 3 A
+4006 3 A
+4321 3 A
+4366 3 A
+4421 3 A
+4466 3 A
+4511 3 A
+4696 3 A
+4741 3 A
+4886 3 A
+4931 3 A
+5766 3 A
+5806 3 A
+5846 3 A
+5901 3 A
+5941 3 A
+5981 3 A
+6036 3 A
+6076 3 A

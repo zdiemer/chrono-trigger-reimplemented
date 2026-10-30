@@ -661,8 +661,10 @@ tech is used on, the settings' meters, gauge and buttons, and the End of
 Time gate's exchange with its song and swirl (REIMPLEMENTATION.md, "The
 native program through the menus the player opens"); and a shop, its goods
 bought and the party's items sold, and the party's equipment changed from
-it. All 40 save movies play to their end (REIMPLEMENTATION.md, "The native
-program through the shops").
+it. 43 of the 45 save movies play to their end (REIMPLEMENTATION.md, "The
+native program through the shops"), all but two made to find where it
+stops, Frog's memory at the Magic Cave and the winged Epoch's map after
+Zeal's fall (TODO.md, "Refusals in real play").
 
 The field's steps as the program calls them (`field_runs`,
 `field/main_loop.c`) are functions of the game's state that the entries

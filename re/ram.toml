@@ -24122,7 +24122,7 @@ name = "battle_timer_tick_spare"
 addr = "7E:B3C2"
 size = 2
 subsystem = "battle"
-meaning = "A word between the count-down pass's slot and timer that the fight's start clears; no code traced reads it"
+meaning = "A word between the count-down pass's slot and timer that the fight's start clears; its high byte is what a tech's stop after a missed part misreads as tech $2A's (stops_after_miss)"
 source = "game/battle/fight_start.c ($C1:FA8B)"
 
 [[var]]

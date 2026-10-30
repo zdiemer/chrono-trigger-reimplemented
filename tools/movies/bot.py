@@ -141,6 +141,9 @@ class Bot:
             return False
         if kind == "attack":
             if not self.press("A", lambda s: s.targeting != 0 or s.member != member):
+                # A newly opened menu may still be restoring its remembered
+                # command. Attack can open a list too; leave it as for tech/item.
+                self.back_out(member)
                 return False
             self.step(1)
             self.pick_target(action[1])

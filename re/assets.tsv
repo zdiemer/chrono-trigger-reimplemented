@@ -847,6 +847,7 @@ strings_d8d000.73	text	D8:DC01	D8:DC30	text:dialog	strings_d8d000 entry
 strings_d8d000.74	text	D8:DC31	D8:DC87	text:dialog	strings_d8d000 entry
 strings_d8d000.75	text	D8:DC88	D8:DCA7	text:dialog	strings_d8d000 entry
 strings_d8d000.76	text	D8:DCA8	D8:DD13	text:dialog	strings_d8d000 entry
+strings_d8d000.77	text	D8:DD14	D8:DD25	text:dialog	strings_d8d000 entry
 setup_character_graphics.0	lz	D9:0000	D9:0726	lz	setup_character_graphics entry
 setup_character_graphics.1	lz	D9:0727	D9:0DE5	lz	setup_character_graphics entry
 setup_character_graphics.2	lz	D9:0DE6	D9:1330	lz	setup_character_graphics entry
@@ -1383,6 +1384,7 @@ strings_dec000.182	text	DE:E235	DE:E24A	text:dialog	strings_dec000 entry
 strings_dec000.183	text	DE:E24B	DE:E25B	text:dialog	strings_dec000 entry
 strings_dec000.184	text	DE:E25C	DE:E26F	text:dialog	strings_dec000 entry
 strings_dec000.185	text	DE:E270	DE:E29C	text:dialog	strings_dec000 entry
+strings_dec000.186	text	DE:E29D	DE:E2B0	text:dialog	strings_dec000 entry
 strings_dee300	ptr16	DE:E300	DE:E421	raw	read
 strings_dee300.0	text	DE:E422	DE:E435	text:dialog	strings_dee300 entry
 strings_dee300.1	text	DE:E436	DE:E444	text:dialog	strings_dee300 entry
