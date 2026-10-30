@@ -57,6 +57,32 @@ rest waits, is [PLAN.md](PLAN.md).
   zero mean drift. These are in `tools/timing_exceptions.txt`: the shipping
   replays have no failing video-write findings. Revisit the timing spread over the combined
   library before changing the ports or their attribution.
+### Refusals in real play
+
+- **North Cape's flashback:** `field_walk_the_leader` (`$C0:881E`) refuses
+  164 calls in each reference opening of `events-magus-joins` and
+  `battle-magus-north-cape`, first at frame
+  8612, on location `$024`: the leader link is `$04` (object 2), whose
+  position is (`$FF80`, `$FFFF`). `walk_fits` rejects that hidden leader's
+  Y coordinate. D=`$0100`, DB=0, P=`$20`. Strict mode stops at that entry at
+  frame 8561 after timing recalibration. Support the flashback's hidden
+  leader without handing its walk to the original;
+  `tools/refusal_allowlist.txt` records this as a gap.
+  `ct_native` also stops at `$C0:881E`, frame 8531, with "a walk the port
+  doesn't take", for both North Cape movies, before their choices diverge.
+
+### Timing and other accuracy work
+
+- **North Cape timing tails:** `field_build_line_effect_tables` and
+  `overworld_lead` need estimates that follow their window-shape and walk
+  paths. The recruitment movie exceeds the in-vblank tail limit after drift
+  calibration (4/116 and 38/551 stretches, maxima 2120 and 3152 clocks),
+  while its shipping-mode vblank check has no failing findings. In the
+  battle, `battle_record_trails` needs an estimate that follows how many
+  combatants' trails are due: 107/6815 in-vblank stretches exceed 1024
+  clocks, maximum 1806 after calibration. It updates RAM positions; this
+  movie's shipping-mode vblank check also has no failing findings. Their
+  `tools/timing_exceptions.txt` entries record that evidence.
 
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
   the original (battles play out differently). That difference is accepted

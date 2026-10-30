@@ -1102,8 +1102,43 @@ the earlier library did not reach, and may expose `ct_native`'s next stops.
   blanked after five screen setups; completion there is not established (TODO.md).
 
 ### 13. The story events no movie plays
+
+- **North Cape, 12,000 B.C.**: `events-magus-joins` (route `magus_joins`,
+  ctsave11 slot 2, 13663 frames): leave the Earthbound Village (`$1A9`) for
+  the post-flood world map (`$1F6`), enter North Cape (`$1AC`), examine the
+  glimmer (object `$10` at tile (7, 6)), and play Magus's scene and flashback.
+  Refuse the fight, walk south to his offer, accept the default name and
+  close the party screen; end with the field back in hand and `$7F:0138`
+  bit 0 set. The starting flags confirm the nearest save: story progress
+  `$7F:0000 = $D2`, `$7F:0138 = 0`; ctsave11 slot 3 and every ctsave12 slot
+  already have Magus recruited. Marle, Lucca and Robo are the active party.
+  Against the preceding 48 movies it reaches 0.08 KiB (83 bytes) no other
+  movie runs, all ported: flags selected by number (`$C0:6B20`-`$6B4A`),
+  screen tint (`$C0:3D50`-`$3D5E`), and small field/dialog/palette branches.
+  Shadow has 0 mismatches, no `page refused` or `accessor out of range`;
+  164 guard refusals in the flashback are the hidden-leader gap recorded
+  in TODO.md and `tools/refusal_allowlist.txt`. `ct_native` stops at frame
+  8531 at `$C0:881E` ("a walk the port doesn't take"); strict mode stops at
+  frame 8561 at the same entry, before the fight/refuse choice.
+- **North Cape's party fight**: `battle-magus-north-cape` (route `north_cape`,
+  the same ctsave11 slot 2, 28653 frames) shares the scene, then accepts the
+  fight. Marle, Lucca and Robo defeat Magus (6666 HP); Frog is absent, so
+  this plays the party battle. The `party` policy wins at frame 26953 in
+  31 decisions with no retry. Close the aftermath and end with the field
+  back in hand and `$7F:0138` bit 1 set. Its new coverage against the
+  preceding 48 movies is 31 bytes, all ported: eight in the rewards' HP/MP
+  growth path (`$C1:F8FC`-`$F903`) are exclusive to this movie, and 23 are
+  shared with recruitment. Recruitment retains 60 exclusive bytes; together
+  they add 91 bytes. Shadow has 0 mismatches, no `page refused`, `accessor
+  out of range` or uncatalogued asset reads. Its 164 flashback refusals and
+  `ct_native`/strict stops are the same as recruitment's above.
+  The narrowed two-movie suite with `-j 1`, including its static checks,
+  ends `suite OK`; both movies and both standard routes also pass with
+  scaffolding compiled out. The pair's timing costs were calibrated with
+  `--drifted`, with the remaining timing tails documented as exceptions.
+
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's
-castle, the dactyls, the Black Tyrano, the Keeper's Dome, the Golem Twins, the Blackbird, the
+castle, the dactyls, the Black Tyrano, the Keeper's Dome, the Golem Twins, the Blackbird, North Cape, the
 Black Omen and Lavos. The rest of the story has saves just before it (oracle/saves/README.md) and
 no movie; the slot named is the nearest found from the README, for the route to confirm.
 

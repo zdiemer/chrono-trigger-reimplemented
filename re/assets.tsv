@@ -5880,6 +5880,7 @@ strings_f9b000.439	text	F9:FA24	F9:FA36	text:dialog	strings_f9b000 entry
 strings_f9b000.440	text	F9:FA37	F9:FA46	text:dialog	strings_f9b000 entry
 strings_f9b000.441	text	F9:FA47	F9:FA53	text:dialog	strings_f9b000 entry
 strings_f9b000.442	text	F9:FA54	F9:FA66	text:dialog	strings_f9b000 entry
+untyped_f9fa67	untyped	F9:FA67	F9:FFFF	raw	read
 field_packed_script.215	lz	FA:0000	FA:020A	lz:event	field_packed_script entry
 field_packed_script.216	lz	FA:020B	FA:032E	lz:event	field_packed_script entry
 field_packed_script.217	lz	FA:032F	FA:065E	lz:event	field_packed_script entry
