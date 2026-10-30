@@ -5,3 +5,13 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C03002 event_cmd_walk_with_the_party guard # gap: what_the_prophet_seeks, frames 119033-119035 at $190; the second party link is the empty marker during the ending transition (docs/TODO.md, Refusals in real play).
+C0A2CE field_second_member_follows guard # gap: what_the_prophet_seeks, the same three frames; the second party link does not name the stepping object (docs/TODO.md, Refusals in real play).
+C0881E field_walk_the_leader guard # gap: the leader carried past the 16-bit range's end, outside clear_of_the_end: memory_lane frames 166496-166502 at $0EF and reunion frames 94157-94158 at $054 (a scripted exit through Y=$FFxx); events-magic-cave, the leader parked at ($FF80, $FFFF) on the bridge of Frog's memory ($087) (docs/TODO.md, Refusals in real play).
+C0A88D field_update_object_visibility guard # gap: reunion, frames 96984/97676/99975 at $050; object $14 has an odd newer palette link while script-owned palettes leave those links unused (docs/TODO.md, Refusals in real play).
+C0734C field_give_up_palette guard # gap: reunion, the same three frames; the guard checks palette links even though $7E:0154 bit 7 makes the routine return without reading them (docs/TODO.md, Refusals in real play).
+C04F61 event_cmd_move_to_tile guard # gap: a map of 64 objects, whose search starts one past the tables (object_search_fits); events-magic-cave, the forest of Frog's memory ($077)
+C05B95 field_object_in_the_way guard # gap: the same 64 objects' search (object_search_fits); events-magic-cave, the forest ($077)
+C242DD overworld_epoch guard # gap: the winged Epoch's first frame on the 12000 B.C. map after the fall ($1F6); field-12kbc-after-the-fall
+C1D7C4 battle_work_out_enemy_tech guard # gap: enemy tech $14 worked out with its target count 0 and member 1 listed, which effect_targets_named doesn't take; motherbrain route (shipping mode), Geno Dome's upper floor, frames 140241 and 146643 (docs/TODO.md, Refusals in real play)
+C1D2DE battle_effect_hit guard # gap: the same tech's hit, the same target count 0; motherbrain route (shipping mode), the same frames (docs/TODO.md, Refusals in real play)

@@ -11882,8 +11882,8 @@ void set_battle_steal_outcome(GameState *g, uint8_t v);
 uint16_t battle_timer_tick_slot(const GameState *g);
 void set_battle_timer_tick_slot(GameState *g, uint16_t v);
 
-/* A word between the count-down pass's slot and timer that the fight's start clears; no code
- * traced reads it */
+/* A word between the count-down pass's slot and timer that the fight's start clears; its high
+ * byte is what a tech's stop after a missed part misreads as tech $2A's (stops_after_miss) */
 uint16_t battle_timer_tick_spare(const GameState *g);
 void set_battle_timer_tick_spare(GameState *g, uint16_t v);
 

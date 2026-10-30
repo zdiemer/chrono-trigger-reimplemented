@@ -1,0 +1,22 @@
+# 12000 B.C. after the fall: out of the Earthbound Village onto the frozen world map ($1F6), the winged Epoch parked
+# beside it; into the nearest location and back out onto the map (route last_village_12kbc).
+# Save: ctsave11 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# frames 9269
+# sram crc32 C6FD718D
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 2 DOWN
+2452 2 DOWN
+2484 2 DOWN
+2516 4 A
+2800 40 DOWN
+2840 8 RIGHT
+2848 32 DOWN
+2880 8 RIGHT
+2888 8 UP
+3016 16 RIGHT
+3036 16 RIGHT
+3056 3 A
+3239 3 A
+3279 3 A
+3319 3 A

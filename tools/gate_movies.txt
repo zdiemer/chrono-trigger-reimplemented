@@ -1,0 +1,53 @@
+# The gate's sample of the movie library: what tools/suite.py runs by default
+# (--all-movies runs the whole library). One movie a line, then after `#` why.
+#
+# Picked from the whole library's `--native shadow --coverage` runs: a greedy
+# cover, each step taking the movie that adds the most code no movie before it
+# ran (ROM code bytes and RAM instruction starts) per frame played, then the
+# movies the checks need. Over the 53 movies of its making it keeps 96.2% of
+# the library's ROM code bytes and 95.7% of its RAM instruction starts for 29%
+# of the frames and 24% of the shadow runs' time. Left out are the long
+# discovery movies (the Lavos endings but one, the tech sweeps, MotherBrain,
+# the R Series, the Black Tyrano, Zeal), each of which adds at most 0.9% of the
+# code for 4-15% of the time, and short ones whose code the sample already runs
+# (the Magic Cave and after-the-fall movies, made to find ct_native's stops,
+# add 0 and 15 bytes).
+# Re-pick it when the library changes much (docs/MOVIES.md, "Adding it to the
+# library"); the bytes below are what each added when it was picked, in order.
+
+# the greedy cover, best rate first
+battle-menu-buttons  # 82241 bytes in 5086 frames: the battle's menus, windows and a fight from a save
+field-65m-bc-dactyl  # world map on a dactyl: the world map's mode and its flying
+field-factory-switch  # field switches, the factory's events and a fight
+events-epoch-lavos  # the scene program in RAM (3131 starts) and the Epoch's flight
+menus-sweep  # every menu screen the field menu opens
+battle-tyrano-lair-walls  # battle techs, an item drop and a level-up
+menus-new-game-plus  # the load screen of a finished cartridge
+events-end-of-time-gate  # the End of Time and a Gate
+attract-demo  # power-on: the intro, the title and the attract demo (1608 RAM starts)
+menus-epoch  # the Epoch's screens
+late-omen-battles  # Black Omen battles: statuses, single techs, running away
+menus-shop-inn  # the shop and the inn
+battle-magus  # the Magus fight
+field-northern-ruins-switch  # a field switch puzzle
+battle-lavos-gameover  # a lost fight and the game over
+field-floor-switch  # remembered floor switches
+menus-field-menu  # the field menu's screens
+events-jetbike-race-won  # the race (Johnny's jetbike), won to its end
+battle-golem-twins-gameover  # the Golem Twins and a game over
+battle-guardian  # the Guardian and its Bits
+menus-shop-equip  # buying and equipping
+late-omen-terramutant  # a two-part boss, Delta Force, the dual tech list
+battle-denadoro  # the Denadoro Mountains' monsters, which no other movie fights
+# what the checks and the subsystems need
+endings-beyond-time  # the endings: the staff roll and the scene program's ending modes (1737 RAM starts), the sound loads they make
+menus-end-of-time  # the End of Time's menus and save
+field-12kbc-1f4  # the 12,000 B.C. world map
+field-65m-bc-dactyl-flight  # a dactyl flight's landing
+events-jetbike-race  # the race's start and its RAM code
+menus-save-point  # a save point's save
+title-start  # power-on: the title to the load screen, a strict `end`
+field-12kbc-1f6  # the 12,000 B.C. world map's other part
+new-game  # power-on: the trace identity check's movie, and a new game's opening
+field  # power-on: the field from a new game, a strict `end`
+menu  # power-on: the menu from a new game, a strict `end`

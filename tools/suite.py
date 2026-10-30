@@ -1,11 +1,14 @@
 """Run the movie suite: every movie in shadow mode, then the gate's checks.
 
     python3 tools/suite.py --ct-dev build/main/ct_dev [--rom roms/ct-usa.sfc]
+    python3 tools/suite.py --ct-dev build/main/ct_dev --all-movies
     python3 tools/suite.py --ct-dev build/main/ct_dev --only saves
     python3 tools/suite.py --ct-dev build/main/ct_dev --movies gato-battle field
     python3 tools/suite.py --ct-dev build/main/ct_dev --no-trace --no-timing -j 6
 
-This is the validation gate (CLAUDE.md, "Validation"): every movie run with
+This is the validation gate (CLAUDE.md, "Validation"). It runs the gate's
+sample of the movie library, tools/gate_movies.txt, by default, and the whole
+library with --all-movies (see "The sample" below). Every movie run with
 `--native shadow` must exit 0 with no `mismatched [1-9]` line, no `page
 refused` line (a guard that turned away a call whose direct page is no instance
 re/ram.toml declares, which would otherwise show only as a drop in a shadow
@@ -58,6 +61,25 @@ other than as the reference play does (tools/strict_check.py, a ratchet
 against tools/strict_baseline.txt). Exit status is 0 only when all of
 that holds.
 
+The sample. The library grows with long movies made to find code and the
+places ct_native stops, and replaying all of it at every commit costs hours.
+tools/gate_movies.txt names the movies the gate runs by default, one per line
+with a `#` reason: a greedy cover of the library's shadow coverage, most code
+bytes per second of play first, plus what the checks need (the trace
+identity's movie, power-on and save movies, each subsystem, the strict
+baseline's `end` movies that matter). Every check then runs over those
+movies, and the ratchets judge only what the sample can show: a baseline line
+for a movie or routine the sample doesn't reach is neither dropped nor
+reported as gone, and the timing gate judges only its worst cases (maxima,
+which a subset can only lower): its drift and vblank tail are means over the
+library the costs are calibrated to, which a subset's mix of scenes moves, so
+those and its stale exceptions are judged over the whole library only.
+--all-movies is the gate as it was before the sample:
+run it before merging a change to timing or to the runtime, and for every
+recalibration and baseline update (timing_gate.py --calibrate, fallbacks.py
+--update, strict_check.py --update, effects_check.py --prune), which take
+their numbers from the whole library's runs. --movies names a set by hand.
+
 Each movie's frame count comes from its own `# frames N` header, and a movie
 that starts from a cartridge save finds it by CRC-32 among the committed ones
 (oracle/saves), so nothing here carries a list that can go stale.
@@ -95,6 +117,28 @@ def movie_frames(path):
     """The frame count a movie declares, or None."""
     m = FRAMES.search(path.read_text(errors="replace"))
     return int(m.group(1)) if m else None
+
+
+GATE_MOVIES = ROOT / "tools/gate_movies.txt"
+
+
+def gate_movies():
+    """The names tools/gate_movies.txt lists (`name  # reason` a line), and its
+    lines that are malformed or name no movie in the library."""
+    names, bad = [], []
+    library = {p.stem for p in ROOT.glob("oracle/movies/**/*.ctm")}
+    for number, line in enumerate(GATE_MOVIES.read_text().splitlines(), 1):
+        body, _, reason = line.partition("#")
+        words = body.split()
+        if not words:
+            continue
+        if len(words) != 1 or not reason.strip():
+            bad.append("%s:%d: not `name  # reason`" % (GATE_MOVIES.name, number))
+        elif words[0] not in library:
+            bad.append("%s:%d: %s is no movie in the library" % (GATE_MOVIES.name, number, words[0]))
+        else:
+            names.append(words[0])
+    return names, bad
 
 
 def collect(only, names):
@@ -160,11 +204,12 @@ def run_movie(binary, rom, out, name, path, frames, lockstep):
     return name, ok, detail
 
 
-def trace_check(binary, rom, out, movie, frames):
+def trace_check(binary, rom, out, movie, frames, jobs=2):
     """`--generated only` against `--native off` on one movie. Returns (ok, detail).
 
     The two runs are given their own copy of the binary so they can run at once
-    on hosts that lock a running image.
+    on hosts that lock a running image. With one job, finish each run before
+    starting the next, just as the movie and route checks do.
     """
     movie = ROOT / "oracle/movies" / (movie + ".ctm")
     if not movie.exists():
@@ -173,13 +218,15 @@ def trace_check(binary, rom, out, movie, frames):
     procs = []
     for tag, extra in (("off", ["--native", "off"]),
                        ("only", ["--native", "on", "--generated", "only"])):
-        exe = out / ("ct_dev_%s%s" % (tag, binary.suffix))
+        exe = (out / ("ct_dev_%s%s" % (tag, binary.suffix))).resolve()
         shutil.copy2(binary, exe)
         traces[tag] = out / ("%s.cttr" % tag)
         cmd = [str(exe), "--rom", str(rom), "--movie", str(movie),
                "--frames", str(frames), "--trace", str(traces[tag])] + extra
         with open(out / ("trace-%s.log" % tag), "wb") as fh:
             procs.append(subprocess.Popen(cmd, stdout=fh, stderr=subprocess.STDOUT))
+            if jobs == 1:
+                procs[-1].wait()
     if any(p.wait() != 0 for p in procs):
         return False, "a trace run failed"
     diff = subprocess.run([sys.executable, "-m", "tools.trace", "diff",
@@ -199,8 +246,12 @@ def trace_check(binary, rom, out, movie, frames):
 
 def check_trace(args, ctx):
     """`--generated only` against `--native off` on one movie."""
-    ok, detail = trace_check(ctx["binary"], args.rom, args.out, args.trace_movie, args.trace_frames)
+    ok, detail = trace_check(ctx["binary"], args.rom, args.out, args.trace_movie, args.trace_frames, ctx["jobs"])
     return ok, "trace identity (%s)" % args.trace_movie, detail, []
+
+
+# The timing gate's limits that are means over the library, not judged over a subset of it.
+SUBSET_UNJUDGED = ("drift", "vblank-tail")
 
 
 def check_timing(args, ctx):
@@ -209,9 +260,23 @@ def check_timing(args, ctx):
     if not agg:
         return False, "timing", "no --timing-report output in the shadow logs", []
     result = timing_gate.check(agg, timing_gate.read_exceptions(timing_gate.EXCEPTIONS))
+    means = []
+    if not ctx["complete"]:
+        # Drift and the vblank tail are shares over every stretch the movies
+        # run, and the costs are calibrated to the whole library's: a subset's
+        # mix of scenes moves them however right the estimates are (the sample
+        # alone put 305 entries past them). The worst cases are maxima, which
+        # a subset can only lower, so those are judged here. And an exception
+        # the subset doesn't reach may still be needed by the rest of the
+        # library, so staleness is judged over all of it too.
+        means = [f for f in result.failures if f[1] in SUBSET_UNJUDGED]
+        result = result._replace(failures=[f for f in result.failures if f[1] not in SUBSET_UNJUDGED], stale=[])
     lines = timing_gate.failure_lines(result)
     if not ctx["complete"]:
-        lines.append("note: measured over %d of the library's %d movies" % (len(ctx["movies"]), ctx["library"]))
+        lines.append("note: over %d of the library's %d movies, so only the worst cases are judged; %d entr%s past "
+                     "the drift or vblank-tail limit over these alone, which --all-movies judges, with stale exceptions"
+                     % (len(ctx["movies"]), ctx["library"], len({f[0].name for f in means}),
+                        "y" if len({f[0].name for f in means}) == 1 else "ies"))
     return not result.failures, "timing", timing_gate.summary(result), lines
 
 
@@ -228,8 +293,8 @@ def check_vblank(args, ctx):
     cmd = [sys.executable, str(ROOT / "tools/vblank_check.py"), "--ct-dev", str(ctx["binary"]),
            "--rom", str(args.rom), "--out", str(args.out / "vblank"), "--failing-only",
            "-j", str(ctx["jobs"]), "--only", args.only]
-    if args.movies:
-        cmd += ["--movies"] + args.movies
+    if not ctx["complete"]:
+        cmd += ["--movies"] + list(ctx["movies"])
     rc, lines = run_tool(cmd)
     # its verdict is the "N failing finding(s)" line; progress goes to stderr
     verdict = [line for line in lines if "failing finding" in line]
@@ -248,7 +313,11 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 # Routes run by hand rather than in every --long-routes gate: the tech sweep
 # fights for about forty minutes for under a KiB of code no movie runs
 # (docs/movies-wanted.md, "Every tech").
-HAND_RUN_ROUTES = {"tech_sweep"}
+# The other New Game+ endings take over 100,000 frames apiece. Their
+# scratch movies and shipping routes are checked by hand (MOVIES.md).
+HAND_RUN_ROUTES = {"tech_sweep", "successor_of_guardia", "legendary_hero", "unknown_past",
+                   "people_of_the_times", "the_oath", "dino_age", "what_the_prophet_seeks",
+                   "memory_lane", "reunion"}
 
 
 def all_routes():
@@ -359,7 +428,8 @@ def check_fallbacks(args, ctx):
     missing = sorted(name for name in ctx["movies"] if not (shadow / ("%s.txt" % name)).exists())
     missing += sorted("%s (shipping mode)" % name for name in ctx["ship"] if not (movies / ("%s.txt" % name)).exists())
     rc, lines = run_tool([sys.executable, str(ROOT / "tools/fallbacks.py"), "--check",
-                          "--report", str(out / "report.txt"), str(shadow)])
+                          "--report", str(out / "report.txt"), str(shadow)]
+                         + ([] if ctx["complete"] else ["--subset"]))
     summary = "reference play (the movies in shadow mode): " + (lines[-1] if lines else "no output")
     paths = shipping_inputs(args)
     _, totals = run_tool([sys.executable, str(ROOT / "tools/fallbacks.py"), "--totals",
@@ -674,6 +744,9 @@ def main():
     ap.add_argument("--out", type=pathlib.Path, default=ROOT / "build/suite")
     ap.add_argument("--only", choices=("all", "core", "saves"), default="all")
     ap.add_argument("--movies", nargs="*", default=[], help="run only these, by name")
+    ap.add_argument("--all-movies", action="store_true",
+                    help="run the whole library, not the gate's sample (tools/gate_movies.txt): before merging "
+                         "a change to timing or the runtime, and for every recalibration or baseline update")
     ap.add_argument("-j", "--jobs", type=int, default=0,
                     help="concurrent movies (default: half the CPUs, at least 1)")
     ap.add_argument("--trace-movie", default="new-game")
@@ -703,14 +776,23 @@ def main():
     shutil.rmtree(args.out / "fallbacks" / "shadow", ignore_errors=True)
     (args.out / "fallbacks" / "shadow").mkdir(parents=True)
 
-    movies = collect(args.only, set(args.movies))
+    if args.movies:
+        chosen, what = set(args.movies), "the movies named"
+    elif args.all_movies:
+        chosen, what = set(), "the whole library"
+    else:
+        sample, bad = gate_movies()
+        if bad:
+            sys.exit("\n".join(bad))
+        chosen, what = set(sample), "the gate's sample, %s; --all-movies runs the library" % GATE_MOVIES.name
+    movies = collect(args.only, chosen)
     if not movies:
         sys.exit("no movies to run")
     # Longest first: the three endings are more than half the suite, and one
     # started late sets the wall time while the other workers sit idle.
     movies.sort(key=lambda m: -m[2])
     import_assets(binary, args.rom, args.out / "ct-usa.assets")
-    print("%d movies, %d at a time" % (len(movies), jobs), flush=True)
+    print("%d movies (%s), %d at a time" % (len(movies), what, jobs), flush=True)
 
     bad_movies = []
     started = time.time()

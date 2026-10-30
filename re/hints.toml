@@ -3888,7 +3888,9 @@ fill = true
 
 [[resource]]
 at = "D8:D000"
-count = 77
+# The Prophet ending reads entry 77 at D8:DD14; it is a final line of dialog,
+# not a sentinel (the hand-run what_the_prophet_seeks route).
+count = 78
 slots = 78
 kind = "ptr16"
 bank = "D8"
@@ -3906,7 +3908,8 @@ format = "dialog"
 
 [[resource]]
 at = "DE:C000"
-count = 186
+# Memory Lane's final dialog uses entry 186 ($BA), at DE:E29D.
+count = 187
 slots = 187
 kind = "ptr16"
 bank = "DE"

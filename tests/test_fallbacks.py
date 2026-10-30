@@ -77,6 +77,19 @@ class FallbacksTest(unittest.TestCase):
         ok, out = self.check(self.baseline(text + "C2:1000 190 5  # no port yet\n"))
         self.assertTrue(ok, out)
 
+    def test_a_subset_reports_no_line_gone(self):
+        """The gate's sample runs part of the library: a baseline line for a
+        routine it doesn't reach is neither a failure nor a gain to take."""
+        text = ("C0:4867 7 2  # refused\nC0:ABCD 60 3  # handback\nC2:1000 200 5  # no port yet\n"
+                "C3:2000 50 4  # run only by a movie the sample leaves out\n")
+        ok, out = self.check(self.baseline(text))
+        self.assertTrue(ok, out)
+        self.assertIn("1 went", out)
+        out = io.StringIO()
+        self.assertTrue(fallbacks.check(self.measure(), self.baseline(text), out, subset=True))
+        self.assertNotIn("1 went", out.getvalue())
+        self.assertIn("over a subset of the library", out.getvalue())
+
     def test_a_line_without_its_reason_fails(self):
         ok, out = self.check(self.baseline("C2:1000 200 5\nC0:ABCD 60 3  # x\nC0:4867 7 2  # x\n"))
         self.assertFalse(ok)

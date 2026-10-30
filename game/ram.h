@@ -7788,8 +7788,9 @@
 #define RAM_BATTLE_STEAL_OUTCOME 0x7EB3BFu
 /* The battle slot of the timer the count-down pass is at [2 bytes] */
 #define RAM_BATTLE_TIMER_TICK_SLOT 0x7EB3C0u
-/* A word between the count-down pass's slot and timer that the fight's start clears; no code
- * traced reads it [2 bytes] */
+/* A word between the count-down pass's slot and timer that the fight's start clears; its high
+ * byte is what a tech's stop after a missed part misreads as tech $2A's (stops_after_miss) [2
+ * bytes] */
 #define RAM_BATTLE_TIMER_TICK_SPARE 0x7EB3C2u
 /* The timer the count-down pass is at (kind * 11 + slot); 143 once it is through [2 bytes] */
 #define RAM_BATTLE_TIMER_TICK_TIMER 0x7EB3C4u

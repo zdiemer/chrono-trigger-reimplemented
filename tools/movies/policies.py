@@ -26,7 +26,7 @@ CHARACTER_TECHS = {
     1: dict(revive=(7, 15), heal_one=(6, 5), one=[(5, 8), (2, 2)]),                             # Marle
     2: dict(all=[(7, 20), (6, 15), (3, 3)], one=[(5, 8), (2, 2)]),                              # Lucca
     3: dict(heal_all=(4, 3), heal_one=(1, 2), all=[(6, 14), (2, 3)], one=[(5, 12), (0, 1)]),    # Robo
-    4: dict(heal_all=(5, 10), heal_one=(3, 2)),                                                 # Frog
+    4: dict(heal_all=(3, 2), heal_one=(6, 5)),                                                  # Frog
     5: dict(),                                                                                  # Ayla
     6: dict(all=[(7, 20), (5, 10)], one=[(0, 8), (1, 8), (2, 8)]),                              # Magus
 }
@@ -156,7 +156,75 @@ def party(bot, state, rng, inventory):
     return ("attack", target)
 
 
+def party_lavos_core(bot, state, rng, inventory):
+    """Keep party's healing; clear the left bit with physical attacks first.
+
+    Then use the strongest known area tech on the body and exposed core.
+    Robo's Shock (entry 7, 17 MP) reaches them both; his generic policy's
+    Area Bomb depends on where he stands. Restore MP for these short windows.
+    """
+    action = party(bot, state, rng, inventory)
+    character = party_ids(bot)[state.member]
+    techs = CHARACTER_TECHS.get(character, {})
+    offensive = {index for index, _ in techs.get("all", []) + techs.get("one", [])}
+    if action[0] != "attack" and not (action[0] == "tech" and action[1] in offensive):
+        return action
+    if state.hp(7) > 0:
+        return ("attack", 7)
+    area = (7, 17) if character == 3 else next(iter(techs.get("all", [])), None)
+    if area and tech_known(bot, state.member, area[0]):
+        if state.mp(state.member) >= area[1]:
+            return ("tech", area[0], None)
+        ether = use(inventory, HYPER_ETHER, state.member)
+        if ether:
+            return ether
+    target = 3 if state.hp(3) > 0 else 9
+    if action[0] == "attack":
+        return ("attack", target)
+    if action[2] is not None:
+        return ("tech", action[1], target)
+    return action
+
+
 LAPIS = 0xCA
+
+
+def motherbrain(bot, state, rng, inventory):
+    """Clear the Displays and finish before MotherBrain's repeated stat gains.
+
+    Her action $15 makes a long fight increasingly expensive. Prefer the
+    party's magic each turn over the general policy's random physical attacks.
+    Robo supplies group healing; individual healing is reserved for low HP.
+    """
+    member = state.member
+    character = party_ids(bot)[member]
+    members = range(bot.party)
+    dead = [i for i in members if not state.hp(i)]
+    if dead:
+        if character == 1 and state.mp(member) >= 15 and tech_known(bot, member, 7):
+            return ("tech", 7, dead[0])
+        action = use(inventory, REVIVE, dead[0])
+        if action:
+            return action
+    alive = [i for i in members if state.hp(i)]
+    low = [i for i in alive if fraction(state, i) < 0.5]
+    if character == 3 and len(low) >= 2 and state.mp(member) >= 3 and tech_known(bot, member, 4):
+        return ("tech", 4, None)
+    if alive:
+        lowest = min(alive, key=lambda i: fraction(state, i))
+        if fraction(state, lowest) < 0.25:
+            if character == 1 and state.mp(member) >= 5 and tech_known(bot, member, 6):
+                return ("tech", 6, lowest)
+            action = use(inventory, FULL_TONIC, lowest)
+            if action:
+                return action
+    spells = {1: [(5, 8), (2, 2)], 2: [(7, 20), (5, 8), (2, 2)],
+              3: [(7, 17), (2, 3)]}.get(character, [])
+    for index, cost in spells:
+        if state.mp(member) >= cost and tech_known(bot, member, index):
+            return ("tech", index, None)
+    action = use(inventory, HYPER_ETHER, member)
+    return action or ("attack", (enemies(state) or [3])[0])
 
 
 def party_with_lapis(bot, state, rng, inventory):
@@ -178,6 +246,40 @@ def party_with_lapis(bot, state, rng, inventory):
         if action:
             return action
     return party(bot, state, rng, inventory)
+
+
+def r_series(bot, state, rng, inventory):
+    """Crono and Lucca against the factory's two columns of R Series robots.
+
+    Their middle slots (4 and 9) center Fire Whirl on a column. Read its
+    entry from the live list: combination techs follow the learned singles,
+    so they do not have a fixed menu index. The early save has Tonics and
+    Mid Tonics, but none of the late healing items the general policy uses.
+    """
+    member = state.member
+    for slot in range(2):
+        if not state.hp(slot):
+            action = use(inventory, REVIVE, slot)
+            if action:
+                return action
+    lowest = min(range(2), key=lambda slot: fraction(state, slot))
+    if fraction(state, lowest) < 0.5 + 0.15 * rng.random():
+        for item in (MID_TONIC, TONIC):
+            action = use(inventory, item, lowest)
+            if action:
+                return action
+    living = enemies(state)
+    if not living:
+        return ("attack", None)
+    target = next((slot for slot in (4, 9) if slot in living), living[0])
+    if state.mp(0) >= 2 and state.mp(1) >= 3 and rng.random() < 0.9:
+        base = bot.machine.b(A.BATTLE_TECH_LIST_BASE + member)
+        entries = bot.machine.peek(A.BATTLE_TECH_LIST_IDS + base, 20)
+        if 0x3C in entries:                         # Fire Whirl
+            return ("tech", entries.index(0x3C), target)
+    if member == 0 and state.mp(0) >= 2:
+        return ("tech", 0, target)                  # Cyclone
+    return ("attack", min(living, key=lambda slot: state.hp(slot)))
 
 
 def crono_and_marle(bot, state, rng, inventory):
@@ -385,7 +487,10 @@ def tracking_do(bot, cast_ids, refused=None, damage=None):
 
 POLICIES = {
     "party": party,
+    "party_lavos_core": party_lavos_core,
     "party_with_lapis": party_with_lapis,
+    "r_series": r_series,
+    "motherbrain": motherbrain,
     "crono_and_marle": crono_and_marle,
     "crono_and_marle_core": crono_and_marle_core,
 }

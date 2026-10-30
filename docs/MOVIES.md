@@ -183,6 +183,28 @@ python3 -m tools.movies.routes.beyond_time --prefix work/beyond ...
 Lavos's shell (its first phases, `to_the_shell`) and loses the fight, for the
 Day of Lavos a loss plays.
 
+The other New Game+ endings are hand-run routes: a Lavos fight and ending takes
+over 100,000 frames, so `HAND_RUN_ROUTES` in `tools/suite.py` excludes them
+from the gates, including `--long-routes`. Their recordings belong in scratch
+storage, not `oracle/movies`. `tools/movies/other_endings.py` shares the fights
+and recording setup; the routes supply the ending's walks and completion checks.
+
+```sh
+python3 -m tools.movies.routes.successor_of_guardia --prefix work/successor/run \
+    --movie work/successor.ctm
+python3 -m tools.movies.route_check --mode on:on:c -j 1 \
+    --scratch work/shipping successor_of_guardia
+```
+
+The routes check the ending itself, never a timeout: each reads the story
+counter that picks its branch in location `$052`'s ending dispatcher and waits
+for the last scene's script to halt. `successor_of_guardia` (technoplaza
+ct-state17 slot 2), for one, checks that story `$27` set `$7F:006E` to 5, then
+that `$057`'s object 0 stops at its final halt after Frog and Leene's scene.
+What each ending covered and how its recording and shipping-mode runs went is
+in [history/endings-routes.md](history/endings-routes.md); the saves still
+wanted are in [movies-wanted.md, target 7](movies-wanted.md#7-the-other-endings).
+
 So do the menu, event and battle movies made for what no movie ran
 ([movies-wanted.md](movies-wanted.md), Targets): `menu_sweep`
 (`menus-sweep.ctm`), `save_point` (`menus-save-point.ctm`), `epoch_lavos`
@@ -199,9 +221,61 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
-Each starts from the technoplaza cartridge save its movie header names
-(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
-`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
+`motherbrain` (`battle-motherbrain.ctm`, 135481 frames) starts from fantasyanime
+ctsave14 slot 2 on the 600 A.D. world map. It boards the Epoch, selects 2300 A.D.,
+lands southwest of Geno Dome and puts Robo in the lead. The route clears the five
+conveyor battles, opens the charging chamber, turns on the first and third code
+switches, charges the doll and escort pods, and brings the escort robot to the
+guard for the other doll. The robot follows the leader directly, so the route
+keeps it around corners and balances the reversed conveyor with Down while it
+catches up, checking the robot's position before advancing. It clears the
+main-floor encounters before the timed escort charge. Map exits, event flags
+and object positions supply the destinations; searches on machine copies keep
+only their winning input. No RAM writes are used.
+
+The existing `party` policy wins Robo's solo Atropos fight and MotherBrain's
+fight, both without a retry in this recording. The route places both dolls,
+plays the shutdown and return to the world map, then re-enters Geno Dome and
+waits for field control. Its final checks require location `$0F8` and the
+MotherBrain defeat bit (`$7F:013B` bit 4); stopping at the battle's last hit would
+leave the ending scene and field load unfinished.
+
+The route's verification from power-on reaches that outcome at frame 150806.
+Its MotherBrain fight uses `policies.motherbrain`: prioritize Flare, Ice 2 and
+Robo's magic before her repeated stat increases make a prolonged fight costly,
+with healing as needed. That fight also wins without a retry.
+
+The recording's shadow replay has 0 mismatches and no refusals or accessor-range
+errors. It adds 1244 executed bytes beyond the other 48 movies, all already
+ported, including MotherBrain's add-to-stats-then-tech action; see the coverage
+and comparison limits in [movies-wanted.md](movies-wanted.md#5-boss-fights).
+`ct_native` consumes all 135481 frames without a stop (nine screen setups and
+four SNES-only video escapes, first at `$7E:5AEB`). Strict mode also reaches
+the end; its saved game differs in 323 bytes, recorded as `drifts` in
+`tools/strict_baseline.txt`. These fixed-input native runs drift from the
+reference route's timing; the reference recording establishes the boss victory.
+
+A third batch went looking for where the native program stops rather than
+for code no movie runs: a throwaway route loaded every save point no movie
+started from and walked out of its map and into the next, and another walked
+up to the nearest objects until one attacked, and each run was played in
+`ct_native` and on the hand ports alone (TODO.md, "The native program",
+"Where the save movies stop"). What stopped, and a fight of a place no
+movie fought in, became routes: `magic_cave` (`events-magic-cave.ctm`),
+`last_village_12kbc` (`field-12kbc-after-the-fall.ctm`) and `denadoro_fight`
+(`battle-denadoro.ctm`), the last walking into its fight with
+`tools/movies/encounter.py` (the nearest objects in turn, the next map when
+none attacks; and if that finds none, a wider search from the checkpoint
+before it, for the shipping mode, whose timing has the monsters elsewhere).
+A fight inside Magus's castle (ctsave06 slot 3) was found the same way but
+left out: the way from the castle's hall into the next room (`$0A8`) that
+the interpreter's search found, it found only at some frames, and in the
+shipping mode at none.
+
+Each starts from the cartridge save its movie header names and its route's
+`SAVE` selects; `--sram` picks another. The saves include technoplaza's
+(`games.technoplaza.net/snes/chronotrigger/savestates.php`) in
+`oracle/saves/technoplaza/`, and fantasyanime's in `oracle/saves/fantasyanime/`.
 `--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and
@@ -211,6 +285,20 @@ that phase's checkpoint is written. A route ends by printing `outcome reached
 <goal> frame <n>` (exit status 0) or `outcome failed <why>` (1): its asserts
 along the way, and a check of its goal at the end (the Dream Team all spoken
 to; the farewells at the Gate and the King in the Beyond Time ending).
+
+`r_series` (`battle-r-series.ctm`, 65437 frames) takes ctsave03 slot 2 from the 2300 A.D.
+world map through the Factory Ruins' lab security doors and fights. The
+location exit lists and the scripts for `$0E5`, `$0E6` and `$0EB` establish
+the path: the upper lab console opens the ladder, the lower console opens
+both security doors, and the basement code reader accepts X, A, B, Y without
+requiring the warehouse cranes. The route holds each code button until its
+acceptance variable changes. Restoring power sets story `$3F`; escaping the
+shutters and returning up the lab corridor starts the R Series scene.
+The `r_series` battle policy uses Crono and Lucca's Fire Whirl and Cyclone,
+with the early save's healing items. The movie continues through Robo's
+rescue and repair and the Gate trip, ending with the field back in hand at
+the End of Time. Its battle-start check requires all six initialized robot
+stat records, since the menu byte alone briefly looks ready during loading.
 
 A route is a list of phases, each ending in a checkpoint file. Re-running it
 resumes at the last phase that finished, so a failing phase can be iterated on
@@ -267,7 +355,10 @@ build/main/ct_dev --rom roms/ct-usa.sfc --sram save.srm --movie m.ctm --frames N
 Adding it to the library (`oracle/movies/saves/`) moves the gate's measures
 that sum over the library, the timing gate's drift and the fallback ratchet's
 counts; [REIMPLEMENTATION.md](REIMPLEMENTATION.md), "The timing gate", says what a batch of movies
-needs ("Adding movies").
+needs ("Adding movies"), and those measures are taken over `suite.py --all-movies`. A new movie
+joins the gate's default sample (`tools/gate_movies.txt`) only where it earns its time there: code
+no sampled movie runs, at a good rate per frame, or something a check needs. A long movie made to
+find code or `ct_native`'s stops usually stays in the library alone, run by `--all-movies`.
 
 **Routes are timing-independent; movies are not.** A route reads the machine, so
 it still works after the hardware model's timing changes — re-run it and it
@@ -303,7 +394,7 @@ frames are not `on:on`'s. `ct_drive`'s machine copies and state files then
 hold the driver's fields beside the machine's, and it exits 1 at `quit` where
 the host dropped a command or placed a sample where the echo was writing,
 which the route reports as failed. The original driver's runs in the shipping
-mode are the vblank check's, over every movie, so the suite doesn't run the
+mode are the vblank check's, over every movie the gate runs, so the suite doesn't run the
 routes in `on:on` as well.
 
 A long run can be cut short (a time limit on the session running it, a

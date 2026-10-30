@@ -9,6 +9,21 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **Geno Dome timing attribution.** The narrowed `battle-motherbrain` calibration
+  leaves `battle_step_the_poses` and `battle_strike_the_poses` with a body cost of
+  1: their attributed graphics work already exceeds the measured original
+  stretches. Check the pose graphics' path-dependent charges before removing
+  their drift and worst-case exceptions. The battle's defeated-enemy passes,
+  due-animation scan and timer dispatcher also carry large worst-case errors.
+  The same movie exposes field-NMI, battle-frame and menu-script vblank-tail
+  exceptions; its rebuilt video-write check has no new failures. Reassess these against the combined library when
+  the movies are merged; the calibration here is deliberately from the narrowed
+  run, not a new full-library measurement.
+- **Compare the whole held-message pause.** `battle-motherbrain` abandons all
+  124 calls of `battle_pause_on_the_message` inside its enclosing message
+  sequence. The focused seed-1 fuzz run compares eight accepted states up to
+  the first wait, with no mismatch, but does not independently compare the
+  complete timed pause (`tools/uncompared_baseline.txt`).
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
   the original (battles play out differently). That difference is accepted
   (REIMPLEMENTATION.md, "Can a hand port be exact?"); the timing gate bounds the errors
@@ -39,6 +54,24 @@ rest waits, is [PLAN.md](PLAN.md).
   definition of done (PORTING.md); ports registered before that without a
   recorded fuzz run should get one, subsystem by subsystem as Phase 3a
   rewrites it (PLAN.md): a rewritten port needs fuzzing anyway.
+- **Dino Age's battle interrupt mismatches in real play.** The hand-run
+  `dino_age` route (technoplaza ct-state23 slot 2, 193389-frame scratch movie;
+  MOVIES.md) reaches The End in the reference and shipping modes, but its full
+  `ct_dev --native shadow` replay exits 1. `battle_irq` (`$D1:FE97`,
+  `game/battle/nmi.c`) has one mismatch: at the wait, PPU `$210F` is `FF` in
+  the original and `00` in native code; the next 15 passes still differ before
+  the original leaves. Generated blocks have zero mismatches; sound lockstep
+  is identical (608049 ticks, 24 loads), with zero refusals and no page,
+  accessor or asset diagnostics. This is not a guard refusal to allowlist.
+  It also reproduces with `--generated off` from the Core checkpoint at
+  frame 133140 through 177869; the ending-only interval 177869-193389 is clean.
+  The cause is not established, and no game code was changed. This recording
+  used Core seed 1. The route now defaults to Core seed 2: it finishes at 176261,
+  with a clean full shadow replay and identical final PNG. To reproduce the
+  failure, set this route's `core_seed_offset` to 0, regenerate its movie in
+  scratch storage, then replay all 193389 frames with ct-state23's SRAM and
+  `--native shadow`. Strict mode completes both inputs; `ct_native`'s
+  separate `$FD:B438` stop is recorded under the native program below.
 - **IRQ timing simplifications** (RUNTIME.md, "Interrupt timing"): hardware's
   ~3.5-dot trigger delay isn't modeled, and an IRQ pending across `CLI` is
   taken one instruction early.
@@ -141,6 +174,20 @@ rest waits, is [PLAN.md](PLAN.md).
   Find what logic reads a cell only scaffolding writes there
   (`ct_dev --scaffold-reads original`, the route's frames) and make the two
   builds agree. The route runs by hand (`tools/suite.py`'s `HAND_RUN_ROUTES`).
+- **Atropos's scene stands still in the native shape.** The `motherbrain`
+  route reaches its outcome in the shipping mode, but with
+  `ct_drive_native_shape` the scene on Geno Dome's upper floor (`$10C`) opens
+  its two dialogs and then stands still, the party never split for Robo's
+  fight, from each of the four places the route's search entered its trigger
+  ((523, 699), (526, 695), (520, 683), and the old route's stop at (525, 699),
+  which stalled the default build too). The default build's run of the
+  route, replayed by `ct_dev --scaffold-reads original`, shows the original's
+  code reading scaffolding only at frame 159688, after both fights
+  (`menu_object_wave_hdma`, `$7E:01E2`-`$01E3`), so the cause is not traced:
+  a port's logic reading what only scaffolding writes, or the native shape's
+  own timing, which isn't the default build's ("The fallback measure's
+  edges", below), meeting a race in the scene.
+  Excepted in `tools/native_shape_exceptions.txt` until found.
 - **An ending's menu script sets the sprites' sizes by `$2101`.** The menus'
   object scripts' byte command `$13` names its cell by address, and an ending
   writes the sprites' size and tile-place register through it; the port hands
@@ -2094,6 +2141,17 @@ the timing registers, what each is for, the native backend, and the rewrites
 below; its "as built" says what is done. `python3 tools/timing_census.py`
 re-runs the census.
 
+- **Factory route timing estimates.** `battle-r-series` leaves five timing
+  exceptions after drift-only calibration: the anchor jump and enemy orbit
+  updates' vblank tails, `field_nmi`'s tail, the exchange's second-choice tail,
+  and `battle_step_the_poses`'s +2.96% drift with its own estimate already at 1.
+  The jump/orbit and exchange paths vary within a routine; the field handler
+  and pose step also carry their callees' estimated time. The narrowed
+  video-write check adds no failing finding. Recheck against the combined
+  movie library, then refine the estimates that remain over their limits;
+  `tools/timing_exceptions.txt` records the measured tails and why they are
+  allowed.
+
 - **What the timing service's review left** (none rated translation): the
   objects' turn queue and its guard walk (`queue_in_the_tables`) are written
   twice, in `field/script_turns.c` and `battle/animation.c` -- one
@@ -2659,6 +2717,16 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
+- **An enemy entering a battle in the hand-run endings.** The Legendary Hero
+  recording (`legendary_hero`, technoplaza ct-state19 slot 2; MOVIES.md) stops
+  `ct_native` at frame 14237 in `$FD:B438`, "an enemy coming into the battle".
+  Its shadow run has no mismatch or refusal; strict mode completes its
+  144640-frame input without stopping. This is a native-program stop, not a
+  guard refusal to add to `refusal_allowlist.txt`.
+  Dino Age (`dino_age`, ct-state23 slot 2, 176261-frame scratch movie) stops at
+  the same entry at frame 15100; strict mode completes its full input. Its
+  separate shadow mismatch is recorded under Correctness and accuracy above.
+
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
   tables (`menu/handlers.c`, `overworld/handlers.c`); a handler or a routine
@@ -2714,6 +2782,16 @@ list, by kind, is what `game/` still asks of one.
   character (`$C2:A225`), on the load screen a slot's erasing (`$C2:E8B7`),
   and a shop whose state a step's entry's guard turns away ("a shop the port
   doesn't take", menu/shop_steps.c).
+- **Where the save movies stop.** From a cartridge save `ct_native` plays
+  43 of the 45 save movies to their end; the two below ("Refusals in real
+  play") stop at the guards they meet.
+  A survey made to find more (a route from every save point no movie
+  started at -- ctsave01 1-2, 02 1-2, 04 1-2, 05 2, 06 1-3, 09 2-3, 10 1-2,
+  11 2-3, 13 1-3, technoplaza ct-state1 to 14 -- loading the slot, walking
+  out of the map and into the next; and a fight walked into from twelve of
+  them) found only those two: every other walk, and the two fights found
+  (in the Denadoro Mountains, `battle-denadoro`, and Magus's castle), play
+  to their end.
 - **The menus' steps' notes carry machine work.** In the items', the techs'
   and the settings' sequences (menu/item_screen.c, tech_screen.c,
   settings_screen.c) a note is where the machine both leaves the original's
@@ -2810,6 +2888,105 @@ list, by kind, is what `game/` still asks of one.
   RAM wherever an accessor may run past its end (the glitch reproduced byte
   for byte), or name the reachable overruns, make each a defined, bounded
   result, and leave the arbitrary-memory glitches out of scope.
+
+## Refusals in real play
+
+Guards that turn away a call real play makes. On the machine the original
+runs the call, so shadow mode and the shipping mode pass; the hand ports
+alone (`strict_check.py`) and `ct_native` stop there. Each is a gap line in
+`tools/refusal_allowlist.txt`, which comes out when the port takes the state.
+Ranked by how much play they block:
+
+- **A map of 64 objects** (`events-magic-cave`, ctsave06 slot 1, from frame
+  3490 in `ct_native`, 3550 in strict mode). At the Magic Cave's
+  mountainside (`$0A3`) Frog, holding the Masamune, remembers: the scene
+  moves to a forest (`$077`) whose event script declares 64 objects
+  (`$7F:2000` = `$40`), and the object search starts at the count, one past
+  the 64 slots, which `object_search_fits` (field/motion.c) doesn't take.
+  So the moves to a tile (`$C0:4F61`, event `$96`/`$97`/`$9A`/`$A0`/`$A1`;
+  614 refusals) and the check for an object in the way (`$C0:5B95`, 490)
+  hand the forest's whole scene to the original. Every scene in a map with
+  64 objects stops here; what the original's search reads at slot 64 is the
+  first thing to establish.
+- **The leader parked past the range's end** (`events-magic-cave`, from
+  frame 5129 to its end, 1027 refusals). On the bridge where Glenn and Cyrus
+  talk (`$087`) the flashback parks the party's objects at (`$FF80`,
+  `$FFFF`), and the leader's walk (`$C0:881E`, `field_walk_the_leader`)
+  refuses a leader whose place is past `CLEAR_OF_THE_END` (field/walk.c),
+  where the original's sums carry. What the original's walk does with the
+  party parked there is the thing to establish.
+- **The winged Epoch's first frame after Zeal's fall**
+  (`field-12kbc-after-the-fall`, ctsave11 slot 2, frame 3076, once). Walking
+  out of the Earthbound Village onto the 12000 B.C. map after the fall
+  (`$1F6`), where the Epoch stands parked with its wings, its handler's guard
+  (`$C2:42DD`, `overworld_epoch_takes`, overworld/handlers.c) turns away its
+  first frame and takes every frame after; technoplaza ct-state9 walks out
+  of the same village onto the same map and doesn't stop. Which of the guard's
+  conditions refuses (its step, the sprite scripts it animates by, the map's
+  scroll) is not yet looked at.
+
+- **An enemy tech worked out with no target counted** (the `motherbrain`
+  route in the shipping mode, Geno Dome's upper floor after Atropos, frames
+  140241 and 146643, twice each). An enemy (combatant 6, then 9) uses enemy
+  tech `$14` (a plain hit, effect `$14`: kind 3, flags `$50`, no modifier);
+  its targets list names member 1 but the count beside it
+  (`battle_action_target_count`, `$7E:AD8D`) reads 0, which
+  `effect_targets_named` (battle/effect_work.c) doesn't take, so
+  `battle_work_out_enemy_tech` (`$C1:D7C4`) and `battle_effect_hit`
+  (`$C1:D2DE`) hand the tech to the original. The refusals have A `$0004`,
+  X `$0004`, Y `$000D` and A `$0000`, X `$0006`, Y `$000B`, D `$0000`, DB
+  `$7E`. What the original does with a count of 0 (one target, uncounted)
+  is the thing to establish; the reference play meets no such tech.
+
+- **Reunion's departure and parade.** `reunion` (ct-state26 slot 2,
+  123341-frame scratch movie) has eight guard refusals at three entries.
+  `field_walk_the_leader` (`$C0:881E`) refuses frames 94157-94158 at `$054`:
+  the scripted departure carries leader Y through `$FFC1/$FF4A` before `$FED3`
+  at 94159. Leader X is `$108D`, party links `$02/$04/$80`, map mask `$3F3F`;
+  `clear_of_the_end` requires Y below `$FF00`. The refusal has A `$0100`,
+  X `$0710`, Y `$FFFE`, D `$0100`, DB `$00`, P `$23`.
+  At `$050`, `field_update_object_visibility` (`$C0:A88D`) and
+  `field_give_up_palette` (`$C0:734C`) each refuse frames 96984, 97676 and
+  99975. Object `$14` has palette `$0E` (slot 7), older/newer links `$00/$01`
+  at `$7E:0B28`, and all palette-slot heads `$80`. The newer link is odd,
+  which `object_palette_links_in_the_tables` rejects. But `$7E:0154 = $80`:
+  the script owns the palettes, so `object_give_up_palette` returns before
+  reading any sharer. Both guards still require those unused links to be valid.
+  The first visibility refusal has A `$0000`, X `$0028`, Y `$0046`, D `$0100`,
+  DB `$00`, P `$32`; palette release has A `$0080`, X `$0004`, Y `$0046`,
+  D `$0100`, DB `$00`, P `$33`. These are `gap` reasons in the allowlist.
+  Shadow has no mismatches or page/accessor/asset diagnostics; native and
+  strict modes complete the input. The shipping route reaches The End at
+  125438. No game routine was changed.
+
+- **Memory Lane's exit off the stage.** `memory_lane` (ct-state25 slot 2,
+  167063-frame scratch movie) refuses `field_walk_the_leader` (`$C0:881E`)
+  seven times at frames 166496-166502 in `$0EF`. Its scripted upward exit
+  wraps the leader's Y coordinate: at frame 166497 the party links are
+  `$02/$04/$06`, leader X is `$0880`, Y `$FFD4`, and map mask `$0F0F`.
+  Y decreases through `$FFAD/$FF86/$FF5F/$FF38/$FF11` before `$FEEA` at
+  166503. `field_walk_can_run`'s `clear_of_the_end` requires Y below `$FF00`,
+  so these are real states its guard rejects. The refusal has A `$0300`,
+  X `$0710`, Y `$FFFE`, D `$0100`, DB `$00`, P `$23`. It is a `gap` entry
+  in `tools/refusal_allowlist.txt`; no page refusal or out-of-range accessor.
+  The route reaches The End in reference and shipping modes; `ct_native`
+  and strict mode complete the movie's input. No game routine was changed.
+
+- **The Prophet ending's transient party links.** `what_the_prophet_seeks`
+  (ct-state24 slot 2, 131287-frame scratch movie) reaches The End, but its
+  reference play refuses `event_cmd_walk_with_the_party` (`$C0:3002`) and
+  `field_second_member_follows` (`$C0:A2CE`) three times each, at frames
+  119033-119035 in `$190`, before the first vignette's `$0CB` transition.
+  A saved reference frame 119034 has party links `$02/$06/$80` at
+  `$7E:0197/0199/019B` and trail positions `$00/$00/$00` at `$7E:01AB`.
+  `$80` is an empty link; the guards require the second party link to name
+  the stepping object. The event refusal has A/X `$0160`, Y `$0207`, D `$0100`,
+  DB `$00`, P `$20`; the follower has A `$0101`, X `$0006`, Y `$0007`,
+  D `$0100`, DB `$00`, P `$30`. Both are `gap` reasons in
+  `tools/refusal_allowlist.txt`, pending support for this transient state.
+  There is no page refusal or out-of-range accessor. `ct_native` and strict
+  mode complete this movie's input; their timing does not prove the refused
+  reference state is supported. No game routine was changed.
 
 ## Targets beyond the desktop SNES build
 
@@ -3125,11 +3302,16 @@ waits on M5 rather than on a backend.
     597 registry entries (14%) are never entered by any movie** -- `$C2` 28,
     `$C6` 22, `$D1` 9, `$C3` 8, `$FD` 7, `$C7` 6 -- and those rest on fuzzing
     alone. Each wave since the pilot has found bugs there.
-- **Endings: three of about thirteen are recorded** (Beyond Time, the telepod
-  ending, the bucket ending). Reunion needs a route to Lavos from "The Time
-  Egg" (no Epoch reachable from that save); the rest are unrecorded and cheap
-  now (MOVIES.md), since an ending is chosen by where and when Lavos is beaten
-  plus story flags, and `oracle/saves/` has 51 saves to start from.
+- **Sound-command echo stall in The People of the Times.** The hand-run
+  `people_of_the_times` route (technoplaza ct-state21 slot 2), with all fight
+  seeds 1, wins Lavos and reaches `$05F`, then stays black before The End.
+  At frame 181083 its object 1 is at script offset `$033D`, wait count 0,
+  and the CPU cycles through `$C7:0635`-`$063B`, waiting for the sound command
+  echo; the SPC700 cycles at `$101E`/`$1024`. Another 9000 frames and probes
+  with A, B, Start, Up, X and Y leave it there. Replaying from the Core with
+  seed 2 wins at 149750 and finishes at 160570; that is the route's default.
+  This is a reference-runtime stall, not a guard refusal. Its cause is not
+  established; no game code was changed to work around it.
 - **Content no movie plays at all**: most sidequests, and much of the endgame
   beyond the Black Omen. That is the likeliest home of the dark code in `$C0`
   and `$C2`, since sidequests are event scripts and menus. Driving them is
@@ -3142,10 +3324,10 @@ waits on M5 rather than on a backend.
   (100k-170k frame runs), the addresses each route needs, and re-running a
   route when the timing model changes, since routes survive drift but the
   movies they record don't.
-- **The boss fights other than the Guardian's** (movies-wanted.md, "Boss fights") are unattempted beyond finding
+- **The R Series and Nizbel II fights** (movies-wanted.md, "Boss fights") are unattempted beyond finding
   where each save starts. `ctsave03` slot 2 (R Series, the
-  factory), `ctsave07` slot 3 (Nizbel II, Tyrano Lair) and `ctsave14` slot 2 (MotherBrain,
-  Geno Dome) all start on the world map at the dungeon's door, needing a walk in and
+  factory) and `ctsave07` slot 3 (Nizbel II, Tyrano Lair) start on the world map
+  at the dungeon's door, needing a walk in and
   down to the boss room neither attempted nor mapped this pass.
 - **zophar `chrono-7`** (everything maxed at the fair) is unused: its Lucca
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
