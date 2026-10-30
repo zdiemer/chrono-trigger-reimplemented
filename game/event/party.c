@@ -588,6 +588,26 @@ bool event_note_item_count(GameState *g, Platform *pf, uint16_t at, EventStep *s
     return true;
 }
 
+bool event_equip(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    enum { LENGTH = 3 };
+    EventCommand c = event_decode(g, pf, event_opcode(0xD5), at);
+    uint8_t character = (uint8_t)c.first_argument, item = (uint8_t)c.second_argument;
+    TIMED_AS(g, MENUS_SERVICES, (party_equip(g, character, item), shown(g)));
+    *step = (EventStep){ (uint16_t)(at + LENGTH), THE_DISPATCH_LEAVES_THE_CARRY };
+    return true;
+}
+
+bool event_take_out_of_party(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    enum { LENGTH = 2 };
+    uint8_t character = event_decode(g, pf, event_opcode(0xD6), at).character;
+    bool go_on = goes_on_after_leaving(g, character, THE_DISPATCH_LEAVES_THE_CARRY);
+    take_out_of_party(g, character);
+    *step = (EventStep){ (uint16_t)(at + LENGTH), go_on };
+    return true;
+}
+
 bool event_send_to_the_reserve(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     enum { LENGTH = 2 };

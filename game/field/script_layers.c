@@ -183,18 +183,37 @@ enum { UNPACKER = 0xC30002, THE_UNPACKER_IGNORES = DC_A | DC_X | DC_N | DC_Z | D
 
 // $C0:6E27
 /* The letters the credits are written in, loaded as event $29 chooses a text
- * (game/event/screen.c). False where the unpacker handed back to the
- * original. */
-static bool load_the_credits_letters(Snes *s)
+ * (game/event/screen.c): unpacked by `unpack`, then sent to BG3's tiles.
+ * False where the unpacking went no further. */
+static bool load_the_credits_letters_with(GameState *g, Platform *pf, bool (*unpack)(void *ctx), void *ctx)
 {
-    GameState *g = state_of(s);
     set_decompress_source(g, FIELD_CREDITS_LETTERS_PACKED);
     set_decompress_dest(g, RAM_FIELD_BG3_TILES_UNPACKED);
-    if (!field_run_long(s, 0xC06E3D, UNPACKER, THE_UNPACKER_IGNORES, decompress, on_the_field_page(s, false)))
+    if (!unpack(ctx))
         return false;
     FieldTransfer letters = { LETTERS_VRAM, FIELD_TRANSFER_WORDS, RAM_FIELD_BG3_TILES_UNPACKED, LETTERS_BYTES };
-    TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, m_platform(s), letters));
+    TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, pf, letters));
     return true;
+}
+
+static bool unpack_the_letters(void *ctx)
+{
+    GameState *g = ctx;
+    TIMED_AS(g, UNPACK_STREAM_ENTRY, (void)unpack_stream(g));
+    return true;
+}
+
+void field_load_the_credits_letters(GameState *g, Platform *pf)
+{
+    load_the_credits_letters_with(g, pf, unpack_the_letters, g);
+}
+
+/* On the machine the unpacker is the original's long call, which may hand
+ * the stream to the original. */
+static bool unpack_the_letters_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    return field_run_long(s, 0xC06E3D, UNPACKER, THE_UNPACKER_IGNORES, decompress, on_the_field_page(s, false));
 }
 
 /* ---- The chest's message ------------------------------------------------------------------------- */
@@ -261,9 +280,9 @@ void field_blank_the_staging_entry(Snes *s)
     m_rts(s);
 }
 
-void field_load_the_credits_letters(Snes *s)
+void field_load_the_credits_letters_entry(Snes *s)
 {
-    if (load_the_credits_letters(s))
+    if (load_the_credits_letters_with(state_of(s), m_platform(s), unpack_the_letters_on_the_machine, s))
         m_rts(s);
 }
 

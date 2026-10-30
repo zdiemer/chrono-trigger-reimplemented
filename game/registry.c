@@ -2636,7 +2636,7 @@ const NativeEntry game_natives[] = {
       .cost_milli = 5243, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC075A0, .name = "field_blank_the_staging", .fn = field_blank_the_staging_entry, NEEDS_M8_X16,
       .cost_milli = 3295, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C },
-    { .addr = 0xC06E27, .name = "field_load_the_credits_letters", .fn = field_load_the_credits_letters, NEEDS_M8_X16,
+    { .addr = 0xC06E27, .name = "field_load_the_credits_letters", .fn = field_load_the_credits_letters_entry, NEEDS_M8_X16,
       .cost_milli = 1, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero },
     { .addr = 0xC00960, .name = "field_load_tile_graphics", .fn = field_load_tile_graphics, NEEDS_M8_X16,
       .cost_milli = 101999, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_bank_zero },
