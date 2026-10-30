@@ -36,7 +36,7 @@ events-epoch-lavos end
 events-jetbike-race-won end
 events-jetbike-race end
 events-keepers-dome end
-events-magic-cave 5081  # on the bridge of Frog's memory the party is parked past the range's end, which the leader's walk doesn't take (C0:881E)
+events-magic-cave end
 events-prison-escape end
 field-12kbc-1f4 end
 field-12kbc-1f5 end

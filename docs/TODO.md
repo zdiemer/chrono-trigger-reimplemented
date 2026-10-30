@@ -2921,13 +2921,6 @@ alone (`strict_check.py`) and `ct_native` stop there. Each is a gap line in
 `tools/refusal_allowlist.txt`, which comes out when the port takes the state.
 Ranked by how much play they block:
 
-- **The leader parked past the range's end** (`events-magic-cave`, from
-  frame 5129 to its end, 1027 refusals). On the bridge where Glenn and Cyrus
-  talk (`$087`) the flashback parks the party's objects at (`$FF80`,
-  `$FFFF`), and the leader's walk (`$C0:881E`, `field_walk_the_leader`)
-  refuses a leader whose place is past `CLEAR_OF_THE_END` (field/walk.c),
-  where the original's sums carry. What the original's walk does with the
-  party parked there is the thing to establish.
 - **An enemy tech worked out with no target counted** (the `motherbrain`
   route in the shipping mode, Geno Dome's upper floor after Atropos, frames
   140241 and 146643, twice each). An enemy (combatant 6, then 9) uses enemy
@@ -2941,13 +2934,8 @@ Ranked by how much play they block:
   `$7E`. What the original does with a count of 0 (one target, uncounted)
   is the thing to establish; the reference play meets no such tech.
 
-- **Reunion's departure and parade.** `reunion` (ct-state26 slot 2,
-  123341-frame scratch movie) has eight guard refusals at three entries.
-  `field_walk_the_leader` (`$C0:881E`) refuses frames 94157-94158 at `$054`:
-  the scripted departure carries leader Y through `$FFC1/$FF4A` before `$FED3`
-  at 94159. Leader X is `$108D`, party links `$02/$04/$80`, map mask `$3F3F`;
-  `clear_of_the_end` requires Y below `$FF00`. The refusal has A `$0100`,
-  X `$0710`, Y `$FFFE`, D `$0100`, DB `$00`, P `$23`.
+- **Reunion's parade.** `reunion` (ct-state26 slot 2,
+  123341-frame scratch movie) has six guard refusals at two entries.
   At `$050`, `field_update_object_visibility` (`$C0:A88D`) and
   `field_give_up_palette` (`$C0:734C`) each refuse frames 96984, 97676 and
   99975. Object `$14` has palette `$0E` (slot 7), older/newer links `$00/$01`
@@ -2961,19 +2949,6 @@ Ranked by how much play they block:
   Shadow has no mismatches or page/accessor/asset diagnostics; native and
   strict modes complete the input. The shipping route reaches The End at
   125438. No game routine was changed.
-
-- **Memory Lane's exit off the stage.** `memory_lane` (ct-state25 slot 2,
-  167063-frame scratch movie) refuses `field_walk_the_leader` (`$C0:881E`)
-  seven times at frames 166496-166502 in `$0EF`. Its scripted upward exit
-  wraps the leader's Y coordinate: at frame 166497 the party links are
-  `$02/$04/$06`, leader X is `$0880`, Y `$FFD4`, and map mask `$0F0F`.
-  Y decreases through `$FFAD/$FF86/$FF5F/$FF38/$FF11` before `$FEEA` at
-  166503. `field_walk_can_run`'s `clear_of_the_end` requires Y below `$FF00`,
-  so these are real states its guard rejects. The refusal has A `$0300`,
-  X `$0710`, Y `$FFFE`, D `$0100`, DB `$00`, P `$23`. It is a `gap` entry
-  in `tools/refusal_allowlist.txt`; no page refusal or out-of-range accessor.
-  The route reaches The End in reference and shipping modes; `ct_native`
-  and strict mode complete the movie's input. No game routine was changed.
 
 - **The Prophet ending's transient party links.** `what_the_prophet_seeks`
   (ct-state24 slot 2, 131287-frame scratch movie) reaches The End, but its
