@@ -169,12 +169,13 @@ void scene_boot_line_irq_wait_hblank_loop(Snes *s)
 }
 
 /* The line interrupt as C: acknowledged, and the rest of the picture blank
- * from the line it came on (a host has no beam to wait for the hblank on). */
+ * below the line it came on (a host has no beam to wait for the hblank on, so
+ * the blank is the line handler's, not the whole frame's). */
 void scene_boot_line(GameState *g, Platform *pf)
 {
     (void)g;
     (void)tm_ack_line_irq(pf, PF_AT(0xC3052C));
-    vid_set_display(pf, PF_AT(0xC30542), &(VidDisplay){ .blank = true });
+    vid_raster_display(pf, PF_AT(0xC30542), VID_AT_LINE_HANDLER, &(VidDisplay){ .blank = true });
 }
 
 // $C3:0540

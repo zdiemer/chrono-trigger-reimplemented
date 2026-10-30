@@ -54,17 +54,28 @@ typedef struct {
 /* The picture: every video call folded into its state by the observer
  * (platform/observe.h), which keeps VRAM, the palette, the sprite table and
  * the settings as the calls leave them, reading what a call names of the
- * game's memory through the driver's reader. Nothing draws it yet
- * (docs/TODO.md, "The native program"). The SNES's escapes a host has no
- * meaning for are counted, and the first one's site kept. */
+ * game's memory through the driver's reader; a driver draws the frame it
+ * makes (vid_host_picture) with the native renderer. The SNES's escapes a host
+ * has no meaning for are counted, and the first one's site kept. */
 enum { VID_HOST_LAST_LINE = 224 };
 typedef struct {
     VidObserver *observer;
     uint8_t (*read)(void *ctx, uint32_t addr);            /* the game's memory, for the escapes that write it */
     void (*write)(void *ctx, uint32_t addr, uint8_t v);
     void *ctx;
-    VidDisplay display;          /* the latest a call set */
-    uint8_t line_effects;        /* vid_enable_line_effects' slots */
+    VidDisplay display;          /* the picture's from its top line */
+    uint8_t line_effects;        /* vid_enable_line_effects' slots, from the top line */
+    /* What the line handler changed of the display and the line effects
+     * (where the field, the battles and the scenes end their picture: the
+     * rest blanked, the line effects off), or a vid_raster_display at a line:
+     * the picture from line `below_from` down this frame, and the whole of it
+     * from the next frame on, until a call sets it again. Taken as the whole
+     * frame's, the picture's end would blank all of it, and its line effects
+     * (the layers' and windows' settings line by line) would be lost above. */
+    uint16_t below_from;         /* 0: nothing changed below a line this frame */
+    bool below_display, below_line_effects;
+    VidDisplay display_below;
+    uint8_t line_effects_below;
     uint32_t screens_applied;
     int16_t multiplicand;        /* the Mode 7 matrix's a, and b's high byte: the multiplier's operands */
     int8_t multiplier;
@@ -112,6 +123,9 @@ void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr),
                     void (*write)(void *ctx, uint32_t addr, uint8_t v), void *ctx);
 void vid_host_stop(Platform *pf);
 const VidFrame *vid_host_picture(Platform *pf);
+/* A new frame begins: what the last one changed below a line holds from its
+ * top (tm_host_frame calls it). */
+void vid_host_frame_begins(Platform *pf);
 
 /* Start the game: its main thread is made, to run from the first frame, and
  * tm_entropy's generator seeded (a replay seeds it the same). */
