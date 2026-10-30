@@ -238,6 +238,8 @@ typedef enum {
     ITEMS_AT_THE_TAB_S_FIGURE,    /* a tab's figure noted */
     ITEMS_AT_THE_FIGURE_RAISED,   /* a tab's figure raised */
     ITEMS_AT_THE_USERS_CLOSED,    /* who can equip the item put away */
+    ITEMS_AT_THE_SLIDE,           /* the list sliding a row along */
+    ITEMS_AT_A_SLIDE_FRAME,       /* ... a frame of the slide */
 } ItemsPlace;
 
 /* The routines an item's use goes on to (each a registered entry, run on
@@ -277,6 +279,9 @@ typedef enum {
     ITEMS_NOTE_ROWS_QUEUED,         /* the list's rows queued */
     ITEMS_NOTE_CURSOR_KEPT,         /* the cursor kept on the list */
     ITEMS_NOTE_ENDS_COMPARED,       /* the list's ends compared, no slide */
+    ITEMS_NOTE_SLIDE_TICKED,        /* the slide's row brought in, ticked */
+    ITEMS_NOTE_SLIDE_FRAMES_DONE,   /* the slide's frames over: whether it took any (1) */
+    ITEMS_NOTE_SLIDE_DONE,          /* the slide over, the rows moved along */
     ITEMS_NOTE_EFFECT_TESTED,       /* the item in hand's effect tested, before its use */
     ITEMS_NOTE_USE_FOUND,           /* the use looked up */
     ITEMS_NOTE_MEMBER_CHOICE_STARTED, /* the members to use it on: the use's kind */
@@ -291,7 +296,7 @@ typedef enum {
 } ItemsNote;
 
 /* What the sequences ask: the cursor read, a tick, a frame's wait, the
- * item on the cursor described, the list slid a row, the way back to the
+ * item on the cursor described, the item pointed at after a slide, the way back to the
  * main menu, a note, the refusal's buzz, the machine's registers as the
  * original's code sets them, and a routine run. Each false where it went no
  * further. */
@@ -301,7 +306,7 @@ typedef struct {
     bool (*tick)(void *ctx, ItemsPlace at);
     bool (*wait)(void *ctx, ItemsPlace at);
     bool (*describe)(void *ctx);
-    bool (*slide_the_list)(void *ctx);
+    bool (*point_after_sliding)(void *ctx);
     bool (*back_to_the_main_menu)(void *ctx);
     void (*note)(void *ctx, ItemsNote note, uint8_t value);
     bool (*refuse)(void *ctx, ItemsPlace at);

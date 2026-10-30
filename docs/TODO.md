@@ -2904,14 +2904,6 @@ list, by kind, is what `game/` still asks of one.
   RAM wherever an accessor may run past its end (the glitch reproduced byte
   for byte), or name the reachable overruns, make each a defined, bounded
   result, and leave the arbitrary-memory glitches out of scope.
-- **What the native gaps' review left** (the field's, events' and menus'
-  guards loosened to the states their C takes):
-  - C copies beside machine copies: `slide_the_list` (menu/item_screen.c)
-    beside `slide_the_list_on_the_machine`, though item_screen.h says they run
-    one sequence; `erase` (menu/load_screen.c) beside `menu_erase_slot` in the
-    bridge; `menu_draw_empty_label(Snes*)` (menu/save_screen.c) repeating
-    `menu_draw_the_empty_label`'s body. The C should take the plain name and
-    the wrapper become `_entry`, with the `// $C2:D28D` comment on both.
 - **What the native picture's review left** (the line handlers' end of the
   picture, `runtime/platform/native/video.c`, `tools/native_check.py`):
   - A line handler at line 224 or past puts `below_from` beyond

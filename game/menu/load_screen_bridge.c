@@ -103,6 +103,29 @@ static void leave_answer_moved(Snes *s)
     menu_leave_compare(s, menu_cursor_index(g), menu_cursor_frame_start(g));
 }
 
+/* The slot's window's drawing leaves the player's design in A. */
+enum { DESIGN_BITS = 7 };
+static void leave_design(Snes *s) { s->cpu.a = (uint8_t)(game_settings(state_of(s), 1) & DESIGN_BITS); }
+
+/* The slot's row redrawn empty: its label cleared and drawn again with the
+ * empty slot's (by $C2:D28D, from the JSR at $C2:E903), and after a frame
+ * ($C2:821E, the task's yield) queued: the slot's chapter's two rows of
+ * graphic. The original builds the label's upload record where the summary is
+ * drawn from and queues it from there, the summary's byte after the record's
+ * seven going with it as its spare (which nothing reads), and keeps the
+ * slot's rows in its first cell. */
+enum { LABEL_LOADER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };   /* $C2:D28D */
+
+static void leave_label_record(GameState *g, uint8_t slot)
+{
+    MenuUpload u = menu_slot_label_upload(slot);
+    const uint8_t record[MENU_LABEL_RECORD_BYTES] = { (uint8_t)u.vram, (uint8_t)(u.vram >> 8), (uint8_t)u.source, (uint8_t)(u.source >> 8),
+                                (uint8_t)(u.source >> 16), (uint8_t)u.size, (uint8_t)(u.size >> 8) };
+    for (unsigned i = 0; i < sizeof record; i++)
+        set_menu_save_summary_byte(g, i, record[i]);
+    set_menu_scratch_erased_slot_rows(g, (uint16_t)(slot << 8));
+}
+
 /* Going back to choosing leaves 16-bit widths behind it. */
 static void leave_wide(Snes *s) { menu_set_widths(s, false, false); }
 
@@ -135,7 +158,11 @@ static bool load(void *ctx)
 
 static bool carry_on(void *ctx) { return menu_run_long(machine(ctx), 0xC2E6D8, CARRY_OVER, menu_load_carried_over); }
 
-static bool erase(void *ctx) { return menu_run(machine(ctx), 0xC2E729, ERASE_THE_SLOT, menu_erase_slot); }
+static bool erase(void *ctx) { return menu_run(machine(ctx), 0xC2E729, ERASE_THE_SLOT, menu_erase_slot_entry); }
+
+static bool empty_label(void *ctx) { return menu_call(machine(ctx), 0xC2E903, EMPTY_LABEL, LABEL_LOADER_IGNORES); }
+
+static bool wait_a_frame(void *ctx) { return menu_wait_a_frame_from(machine(ctx), 0xC2E906); }
 
 /* The command is a call out to the driver, which must come back to the
  * screen's code. */
@@ -174,6 +201,20 @@ static void note(void *ctx, LoadScreenNote n, uint8_t value)
     case LOAD_NOTE_FOURTH_ROW_COMPARED: ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, value >= FOURTH_ROW)); break;
     /* in the P the cursor's sound saves as it starts */
     case LOAD_NOTE_FOURTH_ROW_FLIPPED: ORIGINAL_EFFECT(menu_leave_load(s, value)); break;
+    /* erasing saves P as it starts and puts it back as it ends, with the
+     * widths it calls the label's drawing with between */
+    case LOAD_NOTE_ERASING:
+        menu_save_p(s);
+        menu_set_widths(s, true, true);
+        break;
+    case LOAD_NOTE_SLOT_FORGOTTEN:
+        ORIGINAL_EFFECT(leave_label_record(state_of(s), value));
+        menu_set_widths(s, false, false);
+        break;
+    case LOAD_NOTE_ERASED:
+        ORIGINAL_EFFECT(leave_design(s));
+        menu_restore_p(s);
+        break;
     }
 }
 
@@ -189,8 +230,8 @@ static bool ends(void *ctx, LoadScreenEnd end)
 }
 
 const LoadScreenSteps menu_load_screen_on_the_machine = {
-    read_cursor, tick, show_the_slot, draw, ask_which_to_carry_on_from, load, carry_on, erase, sound_output_sent,
-    byte_wide, note, ends,
+    read_cursor, tick, show_the_slot, draw, ask_which_to_carry_on_from, load, carry_on, erase, empty_label,
+    wait_a_frame, sound_output_sent, byte_wide, note, ends,
 };
 
 /* ---- The entries --------------------------------------------------------------------------------- */
@@ -245,10 +286,6 @@ void menu_draw_slot_rows_entry(Snes *s)
     m_rts(s);
 }
 
-/* The slot's window's drawing leaves the player's design in A. */
-enum { DESIGN_BITS = 7 };
-static void leave_design(Snes *s) { s->cpu.a = (uint8_t)(game_settings(state_of(s), 1) & DESIGN_BITS); }
-
 // $C2:D32C
 void menu_draw_slot_window(Snes *s)
 {
@@ -260,49 +297,8 @@ void menu_draw_slot_window(Snes *s)
 
 /* ---- Erasing a slot ------------------------------------------------------------------------------ */
 
-/* The slot's row redrawn empty: its label cleared and drawn again with the
- * empty slot's (by $C2:D28D, from the JSR at $C2:E903), and after a frame
- * ($C2:821E, the task's yield) queued: the slot's chapter's two rows of
- * graphic. The original builds the label's upload record where the summary is
- * drawn from and queues it from there, the summary's byte after the record's
- * seven going with it as its spare (which nothing reads), and keeps the
- * slot's rows in its first cell. */
-enum { LABEL_RECORD_BYTES = 7 };
-enum { LABEL_LOADER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };   /* $C2:D28D */
-
-static void leave_label_record(GameState *g, uint8_t slot)
-{
-    MenuUpload u = menu_slot_label_upload(slot);
-    const uint8_t record[LABEL_RECORD_BYTES] = { (uint8_t)u.vram, (uint8_t)(u.vram >> 8), (uint8_t)u.source, (uint8_t)(u.source >> 8),
-                                (uint8_t)(u.source >> 16), (uint8_t)u.size, (uint8_t)(u.size >> 8) };
-    for (unsigned i = 0; i < sizeof record; i++)
-        set_menu_save_summary_byte(g, i, record[i]);
-    set_menu_scratch_erased_slot_rows(g, (uint16_t)(slot << 8));
-}
-
 // $C2:E8B7
-void menu_erase_slot(Snes *s)
-{
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    uint8_t slot = menu_save_slot_shown(g);
-    menu_save_p(s);
-    menu_set_widths(s, true, true);
-    menu_forget_slot(g, pf, slot);
-    ORIGINAL_EFFECT(leave_label_record(g, slot));
-    menu_set_widths(s, false, false);
-    if (!menu_call(s, 0xC2E903, EMPTY_LABEL, LABEL_LOADER_IGNORES))
-        return;
-    if (!menu_wait_a_frame_from(s, 0xC2E906))
-        return;
-    MenuUpload label = menu_slot_label_upload(slot);
-    ORIGINAL_EFFECT(label.spare = menu_save_summary_byte(g, LABEL_RECORD_BYTES));
-    TIMED_AS(g, 0xC2838E, menu_queue_upload(g, label));
-    TIMED_AS(g, 0xC2D32C, menu_redraw_slot_window(g, slot));
-    ORIGINAL_EFFECT(leave_design(s));
-    menu_restore_p(s);
-    m_rts(s);
-}
+void menu_erase_slot_entry(Snes *s) { step(s, menu_erase_slot_with); }
 
 /* ---- The guards ---------------------------------------------------------------------------------- */
 
