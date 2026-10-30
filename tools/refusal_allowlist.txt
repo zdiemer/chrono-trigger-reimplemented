@@ -5,3 +5,4 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C15FDE script_face guard # gap: battle-castle-flea shadow and the castle_flea shipping route refuse animation calls with X=00E4, first in shadow at frame 25404; docs/TODO.md, Refusals in real play

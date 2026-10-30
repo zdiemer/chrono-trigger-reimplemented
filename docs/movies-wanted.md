@@ -365,14 +365,35 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   `$04`, Flea defeated `$08`). The route searches machine copies against the destination map
   and position, waiting for requested map changes and treating the entrance's loss of control
   as a scene to finish before walking on. It reaches the field after Slash in the shipping mode
-  at frame 40254, with no inexact restores or dropped sound commands.
+  at frame 40222, with no inexact restores or dropped sound commands.
   Against the preceding 48 movies it adds 860 bytes (0.84 KiB): enemy line-up and marching
   (`$C1:3959`-`$3A3C`, `$3F5A`-`$4020`), keeping distance, farthest-member search and selection
-  (`$C1:29FB`, `$A4E0`), and the field's contact handling (`$C0:31B9`-`$326B`). Shadow clean:
+  (`$C1:29FB`, `$A4E0`), and the field's contact handling (`$C0:31B9`-`$326B`). Including
+  Flea below, 562 bytes remain unique to Slash, chiefly line-up, marching and farthest-member
+  targeting. Shadow clean:
   zero mismatches or refusals, no `page refused` or `accessor out of range`, sound lockstep
   identical. Strict reaches all 39278 frames with saved-game drift; `ct_native`, given the
   cartridge save explicitly, also runs all frames without a reported stop but ends blanked
   after four screen setups, so that run does not establish the fight's outcome (TODO.md).
+
+- **Movie**: `battle-castle-flea` (route `castle_flea`, ctsave06 slot 2, 35256 frames;
+  cutoff 35106, `$7F:00A3`'s `$08` defeat bit, then field control): the same empty-wing
+  visits and Ozzie ambush, then the right passage (`$0AB`), corridor (`$07D`) and Flea's
+  room (`$0AD`). Confirm beside object 11 starts the decoy (`$F0`), which drains Crono's
+  MP, then Flea (`$9F`, 4120 HP). Physical attacks, Spincut, Mid Tonics and Ethers win;
+  the route uses machine copies for room transitions and checks the defeat flag before
+  returning field control. The shipping mode reaches that outcome at frame 40035,
+  with no inexact restores or dropped sound commands.
+  Against the other 49 movies it adds 62 bytes: status-condition AI
+  (`$C1:8F55`-`$8F60`, `$8F6E`-`$8F80`) and an enemy-attack calculation path
+  (`$C1:DFB4`-`$DFD2`). Shadow has zero mismatches, no `page refused` or `accessor out
+  of range`, and identical sound lockstep. It exposes four `script_face` guard refusals
+  at `$C1:5FDE`; the shipping route also encounters that guard. The gap and its 196
+  original instructions are recorded in the refusal allowlist, fallback baseline and
+  TODO.md's "Refusals in real play". Strict runs all 35256 frames with saved-game drift;
+  `ct_native --sram` runs all frames without a reported stop but ends blanked after four
+  screen setups, as Slash does. No game logic was ported for either movie; timing was
+  calibrated over the two shadow runs with `--drifted`.
 
 ### 5b. The Day of Lavos after a loss
 - **Save**: technoplaza ct-state16 slot 2 (Crono and Marle at the fair, New Game+).

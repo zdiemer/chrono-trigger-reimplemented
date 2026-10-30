@@ -2645,15 +2645,30 @@ re-runs the census.
   own call of the original recurse into the port: decide whether a native
   build keeps the wait at all, and take it out of the service if not.
 
+## Refusals in real play
+
+- **Flea's animation facing command.** `battle-castle-flea` in shadow mode refuses
+  `script_face` (`$C1:5FDE`) four times: frames 25404, 25411, 32905 and 32906.
+  Each reports `A=0000 X=00E4 Y=0000 S=06D6 D=0000 DB=7E P=22 E=0`.
+  Its `command_ready` guard checks the channel, command, offset, handler and
+  decoded operation; determine which assumption excludes this real animation
+  state and make the hand port handle it. The refused calls execute 196 original
+  instructions across `$C1:5FDE`, `$75CC` and `$7639`. This is a gap in
+  `tools/refusal_allowlist.txt` and `tools/fallback_baseline.txt`, not a port fix.
+  Shadow has zero mismatches and no page or accessor errors. The shipping
+  state-driven Flea route reaches victory but also refuses this command with
+  `X=00E4`; retain the gap until both reference and shipping play handle it.
+
 ## The native program
 
-- **Castle movie input on the native program.** `battle-castle-slash` with its ctsave06
-  cartridge save supplied to `ct_native --sram` runs all 39278 frames without a reported
-  stop, but ends with the screen blanked after four setups. Its fixed movie input does not
+- **Castle movie input on the native program.** `battle-castle-slash` (39278 frames) and
+  `battle-castle-flea` (35256), with their ctsave06 cartridge save supplied to
+  `ct_native --sram`, run all frames without a reported stop, but end with the screen
+  blanked after four setups (two title video escapes, first `$7E:5AEB`). Their fixed input does not
   establish the castle outcome on the native program's different timing. Investigate the
   blank screen and drive the native program from state to check the fight itself. The
-  shipping `ct_drive` route does beat both Slash forms and regain field control; strict
-  mode reaches the movie's end with saved-game drift.
+  shipping `ct_drive` routes do beat both Slash forms and Flea and regain field control;
+  strict mode reaches both movies' ends with saved-game drift.
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").

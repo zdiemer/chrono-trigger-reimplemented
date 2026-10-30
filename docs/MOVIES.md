@@ -211,7 +211,14 @@ outcome: the entrance scene pauses before opening dialogue, which a search
 deduplicating only positions would discard. Once Ozzie has appeared it first
 searches for a way around corridor ambushes. Only the winning inputs are
 replayed and kept. The shipping mode reaches Slash's defeat and field control
-at frame 40254 (`route_check castle_slash`, `on:on:c`).
+at frame 40222 (`route_check castle_slash`, `on:on:c`).
+
+`castle_flea` (`battle-castle-flea.ctm`, 35256 frames) uses the same slot 2
+and approach, then takes the right passage (`$0AB`) and corridor (`$07D`)
+to Flea's room (`$0AD`). It beats the decoy and Flea, checks the `$08`
+defeat flag, and ends with field control restored. The shipping route reaches
+that outcome at frame 40035, with exact machine-copy restores. Both castle
+movies keep the searches' successful input only; neither uses memory pokes.
 
 Each starts from the cartridge save its movie header names, under
 `oracle/saves/` ([provenance](../oracle/saves/README.md)), which is the
