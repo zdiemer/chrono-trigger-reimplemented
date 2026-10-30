@@ -248,20 +248,20 @@ typedef struct {
     GameState *game;
     Platform *pf;
     MenuModeEnd end;
-} ModeAsC;
+} MenuModeContext;
 
-static ModeAsC *running;
+static MenuModeContext *running;
 
 static void start_again(void *ctx)
 {
-    ModeAsC *c = ctx;
+    MenuModeContext *c = ctx;
     TIMED_AS(c->game, 0xC2832F, blank_and_stop(c->pf, restart_sites));
     c->end = MENUS_START_THE_GAME_AGAIN;
 }
 
 static bool opened(void *ctx)
 {
-    ModeAsC *c = ctx;
+    MenuModeContext *c = ctx;
     bool opened = false;
     TIMED_AS(c->game, 0xC28096, opened = menu_opens(c->game, c->pf));
     return opened;
@@ -271,7 +271,7 @@ static bool opened(void *ctx)
  * queued, until a task closes the menus or goes no further. */
 static void tasks(void *ctx)
 {
-    ModeAsC *c = ctx;
+    MenuModeContext *c = ctx;
     menu_tasks_open(c->game, c->pf);
     MenuTurns turns;
     do {
@@ -286,10 +286,10 @@ static void tasks(void *ctx)
 
 MenuModeEnd menu_mode_runs(GameState *g, Platform *pf, uint8_t asked_for, uint16_t asked_with)
 {
-    static const ModeSteps as_c = { start_again, opened, tasks };
-    ModeAsC c = { g, pf, MENUS_WENT_NO_FURTHER };
+    static const ModeSteps in_the_program = { start_again, opened, tasks };
+    MenuModeContext c = { g, pf, MENUS_WENT_NO_FURTHER };
     running = &c;
-    run_the_mode(g, pf, asked_for, asked_with, &as_c, &c);
+    run_the_mode(g, pf, asked_for, asked_with, &in_the_program, &c);
     running = NULL;
     return c.end;
 }
@@ -394,25 +394,25 @@ typedef struct {
     GameState *game;
     Platform *pf;
     bool for_the_game;
-} CloseAsC;
+} MenuCloseContext;
 
 static bool wear_shown(void *ctx)
 {
-    CloseAsC *c = ctx;
+    MenuCloseContext *c = ctx;
     TIMED_AS(c->game, 0xC2834D, party_wear_it_shows(c->game));
     return true;
 }
 
 static bool faded_out(void *ctx)
 {
-    CloseAsC *c = ctx;
+    MenuCloseContext *c = ctx;
     TIMED_AS(c->game, 0xC283CA, menu_fade_to_black(c->game));
     return true;
 }
 
 static void leave(void *ctx)
 {
-    CloseAsC *c = ctx;
+    MenuCloseContext *c = ctx;
     if (c->for_the_game)
         TIMED_AS(c->game, 0xC2832F, blank_and_stop(c->pf, restart_sites));
     else
@@ -424,9 +424,9 @@ static void leave(void *ctx)
 
 void menu_close(GameState *g, Platform *pf, bool for_the_game)
 {
-    static const CloseCalls as_c = { wear_shown, faded_out, leave };
-    CloseAsC c = { g, pf, for_the_game };
-    close_the_menus(g, &as_c, &c);
+    static const CloseCalls in_the_program = { wear_shown, faded_out, leave };
+    MenuCloseContext c = { g, pf, for_the_game };
+    close_the_menus(g, &in_the_program, &c);
 }
 
 /* On the machine each of the two ways out calls what the original calls from
@@ -552,13 +552,13 @@ static uint16_t send_the_frame(GameState *g, Platform *pf);
 typedef struct {
     GameState *game;
     Platform *pf;
-} VblankAsC;
+} MenuVblankContext;
 
 /* As C, the frame's work and the queue each where its guard takes them; the
  * program goes no further otherwise. */
 static bool frame_sent(void *ctx)
 {
-    VblankAsC *c = ctx;
+    MenuVblankContext *c = ctx;
     if (!menu_block_move_is_a_buffer(c->game)) {
         program_needs_the_machine(c->game, 0xC285D6, "a block move over the code the menus' vblank runs it through");
         return false;
@@ -569,7 +569,7 @@ static bool frame_sent(void *ctx)
 
 static bool input_taken(void *ctx)
 {
-    VblankAsC *c = ctx;
+    MenuVblankContext *c = ctx;
     bool taken = false;
     TIMED_AS(c->game, 0xC28473, taken = menu_frame_input_taken(c->game, c->pf));
     return taken;
@@ -577,9 +577,9 @@ static bool input_taken(void *ctx)
 
 void menu_vblank(GameState *g, Platform *pf)
 {
-    static const VblankCalls as_c = { frame_sent, input_taken };
-    VblankAsC c = { g, pf };
-    TIMED_AS(g, 0xC2842A, (void)menus_vblank(g, pf, &as_c, &c));
+    static const VblankCalls in_the_program = { frame_sent, input_taken };
+    MenuVblankContext c = { g, pf };
+    TIMED_AS(g, 0xC2842A, (void)menus_vblank(g, pf, &in_the_program, &c));
 }
 
 /* The menus' line handler returns at once. */
@@ -1227,13 +1227,13 @@ static void send_object_queue(GameState *g, Platform *pf);
 typedef struct {
     GameState *game;
     Platform *pf;
-} ObjectVblankAsC;
+} ObjectVblankContext;
 
 /* Each step where its guard's state half takes it; the program goes no
  * further otherwise. */
 static bool object_frame_step(void *ctx, ObjectFrameStep step)
 {
-    ObjectVblankAsC *c = ctx;
+    ObjectVblankContext *c = ctx;
     GameState *g = c->game;
     Platform *pf = c->pf;
     bool done = true;
@@ -1277,7 +1277,7 @@ static bool object_frame_step(void *ctx, ObjectFrameStep step)
 
 void menu_object_vblank(GameState *g, Platform *pf)
 {
-    ObjectVblankAsC c = { g, pf };
+    ObjectVblankContext c = { g, pf };
     TIMED_AS(g, MENU_OBJECT_VBLANK_HANDLER, (void)object_mode_vblank(g, pf, object_frame_step, &c));
 }
 

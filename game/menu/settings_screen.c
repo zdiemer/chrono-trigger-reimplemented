@@ -984,35 +984,35 @@ bool menu_choose_buttons_with(GameState *g, Platform *pf, const SettingsSteps *n
 typedef struct {
     GameState *game;
     Platform *pf;
-} SettingsAsC;
+} SettingsContext;
 
-static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((SettingsAsC *)ctx)->game); }
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((SettingsContext *)ctx)->game); }
 
 static bool tick(void *ctx, SettingsPlace at)
 {
     (void)at;
-    SettingsAsC *c = ctx;
+    SettingsContext *c = ctx;
     menu_tick(c->game, c->pf);
     return true;
 }
 
-static const SettingsSteps as_c;
+static const SettingsSteps in_the_program;
 
 static bool take_the_option(void *ctx)
 {
-    SettingsAsC *c = ctx;
+    SettingsContext *c = ctx;
     if (!menu_settings_option_can_be_taken(c->game)) {
         program_needs_the_machine(c->game, 0xC2BFD4, "a setting the port doesn't take");
         return false;
     }
     bool back = false;
-    TIMED_AS(c->game, 0xC2BFD4, back = menu_take_setting_option_with(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, 0xC2BFD4, back = menu_take_setting_option_with(c->game, c->pf, &in_the_program, c));
     return back;
 }
 
 static bool send(void *ctx)
 {
-    SettingsAsC *c = ctx;
+    SettingsContext *c = ctx;
     menu_settings_send_sound_output(c->game, c->pf);
     return true;
 }
@@ -1037,7 +1037,7 @@ static const struct {
     [SETTINGS_MESSAGE_SPEED] = { 0xC2C0D1, HANDLER_METER },
 };
 
-static bool run_the_handler(SettingsAsC *c, SettingsOption option)
+static bool run_the_handler(SettingsContext *c, SettingsOption option)
 {
     GameState *g = c->game;
     switch (handlers[option].kind) {
@@ -1046,15 +1046,15 @@ static bool run_the_handler(SettingsAsC *c, SettingsOption option)
     case HANDLER_SPEEDS: menu_settings_take_speeds(g); break;
     case HANDLER_GAUGE: menu_settings_take_gauge(g); break;
     case HANDLER_CONTROLS: (void)menu_settings_take_controls(g); break;
-    case HANDLER_METER: return menu_step_speed_with(g, option, &as_c, c);
-    case HANDLER_DESIGN: return menu_step_window_design_with(g, &as_c, c);
+    case HANDLER_METER: return menu_step_speed_with(g, option, &in_the_program, c);
+    case HANDLER_DESIGN: return menu_step_window_design_with(g, &in_the_program, c);
     }
     return true;
 }
 
 static bool handle(void *ctx, SettingsOption option)
 {
-    SettingsAsC *c = ctx;
+    SettingsContext *c = ctx;
     bool handled = false;
     TIMED_AS(c->game, handlers[option].routine, handled = run_the_handler(c, option));
     return handled;
@@ -1063,15 +1063,15 @@ static bool handle(void *ctx, SettingsOption option)
 /* A meter stepped, timed as its routine. */
 static bool a_meter_stepped(void *ctx, SettingsOption meter)
 {
-    SettingsAsC *c = ctx;
+    SettingsContext *c = ctx;
     bool stepped = false;
-    TIMED_AS(c->game, 0xC2C164, stepped = menu_step_setting_meter_with(c->game, meter, &as_c, c));
+    TIMED_AS(c->game, 0xC2C164, stepped = menu_step_setting_meter_with(c->game, meter, &in_the_program, c));
     return stepped;
 }
 
 static bool back_to_the_main_menu(void *ctx)
 {
-    SettingsAsC *c = ctx;
+    SettingsContext *c = ctx;
     return menu_back_to_the_main_menu(c->game, c->pf);
 }
 
@@ -1081,12 +1081,12 @@ static void registers_at(void *ctx, SettingsPlace at) { (void)ctx, (void)at; }
 
 static bool ends_with_a_tick(void *ctx)
 {
-    SettingsAsC *c = ctx;
+    SettingsContext *c = ctx;
     menu_tick(c->game, c->pf);
     return true;
 }
 
-static const SettingsSteps as_c = {
+static const SettingsSteps in_the_program = {
     read_cursor, tick, take_the_option, handle, back_to_the_main_menu, note, a_meter_stepped, registers_at, ends_with_a_tick,
 };
 
@@ -1097,8 +1097,8 @@ static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(con
         program_needs_the_machine(g, routine, "a settings screen the port doesn't take");
         return false;
     }
-    SettingsAsC c = { g, pf };
-    return run(g, pf, &as_c, &c);
+    SettingsContext c = { g, pf };
+    return run(g, pf, &in_the_program, &c);
 }
 
 bool menu_open_settings(GameState *g, Platform *pf)

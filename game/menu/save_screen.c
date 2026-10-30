@@ -756,7 +756,7 @@ static bool read_save_slots(GameState *g, Platform *pf, const SlotCalls *c, void
 typedef struct {
     GameState *game;
     Platform *pf;
-} SlotsAsC;
+} SaveSlotsContext;
 
 static bool slot_routine(void *ctx, SlotRoutine routine, uint32_t site);
 static void slot_note(void *ctx, SlotNote note, uint8_t a, uint8_t b) { (void)ctx, (void)note, (void)a, (void)b; }
@@ -779,7 +779,7 @@ static const struct {
     [DESIGN_AND_CHAPTER] = { 0xC2D266, "a slot's summary the port doesn't read" },
 };
 
-static bool slot_routine_takes(const SlotsAsC *c, SlotRoutine routine)
+static bool slot_routine_takes(const SaveSlotsContext *c, SlotRoutine routine)
 {
     switch (routine) {
     case CHAPTER_LABEL: return chapter_label_drawable(c->game);
@@ -793,7 +793,7 @@ static bool slot_routine_takes(const SlotsAsC *c, SlotRoutine routine)
 static bool slot_routine(void *ctx, SlotRoutine routine, uint32_t site)
 {
     (void)site;
-    SlotsAsC *c = ctx;
+    SaveSlotsContext *c = ctx;
     if (!slot_routine_takes(c, routine)) {
         program_needs_the_machine(c->game, slot_routines[routine].routine, slot_routines[routine].what);
         return false;
@@ -814,7 +814,7 @@ static bool slot_routine(void *ctx, SlotRoutine routine, uint32_t site)
  * half takes it. */
 bool menu_slot_summary_read_back(GameState *g, Platform *pf)
 {
-    SlotsAsC c = { g, pf };
+    SaveSlotsContext c = { g, pf };
     return slot_routine(&c, SLOT_SUMMARY, 0xC2CF58);
 }
 
@@ -824,7 +824,7 @@ bool menu_save_slots_read(GameState *g, Platform *pf)
         program_needs_the_machine(g, 0xC2D156, "save slots the port doesn't read");
         return false;
     }
-    SlotsAsC c = { g, pf };
+    SaveSlotsContext c = { g, pf };
     return read_save_slots(g, pf, &slots, &c);
 }
 

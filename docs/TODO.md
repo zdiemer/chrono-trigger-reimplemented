@@ -2992,7 +2992,7 @@ list, by kind, is what `game/` still asks of one.
   runs yet, `ct_native` stops there and says which: a menu screen with no
   step as C (below), and a party the
   put-aside or the bringing back doesn't take (`field/menus.c`). Every
-  bridge in `EVENT_BRIDGES` has its C (`EVENT_BRIDGES_AS_C`, event/engine.h).
+  bridge in `EVENT_BRIDGES` has its C (`EVENT_BRIDGES_WITH_WORK`, event/engine.h).
   Each wants its C as the program meets it.
 - **Lucca's mother stops at Robo's recruitment.** `events-luccas-mother`
   stops `ct_native` at frame 3120, `$C0:38BE` (`event_cmd_recruit`), with
@@ -3128,7 +3128,7 @@ list, by kind, is what `game/` still asks of one.
     walk, not `object_in_the_way`.
   - `menu_draw_empty_label_entry` saves P and returns without restoring it
     when refused (unreachable behind the registry's guard).
-  - The credits' `LettersAsC` callback always returns true and
+  - The credits' `CreditsLettersContext` callback always returns true and
     `event_choose_credits` ignores the sequence's result: ceremony.
   - `MENU_LABEL_RECORD_BYTES`, scaffolding-only, sits in the public
     menu/load_screen.h.
@@ -3288,7 +3288,7 @@ waits on M5 rather than on a backend.
   `object_view.c`'s `took_what_it_needs` callback exists only to clear V, which
   the wrapper can derive from the state after the call; `main_loop.c`'s
   `frame_work` rows mix the machine's columns (`long_call`, `x8`, `entry`) with
-  `as_c`, which wants a parallel table, and its eight one-line C
+  `run`, which wants a parallel table, and its eight one-line C
   adapters want each C step its own signature.
 - **What the menus' tasks review left** (none rated translation; `naming.c`
   and `save_screen.c` the weakest): their register notes
@@ -3411,9 +3411,6 @@ waits on M5 rather than on a backend.
     `menu_object_current` instead; `hand_the_turn_on` returns the unsigned
     add's carry as "went round past a whole turn", which wants saying for a
     negative turn.
-  - `field/requests.c`'s `StepAndChestAsC`, `step_and_chest_as_c` and the
-    older `TileCopyAsC` want names for what they are (the "AsC" types and
-    tables tree-wide are the same item).
 - **What the last save stops' review left** (none rated translation):
   - Steps enums name one routine split by call site, so the machine table can
     pick the site (`EQUIPMENT_REDRAWS_THE_LIST_FOR_THE_SLOT`/`_ON_THE_SLOTS`,

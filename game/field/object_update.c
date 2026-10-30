@@ -398,8 +398,8 @@ static void window_only(void *ctx, FieldObject obj)
 
 bool field_objects_updated(GameState *g)
 {
-    static const UpdateSteps as_c = { move, view, tick, rows, place, window_only };
-    return update_objects(g, &as_c, g);
+    static const UpdateSteps in_the_program = { move, view, tick, rows, place, window_only };
+    return update_objects(g, &in_the_program, g);
 }
 
 /* ---- On the machine ------------------------------------------------------------------------ */

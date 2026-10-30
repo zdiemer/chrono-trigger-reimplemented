@@ -667,7 +667,7 @@ static bool effect_fits(const GameState *g)
 typedef struct {
     GameState *game;
     Platform *pf;
-} AsC;
+} ScreenEffectContext;
 
 /* The curtain's step, scene/curtain.c's; its stir takes the X the
  * original's dispatch hands it, the curtain's place in the table, doubled. */
@@ -675,20 +675,20 @@ enum { CURTAIN_INDEX = (CURTAIN - 1) * 2 };
 
 static bool sweep_the_curtain(void *ctx)
 {
-    AsC *c = ctx;
+    ScreenEffectContext *c = ctx;
     return scene_curtain_stepped(c->game, c->pf, CURTAIN_INDEX);
 }
 
 static bool draw_bg1(void *ctx, Moment at)
 {
     (void)at;
-    return field_layer_drawn_at_the_load(((AsC *)ctx)->game, FIELD_BG1);
+    return field_layer_drawn_at_the_load(((ScreenEffectContext *)ctx)->game, FIELD_BG1);
 }
 
 static bool refresh_the_effects(void *ctx, Moment at)
 {
     (void)at;
-    AsC *c = ctx;
+    ScreenEffectContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(c->game));
     return done;
@@ -697,33 +697,33 @@ static bool refresh_the_effects(void *ctx, Moment at)
 static bool wait_for_the_frame(void *ctx, Moment at)
 {
     (void)at;
-    AsC *c = ctx;
+    ScreenEffectContext *c = ctx;
     TIMED_AS(c->game, FIELD_FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
     return true;
 }
 
 static bool put_the_field_aside(void *ctx)
 {
-    AsC *c = ctx;
+    ScreenEffectContext *c = ctx;
     FieldBattleStart start = FIELD_BATTLE_START_STOPPED;
     TIMED_AS(c->game, FIELD_BATTLE_BEGINS_ENTRY, start = field_battle_set_up(c->game, c->pf));
     return start != FIELD_BATTLE_START_STOPPED;
 }
 
-static void start_the_scene(void *ctx) { field_closed_into_the_scene(((AsC *)ctx)->game); }
+static void start_the_scene(void *ctx) { field_closed_into_the_scene(((ScreenEffectContext *)ctx)->game); }
 
 enum { SCREEN_EFFECT = 0xC021E1 };
 
 bool field_screen_effect_moved_on(GameState *g, Platform *pf)
 {
-    static const EffectCalls as_c = { sweep_the_curtain, draw_bg1, refresh_the_effects, wait_for_the_frame, put_the_field_aside,
+    static const EffectCalls in_the_program = { sweep_the_curtain, draw_bg1, refresh_the_effects, wait_for_the_frame, put_the_field_aside,
                                       start_the_scene };
     if (!effect_fits(g)) {
         program_needs_the_machine(g, SCREEN_EFFECT, "a screen effect the port doesn't draw");
         return false;
     }
-    AsC c = { g, pf };
-    return move_on_a_step(g, pf, &as_c, &c);
+    ScreenEffectContext c = { g, pf };
+    return move_on_a_step(g, pf, &in_the_program, &c);
 }
 
 /* ---- On the machine ------------------------------------------------------------------------------

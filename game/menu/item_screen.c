@@ -1442,15 +1442,15 @@ bool menu_sort_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void 
 typedef struct {
     GameState *game;
     Platform *pf;
-} ItemsAsC;
+} ItemScreenContext;
 
-static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((ItemsAsC *)ctx)->game); }
-static void read_cursor_held(void *ctx) { menu_hold_and_read_the_cursor(((ItemsAsC *)ctx)->game); }
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((ItemScreenContext *)ctx)->game); }
+static void read_cursor_held(void *ctx) { menu_hold_and_read_the_cursor(((ItemScreenContext *)ctx)->game); }
 
 static bool tick(void *ctx, ItemsPlace at)
 {
     (void)at;
-    ItemsAsC *c = ctx;
+    ItemScreenContext *c = ctx;
     menu_tick(c->game, c->pf);
     return true;
 }
@@ -1458,7 +1458,7 @@ static bool tick(void *ctx, ItemsPlace at)
 static bool wait(void *ctx, ItemsPlace at)
 {
     (void)at;
-    ItemsAsC *c = ctx;
+    ItemScreenContext *c = ctx;
     menu_task_waits(c->game, 1);
     return true;
 }
@@ -1468,7 +1468,7 @@ static bool wait(void *ctx, ItemsPlace at)
  * wouldn't. */
 static bool describe(void *ctx)
 {
-    ItemsAsC *c = ctx;
+    ItemScreenContext *c = ctx;
     if (!menu_items_can_point_along_the_list(c->game)) {
         program_needs_the_machine(c->game, 0xC2AD2E, "an items list the port doesn't take");
         return false;
@@ -1477,18 +1477,18 @@ static bool describe(void *ctx)
     return true;
 }
 
-static const ItemsSteps as_c;
+static const ItemsSteps in_the_program;
 
 /* The item the list slid to pointed at, as the pointing's own sequence. */
 static bool point_at_the_slid_row(void *ctx)
 {
-    ItemsAsC *c = ctx;
-    return menu_point_at_listed_item_with(c->game, c->pf, &as_c, c);
+    ItemScreenContext *c = ctx;
+    return menu_point_at_listed_item_with(c->game, c->pf, &in_the_program, c);
 }
 
 static bool back_to_the_main_menu(void *ctx)
 {
-    ItemsAsC *c = ctx;
+    ItemScreenContext *c = ctx;
     return menu_back_to_the_main_menu(c->game, c->pf);
 }
 
@@ -1497,7 +1497,7 @@ static void note(void *ctx, ItemsNote note, uint8_t value) { (void)ctx, (void)no
 static bool refuse(void *ctx, ItemsPlace at)
 {
     (void)at;
-    ItemsAsC *c = ctx;
+    ItemScreenContext *c = ctx;
     menu_buzz(c->game, c->pf);
     return true;
 }
@@ -1505,7 +1505,7 @@ static bool refuse(void *ctx, ItemsPlace at)
 static void registers_at(void *ctx, ItemsPlace at) { (void)ctx, (void)at; }
 
 
-static bool not_taken(ItemsAsC *c, uint32_t routine)
+static bool not_taken(ItemScreenContext *c, uint32_t routine)
 {
     program_needs_the_machine(c->game, routine, "an item's use the port doesn't take");
     return false;
@@ -1513,18 +1513,18 @@ static bool not_taken(ItemsAsC *c, uint32_t routine)
 
 /* A routine of the use as C where its entry's guard would take the state,
  * timed as its own. */
-static bool sequence(ItemsAsC *c, uint32_t routine, bool (*takes)(const GameState *), ItemsSequence *run)
+static bool sequence(ItemScreenContext *c, uint32_t routine, bool (*takes)(const GameState *), ItemsSequence *run)
 {
     if (!takes(c->game))
         return not_taken(c, routine);
     bool done = false;
-    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &in_the_program, c));
     return done;
 }
 
 static bool run(void *ctx, ItemsRoutine r)
 {
-    ItemsAsC *c = ctx;
+    ItemScreenContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (r) {
@@ -1556,7 +1556,7 @@ static bool run(void *ctx, ItemsRoutine r)
     return false;
 }
 
-static const ItemsSteps as_c = {
+static const ItemsSteps in_the_program = {
     read_cursor, read_cursor_held, tick, wait, describe, point_at_the_slid_row, back_to_the_main_menu, note, refuse, registers_at,
     run,
 };
@@ -1570,8 +1570,8 @@ static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(con
         program_needs_the_machine(g, routine, "an items screen the port doesn't take");
         return false;
     }
-    ItemsAsC c = { g, pf };
-    return run(g, pf, &as_c, &c);
+    ItemScreenContext c = { g, pf };
+    return run(g, pf, &in_the_program, &c);
 }
 
 bool menu_open_items(GameState *g, Platform *pf) { return step(g, pf, 0xC2AA40, menu_items_can_open, menu_open_items_with); }

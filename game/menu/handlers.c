@@ -38,7 +38,7 @@ typedef struct {
     Platform *pf;
     uint8_t opcode;
     ScriptServices services;
-} ScriptAsC;
+} ObjectScriptContext;
 
 static uint32_t handler_of(const GameState *g, uint8_t opcode) { return HANDLERS_BANK | menu_script_handler(g, opcode); }
 
@@ -46,7 +46,7 @@ static uint32_t handler_of(const GameState *g, uint8_t opcode) { return HANDLERS
  * the strips it queues. */
 static bool scroll_map(void *ctx, MenuAxis axis, uint8_t plane, int8_t step)
 {
-    ScriptAsC *c = ctx;
+    ObjectScriptContext *c = ctx;
     uint32_t routine = axis == MENU_ACROSS ? 0xC20568 : 0xC2066C;
     if (!menu_map_can_scroll(c->game, plane, menu_map_scroll_records(axis, step))) {
         program_needs_the_machine(c->game, routine, "a scroll of the map the port doesn't take");
@@ -59,7 +59,7 @@ static bool scroll_map(void *ctx, MenuAxis axis, uint8_t plane, int8_t step)
 /* A script names a plane 1-3; the first two are the map's. */
 static bool redraw_map(void *ctx, uint8_t plane)
 {
-    ScriptAsC *c = ctx;
+    ObjectScriptContext *c = ctx;
     uint8_t named = (uint8_t)(plane & 3);
     if (named == 0 || !menu_map_can_redraw(c->game, (uint8_t)(named - 1))) {
         program_needs_the_machine(c->game, 0xC209C5, "a redraw of the map the port doesn't take");
@@ -71,7 +71,7 @@ static bool redraw_map(void *ctx, uint8_t plane)
 
 static bool pass_on_sound(void *ctx)
 {
-    ScriptAsC *c = ctx;
+    ObjectScriptContext *c = ctx;
     TIMED_AS(c->game, 0xC22ED9, (void)overworld_pass_on_sound(c->game));
     return true;
 }
@@ -80,7 +80,7 @@ static const MenuScriptRoutine *script_routine(uint32_t routine);
 
 static bool call_routine(void *ctx, uint32_t routine, bool far)
 {
-    ScriptAsC *c = ctx;
+    ObjectScriptContext *c = ctx;
     uint32_t at = far ? routine & 0xFFFFFFu : HANDLERS_BANK | (uint16_t)routine;
     const MenuScriptRoutine *r = script_routine(at);
     MenuObject self = menu_object_running(c->game);
@@ -95,7 +95,7 @@ static bool call_routine(void *ctx, uint32_t routine, bool far)
 
 static void set_console_byte(void *ctx, uint16_t at, uint8_t v)
 {
-    ScriptAsC *c = ctx;
+    ObjectScriptContext *c = ctx;
     script_set_the_consoles_byte(c->pf, handler_of(c->game, c->opcode), at, v);
 }
 
@@ -103,7 +103,7 @@ static void set_console_byte(void *ctx, uint16_t at, uint8_t v)
  * script pointer on it, as the routines the commands reach read it. */
 static ScriptFlow run_a_command(void *ctx, MenuObject self, uint32_t at)
 {
-    ScriptAsC *c = ctx;
+    ObjectScriptContext *c = ctx;
     GameState *g = c->game;
     set_menu_object_script(g, at);
     c->opcode = menu_script_byte(g, at);
@@ -122,7 +122,7 @@ static ScriptFlow run_a_command(void *ctx, MenuObject self, uint32_t at)
 
 MenuTurn menu_run_object_script(GameState *g, Platform *pf, MenuObject self)
 {
-    ScriptAsC c = { g, pf, 0, { 0 } };
+    ObjectScriptContext c = { g, pf, 0, { 0 } };
     c.services = (ScriptServices){ scroll_map, redraw_map, pass_on_sound, call_routine, set_console_byte, &c };
     ScriptRunner r = { run_a_command, &c };
     uint32_t stopped = 0;

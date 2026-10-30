@@ -340,12 +340,12 @@ bool battle_see_to_timer_as_called(Snes *s, uint32_t site, BattleTimer kind)
 typedef struct {
     GameState *game;
     Platform *pf;
-} TimerAsC;
+} StatusTimerContext;
 
 static bool show_the_status_number(void *ctx, BattleTimer kind)
 {
     (void)kind;
-    TimerAsC *c = ctx;
+    StatusTimerContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, SHOW_NUMBER, done = battle_show_status_number(c->game, c->pf, STATUS_NUMBER_SHOWING));
     return done;
@@ -355,7 +355,7 @@ bool battle_run_out_timer_seen_to(GameState *g, Platform *pf, BattleTimer kind)
 {
     if (!handler_takes(g, kind))
         return battle_needs_the_machine(g, handlers[kind].routine, "a timer of nobody's the port doesn't see to");
-    TimerAsC c = { g, pf };
+    StatusTimerContext c = { g, pf };
     bool done = false;
     TIMED_AS(g, handlers[kind].routine, done = see_to_the_timer(g, kind, show_the_status_number, &c));
     return done;

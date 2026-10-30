@@ -429,25 +429,25 @@ EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, FieldObject 
  * is its handler's. */
 enum { HANDLERS_BANK = 0xC00000 };
 
-typedef bool (*BridgeAsC)(GameState *g, Platform *pf, uint16_t at, EventStep *step);
+typedef bool (*BridgeWork)(GameState *g, Platform *pf, uint16_t at, EventStep *step);
 
-static BridgeAsC bridge_for(uint8_t opcode)
+static BridgeWork bridge_for(uint8_t opcode)
 {
     switch (opcode) {
-#define EVENT_AS_C_CASE(name, op) case op: return name;
-    EVENT_BRIDGES_AS_C(EVENT_AS_C_CASE)
-#undef EVENT_AS_C_CASE
+#define EVENT_BRIDGE_WORK_CASE(name, op) case op: return name;
+    EVENT_BRIDGES_WITH_WORK(EVENT_BRIDGE_WORK_CASE)
+#undef EVENT_BRIDGE_WORK_CASE
     default: return NULL;
     }
 }
 
 static bool run(void *ctx, uint16_t at, EventStep *step)
 {
-    EventAsC *c = ctx;
+    EventScriptContext *c = ctx;
     uint8_t opcode = script_byte(c->game, at);
     const EventOpcode *row = event_opcode(opcode);
     uint32_t handler = HANDLERS_BANK | command_handler(c->game, opcode);
-    BridgeAsC bridge = bridge_for(opcode);
+    BridgeWork bridge = bridge_for(opcode);
     if (row && !row->run && bridge && event_runs_here(c->game, row, at)) {
         bool goes_on = false;
         TIMED_AS(c->game, handler, goes_on = bridge(c->game, c->pf, at, step));
@@ -467,4 +467,4 @@ static bool always_ours(void *ctx)
     return true;
 }
 
-EventRunner event_runner(EventAsC *c) { return (EventRunner){ run, always_ours, c }; }
+EventRunner event_runner(EventScriptContext *c) { return (EventRunner){ run, always_ours, c }; }

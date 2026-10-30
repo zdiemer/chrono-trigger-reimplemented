@@ -558,12 +558,12 @@ static bool fade_in(GameState *g, FadeInKind kind, const FadeInSteps *steps, voi
 typedef struct {
     GameState *game;
     Platform *pf;
-} FadeInAsC;
+} FadeInContext;
 
 static bool set_up(void *ctx, FadeInKind kind)
 {
     (void)kind;
-    FadeInAsC *c = ctx;
+    FadeInContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, FIELD_SET_THE_SCREEN_UP_ENTRY, done = field_screen_set_up(c->game, c->pf));
     return done;
@@ -572,7 +572,7 @@ static bool set_up(void *ctx, FadeInKind kind)
 static bool walk(void *ctx, FadeInKind kind, uint8_t control)
 {
     (void)kind, (void)control;
-    FadeInAsC *c = ctx;
+    FadeInContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, WALK, done = field_the_leader_walks(c->game));
     return done;
@@ -580,7 +580,7 @@ static bool walk(void *ctx, FadeInKind kind, uint8_t control)
 
 static bool work(void *ctx, FadeInKind kind)
 {
-    FadeInAsC *c = ctx;
+    FadeInContext *c = ctx;
     bool done = true;
     if (kind == WITH_THE_FRAMES_WORK)
         TIMED_AS(c->game, FIELD_FRAME_WORK_ENTRY, done = field_frame_work_done(c->game, c->pf));
@@ -592,25 +592,25 @@ static bool work(void *ctx, FadeInKind kind)
 static bool wait(void *ctx, FadeInKind kind)
 {
     (void)kind;
-    FadeInAsC *c = ctx;
+    FadeInContext *c = ctx;
     TIMED_AS(c->game, FIELD_FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
     return true;
 }
 
-static const FadeInSteps as_c = { set_up, walk, work, wait };
+static const FadeInSteps in_the_program = { set_up, walk, work, wait };
 
 bool field_fade_in(GameState *g, Platform *pf)
 {
-    FadeInAsC c = { g, pf };
+    FadeInContext c = { g, pf };
     uint8_t shown;
-    return fade_in(g, WITH_THE_FRAMES_WORK, &as_c, &c, &shown);
+    return fade_in(g, WITH_THE_FRAMES_WORK, &in_the_program, &c, &shown);
 }
 
 bool field_fade_in_after_a_menu(GameState *g, Platform *pf)
 {
-    FadeInAsC c = { g, pf };
+    FadeInContext c = { g, pf };
     uint8_t shown;
-    return fade_in(g, WITH_THE_EFFECTS_ONLY, &as_c, &c, &shown);
+    return fade_in(g, WITH_THE_EFFECTS_ONLY, &in_the_program, &c, &shown);
 }
 
 /* ---- On the machine ------------------------------------------------------------------------- */

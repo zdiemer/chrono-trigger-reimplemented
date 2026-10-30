@@ -464,18 +464,18 @@ typedef struct {
     GameState *game;
     Platform *pf;
     const Loop *loop;
-} LoopAsC;
+} OverworldLoopContext;
 
 static bool next_frame(void *ctx)
 {
-    LoopAsC *c = ctx;
+    OverworldLoopContext *c = ctx;
     menu_wait_for_the_next_frame(c->game, c->pf);
     return true;
 }
 
 static bool frames(void *ctx, LoopWait wait)
 {
-    LoopAsC *c = ctx;
+    OverworldLoopContext *c = ctx;
     menu_wait_frames_sending_the_sound(c->game, c->pf, loop_waits[wait].frames);
     return true;
 }
@@ -493,7 +493,7 @@ static void nothing_to_leave(void *ctx) { (void)ctx; }
 static bool map_loaded(void *ctx, MapLoad load)
 {
     (void)load;
-    LoopAsC *c = ctx;
+    OverworldLoopContext *c = ctx;
     if (!overworld_map_can_be_loaded_again(c->game)) {
         program_needs_the_machine(c->game, 0xC22C93, "a world map loaded again that the port doesn't take");
         return false;
@@ -508,7 +508,7 @@ static bool map_loaded(void *ctx, MapLoad load)
  * up again when they close, and the overworld back. */
 static Pass menus(void *ctx, OverworldMode mode)
 {
-    LoopAsC *c = ctx;
+    OverworldLoopContext *c = ctx;
     if (menu_mode_runs(c->game, c->pf, the_menus_screen(mode), 0) != MENUS_CLOSED)
         return PASS_STOPS;
     TIMED_AS(c->game, 0xC20043, menu_object_set_up_the_screen(c->game, c->pf));
@@ -519,7 +519,7 @@ static Pass menus(void *ctx, OverworldMode mode)
 
 static bool map_view(void *ctx)
 {
-    LoopAsC *c = ctx;
+    OverworldLoopContext *c = ctx;
     bool shown = false;
     TIMED_AS(c->game, 0xC2631F, shown = menu_epoch_map_view_shown(c->game, c->pf));
     return shown;
@@ -527,7 +527,7 @@ static bool map_view(void *ctx)
 
 static bool time_dial(void *ctx)
 {
-    LoopAsC *c = ctx;
+    OverworldLoopContext *c = ctx;
     bool shown = false;
     TIMED_AS(c->game, 0xC26A34, shown = menu_epoch_time_dial_shown(c->game, c->pf));
     return shown;
@@ -535,11 +535,11 @@ static bool time_dial(void *ctx)
 
 static void handed_over(void *ctx)
 {
-    LoopAsC *c = ctx;
+    OverworldLoopContext *c = ctx;
     program_needs_the_machine(c->game, 0xC223D2, "a world map's mode the loop doesn't know");
 }
 
-static const LoopSteps as_c = {
+static const LoopSteps in_the_program = {
     next_frame, frames, a_fade_frame, nothing_left, no_script_left, nothing_to_leave,
     nothing_to_leave, map_loaded, menus, map_view, time_dial, handed_over,
 };
@@ -557,8 +557,8 @@ OverworldEnd overworld_runs(GameState *g, Platform *pf)
     TIMED_AS(g, 0xC223A8, set_up = overworld_set_up(g, &u, pf));
     if (!set_up)
         return OVERWORLD_WENT_NO_FURTHER;
-    LoopAsC c = { g, pf, NULL };
-    Loop l = { g, pf, &as_c, &c };
+    OverworldLoopContext c = { g, pf, NULL };
+    Loop l = { g, pf, &in_the_program, &c };
     c.loop = &l;
     Pass p = PASS_STOPS;
     do

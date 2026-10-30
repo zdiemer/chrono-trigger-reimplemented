@@ -408,9 +408,9 @@ bool menu_slot_saved_can_show(const GameState *g)
 typedef struct {
     GameState *game;
     Platform *pf;
-} SavingAsC;
+} SavingContext;
 
-static const SavingSteps as_c;
+static const SavingSteps in_the_program;
 
 /* The routines the steps reach, each where its entry's guard would take the
  * state as the step has left it; otherwise the program goes no further. */
@@ -421,12 +421,12 @@ static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
     return ok;
 }
 
-static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((SavingAsC *)ctx)->game); }
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((SavingContext *)ctx)->game); }
 
 static bool tick(void *ctx, SavingPlace at)
 {
     (void)at;
-    SavingAsC *c = ctx;
+    SavingContext *c = ctx;
     menu_tick(c->game, c->pf);
     return true;
 }
@@ -434,13 +434,13 @@ static bool tick(void *ctx, SavingPlace at)
 static bool wait(void *ctx, SavingPlace at)
 {
     (void)at;
-    menu_task_waits(((SavingAsC *)ctx)->game, 1);
+    menu_task_waits(((SavingContext *)ctx)->game, 1);
     return true;
 }
 
 static bool panel(void *ctx)
 {
-    SavingAsC *c = ctx;
+    SavingContext *c = ctx;
     bool back = false;
     TIMED_AS(c->game, 0xC2D065, back = menu_show_save_panel(c->game, c->pf));
     return back;
@@ -448,7 +448,7 @@ static bool panel(void *ctx)
 
 static bool lay_out(void *ctx)
 {
-    SavingAsC *c = ctx;
+    SavingContext *c = ctx;
     if (!takes(c->game, menu_save_screen_can_lay_out(c->game), 0xC2D0E5, "a save screen the port doesn't lay out"))
         return false;
     TIMED_AS(c->game, 0xC2D0E5, menu_lay_out_save_screen(c->game, c->pf));
@@ -459,12 +459,12 @@ static bool lay_out(void *ctx)
 static bool save(void *ctx, SavingPlace at)
 {
     (void)at;
-    SavingAsC *c = ctx;
+    SavingContext *c = ctx;
     if (!takes(c->game, menu_slot_can_be_saved(c->game) && menu_save_code_can_run(c->game), 0xC2CF37,
                "a save the port doesn't make"))
         return false;
     bool saved = false;
-    TIMED_AS(c->game, 0xC2CF37, saved = menu_save_the_game_with(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, 0xC2CF37, saved = menu_save_the_game_with(c->game, c->pf, &in_the_program, c));
     if (saved)
         menu_task_waits(c->game, 1);
     return saved;
@@ -472,19 +472,19 @@ static bool save(void *ctx, SavingPlace at)
 
 static bool saved_sound(void *ctx)
 {
-    menu_send_the_saved_sound(((SavingAsC *)ctx)->pf);
+    menu_send_the_saved_sound(((SavingContext *)ctx)->pf);
     return true;
 }
 
 static bool summary_read_back(void *ctx)
 {
-    SavingAsC *c = ctx;
+    SavingContext *c = ctx;
     return menu_slot_summary_read_back(c->game, c->pf);
 }
 
 static bool show_the_saved_slot(void *ctx)
 {
-    SavingAsC *c = ctx;
+    SavingContext *c = ctx;
     if (!takes(c->game, menu_slot_saved_can_show(c->game), 0xC2CF21, "a slot saved the port doesn't show"))
         return false;
     TIMED_AS(c->game, 0xC2CF21, menu_show_the_slot_saved_now(c->game));
@@ -499,7 +499,7 @@ static void note(void *ctx, SavingNote note, uint8_t value) { (void)ctx, (void)n
  * the state), or the buzz. */
 static bool ends(void *ctx, SavingEnd end)
 {
-    SavingAsC *c = ctx;
+    SavingContext *c = ctx;
     GameState *g = c->game;
     bool back = true;
     switch (end) {
@@ -510,19 +510,19 @@ static bool ends(void *ctx, SavingEnd end)
     case SAVING_SAVES_IN_THE_SLOT:
         if (!takes(g, menu_slot_can_be_saved(g), 0xC2CF0A, "a slot the port doesn't save in"))
             return false;
-        TIMED_AS(g, 0xC2CF0A, back = menu_save_in_the_slot_with(g, c->pf, &as_c, c));
+        TIMED_AS(g, 0xC2CF0A, back = menu_save_in_the_slot_with(g, c->pf, &in_the_program, c));
         break;
     case SAVING_MOVES_AMONG_THE_SLOTS:
         if (!takes(g, menu_slot_under_the_cursor_shows(g), 0xC2CFA2, "a save slot the port doesn't show"))
             return false;
-        TIMED_AS(g, 0xC2CFA2, back = menu_move_among_the_slots_with(g, c->pf, &as_c, c));
+        TIMED_AS(g, 0xC2CFA2, back = menu_move_among_the_slots_with(g, c->pf, &in_the_program, c));
         break;
     case SAVING_BUZZES: menu_buzz(g, c->pf); break;
     }
     return back;
 }
 
-static const SavingSteps as_c = { read_cursor, tick, wait, panel, lay_out, save, saved_sound, summary_read_back,
+static const SavingSteps in_the_program = { read_cursor, tick, wait, panel, lay_out, save, saved_sound, summary_read_back,
                                   show_the_saved_slot, note, ends };
 
 /* The panel as C, where its entry's guard would take the state. */
@@ -530,8 +530,8 @@ bool menu_show_save_panel(GameState *g, Platform *pf)
 {
     if (!takes(g, menu_save_panel_can_show(g), 0xC2D065, "a save panel the port doesn't show"))
         return false;
-    SavingAsC c = { g, pf };
-    return menu_show_save_panel_with(g, pf, &as_c, &c);
+    SavingContext c = { g, pf };
+    return menu_show_save_panel_with(g, pf, &in_the_program, &c);
 }
 
 /* A step as C where its entry's guard would take the state. */
@@ -540,8 +540,8 @@ static bool step(GameState *g, Platform *pf, bool ok, uint32_t routine,
 {
     if (!takes(g, ok, routine, "a save screen the port doesn't take"))
         return false;
-    SavingAsC c = { g, pf };
-    return run(g, pf, &as_c, &c);
+    SavingContext c = { g, pf };
+    return run(g, pf, &in_the_program, &c);
 }
 
 bool menu_open_save_screen(GameState *g, Platform *pf)

@@ -1247,14 +1247,14 @@ bool menu_point_along_equipment_list_with(GameState *g, Platform *pf, const Equi
 typedef struct {
     GameState *game;
     Platform *pf;
-} EquipmentAsC;
+} EquipmentContext;
 
-static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((EquipmentAsC *)ctx)->game); }
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((EquipmentContext *)ctx)->game); }
 
 static bool tick(void *ctx, EquipmentPlace at)
 {
     (void)at;
-    EquipmentAsC *c = ctx;
+    EquipmentContext *c = ctx;
     menu_tick(c->game, c->pf);
     return true;
 }
@@ -1262,7 +1262,7 @@ static bool tick(void *ctx, EquipmentPlace at)
 static bool wait(void *ctx, EquipmentPlace at)
 {
     (void)at;
-    EquipmentAsC *c = ctx;
+    EquipmentContext *c = ctx;
     menu_task_waits(c->game, 1);
     return true;
 }
@@ -1271,33 +1271,33 @@ static void registers_at(void *ctx, EquipmentPlace at) { (void)ctx, (void)at; }
 
 static void note(void *ctx, EquipmentNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
 
-static bool only_on_the_machine(EquipmentAsC *c, uint32_t routine, const char *what)
+static bool only_on_the_machine(EquipmentContext *c, uint32_t routine, const char *what)
 {
     program_needs_the_machine(c->game, routine, what);
     return false;
 }
 
-static bool not_taken(EquipmentAsC *c, uint32_t routine)
+static bool not_taken(EquipmentContext *c, uint32_t routine)
 {
     return only_on_the_machine(c, routine, "an equipment screen the port doesn't take");
 }
 
-static const EquipmentSteps as_c;
+static const EquipmentSteps in_the_program;
 
 /* A routine as C where its entry's guard would take the state, timed as its
  * own. */
-static bool sequence(EquipmentAsC *c, uint32_t routine, bool (*takes)(const GameState *), EquipmentSequence *run)
+static bool sequence(EquipmentContext *c, uint32_t routine, bool (*takes)(const GameState *), EquipmentSequence *run)
 {
     if (takes && !takes(c->game))
         return not_taken(c, routine);
     bool done = false;
-    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &in_the_program, c));
     return done;
 }
 
 static bool run(void *ctx, EquipmentRoutine r)
 {
-    EquipmentAsC *c = ctx;
+    EquipmentContext *c = ctx;
     GameState *g = c->game;
     switch (r) {
     case EQUIPMENT_SLIDES_MEMBERS: return sequence(c, 0xC29D5B, NULL, menu_start_sliding_equipment_members_with);
@@ -1356,7 +1356,7 @@ static bool run(void *ctx, EquipmentRoutine r)
  * guard would take the state, timed as its own. */
 static bool ends(void *ctx, EquipmentEnd end)
 {
-    EquipmentAsC *c = ctx;
+    EquipmentContext *c = ctx;
     GameState *g = c->game;
     switch (end) {
     case EQUIPMENT_SETS_UP_THE_SCREEN:
@@ -1385,36 +1385,36 @@ static bool ends(void *ctx, EquipmentEnd end)
     return false;
 }
 
-static const EquipmentSteps as_c = { read_cursor, tick, wait, registers_at, run, note, ends };
+static const EquipmentSteps in_the_program = { read_cursor, tick, wait, registers_at, run, note, ends };
 
 bool menu_open_equipment(GameState *g, Platform *pf)
 {
-    EquipmentAsC c = { g, pf };
-    return menu_open_equipment_with(g, pf, &as_c, &c);
+    EquipmentContext c = { g, pf };
+    return menu_open_equipment_with(g, pf, &in_the_program, &c);
 }
 
 bool menu_choose_equipment_member(GameState *g, Platform *pf)
 {
-    EquipmentAsC c = { g, pf };
+    EquipmentContext c = { g, pf };
     if (!menu_equip_can_choose_a_member(g))
         return not_taken(&c, 0xC29C39);
-    return menu_choose_equipment_member_with(g, pf, &as_c, &c);
+    return menu_choose_equipment_member_with(g, pf, &in_the_program, &c);
 }
 
 bool menu_choose_equipment_slot(GameState *g, Platform *pf)
 {
-    EquipmentAsC c = { g, pf };
+    EquipmentContext c = { g, pf };
     if (!menu_cursor_can_move(g))
         return not_taken(&c, 0xC29C70);
-    return menu_choose_equipment_slot_with(g, pf, &as_c, &c);
+    return menu_choose_equipment_slot_with(g, pf, &in_the_program, &c);
 }
 
 bool menu_choose_equipment_item(GameState *g, Platform *pf)
 {
-    EquipmentAsC c = { g, pf };
+    EquipmentContext c = { g, pf };
     if (!menu_equip_can_choose_an_item(g))
         return not_taken(&c, 0xC29CA5);
-    return menu_choose_equipment_item_with(g, pf, &as_c, &c);
+    return menu_choose_equipment_item_with(g, pf, &in_the_program, &c);
 }
 
 /* The list of what fits made ($C2:A463), and the cursor moved along it
@@ -1422,12 +1422,12 @@ bool menu_choose_equipment_item(GameState *g, Platform *pf)
  * would take the state. */
 bool menu_make_equipment_list(GameState *g, Platform *pf)
 {
-    EquipmentAsC c = { g, pf };
+    EquipmentContext c = { g, pf };
     return sequence(&c, 0xC2A463, menu_equip_list_can_be_drawn, menu_make_the_equipment_list_with);
 }
 
 bool menu_point_along_equipment_list(GameState *g, Platform *pf)
 {
-    EquipmentAsC c = { g, pf };
+    EquipmentContext c = { g, pf };
     return sequence(&c, 0xC29F05, menu_equip_list_can_be_pointed_along, menu_point_along_equipment_list_with);
 }

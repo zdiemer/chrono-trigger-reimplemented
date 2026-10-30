@@ -476,10 +476,10 @@ static void start_the_song(void *ctx, uint8_t song)
 
 bool scene_staff_roll_set_up(GameState *g, Platform *pf)
 {
-    static const StaffRollSteps as_c = { send_the_command, scatter_the_stars, unpack_the_graphic, turn_the_credits_channel,
+    static const StaffRollSteps in_the_program = { send_the_command, scatter_the_stars, unpack_the_graphic, turn_the_credits_channel,
                                          start_the_song };
     StaffRollInC c = { g, pf };
-    return set_up_staff_roll_with(g, pf, &as_c, &c);
+    return set_up_staff_roll_with(g, pf, &in_the_program, &c);
 }
 
 /* ---- Entries ------------------------------------------------------------------------------------ */

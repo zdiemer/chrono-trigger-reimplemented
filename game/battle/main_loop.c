@@ -928,7 +928,7 @@ static bool debugging_switch_on(const GameState *g) { return battle_debugging_sw
 typedef struct {
     GameState *game;
     Platform *pf;
-} LoopAsC;
+} BattleLoopContext;
 
 /* The routines the calls stand for, as the program goes no further at them
  * where their guards turn the state away or they are only the machine's. */
@@ -945,13 +945,13 @@ enum {
 /* The running away's message and its action. */
 enum { RAN_AWAY_MESSAGE = 8, RUN_AWAY_ACTION = 0x79 };
 
-static bool take_the_step(LoopAsC *c, BattleStep step) { return battle_step_taken(c->game, c->pf, step); }
+static bool take_the_step(BattleLoopContext *c, BattleStep step) { return battle_step_taken(c->game, c->pf, step); }
 
-static bool give_the_turn(LoopAsC *c);
+static bool give_the_turn(BattleLoopContext *c);
 
 static bool make_the_loop_s_call(void *ctx, LoopCall call, uint8_t arg)
 {
-    LoopAsC *c = ctx;
+    BattleLoopContext *c = ctx;
     GameState *g = c->game;
     (void)arg;
     switch (call) {
@@ -1061,7 +1061,7 @@ static bool make_the_loop_s_call(void *ctx, LoopCall call, uint8_t arg)
     }
 }
 
-static bool give_the_turn(LoopAsC *c)
+static bool give_the_turn(BattleLoopContext *c)
 {
     if (!turn_names_a_combatant(c->game))
         return battle_needs_the_machine(c->game, GIVE_TURN, "a turn whose place names no combatant");
@@ -1072,13 +1072,13 @@ static bool give_the_turn(LoopAsC *c)
 
 bool battle_turn_given(GameState *g, Platform *pf)
 {
-    LoopAsC c = { g, pf };
+    BattleLoopContext c = { g, pf };
     return give_the_turn(&c);
 }
 
 bool battle_main_loop_runs(GameState *g, Platform *pf)
 {
-    LoopAsC c = { g, pf };
+    BattleLoopContext c = { g, pf };
     LoopGoesOn on = start_battle(g, make_the_loop_s_call, &c);
     if (on == LOOP_NOT_OURS)
         return battle_needs_the_machine(g, STARTING_WITH_THE_ENEMIES, "a battle with enemies the port doesn't list");

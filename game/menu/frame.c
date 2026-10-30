@@ -46,17 +46,17 @@ static bool wait_for_the_next_frame(const GameState *g, uint8_t seen, bool (*a_f
 typedef struct {
     GameState *game;
     Platform *pf;
-} FrameAsC;
+} MenuFrameContext;
 
 static bool a_frame(void *ctx)
 {
-    tm_wait_frame(((FrameAsC *)ctx)->pf, PF_AT(FRAME_WAIT_LOOP));
+    tm_wait_frame(((MenuFrameContext *)ctx)->pf, PF_AT(FRAME_WAIT_LOOP));
     return true;
 }
 
 void menu_wait_for_the_next_frame(GameState *g, Platform *pf)
 {
-    FrameAsC c = { g, pf };
+    MenuFrameContext c = { g, pf };
     TIMED_AS(g, FRAME_WAIT, (void)wait_for_the_next_frame(g, menu_object_frame_counter(g), a_frame, &c));
 }
 
@@ -130,7 +130,7 @@ static bool wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t f
 static bool a_frame_left(void *ctx, uint16_t left)
 {
     (void)left;
-    FrameAsC *c = ctx;
+    MenuFrameContext *c = ctx;
     menu_wait_for_the_next_frame(c->game, c->pf);
     return true;
 }
@@ -139,10 +139,10 @@ static void frame_done(void *ctx) { (void)ctx; }
 
 void menu_wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames)
 {
-    static const FramesLeft as_c = { a_frame_left, frame_done };
-    FrameAsC c = { g, pf };
+    static const FramesLeft in_the_program = { a_frame_left, frame_done };
+    MenuFrameContext c = { g, pf };
     bool sent = false;
-    TIMED_AS(g, 0xC20454, (void)wait_frames_sending_the_sound(g, pf, frames, &as_c, &c, &sent));
+    TIMED_AS(g, 0xC20454, (void)wait_frames_sending_the_sound(g, pf, frames, &in_the_program, &c, &sent));
 }
 
 /* For shadow mode and the original's code, should it carry on from the wait:

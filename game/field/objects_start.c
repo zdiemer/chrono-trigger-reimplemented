@@ -259,7 +259,7 @@ bool field_objects_set_up(GameState *g, Platform *pf)
     field_forget_the_queued_transfers(g);
     field_objects_let_go(g, true);
     TIMED_AS(g, FIELD_START_THE_OBJECTS_ENTRY, field_objects_start_afresh(g, pf));
-    EventAsC c = { g, pf };
+    EventScriptContext c = { g, pf };
     EventRunner r = event_runner(&c);
     FieldObject object;
     uint16_t at;

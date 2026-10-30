@@ -722,18 +722,18 @@ uint32_t menu_naming_routine_address(NamingRoutine routine) { return routines[ro
 typedef struct {
     GameState *game;
     Platform *pf;
-} NamingAsC;
+} NamingContext;
 
 static void read_cursor(void *ctx)
 {
-    NamingAsC *c = ctx;
+    NamingContext *c = ctx;
     TIMED_AS(c->game, 0xC2E984, menu_read_cursor(c->game));
 }
 
 static bool sound(void *ctx, uint32_t site, MenuSound sound)
 {
     (void)site;
-    NamingAsC *c = ctx;
+    NamingContext *c = ctx;
     TIMED_AS(c->game, sound == MENU_SOUND_REFUSAL ? 0xC2EACC : 0xC2EAC2, menu_sound_played(c->game, c->pf, sound));
     return true;
 }
@@ -746,7 +746,7 @@ static void note(void *ctx, NamingNote note, uint8_t value) { (void)ctx, (void)n
  * screen faded out, or the menus closed, which never comes back. */
 static bool ends(void *ctx, NamingEnd end)
 {
-    NamingAsC *c = ctx;
+    NamingContext *c = ctx;
     switch (end) {
     case NAMING_FADES_IN: TIMED_AS(c->game, 0xC283B2, menu_start_the_fade_in(c->game)); break;
     case NAMING_FADES_OUT: TIMED_AS(c->game, 0xC283CA, menu_fade_to_black(c->game)); break;
@@ -755,17 +755,17 @@ static bool ends(void *ctx, NamingEnd end)
     return true;
 }
 
-static const NamingSteps as_c = { read_cursor, sound, routine, note, ends };
+static const NamingSteps in_the_program = { read_cursor, sound, routine, note, ends };
 
 static bool routine(void *ctx, NamingRoutine routine)
 {
-    NamingAsC *c = ctx;
+    NamingContext *c = ctx;
     if (!menu_naming_is_whole(c->game)) {
         program_needs_the_machine(c->game, routines[routine].routine, "a naming the port doesn't take");
         return false;
     }
     bool back = false;
-    TIMED_AS(c->game, routines[routine].routine, back = routines[routine].run(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, routines[routine].routine, back = routines[routine].run(c->game, c->pf, &in_the_program, c));
     return back;
 }
 
@@ -776,6 +776,6 @@ bool menu_naming_step(GameState *g, Platform *pf)
         program_needs_the_machine(g, steps[step].routine, "a naming the port doesn't take");
         return false;
     }
-    NamingAsC c = { g, pf };
-    return steps[step].run(g, pf, &as_c, &c);
+    NamingContext c = { g, pf };
+    return steps[step].run(g, pf, &in_the_program, &c);
 }

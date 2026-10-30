@@ -215,11 +215,11 @@ static bool open_the_menus(GameState *g, Platform *pf, const OpeningCalls *c, vo
 typedef struct {
     GameState *game;
     Platform *pf;
-} OpeningAsC;
+} MenuOpeningContext;
 
 static bool quieten(void *ctx, unsigned command)
 {
-    OpeningAsC *c = ctx;
+    MenuOpeningContext *c = ctx;
     quieten_the_channel(c->pf, command);
     return true;
 }
@@ -228,7 +228,7 @@ static bool quieten(void *ctx, unsigned command)
  * no further there. */
 static bool call(void *ctx, OpeningCall call)
 {
-    OpeningAsC *c = ctx;
+    MenuOpeningContext *c = ctx;
     GameState *g = c->game;
     bool back = true;
     switch (call) {
@@ -252,9 +252,9 @@ static bool low_hp_marks(void *ctx)
 
 bool menu_opens(GameState *g, Platform *pf)
 {
-    static const OpeningCalls as_c = { quieten, call, graphics_built, low_hp_marks };
-    OpeningAsC c = { g, pf };
-    return open_the_menus(g, pf, &as_c, &c);
+    static const OpeningCalls in_the_program = { quieten, call, graphics_built, low_hp_marks };
+    MenuOpeningContext c = { g, pf };
+    return open_the_menus(g, pf, &in_the_program, &c);
 }
 
 /* ---- On the machine --------------------------------------------------------------------------- */

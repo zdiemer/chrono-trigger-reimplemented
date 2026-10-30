@@ -45,7 +45,7 @@
 typedef struct {
     uint16_t routine;
     void (*port)(Snes *);
-    bool (*as_c)(GameState *g, Platform *pf);
+    bool (*run)(GameState *g, Platform *pf);
 } Step;
 
 /* Each screen's steps, in the order the screen names them. */
@@ -220,13 +220,13 @@ bool menu_run_the_screen_s_step(Snes *s) { return run_the_step(s, running_step(s
 bool menu_run_the_screen_step(GameState *g, Platform *pf)
 {
     const Step *step = running_step(g);
-    if (!step || !step->as_c) {
+    if (!step || !step->run) {
         program_needs_the_machine(g, step ? MENUS_BANK | step->routine : THE_JUMP_TO_THE_STEP,
                                   "a menu screen's step only the machine runs");
         return false;
     }
     bool back = false;
-    TIMED_AS(g, MENUS_BANK | step->routine, back = step->as_c(g, pf));
+    TIMED_AS(g, MENUS_BANK | step->routine, back = step->run(g, pf));
     return back;
 }
 

@@ -1166,9 +1166,9 @@ bool menu_exchange_can_open_at_the_gate(const GameState *g)
 typedef struct {
     GameState *game;
     Platform *pf;
-} ExchangeAsC;
+} ExchangeContext;
 
-static const ExchangeSteps as_c;
+static const ExchangeSteps in_the_program;
 
 /* The routines the steps reach, each where its entry's guard would take the
  * state as the step has left it; otherwise the program goes no further. */
@@ -1179,12 +1179,12 @@ static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
     return ok;
 }
 
-static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((ExchangeAsC *)ctx)->game); }
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((ExchangeContext *)ctx)->game); }
 
 static bool tick(void *ctx, ExchangePlace at)
 {
     (void)at;
-    ExchangeAsC *c = ctx;
+    ExchangeContext *c = ctx;
     menu_tick(c->game, c->pf);
     return true;
 }
@@ -1192,26 +1192,26 @@ static bool tick(void *ctx, ExchangePlace at)
 static bool wait(void *ctx, ExchangePlace at)
 {
     (void)at;
-    menu_task_waits(((ExchangeAsC *)ctx)->game, 1);
+    menu_task_waits(((ExchangeContext *)ctx)->game, 1);
     return true;
 }
 
 static bool move_the_cursor(void *ctx, ExchangePlace at)
 {
     (void)at;
-    ExchangeAsC *c = ctx;
+    ExchangeContext *c = ctx;
     if (!takes(c->game, menu_exchange_cursor_can_move(c->game), 0xC2C805, "an exchange cursor the port doesn't move"))
         return false;
     bool back = false;
-    TIMED_AS(c->game, 0xC2C805, back = menu_move_the_exchange_cursor_with(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, 0xC2C805, back = menu_move_the_exchange_cursor_with(c->game, c->pf, &in_the_program, c));
     return back;
 }
 
-static bool gate_sprite(void *ctx) { return menu_record_sprite_loaded(((ExchangeAsC *)ctx)->game, MENU_EXCHANGE_GATE_RECORD); }
+static bool gate_sprite(void *ctx) { return menu_record_sprite_loaded(((ExchangeContext *)ctx)->game, MENU_EXCHANGE_GATE_RECORD); }
 
 static bool place_song_back(void *ctx)
 {
-    ExchangeAsC *c = ctx;
+    ExchangeContext *c = ctx;
     bool back = false;
     TIMED_AS(c->game, 0xC2CC0E, back = menu_switch_back_to_the_field_song(c->game, c->pf));
     return back;
@@ -1221,7 +1221,7 @@ static bool place_song_back(void *ctx)
  * state. */
 static bool run(void *ctx, ExchangeRoutine r)
 {
-    ExchangeAsC *c = ctx;
+    ExchangeContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (r) {
@@ -1230,7 +1230,7 @@ static bool run(void *ctx, ExchangeRoutine r)
     case EXCHANGE_LAYS_OUT_THE_GATE_SCREEN:
         if (!takes(g, menu_exchange_can_lay_out(g), 0xC2CAF3, "an exchange the port doesn't lay out"))
             return false;
-        TIMED_AS(g, 0xC2CAF3, done = menu_lay_out_the_exchange_with(g, c->pf, &as_c, c));
+        TIMED_AS(g, 0xC2CAF3, done = menu_lay_out_the_exchange_with(g, c->pf, &in_the_program, c));
         return done;
     case EXCHANGE_DRAWS_THE_SWIRL: TIMED_AS(g, 0xFFF677, done = menu_draw_gate_screen(g)); return done;
     case EXCHANGE_STARTS_THE_GATE_SCREEN: TIMED_AS(g, 0xC2CE9D, menu_start_gate_screen(g, c->pf)); return true;
@@ -1249,7 +1249,7 @@ static void note(void *ctx, ExchangeNote note) { (void)ctx, (void)note; }
  * again, or the menus closed. */
 static bool ends(void *ctx, ExchangeEnd end)
 {
-    ExchangeAsC *c = ctx;
+    ExchangeContext *c = ctx;
     GameState *g = c->game;
     bool back = true;
     switch (end) {
@@ -1257,7 +1257,7 @@ static bool ends(void *ctx, ExchangeEnd end)
     case EXCHANGE_LAYS_OUT_THE_SCREEN:
         if (!takes(g, menu_exchange_can_lay_out(g), 0xC2CAF3, "an exchange the port doesn't lay out"))
             return false;
-        TIMED_AS(g, 0xC2CAF3, back = menu_lay_out_the_exchange_with(g, c->pf, &as_c, c));
+        TIMED_AS(g, 0xC2CAF3, back = menu_lay_out_the_exchange_with(g, c->pf, &in_the_program, c));
         break;
     case EXCHANGE_BACK_TO_THE_MAIN_MENU: back = menu_back_to_the_main_menu(g, c->pf); break;
     case EXCHANGE_LEAVES_THE_MENUS: menu_close(g, c->pf, false); break;
@@ -1266,7 +1266,7 @@ static bool ends(void *ctx, ExchangeEnd end)
     return back;
 }
 
-static const ExchangeSteps as_c = { read_cursor, tick, wait, move_the_cursor, gate_sprite, place_song_back,
+static const ExchangeSteps in_the_program = { read_cursor, tick, wait, move_the_cursor, gate_sprite, place_song_back,
                                     slide, widths, note, ends, run };
 
 /* The panel as C, where its entry's guard would take the state. */
@@ -1274,8 +1274,8 @@ bool menu_show_exchange_panel(GameState *g, Platform *pf)
 {
     if (!takes(g, menu_exchange_panel_can_show(g), 0xC2C9E5, "an exchange panel the port doesn't show"))
         return false;
-    ExchangeAsC c = { g, pf };
-    return menu_show_exchange_panel_with(g, pf, &as_c, &c);
+    ExchangeContext c = { g, pf };
+    return menu_show_exchange_panel_with(g, pf, &in_the_program, &c);
 }
 
 /* A step as C where its entry's guard would take the state. */
@@ -1284,8 +1284,8 @@ static bool step(GameState *g, Platform *pf, bool ok, uint32_t routine,
 {
     if (!takes(g, ok, routine, "an exchange the port doesn't take"))
         return false;
-    ExchangeAsC c = { g, pf };
-    return run(g, pf, &as_c, &c);
+    ExchangeContext c = { g, pf };
+    return run(g, pf, &in_the_program, &c);
 }
 
 bool menu_open_exchange(GameState *g, Platform *pf)

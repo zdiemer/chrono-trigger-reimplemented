@@ -230,13 +230,13 @@ static bool channel_on_the_machine(void *ctx, unsigned channel)
 typedef struct {
     GameState *game;
     Platform *pf;
-} ScriptsAsC;
+} BattleScriptsContext;
 
 /* A bridge's command, the sounds, as C; a command whose handler is the
  * original's goes no further. */
 static bool command_elsewhere(void *ctx, uint8_t command, const ScriptOpcode *row, CommandRuns runs)
 {
-    ScriptsAsC *c = ctx;
+    BattleScriptsContext *c = ctx;
     GameState *g = c->game;
     if (runs == THE_OPERATION_RAN)
         return true;
@@ -250,7 +250,7 @@ static bool command_elsewhere(void *ctx, uint8_t command, const ScriptOpcode *ro
 
 static bool run_a_channel(void *ctx, unsigned channel)
 {
-    ScriptsAsC *c = ctx;
+    BattleScriptsContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, 0xC14C9E, done = run_channel(c->game, channel, command_elsewhere, ctx));
     return done;
@@ -258,7 +258,7 @@ static bool run_a_channel(void *ctx, unsigned channel)
 
 bool battle_run_scripts(GameState *g, Platform *pf)
 {
-    ScriptsAsC c = { g, pf };
+    BattleScriptsContext c = { g, pf };
     return run_scripts(g, run_a_channel, &c);
 }
 

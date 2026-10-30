@@ -485,11 +485,11 @@ static bool play_a_sound(GameState *g, SoundEffectVoices voices, uint8_t sound, 
 typedef struct {
     GameState *game;
     Platform *pf;
-} SoundAsC;
+} MenuSoundContext;
 
 static bool sent(void *ctx, SoundEffectVoices voices, uint8_t sound)
 {
-    send_the_sound(((SoundAsC *)ctx)->pf, voices, sound);
+    send_the_sound(((MenuSoundContext *)ctx)->pf, voices, sound);
     return true;
 }
 
@@ -497,9 +497,9 @@ static void dropped(void *ctx) { (void)ctx; }
 
 void menu_sound_played(GameState *g, Platform *pf, uint8_t sound)
 {
-    static const SoundCalls as_c = { sent, dropped };
-    SoundAsC c = { g, pf };
-    (void)play_a_sound(g, SOUND_EFFECT_ON_VOICES_6_7, sound, &as_c, &c);
+    static const SoundCalls in_the_program = { sent, dropped };
+    MenuSoundContext c = { g, pf };
+    (void)play_a_sound(g, SOUND_EFFECT_ON_VOICES_6_7, sound, &in_the_program, &c);
 }
 
 // $C2:EAF9
@@ -512,9 +512,9 @@ static bool play_on_other_voices(GameState *g, uint8_t sound, const SoundCalls *
 
 void menu_sound_played_on_other_voices(GameState *g, Platform *pf, uint8_t sound)
 {
-    static const SoundCalls as_c = { sent, dropped };
-    SoundAsC c = { g, pf };
-    (void)play_on_other_voices(g, sound, &as_c, &c);
+    static const SoundCalls in_the_program = { sent, dropped };
+    MenuSoundContext c = { g, pf };
+    (void)play_on_other_voices(g, sound, &in_the_program, &c);
 }
 
 void menu_read_the_cursor_for_a_step(GameState *g) { TIMED_AS(g, 0xC2E984, menu_read_cursor(g)); }

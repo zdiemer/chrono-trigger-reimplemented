@@ -597,12 +597,12 @@ static bool race_on_the_machine(void *ctx, RaceCall call, unsigned unpacking, ui
 typedef struct {
     GameState *game;
     Platform *pf;
-} RaceAsC;
+} RaceContext;
 
 static bool race_call(void *ctx, RaceCall call, unsigned unpacking, uint16_t resource)
 {
     (void)unpacking;
-    RaceAsC *c = ctx;
+    RaceContext *c = ctx;
     switch (call) {
     case RACE_SONG_STARTS: scene_start_song(c->pf, (uint8_t)resource); return true;
     case RACE_UNPACK:
@@ -618,7 +618,7 @@ static bool race_call(void *ctx, RaceCall call, unsigned unpacking, uint16_t res
 
 bool scene_race_set_up(GameState *g, Platform *pf)
 {
-    RaceAsC c = { g, pf };
+    RaceContext c = { g, pf };
     return set_up_the_race(g, pf, race_call, &c);
 }
 

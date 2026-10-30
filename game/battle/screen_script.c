@@ -863,13 +863,13 @@ bool battle_screen_triangle_ready(Snes *s)
 typedef struct {
     GameState *game;
     Platform *pf;
-} ScriptsAsC;
+} ScreenScriptsContext;
 
 /* A command the port runs, or the program goes no further at its handler.
  * The one bridge is the wait for a line, the timing service's own. */
 static bool run_a_command(void *ctx, uint8_t opcode, ScreenChannel channel)
 {
-    ScriptsAsC *a = ctx;
+    ScreenScriptsContext *a = ctx;
     GameState *g = a->game;
     ScreenCommand c;
     const ScreenOpcode *row;
@@ -887,7 +887,7 @@ static bool run_a_command(void *ctx, uint8_t opcode, ScreenChannel channel)
 static bool step_a_channel(void *ctx, ScreenChannel channel, uint16_t ended)
 {
     (void)ended;
-    ScriptsAsC *a = ctx;
+    ScreenScriptsContext *a = ctx;
     GameState *g = a->game;
     ChannelStep step = CHANNEL_STOPPED;
     TIMED_AS(g, 0xCD1654, step = step_channel(g, channel, run_a_command, a));
@@ -898,6 +898,6 @@ static bool step_a_channel(void *ctx, ScreenChannel channel, uint16_t ended)
 
 bool battle_screen_scripts_run(GameState *g, Platform *pf)
 {
-    ScriptsAsC a = { g, pf };
+    ScreenScriptsContext a = { g, pf };
     return run_screen_scripts(g, step_a_channel, &a);
 }

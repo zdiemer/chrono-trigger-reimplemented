@@ -191,7 +191,7 @@ void field_run_queued_turns(Snes *s)
 /* Each turn the event engine's, its commands as C (event/engine.h). */
 static bool take_turn(void *ctx, FieldObject obj)
 {
-    EventAsC *c = ctx;
+    EventScriptContext *c = ctx;
     EventRunner r = event_runner(c);
     uint16_t at;
     EventTurnEnd end = TURN_OVER;
@@ -207,7 +207,7 @@ void field_queue_the_due_turns(GameState *g) { queue_due_turns(g); }
 
 bool field_queued_turns_run(GameState *g, Platform *pf)
 {
-    EventAsC c = { g, pf };
+    EventScriptContext c = { g, pf };
     return run_queued_turns(g, pf, take_turn, &c) != TURN_WENT_ELSEWHERE;
 }
 

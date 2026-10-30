@@ -253,11 +253,11 @@ static bool answer_chest(Snes *s) { return answer_chest_with(state_of(s), &step_
 typedef struct {
     GameState *game;
     Platform *pf;
-} StepAndChestAsC;
+} StepAndChestContext;
 
 /* A sound at the leader, where its entry's guard would play it: with the
  * leader one the port reads. */
-static bool sound_at_the_leader(StepAndChestAsC *c, uint32_t entry, void (*play)(GameState *, Platform *))
+static bool sound_at_the_leader(StepAndChestContext *c, uint32_t entry, void (*play)(GameState *, Platform *))
 {
     if (!field_leader_readable(c->game)) {
         program_needs_the_machine(c->game, entry, "a sound at a leader the port doesn't read");
@@ -281,7 +281,7 @@ static bool play_the_chest_sound(void *ctx)
 static void nothing_left(void *ctx, uint16_t step, bool pressed) { (void)ctx, (void)step, (void)pressed; }
 static void nothing_left_by_the_chest(void *ctx) { (void)ctx; }
 
-static const StepAndChestSteps step_and_chest_as_c = {
+static const StepAndChestSteps step_and_chest_in_the_program = {
     play_the_switch_sound, nothing_left, play_the_chest_sound, nothing_left_by_the_chest,
 };
 
@@ -520,11 +520,11 @@ static bool copy_the_tiles(GameState *g, TileCopyRun run, void *ctx)
 typedef struct {
     GameState *game;
     Platform *pf;
-} TileCopyAsC;
+} TileCopyContext;
 
 static bool tile_copy_call(void *ctx, TileCopyCall call)
 {
-    TileCopyAsC *c = ctx;
+    TileCopyContext *c = ctx;
     GameState *g = c->game;
     bool done = true;
     switch (call == TC_LAST_WAIT ? TC_WAIT : tile_copy_calls[call].routine) {
@@ -717,11 +717,11 @@ static bool answer_battle(Snes *s)
 typedef struct {
     GameState *game;
     Platform *pf;
-} BattleAsC;
+} RequestedBattleContext;
 
 static FieldBattleStart battle_begins(void *ctx)
 {
-    BattleAsC *c = ctx;
+    RequestedBattleContext *c = ctx;
     FieldBattleStart start = FIELD_BATTLE_START_STOPPED;
     TIMED_AS(c->game, FIELD_BATTLE_BEGINS_ENTRY, start = field_battle_set_up(c->game, c->pf));
     return start;
@@ -729,19 +729,19 @@ static FieldBattleStart battle_begins(void *ctx)
 
 static bool walk_a_frame(void *ctx)
 {
-    BattleAsC *c = ctx;
+    RequestedBattleContext *c = ctx;
     return field_walked_a_frame(c->game, c->pf);
 }
 
 static bool scroll_the_layers(void *ctx)
 {
-    TIMED_AS(((BattleAsC *)ctx)->game, SCROLL_LAYERS, field_scroll_layers_by_themselves(((BattleAsC *)ctx)->game));
+    TIMED_AS(((RequestedBattleContext *)ctx)->game, SCROLL_LAYERS, field_scroll_layers_by_themselves(((RequestedBattleContext *)ctx)->game));
     return true;
 }
 
 static bool refresh_the_effects(void *ctx)
 {
-    BattleAsC *c = ctx;
+    RequestedBattleContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(c->game));
     return done;
@@ -749,26 +749,26 @@ static bool refresh_the_effects(void *ctx)
 
 static bool wait_for_the_frame(void *ctx)
 {
-    BattleAsC *c = ctx;
+    RequestedBattleContext *c = ctx;
     TIMED_AS(c->game, FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
     return true;
 }
 
 static bool fight(void *ctx)
 {
-    BattleAsC *c = ctx;
+    RequestedBattleContext *c = ctx;
     return battle_fought(c->game, c->pf);
 }
 
 static bool take_up_the_field(void *ctx)
 {
-    BattleAsC *c = ctx;
+    RequestedBattleContext *c = ctx;
     return field_taken_up_after_battle(c->game, c->pf);
 }
 
 static bool press_the_switches(void *ctx)
 {
-    GameState *g = ((BattleAsC *)ctx)->game;
+    GameState *g = ((RequestedBattleContext *)ctx)->game;
     if (!field_remembered_switches_on_the_map(g)) {
         program_needs_the_machine(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "remembered switches off the map");
         return false;
@@ -779,19 +779,19 @@ static bool press_the_switches(void *ctx)
 
 static bool free_the_sprite_areas(void *ctx)
 {
-    GameState *g = ((BattleAsC *)ctx)->game;
+    GameState *g = ((RequestedBattleContext *)ctx)->game;
     TIMED_AS(g, FREE_SPRITE_AREAS, sprites_free_every_frame_area(g));
     return true;
 }
 
 static FieldPass a_battle_fought(GameState *g, Platform *pf)
 {
-    static const BattleSteps as_c = {
+    static const BattleSteps in_the_program = {
         battle_begins, walk_a_frame, scroll_the_layers, refresh_the_effects, wait_for_the_frame, fight,
         take_up_the_field, press_the_switches, free_the_sprite_areas, walk_a_frame,
     };
-    BattleAsC c = { g, pf };
-    return fight_a_battle(g, &as_c, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
+    RequestedBattleContext c = { g, pf };
+    return fight_a_battle(g, &in_the_program, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
 }
 
 /* ---- The entry ------------------------------------------------------------------------------ */
@@ -845,13 +845,13 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
         return change_location(g, pf);
     if (asked(g, FIELD_REQUEST_MENUS))
         return field_script_menu_opened(g, pf);
-    StepAndChestAsC sc = { g, pf };
-    if (asked(g, FIELD_REQUEST_STEP_EVENT) && !answer_step_event_with(g, &step_and_chest_as_c, &sc))
+    StepAndChestContext sc = { g, pf };
+    if (asked(g, FIELD_REQUEST_STEP_EVENT) && !answer_step_event_with(g, &step_and_chest_in_the_program, &sc))
         return FIELD_PASS_STOPS;
-    if (asked(g, FIELD_REQUEST_OPEN_CHEST) && !answer_chest_with(g, &step_and_chest_as_c, &sc))
+    if (asked(g, FIELD_REQUEST_OPEN_CHEST) && !answer_chest_with(g, &step_and_chest_in_the_program, &sc))
         return FIELD_PASS_STOPS;
     if (asked(g, FIELD_REQUEST_TILE_COPY)) {
-        TileCopyAsC c = { g, pf };
+        TileCopyContext c = { g, pf };
         return copy_the_tiles(g, tile_copy_call, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
     }
     if (asked(g, FIELD_REQUEST_BATTLE))

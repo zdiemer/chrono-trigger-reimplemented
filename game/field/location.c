@@ -630,11 +630,11 @@ enum { LINE_EFFECTS = 0xFDC2C1, LINE_EFFECTS_SET_UP = 0xFDC1EE, WHOLE_FIGURE = 0
 typedef struct {
     GameState *game;
     Platform *pf;
-} LoadAsC;
+} LocationLoadContext;
 
 static bool song(void *ctx)
 {
-    LoadAsC *c = ctx;
+    LocationLoadContext *c = ctx;
     bool back = false;
     TIMED_AS(c->game, LOCATION_SONG, back = start_the_location_song(c->game, c->pf, came_back, NULL));
     return back;
@@ -643,7 +643,7 @@ static bool song(void *ctx)
 static bool map(void *ctx, Loading loading)
 {
     (void)loading;
-    LoadAsC *c = ctx;
+    LocationLoadContext *c = ctx;
     bool loaded = false;
     TIMED_AS(c->game, FIELD_UNPACK_THE_MAP_ENTRY, loaded = field_load_the_map(c->game));
     return loaded;
@@ -652,7 +652,7 @@ static bool map(void *ctx, Loading loading)
 static bool script(void *ctx, Loading loading)
 {
     (void)loading;
-    LoadAsC *c = ctx;
+    LocationLoadContext *c = ctx;
     bool loaded = false;
     TIMED_AS(c->game, SCRIPT_UNPACKED, loaded = field_load_the_script(c->game));
     return loaded;
@@ -660,22 +660,22 @@ static bool script(void *ctx, Loading loading)
 
 static bool effects_built(void *ctx)
 {
-    LoadAsC *c = ctx;
+    LocationLoadContext *c = ctx;
     TIMED_AS(c->game, LINE_EFFECTS, field_line_effects_build(c->game));
     return true;
 }
 
 static bool effects_set_up(void *ctx)
 {
-    LoadAsC *c = ctx;
+    LocationLoadContext *c = ctx;
     TIMED_AS(c->game, LINE_EFFECTS_SET_UP, (void)field_set_up_line_effects(c->game, c->pf));
     return true;
 }
 
 static bool map_script(void *ctx)
 {
-    LoadAsC *c = ctx;
-    EventAsC e = { c->game, c->pf };
+    LocationLoadContext *c = ctx;
+    EventScriptContext e = { c->game, c->pf };
     EventRunner r = event_runner(&e);
     uint16_t at;
     EventTurnEnd end = TURN_OVER;
@@ -689,18 +689,18 @@ static bool map_script(void *ctx)
 
 static bool figure(void *ctx, FieldObject obj)
 {
-    LoadAsC *c = ctx;
+    LocationLoadContext *c = ctx;
     TIMED_AS(c->game, WHOLE_FIGURE, object_draw_whole_figure(c->game, c->pf, obj));
     return true;
 }
 
-static const LoadSteps as_c = { song, map, script, effects_built, effects_set_up,
+static const LoadSteps in_the_program = { song, map, script, effects_built, effects_set_up,
                                 map_script, figure };
 
 bool field_load_the_location(GameState *g, Platform *pf)
 {
-    LoadAsC c = { g, pf };
-    return load_location(g, pf, &as_c, &c);
+    LocationLoadContext c = { g, pf };
+    return load_location(g, pf, &in_the_program, &c);
 }
 
 static bool party_places_readable(const GameState *g);
@@ -712,8 +712,8 @@ bool field_set_up_again(GameState *g, Platform *pf)
         program_needs_the_machine(g, FIELD_SET_UP_AGAIN_ENTRY, "a gathering cut short the port doesn't finish");
         return false;
     }
-    LoadAsC c = { g, pf };
-    return set_up_after_a_menu(g, pf, &as_c, &c);
+    LocationLoadContext c = { g, pf };
+    return set_up_after_a_menu(g, pf, &in_the_program, &c);
 }
 
 /* ---- The routines it calls on the machine ---------------------------------------------------- */

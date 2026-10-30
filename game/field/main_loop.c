@@ -284,7 +284,7 @@ typedef enum { START_STEP, LOAD_STEP, SPRITES_STEP, OBJECTS_STEP, FORGET_STEP, F
 static const struct {
     uint32_t site, routine;
     void (*entry)(Snes *);
-    bool (*as_c)(GameState *, Platform *);
+    bool (*run)(GameState *, Platform *);
 } entering[ENTERING_STEPS] = {
     [START_STEP] = { 0xC00085, START, field_start, start },
     [LOAD_STEP] = { 0xC00088, FIELD_LOAD_LOCATION_ENTRY, field_load_location, load },
@@ -327,19 +327,19 @@ static bool enter_the_location(GameState *g, Platform *pf, const EnterSteps *ste
 typedef struct {
     GameState *game;
     Platform *pf;
-} PassAsC;
+} FieldPassContext;
 
 static bool enter_step(void *ctx, EnterStep step)
 {
-    PassAsC *c = ctx;
+    FieldPassContext *c = ctx;
     bool done = false;
-    TIMED_AS(c->game, entering[step].routine, done = entering[step].as_c(c->game, c->pf));
+    TIMED_AS(c->game, entering[step].routine, done = entering[step].run(c->game, c->pf));
     return done;
 }
 
 static bool to_the_world_map(void *ctx)
 {
-    PassAsC *c = ctx;
+    FieldPassContext *c = ctx;
     OverworldEnd end = OVERWORLD_WENT_NO_FURTHER;
     TIMED_AS(c->game, WORLD_MAP, end = overworld_runs(c->game, c->pf));
     return end == OVERWORLD_LEFT;
@@ -347,9 +347,9 @@ static bool to_the_world_map(void *ctx)
 
 bool field_enter_the_location(GameState *g, Platform *pf)
 {
-    static const EnterSteps as_c = { enter_step, to_the_world_map };
-    PassAsC c = { g, pf };
-    return enter_the_location(g, pf, &as_c, &c);
+    static const EnterSteps in_the_program = { enter_step, to_the_world_map };
+    FieldPassContext c = { g, pf };
+    return enter_the_location(g, pf, &in_the_program, &c);
 }
 
 static bool enter_step_on_the_machine(void *ctx, EnterStep step)
@@ -432,7 +432,7 @@ static const struct {
     uint32_t site, routine;
     void (*entry)(Snes *);
     bool long_call, x8;
-    bool (*as_c)(GameState *, Platform *);
+    bool (*run)(GameState *, Platform *);
 } frame_work[] = {
     { 0xC000C1, TURNS_DUE, field_queue_due_turns, false, true, turns_due },
     { 0xC000C4, SCRIPT_TURNS, NULL, false, true, field_queued_turns_run },
@@ -460,15 +460,15 @@ static bool do_the_frame_work(FrameWorkStep step, void *ctx)
 
 static bool frame_work_step(void *ctx, unsigned step)
 {
-    PassAsC *c = ctx;
+    FieldPassContext *c = ctx;
     bool done = false;
-    TIMED_AS(c->game, frame_work[step].routine, done = frame_work[step].as_c(c->game, c->pf));
+    TIMED_AS(c->game, frame_work[step].routine, done = frame_work[step].run(c->game, c->pf));
     return done;
 }
 
 bool field_frame_work_done(GameState *g, Platform *pf)
 {
-    PassAsC c = { g, pf };
+    FieldPassContext c = { g, pf };
     if (!do_the_frame_work(frame_work_step, &c))
         return false;
     bool built = false;
@@ -561,7 +561,7 @@ static const struct {
     uint16_t reads;
     void (*entry)(Snes *);
     bool long_call;
-    FieldPass (*as_c)(GameState *, Platform *);
+    FieldPass (*run)(GameState *, Platform *);
 } the_pass[PASS_STEPS] = {
     [PAUSE_AND_MENUS_STEP] = { 0xC000A1, PAUSE_AND_MENUS, READS_A_HIGH_AND_THE_OVERFLOW, field_pause_and_menus_entry, false,
                                pause_and_menus },
@@ -600,9 +600,9 @@ static FieldPass run_the_pass_from(GameState *g, PassStep first, PassStepRun run
 
 static FieldPass pass_step(void *ctx, PassStep step)
 {
-    PassAsC *c = ctx;
+    FieldPassContext *c = ctx;
     FieldPass after = FIELD_PASS_STOPS;
-    TIMED_AS(c->game, the_pass[step].routine, after = the_pass[step].as_c(c->game, c->pf));
+    TIMED_AS(c->game, the_pass[step].routine, after = the_pass[step].run(c->game, c->pf));
     return after;
 }
 
@@ -610,7 +610,7 @@ static FieldPass pass_step(void *ctx, PassStep step)
  * sent it round the main loop itself. */
 FieldPass field_runs_a_pass(GameState *g, Platform *pf)
 {
-    PassAsC c = { g, pf };
+    FieldPassContext c = { g, pf };
     FieldPass after = run_the_pass_from(g, PAUSE_AND_MENUS_STEP, pass_step, &c);
     if (after == FIELD_PASS_GOES_ROUND)
         return FIELD_PASS_GOES_ON;
@@ -726,8 +726,8 @@ static bool refreshed_palettes(void *ctx)
 
 bool field_effects_refreshed(GameState *g)
 {
-    static const EffectsSteps as_c = { refreshed_line_effects, refreshed_palettes };
-    return refresh_effects(&as_c, g);
+    static const EffectsSteps in_the_program = { refreshed_line_effects, refreshed_palettes };
+    return refresh_effects(&in_the_program, g);
 }
 
 /* On the machine each is called from the original's call of it, the line
@@ -772,7 +772,7 @@ static bool walk_a_frame(const WalkFrameSteps *steps, void *ctx)
 
 static bool leader_takes_a_step(void *ctx)
 {
-    PassAsC *c = ctx;
+    FieldPassContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, WALK, done = field_the_leader_walks(c->game));
     return done;
@@ -780,7 +780,7 @@ static bool leader_takes_a_step(void *ctx)
 
 static bool effects_refreshed(void *ctx)
 {
-    PassAsC *c = ctx;
+    FieldPassContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(c->game));
     return done;
@@ -788,16 +788,16 @@ static bool effects_refreshed(void *ctx)
 
 static bool frame_waited(void *ctx)
 {
-    PassAsC *c = ctx;
+    FieldPassContext *c = ctx;
     TIMED_AS(c->game, FIELD_FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
     return true;
 }
 
 bool field_walked_a_frame(GameState *g, Platform *pf)
 {
-    static const WalkFrameSteps as_c = { leader_takes_a_step, effects_refreshed, frame_waited };
-    PassAsC c = { g, pf };
-    return walk_a_frame(&as_c, &c);
+    static const WalkFrameSteps in_the_program = { leader_takes_a_step, effects_refreshed, frame_waited };
+    FieldPassContext c = { g, pf };
+    return walk_a_frame(&in_the_program, &c);
 }
 
 static bool walked_on_the_machine(void *ctx)

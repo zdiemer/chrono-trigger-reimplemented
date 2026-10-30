@@ -204,12 +204,12 @@ void battle_mark_tech_rows_entry(Snes *s)
 typedef struct {
     MenuHost host;
     Platform *pf;
-} BattleMenuAsC;
+} MenuClickContext;
 
 static void click_the_menu(MenuHost *host, MenuClick click)
 {
     (void)click;
-    BattleMenuAsC *c = (BattleMenuAsC *)host;
+    MenuClickContext *c = (MenuClickContext *)host;
     au_command(c->pf, PF_CALL_DC(CLICK_CALL, 0xC70004, DRIVER_IGNORES),
                (AudioCommand){ .command = AU_START_OTHER_EFFECT, .p1 = CURSOR_CLICK_EFFECT, .p2 = AU_CENTRE, .count = 2 });
 }
@@ -220,7 +220,7 @@ bool battle_menu_input_taken(GameState *g, Platform *pf)
 {
     if (!battle_menu_window_fits(g) || !battle_menu_frame_fits(g))
         return battle_needs_the_machine(g, 0xC11153, "a menu state the menu's frame doesn't take");
-    BattleMenuAsC c = { { click_the_menu }, pf };
+    MenuClickContext c = { { click_the_menu }, pf };
     battle_menu_frame(g, battle_menu_buttons(g), &c.host);
     return true;
 }

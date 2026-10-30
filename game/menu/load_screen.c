@@ -597,16 +597,16 @@ bool menu_erase_can_be_answered(const GameState *g)
 typedef struct {
     GameState *game;
     Platform *pf;
-} LoadScreenAsC;
+} LoadScreenContext;
 
-static const LoadScreenSteps as_c;
+static const LoadScreenSteps in_the_program;
 
-static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((LoadScreenAsC *)ctx)->game); }
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((LoadScreenContext *)ctx)->game); }
 
 static bool tick(void *ctx, LoadScreenPlace at)
 {
     (void)at;
-    LoadScreenAsC *c = ctx;
+    LoadScreenContext *c = ctx;
     menu_tick(c->game, c->pf);
     return true;
 }
@@ -623,34 +623,34 @@ static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
 static bool show_the_slot(void *ctx, LoadScreenPlace at)
 {
     (void)at;
-    LoadScreenAsC *c = ctx;
+    LoadScreenContext *c = ctx;
     if (!takes(c->game, menu_load_screen_slot_can_show(c->game), 0xC2E743, "a save slot the port doesn't show"))
         return false;
     bool back = false;
-    TIMED_AS(c->game, 0xC2E743, back = menu_show_save_slot_with(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, 0xC2E743, back = menu_show_save_slot_with(c->game, c->pf, &in_the_program, c));
     return back;
 }
 
 static bool draw(void *ctx)
 {
-    LoadScreenAsC *c = ctx;
+    LoadScreenContext *c = ctx;
     if (!takes(c->game, menu_load_screen_can_draw(c->game, c->pf), 0xC2E7C3, "a load screen the port doesn't draw"))
         return false;
     bool back = false;
-    TIMED_AS(c->game, 0xC2E7C3, back = menu_draw_load_screen_with(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, 0xC2E7C3, back = menu_draw_load_screen_with(c->game, c->pf, &in_the_program, c));
     return back;
 }
 
 static bool ask_which_to_carry_on_from(void *ctx)
 {
-    LoadScreenAsC *c = ctx;
+    LoadScreenContext *c = ctx;
     TIMED_AS(c->game, 0xC2E841, menu_ask_which_game_to_carry_on_from(c->game));
     return true;
 }
 
 static bool load(void *ctx)
 {
-    LoadScreenAsC *c = ctx;
+    LoadScreenContext *c = ctx;
     if (!takes(c->game, menu_save_code_can_run(c->game), 0xFFFAA3, "a saved game the port doesn't load"))
         return false;
     TIMED_AS(c->game, 0xFFFAA3, saves_load_game(c->game, c->pf, menu_save_slot_shown(c->game)));
@@ -659,7 +659,7 @@ static bool load(void *ctx)
 
 static bool carry_on(void *ctx)
 {
-    LoadScreenAsC *c = ctx;
+    LoadScreenContext *c = ctx;
     if (!takes(c->game, menu_carry_over_can_run(c->game), 0xFFFAED, "a New Game+ the port doesn't carry over"))
         return false;
     TIMED_AS(c->game, 0xFFFAED, saves_carry_over(c->game, c->pf, menu_save_slot_shown(c->game)));
@@ -668,13 +668,13 @@ static bool carry_on(void *ctx)
 
 static bool erase(void *ctx)
 {
-    LoadScreenAsC *c = ctx;
+    LoadScreenContext *c = ctx;
     return menu_erase_slot(c->game, c->pf);
 }
 
 static bool empty_label(void *ctx)
 {
-    LoadScreenAsC *c = ctx;
+    LoadScreenContext *c = ctx;
     bool drawn = false;
     TIMED_AS(c->game, 0xC2D28D, drawn = menu_draw_empty_label(c->game));
     return drawn;
@@ -682,14 +682,14 @@ static bool empty_label(void *ctx)
 
 static bool wait_a_frame(void *ctx)
 {
-    LoadScreenAsC *c = ctx;
+    LoadScreenContext *c = ctx;
     menu_task_waits(c->game, 1);
     return true;
 }
 
 static bool sound_output_sent(void *ctx)
 {
-    LoadScreenAsC *c = ctx;
+    LoadScreenContext *c = ctx;
     menu_send_the_sound_output(c->game, c->pf);
     return true;
 }
@@ -702,7 +702,7 @@ static void note(void *ctx, LoadScreenNote note, uint8_t value) { (void)ctx, (vo
  * the menus closed for the game (which never comes back to the screen). */
 static bool ends(void *ctx, LoadScreenEnd end)
 {
-    LoadScreenAsC *c = ctx;
+    LoadScreenContext *c = ctx;
     switch (end) {
     case LOAD_FADES_IN: TIMED_AS(c->game, 0xC283B2, menu_start_the_fade_in(c->game)); break;
     case LOAD_LEAVES_FOR_THE_GAME: menu_close(c->game, c->pf, true); break;
@@ -710,7 +710,7 @@ static bool ends(void *ctx, LoadScreenEnd end)
     return true;
 }
 
-static const LoadScreenSteps as_c = { read_cursor, tick, show_the_slot, draw, ask_which_to_carry_on_from, load,
+static const LoadScreenSteps in_the_program = { read_cursor, tick, show_the_slot, draw, ask_which_to_carry_on_from, load,
                                       carry_on, erase, empty_label, wait_a_frame, sound_output_sent, byte_wide, note,
                                       ends };
 
@@ -720,8 +720,8 @@ static bool step(GameState *g, Platform *pf, bool ok, uint32_t routine,
 {
     if (!takes(g, ok, routine, "a load screen the port doesn't take"))
         return false;
-    LoadScreenAsC c = { g, pf };
-    return run(g, pf, &as_c, &c);
+    LoadScreenContext c = { g, pf };
+    return run(g, pf, &in_the_program, &c);
 }
 
 bool menu_open_load_screen(GameState *g, Platform *pf)

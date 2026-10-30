@@ -164,7 +164,7 @@ static bool opening_fits(const GameState *g)
 typedef struct {
     GameState *game;
     Platform *pf;
-} SetUpAsC;
+} BattleSetUpContext;
 
 enum { SET_UP_ENTRY = 0xC10023, SET_UP_STATE_ENTRY = 0xCCE2E4, DRAW_WINDOW = 0xC10299, ALL_BOUNDS = 0xC1283D,
        SET_UP_GRAPHICS_ENTRY = 0xCCED87, AFTER_THE_GRAPHICS = 0xC10031, OPEN_THE_WINDOW = 0xCD000C,
@@ -172,7 +172,7 @@ enum { SET_UP_ENTRY = 0xC10023, SET_UP_STATE_ENTRY = 0xCCE2E4, DRAW_WINDOW = 0xC
 
 static bool set_up_a_part(void *ctx, SetUpCall call)
 {
-    SetUpAsC *c = ctx;
+    BattleSetUpContext *c = ctx;
     GameState *g = c->game;
     switch (call) {
     case SET_UP_STATE:
@@ -199,7 +199,7 @@ static bool set_up_a_part(void *ctx, SetUpCall call)
 
 static bool slide_the_window_open(void *ctx)
 {
-    SetUpAsC *c = ctx;
+    BattleSetUpContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, OPEN_THE_WINDOW, done = battle_window_opened(c->game, c->pf));
     return done;
@@ -207,7 +207,7 @@ static bool slide_the_window_open(void *ctx)
 
 bool battle_set_up_runs(GameState *g, Platform *pf)
 {
-    SetUpAsC c = { g, pf };
+    BattleSetUpContext c = { g, pf };
     if (!set_up(set_up_a_part, &c))
         return false;
     if (!combatants_graphics_known(g))

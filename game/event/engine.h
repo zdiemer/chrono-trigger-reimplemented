@@ -52,15 +52,15 @@ EventTurnEnd event_run_map_script_commands(GameState *g, const EventRunner *r, u
 typedef struct {
     GameState *game;
     Platform *pf;
-} EventAsC;
-EventRunner event_runner(EventAsC *c);
+} EventScriptContext;
+EventRunner event_runner(EventScriptContext *c);
 
 /* The bridges' work as C, for a program with no machine under it (the
  * runner as C, above): each takes the command at `at` and says where the
  * script goes, or false where the turn ends with the field (the program going
  * on, or no further, from where the command said: core/program.h). A bridge
  * with none here is the machine's yet. */
-#define EVENT_BRIDGES_AS_C(X) \
+#define EVENT_BRIDGES_WITH_WORK(X) \
     X(event_play_effect, 0xE8) \
     X(event_play_song, 0xEA) \
     X(event_fade_music, 0xEB) \
@@ -85,7 +85,7 @@ EventRunner event_runner(EventAsC *c);
     X(event_take_out_of_party, 0xD6) \
     X(event_choose_credits, 0x29)
 
-#define EVENT_DECLARE_AS_C(name, opcode) bool name(GameState *g, Platform *pf, uint16_t at, EventStep *step);
-EVENT_BRIDGES_AS_C(EVENT_DECLARE_AS_C)
+#define EVENT_DECLARE_BRIDGE_WORK(name, opcode) bool name(GameState *g, Platform *pf, uint16_t at, EventStep *step);
+EVENT_BRIDGES_WITH_WORK(EVENT_DECLARE_BRIDGE_WORK)
 
 #endif

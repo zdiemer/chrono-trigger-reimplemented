@@ -1348,52 +1348,52 @@ bool menu_choose_tech_member_with(GameState *g, Platform *pf, const TechsSteps *
 typedef struct {
     GameState *game;
     Platform *pf;
-} TechsAsC;
+} TechScreenContext;
 
-static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((TechsAsC *)ctx)->game); }
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((TechScreenContext *)ctx)->game); }
 
 static bool tick(void *ctx, TechsPlace at)
 {
     (void)at;
-    TechsAsC *c = ctx;
+    TechScreenContext *c = ctx;
     menu_tick(c->game, c->pf);
     return true;
 }
 
 static bool refuse(void *ctx)
 {
-    TechsAsC *c = ctx;
+    TechScreenContext *c = ctx;
     menu_buzz(c->game, c->pf);
     return true;
 }
 
-static bool only_on_the_machine(TechsAsC *c, uint32_t routine, const char *what)
+static bool only_on_the_machine(TechScreenContext *c, uint32_t routine, const char *what)
 {
     program_needs_the_machine(c->game, routine, what);
     return false;
 }
 
-static const TechsSteps as_c;
+static const TechsSteps in_the_program;
 
 static bool move_among_members(void *ctx)
 {
-    TechsAsC *c = ctx;
+    TechScreenContext *c = ctx;
     if (!menu_techs_can_move_among_members(c->game))
         return only_on_the_machine(c, 0xC2B520, "a techs screen the port doesn't take");
     bool back = false;
-    TIMED_AS(c->game, 0xC2B520, back = menu_move_among_tech_members_with(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, 0xC2B520, back = menu_move_among_tech_members_with(c->game, c->pf, &in_the_program, c));
     return back;
 }
 
 /* A routine as C where its entry's guard would take the state, timed as
  * its own. */
-static bool sequence(TechsAsC *c, uint32_t routine, bool (*takes)(const GameState *),
+static bool sequence(TechScreenContext *c, uint32_t routine, bool (*takes)(const GameState *),
                      bool (*run)(GameState *, Platform *, const TechsSteps *, void *))
 {
     if (!takes(c->game))
         return only_on_the_machine(c, routine, "a techs screen the port doesn't take");
     bool done = false;
-    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &in_the_program, c));
     return done;
 }
 
@@ -1406,7 +1406,7 @@ static bool slide_members(void *ctx)
  * moves before it can leave the cursor where the guard wouldn't. */
 static bool describe_the_kind(void *ctx)
 {
-    TechsAsC *c = ctx;
+    TechScreenContext *c = ctx;
     if (!menu_techs_can_move_among_members(c->game))
         return only_on_the_machine(c, 0xC2BE16, "a techs screen the port doesn't take");
     TIMED_AS(c->game, 0xC2BE16, menu_techs_describe_kind(c->game));
@@ -1417,7 +1417,7 @@ static bool show_the_lister(void *ctx) { return sequence(ctx, 0xC2B9E1, menu_tec
 
 static bool back_to_the_main_menu(void *ctx)
 {
-    TechsAsC *c = ctx;
+    TechScreenContext *c = ctx;
     return menu_back_to_the_main_menu(c->game, c->pf);
 }
 
@@ -1425,7 +1425,7 @@ static void note(void *ctx, TechsNote note, uint8_t value) { (void)ctx, (void)no
 
 static bool wait(void *ctx, TechsPlace at)
 {
-    menu_task_waits(((TechsAsC *)ctx)->game, at == TECHS_AT_THE_CAST ? MENU_TECHS_CAST_FRAMES : 1);
+    menu_task_waits(((TechScreenContext *)ctx)->game, at == TECHS_AT_THE_CAST ? MENU_TECHS_CAST_FRAMES : 1);
     return true;
 }
 
@@ -1433,7 +1433,7 @@ static void registers_at(void *ctx, TechsPlace at) { (void)ctx, (void)at; }
 
 static bool run(void *ctx, TechsRoutine r)
 {
-    TechsAsC *c = ctx;
+    TechScreenContext *c = ctx;
     switch (r) {
     case TECHS_SLIDES_THE_ROWS_UP:
     case TECHS_SLIDES_THE_ROWS_DOWN:
@@ -1465,7 +1465,7 @@ static bool run(void *ctx, TechsRoutine r)
     return false;
 }
 
-static const TechsSteps as_c = {
+static const TechsSteps in_the_program = {
     read_cursor, tick, refuse, move_among_members, slide_members, describe_the_kind, show_the_lister, back_to_the_main_menu, note,
     wait, registers_at, run,
 };
@@ -1474,18 +1474,18 @@ static bool members_step_takes(const GameState *g) { return menu_cursor_can_move
 
 bool menu_open_techs(GameState *g, Platform *pf)
 {
-    TechsAsC c = { g, pf };
+    TechScreenContext c = { g, pf };
     if (!menu_techs_can_open(g))
         return only_on_the_machine(&c, 0xC2B35D, "a techs screen the port doesn't take");
-    return menu_open_techs_with(g, pf, &as_c, &c);
+    return menu_open_techs_with(g, pf, &in_the_program, &c);
 }
 
 bool menu_choose_tech_member(GameState *g, Platform *pf)
 {
-    TechsAsC c = { g, pf };
+    TechScreenContext c = { g, pf };
     if (!members_step_takes(g))
         return only_on_the_machine(&c, 0xC2B36D, "a techs screen the port doesn't take");
-    return menu_choose_tech_member_with(g, pf, &as_c, &c);
+    return menu_choose_tech_member_with(g, pf, &in_the_program, &c);
 }
 
 static bool list_step_takes(const GameState *g) { return menu_cursor_can_move(g) && menu_techs_lister_can_show(g); }
@@ -1493,30 +1493,30 @@ static bool targets_step_takes(const GameState *g) { return menu_cursor_can_move
 
 bool menu_choose_tech(GameState *g, Platform *pf)
 {
-    TechsAsC c = { g, pf };
+    TechScreenContext c = { g, pf };
     if (!list_step_takes(g))
         return only_on_the_machine(&c, 0xC2B3AE, "a techs screen the port doesn't take");
-    return menu_choose_tech_with(g, pf, &as_c, &c);
+    return menu_choose_tech_with(g, pf, &in_the_program, &c);
 }
 
 bool menu_choose_tech_target(GameState *g, Platform *pf)
 {
-    TechsAsC c = { g, pf };
+    TechScreenContext c = { g, pf };
     if (!targets_step_takes(g))
         return only_on_the_machine(&c, 0xC2B48E, "a techs screen the port doesn't take");
-    return menu_choose_tech_target_with(g, pf, &as_c, &c);
+    return menu_choose_tech_target_with(g, pf, &in_the_program, &c);
 }
 
 // $C2:B365
 /* The member list's windows, and on among the members this frame. */
 bool menu_lay_out_tech_members(GameState *g, Platform *pf)
 {
-    TechsAsC c = { g, pf };
+    TechScreenContext c = { g, pf };
     if (!members_step_takes(g))
         return only_on_the_machine(&c, 0xC2B365, "a techs screen the port doesn't take");
     menu_techs_lay_out_members(g, pf);
     bool back = false;
-    TIMED_AS(g, 0xC2B36D, back = menu_choose_tech_member_with(g, pf, &as_c, &c));
+    TIMED_AS(g, 0xC2B36D, back = menu_choose_tech_member_with(g, pf, &in_the_program, &c));
     return back;
 }
 

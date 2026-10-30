@@ -982,12 +982,12 @@ void battle_search_area(Snes *s)
 typedef struct {
     GameState *game;
     Platform *pf;
-} AimAsC;
+} AimContext;
 
 static bool show_the_aimed_action(void *ctx, uint8_t showing)
 {
     (void)showing;
-    AimAsC *c = ctx;
+    AimContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, SHOWING, done = battle_action_shown(c->game, c->pf));
     return done;
@@ -998,6 +998,6 @@ bool battle_aim_action(GameState *g, Platform *pf, bool carry)
 {
     if (!aim_fits(g))
         return battle_needs_the_machine(g, 0xC1C1DD, "an action's aim the port doesn't make");
-    AimAsC c = { g, pf };
+    AimContext c = { g, pf };
     return aim_the_action(g, carry, show_the_aimed_action, &c) != AIM_STOPPED;
 }

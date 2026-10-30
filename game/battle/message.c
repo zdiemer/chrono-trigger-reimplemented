@@ -615,12 +615,12 @@ bool battle_described(GameState *g, uint8_t description)
 typedef struct {
     GameState *game;
     Platform *pf;
-} MessageAsC;
+} BattleMessageContext;
 
 static bool set_out_frame(void *ctx, bool second)
 {
     (void)second;
-    MessageAsC *c = ctx;
+    BattleMessageContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, BATTLE_HANDLER_WAIT, done = battle_wait_for_the_handler(c->game, c->pf));
     return done;
@@ -630,7 +630,7 @@ static bool enemy_message_call(void *ctx, EnemyMessageCall call, uint8_t message
 {
     (void)message;
     (void)up;
-    MessageAsC *c = ctx;
+    BattleMessageContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -645,14 +645,14 @@ bool battle_show_an_enemy_message(GameState *g, Platform *pf, uint8_t message)
 {
     if (!can_be_typed(g, ENEMY_MESSAGES, message))
         return battle_needs_the_machine(g, 0xCD0033, "an enemy's message the menus' text code doesn't type");
-    MessageAsC c = { g, pf };
+    BattleMessageContext c = { g, pf };
     return show_an_enemy_message(g, message, enemy_message_call, &c);
 }
 
 static bool pause_frame(void *ctx, uint8_t left)
 {
     (void)left;
-    MessageAsC *c = ctx;
+    BattleMessageContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, BATTLE_NEXT_FRAME_WAIT, done = battle_wait_for_the_next_frame(c->game, c->pf));
     return done;
@@ -660,7 +660,7 @@ static bool pause_frame(void *ctx, uint8_t left)
 
 static bool hold_a_part(void *ctx, HeldCall call, HeldArgs a)
 {
-    MessageAsC *c = ctx;
+    BattleMessageContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -678,6 +678,6 @@ bool battle_show_a_battle_message(GameState *g, Platform *pf, uint8_t message)
 {
     if (!can_be_typed(g, BATTLE_MESSAGES, message))
         return battle_needs_the_machine(g, 0xCD0021, "a battle message the menus' text code doesn't type");
-    MessageAsC c = { g, pf };
+    BattleMessageContext c = { g, pf };
     return show_a_battle_message(g, message, hold_a_part, &c);
 }
