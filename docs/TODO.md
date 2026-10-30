@@ -2725,18 +2725,10 @@ list, by kind, is what `game/` still asks of one.
     be exact?") ends with the reference's saved game in all 15 drifting
     movies tried (14 of the library and `events-cyrus`). So it is time, and
     the split is a run each: oracle-timed equal and estimated not.
-  - *A port's effect ahead of its time*, fixed: a port's time is owed after
-    it runs, and the world map's set up (`$C2:23A8`, 38 frames with the
-    vblank handler off) turned the handler on as its run ended, so the handler
-    ran through the whole of its owed time and the opening's world map ended
-    41 frames ahead (`new-game` entering `$10F` at 4802, the reference at
-    4844; 4843 now). `tm_enable_interrupts` lets the time so far pass where
-    the handler goes on or off (PORTING.md, "A port that spans frames";
-    `debt_test`). Strict check: 33 of 48 movies end as the reference does,
-    from 31 (`new-game`, `menus-epoch`, `menus-shop-equip` and `menus-sweep`
-    now do; `battle-lavos-gameover` and `battle-tyrano-lair-walls` now drift,
-    both ending as the reference with the oracle's time: the Lavos battle,
-    entered a frame early, lasts 586 frames longer).
+  - *The line interrupt switched with time owed.* `tm_enable_interrupts`
+    lets a port's time pass first where the vblank handler goes on or off
+    (PORTING.md, "A port that spans frames"; `debt_test`); turning the line
+    interrupt on or off mid-port has the same hazard and isn't synced yet.
   - *The C sound driver takes no time.* Its boot and commands are calls
     (`au_driver_boot_taken`, `au_driver_command_taken`) where the original's
     uploads take frames: the title shows at frame 24, the reference's at 50,
@@ -2767,7 +2759,10 @@ list, by kind, is what `game/` still asks of one.
   `ct_native --locations`), the ratchet the dark screen is now. Drive the
   long movies' native runs by their routes (`ct_drive`'s scripts react to
   the game's state, MOVIES.md) rather than recorded presses meanwhile, since
-  no estimate is exact and a battle turns on a frame.
+  no estimate is exact and a battle turns on a frame. Still to settle before
+  building it: whether the model replaces the ports' `cost_milli` estimates
+  and the timing gate on the machine or sits beside them, and what "the
+  model says it overruns" is computed from.
 
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
