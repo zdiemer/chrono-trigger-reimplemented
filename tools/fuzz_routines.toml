@@ -14451,6 +14451,24 @@ why = "a party member stealing from targets each a combatant, with either charm 
 
 [[routine]]
 name = "battle_effect_hit"
+variant = "no_target"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=00-00", "--fill", "7EAE8D-7EAE8D=00-0A", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EAD9B-7EAD9B=00-03", "--fill", "7EB2C7-7EB2C7=00-02", "--fill", "7EB2CC-7EB2CC=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F"]
+iterations = 5000
+why = "no target counted, as an enemy tech aimed at nobody is handed the work (the motherbrain route's Geno Dome): the hit takes the cell past the list, a combatant here; as the plain hit's otherwise"
+
+[[routine]]
+name = "battle_work_out_enemy_tech"
+variant = "no_target"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=00-00", "--fill", "7EAE8D-7EAE8D=00-0A", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7EB18C-7EB18C=00-FF"]
+iterations = 5000
+why = "no target counted, the cell past the list a combatant: the guard takes only a hit then; as the plain entry's otherwise"
+
+[[routine]]
+name = "battle_effect_hit"
 variant = "clock"
 subsystem = "battle"
 state = "battle"

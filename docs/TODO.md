@@ -2913,19 +2913,6 @@ Ranked by how much play they block:
   conditions refuses (its step, the sprite scripts it animates by, the map's
   scroll) is not yet looked at.
 
-- **An enemy tech worked out with no target counted** (the `motherbrain`
-  route in the shipping mode, Geno Dome's upper floor after Atropos, frames
-  140241 and 146643, twice each). An enemy (combatant 6, then 9) uses enemy
-  tech `$14` (a plain hit, effect `$14`: kind 3, flags `$50`, no modifier);
-  its targets list names member 1 but the count beside it
-  (`battle_action_target_count`, `$7E:AD8D`) reads 0, which
-  `effect_targets_named` (battle/effect_work.c) doesn't take, so
-  `battle_work_out_enemy_tech` (`$C1:D7C4`) and `battle_effect_hit`
-  (`$C1:D2DE`) hand the tech to the original. The refusals have A `$0004`,
-  X `$0004`, Y `$000D` and A `$0000`, X `$0006`, Y `$000B`, D `$0000`, DB
-  `$7E`. What the original does with a count of 0 (one target, uncounted)
-  is the thing to establish; the reference play meets no such tech.
-
 - **Reunion's departure and parade.** `reunion` (ct-state26 slot 2,
   123341-frame scratch movie) has eight guard refusals at three entries.
   `field_walk_the_leader` (`$C0:881E`) refuses frames 94157-94158 at `$054`:
