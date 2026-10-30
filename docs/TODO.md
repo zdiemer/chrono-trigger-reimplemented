@@ -7,58 +7,6 @@ lost. Each line says where the detail lives. Milestones themselves are in
 and [PLATFORM.md](PLATFORM.md); which of these to work on next, and why the
 rest waits, is [PLAN.md](PLAN.md).
 
-## Refusals in real play
-
-- **Reunion's departure and parade.** `reunion` (ct-state26 slot 2,
-  123341-frame scratch movie) has eight guard refusals at three entries.
-  `field_walk_the_leader` (`$C0:881E`) refuses frames 94157-94158 at `$054`:
-  the scripted departure carries leader Y through `$FFC1/$FF4A` before `$FED3`
-  at 94159. Leader X is `$108D`, party links `$02/$04/$80`, map mask `$3F3F`;
-  `clear_of_the_end` requires Y below `$FF00`. The refusal has A `$0100`,
-  X `$0710`, Y `$FFFE`, D `$0100`, DB `$00`, P `$23`.
-  At `$050`, `field_update_object_visibility` (`$C0:A88D`) and
-  `field_give_up_palette` (`$C0:734C`) each refuse frames 96984, 97676 and
-  99975. Object `$14` has palette `$0E` (slot 7), older/newer links `$00/$01`
-  at `$7E:0B28`, and all palette-slot heads `$80`. The newer link is odd,
-  which `object_palette_links_in_the_tables` rejects. But `$7E:0154 = $80`:
-  the script owns the palettes, so `object_give_up_palette` returns before
-  reading any sharer. Both guards still require those unused links to be valid.
-  The first visibility refusal has A `$0000`, X `$0028`, Y `$0046`, D `$0100`,
-  DB `$00`, P `$32`; palette release has A `$0080`, X `$0004`, Y `$0046`,
-  D `$0100`, DB `$00`, P `$33`. These are `gap` reasons in the allowlist.
-  Shadow has no mismatches or page/accessor/asset diagnostics; native and
-  strict modes complete the input. The shipping route reaches The End at
-  125438. No game routine was changed.
-
-- **Memory Lane's exit off the stage.** `memory_lane` (ct-state25 slot 2,
-  167063-frame scratch movie) refuses `field_walk_the_leader` (`$C0:881E`)
-  seven times at frames 166496-166502 in `$0EF`. Its scripted upward exit
-  wraps the leader's Y coordinate: at frame 166497 the party links are
-  `$02/$04/$06`, leader X is `$0880`, Y `$FFD4`, and map mask `$0F0F`.
-  Y decreases through `$FFAD/$FF86/$FF5F/$FF38/$FF11` before `$FEEA` at
-  166503. `field_walk_can_run`'s `clear_of_the_end` requires Y below `$FF00`,
-  so these are real states its guard rejects. The refusal has A `$0300`,
-  X `$0710`, Y `$FFFE`, D `$0100`, DB `$00`, P `$23`. It is a `gap` entry
-  in `tools/refusal_allowlist.txt`; no page refusal or out-of-range accessor.
-  The route reaches The End in reference and shipping modes; `ct_native`
-  and strict mode complete the movie's input. No game routine was changed.
-
-- **The Prophet ending's transient party links.** `what_the_prophet_seeks`
-  (ct-state24 slot 2, 131287-frame scratch movie) reaches The End, but its
-  reference play refuses `event_cmd_walk_with_the_party` (`$C0:3002`) and
-  `field_second_member_follows` (`$C0:A2CE`) three times each, at frames
-  119033-119035 in `$190`, before the first vignette's `$0CB` transition.
-  A saved reference frame 119034 has party links `$02/$06/$80` at
-  `$7E:0197/0199/019B` and trail positions `$00/$00/$00` at `$7E:01AB`.
-  `$80` is an empty link; the guards require the second party link to name
-  the stepping object. The event refusal has A/X `$0160`, Y `$0207`, D `$0100`,
-  DB `$00`, P `$20`; the follower has A `$0101`, X `$0006`, Y `$0007`,
-  D `$0100`, DB `$00`, P `$30`. Both are `gap` reasons in
-  `tools/refusal_allowlist.txt`, pending support for this transient state.
-  There is no page refusal or out-of-range accessor. `ct_native` and strict
-  mode complete this movie's input; their timing does not prove the refused
-  reference state is supported. No game routine was changed.
-
 ## Correctness and accuracy
 
 - **Geno Dome timing attribution.** The narrowed `battle-motherbrain` calibration
@@ -2976,6 +2924,69 @@ Ranked by how much play they block:
   of the same village onto the same map and doesn't stop. Which of the guard's
   conditions refuses (its step, the sprite scripts it animates by, the map's
   scroll) is not yet looked at.
+
+- **An enemy tech worked out with no target counted** (the `motherbrain`
+  route in the shipping mode, Geno Dome's upper floor after Atropos, frames
+  140241 and 146643, twice each). An enemy (combatant 6, then 9) uses enemy
+  tech `$14` (a plain hit, effect `$14`: kind 3, flags `$50`, no modifier);
+  its targets list names member 1 but the count beside it
+  (`battle_action_target_count`, `$7E:AD8D`) reads 0, which
+  `effect_targets_named` (battle/effect_work.c) doesn't take, so
+  `battle_work_out_enemy_tech` (`$C1:D7C4`) and `battle_effect_hit`
+  (`$C1:D2DE`) hand the tech to the original. The refusals have A `$0004`,
+  X `$0004`, Y `$000D` and A `$0000`, X `$0006`, Y `$000B`, D `$0000`, DB
+  `$7E`. What the original does with a count of 0 (one target, uncounted)
+  is the thing to establish; the reference play meets no such tech.
+
+- **Reunion's departure and parade.** `reunion` (ct-state26 slot 2,
+  123341-frame scratch movie) has eight guard refusals at three entries.
+  `field_walk_the_leader` (`$C0:881E`) refuses frames 94157-94158 at `$054`:
+  the scripted departure carries leader Y through `$FFC1/$FF4A` before `$FED3`
+  at 94159. Leader X is `$108D`, party links `$02/$04/$80`, map mask `$3F3F`;
+  `clear_of_the_end` requires Y below `$FF00`. The refusal has A `$0100`,
+  X `$0710`, Y `$FFFE`, D `$0100`, DB `$00`, P `$23`.
+  At `$050`, `field_update_object_visibility` (`$C0:A88D`) and
+  `field_give_up_palette` (`$C0:734C`) each refuse frames 96984, 97676 and
+  99975. Object `$14` has palette `$0E` (slot 7), older/newer links `$00/$01`
+  at `$7E:0B28`, and all palette-slot heads `$80`. The newer link is odd,
+  which `object_palette_links_in_the_tables` rejects. But `$7E:0154 = $80`:
+  the script owns the palettes, so `object_give_up_palette` returns before
+  reading any sharer. Both guards still require those unused links to be valid.
+  The first visibility refusal has A `$0000`, X `$0028`, Y `$0046`, D `$0100`,
+  DB `$00`, P `$32`; palette release has A `$0080`, X `$0004`, Y `$0046`,
+  D `$0100`, DB `$00`, P `$33`. These are `gap` reasons in the allowlist.
+  Shadow has no mismatches or page/accessor/asset diagnostics; native and
+  strict modes complete the input. The shipping route reaches The End at
+  125438. No game routine was changed.
+
+- **Memory Lane's exit off the stage.** `memory_lane` (ct-state25 slot 2,
+  167063-frame scratch movie) refuses `field_walk_the_leader` (`$C0:881E`)
+  seven times at frames 166496-166502 in `$0EF`. Its scripted upward exit
+  wraps the leader's Y coordinate: at frame 166497 the party links are
+  `$02/$04/$06`, leader X is `$0880`, Y `$FFD4`, and map mask `$0F0F`.
+  Y decreases through `$FFAD/$FF86/$FF5F/$FF38/$FF11` before `$FEEA` at
+  166503. `field_walk_can_run`'s `clear_of_the_end` requires Y below `$FF00`,
+  so these are real states its guard rejects. The refusal has A `$0300`,
+  X `$0710`, Y `$FFFE`, D `$0100`, DB `$00`, P `$23`. It is a `gap` entry
+  in `tools/refusal_allowlist.txt`; no page refusal or out-of-range accessor.
+  The route reaches The End in reference and shipping modes; `ct_native`
+  and strict mode complete the movie's input. No game routine was changed.
+
+- **The Prophet ending's transient party links.** `what_the_prophet_seeks`
+  (ct-state24 slot 2, 131287-frame scratch movie) reaches The End, but its
+  reference play refuses `event_cmd_walk_with_the_party` (`$C0:3002`) and
+  `field_second_member_follows` (`$C0:A2CE`) three times each, at frames
+  119033-119035 in `$190`, before the first vignette's `$0CB` transition.
+  A saved reference frame 119034 has party links `$02/$06/$80` at
+  `$7E:0197/0199/019B` and trail positions `$00/$00/$00` at `$7E:01AB`.
+  `$80` is an empty link; the guards require the second party link to name
+  the stepping object. The event refusal has A/X `$0160`, Y `$0207`, D `$0100`,
+  DB `$00`, P `$20`; the follower has A `$0101`, X `$0006`, Y `$0007`,
+  D `$0100`, DB `$00`, P `$30`. Both are `gap` reasons in
+  `tools/refusal_allowlist.txt`, pending support for this transient state.
+  There is no page refusal or out-of-range accessor. `ct_native` and strict
+  mode complete this movie's input; their timing does not prove the refused
+  reference state is supported. No game routine was changed.
 
 ## Targets beyond the desktop SNES build
 

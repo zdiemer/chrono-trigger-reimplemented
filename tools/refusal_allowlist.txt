@@ -13,3 +13,5 @@ C0734C field_give_up_palette guard # gap: reunion, the same three frames; the gu
 C04F61 event_cmd_move_to_tile guard # gap: a map of 64 objects, whose search starts one past the tables (object_search_fits); events-magic-cave, the forest of Frog's memory ($077)
 C05B95 field_object_in_the_way guard # gap: the same 64 objects' search (object_search_fits); events-magic-cave, the forest ($077)
 C242DD overworld_epoch guard # gap: the winged Epoch's first frame on the 12000 B.C. map after the fall ($1F6); field-12kbc-after-the-fall
+C1D7C4 battle_work_out_enemy_tech guard # gap: enemy tech $14 worked out with its target count 0 and member 1 listed, which effect_targets_named doesn't take; motherbrain route (shipping mode), Geno Dome's upper floor, frames 140241 and 146643 (docs/TODO.md, Refusals in real play)
+C1D2DE battle_effect_hit guard # gap: the same tech's hit, the same target count 0; motherbrain route (shipping mode), the same frames (docs/TODO.md, Refusals in real play)
