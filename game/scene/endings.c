@@ -26,14 +26,21 @@
  * the Beyond Time ending's night (its fireworks, which the setup places, and
  * its flight over the world) beyond_time.c's.
  *
+ * And the scripts' small routines: the picture stopped, the ground's colors
+ * changed or stepped toward a later set, the captions' place, the fades to
+ * black; and the credits' pictures sent in the vblank.
+ *
  * Every entry is the scene program's code in work RAM, guarded by a hash of
  * it. What the scripts call runs on the calling channel's page with the
  * scripts' data bank, and works on its own: the routine keeps the page and a
  * byte of the bank on the stack while it works, as the original does, so the
  * original's code it calls out to finds the stack where it expects.
  *
- * Left as the original's, behind call-outs: the program's unpacker
- * ($7E:3691) and the first step of a script ($7E:3749). */
+ * The setup and the routines that load are one sequence each (`*_with`),
+ * whose steps that are the program's other routines -- its unpacker
+ * ($7E:3691), a script's first step ($7E:3749), the stars' scatter -- the
+ * machine's entries take as calls of the original's and the native program
+ * as C (EndingSteps). */
 #include "scene/race.h"
 
 #include "charge.h"
