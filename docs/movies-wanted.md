@@ -839,6 +839,7 @@ their events and bosses recorded. The earlier movies from the side-quest saves
 `battle-son-of-sun` plays the Sun Stone quest's boss (below). The earlier movies from the side-quest saves
 `battle-rust-tyrano` plays Giant's Claw's boss. The earlier movies from the side-quest saves
 `events-cyrus` plays Cyrus's side quest. The earlier library's movies from the side-quest saves
+`battle-ozzies-fort` plays the fort's events and bosses. The other movies from the side-quest saves
 (`ctsave12`-`ctsave14`) open menus and shops, ride the Epoch, press the Northern Ruins' switch and
 dive into Lavos. The fantasyanime saves step through them in one order (oracle/saves/README.md),
 but that order does not guarantee a save before every scene: `ctsave13` already has Lara
@@ -851,7 +852,7 @@ already runs, is for its route to establish.
 
 | Quest | Save before it | What it plays | Bosses |
 |---|---|---|---|
-| Ozzie's Fort | ctsave12 slot 2 (slot 3 after it) | the fort, the chain trap | Flea, Slash, Great Ozzie |
+| Ozzie's Fort | ctsave12 slot 2 (slot 3 after it, confirmed by flags) | `battle-ozzies-fort`: the fort and final trap | Flea Plus, Super Slash, Great Ozzie |
 | Fiona's forest | ctsave12 slot 3 (ctsave13 slot 1 after it) | Robo's 400 years: the forest's replanting, the campfire | -- |
 | Lucca's mother | routes/luccas-mother-before-campfire, slot 1 | `events-luccas-mother`: campfire, gate to 990 A.D., timed password, Lara saved and GreenDream received | -- |
 | Fiona's forest | ctsave12 slot 3 (ctsave13 slot 1 after it) | `events-fionas-forest`: the sapling, Sunken Desert, Robo's 400 years, reunion and campfire | Retinite |
@@ -1043,6 +1044,25 @@ the earlier library did not reach, and may expose `ct_native`'s next stops.
   father's trial in 1000 A.D. Start the latter from ctsave13 slot 2, where
   delivery is complete and the trial flags are clear. This is a separate
   route, not a cheap extension of the boss movie.
+
+- **Movie**: `battle-ozzies-fort` (route `ozzies_fort`, ctsave12 slot 2, 39237 frames):
+  from the End of Time by Epoch to 600 A.D.; `$0B1`'s introduction, Flea Plus in `$0B7`,
+  `$0B2`'s conveyor, Super Slash in `$0B8`, `$0B3`'s treasure trap (the chest left alone),
+  the three generals in `$0B4`, then `$0B5`'s switch battle, the fall back to `$0B4`,
+  and the return for the cat to spring Ozzie's final trap. Slot 2 has `$7F:01A1 = $00`;
+  slot 3 has `$FF` and `$7F:01A0` bit 7 set. The movie ends with those fort flags set
+  and the field back in hand. The trio's counters make weak attacks expensive: Lucca's
+  Flare, with Crono and Marle healing, wins without a wipe and keeps the whole fort
+  below 40000 frames. Machine-copy searches retain only the winning inputs; no pokes.
+  Its `--coverage` adds 393 bytes (0.38 KiB) beyond the preceding 48 movies, all ported:
+  `event_cmd_set_flags` (`$C0:6BF7`), single-tech learning (`rewards_count_tech_points`,
+  `rewards_reach_next_tech`, `rewards_learn_single_tech`, `$C1:F3AF`-`$F532`), the
+  rewards' messages (`$FD:ADC9`-`$AE04`), the choice pointer (`$C0:F08B`-`$F0AA`), and
+  the Epoch's arrival (`$C6:EE31`), with small status, level-growth and text paths.
+  Shadow: 0 mismatched, no refusal, `page refused` or `accessor out of range`; sound
+  state identical. Strict mode reaches the full frame budget but the saved game
+  drifts. `ct_native` reports no stop, reaches 39237 frames, and leaves its display
+  blanked after five screen setups; completion there is not established (TODO.md).
 
 ### 13. The story events no movie plays
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's
