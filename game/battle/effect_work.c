@@ -646,33 +646,48 @@ bool effect_targets_named(const GameState *g)
     return named;
 }
 
-static bool combatants_named(const GameState *g) { return battle_actor(g) < BATTLE_COMBATANTS && effect_targets_named(g); }
+/* A hit whose targeting counted nobody still lands once: the work takes its
+ * one target at the count less one, in a byte, so the list's index $FF
+ * ($7E:AE8D, well past its eleven places: effect_listed_target), and the
+ * hit's count of targets left stops at nothing. An enemy's tech in Geno Dome
+ * after Atropos does it (the motherbrain route, where that cell held 0). The
+ * port takes it so where that cell names a combatant; the kinds that count
+ * their targets down without stopping would go round the whole byte, and are
+ * left to the original. */
+static bool takes_targets(const GameState *g, uint8_t kind)
+{
+    if (battle_action_target_count(g) == 0 && (kind == EFFECT_HIT || kind == EFFECT_HIT_REPEATEDLY))
+        return effect_listed_target(g) < BATTLE_COMBATANTS;
+    return effect_targets_named(g);
+}
+
+static bool combatants_taken(const GameState *g, uint8_t kind)
+{
+    return battle_actor(g) < BATTLE_COMBATANTS && takes_targets(g, kind);
+}
 
 static bool action_ported(const GameState *g, ActionTable table)
 {
     ActionRecord action = action_record(g, table, battle_action_detail(g));
     if (action.effect == NO_EFFECT)
-        return true;
-    return effect_kind_ported(g, battle_actor(g), effect_record_byte(g, table, action.effect, 0),
-                              effect_record_byte(g, table, action.effect, 7), effect_record_byte(g, table, action.effect, 8),
-                              action.modifier);
+        return battle_actor(g) < BATTLE_COMBATANTS && effect_targets_named(g);
+    uint8_t kind = effect_record_byte(g, table, action.effect, 0);
+    return combatants_taken(g, kind)
+           && effect_kind_ported(g, battle_actor(g), kind, effect_record_byte(g, table, action.effect, 7),
+                                 effect_record_byte(g, table, action.effect, 8), action.modifier);
 }
 
 static bool work_out_ready(Snes *s, ActionTable table)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ready = combatants_named(g) && action_ported(g, table);
+    bool ready = action_ported(state_of(s), table);
     vars_peek(false);
     return battle_on_page(s) && ready;
 }
 
 bool battle_work_out_enemy_tech_ready(Snes *s) { return work_out_ready(s, ENEMY_TECHS); }
 
-bool battle_enemy_action_worked_out(const GameState *g, bool tech)
-{
-    return combatants_named(g) && action_ported(g, tech ? ENEMY_TECHS : ENEMY_ATTACKS);
-}
+bool battle_enemy_action_worked_out(const GameState *g, bool tech) { return action_ported(g, tech ? ENEMY_TECHS : ENEMY_ATTACKS); }
 
 void battle_work_out_enemy_action(GameState *g, Platform *pf, bool tech)
 {
@@ -695,7 +710,7 @@ static bool kind_ready(Snes *s, EffectKind kind)
 {
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ready = combatants_named(g)
+    bool ready = combatants_taken(g, kind)
                  && effect_kind_ported(g, battle_actor(g), kind, battle_effect_flags(g, 0), battle_effect_flags(g, 1),
                                        battle_effect_modifier(g));
     vars_peek(false);

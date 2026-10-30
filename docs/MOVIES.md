@@ -234,7 +234,12 @@ and object positions supply the destinations; searches on machine copies keep
 only their winning input. No RAM writes are used.
 
 The existing `party` policy wins Robo's solo Atropos fight and MotherBrain's
-fight, both without a retry in this recording. The route places both dolls,
+fight, both without a retry in this recording. Atropos's scene waits for
+confirm between its lines with no dialog box open, polling the button every
+few frames, so the walk into it presses confirm until the fight starts rather
+than only while a box is open: a press made only then can close the last line
+before the wait begins, and the scene stands still (the native-shape build's
+timing did that from every place the search entered the trigger). The route places both dolls,
 plays the shutdown and return to the world map, then re-enters Geno Dome and
 waits for field control. Its final checks require location `$0F8` and the
 MotherBrain defeat bit (`$7F:013B` bit 4); stopping at the battle's last hit would

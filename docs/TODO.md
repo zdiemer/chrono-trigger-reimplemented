@@ -70,8 +70,7 @@ rest waits, is [PLAN.md](PLAN.md).
   with a clean full shadow replay and identical final PNG. To reproduce the
   failure, set this route's `core_seed_offset` to 0, regenerate its movie in
   scratch storage, then replay all 193389 frames with ct-state23's SRAM and
-  `--native shadow`. Strict mode completes both inputs; `ct_native`'s
-  separate `$FD:B438` stop is recorded under the native program below.
+  `--native shadow`. Strict mode and `ct_native` complete both inputs.
 - **IRQ timing simplifications** (RUNTIME.md, "Interrupt timing"): hardware's
   ~3.5-dot trigger delay isn't modeled, and an IRQ pending across `CLI` is
   taken one instruction early.
@@ -174,20 +173,7 @@ rest waits, is [PLAN.md](PLAN.md).
   Find what logic reads a cell only scaffolding writes there
   (`ct_dev --scaffold-reads original`, the route's frames) and make the two
   builds agree. The route runs by hand (`tools/suite.py`'s `HAND_RUN_ROUTES`).
-- **Atropos's scene stands still in the native shape.** The `motherbrain`
-  route reaches its outcome in the shipping mode, but with
-  `ct_drive_native_shape` the scene on Geno Dome's upper floor (`$10C`) opens
-  its two dialogs and then stands still, the party never split for Robo's
-  fight, from each of the four places the route's search entered its trigger
-  ((523, 699), (526, 695), (520, 683), and the old route's stop at (525, 699),
-  which stalled the default build too). The default build's run of the
-  route, replayed by `ct_dev --scaffold-reads original`, shows the original's
-  code reading scaffolding only at frame 159688, after both fights
-  (`menu_object_wave_hdma`, `$7E:01E2`-`$01E3`), so the cause is not traced:
-  a port's logic reading what only scaffolding writes, or the native shape's
-  own timing, which isn't the default build's ("The fallback measure's
-  edges", below), meeting a race in the scene.
-  Excepted in `tools/native_shape_exceptions.txt` until found.
+- **When the confirm press lands in Atropos's scene, native shape against default.** The scene on `$10C` polls confirm with event command `$31` (`$C0:66A5`) between lines with no box open; the `motherbrain` route now presses through it, but why the native-shape build's timing puts the dialog's last press before the poll is untraced.
 - **An ending's menu script sets the sprites' sizes by `$2101`.** The menus'
   object scripts' byte command `$13` names its cell by address, and an ending
   writes the sprites' size and tile-place register through it; the port hands
@@ -299,8 +285,7 @@ rest waits, is [PLAN.md](PLAN.md).
     through the dispatch's call-out, `battle/steps.c`, rather than as C:
     run as C under the dispatch's frame, its waits broke the call chain);
     from an enemy's turn (history/reimplementation-waves.md,
-    "Phase 3, wave 2: the enemies' minds"), an enemy's
-    coming in `$FD:B438` and the calling in
+    "Phase 3, wave 2: the enemies' minds"), the calling in
     `$FD:A990`; what an effect's working out turns away to the
     original (history/reimplementation-chunks.md, "Phase 3, battle chunk 4: the party's working
     out"): a hit that steals as well (no record has one); an animation that names no movement
@@ -2717,16 +2702,6 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
-- **An enemy entering a battle in the hand-run endings.** The Legendary Hero
-  recording (`legendary_hero`, technoplaza ct-state19 slot 2; MOVIES.md) stops
-  `ct_native` at frame 14237 in `$FD:B438`, "an enemy coming into the battle".
-  Its shadow run has no mismatch or refusal; strict mode completes its
-  144640-frame input without stopping. This is a native-program stop, not a
-  guard refusal to add to `refusal_allowlist.txt`.
-  Dino Age (`dino_age`, ct-state23 slot 2, 176261-frame scratch movie) stops at
-  the same entry at frame 15100; strict mode completes its full input. Its
-  separate shadow mismatch is recorded under Correctness and accuracy above.
-
 - **Long movies desync in `ct_native`.** A movie's presses are the
   reference play's, frame for frame, and the native program's frames aren't
   the machine's, so a long movie goes elsewhere: its end is reached, its
@@ -2946,20 +2921,7 @@ Guards that turn away a call real play makes. On the machine the original
 runs the call, so shadow mode and the shipping mode pass; the hand ports
 alone (`strict_check.py`) and `ct_native` stop there. Each is a gap line in
 `tools/refusal_allowlist.txt`, which comes out when the port takes the state.
-Ranked by how much play they block:
-
-- **An enemy tech worked out with no target counted** (the `motherbrain`
-  route in the shipping mode, Geno Dome's upper floor after Atropos, frames
-  140241 and 146643, twice each). An enemy (combatant 6, then 9) uses enemy
-  tech `$14` (a plain hit, effect `$14`: kind 3, flags `$50`, no modifier);
-  its targets list names member 1 but the count beside it
-  (`battle_action_target_count`, `$7E:AD8D`) reads 0, which
-  `effect_targets_named` (battle/effect_work.c) doesn't take, so
-  `battle_work_out_enemy_tech` (`$C1:D7C4`) and `battle_effect_hit`
-  (`$C1:D2DE`) hand the tech to the original. The refusals have A `$0004`,
-  X `$0004`, Y `$000D` and A `$0000`, X `$0006`, Y `$000B`, D `$0000`, DB
-  `$7E`. What the original does with a count of 0 (one target, uncounted)
-  is the thing to establish; the reference play meets no such tech.
+Ranked by how much play they block; none is open now.
 
 ## Targets beyond the desktop SNES build
 

@@ -9416,18 +9416,18 @@ name = "menu_object_capsule_iris_1"
 at = "C6:E498"
 subsystem = "menu"
 state = "objects"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+18,1=01-DF", "--fill", "[7E004E]+19,1=00-00", "--fill", "[7E004E]+22,1=00-60", "--fill", "[7E004E]+23,1=00-00", "--fill", "[7E004E]+24,1=00-40", "--fill", "[7E004E]+25,1=00-00"]
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+18,1=00-DF", "--fill", "[7E004E]+19,1=00-00", "--fill", "[7E004E]+22,1=00-60", "--fill", "[7E004E]+23,1=00-00", "--fill", "[7E004E]+24,1=00-40", "--fill", "[7E004E]+25,1=00-00"]
 iterations = 2000
-why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 1-$DF, its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
+why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 0-$DF (the top line's centre a byte before the table, as the original's doubling leaves it), its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
 
 [[routine]]
 name = "menu_object_capsule_iris_2"
 at = "C6:E4BE"
 subsystem = "menu"
 state = "objects"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+18,1=01-DF", "--fill", "[7E004E]+19,1=00-00", "--fill", "[7E004E]+22,1=00-60", "--fill", "[7E004E]+23,1=00-00", "--fill", "[7E004E]+24,1=00-40", "--fill", "[7E004E]+25,1=00-00"]
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+18,1=00-DF", "--fill", "[7E004E]+19,1=00-00", "--fill", "[7E004E]+22,1=00-60", "--fill", "[7E004E]+23,1=00-00", "--fill", "[7E004E]+24,1=00-40", "--fill", "[7E004E]+25,1=00-00"]
 iterations = 2000
-why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 1-$DF, its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
+why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 0-$DF (the top line's centre a byte before the table, as the original's doubling leaves it), its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
 
 [[routine]]
 name = "menu_object_load_mode7_graphics"
@@ -14326,6 +14326,15 @@ iterations = 5000
 why = "an actor and a count of targets, each a combatant, as the effect code is handed them, at a set of numbers and a hit the showing has; the action's and the weapons' modifiers among the ones the port works out; the effect's record, the combatants' stats and the direct page's byte a drain reads its stat's offset's high byte from clear, as the game leaves it; the rest of the battle's state at random; one to three hits, so that the sets of numbers the hits count up stay in their records (from the fourth on, a set reaches past them into the effect's flags, as the original's does)"
 
 [[routine]]
+name = "battle_effect_hit_repeatedly"
+variant = "no_target"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=00-00", "--fill", "7EAE8D-7EAE8D=00-0A", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EAD9B-7EAD9B=00-03", "--fill", "7EB2C7-7EB2C7=00-02", "--fill", "7EB2CC-7EB2CC=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7EAEE7-7EAEE7=01-03"]
+iterations = 5000
+why = "no target counted: each hit takes the list's index $FF ($7E:AE8D), a combatant here; as the plain entry's otherwise"
+
+[[routine]]
 name = "battle_effect_item_restore"
 subsystem = "battle"
 state = "battle"
@@ -14448,6 +14457,24 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB2CC-7EB2CC=0F,10", "--fill", "7E5E57-7E5F57:80=00,A5", "--fill", "7E2400-7E25FF=00-FF"]
 iterations = 5000
 why = "a party member stealing from targets each a combatant, with either charm chance the party's steals have, with and without the thief's accessory; the inventory at random; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_effect_hit"
+variant = "no_target"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=00-00", "--fill", "7EAE8D-7EAE8D=00-0A", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EAD9B-7EAD9B=00-03", "--fill", "7EB2C7-7EB2C7=00-02", "--fill", "7EB2CC-7EB2CC=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F"]
+iterations = 5000
+why = "no target counted, as an enemy tech aimed at nobody is handed the work (the motherbrain route's Geno Dome): the hit takes the cell past the list, a combatant here; as the plain hit's otherwise"
+
+[[routine]]
+name = "battle_work_out_enemy_tech"
+variant = "no_target"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=00-00", "--fill", "7EAE8D-7EAE8D=00-0A", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7EB18C-7EB18C=00-FF"]
+iterations = 5000
+why = "no target counted, the cell past the list a combatant: the guard takes only a hit then; as the plain entry's otherwise"
 
 [[routine]]
 name = "battle_effect_hit"
