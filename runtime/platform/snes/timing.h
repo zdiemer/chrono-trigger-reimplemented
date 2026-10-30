@@ -10,6 +10,13 @@
 
 PF_API void tm_enable_interrupts(Platform *pf, PfOrigin o, uint8_t sources)
 {
+    /* Where the vblank handler goes on or off, the port's time so far passes
+     * first, with it as it was: a port's time is charged after it runs, and
+     * one that loads with the handler off and turns it on as it ends (the
+     * world map's set up) otherwise had it run through its whole load, a
+     * frame at a time (tests/port/debt_test.c). */
+    if ((sources ^ pf_snes(pf)->bus.nmitimen) & TM_INT_VBLANK)
+        native_sync(pf_snes(pf));
     pf_snes_begin("tm_enable_interrupts", o);
     pf_snes_put(pf_snes(pf), 0x4200, sources);
     pf_snes_end();

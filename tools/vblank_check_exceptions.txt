@@ -39,6 +39,7 @@ battle_irq hdma-enable lines taken late behind the battle's masked frame work, a
 # brightness 1 of 15. Screenshots of the shipping mode show both frames.
 menu_mode_start display visible the menu's blank at line 172 of frame 1705 lands on a frame already at brightness 0: every pixel is black with or without it
 overworld_main_loop hdma-enable visible the world map's HDMA stops, as the menus open from it, at line 90 of the fade-out's last frame, at brightness 1 of 15, instead of in forced blank
+overworld_main_loop hdma-enable lines the world map's HDMA is turned on mid-picture in the original too (lines 54 and 159, once each in two movies); since the vblank handler's going on and off lets the frame's estimated time pass first, it lands a line later (55 and 160)
 # The menus' vblank work, behind a frame whose work the shipping mode estimates
 # since the load screen's and the windows' ports (history/reimplementation-chunks.md, "Phase 3, menus"):
 # once in each of four save movies the frame's work ends past vblank, and the
