@@ -71,6 +71,9 @@ EventRunner event_runner(EventAsC *c);
     X(event_send_to_the_reserve, 0xD4) \
     X(event_if_in_the_active_party, 0xD2) \
     X(event_if_recruited, 0xCF) \
+    X(event_recruit, 0xD0) \
+    X(event_dismiss, 0xD1) \
+    X(event_note_item_count, 0xD7) \
     X(event_go_now, 0xE1) \
     X(event_go_now_raising_1e, 0xDF) \
     X(event_cast_npc, 0x82) \

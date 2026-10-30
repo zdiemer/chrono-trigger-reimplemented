@@ -431,7 +431,7 @@ static bool confirm_fits(const GameState *g)
     }
     if (field_link_is_object(talked_to) && !names_a_contact(g, talked_to, high))
         return false;
-    return dialog_on_screen(g) || (chest_look_fits(g) && chest_gift_fits(g));
+    return dialog_on_screen(g) || chest_gift_fits(g);
 }
 
 bool field_confirm_can_run(Snes *s)

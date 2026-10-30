@@ -1157,12 +1157,17 @@ void field_recentre_the_screen(Snes *s)
 /* The guards. The walk reads the ROM's tables and the requests through the
  * data bank, on the field's page; the leader is an object the tables hold,
  * or an empty place's marker the original can read as a slot (FieldLeader), as
- * the game keeps its place (a word whose high byte is 0); the search for
- * objects starts somewhere (a count of 0, or 128, would start it on object
- * 0, which no map has); the map's tables are indexed
- * within their 64 by 64; and the leader stands clear of the 16-bit range's
- * end -- its box's right side inside it, and its place above the last tile
- * row -- where the original's sums carry into the slope's. */
+ * the game keeps its place (a word whose high byte is 0). Only a step that
+ * meets the map reads where the leader stands and what is around it: there
+ * the search for objects starts somewhere (a count of 0, or 128, would start
+ * it on object 0, which no map has); the map's tables are indexed within
+ * their 64 by 64; and the leader stands clear of the 16-bit range's end --
+ * its box's right side inside it, and its place above the last tile row --
+ * where the original's sums carry into the slope's. A leader carried past
+ * that end by a script (the party parked at ($FF80, $FFFF) on the bridge of
+ * Frog's memory, the endings' exits up off the map) takes no step against
+ * the map: the party isn't the player's, and the walk keeps to the edges and
+ * the screen, which read the leader's tile and place on the screen alone. */
 enum { WITHIN_THE_MAPS = 0x3F3F, CLEAR_OF_THE_END = 0xFF00 };
 
 static bool clear_of_the_end(FieldPosition at)
@@ -1177,12 +1182,12 @@ static bool walk_fits(const GameState *g)
     FieldLeader leader = field_leader(g);
     if (!field_link_readable(party_member_link(g, PARTY_LEADER)))
         return false;
-    if (leader.nobody_leads) {
-        Velocity walk;
-        Velocity first = pad_and_pull(g, &walk);
-        if (first.x == 0 && first.y == 0)
-            return true;   /* nobody steps: nothing of the slot is read */
-    }
+    Velocity walk;
+    Velocity first = pad_and_pull(g, &walk);
+    if (first.x == 0 && first.y == 0)
+        return true;   /* no step: nothing of the leader's place is read */
+    if (field_leader_collides(g) == 0)
+        return true;   /* a step past the map: its tile and the screen alone */
     FieldPosition at = field_leader_position(g, leader);
     return object_search_start(g) != 0 && (field_map_index_mask(g) & ~WITHIN_THE_MAPS) == 0 &&
            clear_of_the_end(at);

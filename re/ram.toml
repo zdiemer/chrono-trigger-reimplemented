@@ -4956,6 +4956,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "X velocity added to the position each step, sign-extended to 16 bits"
 source = "game/field/motion.c field_set_velocity; game/field/motion.c field_move_object $C0:AA07"
+unchecked = "a member stepping in a place of the party emptied under it steps the slot the empty place's marker names, the first past the tables (game/field/party_trail.c step_the_place, $C0:A2CE; the Prophet's ending, three frames)"
 
 [[var]]
 name = "field_object_velocity_y"
@@ -4967,6 +4968,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Y velocity added to the position each step, sign-extended to 16 bits"
 source = "game/field/motion.c field_set_velocity; game/field/motion.c field_move_object $C0:AA07"
+unchecked = "a member stepping in a place of the party emptied under it steps the slot the empty place's marker names, the first past the tables (game/field/party_trail.c step_the_place, $C0:A2CE; the Prophet's ending, three frames)"
 
 [[var]]
 name = "field_object_speed"

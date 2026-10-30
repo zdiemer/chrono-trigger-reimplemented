@@ -2046,11 +2046,23 @@ enum { FIELD_OBJECT_VELOCITY_X_COUNT = 64 };   /* by object slot (X = slot * 2) 
 /* X velocity added to the position each step, sign-extended to 16 bits */
 uint16_t field_object_velocity_x(const GameState *g, unsigned slot);
 void set_field_object_velocity_x(GameState *g, unsigned slot, uint16_t v);
+/* X velocity added to the position each step, sign-extended to 16 bits Unchecked, for marked
+ * scaffolding only: a member stepping in a place of the party emptied under it steps the slot
+ * the empty place's marker names, the first past the tables (game/field/party_trail.c
+ * step_the_place, $C0:A2CE; the Prophet's ending, three frames) */
+uint16_t field_object_velocity_x_unchecked(const GameState *g, unsigned slot);
+void set_field_object_velocity_x_unchecked(GameState *g, unsigned slot, uint16_t v);
 
 enum { FIELD_OBJECT_VELOCITY_Y_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Y velocity added to the position each step, sign-extended to 16 bits */
 uint16_t field_object_velocity_y(const GameState *g, unsigned slot);
 void set_field_object_velocity_y(GameState *g, unsigned slot, uint16_t v);
+/* Y velocity added to the position each step, sign-extended to 16 bits Unchecked, for marked
+ * scaffolding only: a member stepping in a place of the party emptied under it steps the slot
+ * the empty place's marker names, the first past the tables (game/field/party_trail.c
+ * step_the_place, $C0:A2CE; the Prophet's ending, three frames) */
+uint16_t field_object_velocity_y_unchecked(const GameState *g, unsigned slot);
+void set_field_object_velocity_y_unchecked(GameState *g, unsigned slot, uint16_t v);
 
 enum { FIELD_OBJECT_SPEED_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* The object's speed, multiplied by the direction factors into its velocity */

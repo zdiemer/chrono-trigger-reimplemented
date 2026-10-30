@@ -887,6 +887,12 @@ void menu_draw_chapter_label(Snes *s)
 // $C2:D28D
 /* The empty slot's label, drawn in the chapter label's place (it runs on
  * into $C2:D296). */
+void menu_draw_the_empty_label(GameState *g)
+{
+    set_menu_text_string(g, EMPTY_SLOT_LABEL);
+    draw_chapter_label(g);
+}
+
 void menu_draw_empty_label(Snes *s)
 {
     set_menu_text_string(state_of(s), EMPTY_SLOT_LABEL);

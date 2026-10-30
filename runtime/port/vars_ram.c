@@ -1989,8 +1989,12 @@ uint8_t field_object_y_tile_unchecked(const GameState *g, unsigned slot) { retur
 void set_field_object_y_tile_unchecked(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1881u + (uint32_t)slot * 0x02u, v); }
 uint16_t field_object_velocity_x(const GameState *g, unsigned slot) { IN_RANGE(g, 117, "field_object_velocity_x", "count", slot, 64u); return r16(g, 0x7E1900u + (uint32_t)slot * 0x02u); }
 void set_field_object_velocity_x(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 117, "set_field_object_velocity_x", "count", slot, 64u); w16(g, 0x7E1900u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_velocity_x_unchecked(const GameState *g, unsigned slot) { return r16(g, 0x7E1900u + (uint32_t)slot * 0x02u); }
+void set_field_object_velocity_x_unchecked(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1900u + (uint32_t)slot * 0x02u, v); }
 uint16_t field_object_velocity_y(const GameState *g, unsigned slot) { IN_RANGE(g, 118, "field_object_velocity_y", "count", slot, 64u); return r16(g, 0x7E1980u + (uint32_t)slot * 0x02u); }
 void set_field_object_velocity_y(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 118, "set_field_object_velocity_y", "count", slot, 64u); w16(g, 0x7E1980u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_velocity_y_unchecked(const GameState *g, unsigned slot) { return r16(g, 0x7E1980u + (uint32_t)slot * 0x02u); }
+void set_field_object_velocity_y_unchecked(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1980u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_speed(const GameState *g, unsigned slot) { IN_RANGE(g, 119, "field_object_speed", "count", slot, 64u); return r8(g, 0x7E1A00u + (uint32_t)slot * 0x02u); }
 void set_field_object_speed(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 119, "set_field_object_speed", "count", slot, 64u); w8(g, 0x7E1A00u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_steps_left(const GameState *g, unsigned slot) { IN_RANGE(g, 120, "field_object_steps_left", "count", slot, 64u); return r8(g, 0x7E1A01u + (uint32_t)slot * 0x02u); }

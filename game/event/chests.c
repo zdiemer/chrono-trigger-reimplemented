@@ -64,11 +64,12 @@ static void step_toward(Facing facing, uint8_t *row, uint8_t *column)
     }
 }
 
-/* A tile off the map, which only a leader who is nobody looks at (field/
- * object.h, FieldLeader): the original reads its byte at its row and column
- * all the same, past the table's rows and columns, up into bank $7F for the
- * last rows. The one place the port reads them (docs/TODO.md, "Nobody
- * leading"). */
+/* A tile off the map, which a leader at the map's edge facing off it looks
+ * at (a press of the confirm button on Zenan Bridge, in battle-zombor and
+ * battle-unequipped-armor on branches early-bosses and unequip), as does a
+ * leader who is nobody (field/object.h, FieldLeader): the original reads its
+ * byte at its row and column all the same, past the table's rows and
+ * columns, up into bank $7F for the last rows. */
 static uint8_t walkable_past_the_map(const GameState *g, uint8_t row, uint8_t column)
 {
     return field_tile_walkable_unchecked(g, row, column);
@@ -95,22 +96,6 @@ static Wall wall_before_the_leader(const GameState *g)
         w = look_at(g, row, column);
     }
     return w;
-}
-
-bool chest_look_fits(const GameState *g)
-{
-    FieldLeader leader = field_leader(g);
-    if (leader.nobody_leads)
-        return true;
-    MapTile at = field_leader_tile(g, leader);
-    Facing facing = field_leader_facing(g, leader);
-    uint8_t row = at.y, column = at.x;
-    for (unsigned looks = facing == FACING_UP ? 2 : 1; looks > 0; looks--) {
-        step_toward(facing, &row, &column);
-        if (!tile_on_the_map((MapTile){ column, row }))
-            return false;
-    }
-    return true;
 }
 
 /* ---- Opening it ------------------------------------------------------------------------ */

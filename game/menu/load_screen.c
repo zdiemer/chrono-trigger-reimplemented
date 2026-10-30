@@ -33,6 +33,7 @@
 #include "menu/cursor.h"
 #include "menu/display.h"
 #include "menu/fades.h"
+#include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/save_screen.h"
 #include "menu/saves.h"
@@ -643,11 +644,20 @@ static bool carry_on(void *ctx)
     return true;
 }
 
+// $C2:E8B7
+/* The slot's game forgotten, its row drawn empty and, a frame on, its label
+ * queued and its window drawn again. */
 static bool erase(void *ctx)
 {
     LoadScreenAsC *c = ctx;
-    program_needs_the_machine(c->game, 0xC2E8B7, "a slot's erasing, which only the machine runs");
-    return false;
+    GameState *g = c->game;
+    uint8_t slot = menu_save_slot_shown(g);
+    menu_forget_slot(g, c->pf, slot);
+    TIMED_AS(g, 0xC2D28D, menu_draw_the_empty_label(g));
+    menu_task_waits(g, 1);
+    TIMED_AS(g, 0xC2838E, menu_queue_upload(g, menu_slot_label_upload(slot)));
+    TIMED_AS(g, 0xC2D32C, menu_redraw_slot_window(g, slot));
+    return true;
 }
 
 static bool sound_output_sent(void *ctx)

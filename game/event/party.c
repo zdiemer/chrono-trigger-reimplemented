@@ -552,6 +552,42 @@ bool event_if_recruited(GameState *g, Platform *pf, uint16_t at, EventStep *step
     return asked(g, pf, at, step, 0xCF, PARTY_RECORD_PLACES);
 }
 
+/* A change to the record: a character recruited into the reserve ($D0), or
+ * dismissed from it ($D1). */
+static bool record_changed(GameState *g, Platform *pf, uint16_t at, EventStep *step, uint8_t opcode)
+{
+    enum { LENGTH = 2 };
+    uint8_t character = event_decode(g, pf, event_opcode(opcode), at).character;
+    if (opcode == 0xD0)
+        TIMED_AS(g, MENUS_SERVICES, ((void)party_recruit(g, character), shown(g)));
+    else
+        TIMED_AS(g, MENUS_SERVICES, ((void)party_dismiss(g, character), shown(g)));
+    *step = (EventStep){ (uint16_t)(at + LENGTH), THE_DISPATCH_LEAVES_THE_CARRY };
+    return true;
+}
+
+bool event_recruit(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    return record_changed(g, pf, at, step, 0xD0);
+}
+
+bool event_dismiss(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    return record_changed(g, pf, at, step, 0xD1);
+}
+
+/* A variable learns how many of an item the party holds ($D7). */
+bool event_note_item_count(GameState *g, Platform *pf, uint16_t at, EventStep *step)
+{
+    enum { LENGTH = 3 };
+    EventCommand c = event_decode(g, pf, event_opcode(0xD7), at);
+    uint8_t count = 0;
+    TIMED_AS(g, MENUS_SERVICES, (count = menu_items_held(g, c.item), shown(g)));
+    set_variable_byte(g, c.variable, count);
+    *step = (EventStep){ (uint16_t)(at + LENGTH), true };
+    return true;
+}
+
 bool event_send_to_the_reserve(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     enum { LENGTH = 2 };

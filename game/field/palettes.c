@@ -321,6 +321,15 @@ bool object_palette_links_in_the_tables(const GameState *g, FieldObject obj)
            (!field_link_is_object(after) || field_link_names_object(after));
 }
 
+/* While a script has set the palettes itself the object gives nothing up and
+ * nothing of its sharers is read: Reunion's parade leaves an object leaving
+ * view with links its slot no longer keeps (an odd newer sharer), which are
+ * never looked at. */
+bool object_gives_up_a_palette_the_tables_hold(const GameState *g, FieldObject obj)
+{
+    return field_palettes_set_by_script(g) || object_palette_links_in_the_tables(g, obj);
+}
+
 /* ---- The entry ------------------------------------------------------------------------------ */
 
 /* The current object (8-bit X). Its callers read none of the registers it
@@ -332,13 +341,14 @@ void field_give_up_palette(Snes *s)
 }
 
 /* The guard: the current object on the field's page with the data bank $00,
- * its slot and its sharers ones the tables hold. */
+ * and, where it gives its palette up, its slot and its sharers ones the
+ * tables hold. */
 bool field_palette_can_be_given_up(Snes *s)
 {
     if (!field_current_object_bank_zero(s))
         return false;
     vars_peek(true);
-    bool ok = object_palette_links_in_the_tables(state_of(s), (FieldObject)field_current_object_slot(s));
+    bool ok = object_gives_up_a_palette_the_tables_hold(state_of(s), (FieldObject)field_current_object_slot(s));
     vars_peek(false);
     return ok;
 }

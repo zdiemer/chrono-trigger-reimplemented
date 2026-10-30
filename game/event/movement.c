@@ -416,14 +416,15 @@ static bool party_can_step(const GameState *g, FieldObject self)
         return false;
     PartyPlace place = object_party_place(g, self);
     if (place != PARTY_LEADER)
-        return field_same_link(party_member_link(g, place), field_link_to(self));
+        return party_place_steps(g, place, field_link_to(self));
     return !leader_has_contact(g) || event_touch_is_ours(g);
 }
 EVENT_CHECK(party_can_step, self)
 
 /* The moves that set off, following included, look for an object in the
- * way, over the object slots (object_search_fits). */
-static bool can_look_its_way(const GameState *g) { return object_search_fits(g); }
+ * way, over the object slots, from where the search starts
+ * (object_search_starts). */
+static bool can_look_its_way(const GameState *g) { return object_search_starts(g); }
 EVENT_CHECK_TAKING_NOTHING(can_look_its_way)
 
 /* A sliding move looks the way the object faces, which the original looks
@@ -431,7 +432,7 @@ EVENT_CHECK_TAKING_NOTHING(can_look_its_way)
  * read past it, which the guard leaves to the original. */
 static bool can_slide_its_way(const GameState *g, FieldObject self)
 {
-    return object_facing_is_one(g, self) && object_search_fits(g);
+    return object_facing_is_one(g, self) && object_search_starts(g);
 }
 EVENT_CHECK(can_slide_its_way, self)
 

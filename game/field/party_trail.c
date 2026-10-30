@@ -353,11 +353,51 @@ static void wait_on_the_trail(GameState *g, FieldObject member, Footprint f)
     take_pose(g, member, pose_of(g, against), false);
 }
 
+/* For shadow mode: the priorities the original lays on an empty place of
+ * the party, on the slot its marker names past the tables (field/object.h,
+ * object_past_the_tables), the bytes after the priorities'. */
+static void leave_stray_footprint_priorities(GameState *g, FieldLink marker, SpritePriorities priorities)
+{
+    object_take_sprite_priorities_past_the_tables(g, field_linked_object(marker), priorities);
+}
+
+/* A member's step moves the object its place of the party names, and
+ * animates the member whose turn it is: the same object, but for a moment
+ * when the place is emptied under a member still stepping (the Prophet's
+ * ending, frames 119033-119035, as the party is taken off the map for its
+ * first vignette). The original then steps the slot the empty place's
+ * marker names, past the tables, which holds nobody: its step lands on the
+ * next tables' bytes, the first object's vertical step and its speed, which
+ * the game goes on with, so the port makes the same writes. */
+static void step_the_place(GameState *g, PartyPlace place, Velocity step)
+{
+    FieldLink link = party_member_link(g, place);
+    if (field_link_is_object(link))
+        object_set_step(g, field_linked_object(link), step);
+    else
+        object_set_step_past_the_tables(g, field_linked_object(link), step);
+}
+
+static void layer_the_place(GameState *g, PartyPlace place, SpritePriorities priorities)
+{
+    FieldLink link = party_member_link(g, place);
+    if (field_link_is_object(link))
+        object_take_sprite_priorities(g, field_linked_object(link), priorities);
+    else
+        ORIGINAL_EFFECT(leave_stray_footprint_priorities(g, link, priorities));
+}
+
+bool party_place_steps(const GameState *g, PartyPlace place, FieldLink member)
+{
+    FieldLink link = party_member_link(g, place);
+    return field_same_link(link, member) || field_link_byte(link) == field_link_byte(field_no_link());
+}
+
 // $C0:A26B (the first member), $C0:A2CE (the second), and their gait $C0:9ED1, $C0:9F20
 void party_member_follows(GameState *g, FieldObject member, PartyPlace place)
 {
     ORIGINAL_EFFECT(leave_carried(g, false));
-    object_set_step(g, member, (Velocity){ 0, 0 });
+    step_the_place(g, place, (Velocity){ 0, 0 });
     if (!party_member_moves_on(g, place)) {
         wait_on_the_trail(g, member, field_footprint(g, place_on_trail(g, place)));
         return;
@@ -365,8 +405,8 @@ void party_member_follows(GameState *g, FieldObject member, PartyPlace place)
     uint8_t next = next_footprint(place_on_trail(g, place));
     set_place_on_trail(g, place, next);
     Footprint f = field_footprint(g, next);
-    object_set_step(g, member, f.movement);
-    object_take_sprite_priorities(g, member, f.priorities);
+    step_the_place(g, place, f.movement);
+    layer_the_place(g, place, f.priorities);
     if (ground_kind(f.ground) == GROUND_CLIMB)
         climb(g, member, f.walk.y != 0);
     else
@@ -453,7 +493,7 @@ static void member_follows(Snes *s, PartyPlace place)
     bool moved_on = party_member_moves_on(g, place);
     vars_peek(false);
     party_member_follows(g, member, place);
-    s->cpu.y = field_object_offset(member);
+    s->cpu.y = field_link_byte(party_member_link(g, place));
     m_set_flag(s, CPU_FLAG_V, field_member_step_overflow(g, place, moved_on));
     m_rts(s);
 }
@@ -463,8 +503,9 @@ void field_second_member_follows(Snes *s) { member_follows(s, PARTY_SECOND_MEMBE
 
 /* The guards. The leader's step is the current object's, whichever it is;
  * a member's moves the object in its place of the party and animates the
- * current one, which the game has the same. Both read the random table
- * through the data bank, and the trail by the places on it. */
+ * current one, which the game has the same, or has the place empty for a
+ * moment. Both read the random table through the data bank, and the trail by
+ * the places on it. */
 bool field_leader_can_step(Snes *s) { return field_current_object_bank_zero(s); }
 
 static bool member_can_follow(Snes *s, PartyPlace place)
@@ -473,7 +514,7 @@ static bool member_can_follow(Snes *s, PartyPlace place)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = field_same_link(party_member_link(g, place), field_link_stored((uint8_t)field_current_object(g))) &&
+    bool ok = party_place_steps(g, place, field_link_stored((uint8_t)field_current_object(g))) &&
               party_trail_places_hold(g);
     vars_peek(false);
     return ok;

@@ -266,8 +266,10 @@ int main(int argc, char **argv)
     unsigned long frame = 0;
     uint16_t location = 0xFFFF;
     while (frame < frames) {
-        if (movie_path)
+        if (movie_path) {
             in_host_set(&pf, 0, ct_movie_buttons(&movie, (uint32_t)frame));
+            in_host_set(&pf, 1, ct_movie_buttons2(&movie, (uint32_t)frame));
+        }
         tm_host_frame(&pf);
         sound_native_frame(sound);
         frame++;
