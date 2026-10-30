@@ -9,6 +9,14 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **The battle grid's reads past the combatants.** With the party off the grid,
+  `battle_mark_combatants_on_grid` (`battle/battlefield.c`) reads slots 11-13,
+  whose objects 23-25 put their Y in the drawing scratch (`$7E:1D2E`-`$1D30`).
+  `draw_frame` (`battle/draw_objects.c`) now writes the frame's X (`$2E`-`$2F`)
+  plainly, as the early-boss movies showed the grid reading it; the frame's Y
+  (`$30`, object 25's) is still written only as scaffolding, so the native
+  shape reads it stale wherever slot 13 is present (`$7E:9702` nonzero). No
+  movie has shown that read yet: write `$30` plainly too, or show it unread.
 - **Geno Dome timing attribution.** The narrowed `battle-motherbrain` calibration
   leaves `battle_step_the_poses` and `battle_strike_the_poses` with a body cost of
   1: their attributed graphics work already exceeds the measured original
