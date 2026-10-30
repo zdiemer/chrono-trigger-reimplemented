@@ -2801,10 +2801,8 @@ list, by kind, is what `game/` still asks of one.
   through the menus the player opens"), and the shops' (REIMPLEMENTATION.md,
   "The native program through the shops"); where one of them meets what has
   no C yet, `program_needs_the_machine` stops the program there and says
-  which: the items list's slide (`$C2:AC3A`), an item tried on that is no
-  item of the game's (`$C2:A5C3`), a member's row whose record names no
-  character (`$C2:A225`), on the load screen a slot's erasing (`$C2:E8B7`),
-  and a shop whose state a step's entry's guard turns away ("a shop the port
+  which: an item tried on that is no item of the game's (`$C2:A5C3`), a
+  member's row whose record names no character (`$C2:A225`), and a shop whose state a step's entry's guard turns away ("a shop the port
   doesn't take", menu/shop_steps.c).
 - **Where the save movies stop.** From a cartridge save `ct_native` plays
   43 of the 45 save movies to their end; the two below ("Refusals in real

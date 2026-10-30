@@ -38,6 +38,8 @@ bool menu_slot_summary_read_back(GameState *g, Platform *pf);
 void menu_read_design_and_chapter(Snes *s);
 void menu_draw_chapter_label(Snes *s);
 void menu_draw_empty_label(Snes *s);
+/* The empty slot's label drawn in the place of the slot shown's, as C. */
+void menu_draw_the_empty_label(GameState *g);
 void menu_draw_slot_name(Snes *s);
 void menu_load_slot_rows_effect(Snes *s);
 void menu_draw_member_portrait(Snes *s);
