@@ -318,9 +318,12 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 # (docs/movies-wanted.md, "Every tech").
 # The other New Game+ endings take over 100,000 frames apiece. Their
 # scratch movies and shipping routes are checked by hand (MOVIES.md).
+# The preparation routes make cartridge saves through long prerequisites;
+# their movies are not in the library.
 HAND_RUN_ROUTES = {"tech_sweep", "successor_of_guardia", "legendary_hero", "unknown_past",
                    "people_of_the_times", "the_oath", "dino_age", "what_the_prophet_seeks",
-                   "memory_lane", "reunion"}
+                   "memory_lane", "reunion",
+                   "prepare_luccas_mother"}
 
 
 def all_routes():

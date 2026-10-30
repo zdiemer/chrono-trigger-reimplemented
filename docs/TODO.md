@@ -782,7 +782,15 @@ rest waits, is [PLAN.md](PLAN.md).
   (`sprites.c`, by address through `game/wram.h`), the fifth sprite's Y above
   the screen, the openings' word clear spilling into the next slot (the first
   object's falling flag, past the last), and the row removal's in-view
-  write. Three commands still take a party member's object without checking
+  write. `events-luccas-mother` exposes that last alias in real play:
+  `object_leave_row` writes the previous link through a none successor into
+  object 0's in-view flag (`$7E:0F00`, `leave_stray_in_view_write`).
+  `field_update_objects` then reads the flag 984 times from shipping-mode
+  frame 12470 during the rescue. The effects baseline records this gap;
+  strict mode matches the reference end state and the native-shape movie
+  reaches its end, but those end checks do not settle how native storage
+  should represent the alias or its effect on intermediate drawing.
+  Three commands still take a party member's object without checking
   (`$24`, `$A9`, and `$07` while it waits), and their guards leave an empty
   place to the original, where it reads the slot past the tables; the game
   makes none of those calls over the library. The moves, following and
@@ -2800,6 +2808,13 @@ list, by kind, is what `game/` still asks of one.
   and the event commands with a bridge and no C beside it (9 of the 23 in
   `EVENT_BRIDGES`; `EVENT_BRIDGES_AS_C`, event/engine.h, has the rest).
   Each wants its C as the program meets it.
+- **Lucca's mother stops at Robo's recruitment.** `events-luccas-mother`
+  stops `ct_native` at frame 3120, `$C0:38BE` (`event_cmd_recruit`), with
+  "an event command only the machine runs" while recovering Robo in
+  Fiona's shrine. The native event bridge needs its C path. Shadow completes
+  with zero mismatches or guard refusals, and strict mode
+  (`--native on --generated off --no-interpreter strict --sound-driver c`)
+  completes all 15701 frames with the reference saved game and save RAM.
 - **What the menus the player opens still hand the machine.** The main
   menu's steps and its four panels, and the steps `menu.ctm` reaches of the
   equipment (its opening, the member choice and pointing), the items (the
