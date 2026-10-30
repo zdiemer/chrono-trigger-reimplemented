@@ -60,7 +60,7 @@
 7E:9F8A 11 31  # handback by scene_run_sequence (scene program (RAM))
 7E:9FC8 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:9FEA 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
-C0:---- 632 123  # no port yet (field engine, events)
+C0:---- 659 123  # no port yet (field engine, events)
 C0:0B38 918 5  # handback by field_enter, field_fade_in, field_fade_in_after_a_menu (field engine, events)
 C0:4F61 22476 118  # refused by event_cmd_move_to_tile (field engine, events)
 C0:5A93 84 5  # handback by event_run_object_script (field engine, events)

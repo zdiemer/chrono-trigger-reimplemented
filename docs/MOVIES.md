@@ -408,6 +408,24 @@ recreated the archived SRAM exactly. Neither route uses memory pokes.
 The archive's slot 2 is already after the boss and shell delivery; slot 3
 is after the trial. The delivery and trial are not in this movie.
 
+`cyrus` (`events-cyrus.ctm`, 39872 frames) starts from ctsave14 slot 1,
+before the Northern Ruins repairs. It takes the carpenter's request in
+600 A.D., borrows the tools from his counterpart's family in 1000 A.D.,
+returns them and commissions the repairs. The three left-wing guardian
+groups are beaten, that floor is repaired for 2000 G, and Frog replaces
+Crono for Cyrus's grave: the ghost, Masa and Mune, and the Masamune restored.
+The route checks the repair and completion flags, Frog's upgraded weapon,
+and player control at the end. Slot 2, used by `northern_ruins_switch`, is
+already after this quest. The right-wing treasure rooms need no visit.
+Its waypoint searches use machine copies and retain only successful walks;
+the fights use the `party` policy. Shadow has 0 mismatches and no refusals;
+strict mode reaches the end with five character-record bytes differing.
+The route also reaches its checked outcome in shipping mode
+(`--native on --generated on --sound-driver c`), at frame 38104.
+`ct_native` consumes all frames without a reported stop, but ends blanked,
+so that run does not establish the quest's outcome. See Targets, 12 in
+[movies-wanted.md](movies-wanted.md) for the coverage and native stops.
+
 Each starts from the cartridge save its movie header names and its route's
 `SAVE` selects; `--sram` picks another. The saves include technoplaza's
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`) in

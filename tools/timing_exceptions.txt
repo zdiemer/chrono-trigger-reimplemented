@@ -24,7 +24,6 @@ battle_see_to_the_beaten_enemies worst Son of Sun's scripted defeat ends the eye
 # The narrowed Rust Tyrano movie, after --drifted calibration. Its vblank
 # check finds no writes moved onto the picture; TODO.md tracks finer estimates.
 battle_record_trails vblank-tail copies four RAM positions only for active trails whose countdown expires; over battle-rust-tyrano, 2.54% of 7123 vblank stretches off by 1024 clocks or more, at most 1538 clocks (1.2 lines), with zero mean drift; its variable work writes RAM, and the movie's video check finds no writes moved
-field_nmi vblank-tail the pending frame, sprite queue and edge-upload paths vary under the field handler's estimate; over battle-rust-tyrano, 1.37% of 5904 vblank stretches off by 1024 clocks or more, at most 3404 clocks (2.5 lines), mean drift +0.06%; the movie's video check finds no writes moved onto the picture
 
 # The decompressor: a call is 260-290 lines on average (a frame is 262),
 # seven times the length of vblank, and interrupts are taken during its time: its error
@@ -220,15 +219,18 @@ battle_strike_the_poses worst the same work inside the pose loop: at most 56414 
 field_build_line_effect_tables vblank-tail builds the next frame's line-effect tables in RAM; 4 of 195 stretches in vblank off by 1024 clocks or more, at most 1107 (under one line)
 field_frame_goes_on_with_confirm vblank-tail the rest of the field frame after confirm, its work attributed to field_frame: 1.54% of 2861 stretches in vblank off by 1024 clocks or more, at most 1792, writing the next frame's RAM tables
 field_frame_goes_on_with_the_dialog_window vblank-tail the same from the dialog-window step: 1.50% of 2861 stretches, at most 1068 clocks (under one line)
-field_nmi vblank-tail the field's vblank uploads and input have data-dependent work; 2.20% of 12934 stretches off by 1024 clocks or more, at most 3786 (under three lines); the movie's shipping vblank check reports no new picture-band violations
 # events-fionas-forest alone, after --calibrate --drifted: the remaining path-dependent
 # estimates. Its calibrated shipping-mode vblank check has 0 unexcepted findings.
 battle_dispatch_expired_timers worst Retinite's turn dispatch, its actions timed at their own rates: at most 53234 clocks off on the picture, just over the 50468-clock limit; the narrowed vblank check is clean
-battle_record_trails vblank-tail records active combatants' trail points in RAM, its work following which trails are due: 1.81% of 5734 vblank stretches off by a line, at most 1603 clocks
 battle_see_to_knocked_out_enemies worst Retinite's multipart defeat, its work following the beaten parts: at most 52855 clocks off on the picture; the narrowed vblank check is clean
-battle_see_to_the_beaten_enemies worst the same defeat's enclosing work, at most 54343 clocks off on the picture; the narrowed vblank check is clean
 field_draw_the_objects_in_view vblank-worst draws the location's visible objects and builds the sprite table in RAM, its work following the objects: one vblank stretch off by 17196 clocks; the narrowed vblank check is clean
 menu_choose_on_main_menu drift the main menu step's parts leave +1.41% over 343 stretches at cost_milli 1, which no smaller positive scalar can fix; it writes menu buffers and the upload queue, and the narrowed vblank check is clean
 menu_map_scroll_x vblank-tail the menu plane's horizontal scroll follows whether a tile edge queues a strip: 14.29% of 343 vblank stretches off by a line, at most 1163 clocks, writing the queue in RAM
 overworld_epoch vblank-tail the Epoch's movement, landing and time travel take different paths: 23.15% of 298 vblank stretches off by a line, at most 2924 clocks; the narrowed vblank check is clean
 overworld_lead vblank-tail the world-map leader's movement and contacts take different paths: 2.20% of 1546 vblank stretches off by a line, at most 2857 clocks; the narrowed vblank check is clean
+# events-cyrus, after --calibrate --drifted: the narrowed vblank check has
+# no new findings, and the shipping route reaches the restored sword and
+# field control. The pose estimates need a follow-up (TODO.md, accuracy).
+event_cmd_move_in_direction vblank-tail moves an event object's position in RAM: 2 of 134 stretches wholly in vblank in events-cyrus exceed 1024 clocks, at most 1099; no new moved video write in the vblank check
+menu_object_cmd_for_frames_animating vblank-tail counts an object's animation frames, its path following the animation state: 1.11% of 16549 stretches wholly in vblank in events-cyrus exceed 1024 clocks, at most 1039; no new moved video write in the vblank check
+menu_run_object_script vblank-tail the object's script carries its commands' varying paths: 1.54% of 25553 stretches wholly in vblank in events-cyrus exceed 1024 clocks, at most 1628; no new moved video write in the vblank check

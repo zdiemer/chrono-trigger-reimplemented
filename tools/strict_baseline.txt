@@ -35,6 +35,7 @@ endings-beyond-time drifts  # the fights' turns land on other frames, so they en
 endings-bucket-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (49 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:26A3, $7E:26A4, ...))
 endings-telepod-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (574 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 events-blackbird end
+events-cyrus drifts  # differs from the reference: 5 byte(s) of the saved game (character_records, $7E:2607, $7E:26A3, $7E:26A4, $7E:26A7)
 events-end-of-time-gate end
 events-epoch-lavos end
 events-fionas-forest drifts  # differs from the reference: 131 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, $7E:260C, ...)
