@@ -28,6 +28,7 @@ battle-nizbel-ii drifts  # differs from the reference: 177 byte(s) of the saved 
 battle-tech-sweep-spekkio drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (37 byte(s) of the saved game (inventory_counts, $7E:263D, $7E:263F, $7E:2640, $7E:268D, $7E:268F, ...))
 battle-tech-sweep drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (805 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 battle-tyrano-lair-walls end
+battle-unequipped-armor 7594  # at C0:1AAC
 endings-beyond-time drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way, and the save made after differs (54 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, ...); 4189 byte(s) of save RAM)
 endings-bucket-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (49 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:26A3, $7E:26A4, ...))
 endings-telepod-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (574 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))

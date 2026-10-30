@@ -284,6 +284,20 @@ boss's defence, and heals and restores MP with this save's supplies. The movie
 ends after the victory messages with field control restored. See Targets, 5
 in [movies-wanted.md](movies-wanted.md) for its coverage and validation.
 
+`unequipped_armor` (`battle-unequipped-armor.ctm`, ctsave04 slot 2, 22859 frames)
+reproduces the US equipment glitch: R+Up preserves the equipment list's member-plus-slot
+cache key, allowing Marle to equip item zero in her armor and helmet slots. It crosses
+Zenan Bridge and Truce Canyon, then beats Spekkio with Ice and ends with field control.
+Her Ice deals 244-246; an equipped comparison from a machine copy deals 157-159.
+Incoming Ice is 15 versus 108, Lightning 20 versus 171. The two empty slots give +20
+magic and +30 Lightning/Shadow/Water resistance; Fire is unchanged. See
+[Target 14](movies-wanted.md#14-the-originals-known-glitches) for the code and measurements.
+It adds 0.49 KiB beyond the other movies. Shadow has 0 mismatches and no invalid
+access or refused page; its 44 equipment-list guard refusals are documented gaps.
+Strict stops at frame 7594 (`$C0:1AAC`, field confirm); `ct_native` stops at frame
+3147 (`$C2:AC3A`, the inventory-list slide). Target 14 records the calibration and
+narrowed checks too.
+
 Each starts from the cartridge save its movie header names and its route's
 `SAVE` selects; `--sram` picks another. The saves include technoplaza's
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`) in
