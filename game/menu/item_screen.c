@@ -1449,11 +1449,29 @@ static bool describe(void *ctx)
     return true;
 }
 
+static const ItemsSteps as_c;
+
+/* The list's slide, a row in: started, the row brought in and drawn, a
+ * tick, the frames (each waiting for the next), then the item on the cursor
+ * described and the rows moved along in their buffer. */
 static bool slide_the_list(void *ctx)
 {
     ItemsAsC *c = ctx;
-    program_needs_the_machine(c->game, 0xC2AC3A, "the items list slid a row");
-    return false;
+    GameState *g = c->game;
+    menu_items_set_up_slide(g);
+    TIMED_AS(g, 0xC2EB9B, menu_start_list_slide(g));
+    menu_items_bring_in_a_row(g);
+    menu_tick(g, c->pf);
+    if (menu_items_slide_takes_frames(g))
+        while (menu_items_slide_a_frame(g)) {
+            TIMED_AS(g, 0xC2EB1F, menu_slide_list_a_frame(g));
+            menu_task_waits(g, 1);
+        }
+    menu_items_end_slide_frames(g);
+    if (!menu_point_at_listed_item_with(g, c->pf, &as_c, c))
+        return false;
+    menu_items_finish_slide(g);
+    return true;
 }
 
 static bool back_to_the_main_menu(void *ctx)
