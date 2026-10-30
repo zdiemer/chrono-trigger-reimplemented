@@ -2,7 +2,6 @@
 # docs/REIMPLEMENTATION.md, "The timing gate").
 # Sun Palace's reference play, after --drifted calibration over battle-son-of-sun:
 field_nmi vblank-tail the palace's mix of sprite-queue and edge uploads leaves 38 of 1726 vblank stretches off by at least 1024 clocks, at most 2736 (about two scanlines); one scalar fits their mean, not each queue's work; the movie's vblank check finds no write moved onto the picture
-battle_see_to_the_beaten_enemies worst Son of Sun's scripted defeat ends the eye and five still-living flames together; the mix of empty checks and seeing enemies off has a 224169-clock outlier in 176 stretches after fitting the mean; none is in vblank, the animation work waits between frames, and the movie's vblank check finds no write moved onto the picture
 # Sun Stone's reference play, after --drifted calibration over events-sun-stone:
 #
 # One per line: entry limit reason...
@@ -23,18 +22,6 @@ battle_see_to_the_beaten_enemies worst Son of Sun's scripted defeat ends the eye
 # vblank and outlast it (loads, setups, the load screen's frame): their error
 # moves work on the picture, and `worst` judges it there.
 
-# The narrowed Rust Tyrano movie, after --drifted calibration. Its vblank
-# check finds no writes moved onto the picture; TODO.md tracks finer estimates.
-battle_record_trails vblank-tail copies four RAM positions only for active trails whose countdown expires; over battle-rust-tyrano, 2.54% of 7123 vblank stretches off by 1024 clocks or more, at most 1538 clocks (1.2 lines), with zero mean drift; its variable work writes RAM, and the movie's video check finds no writes moved
-# The field interrupt's residual work varies with its transition and upload paths.
-# Zeal Palace and Giga Gaia after drift calibration on their movies. The
-# shipping-mode vblank check has no failing findings; TODO.md tracks the spread.
-battle_dispatch_expired_timers worst Giga Gaia's due-timer dispatch: max 58387 clocks, mean absolute error 3.6% and drift +0.25%; the shipping replay has no newly misplaced video write
-battle_see_to_knocked_out_enemies worst Giga Gaia's knocked-out enemy reactions: max 57545 clocks, mean absolute error 34.5% with zero mean drift; the shipping replay has no newly misplaced video write
-battle_frame_work vblank-tail Giga Gaia's frame work: 1.73% of vblank stretches off by at least 1024 clocks, max 1428 (1.05 lines), with -0.02% drift; the shipping replay has no newly misplaced video write
-palette_fade_to_white vblank-tail Zeal Palace's white fades update the working palette in RAM: all 130 vblank stretches off by at least 1024 clocks, max 1480 (1.09 lines), with zero mean drift across both Zeal movies; the shipping replays have no newly misplaced video write
-field_build_line_effect_tables vblank-tail North Cape's flashback and dialog shapes: 4 of 116 in-vblank stretches exceed 1024 clocks, maximum 2120 after drift calibration; builds RAM tables and the movie's shipping-mode vblank check has no failing findings
-overworld_lead vblank-tail the short walk from Earthbound Village to North Cape mixes idle, walking and entrance paths: 38 of 551 in-vblank stretches exceed 1024 clocks, maximum 3152 after drift calibration; updates RAM state and the movie's shipping-mode vblank check has no failing findings
 
 # The decompressor: a call is 260-290 lines on average (a frame is 262),
 # seven times the length of vblank, and interrupts are taken during its time: its error
@@ -57,9 +44,7 @@ menu_draw_glyph vblank-tail draws a glyph into the menu's tile buffer in RAM in 
 menu_draw_text vblank-tail draws text into the menu's tilemap buffer in RAM in 19-line calls; its tiles and numbers are attributed (19% of vblank calls off by a line, from 32%), the control codes' handlers are no entries and the loop follows the string; at most 3498 clocks (2.6 lines) in vblank
 menu_run_window_list vblank-tail draws a window command list into the menus' tilemap buffers in RAM, which the next vblank uploads; its commands are charged at their handlers' rates and its strings at menu_draw_text's, so it inherits the text's spread: its calls in vblank are nearly all one field list (a string) off by 1040 clocks each, mean |error| 1.1% and no drift over all calls
 menu_draw_sprite_nodes vblank-tail draws the sprite list into the OAM buffer in RAM, which the next vblank uploads, 40510 clocks a call on average; its time is charged per node and per sprite as the original spends it (dropped across, dropped down, shown), 2.97% of its 236 calls in vblank off by 1024 clocks or more, at most 3416 clocks (2.6 lines)
-menu_read_design_and_chapter drift reads a slot's window design and chapter, the chapter label's drawing attributed to menu_draw_chapter_label (cost_milli 1); what is left over-estimates by about 3700 clocks in calls of 519000 (+0.71%), never in vblank, writing the summary into RAM the next vblank sends. Judged since the New Game+ movie took it past 100 stretches
 menu_object_cmd_for_frames_moving vblank-tail runs its object's sprite script inline, whose commands (a show, a byte change, an upload queued) vary from frame to frame under one scalar; 1.54% of its calls in vblank off by 1024 clocks or more, at most 2982 clocks (2.3 lines), writing the object and the sprite list in RAM
-field_after_battle vblank-tail the field's restoration and game-over button wait share one scalar: adding Nizbel II's 22 returns calibrates it to 24754, with +0.04% library drift, but 509 polling stretches in battle-golem-twins-gameover exceed 1024 clocks (1173 at most, less than one scanline); these read the buttons between calls to the leader's frame walk, with no video write of their own, and the frame wait bounds the next walk. Lowering the scalar enough to fit these waits exceeds the library drift limit
 
 # The jet bike race's frame tasks, writing RAM the next vblank sends.
 scene_race_draw vblank-tail draws the race's sprites into the RAM sprite table in 22-line calls, longer than vblank, through the scene's sprite routines, each timed as itself (TIMED_AS), whose scalars fit their own calls only on average; at most 1723 clocks (1.3 lines), which moves only when the table is ready
@@ -72,7 +57,6 @@ scene_roll_credits vblank-tail writes the next line of the staff credits into a 
 battle_effect_combatant_jump vblank-tail a combatant's jump steps in RAM (its position, read by the drawing later in the frame); 4.61% of its vblank calls off by 1024 clocks or more, at most 2562 clocks, writing no video register
 battle_run_screen_scripts vblank-tail the screen scripts' frame: its time is its loop over the two channels' steps, each command timed as its own handler (NATIVE_TIME_AS); what is left follows how many steps and bytes a frame takes, and the circles' spread (battle_screen_script_draw_circle), and the steps write RAM (the coming window buffer, the scroll offsets, the shapes), which the vblank check finds moves no video write
 battle_run_screen_channel vblank-tail a channel's step, as battle_run_screen_scripts: its time follows the commands it runs before the step ends, writing RAM
-battle_run_screen_command vblank-tail the screen command's operation is charged at its handler's rate; decoding and finishing vary with its operands and flow, writing the screen state in RAM. In battle-ozzies-fort, 11 of 1029 vblank stretches exceed 1024 clocks (1.07%), at most 1949 clocks, with -0.00% drift after calibration; the movie's vblank check finds no unallowed video write moved
 battle_update_scroll_tables_line_wave vblank-tail the line wave's scroll fill: its time follows which layers the wave moves, 0.7% error, 5.0% of calls off by 1024 clocks or more, at most 1729 clocks, writing the scroll tables in RAM
 battle_show_action worst the action's showing, main-loop work between its waits for the next frame: each stretch runs the objects' steps, the effects' and palettes' animations and the poses' round as their own routines (TIMED_AS), and what is left follows how many objects and looks a frame changes; 0.72% of its stretches off by 1024 clocks or more, at most 81528 clocks (one in 2.3 million), writing RAM the frame it then waits out uploads; the vblank check finds no write moved
 
@@ -182,7 +166,6 @@ tile_animation_load vblank-tail loads a tile animation's frames, as many as the 
 tile_animation_load_jump vblank-tail the same load through its jump, which shares its stretches and its error
 menu_type_the_description vblank-tail types a description a letter at a time, its time following the letters (4.4% mean error); the new movies brought its stretches in vblank past the limit's hundred (116), 6.9% of them off by a scanline's three quarters, and the vblank check finds no video write moved
 menu_choose_buttons vblank-tail the settings' button rows' step, whose time follows which rows change and are drawn again (2.7% mean error); 418 stretches in vblank in menus-sweep, 1.7% of them off by a scanline's three quarters, and the vblank check finds no video write moved
-battle_step_effect_slots vblank-tail steps every effect slot a frame, its time following the slots in use (7.8% mean error); the tech sweep's effects take 1.25% of its 323,766 stretches in vblank a scanline's three quarters off, and the vblank check finds no video write moved
 menu_open_save_screen worst the save point's own save screen opening, one stretch over the library (menus-save-point) and that interrupted: it spans the frames the screen's windows open over, which its estimate doesn't hold; no video write moves
 
 # The hand ports alone (the shipping mode's fallbacks, chunk 11; REIMPLEMENTATION.md): the joints
@@ -201,7 +184,6 @@ field_frame_goes_on_with_confirm worst the field's frame from the confirm step o
 field_frame_goes_on_with_the_dialog_window worst the same from the dialog window's step: at most 87935 clocks
 field_frame_goes_on_with_the_screen_effect worst the same from the screen effect's step: at most 88037 clocks
 battle_screen_script_draw_circle vblank-tail draws a circle into the screen script's RAM tables, its time following the circle's size; the second batch's fights (Spekkio's) brought 131 stretches in vblank, 55% off by a line or more, at most 2075 clocks
-battle_upload_alternating_vram vblank-tail the alternating VRAM upload in vblank: 1.14% of 730,110 stretches off by 1024 clocks or more, at most 1296 clocks (under a line), with the second batch's fights
 event_cmd_copy_tiles worst copies a block of the map's tiles, its time following the block's size: the floor switches' movies' copies at most 51467 clocks (the limit 50468), writing the RAM tile maps the next vblank sends
 field_copy_tiles worst the same copy from the field's own call: at most 50846 clocks
 menu_note_rock_techs vblank-tail notes which rock techs the party has, its time following the party's members and their records: 16% of its 120 stretches in vblank off by a line, at most 1076 clocks
@@ -216,53 +198,30 @@ menu_window_copy_bytes vblank-tail copies a window's bytes into the menus' tilem
 # onto the picture.
 battle_set_up_after_the_graphics drift the set-up after a battle's graphics load is mostly its callees' work, each at its own rate, so its own share calibrates to next to nothing (1) against its cost_milli of 1006: +1.54% over 260 stretches of 29032 clocks on average, 2 in vblank and those within 20 clocks
 battle_step_the_poses drift a pose step's graphics building is attributed at the frame graphics' rate, which over- and undershoots with the poses built; recalibrating trades it against battle_strike_the_poses, which runs it inline, rather than settling either: +2.01% over 7104 stretches, none in vblank
-battle_strike_the_poses drift the victory and defeat poses run battle_step_the_poses inline and carry its attribution: +1.92% over 7251 stretches, none in vblank
 field_after_battle drift kept at the value that fits its vblank stretches (606 of 677, each within 926 clocks): calibrating its drift away (cost_milli 25349) puts most of them a line or more off; -1.16% over the 677
 field_press_the_remembered_switches vblank-tail the remembered switches' presses follow how many switches a room remembers (the factory's and Geno Dome's rooms): 2.68% of its 112 vblank stretches off by a line or more, at most 1773 clocks
-# battle-unequipped-armor, narrowed calibration: the pose and menu dispatchers'
-# attributed children alone exceed their reference stretches, so even an own
-# cost_milli of 1 cannot fit them. The coordinator's combined gate must remeasure
-# these with the rest of the library; these lines describe the remaining limits.
-menu_choose_equipment_member drift choosing a member opens the slots and draws the empty equipment list; the attributed slot/list work exceeds these 125 stretches even at own cost 1 (+17%); existing vblank-tail exception covers its window opening
-menu_run_the_main_task drift the menu task's screen step and wait are attributed to their own entries; their costs exceed these 103 stretches even at own cost 1 (+1.75%), with at most 245 clocks error
-battle_find_due_animation worst the pose's due animation builds its changed frame's graphics in RAM, with uploads held until the next frame; at most 58204 clocks in 5469 stretches after the narrowed calibration
-battle_step_the_poses worst the same pose-frame graphics work: at most 56590 clocks in 384 stretches, writing RAM while uploads are held
-battle_strike_the_poses worst the same work inside the pose loop: at most 56414 clocks in 393 stretches, with explicit frame waits
-field_frame_goes_on_with_confirm vblank-tail the rest of the field frame after confirm, its work attributed to field_frame: 1.54% of 2861 stretches in vblank off by 1024 clocks or more, at most 1792, writing the next frame's RAM tables
-field_frame_goes_on_with_the_dialog_window vblank-tail the same from the dialog-window step: 1.50% of 2861 stretches, at most 1068 clocks (under one line)
-# events-fionas-forest alone, after --calibrate --drifted: the remaining path-dependent
-# estimates. Its calibrated shipping-mode vblank check has 0 unexcepted findings.
-field_draw_the_objects_in_view vblank-worst draws the location's visible objects and builds the sprite table in RAM, its work following the objects: one vblank stretch off by 17196 clocks; the narrowed vblank check is clean
-menu_choose_on_main_menu drift the main menu step's parts leave +1.41% over 343 stretches at cost_milli 1, which no smaller positive scalar can fix; it writes menu buffers and the upload queue, and the narrowed vblank check is clean
-menu_map_scroll_x vblank-tail the menu plane's horizontal scroll follows whether a tile edge queues a strip: 14.29% of 343 vblank stretches off by a line, at most 1163 clocks, writing the queue in RAM
-overworld_epoch vblank-tail the Epoch's movement, landing and time travel take different paths: 23.15% of 298 vblank stretches off by a line, at most 2924 clocks; the narrowed vblank check is clean
-# events-cyrus, after --calibrate --drifted: the narrowed vblank check has
-# no new findings, and the shipping route reaches the restored sword and
-# field control. The pose estimates need a follow-up (TODO.md, accuracy).
-event_cmd_move_in_direction vblank-tail moves an event object's position in RAM: 2 of 134 stretches wholly in vblank in events-cyrus exceed 1024 clocks, at most 1099; no new moved video write in the vblank check
-menu_object_cmd_for_frames_animating vblank-tail counts an object's animation frames, its path following the animation state: 1.11% of 16549 stretches wholly in vblank in events-cyrus exceed 1024 clocks, at most 1039; no new moved video write in the vblank check
-menu_run_object_script vblank-tail the object's script carries its commands' varying paths: 1.54% of 25553 stretches wholly in vblank in events-cyrus exceed 1024 clocks, at most 1628; no new moved video write in the vblank check
-# The Cathedral hand run (battle-yakra, 71287 frames), after --drifted calibration.
-# Its shipping-mode vblank check has no finding outside the existing video-write exceptions.
+
+# The second batch of movies (84 in the library), after one drift-only calibration
+# over all of it (timing_gate.py --calibrate --drifted); each entry was measured over
+# the whole library, whose shipping-mode vblank check finds no video write moved onto
+# the picture. The batch's narrowed runs' exceptions that the library still needs are
+# here with the ones it added.
 battle_effect_anchor_jump vblank-tail the jump path updates the effect anchor's position in RAM; which part of the arc it advances changes its time: 3.09% of 648 stretches in vblank off by at least 1024 clocks, at most 1244 (under a line), with no net drift; the sprite upload is later
-battle_share_experience worst the early party's experience and level-up records, written in RAM, with only seven uninterrupted stretches through their different level-up paths: at most 55137 clocks off; no video write of its own
-field_draw_the_objects_in_view worst the Cathedral's varying object lists built during screen setup, with visible objects drawn and the sprite table built in RAM: at most 54579 clocks off over ten uninterrupted stretches, before the screen is brought back
-field_set_the_screen_up worst screen setup includes the same object-list drawing and its timing spread: at most 51020 clocks off over ten stretches while preparing the screen, before the fade-in resumes
-field_fade_in worst carries the screen setup's error into the fade-in, whose brightness advances at frame waits: at most 51084 clocks off over nine uninterrupted stretches, moving when the prepared screen starts showing; the vblank check finds no unallowed video-write timing
-field_queue_due_turns vblank-tail queues the field objects' due script turns in RAM, its time following the object count and which turns are due: 2.01% of 11078 stretches in vblank off by at least 1024 clocks, at most 1274 (under a line), with negligible net drift
-field_frame_work vblank-tail carries field_queue_due_turns and its data-dependent spread into the field's work in RAM: 2.02% of 11055 stretches in vblank off by at least 1024 clocks, at most 1274
-field_frame_goes_on_with_the_frame_work vblank-tail the field frame's continuation carries the same queue/work timing spread: 2.02% of 10944 stretches in vblank off by at least 1024 clocks, at most 1275, writing the RAM work the next vblank consumes
-field_frame_goes_on_with_the_script_layers vblank-tail the same field-frame continuation and queue/work spread: 2.02% of 10944 stretches in vblank off by at least 1024 clocks, at most 1275, writing RAM
-field_frame_goes_on_with_the_screen_effect vblank-tail the same field-frame continuation and queue/work spread: 2.02% of 10944 stretches in vblank off by at least 1024 clocks, at most 1275, writing RAM
-
-# The four early-boss recordings, after combined --drifted calibration.
-# The hand-run Rainbow Shell trial, after drift-only calibration; its narrowed
-# vblank check reports no unlisted video-write movement. Follow-ups: TODO.md.
-
-# Proto Dome after drift-only calibration; the narrowed vblank check has no
-# unlisted video-write movement. Follow-ups: TODO.md.
-
-# Dalton after drift-only calibration; the video-write check has no unlisted movement.
-# Crono's trial, short and Cathedral hand run, after --drifted calibration.
+field_draw_the_objects_in_view vblank-worst draws the location's visible objects and builds the sprite table in RAM, its work following the objects: one vblank stretch off by 17196 clocks; the narrowed vblank check is clean
 field_refresh_effects vblank-tail carries the screen-effect tables and palette animation built in RAM, already attributed to their own rates: 16.97% of 330 stretches in vblank off by at least 1024 clocks, at most 1452; the later upload consumes those tables
-field_walk_a_frame drift the scripted walk carries its inline walk and effects estimates, with its own scalar already at the minimum 1: +0.53% over 266 stretches, at most 816 clocks off in vblank; it updates RAM then waits for the next frame
+menu_choose_equipment_member drift choosing a member opens the slots and draws the empty equipment list; the attributed slot/list work exceeds these 125 stretches even at own cost 1 (+17%); existing vblank-tail exception covers its window opening
+menu_choose_on_main_menu drift the main menu step's parts leave +1.41% over 343 stretches at cost_milli 1, which no smaller positive scalar can fix; it writes menu buffers and the upload queue, and the narrowed vblank check is clean
+menu_run_the_main_task drift the menu task's screen step and wait are attributed to their own entries; their costs exceed these 103 stretches even at own cost 1 (+1.75%), with at most 245 clocks error
+overworld_epoch vblank-tail the Epoch's movement, landing and time travel take different paths: 23.15% of 298 vblank stretches off by a line, at most 2924 clocks; the narrowed vblank check is clean
+overworld_lead vblank-tail the short walk from Earthbound Village to North Cape mixes idle, walking and entrance paths: 38 of 551 in-vblank stretches exceed 1024 clocks, maximum 3152 after drift calibration; updates RAM state and the movie's shipping-mode vblank check has no failing findings
+event_cmd_take_formation vblank-tail takes a formation's objects, its work following how many members and objects it moves: 2.17% of 138 vblank stretches off by at least 1024 clocks, at most 1478, with no drift; it writes the objects' RAM
+field_enter worst a location's entry, its loading attributed to its routines (cost_milli 1) with the screen blanked; the worst of 1809 calls is 66581 clocks off in a long load, none of it in vblank (at most 587 there)
+menu_fade_palette_row vblank-tail fades a palette row in RAM, its work following the row's colours: 1.96% of 102 vblank stretches off by at least 1024 clocks, at most 3262, with no drift; the next vblank uploads the row
+menu_load_record_sprites drift loads the records' sprites with the screen blanked, its parts at their own rates leaving +1.13% over 124 stretches at cost_milli 1, which no smaller positive scalar reaches; none in vblank
+menu_mode_enter drift the menus' entry is one jump, 18 clocks the original takes against the port's 0 bus accesses: no scalar scales nothing; it moves the menus' start by the same 18 clocks every time
+menu_window_draw_frame_only vblank-tail draws a window's frame into the menus' tilemap buffer in RAM, its time following the window's size: 1.79% of 112 vblank stretches off by at least 1024 clocks, at most 1166
+menu_window_frame vblank-tail the same frame drawing for a window and its contents' rows, following the window's size: 8.13% of 123 vblank stretches off by at least 1024 clocks, at most 1415, writing RAM the next vblank uploads
+overworld_come_back_to_the_map_s_screen drift brings the world map back with the screen blanked, its work at its parts' rates leaving +0.60% over 107 stretches at cost_milli 1; none in vblank
+overworld_finish_the_graphics drift finishes the world map's graphics with the screen blanked, its parts at their own rates leaving +3.94% over 152 stretches at cost_milli 1; none in vblank
+overworld_set_up drift sets the world map up with the screen blanked and the interrupt off, its unpacking and drawing at their own rates leaving +1.29% over 130 stretches at cost_milli 1; none in vblank
+scene_program_hands_back drift the scene program's hand-back is one jump, 70 clocks the original takes against the port's 0 bus accesses: no scalar scales nothing; it moves the hand-back by the same 70 clocks every time

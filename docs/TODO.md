@@ -17,16 +17,14 @@ rest waits, is [PLAN.md](PLAN.md).
   (`$30`, object 25's) is still written only as scaffolding, so the native
   shape reads it stale wherever slot 13 is present (`$7E:9702` nonzero). No
   movie has shown that read yet: write `$30` plainly too, or show it unread.
-- **Geno Dome timing attribution.** The narrowed `battle-motherbrain` calibration
-  leaves `battle_step_the_poses` and `battle_strike_the_poses` with a body cost of
-  1: their attributed graphics work already exceeds the measured original
-  stretches. Check the pose graphics' path-dependent charges before removing
-  their drift and worst-case exceptions. The battle's defeated-enemy passes,
-  due-animation scan and timer dispatcher also carry large worst-case errors.
-  The same movie exposes field-NMI, battle-frame and menu-script vblank-tail
-  exceptions; its rebuilt video-write check has no new failures. Reassess these against the combined library when
-  the movies are merged; the calibration here is deliberately from the narrowed
-  run, not a new full-library measurement.
+- **The second movie batch's timing exceptions.** After one drift-only calibration
+  over the 84-movie library, these entries are still over a limit and listed in
+  `tools/timing_exceptions.txt` (the second batch's block): `,` (after), `battle_effect_anchor_jump` (vblank-tail), `field_draw_the_objects_in_view` (vblank-worst), `field_refresh_effects` (vblank-tail), `menu_choose_equipment_member` (drift), `menu_choose_on_main_menu` (drift), `menu_run_the_main_task` (drift), `overworld_epoch` (vblank-tail), `overworld_lead` (vblank-tail), `event_cmd_take_formation` (vblank-tail), `field_enter` (worst), `menu_fade_palette_row` (vblank-tail), `menu_load_record_sprites` (drift), `menu_mode_enter` (drift), `menu_window_draw_frame_only` (vblank-tail), `menu_window_frame` (vblank-tail), `overworld_come_back_to_the_map_s_screen` (drift), `overworld_finish_the_graphics` (drift), `overworld_set_up` (drift), `scene_program_hands_back` (drift).
+  Each is work whose time follows its data or its path (a pose's graphics, a
+  window's size, a palette row, a load with the screen blanked) or a jump the port
+  takes with no bus access; the vblank check finds none of their writes moved.
+  Make each follow its data (`game/charge.h`) or time the part as its own routine,
+  and drop its line.
 - **Compare the whole held-message pause.** `battle-motherbrain` abandons all
   124 calls of `battle_pause_on_the_message` inside its enclosing message
   sequence. The focused seed-1 fuzz run compares eight accepted states up to
@@ -45,28 +43,6 @@ rest waits, is [PLAN.md](PLAN.md).
   The hand-port runtime can run the movie's menu sequence; the host program's
   item-list continuation still needs a C path.
 
-- **Refine the Rust Tyrano movie's timing tails.** After recalibrating the
-  narrowed `battle-rust-tyrano` run, `battle_record_trails` (`$CF:ED18`,
-  `battle/object_motion.c`) has 2.54% of its 7123 vblank stretches off by at
-  least 1024 clocks, at most 1538; its work depends on which trails are
-  active and whose countdown expires. `field_nmi` (`$C0:EA63`, `field/nmi.c`)
-  has 1.37% of 5904, at most 3404, across its pending-frame and upload paths.
-  Their mean drifts are 0.00% and +0.06%. Both are accepted in
-  `tools/timing_exceptions.txt`: the movie's vblank check finds no writes
-  moved onto the picture. Measure the merged library and refine those path
-  estimates before removing the exceptions.
-- **Zeal's timing spread after drift calibration.** The two movies' narrowed replay
-  leaves worst-case errors of 58387, 57545 and 58882 clocks in
-  `battle_dispatch_expired_timers`, `battle_see_to_knocked_out_enemies` and
-  `battle_see_to_the_beaten_enemies`; `battle_frame_work` and `field_nmi` exceed
-  the vblank tail frequency at 1.73% and 1.47%, with maxima of 1428 and 5890
-  clocks. `palette_fade_to_white` updates the working palette in RAM, with
-  all 130 vblank stretches off by at least 1024 clocks, at most 1480, despite
-  zero mean drift. These are in `tools/timing_exceptions.txt`: the shipping
-  replays have no failing video-write findings. Revisit the timing spread over the combined
-  library before changing the ports or their attribution.
-### Refusals in real play
-
 - **North Cape's flashback:** `field_walk_the_leader` (`$C0:881E`) refuses
   164 calls in each reference opening of `events-magus-joins` and
   `battle-magus-north-cape`, first at frame
@@ -80,23 +56,6 @@ rest waits, is [PLAN.md](PLAN.md).
   doesn't take", for both North Cape movies, before their choices diverge.
 
 ### Timing and other accuracy work
-
-- **North Cape timing tails:** `field_build_line_effect_tables` and
-  `overworld_lead` need estimates that follow their window-shape and walk
-  paths. The recruitment movie exceeds the in-vblank tail limit after drift
-  calibration (4/116 and 38/551 stretches, maxima 2120 and 3152 clocks),
-  while its shipping-mode vblank check has no failing findings. In the
-  battle, `battle_record_trails` needs an estimate that follows how many
-  combatants' trails are due: 107/6815 in-vblank stretches exceed 1024
-  clocks, maximum 1806 after calibration. It updates RAM positions; this
-  movie's shipping-mode vblank check also has no failing findings. Their
-  `tools/timing_exceptions.txt` entries record that evidence.
-- **Terra Cave's field timing.** `battle-mud-imp` puts `field_nmi` over the
-  vblank-tail limit: 1.72% of 5592 wholly-vblank stretches differ by at least
-  1024 clocks (maximum 3118), despite mean drift below 1%. The movie's video
-  check finds no failing picture writes. Refine the estimate for the field's
-  conditional upload work and remove its `tools/timing_exceptions.txt` line;
-  the movie records this gap without changing game code.
 
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
   the original (battles play out differently). That difference is accepted
@@ -115,24 +74,6 @@ rest waits, is [PLAN.md](PLAN.md).
   be too once their handlers are entries. Adding a movie or a port means
   recalibrating, since the drift limit holds only for the measured value.
   `--generated only` stays exact.
-- **Cyrus's battle timing attribution.** After drift-only calibration on
-  `events-cyrus`, `battle_step_the_poses` and `battle_strike_the_poses`
-  have attributed work exceeding their reference totals: their own rates
-  clamp to 1 and still drift +86.03% and +72.91%. Check the shared graphics
-  rate and nested timing attribution across the library before changing
-  either port. The worst errors are 78364 and 78179 clocks; the timer
-  dispatch, due-animation scheduler and beaten-enemy step also exceed the
-  picture's worst-error limit in these three fights. These and three small
-  field/menu vblank tails are measured in `tools/timing_exceptions.txt`.
-  The narrowed vblank check has no new findings, and the shipping route
-  wins all three fights and reaches the restored Masamune with field control.
-- **Field NMI timing on Death Peak.** After drift-only calibration on its three
-  movies, `field_nmi` still has 1.60% of 43296 vblank stretches off by at least
-  1024 clocks (limit 1%), at most 4129 clocks. Its transition, tile-queue and
-  edge-upload paths vary; charging that residual work by the path would remove
-  the `vblank-tail` exception. The movies' video-write check finds no newly
-  visible writes, and the maximum stays below the vblank-worst bound. No game
-  logic was changed for the recordings.
 - **Charge the endings' swept window by its lines.** `scene_ending_sweep_window`
   (`$7E:9A0C`, `game/scene/endings.c`) carries one calibrated `cost_milli`,
   but the original's time follows the window's lines and corners as it sweeps
