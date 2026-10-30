@@ -54,6 +54,22 @@ slots each, stepping through the story:
 | `ctsave15-black_omen` | three points in the Black Omen |
 | `ctsave16-lavos` | Lavos |
 
+For Death Peak, `ctsave11` slot 3 is outside on the 2300 A.D. map;
+`ctsave12` slot 1 is at the mountain's save point (location `$0F6`). Both
+have the Chrono Trigger and clone, and the Keeper's instructions completed
+(`$7F:007C` bits 0-1 set). The latter also has the first guide transformed
+into a tree (bit 2). Neither has beaten a Lavos Spawn (`$7F:0064` bits 3-5
+clear). Use the former for the wind slope and the latter for the caves and
+summit.
+
+## routes/
+
+Cartridge saves made through the game's save menu by recorded routes:
+
+| File | Origin and slot |
+|---|---|
+| `death-peak-summit` | `events-death-peak-ascent`, from ctsave12 slot 1; slot 1 at Death Peak's last save point (`$1EF`), first two Lavos Spawn beaten, final Spawn still alive; Chrono Trigger and clone held |
+
 ## technoplaza/
 
 The battery saves in the emuWorks state archives at

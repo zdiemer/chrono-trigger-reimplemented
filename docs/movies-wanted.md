@@ -826,12 +826,14 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   three games (the script's `L0846`; the clone game at `L0328` for 40 points: compare variables,
   random, shifts; another for 80); no spot the party reached made him answer, so the games weren't
   played.
-- **Death Peak** (`$0F4`, a step from ctsave11 slot 3's spot on the 2300 A.D. map; `$7F:007C` is
-  3 there, so the object at tile (55, 48) whose confirm runs `$88` lighten green is shown): the wind
-  (script variable `$0C`, `$7F:0218`) is calm for the first 108 frames after the party comes in
-  and then blows, and a party caught outside the shelter of the tree at tile (55, 49-50) is blown
-  back out to the map. The tree is 177 pixels up the slope; dashing up covers about 120 in the calm,
-  so no movie.
+- **Death Peak** (`$0F4`, from ctsave11 slot 3): recorded in `events-death-peak-wind`
+  (4676 frames, route `death_peak_wind`). The earlier 108-frame estimate did not rule out the
+  climb: dashing reaches the first shelter, where confirming the guide at tile (55, 48) runs
+  `$88` lighten green and turns it into a tree (`$7F:007C` bit 2). Wait still there through a
+  gust, then cross at the next calm (`$7F:0218` becomes zero). At the second tree keep pressing
+  UP through the gust so the slope does not carry the party out of shelter. Machine copies
+  search the departure delays; only the winning crossings enter the movie. See Target 13 for
+  the caves and Crono's return.
 
 ### 12. The side quests
 `events-luccas-mother` plays the campfire and Lara's rescue; the other side quests still need
@@ -1074,6 +1076,8 @@ no movie; the slot named is the nearest found from the README, for the route to 
 |---|---|---|---|
 | 12,000 B.C. | The Ocean Palace's end: `events-ocean-palace-lavos` | recorded ocean-palace-after-twins slot 3, made by `battle-golem-twins` from ctsave10 slot 3 | Lavos (the loss is scripted) |
 | 2300 A.D. | Death Peak: the wind, the Time Egg, Crono brought back | ctsave11 slot 3, ctsave12 slot 1 | Lavos Spawn |
+| 12,000 B.C. | The Ocean Palace's end: Lavos rises, Crono falls, Zeal's fall | after ctsave10 slot 3 (the Golem Twins) | Lavos (the loss is scripted) |
+| 2300 A.D. | Death Peak: recorded in `events-death-peak-wind`, `events-death-peak-ascent`, `events-death-peak` (below) | ctsave11 slot 3, ctsave12 slot 1, route save | all three Lavos Spawn |
 | 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra |
 | 1000 A.D. | The trial | ctsave01 slot 3 is after it; a save before is to find | -- |
 | 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank |
@@ -1116,6 +1120,39 @@ no movie; the slot named is the nearest found from the README, for the route to 
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.
 Crono's return is the next of the story's largest scripted scenes to record.
+- **Death Peak movies**: both ctsave11 slot 3 and ctsave12 slot 1 have the Chrono Trigger
+  (`$D9`), clone (`$E2`) and Keeper's instructions (`$7F:007C` bits 0-1). The former starts
+  outside the mountain and supplies the wind movie above; the latter starts at `$0F6` with the
+  guide already a tree and all three Spawn alive (`$7F:0064` bits 3-5 clear).
+  `events-death-peak-ascent` (route `death_peak`, 23852 frames) beats two Spawn, opens the
+  middle cave from its eastern ledge, crosses the slippery ridge and saves at `$1EF` through
+  the cartridge save menu. That save, `oracle/saves/routes/death-peak-summit.srm`, starts
+  `events-death-peak` (route `death_peak_return`, 23856 frames): beat the last Spawn, push its
+  shell to tile (16, 15), climb it, use the Time Egg at the summit (`$109`), exchange the clone
+  for Crono in the frozen Ocean Palace (`$1A7`), and return to the End of Time (`$1D0`) with
+  field control. The return flag (`$7F:0057` bit 6) is set and both quest items are consumed.
+  Each Spawn is beaten on the first fight attempt by targeting its head with Ice, Fire and
+  Uzzi Punch, healing or replenishing MP when needed. Walking and shell positioning use
+  machine copies; no memory writes or unsuccessful search inputs enter the movies.
+  Coverage adds 2153 ROM instruction bytes over the preceding 48-movie reference coverage.
+  Wind/ascent/return add 154/1071/1699 bytes individually; counting the other two new movies
+  as well leaves 0/445/1014 unique bytes. The wind covers the first guide's transformation
+  and both shelters; ascent adds single- and combination-tech learning in the Spawn rewards;
+  return adds circular BG3 effects, shell contact/movement, removal of the quest items and
+  large field-object drawing paths. The return's dialogue exposes the `$F9:B000` string table,
+  already in the extraction hints but newly included in the asset catalogue.
+  `ct_native` has no stop before any movie's frame limit (exit 0; 2/4/4 video escapes,
+  first `$7E:5AEB`). Its timing differs, so reaching the frame limit does not prove the route
+  outcome. Strict mode also has no stop: wind ends as the reference does, while ascent and
+  return drift in their saved game and SRAM, with baselines recorded. No guard-refusal gap
+  or fallback-baseline increase is needed.
+  Shadow clean for all three: zero mismatches/refusals, no refused page or out-of-range
+  accessor; the return's generated-only trace matches all 23856 interpreter frames.
+  Drift-only calibration and the remaining field-NMI vblank-tail exception are recorded;
+  the video-write check finds no newly visible writes. The tile-decoder's interrupted-call
+  baseline records its matching calls in this subset and in the preceding library.
+  The narrowed suite over these three movies (`-j 1`), including its static checks, ends
+  `suite OK`.
 
 ### 14. The original's known glitches
 A faithful port reproduces the original's mistakes, so plays that lean on its documented glitches

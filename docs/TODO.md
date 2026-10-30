@@ -75,6 +75,13 @@ rest waits, is [PLAN.md](PLAN.md).
   field/menu vblank tails are measured in `tools/timing_exceptions.txt`.
   The narrowed vblank check has no new findings, and the shipping route
   wins all three fights and reaches the restored Masamune with field control.
+- **Field NMI timing on Death Peak.** After drift-only calibration on its three
+  movies, `field_nmi` still has 1.60% of 43296 vblank stretches off by at least
+  1024 clocks (limit 1%), at most 4129 clocks. Its transition, tile-queue and
+  edge-upload paths vary; charging that residual work by the path would remove
+  the `vblank-tail` exception. The movies' video-write check finds no newly
+  visible writes, and the maximum stays below the vblank-worst bound. No game
+  logic was changed for the recordings.
 - **Charge the endings' swept window by its lines.** `scene_ending_sweep_window`
   (`$7E:9A0C`, `game/scene/endings.c`) carries one calibrated `cost_milli`,
   but the original's time follows the window's lines and corners as it sweeps
@@ -2966,6 +2973,10 @@ list, by kind, is what `game/` still asks of one.
   tests/test_platform_lint.py's list) are transfers into VRAM programmed from
   the game's tables, which only the SNES's channel settings say the meaning
   of: the host counts them and the driver reports the first.
+  The three Death Peak movies reach their full 4676/23852/23856-frame budgets
+  in `ct_native` without stopping, but report 2/4/4 video escapes, first at
+  `$7E:5AEB`; wind and ascent finish blanked, return showing. These fixed-input
+  runs do not establish the route outcomes under the host's different timing.
 - **What the host backends don't do yet.** Video keeps the picture's state
   in the observer and draws nothing: the host video backend proper is the
   driver calling `vid_host_picture` and a renderer drawing the `VidFrame`
