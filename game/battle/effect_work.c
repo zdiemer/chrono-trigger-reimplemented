@@ -647,13 +647,13 @@ bool effect_targets_named(const GameState *g)
 }
 
 /* A hit whose targeting counted nobody still lands once: the work takes its
- * one target at the count less one, in a byte, from the cell past the list
- * (effect_listed_target), which no code names and the battle leaves 0, the
- * first party member; the hit's count of targets left stops at nothing. An
- * enemy's tech in Geno Dome after Atropos does it (the motherbrain route).
- * The port takes it so where that cell names a combatant; the kinds that
- * count their targets down without stopping would go round the whole byte,
- * and are left to the original. */
+ * one target at the count less one, in a byte, so the list's index $FF
+ * ($7E:AE8D, well past its eleven places: effect_listed_target), and the
+ * hit's count of targets left stops at nothing. An enemy's tech in Geno Dome
+ * after Atropos does it (the motherbrain route, where that cell held 0). The
+ * port takes it so where that cell names a combatant; the kinds that count
+ * their targets down without stopping would go round the whole byte, and are
+ * left to the original. */
 static bool takes_targets(const GameState *g, uint8_t kind)
 {
     if (battle_action_target_count(g) == 0 && (kind == EFFECT_HIT || kind == EFFECT_HIT_REPEATEDLY))

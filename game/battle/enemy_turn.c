@@ -751,7 +751,10 @@ static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
     case ACT_ARRIVAL_CHANGE_INTO:
     case ACT_ARRIVAL_BRING_BACK:
         /* the enemy's stat block filled from its record, as at the fight's
-         * start (fight_load_enemy_ready's state half: one of the eight) */
+         * start. fight_load_enemy_ready also wants the enemy in the cell $02,
+         * which both of the original's arrivals store from X just before
+         * the call ($C1:9C2E, $C1:9ED8), so it holds by construction; its
+         * state half is the enemy being one of the eight */
         if (arg >= BATTLE_ENEMIES)
             return battle_needs_the_machine(g, ARRIVAL, "an enemy coming into the battle past the eight");
         TIMED_AS(g, ARRIVAL, fight_load_enemy(g, arg));

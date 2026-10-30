@@ -173,6 +173,7 @@ rest waits, is [PLAN.md](PLAN.md).
   Find what logic reads a cell only scaffolding writes there
   (`ct_dev --scaffold-reads original`, the route's frames) and make the two
   builds agree. The route runs by hand (`tools/suite.py`'s `HAND_RUN_ROUTES`).
+- **When the confirm press lands in Atropos's scene, native shape against default.** The scene on `$10C` polls confirm with event command `$31` (`$C0:66A5`) between lines with no box open; the `motherbrain` route now presses through it, but why the native-shape build's timing puts the dialog's last press before the poll is untraced.
 - **An ending's menu script sets the sprites' sizes by `$2101`.** The menus'
   object scripts' byte command `$13` names its cell by address, and an ending
   writes the sprites' size and tile-place register through it; the port hands
