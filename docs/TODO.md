@@ -2900,6 +2900,28 @@ list, by kind, is what `game/` still asks of one.
   RAM wherever an accessor may run past its end (the glitch reproduced byte
   for byte), or name the reachable overruns, make each a defined, bounded
   result, and leave the arbitrary-memory glitches out of scope.
+- **What the native gaps' review left** (the field's, events' and menus'
+  guards loosened to the states their C takes):
+  - `object_in_the_way` (field/motion.c) changes its result through
+    `ORIGINAL_EFFECT(r = what_the_original_meets_past_the_tables(...))`, as
+    walk.c's `stops = ...` does: logic reading scaffolding, so the native
+    shape differs wherever a slot past the tables is reached. That no forest
+    object minds others is a claim about the movies the guard doesn't hold.
+  - C copies beside machine copies: `slide_the_list` (menu/item_screen.c)
+    beside `slide_the_list_on_the_machine`, though item_screen.h says they run
+    one sequence; `erase` (menu/load_screen.c) beside `menu_erase_slot` in the
+    bridge; `menu_draw_empty_label(Snes*)` (menu/save_screen.c) repeating
+    `menu_draw_the_empty_label`'s body. The C should take the plain name and
+    the wrapper become `_entry`, with the `// $C2:D28D` comment on both.
+  - `field_object_velocity_{x,y}_unchecked` (re/ram.toml, vars.h) still say
+    "for marked scaffolding only", but logic writes through them since the
+    emptied place's step: the velocity table running into the next is now
+    a layout the native storage must keep.
+  - chests.c reads the walkable bytes past the map (into bank `$7F`) for a
+    real leader; "Nobody leading" above describes only an empty one.
+  - walk.c's "a step past the map" means a step the map doesn't stop
+    (collision off); `object_gives_up_a_palette_the_tables_hold` would read
+    better as the slot's links being safe to give up.
 - **What the native picture's review left** (the line handlers' end of the
   picture, `runtime/platform/native/video.c`, `tools/native_check.py`):
   - A line handler at line 224 or past puts `below_from` beyond
