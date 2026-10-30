@@ -122,3 +122,35 @@ sound_driver_upload_block  # run as C by the command (sound_driver_command), ins
 sound_driver_upload_effects  # run as C by the sound driver's command (sound_driver_command: a song's effects sent, the effects switched), whose stretch compares it; never called alone in play; battle-motherbrain and battle-r-series take it past 100 calls
 field_draw_bg1_at_the_load  # Crono trial recordings: 266 of 314 background-load draws cross an interrupt (84.7%), none abandoned; the remaining 48 compare with zero mismatches
 field_draw_bg2_at_the_load  # Crono trial recordings: 132 of 180 background-load draws cross an interrupt (73.3%), none abandoned; the remaining 48 compare with zero mismatches
+
+# The second movie batch's boss and event movies take these past 100 calls or past half:
+# the field-to-battle and menu round trips, each interrupted (a long setup or close waits
+# through the frame's interrupt) or abandoned (left through the battle's or menu's transfer,
+# which the comparison can't follow) the same way at every call. No mismatch in any compared
+# call; the enclosing field and battle frames' comparisons cover the work.
+menu_start_the_tasks  # second movie batch: 100.0% of 124 calls uncompared (0 interrupted, 124 abandoned), abandoned as above
+menu_open  # second movie batch: 100.0% of 124 calls uncompared (0 interrupted, 124 abandoned), abandoned as above
+field_start_the_battle_song  # second movie batch: 100.0% of 136 calls uncompared (0 interrupted, 136 abandoned), abandoned as above
+field_return_from_battle  # second movie batch: 100.0% of 128 calls uncompared (0 interrupted, 128 abandoned), abandoned as above
+field_bring_the_music_back  # second movie batch: 100.0% of 129 calls uncompared (0 interrupted, 129 abandoned), abandoned as above
+field_battle_begins  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
+battle_victory  # second movie batch: 100.0% of 120 calls uncompared (0 interrupted, 120 abandoned), abandoned as above
+battle_start_from_field  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
+battle_start_fight  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
+battle_setup_state  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
+battle_setup_graphics  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
+battle_set_up  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
+battle_set_the_screen_up_for_the_field  # second movie batch: 100.0% of 136 calls uncompared (0 interrupted, 136 abandoned), abandoned as above
+battle_set_the_screen_up  # second movie batch: 100.0% of 136 calls uncompared (0 interrupted, 136 abandoned), abandoned as above
+battle_open_the_window  # second movie batch: 100.0% of 136 calls uncompared (0 interrupted, 136 abandoned), abandoned as above
+battle_main_loop_start  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
+battle_close_the_window  # second movie batch: 100.0% of 129 calls uncompared (0 interrupted, 129 abandoned), abandoned as above
+battle_close_the_display  # second movie batch: 100.0% of 129 calls uncompared (0 interrupted, 129 abandoned), abandoned as above
+field_after_battle  # second movie batch: 99.2% of 129 calls uncompared (128 interrupted, 0 abandoned), interrupted as above
+menu_fade_the_screen_out  # second movie batch: 94.9% of 137 calls uncompared (0 interrupted, 130 abandoned), abandoned as above
+battle_build_item_list  # second movie batch: 89.0% of 136 calls uncompared (121 interrupted, 0 abandoned), interrupted as above
+battle_show_the_rewards  # second movie batch: 76.7% of 120 calls uncompared (0 interrupted, 92 abandoned), abandoned as above
+battle_work_out_enemy_attack  # second movie batch: 73.3% of 135 calls uncompared (99 interrupted, 0 abandoned), interrupted as above
+battle_clear_the_turn_work  # second movie batch: 52.9% of 136 calls uncompared (72 interrupted, 0 abandoned), interrupted as above
+field_start_the_objects  # second movie batch: 52.8% of 829 calls uncompared (0 interrupted, 438 abandoned), abandoned as above
+event_run_init_scripts  # second movie batch: 52.8% of 829 calls uncompared (0 interrupted, 438 abandoned), abandoned as above

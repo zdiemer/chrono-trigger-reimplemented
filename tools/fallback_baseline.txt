@@ -4,36 +4,36 @@
 # A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes
 # on one, is a new fallback, and needs its reason. An `open PORT` line is what the original ran
 # under that port's comparisons still open when a run ended, which hides it from the rest.
-7E:---- 94970 16  # no port yet (scene program (RAM))
+7E:---- 151221 16  # no port yet (scene program (RAM))
 7E:3023 11133 8  # handback by attract_frame_pass (scene program (RAM))
-7E:3092 1140 51  # handback by scene_clear_work_ram (scene program (RAM))
-7E:3176 1399 1  # handback by scene_boot, scene_run_vblank_tasks (scene program (RAM))
-7E:31B0 525 15  # handback by scene_boot (scene program (RAM))
-7E:347A 21 1  # handback by scene_run_frame_tasks (scene program (RAM))
-7E:3495 4 1  # handback by scene_run_frame_tasks (scene program (RAM))
+7E:3092 1786 51  # handback by scene_clear_work_ram (scene program (RAM))
+7E:3176 1432 1  # handback by scene_boot, scene_run_vblank_tasks (scene program (RAM))
+7E:31B0 763 15  # handback by scene_boot (scene program (RAM))
+7E:347A 22 1  # handback by scene_run_frame_tasks (scene program (RAM))
+7E:3495 5 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:34E3 13 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:350E 14992 46  # handback by scene_program_start (scene program (RAM)): the pixels' spread, Lavos's fall's call-out (TODO.md, "The pixels' spread is still the program's"), counted under 7E:---- until the measure followed its stack switch (chunk 9's review)
-7E:375F 486 26  # handback by scene_title_set_up_pendulum (scene program (RAM))
-7E:377E 1839 6  # handback by scene_send_sound_command (scene program (RAM))
+7E:375F 783 26  # handback by scene_title_set_up_pendulum (scene program (RAM))
+7E:377E 2901 6  # handback by scene_send_sound_command (scene program (RAM))
 7E:398A 50356 23  # handback by scene_run_frame_tasks (scene program (RAM)); the sequence's wait for the music ($C3:0C2A-$C3:0C40) in endings-beyond-time, a task the frame list leaves to the original (scene/frame.c) and the wait an idle entry shadow mode skips; the same code was filed under $7E:3749's and $7E:3754's hand-backs before chunk 11 made the list a port
 7E:399B 1004 23  # handback by scene_frame_tasks_go_on (scene program (RAM)); the same wait where the list goes on after a task came back to it (chunk 11's continuation)
 7E:44CE 1 1  # handback by scene_race_drain_score (scene program (RAM))
-7E:4643 4 1  # handback by scene_race_upload_column_rom (scene program (RAM))
-7E:464D 4 1  # handback by scene_race_upload_column_ram (scene program (RAM))
-7E:4755 3 4  # handback by scene_race_await_victory_song (scene program (RAM))
-7E:485D 4 5  # handback by scene_race_ride (scene program (RAM))
-7E:597B 486 26  # handback by scene_title_load_sprite_graphics (scene program (RAM))
-7E:59A0 54 4  # handback by scene_title_load_layer_tiles (scene program (RAM))
-7E:59AA 216 12  # handback by scene_title_load_plane_graphics (scene program (RAM))
-7E:59BC 162 10  # handback by scene_title_load_bg1_map (scene program (RAM))
-7E:59CC 54 3  # handback by scene_title_load_bg2_map (scene program (RAM))
-7E:59D5 2268 104  # handback by scene_title_fill_bg1_map (scene program (RAM))
-7E:5A59 378 20  # handback by scene_title_set_up_pendulum (scene program (RAM))
-7E:5AB2 54 4  # handback by scene_run_sequence, scene_title_load_bg2_map (scene program (RAM))
-7E:5B99 50 1  # handback by scene_run_frame_tasks (scene program (RAM))
-7E:5BBF 50 1  # handback by scene_run_frame_tasks (scene program (RAM))
-7E:5C98 51 1  # handback by scene_title_move_logo (scene program (RAM))
-7E:5D32 52 1  # handback by scene_run_frame_tasks (scene program (RAM))
+7E:4643 6 1  # handback by scene_race_upload_column_rom (scene program (RAM))
+7E:464D 6 1  # handback by scene_race_upload_column_ram (scene program (RAM))
+7E:4755 6 4  # handback by scene_race_await_victory_song (scene program (RAM))
+7E:485D 7 5  # handback by scene_race_ride (scene program (RAM))
+7E:597B 783 26  # handback by scene_title_load_sprite_graphics (scene program (RAM))
+7E:59A0 87 4  # handback by scene_title_load_layer_tiles (scene program (RAM))
+7E:59AA 348 12  # handback by scene_title_load_plane_graphics (scene program (RAM))
+7E:59BC 261 10  # handback by scene_title_load_bg1_map (scene program (RAM))
+7E:59CC 87 3  # handback by scene_title_load_bg2_map (scene program (RAM))
+7E:59D5 3654 104  # handback by scene_title_fill_bg1_map (scene program (RAM))
+7E:5A59 609 20  # handback by scene_title_set_up_pendulum (scene program (RAM))
+7E:5AB2 87 4  # handback by scene_run_sequence, scene_title_load_bg2_map (scene program (RAM))
+7E:5B99 83 1  # handback by scene_run_frame_tasks (scene program (RAM))
+7E:5BBF 82 1  # handback by scene_run_frame_tasks (scene program (RAM))
+7E:5C98 83 1  # handback by scene_title_move_logo (scene program (RAM))
+7E:5D32 84 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:6A51 6 4  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:6A74 6 4  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:6A97 2 1  # handback by scene_run_frame_tasks (scene program (RAM))
@@ -60,25 +60,27 @@
 7E:9F8A 11 31  # handback by scene_run_sequence (scene program (RAM))
 7E:9FC8 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:9FEA 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
-C0:---- 659 123  # no port yet (field engine, events)
-C0:0B38 918 5  # handback by field_enter, field_fade_in, field_fade_in_after_a_menu (field engine, events)
-C0:4F61 22476 118  # refused by event_cmd_move_to_tile (field engine, events)
-C0:5A93 84 5  # handback by event_run_object_script (field engine, events)
-C0:5B95 4410 18  # refused by field_object_in_the_way (field engine, events)
-C0:881E 25675 57  # refused by field_walk_the_leader (field engine, events)
-C0:88E5 5135 9  # refused by field_walk_the_leader (field engine, events)
-C0:8A6D 5135 9  # refused by field_walk_the_leader (field engine, events)
-C0:9175 11297 19  # refused by field_walk_the_leader (field engine, events)
-C0:99DE 5135 9  # refused by field_walk_the_leader (field engine, events)
-C2:---- 162943 1744  # no port yet (menus, text, overworld); $C2:CBE0-$C2:CBE8, the gate song task's wait for the sound driver once in menus-shop-equip, the same code as before, filed here rather than under the song task's hand-back since chunk 8's review changed where the shop's and the runtime's comparisons start and end
+C0:---- 1099 131  # no port yet (field engine, events)
+C0:0B38 1734 5  # handback by field_enter, field_fade_in, field_fade_in_after_a_menu (field engine, events)
 C0:3002 1140 37  # refused by event_cmd_walk_with_the_party during events-fionas-forest; gap in tools/refusal_allowlist.txt
+C0:4F61 22476 118  # refused by event_cmd_move_to_tile (field engine, events)
+C0:5A93 150 5  # handback by event_run_object_script (field engine, events)
+C0:5B95 4410 18  # refused by field_object_in_the_way (field engine, events)
+C0:881E 58400 57  # refused by field_walk_the_leader (field engine, events)
+C0:885A 25 49  # Ocean Palace finale: refused by field_recentre_the_screen (field engine, events)
+C0:88E5 11680 9  # refused by field_walk_the_leader (field engine, events)
+C0:8A6D 11680 9  # refused by field_walk_the_leader (field engine, events)
+C0:9175 25696 19  # refused by field_walk_the_leader (field engine, events)
+C0:99DE 11680 9  # refused by field_walk_the_leader (field engine, events)
 C0:A2CE 1980 75  # refused by field_second_member_follows during events-fionas-forest; gap in tools/refusal_allowlist.txt
 C1:5FDE 132 70  # gap: script_face guard in battle-castle-flea shadow, four calls; docs/TODO.md, Refusals in real play
 C1:75CC 36 11  # gap: script_face guard in battle-castle-flea shadow, helper beneath the refused calls
 C1:7639 28 17  # gap: script_face guard in battle-castle-flea shadow, helper beneath the refused calls
-C2:0009 14 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
+C2:---- 195551 1830  # no port yet (menus, text, overworld); $C2:CBE0-$C2:CBE8, the gate song task's wait for the sound driver once in menus-shop-equip, the same code as before, filed here rather than under the song task's hand-back since chunk 8's review changed where the shop's and the runtime's comparisons start and end
+C2:0009 16 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
 C2:42DD 11 21  # refused by overworld_epoch (menus, text, overworld)
-C2:5DC4 21444 230  # no port yet (menus, text, overworld)
+C2:5DC4 24662 230  # no port yet (menus, text, overworld)
+C2:7BD1 3 7  # Ocean Palace finale: handback by menu_run_object_script (menus, text, overworld)
 C2:8249 14 12  # menu task-start helper outside a registered comparison in battle-heckran's reference play; shipping-mode fallbacks remain zero
 C2:8816 245 10  # no port yet (menus, text, overworld)
 C2:8839 3955 72  # no port yet (menus, text, overworld)
@@ -91,29 +93,31 @@ C2:DB9F 1301 67  # no port yet (menus, text, overworld)
 C2:DBE8 405 54  # no port yet (menus, text, overworld)
 C2:DC1E 1055 86  # no port yet (menus, text, overworld)
 C2:DCBE 685 28  # no port yet (menus, text, overworld)
-C2:EF05 4705 29  # no port yet (menus, text, overworld): the window list's copy of an area and its rows' block moves, cut out of C2:---- (tools/fallbacks.py, CUT_OUT): fair-companion and gato-battle 1431 each, fair and field 767 each, menu, menus-new-game-plus and new-game 103 each, which an ended comparison's extent had covered in the measure until chunk 11, when it rose inside the bank's falling line
-C2:EFBE 4430 137  # no port yet (menus, text, overworld)
-C2:F1DA 112 49  # no port yet (menus, text, overworld)
-C2:F20B 590 28  # no port yet (menus, text, overworld)
+C2:EF05 6033 29  # no port yet (menus, text, overworld): the window list's copy of an area and its rows' block moves, cut out of C2:---- (tools/fallbacks.py, CUT_OUT): fair-companion and gato-battle 1431 each, fair and field 767 each, menu, menus-new-game-plus and new-game 103 each, which an ended comparison's extent had covered in the measure until chunk 11, when it rose inside the bank's falling line
+C2:EFBE 7886 137  # no port yet (menus, text, overworld)
+C2:F1DA 338 49  # no port yet (menus, text, overworld)
+C2:F20B 1382 28  # no port yet (menus, text, overworld)
 C2:F626 525 29  # no port yet (menus, text, overworld)
 C2:FD58 1760 46  # no port yet (menus, text, overworld)
 C2:FD68 1815 47  # no port yet (menus, text, overworld)
 C3:0C28 10 23  # handback by scene_sequence_goes_on_after_the_wait (scene engine); the wait's first instructions after the sequence goes on, the same code as $7E:398A's
-C7:0000 312 15  # handback by sound_driver_boot (sound driver)
-C7:005F 104 3  # handback by sound_driver_boot_start (sound driver)
-C6:E498 19705 141  # events-zeal-palace: refused by menu_object_capsule_iris_1 at the Skyway's top-line centre; gap in TODO.md, Refusals in real play
-C6:E4BE 12536 139  # events-zeal-palace: refused by menu_object_capsule_iris_2 at the Skyway's top-line centre; gap in TODO.md, Refusals in real play
+C6:E498 29547 141  # events-zeal-palace: refused by menu_object_capsule_iris_1 at the Skyway's top-line centre; gap in TODO.md, Refusals in real play
+C6:E4BE 21024 139  # events-zeal-palace: refused by menu_object_capsule_iris_2 at the Skyway's top-line centre; gap in TODO.md, Refusals in real play
+C6:E5C5 5835446 120  # Ocean Palace finale: handback by menu_run_object_script (scene data)
+C6:E694 1247 60  # Ocean Palace finale: handback by menu_run_object_script (scene data)
+C7:0000 510 15  # handback by sound_driver_boot (sound driver)
+C7:005F 170 3  # handback by sound_driver_boot_start (sound driver)
 FD:---- 12 7  # no port yet (field graphics)
 FD:A990 2048 222  # handback by battle_dispatch_expired_timers (field graphics)
-FD:DA62 3048 7  # handback by warp_short_trip_waits (field graphics); the warp's frame wait, the same code filed under warp_short_frame ($FD:DA65) before chunk 11 ported the trip's start
-FD:DAC1 632 7  # handback by warp_shortest_trip_waits (field graphics); the same for the shortest trip (warp_shortest_frame, $FD:DAC4, before)
+FD:DA62 5080 7  # handback by warp_short_trip_waits (field graphics); the warp's frame wait, the same code filed under warp_short_frame ($FD:DA65) before chunk 11 ported the trip's start
+FD:DAC1 1896 7  # handback by warp_shortest_trip_waits (field graphics); the same for the shortest trip (warp_shortest_frame, $FD:DAC4, before)
 FD:DB24 3064 7  # handback by warp_flickering_trip_waits (field graphics); the same for the flickering trip (warp_flickering_frame, $FD:DB27, before)
-FD:EADA 10 5  # handback by warp_set_up: the idle wait's leaving pass (field graphics)
+FD:EADA 18 5  # handback by warp_set_up: the idle wait's leaving pass (field graphics)
 FF:---- 162359 189  # no port yet (misc): the number tiles' and the records' bank-$FF code, the same instructions as before, 32 K of it filed here since the records' task's hand-back no longer takes the other tasks' code (chunk 8)
 open 7E:3003 5 0  # hidden under scene_setup_and_first_frame's comparison, still open when a run ended
 open C0:0000 15 0  # hidden under field_enter's comparison, still open when a run ended; a movie that ends as the field starts
 open C0:0097 3557 0  # hidden under field_frame's comparison, still open when a run ended: endings-telepod-lavos 3515, which ends in the field's frame whose pass now covers the steps it goes on from (chunk 11, the fallback measure keeping its extent), and 6 each in seven fights' movies
-open C0:00BA 57 0  # hidden under field_wait_for_the_next_frame's comparison, still open when a run ended: the movies end in the frame wait, which the port waits through in shadow mode; what is left is the waits' last passes, which the idle entry stands for
+open C0:00BA 133 0  # hidden under field_wait_for_the_next_frame's comparison, still open when a run ended: the movies end in the frame wait, which the port waits through in shadow mode; what is left is the waits' last passes, which the idle entry stands for
 open C0:2824 179 0  # hidden under field_fade_in_after_a_menu's comparison, still open when a run ended; menus-save-point ends as the field fades in after the menu
 open C0:EC60 9 0  # hidden under field_finish_frame's comparison, still open when a run ended
 open C1:007E 6271 0  # hidden under battle_wait_for_frame's comparison, still open when a run ended
@@ -122,8 +126,8 @@ open C1:812C 2841 0  # hidden under battle_main_loop_body's comparison, still op
 open C1:8290 28079 0  # hidden under battle_dispatch_expired_timers's comparison, still open when a run ended: battle-menu-buttons 12916 (new in chunk 11), late-omen-terramutant 4080, late-lavos 3837, late-omen-zeal 3637, battle-tech-sweep 3609
 open C1:AC57 14042 0  # hidden under battle_start_action_showing's comparison, still open when a run ended: late-omen-terramutant (14042) ends inside the action's showing, under battle_run_a_step's open comparison before chunk 11 made the step dispatch C. The shipping mode runs none of the original's code over the movie
 open C1:B967 36037 0  # hidden under battle_carry_out_member_action's comparison, still open when a run ended: battle-tech-sweep 17858, late-omen-zeal 10562 and late-lavos 7617 end inside a member's action; chunk 10 had what the step dispatch's comparison hid of the same ends under open C1:0003 (32045) and counted the rest of battle-tech-sweep's as the original's until chunk 11 kept a live comparison's extent. The shipping mode runs none of the original's code over these movies: a port's work the movie's end cut short
-open C2:046E 25 0  # hidden under menu_wait_for_frame_jump's comparison, still open when a run ended: as C0:00BA's, the sprite-object mode's frame wait
-open C2:23CF 11 0  # hidden under overworld_main_loop's comparison, still open when a run ended
+open C2:046E 32 0  # hidden under menu_wait_for_frame_jump's comparison, still open when a run ended: as C0:00BA's, the sprite-object mode's frame wait
+open C2:23CF 14 0  # hidden under overworld_main_loop's comparison, still open when a run ended
 open C2:E921 5 0  # hidden under menu_cursor_task_goes_on's comparison, still open when a run ended: as C0:00BA's, the menus' wait for the frame's uploads
 open C2:F699 2 0  # hidden under menu_record_task_goes_on's comparison, still open when a run ended: as C0:00BA's, the menus' wait for the frame's uploads
 open C3:0002 1 0  # hidden under decompress's comparison, still open when a run ended; a movie that ends in an unpacking
@@ -133,22 +137,18 @@ open CD:0036 8 0  # hidden under battle_sit_out_the_pause_long's comparison, sti
 open CD:3E44 7 0  # hidden under battle_sit_out_the_pause's comparison, still open when a run ended
 open CD:3E75 3697 0  # hidden under battle_wait_for_the_next_frame's comparison, still open when a run ended
 open FD:ACEE 220 0  # hidden under battle_clear_numbers's comparison, still open when a run ended
-C0:885A 25 49  # Ocean Palace finale: refused by field_recentre_the_screen (field engine, events)
-C2:7BD1 3 7  # Ocean Palace finale: handback by menu_run_object_script (menus, text, overworld)
-C6:E5C5 5835446 120  # Ocean Palace finale: handback by menu_run_object_script (scene data)
-C6:E694 1247 60  # Ocean Palace finale: handback by menu_run_object_script (scene data)
-C0:024C 36 40  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
-C0:038F 110 180  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
-C0:039B 2918 127  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
-C0:041A 170 211  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
-C0:04ED 70 89  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
-C0:0557 420 167  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
-C0:0617 1108 86  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
-C0:0918 10704 19  # gap: Crono trial recordings; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
-C0:5410 7648 158  # gap: Crono trial recordings; refused by event_cmd_move_toward_party_member (field engine, events); docs/TODO.md, Refusals in real play
-C2:3404 74 178  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
-C2:391C 131 24  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
-C2:3987 25 55  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
-C2:39AE 9 19  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
-C2:39D5 61 123  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
-C2:3ACB 13 23  # gap: Crono trial recordings; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C0:024C 36 40  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:038F 110 180  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:039B 2918 127  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:041A 170 211  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:04ED 70 89  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:0557 420 167  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:0617 1108 86  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:0918 10704 19  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by field_battle_begins (field engine, events); docs/TODO.md, Refusals in real play
+C0:5410 7648 158  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by event_cmd_move_toward_party_member (field engine, events); docs/TODO.md, Refusals in real play
+C2:3404 74 178  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:391C 131 24  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:3987 25 55  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:39AE 9 19  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:39D5 61 123  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+C2:3ACB 13 23  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play

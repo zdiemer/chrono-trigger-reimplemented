@@ -12,6 +12,9 @@
 # code for 4-15% of the time, and short ones whose code the sample already runs
 # (the Magic Cave and after-the-fall movies, made to find ct_native's stops,
 # add 0 and 15 bytes).
+# The second batch of movies (84 in all) left the sample at 93.6% of the library's
+# ROM instruction starts; the three below the cover, the best rates among the
+# batch, bring it to 95.1%.
 # Re-pick it when the library changes much (docs/MOVIES.md, "Adding it to the
 # library"); the bytes below are what each added when it was picked, in order.
 
@@ -39,6 +42,9 @@ battle-guardian  # the Guardian and its Bits
 menus-shop-equip  # buying and equipping
 late-omen-terramutant  # a two-part boss, Delta Force, the dual tech list
 battle-denadoro  # the Denadoro Mountains' monsters, which no other movie fights
+events-death-peak  # 878 starts in 23856 frames: Death Peak's summit, the last Lavos Spawn and Crono brought back
+events-fair-rescue  # 183 in 7681: the fair's rescue game, its word arithmetic and comparisons
+events-ocean-palace-lavos  # 455 in 30364: the Ocean Palace's end, Zeal's fall and its scene objects (and refusals)
 # what the checks and the subsystems need
 endings-beyond-time  # the endings: the staff roll and the scene program's ending modes (1737 RAM starts), the sound loads they make
 menus-end-of-time  # the End of Time's menus and save

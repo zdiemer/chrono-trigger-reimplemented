@@ -16,27 +16,27 @@ menu end
 new-game drifts  # the shipping mode runs the opening ahead of the original: by the last frame the story's count has gone on to 3, the reference's still 0 (1 byte(s) of the saved game (event_memory))
 title-start end
 battle-black-tyrano drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (203 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
+battle-castle-flea drifts  # differs from the reference: 81 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
+battle-castle-slash drifts  # differs from the reference: 81 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
+battle-dalton 25170  # halts at C0:881E field_walk_the_leader as the party jumps onto the Epoch; the guard's coordinate bound is a gap (TODO.md, Refusals in real play); a frame sooner than the branch measured, the same stop, since the batch merged
 battle-denadoro drifts  # the fight's turns land on other frames, so it ends with other HP, MP, experience and items used (43 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2616, $7E:262B, ...))
 battle-dragon-tank drifts  # differs from the reference: 35 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2613, $7E:2616, $7E:262B, ...)
 battle-giga-gaia drifts  # the recorded fight inputs land on other turns under native timing; inventory, character records and story progress differ (572 saved-game bytes)
-battle-dalton 25171  # halts at C0:881E field_walk_the_leader as the party jumps onto the Epoch; the guard's coordinate bound is a gap (TODO.md, Refusals in real play)
-battle-castle-flea drifts  # differs from the reference: 81 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
-battle-castle-slash drifts  # differs from the reference: 81 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
 battle-golem-twins-gameover end
 battle-golem-twins drifts  # differs from the reference: 58 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...); 224 byte(s) of save RAM
 battle-guardian drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (71 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, ...); 296 byte(s) of save RAM)
 battle-heckran drifts  # differs from the reference: 63 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
 battle-lavos-gameover end
-battle-magus-north-cape 8561  # at C0:881E
+battle-magus-north-cape 8560  # at C0:881E, North Cape's flashback walk (TODO.md, Refusals in real play); a frame sooner since the batch merged, the same stop
 battle-magus end
 battle-menu-buttons end
 battle-motherbrain drifts  # the fights' turns land on other frames under native timing, so they end with other HP, MP, experience and items used (323 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
-battle-r-series drifts  # native timing moves the fixed inputs and the fights' turns: 118 byte(s) of the saved game differ (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...); no interpreter stop
-battle-nizbel-ii drifts  # differs from the reference: 177 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, $7E:260C, ...)
-battle-son-of-sun drifts  # timed presses drift on the hand ports: the party's inventory and character records differ from the reference; the state-driven son_of_sun route wins separately with the C sound driver
-battle-rust-tyrano drifts  # differs from the reference: 72 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:262B, ...)
-battle-ozzies-fort drifts  # differs from the reference: 118 byte(s) of the saved game (inventory_counts, character_records, $7E:2613, $7E:2614, $7E:2616, $7E:262B, ...)
 battle-mud-imp drifts  # differs from the reference: 65 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
+battle-nizbel-ii drifts  # differs from the reference: 177 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, $7E:260C, ...)
+battle-ozzies-fort drifts  # differs from the reference: 118 byte(s) of the saved game (inventory_counts, character_records, $7E:2613, $7E:2614, $7E:2616, $7E:262B, ...)
+battle-r-series drifts  # native timing moves the fixed inputs and the fights' turns: 118 byte(s) of the saved game differ (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...); no interpreter stop
+battle-rust-tyrano drifts  # differs from the reference: 72 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:262B, ...)
+battle-son-of-sun drifts  # timed presses drift on the hand ports: the party's inventory and character records differ from the reference; the state-driven son_of_sun route wins separately with the C sound driver
 battle-tech-sweep-spekkio drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (37 byte(s) of the saved game (inventory_counts, $7E:263D, $7E:263F, $7E:2640, $7E:268D, $7E:268F, ...))
 battle-tech-sweep drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (805 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 battle-tyrano-lair-walls end
@@ -46,30 +46,29 @@ endings-beyond-time drifts  # the fights' turns land on other frames, so they en
 endings-bucket-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (49 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:26A3, $7E:26A4, ...))
 endings-telepod-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (574 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 events-blackbird end
+events-cronos-trial drifts  # differs from the reference: 20 byte(s) of the saved game (current_song, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...)
 events-cyrus drifts  # differs from the reference: 5 byte(s) of the saved game (character_records, $7E:2607, $7E:26A3, $7E:26A4, $7E:26A7)
 events-death-peak-ascent drifts  # differs from the reference: 78 byte(s) of the saved game (inventory_counts, $7E:2613, $7E:2614, $7E:262B, $7E:262C, $7E:2653, ...); 79 byte(s) of save RAM
 events-death-peak-wind end
 events-death-peak drifts  # differs from the reference: 89 byte(s) of the saved game (inventory_items, inventory_counts, $7E:2613, $7E:2614, $7E:262B, $7E:262C, ...); 208 byte(s) of save RAM
-events-cronos-trial drifts  # differs from the reference: 20 byte(s) of the saved game (current_song, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...)
 events-end-of-time-gate end
 events-epoch-lavos end
-events-fionas-forest drifts  # differs from the reference: 131 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, $7E:260C, ...)
 events-fair-clone drifts  # timing loses the clone game: $7F:005E bit 0 stays clear instead of awarding Crono's clone
 events-fair-rescue end
 events-fair-shuffle drifts  # timing loses the soldier shuffle: $7F:005D bit 0 stays clear instead of awarding Crono's Poyozo Doll
 events-fair-strength end
+events-fionas-forest drifts  # differs from the reference: 131 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, $7E:260C, ...)
 events-jetbike-race-won end
 events-jetbike-race end
 events-keepers-dome end
-events-magic-cave 3550  # the forest of Frog's memory loads 64 objects, one past what the move to a tile takes (C0:4F61)
 events-luccas-mother end
-events-ocean-palace-lavos drifts  # differs from the reference: 58 byte(s) of the saved game (character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, $7E:2653, ...)
-events-magus-joins 8561  # at C0:881E
+events-magic-cave 3550  # the forest of Frog's memory loads 64 objects, one past what the move to a tile takes (C0:4F61)
+events-magus-joins 8560  # at C0:881E, as battle-magus-north-cape
+events-ocean-palace-lavos 25299  # at C2:7BD1, Zeal's fall's scene objects handed back by menu_run_object_script, which the hand ports alone can't run; on the branch's own calibration the movie drifted past it to the end, on the library's one calibration the shipping timing reaches it
 events-prison-escape end
-events-zeal-palace 4109  # C6:E4BE: the Skyway capsule iris reaches centre y=0; guard gap in TODO.md, Refusals in real play
 events-proto-dome drifts  # consumes all 24717 frames without a halt, but ends at story $37, repair stage $00, Robo absent (59 saved-game bytes differ)
-events-rainbow-shell-trial drifts  # hand-run recording kept outside the library; input timing ends in the treasury ($01A), trial stage $02 without the fragment; differs from the reference: 81 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...)
 events-sun-stone drifts  # differs from the reference: 23 byte(s) of the saved game (inventory_items, inventory_counts, party_waiting, current_song, $7E:0102, $7E:0103, ...)
+events-zeal-palace 4109  # C6:E4BE: the Skyway capsule iris reaches centre y=0; guard gap in TODO.md, Refusals in real play
 field-12kbc-1f4 end
 field-12kbc-1f5 end
 field-12kbc-1f6 end
