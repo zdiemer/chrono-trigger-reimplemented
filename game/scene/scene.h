@@ -87,6 +87,22 @@ enum {
     SCENE_FLAG_NO_SONGS = 0x20,
 };
 
+/* A scene's mode, the low bits of scene_flags, which picks its setup from the
+ * program's table (scene/program.c). */
+typedef enum {
+    SCENE_MODE_RACE = 0, SCENE_MODE_CREDITS_PAGE = 1, SCENE_MODE_TITLE = 2, SCENE_MODE_RISING_PALACE = 3,
+    SCENE_MODE_LAVOS_FALLS = 4, SCENE_MODE_EPOCH_DIVE = 6, SCENE_MODE_PLANET_LOST = 7, SCENE_MODE_PLANET_ENDING = 8,
+    SCENE_MODE_ATTRACT_RACE = 9, SCENE_MODE_ENDING_CAPTIONED = 10, SCENE_MODE_ENDING_CAPTIONED_TOO = 11,
+    SCENE_MODE_STAFF_ROLL = 13, SCENE_MODE_ENDING_AGAIN = 14, SCENE_MODE_ENDING_WITHOUT_CREDITS = 15,
+} SceneMode;
+
+/* The main loop's call each pass, which a setup names (scene_main_loop_call):
+ * nothing, or the scaling of a picture the scene draws as it goes. */
+typedef enum {
+    SCENE_PASS_NOTHING = 0x3176, SCENE_PASS_RACE_SCALING = 0x51D1, SCENE_PASS_ENDING_SCALING = 0x8930,
+    SCENE_PASS_DIVE_SCALING = 0x8278,
+} ScenePass;
+
 /* ---- The scene program's memory and transfers ------------------------------------------------ */
 
 /* The two banks of work RAM. The program runs in the first, and puts large
@@ -255,6 +271,23 @@ enum {
     SCENE_ROUTINE_FADE_THE_PLANET_OUT = 0x6403,
     SCENE_ROUTINE_FADE_THE_PLANET_OUT_SLOWLY = 0x6422,
     SCENE_ROUTINE_PICK_THE_RACE_S_OPENING = 0x3F59,     /* scene/race_camera.c */
+    SCENE_ROUTINE_LOAD_THE_GROUND_AND_PICTURE = 0x8790,     /* scene/endings.c */
+    SCENE_ROUTINE_LOAD_THE_PICTURE = 0x87CC,
+    SCENE_ROUTINE_START_THE_STARS = 0x8BAF,
+    SCENE_ROUTINE_START_THE_MODE7_PICTURE = 0x8C14,
+    SCENE_ROUTINE_PREPARE_THE_CREDITS = 0x8CD0,
+    SCENE_ROUTINE_SET_THE_LAST_COLOURS = 0x8DF3,
+    SCENE_ROUTINE_STOP_THE_PICTURE = 0x96FB,
+    SCENE_ROUTINE_SHOW_THE_GROUND_S_FIRST_LATER_COLORS = 0x9702,
+    SCENE_ROUTINE_STEP_THE_GROUND_TOWARD_THE_FIRST = 0x98F6,
+    SCENE_ROUTINE_STEP_THE_GROUND_TOWARD_THE_SECOND = 0x98FB,
+    SCENE_ROUTINE_STEP_THE_GROUND_TOWARD_THE_THIRD = 0x9900,
+    SCENE_ROUTINE_PLACE_THE_CAPTIONS = 0x9919,
+    SCENE_ROUTINE_FADE_THE_SPRITES_OUT = 0x9F8A,
+    SCENE_ROUTINE_FADE_THE_FIRST_LAYER_COLORS_OUT = 0x9FC8,
+    SCENE_ROUTINE_FADE_MORE_LAYER_COLORS_OUT = 0x9FEA,
+    SCENE_ROUTINE_GO_ON_AFTER_THE_CREDITS = 0x996F,     /* scene/staff_roll.c */
+    SCENE_ROUTINE_FADE_IN_THE_PICTURE = 0x9FA9,
 };
 
 /* A routine a script calls, as C: its work on the calling channel; and the
@@ -282,12 +315,19 @@ extern const SceneRoutineLeaves scene_lavos_routine_leaves[];
 extern const SceneRoutineLeaves scene_dive_routine_leaves[];
 extern const SceneRoutineLeaves scene_planet_routine_leaves[];
 extern const SceneRoutineLeaves scene_race_routine_leaves[];
+extern const SceneRoutineLeaves scene_ending_routine_leaves[];
+extern const SceneRoutineLeaves scene_staff_roll_routine_leaves[];
 #endif
 
 /* The tables' rows, by routine. */
 enum { SCENE_ROW_START_RIPPLE, SCENE_ROW_DARKEN_SPRITE_PALETTE_4, SCENE_ROW_UNTINT_SPRITE_PALETTE_3 };
 enum { SCENE_ROW_SEND_LAVOS_BACK, SCENE_ROW_LET_LAVOS_FALL };
 enum { SCENE_ROW_LOOK_FROM_OUTSIDE, SCENE_ROW_LOOK_FROM_THE_COCKPIT, SCENE_ROW_FADE_THE_SHELL_IN, SCENE_ROW_WHITE_OUT };
+enum {
+    SCENE_ROW_STOP_THE_PICTURE, SCENE_ROW_STEP_TOWARD_THE_FIRST, SCENE_ROW_STEP_TOWARD_THE_SECOND,
+    SCENE_ROW_STEP_TOWARD_THE_THIRD, SCENE_ROW_SHOW_THE_FIRST_LATER_COLORS, SCENE_ROW_PLACE_THE_CAPTIONS,
+    SCENE_ROW_FADE_THE_SPRITES_OUT, SCENE_ROW_FADE_THE_FIRST_LAYER_COLORS_OUT, SCENE_ROW_FADE_MORE_LAYER_COLORS_OUT,
+};
 extern const SceneScriptRoutine scene_title_routines[];
 extern const unsigned scene_title_routine_count;
 extern const SceneScriptRoutine scene_lavos_routines[];
@@ -298,6 +338,15 @@ extern const SceneScriptRoutine scene_planet_routines[];
 extern const unsigned scene_planet_routine_count;
 extern const SceneScriptRoutine scene_race_routines[];
 extern const unsigned scene_race_routine_count;
+extern const SceneScriptRoutine scene_ending_routines[];
+extern const unsigned scene_ending_routine_count;
+extern const SceneScriptRoutine scene_staff_roll_routines[];
+extern const unsigned scene_staff_roll_routine_count;
+/* scene/endings.c: the routines that load a scene, which call the original's
+ * unpacker: rows for the native program alone, each its own entry on the
+ * machine. */
+extern const SceneScriptRoutine scene_ending_loading_routines[];
+extern const unsigned scene_ending_loading_routine_count;
 /* scene/script.c: a routine of those tables reached by its address, as its
  * registered entry: its row's work. */
 void scene_script_routine_alone(Snes *s, const SceneScriptRoutine *r);
@@ -898,6 +947,14 @@ void scene_credit_pages_set_up_entry(Snes *s);
 bool scene_show_the_credits_page_present(Snes *s);
 void scene_show_the_credits_page(Snes *s);
 /* scene/planet.c (the program in RAM) */
+/* Colours that step toward others a step at a time, by the planet's step's
+ * task: `colours` colours of the palette at `palette` (the program's bank),
+ * toward those at `toward`, over `steps` steps. */
+typedef struct {
+    uint16_t toward, palette, colours;
+    uint8_t steps;
+} SceneColourStep;
+void scene_step_the_colours_toward(GameState *g, SceneColourStep step);
 bool scene_planet_set_up_scene(Snes *s);
 bool scene_planet_set_up_present(Snes *s);
 void scene_planet_set_up_entry(Snes *s);
@@ -953,15 +1010,19 @@ void scene_send_the_map(Snes *s);
 bool scene_send_the_map_present(Snes *s);
 /* scene/staff_roll.c (the program in RAM) */
 bool scene_staff_roll_set_up_present(Snes *s);
-void scene_staff_roll_set_up(Snes *s);
+void scene_staff_roll_set_up_entry(Snes *s);
+bool scene_staff_roll_set_up(GameState *g, Platform *pf);
 bool scene_credits_roll_present(Snes *s);
-void scene_roll_credits(Snes *s);
+void scene_roll_credits_entry(Snes *s);
 bool scene_credits_scroll_present(Snes *s);
 void scene_scroll_credits_entry(Snes *s);
 bool scene_credits_upload_present(Snes *s);
-void scene_upload_credits(Snes *s);
+void scene_upload_credits_entry(Snes *s);
 bool scene_clear_sprite_high_bits_present(Snes *s);
-void scene_clear_sprite_high_bits(Snes *s);
+void scene_clear_sprite_high_bits_entry(Snes *s);
+TaskEnd scene_roll_credits(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_upload_credits(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_clear_sprite_high_bits(GameState *g, Platform *pf, unsigned slot);
 bool scene_credits_test_present(Snes *s);
 void scene_go_on_after_the_credits(Snes *s);
 bool scene_fade_in_the_picture_present(Snes *s);
@@ -975,7 +1036,31 @@ void scene_set_caption_colours(GameState *g);
 
 /* scene/endings.c (the program in RAM) */
 bool scene_ending_set_up_present(Snes *s);
-void scene_ending_set_up(Snes *s);
+void scene_ending_set_up_entry(Snes *s);
+/* The endings' tasks and the main loop's scaling of their picture as C, for a
+ * program with no machine (each task a column of scene/frame.c's table). */
+TaskEnd scene_ending_place_picture(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_ending_pick_picture_frame(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_ending_upload_picture(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_ending_show_credits(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_ending_show_last_scene(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_ending_scroll_bg2(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_send_the_credits_picture(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_send_the_pattern_s_map(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_send_the_pattern_s_tiles(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_blank_the_map(GameState *g, Platform *pf, unsigned slot);
+void scene_send_the_credits_picture_entry(Snes *s);
+void scene_send_the_pattern_s_map_entry(Snes *s);
+void scene_send_the_pattern_s_tiles_entry(Snes *s);
+void scene_blank_the_map_entry(Snes *s);
+bool scene_send_the_credits_picture_present(Snes *s);
+bool scene_send_the_pattern_s_map_present(Snes *s);
+bool scene_send_the_pattern_s_tiles_present(Snes *s);
+bool scene_blank_the_map_present(Snes *s);
+TaskEnd scene_ending_draw_the_end(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_ending_sweep_window(GameState *g, Platform *pf, unsigned slot);
+bool scene_ending_scale_picture(GameState *g, Platform *pf);
+bool scene_ending_set_up(GameState *g, Platform *pf);
 bool scene_ending_load_picture_present(Snes *s);
 void scene_ending_load_picture(Snes *s);
 bool scene_ending_load_ground_and_picture_present(Snes *s);
@@ -988,22 +1073,39 @@ bool scene_ending_prepare_credits_present(Snes *s);
 void scene_ending_prepare_credits(Snes *s);
 bool scene_ending_set_last_colors_present(Snes *s);
 void scene_ending_set_last_colors(Snes *s);
+/* The scripts' other routines' entries and guards (scene_ending_routines). */
+void scene_stop_the_picture(Snes *s);
+bool scene_stop_the_picture_present(Snes *s);
+void scene_step_the_ground_toward_the_first(Snes *s);
+void scene_step_the_ground_toward_the_second(Snes *s);
+void scene_step_the_ground_toward_the_third(Snes *s);
+bool scene_step_the_ground_s_colors_present(Snes *s);
+void scene_show_the_ground_s_first_later_colors(Snes *s);
+bool scene_show_the_ground_s_colors_present(Snes *s);
+void scene_place_the_captions(Snes *s);
+bool scene_place_the_captions_present(Snes *s);
+void scene_fade_the_sprites_out(Snes *s);
+bool scene_fade_the_sprites_out_present(Snes *s);
+void scene_fade_the_first_layer_colors_out(Snes *s);
+bool scene_fade_the_first_layer_colors_out_present(Snes *s);
+void scene_fade_more_layer_colors_out(Snes *s);
+bool scene_fade_more_layer_colors_out_present(Snes *s);
 bool scene_ending_show_credits_present(Snes *s);
-void scene_ending_show_credits(Snes *s);
+void scene_ending_show_credits_entry(Snes *s);
 bool scene_ending_show_last_scene_present(Snes *s);
-void scene_ending_show_last_scene(Snes *s);
+void scene_ending_show_last_scene_entry(Snes *s);
 bool scene_ending_sweep_window_present(Snes *s);
-void scene_ending_sweep_window(Snes *s);
+void scene_ending_sweep_window_entry(Snes *s);
 bool scene_ending_scroll_bg2_present(Snes *s);
-void scene_ending_scroll_bg2(Snes *s);
+void scene_ending_scroll_bg2_entry(Snes *s);
 bool scene_ending_upload_picture_present(Snes *s);
-void scene_ending_upload_picture(Snes *s);
+void scene_ending_upload_picture_entry(Snes *s);
 bool scene_ending_place_picture_present(Snes *s);
-void scene_ending_place_picture(Snes *s);
+void scene_ending_place_picture_entry(Snes *s);
 bool scene_ending_pick_picture_frame_present(Snes *s);
-void scene_ending_pick_picture_frame(Snes *s);
+void scene_ending_pick_picture_frame_entry(Snes *s);
 bool scene_ending_scale_picture_present(Snes *s);
-void scene_ending_scale_picture(Snes *s);
+void scene_ending_scale_picture_entry(Snes *s);
 bool scene_ending_gather_picture_present(Snes *s);
 void scene_ending_gather_picture(Snes *s);
 /* scene/bridge.c: where a scene's scaling of its picture goes on in the
@@ -1013,58 +1115,82 @@ void scene_bridge_scale_scene_picture(Snes *s, ScenePictureScaling which);
 
 /* scene/lavos_falls.c */
 bool scene_lavos_falls_set_up_scene(Snes *s);
-void scene_lavos_falls_set_up(Snes *s);
+void scene_lavos_falls_set_up_entry(Snes *s);
+bool scene_lavos_falls_set_up(GameState *g, Platform *pf);
 bool scene_lavos_falls_set_up_present(Snes *s);
-void scene_turn_lavos(Snes *s);
+void scene_turn_lavos_entry(Snes *s);
+TaskEnd scene_turn_lavos(GameState *g, Platform *pf, unsigned slot);
 bool scene_turn_lavos_present(Snes *s);
-void scene_turn_the_field_s_angle(Snes *s);
+void scene_turn_the_field_s_angle_entry(Snes *s);
+TaskEnd scene_turn_the_field_s_angle(GameState *g, Platform *pf, unsigned slot);
 bool scene_turn_the_field_s_angle_present(Snes *s);
-void scene_swing_the_field(Snes *s);
+void scene_swing_the_field_entry(Snes *s);
+TaskEnd scene_swing_the_field(GameState *g, Platform *pf, unsigned slot);
 bool scene_swing_the_field_present(Snes *s);
-void scene_draw_the_planet(Snes *s);
+void scene_draw_the_planet_entry(Snes *s);
+TaskEnd scene_draw_the_planet(GameState *g, Platform *pf, unsigned slot);
 bool scene_draw_the_planet_present(Snes *s);
 void scene_send_lavos_back(Snes *s);
 bool scene_send_lavos_back_present(Snes *s);
 void scene_let_lavos_fall(Snes *s);
 bool scene_let_lavos_fall_present(Snes *s);
 
-/* scene/epoch_dive.c */
+/* scene/epoch_dive.c: the setup, the frame's tasks and the main loop's
+ * scaling as C (each task a column of scene/frame.c's table), and their
+ * machine entries. */
+bool scene_dive_set_up(GameState *g, Platform *pf);
+TaskEnd scene_pass_the_shell_across(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_pass_the_shell_down(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_let_the_shell_fall_away(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_check_the_shell(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_send_the_epoch(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_draw_the_epoch(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_size_the_trail(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_draw_the_trail(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_fly_the_epoch_on(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_shake_the_cockpit(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_flicker_the_lights(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_follow_the_panel(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_open_the_light(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_set_the_screen_outside(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_set_the_screen_in_the_cockpit(GameState *g, Platform *pf, unsigned slot);
+bool scene_scale_the_epoch(GameState *g, Platform *pf);
 bool scene_dive_set_up_scene(Snes *s);
-void scene_dive_set_up(Snes *s);
+void scene_dive_set_up_entry(Snes *s);
 bool scene_dive_set_up_present(Snes *s);
-void scene_pass_the_shell_across(Snes *s);
+void scene_pass_the_shell_across_entry(Snes *s);
 bool scene_pass_the_shell_across_present(Snes *s);
-void scene_pass_the_shell_down(Snes *s);
+void scene_pass_the_shell_down_entry(Snes *s);
 bool scene_pass_the_shell_down_present(Snes *s);
-void scene_let_the_shell_fall_away(Snes *s);
+void scene_let_the_shell_fall_away_entry(Snes *s);
 bool scene_let_the_shell_fall_away_present(Snes *s);
-void scene_check_the_shell(Snes *s);
+void scene_check_the_shell_entry(Snes *s);
 bool scene_check_the_shell_present(Snes *s);
-void scene_scale_the_epoch(Snes *s);
+void scene_scale_the_epoch_entry(Snes *s);
 bool scene_scale_the_epoch_present(Snes *s);
 void scene_gather_the_epoch(Snes *s);
 bool scene_gather_the_epoch_present(Snes *s);
-void scene_send_the_epoch(Snes *s);
+void scene_send_the_epoch_entry(Snes *s);
 bool scene_send_the_epoch_present(Snes *s);
-void scene_draw_the_epoch(Snes *s);
+void scene_draw_the_epoch_entry(Snes *s);
 bool scene_draw_the_epoch_present(Snes *s);
-void scene_size_the_trail(Snes *s);
+void scene_size_the_trail_entry(Snes *s);
 bool scene_size_the_trail_present(Snes *s);
-void scene_draw_the_trail(Snes *s);
+void scene_draw_the_trail_entry(Snes *s);
 bool scene_draw_the_trail_present(Snes *s);
-void scene_fly_the_epoch_on(Snes *s);
+void scene_fly_the_epoch_on_entry(Snes *s);
 bool scene_fly_the_epoch_on_present(Snes *s);
-void scene_shake_the_cockpit(Snes *s);
+void scene_shake_the_cockpit_entry(Snes *s);
 bool scene_shake_the_cockpit_present(Snes *s);
-void scene_flicker_the_lights(Snes *s);
+void scene_flicker_the_lights_entry(Snes *s);
 bool scene_flicker_the_lights_present(Snes *s);
-void scene_follow_the_panel(Snes *s);
+void scene_follow_the_panel_entry(Snes *s);
 bool scene_follow_the_panel_present(Snes *s);
-void scene_open_the_light(Snes *s);
+void scene_open_the_light_entry(Snes *s);
 bool scene_open_the_light_present(Snes *s);
-void scene_set_the_screen_outside(Snes *s);
+void scene_set_the_screen_outside_entry(Snes *s);
 bool scene_set_the_screen_outside_present(Snes *s);
-void scene_set_the_screen_in_the_cockpit(Snes *s);
+void scene_set_the_screen_in_the_cockpit_entry(Snes *s);
 bool scene_set_the_screen_in_the_cockpit_present(Snes *s);
 void scene_look_from_outside(Snes *s);
 bool scene_look_from_outside_present(Snes *s);
@@ -1085,52 +1211,70 @@ bool scene_send_the_plane_s_place_present(Snes *s);
  * (1024 steps a turn, a frame each 32nd). */
 void scene_ending_show_picture_frame(GameState *g, uint16_t turn);
 bool scene_ending_draw_the_end_present(Snes *s);
-void scene_ending_draw_the_end(Snes *s);
+void scene_ending_draw_the_end_entry(Snes *s);
 
 /* scene/beyond_time.c (the program in RAM): the fireworks placed and their
  * first bursts picked (the shared setup's), and the night's tasks. */
 void scene_set_the_fireworks_up(GameState *g);
 void scene_set_the_fireworks_up_entry(Snes *s);
 bool scene_set_the_fireworks_up_present(Snes *s);
-void scene_keep_the_orbit(Snes *s);
+void scene_keep_the_orbit_entry(Snes *s);
 bool scene_keep_the_orbit_present(Snes *s);
-void scene_pass_the_map(Snes *s);
+void scene_pass_the_map_entry(Snes *s);
 bool scene_pass_the_map_present(Snes *s);
-void scene_check_the_flight_view(Snes *s);
+void scene_check_the_flight_view_entry(Snes *s);
 bool scene_check_the_flight_view_present(Snes *s);
-void scene_place_the_flight_view(Snes *s);
+void scene_place_the_flight_view_entry(Snes *s);
 bool scene_place_the_flight_view_present(Snes *s);
-void scene_send_the_flight_view(Snes *s);
+void scene_send_the_flight_view_entry(Snes *s);
 bool scene_send_the_flight_view_present(Snes *s);
-void scene_set_the_flight_horizon(Snes *s);
+void scene_set_the_flight_horizon_entry(Snes *s);
 bool scene_set_the_flight_horizon_present(Snes *s);
-void scene_circle_the_epoch(Snes *s);
+void scene_circle_the_epoch_entry(Snes *s);
 bool scene_circle_the_epoch_present(Snes *s);
-void scene_sway_the_epoch(Snes *s);
+void scene_sway_the_epoch_entry(Snes *s);
 bool scene_sway_the_epoch_present(Snes *s);
-void scene_twinkle_the_lights(Snes *s);
+void scene_twinkle_the_lights_entry(Snes *s);
 bool scene_twinkle_the_lights_present(Snes *s);
-void scene_turn_back_and_twinkle(Snes *s);
+void scene_turn_back_and_twinkle_entry(Snes *s);
 bool scene_turn_back_and_twinkle_present(Snes *s);
-void scene_burst_the_fireworks(Snes *s);
+void scene_burst_the_fireworks_entry(Snes *s);
 bool scene_burst_the_fireworks_present(Snes *s);
-void scene_send_the_picture(Snes *s);
+void scene_send_the_picture_entry(Snes *s);
 bool scene_send_the_picture_present(Snes *s);
-void scene_send_the_picture_and_bg2(Snes *s);
+void scene_send_the_picture_and_bg2_entry(Snes *s);
 bool scene_send_the_picture_and_bg2_present(Snes *s);
+/* The night's tasks as C, for a program with no machine. */
+TaskEnd scene_keep_the_orbit(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_pass_the_map(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_check_the_flight_view(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_place_the_flight_view(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_send_the_flight_view(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_set_the_flight_horizon(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_circle_the_epoch(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_sway_the_epoch(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_twinkle_the_lights(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_turn_back_and_twinkle(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_burst_the_fireworks(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_send_the_picture(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_send_the_picture_and_bg2(GameState *g, Platform *pf, unsigned slot);
 
 /* scene/stars.c (the program in RAM) */
 bool scene_stars_scatter_code_present(Snes *s);
 bool scene_stars_scatter_present(Snes *s);
 void scene_stars_scatter(Snes *s);
 bool scene_stars_fly_present(Snes *s);
-void scene_stars_fly(Snes *s);
+void scene_stars_fly_entry(Snes *s);
+TaskEnd scene_stars_fly(GameState *g, Platform *pf, unsigned slot);
 bool scene_stars_fly_after_captions_present(Snes *s);
-void scene_stars_fly_after_captions(Snes *s);
+void scene_stars_fly_after_captions_entry(Snes *s);
 bool scene_stars_drift_present(Snes *s);
 bool scene_stars_start_drift_present(Snes *s);
-void scene_stars_start_drift(Snes *s);
-void scene_stars_keep_drifting(Snes *s);
+void scene_stars_start_drift_entry(Snes *s);
+void scene_stars_keep_drifting_entry(Snes *s);
+TaskEnd scene_stars_fly_after_captions(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_stars_start_drift(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_stars_keep_drifting(GameState *g, Platform *pf, unsigned slot);
 
 /* scene/captions.c (the program in RAM) */
 bool scene_draw_caption_present(Snes *s);
@@ -1141,14 +1285,16 @@ void scene_draw_caption_entry(Snes *s);
 bool scene_caption_fits(const GameState *g, uint16_t text);
 void scene_draw_caption(GameState *g, uint16_t text);
 bool scene_turn_captions_present(Snes *s);
-void scene_turn_captions(Snes *s);
+void scene_turn_captions_entry(Snes *s);
+TaskEnd scene_turn_captions(GameState *g, Platform *pf, unsigned slot);
 
 /* scene/race_matrix.c */
 void scene_write_matrix_code(Snes *s);
 bool scene_matrix_code_present(Snes *s);
 void scene_gather_picture(Snes *s);
 bool scene_race_scale_pictures_present(Snes *s);
-void scene_race_scale_pictures(Snes *s);
+void scene_race_scale_pictures_entry(Snes *s);
+bool scene_race_scale_pictures(GameState *g, Platform *pf);
 bool scene_race_scale_after_present(Snes *s);
 void scene_race_scale_after_crono(Snes *s);
 void scene_race_scale_after_johnny(Snes *s);
@@ -1254,7 +1400,9 @@ bool scene_signed_sprite_list_code_present(Snes *s);
 /* What the signed list leaves in A, for the ports' wrappers. */
 uint16_t scene_signed_list_leaves_a(const GameState *g, uint16_t list);
 
-/* scene/circle.c */
+/* scene/circle.c: whether the iris's table keeps clear of the cells its
+ * original reads back (the guard's state half), and the guard. */
+bool scene_circle_table_clear_of_the_cells(const GameState *g);
 bool scene_circle_table_is_clear(Snes *s);
 void scene_draw_circle(Snes *s);
 
@@ -1267,6 +1415,13 @@ typedef struct {
     uint16_t source, rows, pairs, row_step, limit;
 } SceneScaling;
 void scene_scaler_start(GameState *g, SceneScaling bitmap);
+/* Whether the port draws the bitmap handed over (the scaler's guard's state
+ * half); and the whole of it drawn at once, its first row nudged by
+ * `row_nudge`, for a program with no machine (false where the port draws a
+ * row no further, having asked for the machine). */
+enum { SCENE_SCALER_ROWS = 0xC30309 };
+bool scene_scaler_draws(const GameState *g);
+bool scene_scale_the_bitmap(GameState *g, bool row_nudge);
 bool scene_scaler_in_its_bank(Snes *s);
 void scene_scale_bitmap_row(Snes *s);
 void scene_scale_bitmap(Snes *s);

@@ -302,37 +302,28 @@ enum { CREDITS_TEXT = 0xAB1A, ROW_BEFORE_THE_MAP = 0xFFE0 };
 /* The scene's script, on channel 0, and its song. */
 enum { STAFF_ROLL_SCRIPT = 0x93E3, STAFF_ROLL_SONG = 0x1B };
 
-/* ---- Where the setup calls the original's code -------------------------------------------------- */
+/* ---- The setup's steps that are the program's other routines --------------------------------------- */
 
-/* The program's own send of the command in the sound command buffer
- * ($7E:377E), called with 8-bit A: it waits for the driver to take it. It
- * reads none of the registers but Y and the data bank. What it leaves in A and
- * the carry the stars' scatter mixes into its random numbers, so nothing
- * touches them between the two. */
-enum { SCENE_SEND = 0x7E377E, SEND_IGNORES = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C };
+/* The setup's steps that are other routines of the program's: its send of the
+ * sound command it has put in the buffer, the stars' scatter (which goes on
+ * from what the send leaves), a graphic unpacked, the script's first step
+ * (which reads where the per-line effects' descriptors ended), and the song's
+ * start. The machine's entry takes them as calls of the original's, the
+ * native program as C. */
+typedef struct {
+    void (*send_the_command)(void *ctx);
+    void (*scatter_the_stars)(void *ctx);
+    void (*unpack)(void *ctx, unsigned graphic);
+    bool (*first_step)(void *ctx, uint16_t descriptors_end);
+    void (*start_the_song)(void *ctx, uint8_t song);
+} StaffRollSteps;
 
-static void play_music_fast(Snes *s)
+/* The music played fast: the sound driver's command in the buffer, sent. */
+static void play_music_fast(GameState *g, const StaffRollSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
     set_sound_command(g, AU_FAST_FORWARD);
     set_sound_command_parameters(g, 0, 1);
-    m_set_flag(s, CPU_FLAG_M, true);
-    au_driver_call(m_platform(s), PF_CALL(0x7E8EB2, SCENE_SEND), SEND_IGNORES);
-}
-
-/* The script's first step, with the program's bank as the data bank, which
- * the program sets from a word it pushes: the word's other byte, 0, waits on
- * the stack to be the data bank again after. It reads Y and the overflow as
- * the per-line effects' setup leaves them: where the descriptors end, and
- * clear. */
-enum { BANK_AFTER_THE_STEP = 0x00 };
-
-static void first_script_step(Snes *s, uint16_t descriptors_end)
-{
-    s->cpu.db = SCENE_LOWER_WORK_RAM;
-    m_set_flag(s, CPU_FLAG_V, false);
-    scene_bridge_take_the_first_script_step(s, 0x7E8F94, descriptors_end, BANK_AFTER_THE_STEP);
-    scene_bridge_back_on_the_scene_s_page(s);
+    steps->send_the_command(ctx);
 }
 
 /* The program's transfer of what the unpacker made, a word at a time into
@@ -343,27 +334,25 @@ static void send_unpacked_as_words(GameState *g)
     set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
 }
 
-static void load_graphics(Snes *s, uint32_t unpack_site, const StaffRollGraphics *gr)
+static void load_graphics(GameState *g, Platform *pf, unsigned graphic, const StaffRollSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
+    const StaffRollGraphics *gr = &staff_roll_graphics[graphic];
     vid_set_vram_address(pf, PF_AT(gr->vram_site), gr->vram);
-    scene_bridge_unpack(s, unpack_site, gr->resource);
+    steps->unpack(ctx, graphic);
     if (gr->bytes)
         set_decompress_length(g, gr->bytes);
     TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
 }
 
 // $7E:8EA8
-/* The staff roll's setup, from the program's mode table (mode 13). */
-static void set_up_staff_roll(Snes *s)
+/* The staff roll's setup, from the program's mode table (mode 13). False
+ * where a step went no further. */
+static bool set_up_staff_roll_with(GameState *g, Platform *pf, const StaffRollSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    play_music_fast(s);
+    play_music_fast(g, steps, ctx);
     set_scene_credits_fast(g, (uint8_t)(scene_credits_fast(g) + 1));
     set_scene_channel_register(g, SCENE_STAR_FIELD_CHANNEL, SCENE_STAR_FIELD_SPEED, STARS_COMING);
-    scene_bridge_scatter_stars(s, s->cpu.a);
+    steps->scatter_the_stars(ctx);
     TIMED_AS(g, 0xFDE275, palette_stop_animations(g));
     copy_colors(g, PICTURE_COLORS, PICTURE_PALETTE);
 
@@ -371,7 +360,7 @@ static void set_up_staff_roll(Snes *s)
     send_unpacked_as_words(g);
     vid_start_vram_uploads(pf, PF_AT(0x7E8EE8), SCENE_VRAM_WHOLE_WORDS);
     for (unsigned i = 0; i < STAFF_ROLL_GRAPHICS; i++)
-        load_graphics(s, staff_roll_graphics_unpacked_at[i], &staff_roll_graphics[i]);
+        load_graphics(g, pf, i, steps, ctx);
 
     copy_colors(g, STARS_COLORS, STARS_PALETTE);
     scene_set_letter_colors(g);
@@ -383,14 +372,114 @@ static void set_up_staff_roll(Snes *s)
 
     set_scene_stars_depth_branch(g, SCENE_EVERY_STAR_BEHIND);
     set_scene_channels_script(g, 0, STAFF_ROLL_SCRIPT);
-    first_script_step(s, descriptors_end);
+    if (!steps->first_step(ctx, descriptors_end))
+        return false;
     scroll_credits_on(g, VID_BG3);
     set_up_layers(pf);
     set_scene_credits_text(g, CREDITS_TEXT);
     set_scene_credits_row_vram(g, ROW_BEFORE_THE_MAP);
     set_scene_song(g, STAFF_ROLL_SONG);
     set_scene_song_playing(g, STAFF_ROLL_SONG);
-    scene_bridge_start_song(s, 0x7E8FE6, STAFF_ROLL_SONG);
+    steps->start_the_song(ctx, STAFF_ROLL_SONG);
+    return true;
+}
+
+/* ---- On the machine ---- */
+
+/* The program's own send of the command in the sound command buffer
+ * ($7E:377E), called with 8-bit A: it waits for the driver to take it. It
+ * reads none of the registers but Y and the data bank. What it leaves in A and
+ * the carry the stars' scatter mixes into its random numbers, so nothing
+ * touches them between the two. */
+enum { SCENE_SEND = 0x7E377E, SEND_IGNORES = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C };
+
+static void send_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    m_set_flag(s, CPU_FLAG_M, true);
+    au_driver_call(m_platform(s), PF_CALL(0x7E8EB2, SCENE_SEND), SEND_IGNORES);
+}
+
+static void scatter_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    scene_bridge_scatter_stars(s, s->cpu.a);
+}
+
+static void unpack_on_the_machine(void *ctx, unsigned graphic)
+{
+    scene_bridge_unpack(ctx, staff_roll_graphics_unpacked_at[graphic], staff_roll_graphics[graphic].resource);
+}
+
+/* The script's first step, with the program's bank as the data bank, which
+ * the program sets from a word it pushes: the word's other byte, 0, waits on
+ * the stack to be the data bank again after. It reads Y and the overflow as
+ * the per-line effects' setup leaves them: where the descriptors end, and
+ * clear. */
+enum { BANK_AFTER_THE_STEP = 0x00 };
+
+static bool first_step_on_the_machine(void *ctx, uint16_t descriptors_end)
+{
+    Snes *s = ctx;
+    s->cpu.db = SCENE_LOWER_WORK_RAM;
+    m_set_flag(s, CPU_FLAG_V, false);
+    scene_bridge_take_the_first_script_step(s, 0x7E8F94, descriptors_end, BANK_AFTER_THE_STEP);
+    scene_bridge_back_on_the_scene_s_page(s);
+    return true;
+}
+
+static void start_the_song_on_the_machine(void *ctx, uint8_t song) { scene_bridge_start_song(ctx, 0x7E8FE6, song); }
+
+/* ---- As C ---- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} StaffRollInC;
+
+static void send_the_command(void *ctx)
+{
+    StaffRollInC *c = ctx;
+    scene_sends_the_command(c->game, c->pf);
+}
+
+/* A host's draws take its own noise, so the stars' first starts from nothing
+ * in particular where the original's goes on from what the send left. */
+enum { SCATTER_STARS = 0x7E5777 };
+
+static void scatter_the_stars(void *ctx)
+{
+    StaffRollInC *c = ctx;
+    TIMED_AS(c->game, SCATTER_STARS, scene_scatter_stars(c->game, c->pf, scene_draw_from(0, false, TM_ENTROPY_BYTES)));
+}
+
+static void unpack_the_graphic(void *ctx, unsigned graphic)
+{
+    StaffRollInC *c = ctx;
+    TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, staff_roll_graphics[graphic].resource));
+}
+
+static bool turn_the_credits_channel(void *ctx, uint16_t descriptors_end)
+{
+    StaffRollInC *c = ctx;
+    (void)descriptors_end;
+    SceneTurn turn = SCENE_TURN_ENDED;
+    TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, 0));
+    return turn == SCENE_TURN_ENDED;
+}
+
+static void start_the_song(void *ctx, uint8_t song)
+{
+    StaffRollInC *c = ctx;
+    scene_start_song(c->pf, song);
+}
+
+bool scene_staff_roll_set_up(GameState *g, Platform *pf)
+{
+    static const StaffRollSteps as_c = { send_the_command, scatter_the_stars, unpack_the_graphic, turn_the_credits_channel,
+                                         start_the_song };
+    StaffRollInC c = { g, pf };
+    return set_up_staff_roll_with(g, pf, &as_c, &c);
 }
 
 /* ---- Entries ------------------------------------------------------------------------------------ */
@@ -420,14 +509,19 @@ bool scene_staff_roll_set_up_present(Snes *s)
  * the program reads, and the data bank and the direct page are 0. */
 bool scene_staff_roll_set_up_scene(Snes *s)
 {
-    set_up_staff_roll(s);
+    static const StaffRollSteps on_the_machine = {
+        send_on_the_machine, scatter_on_the_machine, unpack_on_the_machine, first_step_on_the_machine,
+        start_the_song_on_the_machine,
+    };
+    if (!set_up_staff_roll_with(state_of(s), m_platform(s), &on_the_machine, s))
+        return false;
     s->cpu.d = 0x0000;
     s->cpu.db = 0x00;
     s->cpu.p |= CPU_FLAG_M;
     return true;
 }
 
-void scene_staff_roll_set_up(Snes *s)
+void scene_staff_roll_set_up_entry(Snes *s)
 {
     scene_staff_roll_set_up_scene(s);
     m_rts(s);
@@ -458,14 +552,15 @@ static bool next_line_fits(const GameState *g)
     return false;
 }
 
+static bool roll_takes(const GameState *g, bool with_line);
+static bool upload_takes(const GameState *g);
+
 static bool roll_runs(Snes *s, bool with_line)
 {
     if (!scene_on_scene_page(s) || !m_bank_reaches_io(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = scene_credits_fast_high(g) == 0 &&
-              (!with_line || (scene_task_listed(g, SCENE_VBLANK_TASKS, CREDITS_UPLOAD_TASK) && next_line_fits(g)));
+    bool ok = roll_takes(state_of(s), with_line);
     vars_peek(false);
     return ok;
 }
@@ -509,7 +604,7 @@ static void leave_credits_over(Snes *s)
 /* A frame task, entered with 16-bit A: the line, then on to the scroll, or
  * at the credits' end out through the list's exit. Which, the state says: the
  * credits counted over, or the text moved on to the next line. */
-void scene_roll_credits(Snes *s)
+void scene_roll_credits_entry(Snes *s)
 {
     GameState *g = state_of(s);
     uint16_t text = scene_credits_text(g);
@@ -555,15 +650,13 @@ bool scene_credits_upload_present(Snes *s)
         !m_code_matches(s, 0x7E9F24, 0x04, 0x5374236A9A72910Bull) || !m_code_matches(s, 0x7E9F29, 0x02, 0x07C24207B48BF144ull))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t named = scene_credits_scroll_register(g, 0);
-    bool ok = named == scene_credits_scroll_register(g, 1) && (named == BG2_VERTICAL_SCROLL || named == BG3_VERTICAL_SCROLL);
+    bool ok = upload_takes(state_of(s));
     vars_peek(false);
     return ok;
 }
 
 /* A vblank task; nothing it leaves is read. */
-void scene_upload_credits(Snes *s)
+void scene_upload_credits_entry(Snes *s)
 {
     send_credits_row(state_of(s), m_platform(s));
     m_rts(s);
@@ -573,7 +666,7 @@ bool scene_clear_sprite_high_bits_present(Snes *s) { return m_code_matches(s, 0x
 
 /* A vblank task, which comes back with 16-bit A; nothing it leaves in the
  * registers is read. */
-void scene_clear_sprite_high_bits(Snes *s)
+void scene_clear_sprite_high_bits_entry(Snes *s)
 {
     clear_sprite_high_bits(state_of(s));
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
@@ -604,4 +697,82 @@ void scene_fade_in_the_picture(Snes *s)
 {
     fade_in_the_picture(state_of(s));
     m_rts(s);
+}
+
+/* ---- As C ------------------------------------------------------------------------------------------ */
+
+/* The script's routines as rows of the interpreter's table (scene/script.c),
+ * which on the machine it runs inline where their code holds; each leaves the
+ * registers as its entry does. */
+static void go_on_after_the_credits_routine(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    go_on_after_the_credits(g, channel);
+}
+
+static void fade_in_the_picture_routine(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    fade_in_the_picture(g);
+}
+
+const SceneScriptRoutine scene_staff_roll_routines[] = {
+    { SCENE_ROUTINE_GO_ON_AFTER_THE_CREDITS, go_on_after_the_credits_routine, scene_credits_test_present, false },
+    { SCENE_ROUTINE_FADE_IN_THE_PICTURE, fade_in_the_picture_routine, scene_fade_in_the_picture_present, false },
+};
+const unsigned scene_staff_roll_routine_count = sizeof scene_staff_roll_routines / sizeof scene_staff_roll_routines[0];
+
+#if ORIGINAL_EFFECTS
+static uint16_t leaves_a_as_called(uint16_t called_with) { return called_with; }
+
+const SceneRoutineLeaves scene_staff_roll_routine_leaves[] = { { leaves_a_as_called, NULL }, { leaves_a_as_called, NULL } };
+#endif
+
+/* The roll's tasks, for a program with no machine (each a column of
+ * scene/frame.c's table): the roll writes its line and scrolls, done at the
+ * credits' end; the upload sends the row; the sprites' high bits cleared. */
+static bool roll_takes(const GameState *g, bool with_line)
+{
+    return scene_credits_fast_high(g) == 0 &&
+           (!with_line || (scene_task_listed(g, SCENE_VBLANK_TASKS, CREDITS_UPLOAD_TASK) && next_line_fits(g)));
+}
+
+static bool upload_takes(const GameState *g)
+{
+    uint8_t named = scene_credits_scroll_register(g, 0);
+    return named == scene_credits_scroll_register(g, 1) && (named == BG2_VERTICAL_SCROLL || named == BG3_VERTICAL_SCROLL);
+}
+
+enum { ROLL_CREDITS = 0x7E9E7B, UPLOAD_CREDITS = 0x7E9EFC };
+
+TaskEnd scene_roll_credits(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    if (!roll_takes(g, true))
+        return scene_task_needs_the_machine(g, ROLL_CREDITS, "credits the port doesn't roll");
+    uint8_t over = scene_credits_over(g);
+    write_next_line(g);
+    if (scene_credits_over(g) != over)
+        return task_is_done();
+    bool odd = !roll_fast(g) && tm_odd_frame(pf, PF_AT(0x7E9EDF));
+    TIMED_AS(g, SCROLL_THE_CREDITS, scroll_credits(g, odd));
+    return task_goes_on();
+}
+
+TaskEnd scene_upload_credits(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    if (!upload_takes(g))
+        return scene_task_needs_the_machine(g, UPLOAD_CREDITS, "a credits' row whose scroll the port doesn't send");
+    send_credits_row(g, pf);
+    return task_goes_on();
+}
+
+TaskEnd scene_clear_sprite_high_bits(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    clear_sprite_high_bits(g);
+    return task_goes_on();
 }

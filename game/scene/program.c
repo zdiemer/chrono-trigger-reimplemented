@@ -93,12 +93,6 @@ static void as_the_screen_s_setup_leaves_it(Snes *s)
  * for the mode. */
 enum { SCENE_MODE_BITS = 0x1F, SCENE_MODES = 16, PROGRAM_BANK = 0x7E0000 };
 
-typedef enum {
-    MODE_RACE = 0, MODE_CREDITS_PAGE = 1, MODE_TITLE = 2, MODE_RISING_PALACE = 3, MODE_LAVOS_FALLS = 4, MODE_EPOCH_DIVE = 6,
-    MODE_PLANET_LOST = 7, MODE_PLANET_ENDING = 8, MODE_ATTRACT_RACE = 9,
-    MODE_ENDING = 10, MODE_ENDING_TOO = 11, MODE_STAFF_ROLL = 13, MODE_ENDING_AGAIN = 14, MODE_LAST_ENDING = 15,
-} SceneMode;
-
 /* The setups' routines, by which their time is reckoned. */
 enum {
     RACE_SET_UP = 0x7E3B48, CREDIT_PAGES_SET_UP = 0x7E6B04, TITLE_SET_UP = 0x7E5978, PALACE_SET_UP = 0x7E671F,
@@ -113,20 +107,20 @@ static const struct {
     bool (*present)(Snes *s);
     bool binary;   /* its code adds, so it runs in binary mode */
 } setups[] = {
-    { MODE_RACE, RACE_SET_UP, scene_race_set_up_scene, scene_race_set_up_present, false },
-    { MODE_CREDITS_PAGE, CREDIT_PAGES_SET_UP, scene_credit_pages_set_up_scene, scene_credit_pages_set_up_present, false },
-    { MODE_TITLE, TITLE_SET_UP, scene_title_set_up_scene, scene_title_set_up_present, false },
-    { MODE_RISING_PALACE, PALACE_SET_UP, scene_palace_set_up_scene, scene_palace_set_up_present, false },
-    { MODE_LAVOS_FALLS, LAVOS_FALLS_SET_UP, scene_lavos_falls_set_up_scene, scene_lavos_falls_set_up_present, false },
-    { MODE_EPOCH_DIVE, EPOCH_DIVE_SET_UP, scene_dive_set_up_scene, scene_dive_set_up_present, true },
-    { MODE_PLANET_LOST, PLANET_SET_UP, scene_planet_set_up_scene, scene_planet_set_up_present, false },
-    { MODE_PLANET_ENDING, PLANET_SET_UP, scene_planet_set_up_scene, scene_planet_set_up_present, false },
-    { MODE_ATTRACT_RACE, RACE_SET_UP, scene_race_set_up_scene, scene_race_set_up_present, false },
-    { MODE_ENDING, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
-    { MODE_ENDING_TOO, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
-    { MODE_STAFF_ROLL, STAFF_ROLL_SET_UP, scene_staff_roll_set_up_scene, scene_staff_roll_set_up_present, false },
-    { MODE_ENDING_AGAIN, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
-    { MODE_LAST_ENDING, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
+    { SCENE_MODE_RACE, RACE_SET_UP, scene_race_set_up_scene, scene_race_set_up_present, false },
+    { SCENE_MODE_CREDITS_PAGE, CREDIT_PAGES_SET_UP, scene_credit_pages_set_up_scene, scene_credit_pages_set_up_present, false },
+    { SCENE_MODE_TITLE, TITLE_SET_UP, scene_title_set_up_scene, scene_title_set_up_present, false },
+    { SCENE_MODE_RISING_PALACE, PALACE_SET_UP, scene_palace_set_up_scene, scene_palace_set_up_present, false },
+    { SCENE_MODE_LAVOS_FALLS, LAVOS_FALLS_SET_UP, scene_lavos_falls_set_up_scene, scene_lavos_falls_set_up_present, false },
+    { SCENE_MODE_EPOCH_DIVE, EPOCH_DIVE_SET_UP, scene_dive_set_up_scene, scene_dive_set_up_present, true },
+    { SCENE_MODE_PLANET_LOST, PLANET_SET_UP, scene_planet_set_up_scene, scene_planet_set_up_present, false },
+    { SCENE_MODE_PLANET_ENDING, PLANET_SET_UP, scene_planet_set_up_scene, scene_planet_set_up_present, false },
+    { SCENE_MODE_ATTRACT_RACE, RACE_SET_UP, scene_race_set_up_scene, scene_race_set_up_present, false },
+    { SCENE_MODE_ENDING_CAPTIONED, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
+    { SCENE_MODE_ENDING_CAPTIONED_TOO, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
+    { SCENE_MODE_STAFF_ROLL, STAFF_ROLL_SET_UP, scene_staff_roll_set_up_scene, scene_staff_roll_set_up_present, false },
+    { SCENE_MODE_ENDING_AGAIN, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
+    { SCENE_MODE_ENDING_WITHOUT_CREDITS, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
 };
 enum { SETUP_PORTS = sizeof setups / sizeof setups[0] };
 
@@ -170,7 +164,7 @@ static void set_the_scene_up(Snes *s)
         NATIVE_TIME_AS(s, setups[n].routine, done = setups[n].set_up(s));
         if (!done)
             return;
-        if (mode == MODE_TITLE) {
+        if (mode == SCENE_MODE_TITLE) {
             scene_title_wait_for_its_song(s);
             return;
         }
@@ -322,19 +316,26 @@ bool scene_program_end_present(Snes *s) { return m_code_matches(s, 0x7E303B, 8, 
 
 /* The setups the port has as C for a program with no machine: the title's,
  * the credits' page's, the race's (the attract sequence's too), the rising
- * palace's and the planet's. */
+ * palace's, Lavos falling's and the planet's. */
 static const struct {
     SceneMode mode;
     uint32_t routine;
     bool (*set_up)(GameState *g, Platform *pf);
 } c_setups[] = {
-    { MODE_TITLE, TITLE_SET_UP, scene_title_set_up },
-    { MODE_CREDITS_PAGE, CREDIT_PAGES_SET_UP, scene_credit_pages_set_up },
-    { MODE_RACE, RACE_SET_UP, scene_race_set_up },
-    { MODE_ATTRACT_RACE, RACE_SET_UP, scene_race_set_up },
-    { MODE_RISING_PALACE, PALACE_SET_UP, scene_palace_set_up },
-    { MODE_PLANET_LOST, PLANET_SET_UP, scene_planet_set_up },
-    { MODE_PLANET_ENDING, PLANET_SET_UP, scene_planet_set_up },
+    { SCENE_MODE_TITLE, TITLE_SET_UP, scene_title_set_up },
+    { SCENE_MODE_CREDITS_PAGE, CREDIT_PAGES_SET_UP, scene_credit_pages_set_up },
+    { SCENE_MODE_RACE, RACE_SET_UP, scene_race_set_up },
+    { SCENE_MODE_ATTRACT_RACE, RACE_SET_UP, scene_race_set_up },
+    { SCENE_MODE_RISING_PALACE, PALACE_SET_UP, scene_palace_set_up },
+    { SCENE_MODE_LAVOS_FALLS, LAVOS_FALLS_SET_UP, scene_lavos_falls_set_up },
+    { SCENE_MODE_EPOCH_DIVE, EPOCH_DIVE_SET_UP, scene_dive_set_up },
+    { SCENE_MODE_ENDING_CAPTIONED, ENDINGS_SET_UP, scene_ending_set_up },
+    { SCENE_MODE_ENDING_CAPTIONED_TOO, ENDINGS_SET_UP, scene_ending_set_up },
+    { SCENE_MODE_ENDING_AGAIN, ENDINGS_SET_UP, scene_ending_set_up },
+    { SCENE_MODE_ENDING_WITHOUT_CREDITS, ENDINGS_SET_UP, scene_ending_set_up },
+    { SCENE_MODE_STAFF_ROLL, STAFF_ROLL_SET_UP, scene_staff_roll_set_up },
+    { SCENE_MODE_PLANET_LOST, PLANET_SET_UP, scene_planet_set_up },
+    { SCENE_MODE_PLANET_ENDING, PLANET_SET_UP, scene_planet_set_up },
 };
 enum { C_SETUPS = sizeof c_setups / sizeof c_setups[0] };
 
@@ -370,6 +371,25 @@ static bool first_frame(GameState *g, Platform *pf)
     return true;
 }
 
+// $7E:3023
+/* One pass of the main loop's call (ScenePass): nothing, or the scaling of
+ * the race's racers, the endings' zooming picture or the Epoch seen from
+ * outside. False where the program goes no further. */
+static bool main_loop_pass(GameState *g, Platform *pf)
+{
+    uint16_t call = scene_main_loop_call(g);
+    bool done = false;
+    switch (call) {
+    case SCENE_PASS_NOTHING: return true;
+    case SCENE_PASS_RACE_SCALING: TIMED_AS(g, PROGRAM_BANK | call, done = scene_race_scale_pictures(g, pf)); return done;
+    case SCENE_PASS_ENDING_SCALING: TIMED_AS(g, PROGRAM_BANK | call, done = scene_ending_scale_picture(g, pf)); return done;
+    case SCENE_PASS_DIVE_SCALING: TIMED_AS(g, PROGRAM_BANK | call, done = scene_scale_the_epoch(g, pf)); return done;
+    default:
+        program_needs_the_machine(g, PROGRAM_BANK | call, "a scene's main loop call only the machine runs");
+        return false;
+    }
+}
+
 // $7E:3000 (and the boot, $C3:0000, before it; the main loop, $7E:3023, and the end, $7E:302A, after)
 bool scene_runs(GameState *g, Platform *pf, uint8_t flags)
 {
@@ -387,12 +407,16 @@ bool scene_runs(GameState *g, Platform *pf, uint8_t flags)
     uint8_t mode = scene_flags(g) & SCENE_MODE_BITS;
     if (!set_up(g, pf, mode))
         return false;
-    if (mode == MODE_TITLE)
+    if (mode == SCENE_MODE_TITLE)
         while (!scene_music_is_playing(pf))
             tm_wait_frame(pf, PF_AT(MUSIC_WAIT));
     if (!first_frame(g, pf))
         return false;
-    while (!scene_program_over(g)) {
+    for (;;) {
+        if (!main_loop_pass(g, pf))
+            return false;
+        if (scene_program_over(g))
+            break;
         tm_wait_frame(pf, PF_AT(MAIN_LOOP));
         if (program_console_is_resetting(g))
             return true;

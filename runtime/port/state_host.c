@@ -26,6 +26,9 @@ struct GameState {
     bool stopped;
     bool scene_next;          /* the program goes on to a scene (program_goes_on_to_a_scene) */
     uint8_t scene;
+    /* the scenes the driver starts the game in, one after another (program_starts_in_a_scene) */
+    uint8_t first_scene[STATE_HOST_FIRST_SCENES], first_song[STATE_HOST_FIRST_SCENES];
+    unsigned first_scenes, first_scene_taken;
     bool field_again;         /* the field starts again (program_starts_the_field_again) */
     bool afresh;              /* the game starts afresh from the title (program_starts_afresh_from_the_title) */
     bool reset;               /* the console reset (program_resets_the_console) */
@@ -239,6 +242,25 @@ bool program_next_scene(GameState *g, uint8_t *scene)
         return false;
     g->scene_next = false;
     *scene = g->scene;
+    return true;
+}
+
+void program_starts_in_a_scene(GameState *g, uint8_t scene, uint8_t song)
+{
+    if (g->first_scenes == STATE_HOST_FIRST_SCENES)
+        return;
+    g->first_scene[g->first_scenes] = scene;
+    g->first_song[g->first_scenes] = song;
+    g->first_scenes++;
+}
+
+bool program_first_scene(GameState *g, uint8_t *scene, uint8_t *song)
+{
+    if (g->first_scene_taken == g->first_scenes)
+        return false;
+    *scene = g->first_scene[g->first_scene_taken];
+    *song = g->first_song[g->first_scene_taken];
+    g->first_scene_taken++;
     return true;
 }
 

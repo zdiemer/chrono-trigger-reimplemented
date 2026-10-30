@@ -6956,8 +6956,12 @@ uint16_t scene_mode7_matrix_d(const GameState *g) { return r16(g, 0x7E0060u); }
 void set_scene_mode7_matrix_d(GameState *g, uint16_t v) { w16(g, 0x7E0060u, v); }
 uint16_t scene_title_logo_x(const GameState *g) { return r16(g, 0x7E0062u); }
 void set_scene_title_logo_x(GameState *g, uint16_t v) { w16(g, 0x7E0062u, v); }
+uint8_t scene_ending_captions_x(const GameState *g) { return r8(g, 0x7E0064u); }
+void set_scene_ending_captions_x(GameState *g, uint8_t v) { w8(g, 0x7E0064u, v); }
 uint16_t scene_title_logo_y(const GameState *g) { return r16(g, 0x7E0064u); }
 void set_scene_title_logo_y(GameState *g, uint16_t v) { w16(g, 0x7E0064u, v); }
+uint8_t scene_ending_captions_y(const GameState *g) { return r8(g, 0x7E0065u); }
+void set_scene_ending_captions_y(GameState *g, uint8_t v) { w8(g, 0x7E0065u, v); }
 uint16_t scene_title_pendulum_phase(const GameState *g) { return r16(g, 0x7E0066u); }
 void set_scene_title_pendulum_phase(GameState *g, uint16_t v) { w16(g, 0x7E0066u, v); }
 uint16_t scene_title_timer(const GameState *g) { return r16(g, 0x7E0068u); }

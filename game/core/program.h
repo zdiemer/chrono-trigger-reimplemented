@@ -67,6 +67,12 @@ bool program_went_no_further(const GameState *g);
  * the mode jumps to is how the program goes on, and these are never called. */
 void program_goes_on_to_a_scene(GameState *g, uint8_t scene);
 bool program_next_scene(GameState *g, uint8_t *scene);
+/* A driver that starts the game in a scene, as an event would start it from
+ * the field (ct_native --scene): the scene's flags, and the song the field
+ * would have had playing (0 for none), which a scene that keeps the field's
+ * song waits on. The main thread takes it once, after the field's power-on. */
+void program_starts_in_a_scene(GameState *g, uint8_t scene, uint8_t song);
+bool program_first_scene(GameState *g, uint8_t *scene, uint8_t *song);
 /* Or the field started again from its start, on a fresh stack, for the
  * place the party is (a script's change of place made at once): the field
  * takes it as its pass ends. */

@@ -269,7 +269,28 @@ static void scale_pictures_from(Snes *s, unsigned from)
 
 // $7E:51D1
 /* The main loop's call each pass, while the race runs. */
-void scene_race_scale_pictures(Snes *s) { scale_pictures_from(s, RACER_CRONO); }
+void scene_race_scale_pictures_entry(Snes *s) { scale_pictures_from(s, RACER_CRONO); }
+
+/* As C, for a program with no machine: each racer's waiting picture handed
+ * over and drawn whole, the racer's last tiles waited for a frame at a time,
+ * and the new picture gathered. False where the program goes no further. */
+enum { TILEMAP_SENT_WAIT = 0x7E5211 };
+
+bool scene_race_scale_pictures(GameState *g, Platform *pf)
+{
+    for (unsigned r = next_waiting(g, RACER_CRONO); r < RACERS; r = next_waiting(g, r + 1)) {
+        hand_to_scaler(g, (Racer)r);
+        bool drawn = false;
+        TIMED_AS(g, SCENE_SCALER_ROWS, drawn = scene_scale_the_bitmap(g, scene_scaler_row_step(g) & 0x8000));
+        if (!drawn)
+            return false;
+        while (scene_race_tilemap_pending(g))
+            tm_wait_frame(pf, PF_AT(TILEMAP_SENT_WAIT));
+        TIMED_AS(g, 0x7E5215, gather_scaled_picture(g));
+        set_scene_race_picture_requests_state(g, (Racer)r, PICTURE_GATHERED);
+    }
+    return true;
+}
 
 /* Back from Crono's picture, gathered: Johnny's next. */
 void scene_race_scale_after_crono(Snes *s)

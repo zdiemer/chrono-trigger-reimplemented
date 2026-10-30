@@ -13,7 +13,9 @@
  *
  * The original draws every row in one call that spans several frames, so the
  * port draws a row per call and stops at the row loop's head ($C3:0309, an
- * entry of its own): each row is compared on its own.
+ * entry of its own): each row is compared on its own. The native program,
+ * whose main loop has nothing to share its frames with, draws the whole
+ * bitmap in one call (scene_scale_the_bitmap).
  *
  * The original never clears the carry between its sums, and three of them move
  * what the player sees: a row's samples start 1/256 of a pixel further on when
@@ -27,6 +29,7 @@
 #include "scene/scene.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -213,7 +216,7 @@ static RowOutcome scale_row(GameState *g, bool row_nudge)
     return ROW_DRAWN;
 }
 
-/* ---- Entries: 16-bit A and index registers, on the scene's page, bank $7F ------------------- */
+/* ---- The bitmaps the port draws --------------------------------------------------------------- */
 
 /* The bitmaps the port draws: in the scaler's bank, with the plane pointer
  * not wrapping past the end of the bank, the source's samples in the bank,
@@ -223,20 +226,44 @@ static RowOutcome scale_row(GameState *g, bool row_nudge)
  * scratch, and the bitmap is the original's to draw. No scene's reaches them. */
 enum { LARGEST_LIMIT = 0x8000, SAMPLES_REACH = 0x0101 };
 
+bool scene_scaler_draws(const GameState *g)
+{
+    uint32_t pairs = scene_scaler_pairs(g) ? scene_scaler_pairs(g) : 0x10000u;
+    uint32_t planes = scene_scaler_plane_output(g);
+    uint32_t base = scene_scaler_source_base(g), limit = scene_scaler_source_limit(g);
+    bool planes_fit = planes + pairs * GROUPS_PER_PAIR * PLANES <= POSITIONS;
+    bool limit_compares = limit <= LARGEST_LIMIT;
+    bool source_in_bank = limit == 0 || base + (limit - 1) + SAMPLES_REACH <= POSITIONS;
+    return planes_fit && limit_compares && source_in_bank;
+}
+
+/* The whole bitmap at once, as a program with no machine draws it: the first
+ * row nudged by `row_nudge`, each after it by the carry of the output's step
+ * before it, which only a step past the bank's end leaves. False where a row
+ * is one the port doesn't draw, which the program can't go on from. */
+bool scene_scale_the_bitmap(GameState *g, bool row_nudge)
+{
+    for (;;) {
+        if (!scene_scaler_draws(g)) {
+            program_needs_the_machine(g, ROW_LOOP, "a bitmap the port's scaler doesn't draw");
+            return false;
+        }
+        if (scale_row(g, row_nudge) == BITMAP_ENDED)
+            return true;
+        row_nudge = scene_scaler_output(g) < ROW_BYTES;
+    }
+}
+
+/* ---- Entries: 16-bit A and index registers, on the scene's page, bank $7F ------------------- */
+
 bool scene_scaler_in_its_bank(Snes *s)
 {
     if (!scene_on_scene_page(s) || s->cpu.db != SCENE_UPPER_WORK_RAM)
         return false;
     vars_peek(true);
-    GameState *g = state_of(s);
-    uint32_t pairs = scene_scaler_pairs(g) ? scene_scaler_pairs(g) : 0x10000u;
-    uint32_t planes = scene_scaler_plane_output(g);
-    uint32_t base = scene_scaler_source_base(g), limit = scene_scaler_source_limit(g);
+    bool draws = scene_scaler_draws(state_of(s));
     vars_peek(false);
-    bool planes_fit = planes + pairs * GROUPS_PER_PAIR * PLANES <= POSITIONS;
-    bool limit_compares = limit <= LARGEST_LIMIT;
-    bool source_in_bank = limit == 0 || base + (limit - 1) + SAMPLES_REACH <= POSITIONS;
-    return planes_fit && limit_compares && source_in_bank;
+    return draws;
 }
 
 /* The flags the original leaves where the bitmap ends: those of its measure of

@@ -1,7 +1,16 @@
 /* ct_native: the game with no emulator under it (docs/PLAYING.md, "The
  * native program").
  *
- *   ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm]
+ *   ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]
+ *             [--scene flags[,song]]...
+ *
+ * --scene starts the game in the scene engine after the power-on, with the
+ * flags an event hands it ($24 Lavos falling, $26 the Epoch's dive, $2A to
+ * $2F the endings and the staff roll) and the song the field would have had
+ * playing, and goes on to the field after it: the story scenes a movie's
+ * presses don't bring the native program to. Given again, the scenes run one
+ * after another (up to four), as an ending's do, each taking up what the one
+ * before left.
  *
  * It links game/'s program (core/program.c), the platform services' host
  * backends (runtime/platform/native/) and the coroutines (runtime/port/fiber.h),
@@ -25,6 +34,7 @@
  * program stopped short, 2 on bad arguments or files. This file is the driver:
  * the loop, the files and the report are its, as frontend/headless.c's are
  * the player's. */
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -193,12 +203,36 @@ static uint8_t *load_pack(const char *path, const char *rom_path, AssetPack **pa
     return bytes;
 }
 
+/* A byte written out whole, in any base strtol takes, ending at `end`. */
+static bool byte_from(const char *text, char **end, uint8_t *out)
+{
+    long v = strtol(text, end, 0);
+    if (*end == text || v < 0 || v > 0xFF)
+        return false;
+    *out = (uint8_t)v;
+    return true;
+}
+
+/* --scene's flags, and the song after a comma (0, none, where there is none). */
+static bool scene_and_song(const char *text, uint8_t *scene, uint8_t *song)
+{
+    char *rest;
+    if (!byte_from(text, &rest, scene))
+        return false;
+    *song = 0;
+    if (*rest == '\0')
+        return true;
+    return *rest == ',' && byte_from(rest + 1, &rest, song) && *rest == '\0';
+}
+
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL, *movie_path = NULL, *shot_dir = NULL;
     const char *end_state = NULL;
     unsigned long frames = 600, shot_every = 0;
     bool locations = false;
+    unsigned scenes = 0;
+    uint8_t scene[STATE_HOST_FIRST_SCENES], song[STATE_HOST_FIRST_SCENES];
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--rom") && v) rom_path = v, i++;
@@ -210,9 +244,13 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--shot-dir") && v) shot_dir = v, i++;
         else if (!strcmp(a, "--end-state") && v) end_state = v, i++;
         else if (!strcmp(a, "--locations")) locations = true;
+        else if (!strcmp(a, "--scene") && v && scenes < STATE_HOST_FIRST_SCENES && scene_and_song(v, &scene[scenes], &song[scenes]))
+            scenes++, i++;
         else {
-            fprintf(stderr, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
-                            "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations]\n");
+            fprintf(stderr, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]
+"
+                            "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--scene flags[,song]]...
+");
             return 2;
         }
     }
@@ -249,6 +287,8 @@ int main(int argc, char **argv)
     }
 
     pf.save.bytes = state_host_sram(g);
+    for (unsigned n = 0; n < scenes; n++)
+        program_starts_in_a_scene(g, scene[n], song[n]);
     vid_host_start(&pf, read_game, write_game, g);
     SoundNative *sound = sound_native_create(g, &pf);
     if (!sound) {

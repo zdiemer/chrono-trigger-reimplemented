@@ -8877,10 +8877,18 @@
  * in along a curve and lands at $38 [2 bytes] */
 #define RAM_SCENE_TITLE_LOGO_X 0x7E0062u
 #define RAM_SCENE_TITLE_LOGO_X_DP 0x62u      /* page scene */
+/* The shared endings: where across the next captions' lines start, which a script stores before
+ * it has the captions take it ($7E:9919) */
+#define RAM_SCENE_ENDING_CAPTIONS_X 0x7E0064u
+#define RAM_SCENE_ENDING_CAPTIONS_X_DP 0x64u /* page scene */
 /* The title logo's Y: the sprite offset of its first sprite list, and $40 more its second's
  * ($7E:5D01); it lands at $3A [2 bytes] */
 #define RAM_SCENE_TITLE_LOGO_Y 0x7E0064u
 #define RAM_SCENE_TITLE_LOGO_Y_DP 0x64u      /* page scene */
+/* The shared endings: where down the next captions' first line starts, stored with its place
+ * across ($7E:9919) */
+#define RAM_SCENE_ENDING_CAPTIONS_Y 0x7E0065u
+#define RAM_SCENE_ENDING_CAPTIONS_Y_DP 0x65u /* page scene */
 /* The pendulum's swing's phase, a step of the sine table's turn of $400 [2 bytes] */
 #define RAM_SCENE_TITLE_PENDULUM_PHASE 0x7E0066u
 #define RAM_SCENE_TITLE_PENDULUM_PHASE_DP 0x66u /* page scene */

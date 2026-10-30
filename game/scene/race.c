@@ -546,7 +546,7 @@ enum { SCALER_OUTPUT_AS_FULL = 0x0A00 };
 
 /* The main loop's call each pass, while the race runs: the racers' pictures
  * scaled (scene_race_scale_pictures). */
-enum { MAIN_LOOP_SCALES_PICTURES = 0x51D1, PERSPECTIVE_FROM_THE_HORIZON = 0x45B0 };
+enum { MAIN_LOOP_SCALES_PICTURES = SCENE_PASS_RACE_SCALING, PERSPECTIVE_FROM_THE_HORIZON = 0x45B0 };
 
 /* The regrouping code is written for the scaler's picture into the tilemap
  * buffer. */

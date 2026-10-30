@@ -720,6 +720,24 @@ meaning = "The title logo's Y: the sprite offset of its first sprite list, and $
 source = "game/scene/title.c, scene_title_move_logo $7E:5C98"
 
 [[var]]
+name = "scene_ending_captions_x"
+addr = "7E:0064"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_title_logo_y", "scene_race_racers"]
+meaning = "The shared endings: where across the next captions' lines start, which a script stores before it has the captions take it ($7E:9919)"
+source = "game/scene/endings.c, the captions' place $7E:9919"
+
+[[var]]
+name = "scene_ending_captions_y"
+addr = "7E:0065"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_title_logo_y", "scene_race_racers"]
+meaning = "The shared endings: where down the next captions' first line starts, stored with its place across ($7E:9919)"
+source = "game/scene/endings.c, the captions' place $7E:9919"
+
+[[var]]
 name = "scene_title_timer"
 addr = "7E:0068"
 size = 2
@@ -1946,7 +1964,7 @@ size = 2
 count = 64
 index = "column: the first 32 across, the next 32 down"
 subsystem = "scene"
-reuses = ["scene_bitplane_scratch", "scene_bg3_scroll_x", "scene_mode7_matrix", "scene_title_slides", "scene_title_slide_ends", "scene_title_pendulum_phase", "scene_title_pendulum_swing", "scene_title_ignores_buttons", "scene_title_button_taken", "scene_title_wait", "scene_title_logo_x", "scene_title_logo_y", "scene_title_timer", "scene_race_tilemap_a_ready", "scene_race_tilemap_b_ready", "scene_race_tilemap_ready_high", "scene_race_demo", "scene_race_racers", "scene_race_score", "scene_race_lead", "scene_race_view", "scene_race_johnny_controls", "scene_race_boosts", "scene_race_place", "scene_race_boost_held", "scene_race_cartridge_column", "scene_race_contact", "scene_race_contact_across", "scene_race_last_contact", "scene_race_crono_lean", "scene_race_stage", "scene_race_finish_margin", "scene_race_finish_margin_high", "scene_race_divisor_start", "scene_race_steer_buttons", "scene_race_boost_timer", "scene_race_frames", "scene_race_leaving", "scene_credits_scroll", "scene_credits_row_vram", "scene_credits_text", "scene_credits_over", "scene_credits_fast", "scene_credits_fast_high", "scene_stars_last_distance", "scene_stars_drift_frames", "scene_ending_picture_half", "scene_ending_picture_source", "scene_ending_picture_zoom", "scene_ending_picture_tall", "scene_ending_caption_gap", "scene_ending_caption_shown", "scene_ending_caption_countdown", "scene_ending_window_left", "scene_ending_window_corners", "scene_ending_caption_phase", "scene_ending_captions_left"]
+reuses = ["scene_bitplane_scratch", "scene_bg3_scroll_x", "scene_mode7_matrix", "scene_title_slides", "scene_title_slide_ends", "scene_title_pendulum_phase", "scene_title_pendulum_swing", "scene_title_ignores_buttons", "scene_title_button_taken", "scene_title_wait", "scene_title_logo_x", "scene_title_logo_y", "scene_title_timer", "scene_race_tilemap_a_ready", "scene_race_tilemap_b_ready", "scene_race_tilemap_ready_high", "scene_race_demo", "scene_race_racers", "scene_race_score", "scene_race_lead", "scene_race_view", "scene_race_johnny_controls", "scene_race_boosts", "scene_race_place", "scene_race_boost_held", "scene_race_cartridge_column", "scene_race_contact", "scene_race_contact_across", "scene_race_last_contact", "scene_race_crono_lean", "scene_race_stage", "scene_race_finish_margin", "scene_race_finish_margin_high", "scene_race_divisor_start", "scene_race_steer_buttons", "scene_race_boost_timer", "scene_race_frames", "scene_race_leaving", "scene_credits_scroll", "scene_credits_row_vram", "scene_credits_text", "scene_credits_over", "scene_credits_fast", "scene_credits_fast_high", "scene_stars_last_distance", "scene_stars_drift_frames", "scene_ending_picture_half", "scene_ending_picture_source", "scene_ending_picture_zoom", "scene_ending_picture_tall", "scene_ending_caption_gap", "scene_ending_caption_shown", "scene_ending_caption_countdown", "scene_ending_window_left", "scene_ending_window_corners", "scene_ending_caption_phase", "scene_ending_captions_left", "scene_ending_captions_x", "scene_ending_captions_y"]
 meaning = "The palace's scene: the offsets mode 2 moves BG1's columns by, BG3's first two rows as the vblank sends them: across, the ripple's shape from its strength, and down, none"
 source = "game/scene/rising_palace.c, the ripple $7E:69AF and its upload $7E:66DD"
 

@@ -516,8 +516,8 @@ static void unwind_the_task_s_frames(Snes *s)
 }
 
 /* The program's routines on the lists that a build with no machine runs as
- * C: the channels' turns, the sprites hidden and the palette sent. Each
- * stays on its list. */
+ * C: the channels' turns, the sprites hidden, the palette sent and the
+ * plane sent, shown flat or in perspective. Each stays on its list. */
 static TaskEnd channel_turn(GameState *g, Platform *pf, SceneChannel ch)
 {
     if (scene_channel_turn(g, pf, ch) != SCENE_TURN_ENDED)
@@ -543,6 +543,29 @@ static TaskEnd send_palette(GameState *g, Platform *pf, unsigned slot)
     return task_goes_on();
 }
 
+static TaskEnd send_the_flat_plane(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    scene_send_the_flat_plane(g, pf);
+    return task_goes_on();
+}
+
+/* The program's empty routine, which a script puts on a list to hold a slot. */
+static TaskEnd nothing_this_frame(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)g;
+    (void)pf;
+    (void)slot;
+    return task_goes_on();
+}
+
+static TaskEnd send_the_plane_s_place(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    scene_send_the_plane_s_place(g, pf);
+    return task_goes_on();
+}
+
 TaskEnd scene_task_needs_the_machine(GameState *g, uint32_t routine, const char *what)
 {
     program_needs_the_machine(g, routine, what);
@@ -561,6 +584,7 @@ static const struct {
     SceneTaskInC run;
 } machine_tasks[] = {
     /* the scripts' channels' first steps and the vblank list's uploads */
+    { 0x7E3176, NULL, nothing_this_frame },   /* a lone return: the original's on the machine */
     { 0x7E3749, scene_run_channel_0_script, channel_0_turn },
     { 0x7E3754, scene_run_channel_1_script, channel_1_turn },
     { 0x7E3843, scene_clear_sprite_table, hide_every_sprite },
@@ -588,62 +612,68 @@ static const struct {
     { 0x7E4F54, scene_race_draw_entry, scene_race_draw },
     { 0x7E5221, scene_race_upload_tilemap_entry, scene_race_upload_tilemap },
     /* Lavos falling to the planet's */
-    { 0x7E55F9, scene_turn_the_field_s_angle, NULL },
-    { 0x7E5654, scene_send_the_flat_plane_entry, NULL },
-    { 0x7E56A9, scene_turn_lavos, NULL },
-    { 0x7E56EB, scene_draw_the_planet, NULL },
-    { 0x7E579B, scene_stars_fly, NULL },
-    { 0x7E5855, scene_swing_the_field, NULL },
+    { 0x7E55F9, scene_turn_the_field_s_angle_entry, scene_turn_the_field_s_angle },
+    { 0x7E5654, scene_send_the_flat_plane_entry, send_the_flat_plane },
+    { 0x7E56A9, scene_turn_lavos_entry, scene_turn_lavos },
+    { 0x7E56EB, scene_draw_the_planet_entry, scene_draw_the_planet },
+    { 0x7E579B, scene_stars_fly_entry, scene_stars_fly },
+    { 0x7E5855, scene_swing_the_field_entry, scene_swing_the_field },
     /* the planet's and the rising palace's */
     { 0x7E63D5, scene_wait_for_a_button_to_restart_entry, scene_wait_for_a_button_to_restart },
     { 0x7E63F5, scene_count_down_to_the_restart_entry, scene_count_down_to_the_restart },
     { 0x7E64BF, scene_show_the_planet_s_caption_entry, scene_show_the_planet_s_caption },
     { 0x7E6844, scene_sweep_the_palace_curtain_entry, scene_sweep_the_palace_curtain },
     /* the Epoch's dive's */
-    { 0x7E79F8, scene_set_the_screen_outside, NULL },
-    { 0x7E7A35, scene_set_the_screen_in_the_cockpit, NULL },
-    { 0x7E7BF2, scene_open_the_light, NULL },
-    { 0x7E7F12, scene_pass_the_shell_across, NULL },
-    { 0x7E7F35, scene_pass_the_shell_down, NULL },
-    { 0x7E7F58, scene_follow_the_panel, NULL },
-    { 0x7E7F7D, scene_shake_the_cockpit, NULL },
-    { 0x7E7FC4, scene_size_the_trail, NULL },
-    { 0x7E7FCB, scene_draw_the_trail, NULL },
-    { 0x7E8079, scene_flicker_the_lights, NULL },
-    { 0x7E81C4, scene_send_the_plane_s_place_entry, NULL },
-    { 0x7E81F1, scene_let_the_shell_fall_away, NULL },
-    { 0x7E8205, scene_draw_the_epoch, NULL },
-    { 0x7E824A, scene_send_the_epoch, NULL },
-    { 0x7E82D1, scene_check_the_shell, NULL },
-    { 0x7E835B, scene_fly_the_epoch_on, NULL },
+    { 0x7E79F8, scene_set_the_screen_outside_entry, scene_set_the_screen_outside },
+    { 0x7E7A35, scene_set_the_screen_in_the_cockpit_entry, scene_set_the_screen_in_the_cockpit },
+    { 0x7E7BF2, scene_open_the_light_entry, scene_open_the_light },
+    { 0x7E7F12, scene_pass_the_shell_across_entry, scene_pass_the_shell_across },
+    { 0x7E7F35, scene_pass_the_shell_down_entry, scene_pass_the_shell_down },
+    { 0x7E7F58, scene_follow_the_panel_entry, scene_follow_the_panel },
+    { 0x7E7F7D, scene_shake_the_cockpit_entry, scene_shake_the_cockpit },
+    { 0x7E7FC4, scene_size_the_trail_entry, scene_size_the_trail },
+    { 0x7E7FCB, scene_draw_the_trail_entry, scene_draw_the_trail },
+    { 0x7E8079, scene_flicker_the_lights_entry, scene_flicker_the_lights },
+    { 0x7E81C4, scene_send_the_plane_s_place_entry, send_the_plane_s_place },
+    { 0x7E81F1, scene_let_the_shell_fall_away_entry, scene_let_the_shell_fall_away },
+    { 0x7E8205, scene_draw_the_epoch_entry, scene_draw_the_epoch },
+    { 0x7E824A, scene_send_the_epoch_entry, scene_send_the_epoch },
+    { 0x7E82D1, scene_check_the_shell_entry, scene_check_the_shell },
+    { 0x7E835B, scene_fly_the_epoch_on_entry, scene_fly_the_epoch_on },
     /* the endings' pictures and credits */
-    { 0x7E8850, scene_ending_place_picture, NULL },
-    { 0x7E891B, scene_ending_pick_picture_frame, NULL },
-    { 0x7E89C0, scene_ending_upload_picture, NULL },
-    { 0x7E8C05, scene_clear_sprite_high_bits, NULL },
-    { 0x7E8D56, scene_ending_show_credits, NULL },
-    { 0x7E8E44, scene_ending_show_last_scene, NULL },
-    { 0x7E8E88, scene_ending_scroll_bg2, NULL },
+    { 0x7E8850, scene_ending_place_picture_entry, scene_ending_place_picture },
+    { 0x7E891B, scene_ending_pick_picture_frame_entry, scene_ending_pick_picture_frame },
+    { 0x7E89C0, scene_ending_upload_picture_entry, scene_ending_upload_picture },
+    { 0x7E8C05, scene_clear_sprite_high_bits_entry, scene_clear_sprite_high_bits },
+    { 0x7E8D56, scene_ending_show_credits_entry, scene_ending_show_credits },
+    { 0x7E8E44, scene_ending_show_last_scene_entry, scene_ending_show_last_scene },
+    { 0x7E8E88, scene_ending_scroll_bg2_entry, scene_ending_scroll_bg2 },
     /* the flight beyond time's, the star fields' drift, the captions' and the staff roll's */
-    { 0x7E9080, scene_set_the_flight_horizon, NULL },
-    { 0x7E90C1, scene_pass_the_map, NULL },
-    { 0x7E9897, scene_stars_start_drift, NULL },
-    { 0x7E98AC, scene_stars_keep_drifting, NULL },
-    { 0x7E992A, scene_circle_the_epoch, NULL },
-    { 0x7E997D, scene_sway_the_epoch, NULL },
-    { 0x7E999C, scene_stars_fly_after_captions, NULL },
-    { 0x7E99B5, scene_keep_the_orbit, NULL },
-    { 0x7E99FA, scene_ending_draw_the_end, NULL },
-    { 0x7E9A0C, scene_ending_sweep_window, NULL },
-    { 0x7E9ABD, scene_check_the_flight_view, NULL },
-    { 0x7E9AF3, scene_place_the_flight_view, NULL },
-    { 0x7E9B4F, scene_turn_captions, NULL },
-    { 0x7E9BF9, scene_burst_the_fireworks, NULL },
-    { 0x7E9D48, scene_twinkle_the_lights, NULL },
-    { 0x7E9DBC, scene_send_the_flight_view, NULL },
-    { 0x7E9E2B, scene_send_the_picture, NULL },
-    { 0x7E9E7B, scene_roll_credits, NULL },
-    { 0x7E9EFC, scene_upload_credits, NULL },
+    { 0x7E9080, scene_set_the_flight_horizon_entry, scene_set_the_flight_horizon },
+    { 0x7E90C1, scene_pass_the_map_entry, scene_pass_the_map },
+    { 0x7E9897, scene_stars_start_drift_entry, scene_stars_start_drift },
+    { 0x7E98AC, scene_stars_keep_drifting_entry, scene_stars_keep_drifting },
+    { 0x7E992A, scene_circle_the_epoch_entry, scene_circle_the_epoch },
+    { 0x7E997D, scene_sway_the_epoch_entry, scene_sway_the_epoch },
+    { 0x7E999C, scene_stars_fly_after_captions_entry, scene_stars_fly_after_captions },
+    { 0x7E99B5, scene_keep_the_orbit_entry, scene_keep_the_orbit },
+    { 0x7E99FA, scene_ending_draw_the_end_entry, scene_ending_draw_the_end },
+    { 0x7E9A0C, scene_ending_sweep_window_entry, scene_ending_sweep_window },
+    { 0x7E9ABD, scene_check_the_flight_view_entry, scene_check_the_flight_view },
+    { 0x7E9AF3, scene_place_the_flight_view_entry, scene_place_the_flight_view },
+    { 0x7E9B4F, scene_turn_captions_entry, scene_turn_captions },
+    { 0x7E9BF9, scene_burst_the_fireworks_entry, scene_burst_the_fireworks },
+    { 0x7E9D45, scene_turn_back_and_twinkle_entry, scene_turn_back_and_twinkle },
+    { 0x7E9D48, scene_twinkle_the_lights_entry, scene_twinkle_the_lights },
+    { 0x7E9DBC, scene_send_the_flight_view_entry, scene_send_the_flight_view },
+    { 0x7E9E19, scene_send_the_picture_and_bg2_entry, scene_send_the_picture_and_bg2 },
+    { 0x7E9E2B, scene_send_the_picture_entry, scene_send_the_picture },
+    { 0x7E9E7B, scene_roll_credits_entry, scene_roll_credits },
+    { 0x7E9EFC, scene_upload_credits_entry, scene_upload_credits },
+    { 0x7E9F2B, scene_send_the_credits_picture_entry, scene_send_the_credits_picture },
+    { 0x7E9F39, scene_send_the_pattern_s_map_entry, scene_send_the_pattern_s_map },
+    { 0x7E9F47, scene_send_the_pattern_s_tiles_entry, scene_send_the_pattern_s_tiles },
+    { 0x7E9F73, scene_blank_the_map_entry, scene_blank_the_map },
 };
 
 static int machine_task_row(SceneTask task)

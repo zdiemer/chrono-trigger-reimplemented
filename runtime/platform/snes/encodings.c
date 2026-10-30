@@ -215,6 +215,10 @@ static const PfSnesEncoding encodings[] = {
     { 0x7E89E7, 0, 0, 7, WORDS, RACE_UPLOAD_STEPS, 0 },                                 /* the zooming picture's tiles */
     { 0x7E8D7A, 0, 0, 7, WORDS, EPOCH_UPLOAD_STEPS, 0 },                                /* the credits' blank tiles */
     { 0x7E8DA9, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, ZL, ZH, C, D, SL, SH, P, GO), 0 },   /* ... their map set in front */
+    { 0x7E9F2B, 0, 0, 7, WORDS, STEPS(TL, TH, ZL, ZH, SL, SH, C, D, SB, P, GO), 0 },   /* the credits' picture's tiles */
+    { 0x7E9F39, 0, 0, 7, WORDS, STEPS(TL, TH, ZL, ZH, SL, SH, C, D, SB, P, GO), 0 },   /* ... the pattern's map */
+    { 0x7E9F47, 0, 0, 7, WORDS, STEPS(TL, TH, ZL, ZH, SL, SH, C, D, SB, P, GO), 0 },   /* ... its tiles */
+    { 0x7E9F73, 0, 0, 7, FILL_WORDS, STEPS(P, TL, TH, ZL, ZH, C, D, SL, SH, SB, GO), 0 },   /* a map blanked */
 };
 
 void pf_snes_encoding_mismatch(uint32_t site, const char *call)

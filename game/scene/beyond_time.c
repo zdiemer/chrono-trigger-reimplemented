@@ -436,7 +436,7 @@ static void send_the_picture_and_bg2(GameState *g, Platform *pf)
  * next; the vblank's read nothing. Each comes back as the original's does,
  * leaving A as its last load left it. */
 
-void scene_keep_the_orbit(Snes *s)
+void scene_keep_the_orbit_entry(Snes *s)
 {
     GameState *g = state_of(s);
     orbit(g);
@@ -444,7 +444,7 @@ void scene_keep_the_orbit(Snes *s)
     m_rts(s);
 }
 
-void scene_pass_the_map(Snes *s)
+void scene_pass_the_map_entry(Snes *s)
 {
     GameState *g = state_of(s);
     pass_the_map(g);
@@ -466,7 +466,7 @@ static void leave_the_view_checked(Snes *s, const GameState *g, bool perspective
         s->cpu.a = plane_flat(g) ? camera(g, SCENE_PLANE_C) : camera(g, SCENE_PLANE_TOP);
 }
 
-void scene_check_the_flight_view(Snes *s)
+void scene_check_the_flight_view_entry(Snes *s)
 {
     GameState *g = state_of(s);
     bool rebuild = update_the_view(g);
@@ -483,14 +483,14 @@ void scene_check_the_flight_view(Snes *s)
 
 /* The view's placing works with a 16-bit accumulator, which it comes back
  * with; so does the view's sending in perspective. */
-void scene_place_the_flight_view(Snes *s)
+void scene_place_the_flight_view_entry(Snes *s)
 {
     place_the_view(state_of(s));
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     m_rts(s);
 }
 
-void scene_send_the_flight_view(Snes *s)
+void scene_send_the_flight_view_entry(Snes *s)
 {
     GameState *g = state_of(s);
     send_the_view(g, m_platform(s));
@@ -499,13 +499,13 @@ void scene_send_the_flight_view(Snes *s)
     m_rts(s);
 }
 
-void scene_set_the_flight_horizon(Snes *s)
+void scene_set_the_flight_horizon_entry(Snes *s)
 {
     set_the_horizon(state_of(s));
     m_rts(s);
 }
 
-void scene_circle_the_epoch(Snes *s)
+void scene_circle_the_epoch_entry(Snes *s)
 {
     GameState *g = state_of(s);
     circle_the_epoch(g);
@@ -513,7 +513,7 @@ void scene_circle_the_epoch(Snes *s)
     m_rts(s);
 }
 
-void scene_sway_the_epoch(Snes *s)
+void scene_sway_the_epoch_entry(Snes *s)
 {
     GameState *g = state_of(s);
     sway_the_epoch(g);
@@ -530,7 +530,7 @@ static void leave_the_lights(Snes *s, const GameState *g)
                                      : (uint16_t)(scene_frame_counter(g) & EVERY_EIGHTH_FRAME);
 }
 
-void scene_twinkle_the_lights(Snes *s)
+void scene_twinkle_the_lights_entry(Snes *s)
 {
     GameState *g = state_of(s);
     twinkle_the_lights(g);
@@ -538,7 +538,7 @@ void scene_twinkle_the_lights(Snes *s)
     m_rts(s);
 }
 
-void scene_turn_back_and_twinkle(Snes *s)
+void scene_turn_back_and_twinkle_entry(Snes *s)
 {
     GameState *g = state_of(s);
     turn_back_and_twinkle(g);
@@ -547,7 +547,7 @@ void scene_turn_back_and_twinkle(Snes *s)
 }
 
 /* A holds the spare bytes' load, and Y the next free sprite entry. */
-void scene_burst_the_fireworks(Snes *s)
+void scene_burst_the_fireworks_entry(Snes *s)
 {
     GameState *g = state_of(s);
     burst_the_fireworks(g);
@@ -564,13 +564,13 @@ void scene_set_the_fireworks_up_entry(Snes *s)
     m_rts(s);
 }
 
-void scene_send_the_picture(Snes *s)
+void scene_send_the_picture_entry(Snes *s)
 {
     send_the_picture(state_of(s), m_platform(s));
     m_rts(s);
 }
 
-void scene_send_the_picture_and_bg2(Snes *s)
+void scene_send_the_picture_and_bg2_entry(Snes *s)
 {
     send_the_picture_and_bg2(state_of(s), m_platform(s));
     m_rts(s);
@@ -707,19 +707,24 @@ static unsigned sprites_drawn(const GameState *g, unsigned firework)
     return next.frames == BURST_OVER ? FIRST_FRAMES_MOST_SPRITES : scene_sprite_list_length(g, next.list);
 }
 
-bool scene_burst_the_fireworks_present(Snes *s)
+/* Both fireworks in their bursts, and room for what they draw. */
+static bool fireworks_burst_as_ported(const GameState *g)
 {
-    if (!frame_task_on_page(s) || !m_code_matches(s, 0x7E9BF9, 0x55, 0x3E4B3458DBB1B804ull) || !fireworks_code_present(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
     bool ok = true;
     unsigned sprites = 0;
     for (unsigned firework = 0; firework < FIREWORKS; firework++) {
         ok = ok && in_its_burst(g, firework);
         sprites += ok ? sprites_drawn(g, firework) : 0;
     }
-    ok = ok && scene_sprites_fit(g, sprites);
+    return ok && scene_sprites_fit(g, sprites);
+}
+
+bool scene_burst_the_fireworks_present(Snes *s)
+{
+    if (!frame_task_on_page(s) || !m_code_matches(s, 0x7E9BF9, 0x55, 0x3E4B3458DBB1B804ull) || !fireworks_code_present(s))
+        return false;
+    vars_peek(true);
+    bool ok = fireworks_burst_as_ported(state_of(s));
     vars_peek(false);
     return ok;
 }
@@ -734,4 +739,118 @@ bool scene_send_the_picture_present(Snes *s)
 bool scene_send_the_picture_and_bg2_present(Snes *s)
 {
     return scene_send_the_picture_present(s) && m_code_matches(s, 0x7E9E19, 0x12, 0xC7B76F034B5D1EAEull);
+}
+
+/* ---- The tasks as C ------------------------------------------------------------------------------ */
+
+/* For a program with no machine (each a column of scene/frame.c's table).
+ * The list's carry, which the flat view's sending adds in, is clear at every
+ * slot but the first, where no script puts it. */
+TaskEnd scene_keep_the_orbit(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    orbit(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_pass_the_map(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    pass_the_map(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_check_the_flight_view(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    if (!update_the_view(g))
+        return task_goes_on();
+    if (!scene_perspective_fits(g, SCENE_CAMERA_CHANNEL))
+        return scene_task_needs_the_machine(g, BUILD_PERSPECTIVE, "a flight's perspective whose lines the port doesn't build");
+    TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, SCENE_CAMERA_CHANNEL));
+    return task_goes_on();
+}
+
+TaskEnd scene_place_the_flight_view(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    place_the_view(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_send_the_flight_view(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    send_the_view(g, pf);
+    return task_goes_on();
+}
+
+TaskEnd scene_set_the_flight_horizon(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    set_the_horizon(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_circle_the_epoch(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    circle_the_epoch(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_sway_the_epoch(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    sway_the_epoch(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_twinkle_the_lights(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    twinkle_the_lights(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_turn_back_and_twinkle(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    turn_back_and_twinkle(g);
+    return task_goes_on();
+}
+
+enum { BURST_THE_FIREWORKS = 0x7E9BF9 };
+
+TaskEnd scene_burst_the_fireworks(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    if (!fireworks_burst_as_ported(g))
+        return scene_task_needs_the_machine(g, BURST_THE_FIREWORKS, "fireworks the port doesn't burst");
+    burst_the_fireworks(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_send_the_picture(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    send_the_picture(g, pf);
+    return task_goes_on();
+}
+
+TaskEnd scene_send_the_picture_and_bg2(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    send_the_picture_and_bg2(g, pf);
+    return task_goes_on();
 }

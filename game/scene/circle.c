@@ -273,15 +273,20 @@ static bool ranges_meet(uint16_t a, uint16_t a_bytes, uint16_t b, uint16_t b_byt
     return (uint16_t)(b - a) < a_bytes || (uint16_t)(a - b) < b_bytes;
 }
 
+bool scene_circle_table_clear_of_the_cells(const GameState *g)
+{
+    bool upper = scene_circle_table_bank(g) & 1;
+    uint16_t table = scene_circle_table(g);
+    return upper || !ranges_meet((uint16_t)(table - REACH_BEFORE), REACH_BEFORE + REACH_AFTER, CIRCLE_CELLS,
+                                 CIRCLE_CELLS_END - CIRCLE_CELLS);
+}
+
 bool scene_circle_table_is_clear(Snes *s)
 {
     vars_peek(true);
-    GameState *g = state_of(s);
-    bool upper = scene_circle_table_bank(g) & 1;
-    uint16_t table = scene_circle_table(g);
+    bool clear = scene_circle_table_clear_of_the_cells(state_of(s));
     vars_peek(false);
-    return upper || !ranges_meet((uint16_t)(table - REACH_BEFORE), REACH_BEFORE + REACH_AFTER, CIRCLE_CELLS,
-                                 CIRCLE_CELLS_END - CIRCLE_CELLS);
+    return clear;
 }
 
 /* The mode in A's low byte. Every register comes back as it was, the flags

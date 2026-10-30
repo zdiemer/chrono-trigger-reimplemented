@@ -323,17 +323,21 @@ bool scene_stars_fly_present(Snes *s)
 
 /* The captioned field's room is made in the table: the cursor's high byte in
  * it where the group is finished. */
+static bool flies_after_the_captions(const GameState *g)
+{
+    uint16_t first = scene_sprite_index(g), high = scene_sprite_high_pointer(g);
+    return first < CAPTIONED_FIRST_STAR ? high >= SCENE_SPRITE_HIGH_TABLE && high < SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES &&
+                                              flies_from(g, CAPTIONED_FIRST_STAR)
+                                        : flies_from(g, first);
+}
+
 bool scene_stars_fly_after_captions_present(Snes *s)
 {
     if (!flight_code_present(s) || !m_code_matches(s, 0x7E999C, 0x19, 0xA4690503889A36A6ull) ||
         !m_code_matches(s, 0x7E3870, 0x1B, 0xB778A96EC9EEDB9Aull))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    uint16_t first = scene_sprite_index(g), high = scene_sprite_high_pointer(g);
-    bool ok = first < CAPTIONED_FIRST_STAR ? high >= SCENE_SPRITE_HIGH_TABLE && high < SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES &&
-                                                 flies_from(g, CAPTIONED_FIRST_STAR)
-                                           : flies_from(g, first);
+    bool ok = flies_after_the_captions(state_of(s));
     vars_peek(false);
     return ok;
 }
@@ -365,7 +369,23 @@ static void fly(Snes *s, bool spilled, uint16_t salt)
 
 /* A frame task, entered with 16-bit A: the slot it runs in salts the draws,
  * and the list's carry is what the first star's sums start with. */
-void scene_stars_fly(Snes *s) { fly(s, m_flag(s, CPU_FLAG_C), s->cpu.x); }
+void scene_stars_fly_entry(Snes *s) { fly(s, m_flag(s, CPU_FLAG_C), s->cpu.x); }
+
+/* As C: the list's carry is its compare's, clear past its first slot; at the
+ * first, what the frame's work left, which the native program doesn't keep,
+ * and the stars start clean there too. Where the flight's first star isn't
+ * one the port draws from, it is the machine's, as its entry's guard has it. */
+enum { SLOT_BYTES = 2 };
+
+static bool flies_from(const GameState *g, uint16_t first);
+
+TaskEnd scene_stars_fly(GameState *g, Platform *pf, unsigned slot)
+{
+    if (!flies_from(g, scene_sprite_index(g)))
+        return scene_task_needs_the_machine(g, 0x7E579B, "a star field the port doesn't fly");
+    (void)fly_stars(g, pf, false, (uint16_t)(slot * SLOT_BYTES));
+    return task_goes_on();
+}
 
 /* Here the first star's sums always start with the bit set: the original
  * comes to the flight from a compare that finds the room made, or from the
@@ -373,7 +393,7 @@ void scene_stars_fly(Snes *s) { fly(s, m_flag(s, CPU_FLAG_C), s->cpu.x); }
  * place of the slot. */
 enum { HIDING_LEAVES = 4 };
 
-void scene_stars_fly_after_captions(Snes *s)
+void scene_stars_fly_after_captions_entry(Snes *s)
 {
     bool made_room = make_room_after_the_captions(state_of(s));
     fly(s, true, made_room ? HIDING_LEAVES : s->cpu.x);
@@ -397,14 +417,14 @@ static Drift called_with(Snes *s) { return (Drift){ scene_draw_from(s->cpu.a, m_
 /* The list's exit for a task that hands its slot to another, the task in X. */
 enum { REPLACE_THIS_TASK = 0x7E39B1, KEEP_DRIFTING = 0x98AC };
 
-void scene_stars_start_drift(Snes *s)
+void scene_stars_start_drift_entry(Snes *s)
 {
     start_drift(state_of(s), m_platform(s), called_with(s));
     s->cpu.x = KEEP_DRIFTING;
     m_stop_at_own(s, REPLACE_THIS_TASK, DC_A | DC_N | DC_V | DC_Z | DC_C);
 }
 
-void scene_stars_keep_drifting(Snes *s)
+void scene_stars_keep_drifting_entry(Snes *s)
 {
     GameState *g = state_of(s);
     keep_drifting(g, m_platform(s), called_with(s));
@@ -412,4 +432,38 @@ void scene_stars_keep_drifting(Snes *s)
     keep_the_field_moving(g);
     ORIGINAL_EFFECT(s->cpu.a = moving);   /* the motion it found moving, or 0 */
     m_rts(s);
+}
+
+/* ---- The flight after the captions and the drift, as C ------------------------------------------- */
+
+/* For a program with no machine. The list calls a task with its own address
+ * in A, which the drift's first draw goes on from, and the carry its compare
+ * leaves clear past its first slot. */
+enum { FLY_AFTER_THE_CAPTIONS = 0x7E999C, START_DRIFT = 0x9897 };
+
+TaskEnd scene_stars_fly_after_captions(GameState *g, Platform *pf, unsigned slot)
+{
+    if (!flies_after_the_captions(g))
+        return scene_task_needs_the_machine(g, FLY_AFTER_THE_CAPTIONS, "a star field the port doesn't fly");
+    bool made_room = make_room_after_the_captions(g);
+    (void)fly_stars(g, pf, true, made_room ? HIDING_LEAVES : (uint16_t)(slot * SLOT_BYTES));
+    return task_goes_on();
+}
+
+static Drift as_the_list_calls(SceneTask task, unsigned slot)
+{
+    return (Drift){ scene_draw_from(task, false, TM_ENTROPY_WORDS), (uint16_t)(slot * SLOT_BYTES) };
+}
+
+TaskEnd scene_stars_start_drift(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)start_drift(g, pf, as_the_list_calls(START_DRIFT, slot));
+    return task_hands_over(KEEP_DRIFTING);
+}
+
+TaskEnd scene_stars_keep_drifting(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)keep_drifting(g, pf, as_the_list_calls(KEEP_DRIFTING, slot));
+    keep_the_field_moving(g);
+    return task_goes_on();
 }
