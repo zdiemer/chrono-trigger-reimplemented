@@ -21,6 +21,11 @@ battle_see_to_the_beaten_enemies worst Son of Sun's scripted defeat ends the eye
 # vblank and outlast it (loads, setups, the load screen's frame): their error
 # moves work on the picture, and `worst` judges it there.
 
+# The narrowed Rust Tyrano movie, after --drifted calibration. Its vblank
+# check finds no writes moved onto the picture; TODO.md tracks finer estimates.
+battle_record_trails vblank-tail copies four RAM positions only for active trails whose countdown expires; over battle-rust-tyrano, 2.54% of 7123 vblank stretches off by 1024 clocks or more, at most 1538 clocks (1.2 lines), with zero mean drift; its variable work writes RAM, and the movie's video check finds no writes moved
+field_nmi vblank-tail the pending frame, sprite queue and edge-upload paths vary under the field handler's estimate; over battle-rust-tyrano, 1.37% of 5904 vblank stretches off by 1024 clocks or more, at most 3404 clocks (2.5 lines), mean drift +0.06%; the movie's video check finds no writes moved onto the picture
+
 # The decompressor: a call is 260-290 lines on average (a frame is 262),
 # seven times the length of vblank, and interrupts are taken during its time: its error
 # moves the end of a load (by 6% of it on average), not a video write. Its time

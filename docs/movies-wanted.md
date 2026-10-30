@@ -837,6 +837,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 `events-luccas-mother` plays the campfire and Lara's rescue; the other side quests still need
 their events and bosses recorded. The earlier movies from the side-quest saves
 `battle-son-of-sun` plays the Sun Stone quest's boss (below). The earlier movies from the side-quest saves
+`battle-rust-tyrano` plays Giant's Claw's boss. The earlier movies from the side-quest saves
 (`ctsave12`-`ctsave14`) open menus and shops, ride the Epoch, press the Northern Ruins' switch and
 dive into Lavos. The fantasyanime saves step through them in one order (oracle/saves/README.md),
 but that order does not guarantee a save before every scene: `ctsave13` already has Lara
@@ -963,6 +964,48 @@ stops are likely to be.
   chain, replacing the stone, and Lucca collecting the charged Sun Stone. The field scripts
   distinguish these in the remaining bits of `$7F:013A`; the boss movie deliberately ends
   before the pickup so it stays a short battle regression.
+| The Rainbow Shell | ctsave13 slot 1 before Giant's Claw; slot 2 after shell delivery, before the trial; slot 3 after it | `battle-rust-tyrano` records the boss; shell delivery and the trial remain | Rust Tyrano |
+| The Sun Stone | ctsave13 slot 3 (ctsave14 slot 1 after it) | the Sun Palace, the stone charged across the eras | Son of Sun |
+
+The remaining quests are event-heavy plays the native program hasn't met: the event commands, scene work and
+bosses they reach are where `ct_native`'s next stops are likely to be.
+
+- **Movie**: `battle-rust-tyrano` (route `rust_tyrano`, `rainbow-shell.srm`
+  slot 1, 23282 frames): from Giant's Claw's save room (`$06D`), open the
+  door and enter the shell chamber (`$0C5`). Crono, Lucca and Robo defeat
+  Rust Tyrano at frame 21752 using Confuse, Uzzi Punch, healing and MP
+  restoration; the movie includes the countdown and fire breath and ends
+  once field control returns. A fresh route run reproduced the recording.
+  Coverage adds 26 instruction addresses, 54 bytes (0.05 KiB), over the
+  preceding 48 library movies, all in existing ports: walking's ground and
+  collision branches (`$C0:8AA9`, `$C0:9AB0`), healing calculation tails
+  (`$C1:DAE3`, `$C1:DB04`), reward HP/MP growth and experience
+  (`$C1:F8FC`, `$C1:F916`). Shadow clean: zero mismatches, refusals,
+  `page refused` or `accessor out of range`.
+  `ct_native` and strict mode both run all 23282 frames without stopping;
+  strict ends with 72 bytes of inventory/character-record differences
+  (`drifts`). The native host reports four existing video escapes, first
+  `$7E:5AEB`.
+  The shipping-mode route (`route_check --mode on:on:c`) wins at frame
+  23105 and returns field control at 24605 with no backtracking and zero
+  fallback instructions or guard refusals, using Life 2 to recover a fallen
+  member. The reference movie needs no revival.
+- **Save and approach**: the archive's slot 2 is not midway through the
+  dungeon. In slots 1/2/3, `$7F:01D2` is `$04/$7C/$7C`, `$7F:00A9` is
+  `$1E/$9E/$9E`, and `$7F:00A1` is `$23/$63/$63`: the boss encounter,
+  departure with the shell and the 600 A.D. castle delivery are already
+  flagged in slot 2. The trial changes `$7F:00A2` from `$18` to `$B8` and
+  `$7F:00A7` from `$00` to `$40` between slots 2 and 3. The `rainbow_shell`
+  hand-run route starts at slot 1, visits the throne, clears the cave
+  encounters and switches, uses a Shelter and saves normally at Giant's
+  Claw's save point. That 55184-frame approach stays outside the library;
+  its cartridge save supplies the short boss movie. No memory pokes.
+  Replaying those winning inputs from the archive save recreates all 8192
+  bytes of the committed SRAM exactly.
+- **Still wanted**: the shell's retrieval and delivery, then Marle's
+  father's trial in 1000 A.D. Start the latter from ctsave13 slot 2, where
+  delivery is complete and the trial flags are clear. This is a separate
+  route, not a cheap extension of the boss movie.
 
 ### 13. The story events no movie plays
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's

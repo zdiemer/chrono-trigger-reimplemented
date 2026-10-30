@@ -3,6 +3,7 @@
 # suite) fails on one this file doesn't list. The lines without a reason are the entries past
 # the limit when the check came in: the backlog, each to be given its reason or compared.
 
+battle_apply_damage  # the narrowed battle-rust-tyrano replay interrupts 67 of 123 calls (54.5%); the other 56 compare cleanly, none is abandoned
 battle_build_battlefield_map
 battle_build_bitmap_shapes
 battle_carry_out_member_action

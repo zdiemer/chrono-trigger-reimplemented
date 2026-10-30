@@ -322,7 +322,7 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 # their movies are not in the library.
 HAND_RUN_ROUTES = {"tech_sweep", "successor_of_guardia", "legendary_hero", "unknown_past",
                    "people_of_the_times", "the_oath", "dino_age", "what_the_prophet_seeks",
-                   "memory_lane", "reunion", "prepare_luccas_mother", "sun_stone"}
+                   "memory_lane", "reunion", "prepare_luccas_mother", "sun_stone", "rainbow_shell"}
 
 
 def all_routes():

@@ -26,6 +26,7 @@ battle-motherbrain drifts  # the fights' turns land on other frames under native
 battle-r-series drifts  # native timing moves the fixed inputs and the fights' turns: 118 byte(s) of the saved game differ (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...); no interpreter stop
 battle-nizbel-ii drifts  # differs from the reference: 177 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, $7E:260C, ...)
 battle-son-of-sun drifts  # timed presses drift on the hand ports: the party's inventory and character records differ from the reference; the state-driven son_of_sun route wins separately with the C sound driver
+battle-rust-tyrano drifts  # differs from the reference: 72 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:262B, ...)
 battle-tech-sweep-spekkio drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (37 byte(s) of the saved game (inventory_counts, $7E:263D, $7E:263F, $7E:2640, $7E:268D, $7E:268F, ...))
 battle-tech-sweep drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (805 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 battle-tyrano-lair-walls end
