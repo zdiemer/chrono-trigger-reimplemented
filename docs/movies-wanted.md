@@ -1538,7 +1538,7 @@ won't sync here; each is a `ct_drive` route from a save, written from the glitch
 |---|---|---|
 | Unequipped armor or helm (US) | each empty slot adds 10 magic and 15 resistance to Lightning, Shadow and Water; two slots reduce incoming damage to about 12-14%, while outgoing damage depends on level and magic | `battle-unequipped-armor`, ctsave04 slot 2, 22859 frames: Marle empties both slots and beats Spekkio; Ice 244-246 versus 157-159 equipped, incoming Ice 15 versus 108 and Lightning 20 versus 171 (comparison on a machine copy; details below) |
 | 98 slots of one kind of equipment | the equipment screen reaches memory far outside the inventory | waits on the native program's reads past a table's end (TODO.md, "The native program") |
-| Item duplication | the glitched any% run duplicates items within one reset | mechanism to work out from the run |
+| Item duplication | interrupt a save after item IDs change but before their quantities do; load the invalid slot with A+Up/Down to retain the mixed inventory | researched below: the TAS uses an external reset during saving, which `ct_drive` and `.ctm` cannot request; no `menus-item-duplication.ctm` recorded |
 | New Game+ save corruption | a reset in the middle of a frame leaves a half-written value in the save: maxed stats, nearly any equipment | needs a reset mid-frame, which neither `ct_drive` nor `ct_native` models |
 
 ### 15. Where the native program stops (recorded)
@@ -1622,6 +1622,52 @@ won't sync here; each is a `ct_drive` route from a save, written from the glitch
   The narrowed suite (`-j 1 --movies battle-unequipped-armor --no-trace`) ends
   **`suite OK`**, including its static checks, shipping vblank check, sound fuzz,
   and movie/fast-route checks with scaffolding compiled out. No full suite was run.
+**Item duplication research (no movie).** [Submission 2240](https://tasvideos.org/2240S),
+"Item duplication", describes three save-corruption methods. The save spans two frames;
+resetting after the first leaves a prefix of the new inventory and a suffix of the old one.
+Method 1 replaces IDs while retaining old counts (the run turns one Revive and twenty Tonics
+into twenty Revives and one Tonic). Method 2 stops within the ID array, leaving the same item
+in separate slots. Each takes one reset. Method 3 uses three resets to extend the duplicated
+slots; repeated use supplies the equipment-screen exploit's 98 slots. A+Up/Down on the load
+screen selects the invalid save before the cursor skips it. The
+[forum's reset discussion](https://tasvideos.org/Forum/Topics/8001?CurrentPage=5&Highlight=198431)
+distinguishes this run's frame-boundary resets from the finer reset timing possible on a
+console. This is a reset **during a save**, not evidence that submission 2240 needs a
+mid-frame reset. [Chrono Speedruns' glitches page](https://chrono.wikidot.com/glitches)
+mentions mid-frame reset for overworld-position corruption but gives no item-duplication recipe.
+
+The menu code and the original, inspected with `tools.disasm.linear`, establish the following:
+
+- **Save and load:** `game/menu/saves.c`, `$FF:F9FB`, copies the saved RAM regions in order
+  through the block-move stub called at `$FF:FA44`; the checksum and slot marker are written
+  afterwards (`$FF:FA58`, `$FF:FA5F`). Inventory IDs at `$7E:2400` and counts at `$7E:2500`
+  are separate arrays, so an interrupted copy can break their pairing. `$FF:F9C4` checks the
+  marker and checksum; `$FF:FAA3` loads without repeating that validation. In
+  `game/menu/load_screen.c`, `$C2:E61B`, the cursor moves before confirm is tested; confirm
+  branches past `$C2:E743`, whose `skip_empty_slots` normally avoids invalid slots, and loads
+  the newly selected slot. This explains the simultaneous direction and confirm input.
+- **Inventory operations:** `game/menu/item_screen.c`, `$C2:AAE3`-`$AAFC`, swaps both IDs
+  and counts. Sort (`$C2:AB62`) aggregates repeated IDs into one slot per item, adding counts
+  in eight bits before limiting them to 99. Sorting therefore collapses the separate slots
+  needed for the equipment exploit. `game/menu/items.c`, `$C2:9988`, clears invalid IDs and
+  zero-count entries when the menus open; it does not merge valid repeated IDs.
+- **Equipment:** `game/menu/equipment.c`, `$C2:8953`, scans the first 242 inventory slots and
+  appends every matching, wearable entry, including repeated IDs. The original stores IDs
+  at `$7E:0F00+row` and counts at `$7E:0F62+row` (`$C2:8987`, `$C2:898D`), without a capacity
+  check, then writes a zero ID terminator. These bases differ from the submission's informal
+  buffer description: with 98 entries the terminator already overlaps the first count.
+  The C guard `menu_list_what_fits_can_be_made` requires fewer than 98 entries, reserving room
+  for that terminator. This is a static limit, not a newly observed real-play refusal.
+
+**Recording blocker:** `dev/ct_drive.c` advances whole frames with controller input and has
+no external reset command; `oracle/src/movie.c` records only controller buttons, with no reset
+event. Its machine copies restore a whole machine, rather than rebooting it with partially
+written SRAM. The game's L+R+Select+Start reset does exist (`game/core/input.c`, `$C2:851B`-
+`$8523`), but is polled by the menus' vblank handler; it is not the host reset used by the TAS,
+and an equivalent duplication through that input has not been established here. Stop at the
+unsupported TAS reset operation: no fabricated corrupted save, route or movie, and no runtime
+shadow, coverage, native/strict or narrowed-suite result to report. The findings above are
+source and code research; no game code or validation baselines changed.
 
 ### Unknown
 - **Mode 5** (2.05 KiB): nothing found that starts it (Targets, 8).
