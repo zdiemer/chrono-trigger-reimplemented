@@ -28,12 +28,15 @@
 #include "port/fiber.h"
 
 /* The game, as the driver runs it: its main thread from power-on, which never
- * returns (it waits for frames instead), and its two handlers. */
+ * returns (it waits for frames instead), and its two handlers; and, if the
+ * game's state keeps it, the original's time its work was charged since the
+ * last call (tm_host_charge), taken as the main thread waits. */
 typedef struct {
     void (*main_thread)(Platform *pf, void *ctx);
     void (*vblank)(Platform *pf, void *ctx);
     void (*line)(Platform *pf, void *ctx);
     void *ctx;
+    uint32_t (*owed)(void *ctx);
 } TmHostProgram;
 
 /* Where the frame is: which of its three parts runs. */
@@ -49,6 +52,9 @@ typedef struct {
     uint16_t line;          /* tm_set_line's */
     uint32_t frame;         /* frames run */
     uint32_t entropy;       /* tm_entropy's generator */
+    uint32_t owed;          /* the original's time charged to the main thread since it last waited (master clocks) */
+    uint32_t lagging;       /* frames the main thread sits out, its wait lasting through them */
+    uint32_t lag_frames;    /* ... in all */
 } TmHost;
 
 /* The picture: every video call folded into its state by the observer
@@ -90,13 +96,15 @@ typedef struct {
  * game sends through the service (au_command) goes to the CPU half, which the
  * driver calls as C (`send`); the scenes write commands to the ports and read
  * the driver's answers there; and while the game waits on a port, the
- * driver's time passes (`pass`, in the SPC700's cycles). With no player the
- * sound is silent and its ports read 0. */
+ * driver's time passes (`pass`, in the SPC700's cycles). The boot and the
+ * commands answer the time the original's uploads took, which the main
+ * thread is charged (tm_host_charge). With no player the sound is silent and
+ * its ports read 0. */
 typedef struct {
     void *ctx;
     void (*send)(void *ctx, AudioCommand c);
-    void (*boot)(void *ctx);
-    void (*command)(void *ctx, AudioCommand c, uint8_t effects_asked);
+    uint32_t (*boot)(void *ctx);   /* each answers the original's time for what it took (platform/time_model.h) */
+    uint32_t (*command)(void *ctx, AudioCommand c, uint8_t effects_asked);
     void (*write)(void *ctx, uint8_t port, uint8_t v);
     uint8_t (*read)(void *ctx, uint8_t port);
     void (*pass)(void *ctx, uint32_t cycles);
@@ -139,5 +147,14 @@ void tm_host_frame(Platform *pf);
 uint16_t tm_host_picture_lines(const Platform *pf);
 /* Frames run so far. */
 uint32_t tm_host_frames(const Platform *pf);
+/* The frame-level time model (platform/time_model.h): the original's time,
+ * in master clocks, for work the main thread did another way (the sound
+ * driver's uploads, a load's sends to video memory). Where it waits for the next frame with a frame or more
+ * of it owed (to the nearest frame), the wait lasts as many more: lag frames,
+ * in which the handlers run and the main thread doesn't, as the original's
+ * frames went by while it worked. What is left is the frame's own, and goes. */
+void tm_host_charge(Platform *pf, uint32_t clocks);
+/* Lag frames so far. */
+uint32_t tm_host_lag_frames(const Platform *pf);
 
 #endif

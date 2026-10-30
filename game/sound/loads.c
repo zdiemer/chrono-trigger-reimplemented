@@ -123,6 +123,7 @@ static void write_sample(SoundDriver *d, uint16_t at, uint16_t block, uint16_t l
 {
     for (uint16_t i = 0; i < length; i++)
         au_sample_memory_write(d->voices, (uint16_t)(at + i), sound_block_byte(d->game, block, i));
+    d->bytes_sent += length;
 }
 
 // $C7:0655
@@ -152,6 +153,7 @@ static void close_up_places(SoundDriver *d)
         if (kept == SOUND_SAMPLE_PLACES)
             return;
         au_sample_memory_move(d->voices, p->start[free], p->start[kept], p->length[kept]);
+        d->bytes_moved += p->length[kept];
         p->block[free] = p->block[kept];
         p->block[kept] = 0;
         p->length[free] = p->length[kept];

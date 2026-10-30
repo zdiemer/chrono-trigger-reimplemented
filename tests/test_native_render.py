@@ -20,6 +20,7 @@ NATIVE = ROOT / "runtime" / "platform" / "native"
 # and the C library.
 ALLOWED_INCLUDES = {
     "platform/native/render.h",
+    "platform/time_model.h",   # the frame-level time model's constants: no machine, no state
     "platform/video.h",
     "platform/native/mixer.h",
     "platform/voices.h",

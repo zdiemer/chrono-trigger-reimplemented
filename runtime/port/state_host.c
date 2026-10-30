@@ -7,6 +7,7 @@
 #include "core/program.h"
 #include "cpu_io.h"
 #include "original_frame.h"
+#include "platform/time_model.h"
 #include "rom.h"
 #include "wram.h"
 
@@ -34,6 +35,7 @@ struct GameState {
     bool reset;               /* the console reset (program_resets_the_console) */
     uint32_t stopped_at;
     const char *stopped_what;
+    uint32_t owed;            /* the original's time charged since the timing backend last took it (master clocks) */
 };
 
 GameState *state_host_create(const uint8_t *sram)
@@ -215,10 +217,28 @@ void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes)
         state_host_write8(g, in_bank(to, i), state_host_read8(g, in_bank(from, i)));
 }
 
-/* ---- Time and the original's frames: nothing to charge them to -------------------------------- */
+/* ---- Time: what the frame-level time model charges ------------------------------------------- *
+ *
+ * A port's own time has no machine to be estimated on, and a frame's work is
+ * taken to fit its frame; what the model charges is the work the original
+ * spent frames on (platform/time_model.h): of the charges, the unpacker's,
+ * a load's. The timing backend takes it at the main thread's wait for the
+ * frame (state_host_take_owed) and makes lag frames of it. */
 
-void charge_as(GameState *g, uint32_t routine, uint32_t accesses) { (void)g, (void)routine, (void)accesses; }
+void charge_as(GameState *g, uint32_t routine, uint32_t accesses)
+{
+    uint32_t clocks = time_of_charge(routine, accesses);
+    g->owed = clocks > UINT32_MAX - g->owed ? UINT32_MAX : g->owed + clocks;
+}
+
 void charge_block_move(GameState *g, uint32_t bytes) { (void)g, (void)bytes; }
+
+uint32_t state_host_take_owed(GameState *g)
+{
+    uint32_t owed = g->owed;
+    g->owed = 0;
+    return owed;
+}
 uint32_t charge_uncounted_begin(GameState *g) { (void)g; return 0; }
 void charge_uncounted_end(GameState *g, uint32_t mark) { (void)g, (void)mark; }
 int charge_time_as_begin(GameState *g, uint32_t routine) { (void)g, (void)routine; return 0; }

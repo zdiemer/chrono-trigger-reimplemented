@@ -1,0 +1,58 @@
+# How many of the reference play's places each library movie enters on time in
+# the native program (tools/native_check.py, tools/places.py): within
+# places.ON_TIME frames of the reference's frame, among the places it enters in
+# the reference's order. The gate fails a movie that enters fewer;
+# `tools/native_check.py --update-places` takes the counts a change brings.
+attract-demo 2
+fair-companion 9
+fair 8
+field 7
+gato-battle 10
+menu 5
+new-game 5
+title-start 3
+battle-black-tyrano 7
+battle-denadoro 5
+battle-golem-twins-gameover 7
+battle-guardian 7
+battle-lavos-gameover 8
+battle-magus 6
+battle-menu-buttons 5
+battle-motherbrain 7
+battle-r-series 6
+battle-tech-sweep-spekkio 4
+battle-tech-sweep 5
+battle-tyrano-lair-walls 5
+endings-beyond-time 5
+endings-bucket-lavos 8
+endings-telepod-lavos 8
+events-blackbird 5
+events-end-of-time-gate 4
+events-epoch-lavos 4
+events-jetbike-race-won 6
+events-jetbike-race 7
+events-keepers-dome 6
+events-magic-cave 6
+events-prison-escape 6
+field-12kbc-1f4 6
+field-12kbc-1f5 6
+field-12kbc-1f6 6
+field-12kbc-after-the-fall 7
+field-65m-bc-dactyl-flight 4
+field-65m-bc-dactyl 4
+field-65m-bc 6
+field-factory-switch 6
+field-floor-switch 5
+field-northern-ruins-switch 6
+late-lavos 5
+late-omen-battles 6
+late-omen-terramutant 4
+late-omen-zeal 5
+menus-end-of-time 5
+menus-epoch 6
+menus-field-menu 4
+menus-new-game-plus 4
+menus-save-point 4
+menus-shop-equip 4
+menus-shop-inn 6
+menus-sweep 4

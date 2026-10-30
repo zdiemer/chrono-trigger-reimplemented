@@ -577,7 +577,7 @@ void native_await_latch(Snes *s);
  * without the call; SHADOW mode and outside the runtime make the call, as
  * native_call_dc does, but the callee counts as the port's own work (no
  * observer is told of a call-out). */
-enum { NATIVE_WAKE_HANDLER = -1, NATIVE_WAKE_HBLANK = -2, NATIVE_WAKE_TIME = -3 };
+enum { NATIVE_WAKE_HANDLER = -1, NATIVE_WAKE_HBLANK = -2, NATIVE_WAKE_TIME = -3, NATIVE_WAKE_OWN_TIME = -4 };
 /* The waits on the APU's port 0, a value each: from NATIVE_WAKE_PORT0_SHOWS
  * down for "until it shows the value", from NATIVE_WAKE_PORT0_LEAVES down for
  * "until it shows another". */
@@ -635,8 +635,12 @@ bool native_waits_in_place(const Snes *s);
  * there, as for a wait (NATIVE_WAKE_TIME): the original's code after what a
  * wait stands for, which the game can't see but whose time another processor
  * can (the sound processor reads a message after it echoes it). Nothing in
- * the other modes. */
+ * the other modes. native_wait_own_time is the same for clocks of the
+ * port's own time: the handlers taken meanwhile don't count toward it, as the
+ * original's code doesn't run while they do (the C sound driver's uploads,
+ * platform/time_model.h, which take longer under a busier vblank handler). */
 void native_wait_time(Snes *s, uint32_t clocks);
+void native_wait_own_time(Snes *s, uint32_t clocks);
 
 /* Time attribution, for a port that runs another routine's work as C rather
  * than calling out to it: a dispatcher that runs its handlers inline. A port's

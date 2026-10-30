@@ -9,6 +9,7 @@
  * for, the frame being drawn whole; and what looked random from the beam's
  * position comes from a generator the driver seeds. */
 #include "platform/native/host.h"
+#include "platform/time_model.h"
 
 /* ---- The frame ----------------------------------------------------------------------------- */
 
@@ -43,8 +44,12 @@ void tm_host_frame(Platform *pf)
         t->program.vblank(pf, t->program.ctx);
     }
     t->part = TM_HOST_IN_MAIN;
-    if (t->waiting)
+    if (t->lagging) {
+        t->lagging--;
+        t->lag_frames++;
+    } else if (t->waiting) {
         fiber_switch(t->waiting);
+    }
     if ((t->interrupts & TM_INT_LINE) && t->program.line) {
         t->part = TM_HOST_IN_LINE;
         t->program.line(pf, t->program.ctx);
@@ -60,6 +65,31 @@ uint16_t tm_host_picture_lines(const Platform *pf)
 }
 
 uint32_t tm_host_frames(const Platform *pf) { return pf->timing.frame; }
+
+/* ---- The frame-level time model ------------------------------------------------------------ */
+
+static uint32_t sum(uint32_t a, uint32_t b) { return b > UINT32_MAX - a ? UINT32_MAX : a + b; }
+
+void tm_host_charge(Platform *pf, uint32_t clocks)
+{
+    TmHost *t = &pf->timing;
+    t->owed = sum(t->owed, clocks);
+}
+
+uint32_t tm_host_lag_frames(const Platform *pf) { return pf->timing.lag_frames; }
+
+/* The main thread's wait with time owed, its own charges and what the game's
+ * state kept (TmHostProgram.owed): the frames it spans, to the nearest, are
+ * lag frames. To the nearest, since the main thread's own work in the frame,
+ * which nothing counts, takes some of it too, half a frame being the even
+ * guess. */
+static void lag_for_what_is_owed(TmHost *t)
+{
+    if (t->program.owed)
+        t->owed = sum(t->owed, t->program.owed(t->program.ctx));
+    t->lagging += (uint32_t)(((uint64_t)t->owed + TIME_FRAME_CLOCKS / 2) / TIME_FRAME_CLOCKS);
+    t->owed = 0;
+}
 
 /* ---- The service's calls ------------------------------------------------------------------- */
 
@@ -108,6 +138,7 @@ void tm_wait_frame(Platform *pf, PfOrigin o)
     TmHost *t = &pf->timing;
     if (t->part != TM_HOST_IN_MAIN)
         return;
+    lag_for_what_is_owed(t);
     t->waiting = fiber_current();
     fiber_switch(t->driver);
 }

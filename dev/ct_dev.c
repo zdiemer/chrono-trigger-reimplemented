@@ -15,7 +15,7 @@
  *          [--sound-lockstep-wav prefix] [--sound-driver original|c] [--mixer dsp|native|check]
  *          [--scaffold-reads [original]] [--fallbacks out.txt] [--census out.txt] [--apu-port-margins]
  *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC]
- *          [--index-check BBAAAA]... [--asset-reads out.txt] [--assets pack]
+ *          [--index-check BBAAAA]... [--asset-reads out.txt] [--assets pack] [--locations]
  *
  * The framebuffer is only drawn for what reads it (--trace, --shot-every,
  * --px-check); otherwise each line computes just the sprite flags the game can
@@ -26,6 +26,8 @@
  * disassembler's liveness analysis knows about callers it can't see statically.
  * --load-state resumes from a state saved by --save-state (docs/RUNTIME.md, "Save states");
  * frame numbers, and so movie input, continue from the saved frame.
+ * --locations prints each place the run enters (the location at $7E:0100) with
+ * the frames run so far, as ct_native --locations does, for tools/places.py.
  * --end-state writes work RAM and then save RAM as they stand when the run ends
  * (raw, SNES_WRAM_SIZE and SNES_SRAM_SIZE bytes): what tools/strict_check.py
  * compares a run's end with the reference play's by. ROM-derived; keep it out
@@ -461,6 +463,9 @@ static int write_coverage(const Coverage *cov, const char *path)
     return fclose(f);
 }
 
+/* --locations: the location's number, in its word's low nine bits. */
+enum { LOCATION_AT = 0x0100, LOCATION_BITS = 0x1FF };
+
 /* --end-state: work RAM, then save RAM. */
 static int write_end_state(const char *path, const Snes *snes)
 {
@@ -593,6 +598,7 @@ int main(int argc, char **argv)
     int shadow_details = -1;
     PortTiming port_timing = PORT_TIMING_ESTIMATE;
     bool timing_report = false, page_report = false, port_horizon_interrupts = false, scaffold_reads = false;
+    bool locations = false;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--timing-report")) {
@@ -601,6 +607,10 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--page-report")) {
             page_report = true;
+            continue;
+        }
+        if (!strcmp(a, "--locations")) {
+            locations = true;
             continue;
         }
         if (!strcmp(a, "--insn-stats")) {
@@ -785,7 +795,7 @@ int main(int argc, char **argv)
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
                         "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--census out.txt] [--apu-port-margins] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
                         "[--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]... "
-                        "[--asset-reads out.txt] [--assets pack]\n");
+                        "[--asset-reads out.txt] [--assets pack] [--locations]\n");
         return 2;
     }
     if (zst_path && load_state) {
@@ -1071,6 +1081,7 @@ int main(int argc, char **argv)
 
     int rc = 0;
     uint8_t cgram[0x200];
+    uint16_t location = 0xFFFF;
     for (long frame = (long)snes.frame; frame < frames; frame++) {
         uint16_t pad = ct_movie_buttons(&movie, (uint32_t)frame);
         snes.bus.pad[1] = ct_movie_buttons2(&movie, (uint32_t)frame);
@@ -1081,6 +1092,15 @@ int main(int argc, char **argv)
         }
         if (wav_path)
             ct_wav_write(&wav, audio, au_take_samples(m_platform(&snes), audio, DSP_OUT_FRAMES));
+        if (locations) {
+            /* each place entered, as ct_native --locations lists them: the frames
+             * run so far and the location number at $7E:0100 */
+            uint16_t now = (uint16_t)(snes.bus.wram[LOCATION_AT] | snes.bus.wram[LOCATION_AT + 1] << 8);
+            if (now != location) {
+                location = now;
+                fprintf(stderr, "location: frame %ld $%03X\n", frame + 1, (unsigned)(location & LOCATION_BITS));
+            }
+        }
         if (trace) {
             for (int i = 0; i < 256; i++) {
                 cgram[i * 2] = snes.ppu.cgram[i] & 0xFF;

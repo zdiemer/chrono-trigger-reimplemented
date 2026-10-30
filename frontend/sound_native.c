@@ -5,6 +5,7 @@
 
 #include "core/sound_driver.h"
 #include "platform/native/mixer.h"
+#include "platform/time_model.h"
 #include "sound/sound.h"
 
 /* The driver's time is the SPC700's, whose timers count at 8 kHz: the
@@ -47,6 +48,7 @@ struct SoundNative {
     uint32_t timer;          /* cycles since the driver's last tick was due */
     uint32_t mix_clock;      /* cycles toward the mixer's next frame */
     uint32_t wait_left, fill_cycles;
+    uint32_t starting;       /* cycles until the driver booted starts, its upload's time (platform/time_model.h) */
     Held held[SOUND_QUEUE];
     uint8_t queued;
     uint8_t in[4];           /* the ports as the game wrote them */
@@ -193,6 +195,10 @@ static void pass(void *ctx, uint32_t cycles)
         uint32_t step = cycles < TIMER_STEP_CYCLES ? cycles : TIMER_STEP_CYCLES;
         cycles -= step;
         mix(n, step);
+        if (n->starting) {
+            n->starting = step < n->starting ? n->starting - step : 0;
+            continue;
+        }
         take_port_command(n);
         if (n->phase != WAITING) {
             echo_wait(n, step);
@@ -215,7 +221,11 @@ static void send(void *ctx, AudioCommand c)
     sound_driver_send(n->game, n->pf, c);
 }
 
-static void boot(void *ctx)
+/* The boot and the game's commands answer the original's time for them
+ * (platform/time_model.h), as frontend/sound_host.c's do: the boot's upload,
+ * what the driver loaded for a command, and before a song's start what is
+ * left of the echo's wait. */
+static uint32_t boot(void *ctx)
 {
     SoundNative *n = ctx;
     uint8_t old_delay = mixer_echo_delay(&n->mixer);
@@ -226,18 +236,29 @@ static void boot(void *ctx)
     memset(n->out, 0, sizeof n->out);
     sound_boot(&n->driver, n->game, mixer_voices(&n->mixer));
     n->booted = true;
+    n->starting = time_in_spc_cycles(TIME_SOUND_BOOT);
     n->phase = WAITING;
     n->timer = 0;
     n->queued = 0;
     if (n->driver.echo_draining)
         wait_for_echo(n, old_delay, false);
+    return TIME_SOUND_BOOT;
 }
 
-static void command(void *ctx, AudioCommand c, uint8_t effects_asked)
+static uint32_t echo_wait_left(const SoundNative *n)
+{
+    return n->phase == ECHO_DRAINING ? n->wait_left + n->fill_cycles : n->phase == ECHO_FILLING ? n->wait_left : 0;
+}
+
+static uint32_t command(void *ctx, AudioCommand c, uint8_t effects_asked)
 {
     SoundNative *n = ctx;
-    if (n->booted)
-        take(n, (Held){ { c.command, c.p1, c.p2, c.p3 }, true, effects_asked });
+    if (!n->booted)
+        return 0;
+    uint32_t waited = time_sound_song_start(c.command) ? time_of_spc_cycles(echo_wait_left(n)) : 0;
+    uint32_t sent = n->driver.bytes_sent, moved = n->driver.bytes_moved;
+    take(n, (Held){ { c.command, c.p1, c.p2, c.p3 }, true, effects_asked });
+    return waited + time_of_sound_command(c.command, n->driver.bytes_sent - sent, n->driver.bytes_moved - moved);
 }
 
 static void write_port(void *ctx, uint8_t port, uint8_t v)

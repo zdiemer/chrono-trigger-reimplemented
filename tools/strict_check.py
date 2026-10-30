@@ -64,6 +64,8 @@ import sys
 import tempfile
 import tomllib
 
+import places
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "tools/strict_baseline.txt"
 
@@ -176,24 +178,38 @@ def run_ct_dev(binary, rom, path, frames, extra):
         return (e.stderr or b"").decode(errors="replace"), None
 
 
-def reference_end(binary, rom, name, path, frames, reference_dir, work):
-    """The reference play's end state: the suite's shadow run's, or a run of the original's code here."""
+def reference_play(binary, rom, name, path, frames, reference_dir, work):
+    """The reference play's end state and the places it entered (tools/places.py):
+    the suite's shadow run's, or a run of the original's code here."""
+    end, entered = None, places.reference_places(reference_dir, name)
     if reference_dir:
         kept = reference_dir / ("end-%s.bin" % name)
         if kept.exists():
-            return kept.read_bytes()
-    out = work / ("%s.reference.bin" % name)
-    run_ct_dev(binary, rom, path, frames, ["--native", "off", "--end-state", str(out)])
-    return out.read_bytes() if out.exists() else b""
+            end = kept.read_bytes()
+    if end is None or entered is None:
+        out = work / ("%s.reference.bin" % name)
+        text, _rc = run_ct_dev(binary, rom, path, frames, ["--native", "off", "--locations", "--end-state", str(out)])
+        if end is None:
+            end = out.read_bytes() if out.exists() else b""
+        if entered is None:
+            entered = places.parse(text)
+    return end, entered
 
 
-# The outcomes, as (frame reached or None for the end, detail, how).
+# The outcomes, as (frame reached or None for the end, detail, how), and the
+# places entered against the reference's (places.Kept), or None.
 def run_one(binary, rom, name, path, frames, log, saved, names, reference_dir, work):
-    """One movie strict, and how it ended."""
+    """One movie strict: how it ended, and its places."""
     end = work / ("%s.strict.bin" % name)
-    text, rc = run_ct_dev(binary, rom, path, frames, STRICT + ["--end-state", str(end)])
+    text, rc = run_ct_dev(binary, rom, path, frames, STRICT + ["--locations", "--end-state", str(end)])
     if log:
         log.write_text(text)
+    reference = reference_play(binary, rom, name, path, frames, reference_dir, work)
+    return ended(text, rc, end, reference[0], saved, names), places.Kept(reference[1], places.parse(text))
+
+
+def ended(text, rc, end, reference, saved, names):
+    """How a strict run ended, its end state against the reference's."""
     m = STOP.search(text)
     if m:
         return int(m.group(1)), m.group(2), "stopped"
@@ -208,8 +224,7 @@ def run_one(binary, rom, name, path, frames, log, saved, names, reference_dir, w
             return 0, m.group(0).strip(), what
     if rc != 0:
         return 0, None, "exit status %d" % rc
-    drift = differences(end.read_bytes() if end.exists() else b"",
-                        reference_end(binary, rom, name, path, frames, reference_dir, work), saved, names)
+    drift = differences(end.read_bytes() if end.exists() else b"", reference, saved, names)
     if drift:
         return None, drift, "drifts"
     return None, None, "end"
@@ -325,12 +340,14 @@ def main():
                                  args.reference, work)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-            results = dict(pool.map(one, rows))
+            done = dict(pool.map(one, rows))
+    results = {name: outcome for name, (outcome, _kept) in done.items()}
+    kept = {name: k for name, (_outcome, k) in done.items()}
 
     base = read_baseline(args.baseline)
     worse, better, unlisted = [], [], []
     for name, _path, frames in rows:
-        line = "%s: %s" % (name, describe(results[name], frames))
+        line = "%s: %s; %s" % (name, describe(results[name], frames), kept[name].summary())
         if name not in base:
             unlisted.append(name)
             line += "  (not in the baseline)"
@@ -348,6 +365,8 @@ def main():
     count = {how: sum(1 for n, _p, _f in rows if results[n][2] == how) for how in ("end", "drifts")}
     summary = "%d of %d movies reach their end on the hand ports alone, %d of them as the reference play ends" % (
         count["end"] + count["drifts"], len(rows), count["end"])
+    summary += "; %d of the reference's %d places entered on time" % (
+        sum(k.kept for k in kept.values()), sum(k.total for k in kept.values()))
     if args.update:
         old = read_baseline(args.baseline)
         if args.movies:
