@@ -249,8 +249,9 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 
 # Routes run by hand rather than in every --long-routes gate: the tech sweep
 # fights for about forty minutes for under a KiB of code no movie runs
-# (docs/movies-wanted.md, "Every tech").
-HAND_RUN_ROUTES = {"tech_sweep"}
+# (docs/movies-wanted.md, "Every tech"). Heckran's preparation is a long walk
+# to a normal cartridge save; only the short boss movie belongs in the library.
+HAND_RUN_ROUTES = {"tech_sweep", "heckran_prepare"}
 
 
 def all_routes():

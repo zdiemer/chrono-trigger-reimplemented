@@ -8,6 +8,19 @@ needs by the CRC-32 in its `# sram crc32` line, so `--sram` is optional; see
 
 Each movie's `# Save:` line names the file below and the slot it loads.
 
+## routes/
+
+`pre-heckran.srm` (CRC-32 `5E542935`), slot 3: Heckran's Cave save point,
+1000 A.D., location `$031`, story counter `$4E`. Made through the game's
+save menu after 42723 frames of normal play from fantasyanime's ctsave03
+slot 3 (`$4D`, End of Time), using the hand-run `heckran_prepare` route.
+The later ctsave04 slot 1 has `$54`; Heckran's script requires less than
+`$51`. The preparation takes the Medina gate, crosses the cave and saves
+over slot 3 without memory edits. Its long movie and machine checkpoints
+stay in scratch; `battle-heckran` starts from this cartridge save and ends
+after the boss. Run `heckran_prepare --prefix <scratch>` to write the
+preparation's normal cartridge SRAM to `<scratch>.srm`.
+
 ## fantasyanime/
 
 From the Chrono Trigger saves at fantasyanime.com/squaresoft/ctsaves-srm.htm,

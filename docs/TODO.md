@@ -11,7 +11,7 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **Terra Cave's field timing.** `battle-mud-imp` puts `field_nmi` over the
   vblank-tail limit: 1.72% of 5592 wholly-vblank stretches differ by at least
-  1024 clocks (maximum 3165), despite mean drift below 1%. The movie's video
+  1024 clocks (maximum 3118), despite mean drift below 1%. The movie's video
   check finds no failing picture writes. Refine the estimate for the field's
   conditional upload work and remove its `tools/timing_exceptions.txt` line;
   the movie records this gap without changing game code.
@@ -2653,6 +2653,16 @@ re-runs the census.
   build keeps the wait at all, and take it out of the service if not.
 
 ## The native program
+
+- **Boss movies still need native outcome checks.** `battle-mud-imp` runs
+  37817 `ct_native` frames with no explicit stop, but ends blanked after three
+  screen setups and two video escapes. `battle-heckran` runs 19376 frames
+  with no explicit stop, a screen showing after six setups, and four video
+  escapes. Both first escape at the title's `$7E:5AEB` (`vid_snes_copy`,
+  below). Their fixed-input runs do not establish native boss victories;
+  connect the missing video work and verify the intended field outcome.
+  Strict mode completes both frame counts but differs from the reference's
+  saved game (`drifts` in `tools/strict_baseline.txt`).
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").

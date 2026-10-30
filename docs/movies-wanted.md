@@ -587,6 +587,7 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra |
 | 1000 A.D. | The trial | ctsave01 slot 3 is after it; a save before is to find | -- |
 | 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank |
+| 1000 A.D. | Heckran's Cave | ctsave03 slot 3, then the cave save point | Heckran (`battle-heckran`, below) |
 | 2300 A.D. | Robo repaired at Proto Dome | between ctsave02 and ctsave03 | -- |
 | 600 A.D. | Zenan Bridge | ctsave04 slot 1 | Zombor |
 | 600 A.D. | Denadoro and the Masamune | ctsave04 slot 2 | Masa & Mune (`battle-denadoro` may hold the fight) |
@@ -617,6 +618,24 @@ first.
   no stop, but its final saved game differs (`drifts`). `ct_native` reports no
   explicit stop in 37817 frames; it ends blanked with two video escapes, first
   `$7E:5AEB`, so this is not evidence of a native boss victory.
+
+- **Movie**: `battle-heckran` (route `heckran`, pre-heckran slot 3, 19376
+  frames; victory at 17266, the end kept at field control): the cave save
+  point (`$031`) into Heckran's chamber (`$02F`), basic magic and healing,
+  then the aftermath. The hand-run `heckran_prepare` makes the cartridge
+  save normally from ctsave03 slot 3 in 42723 frames; its long movie stays
+  out of the library. The source has story `$4D`, the cave save `$4E`, and
+  ctsave04 slot 1 `$54`; the boss requires less than `$51`, which the
+  aftermath sets. The policy waits while `$7E:B320` is nonzero, including
+  the runner's fallback attacks: two water stances waited out (7773-8539
+  and 12979-13687), no wipe. Reaches 74 bytes beyond the preceding 48 movies,
+  all ported; 62 are unique after Mud Imp, including `battle_enemy_flags_turn`
+  (`$C1:9E58`-`$9E5B`) and field sprite drawing. Mud Imp retains 558 unique
+  bytes after Heckran. Shadow clean: zero mismatches, no refusal, `page
+  refused` or `accessor out of range`. Strict runs all frames without a stop
+  but differs in the saved game (`drifts`). `ct_native` reports no explicit
+  stop in 19376 frames, with a screen showing and four video escapes, first
+  `$7E:5AEB`; a native boss victory is not established by that run.
 
 ### 14. The original's known glitches
 A faithful port reproduces the original's mistakes, so plays that lean on its documented glitches
