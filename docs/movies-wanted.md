@@ -813,7 +813,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   (`$C2:5972`-`$59C7`) and the inserts' tails; of the field's dialogs only the jetbike race's
   scoreboard (`$0DF`/`$0E1`) shows a 16-bit number.
 
-### 11. Event commands at the fair (looked into, not recorded)
+### 11. Event commands at the fair
 - **Saves**: ctsave11 slot 3, ctsave12, ctsave13, ctsave14 slot 1 (on the 1000 A.D. map, 131 silver
   points at `$7F:0052`; zophar chrono-3 slot 1 80, chrono-2 65, chrono-trigger 50).
 - **`$005`** (the lower square): its startup's arithmetic and comparisons (its script's `L03A0` on, as
@@ -834,6 +834,66 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   UP through the gust so the slope does not carry the party out of shelter. Machine copies
   search the departure delays; only the winning crossings enter the movie. See Target 13 for
   the caves and Crono's return.
+  which ctsave14 slot 1 hasn't initially; `events-fair-rescue` sets it and plays this startup
+  on the return to the square.
+- **Movie**: `events-fair-strength` (route `fair_strength`, ctsave14 slot 1, 4276 frames; the
+  field back in hand at 4186): face up below object `$1A` (tile (5, 34)), around (89, 584),
+  press A to begin, then press A again when local `$14` reaches 21. The first press calls the
+  leader's function 3, whose back-and-forth walk measures the hit; the earlier attempt stopped
+  at its held-A test. The bell rings, silver points rise from 131 to 132 and the square returns
+  to the player. Reaches 87 bytes (0.08 KiB) beyond the previous library and `events-fair-clone`,
+  all ported: `event_cmd_move_by_variables` (`$C0:4F0A`-`$4F60`). Shadow clean: 0 mismatched,
+  no refusal, `page refused` or `accessor out of range`. Strict mode reaches the end with the
+  same saved game and SRAM. `ct_native` reaches all 4276 frames without a stop, though its
+  independently timed replay ends with the screen blanked.
+- **`$1B2`** (Bekkler's tent, from `$005` at tile (43, 29)): Bekkler's object `$0B`, function 1
+  (`L0846`), accepts confirm while local variable `$0B` is zero. Stand around (134, 149), face up
+  and press A; wait through his move to tile (8, 5) before the greeting opens. The game choice
+  must finish showing before DOWN selects 40 points (`dialog_choice_active`, `$7E:0162`, is 2
+  when it accepts input). A short wait after confirm can mistake his movement for no response.
+- **Movie**: `events-fair-clone` (route `fair_clone`, ctsave14 slot 1, 8335 frames; the field
+  back in hand at 8245): load the save, walk to the fair and the tent, pay 40 of the save's 131
+  silver points, copy all 22 poses, receive the clone and return to `$005`. Local `$08` counts
+  poses, `$10` selects R/L/A/Y and `$11=$80` opens the answer window. Reaches 167 bytes
+  (0.16 KiB) no other movie in the preceding 48-movie library runs, all ported: variable-to-variable
+  comparisons (`$C0:6361`-`$63A3`), random shifts (`$C0:658F`-`$65A9`), held-button tests
+  (`$C0:66C6`, `$66F9`, `$6705`-`$6718`) and choice-pointer drawing (`$C0:F08B`-`$F0AA`).
+  Shadow clean: 0 mismatched, no refusal, `page refused` or `accessor out of range`.
+  `ct_native` reaches all 8335 frames without stopping; its timing differs from the movie's.
+  Strict mode also reaches the end, but loses the timed game: the clone flag (`$7F:005E` bit 0)
+  remains clear, the only differing saved-game byte. Its baseline is `drifts`.
+  Against all four fair-game movies, 36 bytes remain exclusive to this one, including the
+  held Y/L/R tests (`$C0:66F9`-`$6700`, `$6705`-`$6718`).
+- **Movie**: `events-fair-shuffle` (route `fair_shuffle`, ctsave14 slot 1, 6866 frames; the field
+  back in hand at 6776): pay 10 points, watch the three soldiers name themselves and shuffle,
+  identify the requested soldier (3 in this recording) and win Crono's Poyozo Doll. Local `$0C`
+  names the target; objects `$14`-`$16` keep their identities through the permutation chosen by
+  `$0E`. This adds no CPU instruction bytes beyond the preceding 48 movies plus the clone and
+  strength movies, but covers the unplayed shuffle and reward sequence. Shadow clean: 0
+  mismatched, no refusal, `page refused` or `accessor out of range`. Strict reaches all frames
+  but loses the game (`$7F:005D` bit 0 stays clear), its only saved-game difference; baseline
+  `drifts`. `ct_native` reaches all frames without a stop, ending with its screen blanked.
+- **Movie**: `events-fair-rescue` (route `fair_rescue`, ctsave14 slot 1, 7681 frames; the field
+  back in hand at 7591): pay 80 points, kick rocks at the three advancing monsters, raise the
+  falling companion with the candy four times, clear all three monsters and win the cat. Local
+  `$19` records the monsters released; local word `$12` counts the fall, shows the candy at 178
+  and loses at 288. The route takes the candy at 190; its call raises the companion and subtracts
+  112. Clearing all three monsters after the companion has fallen still loses, so the route
+  also checks the cat flag (`$7F:005D` bit 7). Returning to `$005` then runs its cat-care
+  arithmetic. Adds 360 bytes (0.35 KiB) beyond the preceding 48 movies, 239 exclusive even with
+  the other three fair-game movies: word variable comparisons (`$C0:63A4`-`$63DE`), word
+  comparisons (`$C0:64DB`, `$64E7`), variable subtraction (`$C0:6A74`-`$6AA2`), word
+  addition and subtraction (`$C0:6AC9`-`$6AF0`, `$6B20`-`$6B4A`) and increment
+  (`$C0:6C85`-`$6CA0`), all ported. Shadow clean: 0 mismatched, no refusal, `page refused`
+  or `accessor out of range`. Strict reaches the end with matching saved game and SRAM;
+  `ct_native` reaches all frames without a stop, ending with its screen blanked.
+  The four movies together add 493 executed bytes beyond the preceding 48-movie library.
+- **Death Peak** (`$0F4`, a step from ctsave11 slot 3's spot on the 2300 A.D. map; `$7F:007C` is
+  3 there, so the object at tile (55, 48) whose confirm runs `$88` lighten green is shown): the wind
+  (script variable `$0C`, `$7F:0218`) is calm for the first 108 frames after the party comes in
+  and then blows, and a party caught outside the shelter of the tree at tile (55, 49-50) is blown
+  back out to the map. The tree is 177 pixels up the slope; dashing up covers about 120 in the calm,
+  so no movie.
 
 ### 12. The side quests
 `events-luccas-mother` plays the campfire and Lara's rescue; the other side quests still need

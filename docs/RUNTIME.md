@@ -462,6 +462,10 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `battle-rust-tyrano.ctm` | rainbow-shell, 1 | Giant's Claw's save point, the door switch and Rust Tyrano defeated; field back in hand (route `rust_tyrano`; normal cartridge save prepared by `rainbow_shell`) | 23282 |
 | `events-cyrus.ctm` | ctsave14, 1 | Choras's tools and repairs, the Northern Ruins' left-wing guardians, Cyrus's ghost and the restored Masamune (route `cyrus`) | 39872 |
 | `battle-ozzies-fort.ctm` | ctsave12, 2 | Epoch to 600 A.D.; Flea Plus, Super Slash, Great Ozzie and the trio, the switch battle and final cat trap; field control restored (route `ozzies_fort`) | 39237 |
+| `events-fair-clone.ctm` | ctsave14, 1 | Bekkler's 40-point clone game: all 22 poses copied, then the lower square back in hand (route `fair_clone`) | 8335 |
+| `events-fair-strength.ctm` | ctsave14, 1 | The strength-test bell rung, one silver point won, then the square back in hand (route `fair_strength`) | 4276 |
+| `events-fair-shuffle.ctm` | ctsave14, 1 | Bekkler's 10-point soldier shuffle won, Poyozo Doll awarded, then the square back in hand (route `fair_shuffle`) | 6866 |
+| `events-fair-rescue.ctm` | ctsave14, 1 | Bekkler's 80-point rescue won with the candy, cat awarded, then the square back in hand (route `fair_rescue`) | 7681 |
 | `battle-tech-sweep.ctm` | zophar chrono-trigger, 1 | Inside Lavos's shell: the second form and the Lavos Core fought with every single and double tech Crono, Magus and Marle have, each cast once (route `tech_sweep`) | 118090 |
 | `late-omen-battles.ctm` | ctsave15, 1 | Black Omen random battles won (results), status Chaos keeping Lucca confused, many single techs, running away from an ambush | 18412 |
 | `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, the dual tech list, Mega Bomb, Confuse, item menus, Life 2 on a fallen Crono | 17762 |

@@ -519,9 +519,36 @@ python3 tools/suite.py --ct-dev build/main/ct_dev --rom "$CT_ROM" -j 1 \
     --movies battle-yakra battle-dragon-tank battle-zombor battle-nizbel
 ```
 
-The older routes above start from the technoplaza cartridge save their movie header names
-(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
-`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
+`fair_clone` (`events-fair-clone.ctm`, ctsave14 slot 1, 8335 frames) pays
+40 silver points at Norstein Bekkler's tent, copies all 22 poses and returns
+to the lower square with control restored. The route reads the pose and
+answer-window variables and presses R, L, A or Y accordingly. Bekkler's
+object `$0B` function 1 accepts confirm from below, around `(134,149)` facing
+up, while local variable `$0B` is zero. His move to tile `(8,5)` precedes his
+greeting; the route waits for it, then for the choice window to accept input.
+The tent entrance is lower-square tile `(43,29)`. Short waypoint searches
+keep the large square's machine-copy count bounded.
+
+`fair_strength` (`events-fair-strength.ctm`, ctsave14 slot 1, 4276 frames)
+rings the strength-test bell and wins one silver point. Confirm below object
+`$1A` starts the leader's back-and-forth movement; a second A press chooses
+its strength. The route searches a machine copy for local `$14` reaching 21,
+then replays just that delay and the winning press. It ends with the square
+back in hand and verifies that silver points rose from 131 to 132.
+
+`fair_shuffle` (`events-fair-shuffle.ctm`, ctsave14 slot 1, 6866 frames)
+pays 10 silver points and follows the requested soldier through Bekkler's
+shuffle. Local `$0C` names the soldier, whose object identity (`$14`-`$16`)
+survives the permutation. The route identifies soldier 3, verifies Crono's
+Poyozo Doll flag, and ends outside with the field back in hand.
+
+`fair_rescue` (`events-fair-rescue.ctm`, ctsave14 slot 1, 7681 frames)
+pays 80 points, pushes all three monsters back with the rock launchers, and
+rescues the companion. It checks the companion's fall counter and uses the
+candy at 190 (four times in this recording); clearing the monsters alone
+does not prove a win. The route verifies the cat-award flag and returns to
+the lower square, whose cat-care arithmetic now runs on entry.
+
 `giga_gaia` (`battle-giga-gaia.ctm`, 33261 frames) starts from ctsave09 slot 3,
 on Mt. Woe at story `$B4`, before the summit's arrival flag (`$7F:01A0` bit 3).
 It crosses the last bridges, beats Giga Gaia and its regenerating arms, frees

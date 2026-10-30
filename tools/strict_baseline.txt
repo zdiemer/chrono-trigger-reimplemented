@@ -49,6 +49,10 @@ events-death-peak drifts  # differs from the reference: 89 byte(s) of the saved 
 events-end-of-time-gate end
 events-epoch-lavos end
 events-fionas-forest drifts  # differs from the reference: 131 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, $7E:260C, ...)
+events-fair-clone drifts  # timing loses the clone game: $7F:005E bit 0 stays clear instead of awarding Crono's clone
+events-fair-rescue end
+events-fair-shuffle drifts  # timing loses the soldier shuffle: $7F:005D bit 0 stays clear instead of awarding Crono's Poyozo Doll
+events-fair-strength end
 events-jetbike-race-won end
 events-jetbike-race end
 events-keepers-dome end

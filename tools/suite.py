@@ -221,7 +221,6 @@ def trace_check(binary, rom, out, movie, frames, jobs=2):
     if not movie.exists():
         return True, "skipped (no %s)" % movie.name
     traces = {}
-    procs = []
     for tag, extra in (("off", ["--native", "off"]),
                        ("only", ["--native", "on", "--generated", "only"])):
         exe = (out / ("ct_dev_%s%s" % (tag, binary.suffix))).resolve()
