@@ -247,10 +247,8 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--scene") && v && scenes < STATE_HOST_FIRST_SCENES && scene_and_song(v, &scene[scenes], &song[scenes]))
             scenes++, i++;
         else {
-            fprintf(stderr, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]
-"
-                            "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--scene flags[,song]]...
-");
+            fprintf(stderr, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
+                            "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--scene flags[,song]]...\n");
             return 2;
         }
     }
