@@ -57,7 +57,7 @@ def main():
         assert run.find_player()
         # The sprite's anchor is below the trigger tile (24, 22).
         assert run.go(392, 360, tolerance=4), "stand on the End of Time save point"
-        # Face away from the nearby party members so confirm reaches the point.
+        # Move within the trigger tile and face left before confirming.
         m.run(8, "LEFT")
         m.run(30)
         press(m, "A", 90)

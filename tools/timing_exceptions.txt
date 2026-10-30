@@ -1,5 +1,7 @@
 # Accepted over-limit entries of the timing gate (tools/timing_gate.py;
 # docs/REIMPLEMENTATION.md, "The timing gate").
+# Sun Stone's reference play, after --drifted calibration over events-sun-stone:
+field_nmi vblank-tail the quest's mix of field, dialogue and edge uploads leaves 288 of 21162 vblank stretches off by at least 1024 clocks, at most 3283; one scalar fits their mean rather than each queue's work; the movie's vblank check finds no write moved onto the picture
 #
 # One per line: entry limit reason...
 #   entry   a hand port's name, as in game/registry.c

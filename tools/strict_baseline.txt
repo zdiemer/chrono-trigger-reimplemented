@@ -34,6 +34,7 @@ events-jetbike-race-won end
 events-jetbike-race end
 events-keepers-dome end
 events-prison-escape end
+events-sun-stone drifts  # differs from the reference: 23 byte(s) of the saved game (inventory_items, inventory_counts, party_waiting, current_song, $7E:0102, $7E:0103, ...)
 field-12kbc-1f4 end
 field-12kbc-1f5 end
 field-12kbc-1f6 end

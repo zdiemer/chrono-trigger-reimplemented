@@ -555,7 +555,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   so no movie.
 
 ### 12. The side quests
-No movie plays a side quest's events or bosses: the library's movies from the side-quest saves
+`events-sun-stone` completes the Sun Stone quest (below). The earlier movies from the side-quest saves
 (`ctsave12`-`ctsave14`) open menus and shops, ride the Epoch, press the Northern Ruins' switch and
 dive into Lavos. The fantasyanime saves step through them in one order (oracle/saves/README.md),
 so each quest has a save just before it; which slot is the nearest, and what of each the library
@@ -567,7 +567,7 @@ already runs, is for its route to establish.
 | Fiona's forest | ctsave12 slot 3 (ctsave13 slot 1 after it) | Robo's 400 years: the forest's replanting, the campfire | -- |
 | Lucca's mother | after Fiona's forest | the gate to 990 A.D. and the password typed against the clock; `ct_drive`'s machine copies make the timed part a search | -- |
 | The Rainbow Shell | ctsave13 slots 1-2 (slot 3 after it) | the Giant's Claw, the shell taken to Guardia Castle and the trial | Rust Tyrano |
-| The Sun Stone | ctsave13 slot 3 (ctsave14 slot 1 after it) | the Sun Palace, the stone charged across the eras | Son of Sun |
+| The Sun Stone | ctsave13 slot 3; route-written `sun-stone-planted` slot 1 | `sun_stone_save` plants the stone; `events-sun-stone` plays the theft, recovery, charging and rewards | Son of Sun in the preparation route |
 | Cyrus's grave | ctsave14 slot 1 (slot 2 after it; `field-northern-ruins-switch` presses one switch) | the Northern Ruins and Cyrus's ghost, the Masamune's power restored | Hero's Grave guardians |
 | Geno Dome | ctsave14 slot 2 (Targets, 5) | the conveyors and doors | Atropos XR, MotherBrain |
 
@@ -579,8 +579,39 @@ bosses they reach are where `ct_native`'s next stops are likely to be.
   frames). Its movie stays outside the library; `oracle/saves/routes/sun-stone-planted.srm`
   is the game's own cartridge save, reproduced byte for byte by replaying the kept inputs.
   The stone is planted (`$7F:013A = $07`), and the source ctsave13 slot 3 already has the
-  Jerky gift to the mayor's ancestor. The theft, recovery and rewards can start from this
+  Jerky gift to the mayor's ancestor. The theft, recovery and rewards start from this
   save without repeating the boss. No machine writes or edited SRAM.
+- **Movie**: `events-sun-stone` (route `sun_stone_finish`, `sun-stone-planted` slot 1,
+  23227 frames): board the Epoch from the End of Time, visit 2300 A.D.'s empty Sun Keep
+  (`$0FF`, theft discovered at frame 6398), then its 1000 A.D. counterpart (`$040`).
+  Porre's generous mayor (`$032`, object 8) returns the Moon Stone at frame 13063.
+  Replace it in the present Keep (16762), return to the future, and have Lucca collect
+  the charged stone. The return to her house (`$004`) and Taban making the Wondershot
+  and Sunshades play through; end after an ordinary step on the world map. The route
+  checks quest byte `$7F:013A` through `$07`, `$0F`, `$17`, `$37`, `$77`, `$F7`, and both
+  rewards in the bag, where the starting save had neither. The prior Jerky gift is
+  already in the source save (`$7F:01D2` bit 2); this movie does not replay that gift.
+  It reaches 283 bytes (0.28 KiB; 135 instruction starts) no movie in the preceding
+  48-movie library runs, all ported: `event_cmd_take_item` (`$C0:37E3`-`$37F8`) and
+  `battle_inventory_take` (`$C1:D056`-`$D085`), the event leader and flag commands
+  (`$C0:658F`-`$65A9`, `$6B20`-`$6B4A`, `$6BF7`-`$6C1B`), the choice pointer's
+  `$C0:F08B`-`$F0AA`, overworld followers (`$C2:3D0A`-`$3D29`), and short Epoch
+  arrival/reach branches including `$C6:EE31`-`$EE37`.
+  Shadow: zero mismatches, no guard refusal, `page refused` or `accessor out of range`;
+  sound lockstep identical. The reference end state has `$F7` and both rewards.
+  `ct_native` and strict mode consume all 23227 frames without stopping. Strict mode's
+  saved state drifts in 23 bytes (inventory, party waiting, song and field state),
+  recorded in `tools/strict_baseline.txt`; fixed inputs do not follow shipping timing.
+  The state-driven route completes in the shipping mode with the C sound driver at
+  frame 22522: both rewards, no fallback or guard refusal, all 429 restores away from
+  a native base replayed exactly, and the kept inputs replay to identical work RAM.
+  It recognizes the Epoch dial by menu mode as well as location, and tries verified
+  entrance walks before searching so native restores do not dominate each entrance.
+  Timing: 141 estimates recalibrated with `--drifted` over this narrowed run; the
+  field NMI's varied upload queues are recorded in `tools/timing_exceptions.txt`.
+  The narrowed suite (`--movies events-sun-stone -j 1`) ends `suite OK`,
+  including the static checks and a full 23227-frame trace comparison of WRAM,
+  VRAM, SRAM, CGRAM and OAM with no divergence.
 
 ### 13. The story events no movie plays
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's

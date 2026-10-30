@@ -216,8 +216,6 @@ A route is a list of phases, each ending in a checkpoint file. Re-running it
 resumes at the last phase that finished, so a failing phase can be iterated on
 without replaying the hour before it. Delete the checkpoints to start over.
 
-## What the route runner does
-
 ### Preparing a Sun Stone cartridge save
 
 `sun_stone_save` is a hand-run route in `HAND_RUN_ROUTES`. It reuses
@@ -234,6 +232,40 @@ The placement leaves `$7F:013A` at `$07`, with no Moon Stone in the bag. The
 save point's trigger is tile (24, 22); its sprite's anchor is lower than the
 tile's centre. The route walks onto the tile, faces left, opens the save
 screen, and accepts overwriting slot 1. Its previous slots remain intact.
+
+`sun_stone_finish` (`events-sun-stone.ctm`, 23227 frames) starts from that
+save. It boards the Epoch at the End of Time, discovers the empty Sun Keep
+in 2300 A.D. (`$0FF`), and visits the empty Keep in 1000 A.D. (`$040`). Porre's
+mayor (`$032`, object 8) returns the Moon Stone: the source save already has
+his ancestor's Jerky gift, so no 600 A.D. detour is needed. The party replaces
+the stone in the present Keep, returns to the future, and Lucca takes the
+charged Sun Stone. The scripted return to her house (`$004`) plays Taban
+making the Wondershot and Sunshades. The route checks both items, the quest
+byte `$F7`, and a successful step on the world map after the scene.
+
+The intermediate quest bytes are `$0F` (theft discovered), `$17` (recovered),
+`$37` (replaced), and `$77` (charged stone taken). The Keep's present-day
+north shore and Porre's west shore are isolated landing patches; approaches
+from the south lead to their entrances. Machine copies find the landing,
+walk and conversation, with only successful inputs retained and no pokes.
+Shadow replay leaves one Wondershot and one Sunshades in the bag, where the
+starting save had neither. The movie adds 283 bytes of executed code against
+the preceding 48-movie library, all ported (movies-wanted.md, Target 12).
+When boarding from the End of Time, the route recognizes menu mode 8 as the
+time dial: the native field-to-menu transition can keep the cockpit's
+location `$1D9` while the dial is already taking input.
+The route also completes in the shipping mode with the C sound driver (22522
+frames), with no fallback or guard refusal; its kept-input replay matches
+work RAM exactly. Known entrance walks are tried before a search and retained
+only when they reach the requested map, avoiding costly native restores at
+each search node. Shadow is clean, and `ct_native` and strict mode both
+consume the movie's 23227 frames without a stop; strict's end state drifts
+from the reference, as recorded in `tools/strict_baseline.txt`.
+The narrowed suite (`--movies events-sun-stone -j 1`, tracing all 23227
+frames) ends `suite OK`, including its static checks. The trace agrees in
+WRAM, VRAM, SRAM, CGRAM and OAM throughout.
+
+## What the route runner does
 
 `tools/movies/campaign.py`:
 
