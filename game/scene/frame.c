@@ -517,7 +517,7 @@ static void unwind_the_task_s_frames(Snes *s)
 
 /* The program's routines on the lists that a build with no machine runs as
  * C: the channels' turns, the sprites hidden, the palette sent and the
- * plane shown flat sent. Each stays on its list. */
+ * plane sent, shown flat or in perspective. Each stays on its list. */
 static TaskEnd channel_turn(GameState *g, Platform *pf, SceneChannel ch)
 {
     if (scene_channel_turn(g, pf, ch) != SCENE_TURN_ENDED)
@@ -547,6 +547,13 @@ static TaskEnd send_the_flat_plane(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
     scene_send_the_flat_plane(g, pf);
+    return task_goes_on();
+}
+
+static TaskEnd send_the_plane_s_place(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    scene_send_the_plane_s_place(g, pf);
     return task_goes_on();
 }
 
@@ -607,22 +614,22 @@ static const struct {
     { 0x7E64BF, scene_show_the_planet_s_caption_entry, scene_show_the_planet_s_caption },
     { 0x7E6844, scene_sweep_the_palace_curtain_entry, scene_sweep_the_palace_curtain },
     /* the Epoch's dive's */
-    { 0x7E79F8, scene_set_the_screen_outside, NULL },
-    { 0x7E7A35, scene_set_the_screen_in_the_cockpit, NULL },
-    { 0x7E7BF2, scene_open_the_light, NULL },
-    { 0x7E7F12, scene_pass_the_shell_across, NULL },
-    { 0x7E7F35, scene_pass_the_shell_down, NULL },
-    { 0x7E7F58, scene_follow_the_panel, NULL },
-    { 0x7E7F7D, scene_shake_the_cockpit, NULL },
-    { 0x7E7FC4, scene_size_the_trail, NULL },
-    { 0x7E7FCB, scene_draw_the_trail, NULL },
-    { 0x7E8079, scene_flicker_the_lights, NULL },
-    { 0x7E81C4, scene_send_the_plane_s_place_entry, NULL },
-    { 0x7E81F1, scene_let_the_shell_fall_away, NULL },
-    { 0x7E8205, scene_draw_the_epoch, NULL },
-    { 0x7E824A, scene_send_the_epoch, NULL },
-    { 0x7E82D1, scene_check_the_shell, NULL },
-    { 0x7E835B, scene_fly_the_epoch_on, NULL },
+    { 0x7E79F8, scene_set_the_screen_outside_entry, scene_set_the_screen_outside },
+    { 0x7E7A35, scene_set_the_screen_in_the_cockpit_entry, scene_set_the_screen_in_the_cockpit },
+    { 0x7E7BF2, scene_open_the_light_entry, scene_open_the_light },
+    { 0x7E7F12, scene_pass_the_shell_across_entry, scene_pass_the_shell_across },
+    { 0x7E7F35, scene_pass_the_shell_down_entry, scene_pass_the_shell_down },
+    { 0x7E7F58, scene_follow_the_panel_entry, scene_follow_the_panel },
+    { 0x7E7F7D, scene_shake_the_cockpit_entry, scene_shake_the_cockpit },
+    { 0x7E7FC4, scene_size_the_trail_entry, scene_size_the_trail },
+    { 0x7E7FCB, scene_draw_the_trail_entry, scene_draw_the_trail },
+    { 0x7E8079, scene_flicker_the_lights_entry, scene_flicker_the_lights },
+    { 0x7E81C4, scene_send_the_plane_s_place_entry, send_the_plane_s_place },
+    { 0x7E81F1, scene_let_the_shell_fall_away_entry, scene_let_the_shell_fall_away },
+    { 0x7E8205, scene_draw_the_epoch_entry, scene_draw_the_epoch },
+    { 0x7E824A, scene_send_the_epoch_entry, scene_send_the_epoch },
+    { 0x7E82D1, scene_check_the_shell_entry, scene_check_the_shell },
+    { 0x7E835B, scene_fly_the_epoch_on_entry, scene_fly_the_epoch_on },
     /* the endings' pictures and credits */
     { 0x7E8850, scene_ending_place_picture, NULL },
     { 0x7E891B, scene_ending_pick_picture_frame, NULL },

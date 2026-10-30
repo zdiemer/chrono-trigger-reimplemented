@@ -26,6 +26,8 @@ struct GameState {
     bool stopped;
     bool scene_next;          /* the program goes on to a scene (program_goes_on_to_a_scene) */
     uint8_t scene;
+    bool scene_first;         /* the driver starts the game in a scene (program_starts_in_a_scene) */
+    uint8_t first_scene, first_song;
     bool field_again;         /* the field starts again (program_starts_the_field_again) */
     bool afresh;              /* the game starts afresh from the title (program_starts_afresh_from_the_title) */
     bool reset;               /* the console reset (program_resets_the_console) */
@@ -239,6 +241,23 @@ bool program_next_scene(GameState *g, uint8_t *scene)
         return false;
     g->scene_next = false;
     *scene = g->scene;
+    return true;
+}
+
+void program_starts_in_a_scene(GameState *g, uint8_t scene, uint8_t song)
+{
+    g->scene_first = true;
+    g->first_scene = scene;
+    g->first_song = song;
+}
+
+bool program_first_scene(GameState *g, uint8_t *scene, uint8_t *song)
+{
+    if (!g->scene_first)
+        return false;
+    g->scene_first = false;
+    *scene = g->first_scene;
+    *song = g->first_song;
     return true;
 }
 

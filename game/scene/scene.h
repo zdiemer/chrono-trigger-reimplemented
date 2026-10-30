@@ -1033,43 +1033,62 @@ bool scene_send_lavos_back_present(Snes *s);
 void scene_let_lavos_fall(Snes *s);
 bool scene_let_lavos_fall_present(Snes *s);
 
-/* scene/epoch_dive.c */
+/* scene/epoch_dive.c: the setup, the frame's tasks and the main loop's
+ * scaling as C (each task a column of scene/frame.c's table), and their
+ * machine entries. */
+bool scene_dive_set_up(GameState *g, Platform *pf);
+TaskEnd scene_pass_the_shell_across(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_pass_the_shell_down(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_let_the_shell_fall_away(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_check_the_shell(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_send_the_epoch(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_draw_the_epoch(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_size_the_trail(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_draw_the_trail(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_fly_the_epoch_on(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_shake_the_cockpit(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_flicker_the_lights(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_follow_the_panel(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_open_the_light(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_set_the_screen_outside(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_set_the_screen_in_the_cockpit(GameState *g, Platform *pf, unsigned slot);
+bool scene_scale_the_epoch(GameState *g, Platform *pf);
 bool scene_dive_set_up_scene(Snes *s);
-void scene_dive_set_up(Snes *s);
+void scene_dive_set_up_entry(Snes *s);
 bool scene_dive_set_up_present(Snes *s);
-void scene_pass_the_shell_across(Snes *s);
+void scene_pass_the_shell_across_entry(Snes *s);
 bool scene_pass_the_shell_across_present(Snes *s);
-void scene_pass_the_shell_down(Snes *s);
+void scene_pass_the_shell_down_entry(Snes *s);
 bool scene_pass_the_shell_down_present(Snes *s);
-void scene_let_the_shell_fall_away(Snes *s);
+void scene_let_the_shell_fall_away_entry(Snes *s);
 bool scene_let_the_shell_fall_away_present(Snes *s);
-void scene_check_the_shell(Snes *s);
+void scene_check_the_shell_entry(Snes *s);
 bool scene_check_the_shell_present(Snes *s);
-void scene_scale_the_epoch(Snes *s);
+void scene_scale_the_epoch_entry(Snes *s);
 bool scene_scale_the_epoch_present(Snes *s);
 void scene_gather_the_epoch(Snes *s);
 bool scene_gather_the_epoch_present(Snes *s);
-void scene_send_the_epoch(Snes *s);
+void scene_send_the_epoch_entry(Snes *s);
 bool scene_send_the_epoch_present(Snes *s);
-void scene_draw_the_epoch(Snes *s);
+void scene_draw_the_epoch_entry(Snes *s);
 bool scene_draw_the_epoch_present(Snes *s);
-void scene_size_the_trail(Snes *s);
+void scene_size_the_trail_entry(Snes *s);
 bool scene_size_the_trail_present(Snes *s);
-void scene_draw_the_trail(Snes *s);
+void scene_draw_the_trail_entry(Snes *s);
 bool scene_draw_the_trail_present(Snes *s);
-void scene_fly_the_epoch_on(Snes *s);
+void scene_fly_the_epoch_on_entry(Snes *s);
 bool scene_fly_the_epoch_on_present(Snes *s);
-void scene_shake_the_cockpit(Snes *s);
+void scene_shake_the_cockpit_entry(Snes *s);
 bool scene_shake_the_cockpit_present(Snes *s);
-void scene_flicker_the_lights(Snes *s);
+void scene_flicker_the_lights_entry(Snes *s);
 bool scene_flicker_the_lights_present(Snes *s);
-void scene_follow_the_panel(Snes *s);
+void scene_follow_the_panel_entry(Snes *s);
 bool scene_follow_the_panel_present(Snes *s);
-void scene_open_the_light(Snes *s);
+void scene_open_the_light_entry(Snes *s);
 bool scene_open_the_light_present(Snes *s);
-void scene_set_the_screen_outside(Snes *s);
+void scene_set_the_screen_outside_entry(Snes *s);
 bool scene_set_the_screen_outside_present(Snes *s);
-void scene_set_the_screen_in_the_cockpit(Snes *s);
+void scene_set_the_screen_in_the_cockpit_entry(Snes *s);
 bool scene_set_the_screen_in_the_cockpit_present(Snes *s);
 void scene_look_from_outside(Snes *s);
 bool scene_look_from_outside_present(Snes *s);
@@ -1154,7 +1173,8 @@ void scene_write_matrix_code(Snes *s);
 bool scene_matrix_code_present(Snes *s);
 void scene_gather_picture(Snes *s);
 bool scene_race_scale_pictures_present(Snes *s);
-void scene_race_scale_pictures(Snes *s);
+void scene_race_scale_pictures_entry(Snes *s);
+bool scene_race_scale_pictures(GameState *g, Platform *pf);
 bool scene_race_scale_after_present(Snes *s);
 void scene_race_scale_after_crono(Snes *s);
 void scene_race_scale_after_johnny(Snes *s);
@@ -1260,7 +1280,9 @@ bool scene_signed_sprite_list_code_present(Snes *s);
 /* What the signed list leaves in A, for the ports' wrappers. */
 uint16_t scene_signed_list_leaves_a(const GameState *g, uint16_t list);
 
-/* scene/circle.c */
+/* scene/circle.c: whether the iris's table keeps clear of the cells its
+ * original reads back (the guard's state half), and the guard. */
+bool scene_circle_table_clear_of_the_cells(const GameState *g);
 bool scene_circle_table_is_clear(Snes *s);
 void scene_draw_circle(Snes *s);
 
@@ -1273,6 +1295,13 @@ typedef struct {
     uint16_t source, rows, pairs, row_step, limit;
 } SceneScaling;
 void scene_scaler_start(GameState *g, SceneScaling bitmap);
+/* Whether the port draws the bitmap handed over (the scaler's guard's state
+ * half); and the whole of it drawn at once, its first row nudged by
+ * `row_nudge`, for a program with no machine (false where the port draws a
+ * row no further, having asked for the machine). */
+enum { SCENE_SCALER_ROWS = 0xC30309 };
+bool scene_scaler_draws(const GameState *g);
+bool scene_scale_the_bitmap(GameState *g, bool row_nudge);
 bool scene_scaler_in_its_bank(Snes *s);
 void scene_scale_bitmap_row(Snes *s);
 void scene_scale_bitmap(Snes *s);

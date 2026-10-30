@@ -334,6 +334,7 @@ static const struct {
     { MODE_ATTRACT_RACE, RACE_SET_UP, scene_race_set_up },
     { MODE_RISING_PALACE, PALACE_SET_UP, scene_palace_set_up },
     { MODE_LAVOS_FALLS, LAVOS_FALLS_SET_UP, scene_lavos_falls_set_up },
+    { MODE_EPOCH_DIVE, EPOCH_DIVE_SET_UP, scene_dive_set_up },
     { MODE_PLANET_LOST, PLANET_SET_UP, scene_planet_set_up },
     { MODE_PLANET_ENDING, PLANET_SET_UP, scene_planet_set_up },
 };
@@ -371,6 +372,27 @@ static bool first_frame(GameState *g, Platform *pf)
     return true;
 }
 
+/* The main loop's call each pass, which a setup names: nothing, but for the
+ * scenes that scale a picture as they go -- the race's racers, the shared
+ * endings' zooming picture, the Epoch seen from outside. */
+enum { NOTHING_EACH_PASS = 0x3176, RACE_SCALING = 0x51D1, ENDINGS_SCALING = 0x8930, DIVE_SCALING = 0x8278 };
+
+// $7E:3023
+/* One pass of the main loop's call; false where the program goes no further. */
+static bool main_loop_pass(GameState *g, Platform *pf)
+{
+    uint16_t call = scene_main_loop_call(g);
+    bool done = false;
+    switch (call) {
+    case NOTHING_EACH_PASS: return true;
+    case RACE_SCALING: TIMED_AS(g, PROGRAM_BANK | call, done = scene_race_scale_pictures(g, pf)); return done;
+    case DIVE_SCALING: TIMED_AS(g, PROGRAM_BANK | call, done = scene_scale_the_epoch(g, pf)); return done;
+    default:
+        program_needs_the_machine(g, PROGRAM_BANK | call, "a scene's main loop call only the machine runs");
+        return false;
+    }
+}
+
 // $7E:3000 (and the boot, $C3:0000, before it; the main loop, $7E:3023, and the end, $7E:302A, after)
 bool scene_runs(GameState *g, Platform *pf, uint8_t flags)
 {
@@ -393,7 +415,11 @@ bool scene_runs(GameState *g, Platform *pf, uint8_t flags)
             tm_wait_frame(pf, PF_AT(MUSIC_WAIT));
     if (!first_frame(g, pf))
         return false;
-    while (!scene_program_over(g)) {
+    for (;;) {
+        if (!main_loop_pass(g, pf))
+            return false;
+        if (scene_program_over(g))
+            break;
         tm_wait_frame(pf, PF_AT(MAIN_LOOP));
         if (program_console_is_resetting(g))
             return true;

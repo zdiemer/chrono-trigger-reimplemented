@@ -196,3 +196,11 @@ bool program_next_scene(GameState *g, uint8_t *scene)
     (void)g, (void)scene;
     return false;
 }
+
+void program_starts_in_a_scene(GameState *g, uint8_t scene, uint8_t song) { (void)g, (void)scene, (void)song; }
+
+bool program_first_scene(GameState *g, uint8_t *scene, uint8_t *song)
+{
+    (void)g, (void)scene, (void)song;
+    return false;
+}
