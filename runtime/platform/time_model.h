@@ -45,10 +45,9 @@ static inline uint32_t time_in_spc_cycles(uint32_t clocks)
  * time (its first echo's wait) that much later. */
 enum { TIME_SOUND_BOOT = 7360649 };
 
-/* A command the CPU half takes, in its own time: the vblank handler's time,
- * taken meanwhile, comes on top (native_wait_own_time), which is why the same
- * song takes about twice as long to load under the menus' busy handler as
- * under the field's. Measured as the original's time per command against what
+/* A command the CPU half takes, by the wall, under a light vblank handler (a
+ * song loads in about twice the time under the menus' busy one, which this
+ * doesn't follow: docs/TODO.md). Measured as the original's time per command against what
  * the C driver loads for it, over eight movies' 70 songs (gato-battle,
  * battle-magus, battle-guardian, events-keepers-dome, events-prison-escape,
  * late-omen-battles, menus-save-point, menus-shop-equip):

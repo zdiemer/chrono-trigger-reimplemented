@@ -918,12 +918,15 @@ numbers in `time_model.h` with how):
 | The unpacker (`$C3:0002`), in `ct_native` | 64 a charged access | its charge counts the accesses the original makes to its own cells, which follow the stream; its whole time over new-game's 60 streams (29.0 M clocks in the shadow run) against those accesses |
 | A send to video memory from the main thread, in `ct_native` | 8 a byte | DMA's rate; the handlers' sends are the frame's own |
 
-The sound's are the CPU half's own time: on the machine the handlers taken
-meanwhile come on top (`native_wait_own_time`), which is why one song loads
-in about twice the frames under the menus' busy vblank handler as under the
-field's (`menus-shop-equip`'s songs, 820 to 1,230 clocks a byte by the wall).
-`ct_native` has no handler time to put on top, and charges the CPU half's.
-The C driver keeps the count: `SoundDriver.bytes_sent` and `bytes_moved` are
+The sound's are the wall's time under a light vblank handler, and the machine
+lets it pass as a wait (`native_wait_time`, interrupts taken meanwhile). The
+same song loads in about twice the frames under the menus' busy handler
+(`menus-shop-equip`'s songs, 820 to 1,230 clocks a byte), which the model
+doesn't follow. Waiting the CPU half's own time instead, the handlers' on
+top, followed it, but sent the native-shape build's `beyond_time` route into
+a wait it never walked out of, and moved strict mode no further than the
+wall's time (37 movies either way); it was dropped (TODO.md). The C driver
+keeps the count: `SoundDriver.bytes_sent` and `bytes_moved` are
 what it loads (`game/sound/`, a size and no time), and its two hosts
 (`frontend/sound_host.c` on the machine, `frontend/sound_native.c` without)
 answer the boot's and each command's time through the hooks (`Apu.host_boot`,
@@ -939,7 +942,7 @@ enters in the reference's order. Over the 53 library movies (460 places):
 | | `ct_native`, places on time | strict mode, movies ending as the reference's |
 |---|---|---|
 | Before | 240 | 34 |
-| The sound driver's time | 294 | 37 (345 places on time) |
+| The sound driver's time | 294 | 37 (339 places on time) |
 | And loads (`ct_native` only) | 299 | |
 
 Strict mode's three, `battle-magus`, `battle-tyrano-lair-walls` and

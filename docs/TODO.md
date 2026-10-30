@@ -2716,11 +2716,12 @@ list, by kind, is what `game/` still asks of one.
     access, against 296). Wants a rate that follows the mode (the
     overworld's scenes, the battle), or the routines that overrun named with
     their own measured time.
-  - *The handlers' share of an upload in `ct_native`.* The machine lets the
-    sound driver's upload time pass as the CPU half's own, the vblank
-    handler's on top (`native_wait_own_time`); `ct_native` charges only the
-    CPU half's, so a song loaded under the menus' busy handler lags about
-    half the frames the original's does.
+  - *The handlers' share of an upload.* The sound driver's upload time is
+    the wall's under a light vblank handler; under the menus' busy one the
+    original's song loads in about twice the frames. Waiting the CPU half's
+    own time on the machine (the handlers on top) followed it, but the
+    native-shape build's `beyond_time` route then never walked out of
+    `$DA01` (its exit search found no move); find why before taking it.
   - *A song held while the echo settles* loads at the wait's end, uncharged
     (`frontend/sound_host.c`, `sound_native.c`); only short songs met it in
     the library.

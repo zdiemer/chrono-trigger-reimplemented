@@ -1598,8 +1598,6 @@ static bool wait_over(Active *a, const Snes *s)
 {
     if (a->wake == NATIVE_WAKE_HANDLER)
         return a->woke;
-    if (a->wake == NATIVE_WAKE_OWN_TIME)
-        return a->wake_clocks == 0;
     if (a->wake == NATIVE_WAKE_TIME) {
         if (!a->wake_timed) {
             a->wake_timed = true;
@@ -1628,8 +1626,6 @@ static uint32_t wait_step(const Active *a, const Snes *s)
         return NATIVE_PORT0_POLL_CLOCKS;
     if (a->wake == NATIVE_WAKE_TIME)
         return (uint32_t)(a->wake_until - s->master);
-    if (a->wake == NATIVE_WAKE_OWN_TIME)
-        return a->wake_clocks;
     return SNES_CLOCKS_PER_LINE;
 }
 
@@ -1867,8 +1863,6 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         a->job->wait_answered = over;
         if (!over && (!a->pass_clocks || a->polling_left)) {
             uint32_t step = until_interrupt(s, wait_step(a, s));
-            if (a->wake == NATIVE_WAKE_OWN_TIME)   /* the handlers taken meanwhile aren't the wait's */
-                a->wake_clocks -= step < a->wake_clocks ? step : a->wake_clocks;
             if (a->pass_clocks)
                 a->polling_left -= step < a->polling_left ? step : a->polling_left;
             *result = (int32_t)step;
@@ -3243,7 +3237,7 @@ void native_wait_call(Snes *s, uint32_t site, uint32_t target, bool long_call, u
     call_out(s, site, target, long_call, dont_care, true, NULL);
 }
 
-static void wait_for_time(Snes *s, uint32_t clocks, int32_t wake)
+void native_wait_time(Snes *s, uint32_t clocks)
 {
     Job *j = current_job;
     if (!j || j->m != s || !active_runtime || active_runtime->mode != NATIVE_ON || !clocks)
@@ -3253,13 +3247,10 @@ static void wait_for_time(Snes *s, uint32_t clocks, int32_t wake)
     j->wait_exit = 0;
     j->wait_given_up = 0;
     j->wait_polling = j->wait_pass_clocks = 0;
-    j->wake = wake;
+    j->wake = NATIVE_WAKE_TIME;
     j->wake_clocks = clocks;
     fiber_switch(fiber_main());
 }
-
-void native_wait_time(Snes *s, uint32_t clocks) { wait_for_time(s, clocks, NATIVE_WAKE_TIME); }
-void native_wait_own_time(Snes *s, uint32_t clocks) { wait_for_time(s, clocks, NATIVE_WAKE_OWN_TIME); }
 
 bool native_waits_in_place(const Snes *s)
 {
