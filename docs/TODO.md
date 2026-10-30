@@ -2913,6 +2913,23 @@ list, by kind, is what `game/` still asks of one.
   RAM wherever an accessor may run past its end (the glitch reproduced byte
   for byte), or name the reachable overruns, make each a defined, bounded
   result, and leave the arbitrary-memory glitches out of scope.
+- **What the story scenes' and the second native gaps' reviews left:**
+  - The C paths of events `$D5`, `$D6`, `$29` and `$FF $96` (the game's
+    restart) are fuzzed only through their machine entries: no movie reaches
+    them, so the C itself is unexercised.
+  - field/object.c's section "Past the tables: the original's effects only" is
+    stale now that `object_in_the_way` reads those slots as logic, and
+    re/ram.toml's `unchecked` notes for view, role and solidity cite only the
+    walk, not `object_in_the_way`.
+  - `menu_draw_empty_label_entry` saves P and returns without restoring it
+    when refused (unreachable behind the registry's guard).
+  - The credits' `LettersAsC` callback always returns true and
+    `event_choose_credits` ignores the sequence's result: ceremony.
+  - `MENU_LABEL_RECORD_BYTES`, scaffolding-only, sits in the public
+    menu/load_screen.h.
+  - The scene engine's three `step_the_ground_toward_*` script rows are one-line
+    rows over `step_the_ground_toward(g, set)`; folding them into one row wants
+    a field on `SceneScriptRoutine`.
 - **What the native picture's review left** (the line handlers' end of the
   picture, `runtime/platform/native/video.c`, `tools/native_check.py`):
   - A line handler at line 224 or past puts `below_from` beyond
