@@ -48,7 +48,7 @@ bool object_palette_slot_is_one(const GameState *g, FieldObject obj);
 bool object_palette_links_in_the_tables(const GameState *g, FieldObject obj);
 /* And whether giving it up reads only those: nothing is read while a script
  * has set the palettes. */
-bool object_gives_up_a_palette_the_tables_hold(const GameState *g, FieldObject obj);
+bool object_palette_links_safe_to_give_up(const GameState *g, FieldObject obj);
 
 void field_give_up_palette(Snes *s);
 bool field_palette_can_be_given_up(Snes *s);

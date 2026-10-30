@@ -5128,7 +5128,15 @@ name = "field_object_in_the_way"
 subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "[7E016D]+1600,1=00-03", "--fill", "7F2000-7F2000=01-3F"]
-why = "the field's page and data bank, the current object below $100 facing one of its four ways (odd objects turned away by the guard); the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
+why = "the field's page and data bank, the current object below $100 facing one of its four ways (odd objects turned away by the guard); the map's object count 1 to 63 (the variant past_the_tables takes 64 to 127)"
+
+[[routine]]
+name = "field_object_in_the_way"
+variant = "past_the_tables"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "[7E016D]+1600,1=00-03", "--fill", "7F2000-7F2000=40-7F"]
+why = "as the plain entry, with a map's object count of 64 to 127, whose doubled byte starts the search on the slots past the tables (field/motion.c, look_past_the_tables)"
 
 [[routine]]
 name = "field_line_up_with_object"
@@ -5909,7 +5917,7 @@ variant = "past-the-tables"
 subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00-7E", "--fill", "7E0198-7E0198=00-00", "--fill", "7F2000-7F2000=40-7F", "--fill", "7E1D1E-7E1D1F=3F-3F", "--fill", "7E011F-7E0120=01-01", "--fill", "7E0162-7E0162=00-00", "--fill", "7E0138-7E0138=00-00", "--fill", "7E1800-7E197F=08-37"]
-why = "a map object count of 64-127, whose doubled byte starts the search for objects in the way past the tables (what_the_original_meets_past_the_tables): the leader walking, the objects' positions and velocities (what the slots past the tables read as positions) on the map's middle tiles"
+why = "a map object count of 64-127, whose doubled byte starts the search for objects in the way past the tables (field/motion.c, look_past_the_tables): the leader walking, the objects' positions and velocities (what the slots past the tables read as positions) on the map's middle tiles"
 
 [[routine]]
 name = "field_walk_the_leader"

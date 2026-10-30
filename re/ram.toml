@@ -39,8 +39,10 @@
 #       lie between); its accessor takes a row and a column. With `page`, the
 #       code reaches it through that direct page: give addr when the page's D
 #       is fixed (the offset is derived), dp when the page is a page kind.
-#       `unchecked` says why marked scaffolding reaches past the variable on
-#       purpose (a `leave_stray_*` write the gate needs); it generates a second
+#       `unchecked` says why code reaches past the variable on purpose: marked
+#       scaffolding (a `leave_stray_*` write the gate needs), or logic that
+#       takes the original's reach into the next variable as the game's, so
+#       the native storage must keep that layout; it generates a second
 #       pair of accessors, `<name>_unchecked`, without the bounds check the
 #       others make (docs/DISASSEMBLY.md, "The accessors"). `reuses` names a
 #       variable (or a list of them) of the same subsystem whose bytes this
@@ -4564,7 +4566,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "$80 while the object is inside the window around the screen (active), 0 outside"
 source = "game/field/object_view.c field_update_object_visibility $C0:A88D; game/field/object_view.c field_update_object_in_window $C0:A947; game/event/flow.c if_in_view $C0:662C"
-unchecked = "a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, what_the_original_meets_past_the_tables; 20 real calls over the movie library)"
+unchecked = "a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library)"
 
 [[var]]
 name = "field_object_priority_mode"
@@ -4760,7 +4762,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "What the object is to the field (field/object.h, ObjectRole): bit 7 disabled; the kind below it, 0-2 the party's leader and members (moved without tile checks), 3 a character who left the party, 7 checked against the screen window only, 8 left alone by the update"
 source = "game/field/object.c object_role, set_role; game/field/object_update.c field_update_objects $C0:A810"
-unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library); and a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, what_the_original_meets_past_the_tables; 20 real calls over the movie library)"
+unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library); and a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library)"
 
 [[var]]
 name = "field_object_character"
@@ -4917,7 +4919,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "16-bit X position in 1/16 pixel, the tile in the high byte ($FF00 off screen)"
 source = "game/field/object_update.c (header comment); tools/movies/addresses.py OBJECT_X"
-unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library); and a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, what_the_original_meets_past_the_tables; 20 real calls over the movie library); and the party's place taken as the leader's, for a menu or a change of location, while the party has no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it until the map's objects start), which reads the first slot past the tables (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the attract demo)"
+unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library); and a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library); and the party's place taken as the leader's, for a menu or a change of location, while the party has no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it until the map's objects start), which reads the first slot past the tables (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the attract demo)"
 [[var.field]]
 name = "fine"
 offset = 0
@@ -4936,7 +4938,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "16-bit Y position in 1/16 pixel, the tile in the high byte"
 source = "game/field/object_update.c (header comment); tools/movies/addresses.py OBJECT_Y"
-unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library); and a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, what_the_original_meets_past_the_tables; 20 real calls over the movie library); and the party's place taken as the leader's, for a menu or a change of location, while the party has no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it until the map's objects start), which reads the first slot past the tables (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the attract demo)"
+unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library); and a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library); and the party's place taken as the leader's, for a menu or a change of location, while the party has no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it until the map's objects start), which reads the first slot past the tables (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the attract demo)"
 [[var.field]]
 name = "fine"
 offset = 0
@@ -4956,7 +4958,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "X velocity added to the position each step, sign-extended to 16 bits"
 source = "game/field/motion.c field_set_velocity; game/field/motion.c field_move_object $C0:AA07"
-unchecked = "a member stepping in a place of the party emptied under it steps the slot the empty place's marker names, the first past the tables (game/field/party_trail.c step_the_place, $C0:A2CE; the Prophet's ending, three frames)"
+unchecked = "a member stepping in a place of the party emptied under it steps the slot the empty place's marker names, the first past the tables (game/field/party_trail.c step_the_place, $C0:A2CE; the Prophet's ending, three frames): logic, so the velocity table running into the next is a layout the native storage keeps"
 
 [[var]]
 name = "field_object_velocity_y"
@@ -4968,7 +4970,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Y velocity added to the position each step, sign-extended to 16 bits"
 source = "game/field/motion.c field_set_velocity; game/field/motion.c field_move_object $C0:AA07"
-unchecked = "a member stepping in a place of the party emptied under it steps the slot the empty place's marker names, the first past the tables (game/field/party_trail.c step_the_place, $C0:A2CE; the Prophet's ending, three frames)"
+unchecked = "a member stepping in a place of the party emptied under it steps the slot the empty place's marker names, the first past the tables (game/field/party_trail.c step_the_place, $C0:A2CE; the Prophet's ending, three frames): logic, so the velocity table running into the next is a layout the native storage keeps"
 
 [[var]]
 name = "field_object_speed"
@@ -5029,7 +5031,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Bit 0: the object blocks other objects' moves"
 source = "game/field/motion.c field_object_in_the_way $C0:5B95; game/field/object.c object_set_solidity $C0:4867"
-unchecked = "a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, what_the_original_meets_past_the_tables; 20 real calls over the movie library)"
+unchecked = "a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library)"
 
 [[var]]
 name = "field_object_accelerating"

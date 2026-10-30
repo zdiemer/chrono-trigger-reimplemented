@@ -388,11 +388,11 @@ static bool can_block_in_view(const GameState *g, FieldObject other, FieldObject
  * second. The original doubles the count in a byte, so a count past 127
  * starts from what is left of it (the endings' maps count 163). A start past
  * the tables (a count of 64 to 127: the forest of Frog's memory counts 64)
- * starts on the slots past them, which hold nobody: the leader's walk
- * (field/walk.c, stopped_past_the_tables) and the look for an object in the
- * way (below) search the map's objects and leave what the original reads
- * there as scaffolding; the confirm button's guard still leaves such a start
- * to the original. A start of 0 would go round into those slots from slot 0
+ * starts on the slots past them, which hold nobody but read as slots all the
+ * same: the leader's walk (field/walk.c, met_past_the_tables) and the
+ * look for an object in the way (below) look at them before the map's
+ * objects; the confirm button's guard still leaves such a start to the
+ * original. A start of 0 would go round into those slots from slot 0
  * (it counts round 128), which no map makes. */
 enum { SEARCH_COUNT_BITS = 0x7F };
 
@@ -474,16 +474,13 @@ static void charge_search(GameState *g, SearchLength n)
                   (uint32_t)n.measured * ACCESSES_A_MEASURE);
 }
 
-/* The objects are looked at from the one past the last down to the second
- * (the first is the party's leader), until one is found in the way. */
-static ObjectsAhead look_for_objects_ahead(GameState *g, FieldObject obj, SearchLength *n)
+/* The map's objects are looked at from the last down to the second (the
+ * first is the party's leader), until one is found in the way; `r` is what
+ * the search measured before them. */
+static ObjectsAhead look_for_objects_ahead(const GameState *g, FieldObject obj, ObjectsAhead r, SearchLength *n)
 {
-    ObjectsAhead r = { false, false, 0 };
-    if (!field_looks_for_objects(g, obj))
-        return r;
     Facing facing = object_facing(g, obj);
     FieldPosition at = object_position(g, obj);
-    ORIGINAL_EFFECT(leave_blocking_check(g, facing, at));
     for (FieldObject other = first_slot_in_the_tables(object_search_start(g)); other != 0; other--) {
         n->passed++;
         if (object_view(g, other) == OUT_OF_VIEW)
@@ -500,21 +497,17 @@ static ObjectsAhead look_for_objects_ahead(GameState *g, FieldObject obj, Search
     return r;
 }
 
-/* For shadow mode: what the original meets past the object tables, where a
- * map's count of 64 to 127 starts its search (field/object.h,
- * object_past_the_tables), before it comes to the map's objects. A slot
- * there reads as in view, enabled and solid from the next tables' bytes;
- * where one is ahead and close, the original stops on it, and where it
- * measures one and none of the map's, that is the last it measured.
- *
- * Whether the game sees it: the forest of Frog's memory ($077) counts 64, so
- * the slot past the tables reads the leader's priority mode for its view, its
- * script's place for its role, its acceleration for its solidity and its Y
- * and velocity for its place; but none of the forest's objects minds others
- * (events-magic-cave asks 1,470 times), so no search there reaches it, and a
- * native build looks at the map's objects alone. */
-static ObjectsAhead what_the_original_meets_past_the_tables(const GameState *g, FieldObject obj, FieldObject start,
-                                                            ObjectsAhead r, SearchLength *n)
+/* A map counting 64 to 127 objects starts the search past the object tables
+ * (field/object.h, object_past_the_tables), and the slots there are looked
+ * at first, before the map's own. Nobody stands there, but the game reads
+ * each as a slot all the same, from the next tables' bytes: in view, enabled
+ * and solid as those bytes say, at the place they make. One close ahead
+ * stops the search; one measured and none of the map's is the last measured.
+ * The forest of Frog's memory ($077) counts 64: its slot past the tables
+ * reads the leader's priority mode for its view, its script's place for its
+ * role, its acceleration for its solidity, and its Y and velocity for its
+ * place. */
+static ObjectsAhead look_past_the_tables(const GameState *g, FieldObject obj, FieldObject start, SearchLength *n)
 {
     Facing facing = object_facing(g, obj);
     FieldPosition at = object_position(g, obj);
@@ -533,17 +526,22 @@ static ObjectsAhead what_the_original_meets_past_the_tables(const GameState *g, 
         if (close_ahead(m) && m.across < REACH)
             return (ObjectsAhead){ true, true, slot };
     }
-    return r.measured ? r : past;
+    return past;
 }
 
 // $C0:5B95
 ObjectsAhead object_in_the_way(GameState *g, FieldObject obj)
 {
     SearchLength n = { 0, 0, 0 };
-    ObjectsAhead r = look_for_objects_ahead(g, obj, &n);
-    FieldObject start = object_search_start(g);
-    if (start >= FIELD_OBJECTS && field_looks_for_objects(g, obj))
-        ORIGINAL_EFFECT(r = what_the_original_meets_past_the_tables(g, obj, start, r, &n));
+    ObjectsAhead r = { false, false, 0 };
+    if (field_looks_for_objects(g, obj)) {
+        ORIGINAL_EFFECT(leave_blocking_check(g, object_facing(g, obj), object_position(g, obj)));
+        FieldObject start = object_search_start(g);
+        if (start >= FIELD_OBJECTS)
+            r = look_past_the_tables(g, obj, start, &n);
+        if (!r.blocked)
+            r = look_for_objects_ahead(g, obj, r, &n);
+    }
     ORIGINAL_EFFECT(leave_target(g, r));
     ORIGINAL_EFFECT(charge_search(g, n));
     return r;
@@ -839,8 +837,9 @@ void field_object_in_the_way(Snes *s)
         /* the last distance it measured: along the way, and across where the
          * object was close ahead */
         vars_peek(true);
-        ObjectBearing m = object_bearing(object_position(g, obj), object_position(g, r.object),
-                                         object_facing(g, obj), r.object < obj);
+        FieldPosition there = r.object < FIELD_OBJECTS ? object_position(g, r.object)
+                                                       : object_past_the_tables(g, r.object).at;
+        ObjectBearing m = object_bearing(object_position(g, obj), there, object_facing(g, obj), r.object < obj);
         vars_peek(false);
         uint16_t last = close_ahead(m) ? m.across : m.along;
         s->cpu.a = (uint16_t)((last & 0xFF00) | (s->cpu.a & 0x00FF));

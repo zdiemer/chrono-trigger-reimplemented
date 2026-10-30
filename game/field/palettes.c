@@ -325,7 +325,7 @@ bool object_palette_links_in_the_tables(const GameState *g, FieldObject obj)
  * nothing of its sharers is read: Reunion's parade leaves an object leaving
  * view with links its slot no longer keeps (an odd newer sharer), which are
  * never looked at. */
-bool object_gives_up_a_palette_the_tables_hold(const GameState *g, FieldObject obj)
+bool object_palette_links_safe_to_give_up(const GameState *g, FieldObject obj)
 {
     return field_palettes_set_by_script(g) || object_palette_links_in_the_tables(g, obj);
 }
@@ -348,7 +348,7 @@ bool field_palette_can_be_given_up(Snes *s)
     if (!field_current_object_bank_zero(s))
         return false;
     vars_peek(true);
-    bool ok = object_gives_up_a_palette_the_tables_hold(state_of(s), (FieldObject)field_current_object_slot(s));
+    bool ok = object_palette_links_safe_to_give_up(state_of(s), (FieldObject)field_current_object_slot(s));
     vars_peek(false);
     return ok;
 }

@@ -878,10 +878,14 @@ rest waits, is [PLAN.md](PLAN.md).
   before that slot, facing the way the byte after the facings' says, and
   looks for a chest on the tiles before it, off the map (the walkable
   table's bytes past its rows, up into bank `$7F`; `event/chests.c`,
-  `walkable_past_the_map`): the endings' fields press it so. A native build
-  has nobody to walk or to look before: decide what the screen and the press
-  do then, and drop the slot's reads and writes with the tables' native
-  storage.
+  `walkable_past_the_map`): the endings' fields press it so, and so does a
+  real leader at the map's edge facing off it (Zenan Bridge). A map counting
+  64 to 127 objects starts the searches for an object in the way on the slots
+  past the tables too (`field/motion.c`, `look_past_the_tables`;
+  `field/walk.c`, `met_past_the_tables`). All of these are logic, through the
+  tables' unchecked accessors, so the native storage must keep the tables'
+  layout where they run into the next; or decide what the screen, the press
+  and the searches do there and drop the reads with that storage.
 
 - **What only the original's memory has, in the battle** (history/reimplementation-chunks.md, "Phase 3,
   battle chunk 4", after the review). A build without the original's memory has to decide each:
@@ -2902,26 +2906,12 @@ list, by kind, is what `game/` still asks of one.
   result, and leave the arbitrary-memory glitches out of scope.
 - **What the native gaps' review left** (the field's, events' and menus'
   guards loosened to the states their C takes):
-  - `object_in_the_way` (field/motion.c) changes its result through
-    `ORIGINAL_EFFECT(r = what_the_original_meets_past_the_tables(...))`, as
-    walk.c's `stops = ...` does: logic reading scaffolding, so the native
-    shape differs wherever a slot past the tables is reached. That no forest
-    object minds others is a claim about the movies the guard doesn't hold.
   - C copies beside machine copies: `slide_the_list` (menu/item_screen.c)
     beside `slide_the_list_on_the_machine`, though item_screen.h says they run
     one sequence; `erase` (menu/load_screen.c) beside `menu_erase_slot` in the
     bridge; `menu_draw_empty_label(Snes*)` (menu/save_screen.c) repeating
     `menu_draw_the_empty_label`'s body. The C should take the plain name and
     the wrapper become `_entry`, with the `// $C2:D28D` comment on both.
-  - `field_object_velocity_{x,y}_unchecked` (re/ram.toml, vars.h) still say
-    "for marked scaffolding only", but logic writes through them since the
-    emptied place's step: the velocity table running into the next is now
-    a layout the native storage must keep.
-  - chests.c reads the walkable bytes past the map (into bank `$7F`) for a
-    real leader; "Nobody leading" above describes only an empty one.
-  - walk.c's "a step past the map" means a step the map doesn't stop
-    (collision off); `object_gives_up_a_palette_the_tables_hold` would read
-    better as the slot's links being safe to give up.
 - **What the native picture's review left** (the line handlers' end of the
   picture, `runtime/platform/native/video.c`, `tools/native_check.py`):
   - A line handler at line 224 or past puts `below_from` beyond

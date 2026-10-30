@@ -296,7 +296,7 @@ bool field_view_changes(const GameState *g, unsigned obj)
 bool field_view_change_in_the_tables(const GameState *g, FieldObject obj)
 {
     if (object_in_view(g, obj))
-        return object_gives_up_a_palette_the_tables_hold(g, obj) && object_sprite_block_in_the_tables(g, obj);
+        return object_palette_links_safe_to_give_up(g, obj) && object_sprite_block_in_the_tables(g, obj);
     ObjectRole role = object_role(g, obj);
     return object_takes_a_palette_the_tables_hold(g, obj) && (role.disabled || role.kind <= ROLE_LEFT_ALONE);
 }

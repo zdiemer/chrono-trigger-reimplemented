@@ -349,7 +349,7 @@ static bool stands_close(const GameState *g, FieldObject obj, FieldPosition at, 
     return magnitude(down) < REACH && magnitude(across) < REACH;
 }
 
-/* For shadow mode: what the original meets past the object tables, where
+/* What the walk meets past the object tables, where
  * a map's object count of 64 to 127 (the original's search starts from it
  * doubled in a byte) starts its search. It reads the next tables' bytes as a
  * slot's (field/object.h, object_past_the_tables): whether it is in view
@@ -360,16 +360,13 @@ static bool stands_close(const GameState *g, FieldObject obj, FieldPosition at, 
  * Where one reads as in view, enabled, no party place's and close, the
  * original stops its search there, before the map's objects: the leader is
  * up against no object (the slot's byte has a link to none's top bit), and
- * stopped where the byte after the solidity flags says solid. So this
- * overrides the search's outcome, `stops`, and the contact it left, where it
- * meets such a slot; elsewhere it leaves them.
+ * stopped where the byte after the solidity flags says solid. The search
+ * meets such a slot before the map's objects.
  *
- * Whether the game sees it: over the movie library the count is 112 or 123
- * on a frame or two in six movies (20 calls), and on none of them does the
- * walk search at all (the leader isn't stepping into anything; a debug build
- * reporting every such search found none). A native build looks at the
- * map's objects alone (docs/TODO.md). */
-static bool stopped_past_the_tables(GameState *g, FieldObject start, MapPoint p, bool stops)
+ * Over the movie library the count is 112 or 123 on a frame or two in six
+ * movies (20 calls), and on none of them does the walk search at all (the
+ * leader isn't stepping into anything). */
+static bool met_past_the_tables(GameState *g, FieldObject start, MapPoint p, bool *stops)
 {
     for (FieldObject slot = start; slot >= FIELD_OBJECTS; slot--) {
         if (object_view_past_the_tables(g, slot) == OUT_OF_VIEW)
@@ -378,9 +375,10 @@ static bool stopped_past_the_tables(GameState *g, FieldObject start, MapPoint p,
         if (past.disabled || in_the_party(g, slot) || !stands_close(g, slot, past.at, p))
             continue;
         set_leader_contact(g, field_link_to(slot));
-        return object_solid_past_the_tables(g, slot);
+        *stops = object_solid_past_the_tables(g, slot);
+        return true;
     }
-    return stops;
+    return false;
 }
 
 // $C0:9923
@@ -395,6 +393,9 @@ static bool object_stands_in_the_way(GameState *g, MapPoint p)
     ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_X, p.x));
     ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_Y, p.y));
     FieldObject start = object_search_start(g);
+    bool stops_past = false;
+    if (start >= FIELD_OBJECTS && met_past_the_tables(g, start, p, &stops_past))
+        return stops_past;
     FieldObject met = 0;
     bool found = false;
     for (FieldObject obj = start < FIELD_OBJECTS ? start : FIELD_OBJECTS - 1; obj >= 1 && !found; obj--) {
@@ -406,10 +407,7 @@ static bool object_stands_in_the_way(GameState *g, MapPoint p)
         }
     }
     set_leader_contact(g, found ? field_link_to(met) : field_no_link());
-    bool stops = found && object_solid(g, met);
-    if (start >= FIELD_OBJECTS)
-        ORIGINAL_EFFECT(stops = stopped_past_the_tables(g, start, p, stops));
-    return stops;
+    return found && object_solid(g, met);
 }
 
 /* ---- The leader's box ------------------------------------------------------------------------ */
@@ -1187,7 +1185,7 @@ static bool walk_fits(const GameState *g)
     if (first.x == 0 && first.y == 0)
         return true;   /* no step: nothing of the leader's place is read */
     if (field_leader_collides(g) == 0)
-        return true;   /* a step past the map: its tile and the screen alone */
+        return true;   /* a step the map doesn't stop (collision off): its tile and the screen alone */
     FieldPosition at = field_leader_position(g, leader);
     return object_search_start(g) != 0 && (field_map_index_mask(g) & ~WITHIN_THE_MAPS) == 0 &&
            clear_of_the_end(at);
