@@ -1,7 +1,12 @@
 /* ct_native: the game with no emulator under it (docs/PLAYING.md, "The
  * native program").
  *
- *   ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm]
+ *   ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm] [--scene flags]
+ *
+ * --scene starts the game in the scene engine after the boot, with the flags
+ * an event hands it ($24 Lavos falling, $26 the Epoch's dive, $2A to $2F the
+ * endings and the staff roll), and goes on to the field after it: the story
+ * scenes a movie's presses don't bring the native program to.
  *
  * It links game/'s program (core/program.c), the platform services' host
  * backends (runtime/platform/native/) and the coroutines (runtime/port/fiber.h),
@@ -136,6 +141,7 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL, *movie_path = NULL;
     unsigned long frames = 600;
+    long scene = -1;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--rom") && v) rom_path = v, i++;
@@ -143,8 +149,10 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--assets") && v) pack_path = v, i++;
         else if (!strcmp(a, "--movie") && v) movie_path = v, i++;
         else if (!strcmp(a, "--frames") && v) frames = strtoul(v, NULL, 10), i++;
+        else if (!strcmp(a, "--scene") && v) scene = strtol(v, NULL, 0), i++;
         else {
-            fprintf(stderr, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm]\n");
+            fprintf(stderr, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm] "
+                            "[--scene flags]\n");
             return 2;
         }
     }
@@ -181,6 +189,8 @@ int main(int argc, char **argv)
     }
 
     pf.save.bytes = state_host_sram(g);
+    if (scene >= 0)
+        program_goes_on_to_a_scene(g, (uint8_t)scene);
     vid_host_start(&pf, read_game, write_game, g);
     SoundNative *sound = sound_native_create(g, &pf);
     if (!sound) {

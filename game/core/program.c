@@ -172,10 +172,19 @@ static void go_no_further(GameState *g, Platform *pf, uint32_t routine, const ch
  * runs until it ends into a scene (an event's) or a time gate's tunnel, the
  * scene until its script ends it, and the field starts again. A game over
  * starts the game afresh from the title, as the field's first start did at
- * power-on; a scene that resets the console starts it from the boot. */
+ * power-on; a scene that resets the console starts it from the boot. A
+ * driver may ask for a scene before the field's first start (ct_native
+ * --scene, which plays a story scene the way an event would start it). */
 void program_main_thread(GameState *g, Platform *pf)
 {
     program_boot(g, pf);
+    uint8_t first;
+    if (program_next_scene(g, &first)) {
+        if (!scene_runs(g, pf, first))
+            go_no_further(g, pf, FIELD_ENTER, "the field's entry");
+        if (program_console_resets(g))
+            program_boot(g, pf);
+    }
     field_power_on(g, pf);
     for (;;) {
         field_runs(g, pf);

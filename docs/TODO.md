@@ -104,13 +104,6 @@ rest waits, is [PLAN.md](PLAN.md).
   other frame. Shadow mode compares the runtime with itself; the oracle's
   traces of the Beyond Time ending would show it.
 
-- **The pixels' spread is still the program's** (`$7E:350E`, called by Lavos's
-  fall's setup, `scene/lavos_falls.c`): it spreads each packed byte into two
-  pixels through the work RAM port, reading the bytes by moving the stack onto
-  them (`TXS` to `$0BFF`, `PLA`). Shadow mode and the fallback measure follow
-  that switch now (docs/PORTING.md, "Call-outs"), so a port of it, a loop over
-  the bytes, would be compared in `battle-black-tyrano`; its 14,992
-  instructions are the setup's call-out in the reference play.
 - **The race's pictures' mirroring has no entry of its own** (`$7E:3ECD`,
   which runs `$7E:3ED3` twice, and `$7E:3EB7`). The race's setup does it as
   C (`scene/race.c`, `mirror_crono`, `scene_mirror_rows`), so the shipping mode

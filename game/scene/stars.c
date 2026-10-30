@@ -365,7 +365,23 @@ static void fly(Snes *s, bool spilled, uint16_t salt)
 
 /* A frame task, entered with 16-bit A: the slot it runs in salts the draws,
  * and the list's carry is what the first star's sums start with. */
-void scene_stars_fly(Snes *s) { fly(s, m_flag(s, CPU_FLAG_C), s->cpu.x); }
+void scene_stars_fly_entry(Snes *s) { fly(s, m_flag(s, CPU_FLAG_C), s->cpu.x); }
+
+/* As C: the list's carry is its compare's, clear past its first slot; at the
+ * first, what the frame's work left, which the native program doesn't keep,
+ * and the stars start clean there too. Where the flight's first star isn't
+ * one the port draws from, it is the machine's, as its entry's guard has it. */
+enum { SLOT_BYTES = 2 };
+
+static bool flies_from(const GameState *g, uint16_t first);
+
+TaskEnd scene_stars_fly(GameState *g, Platform *pf, unsigned slot)
+{
+    if (!flies_from(g, scene_sprite_index(g)))
+        return scene_task_needs_the_machine(g, 0x7E579B, "a star field the port doesn't fly");
+    (void)fly_stars(g, pf, false, (uint16_t)(slot * SLOT_BYTES));
+    return task_goes_on();
+}
 
 /* Here the first star's sums always start with the bit set: the original
  * comes to the flight from a compare that finds the room made, or from the

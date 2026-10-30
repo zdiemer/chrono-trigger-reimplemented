@@ -102,7 +102,7 @@ the aiming (`battle targeting`) were counted with the animation commands before.
 | 10/11/14/15 (`$7E:8538`) | 0.74 | the endings (`$FF $2A`/`$2B` at `$051`, `$2E`/`$2F` at `$05A`); paths the three recorded endings don't take |
 | 3 (`$7E:671F`) | 0.62 (+0.16 shared with 5) | the attract demo (`$0384` = `$63` after location `$06B`); event `$FF $23`/`$63` at `$066`-`$06B` (era 6) |
 | 7 (`$7E:6248`) | 0.50 | event `$FF $07` at `$1DC` (era 0, beside the final battle's `$1DA`): the Day of Lavos after a loss, which `battle-lavos-gameover` (added after this row) runs; 42 bytes left, mode 8's branch among them (Targets, 8) |
-| 4 (`$7E:53BB`) | 0.46 (ported in chunk 9 but the pixels' spread `$7E:350E`) | event `$FF $24` at `$12D` (era 4, beside ctsave08 slot 1's `$12F`, Azala and the Black Tyrano); `battle-black-tyrano` (Targets, 6) |
+| 4 (`$7E:53BB`) | 0.46 (ported) | event `$FF $24` at `$12D` (era 4, beside ctsave08 slot 1's `$12F`, Azala and the Black Tyrano); `battle-black-tyrano` (Targets, 6) |
 | 1 (`$7E:6B04`) | 0.39 | the attract demo (`$0384` = `$61`); event `$FF $61` at `$1AF`/`$1B1` (the title's), `$0AD`, `$16E` |
 | unattributed | 0.89 | race tasks and program routines no mode's setup reaches statically |
 
@@ -434,8 +434,8 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   `$56A9`); ported, `script_point_along`'s branches (`$C1:7447`), field paths (`$C0:964D`, `$9890`,
   `$8285`) and the battle screen's framed wave. Shadow: no mismatch; `script_return_from_call`'s guard
   (`$C1:56FB`) refused 24 calls, the gap `tech_sweep` found, until chunk 9 took the return at the top's
-  going on into it. Mode 4 is a port since (`scene/lavos_falls.c`; its pixels' spread `$7E:350E`
-  excepted). No `page refused` or `accessor out of range`. The route reaches its end in the shipping
+  going on into it. Mode 4 is a port since (`scene/lavos_falls.c`, its pixels' spread
+  too). No `page refused` or `accessor out of range`. The route reaches its end in the shipping
   mode (`route_check --mode on:on:c`: won without a wipe at frame 44718, mode 4 from 47598, the
   field back in hand at 52013).
 - **Route**: `black_tyrano`.

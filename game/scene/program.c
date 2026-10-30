@@ -322,7 +322,7 @@ bool scene_program_end_present(Snes *s) { return m_code_matches(s, 0x7E303B, 8, 
 
 /* The setups the port has as C for a program with no machine: the title's,
  * the credits' page's, the race's (the attract sequence's too), the rising
- * palace's and the planet's. */
+ * palace's, Lavos falling's and the planet's. */
 static const struct {
     SceneMode mode;
     uint32_t routine;
@@ -333,6 +333,7 @@ static const struct {
     { MODE_RACE, RACE_SET_UP, scene_race_set_up },
     { MODE_ATTRACT_RACE, RACE_SET_UP, scene_race_set_up },
     { MODE_RISING_PALACE, PALACE_SET_UP, scene_palace_set_up },
+    { MODE_LAVOS_FALLS, LAVOS_FALLS_SET_UP, scene_lavos_falls_set_up },
     { MODE_PLANET_LOST, PLANET_SET_UP, scene_planet_set_up },
     { MODE_PLANET_ENDING, PLANET_SET_UP, scene_planet_set_up },
 };

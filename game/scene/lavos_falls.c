@@ -16,12 +16,14 @@
  * field goes behind the layers and a frame task draws the planet's edge.
  *
  * The setup loads it all: Lavos's picture, its pixels packed two to a byte,
- * spread to Mode 7's byte a pixel by the program's own spread (which moves
- * the stack onto them, docs/TODO.md) and sent into VRAM's high bytes; its map of
+ * spread to Mode 7's byte a pixel and sent into VRAM's high bytes; its map of
  * tiles, 64 to a row, widened to Mode 7's 128 and sent into the low bytes,
  * the rest of the map blank; the planet's sprite tiles, laid out in the order
  * a list gives; the stars' tiles; the colours; then the two channels' scripts
- * started and the stars scattered. */
+ * started and the stars scattered. The setup is one sequence, whose steps
+ * that are the program's other routines (its unpacker, a script's first step)
+ * the machine's entry takes as calls of the original's and the native
+ * program as C. */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -33,6 +35,7 @@
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
+#include "wram.h"
 
 /* ---- Lavos turning ---------------------------------------------------------------------------- */
 
@@ -138,20 +141,30 @@ enum {
 };
 
 /* Lavos's picture comes packed two pixels to a byte, and Mode 7 takes a byte
- * a pixel: the program's spread ($7E:350E) makes each byte two, from where the
- * unpacker left them in low RAM into the unpack buffer, the packed count in Y
- * and twice it in A. It reads the packed bytes by moving the stack onto them,
- * which shadow mode can't follow inside a port's stretch (S above the entry's
- * reads as a return), so it stays the program's (docs/TODO.md). */
-enum { SPREAD = 0x7E350E, SPREAD_IGNORES = DC_X | DC_N | DC_V | DC_Z | DC_C };
+ * a pixel: the spread makes each byte two, the low pixel first, from where the
+ * unpacker left them in low RAM into the unpack buffer. */
+enum { SPREAD = 0x7E350E, PACKED_PIXELS = 0x7E0C00 };
 
-static void spread_the_pixels(Snes *s, uint16_t packed)
+// $7E:350E
+static void spread_the_pixels(GameState *g, uint16_t packed)
 {
-    s->cpu.a = (uint16_t)(2 * packed);
-    s->cpu.y = packed;
-    m_set_flag(s, CPU_FLAG_M, true);
-    m_jsr_dc(s, 0x7E53E1, SPREAD, SPREAD_IGNORES);
+    for (uint16_t n = 0; n < packed; n++) {
+        uint8_t two = wram_read8(g, PACKED_PIXELS + n);
+        wram_write8(g, SCENE_UNPACK_BUFFER + 2u * n, (uint8_t)(two & 0x0F));
+        wram_write8(g, SCENE_UNPACK_BUFFER + 2u * n + 1, (uint8_t)(two >> 4));
+    }
 }
+
+/* The original writes the pixels through the work RAM port, which it leaves
+ * past them; and it reads the packed bytes by moving the stack onto them,
+ * keeping its own stack pointer in a cell of the controller's (which the
+ * field's reading of the controller writes before anything reads it). */
+static void leave_the_spread_s_port(GameState *g, uint16_t packed)
+{
+    hw_port_seek(g, (uint16_t)(SCENE_UNPACK_BUFFER + 2u * packed), (uint8_t)(SCENE_UNPACK_BUFFER >> 16));
+}
+
+static void leave_the_stack_pointer_kept(GameState *g, uint16_t stack) { set_input_previous(g, stack); }
 
 /* The planet's sprite tiles are laid out in VRAM in the order their list
  * gives: each of the list's 96 entries names one of the tiles unpacked, sent
@@ -200,47 +213,63 @@ static void copy_into_the_first_bank(GameState *g, unsigned resource, uint16_t t
     scene_copy_resource_to(g, scene_program_own(), resource, to, bytes);
 }
 
+/* The setup's steps that are other routines of the program's: a resource
+ * unpacked by its unpacker, and the scripts' first step. The program takes
+ * them as C, the machine's entry as calls of the original's. */
+typedef enum { UNPACK_LAVOS_PIXELS, UNPACK_PLANET_TILES, UNPACK_STAR_TILES, UNPACK_LAVOS_MAP, LAVOS_UNPACKS } LavosUnpack;
+
+static const struct {
+    uint32_t site;
+    uint16_t resource;
+} lavos_unpacks[LAVOS_UNPACKS] = {
+    [UNPACK_LAVOS_PIXELS] = { 0x7E53D2, LAVOS_PIXELS },
+    [UNPACK_PLANET_TILES] = { 0x7E541B, PLANET_TILES },
+    [UNPACK_STAR_TILES] = { 0x7E543A, STAR_TILES },
+    [UNPACK_LAVOS_MAP] = { 0x7E544A, LAVOS_MAP },
+};
+
+typedef struct {
+    void (*unpack)(void *ctx, LavosUnpack which);
+    void (*spread)(void *ctx, uint16_t packed);
+    bool (*first_step_and_stars)(void *ctx);
+} LavosFallsSetUpSteps;
+
 /* Lavos's picture: its pixels. */
-static void load_lavos(Snes *s)
+static void load_lavos(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     vid_start_vram_uploads(pf, PF_AT(0x7E53BD), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E53C3), LAVOS_VRAM);
     set_decompress_dest(g, LOW_RAM_BUFFER);
-    scene_bridge_unpack(s, 0x7E53D2, LAVOS_PIXELS);
+    steps->unpack(ctx, UNPACK_LAVOS_PIXELS);
     uint16_t packed = decompress_length(g);
     set_decompress_length(g, (uint16_t)(2 * packed));
-    spread_the_pixels(s, packed);
+    steps->spread(ctx, packed);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     scene_choose_transfer(g, scene_pixels_into_high_bytes);
     scene_send_unpacked_by(g, pf, scene_pixels_into_high_bytes);
 }
 
 /* The planet's tiles and the stars'. */
-static void load_the_sprites(Snes *s)
+static void load_the_sprites(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     copy_into_the_first_bank(g, PLANET_TILE_ORDER, (uint16_t)LOW_RAM_BUFFER, TILES_LAID_OUT);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    scene_bridge_unpack(s, 0x7E541B, PLANET_TILES);
+    steps->unpack(ctx, UNPACK_PLANET_TILES);
     vid_set_vram_address(pf, PF_AT(0x7E5421), PLANET_TILES_VRAM);
     lay_out_the_planet_tiles(g, pf);
     ORIGINAL_EFFECT(leave_the_tiles_laid_out(g));
     scene_choose_transfer(g, scene_whole_words);
     vid_set_vram_address(pf, PF_AT(0x7E5434), STAR_TILES_VRAM);
-    scene_bridge_unpack(s, 0x7E543A, STAR_TILES);
+    steps->unpack(ctx, UNPACK_STAR_TILES);
     scene_send_unpacked_by(g, pf, scene_whole_words);
 }
 
-static void load_lavos_s_map(Snes *s)
+static void load_lavos_s_map(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    vid_set_vram_address(m_platform(s), PF_AT(0x7E5444), LAVOS_VRAM);
-    scene_bridge_unpack(s, 0x7E544A, LAVOS_MAP);
+    vid_set_vram_address(pf, PF_AT(0x7E5444), LAVOS_VRAM);
+    steps->unpack(ctx, UNPACK_LAVOS_MAP);
     scene_widen_the_plane_map(g);
-    send_the_map(m_platform(s));
+    send_the_map(pf);
 }
 
 /* The colours: Lavos's, the sprites' (the planet's and the stars'), and the
@@ -287,22 +316,94 @@ static void set_up_the_layers(GameState *g, Platform *pf)
 }
 
 // $7E:53BB
-/* The scene's setup, from the program's mode table (mode 4). */
-static void set_up_lavos_falls(Snes *s)
+/* The scene's setup, from the program's mode table (mode 4): Lavos, the
+ * planet and the stars loaded, the two channels' scripts started, the stars
+ * scattered and the layers set up. False where a step went no further. */
+static bool set_up_lavos_falls_with(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    load_lavos(s);
-    load_the_sprites(s);
-    load_lavos_s_map(s);
+    load_lavos(g, pf, steps, ctx);
+    load_the_sprites(g, pf, steps, ctx);
+    load_lavos_s_map(g, pf, steps, ctx);
     load_the_colours(g);
     set_scene_channels_script(g, SCENE_CAMERA_CHANNEL, LAVOS_SCRIPT);
     set_scene_channels_script(g, SCENE_STAR_FIELD_CHANNEL, FIELD_SCRIPT);
-    show_the_sprites_alone(m_platform(s));
-    /* The script's first step: Y past the sprites' colours, as their copy
-     * left it (scene/bridge.c). */
+    show_the_sprites_alone(pf);
+    if (!steps->first_step_and_stars(ctx))
+        return false;
+    set_up_the_layers(g, pf);
+    return true;
+}
+
+/* ---- On the machine ---- */
+
+/* The spread's call (from $7E:53E1) and its own pushes leave the stack four
+ * below the setup's when it keeps the stack pointer. */
+enum { BELOW_THE_SETUP_S_STACK = 4 };
+
+static void unpack_on_the_machine(void *ctx, LavosUnpack which)
+{
+    scene_bridge_unpack(ctx, lavos_unpacks[which].site, lavos_unpacks[which].resource);
+}
+
+static void spread_on_the_machine(void *ctx, uint16_t packed)
+{
+    Snes *s = ctx;
+    GameState *g = state_of(s);
+    spread_the_pixels(g, packed);
+    ORIGINAL_EFFECT(leave_the_spread_s_port(g, packed));
+    ORIGINAL_EFFECT(leave_the_stack_pointer_kept(g, (uint16_t)(s->cpu.s - BELOW_THE_SETUP_S_STACK)));
+}
+
+/* The script's first step: Y past the sprites' colours, as their copy left
+ * it (scene/bridge.c); the stars' first draw starts from what it leaves. */
+static bool first_step_and_stars_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
     scene_bridge_first_script_step(s, 0x7E54B4, (uint16_t)(SPRITE_COLOURS_AT + SPRITE_COLOURS_BYTES));
     scene_bridge_scatter_stars(s, s->cpu.a);
-    set_up_the_layers(g, m_platform(s));
+    return true;
+}
+
+/* ---- As C ---- */
+
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} LavosInC;
+
+static void unpack_the_resource(void *ctx, LavosUnpack which)
+{
+    LavosInC *c = ctx;
+    TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, lavos_unpacks[which].resource));
+}
+
+static void spread(void *ctx, uint16_t packed)
+{
+    LavosInC *c = ctx;
+    spread_the_pixels(c->game, packed);
+}
+
+/* The camera channel's turn, and the stars scattered. A host's draws take
+ * its own noise, so the first of them starts from nothing in particular
+ * where the original's starts from what the interpreter left. */
+enum { SCATTER_STARS = 0x7E5777 };
+
+static bool turn_and_scatter(void *ctx)
+{
+    LavosInC *c = ctx;
+    SceneTurn turn = SCENE_TURN_ENDED;
+    TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, SCENE_CAMERA_CHANNEL));
+    if (turn != SCENE_TURN_ENDED)
+        return false;
+    TIMED_AS(c->game, SCATTER_STARS, scene_scatter_stars(c->game, c->pf, scene_draw_from(0, false, TM_ENTROPY_BYTES)));
+    return true;
+}
+
+bool scene_lavos_falls_set_up(GameState *g, Platform *pf)
+{
+    static const LavosFallsSetUpSteps as_c = { unpack_the_resource, spread, turn_and_scatter };
+    LavosInC c = { g, pf };
+    return set_up_lavos_falls_with(g, pf, &as_c, &c);
 }
 
 /* ---- Entries ---------------------------------------------------------------------------------- */
@@ -334,19 +435,60 @@ void scene_let_lavos_fall(Snes *s) { scene_script_routine_alone(s, &scene_lavos_
  * which the program reads, and the direct page the scene's. */
 bool scene_lavos_falls_set_up_scene(Snes *s)
 {
-    set_up_lavos_falls(s);
-    return true;
+    static const LavosFallsSetUpSteps on_the_machine = {
+        unpack_on_the_machine, spread_on_the_machine, first_step_and_stars_on_the_machine,
+    };
+    return set_up_lavos_falls_with(state_of(s), m_platform(s), &on_the_machine, s);
 }
 
-void scene_lavos_falls_set_up(Snes *s)
+void scene_lavos_falls_set_up_entry(Snes *s)
 {
-    scene_lavos_falls_set_up_scene(s);
-    m_rts(s);
+    if (scene_lavos_falls_set_up_scene(s))
+        m_rts(s);
 }
 
-/* The frame's tasks, 16-bit, each leaving A as its last load left it: the
- * matrix's last entry the turn wrote, the angle, the speed. */
-void scene_turn_lavos(Snes *s)
+/* The planet's list, its 28 sprites with room for them in the tables. */
+enum { PLANET_SPRITES = 28 };
+
+/* The frame's tasks, as C: none ends. The planet's edge is drawn where its
+ * sprites have room in the tables, as its entry's guard has it. */
+TaskEnd scene_turn_lavos(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    turn_lavos(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_turn_the_field_s_angle(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    turn_the_field_s_angle(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_swing_the_field(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    swing_the_field(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_draw_the_planet(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    if (!scene_sprites_fit(g, PLANET_SPRITES))
+        return scene_task_needs_the_machine(g, 0x7E56EB, "a planet's edge with no room for its sprites");
+    draw_the_planet(g);
+    return task_goes_on();
+}
+
+/* The frame's tasks on the machine, 16-bit, each leaving A as its last load
+ * left it: the matrix's last entry the turn wrote, the angle, the speed. */
+void scene_turn_lavos_entry(Snes *s)
 {
     GameState *g = state_of(s);
     turn_lavos(g);
@@ -354,7 +496,7 @@ void scene_turn_lavos(Snes *s)
     m_rts(s);
 }
 
-void scene_turn_the_field_s_angle(Snes *s)
+void scene_turn_the_field_s_angle_entry(Snes *s)
 {
     GameState *g = state_of(s);
     turn_the_field_s_angle(g);
@@ -362,7 +504,7 @@ void scene_turn_the_field_s_angle(Snes *s)
     m_rts(s);
 }
 
-void scene_swing_the_field(Snes *s)
+void scene_swing_the_field_entry(Snes *s)
 {
     GameState *g = state_of(s);
     swing_the_field(g);
@@ -372,7 +514,7 @@ void scene_swing_the_field(Snes *s)
 
 /* Y is the next free sprite entry, and A as the list leaves it (sprites.c),
  * called with the list's place. */
-void scene_draw_the_planet(Snes *s)
+void scene_draw_the_planet_entry(Snes *s)
 {
     GameState *g = state_of(s);
     draw_the_planet(g);
@@ -407,9 +549,6 @@ bool scene_swing_the_field_present(Snes *s)
 {
     return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E5855, 0x1D, 0xB1A7FF9566C6DC3Bull) && sine_present(s);
 }
-
-/* The planet's list, its 28 sprites with room for them in the tables. */
-enum { PLANET_SPRITES = 28 };
 
 bool scene_draw_the_planet_present(Snes *s)
 {

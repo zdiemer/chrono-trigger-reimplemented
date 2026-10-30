@@ -493,12 +493,17 @@ what `ct_play` becomes (PLAN.md, "The native program, and the registry taken
 down"). It is a measurement, not yet a player:
 
 ```sh
-build/main/ct_native --rom roms/ct-usa.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]
+build/main/ct_native --rom roms/ct-usa.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm] [--scene flags]
 ```
 
 With `--movie` the first controller presses what the movie's frames say,
 frame for frame; the native program's frames aren't the machine's (nothing
 in it takes the original's time), so a movie's presses land where they will.
+So a movie that plays its way to a story scene seldom brings the native
+program there: `--scene` starts the game in the scene engine after the boot,
+with the flags an event hands it (`$24` Lavos falling, `$26` the Epoch's
+dive, `$2A`, `$2B`, `$2E` and `$2F` the endings, `$2D` the staff roll), and
+goes on to the field's power-on after it.
 
 It links the whole of `game/` but `game/registry.c` -- the program's top in
 `game/core/program.c` (the boot, the main thread, the vblank and line

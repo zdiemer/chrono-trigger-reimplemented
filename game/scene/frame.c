@@ -516,8 +516,8 @@ static void unwind_the_task_s_frames(Snes *s)
 }
 
 /* The program's routines on the lists that a build with no machine runs as
- * C: the channels' turns, the sprites hidden and the palette sent. Each
- * stays on its list. */
+ * C: the channels' turns, the sprites hidden, the palette sent and the
+ * plane shown flat sent. Each stays on its list. */
 static TaskEnd channel_turn(GameState *g, Platform *pf, SceneChannel ch)
 {
     if (scene_channel_turn(g, pf, ch) != SCENE_TURN_ENDED)
@@ -540,6 +540,13 @@ static TaskEnd send_palette(GameState *g, Platform *pf, unsigned slot)
     (void)g;
     (void)slot;
     scene_send_palette(pf);
+    return task_goes_on();
+}
+
+static TaskEnd send_the_flat_plane(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    scene_send_the_flat_plane(g, pf);
     return task_goes_on();
 }
 
@@ -588,12 +595,12 @@ static const struct {
     { 0x7E4F54, scene_race_draw_entry, scene_race_draw },
     { 0x7E5221, scene_race_upload_tilemap_entry, scene_race_upload_tilemap },
     /* Lavos falling to the planet's */
-    { 0x7E55F9, scene_turn_the_field_s_angle, NULL },
-    { 0x7E5654, scene_send_the_flat_plane_entry, NULL },
-    { 0x7E56A9, scene_turn_lavos, NULL },
-    { 0x7E56EB, scene_draw_the_planet, NULL },
-    { 0x7E579B, scene_stars_fly, NULL },
-    { 0x7E5855, scene_swing_the_field, NULL },
+    { 0x7E55F9, scene_turn_the_field_s_angle_entry, scene_turn_the_field_s_angle },
+    { 0x7E5654, scene_send_the_flat_plane_entry, send_the_flat_plane },
+    { 0x7E56A9, scene_turn_lavos_entry, scene_turn_lavos },
+    { 0x7E56EB, scene_draw_the_planet_entry, scene_draw_the_planet },
+    { 0x7E579B, scene_stars_fly_entry, scene_stars_fly },
+    { 0x7E5855, scene_swing_the_field_entry, scene_swing_the_field },
     /* the planet's and the rising palace's */
     { 0x7E63D5, scene_wait_for_a_button_to_restart_entry, scene_wait_for_a_button_to_restart },
     { 0x7E63F5, scene_count_down_to_the_restart_entry, scene_count_down_to_the_restart },
