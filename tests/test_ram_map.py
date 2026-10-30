@@ -295,7 +295,7 @@ class TestAccessors(unittest.TestCase):
         self.assertLess(c.index("static void out_of_range("), off)
 
     def test_a_deliberate_stray_access_has_an_unchecked_pair(self):
-        """Marked scaffolding that reaches past a variable on purpose uses its
+        """Code that reaches past a variable on purpose uses its
         `_unchecked` pair, which the map declares with a reason; the checked
         pair is still there for everything else."""
         m = self.load(var("facing", 'addr = "7E:1100"\nsize = 2\ncount = 4\nstride = 2\nindex = "object slot"\n'
@@ -303,7 +303,7 @@ class TestAccessors(unittest.TestCase):
         h, c = ram_map.render_vars_header(m), ram_map.render_backing(m)
         self.assertIn("void set_facing(GameState *g, unsigned slot, uint16_t v);", h)
         self.assertIn("void set_facing_unchecked(GameState *g, unsigned slot, uint16_t v);", h)
-        self.assertIn("Unchecked, for marked scaffolding only", h)
+        self.assertIn("Unchecked, reaching past the variable into what follows it", h)
         self.assertIn("void set_facing_unchecked(GameState *g, unsigned slot, uint16_t v)"
                       " { w16(g, 0x7E1100u + (uint32_t)slot * 0x02u, v); }", c)
         m = self.load(var("name", 'addr = "7E:1200"\nsize = 6\nunchecked = "w"'))   # a buffer: one _BYTES
