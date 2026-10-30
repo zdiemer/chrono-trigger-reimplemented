@@ -2912,6 +2912,23 @@ list, by kind, is what `game/` still asks of one.
   RAM wherever an accessor may run past its end (the glitch reproduced byte
   for byte), or name the reachable overruns, make each a defined, bounded
   result, and leave the arbitrary-memory glitches out of scope.
+- **What the native picture's review left** (the line handlers' end of the
+  picture, `runtime/platform/native/video.c`, `tools/native_check.py`):
+  - A line handler at line 224 or past puts `below_from` beyond
+    `VID_HOST_LAST_LINE`, and `from_a_line` then takes the change as the whole
+    frame's at once, where it should hold only from the next frame's top.
+  - The display's and the line effects' changes share one `below_from`: made
+    on different lines, both apply from the earlier.
+  - The dark check judges only a movie's end and never against the reference
+    play: a reference that rightly ends 10 s on black would fail for good, and
+    a long dark stretch mid-movie is reported but passes.
+  - `native_check --check` doesn't hold "stopped" to a baseline, so a movie
+    that starts stopping earlier in `ct_native` passes; a ratchet would.
+  - "What the host backends don't do yet", above, and docs/PLAN.md's "The
+    host video backend draws nothing yet" predate `ct_native` drawing its
+    picture.
+  - `scene_boot_line_irq_blank`, the boot's machine wrapper, still calls
+    `vid_set_display` where its C path now calls `vid_raster_display`.
 
 ## Refusals in real play
 
