@@ -30,6 +30,7 @@
  * program stopped short, 2 on bad arguments or files. This file is the driver:
  * the loop, the files and the report are its, as frontend/headless.c's are
  * the player's. */
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -141,6 +142,28 @@ static uint8_t *load_pack(const char *path, const char *rom_path, AssetPack **pa
     return bytes;
 }
 
+/* A byte written out whole, in any base strtol takes, ending at `end`. */
+static bool byte_from(const char *text, char **end, uint8_t *out)
+{
+    long v = strtol(text, end, 0);
+    if (*end == text || v < 0 || v > 0xFF)
+        return false;
+    *out = (uint8_t)v;
+    return true;
+}
+
+/* --scene's flags, and the song after a comma (0, none, where there is none). */
+static bool scene_and_song(const char *text, uint8_t *scene, uint8_t *song)
+{
+    char *rest;
+    if (!byte_from(text, &rest, scene))
+        return false;
+    *song = 0;
+    if (*rest == '\0')
+        return true;
+    return *rest == ',' && byte_from(rest + 1, &rest, song) && *rest == '\0';
+}
+
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL, *movie_path = NULL;
@@ -154,13 +177,8 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--assets") && v) pack_path = v, i++;
         else if (!strcmp(a, "--movie") && v) movie_path = v, i++;
         else if (!strcmp(a, "--frames") && v) frames = strtoul(v, NULL, 10), i++;
-        else if (!strcmp(a, "--scene") && v && scenes < STATE_HOST_FIRST_SCENES) {
-            char *rest;
-            scene[scenes] = (uint8_t)strtol(v, &rest, 0);
-            song[scenes] = *rest == ',' ? (uint8_t)strtol(rest + 1, NULL, 0) : 0;
-            scenes++;
-            i++;
-        }
+        else if (!strcmp(a, "--scene") && v && scenes < STATE_HOST_FIRST_SCENES && scene_and_song(v, &scene[scenes], &song[scenes]))
+            scenes++, i++;
         else {
             fprintf(stderr, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm] "
                             "[--scene flags[,song]]\n");

@@ -87,6 +87,22 @@ enum {
     SCENE_FLAG_NO_SONGS = 0x20,
 };
 
+/* A scene's mode, the low bits of scene_flags, which picks its setup from the
+ * program's table (scene/program.c). */
+typedef enum {
+    SCENE_MODE_RACE = 0, SCENE_MODE_CREDITS_PAGE = 1, SCENE_MODE_TITLE = 2, SCENE_MODE_RISING_PALACE = 3,
+    SCENE_MODE_LAVOS_FALLS = 4, SCENE_MODE_EPOCH_DIVE = 6, SCENE_MODE_PLANET_LOST = 7, SCENE_MODE_PLANET_ENDING = 8,
+    SCENE_MODE_ATTRACT_RACE = 9, SCENE_MODE_ENDING_CAPTIONED = 10, SCENE_MODE_ENDING_CAPTIONED_TOO = 11,
+    SCENE_MODE_STAFF_ROLL = 13, SCENE_MODE_ENDING_AGAIN = 14, SCENE_MODE_ENDING_WITHOUT_CREDITS = 15,
+} SceneMode;
+
+/* The main loop's call each pass, which a setup names (scene_main_loop_call):
+ * nothing, or the scaling of a picture the scene draws as it goes. */
+typedef enum {
+    SCENE_PASS_NOTHING = 0x3176, SCENE_PASS_RACE_SCALING = 0x51D1, SCENE_PASS_ENDING_SCALING = 0x8930,
+    SCENE_PASS_DIVE_SCALING = 0x8278,
+} ScenePass;
+
 /* ---- The scene program's memory and transfers ------------------------------------------------ */
 
 /* The two banks of work RAM. The program runs in the first, and puts large

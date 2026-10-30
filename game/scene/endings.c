@@ -60,10 +60,8 @@
 /* ---- What the endings share -------------------------------------------------------------------- */
 
 /* The scene's mode, as the program's mode table took it (race.h's mask). */
-static unsigned ending_mode(const GameState *g) { return scene_flags(g) & SCENE_MODE; }
+static SceneMode ending_mode(const GameState *g) { return (SceneMode)(scene_flags(g) & SCENE_MODE); }
 
-/* The two endings that start their captions from the first of their text. */
-enum { MODE_CAPTIONED = 10, MODE_CAPTIONED_TOO = 11, MODE_WITHOUT_CREDITS = 15 };
 
 /* Channel 1's registers, as the scripts move the zooming picture with them:
  * its zoom, and the point it is drawn round. Channel 0's: the frame of its
@@ -382,11 +380,11 @@ typedef struct {
     uint16_t steering, picture;
 } EndingScripts;
 
-static EndingScripts scripts_for(unsigned mode)
+static EndingScripts scripts_for(SceneMode mode)
 {
     switch (mode) {
-    case MODE_CAPTIONED: return (EndingScripts){ 0x90CF, 0x9341 };
-    case MODE_CAPTIONED_TOO: return (EndingScripts){ 0x9450, 0x97A6 };
+    case SCENE_MODE_ENDING_CAPTIONED: return (EndingScripts){ 0x90CF, 0x9341 };
+    case SCENE_MODE_ENDING_CAPTIONED_TOO: return (EndingScripts){ 0x9450, 0x97A6 };
     default: return (EndingScripts){ 0x9613, 0x970F };
     }
 }
@@ -570,14 +568,14 @@ static void start_captions(GameState *g)
  * where a step went no further. */
 static uint16_t set_up_ending_with(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
 {
-    unsigned mode = ending_mode(g);
+    SceneMode mode = ending_mode(g);
     load_letters_and_ground(g, pf, steps, ctx);
-    if (mode == MODE_CAPTIONED)
+    if (mode == SCENE_MODE_ENDING_CAPTIONED)
         load_mosaic(g, pf, steps, ctx);
     load_ground_colors(g, steps, ctx);
 
     EndingScripts scripts = scripts_for(mode);
-    if (mode == MODE_CAPTIONED || mode == MODE_CAPTIONED_TOO)
+    if (mode == SCENE_MODE_ENDING_CAPTIONED || mode == SCENE_MODE_ENDING_CAPTIONED_TOO)
         set_scene_ending_caption_text(g, CAPTIONS_TEXT);
     set_scene_channels_script(g, STEERING_CHANNEL, scripts.steering);
     set_scene_channels_script(g, PICTURE_CHANNEL, scripts.picture);
@@ -614,8 +612,6 @@ enum { SCALER_OUTPUT_AS_FULL = 0x0A00 };
  * one, at color 128. */
 enum { PICTURE_COLORS = 55, PICTURE_PALETTE = 128 };
 
-/* The main loop's call each pass: the picture's scaling. */
-enum { MAIN_LOOP_SCALES_PICTURE = 0x8930 };
 
 /* The mirroring's working values, as the original leaves them in the second
  * bank's first words (the scaler's picture, which writes over them). */
@@ -664,7 +660,7 @@ static uint16_t load_picture(GameState *g, SceneProgramPage page, const EndingSt
 /* A new picture zooms: the main loop scales it from now on. */
 static void start_picture(GameState *g, Platform *pf, uint32_t effects_site)
 {
-    set_scene_main_loop_call(g, MAIN_LOOP_SCALES_PICTURE);
+    set_scene_main_loop_call(g, SCENE_PASS_ENDING_SCALING);
     vid_enable_line_effects(pf, PF_AT(effects_site), 0);
 }
 
@@ -817,7 +813,7 @@ static bool prepare_credits_with(GameState *g, Platform *pf, const EndingSteps *
 {
     stop_frame_tasks(g);
     vid_enable_line_effects(pf, PF_AT(0x7E8CDD), 0);
-    if (ending_mode(g) == MODE_WITHOUT_CREDITS) {
+    if (ending_mode(g) == SCENE_MODE_ENDING_WITHOUT_CREDITS) {
         set_scene_channels_script(g, STEERING_CHANNEL, NO_CREDITS_SCRIPT);
         return false;
     }
@@ -1022,7 +1018,7 @@ static const EndingSteps as_c = { unpack_the_resource, turn_the_steering_channel
 /* Mode 10's picture needs room on the vblank list for its task. */
 static bool room_for_the_mosaic(const GameState *g)
 {
-    return ending_mode(g) != MODE_CAPTIONED || scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK);
+    return ending_mode(g) != SCENE_MODE_ENDING_CAPTIONED || scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK);
 }
 
 enum { ENDINGS_SET_UP = 0x7E8538 };
@@ -1093,16 +1089,13 @@ const unsigned scene_ending_loading_routine_count = sizeof scene_ending_loading_
 
 /* ---- The scripts' other routines: the picture's stop, the ground's colors, the captions' place -- */
 
-/* The main loop's call each pass that does nothing. */
-enum { NOTHING_EACH_PASS = 0x3176 };
-
 // $7E:96FB
 /* The picture stops zooming: the main loop scales it no more. */
 static void stop_the_picture(GameState *g, Platform *pf, uint8_t channel)
 {
     (void)pf;
     (void)channel;
-    set_scene_main_loop_call(g, NOTHING_EACH_PASS);
+    set_scene_main_loop_call(g, SCENE_PASS_NOTHING);
 }
 
 /* The ground's first 112 colors step toward one of its later sets, a step
@@ -1116,24 +1109,20 @@ static void step_the_ground_toward(GameState *g, unsigned set)
 }
 
 // $7E:98F6, $7E:98FB, $7E:9900
+/* The three routines are one, each with its set: rows of the table below. */
 static void step_the_ground_toward_the_first(GameState *g, Platform *pf, uint8_t channel)
 {
-    (void)pf;
-    (void)channel;
+    (void)pf, (void)channel;
     step_the_ground_toward(g, 0);
 }
-
 static void step_the_ground_toward_the_second(GameState *g, Platform *pf, uint8_t channel)
 {
-    (void)pf;
-    (void)channel;
+    (void)pf, (void)channel;
     step_the_ground_toward(g, 1);
 }
-
 static void step_the_ground_toward_the_third(GameState *g, Platform *pf, uint8_t channel)
 {
-    (void)pf;
-    (void)channel;
+    (void)pf, (void)channel;
     step_the_ground_toward(g, 2);
 }
 
@@ -1221,7 +1210,7 @@ const unsigned scene_ending_routine_count = sizeof scene_ending_routines / sizeo
  * address, the move's count run out, the colors' count, the fades' kind in A's
  * low byte; Y, past the colors the move took; and the captions' place down
  * in A's low byte. */
-enum { NOTHING_EACH_PASS_LEFT = NOTHING_EACH_PASS, MOVE_DONE = 0xFFFF, FADE_KIND = 0x50 };
+enum { NOTHING_EACH_PASS_LEFT = SCENE_PASS_NOTHING, MOVE_DONE = 0xFFFF, FADE_KIND = 0x50 };
 
 static uint16_t leaves_the_empty_routine(uint16_t called_with)
 {

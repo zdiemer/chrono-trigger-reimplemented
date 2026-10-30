@@ -831,7 +831,7 @@ static void load_the_epoch(GameState *g, const DiveSetUpSteps *steps, void *ctx)
 enum { CAMERA_SCRIPT = 0x7C73, DIVE_SCRIPT = 0x7CF3 };
 
 /* The main loop's call each pass scales the Epoch (scene_scale_the_epoch). */
-enum { MAIN_LOOP_SCALES_THE_EPOCH = 0x8278, PROGRAM_BANK = 0x7E0000 };
+enum { MAIN_LOOP_SCALES_THE_EPOCH = SCENE_PASS_DIVE_SCALING, PROGRAM_BANK = 0x7E0000 };
 
 /* The screen: BG1, BG2 and the sprites on both screens and masked by the
  * windows on the main one, window 1 over BG1, BG2, the sprites and color math,
@@ -963,8 +963,18 @@ static bool draw_and_scale_once(void *ctx)
     return scene_draw_the_epoch(c->game, c->pf, 0).outcome == TASK_GOES_ON && scene_scale_the_epoch(c->game, c->pf);
 }
 
+/* As C: where a picture waits already, or the mark isn't the word the
+ * setup's increment takes it for, the setup is the machine's, as its entry's
+ * guard has it. */
+static bool no_picture_yet(const GameState *g);
+enum { DIVE_SET_UP = 0x7E78DD };
+
 bool scene_dive_set_up(GameState *g, Platform *pf)
 {
+    if (!no_picture_yet(g)) {
+        program_needs_the_machine(g, DIVE_SET_UP, "an Epoch's dive with a picture waiting already");
+        return false;
+    }
     static const DiveSetUpSteps as_c = { unpack_the_resource, turn_the_camera_channel, draw_and_scale_once };
     DiveInC c = { g, pf };
     return set_up_the_dive_with(g, pf, &as_c, &c);
@@ -1658,14 +1668,7 @@ bool scene_white_out_present(Snes *s)
  * the copy of a resource, the unpacker's destination set; and no picture
  * waiting yet, as the scene's clear leaves the mark, which the setup's word-wide
  * increment of it then sets. */
-static bool no_picture_yet(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = !picture_waiting(g) && mark_whole(g);
-    vars_peek(false);
-    return ok;
-}
+static bool no_picture_yet(const GameState *g) { return !picture_waiting(g) && mark_whole(g); }
 
 bool scene_dive_set_up_present(Snes *s)
 {
@@ -1673,5 +1676,5 @@ bool scene_dive_set_up_present(Snes *s)
            m_code_matches(s, 0x7E7A68, 0x134, 0x4FCD71723D76F63Dull) && m_code_matches(s, 0x7E37A6, 0x24, 0x5FBEEF82E0975340ull) &&
            m_code_matches(s, 0x7E38AF, 0x14, 0xD31DAC893D4743DCull) && m_code_matches(s, 0x7E38C3, 0x48, 0x77070614CC728768ull) &&
            m_code_matches(s, 0x7E36AA, 0x22, 0xCCA1DE26086A09CBull) && m_code_matches(s, 0x7E89ED, 0x14, 0x22A581F747CC4E58ull) &&
-           no_picture_yet(s);
+           holds(s, no_picture_yet);
 }
