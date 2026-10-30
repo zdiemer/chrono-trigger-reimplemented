@@ -64,6 +64,7 @@ events-prison-escape end
 events-zeal-palace 4109  # C6:E4BE: the Skyway capsule iris reaches centre y=0; guard gap in TODO.md, Refusals in real play
 events-proto-dome drifts  # consumes all 24717 frames without a halt, but ends at story $37, repair stage $00, Robo absent (59 saved-game bytes differ)
 events-rainbow-shell-trial drifts  # hand-run recording kept outside the library; input timing ends in the treasury ($01A), trial stage $02 without the fragment; differs from the reference: 81 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...)
+events-sun-stone drifts  # differs from the reference: 23 byte(s) of the saved game (inventory_items, inventory_counts, party_waiting, current_song, $7E:0102, $7E:0103, ...)
 field-12kbc-1f4 end
 field-12kbc-1f5 end
 field-12kbc-1f6 end

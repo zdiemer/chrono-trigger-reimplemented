@@ -53,14 +53,11 @@ def land_near(run):
     raise AssertionError("ground near the Sun Keep to land on")
 
 
-def main():
-    args = route_arguments(__doc__, save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, sound=args.sound_driver, until=args.until)
+def play(run, seed=1):
     m = run.machine
     start = run.start_at(PHASES)
     if start < len(battle.PHASES):
-        battle.play(run, args.seed)
+        battle.play(run, seed)
     if start <= 8:
         assert run.find_player()
         assert run.go(256, 184, tolerance=5), "climb to the Moon Stone"
@@ -94,6 +91,14 @@ def main():
     assert run.map_id() == "4701" and m.b(QUEST) == 7
     assert not any(item == 0xDE and count for item, count in
                    zip(m.peek(A.INVENTORY_ITEMS, A.INVENTORY_SIZE), m.peek(A.INVENTORY_COUNTS, A.INVENTORY_SIZE)))
+
+
+def main():
+    args = route_arguments(__doc__, save=SAVE)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
+              native=args.native, generated=args.generated, sound=args.sound_driver, until=args.until)
+    play(run, args.seed)
+    m = run.machine
     m.screenshot(run.prefix + "_end.png")
     run.finish("the Moon Stone left to charge in prehistory")
     if args.movie:

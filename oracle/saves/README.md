@@ -28,6 +28,14 @@ over slot 3. The route exports only the cartridge's 8192 bytes of battery RAM
 to `<prefix>.srm`; slots 1 and 2 remain the source save's. This is the starting
 save for `events-ocean-palace-lavos.ctm`, keeping the fight and finale in two
 short movies. No memory edits or machine snapshots are involved.
+`sun-stone-planted.srm`: slot 1 at the End of Time's save point, after beating
+Son of Sun and planting the Moon Stone in the prehistoric Sun Keep. Written
+by the game's save screen in `tools.movies.routes.sun_stone_save`, starting
+from fantasyanime `ctsave13-side_quests2.srm` slot 3 (26252 frames). The kept
+inputs replay to identical SRAM. Crono, Lucca and Marle are active; quest byte
+`$7F:013A` is `$07`. The source save already includes the Jerky gift to the
+Porre mayor's ancestor (`$7F:01D2` bit 2). Slots 2 and 3 retain the source
+cartridge's saves. This is cartridge SRAM, not a machine snapshot.
 
 ## fantasyanime/
 
