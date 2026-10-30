@@ -97,6 +97,8 @@ C2:FD68 1815 47  # no port yet (menus, text, overworld)
 C3:0C28 10 23  # handback by scene_sequence_goes_on_after_the_wait (scene engine); the wait's first instructions after the sequence goes on, the same code as $7E:398A's
 C7:0000 312 15  # handback by sound_driver_boot (sound driver)
 C7:005F 104 3  # handback by sound_driver_boot_start (sound driver)
+C6:E498 19705 141  # events-zeal-palace: refused by menu_object_capsule_iris_1 at the Skyway's top-line centre; gap in TODO.md, Refusals in real play
+C6:E4BE 12536 139  # events-zeal-palace: refused by menu_object_capsule_iris_2 at the Skyway's top-line centre; gap in TODO.md, Refusals in real play
 FD:---- 12 7  # no port yet (field graphics)
 FD:A990 2048 222  # handback by battle_dispatch_expired_timers (field graphics)
 FD:DA62 3048 7  # handback by warp_short_trip_waits (field graphics); the warp's frame wait, the same code filed under warp_short_frame ($FD:DA65) before chunk 11 ported the trip's start
@@ -127,14 +129,7 @@ open CD:0036 8 0  # hidden under battle_sit_out_the_pause_long's comparison, sti
 open CD:3E44 7 0  # hidden under battle_sit_out_the_pause's comparison, still open when a run ended
 open CD:3E75 3697 0  # hidden under battle_wait_for_the_next_frame's comparison, still open when a run ended
 open FD:ACEE 220 0  # hidden under battle_clear_numbers's comparison, still open when a run ended
-C0:881E 20275 57  # Ocean Palace finale: refused by field_walk_the_leader (field engine, events)
 C0:885A 25 49  # Ocean Palace finale: refused by field_recentre_the_screen (field engine, events)
-C0:88E5 4055 9  # Ocean Palace finale: refused by field_walk_the_leader (field engine, events)
-C0:8A6D 4055 9  # Ocean Palace finale: refused by field_walk_the_leader (field engine, events)
-C0:9175 8921 19  # Ocean Palace finale: refused by field_walk_the_leader (field engine, events)
-C0:99DE 4055 9  # Ocean Palace finale: refused by field_walk_the_leader (field engine, events)
 C2:7BD1 3 7  # Ocean Palace finale: handback by menu_run_object_script (menus, text, overworld)
-C6:E498 19705 141  # Ocean Palace finale: refused by menu_object_capsule_iris_1 (scene data)
-C6:E4BE 12536 139  # Ocean Palace finale: refused by menu_object_capsule_iris_2 (scene data)
 C6:E5C5 5835446 120  # Ocean Palace finale: handback by menu_run_object_script (scene data)
 C6:E694 1247 60  # Ocean Palace finale: handback by menu_run_object_script (scene data)

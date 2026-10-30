@@ -251,8 +251,8 @@ game/menu/glyphs.c glyph_in_cells menu_glyph_right_pixels menu_glyph_right_pixel
 game/menu/glyphs.c pen_in_cells menu_glyph_pen_column menu_glyph_pen_column only                                 # the glyph drawer's own entries ($C2:5E36, $C2:5F07, $C2:5E89) take the glyph and the pen from the cells the original's setter ($C2:5DC4) leaves them in; that setter is typeset.c's now, which draws through menu_put_glyph with parameters, so only the original's code, calling the entries, reads them
 game/menu/glyphs.c pen_in_cells menu_glyph_pen_offset menu_glyph_pen_offset only                                 # the glyph drawer's own entries ($C2:5E36, $C2:5F07, $C2:5E89) take the glyph and the pen from the cells the original's setter ($C2:5DC4) leaves them in; that setter is typeset.c's now, which draws through menu_put_glyph with parameters, so only the original's code, calling the entries, reads them
 game/menu/line_effects.c capsule_fill_end scene_circle_center_y scene_circle_center_y
-game/menu/line_effects.c capsule_iris scene_circle_center_y scene_circle_center_y
-game/menu/line_effects.c capsule_iris scene_circle_radius scene_circle_radius
+game/menu/line_effects.c capsule_iris scene_circle_center_y scene_circle_center_y # set_up_circle(as_words=true) writes the whole word plainly; iris_takes bounds y below 256, so the circle's scaffolding writes the same value back
+game/menu/line_effects.c capsule_iris scene_circle_radius scene_circle_radius # set_up_circle(as_words=true) writes the whole word plainly; iris_takes bounds radius below 256, so the circle's scaffolding writes the same value back
 game/menu/line_effects.c set_up_circle scene_circle_center_x scene_circle_center_x
 game/menu/line_effects.c set_up_circle scene_circle_center_y scene_circle_center_y
 game/menu/line_effects.c set_up_circle scene_circle_radius scene_circle_radius

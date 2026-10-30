@@ -1088,6 +1088,9 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel (hand run `battle-nizbel`) |
 | 12,000 B.C. | Zeal's palace and the Mammon Machine | ctsave08 slots 2-3 | -- |
 | 12,000 B.C. | Mt. Woe | ctsave09 slot 3 | Giga Gaia |
+| 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel |
+| 12,000 B.C. | Zeal's palace and the Mammon Machine (`events-zeal-palace`, recorded below) | ctsave08 slot 2 | -- |
+| 12,000 B.C. | Mt. Woe (`battle-giga-gaia`, recorded below) | ctsave09 slot 3 | Giga Gaia |
 | several | The Blackbird's end and the Epoch's wings | ctsave11 | Dalton Plus |
 
 - **Movies, the Ocean Palace**: `battle-golem-twins` (route `golem_twins`, ctsave10
@@ -1263,6 +1266,42 @@ Crono's return is the next of the story's largest scripted scenes to record.
   baseline records its matching calls in this subset and in the preceding library.
   The narrowed suite over these three movies (`-j 1`), including its static checks, ends
   `suite OK`.
+
+- **Movie**: `events-zeal-palace` (route `zeal_palace`, ctsave08 slot 2,
+  20011 frames). Slot 2 has story `$9F`, map `$1F4`, and Schala's meeting flag
+  (`$7F:00F4` bit 4) clear; slot 3 is already at `$AB`, after exile. The route
+  takes the Skyways, land bridge and mountain teleporters to the palace,
+  meets Schala and Janus, watches Schala open the sealed door (`$A2`), and
+  charges the pendant at the Mammon Machine. It ends at `$14B`, story `$A5`,
+  with control restored. The mountain beams need UP released before arrival
+  at their paired beam; the palace's large hall uses directed doorway walks.
+  Beyond the preceding 49 movies it adds 190 instruction addresses (423 bytes),
+  chiefly the Skyway capsule iris setup and drawing (`$C6:E448`-`$E567`), the
+  overworld followers (`$C2:3D0A`-`$3D28`), field movement and green palette
+  brightening (`$FD:E98F`-`$E9C9`). The 77 capsule-iris guard refusals at
+  `$C6:E498`/`$C6:E4BE` are gaps in the refusal allowlist and TODO.md: their
+  centre reaches y=0, outside the guard's supported range. `ct_native` stops
+  at frame 4106 on `$C6:E4BE`; strict mode stops there at frame 4109. Shadow
+  has zero mismatches, refused pages, out-of-range accessors or uncatalogued
+  reads; sound lockstep is identical. Dialogue reads add the `$F9:B000` pointer table
+  and its 443 strings to the asset catalogue, preserving the earlier rows.
+
+- **Movie**: `battle-giga-gaia` (route `giga_gaia`, ctsave09 slot 3, 33261 frames):
+  the save's story counter is `$B4`, on Mt. Woe's `$189`, with the summit's arrival
+  flag (`$7F:01A0` bit 3) clear. Across `$18B` to `$18D`, confirm at the crystal,
+  defeat Giga Gaia and its regenerating arms, free Melchior and watch Mt. Woe fall;
+  the Terra Cave conversation ends at `$17E`, story `$BA`, with control restored.
+  The fight needs no backtrack. The walking search keeps the map level as well as
+  position, so it can cross the bridges and the paths beneath them; a held UP at
+  the northern chain's end enters the summit. Against the previous 48 movies it
+  reaches 137 new instruction addresses (301 ROM bytes): chiefly
+  `menu_object_drift` (`$C6:E2B5`-`$E317`), the overworld object sound command
+  (`$C2:191F`-`$1946`), the field's walk, scroll and follower poses, and the enemy
+  revival's `$C1:9EEE`-`$9EFA`. Shadow clean: zero mismatches, refusals, refused
+  pages or out-of-range accessors; sound lockstep identical. Strict mode reaches
+  all 33261 frames with saved-game drift (572 bytes). `ct_native` reports no
+  stop, but ends blanked after three screen setups; TODO.md records the stalled
+  progress, since this does not establish a completed native playthrough.
 
 ### 14. The original's known glitches
 A faithful port reproduces the original's mistakes, so plays that lean on its documented glitches

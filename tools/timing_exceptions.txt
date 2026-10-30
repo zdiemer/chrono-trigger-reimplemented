@@ -25,6 +25,12 @@ battle_see_to_the_beaten_enemies worst Son of Sun's scripted defeat ends the eye
 # check finds no writes moved onto the picture; TODO.md tracks finer estimates.
 battle_record_trails vblank-tail copies four RAM positions only for active trails whose countdown expires; over battle-rust-tyrano, 2.54% of 7123 vblank stretches off by 1024 clocks or more, at most 1538 clocks (1.2 lines), with zero mean drift; its variable work writes RAM, and the movie's video check finds no writes moved
 # The field interrupt's residual work varies with its transition and upload paths.
+# Zeal Palace and Giga Gaia after drift calibration on their movies. The
+# shipping-mode vblank check has no failing findings; TODO.md tracks the spread.
+battle_dispatch_expired_timers worst Giga Gaia's due-timer dispatch: max 58387 clocks, mean absolute error 3.6% and drift +0.25%; the shipping replay has no newly misplaced video write
+battle_see_to_knocked_out_enemies worst Giga Gaia's knocked-out enemy reactions: max 57545 clocks, mean absolute error 34.5% with zero mean drift; the shipping replay has no newly misplaced video write
+battle_frame_work vblank-tail Giga Gaia's frame work: 1.73% of vblank stretches off by at least 1024 clocks, max 1428 (1.05 lines), with -0.02% drift; the shipping replay has no newly misplaced video write
+palette_fade_to_white vblank-tail Zeal Palace's white fades update the working palette in RAM: all 130 vblank stretches off by at least 1024 clocks, max 1480 (1.09 lines), with zero mean drift across both Zeal movies; the shipping replays have no newly misplaced video write
 
 # The decompressor: a call is 260-290 lines on average (a frame is 262),
 # seven times the length of vblank, and interrupts are taken during its time: its error
@@ -192,7 +198,6 @@ field_frame_goes_on_with_the_dialog_window worst the same from the dialog window
 field_frame_goes_on_with_the_screen_effect worst the same from the screen effect's step: at most 88037 clocks
 battle_screen_script_draw_circle vblank-tail draws a circle into the screen script's RAM tables, its time following the circle's size; the second batch's fights (Spekkio's) brought 131 stretches in vblank, 55% off by a line or more, at most 2075 clocks
 battle_upload_alternating_vram vblank-tail the alternating VRAM upload in vblank: 1.14% of 730,110 stretches off by 1024 clocks or more, at most 1296 clocks (under a line), with the second batch's fights
-battle_frame_work vblank-tail the Ocean Palace pair includes the already-excepted alternating VRAM upload (Twins: 306 upload stretches off by 1024 clocks or more, max 1296); its frame-work caller has 217 of 11901 vblank stretches over 1024, max 1537, mean error 143 clocks and drift -0.07%; the narrowed vblank check finds no writes moved, and --drifted leaves the caller's already-in-range scalar unchanged
 event_cmd_copy_tiles worst copies a block of the map's tiles, its time following the block's size: the floor switches' movies' copies at most 51467 clocks (the limit 50468), writing the RAM tile maps the next vblank sends
 field_copy_tiles worst the same copy from the field's own call: at most 50846 clocks
 menu_note_rock_techs vblank-tail notes which rock techs the party has, its time following the party's members and their records: 16% of its 120 stretches in vblank off by a line, at most 1076 clocks
@@ -224,8 +229,6 @@ field_frame_goes_on_with_confirm vblank-tail the rest of the field frame after c
 field_frame_goes_on_with_the_dialog_window vblank-tail the same from the dialog-window step: 1.50% of 2861 stretches, at most 1068 clocks (under one line)
 # events-fionas-forest alone, after --calibrate --drifted: the remaining path-dependent
 # estimates. Its calibrated shipping-mode vblank check has 0 unexcepted findings.
-battle_dispatch_expired_timers worst Retinite's turn dispatch, its actions timed at their own rates: at most 53234 clocks off on the picture, just over the 50468-clock limit; the narrowed vblank check is clean
-battle_see_to_knocked_out_enemies worst Retinite's multipart defeat, its work following the beaten parts: at most 52855 clocks off on the picture; the narrowed vblank check is clean
 field_draw_the_objects_in_view vblank-worst draws the location's visible objects and builds the sprite table in RAM, its work following the objects: one vblank stretch off by 17196 clocks; the narrowed vblank check is clean
 menu_choose_on_main_menu drift the main menu step's parts leave +1.41% over 343 stretches at cost_milli 1, which no smaller positive scalar can fix; it writes menu buffers and the upload queue, and the narrowed vblank check is clean
 menu_map_scroll_x vblank-tail the menu plane's horizontal scroll follows whether a tile edge queues a strip: 14.29% of 343 vblank stretches off by a line, at most 1163 clocks, writing the queue in RAM

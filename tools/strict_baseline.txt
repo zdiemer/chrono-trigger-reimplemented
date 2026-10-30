@@ -18,6 +18,7 @@ title-start end
 battle-black-tyrano drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (203 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 battle-denadoro drifts  # the fight's turns land on other frames, so it ends with other HP, MP, experience and items used (43 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2616, $7E:262B, ...))
 battle-dragon-tank drifts  # differs from the reference: 35 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2613, $7E:2616, $7E:262B, ...)
+battle-giga-gaia drifts  # the recorded fight inputs land on other turns under native timing; inventory, character records and story progress differ (572 saved-game bytes)
 battle-golem-twins-gameover end
 battle-golem-twins drifts  # differs from the reference: 58 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...); 224 byte(s) of save RAM
 battle-guardian drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (71 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, ...); 296 byte(s) of save RAM)
@@ -53,6 +54,7 @@ events-magic-cave 3550  # the forest of Frog's memory loads 64 objects, one past
 events-luccas-mother end
 events-ocean-palace-lavos drifts  # differs from the reference: 58 byte(s) of the saved game (character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, $7E:2653, ...)
 events-prison-escape end
+events-zeal-palace 4109  # C6:E4BE: the Skyway capsule iris reaches centre y=0; guard gap in TODO.md, Refusals in real play
 field-12kbc-1f4 end
 field-12kbc-1f5 end
 field-12kbc-1f6 end
