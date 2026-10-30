@@ -23,6 +23,7 @@ battle-dalton 25171  # halts at C0:881E field_walk_the_leader as the party jumps
 battle-golem-twins-gameover end
 battle-golem-twins drifts  # differs from the reference: 58 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...); 224 byte(s) of save RAM
 battle-guardian drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (71 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, ...); 296 byte(s) of save RAM)
+battle-heckran drifts  # differs from the reference: 63 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
 battle-lavos-gameover end
 battle-magus-north-cape 8561  # at C0:881E
 battle-magus end
@@ -33,6 +34,7 @@ battle-nizbel-ii drifts  # differs from the reference: 177 byte(s) of the saved 
 battle-son-of-sun drifts  # timed presses drift on the hand ports: the party's inventory and character records differ from the reference; the state-driven son_of_sun route wins separately with the C sound driver
 battle-rust-tyrano drifts  # differs from the reference: 72 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:262B, ...)
 battle-ozzies-fort drifts  # differs from the reference: 118 byte(s) of the saved game (inventory_counts, character_records, $7E:2613, $7E:2614, $7E:2616, $7E:262B, ...)
+battle-mud-imp drifts  # differs from the reference: 65 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
 battle-tech-sweep-spekkio drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (37 byte(s) of the saved game (inventory_counts, $7E:263D, $7E:263F, $7E:2640, $7E:268D, $7E:268F, ...))
 battle-tech-sweep drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (805 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 battle-tyrano-lair-walls end

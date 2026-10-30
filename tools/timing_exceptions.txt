@@ -9,6 +9,8 @@ battle_see_to_the_beaten_enemies worst Son of Sun's scripted defeat ends the eye
 #   entry   a hand port's name, as in game/registry.c
 #   limit   drift, vblank-tail, vblank-worst or worst
 #   reason  why the error doesn't reach the budget the limit stands for (required)
+
+field_nmi vblank-tail Terra Cave's field frames and transitions (battle-mud-imp): 1.72% of 5592 wholly-vblank stretches differ by at least 1024 clocks, maximum 3118; the movie's vblank check reports no failing picture writes. The field's conditional upload work needs a finer estimate; this movie-only change leaves the port alone (docs/TODO.md).
 #
 # Each of these is an entry whose time follows its data in a way one scalar
 # can't, and whose error was shown not to reach a budget that matters: the

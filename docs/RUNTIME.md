@@ -466,6 +466,8 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `events-fair-strength.ctm` | ctsave14, 1 | The strength-test bell rung, one silver point won, then the square back in hand (route `fair_strength`) | 4276 |
 | `events-fair-shuffle.ctm` | ctsave14, 1 | Bekkler's 10-point soldier shuffle won, Poyozo Doll awarded, then the square back in hand (route `fair_shuffle`) | 6866 |
 | `events-fair-rescue.ctm` | ctsave14, 1 | Bekkler's 80-point rescue won with the candy, cat awarded, then the square back in hand (route `fair_rescue`) | 7681 |
+| `battle-mud-imp.ctm` | ctsave09, 2 | Terra Cave: two Beast pairs, then Mud Imp and the Red and Blue Beasts defeated; field control returned (route `mud_imp`) | 37817 |
+| `battle-heckran.ctm` | routes/pre-heckran, 3 | Heckran's Cave: magic, healing and waiting out the water counterattack stance; field control returned (route `heckran`) | 19376 |
 | `battle-tech-sweep.ctm` | zophar chrono-trigger, 1 | Inside Lavos's shell: the second form and the Lavos Core fought with every single and double tech Crono, Magus and Marle have, each cast once (route `tech_sweep`) | 118090 |
 | `late-omen-battles.ctm` | ctsave15, 1 | Black Omen random battles won (results), status Chaos keeping Lucca confused, many single techs, running away from an ambush | 18412 |
 | `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, the dual tech list, Mega Bomb, Confuse, item menus, Life 2 on a fallen Crono | 17762 |

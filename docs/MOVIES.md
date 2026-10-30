@@ -625,6 +625,51 @@ Each starts from the cartridge save its movie header names and its route's
 `SAVE` selects; `--sram` picks another. The saves include technoplaza's
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`) in
 `oracle/saves/technoplaza/`, and fantasyanime's in `oracle/saves/fantasyanime/`.
+`mud_imp` records `battle-mud-imp.ctm` (37817 frames) from ctsave09 slot 2,
+Terra Cave's settlement. Its story counter is `$AE`, below the boss script's
+`$B4` threshold; slot 3 is already `$B4`. The route walks into `$184`, wins the
+two Beast encounters, then focuses Lightning, Ice and Fire on Mud Imp while
+healing with Mid Tonics and Lapis. The Imp's defeat makes both coloured Beasts
+leave. It stops with the field back in hand, without climbing Mt. Woe.
+Shadow is clean, including sound lockstep, with no refusal, `page refused` or
+`accessor out of range`. It adds 570 executed bytes beyond the preceding 48
+movies, all ported. Strict mode runs every frame but ends with different saved
+game data (`drifts` in its baseline). `ct_native` reports no explicit stop in
+37817 frames, but finishes blanked with two video escapes, first `$7E:5AEB`;
+that fixed-input run does not establish that the native program plays the fight.
+The narrowed gate recalibrates 199 drifting registry costs. Its remaining
+`field_nmi` vblank-tail finding is recorded in `tools/timing_exceptions.txt`
+and TODO.md; the video-write check has no failing findings. The fallback
+baseline needs no increase for this narrowed run.
+
+`heckran` records `battle-heckran.ctm` (19376 frames), loading slot 3 of
+`oracle/saves/routes/pre-heckran.srm`. The hand-run `heckran_prepare` takes
+ctsave03 slot 3 through Medina and the cave, then saves normally at the cave
+save point (42723 frames; its long movie stays out of the library). The
+source's story counter is `$4D`, the new save's `$4E`, and the boss requires
+less than `$51`; ctsave04 slot 1 is already `$54`. The boss route uses basic
+magic, Mid Tonics and Ethers, and waits whenever Heckran's script counter
+(`$7E:B320`) marks its water counterattack stance. It waits twice, wins at
+17266 without a wipe, and stops after the aftermath at `$02F`, story `$51`,
+with field control. Shadow is clean, with no refusal, `page refused` or
+`accessor out of range`. Coverage adds 74 bytes beyond the preceding 48
+movies, all ported; 62 remain unique after adding Mud Imp, including the
+enemy's flags-turn tail (`$C1:9E58`-`$9E5B`) and field sprite drawing.
+Mud Imp retains 558 unique bytes after Heckran. Strict runs all frames but
+ends with different saved game data (`drifts`). `ct_native` reports no
+explicit stop in 19376 frames, with a screen showing and four video escapes,
+first `$7E:5AEB`; this does not establish a native boss victory.
+Adding Heckran recalibrates 120 further drifting registry costs over both
+movies; their combined timing check passes without further exceptions.
+The narrowed fallback baseline adds the menu task-start helper `$C2:8249`
+(14 instructions, 12 bytes) and four bytes of number formatting at
+`$C2:F213`-`$F216`; both are outside a registered comparison in reference
+play. Existing library counts are retained. Shipping-mode fallbacks and
+guard refusals remain zero.
+
+Each starts from the technoplaza cartridge save its movie header names
+(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
+`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
 `--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and

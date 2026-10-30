@@ -76,6 +76,7 @@ C0:A2CE 1980 75  # refused by field_second_member_follows during events-fionas-f
 C2:0009 14 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
 C2:42DD 11 21  # refused by overworld_epoch (menus, text, overworld)
 C2:5DC4 21444 230  # no port yet (menus, text, overworld)
+C2:8249 14 12  # menu task-start helper outside a registered comparison in battle-heckran's reference play; shipping-mode fallbacks remain zero
 C2:8816 245 10  # no port yet (menus, text, overworld)
 C2:8839 3955 72  # no port yet (menus, text, overworld)
 C2:8BA6 32 18  # battle-unequipped-armor: refused by menu_make_equipment_list (menus, text, overworld); empty-list guard gap (docs/TODO.md)
@@ -90,7 +91,7 @@ C2:DCBE 685 28  # no port yet (menus, text, overworld)
 C2:EF05 4705 29  # no port yet (menus, text, overworld): the window list's copy of an area and its rows' block moves, cut out of C2:---- (tools/fallbacks.py, CUT_OUT): fair-companion and gato-battle 1431 each, fair and field 767 each, menu, menus-new-game-plus and new-game 103 each, which an ended comparison's extent had covered in the measure until chunk 11, when it rose inside the bank's falling line
 C2:EFBE 4430 137  # no port yet (menus, text, overworld)
 C2:F1DA 112 49  # no port yet (menus, text, overworld)
-C2:F20B 590 24  # no port yet (menus, text, overworld)
+C2:F20B 590 28  # no port yet (menus, text, overworld)
 C2:F626 525 29  # no port yet (menus, text, overworld)
 C2:FD58 1760 46  # no port yet (menus, text, overworld)
 C2:FD68 1815 47  # no port yet (menus, text, overworld)
