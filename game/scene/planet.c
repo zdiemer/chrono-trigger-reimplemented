@@ -130,6 +130,19 @@ static TaskLeftovers step_the_planet_s_colours_leaves(const GameState *g, TaskEn
                             .y = (uint16_t)(palette + 2 * colours) };
 }
 
+/* The colours set stepping toward a set of others, which the step's task then
+ * takes them toward a step at a time: a scene's script sets them with its
+ * stores, and the endings' routines so ($7E:98F6). The steps left are a word,
+ * whose high byte nothing reads. */
+void scene_step_the_colours_toward(GameState *g, SceneColourStep step)
+{
+    set_scene_planet_fade_toward(g, step.toward);
+    set_scene_planet_fade_palette(g, step.palette);
+    set_scene_planet_fade_steps(g, step.steps);
+    ORIGINAL_EFFECT(set_scene_planet_fade_steps_high(g, 0));
+    set_scene_planet_fade_colours(g, step.colours);
+}
+
 /* ---- The stars ------------------------------------------------------------------------------ */
 
 enum { TWINKLES = 24 };

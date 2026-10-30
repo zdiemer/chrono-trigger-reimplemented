@@ -2731,21 +2731,25 @@ list, by kind, is what `game/` still asks of one.
   doesn't name is still an entry on the machine's stack (it saves the
   interrupted registers, moves the page and the data bank, calls out).
 - **What the scene program still hands the machine as the program runs it.**
-  The title's, the credits' page's, the race's (both modes), the rising
-  palace's and the planet's (both modes) setups are the setups as C
-  (`scene/program.c`'s `c_setups`); the others (Lavos falling, the Epoch's
-  dive, the endings, the staff roll), the scripts' commands and routines with
-  no C, and the tasks with no C column in `scene/frame.c`'s table stop the
-  program where they are met. The C reads the
-  program's data where the boot unpacks it, and doesn't check, as the
-  entries' guards do on the machine, that the unpacked code is the one the
-  ports were written for. A scene's main loop runs its frame routine where
-  the title's is empty; the race's, the endings' and the dive's scalings
-  aren't called yet. The title's plane's rest filled from a blank tile
-  (`$7E:5AEB`, `vid_snes_copy` with the site's mode) is an escape the host
-  counts. The census (REIMPLEMENTATION.md, "The census") counts
-  the rest: 259 entries the machine still enters, 21.1 M times over the
-  library.
+  Every mode's setup a recording reaches is C (`scene/program.c`'s
+  `c_setups`), and so are the story scenes' tasks, the scripts' routines and
+  the main loop's scalings (REIMPLEMENTATION.md, "The native program through
+  the story scenes"); what is left stops the program where it is met: mode
+  10's picture's vblank task (`$7E:9CE2`, which no recording reaches: it
+  sends a quarter of the picture by the frame counter and keeps two bytes of
+  its table in `$AB` and `$AC`, whose reader is to find), modes 5 and 12,
+  and a task, routine or command a state the ports don't take reaches. The
+  stars' first draw in a setup that scatters them starts from nothing in
+  particular where the original's goes on from what the call before it left
+  (a host's draws take its own noise). The C reads the program's data where
+  the boot unpacks it, and doesn't check, as the entries' guards do on the
+  machine, that the unpacked code is the one the ports were written for. The
+  plane's map halves (`scene_upload_plane_half`, `$7E:876E`), its rest
+  blanked (`$7E:5476`, `$7E:5AEB`) and the credits' map blanked (`$7E:90BD`)
+  are `vid_snes_copy` escapes the host counts: a send of one byte of each
+  VRAM word, from a cursor or a fixed byte, which the video service has no
+  call for yet. The census (REIMPLEMENTATION.md, "The census") counts the
+  rest: 259 entries the machine still enters, 21.1 M times over the library.
 - **What the field still hands the machine as the program runs it.** Where
   the field's C meets a state its port doesn't take (an entry's guard, which
   on the machine hands the call to the original) or a step only the machine
@@ -2764,10 +2768,10 @@ list, by kind, is what `game/` still asks of one.
   and the settings (the opening, the options, an option taken) run as C
   (docs/history/reimplementation-chunks.md, "The native program through the
   main menu"); the save screens and the party exchange do too
-  (REIMPLEMENTATION.md, "The native program from a cartridge save"), and so
+  (history/reimplementation-chunks.md, "The native program from a cartridge save"), and so
   do the rest of the equipment's, the items', the techs', the settings' and
-  the gate's exchange's steps (REIMPLEMENTATION.md, "The native program
-  through the menus the player opens"), and the shops' (REIMPLEMENTATION.md,
+  the gate's exchange's steps (history/reimplementation-chunks.md, "The native program
+  through the menus the player opens"), and the shops' (history/reimplementation-chunks.md,
   "The native program through the shops"); where one of them meets what has
   no C yet, `program_needs_the_machine` stops the program there and says
   which: the items list's slide (`$C2:AC3A`), an item tried on that is no

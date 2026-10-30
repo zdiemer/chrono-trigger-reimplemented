@@ -233,17 +233,33 @@ void scene_draw_caption_entry(Snes *s)
  * compare. */
 enum { PROGRAM_START = 0x3000 };
 
+static bool captions_as_ported(const GameState *g)
+{
+    uint16_t text = scene_ending_caption_text(g);
+    return !scene_ending_captions_left(g) || !caption_is_up(g) || (text >= PROGRAM_START && scene_caption_fits(g, text));
+}
+
 bool scene_turn_captions_present(Snes *s)
 {
     if (!scene_on_scene_page(s) || !m_bank_reaches_low_ram(s) || !drawing_present(s) ||
         !m_code_matches(s, 0x7E9B4F, 0x69, 0x52724AD781AB6989ull))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    uint16_t text = scene_ending_caption_text(g);
-    bool ok = !scene_ending_captions_left(g) || !caption_is_up(g) || (text >= PROGRAM_START && scene_caption_fits(g, text));
+    bool ok = captions_as_ported(state_of(s));
     vars_peek(false);
     return ok;
+}
+
+/* As C, for a program with no machine: done once the last caption has gone. */
+enum { TURN_CAPTIONS = 0x7E9B4F };
+
+TaskEnd scene_turn_captions(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    if (!captions_as_ported(g))
+        return scene_task_needs_the_machine(g, TURN_CAPTIONS, "a caption the port doesn't draw");
+    return turn_captions(g) == CAPTIONS_OVER ? task_is_done() : task_goes_on();
 }
 
 /* What the task leaves in A: the last word the original loaded or worked out
@@ -271,7 +287,7 @@ static void leave_turn(Snes *s, CaptionTurn turn, uint16_t phase_before)
 enum { REMOVE_THIS_TASK = 0x7E39A7 };
 
 /* A frame task, entered with 16-bit A. */
-void scene_turn_captions(Snes *s)
+void scene_turn_captions_entry(Snes *s)
 {
     GameState *g = state_of(s);
     uint16_t phase_before = scene_ending_caption_phase(g);

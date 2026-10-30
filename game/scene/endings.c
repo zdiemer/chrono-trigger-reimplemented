@@ -38,6 +38,7 @@
 
 #include "charge.h"
 #include "core/palette.h"
+#include "core/program.h"
 #include "cpu_io.h"
 #include "field/field.h"
 #include "field/scratch.h"
@@ -319,8 +320,9 @@ static void lay_out_mosaic(GameState *g)
     ORIGINAL_EFFECT(charge_block_move(g, MOSAIC_TILES * MOSAIC_TILE_BYTES));
 }
 
-/* The ground's line tables and the scene's colors, out of the program's
- * resources: each table 256 bytes, the colors 128 of the loaded palette and 32
+/* The scene's colors, out of the program's resources: the ground's first 128
+ * of the loaded palette, three more sets of them that the scripts later
+ * change the ground's to (each 256 bytes, kept in the program's bank), and 32
  * more from color 128. */
 typedef struct {
     uint8_t resource;
@@ -329,6 +331,9 @@ typedef struct {
 } ResourceCopy;
 
 #define LOADED_COLOR(n) (uint16_t)(LOADED_PALETTE_PAGE + (n) * COLOR_BYTES)
+
+enum { GROUND_COLOR_SETS = 3 };
+static const uint16_t ground_color_sets[GROUND_COLOR_SETS] = { 0xC995, 0xCA95, 0xCB95 };
 
 static const ResourceCopy ground_copies[] = {
     { 50, LOADED_COLOR(0), 0x100 }, { 51, 0xC995, 0x100 }, { 52, 0xCA95, 0x100 }, { 53, 0xCB95, 0x100 },
@@ -410,26 +415,7 @@ static void set_up_ground_layers(Platform *pf)
     vid_set_bg_chars(pf, PF_AT(0x7E874E), VID_BG1, GROUND_TILES_VRAM, GROUND_TILES_VRAM);
 }
 
-/* ---- Where the setups call the original's code ------------------------------------------------ */
-
-/* The steering script's first step, under the program's bank. It reads Y and
- * the overflow: Y as the picture script's start left it, the overflow clear, as
- * the regrouping code's writer left it. */
-static void first_script_step(Snes *s, uint16_t picture_script)
-{
-    s->cpu.db = SCENE_LOWER_WORK_RAM;   /* as the darkening's block move left it */
-    m_set_flag(s, CPU_FLAG_V, false);
-    scene_bridge_first_script_step(s, 0x7E86E6, picture_script);
-    set_scene_perspective_start(state_of(s), PERSPECTIVE_FROM_ABOVE_THE_HORIZON);
-}
-
-/* The stars' scatter starts its draws from A as the screen's blanking left
- * it, and the carry the script's call came with, which nothing here
- * touches. */
-enum { BLANKING_LEFT_IN_A = 0x0080 };
-
-
-/* ---- The setup: the ground, the captions, the scripts ------------------------------------------- */
+/* ---- The resources, and the steps that are the program's other routines ----------------------- */
 
 /* The captions' letters, and the regrouping code for the zooming picture. */
 enum { LETTERS = 0x63, MATRIX_DESTINATION = SCENE_TILEMAP_BUFFER, MATRIX_SOURCE = 0x0200 };
@@ -445,64 +431,117 @@ enum { MOSAIC_TILESET_RESOURCE = 0xBD, MOSAIC_NUMBERS_RESOURCE = 0xB4, MOSAIC_NU
 /* The scene's palette, unpacked into the loaded one from color 192. */
 enum { ENDING_PALETTE = 0x8A, ENDING_PALETTE_AT = 0x2180 };
 
-static void load_letters_and_ground(Snes *s)
+/* The new ground the zooming picture's second showing has, and its picture;
+ * the color math past the plane's last line. */
+enum { NEW_GROUND = 0x84, PICTURE_FRAMES = 0xD8, PICTURE_FRAMES_AT = 0x0A00, FAR_COLOR_MATH = 0x05 };
+
+/* The stars' sprites' tiles, and their colors as sprite palette 1. */
+enum { STAR_TILES = 0x33, STAR_TILES_VRAM = 0x4600, STAR_COLORS = 19, STAR_PALETTE = 144 };
+
+/* The Mode 7 picture's tiles, name table and colors. */
+enum { PLANE_TILES = 0xCF, PLANE_MAP = 0xB1, PLANE_COLORS = 0x54 };
+
+/* The credits' letters, the picture they roll over (its tiles, and the map
+ * made below), and the pattern's tiles. */
+enum { CREDITS_LETTERS = 0xAE, CREDITS_PICTURE = 0x8D, CREDITS_PICTURE_AT = 0x0400, CREDITS_PATTERN = 0xC0 };
+enum { CREDITS_PATTERN_AT = 0x0F00, PATTERN_MAP = 0x1000 };
+
+/* What the endings unpack, each from its own call of the program's unpacker. */
+typedef enum {
+    UNPACK_LETTERS, UNPACK_GROUND_PIXELS, UNPACK_GROUND_MAP_FIRST, UNPACK_GROUND_MAP_SECOND, UNPACK_MORE_SPRITE_TILES,
+    UNPACK_MOSAIC_TILESET, UNPACK_MOSAIC_NUMBERS, UNPACK_ENDING_PALETTE, UNPACK_PICTURE_FRAMES, UNPACK_NEW_GROUND,
+    UNPACK_STAR_TILES, UNPACK_PLANE_TILES, UNPACK_PLANE_MAP, UNPACK_PLANE_COLORS, UNPACK_CREDITS_LETTERS,
+    UNPACK_CREDITS_PICTURE, UNPACK_CREDITS_PATTERN, ENDING_UNPACKS
+} EndingUnpack;
+
+static const struct {
+    uint32_t site;
+    uint16_t resource;
+} ending_unpacks[ENDING_UNPACKS] = {
+    [UNPACK_LETTERS] = { 0x7E8549, LETTERS },
+    [UNPACK_GROUND_PIXELS] = { 0x7E857B, GROUND_PIXELS },
+    [UNPACK_GROUND_MAP_FIRST] = { 0x7E8598, GROUND_MAP_FIRST },
+    [UNPACK_GROUND_MAP_SECOND] = { 0x7E85A5, GROUND_MAP_SECOND },
+    [UNPACK_MORE_SPRITE_TILES] = { 0x7E85C3, MORE_SPRITE_TILES },
+    [UNPACK_MOSAIC_TILESET] = { 0x7E85E4, MOSAIC_TILESET_RESOURCE },
+    [UNPACK_MOSAIC_NUMBERS] = { 0x7E85F0, MOSAIC_NUMBERS_RESOURCE },
+    [UNPACK_ENDING_PALETTE] = { 0x7E869B, ENDING_PALETTE },
+    [UNPACK_PICTURE_FRAMES] = { 0x7E87E9, PICTURE_FRAMES },
+    [UNPACK_NEW_GROUND] = { 0x7E87B0, NEW_GROUND },
+    [UNPACK_STAR_TILES] = { 0x7E8BE4, STAR_TILES },
+    [UNPACK_PLANE_TILES] = { 0x7E8C48, PLANE_TILES },
+    [UNPACK_PLANE_MAP] = { 0x7E8C76, PLANE_MAP },
+    [UNPACK_PLANE_COLORS] = { 0x7E8C8E, PLANE_COLORS },
+    [UNPACK_CREDITS_LETTERS] = { 0x7E8CF8, CREDITS_LETTERS },
+    [UNPACK_CREDITS_PICTURE] = { 0x7E8D04, CREDITS_PICTURE },
+    [UNPACK_CREDITS_PATTERN] = { 0x7E8D10, CREDITS_PATTERN },
+};
+
+/* The endings' steps that are the program's other routines: a resource
+ * unpacked, the steering script's first step (with the picture script's
+ * start, which it reads), and the stars scattered. The machine's entries take
+ * them as calls of the original's, the native program as C. */
+typedef struct {
+    void (*unpack)(void *ctx, EndingUnpack which);
+    bool (*first_step)(void *ctx, uint16_t picture_script);
+    void (*scatter_the_stars)(void *ctx);
+    void (*tiles_expanded)(void *ctx);   /* NULL: nothing to leave */
+} EndingSteps;
+
+/* ---- The setup: the ground, the captions, the scripts ------------------------------------------- */
+
+static void load_letters_and_ground(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     vid_start_vram_uploads(pf, PF_AT(0x7E853A), SCENE_VRAM_WHOLE_WORDS);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     vid_set_vram_address(pf, PF_AT(0x7E8543), LETTER_TILES_VRAM);
-    scene_bridge_unpack(s, 0x7E8549, LETTERS);
+    steps->unpack(ctx, UNPACK_LETTERS);
     scene_send_letters_widened(g, pf);
     set_scene_caption_letter_attributes(g, CAPTION_LETTERS_IN_FRONT);
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
 
     vid_start_vram_uploads(pf, PF_AT(0x7E856F), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E8575), 0x0000);
-    scene_bridge_unpack(s, 0x7E857B, GROUND_PIXELS);
+    steps->unpack(ctx, UNPACK_GROUND_PIXELS);
     send_unpacked_as(g, BYTES_ONE_REGISTER, VID_SNES_VRAM_DATA_HIGH);
     send_unpacked(g, pf);
 
     vid_start_vram_uploads(pf, PF_AT(0x7E858C), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E8592), 0x0000);
-    scene_bridge_unpack(s, 0x7E8598, GROUND_MAP_FIRST);
+    steps->unpack(ctx, UNPACK_GROUND_MAP_FIRST);
     scene_widen_the_plane_map(g);
     TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
-    scene_bridge_unpack(s, 0x7E85A5, GROUND_MAP_SECOND);
+    steps->unpack(ctx, UNPACK_GROUND_MAP_SECOND);
     scene_widen_the_plane_map(g);
     TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
     scene_blank_past_the_plane(pf, PF_AT(0x7E85B2), BLANKED_PAST_THE_PLANE);
 
     vid_start_vram_uploads(pf, PF_AT(0x7E85B7), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E85BD), MORE_SPRITE_TILES_VRAM);
-    scene_bridge_unpack(s, 0x7E85C3, MORE_SPRITE_TILES);
+    steps->unpack(ctx, UNPACK_MORE_SPRITE_TILES);
     send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
     send_unpacked(g, pf);
 }
 
-/* Mode 10's picture, laid out from its tiles and sent; the original works
- * with the data bank and the direct page moved, the first kept on the stack. */
-static void load_mosaic(Snes *s)
+/* Mode 10's picture, laid out from its tiles and sent. */
+static void load_mosaic(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    scene_bridge_unpack(s, 0x7E85E4, MOSAIC_TILESET_RESOURCE);
+    steps->unpack(ctx, UNPACK_MOSAIC_TILESET);
     unpack_at(g, MOSAIC_NUMBERS_AT);
-    scene_bridge_unpack(s, 0x7E85F0, MOSAIC_NUMBERS_RESOURCE);
+    steps->unpack(ctx, UNPACK_MOSAIC_NUMBERS);
     lay_out_mosaic(g);
     vid_send_vram(pf, PF_AT(0x7E864C), MOSAIC_VRAM, PF_GAME(MOSAIC_SENT), MOSAIC_SENT_BYTES, NULL);
     scene_add_task(g, SCENE_VBLANK_TASKS, MOSAIC_TASK);
 }
 
-static void load_ground_colors(Snes *s)
+static void load_ground_colors(GameState *g, const EndingSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
     unpack_into_first_bank(g);
     for (unsigned i = 0; i < GROUND_COPIES; i++)
         scene_copy_resource_to(g, scene_program_own(), ground_copies[i].resource, ground_copies[i].to, ground_copies[i].bytes);
     scene_set_caption_colours(g);
     set_decompress_dest(g, (decompress_dest(g) & 0xFF0000) | ENDING_PALETTE_AT);
-    scene_bridge_unpack(s, 0x7E869B, ENDING_PALETTE);
+    steps->unpack(ctx, UNPACK_ENDING_PALETTE);
     scene_use_loaded_palette(g);
     darken_first_colors(g);
 }
@@ -516,27 +555,28 @@ static void start_captions(GameState *g)
 }
 
 // $7E:8538
-/* The shared endings' setup, from the program's mode table. */
-/* The setup leaves Y past the per-line effects' descriptors, where their
- * setup stopped reading, which the frame's first vblank tasks may read. */
-static void leave_y_past_the_descriptors(Snes *s, uint16_t end) { s->cpu.y = end; }
-
-static void set_up_ending(Snes *s)
+/* The shared endings' setup, from the program's mode table: the captions'
+ * letters and the ground loaded (and mode 10's picture), the colors, the two
+ * scripts its mode picks started and the steering one's first step taken, the
+ * captions and the fireworks ready, the per-line effects and the ground's
+ * layers set up. Returns where the per-line effects' descriptors ended, or 0
+ * where a step went no further. */
+static uint16_t set_up_ending_with(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     unsigned mode = ending_mode(g);
-    load_letters_and_ground(s);
+    load_letters_and_ground(g, pf, steps, ctx);
     if (mode == MODE_CAPTIONED)
-        load_mosaic(s);
-    load_ground_colors(s);
+        load_mosaic(g, pf, steps, ctx);
+    load_ground_colors(g, steps, ctx);
 
     EndingScripts scripts = scripts_for(mode);
     if (mode == MODE_CAPTIONED || mode == MODE_CAPTIONED_TOO)
         set_scene_ending_caption_text(g, CAPTIONS_TEXT);
-    set_scene_channels_script(g, 0, scripts.steering);
-    set_scene_channels_script(g, 1, scripts.picture);
-    first_script_step(s, scripts.picture);
+    set_scene_channels_script(g, STEERING_CHANNEL, scripts.steering);
+    set_scene_channels_script(g, PICTURE_CHANNEL, scripts.picture);
+    if (!steps->first_step(ctx, scripts.picture))
+        return 0;
+    set_scene_perspective_start(g, PERSPECTIVE_FROM_ABOVE_THE_HORIZON);
     TIMED_AS(g, 0xFDE275, palette_stop_animations(g));
     start_captions(g);
     set_scene_reset_disabled(g, 1);
@@ -548,14 +588,10 @@ static void set_up_ending(Snes *s)
     set_scene_fade_period(g, FADE_EVERY_FRAME);
     set_scene_fade_countdown(g, FADE_EVERY_FRAME);
     set_up_ground_layers(pf);
-    ORIGINAL_EFFECT(leave_y_past_the_descriptors(s, descriptors_end));
+    return descriptors_end;
 }
 
 /* ---- The scenes the scripts call --------------------------------------------------------------- */
-
-/* The new ground the zooming picture's second showing has, and its picture;
- * the color math past the plane's last line. */
-enum { NEW_GROUND = 0x84, PICTURE_FRAMES = 0xD8, PICTURE_FRAMES_AT = 0x0A00, FAR_COLOR_MATH = 0x05 };
 
 /* The picture's frames, unpacked in the second bank and mirrored into place
  * from $5600: fifteen runs of sixteen rows, from the last run's rows up, each
@@ -607,49 +643,14 @@ static uint16_t load_picture_colors(GameState *g, SceneProgramPage page)
     return (uint16_t)(WORKING_PALETTE_PAGE + PICTURE_PALETTE * COLOR_BYTES + 32);
 }
 
-/* A routine a script calls keeps its page and the scripts' bank on the stack
- * while it works (the bank byte its data bank's push left), with 8-bit A, and
- * goes back with them and 16-bit A. */
-static void begin_script_routine(Snes *s)
-{
-    m_push16(s, s->cpu.d);
-    m_push8(s, SCENE_LOWER_WORK_RAM);
-    s->cpu.db = 0x00;
-    s->cpu.p |= CPU_FLAG_M;
-}
-
-static void end_script_routine(Snes *s)
-{
-    s->cpu.db = m_pull8(s);
-    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
-    s->cpu.d = m_pull16(s);
-    m_rts(s);
-}
-
-static SceneProgramPage calling_page(Snes *s)
-{
-    SceneChannel ch = 0;
-    scene_channel_at(m_direct_page(s), &ch);
-    return scene_program_channel(ch);
-}
-
 /* The picture's frames unpacked and mirrored into place. */
-static uint16_t load_picture(Snes *s, SceneProgramPage page)
+static uint16_t load_picture(GameState *g, SceneProgramPage page, const EndingSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     unpack_at(g, PICTURE_FRAMES_AT);
-    scene_bridge_unpack(s, 0x7E87E9, PICTURE_FRAMES);
+    steps->unpack(ctx, UNPACK_PICTURE_FRAMES);
     mirror_picture_frames(g);
     return load_picture_colors(g, page);
-}
-
-/* What the picture's routines leave: Y where the last copy of its colors
- * ended, and the overflow of the mirroring's last step back a run, clear. */
-static void leave_picture_loaded(Snes *s, uint16_t copied_to)
-{
-    s->cpu.y = copied_to;
-    m_set_flag(s, CPU_FLAG_V, false);
 }
 
 // $7E:87CC
@@ -664,14 +665,12 @@ static void start_picture(GameState *g, Platform *pf, uint32_t effects_site)
 /* The picture over a new ground: the ground's name table (each row doubled
  * across the plane) sent twice over, the plane's settings cleared, and the
  * color math past it. */
-static void load_new_ground(Snes *s, SceneProgramPage page)
+static void load_new_ground(GameState *g, Platform *pf, SceneProgramPage page, const EndingSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     scene_use_loaded_palette(g);
     set_scene_plane_far_color_math(g, FAR_COLOR_MATH);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    scene_bridge_unpack(s, 0x7E87B0, NEW_GROUND);
+    steps->unpack(ctx, UNPACK_NEW_GROUND);
     scene_double_plane_rows(g);
     /* the original counts the rows down in its page's first cell */
     ORIGINAL_EFFECT(set_scene_call_first(g, page, 0));
@@ -682,22 +681,35 @@ static void load_new_ground(Snes *s, SceneProgramPage page)
     TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
 }
 
-/* The stars' sprites' tiles, and their colors as sprite palette 1. */
-enum { STAR_TILES = 0x33, STAR_TILES_VRAM = 0x4600, STAR_COLORS = 19, STAR_PALETTE = 144 };
+/* The zooming picture's two routines: with the ground it has, or over a new
+ * one. Each returns where the last copy of its colors ended. */
+static uint16_t load_the_picture_with(GameState *g, Platform *pf, SceneProgramPage page, const EndingSteps *steps, void *ctx)
+{
+    start_picture(g, pf, 0x7E87DA);
+    return load_picture(g, page, steps, ctx);
+}
+
+static uint16_t load_the_ground_and_picture_with(GameState *g, Platform *pf, SceneProgramPage page,
+                                                 const EndingSteps *steps, void *ctx)
+{
+    start_picture(g, pf, 0x7E879E);
+    load_new_ground(g, pf, page, steps, ctx);
+    return load_picture(g, page, steps, ctx);
+}
 
 // $7E:8BAF
 /* The stars: everything stopped, the star field scattered, and its tiles and
  * colors loaded. */
-static void start_stars(Snes *s)
+static void start_stars_with(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
+    stop_frame_tasks(g);
+    stop_vblank_tasks(g);
     blank_the_screen(g, pf, 0x7E8BC0, 0x7E8BC8);
-    scene_bridge_scatter_stars(s, BLANKING_LEFT_IN_A);
+    steps->scatter_the_stars(ctx);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
     vid_set_vram_address(pf, PF_AT(0x7E8BDE), STAR_TILES_VRAM);
-    scene_bridge_unpack(s, 0x7E8BE4, STAR_TILES);
+    steps->unpack(ctx, UNPACK_STAR_TILES);
     send_unpacked(g, pf);
     set_decompress_dest(g, decompress_dest(g) & 0xFF);
     copy_colors(g, scene_program_own(), STAR_COLORS, STAR_PALETTE, 16);
@@ -711,7 +723,7 @@ static void start_stars(Snes *s)
  * first pair of planes (where the expansion leaves it) to the next tile; the
  * port expands them as C, and makes the code the same, which is the
  * program's state. */
-enum { PLANE_TILES = 0xCF, PLANE_TILES_VRAM = 0x6000, PLANE_TILES_TO_EXPAND = 0xA4 };
+enum { PLANE_TILES_VRAM = 0x6000, PLANE_TILES_TO_EXPAND = 0xA4 };
 enum { EXPAND_WIDE_TILE = 0x5EF8, UNPACKED_TILES = 0x0200 };
 
 // $7E:5E3C
@@ -722,32 +734,31 @@ static void expand_the_picture_tiles(GameState *g, Platform *pf)
     set_scene_plane_tiles_stride(g, (uint8_t)(tile_bytes - SCENE_PLANE_PAIR_BYTES));
     (void)scene_expand_tiles(g, pf, UNPACKED_TILES, PLANE_TILES_TO_EXPAND, SCENE_MOST_PLANES, tile_bytes);
 }
-enum { PLANE_MAP = 0xB1, PLANE_MAP_VRAM = 0x4400, PLANE_COLORS = 0x54, PLANE_COLORS_AT = 0x2020 };
+enum { PLANE_MAP_VRAM = 0x4400, PLANE_COLORS_AT = 0x2020 };
 
 // $7E:8C14
-static void start_mode7_picture(Snes *s)
+static void start_mode7_picture_with(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
+    stop_frame_tasks(g);
+    stop_vblank_tasks(g);
     blank_the_screen(g, pf, 0x7E8C25, 0x7E8C2D);
     vid_set_mode7(pf, PF_AT(0x7E8C30), &(VidMode7){ .outside = VID_M7_TRANSPARENT }, VID_M7_SELECT);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
     vid_start_vram_uploads(pf, PF_AT(0x7E8C42), SCENE_VRAM_WHOLE_WORDS);
-    scene_bridge_unpack(s, 0x7E8C48, PLANE_TILES);
+    steps->unpack(ctx, UNPACK_PLANE_TILES);
     vid_set_vram_address(pf, PF_AT(0x7E8C4E), PLANE_TILES_VRAM);
     send_unpacked(g, pf);
     vid_set_vram_address(pf, PF_AT(0x7E8C58), 0x0000);
     expand_the_picture_tiles(g, pf);
-    /* the overflow of the loop's last move on (to $2B00: none), which the
-     * unpacker reads */
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, false));
-    scene_bridge_unpack(s, 0x7E8C76, PLANE_MAP);
+    if (steps->tiles_expanded)
+        steps->tiles_expanded(ctx);
+    steps->unpack(ctx, UNPACK_PLANE_MAP);
     vid_set_vram_address(pf, PF_AT(0x7E8C7C), PLANE_MAP_VRAM);
     send_unpacked(g, pf);
     TIMED_AS(g, 0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
     set_decompress_dest(g, PLANE_COLORS_AT);
-    scene_bridge_unpack(s, 0x7E8C8E, PLANE_COLORS);
+    steps->unpack(ctx, UNPACK_PLANE_COLORS);
     scene_set_letter_colors(g);
     scene_use_loaded_palette(g);
     TIMED_AS(g, 0x7E388B, scene_send_palette(pf));
@@ -755,11 +766,6 @@ static void start_mode7_picture(Snes *s)
     vid_set_windows(pf, PF_AT(0x7E8CA7), &(VidWindows){ 0 }, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
     vid_set_mode(pf, PF_AT(0x7E8CAC), &(VidMode){ .mode = 7 });
 }
-
-/* The credits' letters, the picture they roll over (its tiles, and the map
- * made below), and the pattern's tiles. */
-enum { CREDITS_LETTERS = 0xAE, CREDITS_PICTURE = 0x8D, CREDITS_PICTURE_AT = 0x0400, CREDITS_PATTERN = 0xC0 };
-enum { CREDITS_PATTERN_AT = 0x0F00, PATTERN_MAP = 0x1000 };
 
 /* The picture behind the credits is a 32x32 map of a 4x4 block of tiles over
  * and over: row r's tiles are 4(r mod 4) to 4(r mod 4) + 3, round again. */
@@ -800,20 +806,20 @@ enum { NO_CREDITS_SCRIPT = 0x9315 };
 // $7E:8CD0
 /* The credits made ready: everything but the vblank tasks stopped. Returns
  * whether there are credits. */
-static bool prepare_credits(Snes *s)
+static bool prepare_credits_with(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
 {
-    GameState *g = state_of(s);
-    vid_enable_line_effects(m_platform(s), PF_AT(0x7E8CDD), 0);
+    stop_frame_tasks(g);
+    vid_enable_line_effects(pf, PF_AT(0x7E8CDD), 0);
     if (ending_mode(g) == MODE_WITHOUT_CREDITS) {
         set_scene_channels_script(g, STEERING_CHANNEL, NO_CREDITS_SCRIPT);
         return false;
     }
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    scene_bridge_unpack(s, 0x7E8CF8, CREDITS_LETTERS);
+    steps->unpack(ctx, UNPACK_CREDITS_LETTERS);
     unpack_at(g, CREDITS_PICTURE_AT);
-    scene_bridge_unpack(s, 0x7E8D04, CREDITS_PICTURE);
+    steps->unpack(ctx, UNPACK_CREDITS_PICTURE);
     unpack_at(g, CREDITS_PATTERN_AT);
-    scene_bridge_unpack(s, 0x7E8D10, CREDITS_PATTERN);
+    steps->unpack(ctx, UNPACK_CREDITS_PATTERN);
     write_pattern_map(g);
     return true;
 }
@@ -850,6 +856,40 @@ static void show_credits(GameState *g, Platform *pf)
     vid_set_color_math(pf, PF_AT(0x7E8DE4), &credits_subtracted, VID_MATH_LAYERS);
     vid_set_screens(pf, PF_AT(0x7E8DE9), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, 0, VID_SCREEN_MAIN | VID_SCREEN_SUB);
     vid_set_windows(pf, PF_AT(0x7E8DEE), &(VidWindows){ 0 }, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
+}
+
+/* The credits' pictures sent in the vblank, a piece a task, each taking
+ * itself off the list after: the picture's tiles, the pattern's map and its
+ * tiles, as the credits' loading left them in the second bank; and a stretch
+ * of a map from $20A0 blanked with the blank tile. */
+typedef struct {
+    uint16_t vram;
+    uint32_t from;
+    uint16_t bytes;
+    uint32_t site;
+} CreditsPiece;
+
+enum { CREDITS_PICTURE_SENT, CREDITS_PATTERN_MAP_SENT, CREDITS_PATTERN_TILES_SENT, CREDITS_PIECES };
+static const CreditsPiece credits_pieces[CREDITS_PIECES] = {
+    [CREDITS_PICTURE_SENT] = { 0x5000, 0x7F0000 | CREDITS_PICTURE_AT, 0x0A00, 0x7E9F2B },
+    [CREDITS_PATTERN_MAP_SENT] = { 0x4C00, 0x7F0000 | PATTERN_MAP, 0x0800, 0x7E9F39 },
+    [CREDITS_PATTERN_TILES_SENT] = { 0x0000, 0x7F0000 | CREDITS_PATTERN_AT, 0x0100, 0x7E9F47 },
+};
+
+// $7E:9F2B, $7E:9F39, $7E:9F47
+static void send_a_credits_piece(Platform *pf, unsigned piece)
+{
+    const CreditsPiece *p = &credits_pieces[piece];
+    vid_send_vram(pf, PF_AT(p->site), p->vram, PF_GAME(p->from), p->bytes, SCENE_VRAM_WHOLE_WORDS);
+}
+
+enum { BLANKED_MAP_VRAM = 0x20A0, BLANKED_MAP_BYTES = 0x06C0 };
+
+// $7E:9F73
+static void blank_the_map(Platform *pf)
+{
+    vid_send_vram_fill(pf, PF_AT(0x7E9F73), BLANKED_MAP_VRAM, PF_GAME(SCENE_BLANK_TILE), BLANKED_MAP_BYTES,
+                       SCENE_VRAM_WHOLE_WORDS);
 }
 
 /* The last scene's colors: its own from color 240 and from color 0, sixteen
@@ -905,6 +945,354 @@ static void show_last_scene(GameState *g, Platform *pf)
     TIMED_AS(g, 0x7E36CC, scene_set_up_line_effects(g, pf, SWEEP_LINE_EFFECTS));
     set_scene_line_effects(g, SWEEP_LINE_CHANNELS);
 }
+
+/* ---- The steps on the machine, and as C ----------------------------------------------------------- */
+
+/* On the machine: the original's unpacker and first script step, and the
+ * stars' scatter starting its draws from A as the screen's blanking left it,
+ * and the carry the script's call came with, which nothing here touches. */
+enum { BLANKING_LEFT_IN_A = 0x0080 };
+
+static void unpack_on_the_machine(void *ctx, EndingUnpack which)
+{
+    scene_bridge_unpack(ctx, ending_unpacks[which].site, ending_unpacks[which].resource);
+}
+
+/* The Mode 7 picture's tiles' loop leaves the overflow of its last move on
+ * (to $2B00: none), which the unpacker after it reads. */
+static void tiles_expanded_on_the_machine(void *ctx) { ORIGINAL_EFFECT(m_set_flag(ctx, CPU_FLAG_V, false)); }
+
+/* The steering script's first step, under the program's bank. It reads Y and
+ * the overflow: Y as the picture script's start left it, the overflow clear, as
+ * the regrouping code's writer left it. */
+static bool first_step_on_the_machine(void *ctx, uint16_t picture_script)
+{
+    Snes *s = ctx;
+    s->cpu.db = SCENE_LOWER_WORK_RAM;   /* as the darkening's block move left it */
+    m_set_flag(s, CPU_FLAG_V, false);
+    scene_bridge_first_script_step(s, 0x7E86E6, picture_script);
+    return true;
+}
+
+static void scatter_on_the_machine(void *ctx) { scene_bridge_scatter_stars(ctx, BLANKING_LEFT_IN_A); }
+
+static const EndingSteps on_the_machine = { unpack_on_the_machine, first_step_on_the_machine, scatter_on_the_machine,
+                                            tiles_expanded_on_the_machine };
+
+/* As C, for a program with no machine. The stars' first draw starts from
+ * what the original's does, the carry clear. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+} EndingInC;
+
+static void unpack_the_resource(void *ctx, EndingUnpack which)
+{
+    EndingInC *c = ctx;
+    TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, ending_unpacks[which].resource));
+}
+
+static bool turn_the_steering_channel(void *ctx, uint16_t picture_script)
+{
+    EndingInC *c = ctx;
+    (void)picture_script;
+    SceneTurn turn = SCENE_TURN_ENDED;
+    TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, STEERING_CHANNEL));
+    return turn == SCENE_TURN_ENDED;
+}
+
+enum { SCATTER_STARS = 0x7E5777 };
+
+static void scatter_the_stars(void *ctx)
+{
+    EndingInC *c = ctx;
+    TIMED_AS(c->game, SCATTER_STARS,
+             scene_scatter_stars(c->game, c->pf, scene_draw_from(BLANKING_LEFT_IN_A, false, TM_ENTROPY_BYTES)));
+}
+
+static const EndingSteps as_c = { unpack_the_resource, turn_the_steering_channel, scatter_the_stars, NULL };
+
+/* Mode 10's picture needs room on the vblank list for its task. */
+static bool room_for_the_mosaic(const GameState *g)
+{
+    return ending_mode(g) != MODE_CAPTIONED || scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK);
+}
+
+enum { ENDINGS_SET_UP = 0x7E8538 };
+
+bool scene_ending_set_up(GameState *g, Platform *pf)
+{
+    if (!room_for_the_mosaic(g)) {
+        program_needs_the_machine(g, ENDINGS_SET_UP, "an ending's picture with no room on the vblank list");
+        return false;
+    }
+    EndingInC c = { g, pf };
+    return set_up_ending_with(g, pf, &as_c, &c) != 0;
+}
+
+/* The routines the scripts call, as the native program's rows (scene/script.c):
+ * each on the calling channel's page. */
+static void load_the_picture(GameState *g, Platform *pf, uint8_t channel)
+{
+    EndingInC c = { g, pf };
+    (void)load_the_picture_with(g, pf, scene_program_channel(channel), &as_c, &c);
+}
+
+static void load_the_ground_and_picture(GameState *g, Platform *pf, uint8_t channel)
+{
+    EndingInC c = { g, pf };
+    (void)load_the_ground_and_picture_with(g, pf, scene_program_channel(channel), &as_c, &c);
+}
+
+static void start_the_stars(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)channel;
+    EndingInC c = { g, pf };
+    start_stars_with(g, pf, &as_c, &c);
+}
+
+static void start_the_mode7_picture(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)channel;
+    EndingInC c = { g, pf };
+    start_mode7_picture_with(g, pf, &as_c, &c);
+}
+
+static void prepare_the_credits(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)channel;
+    EndingInC c = { g, pf };
+    (void)prepare_credits_with(g, pf, &as_c, &c);
+}
+
+static void set_the_last_colours(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)set_last_colors(g, scene_program_channel(channel));
+}
+
+/* The native program's rows alone: on the machine each runs as its own
+ * registered entry, which takes the original's unpacker as calls of it. */
+const SceneScriptRoutine scene_ending_loading_routines[] = {
+    { SCENE_ROUTINE_LOAD_THE_GROUND_AND_PICTURE, load_the_ground_and_picture, scene_ending_load_ground_and_picture_present,
+      false },
+    { SCENE_ROUTINE_LOAD_THE_PICTURE, load_the_picture, scene_ending_load_picture_present, false },
+    { SCENE_ROUTINE_START_THE_STARS, start_the_stars, scene_ending_start_stars_present, false },
+    { SCENE_ROUTINE_START_THE_MODE7_PICTURE, start_the_mode7_picture, scene_ending_start_mode7_picture_present, false },
+    { SCENE_ROUTINE_PREPARE_THE_CREDITS, prepare_the_credits, scene_ending_prepare_credits_present, false },
+    { SCENE_ROUTINE_SET_THE_LAST_COLOURS, set_the_last_colours, scene_ending_set_last_colors_present, false },
+};
+const unsigned scene_ending_loading_routine_count = sizeof scene_ending_loading_routines / sizeof scene_ending_loading_routines[0];
+
+/* ---- The scripts' other routines: the picture's stop, the ground's colors, the captions' place -- */
+
+/* The main loop's call each pass that does nothing. */
+enum { NOTHING_EACH_PASS = 0x3176 };
+
+// $7E:96FB
+/* The picture stops zooming: the main loop scales it no more. */
+static void stop_the_picture(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    set_scene_main_loop_call(g, NOTHING_EACH_PASS);
+}
+
+/* The ground's first 112 colors step toward one of its later sets, a step
+ * each of 32 times the planet's step comes round (planet.c). */
+enum { STEPPED_COLORS = 0x70, COLOR_STEPS = 0x20 };
+
+static void step_the_ground_toward(GameState *g, unsigned set)
+{
+    scene_step_the_colours_toward(g, (SceneColourStep){ .toward = ground_color_sets[set], .palette = WORKING_PALETTE_PAGE,
+                                                        .colours = STEPPED_COLORS, .steps = COLOR_STEPS });
+}
+
+// $7E:98F6, $7E:98FB, $7E:9900
+static void step_the_ground_toward_the_first(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    step_the_ground_toward(g, 0);
+}
+
+static void step_the_ground_toward_the_second(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    step_the_ground_toward(g, 1);
+}
+
+static void step_the_ground_toward_the_third(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    step_the_ground_toward(g, 2);
+}
+
+/* The ground's colors become its first later set at once. The original's
+ * move counts one byte past the 128 colors, into color 128's low byte. */
+enum { GROUND_COLORS_MOVED = 0x101 };
+
+// $7E:9702
+static void show_the_ground_s_first_later_colors(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    uint32_t bank = (uint32_t)SCENE_LOWER_WORK_RAM << 16;
+    wram_copy(g, bank | ground_color_sets[0], bank | WORKING_PALETTE_PAGE, GROUND_COLORS_MOVED);
+    ORIGINAL_EFFECT(charge_block_move(g, GROUND_COLORS_MOVED));
+}
+
+// $7E:9919
+/* The captions' lines start where the script has stored their place. */
+static void place_the_captions(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    set_scene_caption_line_x(g, scene_ending_captions_x(g));
+    set_scene_caption_line_y(g, scene_ending_captions_y(g));
+}
+
+/* Colors fade to black, a level a frame or every other frame, each run in its
+ * own palette animation slot: the sprites' seventh palette but its clear
+ * color, and the layers' first 127 colors but the clear color, in two runs. */
+static const PaletteFade sprites_fade_out = { .first_color = 0xE1, .color_count = 0x0F, .step = 1, .period = 1,
+                                              .from_level = 0, .to_level = 0xFF };
+static const PaletteFade first_layer_colors_fade_out = { .first_color = 0x01, .color_count = 0x40, .step = 1, .period = 2,
+                                                         .from_level = 0, .to_level = 0xFF };
+static const PaletteFade more_layer_colors_fade_out = { .first_color = 0x41, .color_count = 0x3F, .step = 1, .period = 2,
+                                                        .from_level = 0, .to_level = 0xFF };
+
+// $7E:9F8A
+static void fade_the_sprites_out(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    palette_start_fade_to_black(g, 0, sprites_fade_out);
+}
+
+// $7E:9FC8
+static void fade_the_first_layer_colors_out(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    palette_start_fade_to_black(g, 1, first_layer_colors_fade_out);
+}
+
+// $7E:9FEA
+static void fade_more_layer_colors_out(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    palette_start_fade_to_black(g, 2, more_layer_colors_fade_out);
+}
+
+const SceneScriptRoutine scene_ending_routines[] = {
+    [SCENE_ROW_STOP_THE_PICTURE] = { SCENE_ROUTINE_STOP_THE_PICTURE, stop_the_picture, scene_stop_the_picture_present, false },
+    [SCENE_ROW_STEP_TOWARD_THE_FIRST] = { SCENE_ROUTINE_STEP_THE_GROUND_TOWARD_THE_FIRST, step_the_ground_toward_the_first,
+                                          scene_step_the_ground_s_colors_present, false },
+    [SCENE_ROW_STEP_TOWARD_THE_SECOND] = { SCENE_ROUTINE_STEP_THE_GROUND_TOWARD_THE_SECOND, step_the_ground_toward_the_second,
+                                           scene_step_the_ground_s_colors_present, false },
+    [SCENE_ROW_STEP_TOWARD_THE_THIRD] = { SCENE_ROUTINE_STEP_THE_GROUND_TOWARD_THE_THIRD, step_the_ground_toward_the_third,
+                                          scene_step_the_ground_s_colors_present, false },
+    [SCENE_ROW_SHOW_THE_FIRST_LATER_COLORS] = { SCENE_ROUTINE_SHOW_THE_GROUND_S_FIRST_LATER_COLORS,
+                                                show_the_ground_s_first_later_colors, scene_show_the_ground_s_colors_present, false },
+    [SCENE_ROW_PLACE_THE_CAPTIONS] = { SCENE_ROUTINE_PLACE_THE_CAPTIONS, place_the_captions, scene_place_the_captions_present, false },
+    [SCENE_ROW_FADE_THE_SPRITES_OUT] = { SCENE_ROUTINE_FADE_THE_SPRITES_OUT, fade_the_sprites_out,
+                                         scene_fade_the_sprites_out_present, false },
+    [SCENE_ROW_FADE_THE_FIRST_LAYER_COLORS_OUT] = { SCENE_ROUTINE_FADE_THE_FIRST_LAYER_COLORS_OUT,
+                                                    fade_the_first_layer_colors_out,
+                                                    scene_fade_the_first_layer_colors_out_present, false },
+    [SCENE_ROW_FADE_MORE_LAYER_COLORS_OUT] = { SCENE_ROUTINE_FADE_MORE_LAYER_COLORS_OUT, fade_more_layer_colors_out,
+                                               scene_fade_more_layer_colors_out_present, false },
+};
+const unsigned scene_ending_routine_count = sizeof scene_ending_routines / sizeof scene_ending_routines[0];
+
+#if ORIGINAL_EFFECTS
+/* What each leaves in A, as its last load left it: the empty routine's
+ * address, the move's count run out, the colors' count, the fades' kind in A's
+ * low byte; Y, past the colors the move took; and the captions' place down
+ * in A's low byte. */
+enum { NOTHING_EACH_PASS_LEFT = NOTHING_EACH_PASS, MOVE_DONE = 0xFFFF, FADE_KIND = 0x50 };
+
+static uint16_t leaves_the_empty_routine(uint16_t called_with)
+{
+    (void)called_with;
+    return NOTHING_EACH_PASS_LEFT;
+}
+
+static uint16_t leaves_the_move_done(uint16_t called_with)
+{
+    (void)called_with;
+    return MOVE_DONE;
+}
+
+static uint16_t leaves_the_colors_count(uint16_t called_with)
+{
+    (void)called_with;
+    return STEPPED_COLORS;
+}
+
+static uint16_t leaves_a_as_called(uint16_t called_with) { return called_with; }
+static uint16_t leaves_the_fade_kind(uint16_t called_with) { return (uint16_t)((called_with & 0xFF00) | FADE_KIND); }
+
+static void leaves_y_past_the_colors(Snes *s) { s->cpu.y = (uint16_t)(WORKING_PALETTE_PAGE + GROUND_COLORS_MOVED); }
+static void leaves_the_place_down(Snes *s)
+{
+    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | scene_ending_captions_y(state_of(s)));
+}
+
+const SceneRoutineLeaves scene_ending_routine_leaves[] = {
+    [SCENE_ROW_STOP_THE_PICTURE] = { leaves_the_empty_routine, NULL },
+    [SCENE_ROW_STEP_TOWARD_THE_FIRST] = { leaves_the_colors_count, NULL },
+    [SCENE_ROW_STEP_TOWARD_THE_SECOND] = { leaves_the_colors_count, NULL },
+    [SCENE_ROW_STEP_TOWARD_THE_THIRD] = { leaves_the_colors_count, NULL },
+    [SCENE_ROW_SHOW_THE_FIRST_LATER_COLORS] = { leaves_the_move_done, leaves_y_past_the_colors },
+    [SCENE_ROW_PLACE_THE_CAPTIONS] = { leaves_a_as_called, leaves_the_place_down },
+    [SCENE_ROW_FADE_THE_SPRITES_OUT] = { leaves_a_as_called, NULL },
+    [SCENE_ROW_FADE_THE_FIRST_LAYER_COLORS_OUT] = { leaves_the_fade_kind, NULL },
+    [SCENE_ROW_FADE_MORE_LAYER_COLORS_OUT] = { leaves_the_fade_kind, NULL },
+};
+#endif
+
+/* Their entries, for a caller that reaches one by its address. */
+void scene_stop_the_picture(Snes *s) { scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_STOP_THE_PICTURE]); }
+void scene_step_the_ground_toward_the_first(Snes *s)
+{
+    scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_STEP_TOWARD_THE_FIRST]);
+}
+void scene_step_the_ground_toward_the_second(Snes *s)
+{
+    scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_STEP_TOWARD_THE_SECOND]);
+}
+void scene_step_the_ground_toward_the_third(Snes *s)
+{
+    scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_STEP_TOWARD_THE_THIRD]);
+}
+void scene_show_the_ground_s_first_later_colors(Snes *s)
+{
+    scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_SHOW_THE_FIRST_LATER_COLORS]);
+}
+void scene_place_the_captions(Snes *s) { scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_PLACE_THE_CAPTIONS]); }
+void scene_fade_the_sprites_out(Snes *s) { scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_FADE_THE_SPRITES_OUT]); }
+void scene_fade_the_first_layer_colors_out(Snes *s)
+{
+    scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_FADE_THE_FIRST_LAYER_COLORS_OUT]);
+}
+void scene_fade_more_layer_colors_out(Snes *s)
+{
+    scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_FADE_MORE_LAYER_COLORS_OUT]);
+}
+
+/* Their guards: their code, which the scripts' bank reaches. */
+bool scene_stop_the_picture_present(Snes *s) { return m_code_matches(s, 0x7E96FB, 0x07, 0x1FA3E0828B2A5344ull); }
+bool scene_step_the_ground_s_colors_present(Snes *s) { return m_code_matches(s, 0x7E98F6, 0x23, 0x79362D7CDB4D5C3Bull); }
+bool scene_show_the_ground_s_colors_present(Snes *s) { return m_code_matches(s, 0x7E9702, 0x0D, 0xE2029DA31C9079C5ull); }
+bool scene_place_the_captions_present(Snes *s) { return m_code_matches(s, 0x7E9919, 0x11, 0xF58A22A17EA5E1E2ull); }
+bool scene_fade_the_sprites_out_present(Snes *s) { return m_code_matches(s, 0x7E9F8A, 0x1F, 0x5C792CC10DB4FE27ull); }
+bool scene_fade_the_first_layer_colors_out_present(Snes *s) { return m_code_matches(s, 0x7E9FC8, 0x22, 0x5AA36E26668E882Dull); }
+bool scene_fade_more_layer_colors_out_present(Snes *s) { return m_code_matches(s, 0x7E9FEA, 0x22, 0xBE62B562A826D9FCull); }
 
 /* ---- The last scene's window ------------------------------------------------------------------- */
 
@@ -1021,6 +1409,164 @@ static void scroll_bg2(const GameState *g, Platform *pf)
     vid_set_scroll(pf, PF_AT(0x7E8E8B), VID_BG2, 0, scene_channel_register(g, STEERING_CHANNEL, CREDITS_SCROLL), VID_SCROLL_V);
 }
 
+/* ---- What the tasks take ----------------------------------------------------------------------- */
+
+/* The states the tasks are ports for, which their entries' guards and their
+ * C both check: what isn't is the machine's. */
+
+/* The placing draws the tall picture's sixteen sprites at most. */
+enum { MOST_SPRITES = 16 };
+
+static bool room_for_the_picture(const GameState *g) { return scene_sprites_fit(g, MOST_SPRITES); }
+
+/* The upload sends as many bytes as the scaling's source ends at, which is
+ * never 0 (65536 bytes to the original) where a picture is waiting. */
+static bool picture_upload_sized(const GameState *g)
+{
+    return !(uint8_t)scene_ending_picture_ready(g) || scene_scaler_source_limit(g) != 0;
+}
+
+static bool room_for_the_end(const GameState *g) { return scene_sprites_fit(g, scene_sprite_list_length(g, THE_END)); }
+
+/* The rider (RIDER), a sprite list of the program's with signed offsets,
+ * behind the window's left edge and level with its top. */
+
+/* The sweep: the window's edges where it keeps them, and no corner on the
+ * last line, nor the table's right side, which its drawing reads first: from
+ * there the original's fill of the lines below runs round the bank into low
+ * RAM; and while the left edge comes in, room for the rider's sprites. */
+static bool sweep_fits(const GameState *g)
+{
+    bool ok = scene_ending_window_left(g) < 0x8000 && field_window_shape_right_start(g) < SCREEN_RIGHT_EDGE;
+    if (scene_ending_window_left(g))
+        ok = ok && scene_sprites_fit(g, scene_sprite_list_length(g, RIDER));
+    SweepCorner corners[4];
+    sweep_corners(g, corners);
+    for (unsigned c = 0; c < 4; c++)
+        ok = ok && scene_ending_window_corners(g, c) < 0x8000 && corners[c].y < SCREEN_RIGHT_EDGE;
+    return ok;
+}
+
+static void draw_rider(GameState *g)
+{
+    scene_draw_lists_at(g, (uint16_t)(scene_ending_window_left(g) - RIDER_BEHIND_THE_EDGE),
+                        (uint16_t)(scene_ending_window_corners(g, LEFT_TOP) / QUARTERS));
+    TIMED_AS(g, 0x7E3A97, scene_draw_signed_sprite_list(g, RIDER));
+}
+
+// $7E:9A0C
+/* A frame of the last scene's window: drawn, the rider on its edge while it
+ * comes in, and moved on; over once it has swept past. */
+static Sweep sweep_the_window(GameState *g, Platform *pf)
+{
+    draw_sweep_window(g);
+    if (scene_ending_window_left(g))
+        draw_rider(g);
+    return move_sweep_window(g, pf);
+}
+
+/* ---- The tasks as C ---------------------------------------------------------------------------- */
+
+static TaskEnd machine_s(GameState *g, uint32_t routine, const char *what) { return scene_task_needs_the_machine(g, routine, what); }
+
+TaskEnd scene_ending_place_picture(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    if (!room_for_the_picture(g))
+        return machine_s(g, 0x7E8850, "an ending's picture with no room for its sprites");
+    (void)place_picture(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_ending_pick_picture_frame(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    (void)pick_picture_frame(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_ending_upload_picture(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    if (!picture_upload_sized(g))
+        return machine_s(g, 0x7E89C0, "an ending's picture of no size");
+    upload_picture(g, pf);
+    return task_goes_on();
+}
+
+TaskEnd scene_ending_show_credits(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    show_credits(g, pf);
+    return task_is_done();
+}
+
+TaskEnd scene_ending_show_last_scene(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    show_last_scene(g, pf);
+    return task_is_done();
+}
+
+TaskEnd scene_send_the_credits_picture(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)g;
+    (void)slot;
+    send_a_credits_piece(pf, CREDITS_PICTURE_SENT);
+    return task_is_done();
+}
+
+TaskEnd scene_send_the_pattern_s_map(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)g;
+    (void)slot;
+    send_a_credits_piece(pf, CREDITS_PATTERN_MAP_SENT);
+    return task_is_done();
+}
+
+TaskEnd scene_send_the_pattern_s_tiles(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)g;
+    (void)slot;
+    send_a_credits_piece(pf, CREDITS_PATTERN_TILES_SENT);
+    return task_is_done();
+}
+
+TaskEnd scene_blank_the_map(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)g;
+    (void)slot;
+    blank_the_map(pf);
+    return task_is_done();
+}
+
+TaskEnd scene_ending_scroll_bg2(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    scroll_bg2(g, pf);
+    return task_goes_on();
+}
+
+TaskEnd scene_ending_draw_the_end(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    if (!room_for_the_end(g))
+        return machine_s(g, 0x7E99FA, "The End with no room for its sprites");
+    draw_the_end(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_ending_sweep_window(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    if (!sweep_fits(g))
+        return machine_s(g, 0x7E9A0C, "a last scene's window the port doesn't sweep");
+    return sweep_the_window(g, pf) == SWEEP_OVER ? task_is_done() : task_goes_on();
+}
+
 /* ---- Entries ----------------------------------------------------------------------------------- */
 
 /* The code an entry runs inline, by its routine: the unpacker's destination,
@@ -1052,8 +1598,7 @@ bool scene_ending_set_up_present(Snes *s)
         !scene_set_the_fireworks_up_present(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool fits = ending_mode(g) != MODE_CAPTIONED || scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK);
+    bool fits = room_for_the_mosaic(state_of(s));
     vars_peek(false);
     return fits;
 }
@@ -1062,9 +1607,14 @@ bool scene_ending_set_up_present(Snes *s)
  * page, the data bank bank 0, where the fireworks' setup leaves it (it works
  * on the program's bank and pulls the 0 it pushed under it), and the overflow
  * the per-line effects' setup leaves, clear. */
+/* The setup leaves Y past the per-line effects' descriptors, where their
+ * setup stopped reading, which the frame's first vblank tasks may read. */
+static void leave_y_past_the_descriptors(Snes *s, uint16_t end) { s->cpu.y = end; }
+
 bool scene_ending_set_up_scene(Snes *s)
 {
-    set_up_ending(s);
+    uint16_t descriptors_end = set_up_ending_with(state_of(s), m_platform(s), &on_the_machine, s);
+    ORIGINAL_EFFECT(leave_y_past_the_descriptors(s, descriptors_end));
     s->cpu.db = 0x00;
     s->cpu.d = 0x0000;
     m_set_flag(s, CPU_FLAG_V, false);
@@ -1072,7 +1622,7 @@ bool scene_ending_set_up_scene(Snes *s)
     return true;
 }
 
-void scene_ending_set_up(Snes *s)
+void scene_ending_set_up_entry(Snes *s)
 {
     scene_ending_set_up_scene(s);
     m_rts(s);
@@ -1095,14 +1645,47 @@ bool scene_ending_load_ground_and_picture_present(Snes *s)
            m_code_matches(s, 0x7E37A6, 0x24, 0x5FBEEF82E0975340ull) && m_code_matches(s, 0x7E8752, 0x20, 0xE25F56B609E8320Eull);
 }
 
+/* A routine a script calls keeps its page and the scripts' bank on the stack
+ * while it works (the bank byte its data bank's push left), with 8-bit A, and
+ * goes back with them and 16-bit A. */
+static void begin_script_routine(Snes *s)
+{
+    m_push16(s, s->cpu.d);
+    m_push8(s, SCENE_LOWER_WORK_RAM);
+    s->cpu.db = 0x00;
+    s->cpu.p |= CPU_FLAG_M;
+}
+
+static void end_script_routine(Snes *s)
+{
+    s->cpu.db = m_pull8(s);
+    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
+    s->cpu.d = m_pull16(s);
+    m_rts(s);
+}
+
+static SceneProgramPage calling_page(Snes *s)
+{
+    SceneChannel ch = 0;
+    scene_channel_at(m_direct_page(s), &ch);
+    return scene_program_channel(ch);
+}
+
+/* What the picture's routines leave: Y where the last copy of its colors
+ * ended, and the overflow of the mirroring's last step back a run, clear. */
+static void leave_picture_loaded(Snes *s, uint16_t copied_to)
+{
+    s->cpu.y = copied_to;
+    m_set_flag(s, CPU_FLAG_V, false);
+}
+
 /* The script routines' entries: 16-bit A; back with the page and the bank
  * they kept. */
 void scene_ending_load_picture(Snes *s)
 {
     SceneProgramPage page = calling_page(s);
     begin_script_routine(s);
-    start_picture(state_of(s), m_platform(s), 0x7E87DA);
-    uint16_t copied_to = load_picture(s, page);
+    uint16_t copied_to = load_the_picture_with(state_of(s), m_platform(s), page, &on_the_machine, s);
     ORIGINAL_EFFECT(leave_picture_loaded(s, copied_to));
     end_script_routine(s);
 }
@@ -1111,9 +1694,7 @@ void scene_ending_load_ground_and_picture(Snes *s)
 {
     SceneProgramPage page = calling_page(s);
     begin_script_routine(s);
-    start_picture(state_of(s), m_platform(s), 0x7E879E);
-    load_new_ground(s, page);
-    uint16_t copied_to = load_picture(s, page);
+    uint16_t copied_to = load_the_ground_and_picture_with(state_of(s), m_platform(s), page, &on_the_machine, s);
     ORIGINAL_EFFECT(leave_picture_loaded(s, copied_to));
     end_script_routine(s);
 }
@@ -1131,9 +1712,7 @@ void scene_ending_start_stars(Snes *s)
 {
     begin_script_routine(s);
     s->cpu.d = 0x0000;
-    stop_frame_tasks(state_of(s));
-    stop_vblank_tasks(state_of(s));
-    start_stars(s);
+    start_stars_with(state_of(s), m_platform(s), &on_the_machine, s);
     ORIGINAL_EFFECT(s->cpu.y = PAST_THE_WORKING_PALETTE);
     end_script_routine(s);
 }
@@ -1151,9 +1730,7 @@ void scene_ending_start_mode7_picture(Snes *s)
 {
     begin_script_routine(s);
     s->cpu.d = 0x0000;
-    stop_frame_tasks(state_of(s));
-    stop_vblank_tasks(state_of(s));
-    start_mode7_picture(s);
+    start_mode7_picture_with(state_of(s), m_platform(s), &on_the_machine, s);
     ORIGINAL_EFFECT(s->cpu.y = PAST_THE_WORKING_PALETTE);
     end_script_routine(s);
 }
@@ -1171,8 +1748,7 @@ enum { PAST_THE_FRAME_TASKS = 0x0920 + FRAME_TASK_SLOTS * 2 };
 void scene_ending_prepare_credits(Snes *s)
 {
     begin_script_routine(s);
-    stop_frame_tasks(state_of(s));
-    bool credits = prepare_credits(s);
+    bool credits = prepare_credits_with(state_of(s), m_platform(s), &on_the_machine, s);
     ORIGINAL_EFFECT(s->cpu.y = credits ? 0 : PAST_THE_FRAME_TASKS);
     end_script_routine(s);
 }
@@ -1192,6 +1768,15 @@ void scene_ending_set_last_colors(Snes *s)
     end_script_routine(s);
 }
 
+/* A state half, peeked. */
+static bool holds(Snes *s, bool (*takes)(const GameState *g))
+{
+    vars_peek(true);
+    bool ok = takes(state_of(s));
+    vars_peek(false);
+    return ok;
+}
+
 /* The vblank tasks that set a scene's screen up once and take themselves off
  * the list. */
 bool scene_ending_show_credits_present(Snes *s)
@@ -1201,7 +1786,7 @@ bool scene_ending_show_credits_present(Snes *s)
            m_code_matches(s, 0x7E9023, 0x6, 0xF09D7328034315D8ull);
 }
 
-void scene_ending_show_credits(Snes *s)
+void scene_ending_show_credits_entry(Snes *s)
 {
     show_credits(state_of(s), m_platform(s));
     m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
@@ -1213,9 +1798,44 @@ bool scene_ending_show_last_scene_present(Snes *s)
            m_code_matches(s, 0x7E36CC, 0x3C, 0x45191A42A1EEF6A8ull) && m_code_matches(s, 0x7E9029, 0x6, 0x31D9FBABBC5732E4ull);
 }
 
-void scene_ending_show_last_scene(Snes *s)
+void scene_ending_show_last_scene_entry(Snes *s)
 {
     show_last_scene(state_of(s), m_platform(s));
+    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+}
+
+/* The credits' pieces' vblank tasks: their code, the send they share, and the
+ * list's exit they jump to, reaching the registers through the data bank.
+ * Entered with 8-bit A; nothing they leave is read. */
+static bool credits_pieces_present(Snes *s)
+{
+    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E9F2B, 0x2E, 0x8E5DE0BE1BA03B47ull) &&
+           m_code_matches(s, 0x7E9F59, 0x1A, 0x573296F067675F24ull) && m_code_matches(s, 0x7E39DE, 0x04, 0x37224D8D813A8AFCull);
+}
+
+bool scene_send_the_credits_picture_present(Snes *s) { return credits_pieces_present(s); }
+bool scene_send_the_pattern_s_map_present(Snes *s) { return credits_pieces_present(s); }
+bool scene_send_the_pattern_s_tiles_present(Snes *s) { return credits_pieces_present(s); }
+
+bool scene_blank_the_map_present(Snes *s)
+{
+    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E9F73, 0x17, 0xFCE619F5404A5D5Aull) &&
+           m_code_matches(s, 0x7E90AA, 0x17, 0x51D21C0093401867ull) && m_code_matches(s, 0x7E39DE, 0x04, 0x37224D8D813A8AFCull);
+}
+
+static void credits_piece_on_the_machine(Snes *s, unsigned piece)
+{
+    send_a_credits_piece(m_platform(s), piece);
+    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+}
+
+void scene_send_the_credits_picture_entry(Snes *s) { credits_piece_on_the_machine(s, CREDITS_PICTURE_SENT); }
+void scene_send_the_pattern_s_map_entry(Snes *s) { credits_piece_on_the_machine(s, CREDITS_PATTERN_MAP_SENT); }
+void scene_send_the_pattern_s_tiles_entry(Snes *s) { credits_piece_on_the_machine(s, CREDITS_PATTERN_TILES_SENT); }
+
+void scene_blank_the_map_entry(Snes *s)
+{
+    blank_the_map(m_platform(s));
     m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
 }
 
@@ -1225,41 +1845,18 @@ bool scene_ending_scroll_bg2_present(Snes *s)
 }
 
 /* A vblank task; nothing it leaves is read. */
-void scene_ending_scroll_bg2(Snes *s)
+void scene_ending_scroll_bg2_entry(Snes *s)
 {
     scroll_bg2(state_of(s), m_platform(s));
     m_rts(s);
 }
 
 /* The window's task: the scene's page, a data bank on the registers (the
- * rider's sprite list streams through the work RAM port), the window's edges
- * where the sweep keeps them, and no corner on the last line, nor the
- * table's right side, which its drawing reads first: from there the
- * original's fill of the lines below runs round the bank into low RAM. */
+ * rider's sprite list streams through the work RAM port), and the sweep the
+ * port makes. */
 bool scene_ending_sweep_window_present(Snes *s)
 {
-    if (!scene_on_scene_page_io_bank(s) || !m_code_matches(s, 0x7E9A0C, 0xB1, 0x0B37DD86CDAEC523ull))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = scene_ending_window_left(g) < 0x8000 && field_window_shape_right_start(g) < SCREEN_RIGHT_EDGE;
-    if (scene_ending_window_left(g))   /* the rider's sprites stay in the table, and off the sweep's cells */
-        ok = ok && scene_sprites_fit(g, scene_sprite_list_length(g, RIDER));
-    SweepCorner corners[4];
-    sweep_corners(g, corners);
-    for (unsigned c = 0; c < 4; c++)
-        ok = ok && scene_ending_window_corners(g, c) < 0x8000 && corners[c].y < SCREEN_RIGHT_EDGE;
-    vars_peek(false);
-    return ok;
-}
-
-/* The rider, a sprite list of the program's with signed offsets, behind the
- * window's left edge and level with its top. */
-static void draw_rider(GameState *g)
-{
-    scene_draw_lists_at(g, (uint16_t)(scene_ending_window_left(g) - RIDER_BEHIND_THE_EDGE),
-                        (uint16_t)(scene_ending_window_corners(g, LEFT_TOP) / QUARTERS));
-    TIMED_AS(g, 0x7E3A97, scene_draw_signed_sprite_list(g, RIDER));
+    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E9A0C, 0xB1, 0x0B37DD86CDAEC523ull) && holds(s, sweep_fits);
 }
 
 /* The list's exit for a task that takes itself off. */
@@ -1268,18 +1865,18 @@ enum { REMOVE_SWEEP_TASK = 0x7E39A7 };
 /* A frame task, entered with 16-bit A. Back, A's high byte is the right
  * side's top corner's (the last the original loaded), or 0 where the sweep
  * is over, and Y where the rider's list or the window's drawing left it. */
-void scene_ending_sweep_window(Snes *s)
+static void leave_the_sweep_s_y(Snes *s, const GameState *g, bool rider_drawn)
+{
+    s->cpu.y = rider_drawn ? scene_sprite_index(g) : field_window_shape_leaves_y(g);
+}
+
+void scene_ending_sweep_window_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    draw_sweep_window(g);
-    if (scene_ending_window_left(g)) {
-        draw_rider(g);
-        ORIGINAL_EFFECT(s->cpu.y = scene_sprite_index(g));
-    } else {
-        ORIGINAL_EFFECT(s->cpu.y = field_window_shape_leaves_y(g));
-    }
-    if (move_sweep_window(g, pf) == SWEEP_OVER) {
+    bool rider_drawn = scene_ending_window_left(g) != 0;
+    Sweep sweep = sweep_the_window(g, m_platform(s));
+    ORIGINAL_EFFECT(leave_the_sweep_s_y(s, g, rider_drawn));
+    if (sweep == SWEEP_OVER) {
         ORIGINAL_EFFECT(s->cpu.a = 0);
         m_stop_at(s, REMOVE_SWEEP_TASK, DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C);
         return;
@@ -1289,37 +1886,23 @@ void scene_ending_sweep_window(Snes *s)
     m_rts(s);
 }
 
-/* The upload sends as many bytes as the scaling's source ends at, which is
- * never 0 (65536 bytes to the original) where a picture is waiting. */
 bool scene_ending_upload_picture_present(Snes *s)
 {
-    if (!scene_on_scene_page_io_bank(s) || !m_code_matches(s, 0x7E89C0, 0x2D, 0x30B40D41846E3FB4ull))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool sized = !(uint8_t)scene_ending_picture_ready(g) || scene_scaler_source_limit(g) != 0;
-    vars_peek(false);
-    return sized;
+    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E89C0, 0x2D, 0x30B40D41846E3FB4ull) &&
+           holds(s, picture_upload_sized);
 }
 
 /* A vblank task; nothing it leaves is read. */
-void scene_ending_upload_picture(Snes *s)
+void scene_ending_upload_picture_entry(Snes *s)
 {
     upload_picture(state_of(s), m_platform(s));
     m_rts(s);
 }
 
-/* The placing draws the tall picture's sixteen sprites at most. */
-enum { MOST_SPRITES = 16 };
-
 bool scene_ending_place_picture_present(Snes *s)
 {
-    if (!scene_on_scene_page_io_bank(s) || !m_code_matches(s, 0x7E8850, 0x69, 0x0371646720951031ull))
-        return false;
-    vars_peek(true);
-    bool fits = scene_sprites_fit(state_of(s), MOST_SPRITES);
-    vars_peek(false);
-    return fits;
+    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E8850, 0x69, 0x0371646720951031ull) &&
+           holds(s, room_for_the_picture);
 }
 
 /* What the placing leaves for the lists' code: A as the clipped list leaves
@@ -1335,7 +1918,7 @@ static void leave_picture_placed(Snes *s, uint16_t list)
 }
 
 /* A frame task, and a vblank task (8-bit A); back with 16-bit A. */
-void scene_ending_place_picture(Snes *s)
+void scene_ending_place_picture_entry(Snes *s)
 {
     uint16_t list = place_picture(state_of(s));
     ORIGINAL_EFFECT(leave_picture_placed(s, list));
@@ -1347,18 +1930,13 @@ void scene_ending_place_picture(Snes *s)
  * through the work RAM port), room for its sprites from the cursor. */
 bool scene_ending_draw_the_end_present(Snes *s)
 {
-    if (!scene_on_scene_page_io_bank(s) || !m_code_matches(s, 0x7E99FA, 0x12, 0x6A62CB76AC02881Eull))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool fits = scene_sprites_fit(g, scene_sprite_list_length(g, THE_END));
-    vars_peek(false);
-    return fits;
+    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E99FA, 0x12, 0x6A62CB76AC02881Eull) &&
+           holds(s, room_for_the_end);
 }
 
 /* A frame task; back, Y is the next free entry and A as the clipped list
  * leaves it. */
-void scene_ending_draw_the_end(Snes *s)
+void scene_ending_draw_the_end_entry(Snes *s)
 {
     GameState *g = state_of(s);
     draw_the_end(g);
@@ -1375,7 +1953,7 @@ bool scene_ending_pick_picture_frame_present(Snes *s)
 /* A frame task, entered with 16-bit A and the carry clear (the registry's
  * condition; the list's own compare, for any slot but the first). Back, A is
  * the frame's place, which the lists' code hands on. */
-void scene_ending_pick_picture_frame(Snes *s)
+void scene_ending_pick_picture_frame_entry(Snes *s)
 {
     uint16_t source = pick_picture_frame(state_of(s));
     ORIGINAL_EFFECT(s->cpu.a = source);
@@ -1385,17 +1963,38 @@ void scene_ending_pick_picture_frame(Snes *s)
 /* The scaling reads the picture's shape as a word, the gathering and placing
  * its low byte, which agree while the byte after it is 0, as every ending
  * leaves it. A picture handed to the scaler runs the program's divide inline. */
+static bool picture_waiting(const GameState *g) { return scene_ending_picture_ready(g) != 0; }
+static bool shape_word_agrees(const GameState *g) { return (scene_ending_picture_tall(g) >> 8) == 0; }
+
 bool scene_ending_scale_picture_present(Snes *s)
 {
     if (!scene_on_scene_page(s) || !m_bank_reaches_low_ram(s) || !m_code_matches(s, 0x7E8930, 0x6, 0xB318CAF0720BDB26ull))
         return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool waiting = scene_ending_picture_ready(g) != 0;
-    bool word_agrees = (scene_ending_picture_tall(g) >> 8) == 0;
-    vars_peek(false);
-    return waiting || (word_agrees && m_code_matches(s, 0x7E8936, 0x4D, 0x65F6F8DD17744FCCull) &&
-                       m_code_matches(s, 0x7E32E2, 0xBD, 0xD04B8C1274AF93C8ull));
+    return holds(s, picture_waiting) || (holds(s, shape_word_agrees) && m_code_matches(s, 0x7E8936, 0x4D, 0x65F6F8DD17744FCCull) &&
+                                         m_code_matches(s, 0x7E32E2, 0xBD, 0xD04B8C1274AF93C8ull));
+}
+
+/* As C, the main loop's call each pass: unless the last picture still waits
+ * to be sent, the animation's frame scaled whole at the zoom channel 1 asks
+ * for, its first row nudged by nothing (a zoom under $8000 leaves the carry
+ * clear), and gathered. False where the program goes no further. */
+enum { SCALE_PICTURE = 0x7E8930, GATHER_PICTURE = 0x7E8983 };
+
+bool scene_ending_scale_picture(GameState *g, Platform *pf)
+{
+    (void)pf;
+    if (!picture_waiting(g) && !shape_word_agrees(g)) {
+        program_needs_the_machine(g, SCALE_PICTURE, "an ending's picture whose shape the port doesn't take");
+        return false;
+    }
+    if (!hand_picture_to_scaler(g))
+        return true;
+    bool drawn = false;
+    TIMED_AS(g, SCENE_SCALER_ROWS, drawn = scene_scale_the_bitmap(g, false));
+    if (!drawn)
+        return false;
+    TIMED_AS(g, GATHER_PICTURE, gather_picture(g));
+    return true;
 }
 
 /* The divide's dividend, as the original leaves it in the scene's first cell:
@@ -1408,7 +2007,7 @@ static void leave_dividend(Snes *s)
 /* The main loop's call each pass, with 16-bit A. With the last picture still
  * to be sent it is back at once, the carry as it came; otherwise the scaler's
  * rows go on in the original's code, which comes back to the gathering. */
-void scene_ending_scale_picture(Snes *s)
+void scene_ending_scale_picture_entry(Snes *s)
 {
     GameState *g = state_of(s);
     if (!hand_picture_to_scaler(g)) {

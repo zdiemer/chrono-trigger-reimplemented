@@ -2946,135 +2946,109 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
-### The native program through the menus the player opens
+### The native program through the story scenes
 
-From a cartridge save `ct_native` played 35 of the 40 save movies to their
-end (the history file, "The native program through the Epoch's screens and
-the race's opening"). Four of the rest stopped in the menus: menus-field-menu
-at the equipment's slots window (`$C2:A71E`), menus-sweep at an item moved
-(`$C2:AAC8`), and battle-tech-sweep-spekkio and menus-end-of-time at the
-End of Time gate's exchange (`$C2:C7AC`); the fifth, menus-shop-inn, at a
-shop (`$C2:D52B`). The chunk followed the four through every step they
-reach: the equipment's slots and list, the items moved and used with the
-healing they show, the techs' list and the members a tech is used on, the
-settings' meters, gauge layouts and button rows, and the gate's exchange
-with its song and swirl. The shop it left (below, "The native program
-through the shops").
+`ct_native` ran every scene the attract sequence and the save movies reach,
+but no movie's presses bring it to the story's own: a movie recorded on the
+machine lands its presses elsewhere in the native program's frames. So the
+chunk began with a way there: `ct_native --scene flags[,song]` starts the
+game in the scene engine after the power-on, as an event starts a scene from
+the field (`program_starts_in_a_scene`, a queue of up to four the main
+thread takes before the field's loop; `runtime/port/state_host.c`), with the
+song the field had playing, which a scene that keeps the field's song waits
+on (the Epoch's dive waits for the song's fourth marker). Given again, the
+scenes run one after another, as an ending's two do: the Beyond Time
+ending's mode 14 takes up the captions' text mode 11 left in `$0382`. The
+flags and songs as the story has them came from the endings' movies run in
+ct_drive (mode 11 `$2B` and 14 `$2E` with song `$3F` in endings-beyond-time,
+the staff roll `$2D` in endings-telepod-lavos, the dive `$26` with song `$50`
+in events-epoch-lavos).
 
-**One shape throughout.** Each step, and each routine a step goes on to, is
-one `*_with` sequence of the screen's (menu/equipment.c, item_screen.c,
-tech_screen.c, settings_screen.c, exchange.c, healing.c, sound.c), asking
-what differs through the screen's steps struct: a tick, a frame's wait, a
-note (what the original's tests leave, scaffolding), and two the screens
-lacked: `registers_at`, the widths and the P a routine saves or sets where
-the original's code does, and `run`, a sibling routine the original reaches
-by a call, named by an enum. On the machine `run` is the original's call at
-its site, from a table only the machine's step reads, and `registers_at` the
-width or P change; as C, `run` is the sibling's own sequence or port behind
-the state half of its entry's guard (split out of the guard where it was
-static), and `registers_at` nothing. The registered entries are thin
-wrappers passing the machine's steps; where a C function now takes a
-routine's plain name, its wrapper is `<name>_entry` (registry names
-unchanged).
+Each scene then stopped at its setup, which the native program's table of
+setups (`scene/program.c`'s `c_setups`) lacked, and once past it at each
+task, script routine and main loop call with no C.
 
-**What came with it.** The equipment's member list's slide (`$C2:9D5B`),
-its slots window opening and closing (`$C2:A71E`, `$C2:A85C`), the list of
-what fits made, drawn, slid in and out (`$C2:A463`, `$C2:A45D`, `$C2:A4AF`,
-`$C2:A697`), pointing at a slot and the shoulders' switch (`$C2:9ECD`,
-`$C2:A00B`), the card redrawn (`$C2:A21F`, members.c) and back on the slots
-(`$C2:A64D`). An item's use (`$C2:B0AB`) and its kinds (a tonic, by chance,
-the party's rest, a tab), the member window (`$C2:AF42`), a tab's pointing
-and raise (`$C2:B24A`, `$C2:B275`, `$C2:B2A7`), one more used (`$C2:B31C`),
-and the item's users closed (`$C2:AC1D`). The healing shown, its numbers'
-task and each kind's rise (`$C2:8F55`, `$C2:8F6C`, `$C2:9016`, `$C2:9047`),
-the task a C row of menu/tasks.c's table; the sound on the effects' other
-voices as C (`$C2:EAF9`). The cursor among the members a healing is used on
-(`$C2:B83E`, `$C2:B870`), which the items and the techs share. The techs'
-member list slid (`$C2:B568`, `$C2:B5C8`), the lister and its sprite
-(`$C2:B9E1`, `$C2:BA09`; one record's sprite load as C, sprites.c), choosing
-a tech and its targets (`$C2:B3AE`, `$C2:B48E`) with the list's slide, the
-tech described, the targets' window and pointing (`$C2:B72F`, `$C2:BE01`,
-`$C2:BE79`, `$C2:B823`). The settings' meters and the design (`$C2:C164`,
-`$C2:C0B9`, `$C2:C0D1`, `$C2:C12C`), the gauge's layouts (`$C2:BF9F`) and the
-button rows (`$C2:BF6D`). The gate's exchange's opening (`$C2:C7AC`): the
-gate's song changed, played in a task and changed back (`$C2:CB8B`,
-`$C2:CBBF`, `$C2:CC0E`; the task a row of the tasks' table, its wait for the
-song looking at the driver's status once a frame: TODO.md, "The gate's wait
-for its song to play"), the
-panel's gate sprite, the swirl unpacked and drawn (`$FF:F677`) and the gate
-screen started (`$C2:CE9D`) with its frame task as C (`$C2:CECE`), and the
-fade in. Past the gate, battle-tech-sweep-spekkio met the event commands
-that fill the party's HP and MP (`$F8`-`$FA`, `$C0:3E5C`-`$C0:3E75`): one
-sequence, with C bridges in the event engine's table.
+**The same shape as the planet's.** Each setup is one `*_with` sequence:
+Lavos falling (`scene/lavos_falls.c`), the Epoch's dive
+(`scene/epoch_dive.c`), the shared endings (`scene/endings.c`, modes 10, 11,
+14 and 15) and the staff roll (`scene/staff_roll.c`). What is another
+routine of the program's is a step: a resource unpacked, a script's first
+step, the stars scattered, a sound command or song sent, the dive's first
+drawing of the Epoch. On the machine the steps are the original's calls (and
+the register and stack mechanics around them: the dive's pieces' call under
+the unpacks, the D and data bank its matrix writer leaves); as C they are
+`scene_unpacks`, `scene_channel_turn`, `scene_scatter_stars` and the
+service's sends. The pixels' spread Lavos's picture needs (`$7E:350E`, which
+reads the packed bytes by moving the stack onto them) is a loop in C on both
+paths now, so shadow mode compares it inside the setup.
 
-A cursor read with the cursor held (the item users' close) is one helper,
-`menu_hold_and_read_the_cursor`, whose machine form notes what the read
-leaves before the hold, as the original's order has it.
+**The tasks.** Every task of the four scenes is a C column of
+`scene/frame.c`'s table, the function taking the plain name and the
+registered wrapper `*_entry`: Lavos's turn, the field's angle and swing,
+the planet's edge and the stars' flight; the dive's sixteen; the endings'
+picture placed, picked, uploaded, the credits' and last scene's screens,
+BG2's scroll, The End and the window's sweep; the Beyond Time ending's
+night (the orbit, the map passing, the flight's view checked, placed and
+sent, the horizon, the Epoch circling and swaying, the lights, the
+fireworks, the Mode 7 pictures); the captions; the stars after the captions
+and their drift; the staff roll's roll, upload and the sprites' high bits.
+A guard's state half is a function of the game's state both share (split
+out where it was inside the guard: `passes_within_reach`, `trail_fits`,
+`flight_fits`, `shaking_fits`, `sweep_fits`, `fireworks_burst_as_ported`,
+`captions_as_ported`, `roll_takes` and the rest); where it turns a state
+away, the C asks for the machine (`scene_task_needs_the_machine`). A
+task's own address and the list's carry, which some read, are what the list
+calls them with: the carry clear at every slot but the first, where no
+script puts those.
 
-**Measured.** Shadow mode over the library, none mismatched: the
-equipment's slot step 724 calls and its item step 633, pointing at a slot
-712 and along the list 1,440; an item moved 322 and the users closed 63;
-the techs' list step 788, its targets 222 and the cursor among the members
-a healing is used on 532; the settings' meter 935, the design 726, the
-speeds 218 and 222, the gauge's layouts 160 and the button rows 208; the
-gate screen's task 1,213; the steps and routines that wait across frames
-(the windows' slides, the item's use and the healing shown, the gate's
-opening and its swirl) are abandoned where their frames end, as their
-callers' steps are. Fuzzing, seed 1, `tools/fuzz_compare.py` against the
-branch point's `ct_fuzz` over the 81 entries the chunk changed (98 runs with
-their variants): it found the techs' new tick places missing from the
-machine's table of sites (the list's slide, a tech chosen, its targets),
-which the movies' runs and the C path never meet; fixed, every run is the
-same as before. `tools/effects_check.py`: the bridges' reads that moved into
-the sequences keep their lines and reasons under the sequences' names, and
-two new state halves read the menus' zero word, which the menus' opening
-writes plainly. One timing row moved: `menu_raise_amount_kind` (`$C2:9047`),
-its sound now a step, recalibrated from 9102 to 8670. `ct_native` from a
-cartridge save: 39 of the 40 save movies play to their end (35 did):
-menus-field-menu, menus-sweep, menus-end-of-time and
-battle-tech-sweep-spekkio; menus-shop-inn stops at the shop's opening
-(`$C2:D52B`), where it did. The power-on movies and the attract sequence go
-as far as before.
+Six vblank and script pieces the endings run were still the original's
+code (tools/fallback_baseline.txt): the credits' pictures sent
+(`$7E:9F2B`, `$7E:9F39`, `$7E:9F47`, through `$7E:9F59`) and a map blanked
+(`$7E:9F73`, through `$7E:90AA`), each a `vid_send_vram` or
+`vid_send_vram_fill` with the SNES backend's encoding at its site; and nine
+small routines the scripts call (`scene_ending_routines`): the picture
+stopped (`$7E:96FB`), the ground's colours made, or stepped toward, one of
+the three later sets its setup copies (`$7E:9702`, `$7E:98F6`-`$7E:9900`,
+through the planet's colour step, `scene_step_the_colours_toward`), the
+captions' place taken from where a script stored it (`$7E:9919`, two new
+cells in re/ram.toml), and three fades to black (`$7E:9F8A`, `$7E:9FC8`,
+`$7E:9FEA`). The routines that load (the endings' six, which call the
+unpacker) are rows the native program alone reads (`scene_ending_loading_routines`;
+on the machine their entries run them); the staff roll's two became rows of
+the interpreter's table too (`scene_staff_roll_routines`).
 
-### The native program through the shops
+**The main loop's call.** `scene_runs` makes the main loop's call each pass
+(`main_loop_pass`): nothing for most scenes, and for the three that scale a
+picture as they go, the race's racers, the endings' zooming picture and the
+Epoch from outside, the scaling as C: the scaler draws the whole bitmap at
+once (`scene_scale_the_bitmap`, the row loop's guard's state half checked
+before each row), and the race waits a frame at a time for its racer's last
+tiles to go. The race's attract demo ran without its pictures scaled
+before; it scales them now.
 
-The last save movie `ct_native` didn't play to its end, menus-shop-inn,
-stopped at a shop's opening (`$C2:D52B`): the shop's nine steps had no C
-column in `menu/screens.c`'s table. Their bridges (`menu/shop_bridge.c`)
-were the machine's own code, with the decisions in `menu/shop.c` and
-`shop_equipment.c` between the original's calls.
-
-**The same shape as the menus'.** Each step and each routine a step goes on
-to that waits or calls out is one `*_with` sequence in `menu/shop_steps.c`:
-the opening and the set-up (`$C2:D52B`, `$C2:DACA`), the panel
-(`$C2:DD7C`), the tabs (`$C2:D546`), the goods and the list for sale
-(`$C2:D58B`, `$C2:D645`, their row taken, a page turned and the list slid
-a row), the quantity (`$C2:D618`, `$C2:D690`, its change by a push), and
-the equipping from the shop: the members (`$C2:D6C3`), a member chosen
-(`$C2:E0A5`), its slots (`$C2:E0F1`), the shoulders' switch (`$C2:E108`),
-a slot (`$C2:D715`) and the list of what fits (`$C2:D778`). `ShopSteps`
-has the menus' `note`, `registers_at` and `run`, with a tick, a wait and the
-ends (the fade in, the way out, a list's opening, the refusal's buzz); a
-note's value is a word, since a few leaves take two bytes of the state
-before (the room and the held count of an offer, the members compared, the
-total before a push). On the machine `run` is the original's call from a
-table of sites and the sounds' loads; as C, each routine's sequence behind
-its guard's state half (`menu_shop_can_be_opened` and the rest, split out
-of `shop_bridge.c`'s guards, and `menu_figures_can_be_worked_out` out of
-the figures' guard). The two lists' openings (`$C2:DC7B`, `$C2:DE98`)
-make no call-out and are one C function each, which their entries wrap. The
-equipment screen's list of what fits and its move along (`$C2:A463`,
-`$C2:9F05`) are the equipment's sequences; their C forms take the plain
-names (`menu_make_equipment_list`, `menu_point_along_equipment_list`) and
-the machine's wrappers became `*_entry`, as the shop's nine steps did.
-
-**Measured.** `ct_native` from a cartridge save: all 40 save movies play to
-their end (39 did), menus-shop-inn and menus-shop-equip among them. The gate
-over the library passes, the shop's entries compared in shadow mode with none
-mismatched; `tools/effects_check.py`'s lines for the bridges' reads moved
-with them into the sequences. Fuzzing, seed 1, `tools/fuzz_compare.py`
-over the shop's 28 entries and the equipment's two the shop shares (with
-their variants, at most 2,000 states each): none mismatched.
+**Measured.** Shadow mode, the four movies that reach the scenes, none
+mismatched: in battle-black-tyrano Lavos's turn 1,712 calls, the field's
+angle 564 and swing 828, the planet's edge 538, the stars' flight 1,712
+(135 compared, the rest in a latch wait), the setup 1 (inside the program's
+start's comparison); in events-epoch-lavos the dive's; in
+endings-beyond-time the endings' tasks as before (the scaling 1,547,154, the
+placing 5,375, the captions 8,605, the sweep 785) and the new pieces each
+compared on every call (the four sends 1 each, the routines 1 to 8); in
+endings-telepod-lavos the staff roll's setup 1, the roll and the upload 240
+each, the high bits 3,027, the drift 2,469. Fuzzing, seed 1,
+`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the 97
+entries the chunk changed (with their variants, at most 2,000 states each,
+the setups 300): every one the same as before, none mismatched; the 13 new,
+2,000 states each, none mismatched. `ct_native`: started in
+each scene, Lavos falling (`--scene 0x24`), the dive (`0x26,0x50`), the
+Beyond Time ending's two (`0x2B,0x3F` then `0x2E,0x3F`) and the reunion's
+(`0x2B,0x3F` then `0x2F,0x3F`) and the staff roll (`0x2D`) each run to
+their end, the dive and Lavos on to the field and the title, the endings
+to The End, where the game stays; mode 10, which no recording reaches,
+stops at its picture's vblank task (`$7E:9CE2`, TODO.md). Left alone, the
+attract sequence runs 30,000 frames without a stop with the race's
+pictures now scaled. Timing: the thirteen new entries calibrated from these
+four movies' shadow runs; the setups keep their rows.
 
 ### The last refusals in real play: the attract demo's states
 

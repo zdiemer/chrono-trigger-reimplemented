@@ -565,20 +565,22 @@ static bool can_continue(Snes *s, SceneChannel *ch) { return machine_as_expected
 
 /* ---- The program's routines the scripts call ------------------------------------------------- */
 
-/* The routines that are C (scene/title.c, scene/lavos_falls.c,
+/* The routines that are C (scene/title.c, scene/lavos_falls.c, scene/endings.c, scene/staff_roll.c,
  * scene/epoch_dive.c, scene/planet.c), by the value the script holds. */
 static const struct {
     const SceneScriptRoutine *routines;
     const unsigned *count;
 } routine_tables[] = { { scene_title_routines, &scene_title_routine_count }, { scene_lavos_routines, &scene_lavos_routine_count },
                        { scene_dive_routines, &scene_dive_routine_count }, { scene_planet_routines, &scene_planet_routine_count },
-                       { scene_race_routines, &scene_race_routine_count } };
+                       { scene_race_routines, &scene_race_routine_count }, { scene_ending_routines, &scene_ending_routine_count },
+                       { scene_staff_roll_routines, &scene_staff_roll_routine_count } };
 
 #if ORIGINAL_EFFECTS
 /* What they leave, in tables parallel to theirs. */
 static const SceneRoutineLeaves *const routine_leaves[] = { scene_title_routine_leaves, scene_lavos_routine_leaves,
                                                              scene_dive_routine_leaves, scene_planet_routine_leaves,
-                                                             scene_race_routine_leaves };
+                                                             scene_race_routine_leaves, scene_ending_routine_leaves,
+                                                             scene_staff_roll_routine_leaves };
 #endif
 
 static const SceneScriptRoutine *routine_port(uint16_t routine)
@@ -833,11 +835,23 @@ static RunEnd run(Snes *s, SceneChannel ch)
 
 /* ---- A channel's turn as C, with no machine ---------------------------------------------------- */
 
+/* The routines whose rows are the native program's alone (scene/endings.c):
+ * they call the original's code (the unpacker), which the interpreter's call
+ * can't run inline on the machine, where their registered entries run them. */
+static const SceneScriptRoutine *routine_in_c(uint16_t routine)
+{
+    const SceneScriptRoutine *r = routine_port(routine);
+    for (unsigned n = 0; !r && n < scene_ending_loading_routine_count; n++)
+        if (scene_ending_loading_routines[n].routine == routine)
+            r = &scene_ending_loading_routines[n];
+    return r;
+}
+
 /* The program's routine a script calls, as C where the port has it; false
  * where it is the original's yet. */
 static bool routine(GameState *g, Platform *pf, SceneChannel ch, uint16_t routine)
 {
-    const SceneScriptRoutine *r = routine_port(routine);
+    const SceneScriptRoutine *r = routine_in_c(routine);
     if (!r) {
         program_needs_the_machine(g, PROGRAM_BANK | routine, "a routine a scene's script calls");
         return false;

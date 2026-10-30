@@ -44,6 +44,9 @@ uint8_t *state_host_sram(GameState *g);
 enum { STATE_HOST_STRAYS_KEPT = 8 };
 unsigned long state_host_strays(const GameState *g, uint32_t *first, unsigned *kept);
 
+/* The most scenes a driver starts the game in, one after another (program_starts_in_a_scene). */
+enum { STATE_HOST_FIRST_SCENES = 4 };
+
 /* Where the program went no further than its C reaches (program_needs_the_machine,
  * game/core/program.h): the routine only the machine runs, and what it is. */
 bool state_host_stopped(const GameState *g, uint32_t *routine, const char **what);

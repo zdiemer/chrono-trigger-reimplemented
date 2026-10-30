@@ -1104,6 +1104,97 @@ args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
 why = "a vblank task, on the scene's page"
 
 [[routine]]
+name = "scene_send_the_credits_picture"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task, on the scene's page"
+
+[[routine]]
+name = "scene_send_the_pattern_s_map"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task, on the scene's page"
+
+[[routine]]
+name = "scene_send_the_pattern_s_tiles"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task, on the scene's page"
+
+[[routine]]
+name = "scene_blank_the_map"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task, on the scene's page"
+
+[[routine]]
+name = "scene_stop_the_picture"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "called by a script's call command on a channel's page"
+
+[[routine]]
+name = "scene_show_the_ground_s_first_later_colors"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "called by a script's call command on a channel's page"
+
+[[routine]]
+name = "scene_step_the_ground_toward_the_first"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "called by a script's call command on a channel's page"
+
+[[routine]]
+name = "scene_step_the_ground_toward_the_second"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "called by a script's call command on a channel's page"
+
+[[routine]]
+name = "scene_step_the_ground_toward_the_third"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "called by a script's call command on a channel's page"
+
+[[routine]]
+name = "scene_place_the_captions"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "called by a script's call command on a channel's page"
+
+[[routine]]
+name = "scene_fade_the_sprites_out"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "called by a script's call command on a channel's page"
+
+[[routine]]
+name = "scene_fade_the_first_layer_colors_out"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "called by a script's call command on a channel's page"
+
+[[routine]]
+name = "scene_fade_more_layer_colors_out"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "called by a script's call command on a channel's page"
+
+[[routine]]
 name = "scene_ending_show_last_scene"
 subsystem = "scene"
 state = "ending"

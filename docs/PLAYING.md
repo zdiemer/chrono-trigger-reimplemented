@@ -493,17 +493,22 @@ what `ct_play` becomes (PLAN.md, "The native program, and the registry taken
 down"). It is a measurement, not yet a player:
 
 ```sh
-build/main/ct_native --rom roms/ct-usa.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm] [--scene flags]
+build/main/ct_native --rom roms/ct-usa.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm] [--scene flags[,song]]...
 ```
 
 With `--movie` the first controller presses what the movie's frames say,
 frame for frame; the native program's frames aren't the machine's (nothing
 in it takes the original's time), so a movie's presses land where they will.
 So a movie that plays its way to a story scene seldom brings the native
-program there: `--scene` starts the game in the scene engine after the boot,
-with the flags an event hands it (`$24` Lavos falling, `$26` the Epoch's
-dive, `$2A`, `$2B`, `$2E` and `$2F` the endings, `$2D` the staff roll), and
-goes on to the field's power-on after it.
+program there: `--scene` starts the game in the scene engine after the
+power-on (`program_starts_in_a_scene`), with the flags an event hands it and
+the song the field would have had playing, which a scene that keeps the
+field's song waits on, and goes on to the field after it. Given again, the
+scenes run one after another, each taking up what the one before left, as
+an ending's do. As the story plays them: `--scene 0x24` Lavos falling,
+`--scene 0x26,0x50` the Epoch's dive, `--scene 0x2B,0x3F --scene 0x2E,0x3F`
+the Beyond Time ending's two and `--scene 0x2B,0x3F --scene 0x2F,0x3F` the
+reunion's, `--scene 0x2D` the staff roll.
 
 It links the whole of `game/` but `game/registry.c` -- the program's top in
 `game/core/program.c` (the boot, the main thread, the vblank and line
@@ -644,13 +649,20 @@ the Epoch's time dial and map view, and the jet bike race from its opening;
 the menus the player opens through the equipment's slots and list, an item
 moved or used and the healing it shows, the techs' list and the members a
 tech is used on, the settings' meters, gauge and buttons, and the End of
-Time gate's exchange with its song and swirl (REIMPLEMENTATION.md, "The
+Time gate's exchange with its song and swirl (history/reimplementation-chunks.md, "The
 native program through the menus the player opens"); and a shop, its goods
 bought and the party's items sold, and the party's equipment changed from
-it. 43 of the 45 save movies play to their end (REIMPLEMENTATION.md, "The
+it. 43 of the 45 save movies play to their end (history/reimplementation-chunks.md, "The
 native program through the shops"), all but two made to find where it
 stops, Frog's memory at the Magic Cave and the winged Epoch's map after
-Zeal's fall (TODO.md, "Refusals in real play").
+Zeal's fall (TODO.md, "Refusals in real play"). The story's scenes run as C
+too, each to its end (`--scene`, above): Lavos falling to the planet, the
+Epoch's dive into Lavos, the shared endings' zooming pictures, captions,
+stars, credits and last scene, the Beyond Time ending's night, and the staff
+roll and The End; the scene's main loop scales the race's racers, the
+endings' picture and the Epoch a bitmap at a time (`scene_scale_the_bitmap`).
+Mode 10's ending, which no recording reaches, stops at its picture's vblank
+task (`$7E:9CE2`).
 
 The field's steps as the program calls them (`field_runs`,
 `field/main_loop.c`) are functions of the game's state that the entries

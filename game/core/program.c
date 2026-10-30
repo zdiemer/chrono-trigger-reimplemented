@@ -173,20 +173,20 @@ static void go_no_further(GameState *g, Platform *pf, uint32_t routine, const ch
  * scene until its script ends it, and the field starts again. A game over
  * starts the game afresh from the title, as the field's first start did at
  * power-on; a scene that resets the console starts it from the boot. A
- * driver may start the game in a scene after the power-on, with the song the
+ * driver may start the game in scenes after the power-on, each with the song the
  * field would have had playing (program_starts_in_a_scene). */
-static bool first_scene_runs(GameState *g, Platform *pf)
+static bool first_scenes_run(GameState *g, Platform *pf)
 {
     uint8_t scene, song;
-    if (!program_first_scene(g, &scene, &song))
-        return true;
-    if (song)
-        scene_start_song(pf, song);
-    if (!scene_runs(g, pf, scene))
-        return false;
-    if (program_console_resets(g)) {
-        program_boot(g, pf);
-        field_power_on(g, pf);
+    while (program_first_scene(g, &scene, &song)) {
+        if (song)
+            scene_start_song(pf, song);
+        if (!scene_runs(g, pf, scene))
+            return false;
+        if (program_console_resets(g)) {
+            program_boot(g, pf);
+            field_power_on(g, pf);
+        }
     }
     return true;
 }
@@ -195,7 +195,7 @@ void program_main_thread(GameState *g, Platform *pf)
 {
     program_boot(g, pf);
     field_power_on(g, pf);
-    if (!first_scene_runs(g, pf))
+    if (!first_scenes_run(g, pf))
         go_no_further(g, pf, FIELD_ENTER, "the field's entry");
     for (;;) {
         field_runs(g, pf);

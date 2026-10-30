@@ -2,13 +2,15 @@
  * native program").
  *
  *   ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]
- *             [--scene flags[,song]]
+ *             [--scene flags[,song]]...
  *
  * --scene starts the game in the scene engine after the power-on, with the
  * flags an event hands it ($24 Lavos falling, $26 the Epoch's dive, $2A to
  * $2F the endings and the staff roll) and the song the field would have had
  * playing, and goes on to the field after it: the story scenes a movie's
- * presses don't bring the native program to.
+ * presses don't bring the native program to. Given again, the scenes run one
+ * after another (up to four), as an ending's do, each taking up what the one
+ * before left.
  *
  * It links game/'s program (core/program.c), the platform services' host
  * backends (runtime/platform/native/) and the coroutines (runtime/port/fiber.h),
@@ -143,7 +145,8 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL, *movie_path = NULL;
     unsigned long frames = 600;
-    long scene = -1, song = 0;
+    unsigned scenes = 0;
+    uint8_t scene[STATE_HOST_FIRST_SCENES], song[STATE_HOST_FIRST_SCENES];
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--rom") && v) rom_path = v, i++;
@@ -151,11 +154,11 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--assets") && v) pack_path = v, i++;
         else if (!strcmp(a, "--movie") && v) movie_path = v, i++;
         else if (!strcmp(a, "--frames") && v) frames = strtoul(v, NULL, 10), i++;
-        else if (!strcmp(a, "--scene") && v) {
+        else if (!strcmp(a, "--scene") && v && scenes < STATE_HOST_FIRST_SCENES) {
             char *rest;
-            scene = strtol(v, &rest, 0);
-            if (*rest == ',')
-                song = strtol(rest + 1, NULL, 0);
+            scene[scenes] = (uint8_t)strtol(v, &rest, 0);
+            song[scenes] = *rest == ',' ? (uint8_t)strtol(rest + 1, NULL, 0) : 0;
+            scenes++;
             i++;
         }
         else {
@@ -197,8 +200,8 @@ int main(int argc, char **argv)
     }
 
     pf.save.bytes = state_host_sram(g);
-    if (scene >= 0)
-        program_starts_in_a_scene(g, (uint8_t)scene, (uint8_t)song);
+    for (unsigned n = 0; n < scenes; n++)
+        program_starts_in_a_scene(g, scene[n], song[n]);
     vid_host_start(&pf, read_game, write_game, g);
     SoundNative *sound = sound_native_create(g, &pf);
     if (!sound) {

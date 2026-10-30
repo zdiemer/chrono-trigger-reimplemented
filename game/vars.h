@@ -13414,10 +13414,20 @@ void set_scene_mode7_matrix_d(GameState *g, uint16_t v);
 uint16_t scene_title_logo_x(const GameState *g);
 void set_scene_title_logo_x(GameState *g, uint16_t v);
 
+/* The shared endings: where across the next captions' lines start, which a script stores before
+ * it has the captions take it ($7E:9919) */
+uint8_t scene_ending_captions_x(const GameState *g);
+void set_scene_ending_captions_x(GameState *g, uint8_t v);
+
 /* The title logo's Y: the sprite offset of its first sprite list, and $40 more its second's
  * ($7E:5D01); it lands at $3A */
 uint16_t scene_title_logo_y(const GameState *g);
 void set_scene_title_logo_y(GameState *g, uint16_t v);
+
+/* The shared endings: where down the next captions' first line starts, stored with its place
+ * across ($7E:9919) */
+uint8_t scene_ending_captions_y(const GameState *g);
+void set_scene_ending_captions_y(GameState *g, uint8_t v);
 
 /* The pendulum's swing's phase, a step of the sine table's turn of $400 */
 uint16_t scene_title_pendulum_phase(const GameState *g);
