@@ -1,5 +1,8 @@
 # Accepted over-limit entries of the timing gate (tools/timing_gate.py;
 # docs/REIMPLEMENTATION.md, "The timing gate").
+# Sun Palace's reference play, after --drifted calibration over battle-son-of-sun:
+field_nmi vblank-tail the palace's mix of sprite-queue and edge uploads leaves 38 of 1726 vblank stretches off by at least 1024 clocks, at most 2736 (about two scanlines); one scalar fits their mean, not each queue's work; the movie's vblank check finds no write moved onto the picture
+battle_see_to_the_beaten_enemies worst Son of Sun's scripted defeat ends the eye and five still-living flames together; the mix of empty checks and seeing enemies off has a 224169-clock outlier in 176 stretches after fitting the mean; none is in vblank, the animation work waits between frames, and the movie's vblank check finds no write moved onto the picture
 #
 # One per line: entry limit reason...
 #   entry   a hand port's name, as in game/registry.c

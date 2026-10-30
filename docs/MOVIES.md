@@ -351,6 +351,27 @@ calibrated shipping-mode vblank check has zero unexcepted findings.
 The narrowed suite (`--movies events-fionas-forest -j 1`), including its static
 checks, ends with `suite OK`.
 
+`son_of_sun` (`battle-son-of-sun.ctm`, 16377 frames) starts at ctsave13 slot 3
+and boards the Epoch on the save's starting tile. It flies to 2300 A.D., lands
+east of the Sun Palace and wins Son of Sun, stopping with the field back in
+hand. The save's quest byte, `$7F:013A`, is `$00`; ctsave14 slot 1 has `$F7`.
+The flame policy reads enemy `$F7`'s reaction state after Roulette Shuffle:
+stat offset `$3C` is `$62` on the real flame and `$63` on the counterattacking
+ones. Before that choice is available it tries a flame; thereafter it attacks
+the real one and uses healing items. The eye's AI ends the fight at 10000 HP
+or less, from 12000, while the flames still have HP. The route checks that
+threshold and then checks field control, rather than waiting for every enemy
+to have zero HP. No machine writes are used.
+
+`sun_stone` is the optional hand-run extension, listed in `HAND_RUN_ROUTES`:
+from the same save, win the fight, collect the Moon Stone, return to the Epoch
+and fly to 65,000,000 B.C.'s Sun Keep (`$147`). Leave the stone there and return
+to field control, with `$7F:013A` at `$07` and the Moon Stone removed from the
+bag (22857 frames). The charging starts in prehistory; 2300 A.D.'s Keep is
+where the charged stone is eventually collected. The intervening theft and
+recovery are not played. Its movie repeats the boss fight and stays outside
+the library, for example `--movie build/sun-stone-hand-run.ctm`.
+
 Each starts from the cartridge save its movie header names and its route's
 `SAVE` selects; `--sram` picks another. The saves include technoplaza's
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`) in

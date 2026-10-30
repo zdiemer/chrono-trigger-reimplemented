@@ -836,6 +836,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 ### 12. The side quests
 `events-luccas-mother` plays the campfire and Lara's rescue; the other side quests still need
 their events and bosses recorded. The earlier movies from the side-quest saves
+`battle-son-of-sun` plays the Sun Stone quest's boss (below). The earlier movies from the side-quest saves
 (`ctsave12`-`ctsave14`) open menus and shops, ride the Epoch, press the Northern Ruins' switch and
 dive into Lavos. The fantasyanime saves step through them in one order (oracle/saves/README.md),
 but that order does not guarantee a save before every scene: `ctsave13` already has Lara
@@ -854,7 +855,7 @@ already runs, is for its route to establish.
 | Fiona's forest | ctsave12 slot 3 (ctsave13 slot 1 after it) | `events-fionas-forest`: the sapling, Sunken Desert, Robo's 400 years, reunion and campfire | Retinite |
 | Lucca's mother | after Fiona's forest | the gate to 990 A.D. and the password typed against the clock; `ct_drive`'s machine copies make the timed part a search | -- |
 | The Rainbow Shell | ctsave13 slots 1-2 (slot 3 after it) | the Giant's Claw, the shell taken to Guardia Castle and the trial | Rust Tyrano |
-| The Sun Stone | ctsave13 slot 3 (ctsave14 slot 1 after it) | the Sun Palace, the stone charged across the eras | Son of Sun |
+| The Sun Stone | ctsave13 slot 3 (ctsave14 slot 1 after it) | `battle-son-of-sun`: the Sun Palace and its fight; `sun_stone` hand-run plants the Moon Stone in prehistory | Son of Sun |
 | Cyrus's grave | ctsave14 slot 1 (slot 2 after it; `field-northern-ruins-switch` presses one switch) | the Northern Ruins and Cyrus's ghost, the Masamune's power restored | Hero's Grave guardians |
 | Geno Dome | ctsave14 slot 2 (Targets, 5) | the conveyors and doors | Atropos XR, MotherBrain |
 
@@ -927,6 +928,41 @@ stops are likely to be.
   already covers this movie's original-code paths.
   The narrowed suite (`--movies events-luccas-mother -j 1`), including its
   static checks, ends with `suite OK`.
+
+- **Movie**: `battle-son-of-sun` (route `son_of_sun`, ctsave13 slot 3, 16377 frames):
+  board the winged Epoch on the starting tile outside Guardia Castle, turn the dial to 2300 A.D.,
+  land east of the Sun Palace (`$0FB`), enter and approach Son of Sun. Crono, Lucca and Marle win
+  without a wipe; the movie ends with the palace field back in hand. `$7F:013A` is `$00` in all
+  three ctsave13 slots and `$F7` in ctsave14 slot 1, confirming the last pre-quest save. The
+  palace sets bit 0 before the fight, and picking up the Moon Stone sets bit 1 afterwards.
+  Enemy `$F7`'s AI, decoded with `tools/disasm/battlescript.py`, records Roulette Shuffle in
+  stat offset `$3C`: `$62` is the real flame, `$63` counters. The policy reads it each turn,
+  attacks and heals with items. Enemy `$F6` ends the fight at 10000 HP or less, from 12000;
+  the surviving flames make an all-enemies-dead test inappropriate.
+  It reaches 183 bytes (0.18 KiB) no other movie in the preceding 48-movie library runs:
+  `battle_select_other_enemy_at_random` (`$C1:ABC9`-`$AC13`), `battle_select_other_enemies`
+  (`$C1:A6C3`-`$A6EC`), `$C1:E748`-`$E75E`, `$C1:AF0D`-`$AF1C`, and short reward and Epoch
+  branches. Shadow: zero mismatches, no guard refusal, `page refused` or `accessor out of range`.
+  `ct_native` and strict mode reach the movie's last frame without a stop; strict mode drifts
+  from the reference's saved state, as recorded in `tools/strict_baseline.txt`.
+  The route wins in the shipping mode with the C sound driver at frame 27579, no wipe,
+  fallback or guard refusal; replaying its kept input reaches identical work RAM. The final
+  interpreter route reproduces the movie byte for byte. Timing: 227 estimates calibrated
+  with `--drifted` over this narrowed run, with the field NMI's upload mix and the scripted
+  defeat's seeing-off work recorded in `tools/timing_exceptions.txt`; no game logic ported.
+  The narrowed suite (`--movies battle-son-of-sun -j 1`), including its static checks, ends
+  `suite OK`.
+- **Hand-run extension**: `sun_stone`, 22857 frames from the same save, repeats the fight,
+  climbs to the Moon Stone (item `$DE`, quest byte `$7F:013A` becomes `$03`), returns to the
+  Epoch and visits the Sun Keep in 65,000,000 B.C. (`$147`). Talking to object 8 and accepting
+  the placement removes the Moon Stone and sets bit 2: quest byte `$07`, field back in hand.
+  Machine copies search for a landing; no pokes. The movie stays outside the library and
+  `HAND_RUN_ROUTES` excludes the extension from the long-route gate. The stone is planted in
+  prehistory, not 2300 A.D.; the latter's Keep (`$0FF`) is its eventual collection point.
+  **Still unrecorded**: the theft discovered in the later Keep, the Porre mayor's recovery
+  chain, replacing the stone, and Lucca collecting the charged Sun Stone. The field scripts
+  distinguish these in the remaining bits of `$7F:013A`; the boss movie deliberately ends
+  before the pickup so it stays a short battle regression.
 
 ### 13. The story events no movie plays
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's
