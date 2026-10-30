@@ -121,7 +121,15 @@ def main():
             assert run.exit_to("7b01"), "back to the pillars"
         run.wait_control()
         assert run.go(494, 353, tolerance=3)    # by Kokubo, where the statue is reachable
-        assert run.go(73, 105, tolerance=2)     # the reaper statue, off the platform's edge
+        # the reaper statue, off the platform's edge: the way there passes the
+        # developers walking about, so where none blocks it depends on the
+        # frame; look again a little later until one is clear
+        for _ in range(12):
+            if run.go(73, 105, tolerance=2):
+                break
+            machine.run(23)
+        else:
+            raise AssertionError("the reaper statue")
         machine.run(2, "RIGHT")
         machine.run(6)
         machine.run(3, "A")
