@@ -9,21 +9,60 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
-- **Geno Dome timing attribution.** The narrowed `battle-motherbrain` calibration
-  leaves `battle_step_the_poses` and `battle_strike_the_poses` with a body cost of
-  1: their attributed graphics work already exceeds the measured original
-  stretches. Check the pose graphics' path-dependent charges before removing
-  their drift and worst-case exceptions. The battle's defeated-enemy passes,
-  due-animation scan and timer dispatcher also carry large worst-case errors.
-  The same movie exposes field-NMI, battle-frame and menu-script vblank-tail
-  exceptions; its rebuilt video-write check has no new failures. Reassess these against the combined library when
-  the movies are merged; the calibration here is deliberately from the narrowed
-  run, not a new full-library measurement.
+- **The battle grid's reads past the combatants.** With the party off the grid,
+  `battle_mark_combatants_on_grid` (`battle/battlefield.c`) reads slots 11-13,
+  whose objects 23-25 put their Y in the drawing scratch (`$7E:1D2E`-`$1D30`).
+  `draw_frame` (`battle/draw_objects.c`) now writes the frame's X (`$2E`-`$2F`)
+  plainly, as the early-boss movies showed the grid reading it; the frame's Y
+  (`$30`, object 25's) is still written only as scaffolding, so the native
+  shape reads it stale wherever slot 13 is present (`$7E:9702` nonzero). No
+  movie has shown that read yet: write `$30` plainly too, or show it unread.
+- **The second movie batch's timing exceptions.** After one drift-only calibration
+  over the 84-movie library, these entries are still over a limit and listed in
+  `tools/timing_exceptions.txt` (the second batch's block): `,` (after), `battle_effect_anchor_jump` (vblank-tail), `field_draw_the_objects_in_view` (vblank-worst), `field_refresh_effects` (vblank-tail), `menu_choose_equipment_member` (drift), `menu_choose_on_main_menu` (drift), `menu_run_the_main_task` (drift), `overworld_epoch` (vblank-tail), `overworld_lead` (vblank-tail), `event_cmd_take_formation` (vblank-tail), `field_enter` (worst), `menu_fade_palette_row` (vblank-tail), `menu_load_record_sprites` (drift), `menu_mode_enter` (drift), `menu_window_draw_frame_only` (vblank-tail), `menu_window_frame` (vblank-tail), `overworld_come_back_to_the_map_s_screen` (drift), `overworld_finish_the_graphics` (drift), `overworld_set_up` (drift), `scene_program_hands_back` (drift).
+  Each is work whose time follows its data or its path (a pose's graphics, a
+  window's size, a palette row, a load with the screen blanked) or a jump the port
+  takes with no bus access; the vblank check finds none of their writes moved.
+  Make each follow its data (`game/charge.h`) or time the part as its own routine,
+  and drop its line.
+- **Heckran's route in the shipping mode.** `heckran` wins the fight in the
+  reference play (`battle-heckran`), but in the shipping mode (`route_check
+  heckran`, `on:on:c`) the party runs out of Mid Tonics and Ethers and its
+  fight search gives up after 101 tries with Heckran at about 770 of 2100 HP.
+  The route is in `HAND_RUN_ROUTES` until its policy wins there: spend MP and
+  items more sparingly, or back the search up further than the last decisions.
 - **Compare the whole held-message pause.** `battle-motherbrain` abandons all
   124 calls of `battle_pause_on_the_message` inside its enclosing message
   sequence. The focused seed-1 fuzz run compares eight accepted states up to
   the first wait, with no mismatch, but does not independently compare the
   complete timed pause (`tools/uncompared_baseline.txt`).
+- **Empty first equipment list preserves its item operand.** `menu_list_what_fits`
+  (`$C2:8953`, `game/menu/equipment.c`) initializes `last_asked` to zero and writes
+  it back even when no inventory item fits the slot. The original only writes
+  `$7E:04C9` when an item falls in the slot's range. Opening equipment immediately
+  from ctsave04 slot 2 therefore mismatches once (`F1` original, `00` native).
+  `unequipped_armor` visits an empty inventory row first, which leaves zero on both
+  sides through normal controls. The underlying scratch-byte discrepancy is still open.
+- **Native items-list scrolling**: `ct_native` playing `battle-unequipped-armor`
+  stops at frame 3147, `$C2:AC3A`: "the items list slid a row, runs only on the
+  machine". This is during the initial inventory visit, before the unequip.
+  The hand-port runtime can run the movie's menu sequence; the host program's
+  item-list continuation still needs a C path.
+
+- **North Cape's flashback:** `field_walk_the_leader` (`$C0:881E`) refuses
+  164 calls in each reference opening of `events-magus-joins` and
+  `battle-magus-north-cape`, first at frame
+  8612, on location `$024`: the leader link is `$04` (object 2), whose
+  position is (`$FF80`, `$FFFF`). `walk_fits` rejects that hidden leader's
+  Y coordinate. D=`$0100`, DB=0, P=`$20`. Strict mode stops at that entry at
+  frame 8561 after timing recalibration. Support the flashback's hidden
+  leader without handing its walk to the original;
+  `tools/refusal_allowlist.txt` records this as a gap.
+  `ct_native` also stops at `$C0:881E`, frame 8531, with "a walk the port
+  doesn't take", for both North Cape movies, before their choices diverge.
+
+### Timing and other accuracy work
+
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
   the original (battles play out differently). That difference is accepted
   (REIMPLEMENTATION.md, "Can a hand port be exact?"); the timing gate bounds the errors
@@ -747,7 +786,15 @@ rest waits, is [PLAN.md](PLAN.md).
   (`sprites.c`, by address through `game/wram.h`), the fifth sprite's Y above
   the screen, the openings' word clear spilling into the next slot (the first
   object's falling flag, past the last), and the row removal's in-view
-  write. Three commands still take a party member's object without checking
+  write. `events-luccas-mother` exposes that last alias in real play:
+  `object_leave_row` writes the previous link through a none successor into
+  object 0's in-view flag (`$7E:0F00`, `leave_stray_in_view_write`).
+  `field_update_objects` then reads the flag 984 times from shipping-mode
+  frame 12470 during the rescue. The effects baseline records this gap;
+  strict mode matches the reference end state and the native-shape movie
+  reaches its end, but those end checks do not settle how native storage
+  should represent the alias or its effect on intermediate drawing.
+  Three commands still take a party member's object without checking
   (`$24`, `$A9`, and `$07` while it waits), and their guards leave an empty
   place to the original, where it reads the slot past the tables; the game
   makes none of those calls over the library. The moves, following and
@@ -2605,6 +2652,33 @@ re-runs the census.
     leader's spot off the map, which no flight makes; the arrival's x
     measured across the map's height (`slow_so_as_not_to_pass`) is the
     original's and kept.
+- **Timing spread in Dalton** (`tools/timing_exceptions.txt`). Drift-only
+  calibration updates 226 estimates for `battle-dalton`. The residual
+  `battle_find_due_animation` worst error is 53304 clocks (limit 50468) over
+  14735 stretches, with mean time 5090 and net drift rounded to zero. None
+  of these stretches is in vblank. Its scheduler includes optional frame
+  graphics construction in one estimate; measure those paths separately
+  when revisiting its timing. This movie's video-write check has no unlisted
+  movement. No game logic was changed for this exception.
+- **Timing spread in Proto Dome** (`tools/timing_exceptions.txt`). The opening
+  and victory poses inherit the frame-graphics and frame-tail estimates:
+  `battle_step_the_poses` drifts +9.04% over 256 stretches and
+  `battle_strike_the_poses` +4.20% over 262 even with their own estimates at
+  the minimum 1. Neither has a vblank stretch. The field continuations from
+  confirm and the dialog window have zero net drift after calibration but
+  3.93% of 7505 vblank stretches off by at least 1024 clocks (maxima 1949 and
+  1137). Diagnose the inherited estimates and the variable dialog/frame work;
+  the Proto Dome video-write check found no unlisted movement.
+- **Timing spread in the Rainbow Shell trial** (`tools/timing_exceptions.txt`).
+  After drift-only calibration, `battle_record_trails` has 1.33% of its 7530
+  vblank stretches off by at least 1024 clocks (maximum 1676): its RAM history
+  shifts only for active trails whose countdown expires. `field_nmi` has 1.24%
+  of 51814 vblank stretches over that threshold (maximum 6273, below the
+  quarter-vblank worst limit), with its variable queues, edges and menu work.
+  Attribute these variable paths more precisely. The trial's video-write check
+  has no unlisted movement. The main menu's opening below also drifts +1.84%
+  over 173 stretches with its own scalar already at the minimum 1; its child
+  estimates need the investigation described there.
 - **The main menu's opening, over-estimated** (`menu_choose_on_main_menu`, on
   `tools/timing_exceptions.txt` for its worst stretch since the shipping mode's
   fallbacks' chunk 7, history/reimplementation-chunks.md): a stretch of the main task's turn
@@ -2686,6 +2760,41 @@ re-runs the census.
   own call of the original recurse into the port: decide whether a native
   build keeps the wait at all, and take it out of the service if not.
 
+## Shadow comparison gaps
+
+The early-boss shadow runs also expose a comparison gap in the held-message
+path: `battle_pause_on_the_message` has 168 calls, all abandoned, when run
+as C inside `battle_show_a_battle_message`. Its sixteen frame waits have no
+independent shadow return in these runs. Message typing and clearing still
+compare; add an isolated comparison for the pause itself. This is recorded
+in `uncompared_baseline.txt`.
+
+The two Ocean Palace movies also expose comparison coverage gaps:
+`menu_object_cmd_scroll_map` abandons 1669 of 3132 calls (1463 matched), and
+`battle_dispatch_expired_timers` has 310 of 615 calls interrupted (305 matched).
+Neither mismatches. Their narrowed sample crosses the uncompared check's 50%
+threshold; `tools/uncompared_baseline.txt` records it. Establish comparisons
+covering those missing stretches before treating these samples as full evidence.
+
+`battle_frame_work` also exceeds the vblank timing tail on this pair: 217 of
+11901 stretches differ by at least 1024 clocks (maximum 1537), although its
+mean error is 143 clocks and net drift is -0.07%. Its inline alternating VRAM
+upload already has a timing exception; the Twins exercise 306 of that upload's
+stretches over 1024 clocks. The vblank check finds no moved writes. The caller
+now has a documented `vblank-tail` exception too; retain this sample when
+improving the upload's timing, rather than moving the caller's calibrated mean.
+
+The two Crono trial movies raise four entries past the uncompared-call
+threshold, recorded with reasons in `tools/uncompared_baseline.txt`:
+`battle_pause_on_the_message` abandons all 116 independent comparisons of
+its held-message pause inside `battle_show_a_battle_message`; it needs an
+isolated comparison. Interrupts cut short 266 of 314
+`field_draw_bg1_at_the_load` calls, 132 of 180 `field_draw_bg2_at_the_load`
+calls and 645 of 1284 `battle_decode_tile_row` calls. Their remaining
+48, 48 and 639 comparisons respectively have zero mismatches. The
+interrupted stretches are a validation gap, not additional successful
+comparisons.
+
 ## The native program
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
@@ -2700,6 +2809,32 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
+- **Boss movies still need native outcome checks.** `battle-mud-imp` runs
+  37817 `ct_native` frames with no explicit stop, but ends blanked after three
+  screen setups and two video escapes. `battle-heckran` runs 19376 frames
+  with no explicit stop, a screen showing after six setups, and four video
+  escapes. Both first escape at the title's `$7E:5AEB` (`vid_snes_copy`,
+  below). Their fixed-input runs do not establish native boss victories;
+  connect the missing video work and verify the intended field outcome.
+  Strict mode completes both frame counts but differs from the reference's
+  saved game (`drifts` in `tools/strict_baseline.txt`).
+- **Castle movie input on the native program.** `battle-castle-slash` (39278 frames) and
+  `battle-castle-flea` (35256), with their ctsave06 cartridge save supplied to
+  `ct_native --sram`, run all frames without a reported stop, but end with the screen
+  blanked after four setups (two title video escapes, first `$7E:5AEB`). Their fixed input does not
+  establish the castle outcome on the native program's different timing. Investigate the
+  blank screen and drive the native program from state to check the fight itself. The
+  shipping `ct_drive` routes do beat both Slash forms and Flea and regain field control;
+  strict mode reaches both movies' ends with saved-game drift.
+- **Crono's trial movies.** `ct_native` with the normal pre-trial save
+  stops `events-cronos-trial` at frame 20629, `$C0:881E`, "a walk the port
+  doesn't take", during the prison transfer (the walk guard above).
+  `events-cronos-trial-long` reaches its 136868-frame limit without an
+  explicit stop, but its screen is blank, with six screen setups; it has
+  not demonstrated the full journey in native C. Both runs report two
+  SNES-only video escapes, first `$7E:5AEB`. Strict-mode movie inputs
+  reach their limits but end with saved state different from the reference;
+  neither result establishes a native completion of the trial route.
 - **Long movies desync on the hand ports alone, and the time model that
   would hold them.** A movie's presses are the reference play's, frame for
   frame, and the hand ports' frames aren't the original's, so a long movie
@@ -2762,6 +2897,85 @@ list, by kind, is what `game/` still asks of one.
   and the timing gate on the machine or sits beside them, and what "the
   model says it overruns" is computed from.
 
+- **Cyrus's fixed movie ends blanked in `ct_native`.** `events-cyrus`
+  (ctsave14 slot 1, 39872 frames) consumes all its inputs without a reported
+  missing C handler, but the display is blanked after 12 screen setups.
+  It reports two SNES-only video escapes, first `$7E:5AEB`. Establish how
+  far the input gets and whether the native timing misses an interaction;
+  consuming the frames does not establish the repaired ruins or restored
+  Masamune. The reference route reaches both and returns field control;
+  strict `ct_dev` reaches the movie's end with five character-record bytes
+  differing from the reference, not a handler stop.
+- **Ozzie's Fort movie on the native program.** `battle-ozzies-fort` from ctsave12
+  slot 2 reaches its 39237-frame budget in `ct_native` with exit 0 and no reported
+  stop, but the display is blanked after only five screen setups. Determine where
+  its playback ceases to advance before counting the fort as native coverage;
+  a fixed movie's timing can diverge from the native program. The interpreter's
+  route completes all fort events and returns field control, shadow is clean,
+  and strict mode reaches the budget with saved-game drift. The native run also
+  reports two SNES-only video escapes, first at `$7E:5AEB`.
+- **Ocean Palace movie playback.** `battle-golem-twins` and
+  `events-ocean-palace-lavos` run for their full 20216 and 30364 frames in
+  `ct_native` (exit 0), without a missing-C stop, but both report unsupported video
+  calls: four and two respectively, first at `$7E:5AEB`. The finale ends with
+  the screen blanked (the Twins run ends showing), so frame completion is not
+  evidence that the native program plays these scenes correctly. Diagnose its
+  playback and video escapes. Strict `ct_dev --native on --generated off
+  --no-interpreter strict --sound-driver c` also reaches both ends, with
+  58 saved-game bytes differing from reference in each, plus 224 SRAM bytes
+  for the Twins; these are `drifts` entries in `tools/strict_baseline.txt`.
+- **Yakra's native replay ends with the screen blanked.** The hand movie
+  `battle-yakra` (ctsave01 slot 2, 71287 frames) originally stopped at frame
+  4032, `$F9:B006`, because the Cathedral's dialogue table was missing from
+  the asset catalogue. Adding that table's existing extracted resources
+  removes the stop. `ct_native` now reaches the frame limit, reports six
+  screen setups and a blanked screen; locate that screen with a state-driven
+  run. Strict mode reaches the same limit without a machine-code
+  stop, but differs from the reference by 128 saved-game bytes. Input replay
+  alone does not establish native completion of the Cathedral route.
+
+- **Zombor's native replay ends with the screen blanked.** `battle-zombor`
+  reaches 26320 frames without a hard stop, with six screen setups and two
+  SNES-only video calls (first `$7E:5AEB`). Locate the divergent screen with
+  a state-driven run; reaching the movie's limit does not prove victory.
+
+- **Nizbel's native replay ends with the screen blanked.** The hand movie
+  `battle-nizbel` reaches 57673 frames without a hard stop, with six screen
+  setups and two SNES-only video calls (first `$7E:5AEB`). Strict mode also
+  reaches the limit, with a 128-byte saved-game difference. Locate the
+  divergent screen with a state-driven run before claiming native victory.
+- **Giga Gaia's movie in the native program.** `battle-giga-gaia` consumes
+  all 33261 frames without a reported machine-only entry, but ends blanked
+  after only three screen setups (two SNES video escapes, first `$7E:5AEB`).
+  Find where progress stalls; reaching the frame limit does not establish
+  the rescue or the field outcome. The same movie in strict `ct_dev` reaches
+  its frame limit without stopping, with 572 saved-game bytes different from
+  reference play under native timing.
+- **Dalton recording in the native program.** `battle-dalton` consumes all
+  39666 frames without a reported `ct_native` stop, but reports only three
+  screen setups, ending with the screen showing, and two SNES-only video
+  escapes (first `$7E:5AEB`). Establish where it loses the reference route;
+  this does not establish completion of the Blackbird's destruction. Strict
+  mode halts at frame 25171 at `$C0:881E`, the walking guard gap documented
+  above, before Dalton Plus. No game code was ported for this recording.
+- **Proto Dome recording in the native program.** `events-proto-dome` consumes
+  all 24717 frames without a reported `ct_native` stop, but ends blanked after
+  four screen setups and two SNES-only video escapes (first `$7E:5AEB`).
+  Establish the first lost transition through Lab 32 and the dome. Strict mode
+  also consumes every frame without a halt, but misses the repair: story `$37`,
+  repair stage `$00`, Robo absent, 59 saved-game bytes different. Diagnose the
+  timed-input drift separately from any native stop.
+- **Rainbow Shell trial recording in the native program.** The hand-run
+  `rainbow_shell_trial` recording (47547 frames, ctsave13 slot 2; MOVIES.md)
+  completes the trial in the reference play. `ct_native` consumes all 47547
+  frames without an explicit stop, but reports the screen blanked after only
+  six setups. Establish where its inputs cease to follow the reference,
+  particularly around the initial settings menu and the courtroom transitions,
+  before treating this as a native trial completion. Strict mode consumes all frames
+  but ends in the treasury (`$01A`), at trial stage `$02`, without the fragment
+  (81 saved-game bytes differ). Diagnose the input drift separately from a
+  native stop; shadow has no mismatch or refusal.
+
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
   tables (`menu/handlers.c`, `overworld/handlers.c`); a handler or a routine
@@ -2800,6 +3014,13 @@ list, by kind, is what `game/` still asks of one.
   put-aside or the bringing back doesn't take (`field/menus.c`). Every
   bridge in `EVENT_BRIDGES` has its C (`EVENT_BRIDGES_AS_C`, event/engine.h).
   Each wants its C as the program meets it.
+- **Lucca's mother stops at Robo's recruitment.** `events-luccas-mother`
+  stops `ct_native` at frame 3120, `$C0:38BE` (`event_cmd_recruit`), with
+  "an event command only the machine runs" while recovering Robo in
+  Fiona's shrine. The native event bridge needs its C path. Shadow completes
+  with zero mismatches or guard refusals, and strict mode
+  (`--native on --generated off --no-interpreter strict --sound-driver c`)
+  completes all 15701 frames with the reference saved game and save RAM.
 - **What the menus the player opens still hand the machine.** The main
   menu's steps and its four panels, and the steps `menu.ctm` reaches of the
   equipment (its opening, the member choice and pointing), the items (the
@@ -2890,6 +3111,10 @@ list, by kind, is what `game/` still asks of one.
   tests/test_platform_lint.py's list) are transfers into VRAM programmed from
   the game's tables, which only the SNES's channel settings say the meaning
   of: the host counts them and the driver reports the first.
+  The three Death Peak movies reach their full 4676/23852/23856-frame budgets
+  in `ct_native` without stopping, but report 2/4/4 video escapes, first at
+  `$7E:5AEB`; wind and ascent finish blanked, return showing. These fixed-input
+  runs do not establish the route outcomes under the host's different timing.
 - **What the host backends don't do yet.** Video keeps the picture's state
   in the observer and draws nothing: the host video backend proper is the
   driver calling `vid_host_picture` and a renderer drawing the `VidFrame`
@@ -2955,6 +3180,112 @@ runs the call, so shadow mode and the shipping mode pass; the hand ports
 alone (`strict_check.py`) and `ct_native` stop there. Each is a gap line in
 `tools/refusal_allowlist.txt`, which comes out when the port takes the state.
 Ranked by how much play they block; none is open now.
+
+- **Unequipped-armor movie, field confirm**: `battle-unequipped-armor` reaches
+  a guard refusal at `$C0:1AAC` (`field_press_confirm`,
+  `game/event/contact.c`) in shipping/strict playback at frame 7594, in Truce Canyon:
+  `A=0000 X=0000 Y=0090 S=06FD D=0100 DB=00 P=22 E=0`.
+  `confirm_fits` checks the leader, object-search/contact and chest state;
+  which predicate fails still needs isolating. Shadow does not refuse this entry.
+  `tools/refusal_allowlist.txt` records this as a gap, not a supported native
+  state. No gameplay logic was changed for the movie.
+- **Empty equipment list after the inventory screen**: the same movie's shadow
+  run refuses `$C2:A45D`, `$C2:A463`, `$C2:A569` four times each and `$C2:A59A`
+  32 times, starting at frame 3533. `list_is_drawable` in
+  `game/menu/equipment_bridge.c` checks eight rows even after the zero terminator;
+  the actual drawing repeats the blank terminator row. The inventory visit leaves
+  unused list bytes behind (`$FF`), so the guard rejects an empty list the original
+  can draw. These four entries and their fallback counts are recorded as gaps;
+  no `page refused`, invalid accessor or mismatch occurs.
+
+- `events-fionas-forest`: Robo's departure from Fiona's house refuses
+  `event_cmd_walk_with_the_party` (`$C0:3002`) and `field_second_member_follows`
+  (`$C0:A2CE`) 60 times each in shadow mode, beginning at frame 28389.
+  The command enters with X=`$0160`, Y=`$016D`, D=`$0100`; the follower enters
+  with X=`$0004`, Y=`$006D`, D=`$0100`. Their guards require the current object
+  to match the member's link and the trail places to hold. Both are `gap` entries
+  in `tools/refusal_allowlist.txt`; determine which formation invariant the
+  departure violates and handle that scripted state. Shadow reports no mismatches.
+
+`events-ocean-palace-lavos` reaches four guard gaps during Zeal's fall. Its
+reference shadow run has no mismatches, page refusals or out-of-range accessors,
+but hands these calls back to the original. The entries are recorded as gaps in
+`tools/refusal_allowlist.txt`; remove each line when its port takes the state.
+
+- `$C6:E498` / `$C6:E4BE`, `menu_object_capsule_iris_1` / `_2`: 50 and 30
+  refused calls, first at frames 20871 and 21154, with X `$009C`.
+  `menu_capsule_iris_can_draw` restricts the centre, radius and stretch; the
+  world-map scene's capsule geometry falls outside those bounds.
+- `$C0:885A`, `field_recentre_the_screen`: one refused call at frame 21566,
+  with Y `$FFFE`, during the field cutaway in Zeal's fall. The guard requires a
+  party leader link naming an object in the field tables.
+- `$C0:881E`, `field_walk_the_leader`: 811 refused calls, first at frame
+  23503, also with Y `$FFFE`. The scripted scene runs the field without a
+  valid leader link. The native program needs the corresponding scene state
+  supported, rather than a wider unchecked object-table access.
+- **Zombor's strict replay refuses `field_press_confirm`.** `battle-zombor`
+  stops at frame 20301, `$C0:1AAC`, with A=$0000, X=$0000, Y=$0090,
+  S=$06FD, D=$0100, DB=$00, P=$22. The shipping replay refuses at the same
+  frame and state, then uses the original code. Its reference shadow run
+  has no refusal.
+  Locate the strict replay's divergent field state and make the guard's
+  valid case work; the `gap` entry in `refusal_allowlist.txt` records this
+  remaining work, without claiming that the strict inputs win the battle.
+
+- **Zeal's Skyway capsule irises.** `events-zeal-palace` reaches guards
+  `$C6:E498` (`menu_object_capsule_iris_1`, 39 refusals) and `$C6:E4BE`
+  (`menu_object_capsule_iris_2`, 38 refusals). The first shadow refusals are
+  frames 4149 and 4148 respectively. Replay snapshots at frames 4149 and 5499
+  show iris centres at y=0 (radii 2/5, stretches 140/8); `iris_takes` in
+  `menu/line_effects.c` requires y>=1. Support the top-line centre before
+  removing these gap lines from `tools/refusal_allowlist.txt` and the two
+  new fallback rows (18330 instructions). `ct_native` stops at frame 4106
+  on `$C6:E4BE`, "a capsule iris on slot 2"; strict mode stops at frame 4109
+  on the same entry.
+
+- **Dalton's Epoch reveal: leader above the coordinate range.**
+  `battle-dalton` refuses `field_walk_the_leader` (`$C0:881E`) 20 times from
+  reference frame 26263, on the Blackbird wing (`$16B`), stage `$7F:00D2 = 6`.
+  Marle is jumping onto the Epoch: the leader link is `$0002`, the map mask
+  `$3F3F`, but her raw Y is `$FFBD`. `walk_fits` rejects Y at or above `$FF00`,
+  where the original's sums carry into slope handling. Reproduce and support
+  that transition before removing the `gap` entry in refusal_allowlist.txt.
+  The narrowed reference run adds five refused fallback rows (103 ROM bytes,
+  1020 instructions) under this entry. No game logic was changed for the movie.
+
+- **Flea's animation facing command.** `battle-castle-flea` in shadow mode refuses
+  `script_face` (`$C1:5FDE`) four times: frames 25404, 25411, 32905 and 32906.
+  Each reports `A=0000 X=00E4 Y=0000 S=06D6 D=0000 DB=7E P=22 E=0`.
+  Its `command_ready` guard checks the channel, command, offset, handler and
+  decoded operation; determine which assumption excludes this real animation
+  state and make the hand port handle it. The refused calls execute 196 original
+  instructions across `$C1:5FDE`, `$75CC` and `$7639`. This is a gap in
+  `tools/refusal_allowlist.txt` and `tools/fallback_baseline.txt`, not a port fix.
+  Shadow has zero mismatches and no page or accessor errors. The shipping
+  state-driven Flea route reaches victory but also refuses this command with
+  `X=00E4`; retain the gap until both reference and shipping play handle it.
+- **600 A.D. Guardia Forest's object searches.** In
+  `events-cronos-trial-long`, `field_object_in_the_way` (`C05B95`, 320
+  refusals) and `event_cmd_move_to_tile` (`C04F61`, 280) first refuse at
+  frame 82179, entering the forest after Frog leaves. The latter's walking
+  guard checks `object_search_fits`; the former also checks the object's
+  facing. `event_cmd_move_toward_party_member` (`C05410`, 160) first refuses
+  at frame 84020, after the first encounter, through the same movement
+  search guard. Diagnose the map's object-search bounds before widening
+  these guards.
+- **600 A.D. Guardia Forest's battle setup.** `field_battle_begins`
+  (`C0024C`) refuses at frames 82673 and 84878 of the long movie. Its
+  `battle_fits` checks the party links, object count and enemies' battle
+  sprite slots; identify which state falls outside those assumptions.
+- **The transfer to prison.** `field_walk_the_leader` (`C0881E`) refuses
+  for 150 frames in each movie, first at frame 133968 of the long one.
+  Its `walk_fits` checks the leader link, search start, map mask and
+  position bounds. The scripted transfer needs that state supported;
+  the recording still reaches Crono's cell with control restored.
+- **Leaving Guardia Castle in 600 A.D.** `overworld_lead` (`C23404`)
+  refuses once at frame 81958 of the long movie, with `X=0DF0`,
+  `D=0000`, `DB=00`, `P=24`. Inspect `overworld_leader_takes`' walker,
+  animation and map-following constraints at the exit.
 
 ## Targets beyond the desktop SNES build
 

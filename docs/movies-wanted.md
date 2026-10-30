@@ -128,13 +128,9 @@ to that routine's scenes; the rest is the object commands' own handlers and the 
 
 | Enemy | KiB | What only it (or few) uses |
 |---|--:|---|
-| MotherBrain | 0.49 | action `$15` add-to-stats-then-tech (`$C1:A20B`), selector members with element `$08` |
-| Guardian (with Lavos, Giga Gaia) | 0.37 | action `$10` bring the beaten back (`$C1:9E78`), farthest enemy, slot 8 |
-| Nizbel II | 0.36 | add-to-stats (`$C1:A188`), stat at least, members at most |
 | Mad Bat, Bug, Flea | 0.20 | condition with-status (`$C1:8F11`), other kind present |
 | Blue Beast, Red Beast | 0.18 | at half HP, acted bit, die (`$C1:9CB3`, also Mud Imp, Retinite, Turret) |
 | Alkaline, Shadow | 0.16 | within reach, is-enemy, nearest other enemy |
-| R Series | 0.07 | stands-in (`$C1:93E6`) |
 | enemy `$EF` (unnamed), Lavos, Magus | 0.06 | call-in (`$C1:A396`), slot 2 |
 
 ### Event commands (by opcode's locations)
@@ -159,7 +155,7 @@ KiB re-measured with the clusters; the locations are the scripts' (`tools/disasm
 | `$7B` launch, `$5D` add variable | 0.12 | no event script uses them |
 | touching an object (`event_touch_contact` `$C0:31B9`), `say` `$C0:2E1E`, sending a member to the reserve `$C0:3967`, `if in view`, the pad tests (`if_pressed_*`, `if_held_*`) | 0.48 | the touch's other paths and the minigames' pad tests; locations not mapped |
 
-Looked into for the second batch (Targets, 11): the fair's locations (`$005` the lower square,
+The fair's games now run (`events-fair-*`, history/movie-routes.md); its locations (`$005` the lower square,
 `$008` the telepod exhibit, `$1B2` Norstein Bekkler's tent, `$1B7` the bell plaza) hold several of
 these, as does Spekkio's room (`$1D1`, the bottom window's question, which
 `battle-tech-sweep-spekkio` reaches).
@@ -323,86 +319,6 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   saved flags and A's high byte unlike the original's (fuzzing the same paths found the fourth row's
   new game doing the same); and the New Game+ question's guard refused the byte-wide call the load
   screen makes.
-
-### 5. Boss fights
-- **Saves**: Guardian at Arris Dome, ctsave02 slot 3 (`$0D6`); R Series in the
-  factory, ctsave03 slot 2; Nizbel II in Tyrano Lair, ctsave07 slot 3;
-  MotherBrain in Geno Dome, ctsave14 slot 2 (slot 3 is after it).
-- **Do**: walk to the boss and win.
-- **Reaches**: 1.29 KiB of enemy AI (ported) for the four, plus whatever of the
-  animation commands and effects they use; about 0.1 KiB a minute on the AI alone.
-- **Route**: yes (walking, `talk()`, the battle bot).
-- **Movie**: `battle-guardian` (route `guardian`, ctsave02 slot 3, 25751 frames; cutoff 25552, the
-  end kept at the field back in hand): Arris Dome's hall (`$0D6`) through `$0D8` and `$0DD` into the
-  Guardian's room (`$0DB`), where confirm beside its object 9 (tile `$08`,`$13`, before the sealed
-  door; story bit `$7F:00EC` bit 0 clear) wakes the Guardian and its Bits (formation `$93`); the
-  `party` policy won on the 41st try, at frame 23951. It reaches 1.57 KiB no other movie runs,
-  1.56 ported: the Guardian's bringing its Bits back (`battle_enemy_bring_back_turn`, `$C1:9E78`,
-  and its farthest-enemy search and selector), the battle screen scripts of its and the Bits'
-  attacks (`battle_screen_script_center_triangle_on_its_corners`, `..._lay_wedge`,
-  `..._wave_lines`, `$CD:3BAB`), and field drawing paths (`$C0:95E3`, `$9619`, `$8405`); 6 bytes
-  unported (`$CD:0DFA`). Shadow clean: no mismatch, refusal, `page refused` or `accessor out of
-  range`. The route reaches its end in the shipping mode (`route_check --mode on:on:c`: the fight
-  won on the 84th try, frame 22954; the end at 24934).
-- **Movie**: `battle-r-series` (route `r_series`, ctsave03 slot 2, 65437 frames): the
-  Factory Ruins entrance (`$0E4`), upper lab (`$0E5`), lower lab (`$0E6`) and basement
-  (`$0EB`). The lab consoles open the ladder and lower security doors; the basement
-  code reader checks X, A, B, Y directly, without a warehouse-crane prerequisite.
-  Power sets story `$3F`; after Robo holds the closing shutters, the return up the
-  lab corridor triggers the six R Series robots and removes Robo from the party.
-  Crono and Lucca win with the `r_series` policy (Fire Whirl, Cyclone and the save's
-  healing items), without backtracking, at frame 59107. Robo's rescue and repair
-  and the Gate trip follow; the movie ends at the End of Time (`$1D0`, story `$48`),
-  with the field back in hand, rather than during a location load.
-  Its shadow run covers 131499 ROM code bytes. Against the archived shadow
-  coverage of the other 48 movies, it adds 910 ROM code bytes (0.89 KiB), all
-  under hand-port comparisons, with no new RAM-code
-  instruction starts: enemy identity,
-  reach and battlefield-half tests (`$C1:8F87`, `$C1:925D`, `$C1:93E6`), learning
-  and announcing single/double techs (`rewards_count_tech_points`,
-  `rewards_learn_single_tech`, `battle_show_the_rewards`), remembered floor switches,
-  held-button event tests and removing Robo from the active party. Shadow clean:
-  no mismatches, refusals, `page refused` or `accessor out of range`; sound lockstep
-  identical. Strict mode runs all 65437 frames with timing drift in the saved game.
-  `ct_native` also runs the full length without a stop, reporting two video escapes
-  (first `$7E:5AEB`, the title's plane fill); neither fixed-input native replay is a
-  check that the route's outcome survives native timing.
-- **Movie**: `battle-motherbrain` (route `motherbrain`, ctsave14 slot 2, 135481 frames):
-  from the 600 A.D. world map, board the Epoch and travel to 2300 A.D.; enter Geno Dome
-  (`$0F8`), lead with Robo, clear the five conveyor battles (`$07E`) and solve the
-  main floor (`$100`). The first and third code switches open the doll's approach;
-  carrying the charging pod's electricity to the doll and escort pods sets
-  `$7F:013E` bits 2 and 1. The far elevator and upper corridor reach the conveyor
-  switch. Escort object 8 must follow around the corridor corners and across that
-  belt to the guard at tile `(7,36)`, setting `$7F:013C` bit 7. Both dolls collected
-  (bits 1 and 2), Robo beats Atropos alone on `$10C`; the dolls placed on its two
-  pedestals open MotherBrain's room. The existing `party` policy wins both bosses
-  without a retry in this recording. The route's fresh-start check reaches its
-  end at frame 150806, using `policies.motherbrain` to prioritize magic before
-  the boss's stat gains; that fight wins without a retry too. MotherBrain's
-  defeat sets `$7F:013B` bit 4 and returns the party to the world map; the movie
-  re-enters `$0F8` and ends with field control.
-  `--coverage` adds 1244 bytes (1.21 KiB) beyond the other 48 movies, all ported:
-  351 bytes in `battle_enemy_add_to_stats_then_tech_turn` (`$C1:A20B`),
-  `battle_select_weakest_enemy`, the spiral-out screen script, counted object
-  movement, the remembered-switch check, and event flag commands. Shadow is clean:
-  0 mismatches, no refusals, `page refused` or `accessor out of range`; sound
-  lockstep is identical. All four calls of the new boss action are interrupted
-  by NMI, so its new instruction coverage is not four completed shadow comparisons.
-  Focused fuzzing with the existing constraints (1000 states, seed 1) completes
-  868 comparisons of that action with no mismatch; the new tile-row and
-  message-pause uncompared entries are recorded in `tools/uncompared_baseline.txt`.
-  `ct_native` and strict mode both run all 135481 frames without stopping;
-  strict ends with 323 saved-game bytes different from the reference (`drifts`).
-  The native host reports four SNES-only video escapes, first at `$7E:5AEB`.
-  The narrowed reference fallback check has no new or increased routine, and
-  neither reference nor shipping runs have a guard refusal.
-- **Not attempted, impractical from the saves there are**: Nizbel II is at `$130`, off Tyrano Lair's
-  hall (`$12A`). ctsave08 slot 1 has it beaten (story bit `$7F:00EE` bit 0); ctsave07 slot 3, the
-  only save before it, stands on the world map outside the lair, whose entrance (`$12B`) is shut
-  until Kino is freed (its door's tiles copied in where `$7F:0063` bit 0 is set) and whose other
-  way in (`$1AE`, a room of Reptites) leads on through the lair's switch rooms: a route through the
-  lair's puzzles, not a walk.
 
 ### 5b. The Day of Lavos after a loss
 - **Save**: technoplaza ct-state16 slot 2 (Crono and Marle at the fair, New Game+).
@@ -781,71 +697,14 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   (`$C2:5972`-`$59C7`) and the inserts' tails; of the field's dialogs only the jetbike race's
   scoreboard (`$0DF`/`$0E1`) shows a 16-bit number.
 
-### 11. Event commands at the fair (looked into, not recorded)
-- **Saves**: ctsave11 slot 3, ctsave12, ctsave13, ctsave14 slot 1 (on the 1000 A.D. map, 131 silver
-  points at `$7F:0052`; zophar chrono-3 slot 1 80, chrono-2 65, chrono-trigger 50).
-- **`$005`** (the lower square): its startup's arithmetic and comparisons (its script's `L03A0` on, as
-  `tools/disasm/eventscript.py` decodes it: var from memory, random, subtract and add words, compare
-  variables) run only with `$7F:005D` bit 7 set,
-  which ctsave14 slot 1 hasn't. The strength test (object `$1A`, tile (5, 34); `move_by_variables`,
-  `$9D`) is reached from (89, 586) facing up; pressing confirm there ran only its button test
-  (`event_cmd_if_held_a`).
-- **`$1B2`** (Bekkler's tent, from `$005` in 67 steps): Bekkler (object `$0B`, function 1) offers
-  three games (the script's `L0846`; the clone game at `L0328` for 40 points: compare variables,
-  random, shifts; another for 80); no spot the party reached made him answer, so the games weren't
-  played.
-- **Death Peak** (`$0F4`, a step from ctsave11 slot 3's spot on the 2300 A.D. map; `$7F:007C` is
-  3 there, so the object at tile (55, 48) whose confirm runs `$88` lighten green is shown): the wind
-  (script variable `$0C`, `$7F:0218`) is calm for the first 108 frames after the party comes in
-  and then blows, and a party caught outside the shelter of the tree at tile (55, 49-50) is blown
-  back out to the map. The tree is 177 pixels up the slope; dashing up covers about 120 in the calm,
-  so no movie.
-
-### 12. The side quests
-No movie plays a side quest's events or bosses: the library's movies from the side-quest saves
-(`ctsave12`-`ctsave14`) open menus and shops, ride the Epoch, press the Northern Ruins' switch and
-dive into Lavos. The fantasyanime saves step through them in one order (oracle/saves/README.md),
-so each quest has a save just before it; which slot is the nearest, and what of each the library
-already runs, is for its route to establish.
-
-| Quest | Save before it | What it plays | Bosses |
-|---|---|---|---|
-| Ozzie's Fort | ctsave12 slot 2 (slot 3 after it) | the fort, the chain trap | Flea, Slash, Great Ozzie |
-| Fiona's forest | ctsave12 slot 3 (ctsave13 slot 1 after it) | Robo's 400 years: the forest's replanting, the campfire | -- |
-| Lucca's mother | after Fiona's forest | the gate to 990 A.D. and the password typed against the clock; `ct_drive`'s machine copies make the timed part a search | -- |
-| The Rainbow Shell | ctsave13 slots 1-2 (slot 3 after it) | the Giant's Claw, the shell taken to Guardia Castle and the trial | Rust Tyrano |
-| The Sun Stone | ctsave13 slot 3 (ctsave14 slot 1 after it) | the Sun Palace, the stone charged across the eras | Son of Sun |
-| Cyrus's grave | ctsave14 slot 1 (slot 2 after it; `field-northern-ruins-switch` presses one switch) | the Northern Ruins and Cyrus's ghost, the Masamune's power restored | Hero's Grave guardians |
-| Geno Dome | ctsave14 slot 2 (Targets, 5) | the conveyors and doors | Atropos XR, MotherBrain |
-
-Each is an event-heavy play the native program hasn't met: the event commands, scene work and
-bosses they reach are where `ct_native`'s next stops are likely to be.
-
 ### 13. The story events no movie plays
-The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's
-castle, the dactyls, the Black Tyrano, the Keeper's Dome, the Golem Twins, the Blackbird, the
-Black Omen and Lavos. The rest of the story has saves just before it (oracle/saves/README.md) and
-no movie; the slot named is the nearest found from the README, for the route to confirm.
+The library now plays the story from the Cathedral to Lavos, the side quests and the fair's games
+(their accounts are in history/movie-routes.md). Of the story's events with a save just before
+them (oracle/saves/README.md), one is left:
 
 | Era | Event | Save before it | Boss |
 |---|---|---|---|
-| 12,000 B.C. | The Ocean Palace's end: Lavos rises, Crono falls, Zeal's fall | after ctsave10 slot 3 (the Golem Twins) | Lavos (the loss is scripted) |
-| 2300 A.D. | Death Peak: the wind, the Time Egg, Crono brought back | ctsave11 slot 3, ctsave12 slot 1 | Lavos Spawn |
-| 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra |
-| 1000 A.D. | The trial | ctsave01 slot 3 is after it; a save before is to find | -- |
-| 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank |
-| 2300 A.D. | Robo repaired at Proto Dome | between ctsave02 and ctsave03 | -- |
-| 600 A.D. | Zenan Bridge | ctsave04 slot 1 | Zombor |
 | 600 A.D. | Denadoro and the Masamune | ctsave04 slot 2 | Masa & Mune (`battle-denadoro` may hold the fight) |
-| 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel |
-| 12,000 B.C. | Zeal's palace and the Mammon Machine | ctsave08 slots 2-3 | -- |
-| 12,000 B.C. | Mt. Woe | ctsave09 slot 3 | Giga Gaia |
-| several | The Blackbird's end and the Epoch's wings | ctsave11 | Dalton Plus |
-
-Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
-shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.
-The Ocean Palace's end and Crono's return are the story's largest scripted scenes, so they come
-first.
 
 ### 14. The original's known glitches
 A faithful port reproduces the original's mistakes, so plays that lean on its documented glitches
@@ -855,10 +714,56 @@ won't sync here; each is a `ct_drive` route from a save, written from the glitch
 
 | Glitch | What it does | Status |
 |---|---|---|
-| Unequipped armor or helm (US) | a slot left empty (the Blackbird's events allow it; elsewhere only with no spare piece the member could wear) doubles the member's magic damage and cuts the magic damage it takes by about 90%, Fire and non-elemental excepted | queued: a route, the damage compared in a fight |
 | 98 slots of one kind of equipment | the equipment screen reaches memory far outside the inventory | waits on the native program's reads past a table's end (TODO.md, "The native program") |
-| Item duplication | the glitched any% run duplicates items within one reset | mechanism to work out from the run |
+| Item duplication | interrupt a save after item IDs change but before their quantities do; load the invalid slot with A+Up/Down to retain the mixed inventory | researched below: the TAS uses an external reset during saving, which `ct_drive` and `.ctm` cannot request; no `menus-item-duplication.ctm` recorded |
 | New Game+ save corruption | a reset in the middle of a frame leaves a half-written value in the save: maxed stats, nearly any equipment | needs a reset mid-frame, which neither `ct_drive` nor `ct_native` models |
+
+**Item duplication research (no movie).** [Submission 2240](https://tasvideos.org/2240S),
+"Item duplication", describes three save-corruption methods. The save spans two frames;
+resetting after the first leaves a prefix of the new inventory and a suffix of the old one.
+Method 1 replaces IDs while retaining old counts (the run turns one Revive and twenty Tonics
+into twenty Revives and one Tonic). Method 2 stops within the ID array, leaving the same item
+in separate slots. Each takes one reset. Method 3 uses three resets to extend the duplicated
+slots; repeated use supplies the equipment-screen exploit's 98 slots. A+Up/Down on the load
+screen selects the invalid save before the cursor skips it. The
+[forum's reset discussion](https://tasvideos.org/Forum/Topics/8001?CurrentPage=5&Highlight=198431)
+distinguishes this run's frame-boundary resets from the finer reset timing possible on a
+console. This is a reset **during a save**, not evidence that submission 2240 needs a
+mid-frame reset. [Chrono Speedruns' glitches page](https://chrono.wikidot.com/glitches)
+mentions mid-frame reset for overworld-position corruption but gives no item-duplication recipe.
+
+The menu code and the original, inspected with `tools.disasm.linear`, establish the following:
+
+- **Save and load:** `game/menu/saves.c`, `$FF:F9FB`, copies the saved RAM regions in order
+  through the block-move stub called at `$FF:FA44`; the checksum and slot marker are written
+  afterwards (`$FF:FA58`, `$FF:FA5F`). Inventory IDs at `$7E:2400` and counts at `$7E:2500`
+  are separate arrays, so an interrupted copy can break their pairing. `$FF:F9C4` checks the
+  marker and checksum; `$FF:FAA3` loads without repeating that validation. In
+  `game/menu/load_screen.c`, `$C2:E61B`, the cursor moves before confirm is tested; confirm
+  branches past `$C2:E743`, whose `skip_empty_slots` normally avoids invalid slots, and loads
+  the newly selected slot. This explains the simultaneous direction and confirm input.
+- **Inventory operations:** `game/menu/item_screen.c`, `$C2:AAE3`-`$AAFC`, swaps both IDs
+  and counts. Sort (`$C2:AB62`) aggregates repeated IDs into one slot per item, adding counts
+  in eight bits before limiting them to 99. Sorting therefore collapses the separate slots
+  needed for the equipment exploit. `game/menu/items.c`, `$C2:9988`, clears invalid IDs and
+  zero-count entries when the menus open; it does not merge valid repeated IDs.
+- **Equipment:** `game/menu/equipment.c`, `$C2:8953`, scans the first 242 inventory slots and
+  appends every matching, wearable entry, including repeated IDs. The original stores IDs
+  at `$7E:0F00+row` and counts at `$7E:0F62+row` (`$C2:8987`, `$C2:898D`), without a capacity
+  check, then writes a zero ID terminator. These bases differ from the submission's informal
+  buffer description: with 98 entries the terminator already overlaps the first count.
+  The C guard `menu_list_what_fits_can_be_made` requires fewer than 98 entries, reserving room
+  for that terminator. This is a static limit, not a newly observed real-play refusal.
+
+**Recording blocker:** `dev/ct_drive.c` advances whole frames with controller input and has
+no external reset command; `oracle/src/movie.c` records only controller buttons, with no reset
+event. Its machine copies restore a whole machine, rather than rebooting it with partially
+written SRAM. The game's L+R+Select+Start reset does exist (`game/core/input.c`, `$C2:851B`-
+`$8523`), but is polled by the menus' vblank handler; it is not the host reset used by the TAS,
+and an equivalent duplication through that input has not been established here. Stop at the
+unsupported TAS reset operation: no fabricated corrupted save, route or movie, and no runtime
+shadow, coverage, native/strict or narrowed-suite result to report. The findings above are
+source and code research; no game code or validation baselines changed.
 
 ### 15. Where the native program stops (recorded)
 - **What it was for**: not code no movie runs but states no movie reaches, which only
@@ -875,7 +780,6 @@ won't sync here; each is a `ct_drive` route from a save, written from the glitch
 - **Left out**: a fight inside Magus's castle (ctsave06 slot 3; 13 instructions more), whose way
   from the hall into the next room the route's search finds only at some frames (MOVIES.md,
   "Routes").
-
 ### Unknown
 - **Mode 5** (2.05 KiB): nothing found that starts it (Targets, 8).
 - **Field engine**, **battle other**, **enemy movement**, **sound driver** and

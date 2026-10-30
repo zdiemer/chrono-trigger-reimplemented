@@ -221,61 +221,17 @@ identical: `tech_sweep_spekkio` (`battle-tech-sweep-spekkio.ctm`),
 `factory_switch` (`field-factory-switch.ctm`) and `northern_ruins_switch`
 (`field-northern-ruins-switch.ctm`).
 
-`motherbrain` (`battle-motherbrain.ctm`, 135481 frames) starts from fantasyanime
-ctsave14 slot 2 on the 600 A.D. world map. It boards the Epoch, selects 2300 A.D.,
-lands southwest of Geno Dome and puts Robo in the lead. The route clears the five
-conveyor battles, opens the charging chamber, turns on the first and third code
-switches, charges the doll and escort pods, and brings the escort robot to the
-guard for the other doll. The robot follows the leader directly, so the route
-keeps it around corners and balances the reversed conveyor with Down while it
-catches up, checking the robot's position before advancing. It clears the
-main-floor encounters before the timed escort charge. Map exits, event flags
-and object positions supply the destinations; searches on machine copies keep
-only their winning input. No RAM writes are used.
-
-The existing `party` policy wins Robo's solo Atropos fight and MotherBrain's
-fight, both without a retry in this recording. Atropos's scene waits for
-confirm between its lines with no dialog box open, polling the button every
-few frames, so the walk into it presses confirm until the fight starts rather
-than only while a box is open: a press made only then can close the last line
-before the wait begins, and the scene stands still (the native-shape build's
-timing did that from every place the search entered the trigger). The route places both dolls,
-plays the shutdown and return to the world map, then re-enters Geno Dome and
-waits for field control. Its final checks require location `$0F8` and the
-MotherBrain defeat bit (`$7F:013B` bit 4); stopping at the battle's last hit would
-leave the ending scene and field load unfinished.
-
-The route's verification from power-on reaches that outcome at frame 150806.
-Its MotherBrain fight uses `policies.motherbrain`: prioritize Flare, Ice 2 and
-Robo's magic before her repeated stat increases make a prolonged fight costly,
-with healing as needed. That fight also wins without a retry.
-
-The recording's shadow replay has 0 mismatches and no refusals or accessor-range
-errors. It adds 1244 executed bytes beyond the other 48 movies, all already
-ported, including MotherBrain's add-to-stats-then-tech action; see the coverage
-and comparison limits in [movies-wanted.md](movies-wanted.md#5-boss-fights).
-`ct_native` consumes all 135481 frames without a stop (nine screen setups and
-four SNES-only video escapes, first at `$7E:5AEB`). Strict mode also reaches
-the end; its saved game differs in 323 bytes, recorded as `drifts` in
-`tools/strict_baseline.txt`. These fixed-input native runs drift from the
-reference route's timing; the reference recording establishes the boss victory.
-
-A third batch went looking for where the native program stops rather than
-for code no movie runs: a throwaway route loaded every save point no movie
-started from and walked out of its map and into the next, and another walked
-up to the nearest objects until one attacked, and each run was played in
-`ct_native` and on the hand ports alone (TODO.md, "The native program",
-"Where the save movies stop"). What stopped, and a fight of a place no
-movie fought in, became routes: `magic_cave` (`events-magic-cave.ctm`),
-`last_village_12kbc` (`field-12kbc-after-the-fall.ctm`) and `denadoro_fight`
-(`battle-denadoro.ctm`), the last walking into its fight with
-`tools/movies/encounter.py` (the nearest objects in turn, the next map when
-none attacks; and if that finds none, a wider search from the checkpoint
-before it, for the shipping mode, whose timing has the monsters elsewhere).
-A fight inside Magus's castle (ctsave06 slot 3) was found the same way but
-left out: the way from the castle's hall into the next room (`$0A8`) that
-the interpreter's search found, it found only at some frames, and in the
-shipping mode at none.
+The routes recorded since then play the boss fights, story events and side
+quests the movies didn't (what movies-wanted.md asked for), each
+from the save nearest it. Where no stock save was near enough, a preparation
+route plays from the nearest one and saves through the game's own menu, and
+the boss or event route starts from that cartridge save
+(`oracle/saves/routes/`, `oracle/saves/recorded/`; their README says how each
+was made). Preparation routes, and plays too long for every gate, are in
+`HAND_RUN_ROUTES` (`tools/suite.py`); a long play's movie, kept to be run by
+name, is in `oracle/movies/hand/`, which the suite and `strict_check.py` take
+only when a movie is named. What each route does, how it finds its way and
+what its runs showed is in [history/movie-routes.md](history/movie-routes.md).
 
 Each starts from the cartridge save its movie header names and its route's
 `SAVE` selects; `--sram` picks another. The saves include technoplaza's
@@ -290,20 +246,6 @@ that phase's checkpoint is written. A route ends by printing `outcome reached
 <goal> frame <n>` (exit status 0) or `outcome failed <why>` (1): its asserts
 along the way, and a check of its goal at the end (the Dream Team all spoken
 to; the farewells at the Gate and the King in the Beyond Time ending).
-
-`r_series` (`battle-r-series.ctm`, 65437 frames) takes ctsave03 slot 2 from the 2300 A.D.
-world map through the Factory Ruins' lab security doors and fights. The
-location exit lists and the scripts for `$0E5`, `$0E6` and `$0EB` establish
-the path: the upper lab console opens the ladder, the lower console opens
-both security doors, and the basement code reader accepts X, A, B, Y without
-requiring the warehouse cranes. The route holds each code button until its
-acceptance variable changes. Restoring power sets story `$3F`; escaping the
-shutters and returning up the lab corridor starts the R Series scene.
-The `r_series` battle policy uses Crono and Lucca's Fire Whirl and Cyclone,
-with the early save's healing items. The movie continues through Robo's
-rescue and repair and the Gate trip, ending with the field back in hand at
-the End of Time. Its battle-start check requires all six initialized robot
-stat records, since the menu byte alone briefly looks ready during loading.
 
 A route is a list of phases, each ending in a checkpoint file. Re-running it
 resumes at the last phase that finished, so a failing phase can be iterated on

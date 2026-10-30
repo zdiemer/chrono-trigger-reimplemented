@@ -447,12 +447,30 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 |---|---|---|---|
 | `battle-magus.ctm` | ctsave07, 1 | Vamp ambush won (results), the Magus fight: Mid Tonic, Ice Water dual tech, Lightning2, barrier changes, a Revive, Cure | 18000 |
 | `battle-golem-twins-gameover.ctm` | ctsave10, 3 | Delta Force, the Golems copying elements, Life revive, party wiped, game over back to the title (the sound driver restarts the SPC700 boot ROM) | 12969 |
+| `battle-golem-twins.ctm` | ctsave10, 3 | Golem Twins won with alternating all-enemy elements, Dalton leaves, return to the save point and save slot 3 (route `golem_twins`) | 20216 |
+| `events-ocean-palace-lavos.ctm` | recorded ocean-palace-after-twins, 3 | Mammon Machine, scripted Lavos loss, Crono's fall, Schala's escape, Zeal's destruction and waking in the Last Village, party exchange closed and field back in hand (route `ocean_palace_lavos`) | 30364 |
 | `battle-lavos-gameover.ctm` | technoplaza ct-state16, 2 | New Game+ at the fair: the telepod's Gate to Lavos, the shell's fight lost with nobody acting, and the Day of Lavos that follows a loss to it: Lavos rising out of the 1999 A.D. world map, the operators' room, the 1000 A.D. world map laid back and turned in Mode 7 under the needles, and the globe behind "But... the future refused to change" (route `lavos_lost`) | 16192 |
 | `battle-tyrano-lair-walls.ctm` | ctsave08, 1 | Volcano and Avian Rex: Volt Bite, Haste, won with an item drop and a level-up | 8042 |
 | `battle-black-tyrano.ctm` | ctsave08, 1 | Tyrano Lair's throne room: Azala and the Black Tyrano beaten with Lapis and Mid Tonics, then Lavos falling to the planet (scene mode 4; route `black_tyrano`) | 49219 |
+| `battle-giga-gaia.ctm` | ctsave09, 3 | Mt. Woe's last bridges, Giga Gaia beaten, Melchior freed and the mountain fallen; Terra Cave back in hand (route `giga_gaia`) | 33261 |
+| `events-zeal-palace.ctm` | ctsave08, 2 | The Skyways and Zeal Palace: Schala and Janus, the sealed door opened, the pendant charged at the Mammon Machine; field control restored (route `zeal_palace`) | 20011 |
 | `battle-guardian.ctm` | ctsave02, 3 | Arris Dome: the Guardian and its Bits, which it brings back, beaten (route `guardian`) | 25751 |
 | `battle-r-series.ctm` | ctsave03, 2 | Factory Ruins: the lab security consoles, power and shutter escape, then the six R Series beaten by Crono and Lucca; Robo's repair and the Gate trip to the End of Time, with field control returned (route `r_series`) | 65437 |
 | `battle-motherbrain.ctm` | ctsave14, 2 | Epoch to 2300 A.D.; Geno Dome's conveyors, charged pods, dolls and escort; Atropos and MotherBrain beaten, shutdown and field control regained (route `motherbrain`) | 135481 |
+| `battle-unequipped-armor.ctm` | ctsave04, 2 | Marle's armor and helmet emptied with the equipment-menu glitch; Zenan Bridge, two Truce Canyon fights, the time gate, and Spekkio beaten with Ice (route `unequipped_armor`) | 22859 |
+| `events-luccas-mother.ctm` | routes/luccas-mother-before-campfire, 1 | Fiona's campfire, the gate to 990 A.D., Lara saved with L, A, R, A, Robo's GreenDream and field control (route `luccas_mother`) | 15701 |
+| `battle-rust-tyrano.ctm` | rainbow-shell, 1 | Giant's Claw's save point, the door switch and Rust Tyrano defeated; field back in hand (route `rust_tyrano`; normal cartridge save prepared by `rainbow_shell`) | 23282 |
+| `events-cyrus.ctm` | ctsave14, 1 | Choras's tools and repairs, the Northern Ruins' left-wing guardians, Cyrus's ghost and the restored Masamune (route `cyrus`) | 39872 |
+| `battle-ozzies-fort.ctm` | ctsave12, 2 | Epoch to 600 A.D.; Flea Plus, Super Slash, Great Ozzie and the trio, the switch battle and final cat trap; field control restored (route `ozzies_fort`) | 39237 |
+| `events-fair-clone.ctm` | ctsave14, 1 | Bekkler's 40-point clone game: all 22 poses copied, then the lower square back in hand (route `fair_clone`) | 8335 |
+| `events-fair-strength.ctm` | ctsave14, 1 | The strength-test bell rung, one silver point won, then the square back in hand (route `fair_strength`) | 4276 |
+| `events-fair-shuffle.ctm` | ctsave14, 1 | Bekkler's 10-point soldier shuffle won, Poyozo Doll awarded, then the square back in hand (route `fair_shuffle`) | 6866 |
+| `events-fair-rescue.ctm` | ctsave14, 1 | Bekkler's 80-point rescue won with the candy, cat awarded, then the square back in hand (route `fair_rescue`) | 7681 |
+| `battle-mud-imp.ctm` | ctsave09, 2 | Terra Cave: two Beast pairs, then Mud Imp and the Red and Blue Beasts defeated; field control returned (route `mud_imp`) | 37817 |
+| `battle-heckran.ctm` | routes/pre-heckran, 3 | Heckran's Cave: magic, healing and waiting out the water counterattack stance; field control returned (route `heckran`) | 19376 |
+| `battle-castle-slash.ctm` | ctsave06, 2 | Magus's castle: the wings visited, Ozzie's ambush, Slash's henchmen and both Slash fights won; field control restored (route `castle_slash`) | 39278 |
+| `battle-castle-flea.ctm` | ctsave06, 2 | Magus's castle: the wings visited, Ozzie's ambush, the Flea decoy and Flea beaten; field control restored (route `castle_flea`) | 35256 |
+| `events-cronos-trial.ctm` | routes/cronos-trial, 1 | Marle brought home, Crono arrested, courtroom testimony and flashbacks, 5–2 acquittal, three days' confinement, and Crono awake in his cell (route `trial`) | 21214 |
 | `battle-tech-sweep.ctm` | zophar chrono-trigger, 1 | Inside Lavos's shell: the second form and the Lavos Core fought with every single and double tech Crono, Magus and Marle have, each cast once (route `tech_sweep`) | 118090 |
 | `late-omen-battles.ctm` | ctsave15, 1 | Black Omen random battles won (results), status Chaos keeping Lucca confused, many single techs, running away from an ambush | 18412 |
 | `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, the dual tech list, Mega Bomb, Confuse, item menus, Life 2 on a fallen Crono | 17762 |
@@ -466,7 +484,11 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `events-end-of-time-gate.ctm` | ctsave03, 3 | End of Time pillar, yes/no prompt, gate effect, arrival in Medina | 5600 |
 | `events-prison-escape.ctm` | ctsave01, 3 | Prison countdown captions, the march to the guillotine, Lucca's rescue | 12900 |
 | `events-keepers-dome.ctm` | ctsave09, 1 | Keeper's Dome: the pendant opens the sealed door, Belthasar's hall | 5000 |
+| `events-fionas-forest.ctm` | ctsave12, 3 | The sapling saved in 12,000 B.C., Sunken Desert and Retinite won, Robo left with Fiona in 600 A.D., recovered 400 years later, and the campfire through Lucca back in hand (route `fionas_forest`) | 36440 |
 | `events-blackbird.ctm` | ctsave11, 1 | Blackbird escape onto the hull over scrolling clouds | 4400 |
+| `events-death-peak-wind.ctm` | ctsave11, 3 | Death Peak's guide becomes a tree; shelter through the gusts at both trees and reach the next field (route `death_peak_wind`) | 4676 |
+| `events-death-peak-ascent.ctm` | ctsave12, 1 | First two Lavos Spawn beaten, middle cave opened, slippery ridge crossed, cartridge save at the last save point (route `death_peak`) | 23852 |
+| `events-death-peak.ctm` | routes/death-peak-summit, 1 | Final Lavos Spawn beaten, shell pushed and climbed, summit Time Egg, clone exchanged for Crono, End of Time field back in hand (route `death_peak_return`) | 23856 |
 | `events-epoch-lavos.ctm` | ctsave14, 1 | The winged Epoch dialed to 1999 A.D., Lucca's question over Lavos, Fight!, and the dive through its shell (scene mode 6; route `epoch_lavos`) | 7792 |
 | `menus-field-menu.ctm` | ctsave14, 3 | Every field submenu: equipment, items (use, organize), techs, config, party order, saving | 10600 |
 | `menus-shop-inn.ctm` | ctsave14, 1 | Truce Market buy and sell, resting at the inn | 9702 |

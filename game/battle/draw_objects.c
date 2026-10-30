@@ -130,7 +130,6 @@ static void leave_parts_cells(GameState *g, unsigned slot, FramePoint at, FrameP
 {
     unsigned last_part = slot * PART_ENTRIES_PER_COMBATANT + parts - 1;
     FramePoint last = { (uint16_t)(battle_part_offsets_x(g, last_part) + at.x), (uint16_t)(battle_part_offsets_y(g, last_part) + at.y) };
-    leave_draw_cell16(g, 0x2E, at.x);
     leave_draw_cell16(g, 0x30, at.y);
     leave_draw_cell16(g, 0x32, last.x);
     leave_draw_cell16(g, 0x34, 0);
@@ -153,6 +152,10 @@ static unsigned draw_frame(GameState *g, unsigned slot, unsigned sprite, FramePo
         set_oam_buffer_attributes(g, sprite, (uint8_t)((oam_buffer_attributes(g, sprite) & PART_KEEPS) | bits));
         place_sprite(g, sprite, (uint16_t)(battle_part_offsets_x(g, part) + at.x), (uint16_t)(battle_part_offsets_y(g, part) + at.y));
     }
+    /* With the party off the grid, its marking pass includes slots beyond
+     * the combatants. Object 23's Y overlaps this frame's X, so that value
+     * is also input to the grid (battlefield.c), including in native builds. */
+    leave_draw_cell16(g, 0x2E, at.x);
     ORIGINAL_EFFECT(leave_parts_cells(g, slot, at, offset, bits, parts));
     return sprite;
 }

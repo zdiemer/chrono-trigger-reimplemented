@@ -9,6 +9,14 @@
 # after the line -- is how the list empties. A new finding is answered the same
 # way before it merges: a line added here says why.
 
+run field_update_objects field_object_in_view # gap: events-luccas-mother reads $7E:0F00 after object_leave_row's none-link write (984 reads from frame 12470); the row tail's previous link aliases object 0's in-view flag, which object_view distinguishes from zero. The movie and native-shape end checks pass, but native storage still needs a decision on this alias and its intermediate drawing (TODO.md, "What only the original's memory has, past the object tables").
+run menu_object_capsule_iris_1 field_window_shape_edge # aliases scene_circle_radius: set_up_circle writes the word plainly before scene_circle_draw; the capsule guard requires radius < 256, so its scaffolding byte normalization writes the same value
+run menu_object_capsule_iris_1 field_window_shape_table # aliases the low byte of scene_circle_center_y: set_up_circle writes the word plainly before scene_circle_draw; the capsule guard requires y < 256, so its scaffolding byte normalization writes the same value
+run menu_object_capsule_iris_1 scene_circle_center_y # set_up_circle writes the word plainly before scene_circle_draw; the capsule guard requires y < 256, so its scaffolding byte normalization writes the same value
+run menu_object_capsule_iris_2 field_window_shape_edge # aliases scene_circle_radius: set_up_circle writes the word plainly before scene_circle_draw; the capsule guard requires radius < 256, so its scaffolding byte normalization writes the same value
+run menu_object_capsule_iris_2 field_window_shape_table # aliases the low byte of scene_circle_center_y: set_up_circle writes the word plainly before scene_circle_draw; the capsule guard requires y < 256, so its scaffolding byte normalization writes the same value
+run menu_object_capsule_iris_2 scene_circle_center_y # set_up_circle writes the word plainly before scene_circle_draw; the capsule guard requires y < 256, so its scaffolding byte normalization writes the same value
+
 game/battle/animation.c posing battle_work[20] battle_work
 game/battle/animation.c posing battle_work[21] battle_work
 game/battle/arith.c battle_multiply_8x8 battle_multiply_factors[0] battle_multiply_factors                    # the entry's operands: the original's callers put them in the cells, every call
@@ -244,8 +252,8 @@ game/menu/glyphs.c glyph_in_cells menu_glyph_right_pixels menu_glyph_right_pixel
 game/menu/glyphs.c pen_in_cells menu_glyph_pen_column menu_glyph_pen_column only                                 # the glyph drawer's own entries ($C2:5E36, $C2:5F07, $C2:5E89) take the glyph and the pen from the cells the original's setter ($C2:5DC4) leaves them in; that setter is typeset.c's now, which draws through menu_put_glyph with parameters, so only the original's code, calling the entries, reads them
 game/menu/glyphs.c pen_in_cells menu_glyph_pen_offset menu_glyph_pen_offset only                                 # the glyph drawer's own entries ($C2:5E36, $C2:5F07, $C2:5E89) take the glyph and the pen from the cells the original's setter ($C2:5DC4) leaves them in; that setter is typeset.c's now, which draws through menu_put_glyph with parameters, so only the original's code, calling the entries, reads them
 game/menu/line_effects.c capsule_fill_end scene_circle_center_y scene_circle_center_y
-game/menu/line_effects.c capsule_iris scene_circle_center_y scene_circle_center_y
-game/menu/line_effects.c capsule_iris scene_circle_radius scene_circle_radius
+game/menu/line_effects.c capsule_iris scene_circle_center_y scene_circle_center_y # set_up_circle(as_words=true) writes the whole word plainly; iris_takes bounds y below 256, so the circle's scaffolding writes the same value back
+game/menu/line_effects.c capsule_iris scene_circle_radius scene_circle_radius # set_up_circle(as_words=true) writes the whole word plainly; iris_takes bounds radius below 256, so the circle's scaffolding writes the same value back
 game/menu/line_effects.c set_up_circle scene_circle_center_x scene_circle_center_x
 game/menu/line_effects.c set_up_circle scene_circle_center_y scene_circle_center_y
 game/menu/line_effects.c set_up_circle scene_circle_radius scene_circle_radius
@@ -1242,3 +1250,4 @@ game/overworld/handlers.c event_step_runs menu_object_slots_script menu_exchange
 game/overworld/handlers.c overworld_epoch_takes menu_object_slots_script menu_exchange_layout_high # as the line above
 game/overworld/handlers.c overworld_epoch_scene_call_takes menu_object_slots_x_pixel menu_description_glyphs_sent_pad # the sprite-object mode's slot, which its objects' starts write plainly; the scaffolding at the address is a menu screen's
 game/overworld/sign.c overworld_sign_can_show menu_object_vram_queue_end menu_window_operands # the sprite-object mode's queue's end, which its reset and every queueing write plainly (as menu_object_queue_is_whole's line); the scaffolding at the address is the menus' window operands
+run battle_carry_out_member_action battle_timer_tick_spare # stops_after_miss in party_work.c reads $7E:B1F5 + 11 * tech, the original's wrong-bank lookup already recorded in TODO.md: tech $2A reads $7E:B3C3 once in the Spekkio sweep (frame 41628). The byte is zero before both battle initializations (frames 4442 and 23238), so their scaffolding clears are redundant in this run; the missed part reads the same zero without them. The native-shape library and all routes pass; the existing raw-WRAM dependency remains

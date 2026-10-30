@@ -16,28 +16,59 @@ menu end
 new-game end
 title-start end
 battle-black-tyrano drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (203 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
+battle-castle-flea drifts  # differs from the reference: 81 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
+battle-castle-slash drifts  # differs from the reference: 81 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
+battle-dalton 25170  # halts at C0:881E field_walk_the_leader as the party jumps onto the Epoch; the guard's coordinate bound is a gap (TODO.md, Refusals in real play); a frame sooner than the branch measured, the same stop, since the batch merged
 battle-denadoro drifts  # the fight's turns land on other frames, so it ends with other HP, MP, experience and items used (43 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2616, $7E:262B, ...))
+battle-dragon-tank drifts  # differs from the reference: 35 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2613, $7E:2616, $7E:262B, ...)
+battle-giga-gaia drifts  # the recorded fight inputs land on other turns under native timing; inventory, character records and story progress differ (572 saved-game bytes)
 battle-golem-twins-gameover end
+battle-golem-twins drifts  # differs from the reference: 58 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...); 224 byte(s) of save RAM
 battle-guardian drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (71 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, ...); 296 byte(s) of save RAM)
 battle-lavos-gameover drifts  # the outer shell's fight, entered a frame early, lasts 586 frames longer, so the planet's loss plays on to a later song and story step by the last frame (2 byte(s) of the saved game (current_song, event_memory))
 battle-magus drifts  # the presses land on other frames since the vblank handler's switch waits for the port's time, so the party leaves its last place a tile lower (location_previous's y, $7E:0108) and another saved cell differs (2 byte(s) of the saved game ($7E:2747, $7E:0108)); with the oracle's time, or the original sound driver, it ends as the reference
+battle-heckran drifts  # differs from the reference: 63 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
+battle-magus-north-cape 8560  # at C0:881E, North Cape's flashback walk (TODO.md, Refusals in real play); a frame sooner since the batch merged, the same stop
 battle-menu-buttons end
 battle-motherbrain drifts  # the fights' turns land on other frames under native timing, so they end with other HP, MP, experience and items used (323 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
+battle-mud-imp drifts  # differs from the reference: 65 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...)
+battle-nizbel-ii drifts  # differs from the reference: 177 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, $7E:260C, ...)
+battle-ozzies-fort drifts  # differs from the reference: 118 byte(s) of the saved game (inventory_counts, character_records, $7E:2613, $7E:2614, $7E:2616, $7E:262B, ...)
 battle-r-series drifts  # native timing moves the fixed inputs and the fights' turns: 118 byte(s) of the saved game differ (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...); no interpreter stop
+battle-rust-tyrano drifts  # differs from the reference: 72 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:262B, ...)
+battle-son-of-sun drifts  # timed presses drift on the hand ports: the party's inventory and character records differ from the reference; the state-driven son_of_sun route wins separately with the C sound driver
 battle-tech-sweep-spekkio drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (37 byte(s) of the saved game (inventory_counts, $7E:263D, $7E:263F, $7E:2640, $7E:268D, $7E:268F, ...))
 battle-tech-sweep drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (805 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 battle-tyrano-lair-walls drifts  # the fights' turns land on other frames, so they end with other HP and the battle menu's cursors elsewhere (8 byte(s) of the saved game (character_records, $7E:2607, $7E:2657, $7E:2797, battle_remembered_cursors, $7E:2C83))
+battle-unequipped-armor 7594  # at C0:1AAC
+battle-zombor 20301  # at C0:1AAC
 endings-beyond-time drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way, and the save made after differs (54 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, ...); 4189 byte(s) of save RAM)
 endings-bucket-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (49 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:26A3, $7E:26A4, ...))
 endings-telepod-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (574 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 events-blackbird end
+events-cronos-trial drifts  # differs from the reference: 20 byte(s) of the saved game (current_song, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...)
+events-cyrus drifts  # differs from the reference: 5 byte(s) of the saved game (character_records, $7E:2607, $7E:26A3, $7E:26A4, $7E:26A7)
+events-death-peak-ascent drifts  # differs from the reference: 78 byte(s) of the saved game (inventory_counts, $7E:2613, $7E:2614, $7E:262B, $7E:262C, $7E:2653, ...); 79 byte(s) of save RAM
+events-death-peak-wind end
+events-death-peak drifts  # differs from the reference: 89 byte(s) of the saved game (inventory_items, inventory_counts, $7E:2613, $7E:2614, $7E:262B, $7E:262C, ...); 208 byte(s) of save RAM
 events-end-of-time-gate end
 events-epoch-lavos end
+events-fair-clone drifts  # timing loses the clone game: $7F:005E bit 0 stays clear instead of awarding Crono's clone
+events-fair-rescue end
+events-fair-shuffle drifts  # timing loses the soldier shuffle: $7F:005D bit 0 stays clear instead of awarding Crono's Poyozo Doll
+events-fair-strength end
+events-fionas-forest drifts  # differs from the reference: 131 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, $7E:260C, ...)
 events-jetbike-race-won end
 events-jetbike-race end
 events-keepers-dome end
 events-magic-cave end
+events-luccas-mother end
+events-magus-joins 8560  # at C0:881E, as battle-magus-north-cape
+events-ocean-palace-lavos 25299  # at C2:7BD1, Zeal's fall's scene objects handed back by menu_run_object_script, which the hand ports alone can't run; on the branch's own calibration the movie drifted past it to the end, on the library's one calibration the shipping timing reaches it
 events-prison-escape end
+events-proto-dome drifts  # consumes all 24717 frames without a halt, but ends at story $37, repair stage $00, Robo absent (59 saved-game bytes differ)
+events-sun-stone drifts  # differs from the reference: 23 byte(s) of the saved game (inventory_items, inventory_counts, party_waiting, current_song, $7E:0102, $7E:0103, ...)
+events-zeal-palace 4109  # C6:E4BE: the Skyway capsule iris reaches centre y=0; guard gap in TODO.md, Refusals in real play
 field-12kbc-1f4 end
 field-12kbc-1f5 end
 field-12kbc-1f6 end
@@ -50,7 +81,7 @@ field-floor-switch end
 field-northern-ruins-switch end
 late-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (43 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, ...); 185 byte(s) of save RAM)
 late-omen-battles drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (18 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2653, $7E:2654, $7E:2657, ...))
-late-omen-terramutant end
+late-omen-terramutant drifts  # after the Nizbel II library timing calibration, the fixed presses land on different battle turns; reaches all 17762 frames, differing in 270 saved-game bytes (inventory_items, inventory_counts, character_records, ...)
 late-omen-zeal drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (31 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2653, $7E:2654, $7E:2657, ...))
 menus-end-of-time end
 menus-epoch end
@@ -60,3 +91,6 @@ menus-save-point end
 menus-shop-equip end
 menus-shop-inn drifts  # the presses land on other frames, and the party ends at another place (13 byte(s) of the saved game (menu_past_the_names, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...))
 menus-sweep end
+battle-nizbel drifts  # differs from the reference: 128 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...)
+battle-yakra drifts  # differs from the reference: 128 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...)
+events-cronos-trial-long drifts  # differs from the reference: 149 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...); 181 byte(s) of save RAM

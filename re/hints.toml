@@ -3927,7 +3927,8 @@ format = "dialog"
 
 [[resource]]
 at = "F6:A000"
-count = 105
+# The Rainbow Shell trial's final dialogue is entry $69, read at F6:B1F7.
+count = 106
 slots = 106
 kind = "ptr16"
 bank = "F6"
@@ -3990,6 +3991,7 @@ format = "dialog"
 
 [[resource]]
 at = "FF:4460"
+# Entry $50 is Lucca's reply after Robo gives her the GreenDream.
 count = 81
 slots = 81
 kind = "ptr16"

@@ -151,6 +151,9 @@ def collect(only, names):
         groups.append(sorted((ROOT / "oracle/movies").glob("*.ctm")))
     if only in ("all", "saves"):
         groups.append(sorted((ROOT / "oracle/movies/saves").glob("*.ctm")))
+        # Long hand runs are opt-in, even when the full library is selected.
+        if names:
+            groups.append(sorted((ROOT / "oracle/movies/hand").glob("*.ctm")))
     out = []
     for paths in groups:
         for p in paths:
@@ -318,9 +321,18 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 # (docs/movies-wanted.md, "Every tech").
 # The other New Game+ endings take over 100,000 frames apiece. Their
 # scratch movies and shipping routes are checked by hand (MOVIES.md).
+# The preparation routes make cartridge saves through long prerequisites
+# (oracle/saves/README.md, "routes/"), and the rest are long plays from the
+# nearest stock save (the Cathedral, the Reptite Lair, the shell's trial, the
+# Sun Stone planted, Crono's trial); none of their movies is in the library,
+# and those kept are in oracle/movies/hand, run only when named. `heckran`'s
+# movie is in the library, but its route loses the fight in the shipping mode
+# with the save's supplies (docs/TODO.md, "Heckran's route in the shipping mode").
 HAND_RUN_ROUTES = {"tech_sweep", "successor_of_guardia", "legendary_hero", "unknown_past",
                    "people_of_the_times", "the_oath", "dino_age", "what_the_prophet_seeks",
-                   "memory_lane", "reunion"}
+                   "memory_lane", "reunion", "prepare_luccas_mother", "sun_stone", "rainbow_shell",
+                   "yakra", "nizbel", "rainbow_shell_trial", "blackbird_save", "sun_stone_save",
+                   "heckran_prepare", "cronos_trial", "heckran"}
 
 
 def all_routes():
@@ -787,6 +799,7 @@ def main():
     args = ap.parse_args()
 
     binary = args.ct_dev.resolve()
+    args.out = args.out.resolve()
     if not binary.exists():
         sys.exit("%s: not found (build it first)" % args.ct_dev)
     if not args.rom.exists():

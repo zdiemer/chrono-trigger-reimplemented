@@ -94,7 +94,10 @@ def movies(names):
     """The library's movies, as (name, path, frames): the power-on ones, then
     the saves'."""
     out = []
-    for group in ("oracle/movies", "oracle/movies/saves"):
+    groups = ["oracle/movies", "oracle/movies/saves"]
+    if names:
+        groups.append("oracle/movies/hand")
+    for group in groups:
         for p in sorted((ROOT / group).glob("*.ctm")):
             if names and p.stem not in names:
                 continue
@@ -350,14 +353,13 @@ def main():
         count["end"] + count["drifts"], len(rows), count["end"])
     if args.update:
         old = read_baseline(args.baseline)
-        if args.movies:
-            # keep the movies not run as they were
-            for name, _path, _frames in movies(set()):
-                if name in old and name not in results:
-                    must = old[name][0]
-                    results[name] = (None, old[name][1], must) if must in ("end", "drifts") else (
-                        must, None, "stopped")
-            rows = [r for r in movies(set()) if r[0] in results]
+        # Keep omitted library movies and opt-in hand runs as they were.
+        for name, _path, _frames in movies(set(old) | set(results)):
+            if name in old and name not in results:
+                must = old[name][0]
+                results[name] = (None, old[name][1], must) if must in ("end", "drifts") else (
+                    must, None, "stopped")
+        rows = [r for r in movies(set(old) | set(results)) if r[0] in results]
         write_baseline(args.baseline, rows, results, old)
         print(summary + "; baseline written")
         return 0
