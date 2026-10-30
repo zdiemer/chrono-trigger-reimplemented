@@ -2934,22 +2934,6 @@ Ranked by how much play they block:
   `$7E`. What the original does with a count of 0 (one target, uncounted)
   is the thing to establish; the reference play meets no such tech.
 
-- **Reunion's parade.** `reunion` (ct-state26 slot 2,
-  123341-frame scratch movie) has six guard refusals at two entries.
-  At `$050`, `field_update_object_visibility` (`$C0:A88D`) and
-  `field_give_up_palette` (`$C0:734C`) each refuse frames 96984, 97676 and
-  99975. Object `$14` has palette `$0E` (slot 7), older/newer links `$00/$01`
-  at `$7E:0B28`, and all palette-slot heads `$80`. The newer link is odd,
-  which `object_palette_links_in_the_tables` rejects. But `$7E:0154 = $80`:
-  the script owns the palettes, so `object_give_up_palette` returns before
-  reading any sharer. Both guards still require those unused links to be valid.
-  The first visibility refusal has A `$0000`, X `$0028`, Y `$0046`, D `$0100`,
-  DB `$00`, P `$32`; palette release has A `$0080`, X `$0004`, Y `$0046`,
-  D `$0100`, DB `$00`, P `$33`. These are `gap` reasons in the allowlist.
-  Shadow has no mismatches or page/accessor/asset diagnostics; native and
-  strict modes complete the input. The shipping route reaches The End at
-  125438. No game routine was changed.
-
 - **The Prophet ending's transient party links.** `what_the_prophet_seeks`
   (ct-state24 slot 2, 131287-frame scratch movie) reaches The End, but its
   reference play refuses `event_cmd_walk_with_the_party` (`$C0:3002`) and
