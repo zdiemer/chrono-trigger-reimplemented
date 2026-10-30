@@ -2884,6 +2884,7 @@ strings_f6a000.101	text	F6:B06E	F6:B112	text:dialog	strings_f6a000 entry
 strings_f6a000.102	text	F6:B113	F6:B1B0	text:dialog	strings_f6a000 entry
 strings_f6a000.103	text	F6:B1B1	F6:B1D0	text:dialog	strings_f6a000 entry
 strings_f6a000.104	text	F6:B1D1	F6:B1F6	text:dialog	strings_f6a000 entry
+strings_f6a000.105	text	F6:B1F7	F6:B222	text:dialog	read
 strings_f6b230	ptr16	F6:B230	F6:B34F	raw	read
 strings_f6b230.0	text	F6:B350	F6:B365	text:dialog	strings_f6b230 entry
 strings_f6b230.1	text	F6:B366	F6:B3A1	text:dialog	strings_f6b230 entry

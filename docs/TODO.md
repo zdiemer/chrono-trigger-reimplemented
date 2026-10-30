@@ -2682,6 +2682,33 @@ re-runs the census.
     leader's spot off the map, which no flight makes; the arrival's x
     measured across the map's height (`slow_so_as_not_to_pass`) is the
     original's and kept.
+- **Timing spread in Dalton** (`tools/timing_exceptions.txt`). Drift-only
+  calibration updates 226 estimates for `battle-dalton`. The residual
+  `battle_find_due_animation` worst error is 53304 clocks (limit 50468) over
+  14735 stretches, with mean time 5090 and net drift rounded to zero. None
+  of these stretches is in vblank. Its scheduler includes optional frame
+  graphics construction in one estimate; measure those paths separately
+  when revisiting its timing. This movie's video-write check has no unlisted
+  movement. No game logic was changed for this exception.
+- **Timing spread in Proto Dome** (`tools/timing_exceptions.txt`). The opening
+  and victory poses inherit the frame-graphics and frame-tail estimates:
+  `battle_step_the_poses` drifts +9.04% over 256 stretches and
+  `battle_strike_the_poses` +4.20% over 262 even with their own estimates at
+  the minimum 1. Neither has a vblank stretch. The field continuations from
+  confirm and the dialog window have zero net drift after calibration but
+  3.93% of 7505 vblank stretches off by at least 1024 clocks (maxima 1949 and
+  1137). Diagnose the inherited estimates and the variable dialog/frame work;
+  the Proto Dome video-write check found no unlisted movement.
+- **Timing spread in the Rainbow Shell trial** (`tools/timing_exceptions.txt`).
+  After drift-only calibration, `battle_record_trails` has 1.33% of its 7530
+  vblank stretches off by at least 1024 clocks (maximum 1676): its RAM history
+  shifts only for active trails whose countdown expires. `field_nmi` has 1.24%
+  of 51814 vblank stretches over that threshold (maximum 6273, below the
+  quarter-vblank worst limit), with its variable queues, edges and menu work.
+  Attribute these variable paths more precisely. The trial's video-write check
+  has no unlisted movement. The main menu's opening below also drifts +1.84%
+  over 173 stretches with its own scalar already at the minimum 1; its child
+  estimates need the investigation described there.
 - **The main menu's opening, over-estimated** (`menu_choose_on_main_menu`, on
   `tools/timing_exceptions.txt` for its worst stretch since the shipping mode's
   fallbacks' chunk 7, history/reimplementation-chunks.md): a stretch of the main task's turn
@@ -2873,6 +2900,30 @@ list, by kind, is what `game/` still asks of one.
   the rescue or the field outcome. The same movie in strict `ct_dev` reaches
   its frame limit without stopping, with 572 saved-game bytes different from
   reference play under native timing.
+- **Dalton recording in the native program.** `battle-dalton` consumes all
+  39666 frames without a reported `ct_native` stop, but reports only three
+  screen setups, ending with the screen showing, and two SNES-only video
+  escapes (first `$7E:5AEB`). Establish where it loses the reference route;
+  this does not establish completion of the Blackbird's destruction. Strict
+  mode halts at frame 25171 at `$C0:881E`, the walking guard gap documented
+  above, before Dalton Plus. No game code was ported for this recording.
+- **Proto Dome recording in the native program.** `events-proto-dome` consumes
+  all 24717 frames without a reported `ct_native` stop, but ends blanked after
+  four screen setups and two SNES-only video escapes (first `$7E:5AEB`).
+  Establish the first lost transition through Lab 32 and the dome. Strict mode
+  also consumes every frame without a halt, but misses the repair: story `$37`,
+  repair stage `$00`, Robo absent, 59 saved-game bytes different. Diagnose the
+  timed-input drift separately from any native stop.
+- **Rainbow Shell trial recording in the native program.** The hand-run
+  `rainbow_shell_trial` recording (47547 frames, ctsave13 slot 2; MOVIES.md)
+  completes the trial in the reference play. `ct_native` consumes all 47547
+  frames without an explicit stop, but reports the screen blanked after only
+  six setups. Establish where its inputs cease to follow the reference,
+  particularly around the initial settings menu and the courtroom transitions,
+  before treating this as a native trial completion. Strict mode consumes all frames
+  but ends in the treasury (`$01A`), at trial stage `$02`, without the fragment
+  (81 saved-game bytes differ). Diagnose the input drift separately from a
+  native stop; shadow has no mismatch or refusal.
 
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
@@ -3247,6 +3298,16 @@ needed for these reads.
   new fallback rows (18330 instructions). `ct_native` stops at frame 4106
   on `$C6:E4BE`, "a capsule iris on slot 2"; strict mode stops at frame 4109
   on the same entry.
+
+- **Dalton's Epoch reveal: leader above the coordinate range.**
+  `battle-dalton` refuses `field_walk_the_leader` (`$C0:881E`) 20 times from
+  reference frame 26263, on the Blackbird wing (`$16B`), stage `$7F:00D2 = 6`.
+  Marle is jumping onto the Epoch: the leader link is `$0002`, the map mask
+  `$3F3F`, but her raw Y is `$FFBD`. `walk_fits` rejects Y at or above `$FF00`,
+  where the original's sums carry into slope handling. Reproduce and support
+  that transition before removing the `gap` entry in refusal_allowlist.txt.
+  The narrowed reference run adds five refused fallback rows (103 ROM bytes,
+  1020 instructions) under this entry. No game logic was changed for the movie.
 
 ## Targets beyond the desktop SNES build
 

@@ -254,3 +254,10 @@ field_frame_goes_on_with_the_script_layers vblank-tail the same field-frame cont
 field_frame_goes_on_with_the_screen_effect vblank-tail the same field-frame continuation and queue/work spread: 2.02% of 10944 stretches in vblank off by at least 1024 clocks, at most 1275, writing RAM
 
 # The four early-boss recordings, after combined --drifted calibration.
+# The hand-run Rainbow Shell trial, after drift-only calibration; its narrowed
+# vblank check reports no unlisted video-write movement. Follow-ups: TODO.md.
+
+# Proto Dome after drift-only calibration; the narrowed vblank check has no
+# unlisted video-write movement. Follow-ups: TODO.md.
+
+# Dalton after drift-only calibration; the video-write check has no unlisted movement.

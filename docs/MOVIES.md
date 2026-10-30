@@ -698,6 +698,116 @@ clocks) is documented in the timing exceptions and TODO, with no newly visible v
 The suite's trace pair now also respects `-j 1`, so this gate runs one game process at a time.
 The narrowed `suite.py -j 1 --movies events-death-peak-wind events-death-peak-ascent
 events-death-peak` run, including its static checks, ends `suite OK`.
+## Dalton Plus and the Epoch's wings
+
+`dalton` records `battle-dalton.ctm` in 39666 frames from
+`recorded/blackbird-before-dalton.srm` slot 1. The save was made through the
+cell's normal save-point screen after the opening already played by
+`events-blackbird`, all three equipment chests, and the inventory chest.
+The `blackbird_save` preparation route takes 74786 frames and is in
+`HAND_RUN_ROUTES`; its recording stays outside the library. The save's
+provenance and starting flags are in [the saves README](../oracle/saves/README.md).
+
+The movie takes the ducts to the upper deck, opens the west bulkhead, wins a
+Byte encounter, and crosses the wing by running against its downward drift.
+Golem Boss falls at frame 21922. Dalton's Epoch reveal follows, then Dalton
+Plus (frame 26546; defeated at 33954), the controls tried with Y and X, and
+the Blackbird's destruction. The landing conversation ends on the 12000 B.C.
+world map (`$1F6`), with walking control verified by a step. Blackbird stage
+`$7F:00D2` is `$0A`, and the wings bit `$7F:00BA & $80` is set.
+
+Shadow reports zero mismatches, refused pages, out-of-range accesses, or
+uncatalogued reads. The 20 guard refusals at `field_walk_the_leader`
+(`$C0:881E`, from frame 26263) are a documented gap: Marle's jump onto the
+Epoch takes her Y above the guard's bound. The allowlist and five new
+fallback rows record it; no other fallback is new or increased. Coverage
+adds 392 ROM bytes (201 instruction addresses including RAM) beyond the
+other 49 library movies, including `event_cmd_set_flags` (`$C0:6BF7`),
+in-view conditions, direction-to-target, and layer-scroll paths. The
+previously declared `$FF:6B00` dialogue table and its 185 strings are now
+catalogued; only metadata is committed.
+
+`ct_native` consumes all 39666 frames without an explicit stop, but reports
+only three screen setups, ending with the screen showing; completion is not
+established. Strict mode halts at frame 25171 at `$C0:881E`, before Dalton
+Plus. Drift-only calibration updates 226 estimates; one residual scheduler
+timing exception is documented in TODO.md, with no unlisted video-write
+movement. The scrolling command's 184 abandoned comparisons (of 186, two
+matched) were checked with its existing fuzz constraints: 2999 matches,
+zero mismatches, 46875 guard skips and 126 call-out budget skips in 50000
+cases.
+
+The route was also checked from the prepared cartridge save without its
+development checkpoints, reaching walking control in 39824 frames. Its final
+control check tries another direction when the landing spot blocks the first.
+The narrowed suite, including its static checks, ended `suite OK`.
+
+## Robo repaired at Proto Dome
+
+`proto_dome` records `events-proto-dome.ctm` from ctsave03 slot 1 in 24717
+frames. Its approach reuses the winning Lab 32 race inputs, then enters Proto
+Dome, wins both Bugger encounters, examines Robo, and plays Lucca's repair and
+his introduction. It accepts the name Robo and takes Lucca along, ending with
+field control in Proto Dome and party Crono/Robo/Lucca. The starting story
+counter is `$37`, with repair stage `$7F:0148 = $00` and Robo absent; the end
+is story `$3C`, repair stage `$0F`. Slot 2 is already after the repair.
+
+Shadow clean: zero mismatches, guard refusals, refused pages, out-of-range
+accesses, or missing catalogue entries. Coverage adds 147 ROM bytes (71 new
+instruction addresses including RAM) beyond the original 48-movie library,
+notably `battle_condition_other_kind_present` (`$C1:9656`) and
+`battle_condition_is_enemy` (`$C1:8F87`), plus the field's dash-button condition
+and animation line limit. The fallback check found no new or increased use.
+`ct_native` consumes all 24717 frames without reporting a stop, but ends blanked
+after four screen setups; completion of the repair is not established.
+Strict mode consumes every frame without a halt but ends in Proto Dome at
+story `$37`, repair stage `$00`, with Robo still absent (59 saved-game bytes
+differ).
+The 60 interrupted tile-row decoder calls (of 102) were checked separately:
+5000 differential-fuzz cases with the existing constraints all matched, none
+skipped; the other 42 movie calls matched in shadow. Drift-only timing
+calibration updated 204 estimates; four residual exceptions are documented in
+TODO.md, with no unlisted video-write movement. The narrowed suite, including its static checks, ended `suite OK`.
+
+## The Rainbow Shell trial as a hand-run route
+
+`rainbow_shell_trial` starts from ctsave13 slot 2 and reaches the King's
+exoneration with the castle field back in hand at frame 47547. It visits the
+court, retrieves the shell fragment, exposes the Chancellor, defeats Yakra XIII
+(at frame 41423), and plays Marle's reconciliation with her father. The route
+checks the shell-delivered flag, the fragment flag, the trial stage, and the
+King-exonerated flag; it uses only controller inputs, with machine copies for
+walking searches and battle retries.
+
+The recording remains outside the library: it exceeds the short-movie target,
+so `rainbow_shell_trial` is in `HAND_RUN_ROUTES`. To make it locally:
+
+```sh
+python3 -m tools.movies.routes.rainbow_shell_trial --prefix build/trial/route --movie build/trial/events-rainbow-shell-trial.ctm
+```
+
+The original settings took 48156 frames. Choosing the fastest battle and
+message settings in the game's menu and confirming dialogue more often gave
+47547. An attempt to make a nearer cartridge save after collecting the evidence
+did not find a working path out of the castle; no such save was exported.
+The remaining work is a shorter route or a save made through normal play before
+the final hearing (see [movies-wanted.md](movies-wanted.md), Targets, 12).
+
+Shadow clean: zero mismatches, refusals, refused pages, out-of-range accesses,
+or reads outside the catalogue. Coverage adds 391 ROM bytes (0.38 KiB; 179
+instruction addresses including RAM) beyond the 48 existing movies, notably
+`battle_condition_stat_at_least` (`$C1:9130`), `battle_enemy_marches`
+(`$C1:3F5A`), and the curtain transition's `$C0:4145`-`$4180` paths. The final
+courtroom dialogue also required catalogue entry `strings_f6a000.105`
+(`$F6:B1F7`-`$B222`); only its metadata is committed. `ct_native` reports no
+stop through frame 47547 but ends blanked after six screen setups; this is
+not evidence that it completed the trial (TODO.md, "The native program").
+Strict mode consumes all 47547 frames without a halt but ends in the treasury
+(`$01A`), still at trial stage `$02` without the fragment; its inputs have
+drifted from the reference (81 saved-game bytes differ). Timing calibration with `--drifted`
+updated 222 estimates for this narrowed run. Three residual timing exceptions
+are documented in TODO.md, with no unlisted video-write movement; the fallback check found
+no new or increased fallback. The narrowed suite (including its static checks), with the recording temporarily in the library, ended `suite OK`; the movie was then removed from the library.
 
 ## What the route runner does
 

@@ -326,7 +326,7 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 HAND_RUN_ROUTES = {"tech_sweep", "successor_of_guardia", "legendary_hero", "unknown_past",
                    "people_of_the_times", "the_oath", "dino_age", "what_the_prophet_seeks",
                    "memory_lane", "reunion", "prepare_luccas_mother", "sun_stone", "rainbow_shell",
-                   "yakra", "nizbel"}
+                   "yakra", "nizbel", "rainbow_shell_trial", "blackbird_save"}
 
 
 def all_routes():

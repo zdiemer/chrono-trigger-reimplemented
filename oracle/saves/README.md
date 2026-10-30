@@ -69,6 +69,21 @@ Cartridge saves made through the game's save menu by recorded routes:
 | File | Origin and slot |
 |---|---|
 | `death-peak-summit` | `events-death-peak-ascent`, from ctsave12 slot 1; slot 1 at Death Peak's last save point (`$1EF`), first two Lavos Spawn beaten, final Spawn still alive; Chrono Trigger and clone held |
+## recorded/
+
+`blackbird-before-dalton.srm`, slot 1, was made by normal play from
+fantasyanime's `ctsave11-crono_gone.srm` slot 1. The `blackbird_save` hand-run
+route plays the 4400-frame `events-blackbird` opening, recovers Marle's,
+Robo's and Lucca's equipment and the inventory, clears the corridor patrols,
+and returns through the ducts to the cell. A Shelter restores the party;
+the normal save-point screen writes slot 1. Preparation took 74786 frames.
+No memory edits or machine state are needed to load it.
+
+The save is in the cell (`$173`), story `$7F:0000 = $CF`, with equipment
+bits `$7F:00AF & $07 = $07` and inventory bit `$7F:00BA & $02` set.
+Blackbird stage `$7F:00D2` is zero and the Epoch's wings bit
+`$7F:00BA & $80` is clear. The source's slot 2 is already after Dalton
+(story `$D2`, Blackbird stage `$0A`, wings set), so it cannot record his fight.
 
 ## technoplaza/
 
