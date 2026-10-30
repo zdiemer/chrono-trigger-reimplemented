@@ -713,7 +713,14 @@ tooling pass after Phase 3's first chunks"). What such a port must still do
 is stop where the original yields: a task switch or a wait for the next frame
 partway through is a stop (`m_stop_at` at the yield's address) or a call-out,
 never something run through. Shadow mode compares none of its calls when every
-one is interrupted, so fuzz it. To see what the shipping mode does with a
+one is interrupted, so fuzz it. One effect can't wait for the time: turning
+the vblank handler on or off changes what happens while the time is paid, so
+`tm_enable_interrupts` lets the port's time so far pass first where it changes
+the handler's bit (the SNES backend, `native_sync`). The world map's set up
+(`$C2:23A8`, 38 frames with the handler off) turned it on as its run ended,
+and the handler then ran through the whole of its owed time, so the opening's
+world map ended 41 frames ahead of the original's and `new-game` drifted;
+`debt_test` holds the case. To see what the shipping mode does with a
 routine as one port before writing it, run the original that way:
 
 ```sh

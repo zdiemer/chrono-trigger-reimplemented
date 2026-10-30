@@ -2702,29 +2702,72 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
-- **Long movies desync in `ct_native`.** A movie's presses are the
-  reference play's, frame for frame, and the native program's frames aren't
-  the machine's, so a long movie goes elsewhere: its end is reached, its
-  picture shows, and the game is somewhere the reference never was.
-  Measured with `ct_native --locations` against the shipping mode's
-  `$7E:0100` (`tools/trace.py peek`): `battle-ozzies-fort` keeps to the
-  reference's places to its end, within 60 frames; `events-cyrus` to the
-  frame until the Northern Ruins' battle (18185), which native never wins
-  (Crono at 877 HP where the reference's has 694 and has won by 20000);
-  `battle-zombor` enters Zenan Bridge at 3359, where the reference stands on
-  the world map until 18716 (the presses meant for the map play in the
-  field); `battle-giga-gaia` leaves `$18B` never, the reference at 4232;
-  `battle-dragon-tank` loses its battle, game over at 12246; and
-  `battle-lavos-gameover` reaches the planet's "the future refused to
-  change" while the reference still holds the operator's dialog. Battles
-  are where it shows most: their menus wait and their blows land by the
-  frame. `tools/native_check.py` reports each movie's end state against the
-  reference play's (`drifts`), but only the dark screen fails the gate. To
-  make a movie a measure of the native program rather than of where its
-  presses land: compare the places entered, in order, with the reference's
-  (a `ct_dev --locations` beside `ct_native`'s), and drive the long movies'
-  native runs by their routes (`ct_drive`'s scripts react to the game's
-  state, docs/MOVIES.md) instead of by recorded presses.
+- **Long movies desync on the hand ports alone, and the time model that
+  would hold them.** A movie's presses are the reference play's, frame for
+  frame, and the hand ports' frames aren't the original's, so a long movie
+  goes elsewhere. In `ct_native`, measured with `--locations` against the
+  shipping mode's `$7E:0100`: `battle-ozzies-fort` keeps to the reference's
+  places within 60 frames; `events-cyrus` to the frame until the Northern
+  Ruins (18185), whose battle it never wins; `battle-zombor` enters Zenan
+  Bridge at 3359, the reference at 18716; `battle-giga-gaia` never leaves
+  `$18B`; `battle-dragon-tank` gets a game over at 12246; and
+  `battle-lavos-gameover` reaches "the future refused to change" while the
+  reference still holds the operator's dialog. `tools/native_check.py`
+  reports each movie's end against the reference play's (`drifts`), but only
+  the dark screen fails the gate. What the drift is, measured on the machine
+  (`ct_dev`, the shipping mode and strict mode):
+
+  - *Not logic.* Strict mode (`--generated off --no-interpreter strict`) ends
+    byte for byte where the shipping mode does, all of work RAM and save RAM,
+    in the 11 drifting library movies. The shipping mode with the original's
+    time (`--port-timing oracle --port-horizon interrupts`, which times each
+    port by running its generated code, REIMPLEMENTATION.md "Can a hand port
+    be exact?") ends with the reference's saved game in all 15 drifting
+    movies tried (14 of the library and `events-cyrus`). So it is time, and
+    the split is a run each: oracle-timed equal and estimated not.
+  - *A port's effect ahead of its time*, fixed: a port's time is owed after
+    it runs, and the world map's set up (`$C2:23A8`, 38 frames with the
+    vblank handler off) turned the handler on as its run ended, so the handler
+    ran through the whole of its owed time and the opening's world map ended
+    41 frames ahead (`new-game` entering `$10F` at 4802, the reference at
+    4844; 4843 now). `tm_enable_interrupts` lets the time so far pass where
+    the handler goes on or off (PORTING.md, "A port that spans frames";
+    `debt_test`). Strict check: 33 of 48 movies end as the reference does,
+    from 31 (`new-game`, `menus-epoch`, `menus-shop-equip` and `menus-sweep`
+    now do; `battle-lavos-gameover` and `battle-tyrano-lair-walls` now drift,
+    both ending as the reference with the oracle's time: the Lavos battle,
+    entered a frame early, lasts 586 frames longer).
+  - *The C sound driver takes no time.* Its boot and commands are calls
+    (`au_driver_boot_taken`, `au_driver_command_taken`) where the original's
+    uploads take frames: the title shows at frame 24, the reference's at 50,
+    and in `gato-battle` the battle starts about 126 frames early (13 with the
+    original driver, `--sound-driver original`). Before the fix above,
+    `gato-battle` and `field-factory-switch` ended as the reference with the
+    original driver and drifted with the C one.
+  - *The estimates' error.* What is left is many small errors, each moving a
+    frame's end or a frame budget (`tm_frame_time_left`: the field's script
+    turns stop at line 72 after a map loads) a little, and a press or a
+    battle's turn landing on the other side of it. No subsystem's ports drift
+    `new-game` alone; in `events-cyrus` the Northern Ruins' battle starts 10
+    frames early (its first random draws at 18657, the reference's at 18667,
+    which also lags two frames drawing them), and the fight goes otherwise.
+
+  The design to hold them, not built: **a frame-level time model** shared by
+  the shipping mode and `ct_native`. The native program counts frames, not
+  clocks, and what the original spends frames on is charged as whole frames
+  the main thread doesn't run (lag frames: the handlers run, the input is
+  read): a load by what it unpacks and uploads (the unpacker's bytes, a
+  transfer's size, at rates measured once from the shadow runs), a song's
+  start by the size of its upload (the C driver's command charged as the
+  original's handshake would take), a frame's work by whether the model says
+  it overruns. The frame budgets ask the model, not the beam. One model in
+  both modes makes strict mode and `ct_native` testable against each other
+  (the same places at the same frames), and its error against the reference
+  is measured as each place's entry frame (`ct_dev --locations` beside
+  `ct_native --locations`), the ratchet the dark screen is now. Drive the
+  long movies' native runs by their routes (`ct_drive`'s scripts react to
+  the game's state, MOVIES.md) rather than recorded presses meanwhile, since
+  no estimate is exact and a battle turns on a frame.
 
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
