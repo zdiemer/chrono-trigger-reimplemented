@@ -2922,16 +2922,6 @@ Ranked by how much play they block:
   `$7E`. What the original does with a count of 0 (one target, uncounted)
   is the thing to establish; the reference play meets no such tech.
 
-- **A member stepping in an emptied place writes past the tables.** In
-  the Prophet's ending (`what_the_prophet_seeks`, frames 119033-119035 at
-  `$190`) the party's third place is emptied (`$80`) under the member still
-  stepping in it; the original's step (`$C0:A2CE`, and event `$B0`) moves
-  the slot the marker names, past the tables, whose step and priorities
-  are the bytes of the next tables: slot 0's vertical velocity, its speed
-  and the bytes after the priorities. The port leaves those writes as
-  scaffolding (field/party_trail.c, `leave_stray_step`), so a native build
-  doesn't make them: find whether slot 0's speed matters there.
-
 ## Targets beyond the desktop SNES build
 
 Wanted, none of them scoped as milestones. Each says what the design already

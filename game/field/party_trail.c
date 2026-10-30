@@ -353,14 +353,9 @@ static void wait_on_the_trail(GameState *g, FieldObject member, Footprint f)
     take_pose(g, member, pose_of(g, against), false);
 }
 
-/* For shadow mode: the step the original gives an empty place of the party,
- * on the slot its marker names past the tables (field/object.h,
- * object_past_the_tables), whose step is the next tables' bytes. */
-static void leave_stray_step(GameState *g, FieldLink marker, Velocity step)
-{
-    object_set_step_past_the_tables(g, field_linked_object(marker), step);
-}
-
+/* For shadow mode: the priorities the original lays on an empty place of
+ * the party, on the slot its marker names past the tables (field/object.h,
+ * object_past_the_tables), the bytes after the priorities'. */
 static void leave_stray_footprint_priorities(GameState *g, FieldLink marker, SpritePriorities priorities)
 {
     object_take_sprite_priorities_past_the_tables(g, field_linked_object(marker), priorities);
@@ -369,16 +364,18 @@ static void leave_stray_footprint_priorities(GameState *g, FieldLink marker, Spr
 /* A member's step moves the object its place of the party names, and
  * animates the member whose turn it is: the same object, but for a moment
  * when the place is emptied under a member still stepping (the Prophet's
- * ending, as the party is taken off the map for its first vignette). The
- * original then steps the slot the empty place's marker names, past the
- * tables, which holds nobody. */
+ * ending, frames 119033-119035, as the party is taken off the map for its
+ * first vignette). The original then steps the slot the empty place's
+ * marker names, past the tables, which holds nobody: its step lands on the
+ * next tables' bytes, the first object's vertical step and its speed, which
+ * the game goes on with, so the port makes the same writes. */
 static void step_the_place(GameState *g, PartyPlace place, Velocity step)
 {
     FieldLink link = party_member_link(g, place);
     if (field_link_is_object(link))
         object_set_step(g, field_linked_object(link), step);
     else
-        ORIGINAL_EFFECT(leave_stray_step(g, link, step));
+        object_set_step_past_the_tables(g, field_linked_object(link), step);
 }
 
 static void layer_the_place(GameState *g, PartyPlace place, SpritePriorities priorities)
