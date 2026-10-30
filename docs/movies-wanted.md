@@ -1079,12 +1079,13 @@ no movie; the slot named is the nearest found from the README, for the route to 
 | 12,000 B.C. | The Ocean Palace's end: Lavos rises, Crono falls, Zeal's fall | after ctsave10 slot 3 (the Golem Twins) | Lavos (the loss is scripted) |
 | 2300 A.D. | Death Peak: recorded in `events-death-peak-wind`, `events-death-peak-ascent`, `events-death-peak` (below) | ctsave11 slot 3, ctsave12 slot 1, route save | all three Lavos Spawn |
 | 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra |
+| 600 A.D. | The Cathedral, Queen Leene rescued | ctsave01 slot 2 | Yakra (`yakra` hand run, below) |
 | 1000 A.D. | The trial | ctsave01 slot 3 is after it; a save before is to find | -- |
-| 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank |
+| 1000 A.D. | The castle's escape | ctsave02 slot 1 | Dragon Tank (`battle-dragon-tank`) |
 | 2300 A.D. | Robo repaired at Proto Dome | between ctsave02 and ctsave03 | -- |
-| 600 A.D. | Zenan Bridge | ctsave04 slot 1 | Zombor |
+| 600 A.D. | Zenan Bridge | ctsave04 slot 1 | Zombor (`battle-zombor`) |
 | 600 A.D. | Denadoro and the Masamune | ctsave04 slot 2 | Masa & Mune (`battle-denadoro` may hold the fight) |
-| 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel |
+| 65,000,000 B.C. | The Reptite Lair | ctsave05 slot 2 | Nizbel (hand run `battle-nizbel`) |
 | 12,000 B.C. | Zeal's palace and the Mammon Machine | ctsave08 slots 2-3 | -- |
 | 12,000 B.C. | Mt. Woe | ctsave09 slot 3 | Giga Gaia |
 | several | The Blackbird's end and the Epoch's wings | ctsave11 | Dalton Plus |
@@ -1116,6 +1117,115 @@ no movie; the slot named is the nearest found from the README, for the route to 
   requested ending; native playback still needs that follow-up.
   The narrowed one-job suite for these two movies ends with `suite OK`,
   including static checks, native-shape playback and identical sound lockstep.
+- **Yakra hand run**: `battle-yakra` (route `yakra`, ctsave01 slot 2,
+  71287 frames, in `oracle/movies/hand/`, outside the default library). The
+  slot is on the 600 A.D. world map (`$1F1`), story `$12`, before the pin and
+  Frog's arrival, rather than at the boss door. It plays the Cathedral
+  (`$081`), the Naga-ettes and Frog's naming, the entrance organ, the inner
+  hall (`$082`), the switches and inner organ (`$083`), the guarded corridor
+  (`$084`), and Yakra (`$0C6`, enemy `$90`, 920 HP). Yakra falls at frame
+  69207; the rescue scene ends with field control at 71287 and `$7F:01ED = 1`.
+  Story `$1B` is set by the later return-to-castle interaction, beyond this
+  movie's endpoint. The exploratory route was 81704 frames; choosing faster
+  settings, using learned early techs and taking the right staircase first
+  shortened it, but no route near 40000 frames was found. It remains in
+  `HAND_RUN_ROUTES`; a library-length recording of this boss is still wanted.
+  Only the winning inputs are kept; no diagnostic writes were used.
+  It reaches 491 instruction addresses (1036 instruction bytes) absent from
+  the previous 48 movies, including `script_spiral_out` (`$C1:6751`),
+  `battle_condition_other_kind_present` (`$C1:9656`), and tech-learning rewards
+  (`$C1:F39A`, `$FD:AD17`). The first asset-backed replay exposed the already
+  described but uncatalogued `$F9:B000` dialogue table; its 444 extracted
+  resources are now in the catalogue. `ct_native` consequently passes its
+  original frame-4032 stop at `$F9:B006` and reaches the frame limit, reporting
+  a blanked screen. Strict mode also reaches the limit, with 128 saved-game
+  bytes differing from the reference; its baseline is `drifts`. Neither
+  result is a claim that the fixed inputs finish the boss on native timing.
+  The rebuilt shadow run is clean: zero mismatches, guard refusals, page
+  refusals, out-of-range accessors or uncatalogued reads; sound lockstep is
+  identical over 220210 ticks. The fallback ratchet needs no new baseline
+  rows. The narrow timing calibration changes scalars only; its remaining
+  data-dependent timing tails are documented in `timing_exceptions.txt`,
+  with no unallowed finding in the shipping-mode video-write check.
+- **Dragon Tank movie**: `battle-dragon-tank` (route `dragon_tank`, ctsave02
+  slot 1, 16042 frames). The save is in `$01D`, story `$2E`, with `$7F:0199`
+  bit 2 clear. The route enters the bridge (`$01C`), continues left after
+  the arrival scene returns control, and defeats the head (600 HP) before
+  the body (266 HP) and wheels (208 HP), using physical attacks and the
+  available Tonics. The fight ends at 14722; after its destruction scene,
+  the field is back in hand at 16042 with `$7F:0199` bit 2 set. It reaches
+  290 instruction addresses (631 bytes) absent from the previous 48 movies
+  and the Yakra hand run: large field sprite paths in
+  `field_draw_object_sprites` (`$C0:B5CB` onward) and
+  `field_rebuild_12_sprites` (`$C0:C820` onward), plus
+  `battle_setup_graphics` and `battle_copy_frame_tiles` (`$CF:EBEB` onward).
+  Shadow is clean: zero mismatches, guard/page refusals, out-of-range
+  accessors or uncatalogued reads; sound lockstep is identical over 49989
+  ticks. No fallback baseline increase is needed. `ct_native` reaches 16042
+  with the screen showing; strict also reaches the limit, differing from
+  the reference by 35 saved-game bytes (`drifts`). Neither has a code stop.
+  The combined effects check exposed the grid's party-off-grid traversal:
+  it scans slots 3 through 13, so object 23's Y aliases the drawn frame's X
+  at `$7E:1D2E`. The existing frame-X store now stays outside
+  `ORIGINAL_EFFECT`, since the grid consumes it as game state. This removes
+  the scratch reads attributed to `battle_dispatch_expired_timers` and
+  `battle_carry_out_member_action` without adding a new port.
+
+- **Zombor movie**: `battle-zombor` (route `zombor`, ctsave04 slot 1,
+  26320 frames). The save starts outside Zenan Bridge at story `$54`, with
+  Jerky in the inventory. Delivering it sets `$57`; agreeing to defend the
+  bridge sets `$7F:019A` bit 0. The movie defeats both troop encounters,
+  then Zombor's 800-HP lower and 960-HP upper bodies. The fight ends at
+  25420; field control returns in `$087` at 26320, story `$5A` (which the
+  encounter sets before combat, so the route also checks the victory and
+  field control). Against the previous 48 movies plus Yakra and Dragon
+  Tank, it adds 172 instruction addresses / 369 bytes: notably
+  `battle_enemy_marches` (`$C1:3F5A`), `battle_inventory_take`
+  (`$C1:D056`), and event facing/flag commands. Shadow has zero mismatches,
+  refusals, out-of-range accessors or uncatalogued reads; sound lockstep
+  matches for 81810 ticks. No fallback baseline increase is needed.
+  `ct_native` reaches the limit with its screen blanked; strict stops at
+  20301 on the `$C0:1AAC` `field_press_confirm` guard. These are TODO gaps,
+  with the guard recorded in the refusal allowlist. The shipping replay
+  refuses at that same frame and state, then uses the original code.
+
+- **Nizbel hand run**: `battle-nizbel` (route `nizbel`, ctsave05 slot 2,
+  57673 frames). The save is outside the Reptite Lair (`$1F3`, story `$7B`),
+  with Crono, Ayla and Marle. The route enters `$11B`, takes the open hole
+  in `$11C`, clears the enemies guarding holes in `$11D` and `$11E`, then
+  crosses `$11F` and `$120` to Nizbel's chamber (`$121`). A constrained
+  search on the bottom floor shortened the approach, but no complete play
+  under 40000 frames was found. It remains outside the default library in
+  `oracle/movies/hand/`, and `nizbel` is in `HAND_RUN_ROUTES`.
+  Lightning lowers Nizbel's defense; physical attacks, Aura, Tonics and
+  Ethers finish the fight at 54768. The post-fight scene sets story `$7C`
+  and returns the Gate Key; the return to Ioka and Ayla's farewell set `$7D`.
+  At 57673 the field is back in hand in `$113`, with the Gate Key in the bag.
+  It adds 172 instruction addresses / 385 bytes beyond the previous 48
+  movies and the other three early-boss recordings: variable comparisons
+  (`$C0:6361`), `battle_condition_is_enemy` (`$C1:8F87`) and enemy state
+  changes at `$C1:9CB3`, among others. The first shadow run had zero
+  mismatches but reported an uncatalogued read at `$D8:DE9C`. The existing
+  `$D8:DD80` dialogue table was already extracted; adding its 256 missing
+  catalogue entries supplies metadata, without adding cartridge bytes or
+  porting game logic. The rebuilt shadow run is clean: zero mismatches,
+  guard/page refusals, out-of-range accessors or uncatalogued reads.
+  Sound lockstep matches for 178633 ticks. No fallback
+  baseline increase is needed. `ct_native` reaches the limit with a blanked
+  screen; strict reaches it with 128 saved-game bytes different (`drifts`).
+  The native limitation is recorded in TODO.
+
+The four recordings share loading, settings, encounter navigation and battle
+helpers. Their combined shadow measurements recalibrate only drifted timing
+scalars; the field continuations retain documented data-dependent timing
+tails. No new game routines were ported; the existing frame-coordinate
+store was corrected as described above.
+The final narrowed suite selecting these four recordings with `-j 1`
+ends `suite OK`: all four shadow replays are clean, both fast routes pass,
+all four native-shape replays reach their limits, and the effects check has
+zero new findings and zero runtime scratch-state reads. Sound lockstep
+matches over 530642 ticks. The strict baselines retain the limitations
+above; the successful gate does not claim native boss victories.
 
 Death Peak was looked into before (Targets, 11) and left: the party has to reach the tree's
 shelter in the 108 calm frames. `ct_drive`'s machine copies make that a search over the timing.

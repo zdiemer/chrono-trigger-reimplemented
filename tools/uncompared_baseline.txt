@@ -24,6 +24,7 @@ battle_enemy_tech_turn
 battle_frame_update
 battle_frame_work
 battle_give_turn
+battle_pause_on_the_message  # the held-message path runs its sixteen-frame pause as C inside battle_show_a_battle_message; all 168 early-boss calls are abandoned, with no independent shadow return; message typing/clearing still compare, but the pause needs an isolated comparison (docs/TODO.md)
 battle_hp_loss_timer_ran_out
 battle_let_the_screen_settle  # its loop's head is the entry: the original comes round to it on every pass inside the boss's end, whose stretch compares it; fuzzed alone up to its first wait
 battle_load_action_animation
@@ -34,7 +35,6 @@ battle_load_item_animation  # loaded as C inside a battle's step (battle_run_a_s
 battle_load_second_effect_tile_rows
 battle_load_tech_animation
 battle_member_attacks
-battle_pause_on_the_message  # called as C by the held-message sequence; all 124 calls in battle-motherbrain are abandoned inside that sequence. Existing fuzz constraints, seed 1: 8 comparisons up to the first wait, 0 mismatches (992 guard skips); this does not independently compare the whole timed pause.
 battle_play_a_sound  # run as C by the window's opening and the battle's messages (battle_run), whose stretches compare it; called by the original's code, it is compared
 battle_put_the_battlefield_back  # run as C by the frame wait's tail and the display's close (battle_run), whose stretches compare it; fuzzed alone up to its first wait
 battle_run_a_step  # run as C by the ports that ask for steps (battle_take_step: the main loop's, a member's action called off, the party standing down, the knocked-out enemies seen to), whose stretches compare it; called by the original's code, it is compared, and fuzzed alone at each step's call

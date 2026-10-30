@@ -17,6 +17,7 @@ new-game drifts  # the shipping mode runs the opening ahead of the original: by 
 title-start end
 battle-black-tyrano drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (203 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 battle-denadoro drifts  # the fight's turns land on other frames, so it ends with other HP, MP, experience and items used (43 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2616, $7E:262B, ...))
+battle-dragon-tank drifts  # differs from the reference: 35 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2613, $7E:2616, $7E:262B, ...)
 battle-golem-twins-gameover end
 battle-golem-twins drifts  # differs from the reference: 58 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2614, $7E:2616, ...); 224 byte(s) of save RAM
 battle-guardian drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (71 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, ...); 296 byte(s) of save RAM)
@@ -33,6 +34,7 @@ battle-tech-sweep-spekkio drifts  # the fights' turns land on other frames, so t
 battle-tech-sweep drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (805 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
 battle-tyrano-lair-walls end
 battle-unequipped-armor 7594  # at C0:1AAC
+battle-zombor 20301  # at C0:1AAC
 endings-beyond-time drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way, and the save made after differs (54 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, ...); 4189 byte(s) of save RAM)
 endings-bucket-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (49 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:26A3, $7E:26A4, ...))
 endings-telepod-lavos drifts  # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way (574 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...))
@@ -73,3 +75,5 @@ menus-save-point end
 menus-shop-equip drifts  # the presses land on other frames, and the shop's cursor buys and equips other things (50 byte(s) of the saved game (inventory_items, inventory_counts, $7E:2627, $7E:2628, $7E:2629, $7E:263D, ...))
 menus-shop-inn drifts  # the presses land on other frames, and the party ends at another place (13 byte(s) of the saved game (menu_past_the_names, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...))
 menus-sweep drifts  # the presses land on other frames, and the menus' cursor uses and moves other items (118 byte(s) of the saved game (inventory_items, inventory_counts, $7E:26AB, $7E:26CF, $7E:26D6, $7E:2719, ...))
+battle-nizbel drifts  # differs from the reference: 128 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...)
+battle-yakra drifts  # differs from the reference: 128 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...)

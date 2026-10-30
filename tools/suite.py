@@ -151,6 +151,9 @@ def collect(only, names):
         groups.append(sorted((ROOT / "oracle/movies").glob("*.ctm")))
     if only in ("all", "saves"):
         groups.append(sorted((ROOT / "oracle/movies/saves").glob("*.ctm")))
+        # Long hand runs are opt-in, even when the full library is selected.
+        if names:
+            groups.append(sorted((ROOT / "oracle/movies/hand").glob("*.ctm")))
     out = []
     for paths in groups:
         for p in paths:
@@ -322,7 +325,8 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 # their movies are not in the library.
 HAND_RUN_ROUTES = {"tech_sweep", "successor_of_guardia", "legendary_hero", "unknown_past",
                    "people_of_the_times", "the_oath", "dino_age", "what_the_prophet_seeks",
-                   "memory_lane", "reunion", "prepare_luccas_mother", "sun_stone", "rainbow_shell"}
+                   "memory_lane", "reunion", "prepare_luccas_mother", "sun_stone", "rainbow_shell",
+                   "yakra", "nizbel"}
 
 
 def all_routes():

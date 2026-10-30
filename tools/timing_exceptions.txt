@@ -237,3 +237,17 @@ overworld_lead vblank-tail the world-map leader's movement and contacts take dif
 event_cmd_move_in_direction vblank-tail moves an event object's position in RAM: 2 of 134 stretches wholly in vblank in events-cyrus exceed 1024 clocks, at most 1099; no new moved video write in the vblank check
 menu_object_cmd_for_frames_animating vblank-tail counts an object's animation frames, its path following the animation state: 1.11% of 16549 stretches wholly in vblank in events-cyrus exceed 1024 clocks, at most 1039; no new moved video write in the vblank check
 menu_run_object_script vblank-tail the object's script carries its commands' varying paths: 1.54% of 25553 stretches wholly in vblank in events-cyrus exceed 1024 clocks, at most 1628; no new moved video write in the vblank check
+# The Cathedral hand run (battle-yakra, 71287 frames), after --drifted calibration.
+# Its shipping-mode vblank check has no finding outside the existing video-write exceptions.
+battle_effect_anchor_jump vblank-tail the jump path updates the effect anchor's position in RAM; which part of the arc it advances changes its time: 3.09% of 648 stretches in vblank off by at least 1024 clocks, at most 1244 (under a line), with no net drift; the sprite upload is later
+battle_share_experience worst the early party's experience and level-up records, written in RAM, with only seven uninterrupted stretches through their different level-up paths: at most 55137 clocks off; no video write of its own
+field_draw_the_objects_in_view worst the Cathedral's varying object lists built during screen setup, with visible objects drawn and the sprite table built in RAM: at most 54579 clocks off over ten uninterrupted stretches, before the screen is brought back
+field_set_the_screen_up worst screen setup includes the same object-list drawing and its timing spread: at most 51020 clocks off over ten stretches while preparing the screen, before the fade-in resumes
+field_fade_in worst carries the screen setup's error into the fade-in, whose brightness advances at frame waits: at most 51084 clocks off over nine uninterrupted stretches, moving when the prepared screen starts showing; the vblank check finds no unallowed video-write timing
+field_queue_due_turns vblank-tail queues the field objects' due script turns in RAM, its time following the object count and which turns are due: 2.01% of 11078 stretches in vblank off by at least 1024 clocks, at most 1274 (under a line), with negligible net drift
+field_frame_work vblank-tail carries field_queue_due_turns and its data-dependent spread into the field's work in RAM: 2.02% of 11055 stretches in vblank off by at least 1024 clocks, at most 1274
+field_frame_goes_on_with_the_frame_work vblank-tail the field frame's continuation carries the same queue/work timing spread: 2.02% of 10944 stretches in vblank off by at least 1024 clocks, at most 1275, writing the RAM work the next vblank consumes
+field_frame_goes_on_with_the_script_layers vblank-tail the same field-frame continuation and queue/work spread: 2.02% of 10944 stretches in vblank off by at least 1024 clocks, at most 1275, writing RAM
+field_frame_goes_on_with_the_screen_effect vblank-tail the same field-frame continuation and queue/work spread: 2.02% of 10944 stretches in vblank off by at least 1024 clocks, at most 1275, writing RAM
+
+# The four early-boss recordings, after combined --drifted calibration.

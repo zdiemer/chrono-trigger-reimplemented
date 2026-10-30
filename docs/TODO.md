@@ -2752,6 +2752,15 @@ re-runs the census.
   own call of the original recurse into the port: decide whether a native
   build keeps the wait at all, and take it out of the service if not.
 
+## Shadow comparison gaps
+
+The early-boss shadow runs also expose a comparison gap in the held-message
+path: `battle_pause_on_the_message` has 168 calls, all abandoned, when run
+as C inside `battle_show_a_battle_message`. Its sixteen frame waits have no
+independent shadow return in these runs. Message typing and clearing still
+compare; add an isolated comparison for the pause itself. This is recorded
+in `uncompared_baseline.txt`.
+
 ## The native program
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
@@ -2827,6 +2836,26 @@ list, by kind, is what `game/` still asks of one.
   --no-interpreter strict --sound-driver c` also reaches both ends, with
   58 saved-game bytes differing from reference in each, plus 224 SRAM bytes
   for the Twins; these are `drifts` entries in `tools/strict_baseline.txt`.
+- **Yakra's native replay ends with the screen blanked.** The hand movie
+  `battle-yakra` (ctsave01 slot 2, 71287 frames) originally stopped at frame
+  4032, `$F9:B006`, because the Cathedral's dialogue table was missing from
+  the asset catalogue. Adding that table's existing extracted resources
+  removes the stop. `ct_native` now reaches the frame limit, reports six
+  screen setups and a blanked screen; locate that screen with a state-driven
+  run. Strict mode reaches the same limit without a machine-code
+  stop, but differs from the reference by 128 saved-game bytes. Input replay
+  alone does not establish native completion of the Cathedral route.
+
+- **Zombor's native replay ends with the screen blanked.** `battle-zombor`
+  reaches 26320 frames without a hard stop, with six screen setups and two
+  SNES-only video calls (first `$7E:5AEB`). Locate the divergent screen with
+  a state-driven run; reaching the movie's limit does not prove victory.
+
+- **Nizbel's native replay ends with the screen blanked.** The hand movie
+  `battle-nizbel` reaches 57673 frames without a hard stop, with six screen
+  setups and two SNES-only video calls (first `$7E:5AEB`). Strict mode also
+  reaches the limit, with a 128-byte saved-game difference. Locate the
+  divergent screen with a state-driven run before claiming native victory.
 
 - **What the world map still hands the machine as the program runs it.**
   The objects' handlers and the routines a script calls run as rows of C
@@ -3181,6 +3210,15 @@ radius, and the guard bounds both below 256. `scene_circle_draw`'s scaffolding
 only normalizes those already bounded words to the same byte values. The
 reported field-window names alias the circle operands; no new game-code fix is
 needed for these reads.
+
+- **Zombor's strict replay refuses `field_press_confirm`.** `battle-zombor`
+  stops at frame 20301, `$C0:1AAC`, with A=$0000, X=$0000, Y=$0090,
+  S=$06FD, D=$0100, DB=$00, P=$22. The shipping replay refuses at the same
+  frame and state, then uses the original code. Its reference shadow run
+  has no refusal.
+  Locate the strict replay's divergent field state and make the guard's
+  valid case work; the `gap` entry in `refusal_allowlist.txt` records this
+  remaining work, without claiming that the strict inputs win the battle.
 
 ## Targets beyond the desktop SNES build
 

@@ -452,6 +452,76 @@ Interrupts leave 113 of 210 tile-row decodes uncompared; the existing isolated
 whole-row fuzz test compares 10000 states with no mismatch or skip (seed 1),
 recorded in `uncompared_baseline.txt`.
 
+`yakra` starts at ctsave01 slot 2, outside the Cathedral in 600 A.D. It loads
+story progress `$12`, finds Leene's pin, defeats the Naga-ettes, recruits Frog,
+plays the entrance organ, crosses the guarded halls and both switch rooms,
+plays the inner organ, and defeats Yakra. The 71287-frame recording ends in
+`$0C6` with the field back in hand and `$7F:01ED = 1`; returning to the castle
+with Leene is a later interaction. Its shared loading, encounter handling,
+settings and early-party battle policy live in `routes/_early_bosses.py`.
+Shadow is clean, and the route adds 1036 instruction bytes beyond the
+previous library. `ct_native` reaches the limit with its screen blanked;
+strict reaches it with a 128-byte saved-game difference. The coverage and
+remaining native limitations are recorded in `movies-wanted.md` and `TODO.md`.
+
+This is a hand run: `yakra` is in `HAND_RUN_ROUTES`, and
+`oracle/movies/hand/battle-yakra.ctm` is outside the default movie library.
+Movies in `hand/` are selected only by an explicit `--movies <name>` in the
+suite and strict checker, so the long recording can still receive the same
+narrow checks without joining the coordinator's default gate.
+
+```sh
+python3 -m tools.movies.routes.yakra --prefix build/yakra/run \
+    --movie oracle/movies/hand/battle-yakra.ctm
+python3 tools/suite.py --ct-dev build/main/ct_dev -j 1 --movies battle-yakra
+```
+
+`dragon_tank` (`battle-dragon-tank.ctm`, 16042 frames) uses the same early-boss
+helpers. It loads ctsave02 slot 1 in the prison tower (`$01D`, story `$2E`),
+walks onto the bridge (`$01C`), continues after the arrival scene, and defeats
+the Tank's head before its other parts with physical attacks. The movie ends
+after the destruction scene, with field control and `$7F:0199` bit 2 set.
+Shadow is clean; `ct_native` and strict mode reach the frame limit, with the
+strict saved game differing from the reference by 35 bytes. Its 631 new
+instruction bytes are mostly the Tank's large field and battle sprite paths
+(see Targets 13 in `movies-wanted.md`).
+
+`zombor` (`battle-zombor.ctm`, 26320 frames) shares the early-boss helpers.
+It loads ctsave04 slot 1 at story `$54`, delivers the Jerky supplies, agrees
+to defend Zenan Bridge, defeats both groups of Ozzie's troops, and defeats
+Zombor. Ice targets the upper body; Fire and Lightning target the lower.
+It ends on the bridge with field control and story `$5A`. Shadow is clean;
+the 369 new instruction bytes include enemy marching and battle inventory
+removal. Strict stops at frame 20301 on the `field_press_confirm` guard;
+`ct_native` reaches the frame limit with its screen blanked. Both gaps are
+recorded in `TODO.md`.
+
+`nizbel` is also a hand run, recorded as
+`oracle/movies/hand/battle-nizbel.ctm` (57673 frames). From ctsave05 slot 2,
+story `$7B`, it enters the Reptite Lair, descends the three holes and wins
+the encounters through the lower rooms and hall. Crono's Lightning lowers
+Nizbel's defense; the party uses physical attacks, Aura and the items in
+the battle menu. The movie wins at 54768 and ends in Ioka (`$113`) after
+recovering the Gate Key and Ayla's farewell, with story `$7D` and the field
+back in hand. The route is in `HAND_RUN_ROUTES`; select `battle-nizbel`
+explicitly to run its narrowed suite checks.
+Its rebuilt shadow run is clean after adding the existing prehistoric
+dialogue table's catalogue metadata. `ct_native` reaches the limit with its
+screen blanked; strict reaches it with a 128-byte saved-game difference.
+Its 385 new instruction bytes and the native limitation are recorded in
+`movies-wanted.md` and `TODO.md`.
+
+Check all four recordings, including the two hand runs, with one game
+process at a time (set `CT_ROM` to the existing cartridge image):
+
+```sh
+python3 tools/suite.py --ct-dev build/main/ct_dev --rom "$CT_ROM" -j 1 \
+    --movies battle-yakra battle-dragon-tank battle-zombor battle-nizbel
+```
+
+The older routes above start from the technoplaza cartridge save their movie header names
+(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
+`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
 Each starts from the cartridge save its movie header names and its route's
 `SAVE` selects; `--sram` picks another. The saves include technoplaza's
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`) in
