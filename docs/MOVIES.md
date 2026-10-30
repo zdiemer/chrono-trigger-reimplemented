@@ -670,6 +670,30 @@ guard refusals remain zero.
 Each starts from the technoplaza cartridge save its movie header names
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
 `oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
+`castle_slash` (`battle-castle-slash.ctm`, 39278 frames) starts from ctsave06
+slot 2, visits both wings of Magus's castle, wins Ozzie's ambush, and beats
+Slash's henchmen and both of Slash's forms. It ends with the field back in
+hand. Slot 3 is already after both castle bosses: `$7F:00A3` is `$7E`, with
+Slash's `$04` and Flea's `$08` defeat bits set; slot 2 has `$00` and story
+counter `$87`. The shared castle search tries machine copies nearest the
+door's position first, accepts the destination map rather than a timed walk,
+and waits out requested room changes. Losing field control is a separate
+outcome: the entrance scene pauses before opening dialogue, which a search
+deduplicating only positions would discard. Once Ozzie has appeared it first
+searches for a way around corridor ambushes. Only the winning inputs are
+replayed and kept. The shipping mode reaches Slash's defeat and field control
+at frame 40222 (`route_check castle_slash`, `on:on:c`).
+
+`castle_flea` (`battle-castle-flea.ctm`, 35256 frames) uses the same slot 2
+and approach, then takes the right passage (`$0AB`) and corridor (`$07D`)
+to Flea's room (`$0AD`). It beats the decoy and Flea, checks the `$08`
+defeat flag, and ends with field control restored. The shipping route reaches
+that outcome at frame 40035, with exact machine-copy restores. Both castle
+movies keep the searches' successful input only; neither uses memory pokes.
+
+Each starts from the cartridge save its movie header names, under
+`oracle/saves/` ([provenance](../oracle/saves/README.md)), which is the
+route's `SAVE`; `--sram` picks another.
 `--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and

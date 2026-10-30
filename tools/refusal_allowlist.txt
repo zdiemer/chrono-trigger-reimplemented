@@ -23,3 +23,4 @@ C2A59A menu_draw_equipment_list_row guard # gap: battle-unequipped-armor shadow,
 C0885A field_recentre_the_screen guard # gap: events-ocean-palace-lavos, Zeal's fall recentres with no leader the object tables hold; docs/TODO.md, Refusals in real play
 C6E498 menu_object_capsule_iris_1 guard # gap: events-ocean-palace-lavos, Zeal's fall uses capsule iris geometry outside the port's guard; docs/TODO.md, Refusals in real play; also events-zeal-palace's Skyway iris, which reaches centre y=0 below the guard's y>=1
 C6E4BE menu_object_capsule_iris_2 guard # gap: events-ocean-palace-lavos, Zeal's fall uses capsule iris geometry outside the port's guard; docs/TODO.md, Refusals in real play; also events-zeal-palace's Skyway iris, which reaches centre y=0 below the guard's y>=1
+C15FDE script_face guard # gap: battle-castle-flea shadow and the castle_flea shipping route refuse animation calls with X=00E4, first in shadow at frame 25404; docs/TODO.md, Refusals in real play
