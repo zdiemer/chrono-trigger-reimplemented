@@ -13,6 +13,7 @@ battle_decode_tile_row  # battle-motherbrain interrupts 358 of 624 tile-row deco
 battle_dissolve_an_enemy  # run as C by the beaten enemies' pass (battle_see_to_the_beaten_enemies, an enemy's dissolve rule), whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
 battle_draw_menu_window
 battle_effect_hit
+battle_effect_item_restore  # interrupts leave 99 of 195 item-restoration stretches to the original; the other 96 calls compare and match, with the lair's healing taking the interrupted share just past half; also fuzzed alone with the existing constraints, zero mismatches
 battle_enemy_message_turn  # run as C by the expired timers' dispatch (battle_dispatch_expired_timers) as the Lavos Core's turns come, whose stretch compares it; fuzzed alone
 battle_enemy_set_stats_then_tech_turn  # run as C by the expired timers' dispatch (battle_dispatch_expired_timers) as the Lavos Core's turns come, whose stretch compares it; fuzzed alone
 battle_enemy_takes_turn
@@ -48,6 +49,7 @@ battle_show_an_enemy_message  # run as C by the enemies' turns (battle_run_long)
 battle_start_action_showing
 battle_strike_the_poses  # run as C by the party's poses at a fight's end (battle_strike_the_poses_as_their_own), whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
 battle_turn_comes  # run as C by the step dispatch as a member's turn comes (battle_run_a_step, from the timers' dispatch), whose stretch compares it; fuzzed alone
+battle_use_item  # interrupts leave 128 of 254 item-workout stretches to the original; the other 126 calls compare and match, with the lair's item use taking the interrupted share just past half; also fuzzed alone with the existing constraints, zero mismatches
 battle_wait_for_the_handler  # run as C by the frame work's wait for the next frame (battle_run), whose stretch compares it; called on its own, it is compared
 battle_wait_for_the_next_frame  # run as C by the waits for some frames and the transfer (battle_run), whose stretches compare it; called on its own, it is compared
 battle_wait_for_the_small_handler  # run as C by the battle's close's waits (battle/closing.c, battle_run), whose stretches compare it; the second batch of movies' battles take it past 100 calls; fuzzed alone

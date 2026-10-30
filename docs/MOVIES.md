@@ -272,6 +272,18 @@ left out: the way from the castle's hall into the next room (`$0A8`) that
 the interpreter's search found, it found only at some frames, and in the
 shipping mode at none.
 
+`nizbel_ii` (`battle-nizbel-ii.ctm`) starts outside Tyrano Lair on ctsave07
+slot 3, frees Kino, crosses the switch rooms and teleport maze, opens Nizbel
+II's door, rests with a Shelter at his room's save point, and wins the fight.
+The route uses the location exits and event scripts for its itinerary and
+live field searches for each walk. Its maze search targets the exit warp's
+destination so it cannot keep choosing a nearby return warp; at a corner
+landing it tests a step away before asking the usual control check again.
+`policies.nizbel_ii` resolves learned techs by id, uses lightning against the
+boss's defence, and heals and restores MP with this save's supplies. The movie
+ends after the victory messages with field control restored. See Targets, 5
+in [movies-wanted.md](movies-wanted.md) for its coverage and validation.
+
 Each starts from the cartridge save its movie header names and its route's
 `SAVE` selects; `--sram` picks another. The saves include technoplaza's
 (`games.technoplaza.net/snes/chronotrigger/savestates.php`) in

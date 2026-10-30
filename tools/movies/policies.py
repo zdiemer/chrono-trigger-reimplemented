@@ -379,6 +379,61 @@ def tech_list_entries(bot, member):
     return [(entry, tech_id) for entry, tech_id in enumerate(ids) if tech_id < 0xFB]
 
 
+def nizbel_ii(bot, state, rng, inventory):
+    """Lightning against Nizbel II, with the early party's healing and Ethers.
+
+    His reaction script lowers defence for lightning and raises it for other
+    hits; every third lightning hit enables his discharge. Keep the party
+    healthy together, and restore MP instead of settling for physical attacks
+    against his raised defence. Resolve learned singles by id: this save's
+    compact lists put combination techs where later saves have singles.
+    """
+    member = state.member
+    ids = party_ids(bot)
+    entries = dict((tech, entry) for entry, tech in tech_list_entries(bot, member))
+
+    def cast(tech, cost, target):
+        if tech in entries and state.mp(member) >= cost:
+            return ("tech", entries[tech], target)
+        return None
+
+    alive = [i for i in range(bot.party) if state.hp(i)]
+    for dead in range(bot.party):
+        if not state.hp(dead):
+            action = use(inventory, REVIVE, dead)
+            if action:
+                return action
+    if not alive:
+        return ("attack", None)
+    worst = min(alive, key=lambda i: fraction(state, i))
+    threshold = 0.65 + 0.1 * rng.random()
+    if sum(fraction(state, i) < threshold for i in alive) >= 2:
+        action = use(inventory, LAPIS, None)
+        if action:
+            return action
+    if ids[member] in (0, 1) and state.mp(member) < 8:
+        for item in (FULL_ETHER, MID_ETHER, ETHER):
+            action = use(inventory, item, member)
+            if action:
+                return action
+    if state.max_hp(worst) - state.hp(worst) >= 100:
+        # Marle's Cure and Ayla's Kiss are learned here; Cure 2 is not.
+        action = cast(12, 2, worst) or cast(41, 1, worst)
+        if action:
+            return action
+        if fraction(state, worst) < 0.4:
+            action = use(inventory, MID_TONIC, worst) or use(inventory, LAPIS, None)
+            if action:
+                return action
+    living = enemies(state)
+    target = living[0] if living else None
+    if ids[member] == 0:
+        return cast(5, 8, None) or cast(3, 2, target) or ("attack", target)
+    if ids[member] == 1:
+        return cast(14, 8, None) or cast(11, 2, target) or ("attack", target)
+    return cast(43, 3, target) or ("attack", target)
+
+
 # Tech ids from here on are double and triple techs (each character's eight single techs come first).
 FIRST_COMBINATION_TECH = 57
 
@@ -491,6 +546,7 @@ POLICIES = {
     "party_with_lapis": party_with_lapis,
     "r_series": r_series,
     "motherbrain": motherbrain,
+    "nizbel_ii": nizbel_ii,
     "crono_and_marle": crono_and_marle,
     "crono_and_marle_core": crono_and_marle_core,
 }
