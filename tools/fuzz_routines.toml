@@ -9416,18 +9416,18 @@ name = "menu_object_capsule_iris_1"
 at = "C6:E498"
 subsystem = "menu"
 state = "objects"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+18,1=01-DF", "--fill", "[7E004E]+19,1=00-00", "--fill", "[7E004E]+22,1=00-60", "--fill", "[7E004E]+23,1=00-00", "--fill", "[7E004E]+24,1=00-40", "--fill", "[7E004E]+25,1=00-00"]
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+18,1=00-DF", "--fill", "[7E004E]+19,1=00-00", "--fill", "[7E004E]+22,1=00-60", "--fill", "[7E004E]+23,1=00-00", "--fill", "[7E004E]+24,1=00-40", "--fill", "[7E004E]+25,1=00-00"]
 iterations = 2000
-why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 1-$DF, its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
+why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 0-$DF (the top line's centre a byte before the table, as the original's doubling leaves it), its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
 
 [[routine]]
 name = "menu_object_capsule_iris_2"
 at = "C6:E4BE"
 subsystem = "menu"
 state = "objects"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+18,1=01-DF", "--fill", "[7E004E]+19,1=00-00", "--fill", "[7E004E]+22,1=00-60", "--fill", "[7E004E]+23,1=00-00", "--fill", "[7E004E]+24,1=00-40", "--fill", "[7E004E]+25,1=00-00"]
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+18,1=00-DF", "--fill", "[7E004E]+19,1=00-00", "--fill", "[7E004E]+22,1=00-60", "--fill", "[7E004E]+23,1=00-00", "--fill", "[7E004E]+24,1=00-40", "--fill", "[7E004E]+25,1=00-00"]
 iterations = 2000
-why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 1-$DF, its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
+why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 0-$DF (the top line's centre a byte before the table, as the original's doubling leaves it), its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
 
 [[routine]]
 name = "menu_object_load_mode7_graphics"

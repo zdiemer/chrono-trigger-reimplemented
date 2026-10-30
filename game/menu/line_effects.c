@@ -97,17 +97,24 @@ void menu_show_line_values(GameState *g, uint8_t slot, uint16_t values)
 /* A line's value in bank $7E, the line counted from the table's first: the
  * tables sit well inside the bank, and a line before or past one wraps round
  * it as the original's addresses do. */
-static uint32_t line_address(uint16_t table, uint16_t line) { return (uint32_t)LINE_TABLE_BANK << 16 | (uint16_t)(table + 2 * line); }
+static uint32_t in_line_bank(uint16_t at) { return (uint32_t)LINE_TABLE_BANK << 16 | at; }
+static uint32_t line_address(uint16_t table, uint16_t line) { return in_line_bank((uint16_t)(table + 2 * line)); }
+static uint16_t value_at(const GameState *g, uint16_t at)
+{
+    return (uint16_t)(wram_read8(g, in_line_bank(at)) | wram_read8(g, in_line_bank((uint16_t)(at + 1))) << 8);
+}
+static void set_value_at(GameState *g, uint16_t at, uint16_t v)
+{
+    wram_write8(g, in_line_bank(at), (uint8_t)v);
+    wram_write8(g, in_line_bank((uint16_t)(at + 1)), (uint8_t)(v >> 8));
+}
 static uint16_t line_value(const GameState *g, uint16_t table, uint16_t line)
 {
-    uint32_t at = line_address(table, line);
-    return (uint16_t)(wram_read8(g, at) | wram_read8(g, (at & 0xFF0000u) | (uint16_t)(at + 1)) << 8);
+    return value_at(g, (uint16_t)line_address(table, line));
 }
 static void set_line_value(GameState *g, uint16_t table, uint16_t line, uint16_t v)
 {
-    uint32_t at = line_address(table, line);
-    wram_write8(g, at, (uint8_t)v);
-    wram_write8(g, (at & 0xFF0000u) | (uint16_t)(at + 1), (uint8_t)(v >> 8));
+    set_value_at(g, (uint16_t)line_address(table, line), v);
 }
 
 /* A window line's two edges, left in the low byte and right in the high; a
@@ -178,12 +185,23 @@ static void squashed_iris(GameState *g, MenuObject o, uint8_t slot)
     ORIGINAL_EFFECT(leave_squashed_cells(g, table, centre, half));
 }
 
-/* A run of lines all set to one value. The original fills them with an
- * overlapping block move, whose time it takes. */
-static void fill_lines(GameState *g, uint16_t table, uint16_t first, uint16_t lines, uint16_t v)
+/* A run of lines all set to one value, from `at` on. The original fills them
+ * with an overlapping block move, whose time it takes. */
+static void fill_lines(GameState *g, uint16_t at, uint16_t lines, uint16_t v)
 {
-    wram_fill16(g, line_address(table, first), lines, v);
+    wram_fill16(g, in_line_bank(at), lines, v);
     ORIGINAL_EFFECT(charge_block_move(g, 2u * lines));
+}
+
+/* Where the capsule's centre line is: the line above the circle's centre,
+ * as the original works it out, doubled in a word with the carry the
+ * doubling leaves added in. An iris centred on the top line puts its centre
+ * a byte before the table, so the capsule is built from words that straddle
+ * its lines, as the game draws it (Zeal's skyway). */
+static uint16_t capsule_centre_at(uint16_t table, uint16_t centre_y)
+{
+    uint16_t above = (uint16_t)(centre_y - 1);
+    return (uint16_t)(table + (uint16_t)(above << 1) + (above >> 15));
 }
 
 // $C6:E498, $C6:E4BE
@@ -206,15 +224,15 @@ static void capsule_iris(GameState *g, MenuObject o, uint8_t slot)
         MenuPlace place = menu_object_place(g, o);
         uint8_t x = (uint8_t)menu_pixel(place.x);
         ORIGINAL_EFFECT(set_menu_object_scratch_iris_centre(g, stretch));
-        fill_lines(g, table, menu_pixel(place.y), stretch, window_edges(x, x));
+        fill_lines(g, (uint16_t)line_address(table, menu_pixel(place.y)), stretch, window_edges(x, x));
         return;
     }
-    uint16_t centre = (uint16_t)(scene_circle_center_y(g) - 1);
+    uint16_t centre_at = capsule_centre_at(table, scene_circle_center_y(g));
     for (uint16_t n = 0; n < scene_circle_radius(g); n++)
-        set_line_value(g, table, (uint16_t)(centre + stretch + n), line_value(g, table, (uint16_t)(centre - n)));
-    ORIGINAL_EFFECT(set_menu_object_scratch_iris_centre(g, (uint16_t)line_address(table, centre)));
+        set_value_at(g, (uint16_t)(centre_at + 2 * (stretch + n)), value_at(g, (uint16_t)(centre_at - 2 * n)));
+    ORIGINAL_EFFECT(set_menu_object_scratch_iris_centre(g, centre_at));
     ORIGINAL_EFFECT(set_menu_object_scratch_iris_lines_left(g, 0));
-    fill_lines(g, table, (uint16_t)(centre + 1), (uint16_t)(stretch - 1), line_value(g, table, centre));
+    fill_lines(g, (uint16_t)(centre_at + 2), (uint16_t)(stretch - 1), value_at(g, centre_at));
 }
 
 /* ---- the entries ----------------------------------------------------------------------------- */
@@ -224,8 +242,7 @@ static void capsule_iris(GameState *g, MenuObject o, uint8_t slot)
  * registers; the irises reach their object through it, so it is on low RAM,
  * and the game draws them on the screen: a centre line and a radius under
  * 256, a squashed iris of a radius of 2 or more (a smaller one would copy the
- * whole bank), and a capsule stretched 2 lines or more, whose centre is below
- * the top line. */
+ * whole bank), and a capsule stretched 2 lines or more. */
 enum { MODE_PAGE = 0x0000, SCREEN_LINES = 0x100 };
 
 static bool running_a_slot(Snes *s)
@@ -246,7 +263,7 @@ static bool iris_takes(const GameState *g, MenuObject o, bool capsule)
     uint16_t y = menu_pixel(menu_object_place(g, o).y), radius = menu_object_slots_iris_radius(g, o);
     uint16_t stretch = menu_object_slots_iris_stretch(g, o);
     return y < SCREEN_LINES && radius < SCREEN_LINES
-           && (capsule ? stretch >= 2 && stretch < SCREEN_LINES && y >= 1 : radius >= 2);
+           && (capsule ? stretch >= 2 && stretch < SCREEN_LINES : radius >= 2);
 }
 
 static bool squashed_iris_takes(const GameState *g, MenuObject o) { return iris_takes(g, o, false); }
@@ -354,7 +371,7 @@ static uint16_t capsule_fill_end(const GameState *g, MenuObject o, uint8_t slot)
     uint16_t stretch = menu_object_slots_iris_stretch(g, o);
     if (menu_object_slots_iris_radius(g, o) == 0)
         return (uint16_t)(line_address(table, menu_pixel(menu_object_place(g, o).y)) + 2 * stretch - 1);
-    return (uint16_t)(line_address(table, (uint16_t)(scene_circle_center_y(g) - 1)) + 2 * stretch - 2);
+    return (uint16_t)(capsule_centre_at(table, scene_circle_center_y(g)) + 2 * stretch - 2);
 }
 
 static void capsule_entry(Snes *s, uint8_t slot)
