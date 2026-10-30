@@ -214,6 +214,23 @@ reads are catalogued as metadata, with their bytes remaining in the user's ROM.
 `ct_native` stops at frame 8531 and strict mode at frame 8561, both at
 `$C0:881E`, before the fight/refuse choice.
 
+`north_cape` (`battle-magus-north-cape.ctm`, 28653 frames) takes the same
+opening, accepts the fight and defeats Magus with Marle, Lucca and Robo.
+The party policy wins at frame 26953, without a retry; the movie closes the
+aftermath and ends with North Cape back in hand and `$7F:0138` bit 1 set.
+It adds 31 executed bytes against the preceding 48 movies, including eight
+in the rewards' HP/MP growth path (`$C1:F8FC`-`$F903`) that recruitment does
+not reach. Recruitment retains 60 exclusive bytes alongside this movie;
+the pair adds 91 bytes, all ported. Both shadow replays have 0 mismatches,
+no `page refused`, `accessor out of range` or uncatalogued asset reads.
+Each has 164 guard refusals at the documented hidden-leader gap, and both
+stop at the same frames and entry in `ct_native` and strict mode above.
+The narrowed gate (`tools/suite.py -j 1 --movies events-magus-joins
+battle-magus-north-cape`, with the built `--ct-dev` and user's `--rom`)
+ends `suite OK`, including its static checks. Timing costs were calibrated
+with `--calibrate game/registry.c --drifted` over the pair; the measured
+tails are recorded in `tools/timing_exceptions.txt` and TODO.md.
+
 Each starts from the cartridge save its movie header names, committed under
 `oracle/saves/` and selected by the route's `SAVE`; `--sram` picks another.
 `--prefix` is where the run's checkpoints, log and

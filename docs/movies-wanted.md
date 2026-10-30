@@ -593,9 +593,25 @@ bosses they reach are where `ct_native`'s next stops are likely to be.
   in TODO.md and `tools/refusal_allowlist.txt`. `ct_native` stops at frame
   8531 at `$C0:881E` ("a walk the port doesn't take"); strict mode stops at
   frame 8561 at the same entry, before the fight/refuse choice.
+- **North Cape's party fight**: `battle-magus-north-cape` (route `north_cape`,
+  the same ctsave11 slot 2, 28653 frames) shares the scene, then accepts the
+  fight. Marle, Lucca and Robo defeat Magus (6666 HP); Frog is absent, so
+  this plays the party battle. The `party` policy wins at frame 26953 in
+  31 decisions with no retry. Close the aftermath and end with the field
+  back in hand and `$7F:0138` bit 1 set. Its new coverage against the
+  preceding 48 movies is 31 bytes, all ported: eight in the rewards' HP/MP
+  growth path (`$C1:F8FC`-`$F903`) are exclusive to this movie, and 23 are
+  shared with recruitment. Recruitment retains 60 exclusive bytes; together
+  they add 91 bytes. Shadow has 0 mismatches, no `page refused`, `accessor
+  out of range` or uncatalogued asset reads. Its 164 flashback refusals and
+  `ct_native`/strict stops are the same as recruitment's above.
+  The narrowed two-movie suite with `-j 1`, including its static checks,
+  ends `suite OK`; both movies and both standard routes also pass with
+  scaffolding compiled out. The pair's timing costs were calibrated with
+  `--drifted`, with the remaining timing tails documented as exceptions.
 
 The library plays the fair, the prison escape, Arris Dome, the race, the Magic Cave, Magus's
-castle, the dactyls, the Black Tyrano, the Keeper's Dome, the Golem Twins, the Blackbird, the
+castle, the dactyls, the Black Tyrano, the Keeper's Dome, the Golem Twins, the Blackbird, North Cape, the
 Black Omen and Lavos. The rest of the story has saves just before it (oracle/saves/README.md) and
 no movie; the slot named is the nearest found from the README, for the route to confirm.
 

@@ -20,6 +20,7 @@
 
 field_build_line_effect_tables vblank-tail North Cape's flashback and dialog shapes: 4 of 116 in-vblank stretches exceed 1024 clocks, maximum 2120 after drift calibration; builds RAM tables and the movie's shipping-mode vblank check has no failing findings
 overworld_lead vblank-tail the short walk from Earthbound Village to North Cape mixes idle, walking and entrance paths: 38 of 551 in-vblank stretches exceed 1024 clocks, maximum 3152 after drift calibration; updates RAM state and the movie's shipping-mode vblank check has no failing findings
+battle_record_trails vblank-tail North Cape's Magus fight: 107 of 6815 in-vblank stretches exceed 1024 clocks, maximum 1806 after drift calibration; shifts the active combatants' trail positions in RAM when their countdowns expire, and the movie's shipping-mode vblank check has no failing findings
 
 # The decompressor: a call is 260-290 lines on average (a frame is 262),
 # seven times the length of vblank, and interrupts are taken during its time: its error
