@@ -3074,6 +3074,15 @@ Ranked by how much play they block:
   can draw. These four entries and their fallback counts are recorded as gaps;
   no `page refused`, invalid accessor or mismatch occurs.
 
+- `events-fionas-forest`: Robo's departure from Fiona's house refuses
+  `event_cmd_walk_with_the_party` (`$C0:3002`) and `field_second_member_follows`
+  (`$C0:A2CE`) 60 times each in shadow mode, beginning at frame 28389.
+  The command enters with X=`$0160`, Y=`$016D`, D=`$0100`; the follower enters
+  with X=`$0004`, Y=`$006D`, D=`$0100`. Their guards require the current object
+  to match the member's link and the trail places to hold. Both are `gap` entries
+  in `tools/refusal_allowlist.txt`; determine which formation invariant the
+  departure violates and handle that scripted state. Shadow reports no mismatches.
+
 ## Targets beyond the desktop SNES build
 
 Wanted, none of them scoped as milestones. Each says what the design already

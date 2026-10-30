@@ -213,3 +213,14 @@ field_build_line_effect_tables vblank-tail builds the next frame's line-effect t
 field_frame_goes_on_with_confirm vblank-tail the rest of the field frame after confirm, its work attributed to field_frame: 1.54% of 2861 stretches in vblank off by 1024 clocks or more, at most 1792, writing the next frame's RAM tables
 field_frame_goes_on_with_the_dialog_window vblank-tail the same from the dialog-window step: 1.50% of 2861 stretches, at most 1068 clocks (under one line)
 field_nmi vblank-tail the field's vblank uploads and input have data-dependent work; 2.20% of 12934 stretches off by 1024 clocks or more, at most 3786 (under three lines); the movie's shipping vblank check reports no new picture-band violations
+# events-fionas-forest alone, after --calibrate --drifted: the remaining path-dependent
+# estimates. Its calibrated shipping-mode vblank check has 0 unexcepted findings.
+battle_dispatch_expired_timers worst Retinite's turn dispatch, its actions timed at their own rates: at most 53234 clocks off on the picture, just over the 50468-clock limit; the narrowed vblank check is clean
+battle_record_trails vblank-tail records active combatants' trail points in RAM, its work following which trails are due: 1.81% of 5734 vblank stretches off by a line, at most 1603 clocks
+battle_see_to_knocked_out_enemies worst Retinite's multipart defeat, its work following the beaten parts: at most 52855 clocks off on the picture; the narrowed vblank check is clean
+battle_see_to_the_beaten_enemies worst the same defeat's enclosing work, at most 54343 clocks off on the picture; the narrowed vblank check is clean
+field_draw_the_objects_in_view vblank-worst draws the location's visible objects and builds the sprite table in RAM, its work following the objects: one vblank stretch off by 17196 clocks; the narrowed vblank check is clean
+menu_choose_on_main_menu drift the main menu step's parts leave +1.41% over 343 stretches at cost_milli 1, which no smaller positive scalar can fix; it writes menu buffers and the upload queue, and the narrowed vblank check is clean
+menu_map_scroll_x vblank-tail the menu plane's horizontal scroll follows whether a tile edge queues a strip: 14.29% of 343 vblank stretches off by a line, at most 1163 clocks, writing the queue in RAM
+overworld_epoch vblank-tail the Epoch's movement, landing and time travel take different paths: 23.15% of 298 vblank stretches off by a line, at most 2924 clocks; the narrowed vblank check is clean
+overworld_lead vblank-tail the world-map leader's movement and contacts take different paths: 2.20% of 1546 vblank stretches off by a line, at most 2857 clocks; the narrowed vblank check is clean

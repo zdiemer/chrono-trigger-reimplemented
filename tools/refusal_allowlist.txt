@@ -5,8 +5,8 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
-C03002 event_cmd_walk_with_the_party guard # gap: what_the_prophet_seeks, frames 119033-119035 at $190; the second party link is the empty marker during the ending transition (docs/TODO.md, Refusals in real play).
-C0A2CE field_second_member_follows guard # gap: what_the_prophet_seeks, the same three frames; the second party link does not name the stepping object (docs/TODO.md, Refusals in real play).
+C03002 event_cmd_walk_with_the_party guard # gap: what_the_prophet_seeks, frames 119033-119035 at $190; the second party link is the empty marker during the ending transition; also events-fionas-forest, Robo leaving Fiona's house (60 shadow calls from frame 28389) (docs/TODO.md, Refusals in real play).
+C0A2CE field_second_member_follows guard # gap: what_the_prophet_seeks, the same three frames; the second party link does not name the stepping object; also events-fionas-forest, Robo leaving Fiona's house (60 shadow calls from frame 28389) (docs/TODO.md, Refusals in real play).
 C0881E field_walk_the_leader guard # gap: the leader carried past the 16-bit range's end, outside clear_of_the_end: memory_lane frames 166496-166502 at $0EF and reunion frames 94157-94158 at $054 (a scripted exit through Y=$FFxx); events-magic-cave, the leader parked at ($FF80, $FFFF) on the bridge of Frog's memory ($087) (docs/TODO.md, Refusals in real play).
 C0A88D field_update_object_visibility guard # gap: reunion, frames 96984/97676/99975 at $050; object $14 has an odd newer palette link while script-owned palettes leave those links unused (docs/TODO.md, Refusals in real play).
 C0734C field_give_up_palette guard # gap: reunion, the same three frames; the guard checks palette links even though $7E:0154 bit 7 makes the routine return without reading them (docs/TODO.md, Refusals in real play).

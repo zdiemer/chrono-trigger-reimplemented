@@ -468,6 +468,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `events-end-of-time-gate.ctm` | ctsave03, 3 | End of Time pillar, yes/no prompt, gate effect, arrival in Medina | 5600 |
 | `events-prison-escape.ctm` | ctsave01, 3 | Prison countdown captions, the march to the guillotine, Lucca's rescue | 12900 |
 | `events-keepers-dome.ctm` | ctsave09, 1 | Keeper's Dome: the pendant opens the sealed door, Belthasar's hall | 5000 |
+| `events-fionas-forest.ctm` | ctsave12, 3 | The sapling saved in 12,000 B.C., Sunken Desert and Retinite won, Robo left with Fiona in 600 A.D., recovered 400 years later, and the campfire through Lucca back in hand (route `fionas_forest`) | 36440 |
 | `events-blackbird.ctm` | ctsave11, 1 | Blackbird escape onto the hull over scrolling clouds | 4400 |
 | `events-epoch-lavos.ctm` | ctsave14, 1 | The winged Epoch dialed to 1999 A.D., Lucca's question over Lavos, Fight!, and the dive through its shell (scene mode 6; route `epoch_lavos`) | 7792 |
 | `menus-field-menu.ctm` | ctsave14, 3 | Every field submenu: equipment, items (use, organize), techs, config, party order, saving | 10600 |

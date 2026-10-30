@@ -35,6 +35,7 @@ endings-telepod-lavos drifts  # the fights' turns land on other frames, so they 
 events-blackbird end
 events-end-of-time-gate end
 events-epoch-lavos end
+events-fionas-forest drifts  # differs from the reference: 131 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, $7E:260C, ...)
 events-jetbike-race-won end
 events-jetbike-race end
 events-keepers-dome end

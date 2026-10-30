@@ -71,6 +71,8 @@ C0:8A6D 5135 9  # refused by field_walk_the_leader (field engine, events)
 C0:9175 11297 19  # refused by field_walk_the_leader (field engine, events)
 C0:99DE 5135 9  # refused by field_walk_the_leader (field engine, events)
 C2:---- 162943 1744  # no port yet (menus, text, overworld); $C2:CBE0-$C2:CBE8, the gate song task's wait for the sound driver once in menus-shop-equip, the same code as before, filed here rather than under the song task's hand-back since chunk 8's review changed where the shop's and the runtime's comparisons start and end
+C0:3002 1140 37  # refused by event_cmd_walk_with_the_party during events-fionas-forest; gap in tools/refusal_allowlist.txt
+C0:A2CE 1980 75  # refused by field_second_member_follows during events-fionas-forest; gap in tools/refusal_allowlist.txt
 C2:0009 14 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
 C2:42DD 11 21  # refused by overworld_epoch (menus, text, overworld)
 C2:5DC4 21444 230  # no port yet (menus, text, overworld)
