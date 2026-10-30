@@ -119,6 +119,12 @@ void object_set_step(GameState *g, FieldObject obj, Velocity step)
     set_step_y(g, obj, step.y);
 }
 
+void object_set_step_past_the_tables(GameState *g, FieldObject slot, Velocity step)
+{
+    set_field_object_velocity_x_unchecked(g, slot, (uint16_t)((field_object_velocity_x_unchecked(g, slot) & 0xFF00) | (uint8_t)step.x));
+    set_field_object_velocity_y_unchecked(g, slot, (uint16_t)((field_object_velocity_y_unchecked(g, slot) & 0xFF00) | (uint8_t)step.y));
+}
+
 /* ---- Directions -------------------------------------------------------------------------- */
 
 Quarter field_quarter_between(MapTile from, MapTile to)

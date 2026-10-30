@@ -2804,16 +2804,6 @@ list, by kind, is what `game/` still asks of one.
   which: an item tried on that is no item of the game's (`$C2:A5C3`), a
   member's row whose record names no character (`$C2:A225`), and a shop whose state a step's entry's guard turns away ("a shop the port
   doesn't take", menu/shop_steps.c).
-- **Where the save movies stop.** From a cartridge save `ct_native` plays
-  43 of the 45 save movies to their end; the two below ("Refusals in real
-  play") stop at the guards they meet.
-  A survey made to find more (a route from every save point no movie
-  started at -- ctsave01 1-2, 02 1-2, 04 1-2, 05 2, 06 1-3, 09 2-3, 10 1-2,
-  11 2-3, 13 1-3, technoplaza ct-state1 to 14 -- loading the slot, walking
-  out of the map and into the next; and a fight walked into from twelve of
-  them) found only those two: every other walk, and the two fights found
-  (in the Denadoro Mountains, `battle-denadoro`, and Magus's castle), play
-  to their end.
 - **The menus' steps' notes carry machine work.** In the items', the techs'
   and the settings' sequences (menu/item_screen.c, tech_screen.c,
   settings_screen.c) a note is where the machine both leaves the original's
@@ -2932,21 +2922,15 @@ Ranked by how much play they block:
   `$7E`. What the original does with a count of 0 (one target, uncounted)
   is the thing to establish; the reference play meets no such tech.
 
-- **The Prophet ending's transient party links.** `what_the_prophet_seeks`
-  (ct-state24 slot 2, 131287-frame scratch movie) reaches The End, but its
-  reference play refuses `event_cmd_walk_with_the_party` (`$C0:3002`) and
-  `field_second_member_follows` (`$C0:A2CE`) three times each, at frames
-  119033-119035 in `$190`, before the first vignette's `$0CB` transition.
-  A saved reference frame 119034 has party links `$02/$06/$80` at
-  `$7E:0197/0199/019B` and trail positions `$00/$00/$00` at `$7E:01AB`.
-  `$80` is an empty link; the guards require the second party link to name
-  the stepping object. The event refusal has A/X `$0160`, Y `$0207`, D `$0100`,
-  DB `$00`, P `$20`; the follower has A `$0101`, X `$0006`, Y `$0007`,
-  D `$0100`, DB `$00`, P `$30`. Both are `gap` reasons in
-  `tools/refusal_allowlist.txt`, pending support for this transient state.
-  There is no page refusal or out-of-range accessor. `ct_native` and strict
-  mode complete this movie's input; their timing does not prove the refused
-  reference state is supported. No game routine was changed.
+- **A member stepping in an emptied place writes past the tables.** In
+  the Prophet's ending (`what_the_prophet_seeks`, frames 119033-119035 at
+  `$190`) the party's third place is emptied (`$80`) under the member still
+  stepping in it; the original's step (`$C0:A2CE`, and event `$B0`) moves
+  the slot the marker names, past the tables, whose step and priorities
+  are the bytes of the next tables: slot 0's vertical velocity, its speed
+  and the bytes after the priorities. The port leaves those writes as
+  scaffolding (field/party_trail.c, `leave_stray_step`), so a native build
+  doesn't make them: find whether slot 0's speed matters there.
 
 ## Targets beyond the desktop SNES build
 

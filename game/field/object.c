@@ -351,6 +351,11 @@ void object_set_sprite_priorities_past_the_tables(GameState *g, FieldObject slot
     set_field_object_sprite_priority_unchecked(g, slot, priorities_word(upper, lower));
 }
 
+void object_take_sprite_priorities_past_the_tables(GameState *g, FieldObject slot, SpritePriorities priorities)
+{
+    set_field_object_sprite_priority_unchecked(g, slot, (uint16_t)(priorities.upper_stored << 8 | priorities.lower_stored));
+}
+
 SpritePriorities object_sprite_priorities(const GameState *g, FieldObject obj)
 {
     uint16_t both = field_object_sprite_priority(g, obj);

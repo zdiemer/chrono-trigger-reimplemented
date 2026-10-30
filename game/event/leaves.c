@@ -259,7 +259,8 @@ static void derive_searchlight(GameState *g, const EventCommand *c, EventFlow fl
 }
 
 /* The party's step ($B0, and $AF once): the step's routines run with 8-bit
- * index registers, and leave Y the one stepping, or where the leader looked
+ * index registers, and leave Y the one stepping (for a member, the link of
+ * its place, which can be emptied under it), or where the leader looked
  * to push what it walked into, that; and the overflow of the leader's or the
  * member's step (field/party.h), or clear where the leader's touch worked
  * out a place among the calls'. The party holding still leaves both. */
@@ -287,13 +288,13 @@ static void derive_party_step(GameState *g, const EventCommand *c, EventFlow flo
         return;
     }
     PartyPlace place = object_party_place(g, c->self);
-    l->y = field_object_offset(c->self);
     if (place != PARTY_LEADER) {
+        l->y = field_link_byte(party_member_link(g, place));
         l->overflow = field_member_step_overflow(g, place, n->moved_on);
         return;
     }
     l->overflow = field_leader_step_overflow(g, l->overflow);
-    l->y = event_touch_y(g, n->looked_to_push, l->y);
+    l->y = event_touch_y(g, n->looked_to_push, field_object_offset(c->self));
     l->overflow = event_place_worked_out_overflow(n->touch.touched || n->touch.pushed, l->overflow);
 }
 

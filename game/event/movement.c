@@ -416,7 +416,7 @@ static bool party_can_step(const GameState *g, FieldObject self)
         return false;
     PartyPlace place = object_party_place(g, self);
     if (place != PARTY_LEADER)
-        return field_same_link(party_member_link(g, place), field_link_to(self));
+        return party_place_steps(g, place, field_link_to(self));
     return !leader_has_contact(g) || event_touch_is_ours(g);
 }
 EVENT_CHECK(party_can_step, self)
