@@ -80,7 +80,10 @@ EventRunner event_runner(EventAsC *c);
     X(event_cast_enemy, 0x83) \
     X(event_fill_hp_and_mp, 0xF8) \
     X(event_fill_hp, 0xF9) \
-    X(event_fill_mp, 0xFA)
+    X(event_fill_mp, 0xFA) \
+    X(event_equip, 0xD5) \
+    X(event_take_out_of_party, 0xD6) \
+    X(event_choose_credits, 0x29)
 
 #define EVENT_DECLARE_AS_C(name, opcode) bool name(GameState *g, Platform *pf, uint16_t at, EventStep *step);
 EVENT_BRIDGES_AS_C(EVENT_DECLARE_AS_C)

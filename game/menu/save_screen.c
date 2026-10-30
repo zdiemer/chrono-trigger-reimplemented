@@ -885,18 +885,31 @@ void menu_draw_chapter_label(Snes *s)
 }
 
 // $C2:D28D
-/* The empty slot's label, drawn in the chapter label's place (it runs on
- * into $C2:D296). */
-void menu_draw_the_empty_label(GameState *g)
+/* The empty slot's label, drawn in the chapter label's place; false where
+ * its entry's guard wouldn't take the slot shown, the program going no
+ * further there. */
+bool menu_draw_empty_label(GameState *g)
 {
+    if (!labels_drawable(g)) {
+        program_needs_the_machine(g, 0xC2D28D, "an empty slot's label the port doesn't draw");
+        return false;
+    }
     set_menu_text_string(g, EMPTY_SLOT_LABEL);
     draw_chapter_label(g);
+    return true;
 }
 
-void menu_draw_empty_label(Snes *s)
+// $C2:D28D
+/* It runs on into the chapter label's drawing ($C2:D296), which saves P as
+ * it starts and draws with 16-bit registers. */
+void menu_draw_empty_label_entry(Snes *s)
 {
-    set_menu_text_string(state_of(s), EMPTY_SLOT_LABEL);
-    menu_draw_chapter_label(s);
+    menu_save_p(s);
+    menu_set_widths(s, false, false);
+    if (!menu_draw_empty_label(state_of(s)))
+        return;
+    menu_restore_p(s);
+    m_rts(s);
 }
 
 // $C2:D2C4

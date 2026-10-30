@@ -108,10 +108,7 @@ ProgramStub program_line_stub(const GameState *g) { return stub_of(irq_vector(g)
 
 /* The handlers the modes install, by the address their stubs name. A row's
  * `run` is the handler as a function of the game's state, which the driver
- * calls; none has one yet: each is still an entry that works on the machine's
- * registers and stack (it saves the interrupted code's, moves the data bank
- * and the page, calls out), and a row gets its function as its handler comes
- * off the machine. */
+ * calls; a handler the table doesn't name stops the program. */
 typedef void (*ProgramHandler)(GameState *g, Platform *pf);
 static const struct {
     uint32_t handler;
@@ -132,7 +129,7 @@ static const struct {
     { SCENE_FRAME_HANDLER, "a scene program's vblank handler", scene_vblank },
     { SCENE_HANDLER_WHILE_WORKING, "a scene program's vblank handler while it works", scene_vblank_while_working },
     { WARP_VBLANK_HANDLER, "the warp's vblank handler", warp_vblank },
-    { WARP_LINE_HANDLER, "the warp's line handler", 0 },
+    { WARP_LINE_HANDLER, "the warp's line handler", warp_line },
 };
 enum { HANDLERS = sizeof handlers / sizeof handlers[0] };
 
@@ -172,9 +169,9 @@ static void go_no_further(GameState *g, Platform *pf, uint32_t routine, const ch
  * runs until it ends into a scene (an event's) or a time gate's tunnel, the
  * scene until its script ends it, and the field starts again. A game over
  * starts the game afresh from the title, as the field's first start did at
- * power-on; a scene that resets the console starts it from the boot. A
- * driver may start the game in scenes after the power-on, each with the song the
- * field would have had playing (program_starts_in_a_scene). */
+ * power-on; a scene or a script that resets the console starts it from the
+ * boot. A driver may start the game in scenes after the power-on, each with
+ * the song the field would have had playing (program_starts_in_a_scene). */
 static bool first_scenes_run(GameState *g, Platform *pf)
 {
     uint8_t scene, song;
@@ -202,6 +199,11 @@ void program_main_thread(GameState *g, Platform *pf)
         if (program_went_no_further(g))
             break;
         if (program_starts_afresh(g)) {
+            field_power_on(g, pf);
+            continue;
+        }
+        if (program_console_resets(g)) {
+            program_boot(g, pf);
             field_power_on(g, pf);
             continue;
         }

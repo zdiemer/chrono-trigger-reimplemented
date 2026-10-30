@@ -856,10 +856,14 @@ rest waits, is [PLAN.md](PLAN.md).
   before that slot, facing the way the byte after the facings' says, and
   looks for a chest on the tiles before it, off the map (the walkable
   table's bytes past its rows, up into bank `$7F`; `event/chests.c`,
-  `walkable_past_the_map`): the endings' fields press it so. A native build
-  has nobody to walk or to look before: decide what the screen and the press
-  do then, and drop the slot's reads and writes with the tables' native
-  storage.
+  `walkable_past_the_map`): the endings' fields press it so, and so does a
+  real leader at the map's edge facing off it (Zenan Bridge). A map counting
+  64 to 127 objects starts the searches for an object in the way on the slots
+  past the tables too (`field/motion.c`, `look_past_the_tables`;
+  `field/walk.c`, `met_past_the_tables`). All of these are logic, through the
+  tables' unchecked accessors, so the native storage must keep the tables'
+  layout where they run into the next; or decide what the screen, the press
+  and the searches do there and drop the reads with that storage.
 
 - **What only the original's memory has, in the battle** (history/reimplementation-chunks.md, "Phase 3,
   battle chunk 4", after the review). A build without the original's memory has to decide each:
@@ -2279,9 +2283,10 @@ re-runs the census.
     wait, the field put aside); no movie reaches either, and fuzzing
     compares them at their first call-out (BG1's drawing), past which they
     wait on the vblank: both are unchecked past it;
-  - event `$FF` `$96` (the field's restart from its loader) is the
-    original's from the command's own dispatch (`$C0:4009`), where the port
-    stops; event `$FF` `$9F` calls the menus' party routine 8 as C through
+  - event `$FF` `$96` (the game's restart from the boot, `$C0:4181`) is C
+    only with no machine (`event/screen.c`, `restart_the_game`); on the
+    machine it is the original's from the command's own dispatch
+    (`$C0:4009`), where the port stops; event `$FF` `$9F` calls the menus' party routine 8 as C through
     the same dispatch's frame (`event_screen_party_routine`);
   - one fuzzed state in 40,000 of the screen effects' step differs only in
     OAM bytes holding what looks like the original's stack (seed 1, state
@@ -2764,9 +2769,9 @@ list, by kind, is what `game/` still asks of one.
   map go as far as the menus' own C does. `core/program.c`'s handler table
   has functions for the field's, the menus', the sprite-object mode's, the
   battle's (and its closing's), a scene's boot's, a scene program's and the
-  warp's vblank; the warp's line handler has none, and a handler the table
-  doesn't name is still an entry on the machine's stack (it saves the
-  interrupted registers, moves the page and the data bank, calls out).
+  warp's handlers; a handler the table doesn't name is still an entry on the
+  machine's stack (it saves the interrupted registers, moves the page and the
+  data bank, calls out).
 - **What the scene program still hands the machine as the program runs it.**
   Every mode's setup a recording reaches is C (`scene/program.c`'s
   `c_setups`), and so are the story scenes' tasks, the scripts' routines and
@@ -2791,11 +2796,9 @@ list, by kind, is what `game/` still asks of one.
   the field's C meets a state its port doesn't take (an entry's guard, which
   on the machine hands the call to the original) or a step only the machine
   runs yet, `ct_native` stops there and says which: a menu screen with no
-  step as C (below), a party the
-  put-aside or the bringing back doesn't take (`field/menus.c`), the
-  field's restart a script asks for,
-  and the event commands with a bridge and no C beside it (3 of the 23 in
-  `EVENT_BRIDGES`: `$D5`, `$D6` and `$29`; `EVENT_BRIDGES_AS_C`, event/engine.h, has the rest).
+  step as C (below), and a party the
+  put-aside or the bringing back doesn't take (`field/menus.c`). Every
+  bridge in `EVENT_BRIDGES` has its C (`EVENT_BRIDGES_AS_C`, event/engine.h).
   Each wants its C as the program meets it.
 - **What the menus the player opens still hand the machine.** The main
   menu's steps and its four panels, and the steps `menu.ctm` reaches of the
@@ -2910,28 +2913,6 @@ list, by kind, is what `game/` still asks of one.
   RAM wherever an accessor may run past its end (the glitch reproduced byte
   for byte), or name the reachable overruns, make each a defined, bounded
   result, and leave the arbitrary-memory glitches out of scope.
-- **What the native gaps' review left** (the field's, events' and menus'
-  guards loosened to the states their C takes):
-  - `object_in_the_way` (field/motion.c) changes its result through
-    `ORIGINAL_EFFECT(r = what_the_original_meets_past_the_tables(...))`, as
-    walk.c's `stops = ...` does: logic reading scaffolding, so the native
-    shape differs wherever a slot past the tables is reached. That no forest
-    object minds others is a claim about the movies the guard doesn't hold.
-  - C copies beside machine copies: `slide_the_list` (menu/item_screen.c)
-    beside `slide_the_list_on_the_machine`, though item_screen.h says they run
-    one sequence; `erase` (menu/load_screen.c) beside `menu_erase_slot` in the
-    bridge; `menu_draw_empty_label(Snes*)` (menu/save_screen.c) repeating
-    `menu_draw_the_empty_label`'s body. The C should take the plain name and
-    the wrapper become `_entry`, with the `// $C2:D28D` comment on both.
-  - `field_object_velocity_{x,y}_unchecked` (re/ram.toml, vars.h) still say
-    "for marked scaffolding only", but logic writes through them since the
-    emptied place's step: the velocity table running into the next is now
-    a layout the native storage must keep.
-  - chests.c reads the walkable bytes past the map (into bank `$7F`) for a
-    real leader; "Nobody leading" above describes only an empty one.
-  - walk.c's "a step past the map" means a step the map doesn't stop
-    (collision off); `object_gives_up_a_palette_the_tables_hold` would read
-    better as the slot's links being safe to give up.
 - **What the native picture's review left** (the line handlers' end of the
   picture, `runtime/platform/native/video.c`, `tools/native_check.py`):
   - A line handler at line 224 or past puts `below_from` beyond

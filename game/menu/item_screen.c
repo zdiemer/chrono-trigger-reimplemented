@@ -1097,6 +1097,34 @@ bool menu_point_at_listed_item_with(GameState *g, Platform *pf, const ItemsSteps
 }
 
 // $C2:AC3A
+/* The list's slide, a row in: started, the row brought in and drawn, a
+ * tick, the frames (each waiting for the next), then the item on the cursor
+ * pointed at and the rows moved along in their buffer. */
+static bool slide_the_list_with(GameState *g, const ItemsSteps *n, void *ctx)
+{
+    menu_items_set_up_slide(g);
+    TIMED_AS(g, 0xC2EB9B, menu_start_list_slide(g));
+    menu_items_bring_in_a_row(g);
+    n->note(ctx, ITEMS_NOTE_ROWS_QUEUED, 0);
+    if (!n->tick(ctx, ITEMS_AT_THE_SLIDE))
+        return false;
+    n->note(ctx, ITEMS_NOTE_SLIDE_TICKED, 0);
+    bool took_frames = menu_items_slide_takes_frames(g);
+    if (took_frames)
+        while (menu_items_slide_a_frame(g)) {
+            TIMED_AS(g, 0xC2EB1F, menu_slide_list_a_frame(g));
+            if (!n->wait(ctx, ITEMS_AT_A_SLIDE_FRAME))
+                return false;
+        }
+    n->note(ctx, ITEMS_NOTE_SLIDE_FRAMES_DONE, took_frames);
+    menu_items_end_slide_frames(g);
+    if (!n->point_after_sliding(ctx))
+        return false;
+    menu_items_finish_slide(g);
+    n->note(ctx, ITEMS_NOTE_SLIDE_DONE, 0);
+    return true;
+}
+
 /* The cursor moved along the list: a page turned and drawn again; or kept
  * within the rows, the list slid a row where the push brings one. */
 bool menu_point_along_the_item_list_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
@@ -1119,7 +1147,7 @@ bool menu_point_along_the_item_list_with(GameState *g, Platform *pf, const Items
     TIMED_AS(g, 0xC2EA53, menu_keep_the_cursor_on_the_list(g));
     n->note(ctx, ITEMS_NOTE_CURSOR_KEPT, 0);
     if (menu_items_slide_brings_a_row(g))
-        return n->slide_the_list(ctx);
+        return slide_the_list_with(g, n, ctx);
     n->note(ctx, ITEMS_NOTE_ENDS_COMPARED, 0);
     return menu_point_at_listed_item_with(g, pf, n, ctx);
 }
@@ -1451,27 +1479,11 @@ static bool describe(void *ctx)
 
 static const ItemsSteps as_c;
 
-/* The list's slide, a row in: started, the row brought in and drawn, a
- * tick, the frames (each waiting for the next), then the item on the cursor
- * described and the rows moved along in their buffer. */
-static bool slide_the_list(void *ctx)
+/* The item the list slid to pointed at, as the pointing's own sequence. */
+static bool point_at_the_slid_row(void *ctx)
 {
     ItemsAsC *c = ctx;
-    GameState *g = c->game;
-    menu_items_set_up_slide(g);
-    TIMED_AS(g, 0xC2EB9B, menu_start_list_slide(g));
-    menu_items_bring_in_a_row(g);
-    menu_tick(g, c->pf);
-    if (menu_items_slide_takes_frames(g))
-        while (menu_items_slide_a_frame(g)) {
-            TIMED_AS(g, 0xC2EB1F, menu_slide_list_a_frame(g));
-            menu_task_waits(g, 1);
-        }
-    menu_items_end_slide_frames(g);
-    if (!menu_point_at_listed_item_with(g, c->pf, &as_c, c))
-        return false;
-    menu_items_finish_slide(g);
-    return true;
+    return menu_point_at_listed_item_with(c->game, c->pf, &as_c, c);
 }
 
 static bool back_to_the_main_menu(void *ctx)
@@ -1492,7 +1504,6 @@ static bool refuse(void *ctx, ItemsPlace at)
 
 static void registers_at(void *ctx, ItemsPlace at) { (void)ctx, (void)at; }
 
-static const ItemsSteps as_c;
 
 static bool not_taken(ItemsAsC *c, uint32_t routine)
 {
@@ -1546,7 +1557,7 @@ static bool run(void *ctx, ItemsRoutine r)
 }
 
 static const ItemsSteps as_c = {
-    read_cursor, read_cursor_held, tick, wait, describe, slide_the_list, back_to_the_main_menu, note, refuse, registers_at,
+    read_cursor, read_cursor_held, tick, wait, describe, point_at_the_slid_row, back_to_the_main_menu, note, refuse, registers_at,
     run,
 };
 

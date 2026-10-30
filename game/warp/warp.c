@@ -566,4 +566,9 @@ bool warp_runs(GameState *g, Platform *pf, uint8_t scene)
 
 /* The warp's vblank handler as C (core/program.c's table). */
 void warp_vblank(GameState *g, Platform *pf) { take_the_frame(g, pf); }
+
+// $FD:DE87
+/* The warp's line handler, which the warp installs but never enables the
+ * line interrupt for: it does nothing. */
+void warp_line(GameState *g, Platform *pf) { (void)g, (void)pf; }
 bool warp_bank_reaches_io(Snes *s) { return m_bank_reaches_io(s); }

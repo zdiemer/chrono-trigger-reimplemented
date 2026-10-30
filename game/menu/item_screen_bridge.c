@@ -91,6 +91,7 @@ static const uint32_t TICKS_AT[] = {
     [ITEMS_AT_THE_LIST_LEFT] = 0xC2AAAD,     [ITEMS_AT_A_LISTED_ITEM_POINTED] = 0xC2AC65,
     [ITEMS_AT_THE_PICKED_ITEM_PUT] = 0xC2AAD5,       [ITEMS_AT_THE_MEMBER_WINDOW_LEFT] = 0xC2B1C9,
     [ITEMS_AT_A_TAB_MEMBER_POINTED] = 0xC2B288,      [ITEMS_AT_THE_USERS_CLOSED] = 0xC2AC2A,
+    [ITEMS_AT_THE_SLIDE] = 0xC2ACB9,
 };
 
 static void read_cursor_on_the_machine(void *ctx) { menu_step_reads_the_cursor(ctx); }
@@ -104,6 +105,7 @@ static const struct {
     [ITEMS_AT_THE_SORT] = { 0xC2AB4D },          [ITEMS_AT_THE_LIST_PUT_BACK] = { 0xC2AAFF },
     [ITEMS_AT_THE_TONIC_S_MEMBERS] = { 0xC2B1A5 }, [ITEMS_AT_THE_TAB_S_MEMBERS] = { 0xC2B228 },
     [ITEMS_AT_THE_MEMBER_WINDOW_OPENING] = { 0xC2AF5C }, [ITEMS_AT_THE_MEMBER_WINDOW_DRAWN] = { 0xC2AF6D },
+    [ITEMS_AT_A_SLIDE_FRAME] = { 0xC2ACDF },
 };
 static const uint32_t REFUSALS_AT[] = { [ITEMS_AT_THE_TONIC_S_MEMBERS] = 0xC2B1BA, [ITEMS_AT_THE_TAB_S_MEMBERS] = 0xC2B23D };
 /* The sprites' blocks a frame the tab's pointing leaves in A. */
@@ -113,36 +115,11 @@ static bool wait_on_the_machine(void *ctx, ItemsPlace at) { return menu_wait_a_f
 
 static bool describe_on_the_machine(void *ctx) { return menu_run(ctx, 0xC2AC59, 0xC2AD2E, menu_describe_listed_item); }
 
-/* The list's slide, a row in: started, the row brought in and drawn, a
- * tick, the frames (each waiting for the next, the original's wait), then
- * the item on the cursor described and the rows moved in their buffer. It
- * leaves a 16-bit accumulator. */
-static bool slide_the_list_on_the_machine(void *ctx)
+/* After the list's slide, the item on the cursor pointed at, where the
+ * original calls the pointing. */
+static bool point_after_sliding_on_the_machine(void *ctx)
 {
-    Snes *s = ctx;
-    GameState *g = state_of(s);
-    menu_items_set_up_slide(g);
-    TIMED_AS(g, 0xC2EB9B, menu_start_list_slide(g));
-    menu_items_bring_in_a_row(g);
-    ORIGINAL_EFFECT(leave_rows_queued(s, MENU_UPLOAD_FRONT_LAYER));
-    if (!tick(s, 0xC2ACB9))
-        return false;
-    menu_set_widths(s, false, false);
-    bool took_frames = menu_items_slide_takes_frames(g);
-    if (took_frames)
-        while (menu_items_slide_a_frame(g)) {
-            TIMED_AS(g, 0xC2EB1F, menu_slide_list_a_frame(g));
-            if (!menu_wait_a_frame_from(s, 0xC2ACDF))
-                return false;
-        }
-    menu_set_widths(s, true, false);
-    ORIGINAL_EFFECT(leave_slide_frames(s, took_frames));
-    menu_items_end_slide_frames(g);
-    if (!menu_run(s, 0xC2ACEC, 0xC2AC59, menu_point_at_listed_item))
-        return false;
-    menu_items_finish_slide(g);
-    menu_set_widths(s, false, false);
-    return true;
+    return menu_run(ctx, 0xC2ACEC, 0xC2AC59, menu_point_at_listed_item);
 }
 
 static bool back_to_the_main_menu_on_the_machine(void *ctx)
@@ -175,6 +152,12 @@ static void note_on_the_machine(void *ctx, ItemsNote note, uint8_t value)
     case ITEMS_NOTE_ROWS_QUEUED: ORIGINAL_EFFECT(leave_rows_queued(s, MENU_UPLOAD_FRONT_LAYER)); break;
     case ITEMS_NOTE_CURSOR_KEPT: ORIGINAL_EFFECT(menu_leave_cursor_kept_on_the_list(s)); break;
     case ITEMS_NOTE_ENDS_COMPARED: ORIGINAL_EFFECT(leave_ends_compared(s)); break;
+    case ITEMS_NOTE_SLIDE_TICKED:
+    case ITEMS_NOTE_SLIDE_DONE: menu_set_widths(s, false, false); break;
+    case ITEMS_NOTE_SLIDE_FRAMES_DONE:
+        menu_set_widths(s, true, false);
+        ORIGINAL_EFFECT(leave_slide_frames(s, value != 0));
+        break;
     case ITEMS_NOTE_EFFECT_TESTED: ORIGINAL_EFFECT(leave_effect_tested(s)); break;
     case ITEMS_NOTE_USE_FOUND: ORIGINAL_EFFECT(leave_use_found(s)); break;
     case ITEMS_NOTE_MEMBER_CHOICE_STARTED: ORIGINAL_EFFECT(leave_member_choice_started(s, (ItemUseKind)value)); break;
@@ -231,7 +214,7 @@ static const ItemsSteps on_the_machine = {
     read_cursor_on_the_machine,    read_cursor_held_on_the_machine,
     tick_on_the_machine,
     wait_on_the_machine,           describe_on_the_machine,
-    slide_the_list_on_the_machine, back_to_the_main_menu_on_the_machine,
+    point_after_sliding_on_the_machine, back_to_the_main_menu_on_the_machine,
     note_on_the_machine,           refuse_on_the_machine,
     registers_on_the_machine,      run_on_the_machine,
 };

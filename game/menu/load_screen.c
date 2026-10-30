@@ -484,10 +484,6 @@ bool menu_answer_erase_with(GameState *g, Platform *pf, const LoadScreenSteps *n
 
 /* ---- Erasing a slot ------------------------------------------------------------------------------ */
 
-/* The slot's row redrawn empty: its label cleared and drawn again with the
- * empty slot's, and after a frame queued: the slot's chapter's two rows of
- * graphic (menu_data.h). Only the machine runs it yet
- * (load_screen_bridge.c); this is what it does to the game. */
 enum { MARKED_RECORD_BANK = 0x7E, FOURTH_ROW_LEFT_X = 0x08 };
 
 /* The slot's game gone: the slot no longer in use, its mark on the cartridge
@@ -502,6 +498,26 @@ void menu_forget_slot(GameState *g, Platform *pf, uint8_t slot)
         saves_forget_finished(pf, PF_AT(0xC2E8DA));
         set_menu_cursor_places_x(g, FOURTH_ROW, FOURTH_ROW_LEFT_X);
     }
+}
+
+// $C2:E8B7
+/* The slot's game forgotten, its row drawn empty and, a frame on, its
+ * label (the slot's chapter's two rows of graphic, menu_data.h) queued and
+ * its window drawn again. */
+bool menu_erase_slot_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
+{
+    uint8_t slot = menu_save_slot_shown(g);
+    n->note(ctx, LOAD_NOTE_ERASING, 0);
+    menu_forget_slot(g, pf, slot);
+    n->note(ctx, LOAD_NOTE_SLOT_FORGOTTEN, slot);
+    if (!n->empty_label(ctx) || !n->wait_a_frame(ctx))
+        return false;
+    MenuUpload label = menu_slot_label_upload(slot);
+    ORIGINAL_EFFECT(label.spare = menu_save_summary_byte(g, MENU_LABEL_RECORD_BYTES));
+    TIMED_AS(g, 0xC2838E, menu_queue_upload(g, label));
+    TIMED_AS(g, 0xC2D32C, menu_redraw_slot_window(g, slot));
+    n->note(ctx, LOAD_NOTE_ERASED, 0);
+    return true;
 }
 
 /* The label's upload, from where the slots' chapter labels are drawn. */
@@ -557,6 +573,12 @@ bool menu_load_screen_can_draw(const GameState *g, Platform *pf)
  * the two answers, the slot the question is over one of the three and the
  * cursor kept for going back on one of the rows. */
 static bool is_answer(uint8_t place) { return place == ERASE_YES || place == ERASE_NO; }
+
+/* Erasing redraws the slot's window, whose colours take a palette change. */
+bool menu_slot_can_be_erased(const GameState *g)
+{
+    return menu_palette_changes_have_room(g) && menu_save_slot_shown(g) < MENU_SAVE_SLOTS;
+}
 
 bool menu_erase_can_be_answered(const GameState *g)
 {
@@ -644,19 +666,24 @@ static bool carry_on(void *ctx)
     return true;
 }
 
-// $C2:E8B7
-/* The slot's game forgotten, its row drawn empty and, a frame on, its label
- * queued and its window drawn again. */
 static bool erase(void *ctx)
 {
     LoadScreenAsC *c = ctx;
-    GameState *g = c->game;
-    uint8_t slot = menu_save_slot_shown(g);
-    menu_forget_slot(g, c->pf, slot);
-    TIMED_AS(g, 0xC2D28D, menu_draw_the_empty_label(g));
-    menu_task_waits(g, 1);
-    TIMED_AS(g, 0xC2838E, menu_queue_upload(g, menu_slot_label_upload(slot)));
-    TIMED_AS(g, 0xC2D32C, menu_redraw_slot_window(g, slot));
+    return menu_erase_slot(c->game, c->pf);
+}
+
+static bool empty_label(void *ctx)
+{
+    LoadScreenAsC *c = ctx;
+    bool drawn = false;
+    TIMED_AS(c->game, 0xC2D28D, drawn = menu_draw_empty_label(c->game));
+    return drawn;
+}
+
+static bool wait_a_frame(void *ctx)
+{
+    LoadScreenAsC *c = ctx;
+    menu_task_waits(c->game, 1);
     return true;
 }
 
@@ -684,7 +711,8 @@ static bool ends(void *ctx, LoadScreenEnd end)
 }
 
 static const LoadScreenSteps as_c = { read_cursor, tick, show_the_slot, draw, ask_which_to_carry_on_from, load,
-                                      carry_on, erase, sound_output_sent, byte_wide, note, ends };
+                                      carry_on, erase, empty_label, wait_a_frame, sound_output_sent, byte_wide, note,
+                                      ends };
 
 /* A step as C where its entry's guard would take the state. */
 static bool step(GameState *g, Platform *pf, bool ok, uint32_t routine,
@@ -714,4 +742,9 @@ bool menu_choose_game_to_carry_on_from(GameState *g, Platform *pf)
 bool menu_answer_erase(GameState *g, Platform *pf)
 {
     return step(g, pf, menu_erase_can_be_answered(g), 0xC2E705, menu_answer_erase_with);
+}
+
+bool menu_erase_slot(GameState *g, Platform *pf)
+{
+    return step(g, pf, menu_slot_can_be_erased(g), 0xC2E8B7, menu_erase_slot_with);
 }

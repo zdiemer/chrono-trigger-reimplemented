@@ -669,7 +669,7 @@ void party_place_marked_out(GameState *g, unsigned place);
  * (the party's regrouping adds the whole word into a place's offset). */
 void party_place_taken_by(GameState *g, unsigned place, FieldObject obj);
 
-/* ---- Past the tables (field/object.c): the original's effects only ----------------------- *
+/* ---- Past the tables (field/object.c) ----------------------------------------------------- *
  *
  * The original reads slots past the object tables in two cases. It takes a
  * link to none as an object where a script names an empty party place
@@ -680,10 +680,10 @@ void party_place_taken_by(GameState *g, unsigned place, FieldObject obj);
  * horizontal one) and its horizontal velocity (as the vertical). And the
  * leader's walk looks for objects in its way from the slot past the map's
  * object count, which it doubles into a byte, so a count of 64 to 127 starts
- * it on the slots past the tables (field/walk.c). Marked scaffolding
- * (original_effects.h) reads them here, through the tables' unchecked
- * accessors, so that the gate sees what the original does; the game has
- * nobody there, and a native build reads nothing. */
+ * it, and the look for an object in the way, on the slots past the tables
+ * (field/walk.c, field/motion.c). Nobody stands there, but the game reads
+ * them as slots, here, through the tables' unchecked accessors: the tables'
+ * storage keeps the layout that makes those bytes the next tables'. */
 typedef struct {
     bool disabled;
     FieldPosition at;

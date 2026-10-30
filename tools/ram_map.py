@@ -813,7 +813,7 @@ class Accessor:
         else:
             out = self.meaning + (" [%d bytes, one at a time]" % self.size if self.blob else "")
         if self.unchecked:
-            out += " Unchecked, for marked scaffolding only: %s" % self.var.unchecked
+            out += " Unchecked, reaching past the variable into what follows it: %s" % self.var.unchecked
         return out
 
 

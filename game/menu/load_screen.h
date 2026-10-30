@@ -63,6 +63,9 @@ typedef enum {
     LOAD_NOTE_CHOOSING_AGAIN,      /* ... the step set back to choosing */
     LOAD_NOTE_FOURTH_ROW_COMPARED, /* the slot shown compared with the fourth row (the game finished) */
     LOAD_NOTE_FOURTH_ROW_FLIPPED,  /* the fourth row's choice flipped to this place */
+    LOAD_NOTE_ERASING,             /* a slot's erasing starting */
+    LOAD_NOTE_SLOT_FORGOTTEN,      /* ... its game forgotten: the slot */
+    LOAD_NOTE_ERASED,              /* ... its row drawn again */
 } LoadScreenNote;
 
 /* How a step ends: on to choosing as the screen fades in, or out of the
@@ -71,7 +74,8 @@ typedef enum { LOAD_FADES_IN, LOAD_LEAVES_FOR_THE_GAME } LoadScreenEnd;
 
 /* What the sequences ask: the cursor read, a tick, the slot under the cursor
  * shown, the screen drawn, a New Game+'s question asked, the slot shown's
- * game loaded or carried over by a New Game+, a slot erased, the sound output told to the driver, the machine's
+ * game loaded or carried over by a New Game+, a slot erased, the empty
+ * slot's label drawn, a frame's wait, the sound output told to the driver, the machine's
  * register widths where the original's code changes them before a call (a
  * no-op as C), a note, and the step's end. Each false where it went no
  * further. */
@@ -84,6 +88,8 @@ typedef struct {
     bool (*load)(void *ctx);
     bool (*carry_on)(void *ctx);
     bool (*erase)(void *ctx);
+    bool (*empty_label)(void *ctx);
+    bool (*wait_a_frame)(void *ctx);
     bool (*sound_output_sent)(void *ctx);
     void (*byte_wide)(void *ctx);
     void (*note)(void *ctx, LoadScreenNote note, uint8_t value);
@@ -100,6 +106,9 @@ bool menu_choose_game_to_carry_on_from_with(GameState *g, Platform *pf, const Lo
 bool menu_answer_erase_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx);
 bool menu_draw_load_screen_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx);
 bool menu_show_save_slot_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx);
+/* A slot's erasing ($C2:E8B7): its game forgotten, its row drawn empty and,
+ * a frame on, its label queued and its window drawn again. */
+bool menu_erase_slot_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx);
 
 /* A New Game+'s question: which game it carries on from, the slot's header
  * given way to its label ($C2:E841). */
@@ -117,6 +126,7 @@ bool menu_load_screen_can_draw(const GameState *g, Platform *pf);
 bool menu_load_screen_can_choose(const GameState *g);
 bool menu_load_screen_slot_can_show(const GameState *g);
 bool menu_erase_can_be_answered(const GameState *g);
+bool menu_slot_can_be_erased(const GameState *g);
 
 /* As C, from the menus' main task: the four steps; false where the program
  * went no further. */
@@ -124,9 +134,13 @@ bool menu_open_load_screen(GameState *g, Platform *pf);
 bool menu_choose_on_load_screen(GameState *g, Platform *pf);
 bool menu_choose_game_to_carry_on_from(GameState *g, Platform *pf);
 bool menu_answer_erase(GameState *g, Platform *pf);
+/* And the slot's erasing the answer's yes runs. */
+bool menu_erase_slot(GameState *g, Platform *pf);
 
-/* A slot's erasing, which only the machine runs yet (load_screen_bridge.c):
- * the slot's game forgotten, and its chapter label's upload. */
+/* What erasing a slot does: the slot's game forgotten, and its chapter
+ * label's upload. The original builds the upload's record, seven bytes, where
+ * the summary is drawn from (load_screen_bridge.c). */
+enum { MENU_LABEL_RECORD_BYTES = 7 };
 void menu_forget_slot(GameState *g, Platform *pf, uint8_t slot);
 MenuUpload menu_slot_label_upload(uint8_t slot);
 
@@ -145,7 +159,7 @@ void menu_choose_game_to_carry_on_from_entry(Snes *s);
 void menu_answer_erase_entry(Snes *s);
 void menu_draw_load_screen(Snes *s);
 void menu_ask_which_to_carry_on_from(Snes *s);
-void menu_erase_slot(Snes *s);
+void menu_erase_slot_entry(Snes *s);
 void menu_draw_slot_window(Snes *s);
 
 bool menu_load_screen_runs(Snes *s);

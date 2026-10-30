@@ -453,9 +453,10 @@ enum { PALETTE_WORKING_COUNT = 256 };   /* by color */
 uint16_t palette_working(const GameState *g, unsigned i);
 void set_palette_working(GameState *g, unsigned i, uint16_t v);
 /* The working palette the animations write and every mode's vblank work sends to CGRAM
- * Unchecked, for marked scaffolding only: the battle's background color rotation from color 0 of
- * palette 0 stores its last color a word below the palette, which its indexed store takes a bank
- * on, to $7F:2200 (game/battle/frame.c, rotate_colors_up; no movie reaches it, fuzzing does) */
+ * Unchecked, reaching past the variable into what follows it: the battle's background color
+ * rotation from color 0 of palette 0 stores its last color a word below the palette, which its
+ * indexed store takes a bank on, to $7F:2200 (game/battle/frame.c, rotate_colors_up; no movie
+ * reaches it, fuzzing does) */
 uint16_t palette_working_unchecked(const GameState *g, unsigned i);
 void set_palette_working_unchecked(GameState *g, unsigned i, uint16_t v);
 
@@ -465,9 +466,9 @@ enum { INVENTORY_ITEMS_COUNT = 242 };   /* by inventory position */
 uint8_t inventory_items(const GameState *g, unsigned i);
 void set_inventory_items(GameState *g, unsigned i, uint8_t v);
 /* The inventory's item ids, one per position; the battle item list is this list with the items
- * that can't be used in battle skipped Unchecked, for marked scaffolding only: the battle's
- * search of the inventory for an item runs over 256 places, the fourteen past the inventory's
- * own too, as the original's does (game/battle/inventory.c, $C1:D016) */
+ * that can't be used in battle skipped Unchecked, reaching past the variable into what follows
+ * it: the battle's search of the inventory for an item runs over 256 places, the fourteen past
+ * the inventory's own too, as the original's does (game/battle/inventory.c, $C1:D016) */
 uint8_t inventory_items_unchecked(const GameState *g, unsigned i);
 void set_inventory_items_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -475,9 +476,9 @@ enum { INVENTORY_COUNTS_COUNT = 242 };   /* by inventory position */
 /* How many of the item at the same position of inventory_items the party holds */
 uint8_t inventory_counts(const GameState *g, unsigned i);
 void set_inventory_counts(GameState *g, unsigned i, uint8_t v);
-/* How many of the item at the same position of inventory_items the party holds Unchecked, for
- * marked scaffolding only: the battle's search of the inventory for an item runs over 256
- * places, the fourteen past the inventory's own too, as the original's does
+/* How many of the item at the same position of inventory_items the party holds Unchecked,
+ * reaching past the variable into what follows it: the battle's search of the inventory for an
+ * item runs over 256 places, the fourteen past the inventory's own too, as the original's does
  * (game/battle/inventory.c, $C1:D016) */
 uint8_t inventory_counts_unchecked(const GameState *g, unsigned i);
 void set_inventory_counts_unchecked(GameState *g, unsigned i, uint8_t v);
@@ -510,41 +511,42 @@ enum { CHARACTER_RECORDS_FIGURES_BYTES = 9 };
 uint8_t character_records_figures_byte(const GameState *g, unsigned i, unsigned at);
 void set_character_records_figures_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 /* The record a byte at a time, by the stat block's offsets (battle/combatant.h) [80 bytes, one
- * at a time] Unchecked, for marked scaffolding only: the demo battle's party writes eight
- * records' HP and MP, the eighth over the learned techs after the seventh
+ * at a time] Unchecked, reaching past the variable into what follows it: the demo battle's party
+ * writes eight records' HP and MP, the eighth over the learned techs after the seventh
  * (game/battle/fight_party.c, $FD:B2DE) */
 uint8_t character_records_record_byte_unchecked(const GameState *g, unsigned i, unsigned at);
 void set_character_records_record_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
-/* Current HP Unchecked, for marked scaffolding only: the demo battle's party writes eight
- * records' HP and MP, the eighth over the learned techs after the seventh
+/* Current HP Unchecked, reaching past the variable into what follows it: the demo battle's party
+ * writes eight records' HP and MP, the eighth over the learned techs after the seventh
  * (game/battle/fight_party.c, $FD:B2DE) */
 uint16_t character_records_hp_unchecked(const GameState *g, unsigned i);
 void set_character_records_hp_unchecked(GameState *g, unsigned i, uint16_t v);
-/* Maximum HP Unchecked, for marked scaffolding only: the demo battle's party writes eight
- * records' HP and MP, the eighth over the learned techs after the seventh
+/* Maximum HP Unchecked, reaching past the variable into what follows it: the demo battle's party
+ * writes eight records' HP and MP, the eighth over the learned techs after the seventh
  * (game/battle/fight_party.c, $FD:B2DE) */
 uint16_t character_records_max_hp_unchecked(const GameState *g, unsigned i);
 void set_character_records_max_hp_unchecked(GameState *g, unsigned i, uint16_t v);
-/* Current MP Unchecked, for marked scaffolding only: the demo battle's party writes eight
- * records' HP and MP, the eighth over the learned techs after the seventh
+/* Current MP Unchecked, reaching past the variable into what follows it: the demo battle's party
+ * writes eight records' HP and MP, the eighth over the learned techs after the seventh
  * (game/battle/fight_party.c, $FD:B2DE) */
 uint16_t character_records_mp_unchecked(const GameState *g, unsigned i);
 void set_character_records_mp_unchecked(GameState *g, unsigned i, uint16_t v);
-/* Maximum MP Unchecked, for marked scaffolding only: the demo battle's party writes eight
- * records' HP and MP, the eighth over the learned techs after the seventh
+/* Maximum MP Unchecked, reaching past the variable into what follows it: the demo battle's party
+ * writes eight records' HP and MP, the eighth over the learned techs after the seventh
  * (game/battle/fight_party.c, $FD:B2DE) */
 uint16_t character_records_max_mp_unchecked(const GameState *g, unsigned i);
 void set_character_records_max_mp_unchecked(GameState *g, unsigned i, uint16_t v);
 /* The HP the menus' restoring stops at, which holds the maximum HP again (equal to max_hp over
- * the movie library); the battle's stat block has its element affinities here Unchecked, for
- * marked scaffolding only: the demo battle's party writes eight records' HP and MP, the eighth
- * over the learned techs after the seventh (game/battle/fight_party.c, $FD:B2DE) */
+ * the movie library); the battle's stat block has its element affinities here Unchecked,
+ * reaching past the variable into what follows it: the demo battle's party writes eight records'
+ * HP and MP, the eighth over the learned techs after the seventh (game/battle/fight_party.c,
+ * $FD:B2DE) */
 uint16_t character_records_hp_cap_unchecked(const GameState *g, unsigned i);
 void set_character_records_hp_cap_unchecked(GameState *g, unsigned i, uint16_t v);
 /* The stats with what the character wears added, then its attack and defence, as the menus work
- * them out ($C2:9137) [9 bytes, one at a time] Unchecked, for marked scaffolding only: the demo
- * battle's party writes eight records' HP and MP, the eighth over the learned techs after the
- * seventh (game/battle/fight_party.c, $FD:B2DE) */
+ * them out ($C2:9137) [9 bytes, one at a time] Unchecked, reaching past the variable into what
+ * follows it: the demo battle's party writes eight records' HP and MP, the eighth over the
+ * learned techs after the seventh (game/battle/fight_party.c, $FD:B2DE) */
 uint8_t character_records_figures_byte_unchecked(const GameState *g, unsigned i, unsigned at);
 void set_character_records_figures_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
@@ -562,9 +564,9 @@ enum { PARTY_DOUBLE_TECHS_LEARNED_COUNT = 15 };   /* by the double techs from th
 /* The double techs learned, three a byte in bits 7, 6 and 5 */
 uint8_t party_double_techs_learned(const GameState *g, unsigned i);
 void set_party_double_techs_learned(GameState *g, unsigned i, uint8_t v);
-/* The double techs learned, three a byte in bits 7, 6 and 5 Unchecked, for marked scaffolding
- * only: the battle's setup of a member's double techs reads the byte after the last as it ends,
- * the first triple techs' (game/battle/tech_records.c, $C1:CA1A) */
+/* The double techs learned, three a byte in bits 7, 6 and 5 Unchecked, reaching past the
+ * variable into what follows it: the battle's setup of a member's double techs reads the byte
+ * after the last as it ends, the first triple techs' (game/battle/tech_records.c, $C1:CA1A) */
 uint8_t party_double_techs_learned_unchecked(const GameState *g, unsigned i);
 void set_party_double_techs_learned_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -572,9 +574,9 @@ enum { PARTY_TRIPLE_TECHS_LEARNED_COUNT = 15 };   /* by triple tech, from the fi
 /* Bit 7: the party has learned the triple tech */
 uint8_t party_triple_techs_learned(const GameState *g, unsigned i);
 void set_party_triple_techs_learned(GameState *g, unsigned i, uint8_t v);
-/* Bit 7: the party has learned the triple tech Unchecked, for marked scaffolding only: the
- * battle's search for a member's triple tech reads the byte after the last as it ends
- * (game/battle/tech_records.c, $C1:CDEE) */
+/* Bit 7: the party has learned the triple tech Unchecked, reaching past the variable into what
+ * follows it: the battle's search for a member's triple tech reads the byte after the last as it
+ * ends (game/battle/tech_records.c, $C1:CDEE) */
 uint8_t party_triple_techs_learned_unchecked(const GameState *g, unsigned i);
 void set_party_triple_techs_learned_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -1606,9 +1608,10 @@ enum { FIELD_OBJECT_SCREEN_X_COUNT = 64 };   /* by object slot (X = slot * 2) */
 uint16_t field_object_screen_x(const GameState *g, unsigned slot);
 void set_field_object_screen_x(GameState *g, unsigned slot, uint16_t v);
 /* Screen X the object's sprites are drawn at, 9 bits (position in pixels minus the screen
- * origin) Unchecked, for marked scaffolding only: the leader's walk with nobody leading walks
- * the slot an empty place's marker names, the first past the tables, and the screen follows its
- * place across, which is the first object's screen down (game/field/walk.c, Walker) */
+ * origin) Unchecked, reaching past the variable into what follows it: the leader's walk with
+ * nobody leading walks the slot an empty place's marker names, the first past the tables, and
+ * the screen follows its place across, which is the first object's screen down
+ * (game/field/walk.c, Walker) */
 uint16_t field_object_screen_x_unchecked(const GameState *g, unsigned slot);
 void set_field_object_screen_x_unchecked(GameState *g, unsigned slot, uint16_t v);
 
@@ -1616,10 +1619,10 @@ enum { FIELD_OBJECT_SCREEN_Y_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Screen Y the object's sprites are drawn at, 9 bits; / 4 picks its row list */
 uint16_t field_object_screen_y(const GameState *g, unsigned slot);
 void set_field_object_screen_y(GameState *g, unsigned slot, uint16_t v);
-/* Screen Y the object's sprites are drawn at, 9 bits; / 4 picks its row list Unchecked, for
- * marked scaffolding only: the leader's walk with nobody leading walks the slot an empty place's
- * marker names, the first past the tables, and the screen follows its place down, from the table
- * after (game/field/walk.c, Walker) */
+/* Screen Y the object's sprites are drawn at, 9 bits; / 4 picks its row list Unchecked, reaching
+ * past the variable into what follows it: the leader's walk with nobody leading walks the slot
+ * an empty place's marker names, the first past the tables, and the screen follows its place
+ * down, from the table after (game/field/walk.c, Walker) */
 uint16_t field_object_screen_y_unchecked(const GameState *g, unsigned slot);
 void set_field_object_screen_y_unchecked(GameState *g, unsigned slot, uint16_t v);
 
@@ -1746,9 +1749,10 @@ enum { FIELD_OBJECT_SPRITE_PRIORITY_COUNT = 64 };   /* by object slot (X = slot 
 uint16_t field_object_sprite_priority(const GameState *g, unsigned slot);
 void set_field_object_sprite_priority(GameState *g, unsigned slot, uint16_t v);
 /* Two sprite priority bytes ($20/$30, bits 4-5): +0 from the map's $7E:7040 attribute or the
- * priority mode's bits 0-1, +1 from $7E:7000 or bits 4-5 Unchecked, for marked scaffolding only:
- * a map's start lays an empty place of the party out as the slot its marker names, the first
- * past the tables (game/field/party_trail.c leave_stray_priorities, $C0:9E0E) */
+ * priority mode's bits 0-1, +1 from $7E:7000 or bits 4-5 Unchecked, reaching past the variable
+ * into what follows it: a map's start lays an empty place of the party out as the slot its
+ * marker names, the first past the tables (game/field/party_trail.c leave_stray_priorities,
+ * $C0:9E0E) */
 uint16_t field_object_sprite_priority_unchecked(const GameState *g, unsigned slot);
 void set_field_object_sprite_priority_unchecked(GameState *g, unsigned slot, uint16_t v);
 
@@ -1788,11 +1792,10 @@ enum { FIELD_OBJECT_IN_VIEW_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* $80 while the object is inside the window around the screen (active), 0 outside */
 uint8_t field_object_in_view(const GameState *g, unsigned slot);
 void set_field_object_in_view(GameState *g, unsigned slot, uint8_t v);
-/* $80 while the object is inside the window around the screen (active), 0 outside Unchecked, for
- * marked scaffolding only: a map's object count of 64-127, which the original doubles into a
- * byte and so starts the leader's walk's search for objects in the way past the tables
- * (game/field/walk.c, what_the_original_meets_past_the_tables; 20 real calls over the movie
- * library) */
+/* $80 while the object is inside the window around the screen (active), 0 outside Unchecked,
+ * reaching past the variable into what follows it: a map's object count of 64-127, which the
+ * original doubles into a byte and so starts the leader's walk's search for objects in the way
+ * past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library) */
 uint8_t field_object_in_view_unchecked(const GameState *g, unsigned slot);
 void set_field_object_in_view_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -1850,14 +1853,14 @@ uint8_t field_object_role(const GameState *g, unsigned slot);
 void set_field_object_role(GameState *g, unsigned slot, uint8_t v);
 /* What the object is to the field (field/object.h, ObjectRole): bit 7 disabled; the kind below
  * it, 0-2 the party's leader and members (moved without tile checks), 3 a character who left the
- * party, 7 checked against the screen window only, 8 left alone by the update Unchecked, for
- * marked scaffolding only: an empty party place's marker (a byte with the top bit set, $80 as
- * the game makes it) is taken as an object by the moves toward a member, following one and
- * noting one's tile, which read the slot it names past the tables (game/event/party.c,
- * see_what_the_original_finds; 52,898 real calls over the movie library); and a map's object
- * count of 64-127, which the original doubles into a byte and so starts the leader's walk's
- * search for objects in the way past the tables (game/field/walk.c,
- * what_the_original_meets_past_the_tables; 20 real calls over the movie library) */
+ * party, 7 checked against the screen window only, 8 left alone by the update Unchecked,
+ * reaching past the variable into what follows it: an empty party place's marker (a byte with
+ * the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member,
+ * following one and noting one's tile, which read the slot it names past the tables
+ * (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library);
+ * and a map's object count of 64-127, which the original doubles into a byte and so starts the
+ * leader's walk's search for objects in the way past the tables (game/field/walk.c,
+ * met_past_the_tables; 20 real calls over the movie library) */
 uint8_t field_object_role_unchecked(const GameState *g, unsigned slot);
 void set_field_object_role_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -1927,13 +1930,13 @@ enum { FIELD_OBJECT_FACING_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Which way the object faces (0-3) */
 uint8_t field_object_facing(const GameState *g, unsigned slot);
 void set_field_object_facing(GameState *g, unsigned slot, uint8_t v);
-/* Which way the object faces (0-3) Unchecked, for marked scaffolding only: the party's place
- * taken as the leader's, for a menu or a change of location, while the party has no leader on
- * the map (its marker $80, as a save's load and the attract demo's scenes leave it until the
- * map's objects start), which reads the first slot past the tables (game/field/location.c,
- * field_leaders_place; frame 1704 of every movie from a save, and the attract demo); and the way
- * that slot faces, for the confirm button's search and chest before a leader who is nobody
- * (game/field/object.c, field_leader_facing; the endings' fields) */
+/* Which way the object faces (0-3) Unchecked, reaching past the variable into what follows it:
+ * the party's place taken as the leader's, for a menu or a change of location, while the party
+ * has no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave
+ * it until the map's objects start), which reads the first slot past the tables
+ * (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the
+ * attract demo); and the way that slot faces, for the confirm button's search and chest before a
+ * leader who is nobody (game/field/object.c, field_leader_facing; the endings' fields) */
 uint8_t field_object_facing_unchecked(const GameState *g, unsigned slot);
 void set_field_object_facing_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -1977,13 +1980,13 @@ void set_field_object_x_fine(GameState *g, unsigned slot, uint8_t v);
 /* Tile X */
 uint8_t field_object_x_tile(const GameState *g, unsigned slot);
 void set_field_object_x_tile(GameState *g, unsigned slot, uint8_t v);
-/* Position within the tile ($80 its middle) Unchecked, for marked scaffolding only: an empty
- * party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an
- * object by the moves toward a member, following one and noting one's tile, which read the slot
- * it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls
- * over the movie library); and a map's object count of 64-127, which the original doubles into a
- * byte and so starts the leader's walk's search for objects in the way past the tables
- * (game/field/walk.c, what_the_original_meets_past_the_tables; 20 real calls over the movie
+/* Position within the tile ($80 its middle) Unchecked, reaching past the variable into what
+ * follows it: an empty party place's marker (a byte with the top bit set, $80 as the game makes
+ * it) is taken as an object by the moves toward a member, following one and noting one's tile,
+ * which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds;
+ * 52,898 real calls over the movie library); and a map's object count of 64-127, which the
+ * original doubles into a byte and so starts the leader's walk's search for objects in the way
+ * past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie
  * library); and the party's place taken as the leader's, for a menu or a change of location,
  * while the party has no leader on the map (its marker $80, as a save's load and the attract
  * demo's scenes leave it until the map's objects start), which reads the first slot past the
@@ -1991,18 +1994,17 @@ void set_field_object_x_tile(GameState *g, unsigned slot, uint8_t v);
  * the attract demo) */
 uint8_t field_object_x_fine_unchecked(const GameState *g, unsigned slot);
 void set_field_object_x_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
-/* Tile X Unchecked, for marked scaffolding only: an empty party place's marker (a byte with the
- * top bit set, $80 as the game makes it) is taken as an object by the moves toward a member,
- * following one and noting one's tile, which read the slot it names past the tables
- * (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library);
- * and a map's object count of 64-127, which the original doubles into a byte and so starts the
- * leader's walk's search for objects in the way past the tables (game/field/walk.c,
- * what_the_original_meets_past_the_tables; 20 real calls over the movie library); and the
- * party's place taken as the leader's, for a menu or a change of location, while the party has
- * no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it
- * until the map's objects start), which reads the first slot past the tables
- * (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the
- * attract demo) */
+/* Tile X Unchecked, reaching past the variable into what follows it: an empty party place's
+ * marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the
+ * moves toward a member, following one and noting one's tile, which read the slot it names past
+ * the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie
+ * library); and a map's object count of 64-127, which the original doubles into a byte and so
+ * starts the leader's walk's search for objects in the way past the tables (game/field/walk.c,
+ * met_past_the_tables; 20 real calls over the movie library); and the party's place taken as the
+ * leader's, for a menu or a change of location, while the party has no leader on the map (its
+ * marker $80, as a save's load and the attract demo's scenes leave it until the map's objects
+ * start), which reads the first slot past the tables (game/field/location.c,
+ * field_leaders_place; frame 1704 of every movie from a save, and the attract demo) */
 uint8_t field_object_x_tile_unchecked(const GameState *g, unsigned slot);
 void set_field_object_x_tile_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -2013,13 +2015,13 @@ void set_field_object_y_fine(GameState *g, unsigned slot, uint8_t v);
 /* Tile Y */
 uint8_t field_object_y_tile(const GameState *g, unsigned slot);
 void set_field_object_y_tile(GameState *g, unsigned slot, uint8_t v);
-/* Position within the tile Unchecked, for marked scaffolding only: an empty party place's marker
- * (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves
- * toward a member, following one and noting one's tile, which read the slot it names past the
- * tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie
- * library); and a map's object count of 64-127, which the original doubles into a byte and so
- * starts the leader's walk's search for objects in the way past the tables (game/field/walk.c,
- * what_the_original_meets_past_the_tables; 20 real calls over the movie library); and the
+/* Position within the tile Unchecked, reaching past the variable into what follows it: an empty
+ * party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an
+ * object by the moves toward a member, following one and noting one's tile, which read the slot
+ * it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls
+ * over the movie library); and a map's object count of 64-127, which the original doubles into a
+ * byte and so starts the leader's walk's search for objects in the way past the tables
+ * (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library); and the
  * party's place taken as the leader's, for a menu or a change of location, while the party has
  * no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it
  * until the map's objects start), which reads the first slot past the tables
@@ -2027,18 +2029,17 @@ void set_field_object_y_tile(GameState *g, unsigned slot, uint8_t v);
  * attract demo) */
 uint8_t field_object_y_fine_unchecked(const GameState *g, unsigned slot);
 void set_field_object_y_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
-/* Tile Y Unchecked, for marked scaffolding only: an empty party place's marker (a byte with the
- * top bit set, $80 as the game makes it) is taken as an object by the moves toward a member,
- * following one and noting one's tile, which read the slot it names past the tables
- * (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library);
- * and a map's object count of 64-127, which the original doubles into a byte and so starts the
- * leader's walk's search for objects in the way past the tables (game/field/walk.c,
- * what_the_original_meets_past_the_tables; 20 real calls over the movie library); and the
- * party's place taken as the leader's, for a menu or a change of location, while the party has
- * no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it
- * until the map's objects start), which reads the first slot past the tables
- * (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the
- * attract demo) */
+/* Tile Y Unchecked, reaching past the variable into what follows it: an empty party place's
+ * marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the
+ * moves toward a member, following one and noting one's tile, which read the slot it names past
+ * the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie
+ * library); and a map's object count of 64-127, which the original doubles into a byte and so
+ * starts the leader's walk's search for objects in the way past the tables (game/field/walk.c,
+ * met_past_the_tables; 20 real calls over the movie library); and the party's place taken as the
+ * leader's, for a menu or a change of location, while the party has no leader on the map (its
+ * marker $80, as a save's load and the attract demo's scenes leave it until the map's objects
+ * start), which reads the first slot past the tables (game/field/location.c,
+ * field_leaders_place; frame 1704 of every movie from a save, and the attract demo) */
 uint8_t field_object_y_tile_unchecked(const GameState *g, unsigned slot);
 void set_field_object_y_tile_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -2046,10 +2047,11 @@ enum { FIELD_OBJECT_VELOCITY_X_COUNT = 64 };   /* by object slot (X = slot * 2) 
 /* X velocity added to the position each step, sign-extended to 16 bits */
 uint16_t field_object_velocity_x(const GameState *g, unsigned slot);
 void set_field_object_velocity_x(GameState *g, unsigned slot, uint16_t v);
-/* X velocity added to the position each step, sign-extended to 16 bits Unchecked, for marked
- * scaffolding only: a member stepping in a place of the party emptied under it steps the slot
- * the empty place's marker names, the first past the tables (game/field/party_trail.c
- * step_the_place, $C0:A2CE; the Prophet's ending, three frames) */
+/* X velocity added to the position each step, sign-extended to 16 bits Unchecked, reaching past
+ * the variable into what follows it: a member stepping in a place of the party emptied under it
+ * steps the slot the empty place's marker names, the first past the tables
+ * (game/field/party_trail.c step_the_place, $C0:A2CE; the Prophet's ending, three frames):
+ * logic, so the velocity table running into the next is a layout the native storage keeps */
 uint16_t field_object_velocity_x_unchecked(const GameState *g, unsigned slot);
 void set_field_object_velocity_x_unchecked(GameState *g, unsigned slot, uint16_t v);
 
@@ -2057,10 +2059,11 @@ enum { FIELD_OBJECT_VELOCITY_Y_COUNT = 64 };   /* by object slot (X = slot * 2) 
 /* Y velocity added to the position each step, sign-extended to 16 bits */
 uint16_t field_object_velocity_y(const GameState *g, unsigned slot);
 void set_field_object_velocity_y(GameState *g, unsigned slot, uint16_t v);
-/* Y velocity added to the position each step, sign-extended to 16 bits Unchecked, for marked
- * scaffolding only: a member stepping in a place of the party emptied under it steps the slot
- * the empty place's marker names, the first past the tables (game/field/party_trail.c
- * step_the_place, $C0:A2CE; the Prophet's ending, three frames) */
+/* Y velocity added to the position each step, sign-extended to 16 bits Unchecked, reaching past
+ * the variable into what follows it: a member stepping in a place of the party emptied under it
+ * steps the slot the empty place's marker names, the first past the tables
+ * (game/field/party_trail.c step_the_place, $C0:A2CE; the Prophet's ending, three frames):
+ * logic, so the velocity table running into the next is a layout the native storage keeps */
 uint16_t field_object_velocity_y_unchecked(const GameState *g, unsigned slot);
 void set_field_object_velocity_y_unchecked(GameState *g, unsigned slot, uint16_t v);
 
@@ -2094,10 +2097,10 @@ enum { FIELD_OBJECT_SOLID_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Bit 0: the object blocks other objects' moves */
 uint8_t field_object_solid(const GameState *g, unsigned slot);
 void set_field_object_solid(GameState *g, unsigned slot, uint8_t v);
-/* Bit 0: the object blocks other objects' moves Unchecked, for marked scaffolding only: a map's
- * object count of 64-127, which the original doubles into a byte and so starts the leader's
- * walk's search for objects in the way past the tables (game/field/walk.c,
- * what_the_original_meets_past_the_tables; 20 real calls over the movie library) */
+/* Bit 0: the object blocks other objects' moves Unchecked, reaching past the variable into what
+ * follows it: a map's object count of 64-127, which the original doubles into a byte and so
+ * starts the leader's walk's search for objects in the way past the tables (game/field/walk.c,
+ * met_past_the_tables; 20 real calls over the movie library) */
 uint8_t field_object_solid_unchecked(const GameState *g, unsigned slot);
 void set_field_object_solid_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -2451,12 +2454,12 @@ void set_field_tile_upper_attributes(GameState *g, unsigned row, unsigned column
 /* The second of the three bytes a map gives each tile (a row every 256 bytes, beside
  * field_tile_lower_attributes'): bit 6 puts an object's upper half on the tile in front of the
  * map (field_object_sprite_priority +1, where the object takes its priority from the map) [a
- * byte by row and column] Unchecked, for marked scaffolding only: an object that follows the map
- * put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from the
- * bytes past the attribute tables' rows (game/field/layers.c, map_tile_attributes_past_the_map;
- * 20 real calls over the movie library); a battle's ground copied from a screen at the map's
- * right or bottom edge runs on into the next table or past the last row
- * (game/field/battle_start.c, keep_the_ground $C0:039B) */
+ * byte by row and column] Unchecked, reaching past the variable into what follows it: an object
+ * that follows the map put on a tile off it (column 64, or (255, 255) to take it out of the way)
+ * is layered from the bytes past the attribute tables' rows (game/field/layers.c,
+ * map_tile_attributes_past_the_map; 20 real calls over the movie library); a battle's ground
+ * copied from a screen at the map's right or bottom edge runs on into the next table or past the
+ * last row (game/field/battle_start.c, keep_the_ground $C0:039B) */
 uint8_t field_tile_upper_attributes_unchecked(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_upper_attributes_unchecked(GameState *g, unsigned row, unsigned column, uint8_t v);
 
@@ -2468,9 +2471,9 @@ uint8_t field_tile_lower_attributes(const GameState *g, unsigned row, unsigned c
 void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column, uint8_t v);
 /* The third of the three bytes a map gives each tile: bit 7 blocks an object's moves onto it,
  * bit 6 puts an object's lower half on it in front of the map (field_object_sprite_priority +0)
- * [a byte by row and column] Unchecked, for marked scaffolding only: an object that follows the
- * map put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from
- * the bytes past the attribute tables' rows (game/field/layers.c,
+ * [a byte by row and column] Unchecked, reaching past the variable into what follows it: an
+ * object that follows the map put on a tile off it (column 64, or (255, 255) to take it out of
+ * the way) is layered from the bytes past the attribute tables' rows (game/field/layers.c,
  * map_tile_attributes_past_the_map; 20 real calls over the movie library); a battle's ground
  * copied from a screen at the map's right or bottom edge runs on into the next table or past the
  * last row (game/field/battle_start.c, keep_the_ground $C0:039B) */
@@ -2489,10 +2492,11 @@ enum { FIELD_TILE_WALKABLE_ROWS = 64, FIELD_TILE_WALKABLE_COLUMNS = 64 };
 uint8_t field_tile_walkable(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_walkable(GameState *g, unsigned row, unsigned column, uint8_t v);
 /* Bit 7: the leader may walk onto the tile; clear, a wall to it, whose low 7 bits are the chest
- * it holds (field_location_chests) [a byte by row and column] Unchecked, for marked scaffolding
- * only: the confirm button's look for a chest before a leader who is nobody, whose tile past the
- * object tables is off the map: the original reads the tile's byte at its row and column all the
- * same, past the table's rows (game/event/chests.c, walkable_past_the_map; the endings' fields) */
+ * it holds (field_location_chests) [a byte by row and column] Unchecked, reaching past the
+ * variable into what follows it: the confirm button's look for a chest before a leader who is
+ * nobody, whose tile past the object tables is off the map: the original reads the tile's byte
+ * at its row and column all the same, past the table's rows (game/event/chests.c,
+ * walkable_past_the_map; the endings' fields) */
 uint8_t field_tile_walkable_unchecked(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_walkable_unchecked(GameState *g, unsigned row, unsigned column, uint8_t v);
 
@@ -2858,10 +2862,10 @@ void set_field_sprite_records_byte(GameState *g, unsigned at, uint8_t v);
 /* The objects' sprites, 8 bytes each from an object's field_object_sprite_records offset (a byte
  * offset, as the game keeps it): screen X, screen Y ($E0 hidden), the X offset from the object's
  * screen position (a word), the Y offset, then the tile and attribute bytes [832 bytes, one at a
- * time] Unchecked, for marked scaffolding only: the original places a fifth sprite's Y for an
- * object above the screen, one record past the object's four, which for the last object's
- * records is past the table (game/field/sprites.c, leave_stray_fifth_sprite_y; ct_dev's accessor
- * checks found it over the movie library, at offsets 833 and 836) */
+ * time] Unchecked, reaching past the variable into what follows it: the original places a fifth
+ * sprite's Y for an object above the screen, one record past the object's four, which for the
+ * last object's records is past the table (game/field/sprites.c, leave_stray_fifth_sprite_y;
+ * ct_dev's accessor checks found it over the movie library, at offsets 833 and 836) */
 uint8_t field_sprite_records_byte_unchecked(const GameState *g, unsigned at);
 void set_field_sprite_records_byte_unchecked(GameState *g, unsigned at, uint8_t v);
 
@@ -4855,11 +4859,11 @@ enum { MENU_SETTINGS_BUTTONS_COUNT = 9 };   /* by assignment, in button_assignme
 uint8_t menu_settings_buttons(const GameState *g, unsigned i);
 void set_menu_settings_buttons(GameState *g, unsigned i, uint8_t v);
 /* The button assignments the settings screen shows while its cursor is on them: the player's
- * own, with the change the cursor's row is making Unchecked, for marked scaffolding only: the
- * eighth assignment's list of the assignments it shares buttons with runs past the ROM's table
- * into its code, whose bytes the settings screen's giving a button takes as places past the
- * assignments (game/menu/settings_screen.c, leave_stray_swaps; reached only when confirm or
- * cancel takes L) */
+ * own, with the change the cursor's row is making Unchecked, reaching past the variable into
+ * what follows it: the eighth assignment's list of the assignments it shares buttons with runs
+ * past the ROM's table into its code, whose bytes the settings screen's giving a button takes as
+ * places past the assignments (game/menu/settings_screen.c, leave_stray_swaps; reached only when
+ * confirm or cancel takes L) */
 uint8_t menu_settings_buttons_unchecked(const GameState *g, unsigned i);
 void set_menu_settings_buttons_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -5445,8 +5449,9 @@ enum { MENU_ITEM_POWERS_COUNT = 148 };   /* by item */
 uint8_t menu_item_powers(const GameState *g, unsigned i);
 void set_menu_item_powers(GameState *g, unsigned i, uint8_t v);
 /* The first byte of each weapon's, armour's and helmet's figures: its attack or defence
- * Unchecked, for marked scaffolding only: the items screen's window of who can equip an
- * accessory reads the byte past the table for its power, as the original does (docs/TODO.md) */
+ * Unchecked, reaching past the variable into what follows it: the items screen's window of who
+ * can equip an accessory reads the byte past the table for its power, as the original does
+ * (docs/TODO.md) */
 uint8_t menu_item_powers_unchecked(const GameState *g, unsigned i);
 void set_menu_item_powers_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -5535,10 +5540,10 @@ enum { MENU_PALETTE_COUNT = 256 };   /* by color */
 uint16_t menu_palette(const GameState *g, unsigned i);
 void set_menu_palette(GameState *g, unsigned i, uint16_t v);
 /* The menus' working palette, sent to CGRAM when $0D15 says it changed (party portraits' colors
- * at $9500 + member record * $20) Unchecked, for marked scaffolding only: an active row of the
- * party exchange whose place of the party is empty: the original takes the emptied place's byte
- * for a character and halves fifteen words past the palette (game/menu/sprites.c
- * menu_leave_colours_dimmed_past_the_palette, $C2:CCB3) */
+ * at $9500 + member record * $20) Unchecked, reaching past the variable into what follows it: an
+ * active row of the party exchange whose place of the party is empty: the original takes the
+ * emptied place's byte for a character and halves fifteen words past the palette
+ * (game/menu/sprites.c menu_leave_colours_dimmed_past_the_palette, $C2:CCB3) */
 uint16_t menu_palette_unchecked(const GameState *g, unsigned i);
 void set_menu_palette_unchecked(GameState *g, unsigned i, uint16_t v);
 
@@ -5914,9 +5919,9 @@ enum { MENU_MATH_LINE_TABLES_BYTES = 256 };
 uint8_t menu_math_line_tables_byte(const GameState *g, unsigned i, unsigned at);
 void set_menu_math_line_tables_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 /* The per-line color math tables slot 0 runs: three bytes per entry (line count, $2131 value and
- * the fixed color) [256 bytes, one at a time] Unchecked, for marked scaffolding only: a table
- * whose records ramp more than the table holds runs on past the second table, which the original
- * writes through its index alone; no screen builds one so long */
+ * the fixed color) [256 bytes, one at a time] Unchecked, reaching past the variable into what
+ * follows it: a table whose records ramp more than the table holds runs on past the second
+ * table, which the original writes through its index alone; no screen builds one so long */
 uint8_t menu_math_line_tables_byte_unchecked(const GameState *g, unsigned i, unsigned at);
 void set_menu_math_line_tables_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
@@ -5962,9 +5967,10 @@ enum { MENU_MAP_COLOURS_COUNT = 896 };   /* by world map tile */
 uint8_t menu_map_colours(const GameState *g, unsigned i);
 void set_menu_map_colours(GameState *g, unsigned i, uint8_t v);
 /* One colour per world map tile, four bits packed out of the tile's own graphics, which the map
- * view's plane is drawn from Unchecked, for marked scaffolding only: a tile number is ten bits,
- * so the map view's drawing can name one past the world map's 896 tiles, which the original
- * reads from the bytes after the colours; the world maps' own tiles stop short of it */
+ * view's plane is drawn from Unchecked, reaching past the variable into what follows it: a tile
+ * number is ten bits, so the map view's drawing can name one past the world map's 896 tiles,
+ * which the original reads from the bytes after the colours; the world maps' own tiles stop
+ * short of it */
 uint8_t menu_map_colours_unchecked(const GameState *g, unsigned i);
 void set_menu_map_colours_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -6600,31 +6606,34 @@ void set_menu_object_vram_queue_size(GameState *g, unsigned i, uint16_t v);
 /* The VRAM port setting to send them with */
 uint8_t menu_object_vram_queue_port(const GameState *g, unsigned i);
 void set_menu_object_vram_queue_port(GameState *g, unsigned i, uint8_t v);
-/* Source address Unchecked, for marked scaffolding only: a queue filled past its sixteen records
- * runs on over the upload buffer's cursor and past the page, which the original's writers reach
- * through the queue's end offset alone; no screen queues so many in a frame */
-uint16_t menu_object_vram_queue_source_unchecked(const GameState *g, unsigned i);
-void set_menu_object_vram_queue_source_unchecked(GameState *g, unsigned i, uint16_t v);
-/* Source bank Unchecked, for marked scaffolding only: a queue filled past its sixteen records
- * runs on over the upload buffer's cursor and past the page, which the original's writers reach
- * through the queue's end offset alone; no screen queues so many in a frame */
-uint8_t menu_object_vram_queue_bank_unchecked(const GameState *g, unsigned i);
-void set_menu_object_vram_queue_bank_unchecked(GameState *g, unsigned i, uint8_t v);
-/* VRAM word address Unchecked, for marked scaffolding only: a queue filled past its sixteen
- * records runs on over the upload buffer's cursor and past the page, which the original's
- * writers reach through the queue's end offset alone; no screen queues so many in a frame */
-uint16_t menu_object_vram_queue_vram_unchecked(const GameState *g, unsigned i);
-void set_menu_object_vram_queue_vram_unchecked(GameState *g, unsigned i, uint16_t v);
-/* Bytes to send; 0 means 64 KiB Unchecked, for marked scaffolding only: a queue filled past its
- * sixteen records runs on over the upload buffer's cursor and past the page, which the
+/* Source address Unchecked, reaching past the variable into what follows it: a queue filled past
+ * its sixteen records runs on over the upload buffer's cursor and past the page, which the
  * original's writers reach through the queue's end offset alone; no screen queues so many in a
  * frame */
-uint16_t menu_object_vram_queue_size_unchecked(const GameState *g, unsigned i);
-void set_menu_object_vram_queue_size_unchecked(GameState *g, unsigned i, uint16_t v);
-/* The VRAM port setting to send them with Unchecked, for marked scaffolding only: a queue filled
+uint16_t menu_object_vram_queue_source_unchecked(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_source_unchecked(GameState *g, unsigned i, uint16_t v);
+/* Source bank Unchecked, reaching past the variable into what follows it: a queue filled past
+ * its sixteen records runs on over the upload buffer's cursor and past the page, which the
+ * original's writers reach through the queue's end offset alone; no screen queues so many in a
+ * frame */
+uint8_t menu_object_vram_queue_bank_unchecked(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_bank_unchecked(GameState *g, unsigned i, uint8_t v);
+/* VRAM word address Unchecked, reaching past the variable into what follows it: a queue filled
  * past its sixteen records runs on over the upload buffer's cursor and past the page, which the
  * original's writers reach through the queue's end offset alone; no screen queues so many in a
  * frame */
+uint16_t menu_object_vram_queue_vram_unchecked(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_vram_unchecked(GameState *g, unsigned i, uint16_t v);
+/* Bytes to send; 0 means 64 KiB Unchecked, reaching past the variable into what follows it: a
+ * queue filled past its sixteen records runs on over the upload buffer's cursor and past the
+ * page, which the original's writers reach through the queue's end offset alone; no screen
+ * queues so many in a frame */
+uint16_t menu_object_vram_queue_size_unchecked(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_size_unchecked(GameState *g, unsigned i, uint16_t v);
+/* The VRAM port setting to send them with Unchecked, reaching past the variable into what
+ * follows it: a queue filled past its sixteen records runs on over the upload buffer's cursor
+ * and past the page, which the original's writers reach through the queue's end offset alone; no
+ * screen queues so many in a frame */
 uint8_t menu_object_vram_queue_port_unchecked(const GameState *g, unsigned i);
 void set_menu_object_vram_queue_port_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -7408,9 +7417,9 @@ enum { OVERWORLD_MAP_COUNT = 6144 };   /* by map tile (its row * 96 plus its col
 uint8_t overworld_map(const GameState *g, unsigned i);
 void set_overworld_map(GameState *g, unsigned i, uint8_t v);
 /* The world map: 96 x 64 map tiles of 16 x 16 pixels, a byte each, the tile group each shows
- * (the map's first plane's, menu/map.c) Unchecked, for marked scaffolding only: the followers'
- * search for walls looks at the rows next to its legs without keeping them on the map, as the
- * original does, and a row off the map's edge reads past the map's end
+ * (the map's first plane's, menu/map.c) Unchecked, reaching past the variable into what follows
+ * it: the followers' search for walls looks at the rows next to its legs without keeping them on
+ * the map, as the original does, and a row off the map's edge reads past the map's end
  * (game/overworld/terrain.c, map_tile) */
 uint8_t overworld_map_unchecked(const GameState *g, unsigned i);
 void set_overworld_map_unchecked(GameState *g, unsigned i, uint8_t v);
@@ -7462,14 +7471,14 @@ void set_overworld_halts_column(GameState *g, unsigned i, uint8_t v);
 /* Bits 0-5 the row */
 uint8_t overworld_halts_row(const GameState *g, unsigned i);
 void set_overworld_halts_row(GameState *g, unsigned i, uint8_t v);
-/* Bit 7: open; bits 0-6 the map tile's column Unchecked, for marked scaffolding only: a halt
- * notes the byte after its record as the game stops, the next record's first, or past the last
- * record the events' first (game/overworld/places.c, note_the_halt) */
+/* Bit 7: open; bits 0-6 the map tile's column Unchecked, reaching past the variable into what
+ * follows it: a halt notes the byte after its record as the game stops, the next record's first,
+ * or past the last record the events' first (game/overworld/places.c, note_the_halt) */
 uint8_t overworld_halts_column_unchecked(const GameState *g, unsigned i);
 void set_overworld_halts_column_unchecked(GameState *g, unsigned i, uint8_t v);
-/* Bits 0-5 the row Unchecked, for marked scaffolding only: a halt notes the byte after its
- * record as the game stops, the next record's first, or past the last record the events' first
- * (game/overworld/places.c, note_the_halt) */
+/* Bits 0-5 the row Unchecked, reaching past the variable into what follows it: a halt notes the
+ * byte after its record as the game stops, the next record's first, or past the last record the
+ * events' first (game/overworld/places.c, note_the_halt) */
 uint8_t overworld_halts_row_unchecked(const GameState *g, unsigned i);
 void set_overworld_halts_row_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -7926,8 +7935,8 @@ enum { BATTLE_OBJECT_FRAME_LISTS_COUNT = 11 };   /* by battle slot */
 uint32_t battle_object_frame_lists(const GameState *g, unsigned slot);
 void set_battle_object_frame_lists(GameState *g, unsigned slot, uint32_t v);
 /* Long pointer (bank $E4) to the object's animation frame lists (the frames' graphics numbers,
- * per pose) Unchecked, for marked scaffolding only: a combatant channel whose subject is nobody
- * ($FF) plays and waits on its slot as the original does, past the table
+ * per pose) Unchecked, reaching past the variable into what follows it: a combatant channel
+ * whose subject is nobody ($FF) plays and waits on its slot as the original does, past the table
  * (game/battle/script_poses.c, play_nobodys_animation) */
 uint32_t battle_object_frame_lists_unchecked(const GameState *g, unsigned slot);
 void set_battle_object_frame_lists_unchecked(GameState *g, unsigned slot, uint32_t v);
@@ -7936,9 +7945,10 @@ enum { BATTLE_OBJECT_DELAY_LISTS_COUNT = 11 };   /* by battle slot */
 /* Long pointer (bank $E4) to the object's animation frame delay lists */
 uint32_t battle_object_delay_lists(const GameState *g, unsigned slot);
 void set_battle_object_delay_lists(GameState *g, unsigned slot, uint32_t v);
-/* Long pointer (bank $E4) to the object's animation frame delay lists Unchecked, for marked
- * scaffolding only: a combatant channel whose subject is nobody ($FF) plays and waits on its
- * slot as the original does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
+/* Long pointer (bank $E4) to the object's animation frame delay lists Unchecked, reaching past
+ * the variable into what follows it: a combatant channel whose subject is nobody ($FF) plays and
+ * waits on its slot as the original does, past the table (game/battle/script_poses.c,
+ * play_nobodys_animation) */
 uint32_t battle_object_delay_lists_unchecked(const GameState *g, unsigned slot);
 void set_battle_object_delay_lists_unchecked(GameState *g, unsigned slot, uint32_t v);
 
@@ -7952,11 +7962,11 @@ enum { BATTLE_OBJECT_X_COUNT = 23 };   /* by battle object ($0C + battle slot fo
 /* Battle objects' screen X positions */
 uint8_t battle_object_x(const GameState *g, unsigned i);
 void set_battle_object_x(GameState *g, unsigned i, uint8_t v);
-/* Battle objects' screen X positions Unchecked, for marked scaffolding only: a combatant's
- * position read for a slot past the combatants, as the original's indexed reads do: the grid's
- * marking with the party off the grid (game/battle/battlefield.c), the menu's cursors at a
- * target entry no battle makes (game/battle/battle.h combatant_x), an enemy waiting on a target
- * of nobody (game/battle/enemy_movement.c where_the_original_finds_nobody) */
+/* Battle objects' screen X positions Unchecked, reaching past the variable into what follows it:
+ * a combatant's position read for a slot past the combatants, as the original's indexed reads
+ * do: the grid's marking with the party off the grid (game/battle/battlefield.c), the menu's
+ * cursors at a target entry no battle makes (game/battle/battle.h combatant_x), an enemy waiting
+ * on a target of nobody (game/battle/enemy_movement.c where_the_original_finds_nobody) */
 uint8_t battle_object_x_unchecked(const GameState *g, unsigned i);
 void set_battle_object_x_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -7964,10 +7974,10 @@ enum { BATTLE_OBJECT_Y_COUNT = 23 };   /* by battle object ($0C + battle slot fo
 /* Battle objects' screen Y positions, also their depth when sprites are sorted */
 uint8_t battle_object_y(const GameState *g, unsigned i);
 void set_battle_object_y(GameState *g, unsigned i, uint8_t v);
-/* Battle objects' screen Y positions, also their depth when sprites are sorted Unchecked, for
- * marked scaffolding only: a combatant's position read for a slot past the combatants, as the
- * original's indexed reads do: the grid's marking with the party off the grid
- * (game/battle/battlefield.c), the menu's cursors at a target entry no battle makes
+/* Battle objects' screen Y positions, also their depth when sprites are sorted Unchecked,
+ * reaching past the variable into what follows it: a combatant's position read for a slot past
+ * the combatants, as the original's indexed reads do: the grid's marking with the party off the
+ * grid (game/battle/battlefield.c), the menu's cursors at a target entry no battle makes
  * (game/battle/battle.h combatant_x), an enemy waiting on a target of nobody
  * (game/battle/enemy_movement.c where_the_original_finds_nobody) */
 uint8_t battle_object_y_unchecked(const GameState *g, unsigned i);
@@ -8229,9 +8239,10 @@ enum { BATTLE_SCRIPT_VARIABLES_COUNT = 27 };   /* by variable, by the number a c
 uint8_t battle_script_variables(const GameState *g, unsigned i);
 void set_battle_script_variables(GameState *g, unsigned i, uint8_t v);
 /* The animation scripts' variables, which their commands set, count up and down, add to and
- * compare by number ($C1:58F3, $C1:5935, $C1:5731) Unchecked, for marked scaffolding only: a
- * command names its variable by a byte, and a number past the 27 reaches the marks, the point
- * and the work RAM after them, as the original's indexed access does (game/battle/script_flow.c) */
+ * compare by number ($C1:58F3, $C1:5935, $C1:5731) Unchecked, reaching past the variable into
+ * what follows it: a command names its variable by a byte, and a number past the 27 reaches the
+ * marks, the point and the work RAM after them, as the original's indexed access does
+ * (game/battle/script_flow.c) */
 uint8_t battle_script_variables_unchecked(const GameState *g, unsigned i);
 void set_battle_script_variables_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -8326,8 +8337,9 @@ uint8_t battle_enemy_animation(const GameState *g, unsigned i);
 void set_battle_enemy_animation(GameState *g, unsigned i, uint8_t v);
 /* The animation the enemy shows (its frame list is loaded for it,
  * battle_enemy_animation_loaded); a status sets it to 0 or 4, and an enemy may start its turn
- * only from a few of them Unchecked, for marked scaffolding only: a hit beats the target it
- * names, which a fuzzed list can put past the enemies (game/battle/effect_amounts.c, $C1:DE0A) */
+ * only from a few of them Unchecked, reaching past the variable into what follows it: a hit
+ * beats the target it names, which a fuzzed list can put past the enemies
+ * (game/battle/effect_amounts.c, $C1:DE0A) */
 uint8_t battle_enemy_animation_unchecked(const GameState *g, unsigned i);
 void set_battle_enemy_animation_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -8395,73 +8407,76 @@ void set_battle_stats_revival(GameState *g, unsigned slot, uint8_t v);
 uint8_t battle_stats_status_ignored(const GameState *g, unsigned slot);
 void set_battle_stats_status_ignored(GameState *g, unsigned slot, uint8_t v);
 /* The whole block a byte at a time, by its offset: how an enemy's script names a stat to test or
- * change [128 bytes, one at a time] Unchecked, for marked scaffolding only: the turn's end reads
- * the status of the combatant that acted, whatever the actor's cell holds
+ * change [128 bytes, one at a time] Unchecked, reaching past the variable into what follows it:
+ * the turn's end reads the status of the combatant that acted, whatever the actor's cell holds
  * (game/battle/main_loop.c, $C1:8667) */
 uint8_t battle_stats_block_byte_unchecked(const GameState *g, unsigned slot, unsigned at);
 void set_battle_stats_block_byte_unchecked(GameState *g, unsigned slot, unsigned at, uint8_t v);
-/* Bit 0 set while HP is at most an eighth of max HP Unchecked, for marked scaffolding only: the
- * turn's end reads the status of the combatant that acted, whatever the actor's cell holds
- * (game/battle/main_loop.c, $C1:8667) */
+/* Bit 0 set while HP is at most an eighth of max HP Unchecked, reaching past the variable into
+ * what follows it: the turn's end reads the status of the combatant that acted, whatever the
+ * actor's cell holds (game/battle/main_loop.c, $C1:8667) */
 uint8_t battle_stats_low_hp_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_low_hp_unchecked(GameState *g, unsigned slot, uint8_t v);
-/* Current HP Unchecked, for marked scaffolding only: the turn's end reads the status of the
- * combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+/* Current HP Unchecked, reaching past the variable into what follows it: the turn's end reads
+ * the status of the combatant that acted, whatever the actor's cell holds
+ * (game/battle/main_loop.c, $C1:8667) */
 uint16_t battle_stats_hp_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_hp_unchecked(GameState *g, unsigned slot, uint16_t v);
-/* Maximum HP Unchecked, for marked scaffolding only: the turn's end reads the status of the
- * combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+/* Maximum HP Unchecked, reaching past the variable into what follows it: the turn's end reads
+ * the status of the combatant that acted, whatever the actor's cell holds
+ * (game/battle/main_loop.c, $C1:8667) */
 uint16_t battle_stats_max_hp_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_max_hp_unchecked(GameState *g, unsigned slot, uint16_t v);
-/* Current MP (what tech costs are checked against) Unchecked, for marked scaffolding only: the
- * turn's end reads the status of the combatant that acted, whatever the actor's cell holds
- * (game/battle/main_loop.c, $C1:8667) */
+/* Current MP (what tech costs are checked against) Unchecked, reaching past the variable into
+ * what follows it: the turn's end reads the status of the combatant that acted, whatever the
+ * actor's cell holds (game/battle/main_loop.c, $C1:8667) */
 uint16_t battle_stats_mp_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_mp_unchecked(GameState *g, unsigned slot, uint16_t v);
-/* Maximum MP Unchecked, for marked scaffolding only: the turn's end reads the status of the
- * combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+/* Maximum MP Unchecked, reaching past the variable into what follows it: the turn's end reads
+ * the status of the combatant that acted, whatever the actor's cell holds
+ * (game/battle/main_loop.c, $C1:8667) */
 uint16_t battle_stats_max_mp_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_max_mp_unchecked(GameState *g, unsigned slot, uint16_t v);
-/* Bit 7 set while the combatant is knocked out ($5E4A for slot 0) Unchecked, for marked
- * scaffolding only: the turn's end reads the status of the combatant that acted, whatever the
- * actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+/* Bit 7 set while the combatant is knocked out ($5E4A for slot 0) Unchecked, reaching past the
+ * variable into what follows it: the turn's end reads the status of the combatant that acted,
+ * whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
 uint8_t battle_stats_condition_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_condition_unchecked(GameState *g, unsigned slot, uint8_t v);
 /* The combatant's four status bytes ($5E4B-$5E4E for slot 0), the first in the low byte: its
  * timed statuses' bits, which its status timers follow, and the bits the pose table tests
- * Unchecked, for marked scaffolding only: the turn's end reads the status of the combatant that
- * acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+ * Unchecked, reaching past the variable into what follows it: the turn's end reads the status of
+ * the combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
 uint32_t battle_stats_status_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_status_unchecked(GameState *g, unsigned slot, uint32_t v);
 /* A party member's weapon ($5E56 for slot 0), whose records the setup adds to its stats
  * (game/battle/member_stats.c); the battle carries it over from the member's record
- * (battle_member_carried) when it ends Unchecked, for marked scaffolding only: the turn's end
- * reads the status of the combatant that acted, whatever the actor's cell holds
- * (game/battle/main_loop.c, $C1:8667) */
+ * (battle_member_carried) when it ends Unchecked, reaching past the variable into what follows
+ * it: the turn's end reads the status of the combatant that acted, whatever the actor's cell
+ * holds (game/battle/main_loop.c, $C1:8667) */
 uint8_t battle_stats_carried_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_carried_unchecked(GameState *g, unsigned slot, uint8_t v);
 /* Statuses the combatant keeps whatever happens, ORed with the third and fourth status bytes'
- * bits ($5E52-$5E53 for slot 0) Unchecked, for marked scaffolding only: the turn's end reads the
- * status of the combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c,
- * $C1:8667) */
+ * bits ($5E52-$5E53 for slot 0) Unchecked, reaching past the variable into what follows it: the
+ * turn's end reads the status of the combatant that acted, whatever the actor's cell holds
+ * (game/battle/main_loop.c, $C1:8667) */
 uint16_t battle_stats_status_kept_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_status_kept_unchecked(GameState *g, unsigned slot, uint16_t v);
 /* The party member's accessory ($5E57 for slot 0; STAT_ACCESSORY): $A4 and $B8 let the party see
- * an enemy's HP (battle_enemy_hp_seen) Unchecked, for marked scaffolding only: the turn's end
- * reads the status of the combatant that acted, whatever the actor's cell holds
- * (game/battle/main_loop.c, $C1:8667) */
+ * an enemy's HP (battle_enemy_hp_seen) Unchecked, reaching past the variable into what follows
+ * it: the turn's end reads the status of the combatant that acted, whatever the actor's cell
+ * holds (game/battle/main_loop.c, $C1:8667) */
 uint8_t battle_stats_worn_item_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_worn_item_unchecked(GameState *g, unsigned slot, uint8_t v);
 /* Bit 7 set while the combatant comes back once when it is knocked out, which uses it up ($5E4F
- * for slot 0; $C1:B30F) Unchecked, for marked scaffolding only: the turn's end reads the status
- * of the combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c,
- * $C1:8667) */
+ * for slot 0; $C1:B30F) Unchecked, reaching past the variable into what follows it: the turn's
+ * end reads the status of the combatant that acted, whatever the actor's cell holds
+ * (game/battle/main_loop.c, $C1:8667) */
 uint8_t battle_stats_revival_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_revival_unchecked(GameState *g, unsigned slot, uint8_t v);
 /* Statuses of the first status byte the combatant shrugs off: an enemy with confusion's bit here
- * isn't made to attack anyone by it ($5E50 for slot 0; $C1:B4AA) Unchecked, for marked
- * scaffolding only: the turn's end reads the status of the combatant that acted, whatever the
- * actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+ * isn't made to attack anyone by it ($5E50 for slot 0; $C1:B4AA) Unchecked, reaching past the
+ * variable into what follows it: the turn's end reads the status of the combatant that acted,
+ * whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
 uint8_t battle_stats_status_ignored_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_status_ignored_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -8790,10 +8805,11 @@ enum { BATTLE_PARTY_FRAME_COUNT = 3 };   /* by party slot */
 /* Party member's position in its pose's frame list ($FF restarts the pose) */
 uint8_t battle_party_frame(const GameState *g, unsigned slot);
 void set_battle_party_frame(GameState *g, unsigned slot, uint8_t v);
-/* Party member's position in its pose's frame list ($FF restarts the pose) Unchecked, for marked
- * scaffolding only: battle_choose_status_pose restarts the frame list of whatever combatant it
- * chose a pose for through this table, so an enemy's write lands 5 to 12 bytes past it, the last
- * three on the frame delays of enemies 0-2 (game/battle/animation.c, restart_frame_list) */
+/* Party member's position in its pose's frame list ($FF restarts the pose) Unchecked, reaching
+ * past the variable into what follows it: battle_choose_status_pose restarts the frame list of
+ * whatever combatant it chose a pose for through this table, so an enemy's write lands 5 to 12
+ * bytes past it, the last three on the frame delays of enemies 0-2 (game/battle/animation.c,
+ * restart_frame_list) */
 uint8_t battle_party_frame_unchecked(const GameState *g, unsigned slot);
 void set_battle_party_frame_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -8828,9 +8844,9 @@ enum { BATTLE_OBJECT_FACING_COUNT = 11 };   /* by battle slot */
 /* Direction the object faces, selecting the facing's part of its frame lists */
 uint8_t battle_object_facing(const GameState *g, unsigned slot);
 void set_battle_object_facing(GameState *g, unsigned slot, uint8_t v);
-/* Direction the object faces, selecting the facing's part of its frame lists Unchecked, for
- * marked scaffolding only: a facing code names a channel's subject, whichever it is
- * (game/battle/script_places.c) */
+/* Direction the object faces, selecting the facing's part of its frame lists Unchecked, reaching
+ * past the variable into what follows it: a facing code names a channel's subject, whichever it
+ * is (game/battle/script_places.c) */
 uint8_t battle_object_facing_unchecked(const GameState *g, unsigned slot);
 void set_battle_object_facing_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -8847,9 +8863,9 @@ enum { BATTLE_SLOT_PRESENT_COUNT = 11 };   /* by battle slot (0-2 the party, 3-1
 /* Nonzero when the battle slot holds a combatant */
 uint8_t battle_slot_present(const GameState *g, unsigned slot);
 void set_battle_slot_present(GameState *g, unsigned slot, uint8_t v);
-/* Nonzero when the battle slot holds a combatant Unchecked, for marked scaffolding only: with
- * the party off the grid, the grid's marking looks at the eleven slots from the fourth, three
- * past the table, as the original's indexed reads do (game/battle/battlefield.c) */
+/* Nonzero when the battle slot holds a combatant Unchecked, reaching past the variable into what
+ * follows it: with the party off the grid, the grid's marking looks at the eleven slots from the
+ * fourth, three past the table, as the original's indexed reads do (game/battle/battlefield.c) */
 uint8_t battle_slot_present_unchecked(const GameState *g, unsigned slot);
 void set_battle_slot_present_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -8862,9 +8878,9 @@ enum { BATTLE_CURSOR_OFFSET_X_COUNT = 11 };   /* by battle slot */
 /* Offset of the menu cursor from the object's X position (plus 16) */
 uint8_t battle_cursor_offset_x(const GameState *g, unsigned slot);
 void set_battle_cursor_offset_x(GameState *g, unsigned slot, uint8_t v);
-/* Offset of the menu cursor from the object's X position (plus 16) Unchecked, for marked
- * scaffolding only: the menu's cursors point at the combatant a target entry names, whatever it
- * holds (game/battle/window.h combatant_cursor_x, $C1:17DD) */
+/* Offset of the menu cursor from the object's X position (plus 16) Unchecked, reaching past the
+ * variable into what follows it: the menu's cursors point at the combatant a target entry names,
+ * whatever it holds (game/battle/window.h combatant_cursor_x, $C1:17DD) */
 uint8_t battle_cursor_offset_x_unchecked(const GameState *g, unsigned slot);
 void set_battle_cursor_offset_x_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -8872,9 +8888,9 @@ enum { BATTLE_CURSOR_OFFSET_Y_COUNT = 11 };   /* by battle slot */
 /* Offset of the menu cursor from the object's Y position */
 uint8_t battle_cursor_offset_y(const GameState *g, unsigned slot);
 void set_battle_cursor_offset_y(GameState *g, unsigned slot, uint8_t v);
-/* Offset of the menu cursor from the object's Y position Unchecked, for marked scaffolding only:
- * the menu's cursors point at the combatant a target entry names, whatever it holds
- * (game/battle/window.h combatant_cursor_x, $C1:17DD) */
+/* Offset of the menu cursor from the object's Y position Unchecked, reaching past the variable
+ * into what follows it: the menu's cursors point at the combatant a target entry names, whatever
+ * it holds (game/battle/window.h combatant_cursor_x, $C1:17DD) */
 uint8_t battle_cursor_offset_y_unchecked(const GameState *g, unsigned slot);
 void set_battle_cursor_offset_y_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -9477,10 +9493,10 @@ enum { BATTLE_SCRIPT_SUBJECTS_COUNT = 11 };   /* by script channel */
 uint8_t battle_script_subjects(const GameState *g, unsigned channel);
 void set_battle_script_subjects(GameState *g, unsigned channel, uint8_t v);
 /* The combatant each animation script channel animates, which its commands act on ($FF: none;
- * channel 0's is set at the battle's start from $AE91, $CC:F165) Unchecked, for marked
- * scaffolding only: the other targets' list is read up to its first byte with the top bit set,
- * which for a full list is past the table; and a command naming a subject by an operand reads
- * wherever it points (game/battle/script_language.c) */
+ * channel 0's is set at the battle's start from $AE91, $CC:F165) Unchecked, reaching past the
+ * variable into what follows it: the other targets' list is read up to its first byte with the
+ * top bit set, which for a full list is past the table; and a command naming a subject by an
+ * operand reads wherever it points (game/battle/script_language.c) */
 uint8_t battle_script_subjects_unchecked(const GameState *g, unsigned channel);
 void set_battle_script_subjects_unchecked(GameState *g, unsigned channel, uint8_t v);
 
@@ -9513,10 +9529,10 @@ enum { BATTLE_BOUNDS_X_COUNT = 11 };   /* by battle slot */
 /* Object's X position the bounds were computed from */
 uint8_t battle_bounds_x(const GameState *g, unsigned slot);
 void set_battle_bounds_x(GameState *g, unsigned slot, uint8_t v);
-/* Object's X position the bounds were computed from Unchecked, for marked scaffolding only: the
- * enemies' conditions search from whichever combatant their candidates list, $FF (none) among
- * them, which reads and writes the box place past the table as the original's indexed stores do
- * (game/battle/positions.c; fuzzing only, no movie) */
+/* Object's X position the bounds were computed from Unchecked, reaching past the variable into
+ * what follows it: the enemies' conditions search from whichever combatant their candidates
+ * list, $FF (none) among them, which reads and writes the box place past the table as the
+ * original's indexed stores do (game/battle/positions.c; fuzzing only, no movie) */
 uint8_t battle_bounds_x_unchecked(const GameState *g, unsigned slot);
 void set_battle_bounds_x_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -9524,10 +9540,10 @@ enum { BATTLE_BOUNDS_Y_COUNT = 11 };   /* by battle slot */
 /* Object's Y position the bounds were computed from */
 uint8_t battle_bounds_y(const GameState *g, unsigned slot);
 void set_battle_bounds_y(GameState *g, unsigned slot, uint8_t v);
-/* Object's Y position the bounds were computed from Unchecked, for marked scaffolding only: the
- * enemies' conditions search from whichever combatant their candidates list, $FF (none) among
- * them, which reads and writes the box place past the table as the original's indexed stores do
- * (game/battle/positions.c; fuzzing only, no movie) */
+/* Object's Y position the bounds were computed from Unchecked, reaching past the variable into
+ * what follows it: the enemies' conditions search from whichever combatant their candidates
+ * list, $FF (none) among them, which reads and writes the box place past the table as the
+ * original's indexed stores do (game/battle/positions.c; fuzzing only, no movie) */
 uint8_t battle_bounds_y_unchecked(const GameState *g, unsigned slot);
 void set_battle_bounds_y_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -9632,8 +9648,9 @@ enum { BATTLE_MEMBER_DISABLED_COUNT = 3 };   /* by party slot */
 uint8_t battle_member_disabled(const GameState *g, unsigned slot);
 void set_battle_member_disabled(GameState *g, unsigned slot, uint8_t v);
 /* Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination
- * techs naming it, are dimmed Unchecked, for marked scaffolding only: read for the member a
- * partner's slot names, whatever that holds (game/battle/menu_window.c, $C1:103E) */
+ * techs naming it, are dimmed Unchecked, reaching past the variable into what follows it: read
+ * for the member a partner's slot names, whatever that holds (game/battle/menu_window.c,
+ * $C1:103E) */
 uint8_t battle_member_disabled_unchecked(const GameState *g, unsigned slot);
 void set_battle_member_disabled_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -9746,9 +9763,9 @@ enum { BATTLE_ANIMATING_COUNT = 11 };   /* by battle slot */
 /* Set while the object has an animation in the scheduler */
 uint8_t battle_animating(const GameState *g, unsigned slot);
 void set_battle_animating(GameState *g, unsigned slot, uint8_t v);
-/* Set while the object has an animation in the scheduler Unchecked, for marked scaffolding only:
- * a combatant channel whose subject is nobody ($FF) plays and waits on its slot as the original
- * does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
+/* Set while the object has an animation in the scheduler Unchecked, reaching past the variable
+ * into what follows it: a combatant channel whose subject is nobody ($FF) plays and waits on its
+ * slot as the original does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
 uint8_t battle_animating_unchecked(const GameState *g, unsigned slot);
 void set_battle_animating_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -9756,9 +9773,10 @@ enum { BATTLE_ANIMATION_DELAY_COUNT = 11 };   /* by battle slot */
 /* Frames until the object's next animation step in the scheduler */
 uint8_t battle_animation_delay(const GameState *g, unsigned slot);
 void set_battle_animation_delay(GameState *g, unsigned slot, uint8_t v);
-/* Frames until the object's next animation step in the scheduler Unchecked, for marked
- * scaffolding only: a combatant channel whose subject is nobody ($FF) plays and waits on its
- * slot as the original does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
+/* Frames until the object's next animation step in the scheduler Unchecked, reaching past the
+ * variable into what follows it: a combatant channel whose subject is nobody ($FF) plays and
+ * waits on its slot as the original does, past the table (game/battle/script_poses.c,
+ * play_nobodys_animation) */
 uint8_t battle_animation_delay_unchecked(const GameState *g, unsigned slot);
 void set_battle_animation_delay_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -9768,8 +9786,8 @@ enum { BATTLE_ANIMATION_FRAME_COUNT = 11 };   /* by battle slot */
 uint8_t battle_animation_frame(const GameState *g, unsigned slot);
 void set_battle_animation_frame(GameState *g, unsigned slot, uint8_t v);
 /* The frame of its animation a combatant shows ($FF before its first, as starting an animation
- * leaves it) Unchecked, for marked scaffolding only: a combatant channel whose subject is nobody
- * ($FF) plays and waits on its slot as the original does, past the table
+ * leaves it) Unchecked, reaching past the variable into what follows it: a combatant channel
+ * whose subject is nobody ($FF) plays and waits on its slot as the original does, past the table
  * (game/battle/script_poses.c, play_nobodys_animation) */
 uint8_t battle_animation_frame_unchecked(const GameState *g, unsigned slot);
 void set_battle_animation_frame_unchecked(GameState *g, unsigned slot, uint8_t v);
@@ -9788,9 +9806,9 @@ uint8_t battle_animation_wait(const GameState *g, unsigned slot);
 void set_battle_animation_wait(GameState *g, unsigned slot, uint8_t v);
 /* Set while a script waits for the animation it started on the combatant to end (the plain wait
  * and the marked one: game/battle/script_poses.c, $C1:4EA2, $C1:577D), to the marked wait's mark
- * Unchecked, for marked scaffolding only: a combatant channel whose subject is nobody ($FF)
- * plays and waits on its slot as the original does, past the table (game/battle/script_poses.c,
- * play_nobodys_animation) */
+ * Unchecked, reaching past the variable into what follows it: a combatant channel whose subject
+ * is nobody ($FF) plays and waits on its slot as the original does, past the table
+ * (game/battle/script_poses.c, play_nobodys_animation) */
 uint8_t battle_animation_wait_unchecked(const GameState *g, unsigned slot);
 void set_battle_animation_wait_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -9827,9 +9845,9 @@ enum { BATTLE_EFFECT_DONE_COUNT = 11 };   /* by battle slot */
 uint8_t battle_effect_done(const GameState *g, unsigned slot);
 void set_battle_effect_done(GameState *g, unsigned slot, uint8_t v);
 /* Nonzero when the combatant's path has ended (the homing jump counts its turns here too)
- * Unchecked, for marked scaffolding only: the homing jump counts its turn with a word increment,
- * which from $FF carries into the next byte; for the last combatant that is past the table (no
- * battle makes $FF) */
+ * Unchecked, reaching past the variable into what follows it: the homing jump counts its turn
+ * with a word increment, which from $FF carries into the next byte; for the last combatant that
+ * is past the table (no battle makes $FF) */
 uint8_t battle_effect_done_unchecked(const GameState *g, unsigned slot);
 void set_battle_effect_done_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -9879,9 +9897,9 @@ enum { BATTLE_ANCHOR_DONE_COUNT = 8 };   /* by anchor */
 uint8_t battle_anchor_done(const GameState *g, unsigned i);
 void set_battle_anchor_done(GameState *g, unsigned i, uint8_t v);
 /* Nonzero when the anchor's path has ended (the homing jump counts its turns here too)
- * Unchecked, for marked scaffolding only: the homing jump counts its turn with a word increment,
- * which from $FF carries into the next byte; for the last anchor that is past the table (no
- * battle makes $FF) */
+ * Unchecked, reaching past the variable into what follows it: the homing jump counts its turn
+ * with a word increment, which from $FF carries into the next byte; for the last anchor that is
+ * past the table (no battle makes $FF) */
 uint8_t battle_anchor_done_unchecked(const GameState *g, unsigned i);
 void set_battle_anchor_done_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -9891,9 +9909,10 @@ enum { BATTLE_SCHEDULED_FRAME_LISTS_COUNT = 11 };   /* by battle slot */
 uint16_t battle_scheduled_frame_lists(const GameState *g, unsigned slot);
 void set_battle_scheduled_frame_lists(GameState *g, unsigned slot, uint16_t v);
 /* Offset (bank $E4) of the frame list of the animation the scheduler plays on the object; a
- * party member's frame step keeps its own in the first entry Unchecked, for marked scaffolding
- * only: a combatant channel whose subject is nobody ($FF) plays and waits on its slot as the
- * original does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
+ * party member's frame step keeps its own in the first entry Unchecked, reaching past the
+ * variable into what follows it: a combatant channel whose subject is nobody ($FF) plays and
+ * waits on its slot as the original does, past the table (game/battle/script_poses.c,
+ * play_nobodys_animation) */
 uint16_t battle_scheduled_frame_lists_unchecked(const GameState *g, unsigned slot);
 void set_battle_scheduled_frame_lists_unchecked(GameState *g, unsigned slot, uint16_t v);
 
@@ -9903,9 +9922,10 @@ enum { BATTLE_SCHEDULED_DELAY_LISTS_COUNT = 11 };   /* by battle slot */
 uint16_t battle_scheduled_delay_lists(const GameState *g, unsigned slot);
 void set_battle_scheduled_delay_lists(GameState *g, unsigned slot, uint16_t v);
 /* Offset (bank $E4) of the delay list of the animation the scheduler plays on the object; a
- * party member's frame step keeps its own in the first entry Unchecked, for marked scaffolding
- * only: a combatant channel whose subject is nobody ($FF) plays and waits on its slot as the
- * original does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
+ * party member's frame step keeps its own in the first entry Unchecked, reaching past the
+ * variable into what follows it: a combatant channel whose subject is nobody ($FF) plays and
+ * waits on its slot as the original does, past the table (game/battle/script_poses.c,
+ * play_nobodys_animation) */
 uint16_t battle_scheduled_delay_lists_unchecked(const GameState *g, unsigned slot);
 void set_battle_scheduled_delay_lists_unchecked(GameState *g, unsigned slot, uint16_t v);
 
@@ -9915,9 +9935,9 @@ enum { BATTLE_OBJECT_FACING_SHOWN_COUNT = 11 };   /* by battle slot */
 uint8_t battle_object_facing_shown(const GameState *g, unsigned slot);
 void set_battle_object_facing_shown(GameState *g, unsigned slot, uint8_t v);
 /* The facing (battle_object_facing) a combatant's frames were last taken for; $FF has the next
- * frame taken afresh, as starting an animation does Unchecked, for marked scaffolding only: a
- * combatant channel whose subject is nobody ($FF) plays and waits on its slot as the original
- * does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
+ * frame taken afresh, as starting an animation does Unchecked, reaching past the variable into
+ * what follows it: a combatant channel whose subject is nobody ($FF) plays and waits on its slot
+ * as the original does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
 uint8_t battle_object_facing_shown_unchecked(const GameState *g, unsigned slot);
 void set_battle_object_facing_shown_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -9967,8 +9987,9 @@ enum { BATTLE_EFFECT_ANIMATION_STARTS_COUNT = 16 };   /* by animation */
 uint16_t battle_effect_animation_starts(const GameState *g, unsigned i);
 void set_battle_effect_animation_starts(GameState *g, unsigned i, uint16_t v);
 /* Offset in bank $CE of the first record of each of the effect's sixteen animations Unchecked,
- * for marked scaffolding only: an effect channel's animation commands take the animation from an
- * operand and don't check it against the sixteen (game/battle/script_poses.c) */
+ * reaching past the variable into what follows it: an effect channel's animation commands take
+ * the animation from an operand and don't check it against the sixteen
+ * (game/battle/script_poses.c) */
 uint16_t battle_effect_animation_starts_unchecked(const GameState *g, unsigned i);
 void set_battle_effect_animation_starts_unchecked(GameState *g, unsigned i, uint16_t v);
 
@@ -9976,9 +9997,9 @@ enum { BATTLE_EFFECT_ANIMATION_FRAMES_COUNT = 16 };   /* by animation */
 /* Number of frames (records) of each of the effect's sixteen animations */
 uint8_t battle_effect_animation_frames(const GameState *g, unsigned i);
 void set_battle_effect_animation_frames(GameState *g, unsigned i, uint8_t v);
-/* Number of frames (records) of each of the effect's sixteen animations Unchecked, for marked
- * scaffolding only: an effect channel's animation commands take the animation from an operand
- * and don't check it against the sixteen (game/battle/script_poses.c) */
+/* Number of frames (records) of each of the effect's sixteen animations Unchecked, reaching past
+ * the variable into what follows it: an effect channel's animation commands take the animation
+ * from an operand and don't check it against the sixteen (game/battle/script_poses.c) */
 uint8_t battle_effect_animation_frames_unchecked(const GameState *g, unsigned i);
 void set_battle_effect_animation_frames_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -10060,9 +10081,9 @@ enum { BATTLE_EFFECT_STEPS_COUNT = 19 };   /* by effect slot (0-10 the combatant
 /* The jump's substeps a frame, the spiral's radius growth, or the chase's speed */
 uint8_t battle_effect_steps(const GameState *g, unsigned slot);
 void set_battle_effect_steps(GameState *g, unsigned slot, uint8_t v);
-/* The jump's substeps a frame, the spiral's radius growth, or the chase's speed Unchecked, for
- * marked scaffolding only: the throw's line for an anchor reads its speed at twice the anchor's
- * number past the combatants' (game/battle/script_moves.c) */
+/* The jump's substeps a frame, the spiral's radius growth, or the chase's speed Unchecked,
+ * reaching past the variable into what follows it: the throw's line for an anchor reads its
+ * speed at twice the anchor's number past the combatants' (game/battle/script_moves.c) */
 uint8_t battle_effect_steps_unchecked(const GameState *g, unsigned slot);
 void set_battle_effect_steps_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -10075,9 +10096,9 @@ enum { BATTLE_EFFECT_ANGLE_COUNT = 19 };   /* by effect slot (0-10 the combatant
 /* The spiral's angle (256 steps a turn) */
 uint8_t battle_effect_angle(const GameState *g, unsigned slot);
 void set_battle_effect_angle(GameState *g, unsigned slot, uint8_t v);
-/* The spiral's angle (256 steps a turn) Unchecked, for marked scaffolding only: a place 24
- * pixels along a combatant's angle takes the running channel's subject, whichever it is
- * (game/battle/script_places.c) */
+/* The spiral's angle (256 steps a turn) Unchecked, reaching past the variable into what follows
+ * it: a place 24 pixels along a combatant's angle takes the running channel's subject, whichever
+ * it is (game/battle/script_places.c) */
 uint8_t battle_effect_angle_unchecked(const GameState *g, unsigned slot);
 void set_battle_effect_angle_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -10163,9 +10184,9 @@ uint8_t battle_object_effect_slots(const GameState *g, unsigned slot);
 void set_battle_object_effect_slots(GameState *g, unsigned slot, uint8_t v);
 /* The effects drawn with each combatant, a row an effect and a byte a combatant: the effect (low
  * three bits) with bit 7 drawn in front of the combatant's own sprites, or with bit 6 behind
- * them; 0 none Unchecked, for marked scaffolding only: the script commands that draw an effect
- * with a combatant index its row by the combatant an operand names, unchecked, in a byte
- * (game/battle/script_effects.c) */
+ * them; 0 none Unchecked, reaching past the variable into what follows it: the script commands
+ * that draw an effect with a combatant index its row by the combatant an operand names,
+ * unchecked, in a byte (game/battle/script_effects.c) */
 uint8_t battle_object_effect_slots_unchecked(const GameState *g, unsigned slot);
 void set_battle_object_effect_slots_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -10175,8 +10196,9 @@ enum { BATTLE_ANCHOR_SOURCES_COUNT = 8 };   /* by anchor */
 uint8_t battle_anchor_sources(const GameState *g, unsigned i);
 void set_battle_anchor_sources(GameState *g, unsigned i, uint8_t v);
 /* What each anchor follows: the battle slot of an object, with bit 6 another anchor (low three
- * bits); negative none Unchecked, for marked scaffolding only: the script command that stops an
- * anchor following takes the anchor from an operand, unchecked (game/battle/script_effects.c) */
+ * bits); negative none Unchecked, reaching past the variable into what follows it: the script
+ * command that stops an anchor following takes the anchor from an operand, unchecked
+ * (game/battle/script_effects.c) */
 uint8_t battle_anchor_sources_unchecked(const GameState *g, unsigned i);
 void set_battle_anchor_sources_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -10261,9 +10283,9 @@ enum { BATTLE_MARKER_FRAME_COUNT = 11 };   /* by battle slot */
 /* The marker's frame, 0-3 */
 uint8_t battle_marker_frame(const GameState *g, unsigned slot);
 void set_battle_marker_frame(GameState *g, unsigned slot, uint8_t v);
-/* The marker's frame, 0-3 Unchecked, for marked scaffolding only: the frame each combatant's
- * object starts with is kept a byte on, in the same bytes, and the last enemy's is the byte past
- * the markers (game/battle/setup_party.c set_start_frame) */
+/* The marker's frame, 0-3 Unchecked, reaching past the variable into what follows it: the frame
+ * each combatant's object starts with is kept a byte on, in the same bytes, and the last enemy's
+ * is the byte past the markers (game/battle/setup_party.c set_start_frame) */
 uint8_t battle_marker_frame_unchecked(const GameState *g, unsigned slot);
 void set_battle_marker_frame_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -10354,9 +10376,9 @@ enum { BATTLE_EFFECT_ANGLE_USED_COUNT = 19 };   /* by effect slot (0-10 the comb
 /* The angle the spiral last used, which the flicker reuses */
 uint8_t battle_effect_angle_used(const GameState *g, unsigned slot);
 void set_battle_effect_angle_used(GameState *g, unsigned slot, uint8_t v);
-/* The angle the spiral last used, which the flicker reuses Unchecked, for marked scaffolding
- * only: a script names a mover by its channel's subject or by an anchor's number, unchecked
- * against the movers (game/battle/script_places.c heading commands) */
+/* The angle the spiral last used, which the flicker reuses Unchecked, reaching past the variable
+ * into what follows it: a script names a mover by its channel's subject or by an anchor's
+ * number, unchecked against the movers (game/battle/script_places.c heading commands) */
 uint8_t battle_effect_angle_used_unchecked(const GameState *g, unsigned slot);
 void set_battle_effect_angle_used_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -10503,10 +10525,10 @@ enum { BATTLE_MENU_SLOT_MEMBERS_COUNT = 3 };   /* by menu slot */
 /* The party member each menu window slot belongs to; negative: no member */
 uint8_t battle_menu_slot_members(const GameState *g, unsigned slot);
 void set_battle_menu_slot_members(GameState *g, unsigned slot, uint8_t v);
-/* The party member each menu window slot belongs to; negative: no member Unchecked, for marked
- * scaffolding only: a tech record's partner nibble names the slot; the menu window reads it
- * whatever it holds, past the three for a record no battle makes (game/battle/menu_window.c,
- * $C1:103E) */
+/* The party member each menu window slot belongs to; negative: no member Unchecked, reaching
+ * past the variable into what follows it: a tech record's partner nibble names the slot; the
+ * menu window reads it whatever it holds, past the three for a record no battle makes
+ * (game/battle/menu_window.c, $C1:103E) */
 uint8_t battle_menu_slot_members_unchecked(const GameState *g, unsigned slot);
 void set_battle_menu_slot_members_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -10876,9 +10898,9 @@ enum { BATTLE_ACTION_TARGETS_COUNT = 11 };   /* by place */
 /* The action's targets ($FF past them) */
 uint8_t battle_action_targets(const GameState *g, unsigned i);
 void set_battle_action_targets(GameState *g, unsigned i, uint8_t v);
-/* The action's targets ($FF past them) Unchecked, for marked scaffolding only: the effect code
- * reads the target at the count less one in a byte, which is 255 past a count of 0
- * (game/battle/effect_amounts.c) */
+/* The action's targets ($FF past them) Unchecked, reaching past the variable into what follows
+ * it: the effect code reads the target at the count less one in a byte, which is 255 past a
+ * count of 0 (game/battle/effect_amounts.c) */
 uint8_t battle_action_targets_unchecked(const GameState *g, unsigned i);
 void set_battle_action_targets_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -10907,21 +10929,21 @@ void set_battle_number_records_kind(GameState *g, unsigned slot, uint8_t v);
 /* The record's last byte, which the number display doesn't read; cleared with the rest */
 uint8_t battle_number_records_last_byte(const GameState *g, unsigned slot);
 void set_battle_number_records_last_byte(GameState *g, unsigned slot, uint8_t v);
-/* The number Unchecked, for marked scaffolding only: the effect code adds up up to seven sets of
- * numbers and reads a record by a slot past the combatants (game/battle/effect_work.c, $C1:EB68;
- * effect_amounts.c, $C1:E89F) */
+/* The number Unchecked, reaching past the variable into what follows it: the effect code adds up
+ * up to seven sets of numbers and reads a record by a slot past the combatants
+ * (game/battle/effect_work.c, $C1:EB68; effect_amounts.c, $C1:E89F) */
 uint16_t battle_number_records_value_unchecked(const GameState *g, unsigned slot);
 void set_battle_number_records_value_unchecked(GameState *g, unsigned slot, uint16_t v);
 /* How it shows: 0 not at all, 5 as a miss, otherwise as a number (1 and 2 in the second palette;
- * 2, 4 and up rise the second way) Unchecked, for marked scaffolding only: the effect code adds
- * up up to seven sets of numbers and reads a record by a slot past the combatants
- * (game/battle/effect_work.c, $C1:EB68; effect_amounts.c, $C1:E89F) */
+ * 2, 4 and up rise the second way) Unchecked, reaching past the variable into what follows it:
+ * the effect code adds up up to seven sets of numbers and reads a record by a slot past the
+ * combatants (game/battle/effect_work.c, $C1:EB68; effect_amounts.c, $C1:E89F) */
 uint8_t battle_number_records_kind_unchecked(const GameState *g, unsigned slot);
 void set_battle_number_records_kind_unchecked(GameState *g, unsigned slot, uint8_t v);
 /* The record's last byte, which the number display doesn't read; cleared with the rest
- * Unchecked, for marked scaffolding only: the effect code adds up up to seven sets of numbers
- * and reads a record by a slot past the combatants (game/battle/effect_work.c, $C1:EB68;
- * effect_amounts.c, $C1:E89F) */
+ * Unchecked, reaching past the variable into what follows it: the effect code adds up up to
+ * seven sets of numbers and reads a record by a slot past the combatants
+ * (game/battle/effect_work.c, $C1:EB68; effect_amounts.c, $C1:E89F) */
 uint8_t battle_number_records_last_byte_unchecked(const GameState *g, unsigned slot);
 void set_battle_number_records_last_byte_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -10975,9 +10997,9 @@ enum { BATTLE_STEAL_MARKS_COUNT = 11 };   /* by battle slot */
 uint8_t battle_steal_marks(const GameState *g, unsigned slot);
 void set_battle_steal_marks(GameState *g, unsigned slot, uint8_t v);
 /* What an enemy still has to steal: bit 7 its charm, bit 6 the item it drops. The second and
- * third slots' (the party's) are also battle_tech_mp_compared Unchecked, for marked scaffolding
- * only: a steal reads the marks of the target the work is at, which a fuzzed list can put past
- * the combatants (game/battle/effect_steal.c, $C1:EA29) */
+ * third slots' (the party's) are also battle_tech_mp_compared Unchecked, reaching past the
+ * variable into what follows it: a steal reads the marks of the target the work is at, which a
+ * fuzzed list can put past the combatants (game/battle/effect_steal.c, $C1:EA29) */
 uint8_t battle_steal_marks_unchecked(const GameState *g, unsigned slot);
 void set_battle_steal_marks_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -11077,9 +11099,9 @@ enum { BATTLE_ENEMY_BEATEN_COUNT = 8 };   /* by enemy (battle slot - 3) */
 /* Set for each enemy the action beat */
 uint8_t battle_enemy_beaten(const GameState *g, unsigned i);
 void set_battle_enemy_beaten(GameState *g, unsigned i, uint8_t v);
-/* Set for each enemy the action beat Unchecked, for marked scaffolding only: a hit beats the
- * target it names, which a fuzzed list can put past the enemies (game/battle/effect_amounts.c,
- * $C1:DE0A) */
+/* Set for each enemy the action beat Unchecked, reaching past the variable into what follows it:
+ * a hit beats the target it names, which a fuzzed list can put past the enemies
+ * (game/battle/effect_amounts.c, $C1:DE0A) */
 uint8_t battle_enemy_beaten_unchecked(const GameState *g, unsigned i);
 void set_battle_enemy_beaten_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -11130,9 +11152,9 @@ void set_battle_candidates(GameState *g, unsigned i, uint8_t v);
 /* The combatants an action is being aimed among (battle slots in the low four bits, $FF past
  * them): what a selector of an enemy's script picked, then the one chosen first, or the action's
  * targets; bit 7 marks those a condition picked out, or that draw the enemies' aim, bit 6 those
- * that turn it Unchecked, for marked scaffolding only: the test of a stat's value ($C1:95FA)
- * looks at its second candidate on at twice the first's slot, and so on, past the list
- * (game/battle/enemy_conditions.c stat_is) */
+ * that turn it Unchecked, reaching past the variable into what follows it: the test of a stat's
+ * value ($C1:95FA) looks at its second candidate on at twice the first's slot, and so on, past
+ * the list (game/battle/enemy_conditions.c stat_is) */
 uint8_t battle_candidates_unchecked(const GameState *g, unsigned i);
 void set_battle_candidates_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -11200,9 +11222,10 @@ enum { BATTLE_COMBATANT_FIGHTING_COUNT = 11 };   /* by battle slot */
 uint8_t battle_combatant_fighting(const GameState *g, unsigned slot);
 void set_battle_combatant_fighting(GameState *g, unsigned slot, uint8_t v);
 /* The combatant's id (battle_combatant_id) while it is in the fight, $FF once it is out; all
- * three party slots out is a defeat Unchecked, for marked scaffolding only: an enemy with no
- * other part has $FF for its link, and the look at whether its link is in the fight reads the
- * byte that far past the table, as the original's indexed read does (game/battle/combatants.c) */
+ * three party slots out is a defeat Unchecked, reaching past the variable into what follows it:
+ * an enemy with no other part has $FF for its link, and the look at whether its link is in the
+ * fight reads the byte that far past the table, as the original's indexed read does
+ * (game/battle/combatants.c) */
 uint8_t battle_combatant_fighting_unchecked(const GameState *g, unsigned slot);
 void set_battle_combatant_fighting_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -11214,10 +11237,10 @@ uint8_t battle_combatant_id(const GameState *g, unsigned slot);
 void set_battle_combatant_id(GameState *g, unsigned slot, uint8_t v);
 /* What the combatant is, as its scripts are found by it ($C1:B488); $FF for a slot nobody fills.
  * It stays while the combatant is out, and comes back into battle_combatant_fighting when it is
- * revived Unchecked, for marked scaffolding only: an enemy's script's condition names whoever
- * last acted on the enemy by the low four bits of its action record, up to 15
- * (game/battle/enemy_conditions.c, $C1:9514); a felled enemy's spoils read it by the felled cell
- * taken as a word with the one after it (game/battle/damage.c, $FD:ABA2) */
+ * revived Unchecked, reaching past the variable into what follows it: an enemy's script's
+ * condition names whoever last acted on the enemy by the low four bits of its action record, up
+ * to 15 (game/battle/enemy_conditions.c, $C1:9514); a felled enemy's spoils read it by the
+ * felled cell taken as a word with the one after it (game/battle/damage.c, $FD:ABA2) */
 uint8_t battle_combatant_id_unchecked(const GameState *g, unsigned slot);
 void set_battle_combatant_id_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -11228,11 +11251,11 @@ uint8_t battle_enemy_standing(const GameState *g, unsigned i);
 void set_battle_enemy_standing(GameState *g, unsigned i, uint8_t v);
 /* How the enemy stands in the battle: bit 7 while it waits off the battlefield to be brought in
  * ($C1:9BD5 swaps such an enemy into a place), bit 6 when it needn't be beaten to win Unchecked,
- * for marked scaffolding only: the targeting's tests for an enemy in reserve read past the
- * enemies: the area search's $FF after its last find taken as a combatant ($C1:C61A), and a
- * revive's target indexed by its battle slot rather than its enemy number ($C1:C410)
- * (game/battle/aim.c); a felled enemy's spoils read it by the felled cell taken as a word with
- * the one after it (game/battle/damage.c, $FD:ABA2) */
+ * reaching past the variable into what follows it: the targeting's tests for an enemy in reserve
+ * read past the enemies: the area search's $FF after its last find taken as a combatant
+ * ($C1:C61A), and a revive's target indexed by its battle slot rather than its enemy number
+ * ($C1:C410) (game/battle/aim.c); a felled enemy's spoils read it by the felled cell taken as a
+ * word with the one after it (game/battle/damage.c, $FD:ABA2) */
 uint8_t battle_enemy_standing_unchecked(const GameState *g, unsigned i);
 void set_battle_enemy_standing_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -11297,10 +11320,10 @@ enum { BATTLE_TIMER_COUNTS_BYTES = 11 };
 uint8_t battle_timer_counts_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_counts_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 /* Each combatant's timers, counting down: a row per kind of timer (twelve timed statuses, then
- * the turn), a column per battle slot [11 bytes, one at a time] Unchecked, for marked
- * scaffolding only: a status's timer of nobody's (the order's empty place, $FF) wearing off,
- * which the original sees to as a slot's, past the kind's row (game/battle/timers.c,
- * battle_timer_wears_off_past_the_rows) */
+ * the turn), a column per battle slot [11 bytes, one at a time] Unchecked, reaching past the
+ * variable into what follows it: a status's timer of nobody's (the order's empty place, $FF)
+ * wearing off, which the original sees to as a slot's, past the kind's row
+ * (game/battle/timers.c, battle_timer_wears_off_past_the_rows) */
 uint8_t battle_timer_counts_byte_unchecked(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_counts_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
@@ -11313,10 +11336,10 @@ uint8_t battle_timer_flags_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_flags_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 /* Each combatant's timers' state, as battle_timer_counts: 0 stopped, nonzero running, bit 7 once
  * it has run out; bit 0 of a status's timer follows the status's bit in the stat block [11
- * bytes, one at a time] Unchecked, for marked scaffolding only: an empty place in
- * battle_timer_order ($FF) names a timer past the kind's row, which the search for run-out
- * timers reads as the original's indexed read does, and which wears off as a slot's would
- * (game/battle/timers.c) */
+ * bytes, one at a time] Unchecked, reaching past the variable into what follows it: an empty
+ * place in battle_timer_order ($FF) names a timer past the kind's row, which the search for
+ * run-out timers reads as the original's indexed read does, and which wears off as a slot's
+ * would (game/battle/timers.c) */
 uint8_t battle_timer_flags_byte_unchecked(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_flags_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
@@ -11329,9 +11352,10 @@ uint8_t battle_timer_runs_left_byte(const GameState *g, unsigned i, unsigned at)
 void set_battle_timer_runs_left_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 /* How many more times each combatant's status timer runs out before the status wears off (or,
  * for magic regained, before it regains): counted down, and set back to 10 when it gets there
- * [11 bytes, one at a time] Unchecked, for marked scaffolding only: a status's timer of nobody's
- * (the order's empty place, $FF) wearing off, which the original sees to as a slot's, past the
- * kind's row (game/battle/timers.c, battle_timer_wears_off_past_the_rows) */
+ * [11 bytes, one at a time] Unchecked, reaching past the variable into what follows it: a
+ * status's timer of nobody's (the order's empty place, $FF) wearing off, which the original sees
+ * to as a slot's, past the kind's row (game/battle/timers.c,
+ * battle_timer_wears_off_past_the_rows) */
 uint8_t battle_timer_runs_left_byte_unchecked(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_runs_left_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
@@ -11342,9 +11366,10 @@ enum { BATTLE_TIMER_LENGTHS_BYTES = 11 };
 uint8_t battle_timer_lengths_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_lengths_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 /* How long each combatant's status timers run once a status starts them; the turn's are
- * battle_turn_wait [11 bytes, one at a time] Unchecked, for marked scaffolding only: a status's
- * timer of nobody's (the order's empty place, $FF) wearing off, which the original sees to as a
- * slot's, past the kind's row (game/battle/timers.c, battle_timer_wears_off_past_the_rows) */
+ * battle_turn_wait [11 bytes, one at a time] Unchecked, reaching past the variable into what
+ * follows it: a status's timer of nobody's (the order's empty place, $FF) wearing off, which the
+ * original sees to as a slot's, past the kind's row (game/battle/timers.c,
+ * battle_timer_wears_off_past_the_rows) */
 uint8_t battle_timer_lengths_byte_unchecked(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_lengths_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
@@ -11352,10 +11377,10 @@ enum { BATTLE_TURN_WAIT_COUNT = 11 };   /* by battle slot */
 /* The combatant's turn wait: what its turn timer starts from again after it acts */
 uint8_t battle_turn_wait(const GameState *g, unsigned slot);
 void set_battle_turn_wait(GameState *g, unsigned slot, uint8_t v);
-/* The combatant's turn wait: what its turn timer starts from again after it acts Unchecked, for
- * marked scaffolding only: an enemy's script asks for the turn wait of a candidate that names no
- * combatant (none), which reads on into the table after (game/battle/enemy_conditions.c,
- * $C1:97D5) */
+/* The combatant's turn wait: what its turn timer starts from again after it acts Unchecked,
+ * reaching past the variable into what follows it: an enemy's script asks for the turn wait of a
+ * candidate that names no combatant (none), which reads on into the table after
+ * (game/battle/enemy_conditions.c, $C1:97D5) */
 uint8_t battle_turn_wait_unchecked(const GameState *g, unsigned slot);
 void set_battle_turn_wait_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -11365,9 +11390,9 @@ enum { BATTLE_TIMER_ORDER_COUNT = 11 };   /* by place in the order */
 uint8_t battle_timer_order(const GameState *g, unsigned i);
 void set_battle_timer_order(GameState *g, unsigned i, uint8_t v);
 /* The order the combatants' run-out timers are looked for in: battle slots drawn at random at
- * the start of the battle, $FF past the combatants Unchecked, for marked scaffolding only: a
- * timer kind's cursor that ran past the order reads on into battle_timer_order_draw after it, as
- * the original's indexed read does (game/battle/timers.c) */
+ * the start of the battle, $FF past the combatants Unchecked, reaching past the variable into
+ * what follows it: a timer kind's cursor that ran past the order reads on into
+ * battle_timer_order_draw after it, as the original's indexed read does (game/battle/timers.c) */
 uint8_t battle_timer_order_unchecked(const GameState *g, unsigned i);
 void set_battle_timer_order_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -11425,9 +11450,9 @@ enum { BATTLE_CHOSEN_ACTIONS_COUNT = 11 };   /* by battle slot */
 /* Each combatant's chosen action (four bytes), forgotten once it is carried out */
 uint32_t battle_chosen_actions(const GameState *g, unsigned slot);
 void set_battle_chosen_actions(GameState *g, unsigned slot, uint32_t v);
-/* Each combatant's chosen action (four bytes), forgotten once it is carried out Unchecked, for
- * marked scaffolding only: the turn's end forgets the actor's chosen action at four times the
- * actor's cell, a byte (game/battle/main_loop.c, $C1:8862) */
+/* Each combatant's chosen action (four bytes), forgotten once it is carried out Unchecked,
+ * reaching past the variable into what follows it: the turn's end forgets the actor's chosen
+ * action at four times the actor's cell, a byte (game/battle/main_loop.c, $C1:8862) */
 uint32_t battle_chosen_actions_unchecked(const GameState *g, unsigned slot);
 void set_battle_chosen_actions_unchecked(GameState *g, unsigned slot, uint32_t v);
 
@@ -11435,10 +11460,10 @@ enum { BATTLE_CHARACTER_SLOT_COUNT = 7 };   /* by character */
 /* The battle slot each character fights in, as the timers' order is drawn */
 uint8_t battle_character_slot(const GameState *g, unsigned i);
 void set_battle_character_slot(GameState *g, unsigned i, uint8_t v);
-/* The battle slot each character fights in, as the timers' order is drawn Unchecked, for marked
- * scaffolding only: a part of a party tech with no member: the original reads the slot of the id
- * $FF past the table, and ends the tech where that byte is $FF too, which the port's guard asks
- * (game/battle/party_work.c no_member_ends_the_tech, $C1:D601) */
+/* The battle slot each character fights in, as the timers' order is drawn Unchecked, reaching
+ * past the variable into what follows it: a part of a party tech with no member: the original
+ * reads the slot of the id $FF past the table, and ends the tech where that byte is $FF too,
+ * which the port's guard asks (game/battle/party_work.c no_member_ends_the_tech, $C1:D601) */
 uint8_t battle_character_slot_unchecked(const GameState *g, unsigned i);
 void set_battle_character_slot_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -11580,9 +11605,9 @@ enum { BATTLE_EFFECT_GIVEN_STATUS_COUNT = 11 };   /* by battle slot */
 uint8_t battle_effect_given_status(const GameState *g, unsigned slot);
 void set_battle_effect_given_status(GameState *g, unsigned slot, uint8_t v);
 /* The status the attacker's weapon adds to each target its hit's status chance took (the
- * weapon's stat byte $46), cleared for each effect Unchecked, for marked scaffolding only: the
- * weapon's status is noted for the target the work is at, which a fuzzed list can put past the
- * combatants (game/battle/effect_statuses.c, $C1:E99F) */
+ * weapon's stat byte $46), cleared for each effect Unchecked, reaching past the variable into
+ * what follows it: the weapon's status is noted for the target the work is at, which a fuzzed
+ * list can put past the combatants (game/battle/effect_statuses.c, $C1:E99F) */
 uint8_t battle_effect_given_status_unchecked(const GameState *g, unsigned slot);
 void set_battle_effect_given_status_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -11793,10 +11818,10 @@ enum { BATTLE_REWARDS_LEVELS_GAINED_COUNT = 4 };   /* by party member, 3 the cha
 uint8_t battle_rewards_levels_gained(const GameState *g, unsigned member);
 void set_battle_rewards_levels_gained(GameState *g, unsigned member, uint8_t v);
 /* How many levels the member gained, which the rewards' messages ($FD:AD17) count down
- * Unchecked, for marked scaffolding only: the original counts a level gained as a word, so a
- * count at $FF carries into the next byte; the reserve's count is not cleared where the members'
- * are, so it can get there, and its carry lands past the last, on the battle's reaction entry
- * (game/battle/rewards_levels.c, $C1:F84A) */
+ * Unchecked, reaching past the variable into what follows it: the original counts a level gained
+ * as a word, so a count at $FF carries into the next byte; the reserve's count is not cleared
+ * where the members' are, so it can get there, and its carry lands past the last, on the
+ * battle's reaction entry (game/battle/rewards_levels.c, $C1:F84A) */
 uint8_t battle_rewards_levels_gained_unchecked(const GameState *g, unsigned member);
 void set_battle_rewards_levels_gained_unchecked(GameState *g, unsigned member, uint8_t v);
 
@@ -11836,18 +11861,19 @@ void set_battle_damage_kind(GameState *g, unsigned i, uint8_t v);
  * hits */
 uint8_t battle_damage_flags(const GameState *g, unsigned i);
 void set_battle_damage_flags(GameState *g, unsigned i, uint8_t v);
-/* The HP it takes (subtracted from the combatant's HP at $C1:EC7F) Unchecked, for marked
- * scaffolding only: the effect code records a hit past the third, or for a slot past the
- * combatants (game/battle/effect_amounts.c, $C1:EBF8) */
+/* The HP it takes (subtracted from the combatant's HP at $C1:EC7F) Unchecked, reaching past the
+ * variable into what follows it: the effect code records a hit past the third, or for a slot
+ * past the combatants (game/battle/effect_amounts.c, $C1:EBF8) */
 uint16_t battle_damage_amount_unchecked(const GameState *g, unsigned i);
 void set_battle_damage_amount_unchecked(GameState *g, unsigned i, uint16_t v);
-/* A byte of the hit's kind Unchecked, for marked scaffolding only: the effect code records a hit
- * past the third, or for a slot past the combatants (game/battle/effect_amounts.c, $C1:EBF8) */
+/* A byte of the hit's kind Unchecked, reaching past the variable into what follows it: the
+ * effect code records a hit past the third, or for a slot past the combatants
+ * (game/battle/effect_amounts.c, $C1:EBF8) */
 uint8_t battle_damage_kind_unchecked(const GameState *g, unsigned i);
 void set_battle_damage_kind_unchecked(GameState *g, unsigned i, uint8_t v);
 /* The hit's flags: bit 7 it heals, bit 6 it doesn't take HP, bit 5 it clears the combatant's
- * hits Unchecked, for marked scaffolding only: the effect code records a hit past the third, or
- * for a slot past the combatants (game/battle/effect_amounts.c, $C1:EBF8) */
+ * hits Unchecked, reaching past the variable into what follows it: the effect code records a hit
+ * past the third, or for a slot past the combatants (game/battle/effect_amounts.c, $C1:EBF8) */
 uint8_t battle_damage_flags_unchecked(const GameState *g, unsigned i);
 void set_battle_damage_flags_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -13568,9 +13594,9 @@ enum { SCENE_FIREWORKS_X_COUNT = 2 };   /* by firework */
 /* Where across the screen the firework bursts */
 uint8_t scene_fireworks_x(const GameState *g, unsigned i);
 void set_scene_fireworks_x(GameState *g, unsigned i, uint8_t v);
-/* Where across the screen the firework bursts Unchecked, for marked scaffolding only: a
- * firework's place is read as a word from its Y, whose high byte is the next firework's X, and
- * for the last the byte after the places (game/scene/beyond_time.c) */
+/* Where across the screen the firework bursts Unchecked, reaching past the variable into what
+ * follows it: a firework's place is read as a word from its Y, whose high byte is the next
+ * firework's X, and for the last the byte after the places (game/scene/beyond_time.c) */
 uint8_t scene_fireworks_x_unchecked(const GameState *g, unsigned i);
 void set_scene_fireworks_x_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -15077,10 +15103,10 @@ enum { WARP_CIRCLE_HALF_WIDTHS_COUNT = 128 };   /* by line out from the circle's
 uint8_t warp_circle_half_widths(const GameState *g, unsigned line);
 void set_warp_circle_half_widths(GameState *g, unsigned line, uint8_t v);
 /* Half the circle's width on each line out from its middle, as the circle's builder works them
- * out; nothing reads them after it Unchecked, for marked scaffolding only: the circle's builder
- * stores each half width as a word, whose second byte lands one past the line: past the table,
- * on the first window table's first byte, when the radius is 127 (game/warp/circle.c
- * leave_half_widths) */
+ * out; nothing reads them after it Unchecked, reaching past the variable into what follows it:
+ * the circle's builder stores each half width as a word, whose second byte lands one past the
+ * line: past the table, on the first window table's first byte, when the radius is 127
+ * (game/warp/circle.c leave_half_widths) */
 uint8_t warp_circle_half_widths_unchecked(const GameState *g, unsigned line);
 void set_warp_circle_half_widths_unchecked(GameState *g, unsigned line, uint8_t v);
 

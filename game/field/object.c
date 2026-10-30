@@ -77,7 +77,7 @@ bool object_runs_a_script(const GameState *g, FieldObject obj)
 }
 
 
-/* ---- Past the tables: the original's effects only (field/object.h) ------------------------ */
+/* ---- Past the tables (field/object.h) ----------------------------------------------------- */
 
 ObjectPastTheTables object_past_the_tables(const GameState *g, FieldObject slot)
 {

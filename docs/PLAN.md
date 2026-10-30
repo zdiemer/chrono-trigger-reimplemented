@@ -535,8 +535,9 @@ alone.
 
 **What `$FD` has left** after wave 1 (docs/history/reimplementation-waves.md, "Phase 3,
 wave 1: bank `$FD`"), the time warp (`game/warp/`) and the location's
-animated tiles (`core/tile_animation.c`): the warp's line handler `$FD:DE87`
-(empty, and never enabled) and a palette turn `$FD:DD1D` no code reaches. The battle's routines in the bank go with `$C1` (above).
+animated tiles (`core/tile_animation.c`): a palette turn `$FD:DD1D` no code
+reaches, and on the machine the warp's line handler `$FD:DE87` (empty, and
+never enabled; with no machine, `warp_line` in the program's table). The battle's routines in the bank go with `$C1` (above).
 
 REIMPLEMENTATION.md's "What drafts don't do yet" lists where the draft tool still falls
 short, starting with D and DB where only interrupts reach.
