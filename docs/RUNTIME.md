@@ -447,6 +447,8 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 |---|---|---|---|
 | `battle-magus.ctm` | ctsave07, 1 | Vamp ambush won (results), the Magus fight: Mid Tonic, Ice Water dual tech, Lightning2, barrier changes, a Revive, Cure | 18000 |
 | `battle-golem-twins-gameover.ctm` | ctsave10, 3 | Delta Force, the Golems copying elements, Life revive, party wiped, game over back to the title (the sound driver restarts the SPC700 boot ROM) | 12969 |
+| `battle-golem-twins.ctm` | ctsave10, 3 | Golem Twins won with alternating all-enemy elements, Dalton leaves, return to the save point and save slot 3 (route `golem_twins`) | 20216 |
+| `events-ocean-palace-lavos.ctm` | recorded ocean-palace-after-twins, 3 | Mammon Machine, scripted Lavos loss, Crono's fall, Schala's escape, Zeal's destruction and waking in the Last Village, party exchange closed and field back in hand (route `ocean_palace_lavos`) | 30364 |
 | `battle-lavos-gameover.ctm` | technoplaza ct-state16, 2 | New Game+ at the fair: the telepod's Gate to Lavos, the shell's fight lost with nobody acting, and the Day of Lavos that follows a loss to it: Lavos rising out of the 1999 A.D. world map, the operators' room, the 1000 A.D. world map laid back and turned in Mode 7 under the needles, and the globe behind "But... the future refused to change" (route `lavos_lost`) | 16192 |
 | `battle-tyrano-lair-walls.ctm` | ctsave08, 1 | Volcano and Avian Rex: Volt Bite, Haste, won with an item drop and a level-up | 8042 |
 | `battle-black-tyrano.ctm` | ctsave08, 1 | Tyrano Lair's throne room: Azala and the Black Tyrano beaten with Lapis and Mid Tonics, then Lavos falling to the planet (scene mode 4; route `black_tyrano`) | 49219 |

@@ -12,6 +12,7 @@ battle_clear_battlefield_map
 battle_click_cursor
 battle_decode_tile_row  # battle-motherbrain interrupts 358 of 624 tile-row decodes; the other 266 match. Focused fuzz_compare seed 1: 1000 completed comparisons, 0 mismatches, with the existing whole-row constraints.
 battle_dissolve_an_enemy  # run as C by the beaten enemies' pass (battle_see_to_the_beaten_enemies, an enemy's dissolve rule), whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
+battle_dispatch_expired_timers  # Ocean Palace pair: 310 of 615 comparisons interrupted, 305 matched, none mismatched; comparison coverage gap tracked in docs/TODO.md, "Refusals in real play"
 battle_draw_menu_window
 battle_effect_hit
 battle_effect_item_restore  # interrupts leave 99 of 195 item-restoration stretches to the original; the other 96 calls compare and match, with the lair's healing taking the interrupted share just past half; also fuzzed alone with the existing constraints, zero mismatches
@@ -93,6 +94,7 @@ menu_move_among_tech_members
 menu_move_picked_item  # a screen's step the menus' main task's turn runs as C (menu/screens.c): the turn's comparison covers it to its call-outs, and its own, which outlasts the turn's to the same call, is set aside
 menu_object_cmd_call_routine
 menu_object_cmd_call_routine_far
+menu_object_cmd_scroll_map  # Ocean Palace finale: 1669 of 3132 comparisons abandoned, 1463 matched, none mismatched; comparison coverage gap tracked in docs/TODO.md, "Refusals in real play"
 menu_object_cmd_play_effect_on_voices_67
 menu_object_cmd_redraw_map  # run as C by the menus' object script (menu_run_object_script) as a script redraws the map, whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
 menu_play_cursor_sound
