@@ -325,12 +325,14 @@ FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 # (oracle/saves/README.md, "routes/"), and the rest are long plays from the
 # nearest stock save (the Cathedral, the Reptite Lair, the shell's trial, the
 # Sun Stone planted, Crono's trial); none of their movies is in the library,
-# and those kept are in oracle/movies/hand, run only when named.
+# and those kept are in oracle/movies/hand, run only when named. `heckran`'s
+# movie is in the library, but its route loses the fight in the shipping mode
+# with the save's supplies (docs/TODO.md, "Heckran's route in the shipping mode").
 HAND_RUN_ROUTES = {"tech_sweep", "successor_of_guardia", "legendary_hero", "unknown_past",
                    "people_of_the_times", "the_oath", "dino_age", "what_the_prophet_seeks",
                    "memory_lane", "reunion", "prepare_luccas_mother", "sun_stone", "rainbow_shell",
                    "yakra", "nizbel", "rainbow_shell_trial", "blackbird_save", "sun_stone_save",
-                   "heckran_prepare", "cronos_trial"}
+                   "heckran_prepare", "cronos_trial", "heckran"}
 
 
 def all_routes():

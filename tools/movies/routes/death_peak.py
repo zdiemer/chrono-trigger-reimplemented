@@ -51,7 +51,16 @@ def walk_to(run, x, y, destination=None, limit=900, step=12):
                 m.restore(slot)
                 m.probe(step, buttons)
                 px, py = run.me()
+                # An exit is judged by where the leader took it: in the
+                # shipping mode the map changes some frames after the step,
+                # so let a requested change finish on this copy.
+                for _ in range(40):
+                    if not m.b(0x7E0117) & 0x80 or run.map_id() != origin:
+                        break
+                    m.probe(5)
                 here = run.map_id()
+                if here == origin:
+                    px, py = run.me()
                 key = int(px) // 8, int(py) // 8, here
                 if key in seen:
                     continue

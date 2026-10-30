@@ -79,6 +79,7 @@ def approach(run, x, y, tolerance=6, limit=700, goal=None, dash=False):
 
 def world_search(run, goal, limit=250):
     m = run.machine
+    run.wait_world_control()
     moves, _ = bfs.ow_bfs(m, lambda m, x, y: goal(),
                           lambda m: (m.w(A.WORLD_X), m.w(A.WORLD_Y)), run._map(),
                           confirm=True, max_nodes=limit)

@@ -253,6 +253,13 @@ class Run:
                                     max_nodes=max_nodes)
         return moves
 
+    def walk_here(self, goal, max_nodes=4000):
+        """walk() to a goal on this map: a row or a spot reached by leaving through a
+        door isn't one, though the next map's coordinates can satisfy the test."""
+        here = self.map_id()
+        return self.walk(lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == here and goal(m, px, py),
+                         max_nodes=max_nodes)
+
     def go(self, x, y, tolerance=4):
         moves = self.walk(lambda m, px, py: abs(px - x) <= tolerance and abs(py - y) <= tolerance)
         self.say("go", (x, y), "steps", moves and len(moves), "me", self.me())
@@ -285,17 +292,43 @@ class Run:
 
     def world_go(self, x, y, max_nodes=2500):
         """Overworld walk to a tile."""
+        self.wait_world_control()
         moves, visited = bfs.ow_bfs(self.machine, lambda m, px, py: (px, py) == (x, y),
                                     lambda m: (m.w(A.WORLD_X), m.w(A.WORLD_Y)), self._map(), max_nodes=max_nodes)
         self.say("world_go", (x, y), "steps", moves and len(moves), "at", self.world_pos(),
                  "visited", len(visited))
         return moves is not None
 
+    def wait_world_control(self, max_frames=900, slot=4095):
+        """On a world map, wait until a press moves the party, tried on a copy so a
+        party already in hand costs no frames. A menu closing or a scene ending can
+        hold the map for some frames more in one mode than another, and a search
+        started while it is held finds no way to go."""
+        machine = self.machine
+        start = machine.frame
+        while machine.frame - start < max_frames:
+            here = (machine.w(A.WORLD_X), machine.w(A.WORLD_Y))
+            machine.mark(slot)
+            moved = False
+            for pad in ("LEFT", "RIGHT", "UP", "DOWN"):
+                machine.restore(slot)
+                machine.probe(8, pad)
+                if (machine.w(A.WORLD_X), machine.w(A.WORLD_Y)) != here:
+                    moved = True
+                    break
+            machine.restore(slot)
+            machine.free(slot)
+            if moved:
+                return True
+            machine.run(10)
+        return False
+
     def world_exit(self, avoid=frozenset(), max_nodes=2500):
         """Overworld walk until the screen is a map other than this one and not in `avoid`:
         the field-map exit_other, for a world map's doors into its locations. Presses A at
         every tile tried (`confirm`), since an exit is only entered by standing on it and
         confirming, not by walking onto it."""
+        self.wait_world_control()
         here = self.map_id()
         moves, visited = bfs.ow_bfs(self.machine,
                                     lambda m, px, py: m.peek(A.MAP_ID, 2).hex() not in avoid | {here},

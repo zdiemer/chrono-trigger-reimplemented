@@ -145,7 +145,7 @@ def main():
         if start <= 4:
             assert run.exit_to("b700"), "Flea's room"
             assert run.wait_control()
-            assert run.walk(lambda m, x, y: int(y) // 16 <= 40) is not None, "Flea's trigger row"
+            assert run.walk_here(lambda m, x, y: int(y) // 16 <= 40) is not None, "Flea's trigger row"
             assert run.dialogs_until(lambda: machine.b(0x7E95D5) < 0x80, 8000), "Flea's battle menu"
             run.checkpoint("flea")
         if start <= 5:
@@ -157,12 +157,12 @@ def main():
             run.checkpoint("conveyor")
         if start <= 7:
             assert run.find_player() is not None
-            assert run.walk(lambda m, x, y: int(y) // 16 <= 17) is not None, "the conveyor's trigger row"
+            assert run.walk_here(lambda m, x, y: int(y) // 16 <= 17) is not None, "the conveyor's trigger row"
             machine.run(60)
             assert run.wait_control(), "the conveyor trap over"
             assert run.exit_to("b800"), "Slash's room"
             assert run.wait_control()
-            assert run.walk(lambda m, x, y: int(y) // 16 <= 40) is not None, "Slash's trigger row"
+            assert run.walk_here(lambda m, x, y: int(y) // 16 <= 40) is not None, "Slash's trigger row"
             assert run.dialogs_until(lambda: machine.b(0x7E95D5) < 0x80, 8000), "Slash's battle menu"
             run.checkpoint("slash")
         if start <= 8:
@@ -174,12 +174,12 @@ def main():
             run.checkpoint("treasure")
         if start <= 10:
             assert run.find_player() is not None
-            assert run.walk(lambda m, x, y: int(y) // 16 <= 40) is not None, "the treasure trap's introduction"
+            assert run.walk_here(lambda m, x, y: int(y) // 16 <= 40) is not None, "the treasure trap's introduction"
             machine.run(60)
             assert run.wait_control(), "Ozzie's treasure offer"
             assert run.go(168, 600, tolerance=6), "around the blade"
             assert not machine.b(0x7F01A1) & 0x10, "the chest left alone"
-            assert run.walk(lambda m, x, y: int(y) // 16 <= 36) is not None, "past the trapped treasure"
+            assert run.walk_here(lambda m, x, y: int(y) // 16 <= 36) is not None, "past the trapped treasure"
             machine.run(60)
             assert run.wait_control(), "the treasure trap over"
             assert run.exit_to("b400"), "the three generals' room"
@@ -191,7 +191,7 @@ def main():
         if start <= 12:
             assert run.exit_to("b500"), "Ozzie's final room"
             assert run.wait_control()
-            assert run.walk(lambda m, x, y: int(y) // 16 <= 38) is not None, "Ozzie's trigger row"
+            assert run.walk_here(lambda m, x, y: int(y) // 16 <= 38) is not None, "Ozzie's trigger row"
             assert run.dialogs_until(lambda: machine.b(0x7E95D5) < 0x80, 8000), "Ozzie's battle menu"
             run.checkpoint("trap")
         if start <= 13:
@@ -202,7 +202,7 @@ def main():
         if start <= 14:
             assert run.exit_to("b500"), "back to Ozzie"
             assert run.wait_control()
-            assert run.walk(lambda m, x, y: int(y) // 16 <= 38) is not None, "the cat's trigger row"
+            assert run.walk_here(lambda m, x, y: int(y) // 16 <= 38) is not None, "the cat's trigger row"
             assert run.wait_control(8000), "the field after Ozzie's fall"
             assert machine.b(0x7F01A1) == 0xFF, "all fort events completed"
             run.checkpoint("after")

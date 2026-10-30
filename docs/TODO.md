@@ -25,6 +25,12 @@ rest waits, is [PLAN.md](PLAN.md).
   takes with no bus access; the vblank check finds none of their writes moved.
   Make each follow its data (`game/charge.h`) or time the part as its own routine,
   and drop its line.
+- **Heckran's route in the shipping mode.** `heckran` wins the fight in the
+  reference play (`battle-heckran`), but in the shipping mode (`route_check
+  heckran`, `on:on:c`) the party runs out of Mid Tonics and Ethers and its
+  fight search gives up after 101 tries with Heckran at about 770 of 2100 HP.
+  The route is in `HAND_RUN_ROUTES` until its policy wins there: spend MP and
+  items more sparingly, or back the search up further than the last decisions.
 - **Compare the whole held-message pause.** `battle-motherbrain` abandons all
   124 calls of `battle_pause_on_the_message` inside its enclosing message
   sequence. The focused seed-1 fuzz run compares eight accepted states up to

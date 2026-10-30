@@ -97,7 +97,7 @@ def main():
         if start <= 1:
             assert run.exit_to("2f00"), "Heckran's chamber"
             assert run.wait_control()
-            assert run.walk(lambda machine, x, y: y < 32 * 16) is not None
+            assert run.walk_here(lambda machine, x, y: y < 32 * 16) is not None
             assert run.dialogs_until(lambda: m.b(0x7E95D5) < 0x80, 6000)
             run.checkpoint("battle")
         if start <= 2:

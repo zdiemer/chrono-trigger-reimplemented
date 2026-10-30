@@ -82,7 +82,7 @@ def main():
         for phase, row in [(2, 47), (3, 29), (4, 17)]:
             if start <= phase:
                 assert run.find_player() is not None
-                assert run.walk(lambda machine, x, y: y < (row + 1) * 16) is not None
+                assert run.walk_here(lambda machine, x, y: y < (row + 1) * 16) is not None
                 assert run.dialogs_until(lambda: m.b(0x7E95D5) < 0x80, 6000), "battle menu"
                 if phase < 4:
                     win(run, "party_with_lapis", args.seed)
