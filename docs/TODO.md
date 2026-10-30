@@ -2784,8 +2784,8 @@ list, by kind, is what `game/` still asks of one.
   step as C (below), a party the
   put-aside or the bringing back doesn't take (`field/menus.c`), the
   field's restart a script asks for,
-  and the event commands with a bridge and no C beside it (9 of the 23 in
-  `EVENT_BRIDGES`; `EVENT_BRIDGES_AS_C`, event/engine.h, has the rest).
+  and the event commands with a bridge and no C beside it (3 of the 23 in
+  `EVENT_BRIDGES`: `$D5`, `$D6` and `$29`; `EVENT_BRIDGES_AS_C`, event/engine.h, has the rest).
   Each wants its C as the program meets it.
 - **What the menus the player opens still hand the machine.** The main
   menu's steps and its four panels, and the steps `menu.ctm` reaches of the

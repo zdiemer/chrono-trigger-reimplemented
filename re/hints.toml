@@ -3990,7 +3990,7 @@ format = "dialog"
 
 [[resource]]
 at = "FF:4460"
-count = 80
+count = 81
 slots = 81
 kind = "ptr16"
 bank = "FF"
