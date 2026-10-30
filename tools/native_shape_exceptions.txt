@@ -3,4 +3,3 @@
 # `movie|route NAME # reason`, the reason the trace to
 # the scaffolding the original's code reads. Each comes out when its reader is ported or its
 # write made plain; docs/TODO.md, "The native shape's failures", has them.
-route motherbrain  # Atropos's scene on Geno Dome's upper floor ($10C) stands still after its dialogs, the party never split, from every place the native-shape route's search enters it; the default build wins it, and the original's code reads no scaffolding before frame 159688 in its run, so not yet traced (docs/TODO.md, "Atropos's scene stands still in the native shape")

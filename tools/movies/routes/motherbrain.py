@@ -83,10 +83,25 @@ def seek(run, x, y, goal=None, battle_var=11, max_nodes=3800):
     return result is not None
 
 
-def walk_to(run, x, y, goal=None, battle_var=11, fight=None):
+def confirm_until(run, condition, max_frames=6000, press_every=45):
+    """Press confirm every `press_every` frames until `condition()`, a dialog
+    box open or not: a scene that waits for the button between its lines
+    (Atropos's, polling it every few frames) shows none while it waits."""
+    m = run.machine
+    start = m.frame
+    while m.frame - start < max_frames:
+        if condition():
+            return True
+        m.run(3, "A")
+        m.run(press_every - 3)
+    return condition()
+
+
+def walk_to(run, x, y, goal=None, battle_var=11, fight=None, scene_waits=False):
     """Walk a floor, resolving the encounters that take control along the way
     (with `fight`, given the run, where an encounter needs other than the
-    whole party's fight)."""
+    whole party's fight; with `scene_waits`, where a scene before one waits
+    for confirm with no dialog box open)."""
     m = run.machine
     for _ in range(12):
         assert run.wait_control(), "field control before walking"
@@ -99,7 +114,8 @@ def walk_to(run, x, y, goal=None, battle_var=11, fight=None):
         if run.dialog() and not m.b(0x7F0200 + 2 * battle_var):
             assert run.wait_control(), "floor speech finishes"
             continue
-        assert run.dialogs_until(lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80, 6000), "encounter starts"
+        starts = lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80
+        assert (confirm_until(run, starts) if scene_waits else run.dialogs_until(starts, 6000)), "encounter starts"
         (fight or fight_once)(run)
     raise AssertionError("too many encounters on the walk")
 
@@ -360,16 +376,17 @@ def main():
             # A patrol on the upper floor may still be alive: the whole party
             # fights it. Walk on until Atropos's scene interrupts the walk and
             # Robo, the party split for it, fights alone. The walk's goal is
-            # the fight won, not a place: stopped as the party steps inside
-            # the trigger's rectangle, mid-step, the scene can stand still
-            # with the party never split (the shipping mode's timing left
-            # the party at (525, 699) after the patrol and showed it).
+            # the fight won, not a place. Between its lines the scene waits
+            # for confirm with no dialog box open, polling the button every
+            # few frames, so a press made only while a box is open can close
+            # the last line before the wait begins and leave the scene
+            # standing still: the walk presses confirm until the fight starts.
             def solo():
                 return m.b(A.PARTY_MEMBERS) == 3 and all(
                     m.b(A.PARTY_MEMBERS + i) >= 0x80 for i in (1, 2))
 
             walk_to(run, 504, 696, lambda: bool(m.b(0x7F013B) & 0x20), battle_var=9,
-                    fight=lambda r: fight_once(r, party=1 if solo() else 3))
+                    fight=lambda r: fight_once(r, party=1 if solo() else 3), scene_waits=True)
             assert run.wait_control(12000)
             assert m.b(0x7F013B) & 0x20, "Atropos defeated"
             run.checkpoint("atropos_won")
