@@ -22,6 +22,7 @@
 #include "field/screen_effects.h"
 #include "field/script_layers.h"
 #include "field/walk.h"
+#include "platform/timing.h"
 
 enum { ALL_MAPS = 0x07 };   /* a tile copy's maps: one bit each */
 
@@ -376,7 +377,7 @@ typedef enum {
     DRAWS_A_CURTAIN,        /* the curtain, waited on until it has swept across */
     PLAYS_THE_RIPPLE,       /* the ripple, waited on until it has played */
     ENDS_THE_PUSH,          /* the object being pushed is done with */
-    RESTARTS_THE_FIELD,     /* the field starts again from its loader ($C0:4181, the original's) */
+    RESTARTS_THE_GAME,      /* the game starts again from the boot, as at power-on */
     CALLS_PARTY_ROUTINE,    /* the menus' party routine 8 ($C0:3E7C) */
 } ScreenCommandKind;
 
@@ -392,7 +393,7 @@ static const struct {
     [0x3] = { DRAWS_A_CURTAIN, 0, CURTAIN_UNCOVERS_LEFTWARD, 2 },
     [0x4] = { DRAWS_A_CURTAIN, 0, CURTAIN_COVERS_RIGHTWARD, 2 },
     [0x5] = { DRAWS_A_CURTAIN, 0, CURTAIN_COVERS_LEFTWARD, 2 },
-    [0x6] = { RESTARTS_THE_FIELD, 0, 0, 2 },
+    [0x6] = { RESTARTS_THE_GAME, 0, 0, 2 },
     [0x7] = { OPENS_A_CIRCLE, OVAL_OPENING, 0, 5 },
     [0x8] = { STARTS_AN_EFFECT, OVAL_CLOSING, 0, 2 },
     [0x9] = { STARTS_AN_EFFECT, BG3_IN_A_CIRCLE, 0, 2 },
@@ -450,7 +451,7 @@ static void end_the_field_for_a_scene_on_the_machine(Snes *s, uint8_t scene)
 /* The original's dispatch of the screen commands, a JSR through its table
  * ($C0:4009), with the registers it has there: the command's index doubled
  * in A and X, the carry and the overflow its working out left clear. The
- * field's restart is the original's, from there. */
+ * game's restart is the original's, from there. */
 enum { SCREEN_DISPATCH = 0xC04009, AT_THE_DISPATCH = DC_AL | DC_N | DC_Z | DC_C };
 
 static void as_the_dispatch_has_it(Snes *s, uint8_t command)
@@ -515,16 +516,26 @@ static bool end_the_field_for_a_scene(GameState *g, Platform *pf, uint8_t scene)
     return false;
 }
 
+// $C0:4181
+/* The game started again from the boot, as at power-on (the title, then the
+ * game): at the next frame everything stops and the screen goes dark, and
+ * the field ends for the program to boot the game. */
+static bool restart_the_game(GameState *g, Platform *pf)
+{
+    tm_wait_frame(pf, PF_AT(0xC04181));
+    TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
+    program_resets_the_console(g);
+    return false;
+}
+
 bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = event_decode(g, pf, event_opcode(0xFF), at);
     if (c.screen_command < FIRST_SCREEN_COMMAND)
         return end_the_field_for_a_scene(g, pf, c.screen_command);
     unsigned i = screen_command_index(c.screen_command);
-    if (screen_commands[i].kind == RESTARTS_THE_FIELD) {
-        program_needs_the_machine(g, SCREEN_DISPATCH, "the field's restart a script asks for");
-        return false;
-    }
+    if (screen_commands[i].kind == RESTARTS_THE_GAME)
+        return restart_the_game(g, pf);
     if (screen_commands[i].kind == CALLS_PARTY_ROUTINE) {
         TIMED_AS(g, MENUS_SERVICES, (party_note_the_game_finished(pf), party_wear_it_shows(g)));
         *step = (EventStep){ (uint16_t)(at + SCREEN_COMMAND_LENGTH), false };
@@ -549,7 +560,7 @@ void event_cmd_screen_command(Snes *s)
     unsigned i = screen_command_index(c.screen_command);
     ORIGINAL_EFFECT(keep_byte(g, KEPT_FOURTH, c.screen_command));
     as_the_dispatch_has_it(s, c.screen_command);
-    if (screen_commands[i].kind == RESTARTS_THE_FIELD) {
+    if (screen_commands[i].kind == RESTARTS_THE_GAME) {
         m_stop_at_own(s, SCREEN_DISPATCH, AT_THE_DISPATCH);
         return;
     }

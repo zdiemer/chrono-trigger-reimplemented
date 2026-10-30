@@ -2305,9 +2305,10 @@ re-runs the census.
     wait, the field put aside); no movie reaches either, and fuzzing
     compares them at their first call-out (BG1's drawing), past which they
     wait on the vblank: both are unchecked past it;
-  - event `$FF` `$96` (the field's restart from its loader) is the
-    original's from the command's own dispatch (`$C0:4009`), where the port
-    stops; event `$FF` `$9F` calls the menus' party routine 8 as C through
+  - event `$FF` `$96` (the game's restart from the boot, `$C0:4181`) is C
+    only with no machine (`event/screen.c`, `restart_the_game`); on the
+    machine it is the original's from the command's own dispatch
+    (`$C0:4009`), where the port stops; event `$FF` `$9F` calls the menus' party routine 8 as C through
     the same dispatch's frame (`event_screen_party_routine`);
   - one fuzzed state in 40,000 of the screen effects' step differs only in
     OAM bytes holding what looks like the original's stack (seed 1, state
@@ -2785,11 +2786,9 @@ list, by kind, is what `game/` still asks of one.
   the field's C meets a state its port doesn't take (an entry's guard, which
   on the machine hands the call to the original) or a step only the machine
   runs yet, `ct_native` stops there and says which: a menu screen with no
-  step as C (below), a party the
-  put-aside or the bringing back doesn't take (`field/menus.c`), the
-  field's restart a script asks for,
-  and the event commands with a bridge and no C beside it (3 of the 23 in
-  `EVENT_BRIDGES`: `$D5`, `$D6` and `$29`; `EVENT_BRIDGES_AS_C`, event/engine.h, has the rest).
+  step as C (below), and a party the
+  put-aside or the bringing back doesn't take (`field/menus.c`). Every
+  bridge in `EVENT_BRIDGES` has its C (`EVENT_BRIDGES_AS_C`, event/engine.h).
   Each wants its C as the program meets it.
 - **What the menus the player opens still hand the machine.** The main
   menu's steps and its four panels, and the steps `menu.ctm` reaches of the

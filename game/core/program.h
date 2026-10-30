@@ -78,7 +78,8 @@ bool program_field_starts_again(GameState *g);
 void program_starts_afresh_from_the_title(GameState *g);
 bool program_starts_afresh(GameState *g);
 /* Or the console reset, the boot and then the field's first start, as at
- * power-on (the Day of Lavos lost, the planet's scene over): the running
+ * power-on (the Day of Lavos lost, the planet's scene over, a script's
+ * event $FF $96): the running
  * mode's loop ends at it (program_console_is_resetting) and the main thread
  * takes it (program_console_resets). */
 void program_resets_the_console(GameState *g);
