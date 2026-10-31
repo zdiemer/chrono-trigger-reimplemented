@@ -74,6 +74,12 @@ typedef struct Apu {
      * (platform/time_model.h), which the CPU half then lets pass. */
     uint32_t (*host_boot)(void *ctx, struct Apu *apu);
     uint32_t (*host_command)(void *ctx, struct Apu *apu, const uint8_t command[4], uint8_t effects_asked);
+    /* Optional, with `host_command`: the game's command buffer handed to the
+     * host as a call where the audio service sends a command (au_command),
+     * in place of the call-out to the CPU half's entry ($C7:0004) that only
+     * the original's driver needs; it runs the game's side of the command
+     * (core/sound_commands.h), which ends in `host_command`. */
+    void (*host_send)(void *ctx);
     /* Optional: the host makes the sound in the S-DSP's place (a native
      * mixer, frontend/sound_host.h): `host_mix` is handed the SPC700 cycles
      * as they pass, where the S-DSP would run on them, and apu_take_samples

@@ -6,9 +6,11 @@
 #include <string.h>
 
 #include "apu/dsp.h"
+#include "core/sound_commands.h"
 #include "platform/native/mixer.h"
 #include "platform/time_model.h"
 #include "platform/voices_dsp.h"
+#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "sound/sound.h"
 
@@ -442,6 +444,14 @@ static unsigned run_host(void *ctx, Apu *apu, unsigned cycles)
     return h->took;
 }
 
+/* A command the game sends, taken from its buffer as a call: the game's side
+ * of it (core/sound_commands.h) hands it to take_command. */
+static void send_the_buffer(void *ctx)
+{
+    SoundHost *h = ctx;
+    sound_driver_hand_the_buffer_to_the_host(state_of(h->snes), m_platform(h->snes));
+}
+
 /* The machine's APU hands its time, boot and commands to this host. */
 static void hook(SoundHost *h)
 {
@@ -450,6 +460,7 @@ static void hook(SoundHost *h)
     a->host_ctx = h;
     a->host_boot = take_boot;
     a->host_command = take_command;
+    a->host_send = send_the_buffer;
     a->host_mix = h->mixer == SOUND_MIXER_DSP ? NULL : mix;
     a->host_take = h->mixer == SOUND_MIXER_DSP ? NULL : take;
 }
@@ -509,6 +520,7 @@ void sound_host_detach(SoundHost *h)
         h->snes->apu.host_ctx = NULL;
         h->snes->apu.host_boot = NULL;
         h->snes->apu.host_command = NULL;
+        h->snes->apu.host_send = NULL;
         h->snes->apu.host_mix = NULL;
         h->snes->apu.host_take = NULL;
     }

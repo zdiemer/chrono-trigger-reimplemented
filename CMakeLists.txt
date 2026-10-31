@@ -82,6 +82,7 @@ add_library(ct_game STATIC
   game/core/input.c
   game/core/memory.c
   game/core/palette.c
+  game/core/sound_commands.c
   game/core/sound_driver.c
   game/core/tile_animation.c
   game/data/assets.c
@@ -495,7 +496,10 @@ target_compile_definitions(ct_state_host PRIVATE CT_VARS_HOST CT_WITHOUT_ORIGINA
 target_include_directories(ct_state_host PUBLIC game)
 target_link_libraries(ct_state_host PUBLIC ct_platform_native)
 set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
-list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c)
+# What the machine alone runs: the registry, and the subsystems whose machine side is a
+# file of its own (docs/PLAN.md, "The native program, and the registry taken down"): the
+# sound driver's CPU half for the original's driver (core/sound_driver.c).
+list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c game/core/sound_driver.c)
 add_executable(ct_native frontend/ct_native.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
   runtime/platform/native/render.c ${CT_NATIVE_GAME_SOURCES})
 target_compile_definitions(ct_native PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)

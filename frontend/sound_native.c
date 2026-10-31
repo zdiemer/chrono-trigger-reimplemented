@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "core/sound_driver.h"
+#include "core/sound_commands.h"
 #include "platform/native/mixer.h"
 #include "platform/time_model.h"
 #include "sound/sound.h"

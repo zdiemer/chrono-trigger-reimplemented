@@ -52,7 +52,7 @@
 #include "core/program.h"
 #include "core/palette.h"
 #include "core/display.h"
-#include "core/sound_driver.h"
+#include "core/sound_commands.h"
 #include "core/input.h"
 #include "event/contact.h"
 #include "field/bridge.h"
@@ -222,7 +222,8 @@ void field_power_on(GameState *g, Platform *pf)
 }
 
 /* On the machine the driver may be the original's, whose boot waits on the
- * sound processor across frames: a call the machine makes. The menus'
+ * sound processor across frames: a call the machine makes, where no host
+ * takes the boot as a call (the C driver's, as field_power_on's). The menus'
  * service keeps the X and Y it is given as its arguments, which this one
  * doesn't read: the original leaves the last clear's size in X. */
 void field_first_start(Snes *s)
@@ -234,7 +235,9 @@ void field_first_start(Snes *s)
     wake(g, pf);
     s->cpu.x = power_on_clears[POWER_ON_CLEARS - 1].bytes;
     ORIGINAL_EFFECT(leave_the_page_in_a(s));
-    if (!bridge_call_long(s, 0xC00053, SOUND_DRIVER_BOOT, THE_BOOT_IGNORES, page(s)))
+    bool hosted;
+    TIMED_AS(g, SOUND_DRIVER_BOOT, hosted = sound_driver_host_boots(g, pf));
+    if (!hosted && !bridge_call_long(s, 0xC00053, SOUND_DRIVER_BOOT, THE_BOOT_IGNORES, page(s)))
         return;
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)s->cpu.y, (uint8_t)s->cpu.x));
