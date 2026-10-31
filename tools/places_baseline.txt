@@ -27,12 +27,15 @@ endings-beyond-time 5
 endings-bucket-lavos 8
 endings-telepod-lavos 8
 events-blackbird 5
+events-death-peak 4
 events-end-of-time-gate 4
 events-epoch-lavos 4
+events-fair-rescue 7
 events-jetbike-race-won 6
 events-jetbike-race 7
 events-keepers-dome 6
 events-magic-cave 6
+events-ocean-palace-lavos 7
 events-prison-escape 6
 field-12kbc-1f4 6
 field-12kbc-1f5 6

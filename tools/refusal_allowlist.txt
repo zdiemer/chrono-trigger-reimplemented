@@ -5,3 +5,6 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C03002 event_cmd_walk_with_the_party guard # gap: Robo's departure from Fiona's house, the fionas_forest route (shipping mode) at frames 31748-31751 and events-fionas-forest's reference play; the formation the command and the follower's guards ask for doesn't hold (docs/TODO.md, Refusals in real play)
+C0A2CE field_second_member_follows guard # gap: the same departure, the same frames (docs/TODO.md, Refusals in real play)
+C15FDE script_face guard # gap: Flea's animation facing command, the castle_flea route (shipping mode) at frames 29327 and 29329 and battle-castle-flea's reference play, X=$00E4 (docs/TODO.md, Refusals in real play)

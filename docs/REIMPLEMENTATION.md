@@ -3209,3 +3209,17 @@ their ends (`drifts`, where they stopped at frames 25170, 8560, 8560, 25299,
 5,000, above the map 0 of 15,000 over seeds 10-12; the recentring with no
 leader word 0 of 4,979 (`tools/fuzz_routines.toml`'s new variants).
 **Timing.** The three new rows calibrated from the movie's shadow run: the ripple at 21,502 (its first guess, 40,000, was 86% over), the placing at 3,467, the song at 1,917.
+
+**What the gate found past the chunk.** With Zeal's fall going on in the
+native program, `events-ocean-palace-lavos` no longer stops at the scene's
+hand-back but plays on, about 4,750 frames late (presses through the Mammon
+Machine's dialog land on other frames from about frame 18000), into the
+reference's own black stretch before the Last Village, where it ends:
+`tools/native_check.py` takes a ledger of such runs now,
+`tools/native_dark_exceptions.txt`, with this one (TODO.md, "Long movies
+still desync on the hand ports alone"). `events-death-peak`,
+`events-fair-rescue` and it enter the places' baseline. The long routes'
+three refusals (`fionas_forest`'s departure, `castle_flea`'s facing
+command), open in TODO.md but off the allowlist since the battle stops'
+merge, are back on it as gaps; and `battle-golem-twins-gameover`, which
+drifts on the hand ports alone at this chunk's base as well, is `drifts`.

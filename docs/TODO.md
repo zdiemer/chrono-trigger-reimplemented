@@ -2860,6 +2860,13 @@ list, by kind, is what `game/` still asks of one.
     otherwise. Strict mode ends as the shipping mode does; with the
     original's time (`--port-timing oracle --port-horizon interrupts`) the
     drifting movies end as the reference's.
+  - *Dialog presses.* In `events-ocean-palace-lavos` the presses through
+    Schala's and Magus's lines in the Mammon Machine's room land on other
+    frames from about frame 18000, one short, and the run waits on a line
+    until the next press: strict mode and `ct_native` reach Zeal's fall
+    about 4,750 frames late, and `ct_native` ends in the reference's own black
+    stretch before the Last Village (`tools/native_dark_exceptions.txt`, whose
+    line comes out with this).
 
   Meanwhile drive the long movies' native runs by their routes (`ct_drive`'s
   scripts react to the game's state, MOVIES.md) rather than recorded presses,
