@@ -3047,109 +3047,92 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
-### The native program through the story scenes
+### The native program's last named stops
 
-`ct_native` ran every scene the attract sequence and the save movies reach,
-but no movie's presses bring it to the story's own: a movie recorded on the
-machine lands its presses elsewhere in the native program's frames. So the
-chunk began with a way there: `ct_native --scene flags[,song]` starts the
-game in the scene engine after the power-on, as an event starts a scene from
-the field (`program_starts_in_a_scene`, a queue of up to four the main
-thread takes before the field's loop; `runtime/port/state_host.c`), with the
-song the field had playing, which a scene that keeps the field's song waits
-on (the Epoch's dive waits for the song's fourth marker). Given again, the
-scenes run one after another, as an ending's two do: the Beyond Time
-ending's mode 14 takes up the captions' text mode 11 left in `$0382`. The
-flags and songs as the story has them came from the endings' movies run in
-ct_drive (mode 11 `$2B` and 14 `$2E` with song `$3F` in endings-beyond-time,
-the staff roll `$2D` in endings-telepod-lavos, the dive `$26` with song `$50`
-in events-epoch-lavos).
+TODO.md named the stops the native program still met where the scenes, the
+menus and the battle hand it to the machine: mode 10's picture's vblank task,
+modes 5 and 12 of the scene program, the battle's calling in of enemies
+(`$FD:A990`), and two menu stops, an item tried on that is no item of the
+game's (`$C2:A5C3`) and a member's row whose record names no character
+(`$C2:A225`). Each is a state or a scene no recording reaches but one; the
+chunk took each in game terms where the original's behaviour has one, and
+reproduced the original's strays where it hasn't.
 
-Each scene then stopped at its setup, which the native program's table of
-setups (`scene/program.c`'s `c_setups`) lacked, and once past it at each
-task, script routine and main loop call with no C.
+**The slow staff roll (mode 12, `$7E:8E95`).** Mode 12 is the staff roll's
+setup entered three lines early: the stars come in at -2 rather than -7, the
+picture interlaced, no fast music, the credits rolling slowly, and the
+program's own code patched (`STA $7E9EE3` of a `BCS` over the scroll's
+`BCC`) so the slow scroll steps on the even field. The patch is state, as the
+race's curtain's operand is (`scene_race_ending_sweep`): the opcode is a
+variable of the map (`scene_credits_scroll_field`) with its two values named
+in the roll (`SCROLL_ON_ODD_FIELDS`, `SCROLL_ON_EVEN_FIELDS`), the setup is
+the fast one's sequence with a pace (`StaffRollPace`), and the scroll's guard
+hashes its code round the branch and asks the variable for one of the two.
 
-**The same shape as the planet's.** Each setup is one `*_with` sequence:
-Lavos falling (`scene/lavos_falls.c`), the Epoch's dive
-(`scene/epoch_dive.c`), the shared endings (`scene/endings.c`, modes 10, 11,
-14 and 15) and the staff roll (`scene/staff_roll.c`). What is another
-routine of the program's is a step: a resource unpacked, a script's first
-step, the stars scattered, a sound command or song sent, the dive's first
-drawing of the Epoch. On the machine the steps are the original's calls (and
-the register and stack mechanics around them: the dive's pieces' call under
-the unpacks, the D and data bank its matrix writer leaves); as C they are
-`scene_unpacks`, `scene_channel_turn`, `scene_scatter_stars` and the
-service's sends. The pixels' spread Lavos's picture needs (`$7E:350E`, which
-reads the packed bytes by moving the stack onto them) is a loop in C on both
-paths now, so shadow mode compares it inside the setup.
+**Mode 10's picture (`$7E:9C58`, `$7E:9CE2`).** The vblank task the TODO
+named sends one of the picture's four frames, `$800` bytes of the mosaic the
+setup laid out, and leaves the frame's size in `$AB` and `$AC`; their reader
+was the frame task that queues it, `$7E:9C58`, which no table names (a script
+puts it on the list): the picture placed where channel 1 and the orbit say,
+the window round it at the size the last send left (a frame behind a change),
+a moving piece of the first frame (two of its list's sprites, their tiles
+stepped every four frames, `scene_set_listed_tile`) and the frame's list
+drawn through the program's list of large sprites. That list's form which
+leaves out a sprite below the picture, which only this picture draws with,
+was half ported: once the original has left one out it goes on a word wide,
+its port reads taking the byte twice (the port's address register reads back
+as the bus last held it) and its stores spilling the sprite's attributes into
+the next entry's X and the high byte of its X into its own Y
+(`leave_word_wide_strays`). The script then takes the fireworks off the frame
+list in a mode that never put them there: the original's search goes on past
+the list, word by word through the bank, and clears the first word that names
+them, a word of the script itself. The scripts' task commands do that now
+(`scene_script_replace_task`); the other callers keep the bounded search. Past
+the picture mode 10 goes on to its next scene's loading (`$7E:8A01`), where it
+stops (TODO.md).
 
-**The tasks.** Every task of the four scenes is a C column of
-`scene/frame.c`'s table, the function taking the plain name and the
-registered wrapper `*_entry`: Lavos's turn, the field's angle and swing,
-the planet's edge and the stars' flight; the dive's sixteen; the endings'
-picture placed, picked, uploaded, the credits' and last scene's screens,
-BG2's scroll, The End and the window's sweep; the Beyond Time ending's
-night (the orbit, the map passing, the flight's view checked, placed and
-sent, the horizon, the Epoch circling and swaying, the lights, the
-fireworks, the Mode 7 pictures); the captions; the stars after the captions
-and their drift; the staff roll's roll, upload and the sprites' high bits.
-A guard's state half is a function of the game's state both share (split
-out where it was inside the guard: `passes_within_reach`, `trail_fits`,
-`flight_fits`, `shaking_fits`, `sweep_fits`, `fireworks_burst_as_ported`,
-`captions_as_ported`, `roll_takes` and the rest); where it turns a state
-away, the C asks for the machine (`scene_task_needs_the_machine`). A
-task's own address and the list's carry, which some read, are what the list
-calls them with: the carry clear at every slot but the first, where no
-script puts those.
+**The calling in (`$FD:A990`).** The caller sets four of its own stats, the
+pairs from the action's third operand, and every enemy of the formation out
+of the fight comes in, as the bringing back brings them (the same selection,
+the same records), loaded as at the fight's start and with HP by a rule. The
+rule is the original's accident: it keeps each stat's offset in the cell it
+kept the HP operand in, and reads the rule from that cell after, so the last
+stat's offset decides (`enemy_call_in_sets_its_stats` says so). The calling
+in is a registered entry the turn runs as a sibling (`battle_run_long_dc`),
+so an arrival the load's guard turns away goes on in the original with its
+frame in place; its guard asks for the effect code's tech number where the
+turn's start leaves it.
 
-Six vblank and script pieces the endings run were still the original's
-code (tools/fallback_baseline.txt): the credits' pictures sent
-(`$7E:9F2B`, `$7E:9F39`, `$7E:9F47`, through `$7E:9F59`) and a map blanked
-(`$7E:9F73`, through `$7E:90AA`), each a `vid_send_vram` or
-`vid_send_vram_fill` with the SNES backend's encoding at its site; and nine
-small routines the scripts call (`scene_ending_routines`): the picture
-stopped (`$7E:96FB`), the ground's colours made, or stepped toward, one of
-the three later sets its setup copies (`$7E:9702`, `$7E:98F6`-`$7E:9900`,
-through the planet's colour step, `scene_step_the_colours_toward`), the
-captions' place taken from where a script stored it (`$7E:9919`, two new
-cells in re/ram.toml), and three fades to black (`$7E:9F8A`, `$7E:9FC8`,
-`$7E:9FEA`). The routines that load (the endings' six, which call the
-unpacker) are rows the native program alone reads (`scene_ending_loading_routines`;
-on the machine their entries run them); the staff roll's two became rows of
-the interpreter's table too (`scene_staff_roll_routines`).
+**The menus' strays.** A member's row whose status record names the eighth
+character (a cursor past the last member leaves the record as it stood)
+marks its HP against the word after the seven marks, as the original reads
+it (`menu_low_hp_marks` declares the stray read). An item tried on that is
+no item of the game's is worked out from the bytes past the menus' item
+tables (`menu_item_amounts`, `menu_list_items` declare theirs, and the
+powers had theirs), and its boost through the original's byte-wide index,
+which takes a boost past `$7F` round to the table's start: no item of the
+game's has one, so only fuzzing could tell. The try-on's one refusal left is
+the menus' zero word not 0, which the menus clear as they open and never
+write.
 
-**The main loop's call.** `scene_runs` makes the main loop's call each pass
-(`main_loop_pass`): nothing for most scenes, and for the three that scale a
-picture as they go, the race's racers, the endings' zooming picture and the
-Epoch from outside, the scaling as C: the scaler draws the whole bitmap at
-once (`scene_scale_the_bitmap`, the row loop's guard's state half checked
-before each row), and the race waits a frame at a time for its racer's last
-tiles to go. The race's attract demo ran without its pictures scaled
-before; it scales them now.
-
-**Measured.** Shadow mode, the four movies that reach the scenes, none
-mismatched: in battle-black-tyrano Lavos's turn 1,712 calls, the field's
-angle 564 and swing 828, the planet's edge 538, the stars' flight 1,712
-(135 compared, the rest in a latch wait), the setup 1 (inside the program's
-start's comparison); in events-epoch-lavos the dive's; in
-endings-beyond-time the endings' tasks as before (the scaling 1,547,154, the
-placing 5,375, the captions 8,605, the sweep 785) and the new pieces each
-compared on every call (the four sends 1 each, the routines 1 to 8); in
-endings-telepod-lavos the staff roll's setup 1, the roll and the upload 240
-each, the high bits 3,027, the drift 2,469. Fuzzing, seed 1,
-`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the 97
-entries the chunk changed (with their variants, at most 2,000 states each,
-the setups 300): every one the same as before, none mismatched; the 13 new,
-2,000 states each, none mismatched. `ct_native`: started in
-each scene, Lavos falling (`--scene 0x24`), the dive (`0x26,0x50`), the
-Beyond Time ending's two (`0x2B,0x3F` then `0x2E,0x3F`) and the reunion's
-(`0x2B,0x3F` then `0x2F,0x3F`) and the staff roll (`0x2D`) each run to
-their end, the dive and Lavos on to the field and the title, the endings
-to The End, where the game stays; mode 10, which no recording reaches,
-stops at its picture's vblank task (`$7E:9CE2`, TODO.md). Left alone, the
-attract sequence runs 30,000 frames without a stop with the race's
-pictures now scaled. Timing: the thirteen new entries calibrated from these
-four movies' shadow runs; the setups keep their rows.
+**Measured.** `ct_native --scene 0x2C` runs the slow staff roll 12,000 frames
+with no stop; `--scene 0x2A,0x3F` runs mode 10 to frame 5,637, its next
+scene's loading, where it stopped at frame 65 before. Fuzzing, seed 1, every
+entry the chunk touched, none mismatched: the picture's task 0/2,000 (the
+vblank list given room, the large list's leaving-out form, the count's next
+byte clear), the frame's send 0/2,000, the large list's leaving-out form
+0/7,621, the slow setup 0/300, the scroll on either field 0/20,000, the
+roll 0/20,000, the call-in's turn 0/8,389 (the calling in inside it run as C
+wherever the turn's state reaches it; in `endings-beyond-time`'s shadow run
+it is called twice, one compared and matched, one interrupted), the face and HP mark with any
+character 0/2,000, the equipment's choice with any item, any list top and
+the tables' bytes past their ends random 0/699 (the pointing's own drawing
+of such an item's name reads past the names' places, which the fuzz
+reports), the figures 0/20,000. The four fuzz-found differences on the way
+were all in the original's strays: the frame task's queueing past a full
+vblank list (now refused, the setup leaves room), the large list's
+continuation, the boost's index, and the calling in's tech number read from
+its caller's cell.
 
 ### The last refusals in real play: the attract demo's states
 

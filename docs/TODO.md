@@ -316,9 +316,7 @@ rest waits, is [PLAN.md](PLAN.md).
     `$C1:D0A2` (and the set-up step, `$C1:0023`, a port now, is still called
     through the dispatch's call-out, `battle/steps.c`, rather than as C:
     run as C under the dispatch's frame, its waits broke the call chain);
-    from an enemy's turn (history/reimplementation-waves.md,
-    "Phase 3, wave 2: the enemies' minds"), the calling in
-    `$FD:A990`; what an effect's working out turns away to the
+    what an effect's working out turns away to the
     original (history/reimplementation-chunks.md, "Phase 3, battle chunk 4: the party's working
     out"): a hit that steals as well (no record has one); an animation that names no movement
     (`$C1:3760`'s table past its nine rows, no animation the battle gives);
@@ -2969,12 +2967,16 @@ list, by kind, is what `game/` still asks of one.
 - **What the scene program still hands the machine as the program runs it.**
   Every mode's setup a recording reaches is C (`scene/program.c`'s
   `c_setups`), and so are the story scenes' tasks, the scripts' routines and
-  the main loop's scalings (REIMPLEMENTATION.md, "The native program through
-  the story scenes"); what is left stops the program where it is met: mode
-  10's picture's vblank task (`$7E:9CE2`, which no recording reaches: it
-  sends a quarter of the picture by the frame counter and keeps two bytes of
-  its table in `$AB` and `$AC`, whose reader is to find), modes 5 and 12,
-  and a task, routine or command a state the ports don't take reaches. The
+  the main loop's scalings (history/reimplementation-chunks.md, "The native
+  program through the story scenes"), and mode 10's picture and the slow
+  staff roll, mode 12 (REIMPLEMENTATION.md, "The native program's last named
+  stops"); what is left stops the program where it is met: mode 10 once its
+  picture is done, at its next scene's loading (`$7E:8A01`, a Mode 7 picture
+  and its colours, then `$7E:8AF5` and the frame task `$7E:8B52` after it,
+  none of which a recording reaches), mode 5 (`$7E:7092`, 2 KiB: a turned
+  map, its two scripts and the main loop's turning `$7E:7441`; nothing in the
+  game starts it, movies-wanted.md), and a task, routine or command a state
+  the ports don't take reaches. The
   stars' first draw in a setup that scatters them starts from nothing in
   particular where the original's goes on from what the call before it left
   (a host's draws take its own noise). The C reads the program's data where
@@ -3015,9 +3017,10 @@ list, by kind, is what `game/` still asks of one.
   through the menus the player opens"), and the shops' (history/reimplementation-chunks.md,
   "The native program through the shops"); where one of them meets what has
   no C yet, `program_needs_the_machine` stops the program there and says
-  which: an item tried on that is no item of the game's (`$C2:A5C3`), a
-  member's row whose record names no character (`$C2:A225`), and a shop whose state a step's entry's guard turns away ("a shop the port
-  doesn't take", menu/shop_steps.c).
+  which: an item tried on with the menus' zero word not 0 (`$C2:A5C3`; the
+  menus clear it as they open and never write it, and the original marks the
+  figures from its place in a table), and a shop whose state a step's entry's
+  guard turns away ("a shop the port doesn't take", menu/shop_steps.c).
 - **The menus' steps' notes carry machine work.** In the items', the techs'
   and the settings' sequences (menu/item_screen.c, tech_screen.c,
   settings_screen.c) a note is where the machine both leaves the original's
@@ -3031,8 +3034,8 @@ list, by kind, is what `game/` still asks of one.
   (REIMPLEMENTATION.md, "The native program through the battle"), each C
   path behind its entry's guard's state half; where one turns the state
   away, or a call has no C yet, `battle_needs_the_machine` stops the program
-  there and says which (72 sites: a comeback shown, an enemy called in or
-  coming into the battle, the two search steps, a demo battle's end, an
+  there and says which (71 sites: a comeback shown, an enemy coming into
+  the battle past the eight, the two search steps, a demo battle's end, an
   enemy's movement or dissolve the port doesn't run, and the guards' own
   refusals). Each wants its C as the program
   meets it.

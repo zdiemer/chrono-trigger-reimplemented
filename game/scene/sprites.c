@@ -131,6 +131,13 @@ static uint8_t listed_byte(const GameState *g, uint16_t list, unsigned n, uint8_
     return wram_read8(g, list_address(list) + 1 + n * ENTRY_BYTES + field);
 }
 
+/* A listed sprite's tile changed in place: how a scene animates a piece of a
+ * picture it draws from a list. */
+void scene_set_listed_tile(GameState *g, uint16_t list, unsigned n, uint8_t tile)
+{
+    wram_write8(g, list_address(list) + 1 + n * ENTRY_BYTES + LISTED_TILE, tile);
+}
+
 static ListedSprite listed_sprite(const GameState *g, uint16_t list, unsigned n)
 {
     return (ListedSprite){ listed_byte(g, list, n, LISTED_TILE), listed_byte(g, list, n, LISTED_ATTRIBUTES),
@@ -205,6 +212,20 @@ static uint16_t large_list_y(const GameState *g, uint8_t list_y) { return (uint1
 /* The first line below the picture. */
 enum { BELOW_THE_PICTURE = 0xE0 };
 
+/* What a sprite written after one was left out leaves besides itself: its
+ * attributes again in the next entry's X, and the high byte of its X, worked
+ * out as a word, in its own Y (which a sprite placed there writes over). The
+ * original goes on from a sprite it left out with its accumulator a word wide,
+ * until it places one: its reads of the list then take the port's byte twice
+ * (the second from the port's address, which reads back as the bus last held,
+ * the same byte), and its stores and its add on X are a word each. */
+static void leave_word_wide_strays(GameState *g, uint16_t entry, uint8_t attributes, uint8_t list_x)
+{
+    uint16_t x = (uint16_t)((list_x | list_x << 8) + scene_sprite_offset_x(g));
+    set_entry(g, (uint16_t)(entry + ENTRY_BYTES), ENTRY_X, attributes);
+    set_entry(g, entry, ENTRY_Y, (uint8_t)(x >> 8));
+}
+
 // $7E:A03D
 /* Copy the list at `list` into the sprite table as large sprites, each moved
  * by the scene's offset, X's 9th bit clear. The cursor moves on past them.
@@ -212,23 +233,32 @@ enum { BELOW_THE_PICTURE = 0xE0 };
  * The routine is the program's own, and its callers choose between its two
  * forms by writing its code (scene_large_list_clip): as the program is loaded
  * it leaves out a sprite whose Y comes to the picture's bottom or below
- * (another ending's picture, $7E:9C58, draws with it); the fireworks write
- * that test out while they draw their bursts, so that every sprite of a burst
- * shows, however low. A sprite left out has had its tile, its attributes and
- * its X written to the free entry already, which the next sprite takes. */
+ * (mode 10's picture, $7E:9C58, draws with it); the fireworks write that test
+ * out while they draw their bursts, so that every sprite of a burst shows,
+ * however low. A sprite left out has had its tile, its attributes and its X
+ * written to the free entry already, which the next sprite takes, and the
+ * sprites after it until one is placed leave strays (leave_word_wide_strays). */
 void scene_draw_large_sprite_list(GameState *g, uint16_t list, SceneLargeList form)
 {
     uint8_t sprites = list_sprites(g, list);
     SpriteCursor c = cursor(g);
+    bool after_one_left_out = false;
     for (unsigned n = 0; n < sprites; n++) {
         /* a byte at a time, as the original reads them: the list can lie over
          * the tables it fills */
+        uint8_t attributes;
         set_entry(g, c.entry, ENTRY_TILE, listed_byte(g, list, n, LISTED_TILE));
-        set_entry(g, c.entry, ENTRY_ATTRIBUTES, listed_byte(g, list, n, LISTED_ATTRIBUTES));
-        set_entry(g, c.entry, ENTRY_X, moved_x(g, listed_byte(g, list, n, LISTED_X)));
+        set_entry(g, c.entry, ENTRY_ATTRIBUTES, attributes = listed_byte(g, list, n, LISTED_ATTRIBUTES));
+        uint8_t list_x = listed_byte(g, list, n, LISTED_X);
+        set_entry(g, c.entry, ENTRY_X, moved_x(g, list_x));
+        if (after_one_left_out)
+            leave_word_wide_strays(g, c.entry, attributes, list_x);
         uint16_t y = large_list_y(g, listed_byte(g, list, n, LISTED_Y));
-        if (form == LIST_LEAVES_OUT_BELOW_THE_PICTURE && y >= BELOW_THE_PICTURE)
+        if (form == LIST_LEAVES_OUT_BELOW_THE_PICTURE && y >= BELOW_THE_PICTURE) {
+            after_one_left_out = true;
             continue;
+        }
+        after_one_left_out = false;
         set_entry(g, c.entry, ENTRY_Y, (uint8_t)y);
         shift_in(g, c.high, HIGH_LARGE);
         next_entry(&c);
@@ -663,13 +693,20 @@ static SceneLargeList large_list_form(uint16_t code)
     return code == KEEPS_EVERY_SPRITE_CODE ? LIST_KEEPS_EVERY_SPRITE : LIST_LEAVES_OUT_BELOW_THE_PICTURE;
 }
 
+SceneLargeList scene_large_list_form_written(const GameState *g) { return large_list_form(scene_large_list_clip(g)); }
+
+uint16_t scene_large_list_leaves_a(const GameState *g, uint16_t list)
+{
+    return large_list_leaves_a(g, list, scene_large_list_form_written(g));
+}
+
 /* The list at A, in the form the routine's code holds; back, Y is the next
  * free entry, as the routine keeps it in its cells. */
 void scene_draw_large_sprite_list_entry(Snes *s)
 {
     GameState *g = state_of(s);
     uint16_t list = s->cpu.a;
-    SceneLargeList form = large_list_form(scene_large_list_clip(g));
+    SceneLargeList form = scene_large_list_form_written(g);
     scene_draw_large_sprite_list(g, list, form);
     s->cpu.y = scene_sprite_index(g);
     ORIGINAL_EFFECT(s->cpu.a = large_list_leaves_a(g, list, form));
@@ -710,39 +747,65 @@ bool scene_signed_sprite_list_fits(Snes *s)
 
 /* The routine's code, but for the two words of it a caller writes: the test
  * that leaves a sprite out, and two bytes no path runs. */
-static bool large_list_code_present(Snes *s)
+bool scene_large_list_code_present(Snes *s)
 {
     return m_code_matches(s, 0x7EA03D, 0x37, 0x3766BB960571A2ECull) && m_code_matches(s, 0x7EA076, 0x1A, 0xF794154F7C7B7E59ull) &&
            m_code_matches(s, 0x7EA092, 0x07, 0x35C70EE850957A8Dull);
 }
 
 /* Once the original has left a sprite out it goes on with its accumulator a
- * word wide: its next sprite's bytes are stored as words, spilling into the
- * next entry, and the count is taken down as a word with the byte after it.
- * The game's only list drawn in that form is another ending's picture, which
- * no showing reaches; a list that leaves out nothing, or only its last
- * sprite with the count's next byte clear, comes to the same as the port, and
- * any other is the original's. */
-static bool leaves_out_no_more_than_its_last(const GameState *g, uint16_t list)
+ * word wide (leave_word_wide_strays), and takes its count down as a word with
+ * the byte after it: the port takes that byte clear, where the count ends
+ * with the list. The game's only list drawn in that form is mode 10's
+ * picture, which no showing reaches. The strays land in the entry after the
+ * sprite's, which must be the table's, and the list must lie clear of the
+ * tables they land in, as the port reads it. */
+static bool leaves_out_as_ported(const GameState *g, uint16_t list)
 {
     uint8_t sprites = list_sprites(g, list);
+    unsigned left_out_before_the_last = 0;
+    bool any = false;
     for (unsigned n = 0; n < sprites; n++)
-        if (large_list_y(g, listed_byte(g, list, n, LISTED_Y)) >= BELOW_THE_PICTURE)
-            return n + 1u == sprites && scene_sprite_list_left_high(g) == 0;
-    return true;
+        if (large_list_y(g, listed_byte(g, list, n, LISTED_Y)) >= BELOW_THE_PICTURE) {
+            any = true;
+            left_out_before_the_last += n + 1u < sprites;
+        }
+    if (!any)
+        return true;
+    if (scene_sprite_list_left_high(g) != 0)
+        return false;
+    if (!left_out_before_the_last)
+        return true;
+    uint32_t end = (uint32_t)list + 1 + sprites * ENTRY_BYTES;
+    bool clear_of_the_tables = end <= SCENE_SPRITE_TABLE || list >= SPRITE_TABLES_END;
+    return clear_of_the_tables && scene_sprites_fit(g, sprites + 1u);
+}
+
+static bool large_list_form_takes(const GameState *g, uint16_t list)
+{
+    uint16_t code = scene_large_list_clip(g);
+    return is_a_large_list_form(code) &&
+           (large_list_form(code) == LIST_KEEPS_EVERY_SPRITE || leaves_out_as_ported(g, list));
 }
 
 bool scene_large_sprite_list_fits(Snes *s)
 {
-    if (!large_list_code_present(s) || !list_fits(s, false))
+    if (!scene_large_list_code_present(s) || !list_fits(s, false))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    uint16_t code = scene_large_list_clip(g);
-    bool fits = is_a_large_list_form(code) && (large_list_form(code) == LIST_KEEPS_EVERY_SPRITE ||
-                                                leaves_out_no_more_than_its_last(g, s->cpu.a));
+    bool fits = large_list_form_takes(state_of(s), s->cpu.a);
     vars_peek(false);
     return fits;
+}
+
+/* The same, for a port that draws a list in the form the code holds as C:
+ * the list clear of the count the original works in, room for its sprites
+ * from the cursor, and a form the port takes. */
+bool scene_large_sprite_list_takes(const GameState *g, uint16_t list)
+{
+    unsigned sprites = list_sprites(g, list);
+    uint32_t end = (uint32_t)list + 1 + sprites * ENTRY_BYTES;
+    return !(list <= COUNT_CELL && end > COUNT_CELL) && scene_sprites_fit(g, sprites) && large_list_form_takes(g, list);
 }
 
 /* These save P while they work (PHP, PLP): the byte is on the stack, where a

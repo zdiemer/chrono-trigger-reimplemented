@@ -2,7 +2,8 @@
  * The End.
  *
  * The telepod ending closes the game with the staff credits played fast: the
- * scene program's mode 13 sets it up ($7E:8EA8), its script ($7E:93E3) starts
+ * scene program's mode 13 sets it up ($7E:8EA8; mode 12, from $7E:8E95, plays
+ * them slowly and interlaced, and no recording reaches it), its script ($7E:93E3) starts
  * the stars and the credits, and once the last name has rolled on the script
  * goes on to The End, where the picture behind the credits fades in from white
  * and the stars start drifting. The shared ending the Beyond Time ending plays
@@ -114,15 +115,32 @@ static void write_next_line(GameState *g)
 /* A row of text is 8 pixels. */
 enum { ROW_PIXELS = 8 };
 
+/* The field the slow roll scrolls on: the odd one, as the program comes, or
+ * the even one, which the slow staff roll's setup has it take, with the
+ * picture interlaced. The program keeps which as the opcode of its own branch
+ * on the field (scene_credits_scroll_field). */
+enum { SCROLL_ON_ODD_FIELDS = 0x90, SCROLL_ON_EVEN_FIELDS = 0xB0 };
+
+static bool scroll_field_is_known(const GameState *g)
+{
+    uint8_t field = scene_credits_scroll_field(g);
+    return field == SCROLL_ON_ODD_FIELDS || field == SCROLL_ON_EVEN_FIELDS;
+}
+
+static bool scrolls_this_field(const GameState *g, bool odd_field)
+{
+    return odd_field == (scene_credits_scroll_field(g) == SCROLL_ON_ODD_FIELDS);
+}
+
 // $7E:9ED6
 /* The credits scroll up: a row a frame when they roll fast, and otherwise a
- * pixel on every odd frame. */
-static void scroll_credits(GameState *g, bool odd_frame)
+ * pixel on every other frame, the field the roll scrolls on. */
+static void scroll_credits(GameState *g, bool odd_field)
 {
     uint16_t scroll = scene_credits_scroll(g);
     if (roll_fast(g))
         scroll = (uint16_t)(scroll + ROW_PIXELS);
-    else if (odd_frame)
+    else if (scrolls_this_field(g, odd_field))
         scroll = (uint16_t)(scroll + 1);
     set_scene_credits_scroll(g, scroll);
 }
@@ -289,8 +307,9 @@ static void set_up_layers(Platform *pf)
     vid_set_windows(pf, PF_AT(0x7E8FD2), &(VidWindows){ .win_main = 0, .win_sub = 0 }, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
 }
 
-/* The stars come at the viewer: the star field's speed at -7. */
-enum { STARS_COMING = 0xFFF9 };
+/* The stars come at the viewer: the star field's speed at -7, or -2 as the
+ * slow roll has them. */
+enum { STARS_COMING = 0xFFF9, STARS_DRIFTING_IN = 0xFFFE };
 
 /* The per-line effect: the descriptors at $9023, one channel. */
 enum { STAFF_ROLL_LINE_EFFECTS = 0x9023, STAFF_ROLL_LINE_CHANNELS = 0x01 };
@@ -344,14 +363,34 @@ static void load_graphics(GameState *g, Platform *pf, unsigned graphic, const St
     TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
 }
 
-// $7E:8EA8
-/* The staff roll's setup, from the program's mode table (mode 13). False
- * where a step went no further. */
-static bool set_up_staff_roll_with(GameState *g, Platform *pf, const StaffRollSteps *steps, void *ctx)
+/* How the roll is played: fast, closing the telepod ending (mode 13), or
+ * slowly (mode 12, which no ending the recordings reach starts), with the
+ * music at its own speed, the stars coming in more gently, and the picture
+ * interlaced, the credits scrolling on its even fields. */
+typedef enum { STAFF_ROLL_FAST, STAFF_ROLL_SLOW } StaffRollPace;
+
+// $7E:8E95
+/* The slow roll's own start: the stars' pace, the picture interlaced and the
+ * credits' scroll moved to the even fields. */
+static void start_slowly(GameState *g, Platform *pf)
 {
-    play_music_fast(g, steps, ctx);
-    set_scene_credits_fast(g, (uint8_t)(scene_credits_fast(g) + 1));
-    set_scene_channel_register(g, SCENE_STAR_FIELD_CHANNEL, SCENE_STAR_FIELD_SPEED, STARS_COMING);
+    set_scene_channel_register(g, SCENE_STAR_FIELD_CHANNEL, SCENE_STAR_FIELD_SPEED, STARS_DRIFTING_IN);
+    vid_set_video_config(pf, PF_AT(0x7E8E9D), &(VidVideoConfig){ .interlace = true });
+    set_scene_credits_scroll_field(g, SCROLL_ON_EVEN_FIELDS);
+}
+
+// $7E:8EA8
+/* The staff roll's setup, from the program's mode table (modes 12 and 13).
+ * False where a step went no further. */
+static bool set_up_staff_roll_with(GameState *g, Platform *pf, StaffRollPace pace, const StaffRollSteps *steps, void *ctx)
+{
+    if (pace == STAFF_ROLL_FAST) {
+        play_music_fast(g, steps, ctx);
+        set_scene_credits_fast(g, (uint8_t)(scene_credits_fast(g) + 1));
+        set_scene_channel_register(g, SCENE_STAR_FIELD_CHANNEL, SCENE_STAR_FIELD_SPEED, STARS_COMING);
+    } else {
+        start_slowly(g, pf);
+    }
     steps->scatter_the_stars(ctx);
     TIMED_AS(g, 0xFDE275, palette_stop_animations(g));
     copy_colors(g, PICTURE_COLORS, PICTURE_PALETTE);
@@ -474,13 +513,17 @@ static void start_the_song(void *ctx, uint8_t song)
     scene_start_song(c->pf, song);
 }
 
-bool scene_staff_roll_set_up(GameState *g, Platform *pf)
+static bool set_up_in_the_program(GameState *g, Platform *pf, StaffRollPace pace)
 {
     static const StaffRollSteps in_the_program = { send_the_command, scatter_the_stars, unpack_the_graphic, turn_the_credits_channel,
                                          start_the_song };
     StaffRollInC c = { g, pf };
-    return set_up_staff_roll_with(g, pf, &in_the_program, &c);
+    return set_up_staff_roll_with(g, pf, pace, &in_the_program, &c);
 }
+
+bool scene_staff_roll_set_up(GameState *g, Platform *pf) { return set_up_in_the_program(g, pf, STAFF_ROLL_FAST); }
+
+bool scene_slow_staff_roll_set_up(GameState *g, Platform *pf) { return set_up_in_the_program(g, pf, STAFF_ROLL_SLOW); }
 
 /* ---- Entries ------------------------------------------------------------------------------------ */
 
@@ -505,15 +548,22 @@ bool scene_staff_roll_set_up_present(Snes *s)
            m_code_matches(s, 0x7E375F, 0x1B, 0x5BCDF92C47B920DDull) && scene_stars_scatter_code_present(s);
 }
 
+/* The slow roll's start, which goes on into the fast one's past its music
+ * and its pace. */
+bool scene_slow_staff_roll_set_up_present(Snes *s)
+{
+    return m_code_matches(s, 0x7E8E95, 0x13, 0xEA61BD98C64A3373ull) && scene_staff_roll_set_up_present(s);
+}
+
 /* Entered with 8-bit A; back, the song's start has left the overflow, which
  * the program reads, and the data bank and the direct page are 0. */
-bool scene_staff_roll_set_up_scene(Snes *s)
+static bool set_up_on_the_machine(Snes *s, StaffRollPace pace)
 {
     static const StaffRollSteps on_the_machine = {
         send_on_the_machine, scatter_on_the_machine, unpack_on_the_machine, first_step_on_the_machine,
         start_the_song_on_the_machine,
     };
-    if (!set_up_staff_roll_with(state_of(s), m_platform(s), &on_the_machine, s))
+    if (!set_up_staff_roll_with(state_of(s), m_platform(s), pace, &on_the_machine, s))
         return false;
     s->cpu.d = 0x0000;
     s->cpu.db = 0x00;
@@ -521,9 +571,28 @@ bool scene_staff_roll_set_up_scene(Snes *s)
     return true;
 }
 
+bool scene_staff_roll_set_up_scene(Snes *s) { return set_up_on_the_machine(s, STAFF_ROLL_FAST); }
+
+/* The stars' scatter mixes in A, which the slow roll's start leaves holding
+ * the branch it wrote, where the fast one's leaves what the sound command's
+ * send did. */
+static void leave_the_branch_in_a(Snes *s) { m_set_a8(s, SCROLL_ON_EVEN_FIELDS); }
+
+bool scene_slow_staff_roll_set_up_scene(Snes *s)
+{
+    leave_the_branch_in_a(s);
+    return set_up_on_the_machine(s, STAFF_ROLL_SLOW);
+}
+
 void scene_staff_roll_set_up_entry(Snes *s)
 {
     scene_staff_roll_set_up_scene(s);
+    m_rts(s);
+}
+
+void scene_slow_staff_roll_set_up_entry(Snes *s)
+{
+    scene_slow_staff_roll_set_up_scene(s);
     m_rts(s);
 }
 
@@ -572,9 +641,12 @@ bool scene_credits_roll_present(Snes *s)
            m_code_matches(s, 0x7E3949, 0x15, 0x7B575BDC799477B3ull) && roll_runs(s, true);
 }
 
+/* The scroll's code but its branch on the field, which the roll's state
+ * holds (scene_credits_scroll_field). */
 bool scene_credits_scroll_present(Snes *s)
 {
-    return m_code_matches(s, 0x7E9ED6, 0x1B, 0xB492A350B7353CA3ull) && roll_runs(s, false);
+    return m_code_matches(s, 0x7E9ED6, 0x0D, 0xEB8FF091909CCF90ull) && m_code_matches(s, 0x7E9EE4, 0x0D, 0x6A764642F2B69114ull) &&
+           roll_runs(s, false);
 }
 
 /* Where the roll goes on: its scroll, a routine of its own, which reads the
@@ -734,7 +806,7 @@ const SceneRoutineLeaves scene_staff_roll_routine_leaves[] = { { leaves_a_as_cal
  * credits' end; the upload sends the row; the sprites' high bits cleared. */
 static bool roll_takes(const GameState *g, bool with_line)
 {
-    return scene_credits_fast_high(g) == 0 &&
+    return scene_credits_fast_high(g) == 0 && scroll_field_is_known(g) &&
            (!with_line || (scene_task_listed(g, SCENE_VBLANK_TASKS, CREDITS_UPLOAD_TASK) && next_line_fits(g)));
 }
 

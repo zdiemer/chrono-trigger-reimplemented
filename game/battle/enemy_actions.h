@@ -128,7 +128,14 @@ void enemy_bring_back(GameState *g, uint8_t enemy, uint8_t count);
 void enemy_brought_back(GameState *g, uint8_t enemy, ScriptPlace at);
 void enemy_bring_back_ends(GameState *g, ScriptPlace at, uint8_t count);
 
-/* $C1:A396: what the calling in gives the original's code that does it. */
+/* $C1:A396: the calling in's operands kept; then ($FD:A990) the caller's own
+ * four stats set, which returns how much HP those called in come with; then,
+ * as the bringing back, every enemy of the formation out of the fight brought
+ * in (enemy_next_to_bring_back, enemy_bring_back), each with that HP, and the
+ * action shown as its tech. */
 void enemy_call_in_starts(GameState *g, ScriptPlace at);
+uint8_t enemy_call_in_sets_its_stats(GameState *g, ScriptPlace at);
+void enemy_called_in(GameState *g, uint8_t enemy, uint8_t how);
+void enemy_call_in_ends(GameState *g, ScriptPlace at, uint8_t count);
 
 #endif

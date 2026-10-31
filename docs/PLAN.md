@@ -648,7 +648,10 @@ by an audit; the fourth is the program itself.
      shops"). Started in a story scene (`ct_native --scene`), the scene engine
      runs Lavos falling, the Epoch's dive, the shared endings and the staff
      roll as C to their ends, the main loop scaling their pictures
-     (REIMPLEMENTATION.md, "The native program through the story scenes"). Next: the stops of `program_needs_the_machine` that no movie
+     (history/reimplementation-chunks.md, "The native program through the story scenes"),
+     and the slow staff roll and mode 10 as far as its next scene's loading; the calling
+     in of enemies and the menus' strays are C too (REIMPLEMENTATION.md, "The native
+     program's last named stops"). Next: the stops of `program_needs_the_machine` that no movie
      meets yet, each naming its routine (TODO.md, "The native program").
      Each step is measured by how far `ct_native` gets and by what
      `no_machine.c` still lists; it is a measurement, not the product, until

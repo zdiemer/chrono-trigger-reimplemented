@@ -5,3 +5,7 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
+C03002 event_cmd_walk_with_the_party guard # gap: fionas_forest route (shipping mode), Robo's departure from Fiona's house, from frame 31748; the follower's link doesn't name the stepping object (docs/TODO.md, Refusals in real play, events-fionas-forest).
+C0A2CE field_second_member_follows guard # gap: the same route and frames, the same departure (docs/TODO.md, Refusals in real play, events-fionas-forest).
+C0885A field_recentre_the_screen guard # gap: events-ocean-palace-lavos (its reference play, frame 21566, Y $FFFE; the shipping mode and its route at 26527 and 21858), the field cutaway in Zeal's fall with no party leader link naming an object (docs/TODO.md, Refusals in real play).
+C15FDE script_face guard # gap: castle_flea route (shipping mode), frames 29327 and 29329, X $00E4: Flea's animation facing command (docs/TODO.md, Refusals in real play, "Flea's animation facing command").

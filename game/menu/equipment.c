@@ -502,15 +502,19 @@ static uint8_t list_place_on_the_cursor(const GameState *g)
     return (uint8_t)(menu_equip_list_top(g) + menu_equip_list_row(g));
 }
 
-static uint8_t item_on_the_cursor(const GameState *g) { return menu_list_items(g, list_place_on_the_cursor(g)); }
+/* The item on the cursor: the list's, or past its last row (where no list of
+ * the game's reaches) what follows it, as the original reads it. */
+static uint8_t item_on_the_cursor(const GameState *g)
+{
+    uint8_t place = list_place_on_the_cursor(g);
+    return place < MENU_LIST_ITEMS_COUNT ? menu_list_items(g, place) : menu_list_items_unchecked(g, place);
+}
 
 /* The original marks the figures from the menus' zero cell's place in its
- * table of them, which the menus keep at 0. */
-bool menu_equip_can_try_on(const GameState *g)
-{
-    return menu_zero(g) == 0 && list_place_on_the_cursor(g) < MENU_LIST_ITEMS_COUNT
-           && menu_figures_workable_with(g, slot_place(g), item_on_the_cursor(g));
-}
+ * table of them, which the menus keep at 0. Any item may be tried on: one
+ * that is no item of the game's is worked out from what lies past the
+ * menus' tables, as the original works it out. */
+bool menu_equip_can_try_on(const GameState *g) { return menu_zero(g) == 0; }
 
 // $C2:A5C3
 /* The list's item on the cursor tried on in the slot: the member's figures
@@ -1345,7 +1349,7 @@ static bool run(void *ctx, EquipmentRoutine r)
         return true;
     case EQUIPMENT_TRIES_IT_ON:
         if (!menu_equip_can_try_on(g))
-            return only_on_the_machine(c, 0xC2A5C3, "an item tried on that is no item of the game's");
+            return only_on_the_machine(c, 0xC2A5C3, "an item tried on with the menus' zero word not 0");
         menu_equip_try_on(g, c->pf);
         return true;
     }

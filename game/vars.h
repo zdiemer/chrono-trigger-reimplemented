@@ -4380,6 +4380,13 @@ enum { MENU_LOW_HP_MARKS_COUNT = 7 };   /* by character */
  * row draws the member's HP marked once it is down to that ($C2:A1EF) */
 uint16_t menu_low_hp_marks(const GameState *g, unsigned i);
 void set_menu_low_hp_marks(GameState *g, unsigned i, uint16_t v);
+/* Each character's tenth of its greatest HP, worked out as the menus open ($C2:813C): a member
+ * row draws the member's HP marked once it is down to that ($C2:A1EF) Unchecked, reaching past
+ * the variable into what follows it: a member's row whose record names the eighth character (no
+ * record of the game's does) marks its HP against the word after the seven, as the original
+ * reads it (game/menu/members.c, low_hp_mark) */
+uint16_t menu_low_hp_marks_unchecked(const GameState *g, unsigned i);
+void set_menu_low_hp_marks_unchecked(GameState *g, unsigned i, uint16_t v);
 
 /* The character whose large portrait (six tiles by six) the menus draw next, and whose colours
  * they load with it */
@@ -4845,6 +4852,12 @@ enum { MENU_LIST_ITEMS_COUNT = 98 };   /* by row of the list */
 /* A list of items a screen offers (the equipment screen's: what fits the slot), an item a row */
 uint8_t menu_list_items(const GameState *g, unsigned row);
 void set_menu_list_items(GameState *g, unsigned row, uint8_t v);
+/* A list of items a screen offers (the equipment screen's: what fits the slot), an item a row
+ * Unchecked, reaching past the variable into what follows it: the equipment screen tries on the
+ * item at the list's place on the cursor, a byte, which past the list's last row reads what
+ * follows it, as the original does (game/menu/equipment.c, item_on_the_cursor) */
+uint8_t menu_list_items_unchecked(const GameState *g, unsigned row);
+void set_menu_list_items_unchecked(GameState *g, unsigned row, uint8_t v);
 
 /* Naming a character: the name as the player types it, five letters and the byte after them; it
  * starts as the character's name, and a letter taken back leaves its place without one ($FF) [6
@@ -5443,6 +5456,13 @@ enum { MENU_ITEM_AMOUNTS_COUNT = 242 };   /* by item */
  * figures where the second's bit 6 is set, else 0; cleared for the items past them */
 uint8_t menu_item_amounts(const GameState *g, unsigned i);
 void set_menu_item_amounts(GameState *g, unsigned i, uint8_t v);
+/* Each item's fifth data byte (how much a tonic heals); for accessories, the third byte of their
+ * figures where the second's bit 6 is set, else 0; cleared for the items past them Unchecked,
+ * reaching past the variable into what follows it: the equipment screen's figures for an item
+ * tried on that is no item of the game's (past $F1) read its boost from the bytes past the
+ * table, as the original does (game/menu/figures.c, item_amount) */
+uint8_t menu_item_amounts_unchecked(const GameState *g, unsigned i);
+void set_menu_item_amounts_unchecked(GameState *g, unsigned i, uint8_t v);
 
 enum { MENU_ITEM_POWERS_COUNT = 148 };   /* by item */
 /* The first byte of each weapon's, armour's and helmet's figures: its attack or defence */
@@ -13633,30 +13653,60 @@ void set_scene_race_boost_held(GameState *g, uint16_t v);
 uint16_t scene_race_cartridge_column(const GameState *g);
 void set_scene_race_cartridge_column(GameState *g, uint16_t v);
 
+/* Which of its four frames mode 10's picture shows (the low two bits): the picture's task
+ * ($7E:9C58) puts the frame's send on the vblank list when it changes */
+uint8_t scene_mosaic_frame(const GameState *g);
+void set_scene_mosaic_frame(GameState *g, uint8_t v);
+
 /* Where Johnny is from Crono this frame: along the track in the low bits (1 Crono well ahead, 2
  * Johnny well ahead), across it in the high bits ($10 and $20); 0 when they touch */
 uint16_t scene_race_contact(const GameState *g);
 void set_scene_race_contact(GameState *g, uint16_t v);
 
+/* The frame of mode 10's picture last put on the vblank list to be sent: the picture's task
+ * sends the frame again when scene_mosaic_frame moves off it */
+uint8_t scene_mosaic_frame_sent(const GameState *g);
+void set_scene_mosaic_frame_sent(GameState *g, uint8_t v);
+
 /* The across part of scene_race_contact before it is shifted in */
 uint16_t scene_race_contact_across(const GameState *g);
 void set_scene_race_contact_across(GameState *g, uint16_t v);
+
+/* Which of its three frames the moving piece of mode 10's picture's first frame shows (two of
+ * its sprites, their tiles picked from it) */
+uint8_t scene_mosaic_piece_frame(const GameState *g);
+void set_scene_mosaic_piece_frame(GameState *g, uint8_t v);
 
 /* scene_race_contact as it last was apart: when the bikes touch, it says which way they came
  * together */
 uint16_t scene_race_last_contact(const GameState *g);
 void set_scene_race_last_contact(GameState *g, uint16_t v);
 
+/* Frames the moving piece of mode 10's picture has shown its frame: at 4 it moves on to the next
+ * and the count starts again */
+uint8_t scene_mosaic_piece_frames(const GameState *g);
+void set_scene_mosaic_piece_frames(GameState *g, uint8_t v);
+
 /* Nonzero when the race's tilemap buffer at $0C00 is ready for VRAM $4000; cleared when it is
  * sent */
 uint8_t scene_race_tilemap_a_ready(const GameState *g);
 void set_scene_race_tilemap_a_ready(GameState *g, uint8_t v);
+
+/* How wide mode 10's picture's frame is on the screen, in pixels: the picture's window around
+ * the picture ends this far right of where it starts */
+uint8_t scene_mosaic_frame_width(const GameState *g);
+void set_scene_mosaic_frame_width(GameState *g, uint8_t v);
 
 enum { SCENE_RACE_TILEMAP_READY_HIGH_COUNT = 2 };   /* by racer: 0 Crono's half (after scene_race_tilemap_a_ready), 1 Johnny's (after _b_ready) */
 /* The byte after each tilemap half's ready mark, which the race counts the mark up into as a
  * word (the vblank clears the mark alone) */
 uint8_t scene_race_tilemap_ready_high(const GameState *g, unsigned i);
 void set_scene_race_tilemap_ready_high(GameState *g, unsigned i, uint8_t v);
+
+/* How tall mode 10's picture's frame is on the screen, in lines: the picture's window around the
+ * picture is this many lines */
+uint8_t scene_mosaic_frame_height(const GameState *g);
+void set_scene_mosaic_frame_height(GameState *g, uint8_t v);
 
 /* Nonzero when the race's tilemap buffer at $0C00 is ready for VRAM $4400; cleared when it is
  * sent */
@@ -14665,6 +14715,12 @@ enum { SCENE_ENDING_WINDOW_TO_COUNT = 2 };   /* by the entry: the picture's uppe
  * screen's edge */
 uint8_t scene_ending_window_to(const GameState *g, unsigned i);
 void set_scene_ending_window_to(GameState *g, unsigned i, uint8_t v);
+
+/* On which of the picture's fields the slowly rolling credits scroll a pixel: $90, the odd ones,
+ * as the program comes; $B0, the even ones, as the slow staff roll's setup ($7E:8E95, mode 12)
+ * writes it with the picture interlaced: the opcode of the program's own branch on the field */
+uint8_t scene_credits_scroll_field(const GameState *g);
+void set_scene_credits_scroll_field(GameState *g, uint8_t v);
 
 enum { SCENE_CREDITS_SCROLL_REGISTER_COUNT = 2 };   /* by the store: 0 the scroll's low byte's, 1 its high byte's */
 /* The scroll register the credits' upload sends their scroll to, the low byte of its address as

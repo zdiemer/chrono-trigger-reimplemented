@@ -12031,3 +12031,107 @@ mismatched; `tools/effects_check.py`'s lines for the bridges' reads moved
 with them into the sequences. Fuzzing, seed 1, `tools/fuzz_compare.py`
 over the shop's 28 entries and the equipment's two the shop shares (with
 their variants, at most 2,000 states each): none mismatched.
+
+### The native program through the story scenes
+
+`ct_native` ran every scene the attract sequence and the save movies reach,
+but no movie's presses bring it to the story's own: a movie recorded on the
+machine lands its presses elsewhere in the native program's frames. So the
+chunk began with a way there: `ct_native --scene flags[,song]` starts the
+game in the scene engine after the power-on, as an event starts a scene from
+the field (`program_starts_in_a_scene`, a queue of up to four the main
+thread takes before the field's loop; `runtime/port/state_host.c`), with the
+song the field had playing, which a scene that keeps the field's song waits
+on (the Epoch's dive waits for the song's fourth marker). Given again, the
+scenes run one after another, as an ending's two do: the Beyond Time
+ending's mode 14 takes up the captions' text mode 11 left in `$0382`. The
+flags and songs as the story has them came from the endings' movies run in
+ct_drive (mode 11 `$2B` and 14 `$2E` with song `$3F` in endings-beyond-time,
+the staff roll `$2D` in endings-telepod-lavos, the dive `$26` with song `$50`
+in events-epoch-lavos).
+
+Each scene then stopped at its setup, which the native program's table of
+setups (`scene/program.c`'s `c_setups`) lacked, and once past it at each
+task, script routine and main loop call with no C.
+
+**The same shape as the planet's.** Each setup is one `*_with` sequence:
+Lavos falling (`scene/lavos_falls.c`), the Epoch's dive
+(`scene/epoch_dive.c`), the shared endings (`scene/endings.c`, modes 10, 11,
+14 and 15) and the staff roll (`scene/staff_roll.c`). What is another
+routine of the program's is a step: a resource unpacked, a script's first
+step, the stars scattered, a sound command or song sent, the dive's first
+drawing of the Epoch. On the machine the steps are the original's calls (and
+the register and stack mechanics around them: the dive's pieces' call under
+the unpacks, the D and data bank its matrix writer leaves); as C they are
+`scene_unpacks`, `scene_channel_turn`, `scene_scatter_stars` and the
+service's sends. The pixels' spread Lavos's picture needs (`$7E:350E`, which
+reads the packed bytes by moving the stack onto them) is a loop in C on both
+paths now, so shadow mode compares it inside the setup.
+
+**The tasks.** Every task of the four scenes is a C column of
+`scene/frame.c`'s table, the function taking the plain name and the
+registered wrapper `*_entry`: Lavos's turn, the field's angle and swing,
+the planet's edge and the stars' flight; the dive's sixteen; the endings'
+picture placed, picked, uploaded, the credits' and last scene's screens,
+BG2's scroll, The End and the window's sweep; the Beyond Time ending's
+night (the orbit, the map passing, the flight's view checked, placed and
+sent, the horizon, the Epoch circling and swaying, the lights, the
+fireworks, the Mode 7 pictures); the captions; the stars after the captions
+and their drift; the staff roll's roll, upload and the sprites' high bits.
+A guard's state half is a function of the game's state both share (split
+out where it was inside the guard: `passes_within_reach`, `trail_fits`,
+`flight_fits`, `shaking_fits`, `sweep_fits`, `fireworks_burst_as_ported`,
+`captions_as_ported`, `roll_takes` and the rest); where it turns a state
+away, the C asks for the machine (`scene_task_needs_the_machine`). A
+task's own address and the list's carry, which some read, are what the list
+calls them with: the carry clear at every slot but the first, where no
+script puts those.
+
+Six vblank and script pieces the endings run were still the original's
+code (tools/fallback_baseline.txt): the credits' pictures sent
+(`$7E:9F2B`, `$7E:9F39`, `$7E:9F47`, through `$7E:9F59`) and a map blanked
+(`$7E:9F73`, through `$7E:90AA`), each a `vid_send_vram` or
+`vid_send_vram_fill` with the SNES backend's encoding at its site; and nine
+small routines the scripts call (`scene_ending_routines`): the picture
+stopped (`$7E:96FB`), the ground's colours made, or stepped toward, one of
+the three later sets its setup copies (`$7E:9702`, `$7E:98F6`-`$7E:9900`,
+through the planet's colour step, `scene_step_the_colours_toward`), the
+captions' place taken from where a script stored it (`$7E:9919`, two new
+cells in re/ram.toml), and three fades to black (`$7E:9F8A`, `$7E:9FC8`,
+`$7E:9FEA`). The routines that load (the endings' six, which call the
+unpacker) are rows the native program alone reads (`scene_ending_loading_routines`;
+on the machine their entries run them); the staff roll's two became rows of
+the interpreter's table too (`scene_staff_roll_routines`).
+
+**The main loop's call.** `scene_runs` makes the main loop's call each pass
+(`main_loop_pass`): nothing for most scenes, and for the three that scale a
+picture as they go, the race's racers, the endings' zooming picture and the
+Epoch from outside, the scaling as C: the scaler draws the whole bitmap at
+once (`scene_scale_the_bitmap`, the row loop's guard's state half checked
+before each row), and the race waits a frame at a time for its racer's last
+tiles to go. The race's attract demo ran without its pictures scaled
+before; it scales them now.
+
+**Measured.** Shadow mode, the four movies that reach the scenes, none
+mismatched: in battle-black-tyrano Lavos's turn 1,712 calls, the field's
+angle 564 and swing 828, the planet's edge 538, the stars' flight 1,712
+(135 compared, the rest in a latch wait), the setup 1 (inside the program's
+start's comparison); in events-epoch-lavos the dive's; in
+endings-beyond-time the endings' tasks as before (the scaling 1,547,154, the
+placing 5,375, the captions 8,605, the sweep 785) and the new pieces each
+compared on every call (the four sends 1 each, the routines 1 to 8); in
+endings-telepod-lavos the staff roll's setup 1, the roll and the upload 240
+each, the high bits 3,027, the drift 2,469. Fuzzing, seed 1,
+`tools/fuzz_compare.py` against the branch point's `ct_fuzz` over the 97
+entries the chunk changed (with their variants, at most 2,000 states each,
+the setups 300): every one the same as before, none mismatched; the 13 new,
+2,000 states each, none mismatched. `ct_native`: started in
+each scene, Lavos falling (`--scene 0x24`), the dive (`0x26,0x50`), the
+Beyond Time ending's two (`0x2B,0x3F` then `0x2E,0x3F`) and the reunion's
+(`0x2B,0x3F` then `0x2F,0x3F`) and the staff roll (`0x2D`) each run to
+their end, the dive and Lavos on to the field and the title, the endings
+to The End, where the game stays; mode 10, which no recording reaches,
+stops at its picture's vblank task (`$7E:9CE2`, TODO.md). Left alone, the
+attract sequence runs 30,000 frames without a stop with the race's
+pictures now scaled. Timing: the thirteen new entries calibrated from these
+four movies' shadow runs; the setups keep their rows.
