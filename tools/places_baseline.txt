@@ -56,3 +56,6 @@ menus-save-point 4
 menus-shop-equip 4
 menus-shop-inn 6
 menus-sweep 4
+events-death-peak 4
+events-fair-rescue 7
+events-ocean-palace-lavos 7
