@@ -1,9 +1,5 @@
 /* Checks the C sound driver's pieces that need no ROM (docs/SOUND.md):
  *
- * - the lockstep comparison (dev/sound_compare.h): identical sides are the
- *   same; a differing status, key write (a value, or one side's extra write)
- *   or register is found, first in that order, and only at the levels that
- *   compare it; the registers the S-DSP changes itself are never compared;
  * - the voices' S-DSP implementation (platform/voices_dsp.h): an envelope, a
  *   gain, an echo delay and a held voice as the registers that make them;
  * - the driver (game/sound/) on a made-up cartridge: a song of one note on
@@ -19,7 +15,15 @@
  *   the place of the song's first; a longer echo forgetting the places it
  *   runs over; and a song's volume and echo delay taken from its entry;
  * - the host's saved state (frontend/sound_host.h): every byte of the driver
- *   is in a field of it.
+ *   is in a field of it;
+ * - the host as the player plays it, on the same cartridge: the boot and a
+ *   run of the game's commands as calls, heard through the S-DSP and the
+ *   native mixer side by side, every frame of the two the same, and what was
+ *   heard folded into a digest that must be the one kept here: a change to
+ *   the driver, the host or the mixer that changes the sound fails until the
+ *   digest is taken again on purpose. (The driver isn't compared with the
+ *   original's any more: docs/REIMPLEMENTATION.md, "The sound driver's
+ *   teardown".)
  *
  * Exits non-zero on failure.
  *
@@ -34,7 +38,7 @@
 #include "sound_host.h"
 #include "snes/system.h"
 #include "sound/sound.h"
-#include "sound_compare.h"
+#include "mixer_check.h"
 
 static int failures;
 
@@ -47,54 +51,6 @@ static int failures;
             failures++;                                                                            \
         }                                                                                          \
     } while (0)
-
-/* ---- The comparison ---------------------------------------------------------------------- */
-
-static void test_compare(void)
-{
-    static SoundSide a, b;
-    SoundDivergence d;
-    a.has_status = b.has_status = true;
-    CHECK(!sound_compare(&a, &b, SOUND_COMPARE_DSP, &d) && d.kind == SOUND_SAME, "blank sides differ");
-
-    b.regs[0x08] = 0x7F;   /* voice 0's envelope level: the S-DSP's own */
-    b.regs[0x19] = 0x12;   /* voice 1's output */
-    b.regs[0x7C] = 0xFF;   /* ENDX */
-    CHECK(!sound_compare(&a, &b, SOUND_COMPARE_DSP, &d), "a register the S-DSP changes was compared");
-    CHECK(!sound_register_compared(0x38) && sound_register_compared(0x37) && !sound_register_compared(0x7C) &&
-              sound_register_compared(0x6C), "the registers compared");
-
-    b.regs[0x32] = 0x40;   /* voice 3's pitch */
-    CHECK(!sound_compare(&a, &b, SOUND_COMPARE_KEYS, &d), "a register was compared at the keys level");
-    CHECK(sound_compare(&a, &b, SOUND_COMPARE_DSP, &d) && d.kind == SOUND_REGISTER_DIFFERS && d.reg == 0x32 &&
-              d.want == 0 && d.got == 0x40, "a differing register");
-    char line[128];
-    sound_divergence_describe(&d, line, sizeof line);
-    CHECK(strstr(line, "voice 3 PITCHL") != NULL, "described as %s", line);
-
-    sound_side_key_write(&a, 0x4C, 0x01);
-    sound_side_key_write(&b, 0x4C, 0x01);
-    sound_side_key_write(&b, 0x5C, 0x80);
-    CHECK(!sound_compare(&a, &b, SOUND_COMPARE_STATUS, &d), "key writes compared at the status level");
-    CHECK(sound_compare(&a, &b, SOUND_COMPARE_KEYS, &d) && d.kind == SOUND_KEYS_DIFFER && d.at == 1 &&
-              d.reg == 0x5C && d.want == -1 && d.got == 0x80, "the port's extra key off");
-    sound_divergence_describe(&d, line, sizeof line);
-    CHECK(strstr(line, "KOFF") != NULL && strstr(line, "none") != NULL, "described as %s", line);
-
-    b.status[2] = 0x05;
-    CHECK(sound_compare(&a, &b, SOUND_COMPARE_DSP, &d) && d.kind == SOUND_STATUS_DIFFERS && d.at == 2,
-          "the status comes first");
-    b.has_status = false;
-    CHECK(sound_compare(&a, &b, SOUND_COMPARE_STATUS, &d) && d.kind == SOUND_STATUS_DIFFERS && d.at == 4,
-          "a tick that showed no status on one side");
-
-    sound_side_clear_writes(&a);
-    CHECK(a.key_writes == 0 && !a.has_status, "cleared");
-    for (int i = 0; i < SOUND_KEY_WRITES + 5; i++)
-        sound_side_key_write(&a, 0x4C, (uint8_t)i);
-    CHECK(a.key_writes == SOUND_KEY_WRITES + 5 && a.keys[SOUND_KEY_WRITES - 1].value == SOUND_KEY_WRITES - 1,
-          "writes past those kept are counted");
-}
 
 /* ---- The voices as S-DSP registers ------------------------------------------------------- */
 
@@ -461,14 +417,82 @@ static void test_host_state(void)
     CHECK(native_id != checked_id, "a state saved with the native mixer would load with the mixer check");
 }
 
+/* ---- The host, as the player plays it ---------------------------------------------------------- */
+
+/* The digest of the sound the run below makes: 64-bit FNV-1a over every
+ * sample of every frame. Taken again (from the FAIL line) only when a change
+ * means to change the sound. */
+#define HOST_DIGEST 0x0f41cd925b0e252dull
+enum { FRAME_CLOCKS = 357368 };
+
+static uint64_t heard = 0xCBF29CE484222325ull;
+
+static void play_frames(unsigned frames)
+{
+    for (unsigned f = 0; f < frames; f++) {
+        apu_advance(&snes.apu, FRAME_CLOCKS);
+        int16_t out[2 * 1024];
+        size_t n;
+        while ((n = apu_take_samples(&snes.apu, out, 1024)) != 0) {
+            for (size_t i = 0; i < 2 * n; i++) {
+                uint16_t v = (uint16_t)out[i];
+                heard = (heard ^ (v & 0xFF)) * 0x100000001B3ull;
+                heard = (heard ^ (v >> 8)) * 0x100000001B3ull;
+            }
+        }
+    }
+}
+
+static void game_command(uint8_t command, uint8_t p1, uint8_t p2, uint8_t effects_asked, unsigned then_frames)
+{
+    const uint8_t bytes[4] = { command, p1, p2, 0 };
+    snes.apu.host_command(snes.apu.host_ctx, &snes.apu, bytes, effects_asked);
+    play_frames(then_frames);
+}
+
+static void test_host(void)
+{
+    make_cartridge();
+    /* the songs' track takes instrument 0 first, the boot's first sample with
+     * its envelope, which loops from its start where its second block ends:
+     * its note sounds until it is let go */
+    static const uint8_t track[] = { 0xDC, 0x00, 0xC4, 0x7F, 0xD6, 0x04, 0xF0, 0xE0, 0x00, 0xEB };
+    put_bytes(0x8002 + 0x24, track, sizeof track);
+    put8(0x3002 + 9, 0xA3);
+    apu_init(&snes.apu);
+    SoundHost *h = sound_host_attach_mixer(&snes, SOUND_MIXER_CHECK);
+    MixerCheck *check = h ? mixer_check_attach(h) : NULL;
+    CHECK(h && check, "out of memory");
+    if (!h || !check)
+        return;
+    Apu *a = &snes.apu;
+    uint32_t upload = a->host_boot(a->host_ctx, a);
+    play_frames(upload / FRAME_CLOCKS + 20);
+    game_command(0x10, 1, 0, 0, 90);     /* song 1 */
+    game_command(0x18, 0, 0x80, 0, 60);  /* the effect, in the middle */
+    game_command(0x10, 2, 0, 0, 150);    /* song 2, its echo's wait first */
+    game_command(0x71, 3, 0, 0, 30);     /* block 3 in the song's first place */
+    game_command(0x10, 3, 0, 0, 120);    /* song 3 */
+    game_command(0x81, 8, 0, 0, 60);     /* the music faded out */
+    printf("  ");
+    CHECK(mixer_check_report(check, stdout), "the native mixer's frames differ from the S-DSP's");
+    CHECK(sound_host_samples_into_echo(h) == 0 && sound_host_commands_dropped(h) == 0,
+          "a sample placed where the echo writes, or a command dropped");
+    CHECK(heard == HOST_DIGEST, "the host's sound on the made-up cartridge: digest 0x%016llxull, kept 0x%016llxull",
+          (unsigned long long)heard, (unsigned long long)HOST_DIGEST);
+    mixer_check_free(check);
+    sound_host_detach(h);
+    free(rom);
+}
+
 int main(void)
 {
     voices_dsp_init(&voices_dsp, NULL, read_reg, write_reg, write_memory, read_memory);
-    test_compare();
     test_voices();
     test_driver();
     test_samples();
     test_host_state();
+    test_host();
     if (failures) {
         printf("%d failures\n", failures);
         return 1;

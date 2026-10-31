@@ -728,9 +728,8 @@ comments. They give, with 0 problems:
   operand into them, so the readers take a pointer out of RAM.
 - **Sound blocks.** `$C7:0AEA` (62 entries) and `$C7:0D18` (83, the songs, its
   count the byte at `$C7:0AE9` the dispatch compares) name length-prefixed
-  records the driver uploads to the SPC700: `sound_driver_upload_block`
-  (`$C7:0655`, ported in `game/core/sound_driver.c`) reads a 16-bit length and
-  sends that many bytes. The 62 blocks run end to end from `$C7:730D` to
+  records the driver uploads to the SPC700: the CPU half's block upload
+  (`$C7:0655`) reads a 16-bit length and sends that many bytes. The 62 blocks run end to end from `$C7:730D` to
   `$CA:8ACB` (202687 bytes) and the 83 songs from `$CA:8ACC` to `$CB:F163`
   (91800), which is the whole of banks C8, C9 and CA and most of CB, including
   everything the census's BRR rule used to claim there. Three blocks run into

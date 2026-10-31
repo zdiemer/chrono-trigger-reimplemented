@@ -24,25 +24,21 @@ states below). `--wav out.wav`
 writes the sound (32000 Hz stereo, see S-DSP below). `--io-log out.txt` counts
 every hardware register access by what made it: a hand port and the platform
 service call it went through, a generated block, the interpreter's instruction,
-HDMA, or a DMA transfer ([PLATFORM.md](PLATFORM.md)). `--audio direct` (with
-`--native on`) selects the APU-direct audio backend: the sound driver's uploads
-and commands run the SPC700 ahead of the machine instead of taking CPU time
-(`Apu.lead`, absorbed from the machine's following advances; PLATFORM.md, P1).
-It changes timing, so it's never used for validation. `--spc-coverage out.txt`
-writes every SPC700 address the sound driver executed, with counts, and
-`--dsp-log out.txt` every S-DSP register write the driver made (frame, SPC700
-cycle, register, value), through the APU's `on_insn` and `on_dsp_write` hooks;
-both are for the sound driver's port ([SOUND.md](SOUND.md)).
-`--sound-lockstep [out.txt]` runs that port (`game/sound/`) beside the
-interpreted driver and compares them every tick (`--sound-lockstep-level`
-status, keys, dsp or state; SOUND.md, "The port as built"); it needs a run
-from power-on. A third hook, `Apu.host`, runs a program on the host in the
-SPC700's place, and `Apu.host_boot` and `Apu.host_command` hand it the CPU
-half's boot and commands as calls (`au_driver_boot_taken`,
-`au_driver_command_taken`, given the command and the set of effects asked
-for, each answering the original's time for its upload, which the CPU half
-lets pass; REIMPLEMENTATION.md, "The frame-level time model"): `ct_play` plays the port that way by default, and `ct_dev` and
-`ct_drive --sound-driver c` (`frontend/sound_host.c`). With `--mixer native`
+HDMA, or a DMA transfer ([PLATFORM.md](PLATFORM.md)). `--spc-coverage out.txt`
+writes every SPC700 address the cartridge's sound driver executed, with
+counts, and `--dsp-log out.txt` every S-DSP register write it made (frame,
+SPC700 cycle, register, value), through the APU's `on_insn` and `on_dsp_write`
+hooks, for reading the original's driver ([SOUND.md](SOUND.md)); they work
+where it plays, the reference play. A third hook, `Apu.host`, runs a program
+on the host in the SPC700's place, and `Apu.host_boot`, `Apu.host_command`
+and `Apu.host_send` hand it the game's boot and commands as calls
+(`au_driver_boot_taken`, `au_driver_command_taken`, given the command and the
+set of effects asked for, each answering the original's time for its upload,
+which the game lets pass; REIMPLEMENTATION.md, "The frame-level time model"):
+the C sound driver, which `ct_play`, `ct_drive` and `ct_dev` play that way
+wherever the hand ports run from power-on (`frontend/sound_host.c`); the
+reference play keeps the cartridge's driver on the SPC700
+(REIMPLEMENTATION.md, "The sound driver's teardown"). With `--mixer native`
 the host makes the sound too: `Apu.host_mix` takes the cycles the S-DSP would
 have run on, which then isn't run, and `Apu.host_take` hands
 `apu_take_samples` the native mixer's frames (PLATFORM.md, "The native mixer,

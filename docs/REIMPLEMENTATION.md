@@ -2415,7 +2415,7 @@ clear, which no stretch of the library completes, from its loop.
 The fallbacks' stream (history/reimplementation-chunks.md, "Phase 4a, the
 shipping mode's fallbacks, chunk 10", for the one before), chosen by a new
 measure: how far each movie gets on the hand ports alone. `ct_dev --native on
---generated off --no-interpreter strict --sound-driver c` runs no code
+--generated off --no-interpreter strict` (the C sound driver) runs no code
 generated from the ROM and no interpreter, so the first instruction no port
 runs ends the run. Before this chunk no movie got past frame 3,779: 41 of the
 42 stopped at the menus' way in (`$C2:8000`) by frame 1,699, and the attract
@@ -2573,8 +2573,8 @@ where the search finds it, is unchanged.
 
 **Numbers.** Strict mode: 0 of the 42 movies reached their end before (41
 stopped at `$C2:8000` by frame 1,699, the attract demo at `$CD:0000` at 3,778);
-all 48 do now, 31 of them ending with the reference play's saved game. The shipping mode (`--native on --generated on --sound-driver
-c`) runs none of the original's code over the 48 movies (0.09 M instructions
+all 48 do now, 31 of them ending with the reference play's saved game. The shipping mode (`--native on --generated on`, the C
+sound driver) runs none of the original's code over the 48 movies (0.09 M instructions
 over 42 before), and 18,033 over the 21 routes (0.06 M), all hand-backs: the
 program's start's in the Black Tyrano's route (14,992, `$7E:350E`), the vblank
 list's and the battle's calling in (`$FD:A990`). Reference play over chunk 10's
@@ -2911,8 +2911,8 @@ comparisons nested in a port's stretch aside at a call the port makes, the
 port's stretch goes on from the caller's level, so the callee, itself a port
 (the scene program's unpacker), doesn't end it. That count changes only when a port does. It costs the shadow runs
 nothing measurable (gato-battle 47 s with it, 49 s without). The shipping
-mode's count is still made, over every movie (`--native on --generated on
---sound-driver c`, 43 s for the library) and the routes (`route_check
+mode's count is still made, over every movie (`--native on --generated on`,
+43 s for the library) and the routes (`route_check
 --fallbacks`, `$CT_DRIVE_FALLBACKS` through `tools/movies/ctdrv.py`), and
 reported beside it. A route's count is over the frames it kept: as the run
 ends, the input it kept is played again from its start by a `ct_drive` that
@@ -3028,9 +3028,7 @@ service's to take away, not a caller's. The runtime's census hooks
 (`native_census_hooks`, port/native.h) carry the two counts the observer
 doesn't. `tools/census.py --ct-dev build/main/ct_dev` plays the library and
 adds the files up; `--files` reads ones already written, `--entries` lists
-every entry. It plays the C sound driver, as `ct_play` does;
-`--sound-driver original` counts the original's driver, which only the
-gate's reference plays now (below).
+every entry. It plays the C sound driver, as `ct_play` does.
 
 Over the 48 movies (shipping mode, chunk 11's tree): **259 entries are entered
 by the machine, 21.5 M times**, none of them from the original's code -- 1.9 M
@@ -3051,34 +3049,78 @@ run as C. What holds the most entries to the registry, by distinct entries:
 
 ### The sound driver's teardown
 
-The first subsystem taken off the machine in the product (PLAN.md, "The
-native program, and the registry taken down", step 3). The C sound driver
-(`game/sound/`) had no machine in it already but the escape its command
-`$FD` asks for; the CPU half in bank `$C7` (`core/sound_driver.c`) had all
-of it. Two halves were one file: the protocol the original's driver is
-spoken to in (the boot's upload, the commands' and songs' transfers, the
-slots' records, the entries' wrappers, the two wait loops and the
-scaffolding shadow mode compares), and the few lines that hand a command to
-a driver the host plays. The second is `core/sound_commands.c` now, and
-`ct_native` links it and not the first, which CMakeLists.txt leaves out of
-its sources beside `registry.c`; `tools/machine_joints.py` counts the joints
-in what `ct_native` links as a second column (returns 987 to 982, stops 177
-to 175, scaffolding writes 2,061 to 2,032).
+The first subsystem taken off the gate (PLAN.md, "Retiring the gate,
+deliberately"; "The native program, and the registry taken down", step 3),
+on purpose: the gate no longer compares sound with the original's. The C
+sound driver (`game/sound/`) is the only driver anything of ours plays --
+`ct_play`, `ct_drive`, `ct_native` and every `ct_dev` run of the hand ports
+from power-on (`--native on`, not `--generated only`) -- and it takes the
+game's boot and commands as calls (`core/sound_commands.c`: `au_command`'s
+SNES backend hands the buffer to the host, `field_first_start` and
+`field_power_on` the boot). There is no `--sound-driver` any more.
 
-On the machine the shipping mode called out to `$C7:0004` for every command,
-and the entry handed it to the host: 25.5 K entries by the machine over the
-84 movies, the boot's 100 more, and 16 entries the machine came back to
-after them (`menu_type_the_description_task` and the menus' others, waiting
-across a command). The audio service's SNES backend now hands a command to
-a host-played driver as a call (the APU's `host_send`, which
-`frontend/sound_host.c` points at `sound_driver_hand_the_buffer_to_the_host`),
-timed as `$C7:0004`'s work (`native_time_as`), and the field's power-on
-takes the host's boot as C before it would call out; with no host (the
-original driver: the reference play, the lockstep, `--sound-driver
-original`) both call out as before. The census enters nothing of bank `$C7`
-by the machine (266 entries to 264). The rows, wrappers and scaffolding
-stay for the gate, which plays the original's driver; PLAN.md says what
-retires them.
+**Deleted.** The port of the CPU half in bank `$C7` (`core/sound_driver.c`:
+the boot's upload, the commands' and songs' transfers, the slots' records):
+its 9 registry rows, its entry wrappers (5 returns through the emulated
+stack), its 2 stops and its 29 scaffolding writes, with its rows in
+`docs/ports.tsv`, `tools/fuzz_routines.toml` (and `ct_fuzz
+--apu-port1-flips`, which only they used), `tools/effects_baseline.txt`,
+`tools/uncompared_baseline.txt` and `tools/fallback_baseline.txt`. The
+audio service's waits it alone made (`au_driver_exchange`, `_wait_moved`,
+`_wait_echo_or_give_up`); the APU-direct backend (`--audio direct`), which
+ran the original's driver out of the machine's time from those entries; the
+sound lockstep (`ct_dev --sound-lockstep`, `dev/sound_lockstep.c`,
+`sound_compare.c`, `sound_state.c`, `sound_audio.c`) and `ct_sound_fuzz`'s
+mode against the original; `ct_dev --apu-port-margins`. `tools/machine_joints.py`:
+registered entries 2,189 to 2,180, returns 993 to 988, stops 177 to 175,
+scaffolding writes 2,066 to 2,037. The census enters nothing of bank `$C7`
+by the machine, as before (the shipping mode had handed the commands to the
+host as calls already), and counts 1,368 entries run only as C less the two
+time tags the commands and the boot were charged under (`$C7:0004`,
+`$C7:0000`), which went with their rows: a command's own C is the caller's
+time now, and the time the original's driver took is the time model's
+(`platform/time_model.h`), as before.
+
+**What replaces the comparison.** Checks that need no original:
+- `sound_test` (no ROM, CI): the driver on a made-up cartridge as it was,
+  and now the host as the player plays it -- the boot and a run of the
+  game's commands as calls, heard through the S-DSP and the native mixer
+  side by side, every frame the same, the sound's 64-bit FNV-1a digest the
+  one the test keeps;
+- `ct_sound_fuzz` (the gate): random command streams, half as the game's
+  calls and half through the ports as the scenes send them, with the game's
+  songs and with made-up ones; every command answered, no sample placed
+  where the echo writes, none dropped, the mixer's every frame the S-DSP's,
+  and each kind of run's digest the one `tools/sound_golden.txt` keeps
+  (`9b3ab44a6678e66a` and `a36313e5e19a4d59`). A digest is a hash of our own
+  output, nothing of the cartridge's; one that moves is a change to what the
+  driver plays, taken on purpose;
+- the host's faults in every run that plays it (`sound_host_report`: a
+  sample where the echo writes, a command dropped, exit 1), which the strict
+  check, the native shape and the vblank check's shipping runs see; and the
+  routes, which reach their outcomes with it.
+
+**The reference play keeps the cartridge's driver, and why that is sound.**
+Shadow mode, `--native off` and `--generated only` (and `ct_play`'s movie
+replay and recording, and a loaded state) are the cartridge on the emulated
+console: the original runs everything at its own timing, and the movies were
+recorded against it. The console's sound processor running the cartridge's
+driver, and the cartridge's CPU half speaking to it, are part of that machine
+as the PPU is: they set when the CPU half's waits end, and so the frame every
+press lands on. Putting the C driver there would make the reference play's
+timing the time model's, which only estimates the original's, and move every
+movie off where it was recorded. So nothing about the reference changed: the
+other subsystems' shadow comparisons are a port against the original from
+the same machine state, as before, and `--generated only` is still
+trace-identical to `--native off`. What changed is that no port stands for
+bank `$C7` there, so a port's sound command in shadow mode calls out to the
+cartridge's CPU half on the machine, uncompared. The measures that count the
+original's code are told it is retired rather than unported: the fallback
+measure doesn't count bank `$C7` where the cartridge's driver plays
+(`dev/fallbacks.c`; where the C driver plays it would, as nothing should
+reach it), and `tools/burndown.py` leaves the bank out ("Retired code"). A
+SNES build (target 3) needs a CPU half again: the cartridge's, from the
+matching source, or the deleted port from history (TODO.md).
 
 ### The native program's last named stops
 

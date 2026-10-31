@@ -82,7 +82,7 @@ def to_the_shell(run, start):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, sound=args.sound_driver, until=args.until)
+              generated=args.generated, until=args.until)
     machine = run.machine
     developers = lambda: machine.b(A.DEVELOPERS_TALKED)
     dream_team = lambda: machine.b(A.DREAM_TEAM_TALKED)

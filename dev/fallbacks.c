@@ -372,6 +372,19 @@ static void after_an_rti(Fallbacks *f, uint16_t sp)
     f->pending_rti = false;
 }
 
+/* The cartridge's CPU half of its sound driver (bank $C7, and its mirror $47)
+ * where the machine's sound processor runs the cartridge's driver: the
+ * reference play, which is the cartridge on the emulated console. No port
+ * stands for it, by design: wherever the hand ports play from power-on the C
+ * driver takes the game's boot and commands as calls, and none of this code
+ * runs (docs/REIMPLEMENTATION.md, "The sound driver's teardown"). So it is
+ * the reference's own machinery, like the sound processor's program, and not
+ * counted; where the C driver plays it is, since nothing should reach it. */
+static bool the_cartridges_sound_protocol(const Snes *s, uint32_t pc)
+{
+    return !s->apu.host_command && ((pc >> 16) & 0x7F) == 0x47;
+}
+
 void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
     const Snes *s = f->s;
@@ -401,7 +414,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         if (f->pass.open)
             f->pass.hidden++;
     }
-    if (eff.kind != COVERED) {
+    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc)) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));
         f->by_kind[eff.kind]++;

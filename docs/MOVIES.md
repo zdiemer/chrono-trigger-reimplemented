@@ -192,7 +192,7 @@ and recording setup; the routes supply the ending's walks and completion checks.
 ```sh
 python3 -m tools.movies.routes.successor_of_guardia --prefix work/successor/run \
     --movie work/successor.ctm
-python3 -m tools.movies.route_check --mode on:on:c -j 1 \
+python3 -m tools.movies.route_check --mode on:on -j 1 \
     --scratch work/shipping successor_of_guardia
 ```
 
@@ -328,21 +328,20 @@ and from scratch, and reports each outcome, with the frame each phase was
 reached at, modes side by side. It exits 0 only if every run reached its goal.
 
 ```sh
-python3 -m tools.movies.route_check                        # telepod_lavos:shell and beyond_time, on:on:c
+python3 -m tools.movies.route_check                        # telepod_lavos:shell and beyond_time, on:on
 python3 -m tools.movies.route_check --mode off --mode on:on --scratch work/check -j 2 \
     telepod_lavos:shell beyond_time
 ```
 
-A mode is `off` or `<native>:<generated>[:<sound driver>]`: `on:on:c`, the
-default and the suite's, is the build that ships, with the C sound driver
-playing in the SPC700's place (`ct_drive --sound-driver c`, as `ct_play` does
-by default; SOUND.md, "Playing it"), whose commands take no time, so its
-frames are not `on:on`'s. `ct_drive`'s machine copies and state files then
-hold the driver's fields beside the machine's, and it exits 1 at `quit` where
-the host dropped a command or placed a sample where the echo was writing,
-which the route reports as failed. The original driver's runs in the shipping
-mode are the vblank check's, over every movie the gate runs, so the suite doesn't run the
-routes in `on:on` as well.
+A mode is `off` or `<native>:<generated>`: `on:on`, the default and the
+suite's, is the build that ships, with the C sound driver playing in the
+sound processor's place (as `ct_play` does; SOUND.md, "Playing it"), whose
+commands take the time model's time. With `--native on` and the ported
+routines `ct_drive` always plays it, and its machine copies and state files
+hold the driver's fields beside the machine's; it exits 1 at `quit` where the
+host dropped a command or placed a sample where the echo was writing, which
+the route reports as failed. The other modes are the reference play's
+machine, the cartridge's own driver on the sound processor.
 
 A long run can be cut short (a time limit on the session running it, a
 restart): with `--scratch` kept and `--resume`, running the same command again

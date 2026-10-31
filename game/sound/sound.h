@@ -256,14 +256,10 @@ void sound_queue_command(SoundDriver *d, SoundCommand c);
 
 /* A tick: the mix the last tick left, the status, the fades and the tracks
  * stepped; then what each voice sounds like; then the driver's own sample.
- * Commands queued meanwhile are carried out after the first two parts. The
- * parts are for a host that carries out each command itself at the point it
- * comes (ct_dev --sound-lockstep): a paused driver does only the first, up to
- * the status, and a tick paused by its first commands stops there. */
+ * Commands queued meanwhile are carried out after the first two parts. A
+ * paused driver does only the first, up to the status, and a tick paused by
+ * its first commands stops there. */
 void sound_tick(SoundDriver *d);
-void sound_tick_begin(SoundDriver *d);
-void sound_tick_voices(SoundDriver *d);
-void sound_tick_end(SoundDriver *d);
 
 /* The tick the driver runs while data is being loaded for it: the music goes
  * on, but the effects, the commands and the status wait. */
@@ -298,19 +294,13 @@ void sound_load_instrument(SoundDriver *d, uint8_t instrument, uint16_t block);
  * commands here. */
 void sound_game_command(SoundDriver *d, SoundCommand c, uint8_t effects_asked);
 
-/* Its parts, for a host that takes the CPU half's work from the original as
- * it happens (ct_dev --sound-lockstep): a song's start with the parameters it
- * comes with (a new echo delay keeps its buffer free of samples first); the
- * set of effects a song announced by sound_announce_song brings; the rest of
- * that song once the original's upload is in (its samples placed, the effects
- * loaded again if they changed or a song ran over them, the song started);
- * the room the echo keeps at the top after a change of its delay; and command
- * $71's instrument, false if its sample doesn't fit where the song's first
- * lies. */
+/* Two of its parts: a song's start with the parameters it comes with (a new
+ * echo delay keeps its buffer free of samples first, the set of effects the
+ * game asked for comes with it, its samples are placed and it starts), for a
+ * host that takes a song's command written to the ports, as the scenes send
+ * one; and command $71's instrument, false if its sample doesn't fit where
+ * the song's first lies. */
 void sound_play_song(SoundDriver *d, SoundCommand c, uint8_t effects_asked);
-void sound_ask_for_effects(SoundDriver *d, uint8_t effects_asked);
-void sound_load_announced_song(SoundDriver *d);
-void sound_keep_echo_free(SoundDriver *d, uint8_t echo_delay);
 bool sound_load_song_instrument(SoundDriver *d, uint16_t block);
 
 /* The status the game reads (docs/SOUND.md, "What the game reads back"), as

@@ -94,8 +94,6 @@ C2:F626 525 29  # no port yet (menus, text, overworld)
 C2:FD58 1760 46  # no port yet (menus, text, overworld)
 C2:FD68 1815 47  # no port yet (menus, text, overworld)
 C3:0C28 10 23  # handback by scene_sequence_goes_on_after_the_wait (scene engine); the wait's first instructions after the sequence goes on, the same code as $7E:398A's
-C7:0000 510 15  # handback by sound_driver_boot (sound driver)
-C7:005F 170 3  # handback by sound_driver_boot_start (sound driver)
 FD:---- 12 7  # no port yet (field graphics)
 FD:A990 2048 222  # handback by battle_dispatch_expired_timers (field graphics)
 FD:DA62 5080 7  # handback by warp_short_trip_waits (field graphics); the warp's frame wait, the same code filed under warp_short_frame ($FD:DA65) before chunk 11 ported the trip's start
@@ -121,7 +119,6 @@ open C2:E921 5 0  # hidden under menu_cursor_task_goes_on's comparison, still op
 open C2:F699 2 0  # hidden under menu_record_task_goes_on's comparison, still open when a run ended: as C0:00BA's, the menus' wait for the frame's uploads
 open C3:0002 1 0  # hidden under decompress's comparison, still open when a run ended; a movie that ends in an unpacking
 open C3:0557 44291 0  # hidden under decompress_direct's comparison, still open when a run ended
-open C7:0004 102816 0  # hidden under sound_driver_command's comparison, still open when a run ended: the attract demo ends during a song's upload, which the command carries out whole now, its waits in place (the block being uploaded was a comparison of its own before: open C7:0655, 7,904 while it stopped at each exchange, 25,688 once it waited in place)
 open CD:0036 8 0  # hidden under battle_sit_out_the_pause_long's comparison, still open when a run ended
 open CD:3E44 7 0  # hidden under battle_sit_out_the_pause's comparison, still open when a run ended
 open CD:3E75 3697 0  # hidden under battle_wait_for_the_next_frame's comparison, still open when a run ended

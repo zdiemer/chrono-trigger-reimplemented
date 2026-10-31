@@ -34,7 +34,7 @@ GLOBE_FRAMES = 1500     # the globe's scene set up and a few turns of it
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, sound=args.sound_driver, until=args.until)
+              generated=args.generated, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

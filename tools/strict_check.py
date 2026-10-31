@@ -7,9 +7,9 @@ ratchet on it.
     python3 tools/strict_check.py --ct-dev build/main/ct_dev --movies menu field -j 2
 
 The product has no emulator in it, so what the hand ports don't cover has
-nothing to run. `ct_dev --native on --generated off --no-interpreter strict
---sound-driver c` plays a movie that way (docs/PLAYING.md, "Without the
-interpreter"): the hand ports and the C sound driver, no code generated from
+nothing to run. `ct_dev --native on --generated off --no-interpreter strict`
+plays a movie that way (docs/PLAYING.md, "Without the interpreter"): the hand
+ports and the C sound driver, no code generated from
 the ROM and no interpreter, and the first instruction no port runs stops the
 run (`frame F: no generated code for BB:AAAA ...; stopping`). This runs every
 movie so and reports, per movie, one of three outcomes:
@@ -69,7 +69,7 @@ import places
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "tools/strict_baseline.txt"
 
-STRICT = ["--native", "on", "--generated", "off", "--no-interpreter", "strict", "--sound-driver", "c"]
+STRICT = ["--native", "on", "--generated", "off", "--no-interpreter", "strict"]
 STOP = re.compile(r"^frame (\d+): no generated code for (\S+)", re.M)
 FRAMES = re.compile(r"^# frames (\d+)", re.M)
 # What a run that got to its last frame must not print (dev/ct_dev.c).
@@ -281,7 +281,7 @@ def describe(result, frames):
 
 
 HEADER = """# How each library movie ends on the hand ports alone (tools/strict_check.py):
-# `ct_dev --native on --generated off --no-interpreter strict --sound-driver c`.
+# `ct_dev --native on --generated off --no-interpreter strict` (the C sound driver).
 # A line per movie: `end` (its last frame, with no halt, stray accessor or
 # refused page, and the saved game and save RAM as the reference play leaves
 # them, but for the play clock and the battles' random start), `drifts` (the

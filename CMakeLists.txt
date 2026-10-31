@@ -47,7 +47,6 @@ add_library(ct_runtime STATIC
   runtime/port/native.c
   runtime/port/scaffold_reads.c
   runtime/platform/snes/backend.c
-  runtime/platform/direct/audio.c
   runtime/platform/observe.c
   runtime/platform/voices.c
   runtime/platform/voices_dsp.c
@@ -83,7 +82,6 @@ add_library(ct_game STATIC
   game/core/memory.c
   game/core/palette.c
   game/core/sound_commands.c
-  game/core/sound_driver.c
   game/core/tile_animation.c
   game/data/assets.c
   game/data/asset_catalogue.c
@@ -419,9 +417,8 @@ target_link_libraries(ct_game_native_shape PUBLIC ct_runtime)
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c oracle/src/sram_find.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
-set(CT_DEV_SOURCES dev/ct_dev.c dev/apu_margins.c dev/asset_report.c dev/as_port.c dev/census.c dev/event_reads.c dev/fallbacks.c dev/io_log.c dev/misses.c
-  dev/px_check.c dev/range_report.c dev/mixer_check.c dev/sound_audio.c dev/sound_compare.c dev/sound_lockstep.c
-  dev/sound_state.c dev/vid_check.c frontend/assets.c frontend/natives.c frontend/sound_host.c)
+set(CT_DEV_SOURCES dev/ct_dev.c dev/asset_report.c dev/as_port.c dev/census.c dev/event_reads.c dev/fallbacks.c dev/io_log.c dev/misses.c
+  dev/px_check.c dev/range_report.c dev/mixer_check.c dev/vid_check.c frontend/assets.c frontend/natives.c frontend/sound_host.c)
 add_executable(ct_dev ${CT_DEV_SOURCES})
 target_include_directories(ct_dev PRIVATE frontend)
 target_link_libraries(ct_dev PRIVATE ct_game ct_vars_checked ct_generated ct_runtime ct_trace)
@@ -429,10 +426,9 @@ target_link_libraries(ct_dev PRIVATE ct_game ct_vars_checked ct_generated ct_run
 add_executable(ct_fuzz dev/ct_fuzz.c dev/fuzz.c dev/range_report.c)
 target_link_libraries(ct_fuzz PRIVATE ct_game ct_vars_checked ct_runtime)
 
-# The C sound driver against the original on random command streams
-# (docs/SOUND.md, "Validating the port").
-add_executable(ct_sound_fuzz dev/ct_sound_fuzz.c dev/mixer_check.c dev/sound_audio.c dev/sound_lockstep.c
-  dev/sound_compare.c dev/sound_state.c frontend/sound_host.c)
+# The C sound driver on random command streams, its sound's digest kept in
+# tools/sound_golden.txt (docs/SOUND.md, "Validating the port").
+add_executable(ct_sound_fuzz dev/ct_sound_fuzz.c dev/mixer_check.c frontend/sound_host.c)
 target_include_directories(ct_sound_fuzz PRIVATE frontend)
 target_link_libraries(ct_sound_fuzz PRIVATE ct_game ct_vars_checked ct_runtime ct_trace)
 
@@ -496,10 +492,9 @@ target_compile_definitions(ct_state_host PRIVATE CT_VARS_HOST CT_WITHOUT_ORIGINA
 target_include_directories(ct_state_host PUBLIC game)
 target_link_libraries(ct_state_host PUBLIC ct_platform_native)
 set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
-# What the machine alone runs: the registry, and the subsystems whose machine side is a
-# file of its own (docs/PLAN.md, "The native program, and the registry taken down"): the
-# sound driver's CPU half for the original's driver (core/sound_driver.c).
-list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c game/core/sound_driver.c)
+# What the machine alone runs: the registry (docs/PLAN.md, "The native program, and the
+# registry taken down").
+list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c)
 add_executable(ct_native frontend/ct_native.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
   runtime/platform/native/render.c ${CT_NATIVE_GAME_SOURCES})
 target_compile_definitions(ct_native PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
@@ -524,8 +519,8 @@ target_link_libraries(fuzz_test PRIVATE ct_runtime)
 add_executable(time_parts_test tests/port/time_parts_test.c)
 target_link_libraries(time_parts_test PRIVATE ct_runtime)
 # The C sound driver on a made-up cartridge, its voices as S-DSP registers, the
-# lockstep harness's comparison, and the host's saved state (docs/SOUND.md).
-add_executable(sound_test tests/port/sound_test.c dev/sound_compare.c frontend/sound_host.c)
+# host's saved state, and the host's sound and its digest (docs/SOUND.md).
+add_executable(sound_test tests/port/sound_test.c dev/mixer_check.c frontend/sound_host.c)
 target_include_directories(sound_test PRIVATE dev frontend)
 target_link_libraries(sound_test PRIVATE ct_game ct_vars_checked ct_runtime)
 # The accessors generated from re/ram.toml, and the page kinds' D mapping.

@@ -43,9 +43,10 @@ def replay_seconds(frames):
 
 
 class Machine:
-    """`native`, `generated` and `sound` are ct_drive's --native, --generated and
-    --sound-driver (default: the interpreter and the original sound driver, or
-    $CT_DRIVE_NATIVE, $CT_DRIVE_GENERATED and $CT_DRIVE_SOUND). With --native on
+    """`native` and `generated` are ct_drive's --native and --generated (default:
+    the interpreter, or $CT_DRIVE_NATIVE and $CT_DRIVE_GENERATED); with --native
+    on and the ported routines the C sound driver plays, else the cartridge's
+    own on the sound processor (the reference play's). With --native on
     and $CT_DRIVE_FALLBACKS naming a directory, each machine also counts what
     the original's code runs in place of hand ports (ct_drive --fallbacks) into
     a file of its own there, for tools/fallbacks.py: over the frames the run
@@ -58,17 +59,14 @@ class Machine:
 
     _count = 0
 
-    def __init__(self, rom=None, sram=None, drive=None, native=None, generated=None, sound=None):
+    def __init__(self, rom=None, sram=None, drive=None, native=None, generated=None):
         rom = str(rom or os.environ.get("CT_ROM") or DEFAULT_ROM)
         drive = str(drive or os.environ.get("CT_DRIVE") or DEFAULT_DRIVE)
         native = native or os.environ.get("CT_DRIVE_NATIVE") or "off"
         generated = generated or os.environ.get("CT_DRIVE_GENERATED") or "on"
-        sound = sound or os.environ.get("CT_DRIVE_SOUND") or "original"
         command = [drive]
         if native != "off":
             command += ["--native", native, "--generated", generated]
-        if sound != "original":
-            command += ["--sound-driver", sound]
         if os.environ.get("CT_DRIVE_DRAIN_BUDGETS") and native == "on":
             command += ["--drain-budgets"]
         fallbacks = os.environ.get("CT_DRIVE_FALLBACKS")
@@ -78,7 +76,7 @@ class Machine:
             self.counted = (list(command), os.path.join(fallbacks, "drive-%d-%d.txt" % (os.getpid(), Machine._count)))
         command += [rom] + ([str(sram)] if sram else [])
         self.rom, self.sram, self.drive = rom, sram, drive
-        self.native, self.generated, self.sound = native, generated, sound
+        self.native, self.generated = native, generated
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         text=True, bufsize=1)
         self.frame = 0

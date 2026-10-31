@@ -1,5 +1,6 @@
-/* The sound driver's data: what the CPU half of the driver (sound_driver.c)
- * sends the SPC700, and the tables it looks things up in.
+/* The sound driver's data: what the C sound driver (game/sound/) loads -- what
+ * the cartridge's CPU half sent the sound processor -- and the tables it looks
+ * things up in.
  *
  * Every read the driver makes of it goes through these accessors, named after
  * the resources MD2 typed (docs/MATCHING.md, "Sound blocks": sound_block_ptrs
@@ -15,26 +16,6 @@
 
 #include "rom.h"
 
-/* A resource's bytes, which the CPU half sends in order, three a message (a
- * block, a song's sequence, a set of effects, a song's percussion): found
- * once, by the resource's own accessor below, and read by index. The ROM
- * build's handle is where they are in the cartridge, which only the CPU
- * half's scaffolding asks for (sound_bytes_place): the original reads them
- * through a long pointer in work RAM, which shadow mode compares, and sends
- * data that runs into the next bank from a loop of its own. */
-typedef struct {
-    uint32_t at;
-} SoundBytes;
-static inline uint8_t sound_bytes_byte(const GameState *g, SoundBytes b, uint16_t i) { return rom_read8(g, b.at + i); }
-static inline uint32_t sound_bytes_place(SoundBytes b) { return b.at; }
-/* Whether byte `i` starts one of the cartridge's banks; and whether `length`
- * bytes from `i` reach the end of the bank they start in. */
-static inline bool sound_bytes_start_a_bank(SoundBytes b, uint16_t i) { return (uint16_t)(b.at + i) == 0; }
-static inline bool sound_bytes_reach_a_banks_end(SoundBytes b, uint16_t i, uint16_t length)
-{
-    return (uint32_t)(uint16_t)(b.at + i) + length > 0xFFFFu;
-}
-
 /* The SPC700 driver goes up in six blocks: block k is at $C7:(the word at
  * $C7:0010 + 2k), a length and that many bytes, for SPC700 address (the word
  * at $C7:001C + 2k). The driver's code is block 0, at $0200; block 1 is the
@@ -47,9 +28,9 @@ enum { SOUND_BOOT_BLOCKS = 6 };
  * percussion mode plays its notes' pitch as an index into them
  * (game/sound/sequencer.c). */
 enum { SOUND_PERCUSSION_ENTRIES = 12, SOUND_PERCUSSION_ENTRY_BYTES = 3 };
-static inline SoundBytes sound_song_percussion_bytes(uint8_t song)
+static inline uint32_t sound_song_percussion_bytes(uint8_t song)
 {
-    return (SoundBytes){ 0xC71871u + SOUND_PERCUSSION_ENTRIES * SOUND_PERCUSSION_ENTRY_BYTES * song };
+    return 0xC71871u + SOUND_PERCUSSION_ENTRIES * SOUND_PERCUSSION_ENTRY_BYTES * song;
 }
 
 /* ---- The sets of sound effects ------------------------------------------------------- */
@@ -58,11 +39,10 @@ static inline SoundBytes sound_song_percussion_bytes(uint8_t song)
  * the data: the field's (0) at $C7:4309 (also boot block 1), the battle's (1)
  * at $C7:5B0B: a table of the effects' tracks, then the tracks. */
 static inline uint32_t sound_effect_set_at(uint8_t set) { return set ? 0xC75B0Bu : 0xC74309u; }
-static inline SoundBytes sound_effect_set_bytes(uint8_t set) { return (SoundBytes){ sound_effect_set_at(set) + 2 }; }
 
 /* ---- What the sound driver itself loads (game/sound/) ------------------------------
  *
- * The C sound driver loads the same resources the CPU half uploads, by what
+ * The C sound driver loads the same resources the CPU half uploaded, by what
  * they are rather than where they go: a song's sequence and percussion, the
  * instruments' tunings and envelopes, a set of sound effects, and the tables
  * that are part of the driver's program (boot block 0, read by their SPC700
@@ -146,10 +126,6 @@ static inline uint8_t sound_song_byte(const GameState *g, uint8_t song, uint16_t
     uint32_t at = sound_song_at(g, song) + 2;
     return rom_read8(g, (at & 0xFF0000u) + (at & 0xFFFFu) + i);
 }
-static inline SoundBytes sound_song_sequence_bytes(const GameState *g, uint8_t song)
-{
-    return (SoundBytes){ sound_song_at(g, song) + 2 };
-}
 
 /* The song's instruments $20 on, the blocks its samples are (a 0 ends them;
  * the driver reads 16 all the same). Blocks are numbered in a byte: the
@@ -161,7 +137,7 @@ static inline uint8_t sound_song_instrument_block(const GameState *g, uint8_t so
 }
 /* A block's instrument: its tuning and envelope. The index is the original's,
  * so block 0 (no block) reads the word before each table, as the CPU half
- * sends it. */
+ * sent it. */
 static inline uint16_t sound_instrument_tuning(const GameState *g, uint16_t block)
 {
     return rom_read16(g, 0xC70C20u + (uint16_t)((block - 1) * 2));
@@ -173,7 +149,7 @@ static inline uint16_t sound_instrument_envelope(const GameState *g, uint16_t bl
 
 static inline uint8_t sound_song_percussion_byte(const GameState *g, uint8_t song, uint8_t i)
 {
-    return sound_bytes_byte(g, sound_song_percussion_bytes(song), i);
+    return rom_read8(g, sound_song_percussion_bytes(song) + i);
 }
 
 /* ---- What the CPU half's commands read (game/sound/loads.c) ------------------------ */
@@ -209,7 +185,6 @@ static inline uint8_t sound_block_byte(const GameState *g, uint16_t id, uint16_t
 {
     return rom_read8(g, sound_block_data(g, id) + 2 + i);
 }
-static inline SoundBytes sound_block_bytes(const GameState *g, uint16_t id) { return (SoundBytes){ sound_block_data(g, id) + 2 }; }
 static inline uint16_t sound_block_loop(const GameState *g, uint16_t id)
 {
     return rom_read16(g, 0xC70BA4u + (uint16_t)((id - 1) * 2));

@@ -71,7 +71,7 @@ static void forget_places_under_echo(SoundDriver *d)
 }
 
 // $C7:09FD
-void sound_keep_echo_free(SoundDriver *d, uint8_t echo_delay)
+static void sound_keep_echo_free(SoundDriver *d, uint8_t echo_delay)
 {
     SoundSamples *p = places(d);
     echo_delay = echo_delay_of(echo_delay);
@@ -251,7 +251,7 @@ static void place_song_samples(SoundDriver *d, uint8_t song)
 enum { SONG_REACHES_EFFECTS = SOUND_EFFECTS - SOUND_SEQUENCES };
 
 // $C7:0614
-void sound_load_announced_song(SoundDriver *d)
+static void sound_load_announced_song(SoundDriver *d)
 {
     if (!d->song_announced)
         return;
@@ -269,7 +269,7 @@ void sound_load_announced_song(SoundDriver *d)
 // $C7:04A9
 /* A set other than the one loaded comes with the song, as if a song had run
  * over the effects. */
-void sound_ask_for_effects(SoundDriver *d, uint8_t effects_asked)
+static void sound_ask_for_effects(SoundDriver *d, uint8_t effects_asked)
 {
     SoundSamples *p = places(d);
     uint8_t set = effects_asked != 0;

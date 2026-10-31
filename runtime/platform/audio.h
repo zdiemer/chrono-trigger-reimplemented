@@ -14,15 +14,13 @@ typedef struct {
 } AudioCommand;
 
 /* Send a command. SNES backend: the parameters and command into $1E01-$1E03 and
- * $1E00, then a call-out to $C7:0004 from o.site (o.target), so the driver's
- * echo waits and uploads run as before and frames can pass. Returns when the
- * original's JSL would. The WRAM writes are made in one order (parameters, then
- * the command) whatever order the original used: nothing runs between them.
- * Where a host plays the C sound driver (au_driver_hosted), the command is
- * handed to it as a call instead, with no call-out: only the original's
- * driver needs the CPU half on the machine.
- * APU-direct: the same, and the driver's registry entry runs the command
- * without main-CPU time passing. */
+ * $1E00 (in one order, parameters then command, whatever order the original
+ * used: nothing runs between them), then handed to the C sound driver the host
+ * plays as a call (au_driver_hosted; core/sound_commands.h). Where the
+ * console's sound processor runs the cartridge's own driver -- the reference
+ * play, which is the cartridge's program on the emulated console -- a call-out
+ * to $C7:0004 from o.site (o.target) instead, the cartridge's CPU half carrying
+ * it to the sound processor, and it returns when the original's JSL would. */
 PF_API void au_command(Platform *pf, PfOrigin o, AudioCommand c);
 
 /* The driver's commands the game sends (docs/SOUND.md, "Commands from the CPU"). */
@@ -82,62 +80,44 @@ static inline uint8_t au_music_playing(Platform *pf, PfOrigin o) { return au_sta
 /* Host side: up to max_frames stereo frames at 32000 Hz; returns how many. */
 PF_API size_t au_take_samples(Platform *pf, int16_t *out, size_t max_frames);
 
-/* Below the command interface: Square's protocol. These are for the CPU half of
- * the driver (core/sound_driver.c: the upload at $C7:0000, the commands at
- * $C7:0004 and their uploads) and for the scene code that sends the driver
- * messages the same way (scene/program.c); tests/test_platform_lint.py allows
- * them nowhere else. A backend that replaces the driver never sees them.
+/* Below the command interface: the ports, for the scene code that sends the
+ * driver messages on them itself (scene/sound.c, scene/race.c);
+ * tests/test_platform_lint.py allows them nowhere else. The C driver's host
+ * answers them as the original's driver does.
  *
  * au_driver_write and au_driver_read access port 0-3. SNES backend: after
- * tm_sync, since the SPC700 watches the timing (the driver writes ports 1-3
- * before port 0, and waits for echoes). APU-direct, inside a run of the driver:
- * the time the code has taken passes on the APU instead. */
+ * tm_sync, since the sound processor watches the timing (a message is written
+ * on ports 1-3 before port 0, and its echo waited for). */
 PF_API void au_driver_write(Platform *pf, PfOrigin o, uint8_t port, uint8_t v);
 PF_API uint8_t au_driver_read(Platform *pf, PfOrigin o, uint8_t port);
 
-/* The first thing the registry entries that start an exchange do (the upload,
- * a command, the scene's send): true if APU-direct ran the exchange, from the
- * entry's PC until PC leaves [lo, hi], without main-CPU time passing; the entry
- * then returns at once. SNES backend: false. */
+/* Always false: what the scene's send asks first, from when a backend could
+ * run the original's driver out of the machine's time (APU-direct, retired
+ * with the CPU half's port; docs/TODO.md). */
 PF_API bool au_driver_run_direct(Platform *pf, uint32_t lo, uint32_t hi);
 
-/* A JSR the driver makes to a routine that waits for the SPC700 (o: the JSR's
- * site and target). SNES backend: a call-out, so frames pass while it waits.
- * APU-direct, inside a run: the callee runs synchronously. `dont_care` names
+/* A JSR to a routine of the original's that sends over the ports (o: the
+ * JSR's site and target). SNES backend: a call-out, so frames pass while it
+ * waits. `dont_care` names
  * the caller's registers and flags the callee doesn't read (DC_* bits,
  * port/native.h), which shadow mode doesn't compare at the call: a port written
  * as logic apart from the registers sets only what the callee takes. */
 PF_API void au_driver_call(Platform *pf, PfOrigin o, uint16_t dont_care);
 
-/* The waits for the SPC700's answer on port 0. Its driver echoes every value
- * the CPU half puts there, once it has taken the message the value ends.
- *
- * au_driver_exchange puts `value` on port 0 and waits for the echo, which is
- * what the routine at o.target does when called from o.site
- * (PF_CALL_DC(site, target, what it doesn't read)): SNES backend, in the
- * shipping mode the port writes and waits where it stands; in shadow mode and
- * the tools the original's routine runs, with `value` in an 8-bit A, as the
- * port's own work (native_wait_call). au_driver_wait_echo and
- * au_driver_wait_moved stand for a loop of the caller's own routine
- * (PF_LOOP(head, exit)) that waits for port 0 to show `value`, or to show
- * anything but it (native_wait_loop). APU-direct, inside a run: the SPC700
- * runs ahead until it answers. A backend with no SPC700 never sees them. */
-PF_API void au_driver_exchange(Platform *pf, PfOrigin o, uint8_t value);
+/* The wait for the driver's answer on port 0: it echoes every value put there
+ * once it has taken the message the value ends. au_driver_wait_echo stands
+ * for a loop of the caller's own routine (PF_LOOP(head, exit)) that waits for
+ * port 0 to show `value` (native_wait_loop). */
 PF_API void au_driver_wait_echo(Platform *pf, PfOrigin o, uint8_t value);
-PF_API void au_driver_wait_moved(Platform *pf, PfOrigin o, uint8_t value);
-/* au_driver_wait_echo for a loop that polls port 0 at most `tries` times and
- * then gives up, leaving at `given_up` (the same as the loop's exit where the
- * code after doesn't care): true where the SPC700 echoed in time. */
-PF_API bool au_driver_wait_echo_or_give_up(Platform *pf, PfOrigin o, uint32_t given_up, uint8_t value, uint16_t tries);
 
-/* A host that plays its own driver in the SPC700's place (the C sound driver,
- * frontend/sound_host.h) takes the CPU half's boot and commands as calls:
- * nothing is uploaded and nothing waits on the ports. au_driver_hosted says
- * whether one plays; the CPU half's two entries ask it first, and hand it
- * their work: true if it took the boot, or the command `c` (the
- * command and its three parameters, as au_command left them for the CPU half)
- * with `effects_asked`, the set of effects the game asks its next song to
- * bring. False with the original driver. */
+/* The host plays the C sound driver in the sound processor's place
+ * (frontend/sound_host.h) and takes the game's boot and commands as calls
+ * (core/sound_commands.h): nothing is uploaded and nothing waits on the
+ * ports. au_driver_hosted says whether one plays (not in the reference play,
+ * where the console's sound processor runs the cartridge's driver); true if
+ * it took the boot, or the command `c` (the command and its three parameters,
+ * as au_command left them in the buffer) with `effects_asked`, the set of
+ * effects the game asks its next song to bring. */
 PF_API bool au_driver_hosted(Platform *pf);
 PF_API bool au_driver_boot_taken(Platform *pf);
 PF_API bool au_driver_command_taken(Platform *pf, AudioCommand c, uint8_t effects_asked);
@@ -156,8 +136,9 @@ PF_API bool au_driver_command_taken(Platform *pf, AudioCommand c, uint8_t effect
  * No register numbers and no write order: a call says what changes. The first
  * implementation (platform/voices_dsp.h) makes each change as the S-DSP
  * register writes that make it, so the C driver can be checked register for
- * register against the original (ct_dev --sound-lockstep) and can play through
- * the emulated S-DSP; a native mixer is the second (docs/PLAN.md, Phase 4a).
+ * register (the native mixer is checked against it frame by frame, ct_sound_fuzz
+ * --mixer check) and can play through the emulated S-DSP; a native mixer is
+ * the second (docs/PLAN.md, Phase 4a).
  * An AuVoices is whichever of them the driver was given. */
 #include "platform/voice_types.h"
 
@@ -218,13 +199,6 @@ void au_sample_place(AuVoices *v, uint8_t sample, uint16_t start, uint16_t loop)
 /* The SNES escape: an S-DSP register written as it is, for the driver's
  * command that asks for exactly that ($FD). */
 void au_voices_snes_register(AuVoices *v, uint8_t reg, uint8_t value);
-
-/* Backends selectable at run time on the development system (host side).
- * APU-direct runs the SPC700 outside the machine's timeline
- * (platform/direct/audio.h), so it can't keep the original's timing and is
- * never the default. */
-typedef enum { AU_BACKEND_SNES, AU_BACKEND_DIRECT } AuBackend;
-PF_API void au_select_backend(Platform *pf, AuBackend backend);
 
 #ifdef CT_PLATFORM_SNES
 #include "platform/snes/audio.h"

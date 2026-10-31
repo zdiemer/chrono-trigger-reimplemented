@@ -241,7 +241,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   field back in hand after it. Shadow: no mismatch, no `page refused`, no `accessor out of range`;
   **`script_jump_to_the_point`'s guard (`$C1:672E`) refused 208 calls**, from frame 108588 (the
   second trio's first fight; 6674 instructions run as the original). The route reaches its end in
-  the shipping mode (`route_check --mode on:on:c`, frame 192208).
+  the shipping mode (`route_check --mode on:on`, frame 192208).
 - **Movie**: `battle-menu-buttons` (route `battle_menu_buttons`, zophar chrono slot 1, 5086 frames;
   cutoff 4515): Spekkio's fight started as the sweep does, then at the first menu the buttons the
   bot never presses -- right and left to the other members waiting, the item list paged with L and
@@ -283,7 +283,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   sign clear in the P its tick saves (`$7E:0A78`, `$20` where the original has `$A0`). Of the 0.34
   unported, the equipment members' slide start is a port now, and the button rows and the window
   design were C already (`menu/settings_screen.c`), uncredited by the burndown until its reading of
-  the menus' bridge was fixed (chunk 9). No refusals, no `accessor out of range`. The route reaches its end in the shipping mode (`route_check --mode on:on:c`, frame
+  the menus' bridge was fixed (chunk 9). No refusals, no `accessor out of range`. The route reaches its end in the shipping mode (`route_check --mode on:on`, frame
   6461).
 - **Movie**: `menus-save-point` (route `save_point`, ctsave12 slot 2, 3270 frames; cutoff 3219): the
   save screen a save point opens on its own (menu screen 11, `$C2:D4F8`), which no other movie
@@ -352,7 +352,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   (`$C1:56FB`) refused 24 calls, the gap `tech_sweep` found, until chunk 9 took the return at the top's
   going on into it. Mode 4 is a port since (`scene/lavos_falls.c`, its pixels' spread
   too). No `page refused` or `accessor out of range`. The route reaches its end in the shipping
-  mode (`route_check --mode on:on:c`: won without a wipe at frame 44718, mode 4 from 47598, the
+  mode (`route_check --mode on:on`: won without a wipe at frame 44718, mode 4 from 47598, the
   field back in hand at 52013).
 - **Route**: `black_tyrano`.
 
@@ -388,7 +388,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   `accessor out of range` or asset diagnostics; sound lockstep identical. `ct_native` and
   strict mode both run all 129223 frames and exit 0 without a stop. Fixed-input completion
   in those modes does not establish the ending's outcome when their timing drifts.
-  Shipping-mode `route_check --mode on:on:c` passes at frame 176603, all fights without a wipe;
+  Shipping-mode `route_check --mode on:on` passes at frame 176603, all fights without a wipe;
   its six restores away from a base replay exactly, and the C sound driver reports no dropped
   commands or samples placed over echo. No movie was added to the library, so the narrowed
   movie suite and its aggregate baselines do not apply. The route-check unit tests and the
@@ -406,7 +406,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   None of modes 5, 6, 10/11/14/15 or 12 starts in this ending. Shadow exits 0: no mismatches,
   refusals, page/accessor/asset diagnostics; sound lockstep identical. `ct_native` stops at
   frame 14237, `$FD:B438`, "an enemy coming into the battle"; strict mode runs all 144640
-  frames and exits 0 without a stop. Shipping-mode `route_check --mode on:on:c` passes at
+  frames and exits 0 without a stop. Shipping-mode `route_check --mode on:on` passes at
   frame 168451 without a wipe; all 12 restores replay exactly, with no C sound-driver errors.
 - **The Unknown Past**: `unknown_past`, technoplaza ct-state20 slot 2, 160225 frames.
   The shared bucket route beats the shell (75692), inner Lavos (103155) and Core (144665).
@@ -421,7 +421,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   of modes 5, 6, 10/11/14/15 or 12. Shadow exits 0 with zero mismatches and refusals, no
   page/accessor/asset diagnostics and identical sound lockstep. `ct_native` and strict mode
   both run all 160225 input frames and exit 0 without a stop. Shipping-mode
-  `route_check --mode on:on:c` reaches The End at frame 146361; all 12 restores replay exactly,
+  `route_check --mode on:on` reaches The End at frame 146361; all 12 restores replay exactly,
   with no C sound-driver errors.
 - **The People of the Times**: `people_of_the_times`, technoplaza ct-state21 slot 2,
   160570 frames. Story `$7F:0000 = $7E` takes `$052`'s `$75 <= story < $84` branch to `$05B`.
@@ -437,7 +437,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   **no new `$7E` scene-program code**. None of modes 5, 6, 10/11/14/15 or 12 starts.
   Shadow exits 0 with zero mismatches and refusals, no page/accessor/asset diagnostics,
   and identical sound lockstep. `ct_native` and strict mode run all 160570 input frames
-  and exit 0 without a stop. Shipping-mode `route_check --mode on:on:c` reaches The End at
+  and exit 0 without a stop. Shipping-mode `route_check --mode on:on` reaches The End at
   frame 146552; all 12 restores replay exactly, with no C sound-driver errors.
 - **The Oath**: `the_oath`, technoplaza ct-state22 slot 2, 159243 frames. The shared bucket
   route beats the shell (65635), inner Lavos (99411) and Core (134683); the Core needed
@@ -454,7 +454,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   Its shared `party_lavos_core` policy preserves healing but clears the left bit with physical
   attacks before using area techs, then targets the body and exposed Core. It uses Robo's
   learned Shock (entry 7, 17 MP), which reaches both, and restores MP for these windows.
-  No game code changed. Shipping-mode `route_check --mode on:on:c` reaches The End at 161581:
+  No game code changed. Shipping-mode `route_check --mode on:on` reaches The End at 161581:
   shell 70794, inner Lavos 103021, Core 137441, each without a wipe in the retained play.
   The final check resumed the Core checkpoint after adjusting only the Core policy; that
   restore replayed exactly, with no C sound-driver errors. The preceding full run had already
@@ -488,7 +488,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   from the Core checkpoint with generated comparisons off; TODO.md keeps it open.
   `ct_native` stops at frame 15100 in `$FD:B438`, an enemy coming into the battle;
   strict mode completes all 176261 frames and exits 0. TODO.md records the native stop too.
-  Shipping-mode `route_check --mode on:on:c` reaches The End at 142332 without a
+  Shipping-mode `route_check --mode on:on` reaches The End at 142332 without a
   wipe; all 12 restores replay exactly, with no C sound-driver errors.
 - **What the Prophet Seeks**: `what_the_prophet_seeks`, technoplaza ct-state24 slot 2,
   131287 frames. Story `$7F:0000 = $9F` selects `$052`'s `$99 <= story < $D4`
@@ -512,7 +512,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   resources retain their ranges. The catalogue check (6092 resources) and all 42
   asset/movie-tool/route-check tests pass. No game routine was ported.
   `ct_native` and strict mode complete all 131287 input frames with exit 0 and
-  no stop. Shipping-mode `route_check --mode on:on:c` reaches The End at 140017
+  no stop. Shipping-mode `route_check --mode on:on` reaches The End at 140017
   without a wipe; all 12 restores replay exactly, with no C sound-driver errors.
 - **Memory Lane**: `memory_lane`, technoplaza ct-state25 slot 2, 167063 frames.
   Story `$7F:0000 = $A2` selects `$052`'s `$A2 <= story < $AB` branch to `$0EF`.
@@ -532,7 +532,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   changing any old resource range. The catalogue check (6093 resources) and all 42
   asset/movie-tool/route-check tests pass. `ct_native` and strict mode complete all
   167063 input frames with exit 0 and no stop.
-  Shipping-mode `route_check --mode on:on:c` reaches The End at 127246 without a
+  Shipping-mode `route_check --mode on:on` reaches The End at 127246 without a
   wipe; all 12 restores replay exactly, with no C sound-driver errors.
 - **Reunion**: `reunion`, technoplaza ct-state26 slot 2, 123341 frames. Marle,
   Lucca and Robo enter the right telepod and beat the shell (16619), inner Lavos
@@ -559,7 +559,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   The two movement refusals are the departure's Y `$FFxx`; three visibility
   and three palette-release refusals check an odd sharing link despite the
   script owning the palettes. All have `gap` reasons in the allowlist.
-  Shipping-mode `route_check --mode on:on:c` reaches The End at 125438,
+  Shipping-mode `route_check --mode on:on` reaches The End at 125438,
   with the shell, inner Lavos and Core beaten at 16744, 49078 and 88617 without
   a wipe. It observes modes 11 and 15, all 459 restores replay exactly, and
   the C sound driver reports no errors.

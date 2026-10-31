@@ -1,8 +1,9 @@
 """Run routes as a test of a native-code mode, and report each outcome.
 
-Movies can't test `--native on --generated on` with the C sound driver, the mode
-the player ships in: hand ports charge estimated time there, and the driver's
-commands take none, so a movie's presses land on the wrong frames. A route decides what to press from the game's memory, so it plays the
+Movies can't test `--native on --generated on`, the mode the player ships in,
+with the C sound driver: hand ports charge estimated time there, and the
+driver's commands the time model's, so a movie's presses land on the wrong
+frames. A route decides what to press from the game's memory, so it plays the
 same scene whatever the timing; whether it still reaches its goal (an ending, a
 battle won, a place) is the test (docs/MOVIES.md, "Routes as a test").
 
@@ -11,9 +12,9 @@ battle won, a place) is the test (docs/MOVIES.md, "Routes as a test").
 
 A route is `name` (routes/<name>.py, to its end) or `name:phase` (stopped at that
 phase's checkpoint). A mode is `off` (the interpreter) or
-`<native>:<generated>[:<sound>]`, ct_drive's --native, --generated and
---sound-driver (`original`, the default, or `c`, which needs --native on); the
-shipping mode is `on:on:c`, the default. Every route runs in every mode, from its own
+`<native>:<generated>`, ct_drive's --native and --generated (with `on` and the
+ported routines the C sound driver plays, else the cartridge's own); the
+shipping mode is `on:on`, the default. Every route runs in every mode, from its own
 cartridge save and from scratch, in `--scratch` (checkpoints, logs and screens;
 not the repo); the table gives each outcome with the frame it was reached at,
 modes side by side. Frame counts differ between modes by design; the outcome is
@@ -50,7 +51,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 # A field route (the fair to the telepod: the world map, walking, talking and
 # dialogue) and a battle route (two Lavos fights, then the ending's walks).
 DEFAULT_ROUTES = ["telepod_lavos:shell", "beyond_time"]
-DEFAULT_MODES = ["on:on:c"]
+DEFAULT_MODES = ["on:on"]
 
 OUTCOME = re.compile(r"^outcome (reached|failed) (.*)$")
 CHECKPOINT = re.compile(r"^checkpoint (\S+) frame (\d+)")
@@ -58,23 +59,18 @@ CHECKPOINT = re.compile(r"^checkpoint (\S+) frame (\d+)")
 
 def parse_mode(text):
     if text == "off":
-        return "off", None, "original"
-    native, _, rest = text.partition(":")
-    generated, _, sound = rest.partition(":")
-    if native not in ("off", "shadow", "on") or generated not in ("", "off", "on", "only") or \
-            sound not in ("", "original", "c"):
-        raise argparse.ArgumentTypeError("a mode is off or <off|shadow|on>:<off|on|only>[:<original|c>], not %r"
-                                         % text)
-    if sound == "c" and (native != "on" or generated == "only"):
-        raise argparse.ArgumentTypeError("the C sound driver needs --native on with the ported routines: %r" % text)
-    return native, generated or "on", sound or "original"
+        return "off", None
+    native, _, generated = text.partition(":")
+    if native not in ("off", "shadow", "on") or generated not in ("", "off", "on", "only"):
+        raise argparse.ArgumentTypeError("a mode is off or <off|shadow|on>:<off|on|only>, not %r" % text)
+    return native, generated or "on"
 
 
 def mode_name(mode):
-    native, generated, sound = mode
+    native, generated = mode
     if native == "off":
         return "off"
-    return "%s:%s%s" % (native, generated, "" if sound == "original" else ":" + sound)
+    return "%s:%s" % (native, generated)
 
 
 def file_digest(path):
@@ -140,8 +136,6 @@ def run_one(route, mode, scratch, rom, drive, timeout, resume=False, fallbacks=N
                "--native", mode[0]]
     if mode[1]:
         command += ["--generated", mode[1]]
-    if mode[2] != "original":
-        command += ["--sound-driver", mode[2]]
     if until:
         command += ["--until", until]
     if rom:
@@ -191,8 +185,7 @@ def main(argv=None):
     parser.add_argument("routes", nargs="*", default=DEFAULT_ROUTES,
                         help="name or name:phase (default %s)" % " ".join(DEFAULT_ROUTES))
     parser.add_argument("--mode", action="append", type=parse_mode,
-                        help="off or <native>:<generated>[:<sound driver>], repeatable (default on:on:c, the "
-                             "shipping mode)")
+                        help="off or <native>:<generated>, repeatable (default on:on, the shipping mode)")
     parser.add_argument("--scratch", help="where runs go (default a temporary directory, removed afterwards)")
     parser.add_argument("--rom", help="ROM (default roms/ct-usa.sfc, or $CT_ROM)")
     parser.add_argument("--drive", help="ct_drive binary (default build/main/ct_drive, or $CT_DRIVE)")

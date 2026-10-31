@@ -2,7 +2,7 @@
  * movies from game state instead of from timing, and for testing the build
  * that ships with the route scripts that do (docs/MOVIES.md).
  *
- *   ct_drive [--native off|shadow|on] [--generated off|on|only] [--sound-driver original|c]
+ *   ct_drive [--native off|shadow|on] [--generated off|on|only]
  *            [--mixer dsp|native|check] [--fallbacks out.txt] [--drain-budgets] <rom> [sram.srm]
  *
  * --native and --generated mean what they mean to ct_play (frontend/natives.h
@@ -14,14 +14,15 @@
  * ships in: hand ports where they exist, generated code elsewhere, and time
  * that drifts from the original's where the ports estimate it, which is why
  * only a route can test it (a movie's presses land on the wrong frames).
- * --generated defaults to on. --sound-driver c plays the C sound driver in the
- * SPC700's place, as ct_play does by default (frontend/sound_host.h), with
- * --native on and the ported routines: with --native on --generated on it is the
- * build that ships, which the gate's route check runs. Its machine copies and
- * state files hold the driver's fields beside the machine's, as ct_play's
- * states do; at quit a run in which the host placed samples where the echo
- * was writing or dropped a command exits 1 (sound_host_report). The default,
- * original, runs the original driver on the SPC700. --mixer picks what makes
+ * --generated defaults to on. With --native on and the ported routines the C
+ * sound driver plays in the sound processor's place, as ct_play's does
+ * (frontend/sound_host.h): with --generated on it is the build that ships,
+ * which the gate's route check runs. Its machine copies and state files hold
+ * the driver's fields beside the machine's, as ct_play's states do; at quit a
+ * run in which the host placed samples where the echo was writing or dropped
+ * a command exits 1 (sound_host_report). In the other modes the machine is the
+ * console running the cartridge, the cartridge's own driver on its sound
+ * processor, as in ct_dev's reference play. --mixer picks what makes
  * the C driver's sound (frontend/sound_host.h): the native mixer that ships
  * (native, the default), the S-DSP (dsp), or both compared frame by frame (check, which at
  * quit prints a `mixer check:` line and exits 1 if a frame differed).
@@ -137,7 +138,7 @@ static uint32_t watch_addr[WATCHES], watch_len[WATCHES];
 static int nwatch;
 
 static NativeMode native_mode = NATIVE_OFF;
-static SoundHost *sound_host;   /* --sound-driver c */
+static SoundHost *sound_host;   /* the C sound driver, with --native on and the ported routines */
 static NativeTable table;
 static NativeRuntime *natives;
 static bool shadow_failed;
@@ -579,7 +580,7 @@ static const char *const mode_names[] = { "off", "shadow", "on" };
 
 static int usage(void)
 {
-    fprintf(stderr, "usage: ct_drive [--native off|shadow|on] [--generated off|on|only] [--sound-driver original|c] "
+    fprintf(stderr, "usage: ct_drive [--native off|shadow|on] [--generated off|on|only] "
                     "[--mixer dsp|native|check] [--fallbacks out.txt] [--drain-budgets] <rom> [sram.srm]\n");
     return 2;
 }
@@ -587,7 +588,7 @@ static int usage(void)
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL, *fallbacks_path = NULL;
-    bool use_generated = true, generated_only = false, c_sound_driver = false;
+    bool use_generated = true, generated_only = false;
     SoundMixer mixer = SOUND_MIXER_NATIVE;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
@@ -600,13 +601,6 @@ int main(int argc, char **argv)
             fallbacks_path = argv[++i];
         } else if (!strcmp(a, "--drain-budgets")) {
             pf_snes_drain_budgets = true;
-        } else if (!strcmp(a, "--sound-driver")) {
-            const char *v = i + 1 < argc ? argv[++i] : "";
-            if (strcmp(v, "c") && strcmp(v, "original")) {
-                fprintf(stderr, "--sound-driver must be original or c\n");
-                return 2;
-            }
-            c_sound_driver = !strcmp(v, "c");
         } else if (!strcmp(a, "--native") || !strcmp(a, "--generated")) {
             const char *v = i + 1 < argc ? argv[++i] : "";
             if (a[2] == 'n') {
@@ -643,11 +637,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "--drain-budgets needs --native on: shadow mode compares the budgets with the original's\n");
         return 2;
     }
-    if (c_sound_driver && (native_mode != NATIVE_ON || generated_only)) {
-        fprintf(stderr, "--sound-driver c takes the boot and the commands from the CPU half's ported entries: it "
-                        "needs --native on with the ported routines (not --generated only)\n");
-        return 2;
-    }
+    bool c_sound_driver = native_mode == NATIVE_ON && !generated_only;
     if (fallbacks_path && native_mode == NATIVE_OFF) {
         fprintf(stderr, "--fallbacks needs --native on or shadow: it measures what runs in place of the hand ports\n");
         return 2;
