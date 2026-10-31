@@ -3810,6 +3810,14 @@ waits on M5 rather than on a backend.
   sets): mode 5's turning of a map (`$7E:7441`) is what would read them, and
   it is still the original's. When mode 5 is ported, the matrix and its
   operands belong with it.
+- **A script's task search reaches work RAM by address**
+  (`scene/frame.c`, `scene_script_replace_task`, `word_past_the_list`): past
+  its list the search reads and writes any word of `$7E`/`$7F` from
+  `RAM_SCENE_TASKS`/`RAM_SCENE_EARLY_TASKS` through `wram_read16`/`wram_write16`,
+  as the original's search does (mode 10's script clears a word of itself).
+  Once the scene's storage leaves the RAM image this finds nothing; the stray
+  wants a decision in game terms (which words a script's command can reach)
+  before then.
 - **The palace's turn writes its matrix by bare index** (`rising_palace.c`,
   `work_out_the_turn_task`: `set_scene_turn_matrix(g, 0..3, ...)`): the four
   entries want names (which is the cosine, which the sine and its negation),

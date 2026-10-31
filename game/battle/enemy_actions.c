@@ -758,7 +758,8 @@ enum { CALL_IN_CHANGES = 3, CALL_IN_MESSAGE = 11 };
 void enemy_call_in_starts(GameState *g, ScriptPlace at)
 {
     battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, byte_at(g, at, 1));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x12, byte_at(g, at, 2)));
+    /* kept where the calling in's entry reads it (battle_call_enemies_in_ready) */
+    battle_keep_word(g, 0x12, byte_at(g, at, 2));
     set_battle_action_message(g, byte_at(g, at, CALL_IN_MESSAGE));
     battle_clear_candidates(g);
 }
