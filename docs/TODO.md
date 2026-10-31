@@ -2877,6 +2877,16 @@ list, by kind, is what `game/` still asks of one.
   scripts react to the game's state, MOVIES.md) rather than recorded presses,
   since no estimate is exact and a battle turns on a frame.
 
+- **What the time model's review left** (none blocking):
+  `charge_send` (`runtime/platform/native/video.c`) charges any send from the
+  main thread, where the design charges only a load's (screen off): gate it on
+  forced blank, or show no large send happens with the picture on. A scene's
+  port wait soon after boot (`wait_on_port0`) passes the driver's start-up
+  delay at once, so the sound runs ahead of the frames charged for it. Sound
+  commands a handler issues (`native/audio.c`) and unpacking done in vblank are
+  charged to the main thread's debt. `runtime/platform/time_model.h` ends
+  without a newline.
+
 - **Cyrus's fixed movie ends blanked in `ct_native`.** `events-cyrus`
   (ctsave14 slot 1, 39872 frames) consumes all its inputs without a reported
   missing C handler, but the display is blanked after 12 screen setups.
