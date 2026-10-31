@@ -675,11 +675,11 @@ bool battle_load_and_run_battlefield_on_the_machine(Snes *s, uint32_t site, uint
 typedef struct {
     GameState *game;
     Platform *pf;
-} FieldAsC;
+} BattlefieldChangeContext;
 
 static bool change_a_part(void *ctx, FieldCall call, FieldCallArgs args)
 {
-    FieldAsC *c = ctx;
+    BattlefieldChangeContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -704,7 +704,7 @@ static bool fits(const GameState *g, uint16_t asked);
 
 static bool load_and_run_it(void *ctx, uint16_t battlefield)
 {
-    FieldAsC *c = ctx;
+    BattlefieldChangeContext *c = ctx;
     if (!fits(c->game, battlefield))
         return battle_needs_the_machine(c->game, 0xCD0EBD, "a battlefield whose layout the port doesn't build");
     bool done = false;
@@ -716,13 +716,13 @@ bool battle_change_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
 {
     if (!fits(g, battlefield))
         return battle_needs_the_machine(g, 0xCD0018, "a battlefield whose layout the port doesn't build");
-    FieldAsC c = { g, pf };
+    BattlefieldChangeContext c = { g, pf };
     return change_the_battlefield(g, load_and_run_it, &c, battlefield);
 }
 
 bool battle_load_effect_tile_rows(GameState *g, Platform *pf, uint8_t first_row_set, bool second)
 {
-    FieldAsC c = { g, pf };
+    BattlefieldChangeContext c = { g, pf };
     return second ? load_effect_tile_rows(g, first_row_set, SECOND_SET_FIRST_SLOT, SECOND_SET_SLOTS, change_a_part, &c)
                   : load_effect_tile_rows(g, first_row_set, 0, FIRST_SET_SLOTS, change_a_part, &c);
 }
@@ -838,7 +838,7 @@ bool battle_changed_battlefield_fits(Snes *s) { return battlefield_fits(s, s->cp
 
 bool battle_load_and_run_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
 {
-    FieldAsC c = { g, pf };
+    BattlefieldChangeContext c = { g, pf };
     if (!load_and_run_it(&c, battlefield))
         return false;
     TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));

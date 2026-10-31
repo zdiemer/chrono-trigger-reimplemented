@@ -293,13 +293,13 @@ static bool see_to_the_timers(GameState *g, const DueCalls *calls, void *ctx)
 typedef struct {
     GameState *game;
     Platform *pf;
-} TimersAsC;
+} TimersContext;
 
 static void handlers_begin(void *ctx) { (void)ctx; }
 
 static bool see_to(void *ctx, BattleTimer kind)
 {
-    TimersAsC *c = ctx;
+    TimersContext *c = ctx;
     if (kind == BATTLE_TIMER_TURN)
         return battle_turn_given(c->game, c->pf);
     return battle_run_out_timer_seen_to(c->game, c->pf, kind);
@@ -307,10 +307,10 @@ static bool see_to(void *ctx, BattleTimer kind)
 
 bool battle_timers_seen_to(GameState *g, Platform *pf)
 {
-    static const DueCalls as_c = { handlers_begin, see_to };
-    TimersAsC c = { g, pf };
+    static const DueCalls in_the_program = { handlers_begin, see_to };
+    TimersContext c = { g, pf };
     bool done = false;
-    TIMED_AS(g, SEARCH, done = see_to_the_timers(g, &as_c, &c));
+    TIMED_AS(g, SEARCH, done = see_to_the_timers(g, &in_the_program, &c));
     return done;
 }
 

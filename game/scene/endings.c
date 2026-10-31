@@ -1013,7 +1013,7 @@ static void scatter_the_stars(void *ctx)
              scene_scatter_stars(c->game, c->pf, scene_draw_from(BLANKING_LEFT_IN_A, false, TM_ENTROPY_BYTES)));
 }
 
-static const EndingSteps as_c = { unpack_the_resource, turn_the_steering_channel, scatter_the_stars, NULL };
+static const EndingSteps in_the_program = { unpack_the_resource, turn_the_steering_channel, scatter_the_stars, NULL };
 
 /* Mode 10's picture needs room on the vblank list for its task. */
 static bool room_for_the_mosaic(const GameState *g)
@@ -1030,7 +1030,7 @@ bool scene_ending_set_up(GameState *g, Platform *pf)
         return false;
     }
     EndingInC c = { g, pf };
-    return set_up_ending_with(g, pf, &as_c, &c) != 0;
+    return set_up_ending_with(g, pf, &in_the_program, &c) != 0;
 }
 
 /* The routines the scripts call, as the native program's rows (scene/script.c):
@@ -1038,34 +1038,34 @@ bool scene_ending_set_up(GameState *g, Platform *pf)
 static void load_the_picture(GameState *g, Platform *pf, uint8_t channel)
 {
     EndingInC c = { g, pf };
-    (void)load_the_picture_with(g, pf, scene_program_channel(channel), &as_c, &c);
+    (void)load_the_picture_with(g, pf, scene_program_channel(channel), &in_the_program, &c);
 }
 
 static void load_the_ground_and_picture(GameState *g, Platform *pf, uint8_t channel)
 {
     EndingInC c = { g, pf };
-    (void)load_the_ground_and_picture_with(g, pf, scene_program_channel(channel), &as_c, &c);
+    (void)load_the_ground_and_picture_with(g, pf, scene_program_channel(channel), &in_the_program, &c);
 }
 
 static void start_the_stars(GameState *g, Platform *pf, uint8_t channel)
 {
     (void)channel;
     EndingInC c = { g, pf };
-    start_stars_with(g, pf, &as_c, &c);
+    start_stars_with(g, pf, &in_the_program, &c);
 }
 
 static void start_the_mode7_picture(GameState *g, Platform *pf, uint8_t channel)
 {
     (void)channel;
     EndingInC c = { g, pf };
-    start_mode7_picture_with(g, pf, &as_c, &c);
+    start_mode7_picture_with(g, pf, &in_the_program, &c);
 }
 
 static void prepare_the_credits(GameState *g, Platform *pf, uint8_t channel)
 {
     (void)channel;
     EndingInC c = { g, pf };
-    (void)prepare_credits_with(g, pf, &as_c, &c);
+    (void)prepare_credits_with(g, pf, &in_the_program, &c);
 }
 
 static void set_the_last_colours(GameState *g, Platform *pf, uint8_t channel)

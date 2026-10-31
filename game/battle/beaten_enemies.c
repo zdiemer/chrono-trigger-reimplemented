@@ -570,13 +570,13 @@ bool battle_seeing_off_the_beaten(Snes *s)
 typedef struct {
     GameState *game;
     Platform *pf;
-} BeatenAsC;
+} BeatenEnemiesContext;
 
 /* Each with its guard's state half: the dissolve's, an enemy whose tiles'
  * layout the dissolve's runs have. */
 static bool see_to_a_part(void *ctx, BeatenCall call, BeatenArgs a)
 {
-    BeatenAsC *c = ctx;
+    BeatenEnemiesContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -604,7 +604,7 @@ static bool see_to_a_part(void *ctx, BeatenCall call, BeatenArgs a)
 
 static bool see_off_one(void *ctx, uint8_t slot)
 {
-    BeatenAsC *c = ctx;
+    BeatenEnemiesContext *c = ctx;
     if (!dissolves(c->game, slot))
         return battle_needs_the_machine(c->game, 0xCD0024, "an enemy whose dissolve the port doesn't run");
     bool done = false;
@@ -618,7 +618,7 @@ bool battle_see_to_the_beaten_enemies(GameState *g, Platform *pf)
 {
     if (!palettes_as_kept(g))
         return battle_needs_the_machine(g, 0xCFFE20, "a beaten enemy's palette past the sprites'");
-    BeatenAsC c = { g, pf };
+    BeatenEnemiesContext c = { g, pf };
     KeptEnemy last_kept;
     bool done = false;
     TIMED_AS(g, 0xCFFE20, done = see_the_beaten_enemies_off(g, see_off_one, &c, &last_kept));

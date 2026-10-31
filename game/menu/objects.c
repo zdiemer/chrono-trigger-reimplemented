@@ -246,7 +246,7 @@ static bool run_the_objects(GameState *g, TakeATurn turn, void *ctx)
 typedef struct {
     GameState *game;
     Platform *pf;
-} TurnsAsC;
+} ObjectTurnsContext;
 
 /* A handler with a C row of its own (menu/handlers.h) runs as C where its
  * guard's state half takes the object; any other, or one that leaves the
@@ -254,7 +254,7 @@ typedef struct {
  * program goes no further there. */
 static bool turn(void *ctx, uint16_t address, uint16_t handler, bool *done)
 {
-    TurnsAsC *c = ctx;
+    ObjectTurnsContext *c = ctx;
     GameState *g = c->game;
     MenuObject self = menu_object_at_address(address);
     const MenuHandler *h = menu_handler(handler);
@@ -280,7 +280,7 @@ static bool turn(void *ctx, uint16_t address, uint16_t handler, bool *done)
 
 bool menu_objects_run(GameState *g, Platform *pf)
 {
-    TurnsAsC c = { g, pf };
+    ObjectTurnsContext c = { g, pf };
     return run_the_objects(g, turn, &c);
 }
 

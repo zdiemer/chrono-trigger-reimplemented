@@ -196,31 +196,31 @@ static bool take_the_vblank(GameState *g, Platform *pf, const VblankCalls *calls
 typedef struct {
     GameState *game;
     Platform *pf;
-} HandlerAsC;
+} BattleHandlerContext;
 
 enum { PAGE_CELLS = 0x7E0000 | BATTLE_PAGE, CELLS_ASIDE = 0x7E0000 | SCRATCH_ASIDE };
 
-static void scratch_aside(void *ctx) { wram_copy(((HandlerAsC *)ctx)->game, PAGE_CELLS, CELLS_ASIDE, SCRATCH_BYTES); }
-static void scratch_back(void *ctx) { wram_copy(((HandlerAsC *)ctx)->game, CELLS_ASIDE, PAGE_CELLS, SCRATCH_BYTES); }
+static void scratch_aside(void *ctx) { wram_copy(((BattleHandlerContext *)ctx)->game, PAGE_CELLS, CELLS_ASIDE, SCRATCH_BYTES); }
+static void scratch_back(void *ctx) { wram_copy(((BattleHandlerContext *)ctx)->game, CELLS_ASIDE, PAGE_CELLS, SCRATCH_BYTES); }
 
 static bool frame_work(void *ctx)
 {
-    HandlerAsC *c = ctx;
+    BattleHandlerContext *c = ctx;
     return battle_frame_dispatched(c->game, c->pf);
 }
 
 static bool map_layers(void *ctx)
 {
-    GameState *g = ((HandlerAsC *)ctx)->game;
+    GameState *g = ((BattleHandlerContext *)ctx)->game;
     TIMED_AS(g, GAME_FRAME, battle_scroll_the_map_layers(g));
     return true;
 }
 
 void battle_vblank(GameState *g, Platform *pf)
 {
-    static const VblankCalls as_c = { scratch_aside, frame_work, map_layers, scratch_back };
-    HandlerAsC c = { g, pf };
-    (void)take_the_vblank(g, pf, &as_c, &c);
+    static const VblankCalls in_the_program = { scratch_aside, frame_work, map_layers, scratch_back };
+    BattleHandlerContext c = { g, pf };
+    (void)take_the_vblank(g, pf, &in_the_program, &c);
 }
 
 /* On the machine: the scratch moved with the original's block moves (which
@@ -347,14 +347,14 @@ static bool take_the_line(GameState *g, Platform *pf, bool (*tile_animation_uplo
 /* As C, the uploads' guard turning away only the machine's stack. */
 static bool tile_animation_uploads(void *ctx)
 {
-    HandlerAsC *c = ctx;
+    BattleHandlerContext *c = ctx;
     TIMED_AS(c->game, TILE_ANIMATION_UPLOADS, tile_animations_send(c->game, c->pf));
     return true;
 }
 
 void battle_line(GameState *g, Platform *pf)
 {
-    HandlerAsC c = { g, pf };
+    BattleHandlerContext c = { g, pf };
     (void)take_the_line(g, pf, tile_animation_uploads, &c);
 }
 

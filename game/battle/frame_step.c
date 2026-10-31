@@ -173,7 +173,7 @@ static bool frame_step_fits(const GameState *g) { return !menu_turn_due(g) || qu
 typedef struct {
     GameState *game;
     Platform *pf;
-} StepAsC;
+} FrameStepContext;
 
 enum { MENU_WINDOW_ENTRY = 0xC10C2D, MENU_BUTTONS_ENTRY = 0xC11153, MENU_CURSORS_ENTRY = 0xC117DD,
        FRAME_TAIL = 0xCD0009, FRAME_WAIT = 0xC1007E, ANIMATIONS = 0xC12D9F, ENEMY_EFFECTS = 0xC13714,
@@ -181,7 +181,7 @@ enum { MENU_WINDOW_ENTRY = 0xC10C2D, MENU_BUTTONS_ENTRY = 0xC11153, MENU_CURSORS
 
 static bool step_a_part(void *ctx, StepCall call)
 {
-    StepAsC *c = ctx;
+    FrameStepContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -213,7 +213,7 @@ bool battle_menu_turn(GameState *g, Platform *pf)
 {
     if (!frame_step_fits(g))
         return battle_needs_the_machine(g, BATTLE_MENU_TURN_ENTRY, "a menu queue the port doesn't take");
-    StepAsC c = { g, pf };
+    FrameStepContext c = { g, pf };
     return menu_turn(g, step_a_part, &c);
 }
 
@@ -221,7 +221,7 @@ bool battle_frame_stepped(GameState *g, Platform *pf)
 {
     if (!frame_step_fits(g))
         return battle_needs_the_machine(g, 0xC110FA, "a menu queue the port doesn't take");
-    StepAsC c = { g, pf };
+    FrameStepContext c = { g, pf };
     return frame_step(g, step_a_part, &c);
 }
 
@@ -229,7 +229,7 @@ bool battle_waits_a_frame(GameState *g, Platform *pf)
 {
     if (!frame_step_fits(g))
         return battle_needs_the_machine(g, WAIT_STEP, "a menu queue the port doesn't take");
-    StepAsC c = { g, pf };
+    FrameStepContext c = { g, pf };
     return wait_step(g, step_a_part, &c);
 }
 

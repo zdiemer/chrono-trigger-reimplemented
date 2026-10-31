@@ -214,13 +214,13 @@ static bool back_on_the_machine(void *ctx, BackCall call, bool own_layer, bool f
 typedef struct {
     GameState *game;
     Platform *pf;
-} BackAsC;
+} BattlefieldRestoreContext;
 
 static bool put_back_a_part(void *ctx, BackCall call, bool own_layer, bool faded)
 {
     (void)own_layer;
     (void)faded;
-    BackAsC *c = ctx;
+    BattlefieldRestoreContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -236,7 +236,7 @@ static bool put_back_a_part(void *ctx, BackCall call, bool own_layer, bool faded
 
 bool battle_put_the_battlefield_back(GameState *g, Platform *pf)
 {
-    BackAsC c = { g, pf };
+    BattlefieldRestoreContext c = { g, pf };
     return put_the_battlefield_back(g, put_back_a_part, &c);
 }
 

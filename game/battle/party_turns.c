@@ -414,13 +414,13 @@ static bool stand_down(GameState *g, PartyCalls call, void *ctx)
 typedef struct {
     GameState *game;
     Platform *pf;
-} PartyAsC;
+} PartyTurnContext;
 
 enum { CALL_OFF_WAITING_MEMBER = 0xFDA8FE, MEMBER_ATTACKS = 0xC1FDC7, CLOSE_MENU = 0xC1B961 };
 
 static bool party_call(void *ctx, PartyCall call, uint8_t member)
 {
-    PartyAsC *c = ctx;
+    PartyTurnContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -443,7 +443,7 @@ static bool party_call(void *ctx, PartyCall call, uint8_t member)
  * hit and the reactions' targets combatants or none. */
 bool battle_member_status_turn(GameState *g, Platform *pf, uint8_t member)
 {
-    PartyAsC c = { g, pf };
+    PartyTurnContext c = { g, pf };
     return status_turn(g, member, member, party_call, &c);
 }
 
@@ -451,7 +451,7 @@ bool battle_cancel_if_unable(GameState *g, Platform *pf, uint8_t member)
 {
     if (member >= BATTLE_PARTY_SIZE)
         return battle_needs_the_machine(g, 0xC1B3F9, "a member past the party");
-    PartyAsC c = { g, pf };
+    PartyTurnContext c = { g, pf };
     return cancel_if_unable(g, member, party_call, &c);
 }
 
@@ -459,7 +459,7 @@ bool battle_party_counters(GameState *g, Platform *pf)
 {
     if (!members_hit_are_combatants(g))
         return battle_needs_the_machine(g, 0xFDAC6E, "a member hit past the combatants");
-    PartyAsC c = { g, pf };
+    PartyTurnContext c = { g, pf };
     return counter_the_attack(g, party_call, &c);
 }
 
@@ -467,19 +467,19 @@ bool battle_see_to_knocked_out_enemies(GameState *g, Platform *pf)
 {
     if (!reaction_targets_are_combatants(g))
         return battle_needs_the_machine(g, 0xC1B762, "a reaction's target past the combatants");
-    PartyAsC c = { g, pf };
+    PartyTurnContext c = { g, pf };
     return see_to_knocked_out(g, party_call, &c);
 }
 
 bool battle_party_stands_down(GameState *g, Platform *pf)
 {
-    PartyAsC c = { g, pf };
+    PartyTurnContext c = { g, pf };
     return stand_down(g, party_call, &c);
 }
 
 bool battle_call_off_waiting_combination(GameState *g, Platform *pf)
 {
-    PartyAsC c = { g, pf };
+    PartyTurnContext c = { g, pf };
     return call_off_while_waiting(g, party_call, &c);
 }
 

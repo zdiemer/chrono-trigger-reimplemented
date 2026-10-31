@@ -295,18 +295,18 @@ enum { CHOOSE_CREDITS_LENGTH = 2 };
 typedef struct {
     GameState *game;
     Platform *pf;
-} LettersAsC;
+} CreditsLettersContext;
 
 static bool load_the_letters(void *ctx)
 {
-    LettersAsC *c = ctx;
+    CreditsLettersContext *c = ctx;
     TIMED_AS(c->game, FIELD_LOAD_THE_CREDITS_LETTERS_ENTRY, field_load_the_credits_letters(c->game, c->pf));
     return true;
 }
 
 bool event_choose_credits(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
-    LettersAsC letters = { g, pf };
+    CreditsLettersContext letters = { g, pf };
     EventCommand c;
     choose_credits_with(g, pf, at, load_the_letters, &letters, &c);
     *step = (EventStep){ (uint16_t)(at + CHOOSE_CREDITS_LENGTH), true };

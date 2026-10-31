@@ -280,7 +280,7 @@ static bool party_as_the_game_has_it(const GameState *g)
 typedef struct {
     GameState *game;
     Platform *pf;
-} BattleAsC;
+} FightContext;
 
 bool battle_needs_the_machine(GameState *g, uint32_t routine, const char *what)
 {
@@ -292,7 +292,7 @@ bool battle_needs_the_machine(GameState *g, uint32_t routine, const char *what)
  * guard. */
 static bool screen_set_up(void *ctx)
 {
-    BattleAsC *c = ctx;
+    FightContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, SET_UP_SCREEN, done = battle_screen_set_up(c->game, c->pf));
     return done;
@@ -301,26 +301,26 @@ static bool screen_set_up(void *ctx)
 static bool frame_passes(void *ctx, LastFrame frame)
 {
     (void)frame;
-    BattleAsC *c = ctx;
+    FightContext *c = ctx;
     TIMED_AS(c->game, WAIT_FOR_FRAME, battle_wait_for_a_last_frame(c->game, c->pf));
     return true;
 }
 
 static bool display_closed(void *ctx)
 {
-    BattleAsC *c = ctx;
+    FightContext *c = ctx;
     return battle_display_closed(c->game, c->pf);
 }
 
 bool battle_fought(GameState *g, Platform *pf)
 {
-    static const WayOutCalls as_c = { frame_passes, display_closed };
-    BattleAsC c = { g, pf };
+    static const WayOutCalls in_the_program = { frame_passes, display_closed };
+    FightContext c = { g, pf };
     if (!come_in_from_the_field(g, screen_set_up, &c) || !battle_main_loop_runs(g, pf))
         return false;
     if (!party_as_the_game_has_it(g))
         return battle_needs_the_machine(g, RETURN_TO_THE_FIELD, "a battle's end with a party the port doesn't hand back");
-    return go_back_to_the_field(g, &as_c, &c);
+    return go_back_to_the_field(g, &in_the_program, &c);
 }
 
 /* ---- The entries ---------------------------------------------------------------------------- */

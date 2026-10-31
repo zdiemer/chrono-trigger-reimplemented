@@ -187,9 +187,9 @@ static bool run_on_the_machine(void *ctx, EquipmentRoutine r)
     case EQUIPMENT_TRIES_IT_ON: {
         /* As C where the figures can be worked out with the item. */
         vars_peek(true);
-        bool as_c = menu_equip_can_try_on(g);
+        bool tried_on_by_the_port = menu_equip_can_try_on(g);
         vars_peek(false);
-        if (!as_c)
+        if (!tried_on_by_the_port)
             return call(s, 0xC29CB2, TRY_ON);
         menu_equip_try_on(g, m_platform(s));
         return true;

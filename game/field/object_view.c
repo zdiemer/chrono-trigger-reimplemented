@@ -313,8 +313,8 @@ bool object_view_updated(GameState *g, FieldObject obj)
         program_needs_the_machine(g, VIEW, "an object coming into view or leaving it with tables the port doesn't read");
         return false;
     }
-    static const ViewSteps as_c = { rows, NULL };
-    return update_view(g, obj, &as_c, g) != VIEW_WENT_ELSEWHERE;
+    static const ViewSteps in_the_program = { rows, NULL };
+    return update_view(g, obj, &in_the_program, g) != VIEW_WENT_ELSEWHERE;
 }
 
 /* An object that matters only on the screen, checked against it. */

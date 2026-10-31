@@ -416,11 +416,11 @@ static bool load_on_the_machine(void *ctx, LoadCall call, uint8_t what)
 typedef struct {
     GameState *game;
     Platform *pf;
-} LoadAsC;
+} AnimationLoadContext;
 
 static bool load_a_piece(void *ctx, LoadCall call, uint8_t what)
 {
-    LoadAsC *c = ctx;
+    AnimationLoadContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -546,7 +546,7 @@ bool battle_attack_up_close_ready(Snes *s)
  * and a party member's attack a target to face. */
 static bool load_by_kind(void *ctx, ShowingKind kind)
 {
-    LoadAsC *c = ctx;
+    AnimationLoadContext *c = ctx;
     GameState *g = c->game;
     if (!actor_fits(g) || (kind == SHOWS_AN_ATTACK && !target_fits(g)))
         return battle_needs_the_machine(g, loaders[kind].routine, "an animation the port doesn't load");
@@ -558,6 +558,6 @@ static bool load_by_kind(void *ctx, ShowingKind kind)
 
 bool battle_load_action_animation(GameState *g, Platform *pf)
 {
-    LoadAsC c = { g, pf };
+    AnimationLoadContext c = { g, pf };
     return load_action_animation(g, load_by_kind, &c);
 }

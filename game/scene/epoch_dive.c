@@ -975,9 +975,9 @@ bool scene_dive_set_up(GameState *g, Platform *pf)
         program_needs_the_machine(g, DIVE_SET_UP, "an Epoch's dive with a picture waiting already");
         return false;
     }
-    static const DiveSetUpSteps as_c = { unpack_the_resource, turn_the_camera_channel, draw_and_scale_once };
+    static const DiveSetUpSteps in_the_program = { unpack_the_resource, turn_the_camera_channel, draw_and_scale_once };
     DiveInC c = { g, pf };
-    return set_up_the_dive_with(g, pf, &as_c, &c);
+    return set_up_the_dive_with(g, pf, &in_the_program, &c);
 }
 
 

@@ -275,12 +275,12 @@ bool battle_rewards_can_be_shown(Snes *s)
 typedef struct {
     GameState *game;
     Platform *pf;
-} TellAsC;
+} RewardsContext;
 
 static bool tell_a_reward(void *ctx, RewardMessage message, unsigned item)
 {
     (void)item;
-    TellAsC *c = ctx;
+    RewardsContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, SHOW_A_BATTLE_MESSAGE, done = battle_show_a_battle_message(c->game, c->pf, (uint8_t)message));
     return done;
@@ -290,6 +290,6 @@ bool battle_show_the_rewards(GameState *g, Platform *pf)
 {
     if (!rewards_fit(g))
         return battle_needs_the_machine(g, 0xFDAD17, "a double techs' list with no end");
-    TellAsC c = { g, pf };
+    RewardsContext c = { g, pf };
     return tell_the_rewards(g, tell_a_reward, &c);
 }

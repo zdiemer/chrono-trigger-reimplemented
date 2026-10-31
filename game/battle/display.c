@@ -286,20 +286,20 @@ static bool set_the_display_up(GameState *g, Platform *pf, const DisplaySetUpCal
 typedef struct {
     GameState *game;
     Platform *pf;
-} DisplayAsC;
+} DisplaySetUpContext;
 
 /* The pause's guard turns away only a page; the animation's, slots it
  * doesn't take (palette_animated's own). */
 static bool pause_the_palette_animation(void *ctx)
 {
-    GameState *g = ((DisplayAsC *)ctx)->game;
+    GameState *g = ((DisplaySetUpContext *)ctx)->game;
     TIMED_AS(g, BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY, battle_pause_palette_animation(g));
     return true;
 }
 
 static bool animate_the_palettes(void *ctx)
 {
-    GameState *g = ((DisplayAsC *)ctx)->game;
+    GameState *g = ((DisplaySetUpContext *)ctx)->game;
     bool done = false;
     TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g));
     return done;
@@ -307,9 +307,9 @@ static bool animate_the_palettes(void *ctx)
 
 bool battle_display_set_up(GameState *g, Platform *pf)
 {
-    static const DisplaySetUpCalls as_c = { pause_the_palette_animation, animate_the_palettes };
-    DisplayAsC c = { g, pf };
-    return set_the_display_up(g, pf, &as_c, &c);
+    static const DisplaySetUpCalls in_the_program = { pause_the_palette_animation, animate_the_palettes };
+    DisplaySetUpContext c = { g, pf };
+    return set_the_display_up(g, pf, &in_the_program, &c);
 }
 
 /* On the machine, from the original's calls, the data bank $7E from the line
@@ -477,12 +477,12 @@ void battle_nmi_alternate(Snes *s)
 typedef struct {
     GameState *game;
     Platform *pf;
-} ClosingVblankAsC;
+} ClosingVblankContext;
 
 /* The line effects' guard's state half: builders that can build them. */
 static bool closing_vblank_call(void *ctx, ClosingVblankCall call)
 {
-    ClosingVblankAsC *c = ctx;
+    ClosingVblankContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -502,6 +502,6 @@ static bool closing_vblank_call(void *ctx, ClosingVblankCall call)
 
 void battle_closing_vblank(GameState *g, Platform *pf)
 {
-    ClosingVblankAsC c = { g, pf };
+    ClosingVblankContext c = { g, pf };
     (void)take_the_closing_vblank(g, pf, closing_vblank_call, &c);
 }

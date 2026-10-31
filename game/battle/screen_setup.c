@@ -329,36 +329,36 @@ static bool set_the_screen_up(GameState *g, Platform *pf, const ScreenSetUpCalls
 typedef struct {
     GameState *game;
     Platform *pf;
-} SetUpAsC;
+} ScreenSetUpContext;
 
 /* None of the three has a guard of the game's state: the message's clear
  * and the scroll's turn away only a page or a bank the program has none of. */
 static bool scroll_the_map_layers(void *ctx)
 {
-    GameState *g = ((SetUpAsC *)ctx)->game;
+    GameState *g = ((ScreenSetUpContext *)ctx)->game;
     TIMED_AS(g, BATTLE_SCROLL_MAP_LAYERS_ENTRY, battle_scroll_the_map_layers(g));
     return true;
 }
 
 static bool clear_the_message_tiles(void *ctx)
 {
-    GameState *g = ((SetUpAsC *)ctx)->game;
+    GameState *g = ((ScreenSetUpContext *)ctx)->game;
     TIMED_AS(g, BATTLE_CLEAR_THE_MESSAGE_TILES_ENTRY, battle_clear_the_message_tiles(g));
     return true;
 }
 
 static bool start_the_song(void *ctx)
 {
-    SetUpAsC *c = ctx;
+    ScreenSetUpContext *c = ctx;
     TIMED_AS(c->game, FIELD_BATTLE_SONG_ENTRY, field_start_the_battle_song(c->game, c->pf));
     return true;
 }
 
 bool battle_screen_set_up(GameState *g, Platform *pf)
 {
-    static const ScreenSetUpCalls as_c = { scroll_the_map_layers, clear_the_message_tiles, start_the_song };
-    SetUpAsC c = { g, pf };
-    return set_the_screen_up(g, pf, &as_c, &c);
+    static const ScreenSetUpCalls in_the_program = { scroll_the_map_layers, clear_the_message_tiles, start_the_song };
+    ScreenSetUpContext c = { g, pf };
+    return set_the_screen_up(g, pf, &in_the_program, &c);
 }
 
 /* ---- On the machine ------------------------------------------------------------------------ */

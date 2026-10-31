@@ -36,7 +36,7 @@ static const struct {
     uint32_t routine;
     void (*entry)(Snes *);
     uint16_t dont_care;
-    bool (*as_c)(GameState *g, Platform *pf);
+    bool (*run)(GameState *g, Platform *pf);
 } STEPS[] = {
     [BATTLE_STEP_SET_UP] = { 0xC10023, NULL, STEP_READS_A, battle_set_up_runs },
     [BATTLE_STEP_OPEN_MENU] = { 0xC11B19, battle_turn_comes_step, STEP_READS_A, battle_turn_comes },
@@ -151,9 +151,9 @@ bool battle_take_step(Snes *s, uint32_t site, BattleStep step, uint16_t dont_car
 
 bool battle_step_taken(GameState *g, Platform *pf, BattleStep step)
 {
-    if ((unsigned)step >= STEP_COUNT || !STEPS[step].as_c)
+    if ((unsigned)step >= STEP_COUNT || !STEPS[step].run)
         return battle_needs_the_machine(g, (unsigned)step < STEP_COUNT ? STEPS[step].routine : BATTLE_STEP, "a battle step");
     bool done = false;
-    TIMED_AS(g, STEPS[step].routine, done = STEPS[step].as_c(g, pf));
+    TIMED_AS(g, STEPS[step].routine, done = STEPS[step].run(g, pf));
     return done;
 }

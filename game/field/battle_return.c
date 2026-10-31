@@ -474,7 +474,7 @@ bool field_battle_return_can_run(Snes *s)
 typedef struct {
     GameState *game;
     Platform *pf;
-} AfterAsC;
+} AfterBattleContext;
 
 static bool build_the_sprite_table(void *ctx)
 {
@@ -486,9 +486,9 @@ static bool build_the_sprite_table(void *ctx)
     return built;
 }
 
-static bool map_script(AfterAsC *c)
+static bool map_script(AfterBattleContext *c)
 {
-    EventAsC e = { c->game, c->pf };
+    EventScriptContext e = { c->game, c->pf };
     EventRunner r = event_runner(&e);
     uint16_t at;
     EventTurnEnd end = TURN_OVER;
@@ -507,7 +507,7 @@ static bool map_script(AfterAsC *c)
 static bool after_battle_call(void *ctx, AfterCall call, FadeOut way)
 {
     (void)way;
-    AfterAsC *c = ctx;
+    AfterBattleContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -557,6 +557,6 @@ static bool after_battle_call(void *ctx, AfterCall call, FadeOut way)
 
 bool field_taken_up_after_battle(GameState *g, Platform *pf)
 {
-    AfterAsC c = { g, pf };
+    AfterBattleContext c = { g, pf };
     return take_up_after_battle(g, after_battle_call, &c);
 }

@@ -895,10 +895,10 @@ static const uint32_t draw_sites[2] = { 0xC0B2AF, 0xC0B2BB };
  * draw it calls is handed and could move on; where it comes back other than
  * it went, the port stops at the call's return and the original goes on from
  * the row the draw left. */
-static bool draw(Snes *s, FieldObject obj, unsigned row, unsigned site, bool as_c)
+static bool draw(Snes *s, FieldObject obj, unsigned row, unsigned site, bool by_the_port)
 {
     object_make_current(state_of(s), obj);
-    if (as_c) {
+    if (by_the_port) {
         draw_by_the_port(s, obj);
         return true;
     }
@@ -950,12 +950,12 @@ void field_build_sprite_table(Snes *s)
     start_ranges(g);
     open_table_stream(g);
     object_recognise_current(g);   /* the building clears the byte after the link */
-    bool as_c = every_draw_is_own(g);
+    bool by_the_port = every_draw_is_own(g);
     for (int row = FIELD_ROWS - 1; row >= 0; row--) {
         FieldLink link = row_first_object(g, (unsigned)row);
         for (unsigned site = 0; field_link_is_object(link); site = 1) {
             FieldObject obj = field_linked_object(link);
-            if (!draw(s, obj, (unsigned)row, site, as_c))
+            if (!draw(s, obj, (unsigned)row, site, by_the_port))
                 return;
             link = object_next_in_row(g, obj);
         }

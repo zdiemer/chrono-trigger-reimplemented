@@ -728,7 +728,7 @@ void battle_enemy_takes_turn_entry(Snes *s)
 typedef struct {
     GameState *game;
     Platform *pf;
-} TurnAsC;
+} EnemyTurnContext;
 
 /* The action turns' calls, each with its guard's state half: the
  * targeting's, an aim the port makes; the message's, one the menus' text code
@@ -736,7 +736,7 @@ typedef struct {
  * original's still. */
 static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
 {
-    TurnAsC *c = ctx;
+    EnemyTurnContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -766,7 +766,7 @@ static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
 
 static bool take_a_part_of_the_turn(void *ctx, TurnCall call)
 {
-    TurnAsC *c = ctx;
+    EnemyTurnContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -793,7 +793,7 @@ bool battle_enemy_takes_turn(GameState *g, Platform *pf)
 {
     if (!battle_enemy_turn_fits(g))
         return battle_needs_the_machine(g, 0xC18CF9, "an enemy's turn the port doesn't take");
-    TurnAsC c = { g, pf };
+    EnemyTurnContext c = { g, pf };
     return enemy_turn(g, take_a_part_of_the_turn, &c);
 }
 

@@ -401,9 +401,9 @@ static bool turn_and_scatter(void *ctx)
 
 bool scene_lavos_falls_set_up(GameState *g, Platform *pf)
 {
-    static const LavosFallsSetUpSteps as_c = { unpack_the_resource, spread, turn_and_scatter };
+    static const LavosFallsSetUpSteps in_the_program = { unpack_the_resource, spread, turn_and_scatter };
     LavosInC c = { g, pf };
-    return set_up_lavos_falls_with(g, pf, &as_c, &c);
+    return set_up_lavos_falls_with(g, pf, &in_the_program, &c);
 }
 
 /* ---- Entries ---------------------------------------------------------------------------------- */

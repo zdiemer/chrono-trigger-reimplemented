@@ -370,13 +370,13 @@ static bool showing_fits(const GameState *g) { return battle_names_combatant(bat
 typedef struct {
     GameState *game;
     Platform *pf;
-} ShowAsC;
+} ActionShowContext;
 
 enum { FRAME_WAIT = 0xC1007E, FRAME_STEP = 0xC110FA, LOAD = 0xC14310, POSITIONS = 0xC14212, SCRIPTS = 0xC14BBE };
 
 static bool show_a_part(void *ctx, ShowCall call)
 {
-    ShowAsC *c = ctx;
+    ActionShowContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -397,7 +397,7 @@ bool battle_show_action(GameState *g, Platform *pf)
 {
     if (!showing_fits(g))
         return battle_needs_the_machine(g, 0xC14058, "an action shown whose actor is past the combatants");
-    ShowAsC c = { g, pf };
+    ActionShowContext c = { g, pf };
     return show_the_action(g, show_a_part, &c);
 }
 

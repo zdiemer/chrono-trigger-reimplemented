@@ -847,14 +847,14 @@ bool battle_frame_dispatched(GameState *g, Platform *pf)
 typedef struct {
     GameState *game;
     Platform *pf;
-} FrameAsC;
+} BattleFrameContext;
 
 /* The object work, each with its guard's state half: the effects' paths of
  * a kind the game gives; the draw pass, someone on the battlefield; the rest
  * turn away only the page. */
 static bool update_a_part(void *ctx, UpdateCall call)
 {
-    GameState *g = ((FrameAsC *)ctx)->game;
+    GameState *g = ((BattleFrameContext *)ctx)->game;
     bool done = true;
     switch (call) {
     case UPDATE_PARTY_COLORS: TIMED_AS(g, object_work[call].routine, battle_cycle_party_colors(g)); return true;
@@ -879,7 +879,7 @@ static bool update_a_part(void *ctx, UpdateCall call)
 enum { FRAMES_INPUT = 0xC28002, BUTTON_REPEAT = 0xCD0340, HP_GRADIENT = 0xD1EA4B, FRAME_UPDATE = 0xCFE58A,
        LINE_WAIT = 0xCD3B82, SCREEN_SCRIPTS = 0xCD1609, PALETTE_ANIMATION = 0xFDFFF7 };
 
-static bool read_the_input(FrameAsC *c)
+static bool read_the_input(BattleFrameContext *c)
 {
     bool read = false;
     TIMED_AS(c->game, FRAMES_INPUT, read = input_take_frame(c->game, c->pf));
@@ -890,7 +890,7 @@ static bool read_the_input(FrameAsC *c)
 
 static bool work_a_part(void *ctx, WorkCall call)
 {
-    FrameAsC *c = ctx;
+    BattleFrameContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -929,7 +929,7 @@ static bool work_a_part(void *ctx, WorkCall call)
 
 bool battle_frame_worked(GameState *g, Platform *pf)
 {
-    FrameAsC c = { g, pf };
+    BattleFrameContext c = { g, pf };
     return work_the_frame(g, pf, work_a_part, &c);
 }
 
@@ -938,11 +938,11 @@ bool battle_frame_worked(GameState *g, Platform *pf)
 typedef struct {
     GameState *game;
     Platform *pf;
-} TailAsC;
+} FrameTailContext;
 
 static bool finish_a_part(void *ctx, TailCall call)
 {
-    TailAsC *c = ctx;
+    FrameTailContext *c = ctx;
     GameState *g = c->game;
     switch (call) {
     case TAIL_SCRIPT_SOUND: TIMED_AS(g, BATTLE_SCRIPT_SOUND_ENTRY, battle_play_the_script_sound(g, c->pf)); return true;
@@ -963,6 +963,6 @@ static bool finish_a_part(void *ctx, TailCall call)
 
 bool battle_frame_wait_finished(GameState *g, Platform *pf)
 {
-    TailAsC c = { g, pf };
+    FrameTailContext c = { g, pf };
     return finish_the_wait(g, finish_a_part, &c);
 }

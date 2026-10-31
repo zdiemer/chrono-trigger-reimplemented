@@ -335,13 +335,13 @@ static bool battle_fits(const GameState *g);
 typedef struct {
     GameState *game;
     Platform *pf;
-} AsC;
+} BattleStartContext;
 
 enum { PARTY_BACK_TOGETHER = 0xC0034B };
 
 static bool come_back_together(void *ctx)
 {
-    AsC *c = ctx;
+    BattleStartContext *c = ctx;
     if (!party_can_come_back_together(c->game)) {
         program_needs_the_machine(c->game, PARTY_BACK_TOGETHER, "a party the port doesn't bring back together");
         return false;
@@ -356,7 +356,7 @@ FieldBattleStart field_battle_set_up(GameState *g, Platform *pf)
         program_needs_the_machine(g, FIELD_BATTLE_BEGINS_ENTRY, "a battle's start the port doesn't take");
         return FIELD_BATTLE_START_STOPPED;
     }
-    AsC c = { g, pf };
+    BattleStartContext c = { g, pf };
     return battle_begins(g, come_back_together, &c);
 }
 

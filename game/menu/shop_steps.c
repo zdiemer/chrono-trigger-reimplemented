@@ -530,14 +530,14 @@ bool menu_choose_shop_equipment_with(GameState *g, Platform *pf, const ShopSteps
 typedef struct {
     GameState *game;
     Platform *pf;
-} ShopAsC;
+} ShopContext;
 
-static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((ShopAsC *)ctx)->game); }
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((ShopContext *)ctx)->game); }
 
 static bool tick(void *ctx, ShopPlace at)
 {
     (void)at;
-    ShopAsC *c = ctx;
+    ShopContext *c = ctx;
     menu_tick(c->game, c->pf);
     return true;
 }
@@ -545,7 +545,7 @@ static bool tick(void *ctx, ShopPlace at)
 static bool wait(void *ctx, ShopPlace at)
 {
     (void)at;
-    menu_task_waits(((ShopAsC *)ctx)->game, 1);
+    menu_task_waits(((ShopContext *)ctx)->game, 1);
     return true;
 }
 
@@ -553,26 +553,26 @@ static void registers_at(void *ctx, ShopPlace at) { (void)ctx, (void)at; }
 
 static void note(void *ctx, ShopNote note, uint32_t value) { (void)ctx, (void)note, (void)value; }
 
-static bool not_taken(ShopAsC *c, uint32_t routine)
+static bool not_taken(ShopContext *c, uint32_t routine)
 {
     program_needs_the_machine(c->game, routine, "a shop the port doesn't take");
     return false;
 }
 
-static const ShopSteps as_c;
+static const ShopSteps in_the_program;
 
 /* A routine as C where its entry's guard would take the state, timed as its
  * own. */
-static bool sequence(ShopAsC *c, uint32_t routine, bool takes, ShopSequence *run)
+static bool sequence(ShopContext *c, uint32_t routine, bool takes, ShopSequence *run)
 {
     if (!takes)
         return not_taken(c, routine);
     bool done = false;
-    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &in_the_program, c));
     return done;
 }
 
-static bool sound(ShopAsC *c, uint8_t sound)
+static bool sound(ShopContext *c, uint8_t sound)
 {
     TIMED_AS(c->game, 0xC2EABA, menu_sound_played(c->game, c->pf, sound));
     return true;
@@ -583,7 +583,7 @@ enum { DEAL_SOUND = 0x55 };
 
 static bool run(void *ctx, ShopRoutine r)
 {
-    ShopAsC *c = ctx;
+    ShopContext *c = ctx;
     GameState *g = c->game;
     switch (r) {
     case SHOP_SETS_UP: return sequence(c, 0xC2DACA, menu_shop_can_be_opened(g), menu_set_up_shop_with);
@@ -612,7 +612,7 @@ static bool run(void *ctx, ShopRoutine r)
  * the buzz. */
 static bool ends(void *ctx, ShopEnd end)
 {
-    ShopAsC *c = ctx;
+    ShopContext *c = ctx;
     GameState *g = c->game;
     switch (end) {
     case SHOP_FADES_IN: TIMED_AS(g, 0xC283B2, menu_start_the_fade_in(g)); return true;
@@ -633,15 +633,15 @@ static bool ends(void *ctx, ShopEnd end)
     return false;
 }
 
-static const ShopSteps as_c = { read_cursor, tick, wait, registers_at, run, note, ends };
+static const ShopSteps in_the_program = { read_cursor, tick, wait, registers_at, run, note, ends };
 
 /* A step as C where its entry's guard would take the state. */
 static bool step(GameState *g, Platform *pf, bool takes, uint32_t routine, ShopSequence *run)
 {
-    ShopAsC c = { g, pf };
+    ShopContext c = { g, pf };
     if (!takes)
         return not_taken(&c, routine);
-    return run(g, pf, &as_c, &c);
+    return run(g, pf, &in_the_program, &c);
 }
 
 static bool movable(const GameState *g) { return menu_cursor_can_move(g); }

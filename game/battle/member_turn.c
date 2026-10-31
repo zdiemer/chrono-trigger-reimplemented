@@ -720,12 +720,12 @@ void battle_member_called_off_step(Snes *s)
 typedef struct {
     GameState *game;
     Platform *pf;
-} MemberAsC;
+} MemberTurnContext;
 
 /* Each with its guard's state half where it has one. */
 static bool carry_out_a_part(void *ctx, MemberCall call, bool carry)
 {
-    MemberAsC *c = ctx;
+    MemberTurnContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (call) {
@@ -749,7 +749,7 @@ bool battle_member_attacks(GameState *g, Platform *pf)
 {
     if (!attacker_fits(g))
         return battle_needs_the_machine(g, MEMBER_ATTACKS, "an attacker past the party");
-    MemberAsC c = { g, pf };
+    MemberTurnContext c = { g, pf };
     return attack(g, carry_out_a_part, &c);
 }
 
@@ -757,6 +757,6 @@ bool battle_carry_out_member_action(GameState *g, Platform *pf)
 {
     if (!action_fits(g))
         return battle_needs_the_machine(g, 0xC1B967, "a member's action the port doesn't carry out");
-    MemberAsC c = { g, pf };
+    MemberTurnContext c = { g, pf };
     return carry_out_action(g, carry_out_a_part, &c);
 }

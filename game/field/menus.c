@@ -428,12 +428,12 @@ typedef struct {
     GameState *game;
     Platform *pf;
     bool game_starts_again;
-} StopAsC;
+} MenuStopContext;
 
 static bool effects_built(void *ctx, FieldStop stop)
 {
     (void)stop;
-    StopAsC *c = ctx;
+    MenuStopContext *c = ctx;
     TIMED_AS(c->game, LINE_EFFECTS, field_line_effects_build(c->game));
     return true;
 }
@@ -441,7 +441,7 @@ static bool effects_built(void *ctx, FieldStop stop)
 static bool wait(void *ctx, FieldStop stop)
 {
     (void)stop;
-    StopAsC *c = ctx;
+    MenuStopContext *c = ctx;
     TIMED_AS(c->game, FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
     return true;
 }
@@ -449,7 +449,7 @@ static bool wait(void *ctx, FieldStop stop)
 static bool walk(void *ctx, uint8_t control)
 {
     (void)control;
-    StopAsC *c = ctx;
+    MenuStopContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, WALK, done = field_the_leader_walks(c->game));
     return done;
@@ -457,7 +457,7 @@ static bool walk(void *ctx, uint8_t control)
 
 static bool palettes(void *ctx)
 {
-    StopAsC *c = ctx;
+    MenuStopContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, PALETTE_ANIMATION, done = palette_animated(c->game));
     return done;
@@ -465,14 +465,14 @@ static bool palettes(void *ctx)
 
 static void dark(void *ctx)
 {
-    StopAsC *c = ctx;
+    MenuStopContext *c = ctx;
     TIMED_AS(c->game, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(c->pf));
 }
 
 static bool put_aside(void *ctx, FieldStop stop)
 {
     (void)stop;
-    StopAsC *c = ctx;
+    MenuStopContext *c = ctx;
     if (!field_party_can_be_kept(c->game)) {
         program_needs_the_machine(c->game, FIELD_PUT_ASIDE_ENTRY, "a party the port doesn't keep for a menu");
         return false;
@@ -490,7 +490,7 @@ enum { LEFT_BY_KEEPING = 2 * PARTY_PLACES };
 static bool menus(void *ctx, FieldStop stop, FieldMenu menu, MenuArgument argument)
 {
     (void)stop;
-    StopAsC *c = ctx;
+    MenuStopContext *c = ctx;
     MenuModeEnd end = MENUS_WENT_NO_FURTHER;
     TIMED_AS(c->game, MENUS,
              end = menu_mode_runs(c->game, c->pf, (uint8_t)menu, argument.given ? argument.value : LEFT_BY_KEEPING));
@@ -501,7 +501,7 @@ static bool menus(void *ctx, FieldStop stop, FieldMenu menu, MenuArgument argume
 static bool set_up(void *ctx, FieldStop stop)
 {
     (void)stop;
-    StopAsC *c = ctx;
+    MenuStopContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, FIELD_SET_UP_AGAIN_ENTRY, done = field_set_up_again(c->game, c->pf));
     return done;
@@ -510,8 +510,8 @@ static bool set_up(void *ctx, FieldStop stop)
 static bool start_character_over(void *ctx, unsigned row)
 {
     (void)row;
-    StopAsC *c = ctx;
-    EventAsC e = { c->game, c->pf };
+    MenuStopContext *c = ctx;
+    EventScriptContext e = { c->game, c->pf };
     EventRunner r = event_runner(&e);
     uint16_t at;
     EventTurnEnd end = TURN_OVER;
@@ -528,7 +528,7 @@ static bool party_links_readable(const GameState *g);
 static bool party_back(void *ctx, FieldStop stop)
 {
     (void)stop;
-    StopAsC *c = ctx;
+    MenuStopContext *c = ctx;
     if (!party_links_readable(c->game)) {
         program_needs_the_machine(c->game, BRING_THE_PARTY_BACK, "a party the port doesn't bring back");
         return false;
@@ -541,7 +541,7 @@ static bool party_back(void *ctx, FieldStop stop)
 static bool sprites(void *ctx, FieldStop stop)
 {
     (void)stop;
-    StopAsC *c = ctx;
+    MenuStopContext *c = ctx;
     TIMED_AS(c->game, FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY, sprites_all_to_build_afresh(c->game));
     return true;
 }
@@ -549,34 +549,34 @@ static bool sprites(void *ctx, FieldStop stop)
 static bool fade_in(void *ctx, FieldStop stop)
 {
     (void)stop;
-    StopAsC *c = ctx;
+    MenuStopContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, FIELD_FADE_IN_AFTER_A_MENU_ENTRY, done = field_fade_in_after_a_menu(c->game, c->pf));
     return done;
 }
 
-static const StopSteps as_c = { effects_built, wait,  walk,      palettes,
+static const StopSteps in_the_program = { effects_built, wait,  walk,      palettes,
                                 dark,          put_aside, menus, set_up,
                                 party_back,    sprites, fade_in };
 
 static bool press_start(void *ctx)
 {
-    StopAsC *c = ctx;
+    MenuStopContext *c = ctx;
     bool back = false;
-    TIMED_AS(c->game, PRESS_START, back = press_start_with(c->game, &as_c, c));
+    TIMED_AS(c->game, PRESS_START, back = press_start_with(c->game, &in_the_program, c));
     return back;
 }
 
 bool field_pause_and_menus(GameState *g, Platform *pf)
 {
-    StopAsC c = { g, pf, false };
-    return pause_and_menus(g, &as_c, press_start, &c);
+    MenuStopContext c = { g, pf, false };
+    return pause_and_menus(g, &in_the_program, press_start, &c);
 }
 
 FieldPass field_script_menu_opened(GameState *g, Platform *pf)
 {
-    StopAsC c = { g, pf, false };
-    switch (open_script_menu(g, &as_c, &c)) {
+    MenuStopContext c = { g, pf, false };
+    switch (open_script_menu(g, &in_the_program, &c)) {
     case MENU_BACK_IN_THE_PASS: return FIELD_PASS_GOES_ON;
     case MENU_BACK_IN_THE_LOOP: return FIELD_PASS_GOES_ROUND;
     default: return c.game_starts_again ? FIELD_STARTS_ANEW : FIELD_PASS_STOPS;

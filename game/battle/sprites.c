@@ -548,11 +548,11 @@ void battle_build_bitmap_shapes_entry(Snes *s)
 typedef struct {
     GameState *game;
     Platform *pf;
-} ShapesAsC;
+} ShapesContext;
 
 static bool wait_for_the_shapes_frame(void *ctx, bool step)
 {
-    ShapesAsC *c = ctx;
+    ShapesContext *c = ctx;
     bool done = false;
     if (step)
         TIMED_AS(c->game, 0xC110FA, done = battle_frame_stepped(c->game, c->pf));
@@ -563,6 +563,6 @@ static bool wait_for_the_shapes_frame(void *ctx, bool step)
 
 bool battle_build_bitmap_shapes(GameState *g, Platform *pf)
 {
-    ShapesAsC c = { g, pf };
+    ShapesContext c = { g, pf };
     return build_bitmap_shapes_over_a_frame(g, wait_for_the_shapes_frame, &c);
 }

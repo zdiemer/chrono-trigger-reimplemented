@@ -1104,11 +1104,11 @@ bool battle_menu_window_drawn(GameState *g, Platform *pf)
 typedef struct {
     GameState *game;
     Platform *pf;
-} MenuAsC;
+} MenuWindowContext;
 
 static bool call_off_the_combination(void *ctx)
 {
-    MenuAsC *c = ctx;
+    MenuWindowContext *c = ctx;
     bool done = false;
     TIMED_AS(c->game, 0xFDA95F, done = battle_call_off_waiting_combination(c->game, c->pf));
     return done;
@@ -1119,7 +1119,7 @@ bool battle_update_combo_members(GameState *g, Platform *pf)
 {
     if (!battle_window_fits(g))
         return battle_needs_the_machine(g, 0xC1B575, "a menu state the combinations' port doesn't take");
-    MenuAsC c = { g, pf };
+    MenuWindowContext c = { g, pf };
     return update_combo_members(g, call_off_the_combination, &c);
 }
 

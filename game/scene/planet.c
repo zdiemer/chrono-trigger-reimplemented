@@ -717,9 +717,9 @@ static bool stars_put_out(void *ctx)
 
 bool scene_planet_set_up(GameState *g, Platform *pf)
 {
-    static const PlanetSetUpSteps as_c = { unpack_the_resource, turn_the_camera_channel, stars_put_out };
+    static const PlanetSetUpSteps in_the_program = { unpack_the_resource, turn_the_camera_channel, stars_put_out };
     PlanetInC c = { g, pf };
-    return set_up_the_planet_with(g, pf, &as_c, &c);
+    return set_up_the_planet_with(g, pf, &in_the_program, &c);
 }
 
 /* The setup's code, and the program's routines it runs as C: the unpacker's

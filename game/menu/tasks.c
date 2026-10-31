@@ -541,7 +541,7 @@ void menu_run_the_scroll_bar_task(Snes *s)
  * where it goes on from; the records say which takes its turn and when, as
  * they do on the machine, and the scheduler above is the same one. A task's
  * work as C is found by its start, as the original's is by its address. */
-typedef void (*MenuTaskAsC)(GameState *g, Platform *pf);
+typedef void (*MenuTaskBody)(GameState *g, Platform *pf);
 
 static void main_task(GameState *g, Platform *pf);
 static void cursor_task(GameState *g, Platform *pf);
@@ -558,7 +558,7 @@ enum { HELD_CURSOR_TASK_HEAD = 0x8AB2, LIST_CURSOR_TASK_HEAD = 0x89F2, MEMBER_CU
 
 static const struct {
     uint16_t start;
-    MenuTaskAsC run;
+    MenuTaskBody run;
 } tasks[] = {
     { MAIN_TASK_HEAD, main_task },
     { CURSOR_TASK_HEAD, cursor_task },
@@ -576,7 +576,7 @@ static const struct {
     { MENU_GATE_SONG_TASK_START, menu_play_the_gate_song },
     { MENU_GATE_SCREEN_TASK_START, menu_gate_screen_task },
 };
-enum { TASKS_AS_C = sizeof tasks / sizeof tasks[0] };
+enum { TASK_COUNT = sizeof tasks / sizeof tasks[0] };
 
 /* The menus' coroutines while they are open, and whether a task has closed
  * them: the one closing them waits for good, and the turns end there. */
@@ -587,7 +587,7 @@ static bool closed;
  * its record. */
 static void run_a_task(GameState *g, Platform *pf, void *arg)
 {
-    const MenuTaskAsC *run = arg;
+    const MenuTaskBody *run = arg;
     (*run)(g, pf);
     if (!closed && !program_went_no_further(g))
         (void)record_the_end(g);
@@ -621,9 +621,9 @@ static bool take_a_turn(GameState *g, const TaskTurn *turn)
     if (turn_starts(turn)) {
         uint16_t at = task_starts(g, turn->task);
         unsigned i = 0;
-        while (i < TASKS_AS_C && tasks[i].start != at)
+        while (i < TASK_COUNT && tasks[i].start != at)
             i++;
-        if (i == TASKS_AS_C) {
+        if (i == TASK_COUNT) {
             program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | at, "a menus' task only the machine runs");
             return false;
         }
@@ -651,24 +651,24 @@ void menu_tasks_end(void) { tasks_end(&the_tasks); }
 typedef struct {
     GameState *game;
     Platform *pf;
-} LoopAsC;
+} MenuTasksContext;
 
 static bool screen_step(void *ctx)
 {
-    LoopAsC *c = ctx;
+    MenuTasksContext *c = ctx;
     return menu_run_the_screen_step(c->game, c->pf);
 }
 
 static bool loop_waits(void *ctx)
 {
-    LoopAsC *c = ctx;
+    MenuTasksContext *c = ctx;
     menu_task_waits(c->game, 1);
     return true;
 }
 
 static void main_task(GameState *g, Platform *pf)
 {
-    LoopAsC c = { g, pf };
+    MenuTasksContext c = { g, pf };
     while (main_task_turn(screen_step, loop_waits, &c))
         ;
 }
@@ -677,7 +677,7 @@ static void main_task(GameState *g, Platform *pf)
  * program goes no further there. */
 static void cursor_task(GameState *g, Platform *pf)
 {
-    LoopAsC c = { g, pf };
+    MenuTasksContext c = { g, pf };
     while (menu_cursor_can_be_placed(g) && cursor_task_turn(g, loop_waits, &c))
         ;
     if (!menu_cursor_can_be_placed(g))

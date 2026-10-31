@@ -408,14 +408,14 @@ bool menu_main_menu_can_come_back(const GameState *g)
 typedef struct {
     GameState *game;
     Platform *pf;
-} MainMenuAsC;
+} MainMenuContext;
 
-static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((MainMenuAsC *)ctx)->game); }
+static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((MainMenuContext *)ctx)->game); }
 
 static bool tick(void *ctx, MainMenuPlace at)
 {
     (void)at;
-    MainMenuAsC *c = ctx;
+    MainMenuContext *c = ctx;
     menu_tick(c->game, c->pf);
     return true;
 }
@@ -423,23 +423,23 @@ static bool tick(void *ctx, MainMenuPlace at)
 static bool wait(void *ctx, MainMenuPlace at)
 {
     (void)at;
-    MainMenuAsC *c = ctx;
+    MainMenuContext *c = ctx;
     menu_task_waits(c->game, 1);
     return true;
 }
 
-static const MainMenuSteps as_c;
+static const MainMenuSteps in_the_program;
 
 static bool show_the_panel(void *ctx, MainMenuPlace at)
 {
     (void)at;
-    MainMenuAsC *c = ctx;
+    MainMenuContext *c = ctx;
     if (!menu_main_menu_panel_can_show(c->game)) {
         program_needs_the_machine(c->game, 0xC29B54, "a main menu panel the port doesn't show as C");
         return false;
     }
     bool back = false;
-    TIMED_AS(c->game, 0xC29B54, back = menu_show_main_menu_panel_with(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, 0xC29B54, back = menu_show_main_menu_panel_with(c->game, c->pf, &in_the_program, c));
     return back;
 }
 
@@ -473,15 +473,15 @@ static const struct {
 
 static bool option_panel(void *ctx, MainMenuOption option)
 {
-    MainMenuAsC *c = ctx;
+    MainMenuContext *c = ctx;
     bool back = false;
-    TIMED_AS(c->game, panels[option].routine, back = panels[option].show(c->game, c->pf, &as_c, c));
+    TIMED_AS(c->game, panels[option].routine, back = panels[option].show(c->game, c->pf, &in_the_program, c));
     return back;
 }
 
 static bool member_card(void *ctx)
 {
-    MainMenuAsC *c = ctx;
+    MainMenuContext *c = ctx;
     if (!menu_member_card_can_be_drawn(c->game)) {
         program_needs_the_machine(c->game, 0xC2A22F, "a member card the port doesn't draw");
         return false;
@@ -496,7 +496,7 @@ static void note(void *ctx, MainMenuNote note, uint8_t value) { (void)ctx, (void
  * menus closed (which never comes back), or the tick. */
 static bool ends(void *ctx, MainMenuEnd end)
 {
-    MainMenuAsC *c = ctx;
+    MainMenuContext *c = ctx;
     switch (end) {
     case MAIN_MENU_FADES_IN: TIMED_AS(c->game, 0xC283B2, menu_start_the_fade_in(c->game)); break;
     case MAIN_MENU_LEAVES_THE_MENUS: menu_close(c->game, c->pf, false); break;
@@ -505,7 +505,7 @@ static bool ends(void *ctx, MainMenuEnd end)
     return true;
 }
 
-static const MainMenuSteps as_c = { read_cursor, tick, wait, show_the_panel, option_panel, member_card, note, ends };
+static const MainMenuSteps in_the_program = { read_cursor, tick, wait, show_the_panel, option_panel, member_card, note, ends };
 
 /* A step as C where its entry's guard would take the state; otherwise the
  * program goes no further there. */
@@ -516,8 +516,8 @@ static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(con
         program_needs_the_machine(g, routine, "a main menu the port doesn't take");
         return false;
     }
-    MainMenuAsC c = { g, pf };
-    return run(g, pf, &as_c, &c);
+    MainMenuContext c = { g, pf };
+    return run(g, pf, &in_the_program, &c);
 }
 
 bool menu_open_main_menu(GameState *g, Platform *pf)

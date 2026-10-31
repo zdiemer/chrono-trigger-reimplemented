@@ -72,11 +72,11 @@ static bool open_the_window(GameState *g, bool (*call)(void *ctx, OpeningCall ca
 typedef struct {
     GameState *game;
     Platform *pf;
-} ClosingAsC;
+} BattleClosingContext;
 
 static bool open_a_part(void *ctx, OpeningCall call)
 {
-    ClosingAsC *c = ctx;
+    BattleClosingContext *c = ctx;
     if (call == OPENING_SOUND) {
         TIMED_AS(c->game, BATTLE_PLAY_A_SOUND_ENTRY, battle_play_a_sound(c->pf, WINDOW_SOUND, AU_CENTRE));
         return true;
@@ -88,7 +88,7 @@ static bool open_a_part(void *ctx, OpeningCall call)
 
 bool battle_window_opened(GameState *g, Platform *pf)
 {
-    ClosingAsC c = { g, pf };
+    BattleClosingContext c = { g, pf };
     return open_the_window(g, open_a_part, &c);
 }
 
@@ -505,7 +505,7 @@ void battle_change_to_the_battlefield(Snes *s)
  * battlefield's change's, a layout the port builds. */
 static bool close_a_part(void *ctx, ClosingCall call, uint16_t arg)
 {
-    ClosingAsC *c = ctx;
+    BattleClosingContext *c = ctx;
     GameState *g = c->game;
     Platform *pf = c->pf;
     bool done = false;
@@ -539,6 +539,6 @@ static bool close_a_part(void *ctx, ClosingCall call, uint16_t arg)
 
 bool battle_display_closed(GameState *g, Platform *pf)
 {
-    ClosingAsC c = { g, pf };
+    BattleClosingContext c = { g, pf };
     return close_the_display(g, pf, close_a_part, &c);
 }
