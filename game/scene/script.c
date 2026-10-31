@@ -364,16 +364,16 @@ static ScriptFlow run_sound(const Command *c, const ScriptRow *row)
 static bool task_takes(const Command *c, const ScriptRow *row)
 {
     bool adding = row->add;
-    return scene_task_listed(c->g, row->list, adding ? NO_TASK : operand16(c, 1));
+    return scene_script_can_replace_task(c->g, row->list, adding ? NO_TASK : operand16(c, 1));
 }
 
 static ScriptFlow run_task(const Command *c, const ScriptRow *row)
 {
     SceneTask task = operand16(c, 1);
     if (row->add)
-        scene_add_task(c->g, row->list, task);
+        (void)scene_script_replace_task(c->g, row->list, NO_TASK, task);
     else
-        scene_remove_task(c->g, row->list, task);
+        (void)scene_script_replace_task(c->g, row->list, task, NO_TASK);
     set_script(c->g, c->ch, after(c, 3));
     return go_on();
 }

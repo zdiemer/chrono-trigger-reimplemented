@@ -59,17 +59,29 @@ static uint8_t worn(const GameState *g, MenuItemCategory slot)
     return menu_status_record_bytes_byte(g, menu_category_slot_place(g, (uint8_t)slot));
 }
 
+/* Which of the stat boosts an item has (menu_item_amounts). An item tried on
+ * that is no item of the game's has none of its own: the original reads the
+ * bytes past the table, as they stand, and so does this. */
+static uint8_t item_amount(const GameState *g, uint8_t item)
+{
+    return item < MENU_ITEM_AMOUNTS_COUNT ? menu_item_amounts(g, item) : menu_item_amounts_unchecked(g, item);
+}
+
 /* An item's boost: some stats, a bit each from the top in the caps' order
  * (the last bit no stat), raised by its amount. A byte each, wrapping as
- * the original's do. */
-enum { NO_STAT_BIT = 0x01, FIRST_STAT_BIT = 0x80 };
+ * the original's do. The menus look a boost up with a byte-wide index of
+ * two bytes a boost, so a boost past $7F (which no item of the game's has)
+ * comes round to the table's start. */
+enum { NO_STAT_BIT = 0x01, FIRST_STAT_BIT = 0x80, BOOSTS_A_BYTE_REACHES = 0x7F };
+
+static StatBoost boost_of(const GameState *g, uint8_t boost) { return stat_boost(g, boost & BOOSTS_A_BYTE_REACHES); }
 
 static void add_boost(const GameState *g, Equipment *e, uint8_t item)
 {
-    uint8_t boost = menu_item_amounts(g, item);
+    uint8_t boost = item_amount(g, item);
     if (boost == NO_BOOST)
         return;
-    StatBoost b = stat_boost(g, boost);
+    StatBoost b = boost_of(g, boost);
     uint8_t stats = (uint8_t)(b.stats & ~NO_STAT_BIT);
     for (unsigned stat = 0; stats != 0; stat++, stats = (uint8_t)(stats << 1))
         if (stats & FIRST_STAT_BIT) {
@@ -95,11 +107,11 @@ static Equipment add_up_the_equipment(GameState *g, uint16_t *greatest_hp)
         MenuItemCategory slot = slots_last_first[i];
         uint8_t item = worn(g, slot);
         if (slot == MENU_WEAPONS)
-            e.attack = menu_item_powers(g, item);
+            e.attack = menu_power_of_item(g, item);
         else if (slot == MENU_ACCESSORIES)
             *greatest_hp = greatest_hp_with(g, item);
         else
-            e.defence = (uint8_t)(e.defence + menu_item_powers(g, item));
+            e.defence = (uint8_t)(e.defence + menu_power_of_item(g, item));
         add_boost(g, &e, item);
     }
     return e;
@@ -151,10 +163,10 @@ enum { PAST_THE_WEAPON = 0xFF };
 static void leave_boosts_shifted(GameState *g)
 {
     for (unsigned i = MENU_EQUIPMENT_SLOTS; i-- > 0;) {
-        uint8_t boost = menu_item_amounts(g, worn(g, slots_last_first[i]));
+        uint8_t boost = item_amount(g, worn(g, slots_last_first[i]));
         if (boost == NO_BOOST)
             continue;
-        set_menu_scratch_figures_weapon_part(g, (uint16_t)(stat_boost(g, boost).amount << 8));
+        set_menu_scratch_figures_weapon_part(g, (uint16_t)(boost_of(g, boost).amount << 8));
         return;
     }
 }
@@ -368,16 +380,6 @@ void menu_mark_the_figures_tried_on(GameState *g, MenuFiguresWindow window)
             set_menu_status_record_figures_byte(g, figure, is);
         set_menu_figure_marks(g, i, menu_figure_mark(was, is));
     }
-}
-
-bool menu_figures_workable_with(const GameState *g, uint8_t place, uint8_t item)
-{
-    for (unsigned slot = 0; slot < MENU_EQUIPMENT_SLOTS; slot++) {
-        bool tried = menu_category_slot_place(g, (uint8_t)slot) == place;
-        if (!an_item_of_the_games(tried ? item : worn(g, (MenuItemCategory)slot), (MenuItemCategory)slot))
-            return false;
-    }
-    return true;
 }
 
 bool menu_figures_can_be_worked_out(const GameState *g) { return equipment_is_the_games(g); }

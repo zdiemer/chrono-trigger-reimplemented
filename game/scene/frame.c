@@ -37,7 +37,9 @@
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
+#include "ram.h"
 #include "vars.h"
+#include "wram.h"
 
 /* The NMI's two handlers, in bank C3: the frame's, and the one that only
  * acknowledges while the frame's work runs. */
@@ -86,6 +88,51 @@ bool scene_task_listed(const GameState *g, SceneTaskList list, SceneTask task)
         if (task_at(g, list, slot) == task)
             return true;
     return false;
+}
+
+/* Past the list's end, the original's search goes on a word at a time through
+ * the scripts' bank, for as far as its index reaches: its 16-bit index runs
+ * on from the list's start, and back to it after $FFFE, where it would look
+ * again for ever. */
+enum { SEARCH_BANK = SCENE_LOWER_WORK_RAM, SEARCH_WORDS = 0x8000 };
+
+static uint32_t list_start(SceneTaskList list)
+{
+    return list == SCENE_VBLANK_TASKS ? RAM_SCENE_EARLY_TASKS : RAM_SCENE_TASKS;
+}
+
+/* The first word past the list holding `from`, or 0 for none in reach. */
+static uint32_t word_past_the_list(const GameState *g, SceneTaskList list, SceneTask from)
+{
+    uint32_t start = (uint32_t)SEARCH_BANK << 16 | (list_start(list) & 0xFFFF);
+    for (uint32_t word = list_length(list); word < SEARCH_WORDS; word++)
+        if (wram_read16(g, start + word * 2) == from)
+            return start + word * 2;
+    return 0;
+}
+
+// $C3:0CB8, $C3:0CCD, $C3:0CE2, $C3:0CF8
+/* A script's command putting a task on a list or taking one off, as the
+ * original's search does it: where the list has no slot holding `from`, the
+ * search goes on past its end and changes the first word that holds it,
+ * whatever that word is -- a slot of the vblank list after the frame's, or,
+ * as the shared endings' script takes the fireworks off in a mode that never
+ * put them on, a word of the script's own. False only where no word in reach
+ * holds it, where the original would search for ever. */
+bool scene_script_replace_task(GameState *g, SceneTaskList list, SceneTask from, SceneTask to)
+{
+    if (replace_task(g, list, from, to))
+        return true;
+    uint32_t at = word_past_the_list(g, list, from);
+    if (!at)
+        return false;
+    wram_write16(g, at, to);
+    return true;
+}
+
+bool scene_script_can_replace_task(const GameState *g, SceneTaskList list, SceneTask from)
+{
+    return scene_task_listed(g, list, from) || word_past_the_list(g, list, from) != 0;
 }
 
 // $C3:0CE2, $C3:0CF8
@@ -663,6 +710,8 @@ static const struct {
     { 0x7E9AF3, scene_place_the_flight_view_entry, scene_place_the_flight_view },
     { 0x7E9B4F, scene_turn_captions_entry, scene_turn_captions },
     { 0x7E9BF9, scene_burst_the_fireworks_entry, scene_burst_the_fireworks },
+    { 0x7E9C58, scene_show_the_mosaic_entry, scene_show_the_mosaic },
+    { 0x7E9CE2, scene_send_the_mosaic_frame_entry, scene_send_the_mosaic_frame },
     { 0x7E9D45, scene_turn_back_and_twinkle_entry, scene_turn_back_and_twinkle },
     { 0x7E9D48, scene_twinkle_the_lights_entry, scene_twinkle_the_lights },
     { 0x7E9DBC, scene_send_the_flight_view_entry, scene_send_the_flight_view },

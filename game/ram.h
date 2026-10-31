@@ -9030,21 +9030,41 @@
  * past [2 bytes] */
 #define RAM_SCENE_RACE_CARTRIDGE_COLUMN 0x7E00A2u
 #define RAM_SCENE_RACE_CARTRIDGE_COLUMN_DP 0xA2u /* page scene */
+/* Which of its four frames mode 10's picture shows (the low two bits): the picture's task
+ * ($7E:9C58) puts the frame's send on the vblank list when it changes */
+#define RAM_SCENE_MOSAIC_FRAME 0x7E00A3u
+#define RAM_SCENE_MOSAIC_FRAME_DP 0xA3u      /* page scene */
 /* Where Johnny is from Crono this frame: along the track in the low bits (1 Crono well ahead, 2
  * Johnny well ahead), across it in the high bits ($10 and $20); 0 when they touch [2 bytes] */
 #define RAM_SCENE_RACE_CONTACT 0x7E00A4u
 #define RAM_SCENE_RACE_CONTACT_DP 0xA4u      /* page scene */
+/* The frame of mode 10's picture last put on the vblank list to be sent: the picture's task
+ * sends the frame again when scene_mosaic_frame moves off it */
+#define RAM_SCENE_MOSAIC_FRAME_SENT 0x7E00A5u
+#define RAM_SCENE_MOSAIC_FRAME_SENT_DP 0xA5u /* page scene */
 /* The across part of scene_race_contact before it is shifted in [2 bytes] */
 #define RAM_SCENE_RACE_CONTACT_ACROSS 0x7E00A6u
 #define RAM_SCENE_RACE_CONTACT_ACROSS_DP 0xA6u /* page scene */
+/* Which of its three frames the moving piece of mode 10's picture's first frame shows (two of
+ * its sprites, their tiles picked from it) */
+#define RAM_SCENE_MOSAIC_PIECE_FRAME 0x7E00A7u
+#define RAM_SCENE_MOSAIC_PIECE_FRAME_DP 0xA7u /* page scene */
 /* scene_race_contact as it last was apart: when the bikes touch, it says which way they came
  * together [2 bytes] */
 #define RAM_SCENE_RACE_LAST_CONTACT 0x7E00A8u
 #define RAM_SCENE_RACE_LAST_CONTACT_DP 0xA8u /* page scene */
+/* Frames the moving piece of mode 10's picture has shown its frame: at 4 it moves on to the next
+ * and the count starts again */
+#define RAM_SCENE_MOSAIC_PIECE_FRAMES 0x7E00A9u
+#define RAM_SCENE_MOSAIC_PIECE_FRAMES_DP 0xA9u /* page scene */
 /* Nonzero when the race's tilemap buffer at $0C00 is ready for VRAM $4000; cleared when it is
  * sent */
 #define RAM_SCENE_RACE_TILEMAP_A_READY 0x7E00AAu
 #define RAM_SCENE_RACE_TILEMAP_A_READY_DP 0xAAu /* page scene */
+/* How wide mode 10's picture's frame is on the screen, in pixels: the picture's window around
+ * the picture ends this far right of where it starts */
+#define RAM_SCENE_MOSAIC_FRAME_WIDTH 0x7E00ABu
+#define RAM_SCENE_MOSAIC_FRAME_WIDTH_DP 0xABu /* page scene */
 /* The byte after each tilemap half's ready mark, which the race counts the mark up into as a
  * word (the vblank clears the mark alone) [2 x $2 bytes, by racer: 0 Crono's half (after
  * scene_race_tilemap_a_ready), 1 Johnny's (after _b_ready)] */
@@ -9052,6 +9072,10 @@
 #define RAM_SCENE_RACE_TILEMAP_READY_HIGH_COUNT 2u
 #define RAM_SCENE_RACE_TILEMAP_READY_HIGH_STRIDE 0x02u
 #define RAM_SCENE_RACE_TILEMAP_READY_HIGH_DP 0xABu /* page scene */
+/* How tall mode 10's picture's frame is on the screen, in lines: the picture's window around the
+ * picture is this many lines */
+#define RAM_SCENE_MOSAIC_FRAME_HEIGHT 0x7E00ACu
+#define RAM_SCENE_MOSAIC_FRAME_HEIGHT_DP 0xACu /* page scene */
 /* Nonzero when the race's tilemap buffer at $0C00 is ready for VRAM $4400; cleared when it is
  * sent */
 #define RAM_SCENE_RACE_TILEMAP_B_READY 0x7E00ACu
@@ -9779,6 +9803,10 @@
 #define RAM_SCENE_ENDING_WINDOW_TO 0x7E9078u
 #define RAM_SCENE_ENDING_WINDOW_TO_COUNT 2u
 #define RAM_SCENE_ENDING_WINDOW_TO_STRIDE 0x03u
+/* On which of the picture's fields the slowly rolling credits scroll a pixel: $90, the odd ones,
+ * as the program comes; $B0, the even ones, as the slow staff roll's setup ($7E:8E95, mode 12)
+ * writes it with the picture interlaced: the opcode of the program's own branch on the field */
+#define RAM_SCENE_CREDITS_SCROLL_FIELD 0x7E9EE3u
 /* The scroll register the credits' upload sends their scroll to, the low byte of its address as
  * the operands of the upload's two stores: $10, BG2's vertical scroll, as the program comes;
  * $12, BG3's, where the staff roll's setup has written it [2 x $5 bytes, by the store: 0 the

@@ -87,7 +87,7 @@ static void as_the_screen_s_setup_leaves_it(Snes *s)
  * (scene/title.c), the palace rising (scene/rising_palace.c), Lavos falling
  * to the planet (scene/lavos_falls.c), the Epoch's dive (scene/epoch_dive.c),
  * the planet's (scene/planet.c), the shared endings' (scene/endings.c)
- * and the staff roll's (scene/staff_roll.c) are C;
+ * and the staff roll's, fast and slow (scene/staff_roll.c), are C;
  * the attract sequence's other scenes, and the ones no movie reaches, are
  * still the original's, called by the routine the program's own table names
  * for the mode. */
@@ -97,7 +97,7 @@ enum { SCENE_MODE_BITS = 0x1F, SCENE_MODES = 16, PROGRAM_BANK = 0x7E0000 };
 enum {
     RACE_SET_UP = 0x7E3B48, CREDIT_PAGES_SET_UP = 0x7E6B04, TITLE_SET_UP = 0x7E5978, PALACE_SET_UP = 0x7E671F,
     ENDINGS_SET_UP = 0x7E8538, STAFF_ROLL_SET_UP = 0x7E8EA8, LAVOS_FALLS_SET_UP = 0x7E53BB, EPOCH_DIVE_SET_UP = 0x7E78DD,
-    PLANET_SET_UP = 0x7E6248,
+    PLANET_SET_UP = 0x7E6248, SLOW_STAFF_ROLL_SET_UP = 0x7E8E95,
 };
 
 static const struct {
@@ -119,6 +119,8 @@ static const struct {
     { SCENE_MODE_ENDING_CAPTIONED, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
     { SCENE_MODE_ENDING_CAPTIONED_TOO, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
     { SCENE_MODE_STAFF_ROLL, STAFF_ROLL_SET_UP, scene_staff_roll_set_up_scene, scene_staff_roll_set_up_present, false },
+    { SCENE_MODE_SLOW_STAFF_ROLL, SLOW_STAFF_ROLL_SET_UP, scene_slow_staff_roll_set_up_scene, scene_slow_staff_roll_set_up_present,
+      false },
     { SCENE_MODE_ENDING_AGAIN, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
     { SCENE_MODE_ENDING_WITHOUT_CREDITS, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
 };
@@ -334,6 +336,7 @@ static const struct {
     { SCENE_MODE_ENDING_AGAIN, ENDINGS_SET_UP, scene_ending_set_up },
     { SCENE_MODE_ENDING_WITHOUT_CREDITS, ENDINGS_SET_UP, scene_ending_set_up },
     { SCENE_MODE_STAFF_ROLL, STAFF_ROLL_SET_UP, scene_staff_roll_set_up },
+    { SCENE_MODE_SLOW_STAFF_ROLL, SLOW_STAFF_ROLL_SET_UP, scene_slow_staff_roll_set_up },
     { SCENE_MODE_PLANET_LOST, PLANET_SET_UP, scene_planet_set_up },
     { SCENE_MODE_PLANET_ENDING, PLANET_SET_UP, scene_planet_set_up },
 };

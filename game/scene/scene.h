@@ -93,7 +93,8 @@ typedef enum {
     SCENE_MODE_RACE = 0, SCENE_MODE_CREDITS_PAGE = 1, SCENE_MODE_TITLE = 2, SCENE_MODE_RISING_PALACE = 3,
     SCENE_MODE_LAVOS_FALLS = 4, SCENE_MODE_EPOCH_DIVE = 6, SCENE_MODE_PLANET_LOST = 7, SCENE_MODE_PLANET_ENDING = 8,
     SCENE_MODE_ATTRACT_RACE = 9, SCENE_MODE_ENDING_CAPTIONED = 10, SCENE_MODE_ENDING_CAPTIONED_TOO = 11,
-    SCENE_MODE_STAFF_ROLL = 13, SCENE_MODE_ENDING_AGAIN = 14, SCENE_MODE_ENDING_WITHOUT_CREDITS = 15,
+    SCENE_MODE_SLOW_STAFF_ROLL = 12, SCENE_MODE_STAFF_ROLL = 13, SCENE_MODE_ENDING_AGAIN = 14,
+    SCENE_MODE_ENDING_WITHOUT_CREDITS = 15,
 } SceneMode;
 
 /* The main loop's call each pass, which a setup names (scene_main_loop_call):
@@ -151,9 +152,14 @@ typedef enum {
 
 /* scene/frame.c: put a task on a list (in its first empty slot), or take one
  * off; false if there is no such slot, where the original searches on past the
- * list through memory (no script does that). */
+ * list through memory. A script's command does that as the original does
+ * (scene_script_replace_task: `from` NO_TASK to put `to` on, `to` NO_TASK to
+ * take `from` off); false only where no word in the search's reach holds
+ * `from`. */
 bool scene_add_task(GameState *g, SceneTaskList list, SceneTask task);
 bool scene_remove_task(GameState *g, SceneTaskList list, SceneTask task);
+bool scene_script_replace_task(GameState *g, SceneTaskList list, SceneTask from, SceneTask to);
+bool scene_script_can_replace_task(const GameState *g, SceneTaskList list, SceneTask from);
 /* Whether a list holds the task (NO_TASK: whether it has an empty slot). */
 bool scene_task_listed(const GameState *g, SceneTaskList list, SceneTask task);
 
@@ -774,6 +780,7 @@ void scene_title_wait_for_its_song(Snes *s);
 bool scene_race_set_up_scene(Snes *s);
 bool scene_ending_set_up_scene(Snes *s);
 bool scene_staff_roll_set_up_scene(Snes *s);
+bool scene_slow_staff_roll_set_up_scene(Snes *s);
 bool scene_credit_pages_set_up_scene(Snes *s);
 /* The credits' page's setup as C, the letters unpacked by the unpacker as C. */
 bool scene_credit_pages_set_up(GameState *g, Platform *pf);
@@ -1012,6 +1019,9 @@ bool scene_send_the_map_present(Snes *s);
 bool scene_staff_roll_set_up_present(Snes *s);
 void scene_staff_roll_set_up_entry(Snes *s);
 bool scene_staff_roll_set_up(GameState *g, Platform *pf);
+bool scene_slow_staff_roll_set_up_present(Snes *s);
+void scene_slow_staff_roll_set_up_entry(Snes *s);
+bool scene_slow_staff_roll_set_up(GameState *g, Platform *pf);
 bool scene_credits_roll_present(Snes *s);
 void scene_roll_credits_entry(Snes *s);
 bool scene_credits_scroll_present(Snes *s);
@@ -1049,14 +1059,20 @@ TaskEnd scene_send_the_credits_picture(GameState *g, Platform *pf, unsigned slot
 TaskEnd scene_send_the_pattern_s_map(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_send_the_pattern_s_tiles(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_blank_the_map(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_send_the_mosaic_frame(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_show_the_mosaic(GameState *g, Platform *pf, unsigned slot);
 void scene_send_the_credits_picture_entry(Snes *s);
 void scene_send_the_pattern_s_map_entry(Snes *s);
 void scene_send_the_pattern_s_tiles_entry(Snes *s);
 void scene_blank_the_map_entry(Snes *s);
+void scene_send_the_mosaic_frame_entry(Snes *s);
+void scene_show_the_mosaic_entry(Snes *s);
 bool scene_send_the_credits_picture_present(Snes *s);
 bool scene_send_the_pattern_s_map_present(Snes *s);
 bool scene_send_the_pattern_s_tiles_present(Snes *s);
 bool scene_blank_the_map_present(Snes *s);
+bool scene_send_the_mosaic_frame_present(Snes *s);
+bool scene_show_the_mosaic_present(Snes *s);
 TaskEnd scene_ending_draw_the_end(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_ending_sweep_window(GameState *g, Platform *pf, unsigned slot);
 bool scene_ending_scale_picture(GameState *g, Platform *pf);
@@ -1388,6 +1404,11 @@ void scene_add_large_sprite(Snes *s);
  * bottom or below left out, the form the callers write into its code. */
 typedef enum { LIST_KEEPS_EVERY_SPRITE, LIST_LEAVES_OUT_BELOW_THE_PICTURE } SceneLargeList;
 void scene_draw_large_sprite_list(GameState *g, uint16_t list, SceneLargeList form);
+SceneLargeList scene_large_list_form_written(const GameState *g);
+bool scene_large_sprite_list_takes(const GameState *g, uint16_t list);
+bool scene_large_list_code_present(Snes *s);
+uint16_t scene_large_list_leaves_a(const GameState *g, uint16_t list);
+void scene_set_listed_tile(GameState *g, uint16_t list, unsigned n, uint8_t tile);
 void scene_draw_large_sprite_list_entry(Snes *s);
 bool scene_large_sprite_list_fits(Snes *s);
 /* The program's list with signed offsets ($7E:3A97), each sprite's size in its

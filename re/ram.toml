@@ -776,6 +776,60 @@ meaning = "The byte after each tilemap half's ready mark, which the race counts 
 source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
 
 [[var]]
+name = "scene_mosaic_frame"
+addr = "7E:00A3"
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_cartridge_column"
+meaning = "Which of its four frames mode 10's picture shows (the low two bits): the picture's task ($7E:9C58) puts the frame's send on the vblank list when it changes"
+source = "game/scene/endings.c, scene_send_the_mosaic_frame $7E:9CE2"
+
+[[var]]
+name = "scene_mosaic_frame_sent"
+addr = "7E:00A5"
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_contact"
+meaning = "The frame of mode 10's picture last put on the vblank list to be sent: the picture's task sends the frame again when scene_mosaic_frame moves off it"
+source = "game/scene/endings.c, scene_show_the_mosaic $7E:9C58"
+
+[[var]]
+name = "scene_mosaic_piece_frame"
+addr = "7E:00A7"
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_contact_across"
+meaning = "Which of its three frames the moving piece of mode 10's picture's first frame shows (two of its sprites, their tiles picked from it)"
+source = "game/scene/endings.c, scene_show_the_mosaic $7E:9C58"
+
+[[var]]
+name = "scene_mosaic_piece_frames"
+addr = "7E:00A9"
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_last_contact"
+meaning = "Frames the moving piece of mode 10's picture has shown its frame: at 4 it moves on to the next and the count starts again"
+source = "game/scene/endings.c, scene_show_the_mosaic $7E:9C58"
+
+[[var]]
+name = "scene_mosaic_frame_width"
+addr = "7E:00AB"
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_tilemap_ready_high"
+meaning = "How wide mode 10's picture's frame is on the screen, in pixels: the picture's window around the picture ends this far right of where it starts"
+source = "game/scene/endings.c, scene_send_the_mosaic_frame $7E:9CE2 and scene_show_the_mosaic $7E:9C58"
+
+[[var]]
+name = "scene_mosaic_frame_height"
+addr = "7E:00AC"
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_tilemap_b_ready"
+meaning = "How tall mode 10's picture's frame is on the screen, in lines: the picture's window around the picture is this many lines"
+source = "game/scene/endings.c, scene_send_the_mosaic_frame $7E:9CE2 and scene_show_the_mosaic $7E:9C58"
+
+[[var]]
 name = "scene_race_buttons_before"
 addr = "7E:0004"
 size = 2
@@ -1966,7 +2020,7 @@ size = 2
 count = 64
 index = "column: the first 32 across, the next 32 down"
 subsystem = "scene"
-reuses = ["scene_bitplane_scratch", "scene_bg3_scroll_x", "scene_mode7_matrix", "scene_title_slides", "scene_title_slide_ends", "scene_title_pendulum_phase", "scene_title_pendulum_swing", "scene_title_ignores_buttons", "scene_title_button_taken", "scene_title_wait", "scene_title_logo_x", "scene_title_logo_y", "scene_title_timer", "scene_race_tilemap_a_ready", "scene_race_tilemap_b_ready", "scene_race_tilemap_ready_high", "scene_race_demo", "scene_race_racers", "scene_race_score", "scene_race_lead", "scene_race_view", "scene_race_johnny_controls", "scene_race_boosts", "scene_race_place", "scene_race_boost_held", "scene_race_cartridge_column", "scene_race_contact", "scene_race_contact_across", "scene_race_last_contact", "scene_race_crono_lean", "scene_race_stage", "scene_race_finish_margin", "scene_race_finish_margin_high", "scene_race_divisor_start", "scene_race_steer_buttons", "scene_race_boost_timer", "scene_race_frames", "scene_race_leaving", "scene_credits_scroll", "scene_credits_row_vram", "scene_credits_text", "scene_credits_over", "scene_credits_fast", "scene_credits_fast_high", "scene_stars_last_distance", "scene_stars_drift_frames", "scene_ending_picture_half", "scene_ending_picture_source", "scene_ending_picture_zoom", "scene_ending_picture_tall", "scene_ending_caption_gap", "scene_ending_caption_shown", "scene_ending_caption_countdown", "scene_ending_window_left", "scene_ending_window_corners", "scene_ending_caption_phase", "scene_ending_captions_left", "scene_ending_captions_x", "scene_ending_captions_y"]
+reuses = ["scene_bitplane_scratch", "scene_bg3_scroll_x", "scene_mode7_matrix", "scene_title_slides", "scene_title_slide_ends", "scene_title_pendulum_phase", "scene_title_pendulum_swing", "scene_title_ignores_buttons", "scene_title_button_taken", "scene_title_wait", "scene_title_logo_x", "scene_title_logo_y", "scene_title_timer", "scene_race_tilemap_a_ready", "scene_race_tilemap_b_ready", "scene_race_tilemap_ready_high", "scene_race_demo", "scene_race_racers", "scene_race_score", "scene_race_lead", "scene_race_view", "scene_race_johnny_controls", "scene_race_boosts", "scene_race_place", "scene_race_boost_held", "scene_race_cartridge_column", "scene_race_contact", "scene_race_contact_across", "scene_race_last_contact", "scene_race_crono_lean", "scene_race_stage", "scene_race_finish_margin", "scene_race_finish_margin_high", "scene_race_divisor_start", "scene_race_steer_buttons", "scene_race_boost_timer", "scene_race_frames", "scene_race_leaving", "scene_credits_scroll", "scene_credits_row_vram", "scene_credits_text", "scene_credits_over", "scene_credits_fast", "scene_credits_fast_high", "scene_stars_last_distance", "scene_stars_drift_frames", "scene_ending_picture_half", "scene_ending_picture_source", "scene_ending_picture_zoom", "scene_ending_picture_tall", "scene_ending_caption_gap", "scene_ending_caption_shown", "scene_ending_caption_countdown", "scene_ending_window_left", "scene_ending_window_corners", "scene_ending_caption_phase", "scene_ending_captions_left", "scene_ending_captions_x", "scene_ending_captions_y", "scene_mosaic_frame", "scene_mosaic_frame_sent", "scene_mosaic_piece_frame", "scene_mosaic_piece_frames", "scene_mosaic_frame_width", "scene_mosaic_frame_height"]
 meaning = "The palace's scene: the offsets mode 2 moves BG1's columns by, BG3's first two rows as the vblank sends them: across, the ripple's shape from its strength, and down, none"
 source = "game/scene/rising_palace.c, the ripple $7E:69AF and its upload $7E:66DD"
 
@@ -3144,6 +3198,13 @@ addr = "7E:4259"
 subsystem = "scene"
 meaning = "Which way the curtain sweeps as the race ends (2, from the right; 1, from the left, as the attract sequence's own curtain setup at $7E:6838 writes it): the operand of the program's own load, which the setup of the race without its panel writes again"
 source = "game/scene/race.c, scene_race_set_up $7E:3B48"
+
+[[var]]
+name = "scene_credits_scroll_field"
+addr = "7E:9EE3"
+subsystem = "scene"
+meaning = "On which of the picture's fields the slowly rolling credits scroll a pixel: $90, the odd ones, as the program comes; $B0, the even ones, as the slow staff roll's setup ($7E:8E95, mode 12) writes it with the picture interlaced: the opcode of the program's own branch on the field"
+source = "game/scene/staff_roll.c, the slow staff roll's setup $7E:8E95 and the credits' scroll $7E:9ED6"
 
 [[var]]
 name = "scene_main_loop_call"
@@ -7611,6 +7672,7 @@ name = "menu_item_amounts"
 addr = "7E:7B00"
 count = 0xF2
 index = "item"
+unchecked = "the equipment screen's figures for an item tried on that is no item of the game's (past $F1) read its boost from the bytes past the table, as the original does (game/menu/figures.c, item_amount)"
 subsystem = "menu"
 meaning = "Each item's fifth data byte (how much a tonic heals); for accessories, the third byte of their figures where the second's bit 6 is set, else 0; cleared for the items past them"
 source = "game/menu/items.c, $C2:9875"
@@ -10710,6 +10772,7 @@ addr = "7E:0D38"
 size = 2
 count = 7
 index = "character"
+unchecked = "a member's row whose record names the eighth character (no record of the game's does) marks its HP against the word after the seven, as the original reads it (game/menu/members.c, low_hp_mark)"
 subsystem = "menu"
 meaning = "Each character's tenth of its greatest HP, worked out as the menus open ($C2:813C): a member row draws the member's HP marked once it is down to that ($C2:A1EF)"
 source = "the menus' opening $C2:813C; game/menu/members.c"
@@ -10925,6 +10988,7 @@ addr = "7E:0F00"
 reuses = ["menu_kept_cursor", "menu_gate_screen_state"]
 count = 98
 index = "row of the list"
+unchecked = "the equipment screen tries on the item at the list's place on the cursor, a byte, which past the list's last row reads what follows it, as the original does (game/menu/equipment.c, item_on_the_cursor)"
 subsystem = "menu"
 meaning = "A list of items a screen offers (the equipment screen's: what fits the slot), an item a row"
 source = "game/menu/equipment.c, the list's move $C2:9F05"

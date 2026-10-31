@@ -713,11 +713,11 @@ void enemy_bring_back(GameState *g, uint8_t enemy, uint8_t count)
     ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, (uint16_t)(count + 1)));
 }
 
-void enemy_brought_back(GameState *g, uint8_t enemy, ScriptPlace at)
+static void come_back_with_hp(GameState *g, uint8_t enemy, uint8_t how)
 {
     uint8_t slot = (uint8_t)(BATTLE_FIRST_ENEMY + enemy);
     uint16_t most = battle_stats_max_hp(g, slot);
-    switch (byte_at(g, at, 1)) {
+    switch (how) {
     case BACK_AT_HALF: set_battle_stats_hp(g, slot, (uint16_t)(most >> 1)); break;
     case BACK_AT_QUARTER: set_battle_stats_hp(g, slot, (uint16_t)(most >> 2)); break;
     case BACK_AT_ONE: set_battle_stats_hp(g, slot, 1); break;
@@ -725,29 +725,67 @@ void enemy_brought_back(GameState *g, uint8_t enemy, ScriptPlace at)
     }
 }
 
-void enemy_bring_back_ends(GameState *g, ScriptPlace at, uint8_t count)
+void enemy_brought_back(GameState *g, uint8_t enemy, ScriptPlace at) { come_back_with_hp(g, enemy, byte_at(g, at, 1)); }
+
+/* The action is shown as the tech the effect code knows it by, from every
+ * enemy brought in. */
+static void show_as_the_tech(GameState *g, ScriptPlace at, uint8_t count)
 {
     set_battle_candidate_count(g, count);
     set_battle_action_actor(g, actor(g));
     set_battle_action_type(g, ACTION_TECH);
     set_battle_action_what(g, byte_at(g, at, 2));
     set_battle_action_extra(g, 0);
+}
+
+void enemy_bring_back_ends(GameState *g, ScriptPlace at, uint8_t count)
+{
+    show_as_the_tech(g, at, count);
     battle_mark_first_target(g);
     battle_mark_other_targets(g);
     ORIGINAL_EFFECT(battle_leave_word(g, 0x10, BATTLE_ENEMIES));
     ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, count));
 }
 
-/* The calling in names what the original's code needs in its first two
- * operands, and its message in the eleventh. */
-enum { CALL_IN_MESSAGE = 11 };
+/* ---- Calling enemies in ---------------------------------------------------------------------- */
+
+/* The calling in: how much HP the enemies called in come with in its first
+ * operand, the effect code's tech number in its second, four stats the caller
+ * sets on itself from its third (the pairs a stats action gives), and its
+ * message in its eleventh. */
+enum { CALL_IN_CHANGES = 3, CALL_IN_MESSAGE = 11 };
 
 void enemy_call_in_starts(GameState *g, ScriptPlace at)
 {
     battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, byte_at(g, at, 1));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x12, byte_at(g, at, 2)));
+    /* kept where the calling in's entry reads it (battle_call_enemies_in_ready) */
+    battle_keep_word(g, 0x12, byte_at(g, at, 2));
     set_battle_action_message(g, byte_at(g, at, CALL_IN_MESSAGE));
     battle_clear_candidates(g);
+}
+
+// $FD:A990
+/* The caller sets its four stats. The original keeps each stat's offset in
+ * the cell it kept the HP's operand in, and reads the HP the enemies come
+ * with from that cell after: so it is the last stat's offset, not the first
+ * operand, that says how much HP they have. */
+uint8_t enemy_call_in_sets_its_stats(GameState *g, ScriptPlace at)
+{
+    StatChange last = { 0, 0 };
+    for (unsigned n = 0; n < FOUR_CHANGES; n++) {
+        last = stat_change_at(g, at, CALL_IN_CHANGES, n);
+        enemy_change_own_stat(g, last, false);
+    }
+    return last.offset;
+}
+
+void enemy_called_in(GameState *g, uint8_t enemy, uint8_t how) { come_back_with_hp(g, enemy, how); }
+
+void enemy_call_in_ends(GameState *g, ScriptPlace at, uint8_t count)
+{
+    show_as_the_tech(g, at, count);
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x10, BATTLE_ENEMIES));
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, count));
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */

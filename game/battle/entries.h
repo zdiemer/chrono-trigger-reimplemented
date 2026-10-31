@@ -565,6 +565,8 @@ void battle_enemy_add_to_stats_then_tech_turn(Snes *s);
 bool battle_enemy_add_to_stats_then_tech_turn_ready(Snes *s);
 void battle_enemy_call_in_turn(Snes *s);
 bool battle_enemy_call_in_turn_ready(Snes *s);
+void battle_call_enemies_in_entry(Snes *s);
+bool battle_call_enemies_in_ready(Snes *s);
 
 /* battle/main_loop.c */
 void battle_finish_beaten_enemies(Snes *s);

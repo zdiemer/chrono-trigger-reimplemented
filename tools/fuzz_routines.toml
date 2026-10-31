@@ -21381,3 +21381,71 @@ state = "planet"
 args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EB5FF"]
 iterations = 2000
 why = "the program kept: any count, the reset at its end"
+
+# ---- scene: mode 10's picture, the slow staff roll -----------------------------------------------
+
+[[routine]]
+name = "scene_show_the_mosaic"
+at = "7E:9C58"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0011-7E0012=0000,0040,0100", "--fill", "7E0013-7E0014=0900,0904,0910", "--fill", "7EA074-7EA074=B0", "--fill", "7EA075-7EA075=D8", "--fill", "7E001A-7E001A=00-00", "--fill", "7E0940-7E094F=00-00"]
+iterations = 2000
+why = "a frame task: the program kept, the vblank list empty (the setup leaves it room for the frame's send), its list of large sprites in the form that leaves out a sprite below the picture (as the program is loaded, the picture's), the sprite cursor where a frame's sprites fit, the count's next byte clear (the list's guard); the picture's frame, the frame last sent, the piece's frame and count, channel 1 and the orbit random, so frames change, the piece steps and sprites fall below the picture"
+
+[[routine]]
+name = "scene_send_the_mosaic_frame"
+at = "7E:9CE2"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+iterations = 2000
+why = "a vblank task: the program kept, the picture's frame random"
+
+[[routine]]
+name = "scene_draw_large_sprite_list"
+variant = "leaves_out"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0011-7E0012=0000,0040,0100", "--fill", "7E0013-7E0013=00,04,10", "--fill", "7E0014-7E0014=09", "--fill", "7EA074-7EA074=B0", "--fill", "7EA075-7EA075=D8", "--fill", "7E001A-7E001A=00-00", "--range", "A=A203-A56F"]
+why = "the form that leaves out a sprite below the picture, the offsets random so several are left out in a row (each sprite after one left out written a word wide: the strays), a list among the bursts', the count's next byte clear"
+
+[[routine]]
+name = "scene_slow_staff_roll_set_up"
+at = "7E:8E95"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
+iterations = 300
+why = "mode 12's setup, as the staff roll's (scene_staff_roll_set_up): the program kept, the driver's echo looped back"
+
+[[routine]]
+name = "scene_scroll_credits"
+variant = "field"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E00AD-7E00AD=00-01",
+        "--fill", "7E00AE-7E00AE=00-00", "--fill", "7E9EE3-7E9EE3=90,B0"]
+why = "the speed fast or slow, its high byte 0, and the slow scroll's field either one, as the program comes or as the slow staff roll's setup writes it"
+
+# ---- menu: what the guards turned away ------------------------------------------------------------
+
+[[routine]]
+name = "menu_note_member_face"
+variant = "eighth"
+at = "C2:A1EF"
+subsystem = "menu"
+state = "equipment"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E7700-7E7FFF", "--fill", "7E9A90-7E9A90=00-FF"]
+iterations = 2000
+why = "the status record's first byte any, so it names the eighth character, which no record of the game's does: the mark is the word after the seven, as the original reads it"
+
+[[routine]]
+name = "menu_choose_equipment_item"
+variant = "any_item"
+at = "C2:9CA5"
+subsystem = "menu"
+state = "equipment"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E7700-7E7FFF", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--fill", "7E0051-7E0052=00-00", "--fill", "7E9380-7E947B=00-29", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-03", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E006F-7E0070=2600,2650,26A0,26F0,2740,2790,27E0", "--fill", "7E0D26-7E0D27=0027,0028,0029,002A", "--fill", "7E0412-7E0412=00-08", "--fill", "7E0054-7E0054=04-0C", "--fill", "7E0FC8-7E0FC8=00-FF", "--fill", "7E0FC6-7E0FC6=00-62", "--fill", "7E0F00-7E0F61=00-FF", "--fill", "7E7BF2-7E7BFF=00-FF", "--fill", "7E7C94-7E7CFF=00-FF", "--stop-at-call", "C2821E", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "as the plain row, with any item on the list, the list's top anywhere (the cursor past the list's last row too) and the bytes past the menus' item tables random: an item tried on that is no item of the game's is worked out from what lies past the tables, its boost looked up with the original's byte-wide index (game/menu/figures.c); the pointing's own drawing of such an item's name reads past the names' places (an accessor out of range the fuzz reports, which no list of the game's reaches)"

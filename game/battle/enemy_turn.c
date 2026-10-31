@@ -6,9 +6,10 @@
  * out its reaction's action at once. The action does its part (battle/
  * enemy_actions.c) and says what the turn does after it: work its effect out
  * on its targets and show it, only show it, or nothing more. Its effect is
- * worked out in C (battle/effect_work.c); a tech's targeting, messages,
- * bringing enemies in and the showing are the original's code still: this is
- * the machine's side of the turn, which calls them and runs the rest as C.
+ * worked out in C (battle/effect_work.c); a tech's targeting, messages, an
+ * enemy's stat block loaded as it comes in and the showing are routines of
+ * their own, which the machine's side of the turn calls as the original's
+ * code and the program's side as C.
  *
  * After the turn the enemy has nothing chosen, and where its action was aimed
  * at an enemy (and doesn't say otherwise) the enemies react. */
@@ -30,6 +31,7 @@
 #include "charge.h"
 #include "original_effects.h"
 #include "port/native.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The turn, as C ------------------------------------------------------------------------ */
@@ -179,16 +181,16 @@ static bool effect_shown(GameState *g)
 /* The routines an action's turn calls, each where the original makes it: the
  * tech's body ($C1:9A3D, below), its targeting ($C1:C1DD, battle/aim.c), an
  * enemy's message ($CD:0033, battle/message.c), an enemy coming into the
- * battle loaded ($FD:B438, battle/fight_enemies.c), and enemies called in (the
- * original's $FD:A990). `arg` is the message or the enemy; the targeting
- * takes the carry the code before it leaves. */
+ * battle loaded ($FD:B438, battle/fight_enemies.c), and enemies called in
+ * ($FD:A990, below). `arg` is the message or the enemy; the targeting takes
+ * the carry the code before it leaves. */
 typedef enum {
     ACT_TECH_BODY,
     ACT_AIM_TECH, ACT_AIM_SET_STATS_THEN_TECH, ACT_AIM_ADD_TO_STATS_THEN_TECH,
     ACT_MESSAGE_TECH, ACT_MESSAGE_SET_STATS_THEN_TECH, ACT_MESSAGE_ADD_TO_STATS_THEN_TECH, ACT_MESSAGE_SET_STAT,
     ACT_MESSAGE_ADD_TO_STAT, ACT_MESSAGE_FLAGS, ACT_MESSAGE_MESSAGE, ACT_MESSAGE_SET_STATS, ACT_MESSAGE_ADD_TO_STATS,
     ACT_MESSAGE_DIE, ACT_MESSAGE_BRING_BACK, ACT_MESSAGE_CALL_IN,
-    ACT_ARRIVAL_CHANGE_INTO, ACT_ARRIVAL_BRING_BACK, ACT_CALL_IN,
+    ACT_ARRIVAL_CHANGE_INTO, ACT_ARRIVAL_BRING_BACK, ACT_ARRIVAL_CALL_IN, ACT_CALL_IN,
 } ActCall;
 typedef bool (*ActCalls)(void *ctx, ActCall call, uint8_t arg, bool carry);
 
@@ -421,6 +423,27 @@ static bool bring_back_turn(GameState *g, ScriptPlace at, ActCalls call, void *c
     return true;
 }
 
+// $FD:A990
+/* Enemies called in: the caller sets four of its own stats, then every enemy
+ * of the formation out of the fight (beaten, or never in it, and not waiting
+ * in reserve) comes in, loaded as at the fight's start, with the HP the last
+ * stat set says (enemy_call_in_sets_its_stats), and the action is shown as its
+ * tech on them. The script is read at the action, as the turn leaves it. */
+static bool call_enemies_in(GameState *g, ActCalls call, void *ctx)
+{
+    ScriptPlace at = battle_script_place(g);
+    uint8_t how = enemy_call_in_sets_its_stats(g, at);
+    uint8_t count = 0;
+    for (uint8_t enemy = enemy_next_to_bring_back(g, 0); enemy < BATTLE_ENEMIES; enemy = enemy_next_to_bring_back(g, (uint8_t)(enemy + 1))) {
+        enemy_bring_back(g, enemy, count++);
+        if (!call(ctx, ACT_ARRIVAL_CALL_IN, enemy, false))
+            return false;
+        enemy_called_in(g, enemy, how);
+    }
+    enemy_call_in_ends(g, at, count);
+    return true;
+}
+
 // $C1:A396
 static bool call_in_turn(GameState *g, ScriptPlace at, ActCalls call, void *ctx)
 {
@@ -568,7 +591,7 @@ enum {
 static const uint32_t aim_sites[] = { 0xC19AEB, 0xC1A0F2, 0xC1A33A };
 static const uint32_t message_sites[] = { 0xC19B35, 0xC1A13D, 0xC1A385, 0xC19D68, 0xC19DC4, 0xC19E58,
                                           0xC19E6E, 0xC19FC8, 0xC1A201, 0xC19D0E, 0xC19F50, 0xC1A3C7 };
-static const uint32_t arrival_sites[] = { 0xC19C30, 0xC19EDA };
+static const uint32_t arrival_sites[] = { 0xC19C30, 0xC19EDA, 0xFDAA2E };
 
 enum { TECH_BODY = 0xC19A3D, AIM = 0xC1C1DD, ENEMY_MESSAGE = 0xCD0033, ARRIVAL = 0xFDB438, CALL_IN = 0xFDA990 };
 
@@ -584,11 +607,12 @@ static bool act_on_the_machine(void *ctx, ActCall call, uint8_t arg, bool carry)
         return battle_run(s, aim_sites[call - ACT_AIM_TECH], AIM, battle_aim_action_entry);
     case ACT_ARRIVAL_CHANGE_INTO:
     case ACT_ARRIVAL_BRING_BACK:
+    case ACT_ARRIVAL_CALL_IN:
         /* an enemy coming into the battle loaded as at the fight's start,
          * with the enemy in X */
         s->cpu.x = arg;
         return battle_run_long_dc(s, arrival_sites[call - ACT_ARRIVAL_CHANGE_INTO], ARRIVAL, READS_X, fight_load_enemy_entry);
-    case ACT_CALL_IN: return battle_call_long(s, 0xC1A3B6, CALL_IN, READS_NOTHING);
+    case ACT_CALL_IN: return battle_run_long_dc(s, 0xC1A3B6, CALL_IN, READS_NOTHING, battle_call_enemies_in_entry);
     default:
         m_set_a8(s, arg);
         return battle_run_long(s, message_sites[call - ACT_MESSAGE_TECH], ENEMY_MESSAGE, battle_show_an_enemy_message_entry);
@@ -717,6 +741,29 @@ void battle_start_action_showing(Snes *s)
     m_rts(s);
 }
 
+/* The calling in alone, as the call-in's turn calls it (with JSL): the
+ * battle's page and data bank, as each of its arrivals' guards takes them,
+ * and the effect code's tech number in the cell the original reads it from,
+ * where the turn's start leaves it (enemy_call_in_starts). */
+enum { TECH_NUMBER_CELL = 0x12, TECH_NUMBER_OPERAND = 2 };
+
+bool battle_call_enemies_in_ready(Snes *s)
+{
+    if (!battle_on_page(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = battle_cell_word(g, TECH_NUMBER_CELL) == enemy_script_byte(g, (ScriptPlace)(battle_script_place(g) + TECH_NUMBER_OPERAND));
+    vars_peek(false);
+    return ok;
+}
+
+void battle_call_enemies_in_entry(Snes *s)
+{
+    if (call_enemies_in(state_of(s), act_on_the_machine, s))
+        m_rtl(s);
+}
+
 void battle_enemy_takes_turn_entry(Snes *s)
 {
     if (enemy_turn(state_of(s), turn_on_the_machine, s))
@@ -732,8 +779,8 @@ typedef struct {
 
 /* The action turns' calls, each with its guard's state half: the
  * targeting's, an aim the port makes; the message's, one the menus' text code
- * types; an arrival, an enemy the fight's start loads; the calling in is the
- * original's still. */
+ * types; an arrival, an enemy the fight's start loads; the calling in, each
+ * of its arrivals'. */
 static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
 {
     EnemyTurnContext *c = ctx;
@@ -750,16 +797,22 @@ static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
     case ACT_AIM_ADD_TO_STATS_THEN_TECH: TIMED_AS(g, AIM, done = battle_aim_action(g, c->pf, carry)); return done;
     case ACT_ARRIVAL_CHANGE_INTO:
     case ACT_ARRIVAL_BRING_BACK:
+    case ACT_ARRIVAL_CALL_IN:
         /* the enemy's stat block filled from its record, as at the fight's
          * start. fight_load_enemy_ready also wants the enemy in the cell $02,
-         * which both of the original's arrivals store from X just before
-         * the call ($C1:9C2E, $C1:9ED8), so it holds by construction; its
+         * which the original's arrivals store from X just before the call
+         * ($C1:9C2E, $C1:9ED8, $FD:AA2C), so it holds by construction; its
          * state half is the enemy being one of the eight */
         if (arg >= BATTLE_ENEMIES)
             return battle_needs_the_machine(g, ARRIVAL, "an enemy coming into the battle past the eight");
         TIMED_AS(g, ARRIVAL, fight_load_enemy(g, arg));
         return true;
-    case ACT_CALL_IN: return battle_needs_the_machine(g, CALL_IN, "enemies called in");
+    case ACT_CALL_IN:
+        /* the calling in's guard's state half, the effect code's tech number
+         * where the original reads it, holds by construction: the turn's
+         * start leaves it there */
+        TIMED_AS(g, CALL_IN, done = call_enemies_in(g, act_out, ctx));
+        return done;
     default: TIMED_AS(g, ENEMY_MESSAGE, done = battle_show_an_enemy_message(g, c->pf, arg)); return done;
     }
 }

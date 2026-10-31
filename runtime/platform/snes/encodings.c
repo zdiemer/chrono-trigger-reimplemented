@@ -212,6 +212,7 @@ static const PfSnesEncoding encodings[] = {
     /* the endings that share $7E:8538 */
     { 0x7E85B2, 0, 0, 7, FIXED_BYTE, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0 },          /* past the plane blanked */
     { 0x7E864C, 0, 0, 7, WORDS, STEPS(SL, SH, ZL, ZH, TL, TH, C, D, SB, GO), 0 },       /* mode 10's picture */
+    { 0x7E9CE2, 0, 0, 7, WORDS, STEPS(SL, SH, ZL, ZH, TL, TH, C, D, SB, P, GO), 0 },       /* ... a frame of it */
     { 0x7E89E7, 0, 0, 7, WORDS, RACE_UPLOAD_STEPS, 0 },                                 /* the zooming picture's tiles */
     { 0x7E8D7A, 0, 0, 7, WORDS, EPOCH_UPLOAD_STEPS, 0 },                                /* the credits' blank tiles */
     { 0x7E8DA9, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, ZL, ZH, C, D, SL, SH, P, GO), 0 },   /* ... their map set in front */

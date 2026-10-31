@@ -179,11 +179,20 @@ bool menu_low_hp_marks_are_workable(Snes *s)
  * colour. */
 enum { FACE_BIT = 0x20, LOW_HP_COLOUR = 4 };
 
+/* The HP a character's row is marked as low below. A record naming the
+ * eighth character, which the game has no record or mark for (the status
+ * record as a cursor past the last member leaves it can), is marked against
+ * the word after the seven marks, as the original reads it. */
+static uint16_t low_hp_mark(const GameState *g, uint8_t character)
+{
+    return character < CHARACTERS ? menu_low_hp_marks(g, character) : menu_low_hp_marks_unchecked(g, character);
+}
+
 // $C2:A1EF
 void menu_note_member_face_and_hp(GameState *g)
 {
     uint8_t character = menu_status_record_character(g) & CHARACTER_BITS;
-    bool low = menu_low_hp_marks(g, character) >= menu_status_record_hp(g);
+    bool low = low_hp_mark(g, character) >= menu_status_record_hp(g);
     set_menu_member_marked(g, low ? LOW_HP_COLOUR : 0);
     set_menu_member_marked_high(g, 0);
     set_menu_member_face(g, (uint16_t)(character | FACE_BIT));
@@ -497,26 +506,15 @@ void menu_draw_member_card_entry(Snes *s)
 
 // $C2:A21F
 /* The card again, and the member's row drawn at the top of the list's
- * place. The figures' routine works on the status record the row draws
- * from; where it leaves a record that names no character (on states the
- * game doesn't make), the original draws the row. */
-enum { ROW_AFTER_THE_CARD = 0xC2A225, ROW_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-static bool record_names_a_character(const GameState *g);
-
-/* What the redraw asks: the card drawn, and the row left to the original
- * where the record names no character. */
+ * place, from the status record the card's figures were worked out on. */
 typedef struct {
     bool (*draw_card)(void *ctx);
-    bool (*leave_the_row)(void *ctx);
 } CardRedrawSteps;
 
 static bool redraw_member_card_with(GameState *g, Platform *pf, const CardRedrawSteps *n, void *ctx)
 {
     if (!n->draw_card(ctx))
         return false;
-    if (!record_names_a_character(g))
-        return n->leave_the_row(ctx);
     set_menu_draw_origin(g, FIRST_ROW);
     TIMED_AS(g, 0xC2A216, menu_draw_member_row(g, pf));
     return true;
@@ -524,15 +522,9 @@ static bool redraw_member_card_with(GameState *g, Platform *pf, const CardRedraw
 
 static bool draw_card_on_the_machine(void *ctx) { return menu_run(ctx, 0xC2A222, 0xC2A22F, menu_draw_member_card_entry); }
 
-static bool leave_the_row_on_the_machine(void *ctx)
-{
-    m_stop_at(ctx, ROW_AFTER_THE_CARD, ROW_READS_NOTHING);
-    return false;
-}
-
 void menu_redraw_member_card_entry(Snes *s)
 {
-    static const CardRedrawSteps on_the_machine = { draw_card_on_the_machine, leave_the_row_on_the_machine };
+    static const CardRedrawSteps on_the_machine = { draw_card_on_the_machine };
     menu_save_p(s);
     menu_set_widths(s, false, false);
     if (!redraw_member_card_with(state_of(s), m_platform(s), &on_the_machine, s))
@@ -557,15 +549,9 @@ static bool draw_the_card(void *ctx)
     return true;
 }
 
-static bool leave_the_row(void *ctx)
-{
-    program_needs_the_machine(((CardInC *)ctx)->game, ROW_AFTER_THE_CARD, "a member's row whose record names no character");
-    return false;
-}
-
 bool menu_redraw_member_card(GameState *g, Platform *pf)
 {
-    static const CardRedrawSteps in_c = { draw_the_card, leave_the_row };
+    static const CardRedrawSteps in_c = { draw_the_card };
     CardInC c = { g, pf };
     return redraw_member_card_with(g, pf, &in_c, &c);
 }
@@ -573,12 +559,6 @@ bool menu_redraw_member_card(GameState *g, Platform *pf)
 /* ---- The guards ---------------------------------------------------------------------------------- */
 
 static bool on_the_menus_page(Snes *s) { return menu_on_page_work_ram(s); }
-
-/* A row's face and mark read the character's low HP mark. */
-static bool record_names_a_character(const GameState *g)
-{
-    return (menu_status_record_character(g) & CHARACTER_BITS) < CHARACTERS;
-}
 
 bool menu_member_is_loadable(Snes *s)
 {
@@ -591,15 +571,7 @@ bool menu_member_is_loadable(Snes *s)
     return ok;
 }
 
-bool menu_member_face_is_noteable(Snes *s)
-{
-    if (!on_the_menus_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = record_names_a_character(state_of(s));
-    vars_peek(false);
-    return ok;
-}
+bool menu_member_face_is_noteable(Snes *s) { return on_the_menus_page(s); }
 
 bool menu_member_row_is_drawable(Snes *s)
 {
@@ -607,7 +579,7 @@ bool menu_member_row_is_drawable(Snes *s)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = record_names_a_character(g) && menu_window_list_drawable(g, MEMBER_ROW);
+    bool ok = menu_window_list_drawable(g, MEMBER_ROW);
     vars_peek(false);
     return ok;
 }

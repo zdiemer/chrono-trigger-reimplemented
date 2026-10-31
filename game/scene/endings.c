@@ -886,6 +886,123 @@ static void send_a_credits_piece(Platform *pf, unsigned piece)
     vid_send_vram(pf, PF_AT(p->site), p->vram, PF_GAME(p->from), p->bytes, SCENE_VRAM_WHOLE_WORDS);
 }
 
+/* ---- Mode 10's picture ---------------------------------------------------------------------------- */
+
+/* Mode 10's picture (which no recording reaches) is a small animation of four
+ * frames, drawn as large sprites over the ground through a window round it.
+ * Each frame is a stretch of the mosaic the setup laid out in the second bank,
+ * which the vblank sends into the sprites' tiles when the frame changes, a
+ * list of sprites in the program, and a size on the screen. The first frame
+ * has a moving piece of its own: two of its sprites, whose tiles step through
+ * three frames, one every four frames of the scene's. Channel 1 holds the
+ * picture where the scripts move it, and the orbit swings it about. */
+typedef struct {
+    uint16_t tiles;            /* where the frame's tiles start in the second bank */
+    uint16_t sprites;          /* its list of sprites */
+    uint8_t width, height;     /* its size on the screen, in pixels */
+} MosaicFrame;
+
+enum { MOSAIC_FRAMES = 4, MOSAIC_FRAME_VRAM = 0x5800, MOSAIC_FRAME_BYTES = 0x0800 };
+static const MosaicFrame mosaic_frames[MOSAIC_FRAMES] = {
+    { 0xD800, 0xA099, 0x37, 0x97 }, { 0xE800, 0xA0FE, 0x3D, 0x48 }, { 0xF000, 0xA143, 0x38, 0x38 }, { 0xF800, 0xA178, 0x28, 0x48 },
+};
+
+static const MosaicFrame *mosaic_frame(const GameState *g) { return &mosaic_frames[scene_mosaic_frame(g) % MOSAIC_FRAMES]; }
+
+/* The moving piece: the first frame's 24th and 25th sprites, the second's
+ * tile two on from the first's, both four tiles on with each of its frames
+ * from tile $E0. Its frame moves on once it has been shown four frames, and
+ * after the third the piece starts again. */
+enum { PIECE_SPRITE = 23, PIECE_FIRST_TILE = 0xE0, PIECE_TILES_APART = 2, PIECE_FRAME_TILES = 4 };
+enum { PIECE_FRAMES = 3, PIECE_FRAME_SHOWN = 4 };
+
+static void move_the_piece_on(GameState *g)
+{
+    uint8_t shown = (uint8_t)(scene_mosaic_piece_frames(g) + 1);
+    set_scene_mosaic_piece_frames(g, shown);
+    if (shown != PIECE_FRAME_SHOWN)
+        return;
+    set_scene_mosaic_piece_frames(g, 0);
+    /* the original asks whether the next frame comes before the third by the
+     * sign of their difference, which a frame no script sets, from $83 up,
+     * also passes */
+    enum { PAST_THE_SIGNED_RANGE = 0x80 + PIECE_FRAMES };
+    uint8_t next = (uint8_t)(scene_mosaic_piece_frame(g) + 1);
+    if (next >= PIECE_FRAMES && next < PAST_THE_SIGNED_RANGE)
+        next = 0;
+    set_scene_mosaic_piece_frame(g, next);
+    uint8_t tile = (uint8_t)(next * PIECE_FRAME_TILES | PIECE_FIRST_TILE);
+    scene_set_listed_tile(g, mosaic_frames[0].sprites, PIECE_SPRITE, tile);
+    scene_set_listed_tile(g, mosaic_frames[0].sprites, PIECE_SPRITE + 1, (uint8_t)(tile + PIECE_TILES_APART));
+}
+
+/* The window shut above the picture and open over it, from its left to its
+ * width on, at the size of the frame the vblank last sent (a frame behind a
+ * change): a line count holds at most 127, so the lines above it and over it
+ * are two counts each. */
+static void open_window_round_the_mosaic(GameState *g, uint8_t left, uint8_t top)
+{
+    uint8_t width = scene_mosaic_frame_width(g), height = scene_mosaic_frame_height(g);
+    set_scene_ending_window_above(g, 0, (uint8_t)(top / 2));
+    set_scene_ending_window_above(g, 1, (uint8_t)(top / 2 + (top & 1)));
+    for (unsigned half = 0; half < 2; half++) {
+        set_scene_ending_window_from(g, half, left);
+        set_scene_ending_window_to(g, half, (uint8_t)(left + width));
+    }
+    set_scene_ending_window_lines(g, 0, (uint8_t)(height / 2));
+    set_scene_ending_window_lines(g, 1, (uint8_t)(height / 2 + (height & 1)));
+}
+
+enum { SEND_THE_MOSAIC_FRAME = 0x9CE2 };
+
+// $7E:9C58
+/* Each frame: a new frame of the picture sent in the vblank when it has
+ * changed, the picture placed where channel 1 and the orbit put it, the
+ * window opened round it, the piece moved on, and the frame's sprites drawn.
+ * Returns the list drawn. */
+static uint16_t show_the_mosaic(GameState *g)
+{
+    if (scene_mosaic_frame(g) != scene_mosaic_frame_sent(g)) {
+        set_scene_mosaic_frame_sent(g, scene_mosaic_frame(g));
+        scene_add_task(g, SCENE_VBLANK_TASKS, SEND_THE_MOSAIC_FRAME);
+    }
+    /* the picture's place, counted back from the point the channel and the
+     * orbit name, a byte each */
+    uint8_t left = (uint8_t)-(uint8_t)(picture_register(g, PICTURE_X) + scene_ending_orbit_x(g));
+    uint8_t top = (uint8_t)-(uint8_t)(picture_register(g, PICTURE_Y) + scene_ending_orbit_y(g));
+    set_scene_sprite_offset_x(g, left);
+    set_scene_sprite_offset_y(g, top);
+    set_scene_sprite_offset_y_high(g, 0);
+    open_window_round_the_mosaic(g, left, top);
+    move_the_piece_on(g);
+    uint16_t sprites = mosaic_frame(g)->sprites;
+    TIMED_AS(g, 0x7EA03D, scene_draw_large_sprite_list(g, sprites, scene_large_list_form_written(g)));
+    return sprites;
+}
+
+/* The picture's state as the port takes it: room for its frame's sprites,
+ * drawn in a form the list's port takes, and where the frame has changed,
+ * room on the vblank list for its send (the setup leaves it; the original
+ * would search on past the list's end). */
+static bool mosaic_fits(const GameState *g)
+{
+    bool frame_changed = scene_mosaic_frame(g) != scene_mosaic_frame_sent(g);
+    return scene_large_sprite_list_takes(g, mosaic_frame(g)->sprites) &&
+           (!frame_changed || scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK));
+}
+
+// $7E:9CE2
+/* In the vblank, once: the picture's frame into the sprites' tiles, and its
+ * size left for the window. */
+static void send_the_mosaic_frame(GameState *g, Platform *pf)
+{
+    const MosaicFrame *f = mosaic_frame(g);
+    vid_send_vram(pf, PF_AT(0x7E9CE2), MOSAIC_FRAME_VRAM, PF_GAME((uint32_t)SCENE_UPPER_WORK_RAM << 16 | f->tiles),
+                  MOSAIC_FRAME_BYTES, SCENE_VRAM_WHOLE_WORDS);
+    set_scene_mosaic_frame_width(g, f->width);
+    set_scene_mosaic_frame_height(g, f->height);
+}
+
 enum { BLANKED_MAP_VRAM = 0x20A0, BLANKED_MAP_BYTES = 0x06C0 };
 
 // $7E:9F73
@@ -1514,6 +1631,23 @@ TaskEnd scene_send_the_credits_picture(GameState *g, Platform *pf, unsigned slot
     return task_is_done();
 }
 
+TaskEnd scene_show_the_mosaic(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)pf;
+    (void)slot;
+    if (!mosaic_fits(g))
+        return machine_s(g, 0x7E9C58, "a picture of mode 10's whose sprites the port doesn't draw");
+    (void)show_the_mosaic(g);
+    return task_goes_on();
+}
+
+TaskEnd scene_send_the_mosaic_frame(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    send_the_mosaic_frame(g, pf);
+    return task_is_done();
+}
+
 TaskEnd scene_send_the_pattern_s_map(GameState *g, Platform *pf, unsigned slot)
 {
     (void)g;
@@ -1812,6 +1946,48 @@ static bool credits_pieces_present(Snes *s)
 bool scene_send_the_credits_picture_present(Snes *s) { return credits_pieces_present(s); }
 bool scene_send_the_pattern_s_map_present(Snes *s) { return credits_pieces_present(s); }
 bool scene_send_the_pattern_s_tiles_present(Snes *s) { return credits_pieces_present(s); }
+
+/* The picture's task, its table of frames and the program's list of large
+ * sprites it draws with; it reads channel 1 through the data bank, and the
+ * list streams through the work RAM port. */
+bool scene_show_the_mosaic_present(Snes *s)
+{
+    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E9C58, 0x8A, 0x14D70E02582719EDull) &&
+           m_code_matches(s, 0x7E9D25, 0x20, 0xCB58D5E6C3C8FADCull) && scene_large_list_code_present(s) && holds(s, mosaic_fits);
+}
+
+/* What the task leaves: A as the list of large sprites leaves it, and Y the
+ * next free sprite. */
+static void leave_the_mosaic_drawn(Snes *s, uint16_t list)
+{
+    GameState *g = state_of(s);
+    s->cpu.a = scene_large_list_leaves_a(g, list);
+    s->cpu.y = scene_sprite_index(g);
+}
+
+/* A frame task, with 16-bit A. */
+void scene_show_the_mosaic_entry(Snes *s)
+{
+    uint16_t list = show_the_mosaic(state_of(s));
+    ORIGINAL_EFFECT(leave_the_mosaic_drawn(s, list));
+    m_rts(s);
+}
+
+/* The mosaic's send, its table of frames and the list's exit it jumps to; it
+ * reads the frame through the data bank, on the registers, and leaves the
+ * size on the scene's page. Entered with 8-bit A; nothing it leaves in the
+ * registers is read. */
+bool scene_send_the_mosaic_frame_present(Snes *s)
+{
+    return scene_on_scene_page(s) && m_bank_reaches_io(s) && m_code_matches(s, 0x7E9CE2, 0x63, 0x87C343065801B7C2ull) &&
+           m_code_matches(s, 0x7E39DE, 0x04, 0x37224D8D813A8AFCull);
+}
+
+void scene_send_the_mosaic_frame_entry(Snes *s)
+{
+    send_the_mosaic_frame(state_of(s), m_platform(s));
+    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+}
 
 bool scene_blank_the_map_present(Snes *s)
 {
