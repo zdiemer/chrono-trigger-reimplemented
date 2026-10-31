@@ -565,8 +565,10 @@ the menus' clears and copies through work RAM's data port, which the host
 carries out at the port's address. Audio plays
 the C sound driver (`game/sound/`) in the sound processor's place
 (`frontend/sound_native.c`, the native counterpart of `sound_host.c`): the
-CPU half hands it the boot and the commands as calls, the game's sends
-through the service reach the CPU half as C (`sound_driver_send`), the
+game's side of the commands (`core/sound_commands.c`) hands it the boot and
+the commands as calls, the game's sends through the service reaching it as
+C (`sound_driver_send`); the CPU half that speaks to the original's driver
+(`core/sound_driver.c`) isn't linked, as `registry.c` isn't; the
 scenes' commands come on the ports, and the driver's time passes a frame at
 a time and while the game waits on a port. Saves read and write the save
 RAM the driver loaded. Work RAM powers on holding `$55` throughout, as the

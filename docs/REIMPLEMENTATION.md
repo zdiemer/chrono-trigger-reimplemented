@@ -3028,7 +3028,9 @@ service's to take away, not a caller's. The runtime's census hooks
 (`native_census_hooks`, port/native.h) carry the two counts the observer
 doesn't. `tools/census.py --ct-dev build/main/ct_dev` plays the library and
 adds the files up; `--files` reads ones already written, `--entries` lists
-every entry.
+every entry. It plays the C sound driver, as `ct_play` does;
+`--sound-driver original` counts the original's driver, which only the
+gate's reference plays now (below).
 
 Over the 48 movies (shipping mode, chunk 11's tree): **259 entries are entered
 by the machine, 21.5 M times**, none of them from the original's code -- 1.9 M
@@ -3046,6 +3048,37 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the field's frame (`$C0:0097`) | 15 | its budgets and the objects' update called out so shadow mode compares them a call at a time |
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
+
+### The sound driver's teardown
+
+The first subsystem taken off the machine in the product (PLAN.md, "The
+native program, and the registry taken down", step 3). The C sound driver
+(`game/sound/`) had no machine in it already but the escape its command
+`$FD` asks for; the CPU half in bank `$C7` (`core/sound_driver.c`) had all
+of it. Two halves were one file: the protocol the original's driver is
+spoken to in (the boot's upload, the commands' and songs' transfers, the
+slots' records, the entries' wrappers, the two wait loops and the
+scaffolding shadow mode compares), and the few lines that hand a command to
+a driver the host plays. The second is `core/sound_commands.c` now, and
+`ct_native` links it and not the first, which CMakeLists.txt leaves out of
+its sources beside `registry.c`; `tools/machine_joints.py` counts the joints
+in what `ct_native` links as a second column (returns 987 to 982, stops 177
+to 175, scaffolding writes 2,061 to 2,032).
+
+On the machine the shipping mode called out to `$C7:0004` for every command,
+and the entry handed it to the host: 25.5 K entries by the machine over the
+84 movies, the boot's 100 more, and 16 entries the machine came back to
+after them (`menu_type_the_description_task` and the menus' others, waiting
+across a command). The audio service's SNES backend now hands a command to
+a host-played driver as a call (the APU's `host_send`, which
+`frontend/sound_host.c` points at `sound_driver_hand_the_buffer_to_the_host`),
+timed as `$C7:0004`'s work (`native_time_as`), and the field's power-on
+takes the host's boot as C before it would call out; with no host (the
+original driver: the reference play, the lockstep, `--sound-driver
+original`) both call out as before. The census enters nothing of bank `$C7`
+by the machine (266 entries to 264). The rows, wrappers and scaffolding
+stay for the gate, which plays the original's driver; PLAN.md says what
+retires them.
 
 ### The native program through the story scenes
 

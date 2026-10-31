@@ -58,6 +58,7 @@ WRITE_ORDER = set()
 # Files allowed to use the driver-level audio calls (au_driver_*).
 AUDIO_DRIVER = {
     "core/sound_driver.c",   # the CPU half of the sound driver in bank C7
+    "core/sound_commands.c", # the commands handed to a driver the host plays
     "scene/sound.c",         # the scene program's own send of a driver command
     "scene/race.c",          # the race's engine pitch, written to the driver's ports
     "scene/staff_roll.c",    # the staff roll's own send of the music's fast forward

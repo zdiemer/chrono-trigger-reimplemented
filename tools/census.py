@@ -9,7 +9,9 @@ A shipped build has a `main()` that boots the game and callers that call
 ports; today the emulated CPU walks the ROM and a port runs because the
 runtime finds its address in game/registry.c (docs/PLAN.md, "The native
 program, and the registry taken down"). This plays each library movie in the
-shipping mode (`ct_dev --native on --generated on --census`, dev/census.h)
+shipping mode (`ct_dev --native on --generated on --sound-driver c --census`,
+dev/census.h; `--sound-driver original` counts the original's sound driver
+on the sound processor, which only the gate's reference plays now)
 and adds up, per registered entry, how often the machine entered it -- and
 how -- and how often a port ran its work as C. The count entered by the
 machine is the number that item drives to 0.
@@ -50,9 +52,9 @@ def movies(names):
     return out
 
 
-def run(binary, rom, path, frames, out):
+def run(binary, rom, path, frames, out, sound_driver):
     cmd = [str(binary), "--rom", str(rom), "--movie", str(path), "--frames", str(frames), "--census", str(out)]
-    proc = subprocess.run(cmd + SHIPPING, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+    proc = subprocess.run(cmd + SHIPPING + ["--sound-driver", sound_driver], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                           timeout=600 + frames // 20)
     if proc.returncode != 0 or not out.exists():
         tail = proc.stderr.decode(errors="replace").strip().splitlines()[-3:]
@@ -140,6 +142,8 @@ def main():
     ap.add_argument("--keep", type=pathlib.Path, help="keep each movie's census file here")
     ap.add_argument("--entries", action="store_true", help="list every entry the machine enters")
     ap.add_argument("--top", type=int, default=25)
+    ap.add_argument("--sound-driver", choices=("c", "original"), default="c",
+                    help="the sound driver played: c, as ct_play ships (default), or the original's")
     args = ap.parse_args()
 
     census = Census()
@@ -159,7 +163,7 @@ def main():
             def one(row):
                 name, path, frames = row
                 out = where / ("census-%s.txt" % name)
-                run(args.ct_dev.resolve(), args.rom, path, frames, out)
+                run(args.ct_dev.resolve(), args.rom, path, frames, out, args.sound_driver)
                 return name, out
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:

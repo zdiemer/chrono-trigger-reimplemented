@@ -10,6 +10,11 @@ measured", and "The native program, and the registry taken down"). Each row
 is a pattern, so a count is an estimate of sites, not of work: one entry
 wrapper is one return through the emulated stack, and it leaves with its
 subsystem's registry rows rather than one by one.
+
+The second count is of what `ct_native` links: a subsystem whose machine side
+is a file of its own leaves it out of the native program (CMakeLists.txt's
+`CT_NATIVE_GAME_SOURCES`, as `registry.c` is), so its joints there are the
+gate's, not the product's.
 """
 
 import argparse
@@ -36,6 +41,14 @@ JOINTS = [
 ]
 
 ENTRY = re.compile(r"0x[0-9A-Fa-f]{6}")
+
+
+NATIVE_LEAVES_OUT = re.compile(r"list\(REMOVE_ITEM CT_NATIVE_GAME_SOURCES ([^)]*)\)")
+
+
+def native_left_out():
+    text = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+    return {f for m in NATIVE_LEAVES_OUT.finditer(text) for f in m.group(1).split()}
 
 
 def sources():
@@ -74,8 +87,14 @@ def main():
         for path, c in sorted(by_file.items(), key=lambda kv: -sum(kv[1].values())):
             print(f"{sum(c.values()):6d}  {path}: " + ", ".join(f"{n} {k}" for k, n in c.most_common()))
         return
+    left_out = native_left_out()
+    native = collections.Counter()
+    for path, c in by_file.items():
+        if path not in left_out:
+            native.update(c)
+    print("in game/, and in what ct_native links of it (not " + ", ".join(sorted(left_out)) + "):")
     for name, _, retires in JOINTS:
-        print(f"{totals[name]:6d}  {name}  (goes when: {retires})")
+        print(f"{totals[name]:6d} {native[name]:6d}  {name}  (goes when: {retires})")
 
 
 if __name__ == "__main__":

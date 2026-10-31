@@ -52,6 +52,7 @@
 #include "core/sound_driver.h"
 
 #include "charge.h"
+#include "core/sound_commands.h"
 #include "core/sound_data.h"
 #include "original_effects.h"
 #include "original_frame.h"
@@ -1193,47 +1194,6 @@ bool sound_driver_slots_are_kept(Snes *s)
     return kept;
 }
 
-/* ---- A host that plays a driver of its own ----------------------------------------------------
- *
- * The C sound driver (game/sound/) played in the sound processor's place
- * takes the boot and the commands as calls (platform/audio.h,
- * au_driver_hosted): nothing is uploaded and nothing waits on the ports. */
-
-/* The boot, as a host takes it: the next song brings the first set of
- * effects, and the command buffer is clear. False where no host plays. */
-bool sound_driver_host_boots(GameState *g, Platform *pf)
-{
-    if (!au_driver_boot_taken(pf))
-        return false;
-    set_sound_driver_effects_asked(g, 0);
-    set_sound_command(g, 0);
-    return true;
-}
-
-/* The command in the buffer, handed to the host with the set of effects the
- * next song is to bring, which a switch of them changes; then the buffer is
- * clear. */
-static void hand_the_command_to_the_host(GameState *g, Platform *pf)
-{
-    AudioCommand c = { .command = sound_command(g), .p1 = sound_command_parameters(g, 0),
-                       .p2 = sound_command_parameters(g, 1), .p3 = sound_command_parameters(g, 2), .count = 3 };
-    au_driver_command_taken(pf, c, sound_driver_effects_asked(g));
-    if (c.command == SWITCH_EFFECTS)
-        set_sound_driver_effects_asked(g, battle_effects(c.p1));
-    set_sound_command(g, 0);
-}
-
-// $C7:0004 (as a host that plays its own driver takes it)
-void sound_driver_send(GameState *g, Platform *pf, AudioCommand c)
-{
-    const uint8_t parameters[3] = { c.p1, c.p2, c.p3 };
-    for (unsigned i = 0; i < c.count && i < 3; i++)
-        set_sound_command_parameters(g, i, parameters[i]);
-    set_sound_command(g, c.command);
-    if (au_driver_hosted(pf))
-        hand_the_command_to_the_host(g, pf);
-}
-
 /* Back to the caller with its registers, as the driver's exit leaves them. */
 static void back_to_the_caller(Snes *s)
 {
@@ -1290,7 +1250,7 @@ void sound_driver_command(Snes *s)
         return;
     GameState *g = state_of(s);
     if (au_driver_hosted(m_platform(s))) {
-        hand_the_command_to_the_host(g, m_platform(s));
+        sound_driver_hand_the_buffer_to_the_host(g, m_platform(s));
         back_to_the_caller(s);
         return;
     }

@@ -16,6 +16,14 @@ PF_API void au_command(Platform *pf, PfOrigin o, AudioCommand c)
     for (int i = 0; i < c.count && i < 3; i++)
         m_write8(s, 0x001E01 + (uint32_t)i, params[i]);
     m_write8(s, 0x001E00, c.command);
+    if (s->apu.host_send) {
+        /* A host plays the C driver: the command is a call, at the time
+         * the CPU half's entry is estimated to take. */
+        int was = native_time_as(s, o.target);
+        s->apu.host_send(s->apu.host_ctx);
+        native_time_end(s, was);
+        return;
+    }
     m_jsl_dc(s, o.site, o.target, o.dont_care);
 }
 

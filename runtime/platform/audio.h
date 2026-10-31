@@ -18,6 +18,9 @@ typedef struct {
  * echo waits and uploads run as before and frames can pass. Returns when the
  * original's JSL would. The WRAM writes are made in one order (parameters, then
  * the command) whatever order the original used: nothing runs between them.
+ * Where a host plays the C sound driver (au_driver_hosted), the command is
+ * handed to it as a call instead, with no call-out: only the original's
+ * driver needs the CPU half on the machine.
  * APU-direct: the same, and the driver's registry entry runs the command
  * without main-CPU time passing. */
 PF_API void au_command(Platform *pf, PfOrigin o, AudioCommand c);
