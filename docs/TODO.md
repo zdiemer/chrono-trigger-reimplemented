@@ -9,6 +9,13 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **A battle's start, one fuzz state in about 4,000.** `field_battle_begins`
+  (`tools/fuzz_routines.toml`, both variants; seeds 1-4) mismatches once or
+  twice per 5,000 states: a field work cell (`$7E:01C3`, `$01DB`), the
+  palettes (`$2122`-`$2359`) and an enemy's battle palette
+  (`battle_enemy_placement`) differ. The old constraints show it (seed 4), so it
+  predates the full map's search; look at an enemy without a sprite taking a
+  palette slot (`field/palettes.c`, `object_take_enemy_palette_slot`) mid-search.
 - **The battle grid's reads past the combatants.** With the party off the grid,
   `battle_mark_combatants_on_grid` (`battle/battlefield.c`) reads slots 11-13,
   whose objects 23-25 put their Y in the drawing scratch (`$7E:1D2E`-`$1D30`).
@@ -3175,35 +3182,6 @@ alone (`strict_check.py`) and `ct_native` stop there. Each is a gap line in
 `tools/refusal_allowlist.txt`, which comes out when the port takes the state.
 Ranked by how much play they block; none is open now.
 
-- **Empty equipment list after the inventory screen**: `battle-unequipped-armor`'s shadow
-  run refuses `$C2:A45D`, `$C2:A463`, `$C2:A569` four times each and `$C2:A59A`
-  32 times, starting at frame 3533. `list_is_drawable` in
-  `game/menu/equipment_bridge.c` checks eight rows even after the zero terminator;
-  the actual drawing repeats the blank terminator row. The inventory visit leaves
-  unused list bytes behind (`$FF`), so the guard rejects an empty list the original
-  can draw. These four entries and their fallback counts are recorded as gaps;
-  no `page refused`, invalid accessor or mismatch occurs.
-
-- `events-fionas-forest`: Robo's departure from Fiona's house refuses
-  `event_cmd_walk_with_the_party` (`$C0:3002`) and `field_second_member_follows`
-  (`$C0:A2CE`) 60 times each in shadow mode, beginning at frame 28389.
-  The command enters with X=`$0160`, Y=`$016D`, D=`$0100`; the follower enters
-  with X=`$0004`, Y=`$006D`, D=`$0100`. Their guards require the current object
-  to match the member's link and the trail places to hold. Both are `gap` entries
-  in `tools/refusal_allowlist.txt`; determine which formation invariant the
-  departure violates and handle that scripted state. Shadow reports no mismatches.
-
-- **Flea's animation facing command.** `battle-castle-flea` in shadow mode refuses
-  `script_face` (`$C1:5FDE`) four times: frames 25404, 25411, 32905 and 32906.
-  Each reports `A=0000 X=00E4 Y=0000 S=06D6 D=0000 DB=7E P=22 E=0`.
-  Its `command_ready` guard checks the channel, command, offset, handler and
-  decoded operation; determine which assumption excludes this real animation
-  state and make the hand port handle it. The refused calls execute 196 original
-  instructions across `$C1:5FDE`, `$75CC` and `$7639`. This is a gap in
-  `tools/refusal_allowlist.txt` and `tools/fallback_baseline.txt`, not a port fix.
-  Shadow has zero mismatches and no page or accessor errors. The shipping
-  state-driven Flea route reaches victory but also refuses this command with
-  `X=00E4`; retain the gap until both reference and shipping play handle it.
 - **600 A.D. Guardia Forest's object searches.** In
   `events-cronos-trial-long`, `field_object_in_the_way` (`C05B95`, 320
   refusals) and `event_cmd_move_to_tile` (`C04F61`, 280) first refuse at
@@ -3212,11 +3190,9 @@ Ranked by how much play they block; none is open now.
   facing. `event_cmd_move_toward_party_member` (`C05410`, 160) first refuses
   at frame 84020, after the first encounter, through the same movement
   search guard. Diagnose the map's object-search bounds before widening
-  these guards.
-- **600 A.D. Guardia Forest's battle setup.** `field_battle_begins`
-  (`C0024C`) refuses at frames 82673 and 84878 of the long movie. Its
-  `battle_fits` checks the party links, object count and enemies' battle
-  sprite slots; identify which state falls outside those assumptions.
+  these guards: the map holds all 64 objects, so a search that starts at
+  the count starts one past the tables, as the battle's start does
+  (`field/battle_start.c`, `stray_slot_is_an_enemy`).
 - **Leaving Guardia Castle in 600 A.D.** `overworld_lead` (`C23404`)
   refuses once at frame 81958 of the long movie, with `X=0DF0`,
   `D=0000`, `DB=00`, `P=24`. Inspect `overworld_leader_takes`' walker,

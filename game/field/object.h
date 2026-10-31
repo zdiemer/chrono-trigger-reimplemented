@@ -681,7 +681,9 @@ void party_place_taken_by(GameState *g, unsigned place, FieldObject obj);
  * leader's walk looks for objects in its way from the slot past the map's
  * object count, which it doubles into a byte, so a count of 64 to 127 starts
  * it, and the look for an object in the way, on the slots past the tables
- * (field/walk.c, field/motion.c). Nobody stands there, but the game reads
+ * (field/walk.c, field/motion.c). A battle's search for the enemies on the
+ * screen starts at the count too, one past the tables on a map of all 64
+ * (field/battle_start.c). Nobody stands there, but the game reads
  * them as slots, here, through the tables' unchecked accessors: the tables'
  * storage keeps the layout that makes those bytes the next tables'. */
 typedef struct {
@@ -703,6 +705,10 @@ void object_set_step_past_the_tables(GameState *g, FieldObject slot, Velocity st
  * isn't the out-of-view one, and whether it reads as solid. */
 ObjectView object_view_past_the_tables(const GameState *g, FieldObject slot);
 bool object_solid_past_the_tables(const GameState *g, FieldObject slot);
+/* And what the battle's search reads: the slot's role, and whether it reads
+ * as an object with no sprite. */
+ObjectRole object_role_past_the_tables(const GameState *g, FieldObject slot);
+bool object_has_no_sprite_past_the_tables(const GameState *g, FieldObject slot);
 
 /* The party's leader on the map. Its place can be empty -- its marker a link
  * to no object ($80), as in a scene with the party taken off the map -- and

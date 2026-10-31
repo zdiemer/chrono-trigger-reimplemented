@@ -143,7 +143,7 @@ void menu_list_what_fits(GameState *g)
 
 /* The guard's: a slot of the four, an empty item of no power to end the
  * scan, and room in the list for all that fits and its end. */
-bool menu_list_what_fits_can_be_made(GameState *g)
+bool menu_list_what_fits_can_be_made(const GameState *g)
 {
     uint8_t slot = menu_equip_slot(g);
     if (slot >= MENU_EQUIP_SLOTS || menu_power_of_item(g, NO_ITEM) != 0)
@@ -1328,8 +1328,8 @@ static bool run(void *ctx, EquipmentRoutine r)
         return true;
     case EQUIPMENT_REDRAWS_THE_LIST_FOR_THE_SLOT:
     case EQUIPMENT_REDRAWS_THE_LIST_ON_THE_SLOTS:
-        return sequence(c, 0xC2A45D, menu_equip_list_can_be_drawn, menu_redraw_the_equipment_list_with);
-    case EQUIPMENT_MAKES_THE_LIST: return sequence(c, 0xC2A463, menu_equip_list_can_be_drawn, menu_make_the_equipment_list_with);
+        return sequence(c, 0xC2A45D, menu_equip_list_can_be_made, menu_redraw_the_equipment_list_with);
+    case EQUIPMENT_MAKES_THE_LIST: return sequence(c, 0xC2A463, menu_equip_list_can_be_made, menu_make_the_equipment_list_with);
     case EQUIPMENT_SLIDES_THE_LIST_IN: return sequence(c, 0xC2A4AF, menu_equip_list_can_slide, menu_slide_the_equipment_list_in_with);
     case EQUIPMENT_SLIDES_THE_LIST_OUT: return sequence(c, 0xC2A697, menu_equip_list_can_slide, menu_slide_the_equipment_list_out_with);
     case EQUIPMENT_GOES_BACK_ON_THE_SLOTS:
@@ -1427,7 +1427,7 @@ bool menu_choose_equipment_item(GameState *g, Platform *pf)
 bool menu_make_equipment_list(GameState *g, Platform *pf)
 {
     EquipmentContext c = { g, pf };
-    return sequence(&c, 0xC2A463, menu_equip_list_can_be_drawn, menu_make_the_equipment_list_with);
+    return sequence(&c, 0xC2A463, menu_equip_list_can_be_made, menu_make_the_equipment_list_with);
 }
 
 bool menu_point_along_equipment_list(GameState *g, Platform *pf)

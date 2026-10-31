@@ -2086,6 +2086,12 @@ enum { FIELD_OBJECT_SPRITE_FLAG_COUNT = 64 };   /* by object slot (X = slot * 2)
 /* 1: the object has a sprite; 0 or negative ($80): none (counts as out of view) */
 uint8_t field_object_sprite_flag(const GameState *g, unsigned slot);
 void set_field_object_sprite_flag(GameState *g, unsigned slot, uint8_t v);
+/* 1: the object has a sprite; 0 or negative ($80): none (counts as out of view) Unchecked,
+ * reaching past the variable into what follows it: a map of all 64 objects, whose battle's
+ * search for enemies on the screen starts at the count, one past the tables
+ * (game/field/battle_start.c, a_stray_enemy; events-cronos-trial-long's 600 A.D. Guardia Forest) */
+uint8_t field_object_sprite_flag_unchecked(const GameState *g, unsigned slot);
+void set_field_object_sprite_flag_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_SPRITE_STATE_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* State of the object's sprite records: 0 nothing to draw, $80 current (only the position to

@@ -59,9 +59,10 @@ void set_leader_ground(GameState *g, LeaderGround ground);
 void party_leader_steps(GameState *g, FieldObject leader);
 void party_member_follows(GameState *g, FieldObject member, PartyPlace place);
 /* Whether a member's step takes the place as the game has it: the place names
- * the member, or is empty for a moment under it (the member then steps the
- * slot the empty place's marker names, field/party_trail.c). */
-bool party_place_steps(const GameState *g, PartyPlace place, FieldLink member);
+ * an object (the member stepping, or the one a scene put in its place), or is
+ * empty for a moment (the member then steps the slot the empty place's marker
+ * names, field/party_trail.c). */
+bool party_place_steps(const GameState *g, PartyPlace place);
 
 /* Whether a member takes the next footprint this frame, or waits: it keeps
  * its distance from the one ahead of it. */

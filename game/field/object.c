@@ -29,11 +29,12 @@ static void set_role(GameState *g, FieldObject obj, ObjectRole role)
     set_field_object_role(g, obj, (uint8_t)(role.kind | (role.disabled ? ROLE_DISABLED_BIT : 0)));
 }
 
-ObjectRole object_role(const GameState *g, FieldObject obj)
+static ObjectRole role_stored(uint8_t stored)
 {
-    uint8_t stored = field_object_role(g, obj);
     return (ObjectRole){ (stored & ROLE_DISABLED_BIT) != 0, (ObjectKind)(stored & ~ROLE_DISABLED_BIT) };
 }
+
+ObjectRole object_role(const GameState *g, FieldObject obj) { return role_stored(field_object_role(g, obj)); }
 
 bool object_disabled(const GameState *g, FieldObject obj) { return object_role(g, obj).disabled; }
 
@@ -91,6 +92,16 @@ ObjectPastTheTables object_past_the_tables(const GameState *g, FieldObject slot)
 bool object_solid_past_the_tables(const GameState *g, FieldObject slot)
 {
     return (field_object_solid_unchecked(g, slot) & CONTACT_SOLID) != 0;
+}
+
+ObjectRole object_role_past_the_tables(const GameState *g, FieldObject slot)
+{
+    return role_stored(field_object_role_unchecked(g, slot));
+}
+
+bool object_has_no_sprite_past_the_tables(const GameState *g, FieldObject slot)
+{
+    return (int8_t)field_object_sprite_flag_unchecked(g, slot) < 0;
 }
 
 /* An unreachable object's mark is kept as the top bit of its move length

@@ -40,7 +40,7 @@ void menu_equip_dim_colours(GameState *g, unsigned first);
  * as it makes it. */
 enum { MENU_EQUIP_SLOTS = 4 };
 void menu_list_what_fits(GameState *g);
-bool menu_list_what_fits_can_be_made(GameState *g);
+bool menu_list_what_fits_can_be_made(const GameState *g);
 void menu_list_what_fits_entry(Snes *s);
 bool menu_list_what_fits_runs(Snes *s);
 
@@ -353,6 +353,7 @@ bool menu_equip_can_point_at_a_slot(const GameState *g);
 bool menu_equip_members_can_come_back(const GameState *g);
 bool menu_equip_list_can_open(const GameState *g);
 bool menu_equip_list_can_be_drawn(const GameState *g);
+bool menu_equip_list_can_be_made(const GameState *g);
 bool menu_equip_list_can_slide(const GameState *g);
 bool menu_equip_list_can_be_pointed_along(const GameState *g);
 bool menu_equip_slots_can_come_back(const GameState *g);
@@ -407,6 +408,8 @@ void menu_draw_equipped_items(Snes *s);
 bool menu_equipment_members_come_back(Snes *s);
 bool menu_equipment_list_opens(Snes *s);
 bool menu_equipment_list_is_drawable(Snes *s);
+bool menu_equipment_list_can_be_made(Snes *s);
+bool menu_equipment_list_row_is_drawable(Snes *s);
 bool menu_equipment_list_slides(Snes *s);
 bool menu_equipment_slots_come_back(Snes *s);
 bool menu_equipment_slots_window_slides(Snes *s);

@@ -5973,6 +5973,14 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=04-04", "--fill", 
 why = "the footprints on plain ground, so a member waiting stands, and with the player's control fidgets"
 
 [[routine]]
+name = "field_second_member_follows"
+variant = "another"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=04-04", "--fill", "7E016E-7E016E=00-00", "--fill", "7E019B-7E019B=02,06,08,80", "--fill", "7E01AB-7E01AD=00-7F"]
+why = "the place naming another object than the one stepping, or none (Robo staying behind at Fiona's house, the Prophet's ending): the place's object moved and the running one posed (field/party_trail.c)"
+
+[[routine]]
 name = "field_copy_tiles"
 subsystem = "field"
 state = "field"
@@ -6388,6 +6396,15 @@ state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7F2000-7F2000=08-3F", "--fill", "7E0197-7E019B:2=00,02,04,06,80", "--fill", "7E0198-7E019C:2=00", "--fill", "7E1100-7E117F:2=00,03,05,06,85", "--fill", "7E0D00-7E0D7F:2=40,48,50,58,60,68,70,78,80,88,90,98,A0,A8,B0,C0,D0", "--fill", "7E1A81-7E1AFF:2=01,80", "--fill", "7E0F00-7E0F7F:2=00,80", "--stop-at-call", "C0034B"]
 iterations = 5000
 why = "the field's page, a map's object count inside the tables and the party's places objects or none (the guard's); the objects' roles the enemies among others, their sprite tiles at each enemy place's or the field's own, shown or not and in view or not: the enemies found and handed over, or the party's coming back together compared at its call"
+
+[[routine]]
+name = "field_battle_begins"
+variant = "full map"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7F2000-7F2000=40", "--fill", "7E0197-7E019B:2=00,02,04,06,80", "--fill", "7E0198-7E019C:2=00", "--fill", "7E1100-7E117F:2=00,03,05,06,85", "--fill", "7E0D00-7E0D7F:2=40,48,50,58,60,68,70,78,80,88,90,98,A0,A8,B0,C0,D0", "--fill", "7E1A81-7E1AFF:2=01,80", "--fill", "7E0F00-7E0F7F:2=00,80", "--fill", "7E1180-7E1180=00,05,06,85", "--fill", "7E1B01-7E1B01=00,01,80", "--fill", "7E0F80-7E0F80=00,80", "--stop-at-call", "C0034B"]
+iterations = 5000
+why = "a map of all 64 objects (600 A.D. Guardia Forest's), whose search starts one past the tables: the slot there, object 0's bytes in the next tables, an enemy in view or not, which the guard leaves to the original when it reads as one (field/battle_start.c, stray_slot_is_an_enemy)"
 
 [[routine]]
 name = "field_after_battle"
@@ -16370,6 +16387,19 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
+name = "script_face"
+variant = "past the facings"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=72", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA035=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7E00E6-7E00E6=00", "--fill", "7E00E7-7E00E7=30", "--fill", "7E00E8-7E00E8=7E", "--fill", "7E3001-7E3001=14-23"]
+iterations = 8000
+why = "the facing codes from the fixed ways through those past the facings that find where a subject stands ($19-$21, Flea's $1F) and two past them the guard refuses, over subjects and lists that are combatants or end"
+
+[[routine]]
 name = "script_take_heading"
 subsystem = "battle"
 state = "battle"
@@ -17412,6 +17442,16 @@ state = "equipment"
 args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D5F-7E0D67=00,01,02,03,04,05,06", "--fill", "7E0085-7E0085=01-07", "--fill", "7E0086-7E0086=00-00", "--fill", "7E0073-7E0073=01-03", "--fill", "7E0412-7E0412=00-02", "--fill", "7E0413-7E0413=00-04", "--fill", "7E0077-7E0077=00-03", "--fill", "7E0FC8-7E0FC8=00-50", "--fill", "7E0FC6-7E0FC6=00-62"]
 iterations = 2000
 why = "low RAM, the tilemaps, the screen's tables and the items' tables the menus built as they opened as the state has them; the menus' page and data bank, room in the queue; the party's characters, one to three active, the cursor's member row and the list's scroll near them; the slot one of the four, the list of what fits within its 98 places"
+
+[[routine]]
+name = "menu_draw_equipment_list"
+variant = "ended"
+at = "C2:A569"
+subsystem = "menu"
+state = "equipment"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D5F-7E0D67=00,01,02,03,04,05,06", "--fill", "7E0085-7E0085=01-07", "--fill", "7E0086-7E0086=00-00", "--fill", "7E0073-7E0073=01-03", "--fill", "7E0412-7E0412=00-02", "--fill", "7E0413-7E0413=00-04", "--fill", "7E0077-7E0077=00-03", "--fill", "7E0FC8-7E0FC8=00-62", "--fill", "7E0FC6-7E0FC6=00-62", "--fill", "7E0F00-7E0F61=00,10,50,90,F5,FF"]
+iterations = 2000
+why = "a list that ends early with what an earlier screen left past its end, items of the game's and not (the inventory screen's $FF): the rows drawn up to the end and its blank repeated, the guard reading no further (game/menu/equipment_bridge.c, list_is_drawable)"
 
 [[routine]]
 name = "menu_draw_equipment_list_row"

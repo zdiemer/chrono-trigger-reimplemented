@@ -289,7 +289,7 @@ static void derive_party_step(GameState *g, const EventCommand *c, EventFlow flo
     }
     PartyPlace place = object_party_place(g, c->self);
     if (place != PARTY_LEADER) {
-        l->y = field_link_byte(party_member_link(g, place));
+        l->y = field_member_step_y(g, c->self, place, n->moved_on);
         l->overflow = field_member_step_overflow(g, place, n->moved_on);
         return;
     }

@@ -388,6 +388,16 @@ static uint8_t facing_toward(GameState *g, BattlePoint from, BattlePoint to)
     return battle_facing_for_angle(g, battle_direction(g, from, to));
 }
 
+/* A code past the facings (Flea's scripts turn their channels with $1F) is
+ * no way to face: the original's facings run on into its places, so the
+ * code finds where the subject it numbers stands, as the place code
+ * would, and the one turned keeps the way found last. */
+static uint8_t no_way_found(GameState *g, uint8_t facing)
+{
+    found_at(g, standing(g, subject(g, facing)));
+    return battle_facing_found(g);
+}
+
 // $C1:75CC
 uint8_t script_find_facing(GameState *g, uint8_t facing, BattlePoint from)
 {
@@ -398,8 +408,10 @@ uint8_t script_find_facing(GameState *g, uint8_t facing, BattlePoint from)
         found = facing_toward(g, from, standing(g, subject(g, facing - TOWARD_A_SUBJECT)));
     else if (facing < TOWARD_THE_MIDDLE)
         found = (uint8_t)(facing - A_FIXED_WAY);
-    else
+    else if (facing == TOWARD_THE_MIDDLE)
         found = facing_toward(g, from, (BattlePoint){ MIDDLE, MIDDLE_ROW });
+    else
+        return no_way_found(g, facing);
     set_battle_facing_found(g, found);
     return found;
 }

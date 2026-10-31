@@ -312,6 +312,11 @@ bool field_leader_step_overflow(const GameState *g, bool before)
  * on a climb it compares the leader's pace with the pad's where both went up
  * or down; on a moving floor, the last sum is the vertical walk against the
  * floor's pull, or the lookup's of that where it goes up. */
+uint8_t field_member_step_y(const GameState *g, FieldObject member, PartyPlace place, bool moved_on)
+{
+    return moved_on ? field_object_offset(member) : field_link_byte(party_member_link(g, place));
+}
+
 bool field_member_step_overflow(const GameState *g, PartyPlace place, bool moved_on)
 {
     uint8_t at = field_trail_position(g, place), ahead = field_trail_position(g, place - 1);
