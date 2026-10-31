@@ -280,9 +280,10 @@ void script_move_on(GameState *g, const ScriptOpcode *row, ScriptFlow flow);
 /* ---- Places and facings (battle/script_places.c) ----------------------------------------- */
 
 /* The places a command can name, 0-$47 (and their kinds again from $80,
- * script_places.c), and the facings, 0-$18: the original's tables end there,
- * and a command naming one past them is the original's to run. */
-enum { LAST_PLACE = 0x47, LAST_FACING = 0x18 };
+ * script_places.c), and the facings, 0-$18 and the codes past them that
+ * still find where a subject stands, to $21 (script_places.c): a command
+ * naming one past them is the original's to run. */
+enum { LAST_PLACE = 0x47, LAST_FACING = 0x21 };
 
 /* $C1:762E: the point on the battlefield a place names, worked out now. The
  * battle keeps it as the place last found, which one of the places names. */

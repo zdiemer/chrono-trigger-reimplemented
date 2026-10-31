@@ -52,11 +52,8 @@ static MapTile screen_corner(const GameState *g)
                       (uint8_t)(field_screen_top(g) / FIELD_ENTRIES_A_MAP_TILE) };
 }
 
-static bool an_enemy(const GameState *g, FieldObject obj)
-{
-    ObjectRole r = object_role(g, obj);
-    return !r.disabled && (r.kind == ROLE_ENEMY || r.kind == ROLE_ENEMY_SET_APART);
-}
+static bool an_enemy_role(ObjectRole r) { return !r.disabled && (r.kind == ROLE_ENEMY || r.kind == ROLE_ENEMY_SET_APART); }
+static bool an_enemy(const GameState *g, FieldObject obj) { return an_enemy_role(object_role(g, obj)); }
 
 /* An object without a sprite counts as there, an enemy waiting to jump out;
  * any other, where its view isn't out (a row's link over the flag counts). */
@@ -67,10 +64,34 @@ static bool there(const GameState *g, FieldObject obj)
 
 static bool inside(uint8_t from_the_corner, uint8_t edge) { return from_the_corner != 0 && from_the_corner < edge; }
 
+static bool tile_on_the_battlefield(MapTile at, MapTile corner)
+{
+    return inside((uint8_t)(at.x - corner.x), ACROSS_THE_SCREEN) && inside((uint8_t)(at.y - corner.y), DOWN_THE_SCREEN);
+}
 static bool on_the_battlefield(const GameState *g, FieldObject obj, MapTile corner)
 {
-    MapTile at = object_tile(g, obj);
-    return inside((uint8_t)(at.x - corner.x), ACROSS_THE_SCREEN) && inside((uint8_t)(at.y - corner.y), DOWN_THE_SCREEN);
+    return tile_on_the_battlefield(object_tile(g, obj), corner);
+}
+
+/* The search starts at the map's object count, which on a map of all 64 is
+ * the slot one past the tables (field/object.h, "Past the tables"). Nobody
+ * stands there: its bytes are object 0's in the next tables, and they read
+ * as an enemy on the screen only by chance, which the guard leaves to the
+ * original; otherwise the search finds nothing there, and starts at the
+ * last object. */
+static FieldObject last_searched(const GameState *g)
+{
+    uint8_t count = event_object_count(g);
+    return count < FIELD_OBJECTS ? count : FIELD_OBJECTS - 1;
+}
+
+static bool stray_slot_is_an_enemy(const GameState *g, MapTile corner)
+{
+    FieldObject slot = FIELD_OBJECTS;
+    bool there = object_has_no_sprite_past_the_tables(g, slot) || object_view_past_the_tables(g, slot) != OUT_OF_VIEW;
+    FieldPosition at = object_past_the_tables(g, slot).at;
+    return there && an_enemy_role(object_role_past_the_tables(g, slot))
+           && tile_on_the_battlefield((MapTile){ (uint8_t)(at.x >> 8), (uint8_t)(at.y >> 8) }, corner);
 }
 
 /* For the original's code and shadow mode: the screen's corner, in two of
@@ -95,7 +116,7 @@ static void find_the_enemies(GameState *g)
 {
     MapTile corner = screen_corner(g);
     unsigned found = 0;
-    for (FieldObject obj = event_object_count(g); obj != 0 && found < MOST_ENEMIES_FOUND; obj--) {
+    for (FieldObject obj = last_searched(g); obj != 0 && found < MOST_ENEMIES_FOUND; obj--) {
         if (there(g, obj) && an_enemy(g, obj) && on_the_battlefield(g, obj, corner))
             set_field_battle_enemies(g, found++, field_link_byte(field_link_to(obj)));
     }
@@ -386,7 +407,8 @@ void field_battle_begins(Snes *s)
 /* The guard: on the field's page with the data bank $00; the party's places
  * objects or none, the leader's an object whose word is clear above its link
  * (the original reads its place through the word); the map's object count
- * inside the tables (the search starts past its last object); and every
+ * inside the tables, or all of them with the slot past them no enemy (the
+ * search starts at the count); and every
  * enemy of the map whose sprite tiles have a place in the battle with one of
  * the eight (the original works the place out of where the tiles are, and
  * would reach past the places for others). */
@@ -398,12 +420,14 @@ static bool tiles_have_a_place(uint8_t tiles)
 static bool battle_fits(const GameState *g)
 {
     bool ok = field_party_objects_high(g, PARTY_LEADER) == 0 &&
-              field_link_names_object(party_member_link(g, PARTY_LEADER)) && event_object_count(g) < FIELD_OBJECTS;
+              field_link_names_object(party_member_link(g, PARTY_LEADER)) &&
+              (event_object_count(g) < FIELD_OBJECTS ||
+               (event_object_count(g) == FIELD_OBJECTS && !stray_slot_is_an_enemy(g, screen_corner(g))));
     for (PartyPlace place = PARTY_FIRST_MEMBER; ok && place < PARTY_PLACES; place++) {
         FieldLink link = party_member_link(g, place);
         ok = !field_link_is_object(link) || field_link_names_object(link);
     }
-    for (FieldObject obj = 1; ok && obj <= event_object_count(g); obj++)
+    for (FieldObject obj = 1; ok && obj <= last_searched(g); obj++)
         ok = !an_enemy(g, obj) || tiles_have_a_place((uint8_t)field_object_sprite_tiles(g, obj));
     return ok;
 }

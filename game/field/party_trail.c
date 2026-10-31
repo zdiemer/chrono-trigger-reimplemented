@@ -257,22 +257,23 @@ static void stand_or_fidget(GameState *g, FieldObject obj)
 }
 
 // $C0:9FF7 (the gaits' table) and the poses' routines $C0:A079-$C0:A26A
-/* The object shows its pose: it stands (or fidgets), or faces its way and
- * walks or runs, which counts as the party being on the move. `carried`: a
- * moving floor carries it, where a run against something is no run on the
- * spot. */
-static void take_pose(GameState *g, FieldObject obj, Pose p, bool carried)
+/* The pose shows: one stands (or fidgets), or the one stepping faces its
+ * way and the one shown walks or runs, which counts as the party being on
+ * the move. They are the same object but for a member waiting in a place a
+ * scene gave to someone else (party_member_follows). `carried`: a moving
+ * floor carries it, where a run against something is no run on the spot. */
+static void take_pose(GameState *g, FieldObject turns, FieldObject shows, Pose p, bool carried)
 {
     if (p.gait == STANDS) {
-        stand_or_fidget(g, obj);
+        stand_or_fidget(g, shows);
         return;
     }
-    face_the_way(g, obj, p);
+    face_the_way(g, turns, p);
     count_as_on_the_move(g);
     if (p.gait == WALKS)
-        object_show_movement(g, obj, ANIMATION_WALK);
+        object_show_movement(g, shows, ANIMATION_WALK);
     else
-        object_show_movement(g, obj, runs_on_the_spot(g, obj, carried) ? ANIMATION_RUN_ON_THE_SPOT : ANIMATION_RUN);
+        object_show_movement(g, shows, runs_on_the_spot(g, shows, carried) ? ANIMATION_RUN_ON_THE_SPOT : ANIMATION_RUN);
 }
 
 /* On a climb: climbing while it goes up or down, holding still otherwise. */
@@ -296,7 +297,7 @@ void party_leader_steps(GameState *g, FieldObject leader)
     if (kind == GROUND_CLIMB)
         climb(g, leader, walk.y != 0);
     else
-        take_pose(g, leader, pose_of(g, walk), kind == GROUND_MOVING_FLOOR);
+        take_pose(g, leader, leader, pose_of(g, walk), kind == GROUND_MOVING_FLOOR);
     Velocity moved = leader_movement(g);
     if (!leader_moves(g)) {
         object_set_step(g, leader, (Velocity){ 0, 0 });
@@ -333,24 +334,25 @@ int8_t field_floor_pull(int8_t movement)
  * on a moving floor it walks as the leader walked against the floor's pull;
  * on a climb it holds still, but where the leader climbed at the climb's
  * pace against a faster pad (a run slowed to a walk), where it goes on as it
- * was. */
+ * was. What it shows is shown on the one in its place of the party
+ * (party_member_follows); the member turns its own way. */
 // $C0:9F6F
-static void wait_on_the_trail(GameState *g, FieldObject member, Footprint f)
+static void wait_on_the_trail(GameState *g, FieldObject member, FieldObject in_the_place, Footprint f)
 {
     GroundKind kind = ground_kind(f.ground);
     if (kind == GROUND_PLAIN) {
-        stand_or_fidget(g, member);
+        stand_or_fidget(g, in_the_place);
         return;
     }
     if (kind == GROUND_CLIMB) {
         if (f.walk.y != 0 && f.movement.y != 0 && f.movement.y != f.walk.y)
             return;
-        object_restart_animation(g, member);
+        object_restart_animation(g, in_the_place);
         return;
     }
     Velocity against = { (int8_t)(f.walk.x - field_floor_pull(f.movement.x)),
                          (int8_t)(f.walk.y - field_floor_pull(f.movement.y)) };
-    take_pose(g, member, pose_of(g, against), false);
+    take_pose(g, member, in_the_place, pose_of(g, against), false);
 }
 
 /* For shadow mode: the priorities the original lays on an empty place of
@@ -361,9 +363,12 @@ static void leave_stray_footprint_priorities(GameState *g, FieldLink marker, Spr
     object_take_sprite_priorities_past_the_tables(g, field_linked_object(marker), priorities);
 }
 
-/* A member's step moves the object its place of the party names, and
- * animates the member whose turn it is: the same object, but for a moment
- * when the place is emptied under a member still stepping (the Prophet's
+/* A member's step moves the object its place of the party names; moving on,
+ * the member whose turn it is shows its pose, and waiting, the one in the
+ * place shows it while the member turns. They are the same object but where
+ * a scene changes the party under a member still stepping: Robo, staying
+ * behind at Fiona's house, steps as the party's third while the place
+ * already names who took it; and for a moment the place is emptied (the Prophet's
  * ending, frames 119033-119035, as the party is taken off the map for its
  * first vignette). The original then steps the slot the empty place's
  * marker names, past the tables, which holds nobody: its step lands on the
@@ -387,10 +392,13 @@ static void layer_the_place(GameState *g, PartyPlace place, SpritePriorities pri
         ORIGINAL_EFFECT(leave_stray_footprint_priorities(g, link, priorities));
 }
 
-bool party_place_steps(const GameState *g, PartyPlace place, FieldLink member)
+/* An emptied place's member moving on poses itself; waiting, it would pose
+ * the slot past the tables, which the port leaves to the original. */
+bool party_place_steps(const GameState *g, PartyPlace place)
 {
     FieldLink link = party_member_link(g, place);
-    return field_same_link(link, member) || field_link_byte(link) == field_link_byte(field_no_link());
+    return field_link_names_object(link) ||
+           (field_same_link(link, field_no_link()) && party_member_moves_on(g, place));
 }
 
 // $C0:A26B (the first member), $C0:A2CE (the second), and their gait $C0:9ED1, $C0:9F20
@@ -399,7 +407,8 @@ void party_member_follows(GameState *g, FieldObject member, PartyPlace place)
     ORIGINAL_EFFECT(leave_carried(g, false));
     step_the_place(g, place, (Velocity){ 0, 0 });
     if (!party_member_moves_on(g, place)) {
-        wait_on_the_trail(g, member, field_footprint(g, place_on_trail(g, place)));
+        FieldObject in_the_place = field_linked_object(party_member_link(g, place));
+        wait_on_the_trail(g, member, in_the_place, field_footprint(g, place_on_trail(g, place)));
         return;
     }
     uint8_t next = next_footprint(place_on_trail(g, place));
@@ -410,7 +419,7 @@ void party_member_follows(GameState *g, FieldObject member, PartyPlace place)
     if (ground_kind(f.ground) == GROUND_CLIMB)
         climb(g, member, f.walk.y != 0);
     else
-        take_pose(g, member, pose_of(g, f.walk), false);
+        take_pose(g, member, member, pose_of(g, f.walk), false);
 }
 
 /* ---- The party regrouping --------------------------------------------------------------- */
@@ -493,7 +502,7 @@ static void member_follows(Snes *s, PartyPlace place)
     bool moved_on = party_member_moves_on(g, place);
     vars_peek(false);
     party_member_follows(g, member, place);
-    s->cpu.y = field_link_byte(party_member_link(g, place));
+    s->cpu.y = field_member_step_y(g, member, place, moved_on);
     m_set_flag(s, CPU_FLAG_V, field_member_step_overflow(g, place, moved_on));
     m_rts(s);
 }
@@ -502,9 +511,8 @@ void field_first_member_follows(Snes *s) { member_follows(s, PARTY_FIRST_MEMBER)
 void field_second_member_follows(Snes *s) { member_follows(s, PARTY_SECOND_MEMBER); }
 
 /* The guards. The leader's step is the current object's, whichever it is;
- * a member's moves the object in its place of the party and animates the
- * current one, which the game has the same, or has the place empty for a
- * moment. Both read the random table through the data bank, and the trail by
+ * a member's moves the object in its place of the party, one the tables
+ * hold, or has the place empty for a moment (party_place_steps). Both read the random table through the data bank, and the trail by
  * the places on it. */
 bool field_leader_can_step(Snes *s) { return field_current_object_bank_zero(s); }
 
@@ -514,7 +522,7 @@ static bool member_can_follow(Snes *s, PartyPlace place)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = party_place_steps(g, place, field_link_stored((uint8_t)field_current_object(g))) &&
+    bool ok = party_place_steps(g, place) &&
               party_trail_places_hold(g);
     vars_peek(false);
     return ok;

@@ -809,16 +809,37 @@ static bool equipped_are_items(const GameState *g)
 }
 
 /* The list of what fits drawn from its first row: every place it reaches
- * one of the list's, every item one of the game's. */
+ * one of the list's, every item there one of the game's. The drawing stops
+ * at the list's end, the empty item, and draws its blank row for the rest,
+ * so what lies past the end (an earlier, longer list's leftovers, or
+ * whatever the inventory screen left there) is never looked at. */
 static bool list_is_drawable(const GameState *g)
 {
-    if (menu_equip_slot(g) >= SLOT_PLACES || menu_equip_list_top(g) + LIST_ROWS_DRAWN > MENU_LIST_ITEMS_COUNT)
+    if (menu_equip_slot(g) >= SLOT_PLACES || menu_equip_choices(g) > MENU_LIST_ITEMS_COUNT)
         return false;
-    for (unsigned i = 0; i < LIST_ROWS_DRAWN; i++)
-        if (menu_list_items(g, menu_equip_list_top(g) + i) >= MENU_ITEM_NAME_PLACES_COUNT)
+    unsigned place = menu_equip_list_top(g);
+    for (unsigned row = 0; row < LIST_ROWS_DRAWN; row++, place++) {
+        if (place >= MENU_LIST_ITEMS_COUNT)
             return false;
-    return menu_equip_choices(g) <= MENU_LIST_ITEMS_COUNT;
+        uint8_t item = menu_list_items(g, place);
+        if (item == 0)
+            return true;
+        if (item >= MENU_ITEM_NAME_PLACES_COUNT)
+            return false;
+    }
+    return true;
 }
+
+/* The list made afresh and drawn from its top: the list must have room for
+ * what fits, and every item a slot takes has a name. */
+static bool list_can_be_made(const GameState *g)
+{
+    return menu_list_what_fits_can_be_made(g)
+        && menu_slot_past_items(g, menu_equip_slot(g)) <= MENU_ITEM_NAME_PLACES_COUNT;
+}
+
+/* One row: the item it names, or none, one of the game's. */
+static bool row_is_drawable(const GameState *g) { return menu_item_operand(g) < MENU_ITEM_NAME_PLACES_COUNT; }
 
 static bool member_shows(const GameState *g)
 {
@@ -835,6 +856,8 @@ static bool slots_mark(const GameState *g) { return menu_equip_slot(g) < SLOT_PL
 bool menu_equipment_members_come_back(Snes *s) { return on_the_screen(s) && peek(s, members_come_back); }
 bool menu_equipment_list_opens(Snes *s) { return on_the_screen(s) && peek(s, list_opens); }
 bool menu_equipment_list_is_drawable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, list_is_drawable); }
+bool menu_equipment_list_can_be_made(Snes *s) { return menu_on_page_work_ram(s) && peek(s, list_can_be_made); }
+bool menu_equipment_list_row_is_drawable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, row_is_drawable); }
 bool menu_equipment_list_slides(Snes *s) { return menu_on_page_work_ram(s) && peek(s, slots_show); }
 bool menu_equipment_slots_come_back(Snes *s) { return on_the_screen(s) && peek(s, slots_come_back); }
 bool menu_equipment_slots_window_slides(Snes *s) { return on_the_screen(s) && peek(s, window_slides); }
@@ -845,6 +868,7 @@ bool menu_equip_can_point_at_a_slot(const GameState *g) { return slot_is_pointab
 bool menu_equip_members_can_come_back(const GameState *g) { return members_come_back(g); }
 bool menu_equip_list_can_open(const GameState *g) { return list_opens(g); }
 bool menu_equip_list_can_be_drawn(const GameState *g) { return list_is_drawable(g); }
+bool menu_equip_list_can_be_made(const GameState *g) { return list_can_be_made(g); }
 bool menu_equip_list_can_slide(const GameState *g) { return slots_show(g); }
 bool menu_equip_list_can_be_pointed_along(const GameState *g) { return list_is_pointable(g); }
 bool menu_equip_slots_can_come_back(const GameState *g) { return slots_come_back(g); }

@@ -5090,6 +5090,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "1: the object has a sprite; 0 or negative ($80): none (counts as out of view)"
 source = "game/event/properties.c set_sprite $C0:4CD9; game/field/object_view.c field_update_object_visibility $C0:A88D"
+unchecked = "a map of all 64 objects, whose battle's search for enemies on the screen starts at the count, one past the tables (game/field/battle_start.c, stray_slot_is_an_enemy; events-cronos-trial-long's 600 A.D. Guardia Forest)"
 
 [[var]]
 name = "field_object_sprite_state"

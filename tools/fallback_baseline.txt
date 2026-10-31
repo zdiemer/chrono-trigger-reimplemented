@@ -62,14 +62,9 @@
 7E:9FEA 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
 C0:---- 1099 131  # no port yet (field engine, events)
 C0:0B38 1734 5  # handback by field_enter, field_fade_in, field_fade_in_after_a_menu (field engine, events)
-C0:3002 1140 37  # refused by event_cmd_walk_with_the_party during events-fionas-forest; gap in tools/refusal_allowlist.txt
 C0:4F61 22476 118  # refused by event_cmd_move_to_tile (field engine, events)
 C0:5A93 150 5  # handback by event_run_object_script (field engine, events)
 C0:5B95 4410 18  # refused by field_object_in_the_way (field engine, events)
-C0:A2CE 1980 75  # refused by field_second_member_follows during events-fionas-forest; gap in tools/refusal_allowlist.txt
-C1:5FDE 132 70  # gap: script_face guard in battle-castle-flea shadow, four calls; docs/TODO.md, Refusals in real play
-C1:75CC 36 11  # gap: script_face guard in battle-castle-flea shadow, helper beneath the refused calls
-C1:7639 28 17  # gap: script_face guard in battle-castle-flea shadow, helper beneath the refused calls
 C2:---- 195551 1830  # no port yet (menus, text, overworld); $C2:CBE0-$C2:CBE8, the gate song task's wait for the sound driver once in menus-shop-equip, the same code as before, filed here rather than under the song task's hand-back since chunk 8's review changed where the shop's and the runtime's comparisons start and end
 C2:0009 16 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
 C2:42DD 11 21  # refused by overworld_epoch (menus, text, overworld)
@@ -77,11 +72,6 @@ C2:5DC4 24662 230  # no port yet (menus, text, overworld)
 C2:8249 14 12  # menu task-start helper outside a registered comparison in battle-heckran's reference play; shipping-mode fallbacks remain zero
 C2:8816 245 10  # no port yet (menus, text, overworld)
 C2:8839 3955 72  # no port yet (menus, text, overworld)
-C2:8BA6 32 18  # battle-unequipped-armor: refused by menu_make_equipment_list (menus, text, overworld); empty-list guard gap (docs/TODO.md)
-C2:A45D 8 6  # battle-unequipped-armor: refused by menu_redraw_equipment_list (menus, text, overworld); empty-list guard gap (docs/TODO.md)
-C2:A463 108 72  # battle-unequipped-armor: refused by menu_make_equipment_list (menus, text, overworld); empty-list guard gap (docs/TODO.md)
-C2:A569 520 48  # battle-unequipped-armor: refused by menu_draw_equipment_list (menus, text, overworld); empty-list guard gap (docs/TODO.md)
-C2:A59A 416 29  # battle-unequipped-armor: refused by menu_draw_equipment_list_row (menus, text, overworld); empty-list guard gap (docs/TODO.md)
 C2:DB9F 1301 67  # no port yet (menus, text, overworld)
 C2:DBE8 405 54  # no port yet (menus, text, overworld)
 C2:DC1E 1055 86  # no port yet (menus, text, overworld)

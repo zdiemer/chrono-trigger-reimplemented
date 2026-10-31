@@ -2003,6 +2003,8 @@ uint8_t field_object_counted_move(const GameState *g, unsigned slot) { IN_RANGE(
 void set_field_object_counted_move(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 121, "set_field_object_counted_move", "count", slot, 64u); w8(g, 0x7E1A80u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_sprite_flag(const GameState *g, unsigned slot) { IN_RANGE(g, 122, "field_object_sprite_flag", "count", slot, 64u); return r8(g, 0x7E1A81u + (uint32_t)slot * 0x02u); }
 void set_field_object_sprite_flag(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 122, "set_field_object_sprite_flag", "count", slot, 64u); w8(g, 0x7E1A81u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_sprite_flag_unchecked(const GameState *g, unsigned slot) { return r8(g, 0x7E1A81u + (uint32_t)slot * 0x02u); }
+void set_field_object_sprite_flag_unchecked(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1A81u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_sprite_state(const GameState *g, unsigned slot) { IN_RANGE(g, 123, "field_object_sprite_state", "count", slot, 64u); return r8(g, 0x7E1B00u + (uint32_t)slot * 0x02u); }
 void set_field_object_sprite_state(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 123, "set_field_object_sprite_state", "count", slot, 64u); w8(g, 0x7E1B00u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_solid(const GameState *g, unsigned slot) { IN_RANGE(g, 124, "field_object_solid", "count", slot, 64u); return r8(g, 0x7E1B01u + (uint32_t)slot * 0x02u); }

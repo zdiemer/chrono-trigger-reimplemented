@@ -2970,6 +2970,34 @@ refuse in real play, 7,609 times: four are another program's code at a RAM
 address a port was written for (the attract program's), and 19 are gaps,
 listed in docs/TODO.md, "Refusals in real play".
 
+Closing one is finding which of the guard's predicates the real state fails
+(a print at the guard over the movie that refuses), reading the original on
+that state, and making the port take it -- never widening the guard past
+what the port does. The last of the library's gaps went that way:
+- the equipment list's guard read eight rows even past the list's end,
+  where the inventory screen had left `$FF`s; the drawing stops at the end
+  and repeats its blank row, so the guard reads no further, and the list's
+  making (`$C2:A463`, `$C2:A45D`) asks what the made list will hold rather
+  than what the last one left (`battle-unequipped-armor`, 36 calls);
+- Robo staying behind at Fiona's house steps as the party's third while the
+  place already names who took it: the guard asked the place to name the
+  one stepping. The original moves the one in the place, and, waiting, shows
+  its pose on that one while the member turns: the port now does the same
+  (`field/party_trail.c`), and leaves Y on whichever it posed (120 calls);
+- Flea's scripts turn with facing `$1F`, past the facings' table, which runs
+  on into the places': the code finds where the subject it numbers stands
+  and keeps the facing found last (`script_places.c`, `no_way_found`; four
+  calls);
+- 600 A.D. Guardia Forest holds all 64 objects, and the battle's search
+  starts at the count, one past the tables: the port starts at the last
+  object, and the guard leaves to the original only a slot past the tables
+  whose bytes (object 0's in the next tables) read as an enemy on the
+  screen (`battle_start.c`, `stray_slot_is_an_enemy`).
+Each was fuzzed with a variant made for the state (`tools/fuzz_routines.toml`:
+`another`, `ended`, `past the facings`, `full map`), 0 mismatches but
+`field_battle_begins`' one in about 4,000, which the old constraints show
+too (TODO.md).
+
 **The native shape, run.** `ct_dev_native_shape` and `ct_drive_native_shape`
 link `ct_game_native_shape`, the ports with `ORIGINAL_EFFECT` compiled out
 (now a static library rather than objects only). Nothing can compare them byte

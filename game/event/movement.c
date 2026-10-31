@@ -405,8 +405,8 @@ static EventFlow step_with_the_party(GameState *g, FieldObject self, bool once)
 }
 EVENT_OPERATION(step_with_the_party, self, once)
 
-/* Its guard: a member steps the object in its place of the party, which the
- * game has the one stepping; the trail's places are its footprints; and what
+/* Its guard: a member steps the object in its place of the party, which
+ * names an object or none (field/party.h); the trail's places are its footprints; and what
  * the leader walks into, the touch can reach (event/contact.h). */
 static bool party_can_step(const GameState *g, FieldObject self)
 {
@@ -416,7 +416,7 @@ static bool party_can_step(const GameState *g, FieldObject self)
         return false;
     PartyPlace place = object_party_place(g, self);
     if (place != PARTY_LEADER)
-        return party_place_steps(g, place, field_link_to(self));
+        return party_place_steps(g, place);
     return !leader_has_contact(g) || event_touch_is_ours(g);
 }
 EVENT_CHECK(party_can_step, self)

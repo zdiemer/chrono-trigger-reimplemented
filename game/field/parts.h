@@ -120,6 +120,10 @@ Footprint field_footprint(const GameState *g, uint8_t at);
  * whether it moved on. */
 bool field_leader_step_overflow(const GameState *g, bool before);
 bool field_member_step_overflow(const GameState *g, PartyPlace place, bool moved_on);
+/* The object a member's step leaves Y on: the member's own, which its gait
+ * looks up, where it moved on; the one in its place, which it posed, where
+ * it waited (field/party_trail.c). */
+uint8_t field_member_step_y(const GameState *g, FieldObject member, PartyPlace place, bool moved_on);
 
 /* A tile copy (field/tile_copy.c): the map's tables it can take whole, in
  * the order it takes them; what the copy's description names, a table's bit
