@@ -127,7 +127,10 @@ def ended(text, rc, end, frames, reference, saved, names):
         return "crashed", "exit status %d" % rc
     m = DARK.search(text)
     if m and int(m.group(2)) >= DARK_FRAMES:
-        return "dark", "the picture black from frame %s to the end (%s frames)" % (m.group(1), m.group(2))
+        start = int(m.group(1))
+        entered = [p for f, p in places.parse(text) if f <= start]
+        where = " in $%03X" % entered[-1] if entered else ""
+        return "dark", "the picture black from frame %d%s to the end (%s frames)" % (start, where, m.group(2))
     if reference is None:
         return "end", "not compared"
     drift = differences(end.read_bytes() if end.exists() else b"", reference, saved, names)
@@ -190,7 +193,7 @@ def main():
             elif kept[name].kept < must:
                 late.append(name)
                 line += "  <-- fewer on time than its baseline (%d)" % must
-        if how == "dark" and name in excepted:
+        if how == "dark" and dark_is_excepted(excepted.get(name), detail):
             line += "  (excepted: tools/native_dark_exceptions.txt)"
         elif how in ("dark", "crashed", "hung"):
             failed.append(name)
@@ -225,10 +228,30 @@ PLACES_HEADER = """# How many of the reference play's places each library movie 
 
 
 def read_dark_exceptions():
-    """The movies tools/native_dark_exceptions.txt lets end dark: a name a line, then `# why`."""
-    if not DARK_EXCEPTIONS.exists():
-        return set()
-    return {line.partition("#")[0].strip() for line in DARK_EXCEPTIONS.read_text().splitlines()} - {""}
+    """The dark stretches tools/native_dark_exceptions.txt excuses, by movie:
+    `movie $PLACE FRAME # why`, the place the run is in as its picture goes
+    black and the first frame it may go black on."""
+    out = {}
+    if DARK_EXCEPTIONS.exists():
+        for line in DARK_EXCEPTIONS.read_text().splitlines():
+            fields = line.partition("#")[0].split()
+            if len(fields) == 3:
+                out[fields[0]] = (int(fields[1].lstrip("$"), 16), int(fields[2]))
+    return out
+
+
+DARK_DETAIL = re.compile(r"from frame (\d+) in \$([0-9A-F]+) ")
+
+
+def dark_is_excepted(stretch, detail):
+    """Whether a run's dark ending is the stretch its exception names: black
+    from the named frame or later, in the named place. Dark anywhere else
+    (sooner, or in another place) still fails."""
+    m = DARK_DETAIL.search(detail or "")
+    if stretch is None or not m:
+        return False
+    place, first = stretch
+    return int(m.group(2), 16) == place and int(m.group(1)) >= first
 
 
 def read_places_baseline():
