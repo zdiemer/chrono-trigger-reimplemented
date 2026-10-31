@@ -72,9 +72,11 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). By default
   it runs the gate's sample of the movie library, `tools/gate_movies.txt` (a greedy cover of the
   library's shadow coverage per frame played, plus what each check needs, each line with its reason);
-  `--all-movies` runs the whole library. Run `--all-movies` before merging a change to timing or to
-  the native runtime, and for every recalibration or baseline update (`--calibrate`, `--update`,
-  `--prune`), which take the whole library's numbers; on the sample the ratchets drop no baseline
+  `--all-movies` runs the whole library. A branch and a merge pass on the sample with
+  `--long-routes`, and that is enough to push. The whole library (8 hours and more at `-j 2`) runs
+  batched: once over everything merged since its last run, when the machine is free and at a higher
+  `-j`, and recalibration and baseline updates (`--calibrate`, `--update`, `--prune`), which take
+  the whole library's numbers, come from that run as one ledger commit; on the sample the ratchets drop no baseline
   line and report nothing gone for a movie it doesn't run, and the timing gate judges only its worst
   cases (drift and the vblank tail are means over the library, judged by `--all-movies`). "Every movie" below means every movie run. The gate
   is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines, no `page refused` line (a
