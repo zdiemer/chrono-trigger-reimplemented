@@ -12,4 +12,3 @@ C15FDE script_face guard # gap: battle-castle-flea shadow and the castle_flea sh
 C2A569 menu_draw_equipment_list guard # gap: battle-unequipped-armor shadow, 4 refusals; same empty-list drawing guard, checking unused rows past the terminator. See docs/TODO.md, Refusals in real play.
 C2A45D menu_redraw_equipment_list guard # gap: battle-unequipped-armor shadow, 4 refusals; the empty list retains inventory-screen bytes beyond its zero terminator, and the drawing guard checks all eight rows. See docs/TODO.md, Refusals in real play.
 C2A463 menu_make_equipment_list guard # gap: battle-unequipped-armor shadow, 4 refusals; same empty-list drawing guard, checking unused rows past the terminator. See docs/TODO.md, Refusals in real play.
-C0885A field_recentre_the_screen guard # gap: events-ocean-palace-lavos, Zeal's fall recentres with no leader the object tables hold; docs/TODO.md, Refusals in real play

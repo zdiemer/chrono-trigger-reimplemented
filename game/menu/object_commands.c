@@ -261,6 +261,31 @@ static void place_in_the_stretch(GameState *g, MenuObject o, Stretch at)
     set_menu_object_slots_y_pixel(g, o, (uint16_t)(at.top + next_random(g)));
 }
 
+// $C6:E694
+/* Put the object somewhere about the view at random: across, from a quarter
+ * in from the second plane's left over the middle half; down, from line 96
+ * of the map over the next 64 (the map's own lines, not the view's). The
+ * original adds in the carry of the column's multiply by the tile's pixels,
+ * which a column the map holds (view_is_on_the_map) never puts out. */
+enum { DOWN_FROM = 0x60, DOWN_RANDOM = 0x3F };
+
+static void leave_offsets(GameState *g, uint8_t across, uint8_t down)
+{
+    enum { DOWN_OFFSET = 0x0A };
+    leave_offset(g, across);
+    set_menu_object_scratch_bytes_byte(g, DOWN_OFFSET, down);
+    set_menu_object_scratch_bytes_byte(g, DOWN_OFFSET + 1, 0);
+}
+
+static void place_about_the_view(GameState *g, MenuObject o)
+{
+    uint8_t across = next_random(g) & MIDDLE_HALF;
+    uint8_t down = next_random(g) & DOWN_RANDOM;
+    ORIGINAL_EFFECT(leave_offsets(g, across, down));
+    set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_map_column(g, 1) * MAP_TILE_PIXELS + across + QUARTER_IN));
+    set_menu_object_slots_y_pixel(g, o, (uint16_t)(DOWN_FROM + down));
+}
+
 /* ---- the party ------------------------------------------------------------------------------- */
 
 /* A scene that plays without the party empties its three places, keeping
@@ -345,6 +370,15 @@ static void ask(GameState *g, MenuObject self)
 {
     (void)self;
     set_menu_object_scratch_answer(g, story_flag(g, SCENE_ASKS_ABOUT));
+}
+
+// $C2:7BD1
+/* The scene names the song it leaves playing, handed over in the mode's
+ * first cell, as the song the field goes on with (current_song). */
+static void note_the_song(GameState *g, MenuObject self)
+{
+    (void)self;
+    set_current_song(g, menu_object_scratch_answer(g));
 }
 
 /* ---- the entries ----------------------------------------------------------------------------- */
@@ -486,6 +520,18 @@ bool menu_object_can_be_placed(Snes *s)
     return ok;
 }
 
+/* Placing about the view reaches its object through any data bank on low RAM. */
+bool menu_object_can_be_placed_about_the_view(Snes *s)
+{
+    if (!menu_object_routine_runs(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = view_is_on_the_map(g, menu_object_running(g));
+    vars_peek(false);
+    return ok;
+}
+
 /* They come back 16 bits wide with X on the object, and the carry the top
  * bit the row's multiply by the tile's pixels put out. */
 static void leave_placed(Snes *s)
@@ -566,6 +612,19 @@ void menu_object_place_in_the_east_stretch(Snes *s) { place_in_a_stretch_entry(s
 // $C2:7A31
 void menu_object_place_in_the_west_stretch(Snes *s) { place_in_a_stretch_entry(s, WEST_STRETCH); }
 
+// $C6:E694
+/* It comes back 16 bits wide with X on the object and the carry of the down
+ * place's add, which never runs past the top. */
+void menu_object_place_about_the_view(Snes *s)
+{
+    GameState *g = state_of(s);
+    place_about_the_view(g, menu_object_running(g));
+    s->cpu.x = menu_object_current(g);
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_rep(s, CPU_FLAG_M);
+    m_rtl(s);
+}
+
 /* -- the party -- */
 
 /* They leave X and the carry as they found them. */
@@ -604,6 +663,13 @@ void menu_object_mark_the_scene_played(Snes *s)
 void menu_object_ask_the_story(Snes *s)
 {
     run_on_the_running(s, ask);
+    m_rts(s);
+}
+
+// $C2:7BD1
+void menu_object_note_the_song(Snes *s)
+{
+    run_on_the_running(s, note_the_song);
     m_rts(s);
 }
 
@@ -706,6 +772,8 @@ ROUTINE(keep)
 ROUTINE(bring_back)
 ROUTINE(mark_played)
 ROUTINE(ask)
+ROUTINE(note_the_song)
+ROUTINE(place_about_the_view)
 
 /* The pictures are unpacked by the decompressor as C. */
 #define PICTURE(name, kind, number, buffer)                                          \
@@ -750,6 +818,8 @@ MENU_SCRIPT_ROUTINES(menu_scene_routines,
     { 0xC27888, "the party brought back", NULL, bring_back_routine },
     { 0xC27B44, "the scene marked as played", NULL, mark_played_routine },
     { 0xC27BC4, "the story asked", NULL, ask_routine },
+    { 0xC27BD1, "the song noted", NULL, note_the_song_routine },
+    { 0xC6E694, "an object put about the view", view_is_on_the_map, place_about_the_view_routine },
     { 0xC6E028, "the scenes' Mode 7 graphics", NULL, shared_graphics_routine },
     { 0xC6E04D, "the scenes' Mode 7 colours", NULL, shared_palette_routine },
     { 0xC6E64A, "a scene's second Mode 7 graphics", NULL, second_graphics_routine },

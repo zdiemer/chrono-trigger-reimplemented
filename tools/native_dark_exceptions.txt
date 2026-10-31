@@ -1,0 +1,7 @@
+# Library movies tools/native_check.py lets end on a dark screen in the native
+# program: `movie $PLACE FRAME # why`, the place the run is in and the first
+# frame its picture may go black on, which excuses that stretch alone. Each is
+# a run the native program's time carries late into a stretch where the
+# reference play's own picture is black;
+# the line comes out when the run keeps the reference's time there (docs/TODO.md).
+events-ocean-palace-lavos $1ED 29553 # the hand ports' time lands the movie's presses through Schala's and Magus's lines in the Mammon Machine's room ($19F) on other frames from about frame 18000, one press short, so the run waits on a dialog and enters Zeal's fall ($1ED) at 29062 where the reference does at 24318; there the reference plays the rippling world map, then a black stretch from about frame 24900 to the Last Village ($10F, 25765), and the run's black from 29553 to its end (812 frames) is that stretch (docs/TODO.md, "Long movies still desync on the hand ports alone")

@@ -3184,84 +3184,75 @@ attract sequence runs 30,000 frames without a stop with the race's
 pictures now scaled. Timing: the thirteen new entries calibrated from these
 four movies' shadow runs; the setups keep their rows.
 
-### The last refusals in real play: the attract demo's states
+### The largest fallbacks left: Zeal's fall and the scripted exits
 
-The four refusals the batch before left (1,043 calls at `$7E:424D`,
-`$7E:4D0D`, `$7E:36CC` and `$7E:357B`; the history file, "The refusals in
-real play, retired") were put down to the attract program's own code sitting
-where a port of another program's reads. It isn't: there is one scene
-program, and RAM at those addresses matched each port's hash in the attract
-demo as in the race (compared from save states). What the guards turned away
-were states the race never makes, found by printing the guards' conditions at
-the refusal, and each is ported now:
+Chosen by size from `tools/fallback_baseline.txt` and from the movies
+`tools/strict_baseline.txt` still stopped short: 5.8 million of the
+library's 6.7 million instructions run in place of hand ports were one
+routine of Zeal's fall, and five movies stopped on the hand ports alone.
 
-- **The curtain's way** (`scene_race_wait_to_leave`). The race's end starts
-  the curtain from the way the program keeps in its own load's operand
-  (`scene_race_ending_sweep`, `$7E:4259`): the race's setup writes 2, from
-  the right, and the attract sequence's own curtain setup (`$7E:6838`) writes
-  1. The port wrote the race's 2 and hashed the operand with the code; it
-  takes the operand now, and the hash leaves it out.
-- **A camera height of `$FF`** (`scene_race_place_bikes`). The guard refused
-  the height whose divisor search it took never to end, where the search only
-  never ends for a distance no divisor brings the height under: the guard now
-  asks that of each bike's distance (one the program has kept, or the
-  largest divisor's quotient under it).
-- **A bike right at the camera** (the same). With nothing of a bike ahead of
-  the camera the original looks no divisor up and keeps the one in X, which
-  only the divisor lookup changes: the bike placed before it this frame, so
-  the second bike stands on the first's line (`last_divisor`). Its horizon
-  gap takes the carry of the place's sum, and a bike's top the carry of the
-  gap's compare, both of which the port had as constants. A first bike at
-  the camera would take what the turn's arithmetic left in X; the guard
-  still refuses that, and no movie makes it.
-- **BG2's tilemap per line** (`scene_setup_line_effects`). A scene of the
-  attract sequence (`$7E:685E`) drives BG2's tilemap address from a line
-  table, a target the video service had no name for: `VID_LINE_BG2_MAP`,
-  added (additively: the SNES encoding, the observer's state for the native
-  renderer).
-- **The line above the screen** (`scene_build_perspective`). The Beyond Time
-  ending's last scene builds the plane from a horizon of 0, and the endings'
-  start is the line above the horizon: line -1. The original builds it like
-  any line, through an index that has run below the tables, so its middle
-  entries land just before them (`$7E:F0FE`, `$7E:F484`) and its first and
-  last, whose index wraps, a bank on (`$7F:F0FC`, `$7F:F486`). The port
-  writes them where the original does (`scene_plane_line_above_*`, plain
-  writes in both builds).
+- **The palace shaking apart** (`$C6:E5C5`, `menu_object_ripple_the_first_plane`,
+  `menu/line_effects.c`). A scene's script in the sprite-object mode calls it
+  every frame by far call; `menu_run_object_script` had no row for it, so the
+  program handed the scene's objects back. It ripples the first plane: each of
+  the 224 lines scrolled by the plane's scroll plus a push of up to four lines
+  from the menus' wave sizes (`menu_wave_size`, a step of 8 of 1024 a line and
+  8 a frame), into the slot-3 table the frame's count picks, which it shows.
+  The second half of the turn rounds away from zero, and a size of nothing
+  there comes out as 256 lines up -- the original's sign extension of it,
+  kept, which the plane's wrapping hides. Two more routines the same scene
+  calls were the next stops: `$C6:E694` (`menu_object_place_about_the_view`,
+  an object put at random about the view, `menu/object_commands.c`) and
+  `$C2:7BD1` (`menu_object_note_the_song`, the song the scene leaves playing
+  named as the field's current song), the strict stop of
+  `events-ocean-palace-lavos`. Each is a row of the scripts' routine tables
+  and a registered entry, one function for both.
+- **The leader's walk with nobody to walk** (`field_walk_the_leader`,
+  `field/walk.c`). The guard turned away a leader's place whose word isn't an
+  object (North Cape's flashback and Zeal's fall leave it `$FFFE`) before
+  asking whether the walk steps at all; with no step the walk reads nothing
+  of the leader's, so the guard now asks that first. The recentring's guard
+  likewise asks only where it looks at the leader: as it starts with the
+  screen off the grid.
+- **A leader above the map** (the same). The guard's bound down -- a place
+  above `$FF00` -- turned away Marle jumping onto the Epoch at Dalton's
+  (`$FFBD`), on a reason fuzzing doesn't bear out: with the bound dropped,
+  15,000 states with the leader's place `$FCxx`-`$FFxx` and anywhere across
+  compare without a mismatch. What the reason described is the right end:
+  past `$FF8F` across, 17 of 4,000 mismatch on the slope's cell, so that
+  bound stays.
+- **The confirm button and the Skyway's irises** were found already closed:
+  `battle-unequipped-armor` and `battle-zombor` no longer reach
+  `field_press_confirm` with a state its guard turns away, and the capsule
+  irises take a centre on the top line since the battle stops' merge. Their
+  strict lines and fallback rows had not been taken.
 
-**The frame routine's pass.** The attract demo names the race's scaling of
-its pictures (`$7E:51D1`, a port) as the main loop's frame routine. The loop's
-idle entry, which can't call (idle entries run outside a job), stopped at the
-routine and left the loop's test after it to the original. A second entry at
-`$7E:3023`, `attract_frame_pass`, takes the passes that name the race's
-scaling: it calls the scaling through the machine (it stops in the scaler's
-code, which takes frames) and makes the test. The idle entry keeps the other
-passes: the empty routine's, and then the endings' own scaling (`$7E:8930`,
-which the pass took over once it was a port: history file, "Phase 3, the
-scene program: the shared endings"). For the two entries at one address, shadow mode no longer
-considers the entries after an idle entry it skips: the original runs that
-pass, and a later entry's guard turning it away is not a refusal.
+**Measured.** Shadow mode, `events-ocean-palace-lavos`: the ripple 1,017
+calls, the placing 43, the song 1, all matched; the movie's instructions in
+place of hand ports from 5.84 million to 2,813. The fallback baseline's rows
+for the eleven routines are gone (6.73 million instructions to 0.72 million
+over the library; the long Crono's trial hand run, rerun, no longer refuses
+the walk at the transfer to prison). Strict mode: `battle-dalton`,
+`battle-magus-north-cape`, `events-magus-joins`, `events-ocean-palace-lavos`,
+`events-zeal-palace`, `battle-unequipped-armor` and `battle-zombor` reach
+their ends (`drifts`, where they stopped at frames 25170, 8560, 8560, 25299,
+4109, 7594 and 20301). **Fuzzing**, seed 1 unless named: the ripple 0 of
+2,000; the placing 0 of 257 compared (the guard turns away columns past
+`$2000`); the song 0 of 2,000; the walk with no leader word standing 0 of
+5,000, above the map 0 of 15,000 over seeds 10-12; the recentring with no
+leader word 0 of 4,979 (`tools/fuzz_routines.toml`'s new variants).
+**Timing.** The three new rows calibrated from the movie's shadow run: the ripple at 21,502 (its first guess, 40,000, was 86% over), the placing at 3,467, the song at 1,917.
 
-**Measured.** Shadow mode over the library: 0 mismatches; the four entries
-compare every call real play makes (`scene_race_wait_to_leave` 1,243 in the
-attract demo, `scene_race_place_bikes` 759, `scene_setup_line_effects` 4,
-`scene_build_perspective` 1,521 in the Beyond Time ending, the line above
-the screen among them, 1 interrupted), and `attract_frame_pass` 110 in the
-attract demo and 474 in the race. Refusals in real play: 0 (1,043 at 4
-entries before). Fallbacks, reference play: 28.3 KiB of code and 171.6
-million instructions in place of hand ports, none refused (29.1 KiB, 171.6 M,
-refused 0.8 KiB and 14,521 before); the shipping mode 26.2 KiB, 390.6 M (27.0
-KiB, 391 M). The divisor searches the attract demo's race now makes in the
-port add 5,000 instructions to the scene engine's skipped `$C3:0E29`.
-**Fuzzing**, seed 1, `tools/fuzz_compare.py` against `main`'s `ct_fuzz`,
-20,000 states each: no entry mismatches where `main` didn't, and the new
-variants compare every state (`attract` for the curtain's way and the
-attract's line table, `at_the_camera` with the camera's distance 0, the
-endings' perspective from a horizon of 0); the place's guard turns away 79
-of the plain variant's states against `main`'s 246, and 2 of
-`at_the_camera`'s against 230. `attract_frame_pass`, 20,000 states with the
-scaling named: 0 mismatched. **Timing.** Four rows recalibrated
-(`--drifted`): `scene_build_perspective` from 7,540 to 9,337 and
-`scene_race_check_perspective`, which runs it inline, from 2,458 to 1,729 (the
-attract demo's and the ending's calls are new to their stretches),
-`scene_race_place_bikes` from 11,455 to 11,889, and `attract_frame_pass` at
-3,125.
+**What the gate found past the chunk.** With Zeal's fall going on in the
+native program, `events-ocean-palace-lavos` no longer stops at the scene's
+hand-back but plays on, about 4,750 frames late (presses through the Mammon
+Machine's dialog land on other frames from about frame 18000), into the
+reference's own black stretch before the Last Village, where it ends:
+`tools/native_check.py` takes a ledger of such runs now,
+`tools/native_dark_exceptions.txt`, with this one (TODO.md, "Long movies
+still desync on the hand ports alone"). `events-death-peak`,
+`events-fair-rescue` and it enter the places' baseline. The long routes'
+three refusals (`fionas_forest`'s departure, `castle_flea`'s facing
+command), open in TODO.md but off the allowlist since the battle stops'
+merge, are back on it as gaps; and `battle-golem-twins-gameover`, which
+drifts on the hand ports alone at this chunk's base as well, is `drifts`.

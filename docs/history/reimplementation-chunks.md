@@ -8155,6 +8155,88 @@ from the model commands), and the script commands that ask for a channel for
 nobody or take a fall-through by a few percent (`script_end`,
 `script_play_and_wait` and its two siblings, `script_throw_moves`).
 
+## The last refusals in real play: the attract demo's states
+
+The four refusals the batch before left (1,043 calls at `$7E:424D`,
+`$7E:4D0D`, `$7E:36CC` and `$7E:357B`; the history file, "The refusals in
+real play, retired") were put down to the attract program's own code sitting
+where a port of another program's reads. It isn't: there is one scene
+program, and RAM at those addresses matched each port's hash in the attract
+demo as in the race (compared from save states). What the guards turned away
+were states the race never makes, found by printing the guards' conditions at
+the refusal, and each is ported now:
+
+- **The curtain's way** (`scene_race_wait_to_leave`). The race's end starts
+  the curtain from the way the program keeps in its own load's operand
+  (`scene_race_ending_sweep`, `$7E:4259`): the race's setup writes 2, from
+  the right, and the attract sequence's own curtain setup (`$7E:6838`) writes
+  1. The port wrote the race's 2 and hashed the operand with the code; it
+  takes the operand now, and the hash leaves it out.
+- **A camera height of `$FF`** (`scene_race_place_bikes`). The guard refused
+  the height whose divisor search it took never to end, where the search only
+  never ends for a distance no divisor brings the height under: the guard now
+  asks that of each bike's distance (one the program has kept, or the
+  largest divisor's quotient under it).
+- **A bike right at the camera** (the same). With nothing of a bike ahead of
+  the camera the original looks no divisor up and keeps the one in X, which
+  only the divisor lookup changes: the bike placed before it this frame, so
+  the second bike stands on the first's line (`last_divisor`). Its horizon
+  gap takes the carry of the place's sum, and a bike's top the carry of the
+  gap's compare, both of which the port had as constants. A first bike at
+  the camera would take what the turn's arithmetic left in X; the guard
+  still refuses that, and no movie makes it.
+- **BG2's tilemap per line** (`scene_setup_line_effects`). A scene of the
+  attract sequence (`$7E:685E`) drives BG2's tilemap address from a line
+  table, a target the video service had no name for: `VID_LINE_BG2_MAP`,
+  added (additively: the SNES encoding, the observer's state for the native
+  renderer).
+- **The line above the screen** (`scene_build_perspective`). The Beyond Time
+  ending's last scene builds the plane from a horizon of 0, and the endings'
+  start is the line above the horizon: line -1. The original builds it like
+  any line, through an index that has run below the tables, so its middle
+  entries land just before them (`$7E:F0FE`, `$7E:F484`) and its first and
+  last, whose index wraps, a bank on (`$7F:F0FC`, `$7F:F486`). The port
+  writes them where the original does (`scene_plane_line_above_*`, plain
+  writes in both builds).
+
+**The frame routine's pass.** The attract demo names the race's scaling of
+its pictures (`$7E:51D1`, a port) as the main loop's frame routine. The loop's
+idle entry, which can't call (idle entries run outside a job), stopped at the
+routine and left the loop's test after it to the original. A second entry at
+`$7E:3023`, `attract_frame_pass`, takes the passes that name the race's
+scaling: it calls the scaling through the machine (it stops in the scaler's
+code, which takes frames) and makes the test. The idle entry keeps the other
+passes: the empty routine's, and then the endings' own scaling (`$7E:8930`,
+which the pass took over once it was a port: history file, "Phase 3, the
+scene program: the shared endings"). For the two entries at one address, shadow mode no longer
+considers the entries after an idle entry it skips: the original runs that
+pass, and a later entry's guard turning it away is not a refusal.
+
+**Measured.** Shadow mode over the library: 0 mismatches; the four entries
+compare every call real play makes (`scene_race_wait_to_leave` 1,243 in the
+attract demo, `scene_race_place_bikes` 759, `scene_setup_line_effects` 4,
+`scene_build_perspective` 1,521 in the Beyond Time ending, the line above
+the screen among them, 1 interrupted), and `attract_frame_pass` 110 in the
+attract demo and 474 in the race. Refusals in real play: 0 (1,043 at 4
+entries before). Fallbacks, reference play: 28.3 KiB of code and 171.6
+million instructions in place of hand ports, none refused (29.1 KiB, 171.6 M,
+refused 0.8 KiB and 14,521 before); the shipping mode 26.2 KiB, 390.6 M (27.0
+KiB, 391 M). The divisor searches the attract demo's race now makes in the
+port add 5,000 instructions to the scene engine's skipped `$C3:0E29`.
+**Fuzzing**, seed 1, `tools/fuzz_compare.py` against `main`'s `ct_fuzz`,
+20,000 states each: no entry mismatches where `main` didn't, and the new
+variants compare every state (`attract` for the curtain's way and the
+attract's line table, `at_the_camera` with the camera's distance 0, the
+endings' perspective from a horizon of 0); the place's guard turns away 79
+of the plain variant's states against `main`'s 246, and 2 of
+`at_the_camera`'s against 230. `attract_frame_pass`, 20,000 states with the
+scaling named: 0 mismatched. **Timing.** Four rows recalibrated
+(`--drifted`): `scene_build_perspective` from 7,540 to 9,337 and
+`scene_race_check_perspective`, which runs it inline, from 2,458 to 1,729 (the
+attract demo's and the ending's calls are new to their stretches),
+`scene_race_place_bikes` from 11,455 to 11,889, and `attract_frame_pass` at
+3,125.
+
 ## Phase 3, battle: an action shown (`$C1:4058`-`$C1:4A70`, `$C1:305C`-`$C1:3215`, `$C1:106E`-`$C1:1114`, `$C1:1B67`, `$C1:EC39`-`$C1:ED88`, `$FD:ABA2`, `$CC:F102`, `$CC:F156`)
 
 Chosen by the fallback measure: after the player's choosing, the battle's

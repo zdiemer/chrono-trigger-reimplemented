@@ -513,7 +513,9 @@ run ends saying whether it is showing and the longest stretch it was black
 (`picture: dark since frame F ...`); `--shot-every` writes every Nth as a PNG.
 `tools/native_check.py` runs every library movie so, and the gate fails a
 movie that ends on a dark screen: getting to the last frame says nothing of
-the picture. That is how the line handlers' end of the picture was found
+the picture. The one way past that is a line in
+`tools/native_dark_exceptions.txt`, for a run whose time carries it late into
+a stretch the reference play is itself black for, saying where. That is how the line handlers' end of the picture was found
 taken as the whole frame's (the field's, the battles' and the scene boot's
 blank and line effects off below line 211, which left a picture blank, or with
 no text layer and its backgrounds garbled where the per-line settings were

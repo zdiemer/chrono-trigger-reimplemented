@@ -123,7 +123,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   to its end in the shipping mode with no failed exit, hang, `halted:` line, `accessor out of range`
   or `page refused` line the default build's run doesn't show, and its routes reach their outcomes
   (the fast set; all of them with `--long-routes`); and every movie in `ct_native` (the game with no
-  emulator) runs without crashing and doesn't end on a dark screen, its picture drawn every frame by
+  emulator) runs without crashing and doesn't end on a dark screen (or is in `tools/native_dark_exceptions.txt`,
+  a run whose time carries it into the reference's own black), its picture drawn every frame by
   the native renderer (`tools/native_check.py --check`, which also reports where each stops and
   whether it ends as the reference play does; docs/PLAYING.md, "The native program").
   Two checks the suite doesn't run, so run them by hand when a change could move them:

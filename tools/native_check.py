@@ -17,7 +17,9 @@ among oracle/saves) and reports, per movie, one of:
   the last DARK_FRAMES frames or more (`ct_native` draws each frame with the
   native renderer and says how long it has been dark). Small differences in the
   picture are acceptable; a screen gone blank is not, whatever the game is
-  doing under it;
+  doing under it, unless tools/native_dark_exceptions.txt names the movie: a
+  run whose time carries it late into a stretch the reference play is itself
+  black for, which the line's reason shows;
 - `end`: it got to its last frame, showing, and ends where the reference play
   (the original's code) ends: the saved game and save RAM, compared as
   tools/strict_check.py compares them (`ct_native --end-state`);
@@ -55,6 +57,9 @@ import places
 from strict_check import ROOT, SavedGame, differences, movies, ram_names, reference_play, seconds_for
 
 PLACES_BASELINE = ROOT / "tools/places_baseline.txt"
+# Movies that may end dark, each with why: a run the native program's time
+# carries late into a stretch the reference play is itself black for.
+DARK_EXCEPTIONS = ROOT / "tools/native_dark_exceptions.txt"
 
 # A picture black this long at the end has gone blank (10 seconds).
 DARK_FRAMES = 600
@@ -122,7 +127,10 @@ def ended(text, rc, end, frames, reference, saved, names):
         return "crashed", "exit status %d" % rc
     m = DARK.search(text)
     if m and int(m.group(2)) >= DARK_FRAMES:
-        return "dark", "the picture black from frame %s to the end (%s frames)" % (m.group(1), m.group(2))
+        start = int(m.group(1))
+        entered = [p for f, p in places.parse(text) if f <= start]
+        where = " in $%03X" % entered[-1] if entered else ""
+        return "dark", "the picture black from frame %d%s to the end (%s frames)" % (start, where, m.group(2))
     if reference is None:
         return "end", "not compared"
     drift = differences(end.read_bytes() if end.exists() else b"", reference, saved, names)
@@ -172,6 +180,7 @@ def main():
 
     failed, late = [], []
     base = read_places_baseline()
+    excepted = read_dark_exceptions()
     for name, _path, frames in rows:
         how, detail = results[name]
         line = "%s: %s%s" % (name, how, (": " + detail) if detail else "")
@@ -184,9 +193,11 @@ def main():
             elif kept[name].kept < must:
                 late.append(name)
                 line += "  <-- fewer on time than its baseline (%d)" % must
-        print(line)
-        if how in ("dark", "crashed", "hung"):
+        if how == "dark" and dark_is_excepted(excepted.get(name), detail):
+            line += "  (excepted: tools/native_dark_exceptions.txt)"
+        elif how in ("dark", "crashed", "hung"):
             failed.append(name)
+        print(line)
     reached = sum(1 for n, _p, _f in rows if results[n][0] in ("end", "drifts"))
     same = sum(1 for n, _p, _f in rows if results[n] == ("end", None))
     compared = sum(1 for n, _p, _f in rows if results[n][0] == "drifts" or results[n] == ("end", None))
@@ -214,6 +225,33 @@ PLACES_HEADER = """# How many of the reference play's places each library movie 
 # the reference's order. The gate fails a movie that enters fewer;
 # `tools/native_check.py --update-places` takes the counts a change brings.
 """
+
+
+def read_dark_exceptions():
+    """The dark stretches tools/native_dark_exceptions.txt excuses, by movie:
+    `movie $PLACE FRAME # why`, the place the run is in as its picture goes
+    black and the first frame it may go black on."""
+    out = {}
+    if DARK_EXCEPTIONS.exists():
+        for line in DARK_EXCEPTIONS.read_text().splitlines():
+            fields = line.partition("#")[0].split()
+            if len(fields) == 3:
+                out[fields[0]] = (int(fields[1].lstrip("$"), 16), int(fields[2]))
+    return out
+
+
+DARK_DETAIL = re.compile(r"from frame (\d+) in \$([0-9A-F]+) ")
+
+
+def dark_is_excepted(stretch, detail):
+    """Whether a run's dark ending is the stretch its exception names: black
+    from the named frame or later, in the named place. Dark anywhere else
+    (sooner, or in another place) still fails."""
+    m = DARK_DETAIL.search(detail or "")
+    if stretch is None or not m:
+        return False
+    place, first = stretch
+    return int(m.group(2), 16) == place and int(m.group(1)) >= first
 
 
 def read_places_baseline():

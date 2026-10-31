@@ -64,7 +64,7 @@ events-keepers-dome end
 events-luccas-mother end
 events-magic-cave end
 events-magus-joins drifts  # differs from the reference: 5 byte(s) of the saved game (party_waiting, party_characters_joined, $7E:0103, event_memory)
-events-ocean-palace-lavos 25342  # at C2:7BD1
+events-ocean-palace-lavos drifts  # differs from the reference: 49 byte(s) of the saved game (character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, $7E:2653, ...)
 events-prison-escape end
 events-proto-dome drifts  # consumes all 24717 frames without a halt, but ends at story $37, repair stage $00, Robo absent (59 saved-game bytes differ)
 events-sun-stone drifts  # differs from the reference: 23 byte(s) of the saved game (inventory_items, inventory_counts, party_waiting, current_song, $7E:0102, $7E:0103, ...)

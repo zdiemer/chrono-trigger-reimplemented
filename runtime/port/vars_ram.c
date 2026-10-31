@@ -3863,6 +3863,8 @@ uint8_t menu_object_scratch_draw_size_bit(const GameState *g) { return r8(g, 0x7
 void set_menu_object_scratch_draw_size_bit(GameState *g, uint8_t v) { w8(g, 0x7E0016u, v); }
 uint16_t menu_object_scratch_wave_phase(const GameState *g) { return r16(g, 0x7E000Au); }
 void set_menu_object_scratch_wave_phase(GameState *g, uint16_t v) { w16(g, 0x7E000Au, v); }
+uint16_t menu_object_scratch_ripple_phase(const GameState *g) { return r16(g, 0x7E0008u); }
+void set_menu_object_scratch_ripple_phase(GameState *g, uint16_t v) { w16(g, 0x7E0008u, v); }
 uint16_t menu_object_scratch_entry(const GameState *g) { return r16(g, 0x7E0000u); }
 void set_menu_object_scratch_entry(GameState *g, uint16_t v) { w16(g, 0x7E0000u, v); }
 uint8_t menu_object_scratch_columns(const GameState *g) { return r8(g, 0x7E0000u); }
@@ -4143,6 +4145,8 @@ uint16_t menu_object_slots_curtain_table(const GameState *g, unsigned slot) { IN
 void set_menu_object_slots_curtain_table(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 360, "set_menu_object_slots_curtain_table", "count", slot, 64u); w16(g, 0x7E0B54u + (uint32_t)slot * 0x40u, v); }
 uint16_t menu_object_slots_capsule_frames(const GameState *g, unsigned slot) { IN_RANGE(g, 360, "menu_object_slots_capsule_frames", "count", slot, 64u); return r16(g, 0x7E0B56u + (uint32_t)slot * 0x40u); }
 void set_menu_object_slots_capsule_frames(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 360, "set_menu_object_slots_capsule_frames", "count", slot, 64u); w16(g, 0x7E0B56u + (uint32_t)slot * 0x40u, v); }
+uint16_t menu_object_slots_ripple_frames(const GameState *g, unsigned slot) { IN_RANGE(g, 360, "menu_object_slots_ripple_frames", "count", slot, 64u); return r16(g, 0x7E0B54u + (uint32_t)slot * 0x40u); }
+void set_menu_object_slots_ripple_frames(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 360, "set_menu_object_slots_ripple_frames", "count", slot, 64u); w16(g, 0x7E0B54u + (uint32_t)slot * 0x40u, v); }
 uint16_t menu_object_slots_command_state(const GameState *g, unsigned slot) { IN_RANGE(g, 360, "menu_object_slots_command_state", "count", slot, 64u); return r16(g, 0x7E0B62u + (uint32_t)slot * 0x40u); }
 void set_menu_object_slots_command_state(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 360, "set_menu_object_slots_command_state", "count", slot, 64u); w16(g, 0x7E0B62u + (uint32_t)slot * 0x40u, v); }
 uint16_t menu_object_slots_move_target(const GameState *g, unsigned slot) { IN_RANGE(g, 360, "menu_object_slots_move_target", "count", slot, 64u); return r16(g, 0x7E0B64u + (uint32_t)slot * 0x40u); }

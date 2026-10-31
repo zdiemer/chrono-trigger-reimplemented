@@ -1109,8 +1109,17 @@ bool field_the_leader_walks(GameState *g)
     return walk_the_leader(g, scroll, g);
 }
 
-/* The guard's state half: the leader an object the tables hold. */
-static bool recentring_fits(const GameState *g) { return field_link_names_object(party_member_link(g, PARTY_LEADER)); }
+/* The guard's state half: the leader an object the tables hold where the
+ * recentring looks at it, as it starts with the screen off the grid. A scene
+ * that has taken the party off the map (Zeal's fall, its leader's place the
+ * word $FFFE) recentres a screen already on the grid, and reads nobody. */
+static bool recentring_fits(const GameState *g)
+{
+    bool looks_at_the_leader = (Recentring)field_screen_recentring(g) == RECENTRE_STARTS &&
+                               (fine_scroll(g, AXIS_X) != 0 || fine_scroll(g, AXIS_Y) != 0);
+    return !looks_at_the_leader || (field_party_objects_high(g, PARTY_LEADER) == 0 &&
+                                    field_link_names_object(party_member_link(g, PARTY_LEADER)));
+}
 
 bool field_the_screen_recentres(GameState *g)
 {
@@ -1159,31 +1168,30 @@ void field_recentre_the_screen(Snes *s)
  * meets the map reads where the leader stands and what is around it: there
  * the search for objects starts somewhere (a count of 0, or 128, would start
  * it on object 0, which no map has); the map's tables are indexed within
- * their 64 by 64; and the leader stands clear of the 16-bit range's end --
- * its box's right side inside it, and its place above the last tile row --
- * where the original's sums carry into the slope's. A leader carried past
- * that end by a script (the party parked at ($FF80, $FFFF) on the bridge of
- * Frog's memory, the endings' exits up off the map) takes no step against
- * the map: the party isn't the player's, and the walk keeps to the edges and
- * the screen, which read the leader's tile and place on the screen alone. */
-enum { WITHIN_THE_MAPS = 0x3F3F, CLEAR_OF_THE_END = 0xFF00 };
+ * their 64 by 64; and the leader's box's right side is inside the 16-bit
+ * range, past whose end the original's sums carry into the slope's. Down,
+ * the walk takes any place: a leader above the map's top (Marle jumping
+ * onto the Epoch at Dalton's, her place $FFBD) walks as the original
+ * does, its looks wrapping round the map's rows. A leader carried past the
+ * right end by a script (the party parked at ($FF80, $FFFF) on the bridge
+ * of Frog's memory) takes no step against the map: the party isn't the
+ * player's, and the walk keeps to the edges and the screen, which read the
+ * leader's tile and place on the screen alone. */
+enum { WITHIN_THE_MAPS = 0x3F3F };
 
-static bool clear_of_the_end(FieldPosition at)
-{
-    return at.x <= (uint16_t)(0xFFFF - HALF_WIDTH) && at.y < CLEAR_OF_THE_END;
-}
+static bool clear_of_the_end(FieldPosition at) { return at.x <= (uint16_t)(0xFFFF - HALF_WIDTH); }
 
 static bool walk_fits(const GameState *g)
 {
+    Velocity walk;
+    Velocity first = pad_and_pull(g, &walk);
+    if (first.x == 0 && first.y == 0)
+        return true;   /* no step: nothing of the leader's is read, whoever leads */
     if (field_party_objects_high(g, PARTY_LEADER) != 0)
         return false;
     FieldLeader leader = field_leader(g);
     if (!field_link_readable(party_member_link(g, PARTY_LEADER)))
         return false;
-    Velocity walk;
-    Velocity first = pad_and_pull(g, &walk);
-    if (first.x == 0 && first.y == 0)
-        return true;   /* no step: nothing of the leader's place is read */
     if (field_leader_collides(g) == 0)
         return true;   /* a step the map doesn't stop (collision off): its tile and the screen alone */
     FieldPosition at = field_leader_position(g, leader);

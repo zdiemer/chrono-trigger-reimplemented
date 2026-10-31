@@ -4204,6 +4204,7 @@
 #define RAM_MENU_OBJECT_SCRATCH_DRAW_SIZE 0x7E0013u /* The drawing: 1 for the node's sprites being the other size */
 #define RAM_MENU_OBJECT_SCRATCH_DRAW_SIZE_BIT 0x7E0016u /* The drawing: the size bit the last shown sprite's high bits were made from, shifted out */
 #define RAM_MENU_OBJECT_SCRATCH_WAVE_PHASE 0x7E000Au /* The wave on the layer over the map: the sine's step for the next line */
+#define RAM_MENU_OBJECT_SCRATCH_RIPPLE_PHASE 0x7E0008u /* The first plane's ripple ($C6:E5C5): the sine's step for the next line, left past the last */
 #define RAM_MENU_OBJECT_SCRATCH_ENTRY 0x7E0000u /* The script command that marks an entry of a screen's table: the entry */
 #define RAM_MENU_OBJECT_SCRATCH_COLUMNS 0x7E0000u /* The script command that copies map tiles: how many across */
 #define RAM_MENU_OBJECT_SCRATCH_ROWS_LEFT 0x7E0001u /* The copy: rows left */
@@ -4414,6 +4415,7 @@
 #define RAM_MENU_OBJECT_SLOTS_CURTAIN_SWEEP 0x7E0B52u /* A curtain's way across (scene_curtain_sweep: 1 from the left, 2 from the right) */
 #define RAM_MENU_OBJECT_SLOTS_CURTAIN_TABLE 0x7E0B54u /* Where a curtain keeps its lines' edges in bank $7E (scene_curtain_table) */
 #define RAM_MENU_OBJECT_SLOTS_CAPSULE_FRAMES 0x7E0B56u /* The capsule iris's frame count, which picks the pair of tables it draws into */
+#define RAM_MENU_OBJECT_SLOTS_RIPPLE_FRAMES 0x7E0B54u /* The first plane's ripple's frame count, which picks the pair of slot 3's tables it draws into ($C6:E5C5) */
 #define RAM_MENU_OBJECT_SLOTS_COMMAND_STATE 0x7E0B62u /* What the running command keeps between frames, cleared after every command the script finishes: a move's started flag */
 #define RAM_MENU_OBJECT_SLOTS_MOVE_TARGET 0x7E0B64u /* Where a move command's object is going */
 #define RAM_MENU_OBJECT_SLOTS_PALETTE_SOURCE 0x7E0B65u /* The palette loader's long pointer to its colours */
