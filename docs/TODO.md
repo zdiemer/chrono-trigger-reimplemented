@@ -2877,6 +2877,14 @@ list, by kind, is what `game/` still asks of one.
   scripts react to the game's state, MOVIES.md) rather than recorded presses,
   since no estimate is exact and a battle turns on a frame.
 
+- **What the sound teardown's review left** (none blocking): `battle_effects`
+  is defined in both `game/core/sound_commands.c` and `sound_driver.c`; share
+  it through `sound_commands.h`. `SWITCH_EFFECTS` (`sound_driver.c`) and
+  `AU_SWITCH_EFFECTS` name the same command; keep one. The host path no longer
+  leaves N and Z from DB as `back_to_the_caller` did, which only the entry's
+  don't-care set covers: confirm those sets at its call sites. `sound_driver_send`
+  has no comment, and the `// $C7:0004` comment sits on the function that empties
+  the buffer.
 - **What the time model's review left** (none blocking):
   `charge_send` (`runtime/platform/native/video.c`) charges any send from the
   main thread, where the design charges only a load's (screen off): gate it on
