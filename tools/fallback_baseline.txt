@@ -66,12 +66,6 @@ C0:3002 1140 37  # refused by event_cmd_walk_with_the_party during events-fionas
 C0:4F61 22476 118  # refused by event_cmd_move_to_tile (field engine, events)
 C0:5A93 150 5  # handback by event_run_object_script (field engine, events)
 C0:5B95 4410 18  # refused by field_object_in_the_way (field engine, events)
-C0:881E 58400 57  # refused by field_walk_the_leader (field engine, events)
-C0:885A 25 49  # Ocean Palace finale: refused by field_recentre_the_screen (field engine, events)
-C0:88E5 11680 9  # refused by field_walk_the_leader (field engine, events)
-C0:8A6D 11680 9  # refused by field_walk_the_leader (field engine, events)
-C0:9175 25696 19  # refused by field_walk_the_leader (field engine, events)
-C0:99DE 11680 9  # refused by field_walk_the_leader (field engine, events)
 C0:A2CE 1980 75  # refused by field_second_member_follows during events-fionas-forest; gap in tools/refusal_allowlist.txt
 C1:5FDE 132 70  # gap: script_face guard in battle-castle-flea shadow, four calls; docs/TODO.md, Refusals in real play
 C1:75CC 36 11  # gap: script_face guard in battle-castle-flea shadow, helper beneath the refused calls
@@ -80,7 +74,6 @@ C2:---- 195551 1830  # no port yet (menus, text, overworld); $C2:CBE0-$C2:CBE8, 
 C2:0009 16 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
 C2:42DD 11 21  # refused by overworld_epoch (menus, text, overworld)
 C2:5DC4 24662 230  # no port yet (menus, text, overworld)
-C2:7BD1 3 7  # Ocean Palace finale: handback by menu_run_object_script (menus, text, overworld)
 C2:8249 14 12  # menu task-start helper outside a registered comparison in battle-heckran's reference play; shipping-mode fallbacks remain zero
 C2:8816 245 10  # no port yet (menus, text, overworld)
 C2:8839 3955 72  # no port yet (menus, text, overworld)
@@ -101,10 +94,6 @@ C2:F626 525 29  # no port yet (menus, text, overworld)
 C2:FD58 1760 46  # no port yet (menus, text, overworld)
 C2:FD68 1815 47  # no port yet (menus, text, overworld)
 C3:0C28 10 23  # handback by scene_sequence_goes_on_after_the_wait (scene engine); the wait's first instructions after the sequence goes on, the same code as $7E:398A's
-C6:E498 29547 141  # events-zeal-palace: refused by menu_object_capsule_iris_1 at the Skyway's top-line centre; gap in TODO.md, Refusals in real play
-C6:E4BE 21024 139  # events-zeal-palace: refused by menu_object_capsule_iris_2 at the Skyway's top-line centre; gap in TODO.md, Refusals in real play
-C6:E5C5 5835446 120  # Ocean Palace finale: handback by menu_run_object_script (scene data)
-C6:E694 1247 60  # Ocean Palace finale: handback by menu_run_object_script (scene data)
 C7:0000 510 15  # handback by sound_driver_boot (sound driver)
 C7:005F 170 3  # handback by sound_driver_boot_start (sound driver)
 FD:---- 12 7  # no port yet (field graphics)

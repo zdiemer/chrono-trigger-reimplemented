@@ -49,18 +49,6 @@ rest waits, is [PLAN.md](PLAN.md).
   The hand-port runtime can run the movie's menu sequence; the host program's
   item-list continuation still needs a C path.
 
-- **North Cape's flashback:** `field_walk_the_leader` (`$C0:881E`) refuses
-  164 calls in each reference opening of `events-magus-joins` and
-  `battle-magus-north-cape`, first at frame
-  8612, on location `$024`: the leader link is `$04` (object 2), whose
-  position is (`$FF80`, `$FFFF`). `walk_fits` rejects that hidden leader's
-  Y coordinate. D=`$0100`, DB=0, P=`$20`. Strict mode stops at that entry at
-  frame 8561 after timing recalibration. Support the flashback's hidden
-  leader without handing its walk to the original;
-  `tools/refusal_allowlist.txt` records this as a gap.
-  `ct_native` also stops at `$C0:881E`, frame 8531, with "a walk the port
-  doesn't take", for both North Cape movies, before their choices diverge.
-
 ### Timing and other accuracy work
 
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
@@ -2935,9 +2923,7 @@ list, by kind, is what `game/` still asks of one.
   39666 frames without a reported `ct_native` stop, but reports only three
   screen setups, ending with the screen showing, and two SNES-only video
   escapes (first `$7E:5AEB`). Establish where it loses the reference route;
-  this does not establish completion of the Blackbird's destruction. Strict
-  mode halts at frame 25171 at `$C0:881E`, the walking guard gap documented
-  above, before Dalton Plus. No game code was ported for this recording.
+  this does not establish completion of the Blackbird's destruction.
 - **Proto Dome recording in the native program.** `events-proto-dome` consumes
   all 24717 frames without a reported `ct_native` stop, but ends blanked after
   four screen setups and two SNES-only video escapes (first `$7E:5AEB`).
@@ -3161,15 +3147,7 @@ alone (`strict_check.py`) and `ct_native` stop there. Each is a gap line in
 `tools/refusal_allowlist.txt`, which comes out when the port takes the state.
 Ranked by how much play they block; none is open now.
 
-- **Unequipped-armor movie, field confirm**: `battle-unequipped-armor` reaches
-  a guard refusal at `$C0:1AAC` (`field_press_confirm`,
-  `game/event/contact.c`) in shipping/strict playback at frame 7594, in Truce Canyon:
-  `A=0000 X=0000 Y=0090 S=06FD D=0100 DB=00 P=22 E=0`.
-  `confirm_fits` checks the leader, object-search/contact and chest state;
-  which predicate fails still needs isolating. Shadow does not refuse this entry.
-  `tools/refusal_allowlist.txt` records this as a gap, not a supported native
-  state. No gameplay logic was changed for the movie.
-- **Empty equipment list after the inventory screen**: the same movie's shadow
+- **Empty equipment list after the inventory screen**: `battle-unequipped-armor`'s shadow
   run refuses `$C2:A45D`, `$C2:A463`, `$C2:A569` four times each and `$C2:A59A`
   32 times, starting at frame 3533. `list_is_drawable` in
   `game/menu/equipment_bridge.c` checks eight rows even after the zero terminator;
@@ -3186,52 +3164,6 @@ Ranked by how much play they block; none is open now.
   to match the member's link and the trail places to hold. Both are `gap` entries
   in `tools/refusal_allowlist.txt`; determine which formation invariant the
   departure violates and handle that scripted state. Shadow reports no mismatches.
-
-`events-ocean-palace-lavos` reaches four guard gaps during Zeal's fall. Its
-reference shadow run has no mismatches, page refusals or out-of-range accessors,
-but hands these calls back to the original. The entries are recorded as gaps in
-`tools/refusal_allowlist.txt`; remove each line when its port takes the state.
-
-- `$C6:E498` / `$C6:E4BE`, `menu_object_capsule_iris_1` / `_2`: 50 and 30
-  refused calls, first at frames 20871 and 21154, with X `$009C`.
-  `menu_capsule_iris_can_draw` restricts the centre, radius and stretch; the
-  world-map scene's capsule geometry falls outside those bounds.
-- `$C0:885A`, `field_recentre_the_screen`: one refused call at frame 21566,
-  with Y `$FFFE`, during the field cutaway in Zeal's fall. The guard requires a
-  party leader link naming an object in the field tables.
-- `$C0:881E`, `field_walk_the_leader`: 811 refused calls, first at frame
-  23503, also with Y `$FFFE`. The scripted scene runs the field without a
-  valid leader link. The native program needs the corresponding scene state
-  supported, rather than a wider unchecked object-table access.
-- **Zombor's strict replay refuses `field_press_confirm`.** `battle-zombor`
-  stops at frame 20301, `$C0:1AAC`, with A=$0000, X=$0000, Y=$0090,
-  S=$06FD, D=$0100, DB=$00, P=$22. The shipping replay refuses at the same
-  frame and state, then uses the original code. Its reference shadow run
-  has no refusal.
-  Locate the strict replay's divergent field state and make the guard's
-  valid case work; the `gap` entry in `refusal_allowlist.txt` records this
-  remaining work, without claiming that the strict inputs win the battle.
-
-- **Zeal's Skyway capsule irises.** `events-zeal-palace` reaches guards
-  `$C6:E498` (`menu_object_capsule_iris_1`, 39 refusals) and `$C6:E4BE`
-  (`menu_object_capsule_iris_2`, 38 refusals). The first shadow refusals are
-  frames 4149 and 4148 respectively. Replay snapshots at frames 4149 and 5499
-  show iris centres at y=0 (radii 2/5, stretches 140/8); `iris_takes` in
-  `menu/line_effects.c` requires y>=1. Support the top-line centre before
-  removing these gap lines from `tools/refusal_allowlist.txt` and the two
-  new fallback rows (18330 instructions). `ct_native` stops at frame 4106
-  on `$C6:E4BE`, "a capsule iris on slot 2"; strict mode stops at frame 4109
-  on the same entry.
-
-- **Dalton's Epoch reveal: leader above the coordinate range.**
-  `battle-dalton` refuses `field_walk_the_leader` (`$C0:881E`) 20 times from
-  reference frame 26263, on the Blackbird wing (`$16B`), stage `$7F:00D2 = 6`.
-  Marle is jumping onto the Epoch: the leader link is `$0002`, the map mask
-  `$3F3F`, but her raw Y is `$FFBD`. `walk_fits` rejects Y at or above `$FF00`,
-  where the original's sums carry into slope handling. Reproduce and support
-  that transition before removing the `gap` entry in refusal_allowlist.txt.
-  The narrowed reference run adds five refused fallback rows (103 ROM bytes,
-  1020 instructions) under this entry. No game logic was changed for the movie.
 
 - **Flea's animation facing command.** `battle-castle-flea` in shadow mode refuses
   `script_face` (`$C1:5FDE`) four times: frames 25404, 25411, 32905 and 32906.
@@ -3257,11 +3189,6 @@ but hands these calls back to the original. The entries are recorded as gaps in
   (`C0024C`) refuses at frames 82673 and 84878 of the long movie. Its
   `battle_fits` checks the party links, object count and enemies' battle
   sprite slots; identify which state falls outside those assumptions.
-- **The transfer to prison.** `field_walk_the_leader` (`C0881E`) refuses
-  for 150 frames in each movie, first at frame 133968 of the long one.
-  Its `walk_fits` checks the leader link, search start, map mask and
-  position bounds. The scripted transfer needs that state supported;
-  the recording still reaches Crono's cell with control restored.
 - **Leaving Guardia Castle in 600 A.D.** `overworld_lead` (`C23404`)
   refuses once at frame 81958 of the long movie, with `X=0DF0`,
   `D=0000`, `DB=00`, `P=24`. Inspect `overworld_leader_takes`' walker,

@@ -1,5 +1,6 @@
 /* The sprite-object mode's per-line effects: the slots' tables, starting an
- * effect, and the irises (menu/line_effects.h says how they fit together).
+ * effect, the first plane's ripple and the irises (menu/line_effects.h says how
+ * they fit together).
  *
  * An iris is a circle of window drawn line by line (scene/circle.c draws it,
  * as the scenes' irises do) into one of a slot's two tables, which it then
@@ -18,6 +19,8 @@
 #include "menu/handlers.h"
 
 #include "charge.h"
+#include "cpu_io.h"
+#include "menu/menu_data.h"
 #include "menu/object.h"
 #include "original_effects.h"
 #include "port/machine.h"
@@ -347,6 +350,69 @@ void menu_object_bg1_scroll_lines(Snes *s)
     m_rtl(s);
 }
 
+// $C6:E5C5
+/* A frame of the first plane rippling, as the palace shakes itself apart at
+ * Zeal's fall: each line of the screen scrolled up or down by up to four
+ * pixels from the plane's scroll, by a sine that steps 8 of its 1024 steps a
+ * line and moves on 8 steps a frame, so the wave rolls up the screen. Drawn
+ * into the slot 3 table this frame's count picks (the first plane's scroll
+ * lines started its line effect), which it then shows.
+ *
+ * A step's push is the sine's size over 64: rounded down in the first half
+ * of the turn and away from zero in the second, where a size of nothing
+ * comes out as a whole 256 lines up -- the original's sign extension of it,
+ * kept, which the plane's wrapping shows as no push at all. */
+enum { RIPPLE_SLOT = 3, RIPPLE_LINE_STEP = 8, RIPPLE_FRAME_STEP = 8, NOTHING_BELOW_ZERO = -256 };
+
+static int16_t ripple_push(const GameState *g, uint16_t step)
+{
+    step &= MENU_SINE_STEPS - 1;
+    int16_t size = menu_wave_size(g, step);
+    if (step < MENU_SINE_STEPS / 2)
+        return (int16_t)(size >> 6);
+    if (size == 0)
+        return NOTHING_BELOW_ZERO;
+    return (int16_t)-((size * 4 + 255) >> 8);
+}
+
+/* Whether the phase came round past the top of its word. */
+static bool ripple_the_first_plane(GameState *g, MenuObject o)
+{
+    uint16_t frames = (uint16_t)(menu_object_slots_ripple_frames(g, o) + 1);
+    set_menu_object_slots_ripple_frames(g, o, frames);
+    uint16_t table = menu_line_values(RIPPLE_SLOT, frames);
+    menu_show_line_values(g, RIPPLE_SLOT, table);
+
+    uint16_t phase = menu_object_slots_phase(g, o), scroll = menu_object_shadows_bg1_scroll_y(g);
+    uint16_t step = phase;
+    for (uint16_t line = 0; line < MENU_LINE_TABLE_LINES; line++, step += RIPPLE_LINE_STEP)
+        set_line_value(g, table, line, (uint16_t)(scroll + ripple_push(g, step)));
+    set_menu_object_slots_phase(g, o, (uint16_t)(phase + RIPPLE_FRAME_STEP));
+    ORIGINAL_EFFECT(set_menu_object_scratch_ripple_phase(g, step));
+    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)line_address(table, MENU_LINE_TABLE_LINES), LINE_TABLE_BANK));
+    return phase > 0xFFFF - RIPPLE_FRAME_STEP;
+}
+
+/* On the mode's page, with the data bank $00, through which the original
+ * reaches its object and the sine. */
+bool menu_ripple_can_draw(Snes *s)
+{
+    return m_direct_page(s) == MODE_PAGE && m_bank_is_zero(s) && running_a_slot(s);
+}
+
+/* Back with 16-bit A, X the object, and the carry where the phase's step
+ * ran past the top of its word. */
+void menu_object_ripple_the_first_plane(Snes *s)
+{
+    GameState *g = state_of(s);
+    MenuObject o = menu_object_running(g);
+    bool came_round = ripple_the_first_plane(g, o);
+    m_rep(s, CPU_FLAG_M);
+    s->cpu.x = menu_object_current(g);
+    m_set_flag(s, CPU_FLAG_C, came_round);
+    m_rtl(s);
+}
+
 /* The irises come back with 16-bit registers: the squashed one with X clear
  * and the carry its radius's low bit, the capsule with X where its filling
  * ended and the carry set where it drew a circle. */
@@ -546,6 +612,13 @@ IRIS(squashed_iris_2, squashed_iris, 2)
 IRIS(capsule_iris_1, capsule_iris, 1)
 IRIS(capsule_iris_2, capsule_iris, 2)
 
+static bool ripple_routine(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)far;
+    (void)ripple_the_first_plane(g, self);
+    return true;
+}
+
 static bool start_the_curtain_routine(GameState *g, Platform *pf, MenuObject self, bool far)
 {
     (void)far;
@@ -571,6 +644,7 @@ MENU_SCRIPT_ROUTINES(menu_line_effect_routines,
     { 0xC6E340, "window 2's edges line by line", NULL, window2_lines_routine },
     { 0xC6E470, "window 2's edges line by line", NULL, window2_lines_2_routine },
     { 0xC6E595, "the first plane's scroll line by line", NULL, bg1_scroll_lines_routine },
+    { 0xC6E5C5, "the first plane rippling", NULL, ripple_routine },
     { 0xC6E368, "a squashed iris on slot 1", squashed_iris_takes, squashed_iris_1_routine },
     { 0xC6E391, "a squashed iris on slot 2", squashed_iris_takes, squashed_iris_2_routine },
     { 0xC6E498, "a capsule iris on slot 1", capsule_iris_takes, capsule_iris_1_routine },

@@ -6026,6 +6026,30 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00-7E", "--fill", 
 why = "the field's page and data bank; the leader an object (the guard's, field/walk.c); the recentring's states and one past them"
 
 [[routine]]
+name = "field_recentre_the_screen"
+variant = "no-leader"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0198=FFFE,FF80,FFFC", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E1D1E-7E1D1F=3F-3F"]
+why = "the party taken off the map (Zeal's fall leaves the leader's place the word $FFFE): the guard takes a recentring that doesn't look at the leader"
+
+[[routine]]
+name = "field_walk_the_leader"
+variant = "no-leader-standing"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0198=FFFE,FF80,FFFC", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E1D1E-7E1D1F=3F-3F", "--fill", "7E1D2A-7E1D2B=00-00", "--fill", "7E011F-7E011F=00-00"]
+why = "the party taken off the map (North Cape's flashback, Zeal's fall: the leader's place the word $FFFE) with nothing to step it: the walk reads nobody"
+
+[[routine]]
+name = "field_walk_the_leader"
+variant = "above-the-map"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=02,04,06,08", "--fill", "7E0198-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E1D1E-7E1D1F=3F-3F", "--fill", "7E011F-7E0120=01-01", "--fill", "7E0162-7E0162=00-00", "--fill", "7E0138-7E0138=00-00", "--fill", "7E1800-7E187F:2=00-FF", "--fill", "7E1801-7E187F:2=00-FF", "--fill", "7E1880-7E18FF:2=00-FF", "--fill", "7E1881-7E18FF:2=FC-FF"]
+why = "the player walking a leader above the map's top (Marle onto the Epoch at Dalton's, her place $FFBD) into the map, any place across the guard takes"
+
+[[routine]]
 name = "field_stream_the_layers"
 subsystem = "field"
 state = "field"
@@ -9491,6 +9515,15 @@ state = "objects"
 args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
 iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_ripple_the_first_plane"
+at = "C6:E5C5"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot; the data bank 0, where the sine table lies, as the guard asks"
 
 [[routine]]
 name = "menu_object_squashed_iris_1"
@@ -19616,6 +19649,22 @@ subsystem = "menu"
 state = "objects"
 args = ["--d", "0000", "--db", "00"]
 why = "as menu_object_hide_the_party"
+
+[[routine]]
+name = "menu_object_note_the_song"
+at = "C2:7BD1"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+why = "the object mode's page (the guard), any answer"
+
+[[routine]]
+name = "menu_object_place_about_the_view"
+at = "C6:E694"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot; the second plane's column random (the guard turns away one past $2000)"
 
 [[routine]]
 name = "menu_object_ask_the_story"

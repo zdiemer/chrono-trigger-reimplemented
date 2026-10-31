@@ -6268,6 +6268,9 @@ void set_menu_object_scratch_draw_size_bit(GameState *g, uint8_t v);
 /* The wave on the layer over the map: the sine's step for the next line */
 uint16_t menu_object_scratch_wave_phase(const GameState *g);
 void set_menu_object_scratch_wave_phase(GameState *g, uint16_t v);
+/* The first plane's ripple ($C6:E5C5): the sine's step for the next line, left past the last */
+uint16_t menu_object_scratch_ripple_phase(const GameState *g);
+void set_menu_object_scratch_ripple_phase(GameState *g, uint16_t v);
 /* The script command that marks an entry of a screen's table: the entry */
 uint16_t menu_object_scratch_entry(const GameState *g);
 void set_menu_object_scratch_entry(GameState *g, uint16_t v);
@@ -6769,6 +6772,10 @@ void set_menu_object_slots_curtain_table(GameState *g, unsigned slot, uint16_t v
 /* The capsule iris's frame count, which picks the pair of tables it draws into */
 uint16_t menu_object_slots_capsule_frames(const GameState *g, unsigned slot);
 void set_menu_object_slots_capsule_frames(GameState *g, unsigned slot, uint16_t v);
+/* The first plane's ripple's frame count, which picks the pair of slot 3's tables it draws into
+ * ($C6:E5C5) */
+uint16_t menu_object_slots_ripple_frames(const GameState *g, unsigned slot);
+void set_menu_object_slots_ripple_frames(GameState *g, unsigned slot, uint16_t v);
 /* What the running command keeps between frames, cleared after every command the script
  * finishes: a move's started flag */
 uint16_t menu_object_slots_command_state(const GameState *g, unsigned slot);
