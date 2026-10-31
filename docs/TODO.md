@@ -181,10 +181,6 @@ rest waits, is [PLAN.md](PLAN.md).
     the map declares on random states (`accessor out of range` in fuzzing,
     `event_script`): its guard doesn't bound where the object's first
     function starts.
-- **The menus' `$C2:5DC4`** (21,444 of the reference play's instructions over
-  the 48 movies, no port; tools/fallback_baseline.txt): the largest of the
-  menus' code the original still runs inside the menus' comparisons, after
-  the scene program's arrangers (above). Find what it does and port it.
 - **The tech sweep's fight never ends in the native shape.** The route
   (`tools/movies/routes/tech_sweep.py`, zophar chrono-trigger slot 1, the Lavos
   Core) reaches its outcome in the shipping mode, but `ct_drive_native_shape`
@@ -2687,11 +2683,10 @@ re-runs the census.
     the stack, and a task's stack lies within its span of another's: code of
     one task that runs after another's port stopped is filed under that
     port's hand-back (`C2:8A45`'s, the gate screen's task and the text's
-    under the held cursors') and some went to `C2:----` and `FF:----` from
-    the records' task's, where the measure moved it when that task's wait went
-    on in place. Ending a hand-back where the stack moves to another task's
-    (a jump down further than an instruction pushes, outside an interrupt)
-    would file each where it runs;
+    under the held cursors'). Ending a hand-back where the stack moves to
+    another task's (a jump down further than an instruction pushes, outside
+    an interrupt) would file each where it runs, as the stretches of
+    comparisons a vblank handler gave up are ended now (`settle_abandoned`);
   - a menu step parked in its wait counts as suspended, so ct_drive takes no
     base while one waits (a member chosen for an item waits as long as the
     player takes), and a quick save then leaves the original's code to finish
@@ -3607,6 +3602,21 @@ waits on M5 rather than on a backend.
     call on record. None in the library does, and the runtime's rule for a
     call-out under such a handler, and for a port's own stretch under one,
     is the same (`Active.handler_away`);
+  - a comparison the runtime gives up under such a handler keeps its
+    stretch, uncompared, until its routine returns (`abandon_under_the_handler`),
+    and the runtime reports no call-out of it from there: were the port to
+    call out to the original's code after a vblank, the callee would count as
+    the port's. The shipping mode's count, which runs the ports themselves,
+    is what shows such a call-out (none over the gate's sample: the menus'
+    movies run none of the original's code there). The measure's reasons in
+    tools/fallback_baseline.txt for `C2:----`, `7E:----` and the other lines
+    the sample lowered still hold the movies outside the sample at the old
+    measure's counts until the library's batched run takes them;
+  - an idle entry's pass that leaves its wait is taken back only where it
+    ran nothing but the loop and a port takes over at the exit, or the entry
+    says it returns (`idle_returns`, set on the warp's frame wait and the
+    scene scripts' wait for the music); the other idle entries' leaving
+    passes (an exit that goes on into the routine) stay counted;
   - the Beyond Time route's replays from a base grew from 30,056 frames to
     44,660 with the battle frame work's remainders' second chunk
     (REIMPLEMENTATION.md, that chunk's "Measured"), which the route measure no longer counts

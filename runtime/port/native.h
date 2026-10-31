@@ -68,6 +68,13 @@ typedef struct NativeEntry {
      * time per pass, since skipping ahead would change when it sees the other
      * processor's answer. */
     uint32_t idle_clocks;
+    /* An idle entry whose pass, where it ends the wait, returns from the
+     * routine as the original's does (an RTS or RTL the function makes, and
+     * nothing run between): the fallback measure (dev/fallbacks.c) counts the
+     * original's pass up to that return as the port's, as it does the passes
+     * that go round. Where it is clear, the pass that leaves stays counted, as
+     * an exit that goes on to code after the loop could be the original's. */
+    bool idle_returns;
     /* Optional extra precondition, for example for code the game places in
      * RAM: return false unless the bytes at the entry are the code the port was
      * written for (see m_code_matches). It runs on the real machine in every
