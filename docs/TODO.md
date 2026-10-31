@@ -2877,6 +2877,13 @@ list, by kind, is what `game/` still asks of one.
   scripts react to the game's state, MOVIES.md) rather than recorded presses,
   since no estimate is exact and a battle turns on a frame.
 
+- **What the refusals' review left** (none rated translation):
+  `find_the_enemies`'s comment (`game/field/battle_start.c`, "from the object
+  past the map's last") is stale since a full map starts at slot 63;
+  `stray_slot_is_an_enemy` works out its tile by hand instead of `tile_at()`
+  and writes the "there" test again instead of sharing `there()`.
+  `field_member_step_y` (`field/leaves.c`) sits under the doc comment that
+  belongs to `field_member_step_overflow`.
 - **What Zeal's fall's and the walk guards' review left** (none rated
   translation): `ripple_the_first_plane` (`game/menu/line_effects.c`) returns
   the phase's carry only for the wrapper's C, which could come from the stored
