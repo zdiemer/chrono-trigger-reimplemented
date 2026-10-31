@@ -2870,6 +2870,23 @@ list, by kind, is what `game/` still asks of one.
   scripts react to the game's state, MOVIES.md) rather than recorded presses,
   since no estimate is exact and a battle turns on a frame.
 
+- **What Zeal's fall's and the walk guards' review left** (none rated
+  translation): `ripple_the_first_plane` (`game/menu/line_effects.c`) returns
+  the phase's carry only for the wrapper's C, which could come from the stored
+  phase (`new phase < RIPPLE_FRAME_STEP`); `NOTHING_BELOW_ZERO`'s comment holds
+  only for a plane 256 lines tall, so name the plane; `ripple_push` repeats
+  `menu_sine`'s sign handling. `note_the_song` (`menu/object_commands.c`) reads
+  the song through `menu_object_scratch_answer`, which the map calls a yes/no
+  cell: name its second use in `re/ram.toml`. `recentring_fits`
+  (`field/walk.c`) works out "starts off the grid" again instead of sharing
+  `screen_recentres`'s predicate.
+- **What the second story scenes' review left** (none rated translation):
+  `after_one_left_out` (`scene/sprites.c`) carries the original's 16-bit A
+  flag through the loop. Trying an item on (`menu/figures.c`) now takes strays
+  through `item_amount`, `menu_power_of_item` and `boost_of`, but
+  `equipment_is_the_games` and its comment still turn them away on the other
+  entries: make the two agree. `menu_describe_item` with a stray item wasn't
+  audited for an index past its table.
 - **What the sound teardown's review left** (none blocking): `battle_effects`
   is defined in both `game/core/sound_commands.c` and `sound_driver.c`; share
   it through `sound_commands.h`. `SWITCH_EFFECTS` (`sound_driver.c`) and
