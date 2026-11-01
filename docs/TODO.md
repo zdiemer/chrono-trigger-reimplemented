@@ -2987,6 +2987,11 @@ list, by kind, is what `game/` still asks of one.
   (around the song kept and its neighbour) still routes pure C operations
   through emulated return frames; call their game-state operations directly
   and keep only the register leftovers in the wrapper.
+- **What the scene joints' review left** (rated mostly in `endings.c`,
+  `turning.c`, `script.c`, `scene_data.h`): the follow-ups the review named
+  are in this file's scene entries; 12 uncompared exemptions stay in
+  `tools/uncompared_baseline.txt`, each with its interrupt evidence, until the
+  bitmap comparisons they stand for run.
 - **What the time model's review left** (none blocking):
   `charge_send` (`runtime/platform/native/video.c`) charges any send from the
   main thread, where the design charges only a load's (screen off): gate it on
