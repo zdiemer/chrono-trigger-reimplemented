@@ -17,13 +17,16 @@ void sv_write8(Platform *pf, PfOrigin o, uint16_t offset, uint8_t v)
         return;
     pf->save.bytes[offset % SAVE_SIZE] = v;
     pf->save.dirty = true;
+    if (pf->save.written)
+        pf->save.written(pf->save.ctx, offset % SAVE_SIZE);
 }
 
 uint8_t sv_peek8(Platform *pf, uint16_t offset) { return pf->save.bytes ? pf->save.bytes[offset % SAVE_SIZE] : 0; }
 
 const uint8_t *sv_host_bytes(Platform *pf, bool *dirty)
 {
-    *dirty = pf->save.dirty;
+    if (dirty)
+        *dirty = pf->save.dirty;
     pf->save.dirty = false;
     return pf->save.bytes;
 }

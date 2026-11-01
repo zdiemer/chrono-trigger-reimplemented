@@ -31,7 +31,8 @@
  * reaching the last frame says nothing of the picture). --shot-every writes
  * frames as PNGs, --locations the places the run enters, --end-state work
  * RAM and save RAM at the end. Exit status 0 when it ran every frame, 1 where the
- * program stopped short, 2 on bad arguments or files. This file is the driver:
+ * program stopped short, 2 on bad arguments or files, 3 on a fatal machine
+ * entry. This file is the driver:
  * the loop, the files and the report are its, as frontend/headless.c's are
  * the player's. */
 #include <errno.h>
@@ -42,6 +43,8 @@
 #include <string.h>
 
 #include "assets.h"
+#include "file_store.h"
+#include "menu/saves.h"
 #include "core/program.h"
 #include "media.h"
 #include "movie.h"
@@ -244,33 +247,39 @@ typedef struct {
     ct_movie *movie;
     const char *sram_path, *shot_dir;
     unsigned long frame, frames, shot_every;
-    bool locations, persist;
+    bool locations, persist, save_pending;
     uint16_t location;
     uint8_t saved[STATE_HOST_SRAM_BYTES];
     int result;
 } NativeDriver;
 
+/* saves_save_game writes this marker after the entire slot and its checksum.
+ * Metadata clears on a fresh start never write it. The driver persists at
+ * frame end, after the save routine's remaining completion count update. */
+static void native_save_written(void *ctx, uint16_t offset)
+{
+    NativeDriver *d = ctx;
+    if (offset == SAVES_LAST_SLOT)
+        d->save_pending = true;
+}
+
 static int native_flush(void *ctx)
 {
     NativeDriver *d = ctx;
-    if (!d->persist)
+    if (!d->persist || !d->save_pending)
         return 0;
-    bool dirty;
-    const uint8_t *bytes = sv_host_bytes(d->pf, &dirty);
-    /* The snapshot also catches writes through the host's memory backing. */
-    (void)dirty;
-    if (!memcmp(bytes, d->saved, sizeof d->saved))
+    const uint8_t *bytes = sv_host_bytes(d->pf, NULL);
+    if (!memcmp(bytes, d->saved, sizeof d->saved)) {
+        d->save_pending = false;
         return 0;
-    FILE *f = fopen(d->sram_path, "wb");
-    bool ok = f && fwrite(bytes, 1, sizeof d->saved, f) == sizeof d->saved;
-    if (f && fclose(f) != 0)
-        ok = false;
-    if (!ok) {
+    }
+    if (file_store_replace(d->sram_path, bytes, sizeof d->saved) != 0) {
         fprintf(stderr, "ct_native: cannot write cartridge save %s\n", d->sram_path);
-        d->result = 1;
+        d->result = 2;
         return 1;
     }
     memcpy(d->saved, bytes, sizeof d->saved);
+    d->save_pending = false;
     fprintf(stderr, "ct_native: saved %s at frame %lu\n", d->sram_path, d->frame);
     return 0;
 }
@@ -304,10 +313,8 @@ static void native_step(void *ctx, uint16_t buttons)
     if (d->shot_every && d->frame % d->shot_every == 0) {
         char path[1024];
         snprintf(path, sizeof path, "%s/frame_%06lu.png", d->shot_dir, d->frame);
-        if (ct_png_write(path, d->picture->pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT) != 0) {
+        if (ct_png_write(path, d->picture->pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT) != 0)
             fprintf(stderr, "ct_native: cannot write %s\n", path);
-            d->result = 1;
-        }
     }
     uint32_t routine;
     const char *what;
@@ -484,6 +491,8 @@ int main(int argc, char **argv)
         .locations = locations, .persist = windowed, .location = 0xFFFF
     };
     memcpy(driver.saved, state_host_sram(g), sizeof driver.saved);
+    pf.save.ctx = &driver;
+    pf.save.written = native_save_written;
     no_machine_report_with(machine_failure, &driver);
     int rc = 0;
 #ifdef CT_HAVE_SDL
@@ -524,7 +533,7 @@ int main(int argc, char **argv)
     report_strays(g, &pf);
     if (end_state && write_end_state(end_state, g) != 0) {
         fprintf(stderr, "ct_native: cannot write %s\n", end_state);
-        rc = 1;
+        rc = 2;
     }
     vid_render_destroy(picture.renderer);
     sound_native_destroy(sound);

@@ -55,7 +55,7 @@ static int flush(void *ctx)
 {
     PlayerWindow *w = ctx;
     files_flush(w->files, w->player);
-    return files_flush_movie(w->files, w->player);
+    return 0;
 }
 
 int run_window(Player *pl, const Files *files, const WindowOptions *o)
@@ -67,5 +67,8 @@ int run_window(Player *pl, const Files *files, const WindowOptions *o)
         .halt = halt, .done = done, .fast = fast,
         .quick_save = quick_save, .quick_load = quick_load, .flush = flush
     };
-    return window_run(&client, o);
+    int rc = window_run(&client, o);
+    if (files_flush_movie(files, pl) != 0)
+        rc = 1;
+    return rc;
 }

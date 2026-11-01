@@ -2762,6 +2762,10 @@ comparisons.
 
 ## The native program
 
+- **CI has no no-SDL configuration.** All four jobs install SDL2, so they do
+  not exercise `ct_native`'s headless-only build. Add a configuration with
+  SDL2 and pkg-config discovery disabled, `CT_ROM` empty and `CT_WERROR=ON`.
+
 - **The menus' remaining machine boundaries.** The 21 assigned bridge and
   support files retain 22 stops: scheduler switches and held waits, reset and
   mode boundaries, invalid script dispatch, comparison checkpoints and guard

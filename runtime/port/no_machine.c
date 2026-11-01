@@ -39,7 +39,7 @@ static _Noreturn void no_machine(const char *what)
         report_failure(report_ctx, what);
     else
         fprintf(stderr, "ct_native: %s reached, which only the machine has\n", what);
-    exit(1);
+    exit(3);   /* fatal entry, distinct from a reported program stop */
 }
 
 /* Call-outs retain both addresses even though no registry is linked here. */

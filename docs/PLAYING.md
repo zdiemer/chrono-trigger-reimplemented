@@ -502,8 +502,13 @@ Copy-Item oracle/saves/fantasyanime/ctsave12-side_quests1.srm build/native-save.
 ```
 
 Choose a slot on the game's load screen. Your own 8 KiB `.srm` works the same
-way. Window play writes changed SRAM back to the named file after each frame
-and on exit, including when the game saves; a missing file starts erased.
+way. Native window play writes SRAM after the game completes a save, detected
+by its final last-saved-slot write. Starting afresh can clear completion
+metadata in memory, but does not write that change to disk. Both players
+write cartridge saves to a temporary file beside the destination, flush and
+close it, then replace the destination; a failed write leaves the old save
+intact. An interrupted process may leave a temporary file, which does not
+prevent later saves. A missing save file starts erased.
 Without `--sram`, window play uses `roms/ct-usa.srm` for this ROM. Headless
 runs retain their old behavior: an explicit save is read only, and without
 one they start erased. Keep screenshots, asset packs and end states out of Git.
@@ -551,6 +556,7 @@ Each frame's picture is drawn by the native renderer
 (`runtime/platform/native/render.c`) from the video service's state, and the
 run ends saying whether it is showing and the longest stretch it was black
 (`picture: dark since frame F ...`); `--shot-every` writes every Nth as a PNG.
+A failed screenshot is logged and the run continues, including `--end-state`.
 `tools/native_check.py` runs every library movie so, and the gate fails a
 movie that ends on a dark screen: getting to the last frame says nothing of
 the picture. The one way past that is a line in
@@ -625,7 +631,9 @@ coroutine until it waits for the frame, the line handler, then a frame of the
 sound driver's time. Where the program's next step is still only a machine
 entry, `program_needs_the_machine` stops it with exit status 1 and the driver
 prints the routine and frame to stderr in either mode. Fatal
-`no_machine.c` entries also name their function and current frame. Run from a
+`no_machine.c` entries also name their function and current frame, and exit 3
+(a fatal failure, distinct from an intentional stop). A crash or timeout
+after a stop diagnostic still fails `native_check.py`. Run from a
 terminal and include that line when reporting a failure. For example, from a
 cartridge save with `saves/menus-field-menu.ctm`'s
 presses, a stop at the equipment's slots window would look like this:
