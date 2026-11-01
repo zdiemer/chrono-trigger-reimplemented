@@ -1,42 +1,31 @@
-/* ct_sound_fuzz: the C sound driver (game/sound/) against the original on
- * command streams no movie plays (docs/SOUND.md, "Validating the port").
+/* ct_sound_fuzz: the C sound driver (game/sound/) on command streams no movie
+ * plays (docs/SOUND.md, "Validating the port").
  *
  *   ct_sound_fuzz --rom roms/ct-usa.sfc [--runs N] [--commands N] [--seed S]
- *                 [--made-up-songs 1] [--spc-coverage out.txt]
- *                 [--level status|keys|dsp|state] [--sound-driver c [--mixer dsp|native|check]]
+ *                 [--made-up-songs 1] [--mixer dsp|native|check]
  *
- * The APU runs alone. The driver's boot blocks go into sound memory as the
- * CPU half's boot upload leaves them, and it starts at $0200; this program
- * then plays the CPU half's part through the ports (game/core/sound_driver.c
- * describes the protocol): commands and their parameters, echoes waited for;
- * a song's start with its upload (its instruments' tables, the effect set
- * again when the last song ran over it, its sequence and percussion); the
- * effect set switched (command $70's upload, which ticks while it loads); an
- * instrument loaded into the song's first place (command $71's); and the
- * driver sent back to the boot ROM and loaded again (command $FF $F0). The
- * commands are drawn at random, songs from all of them, at random intervals
- * from a tick to seconds; with --made-up-songs, half the songs are random
- * ones of the fuzzer's own (below). The lockstep harness (dev/sound_lockstep.h) runs
- * the C driver beside the original and compares every tick; a run stops at
- * its first difference and prints the commands that led to it.
+ * The APU runs alone, with the C driver in the sound processor's place as
+ * ct_play plays it (frontend/sound_host.h). It takes the game's boot and, at
+ * random, half of the commands as the game's calls (songs at their own volume
+ * and echo, the set of effects switched, instruments loaded, the driver
+ * reloaded) and the rest through the ports as the scene sends them (songs at
+ * made-up volumes among them). The commands are drawn at random, songs from
+ * all of them, at random intervals from a tick to seconds; with
+ * --made-up-songs, half the songs are random ones of the fuzzer's own (below).
+ * A run checks that every command written to the ports is answered, that no
+ * sample is placed where the echo is writing (sound_host_samples_into_echo)
+ * and that no command is dropped from the host's full queue
+ * (sound_host_commands_dropped). --mixer picks what makes its sound
+ * (frontend/sound_host.h): check plays the S-DSP and the native mixer side by
+ * side, and a run in which any frame of theirs differs fails
+ * (dev/mixer_check.h).
  *
- * With --sound-driver c there is no original: the C driver plays in the
- * SPC700's place as ct_play's does (frontend/sound_host.h), taking the CPU
- * half's boot and, at random, half of the commands as the game's calls (songs
- * at their own volume and echo, the set of effects switched, instruments
- * loaded, the driver reloaded) and the rest through the ports as the scene
- * sends them (songs at made-up volumes among them); a run checks
- * that every command written to the ports is answered, that no sample is
- * placed where the echo is writing (sound_host_samples_into_echo) and that no
- * command is dropped from the host's full queue (sound_host_commands_dropped).
- * --mixer picks what makes its sound (frontend/sound_host.h): check plays the
- * S-DSP and the native mixer side by side, and a run in which any frame of
- * theirs differs fails (dev/mixer_check.h).
- *
- * The CPU half's work RAM the harness reads (the effect set sent, command
- * $71's block) is written here as the CPU half would have it. The data the
- * CPU half uploads with a song that the driver itself doesn't read (samples,
- * the directory) isn't sent.
+ * Every run's sound, every frame of it, is folded into a digest (64-bit
+ * FNV-1a over the output's samples), printed at the end: the same seed, sizes
+ * and options make the same digest, so a change to the driver that changes
+ * what it plays shows as a new digest. tools/sound_golden.txt keeps the
+ * digests of the gate's runs (tools/suite.py), a hash of our own output and
+ * nothing of the cartridge's.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,18 +33,13 @@
 
 #include "core/sound_data.h"
 #include "port/vars_ram.h"
-#include "ram.h"
 #include "snes/system.h"
 #include "sound/sound.h"
 #include "mixer_check.h"
 #include "sound_host.h"
-#include "sound_lockstep.h"
 
 static Snes snes;
 static uint64_t rng;
-static uint32_t *coverage;
-static SoundLockstep *lockstep;
-static bool hosted;           /* the C driver in the SPC700's place */
 static SoundHost *host;
 static MixerCheck *mixer_check;   /* --mixer check: the host's frames compared */
 static SoundMixer mixer = SOUND_MIXER_DSP;
@@ -65,11 +49,7 @@ enum {
     STEP_CLOCKS = 1000,
     AFTER_ECHO_CLOCKS = 3000,
     ECHO_LIMIT = 40 * FRAME_CLOCKS,
-    ECHO_CHANGE_CLOCKS = 40 * FRAME_CLOCKS,   /* two delays of 15 at 16 ms a unit, and some */
-    UPLOAD_ENDS = 0xE0,
-    KIND_TABLE = 2,
-    KIND_DATA = 3,
-    KIND_DATA_TICKING = 5
+    ECHO_CHANGE_CLOCKS = 40 * FRAME_CLOCKS    /* two delays of 15 at 16 ms a unit, and some */
 };
 
 static uint32_t next(void)
@@ -81,18 +61,17 @@ static uint32_t next(void)
 }
 static uint32_t below(uint32_t n) { return n ? next() % n : 0; }
 
-static void on_insn(void *ctx, const Apu *apu)
-{
-    (void)ctx;
-    if (coverage && coverage[apu->spc.pc] != UINT32_MAX)
-        coverage[apu->spc.pc]++;
-    sound_lockstep_insn(lockstep, apu);
-}
+/* The digest of what was heard: FNV-1a, 64 bits, over every sample. */
+enum { DIGEST_BASIS = 0xCBF29CE484222325ull, DIGEST_PRIME = 0x100000001B3ull };
+static uint64_t digest = DIGEST_BASIS;
 
-static void on_dsp_write(void *ctx, const Apu *apu, uint8_t reg, uint8_t value)
+static void hear(const int16_t *samples, size_t n)
 {
-    (void)ctx;
-    sound_lockstep_dsp_write(lockstep, apu, reg, value);
+    for (size_t i = 0; i < n; i++) {
+        uint16_t v = (uint16_t)samples[i];
+        digest = (digest ^ (v & 0xFF)) * DIGEST_PRIME;
+        digest = (digest ^ (v >> 8)) * DIGEST_PRIME;
+    }
 }
 
 static void run(uint32_t clocks)
@@ -101,8 +80,9 @@ static void run(uint32_t clocks)
         uint32_t chunk = clocks < FRAME_CLOCKS ? clocks : FRAME_CLOCKS;
         apu_advance(&snes.apu, chunk);
         int16_t sink[2 * 1024];
-        while (apu_take_samples(&snes.apu, sink, 1024))
-            ;
+        size_t frames;
+        while ((frames = apu_take_samples(&snes.apu, sink, 1024)) != 0)
+            hear(sink, 2 * frames);
         clocks -= chunk;
     }
 }
@@ -128,73 +108,12 @@ static bool await(uint8_t value, bool taken)
     return false;
 }
 
-/* ---- The CPU half's side of an upload -------------------------------------------------- */
-
-typedef struct {
-    uint8_t counter;
-    bool first;
-} Upload;
-
-static bool header(Upload *u, uint16_t address, uint8_t kind)
-{
-    uint8_t c = u->first ? u->counter : UPLOAD_ENDS;
-    port(2, (uint8_t)address);
-    port(3, (uint8_t)(address >> 8));
-    port(1, kind);
-    port(0, c);
-    if (!await(c, false))
-        return false;
-    u->counter = (uint8_t)((c + 1) & 0x7F);
-    u->first = false;
-    return true;
-}
-
-static bool message(Upload *u, uint8_t a, uint8_t b, uint8_t c)
-{
-    port(1, a);
-    port(2, b);
-    port(3, c);
-    port(0, u->counter);
-    if (!await(u->counter, false))
-        return false;
-    u->counter = (uint8_t)((u->counter + 1) & 0x7F);
-    return true;
-}
-
-static bool send_bytes(Upload *u, uint16_t address, uint8_t kind, const uint8_t *bytes, uint16_t length)
-{
-    if (!header(u, address, kind))
-        return false;
-    for (uint32_t i = 0; i < length; i += 3)
-        if (!message(u, bytes[i], i + 1 < length ? bytes[i + 1] : 0, i + 2 < length ? bytes[i + 2] : 0))
-            return false;
-    return true;
-}
-
-static bool send_words(Upload *u, uint16_t address, const uint16_t *words, unsigned n)
-{
-    if (!header(u, address, KIND_TABLE))
-        return false;
-    for (unsigned i = 0; i < n; i++)
-        if (!message(u, (uint8_t)words[i], (uint8_t)(words[i] >> 8), 0))
-            return false;
-    return true;
-}
-
-static bool finish(Upload *u)
-{
-    uint8_t c = u->first ? u->counter : UPLOAD_ENDS;
-    port(1, UPLOAD_ENDS);
-    port(0, c);
-    return await(c, false);
-}
-
 /* ---- What the fuzzer sends --------------------------------------------------------------- */
 
 static const GameState *game(void) { return state_of(&snes); }
 static uint8_t effect_set;
 static uint16_t effect_count;
-static bool set_overwritten, refused;
+static bool set_overwritten;
 
 static uint8_t *effect_set_bytes(uint8_t set, uint16_t *length)
 {
@@ -207,6 +126,8 @@ static uint8_t *effect_set_bytes(uint8_t set, uint16_t *length)
     return bytes;
 }
 
+/* A command through the ports, as the scene sends one: the last answered,
+ * the parameters and the command written, and its echo waited for. */
 static bool send_command(uint8_t command, uint8_t p1, uint8_t p2, uint8_t p3)
 {
     if (!await(apu()->cpu_out[0], true))
@@ -216,80 +137,6 @@ static bool send_command(uint8_t command, uint8_t p1, uint8_t p2, uint8_t p3)
     port(1, p1);
     port(0, command);
     return await(command, true);
-}
-
-static bool play_song(uint8_t command, uint8_t song, uint8_t volume, uint8_t echo)
-{
-    if (!send_command(command, song, volume, echo))
-        return false;
-    uint8_t counter = (uint8_t)((command + 1) & 0x7F);
-    refused = apu()->cpu_out[1] & 0x80;   /* the same song again */
-    if (refused) {
-        port(0, counter);
-        run(FRAME_CLOCKS);
-        return true;
-    }
-    Upload u = { counter, true };
-    uint16_t tunings[16], envelopes[16];
-    bool listed = true;
-    for (uint8_t i = 0; i < 16; i++) {
-        uint16_t block = listed ? sound_song_instrument_block(game(), song, i) : 0;
-        listed = block != 0;
-        tunings[i] = sound_instrument_tuning(game(), block);
-        envelopes[i] = sound_instrument_envelope(game(), block);
-    }
-    if (!send_words(&u, 0x1F40, tunings, 16) || !send_words(&u, 0x1FC0, envelopes, 16))
-        return false;
-    if (set_overwritten) {
-        uint16_t length;
-        const uint8_t *set = effect_set_bytes(effect_set, &length);
-        if (!send_bytes(&u, SOUND_EFFECTS, KIND_DATA, set, length))
-            return false;
-    }
-    static uint8_t sequence[0x2700];
-    uint16_t length = sound_song_length(game(), song);
-    uint16_t sent = (uint16_t)(3 * (length / 3 + 1));
-    if (sent > sizeof sequence)
-        sent = sizeof sequence;
-    for (uint16_t i = 0; i < sent; i++)
-        sequence[i] = sound_song_byte(game(), song, i);
-    set_overwritten = length >= SOUND_EFFECTS - SOUND_SEQUENCES;
-    uint8_t percussion[36];
-    for (uint8_t i = 0; i < sizeof percussion; i++)
-        percussion[i] = sound_song_percussion_byte(game(), song, i);
-    if (!send_bytes(&u, SOUND_SEQUENCES, KIND_DATA, sequence, sent) ||
-        !send_bytes(&u, SOUND_PERCUSSION, KIND_DATA, percussion, sizeof percussion))
-        return false;
-    return finish(&u);
-}
-
-enum { LOAD = 0xFE };
-
-static bool switch_effect_set(uint8_t set)
-{
-    effect_set = set;
-    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_EFFECTS_ASKED)] = set;
-    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_EFFECTS_SENT)] = set;
-    if (!send_command(LOAD, 0, 0, 0))
-        return false;
-    Upload u = { (LOAD + 1) & 0x7F, true };
-    uint16_t length;
-    const uint8_t *bytes = effect_set_bytes(set, &length);
-    return send_bytes(&u, SOUND_EFFECTS, KIND_DATA_TICKING, bytes, length) && finish(&u);
-}
-
-static bool load_instrument(uint8_t block)
-{
-    snes.bus.wram[RAM_ABS(RAM_SOUND_COMMAND_PARAMETERS)] = block;
-    if (!send_command(LOAD, 0, 0, 0))
-        return false;
-    Upload u = { (LOAD + 1) & 0x7F, true };
-    /* a block of silence where the CPU half puts the song's first sample,
-     * below any echo buffer (the longest reaches down to $7900) */
-    static const uint8_t sample[9] = { 0x03 };
-    uint16_t tuning = sound_instrument_tuning(game(), block), envelope = sound_instrument_envelope(game(), block);
-    return send_bytes(&u, 0x4901, KIND_DATA_TICKING, sample, sizeof sample) && send_words(&u, 0x1F40, &tuning, 1) &&
-           send_words(&u, 0x1FC0, &envelope, 1) && finish(&u);
 }
 
 /* The effects the set has: its table of track pairs ends where the first
@@ -307,60 +154,30 @@ static uint16_t count_effects(void)
     return (uint16_t)((lowest - SOUND_EFFECTS) / 4);
 }
 
-/* The driver's boot blocks where the boot upload leaves them, and the
- * driver started, as the CPU half does at power-on and to reload it. */
+/* The driver started, as the game does at power-on and to reload it: the
+ * boot, which the host takes as a call, and the time the original's upload
+ * took, which it answers and the game lets pass before the driver starts. */
 static void start_driver(void)
 {
     Apu *a = &snes.apu;
     effect_set = 0;
     set_overwritten = false;
-    if (hosted) {
-        /* the CPU half's boot, which the host takes as a call, and the
-         * upload's time it answers, which the CPU half lets pass before the
-         * driver starts */
-        uint32_t upload = a->host_boot(a->host_ctx, a);
-        run(upload + 20 * FRAME_CLOCKS);
-        effect_count = count_effects();
-        return;
-    }
-    for (uint8_t k = 0; k < SOUND_BOOT_BLOCKS; k++) {
-        uint16_t length = sound_boot_block_length(game(), k), to = sound_boot_block_to(game(), k);
-        for (uint16_t i = 0; i < length; i++)
-            a->ram[(uint16_t)(to + i)] = sound_boot_block_byte(game(), k, i);
-    }
-    a->phase = APU_DRIVER;
-    a->spc.pc = 0x0200;
-    a->spc.sp = 0xEF;
-    a->spc.psw = SPC_FLAG_Z;
-    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_EFFECTS_ASKED)] = 0;
-    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_EFFECTS_SENT)] = 0;
-    run(20 * FRAME_CLOCKS);
+    uint32_t upload = a->host_boot(a->host_ctx, a);
+    run(upload + 20 * FRAME_CLOCKS);
     effect_count = count_effects();
 }
 
 static void boot(void)
 {
-    Apu *a = &snes.apu;
-    apu_init(a);
-    a->on_insn = on_insn;
-    a->on_dsp_write = on_dsp_write;
-    if (hosted) {
-        sound_host_detach(host);
-        mixer_check_free(mixer_check);
-        host = sound_host_attach_mixer(&snes, mixer);
-        mixer_check = mixer == SOUND_MIXER_CHECK && host ? mixer_check_attach(host) : NULL;
-    }
+    apu_init(&snes.apu);
+    sound_host_detach(host);
+    mixer_check_free(mixer_check);
+    host = sound_host_attach_mixer(&snes, mixer);
+    mixer_check = mixer == SOUND_MIXER_CHECK && host ? mixer_check_attach(host) : NULL;
     start_driver();
 }
 
-/* Command $FF $F0 sends the driver back to the boot ROM, which announces
- * itself on ports 0-1, for the CPU half to load the driver again (the game
- * does after a game over). Its echo is gone as soon as the boot ROM runs, so
- * the announcement is what is waited for. */
-enum { RELOAD_WAIT_CLOCKS = 40 * FRAME_CLOCKS };   /* past a wait for the echo, which queues it */
-
-/* With the C driver in the SPC700's place: the game's command as the CPU
- * half takes it ($C7:0004), which the host takes as a call. */
+/* The game's command, which the host takes as a call. */
 static bool game_command(uint8_t command, uint8_t p1, uint8_t p2, uint8_t p3)
 {
     const uint8_t bytes[4] = { command, p1, p2, p3 };
@@ -369,29 +186,13 @@ static bool game_command(uint8_t command, uint8_t p1, uint8_t p2, uint8_t p3)
     return true;
 }
 
+/* Command $FF $F0 stops the driver for the game to boot it again (the game
+ * does after a game over). */
 static bool reload(void)
 {
-    if (hosted) {
-        game_command(0xFF, 0xF0, 0, 0);
-        start_driver();
-        return true;
-    }
-    if (!await(apu()->cpu_out[0], true))
-        return false;
-    port(1, 0xF0);
-    port(0, 0xFF);
-    for (uint32_t t = 0; t < RELOAD_WAIT_CLOCKS; t += STEP_CLOCKS) {
-        if (apu()->phase != APU_DRIVER && apu()->cpu_out[0] == 0xAA && apu()->cpu_out[1] == 0xBB) {
-            port(0, 0);
-            port(1, 0);
-            start_driver();
-            return true;
-        }
-        run(STEP_CLOCKS);
-    }
-    fprintf(stderr, "  not reloaded: phase %d out %02X %02X in %02X %02X pc %04X\n", apu()->phase, apu()->cpu_out[0],
-            apu()->cpu_out[1], apu()->cpu_in[0], apu()->cpu_in[1], apu()->spc.pc);
-    return false;
+    game_command(0xFF, 0xF0, 0, 0);
+    start_driver();
+    return true;
 }
 
 /* ---- A run ----------------------------------------------------------------------------- */
@@ -408,16 +209,16 @@ static void note(const char *what, uint8_t a, uint8_t b, uint8_t c, uint8_t d)
 /* ---- Made-up songs --------------------------------------------------------------------- */
 
 /* Songs of random notes and events, written into the fuzzer's own copy of the
- * cartridge in the places of songs 0 and 1, so that both drivers load them as
- * they load any song: they reach what no song in the game does (the events it
+ * cartridge in the places of songs 0 and 1, so that the driver loads them as
+ * it loads any song: they reach what no song in the game does (the events it
  * never uses, loops five deep, branches taken). A track is segments, each
  * ending in a note, a tie or a rest; its jumps and loops go to a segment's
- * start, so every way round the track plays something and neither driver
+ * start, so every way round the track plays something and the driver never
  * runs on without end. */
 static uint8_t *image;
 static bool made_up, made_up_playing;
 enum { MADE_UP_SONGS = 2 };
-enum { SAVED_SONG = 0xBB, SEGMENT_ROOM = 64, MADE_UP_AT = 0x300000, MADE_UP_BASE = 0x1000, SONG_PTRS = 0x070D18 };
+enum { SEGMENT_ROOM = 64, MADE_UP_AT = 0x300000, MADE_UP_BASE = 0x1000, SONG_PTRS = 0x070D18 };
 enum { FIRST_EVENT = 0xC4, INSTRUMENT = 0xDC, LOOP_START = 0xE2, LOOP_END = 0xE3, JUMP = 0xF6, LOOP_EXIT = 0xF5, CONDITION = 0xFA };
 
 static uint8_t event_operands(uint8_t event)
@@ -587,36 +388,29 @@ static bool one_command(void)
             /* not the song the driver has saved: resuming it goes back into
              * the bytes it had */
             song = (uint8_t)below(MADE_UP_SONGS);
-            if (song == (hosted ? sound_host_saved_song(host) : apu()->ram[SAVED_SONG]))
+            if (song == sound_host_saved_song(host))
                 song ^= 1;
             make_song(song);
         }
         uint8_t volume = below(4) ? sound_song_volume(game(), song) : (uint8_t)next();
         uint8_t echo = below(4) ? sound_song_echo_delay(game(), song) : (uint8_t)below(8);
         note("song", command, song, volume, echo);
+        /* the game's song at its own volume through the game's calls, or at
+         * another through the ports; at its own echo either way, which its
+         * samples are placed to keep clear of (with another, they can lie
+         * where the echo writes, in the original as here) */
         bool ok;
-        if (hosted) {
-            /* the game's song at its own volume through the CPU half's
-             * calls, or at another through the ports; at its own echo
-             * either way, which its samples are placed to keep clear of
-             * (with another, they can lie where the echo writes, in the
-             * original as here) */
-            refused = false;
-            uint8_t own_echo = sound_song_echo_delay(game(), song);
-            if (volume == sound_song_volume(game(), song))
-                ok = game_command(command, song, 0, 0);
-            else
-                ok = send_command(command, song, volume, own_echo);
-            /* The original's CPU half waits for a song's start through
-             * the echo's wait, which a new delay starts; the game's calls
-             * don't, and the host holds what comes meanwhile. Songs piled
-             * up behind each other's waits would outlast any wait here. */
-            run(ECHO_CHANGE_CLOCKS);
-        } else {
-            ok = play_song(command, song, volume, echo);
-        }
-        if (!refused)
-            made_up_playing = made_up && song < MADE_UP_SONGS;
+        uint8_t own_echo = sound_song_echo_delay(game(), song);
+        if (volume == sound_song_volume(game(), song))
+            ok = game_command(command, song, 0, 0);
+        else
+            ok = send_command(command, song, volume, own_echo);
+        /* The original's CPU half waited for a song's start through the
+         * echo's wait, which a new delay starts; the game's calls don't, and
+         * the host holds what comes meanwhile. Songs piled up behind each
+         * other's waits would outlast any wait here. */
+        run(ECHO_CHANGE_CLOCKS);
+        made_up_playing = made_up && song < MADE_UP_SONGS;
         return ok;
     }
     /* Not while a song has run over the effect table: an effect then plays
@@ -625,7 +419,7 @@ static bool one_command(void)
     if (r < 360 && !set_overwritten) {
         uint8_t command = below(2) ? 0x18 : 0x19, effect = (uint8_t)below(effect_count), pan = (uint8_t)next();
         note("effect", command, effect, pan, 0);
-        if (hosted && below(2))
+        if (below(2))
             return game_command(command, effect, pan, 0);
         return send_command(command, effect, pan, 0);
     }
@@ -635,22 +429,15 @@ static bool one_command(void)
     if (r < 375 && !set_overwritten && !made_up_playing) {
         uint8_t set = (uint8_t)below(SOUND_EFFECT_SETS);
         note("effect set", set, 0, 0, 0);
-        bool ok;
-        if (hosted) {
-            effect_set = set;
-            ok = game_command(0x70, set, 0, 0);
-        } else {
-            ok = switch_effect_set(set);
-        }
+        effect_set = set;
+        bool ok = game_command(0x70, set, 0, 0);
         effect_count = count_effects();
         return ok;
     }
     if (r < 385) {
         uint8_t block = (uint8_t)(1 + below(62));
         note("instrument", block, 0, 0, 0);
-        if (hosted)
-            return game_command(0x71, block, 0, 0);
-        return load_instrument(block);
+        return game_command(0x71, block, 0, 0);
     }
     if (r < 388) {
         note("reload", 0xFF, 0xF0, 0, 0);
@@ -688,7 +475,7 @@ static bool one_command(void)
         if ((others[i].command & 0xF0) == 0x80 && others[i].command <= 0x87 && below(2))
             p1 = (uint8_t)below(8);   /* short fades and slides too */
         note("command", others[i].command, p1, p2, 0);
-        if (hosted && below(2))
+        if (below(2))
             game_command(others[i].command, p1, p2, 0);
         else if (!send_command(others[i].command, p1, p2, 0))
             return false;
@@ -713,28 +500,22 @@ static void wait_a_while(void)
 
 int main(int argc, char **argv)
 {
-    const char *rom_path = NULL, *coverage_path = NULL;
+    const char *rom_path = NULL;
     long runs = 10, commands = 400;
     uint64_t seed = 1;
-    SoundCompareLevel level = SOUND_COMPARE_DSP;
     for (int i = 1; i + 1 < argc; i += 2) {
         const char *a = argv[i], *v = argv[i + 1];
         if (!strcmp(a, "--rom")) rom_path = v;
         else if (!strcmp(a, "--runs")) runs = strtol(v, NULL, 10);
         else if (!strcmp(a, "--commands")) commands = strtol(v, NULL, 10);
         else if (!strcmp(a, "--seed")) seed = strtoull(v, NULL, 10);
-        else if (!strcmp(a, "--spc-coverage")) coverage_path = v;
         else if (!strcmp(a, "--made-up-songs")) made_up = strcmp(v, "0") != 0;
-        else if (!strcmp(a, "--sound-driver")) hosted = strcmp(v, "c") == 0;
         else if (!strcmp(a, "--mixer")) {
             if (!sound_mixer_named(v, &mixer)) {
                 fprintf(stderr, "--mixer must be dsp, native or check\n");
                 return 2;
             }
         }
-        else if (!strcmp(a, "--level")) level = !strcmp(v, "status") ? SOUND_COMPARE_STATUS
-                                               : !strcmp(v, "keys") ? SOUND_COMPARE_KEYS
-                                               : !strcmp(v, "state") ? SOUND_COMPARE_STATE : SOUND_COMPARE_DSP;
         else {
             fprintf(stderr, "unknown option %s\n", a);
             return 2;
@@ -742,7 +523,8 @@ int main(int argc, char **argv)
     }
     FILE *f = rom_path ? fopen(rom_path, "rb") : NULL;
     if (!f) {
-        fprintf(stderr, "usage: ct_sound_fuzz --rom roms/ct-usa.sfc [--runs N] [--commands N] [--seed S]\n");
+        fprintf(stderr, "usage: ct_sound_fuzz --rom roms/ct-usa.sfc [--runs N] [--commands N] [--seed S] "
+                        "[--made-up-songs 1] [--mixer dsp|native|check]\n");
         return 2;
     }
     fseek(f, 0, SEEK_END);
@@ -755,18 +537,15 @@ int main(int argc, char **argv)
     size_t header = (size_t)n % 0x8000 == 0x200 ? 0x200 : 0;
     image = rom + header;
     snes_init(&snes, image, (size_t)n - header);
-    if (coverage_path)
-        coverage = calloc(0x10000, sizeof *coverage);
 
     int failed = 0;
     for (long r = 0; r < runs; r++) {
         rng = (seed + (uint64_t)r) * 0x9E3779B97F4A7C15ull | 1;
-        lockstep = sound_lockstep_create(&snes, level);
         history_count = 0;
         boot();
         long sent = 0;
         bool stuck = false;
-        for (; sent < commands && !sound_lockstep_diverged(lockstep); sent++) {
+        for (; sent < commands; sent++) {
             snes.frame = (uint32_t)sent;
             wait_a_while();
             if (!one_command()) {
@@ -775,46 +554,31 @@ int main(int argc, char **argv)
             }
         }
         run(10 * FRAME_CLOCKS);
-        fprintf(stderr, "run %ld (seed %llu): %ld commands%s; ", r, (unsigned long long)(seed + (uint64_t)r), sent,
-                stuck ? ", the driver stopped answering" : "");
-        bool same = true;
-        if (hosted) {
-            unsigned long into_echo = sound_host_samples_into_echo(host);
-            unsigned long dropped = sound_host_commands_dropped(host);
-            same = into_echo == 0 && dropped == 0;
-            fprintf(stderr, "%s", stuck ? "stuck" : "answered");
-            if (into_echo)
-                fprintf(stderr, ", but %lu bytes of samples were placed where the echo was writing", into_echo);
-            if (dropped)
-                fprintf(stderr, ", but %lu commands were dropped from the host's full queue", dropped);
-            fprintf(stderr, "\n");
-            if (mixer_check) {
-                fprintf(stderr, "  ");
-                same = mixer_check_report(mixer_check, stderr) && same;
-            }
+        unsigned long into_echo = sound_host_samples_into_echo(host);
+        unsigned long dropped = sound_host_commands_dropped(host);
+        bool clean = into_echo == 0 && dropped == 0;
+        fprintf(stderr, "run %ld (seed %llu): %ld commands%s; %s", r, (unsigned long long)(seed + (uint64_t)r), sent,
+                stuck ? ", the driver stopped answering" : "", stuck ? "stuck" : "answered");
+        if (into_echo)
+            fprintf(stderr, ", but %lu bytes of samples were placed where the echo was writing", into_echo);
+        if (dropped)
+            fprintf(stderr, ", but %lu commands were dropped from the host's full queue", dropped);
+        fprintf(stderr, "\n");
+        if (mixer_check) {
+            fprintf(stderr, "  ");
+            clean = mixer_check_report(mixer_check, stderr) && clean;
         }
-        else
-            same = sound_lockstep_report(lockstep, NULL, stderr);
-        if (!same || stuck) {
+        if (!clean || stuck) {
             failed++;
             fprintf(stderr, "  the commands before (the first line is command %u of the run):\n",
                     history_count > HISTORY ? history_count - HISTORY : 0);
             for (unsigned i = history_count > HISTORY ? history_count - HISTORY : 0; i < history_count; i++)
                 fprintf(stderr, "    %s\n", history[i % HISTORY]);
         }
-        sound_lockstep_destroy(lockstep);
     }
-    if (coverage_path) {
-        FILE *out = fopen(coverage_path, "w");
-        if (out) {
-            fprintf(out, "# SPC700 addresses executed: AAAA count\n");
-            for (uint32_t pc = 0; pc < 0x10000; pc++)
-                if (coverage[pc])
-                    fprintf(out, "%04X %u\n", (unsigned)pc, (unsigned)coverage[pc]);
-            fclose(out);
-        }
-    }
-    fprintf(stderr, "%ld runs, %d differed or stopped\n", runs, failed);
+    sound_host_detach(host);
+    mixer_check_free(mixer_check);
+    fprintf(stderr, "%ld runs, %d failed; digest %016llx\n", runs, failed, (unsigned long long)digest);
     free(rom);
     return failed ? 1 : 0;
 }

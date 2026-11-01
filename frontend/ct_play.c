@@ -2,7 +2,7 @@
  * and the rest on the development system (docs/PLAYING.md).
  *
  *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--generated only|on|off]
- *           [--audio snes|direct] [--sound-driver c|original] [--mixer dsp|native] [--renderer native|scanline]
+ *           [--mixer dsp|native] [--renderer native|scanline]
  *           [--save-dir dir] [--keys f] [--bind IN=ACTION]...
  *           [--movie m.ctm [--movie-frames N]] [--record out.ctm] [--sram save.srm] [--load-zst in.zst]
  *   ct_play --rom <rom> --frames N [--screenshot out.png] [--hold BUTTONS@FIRST-LAST]...
@@ -76,20 +76,15 @@ static void usage(FILE *out)
             "                       gate's bounds); only: the generated blocks alone, which keep the original\n"
             "                       timing exactly (what --movie and --record use unless --generated is given);\n"
             "                       off: no generated blocks\n"
-            "  --audio BACKEND      snes: the APU on the machine's timeline (default); direct: the sound driver's\n"
-            "                       uploads and commands take no CPU time (APU-direct; needs --native on, and\n"
-            "                       runs the ported routines, so --generated on is implied)\n"
-            "  --sound-driver D     c: the sound driver ported to C (game/sound/), playing through --mixer in the\n"
-            "                       SPC700's place, its commands taking no time (default); original: the game's\n"
-            "                       own on the SPC700, with the original's timing, which movies, recording,\n"
-            "                       --load-zst, --audio direct, --native off|shadow and --generated only use; a\n"
-            "                       saved state loads only with the driver it was saved with\n"
             "  --interpreted W      what an instruction no native code runs does (--native on): log, run it on\n"
             "                       the interpreter and list it in <rom name>.interpreted.txt; stop, stop the\n"
             "                       game there. With --generated off that is everything no hand port covers\n"
-            "  --mixer M            what makes the C driver's sound: native, the native mixer (default); dsp,\n"
-            "                       the emulated S-DSP it was checked against (the same sound, frame for frame); a saved\n"
-            "                       state loads only with the mixer it was saved with\n"
+            "  --mixer M            what makes the sound of the sound driver ported to C (game/sound/), which\n"
+            "                       plays wherever the hand ports do: native, the native mixer (default); dsp, the\n"
+            "                       emulated S-DSP it is checked against (the same sound, frame for frame). A movie's\n"
+            "                       replay or recording, --load-zst, --native off|shadow and --generated only run\n"
+            "                       the cartridge on the emulated console, its own driver on the sound processor; a\n"
+            "                       saved state loads only with the driver and mixer it was saved with\n"
             "  --renderer R         native: draw each frame from the video service's frame state (default);\n"
             "                       scanline: the reference renderer, line by line from the PPU registers\n"
             "  --save-dir DIR       where <rom name>.srm, <rom name>.state and the asset pack <rom name>.assets go\n"
@@ -185,8 +180,7 @@ int main(int argc, char **argv)
     uint32_t movie_sram_crc = 0;
     static Player pl;   /* large; keep it off the stack */
     static Files files;
-    bool native_given = false, use_generated = true, generated_only = false, generated_given = false, audio_direct = false;
-    int sound_driver = -1;   /* -1 the default, 0 the original, 1 the C driver */
+    bool native_given = false, use_generated = true, generated_only = false, generated_given = false;
     SoundMixer mixer = SOUND_MIXER_NATIVE;
     bool mixer_given = false;
     pl.native_mode = NATIVE_ON;
@@ -290,14 +284,6 @@ int main(int argc, char **argv)
             }
             nholds++;
         }
-        else if (!strcmp(a, "--audio")) {
-            if (!strcmp(v, "snes") || !strcmp(v, "direct")) {
-                audio_direct = strcmp(v, "direct") == 0;
-            } else {
-                fprintf(stderr, "--audio must be snes or direct\n");
-                return 2;
-            }
-        }
         else if (!strcmp(a, "--interpreted")) {
             if (!strcmp(v, "log")) pl.interpreted = PLAYER_INTERPRETED_LOG;
             else if (!strcmp(v, "stop")) pl.interpreted = PLAYER_INTERPRETED_STOP;
@@ -312,14 +298,6 @@ int main(int argc, char **argv)
                 return 2;
             }
             mixer_given = true;
-        }
-        else if (!strcmp(a, "--sound-driver")) {
-            if (!strcmp(v, "original") || !strcmp(v, "c")) {
-                sound_driver = strcmp(v, "c") == 0;
-            } else {
-                fprintf(stderr, "--sound-driver must be original or c\n");
-                return 2;
-            }
         }
         else if (!strcmp(a, "--generated")) {
             generated_given = true;
@@ -404,15 +382,6 @@ int main(int argc, char **argv)
      * --generated says otherwise. */
     if ((movie_path || record_path) && !generated_given)
         generated_only = true;
-    if (audio_direct) {
-        /* APU-direct runs in the sound driver's ported routines and changes timing */
-        if (pl.native_mode != NATIVE_ON || record_path || (generated_given && generated_only)) {
-            fprintf(stderr, "--audio direct needs --native on with the ported routines (not --generated only), "
-                            "and can't record: it changes the original's timing\n");
-            return 2;
-        }
-        generated_only = false;
-    }
     if (record_path) {
         /* A movie replays the same only where the original code's timing is kept,
          * from power-on with the SRAM ct_dev starts with. */
@@ -429,23 +398,16 @@ int main(int argc, char **argv)
             pl.native_mode = NATIVE_SHADOW;
         pl.track.record_name = files_name(record_path);
     }
-    /* The C sound driver plays unless the original's is needed: its timing,
-     * which a movie is replayed against and recorded with (a command takes
-     * the C driver no time, and the original's frames); its code on the
-     * machine (the C driver takes the boot and the commands from the CPU
-     * half's ported entries, which run only with --native on and the ported
-     * routines); or its state on the SPC700 (a ZSNES state's). */
-    bool needs_original = movie_path || record_path || zst_path || audio_direct || pl.native_mode != NATIVE_ON ||
-                          generated_only;
-    if (sound_driver == 1 && needs_original) {
-        fprintf(stderr, "--sound-driver c needs --native on with the ported routines (not --generated only or --audio "
-                        "direct), and can't replay or record a movie or load a ZSNES state: its commands take none "
-                        "of the original's time\n");
-        return 2;
-    }
-    bool c_sound_driver = sound_driver == 1 || (sound_driver < 0 && !needs_original);
+    /* The C sound driver plays wherever the hand ports do. A movie's replay
+     * and recording, a ZSNES state, --native off|shadow and --generated only
+     * are the reference play instead: the cartridge on the emulated console,
+     * its own driver on the sound processor, whose timing a movie is recorded
+     * against and replayed with, and whose state a ZSNES state holds. */
+    bool reference = movie_path || record_path || zst_path || pl.native_mode != NATIVE_ON || generated_only;
+    bool c_sound_driver = !reference;
     if (mixer_given && mixer == SOUND_MIXER_NATIVE && !c_sound_driver) {
-        fprintf(stderr, "--mixer native plays the C sound driver, which this run doesn't (see --sound-driver)\n");
+        fprintf(stderr, "--mixer native plays the C sound driver, which the reference play (a movie, --load-zst, "
+                        "--native off|shadow, --generated only) doesn't\n");
         return 2;
     }
 
@@ -567,7 +529,7 @@ int main(int argc, char **argv)
         player_load_sram(&pl, sram && sram_len == SNES_SRAM_SIZE ? sram : NULL);
         free(sram);
     }
-    if (player_start(&pl, audio_direct, c_sound_driver, mixer) != 0)
+    if (player_start(&pl, c_sound_driver, mixer) != 0)
         return 1;
     if (load_state_path && files_load_state(&pl, load_state_path) != 0)
         return 1;

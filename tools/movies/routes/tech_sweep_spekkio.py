@@ -183,7 +183,7 @@ def fight_spekkio(run, policy, setup, seed):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, sound=args.sound_driver, until=args.until)
+              generated=args.generated, until=args.until)
     machine = run.machine
     phases = ["loaded"] + ["trio%d" % n for n in range(len(TRIOS))]
     start = run.start_at(phases)

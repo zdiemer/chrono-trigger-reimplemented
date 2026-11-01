@@ -383,7 +383,7 @@ int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool use_genera
     return 0;
 }
 
-int player_start(Player *pl, bool audio_direct, bool c_sound_driver, SoundMixer mixer)
+int player_start(Player *pl, bool c_sound_driver, SoundMixer mixer)
 {
     if (c_sound_driver) {
         pl->sound_host = sound_host_attach_mixer(&pl->snes, mixer);
@@ -395,8 +395,6 @@ int player_start(Player *pl, bool audio_direct, bool c_sound_driver, SoundMixer 
     /* Replaying for a recording runs uninterrupted interpretation, which keeps the
      * same timing as shadow mode and is several times faster. */
     natives_start(pl, pl->track.replay_frames && pl->native_mode == NATIVE_SHADOW ? NATIVE_OFF : pl->native_mode);
-    if (audio_direct)
-        au_select_backend(m_platform(&pl->snes), AU_BACKEND_DIRECT);
     return 0;
 }
 

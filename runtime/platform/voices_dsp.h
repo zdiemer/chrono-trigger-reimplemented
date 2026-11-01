@@ -4,8 +4,7 @@
  * what a call changes in part (the envelope's switch, the echo's writes) is
  * read back through `read` first. Where the registers go is the host's: the
  * emulated S-DSP when the C driver plays through it (frontend/sound_host.h,
- * SOUND_MIXER_DSP), or a copy of its registers when ct_dev --sound-lockstep
- * compares the C driver with the original. The samples and the directory go
+ * SOUND_MIXER_DSP), or a test's copy of its registers (tests/port/sound_test.c). The samples and the directory go
  * into sound memory through `memory_write` (and a move reads it back through
  * `memory_read`), where the original driver keeps them.
  *

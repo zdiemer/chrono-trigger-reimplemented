@@ -15,7 +15,7 @@ HEADER = """\
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = CastleRun(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, sound=args.sound_driver, until=args.until)
+              generated=args.generated, until=args.until)
     try:
         start = run.start_at(PHASES)
         approach(run, start, args.seed)

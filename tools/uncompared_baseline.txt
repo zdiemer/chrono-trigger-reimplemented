@@ -117,9 +117,6 @@ script_play_sound
 script_play_sound_at
 script_weapon_hit_sound  # run as its handler by a channel's run (battle_run_script_channel), whose stretch compares it; the tech sweep's many weapon hits take it past half; fuzzed alone
 script_weapon_swing_sound
-sound_driver_send_song  # run as C by the command (sound_driver_command), inside the original's frame for it, whose stretch compares it; called by the original's code (where the command's guard refuses), it is compared; fuzzed alone
-sound_driver_upload_block  # run as C by the command (sound_driver_command), inside the original's frame for it, whose stretch compares it; called by the original's code (where the command's guard refuses), it is compared; fuzzed alone
-sound_driver_upload_effects  # run as C by the sound driver's command (sound_driver_command: a song's effects sent, the effects switched), whose stretch compares it; never called alone in play; battle-motherbrain and battle-r-series take it past 100 calls
 field_draw_bg1_at_the_load  # Crono trial recordings: 266 of 314 background-load draws cross an interrupt (84.7%), none abandoned; the remaining 48 compare with zero mismatches
 field_draw_bg2_at_the_load  # Crono trial recordings: 132 of 180 background-load draws cross an interrupt (73.3%), none abandoned; the remaining 48 compare with zero mismatches
 

@@ -12217,3 +12217,39 @@ stops at its picture's vblank task (`$7E:9CE2`, TODO.md). Left alone, the
 attract sequence runs 30,000 frames without a stop with the race's
 pictures now scaled. Timing: the thirteen new entries calibrated from these
 four movies' shadow runs; the setups keep their rows.
+
+### The sound driver's teardown, its first step: the game's side as calls
+
+The first subsystem taken off the machine in the product (PLAN.md, "The
+native program, and the registry taken down", step 3). The C sound driver
+(`game/sound/`) had no machine in it already but the escape its command
+`$FD` asks for; the CPU half in bank `$C7` (`core/sound_driver.c`) had all
+of it. Two halves were one file: the protocol the original's driver is
+spoken to in (the boot's upload, the commands' and songs' transfers, the
+slots' records, the entries' wrappers, the two wait loops and the
+scaffolding shadow mode compares), and the few lines that hand a command to
+a driver the host plays. The second is `core/sound_commands.c` now, and
+`ct_native` links it and not the first, which CMakeLists.txt leaves out of
+its sources beside `registry.c`; `tools/machine_joints.py` counts the joints
+in what `ct_native` links as a second column (returns 987 to 982, stops 177
+to 175, scaffolding writes 2,061 to 2,032).
+
+On the machine the shipping mode called out to `$C7:0004` for every command,
+and the entry handed it to the host: 25.5 K entries by the machine over the
+84 movies, the boot's 100 more, and 16 entries the machine came back to
+after them (`menu_type_the_description_task` and the menus' others, waiting
+across a command). The audio service's SNES backend now hands a command to
+a host-played driver as a call (the APU's `host_send`, which
+`frontend/sound_host.c` points at `sound_driver_hand_the_buffer_to_the_host`),
+timed as `$C7:0004`'s work (`native_time_as`), and the field's power-on
+takes the host's boot as C before it would call out; with no host (the
+original driver: the reference play, the lockstep, `--sound-driver
+original`) both call out as before. The census enters nothing of bank `$C7`
+by the machine (266 entries to 264). The rows, wrappers and scaffolding
+stay for the gate, which plays the original's driver; PLAN.md says what
+retires them.
+
+Its ledger row in docs/ports.tsv, kept here since the port is deleted (REIMPLEMENTATION.md,
+"The sound driver's teardown"):
+
+> Sound driver's CPU half (`core/sound_driver.c`, its data through `core/sound_data.h`'s `GameState` accessors), the whole of bank C7's code: the boot `sound_driver_boot` `$C7:0000`, its upload `sound_driver_boot_upload` `$C7:005F`-`$C7:011A` and `sound_driver_boot_finish` `$C7:011E`, idle `sound_driver_boot_wait_ready_loop` `$C7:0050` and `sound_driver_boot_delay_loop` `$C7:011B`; the command `sound_driver_command` `$C7:0004` whole (the dispatch `$C7:0155`, a song `$C7:01A1`, a command as it is `$C7:061C`, command `$70`'s `$C7:08E3` and `$71`'s `$C7:0755`, the slots' bookkeeping `$C7:0734`, `$C7:09FD`, `$C7:0A12`, the exit `$C7:0192`, every wait for the SPC700 in place); the routines it calls as C inside the original's frame for them (`IN_THE_ORIGINALS_FRAME`), registered for the original's own calls and to fuzz alone, `sound_driver_send_song` `$C7:0A39`, `sound_driver_upload_block` `$C7:0655`, `sound_driver_upload_effects` `$C7:0922`. The exchange routines `$C7:09DA` and `$C7:09EA` are the original's, which `au_driver_exchange` calls in shadow mode and the tools, and stands for in the shipping mode | $C7:0000-$C7:0A97 | history/reimplementation-waves.md, "The $C7 pilot", for the first port; rewritten in docs/history/reimplementation-chunks.md, "Phase 4a, the shipping mode's fallbacks, chunk 7": every wait for the SPC700 through the audio service (`au_driver_wait_echo`, `_wait_moved`, `_wait_echo_or_give_up`, `au_driver_exchange`), so a command runs whole; logic over `vars.h`, scaffolding through `ORIGINAL_EFFECT`; 43 entries to 9. Guard on `$C7:0004`: `sound_driver_slots_are_kept` (blocks in a byte, lengths 0 or past a byte, the slots in use contiguous, at most one block in two slots, command `$71`'s slot a slot); no refusal in real play. Calls over the 36 movies (`--native shadow`), none mismatching: the command 13974 (261 interrupted: a song's upload spans frames and a vblank cuts one of its stretches); `$C7:0A39` 607, `$C7:0655` 1026 and `$C7:0922` 72, all run inside the command's stretches and compared there (their own entries count them abandoned); the boot's three entries 37 each; the sound lockstep identical in every movie in shadow and in the shipping mode (the vblank check's runs); the shipping mode's next message reaches port 3 8-15 SPC700 cycles after the SPC700 read the last in all but 8,577 of 1,157,232 messages, 3 at the least, as the original's (`ct_dev --apu-port-margins`). Fuzzed (seed 1, `tools/fuzz_routines.toml`, `--apu-loopback`), 0 mismatching: the command 6818 of 20000 compared (13163 refused by the guard), 20000 with the slots the title's song leaves, and 17742 of 20000 with the SPC700 answering otherwise on port 1 now and then (`refusals`, `--apu-port1-flips`: a header not confirmed, a song refused, the moves turned down); `$C7:0A39`, `$C7:0922` (and its `refusals` variant), the boot, its upload, its finish and its two idle loops 20000 each; `$C7:0655` 19682 of 20000. Against `main`'s ports `$C7:0655`, `$C7:0922`, `$C7:0000`, `$C7:011E` agree; the idle loops 20000 mismatching to 0 (their passes now leave the flags as the original's do)

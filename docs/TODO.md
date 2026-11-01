@@ -34,7 +34,7 @@ rest waits, is [PLAN.md](PLAN.md).
   and drop its line.
 - **Heckran's route in the shipping mode.** `heckran` wins the fight in the
   reference play (`battle-heckran`), but in the shipping mode (`route_check
-  heckran`, `on:on:c`) the party runs out of Mid Tonics and Ethers and its
+  heckran`, `on:on`) the party runs out of Mid Tonics and Ethers and its
   fight search gives up after 101 tries with Heckran at about 770 of 2100 HP.
   The route is in `HAND_RUN_ROUTES` until its policy wins there: spend MP and
   items more sparingly, or back the search up further than the last decisions.
@@ -2006,9 +2006,14 @@ rest waits, is [PLAN.md](PLAN.md).
     than the decoder, so it waits on the P2 and P3 leftovers above.
   - **Audio.** Output is already SDL2's audio device, which covers WASAPI,
     CoreAudio and ALSA/PipeWire, so another output layer buys little. The real
-    item is PLAN.md's Phase 4a, no longer optional or later: a note-stream
-    comparison (SOUND.md, "Validating the port") for when the lockstep
-    reference is gone.
+    item is a check of the C driver over what the game really sends: the
+    lockstep against the original is gone (REIMPLEMENTATION.md, "The sound
+    driver's teardown"), and its own checks (`sound_test`'s digest,
+    `ct_sound_fuzz`'s in `tools/sound_golden.txt`) play random or made-up
+    streams. The reference play's command streams, logged at the cartridge's
+    `$C7:0004` and replayed into the C driver offline, would give a digest per
+    movie that moves only when the driver does (SOUND.md, "Validating the
+    port").
   - **The native mixer's sound memory.** It is a copy of the SPC700's 64 KiB
     with the original driver's layout, which is what keeps the echo's
     overwrites; a build that loads the samples as assets will want them out of
@@ -2020,11 +2025,6 @@ rest waits, is [PLAN.md](PLAN.md).
     desktop host loses nothing by it, and what a small target needs instead (a
     state read in place, a rate the host asks for and a resampler) is that
     target's to decide when one is scoped.
-  - **The effects check's scaffold reads with the C sound driver.** The route
-    check plays the driver that ships, but the scaffold reads come from the
-    vblank check's shipping-mode runs, which play the original driver because
-    they replay movies (the C driver's timing would drift from them). A
-    `--scaffold-reads` in `ct_drive` would collect them over the routes too.
   - **The C sound driver's leftovers** (SOUND.md, "The port as built"). The
     paths neither the movies nor the fuzzer reach: the saturation at `$0A34`
     (unreachable by its arithmetic), the loop poll's retry at `$0B9B` and the
@@ -2036,22 +2036,19 @@ rest waits, is [PLAN.md](PLAN.md).
     addresses anywhere in sound memory, which the port doesn't keep; and a set
     switch under a track that has run on into the effects.
   - **The house's "tinny" hi-hats** (SOUND.md, "What playing it found"). A
-    report from playing `--sound-driver c` that no movie reproduces: over
+    report from playing the C driver that no movie reproduces: over
     new-game the C driver plays the house's songs note for note as the
     original does, from the same samples. If it recurs, record the session
-    (`ct_play --record` plays the original driver: note the route and the
+    (`ct_play --record` is the reference play, the cartridge's driver: note the route and the
     songs, or quick save there with the C driver) and compare sound memory
     with the original's at the scene; the
     host's fault that overwrote samples is fixed, and a song keeps a block the
     echo overwrote in the original too (battle-magus).
-  - **The sound lockstep's audio comparison as a check**
-    (`ct_dev --sound-lockstep-audio exact`, SOUND.md "What playing it found").
-    It isn't exact yet: from the intro on (80.7 s of every power-on movie) the
-    effect voices' levels part for a few hundred samples, and the long save
-    movies part further. Find which writes land at another sample (the pairing
-    of the C driver's writes with the original's is by register and value
-    within a tick; a command's writes and the flags' several writes are the
-    suspects), make it exact, then have a difference fail the run.
+  - **A CPU half for a SNES build** (target 3). The port of the cartridge's
+    CPU half in bank `$C7` went with the sound driver's teardown; a ROM compiled
+    from the hand ports needs one again to speak to the original's driver on
+    the sound processor: the cartridge's own, from the matching source, or
+    the deleted port (`core/sound_driver.c` in history).
   - **Sound driver follow-ups after its review.** The qualitative review of
     `game/sound/` rated no file a translation (`driver.h` hand-written, the
     rest mostly), so it merged with these as follow-ups rather than blockers,
@@ -2143,26 +2140,6 @@ rest waits, is [PLAN.md](PLAN.md).
   timing changes, widescreen's exposed assumptions (the 0-255 object window at
   `$C0:A88D`, map data beyond VRAM, single-byte battle window positions), and
   GBA's constraints.
-- **P1 leftovers**: the APU-direct backend's audio comparison misses one measure on
-  `new-game` (PLATFORM.md, "P1 as built").
-- **The sound driver's boot, waiting on time** (`core/sound_driver.c`): the
-  boot's countdown at `$C7:011B` ($0800 passes, time for the SPC700 to start
-  the driver) and its first wait at `$C7:0050` (for the boot ROM to show
-  `$BBAA` on two ports, while it writes two others each pass) stay loops on
-  the machine as idle entries; every other wait for the SPC700 is the port's,
-  through the audio service. The countdown wants a wait on time alone, which
-  `native_wait_time` now is in the shipping mode (shadow mode would compare it
-  against the loop), and the first a wait on two ports. Neither costs
-  anything to measure (74 and 222 instructions over the library); the Phase
-  4a port of the driver needs neither, and they go with it.
-
-## Timing without a beam
-
-PLATFORM.md, "Timing without a beam", is the design: the census of every use of
-the timing registers, what each is for, the native backend, and the rewrites
-below; its "as built" says what is done. `python3 tools/timing_census.py`
-re-runs the census.
-
 - **Factory route timing estimates.** `battle-r-series` leaves five timing
   exceptions after drift-only calibration: the anchor jump and enemy orbit
   updates' vblank tails, `field_nmi`'s tail, the exchange's second-choice tail,
@@ -2901,19 +2878,11 @@ list, by kind, is what `game/` still asks of one.
   `equipment_is_the_games` and its comment still turn them away on the other
   entries: make the two agree. `menu_describe_item` with a stray item wasn't
   audited for an index past its table.
-- **What the sound teardown's review left** (none blocking): `battle_effects`
-  is defined in both `game/core/sound_commands.c` and `sound_driver.c`; share
-  it through `sound_commands.h`. `SWITCH_EFFECTS` (`sound_driver.c`) and
-  `AU_SWITCH_EFFECTS` name the same command; keep one. The host path no longer
-  leaves N and Z from DB as `back_to_the_caller` did, which only the entry's
-  don't-care set covers: confirm those sets at its call sites. `sound_driver_send`
-  has no comment, and the `// $C7:0004` comment sits on the function that empties
-  the buffer.
 - **What the time model's review left** (none blocking):
   `charge_send` (`runtime/platform/native/video.c`) charges any send from the
   main thread, where the design charges only a load's (screen off): gate it on
   forced blank, or show no large send happens with the picture on. A scene's
-  port wait soon after boot (`wait_on_port0`) passes the driver's start-up
+  port wait soon after boot (`echoed`, `native/audio.c`) passes the driver's start-up
   delay at once, so the sound runs ahead of the frames charged for it. Sound
   commands a handler issues (`native/audio.c`) and unpacking done in vblank are
   charged to the main thread's debt. `runtime/platform/time_model.h` ends
@@ -2943,7 +2912,7 @@ list, by kind, is what `game/` still asks of one.
   the screen blanked (the Twins run ends showing), so frame completion is not
   evidence that the native program plays these scenes correctly. Diagnose its
   playback and video escapes. Strict `ct_dev --native on --generated off
-  --no-interpreter strict --sound-driver c` also reaches both ends, with
+  --no-interpreter strict` also reaches both ends, with
   58 saved-game bytes differing from reference in each, plus 224 SRAM bytes
   for the Twins; these are `drifts` entries in `tools/strict_baseline.txt`.
 - **Yakra's native replay ends with the screen blanked.** The hand movie
@@ -3043,7 +3012,7 @@ list, by kind, is what `game/` still asks of one.
   "an event command only the machine runs" while recovering Robo in
   Fiona's shrine. The native event bridge needs its C path. Shadow completes
   with zero mismatches or guard refusals, and strict mode
-  (`--native on --generated off --no-interpreter strict --sound-driver c`)
+  (`--native on --generated off --no-interpreter strict`)
   completes all 15701 frames with the reference saved game and save RAM.
 - **What the menus the player opens still hand the machine.** The main
   menu's steps and its four panels, and the steps `menu.ctm` reaches of the

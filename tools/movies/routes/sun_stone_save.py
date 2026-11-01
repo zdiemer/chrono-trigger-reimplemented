@@ -35,7 +35,7 @@ def board(run):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, sound=args.sound_driver, until=args.until)
+              native=args.native, generated=args.generated, until=args.until)
     m = run.machine
     start = run.start_at(PHASES)
     if start < len(stone.PHASES):

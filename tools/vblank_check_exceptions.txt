@@ -52,3 +52,10 @@ menu_nmi_work display unblank as its visible entry: the end of the forced blank 
 # work as the line effects' stop above (the same handler): the reference lands on
 # lines 212 and 218 in the same fights, the shipping mode on 216 and 219, three times.
 battle_irq display lines taken late behind the battle's masked frame work, lines 216 and 219 three times in late-lavos and late-omen-zeal where the reference is on 212 and 218
+
+# The field's line handler blanking the picture's foot, in the attract demo, since
+# the vblank check's shipping runs play the C sound driver (the sound driver's
+# teardown, docs/REIMPLEMENTATION.md): its commands take the time model's time
+# rather than the original driver's on the ports, so the frame's work ends at
+# another point and the line interrupt is taken a few lines late.
+field_irq display lines the field's blank of the picture's foot lands on lines 217-218 instead of 212, 3 times in the attract demo: the bottom few lines of 3 frames, on a register nothing reads back

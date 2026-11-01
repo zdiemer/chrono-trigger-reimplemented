@@ -117,10 +117,10 @@ void field_finish_the_frame(GameState *g, Platform *pf)
 /* ---- The routines it calls on the machine ------------------------------------------------------- */
 
 /* The original's routines; the palettes' animation, a port called through
- * the original's jump to it at $FD:FFF7, an entry of its own; and the sound driver's start,
- * a port that waits on the sound processor across frames, which only a call
- * can run: it hands every register back as it found it, A's low byte and the
- * flags aside. */
+ * the original's jump to it at $FD:FFF7, an entry of its own; and the
+ * cartridge's start of its sound driver, which uploads it to the sound
+ * processor across frames where the reference play runs it, and hands every
+ * register back as it found it, A's low byte and the flags aside. */
 enum {
     SOUND_DRIVER_BOOT = 0xC70000,
     THE_BOOT_IGNORES = DC_AL | DC_N | DC_V | DC_Z | DC_C,
@@ -212,17 +212,17 @@ static void wake(GameState *g, Platform *pf)
 // $C0:000E
 /* The field's first start, at power-on: the sound driver started, and the
  * cartridge's saves looked at, which starts a new game where there are none
- * (menu/saves.h). Here the driver is one a host plays (core/sound_driver.h),
+ * (menu/saves.h). Here the driver is one a host plays (core/sound_commands.h),
  * and the field's entry follows. */
 void field_power_on(GameState *g, Platform *pf)
 {
     wake(g, pf);
-    TIMED_AS(g, SOUND_DRIVER_BOOT, (void)sound_driver_host_boots(g, pf));
+    (void)sound_driver_host_boots(g, pf);
     TIMED_AS(g, MENUS_SERVICES, start_from_the_saves(g, pf));
 }
 
-/* On the machine the driver may be the original's, whose boot waits on the
- * sound processor across frames: a call the machine makes, where no host
+/* In the reference play the driver is the cartridge's, whose boot waits on
+ * the sound processor across frames: a call the machine makes, where no host
  * takes the boot as a call (the C driver's, as field_power_on's). The menus'
  * service keeps the X and Y it is given as its arguments, which this one
  * doesn't read: the original leaves the last clear's size in X. */
@@ -235,8 +235,7 @@ void field_first_start(Snes *s)
     wake(g, pf);
     s->cpu.x = power_on_clears[POWER_ON_CLEARS - 1].bytes;
     ORIGINAL_EFFECT(leave_the_page_in_a(s));
-    bool hosted;
-    TIMED_AS(g, SOUND_DRIVER_BOOT, hosted = sound_driver_host_boots(g, pf));
+    bool hosted = sound_driver_host_boots(g, pf);
     if (!hosted && !bridge_call_long(s, 0xC00053, SOUND_DRIVER_BOOT, THE_BOOT_IGNORES, page(s)))
         return;
     PartyServiceCall call = { 0 };

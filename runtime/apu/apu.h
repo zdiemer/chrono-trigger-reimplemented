@@ -51,7 +51,7 @@ typedef struct Apu {
     ApuTimer timer[3];
 
     int64_t budget;      /* time owed to the SPC700 in master clocks x SPC700 Hz; negative is debt */
-    uint64_t lead;       /* master clocks run ahead of the main CPU (apu_run_ahead), not yet absorbed */
+    uint64_t lead;       /* master clocks run ahead of the main CPU, not yet absorbed (0 since APU-direct's retirement; kept in the state's format) */
     uint64_t spc_cycles; /* total SPC700 cycles run */
 
     /* Optional: called before each SPC700 instruction. */
@@ -104,19 +104,9 @@ void apu_write_port(void *ctx, uint8_t port, uint8_t value);
  * ahead (lead) is absorbed first. */
 void apu_advance(Apu *apu, uint32_t master_clocks);
 
-/* Run the APU for master_clocks ahead of the main CPU, adding them to lead (the
- * APU-direct audio backend, platform/direct/audio.h). */
-void apu_run_ahead(Apu *apu, uint32_t master_clocks);
-
 /* Move up to max_frames generated stereo frames (32000 Hz, L/R interleaved)
  * into out; returns how many. Up to DSP_OUT_FRAMES wait in the APU; beyond
  * that, new frames are dropped (counted in apu->dsp.out_dropped). */
 size_t apu_take_samples(Apu *apu, int16_t *out, size_t max_frames);
-
-/* Development: called for each read the SPC700 makes of a port the main CPU
- * writes ($F4-$F7), before it reads it, and for each write it makes of one
- * the main CPU reads, after it (dev/apu_margins.c). NULL: none. */
-extern void (*apu_port_read_observer)(const Apu *apu, uint8_t port);
-extern void (*apu_port_write_observer)(const Apu *apu, uint8_t port);
 
 #endif

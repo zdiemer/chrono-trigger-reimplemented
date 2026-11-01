@@ -30,8 +30,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - CPU tests: `python3 tests/cpu/fetch_sst.py` and `python3 tests/apu/fetch_sst_spc700.py` once, then
   `build/main/sst_runner tests/cpu/data/*.bin`, `build/main/sst_generated_runner tests/cpu/data/*.bin`,
   `build/main/generated_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
-  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `assets_test`, `vars_test`, `sound_test`, `timing_test` and `tasks_test` need no data; `build/main/ct_sound_fuzz` checks
-  the C sound driver against the original's in lockstep (docs/SOUND.md).
+  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `assets_test`, `vars_test`, `sound_test`, `timing_test` and `tasks_test` need no data; `build/main/ct_sound_fuzz` plays
+  the C sound driver on random command streams and prints its sound's digest (docs/SOUND.md).
 - CI (`.github/workflows/ci.yml`): Linux gcc and clang, macOS Apple clang, Windows MSYS2 MinGW gcc, all
   configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `assets_test`, `vars_test`, `sound_test`, `timing_test`, `tasks_test`,
   the conformance runners (test data cached) and builds `ct_play`, `ct_native` and the oracle. Code must build
@@ -92,14 +92,14 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `--calibrate game/registry.c --drifted`, which rewrites only the entries a new movie moved; docs/REIMPLEMENTATION.md, "The
   timing gate"); no video write in the shipping mode (`--generated on`, `ct_play`'s default) lands on the
   picture where the reference's doesn't, or it is in `tools/vblank_check_exceptions.txt`
-  (`tools/vblank_check.py`, whose shipping runs also play the C sound driver in lockstep beside the
-  original's, so the CPU half's waits for the SPC700, made where the port stands, are checked there); the route scripts reach their outcomes in the shipping mode, with the C
-  sound driver that ships (`tools/movies/route_check.py`, `ct_drive --sound-driver c`; the suite runs
+  (`tools/vblank_check.py`); the route scripts reach their outcomes in the shipping mode, with the C
+  sound driver that ships (`tools/movies/route_check.py`, `ct_drive --native on`; the suite runs
   the fast route, `--long-routes` all of them, which is worth doing before a change to timing or to
-  the native runtime lands); the C sound driver matches the original's at every tick of every movie
-  (`ct_dev --sound-lockstep --sound-lockstep-level state`, inside the shadow runs) and over a short
-  `ct_sound_fuzz` in both its modes, the hosted one with the native mixer making the S-DSP's every frame
-  (`--mixer check`; docs/SOUND.md, docs/PLATFORM.md "The native mixer, as built"); every
+  the native runtime lands); the C sound driver, over a short `ct_sound_fuzz` with the game's songs and
+  with made-up ones, answers every command, places no sample where the echo writes, drops none, the
+  native mixer makes the S-DSP's every frame (`--mixer check`; docs/PLATFORM.md "The native mixer, as
+  built") and each kind of run's sound is the digest `tools/sound_golden.txt` keeps (sound is no longer
+  compared with the original's: docs/REIMPLEMENTATION.md, "The sound driver's teardown"); every
   don't-care declaration in `game/` is one the liveness analysis agrees with
   (`tools/dontcare_check.py`, run by the suite, static; docs/REIMPLEMENTATION.md, "Before the bulk"); no
   port's logic reads what some port writes only inside `ORIGINAL_EFFECT` where none did before
@@ -119,7 +119,7 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   says, a movie that reaches its end doing so with no failed exit, hang, `halted:`, `accessor out of range` or
   `page refused` line, and one the line marks `end` ending with the saved game and save RAM the reference
   play's (`tools/strict_check.py --check`, a ratchet run by the suite, against the shadow runs' `ct_dev
-  --end-state`; `ct_dev --native on --generated off --no-interpreter strict --sound-driver c`; docs/PLAYING.md,
+  --end-state`; `ct_dev --native on --generated off --no-interpreter strict`; docs/PLAYING.md,
   "Without the interpreter"); and the build with the
   ports' scaffolding compiled out (`ct_dev_native_shape`, `ct_drive_native_shape`) runs every movie
   to its end in the shipping mode with no failed exit, hang, `halted:` line, `accessor out of range`
