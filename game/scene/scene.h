@@ -91,7 +91,7 @@ enum {
  * program's table (scene/program.c). */
 typedef enum {
     SCENE_MODE_RACE = 0, SCENE_MODE_CREDITS_PAGE = 1, SCENE_MODE_TITLE = 2, SCENE_MODE_RISING_PALACE = 3,
-    SCENE_MODE_LAVOS_FALLS = 4, SCENE_MODE_EPOCH_DIVE = 6, SCENE_MODE_PLANET_LOST = 7, SCENE_MODE_PLANET_ENDING = 8,
+    SCENE_MODE_LAVOS_FALLS = 4, SCENE_MODE_TURNING_MAP = 5, SCENE_MODE_EPOCH_DIVE = 6, SCENE_MODE_PLANET_LOST = 7, SCENE_MODE_PLANET_ENDING = 8,
     SCENE_MODE_ATTRACT_RACE = 9, SCENE_MODE_ENDING_CAPTIONED = 10, SCENE_MODE_ENDING_CAPTIONED_TOO = 11,
     SCENE_MODE_SLOW_STAFF_ROLL = 12, SCENE_MODE_STAFF_ROLL = 13, SCENE_MODE_ENDING_AGAIN = 14,
     SCENE_MODE_ENDING_WITHOUT_CREDITS = 15,
@@ -379,6 +379,45 @@ void scene_place_sprite(GameState *g, uint16_t entry, SceneSprite sprite);
 /* The same at the scene's cursor, which moves on, small or large; and whether
  * `sprites` more fit from the cursor. */
 void scene_add_sprite_at_cursor(GameState *g, SceneSprite sprite, bool large);
+TaskEnd scene_step_turn_mosaic(GameState *g, Platform *pf, unsigned slot);
+void scene_step_turn_mosaic_entry(Snes *s);
+TaskEnd scene_spread_turn_figures(GameState *g, Platform *pf, unsigned slot);
+void scene_spread_turn_figures_entry(Snes *s);
+TaskEnd scene_size_turn_windows(GameState *g, Platform *pf, unsigned slot);
+void scene_size_turn_windows_entry(Snes *s);
+TaskEnd scene_show_turn_mosaic(GameState *g, Platform *pf, unsigned slot);
+void scene_show_turn_mosaic_entry(Snes *s);
+TaskEnd scene_scroll_turn_wave(GameState *g, Platform *pf, unsigned slot);
+void scene_scroll_turn_wave_entry(Snes *s);
+TaskEnd scene_orbit_turn_figures(GameState *g, Platform *pf, unsigned slot);
+void scene_orbit_turn_figures_entry(Snes *s);
+TaskEnd scene_update_turn_figures(GameState *g, Platform *pf, unsigned slot);
+void scene_update_turn_figures_entry(Snes *s);
+TaskEnd scene_send_turn_figure(GameState *g, Platform *pf, unsigned slot);
+void scene_send_turn_figure_entry(Snes *s);
+TaskEnd scene_cycle_turn_colors(GameState *g, Platform *pf, unsigned slot);
+void scene_cycle_turn_colors_entry(Snes *s);
+bool scene_turn_program_present(Snes *s);
+bool scene_update_turn_figures_present(Snes *s);
+bool scene_turn_set_up_present(Snes *s);
+bool scene_pick_turn_sequence_present(Snes *s);
+bool scene_turn_set_up(GameState *g, Platform *pf);
+bool scene_turn_set_up_scene(Snes *s);
+void scene_turn_set_up_entry(Snes *s);
+void scene_start_turn_figures_entry(Snes *s);
+void scene_pick_turn_sequence_entry(Snes *s);
+extern const SceneScriptRoutine scene_turn_routines[];
+extern const unsigned scene_turn_routine_count;
+#if ORIGINAL_EFFECTS
+extern const SceneRoutineLeaves scene_turn_routine_leaves[];
+#endif
+/* The turning-map scene's four-sprite character poses. */
+void scene_load_figure_pose(GameState *g, unsigned character, uint16_t pose_offset, uint16_t destination);
+void scene_draw_figure_pose(GameState *g, unsigned character, uint16_t pose_offset, uint16_t appearance);
+void scene_load_figure_pose_entry(Snes *s);
+void scene_draw_figure_pose_entry(Snes *s);
+bool scene_load_figure_pose_present(Snes *s);
+bool scene_draw_figure_pose_present(Snes *s);
 bool scene_sprites_fit(const GameState *g, unsigned sprites);
 /* How many sprites a list in the program holds; and where the lists are
  * drawn from next (X's 9th bit kept). */

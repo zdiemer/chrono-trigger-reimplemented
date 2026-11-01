@@ -107,7 +107,9 @@ bool scene_turn_map(GameState *g)
             uint64_t next = (uint64_t)sample + column_step + (x == 0 ? row >> 32 : 0);
             sample = (uint32_t)next;
             unsigned offset = ((sample >> 24) + MAP_ROW_BYTES * ((sample >> 8) & 0xFF) + (unsigned)(next >> 32)) & 0x7FE;
-            wram_write16(g, MAP_BUFFER + y * MAP_ROW_BYTES + 2 * x, wram_read16(g, MAP_SOURCE + offset));
+            unsigned output = y * MAP_ROW_BYTES + 2 * x;
+            set_scene_turn_output_map_byte(g, output, scene_tilemap_buffer_byte(g, offset));
+            set_scene_turn_output_map_byte(g, output + 1, scene_tilemap_buffer_byte(g, offset + 1));
         }
     }
     set_scene_map_pending_count(g, (uint16_t)(scene_map_pending_count(g) + 1));

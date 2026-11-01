@@ -97,7 +97,7 @@ enum { SCENE_MODE_BITS = 0x1F, SCENE_MODES = 16, PROGRAM_BANK = 0x7E0000 };
 enum {
     RACE_SET_UP = 0x7E3B48, CREDIT_PAGES_SET_UP = 0x7E6B04, TITLE_SET_UP = 0x7E5978, PALACE_SET_UP = 0x7E671F,
     ENDINGS_SET_UP = 0x7E8538, STAFF_ROLL_SET_UP = 0x7E8EA8, LAVOS_FALLS_SET_UP = 0x7E53BB, EPOCH_DIVE_SET_UP = 0x7E78DD,
-    PLANET_SET_UP = 0x7E6248, SLOW_STAFF_ROLL_SET_UP = 0x7E8E95,
+    TURN_SET_UP = 0x7E7092, PLANET_SET_UP = 0x7E6248, SLOW_STAFF_ROLL_SET_UP = 0x7E8E95,
 };
 
 static const struct {
@@ -107,6 +107,7 @@ static const struct {
     bool (*present)(Snes *s);
     bool binary;   /* its code adds, so it runs in binary mode */
 } setups[] = {
+    { SCENE_MODE_TURNING_MAP, TURN_SET_UP, scene_turn_set_up_scene, scene_turn_set_up_present, true },
     { SCENE_MODE_RACE, RACE_SET_UP, scene_race_set_up_scene, scene_race_set_up_present, false },
     { SCENE_MODE_CREDITS_PAGE, CREDIT_PAGES_SET_UP, scene_credit_pages_set_up_scene, scene_credit_pages_set_up_present, false },
     { SCENE_MODE_TITLE, TITLE_SET_UP, scene_title_set_up_scene, scene_title_set_up_present, false },
@@ -324,6 +325,7 @@ static const struct {
     uint32_t routine;
     bool (*set_up)(GameState *g, Platform *pf);
 } c_setups[] = {
+    { SCENE_MODE_TURNING_MAP, TURN_SET_UP, scene_turn_set_up },
     { SCENE_MODE_TITLE, TITLE_SET_UP, scene_title_set_up },
     { SCENE_MODE_CREDITS_PAGE, CREDIT_PAGES_SET_UP, scene_credit_pages_set_up },
     { SCENE_MODE_RACE, RACE_SET_UP, scene_race_set_up },

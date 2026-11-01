@@ -670,6 +670,16 @@ static const struct {
     { 0x7E63F5, scene_count_down_to_the_restart_entry, scene_count_down_to_the_restart },
     { 0x7E64BF, scene_show_the_planet_s_caption_entry, scene_show_the_planet_s_caption },
     { 0x7E6844, scene_sweep_the_palace_curtain_entry, scene_sweep_the_palace_curtain },
+    /* the turning-map scene */
+    { 0x7E7193, scene_step_turn_mosaic_entry, scene_step_turn_mosaic },
+    { 0x7E72FF, scene_spread_turn_figures_entry, scene_spread_turn_figures },
+    { 0x7E7325, scene_size_turn_windows_entry, scene_size_turn_windows },
+    { 0x7E737E, scene_show_turn_mosaic_entry, scene_show_turn_mosaic },
+    { 0x7E73AA, scene_scroll_turn_wave_entry, scene_scroll_turn_wave },
+    { 0x7E76A5, scene_orbit_turn_figures_entry, scene_orbit_turn_figures },
+    { 0x7E7721, scene_update_turn_figures_entry, scene_update_turn_figures },
+    { 0x7E7868, scene_send_turn_figure_entry, scene_send_turn_figure },
+    { 0x7E78AB, scene_cycle_turn_colors_entry, scene_cycle_turn_colors },
     /* the Epoch's dive's */
     { 0x7E79F8, scene_set_the_screen_outside_entry, scene_set_the_screen_outside },
     { 0x7E7A35, scene_set_the_screen_in_the_cockpit_entry, scene_set_the_screen_in_the_cockpit },

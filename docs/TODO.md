@@ -3012,10 +3012,8 @@ list, by kind, is what `game/` still asks of one.
   the main loop's scalings (history/reimplementation-chunks.md, "The native
   program through the story scenes"), and mode 10's picture and the slow
   staff roll, mode 12 (history/reimplementation-chunks.md, "The native program's last named
-  stops"); what is left stops the program where it is met: mode 5 (`$7E:7092`: its setup and figures; the main loop's map
-  sampler and its geometry are C now; nothing in the
-  game starts it, movies-wanted.md), and a task, routine or command a state
-  the ports don't take reaches. The
+  stops"); what is left stops the program where a task, routine or command
+  reaches a state the ports do not take. The
   stars' first draw in a setup that scatters them starts from nothing in
   particular where the original's goes on from what the call before it left
   (a host's draws take its own noise). The C reads the program's data where
@@ -3029,14 +3027,19 @@ list, by kind, is what `game/` still asks of one.
   rest: 259 entries the machine still enters, 21.1 M times over the library.
 - **Finish the scene-joints pass.** The scene and warp files still contain
   50 stops after calling the credits scroll as C (the archived
-  "Scene continuations: the staff roll"). Mode 5's setup and figures
-  remain unported work. The task exits at
+  "Scene continuations: the staff roll"). The task exits at
   `$7E:39A7`, `$7E:39B1` and `$7E:39DE` need the frame-list bridge to consume
   a C task outcome: standalone task wrappers still stop with the caller's
   saved page, status and slot below their return address. Simply replacing
   a stop with a return would leave the list unchanged and its stack wrong.
   Other stops still cover controller/music waits, reset, script dispatch,
   scaling and the scene/field transition; they have not been retired.
+- **A meaningful native run of mode 5.** Its setup, map and figure animation
+  are C and every new entry passes fuzzing. No known story path starts it.
+  A forced start directly after boot reaches the figure task at frame 41,
+  with absent party members outside the seven characters' graphics. Supply
+  the field handoff this mode expects and compare its picture and later
+  script transitions; do not count the forced boot scenario as a full run.
 - **Mode 10's native picture.** The explicit scene run now passes its
   panorama loader and reaches the final scene's scripts in 16,000 frames,
   but reports a dark picture throughout, including the earlier mosaic.

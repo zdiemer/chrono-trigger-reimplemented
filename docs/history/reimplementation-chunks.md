@@ -12387,3 +12387,37 @@ The four oracle wrappers add four returns, seven scaffolding writes and
 21 video calls: scene/warp machine joints rise from 755 to 787, while
 stops remain 50. No call-out, stop, timing exception or fallback allowance
 was added. The sampled gate waits until the scene-joints pass is finished.
+
+### Scene program: the turning map and its geometry
+
+Mode 5's map sampler and its angle and radius helpers are C
+(`$7E:7441`, `$7E:5872`, `$7E:34FB`). The complete mode and its helpers
+were drafted together. The sampler walks the output grid through the
+scene's transformation matrix, selects wrapped source tiles and queues
+the finished map. The angle helper chooses a quadrant and a threshold
+from the scene's angle table; the radius helper searches for the largest
+radius whose preceding ring fits the area. Their logic takes GameState
+and ordinary values; three entry wrappers preserve the oracle interface.
+The native main loop calls the sampler directly.
+
+The packed coordinates retain the original's wrapping and rounding at
+row and column boundaries. The sampler's pending count is a word, even
+though the uploader consumes its low byte. Fuzzing compares 2,000 sampler
+states, 20,000 signed offsets and 20,000 areas with seed 1, with zero
+mismatches, skips, guard refusals or accessor overruns. The sampler covers
+1 through 32 output rows, including both setup values, with unrestricted
+matrices and origins. Attract-demo shadow runs 22,500 frames with zero
+mismatches; this movie does not enter mode 5. The full build, style checks
+and scaffolding-read check pass.
+
+Eleven effects-check alias findings have explicit evidence: the mode's
+scratch overlaps the race and bitmap scaler, and every scene setup clears
+the entire direct page before either mode uses it. The sampler's pending
+count is a plain game write. No style or smell baseline was expanded.
+The prior panorama chunk is archived in history/reimplementation-chunks.md.
+
+Scene RAM coverage rises from 22.7K to 23.0K of 25.1K (10% to 9% left).
+The three oracle wrappers and their retained scratch effects take the
+scene/warp joints from 787 to 799; stops remain 50. Mode 5's setup and
+figures remain to port. No timing or fallback allowance changed, and the
+sampled gate waits until the scene-joints pass is finished.

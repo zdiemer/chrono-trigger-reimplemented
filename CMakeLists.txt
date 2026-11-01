@@ -273,6 +273,7 @@ add_library(ct_game STATIC
   game/scene/sprites.c
   game/scene/credit_pages.c
   game/scene/rising_palace.c
+  game/scene/turning.c
   game/scene/staff_roll.c
   game/scene/stars.c
   game/scene/captions.c

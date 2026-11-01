@@ -526,6 +526,7 @@ enum {
     VID_STEP_SPILL_CURSOR_LO, /* $43x8 = VidLineEffect.snes_spill */
     VID_STEP_INDIRECT_BANK_IS_SOURCE, /* $43x7 = the source's bank, which some sites write there as well */
     VID_STEP_VRAM_READ_FIRST, /* a read of VRAM's read port ($213A) before a read back, which steps its address on */
+    VID_STEP_WRITE_BYTES,    /* CPU copy into one data port, without programming a DMA channel */
 };
 
 typedef struct {
@@ -605,6 +606,10 @@ PF_API void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData s
  * host pointer: a game address, which a host can't resolve until the game's
  * state is its own, stops the program with the call's site. */
 PF_API void vid_send_vram_and_wait(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len);
+/* Prepare an upload now, then transfer it at the next frame boundary. */
+PF_API void vid_send_vram_next_frame(Platform *pf, PfOrigin o, PfOrigin wait,
+                                    uint16_t vram_addr, PfData src, uint32_t len,
+                                    const VidVramPort *port);
 /* The same where the game's data holds the transfer's mode in the SNES's form
  * (a screen transition's, field_transfer). */
 PF_API void vid_send_vram_in_mode(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,

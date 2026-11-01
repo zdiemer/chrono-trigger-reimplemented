@@ -8650,6 +8650,12 @@
  * there): not 0, the count runs on past the list's end */
 #define RAM_SCENE_SPRITE_LIST_LEFT_HIGH 0x7E001Au
 #define RAM_SCENE_SPRITE_LIST_LEFT_HIGH_DP 0x1Au /* page scene */
+/* The pose tile list cursor retained for the original [2 bytes] */
+#define RAM_SCENE_FIGURE_SOURCE 0x7E001Bu
+/* The pose tile list bank retained for the original */
+#define RAM_SCENE_FIGURE_SOURCE_BANK 0x7E001Du
+/* The adjacent byte loaded with the pose list bank by the sprite draw */
+#define RAM_SCENE_FIGURE_SOURCE_AFTER_BANK 0x7E001Eu
 /* Bitmap scaler: pairs of 8-sample groups per output row (the row's width in 16-pixel units) [2
  * bytes] */
 #define RAM_SCENE_SCALER_PAIRS 0x7E001Fu
@@ -8763,9 +8769,19 @@
 /* The palace's scene (mode 3): BG3's horizontal scroll, which moves the column offsets' ripple
  * across the picture by its strength each frame [2 bytes] */
 #define RAM_SCENE_PALACE_RIPPLE_SCROLL 0x7E003Du
+/* The two circle radii last drawn by the turning scene [2 x $2 bytes, by entry] */
+#define RAM_SCENE_TURN_WINDOW_RADIUS 0x7E003Du
+#define RAM_SCENE_TURN_WINDOW_RADIUS_COUNT 2u
+#define RAM_SCENE_TURN_WINDOW_RADIUS_STRIDE 0x02u
+/* The low bytes initialized when the turning scene opens its windows [2 x $2 bytes, by entry] */
+#define RAM_SCENE_TURN_WINDOW_RADIUS_LOW 0x7E003Du
+#define RAM_SCENE_TURN_WINDOW_RADIUS_LOW_COUNT 2u
+#define RAM_SCENE_TURN_WINDOW_RADIUS_LOW_STRIDE 0x02u
 /* The palace's scene: BG2's vertical scroll below the horizon, which a per-line effect reads;
  * sequence channel 1's register 2 over 4 [2 bytes] */
 #define RAM_SCENE_PALACE_SEA_SCROLL 0x7E003Fu
+/* Queued figure tile destination, FFFF when no pose changed [2 bytes] */
+#define RAM_SCENE_TURN_UPLOAD_VRAM 0x7E0041u
 /* The palace's scene: the offsets mode 2 moves BG1's columns by, BG3's first two rows as the
  * vblank sends them: across, the ripple's shape from its strength, and down, none [64 x $2
  * bytes, by column: the first 32 across, the next 32 down] */
@@ -8836,22 +8852,32 @@
  * step brings to its first row [2 bytes] */
 #define RAM_SCENE_CREDITS_ROW_VRAM 0x7E0048u
 #define RAM_SCENE_CREDITS_ROW_VRAM_DP 0x48u  /* page scene */
+/* Frames between mosaic-size steps */
+#define RAM_SCENE_TURN_MOSAIC_PERIOD 0x7E0049u
 /* The Epoch's dive, seen from the cockpit: how hard the cockpit shakes, the lines a random draw
  * may move the instrument panel down by, as a mask of the draw (0, 1 or 3, which channel 0's
  * script sets as the dive goes on) [2 bytes] */
 #define RAM_SCENE_DIVE_SHAKE 0x7E004Au
+/* Frames left until the next mosaic-size step */
+#define RAM_SCENE_TURN_MOSAIC_COUNTDOWN 0x7E004Au
 /* Where the staff credits' next line of text is, in the program (bank $7E): letters as their
  * character codes, a line ended by '/', the text by a backslash [2 bytes] */
 #define RAM_SCENE_CREDITS_TEXT 0x7E004Au
 #define RAM_SCENE_CREDITS_TEXT_DP 0x4Au      /* page scene */
+/* Whether a new turn sequence is chosen at random */
+#define RAM_SCENE_TURN_PICK_SEQUENCE 0x7E004Bu
 /* The Epoch's dive, seen from outside as it leaves: the frames left on the Epoch's frame of
  * animation (1 as the dive starts, so that the first frame is taken at once) [2 bytes] */
 #define RAM_SCENE_DIVE_EPOCH_FRAMES_LEFT 0x7E004Cu
+/* Mosaic extent minus one, FF for random changes */
+#define RAM_SCENE_TURN_MOSAIC_SIZE 0x7E004Cu
 /* In the shared endings: how far the zooming picture reaches out from the point it is drawn
  * round, the 8.8 quotient of 8 over its zoom: half its width as it is shown (its low byte is
  * what the drawing reads) [2 bytes] */
 #define RAM_SCENE_ENDING_PICTURE_HALF 0x7E004Cu
 #define RAM_SCENE_ENDING_PICTURE_HALF_DP 0x4Cu /* page scene */
+/* Last random mosaic selection */
+#define RAM_SCENE_TURN_MOSAIC_PREVIOUS 0x7E004Du
 /* The Epoch's dive, seen from outside as it leaves: the Epoch's frame of animation, as the
  * address of its sprite list in the program's table of frames (scene_dive_epoch_frames); as the
  * dive starts, the address three bytes before the first frame's list, so that the next frame is
@@ -8861,12 +8887,35 @@
  * to scale next starts, $1200 on by $400 a frame of its animation [2 bytes] */
 #define RAM_SCENE_ENDING_PICTURE_SOURCE 0x7E004Eu
 #define RAM_SCENE_ENDING_PICTURE_SOURCE_DP 0x4Eu /* page scene */
+/* Angle at the bottom of the scrolling sine-wave line table [2 bytes] */
+#define RAM_SCENE_TURN_WAVE_ANGLE 0x7E004Fu
 /* Where each of the title's five sliding sprites stops, in sixteenths of a pixel [5 x $2 bytes,
  * by slide] */
 #define RAM_SCENE_TITLE_SLIDE_ENDS 0x7E0050u
 #define RAM_SCENE_TITLE_SLIDE_ENDS_COUNT 5u
 #define RAM_SCENE_TITLE_SLIDE_ENDS_STRIDE 0x02u
 #define RAM_SCENE_TITLE_SLIDE_ENDS_DP 0x50u  /* page scene */
+/* The four figures around the turning map: pose, animation and polar position [4 x $16 bytes, by
+ * figure: the party followed by Magus] */
+#define RAM_SCENE_TURN_FIGURES 0x7E0051u
+#define RAM_SCENE_TURN_FIGURES_COUNT 4u
+#define RAM_SCENE_TURN_FIGURES_STRIDE 0x16u
+#define RAM_SCENE_TURN_FIGURES_POSE 0x7E0051u /* Pose requested by the animation */
+#define RAM_SCENE_TURN_FIGURES_CHARACTER 0x7E0052u /* Character number in the low byte; the saved party list contributes the high byte */
+#define RAM_SCENE_TURN_FIGURES_X 0x7E0054u   /* Horizontal screen position */
+#define RAM_SCENE_TURN_FIGURES_Y 0x7E0055u   /* Vertical screen position */
+#define RAM_SCENE_TURN_FIGURES_VRAM 0x7E0056u /* VRAM destination of this figure tiles */
+#define RAM_SCENE_TURN_FIGURES_APPEARANCE 0x7E0058u /* Sprite tile base and attributes */
+#define RAM_SCENE_TURN_FIGURES_LOADED_POSE 0x7E005Au /* Pose already loaded into the figure tiles */
+#define RAM_SCENE_TURN_FIGURES_ANGLE 0x7E005Bu /* Polar angle from the center */
+#define RAM_SCENE_TURN_FIGURES_RADIUS 0x7E005Du /* Signed distance from the center */
+#define RAM_SCENE_TURN_FIGURES_ANIMATION 0x7E005Eu /* Requested animation */
+#define RAM_SCENE_TURN_FIGURES_ACTIVE_ANIMATION 0x7E005Fu /* Animation whose stream is playing */
+#define RAM_SCENE_TURN_FIGURES_FRAMES 0x7E0060u /* Next pose in the animation stream */
+#define RAM_SCENE_TURN_FIGURES_DELAY 0x7E0062u /* Frames remaining on the current pose */
+#define RAM_SCENE_TURN_FIGURES_DELAYS 0x7E0063u /* Next frame delay in the animation stream */
+#define RAM_SCENE_TURN_FIGURES_FACING 0x7E0065u /* Requested facing */
+#define RAM_SCENE_TURN_FIGURES_ACTIVE_FACING 0x7E0066u /* Facing whose animation stream is playing */
 /* In the shared endings: the zoom the picture in the tilemap buffer was scaled at, the scaler's
  * row step (128ths of a source row an output row: $80 its own size, more smaller), kept for its
  * gathering [2 bytes] */
@@ -9064,6 +9113,8 @@
  * together [2 bytes] */
 #define RAM_SCENE_RACE_LAST_CONTACT 0x7E00A8u
 #define RAM_SCENE_RACE_LAST_CONTACT_DP 0xA8u /* page scene */
+/* Rotation shared by the party figures [2 bytes] */
+#define RAM_SCENE_TURN_ORBIT 0x7E00A9u
 /* Frames the moving piece of mode 10's picture has shown its frame: at 4 it moves on to the next
  * and the count starts again */
 #define RAM_SCENE_MOSAIC_PIECE_FRAMES 0x7E00A9u
@@ -9072,6 +9123,8 @@
  * sent */
 #define RAM_SCENE_RACE_TILEMAP_A_READY 0x7E00AAu
 #define RAM_SCENE_RACE_TILEMAP_A_READY_DP 0xAAu /* page scene */
+/* Original-only count remaining in the changed-pose search [2 bytes] */
+#define RAM_SCENE_TURN_SEARCH_LEFT 0x7E00ABu
 /* How wide mode 10's picture's frame is on the screen, in pixels: the picture's window around
  * the picture ends this far right of where it starts */
 #define RAM_SCENE_MOSAIC_FRAME_WIDTH 0x7E00ABu
@@ -9091,6 +9144,8 @@
  * sent */
 #define RAM_SCENE_RACE_TILEMAP_B_READY 0x7E00ACu
 #define RAM_SCENE_RACE_TILEMAP_B_READY_DP 0xACu /* page scene */
+/* Byte offset of the next figure to consider for a tile upload [2 bytes] */
+#define RAM_SCENE_TURN_NEXT_UPLOAD 0x7E00ADu
 /* Nonzero while the staff credits roll fast, a row of text every frame, as the telepod ending's
  * do with its music played fast (its setup counts it up); 0, a pixel every other frame and a row
  * every 16 frames, as the shared ending's */
@@ -9145,6 +9200,10 @@
 /* Nonzero once a button has been pressed after the race and its ending has begun: the way the
  * curtain sweeps, scene_race_ending_sweep */
 #define RAM_SCENE_RACE_ENDING 0x7E0350u
+/* The byte-sized center shared by both turning-scene windows [2 x $2 bytes, by axis] */
+#define RAM_SCENE_TURN_CIRCLE_CENTER 0x7E0350u
+#define RAM_SCENE_TURN_CIRCLE_CENTER_COUNT 2u
+#define RAM_SCENE_TURN_CIRCLE_CENTER_STRIDE 0x02u
 /* X of the center of the circle $C3:0077 draws into a per-line window table: an 8-bit value in a
  * 16-bit cell, whose high byte the routine clears so it can do its arithmetic on the pair [2
  * bytes] */
@@ -9429,6 +9488,8 @@
 #define RAM_SCENE_RACE_PICTURE_REQUESTS_ROW_STEP 0x7E1408u /* How far down the picture each scaled row steps: half the racer's size on the screen */
 #define RAM_SCENE_RACE_PICTURE_REQUESTS_COLUMN_STEP 0x7E140Au /* How far across each scaled pixel steps (the main loop sets it from the row step) */
 #define RAM_SCENE_RACE_PICTURE_REQUESTS_SOURCE_LIMIT 0x7E140Cu /* Where the picture's rows end; past it the scaler clears the rest */
+/* Transformed map queued for the next turning-scene upload [2048 bytes] */
+#define RAM_SCENE_TURN_OUTPUT_MAP 0x7E1400u
 /* A row of the staff credits as it is written, the low bytes of a row of their layer's map: a
  * tile a column, the line's letters from the ninth column on, blank tiles around them [32 bytes] */
 #define RAM_SCENE_CREDITS_ROW 0x7E1414u
@@ -9479,6 +9540,19 @@
 #define RAM_SCENE_RACE_DIVISORS_STRIDE 0x01u
 /* The scene's working palette, 256 colors, sent to CGRAM [512 bytes] */
 #define RAM_SCENE_PALETTE 0x7E2200u
+/* Party member and following byte copied into a figure record [4 x $1 bytes, by entry] */
+#define RAM_SCENE_TURN_PARTY_BYTES 0x7E2980u
+#define RAM_SCENE_TURN_PARTY_BYTES_COUNT 4u
+#define RAM_SCENE_TURN_PARTY_BYTES_STRIDE 0x01u
+/* Positions and poses carried from the field into the turning scene [4 x $5 bytes, by figure] */
+#define RAM_SCENE_TURN_SAVED_POSITIONS 0x7E29B0u
+#define RAM_SCENE_TURN_SAVED_POSITIONS_COUNT 4u
+#define RAM_SCENE_TURN_SAVED_POSITIONS_STRIDE 0x05u
+#define RAM_SCENE_TURN_SAVED_POSITIONS_TILE_X 0x7E29B0u /* Saved tile x */
+#define RAM_SCENE_TURN_SAVED_POSITIONS_TILE_Y 0x7E29B1u /* Saved tile y */
+#define RAM_SCENE_TURN_SAVED_POSITIONS_FINE_X 0x7E29B2u /* Saved fine x */
+#define RAM_SCENE_TURN_SAVED_POSITIONS_FINE_Y 0x7E29B3u /* Saved fine y */
+#define RAM_SCENE_TURN_SAVED_POSITIONS_POSE 0x7E29B4u /* Saved pose */
 /* The routine the program's main loop calls each pass, the operand of its own call, which a
  * scene's setup points at its work (the race's: the racers' pictures scaled, $51D1) [2 bytes] */
 #define RAM_SCENE_MAIN_LOOP_CALL 0x7E3024u
@@ -9687,6 +9761,20 @@
 /* The palace's scene: the same for the last fade, from white back to the colors: 3, or 8 in the
  * attract sequence's */
 #define RAM_SCENE_PALACE_CLEARING_STEP 0x7E6AABu
+/* The unmirrored tile copy source operand [2 bytes] */
+#define RAM_SCENE_FIGURE_COPY_BASE 0x7E6EACu
+/* The unmirrored tile copy bank operand */
+#define RAM_SCENE_FIGURE_COPY_BANK 0x7E6EB4u
+/* The mirrored tile copy source operand [2 bytes] */
+#define RAM_SCENE_FIGURE_MIRROR_BASE 0x7E6EBAu
+/* The mirrored tile copy bank operand */
+#define RAM_SCENE_FIGURE_MIRROR_BANK 0x7E6EC3u
+/* First sprite tile and attributes for a loaded figure pose [2 bytes] */
+#define RAM_SCENE_FIGURE_SPRITE_APPEARANCE 0x7E7035u
+/* The four randomly selected turning sequences [4 x $2 bytes, by entry] */
+#define RAM_SCENE_TURN_SEQUENCES 0x7E729Cu
+#define RAM_SCENE_TURN_SEQUENCES_COUNT 4u
+#define RAM_SCENE_TURN_SEQUENCES_STRIDE 0x02u
 /* How many rows of 32 tiles the program's turning of a map ($7E:7441) writes into the map
  * buffer: the operand of its own load, $1B as the program is unpacked, which the palace's setup
  * makes $1C */
@@ -9703,6 +9791,15 @@
 /* The map sampler's column step across, stored as an operand in the original's sampling loop [2
  * bytes] */
 #define RAM_SCENE_MAP_COLUMN_ACROSS_STEP 0x7E74BBu
+/* Initial animation by character, including the unused eighth table byte [8 x $1 bytes, by
+ * entry] */
+#define RAM_SCENE_TURN_INITIAL_ANIMATION 0x7E7642u
+#define RAM_SCENE_TURN_INITIAL_ANIMATION_COUNT 8u
+#define RAM_SCENE_TURN_INITIAL_ANIMATION_STRIDE 0x01u
+/* Facing at each quarter turn [4 x $1 bytes, by entry] */
+#define RAM_SCENE_TURN_FACINGS 0x7E771Du
+#define RAM_SCENE_TURN_FACINGS_COUNT 4u
+#define RAM_SCENE_TURN_FACINGS_STRIDE 0x01u
 /* Where the program's upload of the map buffer ($7E:783C) sends it in VRAM: the operand of its
  * own load, $6000 as the program is unpacked, which the palace's setup makes 0 [2 bytes] */
 #define RAM_SCENE_MAP_UPLOAD_VRAM 0x7E7841u
@@ -9874,6 +9971,8 @@
 #define RAM_SCENE_MATRIX_CODE 0x7EB574u
 #define RAM_SCENE_MATRIX_CODE_COUNT 5153u
 #define RAM_SCENE_MATRIX_CODE_STRIDE 0x01u
+/* Map handed over by the field for the turning scene [2048 bytes] */
+#define RAM_SCENE_TURN_SAVED_MAP 0x7EC800u
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes] */
 #define RAM_SCENE_RACE_PLANE_COLUMN 0x7EC995u
@@ -9941,6 +10040,11 @@
 #define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_STRIDE 0x04u
 #define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_C 0x7EF488u /* The matrix's third entry: the sine's, negated */
 #define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_D 0x7EF48Au /* The matrix's fourth entry: the cosine's, as the first */
+/* Scrolling horizontal offsets of the turning scene; a sine sample enters at the bottom each
+ * frame [224 x $2 bytes, by line] */
+#define RAM_SCENE_TURN_WAVE_LINES 0x7EF500u
+#define RAM_SCENE_TURN_WAVE_LINES_COUNT 224u
+#define RAM_SCENE_TURN_WAVE_LINES_STRIDE 0x02u
 /* 1 where the title was left with a button other than the shoulders (event memory's byte $60) */
 #define RAM_SCENE_TITLE_LEFT_WITH_A_BUTTON 0x7F0060u
 /* Lavos falling (mode 4): the planet's sprite tiles as unpacked, 64 of them, 16 words each, laid

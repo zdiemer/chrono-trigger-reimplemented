@@ -1996,6 +1996,391 @@ meaning = "Nonzero while the map buffer ($1400) holds a map for VRAM: the progra
 source = "game/scene/rising_palace.c, the map's upload $7E:783C"
 
 [[var]]
+name = "scene_turn_figures"
+addr = "7E:0051"
+count = 4
+stride = 0x16
+index = "figure: the party followed by Magus"
+subsystem = "scene"
+reuses = ["scene_race_racers", "scene_title_logo_x", "scene_title_logo_y", "scene_title_timer", "scene_palace_column_offsets", "scene_ending_orbit_size", "scene_ending_orbit_x", "scene_ending_orbit_y", "scene_ending_plane_flat", "scene_fireworks_countdown", "scene_fireworks_frame", "scene_fireworks_x", "scene_fireworks_y", "scene_fireworks_held"]
+meaning = "The four figures around the turning map: pose, animation and polar position"
+source = "game/scene/turning.c, $7E:74F5-$7E:783C"
+[[var.field]]
+name = "pose"
+offset = 0
+size = 1
+meaning = "Pose requested by the animation"
+[[var.field]]
+name = "character"
+offset = 1
+size = 2
+meaning = "Character number in the low byte; the saved party list contributes the high byte"
+[[var.field]]
+name = "x"
+offset = 3
+size = 1
+meaning = "Horizontal screen position"
+[[var.field]]
+name = "y"
+offset = 4
+size = 1
+meaning = "Vertical screen position"
+[[var.field]]
+name = "vram"
+offset = 5
+size = 2
+meaning = "VRAM destination of this figure tiles"
+[[var.field]]
+name = "appearance"
+offset = 7
+size = 2
+meaning = "Sprite tile base and attributes"
+[[var.field]]
+name = "loaded_pose"
+offset = 9
+size = 1
+meaning = "Pose already loaded into the figure tiles"
+[[var.field]]
+name = "angle"
+offset = 10
+size = 2
+meaning = "Polar angle from the center"
+[[var.field]]
+name = "radius"
+offset = 12
+size = 1
+meaning = "Signed distance from the center"
+[[var.field]]
+name = "animation"
+offset = 13
+size = 1
+meaning = "Requested animation"
+[[var.field]]
+name = "active_animation"
+offset = 14
+size = 1
+meaning = "Animation whose stream is playing"
+[[var.field]]
+name = "frames"
+offset = 15
+size = 2
+meaning = "Next pose in the animation stream"
+[[var.field]]
+name = "delay"
+offset = 17
+size = 1
+meaning = "Frames remaining on the current pose"
+[[var.field]]
+name = "delays"
+offset = 18
+size = 2
+meaning = "Next frame delay in the animation stream"
+[[var.field]]
+name = "facing"
+offset = 20
+size = 1
+meaning = "Requested facing"
+[[var.field]]
+name = "active_facing"
+offset = 21
+size = 1
+meaning = "Facing whose animation stream is playing"
+
+[[var]]
+name = "scene_turn_orbit"
+addr = "7E:00A9"
+size = 2
+count = 1
+stride = 2
+subsystem = "scene"
+reuses = "scene_palace_column_offsets"
+meaning = "Rotation shared by the party figures"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_search_left"
+addr = "7E:00AB"
+size = 2
+count = 1
+stride = 2
+subsystem = "scene"
+reuses = "scene_palace_column_offsets"
+meaning = "Original-only count remaining in the changed-pose search"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_next_upload"
+addr = "7E:00AD"
+size = 2
+count = 1
+stride = 2
+subsystem = "scene"
+reuses = "scene_palace_column_offsets"
+meaning = "Byte offset of the next figure to consider for a tile upload"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_upload_vram"
+addr = "7E:0041"
+size = 2
+count = 1
+stride = 2
+subsystem = "scene"
+reuses = "scene_bitplane_scratch"
+meaning = "Queued figure tile destination, FFFF when no pose changed"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_mosaic_period"
+addr = "7E:0049"
+size = 1
+count = 1
+stride = 1
+subsystem = "scene"
+reuses = "scene_palace_column_offsets"
+meaning = "Frames between mosaic-size steps"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_mosaic_countdown"
+addr = "7E:004A"
+size = 1
+count = 1
+stride = 1
+subsystem = "scene"
+reuses = ["scene_palace_column_offsets", "scene_dive_shake"]
+meaning = "Frames left until the next mosaic-size step"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_pick_sequence"
+addr = "7E:004B"
+size = 1
+count = 1
+stride = 1
+subsystem = "scene"
+reuses = ["scene_palace_column_offsets", "scene_dive_shake"]
+meaning = "Whether a new turn sequence is chosen at random"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_mosaic_size"
+addr = "7E:004C"
+size = 1
+count = 1
+stride = 1
+subsystem = "scene"
+reuses = ["scene_palace_column_offsets", "scene_dive_epoch_frames_left"]
+meaning = "Mosaic extent minus one, FF for random changes"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_mosaic_previous"
+addr = "7E:004D"
+size = 1
+count = 1
+stride = 1
+subsystem = "scene"
+reuses = ["scene_palace_column_offsets", "scene_dive_epoch_frames_left"]
+meaning = "Last random mosaic selection"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_window_radius"
+addr = "7E:003D"
+size = 2
+count = 2
+stride = 2
+index = "entry"
+subsystem = "scene"
+reuses = ["scene_bitplane_scratch", "scene_palace_ripple_scroll", "scene_palace_sea_scroll"]
+meaning = "The two circle radii last drawn by the turning scene"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_initial_animation"
+addr = "7E:7642"
+size = 1
+count = 8
+stride = 1
+index = "entry"
+subsystem = "scene"
+meaning = "Initial animation by character, including the unused eighth table byte"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_window_radius_low"
+addr = "7E:003D"
+size = 1
+count = 2
+stride = 2
+index = "entry"
+subsystem = "scene"
+reuses = ["scene_turn_window_radius", "scene_bitplane_scratch", "scene_palace_ripple_scroll", "scene_palace_sea_scroll"]
+meaning = "The low bytes initialized when the turning scene opens its windows"
+source = "game/scene/turning.c, mode 5 setup"
+
+[[var]]
+name = "scene_turn_circle_center"
+addr = "7E:0350"
+size = 1
+count = 2
+stride = 2
+index = "axis"
+subsystem = "scene"
+reuses = ["scene_circle_center_x", "scene_circle_center_y", "scene_curtain_sweep", "scene_curtain_table", "scene_race_ending"]
+meaning = "The byte-sized center shared by both turning-scene windows"
+source = "game/scene/turning.c, mode 5 setup"
+
+[[var]]
+name = "scene_turn_facings"
+addr = "7E:771D"
+size = 1
+count = 4
+stride = 1
+index = "entry"
+subsystem = "scene"
+meaning = "Facing at each quarter turn"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_sequences"
+addr = "7E:729C"
+size = 2
+count = 4
+stride = 2
+index = "entry"
+subsystem = "scene"
+meaning = "The four randomly selected turning sequences"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_party_bytes"
+addr = "7E:2980"
+size = 1
+count = 4
+stride = 1
+index = "entry"
+subsystem = "scene"
+meaning = "Party member and following byte copied into a figure record"
+source = "game/scene/turning.c, mode 5 setup and animation"
+
+[[var]]
+name = "scene_turn_saved_positions"
+addr = "7E:29B0"
+count = 4
+stride = 5
+index = "figure"
+subsystem = "scene"
+meaning = "Positions and poses carried from the field into the turning scene"
+source = "game/scene/turning.c, $7E:74F5"
+[[var.field]]
+name = "tile_x"
+offset = 0
+meaning = "Saved tile x"
+[[var.field]]
+name = "tile_y"
+offset = 1
+meaning = "Saved tile y"
+[[var.field]]
+name = "fine_x"
+offset = 2
+meaning = "Saved fine x"
+[[var.field]]
+name = "fine_y"
+offset = 3
+meaning = "Saved fine y"
+[[var.field]]
+name = "pose"
+offset = 4
+meaning = "Saved pose"
+
+[[var]]
+name = "scene_turn_wave_angle"
+addr = "7E:004F"
+size = 2
+subsystem = "scene"
+reuses = ["scene_palace_column_offsets", "scene_dive_epoch_frame"]
+meaning = "Angle at the bottom of the scrolling sine-wave line table"
+source = "game/scene/turning.c, $7E:73AA"
+
+[[var]]
+name = "scene_turn_wave_lines"
+addr = "7E:F500"
+size = 2
+count = 224
+stride = 2
+index = "line"
+subsystem = "scene"
+reuses = ["scene_race_line_tables", "scene_plane_matrix_bottom_row"]
+meaning = "Scrolling horizontal offsets of the turning scene; a sine sample enters at the bottom each frame"
+source = "game/scene/turning.c, $7E:73AA"
+
+[[var]]
+name = "scene_figure_source"
+addr = "7E:001B"
+size = 2
+subsystem = "scene"
+meaning = "The pose tile list cursor retained for the original"
+source = "game/scene/turning.c, $7E:6E42 and $7E:701E"
+
+[[var]]
+name = "scene_figure_source_bank"
+addr = "7E:001D"
+size = 1
+subsystem = "scene"
+meaning = "The pose tile list bank retained for the original"
+source = "game/scene/turning.c, $7E:6E42 and $7E:701E"
+
+[[var]]
+name = "scene_figure_source_after_bank"
+addr = "7E:001E"
+size = 1
+subsystem = "scene"
+meaning = "The adjacent byte loaded with the pose list bank by the sprite draw"
+source = "game/scene/turning.c, $7E:6E42 and $7E:701E"
+
+[[var]]
+name = "scene_figure_copy_base"
+addr = "7E:6EAC"
+size = 2
+subsystem = "scene"
+meaning = "The unmirrored tile copy source operand"
+source = "game/scene/turning.c, $7E:6E42 and $7E:701E"
+
+[[var]]
+name = "scene_figure_mirror_base"
+addr = "7E:6EBA"
+size = 2
+subsystem = "scene"
+meaning = "The mirrored tile copy source operand"
+source = "game/scene/turning.c, $7E:6E42 and $7E:701E"
+
+[[var]]
+name = "scene_figure_copy_bank"
+addr = "7E:6EB4"
+size = 1
+subsystem = "scene"
+meaning = "The unmirrored tile copy bank operand"
+source = "game/scene/turning.c, $7E:6E42 and $7E:701E"
+
+[[var]]
+name = "scene_figure_mirror_bank"
+addr = "7E:6EC3"
+size = 1
+subsystem = "scene"
+meaning = "The mirrored tile copy bank operand"
+source = "game/scene/turning.c, $7E:6E42 and $7E:701E"
+
+[[var]]
+name = "scene_figure_sprite_appearance"
+addr = "7E:7035"
+size = 2
+subsystem = "scene"
+meaning = "First sprite tile and attributes for a loaded figure pose"
+source = "game/scene/turning.c, $7E:6E42 and $7E:701E"
+
+[[var]]
 name = "scene_map_sampling_work"
 addr = "7E:002F"
 size = 2
@@ -24888,3 +25273,21 @@ reuses = "battle_work"
 subsystem = "battle"
 meaning = "How a jump lifts, as the jump commands that give it leave it ($C1:629E; 0 twice its height, 2 once and bouncing at half, else once); the jumps to the script's point take what is here: most often 6, the count the animation slots' places loop ends at each frame ($C1:4231), but what a jump, a walk's search or a color list left since, when one ran (Spekkio's fight in battle-tech-sweep-spekkio)"
 source = "game/battle/script_moves.c jump $C1:6299; game/battle/objects.c battle_update_animation_positions $C1:4212; game/battle/menu_lists.c battle_lay_out_tech_list $C1:0A88; game/battle/area_search.c leave_side $C1:25A3, $C1:2701, $C1:2332, $C1:23A4; game/battle/script_colors.c blink $C1:5F13; game/battle/script_walk.c battle_find_way $C1:4A71; all through battle_leave_jump_lift (battle/battle.h)"
+
+[[var]]
+name = "scene_turn_saved_map"
+addr = "7E:C800"
+size = 0x800
+subsystem = "scene"
+reuses = ["scene_race_plane_column", "scene_matrix_code"]
+meaning = "Map handed over by the field for the turning scene"
+source = "game/scene/turning.c and game/scene/rising_palace.c, mode 5 map"
+
+[[var]]
+name = "scene_turn_output_map"
+addr = "7E:1400"
+size = 0x800
+subsystem = "scene"
+reuses = ["scene_race_center_x", "scene_race_center_y", "scene_race_bg2_scroll_x", "scene_race_bg3_scroll_x", "scene_race_bg3_scroll_y", "scene_credits_row", "scene_race_picture_requests", "scene_race_plane_turn", "scene_race_horizon", "scene_race_view_position", "scene_race_view_sent", "scene_race_scenery_drift", "scene_race_camera_offset", "scene_race_johnny_gone", "scene_race_divisors", "scene_flight_view"]
+meaning = "Transformed map queued for the next turning-scene upload"
+source = "game/scene/turning.c and game/scene/rising_palace.c, mode 5 map"

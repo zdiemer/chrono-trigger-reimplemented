@@ -573,14 +573,15 @@ static const struct {
 } routine_tables[] = { { scene_title_routines, &scene_title_routine_count }, { scene_lavos_routines, &scene_lavos_routine_count },
                        { scene_dive_routines, &scene_dive_routine_count }, { scene_planet_routines, &scene_planet_routine_count },
                        { scene_race_routines, &scene_race_routine_count }, { scene_ending_routines, &scene_ending_routine_count },
-                       { scene_staff_roll_routines, &scene_staff_roll_routine_count } };
+                       { scene_staff_roll_routines, &scene_staff_roll_routine_count },
+                       { scene_turn_routines, &scene_turn_routine_count } };
 
 #if ORIGINAL_EFFECTS
 /* What they leave, in tables parallel to theirs. */
 static const SceneRoutineLeaves *const routine_leaves[] = { scene_title_routine_leaves, scene_lavos_routine_leaves,
                                                              scene_dive_routine_leaves, scene_planet_routine_leaves,
                                                              scene_race_routine_leaves, scene_ending_routine_leaves,
-                                                             scene_staff_roll_routine_leaves };
+                                                             scene_staff_roll_routine_leaves, scene_turn_routine_leaves };
 #endif
 
 static const SceneScriptRoutine *routine_port(uint16_t routine)
