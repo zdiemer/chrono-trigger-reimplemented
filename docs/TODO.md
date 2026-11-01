@@ -3026,9 +3026,12 @@ list, by kind, is what `game/` still asks of one.
   call for yet. The census (REIMPLEMENTATION.md, "The census") counts the
   rest: 259 entries the machine still enters, 21.1 M times over the library.
 - **Finish the scene-joints pass.** The scene and warp files still contain
-  28 stops. They cover controller/music waits, reset, script dispatch,
+  26 stops. They cover controller/music waits, reset, script dispatch,
   scaling and the scene/field transition. The task-list continuations are C;
-  the remaining stops have not been retired.
+  the remaining stops have not been retired. The startup and sound-send
+  continuations are C. The static don't-care check also exposes the mode-5
+  sequence picker's inherited AH declaration at the script music-wait stop;
+  settle it while replacing that stop, before the sampled gate.
 - **A meaningful native run of mode 5.** Its setup, map and figure animation
   are C and every new entry passes fuzzing. No known story path starts it.
   A forced start directly after boot reaches the figure task at frame 41,

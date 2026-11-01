@@ -6,7 +6,6 @@
 # under that port's comparisons still open when a run ended, which hides it from the rest.
 7E:---- 151221 16  # no port yet (scene program (RAM))
 7E:3023 11133 8  # handback by attract_frame_pass (scene program (RAM))
-7E:3092 1786 51  # handback by scene_clear_work_ram (scene program (RAM))
 7E:3176 1432 1  # handback by scene_boot, scene_run_vblank_tasks (scene program (RAM))
 7E:31B0 763 15  # handback by scene_boot (scene program (RAM))
 7E:347A 22 1  # handback by scene_run_frame_tasks (scene program (RAM))
@@ -14,7 +13,6 @@
 7E:34E3 13 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:350E 14992 46  # handback by scene_program_start (scene program (RAM)): the pixels' spread, Lavos's fall's call-out (TODO.md, "The pixels' spread is still the program's"), counted under 7E:---- until the measure followed its stack switch (chunk 9's review)
 7E:375F 783 26  # handback by scene_title_set_up_pendulum (scene program (RAM))
-7E:377E 2901 6  # handback by scene_send_sound_command (scene program (RAM))
 7E:398A 50356 23  # handback by scene_run_frame_tasks (scene program (RAM)); the sequence's wait for the music ($C3:0C2A-$C3:0C40) in endings-beyond-time, a task the frame list leaves to the original (scene/frame.c) and the wait an idle entry shadow mode skips; the same code was filed under $7E:3749's and $7E:3754's hand-backs before chunk 11 made the list a port
 7E:399B 1004 23  # handback by scene_frame_tasks_go_on (scene program (RAM)); the same wait where the list goes on after a task came back to it (chunk 11's continuation)
 7E:44CE 1 1  # handback by scene_race_drain_score (scene program (RAM))
@@ -86,6 +84,7 @@ FD:DAC1 1896 7  # handback by warp_shortest_trip_waits (field graphics); the sam
 FD:DB24 3064 7  # handback by warp_flickering_trip_waits (field graphics); the same for the flickering trip (warp_flickering_frame, $FD:DB27, before)
 FD:EADA 18 5  # handback by warp_set_up: the idle wait's leaving pass (field graphics)
 FF:---- 162359 189  # no port yet (misc): the number tiles' and the records' bank-$FF code, the same instructions as before, 32 K of it filed here since the records' task's hand-back no longer takes the other tasks' code (chunk 8)
+open 7E:3000 34 0  # attract-demo ends inside startup after its clear continues as C; moved from the retired 7E:3092 handback, no new original work
 open 7E:3003 5 0  # hidden under scene_setup_and_first_frame's comparison, still open when a run ended
 open C0:0000 15 0  # hidden under field_enter's comparison, still open when a run ended; a movie that ends as the field starts
 open C0:0097 3557 0  # hidden under field_frame's comparison, still open when a run ended: endings-telepod-lavos 3515, which ends in the field's frame whose pass now covers the steps it goes on from (chunk 11, the fallback measure keeping its extent), and 6 each in seven fights' movies

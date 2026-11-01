@@ -109,13 +109,13 @@ bool scene_clear_the_work_ram(GameState *g, Platform *pf, uint8_t matrix_left)
 }
 
 /* The shorter clear returns with A's high byte 0 and D back on the scene's
- * page; the longer one stops at $7E:30E9, where the program goes on. */
+ * page; the longer one continues through sound and screen setup. */
 void scene_clear_work_ram(Snes *s)
 {
     bool shorter = scene_clear_the_work_ram(state_of(s), m_platform(s), (uint8_t)s->cpu.a);
     s->cpu.d = 0x0000;
     if (!shorter) {
-        m_stop_at(s, 0x7E30E9, DC_A | DC_X | DC_Y | DC_C);
+        TIMED_AS(state_of(s), 0x7E30E9, scene_after_work_ram_clear(s));
         return;
     }
     s->cpu.a = 0x0000;

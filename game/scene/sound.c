@@ -87,26 +87,41 @@ static uint8_t echo(Platform *pf) { return au_driver_read(pf, PF_AT(0x7E379B), 0
 /* How many passes the echo wait makes before it sends the command again. */
 enum { ECHO_PASSES = 0x0400 };
 
-/* Stops at the echo wait at $7E:379B, with 8-bit A the command and X the
- * passes left before it sends again. */
+static uint8_t send_and_wait_for_the_echo(GameState *g, Platform *pf);
+
+/* A retry enters with the same buffered command and waits for acceptance. */
 void scene_send_sound_command_again(Snes *s)
 {
-    uint8_t command = send_sound_command(state_of(s), m_platform(s));
-    m_set_a8(s, command);
-    m_set_nz8(s, command);
-    s->cpu.x = ECHO_PASSES;
-    s->cpu.pc = 0x379B;
+    scene_send_sound_command(s);
 }
 
 // $7E:377E
-/* The scene's own send of the command in the buffer (the pause's sounds, the
- * race's). With the APU run directly, the send and its echo wait run as one. */
+/* Send the scene's buffered command and wait until the driver accepts it,
+ * retrying when the echo takes too long. The retry count is private to the
+ * wait; callers use the command and the successful comparison. */
 void scene_send_sound_command(Snes *s)
 {
-    if (au_driver_run_direct(m_platform(s), 0x7E377E, 0x7E37A4))
-        return;
     m_set_flag(s, CPU_FLAG_M, true);
-    scene_send_sound_command_again(s);
+    uint8_t command = send_and_wait_for_the_echo(state_of(s), m_platform(s));
+    m_set_a8(s, command);
+    m_set_nz8(s, 0);
+    m_set_flag(s, CPU_FLAG_C, true);
+    m_rts(s);
+}
+
+bool scene_send_sound_command_long_present(Snes *s)
+{
+    return scene_send_sound_command_present(s) && m_code_matches(s, 0x7E377A, 4, 0x09C58C726C5F3645ull);
+}
+
+// $7E:377A
+/* The frame's long-call form of the same command send. */
+void scene_send_sound_command_long(Snes *s)
+{
+    m_set_flag(s, CPU_FLAG_M, true);
+    TIMED_AS(state_of(s), 0x7E377E, (void)send_and_wait_for_the_echo(state_of(s), m_platform(s)));
+    m_set_flag(s, CPU_FLAG_C, true);
+    m_rtl(s);
 }
 
 // $7E:379B
@@ -136,14 +151,13 @@ void scene_wait_sound_command_echo_loop(Snes *s)
  * starts and as the program ends: the tempo and the pitch unbent at once, the
  * effects' pitch unbent, both pairs of effect voices stopped, and the music at
  * full volume at once. Each command goes through the program's own send,
- * which waits for the driver to take it; the last is the routine's own jump to
- * the send, which returns for it, where the port stops. A scene that sends no
+ * which waits for the driver to take it; the last send returns directly to
+ * the caller. A scene that sends no
  * songs leaves the sound alone. The send reads the buffer and none of the
  * registers. */
 enum { SCENE_SEND = 0x7E377E, SEND_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 /* The last send returns to the routine's caller, which reads what the routine
  * was called with of A's high byte, Y and the overflow. */
-enum { THE_LAST_SEND_RETURNS_A_HIGH_Y_AND_THE_OVERFLOW = DC_AL | DC_X | DC_N | DC_Z | DC_C };
 
 static const struct {
     uint8_t command, p1, p2;
@@ -165,10 +179,13 @@ static void into_the_buffer(GameState *g, unsigned n)
 }
 
 /* As C: the command in the buffer sent, and the driver's echo waited for. */
-static void send_and_wait_for_the_echo(GameState *g, Platform *pf)
+static uint8_t send_and_wait_for_the_echo(GameState *g, Platform *pf)
 {
-    uint8_t command = send_sound_command(g, pf);
-    au_driver_wait_echo(pf, PF_LOOP(0x7E379B, 0x7E37A5), command);
+    for (;;) {
+        uint8_t command = send_sound_command(g, pf);
+        if (au_driver_wait_echo_or_give_up(pf, PF_LOOP(0x7E379B, 0x7E37A5), 0x7E37A3, command, ECHO_PASSES))
+            return command;
+    }
 }
 
 void scene_sound_back_to_normal(GameState *g, Platform *pf)
@@ -199,7 +216,7 @@ void scene_sound_back_to_normal_entry(Snes *s)
         au_driver_call(m_platform(s), PF_CALL(back_to_normal[n].site, SCENE_SEND), SEND_READS_NOTHING);
     }
     into_the_buffer(g, BACK_TO_NORMAL - 1);
-    m_stop_at(s, SCENE_SEND, THE_LAST_SEND_RETURNS_A_HIGH_Y_AND_THE_OVERFLOW);
+    TIMED_AS(g, SCENE_SEND, scene_send_sound_command(s));
 }
 
 /* The routine, whose stores reach the sound command buffer through the data

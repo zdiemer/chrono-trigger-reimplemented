@@ -143,11 +143,14 @@ PF_API bool au_driver_wait_echo_or_give_up(Platform *pf, PfOrigin o, uint32_t gi
 {
     Snes *s = pf_snes(pf);
     int32_t wake = native_wake_port0_shows(value);
+    /* The RAM scene program's long-address compare takes sixteen clocks
+     * more per failed poll than the cartridge driver's direct-page loop. */
+    uint32_t poll_clocks = o.site == 0x7E379B ? 82 : AU_SNES_COUNTED_POLL_CLOCKS;
     if (au_direct_running(s))
-        return au_direct_wait_port0(s, wake, tries, AU_SNES_COUNTED_POLL_CLOCKS);
+        return au_direct_wait_port0(s, wake, tries, poll_clocks);
     m_set_a8(s, value);
     s->cpu.x = tries;
-    return native_wait_loop_or_give_up(s, o.site, o.target, given_up, wake, tries, AU_SNES_COUNTED_POLL_CLOCKS);
+    return native_wait_loop_or_give_up(s, o.site, o.target, given_up, wake, tries, poll_clocks);
 }
 
 PF_API bool au_driver_hosted(Platform *pf) { return pf_snes(pf)->apu.host_command != NULL; }

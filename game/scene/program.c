@@ -223,6 +223,25 @@ enum { THE_SOUND_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C 
  * high byte; the sound's commands hand it back to the start untouched. */
 static void leave_the_clear_s_page_in_a(Snes *s) { s->cpu.a = (uint16_t)(M_DP_DMA | (s->cpu.a & 0x00FF)); }
 
+// $7E:30E9
+/* After the full work-RAM clear, normalize the sound and establish the
+ * empty screen before returning to the scene's setup. */
+void scene_after_work_ram_clear(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (!(scene_flags(g) & SCENE_FLAG_NO_SONGS)) {
+        set_scene_song(g, NO_SONG);
+        ORIGINAL_EFFECT(leave_the_clear_s_page_in_a(s));
+        if (!scene_run(s, SOUND_CALL, SOUND_BACK_TO_NORMAL, THE_SOUND_READS_NOTHING, scene_sound_back_to_normal_entry))
+            return;
+    }
+    TIMED_AS(g, 0x7E30F6, scene_program_goes_on(s));
+}
+
+// $7E:31BE
+/* The frame wait has completed; its caller can continue. */
+void scene_frame_wait_done(Snes *s) { m_rts(s); }
+
 // $7E:3000
 /* The program's start, from the boot on the field's page. The clear's matrix
  * value is what A holds there, the fades' pace. */
@@ -298,6 +317,8 @@ static bool start_present(Snes *s)
            m_code_matches(s, 0x7E3843, 45, 0x36CEE4DC10A522A8ull) &&
            m_code_matches(s, 0x7E388B, 36, 0x84B3B18FAFEEAE44ull);
 }
+
+bool scene_after_work_ram_clear_present(Snes *s) { return start_present(s); }
 
 bool scene_program_start_present(Snes *s)
 {

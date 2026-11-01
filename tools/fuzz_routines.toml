@@ -581,7 +581,7 @@ args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 name = "scene_clear_work_ram"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
 iterations = 2000
 
 [[routine]]
@@ -21687,3 +21687,24 @@ subsystem = "scene"
 state = "attract"
 args = ["--db", "7E", "--widths", "8,16", "--range", "X=1234-1234", "--fill", "7E0920-7E095F=FFFF", "--fill", "7E0960-7E09DF=0000,1234,FFFF", "--fill", "7E09E0-7E09E1=0000", "--fill", "7E09E2-7E09E3=1234"]
 why = "no matching slot within either list; the original search must continue through following work RAM, preserving the caller accumulator width"
+
+[[routine]]
+name = "scene_after_work_ram_clear"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
+why = "the scene program present and command echoes available, so the whole continuation can return"
+
+[[routine]]
+name = "scene_frame_wait_done"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
+why = "the scene program present and command echoes available, so the whole continuation can return"
+
+[[routine]]
+name = "scene_send_sound_command_long"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--long"]
+why = "the scene program present and command echoes available, so the whole continuation can return"
