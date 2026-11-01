@@ -22,8 +22,8 @@
  * or it is of another catalogue. The ROM is read only to import it, and isn't
  * kept.
  *
- * It is a measurement, not yet a player: it runs the program's frames
- * headless and says how far the program's C carries it -- the frame and the
+ * It plays in the shared SDL window, or runs headless measurements with
+ * --frames. It says how far the program's C carries it -- the frame and the
  * routine where the next step is still only a machine entry -- and what it
  * reached for that a host doesn't have (an address outside work RAM, save RAM
  * and the cartridge), and whether its picture, drawn every frame by the native
@@ -31,15 +31,20 @@
  * reaching the last frame says nothing of the picture). --shot-every writes
  * frames as PNGs, --locations the places the run enters, --end-state work
  * RAM and save RAM at the end. Exit status 0 when it ran every frame, 1 where the
- * program stopped short, 2 on bad arguments or files. This file is the driver:
+ * program stopped short, 2 on bad arguments or files, 3 on a fatal machine
+ * entry. This file is the driver:
  * the loop, the files and the report are its, as frontend/headless.c's are
  * the player's. */
+#include <errno.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "assets.h"
+#include "file_store.h"
+#include "menu/saves.h"
 #include "core/program.h"
 #include "media.h"
 #include "movie.h"
@@ -47,6 +52,12 @@
 #include "platform/native/host.h"
 #include "platform/native/render.h"
 #include "port/state_host.h"
+#include "port/no_machine.h"
+#ifdef CT_HAVE_SDL
+#define SDL_MAIN_HANDLED
+#include "window.h"
+#include "bindings.h"
+#endif
 #include "vars.h"
 #include "sound_native.h"
 
@@ -226,11 +237,154 @@ static bool scene_and_song(const char *text, uint8_t *scene, uint8_t *song)
     return *rest == ',' && byte_from(rest + 1, &rest, song) && *rest == '\0';
 }
 
+/* This desktop driver owns the movie, file names and diagnostics in both
+ * modes. Its step runs exactly one frame; the SDL driver owns the live loop. */
+typedef struct {
+    GameState *game;
+    Platform *pf;
+    SoundNative *sound;
+    Picture *picture;
+    ct_movie *movie;
+    const char *sram_path, *shot_dir;
+    unsigned long frame, frames, shot_every;
+    bool locations, persist, save_pending;
+    uint16_t location;
+    uint8_t saved[STATE_HOST_SRAM_BYTES];
+    int result;
+} NativeDriver;
+
+/* saves_save_game writes this marker after the entire slot and its checksum.
+ * Metadata clears on a fresh start never write it. The driver persists at
+ * frame end, after the save routine's remaining completion count update. */
+static void native_save_written(void *ctx, uint16_t offset)
+{
+    NativeDriver *d = ctx;
+    if (offset == SAVES_LAST_SLOT)
+        d->save_pending = true;
+}
+
+static int native_flush(void *ctx)
+{
+    NativeDriver *d = ctx;
+    if (!d->persist || !d->save_pending)
+        return 0;
+    const uint8_t *bytes = sv_host_bytes(d->pf, NULL);
+    if (!memcmp(bytes, d->saved, sizeof d->saved)) {
+        d->save_pending = false;
+        return 0;
+    }
+    if (file_store_replace(d->sram_path, bytes, sizeof d->saved) != 0) {
+        fprintf(stderr, "ct_native: cannot write cartridge save %s\n", d->sram_path);
+        d->result = 2;
+        return 1;
+    }
+    memcpy(d->saved, bytes, sizeof d->saved);
+    d->save_pending = false;
+    fprintf(stderr, "ct_native: saved %s at frame %lu\n", d->sram_path, d->frame);
+    return 0;
+}
+
+static void machine_failure(void *ctx, const char *routine)
+{
+    NativeDriver *d = ctx;
+    fprintf(stderr, "ct_native: frame %lu: %s reached, which only the machine has\n", d->frame + 1, routine);
+    fflush(stderr);
+}
+
+static void native_step(void *ctx, uint16_t buttons)
+{
+    NativeDriver *d = ctx;
+    uint16_t second = 0;
+    /* A movie owns input through its last event; live play then takes over. */
+    if (d->movie && d->frame < d->movie->length) {
+        buttons = ct_movie_buttons(d->movie, (uint32_t)d->frame);
+        second = ct_movie_buttons2(d->movie, (uint32_t)d->frame);
+    }
+    in_host_set(d->pf, 0, buttons);
+    in_host_set(d->pf, 1, second);
+    tm_host_frame(d->pf);
+    sound_native_frame(d->sound);
+    d->frame++;
+    picture_frame(d->picture, d->pf, d->frame);
+    if (d->locations && location_id(d->game) != d->location) {
+        d->location = location_id(d->game);
+        fprintf(stderr, "location: frame %lu $%03X\n", d->frame, d->location & LOCATION_BITS);
+    }
+    if (d->shot_every && d->frame % d->shot_every == 0) {
+        char path[1024];
+        snprintf(path, sizeof path, "%s/frame_%06lu.png", d->shot_dir, d->frame);
+        if (ct_png_write(path, d->picture->pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT) != 0)
+            fprintf(stderr, "ct_native: cannot write %s\n", path);
+    }
+    uint32_t routine;
+    const char *what;
+    if (state_host_stopped(d->game, &routine, &what)) {
+        fprintf(stderr, "frame %lu: the program's C goes no further: $%02X:%04X, %s, runs only on the machine\n",
+                d->frame, (unsigned)(routine >> 16), (unsigned)(routine & 0xFFFF), what);
+        d->result = 1;
+    }
+    /* Persist only complete frames, immediately after the game saves. */
+    native_flush(d);
+}
+
+static bool native_done(void *ctx)
+{
+    NativeDriver *d = ctx;
+    return d->result || d->frame >= d->frames;
+}
+
+#ifdef CT_HAVE_SDL
+static const uint32_t *native_pixels(void *ctx) { return ((NativeDriver *)ctx)->picture->pixels; }
+static size_t native_audio(void *ctx, int16_t *out, size_t frames) { return sound_native_take_audio(ctx, out, frames); }
+static void native_discard(void *ctx) { sound_native_discard_audio(ctx); }
+static const char *native_halt(void *ctx) { (void)ctx; return NULL; } /* stops are printed, then exit 1 */
+static bool native_fast(void *ctx) { (void)ctx; return false; }
+static void native_title(void *ctx, bool paused, char *out, size_t size)
+{
+    NativeDriver *d = ctx;
+    snprintf(out, size, "ct_native - frame %lu%s%s", d->frame, paused ? " [paused]" : "",
+             d->movie && d->frame < d->movie->length ? " [movie]" : "");
+}
+#endif
+
+static void usage(FILE *out)
+{
+    fprintf(out, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
+                 "                 [--headless | --window] [--scale N] [--fullscreen] [--mute]\n"
+                 "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--scene flags[,song]]...\n"
+                 "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
+                 "Window play writes cartridge saves; headless runs only read them. No quick save/load.\n");
+#ifdef CT_HAVE_SDL
+    window_print_controls(out);
+#else
+    fprintf(out, "Built without SDL: headless only.\n");
+#endif
+}
+
+static bool count_from(const char *text, unsigned long *out)
+{
+    char *end;
+    errno = 0;
+    if (*text < '0' || *text > '9')
+        return false;
+    *out = strtoul(text, &end, 10);
+    return !errno && !*end;
+}
+
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL, *movie_path = NULL, *shot_dir = NULL;
     const char *end_state = NULL;
-    unsigned long frames = 600, shot_every = 0;
+    unsigned long frames = 600, shot_every = 0, scale = 3;
+    bool frames_given = false, fullscreen = false, mute = false;
+    int display_mode = 0;   /* auto, headless, window */
+#ifdef CT_HAVE_SDL
+    SDL_SetMainReady();
+    bindings_reset();
+    char bind_error[80];
+    bindings_set("F5 = None", bind_error, sizeof bind_error);
+    bindings_set("F7 = None", bind_error, sizeof bind_error);
+#endif
     bool locations = false;
     unsigned scenes = 0;
     uint8_t scene[STATE_HOST_FIRST_SCENES], song[STATE_HOST_FIRST_SCENES];
@@ -240,16 +394,21 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--sram") && v) sram_path = v, i++;
         else if (!strcmp(a, "--assets") && v) pack_path = v, i++;
         else if (!strcmp(a, "--movie") && v) movie_path = v, i++;
-        else if (!strcmp(a, "--frames") && v) frames = strtoul(v, NULL, 10), i++;
-        else if (!strcmp(a, "--shot-every") && v) shot_every = strtoul(v, NULL, 10), i++;
+        else if (!strcmp(a, "--frames") && v && count_from(v, &frames)) frames_given = true, i++;
+        else if (!strcmp(a, "--headless")) display_mode = 1;
+        else if (!strcmp(a, "--window")) display_mode = 2;
+        else if (!strcmp(a, "--scale") && v && count_from(v, &scale) && scale >= 1 && scale <= 10) i++;
+        else if (!strcmp(a, "--fullscreen")) fullscreen = true;
+        else if (!strcmp(a, "--mute")) mute = true;
+        else if (!strcmp(a, "--help")) { usage(stdout); return 0; }
+        else if (!strcmp(a, "--shot-every") && v && count_from(v, &shot_every)) i++;
         else if (!strcmp(a, "--shot-dir") && v) shot_dir = v, i++;
         else if (!strcmp(a, "--end-state") && v) end_state = v, i++;
         else if (!strcmp(a, "--locations")) locations = true;
         else if (!strcmp(a, "--scene") && v && scenes < STATE_HOST_FIRST_SCENES && scene_and_song(v, &scene[scenes], &song[scenes]))
             scenes++, i++;
         else {
-            fprintf(stderr, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
-                            "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--scene flags[,song]]...\n");
+            usage(stderr);
             return 2;
         }
     }
@@ -257,6 +416,20 @@ int main(int argc, char **argv)
         fprintf(stderr, "ct_native: %s\n", rom_path ? "--shot-every needs --shot-dir" : "--rom is required");
         return 2;
     }
+    bool windowed = display_mode == 2 || (display_mode == 0 && !frames_given);
+#ifndef CT_HAVE_SDL
+    if (display_mode == 2) {
+        fprintf(stderr, "ct_native: --window needs a build with SDL2\n");
+        return 2;
+    }
+    windowed = false;
+    (void)fullscreen;
+    (void)mute;
+#endif
+    if (display_mode == 1)
+        windowed = false;
+    if (windowed && !frames_given)
+        frames = ULONG_MAX;
     static char beside[1024];
     if (!pack_path) {
         pack_beside(beside, sizeof beside, rom_path);
@@ -272,9 +445,19 @@ int main(int argc, char **argv)
     static AssetStore store;
     asset_pack_store(pack, &store);
     assets_use(&store);
+    static char default_sram[1024];
+    if (windowed && !sram_path) {
+        pack_beside(default_sram, sizeof default_sram, rom_path);
+        char *ext = strrchr(default_sram, '.');
+        if (ext)
+            strcpy(ext, ".srm");
+        sram_path = default_sram;
+    }
     long sram_len = 0;
-    uint8_t *sram = sram_path ? read_file(sram_path, STATE_HOST_SRAM_BYTES, &sram_len) : NULL;
-    if (sram_path && (!sram || sram_len != STATE_HOST_SRAM_BYTES)) {
+    errno = 0;
+    uint8_t *sram = sram_path ? read_file(sram_path, STATE_HOST_SRAM_BYTES + 1, &sram_len) : NULL;
+    bool new_save = windowed && !sram && errno == ENOENT;
+    if (sram_path && !new_save && (!sram || sram_len != STATE_HOST_SRAM_BYTES)) {
         fprintf(stderr, "ct_native: %s is not an 8 KiB cartridge save\n", sram_path);
         return 2;
     }
@@ -301,37 +484,41 @@ int main(int argc, char **argv)
         return 2;
     }
     tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, take_owed }, 1);
+    NativeDriver driver = {
+        .game = g, .pf = &pf, .sound = sound, .picture = &picture,
+        .movie = movie_path ? &movie : NULL, .sram_path = sram_path,
+        .shot_dir = shot_dir, .frames = frames, .shot_every = shot_every,
+        .locations = locations, .persist = windowed, .location = 0xFFFF
+    };
+    memcpy(driver.saved, state_host_sram(g), sizeof driver.saved);
+    pf.save.ctx = &driver;
+    pf.save.written = native_save_written;
+    no_machine_report_with(machine_failure, &driver);
     int rc = 0;
-    unsigned long frame = 0;
-    uint16_t location = 0xFFFF;
-    while (frame < frames) {
-        if (movie_path) {
-            in_host_set(&pf, 0, ct_movie_buttons(&movie, (uint32_t)frame));
-            in_host_set(&pf, 1, ct_movie_buttons2(&movie, (uint32_t)frame));
-        }
-        tm_host_frame(&pf);
-        sound_native_frame(sound);
-        frame++;
-        picture_frame(&picture, &pf, frame);
-        if (locations && location_id(g) != location) {
-            location = location_id(g);
-            fprintf(stderr, "location: frame %lu $%03X\n", frame, location & LOCATION_BITS);
-        }
-        if (shot_every && frame % shot_every == 0) {
-            char path[1024];
-            snprintf(path, sizeof path, "%s/frame_%06lu.png", shot_dir, frame);
-            if (ct_png_write(path, picture.pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT) != 0)
-                fprintf(stderr, "ct_native: cannot write %s\n", path);
-        }
-        uint32_t routine;
-        const char *what;
-        if (state_host_stopped(g, &routine, &what)) {
-            fprintf(stderr, "frame %lu: the program's C goes no further: $%02X:%04X, %s, runs only on the machine\n",
-                    frame, (unsigned)(routine >> 16), (unsigned)(routine & 0xFFFF), what);
-            rc = 1;
-            break;
+#ifdef CT_HAVE_SDL
+    if (windowed) {
+        WindowOptions options = {
+            .scale = (int)scale, .fullscreen = fullscreen, .mute = mute,
+            .display = { 8, 8, 4.0 / 3.0 * VID_RENDER_HEIGHT / VID_RENDER_WIDTH }
+        };
+        WindowClient client = {
+            .ctx = &driver, .name = "ct_native", .step = native_step, .pixels = native_pixels,
+            .audio = { sound, native_audio, native_discard }, .title = native_title,
+            .halt = native_halt, .done = native_done, .fast = native_fast, .flush = native_flush
+        };
+        rc = window_run(&client, &options);
+    } else
+#endif
+    {
+        while (!native_done(&driver)) {
+            native_step(&driver, 0);
+            sound_native_discard_audio(sound);
         }
     }
+    if (driver.result)
+        rc = driver.result;
+    unsigned long frame = driver.frame;
+    no_machine_report_with(NULL, NULL);
     fprintf(stderr, "ct_native: %lu frame(s); the screen set up %u time(s), %s\n", frame,
             (unsigned)pf.video.screens_applied, pf.video.display.blank ? "blanked" : "showing");
     fprintf(stderr, "time: %u lag frame(s), the main thread's work owed the original's time\n",
@@ -346,7 +533,7 @@ int main(int argc, char **argv)
     report_strays(g, &pf);
     if (end_state && write_end_state(end_state, g) != 0) {
         fprintf(stderr, "ct_native: cannot write %s\n", end_state);
-        rc = 1;
+        rc = 2;
     }
     vid_render_destroy(picture.renderer);
     sound_native_destroy(sound);

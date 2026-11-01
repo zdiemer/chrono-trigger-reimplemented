@@ -14,6 +14,8 @@
 #ifndef CT_FRONTEND_SOUND_NATIVE_H
 #define CT_FRONTEND_SOUND_NATIVE_H
 
+#include <stddef.h>
+
 #include "platform/native/host.h"
 #include "state.h"
 
@@ -25,5 +27,12 @@ void sound_native_destroy(SoundNative *n);
 
 /* A displayed frame's worth of the driver's time. */
 void sound_native_frame(SoundNative *n);
+
+/* Buffered 32000 Hz stereo samples for the driver, oldest first. Taking fewer
+ * than are ready leaves the rest for the next call. A driver that doesn't
+ * play sound discards it after each frame. If a driver falls behind, the
+ * buffer keeps the newest 8192 frames rather than growing without bound. */
+size_t sound_native_take_audio(SoundNative *n, int16_t *out, size_t frames);
+void sound_native_discard_audio(SoundNative *n);
 
 #endif

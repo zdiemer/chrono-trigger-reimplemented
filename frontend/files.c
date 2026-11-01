@@ -1,4 +1,5 @@
 #include "files.h"
+#include "file_store.h"
 
 #include "assets.h"
 
@@ -164,8 +165,12 @@ void files_after_frame(const Files *f, Player *pl)
 void files_flush(const Files *f, Player *pl)
 {
     const uint8_t *sram = player_sram_changed(pl);
-    if (sram && files_write(f->sram, sram, SNES_SRAM_SIZE, false) == 0)
-        player_sram_stored(pl);
+    if (sram) {
+        if (file_store_replace(f->sram, sram, SNES_SRAM_SIZE) == 0)
+            player_sram_stored(pl);
+        else
+            fprintf(stderr, "cannot write cartridge save %s\n", f->sram);
+    }
     size_t len;
     char *misses = player_misses_text(pl, &len);
     if (misses) {

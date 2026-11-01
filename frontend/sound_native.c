@@ -30,6 +30,8 @@ enum {
 
 typedef enum { WAITING, ECHO_DRAINING, ECHO_FILLING } Phase;
 
+enum { AUDIO_FRAMES = 8192 };
+
 /* A command that came while the driver waited for its echo: the game's (as
  * the CPU half took it) or one written to the ports. */
 typedef struct {
@@ -53,6 +55,8 @@ struct SoundNative {
     uint8_t queued;
     uint8_t in[4];           /* the ports as the game wrote them */
     uint8_t out[4];          /* ... and as the driver shows them */
+    int16_t samples[AUDIO_FRAMES * 2];
+    size_t sample_head, sample_count;
 };
 
 /* ---- The driver ------------------------------------------------------------------------------- */
@@ -180,8 +184,14 @@ static void echo_wait(SoundNative *n, uint32_t cycles)
 static void mix(SoundNative *n, uint32_t cycles)
 {
     int16_t frame[2];
-    for (n->mix_clock += cycles; n->mix_clock >= MIX_CYCLES; n->mix_clock -= MIX_CYCLES)
+    for (n->mix_clock += cycles; n->mix_clock >= MIX_CYCLES; n->mix_clock -= MIX_CYCLES) {
         mixer_frame(&n->mixer, frame);
+        n->samples[n->sample_head * 2] = frame[0];
+        n->samples[n->sample_head * 2 + 1] = frame[1];
+        n->sample_head = (n->sample_head + 1) % AUDIO_FRAMES;
+        if (n->sample_count < AUDIO_FRAMES)
+            n->sample_count++;
+    }
 }
 
 /* The driver's time in steps of at most a timer step: a tick where one is
@@ -297,3 +307,19 @@ void sound_native_destroy(SoundNative *n)
 }
 
 void sound_native_frame(SoundNative *n) { pass(n, SPC_CYCLES_PER_FRAME); }
+
+size_t sound_native_take_audio(SoundNative *n, int16_t *out, size_t frames)
+{
+    if (frames > n->sample_count)
+        frames = n->sample_count;
+    size_t tail = (n->sample_head + AUDIO_FRAMES - n->sample_count) % AUDIO_FRAMES;
+    for (size_t i = 0; i < frames; i++) {
+        size_t at = (tail + i) % AUDIO_FRAMES;
+        out[i * 2] = n->samples[at * 2];
+        out[i * 2 + 1] = n->samples[at * 2 + 1];
+    }
+    n->sample_count -= frames;
+    return frames;
+}
+
+void sound_native_discard_audio(SoundNative *n) { n->sample_count = 0; }
