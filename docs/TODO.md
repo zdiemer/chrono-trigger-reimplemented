@@ -2878,6 +2878,11 @@ list, by kind, is what `game/` still asks of one.
   `equipment_is_the_games` and its comment still turn them away on the other
   entries: make the two agree. `menu_describe_item` with a stray item wasn't
   audited for an index past its table.
+- **What the sound teardown's review left** (none blocking): the fallback
+  measure now skips `$C7` code where the cartridge's driver plays
+  (`dev/fallbacks.c`); nothing tests that the skip keeps the interrupt and
+  callee counts of the code around it, or that `$C7` run under the C host is
+  still counted. Add a focused test.
 - **What the time model's review left** (none blocking):
   `charge_send` (`runtime/platform/native/video.c`) charges any send from the
   main thread, where the design charges only a load's (screen off): gate it on
