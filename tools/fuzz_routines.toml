@@ -617,6 +617,57 @@ iterations = 200
 why = "a random size makes a transfer very slow"
 
 [[routine]]
+name = "scene_title_load_sprite_graphics"
+at = "7E:597B"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_title_load_layer_tiles"
+at = "7E:59A0"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_title_load_plane_graphics"
+at = "7E:59AA"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_title_load_bg1_map"
+at = "7E:59BC"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_title_load_bg2_map"
+at = "7E:59CC"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_title_fill_bg1_map"
+at = "7E:59D5"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+iterations = 2000
+why = "fills $F00 bytes of VRAM a call"
+
+[[routine]]
+name = "scene_title_set_up_pendulum"
+at = "7E:5A59"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
 name = "scene_title_load_plane_map"
 at = "7E:5AB6"
 subsystem = "scene"

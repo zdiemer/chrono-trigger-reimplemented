@@ -3108,19 +3108,15 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene continuations: the title and the staff roll
+### Scene continuations: the staff roll
 
-The scene-joints pass starts with the title loader fragments that TODO.md
-identified as obsolete, and the staff roll's jump from writing a line to
-scrolling it. The preceding scene work is in
-history/reimplementation-chunks.md, "The native program's last named stops".
+The scene-joints pass investigated the obsolete title loader fragments and
+the staff roll's jump from writing a line to scrolling it. The preceding
+scene work is in history/reimplementation-chunks.md, "The native program's
+last named stops".
 
-The title setup already loads the whole picture as C. Its seven intermediate
-entries at `$7E:597B`, `$7E:59A0`, `$7E:59AA`, `$7E:59BC`, `$7E:59CC`,
-`$7E:59D5` and `$7E:5A59` have no remaining callers. Their wrappers, registry
-rows and standalone fuzz cases are retired; the setup keeps its map fill,
-pendulum setup and code guard. The credits writer at `$7E:9E7B` now calls the
-scroll at `$7E:9ED6` as C, timed as the scroll, and its guard checks the
+The credits writer at `$7E:9E7B` now calls the scroll at `$7E:9ED6` as C,
+timed as the scroll, and its guard checks the
 continuation's code too. The scroll retains both the fast pace and the slow
 pace's choice of field. The end-of-credits task exit remains explicit.
 
@@ -3132,14 +3128,28 @@ mismatches. The ending compares all 3,281 credits-writer calls and all 3,280
 scroll calls, with none interrupted. The title setup's single call is
 abandoned inside the enclosing comparison, so is not compared alone; its
 implementation is unchanged. Both style checks and the scaffolding-read
-check report zero findings.
+check report zero findings. Python unit tests pass: 467 tests, 10 skipped.
 
-`machine_joints.py` counts the scene and warp files at 756 before and 750
-after: stops 51 to 47, video calls 306 to 304, all other categories unchanged.
-The global registry loses seven entries, 2,189 to 2,182. This retires redundant
-boundaries rather than adding code coverage: the scene program (RAM) remains
-12% unported and the scene engine 7%. The remaining scene program and task
-exits are recorded in TODO.md; this pass does not reach zero stops.
+The attempted retirement of the title's seven intermediate entries passed
+all 37 sampled shadow movies and all 56 shipping-mode routes. It failed the
+fallback ratchet: `attract-demo` ended with 138 instructions newly counted
+under an open `scene_title_set_up` comparison (`open 7E:5978`). Removing the
+intermediate comparisons changes attribution even though the whole setup's
+C implementation is unchanged. The title wrappers, registry rows and fuzz
+cases were restored. No baseline was relaxed: CLAUDE.md reserves baseline
+updates for a whole-library run, which this task excluded. The sampled gate
+was stopped after this failure, before completing its remaining checks; it
+did not print `suite OK`. After restoration, all 22,500 frames of
+`attract-demo` finish with zero shadow mismatches, and its fallback check
+reports zero new routines, zero rises and zero malformed rows. The sampled
+gate was not run a second time.
+
+`machine_joints.py` counts the scene and warp files at 756 before and 755
+after: stops 51 to 50, all other categories unchanged. The registry remains
+at 2,189 entries; burndown remains 12% unported for scene RAM and 7% for the
+scene engine. This chunk joins existing C; it does not implement the
+remaining scene modes. The remaining scene program and task exits are
+recorded in TODO.md; this pass does not reach zero stops.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 
