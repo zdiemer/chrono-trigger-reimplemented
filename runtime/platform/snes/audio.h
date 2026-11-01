@@ -58,12 +58,6 @@ PF_API uint8_t au_driver_read(Platform *pf, PfOrigin o, uint8_t port)
     return v;
 }
 
-PF_API bool au_driver_run_direct(Platform *pf, uint32_t lo, uint32_t hi)
-{
-    (void)pf, (void)lo, (void)hi;
-    return false;
-}
-
 PF_API void au_driver_call(Platform *pf, PfOrigin o, uint16_t dont_care)
 {
     m_jsr_dc(pf_snes(pf), o.site, o.target, dont_care);

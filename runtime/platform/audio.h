@@ -91,11 +91,6 @@ PF_API size_t au_take_samples(Platform *pf, int16_t *out, size_t max_frames);
 PF_API void au_driver_write(Platform *pf, PfOrigin o, uint8_t port, uint8_t v);
 PF_API uint8_t au_driver_read(Platform *pf, PfOrigin o, uint8_t port);
 
-/* Always false: what the scene's send asks first, from when a backend could
- * run the original's driver out of the machine's time (APU-direct, retired
- * with the CPU half's port; docs/TODO.md). */
-PF_API bool au_driver_run_direct(Platform *pf, uint32_t lo, uint32_t hi);
-
 /* A JSR to a routine of the original's that sends over the ports (o: the
  * JSR's site and target). SNES backend: a call-out, so frames pass while it
  * waits. `dont_care` names

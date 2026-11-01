@@ -56,13 +56,6 @@ bool au_driver_command_taken(Platform *pf, AudioCommand c, uint8_t effects_asked
     return true;
 }
 
-/* Nothing runs the original's driver out of the machine's time any more. */
-bool au_driver_run_direct(Platform *pf, uint32_t lo, uint32_t hi)
-{
-    (void)pf, (void)lo, (void)hi;
-    return false;
-}
-
 /* ---- The ports, and the waits on them ----------------------------------------------------------- */
 
 void au_driver_write(Platform *pf, PfOrigin o, uint8_t which, uint8_t v)

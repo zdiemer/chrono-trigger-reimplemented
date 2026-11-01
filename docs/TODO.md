@@ -2042,10 +2042,6 @@ rest waits, is [PLAN.md](PLAN.md).
     from the hand ports needs one again to speak to the original's driver on
     the sound processor: the cartridge's own, from the matching source, or
     the deleted port (`core/sound_driver.c` in history).
-  - **`au_driver_run_direct`**, which always answers no since APU-direct went
-    with the teardown, is still asked by `scene/sound.c`'s entry wrapper:
-    drop the call and the service's function together when that file is
-    next touched.
   - **Sound driver follow-ups after its review.** The qualitative review of
     `game/sound/` rated no file a translation (`driver.h` hand-written, the
     rest mostly), so it merged with these as follow-ups rather than blockers,

@@ -100,11 +100,9 @@ void scene_send_sound_command_again(Snes *s)
 
 // $7E:377E
 /* The scene's own send of the command in the buffer (the pause's sounds, the
- * race's). With the APU run directly, the send and its echo wait run as one. */
+ * race's). */
 void scene_send_sound_command(Snes *s)
 {
-    if (au_driver_run_direct(m_platform(s), 0x7E377E, 0x7E37A4))
-        return;
     m_set_flag(s, CPU_FLAG_M, true);
     scene_send_sound_command_again(s);
 }
