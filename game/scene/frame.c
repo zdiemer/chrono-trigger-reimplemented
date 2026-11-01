@@ -497,6 +497,18 @@ bool scene_vblank_tasks_present(Snes *s)
     return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E39BE, 32, 0xC12FC96AEC0DACA2ull);
 }
 
+/* Completion resumes the list with the task caller's saved widths and bank.
+ * Check those before unwinding: the task itself may have changed both. */
+static bool saved_task_list_context(Snes *s)
+{
+    uint8_t flags = snes_bus_peek(&s->bus, (uint16_t)(s->cpu.s + 5));
+    uint8_t bank = snes_bus_peek(&s->bus, (uint16_t)(s->cpu.s + 8));
+    return !(flags & CPU_FLAG_X) && (bank == SCENE_LOWER_WORK_RAM || m_io_bank(bank));
+}
+
+bool scene_finish_frame_task_present(Snes *s) { return scene_frame_tasks_present(s) && saved_task_list_context(s); }
+bool scene_finish_vblank_task_present(Snes *s) { return scene_vblank_tasks_present(s) && saved_task_list_context(s); }
+
 /* ---- The tasks ------------------------------------------------------------------------------ */
 
 /* The tasks that are C (scene/title.c, scene/screen.c, scene/credit_pages.c,
@@ -877,6 +889,12 @@ void scene_finish_task(Snes *s, SceneTaskList list, TaskEnd end)
 {
     uint32_t continuation = list == SCENE_VBLANK_TASKS ? 0x7E39DE :
                             end.outcome == TASK_HANDS_OVER ? 0x7E39B1 : 0x7E39A7;
+    void (*entry)(Snes *) = list == SCENE_VBLANK_TASKS ? scene_finish_remove_vblank_task_entry :
+        end.outcome == TASK_HANDS_OVER ? scene_finish_replace_frame_task_entry : scene_finish_remove_frame_task_entry;
+    if (end.outcome == TASK_HANDS_OVER)
+        s->cpu.x = end.next;
+    if (!scene_accept_continuation(s, continuation, entry))
+        return;
     NATIVE_TIME_AS(s, continuation, finish_task_on_the_machine(s, list, end));
 }
 

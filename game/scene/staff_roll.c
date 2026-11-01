@@ -690,7 +690,8 @@ void scene_roll_credits_entry(Snes *s)
     }
     if (scene_credits_text(g) != text)
         ORIGINAL_EFFECT(leave_line_written(s));
-    TIMED_AS(g, SCROLL_THE_CREDITS, scene_scroll_credits_entry(s));
+    if (scene_accept_continuation(s, SCROLL_THE_CREDITS, scene_scroll_credits_entry))
+        TIMED_AS(g, SCROLL_THE_CREDITS, scene_scroll_credits_entry(s));
 }
 
 /* What the scroll leaves in A: the fast roll's scroll, or the word the slow

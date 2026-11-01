@@ -442,6 +442,10 @@ const NativeEntry *native_running_entry(void);
  * machine's PC whose precondition and guard hold, or NULL. For running
  * registered code synchronously (the APU-direct audio backend). */
 const NativeEntry *native_hand_entry(Snes *s);
+/* Standalone validators have no runtime. Supply contracts for explicit C
+ * continuations without enabling native dispatch in their interpreter. */
+void native_direct_contracts(const NativeEntry *table, int count);
+const NativeEntry *native_continuation_entry_at(Snes *s, uint32_t pc);
 /* The same for a call the machine would make to `addr` (24-bit) now. */
 const NativeEntry *native_hand_entry_at(Snes *s, uint32_t addr);
 

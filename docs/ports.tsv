@@ -761,3 +761,25 @@ warp_end	$FD:DB13	Same C ending and sibling timing scope as FD:DA55; existing en
 warp_end	$FD:DB8D	Same C ending and sibling timing scope as FD:DA55; existing ending/destination fuzz remains applicable, focused shadow timing passes.
 scene_scale_the_epoch	$7E:8278	Scaling and gathering remain direct C continuations; 2000 isolated cases and Epoch shadow have zero mismatches. Final scene evidence replay passes all 84 movies with two game workers, dc_evidence: OK. No full sampled gate has passed after the final corrections.
 scene_ending_scale_picture	$7E:8930	Scaling and gathering remain direct C continuations; 1959 accepted isolated cases compare with zero mismatches (41 invalid-picture guards). Complete Beyond Time shadow and the 84-movie flag-evidence replay pass; full sampled-gate receipt remains open in TODO.
+scene_turn_map	$7E:7441	Direct row/column coordinates with one pixel-rounding helper; 2000 before/after fuzz comparisons match with no skips.
+scene_race_scale_pictures	$7E:51D1	Registry refusal at the binary scaler preserves its frame; 1000 decimal and 2000 bounded binary cases match; race-won shadow matches.
+scene_race_scale_after_crono	$7E:51DF	Same scaler contract; 1000 decimal and 1000 bounded binary cases match.
+scene_scale_the_epoch	$7E:8278	Checked scaler/gather continuations; 1000 binary and 1000 decimal refusal cases match; Epoch shadow matches.
+scene_ending_scale_picture	$7E:8930	Guard the binary zoom division before preparation, then check scaler/gather contracts; 979 binary and 353 already-pending decimal cases match, with 21 and 647 guards respectively; Beyond Time shadow matches.
+scene_clear_work_ram	$7E:3092	Check the clear continuation image and preserve the DMA-page high byte on refusal; 1000 intact and 1000 modified-image cases match.
+scene_sound_back_to_normal	$7E:3177	Check the final sender contract; 1000 intact and 1000 modified-image cases match.
+scene_after_work_ram_clear	$7E:30E9	Check the following startup contract and preserve the incoming high byte; 1000 standalone cases match.
+scene_program_goes_on	$7E:30F6	Audited startup handoff; 400 standalone cases match.
+scene_program_start	$7E:3000	Propagate title music refusal instead of starting a frame; 100 modified-wait cases match. Broad startup retains the pre-review 11/384 mismatches and 16 call-out budget skips, tracked in TODO.
+scene_title_set_up	$7E:5978	Music continuation checks its own image and widths; 400 standalone cases match, attract/epoch shadow matches.
+scene_show_the_planet_s_caption	$7E:64BF	Check caption continuation contract; 1000 standalone cases match, Lavos game-over shadow matches.
+scene_roll_credits	$7E:9E7B	Check scroll and completion contracts; 1000 intact and 1000 changed task-list-image cases match, Beyond Time shadow matches.
+scene_finish_remove_frame_task	$7E:39A7	Check completion image and restored list context before unwinding; 1000 standalone cases match.
+scene_finish_replace_frame_task	$7E:39B1	Check completion image and restored list context, retaining replacement X on refusal; 1000 standalone cases match.
+scene_finish_remove_vblank_task	$7E:39DE	Check completion image and restored list context before unwinding; 1000 standalone cases match.
+scene_boot	$C3:0000	Check the unpacked program contract before the C tail continuation; six narrowed scene movies match, attract and Epoch repeated after the last fix.
+scene_program_hands_back	$7E:303B	Check field-entry contract; 1000 destination fixtures match to the first location/world-map handoff, and narrowed scene movies match.
+warp_end	$FD:DA55	Check field-entry contract; the shared ending destination fixture compares 1000 states with no mismatch; gate and Lavos game-over shadow match.
+warp_end	$FD:DAB4	Check field-entry contract; the shared ending destination fixture compares 1000 states with no mismatch; gate and Lavos game-over shadow match.
+warp_end	$FD:DB13	Check field-entry contract; the shared ending destination fixture compares 1000 states with no mismatch; gate and Lavos game-over shadow match.
+warp_end	$FD:DB8D	Check field-entry contract; the shared ending destination fixture compares 1000 states with no mismatch; gate and Lavos game-over shadow match.

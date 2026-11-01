@@ -29,6 +29,7 @@
 #include "charge.h"
 #include "core/program.h"
 #include "field/main_loop.h"
+#include "scene/scene.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "platform/timing.h"
@@ -353,7 +354,8 @@ void warp_end(Snes *s)
     TIMED_AS(state_of(s), PUT_BACK_THE_STORY_FLAGS, put_back_the_story_flags(state_of(s)));
     m_jump_to(s, FIELD_STARTS);
     /* Field loading keeps its own timing report across this tail call. */
-    NATIVE_TIME_AS_SIBLING(s, FIELD_STARTS, field_enter(s));
+    if (scene_accept_continuation(s, FIELD_STARTS, field_enter))
+        NATIVE_TIME_AS_SIBLING(s, FIELD_STARTS, field_enter(s));
 }
 
 /* A frame, then on to the main loop's wait for the next (`loop`); after the

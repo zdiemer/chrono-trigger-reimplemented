@@ -97,7 +97,8 @@ void scene_boot(Snes *s)
     m_jsl_dc(s, 0xC3006F, 0xC30557, DC_A | DC_X | DC_N | DC_Z | DC_C);
     m_jump_to(s, PROGRAM_START);
     /* Startup owns its long loading stretches, just as at its own entry. */
-    NATIVE_TIME_AS_SIBLING(s, PROGRAM_START, scene_program_start(s));
+    if (scene_accept_continuation(s, PROGRAM_START, scene_program_start))
+        NATIVE_TIME_AS_SIBLING(s, PROGRAM_START, scene_program_start(s));
 }
 
 /* The program unpacked into work RAM, as C (the decompressor's call from the

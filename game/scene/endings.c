@@ -2339,7 +2339,10 @@ bool scene_ending_scale_picture_present(Snes *s)
 {
     if (!scene_on_scene_page(s) || !m_bank_reaches_low_ram(s) || !m_code_matches(s, 0x7E8930, 0x6, 0xB318CAF0720BDB26ull))
         return false;
-    return holds(s, picture_waiting) || (holds(s, shape_word_agrees) && holds(s, picture_fits) && scene_picture_gathering_present(s) &&
+    /* Preparing the picture includes the binary-only zoom division. A
+     * decimal caller must stay at this entry before that division mutates
+     * the picture, even before it could reach the scaler's own refusal. */
+    return holds(s, picture_waiting) || (!m_flag(s, CPU_FLAG_D) && holds(s, shape_word_agrees) && holds(s, picture_fits) && scene_picture_gathering_present(s) &&
                                          m_code_matches(s, 0x7E8983, 0x3D, 0xB0AE4CBCF063A65Dull) &&
                                          m_code_matches(s, 0x7E8936, 0x4D, 0x65F6F8DD17744FCCull) &&
                                          m_code_matches(s, 0x7E32E2, 0xBD, 0xD04B8C1274AF93C8ull));

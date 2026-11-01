@@ -2800,6 +2800,14 @@ re-runs the census.
 
 ## Shadow comparison gaps
 
+The broad `scene_program_start` fuzz fixture has 11 VRAM mismatches in 384
+comparisons, with 16 call-out budget skips, identical in the pre-review and
+review builds at seed 1 (400 iterations, modes 0-15). Isolate the setup mode
+and its VRAM-read state; the first reported differences are in the copied
+map at VRAM 0004 and 6018. The focused title refusal fixture and narrowed
+startup movies pass. This pre-existing failure is not a successful fuzz
+receipt and must remain separate from the 29 clean review fixtures.
+
 The scene series still needs a complete passing sampled-gate receipt after
 its final corrections. Its one full run passed all 37 shadow movies and
 56 shipping/native-shape routes, but ended with timing, fallback,
@@ -2814,8 +2822,19 @@ interrupted; each bitmap start, row and sampling entry has 4,310 interrupted
 comparisons. The bitmap entries still have matching comparisons (1,846 at
 the start and row, 850 at the sampler). Bounded isolated fuzzing compares
 6,000 race pictures and 8,027 bitmap cases without a mismatch, but does not
-close this movie coverage gap. Keep that distinction when extending the
-race upload-wait comparison described above.
+close this movie coverage gap. The review's race-won replay independently
+compares all 3,524 NMI handlers and 3,524 frame-work calls; this checks the
+interrupt work, but not its interaction with native bitmap work interrupted
+mid-picture. Add resumable comparison checkpoints or a synchronized interrupt
+replay before removing the five bitmap/race exemptions. Keep that distinction
+when extending the race upload-wait comparison described above.
+
+Held sound/warp waits have independent shadow comparisons with interrupts
+enabled: the attract opening compares the complete music wait and ten retry
+sends; End of Time gate and Lavos game-over compare 414 frame waits and each
+complete short/shortest trip and frame loop. Their combined-run exemptions
+remain because enclosing C loops own the waits. The merge coordinator runs
+the sampled gate after these review fixes; it was not rerun in this review.
 
 The early-boss shadow runs also expose a comparison gap in the held-message
 path: `battle_pause_on_the_message` has 168 calls, all abandoned, when run
@@ -3774,6 +3793,13 @@ waits on M5 rather than on a backend.
   pictures runs long loops of its own, which is why it carries timing
   exceptions; the arrangers (`$7E:3EB7`, `$7E:3ED3`, the latter the ending's
   too) timed as their own routines would fit it better.
+
+- **Scene review follow-ups:** separate the timing sites from the panorama
+  layer data in `endings.c` (`panorama_layers`, formerly line 1179); represent
+  the turning figures' character IDs as bytes in `turning.c` (`start_figures`,
+  formerly line 158); give `scene_data.h` decoded poses instead of reads by
+  address (formerly line 31); and separate script timing metadata from command
+  semantics in `script.c` (the command table, formerly line 288).
 
 - **What scene's second review accepted as later work** (history/reimplementation-phase3a.md, "Phase
   3a: scene reworked to the review"). None changes behaviour; each is a

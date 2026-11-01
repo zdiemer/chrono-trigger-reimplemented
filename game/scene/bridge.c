@@ -31,14 +31,21 @@ static void on_page(Snes *s, uint16_t page, uint8_t bank)
     s->cpu.db = bank;
 }
 
-static void call_the_scaler(Snes *s, uint32_t call, bool row_nudge)
+static bool call_the_scaler(Snes *s, uint32_t call, bool row_nudge)
 {
     m_push8(s, DATA_BANK_AFTER);
     m_push8(s, (uint8_t)(call >> 16));
     m_push16(s, (uint16_t)(call + JSL_LENGTH - 1));
     on_page(s, SCENE_PAGE, SCENE_UPPER_WORK_RAM);
     m_set_flag(s, CPU_FLAG_C, row_nudge);
+    if (!scene_accept_continuation(s, SCALER_ROWS, scene_scale_bitmap_row)) {
+        /* The original scaler reads the row nudge, not the setup's scratch
+         * registers. Retain the original boundary's liveness contract. */
+        m_stop_at(s, SCALER_ROWS, DC_A | DC_X | DC_Y | DC_N | DC_Z);
+        return false;
+    }
     TIMED_AS(state_of(s), SCALER_ROWS, scene_scale_bitmap_row(s));
+    return true;
 }
 
 /* The race's routine ($7E:51F4) is called from one site per racer, and calls
@@ -50,7 +57,8 @@ void scene_bridge_scale_picture(Snes *s, Racer r, bool row_nudge)
 {
     uint32_t call = r == RACER_CRONO ? CRONO_SCALING_CALL : JOHNNY_SCALING_CALL;
     m_push16(s, (uint16_t)(call + JSR_LENGTH - 1));
-    call_the_scaler(s, RACE_SCALER_CALL, row_nudge);
+    if (!call_the_scaler(s, RACE_SCALER_CALL, row_nudge))
+        return;
     /* The two racers use this wait at the same stack depth. The shadow wait
      * service cannot yet distinguish Johnny's wait from Crono's already
      * satisfied one; keep this boundary until it can (docs/TODO.md). */
@@ -65,11 +73,12 @@ enum { ENDINGS_SCALER_CALL = 0x7E897F, DIVE_SCALER_CALL = 0x7E82A0 };
 
 void scene_bridge_scale_scene_picture(Snes *s, ScenePictureScaling which)
 {
-    call_the_scaler(s, which == SCALING_THE_EPOCH ? DIVE_SCALER_CALL : ENDINGS_SCALER_CALL, false);
-    if (which == SCALING_THE_EPOCH)
-        TIMED_AS(state_of(s), 0x7E82A4, scene_gather_the_epoch(s));
-    else
-        TIMED_AS(state_of(s), 0x7E8983, scene_ending_gather_picture(s));
+    if (!call_the_scaler(s, which == SCALING_THE_EPOCH ? DIVE_SCALER_CALL : ENDINGS_SCALER_CALL, false))
+        return;
+    uint32_t at = which == SCALING_THE_EPOCH ? 0x7E82A4 : 0x7E8983;
+    void (*gather)(Snes *) = which == SCALING_THE_EPOCH ? scene_gather_the_epoch : scene_ending_gather_picture;
+    if (scene_accept_continuation(s, at, gather))
+        TIMED_AS(state_of(s), at, gather(s));
 }
 
 /* ---- The race's setup ------------------------------------------------------------------------- */
@@ -149,6 +158,19 @@ void scene_bridge_scatter_stars(Snes *s, uint16_t left_in_a)
 /* ---- A sibling run as C ------------------------------------------------------------------------ */
 
 enum { JSL_SIZE_HERE = 4 };
+
+/* A tail continuation has its own contract, even when its caller is C.
+ * Leave the original at that entry, with its call frame intact, if the
+ * registry refuses the widths, decimal mode, page, data or code image. */
+bool scene_accept_continuation(Snes *s, uint32_t at, void (*entry)(Snes *))
+{
+    m_jump_to(s, at);
+    const NativeEntry *e = native_continuation_entry_at(s, at);
+    if (e && e->fn == entry)
+        return true;
+    m_stop_at(s, at, 0);
+    return false;
+}
 
 /* The call pushes its return address, under which the sibling runs as C,
  * timed as its routine, where the registry would run it there; anywhere else

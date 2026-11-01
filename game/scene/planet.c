@@ -373,7 +373,8 @@ enum { THE_FUTURE_REFUSED_TO_CHANGE = 0x6644, CAPTION_DRAWING = 0x7E64CA };
 void scene_show_the_planet_s_caption_entry(Snes *s)
 {
     s->cpu.x = THE_FUTURE_REFUSED_TO_CHANGE;
-    TIMED_AS(state_of(s), CAPTION_DRAWING, scene_draw_caption_entry(s));
+    if (scene_accept_continuation(s, CAPTION_DRAWING, scene_draw_caption_entry))
+        TIMED_AS(state_of(s), CAPTION_DRAWING, scene_draw_caption_entry(s));
 }
 
 TaskEnd scene_show_the_planet_s_caption(GameState *g, Platform *pf, unsigned slot)

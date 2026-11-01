@@ -214,7 +214,8 @@ void scene_sound_back_to_normal_entry(Snes *s)
         au_driver_call(m_platform(s), PF_CALL(back_to_normal[n].site, SCENE_SEND), SEND_READS_NOTHING);
     }
     into_the_buffer(g, BACK_TO_NORMAL - 1);
-    TIMED_AS(g, SCENE_SEND, scene_send_sound_command(s));
+    if (scene_accept_continuation(s, SCENE_SEND, scene_send_sound_command))
+        TIMED_AS(g, SCENE_SEND, scene_send_sound_command(s));
 }
 
 /* The routine, whose stores reach the sound command buffer through the data

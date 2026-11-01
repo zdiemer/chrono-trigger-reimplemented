@@ -49,34 +49,58 @@ enum { PALACE_CHANNEL = 1, SHIMMER = 0, PALACE_SCROLL_Y = 1, SEA_SCROLL = 2 };
  * reads it through bank 0. */
 enum { MAP_BUFFER = 0x001400, MAP_BYTES = 0x0800 };
 
-/* The source map and the transformed map are both 32 by 32 tile words.
- * Each position packs two 8.8 coordinates, down in the low word, across in
- * the high word. Advancing that pair together retains the sampler's rounding
- * into the across component when the down component wraps. */
+/* The source map and the transformed map are both 32 by 32 tile words. */
 enum { MAP_SOURCE = 0x000C00, MAP_COLUMNS = 32, MAP_ROW_BYTES = 64, MAP_MAX_ROWS = 32 };
 
-static uint32_t map_position(uint16_t across, uint16_t down)
+typedef struct { uint16_t across, down; } MapPoint;
+typedef struct {
+    MapPoint origin, row_step, column_step;
+    unsigned origin_rounding;
+} MapTransform;
+typedef struct { MapPoint row, point; unsigned tile_byte; } MapSample;
+
+/* Coordinates are 8.8 fixed point, across measured in tile bytes. The
+ * sampler rounds across by one fractional unit each time down passes its
+ * 256-row period. Passing the across period similarly rounds the first
+ * column's down coordinate, and the final tile byte. Calculate those small
+ * rounding terms from the coordinates' periods, independently for every
+ * pixel; neither the row order nor the previous pixel drives the transform. */
+static MapSample rounded_map_sample(const MapTransform *t, unsigned row, unsigned column)
 {
-    return (uint32_t)across << 16 | down;
+    enum { PERIOD = 65536 };
+    uint32_t down = t->origin.down + (row + 1) * t->row_step.down + t->origin_rounding;
+    uint32_t across = t->origin.across + (row + 1) * t->row_step.across + down / PERIOD;
+    uint32_t previous_down = t->origin.down + row * t->row_step.down + (row ? t->origin_rounding : 0);
+    uint32_t previous_across = t->origin.across + row * t->row_step.across + previous_down / PERIOD;
+    unsigned row_rounding = across / PERIOD - previous_across / PERIOD;
+    MapPoint row_start = { (uint16_t)across, (uint16_t)down };
+    down = row_start.down + (column + 1) * t->column_step.down + row_rounding;
+    across = row_start.across + (column + 1) * t->column_step.across + down / PERIOD;
+    previous_down = row_start.down + column * t->column_step.down + (column ? row_rounding : 0);
+    previous_across = row_start.across + column * t->column_step.across + previous_down / PERIOD;
+    unsigned pixel_rounding = across / PERIOD - previous_across / PERIOD;
+    MapPoint point = { (uint16_t)across, (uint16_t)down };
+    unsigned tile_byte = (point.across / 256 + MAP_ROW_BYTES * (point.down / 256) + pixel_rounding) & (MAP_BYTES - 2);
+    return (MapSample){ row_start, point, tile_byte };
 }
 
 /* The original's local positions, exhausted counts, patched steps, and the
  * multiplication used to address the last sampled tile. None drive C work. */
-static void leave_map_sampling(GameState *g, uint32_t row, uint32_t sample, uint32_t row_step, uint32_t column_step)
+static void leave_map_sampling(GameState *g, MapSample sample, const MapTransform *t)
 {
-    set_scene_map_sampling_work(g, 0, (uint16_t)row);
-    set_scene_map_sampling_work(g, 1, (uint16_t)(row >> 16));
+    set_scene_map_sampling_work(g, 0, sample.row.down);
+    set_scene_map_sampling_work(g, 1, sample.row.across);
     set_scene_map_sampling_work(g, 2, 0);
     set_scene_map_sampling_work(g, 3, 0);
-    set_scene_map_sampling_work(g, 4, (uint16_t)(sample >> 16));
-    set_scene_map_sampling_work(g, 5, (uint16_t)sample);
-    set_scene_map_row_down_step(g, (uint16_t)row_step);
-    set_scene_map_row_across_step(g, (uint16_t)(row_step >> 16));
-    set_scene_map_column_down_step(g, (uint16_t)column_step);
-    set_scene_map_column_across_step(g, (uint16_t)(column_step >> 16));
+    set_scene_map_sampling_work(g, 4, sample.point.across);
+    set_scene_map_sampling_work(g, 5, sample.point.down);
+    set_scene_map_row_down_step(g, t->row_step.down);
+    set_scene_map_row_across_step(g, t->row_step.across);
+    set_scene_map_column_down_step(g, t->column_step.down);
+    set_scene_map_column_across_step(g, t->column_step.across);
     hw_set_multiplicand(g, MAP_ROW_BYTES);
-    (void)hw_multiply_by(g, (uint8_t)(sample >> 8));
-    hw_set_dividend(g, (uint16_t)((hw_dividend(g) & 0xFF00) | (uint8_t)sample));
+    (void)hw_multiply_by(g, (uint8_t)(sample.point.down >> 8));
+    hw_set_dividend(g, (uint16_t)((hw_dividend(g) & 0xFF00) | (uint8_t)sample.point.down));
 }
 
 // $7E:7441
@@ -92,31 +116,22 @@ bool scene_turn_map(GameState *g)
     }
     uint16_t a = scene_turn_matrix(g, 0), b = scene_turn_matrix(g, 1);
     uint16_t c = scene_turn_matrix(g, 2), d = scene_turn_matrix(g, 3);
-    uint32_t row_step = map_position((uint16_t)(2 * b), d);
-    uint32_t column_step = map_position((uint16_t)(2 * a), c);
     uint16_t left = (uint16_t)((scene_turn_center(g, 0) << 4) + a + 1 - c);
     uint16_t top = (uint16_t)((scene_turn_center(g, 1) << 4) + c + a + 1);
-    uint32_t row = map_position((uint16_t)-(left * 32), (uint16_t)-(top * 16));
-    uint32_t sample = 0;
+    MapTransform transform = { .origin = { (uint16_t)-(left * 32), (uint16_t)-(top * 16) },
+        .row_step = { (uint16_t)(2 * b), d }, .column_step = { (uint16_t)(2 * a), c },
+        .origin_rounding = (top >> 12) & 1 };
+    MapSample sample = { 0 };
     for (unsigned y = 0; y < rows; y++) {
-        /* The initial rounding unit comes from the origin's discarded bit; subsequent
-         * rows start from the last row's two wrapped coordinates. */
-        uint32_t next_row = row + row_step + (y == 0 ? (top >> 12) & 1 : 0);
-        bool row_wrapped = next_row < row || (next_row == row && row_step != 0);
-        row = next_row;
-        sample = row;
         for (unsigned x = 0; x < MAP_COLUMNS; x++) {
-            uint32_t next = sample + column_step + (x == 0 && row_wrapped);
-            bool wrapped = next < sample || (next == sample && column_step != 0);
-            sample = next;
-            unsigned offset = ((sample >> 24) + MAP_ROW_BYTES * ((sample >> 8) & 0xFF) + wrapped) & 0x7FE;
+            sample = rounded_map_sample(&transform, y, x);
             unsigned output = y * MAP_ROW_BYTES + 2 * x;
-            set_scene_turn_output_map_byte(g, output, scene_tilemap_buffer_byte(g, offset));
-            set_scene_turn_output_map_byte(g, output + 1, scene_tilemap_buffer_byte(g, offset + 1));
+            set_scene_turn_output_map_byte(g, output, scene_tilemap_buffer_byte(g, sample.tile_byte));
+            set_scene_turn_output_map_byte(g, output + 1, scene_tilemap_buffer_byte(g, sample.tile_byte + 1));
         }
     }
     set_scene_map_pending_count(g, (uint16_t)(scene_map_pending_count(g) + 1));
-    ORIGINAL_EFFECT(leave_map_sampling(g, row, sample, row_step, column_step));
+    ORIGINAL_EFFECT(leave_map_sampling(g, sample, &transform));
     return true;
 }
 

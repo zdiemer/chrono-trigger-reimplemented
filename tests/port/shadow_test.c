@@ -409,9 +409,36 @@ static void expect(const char *name, bool match)
         run_case(rom, t, (int)(sizeof t / sizeof t[0]), nmi, long_loop, frames);              \
     } while (0)
 
+static bool direct_contract_guard(Snes *s) { return s->bus.wram[0x30] == 0x42; }
+
+static void check_direct_contracts(const uint8_t *rom)
+{
+    static Snes s;
+    snes_init(&s, rom, ROM_SIZE);
+    s.cpu.e = false;
+    s.cpu.p = CPU_FLAG_M;
+    s.bus.wram[0x30] = 0x42;
+    const NativeEntry entry = { .addr = 0x008100, .name = "direct_contract", .fn = loop_first,
+        .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M, .guard = direct_contract_guard };
+    native_direct_contracts(&entry, 1);
+    CHECK(native_continuation_entry_at(&s, entry.addr) == &entry, "standalone continuation was not accepted");
+    s.cpu.p |= CPU_FLAG_D;
+    CHECK(!native_continuation_entry_at(&s, entry.addr), "decimal continuation was accepted");
+    s.cpu.p &= (uint8_t)~CPU_FLAG_D;
+    s.bus.wram[0x30] = 0;
+    CHECK(!native_continuation_entry_at(&s, entry.addr), "continuation guard was bypassed");
+    s.bus.wram[0x30] = 0x42;
+    NativeRuntime *rt = native_create(&entry, 0, NATIVE_OFF);
+    CHECK(!native_continuation_entry_at(&s, entry.addr), "standalone contracts overrode a runtime's table");
+    native_destroy(rt);
+    native_direct_contracts(NULL, 0);
+    CHECK(!native_continuation_entry_at(&s, entry.addr), "standalone contracts were not cleared");
+}
+
 int main(void)
 {
     uint8_t *rom = make_rom(NMI_RETURNS);
+    check_direct_contracts(rom);
 
     /* the program runs, and nothing registered is compared */
     RUN(true, false, 2, ENTRY(0x00FFF0, loop_first));
@@ -489,6 +516,13 @@ int main(void)
     expect("leave_own_wrong", false);
     RUN(true, false, 2, ENTRY(0x008400, leave_shared_wrong, .dont_care = DC_Y));
     expect("leave_shared_wrong", true);   /* why the check rejects DC_Y there */
+
+    /* Two addresses for one C body are one invocation while the original
+     * catches up at the same stack depth; the outer comparison must finish. */
+    RUN(true, false, 2, ENTRY(0x008400, leave_own),
+        { .addr = 0x008403, .name = "same_body_alias", .fn = leave_own });
+    expect("leave_own", true);
+    CHECK(counts_of("same_body_alias").calls == 0, "alias started a duplicate comparison\n%s", details);
 
     /* a loop longer than a frame, with NMIs: a later pass before the interrupt
      * counts; a routine the same at no pass is reported when it comes */

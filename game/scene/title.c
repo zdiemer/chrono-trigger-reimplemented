@@ -1019,7 +1019,8 @@ void scene_title_wait_for_its_song(Snes *s)
     /* The screen setup's page is still selected across the song's wait;
      * the first frame establishes the scene page after it returns. */
     s->cpu.d = M_DP_PPU;
-    TIMED_AS(state_of(s), MUSIC_WAIT, scene_wait_for_music_loop(s));
+    if (scene_accept_continuation(s, MUSIC_WAIT, scene_wait_for_music_loop))
+        TIMED_AS(state_of(s), MUSIC_WAIT, scene_wait_for_music_loop(s));
 }
 
 void scene_title_set_up_entry(Snes *s)

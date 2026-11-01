@@ -12789,3 +12789,73 @@ difference after an interrupted prelude; the last warp frame exposes HDMA
 shutdown timing; and two script handbacks cover unsupported command data
 and callees that change the interpreter's calling context. The sampled
 gate is reserved for the final validation of this series.
+
+### Scene continuations: final validation and comparison ownership
+
+The scene RAM program and scene engine both report 0% unported. The panorama,
+turning map and animated figures are C; the static walk's remaining 29 bytes
+at `$7E:366C` are already in the paired perspective builder, behind a patched
+branch it misses. Modes 5 and 10 have isolated fuzz coverage but still need
+representative native play (TODO). Scene/warp stops fell from 51 to five;
+their total measured machine joints rose from 756 to 800 as the new ports
+added entry wrappers, video calls and scaffolding.
+
+The final sampled run compared all 37 shadow movies without a mismatch,
+passed all 56 shipping routes and all 56 native-shape routes, and found no
+real-play refusals. Trace identity, video timing, sound lockstep and fuzz,
+liveness, strict/native ratchets, style, smell and assets passed. It did not
+print `suite OK`: timing ownership, fallback accounting, comparison coverage,
+scaffold-read attribution and the interrupted evidence replay failed.
+
+Boot and the scene/warp field returns now use sibling timing scopes, so a
+long loading stretch belongs to the existing startup or field loader rather
+than its caller. This changes report ownership, not the time estimate. The
+turning-map coordinates use 32-bit arithmetic and explicit wrap detection;
+2,000 map cases and 100 setup cases compare with zero mismatches or skips.
+The setup wrapper uses the named PPU page and keeps image checks in the
+machine adapter. The portability, platform, style and evidence scheduler
+unit checks pass (19 tests).
+
+Six focused shadow movies pass with zero mismatches, including the complete
+105,000-frame Beyond Time ending. Their timing check covers 1,417 entries
+with no new failures; no calibration or new timing exception was needed.
+The existing startup exception now describes the boot-owned stretches too.
+The Golem Twins game-over movie leaves 1,839 instructions under an open
+field-entry comparison. Restoring only the old title music stop changes
+that to 132 under field entry and 1,755 under scene boot; final state,
+coverage and call-count hashes are identical. Restoring the old boot stop,
+field-return stop or loop-comparison rule individually leaves 1,839
+unchanged. The ledger therefore records the held wait's comparison
+ownership, preserving the earlier library's 15-instruction allowance.
+Both the full sample's and focused replays' fallback ratchets pass.
+
+Thirteen newly uncompared entry names are recorded with independent fuzz
+evidence, not hidden by changing the threshold. Their waits and retries now
+run inside enclosing C loops, while complete bitmap/race work can cross an
+interrupt. TODO retains that movie comparison gap. The curtain's 124 reads
+of menu residue are identical to the previous run; the direct continuation
+attributes them to `scene_curtain_jump` instead of `scene_sweep_the_curtain`.
+The full sample's comparison and effects checks pass with those explicit
+ownership records.
+
+The evidence runner previously launched every variant at once for each
+movie worker: two workers could mean eight game processes. Its interrupted
+run is not evidence of agreement. Variants now run sequentially within a
+worker, and a concurrency regression verifies two workers start at most two
+game processes while preserving failed-variant reporting.
+
+The corrected evidence replay finishes with `dc_evidence: OK`: all 84
+movies (2,289,640 frames per variant) have equal poisoned and plain traces
+outside the permitted stack page, including the framebuffer comparison.
+All four bounded dispatch sites run and stay within their bounds. The six
+overflow-flag sites and three return-carry declarations satisfy their
+existing evidence requirements. No additional full sampled gate was run;
+its recorded last line remains
+`FAILED: timing; fallbacks; uncompared; effects; evidence`.
+
+Five stops remain after failed removal experiments: the race upload wait
+needs caller-instance matching, the first-frame continuation exposes carry
+after an interrupted prelude, the final warp frame exposes HDMA shutdown
+timing, and two interpreter handbacks need unsupported-data services or a
+callee return contract. TODO records each failure and the next required
+work. No full sampled gate has passed for this series yet.

@@ -3108,75 +3108,69 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene continuations: final validation and comparison ownership
+### Scene continuations: contracts and review validation
 
-The scene RAM program and scene engine both report 0% unported. The panorama,
-turning map and animated figures are C; the static walk's remaining 29 bytes
-at `$7E:366C` are already in the paired perspective builder, behind a patched
-branch it misses. Modes 5 and 10 have isolated fuzz coverage but still need
-representative native play (TODO). Scene/warp stops fell from 51 to five;
-their total measured machine joints rose from 756 to 800 as the new ports
-added entry wrappers, video calls and scaffolding.
+Direct scene continuations now consult the registry before entering C. A
+refusal leaves the original entry and call frame intact. The scaler retains
+its binary-mode contract; race and Epoch decimal callers stop at its row
+entry. The ending's preparation also uses a binary-only zoom division, so
+its guard refuses decimal preparation before changing the picture. A picture
+already awaiting upload can still return in decimal mode.
 
-The final sampled run compared all 37 shadow movies without a mismatch,
-passed all 56 shipping routes and all 56 native-shape routes, and found no
-real-play refusals. Trace identity, video timing, sound lockstep and fuzz,
-liveness, strict/native ratchets, style, smell and assets passed. It did not
-print `suite OK`: timing ownership, fallback accounting, comparison coverage,
-scaffold-read attribution and the interrupted evidence replay failed.
+The clear, final sound send and task completion now check the continuation's
+code-image guard. Completion also checks the saved task-list widths and data
+bank before unwinding. The audit added checks to boot-to-program, the clear's
+next startup step, title music, caption drawing, credits scrolling, both
+picture gatherers, and scene/warp field entry. Title startup propagates a
+refused music wait instead of proceeding to the first frame. The clear leaves
+its DMA-page high byte even on refusal, while its standalone continuation
+preserves the incoming high byte.
 
-Boot and the scene/warp field returns now use sibling timing scopes, so a
-long loading stretch belongs to the existing startup or field loader rather
-than its caller. This changes report ownership, not the time estimate. The
-turning-map coordinates use 32-bit arithmetic and explicit wrap detection;
-2,000 map cases and 100 setup cases compare with zero mismatches or skips.
-The setup wrapper uses the named PPU page and keeps image checks in the
-machine adapter. The portability, platform, style and evidence scheduler
-unit checks pass (19 tests).
+The other direct continuations retain upstream contracts: scaler start/sample
+entries share binary widths and preflight the remaining bitmap; sound retry
+and long-send entries share the sender's image guard; curtain entries share
+the same page and code guard; boot blanking establishes M8; console reset
+admits either mode. Perspective callers preflight the builder's image and
+data on the camera page. Script command continuations use ROM code, validated
+command operands and the interpreter's binary context; sound returns preserve
+that context. Panorama helpers are covered by their setup's image guards;
+turning setup's unpacker/scripts use checked calls. Warp frame loops keep the
+warp page and widths across their frame wait. Host-only GameState calls have
+no machine registry contract.
 
-Six focused shadow movies pass with zero mismatches, including the complete
-105,000-frame Beyond Time ending. Their timing check covers 1,417 entries
-with no new failures; no calibration or new timing exception was needed.
-The existing startup exception now describes the boot-owned stretches too.
-The Golem Twins game-over movie leaves 1,839 instructions under an open
-field-entry comparison. Restoring only the old title music stop changes
-that to 132 under field entry and 1,755 under scene boot; final state,
-coverage and call-count hashes are identical. Restoring the old boot stop,
-field-return stop or loop-comparison rule individually leaves 1,839
-unchanged. The ledger therefore records the held wait's comparison
-ownership, preserving the earlier library's 15-instruction allowance.
-Both the full sample's and focused replays' fallback ratchets pass.
+The map sampler computes fixed-point coordinates from row and column indices.
+Its one rounding helper handles source-period rounding and the tile address;
+the traversal no longer carries packed-coordinate overflow between samples.
+Two thousand randomized matrix/origin cases agree with both the previous
+build and the interpreter, without skips. Continuation fuzz covers accepted
+paths, decimal refusal, modified clear/send/task-list images and a modified
+title music wait. Standalone fuzz supplies contracts specifically for tail
+continuations; ordinary call-outs remain interpreted. Synthetic runtime tests
+check decimal/guard refusal and that this table cannot override a live runtime.
 
-Thirteen newly uncompared entry names are recorded with independent fuzz
-evidence, not hidden by changing the threshold. Their waits and retries now
-run inside enclosing C loops, while complete bitmap/race work can cross an
-interrupt. TODO retains that movie comparison gap. The curtain's 124 reads
-of menu residue are identical to the previous run; the direct continuation
-attributes them to `scene_curtain_jump` instead of `scene_sweep_the_curtain`.
-The full sample's comparison and effects checks pass with those explicit
-ownership records.
+Shadow comparison recognizes aliases of one C function at the same stack
+depth as one invocation. Field entry's two addresses no longer start duplicate
+comparisons inside each other, allowing its comparison exemption to be
+removed; a synthetic regression verifies the outer comparison still finishes.
+Seven isolated shadow runs also compare held waits with interrupts enabled:
+414 warp waits, the complete short and shortest trips and frame loops, the
+title's music wait and ten sound retries all match. Their combined-run
+exemptions name this evidence. The five bitmap/race exemptions name the
+independently compared interrupt handlers and explicitly retain the
+mid-picture interaction gap in TODO; standalone fuzz does not close it.
 
-The evidence runner previously launched every variant at once for each
-movie worker: two workers could mean eight game processes. Its interrupted
-run is not evidence of agreement. Variants now run sequentially within a
-worker, and a concurrency regression verifies two workers start at most two
-game processes while preserving failed-variant reporting.
-
-The corrected evidence replay finishes with `dc_evidence: OK`: all 84
-movies (2,289,640 frames per variant) have equal poisoned and plain traces
-outside the permitted stack page, including the framebuffer comparison.
-All four bounded dispatch sites run and stay within their bounds. The six
-overflow-flag sites and three return-carry declarations satisfy their
-existing evidence requirements. No additional full sampled gate was run;
-its recorded last line remains
-`FAILED: timing; fallbacks; uncompared; effects; evidence`.
-
-Five stops remain after failed removal experiments: the race upload wait
-needs caller-instance matching, the first-frame continuation exposes carry
-after an interrupted prelude, the final warp frame exposes HDMA shutdown
-timing, and two interpreter handbacks need unsupported-data services or a
-callee return contract. TODO records each failure and the next required
-work. No full sampled gate has passed for this series yet.
+Six narrowed movies, including the complete Beyond Time ending, pass with
+zero mismatches; attract and Epoch pass again after the final startup fix.
+The final 29 focused fuzz fixtures compare 24,371 cases without a mismatch;
+the broad startup fixture retains the pre-review build's 11 mismatches in
+384 comparisons (16 call-out budget skips), recorded in TODO. No mismatch
+was newly introduced. The map rewrite adds 2,000 matched before/after cases.
+The shadow runtime regression and 18 tool tests pass; portstyle and portsmell
+have no new findings. Measured scene/warp joints change from 800 to 802:
+stops from five to seven, the two additions being guarded refusal boundaries.
+The sampled gate is reserved for the merge coordinator and
+was not run for this review. The four requested code-structure follow-ups are
+in TODO.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 

@@ -10,18 +10,17 @@
  * the title's (scene/title.c), the race's, the attract sequence's pages of
  * credits (scene/credit_pages.c), the palace rising (scene/rising_palace.c),
  * Lavos falling to the planet (scene/lavos_falls.c), the Epoch's dive
- * (scene/epoch_dive.c), the shared endings' and the staff roll's are C, the
- * others still the original's (the setups' table below); and its first frame: the palette the setup made sent, a frame
+ * (scene/epoch_dive.c), the shared endings', the unused panoramas and turning
+ * figures, and the staff roll's are all C; and its first frame: the palette the setup made sent, a frame
  * waited out, the frame's work done once (scene/frame.c) and the interrupts
  * on. The program's main loop then runs
  * (attract/main_loop.c) until a script ends the scene, when the program blanks
  * the screen (scene/screen.c), puts the sound back to normal and hands the
  * game back to the field's start, on the game's fresh stack.
  *
- * The start is cut where the original waits on something a port can't hold:
- * the sound driver taking the last of the commands that put the sound back,
- * and a setup's own wait (the title waits for its music to start). The start
- * goes on from each wait's return, which is an entry of its own.
+ * Sound exchanges and the title's music wait hold their C continuations
+ * through platform waits. Startup hands back at the main loop; its first
+ * frame's interrupt carry is still live across that boundary (docs/TODO.md).
  *
  * All of it is the program's code, in work RAM, so every entry is guarded by
  * a hash of its code. */
@@ -154,8 +153,8 @@ static void first_frame_on_the_machine(Snes *s);
  * calls the original's code (the unpacker's decompressor, a script's first
  * step, the sound driver), whose calls the original makes with the dispatch's
  * return under them, so the setup runs with it there, as the stack is at
- * those calls; and the title's setup ends in the original's wait for its song
- * to start, which returns through it to the first frame ($7E:300D). */
+ * those calls. The title holds its song wait as C when its contract accepts
+ * it, then returns through this frame to the first frame ($7E:300D). */
 static void set_the_scene_up(Snes *s)
 {
     uint8_t mode = scene_flags(state_of(s)) & SCENE_MODE_BITS;
@@ -164,13 +163,15 @@ static void set_the_scene_up(Snes *s)
         if (setups[n].mode != mode || (setups[n].binary && m_flag(s, CPU_FLAG_D)) || !setups[n].present(s))
             continue;
         bool done = false;
+        uint16_t stack = s->cpu.s;
         scene_bridge_enter(s, SETUP_DISPATCH);
         NATIVE_TIME_AS(s, setups[n].routine, done = setups[n].set_up(s));
         if (!done)
             return;
         if (mode == SCENE_MODE_TITLE) {
             scene_title_wait_for_its_song(s);
-            first_frame_on_the_machine(s);
+            if (m_came_back(s, SETUP_DISPATCH + 3, stack))
+                first_frame_on_the_machine(s);
             return;
         }
         scene_bridge_leave(s);
@@ -233,11 +234,11 @@ void scene_after_work_ram_clear(Snes *s)
     GameState *g = state_of(s);
     if (!(scene_flags(g) & SCENE_FLAG_NO_SONGS)) {
         set_scene_song(g, NO_SONG);
-        ORIGINAL_EFFECT(leave_the_clear_s_page_in_a(s));
         if (!scene_run(s, SOUND_CALL, SOUND_BACK_TO_NORMAL, THE_SOUND_READS_NOTHING, scene_sound_back_to_normal_entry))
             return;
     }
-    TIMED_AS(g, 0x7E30F6, scene_program_goes_on(s));
+    if (scene_accept_continuation(s, 0x7E30F6, scene_program_goes_on))
+        TIMED_AS(g, 0x7E30F6, scene_program_goes_on(s));
 }
 
 // $7E:31BE
@@ -299,7 +300,8 @@ void scene_hand_back_to_the_field(Snes *s)
     s->cpu.s = CONSOLE_STACK_TOP;
     m_jump_to(s, FIELD_STARTS);
     /* Field loading keeps its own timing report across this tail call. */
-    NATIVE_TIME_AS_SIBLING(s, FIELD_STARTS, field_enter(s));
+    if (scene_accept_continuation(s, FIELD_STARTS, field_enter))
+        NATIVE_TIME_AS_SIBLING(s, FIELD_STARTS, field_enter(s));
 }
 
 // $7E:303B

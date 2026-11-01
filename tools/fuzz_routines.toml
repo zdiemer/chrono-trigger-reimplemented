@@ -21919,3 +21919,75 @@ subsystem = "scene"
 state = "attract"
 args = ["--long", "--d", "0B00", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0B20-7E0B21=B600", "--fill", "7EB600-7EB600=A6", "--fill", "7EB601-7EB601=80,81,82,83,85,86,89,F0,F2,F6", "--fill", "7EB602-7EB604=00-FF", "--fill", "7EB605-7EB605=AC", "--fill", "7E0388-7E0388=00", "--apu-loopback", "--budget", "8000000"]
 why = "The sound-command continuation on channel one; the driver must preserve its page, bank and arithmetic/index modes."
+
+[[routine]]
+name = "scene_race_scale_pictures"
+variant = "decimal_continuation"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E0039-7E003A=0000", "--budget", "8000000", "--fill", "7E1400-7E1401=0002,0004", "--fill", "7E1402-7E1403=0001", "--fill", "7E1404-7E1405=2000", "--fill", "7E1406-7E1407=0008,0011,0021", "--fill", "7E1408-7E1409=0031,0080,0100", "--fill", "7E140C-7E140D=0400,0800", "--fill", "7E140E-7E140F=0002,0004", "--fill", "7E1410-7E1411=0000", "--fill", "7E1412-7E1413=2000", "--fill", "7E1414-7E1415=0008,0011,0021", "--fill", "7E1416-7E1417=0031,0080,0100", "--fill", "7E141A-7E141B=0400,0800", "--decimal"]
+iterations = 2000
+why = "Decimal callers must stop at the binary-only scaler entry, with its call frame intact."
+
+[[routine]]
+name = "scene_race_scale_after_crono"
+variant = "decimal_continuation"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E0039-7E003A=0000", "--budget", "8000000", "--fill", "7E1400-7E1401=0002,0004", "--fill", "7E1402-7E1403=0002", "--fill", "7E1404-7E1405=2000", "--fill", "7E1406-7E1407=0008,0011,0021", "--fill", "7E1408-7E1409=0031,0080,0100", "--fill", "7E140C-7E140D=0400,0800", "--fill", "7E140E-7E140F=0002,0004", "--fill", "7E1410-7E1411=0001", "--fill", "7E1412-7E1413=2000", "--fill", "7E1414-7E1415=0008,0011,0021", "--fill", "7E1416-7E1417=0031,0080,0100", "--fill", "7E141A-7E141B=0400,0800", "--decimal"]
+iterations = 2000
+why = "Decimal callers must stop at the binary-only scaler entry, with its call frame intact."
+
+[[routine]]
+name = "scene_ending_scale_picture"
+variant = "decimal_continuation"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0021-7E0022=0000,0000,0001", "--fill", "7E007B-7E007B=00-01", "--fill", "7E007C-7E007C=00-00", "--decimal"]
+iterations = 2000
+why = "Decimal callers with a new picture are refused before the binary-only zoom division; already pending pictures still return and compare."
+
+[[routine]]
+name = "scene_scale_the_epoch"
+variant = "decimal_continuation"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0021-7E0022=0000,0001", "--fill", "7E0027-7E0028=0031,0048,0060,0080,0091", "--decimal"]
+iterations = 2000
+why = "Decimal callers must stop at the binary-only scaler entry, with its call frame intact."
+
+[[routine]]
+name = "scene_clear_work_ram"
+variant = "changed_continuation"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--fill", "7E30E9-7E30E9=EA", "--fill", "7E0384-7E0384=00"]
+iterations = 2000
+why = "The clear code is intact but its continuation is modified; compare the refusal before running that continuation."
+
+[[routine]]
+name = "scene_sound_back_to_normal"
+variant = "changed_continuation"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--fill", "7E37A3-7E37A3=EA", "--fill", "7E0384-7E0384=00"]
+iterations = 2000
+why = "Change the send retry instruction, unused when loopback echoes immediately; the final send must refuse its changed code image."
+
+[[routine]]
+name = "scene_roll_credits"
+variant = "changed_task_list"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E004A-7E004B=AB1A,AB95,ABFD,AC61,ACE1,AD6C,ADD3,AE47,AF3B,AFC0,B05D,B071,B098", "--fill", "7E0940-7E0941=9EFC", "--fill", "7E00AD-7E00AD=00-01", "--fill", "7E00AE-7E00AE=00-00", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00", "--fill", "7E398A-7E398A=EA"]
+iterations = 2000
+why = "Credits completion must refuse a modified task-list continuation before unwinding its caller frame."
+
+[[routine]]
+name = "scene_program_start"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0384-7E0384=00-0F", "--apu-loopback", "--budget", "20000000", "--stop-at-call", "7E31B0", "--fill", "7E0384-7E0384=00", "--fill", "7E5AAA-7E5AAA=EA"]
+iterations = 100
+why = "The title setup must propagate refusal at its modified music wait without entering the first frame."
+variant = "changed_music_wait"
