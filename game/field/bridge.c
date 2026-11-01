@@ -67,16 +67,6 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     return returned && bridge_back(s, returns_to, m);
 }
 
-bool field_go_on_with(Snes *s, uint32_t routine, void (*entry)(Snes *))
-{
-    m_jump_to(s, routine);
-    const NativeEntry *e = native_hand_entry(s);
-    if (!e || e->fn != entry)
-        return false;
-    TIMED_AS(state_of(s), routine, entry(s));
-    return true;
-}
-
 bool field_run_table_step(Snes *s, uint32_t site, bool (*step)(Snes *))
 {
     m_push16(s, (uint16_t)(site + JSR_SIZE - 1));

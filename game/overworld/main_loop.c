@@ -37,6 +37,7 @@
 #include "menu/menu.h"
 #include "menu/vram.h"
 #include "original_effects.h"
+#include "overworld/entries.h"
 #include "overworld/music.h"
 #include "overworld/overworld.h"
 #include "overworld/places.h"
@@ -661,7 +662,7 @@ static Pass menus_on_the_machine(void *ctx, OverworldMode mode)
     m_set_flag(s, CPU_FLAG_Z, false);
     m_set_flag(s, CPU_FLAG_C, true);
     if (menu_call_long(s, 0xC22552, 0xC28000, DC_AH | DC_Y | DC_C))
-        m_stop_at(s, 0xC22556, READS_NOTHING);
+        TIMED_AS(state_of(s), 0xC22556, overworld_come_back_to_the_map_s_screen(s));
     return PASS_STOPS;
 }
 

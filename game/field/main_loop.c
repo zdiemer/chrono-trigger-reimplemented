@@ -506,7 +506,9 @@ void field_frame_work(Snes *s)
     if (!do_the_frame_work(frame_work_step_on_the_machine, s))
         return;
     m_rep(s, CPU_FLAG_X);
-    if (!field_go_on_with(s, SPRITE_TABLE, field_build_sprite_table))
+    if (field_sprite_rows_drawable(s))
+        TIMED_AS(state_of(s), SPRITE_TABLE, field_build_sprite_table(s));
+    else
         m_stop_at(s, SPRITE_TABLE, 0);
 }
 
@@ -815,11 +817,10 @@ static bool refreshed_on_the_machine(void *ctx)
     return field_run(s, 0xC000EE, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects, page(s));
 }
 
-enum { THE_WAIT_SETS_A = DC_A | DC_N | DC_Z };
-
 static bool waited_on_the_machine(void *ctx)
 {
-    m_stop_at(ctx, FIELD_FRAME_WAIT, THE_WAIT_SETS_A);
+    Snes *s = ctx;
+    TIMED_AS(state_of(s), FIELD_FRAME_WAIT, field_finish_frame(s));
     return false;
 }
 

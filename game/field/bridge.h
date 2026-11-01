@@ -89,13 +89,6 @@ bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care
 bool field_run_or_hand_over(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                             BridgeMachine m);
 
-/* A sibling the original goes on to with a jump rather than a call, which
- * returns for the routine: run as C where the registry would run it there,
- * timed as its routine. False where it wouldn't, and the port stops at it
- * (m_stop_at, with what the port declares), for the runtime to run whatever
- * it has there. */
-bool field_go_on_with(Snes *s, uint32_t routine, void (*entry)(Snes *));
-
 /* A step the original runs from a table, through the JSR at `site`, which is
  * no entry of its own: run as C under the return address that JSR leaves on
  * the stack, where the step's call-outs need it (shadow mode pairs a call by

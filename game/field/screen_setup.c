@@ -233,7 +233,7 @@ static bool draw_at_once_on_the_machine(Snes *s, FieldObject obj)
  * the screen marks as it goes); then the sprite table is built from them,
  * which returns for this routine. On the field's page with 8-bit index
  * registers for the objects. */
-enum { SPRITE_TABLE = 0xC0B271, THE_TABLE_READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+enum { SPRITE_TABLE = 0xC0B271 };
 
 /* For the original's code and shadow mode: the loop's end, the object count
  * doubled, in event_object_end's low byte. */
@@ -287,8 +287,10 @@ void field_draw_the_objects_in_view(Snes *s)
     }
     m_rep(s, CPU_FLAG_X);
     ORIGINAL_EFFECT(leave_the_overflow(s, objects));
-    if (!field_go_on_with(s, SPRITE_TABLE, field_build_sprite_table))
-        m_stop_at_own(s, SPRITE_TABLE, THE_TABLE_READS_THE_OVERFLOW);
+    if (field_sprite_rows_drawable(s))
+        TIMED_AS(g, SPRITE_TABLE, field_build_sprite_table(s));
+    else
+        m_stop_at_own(s, SPRITE_TABLE, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
 }
 
 /* Its guard: on the field's page with the data bank $00, a count of

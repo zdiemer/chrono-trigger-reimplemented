@@ -3105,6 +3105,15 @@ list, by kind, is what `game/` still asks of one.
   (`battle/bridge.c`, `battle/steps.c`, `field/bridge.c`, `menu/bridge.c`,
   `scene/bridge.c`). These go as each subsystem's ports call ports (PLAN.md's
   step 1) and its wrappers leave (step 3).
+  Field's tail-call lookup is gone. Its sprite-building continuations still
+  hand malformed row chains or out-of-table records to the original: removing
+  that boundary exposed 20/300 fuzz mismatches in `field_frame_work`, while
+  the existing drawable-row check restores the predecessor's 0/24 compared.
+  The sprite builder's own entry still accepts those states and calls out
+  per draw; retiring that fallback needs its entry guard and callers changed
+  together. The field/battle/overworld loop backedges also need an iterative
+  continuation with a comparison boundary: shadow waits resume their C call,
+  so directly chaining every backedge would recurse across frames.
 - **The machine's memory and registers.** `snes_bus_read`, `_write` and
   `_peek`: the wrappers' registers, page, data bank and stack, the guards'
   peeks, and what the logic still reads by address. The game's state itself

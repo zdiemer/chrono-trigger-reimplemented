@@ -3195,6 +3195,36 @@ vblank list (now refused, the setup leaves room), the large list's
 continuation, the boost's index, and the calling in's tech number read from
 its caller's cell.
 
+### Direct continuations within a frame
+
+The field's object defaults go straight to the opening scripts, its scripted
+menu return to the fade-in, and its walking frame to the frame wait. The
+frame work and initial drawing call the sprite builder directly where its
+row lists are finite and its records fit. This removes the field bridge's
+tail-call registry lookup. Battle's frame work continues into the pass and
+the pass into its timers; the overworld's menu call continues into restoring
+the map's screen. These are C calls timed at the existing routines' rates;
+the entry wrappers still handle the original's registers and returns.
+
+Fuzzing explained why the sprite continuation still needs a hand-back for
+malformed lists. The old bridge's registry lookup has no runtime in
+`ct_fuzz`, so it stopped before drawing. Calling the builder on arbitrary
+lists exposed 20 mismatches in 300 `field_frame_work` states. Testing the
+builder's existing row/record conditions before the continuation restores
+exactly the predecessor's counts: 0/24 compared for frame work and 0/144
+for drawing the initial view, with the same skipped counts. No fuzz domain
+was narrowed. The ordinary frame wait, battle pass and overworld pass also
+keep their predecessor's zero mismatches. Object defaults now include the
+opening scripts in the comparison: 6 of 300 compare, none mismatch; 294
+exceed the call-out budget on random scripts, where the predecessor
+compared only the defaults. The movie shadows cover their normal scripts.
+
+The assigned files lose six stops and one registry lookup, from 1,759 to
+1,752 joints after the timing-tag change. The main loops retain their
+backedges as comparison boundaries: chaining them recursively would grow
+the C stack each frame in shadow mode. The field's wait still ends at its
+idle entry in shipping mode, preserving the save-state boundary.
+
 ### Timing tags in the field, battle, overworld and events
 
 The ordinary timing scopes in these four subsystems and `core/input.c`
