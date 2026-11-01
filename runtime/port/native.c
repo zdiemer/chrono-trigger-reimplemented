@@ -1774,9 +1774,11 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             if (left) {
                 /* An interrupt handler may switch stacks (the menu code runs
                  * tasks on their own stacks); nothing to compare then. */
-                if (a->segment_interrupted)
+                if (a->segment_interrupted) {
                     a->interrupted = true;
-                else {
+                    if (rt->mode == NATIVE_SHADOW && rt->observer.given_up)
+                        rt->observer.given_up(rt->observer.ctx, a->entry, a->ret_returned, a->ret_pc, a->ret_s);
+                } else {
                     a->mismatched = true;
                     detail(rt, "mismatch", a->entry,
                            a->entry->interrupt ? "original returned from the interrupt elsewhere than the native one"

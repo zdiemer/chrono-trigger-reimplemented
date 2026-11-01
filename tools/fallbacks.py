@@ -81,6 +81,7 @@ if str(ROOT) not in sys.path:
 from tools.burndown import SUBSYSTEM  # noqa: E402
 
 BASELINE = ROOT / "tools/fallback_baseline.txt"
+SHIPPING_BASELINE = ROOT / "tools/fallback_shipping_baseline.txt"
 ALLOWLIST = ROOT / "tools/refusal_allowlist.txt"
 KINDS = ("refused", "handback", "skipped", "unported")
 
@@ -378,8 +379,10 @@ def update(m, baseline_path):
         old = base.get(key)
         reason = old[2] if old else "hidden under %s's comparison, still open when a run ended" % names.get(key, "?")
         lines.append("%s %d 0  # %s" % (key, n, reason))
+    play = ("the shipping mode (the movies and the routes run with --native on)"
+            if baseline_path.name == SHIPPING_BASELINE.name else "the reference play (the movies in shadow mode)")
     head = ("# The fallback measure's baseline (tools/fallbacks.py --check; docs/REIMPLEMENTATION.md, \"The fallback\n"
-            "# measure\"): every routine whose code the reference play (the movies in shadow mode) still\n"
+            "# measure\"): every routine whose code " + play + " still\n"
             "# runs as the original's in place of hand ports, as `routine instructions bytes # reason`.\n"
             "# A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes\n"
             "# on one, is a new fallback, and needs its reason. An `open PORT` line is what the original ran\n"

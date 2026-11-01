@@ -12412,3 +12412,76 @@ unchanged counts are 490 emulated returns, two counted sprite call-out sites,
 three register escapes, 111 video calls and 1,088 scaffolding writes. Main-loop
 stops are field 14 to 13, battle six to six, overworld five to four. TODO
 records the remaining guard, replay, timing and backend contracts.
+
+### The largest fallbacks left: Zeal's fall and the scripted exits
+
+Chosen by size from `tools/fallback_baseline.txt` and from the movies
+`tools/strict_baseline.txt` still stopped short: 5.8 million of the
+library's 6.7 million instructions run in place of hand ports were one
+routine of Zeal's fall, and five movies stopped on the hand ports alone.
+
+- **The palace shaking apart** (`$C6:E5C5`, `menu_object_ripple_the_first_plane`,
+  `menu/line_effects.c`). A scene's script in the sprite-object mode calls it
+  every frame by far call; `menu_run_object_script` had no row for it, so the
+  program handed the scene's objects back. It ripples the first plane: each of
+  the 224 lines scrolled by the plane's scroll plus a push of up to four lines
+  from the menus' wave sizes (`menu_wave_size`, a step of 8 of 1024 a line and
+  8 a frame), into the slot-3 table the frame's count picks, which it shows.
+  The second half of the turn rounds away from zero, and a size of nothing
+  there comes out as 256 lines up -- the original's sign extension of it,
+  kept, which the plane's wrapping hides. Two more routines the same scene
+  calls were the next stops: `$C6:E694` (`menu_object_place_about_the_view`,
+  an object put at random about the view, `menu/object_commands.c`) and
+  `$C2:7BD1` (`menu_object_note_the_song`, the song the scene leaves playing
+  named as the field's current song), the strict stop of
+  `events-ocean-palace-lavos`. Each is a row of the scripts' routine tables
+  and a registered entry, one function for both.
+- **The leader's walk with nobody to walk** (`field_walk_the_leader`,
+  `field/walk.c`). The guard turned away a leader's place whose word isn't an
+  object (North Cape's flashback and Zeal's fall leave it `$FFFE`) before
+  asking whether the walk steps at all; with no step the walk reads nothing
+  of the leader's, so the guard now asks that first. The recentring's guard
+  likewise asks only where it looks at the leader: as it starts with the
+  screen off the grid.
+- **A leader above the map** (the same). The guard's bound down -- a place
+  above `$FF00` -- turned away Marle jumping onto the Epoch at Dalton's
+  (`$FFBD`), on a reason fuzzing doesn't bear out: with the bound dropped,
+  15,000 states with the leader's place `$FCxx`-`$FFxx` and anywhere across
+  compare without a mismatch. What the reason described is the right end:
+  past `$FF8F` across, 17 of 4,000 mismatch on the slope's cell, so that
+  bound stays.
+- **The confirm button and the Skyway's irises** were found already closed:
+  `battle-unequipped-armor` and `battle-zombor` no longer reach
+  `field_press_confirm` with a state its guard turns away, and the capsule
+  irises take a centre on the top line since the battle stops' merge. Their
+  strict lines and fallback rows had not been taken.
+
+**Measured.** Shadow mode, `events-ocean-palace-lavos`: the ripple 1,017
+calls, the placing 43, the song 1, all matched; the movie's instructions in
+place of hand ports from 5.84 million to 2,813. The fallback baseline's rows
+for the eleven routines are gone (6.73 million instructions to 0.72 million
+over the library; the long Crono's trial hand run, rerun, no longer refuses
+the walk at the transfer to prison). Strict mode: `battle-dalton`,
+`battle-magus-north-cape`, `events-magus-joins`, `events-ocean-palace-lavos`,
+`events-zeal-palace`, `battle-unequipped-armor` and `battle-zombor` reach
+their ends (`drifts`, where they stopped at frames 25170, 8560, 8560, 25299,
+4109, 7594 and 20301). **Fuzzing**, seed 1 unless named: the ripple 0 of
+2,000; the placing 0 of 257 compared (the guard turns away columns past
+`$2000`); the song 0 of 2,000; the walk with no leader word standing 0 of
+5,000, above the map 0 of 15,000 over seeds 10-12; the recentring with no
+leader word 0 of 4,979 (`tools/fuzz_routines.toml`'s new variants).
+**Timing.** The three new rows calibrated from the movie's shadow run: the ripple at 21,502 (its first guess, 40,000, was 86% over), the placing at 3,467, the song at 1,917.
+
+**What the gate found past the chunk.** With Zeal's fall going on in the
+native program, `events-ocean-palace-lavos` no longer stops at the scene's
+hand-back but plays on, about 4,750 frames late (presses through the Mammon
+Machine's dialog land on other frames from about frame 18000), into the
+reference's own black stretch before the Last Village, where it ends:
+`tools/native_check.py` takes a ledger of such runs now,
+`tools/native_dark_exceptions.txt`, with this one (TODO.md, "Long movies
+still desync on the hand ports alone"). `events-death-peak`,
+`events-fair-rescue` and it enter the places' baseline. The long routes'
+three refusals (`fionas_forest`'s departure, `castle_flea`'s facing
+command), open in TODO.md but off the allowlist since the battle stops'
+merge, are back on it as gaps; and `battle-golem-twins-gameover`, which
+drifts on the hand ports alone at this chunk's base as well, is `drifts`.

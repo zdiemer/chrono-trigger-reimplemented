@@ -111,8 +111,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   (`tools/portsmell.py --check`, run by the suite, static); the original's code runs in place of
   hand ports nowhere new, and no more of it where it did, over every movie's reference play
   (`ct_dev --fallbacks` in the shadow runs; `tools/fallbacks.py --check`, a ratchet on
-  `tools/fallback_baseline.txt`, with the shipping mode's count over the movies and routes reported
-  beside it; docs/REIMPLEMENTATION.md, "The fallback measure"); no hand port's guard refuses a call real play
+  `tools/fallback_baseline.txt`, and the shipping mode's count over the movies and routes run on
+  `tools/fallback_shipping_baseline.txt`, as a subset (its counts move with timing), the backstop for
+  anything the shadow runs' measure counts as a port's; docs/REIMPLEMENTATION.md, "The fallback measure"); no hand port's guard refuses a call real play
   makes -- in the shadow runs, the movies in the shipping mode or the routes -- unless
   `tools/refusal_allowlist.txt` says why (`tools/fallbacks.py --refusals`); every movie gets as far on the
   hand ports alone -- no generated code, no interpreter, the C sound driver -- as `tools/strict_baseline.txt`

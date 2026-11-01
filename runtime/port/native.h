@@ -68,6 +68,15 @@ typedef struct NativeEntry {
      * time per pass, since skipping ahead would change when it sees the other
      * processor's answer. */
     uint32_t idle_clocks;
+    /* An idle entry whose pass, where it ends the wait, returns from the
+     * routine as the original's does (an RTS or RTL the function makes): the
+     * bytes from the loop's head to that return, inclusive. The fallback
+     * measure (dev/fallbacks.c) counts such a pass as the port's, as it does
+     * the passes that go round, only where every instruction it ran lies in
+     * those bytes; anything else (a helper the exit called, code past the
+     * loop) leaves it counted. Where it is 0, the pass that leaves stays
+     * counted unless a port takes over at the loop's exit. */
+    uint8_t idle_return_span;
     /* Optional extra precondition, for example for code the game places in
      * RAM: return false unless the bytes at the entry are the code the port was
      * written for (see m_code_matches). It runs on the real machine in every
@@ -277,6 +286,12 @@ typedef struct NativeObserver {
     void (*returned_from_interrupt)(void *ctx, Snes *s, const NativeEntry *entry);
     void (*idle)(void *ctx, Snes *s, const NativeEntry *entry);
     void (*finished)(void *ctx, const NativeEntry *entry);
+    /* SHADOW, just before `finished`: the comparison is given up uncompared
+     * because an interrupt's handler moved the stack away from the routine
+     * (the menus' vblank handler), after the port's run had ended -- where it
+     * ended: returned (`returned`), or stopped at `stop_pc` with S `stop_s`,
+     * from where the original's code is no longer the port's. */
+    void (*given_up)(void *ctx, const NativeEntry *entry, bool returned, uint32_t stop_pc, uint16_t stop_s);
     void (*parked)(void *ctx, Snes *s, const NativeEntry *entry);
     void (*resumed)(void *ctx, Snes *s, const NativeEntry *entry, uint16_t entry_s);
 } NativeObserver;
