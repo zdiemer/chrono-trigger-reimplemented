@@ -500,6 +500,8 @@ void menu_draw_member_card_entry(Snes *s)
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
     menu_draw_member_card(state_of(s), m_platform(s));
+    /* A screen continuing into the card observes its final queued upload. */
+    ORIGINAL_EFFECT(menu_leave_queued_upload(s, UPLOAD_BG1_CARD));
     menu_restore_p(s);
     m_rts(s);
 }

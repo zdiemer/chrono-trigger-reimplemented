@@ -8,7 +8,7 @@
  * that waits for the next frame waits in the menus' task switch, parked
  * until its task goes on (menu_wait_a_frame_from). A refused choice jumps
  * to the refusal's sound, as the original's does, and going back from the
- * members to the main menu stops there.
+ * members calls the main menu's continuation as C behind its guard.
  *
  * The routines a step reaches with a JSR that call out themselves (the moves
  * among the members and the member list's slide, the list's slide, the
@@ -22,23 +22,23 @@
 #include "menu/tech_screen.h"
 
 #include "charge.h"
+#include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
 #include "menu/healing.h"
 #include "menu/held_cursors.h"
-#include "menu/party.h"
-#include "menu/items.h"
 #include "menu/item_screen.h"
+#include "menu/items.h"
 #include "menu/lists.h"
 #include "menu/main_menu.h"
 #include "menu/members.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
+#include "menu/party.h"
 #include "menu/sprites.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "cpu_io.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -128,7 +128,7 @@ static bool show_the_lister_on_the_machine(void *ctx) { return menu_run(ctx, 0xC
 
 static bool back_to_the_main_menu_on_the_machine(void *ctx)
 {
-    m_stop_at(ctx, MAIN_MENU, READS_NOTHING);
+    menu_go_on_in(ctx, MAIN_MENU, menu_back_to_the_main_menu_entry, READS_NOTHING);
     return false;
 }
 
@@ -380,7 +380,7 @@ void menu_lay_out_tech_members_entry(Snes *s)
 {
     GameState *g = state_of(s);
     menu_techs_lay_out_members(g, m_platform(s));
-    NATIVE_TIME_AS(s, 0xC2B36D, choose_member(s));
+    TIMED_AS(state_of(s), 0xC2B36D, choose_member(s));
 }
 
 // $C2:BA4F

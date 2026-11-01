@@ -97,10 +97,12 @@ def run_movie(binary, rom, out, movie, sites, dispatches, entries):
     if entries:
         runs["returns"] = (["--native", "on", "--generated", "on", "--trace", str(traces["returns"]), "--poison-set", "C"]
                            + sum((["--poison-return", f"{e:06X}"] for e in entries), []))
-    procs = {tag: subprocess.Popen([str(binary), "--rom"] + base + extra, stdout=subprocess.PIPE,
+    # Each movie worker owns at most one child at a time, including trace
+    # comparisons below. Thus --jobs caps children across all workers too.
+    results = {tag: subprocess.run([str(binary), "--rom"] + base + extra, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT) for tag, extra in runs.items()}
-    logs = {tag: p.communicate()[0].decode(errors="replace").replace(chr(13), "") for tag, p in procs.items()}
-    failed = [tag for tag, p in procs.items() if p.returncode != 0]
+    logs = {tag: p.stdout.decode(errors="replace").replace(chr(13), "") for tag, p in results.items()}
+    failed = [tag for tag, p in results.items() if p.returncode != 0]
     same, tail = same_trace(traces["plain"], traces["poisoned"])
     if entries:
         returns_same, returns_tail = same_trace(traces["plain"], traces["returns"])
@@ -119,7 +121,8 @@ def main(argv=None) -> int:
     ap.add_argument("--ct-dev", required=True, type=pathlib.Path)
     ap.add_argument("--rom", type=pathlib.Path, default=ROOT / "roms" / "ct-usa.sfc")
     ap.add_argument("--out", type=pathlib.Path, help="where the traces go while compared (default: a temporary directory)")
-    ap.add_argument("-j", "--jobs", type=int, default=1, help="movies at once (three runs each)")
+    ap.add_argument("-j", "--jobs", type=int, default=1,
+                    help="child processes at once; each movie runs its variants sequentially")
     ap.add_argument("--movies", nargs="*", help="only these (the counts then won't match the notes')")
     args = ap.parse_args(argv)
 

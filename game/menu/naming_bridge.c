@@ -8,7 +8,7 @@
  * calling the sound driver, so the flags the original has there are on the
  * stack, where shadow mode compares them; the routines a step reaches with a
  * JSR and that tick are entries of their own, run the same way. The fade in,
- * the fade out and the leaving of the menus are jumps the steps stop at.
+ * the fade out and the leaving of the menus are C continuations.
  * Before each of those calls a step leaves the flags the original's own tests
  * left (scaffolding, at the end of the file, at the steps' notes). */
 #include "menu/naming.h"
@@ -17,12 +17,16 @@
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
+#include "menu/display.h"
+#include "menu/fades.h"
+#include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/vram.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
+#include "ram.h"
 #include "vars.h"
 
 enum {
@@ -88,14 +92,19 @@ static void note(void *ctx, NamingNote n, uint8_t value)
     }
 }
 
-/* The steps' ends are the original's jumps, which the port stops at. */
+/* The steps continue into their siblings as C, behind the siblings' guards. */
 static bool ends(void *ctx, NamingEnd end)
 {
     Snes *s = ctx;
     switch (end) {
-    case NAMING_FADES_IN: m_stop_at(s, FADE_IN, READS_NOTHING); break;
-    case NAMING_FADES_OUT: m_stop_at_own(s, FADE_OUT, READS_A_HIGH); break;
-    case NAMING_LEAVES_THE_MENUS: m_stop_at(s, LEAVE_THE_MENUS, READS_NOTHING); break;
+    case NAMING_FADES_IN: menu_go_on_in(s, FADE_IN, menu_start_the_fade_in_entry, READS_NOTHING); break;
+    case NAMING_FADES_OUT:
+        /* Choosing the battle mode stopped the screen's tasks. The fade's
+         * wait keeps X, the record of the last task stopped. */
+        ORIGINAL_EFFECT(s->cpu.x = MENU_HELD_CURSORS_TASK * RAM_MENU_TASKS_STRIDE);
+        TIMED_AS(state_of(s), FADE_OUT, menu_fade_the_screen_out(s));
+        break;
+    case NAMING_LEAVES_THE_MENUS: menu_go_on_in(s, LEAVE_THE_MENUS, menu_close_entry, READS_NOTHING); break;
     }
     return false;
 }

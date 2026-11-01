@@ -7,7 +7,7 @@
  * a New Game+'s question and carrying over and a slot's erasing are each the
  * menus' own entry, run as the original's JSR (JSL) reaches it (menu_run);
  * the sound output's command to the driver is a call out. The fade in as the
- * screen opens and the menus' exit for the game are jumps the steps stop at.
+ * screen opens and the menus' exit for the game are C continuations.
  * Before each call a sequence leaves the flags the original's own tests left
  * (scaffolding, at the notes): where one of the routines it calls saves P as
  * it starts, they are on the stack under the call, where shadow mode compares
@@ -17,6 +17,8 @@
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
+#include "menu/display.h"
+#include "menu/fades.h"
 #include "menu/save_screen.h"
 #include "menu/saves.h"
 #include "menu/vram.h"
@@ -218,13 +220,13 @@ static void note(void *ctx, LoadScreenNote n, uint8_t value)
     }
 }
 
-/* The steps' ends are the original's jumps, which the port stops at. */
+/* The steps continue into their siblings as C, behind the siblings' guards. */
 static bool ends(void *ctx, LoadScreenEnd end)
 {
     Snes *s = machine(ctx);
     switch (end) {
-    case LOAD_FADES_IN: m_stop_at(s, FADE_IN_START, READS_NOTHING); break;
-    case LOAD_LEAVES_FOR_THE_GAME: m_stop_at_own(s, EXIT_FOR_THE_GAME, READS_NOTHING); break;
+    case LOAD_FADES_IN: menu_go_on_in(s, FADE_IN_START, menu_start_the_fade_in_entry, READS_NOTHING); break;
+    case LOAD_LEAVES_FOR_THE_GAME: TIMED_AS(state_of(s), EXIT_FOR_THE_GAME, menu_close_for_the_game(s)); break;
     }
     return false;
 }

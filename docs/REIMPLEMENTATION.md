@@ -33,6 +33,90 @@ when the next chunk of the same stream lands, the one before it moves to its
 history file in the same commit. What stays here is one worked example per
 stream, not the whole run of them.
 
+## The menus' machine joints
+
+The screen bridges continue into their next screen step as C: opening and
+closing screens, pointing at equipment, returning to the main menu, fades,
+sounds and saving in a slot. The vblank upload continues into the queued
+uploads; the NMI entry retains its comparison checkpoint. Guarded
+continuations retain the original stop when a callee refuses. These are the
+gate's bridges; the native program already uses the screens' game-state
+sequences and task coroutines.
+
+The scripts call map scrolling, drawing and the sound mailbox as game-state
+functions, without making an emulated return frame. A table selects 55 other
+registered wrappers as C behind their guards. Unknown or refused targets
+still use the near/far fallback. The two curtain routines retain their entry
+boundaries: inlining them attributes the scene RNG's accepted shared-scratch
+reads to the interpreter, outside their existing effects evidence. Retiring
+that dependency belongs with the scene engine. No exception was added.
+
+Across the 21 assigned bridge, display, frame, list, object, task and
+description files, the machine-joint count is 560 to 500: returns 157 to 157,
+stops 56 to 22, counted call-outs 18 to 6, machine time tags 15 to zero,
+register escapes two to two, video calls 58 to 58, scaffolding 254 to 255.
+The shared map helpers add no joint; the member-card wrapper adds one
+scaffolding result outside those 21 files. The register results exposed by
+joining the screen steps were the card's final queued upload and the last
+task stopped before the naming fade. Both are confined to machine wrappers.
+
+Narrowed shadow checks cover the menu sweep, buying and equipping, New
+Game+, save points, field menus, End of Time and the attract sequence.
+The script chunk's differential fuzz compared 1,832 states over fifteen
+cases; the continuation chunk compares 1,418 over eleven cases, all with
+zero mismatches before and after (seed 1, existing constraints). Fuzz has
+no active registry, so guarded continuations use their fallback there;
+the movies exercise their C paths. The original card and naming failures
+were fixed without widening don't-care sets. Per-entry counts and the
+limits of each check are recorded in `ports.tsv`.
+
+The once-only sampled gate, before restoring the NMI checkpoint, has zero
+mismatches over 37 shadow movies. Trace identity passes for 7,200 frames;
+timing covers 1,812 entries and 163,540,413 stretches within the existing
+limits, and vblank has no unexcepted finding. All 56 routes reach their
+outcomes in shipping mode and with scaffolding compiled out; that build
+also completes all 37 movies with no excepted failure. Every other gate
+check, including evidence regeneration, passes, but its last line is
+`FAILED: uncompared`: joining the NMI work matches its outer entry while
+abandoning all 51,429 nested `menu_nmi_work` comparisons. Its checkpoint is
+therefore retained, without adding an exception or changing the shared
+comparison tools. The full sampled gate is not repeated. There are no
+calibration or exception changes. The Python unit suite reports OK after
+467 tests, with ten skipped.
+
+After retaining the checkpoint, `menu`, `menus-sweep` and `menus-epoch`
+have zero mismatches: `menu_nmi_enter` and `menu_nmi_work` each compare and
+match all 8,358 calls, none interrupted or abandoned. Trace identity and
+timing pass on these follow-up runs. The narrowed suite ends `suite OK`,
+including the comparison ratchet, effects, port style and port smell checks;
+both fast routes pass in shipping mode and with scaffolding compiled out.
+This follow-up does not repeat the long routes or evidence regeneration.
+
+Review restored the callee guard on the save-point screen's continuation
+from `$C2:D506` to `$C2:CF0A`. A movable cursor does not imply that the
+shown save slot is valid. `menu_go_on_in` now retains the callee's refusal
+and the original stop's live high accumulator byte. The new invalid-slot
+fuzz variant presses choose with slots 4 through 255: seed 1 compares all
+2,000 states after the fix, with zero mismatches, skips or out-of-range
+accesses. Before it, only 140 compare and 1,860 skip; a diagnostic run of
+100 states reports 100 out-of-range slot reads. Shadow runs of
+`menus-save-point`, `menus-field-menu` and `menus-sweep` have zero mismatches.
+No fuzz domain was narrowed, and no sampled gate was run for this review.
+
+The evidence helper now runs each movie's variants sequentially, so its
+worker count also caps all child processes, including trace comparisons.
+The concurrent regression test observes eight children with the previous
+launcher and at most two with two workers after the fix; all four variants'
+results, including failures and evidence counts, remain accounted for.
+
+Remaining stops belong to task switches and held waits, reset and mode
+boundaries, invalid script dispatch, comparison checkpoints and guard
+fallbacks. In particular the menu-entry boundary still owns nested shadow
+checkpoints, as documented
+beside `menu_mode_enter`. The two WRAM transfers need a memory service that
+preserves the gate's transfer effects. Registered return wrappers cannot
+leave until their original callers and registry entries retire together.
+
 ## Time in hand ports
 
 Generated code keeps the original's time to the instruction

@@ -13,8 +13,7 @@
  * waits in the menus' task switch, parked until its task goes on
  * (menu_wait_a_frame_from); where a step jumps on to another routine (the
  * member list's move, the slots' pointing, the list's step, back to the
- * main menu), it stops there, and the runtime runs that routine, a port or
- * the original's.
+ * main menu), it calls the sibling as C where its guard holds.
  *
  * Shadow mode compares the machine at every call out, the flags a sibling
  * saves as it starts (on the stack under its own calls out) among it. So
@@ -234,26 +233,26 @@ static void note_on_the_machine(void *ctx, EquipmentNote note, uint8_t value)
     }
 }
 
-/* The steps' ends are the original's jumps, which the port stops at; the
+/* The steps continue into their siblings as C; the
  * card and the list's opening put back the P their routines saved first. */
 static bool ends_on_the_machine(void *ctx, EquipmentEnd end)
 {
     Snes *s = ctx;
     switch (end) {
-    case EQUIPMENT_SETS_UP_THE_SCREEN: m_stop_at(s, SET_UP_SCREEN, READS_NOTHING); break;
-    case EQUIPMENT_POINTS_AT_A_MEMBER: m_stop_at(s, POINT_AT_MEMBER, READS_NOTHING); break;
+    case EQUIPMENT_SETS_UP_THE_SCREEN: menu_go_on_in(s, SET_UP_SCREEN, menu_set_up_equipment, READS_NOTHING); break;
+    case EQUIPMENT_POINTS_AT_A_MEMBER: menu_go_on_in(s, POINT_AT_MEMBER, menu_point_at_equipment_member, READS_NOTHING); break;
     case EQUIPMENT_SHOWS_THE_CARD:
         menu_restore_p(s);
-        m_stop_at(s, MEMBER_CARD, READS_NOTHING);
+        menu_go_on_in(s, MEMBER_CARD, menu_draw_member_card_entry, READS_NOTHING);
         break;
-    case EQUIPMENT_GOES_BACK_TO_THE_MAIN_MENU: m_stop_at(s, MAIN_MENU, READS_NOTHING); break;
-    case EQUIPMENT_POINTS_AT_A_SLOT: m_stop_at(s, POINT_AT_SLOT, READS_NOTHING); break;
-    case EQUIPMENT_GOES_ON_TO_THE_LIST: m_stop_at(s, ON_TO_THE_LIST, READS_NOTHING); break;
-    case EQUIPMENT_REFUSES: m_stop_at_own(s, REFUSAL_SOUND, READS_A_HIGH); break;
-    case EQUIPMENT_GOES_BACK_TO_THE_MEMBERS: m_stop_at(s, BACK_TO_MEMBERS, READS_NOTHING); break;
+    case EQUIPMENT_GOES_BACK_TO_THE_MAIN_MENU: menu_go_on_in(s, MAIN_MENU, menu_back_to_the_main_menu_entry, READS_NOTHING); break;
+    case EQUIPMENT_POINTS_AT_A_SLOT: menu_go_on_in(s, POINT_AT_SLOT, menu_point_at_equipment_slot, READS_NOTHING); break;
+    case EQUIPMENT_GOES_ON_TO_THE_LIST: menu_go_on_in(s, ON_TO_THE_LIST, menu_open_equipment_list, READS_NOTHING); break;
+    case EQUIPMENT_REFUSES: TIMED_AS(state_of(s), REFUSAL_SOUND, menu_play_refusal_sound(s)); break;
+    case EQUIPMENT_GOES_BACK_TO_THE_MEMBERS: menu_go_on_in(s, BACK_TO_MEMBERS, menu_back_to_equipment_members, READS_NOTHING); break;
     case EQUIPMENT_TICKS_ON_THE_LIST:
         menu_restore_p(s);
-        m_stop_at_own(s, CURSOR_SOUND, READS_A_AND_CARRY);
+        TIMED_AS(state_of(s), CURSOR_SOUND, menu_play_cursor_sound(s));
         break;
     }
     return false;

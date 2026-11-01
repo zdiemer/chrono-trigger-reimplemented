@@ -514,7 +514,7 @@ static void leave_redraw_cells(GameState *g, const MapPlane *p, const Redraw *r)
  * walk eighteen blocks across it from the map tile the screen's left edge
  * falls in (one back where the edge sits on a map tile's left half), each
  * built in the upload buffer and sent straight to VRAM. */
-static void redraw_plane(GameState *g, Platform *pf, uint8_t plane)
+void menu_map_draw_plane(GameState *g, Platform *pf, uint8_t plane)
 {
     MapPlane p = plane_of(g, plane);
     uint16_t column = tile_column(g, plane), row = tile_row(g, plane);
@@ -610,12 +610,10 @@ bool menu_map_page_is_menu(Snes *s) { return m_direct_page(s) == MODE_PAGE; }
 /* The scrolls come back with an 8-bit accumulator, and X the last strip's
  * place in the queue where the last pixel brought one into view (it is then
  * on a tile's edge), or else the plane doubled. */
-static void scroll_entry(Snes *s, MenuAxis axis)
+void menu_leave_map_scrolled(Snes *s, uint8_t named, MenuAxis axis, int8_t step)
 {
     GameState *g = state_of(s);
-    uint8_t plane = (uint8_t)(named_plane(g) - 1);
-    int8_t step = (int8_t)menu_object_scratch_step(g);
-    scroll_plane(g, plane, axis, step);
+    uint8_t plane = (uint8_t)(named - 1);
     vars_peek(true);
     bool strip_last = step != 0 && on_tile_edge(scroll_of(g, plane, axis));
     unsigned records = axis == MENU_ACROSS ? COLUMN_STRIP_RECORDS : ROW_STRIP_RECORDS;
@@ -623,6 +621,15 @@ static void scroll_entry(Snes *s, MenuAxis axis)
     vars_peek(false);
     s->cpu.x = strip_last ? last_queued : (uint16_t)(plane << 1);
     m_sep(s, CPU_FLAG_M);
+}
+
+static void scroll_entry(Snes *s, MenuAxis axis)
+{
+    GameState *g = state_of(s);
+    uint8_t plane = named_plane(g);
+    int8_t step = (int8_t)menu_object_scratch_step(g);
+    menu_map_scroll(g, plane, axis, step);
+    menu_leave_map_scrolled(s, plane, axis, step);
     m_rts(s);
 }
 
@@ -638,7 +645,7 @@ void menu_map_centre_on_the_party(GameState *g) { centre_on_party(g); }
 void menu_map_redraw_plane(GameState *g, Platform *pf, uint8_t plane)
 {
     ORIGINAL_EFFECT(set_menu_object_scratch_plane(g, (uint8_t)(plane + 1)));
-    TIMED_AS(g, 0xC209C5, redraw_plane(g, pf, plane));
+    TIMED_AS(g, 0xC209C5, menu_map_draw_plane(g, pf, plane));
 }
 
 bool menu_map_can_redraw(const GameState *g, uint8_t plane)
@@ -661,13 +668,18 @@ void menu_map_centre_on_party(Snes *s)
 // $C2:09C5
 /* It comes back with the carry clear and X the block's size, as the block
  * upload leaves it. */
-void menu_map_redraw(Snes *s)
+void menu_leave_map_redrawn(Snes *s)
 {
-    GameState *g = state_of(s);
-    redraw_plane(g, m_platform(s), (uint8_t)(named_plane(g) - 1));
     s->cpu.x = STRIP_BYTES;
     m_sep(s, CPU_FLAG_M);
     m_set_flag(s, CPU_FLAG_C, false);
+}
+
+void menu_map_redraw(Snes *s)
+{
+    GameState *g = state_of(s);
+    menu_map_draw_plane(g, m_platform(s), (uint8_t)(named_plane(g) - 1));
+    menu_leave_map_redrawn(s);
     m_rts(s);
 }
 

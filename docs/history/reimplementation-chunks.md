@@ -12253,3 +12253,33 @@ Its ledger row in docs/ports.tsv, kept here since the port is deleted (REIMPLEME
 "The sound driver's teardown"):
 
 > Sound driver's CPU half (`core/sound_driver.c`, its data through `core/sound_data.h`'s `GameState` accessors), the whole of bank C7's code: the boot `sound_driver_boot` `$C7:0000`, its upload `sound_driver_boot_upload` `$C7:005F`-`$C7:011A` and `sound_driver_boot_finish` `$C7:011E`, idle `sound_driver_boot_wait_ready_loop` `$C7:0050` and `sound_driver_boot_delay_loop` `$C7:011B`; the command `sound_driver_command` `$C7:0004` whole (the dispatch `$C7:0155`, a song `$C7:01A1`, a command as it is `$C7:061C`, command `$70`'s `$C7:08E3` and `$71`'s `$C7:0755`, the slots' bookkeeping `$C7:0734`, `$C7:09FD`, `$C7:0A12`, the exit `$C7:0192`, every wait for the SPC700 in place); the routines it calls as C inside the original's frame for them (`IN_THE_ORIGINALS_FRAME`), registered for the original's own calls and to fuzz alone, `sound_driver_send_song` `$C7:0A39`, `sound_driver_upload_block` `$C7:0655`, `sound_driver_upload_effects` `$C7:0922`. The exchange routines `$C7:09DA` and `$C7:09EA` are the original's, which `au_driver_exchange` calls in shadow mode and the tools, and stands for in the shipping mode | $C7:0000-$C7:0A97 | history/reimplementation-waves.md, "The $C7 pilot", for the first port; rewritten in docs/history/reimplementation-chunks.md, "Phase 4a, the shipping mode's fallbacks, chunk 7": every wait for the SPC700 through the audio service (`au_driver_wait_echo`, `_wait_moved`, `_wait_echo_or_give_up`, `au_driver_exchange`), so a command runs whole; logic over `vars.h`, scaffolding through `ORIGINAL_EFFECT`; 43 entries to 9. Guard on `$C7:0004`: `sound_driver_slots_are_kept` (blocks in a byte, lengths 0 or past a byte, the slots in use contiguous, at most one block in two slots, command `$71`'s slot a slot); no refusal in real play. Calls over the 36 movies (`--native shadow`), none mismatching: the command 13974 (261 interrupted: a song's upload spans frames and a vblank cuts one of its stretches); `$C7:0A39` 607, `$C7:0655` 1026 and `$C7:0922` 72, all run inside the command's stretches and compared there (their own entries count them abandoned); the boot's three entries 37 each; the sound lockstep identical in every movie in shadow and in the shipping mode (the vblank check's runs); the shipping mode's next message reaches port 3 8-15 SPC700 cycles after the SPC700 read the last in all but 8,577 of 1,157,232 messages, 3 at the least, as the original's (`ct_dev --apu-port-margins`). Fuzzed (seed 1, `tools/fuzz_routines.toml`, `--apu-loopback`), 0 mismatching: the command 6818 of 20000 compared (13163 refused by the guard), 20000 with the slots the title's song leaves, and 17742 of 20000 with the SPC700 answering otherwise on port 1 now and then (`refusals`, `--apu-port1-flips`: a header not confirmed, a song refused, the moves turned down); `$C7:0A39`, `$C7:0922` (and its `refusals` variant), the boot, its upload, its finish and its two idle loops 20000 each; `$C7:0655` 19682 of 20000. Against `main`'s ports `$C7:0655`, `$C7:0922`, `$C7:0000`, `$C7:011E` agree; the idle loops 20000 mismatching to 0 (their passes now leave the flags as the original's do)
+
+## The menus' script services and machine time tags
+
+The menu scripts now call the map's scrolling and drawing and the sound
+mailbox as C. The map's registered entries and the script bridge share their
+register-result helpers; the scripts do not construct a return frame for
+that work. Script-selected routines have a table of 57 machine entries,
+checked against their guards before they run as C. Their wrappers still
+supply the register results and, for callees with nested calls, the frames
+the byte-exact gate compares. Targets outside the table and guard refusals
+retain the original near or far call. The native program continues to use
+the game-state routine table in `menu/handlers.c`.
+
+The 21 menu bridge, display, frame, list, object, task and description files
+started with 560 sites in `machine_joints.py`: 157 returns, 56 stops,
+18 counted call-out sites, 15 machine time tags, two register escapes,
+58 video calls and 254 scaffolding writes. The script work removes twelve
+counted call-out sites; the time tags now use `TIMED_AS` on the game's state,
+removing all fifteen machine tags. The other counts are unchanged (533
+sites). The shared map helpers add no joint in `menu/map.c`.
+
+Narrowed shadow checks on `attract-demo`, `menus-epoch` and `menu` compare
+without mismatches; their trace identity, timing and vblank checks pass.
+No calibration or exception changes are needed. Differential fuzzing, seed 1
+and 300 iterations per case with the existing constraints, compares 1,832
+states over fifteen cases, with zero mismatches before and after. That
+includes the redraw's leaf and command, whose movie calls span frames.
+The routine-call cases exercise the fallback in fuzz, which has no active
+registry; the movies check the guarded C selection. `ports.tsv` records
+each entry's comparisons and skips.

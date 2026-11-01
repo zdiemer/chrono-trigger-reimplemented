@@ -296,7 +296,7 @@ MenuModeEnd menu_mode_runs(GameState *g, Platform *pf, uint8_t asked_for, uint16
 
 /* ---- On the machine ---- */
 
-static void start_again_on_the_machine(void *ctx) { NATIVE_TIME_AS((Snes *)ctx, 0xC2832F, menu_mode_restart(ctx)); }
+static void start_again_on_the_machine(void *ctx) { TIMED_AS(state_of(ctx), 0xC2832F, menu_mode_restart(ctx)); }
 
 /* The menus open on their own stack and page. */
 static bool opened_on_the_machine(void *ctx)
@@ -439,7 +439,7 @@ static bool wear_shown_back_to_the_caller(void *ctx)
 
 static bool faded_out_back_to_the_caller(void *ctx) { return menu_fade_out_from(ctx, 0xC282BE); }
 
-static void back_to_the_caller(void *ctx) { NATIVE_TIME_AS((Snes *)ctx, 0xC282C1, menu_mode_return(ctx)); }
+static void back_to_the_caller(void *ctx) { TIMED_AS(state_of(ctx), 0xC282C1, menu_mode_return(ctx)); }
 
 static bool wear_shown_for_the_game(void *ctx)
 {
@@ -448,7 +448,7 @@ static bool wear_shown_for_the_game(void *ctx)
 
 static bool faded_out_for_the_game(void *ctx) { return menu_fade_out_from(ctx, 0xC2832C); }
 
-static void on_to_the_game(void *ctx) { NATIVE_TIME_AS((Snes *)ctx, 0xC2832F, menu_mode_restart(ctx)); }
+static void on_to_the_game(void *ctx) { TIMED_AS(state_of(ctx), 0xC2832F, menu_mode_restart(ctx)); }
 
 void menu_close_entry(Snes *s)
 {
@@ -501,13 +501,16 @@ bool menu_nmi_work_runs(Snes *s)
 // $C2:840E (installed at the $0500 NMI stub from the table at $C2:8406)
 /* The menus' vblank handler as it starts: the interrupted code's registers
  * kept and the handler on its own stack and page. Its work follows
- * (menu_nmi_work, a port of its own, where this one stops), and the vblank's
+ * (menu_nmi_work, with its own comparison checkpoint), and the vblank's
  * acknowledgement there, a compare, sets the flags before anything reads
  * them. */
 void menu_nmi_enter(Snes *s)
 {
     set_menu_interrupted_stack(state_of(s), m_enter_handler_stack(s, HANDLER_STACK));
     s->cpu.d = MENUS_PAGE;
+    /* Joining the work here matches the outer NMI entry, but abandons every
+     * nested menu_nmi_work comparison. Keep its checkpoint until the registry
+     * can account for that coverage without losing the per-entry check. */
     m_stop_at(s, 0xC2842A, DC_N | DC_Z | DC_C);
 }
 
@@ -697,12 +700,12 @@ static uint16_t send_the_frame(GameState *g, Platform *pf)
     return y;
 }
 
-/* This port stops where the queue's routine starts. */
+/* The queued uploads follow the frame's fixed work. */
 void menu_vblank_upload(Snes *s)
 {
     s->cpu.y = send_the_frame(state_of(s), m_platform(s));
     s->cpu.db = 0x00;
-    m_stop_at(s, 0xC28663, 0);
+    menu_go_on_in(s, 0xC28663, menu_upload_vram_queue, 0);
 }
 
 /* A block move the game asks for moves a buffer, not the code the original
