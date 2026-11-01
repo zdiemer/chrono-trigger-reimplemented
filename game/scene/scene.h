@@ -1395,6 +1395,7 @@ TaskEnd scene_turn_captions(GameState *g, Platform *pf, unsigned slot);
 /* scene/race_matrix.c */
 void scene_write_matrix_code(Snes *s);
 bool scene_matrix_code_present(Snes *s);
+bool scene_picture_gathering_present(Snes *s);
 void scene_gather_picture(Snes *s);
 bool scene_race_scale_pictures_present(Snes *s);
 void scene_race_scale_pictures_entry(Snes *s);
@@ -1530,6 +1531,7 @@ void scene_scaler_start(GameState *g, SceneScaling bitmap);
  * row no further, having asked for the machine). */
 enum { SCENE_SCALER_ROWS = 0xC30309 };
 bool scene_scaler_draws(const GameState *g);
+bool scene_scaling_fits(SceneScaling picture);
 bool scene_scale_the_bitmap(GameState *g, bool row_nudge);
 bool scene_scaler_in_its_bank(Snes *s);
 bool scene_scaler_starts_in_its_bank(Snes *s);

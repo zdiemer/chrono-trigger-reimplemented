@@ -773,14 +773,14 @@ why = "the camera's distance 0, as the attract demo's race has it when a bike st
 name = "scene_race_scale_pictures"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E1402-7E1402=00-02", "--fill", "7E1403-7E1403=00-00", "--fill", "7E1410-7E1410=00-02", "--fill", "7E1411-7E1411=00-00", "--fill", "7E1409-7E1409=00-0F", "--fill", "7E1417-7E1417=00-0F"]
+args = ["--budget", "32000000", "--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E1402-7E1402=00-02", "--fill", "7E1403-7E1403=00-00", "--fill", "7E1410-7E1410=00-02", "--fill", "7E1411-7E1411=00-00", "--fill", "7E1409-7E1409=00-0F", "--fill", "7E1417-7E1417=00-0F"]
 why = "the main loop's call; the racers' requests' states as the race keeps them, and their row steps below $1000, the race's sizes halved (compared to the scaler's first row, where it stops)"
 
 [[routine]]
 name = "scene_race_scale_after_crono"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E1410-7E1410=00-02", "--fill", "7E1411-7E1411=00-00", "--fill", "7E1417-7E1417=00-0F"]
+args = ["--budget", "32000000", "--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E1410-7E1410=00-02", "--fill", "7E1411-7E1411=00-00", "--fill", "7E1417-7E1417=00-0F"]
 why = "back from Crono's picture gathered, A the request's new state (the guard asks for it); Johnny's request as the race keeps it"
 
 [[routine]]
@@ -21846,3 +21846,27 @@ subsystem = "scene"
 state = "race"
 args = ["--range", "A=2000-3000", "--long", "--d", "0000", "--db", "7F", "--fill", "7E001F-7E0020=0001,0002,0004,0008", "--fill", "7E0023-7E0024=2000", "--fill", "7E0025-7E0026=0001,0002,0008,0011,0021,0041", "--fill", "7E0027-7E0028=0000,0031,0080,0100,7FFF", "--fill", "7E0029-7E002A=0000,0080,0100,01FF", "--fill", "7E002B-7E002C=0400,0800,1000", "--fill", "7E002D-7E002E=0200", "--fill", "7E002F-7E0030=0200", "--fill", "7E0033-7E0034=0000", "--fill", "7E0037-7E0038=0200,0300,0800,0A00", "--budget", "8000000"]
 why = "Complete bitmaps with 1-64 rows, repeated or new source rows, both entry carries, varied zoom and widths, and tails to clear."
+
+[[routine]]
+name = "scene_race_scale_pictures"
+variant = "crono_picture"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E0039-7E003A=0000", "--budget", "8000000", "--fill", "7E1400-7E1401=0002,0004", "--fill", "7E1402-7E1403=0001", "--fill", "7E1404-7E1405=2000", "--fill", "7E1406-7E1407=0008,0011,0021", "--fill", "7E1408-7E1409=0031,0080,0100", "--fill", "7E140C-7E140D=0400,0800", "--fill", "7E140E-7E140F=0002,0004", "--fill", "7E1410-7E1411=0000", "--fill", "7E1412-7E1413=2000", "--fill", "7E1414-7E1415=0008,0011,0021", "--fill", "7E1416-7E1417=0031,0080,0100", "--fill", "7E141A-7E141B=0400,0800"]
+why = "One bounded racer picture through complete scaling and gathering, with the previous upload finished."
+
+[[routine]]
+name = "scene_race_scale_pictures"
+variant = "johnny_picture"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E0039-7E003A=0000", "--budget", "8000000", "--fill", "7E1400-7E1401=0002,0004", "--fill", "7E1402-7E1403=0000", "--fill", "7E1404-7E1405=2000", "--fill", "7E1406-7E1407=0008,0011,0021", "--fill", "7E1408-7E1409=0031,0080,0100", "--fill", "7E140C-7E140D=0400,0800", "--fill", "7E140E-7E140F=0002,0004", "--fill", "7E1410-7E1411=0001", "--fill", "7E1412-7E1413=2000", "--fill", "7E1414-7E1415=0008,0011,0021", "--fill", "7E1416-7E1417=0031,0080,0100", "--fill", "7E141A-7E141B=0400,0800"]
+why = "One bounded racer picture through complete scaling and gathering, with the previous upload finished."
+
+[[routine]]
+name = "scene_race_scale_after_crono"
+variant = "johnny_picture"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E0039-7E003A=0000", "--budget", "8000000", "--fill", "7E1400-7E1401=0002,0004", "--fill", "7E1402-7E1403=0002", "--fill", "7E1404-7E1405=2000", "--fill", "7E1406-7E1407=0008,0011,0021", "--fill", "7E1408-7E1409=0031,0080,0100", "--fill", "7E140C-7E140D=0400,0800", "--fill", "7E140E-7E140F=0002,0004", "--fill", "7E1410-7E1411=0001", "--fill", "7E1412-7E1413=2000", "--fill", "7E1414-7E1415=0008,0011,0021", "--fill", "7E1416-7E1417=0031,0080,0100", "--fill", "7E141A-7E141B=0400,0800"]
+why = "One bounded racer picture through complete scaling and gathering, with the previous upload finished."

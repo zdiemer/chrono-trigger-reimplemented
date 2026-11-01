@@ -1578,7 +1578,8 @@ bool scene_check_the_shell_present(Snes *s)
  * scene's page. */
 bool scene_scale_the_epoch_present(Snes *s)
 {
-    return scene_on_scene_page(s) && m_code_matches(s, 0x7E8278, 0x38, 0x4D4B756D9878E542ull) && holds(s, scaling_takes);
+    return scene_on_scene_page(s) && m_code_matches(s, 0x7E8278, 0x38, 0x4D4B756D9878E542ull) && holds(s, scaling_takes) &&
+           (holds(s, picture_waiting) || scene_picture_gathering_present(s));
 }
 
 bool scene_gather_the_epoch_present(Snes *s)

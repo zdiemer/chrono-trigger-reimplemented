@@ -3004,7 +3004,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0x7E82D1, .name = "scene_check_the_shell", .fn = scene_check_the_shell_entry, NEEDS_M16_X16, .cost_milli = 2562,
       .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D, .guard = scene_check_the_shell_present },
     { .addr = 0x7E8278, .name = "scene_scale_the_epoch", .fn = scene_scale_the_epoch_entry, NEEDS_M16_X16, .cost_milli = 3000,
-      .dont_care = 0, .guard = scene_scale_the_epoch_present },
+      .dont_care = DC_X | DC_Y | DC_N | DC_Z, .guard = scene_scale_the_epoch_present },
     { .addr = 0x7E82A4, .name = "scene_gather_the_epoch", .fn = scene_gather_the_epoch, NEEDS_M16_X16, .cost_milli = 5000,
       .dont_care = 0, .guard = scene_gather_the_epoch_present },
     { .addr = 0x7E824A, .name = "scene_send_the_epoch", .fn = scene_send_the_epoch_entry, NEEDS_M8_X16, .cost_milli = 4707,

@@ -2751,9 +2751,17 @@ re-runs the census.
 - **Bitmap requests outside the scaler's bank.** Whole-picture entry guards
   reject requests whose later rows cross the bank, before changing any
   output. The broad start fixture rejects 1,966/2,000 random states; seven
-  more exceed the fuzz budget. Bounded whole pictures compare fully. The
-  caller bridges still need their requests checked before setup and their
-  gathering continuations called as C.
+  more exceed the fuzz budget. Bounded whole pictures compare fully. The caller bridges preflight
+  their fixed-size picture requests before setup.
+
+- **The race upload wait has two caller instances.** After the bitmap is
+  drawn in C, `scene_bridge_scale_picture` still stops at `$7E:5211`.
+  Continuing both racers through `tm_wait_for_handlers` makes shadow mode
+  compare Johnny's wait against Crono's earlier satisfied wait: the same
+  address and stack depth, with different live caller return addresses.
+  Race-won reports `WRAM[001F] original 04 native 03`; bounded individual
+  racer pictures pass. The wait needs caller-instance matching before this
+  boundary can leave. The Epoch and ending gathering paths need no such wait.
 
 ## Shadow comparison gaps
 

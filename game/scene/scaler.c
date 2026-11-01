@@ -231,6 +231,16 @@ static RowOutcome scale_row(GameState *g, bool row_nudge)
  * scratch, and the bitmap is the original's to draw. No scene's reaches them. */
 enum { LARGEST_LIMIT = 0x8000, SAMPLES_REACH = 0x0101 };
 
+/* Check a caller's request before it replaces the current scaler workspace.
+ * These fixed-size scene pictures fit even if every requested row is drawn. */
+bool scene_scaling_fits(SceneScaling picture)
+{
+    return picture.pairs && picture.rows && picture.limit <= LARGEST_LIMIT &&
+           (!picture.limit || (uint32_t)picture.source + picture.limit - 1 + SAMPLES_REACH <= POSITIONS) &&
+           OUTPUT_START + (uint32_t)(picture.rows - 1) * ROW_BYTES +
+               (uint32_t)picture.pairs * GROUPS_PER_PAIR * PLANES <= POSITIONS;
+}
+
 bool scene_scaler_draws(const GameState *g)
 {
     uint32_t pairs = scene_scaler_pairs(g) ? scene_scaler_pairs(g) : 0x10000u;

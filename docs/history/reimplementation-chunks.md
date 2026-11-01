@@ -12678,3 +12678,28 @@ fallback ratchet has no new or increased rows. Style, smell and effects
 checks are clean. Scene/warp joints fall from 813 to 808: stops 17 to 14,
 one fewer machine return and one fewer scaffolding site. The sampled gate
 remains reserved for the end of the pass.
+
+
+### Scene continuations: whole bitmaps in C
+
+Both bitmap entry points draw through the final row and clear the previous
+picture's unused tail. A read-only guard checks every output extent before
+drawing; source limits can end a tall request early. The two stops at
+`$C3:0309` are gone. Sampling new rows has its own entry and timing part,
+`$C3:034A`, while repeated rows and tail clears retain block-copy timing.
+Isolated copy, mixed and sampled pictures establish the two rates; their
+largest timing error is 7,519 clocks, without a new timing exception.
+
+Alternating registered points in this loop exposed duplicate shadow
+comparisons: the validator only recognized reentry into its innermost
+segment. It now recognizes an enclosing segment at the same stack depth.
+A synthetic two-entry loop regression checks one comparison per call and
+no exhausted comparison slots. The shadow test passes.
+
+Differential fuzz compares 8,027 cases with zero mismatches, including
+2,000 each of three whole-picture entries. The broad start fixture refuses
+1,966 impossible pictures and exhausts its budget on seven; bounded
+pictures compare without skips. Complete Epoch and race-won shadow movies
+pass with zero mismatches and zero new or increased fallback rows. Style,
+smell, effects and liveness checks are clean. Scene/warp joints fall from
+808 to 806, stops from 14 to 12. The sampled gate remains for the end.

@@ -154,9 +154,14 @@ enum { PICTURE = 0x0200 };
  * are the generator's output for its one table and base, so any other code
  * there is not this. It reads the picture through the data bank, which every
  * caller points at the second bank of work RAM. */
+bool scene_picture_gathering_present(Snes *s)
+{
+    return m_code_matches(s, 0x7EB574, 5153, 0x087A234E99D12FFFull);
+}
+
 bool scene_matrix_code_present(Snes *s)
 {
-    return s->cpu.db == SCENE_UPPER_WORK_RAM && m_code_matches(s, 0x7EB574, 5153, 0x087A234E99D12FFFull);
+    return s->cpu.db == SCENE_UPPER_WORK_RAM && scene_picture_gathering_present(s);
 }
 
 // $7E:B574
@@ -204,13 +209,18 @@ static bool picture_waiting(const GameState *g, Racer r) { return race_picture_s
 // $7E:51F4
 /* A racer's request to the scaler: its settings (the request's state comes
  * along into the cells between them, which nothing reads). */
-static void hand_to_scaler(GameState *g, Racer r)
+static SceneScaling picture_request(const GameState *g, Racer r)
 {
-    scene_scaler_start(g, (SceneScaling){ .source = scene_race_picture_requests_source(g, r),
+    return (SceneScaling){ .source = scene_race_picture_requests_source(g, r),
                                           .rows = scene_race_picture_requests_rows(g, r),
                                           .pairs = scene_race_picture_requests_pairs(g, r),
                                           .row_step = scene_race_picture_requests_row_step(g, r),
-                                          .limit = scene_race_picture_requests_source_limit(g, r) });
+                                          .limit = scene_race_picture_requests_source_limit(g, r) };
+}
+
+static void hand_to_scaler(GameState *g, Racer r)
+{
+    scene_scaler_start(g, picture_request(g, r));
     set_scene_scaler_request_state(g, scene_race_picture_requests_state(g, r));
 }
 
@@ -239,7 +249,19 @@ static void gather_scaled_picture(GameState *g)
 /* The scaling's code, with the scaler's start, and the regrouping. */
 bool scene_race_scale_pictures_present(Snes *s)
 {
-    return scene_on_scene_page(s) && m_code_matches(s, 0x7E51D1, 0x40, 0xCF48DD1914245AD5ull);
+    if (!scene_on_scene_page(s) || !m_code_matches(s, 0x7E51D1, 0x40, 0xCF48DD1914245AD5ull))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool draws = false, fits = true;
+    for (unsigned r = 0; r < RACERS; r++) {
+        if (picture_waiting(g, (Racer)r)) {
+            draws = true;
+            fits = fits && scene_scaling_fits(picture_request(g, (Racer)r));
+        }
+    }
+    vars_peek(false);
+    return fits && (!draws || (m_code_matches(s, 0x7E5215, 0x0C, 0x4CE857A6AFB42F4Dull) && scene_picture_gathering_present(s)));
 }
 
 /* Back from the gathering, which hands the request's new state back in A. */

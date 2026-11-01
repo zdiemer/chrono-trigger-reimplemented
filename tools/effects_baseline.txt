@@ -1178,7 +1178,7 @@ game/scene/race_drawing.c draw_boosts scene_sprite_offset_x scene_sprite_offset_
 game/scene/race_drawing.c draw_numbers scene_sprite_offset_x scene_sprite_offset_x # as draw_boosts
 game/scene/race.h race_picture_state scene_race_picture_requests_state scene_flight_view # the cells are the Beyond Time flight's scratch in the endings' program (beyond_time.c, the camera's distance turned) and the race's picture requests in its own; the race sets its requests up plainly before it reads them (race_drawing.c)
 game/scene/race.h race_picture_state scene_race_picture_requests_state[1] scene_flight_view # as the first request
-game/scene/race_matrix.c hand_to_scaler scene_race_picture_requests_source scene_flight_view # as race_picture_state
+game/scene/race_matrix.c picture_request scene_race_picture_requests_source scene_flight_view # as race_picture_state; the existing request read moved to the shared descriptor constructor
 game/scene/race_matrix.c hand_to_scaler scene_race_picture_requests_state scene_flight_view # as race_picture_state
 game/scene/math.c scene_multiply_signed16_entry scene_call_first scene_call # the entry's operands: only the original's code calls it, and each of its eight calls ($7E:4458, $7E:446B and $7E:4E61, $7E:4ECB the race's camera and its projection, $7E:9939, $7E:9953 the Epoch circling, $7E:9B0A, $7E:9B1D the flight's view placed) stores both operands on the page just before it; the scaffolding is other calls' results in the same record (scene_call)
 game/scene/math.c scene_multiply_signed16_entry scene_call_second scene_call # as scene_call_first: each of the original's eight calls stores the operand just before it

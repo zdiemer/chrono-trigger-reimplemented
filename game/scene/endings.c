@@ -2328,11 +2328,20 @@ void scene_ending_pick_picture_frame_entry(Snes *s)
 static bool picture_waiting(const GameState *g) { return scene_ending_picture_ready(g) != 0; }
 static bool shape_word_agrees(const GameState *g) { return (scene_ending_picture_tall(g) >> 8) == 0; }
 
+static bool picture_fits(const GameState *g)
+{
+    const PictureLayout *layout = &layouts[picture_shape(g)];
+    return scene_scaling_fits((SceneScaling){ .source = scene_ending_picture_source(g), .rows = layout->rows,
+        .pairs = PAIRS_ACROSS, .row_step = picture_register(g, PICTURE_ZOOM) & ZOOM_BITS, .limit = layout->tile_bytes });
+}
+
 bool scene_ending_scale_picture_present(Snes *s)
 {
     if (!scene_on_scene_page(s) || !m_bank_reaches_low_ram(s) || !m_code_matches(s, 0x7E8930, 0x6, 0xB318CAF0720BDB26ull))
         return false;
-    return holds(s, picture_waiting) || (holds(s, shape_word_agrees) && m_code_matches(s, 0x7E8936, 0x4D, 0x65F6F8DD17744FCCull) &&
+    return holds(s, picture_waiting) || (holds(s, shape_word_agrees) && holds(s, picture_fits) && scene_picture_gathering_present(s) &&
+                                         m_code_matches(s, 0x7E8983, 0x3D, 0xB0AE4CBCF063A65Dull) &&
+                                         m_code_matches(s, 0x7E8936, 0x4D, 0x65F6F8DD17744FCCull) &&
                                          m_code_matches(s, 0x7E32E2, 0xBD, 0xD04B8C1274AF93C8ull));
 }
 

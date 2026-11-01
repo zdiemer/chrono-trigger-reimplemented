@@ -38,7 +38,7 @@ static void call_the_scaler(Snes *s, uint32_t call, bool row_nudge)
     m_push16(s, (uint16_t)(call + JSL_LENGTH - 1));
     on_page(s, SCENE_PAGE, SCENE_UPPER_WORK_RAM);
     m_set_flag(s, CPU_FLAG_C, row_nudge);
-    m_stop_at(s, SCALER_ROWS, DC_A | DC_X | DC_Y | DC_N | DC_Z);
+    TIMED_AS(state_of(s), SCALER_ROWS, scene_scale_bitmap_row(s));
 }
 
 /* The race's routine ($7E:51F4) is called from one site per racer, and calls
@@ -51,6 +51,10 @@ void scene_bridge_scale_picture(Snes *s, Racer r, bool row_nudge)
     uint32_t call = r == RACER_CRONO ? CRONO_SCALING_CALL : JOHNNY_SCALING_CALL;
     m_push16(s, (uint16_t)(call + JSR_LENGTH - 1));
     call_the_scaler(s, RACE_SCALER_CALL, row_nudge);
+    /* The two racers use this wait at the same stack depth. The shadow wait
+     * service cannot yet distinguish Johnny's wait from Crono's already
+     * satisfied one; keep this boundary until it can (docs/TODO.md). */
+    m_stop_at(s, 0x7E5211, DC_A | DC_X | DC_Y | DC_N | DC_Z);
 }
 
 /* The shared endings' ($7E:8930) and the Epoch's dive's ($7E:8278) are the
@@ -62,6 +66,10 @@ enum { ENDINGS_SCALER_CALL = 0x7E897F, DIVE_SCALER_CALL = 0x7E82A0 };
 void scene_bridge_scale_scene_picture(Snes *s, ScenePictureScaling which)
 {
     call_the_scaler(s, which == SCALING_THE_EPOCH ? DIVE_SCALER_CALL : ENDINGS_SCALER_CALL, false);
+    if (which == SCALING_THE_EPOCH)
+        TIMED_AS(state_of(s), 0x7E82A4, scene_gather_the_epoch(s));
+    else
+        TIMED_AS(state_of(s), 0x7E8983, scene_ending_gather_picture(s));
 }
 
 /* ---- The race's setup ------------------------------------------------------------------------- */
