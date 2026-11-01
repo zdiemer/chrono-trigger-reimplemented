@@ -4647,6 +4647,8 @@ const NativeEntry game_natives[] = {
       .dont_care = DC_AL | DC_X | DC_N | DC_Z, .guard = scene_vblank_tasks_present, .pulls = SCENE_FINISHED_TASK_FRAME },
     { .addr = 0xC30AFF, .name = "scene_run_sequence", .fn = scene_run_sequence, NEEDS_M16_X16_BINARY,
       .cost_milli = 3530, .dont_care = DC_X | DC_N | DC_Z, .guard = scene_sequence_bank_is_scripts },
+    { .addr = 0xC30A8E, .name = "scene_read_controller", .fn = scene_read_controller_entry, NEEDS_X16,
+      .cost_milli = 4000, .dont_care = DC_A | DC_X | DC_N | DC_Z, .guard = scene_read_controller_present },
     { .addr = 0xC30C19, .name = "scene_script_store_byte", .fn = scene_script_store_byte_entry, NEEDS_M16_X16_BINARY,
       .cost_milli = 4338, .dont_care = DC_X | DC_N | DC_Z, .guard = scene_script_store_byte_present },
     { .addr = 0xC30C41, .name = "scene_script_store_word", .fn = scene_script_store_word_entry, NEEDS_M16_X16_BINARY,
@@ -4774,7 +4776,7 @@ const NativeEntry game_natives[] = {
       .pulls = SCENE_TASK_CALL_FRAME },
     /* per pass: LDA $2143 (30 master clocks from WRAM), AND #$0F (16), BEQ taken (22) */
     { .addr = 0x7E5AAA, .name = "scene_wait_for_music_loop", .fn = scene_wait_for_music_loop, NEEDS_M8,
-      .idle = true, .idle_clocks = 68, .guard = scene_wait_for_music_present },
+      .cost_milli = 5000, .guard = scene_wait_for_music_present },
     { .addr = 0x7E5211, .name = "scene_race_wait_for_tilemap_upload_loop", .fn = scene_race_wait_for_tilemap_upload_loop, NEEDS_M16,
       .idle = true, .guard = scene_race_wait_for_tilemap_upload_present },
     { .addr = 0x7E377E, .name = "scene_send_sound_command", .fn = scene_send_sound_command, .p_mask = CPU_FLAG_X,

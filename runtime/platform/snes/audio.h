@@ -35,6 +35,14 @@ PF_API uint8_t au_status(Platform *pf, PfOrigin o, uint8_t port)
     return v;
 }
 
+PF_API uint8_t au_wait_music_start(Platform *pf, PfOrigin o)
+{
+    uint8_t tracks;
+    while (!(tracks = au_music_playing(pf, PF_AT(o.site))))
+        native_wait_loop(pf_snes(pf), o.site, o.target, NATIVE_WAKE_MUSIC_START);
+    return tracks;
+}
+
 PF_API size_t au_take_samples(Platform *pf, int16_t *out, size_t max_frames)
 {
     return au_direct_take_samples(pf_snes(pf), out, max_frames);

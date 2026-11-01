@@ -2725,12 +2725,6 @@ re-runs the census.
     may yet (their lists' frames, the list for sale and the member rows are
     called as C now): call them as C, timed with `TIMED_AS`, where they make
     no call-outs.
-- **The scene boot's hblank waits** (`$C3:0530`/`$C3:0538`) land the forced
-  blank at the end of its line, which `vid_raster_display` at the handler's
-  line already says, and read through the SNES-only `tm_snes_video_status`:
-  the field's and the battle's line handlers wait through
-  `tm_wait_line_drawn` now (PLATFORM.md, "Timing without a beam, as built"),
-  which the boot's could take too.
 - **The battle's wait for a line `$CD:3B82`**: its callers call
   `tm_wait_line`, whose SNES backend waits where the port stands in the
   shipping mode and calls the original's routine only in shadow mode and the

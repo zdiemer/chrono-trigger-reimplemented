@@ -3108,42 +3108,38 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene continuations: sequence commands and the music marker
+### Scene continuations: controller, boot and title waits
 
-The sequence interpreter now handles its music marker wait inside the C
-turn. It reads a stable marker, continues when the requested level has
-arrived, or rewinds to the wait command and returns from the current turn.
-The next frame starts that command normally. The native program and the
-machine bridge share this decision. This removes the stop at `$C3:0C2A`
-and resolves the mode-5 sequence picker's inherited AH declaration there;
-the full static don't-care check has zero findings.
+The scene controller entry now owns readiness, button edges, pause and
+unpause, and the reset chord. The frame calls it directly; readiness is a
+platform operation (the SNES backend latches controllers atomically), and
+reset calls the existing C reset entry. The planet countdown calls that
+same reset entry when it expires. The native frame reports reset to the
+program rather than requesting a machine fallback.
 
-Seven standalone entries expose the existing store, task-list and video
-command families through the same operation table. They begin after the
-opcode, run their operation, and continue the channel's turn as C. Their
-guards retain the interpreter's supported domains: low-RAM stores, list
-searches that find a word, and the named video settings. The interpreter
-now attributes those operations to their entries; standalone wrappers time
-the remaining turn separately. Seven isolated, one-command shadow fixtures
-supply the initial costs without fitting other commands' timing errors.
-All seven fixtures return with zero mismatches.
+The boot line interrupt waits for the current horizontal blank to end and
+the next to begin, then calls its blank-and-return continuation. The title
+waits for the music-playing mask through the audio service. Both waits
+suspend through runtime wake conditions; the host audio backend advances
+frames until music starts. The title preserves its PPU direct page across
+the wait, and enclosing startup continues directly into the first frame.
+The standalone idle entries remain for callers still entering by address.
 
-Seed-1 differential fuzz covers twelve variants at 2,000 states each.
-The seven new commands and the bounded music-wait fixture have zero
-mismatches, skipped cases or guard refusals, as does the sequence picker.
-The three broad random-script variants retain their predecessor's mismatch
-counts (1, 0 and 1); their increased budget skips (31, 33 and 31) come from
-continuing past the former wait stop. That existing random-script finding
-remains in TODO. Attract-demo and the 130,000-frame Beyond Time recording
-pass the wait change with zero shadow mismatches; the command-entry build
-also passes fresh attract-demo and events-epoch-lavos runs, with no refusals.
-Their combined fallback ratchet has zero new or increased rows, without a
-ledger change. Style, smell, effects and don't-care checks are clean.
+Eight differential fuzz variants (2,000 states each, 400 for the title)
+have zero mismatches; the frame retains its predecessor's 1,013 budget
+skips. Five dedicated controller fixtures cover idle, pause, unpause,
+reset and reset-disabled inputs: 10,000 cases, zero mismatches or skips.
+The suspension unit test verifies both beam edges and a music wake across
+frames. Attract-demo and battle-lavos-gameover pass complete shadow runs
+with zero mismatches and identical sound lockstep; their fallback ratchet
+has zero new or increased rows. Shipping attract-demo reaches frame 22,500.
+Style, smell, effects and static don't-care checks are clean.
 
-Scene/warp joints remain 821: one return replaces one stop, leaving 25
-stops. The C3 burndown now lists only the controller continuation at
-`$C3:0A95`, 106 bytes; the seven command entries bring it to 45 entries.
-The sampled gate remains for the end of the pass.
+Scene/warp joints fall from 821 to 817, with stops from 25 to 20.
+C3's uncovered list is empty. RAM's only remaining static gap is the
+29-byte paired perspective branch at `$7E:366C`, already implemented in C
+but missed by the coverage walk through its patched branch. The sampled
+gate remains for the end of the pass.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 

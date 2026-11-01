@@ -882,7 +882,6 @@ static bool run_the_first_script(Snes *s)
 /* The title's music, which the setup waits for. */
 enum { TITLE_SONG = 0x30, SONG_CALL = 0x7E5AA7, MUSIC_WAIT = 0x7E5AAA };
 enum { FULL_BRIGHTNESS = 0x0F, FADE_EVERY_FRAME = 1 };
-enum { THE_WAIT_READS_A_HIGH_AND_THE_OVERFLOW = DC_AL | DC_X | DC_N | DC_Z | DC_D };
 
 /* What the pendulum's screen leaves in A's high byte, written through a
  * direct page on the register block: the song's call hands it on to the
@@ -900,8 +899,8 @@ enum { WHOLE_WORDS_PORT = 0x80 };
  * current, channel 0's script started, the title's state, the logo's
  * highlight white, the pendulum's screen; the screen at full brightness, the
  * fades a step a frame, the palette animations stopped, and the title's song
- * started; true unless a call-out stopped it. It returns through the original's
- * wait for the song to start playing ($7E:5AAA), where the port stops. */
+ * started; true unless a call-out stopped it. Its caller waits for the song
+ * to start playing before drawing the first frame. */
 bool scene_title_set_up_scene(Snes *s)
 {
     GameState *g = state_of(s);
@@ -1015,7 +1014,13 @@ bool scene_title_set_up(GameState *g, Platform *pf)
 
 /* The original's wait for the title's song to start playing, which returns
  * to the program's first frame. */
-void scene_title_wait_for_its_song(Snes *s) { m_stop_at(s, MUSIC_WAIT, THE_WAIT_READS_A_HIGH_AND_THE_OVERFLOW); }
+void scene_title_wait_for_its_song(Snes *s)
+{
+    /* The screen setup's page is still selected across the song's wait;
+     * the first frame establishes the scene page after it returns. */
+    s->cpu.d = M_DP_PPU;
+    TIMED_AS(state_of(s), MUSIC_WAIT, scene_wait_for_music_loop(s));
+}
 
 void scene_title_set_up_entry(Snes *s)
 {

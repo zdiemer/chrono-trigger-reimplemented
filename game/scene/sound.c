@@ -48,15 +48,13 @@ bool scene_wait_for_music_present(Snes *s)
 }
 
 // $7E:5AAA
-/* One pass of the wait for the music to start playing, then return. Idle
- * entry, 8-bit A holding the tracks playing. */
+/* Wait for the song to start, then return with its playing-track mask. */
 void scene_wait_for_music_loop(Snes *s)
 {
-    uint8_t playing = music_playing(m_platform(s));
+    uint8_t playing = au_wait_music_start(m_platform(s), PF_LOOP(0x7E5AAA, 0x7E5AB1));
     m_set_a8(s, playing);
     m_set_nz8(s, playing);
-    if (playing != 0)
-        m_rts(s);
+    m_rts(s);
 }
 
 /* The routine at $7E:377E, whose absolute addressing must reach the sound

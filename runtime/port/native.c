@@ -1607,6 +1607,10 @@ static bool wait_over(Active *a, const Snes *s)
     }
     if (a->wake == NATIVE_WAKE_HBLANK)
         return s->bus.in_hblank;   /* what the original's poll of $4212 reads */
+    if (a->wake == NATIVE_WAKE_HBLANK_END)
+        return !s->bus.in_hblank;
+    if (a->wake == NATIVE_WAKE_MUSIC_START)
+        return (s->apu.cpu_out[3] & 0x0F) != 0;
     if (native_wake_is_on_port0(a->wake))
         return native_wake_port0_satisfied(a->wake, s->apu.cpu_out[0]);
     return s->vline < SNES_VBLANK_LINE && s->vline >= (uint32_t)a->wake;
@@ -1618,8 +1622,10 @@ static bool wait_over(Active *a, const Snes *s)
  * line. */
 static uint32_t wait_step(const Active *a, const Snes *s)
 {
-    if (a->wake == NATIVE_WAKE_HBLANK)
+    if (a->wake == NATIVE_WAKE_HBLANK || a->wake == NATIVE_WAKE_HBLANK_END)
         return snes_clocks_to_next_poll_change(s);
+    if (a->wake == NATIVE_WAKE_MUSIC_START)
+        return 68;   /* the scene's status read, mask and branch */
     if (a->pass_clocks)
         return a->pass_clocks < a->polling_left ? a->pass_clocks : a->polling_left;
     if (native_wake_is_on_port0(a->wake))

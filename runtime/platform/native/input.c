@@ -4,6 +4,7 @@
 #include "platform/native/host.h"
 
 bool in_ready(Platform *pf, PfOrigin o) { (void)pf; (void)o; return true; }
+void in_wait_ready(Platform *pf, PfOrigin o) { (void)pf; (void)o; }
 
 PadBits in_read(Platform *pf, PfOrigin o, uint8_t pad)
 {

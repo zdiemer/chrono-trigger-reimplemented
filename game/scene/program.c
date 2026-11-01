@@ -169,6 +169,7 @@ static void set_the_scene_up(Snes *s)
             return;
         if (mode == SCENE_MODE_TITLE) {
             scene_title_wait_for_its_song(s);
+            first_frame_on_the_machine(s);
             return;
         }
         scene_bridge_leave(s);

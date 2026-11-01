@@ -129,6 +129,11 @@ PF_API void tm_wait_line_drawn(Platform *pf, PfOrigin o)
     native_wait_loop(pf_snes(pf), o.site, o.target, NATIVE_WAKE_HBLANK);
 }
 
+PF_API void tm_wait_line_started(Platform *pf, PfOrigin o)
+{
+    native_wait_loop(pf_snes(pf), o.site, o.target, NATIVE_WAKE_HBLANK_END);
+}
+
 /* The original's routines wait on the vblank's flag and then turn the
  * handlers on themselves: the vblank handler and the controllers' reading,
  * with the field's line handler at line 211 ($C0:0B38), or, the time warp's,

@@ -763,6 +763,8 @@ enum { SCENE_FRAME_HANDLER = 0xC308B3, SCENE_HANDLER_WHILE_WORKING = 0xC308C9, S
 void scene_nmi_while_working(Snes *s);
 void scene_line_irq_ack(Snes *s);
 void scene_frame_work_entry(Snes *s);
+void scene_read_controller_entry(Snes *s);
+bool scene_read_controller_present(Snes *s);
 bool scene_after_work_ram_clear_present(Snes *s);
 void scene_after_work_ram_clear(Snes *s);
 void scene_frame_wait_done(Snes *s);

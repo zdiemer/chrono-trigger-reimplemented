@@ -28,6 +28,7 @@
 #include "scene/scene.h"
 
 #include "charge.h"
+#include "core/console.h"
 #include "core/input.h"
 #include "core/program.h"
 #include "original_effects.h"
@@ -236,7 +237,7 @@ static void set_sending_song(GameState *g, bool sending) { set_scene_song_sendin
 
 /* ---- The controller, pausing and the song --------------------------------------------------- */
 
-typedef enum { PAD_READ, PAD_BUSY, PAD_RESET } PadRead;
+typedef enum { PAD_READ, PAD_RESET } PadRead;
 
 // $C3:0A8E
 /* The controller into the scene's copy of it, once the console has read it.
@@ -244,8 +245,7 @@ typedef enum { PAD_READ, PAD_BUSY, PAD_RESET } PadRead;
  * and stop the interrupts and the per-line effects for the reset. */
 static PadRead read_controller(GameState *g, Platform *pf)
 {
-    if (!in_ready(pf, PF_AT(0xC30A90)))
-        return PAD_BUSY;
+    in_wait_ready(pf, PF_AT(0xC30A90));
     PadBits pad = in_read(pf, PF_AT(0xC30A99), 0);
     set_scene_joypad(g, pad);
     if (pad != RESET_BUTTONS || !reset_allowed(g))
@@ -335,47 +335,32 @@ static bool run_task_list(Snes *s, SceneTaskList list)
 /* The program's send of the command in the sound command buffer ($7E:377A). */
 static bool send_pause_sound(Snes *s, uint32_t site)
 {
-    m_jsl_dc(s, site, 0x7E377A, DC_A | DC_X | DC_N | DC_Z);
-    return can_continue(s);
+    return scene_run_long(s, site, 0x7E377A, DC_A | DC_X | DC_N | DC_Z, scene_send_sound_command_long);
 }
 
-/* The JSR to the controller read pushes this, and it is on the stack at the
- * read's stops and its call-out. */
-enum { READ_CONTROLLER_RETURN = 0x0921 };
-
-typedef enum { READ_STOPPED, READ_DONE, READ_SENT_SOUND } ReadEnd;
-
 // $C3:0A8E
-/* The controller and the pause, as the frame's work calls them. The port stops
- * where the console is still reading (the wait is the original's loop), at the
- * reset, or where the pause's sound comes back with other widths. At the
- * sound's call the carry is the controller's compare with the reset buttons. */
-static ReadEnd read_controller_and_pause(Snes *s)
+/* Read this frame's buttons, apply a new Start press, and wait for the
+ * pause sound to be accepted. A reset continues through the console entry. */
+void scene_read_controller_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    m_push16(s, READ_CONTROLLER_RETURN);
-    switch (read_controller(g, m_platform(s))) {
-    case PAD_BUSY:
-        m_set_flag(s, CPU_FLAG_Z, false);
-        m_stop_at_own(s, 0xC30A95, DC_A | DC_X | DC_N | DC_C);
-        return READ_STOPPED;
-    case PAD_RESET:
-        m_stop_at_own(s, 0x00FF00, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D);   /* JML to the reset code */
-        return READ_STOPPED;
-    case PAD_READ:
-        break;
+    m_set_flag(s, CPU_FLAG_M, true);
+    if (read_controller(g, m_platform(s)) == PAD_RESET) {
+        console_reset(s);
+        return;
     }
     m_set_flag(s, CPU_FLAG_M, false);
-    PauseChange change = press_pause(g, scene_joypad(g));
-    if (change == PAUSE_UNCHANGED) {
-        m_pull16(s);
-        return READ_DONE;
-    }
     m_set_flag(s, CPU_FLAG_C, scene_joypad(g) >= RESET_BUTTONS);
-    if (!send_pause_sound(s, change == PAUSE_ON ? 0xC30AE1 : 0xC30AF3))
-        return READ_STOPPED;
-    m_pull16(s);
-    return READ_SENT_SOUND;
+    PauseChange change = press_pause(g, scene_joypad(g));
+    if (change != PAUSE_UNCHANGED && !send_pause_sound(s, change == PAUSE_ON ? 0xC30AE1 : 0xC30AF3))
+        return;
+    m_set_flag(s, CPU_FLAG_M, false);
+    m_rts(s);
+}
+
+bool scene_read_controller_present(Snes *s)
+{
+    return s->cpu.d == 0 && m_bank_reaches_io(s) && scene_pause_is_a_switch(s);
 }
 
 // $C3:08D0
@@ -398,16 +383,13 @@ static bool frame_work(Snes *s)
     ORIGINAL_EFFECT(s->cpu.y = PAST_THE_COPY);
     m_set_flag(s, CPU_FLAG_M, true);
 
-    ReadEnd read = read_controller_and_pause(s);
-    if (read == READ_STOPPED)
+    if (!scene_run(s, 0xC3091F, 0xC30A8E, DC_A | DC_X | DC_N | DC_Z, scene_read_controller_entry))
         return false;
     if (is_paused(g)) {
         dim_for_pause(g, pf);
         ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, scene_brightness(g) & 1));   /* the halving's */
         s->cpu.a &= 0x00FF;   /* the pause word's high byte, 0 */
     } else {
-        if (read == READ_DONE)
-            m_set_flag(s, CPU_FLAG_C, scene_joypad(g) >= RESET_BUTTONS);   /* the controller's compare */
         if (!run_task_list(s, SCENE_FRAME_TASKS))
             return false;
     }
@@ -976,10 +958,9 @@ bool scene_frame_work(GameState *g, Platform *pf)
         return false;
     after_vblank_tasks(g, pf);
     switch (read_controller(g, pf)) {
-    case PAD_BUSY: break;
     case PAD_RESET:
-        program_needs_the_machine(g, 0x00FF00, "the reset the controller asks for in a scene");
-        return false;
+        program_resets_the_console(g);
+        return true;
     case PAD_READ:
         if (press_pause(g, scene_joypad(g)) != PAUSE_UNCHANGED)
             scene_sends_the_command(g, pf);

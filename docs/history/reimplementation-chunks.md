@@ -12555,3 +12555,41 @@ The two retired handback ledger rows are removed. Attract-demo now ends
 with 34 instructions under startup's open comparison; those move from the
 retired clear continuation's accounting. The narrowed fallback ratchet has
 zero new or increased rows. The sampled gate remains for the end of this pass.
+
+
+### Scene continuations: sequence commands and the music marker
+
+The sequence interpreter now handles its music marker wait inside the C
+turn. It reads a stable marker, continues when the requested level has
+arrived, or rewinds to the wait command and returns from the current turn.
+The next frame starts that command normally. The native program and the
+machine bridge share this decision. This removes the stop at `$C3:0C2A`
+and resolves the mode-5 sequence picker's inherited AH declaration there;
+the full static don't-care check has zero findings.
+
+Seven standalone entries expose the existing store, task-list and video
+command families through the same operation table. They begin after the
+opcode, run their operation, and continue the channel's turn as C. Their
+guards retain the interpreter's supported domains: low-RAM stores, list
+searches that find a word, and the named video settings. The interpreter
+now attributes those operations to their entries; standalone wrappers time
+the remaining turn separately. Seven isolated, one-command shadow fixtures
+supply the initial costs without fitting other commands' timing errors.
+All seven fixtures return with zero mismatches.
+
+Seed-1 differential fuzz covers twelve variants at 2,000 states each.
+The seven new commands and the bounded music-wait fixture have zero
+mismatches, skipped cases or guard refusals, as does the sequence picker.
+The three broad random-script variants retain their predecessor's mismatch
+counts (1, 0 and 1); their increased budget skips (31, 33 and 31) come from
+continuing past the former wait stop. That existing random-script finding
+remains in TODO. Attract-demo and the 130,000-frame Beyond Time recording
+pass the wait change with zero shadow mismatches; the command-entry build
+also passes fresh attract-demo and events-epoch-lavos runs, with no refusals.
+Their combined fallback ratchet has zero new or increased rows, without a
+ledger change. Style, smell, effects and don't-care checks are clean.
+
+Scene/warp joints remain 821: one return replaces one stop, leaving 25
+stops. The C3 burndown now lists only the controller continuation at
+`$C3:0A95`, 106 bytes; the seven command entries bring it to 45 entries.
+The sampled gate remains for the end of the pass.

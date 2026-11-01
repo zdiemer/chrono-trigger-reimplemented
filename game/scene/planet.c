@@ -22,6 +22,7 @@
  * twinkle's frame is drawn as the program's sprite for it, its attributes
  * and its place from the star's, with the frame's tile. */
 #include "scene/scene.h"
+#include "core/console.h"
 
 #include "charge.h"
 #include "core/program.h"
@@ -400,7 +401,7 @@ enum { SCENE_SEND = 0x7E377E, THE_SEND_READS_Y = DC_A | DC_X | DC_N | DC_V | DC_
 /* The list's exit that hands the task's slot over reads the task that takes
  * it in X; the reset reads none of the registers but Y, which the countdown
  * leaves as it was (the liveness can't rule it out down the field's start). */
-enum { CONSOLE_RESET = 0x00FF00, THE_RESET_MAY_READ_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C };
+enum { CONSOLE_RESET = 0x00FF00 };
 
 static void ask_for_the_restart_sound(GameState *g)
 {
@@ -470,7 +471,7 @@ void scene_count_down_to_the_restart_entry(Snes *s)
         m_rts(s);
         return;
     }
-    m_stop_at(s, CONSOLE_RESET, THE_RESET_MAY_READ_Y);
+    TIMED_AS(g, CONSOLE_RESET, console_reset(s));
 }
 
 /* As C, the reset the program's main thread takes (core/program.h). */

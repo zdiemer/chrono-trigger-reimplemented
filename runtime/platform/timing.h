@@ -106,6 +106,8 @@ PF_API void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line);
  * (PF_LOOP). A host runs the line handler once the picture's lines are drawn,
  * so it has nothing to wait for. */
 PF_API void tm_wait_line_drawn(Platform *pf, PfOrigin o);
+/* Leave the current horizontal blank before waiting for the following one. */
+PF_API void tm_wait_line_started(Platform *pf, PfOrigin o);
 /* Noise for effects that look random (the scenes' random numbers stir it into
  * their seed): four values, bytes or words as the caller stirs them. The
  * SNES backend reads them as the scenes' stir ($C3:02DD) does, so a port

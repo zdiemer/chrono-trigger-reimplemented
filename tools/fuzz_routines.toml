@@ -232,7 +232,8 @@ args = ["--interrupt"]
 name = "scene_boot_line_irq"
 subsystem = "scene"
 state = "attract"
-args = ["--interrupt"]
+args = ["--interrupt", "--stop-at-call", "C30530"]
+why = "up to the first beam wait: fuzzing does not advance the beam; shadow movies and suspend_test check the complete waits"
 
 [[routine]]
 name = "scene_boot_line_irq_wait_hblank_end_loop"
@@ -381,7 +382,8 @@ name = "scene_wait_for_music_loop"
 at = "7E:5AAA"
 subsystem = "scene"
 state = "attract"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--stop-at-call", "7E5AAA"]
+why = "up to the music wait when the driver is silent; separate playing-status fixtures check the complete return"
 
 [[routine]]
 name = "scene_race_wait_for_tilemap_upload_loop"
@@ -19955,9 +19957,9 @@ why = "the program kept, the sound's port read back, so each command's wait ends
 name = "scene_title_set_up"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--budget", "20000000"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--stop-at-call", "7E5AAA", "--budget", "20000000"]
 iterations = 400
-why = "the program kept, the sound's port read back, so the song's start ends"
+why = "the program kept, commands echoed, up to the music wait: the SPC700 does not advance in fuzzing"
 
 [[routine]]
 name = "scene_animate_the_palettes"
@@ -21765,3 +21767,26 @@ subsystem = "scene"
 state = "attract"
 args = ["--long", "--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7E0A20-7E0A21=B600", "--fill", "7EB600-7EB600=A5", "--fill", "7EB601-7EB601=00-0F", "--fill", "7EB602-7EB602=AC", "--apu-loopback"]
 why = "A music marker wait followed by end-turn: both waiting for a later marker and continuing immediately, with no unbounded random script"
+
+[[routine]]
+name = "scene_read_controller"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0392-7E0393=0000,0001", "--apu-loopback"]
+why = "the scene page and I/O bank; pause is a switch, all other pause state random; the sound driver echoes commands"
+
+[[routine]]
+name = "scene_wait_for_music_loop"
+variant = "playing"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the recorded state's audio status has playing tracks; compare the complete return with randomized caller registers"
+
+[[routine]]
+name = "scene_count_down_to_the_restart"
+variant = "reset"
+subsystem = "scene"
+state = "planet"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0399-7E039A=0001"]
+why = "the final countdown tick, through the console reset entry; caller registers randomized"

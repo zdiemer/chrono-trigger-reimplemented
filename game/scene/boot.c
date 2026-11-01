@@ -121,10 +121,8 @@ void scene_boot_nmi(Snes *s)
 }
 
 // $C3:0529
-/* The boot's line interrupt: acknowledge it, then blank the screen at the
- * start of the next hblank. The two waits for the beam are the original's
- * loops, idle entries, and the blank the entry after them (docs/TODO.md). The
- * handler saves A's low byte, which is on the stack across the waits. */
+/* Blank at the next horizontal blank, after leaving the current one.
+ * The platform lets the beam advance while this handler waits. */
 void scene_boot_line_irq(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_M, true);
@@ -134,7 +132,9 @@ void scene_boot_line_irq(Snes *s)
      * byte, 0 */
     uint8_t ack = tm_ack_line_irq(m_platform(s), PF_AT(0xC3052C));
     m_set_a8(s, ack & TM_LINE_IRQ_PENDING);
-    m_stop_at(s, 0xC30530, DC_N | DC_Z);
+    tm_wait_line_started(m_platform(s), PF_LOOP(0xC30530, 0xC30538));
+    tm_wait_line_drawn(m_platform(s), PF_LOOP(0xC30538, 0xC30540));
+    TIMED_AS(state_of(s), 0xC30540, scene_boot_line_irq_blank(s));
 }
 
 /* The status the waits load into A: bits 1-5 are open bus, which the original

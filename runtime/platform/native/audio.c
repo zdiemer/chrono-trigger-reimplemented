@@ -29,6 +29,14 @@ uint8_t au_status(Platform *pf, PfOrigin o, uint8_t which)
     return port(pf, which);
 }
 
+uint8_t au_wait_music_start(Platform *pf, PfOrigin o)
+{
+    uint8_t tracks;
+    while (!(tracks = au_music_playing(pf, PF_AT(o.site))))
+        tm_wait_frame(pf, PF_AT(o.site));
+    return tracks;
+}
+
 size_t au_take_samples(Platform *pf, int16_t *out, size_t max_frames)
 {
     (void)pf, (void)out, (void)max_frames;

@@ -450,6 +450,60 @@ static void held_wait_case(void)
     free(rom);
 }
 
+/* The boot's two beam waits must leave one blank before entering the next
+ * line. The title's music wait must remain suspended until the audio side
+ * supplies a playing-track mask, even when no interrupt is enabled. */
+static bool saw_blank, left_blank, heard_music;
+static uint64_t blank_began, blank_ended;
+
+static void scene_wait_probe(Snes *s)
+{
+    native_wait_loop(s, 0x008300, 0x008301, NATIVE_WAKE_HBLANK);
+    saw_blank = s->bus.in_hblank;
+    blank_began = s->master;
+    native_wait_loop(s, 0x008301, 0x008302, NATIVE_WAKE_HBLANK_END);
+    left_blank = !s->bus.in_hblank;
+    blank_ended = s->master;
+    native_wait_loop(s, 0x008302, 0x008303, NATIVE_WAKE_MUSIC_START);
+    heard_music = (s->apu.cpu_out[3] & 0x0F) != 0;
+    m_rts(s);
+}
+
+static void start_probe_music(void *ctx, Snes *s)
+{
+    (void)ctx;
+    if (s->frame)
+        s->apu.cpu_out[3] = 1;
+}
+
+static void scene_wait_case(void)
+{
+    static const Code code[] = {
+        { 0x8000, { 0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x01, 0x9A,
+                    0x20, 0x00, 0x83, 0xDB }, 15 },
+        { 0x8300, { 0x60 }, 1 },
+    };
+    const NativeEntry entry = { .addr = 0x008300, .name = "scene_wait_probe", .fn = scene_wait_probe,
+                                .p_mask = 0x30, .p_value = 0x20, .cost_milli = 1000 };
+    uint8_t *rom = make_rom(code, sizeof code / sizeof code[0], 0x8600);
+    Snes *s = machine(rom);
+    s->on_frame_top = start_probe_music;
+    NativeRuntime *rt = native_create(&entry, 1, NATIVE_ON);
+    native_attach(rt, s);
+    saw_blank = left_blank = heard_music = false;
+    snes_run_frame(s, 0);
+    CHECK(saw_blank && left_blank && blank_ended > blank_began,
+          "beam wait did not leave its blank: %d/%d, %llu/%llu", saw_blank, left_blank,
+          (unsigned long long)blank_began, (unsigned long long)blank_ended);
+    CHECK(!heard_music && native_suspended(rt), "music wait returned before a track started");
+    snes_run_frame(s, 0);
+    snes_run_frame(s, 0);
+    CHECK(heard_music && !native_suspended(rt) && !native_failed(rt), "music wait did not resume");
+    native_destroy(rt);
+    free(s);
+    free(rom);
+}
+
 int main(void)
 {
     tasks_case("a yield, shipping mode", NATIVE_ON, RUN_THROUGH);
@@ -461,6 +515,7 @@ int main(void)
     parked_save_case("saved parked, loaded in shadow mode", NATIVE_SHADOW);
     menu_answer_case();
     held_wait_case();
+    scene_wait_case();
     if (failures)
         printf("%d failure(s)\n", failures);
     else

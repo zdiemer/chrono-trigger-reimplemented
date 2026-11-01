@@ -17,6 +17,15 @@ PF_API bool in_ready(Platform *pf, PfOrigin o)
     return !(status & 0x01);
 }
 
+PF_API void in_wait_ready(Platform *pf, PfOrigin o)
+{
+    /* This backend latches all controllers atomically at vblank, so its
+     * first poll is ready. Keep the poll here, where a host with an
+     * asynchronous read would wait, rather than in the scene logic. */
+    while (!in_ready(pf, o))
+        native_sync(pf_snes(pf));
+}
+
 PF_API PadBits in_read(Platform *pf, PfOrigin o, uint8_t pad)
 {
     Snes *s = pf_snes(pf);

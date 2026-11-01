@@ -72,6 +72,8 @@ static inline void au_fade(Platform *pf, PfOrigin o, uint8_t what, uint8_t steps
 /* Driver status the game polls: the byte the driver shows on port 1-3. Doesn't
  * sync: when a poll happens is the caller's business. */
 PF_API uint8_t au_status(Platform *pf, PfOrigin o, uint8_t port);
+/* Wait until the new song has at least one playing track. Returns its mask. */
+PF_API uint8_t au_wait_music_start(Platform *pf, PfOrigin o);
 
 /* What the status says (docs/SOUND.md, "What the game reads back"): the steps
  * the music's fade has left, and which of the music's tracks are playing,
