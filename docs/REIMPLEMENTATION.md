@@ -3326,10 +3326,22 @@ not evidence of equivalence.
 `tools/outcomes_baseline.txt` protects individual identities, separately
 for strict and native: each end digest that matches, each checkpoint frame
 and each place index entered on time. An exception in
-`tools/outcomes_exceptions.txt` needs a movie, mode, kind and reason;
-it excuses existing differences but cannot excuse losing a protected match.
+`tools/outcomes_exceptions.txt` needs a movie, mode, kind, observed SHA-256
+and reason. The digest pins that kind's complete observed values: SHA-256
+of its artifact row's values joined by ASCII spaces, with no newline. This
+includes every checkpoint neighbour and every place visit, so a blackened
+picture, removed visit or changed end digest cannot hide under an exception.
+While any difference remains in the kind, a changed digest fails even with
+`--update`; deliberate re-recording requires reviewing the new outcome and
+its reason. The failure reports the newly observed digest. An entire kind
+that now matches the reference (including accepted drift) can tighten via
+`--update`, after which the old difference cannot return. Exceptions cannot
+excuse losing a protected match.
 `--update` adds matches and preserves omitted movies; it never drops a
-protected identity. New movies or missing records fail closed. The suite
+protected identity. Before filtering, the check validates every recorded
+movie's membership and header; the suite also validates the gate sample.
+Missing, unreadable or malformed movies fail even when a subset is selected.
+New movies or missing records fail closed. The suite
 runs both recorded checks after strict and native checks, and clears their
 old artifacts before a run, so skipping a producer cannot pass on stale data.
 

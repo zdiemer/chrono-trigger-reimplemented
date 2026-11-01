@@ -34,6 +34,41 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def observed_digest(values):
+    """Pin the entire observed kind, including every picture neighbour and visit."""
+    return sha(" ".join(values).encode("ascii"))
+
+
+def require_movies(names, root=None):
+    """Validate membership and headers before any caller can filter movies out."""
+    root = ROOT if root is None else root
+    paths = {}
+    for path in (root / "oracle/movies").rglob("*.ctm"):
+        if path.stem in names:
+            if path.stem in paths:
+                raise ValueError(path.stem + ": duplicate movie name")
+            paths[path.stem] = path
+    missing = set(names) - paths.keys()
+    if missing:
+        raise ValueError("missing recorded or selected movies: " + ", ".join(sorted(missing)))
+    rows = {}
+    for name, path in sorted(paths.items()):
+        headers = [line for line in path.read_text().splitlines() if line.startswith("# frames")]
+        if len(headers) != 1 or not re.fullmatch(r"# frames [1-9][0-9]*[ \t]*", headers[0]):
+            raise ValueError(name + ": malformed '# frames N' header")
+        rows[name] = (name, path, int(headers[0].split()[2]))
+    return rows
+
+
+def movie_library(names, recorded):
+    directories = [ROOT / "oracle/movies", ROOT / "oracle/movies/saves"]
+    if names:
+        directories.append(ROOT / "oracle/movies/hand")
+    selected = set(names) or {p.stem for directory in directories for p in directory.glob("*.ctm")}
+    rows = require_movies(selected | set(recorded))
+    return [rows[name] for name in sorted(selected)]
+
+
 def checkpoints(frames):
     return sorted({1, frames, *range(EVERY, frames + 1, EVERY)})
 
@@ -142,16 +177,18 @@ def exceptions(path):
         fields = body.split()
         if not fields:
             continue
-        if len(fields) != 3 or fields[1] not in ("strict", "native") or fields[2] not in KINDS - {"input"} or not reason.strip():
-            raise ValueError("%s:%d: expected movie mode kind # reason" % (path.name, number))
-        key = tuple(fields)
+        if (len(fields) != 4 or fields[1] not in ("strict", "native") or
+                fields[2] not in KINDS - {"input"} or not re.fullmatch(r"[0-9a-f]{64}", fields[3]) or
+                not reason.strip()):
+            raise ValueError("%s:%d: expected movie mode kind observed-sha256 # reason" % (path.name, number))
+        key = tuple(fields[:3])
         if key in out:
             raise ValueError("duplicate outcome exception")
-        out[key] = reason.strip()
+        out[key] = (fields[3], reason.strip())
     return out
 
 
-def ratchet(result, name, mode, baseline, exc, update=False):
+def ratchet(result, run, name, mode, baseline, exc, update=False):
     failures = []
     for kind, items in result.items():
         key = (name + "/" + mode, kind)
@@ -161,8 +198,13 @@ def ratchet(result, name, mode, baseline, exc, update=False):
             failures.append(kind + " regressed: " + ",".join(sorted(must - good)))
         if key not in baseline and not update:
             failures.append(kind + " has no baseline")
-        if any(how == "differ" for how in items.values()) and (name, mode, kind) not in exc:
-            failures.append(kind + " differs without a reason")
+        if any(how == "differ" for how in items.values()):
+            exception = exc.get((name, mode, kind))
+            if not exception:
+                failures.append(kind + " differs without a reason")
+            elif observed_digest(run[name, kind]) != exception[0]:
+                failures.append(kind + " changed beyond its recorded exception; observed " +
+                                observed_digest(run[name, kind]) + "; re-record with a reason")
         if update:
             baseline[key] = sorted(must | good, key=lambda x: int(x) if x.isdecimal() else -1)
     return failures
@@ -225,14 +267,13 @@ def main(argv=None):
         if args.record or args.mode and args.mode != chosen_mode:
             ap.error("binary must agree with --mode, and cannot record a reference")
         args.mode = chosen_mode
-    from strict_check import movies
-    library = movies(set(args.movies))
-    if not library or set(args.movies) - {n for n, _, _ in library}:
-        ap.error("no movies or unknown movie names")
     if args.record and not args.reference or not args.record and (not args.runs or not args.mode):
         ap.error("--record needs --reference; --check/--update need --runs and --mode")
     try:
         ledger = read(args.ledger) if args.ledger.exists() else {}
+        library = movie_library(args.movies, {name for name, _kind in ledger})
+        if not library:
+            raise ValueError("no movies")
         base = read(args.baseline) if args.baseline.exists() else {}
         exc = exceptions(args.exceptions) if not args.record else {}
         if args.ct_dev or args.ct_native:
@@ -247,7 +288,7 @@ def main(argv=None):
                 continue
             validate(ledger, name, movie, frames)
             result = compare(ledger, run, name, frames)
-            problems = ratchet(result, name, args.mode, base, exc, args.update)
+            problems = ratchet(result, run, name, args.mode, base, exc, args.update)
             failed.extend(name + ": " + p for p in problems)
             clean += not any(h == "differ" for items in result.values() for h in items.values())
             parts = []
@@ -276,6 +317,7 @@ def main(argv=None):
             counts["match"], counts["drift"], counts["differ"], "; FAILED" if failed else ""))
         return int(bool(failed))
     except (OSError, ValueError, KeyError) as error:
+        sys.stdout.flush()
         print("outcomes: FAILED: %s" % error, file=sys.stderr)
         return 1
 

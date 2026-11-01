@@ -158,17 +158,25 @@ def collect(only, names):
         # Long hand runs are opt-in, even when the full library is selected.
         if names:
             groups.append(sorted((ROOT / "oracle/movies/hand").glob("*.ctm")))
-    out = []
-    for paths in groups:
-        for p in paths:
-            if names and p.stem not in names:
-                continue
-            frames = movie_frames(p)
-            if frames is None:
-                print("%s: no '# frames N' header, skipped" % p.name, file=sys.stderr)
-                continue
-            out.append((p.stem, p, frames))
-    return out
+    selected = [p for paths in groups for p in paths if not names or p.stem in names]
+    rows = outcomes.require_movies(set(names or ()) | {p.stem for p in selected}, ROOT)
+    return [rows[p.stem] for p in selected]
+
+
+def select_movies(only, names, all_movies=False):
+    """Preflight the recorded set and gate sample before narrowing the run."""
+    sample, bad = gate_movies()
+    if bad:
+        raise ValueError("\n".join(bad))
+    recorded = outcomes.read(outcomes.LEDGER)
+    outcomes.require_movies({n for n, _kind in recorded} | set(sample) | set(names or ()), ROOT)
+    if names:
+        chosen, what = set(names), "the movies named"
+    elif all_movies:
+        chosen, what = set(), "the whole library"
+    else:
+        chosen, what = set(sample), "the gate's sample, %s; --all-movies runs the library" % GATE_MOVIES.name
+    return collect(only, chosen), what
 
 
 # The asset pack the ports read their resources from, imported by main().
@@ -825,6 +833,13 @@ def main():
     if not args.rom.exists():
         sys.exit("%s: not found (tools/rom.py stage <path>)" % args.rom)
 
+    try:
+        movies, what = select_movies(args.only, args.movies, args.all_movies)
+    except (OSError, ValueError) as error:
+        print("suite: FAILED: %s" % error, file=sys.stderr)
+        return 1
+    if not movies:
+        sys.exit("no movies to run")
     jobs = args.jobs or max(1, (os.cpu_count() or 2) // 2)
     args.out.mkdir(parents=True, exist_ok=True)
     for stale in (list(args.out.glob("status-*.txt")) + list(args.out.glob("end-*.bin")) +
@@ -834,18 +849,6 @@ def main():
     shutil.rmtree(args.out / "fallbacks" / "shadow", ignore_errors=True)
     (args.out / "fallbacks" / "shadow").mkdir(parents=True)
 
-    if args.movies:
-        chosen, what = set(args.movies), "the movies named"
-    elif args.all_movies:
-        chosen, what = set(), "the whole library"
-    else:
-        sample, bad = gate_movies()
-        if bad:
-            sys.exit("\n".join(bad))
-        chosen, what = set(sample), "the gate's sample, %s; --all-movies runs the library" % GATE_MOVIES.name
-    movies = collect(args.only, chosen)
-    if not movies:
-        sys.exit("no movies to run")
     # Longest first: the three endings are more than half the suite, and one
     # started late sets the wall time while the other workers sit idle.
     movies.sort(key=lambda m: -m[2])
