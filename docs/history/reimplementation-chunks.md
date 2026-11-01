@@ -12265,3 +12265,40 @@ ordinary machine-based time tags. This change removes those 40 tags; the
 other categories stay at their original counts. Validation is recorded in
 `ports.tsv`; the existing fuzz domains are unchanged because this replaces
 only the timing scope's handle, not a routine's operations.
+
+### Field requests and mode startup continue in C
+
+After the frame continuations and timing tags (now in
+`history/reimplementation-chunks.md`), seven more linear handoffs call their
+callees: the tile copy and ripple finish their frame, an empty battle request
+takes the walking turn, the closing field and event scene command prepare the
+scene's fresh stack, and battle and overworld setup enter their loops.
+The existing game-state sequences and timing rates are unchanged. The scene
+handoffs now declare their own stop contract: the event wrapper's disposable
+A must not hide the scene number that the scene engine reads. The narrowed
+suite caught that inherited contract; the corrected liveness check has zero
+findings. No guard, calibration, exception or fuzz domain changed.
+
+Five narrowed movie shadows (`new-game`, `battle-menu-buttons`,
+`field-65m-bc-dactyl`, `menus-epoch`, `events-end-of-time-gate`) have zero
+mismatches and identical sound lockstep. Requests compare 6,366 of 6,378
+calls, screen effects 6,357 of 6,357, screen commands two of eight, and
+overworld setup seven of seven. The one battle startup is inside an enclosing
+comparison and is not independently compared. The ledger records these limits.
+
+Same-seed predecessor fuzz over 16 existing variants has zero mismatches:
+300 states per variant, except overworld setup's existing 200. The scene
+command's 151 accepted states agree, including its already-dark scene path.
+Screen effects' close/ripple and battle startup still compare only through
+their first blocking call; this does not claim coverage after the wait.
+Overworld setup now continues into its first frame and none of its 200
+randomized states completes the fuzz comparison; its seven movie comparisons
+do complete. Random scene operands also report out-of-range character records,
+so this is not evidence that arbitrary corrupt script state is supported.
+
+The assigned files started at 1,799 joints and now have 1,745: stops 62 to
+49, registry lookups three to two, ordinary machine timing tags 40 to zero.
+The remaining counts are unchanged: 490 emulated returns, two counted sprite
+call-out sites, three register escapes, 111 video calls and 1,088 scaffolding
+writes. The main loops' stops are field 14 to 13, battle six to four,
+overworld five to four. Remaining boundaries and their blockers are in TODO.

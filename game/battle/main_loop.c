@@ -1275,7 +1275,7 @@ static void go_on_on_the_machine(Snes *s, LoopGoesOn on)
     case LOOP_TO_THE_HEAD: m_stop_at(s, LOOP_HEAD, LOOP_HEAD_DEAD); return;
     case LOOP_TO_THE_TIMERS:
         m_rep(s, CPU_FLAG_M);
-        TIMED_AS(state_of(s), TIMERS, battle_tick_timers(s));
+        m_stop_at(s, TIMERS, PASS_STOP_DEAD);
         return;
     case LOOP_TO_THE_REST: m_stop_at(s, REST_OF_PASS, PASS_STOP_DEAD); return;
     case LOOP_NOT_OURS: m_stop_at(s, STARTING_WITH_THE_ENEMIES, 0); return;
@@ -1312,7 +1312,7 @@ void battle_main_loop_start(Snes *s) { go_on_on_the_machine(s, start_battle(stat
 void battle_main_loop(Snes *s)
 {
     if (next_frame(state_of(s), call_on_the_machine, s))
-        TIMED_AS(state_of(s), PASS_BODY, battle_main_loop_body(s));
+        m_stop_at(s, PASS_BODY, DC_V);
 }
 
 void battle_clear_the_turn_work_entry(Snes *s)

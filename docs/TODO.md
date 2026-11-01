@@ -3126,6 +3126,21 @@ list, by kind, is what `game/` still asks of one.
   interrupts: all 200 existing setup states now exceed its comparison budget,
   although seven targeted movie calls compare cleanly. The screen effect's
   ripple/close tails remain beyond the current first-call fuzz boundary.
+  Battle's startup-to-loop, frame-to-pass and pass-to-timers stops must
+  retain their boundaries for now. Calling all three directly passed shadow
+  comparisons but failed the scaffolding-disabled bucket-Lavos route after
+  400,000 fight frames. The pre-change build and the candidate restoring those
+  three stops both reach the ending at frame 164169, with eight exact snapshot
+  replays. Isolate the timing/continuation difference before retiring them;
+  no calibration or route exception was added to hide it.
+- **Evidence worker count is not a process cap.** `tools/dc_evidence.py`
+  starts up to four game processes per movie, so `suite.py -j 2 --evidence`
+  can run eight. Give the evidence runner one shared process budget across
+  variants and movie workers. The loop-joint run stopped that stage by verified
+  PID and uses an ignored scratch helper with the same checks and bounded
+  concurrency. Its single sampled gate therefore ends with an evidence
+  failure as well as the subsequently isolated battle-route failure; it has
+  not been rerun on the kept code.
 - **The machine's memory and registers.** `snes_bus_read`, `_write` and
   `_peek`: the wrappers' registers, page, data bank and stack, the guards'
   peeks, and what the logic still reads by address. The game's state itself

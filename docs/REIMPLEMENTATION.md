@@ -3195,42 +3195,46 @@ vblank list (now refused, the setup leaves room), the large list's
 continuation, the boost's index, and the calling in's tech number read from
 its caller's cell.
 
-### Field requests and mode startup continue in C
+### Field continuations, with the battle boundaries retained
 
-After the frame continuations and timing tags (now in
-`history/reimplementation-chunks.md`), seven more linear handoffs call their
-callees: the tile copy and ripple finish their frame, an empty battle request
-takes the walking turn, the closing field and event scene command prepare the
-scene's fresh stack, and battle and overworld setup enter their loops.
-The existing game-state sequences and timing rates are unchanged. The scene
-handoffs now declare their own stop contract: the event wrapper's disposable
-A must not hide the scene number that the scene engine reads. The narrowed
-suite caught that inherited contract; the corrected liveness check has zero
-findings. No guard, calibration, exception or fuzz domain changed.
+The assigned field, battle, overworld, event and controller files retain
+51 fewer machine joints: ten linear address stops call their continuations
+in C, the field's tail-call registry lookup is gone, and all 40 ordinary
+machine timing scopes use the game-state handle. No entry, timing calibration,
+exception, registry row or fuzz domain was added or changed. The preceding
+chunks and their per-entry fuzz limits are in `history/reimplementation-chunks.md`
+and `ports.tsv`.
 
-Five narrowed movie shadows (`new-game`, `battle-menu-buttons`,
-`field-65m-bc-dactyl`, `menus-epoch`, `events-end-of-time-gate`) have zero
-mismatches and identical sound lockstep. Requests compare 6,366 of 6,378
-calls, screen effects 6,357 of 6,357, screen commands two of eight, and
-overworld setup seven of seven. The one battle startup is inside an enclosing
-comparison and is not independently compared. The ledger records these limits.
+The single sampled gate with long routes and evidence found zero mismatches
+in 37 movies and passed all 56 shipping routes. Trace identity, timing,
+vblank, fallbacks, refusals, sound, liveness, the remaining source checks and
+the asset catalogue passed. With scaffolding compiled out, all 37 movies
+finished and 55 of 56 routes passed. The bucket-Lavos route's final fight
+did not end within 400,000 frames. A separate build of the pre-change commit
+`7359a492` passed that route at frame 164169. Restoring only the three battle
+handoffs (startup, frame to pass, and pass to timers), while keeping every
+other game change, also passed at frame 164169. All eight snapshot replays
+in each passing run were exact. The kept game sources match that candidate.
+Those three stops remain until their timing/continuation contract is worked
+out; the comparison does not establish which of the three causes the drift.
+The kept binary also passes five narrowed shadows (`new-game`,
+`battle-menu-buttons`, `field-65m-bc-dactyl`, `menus-epoch`,
+`events-end-of-time-gate`) with zero mismatches.
 
-Same-seed predecessor fuzz over 16 existing variants has zero mismatches:
-300 states per variant, except overworld setup's existing 200. The scene
-command's 151 accepted states agree, including its already-dark scene path.
-Screen effects' close/ripple and battle startup still compare only through
-their first blocking call; this does not claim coverage after the wait.
-Overworld setup now continues into its first frame and none of its 200
-randomized states completes the fuzz comparison; its seven movie comparisons
-do complete. Random scene operands also report out-of-range character records,
-so this is not evidence that arbitrary corrupt script state is supported.
+The evidence tool internally launches four processes per movie worker, so
+the requested two-worker invocation exceeded the two-process limit. Its
+runner and children were stopped by verified PID when this was discovered.
+The gate's actual last line was `FAILED: native-shape; evidence`; it was not
+rerun. The follow-up evidence helper in ignored scratch keeps every check
+but serializes each movie's variants and caps simultaneous game processes.
+The kept binary's bounded evidence run is still pending.
 
-The assigned files started at 1,799 joints and now have 1,745: stops 62 to
-49, registry lookups three to two, ordinary machine timing tags 40 to zero.
-The remaining counts are unchanged: 490 emulated returns, two counted sprite
-call-out sites, three register escapes, 111 video calls and 1,088 scaffolding
-writes. The main loops' stops are field 14 to 13, battle six to four,
-overworld five to four. Remaining boundaries and their blockers are in TODO.
+The assigned-file count is now 1,799 to 1,748: stops 62 to 52, registry
+lookups three to two, and ordinary machine timing tags 40 to zero. The
+unchanged counts are 490 emulated returns, two counted sprite call-out sites,
+three register escapes, 111 video calls and 1,088 scaffolding writes. Main-loop
+stops are field 14 to 13, battle six to six, overworld five to four. TODO
+records the remaining guard, replay, timing and backend contracts.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 
