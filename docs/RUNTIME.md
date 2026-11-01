@@ -660,6 +660,15 @@ or to the SPC700 (format 2; a format 1 state loads without them).
 `sound_host_copy` and `sound_host_restore` are the host's half of an in-memory
 copy (`ct_drive`'s slots).
 
+`ct_dev`, `ct_drive` and `ct_play` all save and restore these host fields when
+the C driver plays. `ct_dev --native on --load-state` keeps the C driver
+enabled, just as a run from power-on does; use the same driver mode and
+`--mixer` as when saving. A reference state needs a reference mode
+(`--native off|shadow` or `--generated only`); a mismatched driver or mixer
+is refused. `sound_test` checks all three mixers without a ROM: a fresh host
+restores a state with queued commands during an echo wait, then produces the
+same audio and serialized machine and host fields as uninterrupted play.
+
 Nor is the native runtime (`runtime/port/native.c`). With `--native on` a
 hand port may be suspended in a call-out at a frame's end (`native_suspended`),
 or owe estimated time the machine hasn't let pass yet (`native_owed`); a load

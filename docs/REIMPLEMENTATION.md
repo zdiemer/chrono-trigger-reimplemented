@@ -3054,7 +3054,7 @@ deliberately"; "The native program, and the registry taken down", step 3),
 on purpose: the gate no longer compares sound with the original's. The C
 sound driver (`game/sound/`) is the only driver anything of ours plays --
 `ct_play`, `ct_drive`, `ct_native` and every `ct_dev` run of the hand ports
-from power-on (`--native on`, not `--generated only`) -- and it takes the
+(`--native on`, not `--generated only` or `--load-zst`) -- and it takes the
 game's boot and commands as calls (`core/sound_commands.c`: `au_command`'s
 SNES backend hands the buffer to the host, `field_first_start` and
 `field_power_on` the boot). There is no `--sound-driver` any more.
@@ -3102,7 +3102,7 @@ which went with their rows: a command's own C is the caller's time now, and the 
 
 **The reference play keeps the cartridge's driver, and why that is sound.**
 Shadow mode, `--native off` and `--generated only` (and `ct_play`'s movie
-replay and recording, and a loaded state) are the cartridge on the emulated
+replay and recording, and a ZSNES state) are the cartridge on the emulated
 console: the original runs everything at its own timing, and the movies were
 recorded against it. The console's sound processor running the cartridge's
 driver, and the cartridge's CPU half speaking to it, are part of that machine

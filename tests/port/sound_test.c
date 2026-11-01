@@ -15,7 +15,8 @@
  *   the place of the song's first; a longer echo forgetting the places it
  *   runs over; and a song's volume and echo delay taken from its entry;
  * - the host's saved state (frontend/sound_host.h): every byte of the driver
- *   is in a field of it;
+ *   is in a field of it; all three mixers restore a playing host, including
+ *   queued commands and echo waits, and continue with identical sound;
  * - the host as the player plays it, on the same cartridge: the boot and a
  *   run of the game's commands as calls, heard through the S-DSP and the
  *   native mixer side by side, every frame of the two the same, and what was
@@ -485,6 +486,58 @@ static void test_host(void)
     free(rom);
 }
 
+static void test_host_round_trip(void)
+{
+    for (SoundMixer mixer = SOUND_MIXER_DSP; mixer <= SOUND_MIXER_CHECK; mixer++) {
+        make_cartridge();
+        snes_power_on(&snes);
+        SoundHost *h = sound_host_attach_mixer(&snes, mixer);
+        CHECK(h != NULL, "round trip: attach host");
+        if (!h)
+            return;
+        uint32_t upload = snes.apu.host_boot(snes.apu.host_ctx, &snes.apu);
+        play_frames(upload / FRAME_CLOCKS + 20);
+        game_command(0x10, 1, 0, 0, 8);
+        game_command(0x10, 2, 0, 0, 0);   /* echo delay changes; commands wait */
+        game_command(0x18, 0, 0x80, 0, 0);
+        size_t len, expected_len, actual_len;
+        uint8_t *state = snes_state_write_with(&snes, sound_host_state(h), &len);
+        CHECK(state != NULL, "round trip: save host");
+        heard = 0xCBF29CE484222325ull;
+        play_frames(60);
+        game_command(0x10, 3, 0, 0, 30);
+        uint64_t expected_sound = heard;
+        uint8_t *expected = snes_state_write_with(&snes, sound_host_state(h), &expected_len);
+        sound_host_detach(h);
+
+        /* A fresh host must restore both its fields and the bindings that
+         * let later commands and ticks reach its own driver and voices. */
+        snes_init(&snes, rom, ROM_SIZE);
+        snes_power_on(&snes);
+        char why[256];
+        CHECK(snes_state_read(&snes, state, len, why, sizeof why) != 0 && strstr(why, "host program"),
+              "round trip: host state accepted without host: %s", why);
+        h = sound_host_attach_mixer(&snes, mixer);
+        CHECK(h != NULL, "round trip: attach restored host");
+        if (!h)
+            return;
+        CHECK(snes_state_read_with(&snes, sound_host_state(h), state, len, why, sizeof why) == 0,
+              "round trip: restore mixer %d: %s", mixer, why);
+        heard = 0xCBF29CE484222325ull;
+        play_frames(60);
+        game_command(0x10, 3, 0, 0, 30);
+        CHECK(heard == expected_sound, "round trip: mixer %d sound differs", mixer);
+        uint8_t *actual = snes_state_write_with(&snes, sound_host_state(h), &actual_len);
+        CHECK(expected && actual && expected_len == actual_len && !memcmp(expected, actual, actual_len),
+              "round trip: mixer %d machine or host fields differ after playing on", mixer);
+        sound_host_detach(h);
+        free(actual);
+        free(expected);
+        free(state);
+        free(rom);
+    }
+}
+
 int main(void)
 {
     voices_dsp_init(&voices_dsp, NULL, read_reg, write_reg, write_memory, read_memory);
@@ -493,6 +546,7 @@ int main(void)
     test_samples();
     test_host_state();
     test_host();
+    test_host_round_trip();
     if (failures) {
         printf("%d failures\n", failures);
         return 1;

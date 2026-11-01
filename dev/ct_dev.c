@@ -71,17 +71,18 @@
  * instruction no native code runs stops the run (strict, exit status 1) or runs
  * on the interpreter and is reported (fallback: each place the interpreter is
  * entered at, the first time, with its frame, up to 400 of them).
- * The sound: where the hand ports play from power-on (--native on, not
+ * The sound: where the hand ports play (--native on, not
  * --generated only), the C sound driver plays in the sound processor's place,
  * as ct_play's does (frontend/sound_host.h), taking the game's boot and
  * commands as calls; a run in which a sample was placed where the echo was
  * writing, or a command dropped from the host's full queue, exits 1
  * (sound_host_report). Everywhere else -- the reference play (--native off or
- * shadow, or on with --generated only) and a run from a loaded state -- the
+ * shadow, or on with --generated only) and a ZSNES state -- the
  * machine is the console running the cartridge, and its sound processor runs
  * the cartridge's own driver, which the cartridge's CPU half in bank $C7
  * speaks to: nothing compares it with anything (docs/REIMPLEMENTATION.md,
- * "The sound driver's teardown").
+ * "The sound driver's teardown"). Saved states include the C sound host
+ * and load only with the driver and mixer they were saved with.
  * --spc-coverage writes every SPC700 address the cartridge's sound driver
  * executed an instruction at, with its count (docs/SOUND.md; tools/spc700dis.py
  * reads it). --dsp-log writes every S-DSP register write it makes: the frame,
@@ -788,9 +789,34 @@ int main(int argc, char **argv)
                 (unsigned)movie.sram_crc);
         return 1;
     }
-    if (load_state && snes_state_load(&snes, load_state) != 0) {
-        fprintf(stderr, "cannot load state %s (missing, damaged, or not a state for this ROM)\n", load_state);
-        return 1;
+    bool c_sound_driver = native_mode == NATIVE_ON && !generated_only && !zst_path;
+    if (mixer_given && !c_sound_driver) {
+        fprintf(stderr, "--mixer picks what plays the C sound driver (--native on, not --generated only or "
+                        "--load-zst)\n");
+        return 2;
+    }
+    SoundHost *sound_host = NULL;
+    MixerCheck *mixer_check = NULL;
+    if (c_sound_driver) {
+        sound_host = sound_host_attach_mixer(&snes, mixer);
+        if (!sound_host || (mixer == SOUND_MIXER_CHECK && !(mixer_check = mixer_check_attach(sound_host)))) {
+            fprintf(stderr, "out of memory\n");
+            return 1;
+        }
+    }
+    if (load_state) {
+        const SnesStateExtra *extra = sound_host ? sound_host_state(sound_host) : NULL;
+        size_t len;
+        uint8_t *data = read_file(load_state, &len);
+        char why[256] = "cannot read file";
+        int loaded = data && !(sound_host && !extra) &&
+                     snes_state_read_with(&snes, extra, data, len, why, sizeof why) == 0;
+        free(data);
+        if (!loaded) {
+            fprintf(stderr, "cannot load state %s: %s\n", load_state,
+                    sound_host && !extra ? "out of memory" : why);
+            return 1;
+        }
     }
     if (zst_path) {
         char why[160];
@@ -878,13 +904,9 @@ int main(int argc, char **argv)
         snes.cpu.on_insn_ctx = &cov;
     }
 
-    /* The C sound driver plays wherever the hand ports play from power-on; the
-     * reference play's machine, and a loaded state's, is the console with the
-     * cartridge's own driver on its sound processor (see the header). */
-    bool c_sound_driver = native_mode == NATIVE_ON && !generated_only && !load_state && !zst_path;
     if (c_sound_driver && (spc_coverage_path || dsp_log_path)) {
         fprintf(stderr, "--spc-coverage and --dsp-log watch the cartridge's sound driver, which a run of the hand "
-                        "ports from power-on doesn't play (the C driver does)\n");
+                        "ports doesn't play (the C driver does)\n");
         return 2;
     }
     SpcWatch spc = { .snes = &snes };
@@ -943,20 +965,6 @@ int main(int argc, char **argv)
         }
     }
 
-    if (mixer_given && !c_sound_driver) {
-        fprintf(stderr, "--mixer picks what plays the C sound driver, which only a run of the hand ports from "
-                        "power-on plays (--native on, not --generated only)\n");
-        return 2;
-    }
-    SoundHost *sound_host = NULL;
-    MixerCheck *mixer_check = NULL;
-    if (c_sound_driver) {
-        sound_host = sound_host_attach_mixer(&snes, mixer);
-        if (!sound_host || (mixer == SOUND_MIXER_CHECK && !(mixer_check = mixer_check_attach(sound_host)))) {
-            fprintf(stderr, "out of memory\n");
-            return 1;
-        }
-    }
     static ct_wav wav;
     static int16_t audio[DSP_OUT_FRAMES * 2];
     if (wav_path) {
@@ -1021,9 +1029,12 @@ int main(int argc, char **argv)
         fprintf(stderr, "warning: saving with native routines in progress; they won't resume from the state\n");
     else if (save_state && natives && native_owed(natives))
         fprintf(stderr, "warning: saving with time the native routines owe; the state drops it\n");
-    if (save_state && snes_state_save(&snes, save_state) != 0) {
-        fprintf(stderr, "cannot save state %s\n", save_state);
-        rc = 1;
+    if (save_state) {
+        const SnesStateExtra *extra = sound_host ? sound_host_state(sound_host) : NULL;
+        if ((sound_host && !extra) || snes_state_save_with(&snes, extra, save_state) != 0) {
+            fprintf(stderr, "cannot save state %s\n", save_state);
+            rc = 1;
+        }
     }
     if (end_state && write_end_state(end_state, &snes) != 0) {
         fprintf(stderr, "cannot write %s\n", end_state);

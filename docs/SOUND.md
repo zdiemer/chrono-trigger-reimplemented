@@ -565,7 +565,7 @@ loop nested or one left past the first (`$1C2B`, `$1C54`, `$1C6E`, `$1CB1`,
 `$1CDB`). TODO.md lists them.
 
 **Playing it.** `ct_play` (PLAYING.md), `ct_drive`, `ct_native` and every
-`ct_dev` run of the hand ports from power-on play the C driver in the SPC700's
+`ct_dev` run of the hand ports, including a restored C driver state, play the C driver in the SPC700's
 place; the reference play (a movie's replay and recording, shadow mode,
 `--native off`, `--generated only`) is the cartridge on the emulated console,
 its own driver on the sound processor, whose timing the movies were recorded
@@ -592,7 +592,8 @@ holds the host's and the driver's fields beside the machine's
 (`sound_host_state`, under `sound.`; RUNTIME.md, "Save states"): a state saved
 and loaded again plays on identically (3000 frames from power-on, saved,
 loaded and run 1000 more is the same state as 4000 straight), `sound_test`
-checks that every byte of `SoundDriver` is in a field, and a state loads only
+checks that every byte of `SoundDriver` is in a field and that all three
+mixers resume with identical audio and state on a made-up cartridge, and a state loads only
 with the driver it was saved with. `ct_sound_fuzz` plays half
 its commands as the game's calls and half through the ports (songs at made-up
 volumes among them), and checks that every port command is answered and that
