@@ -24,7 +24,7 @@ LEDGER = ROOT / "tools/outcomes.txt"
 BASELINE = ROOT / "tools/outcomes_baseline.txt"
 EXCEPTIONS = ROOT / "tools/outcomes_exceptions.txt"
 EVERY, NEAR = 300, 2
-PICTURE = re.compile(r"^outcome-picture: (\d+) ([0-9a-f]{16})$", re.M)
+PICTURE = re.compile(r"^outcome-picture: (\d+) ([0-9a-f]{16})\r?$", re.M)
 FAULT = re.compile(r"halted:|accessor out of range|page refused:|asset outside the catalogue|"
                    r"asset differs from the cartridge|the program's C goes no further|no generated code for")
 KINDS = {"input", "game", "sram", "pictures", "places"}

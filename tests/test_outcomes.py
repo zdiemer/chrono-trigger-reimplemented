@@ -34,6 +34,11 @@ class OutcomesTest(unittest.TestCase):
         o.write(self.root / "ledger", self.ref, "# test")
         self.assertEqual(o.read(self.root / "ledger"), self.ref)
 
+    def test_windows_log_line_endings(self):
+        o.capture(self.root, "test", self.movie, 600, self.text.replace("\n", "\r\n"),
+                  0, self.end, self.saved, "reference")
+        self.assertEqual(o.read(self.root / "outcome-test.txt"), self.run)
+
     def test_two_frames_is_drift_three_is_difference(self):
         self.run["test", "pictures"] = [t if not t.startswith("300:") else "300:ffffffffffffffff"
                                         for t in self.run["test", "pictures"]]
