@@ -866,15 +866,15 @@ enum { LONG_WARP = 0xFDDA00, SHORT_WARP = 0xFDDA5F, SHORTEST_WARP = 0xFDDABE, FL
 static void start_the_scene(Snes *s, uint8_t scene)
 {
     if (scene == SCENE_LONG_WARP)
-        m_stop_at(s, LONG_WARP, THE_SCENE_READS_A);
+        m_stop_at_own(s, LONG_WARP, THE_SCENE_READS_A);
     else if (scene == SCENE_SHORT_WARP)
-        m_stop_at(s, SHORT_WARP, THE_SCENE_READS_A);
+        m_stop_at_own(s, SHORT_WARP, THE_SCENE_READS_A);
     else if (scene == SCENE_SHORTEST_WARP)
-        m_stop_at(s, SHORTEST_WARP, THE_SCENE_READS_A);
+        m_stop_at_own(s, SHORTEST_WARP, THE_SCENE_READS_A);
     else if (scene > SCENE_SHORTEST_WARP)
-        m_stop_at(s, FLICKERING_WARP, THE_SCENE_READS_A);
+        m_stop_at_own(s, FLICKERING_WARP, THE_SCENE_READS_A);
     else
-        m_stop_at(s, SCENE_ENGINE, THE_SCENE_READS_A);
+        m_stop_at_own(s, SCENE_ENGINE, THE_SCENE_READS_A);
 }
 
 /* As C: the scene the field ends into, the scene engine's or a time gate's
@@ -907,7 +907,7 @@ void field_closed_into_the_scene(GameState *g) { program_goes_on_to_a_scene(g, S
 void field_close_into_the_scene(Snes *s)
 {
     hand_over_the_scene(s, SCENE_FIELD_CLOSES_INTO);
-    m_stop_at(s, SCENE_ENGINE, THE_SCENE_READS_A);
+    m_stop_at_own(s, SCENE_ENGINE, THE_SCENE_READS_A);
 }
 
 /* The frame done, the main loop waits for the vblank handler to take it.

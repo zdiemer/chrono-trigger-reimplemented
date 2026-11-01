@@ -3195,53 +3195,42 @@ vblank list (now refused, the setup leaves room), the large list's
 continuation, the boost's index, and the calling in's tech number read from
 its caller's cell.
 
-### Direct continuations within a frame
+### Field requests and mode startup continue in C
 
-The field's object defaults go straight to the opening scripts, its scripted
-menu return to the fade-in, and its walking frame to the frame wait. The
-frame work and initial drawing call the sprite builder directly where its
-row lists are finite and its records fit. This removes the field bridge's
-tail-call registry lookup. Battle's frame work continues into the pass and
-the pass into its timers; the overworld's menu call continues into restoring
-the map's screen. These are C calls timed at the existing routines' rates;
-the entry wrappers still handle the original's registers and returns.
+After the frame continuations and timing tags (now in
+`history/reimplementation-chunks.md`), seven more linear handoffs call their
+callees: the tile copy and ripple finish their frame, an empty battle request
+takes the walking turn, the closing field and event scene command prepare the
+scene's fresh stack, and battle and overworld setup enter their loops.
+The existing game-state sequences and timing rates are unchanged. The scene
+handoffs now declare their own stop contract: the event wrapper's disposable
+A must not hide the scene number that the scene engine reads. The narrowed
+suite caught that inherited contract; the corrected liveness check has zero
+findings. No guard, calibration, exception or fuzz domain changed.
 
-Fuzzing explained why the sprite continuation still needs a hand-back for
-malformed lists. The old bridge's registry lookup has no runtime in
-`ct_fuzz`, so it stopped before drawing. Calling the builder on arbitrary
-lists exposed 20 mismatches in 300 `field_frame_work` states. Testing the
-builder's existing row/record conditions before the continuation restores
-exactly the predecessor's counts: 0/24 compared for frame work and 0/144
-for drawing the initial view, with the same skipped counts. No fuzz domain
-was narrowed. The ordinary frame wait, battle pass and overworld pass also
-keep their predecessor's zero mismatches. Object defaults now include the
-opening scripts in the comparison: 6 of 300 compare, none mismatch; 294
-exceed the call-out budget on random scripts, where the predecessor
-compared only the defaults. The movie shadows cover their normal scripts.
+Five narrowed movie shadows (`new-game`, `battle-menu-buttons`,
+`field-65m-bc-dactyl`, `menus-epoch`, `events-end-of-time-gate`) have zero
+mismatches and identical sound lockstep. Requests compare 6,366 of 6,378
+calls, screen effects 6,357 of 6,357, screen commands two of eight, and
+overworld setup seven of seven. The one battle startup is inside an enclosing
+comparison and is not independently compared. The ledger records these limits.
 
-The assigned files lose six stops and one registry lookup, from 1,759 to
-1,752 joints after the timing-tag change. The main loops retain their
-backedges as comparison boundaries: chaining them recursively would grow
-the C stack each frame in shadow mode. The field's wait still ends at its
-idle entry in shipping mode, preserving the save-state boundary.
+Same-seed predecessor fuzz over 16 existing variants has zero mismatches:
+300 states per variant, except overworld setup's existing 200. The scene
+command's 151 accepted states agree, including its already-dark scene path.
+Screen effects' close/ripple and battle startup still compare only through
+their first blocking call; this does not claim coverage after the wait.
+Overworld setup now continues into its first frame and none of its 200
+randomized states completes the fuzz comparison; its seven movie comparisons
+do complete. Random scene operands also report out-of-range character records,
+so this is not evidence that arbitrary corrupt script state is supported.
 
-### Timing tags in the field, battle, overworld and events
-
-The ordinary timing scopes in these four subsystems and `core/input.c`
-use `TIMED_AS` with the game's state. This includes the seven party-service
-scopes in `event/party.c`, the object update's steps and the bridges' calls.
-The scope still selects the same routine and encloses the same work:
-`charge_time_as_begin` and `charge_time_as_end` delegate to the original
-timing functions on the comparison build and do nothing on the host.
-No entry, guard, cost or game operation changes. Battle's three sibling
-scopes retain their separate accounting until a state-based sibling API
-exists.
-
-The assigned files' source measure starts at 1,799 joints, including 40
-ordinary machine-based time tags. This change removes those 40 tags; the
-other categories stay at their original counts. Validation is recorded in
-`ports.tsv`; the existing fuzz domains are unchanged because this replaces
-only the timing scope's handle, not a routine's operations.
+The assigned files started at 1,799 joints and now have 1,745: stops 62 to
+49, registry lookups three to two, ordinary machine timing tags 40 to zero.
+The remaining counts are unchanged: 490 emulated returns, two counted sprite
+call-out sites, three register escapes, 111 video calls and 1,088 scaffolding
+writes. The main loops' stops are field 14 to 13, battle six to four,
+overworld five to four. Remaining boundaries and their blockers are in TODO.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 

@@ -3114,6 +3114,18 @@ list, by kind, is what `game/` still asks of one.
   together. The field/battle/overworld loop backedges also need an iterative
   continuation with a comparison boundary: shadow waits resume their C call,
   so directly chaining every backedge would recurse across frames.
+  The field pass's wait boundary also lets the replay driver restore a
+  suspended frame; retain it until that continuation is represented outside
+  the C stack. The generic field and battle bridges still consult the registry
+  to validate each sibling's width/page/data guards (and battle's return
+  poisoning); deleting the lookup alone bypasses those contracts. Some direct
+  targets have stricter bank guards than their callers, including the party's
+  return to the field walk. Reset, scene/warp and field reentry tails need their
+  shared mode-transition contract before their machine stops can leave.
+  Overworld startup's direct first frame also needs a fuzz harness that supplies
+  interrupts: all 200 existing setup states now exceed its comparison budget,
+  although seven targeted movie calls compare cleanly. The screen effect's
+  ripple/close tails remain beyond the current first-call fuzz boundary.
 - **The machine's memory and registers.** `snes_bus_read`, `_write` and
   `_peek`: the wrappers' registers, page, data bank and stack, the guards'
   peeks, and what the logic still reads by address. The game's state itself
@@ -3148,6 +3160,14 @@ list, by kind, is what `game/` still asks of one.
   tests/test_platform_lint.py's list) are transfers into VRAM programmed from
   the game's tables, which only the SNES's channel settings say the meaning
   of: the host counts them and the driver reports the first.
+  In the assigned field/battle files, three escapes remain. The field's
+  clear uses the multiplier's zero result as a DMA source; a plain RAM fill
+  loses the channel/PPU state checked by shadow mode, so it needs a backend
+  memory-clear service. Battle's bank-dependent palette send intentionally
+  writes stray RAM and delays the palette; those writes need named state
+  before replacing the escape. The pending window transfer's only writer
+  requests VRAM words, but the entry accepts arbitrary destination/mode
+  descriptors; a VRAM-only replacement needs that guard contract settled.
   The three Death Peak movies reach their full 4676/23852/23856-frame budgets
   in `ct_native` without stopping, but report 2/4/4 video escapes, first at
   `$7E:5AEB`; wind and ascent finish blanked, return showing. These fixed-input

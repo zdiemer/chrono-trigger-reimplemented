@@ -348,7 +348,7 @@ void battle_start_from_field(Snes *s)
     m_save_caller_registers(s);
     on_the_battle(s);
     if (come_in_from_the_field(state_of(s), screen_set_up_on_the_machine, s))
-        m_stop_at(s, MAIN_LOOP, READS_NOTHING);
+        TIMED_AS(state_of(s), MAIN_LOOP, battle_main_loop_start(s));
 }
 
 /* Each last frame waited for from its own call; the display closed with A's

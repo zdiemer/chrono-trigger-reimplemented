@@ -32,6 +32,7 @@
 #include "menu/sprites.h"
 #include "original_effects.h"
 #include "overworld/overworld.h"
+#include "overworld/main_loop.h"
 #include "overworld/music.h"
 #include "overworld/overworld_data.h"
 #include "overworld/sign.h"
@@ -655,7 +656,7 @@ void overworld_set_up_entry(Snes *s)
 {
     Unpacker u = on_the_machine(s);
     if (overworld_set_up(state_of(s), &u, m_platform(s)))
-        m_stop_at(s, MAIN_LOOP, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+        TIMED_AS(state_of(s), MAIN_LOOP, overworld_run_a_frame(s));
 }
 
 // $C2:2C93

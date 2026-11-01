@@ -777,14 +777,11 @@ static bool refresh_on_the_machine(void *ctx, Moment at)
                      on_the_field_page(s, false));
 }
 
-/* At the ripple's end the port stops at the wait the original jumps to. */
-enum { THE_LAST_WAIT = DC_A | DC_N | DC_Z };
-
 static bool wait_on_the_machine(void *ctx, Moment at)
 {
     Snes *s = ctx;
     if (at == RIPPLE_ENDS) {
-        m_stop_at_own(s, FIELD_FRAME_WAIT, THE_LAST_WAIT);
+        TIMED_AS(state_of(s), FIELD_FRAME_WAIT, field_finish_frame(s));
         return false;
     }
     return bridge_call(s, calls_at[at].wait, FIELD_FRAME_WAIT, READS_NOTHING, on_the_field_page(s, false));
@@ -799,9 +796,13 @@ static bool battle_set_up_on_the_machine(void *ctx)
 
 /* The original starts the scene on a fresh stack ($C0:2643), which is its
  * own entry. */
-enum { THE_SCENE_STARTS = 0xC02643, AS_THE_SCENE_STARTS = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+enum { THE_SCENE_STARTS = 0xC02643 };
 
-static void the_scene_starts_on_the_machine(void *ctx) { m_stop_at_own(ctx, THE_SCENE_STARTS, AS_THE_SCENE_STARTS); }
+static void the_scene_starts_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    TIMED_AS(state_of(s), THE_SCENE_STARTS, field_close_into_the_scene(s));
+}
 
 static bool step_on_the_machine(Snes *s)
 {
