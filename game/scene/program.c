@@ -31,6 +31,7 @@
 #include "original_effects.h"
 #include "core/console.h"
 #include "core/program.h"
+#include "field/main_loop.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -296,7 +297,8 @@ void scene_hand_back_to_the_field(Snes *s)
 {
     s->cpu.x = CONSOLE_STACK_TOP;
     s->cpu.s = CONSOLE_STACK_TOP;
-    m_stop_at(s, FIELD_STARTS, THE_FIELD_READS_NOTHING);
+    m_jump_to(s, FIELD_STARTS);
+    TIMED_AS(state_of(s), FIELD_STARTS, field_enter(s));
 }
 
 // $7E:303B
@@ -335,7 +337,10 @@ bool scene_program_start_present(Snes *s)
  * byte into its index with the mode: the start's routine leaves it 0. */
 bool scene_setup_present(Snes *s) { return (s->cpu.a & 0xFF00) == 0 && scene_program_start_present(s); }
 
-bool scene_program_end_present(Snes *s) { return m_code_matches(s, 0x7E303B, 8, 0xF200A66DE169CF3Aull); }
+bool scene_program_end_present(Snes *s)
+{
+    return m_code_matches(s, 0x7E303B, 8, 0xF200A66DE169CF3Aull) && field_location_is_a_number(s);
+}
 
 /* ---- The program as C, with no machine ------------------------------------------------------------ */
 

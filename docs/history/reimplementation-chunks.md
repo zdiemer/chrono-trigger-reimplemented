@@ -12703,3 +12703,30 @@ pictures compare without skips. Complete Epoch and race-won shadow movies
 pass with zero mismatches and zero new or increased fallback rows. Style,
 smell, effects and liveness checks are clean. Scene/warp joints fall from
 808 to 806, stops from 14 to 12. The sampled gate remains for the end.
+
+
+### Scene continuations: pictures drawn and gathered from their callers
+
+The Epoch and ending picture callers now draw the whole bitmap and gather
+its tiles directly in C. Their guards check the gathering code and picture
+extent before replacing the scaler workspace. Racer requests use the same
+descriptor check and call the whole bitmap renderer directly. The existing
+request-source scaffolding exception follows its read into the shared
+descriptor constructor; no exception was added.
+
+The race retains one boundary at the upload wait, `$7E:5211`, instead of
+the scaler's first row. Calling through both racers' waits failed shadow
+comparisons: the wait service cannot distinguish Johnny's wait from
+Crono's earlier satisfied wait at the same address and stack depth. The
+retained boundary compares cleanly; TODO records the remaining work.
+
+Eight differential fuzz fixtures compare without mismatches, including
+6,000 bounded racer pictures and 2,000 Epoch pictures. Broad random
+requests that do not fit are refused before mutation; the large accepted
+race request needs a 32-million-instruction budget to reach the new
+comparison point. Complete Epoch and race-won shadow movies and the
+ending's 90,000-92,000 segment have zero mismatches. The movie fallback
+ratchet has zero new or increased rows. Style, smell, effects and liveness
+checks are clean. Scene/warp joints remain 806, with 12 stops; this chunk
+moves the shared scaler boundary forward, through gathering for the two
+callers that need no upload wait.

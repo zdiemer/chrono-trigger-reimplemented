@@ -3108,31 +3108,36 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene continuations: pictures drawn and gathered from their callers
+### Scene continuations: boot, warp frames and field returns
 
-The Epoch and ending picture callers now draw the whole bitmap and gather
-its tiles directly in C. Their guards check the gathering code and picture
-extent before replacing the scaler workspace. Racer requests use the same
-descriptor check and call the whole bitmap renderer directly. The existing
-request-source scaffolding exception follows its read into the shared
-descriptor constructor; no exception was added.
+Boot calls the unpacked scene program directly. Its guard checks the mode
+and, for credit pages, the surviving page index before any mutation.
+Random indices outside the five pages otherwise read unrelated program
+bytes as text. Attract-demo's open startup comparison moves from
+`$7E:3000` (34 instructions) to `$C3:0000` (47 including the boot prefix);
+the fallback ledger records that ownership change.
 
-The race retains one boundary at the upload wait, `$7E:5211`, instead of
-the scaler's first row. Calling through both racers' waits failed shadow
-comparisons: the wait service cannot distinguish Johnny's wait from
-Crono's earlier satisfied wait at the same address and stack depth. The
-retained boundary compares cleanly; TODO records the remaining work.
+Warp setup continues after its screen-on wait, whose interface preserves
+the established page and widths. Frames call the held frame-wait service
+and continue as C. The held boundary keeps shipping snapshots resumable
+at the existing idle wait entry. Each frame retains its own timing part
+and the registers previously declared dead at its loop stop. Scene and
+warp endings call field entry directly, with a valid destination guard.
 
-Eight differential fuzz fixtures compare without mismatches, including
-6,000 bounded racer pictures and 2,000 Epoch pictures. Broad random
-requests that do not fit are refused before mutation; the large accepted
-race request needs a 32-million-instruction budget to reach the new
-comparison point. Complete Epoch and race-won shadow movies and the
-ending's 90,000-92,000 segment have zero mismatches. The movie fallback
-ratchet has zero new or increased rows. Style, smell, effects and liveness
-checks are clean. Scene/warp joints remain 806, with 12 stops; this chunk
-moves the shared scaler boundary forward, through gathering for the two
-callers that need no upload wait.
+The last warp frame still stops at the ending's entry. Combining HDMA
+shutdown with that frame compares its last scanline register values after
+HDMA is disabled: End of Time gate differs at `$210E` (00 versus 01).
+Continuing into field entry moves the same difference to its song call,
+so the ending keeps its independent comparison. TODO records this seam.
+
+Twenty-two differential fuzz fixtures have zero mismatches. Three bounded
+field-return fixtures compare 6,000 cases; all sixteen boot modes compare
+193/200, seven exhausting the external-wait budget. Complete attract-demo
+and End of Time gate shadow movies pass with zero mismatches; the migrated
+fallback ratchet has zero new or increased rows. Style, smell, effects and
+liveness checks are clean. Scene/warp joints fall from 806 to 801, stops
+from 12 to 6; one frame-wait return replaces a stop. The sampled gate is
+still reserved for the end.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 

@@ -49,7 +49,10 @@ enum ScreenTaskRow { ROW_ANIMATE_PALETTES, ROW_FINISH_SPRITES, ROW_BRIGHTEN, ROW
 
 /* ---- The program stops ---------------------------------------------------------------------- */
 
-bool scene_program_restart_present(Snes *s) { return m_code_matches(s, 0x7E302A, 14, 0x614033C5F8C83156ull); }
+bool scene_program_restart_present(Snes *s)
+{
+    return m_code_matches(s, 0x7E302A, 14, 0x614033C5F8C83156ull) && scene_program_end_present(s);
+}
 
 // $7E:302A
 /* The program stops: interrupts and per-line effects off and the screen

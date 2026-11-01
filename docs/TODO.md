@@ -2763,6 +2763,20 @@ re-runs the census.
   racer pictures pass. The wait needs caller-instance matching before this
   boundary can leave. The Epoch and ending gathering paths need no such wait.
 
+- **The last warp frame and HDMA shutdown still compare separately.**
+  Calling `warp_end` directly from the last frame made End of Time gate
+  differ at PPU `$210E` (original 00, native 01): the last scanline value
+  changes with beam time, but the comparison no longer masks it after HDMA
+  is disabled. Continuing into field entry moves the same difference to
+  its song call. The frame therefore retains the ending-entry boundary;
+  the ending itself now continues through field entry as C. Settle the
+  shutdown's beam timing before combining these comparisons.
+
+- **Boot credit pages outside the five-page table.** The page index at
+  `$0382` survives startup. Random values above five read unrelated program
+  bytes as text and differ in VRAM/OAM; boot now refuses those states before
+  mutation. Valid page indices and all sixteen modes are fuzzed separately.
+
 ## Shadow comparison gaps
 
 The early-boss shadow runs also expose a comparison gap in the held-message

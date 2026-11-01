@@ -167,7 +167,7 @@ why = "a short copy"
 name = "scene_boot"
 subsystem = "scene"
 state = "attract"
-args = ["--long", "--db", "00"]
+args = ["--apu-loopback", "--budget", "20000000", "--stop-at-call", "7E31B0", "--long", "--db", "00"]
 iterations = 200
 why = "each decompresses the whole program"
 
@@ -19799,7 +19799,7 @@ why = "everything random but the stack: the start writes all it reads but the st
 name = "warp_long_frame"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
 iterations = 5000
 why = "the warp's page with its zero (the guard), everything else random: the frame count anywhere (every phase, and past the end), the circle's tables, the palette"
 
@@ -19807,7 +19807,7 @@ why = "the warp's page with its zero (the guard), everything else random: the fr
 name = "warp_short_frame"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E051C-7E051C=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E051C-7E051C=00"]
 iterations = 5000
 why = "as warp_long_frame, the frame count under 256 so its every phase and its end come up"
 
@@ -19815,7 +19815,7 @@ why = "as warp_long_frame, the frame count under 256 so its every phase and its 
 name = "warp_shortest_frame"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E051C-7E051C=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E051C-7E051C=00"]
 iterations = 5000
 why = "as warp_short_frame"
 
@@ -19823,7 +19823,7 @@ why = "as warp_short_frame"
 name = "warp_flickering_frame"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--range", "A=0000-00FF"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--range", "A=0000-00FF"]
 iterations = 5000
 why = "as warp_long_frame, with A's high byte clear as every frame leaves it: the brightness's index takes it along (game/warp/warp.c, flicker), and only the start leaves it otherwise, before the first frame, whose place in the pattern is 0"
 
@@ -19856,7 +19856,7 @@ why = "the warp's page with its zero (the guard)"
 name = "warp_wait_for_frame"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
 iterations = 2000
 why = "the warp's page with its zero (the guard)"
 
@@ -21264,7 +21264,7 @@ name = "warp_long_trip_waits"
 at = "FD:DA03"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
 iterations = 2000
 why = "the warp's page and its zero word (the guard's): the main loop's wait, to its loop"
 
@@ -21273,7 +21273,7 @@ name = "warp_short_trip_waits"
 at = "FD:DA62"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
 iterations = 2000
 why = "as warp_long_trip_waits"
 
@@ -21282,7 +21282,7 @@ name = "warp_shortest_trip_waits"
 at = "FD:DAC1"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
 iterations = 2000
 why = "as warp_long_trip_waits"
 
@@ -21291,7 +21291,7 @@ name = "warp_flickering_trip_waits"
 at = "FD:DB24"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
 iterations = 2000
 why = "as warp_long_trip_waits"
 
@@ -21870,3 +21870,36 @@ subsystem = "scene"
 state = "race"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E0039-7E003A=0000", "--budget", "8000000", "--fill", "7E1400-7E1401=0002,0004", "--fill", "7E1402-7E1403=0002", "--fill", "7E1404-7E1405=2000", "--fill", "7E1406-7E1407=0008,0011,0021", "--fill", "7E1408-7E1409=0031,0080,0100", "--fill", "7E140C-7E140D=0400,0800", "--fill", "7E140E-7E140F=0002,0004", "--fill", "7E1410-7E1411=0001", "--fill", "7E1412-7E1413=2000", "--fill", "7E1414-7E1415=0008,0011,0021", "--fill", "7E1416-7E1417=0031,0080,0100", "--fill", "7E141A-7E141B=0400,0800"]
 why = "One bounded racer picture through complete scaling and gathering, with the previous upload finished."
+
+[[routine]]
+name = "scene_program_hands_back"
+variant = "destination"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0100-7E0101=0000,01EF,01F0", "--stop-at-call", "C00B86", "--apu-loopback"]
+why = "A field or world-map destination; compare through field entry to its first location setup, or its world-map handoff."
+
+[[routine]]
+name = "scene_program_restart"
+variant = "destination"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0100-7E0101=0000,01EF,01F0", "--stop-at-call", "C00B86", "--apu-loopback"]
+why = "A field or world-map destination; compare through field entry to its first location setup, or its world-map handoff."
+
+[[routine]]
+name = "warp_end"
+variant = "destination"
+subsystem = "warp"
+state = "warp"
+args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E0100-7E0101=0000,01EF,01F0", "--stop-at-call", "C00B86", "--apu-loopback"]
+why = "A field or world-map destination; compare through field entry to its first location setup, or its world-map handoff."
+
+[[routine]]
+name = "scene_boot"
+variant = "all_modes"
+subsystem = "scene"
+state = "attract"
+args = ["--apu-loopback", "--budget", "20000000", "--stop-at-call", "7E31B0", "--long", "--db", "00", "--fill", "7E0382-7E0383=0000,0001,0002,0003,0004,0005", "--range", "A=0000-000F"]
+iterations = 200
+why = "All sixteen scene modes with a valid surviving credit-page index, through startup to the first external frame wait."
