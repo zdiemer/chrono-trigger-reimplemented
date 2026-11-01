@@ -122,12 +122,13 @@ void player_use_sram(Player *pl, const uint8_t sram[SNES_SRAM_SIZE], const char 
 uint32_t player_sram_crc(Player *pl);
 void player_load_sram(Player *pl, const uint8_t *sram);
 
-/* Start the native runtime (after the SRAM is in place), and select the
- * APU-direct audio backend if asked, or the C sound driver in place of the
- * original's on the SPC700 (sound_host.h), playing through `mixer`, whose
- * fields the player's states then hold. Returns 0, or the exit status after
- * printing why not. */
-int player_start(Player *pl, bool audio_direct, bool c_sound_driver, SoundMixer mixer);
+/* Start the native runtime (after the SRAM is in place), with the C sound
+ * driver in the sound processor's place (sound_host.h) where `c_sound_driver`,
+ * playing through `mixer`, whose fields the player's states then hold; else
+ * the console's sound processor runs the cartridge's own driver (the
+ * reference play a movie is replayed and recorded in). Returns 0, or the exit
+ * status after printing why not. */
+int player_start(Player *pl, bool c_sound_driver, SoundMixer mixer);
 
 /* Run one frame. `live` is the buttons held, used once the replay is over. */
 void player_step(Player *pl, uint16_t live);

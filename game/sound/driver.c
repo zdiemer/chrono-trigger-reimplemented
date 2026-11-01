@@ -603,7 +603,7 @@ void sound_boot(SoundDriver *d, const GameState *game, AuVoices *voices)
 }
 
 // SPC $02A0
-void sound_tick_begin(SoundDriver *d)
+static void sound_tick_begin(SoundDriver *d)
 {
     if (d->stopped)
         return;
@@ -620,7 +620,7 @@ void sound_tick_begin(SoundDriver *d)
 }
 
 // SPC $02F5
-void sound_tick_voices(SoundDriver *d)
+static void sound_tick_voices(SoundDriver *d)
 {
     if (d->stopped || d->paused)
         return;
@@ -631,7 +631,7 @@ void sound_tick_voices(SoundDriver *d)
 // SPC $036E
 /* The end of a tick that got past its voices: a pause that came with the
  * last commands doesn't stop it. */
-void sound_tick_end(SoundDriver *d)
+static void sound_tick_end(SoundDriver *d)
 {
     if (d->stopped)
         return;

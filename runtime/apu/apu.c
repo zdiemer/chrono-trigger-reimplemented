@@ -18,9 +18,6 @@ unsigned long apu_port_clears[2];
 
 /* ---- SPC700 bus ------------------------------------------------------------------ */
 
-void (*apu_port_read_observer)(const Apu *apu, uint8_t port);
-void (*apu_port_write_observer)(const Apu *apu, uint8_t port);
-
 static uint8_t smp_read(void *ctx, uint16_t addr)
 {
     Apu *apu = ctx;
@@ -30,8 +27,6 @@ static uint8_t smp_read(void *ctx, uint16_t addr)
     case 0x00F2: return apu->dsp_addr;
     case 0x00F3: return dsp_read(&apu->dsp, apu->dsp_addr);
     case 0x00F4: case 0x00F5: case 0x00F6: case 0x00F7:
-        if (apu_port_read_observer)
-            apu_port_read_observer(apu, (uint8_t)(addr - 0x00F4));
         return apu->cpu_in[addr - 0x00F4];
     case 0x00F8: case 0x00F9:
         return apu->ram[addr];
@@ -82,8 +77,6 @@ static void smp_write(void *ctx, uint16_t addr, uint8_t v)
         break;
     case 0x00F4: case 0x00F5: case 0x00F6: case 0x00F7:
         apu->cpu_out[addr - 0x00F4] = v;
-        if (apu_port_write_observer)
-            apu_port_write_observer(apu, (uint8_t)(addr - 0x00F4));
         break;
     case 0x00F8: case 0x00F9:
         apu->ram[addr] = v;
@@ -263,12 +256,6 @@ void apu_advance(Apu *apu, uint32_t master_clocks)
         if (!master_clocks)
             return;
     }
-    run(apu, master_clocks);
-}
-
-void apu_run_ahead(Apu *apu, uint32_t master_clocks)
-{
-    apu->lead += master_clocks;
     run(apu, master_clocks);
 }
 

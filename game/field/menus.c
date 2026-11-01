@@ -692,7 +692,10 @@ static bool fade_in_on_the_machine(void *ctx, FieldStop stop)
     if (stop != OPENED_BY_SCRIPT)
         return field_run(s, sites[stop].fade_in, FIELD_FADE_IN_AFTER_A_MENU_ENTRY, READS_NOTHING,
                          field_fade_in_after_a_menu_entry, on_the_field_page(s, false));
-    if (!field_go_on_with(s, FADE_IN_TAIL, field_fade_in_after_a_menu_entry))
+    /* Unlike the fade's entry, requests and their bridges allow decimal mode. */
+    if (!s->cpu.e && m_m8(s) && !m_x8(s) && !m_flag(s, CPU_FLAG_D) && field_on_page_low_bank(s))
+        TIMED_AS(state_of(s), FADE_IN_TAIL, field_fade_in_after_a_menu_entry(s));
+    else
         m_stop_at_own(s, FADE_IN_TAIL, FADE_IN_READS);
     return false;
 }

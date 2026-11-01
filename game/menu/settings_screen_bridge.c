@@ -13,7 +13,7 @@
  * through its table at $C2:BFFF): the stereo's handler sends the sound
  * driver the mode, and the meters' and the design's step their meter
  * through a sibling of their own that ticks. Going back from the options
- * stops at the main menu's return ($C2:9A98), and the panel waits a frame
+ * calls the main menu's return as C behind its guard, and the panel waits a frame
  * between its frame and the rest (the menus' task switch).
  *
  * Before each of those calls a bridge leaves the registers and flags the
@@ -142,7 +142,7 @@ static bool handle_on_the_machine(void *ctx, SettingsOption option)
 
 static bool back_to_the_main_menu_on_the_machine(void *ctx)
 {
-    m_stop_at(ctx, MAIN_MENU, READS_NOTHING);
+    menu_go_on_in(ctx, MAIN_MENU, menu_back_to_the_main_menu_entry, READS_NOTHING);
     return false;
 }
 

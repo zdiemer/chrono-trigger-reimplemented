@@ -95,7 +95,7 @@ is how far the hand ports alone carry the game. The list goes to
 the title bar shows `[hand ports]` or `[generated code]` with the count. A
 build without `CT_ROM` is enough for `--generated off`.
 
-`ct_dev --native on --generated off --no-interpreter strict --sound-driver c`
+`ct_dev --native on --generated off --no-interpreter strict`
 is the same for a movie: the hand ports and the C sound driver alone, the first
 instruction no port runs ending the run (`frame F: no generated code for
 BB:AAAA ...; stopping`). `tools/strict_check.py` plays every library movie so,
@@ -150,7 +150,7 @@ without a ROM (`.github/workflows/ci.yml`).
 
 ```sh
 dist/ct_play --rom path/to/ct.sfc [--scale 3] [--fullscreen] [--mute] [--native on|shadow|off] \
-    [--generated only|on|off] [--audio snes|direct] [--renderer native|scanline] [--save-dir dir]
+    [--generated only|on|off] [--renderer native|scanline] [--save-dir dir]
 ```
 
 The ROM can also be given as the only argument, so dropping it onto the
@@ -179,29 +179,18 @@ audio, and the pitch change is inaudible. Pausing and fast forward stop the
 device and empty the buffer. If the host can't keep up, the buffer runs dry and
 there are gaps of silence.
 
-`--audio direct` selects the APU-direct audio backend ([PLATFORM.md](PLATFORM.md),
-P1): the sound driver's uploads and commands no longer take the game's time,
-so there are no pauses while a new song loads. It runs in the hand-ported
-sound driver, so it implies `--generated on`, and it can't be combined with
-`--record`. After a long upload the APU has produced its sound ahead of the
-game and then waits for it; the buffer absorbs short leads, and a long one can
-show up as a short gap. `--audio snes` (the default) keeps the original timing.
-
 The sound driver is the C one (`game/sound/`, [SOUND.md](SOUND.md) "The port as
-built") unless `--sound-driver original` asks for the game's own on the
-SPC700. The game's CPU half of the driver hands its boot and its commands to
-`frontend/sound_host.c` as calls: the driver boots, and each command is
-carried out as the CPU half took it, a song with its samples placed in sound
-memory by the driver itself, so nothing is uploaded and the SPC700 stays idle.
-The host runs the driver's ticks on the APU's time, waits out the echo's
-buffer as the original does, and has the driver play into the same S-DSP
-model. So a new song starts at once rather than after its upload, and the
-game's timing is not the original's. What needs that timing or the
-original's code gets the original driver: replaying or recording a movie,
-`--load-zst`, `--audio direct`, `--native off` or `shadow` and `--generated only`
-(the C driver takes the CPU half's calls in its ported entries, which run only
-with `--native on` and the ported routines); `--sound-driver c` with any of
-them is refused. The C driver's voices are made into sound by the native mixer
+built"). The game hands its boot and its commands to `frontend/sound_host.c`
+as calls (`core/sound_commands.c`): the driver boots, and each command is
+carried out as the original's CPU half took it, a song with its samples
+placed in sound memory by the driver itself, so nothing is uploaded and the
+SPC700 stays idle. The host runs the driver's ticks on the APU's time, waits
+out the echo's buffer as the original does, and lets the time the original's
+upload took pass (the time model). The reference play is the exception:
+replaying or recording a movie, `--load-zst`, `--native off` or `shadow` and
+`--generated only` run the cartridge on the emulated console, the cartridge's
+own driver on its sound processor, whose timing a movie is recorded against
+(REIMPLEMENTATION.md, "The sound driver's teardown"). The C driver's voices are made into sound by the native mixer
 ([PLATFORM.md](PLATFORM.md), "The native mixer, as built"), with no S-DSP;
 `--mixer dsp` plays them through the emulated S-DSP instead, the same sound
 frame for frame.
@@ -291,9 +280,9 @@ its power-on value ([RUNTIME.md](RUNTIME.md), "Save states"). With the C sound
 driver the state holds the driver's fields beside the machine's
 (`sound_host_state`), so a state loads only with the driver it was saved with,
 and through the mixer it was saved with (`--mixer`):
-one saved with `--sound-driver original` (or by `ct_dev`) needs that option to
-load, and so do quick saves made before the C driver became the default, which
-were all saved with the original's. A state that can't be read -- damaged, from another ROM, from before
+one saved in the reference play (or by `ct_dev`) loads only there, and so do
+quick saves made before the C driver became the default, which were all saved
+with the original's. A state that can't be read -- damaged, from another ROM, from before
 this format, or from the other driver -- is refused with a message, and the
 game goes on as it was. A quick save waits for the end
 of a frame where the state keeps everything: no native routine suspended in a
@@ -389,7 +378,7 @@ A movie started from a cartridge save finds that save by its CRC-32 among the
 committed ones in `oracle/saves/` (or below the ROM's directory); `--sram`
 picks one explicitly. A movie replays with `--generated only` unless `--generated` is
 given, because that is where it replays exactly what `ct_dev` validates (so
-does `--native off`); with `--generated on` or `--audio direct` the timing differs
+does `--native off`); with `--generated on` the timing differs
 and the replay drifts from the recording, since a movie is button presses at
 frame numbers.
 
@@ -569,8 +558,7 @@ the C sound driver (`game/sound/`) in the sound processor's place
 (`frontend/sound_native.c`, the native counterpart of `sound_host.c`): the
 game's side of the commands (`core/sound_commands.c`) hands it the boot and
 the commands as calls, the game's sends through the service reaching it as
-C (`sound_driver_send`); the CPU half that speaks to the original's driver
-(`core/sound_driver.c`) isn't linked, as `registry.c` isn't; the
+C (`sound_driver_send`); the
 scenes' commands come on the ports, and the driver's time passes a frame at
 a time and while the game waits on a port. Saves read and write the save
 RAM the driver loaded. Work RAM powers on holding `$55` throughout, as the

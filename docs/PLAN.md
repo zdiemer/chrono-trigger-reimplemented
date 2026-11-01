@@ -66,15 +66,15 @@ in place of the ports: the native coverage.
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | less than 1% left (over 99% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 100% over 49 of the 51 movies (the hand ports alone carry each to its end, `strict_check.py`); the other two stop at guards that refuse play only they reach (TODO.md, "Refusals in real play"); what no movie runs is unmeasured: 36.3 KiB of live code, 32.7 KiB of it ported and so far unchecked (movies-wanted.md, "Totals") | 100%, over a library that reaches all of the game |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (48 movies): 0.55 M instructions (0.95 M over 42 before chunk 11); shipping mode over the movies 0, the routes 18 K (all hand-backs: the program's start's in the Black Tyrano's route, the vblank list's and the battle's calling in); the hand ports alone (`strict_check.py`) carry 49 of the 51 movies to their end; no entry refuses in real play over the gate's movies and routes, and `tools/refusal_allowlist.txt` holds no gap (the hand-run long movie's refusals are in TODO.md, "Refusals in real play"); the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "Phase 4a, the shipping mode's fallbacks, chunk 11") | 0, no refusal, the native shape passing |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play over the gate's 37-movie sample: 9.9 K instructions (0.43 M before the measure kept the stretches of comparisons a vblank handler gave up; the baseline, over 84, 0.31 M until the library's batched run takes the rest); shipping mode over the movies 0, the routes 18 K (all hand-backs: the program's start's in the Black Tyrano's route, the vblank list's and the battle's calling in); the hand ports alone (`strict_check.py`) carry 49 of the 51 movies to their end; no entry refuses in real play over the gate's movies and routes, and `tools/refusal_allowlist.txt` holds no gap (the hand-run long movie's refusals are in TODO.md, "Refusals in real play"); the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The largest fallbacks left, 2: what the measure counted that the ports run") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 22% of 10,489 functions take a `Snes *` (scene 34%, menus 25%, battle 19%, field 18%) | entry wrappers only, then none |
 | ROM data behind named accessors | every accessor read, served from an asset pack imported once from the user's ROM (`ct_play`, `ct_native`) or from the cartridge (`ct_dev` without `--assets`); the decompressor's streams and the video transfers from cartridge addresses still go by the bus | the resources decoded, a resource at a time (Phase 4a, "Assets") |
-| SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP; the original stays as the gate's reference | the original and the S-DSP deleted |
+| SPC700 sound driver | reimplemented in C, its commands calls rather than uploads (SOUND.md), and the only driver anything of ours plays: `ct_play`, `ct_drive`, `ct_native` and every `ct_dev` run of the hand ports from power-on; the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP. The gate no longer compares it with the original: its checks are its own (`sound_test`'s digest on a made-up cartridge, `ct_sound_fuzz`'s in `tools/sound_golden.txt`, the host's faults in every run). The cartridge's driver, and its CPU half in bank `$C7`, run only in the reference play, as the console runs the cartridge (REIMPLEMENTATION.md, "The sound driver's teardown") | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 | How far `ct_native` gets, with no emulator under it (PLAYING.md, "The native program") | no stop: the boot, the field and the title's scene as C, the attract demo's field, its first world map as C (the menus' sprite-object mode, `$C2:0000`: the setup, the loop, the vblank handler, the objects and their scripts) and the field after it with its screen effects as C (the curtain, the field's close into a scene, the ripple), the scene it closes into (the credits' page, `$7E:6B04`) and the field after it, its battle as C (`$C0:188C`: the field's setup for it, bank `$C1`'s mode, its handlers, its turns, and the field taken up again), and on through its next world map (the layer's shimmer as C, `$C2:7759`) into the jet bike race's scene as C (`$7E:3B48`, its setup and its tasks), the rising palace's after it (`$7E:671F`), and round to the title again: 200,000 frames without stopping; with `new-game.ctm`'s presses, the movie to its end: the menus a script asks for after the title, Crono's naming, the opening's world map and Crono's house; with `fair.ctm`'s, on across the world map on foot into Leene Square, the fair, to the movie's end; with `fair-companion.ctm`'s, the movie to its end; with `gato-battle.ctm`'s, Gato's battle as C and the movie to its end; with `menu.ctm`'s, the main menu the player opens as C (its panels, and the equipment's, items', techs' and settings' screens as far as the movie goes into them) and the movie to its end; started in a story scene (`--scene`), Lavos falling, the Epoch's dive, the Beyond Time ending's and the reunion's scenes and the staff roll each to its end; the whole of `game/` linked, every service with a host backend | every movie to its end, as strict mode does |
-| The machine's joints in `game/` (`tools/machine_joints.py`, a count of sites in the source; and of what `ct_native` links) | 2,222 registered entries; 1,019 returns through the emulated stack (the entry wrappers); 131 stops at the original's addresses; 20 call-outs and 4 registry lookups between ports; 64 time tags that take the machine; 24 register escapes; 546 video calls (each with a host half now, folded into the observer and drawn by nothing); 2,090 scaffolding writes. What `ct_native` links of them: no registered entry, 1,014 returns, 129 stops and 2,061 scaffolding writes (987, 177 and 2,061 before the sound's teardown, below), the rest as in `game/` | 0: the registry, the wrappers and the scaffolding gone with the gate, subsystem by subsystem |
-| How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c`. Census (`tools/census.py`, shipping mode with the C sound driver as `ct_play` plays it, 84 movies): 264 entries entered by the machine, 42.0 M times (vector 3.6 M, a port's call-out 25.5 M, its stop 9.6 M, its return 3.2 M, a task's yield 30 K; none from the original's code), and 17 wait loops still passed on the machine 767 M times; 1,368 entries run only as C. None of it is the sound driver's: before its teardown, 266 entries, 44.9 M times, the commands at `$C7:0004` 25.5 K of them and the boot 100, and 16 entries the machine came back to from them (the rest of the change is the movies' timing moving) | `main()` boots the game and callers call ports; census 0; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
+| The machine's joints in `game/` (`tools/machine_joints.py`, source sites after merging the scene, menu, loop and sound work) | 2,213 registered entries; 1,014 returns through the emulated stack; 91 stops at original addresses; 8 call-outs and 3 registry lookups between ports; 9 time tags that take the machine; 24 register escapes; 546 video calls; 2,063 scaffolding writes. What `ct_native` links: no registered entries, all other counts the same. The sound teardown removed 9 entries, 5 returns, 2 stops and 29 scaffolding writes; the scene and loop continuations remove further machine boundaries | 0: the registry, the wrappers and the scaffolding gone with the gate, subsystem by subsystem |
+| How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c`. Census (`tools/census.py`, shipping mode with the C sound driver as `ct_play` plays it, 84 movies): 264 entries entered by the machine, 42.0 M times (vector 3.6 M, a port's call-out 25.5 M, its stop 9.6 M, its return 3.2 M, a task's yield 30 K; none from the original's code), and 17 wait loops still passed on the machine 767 M times; 1,368 entries run only as C. None of it is the sound driver's: before the game's side of it became calls, 266 entries, 44.9 M times, the commands at `$C7:0004` 25.5 K of them and the boot 100, and 16 entries the machine came back to from them. Main's post-teardown census, before this merge (not rerun here): 267 entries entered by the machine and 17 wait loops (284 in all), 42.0 M times outside the waits (call-out 25.5 M, stop 9.6 M, vector 3.6 M, return 3.2 M, yield 30 K) and the waits 764 M; 1,366 run only as C, the two less the time tags `$C7:0004` and `$C7:0000` that went with their rows; nothing of bank `$C7` | `main()` boots the game and callers call ports; census 0; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
 
 **Burndown overstates how native the game is.** It counts a port's whole
 reach as done, including what the port hands back to the original at run
@@ -93,14 +93,16 @@ two numbers are measured: the fallback measure's report (`tools/fallbacks.py
 
 ### The two gaps this list exposed
 
-**The sound was the emulated S-DSP fed by interpreted assembly.**
-`game/core/sound_driver.c` is the CPU half only -- the code that uploads
+**The sound was the emulated S-DSP fed by interpreted assembly.** The
+game's only port of it was the CPU half in bank `$C7` -- the code that uploads
 Square's driver and sends it commands -- and the driver itself ran on the
-emulated SPC700. It is not in the burndown and was not in any phase. It is
+emulated SPC700. It was not in the burndown and was not in any phase. It is
 Phase 4a: read ([SOUND.md](SOUND.md)), ported to C as game code
 (`game/sound/`: the sequencer, the song and effect handling, voice output,
 and the game's side, whose commands are calls and whose samples the driver
-places itself), and now what `ct_play` plays. The voices' second
+places itself), and the only driver anything of ours plays; the CPU half's
+port is retired, with the gate's comparison of sound
+(REIMPLEMENTATION.md, "The sound driver's teardown"). The voices' second
 implementation, a native mixer reading the same BRR samples, ADSR envelopes
 and echo settings in place of the emulated S-DSP, is built and makes the
 S-DSP's every frame, and is what `ct_play` plays. The mixer is the
@@ -197,10 +199,12 @@ where recalibration and baseline updates come from; "every movie" below is every
   sound driver (`tools/movies/route_check.py`: the fast route every time, all
   of them with `--long-routes` before a change to timing or the native runtime
   lands);
-- the C sound driver matches the original's at every tick of every movie
-  (`ct_dev --sound-lockstep --sound-lockstep-level state`, in the shadow runs)
-  and over a short `ct_sound_fuzz` in both its modes (SOUND.md, "How it was
-  checked");
+- the C sound driver, over a short `ct_sound_fuzz` with the game's songs
+  and with made-up ones, answers every command, places no sample where the
+  echo writes and drops none, the native mixer makes the S-DSP's every frame,
+  and each kind of run's sound is the digest `tools/sound_golden.txt` keeps
+  (SOUND.md, "How it is checked"; nothing compares it with the original's
+  any more);
 - every don't-care declaration in `game/` is one liveness agrees with
   (`tools/dontcare_check.py`; REIMPLEMENTATION.md, "Before the bulk");
 - no port transliterates the assembly where one didn't before
@@ -229,7 +233,7 @@ where recalibration and baseline updates come from; "every movie" below is every
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**0 of 319 files is left on the backlog**: the last, `data/decompress.c`, is
+**0 of 318 files is left on the backlog**: the last, `data/decompress.c`, is
 rewritten (the unpacker as a function of the game's state, which the native
 program calls), and `tools/portstyle_baseline.txt` lists none. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
@@ -237,18 +241,18 @@ call-outs to the original's code:
 
 | Subsystem | Lines | Style | On the machine |
 |---|--:|--:|--:|
-| battle | 34,778 | 0.01 | 19% |
-| menu | 30,914 | 0.02 | 25% |
-| field | 14,414 | 0.01 | 18% |
-| event | 4,891 | 0.01 | 13% |
-| scene | 15,101 | 0.03 | 34% |
-| warp | 763 | 0.02 | 27% |
-| overworld | 4,451 | 0.01 | 11% |
-| core | 2,186 | 0.03 | 26% |
+| battle | 34,780 | 0.01 | 19% |
+| menu | 31,059 | 0.02 | 25% |
+| field | 14,422 | 0.01 | 18% |
+| event | 4,892 | 0.01 | 13% |
+| scene | 15,154 | 0.03 | 34% |
+| warp | 765 | 0.02 | 27% |
+| overworld | 4,465 | 0.01 | 11% |
+| core | 1,286 | 0.03 | 30% |
 | data | 247 | 0.05 | 7% |
 | attract | 65 | 0.05 | 89% |
 | sound | 2,277 | 0.00 | 0% |
-| **total** | **110,087** | **0.02** | **22%** |
+| **total** | **109,412** | **0.02** | **22%** |
 
 What the phase settled, and what still holds for every port:
 
@@ -271,13 +275,13 @@ What the phase settled, and what still holds for every port:
   against the port it replaces.
 - **A rewrite that hits something the accessors can't say is a finding**: a
   buffer the game locates at run time reaches work RAM by address through
-  `game/wram.h`, and every such use (150 in 37 files) is a variable waiting for
+  `game/wram.h`, and every such use (184 in 50 files) is a variable waiting for
   a name in the map. Cells on a page the caller chooses have page kinds
   (DISASSEMBLY.md, "The accessors").
 
 ## Phase 3: M5 in bulk
 
-Phase 3a has brought every existing port but one to the bar, so a conversion
+Phase 3a has brought every existing port to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
@@ -296,10 +300,12 @@ docstring says which way it is wrong). **Less than 1% of the code is still gener
 | battle setup (`$CC`) | 4.8K | 4.8K | 0.1K | 0% | 11 |
 | scene engine (`$C3`) | 3.8K | 3.8K | 0.4K | 0% | 47 |
 | scene data (`$C6`) | 3.4K | 3.4K | 0.6K | 0% | 35 |
-| sound driver (`$C7`) | 2.6K | 2.6K | 0.1K | 1% | 9 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
 | console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
-| **total** | **266.7K** | **265.6K** | **59.1K** | **0%** | **2220** |
+| **total** | **264.1K** | **263.0K** | **59.0K** | **0%** | **2211** |
+
+Bank `$C7`, the sound driver's CPU half, is retired rather than ported, and
+not counted (`burndown.py`, "Retired code").
 
 `$CD`, the battle's frame work, is C but for 0.2 KiB: the whole screen script
 language (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"),
@@ -551,9 +557,10 @@ short, starting with D and DB where only interrupts reach.
 
 ## Phase 4a: what still runs on emulation
 
-Four things stand between a finished `game/` and a native build with nothing
+Seven things stand between a finished `game/` and a native build with nothing
 under it. None of them is optional for target 1. The first three were found
-by an audit; the fourth is the program itself.
+by an audit; the fourth is the program itself; the last three are what
+taking the gate down needs, before it and after it.
 
 - **Video fed by service calls.** P3's leftover: the observer fills in the
   per-span memory pointers the register decoder fills in now, so the renderer
@@ -571,8 +578,8 @@ by an audit; the fourth is the program itself.
 - **The native frame.** The power-on path and the interrupts' entries are
   hand ports (`core/console.c`; history/reimplementation-chunks.md, "Phase 3, field and events: the
   console's start and the field's frame"), and so is everything the library's
-  48 movies run: `ct_dev --native on --generated off --no-interpreter strict
-  --sound-driver c`, the hand ports and the C sound driver with no code
+  48 movies run: `ct_dev --native on --generated off --no-interpreter
+  strict`, the hand ports and the C sound driver with no code
   generated from the ROM and no interpreter, carries every movie to its end
   but two added to find where it doesn't (`events-magic-cave`,
   `field-12kbc-after-the-fall`; TODO.md, "Refusals in real play"),
@@ -669,33 +676,46 @@ by an audit; the fourth is the program itself.
      leave `game/registry.c`, its entry wrappers and leaves files are
      deleted, its entries become ordinary functions its callers call, and
      its guards become assertions. The dev build keeps the registry for the
-     subsystems still under the gate.
-
-     **The sound driver's, the first.** The C sound driver (`game/sound/`)
-     has no machine in it but the one escape its command `$FD` asks for (an
-     S-DSP register by number, which the native mixer decodes); what had the
-     machine was the CPU half (`core/sound_driver.c`). Its game side, the
-     commands handed to a driver the host plays, is a file of its own
-     (`core/sound_commands.c`), and on the machine too a host's driver takes
-     the commands and the boot as calls (`au_command`'s SNES backend, through
-     the APU's `host_send`; `field_first_start`), so the shipping mode enters
-     nothing of bank `$C7` by the machine (the census, above). `ct_native`
-     doesn't link `core/sound_driver.c`, as it doesn't link `registry.c`
-     (`machine_joints.py`'s second column). What stays, and why: that file's
-     9 registry rows, its wrappers, its 2 stops and its 29 scaffolding writes
-     are the protocol the original's driver on the sound processor is spoken
-     to in, which the gate's reference play still plays (shadow mode compares
-     the CPU half against the original's at every call, the sound lockstep
-     checks the C driver against the original driver it feeds, and
-     `--sound-driver original` plays it), and which a SNES build (target 3)
-     needs as it is. They go when the original's driver leaves the gate; the
-     lockstep is then the C driver's check, and the routes the rest. The
-     callers' `PfOrigin`s at `au_command` are the service's, used only by the
-     SNES backend.
+     subsystems still under the gate. The sound driver's went first
+     (REIMPLEMENTATION.md, "The sound driver's teardown"): what it showed the
+     next subsystem is that a retired subsystem's code still runs in the
+     reference play, as the cartridge's, and the measures that count the
+     original's code (the fallback measure, the burndown) are told it is
+     retired rather than unported.
   4. **Last, the machine leaves the product.** When no subsystem is under
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is
      `ct_native`.
+
+- **The code no movie reaches, checked before its subsystem retires.**
+  36.3 KiB of live code runs in no movie, 32.7 KiB of it ported and so far
+  checked by nothing but fuzzing where it was fuzzed (movies-wanted.md,
+  "Totals"). Retiring a subsystem's gate takes away the original to compare
+  it with and turns its guards into assertions, so what the subsystem has no
+  movie for is checked first, while the original is still there: a movie or
+  route that reaches it, or its ports fuzzed against the original on states
+  built for the paths (`ct_fuzz`). Measured per subsystem by the library's
+  `--coverage` against `burndown.py`'s live code; a subsystem retires with
+  that list empty or each remaining run named in TODO.md with why it is safe.
+- **The game's state as C, not a work-RAM image.** Even `ct_native` keeps the
+  game's state as the 128 KiB byte image the accessors read and write, which
+  is the original's memory layout carried into the product. When a subsystem
+  retires the gate, its variables move out of the image into C structs behind
+  the same accessors (generated from `re/ram.toml`, so the ports don't
+  change), and what the original shared through one cell becomes a field one
+  module owns. Saves are written from and read into the structs, and a
+  cartridge save (`.srm`) still loads. Measured by the share of `re/ram.toml`'s
+  variables still backed by the image; done when none is.
+- **Validation after the teardown.** With no original, the gate holds
+  behaviour by what was recorded from it while it existed: each movie's
+  outcome (the saved game and save RAM at its end, and digests of the picture
+  at checkpoints, never the bytes), the routes' outcomes, the sound's digests
+  (as the sound driver's teardown did), and the guards as assertions. Each
+  subsystem records its outcomes from the reference play in the commit before
+  it retires and names the checks that replace its comparison in its
+  teardown section; the last subsystem to retire is the one that leaves no
+  reference to record from, so these are built as the subsystems go, not at
+  the end.
 
 **Assets: imported once from the user's ROM, then loaded by name.** The
 ports reach ROM data through named accessors (`*_data.h`), every byte of it in

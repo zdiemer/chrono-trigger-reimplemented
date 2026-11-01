@@ -1,5 +1,6 @@
 /* The guards the field's entries run under, and what the entry wrappers and
  * bridges share (field/bridge.h). */
+#include "charge.h"
 #include "field/bridge.h"
 
 #include "platform/timing.h"
@@ -61,19 +62,9 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
         s->cpu.s = stack;
         return long_call ? bridge_call_long(s, site, routine, dont_care, m) : bridge_call(s, site, routine, dont_care, m);
     }
-    NATIVE_TIME_AS(s, routine, entry(s));
+    TIMED_AS(state_of(s), routine, entry(s));
     bool returned = s->cpu.s == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
     return returned && bridge_back(s, returns_to, m);
-}
-
-bool field_go_on_with(Snes *s, uint32_t routine, void (*entry)(Snes *))
-{
-    m_jump_to(s, routine);
-    const NativeEntry *e = native_hand_entry(s);
-    if (!e || e->fn != entry)
-        return false;
-    NATIVE_TIME_AS(s, routine, entry(s));
-    return true;
 }
 
 bool field_run_table_step(Snes *s, uint32_t site, bool (*step)(Snes *))

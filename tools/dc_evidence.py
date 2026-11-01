@@ -124,7 +124,7 @@ def main(argv=None) -> int:
     ap.add_argument("--rom", type=pathlib.Path, default=ROOT / "roms" / "ct-usa.sfc")
     ap.add_argument("--out", type=pathlib.Path, help="where the traces go while compared (default: a temporary directory)")
     ap.add_argument("-j", "--jobs", type=int, default=1,
-                    help="game processes at once (each movie's variants run sequentially)")
+                    help="child processes at once; each movie runs its variants sequentially")
     ap.add_argument("--movies", nargs="*", help="only these (the counts then won't match the notes')")
     args = ap.parse_args(argv)
 

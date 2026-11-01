@@ -335,7 +335,7 @@ void battle_update_scroll_dispatch(Snes *s)
 {
     GameState *g = state_of(s);
     BattleScrollMode mode = scroll_mode(g);
-    NATIVE_TIME_AS(s, scroll_routines[mode], battle_scroll_layers(g, mode));
+    TIMED_AS(g, scroll_routines[mode], battle_scroll_layers(g, mode));
     finish_fill(s);
 }
 
@@ -359,7 +359,7 @@ bool battle_scroll_the_layers(Snes *s)
     BattleScrollMode mode = scroll_mode(g);
     if (!a_high_clear(s))
         return battle_call(s, FRAME_WORK_SCROLLS, SCROLL_DISPATCH, DC_X | DC_Y | DC_FLAGS | DC_AL);
-    NATIVE_TIME_AS(s, scroll_routines[mode], battle_scroll_layers(g, mode));
+    TIMED_AS(g, scroll_routines[mode], battle_scroll_layers(g, mode));
     s->cpu.a = BATTLE_PAGE;   /* as the fills leave it */
     return true;
 }

@@ -117,10 +117,10 @@ void field_finish_the_frame(GameState *g, Platform *pf)
 /* ---- The routines it calls on the machine ------------------------------------------------------- */
 
 /* The original's routines; the palettes' animation, a port called through
- * the original's jump to it at $FD:FFF7, an entry of its own; and the sound driver's start,
- * a port that waits on the sound processor across frames, which only a call
- * can run: it hands every register back as it found it, A's low byte and the
- * flags aside. */
+ * the original's jump to it at $FD:FFF7, an entry of its own; and the
+ * cartridge's start of its sound driver, which uploads it to the sound
+ * processor across frames where the reference play runs it, and hands every
+ * register back as it found it, A's low byte and the flags aside. */
 enum {
     SOUND_DRIVER_BOOT = 0xC70000,
     THE_BOOT_IGNORES = DC_AL | DC_N | DC_V | DC_Z | DC_C,
@@ -212,17 +212,17 @@ static void wake(GameState *g, Platform *pf)
 // $C0:000E
 /* The field's first start, at power-on: the sound driver started, and the
  * cartridge's saves looked at, which starts a new game where there are none
- * (menu/saves.h). Here the driver is one a host plays (core/sound_driver.h),
+ * (menu/saves.h). Here the driver is one a host plays (core/sound_commands.h),
  * and the field's entry follows. */
 void field_power_on(GameState *g, Platform *pf)
 {
     wake(g, pf);
-    TIMED_AS(g, SOUND_DRIVER_BOOT, (void)sound_driver_host_boots(g, pf));
+    (void)sound_driver_host_boots(g, pf);
     TIMED_AS(g, MENUS_SERVICES, start_from_the_saves(g, pf));
 }
 
-/* On the machine the driver may be the original's, whose boot waits on the
- * sound processor across frames: a call the machine makes, where no host
+/* In the reference play the driver is the cartridge's, whose boot waits on
+ * the sound processor across frames: a call the machine makes, where no host
  * takes the boot as a call (the C driver's, as field_power_on's). The menus'
  * service keeps the X and Y it is given as its arguments, which this one
  * doesn't read: the original leaves the last clear's size in X. */
@@ -235,13 +235,12 @@ void field_first_start(Snes *s)
     wake(g, pf);
     s->cpu.x = power_on_clears[POWER_ON_CLEARS - 1].bytes;
     ORIGINAL_EFFECT(leave_the_page_in_a(s));
-    bool hosted;
-    TIMED_AS(g, SOUND_DRIVER_BOOT, hosted = sound_driver_host_boots(g, pf));
+    bool hosted = sound_driver_host_boots(g, pf);
     if (!hosted && !bridge_call_long(s, 0xC00053, SOUND_DRIVER_BOOT, THE_BOOT_IGNORES, page(s)))
         return;
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)s->cpu.y, (uint8_t)s->cpu.x));
-    NATIVE_TIME_AS(s, MENUS_SERVICES, start_from_the_saves(g, pf));
+    TIMED_AS(g, MENUS_SERVICES, start_from_the_saves(g, pf));
     ORIGINAL_EFFECT(party_service_answered(g, SERVICE_POWER_ON, &call));
     m_stop_at(s, ENTER, ENTERING_READS_NOTHING);
 }
@@ -506,7 +505,9 @@ void field_frame_work(Snes *s)
     if (!do_the_frame_work(frame_work_step_on_the_machine, s))
         return;
     m_rep(s, CPU_FLAG_X);
-    if (!field_go_on_with(s, SPRITE_TABLE, field_build_sprite_table))
+    if (field_sprite_rows_drawable(s))
+        TIMED_AS(state_of(s), SPRITE_TABLE, field_build_sprite_table(s));
+    else
         m_stop_at(s, SPRITE_TABLE, 0);
 }
 
@@ -815,11 +816,10 @@ static bool refreshed_on_the_machine(void *ctx)
     return field_run(s, 0xC000EE, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects, page(s));
 }
 
-enum { THE_WAIT_SETS_A = DC_A | DC_N | DC_Z };
-
 static bool waited_on_the_machine(void *ctx)
 {
-    m_stop_at(ctx, FIELD_FRAME_WAIT, THE_WAIT_SETS_A);
+    Snes *s = ctx;
+    TIMED_AS(state_of(s), FIELD_FRAME_WAIT, field_finish_frame(s));
     return false;
 }
 
@@ -865,15 +865,15 @@ enum { LONG_WARP = 0xFDDA00, SHORT_WARP = 0xFDDA5F, SHORTEST_WARP = 0xFDDABE, FL
 static void start_the_scene(Snes *s, uint8_t scene)
 {
     if (scene == SCENE_LONG_WARP)
-        m_stop_at(s, LONG_WARP, THE_SCENE_READS_A);
+        m_stop_at_own(s, LONG_WARP, THE_SCENE_READS_A);
     else if (scene == SCENE_SHORT_WARP)
-        m_stop_at(s, SHORT_WARP, THE_SCENE_READS_A);
+        m_stop_at_own(s, SHORT_WARP, THE_SCENE_READS_A);
     else if (scene == SCENE_SHORTEST_WARP)
-        m_stop_at(s, SHORTEST_WARP, THE_SCENE_READS_A);
+        m_stop_at_own(s, SHORTEST_WARP, THE_SCENE_READS_A);
     else if (scene > SCENE_SHORTEST_WARP)
-        m_stop_at(s, FLICKERING_WARP, THE_SCENE_READS_A);
+        m_stop_at_own(s, FLICKERING_WARP, THE_SCENE_READS_A);
     else
-        m_stop_at(s, SCENE_ENGINE, THE_SCENE_READS_A);
+        m_stop_at_own(s, SCENE_ENGINE, THE_SCENE_READS_A);
 }
 
 /* As C: the scene the field ends into, the scene engine's or a time gate's
@@ -906,7 +906,7 @@ void field_closed_into_the_scene(GameState *g) { program_goes_on_to_a_scene(g, S
 void field_close_into_the_scene(Snes *s)
 {
     hand_over_the_scene(s, SCENE_FIELD_CLOSES_INTO);
-    m_stop_at(s, SCENE_ENGINE, THE_SCENE_READS_A);
+    m_stop_at_own(s, SCENE_ENGINE, THE_SCENE_READS_A);
 }
 
 /* The frame done, the main loop waits for the vblank handler to take it.

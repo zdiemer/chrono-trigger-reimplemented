@@ -33,6 +33,108 @@ when the next chunk of the same stream lands, the one before it moves to its
 history file in the same commit. What stays here is one worked example per
 stream, not the whole run of them.
 
+## The menus' machine joints
+
+The screen bridges continue into their next screen step as C: opening and
+closing screens, pointing at equipment, returning to the main menu, fades,
+sounds and saving in a slot. The vblank upload continues into the queued
+uploads; the NMI entry retains its comparison checkpoint. Guarded
+continuations retain the original stop when a callee refuses. These are the
+gate's bridges; the native program already uses the screens' game-state
+sequences and task coroutines.
+
+The scripts call map scrolling, drawing and the sound mailbox as game-state
+functions, without making an emulated return frame. A table selects 55 other
+registered wrappers as C behind their guards. Unknown or refused targets
+still use the near/far fallback. The two curtain routines retain their entry
+boundaries: inlining them attributes the scene RNG's accepted shared-scratch
+reads to the interpreter, outside their existing effects evidence. Retiring
+that dependency belongs with the scene engine. No exception was added.
+
+Across the 21 assigned bridge, display, frame, list, object, task and
+description files, the machine-joint count is 560 to 500: returns 157 to 157,
+stops 56 to 22, counted call-outs 18 to 6, machine time tags 15 to zero,
+register escapes two to two, video calls 58 to 58, scaffolding 254 to 255.
+The shared map helpers add no joint; the member-card wrapper adds one
+scaffolding result outside those 21 files. The register results exposed by
+joining the screen steps were the card's final queued upload and the last
+task stopped before the naming fade. Both are confined to machine wrappers.
+
+Narrowed shadow checks cover the menu sweep, buying and equipping, New
+Game+, save points, field menus, End of Time and the attract sequence.
+The script chunk's differential fuzz compared 1,832 states over fifteen
+cases; the continuation chunk compares 1,418 over eleven cases, all with
+zero mismatches before and after (seed 1, existing constraints). Fuzz has
+no active registry, so guarded continuations use their fallback there;
+the movies exercise their C paths. The original card and naming failures
+were fixed without widening don't-care sets. Per-entry counts and the
+limits of each check are recorded in `ports.tsv`.
+
+The once-only sampled gate, before restoring the NMI checkpoint, has zero
+mismatches over 37 shadow movies. Trace identity passes for 7,200 frames;
+timing covers 1,812 entries and 163,540,413 stretches within the existing
+limits, and vblank has no unexcepted finding. All 56 routes reach their
+outcomes in shipping mode and with scaffolding compiled out; that build
+also completes all 37 movies with no excepted failure. Every other gate
+check, including evidence regeneration, passes, but its last line is
+`FAILED: uncompared`: joining the NMI work matches its outer entry while
+abandoning all 51,429 nested `menu_nmi_work` comparisons. Its checkpoint is
+therefore retained, without adding an exception or changing the shared
+comparison tools. The full sampled gate is not repeated. There are no
+calibration or exception changes. The Python unit suite reports OK after
+467 tests, with ten skipped.
+
+After retaining the checkpoint, `menu`, `menus-sweep` and `menus-epoch`
+have zero mismatches: `menu_nmi_enter` and `menu_nmi_work` each compare and
+match all 8,358 calls, none interrupted or abandoned. Trace identity and
+timing pass on these follow-up runs. The narrowed suite ends `suite OK`,
+including the comparison ratchet, effects, port style and port smell checks;
+both fast routes pass in shipping mode and with scaffolding compiled out.
+This follow-up does not repeat the long routes or evidence regeneration.
+
+Review restored the callee guard on the save-point screen's continuation
+from `$C2:D506` to `$C2:CF0A`. A movable cursor does not imply that the
+shown save slot is valid. `menu_go_on_in` now retains the callee's refusal
+and the original stop's live high accumulator byte. The new invalid-slot
+fuzz variant presses choose with slots 4 through 255: seed 1 compares all
+2,000 states after the fix, with zero mismatches, skips or out-of-range
+accesses. Before it, only 140 compare and 1,860 skip; a diagnostic run of
+100 states reports 100 out-of-range slot reads. Shadow runs of
+`menus-save-point`, `menus-field-menu` and `menus-sweep` have zero mismatches.
+No fuzz domain was narrowed, and no sampled gate was run for this review.
+
+The evidence helper now runs each movie's variants sequentially, so its
+worker count also caps all child processes, including trace comparisons.
+The concurrent regression test observes eight children with the previous
+launcher and at most two with two workers after the fix; all four variants'
+results, including failures and evidence counts, remain accounted for.
+
+The merged gate exposed the capsule iris's reads of the circle renderer's
+scaffolding under the newly joined script caller: the radius at
+`$7E:0354-0355` and center line at `$7E:0352-0353`. The capsule now takes
+its center and radius from the menu object's real state, keeping the radius
+in a local through the copy loop; its return-position calculation uses the
+same object state. The circle's comparison-only writes remain scaffolding.
+Both capsule entries compare and match 1,938 states each before and after
+(seed 1, 2,000 iterations each, 62 unchanged guard refusals each). No guard,
+fuzz domain, calibration or effects exception was changed.
+The `events-ocean-palace-lavos` shadow run matches all 235 and 152 capsule
+calls, and 33,394 script calls with four interrupted. This worktree's
+power-on shipping replay does not reach the capsules, unlike the reported
+merged-tree run; the shadow and differential fuzz checks cover the changed
+path. No full sampled gate was run for this fix.
+The requested one-movie suite ends `suite OK`, including vblank, effects,
+portstyle and portsmell; both fast routes also pass with scaffolding
+compiled out.
+
+Remaining stops belong to task switches and held waits, reset and mode
+boundaries, invalid script dispatch, comparison checkpoints and guard
+fallbacks. In particular the menu-entry boundary still owns nested shadow
+checkpoints, as documented
+beside `menu_mode_enter`. The two WRAM transfers need a memory service that
+preserves the gate's transfer effects. Registered return wrappers cannot
+leave until their original callers and registry entries retire together.
+
 ## Time in hand ports
 
 Generated code keeps the original's time to the instruction
@@ -2415,7 +2517,7 @@ clear, which no stretch of the library completes, from its loop.
 The fallbacks' stream (history/reimplementation-chunks.md, "Phase 4a, the
 shipping mode's fallbacks, chunk 10", for the one before), chosen by a new
 measure: how far each movie gets on the hand ports alone. `ct_dev --native on
---generated off --no-interpreter strict --sound-driver c` runs no code
+--generated off --no-interpreter strict` (the C sound driver) runs no code
 generated from the ROM and no interpreter, so the first instruction no port
 runs ends the run. Before this chunk no movie got past frame 3,779: 41 of the
 42 stopped at the menus' way in (`$C2:8000`) by frame 1,699, and the attract
@@ -2573,8 +2675,8 @@ where the search finds it, is unchanged.
 
 **Numbers.** Strict mode: 0 of the 42 movies reached their end before (41
 stopped at `$C2:8000` by frame 1,699, the attract demo at `$CD:0000` at 3,778);
-all 48 do now, 31 of them ending with the reference play's saved game. The shipping mode (`--native on --generated on --sound-driver
-c`) runs none of the original's code over the 48 movies (0.09 M instructions
+all 48 do now, 31 of them ending with the reference play's saved game. The shipping mode (`--native on --generated on`, the C
+sound driver) runs none of the original's code over the 48 movies (0.09 M instructions
 over 42 before), and 18,033 over the 21 routes (0.06 M), all hand-backs: the
 program's start's in the Black Tyrano's route (14,992, `$7E:350E`), the vblank
 list's and the battle's calling in (`$FD:A990`). Reference play over chunk 10's
@@ -2898,12 +3000,27 @@ timing. There the runtime's same calls mark what a port stands for -- from the
 original's arrival at a port's entry until it reaches the port's call-out,
 stop or return, the original is running the port's work and isn't counted --
 and an idle entry's pass of its wait loop, counted as the original runs it, is
-taken back when the loop comes round to its head (the pass that leaves stays
-counted); a pass an interrupt cuts is kept aside while the handler runs and
-goes on where the handler returns to it, so it is taken back too. A
-comparison's stretch goes on across a switch of stacks (S rising further in a
-step than an instruction pulls, as the menus' task switch moves it) until the
-runtime says the comparison is over, as an interrupt entry's does. A port's
+taken back when the loop comes round to its head. The pass that leaves the
+wait is taken back too where it ran nothing but the loop's own instructions
+and a hand port's entry takes over at the exit, or where it returned having
+run only the bytes its entry declares, the loop's and its return's
+(`NativeEntry.idle_return_span`: the warp's frame wait, and the scene
+scripts' wait for the music, which returns every frame until the music gets
+there); any other leaving pass stays counted, since what follows a loop's
+exit, or a helper it calls, can be the original's. A pass an interrupt cuts is kept aside while the handler runs
+and goes on where the handler returns to the S it was cut at, so it is taken
+back too. A comparison's stretch goes on across a switch of stacks (S rising
+further in a step than an instruction pulls, as the menus' task switch moves
+it) until the runtime says the comparison is over, as an interrupt entry's
+does. A comparison the runtime gives up because an interrupt's handler moved
+to a stack of its own above the routine's (the menus' vblank handler: shadow
+mode can't compare a routine whose stack the handler left) keeps its stretch,
+uncompared, where the port's run had ended by then: the handler comes back
+to the routine, and what the original runs of it from there is still the
+port's, until the routine returns, the original reaches where the port
+stopped (from there it is handed back, as at any stop), the handler comes
+back to another stack, or the routine's task is switched away from
+(`NativeObserver.given_up` says where the port's run ended). A port's
 call-out that moves onto a stack of its own and comes back
 (`NATIVE_STACK_SWITCH_DISTANCE`, the pixels' spread) stays the call-out's
 until it returns, as the runtime waits for it; and where the runtime sets the
@@ -2911,10 +3028,14 @@ comparisons nested in a port's stretch aside at a call the port makes, the
 port's stretch goes on from the caller's level, so the callee, itself a port
 (the scene program's unpacker), doesn't end it. That count changes only when a port does. It costs the shadow runs
 nothing measurable (gato-battle 47 s with it, 49 s without). The shipping
-mode's count is still made, over every movie (`--native on --generated on
---sound-driver c`, 43 s for the library) and the routes (`route_check
+mode's count is still made, over every movie (`--native on --generated on`,
+43 s for the library) and the routes (`route_check
 --fallbacks`, `$CT_DRIVE_FALLBACKS` through `tools/movies/ctdrv.py`), and
-reported beside it. A route's count is over the frames it kept: as the run
+ratcheted on its own, loosely: `tools/fallback_shipping_baseline.txt`, judged
+as a subset since its counts wander with timing, fails on a routine it doesn't
+have or on more distinct bytes or instructions past the slack in one. It is
+the backstop for the reference play's: whatever that measure counts as a
+port's that the ports don't run shows here. A route's count is over the frames it kept: as the run
 ends, the input it kept is played again from its start by a `ct_drive` that
 counts (`Machine.count_kept_frames`), so a search's probes, the attempts a
 restore undid and the frames a load replays from a base are left out, and a
@@ -3056,9 +3177,7 @@ service's to take away, not a caller's. The runtime's census hooks
 (`native_census_hooks`, port/native.h) carry the two counts the observer
 doesn't. `tools/census.py --ct-dev build/main/ct_dev` plays the library and
 adds the files up; `--files` reads ones already written, `--entries` lists
-every entry. It plays the C sound driver, as `ct_play` does;
-`--sound-driver original` counts the original's driver, which only the
-gate's reference plays now (below).
+every entry. It plays the C sound driver, as `ct_play` does.
 
 Over the 48 movies (shipping mode, chunk 11's tree): **259 entries are entered
 by the machine, 21.5 M times**, none of them from the original's code -- 1.9 M
@@ -3079,34 +3198,78 @@ run as C. What holds the most entries to the registry, by distinct entries:
 
 ### The sound driver's teardown
 
-The first subsystem taken off the machine in the product (PLAN.md, "The
-native program, and the registry taken down", step 3). The C sound driver
-(`game/sound/`) had no machine in it already but the escape its command
-`$FD` asks for; the CPU half in bank `$C7` (`core/sound_driver.c`) had all
-of it. Two halves were one file: the protocol the original's driver is
-spoken to in (the boot's upload, the commands' and songs' transfers, the
-slots' records, the entries' wrappers, the two wait loops and the
-scaffolding shadow mode compares), and the few lines that hand a command to
-a driver the host plays. The second is `core/sound_commands.c` now, and
-`ct_native` links it and not the first, which CMakeLists.txt leaves out of
-its sources beside `registry.c`; `tools/machine_joints.py` counts the joints
-in what `ct_native` links as a second column (returns 987 to 982, stops 177
-to 175, scaffolding writes 2,061 to 2,032).
+The first subsystem taken off the gate (PLAN.md, "Retiring the gate,
+deliberately"; "The native program, and the registry taken down", step 3),
+on purpose: the gate no longer compares sound with the original's. The C
+sound driver (`game/sound/`) is the only driver anything of ours plays --
+`ct_play`, `ct_drive`, `ct_native` and every `ct_dev` run of the hand ports
+(`--native on`, not `--generated only` or `--load-zst`) -- and it takes the
+game's boot and commands as calls (`core/sound_commands.c`: `au_command`'s
+SNES backend hands the buffer to the host, `field_first_start` and
+`field_power_on` the boot). There is no `--sound-driver` any more.
 
-On the machine the shipping mode called out to `$C7:0004` for every command,
-and the entry handed it to the host: 25.5 K entries by the machine over the
-84 movies, the boot's 100 more, and 16 entries the machine came back to
-after them (`menu_type_the_description_task` and the menus' others, waiting
-across a command). The audio service's SNES backend now hands a command to
-a host-played driver as a call (the APU's `host_send`, which
-`frontend/sound_host.c` points at `sound_driver_hand_the_buffer_to_the_host`),
-timed as `$C7:0004`'s work (`native_time_as`), and the field's power-on
-takes the host's boot as C before it would call out; with no host (the
-original driver: the reference play, the lockstep, `--sound-driver
-original`) both call out as before. The census enters nothing of bank `$C7`
-by the machine (266 entries to 264). The rows, wrappers and scaffolding
-stay for the gate, which plays the original's driver; PLAN.md says what
-retires them.
+**Deleted.** The port of the CPU half in bank `$C7` (`core/sound_driver.c`:
+the boot's upload, the commands' and songs' transfers, the slots' records):
+its 9 registry rows, its entry wrappers (5 returns through the emulated
+stack), its 2 stops and its 29 scaffolding writes, with its rows in
+`docs/ports.tsv`, `tools/fuzz_routines.toml` (and `ct_fuzz
+--apu-port1-flips`, which only they used), `tools/effects_baseline.txt`,
+`tools/uncompared_baseline.txt` and `tools/fallback_baseline.txt`. The
+audio service's waits it alone made (`au_driver_exchange`, `_wait_moved`,
+`_wait_echo_or_give_up`); the APU-direct backend (`--audio direct`), which
+ran the original's driver out of the machine's time from those entries; the
+sound lockstep (`ct_dev --sound-lockstep`, `dev/sound_lockstep.c`,
+`sound_compare.c`, `sound_state.c`, `sound_audio.c`) and `ct_sound_fuzz`'s
+mode against the original; `ct_dev --apu-port-margins`. `tools/machine_joints.py`:
+registered entries 2,189 to 2,180, returns 993 to 988, stops 177 to 175,
+scaffolding writes 2,066 to 2,037. The census (84 movies) enters nothing of
+bank `$C7` by the machine, as before (the shipping mode had handed the
+commands to the host as calls already): 284 entries by the machine, 17 of
+them wait loops, and 1,366 run only as C, two fewer than before for the time
+tags the commands and the boot were charged under (`$C7:0004`, `$C7:0000`),
+which went with their rows: a command's own C is the caller's time now, and the time the original's driver took is the time model's
+(`platform/time_model.h`), as before.
+
+**What replaces the comparison.** Checks that need no original:
+- `sound_test` (no ROM, CI): the driver on a made-up cartridge as it was,
+  and now the host as the player plays it -- the boot and a run of the
+  game's commands as calls, heard through the S-DSP and the native mixer
+  side by side, every frame the same, the sound's 64-bit FNV-1a digest the
+  one the test keeps;
+- `ct_sound_fuzz` (the gate): random command streams, half as the game's
+  calls and half through the ports as the scenes send them, with the game's
+  songs and with made-up ones; every command answered, no sample placed
+  where the echo writes, none dropped, the mixer's every frame the S-DSP's,
+  and each kind of run's digest the one `tools/sound_golden.txt` keeps
+  (`9b3ab44a6678e66a` and `a36313e5e19a4d59`). A digest is a hash of our own
+  output, nothing of the cartridge's; one that moves is a change to what the
+  driver plays, taken on purpose;
+- the host's faults in every run that plays it (`sound_host_report`: a
+  sample where the echo writes, a command dropped, exit 1), which the strict
+  check, the native shape and the vblank check's shipping runs see; and the
+  routes, which reach their outcomes with it.
+
+**The reference play keeps the cartridge's driver, and why that is sound.**
+Shadow mode, `--native off` and `--generated only` (and `ct_play`'s movie
+replay and recording, and a ZSNES state) are the cartridge on the emulated
+console: the original runs everything at its own timing, and the movies were
+recorded against it. The console's sound processor running the cartridge's
+driver, and the cartridge's CPU half speaking to it, are part of that machine
+as the PPU is: they set when the CPU half's waits end, and so the frame every
+press lands on. Putting the C driver there would make the reference play's
+timing the time model's, which only estimates the original's, and move every
+movie off where it was recorded. So nothing about the reference changed: the
+other subsystems' shadow comparisons are a port against the original from
+the same machine state, as before, and `--generated only` is still
+trace-identical to `--native off`. What changed is that no port stands for
+bank `$C7` there, so a port's sound command in shadow mode calls out to the
+cartridge's CPU half on the machine, uncompared. The measures that count the
+original's code are told it is retired rather than unported: the fallback
+measure doesn't count bank `$C7` where the cartridge's driver plays
+(`dev/fallbacks.c`; where the C driver plays it would, as nothing should
+reach it), and `tools/burndown.py` leaves the bank out ("Retired code"). A
+SNES build (target 3) needs a CPU half again: the cartridge's, from the
+matching source, or the deleted port from history (TODO.md).
 
 ### Scene continuations: contracts and review validation
 
@@ -3172,75 +3335,155 @@ The sampled gate is reserved for the merge coordinator and
 was not run for this review. The four requested code-structure follow-ups are
 in TODO.
 
+Merging main at `1fea6c49` keeps the sound CPU-half deletion: scene commands
+continue through the C driver's host ports. Their bounded echo wait retains
+the scene's 82-clock reference poll and held C continuation, with no direct
+execution adapter for the retired driver. The native backend gives the C
+driver time to answer through its host interface. The evidence runner has
+one sequential-child policy per movie worker; both branches' concurrency and
+result-retention tests are kept. The fallback ledger keeps main's measurement
+reductions and this branch's documented open-comparison ownership entries;
+retired menu code and completed scene stops are not restored. Both histories
+and port ledgers are retained, and PLAN reports the merged measurements.
+
+The merged tree builds with two jobs, including the matching check, and all
+15 C test executables pass. The Python suite runs 469 tests with ten skipped;
+its sole initial failure was PLAN's stale file count. Correcting that count
+and refreshing its style table leaves all eight tests in the affected module
+passing on rerun. Portstyle and portsmell pass. Full-length shadows of
+`attract-demo`, `events-epoch-lavos`, `events-jetbike-race-won`,
+`battle-lavos-gameover`, `events-end-of-time-gate`, `menus-sweep` and
+`endings-beyond-time` each exit successfully with zero mismatches. The sampled
+gate is left to the merge coordinator and is not run for this integration.
+
+
+### Direct continuations preserve their entry contracts
+
+Review found that a scripted menu could return with decimal mode set, while
+the directly called fade requires binary arithmetic. The field bridge checks
+native mode, widths, page and data bank, but not decimal mode. The scripted
+tail now checks the fade's complete registry contract (native mode, M8/X16,
+binary arithmetic, field page and low-RAM bank). Refusal stops at `$C0:2824`
+with the former tail's own don't-care set. Overworld setup and menu return
+have the same gap after their unpacker/menu bridges; both now check their
+callee's full contract and stop at `$C2:23CF` or `$C2:2556` on refusal.
+
+Every continuation made direct in the loop-joint chunks was checked against
+the actual registry P mask, emulation requirement and guard. All require
+native mode. The remaining proof, including decimal mode, is:
+
+| Continuation | Callee contract and caller guarantee |
+| --- | --- |
+| Scripted menu to fade | M8/X16, binary, field page, low-RAM bank: full check restored after the bridge. |
+| Frame work and objects-in-view to sprite table | M8/X16, field page, low-RAM bank; decimal permitted. Successful bridges preserve native mode, M8, page and bank zero; the caller restores X16. Both drawable-row checks remain. |
+| Object defaults to opening scripts | M8/X16, binary, field page, bank zero, bounded nonzero object count. The caller has the same requirements; defaults make no machine call-outs and change none of them. |
+| Field walk and ripple completion to frame completion | Only native mode and a low-RAM bank; all P values permitted. Their successful bridges preserve native mode and bank zero. |
+| Tile-copy completion to frame completion | Same preconditions are satisfied, but the interrupt boundary is restored as described below. |
+| Empty battle request to field walk | M8/X16, field page, bank zero; decimal permitted. Request entry and successful battle bridge guarantee these. |
+| Screen-effect close to scene close | M8/X16 and field page; decimal and any data bank permitted. Effect entry and successful bridges preserve these. |
+| Event fade to scene start | M8/X16 and field page; decimal and any data bank permitted. Event entry and successful bridges preserve these, including when the fade takes no steps. |
+| Overworld menu return to map restoration | M8/X16, binary, object page and low-RAM bank: full check after the menu bridge. |
+| Overworld setup to first frame | Same contract: full check after the unpacker bridges. |
+
+The three battle continuations were already restored to stops following the
+route regression. Changes that only replaced a timing tag on an existing C
+call do not change dispatch or its preconditions. The earlier chunks and
+their validation are in `history/reimplementation-chunks.md`.
+
+The tile-copy tail again stops before `field_finish_frame`. A timing scope
+only partitions the charge; it is not an interrupt-delivery boundary.
+Combining these operations lets frame completion increment
+`field_frame_pending` before the tile send's pending vblank is delivered.
+Returning to the runtime first preserves the former order: charge the tile
+send and deliver interrupts, then enter frame completion. No runtime,
+calibration, registry, exception or fuzz-domain changes were needed.
+
+**Validation.** Both game shapes build with two workers. Six narrowed shadows
+(`new-game`, `battle-menu-buttons`, `field-65m-bc-dactyl`, `menus-epoch`,
+`menus-field-menu`, `events-end-of-time-gate`) have zero mismatches. Requests
+compare 6,398 of 6,411 calls, overworld loop 6,202 of 6,213, setup all eight,
+and map restoration its one call. These entries have no interrupted calls;
+the remaining calls were abandoned within enclosing comparisons.
+Same-seed before/after fuzz of eight request variants and the two overworld
+entries compares 2,064 states on each binary, zero mismatches and identical
+skips. All 200 setup states still exceed the existing comparison budget;
+the request/loop domains stop before the changed tails.
+
+Focused scratch probes therefore exercise the actual scripted tail and shared
+overworld check against the registry's own masks and guards: all 256 P values,
+both emulation modes, all 256 banks and four pages (524,288 configurations).
+The fade accepts 4,128 and refuses 520,160 at its original entry; both overworld
+contracts match throughout. Another 10,000 randomized CPU states, with each
+pending-NMI/IRQ combination, confirm the tile tail stops without calling frame
+completion or changing the CPU beyond its destination. This checks the boundary,
+not cycle-by-cycle interrupt execution. Both probes fail on the predecessor.
+The style and smell ratchets pass. Static don't-care analysis reports zero
+findings; it has no call logs, so it does not establish dynamic coverage.
+No sampled gate was run for this correction; the merge coordinator owns
+integration validation.
+
+The assigned-file census rises from 1,748 to 1,752: stops 52 to 56, all other
+categories unchanged. Against the branch's original 1,799, this retains 47
+fewer joints: stops 62 to 56, registry lookups three to two and ordinary
+machine timing tags 40 to zero. Main-loop stops are field 13, battle six and
+overworld five. The remaining contracts are recorded in TODO.
+
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 
-Chosen by size from `tools/fallback_baseline.txt` and from the movies
-`tools/strict_baseline.txt` still stopped short: 5.8 million of the
-library's 6.7 million instructions run in place of hand ports were one
-routine of Zeal's fall, and five movies stopped on the hand ports alone.
+### The largest fallbacks left, 2: what the measure counted that the ports run
 
-- **The palace shaking apart** (`$C6:E5C5`, `menu_object_ripple_the_first_plane`,
-  `menu/line_effects.c`). A scene's script in the sprite-object mode calls it
-  every frame by far call; `menu_run_object_script` had no row for it, so the
-  program handed the scene's objects back. It ripples the first plane: each of
-  the 224 lines scrolled by the plane's scroll plus a push of up to four lines
-  from the menus' wave sizes (`menu_wave_size`, a step of 8 of 1024 a line and
-  8 a frame), into the slot-3 table the frame's count picks, which it shows.
-  The second half of the turn rounds away from zero, and a size of nothing
-  there comes out as 256 lines up -- the original's sign extension of it,
-  kept, which the plane's wrapping hides. Two more routines the same scene
-  calls were the next stops: `$C6:E694` (`menu_object_place_about_the_view`,
-  an object put at random about the view, `menu/object_commands.c`) and
-  `$C2:7BD1` (`menu_object_note_the_song`, the song the scene leaves playing
-  named as the field's current song), the strict stop of
-  `events-ocean-palace-lavos`. Each is a row of the scripts' routine tables
-  and a registered entry, one function for both.
-- **The leader's walk with nobody to walk** (`field_walk_the_leader`,
-  `field/walk.c`). The guard turned away a leader's place whose word isn't an
-  object (North Cape's flashback and Zeal's fall leave it `$FFFE`) before
-  asking whether the walk steps at all; with no step the walk reads nothing
-  of the leader's, so the guard now asks that first. The recentring's guard
-  likewise asks only where it looks at the leader: as it starts with the
-  screen off the grid.
-- **A leader above the map** (the same). The guard's bound down -- a place
-  above `$FF00` -- turned away Marle jumping onto the Epoch at Dalton's
-  (`$FFBD`), on a reason fuzzing doesn't bear out: with the bound dropped,
-  15,000 states with the leader's place `$FCxx`-`$FFxx` and anywhere across
-  compare without a mismatch. What the reason described is the right end:
-  past `$FF8F` across, 17 of 4,000 mismatch on the slope's cell, so that
-  bound stays.
-- **The confirm button and the Skyway's irises** were found already closed:
-  `battle-unequipped-armor` and `battle-zombor` no longer reach
-  `field_press_confirm` with a state its guard turns away, and the capsule
-  irises take a centre on the top line since the battle stops' merge. Their
-  strict lines and fallback rows had not been taken.
+Chosen by size from `tools/fallback_baseline.txt`: the three lines with no
+routine of their own, `C2:----`, `FF:----` and `7E:----` (0.51 M of its
+0.72 M instructions), and the scene scripts' wait for the music under
+`7E:398A` (50 K). The shipping mode ran none of them: over `menus-shop-equip`
+(`C2:----` 25,680, `FF:----` 129,885 in the reference play) and the attract
+demo the shipping mode runs no instruction of the original's. Each was the
+measure's (dev/fallbacks.c), not a port missing, so this chunk is the
+measure's three edges, found by following the extents at the first counted
+instruction of each (the menus' window commands' block move, `$C2:ED8B`; the
+scene program's main loop, `$7E:3023`).
 
-**Measured.** Shadow mode, `events-ocean-palace-lavos`: the ripple 1,017
-calls, the placing 43, the song 1, all matched; the movie's instructions in
-place of hand ports from 5.84 million to 2,813. The fallback baseline's rows
-for the eleven routines are gone (6.73 million instructions to 0.72 million
-over the library; the long Crono's trial hand run, rerun, no longer refuses
-the walk at the transfer to prison). Strict mode: `battle-dalton`,
-`battle-magus-north-cape`, `events-magus-joins`, `events-ocean-palace-lavos`,
-`events-zeal-palace`, `battle-unequipped-armor` and `battle-zombor` reach
-their ends (`drifts`, where they stopped at frames 25170, 8560, 8560, 25299,
-4109, 7594 and 20301). **Fuzzing**, seed 1 unless named: the ripple 0 of
-2,000; the placing 0 of 257 compared (the guard turns away columns past
-`$2000`); the song 0 of 2,000; the walk with no leader word standing 0 of
-5,000, above the map 0 of 15,000 over seeds 10-12; the recentring with no
-leader word 0 of 4,979 (`tools/fuzz_routines.toml`'s new variants).
-**Timing.** The three new rows calibrated from the movie's shadow run: the ripple at 21,502 (its first guess, 40,000, was 86% over), the placing at 3,467, the song at 1,917.
+- **A comparison a vblank handler gives up.** The menus' vblank handler moves
+  to a stack of its own above the interrupted routine's, and shadow mode
+  can't compare a routine whose stack its handler left: it ends every
+  comparison under it as interrupted (`native.c`, the `left` case). The
+  measure ended their stretches with them, so the rest of each routine after
+  the handler's return -- a window list half drawn, a shop's setup, the
+  records' number tiles in bank `$FF` -- ran with no extent and counted as
+  code with no call on record. Such a stretch now stays, uncompared, until
+  its routine returns, the handler comes back to another stack, or its task
+  is switched away from (`abandon_under_the_handler`, `settle_abandoned`).
+- **A pass an interrupt cuts, matched by the wrong S.** A wait loop's pass
+  an interrupt cut was taken back where the handler returned to the pass's
+  own S; one cut inside a routine the loop calls (the scene program's main
+  loop calls an empty one) came back with the routine's S, and stayed
+  counted: about a quarter of the main loop's passes in every movie that
+  plays the title. The pass is matched by the S the interrupt was taken at.
+- **The pass that leaves a wait.** It stayed counted, though the idle entry
+  makes that pass too: four instructions a frame of the warp's frame wait,
+  and all of the scene scripts' wait for the music, which returns every
+  frame until the music gets there. It is taken back where it ran only the
+  loop's instructions and a port takes over at the exit (the field's
+  screen-on wait), or returned having run only the bytes its entry declares
+  (`NativeEntry.idle_return_span`, set on those two waits), so a helper the
+  exit called, or a path the port refuses, stays counted.
 
-**What the gate found past the chunk.** With Zeal's fall going on in the
-native program, `events-ocean-palace-lavos` no longer stops at the scene's
-hand-back but plays on, about 4,750 frames late (presses through the Mammon
-Machine's dialog land on other frames from about frame 18000), into the
-reference's own black stretch before the Last Village, where it ends:
-`tools/native_check.py` takes a ledger of such runs now,
-`tools/native_dark_exceptions.txt`, with this one (TODO.md, "Long movies
-still desync on the hand ports alone"). `events-death-peak`,
-`events-fair-rescue` and it enter the places' baseline. The long routes'
-three refusals (`fionas_forest`'s departure, `castle_flea`'s facing
-command), open in TODO.md but off the allowlist since the battle stops'
-merge, are back on it as gaps; and `battle-golem-twins-gameover`, which
-drifts on the hand ports alone at this chunk's base as well, is `drifts`.
+The audit before merge asked for three more guards against hiding a gap:
+the shipping mode's count ratcheted (`tools/fallback_shipping_baseline.txt`,
+seeded over the sample and the long routes: six lines, 4,530 instructions,
+the refusals TODO.md's "Refusals in real play" holds and the program's empty
+routine under the vblank list), the leaving pass bounded by its entry's
+bytes rather than by what fits before a return, and a given-up stretch
+ended where its port stopped.
+
+**Measured.** Over the gate's 37-movie sample the reference play's count went
+from 425,995 instructions to 9,892 (`FF:----` 0, `C2:----` 1,525, `7E:----`
+160, `$7E:398A` 56, `$C2:5DC4`, `$C2:EFBE`, `$C2:8839`, the warp's waits and
+nine more menu lines 0), with the same `open` lines. The baseline takes the
+sample's fall line by line, the movies outside it held at their earlier
+counts until the library's batched run takes them: 0.72 M to 0.31 M. What
+the sample still counts is the scene program's own small hand-backs (the
+title's setup's call-outs, `7E:59D5` 1,680 the largest) and the sound
+command's wait (`7E:377E`). No port changed, so nothing was calibrated or
+fuzzed; the measure is checked by the shipping mode's count, 0 over the same
+menus' movies.

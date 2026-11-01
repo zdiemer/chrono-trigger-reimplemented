@@ -13,8 +13,8 @@
  * slide the reserve, are entries of their own, run the same way; so are the
  * gate's swirl (menu/gate_screen.c), the records' sprite load
  * (menu/sprites.c) and the song's changes. The main menu, the fade in, the
- * layout after the opening's tick and the leaving of the menus are jumps the
- * steps stop at.
+ * layout after the opening's tick and the leaving of the menus are C
+ * continuations, with a fallback when the sibling's guard refuses.
  *
  * Where the original waits inside routines the sequences run inline -- the
  * slide inside the reserve's scroll inside the cursor's move, the gate's
@@ -27,10 +27,12 @@
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
+#include "menu/display.h"
+#include "menu/fades.h"
 #include "menu/gate_screen.h"
 #include "menu/main_menu.h"
-#include "menu/menu_data.h"
 #include "menu/menu.h"
+#include "menu/menu_data.h"
 #include "menu/party.h"
 #include "menu/sound.h"
 #include "menu/sprites.h"
@@ -240,16 +242,16 @@ static void note(void *ctx, ExchangeNote n)
     }
 }
 
-/* The steps' ends are the original's jumps, which the port stops at. */
+/* The steps continue into their siblings as C, behind the siblings' guards. */
 static bool ends(void *ctx, ExchangeEnd end)
 {
     Snes *s = machine(ctx);
     switch (end) {
-    case EXCHANGE_BUZZES: m_stop_at(s, REFUSAL_SOUND, READS_A_HIGH); break;
-    case EXCHANGE_LAYS_OUT_THE_SCREEN: m_stop_at(s, LAY_OUT_THE_SCREEN, READS_NOTHING); break;
-    case EXCHANGE_BACK_TO_THE_MAIN_MENU: m_stop_at(s, MAIN_MENU, READS_NOTHING); break;
-    case EXCHANGE_LEAVES_THE_MENUS: m_stop_at(s, LEAVE_THE_MENUS, READS_NOTHING); break;
-    case EXCHANGE_FADES_IN: m_stop_at(s, FADE_IN, READS_NOTHING); break;
+    case EXCHANGE_BUZZES: menu_go_on_in(s, REFUSAL_SOUND, menu_play_refusal_sound, READS_A_HIGH); break;
+    case EXCHANGE_LAYS_OUT_THE_SCREEN: menu_go_on_in(s, LAY_OUT_THE_SCREEN, menu_lay_out_the_exchange, READS_NOTHING); break;
+    case EXCHANGE_BACK_TO_THE_MAIN_MENU: menu_go_on_in(s, MAIN_MENU, menu_back_to_the_main_menu_entry, READS_NOTHING); break;
+    case EXCHANGE_LEAVES_THE_MENUS: menu_go_on_in(s, LEAVE_THE_MENUS, menu_close_entry, READS_NOTHING); break;
+    case EXCHANGE_FADES_IN: menu_go_on_in(s, FADE_IN, menu_start_the_fade_in_entry, READS_NOTHING); break;
     }
     return false;
 }

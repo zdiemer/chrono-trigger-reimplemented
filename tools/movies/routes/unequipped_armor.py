@@ -145,7 +145,7 @@ def fight_spekkio(run, seed=1):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, sound=args.sound_driver, until=args.until)
+              native=args.native, generated=args.generated, until=args.until)
     machine = run.machine
     try:
         phases = ["loaded", "empty", "bridge", "north", "canyon", "lower", "upper", "gate", "spekkio", "won"]

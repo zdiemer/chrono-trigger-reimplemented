@@ -868,6 +868,14 @@ static bool every_draw_is_own(const GameState *g)
     return true;
 }
 
+bool field_sprite_rows_drawable(Snes *s)
+{
+    vars_peek(true);
+    bool drawable = every_draw_is_own(state_of(s));
+    vars_peek(false);
+    return drawable;
+}
+
 static void draw_by_the_port(Snes *s, FieldObject obj)
 {
     GameState *g = state_of(s);

@@ -83,7 +83,7 @@ register writes; the driver has no mixer of its own.
 | `$2000-$2EFF` | The current song: a relocation base, two sets of 8 track pointers (commands `$10`/`$14` start the first, `$11`/`$15` the second), then the tracks |
 | `$2F00-$46FF` | One of the two effect sets command `$70` switches between (block 1 is the first): a table of 4-byte entries, two track pointers per effect, then the effects' tracks. Events `$E9`/`$EA` also jump into it |
 | `$4700-$4900` | Block 2 (513 bytes: BRR data every song keeps) |
-| `$4901-...` | The song's samples, in the slots the CPU half allocates (`game/core/sound_driver.c`) |
+| `$4901-...` | The song's samples, in the slots the CPU half allocates (in bank `$C7`) |
 | `...-$F0FF` | The echo buffer, ending at `$F0FF` and growing down by 2 KiB per unit of EDL (`$1352`) |
 | `$F120-$F143` | The song's 12 percussion entries (instrument, note, pan), for tracks in percussion mode |
 | `$F160-$F171` | Three volume fades (music, effects on voices 6-7, effects on voices 4-5) |
@@ -152,7 +152,8 @@ half handles `$70` and `$71` itself, with uploads).
 
 ## Uploads
 
-`$100E` answers the CPU half's protocol (`game/core/sound_driver.c`'s header):
+`$100E` answers the CPU half's protocol (its port's header described it; the
+port is history now, REIMPLEMENTATION.md, "The sound driver's teardown"):
 a header with an SPC700 address on ports 2-3 and a kind on port 1, the data
 three, two or one byte a message, a counter on port 0 that starts at `$E0` and
 is echoed. The kind picks a receiver from the table at `$1544`: 3 bytes a
@@ -314,7 +315,7 @@ as a port; this is a few times that, dominated by the sequencer.
 driver to C, native mixer behind `au_*`":
 
 1. **The protocol cancels out.** In a build where the game and the driver are
-   both C, the CPU half's uploads and handshakes (`game/core/sound_driver.c`)
+   both C, the CPU half's uploads and handshakes (bank `$C7`)
    and the driver's receivers (`$100E-$129C`, `$0415`, the queue) do nothing
    but move bytes the driver could read itself: the song's sequence, samples and
    tables come from the same ROM resources `sound_data.h` already names. So the
@@ -387,9 +388,12 @@ Paths no movie reaches (the commands and branches under Coverage) get
 constructed inputs: a command stream fed to both drivers in lockstep, the
 SPC700's equivalent of `ct_fuzz`.
 
-Check 1 and the command stream are built (`ct_dev --sound-lockstep`,
-`ct_sound_fuzz`: "The port as built", below). Check 2 waits for the driver to
-play without the original beside it.
+Check 1 and the command stream were built, and held the gate until the sound
+driver's teardown retired them with the comparison against the original
+(REIMPLEMENTATION.md, "The sound driver's teardown"; "The port as built",
+below). The checks since need no original: digests of the C driver's own
+sound, kept as golden ("How it is checked", below). Check 2, over the
+reference play's real command streams, is TODO.md's ("Audio").
 
 ## The port as built
 
@@ -445,7 +449,7 @@ The three status values are `sound_music_fade_left`, `sound_marker` and
 `sound_playing` (`sound_status` is all four ports).
 
 **The game's side** (`loads.c`). What the CPU half did with its uploads
-(`game/core/sound_driver.c`, the port of `$C7`) is done as calls, so nothing
+(bank `$C7`, whose port is history) is done as calls, so nothing
 is uploaded and nothing waits. A song's command takes its volume and echo
 delay from the song's entry; its echo's buffer is kept free of samples first
 (the places from the first that ends past the echo's start are forgotten,
@@ -488,9 +492,11 @@ direct page; a music fade to silence marks the song `$7F`. Three of the
 original's failures are not kept, and the fuzzer steers round them (TODO.md,
 "The C sound driver's leftovers").
 
-**How it was checked.** In stages -- the status, then the key writes, then
-every S-DSP register, then the drivers' own state -- each over the whole
-library before the next:
+**How it was checked**, until the sound driver's teardown deleted the
+lockstep, its audio comparison and `ct_sound_fuzz`'s mode against the
+original (REIMPLEMENTATION.md, "The sound driver's teardown"). In stages --
+the status, then the key writes, then every S-DSP register, then the drivers'
+own state -- each over the whole library before the next:
 
 - `ct_dev --sound-lockstep [out.txt]`, with `--sound-lockstep-level
   status|keys|dsp|state` (`dev/sound_lockstep.c`), runs the C driver beside the
@@ -531,7 +537,7 @@ library before the next:
   level. `host` lands a tick's writes at the tick's start instead, as the
   host below does, to hear what that changes; `--sound-lockstep-wav` writes
   both outputs.
-- `sound_test` (no ROM) checks the comparison, the voices' register mapping,
+- `sound_test` (no ROM) checked the comparison, the voices' register mapping,
   and the driver on a synthetic cartridge, a song's command and start apart
   among it.
 
@@ -558,13 +564,15 @@ arithmetic can't reach (`$0A34`); and a track's loop stack wrapping, a fifth
 loop nested or one left past the first (`$1C2B`, `$1C54`, `$1C6E`, `$1CB1`,
 `$1CDB`). TODO.md lists them.
 
-**Playing it.** `ct_play` (PLAYING.md) plays the C driver in the SPC700's
-place by default; `--sound-driver original` plays the original on the SPC700,
-which movies, recording and the gate use, since they need its timing. The
-CPU half's two entries hand the host the boot and each command as calls
-(`au_driver_boot_taken`, `au_driver_command_taken` in `platform/audio.h`, and
-the `Apu` hooks `host_boot` and `host_command` behind them), so its upload
-protocol never runs: `frontend/sound_host.c` boots the driver, carries out each
+**Playing it.** `ct_play` (PLAYING.md), `ct_drive`, `ct_native` and every
+`ct_dev` run of the hand ports, including a restored C driver state, play the C driver in the SPC700's
+place; the reference play (a movie's replay and recording, shadow mode,
+`--native off`, `--generated only`) is the cartridge on the emulated console,
+its own driver on the sound processor, whose timing the movies were recorded
+against. The game hands the host the boot and each command as calls
+(`core/sound_commands.c`; `au_driver_boot_taken`, `au_driver_command_taken` in
+`platform/audio.h`, and the `Apu` hooks `host_boot`, `host_command` and
+`host_send` behind them), so the upload protocol never runs: `frontend/sound_host.c` boots the driver, carries out each
 command with `sound_game_command`, runs the ticks on the APU's time (`Apu.host`,
 with the SPC700 left idle), waits out the echo's buffer after a change of its
 delay as the original does (holding what comes meanwhile, in order), shows the
@@ -578,13 +586,15 @@ model"): the boot's upload, a song's start, the bytes the driver loaded for it
 (`SoundDriver.bytes_sent`, `bytes_moved`) and before a song what is left of
 the echo's wait, so the game keeps the original's pace over its music within
 a frame or two, and the driver booted starts its time when the original's
-would, at the upload's end. A saved state
+would, at the upload's end (the time model's numbers were measured on the CPU
+half's port with the original driver, before the teardown). A saved state
 holds the host's and the driver's fields beside the machine's
 (`sound_host_state`, under `sound.`; RUNTIME.md, "Save states"): a state saved
 and loaded again plays on identically (3000 frames from power-on, saved,
 loaded and run 1000 more is the same state as 4000 straight), `sound_test`
-checks that every byte of `SoundDriver` is in a field, and a state loads only
-with the driver it was saved with. `ct_sound_fuzz --sound-driver c` plays half
+checks that every byte of `SoundDriver` is in a field and that all three
+mixers resume with identical audio and state on a made-up cartridge, and a state loads only
+with the driver it was saved with. `ct_sound_fuzz` plays half
 its commands as the game's calls and half through the ports (songs at made-up
 volumes among them), and checks that every port command is answered and that
 no sample is placed where the echo is writing below where the places end for
@@ -597,38 +607,38 @@ a sample can land in the echo's buffer while it writes, in the original as
 here, when a song's samples outgrow the room its echo leaves: the fuzzer gets
 there with command `$71` loading a block that a place already holds, or a
 shorter one in the song's first place, which the next song then keeps where
-it was. `ct_dev --sound-driver c` runs a movie the same way (it drifts from
+it was. `ct_dev --native on` runs a movie the same way (it drifts from
 the movie, the timing not being the original's), with the same check: none
-over battle-magus and fair. `ct_drive --sound-driver c` plays it for the
+over battle-magus and fair. `ct_drive --native on` plays it for the
 routes (MOVIES.md, "Routes as a test"), its machine copies and state files
 holding the host's half (`sound_host_copy`, `sound_host_restore`). A state
 names the host program that saved it (`apu.host`: the C driver's number, and
 another for the C driver through the native mixer), so a state loads only
 with the program, and the mixer, that saved it.
 
-**In the gate** (`tools/suite.py`; PLAN.md lists the gate):
+**How it is checked** (`tools/suite.py`; PLAN.md lists the gate). Nothing
+compares the C driver with the original any more; what holds it is its own:
 
-- *The lockstep*, at the `state` level, runs inside every movie's shadow run,
-  where the original's timing is kept, for about a twentieth more time; a
-  difference anywhere, the samples' places included, or a run without the
-  lockstep's verdict fails (`lockstep`). It also runs in the vblank check's
-  shipping-mode runs, which play the original driver with the CPU half's
-  waits made where the port stands: an upload whose messages reach the ports
-  before the SPC700 has read the last one parts the drivers there, and the
-  run fails (`vblank`). How near the next message comes to that read,
-  `ct_dev --apu-port-margins` measures (PLATFORM.md, "The CPU half's waits,
-  as built"): at the least 3 SPC700 cycles over the library, as the
-  original's.
-- *`ct_sound_fuzz`*, ten runs of 400 commands from seed 1 of each of its four
-  kinds (against the original at the `state` level, with the game's songs and
-  with made-up ones, and in the SPC700's place, likewise, there with the native
-  mixer's every frame compared with the S-DSP's: `--mixer check`), two at a
-  time, about half a minute (`sound-fuzz`). It needs the ROM (the driver's program
-  and data are the cartridge's), so CI runs only `sound_test`.
+- *`sound_test`* (no ROM, CI): the driver on a made-up cartridge, the voices'
+  register mapping, the host's saved state, and the host as the player plays
+  it -- the boot and a run of the game's commands as calls, heard through the
+  S-DSP and the native mixer side by side, every frame the same -- with the
+  sound's digest (64-bit FNV-1a over every sample) the one the test keeps.
+- *`ct_sound_fuzz`*, ten runs of 400 commands from seed 1 with the game's
+  songs and ten with made-up ones, the native mixer's every frame compared
+  with the S-DSP's (`--mixer check`), two at a time, a few seconds
+  (`sound-fuzz`): every command answered, no sample placed where the echo
+  writes, none dropped, and each kind's digest the one `tools/sound_golden.txt`
+  keeps. A digest is a hash of our own output, nothing of the cartridge's; one
+  that moves is a change to what the driver plays, and is taken on purpose,
+  the reason in the commit. It needs the ROM (the driver's program and data
+  are the cartridge's), so CI runs only `sound_test`.
+- *The host's faults* in every run that plays the C driver
+  (`sound_host_report`, exit 1): the strict check, the native shape, the
+  vblank check's shipping runs and the routes see them.
 - *The routes* in the shipping mode play the C driver (`route_check --mode
-  on:on:c`), so the gate shows the game reaches its outcomes with the driver
-  that ships. The original driver's shipping-mode runs are the vblank check's,
-  over every movie. The count of dropped commands found the first fault: a
+  on:on`), so the gate shows the game reaches its outcomes with the driver
+  that ships. The count of dropped commands found the first fault: a
   machine copy put back (`snes_clone`) comes without the APU's hooks, so after
   a route's first restore the host never ran again, its echo's wait never
   ended and every command after it queued and dropped (12,960 over
@@ -661,7 +671,8 @@ after the intro. Measured:
   was, in the original as in the C driver (the CPU half keeps the blocks), so
   both play whatever each echo left there; and one menus-epoch snapshot taken
   mid-upload.
-- *The driver itself, sample for sample* (`--sound-lockstep-audio`). With
+- *The driver itself, sample for sample* (`--sound-lockstep-audio`, deleted
+  with the teardown). With
   the lockstep's writes landed where the original's land, the second S-DSP's
   output is the original's to the sample over 6 of the 26 movies, and over the
   power-on ones but for 0.01-0.02% of samples, from the intro on (80.7 s,

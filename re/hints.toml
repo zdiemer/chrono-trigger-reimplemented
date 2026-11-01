@@ -3737,7 +3737,7 @@ end = ["DC:DF97", "DD:FD47", "DE:BFFF", "E1:F517", "E3:F8C0"]
 # the next as the record's size, so entry 193 is an end sentinel and entries
 # 194-255 are zero fill. The records are what $1C99 and $1CBA point at.
 # C7:0AEA (62): the sound driver's data blocks, uploaded to the SPC700.
-# sound_driver_upload_block (`$C7:0655`, ported in game/core/sound_driver.c)
+# the CPU half's block upload (`$C7:0655`)
 # reads entry (id - 1) * 3 into $12-$14 and sends a 16-bit length followed by
 # that many bytes to the sound CPU, so each entry names a length-prefixed
 # record. The 62 blocks run end to end from C7:730D to CA:8ACB. The table ends
@@ -3751,8 +3751,7 @@ name = "sound_block_ptrs"
 
 # C7:0BA4, C7:0C20, C7:0C9C: one word per block (62 each, $7C bytes), read at
 # C7:03AC (added to a value the driver builds), C7:043C and C7:048A (sent to
-# the APU ports as the $1E80 and $1F00 tables; see play_song and upload_to_slot
-# in game/core/sound_driver.c).
+# the APU ports as the $1E80 and $1F00 tables: a song's instruments).
 [[data]]
 start = "C7:0BA4"
 end = "C7:0C1F"

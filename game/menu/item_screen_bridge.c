@@ -7,7 +7,7 @@
  * JSRs reach them (menu_run); the list's frame is C, called as C; a step
  * that waits for the next frame waits in the menus' task switch, parked
  * until its task goes on (menu_wait_a_frame_from). Where a step jumps on to
- * the main menu, it stops there.
+ * the main menu, it calls that continuation as C behind its guard.
  *
  * The routines a step reaches with a JSR and that call out themselves (the
  * pointing along the list and its description, the use of an item and its
@@ -24,18 +24,18 @@
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
+#include "menu/display.h"
 #include "menu/figures.h"
 #include "menu/healing.h"
 #include "menu/held_cursors.h"
-#include "menu/display.h"
 #include "menu/items.h"
 #include "menu/lists.h"
 #include "menu/main_menu.h"
 #include "menu/members.h"
 #include "menu/menu.h"
-#include "menu/tech_screen.h"
 #include "menu/menu_data.h"
 #include "menu/sprites.h"
+#include "menu/tech_screen.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
 #include "original_effects.h"
@@ -124,7 +124,7 @@ static bool point_after_sliding_on_the_machine(void *ctx)
 
 static bool back_to_the_main_menu_on_the_machine(void *ctx)
 {
-    m_stop_at(ctx, MAIN_MENU, READS_NOTHING);
+    menu_go_on_in(ctx, MAIN_MENU, menu_back_to_the_main_menu_entry, READS_NOTHING);
     return false;
 }
 

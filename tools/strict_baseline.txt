@@ -1,5 +1,5 @@
 # How each library movie ends on the hand ports alone (tools/strict_check.py):
-# `ct_dev --native on --generated off --no-interpreter strict --sound-driver c`.
+# `ct_dev --native on --generated off --no-interpreter strict` (the C sound driver).
 # A line per movie: `end` (its last frame, with no halt, stray accessor or
 # refused page, and the saved game and save RAM as the reference play leaves
 # them, but for the play clock and the battles' random start), `drifts` (the

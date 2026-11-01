@@ -458,7 +458,7 @@ void battle_fade_the_music_out(Snes *s)
 {
     fade_the_music_out(m_platform(s));
     m_set_a8(s, FADE_WAIT_FRAMES);
-    NATIVE_TIME_AS(s, 0xCD3E3B, battle_wait_some_frames_entry(s));
+    TIMED_AS(state_of(s), 0xCD3E3B, battle_wait_some_frames_entry(s));
 }
 
 /* The settling ends on the gradient level's compare, which leaves the carry

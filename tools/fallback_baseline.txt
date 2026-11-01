@@ -4,17 +4,18 @@
 # A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes
 # on one, is a new fallback, and needs its reason. An `open PORT` line is what the original ran
 # under that port's comparisons still open when a run ended, which hides it from the rest.
-7E:---- 151221 16  # no port yet (scene program (RAM))
-7E:3023 11133 8  # handback by attract_frame_pass (scene program (RAM))
-7E:3176 1432 1  # handback by scene_boot, scene_run_vblank_tasks (scene program (RAM))
+7E:---- 81257 16  # no call on record (scene program (RAM)): over the sample 160; the main loop's passes an interrupt cut inside its empty call, counted until the measure matched a cut pass by the S it returns to; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
+7E:3023 1 3  # handback by attract_frame_pass (scene program (RAM))
+7E:3176 1393 1  # handback by scene_boot, scene_run_vblank_tasks (scene program (RAM))
 7E:31B0 763 15  # handback by scene_boot (scene program (RAM))
 7E:347A 22 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:3495 5 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:34E3 13 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:350E 14992 46  # handback by scene_program_start (scene program (RAM)): the pixels' spread, Lavos's fall's call-out (TODO.md, "The pixels' spread is still the program's"), counted under 7E:---- until the measure followed its stack switch (chunk 9's review)
 7E:375F 783 26  # handback by scene_title_set_up_pendulum (scene program (RAM))
-7E:398A 50356 23  # handback by scene_run_frame_tasks (scene program (RAM)); the sequence's wait for the music ($C3:0C2A-$C3:0C40) in endings-beyond-time, a task the frame list leaves to the original (scene/frame.c) and the wait an idle entry shadow mode skips; the same code was filed under $7E:3749's and $7E:3754's hand-backs before chunk 11 made the list a port
-7E:399B 1004 23  # handback by scene_frame_tasks_go_on (scene program (RAM)); the same wait where the list goes on after a task came back to it (chunk 11's continuation)
+7E:377E 2901 6  # handback by scene_send_sound_command (scene program (RAM))
+7E:398A 56 18  # handback by scene_run_frame_tasks (scene program (RAM)): the sequence's wait for the music ($C3:0C2A-$C3:0C40), its passes taken back as the idle entry's, which returns within its declared bytes (idle_return_span); 56 left over the sample; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
+7E:399B 14 18  # handback by scene_frame_tasks_go_on (scene program (RAM)); the same wait where the list goes on after a task came back to it (chunk 11's continuation)
 7E:44CE 1 1  # handback by scene_race_drain_score (scene program (RAM))
 7E:4643 6 1  # handback by scene_race_upload_column_rom (scene program (RAM))
 7E:464D 6 1  # handback by scene_race_upload_column_ram (scene program (RAM))
@@ -52,38 +53,28 @@
 7E:9FC8 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:9FEA 13 34  # handback by scene_run_frame_tasks (scene program (RAM))
 C0:---- 1099 131  # no port yet (field engine, events)
-C0:0B38 1734 5  # handback by field_enter, field_fade_in, field_fade_in_after_a_menu (field engine, events)
+C0:0B38 1236 5  # handback by field_enter, field_fade_in, field_fade_in_after_a_menu (field engine, events)
 C0:4F61 22476 118  # refused by event_cmd_move_to_tile (field engine, events)
-C0:5A93 150 5  # handback by event_run_object_script (field engine, events)
+C0:5A93 100 5  # handback by event_run_object_script (field engine, events)
 C0:5B95 4410 18  # refused by field_object_in_the_way (field engine, events)
-C2:---- 195551 1830  # no port yet (menus, text, overworld); $C2:CBE0-$C2:CBE8, the gate song task's wait for the sound driver once in menus-shop-equip, the same code as before, filed here rather than under the song task's hand-back since chunk 8's review changed where the shop's and the runtime's comparisons start and end
-C2:0009 16 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
+C2:---- 102046 1830  # no call on record (menus, text, overworld): over the sample 1,525; the menus' code after a vblank, in the movies outside it, at the old measure's counts; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
+C2:0009 10 3  # handback by battle_carry_out_member_action, battle_dispatch_expired_timers, battle_frame_wait_tail and 2 more; unported (menus, text, overworld)
 C2:42DD 11 21  # refused by overworld_epoch (menus, text, overworld)
-C2:5DC4 24662 230  # no port yet (menus, text, overworld)
+C2:5DC4 15991 230  # menus, text, overworld: none over the sample; counted under comparisons a vblank handler gave up by the old measure; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
 C2:8249 14 12  # menu task-start helper outside a registered comparison in battle-heckran's reference play; shipping-mode fallbacks remain zero
-C2:8816 245 10  # no port yet (menus, text, overworld)
-C2:8839 3955 72  # no port yet (menus, text, overworld)
-C2:DB9F 1301 67  # no port yet (menus, text, overworld)
-C2:DBE8 405 54  # no port yet (menus, text, overworld)
-C2:DC1E 1055 86  # no port yet (menus, text, overworld)
-C2:DCBE 685 28  # no port yet (menus, text, overworld)
-C2:EF05 6033 29  # no port yet (menus, text, overworld): the window list's copy of an area and its rows' block moves, cut out of C2:---- (tools/fallbacks.py, CUT_OUT): fair-companion and gato-battle 1431 each, fair and field 767 each, menu, menus-new-game-plus and new-game 103 each, which an ended comparison's extent had covered in the measure until chunk 11, when it rose inside the bank's falling line
-C2:EFBE 7886 137  # no port yet (menus, text, overworld)
-C2:F1DA 338 49  # no port yet (menus, text, overworld)
-C2:F20B 1382 28  # no port yet (menus, text, overworld)
-C2:F626 525 29  # no port yet (menus, text, overworld)
-C2:FD58 1760 46  # no port yet (menus, text, overworld)
-C2:FD68 1815 47  # no port yet (menus, text, overworld)
-C3:0C28 10 23  # handback by scene_sequence_goes_on_after_the_wait (scene engine); the wait's first instructions after the sequence goes on, the same code as $7E:398A's
-C7:0000 510 15  # handback by sound_driver_boot (sound driver)
-C7:005F 170 3  # handback by sound_driver_boot_start (sound driver)
-FD:---- 12 7  # no port yet (field graphics)
+C2:826F 55 23  # handback by menu_run_the_main_task (menus, text, overworld): the task's start of a screen's task ($C2:8249, $C2:83B2) after the main task's stop, once a load screen (menu, field, new-game, menus-new-game-plus); filed under the vblank handler's given-up comparison until the measure ended such a stretch where its port stopped (REIMPLEMENTATION.md, "The largest fallbacks left, 2")
+C2:EF05 4957 29  # no port yet (menus, text, overworld): the window list's copy of an area and its rows' block moves, cut out of C2:---- (tools/fallbacks.py, CUT_OUT): fair-companion and gato-battle 1431 each, fair and field 767 each, menu, menus-new-game-plus and new-game 103 each, which an ended comparison's extent had covered in the measure until chunk 11, when it rose inside the bank's falling line
+C2:EFBE 4488 137  # menus, text, overworld: none over the sample; as C2:5DC4's; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
+C2:F1DA 226 49  # no port yet (menus, text, overworld)
+C2:F20B 873 28  # no port yet (menus, text, overworld)
+C7:0000 504 15  # handback by sound_driver_boot (sound driver)
+C7:005F 94 3  # handback by sound_driver_boot_start (sound driver)
+FD:---- 8 7  # no port yet (field graphics)
 FD:A990 2048 222  # handback by battle_dispatch_expired_timers (field graphics)
-FD:DA62 5080 7  # handback by warp_short_trip_waits (field graphics); the warp's frame wait, the same code filed under warp_short_frame ($FD:DA65) before chunk 11 ported the trip's start
-FD:DAC1 1896 7  # handback by warp_shortest_trip_waits (field graphics); the same for the shortest trip (warp_shortest_frame, $FD:DAC4, before)
+FD:DA62 4064 7  # handback by warp_short_trip_waits (field graphics): the warp's frame wait's leaving pass, taken back as the idle entry's (idle_return_span); none over the sample; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
+FD:DAC1 1264 7  # handback by warp_shortest_trip_waits (field graphics): as FD:DA62's; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
 FD:DB24 3064 7  # handback by warp_flickering_trip_waits (field graphics); the same for the flickering trip (warp_flickering_frame, $FD:DB27, before)
-FD:EADA 18 5  # handback by warp_set_up: the idle wait's leaving pass (field graphics)
-FF:---- 162359 189  # no port yet (misc): the number tiles' and the records' bank-$FF code, the same instructions as before, 32 K of it filed here since the records' task's hand-back no longer takes the other tasks' code (chunk 8)
+FD:EADA 14 5  # handback by warp_set_up: the idle wait's leaving pass (field graphics)
 open C3:0000 47 0  # attract-demo ends inside startup now owned by scene_boot: the former 7E:3000 open 34 instructions plus its 13-instruction boot prefix, no new original work
 open 7E:3003 5 0  # hidden under scene_setup_and_first_frame's comparison, still open when a run ended
 open C0:0000 1854 0  # 15 from the earlier library plus 1839 in battle-golem-twins-gameover with the title music wait held in C; restoring only its old stop splits the latter ownership into field_enter 132 and scene_boot 1755, with identical end state, coverage and calls. No real-play refusals; unfinished comparisons, not new original work
@@ -103,7 +94,6 @@ open C2:E921 5 0  # hidden under menu_cursor_task_goes_on's comparison, still op
 open C2:F699 2 0  # hidden under menu_record_task_goes_on's comparison, still open when a run ended: as C0:00BA's, the menus' wait for the frame's uploads
 open C3:0002 1 0  # hidden under decompress's comparison, still open when a run ended; a movie that ends in an unpacking
 open C3:0557 44291 0  # hidden under decompress_direct's comparison, still open when a run ended
-open C7:0004 102816 0  # hidden under sound_driver_command's comparison, still open when a run ended: the attract demo ends during a song's upload, which the command carries out whole now, its waits in place (the block being uploaded was a comparison of its own before: open C7:0655, 7,904 while it stopped at each exchange, 25,688 once it waited in place)
 open CD:0036 8 0  # hidden under battle_sit_out_the_pause_long's comparison, still open when a run ended
 open CD:3E44 7 0  # hidden under battle_sit_out_the_pause's comparison, still open when a run ended
 open CD:3E75 3697 0  # hidden under battle_wait_for_the_next_frame's comparison, still open when a run ended

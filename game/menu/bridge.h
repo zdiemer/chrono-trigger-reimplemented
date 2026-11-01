@@ -107,6 +107,7 @@ bool menu_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes 
  * did (the equipment list's move leaves a 16-bit accumulator after a slide):
  * the widths it came back with stand. */
 bool menu_run_any_widths(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
+bool menu_run_long_any_widths(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
 
 /* The same, the widths standing, for a sibling the original reaches by such a
  * jump (menu_call_jumped), with its return to `returns_to` pushed before it. */

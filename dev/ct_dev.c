@@ -8,12 +8,10 @@
  *          [--end-state out.bin]
  *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--generated off|on|only]
  *          [--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]
- *          [--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
+ *          [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
  *          [--px-check [out.txt]] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
- *          [--page-report] [--event-reads out.txt] [--sound-lockstep [out.txt]]
- *          [--sound-lockstep-level status|keys|dsp|state] [--sound-lockstep-audio exact|host]
- *          [--sound-lockstep-wav prefix] [--sound-driver original|c] [--mixer dsp|native|check]
- *          [--scaffold-reads [original]] [--fallbacks out.txt] [--census out.txt] [--apu-port-margins]
+ *          [--page-report] [--event-reads out.txt] [--mixer dsp|native|check]
+ *          [--scaffold-reads [original]] [--fallbacks out.txt] [--census out.txt]
  *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC]
  *          [--index-check BBAAAA]... [--asset-reads out.txt] [--assets pack] [--locations]
  *
@@ -73,36 +71,23 @@
  * instruction no native code runs stops the run (strict, exit status 1) or runs
  * on the interpreter and is reported (fallback: each place the interpreter is
  * entered at, the first time, with its frame, up to 400 of them).
- * --audio direct selects the APU-direct audio backend (platform/direct/audio.h):
- * the sound driver's upload and commands take no main-CPU time. It needs
- * --native on with the ported routines, and can't keep the original's timing,
- * so it isn't for validation; snes (the default) is the SNES backend.
- * --spc-coverage writes every SPC700 address the sound driver executed an
- * instruction at, with its count (docs/SOUND.md; tools/spc700dis.py reads it).
- * --dsp-log writes every S-DSP register write the driver makes: the frame, the
- * SPC700 cycle, the register and the value (docs/SOUND.md, "Validating the port").
- * --sound-lockstep [out.txt] runs the C sound driver (game/sound/) beside the
- * original, a tick for each of its ticks, and compares the two after every tick
- * (dev/sound_lockstep.h): the status, and with --sound-lockstep-level keys or
- * dsp (the default) the key on and off writes, and then the S-DSP's registers and
- * the driver's own sample; state also compares the two drivers' state
- * (dev/sound_state.h), to find where they part. It prints a summary, writes
- * each differing tick to out.txt, and a run that differs exits 1. It needs a
- * run from power-on.
- * --sound-lockstep-audio exact|host also plays the C driver's writes into a
- * second S-DSP over the same sound memory and compares its every sample with
- * the original's (dev/sound_audio.h): exact lands each write where the
- * original made the same one (a measurement: a difference doesn't fail the run); host
- * lands a tick's writes where the tick starts, as ct_play's C driver does, to
- * hear what that changes. --sound-lockstep-wav prefix writes both outputs as
- * prefix-c.wav and prefix-original.wav.
- * --sound-driver c plays the C sound driver in the SPC700's place, as ct_play
- * does by default (frontend/sound_host.h), with --native on and the ported
- * routines. The game's timing is then not the original's, so a movie drifts;
- * it is for hearing the C driver over a movie (--wav) and for the host's own
- * checks: a run in which a sample was placed where the echo was writing, or a
- * command dropped from the host's full queue, exits 1 (sound_host_report).
- * --mixer (only with --sound-driver c) picks what makes the sound: dsp, the
+ * The sound: where the hand ports play (--native on, not
+ * --generated only), the C sound driver plays in the sound processor's place,
+ * as ct_play's does (frontend/sound_host.h), taking the game's boot and
+ * commands as calls; a run in which a sample was placed where the echo was
+ * writing, or a command dropped from the host's full queue, exits 1
+ * (sound_host_report). Everywhere else -- the reference play (--native off or
+ * shadow, or on with --generated only) and a ZSNES state -- the
+ * machine is the console running the cartridge, and its sound processor runs
+ * the cartridge's own driver, which the cartridge's CPU half in bank $C7
+ * speaks to: nothing compares it with anything (docs/REIMPLEMENTATION.md,
+ * "The sound driver's teardown"). Saved states include the C sound host
+ * and load only with the driver and mixer they were saved with.
+ * --spc-coverage writes every SPC700 address the cartridge's sound driver
+ * executed an instruction at, with its count (docs/SOUND.md; tools/spc700dis.py
+ * reads it). --dsp-log writes every S-DSP register write it makes: the frame,
+ * the SPC700 cycle, the register and the value. Both only where it plays.
+ * --mixer (where the C sound driver plays) picks what makes the sound: dsp, the
  * emulated S-DSP (the default); native, the native mixer in its place; check,
  * both, the S-DSP heard (--wav) and the mixer compared with it frame by frame
  * (a `mixer check:` line; a run in which a frame differs exits 1).
@@ -142,10 +127,6 @@
  * `asset differs from the cartridge` line. Whatever the options, a run whose accessors
  * read a byte the catalogue doesn't hold prints an `asset outside the
  * catalogue` line (dev/asset_report.h), and tools/suite.py fails it.
- * --apu-port-margins prints, at the end, how long after the SPC700 read a
- * message's last two bytes (ports 2-3, after its echo) the CPU's next ones
- * came, the least and their histogram, and how many came before it read them
- * (dev/apu_margins.h): the margin the CPU half's waits leave its late reads.
  * Every run also prints a `halted:` line if the machine ended stopped (STP, or
  * without the interpreter at an instruction nothing runs), which the gate's
  * native-shape check fails on.
@@ -175,7 +156,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "apu_margins.h"
 #include "event_reads.h"
 #include "census.h"
 #include "fallbacks.h"
@@ -184,8 +164,6 @@
 #include "px_check.h"
 #include "asset_report.h"
 #include "range_report.h"
-#include "sound_lockstep.h"
-#include "sound_audio.h"
 #include "mixer_check.h"
 #include "sound_host.h"
 #include "vid_check.h"
@@ -386,11 +364,10 @@ static void on_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
     }
 }
 
-/* --spc-coverage, --dsp-log and --sound-lockstep: the SPC700's side, through the APU's hooks. */
+/* --spc-coverage and --dsp-log: the SPC700's side, through the APU's hooks. */
 typedef struct {
     uint32_t *counts;   /* instructions executed per SPC700 address, or NULL */
     FILE *dsp_log;
-    SoundLockstep *lockstep;
     const Snes *snes;
 } SpcWatch;
 
@@ -399,8 +376,6 @@ static void on_spc_insn(void *ctx, const Apu *apu)
     SpcWatch *w = ctx;
     if (w->counts && w->counts[apu->spc.pc] != UINT32_MAX)
         w->counts[apu->spc.pc]++;
-    if (w->lockstep)
-        sound_lockstep_insn(w->lockstep, apu);
 }
 
 static void on_dsp_write(void *ctx, const Apu *apu, uint8_t reg, uint8_t value)
@@ -409,8 +384,6 @@ static void on_dsp_write(void *ctx, const Apu *apu, uint8_t reg, uint8_t value)
     if (w->dsp_log)
         fprintf(w->dsp_log, "%u %llu %02X %02X\n", (unsigned)w->snes->frame, (unsigned long long)apu->spc_cycles,
                 reg, value);
-    if (w->lockstep)
-        sound_lockstep_dsp_write(w->lockstep, apu, reg, value);
 }
 
 static int write_spc_coverage(const SpcWatch *w, const char *path)
@@ -575,22 +548,17 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL, *end_state = NULL;
-    bool c_sound_driver = false;
     SoundMixer mixer = SOUND_MIXER_DSP;
     bool mixer_given = false;
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     const char *zst_path = NULL, *vid_check_path = NULL, *px_check_path = NULL;
     const char *spc_coverage_path = NULL, *dsp_log_path = NULL, *event_reads_path = NULL;
-    const char *lockstep_path = NULL, *fallbacks_path = NULL, *census_path = NULL, *asset_reads_path = NULL,
-               *assets_path = NULL;
-    bool want_vid_check = false, want_px_check = false, want_lockstep = false, want_margins = false;
-    SoundCompareLevel lockstep_level = SOUND_COMPARE_DSP;
-    int audio_timing = -1;
-    const char *audio_wav = NULL;
+    const char *fallbacks_path = NULL, *census_path = NULL, *asset_reads_path = NULL, *assets_path = NULL;
+    bool want_vid_check = false, want_px_check = false;
     long vid_check_from = 0;
     long start_frame = -1;
     NativeMode native_mode = NATIVE_OFF;
-    bool use_generated = true, generated_only = false, insn_stats = false, audio_direct = false;
+    bool use_generated = true, generated_only = false, insn_stats = false;
     long frames = -1, status_every = 0, shot_every = 0;
     const char *excludes[64], *includes[64];
     int nexcludes = 0, nincludes = 0;
@@ -633,14 +601,6 @@ int main(int argc, char **argv)
             want_px_check = true;
             continue;
         }
-        if (!strcmp(a, "--sound-lockstep") && (!v || v[0] == '-')) {
-            want_lockstep = true;
-            continue;
-        }
-        if (!strcmp(a, "--apu-port-margins")) {
-            want_margins = true;
-            continue;
-        }
         if (!v) {
             fprintf(stderr, "missing value for %s\n", a);
             return 2;
@@ -661,7 +621,6 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--shot-every")) shot_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
         else if (!strcmp(a, "--wav")) wav_path = v;
-        else if (!strcmp(a, "--sound-driver")) c_sound_driver = !strcmp(v, "c");
         else if (!strcmp(a, "--mixer")) {
             if (!sound_mixer_named(v, &mixer)) {
                 fprintf(stderr, "--mixer must be dsp, native or check\n");
@@ -671,28 +630,6 @@ int main(int argc, char **argv)
         }
         else if (!strcmp(a, "--spc-coverage")) spc_coverage_path = v;
         else if (!strcmp(a, "--dsp-log")) dsp_log_path = v;
-        else if (!strcmp(a, "--sound-lockstep")) { lockstep_path = v; want_lockstep = true; }
-        else if (!strcmp(a, "--sound-lockstep-audio")) {
-            if (!strcmp(v, "exact")) audio_timing = SOUND_AUDIO_EXACT;
-            else if (!strcmp(v, "host")) audio_timing = SOUND_AUDIO_HOST;
-            else {
-                fprintf(stderr, "--sound-lockstep-audio must be exact or host\n");
-                return 2;
-            }
-            want_lockstep = true;
-        }
-        else if (!strcmp(a, "--sound-lockstep-wav")) audio_wav = v;
-        else if (!strcmp(a, "--sound-lockstep-level")) {
-            if (!strcmp(v, "status")) lockstep_level = SOUND_COMPARE_STATUS;
-            else if (!strcmp(v, "keys")) lockstep_level = SOUND_COMPARE_KEYS;
-            else if (!strcmp(v, "dsp")) lockstep_level = SOUND_COMPARE_DSP;
-            else if (!strcmp(v, "state")) lockstep_level = SOUND_COMPARE_STATE;
-            else {
-                fprintf(stderr, "--sound-lockstep-level must be status, keys, dsp or state\n");
-                return 2;
-            }
-            want_lockstep = true;
-        }
         else if (!strcmp(a, "--io-log")) io_log_path = v;
         else if (!strcmp(a, "--event-reads")) event_reads_path = v;
         else if (!strcmp(a, "--misses")) misses_path = v;
@@ -752,14 +689,6 @@ int main(int argc, char **argv)
                 return 2;
             }
         }
-        else if (!strcmp(a, "--audio")) {
-            if (!strcmp(v, "snes") || !strcmp(v, "direct")) {
-                audio_direct = strcmp(v, "direct") == 0;
-            } else {
-                fprintf(stderr, "--audio must be snes or direct\n");
-                return 2;
-            }
-        }
         else if (!strcmp(a, "--generated")) {
             if (!strcmp(v, "off") || !strcmp(v, "on") || !strcmp(v, "only")) {
                 use_generated = strcmp(v, "off") != 0;
@@ -792,8 +721,8 @@ int main(int argc, char **argv)
                         "[--generated off|on|only] [--port-timing estimate|oracle] [--port-horizon strict|interrupts] "
                         "[--timing-report] [--page-report] [--event-reads out.txt] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
-                        "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
-                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--census out.txt] [--apu-port-margins] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
+                        "[--mixer dsp|native|check] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
+                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--census out.txt] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
                         "[--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]... "
                         "[--asset-reads out.txt] [--assets pack] [--locations]\n");
         return 2;
@@ -838,8 +767,6 @@ int main(int argc, char **argv)
     snes.on_frame_top = on_frame_top;
     snes.on_line_ctx = &renderer;
     snes_power_on(&snes);
-    if (want_margins)
-        apu_margins_attach(&snes);
     static char found_sram[1024];
     if (movie.has_sram && !sram_path) {
         if (ct_sram_find(movie.sram_crc, movie_path, rom_path, found_sram, sizeof found_sram) == 0) {
@@ -862,9 +789,34 @@ int main(int argc, char **argv)
                 (unsigned)movie.sram_crc);
         return 1;
     }
-    if (load_state && snes_state_load(&snes, load_state) != 0) {
-        fprintf(stderr, "cannot load state %s (missing, damaged, or not a state for this ROM)\n", load_state);
-        return 1;
+    bool c_sound_driver = native_mode == NATIVE_ON && !generated_only && !zst_path;
+    if (mixer_given && !c_sound_driver) {
+        fprintf(stderr, "--mixer picks what plays the C sound driver (--native on, not --generated only or "
+                        "--load-zst)\n");
+        return 2;
+    }
+    SoundHost *sound_host = NULL;
+    MixerCheck *mixer_check = NULL;
+    if (c_sound_driver) {
+        sound_host = sound_host_attach_mixer(&snes, mixer);
+        if (!sound_host || (mixer == SOUND_MIXER_CHECK && !(mixer_check = mixer_check_attach(sound_host)))) {
+            fprintf(stderr, "out of memory\n");
+            return 1;
+        }
+    }
+    if (load_state) {
+        const SnesStateExtra *extra = sound_host ? sound_host_state(sound_host) : NULL;
+        size_t len;
+        uint8_t *data = read_file(load_state, &len);
+        char why[256] = "cannot read file";
+        int loaded = data && !(sound_host && !extra) &&
+                     snes_state_read_with(&snes, extra, data, len, why, sizeof why) == 0;
+        free(data);
+        if (!loaded) {
+            fprintf(stderr, "cannot load state %s: %s\n", load_state,
+                    sound_host && !extra ? "out of memory" : why);
+            return 1;
+        }
     }
     if (zst_path) {
         char why[160];
@@ -898,14 +850,6 @@ int main(int argc, char **argv)
     native_set_page_report(natives, page_report);
     if (shadow_details >= 0)
         native_set_details(natives, shadow_details);
-    if (audio_direct) {
-        /* the sound driver's registry entries run the backend */
-        if (native_mode != NATIVE_ON || generated_only) {
-            fprintf(stderr, "--audio direct needs --native on with the ported routines (not --generated only)\n");
-            return 2;
-        }
-        au_select_backend(m_platform(&snes), AU_BACKEND_DIRECT);
-    }
     if (shot_dir)
         make_dir(shot_dir);
     draw_pixels = trace_path || shot_every > 0 || want_px_check;
@@ -960,47 +904,21 @@ int main(int argc, char **argv)
         snes.cpu.on_insn_ctx = &cov;
     }
 
+    if (c_sound_driver && (spc_coverage_path || dsp_log_path)) {
+        fprintf(stderr, "--spc-coverage and --dsp-log watch the cartridge's sound driver, which a run of the hand "
+                        "ports doesn't play (the C driver does)\n");
+        return 2;
+    }
     SpcWatch spc = { .snes = &snes };
-    SoundAudio *sound_audio = NULL;
     if (spc_coverage_path)
         spc.counts = calloc(0x10000, sizeof *spc.counts);
     if (dsp_log_path && !(spc.dsp_log = fopen(dsp_log_path, "w"))) {
         fprintf(stderr, "cannot open %s\n", dsp_log_path);
         return 1;
     }
-    if (want_lockstep) {
-        if (load_state || zst_path) {
-            fprintf(stderr, "--sound-lockstep needs a run from power-on, not a loaded state\n");
-            return 2;
-        }
-        spc.lockstep = sound_lockstep_create(&snes, lockstep_level);
-        if (spc.lockstep)
-            sound_lockstep_check_places(spc.lockstep);
-        if (audio_timing >= 0) {
-            if (wav_path) {
-                fprintf(stderr, "--sound-lockstep-audio takes the S-DSP's output itself: use --sound-lockstep-wav, not --wav\n");
-                return 2;
-            }
-            sound_audio = sound_audio_create((SoundAudioTiming)audio_timing);
-            if (!sound_audio) {
-                fprintf(stderr, "out of memory\n");
-                return 1;
-            }
-            if (audio_wav) {
-                char c_path[1024], original_path[1024];
-                snprintf(c_path, sizeof c_path, "%s-c.wav", audio_wav);
-                snprintf(original_path, sizeof original_path, "%s-original.wav", audio_wav);
-                if (!sound_audio_wav(sound_audio, c_path, original_path)) {
-                    fprintf(stderr, "cannot open %s\n", c_path);
-                    return 1;
-                }
-            }
-            sound_lockstep_listen(spc.lockstep, sound_audio);
-        }
-    }
-    if (spc_coverage_path || dsp_log_path || spc.lockstep) {
-        snes.apu.on_insn = spc_coverage_path || spc.lockstep ? on_spc_insn : NULL;
-        snes.apu.on_dsp_write = dsp_log_path || spc.lockstep ? on_dsp_write : NULL;
+    if (spc_coverage_path || dsp_log_path) {
+        snes.apu.on_insn = spc_coverage_path ? on_spc_insn : NULL;
+        snes.apu.on_dsp_write = dsp_log_path ? on_dsp_write : NULL;
         snes.apu.on_insn_ctx = &spc;
     }
 
@@ -1047,28 +965,6 @@ int main(int argc, char **argv)
         }
     }
 
-    if (mixer_given && !c_sound_driver) {
-        fprintf(stderr, "--mixer picks what plays the C sound driver, which this run doesn't (see --sound-driver)\n");
-        return 2;
-    }
-    SoundHost *sound_host = NULL;
-    MixerCheck *mixer_check = NULL;
-    if (c_sound_driver) {
-        if (load_state || zst_path || want_lockstep || spc_coverage_path || dsp_log_path) {
-            fprintf(stderr, "--sound-driver c runs from power-on, without the SPC700's hooks\n");
-            return 2;
-        }
-        if (native_mode != NATIVE_ON || generated_only || audio_direct) {
-            fprintf(stderr, "--sound-driver c takes the boot and the commands from the CPU half's ported entries: "
-                            "it needs --native on with the ported routines (not --generated only or --audio direct)\n");
-            return 2;
-        }
-        sound_host = sound_host_attach_mixer(&snes, mixer);
-        if (!sound_host || (mixer == SOUND_MIXER_CHECK && !(mixer_check = mixer_check_attach(sound_host)))) {
-            fprintf(stderr, "out of memory\n");
-            return 1;
-        }
-    }
     static ct_wav wav;
     static int16_t audio[DSP_OUT_FRAMES * 2];
     if (wav_path) {
@@ -1133,9 +1029,12 @@ int main(int argc, char **argv)
         fprintf(stderr, "warning: saving with native routines in progress; they won't resume from the state\n");
     else if (save_state && natives && native_owed(natives))
         fprintf(stderr, "warning: saving with time the native routines owe; the state drops it\n");
-    if (save_state && snes_state_save(&snes, save_state) != 0) {
-        fprintf(stderr, "cannot save state %s\n", save_state);
-        rc = 1;
+    if (save_state) {
+        const SnesStateExtra *extra = sound_host ? sound_host_state(sound_host) : NULL;
+        if ((sound_host && !extra) || snes_state_save_with(&snes, extra, save_state) != 0) {
+            fprintf(stderr, "cannot save state %s\n", save_state);
+            rc = 1;
+        }
     }
     if (end_state && write_end_state(end_state, &snes) != 0) {
         fprintf(stderr, "cannot write %s\n", end_state);
@@ -1171,7 +1070,6 @@ int main(int argc, char **argv)
     for (int i = 0; i < nindex_checks; i++)
         fprintf(stderr, "index-check: %06X runs %lu, largest X $%04X, past $%02X %lu\n", (unsigned)index_checks[i].pc,
                 index_checks[i].runs, (unsigned)index_checks[i].largest, (unsigned)index_limit, index_checks[i].over);
-    au_direct_report(stderr);
     if (insn_stats) {
         uint64_t generated = native_generated_instructions();
         fprintf(stderr, "instructions: interpreted %llu (%llu in RAM), generated %llu (%.1f%% generated)\n",
@@ -1251,14 +1149,6 @@ int main(int argc, char **argv)
         fprintf(stderr, "cannot write %s\n", dsp_log_path);
         rc = 1;
     }
-    if (spc.lockstep && !sound_lockstep_report(spc.lockstep, lockstep_path, stderr))
-        rc = 1;
-    if (want_margins)
-        apu_margins_report(stderr);
-    if (sound_audio) {
-        sound_audio_report(sound_audio, stderr);
-        sound_audio_destroy(sound_audio);
-    }
     if (sound_host) {
         if (!sound_host_report(sound_host, stderr))
             rc = 1;
@@ -1267,7 +1157,6 @@ int main(int argc, char **argv)
         mixer_check_free(mixer_check);
         sound_host_detach(sound_host);
     }
-    sound_lockstep_destroy(spc.lockstep);
     free(spc.counts);
     free(cov.calls);
     ct_movie_free(&movie);

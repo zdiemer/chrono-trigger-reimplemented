@@ -79,8 +79,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   (`game/original_frame.h`, `native_frame_enter`): S goes down by the
   frame's bytes, the return address and what the routine pushes on the way
   in, which are declared dead so, and up again after, so the waits in it
-  meet the original's at its S, `core/sound_driver.c`'s song command and
-  two uploads, `menu/fades.c`, `menu/saving.c`; `ct_fuzz` leaves the same
+  meet the original's at its S, `menu/fades.c`, `menu/saving.c`; `ct_fuzz` leaves the same
   bytes uncompared, `native_frame_dead_direct`). `DC_AH` in a don't-care
   set leaves out A's high byte only, for code that works on an 8-bit A and
   leaves the high byte to whatever last set it, and `DC_AL` A's low byte only,

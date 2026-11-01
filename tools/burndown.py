@@ -60,6 +60,13 @@ the port reaches the same code another way.
 nothing in the ROM calls and no movie runs) isn't counted at all: the game
 never runs it, so it needs no port.
 
+**Retired code.** Code the game no longer needs because something that isn't a
+port of it does its work (RETIRED, by bank) isn't counted either: bank $C7, the
+cartridge's CPU half of its sound driver, whose protocol only the original's
+driver on the sound processor spoke; the C sound driver takes the game's boot
+and commands as calls (docs/REIMPLEMENTATION.md, "The sound driver's
+teardown"), and the half runs only in the reference play.
+
 It is a burndown, not an accounting: useful for "which subsystem is barely
 started", not for "this bank is 61.3% done".
 """
@@ -83,6 +90,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 RETURNS = {"RTS", "RTL", "RTI", "STP"}
 CALLS = {"JSR", "JSL"}
 # Bank -> what lives there, for the summary. From docs/PORTING.md's subsystems.
+# Banks whose code is retired rather than ported (the docstring, "Retired code").
+RETIRED = {0xC7}
+
 SUBSYSTEM = {
     0x7E: "scene program (RAM)",
     0xC0: "field engine, events",
@@ -368,7 +378,7 @@ def main():
     live = reached_code(an)
     all_code = set()
     for pc, variants in an.code.items():
-        if pc in live:
+        if pc in live and (pc >> 16) not in RETIRED:
             all_code.update(range(pc, pc + max(i.size for i in variants.values())))
     covered &= all_code
     inlined &= all_code

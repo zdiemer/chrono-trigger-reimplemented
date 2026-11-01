@@ -714,10 +714,10 @@ static void filled(Snes *s, Fill f)
 void battle_screen_fill_windows(Snes *s)
 {
     switch ((Fill)(s->cpu.x / 2)) {
-    case BOTH_EMPTY: NATIVE_TIME_AS(s, 0xD1FCF4, filled(s, BOTH_EMPTY)); break;
-    case WINDOW_1_EMPTY: NATIVE_TIME_AS(s, 0xD1FC38, filled(s, WINDOW_1_EMPTY)); break;
-    case WINDOW_2_EMPTY: NATIVE_TIME_AS(s, 0xD1FC96, filled(s, WINDOW_2_EMPTY)); break;
-    default: NATIVE_TIME_AS(s, 0xD1FBDA, filled(s, WINDOW_1_FULL)); break;
+    case BOTH_EMPTY: TIMED_AS(state_of(s), 0xD1FCF4, filled(s, BOTH_EMPTY)); break;
+    case WINDOW_1_EMPTY: TIMED_AS(state_of(s), 0xD1FC38, filled(s, WINDOW_1_EMPTY)); break;
+    case WINDOW_2_EMPTY: TIMED_AS(state_of(s), 0xD1FC96, filled(s, WINDOW_2_EMPTY)); break;
+    default: TIMED_AS(state_of(s), 0xD1FBDA, filled(s, WINDOW_1_FULL)); break;
     }
     m_rtl(s);
 }

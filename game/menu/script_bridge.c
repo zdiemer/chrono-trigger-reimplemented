@@ -1,6 +1,6 @@
 /* The command scripts on the original's machine (menu/script_bridge.h): the
  * interpreter's entry and how it runs each command, the commands' entries,
- * the services the commands reach the original's code through, the guards,
+ * the services and routines the commands call, the guards,
  * and the registers a command leaves.
  *
  * What a command is on the machine -- where it calls the original's code
@@ -9,12 +9,24 @@
  * rows carry none of it. */
 #include "menu/script_bridge.h"
 
+#include "charge.h"
+#include "menu/bridge.h"
+#include "menu/display.h"
+#include "menu/epoch.h"
+#include "menu/line_effects.h"
+#include "menu/map.h"
+#include "menu/map_scenes.h"
 #include "menu/menu_data.h"
+#include "menu/object_commands.h"
 #include "menu/script.h"
 #include "menu/script_call.h"
 #include "menu/sprites.h"
+#include "menu/turning_world.h"
 #include "menu/vram.h"
 #include "original_effects.h"
+#include "overworld/music.h"
+#include "overworld/entries.h"
+#include "overworld/setup.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -61,14 +73,12 @@ typedef enum {
     C_CALLED,
 } CarryLeft;
 
-/* Which of the original's calls a command makes, each from its own JSR:
- * the map's scroll for both planes or for one, the sound queue for an
- * effect, a song or any command. */
-typedef enum { NO_CALL, SCROLLS_BOTH_PLANES, SCROLLS_ONE_PLANE, SENDS_EFFECT, SENDS_SONG, SENDS_COMMAND } CallKind;
+/* Whether a scroll command shares its step between the two planes. */
+typedef enum { NO_CALL, SCROLLS_BOTH_PLANES, SCROLLS_ONE_PLANE } CallKind;
 
 typedef struct {
     uint8_t x, carry;
-    uint8_t calls;     /* CallKind */
+    CallKind calls;
     uint8_t queues;    /* records a command that queues uploads queues */
 } MachineRow;
 
@@ -104,17 +114,17 @@ static const MachineRow MACHINE[] = {
     [0x36] = { .x = X_SLOT, .carry = C_RETURN_PAST_BANK },      [0x37] = { .x = X_SLOT, .carry = C_CLEAR },
     [0x38] = { .x = X_SLOT, .carry = C_CLEAR },                 [0x39] = { .x = X_SLOT, .carry = C_CLEAR },
     [0x3A] = { .x = X_SLOT, .carry = C_SET_GOING_ON },
-    [0x3B] = { .x = X_CALLED, .carry = C_CALLED, .calls = SENDS_EFFECT },
-    [0x3C] = { .x = X_CALLED, .carry = C_CALLED, .calls = SENDS_EFFECT },
-    [0x3D] = { .x = X_CALLED, .carry = C_CALLED, .calls = SENDS_SONG },
+    [0x3B] = { .x = X_CALLED, .carry = C_CALLED },
+    [0x3C] = { .x = X_CALLED, .carry = C_CALLED },
+    [0x3D] = { .x = X_CALLED, .carry = C_CALLED },
     [0x3E] = { .x = X_CALLED, .carry = C_CALLED },              [0x3F] = { .x = X_SLOT, .carry = C_SET_GOING_ON },
     [0x40] = { .x = X_SLOT, .carry = C_SET_GOING_ON },          [0x41] = { .x = X_AS_ENTERED, .carry = C_CLEAR },
     [0x42] = { .x = X_PAST_STARTED, .carry = C_CLEAR },         [0x43] = { .x = X_STARTED, .carry = C_SET },
     [0x44] = { .x = X_TABLE_INDEX, .carry = C_CLEAR },          [0x45] = { .x = X_TABLE_INDEX, .carry = C_CLEAR },
     [0x46] = { .x = X_BYTE, .carry = C_ADDED },                 [0x47] = { .x = X_BYTE, .carry = C_SUBTRACTED },
     [0x48] = { .x = X_BYTE, .carry = C_ADDED },                 [0x49] = { .x = X_BYTE, .carry = C_SUBTRACTED },
-    [0x4A] = { .x = X_CALLED, .carry = C_CALLED, .calls = SENDS_SONG },
-    [0x4B] = { .x = X_CALLED, .carry = C_CALLED, .calls = SENDS_COMMAND },
+    [0x4A] = { .x = X_CALLED, .carry = C_CALLED },
+    [0x4B] = { .x = X_CALLED, .carry = C_CALLED },
     [0x4C] = { .x = X_BYTE, .carry = C_COMPARED },              [0x4D] = { .x = X_BYTE, .carry = C_COMPARED },
     [0x4E] = { .x = X_CALLED, .carry = C_CALLED },              [0x4F] = { .x = X_LAST_ROW, .carry = C_LAST_ROW },
     [0x50] = { .x = X_QUEUE_END, .carry = C_QUEUE_PAST_PAGE, .calls = NO_CALL, .queues = 2 },
@@ -143,6 +153,80 @@ typedef struct {
 
 static const MachineRow *machine_row(const OnTheMachine *m) { return &MACHINE[m->opcode]; }
 
+/* The machine entries corresponding to handlers.c's script routines. The
+ * gate needs their register results as well as their game state. Targets
+ * outside this table and entries whose guards refuse call the original. */
+static const struct {
+    uint32_t routine;
+    void (*entry)(Snes *);
+} script_entries[] = {
+    { 0xC6E237, menu_object_read_scene_mode },
+    { 0xC6E2AF, menu_object_clear_scene_flag },
+    { 0xC6E63D, menu_object_keep_song },
+    { 0xC6E644, menu_object_let_song_go },
+    { 0xC6E583, menu_object_bob_second_plane },
+    { 0xC6E590, menu_object_raise_second_plane },
+    { 0xC6E77F, menu_object_accelerate },
+    { 0xC6E2B5, menu_object_drift },
+    { 0xC6E6D0, menu_object_jolt },
+    { 0xC2754D, menu_object_place_under_the_view },
+    { 0xC27575, menu_object_place_under_the_stretch },
+    { 0xC27598, menu_object_give_random_velocity },
+    { 0xC279E0, menu_object_step_right_at_random },
+    { 0xC27A0C, menu_object_place_in_the_east_stretch },
+    { 0xC27A31, menu_object_place_in_the_west_stretch },
+    { 0xC27860, menu_object_hide_the_party },
+    { 0xC2786F, menu_object_keep_the_party },
+    { 0xC27888, menu_object_bring_the_party_back },
+    { 0xC27B44, menu_object_mark_the_scene_played },
+    { 0xC27BC4, menu_object_ask_the_story },
+    { 0xC27BD1, menu_object_note_the_song },
+    { 0xC6E694, menu_object_place_about_the_view },
+    { 0xC6E028, menu_object_load_mode7_graphics },
+    { 0xC6E04D, menu_object_load_mode7_palette },
+    { 0xC6E64A, menu_object_load_second_mode7_graphics },
+    { 0xC6E66F, menu_object_load_second_mode7_palette },
+    { 0xC226A8, menu_clear_vram },
+    { 0xC6E568, menu_object_advance_line_tables },
+    { 0xC6E000, menu_object_window1_lines },
+    { 0xC6E318, menu_object_window1_lines_2 },
+    { 0xC6E448, menu_object_window1_lines_3 },
+    { 0xC6E340, menu_object_window2_lines },
+    { 0xC6E470, menu_object_window2_lines_2 },
+    { 0xC6E595, menu_object_bg1_scroll_lines },
+    { 0xC6E5C5, menu_object_ripple_the_first_plane },
+    { 0xC6E368, menu_object_squashed_iris_1 },
+    { 0xC6E391, menu_object_squashed_iris_2 },
+    { 0xC6E498, menu_object_capsule_iris_1 },
+    { 0xC6E4BE, menu_object_capsule_iris_2 },
+    /* The curtain's scene RNG reads shared scratch. Keep its registered
+     * boundary until that dependency and its effects evidence are retired. */
+    { 0xC278A1, menu_scene_object_in_view_entry },
+    { 0xC6EE31, menu_scene_note_the_epoch_s_arrival_entry },
+    { 0xC26400, menu_epoch_sample_map_colours },
+    { 0xC265B2, menu_epoch_place_map_picture },
+    { 0xC268F4, menu_epoch_map_gradient },
+    { 0xC6E74E, menu_epoch_outside_sides },
+    { 0xC6E797, menu_epoch_in_area },
+    { 0xC6E7FA, menu_object_draw_the_world },
+    { 0xC6E90F, menu_object_start_the_world_turning },
+    { 0xC6E9F5, menu_object_turn_the_world },
+    { 0xC6EE23, menu_object_turn_the_world_on },
+    { 0xC22F0F, overworld_start_the_location_song_entry },
+    { 0xC25798, overworld_clear_the_sign_label_entry },
+    { 0xC248A9, overworld_show_the_epoch_flying_entry },
+    { 0xC248CD, overworld_carry_the_epoch_round_entry },
+    { 0xC227DE, overworld_load_the_map_tiles_entry },
+};
+
+static void (*script_entry(Snes *s, uint32_t routine))(Snes *)
+{
+    for (unsigned i = 0; i < sizeof script_entries / sizeof script_entries[0]; i++)
+        if (script_entries[i].routine == routine && menu_runs_as_port(s, routine, script_entries[i].entry))
+            return script_entries[i].entry;
+    return NULL;
+}
+
 /* The commands go on from a call with 16-bit index registers on the mode's
  * page; the map's scrolling, whose caller goes on with 8-bit A, also with
  * that. */
@@ -160,7 +244,13 @@ static bool call_out_as(OnTheMachine *m, uint32_t site, uint32_t routine, uint16
     Snes *s = m->s;
     uint8_t bank = s->cpu.db;
     m_sep(s, CPU_FLAG_M);
-    m_jsr_dc(s, site, routine, dont_care);
+    void (*entry)(Snes *) = script_entry(s, routine);
+    if (entry) {
+        if (!menu_run_any_widths(s, site, routine, entry))
+            return false;
+    } else {
+        m_jsr_dc(s, site, routine, dont_care);
+    }
     if (!back_as_called(s, bank, a8)) {
         m_stop_at_own(s, site + JSR_SIZE, 0);
         return false;
@@ -171,17 +261,18 @@ static bool call_out_as(OnTheMachine *m, uint32_t site, uint32_t routine, uint16
     return true;
 }
 
-static bool call_out(OnTheMachine *m, uint32_t site, uint32_t routine, uint16_t dont_care)
-{
-    return call_out_as(m, site, routine, dont_care, routine == SCROLL_ACROSS || routine == SCROLL_DOWN);
-}
-
 static bool call_out_far(OnTheMachine *m, uint32_t site, uint32_t routine, uint16_t dont_care)
 {
     Snes *s = m->s;
     uint8_t bank = s->cpu.db;
     m_sep(s, CPU_FLAG_M);
-    m_jsl_dc(s, site, routine, dont_care);
+    void (*entry)(Snes *) = script_entry(s, routine);
+    if (entry) {
+        if (!menu_run_long_any_widths(s, site, routine, entry))
+            return false;
+    } else {
+        m_jsl_dc(s, site, routine, dont_care);
+    }
     if (!back_as_called(s, bank, false)) {
         m_stop_at_own(s, site + JSL_SIZE, 0);
         return false;
@@ -192,14 +283,16 @@ static bool call_out_far(OnTheMachine *m, uint32_t site, uint32_t routine, uint1
     return true;
 }
 
-/* What the routines the commands call read of the registers
- * (tools/dontcare_check.py checks each). */
-enum {
-    MAP_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,          /* $C2:0568, $C2:066C, $C2:09C5 */
-    SOUND_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,        /* $C2:2ED9 */
-};
-
 /* ---- The services, on the machine ------------------------------------------------------------- */
+
+/* Record only the results the command's registered entry must hand back. */
+static void remember_call(OnTheMachine *m)
+{
+    Snes *s = m->s;
+    m->called = true;
+    m->called_x = s->cpu.x;
+    m->called_carry = m_flag(s, CPU_FLAG_C);
+}
 
 /* The map's scrolling takes the plane and the step from the mode's first two
  * cells. A scroll of both planes sets the step once, so the second plane
@@ -207,37 +300,58 @@ enum {
 static bool scroll_map(void *ctx, MenuAxis axis, uint8_t plane, int8_t step)
 {
     OnTheMachine *m = ctx;
-    GameState *g = state_of(m->s);
+    Snes *s = m->s;
+    GameState *g = state_of(s);
     bool both_planes = machine_row(m)->calls == SCROLLS_BOTH_PLANES;
     set_menu_object_scratch_plane(g, plane);
     if (!both_planes || plane != 2)
         set_menu_object_scratch_step(g, (uint8_t)step);
     m->called_down = axis == MENU_DOWN;
-    if (!both_planes)
-        return axis == MENU_ACROSS ? call_out(m, 0xC2173C, SCROLL_ACROSS, MAP_IGNORES)
-                                   : call_out(m, 0xC21751, SCROLL_DOWN, MAP_IGNORES);
-    if (axis == MENU_ACROSS)
-        return plane == 1 ? call_out(m, 0xC2168A, SCROLL_ACROSS, MAP_IGNORES)
-                          : call_out(m, 0xC21691, SCROLL_ACROSS, MAP_IGNORES);
-    return plane == 1 ? call_out(m, 0xC216C7, SCROLL_DOWN, MAP_IGNORES) : call_out(m, 0xC216CE, SCROLL_DOWN, MAP_IGNORES);
+    uint32_t site = both_planes
+        ? (axis == MENU_ACROSS ? (plane == 1 ? 0xC2168A : 0xC21691) : (plane == 1 ? 0xC216C7 : 0xC216CE))
+        : (axis == MENU_ACROSS ? 0xC2173C : 0xC21751);
+    uint32_t routine = axis == MENU_ACROSS ? SCROLL_ACROSS : SCROLL_DOWN;
+    void (*entry)(Snes *) = axis == MENU_ACROSS ? menu_map_scroll_x : menu_map_scroll_y;
+    m_sep(s, CPU_FLAG_M);
+    if (menu_runs_as_port(s, routine, entry)) {
+        uint8_t named = (uint8_t)(plane & 3);
+        TIMED_AS(g, routine, menu_map_scroll(g, named, axis, step));
+        menu_leave_map_scrolled(s, named, axis, step);
+    } else if (!menu_call_returning(s, site, routine, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, true, false)) {
+        return false;
+    }
+    remember_call(m);
+    return true;
 }
 
 static bool redraw_map(void *ctx, uint8_t plane)
 {
     OnTheMachine *m = ctx;
-    set_menu_object_scratch_plane(state_of(m->s), plane);
-    return call_out(m, 0xC21950, 0xC209C5, MAP_IGNORES);
+    Snes *s = m->s;
+    GameState *g = state_of(s);
+    set_menu_object_scratch_plane(g, plane);
+    m_sep(s, CPU_FLAG_M);
+    if (menu_runs_as_port(s, 0xC209C5, menu_map_redraw)) {
+        TIMED_AS(g, 0xC209C5, menu_map_draw_plane(g, m_platform(s), (uint8_t)((plane & 3) - 1)));
+        menu_leave_map_redrawn(s);
+    } else if (!menu_call_returning(s, 0xC21950, 0xC209C5, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, true, false)) {
+        return false;
+    }
+    remember_call(m);
+    return true;
 }
 
-/* The sound queue: each kind of request sends from its own JSR. */
+/* The request goes to the world's mailbox. Its answer is the carry the
+ * command leaves; the mailbox keeps X as it came. */
 static bool pass_on_sound(void *ctx)
 {
     OnTheMachine *m = ctx;
-    switch ((CallKind)machine_row(m)->calls) {
-    case SENDS_EFFECT: return call_out(m, 0xC218E8, 0xC22ED9, SOUND_IGNORES);
-    case SENDS_COMMAND: return call_out(m, 0xC2193E, 0xC22ED9, SOUND_IGNORES);
-    default: return call_out(m, 0xC21916, 0xC22ED9, SOUND_IGNORES);
-    }
+    bool sent;
+    TIMED_AS(state_of(m->s), 0xC22ED9, sent = overworld_pass_on_sound(state_of(m->s)));
+    m->called = true;
+    m->called_x = m->s->cpu.x;
+    m->called_carry = !sent;
+    return true;
 }
 
 static uint32_t handler_of(Snes *s, uint8_t opcode);
@@ -446,7 +560,7 @@ static ScriptFlow perform(OnTheMachine *m, const ScriptOpcode *row, const Script
     note(g, row, c, &n);
     vars_peek(false);
     ScriptFlow f;
-    NATIVE_TIME_AS(s, handler_of(s, m->opcode), f = menu_script_perform(g, row, c));
+    TIMED_AS(g, handler_of(s, m->opcode), f = menu_script_perform(g, row, c));
     if (f.kind != SCRIPT_HANDED_BACK)
         leave(m, row, c, f, &n);
     return f;
@@ -566,7 +680,7 @@ ScriptEnd menu_run_object_script_from(Snes *s, uint32_t call_site)
 {
     m_push16(s, (uint16_t)(call_site + JSR_SIZE - 1));
     ScriptEnd end;
-    NATIVE_TIME_AS(s, 0xC20F63, end = run_the_running_object_s_script(s));
+    TIMED_AS(state_of(s), 0xC20F63, end = run_the_running_object_s_script(s));
     if (end != SCRIPT_GAVE_BACK)
         (void)m_pull16(s);
     return end;

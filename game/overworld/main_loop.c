@@ -37,6 +37,7 @@
 #include "menu/menu.h"
 #include "menu/vram.h"
 #include "original_effects.h"
+#include "overworld/entries.h"
 #include "overworld/music.h"
 #include "overworld/overworld.h"
 #include "overworld/places.h"
@@ -641,7 +642,7 @@ static bool map_loaded_on_the_machine(void *ctx, MapLoad load)
         return menu_call(s, map_loads[load].site, 0xC22C93, READS_NOTHING);
     Unpacker u = overworld_unpacker_on_the_machine(s);
     bool loaded;
-    NATIVE_TIME_AS(s, 0xC22C93, loaded = overworld_load_the_map_again(state_of(s), &u, m_platform(s)));
+    TIMED_AS(state_of(s), 0xC22C93, loaded = overworld_load_the_map_again(state_of(s), &u, m_platform(s)));
     if (loaded)
         m_sep(s, CPU_FLAG_M);
     return loaded;
@@ -660,8 +661,12 @@ static Pass menus_on_the_machine(void *ctx, OverworldMode mode)
     m_set_flag(s, CPU_FLAG_N, false);
     m_set_flag(s, CPU_FLAG_Z, false);
     m_set_flag(s, CPU_FLAG_C, true);
-    if (menu_call_long(s, 0xC22552, 0xC28000, DC_AH | DC_Y | DC_C))
-        m_stop_at(s, 0xC22556, READS_NOTHING);
+    if (menu_call_long(s, 0xC22552, 0xC28000, DC_AH | DC_Y | DC_C)) {
+        if (overworld_loop_accepts_machine(s))
+            TIMED_AS(state_of(s), 0xC22556, overworld_come_back_to_the_map_s_screen(s));
+        else
+            m_stop_at(s, 0xC22556, READS_NOTHING);
+    }
     return PASS_STOPS;
 }
 
@@ -697,6 +702,12 @@ static void after_the_pass(Snes *s, Pass p)
 
 static Loop on_the_machine_loop(Snes *s) { return (Loop){ state_of(s), m_platform(s), &on_the_machine, s }; }
 
+/* The bridges preserve widths, page and bank, but do not promise binary arithmetic. */
+bool overworld_loop_accepts_machine(Snes *s)
+{
+    return !s->cpu.e && m_m8(s) && !m_x8(s) && !m_flag(s, CPU_FLAG_D) && overworld_main_loop_runs(s);
+}
+
 void overworld_run_a_frame(Snes *s)
 {
     Loop l = on_the_machine_loop(s);
@@ -722,7 +733,7 @@ void overworld_come_back_to_the_map_s_screen(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_I, true);
     if (menu_run_or_call(s, 0xC22557, 0xC20043, READS_NOTHING, menu_object_init_video))
-        NATIVE_TIME_AS(s, 0xC2255A, overworld_come_back_from_the_menus(s));
+        TIMED_AS(state_of(s), 0xC2255A, overworld_come_back_from_the_menus(s));
 }
 
 // $C2:2E23

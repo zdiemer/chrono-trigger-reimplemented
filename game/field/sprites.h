@@ -18,6 +18,8 @@ void field_build_sprite_table(Snes *s);
 /* The same as C, where every draw is one the port makes (false otherwise,
  * with nothing built). */
 bool field_sprite_table_built(GameState *g);
+/* A finite row list whose objects' sprite records fit in their tables. */
+bool field_sprite_rows_drawable(Snes *s);
 void field_draw_object_sprites(Snes *s);
 void field_update_object_sprites(Snes *s);
 void field_position_sprites(Snes *s);

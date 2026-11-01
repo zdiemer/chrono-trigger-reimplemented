@@ -1,0 +1,10 @@
+# What the C sound driver plays over the gate's ct_sound_fuzz runs (tools/suite.py,
+# SOUND_FUZZ_RUNS and SOUND_FUZZ_SIZE: 10 runs of 400 commands from seed 1, the S-DSP
+# and the native mixer side by side): the digest ct_sound_fuzz prints, 64-bit FNV-1a
+# over every sample it heard, a hash of our own output and nothing of the cartridge's.
+# A line per kind of run: `<digest>  # <kind>`. Since the gate no longer compares
+# sound with the original's (docs/REIMPLEMENTATION.md, "The sound driver's teardown"),
+# a digest that moves is a change to what the driver plays: take the new one only on
+# purpose, saying why in the commit.
+9b3ab44a6678e66a  # game's songs
+a36313e5e19a4d59  # made-up songs

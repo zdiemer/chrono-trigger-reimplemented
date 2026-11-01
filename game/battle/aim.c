@@ -973,7 +973,7 @@ void battle_search_area(Snes *s)
 {
     GameState *g = state_of(s);
     set_battle_area_shape(g, battle_aim_rule_shape(g));
-    NATIVE_TIME_AS(s, 0xC11FDD, battle_search_the_noted_area(s));
+    TIMED_AS(state_of(s), 0xC11FDD, battle_search_the_noted_area(s));
     m_rts(s);
 }
 

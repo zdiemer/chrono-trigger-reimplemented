@@ -8,7 +8,7 @@
  * reaches it (menu_run), and so are the main menu's panel, the cursor's tick
  * and the member card; a frame's wait is the task switch's, from the
  * original's call at each place. The fade in as the menu opens, the leaving
- * of the menus and the tick a step ends on are jumps the steps stop at.
+ * of the menus and the tick a step ends on are C continuations.
  * Before each call a sequence leaves the flags the original's own tests left
  * (scaffolding, at the notes). */
 #include "menu/main_menu.h"
@@ -16,8 +16,10 @@
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
+#include "menu/display.h"
 #include "menu/equipment.h"
 #include "menu/exchange.h"
+#include "menu/fades.h"
 #include "menu/item_screen.h"
 #include "menu/members.h"
 #include "menu/menu.h"
@@ -203,14 +205,14 @@ static void note(void *ctx, MainMenuNote n, uint8_t value)
     }
 }
 
-/* The steps' ends are the original's jumps, which the port stops at. */
+/* The steps continue into their siblings as C, behind the siblings' guards. */
 static bool ends(void *ctx, MainMenuEnd end)
 {
     Snes *s = machine(ctx);
     switch (end) {
-    case MAIN_MENU_FADES_IN: m_stop_at(s, FADE_IN, READS_NOTHING); break;
-    case MAIN_MENU_LEAVES_THE_MENUS: m_stop_at(s, LEAVE_THE_MENUS, READS_NOTHING); break;
-    case MAIN_MENU_TICKS_AS_IT_ENDS: m_stop_at_own(s, CURSOR_SOUND, READS_A_AND_CARRY); break;
+    case MAIN_MENU_FADES_IN: menu_go_on_in(s, FADE_IN, menu_start_the_fade_in_entry, READS_NOTHING); break;
+    case MAIN_MENU_LEAVES_THE_MENUS: menu_go_on_in(s, LEAVE_THE_MENUS, menu_close_entry, READS_NOTHING); break;
+    case MAIN_MENU_TICKS_AS_IT_ENDS: TIMED_AS(state_of(s), CURSOR_SOUND, menu_play_cursor_sound(s)); break;
     }
     return false;
 }

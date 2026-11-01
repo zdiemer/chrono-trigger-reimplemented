@@ -32,7 +32,7 @@ BATTLE_MENU_MEMBER = 0x7E95D5   # whose battle menu is open, $80 and up for none
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, sound=args.sound_driver, until=args.until)
+              generated=args.generated, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

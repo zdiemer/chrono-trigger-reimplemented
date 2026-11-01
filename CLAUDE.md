@@ -30,8 +30,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - CPU tests: `python3 tests/cpu/fetch_sst.py` and `python3 tests/apu/fetch_sst_spc700.py` once, then
   `build/main/sst_runner tests/cpu/data/*.bin`, `build/main/sst_generated_runner tests/cpu/data/*.bin`,
   `build/main/generated_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
-  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `assets_test`, `vars_test`, `sound_test`, `timing_test` and `tasks_test` need no data; `build/main/ct_sound_fuzz` checks
-  the C sound driver against the original's in lockstep (docs/SOUND.md).
+  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `assets_test`, `vars_test`, `sound_test`, `timing_test` and `tasks_test` need no data; `build/main/ct_sound_fuzz` plays
+  the C sound driver on random command streams and prints its sound's digest (docs/SOUND.md).
 - CI (`.github/workflows/ci.yml`): Linux gcc and clang, macOS Apple clang, Windows MSYS2 MinGW gcc, all
   configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `assets_test`, `vars_test`, `sound_test`, `timing_test`, `tasks_test`,
   the conformance runners (test data cached) and builds `ct_play`, `ct_native` and the oracle. Code must build
@@ -92,14 +92,14 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `--calibrate game/registry.c --drifted`, which rewrites only the entries a new movie moved; docs/REIMPLEMENTATION.md, "The
   timing gate"); no video write in the shipping mode (`--generated on`, `ct_play`'s default) lands on the
   picture where the reference's doesn't, or it is in `tools/vblank_check_exceptions.txt`
-  (`tools/vblank_check.py`, whose shipping runs also play the C sound driver in lockstep beside the
-  original's, so the CPU half's waits for the SPC700, made where the port stands, are checked there); the route scripts reach their outcomes in the shipping mode, with the C
-  sound driver that ships (`tools/movies/route_check.py`, `ct_drive --sound-driver c`; the suite runs
+  (`tools/vblank_check.py`); the route scripts reach their outcomes in the shipping mode, with the C
+  sound driver that ships (`tools/movies/route_check.py`, `ct_drive --native on`; the suite runs
   the fast route, `--long-routes` all of them, which is worth doing before a change to timing or to
-  the native runtime lands); the C sound driver matches the original's at every tick of every movie
-  (`ct_dev --sound-lockstep --sound-lockstep-level state`, inside the shadow runs) and over a short
-  `ct_sound_fuzz` in both its modes, the hosted one with the native mixer making the S-DSP's every frame
-  (`--mixer check`; docs/SOUND.md, docs/PLATFORM.md "The native mixer, as built"); every
+  the native runtime lands); the C sound driver, over a short `ct_sound_fuzz` with the game's songs and
+  with made-up ones, answers every command, places no sample where the echo writes, drops none, the
+  native mixer makes the S-DSP's every frame (`--mixer check`; docs/PLATFORM.md "The native mixer, as
+  built") and each kind of run's sound is the digest `tools/sound_golden.txt` keeps (sound is no longer
+  compared with the original's: docs/REIMPLEMENTATION.md, "The sound driver's teardown"); every
   don't-care declaration in `game/` is one the liveness analysis agrees with
   (`tools/dontcare_check.py`, run by the suite, static; docs/REIMPLEMENTATION.md, "Before the bulk"); no
   port's logic reads what some port writes only inside `ORIGINAL_EFFECT` where none did before
@@ -111,15 +111,16 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   (`tools/portsmell.py --check`, run by the suite, static); the original's code runs in place of
   hand ports nowhere new, and no more of it where it did, over every movie's reference play
   (`ct_dev --fallbacks` in the shadow runs; `tools/fallbacks.py --check`, a ratchet on
-  `tools/fallback_baseline.txt`, with the shipping mode's count over the movies and routes reported
-  beside it; docs/REIMPLEMENTATION.md, "The fallback measure"); no hand port's guard refuses a call real play
+  `tools/fallback_baseline.txt`, and the shipping mode's count over the movies and routes run on
+  `tools/fallback_shipping_baseline.txt`, as a subset (its counts move with timing), the backstop for
+  anything the shadow runs' measure counts as a port's; docs/REIMPLEMENTATION.md, "The fallback measure"); no hand port's guard refuses a call real play
   makes -- in the shadow runs, the movies in the shipping mode or the routes -- unless
   `tools/refusal_allowlist.txt` says why (`tools/fallbacks.py --refusals`); every movie gets as far on the
   hand ports alone -- no generated code, no interpreter, the C sound driver -- as `tools/strict_baseline.txt`
   says, a movie that reaches its end doing so with no failed exit, hang, `halted:`, `accessor out of range` or
   `page refused` line, and one the line marks `end` ending with the saved game and save RAM the reference
   play's (`tools/strict_check.py --check`, a ratchet run by the suite, against the shadow runs' `ct_dev
-  --end-state`; `ct_dev --native on --generated off --no-interpreter strict --sound-driver c`; docs/PLAYING.md,
+  --end-state`; `ct_dev --native on --generated off --no-interpreter strict`; docs/PLAYING.md,
   "Without the interpreter"); and the build with the
   ports' scaffolding compiled out (`ct_dev_native_shape`, `ct_drive_native_shape`) runs every movie
   to its end in the shipping mode with no failed exit, hang, `halted:` line, `accessor out of range`
@@ -310,3 +311,37 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   it produced belongs in its milestone doc's "as built" section, which is where
   the history lives. No "(done)" annotations, no struck-through lines, no
   completed-work sections.
+
+## Working in this repo as an agent
+
+Several agents often share one machine and one repository, each in its own
+worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
+
+- **Processes.** Build with `-j 2` and run at most two `ct_dev`/`ct_native`/`ct_drive`
+  processes at a time unless told otherwise. Kill a process only by its PID, never
+  by image name (`taskkill /IM`, `pkill ct_dev`): that kills other agents' runs.
+- **The gate.** A branch passes on the sampled gate,
+  `py tools/suite.py --ct-dev build/main/ct_dev.exe -j 2 --long-routes --evidence`.
+  Don't run `--all-movies` on a branch: the whole library runs batched (see
+  "Validation" above). `suite.py` exits 0 even when it fails, so read its last
+  line: only `suite OK` is a pass.
+- **Ratchets and exceptions.** Never add a line to a baseline or exceptions file
+  (`tools/*_baseline.txt`, `tools/*_exceptions.txt`, `tools/refusal_allowlist.txt`)
+  to get a check to pass without a reason on the line that a reviewer would
+  accept; fix the cause where it can be fixed. Never claim a fix the diff
+  doesn't contain.
+- **Calling the next step as C.** When a stop at the original's address or a
+  call-out becomes a direct call, the callee's full registry contract and guard
+  still hold: its P mask (decimal mode included), widths, page, bank and any
+  code-image guard. Check them before the call, and stop at the original entry
+  when they refuse, as the stop did.
+- **Names.** No `_as_c`, `_now` or similar suffix: the C function takes the plain
+  name, and a machine wrapper that would clash becomes `<name>_entry`. Machine
+  callbacks are `*_on_the_machine`; a sequence two callers share is `*_with`.
+- **Commits.** Plain messages with no `Co-Authored-By`, session or other trailers.
+  Commit each coherent step on your branch so work survives an interruption.
+  Don't push or merge unless asked.
+- **Worktrees.** Before `git worktree remove --force`, check the worktree for links
+  into the main checkout (on Windows,
+  `Get-ChildItem -Recurse -Force -Attributes ReparsePoint <worktree>`): removing
+  one deletes what it points at.

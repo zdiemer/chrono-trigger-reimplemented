@@ -19,7 +19,6 @@
 #include "core/input.h"
 #include "core/memory.h"
 #include "core/palette.h"
-#include "core/sound_driver.h"
 #include "core/tile_animation.h"
 #include "data/decompress.h"
 #include "event/contact.h"
@@ -2103,36 +2102,6 @@ const NativeEntry game_natives[] = {
     { .addr = 0xFDEA11, .name = "palette_lighten_green_blue", .fn = palette_lighten_green_blue,
       NEEDS_M8_X16_BINARY, .cost_milli = 5340, .dont_care = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = palette_fade_loop_can_run },
-    /* sound driver: the boot stops at its two waits on the machine (idle
-     * entries), its upload going on where the first leaves; a command runs
-     * whole, its waits for the SPC700 made in place, and calls the three
-     * routines that wait inside themselves as the original does. Every entry
-     * but $C7:0000 and $C7:0004, which set them, needs the driver's data bank
-     * and direct page. */
-#define SD .guard = sound_driver_frame_is_set
-    { .addr = 0xC70000, .name = "sound_driver_boot", .fn = sound_driver_boot, .cost_milli = 4750 },
-    { .addr = 0xC7005F, .name = "sound_driver_boot_upload", .fn = sound_driver_boot_upload, NEEDS_M8_X16,
-      .cost_milli = 6543, SD },
-    { .addr = 0xC7011E, .name = "sound_driver_boot_finish", .fn = sound_driver_boot_finish, NEEDS_M16_X16_BINARY,
-      .cost_milli = 3700, SD },
-    { .addr = 0xC70004, .name = "sound_driver_command", .fn = sound_driver_command, .p_mask = CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 3237, .guard = sound_driver_slots_are_kept },
-    /* the routines; their callers set what they leave in A, X and Y again */
-    { .addr = 0xC70A39, .name = "sound_driver_send_song", .fn = sound_driver_send_song, NEEDS_M8_X16_BINARY,
-      .cost_milli = 5683, SD },
-    { .addr = 0xC70655, .name = "sound_driver_upload_block", .fn = sound_driver_upload_block,
-      NEEDS_M16_X16_BINARY, .cost_milli = 4486, .dont_care = DC_A | DC_X | DC_Y, SD },
-    { .addr = 0xC70922, .name = "sound_driver_upload_effects", .fn = sound_driver_upload_effects, NEEDS_M8_X16,
-      .cost_milli = 4554, .dont_care = DC_A | DC_X | DC_Y | DC_FLAGS, SD },
-    /* per pass with FastROM: the boot's first loop (two immediate loads, two
-     * writes, a 16-bit CPX and a taken branch), 120 master clocks; its
-     * countdown (DEX and a taken BNE), 30 */
-    { .addr = 0xC70050, .name = "sound_driver_boot_wait_ready_loop", .fn = sound_driver_boot_wait_ready_loop,
-      NEEDS_M8_X16, .idle = true, .idle_clocks = 120, SD },
-    { .addr = 0xC7011B, .name = "sound_driver_boot_delay_loop", .fn = sound_driver_boot_delay_loop, NEEDS_M16_X16,
-      .idle = true, .idle_clocks = 30, SD },
-#undef SD
-
     /* core: a block move stub written to RAM (guarded) */
     { .addr = 0x7E9690, .name = "memory_move_stub", .fn = memory_move_stub, .p_mask = CPU_FLAG_X, .p_value = 0,
       .cost_milli = 2741, .guard = memory_move_stub_present },
@@ -4672,7 +4641,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC30C28, .name = "scene_sequence_goes_on_after_the_wait", .fn = scene_sequence_goes_on_after_the_wait,
       NEEDS_M8_X16_BINARY, .cost_milli = 5158, .dont_care = DC_X | DC_N | DC_Z, .guard = scene_sequence_waits_on_channel },
     { .addr = 0xC30C2A, .name = "scene_script_wait_for_sound", .fn = scene_script_wait_for_sound, .idle = true,
-      .idle_clocks = 96,
+      .idle_clocks = 96, .idle_return_span = 0x17,
       .guard = scene_sequence_waits_on_channel },
 
     /* object routines in bank C6 (menu object scripts' call command, and the Epoch's map):
@@ -4841,7 +4810,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xFDEAEB, .name = "warp_wait_for_frame", .fn = warp_wait_for_frame, NEEDS_M8, .cost_milli = 2500,
       .guard = warp_on_its_page },
     { .addr = 0xFDEAED, .name = "warp_wait_for_frame_loop", .fn = warp_wait_for_frame_loop, NEEDS_M8, .idle = true,
-      .guard = warp_on_its_page },
+      .idle_return_span = 7, .guard = warp_on_its_page },
     { .addr = 0xFDEADA, .name = "warp_screen_on_wait_for_vblank_loop", .fn = warp_screen_on_wait_for_vblank_loop,
       NEEDS_M8, .idle = true, .guard = warp_bank_reaches_io },
     { .addr = 0xFDEADF, .name = "warp_turn_the_screen_on", .fn = warp_turn_the_screen_on, NEEDS_M8,

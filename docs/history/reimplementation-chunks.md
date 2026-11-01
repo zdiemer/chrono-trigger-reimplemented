@@ -12859,3 +12859,270 @@ after an interrupted prelude, the final warp frame exposes HDMA shutdown
 timing, and two interpreter handbacks need unsupported-data services or a
 callee return contract. TODO records each failure and the next required
 work. No full sampled gate has passed for this series yet.
+### The sound driver's teardown, its first step: the game's side as calls
+
+The first subsystem taken off the machine in the product (PLAN.md, "The
+native program, and the registry taken down", step 3). The C sound driver
+(`game/sound/`) had no machine in it already but the escape its command
+`$FD` asks for; the CPU half in bank `$C7` (`core/sound_driver.c`) had all
+of it. Two halves were one file: the protocol the original's driver is
+spoken to in (the boot's upload, the commands' and songs' transfers, the
+slots' records, the entries' wrappers, the two wait loops and the
+scaffolding shadow mode compares), and the few lines that hand a command to
+a driver the host plays. The second is `core/sound_commands.c` now, and
+`ct_native` links it and not the first, which CMakeLists.txt leaves out of
+its sources beside `registry.c`; `tools/machine_joints.py` counts the joints
+in what `ct_native` links as a second column (returns 987 to 982, stops 177
+to 175, scaffolding writes 2,061 to 2,032).
+
+On the machine the shipping mode called out to `$C7:0004` for every command,
+and the entry handed it to the host: 25.5 K entries by the machine over the
+84 movies, the boot's 100 more, and 16 entries the machine came back to
+after them (`menu_type_the_description_task` and the menus' others, waiting
+across a command). The audio service's SNES backend now hands a command to
+a host-played driver as a call (the APU's `host_send`, which
+`frontend/sound_host.c` points at `sound_driver_hand_the_buffer_to_the_host`),
+timed as `$C7:0004`'s work (`native_time_as`), and the field's power-on
+takes the host's boot as C before it would call out; with no host (the
+original driver: the reference play, the lockstep, `--sound-driver
+original`) both call out as before. The census enters nothing of bank `$C7`
+by the machine (266 entries to 264). The rows, wrappers and scaffolding
+stay for the gate, which plays the original's driver; PLAN.md says what
+retires them.
+
+Its ledger row in docs/ports.tsv, kept here since the port is deleted (REIMPLEMENTATION.md,
+"The sound driver's teardown"):
+
+> Sound driver's CPU half (`core/sound_driver.c`, its data through `core/sound_data.h`'s `GameState` accessors), the whole of bank C7's code: the boot `sound_driver_boot` `$C7:0000`, its upload `sound_driver_boot_upload` `$C7:005F`-`$C7:011A` and `sound_driver_boot_finish` `$C7:011E`, idle `sound_driver_boot_wait_ready_loop` `$C7:0050` and `sound_driver_boot_delay_loop` `$C7:011B`; the command `sound_driver_command` `$C7:0004` whole (the dispatch `$C7:0155`, a song `$C7:01A1`, a command as it is `$C7:061C`, command `$70`'s `$C7:08E3` and `$71`'s `$C7:0755`, the slots' bookkeeping `$C7:0734`, `$C7:09FD`, `$C7:0A12`, the exit `$C7:0192`, every wait for the SPC700 in place); the routines it calls as C inside the original's frame for them (`IN_THE_ORIGINALS_FRAME`), registered for the original's own calls and to fuzz alone, `sound_driver_send_song` `$C7:0A39`, `sound_driver_upload_block` `$C7:0655`, `sound_driver_upload_effects` `$C7:0922`. The exchange routines `$C7:09DA` and `$C7:09EA` are the original's, which `au_driver_exchange` calls in shadow mode and the tools, and stands for in the shipping mode | $C7:0000-$C7:0A97 | history/reimplementation-waves.md, "The $C7 pilot", for the first port; rewritten in docs/history/reimplementation-chunks.md, "Phase 4a, the shipping mode's fallbacks, chunk 7": every wait for the SPC700 through the audio service (`au_driver_wait_echo`, `_wait_moved`, `_wait_echo_or_give_up`, `au_driver_exchange`), so a command runs whole; logic over `vars.h`, scaffolding through `ORIGINAL_EFFECT`; 43 entries to 9. Guard on `$C7:0004`: `sound_driver_slots_are_kept` (blocks in a byte, lengths 0 or past a byte, the slots in use contiguous, at most one block in two slots, command `$71`'s slot a slot); no refusal in real play. Calls over the 36 movies (`--native shadow`), none mismatching: the command 13974 (261 interrupted: a song's upload spans frames and a vblank cuts one of its stretches); `$C7:0A39` 607, `$C7:0655` 1026 and `$C7:0922` 72, all run inside the command's stretches and compared there (their own entries count them abandoned); the boot's three entries 37 each; the sound lockstep identical in every movie in shadow and in the shipping mode (the vblank check's runs); the shipping mode's next message reaches port 3 8-15 SPC700 cycles after the SPC700 read the last in all but 8,577 of 1,157,232 messages, 3 at the least, as the original's (`ct_dev --apu-port-margins`). Fuzzed (seed 1, `tools/fuzz_routines.toml`, `--apu-loopback`), 0 mismatching: the command 6818 of 20000 compared (13163 refused by the guard), 20000 with the slots the title's song leaves, and 17742 of 20000 with the SPC700 answering otherwise on port 1 now and then (`refusals`, `--apu-port1-flips`: a header not confirmed, a song refused, the moves turned down); `$C7:0A39`, `$C7:0922` (and its `refusals` variant), the boot, its upload, its finish and its two idle loops 20000 each; `$C7:0655` 19682 of 20000. Against `main`'s ports `$C7:0655`, `$C7:0922`, `$C7:0000`, `$C7:011E` agree; the idle loops 20000 mismatching to 0 (their passes now leave the flags as the original's do)
+
+## The menus' script services and machine time tags
+
+The menu scripts now call the map's scrolling and drawing and the sound
+mailbox as C. The map's registered entries and the script bridge share their
+register-result helpers; the scripts do not construct a return frame for
+that work. Script-selected routines have a table of 57 machine entries,
+checked against their guards before they run as C. Their wrappers still
+supply the register results and, for callees with nested calls, the frames
+the byte-exact gate compares. Targets outside the table and guard refusals
+retain the original near or far call. The native program continues to use
+the game-state routine table in `menu/handlers.c`.
+
+The 21 menu bridge, display, frame, list, object, task and description files
+started with 560 sites in `machine_joints.py`: 157 returns, 56 stops,
+18 counted call-out sites, 15 machine time tags, two register escapes,
+58 video calls and 254 scaffolding writes. The script work removes twelve
+counted call-out sites; the time tags now use `TIMED_AS` on the game's state,
+removing all fifteen machine tags. The other counts are unchanged (533
+sites). The shared map helpers add no joint in `menu/map.c`.
+
+Narrowed shadow checks on `attract-demo`, `menus-epoch` and `menu` compare
+without mismatches; their trace identity, timing and vblank checks pass.
+No calibration or exception changes are needed. Differential fuzzing, seed 1
+and 300 iterations per case with the existing constraints, compares 1,832
+states over fifteen cases, with zero mismatches before and after. That
+includes the redraw's leaf and command, whose movie calls span frames.
+The routine-call cases exercise the fallback in fuzz, which has no active
+registry; the movies check the guarded C selection. `ports.tsv` records
+each entry's comparisons and skips.
+
+### Direct continuations within a frame
+
+The field's object defaults go straight to the opening scripts, its scripted
+menu return to the fade-in, and its walking frame to the frame wait. The
+frame work and initial drawing call the sprite builder directly where its
+row lists are finite and its records fit. This removes the field bridge's
+tail-call registry lookup. Battle's frame work continues into the pass and
+the pass into its timers; the overworld's menu call continues into restoring
+the map's screen. These are C calls timed at the existing routines' rates;
+the entry wrappers still handle the original's registers and returns.
+
+Fuzzing explained why the sprite continuation still needs a hand-back for
+malformed lists. The old bridge's registry lookup has no runtime in
+`ct_fuzz`, so it stopped before drawing. Calling the builder on arbitrary
+lists exposed 20 mismatches in 300 `field_frame_work` states. Testing the
+builder's existing row/record conditions before the continuation restores
+exactly the predecessor's counts: 0/24 compared for frame work and 0/144
+for drawing the initial view, with the same skipped counts. No fuzz domain
+was narrowed. The ordinary frame wait, battle pass and overworld pass also
+keep their predecessor's zero mismatches. Object defaults now include the
+opening scripts in the comparison: 6 of 300 compare, none mismatch; 294
+exceed the call-out budget on random scripts, where the predecessor
+compared only the defaults. The movie shadows cover their normal scripts.
+
+The assigned files lose six stops and one registry lookup, from 1,759 to
+1,752 joints after the timing-tag change. The main loops retain their
+backedges as comparison boundaries: chaining them recursively would grow
+the C stack each frame in shadow mode. The field's wait still ends at its
+idle entry in shipping mode, preserving the save-state boundary.
+
+### Timing tags in the field, battle, overworld and events
+
+The ordinary timing scopes in these four subsystems and `core/input.c`
+use `TIMED_AS` with the game's state. This includes the seven party-service
+scopes in `event/party.c`, the object update's steps and the bridges' calls.
+The scope still selects the same routine and encloses the same work:
+`charge_time_as_begin` and `charge_time_as_end` delegate to the original
+timing functions on the comparison build and do nothing on the host.
+No entry, guard, cost or game operation changes. Battle's three sibling
+scopes retain their separate accounting until a state-based sibling API
+exists.
+
+The assigned files' source measure starts at 1,799 joints, including 40
+ordinary machine-based time tags. This change removes those 40 tags; the
+other categories stay at their original counts. Validation is recorded in
+`ports.tsv`; the existing fuzz domains are unchanged because this replaces
+only the timing scope's handle, not a routine's operations.
+
+### Field requests and mode startup continue in C
+
+After the frame continuations and timing tags (now in
+`history/reimplementation-chunks.md`), seven more linear handoffs call their
+callees: the tile copy and ripple finish their frame, an empty battle request
+takes the walking turn, the closing field and event scene command prepare the
+scene's fresh stack, and battle and overworld setup enter their loops.
+The existing game-state sequences and timing rates are unchanged. The scene
+handoffs now declare their own stop contract: the event wrapper's disposable
+A must not hide the scene number that the scene engine reads. The narrowed
+suite caught that inherited contract; the corrected liveness check has zero
+findings. No guard, calibration, exception or fuzz domain changed.
+
+Five narrowed movie shadows (`new-game`, `battle-menu-buttons`,
+`field-65m-bc-dactyl`, `menus-epoch`, `events-end-of-time-gate`) have zero
+mismatches and identical sound lockstep. Requests compare 6,366 of 6,378
+calls, screen effects 6,357 of 6,357, screen commands two of eight, and
+overworld setup seven of seven. The one battle startup is inside an enclosing
+comparison and is not independently compared. The ledger records these limits.
+
+Same-seed predecessor fuzz over 16 existing variants has zero mismatches:
+300 states per variant, except overworld setup's existing 200. The scene
+command's 151 accepted states agree, including its already-dark scene path.
+Screen effects' close/ripple and battle startup still compare only through
+their first blocking call; this does not claim coverage after the wait.
+Overworld setup now continues into its first frame and none of its 200
+randomized states completes the fuzz comparison; its seven movie comparisons
+do complete. Random scene operands also report out-of-range character records,
+so this is not evidence that arbitrary corrupt script state is supported.
+
+The assigned files started at 1,799 joints and now have 1,745: stops 62 to
+49, registry lookups three to two, ordinary machine timing tags 40 to zero.
+The remaining counts are unchanged: 490 emulated returns, two counted sprite
+call-out sites, three register escapes, 111 video calls and 1,088 scaffolding
+writes. The main loops' stops are field 14 to 13, battle six to four,
+overworld five to four. Remaining boundaries and their blockers are in TODO.
+
+### Field continuations, with the battle boundaries retained
+
+The assigned field, battle, overworld, event and controller files retain
+51 fewer machine joints: ten linear address stops call their continuations
+in C, the field's tail-call registry lookup is gone, and all 40 ordinary
+machine timing scopes use the game-state handle. No entry, timing calibration,
+exception, registry row or fuzz domain was added or changed. The preceding
+chunks and their per-entry fuzz limits are in `history/reimplementation-chunks.md`
+and `ports.tsv`.
+
+The single sampled gate with long routes and evidence found zero mismatches
+in 37 movies and passed all 56 shipping routes. Trace identity, timing,
+vblank, fallbacks, refusals, sound, liveness, the remaining source checks and
+the asset catalogue passed. With scaffolding compiled out, all 37 movies
+finished and 55 of 56 routes passed. The bucket-Lavos route's final fight
+did not end within 400,000 frames. A separate build of the pre-change commit
+`7359a492` passed that route at frame 164169. Restoring only the three battle
+handoffs (startup, frame to pass, and pass to timers), while keeping every
+other game change, also passed at frame 164169. All eight snapshot replays
+in each passing run were exact. The kept game sources match that candidate.
+Those three stops remain until their timing/continuation contract is worked
+out; the comparison does not establish which of the three causes the drift.
+The kept binary also passes five narrowed shadows (`new-game`,
+`battle-menu-buttons`, `field-65m-bc-dactyl`, `menus-epoch`,
+`events-end-of-time-gate`) with zero mismatches.
+
+The evidence tool internally launches four processes per movie worker, so
+the requested two-worker invocation exceeded the two-process limit. Its
+runner and children were stopped by verified PID when this was discovered.
+The gate's actual last line was `FAILED: native-shape; evidence`; it was not
+rerun. The follow-up evidence helper in ignored scratch keeps every check
+but serializes each movie's variants and caps simultaneous game processes.
+The kept binary's bounded evidence rerun completed all 84 movies with
+matching traces and passed the dispatch-index and declaration-count checks;
+its last line is `dc_evidence: OK`. This is a separate evidence result; integration validation belongs to the
+merge coordinator.
+
+The assigned-file count is now 1,799 to 1,748: stops 62 to 52, registry
+lookups three to two, and ordinary machine timing tags 40 to zero. The
+unchanged counts are 490 emulated returns, two counted sprite call-out sites,
+three register escapes, 111 video calls and 1,088 scaffolding writes. Main-loop
+stops are field 14 to 13, battle six to six, overworld five to four. TODO
+records the remaining guard, replay, timing and backend contracts.
+
+### The largest fallbacks left: Zeal's fall and the scripted exits
+
+Chosen by size from `tools/fallback_baseline.txt` and from the movies
+`tools/strict_baseline.txt` still stopped short: 5.8 million of the
+library's 6.7 million instructions run in place of hand ports were one
+routine of Zeal's fall, and five movies stopped on the hand ports alone.
+
+- **The palace shaking apart** (`$C6:E5C5`, `menu_object_ripple_the_first_plane`,
+  `menu/line_effects.c`). A scene's script in the sprite-object mode calls it
+  every frame by far call; `menu_run_object_script` had no row for it, so the
+  program handed the scene's objects back. It ripples the first plane: each of
+  the 224 lines scrolled by the plane's scroll plus a push of up to four lines
+  from the menus' wave sizes (`menu_wave_size`, a step of 8 of 1024 a line and
+  8 a frame), into the slot-3 table the frame's count picks, which it shows.
+  The second half of the turn rounds away from zero, and a size of nothing
+  there comes out as 256 lines up -- the original's sign extension of it,
+  kept, which the plane's wrapping hides. Two more routines the same scene
+  calls were the next stops: `$C6:E694` (`menu_object_place_about_the_view`,
+  an object put at random about the view, `menu/object_commands.c`) and
+  `$C2:7BD1` (`menu_object_note_the_song`, the song the scene leaves playing
+  named as the field's current song), the strict stop of
+  `events-ocean-palace-lavos`. Each is a row of the scripts' routine tables
+  and a registered entry, one function for both.
+- **The leader's walk with nobody to walk** (`field_walk_the_leader`,
+  `field/walk.c`). The guard turned away a leader's place whose word isn't an
+  object (North Cape's flashback and Zeal's fall leave it `$FFFE`) before
+  asking whether the walk steps at all; with no step the walk reads nothing
+  of the leader's, so the guard now asks that first. The recentring's guard
+  likewise asks only where it looks at the leader: as it starts with the
+  screen off the grid.
+- **A leader above the map** (the same). The guard's bound down -- a place
+  above `$FF00` -- turned away Marle jumping onto the Epoch at Dalton's
+  (`$FFBD`), on a reason fuzzing doesn't bear out: with the bound dropped,
+  15,000 states with the leader's place `$FCxx`-`$FFxx` and anywhere across
+  compare without a mismatch. What the reason described is the right end:
+  past `$FF8F` across, 17 of 4,000 mismatch on the slope's cell, so that
+  bound stays.
+- **The confirm button and the Skyway's irises** were found already closed:
+  `battle-unequipped-armor` and `battle-zombor` no longer reach
+  `field_press_confirm` with a state its guard turns away, and the capsule
+  irises take a centre on the top line since the battle stops' merge. Their
+  strict lines and fallback rows had not been taken.
+
+**Measured.** Shadow mode, `events-ocean-palace-lavos`: the ripple 1,017
+calls, the placing 43, the song 1, all matched; the movie's instructions in
+place of hand ports from 5.84 million to 2,813. The fallback baseline's rows
+for the eleven routines are gone (6.73 million instructions to 0.72 million
+over the library; the long Crono's trial hand run, rerun, no longer refuses
+the walk at the transfer to prison). Strict mode: `battle-dalton`,
+`battle-magus-north-cape`, `events-magus-joins`, `events-ocean-palace-lavos`,
+`events-zeal-palace`, `battle-unequipped-armor` and `battle-zombor` reach
+their ends (`drifts`, where they stopped at frames 25170, 8560, 8560, 25299,
+4109, 7594 and 20301). **Fuzzing**, seed 1 unless named: the ripple 0 of
+2,000; the placing 0 of 257 compared (the guard turns away columns past
+`$2000`); the song 0 of 2,000; the walk with no leader word standing 0 of
+5,000, above the map 0 of 15,000 over seeds 10-12; the recentring with no
+leader word 0 of 4,979 (`tools/fuzz_routines.toml`'s new variants).
+**Timing.** The three new rows calibrated from the movie's shadow run: the ripple at 21,502 (its first guess, 40,000, was 86% over), the placing at 3,467, the song at 1,917.
+
+**What the gate found past the chunk.** With Zeal's fall going on in the
+native program, `events-ocean-palace-lavos` no longer stops at the scene's
+hand-back but plays on, about 4,750 frames late (presses through the Mammon
+Machine's dialog land on other frames from about frame 18000), into the
+reference's own black stretch before the Last Village, where it ends:
+`tools/native_check.py` takes a ledger of such runs now,
+`tools/native_dark_exceptions.txt`, with this one (TODO.md, "Long movies
+still desync on the hand ports alone"). `events-death-peak`,
+`events-fair-rescue` and it enter the places' baseline. The long routes'
+three refusals (`fionas_forest`'s departure, `castle_flea`'s facing
+command), open in TODO.md but off the allowlist since the battle stops'
+merge, are back on it as gaps; and `battle-golem-twins-gameover`, which
+drifts on the hand ports alone at this chunk's base as well, is `drifts`.

@@ -34,7 +34,7 @@ rest waits, is [PLAN.md](PLAN.md).
   and drop its line.
 - **Heckran's route in the shipping mode.** `heckran` wins the fight in the
   reference play (`battle-heckran`), but in the shipping mode (`route_check
-  heckran`, `on:on:c`) the party runs out of Mid Tonics and Ethers and its
+  heckran`, `on:on`) the party runs out of Mid Tonics and Ethers and its
   fight search gives up after 101 tries with Heckran at about 770 of 2100 HP.
   The route is in `HAND_RUN_ROUTES` until its policy wins there: spend MP and
   items more sparingly, or back the search up further than the last decisions.
@@ -178,10 +178,6 @@ rest waits, is [PLAN.md](PLAN.md).
     the map declares on random states (`accessor out of range` in fuzzing,
     `event_script`): its guard doesn't bound where the object's first
     function starts.
-- **The menus' `$C2:5DC4`** (21,444 of the reference play's instructions over
-  the 48 movies, no port; tools/fallback_baseline.txt): the largest of the
-  menus' code the original still runs inside the menus' comparisons.
-  Find what it does and port it.
 - **The tech sweep's fight never ends in the native shape.** The route
   (`tools/movies/routes/tech_sweep.py`, zophar chrono-trigger slot 1, the Lavos
   Core) reaches its outcome in the shipping mode, but `ct_drive_native_shape`
@@ -1861,9 +1857,9 @@ rest waits, is [PLAN.md](PLAN.md).
   wave 1: the analysis"). The menus' task switch (`$C2:821E`, `$C2:822B`) is
   a `[[keeps]]` hint instead (history/reimplementation-chunks.md, "Phase 3, menus"); the scene's task
   lists could take the same.
-- **Scene cells the menu objects use.** The C6 irises and motion routines
-  (`menu/object_commands.c`) run on the menu's direct page and use the circle
-  drawer's and the scaler's cells, which the map files under the scene; their
+- **Scene cells the menu objects use.** The C6 circle setup and motion routines
+  (`menu/line_effects.c`, `menu/object_commands.c`) run on the menu's direct page
+  and use the circle drawer's and the scaler's cells, which the map files under the scene; their
   drafts now give those cells scratch names (REIMPLEMENTATION.md, "The tooling pass
   after wave 1: the analysis"). Filing them where both subsystems see them (`core`, or
   entries on the menu's page) would name them again.
@@ -1996,9 +1992,14 @@ rest waits, is [PLAN.md](PLAN.md).
     than the decoder, so it waits on the P2 and P3 leftovers above.
   - **Audio.** Output is already SDL2's audio device, which covers WASAPI,
     CoreAudio and ALSA/PipeWire, so another output layer buys little. The real
-    item is PLAN.md's Phase 4a, no longer optional or later: a note-stream
-    comparison (SOUND.md, "Validating the port") for when the lockstep
-    reference is gone.
+    item is a check of the C driver over what the game really sends: the
+    lockstep against the original is gone (REIMPLEMENTATION.md, "The sound
+    driver's teardown"), and its own checks (`sound_test`'s digest,
+    `ct_sound_fuzz`'s in `tools/sound_golden.txt`) play random or made-up
+    streams. The reference play's command streams, logged at the cartridge's
+    `$C7:0004` and replayed into the C driver offline, would give a digest per
+    movie that moves only when the driver does (SOUND.md, "Validating the
+    port").
   - **The native mixer's sound memory.** It is a copy of the SPC700's 64 KiB
     with the original driver's layout, which is what keeps the echo's
     overwrites; a build that loads the samples as assets will want them out of
@@ -2010,11 +2011,6 @@ rest waits, is [PLAN.md](PLAN.md).
     desktop host loses nothing by it, and what a small target needs instead (a
     state read in place, a rate the host asks for and a resampler) is that
     target's to decide when one is scoped.
-  - **The effects check's scaffold reads with the C sound driver.** The route
-    check plays the driver that ships, but the scaffold reads come from the
-    vblank check's shipping-mode runs, which play the original driver because
-    they replay movies (the C driver's timing would drift from them). A
-    `--scaffold-reads` in `ct_drive` would collect them over the routes too.
   - **The C sound driver's leftovers** (SOUND.md, "The port as built"). The
     paths neither the movies nor the fuzzer reach: the saturation at `$0A34`
     (unreachable by its arithmetic), the loop poll's retry at `$0B9B` and the
@@ -2026,22 +2022,19 @@ rest waits, is [PLAN.md](PLAN.md).
     addresses anywhere in sound memory, which the port doesn't keep; and a set
     switch under a track that has run on into the effects.
   - **The house's "tinny" hi-hats** (SOUND.md, "What playing it found"). A
-    report from playing `--sound-driver c` that no movie reproduces: over
+    report from playing the C driver that no movie reproduces: over
     new-game the C driver plays the house's songs note for note as the
     original does, from the same samples. If it recurs, record the session
-    (`ct_play --record` plays the original driver: note the route and the
+    (`ct_play --record` is the reference play, the cartridge's driver: note the route and the
     songs, or quick save there with the C driver) and compare sound memory
     with the original's at the scene; the
     host's fault that overwrote samples is fixed, and a song keeps a block the
     echo overwrote in the original too (battle-magus).
-  - **The sound lockstep's audio comparison as a check**
-    (`ct_dev --sound-lockstep-audio exact`, SOUND.md "What playing it found").
-    It isn't exact yet: from the intro on (80.7 s of every power-on movie) the
-    effect voices' levels part for a few hundred samples, and the long save
-    movies part further. Find which writes land at another sample (the pairing
-    of the C driver's writes with the original's is by register and value
-    within a tick; a command's writes and the flags' several writes are the
-    suspects), make it exact, then have a difference fail the run.
+  - **A CPU half for a SNES build** (target 3). The port of the cartridge's
+    CPU half in bank `$C7` went with the sound driver's teardown; a ROM compiled
+    from the hand ports needs one again to speak to the original's driver on
+    the sound processor: the cartridge's own, from the matching source, or
+    the deleted port (`core/sound_driver.c` in history).
   - **Sound driver follow-ups after its review.** The qualitative review of
     `game/sound/` rated no file a translation (`driver.h` hand-written, the
     rest mostly), so it merged with these as follow-ups rather than blockers,
@@ -2133,26 +2126,6 @@ rest waits, is [PLAN.md](PLAN.md).
   timing changes, widescreen's exposed assumptions (the 0-255 object window at
   `$C0:A88D`, map data beyond VRAM, single-byte battle window positions), and
   GBA's constraints.
-- **P1 leftovers**: the APU-direct backend's audio comparison misses one measure on
-  `new-game` (PLATFORM.md, "P1 as built").
-- **The sound driver's boot, waiting on time** (`core/sound_driver.c`): the
-  boot's countdown at `$C7:011B` ($0800 passes, time for the SPC700 to start
-  the driver) and its first wait at `$C7:0050` (for the boot ROM to show
-  `$BBAA` on two ports, while it writes two others each pass) stay loops on
-  the machine as idle entries; every other wait for the SPC700 is the port's,
-  through the audio service. The countdown wants a wait on time alone, which
-  `native_wait_time` now is in the shipping mode (shadow mode would compare it
-  against the loop), and the first a wait on two ports. Neither costs
-  anything to measure (74 and 222 instructions over the library); the Phase
-  4a port of the driver needs neither, and they go with it.
-
-## Timing without a beam
-
-PLATFORM.md, "Timing without a beam", is the design: the census of every use of
-the timing registers, what each is for, the native backend, and the rewrites
-below; its "as built" says what is done. `python3 tools/timing_census.py`
-re-runs the census.
-
 - **Factory route timing estimates.** `battle-r-series` leaves five timing
   exceptions after drift-only calibration: the anchor jump and enemy orbit
   updates' vblank tails, `field_nmi`'s tail, the exchange's second-choice tail,
@@ -2684,11 +2657,10 @@ re-runs the census.
     the stack, and a task's stack lies within its span of another's: code of
     one task that runs after another's port stopped is filed under that
     port's hand-back (`C2:8A45`'s, the gate screen's task and the text's
-    under the held cursors') and some went to `C2:----` and `FF:----` from
-    the records' task's, where the measure moved it when that task's wait went
-    on in place. Ending a hand-back where the stack moves to another task's
-    (a jump down further than an instruction pushes, outside an interrupt)
-    would file each where it runs;
+    under the held cursors'). Ending a hand-back where the stack moves to
+    another task's (a jump down further than an instruction pushes, outside
+    an interrupt) would file each where it runs, as the stretches of
+    comparisons a vblank handler gave up are ended now (`settle_abandoned`);
   - a menu step parked in its wait counts as suspended, so ct_drive takes no
     base while one waits (a member chosen for an item waits as long as the
     player takes), and a quick save then leaves the original's code to finish
@@ -2871,6 +2843,26 @@ comparisons.
 
 ## The native program
 
+- **The menus' remaining machine boundaries.** The 21 assigned bridge and
+  support files retain 22 stops: scheduler switches and held waits, reset and
+  mode boundaries, invalid script dispatch, comparison checkpoints and guard
+  fallbacks. The script bridge's near/far fallback covers unknown or refused
+  targets and the two
+  curtain routines. Inlining the latter moved the scene RNG's accepted
+  shared-scratch reads onto `menu_run_object_script` (496 reads in the attract
+  run); retire that scene dependency with its effects evidence before joining
+  those boundaries. Selected routine wrappers still supply register results
+  and nested checkpoints. `menu_mode_enter` documents the nested shadow
+  ownership that prevents simply joining the mode entry. The NMI entry must
+  retain the work's checkpoint: joining it matches the outer entry but
+  abandons all 51,429 nested work comparisons in the sampled gate. Teach the
+  registry to account for that coverage before joining this boundary; no
+  comparison exception was added. The two work-RAM transfers in
+  `menu/display.c` need a memory service preserving the gate's
+  SNES transfer effects. Registered return wrappers remain until their
+  registry entries and original callers retire together. See
+  REIMPLEMENTATION.md, "The menus' machine joints".
+
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
 `ct_native` links the whole of `game/` but `registry.c`, with every service's
@@ -2982,19 +2974,20 @@ list, by kind, is what `game/` still asks of one.
   `equipment_is_the_games` and its comment still turn them away on the other
   entries: make the two agree. `menu_describe_item` with a stray item wasn't
   audited for an index past its table.
-- **What the sound teardown's review left** (none blocking): `battle_effects`
-  is defined in both `game/core/sound_commands.c` and `sound_driver.c`; share
-  it through `sound_commands.h`. `SWITCH_EFFECTS` (`sound_driver.c`) and
-  `AU_SWITCH_EFFECTS` name the same command; keep one. The host path no longer
-  leaves N and Z from DB as `back_to_the_caller` did, which only the entry's
-  don't-care set covers: confirm those sets at its call sites. `sound_driver_send`
-  has no comment, and the `// $C7:0004` comment sits on the function that empties
-  the buffer.
+- **What the sound teardown's review left** (none blocking): the fallback
+  measure now skips `$C7` code where the cartridge's driver plays
+  (`dev/fallbacks.c`); nothing tests that the skip keeps the interrupt and
+  callee counts of the code around it, or that `$C7` run under the C host is
+  still counted. Add a focused test.
+- **What the menu joints' review left** (rated mostly): `script_bridge.c`
+  (around the song kept and its neighbour) still routes pure C operations
+  through emulated return frames; call their game-state operations directly
+  and keep only the register leftovers in the wrapper.
 - **What the time model's review left** (none blocking):
   `charge_send` (`runtime/platform/native/video.c`) charges any send from the
   main thread, where the design charges only a load's (screen off): gate it on
   forced blank, or show no large send happens with the picture on. A scene's
-  port wait soon after boot (`wait_on_port0`) passes the driver's start-up
+  port wait soon after boot (`echoed`, `native/audio.c`) passes the driver's start-up
   delay at once, so the sound runs ahead of the frames charged for it. Sound
   commands a handler issues (`native/audio.c`) and unpacking done in vblank are
   charged to the main thread's debt. `runtime/platform/time_model.h` ends
@@ -3024,7 +3017,7 @@ list, by kind, is what `game/` still asks of one.
   the screen blanked (the Twins run ends showing), so frame completion is not
   evidence that the native program plays these scenes correctly. Diagnose its
   playback and video escapes. Strict `ct_dev --native on --generated off
-  --no-interpreter strict --sound-driver c` also reaches both ends, with
+  --no-interpreter strict` also reaches both ends, with
   58 saved-game bytes differing from reference in each, plus 224 SRAM bytes
   for the Twins; these are `drifts` entries in `tools/strict_baseline.txt`.
 - **Yakra's native replay ends with the screen blanked.** The hand movie
@@ -3130,7 +3123,7 @@ list, by kind, is what `game/` still asks of one.
   "an event command only the machine runs" while recovering Robo in
   Fiona's shrine. The native event bridge needs its C path. Shadow completes
   with zero mismatches or guard refusals, and strict mode
-  (`--native on --generated off --no-interpreter strict --sound-driver c`)
+  (`--native on --generated off --no-interpreter strict`)
   completes all 15701 frames with the reference saved game and save RAM.
 - **What the menus the player opens still hand the machine.** The main
   menu's steps and its four panels, and the steps `menu.ctm` reaches of the
@@ -3192,6 +3185,45 @@ list, by kind, is what `game/` still asks of one.
   (`battle/bridge.c`, `battle/steps.c`, `field/bridge.c`, `menu/bridge.c`,
   `scene/bridge.c`). These go as each subsystem's ports call ports (PLAN.md's
   step 1) and its wrappers leave (step 3).
+  Field's tail-call lookup is gone. Its sprite-building continuations still
+  hand malformed row chains or out-of-table records to the original: removing
+  that boundary exposed 20/300 fuzz mismatches in `field_frame_work`, while
+  the existing drawable-row check restores the predecessor's 0/24 compared.
+  The sprite builder's own entry still accepts those states and calls out
+  per draw; retiring that fallback needs its entry guard and callers changed
+  together. The field/battle/overworld loop backedges also need an iterative
+  continuation with a comparison boundary: shadow waits resume their C call,
+  so directly chaining every backedge would recurse across frames.
+  The field pass's wait boundary also lets the replay driver restore a
+  suspended frame; retain it until that continuation is represented outside
+  the C stack. Tile-copy completion also retains its stop before frame
+  completion: pending interrupts from the tile send must run before
+  `field_frame_pending` is incremented. Retiring this stop needs an explicit
+  runtime interrupt-delivery boundary, not only a timing scope.
+  The generic field and battle bridges still consult the registry
+  to validate each sibling's width/page/data guards (and battle's return
+  poisoning); deleting the lookup alone bypasses those contracts. Some direct
+  targets have stricter bank guards than their callers, including the party's
+  return to the field walk. Reset, scene/warp and field reentry tails need their
+  shared mode-transition contract before their machine stops can leave.
+  Overworld startup's direct first frame also needs a fuzz harness that supplies
+  interrupts: all 200 existing setup states now exceed its comparison budget,
+  although seven targeted movie calls compare cleanly. The screen effect's
+  ripple/close tails remain beyond the current first-call fuzz boundary.
+  Battle's startup-to-loop, frame-to-pass and pass-to-timers stops must
+  retain their boundaries for now. Calling all three directly passed shadow
+  comparisons but failed the scaffolding-disabled bucket-Lavos route after
+  400,000 fight frames. The pre-change build and the candidate restoring those
+  three stops both reach the ending at frame 164169, with eight exact snapshot
+  replays. Isolate the timing/continuation difference before retiring them;
+  no calibration or route exception was added to hide it.
+- **Evidence worker count is not a process cap.** `tools/dc_evidence.py`
+  starts up to four game processes per movie, so `suite.py -j 2 --evidence`
+  can run eight. Give the evidence runner one shared process budget across
+  variants and movie workers. The loop-joint run stopped that stage by verified
+  PID; an ignored scratch helper with the same checks and bounded
+  concurrency passes all 84 evidence movies on the kept code. The tool still
+  needs a shared process budget.
 - **The machine's memory and registers.** `snes_bus_read`, `_write` and
   `_peek`: the wrappers' registers, page, data bank and stack, the guards'
   peeks, and what the logic still reads by address. The game's state itself
@@ -3200,6 +3232,9 @@ list, by kind, is what `game/` still asks of one.
   (`native_time_as`, `_end`, `_sibling`, `native_uncounted_*`) take the
   machine: tags for the timing gate. They want the game's state as their
   handle, as `TIMED_AS` (charge.h) has, whose host half is a no-op.
+  The field, battle, overworld, event and controller now use `TIMED_AS`
+  for ordinary timing scopes. Battle's three `NATIVE_TIME_AS_SIBLING`
+  scopes still need a state-based API that preserves sibling accounting.
 - **Waits on the beam.** `tm_snes_video_status`, the SNES backend's read of
   the beam's status, from the idle entries' passes (`field/frame.c`,
   `scene/boot.c`, `warp/warp.c`); and the 19 wait loops the census still sees
@@ -3223,6 +3258,14 @@ list, by kind, is what `game/` still asks of one.
   tests/test_platform_lint.py's list) are transfers into VRAM programmed from
   the game's tables, which only the SNES's channel settings say the meaning
   of: the host counts them and the driver reports the first.
+  In the assigned field/battle files, three escapes remain. The field's
+  clear uses the multiplier's zero result as a DMA source; a plain RAM fill
+  loses the channel/PPU state checked by shadow mode, so it needs a backend
+  memory-clear service. Battle's bank-dependent palette send intentionally
+  writes stray RAM and delays the palette; those writes need named state
+  before replacing the escape. The pending window transfer's only writer
+  requests VRAM words, but the entry accepts arbitrary destination/mode
+  descriptors; a VRAM-only replacement needs that guard contract settled.
   The three Death Peak movies reach their full 4676/23852/23856-frame budgets
   in `ct_native` without stopping, but report 2/4/4 video escapes, first at
   `$7E:5AEB`; wind and ascent finish blanked, return showing. These fixed-input
@@ -3694,6 +3737,20 @@ waits on M5 rather than on a backend.
     call on record. None in the library does, and the runtime's rule for a
     call-out under such a handler, and for a port's own stretch under one,
     is the same (`Active.handler_away`);
+  - a comparison the runtime gives up under such a handler keeps its
+    stretch, uncompared, until its routine returns or reaches where the port
+    stopped (`abandon_under_the_handler`), and only where the port's run had
+    ended when it was given up; a port that calls out after its stretch's
+    vblank would hide the callee, which the shipping mode's ratchet
+    (`tools/fallback_shipping_baseline.txt`) is there to catch. The measure's reasons in
+    tools/fallback_baseline.txt for `C2:----`, `7E:----` and the other lines
+    the sample lowered still hold the movies outside the sample at the old
+    measure's counts until the library's batched run takes them;
+  - an idle entry's pass that leaves its wait is taken back only where it
+    ran nothing but the loop and a port takes over at the exit, or the entry
+    returned within its entry's bytes (`idle_return_span`, set on the warp's
+    frame wait and the scene scripts' wait for the music); the other idle entries' leaving
+    passes (an exit that goes on into the routine) stay counted;
   - the Beyond Time route's replays from a base grew from 30,056 frames to
     44,660 with the battle frame work's remainders' second chunk
     (REIMPLEMENTATION.md, that chunk's "Measured"), which the route measure no longer counts
@@ -3701,9 +3758,11 @@ waits on M5 rather than on a backend.
     time: check whether the new ending ports (`$C0:75A0`, `$C0:6E27`,
     `$C0:0AFF`) leave estimated time owed at frame ends, which thins out the
     bases the search replays from (the likely, unconfirmed cause);
-  - the shipping mode's count can't be ratcheted: it moves with every port's
-    timing (99 of 1068 keys between the default and the native-shape build).
-    A shipping-mode run that played the movies at the original's timing
+  - the shipping mode's count is ratcheted only loosely, as a subset with
+    slack: it moves with every port's timing (99 of 1068 keys between the
+    default and the native-shape build), and its baseline was seeded over the
+    gate's sample and the long routes, so the library's batched run may add
+    lines for the movies outside it. A shipping-mode run that played the movies at the original's timing
     (`--port-timing oracle`, where it fits) would be the closer measure of
     what a player runs.
 - **The movie suite's wall time is the longest movie's.** The gate

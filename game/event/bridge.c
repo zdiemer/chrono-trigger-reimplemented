@@ -1,6 +1,7 @@
 /* The event engine and commands on the original's machine (event/bridge.h):
  * the engine's two entries and how they run each command, the commands'
  * entries, the guards, and the registers they leave. */
+#include "charge.h"
 #include "event/bridge.h"
 #include "event/engine.h"
 #include "event/event_data.h"
@@ -125,7 +126,7 @@ bool event_call_bridge(Snes *s, uint32_t site, uint32_t routine, EventBridge bri
     m_push16(s, (uint16_t)(site + 2));
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
-    NATIVE_TIME_AS(s, routine, bridge(s));
+    TIMED_AS(state_of(s), routine, bridge(s));
     return s->cpu.s == s_before && s->cpu.pb == (uint8_t)(site >> 16) && s->cpu.pc == (uint16_t)(site + JSR_SIZE);
 }
 
@@ -200,7 +201,7 @@ static bool run_on_the_machine(void *ctx, uint16_t at, EventStep *st)
         return true;
     }
     EventLeaves left = event_leaves_of(s);
-    NATIVE_TIME_AS(s, handler, *st = event_perform_leaving(g, m_platform(s), row, at, &left));
+    TIMED_AS(state_of(s), handler, *st = event_perform_leaving(g, m_platform(s), row, at, &left));
     /* X and the carry, as the handler returns them: where the original's loop
      * reads them if it takes over after this command */
     s->cpu.x = st->next;
