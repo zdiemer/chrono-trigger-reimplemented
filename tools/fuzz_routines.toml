@@ -886,6 +886,38 @@ iterations = 2000
 # The telepod ending's staff roll (game/scene/staff_roll.c), from the movie during the credits: the program
 # kept, the scene's page and the data bank on the registers, as the frame's lists call the tasks.
 
+[[routine]]
+name = "scene_ending_load_panorama"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+iterations = 300
+why = "mode 10's script call, on channel 0; the shared scene program and its resources kept"
+
+[[routine]]
+name = "scene_ending_layer_panorama"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+iterations = 2000
+why = "mode 10's script call; its line-effect descriptors kept with the program"
+
+[[routine]]
+name = "scene_ending_panorama_horizon"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+iterations = 2000
+why = "the task's data bank reaches the video registers; the full wrapping horizon domain is exercised"
+
+[[routine]]
+name = "scene_expand_packed_pixels"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+iterations = 300
+why = "packed-pixel expansion, including counts beyond the panorama's image and the work-RAM port's wrap"
+
 [state.staff_roll]
 movie = "oracle/movies/saves/endings-telepod-lavos.ctm"
 frames = 130000

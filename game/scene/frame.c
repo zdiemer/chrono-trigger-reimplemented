@@ -693,6 +693,7 @@ static const struct {
     { 0x7E89C0, scene_ending_upload_picture_entry, scene_ending_upload_picture },
     { 0x7E8C05, scene_clear_sprite_high_bits_entry, scene_clear_sprite_high_bits },
     { 0x7E8D56, scene_ending_show_credits_entry, scene_ending_show_credits },
+    { 0x7E8B52, scene_ending_panorama_horizon_entry, scene_ending_panorama_horizon },
     { 0x7E8E44, scene_ending_show_last_scene_entry, scene_ending_show_last_scene },
     { 0x7E8E88, scene_ending_scroll_bg2_entry, scene_ending_scroll_bg2 },
     /* the flight beyond time's, the star fields' drift, the captions' and the staff roll's */

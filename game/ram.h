@@ -9770,6 +9770,11 @@
 #define RAM_SCENE_FLIGHT_MODE_LINE_COUNTS 0x7E902Fu
 #define RAM_SCENE_FLIGHT_MODE_LINE_COUNTS_COUNT 2u
 #define RAM_SCENE_FLIGHT_MODE_LINE_COUNTS_STRIDE 0x03u
+/* Mode 10's layered panorama: the two line counts before the ground's Mode 7 begins [2 x $3
+ * bytes, by the two spans above the horizon] */
+#define RAM_SCENE_PANORAMA_MODE_LINE_COUNTS 0x7E9039u
+#define RAM_SCENE_PANORAMA_MODE_LINE_COUNTS_COUNT 2u
+#define RAM_SCENE_PANORAMA_MODE_LINE_COUNTS_STRIDE 0x03u
 /* The line counts of the flight's per-line table for BG1's scroll: the sky's
  * (scene_flight_view's sky_x and sky_y) above the horizon, the ground's (its line_x and line_y)
  * from it [2 x $3 bytes, by 0 the lines above the horizon, 1 the lines from it] */
@@ -9781,6 +9786,11 @@
 #define RAM_SCENE_FLIGHT_SCREENS_LINE_COUNTS 0x7E904Du
 #define RAM_SCENE_FLIGHT_SCREENS_LINE_COUNTS_COUNT 2u
 #define RAM_SCENE_FLIGHT_SCREENS_LINE_COUNTS_STRIDE 0x03u
+/* Mode 10's layered panorama: the two line counts before the subscreen layers change at the
+ * horizon [2 x $3 bytes, by the two spans above the horizon] */
+#define RAM_SCENE_PANORAMA_SUBSCREEN_LINE_COUNTS 0x7E9057u
+#define RAM_SCENE_PANORAMA_SUBSCREEN_LINE_COUNTS_COUNT 2u
+#define RAM_SCENE_PANORAMA_SUBSCREEN_LINE_COUNTS_STRIDE 0x03u
 /* The line counts of the first two entries of the per-line table for window 1's edges in the
  * shared endings: together, the lines above the zooming picture, where the window is shut [2 x
  * $3 bytes, by the entry: the lines above the picture, split in two] */

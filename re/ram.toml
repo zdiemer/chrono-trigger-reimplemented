@@ -2949,6 +2949,26 @@ meaning = "The line counts of the Beyond Time ending's per-line table for the BG
 source = "game/scene/beyond_time.c $7E:9080"
 
 [[var]]
+name = "scene_panorama_mode_line_counts"
+addr = "7E:9039"
+count = 2
+stride = 3
+index = "the two spans above the horizon"
+subsystem = "scene"
+meaning = "Mode 10's layered panorama: the two line counts before the ground's Mode 7 begins"
+source = "game/scene/endings.c $7E:8AF5, $7E:8B52"
+
+[[var]]
+name = "scene_panorama_subscreen_line_counts"
+addr = "7E:9057"
+count = 2
+stride = 3
+index = "the two spans above the horizon"
+subsystem = "scene"
+meaning = "Mode 10's layered panorama: the two line counts before the subscreen layers change at the horizon"
+source = "game/scene/endings.c $7E:8AF5, $7E:8B52"
+
+[[var]]
 name = "scene_flight_scroll_line_counts"
 addr = "7E:9043"
 count = 2

@@ -210,6 +210,8 @@ static const PfSnesEncoding encodings[] = {
     { 0x7E8272, 0, 0, 7, WORDS, RACE_UPLOAD_STEPS, 0 },                                 /* the Epoch's picture's tiles */
     { 0x7E7C2B, 0, 0, 0, 0, STEPS(SL, SH), 0 },                                          /* the light's table restarted */
     /* the endings that share $7E:8538 */
+    { 0x7E8A92, 0, 0, 7, ONE_REGISTER, STEPS(P, C, D, SL, SH, SB, ZL, ZH, GO), 0 },   /* panorama's plane map */
+    { 0x7E90AA, 0, 0, 7, FILL_WORDS, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0 },         /* panorama's map padding */
     { 0x7E85B2, 0, 0, 7, FIXED_BYTE, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0 },          /* past the plane blanked */
     { 0x7E864C, 0, 0, 7, WORDS, STEPS(SL, SH, ZL, ZH, TL, TH, C, D, SB, GO), 0 },       /* mode 10's picture */
     { 0x7E9CE2, 0, 0, 7, WORDS, STEPS(SL, SH, ZL, ZH, TL, TH, C, D, SB, P, GO), 0 },       /* ... a frame of it */

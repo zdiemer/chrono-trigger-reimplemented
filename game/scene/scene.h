@@ -279,6 +279,8 @@ enum {
     SCENE_ROUTINE_PICK_THE_RACE_S_OPENING = 0x3F59,     /* scene/race_camera.c */
     SCENE_ROUTINE_LOAD_THE_GROUND_AND_PICTURE = 0x8790,     /* scene/endings.c */
     SCENE_ROUTINE_LOAD_THE_PICTURE = 0x87CC,
+    SCENE_ROUTINE_LOAD_THE_PANORAMA = 0x8A01,
+    SCENE_ROUTINE_SHOW_THE_LAYERED_PANORAMA = 0x8AF5,
     SCENE_ROUTINE_START_THE_STARS = 0x8BAF,
     SCENE_ROUTINE_START_THE_MODE7_PICTURE = 0x8C14,
     SCENE_ROUTINE_PREPARE_THE_CREDITS = 0x8CD0,
@@ -1084,6 +1086,15 @@ void scene_ending_load_ground_and_picture(Snes *s);
 bool scene_ending_start_stars_present(Snes *s);
 void scene_ending_start_stars(Snes *s);
 bool scene_ending_start_mode7_picture_present(Snes *s);
+bool scene_ending_load_panorama_present(Snes *s);
+void scene_ending_load_panorama(Snes *s);
+bool scene_ending_layer_panorama_present(Snes *s);
+void scene_ending_layer_panorama(Snes *s);
+bool scene_ending_panorama_horizon_present(Snes *s);
+void scene_ending_panorama_horizon_entry(Snes *s);
+TaskEnd scene_ending_panorama_horizon(GameState *g, Platform *pf, unsigned slot);
+bool scene_expand_packed_pixels_present(Snes *s);
+void scene_expand_packed_pixels_entry(Snes *s);
 void scene_ending_start_mode7_picture(Snes *s);
 bool scene_ending_prepare_credits_present(Snes *s);
 void scene_ending_prepare_credits(Snes *s);

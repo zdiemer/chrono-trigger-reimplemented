@@ -14695,6 +14695,11 @@ enum { SCENE_FLIGHT_MODE_LINE_COUNTS_COUNT = 2 };   /* by 0 the lines above the 
 uint8_t scene_flight_mode_line_counts(const GameState *g, unsigned i);
 void set_scene_flight_mode_line_counts(GameState *g, unsigned i, uint8_t v);
 
+enum { SCENE_PANORAMA_MODE_LINE_COUNTS_COUNT = 2 };   /* by the two spans above the horizon */
+/* Mode 10's layered panorama: the two line counts before the ground's Mode 7 begins */
+uint8_t scene_panorama_mode_line_counts(const GameState *g, unsigned i);
+void set_scene_panorama_mode_line_counts(GameState *g, unsigned i, uint8_t v);
+
 enum { SCENE_FLIGHT_SCROLL_LINE_COUNTS_COUNT = 2 };   /* by 0 the lines above the horizon, 1 the lines from it */
 /* The line counts of the flight's per-line table for BG1's scroll: the sky's
  * (scene_flight_view's sky_x and sky_y) above the horizon, the ground's (its line_x and line_y)
@@ -14706,6 +14711,12 @@ enum { SCENE_FLIGHT_SCREENS_LINE_COUNTS_COUNT = 2 };   /* by 0 the lines above t
 /* The line counts of the flight's per-line table for the main screen's layers */
 uint8_t scene_flight_screens_line_counts(const GameState *g, unsigned i);
 void set_scene_flight_screens_line_counts(GameState *g, unsigned i, uint8_t v);
+
+enum { SCENE_PANORAMA_SUBSCREEN_LINE_COUNTS_COUNT = 2 };   /* by the two spans above the horizon */
+/* Mode 10's layered panorama: the two line counts before the subscreen layers change at the
+ * horizon */
+uint8_t scene_panorama_subscreen_line_counts(const GameState *g, unsigned i);
+void set_scene_panorama_subscreen_line_counts(GameState *g, unsigned i, uint8_t v);
 
 enum { SCENE_ENDING_WINDOW_ABOVE_COUNT = 2 };   /* by the entry: the lines above the picture, split in two */
 /* The line counts of the first two entries of the per-line table for window 1's edges in the

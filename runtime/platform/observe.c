@@ -566,6 +566,9 @@ static void effect_apply(VidObserver *ob, VidLineTarget target, int i, uint8_t v
     case VID_LINE_MAIN_SCREEN:
         ob->state.main_layers = v;
         break;
+    case VID_LINE_SUB_SCREEN:
+        ob->state.sub_layers = v;
+        break;
     case VID_LINE_MATH_LAYERS_ONLY:
         vid_color_math_decode(&ob->state.math, VID_MATH_LAYERS, v);
         break;

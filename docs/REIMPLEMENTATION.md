@@ -3108,48 +3108,45 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene continuations: the staff roll
+### Scene program: mode 10's panorama
 
-The scene-joints pass investigated the obsolete title loader fragments and
-the staff roll's jump from writing a line to scrolling it. The preceding
-scene work is in history/reimplementation-chunks.md, "The native program's
-last named stops".
+The RAM burndown's next complete scene was the sequence after mode 10's
+mosaic: the panorama loader, its change to layered scenery, and the horizon
+task (`$7E:8A01`, `$8AF5`, `$8B52`), with its packed-pixel expansion
+(`$7E:353C`). All were drafted together, including the existing map widening
+and fill helpers. The preceding scene-joints work is in
+history/reimplementation-chunks.md, "Scene continuations: the staff roll".
 
-The credits writer at `$7E:9E7B` now calls the scroll at `$7E:9ED6` as C,
-timed as the scroll, and its guard checks the
-continuation's code too. The scroll retains both the fast pace and the slow
-pace's choice of field. The end-of-credits task exit remains explicit.
+The loader uploads three layers, pads their maps, expands paired four-bit
+colors directly into the Mode 7 plane, widens its name table, and installs
+the palette and line effects. The next scene changes the line effects and
+splits the horizon into spans small enough for their line counts. Its task
+moves the ground and sky from the script's horizon. These are GameState and
+Platform functions, called directly by the script and task tables; four
+registered wrappers retain the oracle comparisons.
 
-Differential fuzzing of `scene_roll_credits`, seed 1 and the existing
-`staff_roll` constraints, compared 2,000 states before and after: zero
-mismatches and zero refusals in each. No timing calibration or exception
-changed. `title-start` and `endings-beyond-time` both finish with zero
-mismatches. The ending compares all 3,281 credits-writer calls and all 3,280
-scroll calls, with none interrupted. The title setup's single call is
-abandoned inside the enclosing comparison, so is not compared alone; its
-implementation is unchanged. Both style checks and the scaffolding-read
-check report zero findings. Python unit tests pass: 467 tests, 10 skipped.
+The platform gained the panorama map's upload encoding, its map-padding
+encoding, and a subscreen-only line effect in both backends. Fuzzing found
+the missing line-effect target, a palette resource number supplied as a
+byte offset, and the WRAM cursor's unmasked high byte after a packed-pixel
+run crosses the bank. All are fixed. Seed 1 compares 300 loader states,
+2,000 layered-scene states, 2,000 horizon states and 300 pixel-expansion
+states: zero mismatches, skips, refusals or accessor overruns. The pixel
+counts and the horizon retain their full random domains.
 
-The attempted retirement of the title's seven intermediate entries passed
-all 37 sampled shadow movies and all 56 shipping-mode routes. It failed the
-fallback ratchet: `attract-demo` ended with 138 instructions newly counted
-under an open `scene_title_set_up` comparison (`open 7E:5978`). Removing the
-intermediate comparisons changes attribution even though the whole setup's
-C implementation is unchanged. The title wrappers, registry rows and fuzz
-cases were restored. No baseline was relaxed: CLAUDE.md reserves baseline
-updates for a whole-library run, which this task excluded. The sampled gate
-was stopped after this failure, before completing its remaining checks; it
-did not print `suite OK`. After restoration, all 22,500 frames of
-`attract-demo` finish with zero shadow mismatches, and its fallback check
-reports zero new routines, zero rises and zero malformed rows. The sampled
-gate was not run a second time.
+The native mode 10 run passes the former stop at frame 5,637 and runs
+16,000 frames into its last scene's scripts without a program stop. Its
+picture report remains dark throughout, including before the new loader;
+this proves continuation, not visual agreement. No library movie reaches
+the new entries, so their comparisons are the fuzz runs. The narrowed
+Beyond Time shadow regression runs 130,000 frames with zero mismatches.
+Both style checks and the scaffolding-read check report zero findings.
 
-`machine_joints.py` counts the scene and warp files at 756 before and 755
-after: stops 51 to 50, all other categories unchanged. The registry remains
-at 2,189 entries; burndown remains 12% unported for scene RAM and 7% for the
-scene engine. This chunk joins existing C; it does not implement the
-remaining scene modes. The remaining scene program and task exits are
-recorded in TODO.md; this pass does not reach zero stops.
+Scene RAM coverage rises from 22.2K to 22.7K of 25.1K (12% to 10% left).
+The four oracle wrappers add four returns, seven scaffolding writes and
+21 video calls: scene/warp machine joints rise from 755 to 787, while
+stops remain 50. No call-out, stop, timing exception or fallback allowance
+was added. The sampled gate waits until the scene-joints pass is finished.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 
