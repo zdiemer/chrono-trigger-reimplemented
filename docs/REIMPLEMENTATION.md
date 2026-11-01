@@ -2900,12 +2900,12 @@ stop or return, the original is running the port's work and isn't counted --
 and an idle entry's pass of its wait loop, counted as the original runs it, is
 taken back when the loop comes round to its head. The pass that leaves the
 wait is taken back too where it ran nothing but the loop's own instructions
-and a hand port's entry takes over at the exit, or where it returns and the
-entry says its leaving pass returns as the original's does
-(`NativeEntry.idle_returns`: the warp's frame wait, and the scene scripts'
-wait for the music, which returns every frame until the music gets there);
-any other leaving pass stays counted, since what follows a loop's exit can be
-the original's. A pass an interrupt cuts is kept aside while the handler runs
+and a hand port's entry takes over at the exit, or where it returned having
+run only the bytes its entry declares, the loop's and its return's
+(`NativeEntry.idle_return_span`: the warp's frame wait, and the scene
+scripts' wait for the music, which returns every frame until the music gets
+there); any other leaving pass stays counted, since what follows a loop's
+exit, or a helper it calls, can be the original's. A pass an interrupt cuts is kept aside while the handler runs
 and goes on where the handler returns to the S it was cut at, so it is taken
 back too. A comparison's stretch goes on across a switch of stacks (S rising
 further in a step than an instruction pulls, as the menus' task switch moves
@@ -2913,9 +2913,12 @@ it) until the runtime says the comparison is over, as an interrupt entry's
 does. A comparison the runtime gives up because an interrupt's handler moved
 to a stack of its own above the routine's (the menus' vblank handler: shadow
 mode can't compare a routine whose stack the handler left) keeps its stretch,
-uncompared: the handler comes back to the routine, and what the original runs
-of it from there is still the port's, until the routine returns, the handler
-comes back to another stack, or the routine's task is switched away from. A port's
+uncompared, where the port's run had ended by then: the handler comes back
+to the routine, and what the original runs of it from there is still the
+port's, until the routine returns, the original reaches where the port
+stopped (from there it is handed back, as at any stop), the handler comes
+back to another stack, or the routine's task is switched away from
+(`NativeObserver.given_up` says where the port's run ended). A port's
 call-out that moves onto a stack of its own and comes back
 (`NATIVE_STACK_SWITCH_DISTANCE`, the pixels' spread) stays the call-out's
 until it returns, as the runtime waits for it; and where the runtime sets the
@@ -2926,7 +2929,11 @@ nothing measurable (gato-battle 47 s with it, 49 s without). The shipping
 mode's count is still made, over every movie (`--native on --generated on
 --sound-driver c`, 43 s for the library) and the routes (`route_check
 --fallbacks`, `$CT_DRIVE_FALLBACKS` through `tools/movies/ctdrv.py`), and
-reported beside it. A route's count is over the frames it kept: as the run
+ratcheted on its own, loosely: `tools/fallback_shipping_baseline.txt`, judged
+as a subset since its counts wander with timing, fails on a routine it doesn't
+have or on more distinct bytes or instructions past the slack in one. It is
+the backstop for the reference play's: whatever that measure counts as a
+port's that the ports don't run shows here. A route's count is over the frames it kept: as the run
 ends, the input it kept is played again from its start by a `ct_drive` that
 counts (`Machine.count_kept_frames`), so a search's probes, the attempts a
 restore undid and the frames a load replays from a base are left out, and a
@@ -3213,8 +3220,17 @@ scene program's main loop, `$7E:3023`).
   and all of the scene scripts' wait for the music, which returns every
   frame until the music gets there. It is taken back where it ran only the
   loop's instructions and a port takes over at the exit (the field's
-  screen-on wait), or returned where its entry says the port returns
-  (`NativeEntry.idle_returns`, set on those two waits).
+  screen-on wait), or returned having run only the bytes its entry declares
+  (`NativeEntry.idle_return_span`, set on those two waits), so a helper the
+  exit called, or a path the port refuses, stays counted.
+
+The audit before merge asked for three more guards against hiding a gap:
+the shipping mode's count ratcheted (`tools/fallback_shipping_baseline.txt`,
+seeded over the sample and the long routes: six lines, 4,530 instructions,
+the refusals TODO.md's "Refusals in real play" holds and the program's empty
+routine under the vblank list), the leaving pass bounded by its entry's
+bytes rather than by what fits before a return, and a given-up stretch
+ended where its port stopped.
 
 **Measured.** Over the gate's 37-movie sample the reference play's count went
 from 425,995 instructions to 9,892 (`FF:----` 0, `C2:----` 1,525, `7E:----`

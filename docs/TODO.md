@@ -3603,19 +3603,18 @@ waits on M5 rather than on a backend.
     call-out under such a handler, and for a port's own stretch under one,
     is the same (`Active.handler_away`);
   - a comparison the runtime gives up under such a handler keeps its
-    stretch, uncompared, until its routine returns (`abandon_under_the_handler`),
-    and the runtime reports no call-out of it from there: were the port to
-    call out to the original's code after a vblank, the callee would count as
-    the port's. The shipping mode's count, which runs the ports themselves,
-    is what shows such a call-out (none over the gate's sample: the menus'
-    movies run none of the original's code there). The measure's reasons in
+    stretch, uncompared, until its routine returns or reaches where the port
+    stopped (`abandon_under_the_handler`), and only where the port's run had
+    ended when it was given up; a port that calls out after its stretch's
+    vblank would hide the callee, which the shipping mode's ratchet
+    (`tools/fallback_shipping_baseline.txt`) is there to catch. The measure's reasons in
     tools/fallback_baseline.txt for `C2:----`, `7E:----` and the other lines
     the sample lowered still hold the movies outside the sample at the old
     measure's counts until the library's batched run takes them;
   - an idle entry's pass that leaves its wait is taken back only where it
     ran nothing but the loop and a port takes over at the exit, or the entry
-    says it returns (`idle_returns`, set on the warp's frame wait and the
-    scene scripts' wait for the music); the other idle entries' leaving
+    returned within its entry's bytes (`idle_return_span`, set on the warp's
+    frame wait and the scene scripts' wait for the music); the other idle entries' leaving
     passes (an exit that goes on into the routine) stay counted;
   - the Beyond Time route's replays from a base grew from 30,056 frames to
     44,660 with the battle frame work's remainders' second chunk
@@ -3624,9 +3623,11 @@ waits on M5 rather than on a backend.
     time: check whether the new ending ports (`$C0:75A0`, `$C0:6E27`,
     `$C0:0AFF`) leave estimated time owed at frame ends, which thins out the
     bases the search replays from (the likely, unconfirmed cause);
-  - the shipping mode's count can't be ratcheted: it moves with every port's
-    timing (99 of 1068 keys between the default and the native-shape build).
-    A shipping-mode run that played the movies at the original's timing
+  - the shipping mode's count is ratcheted only loosely, as a subset with
+    slack: it moves with every port's timing (99 of 1068 keys between the
+    default and the native-shape build), and its baseline was seeded over the
+    gate's sample and the long routes, so the library's batched run may add
+    lines for the movies outside it. A shipping-mode run that played the movies at the original's timing
     (`--port-timing oracle`, where it fits) would be the closer measure of
     what a player runs.
 - **The movie suite's wall time is the longest movie's.** The gate

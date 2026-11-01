@@ -453,10 +453,20 @@ def check_fallbacks(args, ctx):
                           "--report", str(out / "report-shipping.txt")] + [str(p) for p in paths])
     summary += "; shipping mode (the movies%s): %s" % (" and routes" if len(paths) > 1 else ", no routes",
                                                        totals[-1] if totals else "no output")
+    # the shipping mode's own ratchet: the backstop for whatever the reference
+    # play's measure counts as a port's that the shipping mode runs as the
+    # original's. Its counts move with timing, so it is judged as a subset:
+    # a routine new to it, or more distinct bytes or past the slack in one, fails
+    ship_rc, ship_lines = run_tool([sys.executable, str(ROOT / "tools/fallbacks.py"), "--check", "--subset",
+                                    "--baseline", str(ROOT / "tools/fallback_shipping_baseline.txt")]
+                                   + [str(p) for p in paths])
     details = [] if rc == 0 else lines[:-1][-40:]
+    if ship_rc != 0:
+        summary += "; the shipping mode's ratchet failed"
+        details += ["shipping mode: " + l for l in ship_lines[:-1][-40:]]
     if missing:
         details.append("no counts from: " + ", ".join(missing))
-    return rc == 0 and not missing, "fallbacks", summary, details
+    return rc == 0 and ship_rc == 0 and not missing, "fallbacks", summary, details
 
 
 def check_refusals(args, ctx):

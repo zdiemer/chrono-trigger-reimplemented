@@ -4601,7 +4601,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC30C28, .name = "scene_sequence_goes_on_after_the_wait", .fn = scene_sequence_goes_on_after_the_wait,
       NEEDS_M8_X16_BINARY, .cost_milli = 5158, .dont_care = DC_X | DC_N | DC_Z, .guard = scene_sequence_waits_on_channel },
     { .addr = 0xC30C2A, .name = "scene_script_wait_for_sound", .fn = scene_script_wait_for_sound, .idle = true,
-      .idle_clocks = 96, .idle_returns = true,
+      .idle_clocks = 96, .idle_return_span = 0x17,
       .guard = scene_sequence_waits_on_channel },
 
     /* object routines in bank C6 (menu object scripts' call command, and the Epoch's map):
@@ -4770,7 +4770,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xFDEAEB, .name = "warp_wait_for_frame", .fn = warp_wait_for_frame, NEEDS_M8, .cost_milli = 2500,
       .guard = warp_on_its_page },
     { .addr = 0xFDEAED, .name = "warp_wait_for_frame_loop", .fn = warp_wait_for_frame_loop, NEEDS_M8, .idle = true,
-      .idle_returns = true, .guard = warp_on_its_page },
+      .idle_return_span = 7, .guard = warp_on_its_page },
     { .addr = 0xFDEADA, .name = "warp_screen_on_wait_for_vblank_loop", .fn = warp_screen_on_wait_for_vblank_loop,
       NEEDS_M8, .idle = true, .guard = warp_bank_reaches_io },
     { .addr = 0xFDEADF, .name = "warp_turn_the_screen_on", .fn = warp_turn_the_screen_on, NEEDS_M8,

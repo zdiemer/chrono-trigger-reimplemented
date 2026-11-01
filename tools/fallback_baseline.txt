@@ -15,7 +15,7 @@
 7E:350E 14992 46  # handback by scene_program_start (scene program (RAM)): the pixels' spread, Lavos's fall's call-out (TODO.md, "The pixels' spread is still the program's"), counted under 7E:---- until the measure followed its stack switch (chunk 9's review)
 7E:375F 783 26  # handback by scene_title_set_up_pendulum (scene program (RAM))
 7E:377E 2901 6  # handback by scene_send_sound_command (scene program (RAM))
-7E:398A 56 18  # handback by scene_run_frame_tasks (scene program (RAM)): the sequence's wait for the music ($C3:0C2A-$C3:0C40), its passes taken back as the idle entry's, which returns as the port does (idle_returns); 56 left over the sample; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
+7E:398A 56 18  # handback by scene_run_frame_tasks (scene program (RAM)): the sequence's wait for the music ($C3:0C2A-$C3:0C40), its passes taken back as the idle entry's, which returns within its declared bytes (idle_return_span); 56 left over the sample; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
 7E:399B 14 18  # handback by scene_frame_tasks_go_on (scene program (RAM)); the same wait where the list goes on after a task came back to it (chunk 11's continuation)
 7E:44CE 1 1  # handback by scene_race_drain_score (scene program (RAM))
 7E:4643 6 1  # handback by scene_race_upload_column_rom (scene program (RAM))
@@ -75,6 +75,7 @@ C2:0009 10 3  # handback by battle_carry_out_member_action, battle_dispatch_expi
 C2:42DD 11 21  # refused by overworld_epoch (menus, text, overworld)
 C2:5DC4 15991 230  # menus, text, overworld: none over the sample; counted under comparisons a vblank handler gave up by the old measure; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
 C2:8249 14 12  # menu task-start helper outside a registered comparison in battle-heckran's reference play; shipping-mode fallbacks remain zero
+C2:826F 55 23  # handback by menu_run_the_main_task (menus, text, overworld): the task's start of a screen's task ($C2:8249, $C2:83B2) after the main task's stop, once a load screen (menu, field, new-game, menus-new-game-plus); filed under the vblank handler's given-up comparison until the measure ended such a stretch where its port stopped (REIMPLEMENTATION.md, "The largest fallbacks left, 2")
 C2:8BA6 32 18  # battle-unequipped-armor: refused by menu_make_equipment_list (menus, text, overworld); empty-list guard gap (docs/TODO.md)
 C2:A45D 8 6  # battle-unequipped-armor: refused by menu_redraw_equipment_list (menus, text, overworld); empty-list guard gap (docs/TODO.md)
 C2:A463 108 72  # battle-unequipped-armor: refused by menu_make_equipment_list (menus, text, overworld); empty-list guard gap (docs/TODO.md)
@@ -88,7 +89,7 @@ C7:0000 504 15  # handback by sound_driver_boot (sound driver)
 C7:005F 94 3  # handback by sound_driver_boot_start (sound driver)
 FD:---- 8 7  # no port yet (field graphics)
 FD:A990 2048 222  # handback by battle_dispatch_expired_timers (field graphics)
-FD:DA62 4064 7  # handback by warp_short_trip_waits (field graphics): the warp's frame wait's leaving pass, taken back as the idle entry's (idle_returns); none over the sample; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
+FD:DA62 4064 7  # handback by warp_short_trip_waits (field graphics): the warp's frame wait's leaving pass, taken back as the idle entry's (idle_return_span); none over the sample; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
 FD:DAC1 1264 7  # handback by warp_shortest_trip_waits (field graphics): as FD:DA62's; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
 FD:DB24 3064 7  # handback by warp_flickering_trip_waits (field graphics); the same for the flickering trip (warp_flickering_frame, $FD:DB27, before)
 FD:EADA 14 5  # handback by warp_set_up: the idle wait's leaving pass (field graphics)
