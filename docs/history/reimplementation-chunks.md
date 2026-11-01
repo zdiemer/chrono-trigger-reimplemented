@@ -12525,3 +12525,33 @@ no fallback allowance changed. The separate-timing build also passes fresh
 attract-demo, Lavos game-over and Beyond Time shadow runs. Seven entries are added. The RAM burndown is 25.1K of 25.1K (rounding);
 the scene engine is 3.7K of 3.8K, 5% left. The sampled gate remains for the
 end of the scene-joints pass.
+
+### Scene continuations: startup and the sound exchange
+
+The full work-RAM clear now continues through sound normalization and
+screen setup as C. Three previously unregistered tails have entries:
+`$7E:30E9` after the clear, `$7E:31BE` after the frame wait, and the long
+sound-send entry at `$7E:377A`. The short send and its retry now wait for
+the driver's echo in C, resending after 1,024 unsuccessful polls; the last
+normalization command uses that same path. The platform's counted wait
+keeps the original's 82-clock scene poll, rather than the cartridge
+sound driver's 66-clock poll. No sound-driver implementation changed.
+
+The retry count is private to the exchange. Liveness proves X dead at both
+send entries; callers still receive the command, successful comparison,
+and their original high A byte, Y and overflow where required. The new
+frame-wait return's measured cost is 42 clocks. Differential seed-1 fuzz
+covers seven entries at 2,000 states each: zero mismatches, skips or guard
+refusals before and after. Fresh attract-demo and events-epoch-lavos shadow
+runs exit successfully with zero mismatches and no refusals. Builds,
+style, smell and effects checks pass.
+
+Scene/warp joints move from 819 to 821: three returns and one scaffolding
+site are added, while stops fall from 28 to 26. The RAM burndown's only
+remaining run is 29 bytes at `$7E:366C`, the paired-perspective copy already
+implemented by `scene_build_perspective`; the walk misses the patched branch
+into it. This is an estimate's undercount, not another missing routine.
+The two retired handback ledger rows are removed. Attract-demo now ends
+with 34 instructions under startup's open comparison; those move from the
+retired clear continuation's accounting. The narrowed fallback ratchet has
+zero new or increased rows. The sampled gate remains for the end of this pass.

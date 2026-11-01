@@ -3108,35 +3108,42 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene continuations: startup and the sound exchange
+### Scene continuations: sequence commands and the music marker
 
-The full work-RAM clear now continues through sound normalization and
-screen setup as C. Three previously unregistered tails have entries:
-`$7E:30E9` after the clear, `$7E:31BE` after the frame wait, and the long
-sound-send entry at `$7E:377A`. The short send and its retry now wait for
-the driver's echo in C, resending after 1,024 unsuccessful polls; the last
-normalization command uses that same path. The platform's counted wait
-keeps the original's 82-clock scene poll, rather than the cartridge
-sound driver's 66-clock poll. No sound-driver implementation changed.
+The sequence interpreter now handles its music marker wait inside the C
+turn. It reads a stable marker, continues when the requested level has
+arrived, or rewinds to the wait command and returns from the current turn.
+The next frame starts that command normally. The native program and the
+machine bridge share this decision. This removes the stop at `$C3:0C2A`
+and resolves the mode-5 sequence picker's inherited AH declaration there;
+the full static don't-care check has zero findings.
 
-The retry count is private to the exchange. Liveness proves X dead at both
-send entries; callers still receive the command, successful comparison,
-and their original high A byte, Y and overflow where required. The new
-frame-wait return's measured cost is 42 clocks. Differential seed-1 fuzz
-covers seven entries at 2,000 states each: zero mismatches, skips or guard
-refusals before and after. Fresh attract-demo and events-epoch-lavos shadow
-runs exit successfully with zero mismatches and no refusals. Builds,
-style, smell and effects checks pass.
+Seven standalone entries expose the existing store, task-list and video
+command families through the same operation table. They begin after the
+opcode, run their operation, and continue the channel's turn as C. Their
+guards retain the interpreter's supported domains: low-RAM stores, list
+searches that find a word, and the named video settings. The interpreter
+now attributes those operations to their entries; standalone wrappers time
+the remaining turn separately. Seven isolated, one-command shadow fixtures
+supply the initial costs without fitting other commands' timing errors.
+All seven fixtures return with zero mismatches.
 
-Scene/warp joints move from 819 to 821: three returns and one scaffolding
-site are added, while stops fall from 28 to 26. The RAM burndown's only
-remaining run is 29 bytes at `$7E:366C`, the paired-perspective copy already
-implemented by `scene_build_perspective`; the walk misses the patched branch
-into it. This is an estimate's undercount, not another missing routine.
-The two retired handback ledger rows are removed. Attract-demo now ends
-with 34 instructions under startup's open comparison; those move from the
-retired clear continuation's accounting. The narrowed fallback ratchet has
-zero new or increased rows. The sampled gate remains for the end of this pass.
+Seed-1 differential fuzz covers twelve variants at 2,000 states each.
+The seven new commands and the bounded music-wait fixture have zero
+mismatches, skipped cases or guard refusals, as does the sequence picker.
+The three broad random-script variants retain their predecessor's mismatch
+counts (1, 0 and 1); their increased budget skips (31, 33 and 31) come from
+continuing past the former wait stop. That existing random-script finding
+remains in TODO. Attract-demo and the 130,000-frame Beyond Time recording
+pass the wait change with zero shadow mismatches; the command-entry build
+also passes fresh attract-demo and events-epoch-lavos runs, with no refusals.
+Their combined fallback ratchet has zero new or increased rows, without a
+ledger change. Style, smell, effects and don't-care checks are clean.
+
+Scene/warp joints remain 821: one return replaces one stop, leaving 25
+stops. The C3 burndown now lists only the controller continuation at
+`$C3:0A95`, 106 bytes; the seven command entries bring it to 45 entries.
+The sampled gate remains for the end of the pass.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 

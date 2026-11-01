@@ -795,6 +795,20 @@ void scene_run_vblank_tasks(Snes *s);
 
 /* scene/script.c */
 void scene_run_sequence(Snes *s);
+void scene_script_store_byte_entry(Snes *s);
+bool scene_script_store_byte_present(Snes *s);
+void scene_script_store_word_entry(Snes *s);
+bool scene_script_store_word_present(Snes *s);
+void scene_script_remove_vblank_entry(Snes *s);
+bool scene_script_remove_vblank_present(Snes *s);
+void scene_script_add_vblank_entry(Snes *s);
+bool scene_script_add_vblank_present(Snes *s);
+void scene_script_remove_frame_entry(Snes *s);
+bool scene_script_remove_frame_present(Snes *s);
+void scene_script_add_frame_entry(Snes *s);
+bool scene_script_add_frame_present(Snes *s);
+void scene_script_video_entry(Snes *s);
+bool scene_script_video_present(Snes *s);
 void scene_run_channel_0_script(Snes *s);
 void scene_run_channel_1_script(Snes *s);
 bool scene_channel_script_start_present(Snes *s);

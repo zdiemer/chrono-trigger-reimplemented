@@ -21708,3 +21708,60 @@ subsystem = "scene"
 state = "attract"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--long"]
 why = "the scene program present and command echoes available, so the whole continuation can return"
+
+[[routine]]
+name = "scene_script_store_byte"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB602=0320,0360,0380,0390,0990,0C00,1D00", "--fill", "7EB603-7EB604=00-FF", "--fill", "7EB604-7EB604=AC"]
+why = "A store into scene variables or buffers, followed by end-turn; randomized values, on the interpreter channel page"
+
+[[routine]]
+name = "scene_script_store_word"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB602=0320,0360,0380,0390,0990,0C00,1D00", "--fill", "7EB603-7EB604=00-FF", "--fill", "7EB605-7EB605=AC"]
+why = "A store into scene variables or buffers, followed by end-turn; randomized values, on the interpreter channel page"
+
+[[routine]]
+name = "scene_script_remove_frame"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB602=0001,0002,0003,0004", "--fill", "7EB603-7EB603=AC", "--fill", "7E0920-7E095F=0000,0001,0002,0003,0004"]
+why = "Random requested tasks and task slots followed by end-turn; the search may continue beyond the list as in the original"
+
+[[routine]]
+name = "scene_script_add_frame"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB602=0001,0002,0003,0004", "--fill", "7EB603-7EB603=AC", "--fill", "7E0920-7E095F=0000,0001,0002,0003,0004"]
+why = "Random requested tasks and task slots followed by end-turn; the search may continue beyond the list as in the original"
+
+[[routine]]
+name = "scene_script_remove_vblank"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB602=0001,0002,0003,0004", "--fill", "7EB603-7EB603=AC", "--fill", "7E0920-7E095F=0000,0001,0002,0003,0004"]
+why = "Random requested tasks and task slots followed by end-turn; the search may continue beyond the list as in the original"
+
+[[routine]]
+name = "scene_script_add_vblank"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB602=0001,0002,0003,0004", "--fill", "7EB603-7EB603=AC", "--fill", "7E0920-7E095F=0000,0001,0002,0003,0004"]
+why = "Random requested tasks and task slots followed by end-turn; the search may continue beyond the list as in the original"
+
+[[routine]]
+name = "scene_script_video"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB601=00,01,02,03,40,41,42,43,80,81,82,83,C0,C1,C2,C3", "--fill", "7EB602-7EB602=1A,25,26,27,2C,2D,2E,31,33", "--fill", "7EB603-7EB603=AC"]
+why = "Each video setting supported by the script vocabulary, followed by end-turn; mode-7 reserved bits are clear"
+
+[[routine]]
+name = "scene_run_sequence"
+variant = "music_wait"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7E0A20-7E0A21=B600", "--fill", "7EB600-7EB600=A5", "--fill", "7EB601-7EB601=00-0F", "--fill", "7EB602-7EB602=AC", "--apu-loopback"]
+why = "A music marker wait followed by end-turn: both waiting for a later marker and continuing immediately, with no unbounded random script"
