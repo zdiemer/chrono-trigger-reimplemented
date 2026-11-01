@@ -484,7 +484,7 @@ void event_screen_party_routine(Snes *s)
     ORIGINAL_EFFECT(event_keep_offset(g, resume));
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)resume, (uint8_t)s->cpu.x));
-    NATIVE_TIME_AS(s, MENUS_SERVICES, note_the_game_finished(s));
+    TIMED_AS(state_of(s), MENUS_SERVICES, note_the_game_finished(s));
     ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_GAME_FINISHED, &call));
     s->cpu.x = resume;
     m_rts(s);

@@ -481,7 +481,7 @@ void battle_build_object_graphics_checked(Snes *s)
         m_rts(s);
         return;
     }
-    NATIVE_TIME_AS(s, 0xC11C55, build(s));
+    TIMED_AS(state_of(s), 0xC11C55, build(s));
 }
 
 /* Only an object whose graphics kind has a layout, as every object the

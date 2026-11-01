@@ -241,7 +241,7 @@ void field_first_start(Snes *s)
         return;
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)s->cpu.y, (uint8_t)s->cpu.x));
-    NATIVE_TIME_AS(s, MENUS_SERVICES, start_from_the_saves(g, pf));
+    TIMED_AS(g, MENUS_SERVICES, start_from_the_saves(g, pf));
     ORIGINAL_EFFECT(party_service_answered(g, SERVICE_POWER_ON, &call));
     m_stop_at(s, ENTER, ENTERING_READS_NOTHING);
 }

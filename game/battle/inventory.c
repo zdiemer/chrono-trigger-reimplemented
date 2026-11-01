@@ -321,7 +321,7 @@ void battle_party_request(Snes *s)
 {
     PartyRequest request = (PartyRequest)(uint8_t)s->cpu.a;
     uint8_t answer = 0;
-    NATIVE_TIME_AS(s, answered_by[request], answer = party_request(state_of(s), request, s->cpu.y));
+    TIMED_AS(state_of(s), answered_by[request], answer = party_request(state_of(s), request, s->cpu.y));
     m_set_a8(s, answer);
     m_rtl(s);
 }

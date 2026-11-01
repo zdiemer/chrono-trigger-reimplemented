@@ -206,7 +206,7 @@ static void show_what_the_party_wears(Snes *s)
     GameState *g = state_of(s);
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)s->cpu.y, (uint8_t)s->cpu.x));
-    NATIVE_TIME_AS(s, MENUS_SERVICES, party_wear_it_shows(g));
+    TIMED_AS(g, MENUS_SERVICES, party_wear_it_shows(g));
     ORIGINAL_EFFECT(party_service_answered(g, SERVICE_SHOW_WHAT_IT_WEARS, &call));
     (void)call;
 }

@@ -458,7 +458,7 @@ void field_irq(Snes *s)
     if (begin_line_handler(g, pf)) {
         uint8_t second_set = field_display_flags(g) & FIELD_SECOND_TABLE_SET;
         if (!second_set) {
-            NATIVE_TIME_AS(s, 0xC0ED15, redraw_after_the_picture(g, pf));
+            TIMED_AS(g, 0xC0ED15, redraw_after_the_picture(g, pf));
         } else {
             leave_the_choice_in_a(s, second_set);
             if (!field_run_long(s, 0xC0ED08, TILE_ANIMATION_UPLOADS, THE_HANDLER_PUTS_EVERYTHING_BACK,

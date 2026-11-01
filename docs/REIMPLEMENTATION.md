@@ -3195,6 +3195,24 @@ vblank list (now refused, the setup leaves room), the large list's
 continuation, the boost's index, and the calling in's tech number read from
 its caller's cell.
 
+### Timing tags in the field, battle, overworld and events
+
+The ordinary timing scopes in these four subsystems and `core/input.c`
+use `TIMED_AS` with the game's state. This includes the seven party-service
+scopes in `event/party.c`, the object update's steps and the bridges' calls.
+The scope still selects the same routine and encloses the same work:
+`charge_time_as_begin` and `charge_time_as_end` delegate to the original
+timing functions on the comparison build and do nothing on the host.
+No entry, guard, cost or game operation changes. Battle's three sibling
+scopes retain their separate accounting until a state-based sibling API
+exists.
+
+The assigned files' source measure starts at 1,799 joints, including 40
+ordinary machine-based time tags. This change removes those 40 tags; the
+other categories stay at their original counts. Validation is recorded in
+`ports.tsv`; the existing fuzz domains are unchanged because this replaces
+only the timing scope's handle, not a routine's operations.
+
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 
 Chosen by size from `tools/fallback_baseline.txt` and from the movies

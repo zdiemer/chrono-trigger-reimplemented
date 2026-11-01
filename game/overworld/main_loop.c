@@ -641,7 +641,7 @@ static bool map_loaded_on_the_machine(void *ctx, MapLoad load)
         return menu_call(s, map_loads[load].site, 0xC22C93, READS_NOTHING);
     Unpacker u = overworld_unpacker_on_the_machine(s);
     bool loaded;
-    NATIVE_TIME_AS(s, 0xC22C93, loaded = overworld_load_the_map_again(state_of(s), &u, m_platform(s)));
+    TIMED_AS(state_of(s), 0xC22C93, loaded = overworld_load_the_map_again(state_of(s), &u, m_platform(s)));
     if (loaded)
         m_sep(s, CPU_FLAG_M);
     return loaded;
@@ -722,7 +722,7 @@ void overworld_come_back_to_the_map_s_screen(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_I, true);
     if (menu_run_or_call(s, 0xC22557, 0xC20043, READS_NOTHING, menu_object_init_video))
-        NATIVE_TIME_AS(s, 0xC2255A, overworld_come_back_from_the_menus(s));
+        TIMED_AS(state_of(s), 0xC2255A, overworld_come_back_from_the_menus(s));
 }
 
 // $C2:2E23

@@ -8,6 +8,7 @@
  * line down and following its left and right sides down the lines between
  * the top corner and the bottom one, each side a straight edge from corner to
  * corner, its column moving by a fixed amount each line. */
+#include "charge.h"
 #include "battle/screen_script.h"
 
 #include "battle/bridge.h"
@@ -359,7 +360,7 @@ void battle_screen_draw_beam(Snes *s)
 {
     GameState *g = state_of(s);
     uint8_t quad = screen_command_operand(g, 0);
-    NATIVE_TIME_AS(s, 0xD1F9AF, draw_beam(g, quad));
+    TIMED_AS(g, 0xD1F9AF, draw_beam(g, quad));
     s->cpu.a = 0;
     m_rtl(s);
 }

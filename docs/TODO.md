@@ -3113,6 +3113,9 @@ list, by kind, is what `game/` still asks of one.
   (`native_time_as`, `_end`, `_sibling`, `native_uncounted_*`) take the
   machine: tags for the timing gate. They want the game's state as their
   handle, as `TIMED_AS` (charge.h) has, whose host half is a no-op.
+  The field, battle, overworld, event and controller now use `TIMED_AS`
+  for ordinary timing scopes. Battle's three `NATIVE_TIME_AS_SIBLING`
+  scopes still need a state-based API that preserves sibling accounting.
 - **Waits on the beam.** `tm_snes_video_status`, the SNES backend's read of
   the beam's status, from the idle entries' passes (`field/frame.c`,
   `scene/boot.c`, `warp/warp.c`); and the 19 wait loops the census still sees

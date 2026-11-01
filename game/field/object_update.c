@@ -443,19 +443,21 @@ static bool call_step(Snes *s, uint32_t site, uint32_t routine)
 static void move_on_the_machine(void *ctx, FieldObject obj, bool party_member)
 {
     Snes *s = ctx;
+    GameState *g = state_of(s);
     if (party_member)
-        NATIVE_TIME_AS(s, MOVE_PARTY_MEMBER, field_move_object_step(s, obj, true));
+        TIMED_AS(g, MOVE_PARTY_MEMBER, field_move_object_step(s, obj, true));
     else
-        NATIVE_TIME_AS(s, MOVE, field_move_object_step(s, obj, false));
+        TIMED_AS(g, MOVE, field_move_object_step(s, obj, false));
 }
 
 static bool view_on_the_machine(void *ctx, UpdateCall call, FieldObject obj)
 {
     Snes *s = ctx;
-    if (field_view_changes(state_of(s), obj))
+    GameState *g = state_of(s);
+    if (field_view_changes(g, obj))
         return call_step(s, sites[call].view, VIEW);
     bool done;
-    NATIVE_TIME_AS(s, VIEW, done = field_update_visibility(s, obj));
+    TIMED_AS(g, VIEW, done = field_update_visibility(s, obj));
     return done;
 }
 
@@ -465,7 +467,7 @@ static bool tick_on_the_machine(void *ctx, UpdateCall call, FieldObject obj)
     GameState *g = state_of(s);
     if (!field_tick_is_exact(g, obj))
         return call_step(s, sites[call].tick, TICK);
-    NATIVE_TIME_AS(s, TICK, object_animation_tick(g, obj));
+    TIMED_AS(g, TICK, object_animation_tick(g, obj));
     return true;
 }
 
@@ -482,14 +484,14 @@ static void place_on_the_machine(void *ctx, FieldObject obj)
 {
     Snes *s = ctx;
     GameState *g = state_of(s);
-    NATIVE_TIME_AS(s, PLACE_ON_SCREEN, object_update_screen_position(g, obj));
+    TIMED_AS(g, PLACE_ON_SCREEN, object_update_screen_position(g, obj));
     m_set_flag(s, CPU_FLAG_V, screen_position_overflow(g, obj));
 }
 
 static void window_only_on_the_machine(void *ctx, FieldObject obj)
 {
     Snes *s = ctx;
-    NATIVE_TIME_AS(s, WINDOW_ONLY, field_update_in_window(s, obj));
+    TIMED_AS(state_of(s), WINDOW_ONLY, field_update_in_window(s, obj));
 }
 
 void field_update_objects(Snes *s)
