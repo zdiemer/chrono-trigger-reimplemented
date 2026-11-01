@@ -549,7 +549,7 @@ bool scene_turn_set_up_scene(Snes *s)
 {
     if (!prepare_turn(state_of(s), m_platform(s), turn_scripts_on_machine, s))
         return false;
-    s->cpu.d = 0x2100;
+    s->cpu.d = M_DP_PPU;
     s->cpu.db = 0;
     m_set_flag(s, CPU_FLAG_M, true);
     m_set_flag(s, CPU_FLAG_V, false);
@@ -576,29 +576,23 @@ static bool figure_arguments(Snes *s)
  * instructions are hashed. Tables read as data remain part of the image. */
 static bool turning_code_present(Snes *s)
 {
-    static const struct { uint32_t address; unsigned bytes; uint64_t hash; } code[] = {
-        { 0x7E6E42, 0x6A, 0x3A0831FD39BA6BFDull },
-        { 0x7E6EAE, 0x6, 0x2FEC6E338BA303A7ull },
-        { 0x7E6EB5, 0x5, 0xE40D09D53FD2C012ull },
-        { 0x7E6EBC, 0x7, 0x3C49132E8F5BE0EDull },
-        { 0x7E6EC4, 0x15A, 0xDF950D0352A1F375ull },
-        { 0x7E701E, 0x17, 0xBB5DD97642E76A86ull },
-        { 0x7E7037, 0x5B, 0xC34572C74778F22Eull },
-        { 0x7E7092, 0xC5, 0x2513793530FEE60Eull },
-        { 0x7E7193, 0x12, 0xFAD50C2537061CCBull },
-        { 0x7E7286, 0x1E, 0x792D3975BC96E34Cull },
-        { 0x7E72FF, 0x26, 0x38E51033E6896A05ull },
-        { 0x7E7325, 0x2F, 0x5DD6711A0F9CED71ull },
-        { 0x7E737E, 0x2C, 0xC5513ADE0FD798BAull },
-        { 0x7E73AA, 0x1C, 0xD341429DE7E414A7ull },
-        { 0x7E74DD, 0x35F, 0x881337299FF60F0Bull },
-        { 0x7E7868, 0x43, 0x221D0CF39B706A2Full },
-        { 0x7E78AB, 0x32, 0x9750089DC679FC80ull },
-    };
-    for (unsigned i = 0; i < sizeof code / sizeof code[0]; i++)
-        if (!m_code_matches(s, code[i].address, code[i].bytes, code[i].hash))
-            return false;
-    return true;
+    return m_code_matches(s, 0x7E6E42, 0x6A, 0x3A0831FD39BA6BFDull) &&
+           m_code_matches(s, 0x7E6EAE, 0x6, 0x2FEC6E338BA303A7ull) &&
+           m_code_matches(s, 0x7E6EB5, 0x5, 0xE40D09D53FD2C012ull) &&
+           m_code_matches(s, 0x7E6EBC, 0x7, 0x3C49132E8F5BE0EDull) &&
+           m_code_matches(s, 0x7E6EC4, 0x15A, 0xDF950D0352A1F375ull) &&
+           m_code_matches(s, 0x7E701E, 0x17, 0xBB5DD97642E76A86ull) &&
+           m_code_matches(s, 0x7E7037, 0x5B, 0xC34572C74778F22Eull) &&
+           m_code_matches(s, 0x7E7092, 0xC5, 0x2513793530FEE60Eull) &&
+           m_code_matches(s, 0x7E7193, 0x12, 0xFAD50C2537061CCBull) &&
+           m_code_matches(s, 0x7E7286, 0x1E, 0x792D3975BC96E34Cull) &&
+           m_code_matches(s, 0x7E72FF, 0x26, 0x38E51033E6896A05ull) &&
+           m_code_matches(s, 0x7E7325, 0x2F, 0x5DD6711A0F9CED71ull) &&
+           m_code_matches(s, 0x7E737E, 0x2C, 0xC5513ADE0FD798BAull) &&
+           m_code_matches(s, 0x7E73AA, 0x1C, 0xD341429DE7E414A7ull) &&
+           m_code_matches(s, 0x7E74DD, 0x35F, 0x881337299FF60F0Bull) &&
+           m_code_matches(s, 0x7E7868, 0x43, 0x221D0CF39B706A2Full) &&
+           m_code_matches(s, 0x7E78AB, 0x32, 0x9750089DC679FC80ull);
 }
 
 bool scene_turn_program_present(Snes *s) { return scene_on_scene_page_io_bank(s) && turning_code_present(s); }

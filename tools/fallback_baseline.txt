@@ -86,7 +86,7 @@ FD:EADA 18 5  # handback by warp_set_up: the idle wait's leaving pass (field gra
 FF:---- 162359 189  # no port yet (misc): the number tiles' and the records' bank-$FF code, the same instructions as before, 32 K of it filed here since the records' task's hand-back no longer takes the other tasks' code (chunk 8)
 open C3:0000 47 0  # attract-demo ends inside startup now owned by scene_boot: the former 7E:3000 open 34 instructions plus its 13-instruction boot prefix, no new original work
 open 7E:3003 5 0  # hidden under scene_setup_and_first_frame's comparison, still open when a run ended
-open C0:0000 15 0  # hidden under field_enter's comparison, still open when a run ended; a movie that ends as the field starts
+open C0:0000 1854 0  # 15 from the earlier library plus 1839 in battle-golem-twins-gameover with the title music wait held in C; restoring only its old stop splits the latter ownership into field_enter 132 and scene_boot 1755, with identical end state, coverage and calls. No real-play refusals; unfinished comparisons, not new original work
 open C0:0097 3557 0  # hidden under field_frame's comparison, still open when a run ended: endings-telepod-lavos 3515, which ends in the field's frame whose pass now covers the steps it goes on from (chunk 11, the fallback measure keeping its extent), and 6 each in seven fights' movies
 open C0:00BA 133 0  # hidden under field_wait_for_the_next_frame's comparison, still open when a run ended: the movies end in the frame wait, which the port waits through in shadow mode; what is left is the waits' last passes, which the idle entry stands for
 open C0:2824 179 0  # hidden under field_fade_in_after_a_menu's comparison, still open when a run ended; menus-save-point ends as the field fades in after the menu

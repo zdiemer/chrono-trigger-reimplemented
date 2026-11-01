@@ -154,3 +154,19 @@ battle_work_out_enemy_attack  # second movie batch: 73.3% of 135 calls uncompare
 battle_clear_the_turn_work  # second movie batch: 52.9% of 136 calls uncompared (72 interrupted, 0 abandoned), interrupted as above
 field_start_the_objects  # second movie batch: 52.8% of 829 calls uncompared (0 interrupted, 438 abandoned), abandoned as above
 event_run_init_scripts  # second movie batch: 52.8% of 829 calls uncompared (0 interrupted, 438 abandoned), abandoned as above
+
+# Scene continuations: these comparison boundaries now sit inside whole C loops.
+# Counts are from the 37-movie sample; independent fuzz still compares the entries.
+warp_wait_for_frame  # 414 abandoned held waits; the loop's caller owns completion; 2000 standalone wait cases compare with no mismatch or guards
+warp_shortest_trip_waits  # 159 abandoned waits nested in the whole trip; enclosing frames compare in 2000 standalone cases with no mismatch or guards
+warp_short_trip_waits  # 255 abandoned waits nested in the whole trip; enclosing frames compare in 2000 standalone cases with no mismatch or guards
+warp_short_frame  # 254 of 255 abandoned revisits inside the C trip; 2000 standalone frame cases compare with no mismatch or guards
+warp_shortest_frame  # 158 of 159 abandoned revisits inside the C trip; 2000 standalone frame cases compare with no mismatch or guards
+scene_wait_for_music_loop  # 1183635 polls now abandoned inside the title's C loop (formerly skipped); default and playing fixtures compare 4000 cases with no mismatch
+scene_send_sound_command_again  # 472 retries abandoned inside the C sound exchange; 2000 independent retry cases compare with no mismatch
+scene_race_scale_pictures  # 1142 interrupted whole-picture calls; three bounded race-picture fixtures compare 6000 cases with no mismatch; movie IRQ comparison gap remains in TODO
+scene_race_scale_after_crono  # 1142 interrupted whole-picture calls; same bounded race-picture evidence and open IRQ comparison gap
+scene_sample_bitmap_row  # 4310 of 5160 interrupted, 850 compared; 2000 isolated sampling cases compare with no mismatch; movie IRQ comparison gap remains in TODO
+scene_scale_bitmap_row  # 4310 of 6156 interrupted, 1846 compared; two row fixtures compare 4000 cases with no mismatch; movie IRQ comparison gap remains in TODO
+scene_scale_bitmap  # 4310 of 6156 interrupted, 1846 compared; broad and bounded start fixtures compare 2027 cases with no mismatch; movie IRQ comparison gap remains in TODO
+field_enter  # scene and warp now call entry directly: 356 abandoned, 332 comparisons match; three scene-return destination fixtures compare 6000 cases up to first location setup or world-map handoff, not complete field play

@@ -96,7 +96,8 @@ void scene_boot(Snes *s)
     m_set_flag(s, CPU_FLAG_I, !line_irq);   /* interrupts on where the scene uses the line interrupt */
     m_jsl_dc(s, 0xC3006F, 0xC30557, DC_A | DC_X | DC_N | DC_Z | DC_C);
     m_jump_to(s, PROGRAM_START);
-    TIMED_AS(state_of(s), PROGRAM_START, scene_program_start(s));
+    /* Startup owns its long loading stretches, just as at its own entry. */
+    NATIVE_TIME_AS_SIBLING(s, PROGRAM_START, scene_program_start(s));
 }
 
 /* The program unpacked into work RAM, as C (the decompressor's call from the

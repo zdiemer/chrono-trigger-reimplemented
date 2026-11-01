@@ -3108,32 +3108,66 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene continuations: sound commands and remaining boundaries
+### Scene continuations: final validation and comparison ownership
 
-Scene sound commands continue directly through the interpreter. The command
-interface preserves the caller's page, bank and arithmetic/index modes, so
-the channel cannot require the old sound-return handback. Two channel
-fixtures compare 4,000 sound-command states with zero mismatches. Three
-existing interpreter fixtures retain their previous results (including one
-known broad-state mismatch); the before/after comparison finds no new
-failure. Attract-demo and Epoch shadow movies have zero mismatches and the
-fallback ratchet has zero new or increased rows. Style and smell checks
-are clean.
+The scene RAM program and scene engine both report 0% unported. The panorama,
+turning map and animated figures are C; the static walk's remaining 29 bytes
+at `$7E:366C` are already in the paired perspective builder, behind a patched
+branch it misses. Modes 5 and 10 have isolated fuzz coverage but still need
+representative native play (TODO). Scene/warp stops fell from 51 to five;
+their total measured machine joints rose from 756 to 800 as the new ports
+added entry wrappers, video calls and scaffolding.
 
-The scene RAM program and scene engine now both report 0% left in burndown.
-The only static uncovered RAM run, 29 bytes at `$7E:366C`, is already in
-the paired perspective builder; the walk misses its patched branch. Scene
-and warp stops have fallen from 51 to five across this series. Their total
-machine joints rose from 756 to 800 as the previously unported modes gained
-entry wrappers and video calls. This last chunk removes one stop (six to
-five), without adding another joint.
+The final sampled run compared all 37 shadow movies without a mismatch,
+passed all 56 shipping routes and all 56 native-shape routes, and found no
+real-play refusals. Trace identity, video timing, sound lockstep and fuzz,
+liveness, strict/native ratchets, style, smell and assets passed. It did not
+print `suite OK`: timing ownership, fallback accounting, comparison coverage,
+scaffold-read attribution and the interrupted evidence replay failed.
 
-Five boundaries remain, with evidence in TODO: the race's shared upload
-wait needs caller-instance matching; the scene main loop exposes a carry
-difference after an interrupted prelude; the last warp frame exposes HDMA
-shutdown timing; and two script handbacks cover unsupported command data
-and callees that change the interpreter's calling context. The sampled
-gate is reserved for the final validation of this series.
+Boot and the scene/warp field returns now use sibling timing scopes, so a
+long loading stretch belongs to the existing startup or field loader rather
+than its caller. This changes report ownership, not the time estimate. The
+turning-map coordinates use 32-bit arithmetic and explicit wrap detection;
+2,000 map cases and 100 setup cases compare with zero mismatches or skips.
+The setup wrapper uses the named PPU page and keeps image checks in the
+machine adapter. The portability, platform, style and evidence scheduler
+unit checks pass (19 tests).
+
+Six focused shadow movies pass with zero mismatches, including the complete
+105,000-frame Beyond Time ending. Their timing check covers 1,417 entries
+with no new failures; no calibration or new timing exception was needed.
+The existing startup exception now describes the boot-owned stretches too.
+The Golem Twins game-over movie leaves 1,839 instructions under an open
+field-entry comparison. Restoring only the old title music stop changes
+that to 132 under field entry and 1,755 under scene boot; final state,
+coverage and call-count hashes are identical. Restoring the old boot stop,
+field-return stop or loop-comparison rule individually leaves 1,839
+unchanged. The ledger therefore records the held wait's comparison
+ownership, preserving the earlier library's 15-instruction allowance.
+Both the full sample's and focused replays' fallback ratchets pass.
+
+Thirteen newly uncompared entry names are recorded with independent fuzz
+evidence, not hidden by changing the threshold. Their waits and retries now
+run inside enclosing C loops, while complete bitmap/race work can cross an
+interrupt. TODO retains that movie comparison gap. The curtain's 124 reads
+of menu residue are identical to the previous run; the direct continuation
+attributes them to `scene_curtain_jump` instead of `scene_sweep_the_curtain`.
+The full sample's comparison and effects checks pass with those explicit
+ownership records.
+
+The evidence runner previously launched every variant at once for each
+movie worker: two workers could mean eight game processes. Its interrupted
+run is not evidence of agreement. Variants now run sequentially within a
+worker, and a concurrency regression verifies two workers start at most two
+game processes while preserving failed-variant reporting.
+
+Five stops remain after failed removal experiments: the race upload wait
+needs caller-instance matching, the first-frame continuation exposes carry
+after an interrupted prelude, the final warp frame exposes HDMA shutdown
+timing, and two interpreter handbacks need unsupported-data services or a
+callee return contract. TODO records each failure and the next required
+work. No full sampled gate has passed for this series yet.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 

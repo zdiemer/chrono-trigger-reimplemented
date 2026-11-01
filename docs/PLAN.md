@@ -64,11 +64,11 @@ in place of the ports: the native coverage.
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 3% left (97% has a port) | 0% |
+| ROM code reimplemented (`burndown.py`) | less than 1% left (over 99% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 100% over 49 of the 51 movies (the hand ports alone carry each to its end, `strict_check.py`); the other two stop at guards that refuse play only they reach (TODO.md, "Refusals in real play"); what no movie runs is unmeasured: 36.3 KiB of live code, 32.7 KiB of it ported and so far unchecked (movies-wanted.md, "Totals") | 100%, over a library that reaches all of the game |
 | Code run in place of hand ports (`fallbacks.py`) | the reference play (48 movies): 0.55 M instructions (0.95 M over 42 before chunk 11); shipping mode over the movies 0, the routes 18 K (all hand-backs: the program's start's in the Black Tyrano's route, the vblank list's and the battle's calling in); the hand ports alone (`strict_check.py`) carry 49 of the 51 movies to their end; no entry refuses in real play over the gate's movies and routes, and `tools/refusal_allowlist.txt` holds no gap (the hand-run long movie's refusals are in TODO.md, "Refusals in real play"); the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "Phase 4a, the shipping mode's fallbacks, chunk 11") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
-| Ports off the machine (`portstyle.py`) | 29% of 9,029 functions take a `Snes *` (scene 42%, menus 35%, battle and field 26%) | entry wrappers only, then none |
+| Ports off the machine (`portstyle.py`) | 22% of 10,489 functions take a `Snes *` (scene 34%, menus 25%, battle 19%, field 18%) | entry wrappers only, then none |
 | ROM data behind named accessors | every accessor read, served from an asset pack imported once from the user's ROM (`ct_play`, `ct_native`) or from the cartridge (`ct_dev` without `--assets`); the decompressor's streams and the video transfers from cartridge addresses still go by the bus | the resources decoded, a resource at a time (Phase 4a, "Assets") |
 | SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP; the original stays as the gate's reference | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
@@ -82,9 +82,9 @@ time: a call-out, a stop, a refused guard. Of the 49.7 KiB real play still runs
 as the original, 25 KiB is code burndown counts as ported -- battle's
 animation commands and call-outs (9.1 KiB), the menus and overworld (6.6 KiB),
 the battle frame work's renderer pieces and waits (2.4 KiB) among it. So a
-fully native game is two pieces of work, not one: porting the 12% burndown
-lists, and retiring the fallbacks inside code it counts as done, which is
-about two thirds as much again. Native coverage is the headline; burndown says
+fully native game is two pieces of work: porting the remaining code burndown
+lists, and retiring the fallbacks inside code it counts as done. Native
+coverage is the headline; burndown says
 how much has a port. The second piece is mostly callees a port calls out to,
 which belong to the port that calls them, and the waits still made on the
 machine, which go to the timing service's calls ("Timing", below). How the
@@ -164,14 +164,12 @@ isn't ported yet, so retiring it is porting its callee. In order:
    up left"); and the fallback measure's filing of one task's code under
    another's hand-back, which shows where to look (TODO.md, "What the
    shipping mode's fallbacks' eighth chunk left").
-2. **The scene program**, its unported modes after movies reach them, and
-   the title's and the attract program's own frame tasks, which the movies
-   run as the original's (`$7E:5D71`, `$7E:6A23`, `$7E:69AF` and their
-   neighbours, the largest of its handbacks), and what the endings still
-   hand back to the original: the program's first script step (`$7E:3749`)
-   and the program's sine and
-   multiplies (`$7E:33D6`, `$7E:3461`, `$7E:3465`) where a guard refuses
-   them.
+2. **The scene program's five remaining boundaries**: the shared race
+   upload wait, the interrupted first-frame continuation, the warp's HDMA
+   shutdown, and the scripts' unsupported data and calling contexts
+   (TODO.md, "Scene continuation boundaries"). Its RAM and scene-engine
+   code now report 0% unported; modes 5 and 10 still need representative
+   native play beyond their isolated fuzz coverage.
 3. **The battle's** last handback in the shipping mode, the enemies' action
    showing's stub (`$C1:BD6F`).
 
@@ -232,7 +230,7 @@ where recalibration and baseline updates come from; "every movie" below is every
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**0 of 318 files is left on the backlog**: the last, `data/decompress.c`, is
+**0 of 319 files is left on the backlog**: the last, `data/decompress.c`, is
 rewritten (the unpacker as a function of the game's state, which the native
 program calls), and `tools/portstyle_baseline.txt` lists none. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
@@ -240,14 +238,18 @@ call-outs to the original's code:
 
 | Subsystem | Lines | Style | On the machine |
 |---|--:|--:|--:|
-| battle | 17,302 | 0.02 | 27% |
-| menu | 10,035 | 0.03 | 33% |
-| field | 9,028 | 0.01 | 21% |
-| event | 4,255 | 0.01 | 14% |
-| scene | 2,492 | 0.04 | 45% |
-| core, data, attract | 2,054 | 0.06 | 70% |
-| sound | 1,983 | 0.00 | 0% |
-| **total** | **45,119** | **0.02** | **28%** |
+| battle | 34,778 | 0.01 | 19% |
+| menu | 30,914 | 0.02 | 25% |
+| field | 14,414 | 0.01 | 18% |
+| event | 4,891 | 0.01 | 13% |
+| scene | 15,101 | 0.03 | 34% |
+| warp | 763 | 0.02 | 27% |
+| overworld | 4,451 | 0.01 | 11% |
+| core | 2,186 | 0.03 | 26% |
+| data | 247 | 0.05 | 7% |
+| attract | 65 | 0.05 | 89% |
+| sound | 2,277 | 0.00 | 0% |
+| **total** | **110,087** | **0.02** | **22%** |
 
 What the phase settled, and what still holds for every port:
 
@@ -280,7 +282,7 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **1% of the code is still generated.**
+docstring says which way it is wrong). **Less than 1% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
@@ -293,12 +295,12 @@ docstring says which way it is wrong). **1% of the code is still generated.**
 | battle sprites (`$CF`) | 6.8K | 6.8K | 0.2K | 0% | 47 |
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 52 |
 | battle setup (`$CC`) | 4.8K | 4.8K | 0.1K | 0% | 11 |
-| scene engine (`$C3`) | 3.8K | 3.7K | 0.4K | 3% | 45 |
+| scene engine (`$C3`) | 3.8K | 3.8K | 0.4K | 0% | 47 |
 | scene data (`$C6`) | 3.4K | 3.4K | 0.6K | 0% | 35 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.1K | 1% | 9 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
 | console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
-| **total** | **266.7K** | **265.2K** | **59.1K** | **1%** | **2201** |
+| **total** | **266.7K** | **265.6K** | **59.1K** | **0%** | **2220** |
 
 `$CD`, the battle's frame work, is C but for 0.2 KiB: the whole screen script
 language (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"),
@@ -322,10 +324,10 @@ counts the registry's macro rows, and credits the callees a port inlines (no
 call-out at their call; REIMPLEMENTATION.md, "The tooling pass after wave 1: the
 analysis", has what each of those moved): helpers no longer need a registry
 entry of their own to count. `$CC` is the
-one subsystem near done. `$C3` (the scene engine) is done but for code the
-beam's counters decide and one routine nothing reaches (its row in
-docs/ports.tsv; the
-edge sequence the field's rasterizer inlines is credited to it); `$C6` has its small object
+one subsystem near done. `$C3` (the scene engine) has no uncovered runs;
+its beam waits use timing services and its bitmap sampler is a C entry.
+The edge sequence the field's rasterizer inlines is credited to it.
+`$C6` has its small object
 routines and irises, and the Day of Lavos's turning world, which
 `battle-lavos-gameover` reaches; its table builders and orbit routines are
 left, which no movie reaches.
@@ -529,10 +531,15 @@ game is lost or ends (modes 7 and 8; REIMPLEMENTATION.md, "Phase 4a, the
 shipping mode's fallbacks, chunk 11"), as are Lavos falling and the Epoch's
 dive (modes 4 and 6; history file, chunks 9 and 10). The attract sequence's two scenes (modes 1 and 3) are ports (REIMPLEMENTATION.md,
 "Phase 4a, the native frame: the attract sequence's pages of credits and the
-palace rising"). **Next**, by what the library reaches: the program's first
-script step (`$7E:3749`), still run as the original inside comparisons. The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and
-`$7E:8A01`-`$7E:8B51` no movie reaches, so a port there would rest on fuzzing
-alone.
+palace rising"). The remaining panorama (`$7E:8A01`-`$7E:8B51`), turning
+map and animated figures are now C, validated by differential fuzzing;
+the sampled movies do not reach those unused modes. Both scene subsystems
+report 0% left. The static walk still lists 29 bytes at `$7E:366C`, already
+implemented by the paired perspective builder, because it misses the
+patched branch. **Next** are the five scene/warp stop boundaries described
+in TODO: shared race-wait instances, interrupted main-loop carry, warp
+HDMA shutdown timing, and two interpreter handbacks for unsupported
+command data or changed calling context.
 
 **What `$FD` has left** after wave 1 (docs/history/reimplementation-waves.md, "Phase 3,
 wave 1: bank `$FD`"), the time warp (`game/warp/`) and the location's

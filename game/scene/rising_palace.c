@@ -96,24 +96,27 @@ bool scene_turn_map(GameState *g)
     uint32_t column_step = map_position((uint16_t)(2 * a), c);
     uint16_t left = (uint16_t)((scene_turn_center(g, 0) << 4) + a + 1 - c);
     uint16_t top = (uint16_t)((scene_turn_center(g, 1) << 4) + c + a + 1);
-    uint64_t row = map_position((uint16_t)-(left * 32), (uint16_t)-(top * 16));
+    uint32_t row = map_position((uint16_t)-(left * 32), (uint16_t)-(top * 16));
     uint32_t sample = 0;
     for (unsigned y = 0; y < rows; y++) {
         /* The initial rounding unit comes from the origin's discarded bit; subsequent
          * rows start from the last row's two wrapped coordinates. */
-        row = (uint64_t)(uint32_t)row + row_step + (y == 0 ? (top >> 12) & 1 : 0);
-        sample = (uint32_t)row;
+        uint32_t next_row = row + row_step + (y == 0 ? (top >> 12) & 1 : 0);
+        bool row_wrapped = next_row < row || (next_row == row && row_step != 0);
+        row = next_row;
+        sample = row;
         for (unsigned x = 0; x < MAP_COLUMNS; x++) {
-            uint64_t next = (uint64_t)sample + column_step + (x == 0 ? row >> 32 : 0);
-            sample = (uint32_t)next;
-            unsigned offset = ((sample >> 24) + MAP_ROW_BYTES * ((sample >> 8) & 0xFF) + (unsigned)(next >> 32)) & 0x7FE;
+            uint32_t next = sample + column_step + (x == 0 && row_wrapped);
+            bool wrapped = next < sample || (next == sample && column_step != 0);
+            sample = next;
+            unsigned offset = ((sample >> 24) + MAP_ROW_BYTES * ((sample >> 8) & 0xFF) + wrapped) & 0x7FE;
             unsigned output = y * MAP_ROW_BYTES + 2 * x;
             set_scene_turn_output_map_byte(g, output, scene_tilemap_buffer_byte(g, offset));
             set_scene_turn_output_map_byte(g, output + 1, scene_tilemap_buffer_byte(g, offset + 1));
         }
     }
     set_scene_map_pending_count(g, (uint16_t)(scene_map_pending_count(g) + 1));
-    ORIGINAL_EFFECT(leave_map_sampling(g, (uint32_t)row, sample, row_step, column_step));
+    ORIGINAL_EFFECT(leave_map_sampling(g, row, sample, row_step, column_step));
     return true;
 }
 

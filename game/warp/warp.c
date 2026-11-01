@@ -352,7 +352,8 @@ void warp_end(Snes *s)
     NATIVE_TIME_AS(s, GO_DARK, go_dark_and_still(s));
     TIMED_AS(state_of(s), PUT_BACK_THE_STORY_FLAGS, put_back_the_story_flags(state_of(s)));
     m_jump_to(s, FIELD_STARTS);
-    TIMED_AS(state_of(s), FIELD_STARTS, field_enter(s));
+    /* Field loading keeps its own timing report across this tail call. */
+    NATIVE_TIME_AS_SIBLING(s, FIELD_STARTS, field_enter(s));
 }
 
 /* A frame, then on to the main loop's wait for the next (`loop`); after the
@@ -394,10 +395,9 @@ void warp_flickering_frame(Snes *s) { run_a_frame(s, WARP_FLICKERING, 0xFDDB8D);
 
 /* ---- Each kind's start, and its main loop's wait ------------------------------------------------- */
 
-/* The warp's start and the main loop's wait for the next frame, which the
- * kinds' starts and loops call (warp/bridge.c runs them as the original's
- * JSRs do). The wait stops at its loop, which returns to the frame after it
- * (warp_long_frame and the others). */
+/* The warp's starts and loops share a held frame wait. Once the handlers
+ * have taken the finished frame, its C continuation draws the next one.
+ * warp/bridge.c retains the call site for the shadow comparison. */
 enum { SET_UP = 0xFDDB97, WAIT_FOR_FRAME = 0xFDEAEB };
 
 static bool wait_for_the_frame_from(Snes *s, uint32_t site) { return warp_run_from(s, site, WAIT_FOR_FRAME, warp_wait_for_frame); }

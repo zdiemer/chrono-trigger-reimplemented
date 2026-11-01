@@ -180,8 +180,8 @@ rest waits, is [PLAN.md](PLAN.md).
     function starts.
 - **The menus' `$C2:5DC4`** (21,444 of the reference play's instructions over
   the 48 movies, no port; tools/fallback_baseline.txt): the largest of the
-  menus' code the original still runs inside the menus' comparisons, after
-  the scene program's arrangers (above). Find what it does and port it.
+  menus' code the original still runs inside the menus' comparisons.
+  Find what it does and port it.
 - **The tech sweep's fight never ends in the native shape.** The route
   (`tools/movies/routes/tech_sweep.py`, zophar chrono-trigger slot 1, the Lavos
   Core) reaches its outcome in the shipping mode, but `ct_drive_native_shape`
@@ -2737,6 +2737,8 @@ re-runs the census.
   own call of the original recurse into the port: decide whether a native
   build keeps the wait at all, and take it out of the service if not.
 
+## Scene continuation boundaries
+
 - **Scene divisor search outside its terminating domain.** The entry at
   `$C3:0E29` refuses a dividend, initial quotient and limit for which none
   of its 256 divisors succeeds. The original loops forever there; seed-1
@@ -2797,6 +2799,23 @@ re-runs the census.
   that context; arbitrary callees still need a declared return contract.
 
 ## Shadow comparison gaps
+
+The scene series still needs a complete passing sampled-gate receipt after
+its final corrections. Its one full run passed all 37 shadow movies and
+56 shipping/native-shape routes, but ended with timing, fallback,
+uncompared, effects and evidence failures. The first four now pass focused
+checks or an audit of that run's logs. The evidence runner exceeded its
+process budget and was interrupted; its corrected sequential variants are
+being replayed. These checks do not constitute a fresh complete gate.
+
+The scene's whole-picture scalers need comparisons that survive interrupts.
+In the 37-movie scene sample, both race-picture entries have all 1,142 calls
+interrupted; each bitmap start, row and sampling entry has 4,310 interrupted
+comparisons. The bitmap entries still have matching comparisons (1,846 at
+the start and row, 850 at the sampler). Bounded isolated fuzzing compares
+6,000 race pictures and 8,027 bitmap cases without a mismatch, but does not
+close this movie coverage gap. Keep that distinction when extending the
+race upload-wait comparison described above.
 
 The early-boss shadow runs also expose a comparison gap in the held-message
 path: `battle_pause_on_the_message` has 168 calls, all abandoned, when run
@@ -3068,11 +3087,6 @@ list, by kind, is what `game/` still asks of one.
   VRAM word, from a cursor or a fixed byte, which the video service has no
   call for yet. The census (REIMPLEMENTATION.md, "The census") counts the
   rest: 259 entries the machine still enters, 21.1 M times over the library.
-- **Finish the scene-joints pass.** The scene and warp files still contain
-  25 stops. They cover controller/music waits, reset, script dispatch,
-  scaling and the scene/field transition. The task-list continuations are C;
-  the remaining stops have not been retired. Startup, sound exchange and
-  the script music wait now continue in C.
 - **A meaningful native run of mode 5.** Its setup, map and figure animation
   are C and every new entry passes fuzzing. No known story path starts it.
   A forced start directly after boot reaches the figure task at frame 41,
@@ -3760,12 +3774,6 @@ waits on M5 rather than on a backend.
   pictures runs long loops of its own, which is why it carries timing
   exceptions; the arrangers (`$7E:3EB7`, `$7E:3ED3`, the latter the ending's
   too) timed as their own routines would fit it better.
-- **The perspective's other scenes' steps are refused.** The plane's
-  perspective (`scene/perspective.c`) builds the race's lines and the endings'
-  (the routine at the program's call, `$7E:45B0` or `$7E:9B46`); modes 1 and
-  3-8, which no movie reaches, write other starts (`$7E:8042`, with a step of
-  two lines either way and an end at line 112) that the guard hands to the
-  original. Port them with those scenes.
 
 - **What scene's second review accepted as later work** (history/reimplementation-phase3a.md, "Phase
   3a: scene reworked to the review"). None changes behaviour; each is a

@@ -298,7 +298,8 @@ void scene_hand_back_to_the_field(Snes *s)
     s->cpu.x = CONSOLE_STACK_TOP;
     s->cpu.s = CONSOLE_STACK_TOP;
     m_jump_to(s, FIELD_STARTS);
-    TIMED_AS(state_of(s), FIELD_STARTS, field_enter(s));
+    /* Field loading keeps its own timing report across this tail call. */
+    NATIVE_TIME_AS_SIBLING(s, FIELD_STARTS, field_enter(s));
 }
 
 // $7E:303B

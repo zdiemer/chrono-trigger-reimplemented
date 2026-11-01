@@ -12762,3 +12762,30 @@ fallback ratchet has zero new or increased rows. Style, smell, effects and
 liveness checks are clean. Scene/warp joints fall from 806 to 801, stops
 from 12 to 6; one frame-wait return replaces a stop. The sampled gate is
 still reserved for the end.
+
+### Scene continuations: sound commands and remaining boundaries
+
+Scene sound commands continue directly through the interpreter. The command
+interface preserves the caller's page, bank and arithmetic/index modes, so
+the channel cannot require the old sound-return handback. Two channel
+fixtures compare 4,000 sound-command states with zero mismatches. Three
+existing interpreter fixtures retain their previous results (including one
+known broad-state mismatch); the before/after comparison finds no new
+failure. Attract-demo and Epoch shadow movies have zero mismatches and the
+fallback ratchet has zero new or increased rows. Style and smell checks
+are clean.
+
+The scene RAM program and scene engine now both report 0% left in burndown.
+The only static uncovered RAM run, 29 bytes at `$7E:366C`, is already in
+the paired perspective builder; the walk misses its patched branch. Scene
+and warp stops have fallen from 51 to five across this series. Their total
+machine joints rose from 756 to 800 as the previously unported modes gained
+entry wrappers and video calls. This last chunk removes one stop (six to
+five), without adding another joint.
+
+Five boundaries remain, with evidence in TODO: the race's shared upload
+wait needs caller-instance matching; the scene main loop exposes a carry
+difference after an interrupted prelude; the last warp frame exposes HDMA
+shutdown timing; and two script handbacks cover unsupported command data
+and callees that change the interpreter's calling context. The sampled
+gate is reserved for the final validation of this series.
