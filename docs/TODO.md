@@ -3137,10 +3137,11 @@ list, by kind, is what `game/` still asks of one.
   starts up to four game processes per movie, so `suite.py -j 2 --evidence`
   can run eight. Give the evidence runner one shared process budget across
   variants and movie workers. The loop-joint run stopped that stage by verified
-  PID and uses an ignored scratch helper with the same checks and bounded
-  concurrency. Its single sampled gate therefore ends with an evidence
-  failure as well as the subsequently isolated battle-route failure; it has
-  not been rerun on the kept code.
+  PID; an ignored scratch helper with the same checks and bounded
+  concurrency passes all 84 evidence movies on the kept code. The tool still
+  needs a shared process budget. The single sampled gate ended with evidence
+  and battle-route failures before the battle boundaries were restored;
+  the kept revision still needs a passing full sampled gate.
 - **The machine's memory and registers.** `snes_bus_read`, `_write` and
   `_peek`: the wrappers' registers, page, data bank and stack, the guards'
   peeks, and what the logic still reads by address. The game's state itself

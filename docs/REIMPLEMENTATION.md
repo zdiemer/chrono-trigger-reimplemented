@@ -3227,7 +3227,10 @@ runner and children were stopped by verified PID when this was discovered.
 The gate's actual last line was `FAILED: native-shape; evidence`; it was not
 rerun. The follow-up evidence helper in ignored scratch keeps every check
 but serializes each movie's variants and caps simultaneous game processes.
-The kept binary's bounded evidence run is still pending.
+The kept binary's bounded evidence rerun completed all 84 movies with
+matching traces and passed the dispatch-index and declaration-count checks;
+its last line is `dc_evidence: OK`. This is a separate evidence result, not a
+passing sampled gate for the kept revision; that full gate has not been rerun.
 
 The assigned-file count is now 1,799 to 1,748: stops 62 to 52, registry
 lookups three to two, and ordinary machine timing tags 40 to zero. The
