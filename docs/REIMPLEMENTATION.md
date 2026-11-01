@@ -92,6 +92,23 @@ including the comparison ratchet, effects, port style and port smell checks;
 both fast routes pass in shipping mode and with scaffolding compiled out.
 This follow-up does not repeat the long routes or evidence regeneration.
 
+Review restored the callee guard on the save-point screen's continuation
+from `$C2:D506` to `$C2:CF0A`. A movable cursor does not imply that the
+shown save slot is valid. `menu_go_on_in` now retains the callee's refusal
+and the original stop's live high accumulator byte. The new invalid-slot
+fuzz variant presses choose with slots 4 through 255: seed 1 compares all
+2,000 states after the fix, with zero mismatches, skips or out-of-range
+accesses. Before it, only 140 compare and 1,860 skip; a diagnostic run of
+100 states reports 100 out-of-range slot reads. Shadow runs of
+`menus-save-point`, `menus-field-menu` and `menus-sweep` have zero mismatches.
+No fuzz domain was narrowed, and no sampled gate was run for this review.
+
+The evidence helper now runs each movie's variants sequentially, so its
+worker count also caps all child processes, including trace comparisons.
+The concurrent regression test observes eight children with the previous
+launcher and at most two with two workers after the fix; all four variants'
+results, including failures and evidence counts, remain accounted for.
+
 Remaining stops belong to task switches and held waits, reset and mode
 boundaries, invalid script dispatch, comparison checkpoints and guard
 fallbacks. In particular the menu-entry boundary still owns nested shadow

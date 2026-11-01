@@ -218,8 +218,8 @@ static void note_on_the_machine(void *ctx, ShopNote note, uint32_t value)
     }
 }
 
-/* The steps' ends are the original's jumps, which the port stops at, or
- * runs where it is a port: the lists' openings, as C. */
+/* Continue the steps as C, retaining the original's stop when a guarded
+ * fade or exit refuses; the list openings and refusal sounds run here. */
 static bool ends_on_the_machine(void *ctx, ShopEnd end)
 {
     Snes *s = ctx;

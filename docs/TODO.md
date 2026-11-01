@@ -2810,18 +2810,6 @@ comparisons.
   registry entries and original callers retire together. See
   REIMPLEMENTATION.md, "The menus' machine joints".
 
-- **Repeat the sampled gate after the retained NMI checkpoint.** The
-  once-only long-route/evidence run ended `FAILED: uncompared` before this
-  correction. After it, the three-movie narrowed suite ends `suite OK`, with
-  all 8,358 work comparisons matched. The full sampled gate still needs a
-  run on this final tree before merging.
-
-- **Limit evidence children, not only movie workers.** `dc_evidence.py`
-  starts four variants per worker, so the suite's `-j 2` can run eight
-  `ct_dev` children. Make the limit apply to child processes. The menu gate
-  discovered this during evidence regeneration and limited its own children
-  to two active processes externally; the shared helper remains unchanged.
-
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
 `ct_native` links the whole of `game/` but `registry.c`, with every service's

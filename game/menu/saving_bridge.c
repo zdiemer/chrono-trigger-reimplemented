@@ -199,10 +199,8 @@ static void note(void *ctx, SavingNote n, uint8_t value)
     }
 }
 
-/* The steps' ends: the original's jumps, which the port stops at, or runs
- * as the entry it jumps to where that is a port (saving in the slot from
- * the main menu's screen, and the slots' frame where its guard takes the
- * state). */
+/* Continue the steps as C. Jumped-to entries retain their guards and stop
+ * for the original where refused; the slots' frame has its own guard too. */
 static bool ends(void *ctx, SavingEnd end)
 {
     Snes *s = machine(ctx);
@@ -210,7 +208,7 @@ static bool ends(void *ctx, SavingEnd end)
     case SAVING_FADES_IN: menu_go_on_in(s, FADE_IN, menu_start_the_fade_in_entry, READS_NOTHING); break;
     case SAVING_LEAVES_THE_MENUS: menu_go_on_in(s, LEAVE_THE_MENUS, menu_close_entry, READS_NOTHING); break;
     case SAVING_BACK_TO_THE_MAIN_MENU: menu_go_on_in(s, MAIN_MENU, menu_back_to_the_main_menu_entry, READS_NOTHING); break;
-    case SAVING_SAVES_IN_THE_SLOT_JUMPED: TIMED_AS(state_of(s), SAVE_IN_THE_SLOT, menu_save_in_the_slot(s)); break;
+    case SAVING_SAVES_IN_THE_SLOT_JUMPED: menu_go_on_in(s, SAVE_IN_THE_SLOT, menu_save_in_the_slot, READS_A_HIGH); break;
     case SAVING_SAVES_IN_THE_SLOT: TIMED_AS(state_of(s), SAVE_IN_THE_SLOT, menu_save_in_the_slot(s)); break;
     case SAVING_MOVES_AMONG_THE_SLOTS:
         if (menu_slot_under_the_cursor_shows(state_of(s)))
