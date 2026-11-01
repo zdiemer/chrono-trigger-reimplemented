@@ -769,8 +769,20 @@ bool scene_vblank_tasks_present(Snes *s);
 /* A list going on where a task it called came back to it, frames after the
  * call, from under the frame the list keeps under each call (its data bank,
  * the slot, P and D), which the entries pull. */
-enum { SCENE_TASK_CALL_FRAME = 6 };
+enum { SCENE_TASK_CALL_FRAME = 6, SCENE_FINISHED_TASK_FRAME = SCENE_TASK_CALL_FRAME + 2 };
 void scene_frame_tasks_go_on(Snes *s);
+void scene_finish_task(Snes *s, SceneTaskList list, TaskEnd end);
+bool scene_script_remove_frame_task_present(Snes *s);
+void scene_script_remove_frame_task_entry(Snes *s);
+bool scene_script_remove_vblank_task_present(Snes *s);
+void scene_script_remove_vblank_task_entry(Snes *s);
+bool scene_script_add_frame_task_present(Snes *s);
+void scene_script_add_frame_task_entry(Snes *s);
+bool scene_script_add_vblank_task_present(Snes *s);
+void scene_script_add_vblank_task_entry(Snes *s);
+void scene_finish_remove_frame_task_entry(Snes *s);
+void scene_finish_replace_frame_task_entry(Snes *s);
+void scene_finish_remove_vblank_task_entry(Snes *s);
 void scene_vblank_tasks_go_on(Snes *s);
 void scene_run_frame_tasks(Snes *s);
 void scene_run_vblank_tasks(Snes *s);

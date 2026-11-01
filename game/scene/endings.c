@@ -1833,10 +1833,6 @@ static bool shared_pieces_present(Snes *s)
            m_code_matches(s, 0x7E8AF0, 0x5, 0xEBDF284C0857DA9Bull);
 }
 
-/* The registers' stop past a vblank task that takes itself off its list, which
- * reads none of them. */
-enum { REMOVE_THIS_VBLANK_TASK = 0x7E39DE, NOTHING_READ = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
-
 /* The setup's code, with what it runs inline: the letters' widening, the rows'
  * padding, the plane's upload and the blanking past it, the letters' colors,
  * the task list's search, the per-line effects and their descriptors. Mode
@@ -2116,7 +2112,7 @@ bool scene_ending_show_credits_present(Snes *s)
 void scene_ending_show_credits_entry(Snes *s)
 {
     show_credits(state_of(s), m_platform(s));
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 bool scene_ending_show_last_scene_present(Snes *s)
@@ -2128,7 +2124,7 @@ bool scene_ending_show_last_scene_present(Snes *s)
 void scene_ending_show_last_scene_entry(Snes *s)
 {
     show_last_scene(state_of(s), m_platform(s));
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 /* The credits' pieces' vblank tasks: their code, the send they share, and the
@@ -2183,7 +2179,7 @@ bool scene_send_the_mosaic_frame_present(Snes *s)
 void scene_send_the_mosaic_frame_entry(Snes *s)
 {
     send_the_mosaic_frame(state_of(s), m_platform(s));
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 bool scene_blank_the_map_present(Snes *s)
@@ -2195,7 +2191,7 @@ bool scene_blank_the_map_present(Snes *s)
 static void credits_piece_on_the_machine(Snes *s, unsigned piece)
 {
     send_a_credits_piece(m_platform(s), piece);
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 void scene_send_the_credits_picture_entry(Snes *s) { credits_piece_on_the_machine(s, CREDITS_PICTURE_SENT); }
@@ -2205,7 +2201,7 @@ void scene_send_the_pattern_s_tiles_entry(Snes *s) { credits_piece_on_the_machin
 void scene_blank_the_map_entry(Snes *s)
 {
     blank_the_map(m_platform(s));
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 bool scene_ending_scroll_bg2_present(Snes *s)
@@ -2228,9 +2224,6 @@ bool scene_ending_sweep_window_present(Snes *s)
     return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E9A0C, 0xB1, 0x0B37DD86CDAEC523ull) && holds(s, sweep_fits);
 }
 
-/* The list's exit for a task that takes itself off. */
-enum { REMOVE_SWEEP_TASK = 0x7E39A7 };
-
 /* A frame task, entered with 16-bit A. Back, A's high byte is the right
  * side's top corner's (the last the original loaded), or 0 where the sweep
  * is over, and Y where the rider's list or the window's drawing left it. */
@@ -2247,7 +2240,7 @@ void scene_ending_sweep_window_entry(Snes *s)
     ORIGINAL_EFFECT(leave_the_sweep_s_y(s, g, rider_drawn));
     if (sweep == SWEEP_OVER) {
         ORIGINAL_EFFECT(s->cpu.a = 0);
-        m_stop_at(s, REMOVE_SWEEP_TASK, DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C);
+        scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
         return;
     }
     ORIGINAL_EFFECT(s->cpu.a = scene_ending_window_corners(g, RIGHT_TOP));

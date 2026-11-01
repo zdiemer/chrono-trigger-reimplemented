@@ -400,8 +400,7 @@ enum { SCENE_SEND = 0x7E377E, THE_SEND_READS_Y = DC_A | DC_X | DC_N | DC_V | DC_
 /* The list's exit that hands the task's slot over reads the task that takes
  * it in X; the reset reads none of the registers but Y, which the countdown
  * leaves as it was (the liveness can't rule it out down the field's start). */
-enum { HAND_THE_SLOT_OVER = 0x7E39B1, THE_HAND_OVER_READS_X = DC_A | DC_N | DC_V | DC_Z | DC_C,
-       CONSOLE_RESET = 0x00FF00, THE_RESET_MAY_READ_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C };
+enum { CONSOLE_RESET = 0x00FF00, THE_RESET_MAY_READ_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C };
 
 static void ask_for_the_restart_sound(GameState *g)
 {
@@ -438,8 +437,7 @@ void scene_wait_for_a_button_to_restart_entry(Snes *s)
         m_rts(s);
         return;
     }
-    s->cpu.x = end.next;
-    m_stop_at_own(s, HAND_THE_SLOT_OVER, THE_HAND_OVER_READS_X);
+    scene_finish_task(s, SCENE_FRAME_TASKS, task_hands_over(end.next));
 }
 
 static void send(void *ctx, Platform *pf) { scene_sends_the_command(ctx, pf); }

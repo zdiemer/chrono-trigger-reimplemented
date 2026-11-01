@@ -653,7 +653,7 @@ bool scene_credits_scroll_present(Snes *s)
 /* Where the roll goes on: its scroll, a routine of its own, which reads the
  * data bank and Y; and the frame list's exit for a task that takes itself
  * off. */
-enum { SCROLL_THE_CREDITS = 0x7E9ED6, REMOVE_THIS_TASK = 0x7E39A7 };
+enum { SCROLL_THE_CREDITS = 0x7E9ED6, };
 
 /* What a line leaves: Y past the row buffer, which the original blanks with a
  * block move, and the data bank the move's, 0. */
@@ -685,7 +685,7 @@ void scene_roll_credits_entry(Snes *s)
     if (scene_credits_over(g) != over) {
         ORIGINAL_EFFECT(leave_line_written(s));
         ORIGINAL_EFFECT(leave_credits_over(s));
-        m_stop_at(s, REMOVE_THIS_TASK, DC_X | DC_N | DC_V | DC_Z | DC_C);
+        scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
         return;
     }
     if (scene_credits_text(g) != text)

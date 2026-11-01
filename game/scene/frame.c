@@ -135,6 +135,46 @@ bool scene_script_can_replace_task(const GameState *g, SceneTaskList list, Scene
     return scene_task_listed(g, list, from) || word_past_the_list(g, list, from) != 0;
 }
 
+/* The four script services differ only in which list they edit and whether
+ * the requested task replaces an empty slot or is removed. */
+typedef enum { REMOVE_FRAME, REMOVE_VBLANK, ADD_FRAME, ADD_VBLANK } TaskEdit;
+static const struct {
+    SceneTaskList list;
+    bool adding;
+} task_edits[] = {
+    { SCENE_FRAME_TASKS, false }, { SCENE_VBLANK_TASKS, false },
+    { SCENE_FRAME_TASKS, true }, { SCENE_VBLANK_TASKS, true },
+};
+
+static bool task_edit_present(Snes *s, TaskEdit edit)
+{
+    if (s->cpu.db != SCENE_LOWER_WORK_RAM)
+        return false;
+    vars_peek(true);
+    bool found = scene_script_can_replace_task(state_of(s), task_edits[edit].list,
+                                               task_edits[edit].adding ? NO_TASK : s->cpu.x);
+    vars_peek(false);
+    return found;
+}
+
+static void edit_task_entry(Snes *s, TaskEdit edit)
+{
+    SceneTask from = task_edits[edit].adding ? NO_TASK : s->cpu.x;
+    SceneTask to = task_edits[edit].adding ? s->cpu.x : NO_TASK;
+    (void)scene_script_replace_task(state_of(s), task_edits[edit].list, from, to);
+    m_rts(s);
+}
+
+// $C3:0CB8, $C3:0CCD, $C3:0CE2, $C3:0CF8
+bool scene_script_remove_frame_task_present(Snes *s) { return task_edit_present(s, REMOVE_FRAME); }
+void scene_script_remove_frame_task_entry(Snes *s) { edit_task_entry(s, REMOVE_FRAME); }
+bool scene_script_remove_vblank_task_present(Snes *s) { return task_edit_present(s, REMOVE_VBLANK); }
+void scene_script_remove_vblank_task_entry(Snes *s) { edit_task_entry(s, REMOVE_VBLANK); }
+bool scene_script_add_frame_task_present(Snes *s) { return task_edit_present(s, ADD_FRAME); }
+void scene_script_add_frame_task_entry(Snes *s) { edit_task_entry(s, ADD_FRAME); }
+bool scene_script_add_vblank_task_present(Snes *s) { return task_edit_present(s, ADD_VBLANK); }
+void scene_script_add_vblank_task_entry(Snes *s) { edit_task_entry(s, ADD_VBLANK); }
+
 // $C3:0CE2, $C3:0CF8
 bool scene_add_task(GameState *g, SceneTaskList list, SceneTask task) { return replace_task(g, list, NO_TASK, task); }
 
@@ -524,17 +564,6 @@ static void leave_a(Snes *s, TaskLeftovers l, TaskEnd end)
         s->cpu.a = l.a_high_as_called ? (uint16_t)((s->cpu.a & 0xFF00) | (l.a & 0x00FF)) : l.a;
 }
 
-/* The lists' exits, in their own code, where a task that is done jumps: the
- * frame list's two, and the vblank list's, which takes a task off it. */
-enum { TASK_LEAVES = 0x7E39A7, TASK_HANDS_OVER_EXIT = 0x7E39B1, VBLANK_TASK_LEAVES = 0x7E39DE };
-
-static bool is_an_exit(SceneTaskList list, uint32_t at)
-{
-    if (list == SCENE_VBLANK_TASKS)
-        return at == VBLANK_TASK_LEAVES;
-    return at == TASK_LEAVES || at == TASK_HANDS_OVER_EXIT;
-}
-
 /* A list's loop calls a task from its own code (the frame list's at
  * $7E:3998, the vblank list's at $7E:39CF), with the data bank, the slot, P
  * and D saved under the call, and for the vblank list the direct page in
@@ -542,7 +571,7 @@ static bool is_an_exit(SceneTaskList list, uint32_t at)
  * take it off the list, or hand its slot to the task in X; they unwind the
  * frames under the call and go on with the list. */
 enum { FRAME_TASK_CALL = 0x7E3998, VBLANK_TASK_CALL = 0x7E39CF };
-enum { THE_TASKS_READ_ANYTHING = 0, JSR_SIZE = 3 };
+enum { THE_TASKS_READ_ANYTHING = 0 };
 
 static void keep_the_list_s_frames(Snes *s, uint16_t index)
 {
@@ -757,7 +786,6 @@ static TaskEnd run_the_original_task(Snes *s, SceneTaskList list, unsigned slot,
     uint16_t index = (uint16_t)(slot * 2);
     m_set_nz16(s, task);
     keep_the_list_s_frames(s, index);
-    uint16_t below_the_call = c->s;
     c->x = index;
     c->a = task;
     if (vblank) {
@@ -771,20 +799,10 @@ static TaskEnd run_the_original_task(Snes *s, SceneTaskList list, unsigned slot,
         c->x = index;
         return task_goes_on();
     }
-    uint32_t at = cpu_pc24(c);
-    bool at_an_exit = is_an_exit(list, at) && c->s == (uint16_t)(below_the_call - (JSR_SIZE - 1));
-    if (!at_an_exit)
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
-    native_dont_care_at_stop(s, 0, 0);   /* the stop is the loop's, which goes on as C */
-    TaskEnd end = at == TASK_HANDS_OVER_EXIT ? (TaskEnd){ TASK_HANDS_OVER, c->x } : task_is_done();
-    if (end.outcome == TASK_HANDS_OVER) {
-        m_set_flag(s, CPU_FLAG_M, false);
-        c->a = end.next;
-    }
-    (void)m_pull16(s);
-    unwind_the_task_s_frames(s);
-    end_the_task(state_of(s), list, slot, end);
-    return end;
+    /* A finishing task has already run the rest of the list and returned
+     * through its caller. A task which yielded has left that continuation
+     * pending. Either way this invocation has no more slots to run. */
+    return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
 }
 
 /* The list calls a task with A the task (the vblank list: the direct page),
@@ -853,8 +871,37 @@ static void run_tasks_from(Snes *s, SceneTaskList list, unsigned first)
         m_set_flag(s, CPU_FLAG_C, slot + 1 == count);   /* the loop's compare; its X, N and Z aren't read */
     }
     m_set_flag(s, CPU_FLAG_C, true);   /* the last compare's, at the list's end, from wherever it went on */
+    s->cpu.x = (uint16_t)(count * 2);
+    m_set_nz16(s, 0);
     m_rtl(s);
 }
+
+/* A task which finishes returns through the list, not through its own call.
+ * Restore the caller's page, bank and slot, change the persistent list, then
+ * run the remaining slots. The frame's snapshot stays intact this frame. */
+static void finish_task_on_the_machine(Snes *s, SceneTaskList list, TaskEnd end)
+{
+    if (end.outcome == TASK_HANDS_OVER)
+        s->cpu.a = end.next;
+    (void)m_pull16(s);
+    unwind_the_task_s_frames(s);
+    unsigned slot = s->cpu.x / 2u;
+    end_the_task(state_of(s), list, slot, end);
+    uint32_t loop = list == SCENE_VBLANK_TASKS ? 0x7E39BE : 0x7E398A;
+    NATIVE_TIME_AS(s, loop, run_tasks_from(s, list, slot + 1u));
+}
+
+void scene_finish_task(Snes *s, SceneTaskList list, TaskEnd end)
+{
+    uint32_t continuation = list == SCENE_VBLANK_TASKS ? 0x7E39DE :
+                            end.outcome == TASK_HANDS_OVER ? 0x7E39B1 : 0x7E39A7;
+    NATIVE_TIME_AS(s, continuation, finish_task_on_the_machine(s, list, end));
+}
+
+// $7E:39A7, $7E:39B1, $7E:39DE
+void scene_finish_remove_frame_task_entry(Snes *s) { scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done()); }
+void scene_finish_replace_frame_task_entry(Snes *s) { scene_finish_task(s, SCENE_FRAME_TASKS, task_hands_over(s->cpu.x)); }
+void scene_finish_remove_vblank_task_entry(Snes *s) { scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done()); }
 
 /* The registers a task leaves as it ends, as its row's leftovers work them
  * out: Y, A (scaffolding), A's width and the overflow. */
@@ -873,8 +920,6 @@ void scene_leave_task_registers(Snes *s, const SceneTaskPort *port, TaskEnd end)
  * back to the list as the original's would come back -- returning, or done
  * through the list's exit that empties its slot, or that hands it over, which
  * read A's high byte and Y (the exits put P back as the list saved it). */
-enum { THE_EXITS_READ_A_HIGH_AND_Y = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C,
-       THE_HAND_OVER_READS_THE_NEXT_TASK_TOO = DC_AL | DC_N | DC_V | DC_Z | DC_C };
 
 void scene_task_alone(Snes *s, const SceneTaskPort *port)
 {
@@ -885,11 +930,8 @@ void scene_task_alone(Snes *s, const SceneTaskPort *port)
     scene_leave_task_registers(s, port, end);
     if (end.outcome == TASK_GOES_ON) {
         m_rts(s);
-    } else if (end.outcome == TASK_IS_DONE) {
-        m_stop_at_own(s, TASK_LEAVES, THE_EXITS_READ_A_HIGH_AND_Y);
     } else {
-        s->cpu.x = end.next;
-        m_stop_at_own(s, TASK_HANDS_OVER_EXIT, THE_HAND_OVER_READS_THE_NEXT_TASK_TOO);
+        scene_finish_task(s, port->list, end);
     }
 }
 

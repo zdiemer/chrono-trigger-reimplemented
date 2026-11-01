@@ -3108,33 +3108,47 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene continuations: the title loader owns its resource steps
+### Scene continuations: tasks finish through their lists
 
-The seven title-loader fragments at `$7E:597B`, `$7E:59A0`, `$7E:59AA`,
-`$7E:59BC`, `$7E:59CC`, `$7E:59D5` and `$7E:5A59` are retired. Their work
-already runs as C inside `scene_title_set_up_scene` and the native setup;
-removing the partial entries lets the whole setup own these continuations.
-The parent retains its code guard and the palette, pendulum and resource
-loading implementation. The wait for the title song remains a separate step.
+Finishing a scene task now removes or replaces its persistent list slot and
+runs the remaining slots as C. The frame list's snapshot is kept intact for
+this frame. The standalone entries restore the page, flags, slot and bank
+which the caller saved below the task's return address; the list returns
+through its own caller. This retires the exits at `$7E:39A7`, `$7E:39B1`
+and `$7E:39DE` in the ending screens, Epoch dive, race, captions, stars,
+planet, staff roll and the shared title/fade/palace task helper. It also
+removes the bridge's old recognition of stopped task exits.
 
-The previous attempt passed all 37 sampled shadow movies and 56 shipping
-routes but exposed 138 instructions under the setup comparison still open at
-the end of attract-demo. Its accounting is now migrated explicitly: the seven
-retired fragment rows (5,829 instructions and 179 bytes) leave the fallback
-ledger, and the unfinished parent comparison has a 138-instruction row.
-This records the changed ownership at the recording boundary; it introduces
-no new code path or fallback allowance beyond the retired work. Both the saved
-sampled evidence and a fresh attract-demo run pass the fallback ratchet with
-zero new or increased rows. No general baseline update was run.
+The four script list services at `$C3:0CB8`, `$C3:0CCD`, `$C3:0CE2` and
+`$C3:0CF8` now expose the existing C list search through thin entries. Their
+rows select insertion or removal and the frame or vblank list. As the
+original does, a missing slot continues the search through following work
+RAM. Only a search with no matching word is refused; its original never
+returns. Separate fuzz variants cover those searches beyond both lists.
 
-Fresh attract-demo shadow: 22,500 frames, exit 0 and zero mismatches or refusals.
-Differential fuzz of the whole setup, seed 1: before and after each match all
-400 states, with zero skips or guard refusals. The affected native, shadow,
-fuzz and native-shape targets build; style and smell checks are clean.
-Scene/warp machine joints fall from 840 to 835 and their stops from 50 to 47;
-seven registry entries disappear. The sampled gate remains for the end of
-the scene-joints pass. The turning-scene chunk is archived in
-history/reimplementation-chunks.md.
+Shadow comparisons include a finished task's caller frame (eight bytes),
+so a task is checked through the list's return. Fuzz fixtures supply a
+valid saved frame in the console stack area, random saved slots and flags,
+and empty remaining slots; the unchanged guard cases stay in the comparison.
+The completion work and the remaining-list traversal are timed separately
+from the finishing task; the latter uses the existing list-loop cost. The three completion costs
+come from isolated last-slot comparisons (344, 380 and 344 clocks), keeping
+other tasks' variable estimates out of their calibration. The native
+program already uses the same task outcomes directly.
+
+Differential seed-1 fuzz: all 43 changed variants, 500 states each, have
+zero mismatches before and after. Eight list-search variants add 2,000 states
+each, with zero mismatches, including all 8,000 searches past list boundaries.
+No accessor goes out of range. The affected shadow, native, fuzz and
+native-shape targets build; style, smell and effects checks are clean.
+Scene/warp joints fall from 835 to 819, and stops from 47 to 28.
+Five focused shadow movies pass with zero mismatches and no refusals:
+attract-demo, both jet-bike recordings, events-epoch-lavos and
+endings-beyond-time. Their fallback ratchet has no new or increased rows;
+no fallback allowance changed. The separate-timing build also passes fresh
+attract-demo, Lavos game-over and Beyond Time shadow runs. Seven entries are added. The RAM burndown is 25.1K of 25.1K (rounding);
+the scene engine is 3.7K of 3.8K, 5% left. The sampled gate remains for the
+end of the scene-joints pass.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 

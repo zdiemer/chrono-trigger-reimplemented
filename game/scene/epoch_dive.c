@@ -1239,18 +1239,17 @@ void scene_dive_set_up_entry(Snes *s)
 
 /* The one-off vblank tasks take themselves off their list through its exit,
  * which reads none of the registers. */
-enum { REMOVE_THIS_VBLANK_TASK = 0x7E39DE, NOTHING_READ = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 void scene_set_the_screen_outside_entry(Snes *s)
 {
     set_the_screen_outside(state_of(s), m_platform(s));
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 void scene_set_the_screen_in_the_cockpit_entry(Snes *s)
 {
     set_the_screen_in_the_cockpit(state_of(s), m_platform(s));
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 /* ---- What the ports take ---------------------------------------------------------------------- */

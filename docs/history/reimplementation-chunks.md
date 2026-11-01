@@ -12455,3 +12455,31 @@ generated accessors in both setup and sampling; the sampler's same 2,000
 seed-1 states still match after that change. The previous geometry chunk is archived in
 history/reimplementation-chunks.md. Timing and fallback allowances are unchanged;
 the sampled gate remains for the end of the scene-joints pass.
+
+### Scene continuations: the title loader owns its resource steps
+
+The seven title-loader fragments at `$7E:597B`, `$7E:59A0`, `$7E:59AA`,
+`$7E:59BC`, `$7E:59CC`, `$7E:59D5` and `$7E:5A59` are retired. Their work
+already runs as C inside `scene_title_set_up_scene` and the native setup;
+removing the partial entries lets the whole setup own these continuations.
+The parent retains its code guard and the palette, pendulum and resource
+loading implementation. The wait for the title song remains a separate step.
+
+The previous attempt passed all 37 sampled shadow movies and 56 shipping
+routes but exposed 138 instructions under the setup comparison still open at
+the end of attract-demo. Its accounting is now migrated explicitly: the seven
+retired fragment rows (5,829 instructions and 179 bytes) leave the fallback
+ledger, and the unfinished parent comparison has a 138-instruction row.
+This records the changed ownership at the recording boundary; it introduces
+no new code path or fallback allowance beyond the retired work. Both the saved
+sampled evidence and a fresh attract-demo run pass the fallback ratchet with
+zero new or increased rows. No general baseline update was run.
+
+Fresh attract-demo shadow: 22,500 frames, exit 0 and zero mismatches or refusals.
+Differential fuzz of the whole setup, seed 1: before and after each match all
+400 states, with zero skips or guard refusals. The affected native, shadow,
+fuzz and native-shape targets build; style and smell checks are clean.
+Scene/warp machine joints fall from 840 to 835 and their stops from 50 to 47;
+seven registry entries disappear. The sampled gate remains for the end of
+the scene-joints pass. The turning-scene chunk is archived in
+history/reimplementation-chunks.md.

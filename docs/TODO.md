@@ -3026,14 +3026,9 @@ list, by kind, is what `game/` still asks of one.
   call for yet. The census (REIMPLEMENTATION.md, "The census") counts the
   rest: 259 entries the machine still enters, 21.1 M times over the library.
 - **Finish the scene-joints pass.** The scene and warp files still contain
-  47 stops after the title loader fragment retirement and the credits
-  scroll continuation. The task exits at
-  `$7E:39A7`, `$7E:39B1` and `$7E:39DE` need the frame-list bridge to consume
-  a C task outcome: standalone task wrappers still stop with the caller's
-  saved page, status and slot below their return address. Simply replacing
-  a stop with a return would leave the list unchanged and its stack wrong.
-  Other stops still cover controller/music waits, reset, script dispatch,
-  scaling and the scene/field transition; they have not been retired.
+  28 stops. They cover controller/music waits, reset, script dispatch,
+  scaling and the scene/field transition. The task-list continuations are C;
+  the remaining stops have not been retired.
 - **A meaningful native run of mode 5.** Its setup, map and figure animation
   are C and every new entry passes fuzzing. No known story path starts it.
   A forced start directly after boot reaches the figure task at frame 41,
