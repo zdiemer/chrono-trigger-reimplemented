@@ -638,7 +638,8 @@ bool scene_credits_roll_present(Snes *s)
 {
     return m_code_matches(s, 0x7E9E7B, 0x5B, 0x0080D1A783699A6Full) &&
            m_code_matches(s, 0x7E9EF1, 0x0B, 0x9AF276F2EA10E555ull) &&
-           m_code_matches(s, 0x7E3949, 0x15, 0x7B575BDC799477B3ull) && roll_runs(s, true);
+           m_code_matches(s, 0x7E3949, 0x15, 0x7B575BDC799477B3ull) &&
+           scene_credits_scroll_present(s) && roll_runs(s, true);
 }
 
 /* The scroll's code but its branch on the field, which the roll's state
@@ -653,7 +654,6 @@ bool scene_credits_scroll_present(Snes *s)
  * data bank and Y; and the frame list's exit for a task that takes itself
  * off. */
 enum { SCROLL_THE_CREDITS = 0x7E9ED6, REMOVE_THIS_TASK = 0x7E39A7 };
-enum { SCROLL_IGNORES = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C };
 
 /* What a line leaves: Y past the row buffer, which the original blanks with a
  * block move, and the data bank the move's, 0. */
@@ -690,7 +690,7 @@ void scene_roll_credits_entry(Snes *s)
     }
     if (scene_credits_text(g) != text)
         ORIGINAL_EFFECT(leave_line_written(s));
-    m_stop_at_own(s, SCROLL_THE_CREDITS, SCROLL_IGNORES);
+    TIMED_AS(g, SCROLL_THE_CREDITS, scene_scroll_credits_entry(s));
 }
 
 /* What the scroll leaves in A: the fast roll's scroll, or the word the slow
@@ -698,8 +698,8 @@ void scene_roll_credits_entry(Snes *s)
  * byte is what the liveness analysis has read after a frame task: past the
  * list's last slot, the frame's work returns with it to the NMI, whose song
  * send enters the sound driver, and the driver saves A (the NMI's restore then
- * overwrites it). That reader is why the roll stops at its scroll, a routine of
- * its own, rather than scroll itself. */
+ * overwrites it). Both the roll's continuation and the standalone scroll
+ * entry derive that byte here. */
 static void leave_scroll(Snes *s)
 {
     const GameState *g = state_of(s);

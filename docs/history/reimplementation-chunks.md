@@ -12217,3 +12217,90 @@ stops at its picture's vblank task (`$7E:9CE2`, TODO.md). Left alone, the
 attract sequence runs 30,000 frames without a stop with the race's
 pictures now scaled. Timing: the thirteen new entries calibrated from these
 four movies' shadow runs; the setups keep their rows.
+
+### The native program's last named stops
+
+TODO.md named the stops the native program still met where the scenes, the
+menus and the battle hand it to the machine: mode 10's picture's vblank task,
+modes 5 and 12 of the scene program, the battle's calling in of enemies
+(`$FD:A990`), and two menu stops, an item tried on that is no item of the
+game's (`$C2:A5C3`) and a member's row whose record names no character
+(`$C2:A225`). Each is a state or a scene no recording reaches but one; the
+chunk took each in game terms where the original's behaviour has one, and
+reproduced the original's strays where it hasn't.
+
+**The slow staff roll (mode 12, `$7E:8E95`).** Mode 12 is the staff roll's
+setup entered three lines early: the stars come in at -2 rather than -7, the
+picture interlaced, no fast music, the credits rolling slowly, and the
+program's own code patched (`STA $7E9EE3` of a `BCS` over the scroll's
+`BCC`) so the slow scroll steps on the even field. The patch is state, as the
+race's curtain's operand is (`scene_race_ending_sweep`): the opcode is a
+variable of the map (`scene_credits_scroll_field`) with its two values named
+in the roll (`SCROLL_ON_ODD_FIELDS`, `SCROLL_ON_EVEN_FIELDS`), the setup is
+the fast one's sequence with a pace (`StaffRollPace`), and the scroll's guard
+hashes its code round the branch and asks the variable for one of the two.
+
+**Mode 10's picture (`$7E:9C58`, `$7E:9CE2`).** The vblank task the TODO
+named sends one of the picture's four frames, `$800` bytes of the mosaic the
+setup laid out, and leaves the frame's size in `$AB` and `$AC`; their reader
+was the frame task that queues it, `$7E:9C58`, which no table names (a script
+puts it on the list): the picture placed where channel 1 and the orbit say,
+the window round it at the size the last send left (a frame behind a change),
+a moving piece of the first frame (two of its list's sprites, their tiles
+stepped every four frames, `scene_set_listed_tile`) and the frame's list
+drawn through the program's list of large sprites. That list's form which
+leaves out a sprite below the picture, which only this picture draws with,
+was half ported: once the original has left one out it goes on a word wide,
+its port reads taking the byte twice (the port's address register reads back
+as the bus last held it) and its stores spilling the sprite's attributes into
+the next entry's X and the high byte of its X into its own Y
+(`leave_word_wide_strays`). The script then takes the fireworks off the frame
+list in a mode that never put them there: the original's search goes on past
+the list, word by word through the bank, and clears the first word that names
+them, a word of the script itself. The scripts' task commands do that now
+(`scene_script_replace_task`); the other callers keep the bounded search. Past
+the picture mode 10 goes on to its next scene's loading (`$7E:8A01`), where it
+stops (TODO.md).
+
+**The calling in (`$FD:A990`).** The caller sets four of its own stats, the
+pairs from the action's third operand, and every enemy of the formation out
+of the fight comes in, as the bringing back brings them (the same selection,
+the same records), loaded as at the fight's start and with HP by a rule. The
+rule is the original's accident: it keeps each stat's offset in the cell it
+kept the HP operand in, and reads the rule from that cell after, so the last
+stat's offset decides (`enemy_call_in_sets_its_stats` says so). The calling
+in is a registered entry the turn runs as a sibling (`battle_run_long_dc`),
+so an arrival the load's guard turns away goes on in the original with its
+frame in place; its guard asks for the effect code's tech number where the
+turn's start leaves it.
+
+**The menus' strays.** A member's row whose status record names the eighth
+character (a cursor past the last member leaves the record as it stood)
+marks its HP against the word after the seven marks, as the original reads
+it (`menu_low_hp_marks` declares the stray read). An item tried on that is
+no item of the game's is worked out from the bytes past the menus' item
+tables (`menu_item_amounts`, `menu_list_items` declare theirs, and the
+powers had theirs), and its boost through the original's byte-wide index,
+which takes a boost past `$7F` round to the table's start: no item of the
+game's has one, so only fuzzing could tell. The try-on's one refusal left is
+the menus' zero word not 0, which the menus clear as they open and never
+write.
+
+**Measured.** `ct_native --scene 0x2C` runs the slow staff roll 12,000 frames
+with no stop; `--scene 0x2A,0x3F` runs mode 10 to frame 5,637, its next
+scene's loading, where it stopped at frame 65 before. Fuzzing, seed 1, every
+entry the chunk touched, none mismatched: the picture's task 0/2,000 (the
+vblank list given room, the large list's leaving-out form, the count's next
+byte clear), the frame's send 0/2,000, the large list's leaving-out form
+0/7,621, the slow setup 0/300, the scroll on either field 0/20,000, the
+roll 0/20,000, the call-in's turn 0/8,389 (the calling in inside it run as C
+wherever the turn's state reaches it; in `endings-beyond-time`'s shadow run
+it is called twice, one compared and matched, one interrupted), the face and HP mark with any
+character 0/2,000, the equipment's choice with any item, any list top and
+the tables' bytes past their ends random 0/699 (the pointing's own drawing
+of such an item's name reads past the names' places, which the fuzz
+reports), the figures 0/20,000. The four fuzz-found differences on the way
+were all in the original's strays: the frame task's queueing past a full
+vblank list (now refused, the setup leaves room), the large list's
+continuation, the boost's index, and the calling in's tech number read from
+its caller's cell.

@@ -3011,7 +3011,7 @@ list, by kind, is what `game/` still asks of one.
   `c_setups`), and so are the story scenes' tasks, the scripts' routines and
   the main loop's scalings (history/reimplementation-chunks.md, "The native
   program through the story scenes"), and mode 10's picture and the slow
-  staff roll, mode 12 (REIMPLEMENTATION.md, "The native program's last named
+  staff roll, mode 12 (history/reimplementation-chunks.md, "The native program's last named
   stops"); what is left stops the program where it is met: mode 10 once its
   picture is done, at its next scene's loading (`$7E:8A01`, a Mode 7 picture
   and its colours, then `$7E:8AF5` and the frame task `$7E:8B52` after it,
@@ -3030,6 +3030,24 @@ list, by kind, is what `game/` still asks of one.
   VRAM word, from a cursor or a fixed byte, which the video service has no
   call for yet. The census (REIMPLEMENTATION.md, "The census") counts the
   rest: 259 entries the machine still enters, 21.1 M times over the library.
+- **Finish the scene-joints pass.** The scene and warp files still contain
+  47 stops after retiring the title fragments and calling the credits scroll
+  as C (REIMPLEMENTATION.md, "Scene continuations: the title and the staff
+  roll"). Drafting the remaining RAM runs exposed two separate pieces of
+  work. Mode 10's loader `$7E:8A01` needs a SNES video encoding for its map
+  upload at `$7E:8A90` in `runtime/platform/snes/encodings.c`; the service
+  aborts on an unknown origin. This requires a coordinated platform edit
+  beyond the scene/warp directories. Its packed-pixel helper `$7E:353C`
+  expands each byte into two VRAM high bytes; the draft misidentifies the
+  WRAM-port read as an I/O wait. Port that loader with `$7E:8AF5` and its
+  horizon task `$7E:8B52`, then validate mode 10 beyond frame 5,637. Mode 5's
+  setup and map turning remain separate unported work. The task exits at
+  `$7E:39A7`, `$7E:39B1` and `$7E:39DE` need the frame-list bridge to consume
+  a C task outcome: standalone task wrappers still stop with the caller's
+  saved page, status and slot below their return address. Simply replacing
+  a stop with a return would leave the list unchanged and its stack wrong.
+  Other stops still cover controller/music waits, reset, script dispatch,
+  scaling and the scene/field transition; they have not been retired.
 - **What the field still hands the machine as the program runs it.** Where
   the field's C meets a state its port doesn't take (an entry's guard, which
   on the machine hands the call to the original) or a step only the machine
@@ -3686,11 +3704,6 @@ waits on M5 rather than on a backend.
   which the original reads through the work RAM port, overlaps the race's scaler
   output (and the event variables), so the map can't name it in the scene's
   subsystem (`ram_map.py coverage --open`).
-- **The title's loader's blocks are still entries.** The title's setup
-  (`$7E:5978`) is C whole now, unpacking and sending each graphic itself; the
-  blocks it used to be registered as (`scene_title_load_*`, `$7E:597B`-`$7E:59CC`)
-  are still registered, though only a caller by address reaches them and none
-  does. Retire them, and their fuzz rows, as the race's were.
 - **The decompressor's port and the original part on streams that aren't
   streams.** Fuzzing the program's unpacker (`scene_unpack_resource`) over
   resource numbers past the table's 73 entries, where the "streams" are other
