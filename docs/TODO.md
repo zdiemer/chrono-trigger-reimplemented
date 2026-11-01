@@ -2903,6 +2903,10 @@ list, by kind, is what `game/` still asks of one.
   (`dev/fallbacks.c`); nothing tests that the skip keeps the interrupt and
   callee counts of the code around it, or that `$C7` run under the C host is
   still counted. Add a focused test.
+- **What the menu joints' review left** (rated mostly): `script_bridge.c`
+  (around the song kept and its neighbour) still routes pure C operations
+  through emulated return frames; call their game-state operations directly
+  and keep only the register leftovers in the wrapper.
 - **What the time model's review left** (none blocking):
   `charge_send` (`runtime/platform/native/video.c`) charges any send from the
   main thread, where the design charges only a load's (screen off): gate it on
