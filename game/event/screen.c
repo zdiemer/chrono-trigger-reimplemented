@@ -422,10 +422,9 @@ static bool run_screen_command(GameState *g, uint8_t command, uint8_t x, uint8_t
     }
 }
 
-/* The original's routines the field's end calls, and what is dead where it
- * starts the scene on a fresh stack ($C0:3FD6). */
+/* The routines the field's end calls, including the scene's fresh stack. */
 enum { WALK_THE_LEADER = 0xC0881E, PALETTE_ANIMATION = 0xFDFFF7, FRAME_WAIT = 0xC0EC60 };
-enum { THE_SCENE_STARTS = 0xC03FD6, AS_THE_SCENE_STARTS = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+enum { THE_SCENE_STARTS = 0xC03FD6 };
 
 // $C0:3FBB
 /* The field ends for a scene: the picture fades out a step a frame, the
@@ -445,7 +444,7 @@ static void end_the_field_for_a_scene_on_the_machine(Snes *s, uint8_t scene)
             return;
     }
     display_go_dark(s);
-    m_stop_at_own(s, THE_SCENE_STARTS, AS_THE_SCENE_STARTS);
+    TIMED_AS(g, THE_SCENE_STARTS, field_start_the_scene(s));
 }
 
 /* The original's dispatch of the screen commands, a JSR through its table
@@ -484,7 +483,7 @@ void event_screen_party_routine(Snes *s)
     ORIGINAL_EFFECT(event_keep_offset(g, resume));
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)resume, (uint8_t)s->cpu.x));
-    NATIVE_TIME_AS(s, MENUS_SERVICES, note_the_game_finished(s));
+    TIMED_AS(state_of(s), MENUS_SERVICES, note_the_game_finished(s));
     ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_GAME_FINISHED, &call));
     s->cpu.x = resume;
     m_rts(s);

@@ -573,7 +573,7 @@ static bool shake_on_the_machine(Snes *s)
 {
     if (s->cpu.a & 0xFF00)
         return battle_call(s, 0xCD092C, 0xCD0B51, DC_X | DC_Y | DC_FLAGS | DC_AL);
-    NATIVE_TIME_AS(s, 0xCD0B51, battle_shake_screen(state_of(s)));
+    TIMED_AS(state_of(s), 0xCD0B51, battle_shake_screen(state_of(s)));
     s->cpu.a = 0;
     return true;
 }
@@ -603,7 +603,7 @@ static bool work_on_the_machine(void *ctx, WorkCall call)
         s->cpu.a = 0;
         return battle_call_long(s, 0xCD0985, 0xD1EA4B, READS_A_HIGH);
     case WORK_HIDE_SPRITES:
-        NATIVE_TIME_AS(s, 0xCEF066, battle_hide_sprites(state_of(s)));
+        TIMED_AS(state_of(s), 0xCEF066, battle_hide_sprites(state_of(s)));
         s->cpu.a = BATTLE_PAGE;   /* as the original's clearing leaves it */
         return true;
     case WORK_UPDATE: return update_the_battlefield_on_the_machine(s);

@@ -3103,6 +3103,45 @@ list, by kind, is what `game/` still asks of one.
   (`battle/bridge.c`, `battle/steps.c`, `field/bridge.c`, `menu/bridge.c`,
   `scene/bridge.c`). These go as each subsystem's ports call ports (PLAN.md's
   step 1) and its wrappers leave (step 3).
+  Field's tail-call lookup is gone. Its sprite-building continuations still
+  hand malformed row chains or out-of-table records to the original: removing
+  that boundary exposed 20/300 fuzz mismatches in `field_frame_work`, while
+  the existing drawable-row check restores the predecessor's 0/24 compared.
+  The sprite builder's own entry still accepts those states and calls out
+  per draw; retiring that fallback needs its entry guard and callers changed
+  together. The field/battle/overworld loop backedges also need an iterative
+  continuation with a comparison boundary: shadow waits resume their C call,
+  so directly chaining every backedge would recurse across frames.
+  The field pass's wait boundary also lets the replay driver restore a
+  suspended frame; retain it until that continuation is represented outside
+  the C stack. Tile-copy completion also retains its stop before frame
+  completion: pending interrupts from the tile send must run before
+  `field_frame_pending` is incremented. Retiring this stop needs an explicit
+  runtime interrupt-delivery boundary, not only a timing scope.
+  The generic field and battle bridges still consult the registry
+  to validate each sibling's width/page/data guards (and battle's return
+  poisoning); deleting the lookup alone bypasses those contracts. Some direct
+  targets have stricter bank guards than their callers, including the party's
+  return to the field walk. Reset, scene/warp and field reentry tails need their
+  shared mode-transition contract before their machine stops can leave.
+  Overworld startup's direct first frame also needs a fuzz harness that supplies
+  interrupts: all 200 existing setup states now exceed its comparison budget,
+  although seven targeted movie calls compare cleanly. The screen effect's
+  ripple/close tails remain beyond the current first-call fuzz boundary.
+  Battle's startup-to-loop, frame-to-pass and pass-to-timers stops must
+  retain their boundaries for now. Calling all three directly passed shadow
+  comparisons but failed the scaffolding-disabled bucket-Lavos route after
+  400,000 fight frames. The pre-change build and the candidate restoring those
+  three stops both reach the ending at frame 164169, with eight exact snapshot
+  replays. Isolate the timing/continuation difference before retiring them;
+  no calibration or route exception was added to hide it.
+- **Evidence worker count is not a process cap.** `tools/dc_evidence.py`
+  starts up to four game processes per movie, so `suite.py -j 2 --evidence`
+  can run eight. Give the evidence runner one shared process budget across
+  variants and movie workers. The loop-joint run stopped that stage by verified
+  PID; an ignored scratch helper with the same checks and bounded
+  concurrency passes all 84 evidence movies on the kept code. The tool still
+  needs a shared process budget.
 - **The machine's memory and registers.** `snes_bus_read`, `_write` and
   `_peek`: the wrappers' registers, page, data bank and stack, the guards'
   peeks, and what the logic still reads by address. The game's state itself
@@ -3111,6 +3150,9 @@ list, by kind, is what `game/` still asks of one.
   (`native_time_as`, `_end`, `_sibling`, `native_uncounted_*`) take the
   machine: tags for the timing gate. They want the game's state as their
   handle, as `TIMED_AS` (charge.h) has, whose host half is a no-op.
+  The field, battle, overworld, event and controller now use `TIMED_AS`
+  for ordinary timing scopes. Battle's three `NATIVE_TIME_AS_SIBLING`
+  scopes still need a state-based API that preserves sibling accounting.
 - **Waits on the beam.** `tm_snes_video_status`, the SNES backend's read of
   the beam's status, from the idle entries' passes (`field/frame.c`,
   `scene/boot.c`, `warp/warp.c`); and the 19 wait loops the census still sees
@@ -3134,6 +3176,14 @@ list, by kind, is what `game/` still asks of one.
   tests/test_platform_lint.py's list) are transfers into VRAM programmed from
   the game's tables, which only the SNES's channel settings say the meaning
   of: the host counts them and the driver reports the first.
+  In the assigned field/battle files, three escapes remain. The field's
+  clear uses the multiplier's zero result as a DMA source; a plain RAM fill
+  loses the channel/PPU state checked by shadow mode, so it needs a backend
+  memory-clear service. Battle's bank-dependent palette send intentionally
+  writes stray RAM and delays the palette; those writes need named state
+  before replacing the escape. The pending window transfer's only writer
+  requests VRAM words, but the entry accepts arbitrary destination/mode
+  descriptors; a VRAM-only replacement needs that guard contract settled.
   The three Death Peak movies reach their full 4676/23852/23856-frame budgets
   in `ct_native` without stopping, but report 2/4/4 video escapes, first at
   `$7E:5AEB`; wind and ascent finish blanked, return showing. These fixed-input

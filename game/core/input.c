@@ -296,14 +296,14 @@ void input_update(Snes *s)
 {
     GameState *g = state_of(s);
     ControllerRead read;
-    NATIVE_TIME_AS(s, 0xC284EC, read = input_read_controller(g, m_platform(s)));
+    TIMED_AS(g, 0xC284EC, read = input_read_controller(g, m_platform(s)));
     if (read != CONTROLLER_READ) {
         enter_saved_frame(s);
         input_stop_reading(s, read);
         return;
     }
-    NATIVE_TIME_AS(s, 0xC28545, assign_buttons(g));
-    NATIVE_TIME_AS(s, 0xC285AE, input_tick_play_time(g));
+    TIMED_AS(g, 0xC28545, assign_buttons(g));
+    TIMED_AS(g, 0xC285AE, input_tick_play_time(g));
     ORIGINAL_EFFECT(charge_as(g, 0xC284D2, SAVE_AND_RESTORE_ACCESSES));
     m_rts(s);
 }

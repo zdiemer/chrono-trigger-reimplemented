@@ -3321,6 +3321,77 @@ vblank list (now refused, the setup leaves room), the large list's
 continuation, the boost's index, and the calling in's tech number read from
 its caller's cell.
 
+### Direct continuations preserve their entry contracts
+
+Review found that a scripted menu could return with decimal mode set, while
+the directly called fade requires binary arithmetic. The field bridge checks
+native mode, widths, page and data bank, but not decimal mode. The scripted
+tail now checks the fade's complete registry contract (native mode, M8/X16,
+binary arithmetic, field page and low-RAM bank). Refusal stops at `$C0:2824`
+with the former tail's own don't-care set. Overworld setup and menu return
+have the same gap after their unpacker/menu bridges; both now check their
+callee's full contract and stop at `$C2:23CF` or `$C2:2556` on refusal.
+
+Every continuation made direct in the loop-joint chunks was checked against
+the actual registry P mask, emulation requirement and guard. All require
+native mode. The remaining proof, including decimal mode, is:
+
+| Continuation | Callee contract and caller guarantee |
+| --- | --- |
+| Scripted menu to fade | M8/X16, binary, field page, low-RAM bank: full check restored after the bridge. |
+| Frame work and objects-in-view to sprite table | M8/X16, field page, low-RAM bank; decimal permitted. Successful bridges preserve native mode, M8, page and bank zero; the caller restores X16. Both drawable-row checks remain. |
+| Object defaults to opening scripts | M8/X16, binary, field page, bank zero, bounded nonzero object count. The caller has the same requirements; defaults make no machine call-outs and change none of them. |
+| Field walk and ripple completion to frame completion | Only native mode and a low-RAM bank; all P values permitted. Their successful bridges preserve native mode and bank zero. |
+| Tile-copy completion to frame completion | Same preconditions are satisfied, but the interrupt boundary is restored as described below. |
+| Empty battle request to field walk | M8/X16, field page, bank zero; decimal permitted. Request entry and successful battle bridge guarantee these. |
+| Screen-effect close to scene close | M8/X16 and field page; decimal and any data bank permitted. Effect entry and successful bridges preserve these. |
+| Event fade to scene start | M8/X16 and field page; decimal and any data bank permitted. Event entry and successful bridges preserve these, including when the fade takes no steps. |
+| Overworld menu return to map restoration | M8/X16, binary, object page and low-RAM bank: full check after the menu bridge. |
+| Overworld setup to first frame | Same contract: full check after the unpacker bridges. |
+
+The three battle continuations were already restored to stops following the
+route regression. Changes that only replaced a timing tag on an existing C
+call do not change dispatch or its preconditions. The earlier chunks and
+their validation are in `history/reimplementation-chunks.md`.
+
+The tile-copy tail again stops before `field_finish_frame`. A timing scope
+only partitions the charge; it is not an interrupt-delivery boundary.
+Combining these operations lets frame completion increment
+`field_frame_pending` before the tile send's pending vblank is delivered.
+Returning to the runtime first preserves the former order: charge the tile
+send and deliver interrupts, then enter frame completion. No runtime,
+calibration, registry, exception or fuzz-domain changes were needed.
+
+**Validation.** Both game shapes build with two workers. Six narrowed shadows
+(`new-game`, `battle-menu-buttons`, `field-65m-bc-dactyl`, `menus-epoch`,
+`menus-field-menu`, `events-end-of-time-gate`) have zero mismatches. Requests
+compare 6,398 of 6,411 calls, overworld loop 6,202 of 6,213, setup all eight,
+and map restoration its one call. These entries have no interrupted calls;
+the remaining calls were abandoned within enclosing comparisons.
+Same-seed before/after fuzz of eight request variants and the two overworld
+entries compares 2,064 states on each binary, zero mismatches and identical
+skips. All 200 setup states still exceed the existing comparison budget;
+the request/loop domains stop before the changed tails.
+
+Focused scratch probes therefore exercise the actual scripted tail and shared
+overworld check against the registry's own masks and guards: all 256 P values,
+both emulation modes, all 256 banks and four pages (524,288 configurations).
+The fade accepts 4,128 and refuses 520,160 at its original entry; both overworld
+contracts match throughout. Another 10,000 randomized CPU states, with each
+pending-NMI/IRQ combination, confirm the tile tail stops without calling frame
+completion or changing the CPU beyond its destination. This checks the boundary,
+not cycle-by-cycle interrupt execution. Both probes fail on the predecessor.
+The style and smell ratchets pass. Static don't-care analysis reports zero
+findings; it has no call logs, so it does not establish dynamic coverage.
+No sampled gate was run for this correction; the merge coordinator owns
+integration validation.
+
+The assigned-file census rises from 1,748 to 1,752: stops 52 to 56, all other
+categories unchanged. Against the branch's original 1,799, this retains 47
+fewer joints: stops 62 to 56, registry lookups three to two and ordinary
+machine timing tags 40 to zero. Main-loop stops are field 13, battle six and
+overworld five. The remaining contracts are recorded in TODO.
+
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 
 Chosen by size from `tools/fallback_baseline.txt` and from the movies

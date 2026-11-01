@@ -560,9 +560,9 @@ static bool tile_copy_call(void *ctx, TileCopyCall call)
 
 /* ---- On the machine ---- */
 
-/* The original ends most sends by jumping to the frame wait, which returns
- * to the main loop itself; the port stops there. What the main loop reads
- * after it is what the calls before left. */
+/* Finish charging the tile send and deliver its pending interrupts before
+ * the frame wait increments field_frame_pending. Combining the two lets a
+ * pending vblank consume the newly finished frame instead. */
 enum { THE_LAST_WAIT = DC_A | DC_N | DC_Z };
 
 static bool tile_copy_call_on_the_machine(void *ctx, TileCopyCall call)
@@ -652,8 +652,6 @@ static bool fight_a_battle(GameState *g, const BattleSteps *steps, void *ctx)
 /* On the machine, each from the original's call of it. Where the battle's
  * setup on the field finds none to fight, the field's turn goes on by the
  * original's jump to it, which returns to the main loop. */
-enum { NO_BATTLE_TURN = DC_A | DC_N | DC_Z };
-
 static FieldBattleStart begins_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
@@ -664,7 +662,8 @@ static FieldBattleStart begins_on_the_machine(void *ctx)
 
 static bool no_battle_turn_on_the_machine(void *ctx)
 {
-    m_stop_at_own(ctx, FIELD_TURN, NO_BATTLE_TURN);
+    Snes *s = ctx;
+    TIMED_AS(state_of(s), FIELD_TURN, field_walk_a_frame(s));
     return false;
 }
 

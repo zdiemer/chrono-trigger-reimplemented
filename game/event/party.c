@@ -184,7 +184,7 @@ void event_cmd_party_routine_0a(Snes *s)
     uint8_t character = (uint8_t)c.first_argument, item = (uint8_t)c.second_argument;
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = menus_called(g, character, item));
-    NATIVE_TIME_AS(s, MENUS_SERVICES, (party_equip(g, character, item), shown(g)));
+    TIMED_AS(g, MENUS_SERVICES, (party_equip(g, character, item), shown(g)));
     ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_EQUIP, &call));
     event_return(s, (EventStep){ resume, m_flag(s, CPU_FLAG_C) });
 }
@@ -270,7 +270,7 @@ static void ask_after_character(Snes *s, uint8_t opcode, PartyService service, u
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = menus_called(g, character, (uint16_t)(at + ASKING_JUMP_BYTE)));
     bool there = false;
-    NATIVE_TIME_AS(s, MENUS_SERVICES, there = among_the_record(g, character, places));
+    TIMED_AS(g, MENUS_SERVICES, there = among_the_record(g, character, places));
     ORIGINAL_EFFECT(event_menus_answered(s, service, &call));
     if (!there) {
         uint16_t from = (uint16_t)(at + ASKING_JUMP_BYTE);
@@ -299,9 +299,9 @@ static void change_the_record(Snes *s, uint8_t opcode, PartyService service)
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = menus_called(g, character, (uint16_t)(at + LENGTH)));
     if (service == SERVICE_RECRUIT)
-        NATIVE_TIME_AS(s, MENUS_SERVICES, ((void)party_recruit(g, character), shown(g)));
+        TIMED_AS(g, MENUS_SERVICES, ((void)party_recruit(g, character), shown(g)));
     else
-        NATIVE_TIME_AS(s, MENUS_SERVICES, ((void)party_dismiss(g, character), shown(g)));
+        TIMED_AS(g, MENUS_SERVICES, ((void)party_dismiss(g, character), shown(g)));
     ORIGINAL_EFFECT(event_menus_answered(s, service, &call));
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), m_flag(s, CPU_FLAG_C) });
 }
@@ -327,7 +327,7 @@ void event_cmd_note_item_count(Snes *s)
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = menus_called(g, at, c.item));
     uint8_t count = 0;
-    NATIVE_TIME_AS(s, MENUS_SERVICES, (count = menu_items_held(g, c.item), shown(g)));
+    TIMED_AS(g, MENUS_SERVICES, (count = menu_items_held(g, c.item), shown(g)));
     ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_COUNT_ITEM, &call));
     ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, count));
     set_variable_byte(g, c.variable, count);
@@ -360,7 +360,7 @@ void event_cmd_bring_into_the_party(Snes *s)
     ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, character));
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = menus_called(g, character, (uint16_t)(at + LENGTH)));
-    NATIVE_TIME_AS(s, MENUS_SERVICES, ((void)party_bring_in(g, character), shown(g)));
+    TIMED_AS(g, MENUS_SERVICES, ((void)party_bring_in(g, character), shown(g)));
     ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_BRING_IN, &call));
     object_joins_the_party(g, character);
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), m_flag(s, CPU_FLAG_C) });
@@ -485,7 +485,7 @@ void event_cmd_send_to_the_reserve(Snes *s)
     member_steps_out(g, character);
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = menus_called(g, character, x));
-    NATIVE_TIME_AS(s, MENUS_SERVICES, ((void)party_send_to_the_reserve(g, character), shown(g)));
+    TIMED_AS(g, MENUS_SERVICES, ((void)party_send_to_the_reserve(g, character), shown(g)));
     ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_SEND_TO_THE_RESERVE, &call));
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), go_on });
 }

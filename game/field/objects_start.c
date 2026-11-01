@@ -169,19 +169,18 @@ void field_objects_start_afresh(GameState *g, Platform *pf)
 
 /* ---- The entries ------------------------------------------------------------------------- */
 
-/* The openings, the original's at $C0:58DE where the port doesn't run them.
- * The party's start after them reads the overflow, which the defaults leave
- * clear, and the original's openings Y, which they leave the last default
- * byte written ($FF). */
-enum { OPENINGS = 0xC058DE, THE_OPENINGS_READ_Y_AND_THE_OVERFLOW = DC_A | DC_X | DC_N | DC_Z | DC_C };
+/* The openings follow the objects' defaults. The entry's object-count and
+ * page guard covers both operations. The party's start after them reads the
+ * overflow, which the defaults leave clear, and the openings carry Y from
+ * the last default byte written ($FF). */
+enum { OPENINGS = 0xC058DE };
 enum { THE_DEFAULTS_LEAVE_Y = 0x00FF };
 
 static void go_on_to_the_openings(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_V, false);
     s->cpu.y = THE_DEFAULTS_LEAVE_Y;
-    if (!field_go_on_with(s, OPENINGS, event_run_init_scripts))
-        m_stop_at_own(s, OPENINGS, THE_OPENINGS_READ_Y_AND_THE_OVERFLOW);
+    TIMED_AS(state_of(s), OPENINGS, event_run_init_scripts(s));
 }
 
 
@@ -206,7 +205,7 @@ static void show_what_the_party_wears(Snes *s)
     GameState *g = state_of(s);
     PartyServiceCall call = { 0 };
     ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)s->cpu.y, (uint8_t)s->cpu.x));
-    NATIVE_TIME_AS(s, MENUS_SERVICES, party_wear_it_shows(g));
+    TIMED_AS(g, MENUS_SERVICES, party_wear_it_shows(g));
     ORIGINAL_EFFECT(party_service_answered(g, SERVICE_SHOW_WHAT_IT_WEARS, &call));
     (void)call;
 }

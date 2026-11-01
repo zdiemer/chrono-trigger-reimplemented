@@ -19,6 +19,8 @@ OverworldEnd overworld_runs(GameState *g, Platform *pf);
 
 void overworld_run_a_frame(Snes *s);
 void overworld_come_back_from_the_menus(Snes *s);
+/* Full entry requirements for the frame and menu-return continuations. */
+bool overworld_loop_accepts_machine(Snes *s);
 
 /* The halt ($C2:250D): the game stopped for good, a pass at a time, each
  * coming back to itself. */
