@@ -605,7 +605,7 @@ static const struct {
     [OPENED_BY_SCRIPT] = { 0, 0xC00CE5, 0xC00CED, 0xC00D18, 0xC00D2D, 0, 0xC00D30, 0 },
 };
 enum { SCRIPT_FADE_WALK = 0xC00CDB, SCRIPT_FADE_PALETTES = 0xC00CE1 };
-enum { FADE_IN_TAIL = FIELD_FADE_IN_AFTER_A_MENU_ENTRY };
+enum { FADE_IN_TAIL = FIELD_FADE_IN_AFTER_A_MENU_ENTRY, FADE_IN_READS = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 /* The line effect tables are built with 8-bit index registers. */
 static bool effects_built_on_the_machine(void *ctx, FieldStop stop)
@@ -692,7 +692,11 @@ static bool fade_in_on_the_machine(void *ctx, FieldStop stop)
     if (stop != OPENED_BY_SCRIPT)
         return field_run(s, sites[stop].fade_in, FIELD_FADE_IN_AFTER_A_MENU_ENTRY, READS_NOTHING,
                          field_fade_in_after_a_menu_entry, on_the_field_page(s, false));
-    TIMED_AS(state_of(s), FADE_IN_TAIL, field_fade_in_after_a_menu_entry(s));
+    /* Unlike the fade's entry, requests and their bridges allow decimal mode. */
+    if (!s->cpu.e && m_m8(s) && !m_x8(s) && !m_flag(s, CPU_FLAG_D) && field_on_page_low_bank(s))
+        TIMED_AS(state_of(s), FADE_IN_TAIL, field_fade_in_after_a_menu_entry(s));
+    else
+        m_stop_at_own(s, FADE_IN_TAIL, FADE_IN_READS);
     return false;
 }
 

@@ -661,8 +661,12 @@ static Pass menus_on_the_machine(void *ctx, OverworldMode mode)
     m_set_flag(s, CPU_FLAG_N, false);
     m_set_flag(s, CPU_FLAG_Z, false);
     m_set_flag(s, CPU_FLAG_C, true);
-    if (menu_call_long(s, 0xC22552, 0xC28000, DC_AH | DC_Y | DC_C))
-        TIMED_AS(state_of(s), 0xC22556, overworld_come_back_to_the_map_s_screen(s));
+    if (menu_call_long(s, 0xC22552, 0xC28000, DC_AH | DC_Y | DC_C)) {
+        if (overworld_loop_accepts_machine(s))
+            TIMED_AS(state_of(s), 0xC22556, overworld_come_back_to_the_map_s_screen(s));
+        else
+            m_stop_at(s, 0xC22556, READS_NOTHING);
+    }
     return PASS_STOPS;
 }
 
@@ -697,6 +701,12 @@ static void after_the_pass(Snes *s, Pass p)
 }
 
 static Loop on_the_machine_loop(Snes *s) { return (Loop){ state_of(s), m_platform(s), &on_the_machine, s }; }
+
+/* The bridges preserve widths, page and bank, but do not promise binary arithmetic. */
+bool overworld_loop_accepts_machine(Snes *s)
+{
+    return !s->cpu.e && m_m8(s) && !m_x8(s) && !m_flag(s, CPU_FLAG_D) && overworld_main_loop_runs(s);
+}
 
 void overworld_run_a_frame(Snes *s)
 {

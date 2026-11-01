@@ -12302,3 +12302,47 @@ The remaining counts are unchanged: 490 emulated returns, two counted sprite
 call-out sites, three register escapes, 111 video calls and 1,088 scaffolding
 writes. The main loops' stops are field 14 to 13, battle six to four,
 overworld five to four. Remaining boundaries and their blockers are in TODO.
+
+### Field continuations, with the battle boundaries retained
+
+The assigned field, battle, overworld, event and controller files retain
+51 fewer machine joints: ten linear address stops call their continuations
+in C, the field's tail-call registry lookup is gone, and all 40 ordinary
+machine timing scopes use the game-state handle. No entry, timing calibration,
+exception, registry row or fuzz domain was added or changed. The preceding
+chunks and their per-entry fuzz limits are in `history/reimplementation-chunks.md`
+and `ports.tsv`.
+
+The single sampled gate with long routes and evidence found zero mismatches
+in 37 movies and passed all 56 shipping routes. Trace identity, timing,
+vblank, fallbacks, refusals, sound, liveness, the remaining source checks and
+the asset catalogue passed. With scaffolding compiled out, all 37 movies
+finished and 55 of 56 routes passed. The bucket-Lavos route's final fight
+did not end within 400,000 frames. A separate build of the pre-change commit
+`7359a492` passed that route at frame 164169. Restoring only the three battle
+handoffs (startup, frame to pass, and pass to timers), while keeping every
+other game change, also passed at frame 164169. All eight snapshot replays
+in each passing run were exact. The kept game sources match that candidate.
+Those three stops remain until their timing/continuation contract is worked
+out; the comparison does not establish which of the three causes the drift.
+The kept binary also passes five narrowed shadows (`new-game`,
+`battle-menu-buttons`, `field-65m-bc-dactyl`, `menus-epoch`,
+`events-end-of-time-gate`) with zero mismatches.
+
+The evidence tool internally launches four processes per movie worker, so
+the requested two-worker invocation exceeded the two-process limit. Its
+runner and children were stopped by verified PID when this was discovered.
+The gate's actual last line was `FAILED: native-shape; evidence`; it was not
+rerun. The follow-up evidence helper in ignored scratch keeps every check
+but serializes each movie's variants and caps simultaneous game processes.
+The kept binary's bounded evidence rerun completed all 84 movies with
+matching traces and passed the dispatch-index and declaration-count checks;
+its last line is `dc_evidence: OK`. This is a separate evidence result; integration validation belongs to the
+merge coordinator.
+
+The assigned-file count is now 1,799 to 1,748: stops 62 to 52, registry
+lookups three to two, and ordinary machine timing tags 40 to zero. The
+unchanged counts are 490 emulated returns, two counted sprite call-out sites,
+three register escapes, 111 video calls and 1,088 scaffolding writes. Main-loop
+stops are field 14 to 13, battle six to six, overworld five to four. TODO
+records the remaining guard, replay, timing and backend contracts.

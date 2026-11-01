@@ -3116,7 +3116,11 @@ list, by kind, is what `game/` still asks of one.
   so directly chaining every backedge would recurse across frames.
   The field pass's wait boundary also lets the replay driver restore a
   suspended frame; retain it until that continuation is represented outside
-  the C stack. The generic field and battle bridges still consult the registry
+  the C stack. Tile-copy completion also retains its stop before frame
+  completion: pending interrupts from the tile send must run before
+  `field_frame_pending` is incremented. Retiring this stop needs an explicit
+  runtime interrupt-delivery boundary, not only a timing scope.
+  The generic field and battle bridges still consult the registry
   to validate each sibling's width/page/data guards (and battle's return
   poisoning); deleting the lookup alone bypasses those contracts. Some direct
   targets have stricter bank guards than their callers, including the party's
@@ -3139,9 +3143,7 @@ list, by kind, is what `game/` still asks of one.
   variants and movie workers. The loop-joint run stopped that stage by verified
   PID; an ignored scratch helper with the same checks and bounded
   concurrency passes all 84 evidence movies on the kept code. The tool still
-  needs a shared process budget. The single sampled gate ended with evidence
-  and battle-route failures before the battle boundaries were restored;
-  the kept revision still needs a passing full sampled gate.
+  needs a shared process budget.
 - **The machine's memory and registers.** `snes_bus_read`, `_write` and
   `_peek`: the wrappers' registers, page, data bank and stack, the guards'
   peeks, and what the logic still reads by address. The game's state itself

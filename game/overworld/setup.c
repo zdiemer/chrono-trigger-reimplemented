@@ -655,8 +655,12 @@ enum { MAIN_LOOP = 0xC223CF };
 void overworld_set_up_entry(Snes *s)
 {
     Unpacker u = on_the_machine(s);
-    if (overworld_set_up(state_of(s), &u, m_platform(s)))
+    if (!overworld_set_up(state_of(s), &u, m_platform(s)))
+        return;
+    if (overworld_loop_accepts_machine(s))
         TIMED_AS(state_of(s), MAIN_LOOP, overworld_run_a_frame(s));
+    else
+        m_stop_at(s, MAIN_LOOP, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
 }
 
 // $C2:2C93

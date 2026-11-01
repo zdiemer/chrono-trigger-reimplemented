@@ -560,13 +560,16 @@ static bool tile_copy_call(void *ctx, TileCopyCall call)
 
 /* ---- On the machine ---- */
 
-/* The last send waits for the frame and returns to the main loop itself. */
+/* Finish charging the tile send and deliver its pending interrupts before
+ * the frame wait increments field_frame_pending. Combining the two lets a
+ * pending vblank consume the newly finished frame instead. */
+enum { THE_LAST_WAIT = DC_A | DC_N | DC_Z };
 
 static bool tile_copy_call_on_the_machine(void *ctx, TileCopyCall call)
 {
     Snes *s = ctx;
     if (call == TC_LAST_WAIT) {
-        TIMED_AS(state_of(s), FRAME_WAIT, field_finish_frame(s));
+        m_stop_at_own(s, FRAME_WAIT, THE_LAST_WAIT);
         return false;
     }
     uint32_t site = tile_copy_calls[call].site;
