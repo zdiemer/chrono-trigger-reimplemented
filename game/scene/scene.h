@@ -699,10 +699,12 @@ void scene_build_perspective(GameState *g, SceneChannel ch);
  * kept as the perspective's. Returns the first that differed, or `registers`
  * where none did. */
 unsigned scene_keep_the_camera(GameState *g, unsigned registers);
+bool scene_camera_changed(const GameState *g, unsigned registers);
 /* The same for the Epoch's dive's camera, which the perspective keeps its
  * height, its turn and the count of the cockpit's builds of the shell above
  * for: whether any differed. */
 bool scene_keep_the_dive_camera(GameState *g);
+bool scene_dive_camera_changed(const GameState *g);
 /* The Epoch's dive's perspective set to its view of the shell from outside,
  * or from the cockpit (perspective.c's lines). */
 void scene_look_at_the_shell_from_outside(GameState *g);

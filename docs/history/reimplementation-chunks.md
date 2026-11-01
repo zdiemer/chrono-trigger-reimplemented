@@ -12626,3 +12626,27 @@ C3's uncovered list is empty. RAM's only remaining static gap is the
 29-byte paired perspective branch at `$7E:366C`, already implemented in C
 but missed by the coverage walk through its patched branch. The sampled
 gate remains for the end of the pass.
+
+### Scene continuations: guarded drawing and divisor search
+
+The curtain jump calls the existing sweep directly with its timing tag and
+shares its bank, table and binary-arithmetic requirements. The planet's
+caption checks its fixed text and sprite capacity at entry, then calls the
+caption drawer directly. Its previous guard ran after changing registers;
+the shared caption guard now accepts the text as an argument.
+
+The divisor search rejects inputs for which the original never returns,
+then completes in C without a loop-head stop. Hardware quotient reads now
+honor guard peeking in the state backing, so inspecting this condition
+neither advances time nor changes open bus. Normal reads retain their cost.
+
+Seed-1 differential fuzz: curtain 1,855 compared, 145 invalid-table guards;
+divisor 1,999 compared, one nonterminating-input guard; caption 2,000
+compared. All have zero mismatches. The caption fixture now initializes
+both bytes of its sprite high-table pointer; previously random high bytes
+usually ended at the old fallback without drawing. Complete attract-demo
+and battle-lavos-gameover shadow runs pass with zero mismatches. The
+narrowed fallback ratchet has no new or increased rows. Style and smell
+checks pass. Scene/warp joints fall from 817 to 813, stops from 20 to 17,
+and one machine timing tag becomes a GameState tag. The sampled gate is
+reserved for the end of the pass.

@@ -1248,7 +1248,7 @@ name = "scene_check_the_flight_view"
 subsystem = "scene"
 state = "ending"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E007B-7E007C=0000,0001"]
-why = "a frame task, the map flat or in perspective, the camera random: a changed one builds the perspective, where the port builds it, or stops at the original's jump to it"
+why = "a frame task, the map flat or in perspective, the camera random: a changed one builds the perspective; unsupported lines are refused before the saved camera changes"
 
 [[routine]]
 name = "scene_place_the_flight_view"
@@ -20774,7 +20774,7 @@ variant = "cockpit"
 subsystem = "scene"
 state = "dive_from_the_cockpit"
 args = ["--keep", "7E3000-7EC994", "--fill", "7E0044-7E0045=0000-0003", "--fill", "7E0046-7E0047=00A8,00A9,00AB"]
-why = "from the cockpit: the camera and the perspective's kept camera random, the halves' count kept low (the build's guard refuses what it doesn't build, the original then building it)"
+why = "from the cockpit: the camera and the perspective's kept camera random, the halves' count kept low (the entry guard validates the upcoming half)"
 
 [[routine]]
 name = "scene_check_the_shell"
@@ -21790,3 +21790,35 @@ subsystem = "scene"
 state = "planet"
 args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0399-7E039A=0001"]
 why = "the final countdown tick, through the console reset entry; caller registers randomized"
+
+[[routine]]
+name = "scene_race_check_perspective"
+variant = "visible_lines"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0A0C-7E0A0D=0010,0020,0040", "--fill", "7E0A16-7E0A17=0000,0001"]
+why = "A visible horizon with paired or individual lines and random scale and turn."
+
+[[routine]]
+name = "scene_race_check_perspective"
+variant = "unchanged"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0A30-7E0A31=@7E0A00", "--fill", "7E0A32-7E0A33=@7E0A0A", "--fill", "7E0A34-7E0A35=@7E0A0C", "--fill", "7E0A36-7E0A37=@7E0A10", "--fill", "7E0A38-7E0A39=@7E0A16"]
+why = "The saved camera equals the current one, so no perspective build is needed even with random line bounds."
+
+[[routine]]
+name = "scene_check_the_flight_view"
+variant = "visible_lines"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E007B-7E007C=0000", "--fill", "7E0A0C-7E0A0D=0010,0020,0040", "--fill", "7E0A16-7E0A17=0000,0001"]
+why = "A visible horizon with paired or individual lines and random scale and turn."
+
+[[routine]]
+name = "scene_check_the_flight_view"
+variant = "unchanged"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E007B-7E007C=0000", "--fill", "7E0A30-7E0A31=@7E0A00", "--fill", "7E0A32-7E0A33=@7E0A0A", "--fill", "7E0A34-7E0A35=@7E0A0C", "--fill", "7E0A36-7E0A37=@7E0A10"]
+why = "The saved camera equals the current one, so no perspective build is needed even with random line bounds."

@@ -2742,6 +2742,12 @@ re-runs the census.
   of its 256 divisors succeeds. The original loops forever there; seed-1
   fuzz rejects one of 2,000 cases. Real-play guards must remain zero.
 
+- **Perspective guards outside the visible geometry.** Random race and
+  flight horizons can request lines outside the 224-line tables. Their
+  camera-check entries now refuse those inputs before saving the camera,
+  instead of stopping after changing it. Unchanged cameras and flat flight
+  views remain accepted; bounded and unchanged fixtures compare fully.
+
 ## Shadow comparison gaps
 
 The early-boss shadow runs also expose a comparison gap in the held-message

@@ -3108,29 +3108,32 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene continuations: guarded drawing and divisor search
+### Scene continuations: the camera checks build perspective in C
 
-The curtain jump calls the existing sweep directly with its timing tag and
-shares its bank, table and binary-arithmetic requirements. The planet's
-caption checks its fixed text and sprite capacity at entry, then calls the
-caption drawer directly. Its previous guard ran after changing registers;
-the shared caption guard now accepts the text as an argument.
+The race, Beyond Time flight and Epoch shell checks validate the next
+perspective before updating the saved camera. A shared, read-only camera
+comparison supplies this guard decision and the existing camera keeper.
+Unchanged cameras need no drawing and do not acquire new geometry
+restrictions; a flat flight view likewise keeps its separate path.
+Changed cameras call the existing perspective builder directly, removing
+all three mid-routine stops at `$7E:357B`. The race no longer needs a
+machine callback through the game operation.
 
-The divisor search rejects inputs for which the original never returns,
-then completes in C without a loop-head stop. Hardware quotient reads now
-honor guard peeking in the state backing, so inspecting this condition
-neither advances time nor changes open bus. Normal reads retain their cost.
+Differential fuzz compares both Epoch views, visible race and flight
+horizons, and unchanged race and flight cameras: six fixtures of 2,000
+cases, zero mismatches, skips or refusals. Broad random geometry is also
+checked: the race accepts 5/2,000 and the flight 985/2,000, with zero
+mismatches; the rest previously stopped at an unsupported perspective and
+now refuse it before mutation. The existing paired-line C branch covers
+RAM's final 29-byte static coverage gap; no synthetic entry was added to
+change the burndown number.
 
-Seed-1 differential fuzz: curtain 1,855 compared, 145 invalid-table guards;
-divisor 1,999 compared, one nonterminating-input guard; caption 2,000
-compared. All have zero mismatches. The caption fixture now initializes
-both bytes of its sprite high-table pointer; previously random high bytes
-usually ended at the old fallback without drawing. Complete attract-demo
-and battle-lavos-gameover shadow runs pass with zero mismatches. The
-narrowed fallback ratchet has no new or increased rows. Style and smell
-checks pass. Scene/warp joints fall from 817 to 813, stops from 20 to 17,
-and one machine timing tag becomes a GameState tag. The sampled gate is
-reserved for the end of the pass.
+Complete events-jetbike-race-won, events-epoch-lavos and endings-beyond-time
+shadow runs pass with zero mismatches and no real-play refusals. Their
+fallback ratchet has no new or increased rows. Style, smell and effects
+checks are clean. Scene/warp joints fall from 813 to 808: stops 17 to 14,
+one fewer machine return and one fewer scaffolding site. The sampled gate
+remains reserved for the end of the pass.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 
