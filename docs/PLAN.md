@@ -551,9 +551,10 @@ short, starting with D and DB where only interrupts reach.
 
 ## Phase 4a: what still runs on emulation
 
-Four things stand between a finished `game/` and a native build with nothing
+Seven things stand between a finished `game/` and a native build with nothing
 under it. None of them is optional for target 1. The first three were found
-by an audit; the fourth is the program itself.
+by an audit; the fourth is the program itself; the last three are what
+taking the gate down needs, before it and after it.
 
 - **Video fed by service calls.** P3's leftover: the observer fills in the
   per-span memory pointers the register decoder fills in now, so the renderer
@@ -679,6 +680,36 @@ by an audit; the fourth is the program itself.
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is
      `ct_native`.
+
+- **The code no movie reaches, checked before its subsystem retires.**
+  36.3 KiB of live code runs in no movie, 32.7 KiB of it ported and so far
+  checked by nothing but fuzzing where it was fuzzed (movies-wanted.md,
+  "Totals"). Retiring a subsystem's gate takes away the original to compare
+  it with and turns its guards into assertions, so what the subsystem has no
+  movie for is checked first, while the original is still there: a movie or
+  route that reaches it, or its ports fuzzed against the original on states
+  built for the paths (`ct_fuzz`). Measured per subsystem by the library's
+  `--coverage` against `burndown.py`'s live code; a subsystem retires with
+  that list empty or each remaining run named in TODO.md with why it is safe.
+- **The game's state as C, not a work-RAM image.** Even `ct_native` keeps the
+  game's state as the 128 KiB byte image the accessors read and write, which
+  is the original's memory layout carried into the product. When a subsystem
+  retires the gate, its variables move out of the image into C structs behind
+  the same accessors (generated from `re/ram.toml`, so the ports don't
+  change), and what the original shared through one cell becomes a field one
+  module owns. Saves are written from and read into the structs, and a
+  cartridge save (`.srm`) still loads. Measured by the share of `re/ram.toml`'s
+  variables still backed by the image; done when none is.
+- **Validation after the teardown.** With no original, the gate holds
+  behaviour by what was recorded from it while it existed: each movie's
+  outcome (the saved game and save RAM at its end, and digests of the picture
+  at checkpoints, never the bytes), the routes' outcomes, the sound's digests
+  (as the sound driver's teardown did), and the guards as assertions. Each
+  subsystem records its outcomes from the reference play in the commit before
+  it retires and names the checks that replace its comparison in its
+  teardown section; the last subsystem to retire is the one that leaves no
+  reference to record from, so these are built as the subsystems go, not at
+  the end.
 
 **Assets: imported once from the user's ROM, then loaded by name.** The
 ports reach ROM data through named accessors (`*_data.h`), every byte of it in
