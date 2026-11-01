@@ -109,6 +109,24 @@ The concurrent regression test observes eight children with the previous
 launcher and at most two with two workers after the fix; all four variants'
 results, including failures and evidence counts, remain accounted for.
 
+The merged gate exposed the capsule iris's reads of the circle renderer's
+scaffolding under the newly joined script caller: the radius at
+`$7E:0354-0355` and center line at `$7E:0352-0353`. The capsule now takes
+its center and radius from the menu object's real state, keeping the radius
+in a local through the copy loop; its return-position calculation uses the
+same object state. The circle's comparison-only writes remain scaffolding.
+Both capsule entries compare and match 1,938 states each before and after
+(seed 1, 2,000 iterations each, 62 unchanged guard refusals each). No guard,
+fuzz domain, calibration or effects exception was changed.
+The `events-ocean-palace-lavos` shadow run matches all 235 and 152 capsule
+calls, and 33,394 script calls with four interrupted. This worktree's
+power-on shipping replay does not reach the capsules, unlike the reported
+merged-tree run; the shadow and differential fuzz checks cover the changed
+path. No full sampled gate was run for this fix.
+The requested one-movie suite ends `suite OK`, including vblank, effects,
+portstyle and portsmell; both fast routes also pass with scaffolding
+compiled out.
+
 Remaining stops belong to task switches and held waits, reset and mode
 boundaries, invalid script dispatch, comparison checkpoints and guard
 fallbacks. In particular the menu-entry boundary still owns nested shadow
