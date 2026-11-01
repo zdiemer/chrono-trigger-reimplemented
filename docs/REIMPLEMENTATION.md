@@ -3073,12 +3073,12 @@ sound lockstep (`ct_dev --sound-lockstep`, `dev/sound_lockstep.c`,
 `sound_compare.c`, `sound_state.c`, `sound_audio.c`) and `ct_sound_fuzz`'s
 mode against the original; `ct_dev --apu-port-margins`. `tools/machine_joints.py`:
 registered entries 2,189 to 2,180, returns 993 to 988, stops 177 to 175,
-scaffolding writes 2,066 to 2,037. The census enters nothing of bank `$C7`
-by the machine, as before (the shipping mode had handed the commands to the
-host as calls already), and counts 1,368 entries run only as C less the two
-time tags the commands and the boot were charged under (`$C7:0004`,
-`$C7:0000`), which went with their rows: a command's own C is the caller's
-time now, and the time the original's driver took is the time model's
+scaffolding writes 2,066 to 2,037. The census (84 movies) enters nothing of
+bank `$C7` by the machine, as before (the shipping mode had handed the
+commands to the host as calls already): 284 entries by the machine, 17 of
+them wait loops, and 1,366 run only as C, two fewer than before for the time
+tags the commands and the boot were charged under (`$C7:0004`, `$C7:0000`),
+which went with their rows: a command's own C is the caller's time now, and the time the original's driver took is the time model's
 (`platform/time_model.h`), as before.
 
 **What replaces the comparison.** Checks that need no original:
