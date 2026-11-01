@@ -14,7 +14,7 @@
  *   row at a time: expand_plane_tile) and its name table, and BG1's and BG2's
  *   tilemaps -- the palette, channel 0's first script, the title's state, the
  *   pendulum's screen (set_up_pendulum) and the title's song, whose start the
- *   original waits for; the loader's blocks are entries of their own too;
+ *   original waits for; the loader owns all of its resource steps;
  * - the frame's tasks, which the task list runs as C (scene/frame.c): the
  *   pendulum's swing (swing_the_pendulum) and its place (place_pendulum), the
  *   logo's sweep and landing (move_logo), the sprites drawn over the picture
@@ -53,46 +53,6 @@ enum {
     BG3_MAP_VRAM = 0x7000,       /* in mode 2, its first two rows are the columns' offsets */
 };
 
-/* ---- The loader's blocks --------------------------------------------------------------------- */
-
-/* The blocks share a guard over the run of the loader they lie in. */
-bool scene_title_loader_present(Snes *s)
-{
-    return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E597B, 124, 0x49B5A7DC40436AD2ull);
-}
-
-/* A block begins where its graphics go in VRAM; the port stops where the loader
- * goes on to unpack_on_the_machine them, which reads none of the registers. */
-static void begin_block(Snes *s, uint16_t vram, uint32_t site, uint32_t stop)
-{
-    vid_set_vram_address(m_platform(s), PF_AT(site), vram);
-    m_stop_at(s, stop, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
-}
-
-// $7E:597B
-/* The sprites' tiles, the first block: the VRAM port set to whole words for
- * the blocks after it too. */
-void scene_title_load_sprite_graphics(Snes *s)
-{
-    vid_start_vram_uploads(m_platform(s), PF_AT(0x7E597D), SCENE_VRAM_WHOLE_WORDS);
-    begin_block(s, SPRITE_TILES_VRAM, 0x7E5983, 0x7E5986);
-}
-
-// $7E:59A0
-/* The tiles BG1 and BG2 share. */
-void scene_title_load_layer_tiles(Snes *s) { begin_block(s, LAYER_TILES_VRAM, 0x7E59A3, 0x7E59A6); }
-
-// $7E:59AA
-/* The plane's pixels, which the loader builds a tile at a time
- * (scene_title_expand_plane_tile). */
-void scene_title_load_plane_graphics(Snes *s) { begin_block(s, PLANE_VRAM, 0x7E59AD, 0x7E59B0); }
-
-// $7E:59BC
-void scene_title_load_bg1_map(Snes *s) { begin_block(s, BG1_MAP_VRAM, 0x7E59BF, 0x7E59C2); }
-
-// $7E:59CC
-void scene_title_load_bg2_map(Snes *s) { begin_block(s, BG2_MAP_VRAM, 0x7E59CF, 0x7E59D2); }
-
 /* The rest of BG1's tilemap: from the second of its rows the block before
  * didn't cover, $F00 bytes. */
 enum { BG1_MAP_REST_VRAM = 0x6480, BG1_MAP_REST_BYTES = 0x0F00 };
@@ -113,13 +73,6 @@ static void fill_bg1_map(GameState *g, Platform *pf, uint8_t port)
     const VidSnesTransfer t = { .size = BG1_MAP_REST_BYTES, .target_reg = VID_SNES_VRAM_ADDRESS,
                                 .target = BG1_MAP_REST_VRAM, .continue_channel = true };
     vid_snes_copy(pf, PF_AT(0x7E59DD), &t);
-}
-
-/* The VRAM port's setting is in A. Stops at $7E:59F1, where the loader goes on. */
-void scene_title_fill_bg1_map(Snes *s)
-{
-    fill_bg1_map(state_of(s), m_platform(s), (uint8_t)s->cpu.a);
-    m_stop_at(s, 0x7E59F1, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
 }
 
 /* ---- The plane's pixels ------------------------------------------------------------------------ */
@@ -392,17 +345,6 @@ static void set_up_pendulum(Platform *pf)
     vid_set_color_math(pf, PF_AT(0x7E5A7C), &pendulum_math, VID_MATH_CONTROL | VID_MATH_LAYERS);
     vid_set_mode7(pf, PF_AT(0x7E5A80), &pendulum_plane, VID_M7_CENTER);
     vid_set_scroll(pf, PF_AT(0x7E5A90), VID_BG2, (uint16_t)PENDULUM_BG2_SCROLL, 0, VID_SCROLL_H);
-}
-
-/* Written through a direct page on the register block, whose address it
- * leaves in A's high byte (8-bit A); stops at $7E:5A96, where the scene goes on
- * to its own state. */
-void scene_title_set_up_pendulum(Snes *s)
-{
-    set_up_pendulum(m_platform(s));
-    s->cpu.p |= CPU_FLAG_M;
-    s->cpu.a = M_DP_PPU;
-    m_stop_at(s, 0x7E5A96, DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C | DC_D);
 }
 
 bool scene_title_place_pendulum_present(Snes *s)

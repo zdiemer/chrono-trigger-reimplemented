@@ -287,7 +287,7 @@ docstring says which way it is wrong). **1% of the code is still generated.**
 | battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.2K | 0% | 448 |
 | field engine, events (`$C0`) | 59.4K | 58.5K | 14.1K | 1% | 410 |
 | menus, text, overworld (`$C2`) | 59.1K | 59.0K | 17.8K | 0% | 553 |
-| scene program, RAM (`$7E`) | 25.1K | 24.9K | 3.2K | 1% | 245 |
+| scene program, RAM (`$7E`) | 25.1K | 25.0K | 3.2K | 0% | 238 |
 | battle frame work (`$CD`) | 15.4K | 15.3K | 4.4K | 1% | 227 |
 | field graphics (`$FD`) | 15.1K | 15.1K | 1.9K | 0% | 120 |
 | battle sprites (`$CF`) | 6.8K | 6.8K | 0.2K | 0% | 47 |
@@ -298,7 +298,7 @@ docstring says which way it is wrong). **1% of the code is still generated.**
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.1K | 1% | 9 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
 | console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
-| **total** | **266.7K** | **265.1K** | **59.1K** | **1%** | **2208** |
+| **total** | **266.7K** | **265.2K** | **59.1K** | **1%** | **2201** |
 
 `$CD`, the battle's frame work, is C but for 0.2 KiB: the whole screen script
 language (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"),

@@ -3026,8 +3026,8 @@ list, by kind, is what `game/` still asks of one.
   call for yet. The census (REIMPLEMENTATION.md, "The census") counts the
   rest: 259 entries the machine still enters, 21.1 M times over the library.
 - **Finish the scene-joints pass.** The scene and warp files still contain
-  50 stops after calling the credits scroll as C (the archived
-  "Scene continuations: the staff roll"). The task exits at
+  47 stops after the title loader fragment retirement and the credits
+  scroll continuation. The task exits at
   `$7E:39A7`, `$7E:39B1` and `$7E:39DE` need the frame-list bridge to consume
   a C task outcome: standalone task wrappers still stop with the caller's
   saved page, status and slot below their return address. Simply replacing
@@ -3701,15 +3701,6 @@ waits on M5 rather than on a backend.
   which the original reads through the work RAM port, overlaps the race's scaler
   output (and the event variables), so the map can't name it in the scene's
   subsystem (`ram_map.py coverage --open`).
-- **Retire the title loader fragments with their fallback accounting.**
-  The whole setup (`$7E:5978`) already does their work as C. Removing the
-  seven wrappers and registry entries at `$7E:597B`, `$7E:59A0`, `$7E:59AA`,
-  `$7E:59BC`, `$7E:59CC`, `$7E:59D5` and `$7E:5A59` passed the sampled shadow
-  movies and shipping-mode routes, but exposed 138 instructions under an
-  open `scene_title_set_up` comparison at the end of `attract-demo`. The
-  fallback ratchet rejects this new `open 7E:5978` row. The fragments remain
-  until that attribution is resolved; a baseline migration needs the
-  whole-library evidence CLAUDE.md requires, not an exception from a sample.
 - **The decompressor's port and the original part on streams that aren't
   streams.** Fuzzing the program's unpacker (`scene_unpack_resource`) over
   resource numbers past the table's 73 entries, where the "streams" are other

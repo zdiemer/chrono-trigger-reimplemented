@@ -22,13 +22,6 @@
 7E:464D 6 1  # handback by scene_race_upload_column_ram (scene program (RAM))
 7E:4755 6 4  # handback by scene_race_await_victory_song (scene program (RAM))
 7E:485D 7 5  # handback by scene_race_ride (scene program (RAM))
-7E:597B 783 26  # handback by scene_title_load_sprite_graphics (scene program (RAM))
-7E:59A0 87 4  # handback by scene_title_load_layer_tiles (scene program (RAM))
-7E:59AA 348 12  # handback by scene_title_load_plane_graphics (scene program (RAM))
-7E:59BC 261 10  # handback by scene_title_load_bg1_map (scene program (RAM))
-7E:59CC 87 3  # handback by scene_title_load_bg2_map (scene program (RAM))
-7E:59D5 3654 104  # handback by scene_title_fill_bg1_map (scene program (RAM))
-7E:5A59 609 20  # handback by scene_title_set_up_pendulum (scene program (RAM))
 7E:5AB2 87 4  # handback by scene_run_sequence, scene_title_load_bg2_map (scene program (RAM))
 7E:5B99 83 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:5BBF 82 1  # handback by scene_run_frame_tasks (scene program (RAM))
@@ -131,3 +124,4 @@ C2:3987 25 55  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) on
 C2:39AE 9 19  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
 C2:39D5 61 123  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
 C2:3ACB 13 23  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+open 7E:5978 138 0  # title-fragment retirement: 138 instructions at attract-demo end now belong to the unfinished whole setup; migrated from the seven retired fragment rows (5829 instructions, 179 bytes), whose work the setup already performs as C; sampled shadow and shipping routes passed before migration

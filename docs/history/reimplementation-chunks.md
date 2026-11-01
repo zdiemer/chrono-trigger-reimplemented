@@ -12421,3 +12421,37 @@ The three oracle wrappers and their retained scratch effects take the
 scene/warp joints from 787 to 799; stops remain 50. Mode 5's setup and
 figures remain to port. No timing or fallback allowance changed, and the
 sampled gate waits until the scene-joints pass is finished.
+
+### Scene program: the turning scene's figures and screen
+
+Mode 5 now has its setup, figure graphics, animation player, circular windows,
+mosaic, wave and palette cycle in C (`scene/turning.c`). The scene's scripts
+and both task lists call them directly. A pose is sixteen tiles assembled in
+work RAM and drawn with four large sprites; the upload rotates through changed
+figures, one per frame. Animation changes restart a stream, while direction
+changes advance it until its end marker. The three party figures orbit the
+center, with Magus in a fourth slot. Typed accessors describe the saved field
+positions and each figure's state; the machine only remains in entry wrappers.
+
+The setup prepares its map upload before the frame wait and transfers afterward.
+`vid_send_vram_next_frame` expresses that boundary in both backends; the SNES
+backend uses the site's write order. The palette cycle's six CPU writes use a
+byte-stream encoding rather than an invented DMA transfer. Original scratch
+writes are marked, with explicit evidence for shared cells belonging to other
+scene modes or channel pages. No style or smell baseline was expanded.
+
+All fourteen new entries pass seed-1 fuzzing: 2,000 states each except setup's
+100 states through its frame-wait call, 26,100 comparisons total, zero
+mismatches, skips, guard refusals or accessor overruns. The full build passes.
+Attract-demo shadow runs 22,500 frames without a mismatch; it does not reach
+mode 5. A forced native start reaches the figure task at frame 41 and refuses
+the absent party members left by boot. No known story path starts this unused
+mode; the missing meaningful native scenario is recorded in TODO.md.
+
+The RAM-program estimate rises from 23.0K to 24.9K of 25.1K, leaving 1%
+instead of 9%. Scene/warp machine joints rise from 799 to 840 with the new
+oracle wrappers and video calls; stops remain 50. The map buffers now use
+generated accessors in both setup and sampling; the sampler's same 2,000
+seed-1 states still match after that change. The previous geometry chunk is archived in
+history/reimplementation-chunks.md. Timing and fallback allowances are unchanged;
+the sampled gate remains for the end of the scene-joints pass.

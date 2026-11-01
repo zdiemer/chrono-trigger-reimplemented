@@ -3108,39 +3108,33 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene program: the turning scene's figures and screen
+### Scene continuations: the title loader owns its resource steps
 
-Mode 5 now has its setup, figure graphics, animation player, circular windows,
-mosaic, wave and palette cycle in C (`scene/turning.c`). The scene's scripts
-and both task lists call them directly. A pose is sixteen tiles assembled in
-work RAM and drawn with four large sprites; the upload rotates through changed
-figures, one per frame. Animation changes restart a stream, while direction
-changes advance it until its end marker. The three party figures orbit the
-center, with Magus in a fourth slot. Typed accessors describe the saved field
-positions and each figure's state; the machine only remains in entry wrappers.
+The seven title-loader fragments at `$7E:597B`, `$7E:59A0`, `$7E:59AA`,
+`$7E:59BC`, `$7E:59CC`, `$7E:59D5` and `$7E:5A59` are retired. Their work
+already runs as C inside `scene_title_set_up_scene` and the native setup;
+removing the partial entries lets the whole setup own these continuations.
+The parent retains its code guard and the palette, pendulum and resource
+loading implementation. The wait for the title song remains a separate step.
 
-The setup prepares its map upload before the frame wait and transfers afterward.
-`vid_send_vram_next_frame` expresses that boundary in both backends; the SNES
-backend uses the site's write order. The palette cycle's six CPU writes use a
-byte-stream encoding rather than an invented DMA transfer. Original scratch
-writes are marked, with explicit evidence for shared cells belonging to other
-scene modes or channel pages. No style or smell baseline was expanded.
+The previous attempt passed all 37 sampled shadow movies and 56 shipping
+routes but exposed 138 instructions under the setup comparison still open at
+the end of attract-demo. Its accounting is now migrated explicitly: the seven
+retired fragment rows (5,829 instructions and 179 bytes) leave the fallback
+ledger, and the unfinished parent comparison has a 138-instruction row.
+This records the changed ownership at the recording boundary; it introduces
+no new code path or fallback allowance beyond the retired work. Both the saved
+sampled evidence and a fresh attract-demo run pass the fallback ratchet with
+zero new or increased rows. No general baseline update was run.
 
-All fourteen new entries pass seed-1 fuzzing: 2,000 states each except setup's
-100 states through its frame-wait call, 26,100 comparisons total, zero
-mismatches, skips, guard refusals or accessor overruns. The full build passes.
-Attract-demo shadow runs 22,500 frames without a mismatch; it does not reach
-mode 5. A forced native start reaches the figure task at frame 41 and refuses
-the absent party members left by boot. No known story path starts this unused
-mode; the missing meaningful native scenario is recorded in TODO.md.
-
-The RAM-program estimate rises from 23.0K to 24.9K of 25.1K, leaving 1%
-instead of 9%. Scene/warp machine joints rise from 799 to 840 with the new
-oracle wrappers and video calls; stops remain 50. The map buffers now use
-generated accessors in both setup and sampling; the sampler's same 2,000
-seed-1 states still match after that change. The previous geometry chunk is archived in
-history/reimplementation-chunks.md. Timing and fallback allowances are unchanged;
-the sampled gate remains for the end of the scene-joints pass.
+Fresh attract-demo shadow: 22,500 frames, exit 0 and zero mismatches or refusals.
+Differential fuzz of the whole setup, seed 1: before and after each match all
+400 states, with zero skips or guard refusals. The affected native, shadow,
+fuzz and native-shape targets build; style and smell checks are clean.
+Scene/warp machine joints fall from 840 to 835 and their stops from 50 to 47;
+seven registry entries disappear. The sampled gate remains for the end of
+the scene-joints pass. The turning-scene chunk is archived in
+history/reimplementation-chunks.md.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 
