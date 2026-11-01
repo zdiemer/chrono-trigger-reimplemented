@@ -159,9 +159,8 @@ isn't ported yet, so retiring it is porting its callee. In order:
 1. **The menus and the overworld** (84%): what the shipping mode still runs
    of bank `$C2` is code no port stands for, the screens' own routines still
    the original's (`C2:----`, the fade out `$C2:83CA`, the gate screen's swirl
-   `$C2:CE86` and the number tiles in `$FF` it calls), and the endings'
-   scenes' line effects behind `$C3:000E` (TODO.md, "What the world map's set
-   up left"); and the fallback measure's filing of one task's code under
+   `$C2:CE86` and the number tiles in `$FF` it calls); and the fallback
+   measure's filing of one task's code under
    another's hand-back, which shows where to look (TODO.md, "What the
    shipping mode's fallbacks' eighth chunk left").
 2. **The scene program's five remaining boundaries**: the shared race

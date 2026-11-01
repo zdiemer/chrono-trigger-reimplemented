@@ -1083,9 +1083,8 @@ void scene_check_the_shell_entry(Snes *s)
     m_rts(s);
 }
 
-/* The main loop's call each pass, with 16-bit A. With the last picture still
- * to be sent it is back at once; otherwise the scaler's rows go on in the
- * original's code, which comes back to the gathering. */
+/* The main loop's call each pass, with 16-bit A. Wait for the last picture
+ * to be sent before scaling and gathering the next one through the C bridge. */
 void scene_scale_the_epoch_entry(Snes *s)
 {
     GameState *g = state_of(s);

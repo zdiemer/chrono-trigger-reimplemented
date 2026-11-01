@@ -3162,6 +3162,15 @@ run is not evidence of agreement. Variants now run sequentially within a
 worker, and a concurrency regression verifies two workers start at most two
 game processes while preserving failed-variant reporting.
 
+The corrected evidence replay finishes with `dc_evidence: OK`: all 84
+movies (2,289,640 frames per variant) have equal poisoned and plain traces
+outside the permitted stack page, including the framebuffer comparison.
+All four bounded dispatch sites run and stay within their bounds. The six
+overflow-flag sites and three return-carry declarations satisfy their
+existing evidence requirements. No additional full sampled gate was run;
+its recorded last line remains
+`FAILED: timing; fallbacks; uncompared; effects; evidence`.
+
 Five stops remain after failed removal experiments: the race upload wait
 needs caller-instance matching, the first-frame continuation exposes carry
 after an interrupted prelude, the final warp frame exposes HDMA shutdown

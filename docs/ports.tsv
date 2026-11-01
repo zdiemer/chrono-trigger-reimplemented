@@ -759,3 +759,5 @@ warp_end	$FD:DA55	Field loading uses its sibling timing scope; End of Time gate 
 warp_end	$FD:DAB4	Same C ending and sibling timing scope as FD:DA55; existing ending/destination fuzz remains applicable, focused shadow timing passes.
 warp_end	$FD:DB13	Same C ending and sibling timing scope as FD:DA55; existing ending/destination fuzz remains applicable, focused shadow timing passes.
 warp_end	$FD:DB8D	Same C ending and sibling timing scope as FD:DA55; existing ending/destination fuzz remains applicable, focused shadow timing passes.
+scene_scale_the_epoch	$7E:8278	Scaling and gathering remain direct C continuations; 2000 isolated cases and Epoch shadow have zero mismatches. Final scene evidence replay passes all 84 movies with two game workers, dc_evidence: OK. No full sampled gate has passed after the final corrections.
+scene_ending_scale_picture	$7E:8930	Scaling and gathering remain direct C continuations; 1959 accepted isolated cases compare with zero mismatches (41 invalid-picture guards). Complete Beyond Time shadow and the 84-movie flag-evidence replay pass; full sampled-gate receipt remains open in TODO.

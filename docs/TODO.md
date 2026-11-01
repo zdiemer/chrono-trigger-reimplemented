@@ -2804,9 +2804,9 @@ The scene series still needs a complete passing sampled-gate receipt after
 its final corrections. Its one full run passed all 37 shadow movies and
 56 shipping/native-shape routes, but ended with timing, fallback,
 uncompared, effects and evidence failures. The first four now pass focused
-checks or an audit of that run's logs. The evidence runner exceeded its
-process budget and was interrupted; its corrected sequential variants are
-being replayed. These checks do not constitute a fresh complete gate.
+checks or an audit of that run's logs. The evidence runner's corrected
+process budget passes all 84 movies, ending `dc_evidence: OK`. These checks
+do not constitute a fresh complete gate.
 
 The scene's whole-picture scalers need comparisons that survive interrupts.
 In the 37-movie scene sample, both race-picture entries have all 1,142 calls

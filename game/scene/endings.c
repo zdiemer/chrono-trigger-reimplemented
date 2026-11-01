@@ -2375,9 +2375,8 @@ static void leave_dividend(Snes *s)
     set_scene_call_first(state_of(s), scene_program_own(), (uint16_t)((uint16_t)(EIGHT << 8) | (m_flag(s, CPU_FLAG_C) ? 0x80 : 0)));
 }
 
-/* The main loop's call each pass, with 16-bit A. With the last picture still
- * to be sent it is back at once, the carry as it came; otherwise the scaler's
- * rows go on in the original's code, which comes back to the gathering. */
+/* The main loop's call each pass, with 16-bit A. Wait for the last picture
+ * to be sent before scaling and gathering the next one through the C bridge. */
 void scene_ending_scale_picture_entry(Snes *s)
 {
     GameState *g = state_of(s);
