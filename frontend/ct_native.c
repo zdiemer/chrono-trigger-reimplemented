@@ -42,6 +42,7 @@
 #include "assets.h"
 #include "core/program.h"
 #include "media.h"
+#include "outcome_picture.h"
 #include "movie.h"
 #include "data/assets.h"
 #include "platform/native/host.h"
@@ -231,7 +232,7 @@ int main(int argc, char **argv)
     const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL, *movie_path = NULL, *shot_dir = NULL;
     const char *end_state = NULL;
     unsigned long frames = 600, shot_every = 0;
-    bool locations = false;
+    bool locations = false, outcomes = false;
     unsigned scenes = 0;
     uint8_t scene[STATE_HOST_FIRST_SCENES], song[STATE_HOST_FIRST_SCENES];
     for (int i = 1; i < argc; i++) {
@@ -245,11 +246,12 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--shot-dir") && v) shot_dir = v, i++;
         else if (!strcmp(a, "--end-state") && v) end_state = v, i++;
         else if (!strcmp(a, "--locations")) locations = true;
+        else if (!strcmp(a, "--outcomes")) outcomes = true;
         else if (!strcmp(a, "--scene") && v && scenes < STATE_HOST_FIRST_SCENES && scene_and_song(v, &scene[scenes], &song[scenes]))
             scenes++, i++;
         else {
             fprintf(stderr, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
-                            "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--scene flags[,song]]...\n");
+                            "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--outcomes] [--scene flags[,song]]...\n");
             return 2;
         }
     }
@@ -313,6 +315,8 @@ int main(int argc, char **argv)
         sound_native_frame(sound);
         frame++;
         picture_frame(&picture, &pf, frame);
+        if (outcomes && outcome_picture_due(frame, frames))
+            outcome_picture(picture.pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT, frame);
         if (locations && location_id(g) != location) {
             location = location_id(g);
             fprintf(stderr, "location: frame %lu $%03X\n", frame, location & LOCATION_BITS);

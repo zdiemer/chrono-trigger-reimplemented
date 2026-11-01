@@ -107,6 +107,8 @@ import time
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from tools import outcomes
+from tools.strict_check import SavedGame
 from tools import timing_gate  # noqa: E402
 
 MISMATCH = re.compile(rb"mismatched [1-9]")
@@ -193,11 +195,13 @@ def run_movie(binary, rom, out, name, path, frames):
            "--coverage", str(out / ("cov-%s.txt" % name)),
            "--calls", str(out / ("calls-%s.txt" % name)),
            "--fallbacks", str(out / "fallbacks" / "shadow" / ("%s.txt" % name)),
-           "--end-state", str(out / ("end-%s.bin" % name)), "--locations"] + PACK_ARGS
+           "--end-state", str(out / ("end-%s.bin" % name)), "--locations", "--outcomes"] + PACK_ARGS
     started = time.time()
     with open(log, "wb") as fh:
         rc = subprocess.call(cmd, stdout=fh, stderr=subprocess.STDOUT)
     text = log.read_bytes()
+    outcomes.capture(out, name, path, frames, text.decode(errors="replace"), rc,
+                     out / ("end-%s.bin" % name), SavedGame(rom), "reference")
     bad = len(MISMATCH.findall(text))
     refused = [r.decode(errors="replace").strip() for r in REFUSED.findall(text)]
     strays = [r.decode(errors="replace").strip() for r in OUT_OF_RANGE.findall(text) + ASSETS.findall(text)]
@@ -667,7 +671,8 @@ def check_strict(args, ctx):
     mode, so it is quick; over a subset of the library (--movies, --only) it
     checks those."""
     cmd = [sys.executable, str(ROOT / "tools/strict_check.py"), "--ct-dev", str(ctx["binary"]), "--rom", str(args.rom),
-           "--check", "-j", str(max(1, min(ctx["jobs"], 2))), "--reference", str(args.out)]
+           "--check", "-j", str(max(1, min(ctx["jobs"], 2))), "--reference", str(args.out),
+           "--outcomes", str(args.out / "outcomes" / "strict")]
     if not ctx["complete"]:
         cmd += ["--movies"] + list(ctx["movies"])
     rc, lines = run_tool(cmd)
@@ -685,13 +690,27 @@ def check_native(args, ctx):
     if not native.exists():
         return False, "native", "%s isn't built" % native.name, []
     cmd = [sys.executable, str(ROOT / "tools/native_check.py"), "--ct-native", str(native), "--rom", str(args.rom),
-           "--check", "-j", str(max(1, min(ctx["jobs"], 2))), "--reference", str(args.out)] + PACK_ARGS
+           "--check", "-j", str(max(1, min(ctx["jobs"], 2))), "--reference", str(args.out),
+           "--outcomes", str(args.out / "outcomes" / "native")] + PACK_ARGS
     if not ctx["complete"]:
         cmd += ["--movies"] + list(ctx["movies"])
     rc, lines = run_tool(cmd)
     summary = lines[-1] if lines else "no output"
     return rc == 0, "native", summary, [] if rc == 0 else [l for l in lines[:-1] if ": dark" in l or ": crashed" in l
                                                            or ": hung" in l or "<--" in l or "not in" in l][-40:]
+
+
+def check_outcomes(args, ctx):
+    """The recorded reference, checked without running it beside the ports."""
+    summaries, details, ok = [], [], True
+    for mode in ("strict", "native"):
+        rc, lines = run_tool([sys.executable, str(ROOT / "tools/outcomes.py"), "--check",
+                              "--runs", str(args.out / "outcomes" / mode), "--mode", mode,
+                              "--movies"] + list(ctx["movies"]))
+        ok &= rc == 0
+        summaries.append(lines[-1] if lines else "no output")
+        details.extend(l for l in lines[:-1] if "FAILED" in l)
+    return ok, "outcomes", "; ".join(summaries), details
 
 
 def check_effects(args, ctx):
@@ -764,6 +783,7 @@ CHECKS = (
     ("uncompared", check_uncompared, "the ratchet on hand ports the shadow runs mostly leave uncompared"),
     ("strict", check_strict, "the ratchet on how far the hand ports alone carry each movie"),
     ("native", check_native, "the movies in the native program, none ending dark"),
+    ("outcomes", check_outcomes, "recorded end states, checkpoint pictures and places"),
     ("effects", check_effects, "the ratchet on logic that reads scaffolding"),
     ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
     ("portsmell", check_portsmell, "the ratchet on the review rubric's mechanical items"),
@@ -809,6 +829,7 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     for stale in list(args.out.glob("status-*.txt")) + list(args.out.glob("end-*.bin")):
         stale.unlink()
+    shutil.rmtree(args.out / "outcomes", ignore_errors=True)
     shutil.rmtree(args.out / "fallbacks" / "shadow", ignore_errors=True)
     (args.out / "fallbacks" / "shadow").mkdir(parents=True)
 

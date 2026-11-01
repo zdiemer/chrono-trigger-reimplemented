@@ -1,0 +1,3 @@
+# movie strict|native game|sram|pictures|places # reason
+# Existing differences only; protected identities in outcomes_baseline.txt
+# still have to match, even for an excepted kind. No fault or missing data is excused.

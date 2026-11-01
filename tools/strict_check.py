@@ -64,7 +64,11 @@ import sys
 import tempfile
 import tomllib
 
-import places
+if __package__:
+    from . import places, outcomes
+else:
+    import places
+    import outcomes
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "tools/strict_baseline.txt"
@@ -201,10 +205,12 @@ def reference_play(binary, rom, name, path, frames, reference_dir, work):
 
 # The outcomes, as (frame reached or None for the end, detail, how), and the
 # places entered against the reference's (places.Kept), or None.
-def run_one(binary, rom, name, path, frames, log, saved, names, reference_dir, work):
+def run_one(binary, rom, name, path, frames, log, saved, names, reference_dir, work, outcome_dir=None):
     """One movie strict: how it ended, and its places."""
     end = work / ("%s.strict.bin" % name)
-    text, rc = run_ct_dev(binary, rom, path, frames, STRICT + ["--locations", "--end-state", str(end)])
+    text, rc = run_ct_dev(binary, rom, path, frames, STRICT + ["--locations", "--end-state", str(end)] + (["--outcomes"] if outcome_dir else []))
+    if outcome_dir:
+        outcomes.capture(outcome_dir, name, path, frames, text, rc, end, saved, "strict")
     if log:
         log.write_text(text)
     reference = reference_play(binary, rom, name, path, frames, reference_dir, work)
@@ -318,6 +324,7 @@ def main():
     ap.add_argument("-j", "--jobs", type=int, default=2)
     ap.add_argument("--baseline", type=pathlib.Path, default=BASELINE)
     ap.add_argument("--logs", type=pathlib.Path, help="keep each run's stderr here, as <movie>.log")
+    ap.add_argument("--outcomes", type=pathlib.Path, help="write digest artifacts for outcomes.py")
     ap.add_argument("--reference", type=pathlib.Path,
                     help="the reference end states, end-<movie>.bin (the suite's shadow runs write them); "
                          "a movie with none here is run with --native off")
@@ -340,7 +347,7 @@ def main():
             name, path, frames = row
             log = args.logs / ("%s.log" % name) if args.logs else None
             return name, run_one(args.ct_dev.resolve(), args.rom, name, path, frames, log, saved, names,
-                                 args.reference, work)
+                                 args.reference, work, args.outcomes)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
             done = dict(pool.map(one, rows))

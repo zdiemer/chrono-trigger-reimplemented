@@ -3271,6 +3271,86 @@ reach it), and `tools/burndown.py` leaves the bank out ("Retired code"). A
 SNES build (target 3) needs a CPU half again: the cartridge's, from the
 matching source, or the deleted port from history (TODO.md).
 
+### Recorded outcomes
+
+`tools/outcomes.py` keeps the reference play's results in `tools/outcomes.txt`:
+one line per movie per kind, digests and small numbers only. `game` and
+`sram` are SHA-256 of exactly the saved-game and save-RAM bytes that
+`strict_check.SavedGame` compares, with the same play-clock, random-start
+and slot-checksum exclusions. `pictures` holds RGB FNV-1a64 fingerprints
+of the drawn 256 by 224 picture, every 300 completed frames and at the first
+and last frame, including neighbours two frames either side. `places`
+holds every location entered and its completed-frame number, as
+`tools/places.py` measures. `input` binds these to the movie's SHA-256,
+frame count, format version and saved-byte selection digest. Editing a
+movie or changing the projection requires a deliberate new recording.
+
+`ct_dev --outcomes` and `ct_native --outcomes` print only picture hashes;
+`ct_dev` draws pixels only for those frames unless another option needs
+them. The suite digests its shadow run's `--end-state` and log into
+`outcome-<movie>.txt` beside them. Strict and native checks digest their
+own runs into `outcomes/strict` and `outcomes/native` before discarding
+their scratch end states. This adds no play to the suite. Raw end states,
+logs, pixels and traces stay in ignored build output; only the digest
+ledger, ratchet and reasons are committed.
+
+Record and check existing suite output (use `--movies NAME...` for a subset):
+
+```sh
+python3 tools/outcomes.py --record --reference build/suite --movies title-start menu
+python3 tools/outcomes.py --check --runs build/suite/outcomes/strict --mode strict --movies title-start menu
+python3 tools/outcomes.py --check --runs build/suite/outcomes/native --mode native --movies title-start menu
+```
+
+Checking artifacts needs neither a ROM nor a reference executable, log or dump.
+For a fresh run, give `--ct-dev` (strict) or `--ct-native`, `--rom` and
+`--runs DIR` to `--check`, with `--movies` as needed. This runs only the
+hand ports, at most two processes, and checks their digests against the
+ledger. The ROM supplies assets and the saved-byte selection, never a
+reference play; `--assets` reuses an imported pack. For example:
+
+```sh
+python3 tools/outcomes.py --check --ct-dev build/main/ct_dev --rom roms/ct-usa.sfc --runs build/outcomes/strict --movies menu
+python3 tools/outcomes.py --check --ct-native build/main/ct_native --rom roms/ct-usa.sfc --runs build/outcomes/native --movies menu
+```
+It rejects missing data, duplicate rows, incomplete/faulted runs and stale
+movie inputs. It reports each movie's exact matches, drift and differences.
+An identical picture within two frames is drift, accepted; a place entered
+within `places.ON_TIME` (30 frames) in the original order is accepted drift.
+An extra place, wrong order, changed end state or picture outside that
+window is a difference. No perceptual threshold silently excuses changed
+pixels: a line or two of harmless visual difference can have a per-movie
+`pictures` reason after checking that play cannot change. An exception is
+not evidence of equivalence.
+
+`tools/outcomes_baseline.txt` protects individual identities, separately
+for strict and native: each end digest that matches, each checkpoint frame
+and each place index entered on time. An exception in
+`tools/outcomes_exceptions.txt` needs a movie, mode, kind and reason;
+it excuses existing differences but cannot excuse losing a protected match.
+`--update` adds matches and preserves omitted movies; it never drops a
+protected identity. New movies or missing records fail closed. The suite
+runs both recorded checks after strict and native checks, and clears their
+old artifacts before a run, so skipping a producer cannot pass on stale data.
+
+The sample is recorded first. The next batched library run uses
+`tools/suite.py --all-movies --no-outcomes` for the unrecorded movies, then
+`outcomes.py --record --reference build/suite` without `--movies`. Review
+new differences and give reasons, run `--update` for both modes on that
+output, then `--check` for both; commit the ledger and ratchets together.
+No second reference play is needed. Subsequent library runs include the
+check normally. Recording never silently changes the ratchet.
+
+**What a teardown cites.** Saved-game and save-RAM matches protect story,
+party, inventory, battle results and persistence; places protect progression
+and input timing; pictures protect field, menu and scene presentation.
+A teardown names its movies, mode, kinds and protected identities here,
+records them before retiring the comparison, and resolves the exceptions
+it needs to depend on. Storage changes keep the same saved-game projection
+through a host dump adapter. These samples do not prove every intermediate
+state: routes and assertions remain necessary. Sound continues to rely on
+its own tests and digests described in "The sound driver's teardown".
+
 ### The native program's last named stops
 
 TODO.md named the stops the native program still met where the scenes, the

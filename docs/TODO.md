@@ -9,6 +9,15 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **Recorded outcomes across the library.** Record the remaining movies from
+  the next batched `--all-movies` run's artifacts and initialize their strict
+  and native ratchets with reviewed reasons for differences
+  (REIMPLEMENTATION.md, "Recorded outcomes"). Resolve the sample's excepted
+  saved-game, picture and place differences before a teardown relies on
+  those observables. A storage teardown must supply the same saved-game
+  projection from the new storage; a picture hash alone cannot establish
+  that a visual difference cannot affect play.
+
 - **A battle's start, one fuzz state in about 4,000.** `field_battle_begins`
   (`tools/fuzz_routines.toml`, both variants; seeds 1-4) mismatches once or
   twice per 5,000 states: a field work cell (`$7E:01C3`, `$01DB`), the
