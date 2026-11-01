@@ -83,6 +83,8 @@ static const struct {
     /* $C0:8A00: LDA $40 : CMP $42 : BNE + : STA $50 : + RTS -- copies $40 to $50
      * only where $42 is the same */
     { 0x8A00, { 0xAF, 0x40, 0x00, 0x7E, 0xCF, 0x42, 0x00, 0x7E, 0xD0, 0x04, 0x8F, 0x50, 0x00, 0x7E, 0x60 }, 15 },
+    /* A caller of the counter wait, for the external tick test. */
+    { 0x8B00, { 0x20, 0x00, 0x82, 0x60 }, 4 },
 };
 
 /* ---- the ports ------------------------------------------------------------------------- */
@@ -162,6 +164,14 @@ static void calls_halting(Snes *s)
     m_rts(s);
 }
 
+static void calls_wait(Snes *s)
+{
+    m_jsr(s, 0xC08B00, 0xC08200);
+    m_rts(s);
+}
+
+static bool refuses(Snes *s) { (void)s; return false; }
+
 /* The call as the original makes it, the registers as the original has them,
  * declaring dead what the callee doesn't read (right), or A, which it does
  * (wrong, and only scrambling shows it). */
@@ -219,6 +229,8 @@ static const NativeEntry entries[] = {
     { .addr = 0xC08700, .name = "calls_declaring_a", .fn = calls_declaring_a, M8_X16 },
     { .addr = 0xC08900, .name = "assumes_sets", .fn = assumes_sets, M8_X16 },
     { .addr = 0xC08A00, .name = "assumes_tied", .fn = assumes_tied, M8_X16 },
+    { .addr = 0xC08B00, .name = "calls_wait", .fn = calls_wait, M8_X16 },
+    { .addr = 0xC08000, .name = "refused_copy", .fn = copy_ok, .guard = refuses, M8_X16 },
 };
 
 static uint8_t rom[ROM_SIZE];
@@ -247,6 +259,31 @@ static FuzzOptions options(unsigned long iterations)
     return o;
 }
 
+typedef struct {
+    unsigned begun, matched, trial_insns, committed_insns;
+} CoverageCounts;
+
+static void coverage_begin(void *ctx)
+{
+    CoverageCounts *c = ctx;
+    c->begun++;
+    c->trial_insns = 0;
+}
+
+static void coverage_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
+{
+    CoverageCounts *c = ctx;
+    (void)pc, (void)p, (void)e;
+    c->trial_insns++;
+}
+
+static void coverage_matched(void *ctx)
+{
+    CoverageCounts *c = ctx;
+    c->matched++;
+    c->committed_insns += c->trial_insns;
+}
+
 int main(void)
 {
     for (size_t k = 0; k < sizeof originals / sizeof originals[0]; k++)
@@ -264,9 +301,20 @@ int main(void)
     FuzzOptions o = options(200);
     FuzzResult r = run(0, &o, log, sizeof log);
     CHECK(r.matched == 200 && r.mismatched == 0, "copy_ok: matched %lu mismatched %lu", r.matched, r.mismatched);
+    CoverageCounts counts = { 0 };
+    o.coverage_begin = coverage_begin;
+    o.coverage_insn = coverage_insn;
+    o.coverage_matched = coverage_matched;
+    o.coverage_ctx = &counts;
+    r = run(0, &o, log, sizeof log);
+    CHECK(counts.begun == 200 && counts.matched == 200 && counts.committed_insns == 600,
+          "coverage records only the three original instructions per matched trial");
+    counts = (CoverageCounts){ 0 };
     o.details = 1;
     r = run(1, &o, log, sizeof log);
     CHECK(r.mismatched == 200, "copy_wrong: mismatched %lu", r.mismatched);
+    CHECK(counts.begun == 200 && counts.matched == 0 && counts.committed_insns == 0,
+          "mismatching trials contribute no coverage");
     CHECK(strstr(log, "  Y: original") != NULL, "the report names Y:\n%s", log);
     CHECK(strstr(log, "  flag C: original") != NULL, "the report names the carry:\n%s", log);
     CHECK(strstr(log, "flag Z") == NULL, "the report leaves out the don't-care flags:\n%s", log);
@@ -274,6 +322,22 @@ int main(void)
     CHECK(strstr(log, "  WRAM 7E0100-7E0103: 4 byte(s), 2 differ") != NULL,
           "the report groups $100-$103:\n%s", log);
     CHECK(strstr(log, "(5 difference(s) in all, 2 memory range(s))") != NULL, "the report's count:\n%s", log);
+
+    counts = (CoverageCounts){ 0 };
+    r = run(14, &o, log, sizeof log);
+    CHECK(r.matched == 0 && counts.begun == 200 && counts.committed_insns == 0,
+          "refused trials contribute no coverage");
+    o.budget = 2000;
+    counts = (CoverageCounts){ 0 };
+    CHECK(fuzz_parse_area("7E0040-7E0040=01", false, &o.areas[o.nareas++]), "fill a wait counter");
+    r = run(13, &o, log, sizeof log);
+    CHECK(r.callout == 200 && counts.committed_insns == 0, "timed out call-outs contribute no coverage");
+    o.tick_pc = 0xC08200;
+    o.tick_address = 0x7E0040;
+    o.budget = 20000;
+    r = run(13, &o, log, sizeof log);
+    CHECK(r.matched == 200 && r.mismatched == 0 && counts.matched == 200,
+          "counter ticks on both original and call-out let the waits finish: %s", log);
 
     /* The port loops where the original returns: abandoned and a finding. */
     o = options(100);

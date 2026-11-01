@@ -263,6 +263,10 @@ static void stop_at_call(uint32_t site, uint32_t target, uint16_t dont_care)
 static CpuStep callout_step(Cpu *cpu)
 {
     in_callout = true;
+    if (stop_options->tick_pc && cpu_pc24(cpu) == stop_options->tick_pc) {
+        uint32_t at = stop_options->tick_address;
+        snes_bus_write(&native_machine->bus, at, (uint8_t)(snes_bus_read(&native_machine->bus, at) + 1));
+    }
     CpuStep r = cpu_step(cpu);
     in_callout = false;
     return r;
@@ -313,6 +317,10 @@ static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s, bool must_step, 
             return true;
         s->cpu.nmi_pending = false;
         s->cpu.irq_line = false;
+        if (stop_options->tick_pc && cpu_pc24(&s->cpu) == stop_options->tick_pc) {
+            uint32_t at = stop_options->tick_address;
+            snes_bus_write(&s->bus, at, (uint8_t)(snes_bus_read(&s->bus, at) + 1));
+        }
         cpu_step(&s->cpu);
     }
     return false;
@@ -494,6 +502,8 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
     poison_state = o->seed * 0xD1B54A32D192ED03ull | 1;
     uint16_t stack_page = base->cpu.s & 0xFF00;
     for (unsigned long it = 0; it < o->iterations; it++) {
+        if (o->coverage_begin)
+            o->coverage_begin(o->coverage_ctx);
         snes_clone(&orig, base);
         Snes *m = &orig;
         for (uint32_t i = 0; i < SNES_WRAM_SIZE; i += 8) {
@@ -562,6 +572,10 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         }
         uint16_t entry_s = m->cpu.s;
         snes_clone(&native, &orig);
+        if (o->coverage_insn) {
+            orig.cpu.on_insn = o->coverage_insn;
+            orig.cpu.on_insn_ctx = o->coverage_ctx;
+        }
         native.interpreter = callout_step;
         native.bus.on_access = native_access;
         orig.bus.on_access = original_access;
@@ -680,9 +694,11 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         }
         r.scrambled += poison_calls;
         r.at_call += at_call;
-        if (same)
+        if (same) {
             r.matched++;
-        else
+            if (o->coverage_matched)
+                o->coverage_matched(o->coverage_ctx);
+        } else
             report(&r, o, log, it, first_what, &first_pass, &native, dont_care);
     }
     native_call_poison = NULL;
