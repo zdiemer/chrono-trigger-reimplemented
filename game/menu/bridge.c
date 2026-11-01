@@ -2,6 +2,7 @@
  * the guards (menu/bridge.h). */
 #include "menu/bridge.h"
 
+#include "charge.h"
 #include "menu/menu.h"
 #include "port/native.h"
 
@@ -83,7 +84,7 @@ static bool run(Snes *s, uint32_t returns_to, uint32_t routine, void (*entry)(Sn
     m_push16(s, (uint16_t)(returns_to - 1));
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
-    NATIVE_TIME_AS(s, routine, entry(s));
+    TIMED_AS(state_of(s), routine, entry(s));
     bool returned = stack_pointer(s) == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
     if (any_widths) {
         m.a8 = m_m8(s);
@@ -105,6 +106,11 @@ bool menu_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes 
 bool menu_run_any_widths(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
 {
     return run(s, site + MENU_JSR_SIZE, routine, entry, true, BY_JSR);
+}
+
+bool menu_run_long_any_widths(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
+{
+    return run(s, site + MENU_JSL_SIZE, routine, entry, true, BY_JSL);
 }
 
 bool menu_run_jumped(Snes *s, uint32_t returns_to, uint32_t routine, void (*entry)(Snes *))
@@ -137,7 +143,7 @@ void menu_go_on_in(Snes *s, uint32_t routine, void (*entry)(Snes *), uint16_t do
     }
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
-    NATIVE_TIME_AS(s, routine, entry(s));
+    TIMED_AS(state_of(s), routine, entry(s));
 }
 
 void menu_set_widths(Snes *s, bool a8, bool x8)

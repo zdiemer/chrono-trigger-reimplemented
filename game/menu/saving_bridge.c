@@ -148,7 +148,7 @@ static bool save(void *ctx, SavingPlace at)
     if (!menu_runs_as_port(s, SAVE_THE_GAME, menu_save_the_game))
         return menu_call(s, site, SAVE_THE_GAME, READS_A_HIGH);
     bool saved = false;
-    NATIVE_TIME_AS(s, SAVE_THE_GAME,
+    TIMED_AS(state_of(s), SAVE_THE_GAME,
                    IN_THE_ORIGINALS_FRAME(state_of(s), ORIGINAL_RETURN_BYTES, saved = save_up_to_the_last_wait(s)));
     return saved && menu_yield(s, site, MENU_TASK_WAITS_A_FRAME, THE_WAIT_KEEPS_ALL_BUT_A);
 }
@@ -175,7 +175,7 @@ static void show_the_slot_saved_now(Snes *s)
 static bool show_the_slot_saved(void *ctx)
 {
     Snes *s = machine(ctx);
-    NATIVE_TIME_AS(s, SHOW_THE_SLOT_SAVED, show_the_slot_saved_now(s));
+    TIMED_AS(state_of(s), SHOW_THE_SLOT_SAVED, show_the_slot_saved_now(s));
     return true;
 }
 
@@ -208,10 +208,10 @@ static bool ends(void *ctx, SavingEnd end)
     case SAVING_LEAVES_THE_MENUS: m_stop_at(s, LEAVE_THE_MENUS, READS_NOTHING); break;
     case SAVING_BACK_TO_THE_MAIN_MENU: m_stop_at(s, MAIN_MENU, READS_NOTHING); break;
     case SAVING_SAVES_IN_THE_SLOT_JUMPED: m_stop_at_own(s, SAVE_IN_THE_SLOT, READS_A_HIGH); break;
-    case SAVING_SAVES_IN_THE_SLOT: NATIVE_TIME_AS(s, SAVE_IN_THE_SLOT, menu_save_in_the_slot(s)); break;
+    case SAVING_SAVES_IN_THE_SLOT: TIMED_AS(state_of(s), SAVE_IN_THE_SLOT, menu_save_in_the_slot(s)); break;
     case SAVING_MOVES_AMONG_THE_SLOTS:
         if (menu_slot_under_the_cursor_shows(state_of(s)))
-            NATIVE_TIME_AS(s, MOVE_AMONG_THE_SLOTS, menu_move_among_the_slots(s));
+            TIMED_AS(state_of(s), MOVE_AMONG_THE_SLOTS, menu_move_among_the_slots(s));
         else
             m_stop_at_own(s, MOVE_AMONG_THE_SLOTS, READS_A_HIGH);
         break;

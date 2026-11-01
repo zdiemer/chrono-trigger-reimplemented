@@ -380,7 +380,7 @@ void menu_lay_out_tech_members_entry(Snes *s)
 {
     GameState *g = state_of(s);
     menu_techs_lay_out_members(g, m_platform(s));
-    NATIVE_TIME_AS(s, 0xC2B36D, choose_member(s));
+    TIMED_AS(state_of(s), 0xC2B36D, choose_member(s));
 }
 
 // $C2:BA4F

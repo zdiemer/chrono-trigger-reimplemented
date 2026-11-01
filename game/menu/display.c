@@ -296,7 +296,7 @@ MenuModeEnd menu_mode_runs(GameState *g, Platform *pf, uint8_t asked_for, uint16
 
 /* ---- On the machine ---- */
 
-static void start_again_on_the_machine(void *ctx) { NATIVE_TIME_AS((Snes *)ctx, 0xC2832F, menu_mode_restart(ctx)); }
+static void start_again_on_the_machine(void *ctx) { TIMED_AS(state_of(ctx), 0xC2832F, menu_mode_restart(ctx)); }
 
 /* The menus open on their own stack and page. */
 static bool opened_on_the_machine(void *ctx)
@@ -439,7 +439,7 @@ static bool wear_shown_back_to_the_caller(void *ctx)
 
 static bool faded_out_back_to_the_caller(void *ctx) { return menu_fade_out_from(ctx, 0xC282BE); }
 
-static void back_to_the_caller(void *ctx) { NATIVE_TIME_AS((Snes *)ctx, 0xC282C1, menu_mode_return(ctx)); }
+static void back_to_the_caller(void *ctx) { TIMED_AS(state_of(ctx), 0xC282C1, menu_mode_return(ctx)); }
 
 static bool wear_shown_for_the_game(void *ctx)
 {
@@ -448,7 +448,7 @@ static bool wear_shown_for_the_game(void *ctx)
 
 static bool faded_out_for_the_game(void *ctx) { return menu_fade_out_from(ctx, 0xC2832C); }
 
-static void on_to_the_game(void *ctx) { NATIVE_TIME_AS((Snes *)ctx, 0xC2832F, menu_mode_restart(ctx)); }
+static void on_to_the_game(void *ctx) { TIMED_AS(state_of(ctx), 0xC2832F, menu_mode_restart(ctx)); }
 
 void menu_close_entry(Snes *s)
 {

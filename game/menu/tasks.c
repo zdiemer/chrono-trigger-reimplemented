@@ -363,7 +363,7 @@ static void start_the_tasks(GameState *g)
 void menu_start_the_tasks(Snes *s)
 {
     start_the_tasks(state_of(s));
-    NATIVE_TIME_AS(s, 0xC281B9, menu_wait_for_the_first_frame(s));
+    TIMED_AS(state_of(s), 0xC281B9, menu_wait_for_the_first_frame(s));
 }
 
 bool menu_tasks_can_start(Snes *s) { return m_bank_reaches_low_ram(s); }

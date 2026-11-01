@@ -2790,6 +2790,17 @@ comparisons.
 
 ## The native program
 
+- **The menus' remaining machine boundaries.** The script bridge's near
+  and far calls still need a fallback for targets outside its C table and
+  for entries their guards refuse. Its selected routines retain machine
+  wrappers for the register results and nested call checkpoints; move those
+  callers onto the game-state routines as their comparison boundaries leave.
+  The screen steps' tail stops, scheduler switches and idle waits remain to
+  be connected to their C continuations. The two work-RAM transfers in
+  `menu/display.c` need a memory service with the gate's SNES transfer effects
+  before their video escapes can leave. Registered return wrappers remain
+  until their registry entries and original callers retire together.
+
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
 `ct_native` links the whole of `game/` but `registry.c`, with every service's

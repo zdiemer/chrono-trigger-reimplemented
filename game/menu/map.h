@@ -44,6 +44,9 @@ MenuViewCentre menu_map_view_centre(const GameState *g);
 void menu_map_centre_on_the_party(GameState *g);
 bool menu_map_party_centres_on_the_map(const GameState *g);
 void menu_map_redraw_plane(GameState *g, Platform *pf, uint8_t plane);
+/* The drawing alone, for callers that already set the original's plane
+ * cell and account for the redraw's time. */
+void menu_map_draw_plane(GameState *g, Platform *pf, uint8_t plane);
 bool menu_map_can_redraw(const GameState *g, uint8_t plane);
 
 /* The entries run on the menus' page, with the data bank on low RAM; the
@@ -59,5 +62,10 @@ void menu_map_scroll_x(Snes *s);
 void menu_map_scroll_y(Snes *s);
 void menu_map_redraw(Snes *s);
 void menu_map_upload_block(Snes *s);
+
+/* Register results shared by the entries and the script bridge. These do
+ * no game work and do not return through the emulated stack. */
+void menu_leave_map_scrolled(Snes *s, uint8_t plane, MenuAxis axis, int8_t step);
+void menu_leave_map_redrawn(Snes *s);
 
 #endif

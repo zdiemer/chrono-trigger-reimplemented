@@ -225,8 +225,8 @@ static bool ends_on_the_machine(void *ctx, ShopEnd end)
     switch (end) {
     case SHOP_FADES_IN: m_stop_at(s, FADE_IN, READS_NOTHING); break;
     case SHOP_LEAVES: m_stop_at(s, LEAVE_THE_SHOP, READS_NOTHING); break;
-    case SHOP_OPENS_THE_GOODS: NATIVE_TIME_AS(s, 0xC2DC7B, menu_open_goods_list(s)); break;
-    case SHOP_OPENS_THE_LIST_FOR_SALE: NATIVE_TIME_AS(s, 0xC2DE98, menu_open_for_sale_list(s)); break;
+    case SHOP_OPENS_THE_GOODS: TIMED_AS(state_of(s), 0xC2DC7B, menu_open_goods_list(s)); break;
+    case SHOP_OPENS_THE_LIST_FOR_SALE: TIMED_AS(state_of(s), 0xC2DE98, menu_open_for_sale_list(s)); break;
     case SHOP_REFUSES: menu_play_refusal_sound(s); break;
     case SHOP_REFUSES_A_SLOT: m_stop_at_own(s, REFUSAL_SOUND, READS_A_HIGH); break;
     }
