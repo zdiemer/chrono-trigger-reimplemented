@@ -3539,6 +3539,10 @@ another vehicle, wraparound dactyl formations and completed Epoch scenes.
 Cases in `tools/unreached_cases.toml` extend the existing recipes and explain
 their constraints. Their base states are replayed with `--native off` and
 cached with the movie, state specification and interpreter fingerprints.
+Cross-entry evidence requires the file's explicit list of shared C callers:
+the word comparisons share the byte comparison's operator helpers, and the
+dactyl shares the leader's scrolling helpers. An unrelated interpreted
+call-out visiting an address on both machines is not evidence for its port.
 
 **What is reviewed rather than executed.** Most exclusions are rejected
 selectors, missing-resource diagnostics, explicit error handoffs or branches

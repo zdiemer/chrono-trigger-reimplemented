@@ -2,6 +2,13 @@
 # base is a recipe in fuzz_routines.toml (name[:variant]); args replace the
 # same fill area/register range, otherwise append. All numbers in areas are hex.
 
+# Explicitly reviewed shared C implementations. A caller's comparison can
+# discharge another owner's bytes only here, never merely because an
+# interpreted call-out happened to visit that address on both machines.
+[shared]
+event_cmd_if_compares = ["event_cmd_if_compares_word", "event_cmd_if_compares_variable_word"]
+overworld_lead = ["overworld_dactyl"]
+
 [[case]]
 base = "overworld_set_up"
 variant = "unreached_setup"

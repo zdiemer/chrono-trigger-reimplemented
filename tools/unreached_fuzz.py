@@ -74,7 +74,15 @@ def recipes():
         if key in result:
             raise ValueError(f'duplicate case {key}')
         result[key] = recipe
+    for recipe in result.values():
+        shared = [owner for owner, callers in config.get('shared', {}).items() if recipe['name'] in callers]
+        if shared:
+            recipe['covers'] = shared
     return states, result
+
+
+def covers(recipe, owner):
+    return recipe['name'] == owner or owner in recipe.get('covers', [])
 
 
 def fingerprint(recipe, states):

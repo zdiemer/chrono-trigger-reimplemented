@@ -70,7 +70,7 @@ class UnreachedTest(unittest.TestCase):
                                        'case', '1', '1000', '999', 'fingerprint', '0', 'boundary']]
         with patch.object(f, 'fingerprint', return_value='fingerprint'):
             def check():
-                return u.check_records([self.row], records, {'movie': 'movie-sha'}, {'case': {}}, {}, root=self.root)
+                return u.check_records([self.row], records, {'movie': 'movie-sha'}, {'case': {'name': 'operation'}}, {}, root=self.root)
             self.assertEqual(check(), [])
             records[-1][7] = '0'
             self.assertTrue(check())
@@ -118,6 +118,10 @@ class UnreachedTest(unittest.TestCase):
         self.assertNotIn('X=0000-0010', merged)
         self.assertIn('7E0050-7E0051=@7E0040', merged)
         self.assertIn('7E0000-7E0010', merged)
+
+    def test_an_unrelated_callout_is_not_evidence_for_a_port(self):
+        self.assertFalse(f.covers({'name': 'caller'}, 'callee'))
+        self.assertTrue(f.covers({'name': 'caller', 'covers': ['callee']}, 'callee'))
 
 
 if __name__ == '__main__':

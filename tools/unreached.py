@@ -209,6 +209,10 @@ def check_records(rows, records, movies, recipes, states, root=ROOT, measured=Fa
     for entry, (_, name, _, missing) in ports.items():
         if proofs[entry] != missing:
             errors.append(f'{name}: evidence does not cover exactly its unreached bytes')
+    for c in records:
+        if c[0] == 'fuzz' and c[1] in ports and c[4] in recipes:
+            if not unreached_fuzz.covers(recipes[c[4]], ports[c[1]][1]):
+                errors.append(f'{c[1]}: {c[4]} is not a reviewed caller of this C implementation')
     for entry in proofs.keys() - ports.keys():
         errors.append(f'{entry}: evidence without an inventoried port')
     for r in rows:
@@ -244,6 +248,8 @@ def record(rows, movies, evidence_dir, safety, target):
         records.append(['port', row['subsystem'], row['entry'], row['name'], row['digest'],
                         str(len(missing)), spans_text(row['runs']), 'burndown live reach, own regions before inlined helpers.'])
         for case, result, pcs in sorted(evidence, key=lambda e: e[1]['recipe']['name'] != row['name']):
+            if not unreached_fuzz.covers(result['recipe'], row['name']):
+                continue
             checked = missing & touched(row, pcs)
             if not checked:
                 continue
