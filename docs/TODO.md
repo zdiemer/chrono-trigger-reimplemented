@@ -3012,8 +3012,8 @@ list, by kind, is what `game/` still asks of one.
   the main loop's scalings (history/reimplementation-chunks.md, "The native
   program through the story scenes"), and mode 10's picture and the slow
   staff roll, mode 12 (history/reimplementation-chunks.md, "The native program's last named
-  stops"); what is left stops the program where it is met: mode 5 (`$7E:7092`, 2 KiB: a turned
-  map, its two scripts and the main loop's turning `$7E:7441`; nothing in the
+  stops"); what is left stops the program where it is met: mode 5 (`$7E:7092`: its setup and figures; the main loop's map
+  sampler and its geometry are C now; nothing in the
   game starts it, movies-wanted.md), and a task, routine or command a state
   the ports don't take reaches. The
   stars' first draw in a setup that scatters them starts from nothing in
@@ -3029,7 +3029,7 @@ list, by kind, is what `game/` still asks of one.
   rest: 259 entries the machine still enters, 21.1 M times over the library.
 - **Finish the scene-joints pass.** The scene and warp files still contain
   50 stops after calling the credits scroll as C (the archived
-  "Scene continuations: the staff roll"). Mode 5's setup and map turning
+  "Scene continuations: the staff roll"). Mode 5's setup and figures
   remain unported work. The task exits at
   `$7E:39A7`, `$7E:39B1` and `$7E:39DE` need the frame-list bridge to consume
   a C task outcome: standalone task wrappers still stop with the caller's
@@ -3773,11 +3773,6 @@ waits on M5 rather than on a backend.
   credits with their tables of where each page's names and jobs start
   (`credit_pages.c`, `wram_read8`/`wram_read16` on `$7E`). The asset seam wants
   a named accessor for each, as for the resources in bank `$FE`.
-- **The palace rising works out a turning matrix it never uses**
-  (`rising_palace.c`, `$7E:73C6`, and the turned map's row count the setup
-  sets): mode 5's turning of a map (`$7E:7441`) is what would read them, and
-  it is still the original's. When mode 5 is ported, the matrix and its
-  operands belong with it.
 - **A script's task search reaches work RAM by address**
   (`scene/frame.c`, `scene_script_replace_task`, `word_past_the_list`): past
   its list the search reads and writes any word of `$7E`/`$7F` from

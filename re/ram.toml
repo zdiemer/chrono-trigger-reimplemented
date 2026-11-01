@@ -1996,6 +1996,70 @@ meaning = "Nonzero while the map buffer ($1400) holds a map for VRAM: the progra
 source = "game/scene/rising_palace.c, the map's upload $7E:783C"
 
 [[var]]
+name = "scene_map_sampling_work"
+addr = "7E:002F"
+size = 2
+count = 6
+index = "row down, row across, columns left, rows left, sample across, sample down"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_scaler_plane_output", "scene_scaler_source_row", "scene_wide_tile_rows_left", "scene_scaler_row_position", "scene_scaler_pair_counter", "scene_scaler_output_end", "scene_race_tilemap_pending"]
+meaning = "The map sampler's original work cells, left for comparisons; the C sampler holds positions and counts locally"
+source = "game/scene/rising_palace.c $7E:7441"
+
+[[var]]
+name = "scene_map_pending_count"
+addr = "7E:003B"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_map_buffer_waiting", "scene_bitplane_scratch"]
+meaning = "The map sampler increments this word when a map is ready; the upload tests and clears its low byte, scene_map_buffer_waiting"
+source = "game/scene/rising_palace.c $7E:7441"
+
+[[var]]
+name = "scene_map_row_down_step"
+addr = "7E:749E"
+size = 2
+subsystem = "scene"
+meaning = "The map sampler's row step down, stored as an operand in the original's sampling loop"
+source = "game/scene/rising_palace.c $7E:7441"
+
+[[var]]
+name = "scene_map_row_across_step"
+addr = "7E:74A7"
+size = 2
+subsystem = "scene"
+meaning = "The map sampler's row step across, stored as an operand in the original's sampling loop"
+source = "game/scene/rising_palace.c $7E:7441"
+
+[[var]]
+name = "scene_map_column_down_step"
+addr = "7E:74B0"
+size = 2
+subsystem = "scene"
+meaning = "The map sampler's column step down, stored as an operand in the original's sampling loop"
+source = "game/scene/rising_palace.c $7E:7441"
+
+[[var]]
+name = "scene_map_column_across_step"
+addr = "7E:74BB"
+size = 2
+subsystem = "scene"
+meaning = "The map sampler's column step across, stored as an operand in the original's sampling loop"
+source = "game/scene/rising_palace.c $7E:7441"
+
+[[var]]
+name = "scene_angle_thresholds"
+addr = "7E:58F8"
+size = 2
+count = 64
+index = "quarter-turn step, four angle units per step"
+subsystem = "scene"
+meaning = "The tangent thresholds that quantize an offset's slope to one of 64 steps in a quarter turn"
+source = "game/scene/math.c $7E:5872"
+
+[[var]]
 name = "scene_palace_ripple_scroll"
 addr = "7E:003D"
 size = 2

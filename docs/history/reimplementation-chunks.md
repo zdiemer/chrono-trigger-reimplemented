@@ -12347,3 +12347,43 @@ at 2,189 entries; burndown remains 12% unported for scene RAM and 7% for the
 scene engine. This chunk joins existing C; it does not implement the
 remaining scene modes. The remaining scene program and task exits are
 recorded in TODO.md; this pass does not reach zero stops.
+
+### Scene program: mode 10's panorama
+
+The RAM burndown's next complete scene was the sequence after mode 10's
+mosaic: the panorama loader, its change to layered scenery, and the horizon
+task (`$7E:8A01`, `$8AF5`, `$8B52`), with its packed-pixel expansion
+(`$7E:353C`). All were drafted together, including the existing map widening
+and fill helpers. The preceding scene-joints work is in
+history/reimplementation-chunks.md, "Scene continuations: the staff roll".
+
+The loader uploads three layers, pads their maps, expands paired four-bit
+colors directly into the Mode 7 plane, widens its name table, and installs
+the palette and line effects. The next scene changes the line effects and
+splits the horizon into spans small enough for their line counts. Its task
+moves the ground and sky from the script's horizon. These are GameState and
+Platform functions, called directly by the script and task tables; four
+registered wrappers retain the oracle comparisons.
+
+The platform gained the panorama map's upload encoding, its map-padding
+encoding, and a subscreen-only line effect in both backends. Fuzzing found
+the missing line-effect target, a palette resource number supplied as a
+byte offset, and the WRAM cursor's unmasked high byte after a packed-pixel
+run crosses the bank. All are fixed. Seed 1 compares 300 loader states,
+2,000 layered-scene states, 2,000 horizon states and 300 pixel-expansion
+states: zero mismatches, skips, refusals or accessor overruns. The pixel
+counts and the horizon retain their full random domains.
+
+The native mode 10 run passes the former stop at frame 5,637 and runs
+16,000 frames into its last scene's scripts without a program stop. Its
+picture report remains dark throughout, including before the new loader;
+this proves continuation, not visual agreement. No library movie reaches
+the new entries, so their comparisons are the fuzz runs. The narrowed
+Beyond Time shadow regression runs 130,000 frames with zero mismatches.
+Both style checks and the scaffolding-read check report zero findings.
+
+Scene RAM coverage rises from 22.2K to 22.7K of 25.1K (12% to 10% left).
+The four oracle wrappers add four returns, seven scaffolding writes and
+21 video calls: scene/warp machine joints rise from 755 to 787, while
+stops remain 50. No call-out, stop, timing exception or fallback allowance
+was added. The sampled gate waits until the scene-joints pass is finished.

@@ -102,6 +102,7 @@ typedef enum {
 typedef enum {
     SCENE_PASS_NOTHING = 0x3176, SCENE_PASS_RACE_SCALING = 0x51D1, SCENE_PASS_ENDING_SCALING = 0x8930,
     SCENE_PASS_DIVE_SCALING = 0x8278,
+    SCENE_PASS_TURN_MAP = 0x7441,
 } ScenePass;
 
 /* ---- The scene program's memory and transfers ------------------------------------------------ */
@@ -492,6 +493,15 @@ void scene_circle_draw(GameState *g, uint8_t mode);
 enum { SCENE_FULL_TURN = 0x400, SCENE_HALF_TURN = 0x200, SCENE_QUARTER_TURN = 0x100 };
 int16_t scene_sine(const GameState *g, uint16_t angle);
 int16_t scene_cosine(const GameState *g, uint16_t angle);
+uint16_t scene_offset_angle(GameState *g, int16_t across, int16_t down);
+uint16_t scene_radius_from_area(GameState *g, uint32_t area);
+void scene_offset_angle_entry(Snes *s);
+bool scene_offset_angle_present(Snes *s);
+void scene_radius_from_area_entry(Snes *s);
+bool scene_radius_from_area_present(Snes *s);
+bool scene_turn_map(GameState *g);
+void scene_turn_map_entry(Snes *s);
+bool scene_turn_map_present(Snes *s);
 bool scene_sine_second_half(uint16_t angle);
 /* For the entry wrappers: whether an angle a quarter turn on passes the top
  * of a signed word (from $7F00 up to $7FFF), the overflow the original's

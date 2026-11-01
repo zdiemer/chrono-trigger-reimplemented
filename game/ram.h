@@ -8714,6 +8714,13 @@
  * graphics) [2 bytes] */
 #define RAM_SCENE_SCALER_OUTPUT 0x7E002Du
 #define RAM_SCENE_SCALER_OUTPUT_DP 0x2Du     /* page scene */
+/* The map sampler's original work cells, left for comparisons; the C sampler holds positions and
+ * counts locally [6 x $2 bytes, by row down, row across, columns left, rows left, sample across,
+ * sample down] */
+#define RAM_SCENE_MAP_SAMPLING_WORK 0x7E002Fu
+#define RAM_SCENE_MAP_SAMPLING_WORK_COUNT 6u
+#define RAM_SCENE_MAP_SAMPLING_WORK_STRIDE 0x02u
+#define RAM_SCENE_MAP_SAMPLING_WORK_DP 0x2Fu /* page scene */
 /* Bitmap scaler: where the next four bitplane bytes go, advancing by 4 per 8 samples [2 bytes] */
 #define RAM_SCENE_SCALER_PLANE_OUTPUT 0x7E002Fu
 #define RAM_SCENE_SCALER_PLANE_OUTPUT_DP 0x2Fu /* page scene */
@@ -8749,6 +8756,10 @@
  * ($7E:783C) sends it and clears this */
 #define RAM_SCENE_MAP_BUFFER_WAITING 0x7E003Bu
 #define RAM_SCENE_MAP_BUFFER_WAITING_DP 0x3Bu /* page scene */
+/* The map sampler increments this word when a map is ready; the upload tests and clears its low
+ * byte, scene_map_buffer_waiting [2 bytes] */
+#define RAM_SCENE_MAP_PENDING_COUNT 0x7E003Bu
+#define RAM_SCENE_MAP_PENDING_COUNT_DP 0x3Bu /* page scene */
 /* The palace's scene (mode 3): BG3's horizontal scroll, which moves the column offsets' ripple
  * across the picture by its strength each frame [2 bytes] */
 #define RAM_SCENE_PALACE_RIPPLE_SCROLL 0x7E003Du
@@ -9626,6 +9637,11 @@
  * setup writes a branch to the next instruction over it ($0080), which draws every star behind
  * them, behind the credits [2 bytes] */
 #define RAM_SCENE_STARS_DEPTH_BRANCH 0x7E582Eu
+/* The tangent thresholds that quantize an offset's slope to one of 64 steps in a quarter turn
+ * [64 x $2 bytes, by quarter-turn step, four angle units per step] */
+#define RAM_SCENE_ANGLE_THRESHOLDS 0x7E58F8u
+#define RAM_SCENE_ANGLE_THRESHOLDS_COUNT 64u
+#define RAM_SCENE_ANGLE_THRESHOLDS_STRIDE 0x02u
 /* The routine the program's loop over a picture's tiles ($7E:5E3C) calls on each, the operand of
  * its call: the title's expansion of a tile into the plane's pixels ($5E54), or the one the
  * shared endings' third scene writes ($5EF8) [2 bytes] */
@@ -9675,6 +9691,18 @@
  * buffer: the operand of its own load, $1B as the program is unpacked, which the palace's setup
  * makes $1C */
 #define RAM_SCENE_TURNED_MAP_ROWS 0x7E7442u
+/* The map sampler's row step down, stored as an operand in the original's sampling loop [2
+ * bytes] */
+#define RAM_SCENE_MAP_ROW_DOWN_STEP 0x7E749Eu
+/* The map sampler's row step across, stored as an operand in the original's sampling loop [2
+ * bytes] */
+#define RAM_SCENE_MAP_ROW_ACROSS_STEP 0x7E74A7u
+/* The map sampler's column step down, stored as an operand in the original's sampling loop [2
+ * bytes] */
+#define RAM_SCENE_MAP_COLUMN_DOWN_STEP 0x7E74B0u
+/* The map sampler's column step across, stored as an operand in the original's sampling loop [2
+ * bytes] */
+#define RAM_SCENE_MAP_COLUMN_ACROSS_STEP 0x7E74BBu
 /* Where the program's upload of the map buffer ($7E:783C) sends it in VRAM: the operand of its
  * own load, $6000 as the program is unpacked, which the palace's setup makes 0 [2 bytes] */
 #define RAM_SCENE_MAP_UPLOAD_VRAM 0x7E7841u

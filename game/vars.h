@@ -13245,6 +13245,12 @@ void set_scene_turn_position(GameState *g, unsigned i, uint16_t v);
 uint16_t scene_scaler_output(const GameState *g);
 void set_scene_scaler_output(GameState *g, uint16_t v);
 
+enum { SCENE_MAP_SAMPLING_WORK_COUNT = 6 };   /* by row down, row across, columns left, rows left, sample across, sample down */
+/* The map sampler's original work cells, left for comparisons; the C sampler holds positions and
+ * counts locally */
+uint16_t scene_map_sampling_work(const GameState *g, unsigned row);
+void set_scene_map_sampling_work(GameState *g, unsigned row, uint16_t v);
+
 /* Bitmap scaler: where the next four bitplane bytes go, advancing by 4 per 8 samples */
 uint16_t scene_scaler_plane_output(const GameState *g);
 void set_scene_scaler_plane_output(GameState *g, uint16_t v);
@@ -13288,6 +13294,11 @@ void set_scene_bitplane_scratch_byte(GameState *g, unsigned at, uint8_t v);
  * ($7E:783C) sends it and clears this */
 uint8_t scene_map_buffer_waiting(const GameState *g);
 void set_scene_map_buffer_waiting(GameState *g, uint8_t v);
+
+/* The map sampler increments this word when a map is ready; the upload tests and clears its low
+ * byte, scene_map_buffer_waiting */
+uint16_t scene_map_pending_count(const GameState *g);
+void set_scene_map_pending_count(GameState *g, uint16_t v);
 
 /* The palace's scene (mode 3): BG3's horizontal scroll, which moves the column offsets' ripple
  * across the picture by its strength each frame */
@@ -14487,6 +14498,11 @@ void set_scene_race_corner_sprites(GameState *g, uint8_t v);
 uint16_t scene_stars_depth_branch(const GameState *g);
 void set_scene_stars_depth_branch(GameState *g, uint16_t v);
 
+enum { SCENE_ANGLE_THRESHOLDS_COUNT = 64 };   /* by quarter-turn step, four angle units per step */
+/* The tangent thresholds that quantize an offset's slope to one of 64 steps in a quarter turn */
+uint16_t scene_angle_thresholds(const GameState *g, unsigned i);
+void set_scene_angle_thresholds(GameState *g, unsigned i, uint16_t v);
+
 /* The routine the program's loop over a picture's tiles ($7E:5E3C) calls on each, the operand of
  * its call: the title's expansion of a tile into the plane's pixels ($5E54), or the one the
  * shared endings' third scene writes ($5EF8) */
@@ -14560,6 +14576,22 @@ void set_scene_palace_clearing_step(GameState *g, uint8_t v);
  * makes $1C */
 uint8_t scene_turned_map_rows(const GameState *g);
 void set_scene_turned_map_rows(GameState *g, uint8_t v);
+
+/* The map sampler's row step down, stored as an operand in the original's sampling loop */
+uint16_t scene_map_row_down_step(const GameState *g);
+void set_scene_map_row_down_step(GameState *g, uint16_t v);
+
+/* The map sampler's row step across, stored as an operand in the original's sampling loop */
+uint16_t scene_map_row_across_step(const GameState *g);
+void set_scene_map_row_across_step(GameState *g, uint16_t v);
+
+/* The map sampler's column step down, stored as an operand in the original's sampling loop */
+uint16_t scene_map_column_down_step(const GameState *g);
+void set_scene_map_column_down_step(GameState *g, uint16_t v);
+
+/* The map sampler's column step across, stored as an operand in the original's sampling loop */
+uint16_t scene_map_column_across_step(const GameState *g);
+void set_scene_map_column_across_step(GameState *g, uint16_t v);
 
 /* Where the program's upload of the map buffer ($7E:783C) sends it in VRAM: the operand of its
  * own load, $6000 as the program is unpacked, which the palace's setup makes 0 */

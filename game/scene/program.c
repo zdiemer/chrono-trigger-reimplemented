@@ -387,6 +387,7 @@ static bool main_loop_pass(GameState *g, Platform *pf)
     case SCENE_PASS_RACE_SCALING: TIMED_AS(g, PROGRAM_BANK | call, done = scene_race_scale_pictures(g, pf)); return done;
     case SCENE_PASS_ENDING_SCALING: TIMED_AS(g, PROGRAM_BANK | call, done = scene_ending_scale_picture(g, pf)); return done;
     case SCENE_PASS_DIVE_SCALING: TIMED_AS(g, PROGRAM_BANK | call, done = scene_scale_the_epoch(g, pf)); return done;
+    case SCENE_PASS_TURN_MAP: TIMED_AS(g, PROGRAM_BANK | call, done = scene_turn_map(g)); return done;
     default:
         program_needs_the_machine(g, PROGRAM_BANK | call, "a scene's main loop call only the machine runs");
         return false;

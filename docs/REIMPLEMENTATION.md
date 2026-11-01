@@ -3108,45 +3108,39 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene program: mode 10's panorama
+### Scene program: the turning map and its geometry
 
-The RAM burndown's next complete scene was the sequence after mode 10's
-mosaic: the panorama loader, its change to layered scenery, and the horizon
-task (`$7E:8A01`, `$8AF5`, `$8B52`), with its packed-pixel expansion
-(`$7E:353C`). All were drafted together, including the existing map widening
-and fill helpers. The preceding scene-joints work is in
-history/reimplementation-chunks.md, "Scene continuations: the staff roll".
+Mode 5's map sampler and its angle and radius helpers are C
+(`$7E:7441`, `$7E:5872`, `$7E:34FB`). The complete mode and its helpers
+were drafted together. The sampler walks the output grid through the
+scene's transformation matrix, selects wrapped source tiles and queues
+the finished map. The angle helper chooses a quadrant and a threshold
+from the scene's angle table; the radius helper searches for the largest
+radius whose preceding ring fits the area. Their logic takes GameState
+and ordinary values; three entry wrappers preserve the oracle interface.
+The native main loop calls the sampler directly.
 
-The loader uploads three layers, pads their maps, expands paired four-bit
-colors directly into the Mode 7 plane, widens its name table, and installs
-the palette and line effects. The next scene changes the line effects and
-splits the horizon into spans small enough for their line counts. Its task
-moves the ground and sky from the script's horizon. These are GameState and
-Platform functions, called directly by the script and task tables; four
-registered wrappers retain the oracle comparisons.
+The packed coordinates retain the original's wrapping and rounding at
+row and column boundaries. The sampler's pending count is a word, even
+though the uploader consumes its low byte. Fuzzing compares 2,000 sampler
+states, 20,000 signed offsets and 20,000 areas with seed 1, with zero
+mismatches, skips, guard refusals or accessor overruns. The sampler covers
+1 through 32 output rows, including both setup values, with unrestricted
+matrices and origins. Attract-demo shadow runs 22,500 frames with zero
+mismatches; this movie does not enter mode 5. The full build, style checks
+and scaffolding-read check pass.
 
-The platform gained the panorama map's upload encoding, its map-padding
-encoding, and a subscreen-only line effect in both backends. Fuzzing found
-the missing line-effect target, a palette resource number supplied as a
-byte offset, and the WRAM cursor's unmasked high byte after a packed-pixel
-run crosses the bank. All are fixed. Seed 1 compares 300 loader states,
-2,000 layered-scene states, 2,000 horizon states and 300 pixel-expansion
-states: zero mismatches, skips, refusals or accessor overruns. The pixel
-counts and the horizon retain their full random domains.
+Eleven effects-check alias findings have explicit evidence: the mode's
+scratch overlaps the race and bitmap scaler, and every scene setup clears
+the entire direct page before either mode uses it. The sampler's pending
+count is a plain game write. No style or smell baseline was expanded.
+The prior panorama chunk is archived in history/reimplementation-chunks.md.
 
-The native mode 10 run passes the former stop at frame 5,637 and runs
-16,000 frames into its last scene's scripts without a program stop. Its
-picture report remains dark throughout, including before the new loader;
-this proves continuation, not visual agreement. No library movie reaches
-the new entries, so their comparisons are the fuzz runs. The narrowed
-Beyond Time shadow regression runs 130,000 frames with zero mismatches.
-Both style checks and the scaffolding-read check report zero findings.
-
-Scene RAM coverage rises from 22.2K to 22.7K of 25.1K (12% to 10% left).
-The four oracle wrappers add four returns, seven scaffolding writes and
-21 video calls: scene/warp machine joints rise from 755 to 787, while
-stops remain 50. No call-out, stop, timing exception or fallback allowance
-was added. The sampled gate waits until the scene-joints pass is finished.
+Scene RAM coverage rises from 22.7K to 23.0K of 25.1K (10% to 9% left).
+The three oracle wrappers and their retained scratch effects take the
+scene/warp joints from 787 to 799; stops remain 50. Mode 5's setup and
+figures remain to port. No timing or fallback allowance changed, and the
+sampled gate waits until the scene-joints pass is finished.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 

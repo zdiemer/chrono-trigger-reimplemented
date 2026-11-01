@@ -2888,6 +2888,12 @@ const NativeEntry game_natives[] = {
     /* the palace rising (scene/rising_palace.c) */
     { .addr = 0x7E671F, .name = "scene_palace_set_up", .fn = scene_palace_set_up_entry, NEEDS_M8_X16, .cost_milli = 5078,
       .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C | DC_D, .guard = scene_palace_set_up_present },
+    { .addr = 0x7E7441, .name = "scene_turn_map", .fn = scene_turn_map_entry, NEEDS_M16_X16_BINARY,
+      .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z, .guard = scene_turn_map_present },
+    { .addr = 0x7E5872, .name = "scene_offset_angle", .fn = scene_offset_angle_entry, NEEDS_M16_X16_BINARY,
+      .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = scene_offset_angle_present },
+    { .addr = 0x7E34FB, .name = "scene_radius_from_area", .fn = scene_radius_from_area_entry, NEEDS_M16_X16_BINARY,
+      .dont_care = DC_A | DC_Y | DC_N | DC_Z | DC_C, .guard = scene_radius_from_area_present },
     { .addr = 0x7E73C6, .name = "scene_work_out_the_turn", .fn = scene_work_out_the_turn, NEEDS_M16_X16, .cost_milli = 6940,
       .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C, .guard = scene_work_out_the_turn_present },
     { .addr = 0x7E6A23, .name = "scene_shimmer_the_palace", .fn = scene_shimmer_the_palace, NEEDS_M16_X16, .cost_milli = 6018,

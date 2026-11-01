@@ -895,6 +895,30 @@ iterations = 300
 why = "mode 10's script call, on channel 0; the shared scene program and its resources kept"
 
 [[routine]]
+name = "scene_turn_map"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E7442-7E7442=01-20"]
+iterations = 2000
+why = "the guard takes 1-32 output rows, within the map buffer; all matrix and origin words are unrestricted"
+
+[[routine]]
+name = "scene_offset_angle"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+iterations = 20000
+why = "the scene's page and I/O bank; full signed offsets, including wrapped byte divisors"
+
+[[routine]]
+name = "scene_radius_from_area"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+iterations = 20000
+why = "the scene's page; every area word and either incoming rounding bit"
+
+[[routine]]
 name = "scene_ending_layer_panorama"
 subsystem = "scene"
 state = "staff_roll"
