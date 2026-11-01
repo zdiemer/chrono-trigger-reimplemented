@@ -12650,3 +12650,31 @@ narrowed fallback ratchet has no new or increased rows. Style and smell
 checks pass. Scene/warp joints fall from 817 to 813, stops from 20 to 17,
 and one machine timing tag becomes a GameState tag. The sampled gate is
 reserved for the end of the pass.
+
+
+### Scene continuations: the camera checks build perspective in C
+
+The race, Beyond Time flight and Epoch shell checks validate the next
+perspective before updating the saved camera. A shared, read-only camera
+comparison supplies this guard decision and the existing camera keeper.
+Unchanged cameras need no drawing and do not acquire new geometry
+restrictions; a flat flight view likewise keeps its separate path.
+Changed cameras call the existing perspective builder directly, removing
+all three mid-routine stops at `$7E:357B`. The race no longer needs a
+machine callback through the game operation.
+
+Differential fuzz compares both Epoch views, visible race and flight
+horizons, and unchanged race and flight cameras: six fixtures of 2,000
+cases, zero mismatches, skips or refusals. Broad random geometry is also
+checked: the race accepts 5/2,000 and the flight 985/2,000, with zero
+mismatches; the rest previously stopped at an unsupported perspective and
+now refuse it before mutation. The existing paired-line C branch covers
+RAM's final 29-byte static coverage gap; no synthetic entry was added to
+change the burndown number.
+
+Complete events-jetbike-race-won, events-epoch-lavos and endings-beyond-time
+shadow runs pass with zero mismatches and no real-play refusals. Their
+fallback ratchet has no new or increased rows. Style, smell and effects
+checks are clean. Scene/warp joints fall from 813 to 808: stops 17 to 14,
+one fewer machine return and one fewer scaffolding site. The sampled gate
+remains reserved for the end of the pass.

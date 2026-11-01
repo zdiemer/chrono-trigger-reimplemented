@@ -146,6 +146,32 @@ static void loop_first(Snes *s) { loop_after(s, 0, 0); }
 static void loop_third(Snes *s) { loop_after(s, 2, 0); }
 static void loop_wrong(Snes *s) { loop_after(s, 2, 1); }
 
+/* Two registered points in one loop, both covering its remaining iterations.
+ * Neither reentry at the same stack depth is a fresh nested call. */
+static void loop_tail(Snes *s)
+{
+    m_ldx16(s, (uint16_t)(s->cpu.x + 1));
+    while (s->cpu.x < 5) {
+        inc_dp(s, 0x10, 1);
+        m_ldx16(s, (uint16_t)(s->cpu.x + 1));
+    }
+    m_set_flag(s, CPU_FLAG_C, true);
+    m_set_nz16(s, 0);
+    m_rts(s);
+}
+
+static void loop_head(Snes *s)
+{
+    inc_dp(s, 0x10, 1);
+    loop_tail(s);
+}
+
+static void loop_whole(Snes *s)
+{
+    m_ldx16(s, 0);
+    loop_head(s);
+}
+
 /* 8120: the first two passes' calls inlined, the third called out. */
 static void call_third(Snes *s)
 {
@@ -319,7 +345,7 @@ static void handler_entry_wrong_x_live(Snes *s) { handler_entry_wrong_x(s, false
 /* ---- running a case ------------------------------------------------------------------ */
 
 typedef struct {
-    unsigned calls, matched, mismatched, interrupted, abandoned;
+    unsigned calls, matched, mismatched, interrupted, abandoned, skipped;
 } Counts;
 
 /* What the last case's run left: each entry's counters, and the details. */
@@ -354,7 +380,7 @@ static void run_case(const uint8_t *rom, const NativeEntry *table, int n, bool n
     for (int i = 0; i < n && i < 8; i++) {
         const NativeStats *st = native_stats_named(rt, table[i].name);
         names[ncounts] = table[i].name;
-        counts[ncounts++] = (Counts){ st->calls, st->matched, st->mismatched, st->interrupted, st->abandoned };
+        counts[ncounts++] = (Counts){ st->calls, st->matched, st->mismatched, st->interrupted, st->abandoned, st->skipped };
     }
     details[0] = 0;
     size_t used = 0;
@@ -398,6 +424,16 @@ int main(void)
     expect("loop_third", true);
     RUN(true, false, 2, ENTRY(0x008100, loop_wrong));
     expect("loop_wrong", false);
+
+    RUN(false, false, 2, ENTRY(0x008100, loop_whole), ENTRY(0x008103, loop_head), ENTRY(0x008105, loop_tail));
+    expect("loop_whole", true);
+    expect("loop_head", true);
+    expect("loop_tail", true);
+    CHECK(counts_of("loop_head").calls == counts_of("loop_whole").calls &&
+          counts_of("loop_tail").calls == counts_of("loop_whole").calls,
+          "alternating loop entries nested duplicate comparisons");
+    CHECK(counts_of("loop_head").skipped == 0 && counts_of("loop_tail").skipped == 0,
+          "alternating loop entries exhausted the comparison pool");
 
     /* the report describes mismatches before notes (an abandoned comparison),
      * whichever came first, so notes can't crowd out what the gate fails on */

@@ -11,11 +11,9 @@
  * left of the previous bitmap's output beyond this one's is cleared. Both live in
  * the second bank of work RAM, where the scene programs put them.
  *
- * The original draws every row in one call that spans several frames, so the
- * port draws a row per call and stops at the row loop's head ($C3:0309, an
- * entry of its own): each row is compared on its own. The native program,
- * whose main loop has nothing to share its frames with, draws the whole
- * bitmap in one call (scene_scale_the_bitmap).
+ * Both entry points draw the whole bitmap in C. Their guards check the
+ * complete output extent before drawing, including the initial row's
+ * carry-dependent nudge; the runtime schedules any intervening interrupts.
  *
  * The original never clears the carry between its sums, and three of them move
  * what the player sees: a row's samples start 1/256 of a pixel further on when
@@ -45,8 +43,8 @@ enum { PIXEL_UNITS = 256, ROW_UNITS = 128, SOURCE_ROW_BYTES = 0x40 };
  * bank. */
 enum { POSITIONS = 0x10000 };
 
-/* The row loop's head, where the port stops after each row. */
-enum { ROW_LOOP = 0xC30309 };
+/* The row loop's entry, used to attribute the drawing's time. */
+enum { ROW_LOOP = 0xC30309, SAMPLE_ROW = 0xC3034A };
 
 /* An address in the scaler's bank, `offset` past `at` (running on into the next
  * bank, as the original's indexed addressing does). */
@@ -181,6 +179,13 @@ static void end_bitmap(GameState *g, bool borrowed)
 
 typedef enum { ROW_DRAWN, BITMAP_ENDED } RowOutcome;
 
+static void next_output_row(GameState *g)
+{
+    uint16_t next = (uint16_t)(scene_scaler_output(g) + ROW_BYTES);
+    set_scene_scaler_output(g, next);
+    set_scene_scaler_plane_output(g, next);
+}
+
 // $C3:0309
 /* The next output row, or the end of the bitmap. `row_nudge` picks the row's
  * source 1/128 of a row further on (see the top of the file); where the rows
@@ -207,12 +212,12 @@ static RowOutcome scale_row(GameState *g, bool row_nudge)
     if (source == previous) {
         repeat_last_row(g, output);
     } else {
-        set_scene_scaler_source_row(g, source);
-        sample_row(g, source, source > previous);
+        TIMED_AS(g, SAMPLE_ROW, {
+            set_scene_scaler_source_row(g, source);
+            sample_row(g, source, source > previous);
+        });
     }
-    uint16_t next = (uint16_t)(output + ROW_BYTES);
-    set_scene_scaler_output(g, next);
-    set_scene_scaler_plane_output(g, next);
+    next_output_row(g);
     return ROW_DRAWN;
 }
 
@@ -241,29 +246,79 @@ bool scene_scaler_draws(const GameState *g)
  * row nudged by `row_nudge`, each after it by the carry of the output's step
  * before it, which only a step past the bank's end leaves. False where a row
  * is one the port doesn't draw, which the program can't go on from. */
-bool scene_scale_the_bitmap(GameState *g, bool row_nudge)
+static void draw_bitmap(GameState *g, bool row_nudge)
 {
     for (;;) {
-        if (!scene_scaler_draws(g)) {
-            program_needs_the_machine(g, ROW_LOOP, "a bitmap the port's scaler doesn't draw");
-            return false;
-        }
         if (scale_row(g, row_nudge) == BITMAP_ENDED)
-            return true;
+            return;
         row_nudge = scene_scaler_output(g) < ROW_BYTES;
     }
 }
 
+static bool bitmap_fits(const GameState *g, uint16_t position, bool row_nudge);
+
+bool scene_scale_the_bitmap(GameState *g, bool row_nudge)
+{
+    /* Native callers have just handed over a new picture with scaler_start. */
+    if (!bitmap_fits(g, 0, row_nudge)) {
+        program_needs_the_machine(g, ROW_LOOP, "a bitmap the port's scaler doesn't draw");
+        return false;
+    }
+    draw_bitmap(g, row_nudge);
+    return true;
+}
+
 /* ---- Entries: 16-bit A and index registers, on the scene's page, bank $7F ------------------- */
 
-bool scene_scaler_in_its_bank(Snes *s)
+/* Follow the output extents without drawing. A short source can end a tall
+ * requested picture early, so checking only rows * stride would refuse
+ * valid pictures. No bitmap pixels or persistent state change here. */
+static bool bitmap_fits(const GameState *g, uint16_t position, bool row_nudge)
+{
+    if (!scene_scaler_draws(g))
+        return false;
+    uint16_t rows = scene_scaler_rows_left(g);
+    uint16_t output = scene_scaler_output(g);
+    uint32_t row_bytes = (uint32_t)scene_scaler_pairs(g) * GROUPS_PER_PAIR * PLANES;
+    uint16_t step = scene_scaler_row_step(g), limit = scene_scaler_source_limit(g);
+    for (;;) {
+        if (--rows == 0)
+            return true;
+        position = (uint16_t)(position + step + (row_nudge ? 1 : 0));
+        if (position / ROW_UNITS * SOURCE_ROW_BYTES >= limit)
+            return true;
+        output = (uint16_t)(output + ROW_BYTES);
+        if ((uint32_t)output + row_bytes > POSITIONS)
+            return false;
+        row_nudge = output < ROW_BYTES;
+    }
+}
+
+static bool bitmap_on_its_page(Snes *s, bool starts)
 {
     if (!scene_on_scene_page(s) || s->cpu.db != SCENE_UPPER_WORK_RAM)
         return false;
     vars_peek(true);
-    bool draws = scene_scaler_draws(state_of(s));
+    const GameState *g = state_of(s);
+    bool draws = bitmap_fits(g, starts ? 0 : scene_scaler_row_position(g), m_flag(s, CPU_FLAG_C));
     vars_peek(false);
     return draws;
+}
+
+bool scene_scaler_in_its_bank(Snes *s) { return bitmap_on_its_page(s, false); }
+bool scene_scaler_starts_in_its_bank(Snes *s) { return bitmap_on_its_page(s, true); }
+
+bool scene_sampler_in_its_bank(Snes *s)
+{
+    if ((uint32_t)s->cpu.a + SAMPLES_REACH > POSITIONS || !bitmap_on_its_page(s, false))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    uint32_t rows = scene_scaler_rows_left(g) ? scene_scaler_rows_left(g) : POSITIONS;
+    uint32_t end = scene_scaler_output(g) + rows * ROW_BYTES +
+                   (uint32_t)scene_scaler_pairs(g) * GROUPS_PER_PAIR * PLANES;
+    vars_peek(false);
+    return end <= POSITIONS;
 }
 
 /* The flags the original leaves where the bitmap ends: those of its measure of
@@ -275,24 +330,21 @@ static void leave_flags_of_measuring(Snes *s, uint16_t previous_end, uint16_t ou
     m_set_flag(s, CPU_FLAG_V, ((previous_end ^ output) & (previous_end ^ beyond) & 0x8000) != 0);
 }
 
-/* One row per call (see the top of the file), the carry the row's nudge. Back
- * at the row loop's head (the port's stop), the carry is that of the output
- * pointer's step, which wraps only past the bank's end; at the return, the flags
- * are those of the measure of the leftover. */
+/* Draw through the end. The final leftover measurement uses the nudge of
+ * the last row: the entry carry if no row was drawn, otherwise whether the
+ * output stride wrapped. The guard has checked every row's extent. */
 void scene_scale_bitmap_row(Snes *s)
 {
     GameState *g = state_of(s);
     bool row_nudge = m_flag(s, CPU_FLAG_C);
     uint16_t previous_end = scene_scaler_output_end(g);
-    RowOutcome outcome = scale_row(g, row_nudge);
-    if (outcome == BITMAP_ENDED) {
-        bool rows_ran_out = scene_scaler_rows_left(g) == 0;
-        leave_flags_of_measuring(s, previous_end, scene_scaler_output(g), rows_ran_out && !row_nudge);
-        m_rtl(s);
-        return;
-    }
-    m_set_flag(s, CPU_FLAG_C, scene_scaler_output(g) < ROW_BYTES);
-    m_stop_at(s, ROW_LOOP, DC_Y | DC_V);
+    uint16_t rows_before = scene_scaler_rows_left(g);
+    draw_bitmap(g, row_nudge);
+    uint16_t output = scene_scaler_output(g);
+    bool drew_rows = scene_scaler_rows_left(g) != (uint16_t)(rows_before - 1);
+    bool last_nudge = drew_rows ? output < ROW_BYTES : row_nudge;
+    leave_flags_of_measuring(s, previous_end, output, scene_scaler_rows_left(g) == 0 && !last_nudge);
+    m_rtl(s);
 }
 
 // $C3:0307
@@ -300,5 +352,22 @@ void scene_scale_bitmap_row(Snes *s)
 void scene_scale_bitmap(Snes *s)
 {
     set_scene_scaler_row_position(state_of(s), 0);
-    m_stop_at(s, ROW_LOOP, 0);
+    TIMED_AS(state_of(s), ROW_LOOP, scene_scale_bitmap_row(s));
+}
+
+// $C3:034A
+/* A newly selected source row, then the rest of the bitmap. Separating this
+ * entry lets expensive planar packing keep its own rate while row reuse
+ * and the leftover clear use the ordinary block-copy rate. */
+void scene_sample_bitmap_row(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint16_t source = s->cpu.a;
+    set_scene_scaler_source_row(g, source);
+    sample_row(g, source, m_flag(s, CPU_FLAG_C));
+    TIMED_AS(g, ROW_LOOP, {
+        next_output_row(g);
+        m_set_flag(s, CPU_FLAG_C, scene_scaler_output(g) < ROW_BYTES);
+        scene_scale_bitmap_row(s);
+    });
 }

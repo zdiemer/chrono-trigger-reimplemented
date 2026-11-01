@@ -2748,6 +2748,13 @@ re-runs the census.
   instead of stopping after changing it. Unchanged cameras and flat flight
   views remain accepted; bounded and unchanged fixtures compare fully.
 
+- **Bitmap requests outside the scaler's bank.** Whole-picture entry guards
+  reject requests whose later rows cross the bank, before changing any
+  output. The broad start fixture rejects 1,966/2,000 random states; seven
+  more exceed the fuzz budget. Bounded whole pictures compare fully. The
+  caller bridges still need their requests checked before setup and their
+  gathering continuations called as C.
+
 ## Shadow comparison gaps
 
 The early-boss shadow runs also expose a comparison gap in the held-message

@@ -3108,32 +3108,29 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene continuations: the camera checks build perspective in C
+### Scene continuations: whole bitmaps in C
 
-The race, Beyond Time flight and Epoch shell checks validate the next
-perspective before updating the saved camera. A shared, read-only camera
-comparison supplies this guard decision and the existing camera keeper.
-Unchanged cameras need no drawing and do not acquire new geometry
-restrictions; a flat flight view likewise keeps its separate path.
-Changed cameras call the existing perspective builder directly, removing
-all three mid-routine stops at `$7E:357B`. The race no longer needs a
-machine callback through the game operation.
+Both bitmap entry points draw through the final row and clear the previous
+picture's unused tail. A read-only guard checks every output extent before
+drawing; source limits can end a tall request early. The two stops at
+`$C3:0309` are gone. Sampling new rows has its own entry and timing part,
+`$C3:034A`, while repeated rows and tail clears retain block-copy timing.
+Isolated copy, mixed and sampled pictures establish the two rates; their
+largest timing error is 7,519 clocks, without a new timing exception.
 
-Differential fuzz compares both Epoch views, visible race and flight
-horizons, and unchanged race and flight cameras: six fixtures of 2,000
-cases, zero mismatches, skips or refusals. Broad random geometry is also
-checked: the race accepts 5/2,000 and the flight 985/2,000, with zero
-mismatches; the rest previously stopped at an unsupported perspective and
-now refuse it before mutation. The existing paired-line C branch covers
-RAM's final 29-byte static coverage gap; no synthetic entry was added to
-change the burndown number.
+Alternating registered points in this loop exposed duplicate shadow
+comparisons: the validator only recognized reentry into its innermost
+segment. It now recognizes an enclosing segment at the same stack depth.
+A synthetic two-entry loop regression checks one comparison per call and
+no exhausted comparison slots. The shadow test passes.
 
-Complete events-jetbike-race-won, events-epoch-lavos and endings-beyond-time
-shadow runs pass with zero mismatches and no real-play refusals. Their
-fallback ratchet has no new or increased rows. Style, smell and effects
-checks are clean. Scene/warp joints fall from 813 to 808: stops 17 to 14,
-one fewer machine return and one fewer scaffolding site. The sampled gate
-remains reserved for the end of the pass.
+Differential fuzz compares 8,027 cases with zero mismatches, including
+2,000 each of three whole-picture entries. The broad start fixture refuses
+1,966 impossible pictures and exhausts its budget on seven; bounded
+pictures compare without skips. Complete Epoch and race-won shadow movies
+pass with zero mismatches and zero new or increased fallback rows. Style,
+smell, effects and liveness checks are clean. Scene/warp joints fall from
+808 to 806, stops from 14 to 12. The sampled gate remains for the end.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 

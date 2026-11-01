@@ -2902,16 +2902,20 @@ static int32_t intercept(void *ctx, Snes *s)
             return run_block(rt, s, e->fn, e);
         }
 
-        /* SHADOW: the original back at the start of the routine the innermost
+        /* SHADOW: the original back at the start of a routine an active
          * comparison is of, with the S it was entered with, is still inside
          * that comparison's stretch, not in a new call (a call pushes its
          * return): a block move's instruction ($7E:9690's MVN) runs again in
-         * place for each byte it moves. So it isn't compared again, which
-         * would nest a comparison a byte. */
+         * place for each byte it moves. A loop can cross another registered
+         * entry before returning to its head (the scene bitmap sampler), so
+         * check every enclosing segment, not only the innermost. Comparing
+         * that head again would nest a comparison per iteration. */
         if (rt->mode == NATIVE_SHADOW && rt->nactive > 0) {
-            const Active *in = &rt->active[rt->nactive - 1];
-            if (in->entry == e && in->phase == PH_SEGMENT && in->entry_s == s->cpu.s)
-                return -1;
+            for (int i = rt->nactive - 1; i >= 0; i--) {
+                const Active *in = &rt->active[i];
+                if (in->entry == e && in->phase == PH_SEGMENT && in->entry_s == s->cpu.s)
+                    return -1;
+            }
         }
 
         st->calls++;

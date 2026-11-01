@@ -21822,3 +21822,27 @@ subsystem = "scene"
 state = "ending"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E007B-7E007C=0000", "--fill", "7E0A30-7E0A31=@7E0A00", "--fill", "7E0A32-7E0A33=@7E0A0A", "--fill", "7E0A34-7E0A35=@7E0A0C", "--fill", "7E0A36-7E0A37=@7E0A10"]
 why = "The saved camera equals the current one, so no perspective build is needed even with random line bounds."
+
+[[routine]]
+name = "scene_scale_bitmap"
+variant = "whole_picture"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--d", "0000", "--db", "7F", "--fill", "7E001F-7E0020=0001,0002,0004,0008", "--fill", "7E0023-7E0024=2000", "--fill", "7E0025-7E0026=0001,0002,0008,0011,0021,0041", "--fill", "7E0027-7E0028=0000,0031,0080,0100,7FFF", "--fill", "7E0029-7E002A=0000,0080,0100,01FF", "--fill", "7E002B-7E002C=0400,0800,1000", "--fill", "7E002D-7E002E=0200", "--fill", "7E002F-7E0030=0200", "--fill", "7E0033-7E0034=0000", "--fill", "7E0037-7E0038=0200,0300,0800,0A00", "--budget", "8000000"]
+why = "Complete bitmaps with 1-64 rows, repeated or new source rows, both entry carries, varied zoom and widths, and tails to clear."
+
+[[routine]]
+name = "scene_scale_bitmap_row"
+variant = "whole_picture"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--d", "0000", "--db", "7F", "--fill", "7E001F-7E0020=0001,0002,0004,0008", "--fill", "7E0023-7E0024=2000", "--fill", "7E0025-7E0026=0001,0002,0008,0011,0021,0041", "--fill", "7E0027-7E0028=0000,0031,0080,0100,7FFF", "--fill", "7E0029-7E002A=0000,0080,0100,01FF", "--fill", "7E002B-7E002C=0400,0800,1000", "--fill", "7E002D-7E002E=0200", "--fill", "7E002F-7E0030=0200", "--fill", "7E0033-7E0034=0000", "--fill", "7E0037-7E0038=0200,0300,0800,0A00", "--budget", "8000000"]
+why = "Complete bitmaps with 1-64 rows, repeated or new source rows, both entry carries, varied zoom and widths, and tails to clear."
+
+[[routine]]
+name = "scene_sample_bitmap_row"
+variant = "whole_picture"
+subsystem = "scene"
+state = "race"
+args = ["--range", "A=2000-3000", "--long", "--d", "0000", "--db", "7F", "--fill", "7E001F-7E0020=0001,0002,0004,0008", "--fill", "7E0023-7E0024=2000", "--fill", "7E0025-7E0026=0001,0002,0008,0011,0021,0041", "--fill", "7E0027-7E0028=0000,0031,0080,0100,7FFF", "--fill", "7E0029-7E002A=0000,0080,0100,01FF", "--fill", "7E002B-7E002C=0400,0800,1000", "--fill", "7E002D-7E002E=0200", "--fill", "7E002F-7E0030=0200", "--fill", "7E0033-7E0034=0000", "--fill", "7E0037-7E0038=0200,0300,0800,0A00", "--budget", "8000000"]
+why = "Complete bitmaps with 1-64 rows, repeated or new source rows, both entry carries, varied zoom and widths, and tails to clear."

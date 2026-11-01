@@ -1532,6 +1532,9 @@ enum { SCENE_SCALER_ROWS = 0xC30309 };
 bool scene_scaler_draws(const GameState *g);
 bool scene_scale_the_bitmap(GameState *g, bool row_nudge);
 bool scene_scaler_in_its_bank(Snes *s);
+bool scene_scaler_starts_in_its_bank(Snes *s);
+bool scene_sampler_in_its_bank(Snes *s);
+void scene_sample_bitmap_row(Snes *s);
 void scene_scale_bitmap_row(Snes *s);
 void scene_scale_bitmap(Snes *s);
 
