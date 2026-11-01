@@ -3108,36 +3108,32 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene continuations: boot, warp frames and field returns
+### Scene continuations: sound commands and remaining boundaries
 
-Boot calls the unpacked scene program directly. Its guard checks the mode
-and, for credit pages, the surviving page index before any mutation.
-Random indices outside the five pages otherwise read unrelated program
-bytes as text. Attract-demo's open startup comparison moves from
-`$7E:3000` (34 instructions) to `$C3:0000` (47 including the boot prefix);
-the fallback ledger records that ownership change.
+Scene sound commands continue directly through the interpreter. The command
+interface preserves the caller's page, bank and arithmetic/index modes, so
+the channel cannot require the old sound-return handback. Two channel
+fixtures compare 4,000 sound-command states with zero mismatches. Three
+existing interpreter fixtures retain their previous results (including one
+known broad-state mismatch); the before/after comparison finds no new
+failure. Attract-demo and Epoch shadow movies have zero mismatches and the
+fallback ratchet has zero new or increased rows. Style and smell checks
+are clean.
 
-Warp setup continues after its screen-on wait, whose interface preserves
-the established page and widths. Frames call the held frame-wait service
-and continue as C. The held boundary keeps shipping snapshots resumable
-at the existing idle wait entry. Each frame retains its own timing part
-and the registers previously declared dead at its loop stop. Scene and
-warp endings call field entry directly, with a valid destination guard.
+The scene RAM program and scene engine now both report 0% left in burndown.
+The only static uncovered RAM run, 29 bytes at `$7E:366C`, is already in
+the paired perspective builder; the walk misses its patched branch. Scene
+and warp stops have fallen from 51 to five across this series. Their total
+machine joints rose from 756 to 800 as the previously unported modes gained
+entry wrappers and video calls. This last chunk removes one stop (six to
+five), without adding another joint.
 
-The last warp frame still stops at the ending's entry. Combining HDMA
-shutdown with that frame compares its last scanline register values after
-HDMA is disabled: End of Time gate differs at `$210E` (00 versus 01).
-Continuing into field entry moves the same difference to its song call,
-so the ending keeps its independent comparison. TODO records this seam.
-
-Twenty-two differential fuzz fixtures have zero mismatches. Three bounded
-field-return fixtures compare 6,000 cases; all sixteen boot modes compare
-193/200, seven exhausting the external-wait budget. Complete attract-demo
-and End of Time gate shadow movies pass with zero mismatches; the migrated
-fallback ratchet has zero new or increased rows. Style, smell, effects and
-liveness checks are clean. Scene/warp joints fall from 806 to 801, stops
-from 12 to 6; one frame-wait return replaces a stop. The sampled gate is
-still reserved for the end.
+Five boundaries remain, with evidence in TODO: the race's shared upload
+wait needs caller-instance matching; the scene main loop exposes a carry
+difference after an interrupted prelude; the last warp frame exposes HDMA
+shutdown timing; and two script handbacks cover unsupported command data
+and callees that change the interpreter's calling context. The sampled
+gate is reserved for the final validation of this series.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 

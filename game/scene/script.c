@@ -694,7 +694,7 @@ static RoutineCall call_routine(Snes *s, SceneChannel *ch, uint16_t routine)
  * (8-bit A). The driver's entry saves A, which the liveness analysis counts as
  * reading its high byte: there the original has the command's last parameter,
  * which it loaded last. */
-static bool send_sound(Snes *s, SceneChannel *ch)
+static void send_sound(Snes *s)
 {
     GameState *g = state_of(s);
     set_widths16(s);
@@ -704,7 +704,9 @@ static bool send_sound(Snes *s, SceneChannel *ch)
                (AudioCommand){ .command = sound_command(g), .p1 = sound_command_parameters(g, 0),
                                .p2 = sound_command_parameters(g, 1), .p3 = sound_command_parameters(g, 2),
                                .count = 3 });
-    return can_continue(s, ch);
+    /* The command interface preserves its caller's page, bank and modes;
+     * the hosted interface changes none of them. The channel remains the
+     * interpreter's, so execution can continue directly after the operand. */
 }
 
 // $7E:37F3
@@ -737,7 +739,7 @@ static void past_the_call(GameState *g, SceneChannel ch)
 }
 
 /* Where each call-out returns, in the original's code. */
-enum { ROUTINE_CALL_RETURN = 0xC30C5C, SOUND_CALL_RETURN = 0xC30BED };
+enum { ROUTINE_CALL_RETURN = 0xC30C5C };
 
 /* ---- A command the port hands over -------------------------------------------------------------
  *
@@ -864,10 +866,7 @@ static RunEnd run(Snes *s, SceneChannel ch)
             }
             continue;
         case SOUND_SEND:
-            if (!send_sound(s, &ch)) {
-                m_stop_at(s, SOUND_CALL_RETURN, 0);
-                return RUN_STOPPED;
-            }
+            send_sound(s);
             past_the_call(g, ch);
             continue;
         }

@@ -2777,6 +2777,25 @@ re-runs the census.
   bytes as text and differ in VRAM/OAM; boot now refuses those states before
   mutation. Valid page indices and all sixteen modes are fuzzed separately.
 
+- **The scene main loop still starts at its original boundary.** Replacing
+  the `$7E:3023` stop with C callback dispatch and a held wait at `$7E:3026`
+  passes attract-demo, but Epoch reports `scene_boot` at the wait with P
+  original 04, native 05. After the interrupted prelude, refreshing the
+  clone's memory preserves its carry; the next wait compares that carry
+  with the original's. Liveness currently requires it, so the experiment
+  was reverted rather than masking the flag. Resolve that interrupted-wait
+  flag handoff before joining startup and the main loop.
+
+- **Two scene interpreter handbacks retain machine contracts.** All seven
+  store/task/video command families have C implementations, but the dispatch
+  handback remains for stores outside low RAM, unsupported video encodings,
+  and task searches without the terminating word. These need explicit bus
+  services or validation of an entire script turn before mutation. The
+  `$C3:0C5C` handback covers arbitrary script callees returning with a page,
+  bank or width/mode context the typed channel interpreter cannot use.
+  Sound commands now continue directly because their interface preserves
+  that context; arbitrary callees still need a declared return contract.
+
 ## Shadow comparison gaps
 
 The early-boss shadow runs also expose a comparison gap in the held-message

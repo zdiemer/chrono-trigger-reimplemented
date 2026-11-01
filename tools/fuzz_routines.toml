@@ -21903,3 +21903,19 @@ state = "attract"
 args = ["--apu-loopback", "--budget", "20000000", "--stop-at-call", "7E31B0", "--long", "--db", "00", "--fill", "7E0382-7E0383=0000,0001,0002,0003,0004,0005", "--range", "A=0000-000F"]
 iterations = 200
 why = "All sixteen scene modes with a valid surviving credit-page index, through startup to the first external frame wait."
+
+[[routine]]
+name = "scene_run_sequence"
+variant = "sound_commands"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0A00", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0A20-7E0A21=B600", "--fill", "7EB600-7EB600=A6", "--fill", "7EB601-7EB601=80,81,82,83,85,86,89,F0,F2,F6", "--fill", "7EB602-7EB604=00-FF", "--fill", "7EB605-7EB605=AC", "--fill", "7E0388-7E0388=00", "--apu-loopback", "--budget", "8000000"]
+why = "A sound command with random parameters, followed by end-turn, through the driver's preserving interface on channel zero."
+
+[[routine]]
+name = "scene_run_sequence"
+variant = "sound_commands_channel"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0B00", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0B20-7E0B21=B600", "--fill", "7EB600-7EB600=A6", "--fill", "7EB601-7EB601=80,81,82,83,85,86,89,F0,F2,F6", "--fill", "7EB602-7EB604=00-FF", "--fill", "7EB605-7EB605=AC", "--fill", "7E0388-7E0388=00", "--apu-loopback", "--budget", "8000000"]
+why = "The sound-command continuation on channel one; the driver must preserve its page, bank and arithmetic/index modes."

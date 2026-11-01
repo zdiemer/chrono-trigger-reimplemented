@@ -12730,3 +12730,35 @@ ratchet has zero new or increased rows. Style, smell, effects and liveness
 checks are clean. Scene/warp joints remain 806, with 12 stops; this chunk
 moves the shared scaler boundary forward, through gathering for the two
 callers that need no upload wait.
+
+
+### Scene continuations: boot, warp frames and field returns
+
+Boot calls the unpacked scene program directly. Its guard checks the mode
+and, for credit pages, the surviving page index before any mutation.
+Random indices outside the five pages otherwise read unrelated program
+bytes as text. Attract-demo's open startup comparison moves from
+`$7E:3000` (34 instructions) to `$C3:0000` (47 including the boot prefix);
+the fallback ledger records that ownership change.
+
+Warp setup continues after its screen-on wait, whose interface preserves
+the established page and widths. Frames call the held frame-wait service
+and continue as C. The held boundary keeps shipping snapshots resumable
+at the existing idle wait entry. Each frame retains its own timing part
+and the registers previously declared dead at its loop stop. Scene and
+warp endings call field entry directly, with a valid destination guard.
+
+The last warp frame still stops at the ending's entry. Combining HDMA
+shutdown with that frame compares its last scanline register values after
+HDMA is disabled: End of Time gate differs at `$210E` (00 versus 01).
+Continuing into field entry moves the same difference to its song call,
+so the ending keeps its independent comparison. TODO records this seam.
+
+Twenty-two differential fuzz fixtures have zero mismatches. Three bounded
+field-return fixtures compare 6,000 cases; all sixteen boot modes compare
+193/200, seven exhausting the external-wait budget. Complete attract-demo
+and End of Time gate shadow movies pass with zero mismatches; the migrated
+fallback ratchet has zero new or increased rows. Style, smell, effects and
+liveness checks are clean. Scene/warp joints fall from 806 to 801, stops
+from 12 to 6; one frame-wait return replaces a stop. The sampled gate is
+still reserved for the end.
