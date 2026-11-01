@@ -1,3 +1,135 @@
-# movie strict|native game|sram|pictures|places # reason
-# Existing differences only; protected identities in outcomes_baseline.txt
-# still have to match, even for an excepted kind. No fault or missing data is excused.
+# Existing per-movie differences: movie strict|native game|sram|pictures|places # reason
+# These are initial debts, not claims that the differing outcomes are harmless.
+# Protected identities still have to match; --update never removes a protection.
+# Resolve a difference before a teardown relies on that observable.
+attract-demo strict pictures # 66 of 76 checkpoints differ beyond two frames in attract-demo; initial timing/render debt, the matching checkpoints remain protected.
+attract-demo strict places # Visit 7 is $112 at frame 4473 against $112 at frame 4506 in the reference; existing progression/timing debt, earlier matches remain protected.
+field strict pictures # 13 of 39 checkpoints differ beyond two frames in field; initial timing/render debt, the matching checkpoints remain protected.
+menu strict pictures # 7 of 31 checkpoints differ beyond two frames in menu; initial timing/render debt, the matching checkpoints remain protected.
+new-game strict pictures # 7 of 25 checkpoints differ beyond two frames in new-game; initial timing/render debt, the matching checkpoints remain protected.
+title-start strict pictures # 5 of 7 checkpoints differ beyond two frames in title-start; initial timing/render debt, the matching checkpoints remain protected.
+battle-denadoro strict game # the fight's turns land on other frames, so it ends with other HP, MP, experience and items used (43 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2613, $7E:2616, $7E:262B, ...)); existing strict-mode end-state debt, not teardown evidence.
+battle-denadoro strict pictures # 25 of 33 checkpoints differ beyond two frames in battle-denadoro; initial timing/render debt, the matching checkpoints remain protected.
+battle-golem-twins-gameover strict game # differs from the reference: 749 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:2609, $7E:260B, ...); existing strict-mode end-state debt, not teardown evidence.
+battle-golem-twins-gameover strict pictures # 32 of 45 checkpoints differ beyond two frames in battle-golem-twins-gameover; initial timing/render debt, the matching checkpoints remain protected.
+battle-golem-twins-gameover strict places # Visit 5 is no visit against $000 at frame 11486 in the reference; existing progression/timing debt, earlier matches remain protected.
+battle-guardian strict game # the fights' turns land on other frames, so they end with other HP, MP, experience and items used, and the save made after differs (71 byte(s) of the saved game (inventory_items, inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, ...); 296 byte(s) of save RAM); existing strict-mode end-state debt, not teardown evidence.
+battle-guardian strict pictures # 71 of 87 checkpoints differ beyond two frames in battle-guardian; initial timing/render debt, the matching checkpoints remain protected.
+battle-guardian strict places # Visit 7 is $000 at frame 13920 against no visit in the reference; existing progression/timing debt, earlier matches remain protected.
+battle-lavos-gameover strict game # the outer shell's fight, entered a frame early, lasts 586 frames longer, so the planet's loss plays on to a later song and story step by the last frame (2 byte(s) of the saved game (current_song, event_memory)); existing strict-mode end-state debt, not teardown evidence.
+battle-lavos-gameover strict pictures # 42 of 55 checkpoints differ beyond two frames in battle-lavos-gameover; initial timing/render debt, the matching checkpoints remain protected.
+battle-lavos-gameover strict places # Visit 9 is $1DC at frame 11843 against $1DC at frame 11709 in the reference; existing progression/timing debt, earlier matches remain protected.
+battle-magus strict pictures # 51 of 61 checkpoints differ beyond two frames in battle-magus; initial timing/render debt, the matching checkpoints remain protected.
+battle-menu-buttons strict pictures # 11 of 18 checkpoints differ beyond two frames in battle-menu-buttons; initial timing/render debt, the matching checkpoints remain protected.
+battle-tyrano-lair-walls strict pictures # 15 of 28 checkpoints differ beyond two frames in battle-tyrano-lair-walls; initial timing/render debt, the matching checkpoints remain protected.
+endings-beyond-time strict game # the fights' turns land on other frames, so they end with other HP, MP, experience and items used on the way, and the save made after differs (54 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, ...); 4189 byte(s) of save RAM); existing strict-mode end-state debt, not teardown evidence.
+endings-beyond-time strict pictures # 343 of 351 checkpoints differ beyond two frames in endings-beyond-time; initial timing/render debt, the matching checkpoints remain protected.
+endings-beyond-time strict places # Visit 5 is $1F7 at frame 32963 against $1DF at frame 27520 in the reference; existing progression/timing debt, earlier matches remain protected.
+events-death-peak strict game # differs from the reference: 89 byte(s) of the saved game (inventory_items, inventory_counts, $7E:2613, $7E:2614, $7E:262B, $7E:262C, ...); 208 byte(s) of save RAM; existing strict-mode end-state debt, not teardown evidence.
+events-death-peak strict sram # differs from the reference: 89 byte(s) of the saved game (inventory_items, inventory_counts, $7E:2613, $7E:2614, $7E:262B, $7E:262C, ...); 208 byte(s) of save RAM; existing strict-mode end-state debt, not teardown evidence.
+events-death-peak strict pictures # 74 of 81 checkpoints differ beyond two frames in events-death-peak; initial timing/render debt, the matching checkpoints remain protected.
+events-death-peak strict places # Visit 4 is $000 at frame 15633 against $109 at frame 12825 in the reference; existing progression/timing debt, earlier matches remain protected.
+events-end-of-time-gate strict pictures # 11 of 20 checkpoints differ beyond two frames in events-end-of-time-gate; initial timing/render debt, the matching checkpoints remain protected.
+events-epoch-lavos strict pictures # 17 of 27 checkpoints differ beyond two frames in events-epoch-lavos; initial timing/render debt, the matching checkpoints remain protected.
+events-fair-rescue strict pictures # 15 of 27 checkpoints differ beyond two frames in events-fair-rescue; initial timing/render debt, the matching checkpoints remain protected.
+events-jetbike-race-won strict pictures # 16 of 28 checkpoints differ beyond two frames in events-jetbike-race-won; initial timing/render debt, the matching checkpoints remain protected.
+events-jetbike-race strict pictures # 19 of 33 checkpoints differ beyond two frames in events-jetbike-race; initial timing/render debt, the matching checkpoints remain protected.
+events-ocean-palace-lavos strict game # differs from the reference: 49 byte(s) of the saved game (character_records, $7E:2607, $7E:263D, $7E:263F, $7E:2640, $7E:2653, ...); existing strict-mode end-state debt, not teardown evidence.
+events-ocean-palace-lavos strict pictures # 84 of 103 checkpoints differ beyond two frames in events-ocean-palace-lavos; initial timing/render debt, the matching checkpoints remain protected.
+events-ocean-palace-lavos strict places # Visit 9 is $1F4 at frame 25291 against $1F4 at frame 20332 in the reference; existing progression/timing debt, earlier matches remain protected.
+field-12kbc-1f4 strict pictures # 5 of 11 checkpoints differ beyond two frames in field-12kbc-1f4; initial timing/render debt, the matching checkpoints remain protected.
+field-12kbc-1f6 strict pictures # 6 of 11 checkpoints differ beyond two frames in field-12kbc-1f6; initial timing/render debt, the matching checkpoints remain protected.
+field-65m-bc-dactyl-flight strict pictures # 5 of 15 checkpoints differ beyond two frames in field-65m-bc-dactyl-flight; initial timing/render debt, the matching checkpoints remain protected.
+field-65m-bc-dactyl strict pictures # 5 of 11 checkpoints differ beyond two frames in field-65m-bc-dactyl; initial timing/render debt, the matching checkpoints remain protected.
+field-factory-switch strict pictures # 18 of 29 checkpoints differ beyond two frames in field-factory-switch; initial timing/render debt, the matching checkpoints remain protected.
+field-floor-switch strict pictures # 5 of 13 checkpoints differ beyond two frames in field-floor-switch; initial timing/render debt, the matching checkpoints remain protected.
+field-northern-ruins-switch strict pictures # 5 of 14 checkpoints differ beyond two frames in field-northern-ruins-switch; initial timing/render debt, the matching checkpoints remain protected.
+late-omen-battles strict game # the fights' turns land on other frames, so they end with other HP, MP, experience and items used (18 byte(s) of the saved game (inventory_counts, character_records, $7E:2607, $7E:2653, $7E:2654, $7E:2657, ...)); existing strict-mode end-state debt, not teardown evidence.
+late-omen-battles strict pictures # 48 of 63 checkpoints differ beyond two frames in late-omen-battles; initial timing/render debt, the matching checkpoints remain protected.
+late-omen-terramutant strict pictures # 52 of 61 checkpoints differ beyond two frames in late-omen-terramutant; initial timing/render debt, the matching checkpoints remain protected.
+menus-end-of-time strict pictures # 12 of 31 checkpoints differ beyond two frames in menus-end-of-time; initial timing/render debt, the matching checkpoints remain protected.
+menus-epoch strict pictures # 8 of 31 checkpoints differ beyond two frames in menus-epoch; initial timing/render debt, the matching checkpoints remain protected.
+menus-field-menu strict pictures # 8 of 37 checkpoints differ beyond two frames in menus-field-menu; initial timing/render debt, the matching checkpoints remain protected.
+menus-new-game-plus strict pictures # 5 of 12 checkpoints differ beyond two frames in menus-new-game-plus; initial timing/render debt, the matching checkpoints remain protected.
+menus-save-point strict pictures # 6 of 12 checkpoints differ beyond two frames in menus-save-point; initial timing/render debt, the matching checkpoints remain protected.
+menus-shop-equip strict pictures # 15 of 53 checkpoints differ beyond two frames in menus-shop-equip; initial timing/render debt, the matching checkpoints remain protected.
+menus-shop-inn strict game # the presses land on other frames, and the party ends at another place (13 byte(s) of the saved game (menu_past_the_names, location, $7E:0102, $7E:0103, $7E:0104, location_previous, ...)); existing strict-mode end-state debt, not teardown evidence.
+menus-shop-inn strict pictures # 11 of 34 checkpoints differ beyond two frames in menus-shop-inn; initial timing/render debt, the matching checkpoints remain protected.
+menus-shop-inn strict places # Visit 6 is $00F at frame 8722 against $00C at frame 8422 in the reference; existing progression/timing debt, earlier matches remain protected.
+menus-sweep strict pictures # 5 of 23 checkpoints differ beyond two frames in menus-sweep; initial timing/render debt, the matching checkpoints remain protected.
+attract-demo native sram # Power-on host save RAM starts at zero while the reference initializes it to 0x60; untouched save RAM differs (state_host_create versus snes_init).
+attract-demo native pictures # 72 of 76 checkpoints differ beyond two frames in attract-demo; initial timing/render debt, the matching checkpoints remain protected.
+attract-demo native places # Visit 2 is $1F5 at frame 2171 against $1F5 at frame 2226 in the reference; existing progression/timing debt, earlier matches remain protected.
+field native game # The native saved game differs after power-on: the field from a new game, a strict `end`; existing native-check end-state debt, not teardown evidence.
+field native sram # Power-on host save RAM starts at zero while the reference initializes it to 0x60; untouched save RAM differs (state_host_create versus snes_init).
+field native pictures # 27 of 39 checkpoints differ beyond two frames in field; initial timing/render debt, the matching checkpoints remain protected.
+field native places # Visit 4 is $10F at frame 4798 against $10F at frame 4845 in the reference; existing progression/timing debt, earlier matches remain protected.
+menu native sram # Power-on host save RAM starts at zero while the reference initializes it to 0x60; untouched save RAM differs (state_host_create versus snes_init).
+menu native pictures # 14 of 31 checkpoints differ beyond two frames in menu; initial timing/render debt, the matching checkpoints remain protected.
+menu native places # Visit 4 is $10F at frame 4798 against $10F at frame 4845 in the reference; existing progression/timing debt, earlier matches remain protected.
+new-game native sram # Power-on host save RAM starts at zero while the reference initializes it to 0x60; untouched save RAM differs (state_host_create versus snes_init).
+new-game native pictures # 14 of 25 checkpoints differ beyond two frames in new-game; initial timing/render debt, the matching checkpoints remain protected.
+new-game native places # Visit 4 is $10F at frame 4798 against $10F at frame 4845 in the reference; existing progression/timing debt, earlier matches remain protected.
+title-start native sram # Power-on host save RAM starts at zero while the reference initializes it to 0x60; untouched save RAM differs (state_host_create versus snes_init).
+title-start native pictures # 5 of 7 checkpoints differ beyond two frames in title-start; initial timing/render debt, the matching checkpoints remain protected.
+battle-denadoro native game # The native saved game differs after the Denadoro Mountains' monsters, which no other movie fights; existing native-check end-state debt, not teardown evidence.
+battle-denadoro native pictures # 28 of 33 checkpoints differ beyond two frames in battle-denadoro; initial timing/render debt, the matching checkpoints remain protected.
+battle-golem-twins-gameover native pictures # 39 of 45 checkpoints differ beyond two frames in battle-golem-twins-gameover; initial timing/render debt, the matching checkpoints remain protected.
+battle-guardian native game # The native saved game differs after the Guardian and its Bits; existing native-check end-state debt, not teardown evidence.
+battle-guardian native pictures # 83 of 87 checkpoints differ beyond two frames in battle-guardian; initial timing/render debt, the matching checkpoints remain protected.
+battle-guardian native places # Visit 7 is $000 at frame 11264 against no visit in the reference; existing progression/timing debt, earlier matches remain protected.
+battle-lavos-gameover native pictures # 45 of 55 checkpoints differ beyond two frames in battle-lavos-gameover; initial timing/render debt, the matching checkpoints remain protected.
+battle-lavos-gameover native places # Visit 8 is $1F7 at frame 10037 against $1F7 at frame 10637 in the reference; existing progression/timing debt, earlier matches remain protected.
+battle-magus native game # The native saved game differs after the Magus fight; existing native-check end-state debt, not teardown evidence.
+battle-magus native pictures # 56 of 61 checkpoints differ beyond two frames in battle-magus; initial timing/render debt, the matching checkpoints remain protected.
+battle-menu-buttons native pictures # 14 of 18 checkpoints differ beyond two frames in battle-menu-buttons; initial timing/render debt, the matching checkpoints remain protected.
+battle-tyrano-lair-walls native game # The native saved game differs after battle techs, an item drop and a level-up; existing native-check end-state debt, not teardown evidence.
+battle-tyrano-lair-walls native pictures # 22 of 28 checkpoints differ beyond two frames in battle-tyrano-lair-walls; initial timing/render debt, the matching checkpoints remain protected.
+endings-beyond-time native game # The native saved game differs after the endings: the staff roll and the scene program's ending modes (1737 RAM starts), the sound loads they make; existing native-check end-state debt, not teardown evidence.
+endings-beyond-time native sram # The native save RAM differs after the endings: the staff roll and the scene program's ending modes (1737 RAM starts), the sound loads they make; existing native-check end-state debt, not teardown evidence.
+endings-beyond-time native pictures # 347 of 351 checkpoints differ beyond two frames in endings-beyond-time; initial timing/render debt, the matching checkpoints remain protected.
+endings-beyond-time native places # Visit 5 is $1F7 at frame 11930 against $1DF at frame 27520 in the reference; existing progression/timing debt, earlier matches remain protected.
+events-death-peak native game # The native saved game differs after 878 starts in 23856 frames: Death Peak's summit, the last Lavos Spawn and Crono brought back; existing native-check end-state debt, not teardown evidence.
+events-death-peak native pictures # 77 of 81 checkpoints differ beyond two frames in events-death-peak; initial timing/render debt, the matching checkpoints remain protected.
+events-death-peak native places # Visit 4 is $000 at frame 11824 against $109 at frame 12825 in the reference; existing progression/timing debt, earlier matches remain protected.
+events-end-of-time-gate native game # The native saved game differs after the End of Time and a Gate; existing native-check end-state debt, not teardown evidence.
+events-end-of-time-gate native pictures # 16 of 20 checkpoints differ beyond two frames in events-end-of-time-gate; initial timing/render debt, the matching checkpoints remain protected.
+events-end-of-time-gate native places # Visit 4 is $024 at frame 5022 against $024 at frame 3826 in the reference; existing progression/timing debt, earlier matches remain protected.
+events-epoch-lavos native game # The native saved game differs after the scene program in RAM (3131 starts) and the Epoch's flight; existing native-check end-state debt, not teardown evidence.
+events-epoch-lavos native pictures # 23 of 27 checkpoints differ beyond two frames in events-epoch-lavos; initial timing/render debt, the matching checkpoints remain protected.
+events-epoch-lavos native places # Visit 4 is $1B0 at frame 3118 against $1B0 at frame 3166 in the reference; existing progression/timing debt, earlier matches remain protected.
+events-fair-rescue native pictures # 22 of 27 checkpoints differ beyond two frames in events-fair-rescue; initial timing/render debt, the matching checkpoints remain protected.
+events-jetbike-race-won native game # The native saved game differs after the race (Johnny's jetbike), won to its end; existing native-check end-state debt, not teardown evidence.
+events-jetbike-race-won native pictures # 20 of 28 checkpoints differ beyond two frames in events-jetbike-race-won; initial timing/render debt, the matching checkpoints remain protected.
+events-jetbike-race-won native places # Visit 6 is $0DF at frame 6546 against $0E1 at frame 7551 in the reference; existing progression/timing debt, earlier matches remain protected.
+events-jetbike-race native pictures # 21 of 33 checkpoints differ beyond two frames in events-jetbike-race; initial timing/render debt, the matching checkpoints remain protected.
+events-ocean-palace-lavos native game # The native saved game differs after 455 in 30364: the Ocean Palace's end, Zeal's fall and its scene objects (and refusals); existing native-check end-state debt, not teardown evidence.
+events-ocean-palace-lavos native pictures # 96 of 103 checkpoints differ beyond two frames in events-ocean-palace-lavos; initial timing/render debt, the matching checkpoints remain protected.
+events-ocean-palace-lavos native places # Visit 6 is $1D3 at frame 8068 against $1D3 at frame 8164 in the reference; existing progression/timing debt, earlier matches remain protected.
+field-12kbc-1f4 native pictures # 6 of 11 checkpoints differ beyond two frames in field-12kbc-1f4; initial timing/render debt, the matching checkpoints remain protected.
+field-12kbc-1f6 native pictures # 6 of 11 checkpoints differ beyond two frames in field-12kbc-1f6; initial timing/render debt, the matching checkpoints remain protected.
+field-65m-bc-dactyl-flight native pictures # 8 of 15 checkpoints differ beyond two frames in field-65m-bc-dactyl-flight; initial timing/render debt, the matching checkpoints remain protected.
+field-65m-bc-dactyl native pictures # 6 of 11 checkpoints differ beyond two frames in field-65m-bc-dactyl; initial timing/render debt, the matching checkpoints remain protected.
+field-factory-switch native pictures # 23 of 29 checkpoints differ beyond two frames in field-factory-switch; initial timing/render debt, the matching checkpoints remain protected.
+field-floor-switch native pictures # 6 of 13 checkpoints differ beyond two frames in field-floor-switch; initial timing/render debt, the matching checkpoints remain protected.
+field-northern-ruins-switch native pictures # 8 of 14 checkpoints differ beyond two frames in field-northern-ruins-switch; initial timing/render debt, the matching checkpoints remain protected.
+late-omen-battles native game # The native saved game differs after Black Omen battles: statuses, single techs, running away; existing native-check end-state debt, not teardown evidence.
+late-omen-battles native pictures # 57 of 63 checkpoints differ beyond two frames in late-omen-battles; initial timing/render debt, the matching checkpoints remain protected.
+late-omen-terramutant native pictures # 57 of 61 checkpoints differ beyond two frames in late-omen-terramutant; initial timing/render debt, the matching checkpoints remain protected.
+menus-end-of-time native pictures # 24 of 31 checkpoints differ beyond two frames in menus-end-of-time; initial timing/render debt, the matching checkpoints remain protected.
+menus-end-of-time native places # Visit 5 is $1D0 at frame 4798 against $1D0 at frame 4835 in the reference; existing progression/timing debt, earlier matches remain protected.
+menus-epoch native game # The native saved game differs after the Epoch's screens; existing native-check end-state debt, not teardown evidence.
+menus-epoch native pictures # 25 of 31 checkpoints differ beyond two frames in menus-epoch; initial timing/render debt, the matching checkpoints remain protected.
+menus-epoch native places # Visit 4 is $1F1 at frame 4943 against $1F1 at frame 4989 in the reference; existing progression/timing debt, earlier matches remain protected.
+menus-field-menu native pictures # 8 of 37 checkpoints differ beyond two frames in menus-field-menu; initial timing/render debt, the matching checkpoints remain protected.
+menus-new-game-plus native pictures # 7 of 12 checkpoints differ beyond two frames in menus-new-game-plus; initial timing/render debt, the matching checkpoints remain protected.
+menus-save-point native game # The native saved game differs after a save point's save; existing native-check end-state debt, not teardown evidence.
+menus-save-point native sram # The native save RAM differs after a save point's save; existing native-check end-state debt, not teardown evidence.
+menus-save-point native pictures # 8 of 12 checkpoints differ beyond two frames in menus-save-point; initial timing/render debt, the matching checkpoints remain protected.
+menus-shop-equip native game # The native saved game differs after buying and equipping; existing native-check end-state debt, not teardown evidence.
+menus-shop-equip native pictures # 51 of 53 checkpoints differ beyond two frames in menus-shop-equip; initial timing/render debt, the matching checkpoints remain protected.
+menus-shop-equip native places # Visit 4 is $1F0 at frame 2498 against $1F0 at frame 2529 in the reference; existing progression/timing debt, earlier matches remain protected.
+menus-shop-inn native game # The native saved game differs after the shop and the inn; existing native-check end-state debt, not teardown evidence.
+menus-shop-inn native pictures # 18 of 34 checkpoints differ beyond two frames in menus-shop-inn; initial timing/render debt, the matching checkpoints remain protected.
+menus-shop-inn native places # Visit 6 is $00D at frame 8421 against $00C at frame 8422 in the reference; existing progression/timing debt, earlier matches remain protected.
+menus-sweep native pictures # 6 of 23 checkpoints differ beyond two frames in menus-sweep; initial timing/render debt, the matching checkpoints remain protected.

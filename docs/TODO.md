@@ -14,7 +14,10 @@ rest waits, is [PLAN.md](PLAN.md).
   and native ratchets with reviewed reasons for differences
   (REIMPLEMENTATION.md, "Recorded outcomes"). Resolve the sample's excepted
   saved-game, picture and place differences before a teardown relies on
-  those observables. A storage teardown must supply the same saved-game
+  those observables; none of the 37 currently matches every picture. Native
+  power-on save RAM also starts at zero rather than the reference's `0x60`.
+  Incomplete library plays must finish before they can supply complete
+  outcomes (the existing strict/native progress checks still locate their stops). A storage teardown must supply the same saved-game
   projection from the new storage; a picture hash alone cannot establish
   that a visual difference cannot affect play.
 

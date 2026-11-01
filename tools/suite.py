@@ -827,7 +827,8 @@ def main():
 
     jobs = args.jobs or max(1, (os.cpu_count() or 2) // 2)
     args.out.mkdir(parents=True, exist_ok=True)
-    for stale in list(args.out.glob("status-*.txt")) + list(args.out.glob("end-*.bin")):
+    for stale in (list(args.out.glob("status-*.txt")) + list(args.out.glob("end-*.bin")) +
+                  list(args.out.glob("outcome-*.txt"))):
         stale.unlink()
     shutil.rmtree(args.out / "outcomes", ignore_errors=True)
     shutil.rmtree(args.out / "fallbacks" / "shadow", ignore_errors=True)

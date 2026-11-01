@@ -3333,7 +3333,22 @@ protected identity. New movies or missing records fail closed. The suite
 runs both recorded checks after strict and native checks, and clears their
 old artifacts before a run, so skipping a producer cannot pass on stale data.
 
-The sample is recorded first. The next batched library run uses
+The ledger records the gate's 37 sample movies (475,874 frames). Both modes
+pass their initial ratchet on all 37, with these protected observations:
+
+| Mode | Saved game / save RAM matches (movies) | Picture match / drift / differ (checkpoints) | Place match / drift / differ (visits) |
+|---|---|---|---|
+| Strict | 28 / 36 | 424 / 69 / 1,143 | 147 / 73 / 76 |
+| Native | 21 / 30 | 245 / 26 / 1,365 | 39 / 154 / 103 |
+
+No sample movie matches every kind: every one has picture differences.
+These are existing debts, explicitly reasoned per movie, not a claim of
+harmless pixel changes. Power-on native save RAM starts at zero whereas the
+reference initializes it to `0x60`; the other end-state debts and place
+visits are named in the exceptions. A teardown can rely on the protected
+matches, not on a movie's aggregate ratchet pass.
+
+The next batched library run uses
 `tools/suite.py --all-movies --no-outcomes` for the unrecorded movies, then
 `outcomes.py --record --reference build/suite` without `--movies`. Review
 new differences and give reasons, run `--update` for both modes on that
@@ -3341,9 +3356,17 @@ output, then `--check` for both; commit the ledger and ratchets together.
 No second reference play is needed. Subsequent library runs include the
 check normally. Recording never silently changes the ratchet.
 
-**What a teardown cites.** Saved-game and save-RAM matches protect story,
-party, inventory, battle results and persistence; places protect progression
-and input timing; pictures protect field, menu and scene presentation.
+**What a teardown cites.** The replacements each remaining subsystem needs:
+
+| Teardown | Recorded checks it relies on, alongside routes and assertions |
+|---|---|
+| Events, field and world map | `game` for story/party/inventory; `places` for progression; `pictures` for the field and map |
+| Battles | `game` for party, items and results; `places` for returning to play; `pictures` for combat presentation |
+| Menus and saving | `game` and `sram` for selections and persistence; `pictures` for screens and cursors |
+| Scene engine and video | `pictures` for presentation; `places` for scene transitions; `game` for story consequences |
+| Storage and program entry | The same `game`/`sram` projection from the new storage, plus the movies' `places` and `pictures` |
+| Time model | `places` and `pictures` with the documented tolerances, and `game`/`sram` to detect changed input outcomes |
+
 A teardown names its movies, mode, kinds and protected identities here,
 records them before retiring the comparison, and resolves the exceptions
 it needs to depend on. Storage changes keep the same saved-game projection
