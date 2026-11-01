@@ -49,16 +49,17 @@ static void ring_clear(AudioFill *a)
     a->fill_avg = (double)a->target;
 }
 
-bool audio_fill_frame(AudioFill *a, Player *pl, bool paused)
+bool audio_fill_frame(AudioFill *a, const AudioSource *source, bool paused)
 {
     if (paused) {
-        player_discard_audio(pl);
+        source->discard(source->ctx);
         a->playing = false;
         ring_clear(a);
         return false;
     }
 
-    a->in_count += player_take_audio(pl, a->in + a->in_count * 2, sizeof a->in / sizeof a->in[0] / 2 - a->in_count);
+    a->in_count += source->take(source->ctx, a->in + a->in_count * 2,
+                                sizeof a->in / sizeof a->in[0] / 2 - a->in_count);
 
     lock(a, true);
     size_t fill = a->count;

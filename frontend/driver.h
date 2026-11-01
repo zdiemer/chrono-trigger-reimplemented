@@ -10,6 +10,7 @@
 
 #include "files.h"
 #include "player.h"
+#include "window.h"
 
 /* Headless input: buttons held over a range of frames. */
 typedef struct {
@@ -29,25 +30,6 @@ typedef struct {
 
 int run_headless(Player *pl, const HeadlessOptions *o);
 
-/* How the 256x224 picture is shown: rows cropped at the top and bottom (TVs
- * hid some of them as overscan; Chrono Trigger leaves its bottom rows black),
- * and the width a row is stretched to relative to its height. */
-typedef struct {
-    int crop_top, crop_bottom;
-    double pixel_aspect;   /* displayed pixel width / height */
-} Display;
-
-typedef struct {
-    const Files *files;
-    int scale;
-    bool fullscreen;
-    bool mute;
-    Display display;
-} WindowOptions;
-
-int run_window(Player *pl, const WindowOptions *o);
-
-/* The window's controls, for --help. */
-void window_print_controls(FILE *out);
+int run_window(Player *pl, const Files *files, const WindowOptions *o);
 
 #endif

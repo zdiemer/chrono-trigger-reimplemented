@@ -20,13 +20,36 @@
 
 #include "platform/timing.h"
 #include "port/native.h"
+#include "port/no_machine.h"
 #include "snes/bus.h"
+
+static void (*report_failure)(void *ctx, const char *routine);
+static void *report_ctx;
+
+void no_machine_report_with(void (*report)(void *ctx, const char *routine), void *ctx)
+{
+    report_failure = report;
+    report_ctx = ctx;
+}
 
 static _Noreturn void no_machine(const char *what)
 {
     fflush(stdout);
-    fprintf(stderr, "ct_native: %s reached, which only the machine has\n", what);
+    if (report_failure)
+        report_failure(report_ctx, what);
+    else
+        fprintf(stderr, "ct_native: %s reached, which only the machine has\n", what);
     exit(1);
+}
+
+/* Call-outs retain both addresses even though no registry is linked here. */
+static _Noreturn void no_machine_call(const char *what, uint32_t site, uint32_t target)
+{
+    char message[160];
+    snprintf(message, sizeof message, "%s to $%02X:%04X from $%02X:%04X", what,
+             (unsigned)(target >> 16), (unsigned)(target & 0xFFFF),
+             (unsigned)(site >> 16), (unsigned)(site & 0xFFFF));
+    no_machine(message);
 }
 
 /* ---- The emulated bus -------------------------------------------------------------------------- */
@@ -40,23 +63,23 @@ uint8_t snes_bus_peek(const SnesBus *bus, uint32_t addr) { (void)bus, (void)addr
 void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call)
 {
     (void)s, (void)site, (void)target, (void)long_call;
-    no_machine("native_call");
+    no_machine_call("native_call", site, target);
 }
 void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care)
 {
     (void)s, (void)site, (void)target, (void)long_call, (void)dont_care;
-    no_machine("native_call_dc");
+    no_machine_call("native_call_dc", site, target);
 }
 void native_yield_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care,
                           NativeGoesOn goes_on)
 {
     (void)s, (void)site, (void)target, (void)long_call, (void)dont_care, (void)goes_on;
-    no_machine("native_yield_call_dc");
+    no_machine_call("native_yield_call_dc", site, target);
 }
 void native_jump_call_dc(Snes *s, uint32_t site, uint32_t target, uint32_t returns_to, uint16_t dont_care)
 {
     (void)s, (void)site, (void)target, (void)returns_to, (void)dont_care;
-    no_machine("native_jump_call_dc");
+    no_machine_call("native_jump_call_dc", site, target);
 }
 void native_note_return(Snes *s) { (void)s; no_machine("native_note_return"); }
 void native_note_rti(Snes *s) { (void)s; no_machine("native_note_rti"); }
@@ -82,7 +105,7 @@ void native_flags_restored(Snes *s) { (void)s; no_machine("native_flags_restored
 void native_poison_as_call(Snes *s, uint32_t site, uint32_t target, uint16_t dont_care)
 {
     (void)s, (void)site, (void)target, (void)dont_care;
-    no_machine("native_poison_as_call");
+    no_machine_call("native_poison_as_call", site, target);
 }
 void native_poison_sibling_return(Snes *s, const NativeEntry *e) { (void)s, (void)e; no_machine("native_poison_sibling_return"); }
 

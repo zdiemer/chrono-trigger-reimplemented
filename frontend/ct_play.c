@@ -553,9 +553,8 @@ int main(int argc, char **argv)
         HeadlessOptions ho = { &files, frames, holds, nholds, screenshot, save_state_path, wav_path };
         rc = run_headless(&pl, &ho);
     } else {
-        wo.files = &files;
         wo.scale = (int)scale;
-        rc = run_window(&pl, &wo);
+        rc = run_window(&pl, &files, &wo);
     }
     if (record_path)
         fprintf(stderr, "recorded %lu frames to %s\n", (unsigned long)pl.track.frames, record_path);

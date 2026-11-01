@@ -11,7 +11,8 @@ Sound comes from the game's sound driver reimplemented in C (`game/sound/`,
 ## Build
 
 Install SDL2's development package (CMake config or pkg-config), then build
-with the main project. `ct_play` is skipped when SDL2 isn't found.
+with the main project. `ct_play` is skipped when SDL2 isn't found;
+`ct_native` still builds and runs headless.
 
 ```sh
 cmake -S . -B build/main -G Ninja && cmake --build build/main --target ct_play
@@ -423,8 +424,9 @@ holds the rules that keep it that way).
 |---|---|
 | `frontend/player.h`, `player.c` | the machine, its renderer and native runtime, the input track that replays and records, quick saves |
 | `frontend/natives.h`, `natives.c` | which entries `--native`, `--generated` (and `ct_dev`'s `--exclude` and `--include`) register, and a runtime over them; shared with `ct_drive` and `ct_dev` so the three can't drift apart |
-| `frontend/audio_fill.h`, `audio_fill.c` | the resampler and ring buffer between the APU's 32000 Hz and an audio device's rate (above) |
-| `frontend/window.c` | `run_window`: the SDL window, audio device, keyboard and gamepads, and the frame pacing |
+| `frontend/audio_fill.h`, `audio_fill.c` | the resampler and ring buffer between a source of 32000 Hz stereo samples and an audio device's rate (above), shared by both programs |
+| `frontend/window.h`, `window.c` | `window_run`: the shared SDL window, audio device, keyboard and gamepads, and frame pacing; callbacks supply one frame, pixels and stereo samples |
+| `frontend/window_player.c` | `ct_play`'s adapter: the player, quick saves and desktop files behind those callbacks |
 | `frontend/bindings.h`, `bindings.c` | the window's controls: keys and pad inputs to SNES buttons and player actions |
 | `frontend/headless.c` | `run_headless`: `--frames`, `--hold`, `--screenshot`, `--wav` |
 | `frontend/files.h`, `files.c` | the desktop's storage: what the saves and the asset pack are called, and the files they go in |
@@ -479,14 +481,63 @@ development tools call (`snes_state_save`, `zst_import_file`, `ct_movie_load`,
 
 `ct_native` is the game with no emulator under it, the first version of
 what `ct_play` becomes (PLAN.md, "The native program, and the registry taken
-down"). It is a measurement, not yet a player:
+down"). With SDL2 it opens the same window as `ct_play`, with the native
+renderer, live keyboard/gamepad input and the C sound driver through the
+native mixer and SDL audio. Without SDL2 it remains a headless program.
+
+On Windows, from the repository root with the toolchain and SDL2 DLL on
+`PATH`, build and start a fresh game (use an unused SRAM name to start afresh):
+
+```powershell
+cmake -S . -B build/main -G Ninja -DCT_ROM=roms/ct-usa.sfc -DCT_WERROR=ON
+cmake --build build/main -j 2
+.\build\main\ct_native.exe --rom roms/ct-usa.sfc --sram build/native-new.srm
+```
+
+To start from a cartridge save, copy it to a working save and run:
+
+```powershell
+Copy-Item oracle/saves/fantasyanime/ctsave12-side_quests1.srm build/native-save.srm
+.\build\main\ct_native.exe --rom roms/ct-usa.sfc --sram build/native-save.srm
+```
+
+Choose a slot on the game's load screen. Your own 8 KiB `.srm` works the same
+way. Window play writes changed SRAM back to the named file after each frame
+and on exit, including when the game saves; a missing file starts erased.
+Without `--sram`, window play uses `roms/ct-usa.srm` for this ROM. Headless
+runs retain their old behavior: an explicit save is read only, and without
+one they start erased. Keep screenshots, asset packs and end states out of Git.
+The asset pack is the same `roms/ct-usa.assets` that `ct_play` imports from
+your ROM; `--assets` selects another location. No ROM is needed at build time
+for `ct_native` itself.
+
+Controls use `ct_play`'s default bindings: arrows move, **X/Z/S/A** press
+SNES **A/B/X/Y**, **Q/W** are L/R, **Return** is Start, **Right Shift** is
+Select. **P** pauses, **Tab** fast-forwards, **F11** or **Alt+Return** toggles
+fullscreen, and **Escape** quits. SDL gamepads use the D-pad/left stick,
+face buttons by position, shoulders, Start/Back and right trigger for fast
+forward (see the table above). `--scale 3`, `--fullscreen` and `--mute` work
+in the shared window. Native play has no quick save/load, movie recording,
+emulator state loading or custom binding options yet; F5/F7 do nothing.
+
+The window runs until closed. `--frames N` selects the old headless behavior,
+while `--headless` alone runs 600 frames. `--window` overrides `--frames` so a
+bounded movie can be watched with sound and exits automatically:
+
+```powershell
+.\build\main\ct_native.exe --rom roms/ct-usa.sfc --window --movie oracle/movies/new-game.ctm --frames 7200
+```
+
+Movies supply both controllers through the last recorded input, then live
+input takes over in a window. They play at normal speed unless fast forward
+is held. Headless measurements and scene selection still work:
 
 ```sh
 build/main/ct_native --rom roms/ct-usa.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]
                      [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--scene flags[,song]]...
 ```
 
-With `--movie` the first controller presses what the movie's frames say,
+With `--movie` the controllers press what the movie's frames say,
 frame for frame; the native program's frames keep the original's time only as
 far as the frame-level time model does (REIMPLEMENTATION.md: the sound
 driver's uploads and a load's unpacking and sends, charged as lag frames, the
@@ -568,12 +619,16 @@ resource of the catalogue holds has no answer without the ROM, so a read of
 one stops the program with its address, as a step only the machine runs does.
 
 The driver (`frontend/ct_native.c`) starts the host backends with the
-program and runs its frames headless: the vblank handler, the main thread as a
+program and advances one frame per call, from its headless loop or the shared
+window driver: the vblank handler, the main thread as a
 coroutine until it waits for the frame, the line handler, then a frame of the
 sound driver's time. Where the program's next step is still only a machine
-entry, `program_needs_the_machine` stops it and the driver says where (exit
-status 1; here from a cartridge save with `saves/menus-field-menu.ctm`'s
-presses, at the equipment's slots window):
+entry, `program_needs_the_machine` stops it with exit status 1 and the driver
+prints the routine and frame to stderr in either mode. Fatal
+`no_machine.c` entries also name their function and current frame. Run from a
+terminal and include that line when reporting a failure. For example, from a
+cartridge save with `saves/menus-field-menu.ctm`'s
+presses, a stop at the equipment's slots window would look like this:
 
 ```
 frame 3651: the program's C goes no further: $C2:A71E, the equipment's slots window opened, runs only on the machine
