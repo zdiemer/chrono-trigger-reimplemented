@@ -167,7 +167,7 @@ why = "a short copy"
 name = "scene_boot"
 subsystem = "scene"
 state = "attract"
-args = ["--long", "--db", "00"]
+args = ["--apu-loopback", "--budget", "20000000", "--stop-at-call", "7E31B0", "--long", "--db", "00"]
 iterations = 200
 why = "each decompresses the whole program"
 
@@ -232,7 +232,8 @@ args = ["--interrupt"]
 name = "scene_boot_line_irq"
 subsystem = "scene"
 state = "attract"
-args = ["--interrupt"]
+args = ["--interrupt", "--stop-at-call", "C30530"]
+why = "up to the first beam wait: fuzzing does not advance the beam; shadow movies and suspend_test check the complete waits"
 
 [[routine]]
 name = "scene_boot_line_irq_wait_hblank_end_loop"
@@ -381,7 +382,8 @@ name = "scene_wait_for_music_loop"
 at = "7E:5AAA"
 subsystem = "scene"
 state = "attract"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--stop-at-call", "7E5AAA"]
+why = "up to the music wait when the driver is silent; separate playing-status fixtures check the complete return"
 
 [[routine]]
 name = "scene_race_wait_for_tilemap_upload_loop"
@@ -420,24 +422,24 @@ why = "the ride's tail as the ride's own code reaches it: the engine's pitch to 
 name = "scene_race_ride"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--fill", "7E0070-7E0070=00-7E", "--fill", "7E0072-7E0072=00-00", "--fill", "7E007B-7E007B=00-7F", "--fill", "7E007D-7E007D=00-7F", "--fill", "7E007F-7E007F=00-7F"]
-why = "a frame task on the scene's page; the program kept (its code is the guard's hash, its tables the race's data); the driver's echo looped back for the bump's sound; Johnny's speed, speeding-up and top speeds within $8000 of each other, as the game's always are (the boost's unit, an accepted divergence at the entry, game/scene/race_rules.c)"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--fill", "7E0070-7E0070=00-7E", "--fill", "7E0072-7E0072=00-00", "--fill", "7E007B-7E007B=00-7F", "--fill", "7E007D-7E007D=00-7F", "--fill", "7E007F-7E007F=00-7F", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "a frame task on the scene's page; the program kept (its code is the guard's hash, its tables the race's data); the driver's echo looped back for the bump's sound; Johnny's speed, speeding-up and top speeds within $8000 of each other, as the game's always are (the boost's unit, an accepted divergence at the entry, game/scene/race_rules.c); a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_race_ride"
 variant = "finish"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--fill", "7E0053-7E0054=0700,0800", "--fill", "7E0078-7E0079=0700,0800", "--fill", "7E00B0-7E00B1=0000", "--fill", "7E0070-7E0070=00-7E", "--fill", "7E0072-7E0072=00-00", "--fill", "7E007B-7E007B=00-7F", "--fill", "7E007D-7E007D=00-7F", "--fill", "7E007F-7E007F=00-7F"]
-why = "the bikes' distances' high words 7 or 8, so the two finishes and the seam's swaps are reached, and the race running; Johnny's speed, speeding-up and top speeds within $8000 of each other, as the game's always are (the boost's unit, an accepted divergence at the entry, game/scene/race_rules.c)"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--fill", "7E0053-7E0054=0700,0800", "--fill", "7E0078-7E0079=0700,0800", "--fill", "7E00B0-7E00B1=0000", "--fill", "7E0070-7E0070=00-7E", "--fill", "7E0072-7E0072=00-00", "--fill", "7E007B-7E007B=00-7F", "--fill", "7E007D-7E007D=00-7F", "--fill", "7E007F-7E007F=00-7F", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the bikes' distances' high words 7 or 8, so the two finishes and the seam's swaps are reached, and the race running; Johnny's speed, speeding-up and top speeds within $8000 of each other, as the game's always are (the boost's unit, an accepted divergence at the entry, game/scene/race_rules.c); a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_race_ride"
 variant = "bump"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--fill", "7E00B0-7E00B1=00-00", "--fill", "7E004E-7E004F=@7E0073", "--fill", "7E0051-7E0052=@7E0076", "--fill", "7E0070-7E0070=00-7E", "--fill", "7E0072-7E0072=00-00", "--fill", "7E007B-7E007B=00-7F", "--fill", "7E007D-7E007D=00-7F", "--fill", "7E007F-7E007F=00-7F"]
-why = "the race running with the bikes level in lane and distance, so they touch and bump every way; Johnny's speed, speeding-up and top speeds within $8000 of each other, as the game's always are (the boost's unit, an accepted divergence at the entry, game/scene/race_rules.c)"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--fill", "7E00B0-7E00B1=00-00", "--fill", "7E004E-7E004F=@7E0073", "--fill", "7E0051-7E0052=@7E0076", "--fill", "7E0070-7E0070=00-7E", "--fill", "7E0072-7E0072=00-00", "--fill", "7E007B-7E007B=00-7F", "--fill", "7E007D-7E007D=00-7F", "--fill", "7E007F-7E007F=00-7F", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the race running with the bikes level in lane and distance, so they touch and bump every way; Johnny's speed, speeding-up and top speeds within $8000 of each other, as the game's always are (the boost's unit, an accepted divergence at the entry, game/scene/race_rules.c); a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_race_coast"
@@ -445,30 +447,30 @@ subsystem = "scene"
 state = "race"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E00B0-7E00B0=01-02", "--fill", "7E00B1-7E00B1=00-00",
         "--fill", "7E004E-7E004F=0040,0140,0020,8060", "--fill", "7E0074-7E0074=00-70", "--fill", "7E00B2-7E00B2=00,01,FF",
-        "--fill", "7E00B3-7E00B3=00,00,00,01"]
-why = "after Crono's finish: stage 1 coasting or 2 pulled away; Crono's lane at the middle ($4000, $4001) or elsewhere and Johnny's in the game's lanes (pulling over, an accepted divergence at the entry, game/scene/race_rules.c), and the finish margin near 0, so the coast's end is reached"
+        "--fill", "7E00B3-7E00B3=00,00,00,01", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "after Crono's finish: stage 1 coasting or 2 pulled away; Crono's lane at the middle ($4000, $4001) or elsewhere and Johnny's in the game's lanes (pulling over, an accepted divergence at the entry, game/scene/race_rules.c), and the finish margin near 0, so the coast's end is reached; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_race_await_victory_song"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0388-7E0388=00,00,01"]
-why = "a frame task on the scene's page; mostly no song being sent, so the driver's status is read: the race state's music is playing, so the song's arrival is reached"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0388-7E0388=00,00,01", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "a frame task on the scene's page; mostly no song being sent, so the driver's status is read: the race state's music is playing, so the song's arrival is reached; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_race_wait_to_leave"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
-why = "a frame task; the driver's echo looped back for the sound that begins the end"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "a frame task; the driver's echo looped back for the sound that begins the end; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_race_wait_to_leave"
 variant = "attract"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E4259-7E4259=01,02", "--apu-loopback"]
-why = "the curtain's way in the program's own code, as the race (2) and the attract sequence's curtain setup (1, $7E:6838) write it"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E4259-7E4259=01,02", "--apu-loopback", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the curtain's way in the program's own code, as the race (2) and the attract sequence's curtain setup (1, $7E:6838) write it; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_race_leave"
@@ -481,8 +483,8 @@ why = "a frame task on the scene's page; the wait at its last frame or nearly, s
 name = "scene_race_drain_score"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "a frame task on the scene's page"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "a frame task on the scene's page; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_race_settle_camera"
@@ -581,7 +583,7 @@ args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 name = "scene_clear_work_ram"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
 iterations = 2000
 
 [[routine]]
@@ -617,57 +619,6 @@ iterations = 200
 why = "a random size makes a transfer very slow"
 
 [[routine]]
-name = "scene_title_load_sprite_graphics"
-at = "7E:597B"
-subsystem = "scene"
-state = "attract"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-
-[[routine]]
-name = "scene_title_load_layer_tiles"
-at = "7E:59A0"
-subsystem = "scene"
-state = "attract"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-
-[[routine]]
-name = "scene_title_load_plane_graphics"
-at = "7E:59AA"
-subsystem = "scene"
-state = "attract"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-
-[[routine]]
-name = "scene_title_load_bg1_map"
-at = "7E:59BC"
-subsystem = "scene"
-state = "attract"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-
-[[routine]]
-name = "scene_title_load_bg2_map"
-at = "7E:59CC"
-subsystem = "scene"
-state = "attract"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-
-[[routine]]
-name = "scene_title_fill_bg1_map"
-at = "7E:59D5"
-subsystem = "scene"
-state = "attract"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-iterations = 2000
-why = "fills $F00 bytes of VRAM a call"
-
-[[routine]]
-name = "scene_title_set_up_pendulum"
-at = "7E:5A59"
-subsystem = "scene"
-state = "attract"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-
-[[routine]]
 name = "scene_title_load_plane_map"
 at = "7E:5AB6"
 subsystem = "scene"
@@ -688,7 +639,7 @@ name = "scene_title_move_logo"
 at = "7E:5C98"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
 
 [[routine]]
 name = "scene_title_start_ripple"
@@ -822,14 +773,14 @@ why = "the camera's distance 0, as the attract demo's race has it when a bike st
 name = "scene_race_scale_pictures"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E1402-7E1402=00-02", "--fill", "7E1403-7E1403=00-00", "--fill", "7E1410-7E1410=00-02", "--fill", "7E1411-7E1411=00-00", "--fill", "7E1409-7E1409=00-0F", "--fill", "7E1417-7E1417=00-0F"]
+args = ["--budget", "32000000", "--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E1402-7E1402=00-02", "--fill", "7E1403-7E1403=00-00", "--fill", "7E1410-7E1410=00-02", "--fill", "7E1411-7E1411=00-00", "--fill", "7E1409-7E1409=00-0F", "--fill", "7E1417-7E1417=00-0F"]
 why = "the main loop's call; the racers' requests' states as the race keeps them, and their row steps below $1000, the race's sizes halved (compared to the scaler's first row, where it stops)"
 
 [[routine]]
 name = "scene_race_scale_after_crono"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E1410-7E1410=00-02", "--fill", "7E1411-7E1411=00-00", "--fill", "7E1417-7E1417=00-0F"]
+args = ["--budget", "32000000", "--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E1410-7E1410=00-02", "--fill", "7E1411-7E1411=00-00", "--fill", "7E1417-7E1417=00-0F"]
 why = "back from Crono's picture gathered, A the request's new state (the guard asks for it); Johnny's request as the race keeps it"
 
 [[routine]]
@@ -856,13 +807,13 @@ args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 name = "scene_race_upload_column_rom"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0940-7E096F=00-00"]
 
 [[routine]]
 name = "scene_race_upload_column_ram"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0940-7E096F=00-00"]
 
 [[routine]]
 name = "scene_race_upload_tilemap"
@@ -886,6 +837,62 @@ iterations = 2000
 # The telepod ending's staff roll (game/scene/staff_roll.c), from the movie during the credits: the program
 # kept, the scene's page and the data bank on the registers, as the frame's lists call the tasks.
 
+[[routine]]
+name = "scene_ending_load_panorama"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+iterations = 300
+why = "mode 10's script call, on channel 0; the shared scene program and its resources kept"
+
+[[routine]]
+name = "scene_turn_map"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E7442-7E7442=01-20"]
+iterations = 2000
+why = "the guard takes 1-32 output rows, within the map buffer; all matrix and origin words are unrestricted"
+
+[[routine]]
+name = "scene_offset_angle"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+iterations = 20000
+why = "the scene's page and I/O bank; full signed offsets, including wrapped byte divisors"
+
+[[routine]]
+name = "scene_radius_from_area"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+iterations = 20000
+why = "the scene's page; every area word and either incoming rounding bit"
+
+[[routine]]
+name = "scene_ending_layer_panorama"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+iterations = 2000
+why = "mode 10's script call; its line-effect descriptors kept with the program"
+
+[[routine]]
+name = "scene_ending_panorama_horizon"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+iterations = 2000
+why = "the task's data bank reaches the video registers; the full wrapping horizon domain is exercised"
+
+[[routine]]
+name = "scene_expand_packed_pixels"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+iterations = 300
+why = "packed-pixel expansion, including counts beyond the panorama's image and the work-RAM port's wrap"
+
 [state.staff_roll]
 movie = "oracle/movies/saves/endings-telepod-lavos.ctm"
 frames = 130000
@@ -903,8 +910,8 @@ name = "scene_roll_credits"
 subsystem = "scene"
 state = "staff_roll"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E004A-7E004B=AB1A,AB95,ABFD,AC61,ACE1,AD6C,ADD3,AE47,AF3B,AFC0,B05D,B071,B098",
-        "--fill", "7E0940-7E0941=9EFC", "--fill", "7E00AD-7E00AD=00-01", "--fill", "7E00AE-7E00AE=00-00"]
-why = "the text at one of the credits' lines (the last the end), the upload on the vblank list and the speed's high byte 0, as the guard asks; the speed fast or slow"
+        "--fill", "7E0940-7E0941=9EFC", "--fill", "7E00AD-7E00AD=00-01", "--fill", "7E00AE-7E00AE=00-00", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the text at one of the credits' lines (the last the end), the upload on the vblank list and the speed's high byte 0, as the guard asks; the speed fast or slow; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_scroll_credits"
@@ -981,8 +988,8 @@ why = "the Beyond Time ending's field after its captions: the cursor before the 
 name = "scene_stars_start_drift"
 subsystem = "scene"
 state = "staff_roll"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "The End's drift starting, from what the list calls the task with"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "The End's drift starting, from what the list calls the task with; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_stars_keep_drifting"
@@ -1004,8 +1011,8 @@ subsystem = "scene"
 state = "ending"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0071-7E0072=0000,0002,0010,00E0",
         "--fill", "7E0074-7E007A:2=00-03", "--fill", "7E036B-7E036B=00-00", "--fill", "7E0011-7E0012=0000,0040,0100",
-        "--fill", "7E0013-7E0013=00-0F", "--fill", "7E0014-7E0014=09-09"]
-why = "the last scene's window anywhere in its sweep, the left edge in (the rider drawn) or at 0, the corners on either side of where the sweep ends, the sprite cursor where the rider fits; the guard turns away a corner or the right side on the last line, from where the original's fill runs round into low RAM"
+        "--fill", "7E0013-7E0013=00-0F", "--fill", "7E0014-7E0014=09-09", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the last scene's window anywhere in its sweep, the left edge in (the rider drawn) or at 0, the corners on either side of where the sweep ends, the sprite cursor where the rider fits; the guard turns away a corner or the right side on the last line, from where the original's fill runs round into low RAM; a valid task caller frame on the stack, with the remaining lists empty"
 
 # The captions over the shared endings (game/scene/captions.c), from the Beyond Time ending.
 
@@ -1024,8 +1031,8 @@ state = "ending"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0083-7E0084=0000,0001,0002,0003",
         "--fill", "7E0085-7E0086=0000,0001,0002", "--fill", "7E0081-7E0082=0001,0002,0021,0022,0140",
         "--fill", "7E0382-7E0383=A651,A672,AB00,AB1A", "--fill", "7E038D-7E038D=0F,8F,07",
-        "--fill", "7E0011-7E0012=0000,0040", "--fill", "7E0013-7E0013=00-0F", "--fill", "7E0014-7E0014=09-09"]
-why = "every turn: captions left or none, up or in the gap, the countdown at its end, at the fade-out or counting, the text at a caption or the captions' end, the screen up or still coming up"
+        "--fill", "7E0011-7E0012=0000,0040", "--fill", "7E0013-7E0013=00-0F", "--fill", "7E0014-7E0014=09-09", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "every turn: captions left or none, up or in the gap, the countdown at its end, at the fade-out or counting, the text at a caption or the captions' end, the screen up or still coming up; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "field_rasterize_quad_from_its_start"
@@ -1100,36 +1107,36 @@ why = "called by a script's call command on a channel's page, whose first cell t
 name = "scene_ending_show_credits"
 subsystem = "scene"
 state = "ending"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "a vblank task, on the scene's page"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "a vblank task, on the scene's page; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_send_the_credits_picture"
 subsystem = "scene"
 state = "ending"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "a vblank task, on the scene's page"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "a vblank task, on the scene's page; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_send_the_pattern_s_map"
 subsystem = "scene"
 state = "ending"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "a vblank task, on the scene's page"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "a vblank task, on the scene's page; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_send_the_pattern_s_tiles"
 subsystem = "scene"
 state = "ending"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "a vblank task, on the scene's page"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "a vblank task, on the scene's page; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_blank_the_map"
 subsystem = "scene"
 state = "ending"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "a vblank task, on the scene's page"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "a vblank task, on the scene's page; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_stop_the_picture"
@@ -1198,8 +1205,8 @@ why = "called by a script's call command on a channel's page"
 name = "scene_ending_show_last_scene"
 subsystem = "scene"
 state = "ending"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "a vblank task"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "a vblank task; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_ending_scroll_bg2"
@@ -1241,7 +1248,7 @@ name = "scene_check_the_flight_view"
 subsystem = "scene"
 state = "ending"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E007B-7E007C=0000,0001"]
-why = "a frame task, the map flat or in perspective, the camera random: a changed one builds the perspective, where the port builds it, or stops at the original's jump to it"
+why = "a frame task, the map flat or in perspective, the camera random: a changed one builds the perspective; unsupported lines are refused before the saved camera changes"
 
 [[routine]]
 name = "scene_place_the_flight_view"
@@ -19701,7 +19708,7 @@ why = "everything random but the stack: the start writes all it reads but the st
 name = "warp_long_frame"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
 iterations = 5000
 why = "the warp's page with its zero (the guard), everything else random: the frame count anywhere (every phase, and past the end), the circle's tables, the palette"
 
@@ -19709,7 +19716,7 @@ why = "the warp's page with its zero (the guard), everything else random: the fr
 name = "warp_short_frame"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E051C-7E051C=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E051C-7E051C=00"]
 iterations = 5000
 why = "as warp_long_frame, the frame count under 256 so its every phase and its end come up"
 
@@ -19717,7 +19724,7 @@ why = "as warp_long_frame, the frame count under 256 so its every phase and its 
 name = "warp_shortest_frame"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E051C-7E051C=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E051C-7E051C=00"]
 iterations = 5000
 why = "as warp_short_frame"
 
@@ -19725,7 +19732,7 @@ why = "as warp_short_frame"
 name = "warp_flickering_frame"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--range", "A=0000-00FF"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--range", "A=0000-00FF"]
 iterations = 5000
 why = "as warp_long_frame, with A's high byte clear as every frame leaves it: the brightness's index takes it along (game/warp/warp.c, flicker), and only the start leaves it otherwise, before the first frame, whose place in the pattern is 0"
 
@@ -19758,7 +19765,7 @@ why = "the warp's page with its zero (the guard)"
 name = "warp_wait_for_frame"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
 iterations = 2000
 why = "the warp's page with its zero (the guard)"
 
@@ -19859,9 +19866,9 @@ why = "the program kept, the sound's port read back, so each command's wait ends
 name = "scene_title_set_up"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--budget", "20000000"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--stop-at-call", "7E5AAA", "--budget", "20000000"]
 iterations = 400
-why = "the program kept, the sound's port read back, so the song's start ends"
+why = "the program kept, commands echoed, up to the music wait: the SPC700 does not advance in fuzzing"
 
 [[routine]]
 name = "scene_animate_the_palettes"
@@ -19926,16 +19933,16 @@ name = "scene_title_count_the_wait_down"
 subsystem = "scene"
 state = "attract"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF",
-        "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=09-09", "--fill", "7E0920-7E092F=00-00"]
-why = "the program kept, on the scene's own page, the sprite table's cursor at its start as each frame's first list finds it (the guards take only lists that fit), and the frame's first slots free for the task it adds"
+        "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=09-09", "--fill", "7E0920-7E092F=00-00", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the program kept, on the scene's own page, the sprite table's cursor at its start as each frame's first list finds it (the guards take only lists that fit), and the frame's first slots free for the task it adds; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_title_watch_for_a_button"
 subsystem = "scene"
 state = "attract"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF",
-        "--fill", "7E0920-7E092F=00-00"]
-why = "the program kept, on the scene's own page, and the frame's first slots free for the task it adds"
+        "--fill", "7E0920-7E092F=00-00", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the program kept, on the scene's own page, and the frame's first slots free for the task it adds; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "menu_object_mode_start_jump"
@@ -19964,43 +19971,43 @@ why = "on channel 0's page, as the title's script calls it"
 name = "scene_title_calm_the_ripple"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
-why = "the program kept, on the scene's own page, as the frame's list calls it"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the program kept, on the scene's own page, as the frame's list calls it; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_brighten"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
-why = "the program kept, on the scene's own page, as the frame's list calls it"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the program kept, on the scene's own page, as the frame's list calls it; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_darken"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
-why = "the program kept, on the scene's own page, as the frame's list calls it"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the program kept, on the scene's own page, as the frame's list calls it; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_darken_and_end"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
-why = "the program kept, on the scene's own page, as the frame's list calls it"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the program kept, on the scene's own page, as the frame's list calls it; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_fade_the_music_out"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
-why = "the program kept, on the scene's own page, as the frame's list calls it; the sound's port read back, so the driver's command ends"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the program kept, on the scene's own page, as the frame's list calls it; the sound's port read back, so the driver's command ends; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_darken_in_silence_and_end"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
-why = "the program kept, on the scene's own page, as the frame's list calls it; the sound's port read back, so the driver's command ends"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the program kept, on the scene's own page, as the frame's list calls it; the sound's port read back, so the driver's command ends; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_sweep_the_curtain"
@@ -20120,22 +20127,22 @@ why = "the mosaic's wait running out, with a mosaic left or none"
 name = "scene_darken_the_palace"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0520-7E0520=00-01"]
-why = "the program kept, on the scene's own page, as the frame's list calls it; the last fade over, or still playing"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0520-7E0520=00-01", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the program kept, on the scene's own page, as the frame's list calls it; the last fade over, or still playing; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_whiten_the_palace"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0520-7E0520=00-01"]
-why = "as scene_darken_the_palace"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0520-7E0520=00-01", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "as scene_darken_the_palace; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_clear_the_palace"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0520-7E0520=00-01"]
-why = "as scene_darken_the_palace"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0520-7E0520=00-01", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "as scene_darken_the_palace; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_send_the_palace_offsets"
@@ -20676,7 +20683,7 @@ variant = "cockpit"
 subsystem = "scene"
 state = "dive_from_the_cockpit"
 args = ["--keep", "7E3000-7EC994", "--fill", "7E0044-7E0045=0000-0003", "--fill", "7E0046-7E0047=00A8,00A9,00AB"]
-why = "from the cockpit: the camera and the perspective's kept camera random, the halves' count kept low (the build's guard refuses what it doesn't build, the original then building it)"
+why = "from the cockpit: the camera and the perspective's kept camera random, the halves' count kept low (the entry guard validates the upcoming half)"
 
 [[routine]]
 name = "scene_check_the_shell"
@@ -20767,15 +20774,15 @@ why = "a frame task at the end: the light's table anywhere it goes as it opens"
 name = "scene_set_the_screen_outside"
 subsystem = "scene"
 state = "dive_from_the_cockpit"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "the one-off vblank task that sets the screen up from outside"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the one-off vblank task that sets the screen up from outside; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_set_the_screen_in_the_cockpit"
 subsystem = "scene"
 state = "dive_from_outside"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "the one-off vblank task that sets the screen up from the cockpit"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "the one-off vblank task that sets the screen up from the cockpit; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_look_from_outside"
@@ -21166,7 +21173,7 @@ name = "warp_long_trip_waits"
 at = "FD:DA03"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
 iterations = 2000
 why = "the warp's page and its zero word (the guard's): the main loop's wait, to its loop"
 
@@ -21175,7 +21182,7 @@ name = "warp_short_trip_waits"
 at = "FD:DA62"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
 iterations = 2000
 why = "as warp_long_trip_waits"
 
@@ -21184,7 +21191,7 @@ name = "warp_shortest_trip_waits"
 at = "FD:DAC1"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
 iterations = 2000
 why = "as warp_long_trip_waits"
 
@@ -21193,7 +21200,7 @@ name = "warp_flickering_trip_waits"
 at = "FD:DB24"
 subsystem = "warp"
 state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
+args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
 iterations = 2000
 why = "as warp_long_trip_waits"
 
@@ -21309,7 +21316,7 @@ name = "scene_show_the_planet_s_caption"
 at = "7E:64BF"
 subsystem = "scene"
 state = "planet"
-args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00"]
+args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0014=0900"]
 iterations = 2000
 why = "the program kept on the scene's page, the sprite cursor at the table's start so the caption fits (the drawing's guard)"
 
@@ -21318,9 +21325,9 @@ name = "scene_wait_for_a_button_to_restart"
 at = "7E:63D5"
 subsystem = "scene"
 state = "planet"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0920-7E093F=00-00", "--stop-at-call", "7E377E"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0920-7E093F=00-00", "--stop-at-call", "7E377E", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
 iterations = 2000
-why = "the program kept on the scene's page, the data bank on the I/O registers' (the send's guard), the frame list with room; any buttons, up to the sound's send"
+why = "the program kept on the scene's page, the data bank on the I/O registers' (the send's guard), the frame list with room; any buttons, up to the sound's send; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_count_down_to_the_restart"
@@ -21347,9 +21354,9 @@ name = "scene_send_the_mosaic_frame"
 at = "7E:9CE2"
 subsystem = "scene"
 state = "ending"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
 iterations = 2000
-why = "a vblank task: the program kept, the picture's frame random"
+why = "a vblank task: the program kept, the picture's frame random; a valid task caller frame on the stack, with the remaining lists empty"
 
 [[routine]]
 name = "scene_draw_large_sprite_list"
@@ -21398,3 +21405,498 @@ state = "equipment"
 args = ["--d", "0000", "--db", "7E", "--keep", "7E7700-7E7FFF", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--fill", "7E0051-7E0052=00-00", "--fill", "7E9380-7E947B=00-29", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-03", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E006F-7E0070=2600,2650,26A0,26F0,2740,2790,27E0", "--fill", "7E0D26-7E0D27=0027,0028,0029,002A", "--fill", "7E0412-7E0412=00-08", "--fill", "7E0054-7E0054=04-0C", "--fill", "7E0FC8-7E0FC8=00-FF", "--fill", "7E0FC6-7E0FC6=00-62", "--fill", "7E0F00-7E0F61=00-FF", "--fill", "7E7BF2-7E7BFF=00-FF", "--fill", "7E7C94-7E7CFF=00-FF", "--stop-at-call", "C2821E", "--stop-at-call", "C2EB1F"]
 iterations = 2000
 why = "as the plain row, with any item on the list, the list's top anywhere (the cursor past the list's last row too) and the bytes past the menus' item tables random: an item tried on that is no item of the game's is worked out from what lies past the tables, its boost looked up with the original's byte-wide index (game/menu/figures.c); the pointing's own drawing of such an item's name reads past the names' places (an accessor out of range the fuzz reports, which no list of the game's reaches)"
+
+[[routine]]
+name = "scene_load_figure_pose"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "X=0000-0012/3", "--range", "A=0000-27D8/28", "--range", "Y=1C00-1C00"]
+why = "the seven party characters, every byte-sized pose, and the scene buffer or four free sprite slots"
+
+[[routine]]
+name = "scene_draw_figure_pose"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "X=0000-0012/3", "--range", "A=0000-27D8/28", "--fill", "7E0011-7E0012=0000,0040,0080,0100,0180,01F0", "--fill", "7E0013-7E0014=0900,0904,0908,0910,0918,091F"]
+why = "the seven party characters, every byte-sized pose, and the scene buffer or four free sprite slots"
+
+[[routine]]
+name = "scene_turn_set_up"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 100
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0A00-7E0B3F=00", "--fill", "7E0920-7E095F=00", "--stop-at-call", "7E31B0", "--budget", "8000000"]
+why = "the shared scene image and the page its setup, task list or script caller supplies; figure update restricted to party graphics and free sprite slots"
+
+[[routine]]
+name = "scene_start_turn_figures"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the shared scene image and the page its setup, task list or script caller supplies; figure update restricted to party graphics and free sprite slots"
+
+[[routine]]
+name = "scene_pick_turn_sequence"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "the shared scene image and the page its setup, task list or script caller supplies; figure update restricted to party graphics and free sprite slots"
+
+[[routine]]
+name = "scene_step_turn_mosaic"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the shared scene image and the page its setup, task list or script caller supplies; figure update restricted to party graphics and free sprite slots"
+
+[[routine]]
+name = "scene_spread_turn_figures"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the shared scene image and the page its setup, task list or script caller supplies; figure update restricted to party graphics and free sprite slots"
+
+[[routine]]
+name = "scene_size_turn_windows"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the shared scene image and the page its setup, task list or script caller supplies; figure update restricted to party graphics and free sprite slots"
+
+[[routine]]
+name = "scene_show_turn_mosaic"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the shared scene image and the page its setup, task list or script caller supplies; figure update restricted to party graphics and free sprite slots"
+
+[[routine]]
+name = "scene_scroll_turn_wave"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the shared scene image and the page its setup, task list or script caller supplies; figure update restricted to party graphics and free sprite slots"
+
+[[routine]]
+name = "scene_orbit_turn_figures"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the shared scene image and the page its setup, task list or script caller supplies; figure update restricted to party graphics and free sprite slots"
+
+[[routine]]
+name = "scene_update_turn_figures"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0052-7E0094:16=00-06", "--fill", "7E00AD-7E00AE=0000,0016,002C,0042", "--fill", "7E0011-7E0012=0000,0040,0080,0100,0180,01C0", "--fill", "7E0013-7E0014=0900,0904,0908,0910,0918,091C"]
+why = "the shared scene image and the page its setup, task list or script caller supplies; figure update restricted to party graphics and free sprite slots"
+
+[[routine]]
+name = "scene_send_turn_figure"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the shared scene image and the page its setup, task list or script caller supplies; figure update restricted to party graphics and free sprite slots"
+
+[[routine]]
+name = "scene_cycle_turn_colors"
+subsystem = "scene"
+state = "staff_roll"
+iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the shared scene image and the page its setup, task list or script caller supplies; figure update restricted to party graphics and free sprite slots"
+
+[[routine]]
+name = "scene_script_remove_frame_task"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "7E", "--widths", "16,16", "--range", "X=0001-0008", "--fill", "7E0920-7E095F=0000,0001,0002,0003,0004,0005,0006,0007,0008"]
+why = "random task numbers and slot contents, covering insertion, removal and searching beyond the declared list"
+
+[[routine]]
+name = "scene_script_remove_vblank_task"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "7E", "--widths", "16,16", "--range", "X=0001-0008", "--fill", "7E0920-7E095F=0000,0001,0002,0003,0004,0005,0006,0007,0008"]
+why = "random task numbers and slot contents, covering insertion, removal and searching beyond the declared list"
+
+[[routine]]
+name = "scene_script_add_frame_task"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "7E", "--widths", "16,16", "--range", "X=0001-0008", "--fill", "7E0920-7E095F=0000,0001,0002,0003,0004,0005,0006,0007,0008"]
+why = "random task numbers and slot contents, covering insertion, removal and searching beyond the declared list"
+
+[[routine]]
+name = "scene_script_add_vblank_task"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "7E", "--widths", "16,16", "--range", "X=0001-0008", "--fill", "7E0920-7E095F=0000,0001,0002,0003,0004,0005,0006,0007,0008"]
+why = "random task numbers and slot contents, covering insertion, removal and searching beyond the declared list"
+
+[[routine]]
+name = "scene_finish_remove_frame_task"
+subsystem = "scene"
+state = "attract"
+args = ["--s", "06D0", "--d", "0000", "--db", "00", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0940-7E096F=00-00"]
+why = "the task caller frame with randomized saved slot and flags; later tasks empty, persistent frame list random"
+
+[[routine]]
+name = "scene_finish_replace_frame_task"
+subsystem = "scene"
+state = "attract"
+args = ["--s", "06D0", "--d", "0000", "--db", "00", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0940-7E096F=00-00"]
+why = "the task caller frame with randomized saved slot and flags; later tasks empty, persistent frame list random"
+
+[[routine]]
+name = "scene_finish_remove_vblank_task"
+subsystem = "scene"
+state = "attract"
+args = ["--s", "06D0", "--d", "0000", "--db", "00", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0940-7E096F=00-00"]
+why = "the task caller frame with randomized saved slot and flags; later tasks empty, persistent frame list random"
+
+[[routine]]
+name = "scene_script_remove_frame_task"
+variant = "past_list"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "7E", "--widths", "8,16", "--range", "X=1234-1234", "--fill", "7E0920-7E095F=FFFF", "--fill", "7E0960-7E09DF=0000,1234,FFFF", "--fill", "7E09E0-7E09E1=0000", "--fill", "7E09E2-7E09E3=1234"]
+why = "no matching slot within either list; the original search must continue through following work RAM, preserving the caller accumulator width"
+
+[[routine]]
+name = "scene_script_remove_vblank_task"
+variant = "past_list"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "7E", "--widths", "8,16", "--range", "X=1234-1234", "--fill", "7E0920-7E095F=FFFF", "--fill", "7E0960-7E09DF=0000,1234,FFFF", "--fill", "7E09E0-7E09E1=0000", "--fill", "7E09E2-7E09E3=1234"]
+why = "no matching slot within either list; the original search must continue through following work RAM, preserving the caller accumulator width"
+
+[[routine]]
+name = "scene_script_add_frame_task"
+variant = "past_list"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "7E", "--widths", "8,16", "--range", "X=1234-1234", "--fill", "7E0920-7E095F=FFFF", "--fill", "7E0960-7E09DF=0000,1234,FFFF", "--fill", "7E09E0-7E09E1=0000", "--fill", "7E09E2-7E09E3=1234"]
+why = "no matching slot within either list; the original search must continue through following work RAM, preserving the caller accumulator width"
+
+[[routine]]
+name = "scene_script_add_vblank_task"
+variant = "past_list"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "7E", "--widths", "8,16", "--range", "X=1234-1234", "--fill", "7E0920-7E095F=FFFF", "--fill", "7E0960-7E09DF=0000,1234,FFFF", "--fill", "7E09E0-7E09E1=0000", "--fill", "7E09E2-7E09E3=1234"]
+why = "no matching slot within either list; the original search must continue through following work RAM, preserving the caller accumulator width"
+
+[[routine]]
+name = "scene_after_work_ram_clear"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
+why = "the scene program present and command echoes available, so the whole continuation can return"
+
+[[routine]]
+name = "scene_frame_wait_done"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
+why = "the scene program present and command echoes available, so the whole continuation can return"
+
+[[routine]]
+name = "scene_send_sound_command_long"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--long"]
+why = "the scene program present and command echoes available, so the whole continuation can return"
+
+[[routine]]
+name = "scene_script_store_byte"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB602=0320,0360,0380,0390,0990,0C00,1D00", "--fill", "7EB603-7EB604=00-FF", "--fill", "7EB604-7EB604=AC"]
+why = "A store into scene variables or buffers, followed by end-turn; randomized values, on the interpreter channel page"
+
+[[routine]]
+name = "scene_script_store_word"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB602=0320,0360,0380,0390,0990,0C00,1D00", "--fill", "7EB603-7EB604=00-FF", "--fill", "7EB605-7EB605=AC"]
+why = "A store into scene variables or buffers, followed by end-turn; randomized values, on the interpreter channel page"
+
+[[routine]]
+name = "scene_script_remove_frame"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB602=0001,0002,0003,0004", "--fill", "7EB603-7EB603=AC", "--fill", "7E0920-7E095F=0000,0001,0002,0003,0004"]
+why = "Random requested tasks and task slots followed by end-turn; the search may continue beyond the list as in the original"
+
+[[routine]]
+name = "scene_script_add_frame"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB602=0001,0002,0003,0004", "--fill", "7EB603-7EB603=AC", "--fill", "7E0920-7E095F=0000,0001,0002,0003,0004"]
+why = "Random requested tasks and task slots followed by end-turn; the search may continue beyond the list as in the original"
+
+[[routine]]
+name = "scene_script_remove_vblank"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB602=0001,0002,0003,0004", "--fill", "7EB603-7EB603=AC", "--fill", "7E0920-7E095F=0000,0001,0002,0003,0004"]
+why = "Random requested tasks and task slots followed by end-turn; the search may continue beyond the list as in the original"
+
+[[routine]]
+name = "scene_script_add_vblank"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB602=0001,0002,0003,0004", "--fill", "7EB603-7EB603=AC", "--fill", "7E0920-7E095F=0000,0001,0002,0003,0004"]
+why = "Random requested tasks and task slots followed by end-turn; the search may continue beyond the list as in the original"
+
+[[routine]]
+name = "scene_script_video"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7EB601-7EB601=00,01,02,03,40,41,42,43,80,81,82,83,C0,C1,C2,C3", "--fill", "7EB602-7EB602=1A,25,26,27,2C,2D,2E,31,33", "--fill", "7EB603-7EB603=AC"]
+why = "Each video setting supported by the script vocabulary, followed by end-turn; mode-7 reserved bits are clear"
+
+[[routine]]
+name = "scene_run_sequence"
+variant = "music_wait"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0A00", "--db", "7E", "--widths", "16,16", "--keep", "7E3000-7EC994", "--fill", "7E0A20-7E0A21=B601", "--budget", "8000000", "--fill", "7E0A20-7E0A21=B600", "--fill", "7EB600-7EB600=A5", "--fill", "7EB601-7EB601=00-0F", "--fill", "7EB602-7EB602=AC", "--apu-loopback"]
+why = "A music marker wait followed by end-turn: both waiting for a later marker and continuing immediately, with no unbounded random script"
+
+[[routine]]
+name = "scene_read_controller"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0392-7E0393=0000,0001", "--apu-loopback"]
+why = "the scene page and I/O bank; pause is a switch, all other pause state random; the sound driver echoes commands"
+
+[[routine]]
+name = "scene_wait_for_music_loop"
+variant = "playing"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the recorded state's audio status has playing tracks; compare the complete return with randomized caller registers"
+
+[[routine]]
+name = "scene_count_down_to_the_restart"
+variant = "reset"
+subsystem = "scene"
+state = "planet"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0399-7E039A=0001"]
+why = "the final countdown tick, through the console reset entry; caller registers randomized"
+
+[[routine]]
+name = "scene_race_check_perspective"
+variant = "visible_lines"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0A0C-7E0A0D=0010,0020,0040", "--fill", "7E0A16-7E0A17=0000,0001"]
+why = "A visible horizon with paired or individual lines and random scale and turn."
+
+[[routine]]
+name = "scene_race_check_perspective"
+variant = "unchanged"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0A30-7E0A31=@7E0A00", "--fill", "7E0A32-7E0A33=@7E0A0A", "--fill", "7E0A34-7E0A35=@7E0A0C", "--fill", "7E0A36-7E0A37=@7E0A10", "--fill", "7E0A38-7E0A39=@7E0A16"]
+why = "The saved camera equals the current one, so no perspective build is needed even with random line bounds."
+
+[[routine]]
+name = "scene_check_the_flight_view"
+variant = "visible_lines"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E007B-7E007C=0000", "--fill", "7E0A0C-7E0A0D=0010,0020,0040", "--fill", "7E0A16-7E0A17=0000,0001"]
+why = "A visible horizon with paired or individual lines and random scale and turn."
+
+[[routine]]
+name = "scene_check_the_flight_view"
+variant = "unchanged"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E007B-7E007C=0000", "--fill", "7E0A30-7E0A31=@7E0A00", "--fill", "7E0A32-7E0A33=@7E0A0A", "--fill", "7E0A34-7E0A35=@7E0A0C", "--fill", "7E0A36-7E0A37=@7E0A10"]
+why = "The saved camera equals the current one, so no perspective build is needed even with random line bounds."
+
+[[routine]]
+name = "scene_scale_bitmap"
+variant = "whole_picture"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--d", "0000", "--db", "7F", "--fill", "7E001F-7E0020=0001,0002,0004,0008", "--fill", "7E0023-7E0024=2000", "--fill", "7E0025-7E0026=0001,0002,0008,0011,0021,0041", "--fill", "7E0027-7E0028=0000,0031,0080,0100,7FFF", "--fill", "7E0029-7E002A=0000,0080,0100,01FF", "--fill", "7E002B-7E002C=0400,0800,1000", "--fill", "7E002D-7E002E=0200", "--fill", "7E002F-7E0030=0200", "--fill", "7E0033-7E0034=0000", "--fill", "7E0037-7E0038=0200,0300,0800,0A00", "--budget", "8000000"]
+why = "Complete bitmaps with 1-64 rows, repeated or new source rows, both entry carries, varied zoom and widths, and tails to clear."
+
+[[routine]]
+name = "scene_scale_bitmap_row"
+variant = "whole_picture"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--d", "0000", "--db", "7F", "--fill", "7E001F-7E0020=0001,0002,0004,0008", "--fill", "7E0023-7E0024=2000", "--fill", "7E0025-7E0026=0001,0002,0008,0011,0021,0041", "--fill", "7E0027-7E0028=0000,0031,0080,0100,7FFF", "--fill", "7E0029-7E002A=0000,0080,0100,01FF", "--fill", "7E002B-7E002C=0400,0800,1000", "--fill", "7E002D-7E002E=0200", "--fill", "7E002F-7E0030=0200", "--fill", "7E0033-7E0034=0000", "--fill", "7E0037-7E0038=0200,0300,0800,0A00", "--budget", "8000000"]
+why = "Complete bitmaps with 1-64 rows, repeated or new source rows, both entry carries, varied zoom and widths, and tails to clear."
+
+[[routine]]
+name = "scene_sample_bitmap_row"
+variant = "whole_picture"
+subsystem = "scene"
+state = "race"
+args = ["--range", "A=2000-3000", "--long", "--d", "0000", "--db", "7F", "--fill", "7E001F-7E0020=0001,0002,0004,0008", "--fill", "7E0023-7E0024=2000", "--fill", "7E0025-7E0026=0001,0002,0008,0011,0021,0041", "--fill", "7E0027-7E0028=0000,0031,0080,0100,7FFF", "--fill", "7E0029-7E002A=0000,0080,0100,01FF", "--fill", "7E002B-7E002C=0400,0800,1000", "--fill", "7E002D-7E002E=0200", "--fill", "7E002F-7E0030=0200", "--fill", "7E0033-7E0034=0000", "--fill", "7E0037-7E0038=0200,0300,0800,0A00", "--budget", "8000000"]
+why = "Complete bitmaps with 1-64 rows, repeated or new source rows, both entry carries, varied zoom and widths, and tails to clear."
+
+[[routine]]
+name = "scene_race_scale_pictures"
+variant = "crono_picture"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E0039-7E003A=0000", "--budget", "8000000", "--fill", "7E1400-7E1401=0002,0004", "--fill", "7E1402-7E1403=0001", "--fill", "7E1404-7E1405=2000", "--fill", "7E1406-7E1407=0008,0011,0021", "--fill", "7E1408-7E1409=0031,0080,0100", "--fill", "7E140C-7E140D=0400,0800", "--fill", "7E140E-7E140F=0002,0004", "--fill", "7E1410-7E1411=0000", "--fill", "7E1412-7E1413=2000", "--fill", "7E1414-7E1415=0008,0011,0021", "--fill", "7E1416-7E1417=0031,0080,0100", "--fill", "7E141A-7E141B=0400,0800"]
+why = "One bounded racer picture through complete scaling and gathering, with the previous upload finished."
+
+[[routine]]
+name = "scene_race_scale_pictures"
+variant = "johnny_picture"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E0039-7E003A=0000", "--budget", "8000000", "--fill", "7E1400-7E1401=0002,0004", "--fill", "7E1402-7E1403=0000", "--fill", "7E1404-7E1405=2000", "--fill", "7E1406-7E1407=0008,0011,0021", "--fill", "7E1408-7E1409=0031,0080,0100", "--fill", "7E140C-7E140D=0400,0800", "--fill", "7E140E-7E140F=0002,0004", "--fill", "7E1410-7E1411=0001", "--fill", "7E1412-7E1413=2000", "--fill", "7E1414-7E1415=0008,0011,0021", "--fill", "7E1416-7E1417=0031,0080,0100", "--fill", "7E141A-7E141B=0400,0800"]
+why = "One bounded racer picture through complete scaling and gathering, with the previous upload finished."
+
+[[routine]]
+name = "scene_race_scale_after_crono"
+variant = "johnny_picture"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E0039-7E003A=0000", "--budget", "8000000", "--fill", "7E1400-7E1401=0002,0004", "--fill", "7E1402-7E1403=0002", "--fill", "7E1404-7E1405=2000", "--fill", "7E1406-7E1407=0008,0011,0021", "--fill", "7E1408-7E1409=0031,0080,0100", "--fill", "7E140C-7E140D=0400,0800", "--fill", "7E140E-7E140F=0002,0004", "--fill", "7E1410-7E1411=0001", "--fill", "7E1412-7E1413=2000", "--fill", "7E1414-7E1415=0008,0011,0021", "--fill", "7E1416-7E1417=0031,0080,0100", "--fill", "7E141A-7E141B=0400,0800"]
+why = "One bounded racer picture through complete scaling and gathering, with the previous upload finished."
+
+[[routine]]
+name = "scene_program_hands_back"
+variant = "destination"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0100-7E0101=0000,01EF,01F0", "--stop-at-call", "C00B86", "--apu-loopback"]
+why = "A field or world-map destination; compare through field entry to its first location setup, or its world-map handoff."
+
+[[routine]]
+name = "scene_program_restart"
+variant = "destination"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0100-7E0101=0000,01EF,01F0", "--stop-at-call", "C00B86", "--apu-loopback"]
+why = "A field or world-map destination; compare through field entry to its first location setup, or its world-map handoff."
+
+[[routine]]
+name = "warp_end"
+variant = "destination"
+subsystem = "warp"
+state = "warp"
+args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E0100-7E0101=0000,01EF,01F0", "--stop-at-call", "C00B86", "--apu-loopback"]
+why = "A field or world-map destination; compare through field entry to its first location setup, or its world-map handoff."
+
+[[routine]]
+name = "scene_boot"
+variant = "all_modes"
+subsystem = "scene"
+state = "attract"
+args = ["--apu-loopback", "--budget", "20000000", "--stop-at-call", "7E31B0", "--long", "--db", "00", "--fill", "7E0382-7E0383=0000,0001,0002,0003,0004,0005", "--range", "A=0000-000F"]
+iterations = 200
+why = "All sixteen scene modes with a valid surviving credit-page index, through startup to the first external frame wait."
+
+[[routine]]
+name = "scene_run_sequence"
+variant = "sound_commands"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0A00", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0A20-7E0A21=B600", "--fill", "7EB600-7EB600=A6", "--fill", "7EB601-7EB601=80,81,82,83,85,86,89,F0,F2,F6", "--fill", "7EB602-7EB604=00-FF", "--fill", "7EB605-7EB605=AC", "--fill", "7E0388-7E0388=00", "--apu-loopback", "--budget", "8000000"]
+why = "A sound command with random parameters, followed by end-turn, through the driver's preserving interface on channel zero."
+
+[[routine]]
+name = "scene_run_sequence"
+variant = "sound_commands_channel"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0B00", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0B20-7E0B21=B600", "--fill", "7EB600-7EB600=A6", "--fill", "7EB601-7EB601=80,81,82,83,85,86,89,F0,F2,F6", "--fill", "7EB602-7EB604=00-FF", "--fill", "7EB605-7EB605=AC", "--fill", "7E0388-7E0388=00", "--apu-loopback", "--budget", "8000000"]
+why = "The sound-command continuation on channel one; the driver must preserve its page, bank and arithmetic/index modes."
+
+[[routine]]
+name = "scene_race_scale_pictures"
+variant = "decimal_continuation"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E0039-7E003A=0000", "--budget", "8000000", "--fill", "7E1400-7E1401=0002,0004", "--fill", "7E1402-7E1403=0001", "--fill", "7E1404-7E1405=2000", "--fill", "7E1406-7E1407=0008,0011,0021", "--fill", "7E1408-7E1409=0031,0080,0100", "--fill", "7E140C-7E140D=0400,0800", "--fill", "7E140E-7E140F=0002,0004", "--fill", "7E1410-7E1411=0000", "--fill", "7E1412-7E1413=2000", "--fill", "7E1414-7E1415=0008,0011,0021", "--fill", "7E1416-7E1417=0031,0080,0100", "--fill", "7E141A-7E141B=0400,0800", "--decimal"]
+iterations = 2000
+why = "Decimal callers must stop at the binary-only scaler entry, with its call frame intact."
+
+[[routine]]
+name = "scene_race_scale_after_crono"
+variant = "decimal_continuation"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E0039-7E003A=0000", "--budget", "8000000", "--fill", "7E1400-7E1401=0002,0004", "--fill", "7E1402-7E1403=0002", "--fill", "7E1404-7E1405=2000", "--fill", "7E1406-7E1407=0008,0011,0021", "--fill", "7E1408-7E1409=0031,0080,0100", "--fill", "7E140C-7E140D=0400,0800", "--fill", "7E140E-7E140F=0002,0004", "--fill", "7E1410-7E1411=0001", "--fill", "7E1412-7E1413=2000", "--fill", "7E1414-7E1415=0008,0011,0021", "--fill", "7E1416-7E1417=0031,0080,0100", "--fill", "7E141A-7E141B=0400,0800", "--decimal"]
+iterations = 2000
+why = "Decimal callers must stop at the binary-only scaler entry, with its call frame intact."
+
+[[routine]]
+name = "scene_ending_scale_picture"
+variant = "decimal_continuation"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0021-7E0022=0000,0000,0001", "--fill", "7E007B-7E007B=00-01", "--fill", "7E007C-7E007C=00-00", "--decimal"]
+iterations = 2000
+why = "Decimal callers with a new picture are refused before the binary-only zoom division; already pending pictures still return and compare."
+
+[[routine]]
+name = "scene_scale_the_epoch"
+variant = "decimal_continuation"
+subsystem = "scene"
+state = "dive_from_outside"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0021-7E0022=0000,0001", "--fill", "7E0027-7E0028=0031,0048,0060,0080,0091", "--decimal"]
+iterations = 2000
+why = "Decimal callers must stop at the binary-only scaler entry, with its call frame intact."
+
+[[routine]]
+name = "scene_clear_work_ram"
+variant = "changed_continuation"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--fill", "7E30E9-7E30E9=EA", "--fill", "7E0384-7E0384=00"]
+iterations = 2000
+why = "The clear code is intact but its continuation is modified; compare the refusal before running that continuation."
+
+[[routine]]
+name = "scene_sound_back_to_normal"
+variant = "changed_continuation"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--fill", "7E37A3-7E37A3=EA", "--fill", "7E0384-7E0384=00"]
+iterations = 2000
+why = "Change the send retry instruction, unused when loopback echoes immediately; the final send must refuse its changed code image."
+
+[[routine]]
+name = "scene_roll_credits"
+variant = "changed_task_list"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E004A-7E004B=AB1A,AB95,ABFD,AC61,ACE1,AD6C,ADD3,AE47,AF3B,AFC0,B05D,B071,B098", "--fill", "7E0940-7E0941=9EFC", "--fill", "7E00AD-7E00AD=00-01", "--fill", "7E00AE-7E00AE=00-00", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00", "--fill", "7E398A-7E398A=EA"]
+iterations = 2000
+why = "Credits completion must refuse a modified task-list continuation before unwinding its caller frame."
+
+[[routine]]
+name = "scene_program_start"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0384-7E0384=00-0F", "--apu-loopback", "--budget", "20000000", "--stop-at-call", "7E31B0", "--fill", "7E0384-7E0384=00", "--fill", "7E5AAA-7E5AAA=EA"]
+iterations = 100
+why = "The title setup must propagate refusal at its modified music wait without entering the first frame."
+variant = "changed_music_wait"

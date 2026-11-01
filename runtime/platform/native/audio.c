@@ -29,6 +29,14 @@ uint8_t au_status(Platform *pf, PfOrigin o, uint8_t which)
     return port(pf, which);
 }
 
+uint8_t au_wait_music_start(Platform *pf, PfOrigin o)
+{
+    uint8_t tracks;
+    while (!(tracks = au_music_playing(pf, PF_AT(o.site))))
+        tm_wait_frame(pf, PF_AT(o.site));
+    return tracks;
+}
+
 size_t au_take_samples(Platform *pf, int16_t *out, size_t max_frames)
 {
     (void)pf, (void)out, (void)max_frames;
@@ -94,6 +102,21 @@ void au_driver_wait_echo(Platform *pf, PfOrigin o, uint8_t value)
     fprintf(stderr, "ct_native: the sound driver never answered the wait at $%02X:%04X\n",
             (unsigned)(o.site >> 16), (unsigned)(o.site & 0xFFFF));
     exit(1);
+}
+
+/* Scenes send directly to the C driver's host ports and retry when the
+ * bounded wait ends. No cartridge CPU-half code runs on this path. */
+bool au_driver_wait_echo_or_give_up(Platform *pf, PfOrigin o, uint32_t given_up, uint8_t value, uint16_t tries)
+{
+    (void)o, (void)given_up;
+    for (unsigned poll = 0; poll < tries; poll++) {
+        if (port(pf, 0) == value)
+            return true;
+        if (!playing(pf))
+            return false;
+        pf->audio.pass(pf->audio.ctx, WAIT_STEP_CYCLES);
+    }
+    return port(pf, 0) == value;
 }
 
 /* A call into the original's routine that sends over the ports, which only

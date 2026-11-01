@@ -11,6 +11,8 @@
  *   loop each pass to the size channel 1 asks for and drawn as sprites through
  *   a window round it (the frame routine $7E:8930, its gathering, placing and
  *   upload), loaded with a new ground ($7E:8790) or on its own ($7E:87CC);
+ * - mode 10's panorama ($7E:8A01), then its layered view ($7E:8AF5), with
+ *   the horizon moved each frame by $7E:8B52;
  * - the stars ($7E:8BAF): every task stopped, the star field scattered
  *   (stars.c), its sprites' tiles and colors;
  * - a Mode 7 picture ($7E:8C14): its pixels and name table, its colors;
@@ -1132,6 +1134,126 @@ static void scatter_the_stars(void *ctx)
 
 static const EndingSteps in_the_program = { unpack_the_resource, turn_the_steering_channel, scatter_the_stars, NULL };
 
+/* ---- Mode 10's panorama ----------------------------------------------------------------------- */
+
+/* The panorama's pixels are pairs of four-bit colors, low color first.
+ * Expanding straight into the plane's pixel memory needs no staging image. */
+static uint32_t packed_pixel_address(unsigned byte)
+{
+    return ((uint32_t)SCENE_LOWER_WORK_RAM << 16) | ((SCENE_UNPACK_BUFFER + byte) & 0x1FFFF);
+}
+
+// $7E:353C
+static void expand_packed_pixels(GameState *g, Platform *pf, unsigned bytes)
+{
+    for (unsigned i = 0; i < bytes; i++) {
+        uint8_t pair = wram_read8(g, packed_pixel_address(i));
+        vid_write_vram_byte(pf, PF_AT(0x7E3551), true, pair & 15);
+        vid_write_vram_byte(pf, PF_AT(0x7E3558), true, pair >> 4);
+    }
+    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)(SCENE_UNPACK_BUFFER + bytes),
+                                 (uint8_t)((SCENE_UNPACK_BUFFER + bytes) >> 16)));
+}
+
+/* Each layer's map occupies the beginning of a 32 by 32 tilemap; the rest
+ * is blank. The plane instead uses packed pixels and a widened name table. */
+enum { PANORAMA_PACKED_PIXELS = 0xB7, PANORAMA_PLANE_MAP = 0xBA, PANORAMA_PALETTE = 49 };
+
+// $7E:8A01
+static void load_the_panorama(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)channel;
+    stop_frame_tasks(g);
+    stop_vblank_tasks(g);
+    vid_set_display(pf, PF_AT(0x7E8A14), &(VidDisplay){ .blank = true });
+    vid_enable_line_effects(pf, PF_AT(0x7E8A18), 0);
+    vid_start_vram_uploads(pf, PF_AT(0x7E8A1D), SCENE_VRAM_WHOLE_WORDS);
+    set_decompress_dest(g, SCENE_UNPACK_BUFFER);
+    send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
+    static const struct { uint16_t resource, vram, padding; uint32_t site; } layers[] = {
+        { 0xC6, 0x6000, 0, 0x7E8A26 },
+        { 0xC9, 0x7000, 0x700, 0x7E8A40 },
+        { 0xCC, 0x7400, 0x680, 0x7E8A59 },
+    };
+    for (unsigned i = 0; i < sizeof layers / sizeof layers[0]; i++) {
+        vid_set_vram_address(pf, PF_AT(layers[i].site), layers[i].vram);
+        TIMED_AS(g, 0x7E3691, scene_unpacks(g, layers[i].resource));
+        send_unpacked(g, pf);
+        if (layers[i].padding)
+            vid_send_vram_fill(pf, PF_AT(0x7E90AA), (uint16_t)(layers[i].vram + decompress_length(g) / 2),
+                               PF_GAME(SCENE_BLANK_TILE), layers[i].padding, NULL);
+    }
+    vid_set_vram_address(pf, PF_AT(0x7E8A72), 0);
+    TIMED_AS(g, 0x7E3691, scene_unpacks(g, PANORAMA_PACKED_PIXELS));
+    TIMED_AS(g, 0x7E353C, expand_packed_pixels(g, pf, decompress_length(g)));
+    vid_set_vram_address(pf, PF_AT(0x7E8A84), 0);
+    TIMED_AS(g, 0x7E3691, scene_unpacks(g, PANORAMA_PLANE_MAP));
+    TIMED_AS(g, 0x7E37CA, scene_widen_the_plane_map(g));
+    vid_send_vram_half(pf, PF_AT(0x7E8A92), 0, PF_GAME(SCENE_PLANE_MAP), 0x2000,
+                      VID_VRAM_LOW_BYTES, SCENE_VRAM_LOW_BYTES);
+    unpack_into_first_bank(g);
+    copy_colors(g, scene_program_own(), PANORAMA_PALETTE, 0, 48);
+    scene_use_loaded_palette(g);
+    TIMED_AS(g, 0x7E388B, scene_send_palette(pf));
+    TIMED_AS(g, 0x7E36CC, scene_set_up_line_effects(g, pf, 0x9003));
+    set_scene_line_effects(g, 1);
+    vid_set_mode7(pf, PF_AT(0x7E8AD7), &(VidMode7){ .outside = VID_M7_TRANSPARENT }, VID_M7_SELECT);
+    vid_set_mode(pf, PF_AT(0x7E8ADC), &(VidMode){ .mode = 7 });
+    vid_set_windows(pf, PF_AT(0x7E8AE2),
+                    &(VidWindows){ .win_main = VID_BG1_BIT | VID_OBJ_BIT, .win_sub = VID_BG1_BIT },
+                    VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
+    vid_set_screens(pf, PF_AT(0x7E8AE8), VID_BG1_BIT | VID_OBJ_BIT, VID_OBJ_BIT, VID_SCREEN_MAIN | VID_SCREEN_SUB);
+    vid_set_color_math(pf, PF_AT(0x7E8AED), &(VidColorMath){ .layers = VID_BG1_BIT | VID_BACK_BIT }, VID_MATH_LAYERS);
+}
+
+/* HDMA spans are split so none exceeds its seven-bit line count. */
+static void panorama_spans(GameState *g, uint8_t first, uint8_t second)
+{
+    for (unsigned span = 0; span < 2; span++) {
+        set_scene_flight_scroll_line_counts(g, span, first);
+        set_scene_panorama_mode_line_counts(g, span, span ? second : first);
+        set_scene_panorama_subscreen_line_counts(g, span, second);
+    }
+}
+
+// $7E:8AF5
+static void show_the_layered_panorama(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)channel;
+    stop_frame_tasks(g);
+    stop_vblank_tasks(g);
+    vid_set_display(pf, PF_AT(0x7E8B08), &(VidDisplay){ .blank = true });
+    vid_enable_line_effects(pf, PF_AT(0x7E8B0C), 0);
+    TIMED_AS(g, 0x7E36CC, scene_set_up_line_effects(g, pf, 0x900E));
+    set_scene_line_effects(g, 15);
+    vid_set_screens(pf, PF_AT(0x7E8B1D), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, VID_OBJ_BIT,
+                    VID_SCREEN_MAIN | VID_SCREEN_SUB);
+    vid_set_windows(pf, PF_AT(0x7E8B22), &(VidWindows){ 0 }, VID_WINDOWS_OBJ_BACK);
+    panorama_spans(g, 100, 100);
+    set_scene_flight_view_line_y(g, 0xFF70);
+    vid_set_scroll(pf, PF_AT(0x7E8B44), VID_BG2, 0, 0xFF70, VID_SCROLL_V);
+}
+
+// $7E:8B52
+TaskEnd scene_ending_panorama_horizon(GameState *g, Platform *pf, unsigned slot)
+{
+    (void)slot;
+    uint16_t horizon = scene_channel_register(g, STEERING_CHANNEL, 5);
+    /* The script normally stays on screen. Preserve the signed comparison
+     * of its wrapping coordinate for off-screen positions too. */
+    uint8_t lines = (uint16_t)(horizon - 224) < 0x8000 ? 224 : (uint8_t)horizon;
+    panorama_spans(g, lines / 2, (uint8_t)((lines + 1) / 2));
+    uint16_t scroll = (uint16_t)-(horizon + 49);
+    set_scene_flight_view_line_y(g, scroll);
+    /* Only the low byte receives the 32-line adjustment; the upper byte
+     * still comes from the unadjusted scroll. */
+    uint16_t sent = (scroll & 0xFF00) | (uint8_t)(scroll + 32 + (horizon > 0xFFCE));
+    vid_set_scroll(pf, PF_AT(0x7E8B90), VID_BG2, 0, sent, VID_SCROLL_V);
+    set_scene_flight_view_sky_y(g, (uint16_t)(128 - horizon));
+    set_scene_flight_view_sky_x(g, 0xFF50);
+    return task_goes_on();
+}
+
 /* Mode 10's picture needs room on the vblank list for its task. */
 static bool room_for_the_mosaic(const GameState *g)
 {
@@ -1194,6 +1316,8 @@ static void set_the_last_colours(GameState *g, Platform *pf, uint8_t channel)
 /* The native program's rows alone: on the machine each runs as its own
  * registered entry, which takes the original's unpacker as calls of it. */
 const SceneScriptRoutine scene_ending_loading_routines[] = {
+    { SCENE_ROUTINE_LOAD_THE_PANORAMA, load_the_panorama, scene_ending_load_panorama_present, false },
+    { SCENE_ROUTINE_SHOW_THE_LAYERED_PANORAMA, show_the_layered_panorama, scene_ending_layer_panorama_present, false },
     { SCENE_ROUTINE_LOAD_THE_GROUND_AND_PICTURE, load_the_ground_and_picture, scene_ending_load_ground_and_picture_present,
       false },
     { SCENE_ROUTINE_LOAD_THE_PICTURE, load_the_picture, scene_ending_load_picture_present, false },
@@ -1709,10 +1833,6 @@ static bool shared_pieces_present(Snes *s)
            m_code_matches(s, 0x7E8AF0, 0x5, 0xEBDF284C0857DA9Bull);
 }
 
-/* The registers' stop past a vblank task that takes itself off its list, which
- * reads none of them. */
-enum { REMOVE_THIS_VBLANK_TASK = 0x7E39DE, NOTHING_READ = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
-
 /* The setup's code, with what it runs inline: the letters' widening, the rows'
  * padding, the plane's upload and the blanking past it, the letters' colors,
  * the task list's search, the per-line effects and their descriptors. Mode
@@ -1791,6 +1911,79 @@ static void end_script_routine(Snes *s)
     s->cpu.db = m_pull8(s);
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     s->cpu.d = m_pull16(s);
+    m_rts(s);
+}
+
+bool scene_expand_packed_pixels_present(Snes *s)
+{
+    return m_code_matches(s, 0x7E353C, 0x23, 0xCFEA6C8DC831C682ull);
+}
+
+void scene_expand_packed_pixels_entry(Snes *s)
+{
+    unsigned bytes = s->cpu.y ? s->cpu.y : 0x10000;
+    expand_packed_pixels(state_of(s), m_platform(s), bytes);
+    ORIGINAL_EFFECT(s->cpu.a = (s->cpu.a & 0xFF00) |
+                              (wram_read8(state_of(s), packed_pixel_address(bytes - 1)) >> 4));
+    ORIGINAL_EFFECT(s->cpu.y = 0);
+    s->cpu.p |= CPU_FLAG_M;
+    m_rts(s);
+}
+
+static bool panorama_helpers_present(Snes *s)
+{
+    return shared_pieces_present(s) &&
+           m_code_matches(s, 0x7E7EF8, 0xD, 0x03922383AB303EFCull) &&
+           m_code_matches(s, 0x7E7F05, 0xD, 0xE7828FA5FF3586ECull) &&
+           m_code_matches(s, 0x7E36CC, 0x3C, 0x45191A42A1EEF6A8ull);
+}
+
+bool scene_ending_load_panorama_present(Snes *s)
+{
+    return scene_on_channel_page(s) && panorama_helpers_present(s) && scene_expand_packed_pixels_present(s) &&
+           scene_unpack_present(s) && m_code_matches(s, 0x7E388B, 0x24, 0x84B3B18FAFEEAE44ull) &&
+           m_code_matches(s, 0x7E8A01, 0xF4, 0x0FD34889C31E24BAull) &&
+           m_code_matches(s, 0x7E9003, 0xB, 0x82A9D4B3AB92F2B5ull) &&
+           m_code_matches(s, 0x7E37CA, 0x29, 0x94A78C10CD6A42C5ull) &&
+           m_code_matches(s, 0x7E90AA, 0x17, 0x51D21C0093401867ull);
+}
+
+void scene_ending_load_panorama(Snes *s)
+{
+    load_the_panorama(state_of(s), m_platform(s), 0);
+    ORIGINAL_EFFECT(s->cpu.y = 0x900D);
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, false));
+    s->cpu.db = SCENE_LOWER_WORK_RAM;
+    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
+    m_rts(s);
+}
+
+bool scene_ending_layer_panorama_present(Snes *s)
+{
+    return scene_on_channel_page(s) && panorama_helpers_present(s) &&
+           m_code_matches(s, 0x7E8AF5, 0x5D, 0x705DAA44ACCC86A6ull) &&
+           m_code_matches(s, 0x7E900E, 0x15, 0x831EA4BF2F157C1Eull);
+}
+
+void scene_ending_layer_panorama(Snes *s)
+{
+    show_the_layered_panorama(state_of(s), m_platform(s), 0);
+    ORIGINAL_EFFECT(s->cpu.y = 0x9022);
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, false));
+    s->cpu.db = SCENE_LOWER_WORK_RAM;
+    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
+    m_rts(s);
+}
+
+bool scene_ending_panorama_horizon_present(Snes *s)
+{
+    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E8B52, 0x5D, 0x874DE5C92DB67B61ull);
+}
+
+void scene_ending_panorama_horizon_entry(Snes *s)
+{
+    scene_ending_panorama_horizon(state_of(s), m_platform(s), 0);
+    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     m_rts(s);
 }
 
@@ -1919,7 +2112,7 @@ bool scene_ending_show_credits_present(Snes *s)
 void scene_ending_show_credits_entry(Snes *s)
 {
     show_credits(state_of(s), m_platform(s));
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 bool scene_ending_show_last_scene_present(Snes *s)
@@ -1931,7 +2124,7 @@ bool scene_ending_show_last_scene_present(Snes *s)
 void scene_ending_show_last_scene_entry(Snes *s)
 {
     show_last_scene(state_of(s), m_platform(s));
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 /* The credits' pieces' vblank tasks: their code, the send they share, and the
@@ -1986,7 +2179,7 @@ bool scene_send_the_mosaic_frame_present(Snes *s)
 void scene_send_the_mosaic_frame_entry(Snes *s)
 {
     send_the_mosaic_frame(state_of(s), m_platform(s));
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 bool scene_blank_the_map_present(Snes *s)
@@ -1998,7 +2191,7 @@ bool scene_blank_the_map_present(Snes *s)
 static void credits_piece_on_the_machine(Snes *s, unsigned piece)
 {
     send_a_credits_piece(m_platform(s), piece);
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 void scene_send_the_credits_picture_entry(Snes *s) { credits_piece_on_the_machine(s, CREDITS_PICTURE_SENT); }
@@ -2008,7 +2201,7 @@ void scene_send_the_pattern_s_tiles_entry(Snes *s) { credits_piece_on_the_machin
 void scene_blank_the_map_entry(Snes *s)
 {
     blank_the_map(m_platform(s));
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 bool scene_ending_scroll_bg2_present(Snes *s)
@@ -2031,9 +2224,6 @@ bool scene_ending_sweep_window_present(Snes *s)
     return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E9A0C, 0xB1, 0x0B37DD86CDAEC523ull) && holds(s, sweep_fits);
 }
 
-/* The list's exit for a task that takes itself off. */
-enum { REMOVE_SWEEP_TASK = 0x7E39A7 };
-
 /* A frame task, entered with 16-bit A. Back, A's high byte is the right
  * side's top corner's (the last the original loaded), or 0 where the sweep
  * is over, and Y where the rider's list or the window's drawing left it. */
@@ -2050,7 +2240,7 @@ void scene_ending_sweep_window_entry(Snes *s)
     ORIGINAL_EFFECT(leave_the_sweep_s_y(s, g, rider_drawn));
     if (sweep == SWEEP_OVER) {
         ORIGINAL_EFFECT(s->cpu.a = 0);
-        m_stop_at(s, REMOVE_SWEEP_TASK, DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C);
+        scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
         return;
     }
     ORIGINAL_EFFECT(s->cpu.a = scene_ending_window_corners(g, RIGHT_TOP));
@@ -2138,11 +2328,23 @@ void scene_ending_pick_picture_frame_entry(Snes *s)
 static bool picture_waiting(const GameState *g) { return scene_ending_picture_ready(g) != 0; }
 static bool shape_word_agrees(const GameState *g) { return (scene_ending_picture_tall(g) >> 8) == 0; }
 
+static bool picture_fits(const GameState *g)
+{
+    const PictureLayout *layout = &layouts[picture_shape(g)];
+    return scene_scaling_fits((SceneScaling){ .source = scene_ending_picture_source(g), .rows = layout->rows,
+        .pairs = PAIRS_ACROSS, .row_step = picture_register(g, PICTURE_ZOOM) & ZOOM_BITS, .limit = layout->tile_bytes });
+}
+
 bool scene_ending_scale_picture_present(Snes *s)
 {
     if (!scene_on_scene_page(s) || !m_bank_reaches_low_ram(s) || !m_code_matches(s, 0x7E8930, 0x6, 0xB318CAF0720BDB26ull))
         return false;
-    return holds(s, picture_waiting) || (holds(s, shape_word_agrees) && m_code_matches(s, 0x7E8936, 0x4D, 0x65F6F8DD17744FCCull) &&
+    /* Preparing the picture includes the binary-only zoom division. A
+     * decimal caller must stay at this entry before that division mutates
+     * the picture, even before it could reach the scaler's own refusal. */
+    return holds(s, picture_waiting) || (!m_flag(s, CPU_FLAG_D) && holds(s, shape_word_agrees) && holds(s, picture_fits) && scene_picture_gathering_present(s) &&
+                                         m_code_matches(s, 0x7E8983, 0x3D, 0xB0AE4CBCF063A65Dull) &&
+                                         m_code_matches(s, 0x7E8936, 0x4D, 0x65F6F8DD17744FCCull) &&
                                          m_code_matches(s, 0x7E32E2, 0xBD, 0xD04B8C1274AF93C8ull));
 }
 
@@ -2176,9 +2378,8 @@ static void leave_dividend(Snes *s)
     set_scene_call_first(state_of(s), scene_program_own(), (uint16_t)((uint16_t)(EIGHT << 8) | (m_flag(s, CPU_FLAG_C) ? 0x80 : 0)));
 }
 
-/* The main loop's call each pass, with 16-bit A. With the last picture still
- * to be sent it is back at once, the carry as it came; otherwise the scaler's
- * rows go on in the original's code, which comes back to the gathering. */
+/* The main loop's call each pass, with 16-bit A. Wait for the last picture
+ * to be sent before scaling and gathering the next one through the C bridge. */
 void scene_ending_scale_picture_entry(Snes *s)
 {
     GameState *g = state_of(s);

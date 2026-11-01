@@ -285,6 +285,7 @@ typedef struct ScriptRow {
     bool ends_turn;        /* loops, jumps */
     bool word;             /* stores */
     SceneTaskList list;    /* tasks */
+    uint32_t entry;        /* separately measured command families */
 } ScriptRow;
 
 /* Across a call to the original's code, the script stays on the operand word the
@@ -426,17 +427,17 @@ static const ScriptRow rows[] = {
     { .mask = 0xF0, .match = 0x90, .kind = KIND_LOOP, .run = run_loop, .ends_turn = true },
     /* $A0-$FF: the low nibble */
     { .mask = 0x0F, .match = 0x00, .kind = KIND_CALL_ROUTINE, .run = run_call_routine },
-    { .mask = 0x0F, .match = 0x01, .kind = KIND_STORE, .run = run_store, .takes = store_takes },
-    { .mask = 0x0F, .match = 0x02, .kind = KIND_STORE, .run = run_store, .takes = store_takes, .word = true },
+    { .mask = 0x0F, .match = 0x01, .kind = KIND_STORE, .run = run_store, .takes = store_takes, .entry = 0xC30C19 },
+    { .mask = 0x0F, .match = 0x02, .kind = KIND_STORE, .run = run_store, .takes = store_takes, .word = true, .entry = 0xC30C41 },
     { .mask = 0x0F, .match = 0x03, .kind = KIND_GOSUB, .run = run_gosub },
     { .mask = 0x0F, .match = 0x04, .kind = KIND_RETURN, .run = run_return },
     { .mask = 0x0F, .match = 0x05, .kind = KIND_WAIT_FOR_MUSIC, .run = run_wait_for_music },
     { .mask = 0x0F, .match = 0x06, .kind = KIND_SOUND, .run = run_sound },
-    { .mask = 0x0F, .match = 0x07, .kind = KIND_TASK, .run = run_task, .takes = task_takes, .list = SCENE_VBLANK_TASKS },
-    { .mask = 0x0F, .match = 0x08, .kind = KIND_TASK, .run = run_task, .takes = task_takes, .list = SCENE_VBLANK_TASKS, .add = true },
-    { .mask = 0x0F, .match = 0x09, .kind = KIND_TASK, .run = run_task, .takes = task_takes, .list = SCENE_FRAME_TASKS },
-    { .mask = 0x0F, .match = 0x0A, .kind = KIND_TASK, .run = run_task, .takes = task_takes, .list = SCENE_FRAME_TASKS, .add = true },
-    { .mask = 0x0F, .match = 0x0B, .kind = KIND_VIDEO, .run = run_video, .takes = video_takes },
+    { .mask = 0x0F, .match = 0x07, .kind = KIND_TASK, .run = run_task, .takes = task_takes, .list = SCENE_VBLANK_TASKS, .entry = 0xC30BCC },
+    { .mask = 0x0F, .match = 0x08, .kind = KIND_TASK, .run = run_task, .takes = task_takes, .list = SCENE_VBLANK_TASKS, .add = true, .entry = 0xC30BC4 },
+    { .mask = 0x0F, .match = 0x09, .kind = KIND_TASK, .run = run_task, .takes = task_takes, .list = SCENE_FRAME_TASKS, .entry = 0xC30BBC },
+    { .mask = 0x0F, .match = 0x0A, .kind = KIND_TASK, .run = run_task, .takes = task_takes, .list = SCENE_FRAME_TASKS, .add = true, .entry = 0xC30BAB },
+    { .mask = 0x0F, .match = 0x0B, .kind = KIND_VIDEO, .run = run_video, .takes = video_takes, .entry = 0xC30C5F },
     { .mask = 0x0F, .match = 0x0C, .kind = KIND_END_TURN, .run = run_end_turn },
     { .mask = 0x0F, .match = 0x0D, .kind = KIND_JUMP, .run = run_jump, .ends_turn = true },
     { .mask = 0x0F, .match = 0x0E, .kind = KIND_JUMP, .run = run_jump },
@@ -449,6 +450,16 @@ static const ScriptRow *row_of(uint8_t opcode)
         if ((opcode & rows[i].mask) == rows[i].match)
             return &rows[i];
     return NULL;
+}
+
+static ScriptFlow run_command(const Command *c, const ScriptRow *row)
+{
+    ScriptFlow flow;
+    if (row->entry)
+        TIMED_AS(c->g, row->entry, flow = row->run(c, row));
+    else
+        flow = row->run(c, row);
+    return flow;
 }
 
 /* ---- Where the port meets the original's registers ------------------------------------------
@@ -573,14 +584,15 @@ static const struct {
 } routine_tables[] = { { scene_title_routines, &scene_title_routine_count }, { scene_lavos_routines, &scene_lavos_routine_count },
                        { scene_dive_routines, &scene_dive_routine_count }, { scene_planet_routines, &scene_planet_routine_count },
                        { scene_race_routines, &scene_race_routine_count }, { scene_ending_routines, &scene_ending_routine_count },
-                       { scene_staff_roll_routines, &scene_staff_roll_routine_count } };
+                       { scene_staff_roll_routines, &scene_staff_roll_routine_count },
+                       { scene_turn_routines, &scene_turn_routine_count } };
 
 #if ORIGINAL_EFFECTS
 /* What they leave, in tables parallel to theirs. */
 static const SceneRoutineLeaves *const routine_leaves[] = { scene_title_routine_leaves, scene_lavos_routine_leaves,
                                                              scene_dive_routine_leaves, scene_planet_routine_leaves,
                                                              scene_race_routine_leaves, scene_ending_routine_leaves,
-                                                             scene_staff_roll_routine_leaves };
+                                                             scene_staff_roll_routine_leaves, scene_turn_routine_leaves };
 #endif
 
 static const SceneScriptRoutine *routine_port(uint16_t routine)
@@ -682,7 +694,7 @@ static RoutineCall call_routine(Snes *s, SceneChannel *ch, uint16_t routine)
  * (8-bit A). The driver's entry saves A, which the liveness analysis counts as
  * reading its high byte: there the original has the command's last parameter,
  * which it loaded last. */
-static bool send_sound(Snes *s, SceneChannel *ch)
+static void send_sound(Snes *s)
 {
     GameState *g = state_of(s);
     set_widths16(s);
@@ -692,7 +704,9 @@ static bool send_sound(Snes *s, SceneChannel *ch)
                (AudioCommand){ .command = sound_command(g), .p1 = sound_command_parameters(g, 0),
                                .p2 = sound_command_parameters(g, 1), .p3 = sound_command_parameters(g, 2),
                                .count = 3 });
-    return can_continue(s, ch);
+    /* The command interface preserves its caller's page, bank and modes;
+     * the hosted interface changes none of them. The channel remains the
+     * interpreter's, so execution can continue directly after the operand. */
 }
 
 // $7E:37F3
@@ -725,7 +739,7 @@ static void past_the_call(GameState *g, SceneChannel ch)
 }
 
 /* Where each call-out returns, in the original's code. */
-enum { ROUTINE_CALL_RETURN = 0xC30C5C, SOUND_CALL_RETURN = 0xC30BED };
+enum { ROUTINE_CALL_RETURN = 0xC30C5C };
 
 /* ---- A command the port hands over -------------------------------------------------------------
  *
@@ -771,14 +785,42 @@ static uint16_t a_at_end_of_turn(const GameState *g, SceneChannel ch, const Scri
     }
 }
 
-/* How the run ends: the turn over, or the port stopped where the original
- * carries on (the wait for the music, a command handed over, a call-out that
- * came back other than expected). */
+/* How the run ends: the turn over, or a command or changed calling context
+ * needs the original. A music wait either continues or ends this turn. */
 typedef enum { RUN_ENDED_TURN, RUN_STOPPED } RunEnd;
 
 /* The wait for the music's registers: A and X its handler's place in the
  * interpreter's table. */
 enum { WAIT_TABLE_INDEX = 0x000A };
+
+/* Read a complete marker update before deciding whether this channel can
+ * continue. The sound processor may replace the byte between the reads. */
+static MusicStatus steady_music(Platform *pf)
+{
+    MusicStatus music;
+    do {
+        music = scene_music_status(pf);
+    } while (!music.steady);
+    return music;
+}
+
+static bool advance_music_wait(GameState *g, SceneChannel ch, MusicStatus music)
+{
+    bool reached = scene_music_reached(music, script_byte(g, script(g, ch)));
+    set_script(g, ch, (uint16_t)(script(g, ch) + (reached ? 1 : -1)));
+    return reached;
+}
+
+/* The marker comparison's carry passes to the next command or caller. */
+static bool music_wait_entry(Snes *s, SceneChannel ch)
+{
+    GameState *g = state_of(s);
+    MusicStatus music = steady_music(m_platform(s));
+    uint8_t level = script_byte(g, script(g, ch));
+    m_set_a8(s, scene_music_progress(music));
+    m_set_flag(s, CPU_FLAG_C, scene_music_progress(music) >= level);
+    return advance_music_wait(g, ch, music);
+}
 
 // $C3:0B03
 /* Run commands until one ends the channel's turn. */
@@ -796,7 +838,7 @@ static RunEnd run(Snes *s, SceneChannel ch)
         ORIGINAL_EFFECT(keep_word(&c, row));
         Before was = { 0, 0 };
         ORIGINAL_EFFECT(was = before(&c, row));
-        ScriptFlow flow = row->run(&c, row);
+        ScriptFlow flow = run_command(&c, row);
         ORIGINAL_EFFECT(note_flags(s, &c, row, was));
         switch (flow.kind) {
         case GO_ON:
@@ -808,8 +850,9 @@ static RunEnd run(Snes *s, SceneChannel ch)
             s->cpu.a = WAIT_TABLE_INDEX;
             s->cpu.x = WAIT_TABLE_INDEX;
             set_widths16(s);
-            m_stop_at(s, 0xC30C2A, DC_X | DC_N | DC_Z | DC_C);
-            return RUN_STOPPED;
+            if (!music_wait_entry(s, ch))
+                return RUN_ENDED_TURN;
+            continue;
         case ROUTINE_CALL:
             switch (call_routine(s, &ch, flow.routine)) {
             case ROUTINE_CAME_BACK:
@@ -823,15 +866,73 @@ static RunEnd run(Snes *s, SceneChannel ch)
             }
             continue;
         case SOUND_SEND:
-            if (!send_sound(s, &ch)) {
-                m_stop_at(s, SOUND_CALL_RETURN, 0);
-                return RUN_STOPPED;
-            }
+            send_sound(s);
             past_the_call(g, ch);
             continue;
         }
     }
 }
+
+/* Standalone entries into the store, task and video command families. The
+ * interpreter has already consumed the opcode, so these share the same
+ * decoded operations and then continue the channel's turn. */
+static Command dispatched_command(Snes *s, uint8_t opcode)
+{
+    SceneChannel ch = 0;
+    machine_as_expected(s, &ch);
+    GameState *g = state_of(s);
+    return (Command){ g, m_platform(s), ch, (uint16_t)(script(g, ch) - 1), opcode };
+}
+
+static bool command_entry_present(Snes *s, uint8_t opcode)
+{
+    SceneChannel ch;
+    if (!machine_as_expected(s, &ch))
+        return false;
+    vars_peek(true);
+    Command c = dispatched_command(s, opcode);
+    const ScriptRow *row = row_of(opcode);
+    bool takes = !row->takes || row->takes(&c, row);
+    vars_peek(false);
+    return takes;
+}
+
+static void command_entry(Snes *s, uint8_t opcode)
+{
+    Command c = dispatched_command(s, opcode);
+    const ScriptRow *row = row_of(opcode);
+    (void)row->run(&c, row);
+    if (row->kind == KIND_VIDEO) {
+        m_set_flag(s, CPU_FLAG_C, false);
+        m_set_flag(s, CPU_FLAG_V, false);
+    }
+    RunEnd end;
+    TIMED_AS(c.g, 0xC30AFF, end = run(s, c.ch));
+    if (end == RUN_STOPPED)
+        return;
+    m_set_flag(s, CPU_FLAG_M, false);
+    m_rts(s);
+}
+
+// $C3:0C19, $C3:0C41
+bool scene_script_store_byte_present(Snes *s) { return command_entry_present(s, 0xA1); }
+void scene_script_store_byte_entry(Snes *s) { command_entry(s, 0xA1); }
+bool scene_script_store_word_present(Snes *s) { return command_entry_present(s, 0xA2); }
+void scene_script_store_word_entry(Snes *s) { command_entry(s, 0xA2); }
+
+// $C3:0BCC, $C3:0BC4, $C3:0BBC, $C3:0BAB
+bool scene_script_remove_vblank_present(Snes *s) { return command_entry_present(s, 0xA7); }
+void scene_script_remove_vblank_entry(Snes *s) { command_entry(s, 0xA7); }
+bool scene_script_add_vblank_present(Snes *s) { return command_entry_present(s, 0xA8); }
+void scene_script_add_vblank_entry(Snes *s) { command_entry(s, 0xA8); }
+bool scene_script_remove_frame_present(Snes *s) { return command_entry_present(s, 0xA9); }
+void scene_script_remove_frame_entry(Snes *s) { command_entry(s, 0xA9); }
+bool scene_script_add_frame_present(Snes *s) { return command_entry_present(s, 0xAA); }
+void scene_script_add_frame_entry(Snes *s) { command_entry(s, 0xAA); }
+
+// $C3:0C5F
+bool scene_script_video_present(Snes *s) { return command_entry_present(s, 0xAB); }
+void scene_script_video_entry(Snes *s) { command_entry(s, 0xAB); }
 
 /* ---- A channel's turn as C, with no machine ---------------------------------------------------- */
 
@@ -867,13 +968,7 @@ static bool routine(GameState *g, Platform *pf, SceneChannel ch, uint16_t routin
  * its status steadily. */
 static bool music_waited_for(GameState *g, Platform *pf, SceneChannel ch)
 {
-    MusicStatus music = scene_music_status(pf);
-    if (scene_music_reached(music, script_byte(g, script(g, ch)))) {
-        set_script(g, ch, (uint16_t)(script(g, ch) + 1));
-        return true;
-    }
-    set_script(g, ch, (uint16_t)(script(g, ch) - 1));
-    return false;
+    return advance_music_wait(g, ch, steady_music(pf));
 }
 
 // $C3:0AFF
@@ -887,7 +982,7 @@ SceneTurn scene_channel_turn(GameState *g, Platform *pf, SceneChannel ch)
             program_needs_the_machine(g, handlers[handler_of[low_nibble(&c)]], "a scene command the port doesn't take");
             return SCENE_TURN_NEEDS_THE_MACHINE;
         }
-        ScriptFlow flow = row->run(&c, row);
+        ScriptFlow flow = run_command(&c, row);
         switch (flow.kind) {
         case GO_ON:
             continue;

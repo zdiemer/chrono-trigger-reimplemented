@@ -203,15 +203,17 @@ bool scene_caption_fits(const GameState *g, uint16_t text)
            scene_sprites_fit(g, sprites);
 }
 
-bool scene_draw_caption_present(Snes *s)
+bool scene_caption_at_present(Snes *s, uint16_t text)
 {
     if (!scene_on_scene_page(s) || !drawing_present(s))
         return false;
     vars_peek(true);
-    bool fits = scene_caption_fits(state_of(s), s->cpu.x);
+    bool fits = scene_caption_fits(state_of(s), text);
     vars_peek(false);
     return fits;
 }
+
+bool scene_draw_caption_present(Snes *s) { return scene_caption_at_present(s, s->cpu.x); }
 
 /* Entered with X at the text; back, X is past it, Y the next free sprite
  * entry and A the end's code, as the original leaves them, and the data bank
@@ -283,9 +285,6 @@ static void leave_turn(Snes *s, CaptionTurn turn, uint16_t phase_before)
     s->cpu.y = scene_sprite_index(g);
 }
 
-/* The list's exit for a task that takes itself off. */
-enum { REMOVE_THIS_TASK = 0x7E39A7 };
-
 /* A frame task, entered with 16-bit A. */
 void scene_turn_captions_entry(Snes *s)
 {
@@ -296,7 +295,7 @@ void scene_turn_captions_entry(Snes *s)
         s->cpu.db = 0x00;   /* as the caption's drawing goes back */
     ORIGINAL_EFFECT(leave_turn(s, turn, phase_before));
     if (turn == CAPTIONS_OVER) {
-        m_stop_at(s, REMOVE_THIS_TASK, DC_X | DC_N | DC_V | DC_Z | DC_C);
+        scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
         return;
     }
     m_rts(s);

@@ -87,6 +87,7 @@ void warp_line(GameState *g, Platform *pf);
  * registers and the warp's zero in place (its frames, its waits and its end);
  * the data bank alone (the screen's turning on and going dark). */
 bool warp_on_its_page(Snes *s);
+bool warp_has_a_destination(Snes *s);
 bool warp_bank_reaches_io(Snes *s);
 
 #endif

@@ -163,6 +163,51 @@ int16_t scene_cosine(const GameState *g, uint16_t angle) { return scene_sine(g, 
 
 bool scene_sine_second_half(uint16_t angle) { return (angle & (SCENE_FULL_TURN - 1)) >= SCENE_HALF_TURN; }
 
+/* ---- The rotating map's figures --------------------------------------------------------------- */
+
+// $7E:5872
+/* Quantize a figure's offset to a quarter-turn table, then reflect it into
+ * its quadrant. Offsets within one unit of the vertical axis use the pole
+ * directly. The slope uses byte magnitudes, as the scene's screen positions do. */
+uint16_t scene_offset_angle(GameState *g, int16_t across, int16_t down)
+{
+    uint16_t x = magnitude16((uint16_t)across), y = magnitude16((uint16_t)down);
+    uint16_t dividend = (uint16_t)(y << 8);
+    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), across < 0));
+    ORIGINAL_EFFECT(set_scene_call_second(g, scene_program_own(), down < 0));
+    ORIGINAL_EFFECT(hw_set_dividend(g, dividend));
+    if (x <= 1)
+        return down < 0 ? SCENE_QUARTER_TURN : 3 * SCENE_QUARTER_TURN;
+    uint8_t divisor = (uint8_t)(x - 1);
+    uint16_t slope = scene_divider_quotient(dividend, divisor);
+    ORIGINAL_EFFECT(hw_divide_by(g, divisor));
+    unsigned step = 1;
+    while (step < 64 && slope >= scene_angle_thresholds(g, step))
+        step++;
+    uint16_t quarter = (uint16_t)(4 * (step - 1));
+    if ((across < 0) != (down < 0))
+        return (uint16_t)((down < 0 ? SCENE_HALF_TURN : SCENE_FULL_TURN) - quarter);
+    return down < 0 ? quarter : (uint16_t)(SCENE_HALF_TURN + quarter);
+}
+
+// $7E:34FB
+/* The radius used to orbit a figure: the largest r whose r*(r-1) is less
+ * than its squared distance. This is the scene's integer approximation to
+ * the square root; zero distance gives zero. Area is at most 65536. */
+uint16_t scene_radius_from_area(GameState *g, uint32_t area)
+{
+    unsigned low = 0, high = 257;
+    while (low + 1 < high) {
+        unsigned middle = (low + high) / 2;
+        if (middle * (middle - 1) < area)
+            low = middle;
+        else
+            high = middle;
+    }
+    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), (uint16_t)low));
+    return (uint16_t)low;
+}
+
 /* ---- The arithmetic as C calls -------------------------------------------------------------- */
 
 /* For the ports that do the program's arithmetic where it calls it: each sets
@@ -302,6 +347,31 @@ static FoundDivisor find_divisor(uint16_t dividend, uint8_t first, uint16_t firs
     return (FoundDivisor){ false, first, first_quotient, 1 };
 }
 
+bool scene_offset_angle_present(Snes *s)
+{
+    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E5872, 0x86, 0xAFD55C0F62F294A7ull);
+}
+
+void scene_offset_angle_entry(Snes *s)
+{
+    s->cpu.a = scene_offset_angle(state_of(s), (int16_t)s->cpu.x, (int16_t)s->cpu.y);
+    m_rts(s);
+}
+
+bool scene_radius_from_area_present(Snes *s)
+{
+    return scene_on_scene_page(s) && m_code_matches(s, 0x7E34FB, 0xF, 0x12C00E74F7841885ull);
+}
+
+void scene_radius_from_area_entry(Snes *s)
+{
+    /* The sum's extra unit is the incoming status bit of the original's
+     * integer approximation; it belongs only to this entry's convention. */
+    (void)scene_radius_from_area(state_of(s), (uint32_t)s->cpu.a + m_flag(s, CPU_FLAG_C));
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, false));
+    m_rts(s);
+}
+
 /* The original tries a divisor a pass, through the CPU's divider: each pass
  * starts the next division and reads the last one's quotient. Its time is
  * charged a pass at a time, and the divider left dividing by the divisor after
@@ -376,7 +446,14 @@ bool scene_divide_present(Snes *s)
 /* The original reaches the divider through the direct page. */
 bool scene_find_divisor_on_divider_page(Snes *s)
 {
-    return m_direct_page(s) == M_DP_CPU && m_bank_reaches_low_ram(s);
+    if (m_direct_page(s) != M_DP_CPU || !m_bank_reaches_low_ram(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    FoundDivisor f = find_divisor(hw_dividend(g), (uint8_t)s->cpu.x, hw_quotient(g),
+                                 scene_call_quotient_limit(g, scene_program_own()));
+    vars_peek(false);
+    return f.found;
 }
 
 /* ---- Entries --------------------------------------------------------------------------------- */
@@ -477,8 +554,7 @@ void scene_divide_8_8(Snes *s)
  * quotient the divider holds; the limit is
  * on the scene's own page, through the data bank. Back, X is the divisor after
  * the one found and A its quotient, with the carry clear (the loop's compare).
- * A search that finds nothing loops forever in the original; the port stops
- * after the first pass, where the search is after all 256. */
+ * The guard excludes searches that loop forever in the original. */
 void scene_find_divisor(Snes *s)
 {
     GameState *g = state_of(s);
@@ -488,10 +564,6 @@ void scene_find_divisor(Snes *s)
     ORIGINAL_EFFECT(leave_divider_after(g, &f));
     s->cpu.x = (uint8_t)(f.divisor + 1);
     s->cpu.a = f.quotient;
-    m_set_flag(s, CPU_FLAG_C, !f.found);
-    if (!f.found) {
-        m_stop_at(s, 0xC30E29, DC_N | DC_Z);
-        return;
-    }
+    m_set_flag(s, CPU_FLAG_C, false);
     m_rtl(s);
 }

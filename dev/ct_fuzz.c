@@ -5,7 +5,7 @@
  *           [--iterations N] [--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N]
  *           [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... [--range A|X|Y=lo-hi]...
  *           [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback]
- *           [--poison-dc] [--details N]
+ *           [--decimal] [--poison-dc] [--details N]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
  * the N V Z C flags and all of work RAM except the stack page, applies the
@@ -134,9 +134,14 @@ int main(int argc, char **argv)
     bool apu_loopback = false;
     int data_bank = -1, direct_page = -1, stack = -1, m_width = 0, x_width = 0;
     FuzzOptions o;
+    bool decimal = false;
     fuzz_default_options(&o);
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
+        if (!strcmp(a, "--decimal")) {
+            decimal = true;
+            continue;
+        }
         if (!strcmp(a, "--long")) {
             o.long_call = true;
             continue;
@@ -240,7 +245,13 @@ int main(int argc, char **argv)
     if (apu_loopback)
         base.bus.io.apu_read = apu_loopback_read;
 
+    /* Entry preconditions still win: --decimal exercises callers whose own
+     * contracts admit it, including refusal of a binary-only continuation. */
+    if (decimal)
+        base.cpu.p |= CPU_FLAG_D;
+    native_direct_contracts(game_natives, game_native_count);
     FuzzResult r = fuzz_run(&base, e, &o, stderr);
+    native_direct_contracts(NULL, 0);
     printf("%s: %lu iterations, matched %lu, mismatched %lu (the port looping where the original returns %lu), "
            "skipped %lu (guard %lu, a call-out past the budget %lu, the port past the budget and the original "
            "long %lu, the original past its budget %lu)\n",
@@ -261,7 +272,7 @@ usage:
                     "[--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
                     "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]...\n"
-                    "  [--details N]\n"
+                    "  [--decimal] [--details N]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");
     return 2;

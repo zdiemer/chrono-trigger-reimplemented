@@ -22,6 +22,7 @@
  * twinkle's frame is drawn as the program's sprite for it, its attributes
  * and its place from the star's, with the frame's tile. */
 #include "scene/scene.h"
+#include "core/console.h"
 
 #include "charge.h"
 #include "core/program.h"
@@ -367,19 +368,13 @@ void scene_fade_the_planet_out_slowly(Snes *s)
 /* The scene's caption, the program's text "But... the future refused to
  * change.", drawn every frame by a task of the script's while it is up. */
 enum { THE_FUTURE_REFUSED_TO_CHANGE = 0x6644, CAPTION_DRAWING = 0x7E64CA };
-enum { THE_DRAWING_READS_X = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 // $7E:64BF
 void scene_show_the_planet_s_caption_entry(Snes *s)
 {
     s->cpu.x = THE_FUTURE_REFUSED_TO_CHANGE;
-    m_set_nz16(s, THE_FUTURE_REFUSED_TO_CHANGE);
-    m_jump_to(s, CAPTION_DRAWING);
-    if (!scene_draw_caption_present(s)) {
-        m_stop_at(s, CAPTION_DRAWING, THE_DRAWING_READS_X);
-        return;
-    }
-    NATIVE_TIME_AS(s, CAPTION_DRAWING, scene_draw_caption_entry(s));
+    if (scene_accept_continuation(s, CAPTION_DRAWING, scene_draw_caption_entry))
+        TIMED_AS(state_of(s), CAPTION_DRAWING, scene_draw_caption_entry(s));
 }
 
 TaskEnd scene_show_the_planet_s_caption(GameState *g, Platform *pf, unsigned slot)
@@ -400,8 +395,7 @@ enum { SCENE_SEND = 0x7E377E, THE_SEND_READS_Y = DC_A | DC_X | DC_N | DC_V | DC_
 /* The list's exit that hands the task's slot over reads the task that takes
  * it in X; the reset reads none of the registers but Y, which the countdown
  * leaves as it was (the liveness can't rule it out down the field's start). */
-enum { HAND_THE_SLOT_OVER = 0x7E39B1, THE_HAND_OVER_READS_X = DC_A | DC_N | DC_V | DC_Z | DC_C,
-       CONSOLE_RESET = 0x00FF00, THE_RESET_MAY_READ_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C };
+enum { CONSOLE_RESET = 0x00FF00 };
 
 static void ask_for_the_restart_sound(GameState *g)
 {
@@ -438,8 +432,7 @@ void scene_wait_for_a_button_to_restart_entry(Snes *s)
         m_rts(s);
         return;
     }
-    s->cpu.x = end.next;
-    m_stop_at_own(s, HAND_THE_SLOT_OVER, THE_HAND_OVER_READS_X);
+    scene_finish_task(s, SCENE_FRAME_TASKS, task_hands_over(end.next));
 }
 
 static void send(void *ctx, Platform *pf) { scene_sends_the_command(ctx, pf); }
@@ -472,7 +465,7 @@ void scene_count_down_to_the_restart_entry(Snes *s)
         m_rts(s);
         return;
     }
-    m_stop_at(s, CONSOLE_RESET, THE_RESET_MAY_READ_Y);
+    TIMED_AS(g, CONSOLE_RESET, console_reset(s));
 }
 
 /* As C, the reset the program's main thread takes (core/program.h). */
@@ -486,7 +479,11 @@ TaskEnd scene_count_down_to_the_restart(GameState *g, Platform *pf, unsigned slo
 
 /* The tasks' code, on the scene's page; the wait's send's, and the list's
  * room for the darkening. */
-bool scene_planet_s_caption_present(Snes *s) { return m_code_matches(s, 0x7E64BF, 0x06, 0x95BAD85F81FC3237ull); }
+bool scene_planet_s_caption_present(Snes *s)
+{
+    return m_code_matches(s, 0x7E64BF, 0x06, 0x95BAD85F81FC3237ull) &&
+           scene_caption_at_present(s, THE_FUTURE_REFUSED_TO_CHANGE);
+}
 
 bool scene_wait_for_a_button_to_restart_present(Snes *s)
 {

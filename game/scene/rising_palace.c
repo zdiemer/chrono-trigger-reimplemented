@@ -30,6 +30,8 @@
 
 #include "charge.h"
 #include "core/palette.h"
+#include "core/program.h"
+#include "cpu_io.h"
 #include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -46,6 +48,92 @@ enum { PALACE_CHANNEL = 1, SHIMMER = 0, PALACE_SCROLL_Y = 1, SEA_SCROLL = 2 };
 /* The program's buffer for a map of 32x32 tiles, in low RAM as the upload
  * reads it through bank 0. */
 enum { MAP_BUFFER = 0x001400, MAP_BYTES = 0x0800 };
+
+/* The source map and the transformed map are both 32 by 32 tile words. */
+enum { MAP_SOURCE = 0x000C00, MAP_COLUMNS = 32, MAP_ROW_BYTES = 64, MAP_MAX_ROWS = 32 };
+
+typedef struct { uint16_t across, down; } MapPoint;
+typedef struct {
+    MapPoint origin, row_step, column_step;
+    unsigned origin_rounding;
+} MapTransform;
+typedef struct { MapPoint row, point; unsigned tile_byte; } MapSample;
+
+/* Coordinates are 8.8 fixed point, across measured in tile bytes. The
+ * sampler rounds across by one fractional unit each time down passes its
+ * 256-row period. Passing the across period similarly rounds the first
+ * column's down coordinate, and the final tile byte. Calculate those small
+ * rounding terms from the coordinates' periods, independently for every
+ * pixel; neither the row order nor the previous pixel drives the transform. */
+static MapSample rounded_map_sample(const MapTransform *t, unsigned row, unsigned column)
+{
+    enum { PERIOD = 65536 };
+    uint32_t down = t->origin.down + (row + 1) * t->row_step.down + t->origin_rounding;
+    uint32_t across = t->origin.across + (row + 1) * t->row_step.across + down / PERIOD;
+    uint32_t previous_down = t->origin.down + row * t->row_step.down + (row ? t->origin_rounding : 0);
+    uint32_t previous_across = t->origin.across + row * t->row_step.across + previous_down / PERIOD;
+    unsigned row_rounding = across / PERIOD - previous_across / PERIOD;
+    MapPoint row_start = { (uint16_t)across, (uint16_t)down };
+    down = row_start.down + (column + 1) * t->column_step.down + row_rounding;
+    across = row_start.across + (column + 1) * t->column_step.across + down / PERIOD;
+    previous_down = row_start.down + column * t->column_step.down + (column ? row_rounding : 0);
+    previous_across = row_start.across + column * t->column_step.across + previous_down / PERIOD;
+    unsigned pixel_rounding = across / PERIOD - previous_across / PERIOD;
+    MapPoint point = { (uint16_t)across, (uint16_t)down };
+    unsigned tile_byte = (point.across / 256 + MAP_ROW_BYTES * (point.down / 256) + pixel_rounding) & (MAP_BYTES - 2);
+    return (MapSample){ row_start, point, tile_byte };
+}
+
+/* The original's local positions, exhausted counts, patched steps, and the
+ * multiplication used to address the last sampled tile. None drive C work. */
+static void leave_map_sampling(GameState *g, MapSample sample, const MapTransform *t)
+{
+    set_scene_map_sampling_work(g, 0, sample.row.down);
+    set_scene_map_sampling_work(g, 1, sample.row.across);
+    set_scene_map_sampling_work(g, 2, 0);
+    set_scene_map_sampling_work(g, 3, 0);
+    set_scene_map_sampling_work(g, 4, sample.point.across);
+    set_scene_map_sampling_work(g, 5, sample.point.down);
+    set_scene_map_row_down_step(g, t->row_step.down);
+    set_scene_map_row_across_step(g, t->row_step.across);
+    set_scene_map_column_down_step(g, t->column_step.down);
+    set_scene_map_column_across_step(g, t->column_step.across);
+    hw_set_multiplicand(g, MAP_ROW_BYTES);
+    (void)hw_multiply_by(g, (uint8_t)(sample.point.down >> 8));
+    hw_set_dividend(g, (uint16_t)((hw_dividend(g) & 0xFF00) | (uint8_t)sample.point.down));
+}
+
+// $7E:7441
+/* Sample the source map along the turn's rows and columns. Across is in
+ * byte offsets (two bytes per tile); down is in rows. The index wraps over
+ * the source map, while the output fills the requested top rows. */
+bool scene_turn_map(GameState *g)
+{
+    unsigned rows = scene_turned_map_rows(g);
+    if (!rows || rows > MAP_MAX_ROWS) {
+        program_needs_the_machine(g, 0x7E7441, "a turned map larger than its buffer");
+        return false;
+    }
+    uint16_t a = scene_turn_matrix(g, 0), b = scene_turn_matrix(g, 1);
+    uint16_t c = scene_turn_matrix(g, 2), d = scene_turn_matrix(g, 3);
+    uint16_t left = (uint16_t)((scene_turn_center(g, 0) << 4) + a + 1 - c);
+    uint16_t top = (uint16_t)((scene_turn_center(g, 1) << 4) + c + a + 1);
+    MapTransform transform = { .origin = { (uint16_t)-(left * 32), (uint16_t)-(top * 16) },
+        .row_step = { (uint16_t)(2 * b), d }, .column_step = { (uint16_t)(2 * a), c },
+        .origin_rounding = (top >> 12) & 1 };
+    MapSample sample = { 0 };
+    for (unsigned y = 0; y < rows; y++) {
+        for (unsigned x = 0; x < MAP_COLUMNS; x++) {
+            sample = rounded_map_sample(&transform, y, x);
+            unsigned output = y * MAP_ROW_BYTES + 2 * x;
+            set_scene_turn_output_map_byte(g, output, scene_tilemap_buffer_byte(g, sample.tile_byte));
+            set_scene_turn_output_map_byte(g, output + 1, scene_tilemap_buffer_byte(g, sample.tile_byte + 1));
+        }
+    }
+    set_scene_map_pending_count(g, (uint16_t)(scene_map_pending_count(g) + 1));
+    ORIGINAL_EFFECT(leave_map_sampling(g, sample, &transform));
+    return true;
+}
 
 static void send_the_map(GameState *g, Platform *pf, uint16_t vram)
 {
@@ -649,3 +737,27 @@ bool scene_sweep_the_palace_curtain_present(Snes *s)
     return m_bank_reaches_io(s) && m_code_matches(s, 0x7E6844, 0x54, 0xAD0EB1A3FDD62E94ull) && scene_sweep_the_curtain_present(s);
 }
 bool scene_send_the_map_present(Snes *s) { return scene_on_scene_page_io_bank(s) && map_upload_present(s); }
+
+bool scene_turn_map_present(Snes *s)
+{
+    if (!scene_on_scene_page_io_bank(s) ||
+        !m_code_matches(s, 0x7E7441, 1, 0xAF64244C860266E4ull) ||
+        !m_code_matches(s, 0x7E7443, 0x5B, 0x6AFB6AD36BCAA34Dull) ||
+        !m_code_matches(s, 0x7E74A0, 7, 0x593E02525E5A3090ull) ||
+        !m_code_matches(s, 0x7E74A9, 7, 0x4C238FE8ACB2B654ull) ||
+        !m_code_matches(s, 0x7E74B2, 9, 0x2C2A69B8D557FE55ull) ||
+        !m_code_matches(s, 0x7E74BD, 0x20, 0x48E3260253F6A993ull))
+        return false;
+    vars_peek(true);
+    unsigned rows = scene_turned_map_rows(state_of(s));
+    vars_peek(false);
+    return rows && rows <= MAP_MAX_ROWS;
+}
+
+void scene_turn_map_entry(Snes *s)
+{
+    (void)scene_turn_map(state_of(s));
+    ORIGINAL_EFFECT(s->cpu.y = (uint16_t)(MAP_BUFFER + scene_turned_map_rows(state_of(s)) * MAP_ROW_BYTES));
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, false));
+    m_rts(s);
+}

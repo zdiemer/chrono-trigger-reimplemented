@@ -3271,92 +3271,91 @@ reach it), and `tools/burndown.py` leaves the bank out ("Retired code"). A
 SNES build (target 3) needs a CPU half again: the cartridge's, from the
 matching source, or the deleted port from history (TODO.md).
 
-### The native program's last named stops
+### Scene continuations: contracts and review validation
 
-TODO.md named the stops the native program still met where the scenes, the
-menus and the battle hand it to the machine: mode 10's picture's vblank task,
-modes 5 and 12 of the scene program, the battle's calling in of enemies
-(`$FD:A990`), and two menu stops, an item tried on that is no item of the
-game's (`$C2:A5C3`) and a member's row whose record names no character
-(`$C2:A225`). Each is a state or a scene no recording reaches but one; the
-chunk took each in game terms where the original's behaviour has one, and
-reproduced the original's strays where it hasn't.
+Direct scene continuations now consult the registry before entering C. A
+refusal leaves the original entry and call frame intact. The scaler retains
+its binary-mode contract; race and Epoch decimal callers stop at its row
+entry. The ending's preparation also uses a binary-only zoom division, so
+its guard refuses decimal preparation before changing the picture. A picture
+already awaiting upload can still return in decimal mode.
 
-**The slow staff roll (mode 12, `$7E:8E95`).** Mode 12 is the staff roll's
-setup entered three lines early: the stars come in at -2 rather than -7, the
-picture interlaced, no fast music, the credits rolling slowly, and the
-program's own code patched (`STA $7E9EE3` of a `BCS` over the scroll's
-`BCC`) so the slow scroll steps on the even field. The patch is state, as the
-race's curtain's operand is (`scene_race_ending_sweep`): the opcode is a
-variable of the map (`scene_credits_scroll_field`) with its two values named
-in the roll (`SCROLL_ON_ODD_FIELDS`, `SCROLL_ON_EVEN_FIELDS`), the setup is
-the fast one's sequence with a pace (`StaffRollPace`), and the scroll's guard
-hashes its code round the branch and asks the variable for one of the two.
+The clear, final sound send and task completion now check the continuation's
+code-image guard. Completion also checks the saved task-list widths and data
+bank before unwinding. The audit added checks to boot-to-program, the clear's
+next startup step, title music, caption drawing, credits scrolling, both
+picture gatherers, and scene/warp field entry. Title startup propagates a
+refused music wait instead of proceeding to the first frame. The clear leaves
+its DMA-page high byte even on refusal, while its standalone continuation
+preserves the incoming high byte.
 
-**Mode 10's picture (`$7E:9C58`, `$7E:9CE2`).** The vblank task the TODO
-named sends one of the picture's four frames, `$800` bytes of the mosaic the
-setup laid out, and leaves the frame's size in `$AB` and `$AC`; their reader
-was the frame task that queues it, `$7E:9C58`, which no table names (a script
-puts it on the list): the picture placed where channel 1 and the orbit say,
-the window round it at the size the last send left (a frame behind a change),
-a moving piece of the first frame (two of its list's sprites, their tiles
-stepped every four frames, `scene_set_listed_tile`) and the frame's list
-drawn through the program's list of large sprites. That list's form which
-leaves out a sprite below the picture, which only this picture draws with,
-was half ported: once the original has left one out it goes on a word wide,
-its port reads taking the byte twice (the port's address register reads back
-as the bus last held it) and its stores spilling the sprite's attributes into
-the next entry's X and the high byte of its X into its own Y
-(`leave_word_wide_strays`). The script then takes the fireworks off the frame
-list in a mode that never put them there: the original's search goes on past
-the list, word by word through the bank, and clears the first word that names
-them, a word of the script itself. The scripts' task commands do that now
-(`scene_script_replace_task`); the other callers keep the bounded search. Past
-the picture mode 10 goes on to its next scene's loading (`$7E:8A01`), where it
-stops (TODO.md).
+The other direct continuations retain upstream contracts: scaler start/sample
+entries share binary widths and preflight the remaining bitmap; sound retry
+and long-send entries share the sender's image guard; curtain entries share
+the same page and code guard; boot blanking establishes M8; console reset
+admits either mode. Perspective callers preflight the builder's image and
+data on the camera page. Script command continuations use ROM code, validated
+command operands and the interpreter's binary context; sound returns preserve
+that context. Panorama helpers are covered by their setup's image guards;
+turning setup's unpacker/scripts use checked calls. Warp frame loops keep the
+warp page and widths across their frame wait. Host-only GameState calls have
+no machine registry contract.
 
-**The calling in (`$FD:A990`).** The caller sets four of its own stats, the
-pairs from the action's third operand, and every enemy of the formation out
-of the fight comes in, as the bringing back brings them (the same selection,
-the same records), loaded as at the fight's start and with HP by a rule. The
-rule is the original's accident: it keeps each stat's offset in the cell it
-kept the HP operand in, and reads the rule from that cell after, so the last
-stat's offset decides (`enemy_call_in_sets_its_stats` says so). The calling
-in is a registered entry the turn runs as a sibling (`battle_run_long_dc`),
-so an arrival the load's guard turns away goes on in the original with its
-frame in place; its guard asks for the effect code's tech number where the
-turn's start leaves it.
+The map sampler computes fixed-point coordinates from row and column indices.
+Its one rounding helper handles source-period rounding and the tile address;
+the traversal no longer carries packed-coordinate overflow between samples.
+Two thousand randomized matrix/origin cases agree with both the previous
+build and the interpreter, without skips. Continuation fuzz covers accepted
+paths, decimal refusal, modified clear/send/task-list images and a modified
+title music wait. Standalone fuzz supplies contracts specifically for tail
+continuations; ordinary call-outs remain interpreted. Synthetic runtime tests
+check decimal/guard refusal and that this table cannot override a live runtime.
 
-**The menus' strays.** A member's row whose status record names the eighth
-character (a cursor past the last member leaves the record as it stood)
-marks its HP against the word after the seven marks, as the original reads
-it (`menu_low_hp_marks` declares the stray read). An item tried on that is
-no item of the game's is worked out from the bytes past the menus' item
-tables (`menu_item_amounts`, `menu_list_items` declare theirs, and the
-powers had theirs), and its boost through the original's byte-wide index,
-which takes a boost past `$7F` round to the table's start: no item of the
-game's has one, so only fuzzing could tell. The try-on's one refusal left is
-the menus' zero word not 0, which the menus clear as they open and never
-write.
+Shadow comparison recognizes aliases of one C function at the same stack
+depth as one invocation. Field entry's two addresses no longer start duplicate
+comparisons inside each other, allowing its comparison exemption to be
+removed; a synthetic regression verifies the outer comparison still finishes.
+Seven isolated shadow runs also compare held waits with interrupts enabled:
+414 warp waits, the complete short and shortest trips and frame loops, the
+title's music wait and ten sound retries all match. Their combined-run
+exemptions name this evidence. The five bitmap/race exemptions name the
+independently compared interrupt handlers and explicitly retain the
+mid-picture interaction gap in TODO; standalone fuzz does not close it.
 
-**Measured.** `ct_native --scene 0x2C` runs the slow staff roll 12,000 frames
-with no stop; `--scene 0x2A,0x3F` runs mode 10 to frame 5,637, its next
-scene's loading, where it stopped at frame 65 before. Fuzzing, seed 1, every
-entry the chunk touched, none mismatched: the picture's task 0/2,000 (the
-vblank list given room, the large list's leaving-out form, the count's next
-byte clear), the frame's send 0/2,000, the large list's leaving-out form
-0/7,621, the slow setup 0/300, the scroll on either field 0/20,000, the
-roll 0/20,000, the call-in's turn 0/8,389 (the calling in inside it run as C
-wherever the turn's state reaches it; in `endings-beyond-time`'s shadow run
-it is called twice, one compared and matched, one interrupted), the face and HP mark with any
-character 0/2,000, the equipment's choice with any item, any list top and
-the tables' bytes past their ends random 0/699 (the pointing's own drawing
-of such an item's name reads past the names' places, which the fuzz
-reports), the figures 0/20,000. The four fuzz-found differences on the way
-were all in the original's strays: the frame task's queueing past a full
-vblank list (now refused, the setup leaves room), the large list's
-continuation, the boost's index, and the calling in's tech number read from
-its caller's cell.
+Six narrowed movies, including the complete Beyond Time ending, pass with
+zero mismatches; attract and Epoch pass again after the final startup fix.
+The final 29 focused fuzz fixtures compare 24,371 cases without a mismatch;
+the broad startup fixture retains the pre-review build's 11 mismatches in
+384 comparisons (16 call-out budget skips), recorded in TODO. No mismatch
+was newly introduced. The map rewrite adds 2,000 matched before/after cases.
+The shadow runtime regression and 18 tool tests pass; portstyle and portsmell
+have no new findings. Measured scene/warp joints change from 800 to 802:
+stops from five to seven, the two additions being guarded refusal boundaries.
+The sampled gate is reserved for the merge coordinator and
+was not run for this review. The four requested code-structure follow-ups are
+in TODO.
+
+Merging main at `1fea6c49` keeps the sound CPU-half deletion: scene commands
+continue through the C driver's host ports. Their bounded echo wait retains
+the scene's 82-clock reference poll and held C continuation, with no direct
+execution adapter for the retired driver. The native backend gives the C
+driver time to answer through its host interface. The evidence runner has
+one sequential-child policy per movie worker; both branches' concurrency and
+result-retention tests are kept. The fallback ledger keeps main's measurement
+reductions and this branch's documented open-comparison ownership entries;
+retired menu code and completed scene stops are not restored. Both histories
+and port ledgers are retained, and PLAN reports the merged measurements.
+
+The merged tree builds with two jobs, including the matching check, and all
+15 C test executables pass. The Python suite runs 469 tests with ten skipped;
+its sole initial failure was PLAN's stale file count. Correcting that count
+and refreshing its style table leaves all eight tests in the affected module
+passing on rerun. Portstyle and portsmell pass. Full-length shadows of
+`attract-demo`, `events-epoch-lavos`, `events-jetbike-race-won`,
+`battle-lavos-gameover`, `events-end-of-time-gate`, `menus-sweep` and
+`endings-beyond-time` each exit successfully with zero mismatches. The sampled
+gate is left to the merge coordinator and is not run for this integration.
+
 
 ### Direct continuations preserve their entry contracts
 

@@ -415,13 +415,12 @@ bool scene_stars_start_drift_present(Snes *s)
 static Drift called_with(Snes *s) { return (Drift){ scene_draw_from(s->cpu.a, m_flag(s, CPU_FLAG_C), TM_ENTROPY_WORDS), s->cpu.x }; }
 
 /* The list's exit for a task that hands its slot to another, the task in X. */
-enum { REPLACE_THIS_TASK = 0x7E39B1, KEEP_DRIFTING = 0x98AC };
+enum { KEEP_DRIFTING = 0x98AC };
 
 void scene_stars_start_drift_entry(Snes *s)
 {
     start_drift(state_of(s), m_platform(s), called_with(s));
-    s->cpu.x = KEEP_DRIFTING;
-    m_stop_at_own(s, REPLACE_THIS_TASK, DC_A | DC_N | DC_V | DC_Z | DC_C);
+    scene_finish_task(s, SCENE_FRAME_TASKS, task_hands_over(KEEP_DRIFTING));
 }
 
 void scene_stars_keep_drifting_entry(Snes *s)

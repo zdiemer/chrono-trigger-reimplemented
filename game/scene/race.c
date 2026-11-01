@@ -69,7 +69,6 @@ enum {
 enum { PLANE_MAP_IN_ROM = 0xD20000 };
 
 /* The registers a stop leaves nothing in that the program reads. */
-enum { NOTHING_READ = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 /* ---- The setup's pieces ------------------------------------------------------------------------ */
 
@@ -832,10 +831,12 @@ static TaskEnd send_column_once(Platform *pf, uint32_t column)
     return task_is_done();
 }
 
+/* The transfer's accumulator byte is dead at the vblank list's return,
+ * as it is for scene_run_vblank_tasks itself. */
 static void upload_column_entry(Snes *s, uint32_t column)
 {
     (void)send_column_once(m_platform(s), column);
-    m_stop_at(s, 0x7E39DE, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 // $7E:4643

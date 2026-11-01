@@ -6,6 +6,7 @@
 #include "platform/snes/backend.h"
 #include "platform/snes/encodings.h"
 #include "platform/video.h"
+#include "platform/timing.h"
 
 enum {
     PF_SNES_INIDISP = 0x2100, PF_SNES_OBSEL = 0x2101, PF_SNES_OAMADDL = 0x2102, PF_SNES_OAMDATA = 0x2104,
@@ -302,6 +303,10 @@ static inline void pf_snes_program(Snes *s, const PfSnesChannel *c, const uint8_
         case VID_STEP_SPILL_CURSOR_LO: pf_snes_put(s, (uint16_t)(base + 8), c->spill); break;
         case VID_STEP_INDIRECT_BANK_IS_SOURCE: pf_snes_put(s, (uint16_t)(base + 7), (uint8_t)(c->source >> 16)); break;
         case VID_STEP_VRAM_READ_FIRST: (void)pf_snes_get(s, PF_SNES_VMDATAHREAD); break;
+        case VID_STEP_WRITE_BYTES:
+            for (uint32_t i = 0; i < c->len; i++)
+                pf_snes_put(s, (uint16_t)(0x2100 | c->dest), m_read8(s, c->source + i));
+            break;
         }
     }
 }
@@ -540,6 +545,35 @@ PF_API void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData s
                           const VidVramPort *port)
 {
     pf_snes_send(pf, o, "vid_send_vram", 0x18, 0x16, vram_addr, src, len, port, false, 0);
+    if (vid_observer)
+        vid_obs_upload_vram(vid_observer, vram_addr, src, len, false, port);
+}
+
+PF_API void vid_send_vram_next_frame(Platform *pf, PfOrigin o, PfOrigin wait,
+                                    uint16_t vram_addr, PfData src, uint32_t len,
+                                    const VidVramPort *port)
+{
+    const char *name = "vid_send_vram_next_frame";
+    const PfSnesEncoding *e = pf_snes_encoding(o.site, name);
+    VidSnesXfer x = pf_snes_site_xfer(e, e->control, port, name);
+    PfSnesChannel c = { .channel = x.channel, .control = x.control, .dest = 0x18,
+                       .source = src.addr, .len = len, .stop_if_empty = true,
+                       .target_reg = 0x16, .target = vram_addr, .port = port };
+    const uint8_t *step = x.steps;
+    pf_snes_begin(name, o);
+    for (; *step != VID_STEP_START && *step != VID_STEP_END; step++) {
+        const uint8_t one[] = { *step, VID_STEP_END };
+        pf_snes_program(pf_snes(pf), &c, one);
+    }
+    pf_snes_end();
+    if (*step != VID_STEP_START || step[1] != VID_STEP_END) {
+        pf_snes_encoding_mismatch(o.site, name);
+        return;
+    }
+    tm_wait_frame(pf, wait);
+    pf_snes_begin(name, o);
+    pf_snes_program(pf_snes(pf), &c, step);
+    pf_snes_end();
     if (vid_observer)
         vid_obs_upload_vram(vid_observer, vram_addr, src, len, false, port);
 }

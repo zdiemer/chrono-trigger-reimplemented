@@ -62,6 +62,7 @@ void native_note_return(Snes *s) { (void)s; no_machine("native_note_return"); }
 void native_note_rti(Snes *s) { (void)s; no_machine("native_note_rti"); }
 const NativeEntry *native_hand_entry(Snes *s) { (void)s; no_machine("native_hand_entry"); }
 const NativeEntry *native_hand_entry_at(Snes *s, uint32_t addr) { (void)s, (void)addr; no_machine("native_hand_entry_at"); }
+const NativeEntry *native_continuation_entry_at(Snes *s, uint32_t addr) { (void)s, (void)addr; no_machine("native_continuation_entry_at"); }
 
 /* ---- What shadow mode is told ------------------------------------------------------------------ */
 
