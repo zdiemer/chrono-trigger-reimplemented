@@ -1,0 +1,247 @@
+# Targeted states for paths missing from the library's coverage.
+# base is a recipe in fuzz_routines.toml (name[:variant]); args replace the
+# same fill area/register range, otherwise append. All numbers in areas are hex.
+
+[[case]]
+base = "overworld_set_up"
+variant = "unreached_setup"
+args = ["--stop-at-call", "C2046E"]
+why = "Compare the completed map setup at the first frame wait, before the main loop; no interrupts run in the fuzzer."
+
+[[case]]
+base = "overworld_main_loop"
+variant = "unreached_modes"
+remove = ["--stop-at-call"]
+args = ["--tick-at", "C20348=7E004B", "--stop-at-call", "C20043", "--apu-loopback",
+        "--keep", "7E0000-7FFFFF", "--fill", "7E027C-7E027C=00-09",
+        "--fill", "7E1B32-7E1B33=0000,0007,000E"]
+why = "The vblank counter advances at the interpreted frame wait on both machines. Exercise each mode; compare at the menu screen setup before its task switch."
+
+[profile.movement]
+args = ["--range", "Y=0100-0100", "--fill", "7E016D-7E016D=00",
+        "--fill", "7F2102-7F2104=00,02,04", "--fill", "7F2000-7F2000=03",
+        "--fill", "7E0197-7E019C=0000,0002,0004",
+        "--fill", "7E1800-7E18FF=08-0A", "--fill", "7F0200-7F03FF=08-0A",
+        "--fill", "7E1A01-7E1A7F:2=00,01", "--fill", "7E1A80-7E1AFE:2=00,01",
+        "--fill", "7E1B80-7E1BFE:2=00", "--fill", "7E0F00-7E0F7E:2=80",
+        "--fill", "7E1100-7E117E:2=00", "--fill", "7E1B01-7E1B7F:2=01",
+        "--fill", "7E1C81-7E1CFF:2=00-03", "--fill", "7E1000-7E107E:2=01-04",
+        "--fill", "7E1D0A-7E1D0F=00", "--fill", "7E1C80-7E1CFE:2=02"]
+
+[[case]]
+base = "event_cmd_if_compares"
+variant = "unreached_operators"
+args = ["--range", "Y=0100-0100", "--fill", "7F2102-7F2102=00",
+        "--fill", "7F2103-7F2103=00,01,80,FF", "--fill", "7F2104-7F2104=00-07",
+        "--fill", "7F0200-7F0200=00,01,80,FF"]
+why = "All eight operators with equal, zero, disjoint and overlapping operands, including the usually false equality and zero-OR paths."
+
+[[case]]
+base = "event_cmd_if_compares_word"
+variant = "unreached_operators"
+args = ["--range", "Y=0100-0100", "--fill", "7F2102-7F2102=00",
+        "--fill", "7F2103-7F2104=0000,0001,8000,FFFF", "--fill", "7F2105-7F2105=00-06",
+        "--fill", "7F0200-7F0201=0000,0001,8000,FFFF"]
+why = "All seven word comparisons, including equal values and zero intersections. These share helpers owned by the byte comparison in the inventory."
+
+[[case]]
+base = "event_cmd_if_well_on_screen"
+variant = "unreached_inside"
+args = ["--range", "Y=0100-0100", "--fill", "7F2102-7F2102=00",
+        "--fill", "7E1801-7E1801=02-0D", "--fill", "7E1881-7E1881=02-0C",
+        "--fill", "7E1D0A-7E1D0F=00"]
+why = "The tested object is inside both screen margins."
+
+[[case]]
+base = "event_cmd_tint"
+variant = "unreached_instant_subtract"
+args = ["--range", "Y=0100-0100", "--fill", "7F2102-7F2102=01-FF", "--fill", "7F2103-7F2103=80"]
+why = "A subtractive tint with zero duration takes effect immediately."
+
+[[case]]
+base = "event_cmd_change_object_colours"
+variant = "unreached_full"
+args = ["--fill", "7E0520-7E058F:C=10"]
+why = "All eight animation slots occupied, so the requested colour animation cannot start."
+
+[[case]]
+base = "event_cmd_change_screen_colours"
+variant = "unreached_full"
+args = ["--fill", "7E0520-7E058F:C=10"]
+why = "All eight animation slots occupied, so the screen fade cannot start."
+
+[[case]]
+base = "event_cmd_gather_party"
+variant = "unreached_alone"
+args = ["--fill", "7E0199-7E019A=0080"]
+why = "The party's first follower place is empty."
+
+[[case]]
+base = "event_cmd_take_out_of_party"
+variant = "unreached_members"
+args = ["--range", "Y=0100-0100", "--fill", "7F2102-7F2102=00-02",
+        "--fill", "7E0197-7E019C=0000,0002,0004", "--fill", "7E1101-7E1105:2=00-02"]
+why = "Remove a character present in the leader or first follower slot, with valid object links."
+
+[[case]]
+base = "event_cmd_move_toward_party_member_until_on_screen"
+variant = "unreached_nearby"
+profile = "movement"
+why = "Three nearby objects, moves fresh or finished, alignment requested or not, and positions safely inside the map."
+
+[[case]]
+base = "event_cmd_move_to_tile_counted:unreached_nearby"
+variant = "unreached_arrival"
+args = ["--fill","7F2102-7F2103=08-0A"]
+why = "Destination tiles include the object's own tile, with alignment requested or not."
+
+[[case]]
+base = "event_party_back_together"
+variant = "unreached_two_members"
+args = ["--fill","7E2A1F-7E2A1F=00","--fill","7E0199-7E019A=0002","--fill","7E019B-7E019C=0080"]
+why = "After battle, a first follower but no second follower returns to the leader."
+
+[[case]]
+base = "overworld_lead"
+variant = "unreached_restart"
+args = ["--fill","7E0280-7E0281=00-01","--fill","7E0E1A-7E0E1D=00-FF","--fill","7E0E1A-7E0E1B=0000,0020,0040","--fill","7E0E1C-7E0E1D=@7E0E08"]
+why = "Event state changing restarts the leader; boarding reaches the vertical goal with horizontal distance remaining."
+
+[[case]]
+base = "overworld_follow"
+variant = "unreached_restart"
+args = ["--fill","7E0280-7E0281=00-01"]
+why = "An event starts or ends between frames, restarting the follower."
+
+[[case]]
+base = "overworld_follow"
+variant = "unreached_leg_end"
+args = ["--fill","7E027C-7E027C=01","--fill","7E027E-7E027E=00,04","--fill","7E027F-7E027F=@7E027E","--fill","7E0E33-7E0E33=00","--fill","7E0E59-7E0E59=11,12,21,22","--fill","7E0E5A-7E0E5B=@7E0E44","--fill","7E0E5C-7E0E5D=@7E0E48"]
+why = "A follower reaches either leg endpoint with one or two legs left, walking or boarding."
+
+[[case]]
+base = "overworld_lead"
+variant = "unreached_boarding"
+args = ["--fill","7E027E-7E027F=04","--fill","7E0E04-7E0E05=0000,0008","--fill","7E0E1A-7E0E1B=0020,0040","--fill","7E0E1C-7E0E1D=@7E0E08","--fill","7E0E0A-7E0E11=00"]
+why = "Boarding without a travel change, down to the vehicle's row and then right towards it."
+
+[[case]]
+base = "event_cmd_move_toward_party_member_until_on_screen:unreached_nearby"
+variant = "unreached_offscreen"
+args = ["--fill","7E1D0A-7E1D0F=80"]
+why = "The moving object remains outside the screen margins and must try to avoid nearby solid objects."
+
+[[case]]
+base = "overworld_epoch:unreached_neighbours"
+variant = "unreached_landing"
+args = ["--fill","7E0EB2-7E0EB2=03","--fill","7E0ED2-7E0ED5=00","--fill","7E0EDE-7E0EDF=00","--fill","7E027C-7E027C=01","--fill","7E0294-7E0294=A0","--fill","7E00F8-7E00F9=0080"]
+why = "Confirm landing on open ground, with the other vehicle nearby or overlapping."
+
+[[case]]
+base = "overworld_dactyl:unreached_neighbours"
+variant = "unreached_landing"
+args = ["--fill","7E0DF2-7E0DF2=03","--fill","7E0E12-7E0E15=00","--fill","7E0E1E-7E0E1F=00","--fill","7E027C-7E027C=01","--fill","7E00F8-7E00F9=0080"]
+why = "Confirm landing on open ground, with the Epoch nearby or overlapping and the map's forbidden landing area under the dactyl."
+
+[[case]]
+base = "overworld_epoch:unreached_landing"
+variant = "unreached_forbidden_landing"
+args = ["--fill","7E029E-7E029E=00","--fill","7E0EC4-7E0EC5=0000,0040","--fill","7E0EC8-7E0EC9=0000,0100"]
+why = "Prehistory's northwest rectangle forbids landing, even with open ground and no dactyl present."
+
+[[case]]
+base = "overworld_epoch"
+variant = "unreached_scene_end"
+args = ["--fill","7E0EB2-7E0EB2=07","--fill","7E0294-7E0294=00,10,40,50","--fill","7E0EB7-7E0EB8=9000","--fill","7E0EB9-7E0EB9=7F","--fill","7F9000-7F901F=52"]
+why = "A completed arrival scene with the Epoch still lacking wings."
+
+[[case]]
+base = "overworld_lead:unreached_boarding"
+variant = "unreached_aboard"
+args = ["--fill","7E0DF2-7E0DF2=02","--fill","7E028F-7E028F=00","--fill","7E0E1A-7E0E1B=@7E0E04"]
+why = "The final boarding step reaches its goal with the no-vehicle selector."
+
+[[case]]
+base = "overworld_main_loop:unreached_modes"
+variant = "unreached_camera_and_exchange"
+remove = ["--stop-at-call"]
+args = ["--stop-at-call","C28000","--stop-at-call","C2631F","--stop-at-call","C26A34","--fill","7E027C-7E027C=03,09","--fill","7E00E5-7E00E6=00B0,00BF"]
+why = "An exit with the camera wrapping past the world's right edge, and opening party exchange rather than the inventory."
+
+[[case]]
+base = "event_cmd_cast_npc"
+variant = "unreached_overflow"
+args = ["--fill","7E0171-7E0172=6000","--fill","7E0173-7E0173=7F","--fill","7E0920-7E092F=FF"]
+why = "An unpacked set ends below the graphics half-bank, triggering the explicit error handoff without overwriting the running script or low RAM."
+
+[[case]]
+base = "event_cmd_cast_enemy"
+variant = "unreached_overflow"
+args = ["--fill","7E0171-7E0172=6000","--fill","7E0173-7E0173=7F","--fill","7E0920-7E092F=FF"]
+why = "An unpacked set ends below the graphics half-bank, triggering the explicit error handoff without overwriting the running script or low RAM."
+
+[[case]]
+base = "overworld_watch_the_ground"
+variant = "unreached_halt"
+args = ["--fill","7E0280-7E0281=00","--fill","7E0282-7E0282=03","--fill","7E0283-7E0286=00","--fill","7E7E00-7E817F:7=00","--fill","7E8300-7E847F:3=00","--fill","7E8180-7E82FF:3=80","--fill","7E8181-7E82FF:3=00"]
+why = "The leader stands on a halt record, with no exit or event at that tile."
+
+[[case]]
+base = "overworld_following_dactyl"
+variant = "unreached_wrap"
+args = ["--fill","7E029A-7E029B=0000,0008,05F8,05FF","--fill","7E029C-7E029D=0000,0008,03F8,03FF","--fill","7E0E44-7E0E45=0000,0010,0300,05F0","--fill","7E0E48-7E0E49=0000,0010,0200,03F0","--fill","7E0E5A-7E0E5B=0000,0010,0300,05F0","--fill","7E0E5C-7E0E5D=0000,0010,0200,03F0"]
+why = "Dactyl formation positions straddle the world's horizontal and vertical wrapping edges."
+
+[[case]]
+base = "overworld_epoch"
+variant = "unreached_neighbours"
+args = ["--fill","7E0100-7E0101=01F3","--fill","7E029A-7E029D=0000,0010,0020","--fill","7E029E-7E029E=80-FF","--fill","7E0290-7E0293=0000,0010,0020"]
+why = "The Epoch and flying dactyls occupy neighbouring landing areas on prehistory's map."
+
+[[case]]
+base = "overworld_dactyl"
+variant = "unreached_neighbours"
+args = ["--fill","7E0100-7E0101=01F3","--fill","7E029F-7E02A0=01F3","--fill","7E0294-7E0294=80-FF","--fill","7E0290-7E0293=0000,0010,0020","--fill","7E029A-7E029D=0000,0010,0020"]
+why = "Flying Epoch beside the dactyls' landing area on the same map."
+
+[[case]]
+base = "event_cmd_move_toward_object_counted"
+variant = "unreached_nearby"
+profile = "movement"
+why = "Three nearby objects, moves fresh or finished, alignment requested or not, and positions safely inside the map."
+
+[[case]]
+base = "event_cmd_move_toward_object_keep_facing"
+variant = "unreached_nearby"
+profile = "movement"
+why = "Three nearby objects, moves fresh or finished, alignment requested or not, and positions safely inside the map."
+
+[[case]]
+base = "event_cmd_move_toward_party_member_keep_facing"
+variant = "unreached_nearby"
+profile = "movement"
+why = "Three nearby objects, moves fresh or finished, alignment requested or not, and positions safely inside the map."
+
+[[case]]
+base = "event_cmd_move_to_tile_from_variables"
+variant = "unreached_nearby"
+profile = "movement"
+why = "Three nearby objects, moves fresh or finished, alignment requested or not, and positions safely inside the map."
+
+[[case]]
+base = "event_cmd_move_to_tile_counted"
+variant = "unreached_nearby"
+profile = "movement"
+why = "Three nearby objects, moves fresh or finished, alignment requested or not, and positions safely inside the map."
+
+[[case]]
+base = "event_cmd_move_to_tile_from_variables_keep_facing"
+variant = "unreached_nearby"
+profile = "movement"
+why = "Three nearby objects, moves fresh or finished, alignment requested or not, and positions safely inside the map."
+
+[[case]]
+base = "event_cmd_jump_to_tile"
+variant = "unreached_nearby"
+profile = "movement"
+why = "Three nearby objects, moves fresh or finished, alignment requested or not, and positions safely inside the map."

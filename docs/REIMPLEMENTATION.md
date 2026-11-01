@@ -3488,3 +3488,93 @@ title's setup's call-outs, `7E:59D5` 1,680 the largest) and the sound
 command's wait (`7E:377E`). No port changed, so nothing was calibrated or
 fuzzed; the measure is checked by the shipping mode's count, 0 over the same
 menus' movies.
+
+### The code the movie library does not reach
+
+Before a subsystem loses the original as an oracle, `tools/unreached.py`
+compares its ported live instruction bytes with the union of the standard
+library's `ct_dev --coverage` files. It uses `burndown.py`'s live-code walk,
+assigning a byte to its own entry before an inlined caller and resolving
+shared helpers in registry order. Macro-generated event entries participate
+too. Coverage retains the instruction's M/X widths, so an immediate operand
+is counted at the width actually executed. The estimate includes guarded
+error paths and original-only handoffs; these need explicit explanations,
+not invented fuzz coverage.
+
+The first inventory covers 343 entries in six subsystems, using the existing
+84-movie coverage union (the movie inputs agree with the checkout supplying
+it). Optional hand recordings are outside that standard library. No game
+code changed in this work.
+
+| Subsystem | Bytes no movie executes | Executed in matched fuzz trials | Reviewed safety argument |
+|---|--:|--:|--:|
+| attract | 0 | 0 | 0 |
+| data | 0 | 0 | 0 |
+| core | 417 | 417 | 0 |
+| warp | 104 | 95 | 9 |
+| overworld | 1,354 | 1,318 | 36 |
+| event | 1,475 | 1,336 | 139 |
+| Total | 3,350 | 3,166 | 184 |
+
+`tools/unreached_baseline.txt` is the greppable ledger: a movie manifest,
+one inventory row per entry (including zero-byte entries), and exact byte
+runs attached to passing fuzz recipes or reviewed safety reasons. The
+101 cited recipes made 99,400 trials, 69,585 matched, zero mismatches; skips
+contribute no evidence. `ct_fuzz --coverage` accumulates original instructions
+only after a trial matches. Logs with accessor/page/resource diagnostics
+are rejected, even when the comparator reports a match. Broader casting
+trials reproduced the already documented out-of-domain bank-wrap divergence
+in `event/characters.c`; the accepted error-path fixtures end below the
+graphics half-bank without overwriting the running script. No new game bug
+was found.
+
+**A targeted state.** The random follower recipe seldom reaches the end of
+a walking leg: a changed travel byte resets its step first. The
+`overworld_follow:unreached_leg_end` case ties the previous travel to the
+current one, ties the goal coordinates to the follower's position, and
+chooses one or two remaining legs on either axis. Its 1,000 matched states
+exercise the turn onto the second leg and the return to standing. The same
+approach covers party arrivals, full palette-animation slots, landing near
+another vehicle, wraparound dactyl formations and completed Epoch scenes.
+Cases in `tools/unreached_cases.toml` extend the existing recipes and explain
+their constraints. Their base states are replayed with `--native off` and
+cached with the movie, state specification and interpreter fingerprints.
+
+**What is reviewed rather than executed.** Most exclusions are rejected
+selectors, missing-resource diagnostics, explicit error handoffs or branches
+excluded by the cartridge's fixed resources. Every world-map record omits
+the optional scene-tile stream; every warp radius is zero or 2 through 127,
+with the circle centred at 128. Six overworld bytes are a narrower reviewed
+equivalence: the sign-refresh increments after returning from the map view
+and time dial have exactly the port's nonzero-sign predicate and byte
+wraparound, and their flags are dead. Those arms did not run in the fuzz
+comparisons. `tools/unreached_safe.toml` records the arguments, and TODO.md
+keeps the returning-screen fixture and guard-to-assertion obligations.
+
+**The ratchet.** `tools/unreached.py --check` re-derives the current port reach
+and checks the ledger's movie hashes, recipe fingerprints, proof coverage
+and safety-source hashes. Added entries or changed reach, removed/edited
+movies, stale recipes and changed safety dependencies fail closed. Added
+movies can only increase the recorded union. The sampled suite uses this
+full-library record, never its own partial union to infer absence. With
+`--evidence`, it also replays the cited recipes and verifies that their clean
+results execute every byte claimed in their ledger rows. This is an
+instruction-coverage obligation, not a claim of exhaustive path or input
+coverage.
+
+To inspect or rebuild the record, supply the verified ROM with `--rom`:
+
+```
+python3 tools/unreached.py --coverage-dir build/library-coverage
+python3 tools/unreached_fuzz.py --ct-dev build/main/ct_dev --ct-fuzz build/main/ct_fuzz --ledger tools/unreached_baseline.txt
+python3 tools/unreached.py --coverage-dir build/library-coverage --record
+python3 tools/unreached.py --check --recheck-fuzz
+```
+
+Recording requires every standard-library coverage file and complete clean
+evidence or a reviewed reason; it cannot silently accept an unchecked run.
+ROMs, states, logs and coverage remain local build artifacts. The no-ROM
+unit tests exercise width accounting, stale inputs, missing/overlapping
+proofs and evidence rejection; `fuzz_test` checks that failed, refused and
+timed-out trials never contribute coverage and that counter notifications
+are applied to both machines.
