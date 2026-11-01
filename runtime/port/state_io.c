@@ -30,7 +30,13 @@ uint16_t hw_multiply_by(GameState *g, uint8_t b)
 
 void hw_set_dividend(GameState *g, uint16_t dividend) { m_write16(state_snes(g), WRDIVL, dividend); }
 
-uint16_t hw_quotient(const GameState *g) { return m_read16(state_snes(g), RDDIV); }
+uint16_t hw_quotient(const GameState *g)
+{
+    Snes *s = state_snes(g);
+    if (vars_peeking())
+        return (uint16_t)(snes_bus_peek(&s->bus, RDDIV) | snes_bus_peek(&s->bus, RDDIV + 1) << 8);
+    return m_read16(s, RDDIV);
+}
 
 uint16_t hw_remainder(const GameState *g) { return m_read16(state_snes(g), RDMPY); }
 

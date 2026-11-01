@@ -21407,7 +21407,7 @@ name = "scene_show_the_planet_s_caption"
 at = "7E:64BF"
 subsystem = "scene"
 state = "planet"
-args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00"]
+args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0014=0900"]
 iterations = 2000
 why = "the program kept on the scene's page, the sprite cursor at the table's start so the caption fits (the drawing's guard)"
 

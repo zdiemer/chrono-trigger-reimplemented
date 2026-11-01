@@ -3108,38 +3108,29 @@ by the machine (266 entries to 264). The rows, wrappers and scaffolding
 stay for the gate, which plays the original's driver; PLAN.md says what
 retires them.
 
-### Scene continuations: controller, boot and title waits
+### Scene continuations: guarded drawing and divisor search
 
-The scene controller entry now owns readiness, button edges, pause and
-unpause, and the reset chord. The frame calls it directly; readiness is a
-platform operation (the SNES backend latches controllers atomically), and
-reset calls the existing C reset entry. The planet countdown calls that
-same reset entry when it expires. The native frame reports reset to the
-program rather than requesting a machine fallback.
+The curtain jump calls the existing sweep directly with its timing tag and
+shares its bank, table and binary-arithmetic requirements. The planet's
+caption checks its fixed text and sprite capacity at entry, then calls the
+caption drawer directly. Its previous guard ran after changing registers;
+the shared caption guard now accepts the text as an argument.
 
-The boot line interrupt waits for the current horizontal blank to end and
-the next to begin, then calls its blank-and-return continuation. The title
-waits for the music-playing mask through the audio service. Both waits
-suspend through runtime wake conditions; the host audio backend advances
-frames until music starts. The title preserves its PPU direct page across
-the wait, and enclosing startup continues directly into the first frame.
-The standalone idle entries remain for callers still entering by address.
+The divisor search rejects inputs for which the original never returns,
+then completes in C without a loop-head stop. Hardware quotient reads now
+honor guard peeking in the state backing, so inspecting this condition
+neither advances time nor changes open bus. Normal reads retain their cost.
 
-Eight differential fuzz variants (2,000 states each, 400 for the title)
-have zero mismatches; the frame retains its predecessor's 1,013 budget
-skips. Five dedicated controller fixtures cover idle, pause, unpause,
-reset and reset-disabled inputs: 10,000 cases, zero mismatches or skips.
-The suspension unit test verifies both beam edges and a music wake across
-frames. Attract-demo and battle-lavos-gameover pass complete shadow runs
-with zero mismatches and identical sound lockstep; their fallback ratchet
-has zero new or increased rows. Shipping attract-demo reaches frame 22,500.
-Style, smell, effects and static don't-care checks are clean.
-
-Scene/warp joints fall from 821 to 817, with stops from 25 to 20.
-C3's uncovered list is empty. RAM's only remaining static gap is the
-29-byte paired perspective branch at `$7E:366C`, already implemented in C
-but missed by the coverage walk through its patched branch. The sampled
-gate remains for the end of the pass.
+Seed-1 differential fuzz: curtain 1,855 compared, 145 invalid-table guards;
+divisor 1,999 compared, one nonterminating-input guard; caption 2,000
+compared. All have zero mismatches. The caption fixture now initializes
+both bytes of its sprite high-table pointer; previously random high bytes
+usually ended at the old fallback without drawing. Complete attract-demo
+and battle-lavos-gameover shadow runs pass with zero mismatches. The
+narrowed fallback ratchet has no new or increased rows. Style and smell
+checks pass. Scene/warp joints fall from 817 to 813, stops from 20 to 17,
+and one machine timing tag becomes a GameState tag. The sampled gate is
+reserved for the end of the pass.
 
 ### The largest fallbacks left: Zeal's fall and the scripted exits
 

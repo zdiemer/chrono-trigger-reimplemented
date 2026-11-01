@@ -2737,6 +2737,11 @@ re-runs the census.
   own call of the original recurse into the port: decide whether a native
   build keeps the wait at all, and take it out of the service if not.
 
+- **Scene divisor search outside its terminating domain.** The entry at
+  `$C3:0E29` refuses a dividend, initial quotient and limit for which none
+  of its 256 divisors succeeds. The original loops forever there; seed-1
+  fuzz rejects one of 2,000 cases. Real-play guards must remain zero.
+
 ## Shadow comparison gaps
 
 The early-boss shadow runs also expose a comparison gap in the held-message

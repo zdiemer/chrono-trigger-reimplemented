@@ -1379,6 +1379,7 @@ TaskEnd scene_stars_keep_drifting(GameState *g, Platform *pf, unsigned slot);
 
 /* scene/captions.c (the program in RAM) */
 bool scene_draw_caption_present(Snes *s);
+bool scene_caption_at_present(Snes *s, uint16_t text);
 void scene_draw_caption_entry(Snes *s);
 /* A caption drawn from its text, as C, where its guard's state half takes
  * it: its text ends inside the program's bank and its letters fit the

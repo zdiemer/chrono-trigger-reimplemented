@@ -12593,3 +12593,36 @@ Scene/warp joints remain 821: one return replaces one stop, leaving 25
 stops. The C3 burndown now lists only the controller continuation at
 `$C3:0A95`, 106 bytes; the seven command entries bring it to 45 entries.
 The sampled gate remains for the end of the pass.
+
+### Scene continuations: controller, boot and title waits
+
+The scene controller entry now owns readiness, button edges, pause and
+unpause, and the reset chord. The frame calls it directly; readiness is a
+platform operation (the SNES backend latches controllers atomically), and
+reset calls the existing C reset entry. The planet countdown calls that
+same reset entry when it expires. The native frame reports reset to the
+program rather than requesting a machine fallback.
+
+The boot line interrupt waits for the current horizontal blank to end and
+the next to begin, then calls its blank-and-return continuation. The title
+waits for the music-playing mask through the audio service. Both waits
+suspend through runtime wake conditions; the host audio backend advances
+frames until music starts. The title preserves its PPU direct page across
+the wait, and enclosing startup continues directly into the first frame.
+The standalone idle entries remain for callers still entering by address.
+
+Eight differential fuzz variants (2,000 states each, 400 for the title)
+have zero mismatches; the frame retains its predecessor's 1,013 budget
+skips. Five dedicated controller fixtures cover idle, pause, unpause,
+reset and reset-disabled inputs: 10,000 cases, zero mismatches or skips.
+The suspension unit test verifies both beam edges and a music wake across
+frames. Attract-demo and battle-lavos-gameover pass complete shadow runs
+with zero mismatches and identical sound lockstep; their fallback ratchet
+has zero new or increased rows. Shipping attract-demo reaches frame 22,500.
+Style, smell, effects and static don't-care checks are clean.
+
+Scene/warp joints fall from 821 to 817, with stops from 25 to 20.
+C3's uncovered list is empty. RAM's only remaining static gap is the
+29-byte paired perspective branch at `$7E:366C`, already implemented in C
+but missed by the coverage walk through its patched branch. The sampled
+gate remains for the end of the pass.

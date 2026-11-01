@@ -4624,7 +4624,8 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC301E4, .name = "scene_sweep_the_curtain", .fn = scene_sweep_the_curtain, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 9649, .guard = scene_sweep_the_curtain_present },
     /* its jump (JSL $C3000E from the field, the race and bank C6) */
-    { .addr = 0xC3000E, .name = "scene_curtain_jump", .fn = scene_curtain_jump, .cost_milli = 1000 },
+    { .addr = 0xC3000E, .name = "scene_curtain_jump", .fn = scene_curtain_jump, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 1000, .guard = scene_sweep_the_curtain_present },
     { .addr = 0xC309E9, .name = "scene_write_matrix_code", .fn = scene_write_matrix_code, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
       .p_value = 0, .cost_milli = 19279, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C | DC_Y},
     { .addr = 0xC3099C, .name = "scene_copy_resource", .fn = scene_copy_resource, .p_mask = CPU_FLAG_X,

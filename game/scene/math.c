@@ -446,7 +446,14 @@ bool scene_divide_present(Snes *s)
 /* The original reaches the divider through the direct page. */
 bool scene_find_divisor_on_divider_page(Snes *s)
 {
-    return m_direct_page(s) == M_DP_CPU && m_bank_reaches_low_ram(s);
+    if (m_direct_page(s) != M_DP_CPU || !m_bank_reaches_low_ram(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    FoundDivisor f = find_divisor(hw_dividend(g), (uint8_t)s->cpu.x, hw_quotient(g),
+                                 scene_call_quotient_limit(g, scene_program_own()));
+    vars_peek(false);
+    return f.found;
 }
 
 /* ---- Entries --------------------------------------------------------------------------------- */
@@ -547,8 +554,7 @@ void scene_divide_8_8(Snes *s)
  * quotient the divider holds; the limit is
  * on the scene's own page, through the data bank. Back, X is the divisor after
  * the one found and A its quotient, with the carry clear (the loop's compare).
- * A search that finds nothing loops forever in the original; the port stops
- * after the first pass, where the search is after all 256. */
+ * The guard excludes searches that loop forever in the original. */
 void scene_find_divisor(Snes *s)
 {
     GameState *g = state_of(s);
@@ -558,10 +564,6 @@ void scene_find_divisor(Snes *s)
     ORIGINAL_EFFECT(leave_divider_after(g, &f));
     s->cpu.x = (uint8_t)(f.divisor + 1);
     s->cpu.a = f.quotient;
-    m_set_flag(s, CPU_FLAG_C, !f.found);
-    if (!f.found) {
-        m_stop_at(s, 0xC30E29, DC_N | DC_Z);
-        return;
-    }
+    m_set_flag(s, CPU_FLAG_C, false);
     m_rtl(s);
 }

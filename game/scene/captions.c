@@ -203,15 +203,17 @@ bool scene_caption_fits(const GameState *g, uint16_t text)
            scene_sprites_fit(g, sprites);
 }
 
-bool scene_draw_caption_present(Snes *s)
+bool scene_caption_at_present(Snes *s, uint16_t text)
 {
     if (!scene_on_scene_page(s) || !drawing_present(s))
         return false;
     vars_peek(true);
-    bool fits = scene_caption_fits(state_of(s), s->cpu.x);
+    bool fits = scene_caption_fits(state_of(s), text);
     vars_peek(false);
     return fits;
 }
+
+bool scene_draw_caption_present(Snes *s) { return scene_caption_at_present(s, s->cpu.x); }
 
 /* Entered with X at the text; back, X is past it, Y the next free sprite
  * entry and A the end's code, as the original leaves them, and the data bank

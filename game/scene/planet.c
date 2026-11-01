@@ -368,19 +368,12 @@ void scene_fade_the_planet_out_slowly(Snes *s)
 /* The scene's caption, the program's text "But... the future refused to
  * change.", drawn every frame by a task of the script's while it is up. */
 enum { THE_FUTURE_REFUSED_TO_CHANGE = 0x6644, CAPTION_DRAWING = 0x7E64CA };
-enum { THE_DRAWING_READS_X = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 // $7E:64BF
 void scene_show_the_planet_s_caption_entry(Snes *s)
 {
     s->cpu.x = THE_FUTURE_REFUSED_TO_CHANGE;
-    m_set_nz16(s, THE_FUTURE_REFUSED_TO_CHANGE);
-    m_jump_to(s, CAPTION_DRAWING);
-    if (!scene_draw_caption_present(s)) {
-        m_stop_at(s, CAPTION_DRAWING, THE_DRAWING_READS_X);
-        return;
-    }
-    NATIVE_TIME_AS(s, CAPTION_DRAWING, scene_draw_caption_entry(s));
+    TIMED_AS(state_of(s), CAPTION_DRAWING, scene_draw_caption_entry(s));
 }
 
 TaskEnd scene_show_the_planet_s_caption(GameState *g, Platform *pf, unsigned slot)
@@ -485,7 +478,11 @@ TaskEnd scene_count_down_to_the_restart(GameState *g, Platform *pf, unsigned slo
 
 /* The tasks' code, on the scene's page; the wait's send's, and the list's
  * room for the darkening. */
-bool scene_planet_s_caption_present(Snes *s) { return m_code_matches(s, 0x7E64BF, 0x06, 0x95BAD85F81FC3237ull); }
+bool scene_planet_s_caption_present(Snes *s)
+{
+    return m_code_matches(s, 0x7E64BF, 0x06, 0x95BAD85F81FC3237ull) &&
+           scene_caption_at_present(s, THE_FUTURE_REFUSED_TO_CHANGE);
+}
 
 bool scene_wait_for_a_button_to_restart_present(Snes *s)
 {
