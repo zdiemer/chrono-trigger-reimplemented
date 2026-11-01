@@ -2791,19 +2791,36 @@ comparisons.
 ## The native program
 
 - **The menus' remaining machine boundaries.** The 21 assigned bridge and
-  support files retain 21 stops: scheduler switches and held waits, reset and
-  mode boundaries, invalid script dispatch and guard fallbacks. The script
-  bridge's near/far fallback covers unknown or refused targets and the two
+  support files retain 22 stops: scheduler switches and held waits, reset and
+  mode boundaries, invalid script dispatch, comparison checkpoints and guard
+  fallbacks. The script bridge's near/far fallback covers unknown or refused
+  targets and the two
   curtain routines. Inlining the latter moved the scene RNG's accepted
   shared-scratch reads onto `menu_run_object_script` (496 reads in the attract
   run); retire that scene dependency with its effects evidence before joining
   those boundaries. Selected routine wrappers still supply register results
   and nested checkpoints. `menu_mode_enter` documents the nested shadow
-  ownership that prevents simply joining the mode entry. The two work-RAM
-  transfers in `menu/display.c` need a memory service preserving the gate's
+  ownership that prevents simply joining the mode entry. The NMI entry must
+  retain the work's checkpoint: joining it matches the outer entry but
+  abandons all 51,429 nested work comparisons in the sampled gate. Teach the
+  registry to account for that coverage before joining this boundary; no
+  comparison exception was added. The two work-RAM transfers in
+  `menu/display.c` need a memory service preserving the gate's
   SNES transfer effects. Registered return wrappers remain until their
   registry entries and original callers retire together. See
   REIMPLEMENTATION.md, "The menus' machine joints".
+
+- **Repeat the sampled gate after the retained NMI checkpoint.** The
+  once-only long-route/evidence run ended `FAILED: uncompared` before this
+  correction. After it, the three-movie narrowed suite ends `suite OK`, with
+  all 8,358 work comparisons matched. The full sampled gate still needs a
+  run on this final tree before merging.
+
+- **Limit evidence children, not only movie workers.** `dc_evidence.py`
+  starts four variants per worker, so the suite's `-j 2` can run eight
+  `ct_dev` children. Make the limit apply to child processes. The menu gate
+  discovered this during evidence regeneration and limited its own children
+  to two active processes externally; the shared helper remains unchanged.
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").

@@ -501,14 +501,17 @@ bool menu_nmi_work_runs(Snes *s)
 // $C2:840E (installed at the $0500 NMI stub from the table at $C2:8406)
 /* The menus' vblank handler as it starts: the interrupted code's registers
  * kept and the handler on its own stack and page. Its work follows
- * (menu_nmi_work, called as C where its guard holds), and the vblank's
+ * (menu_nmi_work, with its own comparison checkpoint), and the vblank's
  * acknowledgement there, a compare, sets the flags before anything reads
  * them. */
 void menu_nmi_enter(Snes *s)
 {
     set_menu_interrupted_stack(state_of(s), m_enter_handler_stack(s, HANDLER_STACK));
     s->cpu.d = MENUS_PAGE;
-    menu_go_on_in(s, 0xC2842A, menu_nmi_work, DC_N | DC_Z | DC_C);
+    /* Joining the work here matches the outer NMI entry, but abandons every
+     * nested menu_nmi_work comparison. Keep its checkpoint until the registry
+     * can account for that coverage without losing the per-entry check. */
+    m_stop_at(s, 0xC2842A, DC_N | DC_Z | DC_C);
 }
 
 /* The vblank's two calls, run as C or on the machine (below): the frame's
