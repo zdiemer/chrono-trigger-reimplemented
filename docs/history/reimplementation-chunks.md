@@ -12217,3 +12217,33 @@ stops at its picture's vblank task (`$7E:9CE2`, TODO.md). Left alone, the
 attract sequence runs 30,000 frames without a stop with the race's
 pictures now scaled. Timing: the thirteen new entries calibrated from these
 four movies' shadow runs; the setups keep their rows.
+
+## The menus' script services and machine time tags
+
+The menu scripts now call the map's scrolling and drawing and the sound
+mailbox as C. The map's registered entries and the script bridge share their
+register-result helpers; the scripts do not construct a return frame for
+that work. Script-selected routines have a table of 57 machine entries,
+checked against their guards before they run as C. Their wrappers still
+supply the register results and, for callees with nested calls, the frames
+the byte-exact gate compares. Targets outside the table and guard refusals
+retain the original near or far call. The native program continues to use
+the game-state routine table in `menu/handlers.c`.
+
+The 21 menu bridge, display, frame, list, object, task and description files
+started with 560 sites in `machine_joints.py`: 157 returns, 56 stops,
+18 counted call-out sites, 15 machine time tags, two register escapes,
+58 video calls and 254 scaffolding writes. The script work removes twelve
+counted call-out sites; the time tags now use `TIMED_AS` on the game's state,
+removing all fifteen machine tags. The other counts are unchanged (533
+sites). The shared map helpers add no joint in `menu/map.c`.
+
+Narrowed shadow checks on `attract-demo`, `menus-epoch` and `menu` compare
+without mismatches; their trace identity, timing and vblank checks pass.
+No calibration or exception changes are needed. Differential fuzzing, seed 1
+and 300 iterations per case with the existing constraints, compares 1,832
+states over fifteen cases, with zero mismatches before and after. That
+includes the redraw's leaf and command, whose movie calls span frames.
+The routine-call cases exercise the fallback in fuzz, which has no active
+registry; the movies check the guarded C selection. `ports.tsv` records
+each entry's comparisons and skips.

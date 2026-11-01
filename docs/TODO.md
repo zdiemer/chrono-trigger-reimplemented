@@ -2790,16 +2790,20 @@ comparisons.
 
 ## The native program
 
-- **The menus' remaining machine boundaries.** The script bridge's near
-  and far calls still need a fallback for targets outside its C table and
-  for entries their guards refuse. Its selected routines retain machine
-  wrappers for the register results and nested call checkpoints; move those
-  callers onto the game-state routines as their comparison boundaries leave.
-  The screen steps' tail stops, scheduler switches and idle waits remain to
-  be connected to their C continuations. The two work-RAM transfers in
-  `menu/display.c` need a memory service with the gate's SNES transfer effects
-  before their video escapes can leave. Registered return wrappers remain
-  until their registry entries and original callers retire together.
+- **The menus' remaining machine boundaries.** The 21 assigned bridge and
+  support files retain 21 stops: scheduler switches and held waits, reset and
+  mode boundaries, invalid script dispatch and guard fallbacks. The script
+  bridge's near/far fallback covers unknown or refused targets and the two
+  curtain routines. Inlining the latter moved the scene RNG's accepted
+  shared-scratch reads onto `menu_run_object_script` (496 reads in the attract
+  run); retire that scene dependency with its effects evidence before joining
+  those boundaries. Selected routine wrappers still supply register results
+  and nested checkpoints. `menu_mode_enter` documents the nested shadow
+  ownership that prevents simply joining the mode entry. The two work-RAM
+  transfers in `menu/display.c` need a memory service preserving the gate's
+  SNES transfer effects. Registered return wrappers remain until their
+  registry entries and original callers retire together. See
+  REIMPLEMENTATION.md, "The menus' machine joints".
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").

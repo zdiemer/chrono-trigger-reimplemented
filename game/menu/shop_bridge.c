@@ -11,8 +11,7 @@
  * and so are the equipment screen's list of what fits and its move along. A
  * frame's wait waits in the menus' task switch, parked until its task goes
  * on (menu_wait_a_frame_from). The shop's way out, its fade in and the
- * refusal's sound are jumps the steps stop at, and the lists' openings are
- * the steps' last calls, run as C.
+ * refusal's sound, like the lists' openings, are C continuations.
  *
  * Before each of those calls the sequence's note leaves the registers and
  * flags the original's own instructions left there, worked out from the
@@ -26,7 +25,9 @@
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
+#include "menu/display.h"
 #include "menu/equipment.h"
+#include "menu/fades.h"
 #include "menu/figures.h"
 #include "menu/items.h"
 #include "menu/lists.h"
@@ -223,12 +224,12 @@ static bool ends_on_the_machine(void *ctx, ShopEnd end)
 {
     Snes *s = ctx;
     switch (end) {
-    case SHOP_FADES_IN: m_stop_at(s, FADE_IN, READS_NOTHING); break;
-    case SHOP_LEAVES: m_stop_at(s, LEAVE_THE_SHOP, READS_NOTHING); break;
+    case SHOP_FADES_IN: menu_go_on_in(s, FADE_IN, menu_start_the_fade_in_entry, READS_NOTHING); break;
+    case SHOP_LEAVES: menu_go_on_in(s, LEAVE_THE_SHOP, menu_close_entry, READS_NOTHING); break;
     case SHOP_OPENS_THE_GOODS: TIMED_AS(state_of(s), 0xC2DC7B, menu_open_goods_list(s)); break;
     case SHOP_OPENS_THE_LIST_FOR_SALE: TIMED_AS(state_of(s), 0xC2DE98, menu_open_for_sale_list(s)); break;
     case SHOP_REFUSES: menu_play_refusal_sound(s); break;
-    case SHOP_REFUSES_A_SLOT: m_stop_at_own(s, REFUSAL_SOUND, READS_A_HIGH); break;
+    case SHOP_REFUSES_A_SLOT: TIMED_AS(state_of(s), REFUSAL_SOUND, menu_play_refusal_sound(s)); break;
     }
     return false;
 }

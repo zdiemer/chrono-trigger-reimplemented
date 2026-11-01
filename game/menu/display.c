@@ -501,14 +501,14 @@ bool menu_nmi_work_runs(Snes *s)
 // $C2:840E (installed at the $0500 NMI stub from the table at $C2:8406)
 /* The menus' vblank handler as it starts: the interrupted code's registers
  * kept and the handler on its own stack and page. Its work follows
- * (menu_nmi_work, a port of its own, where this one stops), and the vblank's
+ * (menu_nmi_work, called as C where its guard holds), and the vblank's
  * acknowledgement there, a compare, sets the flags before anything reads
  * them. */
 void menu_nmi_enter(Snes *s)
 {
     set_menu_interrupted_stack(state_of(s), m_enter_handler_stack(s, HANDLER_STACK));
     s->cpu.d = MENUS_PAGE;
-    m_stop_at(s, 0xC2842A, DC_N | DC_Z | DC_C);
+    menu_go_on_in(s, 0xC2842A, menu_nmi_work, DC_N | DC_Z | DC_C);
 }
 
 /* The vblank's two calls, run as C or on the machine (below): the frame's
@@ -697,12 +697,12 @@ static uint16_t send_the_frame(GameState *g, Platform *pf)
     return y;
 }
 
-/* This port stops where the queue's routine starts. */
+/* The queued uploads follow the frame's fixed work. */
 void menu_vblank_upload(Snes *s)
 {
     s->cpu.y = send_the_frame(state_of(s), m_platform(s));
     s->cpu.db = 0x00;
-    m_stop_at(s, 0xC28663, 0);
+    menu_go_on_in(s, 0xC28663, menu_upload_vram_queue, 0);
 }
 
 /* A block move the game asks for moves a buffer, not the code the original

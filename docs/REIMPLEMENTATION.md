@@ -35,33 +35,46 @@ stream, not the whole run of them.
 
 ## The menus' machine joints
 
-The menu scripts now call the map's scrolling and drawing and the sound
-mailbox as C. The map's registered entries and the script bridge share their
-register-result helpers; the scripts do not construct a return frame for
-that work. Script-selected routines have a table of 57 machine entries,
-checked against their guards before they run as C. Their wrappers still
-supply the register results and, for callees with nested calls, the frames
-the byte-exact gate compares. Targets outside the table and guard refusals
-retain the original near or far call. The native program continues to use
-the game-state routine table in `menu/handlers.c`.
+The screen bridges continue into their next screen step as C: opening and
+closing screens, pointing at equipment, returning to the main menu, fades,
+sounds and saving in a slot. The vblank entry continues into its work, and
+that work into the queued uploads. Guarded continuations retain the original
+stop when a callee refuses. These are the gate's bridges; the native program
+already uses the screens' game-state sequences and task coroutines.
 
-The 21 menu bridge, display, frame, list, object, task and description files
-started with 560 sites in `machine_joints.py`: 157 returns, 56 stops,
-18 counted call-out sites, 15 machine time tags, two register escapes,
-58 video calls and 254 scaffolding writes. The script work removes twelve
-counted call-out sites; the time tags now use `TIMED_AS` on the game's state,
-removing all fifteen machine tags. The other counts are unchanged (533
-sites). The shared map helpers add no joint in `menu/map.c`.
+The scripts call map scrolling, drawing and the sound mailbox as game-state
+functions, without making an emulated return frame. A table selects 55 other
+registered wrappers as C behind their guards. Unknown or refused targets
+still use the near/far fallback. The two curtain routines retain their entry
+boundaries: inlining them attributes the scene RNG's accepted shared-scratch
+reads to the interpreter, outside their existing effects evidence. Retiring
+that dependency belongs with the scene engine. No exception was added.
 
-Narrowed shadow checks on `attract-demo`, `menus-epoch` and `menu` compare
-without mismatches; their trace identity, timing and vblank checks pass.
-No calibration or exception changes are needed. Differential fuzzing, seed 1
-and 300 iterations per case with the existing constraints, compares 1,832
-states over fifteen cases, with zero mismatches before and after. That
-includes the redraw's leaf and command, whose movie calls span frames.
-The routine-call cases exercise the fallback in fuzz, which has no active
-registry; the movies check the guarded C selection. `ports.tsv` records
-each entry's comparisons and skips.
+Across the 21 assigned bridge, display, frame, list, object, task and
+description files, the machine-joint count is 560 to 499: returns 157 to 157,
+stops 56 to 21, counted call-outs 18 to 6, machine time tags 15 to zero,
+register escapes two to two, video calls 58 to 58, scaffolding 254 to 255.
+The shared map helpers add no joint; the member-card wrapper adds one
+scaffolding result outside those 21 files. The register results exposed by
+joining the screen steps were the card's final queued upload and the last
+task stopped before the naming fade. Both are confined to machine wrappers.
+
+Narrowed shadow checks cover the menu sweep, buying and equipping, New
+Game+, save points, field menus, End of Time and the attract sequence.
+The script chunk's differential fuzz compared 1,832 states over fifteen
+cases; the continuation chunk compares 1,418 over eleven cases, all with
+zero mismatches before and after (seed 1, existing constraints). Fuzz has
+no active registry, so guarded continuations use their fallback there;
+the movies exercise their C paths. The original card and naming failures
+were fixed without widening don't-care sets. Per-entry counts and the
+limits of each check are recorded in `ports.tsv`.
+
+Remaining stops belong to task switches and held waits, reset and mode
+boundaries, invalid script dispatch and guard fallbacks. In particular the
+menu-entry boundary still owns nested shadow checkpoints, as documented
+beside `menu_mode_enter`. The two WRAM transfers need a memory service that
+preserves the gate's transfer effects. Registered return wrappers cannot
+leave until their original callers and registry entries retire together.
 
 ## Time in hand ports
 

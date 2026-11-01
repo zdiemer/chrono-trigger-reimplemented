@@ -199,8 +199,8 @@ static const struct {
     { 0xC6E391, menu_object_squashed_iris_2 },
     { 0xC6E498, menu_object_capsule_iris_1 },
     { 0xC6E4BE, menu_object_capsule_iris_2 },
-    { 0xC6E241, menu_object_start_curtain },
-    { 0xC6E27E, menu_object_step_curtain },
+    /* The curtain's scene RNG reads shared scratch. Keep its registered
+     * boundary until that dependency and its effects evidence are retired. */
     { 0xC278A1, menu_scene_object_in_view_entry },
     { 0xC6EE31, menu_scene_note_the_epoch_s_arrival_entry },
     { 0xC26400, menu_epoch_sample_map_colours },
@@ -307,10 +307,9 @@ static bool scroll_map(void *ctx, MenuAxis axis, uint8_t plane, int8_t step)
     if (!both_planes || plane != 2)
         set_menu_object_scratch_step(g, (uint8_t)step);
     m->called_down = axis == MENU_DOWN;
-    uint32_t site = axis == MENU_ACROSS ? 0xC2173C : 0xC21751;
-    if (both_planes)
-        site = axis == MENU_ACROSS ? (plane == 1 ? 0xC2168A : 0xC21691)
-                                  : (plane == 1 ? 0xC216C7 : 0xC216CE);
+    uint32_t site = both_planes
+        ? (axis == MENU_ACROSS ? (plane == 1 ? 0xC2168A : 0xC21691) : (plane == 1 ? 0xC216C7 : 0xC216CE))
+        : (axis == MENU_ACROSS ? 0xC2173C : 0xC21751);
     uint32_t routine = axis == MENU_ACROSS ? SCROLL_ACROSS : SCROLL_DOWN;
     void (*entry)(Snes *) = axis == MENU_ACROSS ? menu_map_scroll_x : menu_map_scroll_y;
     m_sep(s, CPU_FLAG_M);
