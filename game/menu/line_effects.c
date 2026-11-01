@@ -220,18 +220,21 @@ static void capsule_iris(GameState *g, MenuObject o, uint8_t slot)
     set_menu_object_slots_capsule_frames(g, o, (uint16_t)(frames + 1));
     set_up_circle(g, o, table, true);
 
+    /* The object owns the capsule's dimensions. The circle renderer leaves
+     * its input cells as scaffolding, so do not read those cells back. */
+    MenuPlace place = menu_object_place(g, o);
+    uint16_t radius = menu_object_slots_iris_radius(g, o);
     uint16_t stretch = menu_object_slots_iris_stretch(g, o);
-    if (menu_object_slots_iris_radius(g, o) == 0) {
+    if (radius == 0) {
         /* Both edges of every line at the object's X, whose low byte the
          * original repeats over both. */
-        MenuPlace place = menu_object_place(g, o);
         uint8_t x = (uint8_t)menu_pixel(place.x);
         ORIGINAL_EFFECT(set_menu_object_scratch_iris_centre(g, stretch));
         fill_lines(g, (uint16_t)line_address(table, menu_pixel(place.y)), stretch, window_edges(x, x));
         return;
     }
-    uint16_t centre_at = capsule_centre_at(table, scene_circle_center_y(g));
-    for (uint16_t n = 0; n < scene_circle_radius(g); n++)
+    uint16_t centre_at = capsule_centre_at(table, menu_pixel(place.y));
+    for (uint16_t n = 0; n < radius; n++)
         set_value_at(g, (uint16_t)(centre_at + 2 * (stretch + n)), value_at(g, (uint16_t)(centre_at - 2 * n)));
     ORIGINAL_EFFECT(set_menu_object_scratch_iris_centre(g, centre_at));
     ORIGINAL_EFFECT(set_menu_object_scratch_iris_lines_left(g, 0));
@@ -437,7 +440,7 @@ static uint16_t capsule_fill_end(const GameState *g, MenuObject o, uint8_t slot)
     uint16_t stretch = menu_object_slots_iris_stretch(g, o);
     if (menu_object_slots_iris_radius(g, o) == 0)
         return (uint16_t)(line_address(table, menu_pixel(menu_object_place(g, o).y)) + 2 * stretch - 1);
-    return (uint16_t)(capsule_centre_at(table, scene_circle_center_y(g)) + 2 * stretch - 2);
+    return (uint16_t)(capsule_centre_at(table, menu_pixel(menu_object_place(g, o).y)) + 2 * stretch - 2);
 }
 
 static void capsule_entry(Snes *s, uint8_t slot)

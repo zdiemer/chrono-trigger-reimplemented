@@ -1867,9 +1867,9 @@ rest waits, is [PLAN.md](PLAN.md).
   wave 1: the analysis"). The menus' task switch (`$C2:821E`, `$C2:822B`) is
   a `[[keeps]]` hint instead (history/reimplementation-chunks.md, "Phase 3, menus"); the scene's task
   lists could take the same.
-- **Scene cells the menu objects use.** The C6 irises and motion routines
-  (`menu/object_commands.c`) run on the menu's direct page and use the circle
-  drawer's and the scaler's cells, which the map files under the scene; their
+- **Scene cells the menu objects use.** The C6 circle setup and motion routines
+  (`menu/line_effects.c`, `menu/object_commands.c`) run on the menu's direct page
+  and use the circle drawer's and the scaler's cells, which the map files under the scene; their
   drafts now give those cells scratch names (REIMPLEMENTATION.md, "The tooling pass
   after wave 1: the analysis"). Filing them where both subsystems see them (`core`, or
   entries on the menu's page) would name them again.
