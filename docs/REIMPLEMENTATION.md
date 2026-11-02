@@ -3064,7 +3064,8 @@ of pending invocations, with no new calls, mismatches, interruptions or
 abandonments. Completion is observed between instructions so another call
 later in the same frame cannot obscure it. Unresolved comparisons retain
 their original counts and ratchet failures; the tail's mismatches still fail
-the shadow run. Only comparison evidence includes the extra frames.
+the shadow run. Comparison statistics and instruction diagnostics include
+the tail; saved-game, trace and fallback counts retain the movie's cutoff.
 
 `battle-black-tyrano` ends during scene teardown and field loading: 20
 instructions under `scene_program_restart` and 44,292 under `decompress`
