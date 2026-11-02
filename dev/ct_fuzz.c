@@ -369,8 +369,7 @@ usage:
                     "[--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
                     "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]...\n"
-                    "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]
-"
+                    "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");
     return 2;
