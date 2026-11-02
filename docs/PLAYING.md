@@ -117,6 +117,17 @@ byte, so the drift is the shipping mode's own; the routes, which play to a
 goal rather than to a frame, are what answers for it. Every movie reaches its
 end; 31 of the 48 as the reference play does.
 
+Death Peak's wind movie illustrates the sound driver's timing change. The
+reference's calm intervals begin at frames 3603 and 4219; the C driver run's
+begin at 3618 and 4234. The recorded departures at 3604 and 4220 therefore
+leave shelter during a gust, returning to the world map rather than reaching
+the next slope. The pre-scene-continuation port set reproduces the same drift;
+using the cartridge sound driver in that diagnostic build restores the exact
+saved-game result. Its strict ledger records `drifts`, while the
+`death_peak_wind` route waits for calm and reaches the next slope at frame
+4692 with the shipping C driver. This is a recording's timing dependency,
+not a scene/warp logic correction.
+
 A misses file is a coverage file, so feeding it back is adding it to the
 build's coverage and rebuilding, which generates blocks for that code:
 
