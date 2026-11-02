@@ -10,7 +10,7 @@
 #include "port/native.h"
 #include "snes/system.h"
 
-#define FUZZ_MAX_AREAS 48
+#define FUZZ_MAX_AREAS 64
 #define FUZZ_MAX_VALUES 32
 #define FUZZ_MAX_STOP_CALLS 12
 
@@ -57,6 +57,15 @@ typedef struct FuzzArea {
 bool fuzz_parse_area(const char *spec, bool keep, FuzzArea *out);
 
 typedef struct FuzzOptions {
+    /* Observe only the original's instructions. begin clears a trial; matched
+     * commits it only after the full state comparison succeeds. */
+    void (*coverage_begin)(void *ctx);
+    void (*coverage_insn)(void *ctx, uint32_t pc, uint8_t p, bool e);
+    void (*coverage_matched)(void *ctx);
+    void *coverage_ctx;
+    /* An external counter notification at an interpreted wait-loop head,
+     * applied on both machines. This models the notification, not a handler. */
+    uint32_t tick_pc, tick_address;
     unsigned long iterations;
     uint64_t seed;
     bool long_call, interrupt;

@@ -688,15 +688,13 @@ taking the gate down needs, before it and after it.
      `ct_native`.
 
 - **The code no movie reaches, checked before its subsystem retires.**
-  36.3 KiB of live code runs in no movie, 32.7 KiB of it ported and so far
-  checked by nothing but fuzzing where it was fuzzed (movies-wanted.md,
-  "Totals"). Retiring a subsystem's gate takes away the original to compare
-  it with and turns its guards into assertions, so what the subsystem has no
-  movie for is checked first, while the original is still there: a movie or
-  route that reaches it, or its ports fuzzed against the original on states
-  built for the paths (`ct_fuzz`). Measured per subsystem by the library's
-  `--coverage` against `burndown.py`'s live code; a subsystem retires with
-  that list empty or each remaining run named in TODO.md with why it is safe.
+  Extend `tools/unreached.py` to the remaining 65816 subsystems: battle,
+  field, menu and scene. Compare the full library's coverage with their
+  ported live reach, then fuzz the missing paths against the original before
+  retiring their gates. Every remaining byte needs a passing comparison or
+  an explicit safety argument in the ledger, with its retirement obligations
+  in TODO.md. The sampled gate checks the full-library ledger; it cannot
+  establish absence from movies it does not run.
 - **The game's state as C, not a work-RAM image.** Even `ct_native` keeps the
   game's state as the 128 KiB byte image the accessors read and write, which
   is the original's memory layout carried into the product. When a subsystem

@@ -9,6 +9,30 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **Keep the unreached ledger's preconditions when retiring the machine.**
+  `tools/unreached_safe.toml` names all 366 bytes excluded from execution
+  evidence, with exact runs in `tools/unreached_baseline.txt`: event's
+  missing-text-table diagnostics (109 bytes), rejected word-OR (12), full
+  shared-graphics table diagnostic (6) and graphics-overflow handoffs (12);
+  overworld's unused scene-tile load (26), rejected boarding selector (2)
+  and impossible stationary follower trap (2); warp's fixed-centre/radius
+  clamps (9). Preserve the guard bounds as assertions and replace the
+  graphics error handoffs with native failures. Recheck the two immutable
+  resource arguments if map records or the radius ramp become editable.
+  The conservative walk also records the attract frame-pass guard's excluded
+  map-turning callback (156), the controller reset transfer (4), the event
+  engine's original-only unknown-command diagnostic (6), and the separately
+  registered field restart wait/continuation (16). Keep the reset chord and
+  vblank-only restart preconditions; port the callback and replace the
+  diagnostic/restart delegations before retiring those machine dependencies.
+- **Exercise both sign-refresh arms after returning from a screen.**
+  `overworld_main_loop` `$C2:2603-$C2:2605` and `$C2:267E-$C2:2680`
+  are six reviewed-equivalence bytes: conditional increments
+  of the sign-refresh byte modulo 256, with dead flags. Their exact C
+  predicate and arithmetic agree, but the fuzz runs did not execute those
+  arms. Add a returning map-view/time-dial fixture with a visible sign,
+  including refresh count 255, before tearing down that screen machinery.
+
 - **A battle's start, one fuzz state in about 4,000.** `field_battle_begins`
   (`tools/fuzz_routines.toml`, both variants; seeds 1-4) mismatches once or
   twice per 5,000 states: a field work cell (`$7E:01C3`, `$01DB`), the
