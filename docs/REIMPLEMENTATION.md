@@ -3322,6 +3322,20 @@ exemptions name this evidence. The five bitmap/race exemptions name the
 independently compared interrupt handlers and explicitly retain the
 mid-picture interaction gap in TODO; standalone fuzz does not close it.
 
+`tools/uncompared_evidence.py` makes eight further comparisons repeatable:
+the flickering trip's wait and frame continuations, and the scene program's
+start, setup, first frame, clear, post-clear and handback entries. In a combined
+shadow run an enclosing port reaches its wait or call-out first, so shadow
+mode abandons these nested continuations before their own comparison point.
+The isolated fixtures remove those ancestors, preserving the callees and
+their registry contracts. Each scene entry matches in `title-start`; each
+flickering entry matches a complete 767-frame trip with real interrupts in
+the first 20,000 frames of `endings-bucket-lavos`. All eight fixtures require
+nonzero calls and every call matched, with no mismatches elsewhere in the
+run. Their baseline reasons name this evidence. The suite runs applicable
+fixtures for selected movies, or all eight with `--evidence`; these extra
+logs never enter the combined timing or fallback totals.
+
 Six narrowed movies, including the complete Beyond Time ending, pass with
 zero mismatches; attract and Epoch pass again after the final startup fix.
 The final 29 focused fuzz fixtures compare 24,371 cases without a mismatch;
