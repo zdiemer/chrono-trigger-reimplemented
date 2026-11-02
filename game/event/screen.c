@@ -494,7 +494,7 @@ static const struct { uint32_t entry; EventBridge call; } screen_entries[SCREEN_
     [3] = { 0xC040EF, event_screen_uncover_left },
     [4] = { 0xC040B3, event_screen_cover_right },
     [5] = { 0xC04145, event_screen_cover_left },
-    [6] = { 0xC04181, field_restart_wait_for_vblank_loop },
+    [6] = { 0xC04181, NULL },   /* the restart hands off before its idle wait */
     [7] = { 0xC04191, event_screen_open_oval },
     [8] = { 0xC041B0, event_screen_close_oval },
     [9] = { 0xC041B4, event_screen_circle_bg3 },
@@ -511,12 +511,25 @@ bool event_screen_dispatch_accepts(Snes *s)
     return field_on_page_bank_zero(s) && !(s->cpu.x & 1) && s->cpu.x / 2 < SCREEN_COMMANDS;
 }
 
+/* The runtime owns the vblank wait. Meet the original before it polls,
+ * preserving every register; the dispatcher's return-only don't-care set
+ * does not apply at this handoff. The table bridge supplies its JSR frame. */
+static bool restart_on_the_machine(Snes *s)
+{
+    m_stop_at_own(s, 0xC04181, 0);
+    return false;
+}
+
 // $C0:4009
 /* Resume a screen command at its dispatch, including the restart path.
  * Each sibling keeps its own registry contract and time. */
 void event_screen_dispatch(Snes *s)
 {
     unsigned i = s->cpu.x / 2;
+    if (screen_commands[i].kind == RESTARTS_THE_GAME) {
+        field_run_table_step(s, SCREEN_DISPATCH, restart_on_the_machine);
+        return;
+    }
     if (field_run_or_hand_over(s, SCREEN_DISPATCH, screen_entries[i].entry, DC_C,
                               screen_entries[i].call, event_machine(s, false))) {
         m_set_flag(s, CPU_FLAG_C, false);
@@ -611,7 +624,9 @@ bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *st
         *step = (EventStep){ (uint16_t)(at + SCREEN_COMMAND_LENGTH), false };
         return true;
     }
-    bool done = run_screen_command(g, c.screen_command, (uint8_t)c.x, (uint8_t)c.y, c.radius);
+    bool done;
+    TIMED_AS(g, screen_entries[i].entry,
+             done = run_screen_command(g, c.screen_command, (uint8_t)c.x, (uint8_t)c.y, c.radius));
     *step = (EventStep){ done ? (uint16_t)(at + screen_commands[i].length) : at, false };
     return true;
 }
@@ -639,7 +654,9 @@ void event_cmd_screen_command(Snes *s)
             event_return(s, (EventStep){ s->cpu.x, false });
         return;
     }
-    bool done = run_screen_command(g, c.screen_command, (uint8_t)c.x, (uint8_t)c.y, c.radius);
+    bool done;
+    TIMED_AS(g, screen_entries[i].entry,
+             done = run_screen_command(g, c.screen_command, (uint8_t)c.x, (uint8_t)c.y, c.radius));
     event_return(s, (EventStep){ done ? (uint16_t)(at + screen_commands[i].length) : at, false });
 }
 

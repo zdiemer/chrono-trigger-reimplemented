@@ -4402,6 +4402,15 @@ why = "the field's page and data bank, the running object a slot, the script off
 
 [[routine]]
 name = "event_cmd_screen_command"
+variant = "effects"
+subsystem = "event"
+state = "field"
+iterations = 10000
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2002,1=90-9E", "--fill", "7E0139-7E0139=00-0E", "--fill", "7E0350-7E0350=00-02"]
+why = "The inline screen effects tagged at their own rates, including incomplete curtains and ripples; the party service is outside this variant."
+
+[[routine]]
+name = "event_cmd_screen_command"
 variant = "scene"
 at = "C0:3FAF"
 subsystem = "event"
@@ -21466,6 +21475,15 @@ state = "field"
 iterations = 10000
 args = ["--d","0100","--db","00","--range","X=0000-001E/2","--range","Y=0000-DFFA"]
 why = "Every table row compared at callee admission, including restart and the completed-game service; fuzz has no active registry, and the effect entries are independently fuzzed."
+
+[[routine]]
+name = "event_screen_dispatch"
+variant = "restart"
+subsystem = "event"
+state = "field"
+iterations = 10000
+args = ["--with-registry","--d","0100","--db","00","--range","X=000C-000C"]
+why = "The restart row with its idle handler admitted by the real registry: compare the declared handoff and JSR frame, preserving every register before the wait. This catches a direct idle call that leaves without declaring a stop."
 
 
 [[routine]]

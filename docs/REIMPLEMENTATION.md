@@ -2711,6 +2711,18 @@ operations; the defeat continuation shares its sequence with the full defeat
 entry. The dispatch and loader use the bridge that checks the callee's full
 registry contract before making a C call. No scene or warp port changed.
 
+The restart dispatch row hands off at `$C0:4181` before the idle wait, with
+the original JSR frame. Its stop has its own empty don't-care set: every
+register is preserved and compared there, rather than borrowing the
+dispatcher's return-only set. Running an idle pass as a direct C call had
+left the dispatcher without a declared stop. The active-registry restart
+fuzz case reproduced that defect in all 20 states before the fix and
+compares all 10,000 states after it, with zero mismatches or skips. The
+ordinary admission-only fuzz case cannot exercise that direct-call path.
+Both event-screen parents tag their inline effects with each handler's
+address, and the defeat parent tags its continuation as `$CD:0DA2`, so
+those operations use their own timing estimates.
+
 Invalid scripts now show the original diagnostic through platform services:
 amber for a text-file header, dark red for an oversized unpacked script,
 with the same signed length comparison and wraparound. The palette service
@@ -2756,7 +2768,7 @@ calls; its 200 interrupted calls are not counted as matches, and its 10,000
 randomized fuzz states deliberately cover the status calculation independently.
 The diagnostic, restart tail, defeat continuation, empty interrupts and three
 effect entries (cover-left, end-field and ripple) have only standalone fuzz
-evidence. The sampled gate with long routes and evidence ends `suite OK`.
+evidence. The initial sampled gate with long routes and evidence ends `suite OK`.
 All 37 shadow movies are clean; all 56 routes reach their outcomes in both
 the shipping and scaffolding-free builds, with no native-shape exception
 needed. The remaining runtime, static and evidence checks pass without

@@ -881,6 +881,16 @@ natively is still compared at the default. The outcomes the report counts:
 
 `--step-limit N`, the old spelling, is `--budget 4N`.
 
+**Direct C bridges.** By default the fuzzer has no active registry, so a
+bridge that checks a sibling's registry contract stops at callee admission.
+`--with-registry` exposes the game's hand-port registry to those checks;
+admitted siblings run as C, with their guards and preconditions intact.
+Explicit call-outs still use the interpreter and the usual access budget.
+Use this option when testing behavior that differs after admission. The
+`event_screen_dispatch:restart` case covers the restart row with its idle
+handler available: the dispatcher must push the JSR frame and declare a
+stop before the wait, rather than running one idle pass inside itself.
+
 Keep random values inside what the game can produce when the difference
 matters. Past the end of a data area, indexed reads reach I/O space, where open
 bus holds the last byte on the data bus. The interpreter's instruction fetches

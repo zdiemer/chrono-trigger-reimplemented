@@ -284,7 +284,9 @@ static bool play_out_the_defeat_end(GameState *g, Platform *pf, ClosingCalls cal
     set_battle_enemy_rule(g, 0);
     if (!fade_the_music_and_wait(pf, DEFEAT_FADE, DEFEAT_FADE_FRAME, 0xCD0D9C, call, ctx))
         return false;
-    return show_the_defeat(g, call, ctx);
+    bool shown;
+    TIMED_AS(g, 0xCD0DA2, shown = show_the_defeat(g, call, ctx));
+    return shown;
 }
 
 /* ---- The display closed down ------------------------------------------------------------------ */
