@@ -168,7 +168,7 @@ bool scene_accept_continuation(Snes *s, uint32_t at, void (*entry)(Snes *))
     const NativeEntry *e = native_continuation_entry_at(s, at);
     if (e && e->fn == entry)
         return true;
-    m_stop_at(s, at, 0);
+    m_stop_at_own(s, at, 0);
     return false;
 }
 
