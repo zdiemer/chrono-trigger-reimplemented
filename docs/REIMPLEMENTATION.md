@@ -3541,8 +3541,9 @@ their constraints. Their base states are replayed with `--native off` and
 cached with the movie, state specification and interpreter fingerprints.
 Cross-entry evidence requires the file's explicit list of shared C callers:
 the word comparisons share the byte comparison's operator helpers, and the
-dactyl shares the leader's scrolling helpers. An unrelated interpreted
-call-out visiting an address on both machines is not evidence for its port.
+dactyl shares the leader's ground lookup and next-tile helpers. An unrelated
+interpreted call-out visiting an address on both machines is not evidence
+for its port.
 
 **What is reviewed rather than executed.** Most exclusions are rejected
 selectors, missing-resource diagnostics, explicit error handoffs or branches
@@ -3582,3 +3583,9 @@ unit tests exercise width accounting, stale inputs, missing/overlapping
 proofs and evidence rejection; `fuzz_test` checks that failed, refused and
 timed-out trials never contribute coverage and that counter notifications
 are applied to both machines.
+
+The sampled gate with `--long-routes --evidence` ended `suite OK`: all 37
+shadow movies were clean, all 56 routes reached their outcomes in both the
+shipping and native-shape builds, and the fresh 101-recipe replay reproduced
+the ledger's trial and match counts with zero mismatches. The Python unit
+tests and `fuzz_test` passed too.

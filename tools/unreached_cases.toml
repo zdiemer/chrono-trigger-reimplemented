@@ -6,7 +6,9 @@
 # discharge another owner's bytes only here, never merely because an
 # interpreted call-out happened to visit that address on both machines.
 [shared]
+# flow.c's word operators use the same comparison helpers as its byte entry.
 event_cmd_if_compares = ["event_cmd_if_compares_word", "event_cmd_if_compares_variable_word"]
+# terrain.c: overworld_look_around; party.c: overworld_spot_ahead.
 overworld_lead = ["overworld_dactyl"]
 
 [[case]]
