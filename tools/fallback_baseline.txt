@@ -6,7 +6,6 @@
 # under that port's comparisons still open when a run ended, which hides it from the rest.
 7E:---- 81257 16  # no call on record (scene program (RAM)): over the sample 160; the main loop's passes an interrupt cut inside its empty call, counted until the measure matched a cut pass by the S it returns to; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
 7E:3023 1 3  # handback by attract_frame_pass (scene program (RAM))
-7E:3092 1786 51  # handback by scene_clear_work_ram (scene program (RAM))
 7E:3176 1393 1  # handback by scene_boot, scene_run_vblank_tasks (scene program (RAM))
 7E:31B0 763 15  # handback by scene_boot (scene program (RAM))
 7E:347A 22 1  # handback by scene_run_frame_tasks (scene program (RAM))
@@ -22,13 +21,6 @@
 7E:464D 6 1  # handback by scene_race_upload_column_ram (scene program (RAM))
 7E:4755 6 4  # handback by scene_race_await_victory_song (scene program (RAM))
 7E:485D 7 5  # handback by scene_race_ride (scene program (RAM))
-7E:597B 783 26  # handback by scene_title_load_sprite_graphics (scene program (RAM))
-7E:59A0 87 4  # handback by scene_title_load_layer_tiles (scene program (RAM))
-7E:59AA 348 12  # handback by scene_title_load_plane_graphics (scene program (RAM))
-7E:59BC 261 10  # handback by scene_title_load_bg1_map (scene program (RAM))
-7E:59CC 87 3  # handback by scene_title_load_bg2_map (scene program (RAM))
-7E:59D5 3654 104  # handback by scene_title_fill_bg1_map (scene program (RAM))
-7E:5A59 609 20  # handback by scene_title_set_up_pendulum (scene program (RAM))
 7E:5AB2 87 4  # handback by scene_run_sequence, scene_title_load_bg2_map (scene program (RAM))
 7E:5B99 83 1  # handback by scene_run_frame_tasks (scene program (RAM))
 7E:5BBF 82 1  # handback by scene_run_frame_tasks (scene program (RAM))
@@ -83,8 +75,9 @@ FD:DA62 4064 7  # handback by warp_short_trip_waits (field graphics): the warp's
 FD:DAC1 1264 7  # handback by warp_shortest_trip_waits (field graphics): as FD:DA62's; lowered by the gate's sample under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2"), the movies outside the sample at their old counts until the library's batched run
 FD:DB24 3064 7  # handback by warp_flickering_trip_waits (field graphics); the same for the flickering trip (warp_flickering_frame, $FD:DB27, before)
 FD:EADA 14 5  # handback by warp_set_up: the idle wait's leaving pass (field graphics)
+open C3:0000 47 0  # attract-demo ends inside startup now owned by scene_boot: the former 7E:3000 open 34 instructions plus its 13-instruction boot prefix, no new original work
 open 7E:3003 5 0  # hidden under scene_setup_and_first_frame's comparison, still open when a run ended
-open C0:0000 15 0  # hidden under field_enter's comparison, still open when a run ended; a movie that ends as the field starts
+open C0:0000 1854 0  # 15 from the earlier library plus 1839 in battle-golem-twins-gameover with the title music wait held in C; restoring only its old stop splits the latter ownership into field_enter 132 and scene_boot 1755, with identical end state, coverage and calls. No real-play refusals; unfinished comparisons, not new original work
 open C0:0097 3557 0  # hidden under field_frame's comparison, still open when a run ended: endings-telepod-lavos 3515, which ends in the field's frame whose pass now covers the steps it goes on from (chunk 11, the fallback measure keeping its extent), and 6 each in seven fights' movies
 open C0:00BA 133 0  # hidden under field_wait_for_the_next_frame's comparison, still open when a run ended: the movies end in the frame wait, which the port waits through in shadow mode; what is left is the waits' last passes, which the idle entry stands for
 open C0:2824 179 0  # hidden under field_fade_in_after_a_menu's comparison, still open when a run ended; menus-save-point ends as the field fades in after the menu
@@ -120,3 +113,4 @@ C2:3987 25 55  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) on
 C2:39AE 9 19  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
 C2:39D5 61 123  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
 C2:3ACB 13 23  # gap: events-cronos-trial-long (hand run, oracle/movies/hand) only; refused by overworld_lead (menus, text, overworld); docs/TODO.md, Refusals in real play
+open 7E:5978 138 0  # title-fragment retirement: 138 instructions at attract-demo end now belong to the unfinished whole setup; migrated from the seven retired fragment rows (5829 instructions, 179 bytes), whose work the setup already performs as C; sampled shadow and shipping routes passed before migration

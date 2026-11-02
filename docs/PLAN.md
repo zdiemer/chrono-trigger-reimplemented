@@ -64,17 +64,17 @@ in place of the ports: the native coverage.
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 3% left (97% has a port) | 0% |
+| ROM code reimplemented (`burndown.py`) | less than 1% left (over 99% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 100% over 49 of the 51 movies (the hand ports alone carry each to its end, `strict_check.py`); the other two stop at guards that refuse play only they reach (TODO.md, "Refusals in real play"); what no movie runs is unmeasured: 36.3 KiB of live code, 32.7 KiB of it ported and so far unchecked (movies-wanted.md, "Totals") | 100%, over a library that reaches all of the game |
 | Code run in place of hand ports (`fallbacks.py`) | the reference play over the gate's 37-movie sample: 9.9 K instructions (0.43 M before the measure kept the stretches of comparisons a vblank handler gave up; the baseline, over 84, 0.31 M until the library's batched run takes the rest); shipping mode over the movies 0, the routes 18 K (all hand-backs: the program's start's in the Black Tyrano's route, the vblank list's and the battle's calling in); the hand ports alone (`strict_check.py`) carry 49 of the 51 movies to their end; no entry refuses in real play over the gate's movies and routes, and `tools/refusal_allowlist.txt` holds no gap (the hand-run long movie's refusals are in TODO.md, "Refusals in real play"); the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The largest fallbacks left, 2: what the measure counted that the ports run") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
-| Ports off the machine (`portstyle.py`) | 29% of 9,029 functions take a `Snes *` (scene 42%, menus 35%, battle and field 26%) | entry wrappers only, then none |
+| Ports off the machine (`portstyle.py`) | 22% of 10,489 functions take a `Snes *` (scene 34%, menus 25%, battle 19%, field 18%) | entry wrappers only, then none |
 | ROM data behind named accessors | every accessor read, served from an asset pack imported once from the user's ROM (`ct_play`, `ct_native`) or from the cartridge (`ct_dev` without `--assets`); the decompressor's streams and the video transfers from cartridge addresses still go by the bus | the resources decoded, a resource at a time (Phase 4a, "Assets") |
 | SPC700 sound driver | reimplemented in C, its commands calls rather than uploads (SOUND.md), and the only driver anything of ours plays: `ct_play`, `ct_drive`, `ct_native` and every `ct_dev` run of the hand ports from power-on; the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP. The gate no longer compares it with the original: its checks are its own (`sound_test`'s digest on a made-up cartridge, `ct_sound_fuzz`'s in `tools/sound_golden.txt`, the host's faults in every run). The cartridge's driver, and its CPU half in bank `$C7`, run only in the reference play, as the console runs the cartridge (REIMPLEMENTATION.md, "The sound driver's teardown") | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 | How far `ct_native` gets, with no emulator under it (PLAYING.md, "The native program") | no stop: the boot, the field and the title's scene as C, the attract demo's field, its first world map as C (the menus' sprite-object mode, `$C2:0000`: the setup, the loop, the vblank handler, the objects and their scripts) and the field after it with its screen effects as C (the curtain, the field's close into a scene, the ripple), the scene it closes into (the credits' page, `$7E:6B04`) and the field after it, its battle as C (`$C0:188C`: the field's setup for it, bank `$C1`'s mode, its handlers, its turns, and the field taken up again), and on through its next world map (the layer's shimmer as C, `$C2:7759`) into the jet bike race's scene as C (`$7E:3B48`, its setup and its tasks), the rising palace's after it (`$7E:671F`), and round to the title again: 200,000 frames without stopping; with `new-game.ctm`'s presses, the movie to its end: the menus a script asks for after the title, Crono's naming, the opening's world map and Crono's house; with `fair.ctm`'s, on across the world map on foot into Leene Square, the fair, to the movie's end; with `fair-companion.ctm`'s, the movie to its end; with `gato-battle.ctm`'s, Gato's battle as C and the movie to its end; with `menu.ctm`'s, the main menu the player opens as C (its panels, and the equipment's, items', techs' and settings' screens as far as the movie goes into them) and the movie to its end; started in a story scene (`--scene`), Lavos falling, the Epoch's dive, the Beyond Time ending's and the reunion's scenes and the staff roll each to its end; the whole of `game/` linked, every service with a host backend | every movie to its end, as strict mode does |
-| The machine's joints in `game/` (`tools/machine_joints.py`, a count of sites in the source; and of what `ct_native` links) | 2,180 registered entries; 988 returns through the emulated stack (the entry wrappers); 175 stops at the original's addresses; 20 call-outs and 4 registry lookups between ports; 63 time tags that take the machine; 24 register escapes; 507 video calls (each with a host half now, folded into the observer and drawn by nothing); 2,037 scaffolding writes. The sound driver's teardown took 9 entries, 5 returns, 2 stops and 29 scaffolding writes out of `game/` (2,189, 993, 177 and 2,066 before). What `ct_native` links of them: no registered entry, the rest as in `game/` | 0: the registry, the wrappers and the scaffolding gone with the gate, subsystem by subsystem |
-| How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c`. Census (`tools/census.py`, shipping mode with the C sound driver as `ct_play` plays it, 84 movies): 264 entries entered by the machine, 42.0 M times (vector 3.6 M, a port's call-out 25.5 M, its stop 9.6 M, its return 3.2 M, a task's yield 30 K; none from the original's code), and 17 wait loops still passed on the machine 767 M times; 1,368 entries run only as C. None of it is the sound driver's: before the game's side of it became calls, 266 entries, 44.9 M times, the commands at `$C7:0004` 25.5 K of them and the boot 100, and 16 entries the machine came back to from them. After the teardown, on today's tree: 267 entries entered by the machine and 17 wait loops (284 in all), 42.0 M times outside the waits (call-out 25.5 M, stop 9.6 M, vector 3.6 M, return 3.2 M, yield 30 K) and the waits 764 M; 1,366 run only as C, the two less the time tags `$C7:0004` and `$C7:0000` that went with their rows; nothing of bank `$C7` | `main()` boots the game and callers call ports; census 0; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
+| The machine's joints in `game/` (`tools/machine_joints.py`, source sites after merging the scene, menu, loop and sound work) | 2,213 registered entries; 1,014 returns through the emulated stack; 91 stops at original addresses; 8 call-outs and 3 registry lookups between ports; 9 time tags that take the machine; 24 register escapes; 546 video calls; 2,063 scaffolding writes. What `ct_native` links: no registered entries, all other counts the same. The sound teardown removed 9 entries, 5 returns, 2 stops and 29 scaffolding writes; the scene and loop continuations remove further machine boundaries | 0: the registry, the wrappers and the scaffolding gone with the gate, subsystem by subsystem |
+| How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c`. Census (`tools/census.py`, shipping mode with the C sound driver as `ct_play` plays it, 84 movies): 264 entries entered by the machine, 42.0 M times (vector 3.6 M, a port's call-out 25.5 M, its stop 9.6 M, its return 3.2 M, a task's yield 30 K; none from the original's code), and 17 wait loops still passed on the machine 767 M times; 1,368 entries run only as C. None of it is the sound driver's: before the game's side of it became calls, 266 entries, 44.9 M times, the commands at `$C7:0004` 25.5 K of them and the boot 100, and 16 entries the machine came back to from them. Main's post-teardown census, before this merge (not rerun here): 267 entries entered by the machine and 17 wait loops (284 in all), 42.0 M times outside the waits (call-out 25.5 M, stop 9.6 M, vector 3.6 M, return 3.2 M, yield 30 K) and the waits 764 M; 1,366 run only as C, the two less the time tags `$C7:0004` and `$C7:0000` that went with their rows; nothing of bank `$C7` | `main()` boots the game and callers call ports; census 0; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
 
 **Burndown overstates how native the game is.** It counts a port's whole
 reach as done, including what the port hands back to the original at run
@@ -82,9 +82,9 @@ time: a call-out, a stop, a refused guard. Of the 49.7 KiB real play still runs
 as the original, 25 KiB is code burndown counts as ported -- battle's
 animation commands and call-outs (9.1 KiB), the menus and overworld (6.6 KiB),
 the battle frame work's renderer pieces and waits (2.4 KiB) among it. So a
-fully native game is two pieces of work, not one: porting the 12% burndown
-lists, and retiring the fallbacks inside code it counts as done, which is
-about two thirds as much again. Native coverage is the headline; burndown says
+fully native game is two pieces of work: porting the remaining code burndown
+lists, and retiring the fallbacks inside code it counts as done. Native
+coverage is the headline; burndown says
 how much has a port. The second piece is mostly callees a port calls out to,
 which belong to the port that calls them, and the waits still made on the
 machine, which go to the timing service's calls ("Timing", below). How the
@@ -161,19 +161,16 @@ isn't ported yet, so retiring it is porting its callee. In order:
 1. **The menus and the overworld** (84%): what the shipping mode still runs
    of bank `$C2` is code no port stands for, the screens' own routines still
    the original's (`C2:----`, the fade out `$C2:83CA`, the gate screen's swirl
-   `$C2:CE86` and the number tiles in `$FF` it calls), and the endings'
-   scenes' line effects behind `$C3:000E` (TODO.md, "What the world map's set
-   up left"); and the fallback measure's filing of one task's code under
+   `$C2:CE86` and the number tiles in `$FF` it calls); and the fallback
+   measure's filing of one task's code under
    another's hand-back, which shows where to look (TODO.md, "What the
    shipping mode's fallbacks' eighth chunk left").
-2. **The scene program**, its unported modes after movies reach them, and
-   the title's and the attract program's own frame tasks, which the movies
-   run as the original's (`$7E:5D71`, `$7E:6A23`, `$7E:69AF` and their
-   neighbours, the largest of its handbacks), and what the endings still
-   hand back to the original: the program's first script step (`$7E:3749`)
-   and the program's sine and
-   multiplies (`$7E:33D6`, `$7E:3461`, `$7E:3465`) where a guard refuses
-   them.
+2. **The scene program's five remaining boundaries**: the shared race
+   upload wait, the interrupted first-frame continuation, the warp's HDMA
+   shutdown, and the scripts' unsupported data and calling contexts
+   (TODO.md, "Scene continuation boundaries"). Its RAM and scene-engine
+   code now report 0% unported; modes 5 and 10 still need representative
+   native play beyond their isolated fuzz coverage.
 3. **The battle's** last handback in the shipping mode, the enemies' action
    showing's stub (`$C1:BD6F`).
 
@@ -236,7 +233,7 @@ where recalibration and baseline updates come from; "every movie" below is every
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**0 of 317 files is left on the backlog**: the last, `data/decompress.c`, is
+**0 of 318 files is left on the backlog**: the last, `data/decompress.c`, is
 rewritten (the unpacker as a function of the game's state, which the native
 program calls), and `tools/portstyle_baseline.txt` lists none. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
@@ -244,14 +241,18 @@ call-outs to the original's code:
 
 | Subsystem | Lines | Style | On the machine |
 |---|--:|--:|--:|
-| battle | 17,302 | 0.02 | 27% |
-| menu | 10,035 | 0.03 | 33% |
-| field | 9,028 | 0.01 | 21% |
-| event | 4,255 | 0.01 | 14% |
-| scene | 2,492 | 0.04 | 45% |
-| core, data, attract | 2,054 | 0.06 | 70% |
-| sound | 1,983 | 0.00 | 0% |
-| **total** | **45,119** | **0.02** | **28%** |
+| battle | 34,780 | 0.01 | 19% |
+| menu | 31,059 | 0.02 | 25% |
+| field | 14,422 | 0.01 | 18% |
+| event | 4,892 | 0.01 | 13% |
+| scene | 15,154 | 0.03 | 34% |
+| warp | 765 | 0.02 | 27% |
+| overworld | 4,465 | 0.01 | 11% |
+| core | 1,286 | 0.03 | 30% |
+| data | 247 | 0.05 | 7% |
+| attract | 65 | 0.05 | 89% |
+| sound | 2,277 | 0.00 | 0% |
+| **total** | **109,412** | **0.02** | **22%** |
 
 What the phase settled, and what still holds for every port:
 
@@ -274,34 +275,34 @@ What the phase settled, and what still holds for every port:
   against the port it replaces.
 - **A rewrite that hits something the accessors can't say is a finding**: a
   buffer the game locates at run time reaches work RAM by address through
-  `game/wram.h`, and every such use (150 in 37 files) is a variable waiting for
+  `game/wram.h`, and every such use (184 in 50 files) is a variable waiting for
   a name in the map. Cells on a page the caller chooses have page kinds
   (DISASSEMBLY.md, "The accessors").
 
 ## Phase 3: M5 in bulk
 
-Phase 3a has brought every existing port but one to the bar, so a conversion
+Phase 3a has brought every existing port to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **3% of the code is still generated.**
+docstring says which way it is wrong). **Less than 1% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.3K | 0% | 446 |
-| field engine, events (`$C0`) | 59.4K | 58.3K | 14.0K | 2% | 399 |
-| menus, text, overworld (`$C2`) | 59.1K | 56.6K | 15.7K | 4% | 535 |
-| scene program, RAM (`$7E`) | 25.1K | 21.3K | 2.8K | 15% | 196 |
-| battle frame work (`$CD`) | 15.4K | 15.2K | 4.3K | 1% | 224 |
-| field graphics (`$FD`) | 15.1K | 15.0K | 2.2K | 0% | 111 |
+| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.2K | 0% | 448 |
+| field engine, events (`$C0`) | 59.4K | 58.5K | 14.1K | 1% | 410 |
+| menus, text, overworld (`$C2`) | 59.1K | 59.0K | 17.8K | 0% | 553 |
+| scene program, RAM (`$7E`) | 25.1K | 25.1K | 3.2K | 0% | 244 |
+| battle frame work (`$CD`) | 15.4K | 15.3K | 4.4K | 1% | 227 |
+| field graphics (`$FD`) | 15.1K | 15.1K | 1.9K | 0% | 120 |
 | battle sprites (`$CF`) | 6.8K | 6.8K | 0.2K | 0% | 47 |
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 52 |
 | battle setup (`$CC`) | 4.8K | 4.8K | 0.1K | 0% | 11 |
-| scene engine (`$C3`) | 3.8K | 3.6K | 0.6K | 7% | 32 |
-| scene data (`$C6`) | 3.4K | 3.4K | 0.8K | 0% | 32 |
+| scene engine (`$C3`) | 3.8K | 3.8K | 0.4K | 0% | 47 |
+| scene data (`$C6`) | 3.4K | 3.4K | 0.6K | 0% | 35 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
 | console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
-| **total** | **264.1K** | **256.2K** | **57.1K** | **3%** | **2102** |
+| **total** | **264.1K** | **263.0K** | **59.0K** | **0%** | **2211** |
 
 Bank `$C7`, the sound driver's CPU half, is retired rather than ported, and
 not counted (`burndown.py`, "Retired code").
@@ -328,10 +329,10 @@ counts the registry's macro rows, and credits the callees a port inlines (no
 call-out at their call; REIMPLEMENTATION.md, "The tooling pass after wave 1: the
 analysis", has what each of those moved): helpers no longer need a registry
 entry of their own to count. `$CC` is the
-one subsystem near done. `$C3` (the scene engine) is done but for code the
-beam's counters decide and one routine nothing reaches (its row in
-docs/ports.tsv; the
-edge sequence the field's rasterizer inlines is credited to it); `$C6` has its small object
+one subsystem near done. `$C3` (the scene engine) has no uncovered runs;
+its beam waits use timing services and its bitmap sampler is a C entry.
+The edge sequence the field's rasterizer inlines is credited to it.
+`$C6` has its small object
 routines and irises, and the Day of Lavos's turning world, which
 `battle-lavos-gameover` reaches; its table builders and orbit routines are
 left, which no movie reaches.
@@ -535,10 +536,15 @@ game is lost or ends (modes 7 and 8; REIMPLEMENTATION.md, "Phase 4a, the
 shipping mode's fallbacks, chunk 11"), as are Lavos falling and the Epoch's
 dive (modes 4 and 6; history file, chunks 9 and 10). The attract sequence's two scenes (modes 1 and 3) are ports (REIMPLEMENTATION.md,
 "Phase 4a, the native frame: the attract sequence's pages of credits and the
-palace rising"). **Next**, by what the library reaches: the program's first
-script step (`$7E:3749`), still run as the original inside comparisons. The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and
-`$7E:8A01`-`$7E:8B51` no movie reaches, so a port there would rest on fuzzing
-alone.
+palace rising"). The remaining panorama (`$7E:8A01`-`$7E:8B51`), turning
+map and animated figures are now C, validated by differential fuzzing;
+the sampled movies do not reach those unused modes. Both scene subsystems
+report 0% left. The static walk still lists 29 bytes at `$7E:366C`, already
+implemented by the paired perspective builder, because it misses the
+patched branch. **Next** are the five scene/warp stop boundaries described
+in TODO: shared race-wait instances, interrupted main-loop carry, warp
+HDMA shutdown timing, and two interpreter handbacks for unsupported
+command data or changed calling context.
 
 **What `$FD` has left** after wave 1 (docs/history/reimplementation-waves.md, "Phase 3,
 wave 1: bank `$FD`"), the time warp (`game/warp/`) and the location's
@@ -682,15 +688,13 @@ taking the gate down needs, before it and after it.
      `ct_native`.
 
 - **The code no movie reaches, checked before its subsystem retires.**
-  36.3 KiB of live code runs in no movie, 32.7 KiB of it ported and so far
-  checked by nothing but fuzzing where it was fuzzed (movies-wanted.md,
-  "Totals"). Retiring a subsystem's gate takes away the original to compare
-  it with and turns its guards into assertions, so what the subsystem has no
-  movie for is checked first, while the original is still there: a movie or
-  route that reaches it, or its ports fuzzed against the original on states
-  built for the paths (`ct_fuzz`). Measured per subsystem by the library's
-  `--coverage` against `burndown.py`'s live code; a subsystem retires with
-  that list empty or each remaining run named in TODO.md with why it is safe.
+  Extend `tools/unreached.py` to the remaining 65816 subsystems: battle,
+  field, menu and scene. Compare the full library's coverage with their
+  ported live reach, then fuzz the missing paths against the original before
+  retiring their gates. Every remaining byte needs a passing comparison or
+  an explicit safety argument in the ledger, with its retirement obligations
+  in TODO.md. The sampled gate checks the full-library ledger; it cannot
+  establish absence from movies it does not run.
 - **The game's state as C, not a work-RAM image.** Even `ct_native` keeps the
   game's state as the 128 KiB byte image the accessors read and write, which
   is the original's memory layout carried into the product. When a subsystem

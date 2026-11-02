@@ -301,7 +301,15 @@ static bool sine_present(Snes *s) { return m_code_matches(s, 0x7E3461, 0x19, 0xA
 bool scene_race_settle_camera_present(Snes *s) { return on_scene(s) && m_code_matches(s, 0x7E416D, 0x39, 0x8A6D62B6310A5059ull); }
 bool scene_race_move_along_present(Snes *s) { return on_scene(s) && m_code_matches(s, 0x7E428B, 0x32, 0x89E4300D2BB717EAull); }
 bool scene_race_keep_controller_present(Snes *s) { return on_scene(s) && m_code_matches(s, 0x7E42BD, 0x11, 0x4BD0D004BE797B4Full); }
-bool scene_race_check_perspective_present(Snes *s) { return on_scene(s) && m_code_matches(s, 0x7E42CE, 0x4B, 0x9F76AD7C9F8AFB23ull); }
+bool scene_race_check_perspective_present(Snes *s)
+{
+    if (!on_scene(s) || !m_code_matches(s, 0x7E42CE, 0x4B, 0x9F76AD7C9F8AFB23ull))
+        return false;
+    vars_peek(true);
+    bool moved = scene_camera_changed(state_of(s), PERSPECTIVE_REGISTERS);
+    vars_peek(false);
+    return !moved || scene_perspective_as_ported(s, 0x0A00);
+}
 bool scene_race_turn_camera_present(Snes *s) { return on_scene(s) && m_code_matches(s, 0x7E4339, 0xB9, 0x3E2508299E81D23Full); }
 
 /* The camera's turn multiplies on channel 0's page, through the program's
@@ -407,36 +415,18 @@ TaskEnd scene_race_set_horizon(GameState *g, Platform *pf, unsigned slot)
     return task_goes_on();
 }
 
-/* The camera checked against the perspective last built: where it changed,
- * the perspective is built again on channel 0's page, by `build`. */
-typedef enum { PERSPECTIVE_KEPT, PERSPECTIVE_BUILT, PERSPECTIVE_NOT_BUILT } PerspectiveCheck;
-
-static PerspectiveCheck check_perspective_with(GameState *g, bool (*build)(void *ctx), void *ctx)
-{
-    if (!camera_changed(g))
-        return PERSPECTIVE_KEPT;
-    return build(ctx) ? PERSPECTIVE_BUILT : PERSPECTIVE_NOT_BUILT;
-}
-
 enum { BUILD_PERSPECTIVE = 0x7E357B };
 
-static bool build_perspective(void *ctx)
-{
-    GameState *g = ctx;
-    if (!scene_perspective_fits(g, 0)) {
-        program_needs_the_machine(g, BUILD_PERSPECTIVE, "a race's perspective whose lines the port doesn't build");
-        return false;
-    }
-    TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, 0));
-    return true;
-}
-
+/* Rebuild the road's perspective only when its camera changes. */
 TaskEnd scene_race_check_perspective(GameState *g, Platform *pf, unsigned slot)
 {
     (void)pf;
     (void)slot;
-    if (check_perspective_with(g, build_perspective, g) == PERSPECTIVE_NOT_BUILT)
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+    if (!camera_changed(g))
+        return task_goes_on();
+    if (!scene_perspective_fits(g, 0))
+        return scene_task_needs_the_machine(g, BUILD_PERSPECTIVE, "a race's perspective whose lines the port doesn't build");
+    TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, 0));
     return task_goes_on();
 }
 
@@ -445,7 +435,6 @@ TaskEnd scene_race_check_perspective(GameState *g, Platform *pf, unsigned slot)
 /* The tasks below set the direct page on channel 0's record for their work,
  * which the list's code puts back; A's high byte, which the list's code may
  * hand on, is what each leaves there last. */
-enum { CHANNEL_0_PAGE = 0x0A00 };
 
 void scene_race_settle_camera_entry(Snes *s)
 {
@@ -472,34 +461,24 @@ void scene_race_keep_controller_entry(Snes *s)
     m_rts(s);
 }
 
-/* The perspective is built on channel 0's page (scene/perspective.c), where
- * the original jumps on to it; where the port doesn't build it (another
- * scene's step written into its loop), the original does, and it reads none
- * of the registers but the page. Unchanged, A is the last register compared. */
-static bool build_perspective_on_the_machine(void *ctx)
+static void leave_camera_checked(Snes *s, bool rebuilt)
 {
-    Snes *s = ctx;
-    if (!scene_perspective_as_ported(s, CHANNEL_0_PAGE)) {
-        s->cpu.d = CHANNEL_0_PAGE;
-        m_stop_at_own(s, BUILD_PERSPECTIVE, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-        return false;
-    }
-    TIMED_AS(state_of(s), BUILD_PERSPECTIVE, scene_build_perspective(state_of(s), 0));
-    ORIGINAL_EFFECT(scene_leave_perspective_registers(s, 0));
-    return true;
+    if (rebuilt)
+        scene_leave_perspective_registers(s, 0);
+    else
+        s->cpu.a = race_camera(state_of(s), CAMERA_LINES_PAIRED);
 }
 
+/* A changed camera rebuilds the perspective in C; the guard has checked
+ * its drawing before the saved camera and bike divisors change. */
 void scene_race_check_perspective_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    switch (check_perspective_with(g, build_perspective_on_the_machine, s)) {
-    case PERSPECTIVE_KEPT:
-        ORIGINAL_EFFECT(s->cpu.a = race_camera(g, CAMERA_LINES_PAIRED));
-        m_rts(s);
-        return;
-    case PERSPECTIVE_BUILT: m_rts(s); return;
-    case PERSPECTIVE_NOT_BUILT: return;
-    }
+    bool rebuilt = camera_changed(g);
+    if (rebuilt)
+        TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, 0));
+    ORIGINAL_EFFECT(leave_camera_checked(s, rebuilt));
+    m_rts(s);
 }
 
 void scene_race_turn_camera_entry(Snes *s)

@@ -151,3 +151,18 @@ battle_work_out_enemy_attack  # second movie batch: 73.3% of 135 calls uncompare
 battle_clear_the_turn_work  # second movie batch: 52.9% of 136 calls uncompared (72 interrupted, 0 abandoned), interrupted as above
 field_start_the_objects  # second movie batch: 52.8% of 829 calls uncompared (0 interrupted, 438 abandoned), abandoned as above
 event_run_init_scripts  # second movie batch: 52.8% of 829 calls uncompared (0 interrupted, 438 abandoned), abandoned as above
+
+# Scene continuations nested inside enclosing C loops. Independent shadow runs
+# use --include to compare these entries through real waits and interrupts.
+warp_wait_for_frame  # enclosing trip owns combined-run waits; isolated End of Time gate and Lavos game-over shadows compare all 414 waits, including handler delivery and resumed state, with no mismatch
+warp_shortest_trip_waits  # enclosing trip owns combined-run revisits; isolated End of Time gate shadow compares the complete 159-frame trip through interrupt waits, with no mismatch
+warp_short_trip_waits  # enclosing trip owns combined-run revisits; isolated Lavos game-over shadow compares the complete 255-frame trip through interrupt waits, with no mismatch
+warp_short_frame  # enclosing trip owns combined-run revisits; isolated Lavos game-over shadow compares the whole frame loop through 255 real vblank waits, with no mismatch
+warp_shortest_frame  # enclosing trip owns combined-run revisits; isolated End of Time gate shadow compares the whole frame loop through 159 real vblank waits, with no mismatch
+scene_wait_for_music_loop  # title boot owns combined-run polls; isolated attract shadow compares the complete wait and resumed state with interrupts enabled, with no mismatch
+scene_send_sound_command_again  # outer send owns combined-run retries; isolated attract shadow compares all 10 sends through APU acknowledgement waits with interrupts enabled, with no mismatch
+scene_race_scale_pictures  # whole-picture work crosses interrupts; race-won shadow compares all 3524 scene_nmi handlers and 3524 frame-work calls, and bounded picture fuzz compares data; the interrupted picture/handler interaction remains a TODO gap
+scene_race_scale_after_crono  # whole-picture work crosses interrupts; race-won shadow compares all 3524 scene_nmi handlers and 3524 frame-work calls, and bounded picture fuzz compares data; the interrupted picture/handler interaction remains a TODO gap
+scene_sample_bitmap_row  # whole-bitmap work crosses interrupts; race-won shadow compares scene_nmi and frame work on every interrupt, and isolated sampler fuzz compares data; the interrupted bitmap/handler interaction remains a TODO gap
+scene_scale_bitmap_row  # whole-bitmap work crosses interrupts; race-won shadow compares scene_nmi and frame work on every interrupt, and isolated row fuzz compares data; the interrupted bitmap/handler interaction remains a TODO gap
+scene_scale_bitmap  # whole-bitmap work crosses interrupts; race-won shadow compares scene_nmi and frame work on every interrupt, and isolated bitmap fuzz compares data; the interrupted bitmap/handler interaction remains a TODO gap

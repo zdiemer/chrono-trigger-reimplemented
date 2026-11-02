@@ -49,7 +49,10 @@ enum ScreenTaskRow { ROW_ANIMATE_PALETTES, ROW_FINISH_SPRITES, ROW_BRIGHTEN, ROW
 
 /* ---- The program stops ---------------------------------------------------------------------- */
 
-bool scene_program_restart_present(Snes *s) { return m_code_matches(s, 0x7E302A, 14, 0x614033C5F8C83156ull); }
+bool scene_program_restart_present(Snes *s)
+{
+    return m_code_matches(s, 0x7E302A, 14, 0x614033C5F8C83156ull) && scene_program_end_present(s);
+}
 
 // $7E:302A
 /* The program stops: interrupts and per-line effects off and the screen
@@ -61,9 +64,8 @@ static void stop_display(Platform *pf)
     vid_set_display(pf, PF_AT(0x7E3035), &(VidDisplay){ .blank = true });
 }
 
-/* Then the sound put back to normal (scene/sound.c), which waits on the sound
- * driver and so returns to the program's end where it waits (an entry of its
- * own), and the game handed back to the field (scene/program.c). */
+/* Normalize the sound through its held driver waits (scene/sound.c), then
+ * hand the game back to the field (scene/program.c). */
 enum { SOUND_CALL = 0x7E3038, SOUND_BACK_TO_NORMAL = 0x7E3177, THE_SOUND_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 void scene_stops_the_display(Platform *pf) { stop_display(pf); }
@@ -109,13 +111,16 @@ bool scene_clear_the_work_ram(GameState *g, Platform *pf, uint8_t matrix_left)
 }
 
 /* The shorter clear returns with A's high byte 0 and D back on the scene's
- * page; the longer one stops at $7E:30E9, where the program goes on. */
+ * page; the longer one continues through sound and screen setup. */
 void scene_clear_work_ram(Snes *s)
 {
     bool shorter = scene_clear_the_work_ram(state_of(s), m_platform(s), (uint8_t)s->cpu.a);
     s->cpu.d = 0x0000;
     if (!shorter) {
-        m_stop_at(s, 0x7E30E9, DC_A | DC_X | DC_Y | DC_C);
+        /* The DMA setup leaves its page in A's high byte, also on refusal. */
+        ORIGINAL_EFFECT(s->cpu.a = (uint16_t)(M_DP_DMA | (s->cpu.a & 0xFF)));
+        if (scene_accept_continuation(s, 0x7E30E9, scene_after_work_ram_clear))
+            TIMED_AS(state_of(s), 0x7E30E9, scene_after_work_ram_clear(s));
         return;
     }
     s->cpu.a = 0x0000;

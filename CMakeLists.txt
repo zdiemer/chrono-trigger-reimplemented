@@ -271,6 +271,7 @@ add_library(ct_game STATIC
   game/scene/sprites.c
   game/scene/credit_pages.c
   game/scene/rising_palace.c
+  game/scene/turning.c
   game/scene/staff_roll.c
   game/scene/stars.c
   game/scene/captions.c
@@ -495,11 +496,12 @@ set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
 # What the machine alone runs: the registry (docs/PLAN.md, "The native program, and the
 # registry taken down").
 list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c)
-add_executable(ct_native frontend/ct_native.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
+add_executable(ct_native frontend/ct_native.c frontend/file_store.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
   runtime/platform/native/render.c ${CT_NATIVE_GAME_SOURCES})
 target_compile_definitions(ct_native PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
 target_include_directories(ct_native PRIVATE frontend)
 target_link_libraries(ct_native PRIVATE ct_state_host ct_platform_native ct_trace)
+add_executable(file_store_test tests/frontend/file_store_test.c)
 add_executable(state_test tests/port/state_test.c)
 target_link_libraries(state_test PRIVATE ct_runtime)
 add_executable(shadow_test tests/port/shadow_test.c)
@@ -601,8 +603,11 @@ if(NOT CT_PLAYER_INTERPRETER_MODE MATCHES "^(ON|FALLBACK|OFF)$")
 endif()
 
 if(CT_SDL2)
+  target_sources(ct_native PRIVATE frontend/window.c frontend/audio_fill.c frontend/bindings.c)
+  target_compile_definitions(ct_native PRIVATE CT_HAVE_SDL)
+  target_link_libraries(ct_native PRIVATE ${CT_SDL2})
   add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/natives.c frontend/assets.c frontend/audio_fill.c frontend/window.c
-    frontend/headless.c frontend/files.c frontend/bindings.c frontend/sound_host.c)
+    frontend/window_player.c frontend/headless.c frontend/files.c frontend/file_store.c frontend/bindings.c frontend/sound_host.c)
   # The miss report (dev/misses.h) is the player's log of misses, and of what
   # --interpreted finds.
   target_sources(ct_play PRIVATE dev/misses.c)
@@ -615,6 +620,7 @@ if(CT_SDL2)
   target_link_libraries(ct_play PRIVATE ct_game ct_vars ct_generated ct_runtime ct_trace ${CT_SDL2})
   if(MINGW)
     target_link_options(ct_play PRIVATE -static-libgcc)
+    target_link_options(ct_native PRIVATE -static-libgcc)
   endif()
   # The window driver's bindings on a virtual game controller.
   add_executable(bindings_test tests/frontend/bindings_test.c frontend/bindings.c)
@@ -625,5 +631,5 @@ if(CT_SDL2)
     install(FILES $<TARGET_RUNTIME_DLLS:ct_play> DESTINATION .)
   endif()
 else()
-  message(STATUS "SDL2 not found: not building ct_play")
+  message(STATUS "SDL2 not found: ct_native is headless; not building ct_play")
 endif()

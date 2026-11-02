@@ -20,6 +20,28 @@ rest waits, is [PLAN.md](PLAN.md).
   outcomes (the existing strict/native progress checks still locate their stops). A storage teardown must supply the same saved-game
   projection from the new storage; a picture hash alone cannot establish
   that a visual difference cannot affect play.
+- **Keep the unreached ledger's preconditions when retiring the machine.**
+  `tools/unreached_safe.toml` names all 210 bytes excluded from execution
+  evidence, with exact runs in `tools/unreached_baseline.txt`: event's
+  missing-text-table diagnostics (109 bytes), rejected word-OR (12), full
+  shared-graphics table diagnostic (6) and graphics-overflow handoffs (12);
+  overworld's unused scene-tile load (26), rejected boarding selector (2)
+  and impossible stationary follower trap (2); warp's fixed-centre/radius
+  clamps (9). Preserve the guard bounds as assertions and replace the
+  graphics error handoffs with native failures. Recheck the two immutable
+  resource arguments if map records or the radius ramp become editable.
+  The conservative walk also records the controller reset transfer (4), the event
+  engine's original-only unknown-command diagnostic (6), and the separately
+  registered field restart wait/continuation (16). Keep the reset chord and
+  vblank-only restart preconditions; replace the
+  diagnostic/restart delegations before retiring those machine dependencies.
+- **Exercise both sign-refresh arms after returning from a screen.**
+  `overworld_main_loop` `$C2:2603-$C2:2605` and `$C2:267E-$C2:2680`
+  are six reviewed-equivalence bytes: conditional increments
+  of the sign-refresh byte modulo 256, with dead flags. Their exact C
+  predicate and arithmetic agree, but the fuzz runs did not execute those
+  arms. Add a returning map-view/time-dial fixture with a visible sign,
+  including refresh count 255, before tearing down that screen machinery.
 
 - **A battle's start, one fuzz state in about 4,000.** `field_battle_begins`
   (`tools/fuzz_routines.toml`, both variants; seeds 1-4) mismatches once or
@@ -186,16 +208,6 @@ rest waits, is [PLAN.md](PLAN.md).
     at seeds 2 and 3, its continuation after a wait, `$C3:0C28`, at seed 1;
     tools/fuzz_routines.toml): a command reached only from a random script
     place. Find the command.
-  - Two entries that are a lone return: `$7E:3753`
-    (`scene_channel_script_comes_back`, the program's RTS back to a script
-    step's caller) and `$C3:0B02` (`scene_sequence_returns`, the scene
-    interpreter's RTL). A channel's turn that waited for the music goes on
-    frames later from `$C3:0C28` and comes back through them, so its way back
-    is the return addresses the original left on the stack (review-port item
-    85): acceptable in a bridge, but the control flow is still the original's
-    call stack. They go when a channel's wait is C state the interpreter's own
-    loop resumes, as the field pass's steps are a C table
-    (`field/main_loop.c`).
   - An object's script started over (`$C0:597D`) reads the script past what
     the map declares on random states (`accessor out of range` in fuzzing,
     `event_script`): its guard doesn't bound where the object's first
@@ -2719,12 +2731,6 @@ rest waits, is [PLAN.md](PLAN.md).
     may yet (their lists' frames, the list for sale and the member rows are
     called as C now): call them as C, timed with `TIMED_AS`, where they make
     no call-outs.
-- **The scene boot's hblank waits** (`$C3:0530`/`$C3:0538`) land the forced
-  blank at the end of its line, which `vid_raster_display` at the handler's
-  line already says, and read through the SNES-only `tm_snes_video_status`:
-  the field's and the battle's line handlers wait through
-  `tm_wait_line_drawn` now (PLATFORM.md, "Timing without a beam, as built"),
-  which the boot's could take too.
 - **The battle's wait for a line `$CD:3B82`**: its callers call
   `tm_wait_line`, whose SNES backend waits where the port stands in the
   shipping mode and calls the original's routine only in shadow mode and the
@@ -2737,7 +2743,104 @@ rest waits, is [PLAN.md](PLAN.md).
   own call of the original recurse into the port: decide whether a native
   build keeps the wait at all, and take it out of the service if not.
 
+## Scene continuation boundaries
+
+- **Scene divisor search outside its terminating domain.** The entry at
+  `$C3:0E29` refuses a dividend, initial quotient and limit for which none
+  of its 256 divisors succeeds. The original loops forever there; seed-1
+  fuzz rejects one of 2,000 cases. Real-play guards must remain zero.
+
+- **Perspective guards outside the visible geometry.** Random race and
+  flight horizons can request lines outside the 224-line tables. Their
+  camera-check entries now refuse those inputs before saving the camera,
+  instead of stopping after changing it. Unchanged cameras and flat flight
+  views remain accepted; bounded and unchanged fixtures compare fully.
+
+- **Bitmap requests outside the scaler's bank.** Whole-picture entry guards
+  reject requests whose later rows cross the bank, before changing any
+  output. The broad start fixture rejects 1,966/2,000 random states; seven
+  more exceed the fuzz budget. Bounded whole pictures compare fully. The caller bridges preflight
+  their fixed-size picture requests before setup.
+
+- **The race upload wait has two caller instances.** After the bitmap is
+  drawn in C, `scene_bridge_scale_picture` still stops at `$7E:5211`.
+  Continuing both racers through `tm_wait_for_handlers` makes shadow mode
+  compare Johnny's wait against Crono's earlier satisfied wait: the same
+  address and stack depth, with different live caller return addresses.
+  Race-won reports `WRAM[001F] original 04 native 03`; bounded individual
+  racer pictures pass. The wait needs caller-instance matching before this
+  boundary can leave. The Epoch and ending gathering paths need no such wait.
+
+- **The last warp frame and HDMA shutdown still compare separately.**
+  Calling `warp_end` directly from the last frame made End of Time gate
+  differ at PPU `$210E` (original 00, native 01): the last scanline value
+  changes with beam time, but the comparison no longer masks it after HDMA
+  is disabled. Continuing into field entry moves the same difference to
+  its song call. The frame therefore retains the ending-entry boundary;
+  the ending itself now continues through field entry as C. Settle the
+  shutdown's beam timing before combining these comparisons.
+
+- **Boot credit pages outside the five-page table.** The page index at
+  `$0382` survives startup. Random values above five read unrelated program
+  bytes as text and differ in VRAM/OAM; boot now refuses those states before
+  mutation. Valid page indices and all sixteen modes are fuzzed separately.
+
+- **The scene main loop still starts at its original boundary.** Replacing
+  the `$7E:3023` stop with C callback dispatch and a held wait at `$7E:3026`
+  passes attract-demo, but Epoch reports `scene_boot` at the wait with P
+  original 04, native 05. After the interrupted prelude, refreshing the
+  clone's memory preserves its carry; the next wait compares that carry
+  with the original's. Liveness currently requires it, so the experiment
+  was reverted rather than masking the flag. Resolve that interrupted-wait
+  flag handoff before joining startup and the main loop.
+
+- **Two scene interpreter handbacks retain machine contracts.** All seven
+  store/task/video command families have C implementations, but the dispatch
+  handback remains for stores outside low RAM, unsupported video encodings,
+  and task searches without the terminating word. These need explicit bus
+  services or validation of an entire script turn before mutation. The
+  `$C3:0C5C` handback covers arbitrary script callees returning with a page,
+  bank or width/mode context the typed channel interpreter cannot use.
+  Sound commands now continue directly because their interface preserves
+  that context; arbitrary callees still need a declared return contract.
+
 ## Shadow comparison gaps
+
+The broad `scene_program_start` fuzz fixture has 11 VRAM mismatches in 384
+comparisons, with 16 call-out budget skips, identical in the pre-review and
+review builds at seed 1 (400 iterations, modes 0-15). Isolate the setup mode
+and its VRAM-read state; the first reported differences are in the copied
+map at VRAM 0004 and 6018. The focused title refusal fixture and narrowed
+startup movies pass. This pre-existing failure is not a successful fuzz
+receipt and must remain separate from the 29 clean review fixtures.
+
+The scene series still needs a complete passing sampled-gate receipt after
+its final corrections. Its one full run passed all 37 shadow movies and
+56 shipping/native-shape routes, but ended with timing, fallback,
+uncompared, effects and evidence failures. The first four now pass focused
+checks or an audit of that run's logs. The evidence runner's corrected
+process budget passes all 84 movies, ending `dc_evidence: OK`. These checks
+do not constitute a fresh complete gate.
+
+The scene's whole-picture scalers need comparisons that survive interrupts.
+In the 37-movie scene sample, both race-picture entries have all 1,142 calls
+interrupted; each bitmap start, row and sampling entry has 4,310 interrupted
+comparisons. The bitmap entries still have matching comparisons (1,846 at
+the start and row, 850 at the sampler). Bounded isolated fuzzing compares
+6,000 race pictures and 8,027 bitmap cases without a mismatch, but does not
+close this movie coverage gap. The review's race-won replay independently
+compares all 3,524 NMI handlers and 3,524 frame-work calls; this checks the
+interrupt work, but not its interaction with native bitmap work interrupted
+mid-picture. Add resumable comparison checkpoints or a synchronized interrupt
+replay before removing the five bitmap/race exemptions. Keep that distinction
+when extending the race upload-wait comparison described above.
+
+Held sound/warp waits have independent shadow comparisons with interrupts
+enabled: the attract opening compares the complete music wait and ten retry
+sends; End of Time gate and Lavos game-over compare 414 frame waits and each
+complete short/shortest trip and frame loop. Their combined-run exemptions
+remain because enclosing C loops own the waits. The merge coordinator runs
+the sampled gate after these review fixes; it was not rerun in this review.
 
 The early-boss shadow runs also expose a comparison gap in the held-message
 path: `battle_pause_on_the_message` has 168 calls, all abandoned, when run
@@ -2773,6 +2876,10 @@ interrupted stretches are a validation gap, not additional successful
 comparisons.
 
 ## The native program
+
+- **CI has no no-SDL configuration.** All four jobs install SDL2, so they do
+  not exercise `ct_native`'s headless-only build. Add a configuration with
+  SDL2 and pkg-config discovery disabled, `CT_ROM` empty and `CT_WERROR=ON`.
 
 - **The menus' remaining machine boundaries.** The 21 assigned bridge and
   support files retain 22 stops: scheduler switches and held waits, reset and
@@ -2914,6 +3021,11 @@ list, by kind, is what `game/` still asks of one.
   (around the song kept and its neighbour) still routes pure C operations
   through emulated return frames; call their game-state operations directly
   and keep only the register leftovers in the wrapper.
+- **What the scene joints' review left** (rated mostly in `endings.c`,
+  `turning.c`, `script.c`, `scene_data.h`): the follow-ups the review named
+  are in this file's scene entries; 12 uncompared exemptions stay in
+  `tools/uncompared_baseline.txt`, each with its interrupt evidence, until the
+  bitmap comparisons they stand for run.
 - **What the time model's review left** (none blocking):
   `charge_send` (`runtime/platform/native/video.c`) charges any send from the
   main thread, where the design charges only a load's (screen off): gate it on
@@ -3016,14 +3128,9 @@ list, by kind, is what `game/` still asks of one.
   `c_setups`), and so are the story scenes' tasks, the scripts' routines and
   the main loop's scalings (history/reimplementation-chunks.md, "The native
   program through the story scenes"), and mode 10's picture and the slow
-  staff roll, mode 12 (REIMPLEMENTATION.md, "The native program's last named
-  stops"); what is left stops the program where it is met: mode 10 once its
-  picture is done, at its next scene's loading (`$7E:8A01`, a Mode 7 picture
-  and its colours, then `$7E:8AF5` and the frame task `$7E:8B52` after it,
-  none of which a recording reaches), mode 5 (`$7E:7092`, 2 KiB: a turned
-  map, its two scripts and the main loop's turning `$7E:7441`; nothing in the
-  game starts it, movies-wanted.md), and a task, routine or command a state
-  the ports don't take reaches. The
+  staff roll, mode 12 (history/reimplementation-chunks.md, "The native program's last named
+  stops"); what is left stops the program where a task, routine or command
+  reaches a state the ports do not take. The
   stars' first draw in a setup that scatters them starts from nothing in
   particular where the original's goes on from what the call before it left
   (a host's draws take its own noise). The C reads the program's data where
@@ -3035,6 +3142,17 @@ list, by kind, is what `game/` still asks of one.
   VRAM word, from a cursor or a fixed byte, which the video service has no
   call for yet. The census (REIMPLEMENTATION.md, "The census") counts the
   rest: 259 entries the machine still enters, 21.1 M times over the library.
+- **A meaningful native run of mode 5.** Its setup, map and figure animation
+  are C and every new entry passes fuzzing. No known story path starts it.
+  A forced start directly after boot reaches the figure task at frame 41,
+  with absent party members outside the seven characters' graphics. Supply
+  the field handoff this mode expects and compare its picture and later
+  script transitions; do not count the forced boot scenario as a full run.
+- **Mode 10's native picture.** The explicit scene run now passes its
+  panorama loader and reaches the final scene's scripts in 16,000 frames,
+  but reports a dark picture throughout, including the earlier mosaic.
+  Compare the native renderer's scene setup and per-line effects against
+  the original; the panorama's four entry comparisons pass fuzzing.
 - **What the field still hands the machine as the program runs it.** Where
   the field's C meets a state its port doesn't take (an entry's guard, which
   on the machine hands the call to the original) or a step only the machine
@@ -3757,11 +3875,6 @@ waits on M5 rather than on a backend.
   which the original reads through the work RAM port, overlaps the race's scaler
   output (and the event variables), so the map can't name it in the scene's
   subsystem (`ram_map.py coverage --open`).
-- **The title's loader's blocks are still entries.** The title's setup
-  (`$7E:5978`) is C whole now, unpacking and sending each graphic itself; the
-  blocks it used to be registered as (`scene_title_load_*`, `$7E:597B`-`$7E:59CC`)
-  are still registered, though only a caller by address reaches them and none
-  does. Retire them, and their fuzz rows, as the race's were.
 - **The decompressor's port and the original part on streams that aren't
   streams.** Fuzzing the program's unpacker (`scene_unpack_resource`) over
   resource numbers past the table's 73 entries, where the "streams" are other
@@ -3782,12 +3895,13 @@ waits on M5 rather than on a backend.
   pictures runs long loops of its own, which is why it carries timing
   exceptions; the arrangers (`$7E:3EB7`, `$7E:3ED3`, the latter the ending's
   too) timed as their own routines would fit it better.
-- **The perspective's other scenes' steps are refused.** The plane's
-  perspective (`scene/perspective.c`) builds the race's lines and the endings'
-  (the routine at the program's call, `$7E:45B0` or `$7E:9B46`); modes 1 and
-  3-8, which no movie reaches, write other starts (`$7E:8042`, with a step of
-  two lines either way and an end at line 112) that the guard hands to the
-  original. Port them with those scenes.
+
+- **Scene review follow-ups:** separate the timing sites from the panorama
+  layer data in `endings.c` (`panorama_layers`, formerly line 1179); represent
+  the turning figures' character IDs as bytes in `turning.c` (`start_figures`,
+  formerly line 158); give `scene_data.h` decoded poses instead of reads by
+  address (formerly line 31); and separate script timing metadata from command
+  semantics in `script.c` (the command table, formerly line 288).
 
 - **What scene's second review accepted as later work** (history/reimplementation-phase3a.md, "Phase
   3a: scene reworked to the review"). None changes behaviour; each is a
@@ -3828,11 +3942,6 @@ waits on M5 rather than on a backend.
   credits with their tables of where each page's names and jobs start
   (`credit_pages.c`, `wram_read8`/`wram_read16` on `$7E`). The asset seam wants
   a named accessor for each, as for the resources in bank `$FE`.
-- **The palace rising works out a turning matrix it never uses**
-  (`rising_palace.c`, `$7E:73C6`, and the turned map's row count the setup
-  sets): mode 5's turning of a map (`$7E:7441`) is what would read them, and
-  it is still the original's. When mode 5 is ported, the matrix and its
-  operands belong with it.
 - **A script's task search reaches work RAM by address**
   (`scene/frame.c`, `scene_script_replace_task`, `word_past_the_list`): past
   its list the search reads and writes any word of `$7E`/`$7F` from

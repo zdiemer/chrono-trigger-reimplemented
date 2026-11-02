@@ -114,6 +114,8 @@ typedef struct {
 typedef struct {
     uint8_t *bytes;              /* SAVE_SIZE of them */
     bool dirty;                  /* written since sv_host_bytes last said */
+    void *ctx;
+    void (*written)(void *ctx, uint16_t offset); /* optional driver observer, after a write */
 } SvHost;
 
 struct Platform {

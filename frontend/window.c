@@ -6,12 +6,13 @@
 #include <string.h>
 
 #include "audio_fill.h"
-#include "driver.h"
+#include "window.h"
+#include "platform/native/render.h"
 #include "bindings.h"
 
 /* NTSC: 21.477272 MHz master clock, 1364 clocks per line, 262 lines per frame. */
 #define MASTER_CLOCK_HZ 21477272.0
-#define FRAME_RATE (MASTER_CLOCK_HZ / (SNES_CLOCKS_PER_LINE * SNES_LINES_PER_FRAME))
+#define FRAME_RATE (MASTER_CLOCK_HZ / (1364 * 262))
 
 /* Frames between checks for changed SRAM, which is then written out. */
 #define SRAM_FLUSH_FRAMES 60
@@ -58,14 +59,14 @@ static void pad_removed(Pads *p, SDL_JoystickID id)
     }
 }
 
-static void update_title(SDL_Window *window, const Player *pl, bool paused)
+static void update_title(SDL_Window *window, const WindowClient *client, bool paused)
 {
     char title[400];
-    player_title(pl, paused, title, sizeof title);
+    client->title(client->ctx, paused, title, sizeof title);
     SDL_SetWindowTitle(window, title);
 }
 
-static int display_rows(const Display *d) { return RENDER_HEIGHT - d->crop_top - d->crop_bottom; }
+static int display_rows(const Display *d) { return VID_RENDER_HEIGHT - d->crop_top - d->crop_bottom; }
 
 /* The destination rectangle for the picture in an output of w x h: as large as
  * fits with the right aspect, a whole number of output rows per picture row
@@ -73,7 +74,7 @@ static int display_rows(const Display *d) { return RENDER_HEIGHT - d->crop_top -
 static SDL_Rect display_rect(const Display *d, int w, int h)
 {
     int rows = display_rows(d);
-    double pic_w = RENDER_WIDTH * d->pixel_aspect, pic_h = rows;
+    double pic_w = VID_RENDER_WIDTH * d->pixel_aspect, pic_h = rows;
     double scale = w / pic_w < h / pic_h ? w / pic_w : h / pic_h;
     if (scale >= 1.0)
         scale = (double)(int)scale;
@@ -128,6 +129,7 @@ static void audio_open(Audio *a)
         return;
     }
     audio_fill_init(&a->fill, have.freq, have.samples, audio_lock, a);
+    fprintf(stderr, "audio: %d Hz stereo, %u sample device buffer\n", have.freq, (unsigned)have.samples);
 }
 
 static void audio_close(Audio *a)
@@ -141,13 +143,13 @@ static void audio_close(Audio *a)
 
 /* Once per loop iteration: move the samples the last frame produced to the
  * device. While paused, the device is stopped and the buffers emptied. */
-static void audio_frame(Audio *a, Player *pl, bool paused)
+static void audio_frame(Audio *a, const WindowClient *client, bool paused)
 {
     if (!a->dev) {
-        player_discard_audio(pl);
+        client->audio.discard(client->audio.ctx);
         return;
     }
-    bool play = audio_fill_frame(&a->fill, pl, paused);
+    bool play = audio_fill_frame(&a->fill, &client->audio, paused);
     if (play != a->playing)
         SDL_PauseAudioDevice(a->dev, !play);
     a->playing = play;
@@ -155,7 +157,7 @@ static void audio_frame(Audio *a, Player *pl, bool paused)
 
 /* ---- the loop ------------------------------------------------------------------- */
 
-int run_window(Player *pl, const WindowOptions *o)
+int window_run(const WindowClient *client, const WindowOptions *o)
 {
     const Display *display = &o->display;
     bool fullscreen = o->fullscreen;
@@ -165,23 +167,26 @@ int run_window(Player *pl, const WindowOptions *o)
         return 1;
     }
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
-    SDL_Window *window = SDL_CreateWindow("ct_play", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                          (int)(RENDER_WIDTH * display->pixel_aspect * scale + 0.5),
+    SDL_Window *window = SDL_CreateWindow(client->name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                          (int)(VID_RENDER_WIDTH * display->pixel_aspect * scale + 0.5),
                                           display_rows(display) * scale,
                                           SDL_WINDOW_RESIZABLE | (fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
     SDL_Renderer *sdl_renderer = window ? SDL_CreateRenderer(window, -1, 0) : NULL;
     SDL_Texture *texture = sdl_renderer ? SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_RGB888,
-                                                            SDL_TEXTUREACCESS_STREAMING, RENDER_WIDTH,
-                                                            RENDER_HEIGHT)
+                                                            SDL_TEXTUREACCESS_STREAMING, VID_RENDER_WIDTH,
+                                                            VID_RENDER_HEIGHT)
                                         : NULL;
     if (!texture) {
         fprintf(stderr, "cannot create window: %s\n", SDL_GetError());
+        SDL_DestroyRenderer(sdl_renderer);
+        SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
     }
-    SDL_SetWindowMinimumSize(window, (int)(RENDER_WIDTH * display->pixel_aspect + 0.5), display_rows(display));
-    const SDL_Rect src = { 0, display->crop_top, RENDER_WIDTH, display_rows(display) };
+    SDL_SetWindowMinimumSize(window, (int)(VID_RENDER_WIDTH * display->pixel_aspect + 0.5), display_rows(display));
+    const SDL_Rect src = { 0, display->crop_top, VID_RENDER_WIDTH, display_rows(display) };
     static Audio audio;   /* large; keep it off the stack */
+    memset(&audio, 0, sizeof audio);
     if (!o->mute)
         audio_open(&audio);
 
@@ -200,8 +205,9 @@ int run_window(Player *pl, const WindowOptions *o)
     bool running = true, paused = false, halt_shown = false;
     bool pad_was_held[ACT_COUNT] = { false };
     long frames_since_flush = 0;
-    update_title(window, pl, paused);
+    update_title(window, client, paused);
 
+    SDL_UpdateTexture(texture, NULL, client->pixels(client->ctx), VID_RENDER_WIDTH * 4);
     while (running) {
         /* The actions of this iteration's key presses, then of pad inputs
          * newly held (sticks and triggers have no press events). */
@@ -242,60 +248,52 @@ int run_window(Player *pl, const WindowOptions *o)
                 paused = !paused;
                 break;
             case ACT_QUICK_SAVE:
-                player_request_save(pl);
+                if (client->quick_save)
+                    client->quick_save(client->ctx);
                 break;
             case ACT_QUICK_LOAD:
-                player_cancel_save(pl);
-                files_load_state(pl, o->files->state);
+                if (client->quick_load)
+                    client->quick_load(client->ctx);
                 break;
             default:
                 continue;
             }
-            update_title(window, pl, paused);
+            update_title(window, client, paused);
         }
 
+        if (!running || client->done(client->ctx))
+            break;
         bool fast = false;
-        if (pl->snes.halted && !halt_shown) {
-            /* Without the interpreter, a miss stops the game (the stderr message says more). */
+        const char *halt = client->halt(client->ctx);
+        if (halt && !halt_shown) {
             halt_shown = true;
-            files_flush(o->files, pl);
-            update_title(window, pl, paused);
-            char msg[1600], load[64], quit[64];
-            snprintf(msg, sizeof msg,
-                     "The game stopped at frame %u: %s.\n\nThe address is logged to %s. %s loads the quick "
-                     "save; %s quits.",
-                     (unsigned)pl->snes.frame, player_halt_reason(pl), player_misses_name(pl),
-                     bindings_name(ACT_QUICK_LOAD, load, sizeof load, "QuickLoad"),
-                     bindings_name(ACT_QUIT, quit, sizeof quit, "closing the window"));
-            SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "ct_play stopped", msg, window);
-        } else if (!pl->snes.halted) {
+            client->flush(client->ctx);
+            update_title(window, client, paused);
+            SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, client->name, halt, window);
+        } else if (!halt) {
             halt_shown = false;
         }
-        if (!paused && !pl->snes.halted) {
-            /* Replay and fast forward run frames unpaced for up to a display frame. */
+        if (!paused && !halt) {
+            /* Fast forward runs frames unpaced for up to a display frame. */
             Uint64 budget_end = SDL_GetPerformanceCounter() + period;
             do {
-                bool was_saving = player_saving(pl);
-                player_step(pl, bindings_buttons(pads.open, pads.count));
-                files_after_frame(o->files, pl);
-                if (pl->snes.halted)
+                client->step(client->ctx, bindings_buttons(pads.open, pads.count));
+                if (client->halt(client->ctx) || client->done(client->ctx))
                     break;
-                if (was_saving && !player_saving(pl))
-                    update_title(window, pl, paused);
                 if (++frames_since_flush >= SRAM_FLUSH_FRAMES) {
                     frames_since_flush = 0;
-                    files_flush(o->files, pl);
-                    update_title(window, pl, paused);
+                    client->flush(client->ctx);
                 }
-                fast = (player_replaying(pl) && !pl->watch) ||
+                fast = client->fast(client->ctx) ||
                        bindings_held(ACT_FAST_FORWARD, pads.open, pads.count, true);
             } while (fast && SDL_GetPerformanceCounter() < budget_end);
             if (fast)
                 deadline = SDL_GetPerformanceCounter();
-            SDL_UpdateTexture(texture, NULL, player_pixels(pl), RENDER_WIDTH * 4);
+            SDL_UpdateTexture(texture, NULL, client->pixels(client->ctx), VID_RENDER_WIDTH * 4);
+            update_title(window, client, paused);
         }
         /* Fast frames aren't played: the device stays silent until normal speed. */
-        audio_frame(&audio, pl, paused || fast || pl->snes.halted);
+        audio_frame(&audio, client, paused || fast || client->halt(client->ctx));
         SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, 255);
         SDL_RenderClear(sdl_renderer);
         int out_w, out_h;
@@ -322,7 +320,7 @@ int run_window(Player *pl, const WindowOptions *o)
         deadline += period;
     }
 
-    files_flush(o->files, pl);
+    int rc = client->flush(client->ctx);
     audio_close(&audio);
     while (pads.count)
         SDL_GameControllerClose(pads.open[--pads.count]);
@@ -330,5 +328,5 @@ int run_window(Player *pl, const WindowOptions *o)
     SDL_DestroyRenderer(sdl_renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    return files_flush_movie(o->files, pl) != 0;
+    return rc != 0;
 }

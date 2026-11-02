@@ -308,15 +308,32 @@ enum {
     DIVE_CAMERA_REGISTERS = sizeof dive_camera_registers / sizeof dive_camera_registers[0],
 };
 
-static unsigned keep_the_camera(GameState *g, const unsigned *kept, unsigned registers)
+static unsigned first_camera_change(const GameState *g, const unsigned *kept, unsigned registers)
 {
     unsigned first = registers;
     for (unsigned i = 0; i < registers && first == registers; i++)
         if (plane_register(g, SCENE_CAMERA_CHANNEL, kept[i]) != scene_perspective_camera(g, i))
             first = i;
+    return first;
+}
+
+static unsigned keep_the_camera(GameState *g, const unsigned *kept, unsigned registers)
+{
+    unsigned first = first_camera_change(g, kept, registers);
     for (unsigned i = first; i < registers; i++)
         set_scene_perspective_camera(g, i, plane_register(g, SCENE_CAMERA_CHANNEL, kept[i]));
     return first;
+}
+
+bool scene_camera_changed(const GameState *g, unsigned registers)
+{
+    unsigned count = registers < CAMERA_REGISTERS ? registers : CAMERA_REGISTERS;
+    return first_camera_change(g, camera_registers, count) != count;
+}
+
+bool scene_dive_camera_changed(const GameState *g)
+{
+    return first_camera_change(g, dive_camera_registers, DIVE_CAMERA_REGISTERS) != DIVE_CAMERA_REGISTERS;
 }
 
 unsigned scene_keep_the_camera(GameState *g, unsigned registers)

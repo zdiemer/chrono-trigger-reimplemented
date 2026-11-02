@@ -121,11 +121,13 @@ def run_one(args, name, path, frames, sram, extra, saved, names, work):
 
 def ended(text, rc, end, frames, reference, saved, names):
     """(how, detail) for a ct_native run, its end state against the reference's."""
-    m = STOP.search(text)
-    if m:
-        return "stopped", "at frame %s of %d, %s (%s)" % (m.group(1), frames, m.group(2), m.group(3))
     if rc is None:
         return "hung", None
+    # Only a deliberate program stop exits 1. A fatal machine entry exits 3;
+    # a signal/OS crash or timeout must win even if a stop was printed first.
+    m = STOP.search(text)
+    if rc == 1 and m:
+        return "stopped", "at frame %s of %d, %s (%s)" % (m.group(1), frames, m.group(2), m.group(3))
     if rc != 0:
         return "crashed", "exit status %d" % rc
     m = DARK.search(text)

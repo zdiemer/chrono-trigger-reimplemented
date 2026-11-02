@@ -754,6 +754,29 @@ def check_portsmell(args, ctx):
     return rc == 0, "portsmell", summary, [] if rc == 0 else lines[:-1][-40:]
 
 
+def check_unreached(args, ctx):
+    """The six retirement candidates' full-library inventory and path evidence.
+
+    The sample cannot establish absence from the library: use the ledger's
+    manifest and re-derived reach, never the sample's partial coverage union.
+    """
+    extra = []
+    if args.evidence:
+        out = args.out / "unreached"
+        rc, lines = run_tool([sys.executable, str(ROOT / "tools/unreached_fuzz.py"),
+                             "--rom", str(args.rom), "--ct-dev", str(ctx["binary"]),
+                             "--ct-fuzz", str(ctx["binary"].with_name("ct_fuzz" + ctx["binary"].suffix)),
+                             "--ledger", str(ROOT / "tools/unreached_baseline.txt"), "--out", str(out),
+                             "-j", str(max(1, min(ctx["jobs"], 2)))])
+        if rc:
+            return False, "unreached", "fuzz evidence failed", lines[-40:]
+        extra = ["--recheck-fuzz", "--fuzz-dir", str(out / "fuzz")]
+    rc, lines = run_tool([sys.executable, str(ROOT / "tools/unreached.py"),
+                          "--check", "--rom", str(args.rom)] + extra)
+    summary = lines[-1] if lines else "no output"
+    return rc == 0, "unreached", summary, [] if rc == 0 else lines[:-1][-40:]
+
+
 def check_assets(args, ctx):
     """Every row of the catalogue of resources is still a region the matching
     build extracts, and the C table is what the catalogue generates
@@ -795,6 +818,7 @@ CHECKS = (
     ("effects", check_effects, "the ratchet on logic that reads scaffolding"),
     ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
     ("portsmell", check_portsmell, "the ratchet on the review rubric's mechanical items"),
+    ("unreached", check_unreached, "the full-library unreached inventory and its checked paths"),
     ("assets", check_assets, "the catalogue of resources against the matching build's regions"),
     ("evidence", check_evidence, "the dc-evidence notes' library runs (only run with --evidence)"),
 )

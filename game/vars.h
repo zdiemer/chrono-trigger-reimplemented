@@ -13172,6 +13172,18 @@ void set_scene_sprite_list_left(GameState *g, uint8_t v);
 uint8_t scene_sprite_list_left_high(const GameState *g);
 void set_scene_sprite_list_left_high(GameState *g, uint8_t v);
 
+/* The pose tile list cursor retained for the original */
+uint16_t scene_figure_source(const GameState *g);
+void set_scene_figure_source(GameState *g, uint16_t v);
+
+/* The pose tile list bank retained for the original */
+uint8_t scene_figure_source_bank(const GameState *g);
+void set_scene_figure_source_bank(GameState *g, uint8_t v);
+
+/* The adjacent byte loaded with the pose list bank by the sprite draw */
+uint8_t scene_figure_source_after_bank(const GameState *g);
+void set_scene_figure_source_after_bank(GameState *g, uint8_t v);
+
 /* Bitmap scaler: pairs of 8-sample groups per output row (the row's width in 16-pixel units) */
 uint16_t scene_scaler_pairs(const GameState *g);
 void set_scene_scaler_pairs(GameState *g, uint16_t v);
@@ -13245,6 +13257,12 @@ void set_scene_turn_position(GameState *g, unsigned i, uint16_t v);
 uint16_t scene_scaler_output(const GameState *g);
 void set_scene_scaler_output(GameState *g, uint16_t v);
 
+enum { SCENE_MAP_SAMPLING_WORK_COUNT = 6 };   /* by row down, row across, columns left, rows left, sample across, sample down */
+/* The map sampler's original work cells, left for comparisons; the C sampler holds positions and
+ * counts locally */
+uint16_t scene_map_sampling_work(const GameState *g, unsigned row);
+void set_scene_map_sampling_work(GameState *g, unsigned row, uint16_t v);
+
 /* Bitmap scaler: where the next four bitplane bytes go, advancing by 4 per 8 samples */
 uint16_t scene_scaler_plane_output(const GameState *g);
 void set_scene_scaler_plane_output(GameState *g, uint16_t v);
@@ -13289,15 +13307,34 @@ void set_scene_bitplane_scratch_byte(GameState *g, unsigned at, uint8_t v);
 uint8_t scene_map_buffer_waiting(const GameState *g);
 void set_scene_map_buffer_waiting(GameState *g, uint8_t v);
 
+/* The map sampler increments this word when a map is ready; the upload tests and clears its low
+ * byte, scene_map_buffer_waiting */
+uint16_t scene_map_pending_count(const GameState *g);
+void set_scene_map_pending_count(GameState *g, uint16_t v);
+
 /* The palace's scene (mode 3): BG3's horizontal scroll, which moves the column offsets' ripple
  * across the picture by its strength each frame */
 uint16_t scene_palace_ripple_scroll(const GameState *g);
 void set_scene_palace_ripple_scroll(GameState *g, uint16_t v);
 
+enum { SCENE_TURN_WINDOW_RADIUS_COUNT = 2 };   /* by entry */
+/* The two circle radii last drawn by the turning scene */
+uint16_t scene_turn_window_radius(const GameState *g, unsigned i);
+void set_scene_turn_window_radius(GameState *g, unsigned i, uint16_t v);
+
+enum { SCENE_TURN_WINDOW_RADIUS_LOW_COUNT = 2 };   /* by entry */
+/* The low bytes initialized when the turning scene opens its windows */
+uint8_t scene_turn_window_radius_low(const GameState *g, unsigned i);
+void set_scene_turn_window_radius_low(GameState *g, unsigned i, uint8_t v);
+
 /* The palace's scene: BG2's vertical scroll below the horizon, which a per-line effect reads;
  * sequence channel 1's register 2 over 4 */
 uint16_t scene_palace_sea_scroll(const GameState *g);
 void set_scene_palace_sea_scroll(GameState *g, uint16_t v);
+
+/* Queued figure tile destination, FFFF when no pose changed */
+uint16_t scene_turn_upload_vram(const GameState *g);
+void set_scene_turn_upload_vram(GameState *g, uint16_t v);
 
 enum { SCENE_PALACE_COLUMN_OFFSETS_COUNT = 64 };   /* by column: the first 32 across, the next 32 down */
 /* The palace's scene: the offsets mode 2 moves BG1's columns by, BG3's first two rows as the
@@ -13417,27 +13454,47 @@ void set_scene_title_slides(GameState *g, unsigned i, uint16_t v);
 uint16_t scene_credits_row_vram(const GameState *g);
 void set_scene_credits_row_vram(GameState *g, uint16_t v);
 
+/* Frames between mosaic-size steps */
+uint8_t scene_turn_mosaic_period(const GameState *g);
+void set_scene_turn_mosaic_period(GameState *g, uint8_t v);
+
 /* The Epoch's dive, seen from the cockpit: how hard the cockpit shakes, the lines a random draw
  * may move the instrument panel down by, as a mask of the draw (0, 1 or 3, which channel 0's
  * script sets as the dive goes on) */
 uint16_t scene_dive_shake(const GameState *g);
 void set_scene_dive_shake(GameState *g, uint16_t v);
 
+/* Frames left until the next mosaic-size step */
+uint8_t scene_turn_mosaic_countdown(const GameState *g);
+void set_scene_turn_mosaic_countdown(GameState *g, uint8_t v);
+
 /* Where the staff credits' next line of text is, in the program (bank $7E): letters as their
  * character codes, a line ended by '/', the text by a backslash */
 uint16_t scene_credits_text(const GameState *g);
 void set_scene_credits_text(GameState *g, uint16_t v);
+
+/* Whether a new turn sequence is chosen at random */
+uint8_t scene_turn_pick_sequence(const GameState *g);
+void set_scene_turn_pick_sequence(GameState *g, uint8_t v);
 
 /* The Epoch's dive, seen from outside as it leaves: the frames left on the Epoch's frame of
  * animation (1 as the dive starts, so that the first frame is taken at once) */
 uint16_t scene_dive_epoch_frames_left(const GameState *g);
 void set_scene_dive_epoch_frames_left(GameState *g, uint16_t v);
 
+/* Mosaic extent minus one, FF for random changes */
+uint8_t scene_turn_mosaic_size(const GameState *g);
+void set_scene_turn_mosaic_size(GameState *g, uint8_t v);
+
 /* In the shared endings: how far the zooming picture reaches out from the point it is drawn
  * round, the 8.8 quotient of 8 over its zoom: half its width as it is shown (its low byte is
  * what the drawing reads) */
 uint16_t scene_ending_picture_half(const GameState *g);
 void set_scene_ending_picture_half(GameState *g, uint16_t v);
+
+/* Last random mosaic selection */
+uint8_t scene_turn_mosaic_previous(const GameState *g);
+void set_scene_turn_mosaic_previous(GameState *g, uint8_t v);
 
 /* The Epoch's dive, seen from outside as it leaves: the Epoch's frame of animation, as the
  * address of its sprite list in the program's table of frames (scene_dive_epoch_frames); as the
@@ -13451,10 +13508,64 @@ void set_scene_dive_epoch_frame(GameState *g, uint16_t v);
 uint16_t scene_ending_picture_source(const GameState *g);
 void set_scene_ending_picture_source(GameState *g, uint16_t v);
 
+/* Angle at the bottom of the scrolling sine-wave line table */
+uint16_t scene_turn_wave_angle(const GameState *g);
+void set_scene_turn_wave_angle(GameState *g, uint16_t v);
+
 enum { SCENE_TITLE_SLIDE_ENDS_COUNT = 5 };   /* by slide */
 /* Where each of the title's five sliding sprites stops, in sixteenths of a pixel */
 uint16_t scene_title_slide_ends(const GameState *g, unsigned i);
 void set_scene_title_slide_ends(GameState *g, unsigned i, uint16_t v);
+
+enum { SCENE_TURN_FIGURES_COUNT = 4 };   /* by figure: the party followed by Magus */
+/* Pose requested by the animation */
+uint8_t scene_turn_figures_pose(const GameState *g, unsigned i);
+void set_scene_turn_figures_pose(GameState *g, unsigned i, uint8_t v);
+/* Character number in the low byte; the saved party list contributes the high byte */
+uint16_t scene_turn_figures_character(const GameState *g, unsigned i);
+void set_scene_turn_figures_character(GameState *g, unsigned i, uint16_t v);
+/* Horizontal screen position */
+uint8_t scene_turn_figures_x(const GameState *g, unsigned i);
+void set_scene_turn_figures_x(GameState *g, unsigned i, uint8_t v);
+/* Vertical screen position */
+uint8_t scene_turn_figures_y(const GameState *g, unsigned i);
+void set_scene_turn_figures_y(GameState *g, unsigned i, uint8_t v);
+/* VRAM destination of this figure tiles */
+uint16_t scene_turn_figures_vram(const GameState *g, unsigned i);
+void set_scene_turn_figures_vram(GameState *g, unsigned i, uint16_t v);
+/* Sprite tile base and attributes */
+uint16_t scene_turn_figures_appearance(const GameState *g, unsigned i);
+void set_scene_turn_figures_appearance(GameState *g, unsigned i, uint16_t v);
+/* Pose already loaded into the figure tiles */
+uint8_t scene_turn_figures_loaded_pose(const GameState *g, unsigned i);
+void set_scene_turn_figures_loaded_pose(GameState *g, unsigned i, uint8_t v);
+/* Polar angle from the center */
+uint16_t scene_turn_figures_angle(const GameState *g, unsigned i);
+void set_scene_turn_figures_angle(GameState *g, unsigned i, uint16_t v);
+/* Signed distance from the center */
+uint8_t scene_turn_figures_radius(const GameState *g, unsigned i);
+void set_scene_turn_figures_radius(GameState *g, unsigned i, uint8_t v);
+/* Requested animation */
+uint8_t scene_turn_figures_animation(const GameState *g, unsigned i);
+void set_scene_turn_figures_animation(GameState *g, unsigned i, uint8_t v);
+/* Animation whose stream is playing */
+uint8_t scene_turn_figures_active_animation(const GameState *g, unsigned i);
+void set_scene_turn_figures_active_animation(GameState *g, unsigned i, uint8_t v);
+/* Next pose in the animation stream */
+uint16_t scene_turn_figures_frames(const GameState *g, unsigned i);
+void set_scene_turn_figures_frames(GameState *g, unsigned i, uint16_t v);
+/* Frames remaining on the current pose */
+uint8_t scene_turn_figures_delay(const GameState *g, unsigned i);
+void set_scene_turn_figures_delay(GameState *g, unsigned i, uint8_t v);
+/* Next frame delay in the animation stream */
+uint16_t scene_turn_figures_delays(const GameState *g, unsigned i);
+void set_scene_turn_figures_delays(GameState *g, unsigned i, uint16_t v);
+/* Requested facing */
+uint8_t scene_turn_figures_facing(const GameState *g, unsigned i);
+void set_scene_turn_figures_facing(GameState *g, unsigned i, uint8_t v);
+/* Facing whose animation stream is playing */
+uint8_t scene_turn_figures_active_facing(const GameState *g, unsigned i);
+void set_scene_turn_figures_active_facing(GameState *g, unsigned i, uint8_t v);
 
 /* In the shared endings: the zoom the picture in the tilemap buffer was scaled at, the scaler's
  * row step (128ths of a source row an output row: $80 its own size, more smaller), kept for its
@@ -13696,6 +13807,10 @@ void set_scene_mosaic_piece_frame(GameState *g, uint8_t v);
 uint16_t scene_race_last_contact(const GameState *g);
 void set_scene_race_last_contact(GameState *g, uint16_t v);
 
+/* Rotation shared by the party figures */
+uint16_t scene_turn_orbit(const GameState *g);
+void set_scene_turn_orbit(GameState *g, uint16_t v);
+
 /* Frames the moving piece of mode 10's picture has shown its frame: at 4 it moves on to the next
  * and the count starts again */
 uint8_t scene_mosaic_piece_frames(const GameState *g);
@@ -13705,6 +13820,10 @@ void set_scene_mosaic_piece_frames(GameState *g, uint8_t v);
  * sent */
 uint8_t scene_race_tilemap_a_ready(const GameState *g);
 void set_scene_race_tilemap_a_ready(GameState *g, uint8_t v);
+
+/* Original-only count remaining in the changed-pose search */
+uint16_t scene_turn_search_left(const GameState *g);
+void set_scene_turn_search_left(GameState *g, uint16_t v);
 
 /* How wide mode 10's picture's frame is on the screen, in pixels: the picture's window around
  * the picture ends this far right of where it starts */
@@ -13726,6 +13845,10 @@ void set_scene_mosaic_frame_height(GameState *g, uint8_t v);
  * sent */
 uint8_t scene_race_tilemap_b_ready(const GameState *g);
 void set_scene_race_tilemap_b_ready(GameState *g, uint8_t v);
+
+/* Byte offset of the next figure to consider for a tile upload */
+uint16_t scene_turn_next_upload(const GameState *g);
+void set_scene_turn_next_upload(GameState *g, uint16_t v);
 
 /* Nonzero while the staff credits roll fast, a row of text every frame, as the telepod ending's
  * do with its music played fast (its setup counts it up); 0, a pixel every other frame and a row
@@ -13792,6 +13915,11 @@ void set_scene_palace_mosaic(GameState *g, uint8_t v);
  * curtain sweeps, scene_race_ending_sweep */
 uint8_t scene_race_ending(const GameState *g);
 void set_scene_race_ending(GameState *g, uint8_t v);
+
+enum { SCENE_TURN_CIRCLE_CENTER_COUNT = 2 };   /* by axis */
+/* The byte-sized center shared by both turning-scene windows */
+uint8_t scene_turn_circle_center(const GameState *g, unsigned i);
+void set_scene_turn_circle_center(GameState *g, unsigned i, uint8_t v);
 
 /* X of the center of the circle $C3:0077 draws into a per-line window table: an 8-bit value in a
  * 16-bit cell, whose high byte the routine clears so it can do its arithmetic on the pair */
@@ -14205,6 +14333,11 @@ void set_scene_race_picture_requests_column_step(GameState *g, unsigned i, uint1
 uint16_t scene_race_picture_requests_source_limit(const GameState *g, unsigned i);
 void set_scene_race_picture_requests_source_limit(GameState *g, unsigned i, uint16_t v);
 
+/* Transformed map queued for the next turning-scene upload [2048 bytes, one at a time] */
+enum { SCENE_TURN_OUTPUT_MAP_BYTES = 2048 };
+uint8_t scene_turn_output_map_byte(const GameState *g, unsigned at);
+void set_scene_turn_output_map_byte(GameState *g, unsigned at, uint8_t v);
+
 /* A row of the staff credits as it is written, the low bytes of a row of their layer's map: a
  * tile a column, the line's letters from the ninth column on, blank tiles around them [32 bytes,
  * one at a time] */
@@ -14279,6 +14412,28 @@ void set_scene_race_divisors(GameState *g, unsigned i, uint8_t v);
 enum { SCENE_PALETTE_BYTES = 512 };
 uint8_t scene_palette_byte(const GameState *g, unsigned at);
 void set_scene_palette_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { SCENE_TURN_PARTY_BYTES_COUNT = 4 };   /* by entry */
+/* Party member and following byte copied into a figure record */
+uint8_t scene_turn_party_bytes(const GameState *g, unsigned i);
+void set_scene_turn_party_bytes(GameState *g, unsigned i, uint8_t v);
+
+enum { SCENE_TURN_SAVED_POSITIONS_COUNT = 4 };   /* by figure */
+/* Saved tile x */
+uint8_t scene_turn_saved_positions_tile_x(const GameState *g, unsigned i);
+void set_scene_turn_saved_positions_tile_x(GameState *g, unsigned i, uint8_t v);
+/* Saved tile y */
+uint8_t scene_turn_saved_positions_tile_y(const GameState *g, unsigned i);
+void set_scene_turn_saved_positions_tile_y(GameState *g, unsigned i, uint8_t v);
+/* Saved fine x */
+uint8_t scene_turn_saved_positions_fine_x(const GameState *g, unsigned i);
+void set_scene_turn_saved_positions_fine_x(GameState *g, unsigned i, uint8_t v);
+/* Saved fine y */
+uint8_t scene_turn_saved_positions_fine_y(const GameState *g, unsigned i);
+void set_scene_turn_saved_positions_fine_y(GameState *g, unsigned i, uint8_t v);
+/* Saved pose */
+uint8_t scene_turn_saved_positions_pose(const GameState *g, unsigned i);
+void set_scene_turn_saved_positions_pose(GameState *g, unsigned i, uint8_t v);
 
 /* The routine the program's main loop calls each pass, the operand of its own call, which a
  * scene's setup points at its work (the race's: the racers' pictures scaled, $51D1) */
@@ -14487,6 +14642,11 @@ void set_scene_race_corner_sprites(GameState *g, uint8_t v);
 uint16_t scene_stars_depth_branch(const GameState *g);
 void set_scene_stars_depth_branch(GameState *g, uint16_t v);
 
+enum { SCENE_ANGLE_THRESHOLDS_COUNT = 64 };   /* by quarter-turn step, four angle units per step */
+/* The tangent thresholds that quantize an offset's slope to one of 64 steps in a quarter turn */
+uint16_t scene_angle_thresholds(const GameState *g, unsigned i);
+void set_scene_angle_thresholds(GameState *g, unsigned i, uint16_t v);
+
 /* The routine the program's loop over a picture's tiles ($7E:5E3C) calls on each, the operand of
  * its call: the title's expansion of a tile into the plane's pixels ($5E54), or the one the
  * shared endings' third scene writes ($5EF8) */
@@ -14555,11 +14715,62 @@ void set_scene_palace_whitening_step(GameState *g, uint8_t v);
 uint8_t scene_palace_clearing_step(const GameState *g);
 void set_scene_palace_clearing_step(GameState *g, uint8_t v);
 
+/* The unmirrored tile copy source operand */
+uint16_t scene_figure_copy_base(const GameState *g);
+void set_scene_figure_copy_base(GameState *g, uint16_t v);
+
+/* The unmirrored tile copy bank operand */
+uint8_t scene_figure_copy_bank(const GameState *g);
+void set_scene_figure_copy_bank(GameState *g, uint8_t v);
+
+/* The mirrored tile copy source operand */
+uint16_t scene_figure_mirror_base(const GameState *g);
+void set_scene_figure_mirror_base(GameState *g, uint16_t v);
+
+/* The mirrored tile copy bank operand */
+uint8_t scene_figure_mirror_bank(const GameState *g);
+void set_scene_figure_mirror_bank(GameState *g, uint8_t v);
+
+/* First sprite tile and attributes for a loaded figure pose */
+uint16_t scene_figure_sprite_appearance(const GameState *g);
+void set_scene_figure_sprite_appearance(GameState *g, uint16_t v);
+
+enum { SCENE_TURN_SEQUENCES_COUNT = 4 };   /* by entry */
+/* The four randomly selected turning sequences */
+uint16_t scene_turn_sequences(const GameState *g, unsigned i);
+void set_scene_turn_sequences(GameState *g, unsigned i, uint16_t v);
+
 /* How many rows of 32 tiles the program's turning of a map ($7E:7441) writes into the map
  * buffer: the operand of its own load, $1B as the program is unpacked, which the palace's setup
  * makes $1C */
 uint8_t scene_turned_map_rows(const GameState *g);
 void set_scene_turned_map_rows(GameState *g, uint8_t v);
+
+/* The map sampler's row step down, stored as an operand in the original's sampling loop */
+uint16_t scene_map_row_down_step(const GameState *g);
+void set_scene_map_row_down_step(GameState *g, uint16_t v);
+
+/* The map sampler's row step across, stored as an operand in the original's sampling loop */
+uint16_t scene_map_row_across_step(const GameState *g);
+void set_scene_map_row_across_step(GameState *g, uint16_t v);
+
+/* The map sampler's column step down, stored as an operand in the original's sampling loop */
+uint16_t scene_map_column_down_step(const GameState *g);
+void set_scene_map_column_down_step(GameState *g, uint16_t v);
+
+/* The map sampler's column step across, stored as an operand in the original's sampling loop */
+uint16_t scene_map_column_across_step(const GameState *g);
+void set_scene_map_column_across_step(GameState *g, uint16_t v);
+
+enum { SCENE_TURN_INITIAL_ANIMATION_COUNT = 8 };   /* by entry */
+/* Initial animation by character, including the unused eighth table byte */
+uint8_t scene_turn_initial_animation(const GameState *g, unsigned i);
+void set_scene_turn_initial_animation(GameState *g, unsigned i, uint8_t v);
+
+enum { SCENE_TURN_FACINGS_COUNT = 4 };   /* by entry */
+/* Facing at each quarter turn */
+uint8_t scene_turn_facings(const GameState *g, unsigned i);
+void set_scene_turn_facings(GameState *g, unsigned i, uint8_t v);
 
 /* Where the program's upload of the map buffer ($7E:783C) sends it in VRAM: the operand of its
  * own load, $6000 as the program is unpacked, which the palace's setup makes 0 */
@@ -14695,6 +14906,11 @@ enum { SCENE_FLIGHT_MODE_LINE_COUNTS_COUNT = 2 };   /* by 0 the lines above the 
 uint8_t scene_flight_mode_line_counts(const GameState *g, unsigned i);
 void set_scene_flight_mode_line_counts(GameState *g, unsigned i, uint8_t v);
 
+enum { SCENE_PANORAMA_MODE_LINE_COUNTS_COUNT = 2 };   /* by the two spans above the horizon */
+/* Mode 10's layered panorama: the two line counts before the ground's Mode 7 begins */
+uint8_t scene_panorama_mode_line_counts(const GameState *g, unsigned i);
+void set_scene_panorama_mode_line_counts(GameState *g, unsigned i, uint8_t v);
+
 enum { SCENE_FLIGHT_SCROLL_LINE_COUNTS_COUNT = 2 };   /* by 0 the lines above the horizon, 1 the lines from it */
 /* The line counts of the flight's per-line table for BG1's scroll: the sky's
  * (scene_flight_view's sky_x and sky_y) above the horizon, the ground's (its line_x and line_y)
@@ -14706,6 +14922,12 @@ enum { SCENE_FLIGHT_SCREENS_LINE_COUNTS_COUNT = 2 };   /* by 0 the lines above t
 /* The line counts of the flight's per-line table for the main screen's layers */
 uint8_t scene_flight_screens_line_counts(const GameState *g, unsigned i);
 void set_scene_flight_screens_line_counts(GameState *g, unsigned i, uint8_t v);
+
+enum { SCENE_PANORAMA_SUBSCREEN_LINE_COUNTS_COUNT = 2 };   /* by the two spans above the horizon */
+/* Mode 10's layered panorama: the two line counts before the subscreen layers change at the
+ * horizon */
+uint8_t scene_panorama_subscreen_line_counts(const GameState *g, unsigned i);
+void set_scene_panorama_subscreen_line_counts(GameState *g, unsigned i, uint8_t v);
 
 enum { SCENE_ENDING_WINDOW_ABOVE_COUNT = 2 };   /* by the entry: the lines above the picture, split in two */
 /* The line counts of the first two entries of the per-line table for window 1's edges in the
@@ -14768,6 +14990,11 @@ enum { SCENE_MATRIX_CODE_COUNT = 5153 };   /* by byte of the routine */
  * load and a store, the direct page moved on a page every 128 pairs, and a return */
 uint8_t scene_matrix_code(const GameState *g, unsigned i);
 void set_scene_matrix_code(GameState *g, unsigned i, uint8_t v);
+
+/* Map handed over by the field for the turning scene [2048 bytes, one at a time] */
+enum { SCENE_TURN_SAVED_MAP_BYTES = 2048 };
+uint8_t scene_turn_saved_map_byte(const GameState *g, unsigned at);
+void set_scene_turn_saved_map_byte(GameState *g, unsigned at, uint8_t v);
 
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes, one at a time] */
@@ -14851,6 +15078,12 @@ void set_scene_plane_matrix_bottom_row_c(GameState *g, unsigned line, uint16_t v
 /* The matrix's fourth entry: the cosine's, as the first */
 uint16_t scene_plane_matrix_bottom_row_d(const GameState *g, unsigned line);
 void set_scene_plane_matrix_bottom_row_d(GameState *g, unsigned line, uint16_t v);
+
+enum { SCENE_TURN_WAVE_LINES_COUNT = 224 };   /* by line */
+/* Scrolling horizontal offsets of the turning scene; a sine sample enters at the bottom each
+ * frame */
+uint16_t scene_turn_wave_lines(const GameState *g, unsigned line);
+void set_scene_turn_wave_lines(GameState *g, unsigned line, uint16_t v);
 
 /* 1 where the title was left with a button other than the shoulders (event memory's byte $60) */
 uint8_t scene_title_left_with_a_button(const GameState *g);

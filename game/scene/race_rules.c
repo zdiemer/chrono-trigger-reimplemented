@@ -1214,12 +1214,10 @@ bool scene_race_coast_lists_fit(Snes *s)
  * which reads the slot it pushed; one that hands its slot to another task, with
  * X that task. Nothing else they leave is read but A's high byte and Y, which
  * they don't touch. */
-enum { REMOVE_THIS_TASK = 0x7E39A7, REPLACE_THIS_TASK = 0x7E39B1 };
 
 static void hand_slot_to(Snes *s, uint16_t task)
 {
-    s->cpu.x = task;
-    m_stop_at_own(s, REPLACE_THIS_TASK, DC_A | DC_N | DC_V | DC_Z | DC_C);
+    scene_finish_task(s, SCENE_FRAME_TASKS, task_hands_over(task));
 }
 
 /* What the frame's motion leaves in A: Johnny's lane, the last it worked out. */
@@ -1247,7 +1245,7 @@ static void leave_the_ride(Snes *s, TaskEnd end)
     case TASK_HANDS_OVER: hand_slot_to(s, end.next); return;
     case TASK_IS_DONE:
         s->cpu.a = JOHNNY_WON_SCRIPT;
-        m_stop_at(s, REMOVE_THIS_TASK, DC_AL | DC_N | DC_V | DC_Z | DC_C);
+        scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
         return;
     default:
         ORIGINAL_EFFECT(leave_last_lane(s));
@@ -1310,7 +1308,7 @@ void scene_race_drain_score_entry(Snes *s)
     TaskEnd end = drain_score_task(g);
     if (end.outcome == TASK_IS_DONE) {
         ORIGINAL_EFFECT(s->cpu.a = (uint16_t)(before - LAST_DRAIN));   /* the last subtraction tried */
-        m_stop_at(s, REMOVE_THIS_TASK, DC_AL | DC_N | DC_V | DC_Z | DC_C);
+        scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
         return;
     }
     ORIGINAL_EFFECT(s->cpu.a = frame != 0 ? frame : scene_race_score(g));

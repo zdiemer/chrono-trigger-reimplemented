@@ -146,6 +146,32 @@ static void loop_first(Snes *s) { loop_after(s, 0, 0); }
 static void loop_third(Snes *s) { loop_after(s, 2, 0); }
 static void loop_wrong(Snes *s) { loop_after(s, 2, 1); }
 
+/* Two registered points in one loop, both covering its remaining iterations.
+ * Neither reentry at the same stack depth is a fresh nested call. */
+static void loop_tail(Snes *s)
+{
+    m_ldx16(s, (uint16_t)(s->cpu.x + 1));
+    while (s->cpu.x < 5) {
+        inc_dp(s, 0x10, 1);
+        m_ldx16(s, (uint16_t)(s->cpu.x + 1));
+    }
+    m_set_flag(s, CPU_FLAG_C, true);
+    m_set_nz16(s, 0);
+    m_rts(s);
+}
+
+static void loop_head(Snes *s)
+{
+    inc_dp(s, 0x10, 1);
+    loop_tail(s);
+}
+
+static void loop_whole(Snes *s)
+{
+    m_ldx16(s, 0);
+    loop_head(s);
+}
+
 /* 8120: the first two passes' calls inlined, the third called out. */
 static void call_third(Snes *s)
 {
@@ -319,7 +345,7 @@ static void handler_entry_wrong_x_live(Snes *s) { handler_entry_wrong_x(s, false
 /* ---- running a case ------------------------------------------------------------------ */
 
 typedef struct {
-    unsigned calls, matched, mismatched, interrupted, abandoned;
+    unsigned calls, matched, mismatched, interrupted, abandoned, skipped;
 } Counts;
 
 /* What the last case's run left: each entry's counters, and the details. */
@@ -354,7 +380,7 @@ static void run_case(const uint8_t *rom, const NativeEntry *table, int n, bool n
     for (int i = 0; i < n && i < 8; i++) {
         const NativeStats *st = native_stats_named(rt, table[i].name);
         names[ncounts] = table[i].name;
-        counts[ncounts++] = (Counts){ st->calls, st->matched, st->mismatched, st->interrupted, st->abandoned };
+        counts[ncounts++] = (Counts){ st->calls, st->matched, st->mismatched, st->interrupted, st->abandoned, st->skipped };
     }
     details[0] = 0;
     size_t used = 0;
@@ -383,9 +409,36 @@ static void expect(const char *name, bool match)
         run_case(rom, t, (int)(sizeof t / sizeof t[0]), nmi, long_loop, frames);              \
     } while (0)
 
+static bool direct_contract_guard(Snes *s) { return s->bus.wram[0x30] == 0x42; }
+
+static void check_direct_contracts(const uint8_t *rom)
+{
+    static Snes s;
+    snes_init(&s, rom, ROM_SIZE);
+    s.cpu.e = false;
+    s.cpu.p = CPU_FLAG_M;
+    s.bus.wram[0x30] = 0x42;
+    const NativeEntry entry = { .addr = 0x008100, .name = "direct_contract", .fn = loop_first,
+        .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M, .guard = direct_contract_guard };
+    native_direct_contracts(&entry, 1);
+    CHECK(native_continuation_entry_at(&s, entry.addr) == &entry, "standalone continuation was not accepted");
+    s.cpu.p |= CPU_FLAG_D;
+    CHECK(!native_continuation_entry_at(&s, entry.addr), "decimal continuation was accepted");
+    s.cpu.p &= (uint8_t)~CPU_FLAG_D;
+    s.bus.wram[0x30] = 0;
+    CHECK(!native_continuation_entry_at(&s, entry.addr), "continuation guard was bypassed");
+    s.bus.wram[0x30] = 0x42;
+    NativeRuntime *rt = native_create(&entry, 0, NATIVE_OFF);
+    CHECK(!native_continuation_entry_at(&s, entry.addr), "standalone contracts overrode a runtime's table");
+    native_destroy(rt);
+    native_direct_contracts(NULL, 0);
+    CHECK(!native_continuation_entry_at(&s, entry.addr), "standalone contracts were not cleared");
+}
+
 int main(void)
 {
     uint8_t *rom = make_rom(NMI_RETURNS);
+    check_direct_contracts(rom);
 
     /* the program runs, and nothing registered is compared */
     RUN(true, false, 2, ENTRY(0x00FFF0, loop_first));
@@ -398,6 +451,16 @@ int main(void)
     expect("loop_third", true);
     RUN(true, false, 2, ENTRY(0x008100, loop_wrong));
     expect("loop_wrong", false);
+
+    RUN(false, false, 2, ENTRY(0x008100, loop_whole), ENTRY(0x008103, loop_head), ENTRY(0x008105, loop_tail));
+    expect("loop_whole", true);
+    expect("loop_head", true);
+    expect("loop_tail", true);
+    CHECK(counts_of("loop_head").calls == counts_of("loop_whole").calls &&
+          counts_of("loop_tail").calls == counts_of("loop_whole").calls,
+          "alternating loop entries nested duplicate comparisons");
+    CHECK(counts_of("loop_head").skipped == 0 && counts_of("loop_tail").skipped == 0,
+          "alternating loop entries exhausted the comparison pool");
 
     /* the report describes mismatches before notes (an abandoned comparison),
      * whichever came first, so notes can't crowd out what the gate fails on */
@@ -453,6 +516,13 @@ int main(void)
     expect("leave_own_wrong", false);
     RUN(true, false, 2, ENTRY(0x008400, leave_shared_wrong, .dont_care = DC_Y));
     expect("leave_shared_wrong", true);   /* why the check rejects DC_Y there */
+
+    /* Two addresses for one C body are one invocation while the original
+     * catches up at the same stack depth; the outer comparison must finish. */
+    RUN(true, false, 2, ENTRY(0x008400, leave_own),
+        { .addr = 0x008403, .name = "same_body_alias", .fn = leave_own });
+    expect("leave_own", true);
+    CHECK(counts_of("same_body_alias").calls == 0, "alias started a duplicate comparison\n%s", details);
 
     /* a loop longer than a frame, with NMIs: a later pass before the interrupt
      * counts; a routine the same at no pass is reported when it comes */
