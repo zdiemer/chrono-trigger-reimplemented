@@ -10,6 +10,14 @@
 event_cmd_if_compares = ["event_cmd_if_compares_word", "event_cmd_if_compares_variable_word"]
 # terrain.c: overworld_look_around; party.c: overworld_spot_ahead.
 overworld_lead = ["overworld_dactyl"]
+# screen.c: the per-effect entries are machine bridges over run_screen_command,
+# the same table the screen command runs (event_cmd_screen_command:unreached_effects).
+event_screen_uncover_right = ["event_cmd_screen_command"]
+event_screen_uncover_left = ["event_cmd_screen_command"]
+event_screen_cover_right = ["event_cmd_screen_command"]
+event_screen_cover_left = ["event_cmd_screen_command"]
+event_screen_end_field = ["event_cmd_screen_command"]
+event_screen_ripple = ["event_cmd_screen_command"]
 
 [[case]]
 base = "event_cmd_screen_command"

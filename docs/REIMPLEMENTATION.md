@@ -3436,7 +3436,7 @@ all decoded callees until another registered entry owns them. It does not
 use burndown's stop/call-out pruning. Missing instructions and unresolved
 calls or jumps are listed by entry and address and fail the inventory.
 
-The inventory covers 343 entries in six subsystems plus the screen command's
+The inventory covers 361 entries in six subsystems plus the screen command's
 separately registered field restart dependency, using the existing
 84-movie coverage union (the movie inputs agree with the checkout supplying
 it). Optional hand recordings are outside that standard library. No game
@@ -3444,19 +3444,21 @@ code changed in this work.
 
 | Subsystem | Bytes no movie executes | Executed in matched fuzz trials | Reviewed safety argument |
 |---|--:|--:|--:|
-| attract | 156 | 0 | 156 |
+| attract | 0 | 0 | 0 |
 | data | 0 | 0 | 0 |
 | core | 421 | 417 | 4 |
 | warp | 104 | 95 | 9 |
 | overworld | 1,354 | 1,318 | 36 |
-| event | 1,571 | 1,426 | 145 |
-| field restart dependency | 16 | 0 | 16 |
-| Total | 3,622 | 3,256 | 366 |
+| event | 1,498 | 1,426 | 72 |
+| field restart dependency | 5 | 0 | 5 |
+| Total | 3,382 | 3,256 | 126 |
 
 `tools/unreached_baseline.txt` is the greppable ledger: a movie manifest,
 one inventory row per entry (including zero-byte entries), and exact byte
 runs attached to passing fuzz recipes or reviewed safety reasons. The
-102 cited recipes made 100,400 trials, 70,585 matched, zero mismatches; skips
+first record's 102 cited recipes made 100,400 trials, 70,585 matched, zero mismatches
+(108 are cited since the screen effects and the controller's ready sample got
+entries of their own); skips
 contribute no evidence. `ct_fuzz --coverage` accumulates original instructions
 only after a trial matches. Logs with accessor/page/resource diagnostics
 are rejected, even when the comparator reports a match. Broader casting
@@ -3486,8 +3488,11 @@ The screen command is a regression example for the conservative walk.
 Its restart-only stop at `$C0:4009` must not remove the other dispatch arms.
 `event_cmd_screen_command:unreached_effects` executes all 90 uncovered
 effect-handler bytes, including the curtain at `$C0:4145-$C0:4180` and ripple
-at `$C0:41C8-$C0:41DB`, in 1,000 matched comparisons. The other 16 bytes of
-the uncovered dispatch belong to `field_restart_wait_for_vblank_loop`;
+at `$C0:41C8-$C0:41DB`, in 1,000 matched comparisons. Those bytes now belong to
+the per-effect entries (`event_screen_cover_left` and its siblings), machine
+bridges over the same `run_screen_command` table, so the file's shared list
+names the screen command as their caller. The restart's five-byte wait
+belongs to `field_restart_wait_for_vblank_loop`;
 that dependency has its own ledger row rather than disappearing at an
 ownership boundary.
 
@@ -3501,12 +3506,13 @@ and time dial have exactly the port's nonzero-sign predicate and byte
 wraparound, and their flags are dead. Those arms did not run in the fuzz
 comparisons. `tools/unreached_safe.toml` records the arguments, and TODO.md
 keeps the returning-screen fixture and guard-to-assertion obligations.
-The conservative traversal also exposes the map-turning callback excluded
-by the attract frame-pass guard (156 bytes), the controller's reset transfer
-(4), and the event engine's original-only unknown-command diagnostic (6).
+The conservative traversal also exposes the controller's reset transfer
+(4) and the event engine's original-only unknown-command diagnostic (6).
 Their source-bound review arguments are explicit. The field restart's
 five-byte wait uses the documented vblank timing escape, not byte-exact
-timing equivalence; its following 11 bytes remain an original-only handoff.
+timing equivalence; its following 11 bytes are `field_restart_in_the_dark`'s,
+a field entry outside the audit. The attract frame pass's map-turning
+callback is `scene_turn_map`'s, also outside it.
 
 **The ratchet.** `tools/unreached.py --check` re-derives the current port reach
 and checks the ledger's movie hashes, recipe/implementation fingerprints, proof coverage
@@ -3542,4 +3548,4 @@ are applied to both machines.
 
 The focused unreached and burndown unit tests pass without a ROM. The
 sampled gate's `--long-routes --evidence` run rechecks the complete ledger
-and replays all 102 cited recipes alongside its normal validation.
+and replays all 108 cited recipes alongside its normal validation.
