@@ -284,42 +284,35 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **3% of the code is still generated.**
+docstring says which way it is wrong). **1% of the code is still outside the coverage estimate.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.3K | 0% | 446 |
-| field engine, events (`$C0`) | 59.4K | 58.3K | 14.0K | 2% | 399 |
-| menus, text, overworld (`$C2`) | 59.1K | 56.6K | 15.7K | 4% | 535 |
-| scene program, RAM (`$7E`) | 25.1K | 21.3K | 2.8K | 15% | 196 |
-| battle frame work (`$CD`) | 15.4K | 15.2K | 4.3K | 1% | 224 |
-| field graphics (`$FD`) | 15.1K | 15.0K | 2.2K | 0% | 111 |
+| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.2K | 0% | 448 |
+| field engine, events (`$C0`) | 59.4K | 59.2K | 14.1K | 0% | 432 |
+| menus, text, overworld (`$C2`) | 59.1K | 59.0K | 17.8K | 0% | 557 |
+| scene program, RAM (`$7E`) | 25.1K | 22.2K | 2.9K | 12% | 224 |
+| battle frame work (`$CD`) | 15.4K | 15.3K | 4.4K | 0% | 229 |
+| field graphics (`$FD`) | 15.1K | 15.1K | 1.9K | 0% | 120 |
 | battle sprites (`$CF`) | 6.8K | 6.8K | 0.2K | 0% | 47 |
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 52 |
 | battle setup (`$CC`) | 4.8K | 4.8K | 0.1K | 0% | 11 |
-| scene engine (`$C3`) | 3.8K | 3.6K | 0.6K | 7% | 32 |
-| scene data (`$C6`) | 3.4K | 3.4K | 0.8K | 0% | 32 |
+| scene engine (`$C3`) | 3.8K | 3.6K | 0.4K | 7% | 34 |
+| scene data (`$C6`) | 3.4K | 3.4K | 0.6K | 0% | 35 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
 | console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
-| **total** | **264.1K** | **256.2K** | **57.1K** | **3%** | **2102** |
+| **total** | 264.1K | 260.6K | 58.7K | 1% | 2206 |
 
 Bank `$C7`, the sound driver's CPU half, is retired rather than ported, and
 not counted (`burndown.py`, "Retired code").
 
-`$CD`, the battle's frame work, is C but for 0.2 KiB: the whole screen script
-language (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"),
-the frame work's table moves and waits, and the battle's close, the
-battlefield put back and the messages (history/reimplementation-chunks.md,
-"Phase 4a, timing: the battle frame work's remainders"). What `python3 tools/burndown.py
---uncovered CD` still lists is not worth a port as it stands: the screen
-script runner's hand-back for a byte past the language's last command
-(`$CD:165F`, which no script has), the wait for a line of the picture
-(`$CD:3B82`, the timing service's `tm_wait_line` already) and script command
-`$C1`'s jump to it (`$CD:1D93`, in no movie), and the jump stub `$CD:0012`
-(the battle lost on the screen effects' battlefield, `$CD:0D93`, and the stubs
-`$CD:0000` and `$CD:0039` are ports now, which strict mode met). The fallback measure still
-counts the frame work's code the timers' dispatcher reaches (above, "The
-order now").
+The remaining uncovered runs outside the scene program are guarded
+hand-backs and conservative stop accounting: 190 bytes in field/events,
+18 in menus/overworld and 76 in battle-frame work. The audit and independently
+fuzzed entry boundaries are in REIMPLEMENTATION.md, "remaining field, menu
+and battle-frame entries". TODO's "Uncovered runs outside the scene program"
+identifies the unsupported states; adding duplicate wrappers around those
+same refusals would not remove the dependency on the machine.
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 225 event command entries), which is why the shares are so high
@@ -454,7 +447,7 @@ loaded, the poses' looks, the battle's own frame step and step 3, and the
 hits landing with a felled enemy's spoils. `python3 tools/burndown.py
 --uncovered C1` (and `CF`, `CC`) leaves only jump stubs into ports, and bank
 `$FD`'s battle routines are C too, the rewards' messages (`$FD:AD17`) and the
-turns' work cleared (`$FD:A982`) the last (REIMPLEMENTATION.md, "Phase 4a,
+turns' work cleared (`$FD:A982`) the last (history/reimplementation-chunks.md, "Phase 4a,
 timing: the battle frame work's remainders, chunk 2"). The
 burndown counts the bank done, but the fallback measure shows what its ports
 still hand back: with an action's showing C, the largest left are the

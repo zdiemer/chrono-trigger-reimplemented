@@ -269,6 +269,7 @@ void vid_set_obj_config(Platform *pf, PfOrigin o, const VidObjConfig *c);
 
 void vid_upload_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint16_t len, const VidSnesXfer *x);
 void vid_upload_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count, const VidSnesXfer *x);
+void vid_set_palette_color(Platform *pf, PfOrigin o, uint8_t index, uint16_t color);
 /* The 544-byte OAM image (128 entries, 32-byte high table), as the game builds it. */
 void vid_upload_oam(Platform *pf, PfOrigin o, PfData oam, const VidSnesXfer *x);
 /* Later form, once a subsystem owns its sprite memory (see Migrating). */
@@ -994,6 +995,13 @@ includes its service's headers and the C library, and names nothing of the
 S-DSP's or the APU's.
 
 ### P2: video behind the API, subsystem by subsystem
+
+The field's invalid-script diagnostic uses `vid_set_palette_color` to replace
+the backdrop with its error colour. Both backends update the same palette
+observer; the SNES backend owns the address latch and colour-byte writes.
+The text-header and oversized-script paths are compared against the original
+by the script checker's fuzz rows (REIMPLEMENTATION.md, "remaining field,
+menu and battle-frame entries").
 
 Order: shared code (display blank, palette upload, animated tiles), battle
 (most of its vblank path is already ported), field (NMI copies, the deferred

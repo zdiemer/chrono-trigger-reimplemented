@@ -664,6 +664,8 @@ PF_API void vid_fill_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData v
  * sprite is drawn first. Uploads set both themselves; these are for the mode
  * setups that only put them back to 0. */
 PF_API void vid_set_palette_address(Platform *pf, PfOrigin o, uint8_t first);
+/* Replace one palette colour, including the backdrop at index zero. */
+PF_API void vid_set_palette_color(Platform *pf, PfOrigin o, uint8_t index, uint16_t color);
 PF_API void vid_set_oam_address(Platform *pf, PfOrigin o, uint16_t word_addr, bool priority_rotation);
 /* `count` BGR555 colors from `src` into CGRAM from entry `first`. */
 PF_API void vid_upload_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count,

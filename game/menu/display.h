@@ -90,6 +90,7 @@ void menu_object_take_the_interrupts_entry(Snes *s);
 void menu_object_reset_the_upload_queue_entry(Snes *s);
 void menu_object_init_video(Snes *s);
 void menu_object_nmi(Snes *s);
+void menu_ignore_line_interrupt(Snes *s);
 void menu_object_upload_vram_queue(Snes *s);
 
 /* Loading a screen's graphics: all of VRAM cleared; graphics sent from the

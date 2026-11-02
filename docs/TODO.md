@@ -9,6 +9,26 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **Uncovered runs outside the scene program.** The remainder audit leaves
+  190 bytes in `$C0`, 18 in `$C2` and 76 in `$CD`, rounded to 0% each by
+  burndown. The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
+  `$C0:5AA3` already run as C for valid scripts; their hand-backs preserve
+  out-of-buffer script positions, changed data banks and object state the
+  typed map cannot represent. Supporting those states needs a storage or
+  script contract, not a second copy of the same loop. The screen runner's
+  `$CD:165F` hand-back is for bytes `$FA`-`$FE`, past its command table;
+  establish semantics for the original's out-of-table dispatch before
+  admitting them. No shipped script is known to use these paths. The other
+  five battle bytes are `$CD:1D93`, the line request already implemented by
+  the timing service; its independent-entry blocker is recorded under
+  "The battle's wait for a line" below.
+  The five menu waits (`$C2:89F5`, `$8A91`, `$8AB5`, `$8AF8`, `$CECB`)
+  retain their task-switch contract checks: remove their fallback only when
+  the task stack and saved widths can be represented without the machine.
+  The four one-byte returns (`$C0:EC76`, `$C2:034C`, `$9F04`, `$A16F`) are
+  already executed by their wrappers; teaching the estimate to distinguish
+  those from real stops would remove the conservative count, not game work.
+
 - **A battle's start, one fuzz state in about 4,000.** `field_battle_begins`
   (`tools/fuzz_routines.toml`, both variants; seeds 1-4) mismatches once or
   twice per 5,000 states: a field work cell (`$7E:01C3`, `$01DB`), the
@@ -158,8 +178,9 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What the hand ports alone left** (REIMPLEMENTATION.md, "Phase 4a, the
   shipping mode's fallbacks, chunk 11"):
   - Entries no movie's shadow run compares, checked by fuzzing alone: the
-    defeat on the screen effects' battlefield (`$CD:0D93`, fuzzed only up to
-    the music's fade, its first call), the planet's count down to the reset
+    defeat on the screen effects' battlefield (`$CD:0D93`, fuzzed up to
+    the music's fade; its `$CD:0DA2` continuation separately fuzzed up to the
+    battlefield change), the planet's count down to the reset
     (`$7E:63F5`) and its fade out (`$7E:6403`), the warp's long trip
     (`$FD:DA00`, `$FD:DA03`) and the world map scene's note of the Epoch's
     arrival (`$C6:EE31`). Strict mode's own timing reached them; a movie that
@@ -2496,7 +2517,7 @@ rest waits, is [PLAN.md](PLAN.md).
     (`message.c`'s `wait_a_frame_counting`, `closing.c`'s
     `wait_frames_counting`). They go when the waits are called as C from
     callers that are C.
-- **What the battle frame work's remainders' second chunk left** (REIMPLEMENTATION.md,
+- **What the battle frame work's remainders' second chunk left** (history/reimplementation-chunks.md,
   "Phase 4a, timing: the battle frame work's remainders, chunk 2"):
   - The rewards' messages are fuzzed only up to the first message, which
     holds for frames, so the telling after it is checked by shadow mode
@@ -2718,8 +2739,14 @@ rest waits, is [PLAN.md](PLAN.md).
   shipping mode and calls the original's routine only in shadow mode and the
   tools (`native_wait_call`). Its purpose isn't established: the frame work
   waits for line 64 before the screen script channels run while the timed
-  effect slots do (`$CD:09AC`), and screen script command `$C1` (`$CD:1D93`,
-  in no movie) waits for a line from the script. Neither is followed by a
+  effect slots do (`$CD:09AC`), and screen script command `$C1` (`$CD:1D93`)
+    waits for a line from the script. The command's C path already uses the
+    timing service, but its five-byte handler has no independent entry: the
+    service enters below it, leaving a standalone comparison abandoned.
+    Entering through the handler and stopping at the polling loop compares
+    the operand but hands the wait back to the ROM, increasing fallback.
+    An independent entry needs a service for this tail-called wait, or a
+    decision to remove the pacing. Neither caller is followed by a
   register write, so the wait looks like pacing. The rest of the frame work
   is ported around it, and an entry at `$CD:3B82` would make the service's
   own call of the original recurse into the port: decide whether a native

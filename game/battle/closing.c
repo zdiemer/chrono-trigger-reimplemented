@@ -260,6 +260,20 @@ static bool play_out_the_boss_end(GameState *g, Platform *pf, ClosingCalls call,
 /* The battlefield a defeat shows. */
 enum { DEFEAT_BATTLEFIELD = 0x87 };
 
+// $CD:0DA2
+/* Once the fade is silent, show the defeat battlefield and let its screen
+ * animation finish before returning to the battle's closing sequence. */
+static bool show_the_defeat(GameState *g, ClosingCalls call, void *ctx)
+{
+    if (!call(ctx, DEFEAT_CHANGE, DEFEAT_BATTLEFIELD))
+        return false;
+    do
+        if (!closing_call(call, ctx, DEFEAT_SCRIPTS_FRAME))
+            return false;
+    while (battle_screen_scripts_running(g));
+    return true;
+}
+
 // $CD:0D93
 /* A battle not won on an HP gradient's battlefield or the screen effects'
  * ends on the defeat's battlefield: the enemies' rule dropped, the music
@@ -268,14 +282,9 @@ enum { DEFEAT_BATTLEFIELD = 0x87 };
 static bool play_out_the_defeat_end(GameState *g, Platform *pf, ClosingCalls call, void *ctx)
 {
     set_battle_enemy_rule(g, 0);
-    if (!fade_the_music_and_wait(pf, DEFEAT_FADE, DEFEAT_FADE_FRAME, 0xCD0D9C, call, ctx)
-        || !call(ctx, DEFEAT_CHANGE, DEFEAT_BATTLEFIELD))
+    if (!fade_the_music_and_wait(pf, DEFEAT_FADE, DEFEAT_FADE_FRAME, 0xCD0D9C, call, ctx))
         return false;
-    do
-        if (!closing_call(call, ctx, DEFEAT_SCRIPTS_FRAME))
-            return false;
-    while (battle_screen_scripts_running(g));
-    return true;
+    return show_the_defeat(g, call, ctx);
 }
 
 /* ---- The display closed down ------------------------------------------------------------------ */
@@ -410,6 +419,7 @@ static bool closing_on_the_machine(void *ctx, ClosingCall call, uint16_t arg)
     case BOSS_SETTLE_AGAIN: return let_the_screen_settle(g, closing_on_the_machine, ctx);
     case DEFEAT_CHANGE:
         s->cpu.x = arg;
+        m_set_nz16(s, arg);
         return battle_run(s, 0xCD0DA5, 0xCD0D62, battle_change_to_the_battlefield);
     case DEFEAT_SCRIPTS_FRAME: return battle_wait_for_the_handler_from(s, 0xCD0DA8);
     case SETTLE_FIRST_FRAME:
@@ -482,6 +492,25 @@ void battle_play_out_the_defeat_end(Snes *s)
     m_set_a8(s, 0);
     m_set_nz8(s, 0);
     m_rts(s);
+}
+
+void battle_show_the_defeat(Snes *s)
+{
+    if (!show_the_defeat(state_of(s), closing_on_the_machine, s))
+        return;
+    m_set_a8(s, 0);
+    m_set_nz8(s, 0);
+    m_rts(s);
+}
+
+// $CD:0012
+/* The field asks whether the battle window is still moving before it
+ * resumes its own display work. */
+void battle_window_is_sliding(Snes *s)
+{
+    m_set_a8(s, battle_window_sliding(state_of(s)) ? 1 : 0);
+    m_set_nz8(s, (uint8_t)s->cpu.a);
+    m_rtl(s);
 }
 
 void battle_let_the_screen_settle(Snes *s)

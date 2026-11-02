@@ -13,7 +13,8 @@ enum {
     PF_SNES_MOSAIC = 0x2106, PF_SNES_BG1SC = 0x2107, PF_SNES_BG12NBA = 0x210B, PF_SNES_BG1HOFS = 0x210D,
     PF_SNES_VMAIN = 0x2115, PF_SNES_VMADDL = 0x2116, PF_SNES_VMDATAL = 0x2118, PF_SNES_M7SEL = 0x211A,
     PF_SNES_VMDATAHREAD = 0x213A,
-    PF_SNES_M7A = 0x211B, PF_SNES_CGADD = 0x2121, PF_SNES_W12SEL = 0x2123, PF_SNES_CGWSEL = 0x2130,
+    PF_SNES_M7A = 0x211B, PF_SNES_CGADD = 0x2121, PF_SNES_CGDATA = 0x2122,
+    PF_SNES_W12SEL = 0x2123, PF_SNES_CGWSEL = 0x2130,
     PF_SNES_COLDATA = 0x2132, PF_SNES_SETINI = 0x2133, PF_SNES_MDMAEN = 0x420B, PF_SNES_HDMAEN = 0x420C,
 };
 
@@ -409,6 +410,20 @@ PF_API void vid_set_palette_address(Platform *pf, PfOrigin o, uint8_t first)
     pf_snes_put(pf_snes(pf), PF_SNES_CGADD, first);
     if (vid_observer)
         vid_obs_palette_address(vid_observer, first);
+    pf_snes_end();
+}
+
+PF_API void vid_set_palette_color(Platform *pf, PfOrigin o, uint8_t index, uint16_t color)
+{
+    Snes *s = pf_snes(pf);
+    pf_snes_begin("vid_set_palette_color", o);
+    pf_snes_put(s, PF_SNES_CGADD, index);
+    pf_snes_put(s, PF_SNES_CGDATA, (uint8_t)color);
+    pf_snes_put(s, PF_SNES_CGDATA, (uint8_t)(color >> 8));
+    if (vid_observer) {
+        const uint8_t bytes[2] = { (uint8_t)color, (uint8_t)(color >> 8) };
+        vid_obs_upload_palette(vid_observer, index, (PfData){ 0, bytes }, 1);
+    }
     pf_snes_end();
 }
 

@@ -1344,6 +1344,11 @@ void menu_object_nmi(Snes *s)
     m_rti(s);
 }
 
+// $C2:0345, $C2:8472
+/* Neither menu mode does work on a line interrupt. Their installed handlers
+ * simply return, preserving the interrupted work at any register width. */
+void menu_ignore_line_interrupt(Snes *s) { m_rti(s); }
+
 // $C2:0405
 /* The sprite-object mode's VRAM upload queue, unless something is queueing
  * right now: each record from the source, bank and VRAM address, size and

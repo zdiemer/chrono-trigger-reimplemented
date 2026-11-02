@@ -335,6 +335,36 @@ regs = ["X", "Y", "P", "D"]
 reads = ["A", "AH", "DB"]
 resume = "C2:8206"
 
+# Continuations return to the enclosing routine's callers, not to unknown
+# callers of their own. These boundaries have separately checked C entries.
+[[entry]]
+addr = "C0:4009"
+m = 8
+x = 16
+name = "event_screen_dispatch"
+tail_of = "C0:3FAF"
+
+[[entry]]
+addr = "CD:0DA2"
+m = 8
+x = 16
+name = "battle_show_the_defeat"
+tail_of = "CD:0D93"
+
+[[entry]]
+addr = "C0:9DC3"
+m = 8
+x = 16
+name = "field_start_the_party"
+tail_of = "C0:58DE"
+
+[[entry]]
+addr = "C2:84FE"
+m = 8
+x = 16
+name = "input_take_ready_controller"
+tail_of = "C2:84EC"
+
 # The field's screen setup ($C0:0B28) ends on a wait for the vblank with the
 # handlers off, then turns them on. The port of the setup readies the line
 # effects itself and has the timing service call that tail on the SNES

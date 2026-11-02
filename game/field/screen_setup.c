@@ -333,6 +333,15 @@ static bool ready_the_line_effects(Snes *s)
                           on_the_field_page(s, false));
 }
 
+// $C0:0B28
+/* Prepare the first picture's line effects, then leave the vblank wait to
+ * its idle entry. The next entry turns the handlers on once it arrives. */
+void field_ready_the_picture(Snes *s)
+{
+    if (ready_the_line_effects(s))
+        m_stop_at(s, 0xC00B38, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
+}
+
 /* The wait for the vblank with the handlers off, after which they come on:
  * the original's routine's own (from $C0:0B38), which the timing service
  * calls on the SNES backend, the screen's setup having called its routine

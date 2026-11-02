@@ -24,6 +24,26 @@ void event_run_map_script(Snes *s);
 bool event_map_script_can_run(Snes *s);
 void event_restart_the_running_object_entry(Snes *s);
 bool event_running_object_can_restart(Snes *s);
+#define EVENT_SCREEN_ENTRIES(X) \
+    X(event_screen_open_hole, 0) \
+    X(event_screen_close_hole, 1) \
+    X(event_screen_uncover_right, 2) \
+    X(event_screen_uncover_left, 3) \
+    X(event_screen_cover_right, 4) \
+    X(event_screen_cover_left, 5) \
+    X(event_screen_open_oval, 7) \
+    X(event_screen_close_oval, 8) \
+    X(event_screen_circle_bg3, 9) \
+    X(event_screen_blend_circle, 10) \
+    X(event_screen_end_field, 11) \
+    X(event_screen_remove_oval, 12) \
+    X(event_screen_end_push, 13) \
+    X(event_screen_ripple, 14)
+#define DECLARE_SCREEN_ENTRY(name, command) void name(Snes *s); bool name##_accepts(Snes *s);
+EVENT_SCREEN_ENTRIES(DECLARE_SCREEN_ENTRY)
+#undef DECLARE_SCREEN_ENTRY
+void event_screen_dispatch(Snes *s);
+bool event_screen_dispatch_accepts(Snes *s);
 
 /* The commands, by their rows (event/entries.c): entry name, opcode. The
  * operations' entries run the command by its row; the bridges' entries are the

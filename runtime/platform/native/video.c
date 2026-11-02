@@ -373,6 +373,13 @@ void vid_fill_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData value, u
 
 void vid_set_palette_address(Platform *pf, PfOrigin o, uint8_t first) { (void)o; vid_obs_palette_address(ob(pf), first); }
 
+void vid_set_palette_color(Platform *pf, PfOrigin o, uint8_t index, uint16_t color)
+{
+    (void)o;
+    const uint8_t bytes[2] = { (uint8_t)color, (uint8_t)(color >> 8) };
+    vid_obs_upload_palette(ob(pf), index, (PfData){ 0, bytes }, 1);
+}
+
 void vid_set_oam_address(Platform *pf, PfOrigin o, uint16_t word_addr, bool priority_rotation)
 {
     (void)o;

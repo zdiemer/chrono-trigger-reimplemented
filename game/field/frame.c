@@ -1,5 +1,7 @@
 /* Field mode: synchronizing the main loop with the display. */
 #include "field/field.h"
+#include "core/console.h"
+#include "core/display.h"
 
 #include "platform/timing.h"
 #include "port/machine.h"
@@ -52,6 +54,16 @@ void field_change_location_wait_for_vblank_loop(Snes *s) { wait_for_vblank_pass(
 // engine at $FD:C000 with a fresh stack)
 /* Waits on beam position: see wait_for_vblank_pass. */
 void field_restart_wait_for_vblank_loop(Snes *s) { wait_for_vblank_pass(s, 0x4181, 0x4186); }
+
+// $C0:4186
+/* After the restart's vblank, stop the display and begin at the game's
+ * power-on entry on a fresh stack. Y survives for that entry's menu call. */
+void field_restart_in_the_dark(Snes *s)
+{
+    display_go_dark(s);
+    s->cpu.s = CONSOLE_STACK_TOP;
+    m_stop_at(s, 0xFDC000, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D);
+}
 
 // $C0:0B38 (in the screen's setup turning the screen on, $C0:0B28)
 /* Waits on beam position: see wait_for_vblank_pass. The field's handlers
