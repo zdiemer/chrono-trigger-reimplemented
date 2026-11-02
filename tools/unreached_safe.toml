@@ -1,0 +1,111 @@
+# Reviewed exclusions from the six subsystems' conservative audit reach.
+# These are not counted as instructions executed by fuzzing. The ledger binds
+# each explanation to its source files; editing them requires another review.
+
+[[safe]]
+name = "field_restart_wait_for_vblank_loop"
+runs = "C04181-C04190"
+sources = ["game/event/screen.c", "game/field/frame.c"]
+why = "Screen-command restart dependency, separately registered in field. The five-byte wait is the documented timing escape in wait_for_vblank_pass: it accepts either a pending flag or current vblank after the interrupt acknowledged that flag, then hands back at C04186. This intentionally avoids the original's flag-read race; it is not a claim of byte-exact timing equivalence. The following 11 bytes blank the display, set S=06FF and jump to FDC000, and remain original-only after the handoff. event_cmd_screen_command delegates only selector 96 at C04009. These 16 bytes are reviewed, not fuzz-executed; preserve the vblank-only restart precondition and replace the original-only continuation before retiring this dependency."
+
+[[safe]]
+name = "attract_frame_pass"
+runs = "7E7441-7E74DC"
+sources = ["game/attract/main_loop.c"]
+why = "The conservative dynamic-call walk includes the scene's map-turning callback at 7E7441. attract_frame_pass_present admits only 51D1, 8930 and 8278, so this callback is not implemented by that port; attract_wait_loop delegates nonempty callbacks to the machine. Keep that rejection/delegation until the scene map-turning routine is ported."
+
+[[safe]]
+name = "input_read_joypad"
+runs = "C28523-C28526"
+sources = ["game/core/input.c", "game/core/input.h"]
+why = "Reviewed reset handoff: the original JML transfers to C0FF00 only for controller bits 3030. input_read_controller returns CONTROLLER_RESET for exactly RESET_BUTTONS (L/R/Select/Start); input_stop_reading sets 16-bit widths and stops at C0FF00 on page/bank zero. This four-byte transfer is not executed by the recorded fuzz inputs; preserve the reset-chord handoff when retiring it."
+
+[[safe]]
+name = "event_run_init_scripts"
+runs = "C05F6E-C05F73"
+sources = ["game/event/engine.c", "game/event/bridge.c"]
+why = "The conservative command-table walk includes the unknown-command diagnostic (load message 1639, branch to C02E1E). An opcode without a C row goes through through_the_table on the machine; the native runner instead calls program_needs_the_machine. These original-only diagnostic bytes are not an implemented command. Replace the delegation with an explicit invalid-command failure before retiring that fallback."
+
+[[safe]]
+name = "event_cmd_if_compares"
+runs = "C0652F-C0653A"
+sources = ["game/event/flow.c"]
+why = "Word-OR is outside WORD_OPERATORS (7); the word comparison guard rejects operator 7. All seven admitted word operators and all eight byte operators are fuzzed. Preserve this bound as an assertion when retiring the guard."
+
+[[safe]]
+name = "event_cmd_say"
+runs = "C02E1E-C02E66,C03574-C03579"
+sources = ["game/event/dialog.c"]
+why = "text_chosen rejects a zero text-table bank before every say/ask operation. These bytes are the original's missing-table diagnostic and its call; no admitted port state enters them. Preserve the precondition at retirement."
+
+[[safe]]
+name = "event_cmd_say_top"
+runs = "C035B9-C035BE"
+sources = ["game/event/dialog.c"]
+why = "Missing-text-table diagnostic call excluded by this opcode's text_chosen guard; preserve the nonzero bank precondition."
+
+[[safe]]
+name = "event_cmd_say_bottom"
+runs = "C03600-C03605"
+sources = ["game/event/dialog.c"]
+why = "Missing-text-table diagnostic call excluded by this opcode's text_chosen guard; preserve the nonzero bank precondition."
+
+[[safe]]
+name = "event_cmd_ask"
+runs = "C03647-C0364C"
+sources = ["game/event/dialog.c"]
+why = "Missing-text-table diagnostic call excluded by this opcode's text_chosen guard; preserve the nonzero bank precondition."
+
+[[safe]]
+name = "event_cmd_ask_top"
+runs = "C036AE-C036B3"
+sources = ["game/event/dialog.c"]
+why = "Missing-text-table diagnostic call excluded by this opcode's text_chosen guard; preserve the nonzero bank precondition."
+
+[[safe]]
+name = "event_cmd_ask_bottom"
+runs = "C036E1-C036E6"
+sources = ["game/event/dialog.c"]
+why = "Missing-text-table diagnostic call excluded by this opcode's text_chosen guard; preserve the nonzero bank precondition."
+
+[[safe]]
+name = "event_cmd_cast_npc"
+runs = "C046D1-C046D6,C05CB0-C05CB5"
+sources = ["game/event/characters.c", "game/field/cast.c"]
+why = "C046D1 is the explicit graphics-overflow handoff: unreached_overflow compares both machines there, before the original-only error handler. C05CB0 is the no-free-shared-graphics diagnostic excluded by npc_castable/cast_graphics_entry_for. Keep both failures explicit when retiring the machine."
+
+[[safe]]
+name = "event_cmd_cast_enemy"
+runs = "C0483A-C0483F"
+sources = ["game/event/characters.c", "game/field/cast.c"]
+why = "The port stops at C0483A on graphics overflow; unreached_overflow compares at that handoff. These bytes belong to the original-only diagnostic after it. Keep a native failure for overflow when the handoff retires."
+
+[[safe]]
+name = "overworld_set_up"
+runs = "C22915-C2292E"
+sources = ["game/overworld/setup.c", "game/overworld/overworld_data.h"]
+why = "All eight fixed world-map records have the no-stream bit in RECORD_SCENE_TILES (field 7), verified on the CRC-checked USA cartridge. on_a_world_map/record_noted restrict selection to those records. This optional load is never requested by the shipped resources; revisit for edited map records."
+
+[[safe]]
+name = "overworld_lead"
+runs = "C237D6-C237D7"
+sources = ["game/overworld/handlers.c", "game/overworld/walk.c", "game/overworld/overworld.h"]
+why = "The original boarding table's selector 1 is excluded by boards_the_game_s; the admitted selectors are NO_VEHICLE (0), EPOCH (2), DACTYL (3), all fuzzed. Preserve the vehicle enum validation."
+
+[[safe]]
+name = "overworld_follow"
+runs = "C24123-C24124"
+sources = ["game/overworld/followers.c", "game/overworld/party.c"]
+why = "The original's stationary-walker trap is called only after setting one integer velocity to +1 or -1 and the other to zero (4138/4152 -> 40E4). Both being zero is impossible on those paths. walk_a_leg expresses this invariant; both axes and signs are compared by the follower recipes."
+
+[[safe]]
+name = "overworld_main_loop"
+runs = "C22603-C22605,C2267E-C22680"
+sources = ["game/overworld/main_loop.c", "re/ram.toml"]
+why = "Reviewed equivalence for the two sign-refresh arms after map-view/time-dial return: each original instruction increments byte 1B59 modulo 256, only if byte 1B58 is nonzero; its N/Z are overwritten by the following LDA. Both call set_the_sign_again, with exactly that predicate and uint8_t conversion (including 255 -> 0). These six instructions were not executed in the fuzz comparisons; a returning-screen fixture remains useful before teardown."
+
+[[safe]]
+name = "warp_set_up"
+runs = "FDEC19-FDEC1A,FDEC24-FDEC24,FDEC30-FDEC31,FDEC5B-FDEC5C,FDEC68-FDEC69"
+sources = ["game/warp/circle.c", "game/warp/warp.c", "game/warp/warp_data.h"]
+why = "The shared circle builder fixes both centres at 128 and accepts radius 0 or 2..127. All 32 cartridge ramp values satisfy this (CRC-checked); radius 0 clears the window. Nonzero half-widths never exceed 127, so centre/edge clamps and the radius>=128 upper-half path cannot run. Setup uses radius 0; opening/closing frame recipes cover the ramp. Recheck if centres or ramp change."

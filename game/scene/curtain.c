@@ -195,12 +195,11 @@ void scene_curtain_start(GameState *g, uint8_t sweep, uint16_t table, uint8_t ba
 }
 
 // $C3:000E
-/* The scene engine's jump to the step: on to it, which is a port of its own,
- * so that a comparison of the step is the step's (the stir waits there for the
- * beam the original latches). */
+/* The scene engine's public entry shares the sweep's guard and calls the
+ * step directly. The platform still synchronizes the noise's beam latch. */
 enum { CURTAIN_STEP = 0xC301E4 };
 
-void scene_curtain_jump(Snes *s) { m_stop_at(s, CURTAIN_STEP, 0); }
+void scene_curtain_jump(Snes *s) { TIMED_AS(state_of(s), CURTAIN_STEP, scene_sweep_the_curtain(s)); }
 
 /* The edges in either work RAM bank, clear of low RAM's first $2000 bytes
  * (the stack and the curtain's own cells, which the original's saved

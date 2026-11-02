@@ -196,6 +196,10 @@ static const PfSnesEncoding encodings[] = {
     { 0x7E6853, 0, 0, 0, 0, STEPS(SL, SH), 0 },   /* the palace's curtain: its window's table on odd steps */
     { 0x7E685A, 0, 0, 0, 0, STEPS(SL, SH), 0 },   /* ... and on even ones */
     { 0x7E7843, 0, 0, 7, WORDS, STEPS(TL, TH, C, D, SL, SH, P, SB, ZL, ZH, GO), 0 },   /* the map buffer */
+    { 0x7E70F2, 0, 0, 7, WORDS, STEPS(C, D, SL, SH, TL, TH, P, SB, ZL, ZH, GO), 0 }, /* turning scene's initial map */
+    { 0x7E7872, 0, 0, 7, WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, P, GO), 0 }, /* figure's upper tile row */
+    { 0x7E789D, 0, 0, 7, WORDS, STEPS(TL, TH, ZL, ZH, GO), 0 },                    /* its lower row */
+    { 0x7E78B4, 0, 0, 0, ONE_REGISTER, STEPS(TL, VID_STEP_WRITE_BYTES), 0 },        /* three cycling colors, CPU copy */
     { 0x7E6B22, 0, 0, 7, FILL_WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0 },   /* the credits page's map cleared */
     { 0x7E6B44, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0xD20000 },   /* ... its sprites' high bits, from a 0 */
     { 0x7E6B66, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0x7E4565 },   /* ... and its sprites hidden, from an $E0 */
@@ -210,6 +214,8 @@ static const PfSnesEncoding encodings[] = {
     { 0x7E8272, 0, 0, 7, WORDS, RACE_UPLOAD_STEPS, 0 },                                 /* the Epoch's picture's tiles */
     { 0x7E7C2B, 0, 0, 0, 0, STEPS(SL, SH), 0 },                                          /* the light's table restarted */
     /* the endings that share $7E:8538 */
+    { 0x7E8A92, 0, 0, 7, ONE_REGISTER, STEPS(P, C, D, SL, SH, SB, ZL, ZH, GO), 0 },   /* panorama's plane map */
+    { 0x7E90AA, 0, 0, 7, FILL_WORDS, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0 },         /* panorama's map padding */
     { 0x7E85B2, 0, 0, 7, FIXED_BYTE, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0 },          /* past the plane blanked */
     { 0x7E864C, 0, 0, 7, WORDS, STEPS(SL, SH, ZL, ZH, TL, TH, C, D, SB, GO), 0 },       /* mode 10's picture */
     { 0x7E9CE2, 0, 0, 7, WORDS, STEPS(SL, SH, ZL, ZH, TL, TH, C, D, SB, P, GO), 0 },       /* ... a frame of it */

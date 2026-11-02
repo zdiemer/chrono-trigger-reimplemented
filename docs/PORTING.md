@@ -891,6 +891,24 @@ Use this option when testing behavior that differs after admission. The
 handler available: the dispatcher must push the JSR frame and declare a
 stop before the wait, rather than running one idle pass inside itself.
 
+`--coverage out.txt` records the original's executed instructions and their
+M/X widths **only from matched trials**, in the same format as `ct_dev
+--coverage`. Refused, timed-out and mismatching trials contribute nothing;
+coverage of a call-out says it ran in a compared state, not that the callee
+was itself a hand port. This is how `tools/unreached.py` accounts for paths
+the movie library misses. Its evidence fingerprint includes the recipe,
+base-state inputs and C sources/headers in `game/`, `runtime/` and `dev/`;
+changed implementation code requires fresh evidence. States and coverage
+remain build artifacts.
+
+For an interpreted wait on an externally updated byte, `--tick-at
+PC=WRAM` increments that WRAM byte before each execution of PC on both
+machines (including the port's interpreted call-outs). For example,
+`--tick-at C20348=7E004B` supplies the sprite mode's frame notification.
+This does not run vblank, the objects, audio or a video frame; use it only
+where the counter notification is the dependency under test. Up to 64
+`--keep`/`--fill` areas can describe a trial's state.
+
 Keep random values inside what the game can produce when the difference
 matters. Past the end of a data area, indexed reads reach I/O space, where open
 bus holds the last byte on the data bus. The interpreter's instruction fetches

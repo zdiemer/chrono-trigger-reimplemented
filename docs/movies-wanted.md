@@ -42,6 +42,18 @@ is that bound over the play's length, for ordering only.
 
 ## Totals
 
+The historical whole-game totals below precede the retirement inventory.
+`tools/unreached.py` now measures the six first retirement candidates against
+the standard 84-movie library's coverage union, using conservative reach
+through conditional stops: attract 156, data 0, core 421, warp 104,
+overworld 1,354 and event 1,571 candidate instruction bytes unexecuted,
+plus the screen command's 16-byte field restart dependency. Of these 3,622
+bytes, matched fuzz trials cover 3,256 and reviewed safety arguments account
+for 366. Exact entries, byte runs and evidence are in
+`tools/unreached_baseline.txt`; mechanisms and limits are in
+REIMPLEMENTATION.md, "The code the movie library does not reach". Optional
+`oracle/movies/hand/` recordings are outside the suite's standard library.
+
 | | KiB unexecuted | ported | unported |
 |---|--:|--:|--:|
 | all live code not run by any movie | 57.8 | 45.2 | 12.6 |

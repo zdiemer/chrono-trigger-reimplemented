@@ -457,6 +457,10 @@ const NativeEntry *native_running_entry(void);
  * machine's PC whose precondition and guard hold, or NULL. For running
  * registered code synchronously (the APU-direct audio backend). */
 const NativeEntry *native_hand_entry(Snes *s);
+/* Standalone validators have no runtime. Supply contracts for explicit C
+ * continuations without enabling native dispatch in their interpreter. */
+void native_direct_contracts(const NativeEntry *table, int count);
+const NativeEntry *native_continuation_entry_at(Snes *s, uint32_t pc);
 /* The same for a call the machine would make to `addr` (24-bit) now. */
 const NativeEntry *native_hand_entry_at(Snes *s, uint32_t addr);
 
@@ -592,7 +596,10 @@ void native_await_latch(Snes *s);
  * without the call; SHADOW mode and outside the runtime make the call, as
  * native_call_dc does, but the callee counts as the port's own work (no
  * observer is told of a call-out). */
-enum { NATIVE_WAKE_HANDLER = -1, NATIVE_WAKE_HBLANK = -2, NATIVE_WAKE_TIME = -3 };
+enum {
+    NATIVE_WAKE_HANDLER = -1, NATIVE_WAKE_HBLANK = -2, NATIVE_WAKE_TIME = -3,
+    NATIVE_WAKE_HBLANK_END = -4, NATIVE_WAKE_MUSIC_START = -5,
+};
 /* The waits on the APU's port 0, a value each: from NATIVE_WAKE_PORT0_SHOWS
  * down for "until it shows the value", from NATIVE_WAKE_PORT0_LEAVES down for
  * "until it shows another". */

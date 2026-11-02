@@ -18,6 +18,8 @@ enum {
 
 /* True once the controllers have been read this frame. */
 PF_API bool in_ready(Platform *pf, PfOrigin o);
+/* Wait for this frame's controller read to finish before using its buttons. */
+PF_API void in_wait_ready(Platform *pf, PfOrigin o);
 
 /* The buttons of controller `pad` (0-3) as last read. */
 PF_API PadBits in_read(Platform *pf, PfOrigin o, uint8_t pad);

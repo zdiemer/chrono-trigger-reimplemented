@@ -421,6 +421,7 @@ typedef enum {
      * dive into Lavos changes down the screen (its setup's descriptors,
      * programmed by scene/screen.c's setup_line_effects) */
     VID_LINE_MATH_CONTROL_AND_LAYERS,
+    VID_LINE_SUB_SCREEN,        /* subscreen layers alone, mode 10's horizon */
     VID_LINE_TARGETS,
 } VidLineTarget;
 
@@ -470,12 +471,12 @@ static inline void vid_line_snes_encoding(VidLineTarget target, uint8_t *mode, u
 {
     static const uint8_t modes[VID_LINE_TARGETS] = {
         4, 1, 1, 3, 3, 3, 0, 0, 4, 4, 4, 1, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2,
-        0, 3, 3, 2, 2, 2, 2, 0, 3, 0, 1,
+        0, 3, 3, 2, 2, 2, 2, 0, 3, 0, 1, 0,
     };
     static const uint8_t regs[VID_LINE_TARGETS] = {
         0x26, 0x26, 0x28, 0x0D, 0x0F, 0x11, 0x32, 0x00, 0x07, 0x2C, 0x30, 0x05,
         0x31, 0x28, 0x29, 0x05, 0x2C, 0x31, 0x0D, 0x0E, 0x10, 0x11, 0x12,
-        0x26, 0x1B, 0x1D, 0x1B, 0x1C, 0x1D, 0x1E, 0x08, 0x1F, 0x27, 0x30,
+        0x26, 0x1B, 0x1D, 0x1B, 0x1C, 0x1D, 0x1E, 0x08, 0x1F, 0x27, 0x30, 0x2D,
     };
     *mode = modes[target];
     *reg = regs[target];
@@ -525,6 +526,7 @@ enum {
     VID_STEP_SPILL_CURSOR_LO, /* $43x8 = VidLineEffect.snes_spill */
     VID_STEP_INDIRECT_BANK_IS_SOURCE, /* $43x7 = the source's bank, which some sites write there as well */
     VID_STEP_VRAM_READ_FIRST, /* a read of VRAM's read port ($213A) before a read back, which steps its address on */
+    VID_STEP_WRITE_BYTES,    /* CPU copy into one data port, without programming a DMA channel */
 };
 
 typedef struct {
@@ -604,6 +606,10 @@ PF_API void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData s
  * host pointer: a game address, which a host can't resolve until the game's
  * state is its own, stops the program with the call's site. */
 PF_API void vid_send_vram_and_wait(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len);
+/* Prepare an upload now, then transfer it at the next frame boundary. */
+PF_API void vid_send_vram_next_frame(Platform *pf, PfOrigin o, PfOrigin wait,
+                                    uint16_t vram_addr, PfData src, uint32_t len,
+                                    const VidVramPort *port);
 /* The same where the game's data holds the transfer's mode in the SNES's form
  * (a screen transition's, field_transfer). */
 PF_API void vid_send_vram_in_mode(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,

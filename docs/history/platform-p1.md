@@ -242,4 +242,3 @@ ran ahead of the machine (the boot upload is about 0.34 s of it); no run gave up
   in those segments. The SNES backend against the original timing gives
   0.33 dB for `new-game`. Closing the gap would mean delaying the game by the
   time the SNES backend's uploads take, which is what APU-direct removes.
-

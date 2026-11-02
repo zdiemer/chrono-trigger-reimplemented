@@ -97,12 +97,14 @@ def run_movie(binary, rom, out, movie, sites, dispatches, entries):
     if entries:
         runs["returns"] = (["--native", "on", "--generated", "on", "--trace", str(traces["returns"]), "--poison-set", "C"]
                            + sum((["--poison-return", f"{e:06X}"] for e in entries), []))
-    # Each movie worker owns at most one child at a time, including trace
-    # comparisons below. Thus --jobs caps children across all workers too.
-    results = {tag: subprocess.run([str(binary), "--rom"] + base + extra, stdout=subprocess.PIPE,
-                                   stderr=subprocess.STDOUT) for tag, extra in runs.items()}
-    logs = {tag: p.stdout.decode(errors="replace").replace(chr(13), "") for tag, p in results.items()}
-    failed = [tag for tag, p in results.items() if p.returncode != 0]
+    # The movie pool owns the process budget; variants share its one slot.
+    logs, failed = {}, []
+    for tag, extra in runs.items():
+        proc = subprocess.Popen([str(binary), "--rom"] + base + extra, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
+        logs[tag] = proc.communicate()[0].decode(errors="replace").replace(chr(13), "")
+        if proc.returncode != 0:
+            failed.append(tag)
     same, tail = same_trace(traces["plain"], traces["poisoned"])
     if entries:
         returns_same, returns_tail = same_trace(traces["plain"], traces["returns"])

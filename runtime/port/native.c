@@ -743,6 +743,28 @@ static const char *refusal_reason(const NativeEntry *e, const Snes *s)
 
 const NativeEntry *native_hand_entry(Snes *s) { return native_hand_entry_at(s, cpu_pc24(&s->cpu)); }
 
+static const NativeEntry *direct_contracts;
+static int direct_contract_count;
+
+void native_direct_contracts(const NativeEntry *table, int count)
+{
+    direct_contracts = table;
+    direct_contract_count = count;
+}
+
+const NativeEntry *native_continuation_entry_at(Snes *s, uint32_t pc)
+{
+    if (!active_runtime) {
+        for (int i = 0; i < direct_contract_count; i++) {
+            const NativeEntry *e = &direct_contracts[i];
+            if (e->addr == pc && !e->generated && entry_applies(e, s))
+                return e;
+        }
+        return NULL;
+    }
+    return native_hand_entry_at(s, pc);
+}
+
 const NativeEntry *native_hand_entry_at(Snes *s, uint32_t pc)
 {
     const NativeRuntime *rt = active_runtime;
@@ -1607,6 +1629,10 @@ static bool wait_over(Active *a, const Snes *s)
     }
     if (a->wake == NATIVE_WAKE_HBLANK)
         return s->bus.in_hblank;   /* what the original's poll of $4212 reads */
+    if (a->wake == NATIVE_WAKE_HBLANK_END)
+        return !s->bus.in_hblank;
+    if (a->wake == NATIVE_WAKE_MUSIC_START)
+        return (s->apu.cpu_out[3] & 0x0F) != 0;
     if (native_wake_is_on_port0(a->wake))
         return native_wake_port0_satisfied(a->wake, s->apu.cpu_out[0]);
     return s->vline < SNES_VBLANK_LINE && s->vline >= (uint32_t)a->wake;
@@ -1618,8 +1644,10 @@ static bool wait_over(Active *a, const Snes *s)
  * line. */
 static uint32_t wait_step(const Active *a, const Snes *s)
 {
-    if (a->wake == NATIVE_WAKE_HBLANK)
+    if (a->wake == NATIVE_WAKE_HBLANK || a->wake == NATIVE_WAKE_HBLANK_END)
         return snes_clocks_to_next_poll_change(s);
+    if (a->wake == NATIVE_WAKE_MUSIC_START)
+        return 68;   /* the scene's status read, mask and branch */
     if (a->pass_clocks)
         return a->pass_clocks < a->polling_left ? a->pass_clocks : a->polling_left;
     if (native_wake_is_on_port0(a->wake))
@@ -2898,16 +2926,22 @@ static int32_t intercept(void *ctx, Snes *s)
             return run_block(rt, s, e->fn, e);
         }
 
-        /* SHADOW: the original back at the start of the routine the innermost
+        /* SHADOW: the original back at the start of a routine an active
          * comparison is of, with the S it was entered with, is still inside
          * that comparison's stretch, not in a new call (a call pushes its
          * return): a block move's instruction ($7E:9690's MVN) runs again in
-         * place for each byte it moves. So it isn't compared again, which
-         * would nest a comparison a byte. */
+         * place for each byte it moves. A loop can cross another registered
+         * entry before returning to its head (the scene bitmap sampler), so
+         * check every enclosing segment, not only the innermost. Aliases of
+         * the same C entry at the same stack depth are the same invocation
+         * too (field_enter's second entry after its opening prologue).
+         * Comparing that body again would nest a comparison per iteration. */
         if (rt->mode == NATIVE_SHADOW && rt->nactive > 0) {
-            const Active *in = &rt->active[rt->nactive - 1];
-            if (in->entry == e && in->phase == PH_SEGMENT && in->entry_s == s->cpu.s)
-                return -1;
+            for (int i = rt->nactive - 1; i >= 0; i--) {
+                const Active *in = &rt->active[i];
+                if (in->entry->fn == e->fn && in->phase == PH_SEGMENT && in->entry_s == s->cpu.s)
+                    return -1;
+            }
         }
 
         st->calls++;

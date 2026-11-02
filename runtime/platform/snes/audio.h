@@ -32,6 +32,14 @@ PF_API uint8_t au_status(Platform *pf, PfOrigin o, uint8_t port)
     return v;
 }
 
+PF_API uint8_t au_wait_music_start(Platform *pf, PfOrigin o)
+{
+    uint8_t tracks;
+    while (!(tracks = au_music_playing(pf, PF_AT(o.site))))
+        native_wait_loop(pf_snes(pf), o.site, o.target, NATIVE_WAKE_MUSIC_START);
+    return tracks;
+}
+
 PF_API size_t au_take_samples(Platform *pf, int16_t *out, size_t max_frames)
 {
     return apu_take_samples(&pf_snes(pf)->apu, out, max_frames);
@@ -72,6 +80,18 @@ PF_API void au_driver_wait_echo(Platform *pf, PfOrigin o, uint8_t value)
     Snes *s = pf_snes(pf);
     m_set_a8(s, value);
     native_wait_loop(s, o.site, o.target, native_wake_port0_shows(value));
+}
+
+/* The scene program retries its command after 1024 polls. Keep the held C
+ * continuation while the host's C driver (or the reference SPC700) answers. */
+PF_API bool au_driver_wait_echo_or_give_up(Platform *pf, PfOrigin o, uint32_t given_up, uint8_t value, uint16_t tries)
+{
+    Snes *s = pf_snes(pf);
+    enum { SCENE_ECHO_POLL_CLOCKS = 82 };
+    m_set_a8(s, value);
+    s->cpu.x = tries;
+    return native_wait_loop_or_give_up(s, o.site, o.target, given_up,
+                                      native_wake_port0_shows(value), tries, SCENE_ECHO_POLL_CLOCKS);
 }
 
 PF_API bool au_driver_hosted(Platform *pf) { return pf_snes(pf)->apu.host_command != NULL; }

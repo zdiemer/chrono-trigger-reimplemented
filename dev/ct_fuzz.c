@@ -5,7 +5,7 @@
  *           [--iterations N] [--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N]
  *           [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... [--range A|X|Y=lo-hi]...
  *           [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback]
- *           [--poison-dc] [--details N]
+ *           [--decimal] [--poison-dc] [--details N]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
  * the N V Z C flags and all of work RAM except the stack page, applies the
@@ -91,6 +91,11 @@
  * would otherwise be skipped as a call-out past the budget.
  * --poison-site BBAAAA scrambles only at the call-outs made from that site
  * (the original's JSR or JSL), to tell which declaration a mismatch is in.
+ * --coverage records only original instructions from matched trials, with
+ * their accumulator/index widths. Skips and mismatches contribute nothing.
+ * --tick-at PC=WRAM increments a WRAM byte before that interpreted PC on
+ * both machines. This models an external counter notification for a wait;
+ * it does not run interrupts, objects or a video frame.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -128,15 +133,82 @@ static uint8_t apu_loopback_read(void *ctx, uint8_t port)
     return s->apu.cpu_in[port & 3];
 }
 
+/* Sparse trial list: failed, refused and timed-out trials never contribute
+ * coverage. Widths stay attached to PCs, as in ct_dev --coverage. */
+typedef struct {
+    uint8_t *trial, *passed;
+    uint32_t *touched;
+    size_t count, capacity;
+} FuzzCoverage;
+
+static void coverage_begin(void *ctx)
+{
+    FuzzCoverage *c = ctx;
+    for (size_t i = 0; i < c->count; i++)
+        c->trial[c->touched[i]] = 0;
+    c->count = 0;
+}
+
+static void coverage_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
+{
+    FuzzCoverage *c = ctx;
+    (void)e;
+    if (!c->trial[pc]) {
+        if (c->count == c->capacity) {
+            size_t capacity = c->capacity ? c->capacity * 2 : 1024;
+            uint32_t *next = realloc(c->touched, capacity * sizeof *next);
+            if (!next) {
+                fprintf(stderr, "cannot allocate fuzz coverage\n");
+                exit(2);
+            }
+            c->touched = next;
+            c->capacity = capacity;
+        }
+        c->touched[c->count++] = pc;
+    }
+    unsigned width = ((p & CPU_FLAG_M) ? 2u : 0u) | ((p & CPU_FLAG_X) ? 1u : 0u);
+    c->trial[pc] |= (uint8_t)(1u << width);
+}
+
+static void coverage_matched(void *ctx)
+{
+    FuzzCoverage *c = ctx;
+    for (size_t i = 0; i < c->count; i++) {
+        uint32_t pc = c->touched[i];
+        c->passed[pc] |= c->trial[pc];
+    }
+}
+
+static int coverage_write(const FuzzCoverage *c, const char *path)
+{
+    FILE *f = fopen(path, "w");
+    if (!f)
+        return -1;
+    fprintf(f, "# original instructions in matched fuzz trials: BB:AAAA m x\n");
+    for (uint32_t pc = 0; pc < 0x1000000; pc++)
+        for (unsigned w = 0; w < 4; w++)
+            if (c->passed[pc] & (1u << w))
+                fprintf(f, "%02X:%04X %d %d\n", pc >> 16, pc & 0xFFFF,
+                        (w & 2) ? 8 : 16, (w & 1) ? 8 : 16);
+    int failed = ferror(f);
+    return fclose(f) || failed ? -1 : 0;
+}
+
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *state_path = NULL, *routine = NULL;
+    const char *coverage_path = NULL;
     bool apu_loopback = false, with_registry = false;
     int data_bank = -1, direct_page = -1, stack = -1, m_width = 0, x_width = 0;
     FuzzOptions o;
+    bool decimal = false;
     fuzz_default_options(&o);
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
+        if (!strcmp(a, "--decimal")) {
+            decimal = true;
+            continue;
+        }
         if (!strcmp(a, "--long")) {
             o.long_call = true;
             continue;
@@ -171,6 +243,16 @@ int main(int argc, char **argv)
         if (!strcmp(a, "--rom")) rom_path = v;
         else if (!strcmp(a, "--load-state")) state_path = v;
         else if (!strcmp(a, "--routine")) routine = v;
+        else if (!strcmp(a, "--coverage")) coverage_path = v;
+        else if (!strcmp(a, "--tick-at")) {
+            unsigned pc, address;
+            char extra;
+            if (sscanf(v, "%x=%x%c", &pc, &address, &extra) != 2 || pc == 0 || pc > 0xFFFFFF ||
+                address < 0x7E0000 || address > 0x7FFFFF)
+                goto usage;
+            o.tick_pc = pc;
+            o.tick_address = address;
+        }
         else if (!strcmp(a, "--iterations")) o.iterations = strtoul(v, NULL, 0);
         else if (!strcmp(a, "--seed")) o.seed = strtoull(v, NULL, 0);
         else if (!strcmp(a, "--budget")) o.budget = strtoul(v, NULL, 0);
@@ -244,12 +326,38 @@ int main(int argc, char **argv)
     if (apu_loopback)
         base.bus.io.apu_read = apu_loopback_read;
 
+    FuzzCoverage coverage = { 0 };
+    if (coverage_path) {
+        coverage.trial = calloc(0x1000000, 1);
+        coverage.passed = calloc(0x1000000, 1);
+        if (!coverage.trial || !coverage.passed) {
+            fprintf(stderr, "cannot allocate fuzz coverage\n");
+            return 2;
+        }
+        o.coverage_begin = coverage_begin;
+        o.coverage_insn = coverage_insn;
+        o.coverage_matched = coverage_matched;
+        o.coverage_ctx = &coverage;
+    }
+    /* Entry preconditions still win: --decimal exercises callers whose own
+     * contracts admit it, including refusal of a binary-only continuation. */
+    if (decimal)
+        base.cpu.p |= CPU_FLAG_D;
+    native_direct_contracts(game_natives, game_native_count);
     /* Let guarded C bridges take their shipping path. No runtime is attached:
      * explicit call-outs still use the fuzzer's interpreter and budget. */
     NativeRuntime *registry = with_registry ? native_create(game_natives, game_native_count, NATIVE_ON) : NULL;
     FuzzResult r = fuzz_run(&base, e, &o, stderr);
     if (registry)
         native_destroy(registry);
+    native_direct_contracts(NULL, 0);
+    if (coverage_path && coverage_write(&coverage, coverage_path)) {
+        fprintf(stderr, "cannot write %s\n", coverage_path);
+        return 2;
+    }
+    free(coverage.trial);
+    free(coverage.passed);
+    free(coverage.touched);
     printf("%s: %lu iterations, matched %lu, mismatched %lu (the port looping where the original returns %lu), "
            "skipped %lu (guard %lu, a call-out past the budget %lu, the port past the budget and the original "
            "long %lu, the original past its budget %lu)\n",
@@ -270,7 +378,7 @@ usage:
                     "[--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
                     "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]... [--with-registry]\n"
-                    "  [--details N]\n"
+                    "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");
     return 2;

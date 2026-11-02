@@ -12218,6 +12218,647 @@ attract sequence runs 30,000 frames without a stop with the race's
 pictures now scaled. Timing: the thirteen new entries calibrated from these
 four movies' shadow runs; the setups keep their rows.
 
+### The native program's last named stops
+
+TODO.md named the stops the native program still met where the scenes, the
+menus and the battle hand it to the machine: mode 10's picture's vblank task,
+modes 5 and 12 of the scene program, the battle's calling in of enemies
+(`$FD:A990`), and two menu stops, an item tried on that is no item of the
+game's (`$C2:A5C3`) and a member's row whose record names no character
+(`$C2:A225`). Each is a state or a scene no recording reaches but one; the
+chunk took each in game terms where the original's behaviour has one, and
+reproduced the original's strays where it hasn't.
+
+**The slow staff roll (mode 12, `$7E:8E95`).** Mode 12 is the staff roll's
+setup entered three lines early: the stars come in at -2 rather than -7, the
+picture interlaced, no fast music, the credits rolling slowly, and the
+program's own code patched (`STA $7E9EE3` of a `BCS` over the scroll's
+`BCC`) so the slow scroll steps on the even field. The patch is state, as the
+race's curtain's operand is (`scene_race_ending_sweep`): the opcode is a
+variable of the map (`scene_credits_scroll_field`) with its two values named
+in the roll (`SCROLL_ON_ODD_FIELDS`, `SCROLL_ON_EVEN_FIELDS`), the setup is
+the fast one's sequence with a pace (`StaffRollPace`), and the scroll's guard
+hashes its code round the branch and asks the variable for one of the two.
+
+**Mode 10's picture (`$7E:9C58`, `$7E:9CE2`).** The vblank task the TODO
+named sends one of the picture's four frames, `$800` bytes of the mosaic the
+setup laid out, and leaves the frame's size in `$AB` and `$AC`; their reader
+was the frame task that queues it, `$7E:9C58`, which no table names (a script
+puts it on the list): the picture placed where channel 1 and the orbit say,
+the window round it at the size the last send left (a frame behind a change),
+a moving piece of the first frame (two of its list's sprites, their tiles
+stepped every four frames, `scene_set_listed_tile`) and the frame's list
+drawn through the program's list of large sprites. That list's form which
+leaves out a sprite below the picture, which only this picture draws with,
+was half ported: once the original has left one out it goes on a word wide,
+its port reads taking the byte twice (the port's address register reads back
+as the bus last held it) and its stores spilling the sprite's attributes into
+the next entry's X and the high byte of its X into its own Y
+(`leave_word_wide_strays`). The script then takes the fireworks off the frame
+list in a mode that never put them there: the original's search goes on past
+the list, word by word through the bank, and clears the first word that names
+them, a word of the script itself. The scripts' task commands do that now
+(`scene_script_replace_task`); the other callers keep the bounded search. Past
+the picture mode 10 goes on to its next scene's loading (`$7E:8A01`), where it
+stops (TODO.md).
+
+**The calling in (`$FD:A990`).** The caller sets four of its own stats, the
+pairs from the action's third operand, and every enemy of the formation out
+of the fight comes in, as the bringing back brings them (the same selection,
+the same records), loaded as at the fight's start and with HP by a rule. The
+rule is the original's accident: it keeps each stat's offset in the cell it
+kept the HP operand in, and reads the rule from that cell after, so the last
+stat's offset decides (`enemy_call_in_sets_its_stats` says so). The calling
+in is a registered entry the turn runs as a sibling (`battle_run_long_dc`),
+so an arrival the load's guard turns away goes on in the original with its
+frame in place; its guard asks for the effect code's tech number where the
+turn's start leaves it.
+
+**The menus' strays.** A member's row whose status record names the eighth
+character (a cursor past the last member leaves the record as it stood)
+marks its HP against the word after the seven marks, as the original reads
+it (`menu_low_hp_marks` declares the stray read). An item tried on that is
+no item of the game's is worked out from the bytes past the menus' item
+tables (`menu_item_amounts`, `menu_list_items` declare theirs, and the
+powers had theirs), and its boost through the original's byte-wide index,
+which takes a boost past `$7F` round to the table's start: no item of the
+game's has one, so only fuzzing could tell. The try-on's one refusal left is
+the menus' zero word not 0, which the menus clear as they open and never
+write.
+
+**Measured.** `ct_native --scene 0x2C` runs the slow staff roll 12,000 frames
+with no stop; `--scene 0x2A,0x3F` runs mode 10 to frame 5,637, its next
+scene's loading, where it stopped at frame 65 before. Fuzzing, seed 1, every
+entry the chunk touched, none mismatched: the picture's task 0/2,000 (the
+vblank list given room, the large list's leaving-out form, the count's next
+byte clear), the frame's send 0/2,000, the large list's leaving-out form
+0/7,621, the slow setup 0/300, the scroll on either field 0/20,000, the
+roll 0/20,000, the call-in's turn 0/8,389 (the calling in inside it run as C
+wherever the turn's state reaches it; in `endings-beyond-time`'s shadow run
+it is called twice, one compared and matched, one interrupted), the face and HP mark with any
+character 0/2,000, the equipment's choice with any item, any list top and
+the tables' bytes past their ends random 0/699 (the pointing's own drawing
+of such an item's name reads past the names' places, which the fuzz
+reports), the figures 0/20,000. The four fuzz-found differences on the way
+were all in the original's strays: the frame task's queueing past a full
+vblank list (now refused, the setup leaves room), the large list's
+continuation, the boost's index, and the calling in's tech number read from
+its caller's cell.
+
+### Scene continuations: the staff roll
+
+The scene-joints pass investigated the obsolete title loader fragments and
+the staff roll's jump from writing a line to scrolling it. The preceding
+scene work is in history/reimplementation-chunks.md, "The native program's
+last named stops".
+
+The credits writer at `$7E:9E7B` now calls the scroll at `$7E:9ED6` as C,
+timed as the scroll, and its guard checks the
+continuation's code too. The scroll retains both the fast pace and the slow
+pace's choice of field. The end-of-credits task exit remains explicit.
+
+Differential fuzzing of `scene_roll_credits`, seed 1 and the existing
+`staff_roll` constraints, compared 2,000 states before and after: zero
+mismatches and zero refusals in each. No timing calibration or exception
+changed. `title-start` and `endings-beyond-time` both finish with zero
+mismatches. The ending compares all 3,281 credits-writer calls and all 3,280
+scroll calls, with none interrupted. The title setup's single call is
+abandoned inside the enclosing comparison, so is not compared alone; its
+implementation is unchanged. Both style checks and the scaffolding-read
+check report zero findings. Python unit tests pass: 467 tests, 10 skipped.
+
+The attempted retirement of the title's seven intermediate entries passed
+all 37 sampled shadow movies and all 56 shipping-mode routes. It failed the
+fallback ratchet: `attract-demo` ended with 138 instructions newly counted
+under an open `scene_title_set_up` comparison (`open 7E:5978`). Removing the
+intermediate comparisons changes attribution even though the whole setup's
+C implementation is unchanged. The title wrappers, registry rows and fuzz
+cases were restored. No baseline was relaxed: CLAUDE.md reserves baseline
+updates for a whole-library run, which this task excluded. The sampled gate
+was stopped after this failure, before completing its remaining checks; it
+did not print `suite OK`. After restoration, all 22,500 frames of
+`attract-demo` finish with zero shadow mismatches, and its fallback check
+reports zero new routines, zero rises and zero malformed rows. The sampled
+gate was not run a second time.
+
+`machine_joints.py` counts the scene and warp files at 756 before and 755
+after: stops 51 to 50, all other categories unchanged. The registry remains
+at 2,189 entries; burndown remains 12% unported for scene RAM and 7% for the
+scene engine. This chunk joins existing C; it does not implement the
+remaining scene modes. The remaining scene program and task exits are
+recorded in TODO.md; this pass does not reach zero stops.
+
+### Scene program: mode 10's panorama
+
+The RAM burndown's next complete scene was the sequence after mode 10's
+mosaic: the panorama loader, its change to layered scenery, and the horizon
+task (`$7E:8A01`, `$8AF5`, `$8B52`), with its packed-pixel expansion
+(`$7E:353C`). All were drafted together, including the existing map widening
+and fill helpers. The preceding scene-joints work is in
+history/reimplementation-chunks.md, "Scene continuations: the staff roll".
+
+The loader uploads three layers, pads their maps, expands paired four-bit
+colors directly into the Mode 7 plane, widens its name table, and installs
+the palette and line effects. The next scene changes the line effects and
+splits the horizon into spans small enough for their line counts. Its task
+moves the ground and sky from the script's horizon. These are GameState and
+Platform functions, called directly by the script and task tables; four
+registered wrappers retain the oracle comparisons.
+
+The platform gained the panorama map's upload encoding, its map-padding
+encoding, and a subscreen-only line effect in both backends. Fuzzing found
+the missing line-effect target, a palette resource number supplied as a
+byte offset, and the WRAM cursor's unmasked high byte after a packed-pixel
+run crosses the bank. All are fixed. Seed 1 compares 300 loader states,
+2,000 layered-scene states, 2,000 horizon states and 300 pixel-expansion
+states: zero mismatches, skips, refusals or accessor overruns. The pixel
+counts and the horizon retain their full random domains.
+
+The native mode 10 run passes the former stop at frame 5,637 and runs
+16,000 frames into its last scene's scripts without a program stop. Its
+picture report remains dark throughout, including before the new loader;
+this proves continuation, not visual agreement. No library movie reaches
+the new entries, so their comparisons are the fuzz runs. The narrowed
+Beyond Time shadow regression runs 130,000 frames with zero mismatches.
+Both style checks and the scaffolding-read check report zero findings.
+
+Scene RAM coverage rises from 22.2K to 22.7K of 25.1K (12% to 10% left).
+The four oracle wrappers add four returns, seven scaffolding writes and
+21 video calls: scene/warp machine joints rise from 755 to 787, while
+stops remain 50. No call-out, stop, timing exception or fallback allowance
+was added. The sampled gate waits until the scene-joints pass is finished.
+
+### Scene program: the turning map and its geometry
+
+Mode 5's map sampler and its angle and radius helpers are C
+(`$7E:7441`, `$7E:5872`, `$7E:34FB`). The complete mode and its helpers
+were drafted together. The sampler walks the output grid through the
+scene's transformation matrix, selects wrapped source tiles and queues
+the finished map. The angle helper chooses a quadrant and a threshold
+from the scene's angle table; the radius helper searches for the largest
+radius whose preceding ring fits the area. Their logic takes GameState
+and ordinary values; three entry wrappers preserve the oracle interface.
+The native main loop calls the sampler directly.
+
+The packed coordinates retain the original's wrapping and rounding at
+row and column boundaries. The sampler's pending count is a word, even
+though the uploader consumes its low byte. Fuzzing compares 2,000 sampler
+states, 20,000 signed offsets and 20,000 areas with seed 1, with zero
+mismatches, skips, guard refusals or accessor overruns. The sampler covers
+1 through 32 output rows, including both setup values, with unrestricted
+matrices and origins. Attract-demo shadow runs 22,500 frames with zero
+mismatches; this movie does not enter mode 5. The full build, style checks
+and scaffolding-read check pass.
+
+Eleven effects-check alias findings have explicit evidence: the mode's
+scratch overlaps the race and bitmap scaler, and every scene setup clears
+the entire direct page before either mode uses it. The sampler's pending
+count is a plain game write. No style or smell baseline was expanded.
+The prior panorama chunk is archived in history/reimplementation-chunks.md.
+
+Scene RAM coverage rises from 22.7K to 23.0K of 25.1K (10% to 9% left).
+The three oracle wrappers and their retained scratch effects take the
+scene/warp joints from 787 to 799; stops remain 50. Mode 5's setup and
+figures remain to port. No timing or fallback allowance changed, and the
+sampled gate waits until the scene-joints pass is finished.
+
+### Scene program: the turning scene's figures and screen
+
+Mode 5 now has its setup, figure graphics, animation player, circular windows,
+mosaic, wave and palette cycle in C (`scene/turning.c`). The scene's scripts
+and both task lists call them directly. A pose is sixteen tiles assembled in
+work RAM and drawn with four large sprites; the upload rotates through changed
+figures, one per frame. Animation changes restart a stream, while direction
+changes advance it until its end marker. The three party figures orbit the
+center, with Magus in a fourth slot. Typed accessors describe the saved field
+positions and each figure's state; the machine only remains in entry wrappers.
+
+The setup prepares its map upload before the frame wait and transfers afterward.
+`vid_send_vram_next_frame` expresses that boundary in both backends; the SNES
+backend uses the site's write order. The palette cycle's six CPU writes use a
+byte-stream encoding rather than an invented DMA transfer. Original scratch
+writes are marked, with explicit evidence for shared cells belonging to other
+scene modes or channel pages. No style or smell baseline was expanded.
+
+All fourteen new entries pass seed-1 fuzzing: 2,000 states each except setup's
+100 states through its frame-wait call, 26,100 comparisons total, zero
+mismatches, skips, guard refusals or accessor overruns. The full build passes.
+Attract-demo shadow runs 22,500 frames without a mismatch; it does not reach
+mode 5. A forced native start reaches the figure task at frame 41 and refuses
+the absent party members left by boot. No known story path starts this unused
+mode; the missing meaningful native scenario is recorded in TODO.md.
+
+The RAM-program estimate rises from 23.0K to 24.9K of 25.1K, leaving 1%
+instead of 9%. Scene/warp machine joints rise from 799 to 840 with the new
+oracle wrappers and video calls; stops remain 50. The map buffers now use
+generated accessors in both setup and sampling; the sampler's same 2,000
+seed-1 states still match after that change. The previous geometry chunk is archived in
+history/reimplementation-chunks.md. Timing and fallback allowances are unchanged;
+the sampled gate remains for the end of the scene-joints pass.
+
+### Scene continuations: the title loader owns its resource steps
+
+The seven title-loader fragments at `$7E:597B`, `$7E:59A0`, `$7E:59AA`,
+`$7E:59BC`, `$7E:59CC`, `$7E:59D5` and `$7E:5A59` are retired. Their work
+already runs as C inside `scene_title_set_up_scene` and the native setup;
+removing the partial entries lets the whole setup own these continuations.
+The parent retains its code guard and the palette, pendulum and resource
+loading implementation. The wait for the title song remains a separate step.
+
+The previous attempt passed all 37 sampled shadow movies and 56 shipping
+routes but exposed 138 instructions under the setup comparison still open at
+the end of attract-demo. Its accounting is now migrated explicitly: the seven
+retired fragment rows (5,829 instructions and 179 bytes) leave the fallback
+ledger, and the unfinished parent comparison has a 138-instruction row.
+This records the changed ownership at the recording boundary; it introduces
+no new code path or fallback allowance beyond the retired work. Both the saved
+sampled evidence and a fresh attract-demo run pass the fallback ratchet with
+zero new or increased rows. No general baseline update was run.
+
+Fresh attract-demo shadow: 22,500 frames, exit 0 and zero mismatches or refusals.
+Differential fuzz of the whole setup, seed 1: before and after each match all
+400 states, with zero skips or guard refusals. The affected native, shadow,
+fuzz and native-shape targets build; style and smell checks are clean.
+Scene/warp machine joints fall from 840 to 835 and their stops from 50 to 47;
+seven registry entries disappear. The sampled gate remains for the end of
+the scene-joints pass. The turning-scene chunk is archived in
+history/reimplementation-chunks.md.
+
+### Scene continuations: tasks finish through their lists
+
+Finishing a scene task now removes or replaces its persistent list slot and
+runs the remaining slots as C. The frame list's snapshot is kept intact for
+this frame. The standalone entries restore the page, flags, slot and bank
+which the caller saved below the task's return address; the list returns
+through its own caller. This retires the exits at `$7E:39A7`, `$7E:39B1`
+and `$7E:39DE` in the ending screens, Epoch dive, race, captions, stars,
+planet, staff roll and the shared title/fade/palace task helper. It also
+removes the bridge's old recognition of stopped task exits.
+
+The four script list services at `$C3:0CB8`, `$C3:0CCD`, `$C3:0CE2` and
+`$C3:0CF8` now expose the existing C list search through thin entries. Their
+rows select insertion or removal and the frame or vblank list. As the
+original does, a missing slot continues the search through following work
+RAM. Only a search with no matching word is refused; its original never
+returns. Separate fuzz variants cover those searches beyond both lists.
+
+Shadow comparisons include a finished task's caller frame (eight bytes),
+so a task is checked through the list's return. Fuzz fixtures supply a
+valid saved frame in the console stack area, random saved slots and flags,
+and empty remaining slots; the unchanged guard cases stay in the comparison.
+The completion work and the remaining-list traversal are timed separately
+from the finishing task; the latter uses the existing list-loop cost. The three completion costs
+come from isolated last-slot comparisons (344, 380 and 344 clocks), keeping
+other tasks' variable estimates out of their calibration. The native
+program already uses the same task outcomes directly.
+
+Differential seed-1 fuzz: all 43 changed variants, 500 states each, have
+zero mismatches before and after. Eight list-search variants add 2,000 states
+each, with zero mismatches, including all 8,000 searches past list boundaries.
+No accessor goes out of range. The affected shadow, native, fuzz and
+native-shape targets build; style, smell and effects checks are clean.
+Scene/warp joints fall from 835 to 819, and stops from 47 to 28.
+Five focused shadow movies pass with zero mismatches and no refusals:
+attract-demo, both jet-bike recordings, events-epoch-lavos and
+endings-beyond-time. Their fallback ratchet has no new or increased rows;
+no fallback allowance changed. The separate-timing build also passes fresh
+attract-demo, Lavos game-over and Beyond Time shadow runs. Seven entries are added. The RAM burndown is 25.1K of 25.1K (rounding);
+the scene engine is 3.7K of 3.8K, 5% left. The sampled gate remains for the
+end of the scene-joints pass.
+
+### Scene continuations: startup and the sound exchange
+
+The full work-RAM clear now continues through sound normalization and
+screen setup as C. Three previously unregistered tails have entries:
+`$7E:30E9` after the clear, `$7E:31BE` after the frame wait, and the long
+sound-send entry at `$7E:377A`. The short send and its retry now wait for
+the driver's echo in C, resending after 1,024 unsuccessful polls; the last
+normalization command uses that same path. The platform's counted wait
+keeps the original's 82-clock scene poll, rather than the cartridge
+sound driver's 66-clock poll. No sound-driver implementation changed.
+
+The retry count is private to the exchange. Liveness proves X dead at both
+send entries; callers still receive the command, successful comparison,
+and their original high A byte, Y and overflow where required. The new
+frame-wait return's measured cost is 42 clocks. Differential seed-1 fuzz
+covers seven entries at 2,000 states each: zero mismatches, skips or guard
+refusals before and after. Fresh attract-demo and events-epoch-lavos shadow
+runs exit successfully with zero mismatches and no refusals. Builds,
+style, smell and effects checks pass.
+
+Scene/warp joints move from 819 to 821: three returns and one scaffolding
+site are added, while stops fall from 28 to 26. The RAM burndown's only
+remaining run is 29 bytes at `$7E:366C`, the paired-perspective copy already
+implemented by `scene_build_perspective`; the walk misses the patched branch
+into it. This is an estimate's undercount, not another missing routine.
+The two retired handback ledger rows are removed. Attract-demo now ends
+with 34 instructions under startup's open comparison; those move from the
+retired clear continuation's accounting. The narrowed fallback ratchet has
+zero new or increased rows. The sampled gate remains for the end of this pass.
+
+
+### Scene continuations: sequence commands and the music marker
+
+The sequence interpreter now handles its music marker wait inside the C
+turn. It reads a stable marker, continues when the requested level has
+arrived, or rewinds to the wait command and returns from the current turn.
+The next frame starts that command normally. The native program and the
+machine bridge share this decision. This removes the stop at `$C3:0C2A`
+and resolves the mode-5 sequence picker's inherited AH declaration there;
+the full static don't-care check has zero findings.
+
+Seven standalone entries expose the existing store, task-list and video
+command families through the same operation table. They begin after the
+opcode, run their operation, and continue the channel's turn as C. Their
+guards retain the interpreter's supported domains: low-RAM stores, list
+searches that find a word, and the named video settings. The interpreter
+now attributes those operations to their entries; standalone wrappers time
+the remaining turn separately. Seven isolated, one-command shadow fixtures
+supply the initial costs without fitting other commands' timing errors.
+All seven fixtures return with zero mismatches.
+
+Seed-1 differential fuzz covers twelve variants at 2,000 states each.
+The seven new commands and the bounded music-wait fixture have zero
+mismatches, skipped cases or guard refusals, as does the sequence picker.
+The three broad random-script variants retain their predecessor's mismatch
+counts (1, 0 and 1); their increased budget skips (31, 33 and 31) come from
+continuing past the former wait stop. That existing random-script finding
+remains in TODO. Attract-demo and the 130,000-frame Beyond Time recording
+pass the wait change with zero shadow mismatches; the command-entry build
+also passes fresh attract-demo and events-epoch-lavos runs, with no refusals.
+Their combined fallback ratchet has zero new or increased rows, without a
+ledger change. Style, smell, effects and don't-care checks are clean.
+
+Scene/warp joints remain 821: one return replaces one stop, leaving 25
+stops. The C3 burndown now lists only the controller continuation at
+`$C3:0A95`, 106 bytes; the seven command entries bring it to 45 entries.
+The sampled gate remains for the end of the pass.
+
+### Scene continuations: controller, boot and title waits
+
+The scene controller entry now owns readiness, button edges, pause and
+unpause, and the reset chord. The frame calls it directly; readiness is a
+platform operation (the SNES backend latches controllers atomically), and
+reset calls the existing C reset entry. The planet countdown calls that
+same reset entry when it expires. The native frame reports reset to the
+program rather than requesting a machine fallback.
+
+The boot line interrupt waits for the current horizontal blank to end and
+the next to begin, then calls its blank-and-return continuation. The title
+waits for the music-playing mask through the audio service. Both waits
+suspend through runtime wake conditions; the host audio backend advances
+frames until music starts. The title preserves its PPU direct page across
+the wait, and enclosing startup continues directly into the first frame.
+The standalone idle entries remain for callers still entering by address.
+
+Eight differential fuzz variants (2,000 states each, 400 for the title)
+have zero mismatches; the frame retains its predecessor's 1,013 budget
+skips. Five dedicated controller fixtures cover idle, pause, unpause,
+reset and reset-disabled inputs: 10,000 cases, zero mismatches or skips.
+The suspension unit test verifies both beam edges and a music wake across
+frames. Attract-demo and battle-lavos-gameover pass complete shadow runs
+with zero mismatches and identical sound lockstep; their fallback ratchet
+has zero new or increased rows. Shipping attract-demo reaches frame 22,500.
+Style, smell, effects and static don't-care checks are clean.
+
+Scene/warp joints fall from 821 to 817, with stops from 25 to 20.
+C3's uncovered list is empty. RAM's only remaining static gap is the
+29-byte paired perspective branch at `$7E:366C`, already implemented in C
+but missed by the coverage walk through its patched branch. The sampled
+gate remains for the end of the pass.
+
+### Scene continuations: guarded drawing and divisor search
+
+The curtain jump calls the existing sweep directly with its timing tag and
+shares its bank, table and binary-arithmetic requirements. The planet's
+caption checks its fixed text and sprite capacity at entry, then calls the
+caption drawer directly. Its previous guard ran after changing registers;
+the shared caption guard now accepts the text as an argument.
+
+The divisor search rejects inputs for which the original never returns,
+then completes in C without a loop-head stop. Hardware quotient reads now
+honor guard peeking in the state backing, so inspecting this condition
+neither advances time nor changes open bus. Normal reads retain their cost.
+
+Seed-1 differential fuzz: curtain 1,855 compared, 145 invalid-table guards;
+divisor 1,999 compared, one nonterminating-input guard; caption 2,000
+compared. All have zero mismatches. The caption fixture now initializes
+both bytes of its sprite high-table pointer; previously random high bytes
+usually ended at the old fallback without drawing. Complete attract-demo
+and battle-lavos-gameover shadow runs pass with zero mismatches. The
+narrowed fallback ratchet has no new or increased rows. Style and smell
+checks pass. Scene/warp joints fall from 817 to 813, stops from 20 to 17,
+and one machine timing tag becomes a GameState tag. The sampled gate is
+reserved for the end of the pass.
+
+
+### Scene continuations: the camera checks build perspective in C
+
+The race, Beyond Time flight and Epoch shell checks validate the next
+perspective before updating the saved camera. A shared, read-only camera
+comparison supplies this guard decision and the existing camera keeper.
+Unchanged cameras need no drawing and do not acquire new geometry
+restrictions; a flat flight view likewise keeps its separate path.
+Changed cameras call the existing perspective builder directly, removing
+all three mid-routine stops at `$7E:357B`. The race no longer needs a
+machine callback through the game operation.
+
+Differential fuzz compares both Epoch views, visible race and flight
+horizons, and unchanged race and flight cameras: six fixtures of 2,000
+cases, zero mismatches, skips or refusals. Broad random geometry is also
+checked: the race accepts 5/2,000 and the flight 985/2,000, with zero
+mismatches; the rest previously stopped at an unsupported perspective and
+now refuse it before mutation. The existing paired-line C branch covers
+RAM's final 29-byte static coverage gap; no synthetic entry was added to
+change the burndown number.
+
+Complete events-jetbike-race-won, events-epoch-lavos and endings-beyond-time
+shadow runs pass with zero mismatches and no real-play refusals. Their
+fallback ratchet has no new or increased rows. Style, smell and effects
+checks are clean. Scene/warp joints fall from 813 to 808: stops 17 to 14,
+one fewer machine return and one fewer scaffolding site. The sampled gate
+remains reserved for the end of the pass.
+
+
+### Scene continuations: whole bitmaps in C
+
+Both bitmap entry points draw through the final row and clear the previous
+picture's unused tail. A read-only guard checks every output extent before
+drawing; source limits can end a tall request early. The two stops at
+`$C3:0309` are gone. Sampling new rows has its own entry and timing part,
+`$C3:034A`, while repeated rows and tail clears retain block-copy timing.
+Isolated copy, mixed and sampled pictures establish the two rates; their
+largest timing error is 7,519 clocks, without a new timing exception.
+
+Alternating registered points in this loop exposed duplicate shadow
+comparisons: the validator only recognized reentry into its innermost
+segment. It now recognizes an enclosing segment at the same stack depth.
+A synthetic two-entry loop regression checks one comparison per call and
+no exhausted comparison slots. The shadow test passes.
+
+Differential fuzz compares 8,027 cases with zero mismatches, including
+2,000 each of three whole-picture entries. The broad start fixture refuses
+1,966 impossible pictures and exhausts its budget on seven; bounded
+pictures compare without skips. Complete Epoch and race-won shadow movies
+pass with zero mismatches and zero new or increased fallback rows. Style,
+smell, effects and liveness checks are clean. Scene/warp joints fall from
+808 to 806, stops from 14 to 12. The sampled gate remains for the end.
+
+
+### Scene continuations: pictures drawn and gathered from their callers
+
+The Epoch and ending picture callers now draw the whole bitmap and gather
+its tiles directly in C. Their guards check the gathering code and picture
+extent before replacing the scaler workspace. Racer requests use the same
+descriptor check and call the whole bitmap renderer directly. The existing
+request-source scaffolding exception follows its read into the shared
+descriptor constructor; no exception was added.
+
+The race retains one boundary at the upload wait, `$7E:5211`, instead of
+the scaler's first row. Calling through both racers' waits failed shadow
+comparisons: the wait service cannot distinguish Johnny's wait from
+Crono's earlier satisfied wait at the same address and stack depth. The
+retained boundary compares cleanly; TODO records the remaining work.
+
+Eight differential fuzz fixtures compare without mismatches, including
+6,000 bounded racer pictures and 2,000 Epoch pictures. Broad random
+requests that do not fit are refused before mutation; the large accepted
+race request needs a 32-million-instruction budget to reach the new
+comparison point. Complete Epoch and race-won shadow movies and the
+ending's 90,000-92,000 segment have zero mismatches. The movie fallback
+ratchet has zero new or increased rows. Style, smell, effects and liveness
+checks are clean. Scene/warp joints remain 806, with 12 stops; this chunk
+moves the shared scaler boundary forward, through gathering for the two
+callers that need no upload wait.
+
+
+### Scene continuations: boot, warp frames and field returns
+
+Boot calls the unpacked scene program directly. Its guard checks the mode
+and, for credit pages, the surviving page index before any mutation.
+Random indices outside the five pages otherwise read unrelated program
+bytes as text. Attract-demo's open startup comparison moves from
+`$7E:3000` (34 instructions) to `$C3:0000` (47 including the boot prefix);
+the fallback ledger records that ownership change.
+
+Warp setup continues after its screen-on wait, whose interface preserves
+the established page and widths. Frames call the held frame-wait service
+and continue as C. The held boundary keeps shipping snapshots resumable
+at the existing idle wait entry. Each frame retains its own timing part
+and the registers previously declared dead at its loop stop. Scene and
+warp endings call field entry directly, with a valid destination guard.
+
+The last warp frame still stops at the ending's entry. Combining HDMA
+shutdown with that frame compares its last scanline register values after
+HDMA is disabled: End of Time gate differs at `$210E` (00 versus 01).
+Continuing into field entry moves the same difference to its song call,
+so the ending keeps its independent comparison. TODO records this seam.
+
+Twenty-two differential fuzz fixtures have zero mismatches. Three bounded
+field-return fixtures compare 6,000 cases; all sixteen boot modes compare
+193/200, seven exhausting the external-wait budget. Complete attract-demo
+and End of Time gate shadow movies pass with zero mismatches; the migrated
+fallback ratchet has zero new or increased rows. Style, smell, effects and
+liveness checks are clean. Scene/warp joints fall from 806 to 801, stops
+from 12 to 6; one frame-wait return replaces a stop. The sampled gate is
+still reserved for the end.
+
+### Scene continuations: sound commands and remaining boundaries
+
+Scene sound commands continue directly through the interpreter. The command
+interface preserves the caller's page, bank and arithmetic/index modes, so
+the channel cannot require the old sound-return handback. Two channel
+fixtures compare 4,000 sound-command states with zero mismatches. Three
+existing interpreter fixtures retain their previous results (including one
+known broad-state mismatch); the before/after comparison finds no new
+failure. Attract-demo and Epoch shadow movies have zero mismatches and the
+fallback ratchet has zero new or increased rows. Style and smell checks
+are clean.
+
+The scene RAM program and scene engine now both report 0% left in burndown.
+The only static uncovered RAM run, 29 bytes at `$7E:366C`, is already in
+the paired perspective builder; the walk misses its patched branch. Scene
+and warp stops have fallen from 51 to five across this series. Their total
+machine joints rose from 756 to 800 as the previously unported modes gained
+entry wrappers and video calls. This last chunk removes one stop (six to
+five), without adding another joint.
+
+Five boundaries remain, with evidence in TODO: the race's shared upload
+wait needs caller-instance matching; the scene main loop exposes a carry
+difference after an interrupted prelude; the last warp frame exposes HDMA
+shutdown timing; and two script handbacks cover unsupported command data
+and callees that change the interpreter's calling context. The sampled
+gate is reserved for the final validation of this series.
+
+### Scene continuations: final validation and comparison ownership
+
+The scene RAM program and scene engine both report 0% unported. The panorama,
+turning map and animated figures are C; the static walk's remaining 29 bytes
+at `$7E:366C` are already in the paired perspective builder, behind a patched
+branch it misses. Modes 5 and 10 have isolated fuzz coverage but still need
+representative native play (TODO). Scene/warp stops fell from 51 to five;
+their total measured machine joints rose from 756 to 800 as the new ports
+added entry wrappers, video calls and scaffolding.
+
+The final sampled run compared all 37 shadow movies without a mismatch,
+passed all 56 shipping routes and all 56 native-shape routes, and found no
+real-play refusals. Trace identity, video timing, sound lockstep and fuzz,
+liveness, strict/native ratchets, style, smell and assets passed. It did not
+print `suite OK`: timing ownership, fallback accounting, comparison coverage,
+scaffold-read attribution and the interrupted evidence replay failed.
+
+Boot and the scene/warp field returns now use sibling timing scopes, so a
+long loading stretch belongs to the existing startup or field loader rather
+than its caller. This changes report ownership, not the time estimate. The
+turning-map coordinates use 32-bit arithmetic and explicit wrap detection;
+2,000 map cases and 100 setup cases compare with zero mismatches or skips.
+The setup wrapper uses the named PPU page and keeps image checks in the
+machine adapter. The portability, platform, style and evidence scheduler
+unit checks pass (19 tests).
+
+Six focused shadow movies pass with zero mismatches, including the complete
+105,000-frame Beyond Time ending. Their timing check covers 1,417 entries
+with no new failures; no calibration or new timing exception was needed.
+The existing startup exception now describes the boot-owned stretches too.
+The Golem Twins game-over movie leaves 1,839 instructions under an open
+field-entry comparison. Restoring only the old title music stop changes
+that to 132 under field entry and 1,755 under scene boot; final state,
+coverage and call-count hashes are identical. Restoring the old boot stop,
+field-return stop or loop-comparison rule individually leaves 1,839
+unchanged. The ledger therefore records the held wait's comparison
+ownership, preserving the earlier library's 15-instruction allowance.
+Both the full sample's and focused replays' fallback ratchets pass.
+
+Thirteen newly uncompared entry names are recorded with independent fuzz
+evidence, not hidden by changing the threshold. Their waits and retries now
+run inside enclosing C loops, while complete bitmap/race work can cross an
+interrupt. TODO retains that movie comparison gap. The curtain's 124 reads
+of menu residue are identical to the previous run; the direct continuation
+attributes them to `scene_curtain_jump` instead of `scene_sweep_the_curtain`.
+The full sample's comparison and effects checks pass with those explicit
+ownership records.
+
+The evidence runner previously launched every variant at once for each
+movie worker: two workers could mean eight game processes. Its interrupted
+run is not evidence of agreement. Variants now run sequentially within a
+worker, and a concurrency regression verifies two workers start at most two
+game processes while preserving failed-variant reporting.
+
+The corrected evidence replay finishes with `dc_evidence: OK`: all 84
+movies (2,289,640 frames per variant) have equal poisoned and plain traces
+outside the permitted stack page, including the framebuffer comparison.
+All four bounded dispatch sites run and stay within their bounds. The six
+overflow-flag sites and three return-carry declarations satisfy their
+existing evidence requirements. No additional full sampled gate was run;
+its recorded last line remains
+`FAILED: timing; fallbacks; uncompared; effects; evidence`.
+
+Five stops remain after failed removal experiments: the race upload wait
+needs caller-instance matching, the first-frame continuation exposes carry
+after an interrupted prelude, the final warp frame exposes HDMA shutdown
+timing, and two interpreter handbacks need unsupported-data services or a
+callee return contract. TODO records each failure and the next required
+work. No full sampled gate has passed for this series yet.
 ### The sound driver's teardown, its first step: the game's side as calls
 
 The first subsystem taken off the machine in the product (PLAN.md, "The

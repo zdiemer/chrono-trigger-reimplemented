@@ -454,8 +454,7 @@ void scene_pass_the_map_entry(Snes *s)
 
 /* Flat, A holds the matrix's last entry the turn wrote; unchanged, the last
  * register compared, the depth. A new perspective is built on channel 0's
- * page, where the original jumps on to it, and where the port doesn't build
- * it the original does, reading none of the registers but the page. */
+ * page; the entry guard checks its lines before the saved camera changes. */
 enum { BUILD_PERSPECTIVE = 0x7E357B, CAMERA_PAGE = 0x0A00 };
 
 static void leave_the_view_checked(Snes *s, const GameState *g, bool perspective_built)
@@ -470,11 +469,6 @@ void scene_check_the_flight_view_entry(Snes *s)
 {
     GameState *g = state_of(s);
     bool rebuild = update_the_view(g);
-    if (rebuild && !scene_perspective_as_ported(s, CAMERA_PAGE)) {
-        s->cpu.d = CAMERA_PAGE;
-        m_stop_at_own(s, BUILD_PERSPECTIVE, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-        return;
-    }
     if (rebuild)
         TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, SCENE_CAMERA_CHANNEL));
     ORIGINAL_EFFECT(leave_the_view_checked(s, g, rebuild));
@@ -604,8 +598,14 @@ bool scene_pass_the_map_present(Snes *s)
 
 bool scene_check_the_flight_view_present(Snes *s)
 {
-    return frame_task_on_page(s) && m_code_matches(s, 0x7E9ABD, 0x36, 0x5952F84E74F8A1FDull) &&
-           m_code_matches(s, 0x7E56B4, 0x37, 0xD7D22FBA648F6283ull) && sine_present(s) && multiply_present(s);
+    if (!frame_task_on_page(s) || !m_code_matches(s, 0x7E9ABD, 0x36, 0x5952F84E74F8A1FDull) ||
+        !m_code_matches(s, 0x7E56B4, 0x37, 0xD7D22FBA648F6283ull) || !sine_present(s) || !multiply_present(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool rebuild = !plane_flat(g) && scene_camera_changed(g, FLIGHT_CAMERA_REGISTERS);
+    vars_peek(false);
+    return !rebuild || scene_perspective_as_ported(s, CAMERA_PAGE);
 }
 
 bool scene_place_the_flight_view_present(Snes *s)

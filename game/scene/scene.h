@@ -91,7 +91,7 @@ enum {
  * program's table (scene/program.c). */
 typedef enum {
     SCENE_MODE_RACE = 0, SCENE_MODE_CREDITS_PAGE = 1, SCENE_MODE_TITLE = 2, SCENE_MODE_RISING_PALACE = 3,
-    SCENE_MODE_LAVOS_FALLS = 4, SCENE_MODE_EPOCH_DIVE = 6, SCENE_MODE_PLANET_LOST = 7, SCENE_MODE_PLANET_ENDING = 8,
+    SCENE_MODE_LAVOS_FALLS = 4, SCENE_MODE_TURNING_MAP = 5, SCENE_MODE_EPOCH_DIVE = 6, SCENE_MODE_PLANET_LOST = 7, SCENE_MODE_PLANET_ENDING = 8,
     SCENE_MODE_ATTRACT_RACE = 9, SCENE_MODE_ENDING_CAPTIONED = 10, SCENE_MODE_ENDING_CAPTIONED_TOO = 11,
     SCENE_MODE_SLOW_STAFF_ROLL = 12, SCENE_MODE_STAFF_ROLL = 13, SCENE_MODE_ENDING_AGAIN = 14,
     SCENE_MODE_ENDING_WITHOUT_CREDITS = 15,
@@ -102,6 +102,7 @@ typedef enum {
 typedef enum {
     SCENE_PASS_NOTHING = 0x3176, SCENE_PASS_RACE_SCALING = 0x51D1, SCENE_PASS_ENDING_SCALING = 0x8930,
     SCENE_PASS_DIVE_SCALING = 0x8278,
+    SCENE_PASS_TURN_MAP = 0x7441,
 } ScenePass;
 
 /* ---- The scene program's memory and transfers ------------------------------------------------ */
@@ -279,6 +280,8 @@ enum {
     SCENE_ROUTINE_PICK_THE_RACE_S_OPENING = 0x3F59,     /* scene/race_camera.c */
     SCENE_ROUTINE_LOAD_THE_GROUND_AND_PICTURE = 0x8790,     /* scene/endings.c */
     SCENE_ROUTINE_LOAD_THE_PICTURE = 0x87CC,
+    SCENE_ROUTINE_LOAD_THE_PANORAMA = 0x8A01,
+    SCENE_ROUTINE_SHOW_THE_LAYERED_PANORAMA = 0x8AF5,
     SCENE_ROUTINE_START_THE_STARS = 0x8BAF,
     SCENE_ROUTINE_START_THE_MODE7_PICTURE = 0x8C14,
     SCENE_ROUTINE_PREPARE_THE_CREDITS = 0x8CD0,
@@ -376,6 +379,45 @@ void scene_place_sprite(GameState *g, uint16_t entry, SceneSprite sprite);
 /* The same at the scene's cursor, which moves on, small or large; and whether
  * `sprites` more fit from the cursor. */
 void scene_add_sprite_at_cursor(GameState *g, SceneSprite sprite, bool large);
+TaskEnd scene_step_turn_mosaic(GameState *g, Platform *pf, unsigned slot);
+void scene_step_turn_mosaic_entry(Snes *s);
+TaskEnd scene_spread_turn_figures(GameState *g, Platform *pf, unsigned slot);
+void scene_spread_turn_figures_entry(Snes *s);
+TaskEnd scene_size_turn_windows(GameState *g, Platform *pf, unsigned slot);
+void scene_size_turn_windows_entry(Snes *s);
+TaskEnd scene_show_turn_mosaic(GameState *g, Platform *pf, unsigned slot);
+void scene_show_turn_mosaic_entry(Snes *s);
+TaskEnd scene_scroll_turn_wave(GameState *g, Platform *pf, unsigned slot);
+void scene_scroll_turn_wave_entry(Snes *s);
+TaskEnd scene_orbit_turn_figures(GameState *g, Platform *pf, unsigned slot);
+void scene_orbit_turn_figures_entry(Snes *s);
+TaskEnd scene_update_turn_figures(GameState *g, Platform *pf, unsigned slot);
+void scene_update_turn_figures_entry(Snes *s);
+TaskEnd scene_send_turn_figure(GameState *g, Platform *pf, unsigned slot);
+void scene_send_turn_figure_entry(Snes *s);
+TaskEnd scene_cycle_turn_colors(GameState *g, Platform *pf, unsigned slot);
+void scene_cycle_turn_colors_entry(Snes *s);
+bool scene_turn_program_present(Snes *s);
+bool scene_update_turn_figures_present(Snes *s);
+bool scene_turn_set_up_present(Snes *s);
+bool scene_pick_turn_sequence_present(Snes *s);
+bool scene_turn_set_up(GameState *g, Platform *pf);
+bool scene_turn_set_up_scene(Snes *s);
+void scene_turn_set_up_entry(Snes *s);
+void scene_start_turn_figures_entry(Snes *s);
+void scene_pick_turn_sequence_entry(Snes *s);
+extern const SceneScriptRoutine scene_turn_routines[];
+extern const unsigned scene_turn_routine_count;
+#if ORIGINAL_EFFECTS
+extern const SceneRoutineLeaves scene_turn_routine_leaves[];
+#endif
+/* The turning-map scene's four-sprite character poses. */
+void scene_load_figure_pose(GameState *g, unsigned character, uint16_t pose_offset, uint16_t destination);
+void scene_draw_figure_pose(GameState *g, unsigned character, uint16_t pose_offset, uint16_t appearance);
+void scene_load_figure_pose_entry(Snes *s);
+void scene_draw_figure_pose_entry(Snes *s);
+bool scene_load_figure_pose_present(Snes *s);
+bool scene_draw_figure_pose_present(Snes *s);
 bool scene_sprites_fit(const GameState *g, unsigned sprites);
 /* How many sprites a list in the program holds; and where the lists are
  * drawn from next (X's 9th bit kept). */
@@ -490,6 +532,15 @@ void scene_circle_draw(GameState *g, uint8_t mode);
 enum { SCENE_FULL_TURN = 0x400, SCENE_HALF_TURN = 0x200, SCENE_QUARTER_TURN = 0x100 };
 int16_t scene_sine(const GameState *g, uint16_t angle);
 int16_t scene_cosine(const GameState *g, uint16_t angle);
+uint16_t scene_offset_angle(GameState *g, int16_t across, int16_t down);
+uint16_t scene_radius_from_area(GameState *g, uint32_t area);
+void scene_offset_angle_entry(Snes *s);
+bool scene_offset_angle_present(Snes *s);
+void scene_radius_from_area_entry(Snes *s);
+bool scene_radius_from_area_present(Snes *s);
+bool scene_turn_map(GameState *g);
+void scene_turn_map_entry(Snes *s);
+bool scene_turn_map_present(Snes *s);
 bool scene_sine_second_half(uint16_t angle);
 /* For the entry wrappers: whether an angle a quarter turn on passes the top
  * of a signed word (from $7F00 up to $7FFF), the overflow the original's
@@ -648,10 +699,12 @@ void scene_build_perspective(GameState *g, SceneChannel ch);
  * kept as the perspective's. Returns the first that differed, or `registers`
  * where none did. */
 unsigned scene_keep_the_camera(GameState *g, unsigned registers);
+bool scene_camera_changed(const GameState *g, unsigned registers);
 /* The same for the Epoch's dive's camera, which the perspective keeps its
  * height, its turn and the count of the cockpit's builds of the shell above
  * for: whether any differed. */
 bool scene_keep_the_dive_camera(GameState *g);
+bool scene_dive_camera_changed(const GameState *g);
 /* The Epoch's dive's perspective set to its view of the shell from outside,
  * or from the cockpit (perspective.c's lines). */
 void scene_look_at_the_shell_from_outside(GameState *g);
@@ -712,14 +765,35 @@ enum { SCENE_FRAME_HANDLER = 0xC308B3, SCENE_HANDLER_WHILE_WORKING = 0xC308C9, S
 void scene_nmi_while_working(Snes *s);
 void scene_line_irq_ack(Snes *s);
 void scene_frame_work_entry(Snes *s);
+void scene_read_controller_entry(Snes *s);
+bool scene_read_controller_present(Snes *s);
+bool scene_after_work_ram_clear_present(Snes *s);
+void scene_after_work_ram_clear(Snes *s);
+void scene_frame_wait_done(Snes *s);
+bool scene_send_sound_command_long_present(Snes *s);
+void scene_send_sound_command_long(Snes *s);
 bool scene_pause_is_a_switch(Snes *s);
 bool scene_frame_tasks_present(Snes *s);
 bool scene_vblank_tasks_present(Snes *s);
 /* A list going on where a task it called came back to it, frames after the
  * call, from under the frame the list keeps under each call (its data bank,
  * the slot, P and D), which the entries pull. */
-enum { SCENE_TASK_CALL_FRAME = 6 };
+enum { SCENE_TASK_CALL_FRAME = 6, SCENE_FINISHED_TASK_FRAME = SCENE_TASK_CALL_FRAME + 2 };
 void scene_frame_tasks_go_on(Snes *s);
+void scene_finish_task(Snes *s, SceneTaskList list, TaskEnd end);
+bool scene_script_remove_frame_task_present(Snes *s);
+void scene_script_remove_frame_task_entry(Snes *s);
+bool scene_script_remove_vblank_task_present(Snes *s);
+void scene_script_remove_vblank_task_entry(Snes *s);
+bool scene_script_add_frame_task_present(Snes *s);
+void scene_script_add_frame_task_entry(Snes *s);
+bool scene_script_add_vblank_task_present(Snes *s);
+void scene_script_add_vblank_task_entry(Snes *s);
+void scene_finish_remove_frame_task_entry(Snes *s);
+bool scene_finish_frame_task_present(Snes *s);
+bool scene_finish_vblank_task_present(Snes *s);
+void scene_finish_replace_frame_task_entry(Snes *s);
+void scene_finish_remove_vblank_task_entry(Snes *s);
 void scene_vblank_tasks_go_on(Snes *s);
 void scene_run_frame_tasks(Snes *s);
 void scene_run_vblank_tasks(Snes *s);
@@ -727,6 +801,20 @@ void scene_run_vblank_tasks(Snes *s);
 
 /* scene/script.c */
 void scene_run_sequence(Snes *s);
+void scene_script_store_byte_entry(Snes *s);
+bool scene_script_store_byte_present(Snes *s);
+void scene_script_store_word_entry(Snes *s);
+bool scene_script_store_word_present(Snes *s);
+void scene_script_remove_vblank_entry(Snes *s);
+bool scene_script_remove_vblank_present(Snes *s);
+void scene_script_add_vblank_entry(Snes *s);
+bool scene_script_add_vblank_present(Snes *s);
+void scene_script_remove_frame_entry(Snes *s);
+bool scene_script_remove_frame_present(Snes *s);
+void scene_script_add_frame_entry(Snes *s);
+bool scene_script_add_frame_present(Snes *s);
+void scene_script_video_entry(Snes *s);
+bool scene_script_video_present(Snes *s);
 void scene_run_channel_0_script(Snes *s);
 void scene_run_channel_1_script(Snes *s);
 bool scene_channel_script_start_present(Snes *s);
@@ -786,15 +874,7 @@ bool scene_credit_pages_set_up_scene(Snes *s);
 bool scene_credit_pages_set_up(GameState *g, Platform *pf);
 bool scene_palace_set_up_scene(Snes *s);
 bool scene_title_set_up_present(Snes *s);
-bool scene_title_loader_present(Snes *s);
-void scene_title_load_sprite_graphics(Snes *s);
-void scene_title_load_layer_tiles(Snes *s);
-void scene_title_load_plane_graphics(Snes *s);
-void scene_title_load_bg1_map(Snes *s);
-void scene_title_load_bg2_map(Snes *s);
-void scene_title_fill_bg1_map(Snes *s);
 bool scene_title_set_up_pendulum_present(Snes *s);
-void scene_title_set_up_pendulum(Snes *s);
 bool scene_title_load_plane_map_present(Snes *s);
 void scene_title_load_plane_map(Snes *s);
 bool scene_title_place_pendulum_present(Snes *s);
@@ -913,6 +993,7 @@ enum { SCENE_Y_PAST_THE_WORKING_PALETTE = 0x2400, SCENE_Y_PAST_THE_ANIMATIONS_SL
  * back to the call's return with the stack as it was; otherwise it stopped,
  * and the original carries on from where it did. */
 bool scene_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+bool scene_accept_continuation(Snes *s, uint32_t at, void (*entry)(Snes *));
 bool scene_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 
 
@@ -1084,6 +1165,15 @@ void scene_ending_load_ground_and_picture(Snes *s);
 bool scene_ending_start_stars_present(Snes *s);
 void scene_ending_start_stars(Snes *s);
 bool scene_ending_start_mode7_picture_present(Snes *s);
+bool scene_ending_load_panorama_present(Snes *s);
+void scene_ending_load_panorama(Snes *s);
+bool scene_ending_layer_panorama_present(Snes *s);
+void scene_ending_layer_panorama(Snes *s);
+bool scene_ending_panorama_horizon_present(Snes *s);
+void scene_ending_panorama_horizon_entry(Snes *s);
+TaskEnd scene_ending_panorama_horizon(GameState *g, Platform *pf, unsigned slot);
+bool scene_expand_packed_pixels_present(Snes *s);
+void scene_expand_packed_pixels_entry(Snes *s);
 void scene_ending_start_mode7_picture(Snes *s);
 bool scene_ending_prepare_credits_present(Snes *s);
 void scene_ending_prepare_credits(Snes *s);
@@ -1294,6 +1384,7 @@ TaskEnd scene_stars_keep_drifting(GameState *g, Platform *pf, unsigned slot);
 
 /* scene/captions.c (the program in RAM) */
 bool scene_draw_caption_present(Snes *s);
+bool scene_caption_at_present(Snes *s, uint16_t text);
 void scene_draw_caption_entry(Snes *s);
 /* A caption drawn from its text, as C, where its guard's state half takes
  * it: its text ends inside the program's bank and its letters fit the
@@ -1307,6 +1398,7 @@ TaskEnd scene_turn_captions(GameState *g, Platform *pf, unsigned slot);
 /* scene/race_matrix.c */
 void scene_write_matrix_code(Snes *s);
 bool scene_matrix_code_present(Snes *s);
+bool scene_picture_gathering_present(Snes *s);
 void scene_gather_picture(Snes *s);
 bool scene_race_scale_pictures_present(Snes *s);
 void scene_race_scale_pictures_entry(Snes *s);
@@ -1442,8 +1534,12 @@ void scene_scaler_start(GameState *g, SceneScaling bitmap);
  * row no further, having asked for the machine). */
 enum { SCENE_SCALER_ROWS = 0xC30309 };
 bool scene_scaler_draws(const GameState *g);
+bool scene_scaling_fits(SceneScaling picture);
 bool scene_scale_the_bitmap(GameState *g, bool row_nudge);
 bool scene_scaler_in_its_bank(Snes *s);
+bool scene_scaler_starts_in_its_bank(Snes *s);
+bool scene_sampler_in_its_bank(Snes *s);
+void scene_sample_bitmap_row(Snes *s);
 void scene_scale_bitmap_row(Snes *s);
 void scene_scale_bitmap(Snes *s);
 

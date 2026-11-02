@@ -1060,8 +1060,8 @@ void scene_let_the_shell_fall_away_entry(Snes *s)
 }
 
 /* Unchanged, A holds the last register compared. A new perspective is built
- * on channel 0's page, where the original jumps on to it, and where the port
- * doesn't build it the original does. */
+ * on channel 0's page. The entry guard checks the upcoming half before the
+ * saved camera changes. */
 enum { BUILD_PERSPECTIVE = 0x7E357B, CAMERA_PAGE = 0x0A00 };
 
 static void leave_the_shell_checked(Snes *s, const GameState *g, bool built)
@@ -1077,19 +1077,14 @@ void scene_check_the_shell_entry(Snes *s)
     GameState *g = state_of(s);
     bool moved = the_camera_moved(g);
     s->cpu.d = CAMERA_PAGE;
-    if (moved && !scene_perspective_as_ported(s, CAMERA_PAGE)) {
-        m_stop_at_own(s, BUILD_PERSPECTIVE, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-        return;
-    }
     if (moved)
         TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, SCENE_CAMERA_CHANNEL));
     ORIGINAL_EFFECT(leave_the_shell_checked(s, g, moved));
     m_rts(s);
 }
 
-/* The main loop's call each pass, with 16-bit A. With the last picture still
- * to be sent it is back at once; otherwise the scaler's rows go on in the
- * original's code, which comes back to the gathering. */
+/* The main loop's call each pass, with 16-bit A. Wait for the last picture
+ * to be sent before scaling and gathering the next one through the C bridge. */
 void scene_scale_the_epoch_entry(Snes *s)
 {
     GameState *g = state_of(s);
@@ -1239,18 +1234,17 @@ void scene_dive_set_up_entry(Snes *s)
 
 /* The one-off vblank tasks take themselves off their list through its exit,
  * which reads none of the registers. */
-enum { REMOVE_THIS_VBLANK_TASK = 0x7E39DE, NOTHING_READ = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 void scene_set_the_screen_outside_entry(Snes *s)
 {
     set_the_screen_outside(state_of(s), m_platform(s));
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 void scene_set_the_screen_in_the_cockpit_entry(Snes *s)
 {
     set_the_screen_in_the_cockpit(state_of(s), m_platform(s));
-    m_stop_at(s, REMOVE_THIS_VBLANK_TASK, NOTHING_READ);
+    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
 }
 
 /* ---- What the ports take ---------------------------------------------------------------------- */
@@ -1569,13 +1563,22 @@ bool scene_let_the_shell_fall_away_present(Snes *s)
     return list_carry_clear(s) && m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E81F1, 0xA, 0xEDB327407962EFF1ull);
 }
 
-bool scene_check_the_shell_present(Snes *s) { return m_code_matches(s, 0x7E82D1, 0x24, 0xD2DAEB1BF76D92EDull); }
+bool scene_check_the_shell_present(Snes *s)
+{
+    if (!m_code_matches(s, 0x7E82D1, 0x24, 0xD2DAEB1BF76D92EDull))
+        return false;
+    vars_peek(true);
+    bool moved = scene_dive_camera_changed(state_of(s));
+    vars_peek(false);
+    return !moved || scene_perspective_as_ported(s, CAMERA_PAGE);
+}
 
 /* The scaling: its own code and the gathering's after the scaler, on the
  * scene's page. */
 bool scene_scale_the_epoch_present(Snes *s)
 {
-    return scene_on_scene_page(s) && m_code_matches(s, 0x7E8278, 0x38, 0x4D4B756D9878E542ull) && holds(s, scaling_takes);
+    return scene_on_scene_page(s) && m_code_matches(s, 0x7E8278, 0x38, 0x4D4B756D9878E542ull) && holds(s, scaling_takes) &&
+           (holds(s, picture_waiting) || scene_picture_gathering_present(s));
 }
 
 bool scene_gather_the_epoch_present(Snes *s)

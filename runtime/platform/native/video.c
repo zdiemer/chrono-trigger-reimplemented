@@ -19,6 +19,7 @@
 #include "platform/native/host.h"
 #include "platform/observe.h"
 #include "platform/time_model.h"
+#include "platform/timing.h"
 
 void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr),
                     void (*write)(void *ctx, uint32_t addr, uint8_t v), void *ctx)
@@ -245,6 +246,14 @@ void vid_send_vram_and_wait(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData
     (void)o;
     charge_send(pf, len);
     vid_obs_upload_vram(ob(pf), vram_addr, src, len, false, &(VidVramPort){ .step = 1, .after_high = true });
+}
+
+void vid_send_vram_next_frame(Platform *pf, PfOrigin o, PfOrigin wait,
+                             uint16_t vram_addr, PfData src, uint32_t len,
+                             const VidVramPort *port)
+{
+    tm_wait_frame(pf, wait);
+    vid_send_vram(pf, o, vram_addr, src, len, port);
 }
 
 void vid_send_vram_in_mode(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
