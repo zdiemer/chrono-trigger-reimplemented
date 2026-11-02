@@ -85,10 +85,26 @@ def covers(recipe, owner):
     return recipe['name'] == owner or owner in recipe.get('covers', [])
 
 
-def fingerprint(recipe, states):
+def implementation_hash(root):
+    """Bind portable evidence to the C implementation, not one host's binary.
+
+    Include shared game/platform helpers and the comparison harness: changing
+    any of them requires new evidence even if the recipe itself is unchanged.
+    """
+    paths = [p for directory in ('game', 'runtime', 'dev')
+             for p in (root / directory).rglob('*') if p.suffix in ('.c', '.h')]
+    digest = hashlib.sha256()
+    for path in sorted(paths):
+        digest.update(path.relative_to(root).as_posix().encode() + b'\0')
+        digest.update(path.read_text(encoding='utf-8').encode() + b'\0')
+    return digest.hexdigest()
+
+
+def fingerprint(recipe, states, root=ROOT):
     state = states[recipe['state']]
-    movie = ROOT / state['movie']
-    return hashlib.sha256(json.dumps([recipe, state, hashlib.sha256(movie.read_text(encoding='utf-8').encode()).hexdigest()],
+    movie = root / state['movie']
+    return hashlib.sha256(json.dumps([recipe, state, hashlib.sha256(movie.read_text(encoding='utf-8').encode()).hexdigest(),
+                                     implementation_hash(root)],
                                      sort_keys=True).encode()).hexdigest()
 
 

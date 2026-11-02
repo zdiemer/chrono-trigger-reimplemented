@@ -3,10 +3,14 @@ import copy
 import json
 import pathlib
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from tools import unreached as u, unreached_fuzz as f
+from tools.disasm.analyze import Analyzer
+from tools.disasm.hints import Hints
+from tests.test_disasm import FakeRom
 
 
 class UnreachedTest(unittest.TestCase):
@@ -122,6 +126,62 @@ class UnreachedTest(unittest.TestCase):
     def test_an_unrelated_callout_is_not_evidence_for_a_port(self):
         self.assertFalse(f.covers({'name': 'caller'}, 'callee'))
         self.assertTrue(f.covers({'name': 'caller', 'covers': ['callee']}, 'callee'))
+
+    def test_restart_only_stop_does_not_hide_screen_dispatch(self):
+        # Synthetic instructions at the real regression's addresses. The
+        # original dispatch serves curtain, ripple and restart; only restart
+        # hands back. Burndown's stop/call-out estimate drops the other arms.
+        code = {0xC03FAF: bytes.fromhex('4C0940'),
+                0xC04009: bytes.fromhex('FC004260'),
+                0xC04200: bytes.fromhex('4541C8418141'),
+                0xC04145: bytes.fromhex('EA60'),
+                0xC041C8: bytes.fromhex('EA60'),
+                0xC04181: bytes.fromhex('4C00FF')}
+        hints = Hints()
+        for pc in (0xC03FAF, 0xC04145, 0xC041C8, 0xC04181):
+            hints.entries.append(SimpleNamespace(addr=pc, m=True, x=True, kind='test'))
+        an = Analyzer(FakeRom(code), hints)
+        an.run()
+        an.tables[0xC04009] = SimpleNamespace(table=0xC04200, count=3,
+                                            kind='short', dispatcher=0xC04009, extra=set(), call=True)
+        port = u.burndown.Port(0xC03FAF, 'screen_command')
+        port.stops = {0xC04009}
+        port.unreadable = True
+        owners = {port.addr, 0xC0FF00}
+        old, old_inline = u.burndown.walk(an, port.addr, owners, port)
+        self.assertNotIn(0xC04145, old | old_inline)
+        own, inline, unresolved = u.walk(an, port.addr, owners)
+        self.assertEqual(unresolved, [])
+        self.assertTrue({0xC04009, 0xC04145, 0xC041C8, 0xC04181} <= own | inline)
+        self.assertNotIn(0xC0FF00, own | inline)
+
+    def test_unresolved_walks_are_explicit(self):
+        hints = Hints()
+        hints.entries.append(SimpleNamespace(addr=0xC08000, m=True, x=True, kind='test'))
+        an = Analyzer(FakeRom({0xC08000: bytes.fromhex('6C0090')}), hints)
+        an.run()
+        _, _, problems = u.walk(an, 0xC08000, {0xC08000})
+        self.assertIn('C08000: unresolved JMP successor', problems)
+        _, _, problems = u.walk(an, 0xC09000, {0xC09000})
+        self.assertIn('C09000: no decoded instruction', problems)
+        hints = Hints()
+        hints.entries.append(SimpleNamespace(addr=0xC08000, m=True, x=True, kind='test'))
+        an = Analyzer(FakeRom({0xC08000: bytes.fromhex('FC009060')}), hints)
+        an.run()
+        _, _, problems = u.walk(an, 0xC08000, {0xC08000})
+        self.assertIn('C08000: unresolved call', problems)
+
+    def test_fuzz_fingerprint_tracks_implementation_changes(self):
+        (self.root / 'game').mkdir()
+        implementation = self.root / 'game' / 'screen.c'
+        implementation.write_text('void curtain(void) {}\n')
+        (self.root / 'movie.ctm').write_text('0 1 NONE\n')
+        recipe, states = {'state': 'field'}, {'field': {'movie': 'movie.ctm'}}
+        before = f.fingerprint(recipe, states, self.root)
+        implementation.write_bytes(b'void curtain(void) {}\r\n')
+        self.assertEqual(before, f.fingerprint(recipe, states, self.root))
+        implementation.write_text('void curtain(void) { wait(); }\n')
+        self.assertNotEqual(before, f.fingerprint(recipe, states, self.root))
 
 
 if __name__ == '__main__':

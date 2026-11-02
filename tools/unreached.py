@@ -1,7 +1,8 @@
 """Inventory ported instruction bytes no library movie executes.
 
-Uses the live-code and port-walk definitions of burndown.py. Addresses and
-counts are measurements, not disassembly or cartridge contents.
+Uses burndown.py's live-code discovery with a conservative audit walk that
+keeps conditional handoffs. Addresses and counts are measurements, not
+disassembly or cartridge contents.
 """
 import argparse
 import collections
@@ -21,6 +22,13 @@ from tools.disasm.cpu import decode
 from tools import unreached_fuzz
 
 SUBSYSTEMS = ('attract', 'data', 'core', 'warp', 'overworld', 'event')
+# This separately registered field entry owns the screen command's restart
+# arm. Include the dependency so the entire uncovered dispatch is accounted.
+DEPENDENCIES = {'field_restart_wait_for_vblank_loop': 'screen-command restart dependency'}
+
+
+def in_scope(subsystem, name):
+    return subsystem in SUBSYSTEMS or name in DEPENDENCIES
 
 
 def runs(values):
@@ -31,6 +39,41 @@ def runs(values):
         else:
             result.append([value, value])
     return result
+
+
+def walk(an, entry, owners):
+    """Conservative audit reach, not burndown's implementation estimate.
+
+    A stop/call-out declaration says that a port *can* hand back there;
+    it does not prove an unconditional boundary. Follow both continuations
+    and all decoded callees until another registered entry owns the work.
+    Original-only handoffs included this way need explicit ledger evidence.
+    Missing instructions or unresolved dispatches cannot mean zero bytes.
+    """
+    seen, own, inline, unresolved = set(), set(), set(), set()
+    queue = [(entry, False)]
+    while queue:
+        pc, inside = queue.pop()
+        if (pc, inside) in seen:
+            continue
+        seen.add((pc, inside))
+        insn = burndown.insn_at(an, pc)
+        if insn is None:
+            unresolved.add(f'{pc:06X}: no decoded instruction')
+            continue
+        (inline if inside else own).update(range(pc, pc + insn.size))
+        nexts, callees = burndown.successors(an, insn)
+        if insn.name in burndown.CALLS and not callees:
+            unresolved.add(f'{pc:06X}: unresolved call')
+        if not nexts and not callees and insn.name not in burndown.RETURNS:
+            unresolved.add(f'{pc:06X}: unresolved {insn.name} successor')
+        for target in callees:
+            if target not in owners:
+                queue.append((target, True))
+        for target in nexts:
+            if target == entry or target not in owners:
+                queue.append((target, inside))
+    return own, inline, sorted(unresolved)
 
 
 def analyze(rom):
@@ -64,7 +107,16 @@ def analyze(rom):
     live_bytes = {b for pc in live if pc >> 16 not in burndown.RETIRED
                   for b in range(pc, pc + max(i.size for i in an.code[pc].values()))}
     owners = {p.addr for p in ports}
-    walks = [(p, *burndown.walk(an, p.addr, owners, p)) for p in ports]
+    walks, unresolved = [], []
+    for p in ports:
+        if in_scope(subsystems[p.addr], p.name):
+            own, inline, issues = walk(an, p.addr, owners)
+            unresolved.extend(f'{p.name} ({p.addr:06X}): {issue}' for issue in issues)
+        else:
+            own, inline = burndown.walk(an, p.addr, owners, p)
+        walks.append((p, own, inline))
+    if unresolved:
+        raise ValueError('unresolved port walks:\n' + '\n'.join(unresolved))
     # Own regions take precedence over inlined regions; ties use entry order.
     assigned = set()
     owned = collections.defaultdict(set)
@@ -76,7 +128,7 @@ def analyze(rom):
     result = []
     for p in ports:
         sub = subsystems[p.addr]
-        if sub not in SUBSYSTEMS:
+        if not in_scope(sub, p.name):
             continue
         region = owned[p.addr]
         result.append(dict(subsystem=sub, entry=f'{p.addr:06X}', name=p.name,
@@ -245,8 +297,11 @@ def record(rows, movies, evidence_dir, safety, target):
                for name, digest in sorted(movies.items())]
     for row in rows:
         missing = expand(row['runs'])
+        reason = 'Conservative live reach; own regions before inlined helpers.'
+        if row['name'] in DEPENDENCIES:
+            reason += ' ' + DEPENDENCIES[row['name']] + '.'
         records.append(['port', row['subsystem'], row['entry'], row['name'], row['digest'],
-                        str(len(missing)), spans_text(row['runs']), 'burndown live reach, own regions before inlined helpers.'])
+                        str(len(missing)), spans_text(row['runs']), reason])
         for case, result, pcs in sorted(evidence, key=lambda e: e[1]['recipe']['name'] != row['name']):
             if not unreached_fuzz.covers(result['recipe'], row['name']):
                 continue
@@ -357,7 +412,7 @@ def main():
         if row['uncovered']:
             print('{subsystem}\t{entry}\t{name}\t{uncovered}\t'.format(**row) +
                   ','.join(f'{lo:06X}-{hi:06X}' for lo, hi in row['runs']))
-    for sub in SUBSYSTEMS:
+    for sub in dict.fromkeys(list(SUBSYSTEMS) + [r['subsystem'] for r in rows]):
         print(f"{sub}: {sum(r['uncovered'] for r in rows if r['subsystem'] == sub)} bytes")
     if args.json:
         args.json.write_text(json.dumps(rows, indent=2) + '\n')

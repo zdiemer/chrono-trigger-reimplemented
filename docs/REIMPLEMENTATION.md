@@ -3492,34 +3492,40 @@ menus' movies.
 ### The code the movie library does not reach
 
 Before a subsystem loses the original as an oracle, `tools/unreached.py`
-compares its ported live instruction bytes with the union of the standard
-library's `ct_dev --coverage` files. It uses `burndown.py`'s live-code walk,
-assigning a byte to its own entry before an inlined caller and resolving
+compares its candidate live instruction bytes with the union of the standard
+library's `ct_dev --coverage` files. It uses the disassembler's live code and
+a conservative audit walk, assigning a byte to its own entry before an inlined caller and resolving
 shared helpers in registry order. Macro-generated event entries participate
 too. Coverage retains the instruction's M/X widths, so an immediate operand
 is counted at the width actually executed. The estimate includes guarded
 error paths and original-only handoffs; these need explicit explanations,
-not invented fuzz coverage.
+not invented fuzz coverage. A stop declaration says where a port can hand
+back, not that every path stops there: the audit follows continuations and
+all decoded callees until another registered entry owns them. It does not
+use burndown's stop/call-out pruning. Missing instructions and unresolved
+calls or jumps are listed by entry and address and fail the inventory.
 
-The first inventory covers 343 entries in six subsystems, using the existing
+The inventory covers 343 entries in six subsystems plus the screen command's
+separately registered field restart dependency, using the existing
 84-movie coverage union (the movie inputs agree with the checkout supplying
 it). Optional hand recordings are outside that standard library. No game
 code changed in this work.
 
 | Subsystem | Bytes no movie executes | Executed in matched fuzz trials | Reviewed safety argument |
 |---|--:|--:|--:|
-| attract | 0 | 0 | 0 |
+| attract | 156 | 0 | 156 |
 | data | 0 | 0 | 0 |
-| core | 417 | 417 | 0 |
+| core | 421 | 417 | 4 |
 | warp | 104 | 95 | 9 |
 | overworld | 1,354 | 1,318 | 36 |
-| event | 1,475 | 1,336 | 139 |
-| Total | 3,350 | 3,166 | 184 |
+| event | 1,571 | 1,426 | 145 |
+| field restart dependency | 16 | 0 | 16 |
+| Total | 3,622 | 3,256 | 366 |
 
 `tools/unreached_baseline.txt` is the greppable ledger: a movie manifest,
 one inventory row per entry (including zero-byte entries), and exact byte
 runs attached to passing fuzz recipes or reviewed safety reasons. The
-101 cited recipes made 99,400 trials, 69,585 matched, zero mismatches; skips
+102 cited recipes made 100,400 trials, 70,585 matched, zero mismatches; skips
 contribute no evidence. `ct_fuzz --coverage` accumulates original instructions
 only after a trial matches. Logs with accessor/page/resource diagnostics
 are rejected, even when the comparator reports a match. Broader casting
@@ -3545,6 +3551,15 @@ dactyl shares the leader's ground lookup and next-tile helpers. An unrelated
 interpreted call-out visiting an address on both machines is not evidence
 for its port.
 
+The screen command is a regression example for the conservative walk.
+Its restart-only stop at `$C0:4009` must not remove the other dispatch arms.
+`event_cmd_screen_command:unreached_effects` executes all 90 uncovered
+effect-handler bytes, including the curtain at `$C0:4145-$C0:4180` and ripple
+at `$C0:41C8-$C0:41DB`, in 1,000 matched comparisons. The other 16 bytes of
+the uncovered dispatch belong to `field_restart_wait_for_vblank_loop`;
+that dependency has its own ledger row rather than disappearing at an
+ownership boundary.
+
 **What is reviewed rather than executed.** Most exclusions are rejected
 selectors, missing-resource diagnostics, explicit error handoffs or branches
 excluded by the cartridge's fixed resources. Every world-map record omits
@@ -3555,17 +3570,26 @@ and time dial have exactly the port's nonzero-sign predicate and byte
 wraparound, and their flags are dead. Those arms did not run in the fuzz
 comparisons. `tools/unreached_safe.toml` records the arguments, and TODO.md
 keeps the returning-screen fixture and guard-to-assertion obligations.
+The conservative traversal also exposes the map-turning callback excluded
+by the attract frame-pass guard (156 bytes), the controller's reset transfer
+(4), and the event engine's original-only unknown-command diagnostic (6).
+Their source-bound review arguments are explicit. The field restart's
+five-byte wait uses the documented vblank timing escape, not byte-exact
+timing equivalence; its following 11 bytes remain an original-only handoff.
 
 **The ratchet.** `tools/unreached.py --check` re-derives the current port reach
-and checks the ledger's movie hashes, recipe fingerprints, proof coverage
+and checks the ledger's movie hashes, recipe/implementation fingerprints, proof coverage
 and safety-source hashes. Added entries or changed reach, removed/edited
-movies, stale recipes and changed safety dependencies fail closed. Added
+movies, stale recipes or C implementations, and changed safety dependencies fail closed. Added
 movies can only increase the recorded union. The sampled suite uses this
 full-library record, never its own partial union to infer absence. With
 `--evidence`, it also replays the cited recipes and verifies that their clean
 results execute every byte claimed in their ledger rows. This is an
 instruction-coverage obligation, not a claim of exhaustive path or input
 coverage.
+Implementation fingerprints include the C sources and headers in `game/`,
+`runtime/` and `dev/`, so changing a shared helper or comparison harness
+invalidates cached evidence without tying the ledger to one host's binary.
 
 To inspect or rebuild the record, supply the verified ROM with `--rom`:
 
@@ -3580,12 +3604,11 @@ Recording requires every standard-library coverage file and complete clean
 evidence or a reviewed reason; it cannot silently accept an unchecked run.
 ROMs, states, logs and coverage remain local build artifacts. The no-ROM
 unit tests exercise width accounting, stale inputs, missing/overlapping
-proofs and evidence rejection; `fuzz_test` checks that failed, refused and
+proofs, conditional-stop dispatches, unresolved walks and implementation
+fingerprints; `fuzz_test` checks that failed, refused and
 timed-out trials never contribute coverage and that counter notifications
 are applied to both machines.
 
-The sampled gate with `--long-routes --evidence` ended `suite OK`: all 37
-shadow movies were clean, all 56 routes reached their outcomes in both the
-shipping and native-shape builds, and the fresh 101-recipe replay reproduced
-the ledger's trial and match counts with zero mismatches. The Python unit
-tests and `fuzz_test` passed too.
+The focused unreached and burndown unit tests pass without a ROM. The
+sampled gate's `--long-routes --evidence` run rechecks the complete ledger
+and replays all 102 cited recipes alongside its normal validation.

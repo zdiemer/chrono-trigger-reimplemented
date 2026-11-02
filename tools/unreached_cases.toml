@@ -12,6 +12,13 @@ event_cmd_if_compares = ["event_cmd_if_compares_word", "event_cmd_if_compares_va
 overworld_lead = ["overworld_dactyl"]
 
 [[case]]
+base = "event_cmd_screen_command"
+variant = "unreached_effects"
+args = ["--range", "Y=0100-0100", "--fill", "7E016D-7E016E=0000",
+        "--fill", "7F:[Y]+2002,1=90,91,92,93,94,95,97,98,99,9A,9B,9C,9D,9E"]
+why = "All non-restart screen effects, including curtain start/wait/completion and ripple idle/running/played; exclude the separate party service so random character records cannot invalidate its fixture."
+
+[[case]]
 base = "overworld_set_up"
 variant = "unreached_setup"
 args = ["--stop-at-call", "C2046E"]

@@ -886,7 +886,10 @@ M/X widths **only from matched trials**, in the same format as `ct_dev
 --coverage`. Refused, timed-out and mismatching trials contribute nothing;
 coverage of a call-out says it ran in a compared state, not that the callee
 was itself a hand port. This is how `tools/unreached.py` accounts for paths
-the movie library misses. States and coverage remain build artifacts.
+the movie library misses. Its evidence fingerprint includes the recipe,
+base-state inputs and C sources/headers in `game/`, `runtime/` and `dev/`;
+changed implementation code requires fresh evidence. States and coverage
+remain build artifacts.
 
 For an interpreted wait on an externally updated byte, `--tick-at
 PC=WRAM` increments that WRAM byte before each execution of PC on both

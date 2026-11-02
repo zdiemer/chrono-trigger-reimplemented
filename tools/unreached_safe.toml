@@ -1,6 +1,30 @@
-# Reviewed exclusions from the six subsystems' burndown reach estimate.
+# Reviewed exclusions from the six subsystems' conservative audit reach.
 # These are not counted as instructions executed by fuzzing. The ledger binds
 # each explanation to its source files; editing them requires another review.
+
+[[safe]]
+name = "field_restart_wait_for_vblank_loop"
+runs = "C04181-C04190"
+sources = ["game/event/screen.c", "game/field/frame.c"]
+why = "Screen-command restart dependency, separately registered in field. The five-byte wait is the documented timing escape in wait_for_vblank_pass: it accepts either a pending flag or current vblank after the interrupt acknowledged that flag, then hands back at C04186. This intentionally avoids the original's flag-read race; it is not a claim of byte-exact timing equivalence. The following 11 bytes blank the display, set S=06FF and jump to FDC000, and remain original-only after the handoff. event_cmd_screen_command delegates only selector 96 at C04009. These 16 bytes are reviewed, not fuzz-executed; preserve the vblank-only restart precondition and replace the original-only continuation before retiring this dependency."
+
+[[safe]]
+name = "attract_frame_pass"
+runs = "7E7441-7E74DC"
+sources = ["game/attract/main_loop.c"]
+why = "The conservative dynamic-call walk includes the scene's map-turning callback at 7E7441. attract_frame_pass_present admits only 51D1, 8930 and 8278, so this callback is not implemented by that port; attract_wait_loop delegates nonempty callbacks to the machine. Keep that rejection/delegation until the scene map-turning routine is ported."
+
+[[safe]]
+name = "input_read_joypad"
+runs = "C28523-C28526"
+sources = ["game/core/input.c", "game/core/input.h"]
+why = "Reviewed reset handoff: the original JML transfers to C0FF00 only for controller bits 3030. input_read_controller returns CONTROLLER_RESET for exactly RESET_BUTTONS (L/R/Select/Start); input_stop_reading sets 16-bit widths and stops at C0FF00 on page/bank zero. This four-byte transfer is not executed by the recorded fuzz inputs; preserve the reset-chord handoff when retiring it."
+
+[[safe]]
+name = "event_run_init_scripts"
+runs = "C05F6E-C05F73"
+sources = ["game/event/engine.c", "game/event/bridge.c"]
+why = "The conservative command-table walk includes the unknown-command diagnostic (load message 1639, branch to C02E1E). An opcode without a C row goes through through_the_table on the machine; the native runner instead calls program_needs_the_machine. These original-only diagnostic bytes are not an implemented command. Replace the delegation with an explicit invalid-command failure before retiring that fallback."
 
 [[safe]]
 name = "event_cmd_if_compares"
