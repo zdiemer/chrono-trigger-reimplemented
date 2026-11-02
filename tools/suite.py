@@ -193,6 +193,7 @@ def run_movie(binary, rom, out, name, path, frames):
            "--coverage", str(out / ("cov-%s.txt" % name)),
            "--calls", str(out / ("calls-%s.txt" % name)),
            "--fallbacks", str(out / "fallbacks" / "shadow" / ("%s.txt" % name)),
+           "--finish-fallbacks", "120",
            "--end-state", str(out / ("end-%s.bin" % name)), "--locations"] + PACK_ARGS
     started = time.time()
     with open(log, "wb") as fh:

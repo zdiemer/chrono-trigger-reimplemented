@@ -3055,6 +3055,31 @@ port landing doesn't move its callees (what was `unported` becomes `handback`,
 same routine); the report keeps them apart. `--update` takes a gain and keeps
 the reasons of the lines it keeps.
 
+**A movie ending inside a comparison.** The suite uses
+`ct_dev --finish-fallbacks 120`: counts, traces and the saved end state freeze
+at the movie's last frame, then at most 120 input-free frames let existing
+comparisons finish. A `closed` record cancels only its own file's `open`
+instructions, after the exact entry's match count increases by the number
+of pending invocations, with no new calls, mismatches, interruptions or
+abandonments. Completion is observed between instructions so another call
+later in the same frame cannot obscure it. Unresolved comparisons retain
+their original counts and ratchet failures; the tail's mismatches still fail
+the shadow run. Only comparison evidence includes the extra frames.
+
+`battle-black-tyrano` ends during scene teardown and field loading: 20
+instructions under `scene_program_restart` and 44,292 under `decompress`
+were previously reported as new or increased open fallbacks. Both comparisons
+match within 11 extra frames. The cutoff saved state is byte-identical to
+the reference at frame 49219; the movie still measures 18 fallback
+instructions (10 handback, eight unported), with none new or increased.
+No fallback baseline was raised to accept the loading call's partial count.
+A replay from a reference state before the cutoff checks zero-, one- and
+120-frame limits: all three retain identical cutoff files and saved states
+before the appended completion records. One extra frame completes only
+decompression, so restart's 20 instructions still fail the ratchet. Eleven
+complete both. Reader tests also reject closure exceeding its own run's
+open count or attempting to cancel another movie's comparison.
+
 **On main**, when this came in, the reference play ran 46.5 KiB of distinct
 code and 347 million instructions in place of hand ports, the same in two runs
 to the instruction; by kind (a byte can be in two):

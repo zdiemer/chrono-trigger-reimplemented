@@ -112,6 +112,10 @@
  * ports stand for isn't counted, so a movie measures its own play, the same
  * whatever the ports' timing (the gate's ratchet); in the shipping mode it
  * measures where the run went. tools/fallbacks.py reads the file.
+ * --finish-fallbacks N (shadow only, 1-120) freezes those counts and the saved
+ * end state at the movie cutoff, then allows up to N input-free frames for
+ * open comparisons to match. Only proven completions cancel open counts;
+ * new invocations, interrupted or abandoned comparisons cannot do so.
  * --census out.txt (with --native on; not with --fallbacks) counts, for each
  * registered entry, how often the machine entered it -- through a vector,
  * from the original's code, or from a port's call-out, stop, yield or return
@@ -564,6 +568,7 @@ int main(int argc, char **argv)
     int nexcludes = 0, nincludes = 0;
     const char *as_ports = NULL;
     int shadow_details = -1;
+    int finish_fallbacks = 0;
     PortTiming port_timing = PORT_TIMING_ESTIMATE;
     bool timing_report = false, page_report = false, port_horizon_interrupts = false, scaffold_reads = false;
     bool locations = false;
@@ -665,6 +670,7 @@ int main(int argc, char **argv)
             }
         }
         else if (!strcmp(a, "--shadow-details")) shadow_details = (int)strtol(v, NULL, 10);
+        else if (!strcmp(a, "--finish-fallbacks")) finish_fallbacks = (int)strtol(v, NULL, 10);
         else if (!strcmp(a, "--port-timing")) {
             if (!strcmp(v, "estimate")) port_timing = PORT_TIMING_ESTIMATE;
             else if (!strcmp(v, "oracle")) port_timing = PORT_TIMING_ORACLE;
@@ -722,7 +728,7 @@ int main(int argc, char **argv)
                         "[--timing-report] [--page-report] [--event-reads out.txt] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--mixer dsp|native|check] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
-                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--census out.txt] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
+                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--finish-fallbacks N] [--census out.txt] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
                         "[--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]... "
                         "[--asset-reads out.txt] [--assets pack] [--locations]\n");
         return 2;
@@ -975,6 +981,12 @@ int main(int argc, char **argv)
         au_take_samples(m_platform(&snes), audio, DSP_OUT_FRAMES);   /* left over in a loaded state */
     }
 
+    if (finish_fallbacks < 0 || finish_fallbacks > 120 ||
+        (finish_fallbacks && (!fallbacks || native_mode != NATIVE_SHADOW))) {
+        fprintf(stderr, "--finish-fallbacks needs --native shadow --fallbacks and 1-120 extra frames\n");
+        return 2;
+    }
+    bool fallbacks_written = false;
     int rc = 0;
     uint8_t cgram[0x200];
     uint16_t location = 0xFFFF;
@@ -1040,6 +1052,27 @@ int main(int argc, char **argv)
         fprintf(stderr, "cannot write %s\n", end_state);
         rc = 1;
     }
+    if (finish_fallbacks && !rc) {
+        /* Freeze the movie's measure and saved state at its exact cutoff.
+         * Only comparison evidence includes this bounded, input-free tail. */
+        fallbacks_summary(fallbacks, stderr);
+        if (fallbacks_write(fallbacks, fallbacks_path) != 0)
+            rc = 1;
+        else {
+            fallbacks_written = true;
+            fallbacks_end_begin(fallbacks);
+            unsigned cutoff = snes.frame;
+            for (int i = 0; i < finish_fallbacks && fallbacks_end_pending(fallbacks) && !snes.halted; i++) {
+                snes.bus.pad[1] = 0;
+                snes_run_frame(&snes, 0);
+            }
+            bool pending = fallbacks_end_pending(fallbacks);
+            fprintf(stderr, "fallback completion: %u extra frame(s), %s\n", snes.frame - cutoff,
+                    pending ? "unresolved comparisons remain counted" : "cutoff comparisons matched");
+            if (fallbacks_end_write(fallbacks, fallbacks_path) != 0)
+                rc = 1;
+        }
+    }
     if (native_mode != NATIVE_OFF) {
         native_report(natives, stderr);
         if (native_failed(natives))
@@ -1100,7 +1133,7 @@ int main(int argc, char **argv)
         rc = 1;
     }
     misses_destroy(misses);
-    if (fallbacks) {
+    if (fallbacks && !fallbacks_written) {
         fallbacks_summary(fallbacks, stderr);
         if (fallbacks_write(fallbacks, fallbacks_path) != 0) {
             fprintf(stderr, "cannot write %s\n", fallbacks_path);

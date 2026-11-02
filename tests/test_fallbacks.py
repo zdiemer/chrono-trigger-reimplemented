@@ -35,6 +35,34 @@ class FallbacksTest(unittest.TestCase):
     def measure(self):
         return fallbacks.gather([self.root])
 
+    def test_cutoff_completion_keeps_the_movie_counts(self):
+        with (self.root / "movie.txt").open("a") as f:
+            f.write("open C30002 44292 decompress\nclosed C30002 44292 decompress\n")
+        m = self.measure()
+        self.assertFalse(m.open)
+        self.assertEqual(m.completed[("C3:0002", "decompress")], 44292)
+        self.assertEqual(sum(m.insns.values()), 267)
+
+    def test_unfinished_cutoff_still_counts(self):
+        with (self.root / "movie.txt").open("a") as f:
+            f.write("open C30002 44292 decompress\n")
+        self.assertEqual(self.measure().open[("C3:0002", "decompress")], 44292)
+
+    def test_completion_cannot_cancel_another_movie(self):
+        with (self.root / "movie.txt").open("a") as f:
+            f.write("open C30002 44292 decompress\n")
+        (self.root / "other.txt").write_text("closed C30002 44292 decompress\n")
+        m = self.measure()
+        self.assertEqual(m.open[("C3:0002", "decompress")], 44292)
+        self.assertEqual(len(m.bad), 1)
+
+    def test_completion_cannot_exceed_the_cutoff(self):
+        (self.root / "movie.txt").write_text(
+            "open C30002 10 decompress\nclosed C30002 11 decompress\n")
+        m = self.measure()
+        self.assertEqual(m.open[("C3:0002", "decompress")], 10)
+        self.assertEqual(len(m.bad), 1)
+
     def test_mirrors_count_as_their_bank(self):
         """$00:ABCE is $C0:ABCE: one routine, and its bytes counted once."""
         rows = self.measure().routines()

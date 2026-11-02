@@ -433,6 +433,9 @@ int native_failed(const NativeRuntime *rt);
  * none), and the i-th of the details native_report prints after them (the
  * first mismatches; NULL past the last). */
 const NativeStats *native_stats_named(const NativeRuntime *rt, const char *name);
+/* An observer's exact entry, without flushing generated replay. Names may
+ * be shared by aliases, so observers must not use the name-only lookup. */
+const NativeStats *native_stats_for(const NativeRuntime *rt, const NativeEntry *entry);
 const char *native_detail(const NativeRuntime *rt, int i);
 
 /* Generated blocks (docs/GENERATED.md). ON mode: a block runs until the system's

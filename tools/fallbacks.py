@@ -66,6 +66,13 @@ unless the allowlist names its entry and condition with a concrete reason
 machine states it was refused in, with the run they came from; for code in
 work RAM the state says whether its bytes are those the generated blocks were
 made from (a guard that checks for its own code refuses another program's).
+
+**Movie cutoffs.** `open` counts remain ratcheted unless the same file carries
+`closed` evidence from `ct_dev --finish-fallbacks`: the exact pending
+invocations matched during a bounded tail, with no new invocation,
+interruption or abandonment substituted for completion. The tail adds no
+instructions to the movie's measure. An unresolved comparison still fails
+where it did before; closure in another movie cannot cancel it.
 """
 
 import argparse
@@ -105,6 +112,7 @@ EVENT = re.compile(r"^event (\w+) ([0-9A-F]{6}) ([0-9A-F]{6}) (\d+) (\S+)$")
 REFUSAL = re.compile(r"^refusal ([0-9A-F]{6}) (\w+) (\d+) (\S+)$")
 STATE = re.compile(r"^state ([0-9A-F]{6}) (\w+) (.*)$")
 OPEN = re.compile(r"^open ([0-9A-F]{6}) (\d+) (\S+)$")
+CLOSED = re.compile(r"^closed ([0-9A-F]{6}) (\d+) (\S+)$")
 
 
 def canonical(addr):
@@ -163,11 +171,14 @@ class Measure:
         self.refusals = collections.Counter()   # (entry, name, why) -> count
         self.states = collections.defaultdict(list)
         self.open = collections.Counter()       # (port, name) -> instructions under its unfinished comparison
+        self.completed = collections.Counter()  # cutoff comparisons matched in a bounded tail
+        self.bad = []
         self.files = 0
 
     def read(self, path):
         self.files += 1
         run = path.parent.name + "/" + path.stem
+        opened, closed = collections.Counter(), collections.Counter()
         for line in path.read_text(errors="replace").splitlines():
             m = INSN.match(line)
             if m:
@@ -192,7 +203,12 @@ class Measure:
             m = OPEN.match(line)
             if m:
                 port, count, name = m.groups()
-                self.open[(fmt(int(port, 16)), name)] += int(count)
+                opened[(fmt(int(port, 16)), name)] += int(count)
+                continue
+            m = CLOSED.match(line)
+            if m:
+                port, count, name = m.groups()
+                closed[(fmt(int(port, 16)), name)] += int(count)
                 continue
             m = STATE.match(line)
             if m:
@@ -201,6 +217,13 @@ class Measure:
                 state = "%s (%s)" % (state, run)
                 if state not in self.states[key]:
                     self.states[key].append(state)
+        for key, count in closed.items():
+            if count > opened[key]:
+                self.bad.append("%s: closed comparison exceeds this run's open count: %s" % (run, key[0]))
+            else:
+                opened[key] -= count
+                self.completed[key] += count
+        self.open.update({key: n for key, n in opened.items() if n})
 
     def routines(self):
         """routine -> [instructions, set of byte addresses, Counter of kinds, {kind: set of ports}]."""
@@ -245,8 +268,11 @@ def totals_line(m):
     nbytes = len(set().union(*(total[(None, k)][1] for k in KINDS)))
     ninsns = sum(total[(None, k)][0] for k in KINDS)
     parts = ", ".join("%s %s/%d" % (k, kib(len(total[(None, k)][1])), total[(None, k)][0]) for k in KINDS)
-    return "%s of code, %d instructions in place of hand ports (%s); %d under comparisons still open" % (
+    summary = "%s of code, %d instructions in place of hand ports (%s); %d under comparisons still open" % (
         kib(nbytes), ninsns, parts, sum(m.open.values()))
+    if m.completed:
+        summary += "; %d cutoff instructions compared in bounded tails" % sum(m.completed.values())
+    return summary
 
 
 def describe(m, routine, row):
@@ -324,6 +350,7 @@ def open_names(m):
 
 def check(m, baseline_path, out, subset=False):
     base, bad = read_baseline(baseline_path)
+    bad += m.bad
     now = m.routines()
     new, rose, gains = [], [], []
     for routine, row in sorted(now.items()):

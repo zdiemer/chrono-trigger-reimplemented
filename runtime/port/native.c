@@ -3616,6 +3616,14 @@ const NativeStats *native_stats_named(const NativeRuntime *rt, const char *name)
     return NULL;
 }
 
+const NativeStats *native_stats_for(const NativeRuntime *rt, const NativeEntry *entry)
+{
+    for (int i = 0; i < rt->count; i++)
+        if (&rt->table[i] == entry)
+            return &rt->stats[i];
+    return NULL;
+}
+
 const char *native_detail(const NativeRuntime *rt, int i)
 {
     if (i < 0)

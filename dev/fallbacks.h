@@ -43,6 +43,8 @@
  * ended (set aside inside another's included); one still open when the run
  * ends is written with the instructions it hid (`open` lines), so nothing
  * hides under a comparison that never finishes.
+ * A bounded tail after the counts are written may append `closed` evidence
+ * for those exact invocations. The movie's instruction counts stay frozen.
  *
  * One measure per process: the generated code's hook and the interpreter's
  * wrapper are global. */
@@ -75,6 +77,13 @@ void fallbacks_reset(Fallbacks *f);
 /* Writes the counts (the format is tools/fallbacks.py's; a run's own file, so
  * tools add files rather than this adding to one). Returns 0 on success. */
 int fallbacks_write(Fallbacks *f, const char *path);
+/* After writing the movie's counts, watch only its unfinished comparisons.
+ * A bounded tail can certify their completion without counting extra frames
+ * as part of the movie. New calls, interruptions and abandonment cannot
+ * certify an old comparison. Unresolved comparisons keep their open rows. */
+void fallbacks_end_begin(Fallbacks *f);
+bool fallbacks_end_pending(Fallbacks *f);
+int fallbacks_end_write(const Fallbacks *f, const char *path);
 /* One line for the run's log: instructions by reason. */
 void fallbacks_summary(const Fallbacks *f, FILE *out);
 void fallbacks_destroy(Fallbacks *f);
