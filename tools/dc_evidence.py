@@ -26,6 +26,12 @@ and exits 1 where a trace differs, an index is past $FE, a bounded dispatch
 never ran (unexercised: the run shows nothing for it), or a site had V inverted
 fewer than 100 times, unless the note rests such sites on the static result
 and another of its sites made 100 (update a note's counts to the ones printed).
+
+A movie whose runs all passed keeps its counts in the build directory
+(tools/evidence_cache.py, keyed on the binary, the ROM, the movie, the runs'
+options and this Python), and a later run takes them from there while none of
+those has changed; the counts are summed and judged afresh every time.
+--no-cache makes every movie again.
 """
 
 import argparse
@@ -41,6 +47,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools import evidence_cache  # noqa: E402
 from tools.dontcare_check import MIN_SCRAMBLED, RETURN_EVIDENCE, V_EVIDENCE, v_evidence_counts  # noqa: E402
 from tools.suite import collect  # noqa: E402
 
@@ -84,19 +91,61 @@ def same_trace(a, b) -> tuple:
     return diff.returncode == 0 and bool(tail) and "no divergence" in tail[-1], tail[-1] if tail else ""
 
 
-def run_movie(binary, rom, out, movie, sites, dispatches, entries):
-    name, path, frames = movie
-    base = [str(rom), "--movie", str(path), "--frames", str(frames)]
-    traces = {tag: out / f"{name}-{tag}.cttr" for tag in ("plain", "poisoned", "returns")}
+def recipe(sites, dispatches, entries) -> dict:
+    """Each run a movie gets, by tag: its options after the movie, without the
+    trace a run writes (plain, poisoned and returns write one each)."""
     runs = {
-        "plain": ["--native", "on", "--generated", "on", "--trace", str(traces["plain"])],
-        "poisoned": ["--native", "on", "--generated", "on", "--trace", str(traces["poisoned"]), "--poison-set", "V"]
+        "plain": ["--native", "on", "--generated", "on"],
+        "poisoned": ["--native", "on", "--generated", "on", "--poison-set", "V"]
                     + sum((["--poison-site", f"{s:06X}"] for s in sites), []),
         "index": ["--native", "off", "--generated", "off"] + sum((["--index-check", f"{d:06X}"] for d in dispatches), []),
     }
     if entries:
-        runs["returns"] = (["--native", "on", "--generated", "on", "--trace", str(traces["returns"]), "--poison-set", "C"]
+        runs["returns"] = (["--native", "on", "--generated", "on", "--poison-set", "C"]
                            + sum((["--poison-return", f"{e:06X}"] for e in entries), []))
+    return runs
+
+
+def movie_key(binary, rom, movie, sites, dispatches, entries) -> str:
+    """Everything a movie's evidence depends on (tools/evidence_cache.py): the
+    program, the ROM, the movie's text and length, the runs made of it and the
+    Python that judges them."""
+    _name, path, frames = movie
+    return evidence_cache.make_key(
+        tool="dc_evidence", binary=evidence_cache.binary_digest(binary), rom=evidence_cache.file_digest(rom),
+        movie=evidence_cache.text_digest(path), frames=frames, runs=recipe(sites, dispatches, entries),
+        ignore=STACK_PAGE, judge=evidence_cache.tools_digest(__file__, ROOT / "tools/trace.py"))
+
+
+def passed(failed, same, index) -> bool:
+    """A movie's own result is clean: every run exited 0, the traces were the
+    same and no bounded index went past $FE. Only such a result is cached; the
+    counts summed over the library are judged afresh every time."""
+    return not failed and same and not any(over for _runs, _largest, over in index.values())
+
+
+def cached_movie(cache, binary, rom, out, movie, sites, dispatches, entries):
+    """run_movie, or its stored result where nothing it depends on has changed."""
+    name = movie[0]
+    key = movie_key(binary, rom, movie, sites, dispatches, entries)
+    stored = cache.get(key)
+    if stored is not None:
+        return (name, [], True, stored["tail"], {int(k): v for k, v in stored["poisoned"]},
+                {int(k): tuple(v) for k, v in stored["index"]},
+                {int(k): tuple(v) for k, v in stored["returns"]}, True)
+    name, failed, same, tail, poisoned, index, returns = run_movie(binary, rom, out, movie, sites, dispatches, entries)
+    if passed(failed, same, index):
+        cache.put(key, dict(tail=tail, poisoned=sorted(poisoned.items()), index=sorted(index.items()),
+                            returns=sorted(returns.items())))
+    return name, failed, same, tail, poisoned, index, returns, False
+
+
+def run_movie(binary, rom, out, movie, sites, dispatches, entries):
+    name, path, frames = movie
+    base = [str(rom), "--movie", str(path), "--frames", str(frames)]
+    traces = {tag: out / f"{name}-{tag}.cttr" for tag in ("plain", "poisoned", "returns")}
+    runs = {tag: extra + (["--trace", str(traces[tag])] if tag in traces else [])
+            for tag, extra in recipe(sites, dispatches, entries).items()}
     # The movie pool owns the process budget; variants share its one slot.
     logs, failed = {}, []
     for tag, extra in runs.items():
@@ -126,6 +175,10 @@ def main(argv=None) -> int:
     ap.add_argument("-j", "--jobs", type=int, default=1,
                     help="child processes at once; each movie runs its variants sequentially")
     ap.add_argument("--movies", nargs="*", help="only these (the counts then won't match the notes')")
+    ap.add_argument("--cache", type=pathlib.Path,
+                    help="where passing movies' results are kept (default: evidence-cache/dc beside --ct-dev)")
+    ap.add_argument("--no-cache", action="store_true",
+                    help="make every movie's runs again rather than take a stored result (also CT_EVIDENCE_CACHE=off)")
     args = ap.parse_args(argv)
 
     found = notes(ROOT)
@@ -143,12 +196,13 @@ def main(argv=None) -> int:
     binary = out / ("ct_dev" + args.ct_dev.suffix)
     shutil.copy2(args.ct_dev, binary)
     movies = collect("all", args.movies)
+    cache = evidence_cache.Cache(args.cache or evidence_cache.default_dir(args.ct_dev, "dc"), read=not args.no_cache)
     inverted = {s: 0 for s in sites}
     index = {d: [0, 0, 0] for d in dispatches}
     bad = 0
     with cf.ThreadPoolExecutor(max(1, args.jobs)) as ex:
-        for name, failed, same, tail, poisoned, idx, poisoned_returns in ex.map(
-                lambda m: run_movie(binary, args.rom, out, m, sites, dispatches, entries), movies):
+        for name, failed, same, tail, poisoned, idx, poisoned_returns, hit in ex.map(
+                lambda m: cached_movie(cache, binary, args.rom, out, m, sites, dispatches, entries), movies):
             for e, (v, b) in poisoned_returns.items():
                 inverted_returns[e] = inverted_returns.get(e, 0) + v
                 bridged_returns[e] = bridged_returns.get(e, 0) + b
@@ -161,7 +215,7 @@ def main(argv=None) -> int:
             if failed or not same:
                 bad += 1
             print(f"{name}: {'same' if same else 'DIFFERS'}{' (a run failed: ' + ', '.join(failed) + ')' if failed else ''}"
-                  f": {tail}", flush=True)
+                  f": {tail}" + (" (cached)" if hit else ""), flush=True)
     for d, (runs, largest, over) in sorted(index.items()):
         unexercised = runs == 0
         print(f"index ${d >> 16:02X}:{d & 0xFFFF:04X}: {runs} runs, largest X ${largest:04X}, past $FE {over}"
@@ -184,7 +238,7 @@ def main(argv=None) -> int:
               f"made {made} ({bridged} to a bridge)" + ("" if ok else f"  <-- under {MIN_SCRAMBLED}"))
     if not args.out:
         shutil.rmtree(out, ignore_errors=True)
-    print("dc_evidence: " + ("OK" if not bad else f"{bad} problem(s)"))
+    print("dc_evidence: " + ("OK" if not bad else f"{bad} problem(s)") + f" ({cache.summary()})")
     return 1 if bad else 0
 
 

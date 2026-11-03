@@ -1092,6 +1092,34 @@ trace, an index past `$FE`, a bounded dispatch the library never ran
 **Whoever merges a change that touches `game/battle/`, `runtime/port/`, an
 `index_reach` hint or a dc-evidence note runs `tools/suite.py --evidence`
 first**: the notes' counts are the library's, and a change there can move them.
+
+Those runs are most of the `--evidence` gate's time (four runs of each of the
+library's 84 movies, the index check's on the interpreter), so a movie whose
+runs all passed keeps its counts in the build directory,
+`<build>/evidence-cache/dc/<key>.json` beside `ct_dev` (`tools/evidence_cache.py`),
+and the next run takes them from there when nothing they depend on has
+changed. The key is the SHA-256 of: `ct_dev`'s bytes, the ROM's, the movie's
+text with CRLF made LF (a save the movie starts from is in it, by the CRC
+`ct_dev` checks), its frame count, each run's options (the sites, entries and
+dispatches it poisons or checks), and the text of `tools/dc_evidence.py` and
+`tools/trace.py`, which judge the runs. The binary stands for the C of
+`game/`, `runtime/` and `dev/`, the generated C and its generator, the build's
+options and the compiler at once: `ct_dev` reads no environment variable and
+no file its command line doesn't name, and a MinGW relink of the same objects
+differs from the last only in the executable's link time and checksum, which
+are zeroed before hashing, so a merge that touches only tools or docs keeps
+its binary and pays a few seconds for the stage, while one that rebuilds
+`ct_dev` differently makes everything again. A result with a failed run, a
+differing trace or an index past `$FE` is never stored, so it is made again
+every time; the counts are summed over the library and judged against the
+notes afresh on every run, cached or not, so a note's edited count is still
+checked. `tools/uncompared_evidence.py`'s isolated comparisons keep their
+verdicts the same way (`evidence-cache/uncompared/`, keyed on the binary, ROM,
+movie, frames, the case's options and the tool's text). `--no-cache` on either
+tool, `--no-evidence-cache` on the suite or `CT_EVIDENCE_CACHE=off` makes every
+run again (and still stores what passes). The unreached ledger's fuzz trials
+(`tools/unreached_fuzz.py`) aren't cached: they take half a minute, and their
+game states already are, keyed on the binary that made them.
 The effect worked out for an enemy's action hands the action's showing
 (`$C1:BFA4`) and the battle's step (`$C1:0003`) an overflow flag they only
 save and restore across their frame waits (history/reimplementation-chunks.md, "Phase 3, battle chunk 2: an effect worked out"), which is

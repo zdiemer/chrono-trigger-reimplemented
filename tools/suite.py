@@ -107,7 +107,7 @@ import time
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-from tools import outcomes
+from tools import evidence_cache, outcomes
 from tools.strict_check import SavedGame
 from tools import timing_gate  # noqa: E402
 
@@ -798,7 +798,9 @@ def check_assets(args, ctx):
 def check_evidence(args, ctx):
     """With --evidence: the library runs the tools/v_readers.py dc-evidence
     notes cite, made again (tools/dc_evidence.py), so a note can't go stale.
-    Three more runs of every movie, so it is asked for rather than run always."""
+    Four more runs of every movie, so it is asked for rather than run always;
+    a movie none of whose inputs changed since its runs last passed takes its
+    counts from the build directory's cache (tools/evidence_cache.py)."""
     if not args.evidence:
         return True, "evidence", "not run (--evidence runs it)", []
     cmd = [sys.executable, str(ROOT / "tools/dc_evidence.py"), "--ct-dev", str(ctx["binary"]),
@@ -854,10 +856,15 @@ def main():
                     help="run every route, the ending ones too (most of an hour), not only the fast one")
     ap.add_argument("--evidence", action="store_true",
                     help="make the library runs the dc-evidence notes cite again (tools/dc_evidence.py)")
+    ap.add_argument("--no-evidence-cache", action="store_true",
+                    help="make every evidence run again rather than take passing results whose inputs are "
+                         "unchanged from the build directory's cache (tools/evidence_cache.py)")
     for name, _fn, what in CHECKS:
         ap.add_argument("--no-%s" % name, action="store_true", help="skip " + what)
     ap.add_argument("--no-trace-check", action="store_true", help=argparse.SUPPRESS)   # the old spelling
     args = ap.parse_args()
+    if args.no_evidence_cache:
+        os.environ[evidence_cache.ENV] = "off"   # the evidence tools run as children and read it
 
     binary = args.ct_dev.resolve()
     args.out = args.out.resolve()
