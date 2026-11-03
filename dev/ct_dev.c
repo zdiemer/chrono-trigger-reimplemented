@@ -14,6 +14,7 @@
  *          [--scaffold-reads [original]] [--fallbacks out.txt] [--census out.txt]
  *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC]
  *          [--index-check BBAAAA]... [--asset-reads out.txt] [--assets pack] [--locations]
+ *          [--state-trace out.cttr]
  *
  * The framebuffer is only drawn for what reads it (--trace, --shot-every,
  * --px-check); otherwise each line computes just the sprite flags the game can
@@ -26,6 +27,10 @@
  * frame numbers, and so movie input, continue from the saved frame.
  * --locations prints each place the run enters (the location at $7E:0100) with
  * the frames run so far, as ct_native --locations does, for tools/places.py.
+ * --state-trace writes a trace of work RAM and save RAM alone, every frame, with
+ * nothing drawn: the game's state frame by frame, cheap enough for a whole movie,
+ * for tools/drift.py to align a run with the reference play by. ROM-derived; keep
+ * it out of the repository.
  * --end-state writes work RAM and then save RAM as they stand when the run ends
  * (raw, SNES_WRAM_SIZE and SNES_SRAM_SIZE bytes): what tools/strict_check.py
  * compares a run's end with the reference play's by. ROM-derived; keep it out
@@ -552,6 +557,7 @@ static bool poison_site(uint32_t site, uint32_t target, uint64_t *bits, uint16_t
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
+    const char *state_trace_path = NULL;
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL, *end_state = NULL;
     SoundMixer mixer = SOUND_MIXER_DSP;
     bool mixer_given = false;
@@ -619,6 +625,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--frames")) frames = strtol(v, NULL, 10);
         else if (!strcmp(a, "--movie")) movie_path = v;
         else if (!strcmp(a, "--trace")) trace_path = v;
+        else if (!strcmp(a, "--state-trace")) state_trace_path = v;
         else if (!strcmp(a, "--coverage")) coverage_path = v;
         else if (!strcmp(a, "--calls")) calls_path = v;
         else if (!strcmp(a, "--load-state")) load_state = v;
@@ -735,7 +742,7 @@ int main(int argc, char **argv)
                         "[--mixer dsp|native|check] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
                         "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--finish-fallbacks N] [--census out.txt] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
                         "[--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]... "
-                        "[--asset-reads out.txt] [--assets pack] [--locations] [--outcomes]\n");
+                        "[--asset-reads out.txt] [--assets pack] [--locations] [--outcomes] [--state-trace out.cttr]\n");
         return 2;
     }
     if (zst_path && load_state) {
@@ -966,6 +973,19 @@ int main(int argc, char **argv)
         if (scaffold_reads_original)
             scaffold_reads_watch_original();
     }
+    static const ct_region_desc state_regions[] = {
+        { CT_REGION_WRAM, "WRAM", SNES_WRAM_SIZE },
+        { CT_REGION_SRAM, "SRAM", SNES_SRAM_SIZE },
+    };
+    ct_trace_writer *state_trace = NULL;
+    if (state_trace_path) {
+        state_trace = ct_trace_open(state_trace_path, ct_crc32(image, image_len), "ct_dev; state", state_regions,
+                                    (int)(sizeof state_regions / sizeof state_regions[0]));
+        if (!state_trace) {
+            fprintf(stderr, "cannot open %s\n", state_trace_path);
+            return 1;
+        }
+    }
     ct_trace_writer *trace = NULL;
     if (trace_path) {
         trace = ct_trace_open(trace_path, ct_crc32(image, image_len), "ct_dev; interpreter", regions,
@@ -1028,6 +1048,13 @@ int main(int argc, char **argv)
                                       wram_written };
             uint64_t fb_hash = ct_framebuffer_hash(renderer.pixels, RENDER_WIDTH, RENDER_HEIGHT);
             if (ct_trace_write_frame(trace, (uint32_t)frame, pad, data, RENDER_WIDTH, RENDER_HEIGHT, fb_hash) != 0) {
+                fprintf(stderr, "error writing trace\n");
+                return 1;
+            }
+        }
+        if (state_trace) {
+            const uint8_t *data[] = { snes.bus.wram, snes.bus.sram };
+            if (ct_trace_write_frame(state_trace, (uint32_t)frame, pad, data, 0, 0, 0) != 0) {
                 fprintf(stderr, "error writing trace\n");
                 return 1;
             }
@@ -1166,6 +1193,8 @@ int main(int argc, char **argv)
     event_reads_destroy(event_reads);
     native_destroy(natives);
     natives_free(&table);
+    if (ct_trace_close(state_trace) != 0)
+        rc = 1;
     if (ct_trace_close(trace) != 0)
         rc = 1;
     if (wav_path) {
