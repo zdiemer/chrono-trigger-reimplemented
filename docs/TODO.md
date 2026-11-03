@@ -262,6 +262,9 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Phase 3a work in flight
 
+- **Prune the evidence cache.** `<build>/evidence-cache` gains a set of
+  entries for every ct_dev binary and drops none; keep only the entries
+  the current binary's keys name, or the newest few binaries'.
 - **What the whole-library fixes' review left** (not blocking):
   - The uncompared baseline's eight scene and warp lines aren't tied to the
     evidence that clears them on an ordinary run: `endings-bucket-lavos` is

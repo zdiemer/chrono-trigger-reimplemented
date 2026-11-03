@@ -1,8 +1,8 @@
 """A cache of the passing results of the gate's evidence runs.
 
 The evidence the suite makes with --evidence (tools/dc_evidence.py's library
-runs, tools/uncompared_evidence.py's isolated comparisons, tools/unreached_fuzz.py's
-fuzz trials) is a pure function of what the program run was built from and what
+runs and tools/uncompared_evidence.py's isolated comparisons; tools/unreached_fuzz.py's
+trials are cheap and not cached) is a pure function of what the program run was built from and what
 it was given. A result whose inputs are all unchanged since it last passed is
 taken from here rather than made again; anything else runs. A result that
 failed is never stored, so a failure is always made again.
