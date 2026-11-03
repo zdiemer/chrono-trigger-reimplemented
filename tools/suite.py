@@ -901,6 +901,8 @@ def main():
 
     print("%d of %d movies clean in %.0fs"
           % (len(movies) - len(bad_movies), len(movies), time.time() - started))
+    # Wall time per stage, so a gate that has grown slow says where.
+    times = [("movies", time.time() - started)]
 
     args.no_trace |= args.no_trace_check
     library = len(collect("all", set()))
@@ -910,13 +912,17 @@ def main():
     for name, fn, _what in CHECKS:
         if getattr(args, "no_" + name.replace("-", "_")):
             continue
+        started = time.time()
         ok, label, summary, details = fn(args, ctx)
+        times.append((name, time.time() - started))
         print("%s: %s%s" % (label, summary, "" if ok else "  <-- FAILED"), flush=True)
         for line in details:
             print("  " + line)
         if not ok:
             failed.append(name)
 
+    print("times: " + ", ".join("%s %dm" % (name, round(s / 60))
+                                for name, s in sorted(times, key=lambda t: -t[1])), flush=True)
     if failed:
         print("FAILED: " + "; ".join(failed))
         return 1
