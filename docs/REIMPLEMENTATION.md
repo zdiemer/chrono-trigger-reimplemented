@@ -3203,6 +3203,121 @@ reach it), and `tools/burndown.py` leaves the bank out ("Retired code"). A
 SNES build (target 3) needs a CPU half again: the cartridge's, from the
 matching source, or the deleted port from history (TODO.md).
 
+### Recorded outcomes
+
+`tools/outcomes.py` keeps the reference play's results in `tools/outcomes.txt`:
+one line per movie per kind, digests and small numbers only. `game` and
+`sram` are SHA-256 of exactly the saved-game and save-RAM bytes that
+`strict_check.SavedGame` compares, with the same play-clock, random-start
+and slot-checksum exclusions. `pictures` holds RGB FNV-1a64 fingerprints
+of the drawn 256 by 224 picture, every 300 completed frames and at the first
+and last frame, including neighbours two frames either side. `places`
+holds every location entered and its completed-frame number, as
+`tools/places.py` measures. `input` binds these to the movie's SHA-256,
+frame count, format version and saved-byte selection digest. Editing a
+movie or changing the projection requires a deliberate new recording.
+
+`ct_dev --outcomes` and `ct_native --outcomes` print only picture hashes;
+`ct_dev` draws pixels only for those frames unless another option needs
+them. The suite digests its shadow run's `--end-state` and log into
+`outcome-<movie>.txt` beside them. Strict and native checks digest their
+own runs into `outcomes/strict` and `outcomes/native` before discarding
+their scratch end states. This adds no play to the suite. Raw end states,
+logs, pixels and traces stay in ignored build output; only the digest
+ledger, ratchet and reasons are committed.
+
+Record and check existing suite output (use `--movies NAME...` for a subset):
+
+```sh
+python3 tools/outcomes.py --record --reference build/suite --movies title-start menu
+python3 tools/outcomes.py --check --runs build/suite/outcomes/strict --mode strict --movies title-start menu
+python3 tools/outcomes.py --check --runs build/suite/outcomes/native --mode native --movies title-start menu
+```
+
+Checking artifacts needs neither a ROM nor a reference executable, log or dump.
+For a fresh run, give `--ct-dev` (strict) or `--ct-native`, `--rom` and
+`--runs DIR` to `--check`, with `--movies` as needed. This runs only the
+hand ports, at most two processes, and checks their digests against the
+ledger. The ROM supplies assets and the saved-byte selection, never a
+reference play; `--assets` reuses an imported pack. For example:
+
+```sh
+python3 tools/outcomes.py --check --ct-dev build/main/ct_dev --rom roms/ct-usa.sfc --runs build/outcomes/strict --movies menu
+python3 tools/outcomes.py --check --ct-native build/main/ct_native --rom roms/ct-usa.sfc --runs build/outcomes/native --movies menu
+```
+It rejects missing data, duplicate rows, incomplete/faulted runs and stale
+movie inputs. It reports each movie's exact matches, drift and differences.
+An identical picture within two frames is drift, accepted; a place entered
+within `places.ON_TIME` (30 frames) in the original order is accepted drift.
+An extra place, wrong order, changed end state or picture outside that
+window is a difference. No perceptual threshold silently excuses changed
+pixels: a line or two of harmless visual difference can have a per-movie
+`pictures` reason after checking that play cannot change. An exception is
+not evidence of equivalence.
+
+`tools/outcomes_baseline.txt` protects individual identities, separately
+for strict and native: each end digest that matches, each checkpoint frame
+and each place index entered on time. An exception in
+`tools/outcomes_exceptions.txt` needs a movie, mode, kind, observed SHA-256
+and reason. The digest pins that kind's complete observed values: SHA-256
+of its artifact row's values joined by ASCII spaces, with no newline. This
+includes every checkpoint neighbour and every place visit, so a blackened
+picture, removed visit or changed end digest cannot hide under an exception.
+While any difference remains in the kind, a changed digest fails even with
+`--update`; deliberate re-recording requires reviewing the new outcome and
+its reason. The failure reports the newly observed digest. An entire kind
+that now matches the reference (including accepted drift) can tighten via
+`--update`, after which the old difference cannot return. Exceptions cannot
+excuse losing a protected match.
+`--update` adds matches and preserves omitted movies; it never drops a
+protected identity. Before filtering, the check validates every recorded
+movie's membership and header; the suite also validates the gate sample.
+Missing, unreadable or malformed movies fail even when a subset is selected.
+New movies or missing records fail closed. The suite
+runs both recorded checks after strict and native checks, and clears their
+old artifacts before a run, so skipping a producer cannot pass on stale data.
+
+The ledger records the gate's 37 sample movies (475,874 frames). Both modes
+pass their initial ratchet on all 37, with these protected observations:
+
+| Mode | Saved game / save RAM matches (movies) | Picture match / drift / differ (checkpoints) | Place match / drift / differ (visits) |
+|---|---|---|---|
+| Strict | 28 / 36 | 424 / 69 / 1,143 | 147 / 73 / 76 |
+| Native | 21 / 30 | 245 / 26 / 1,365 | 39 / 154 / 103 |
+
+No sample movie matches every kind: every one has picture differences.
+These are existing debts, explicitly reasoned per movie, not a claim of
+harmless pixel changes. Power-on native save RAM starts at zero whereas the
+reference initializes it to `0x60`; the other end-state debts and place
+visits are named in the exceptions. A teardown can rely on the protected
+matches, not on a movie's aggregate ratchet pass.
+
+The next batched library run uses
+`tools/suite.py --all-movies --no-outcomes` for the unrecorded movies, then
+`outcomes.py --record --reference build/suite` without `--movies`. Review
+new differences and give reasons, run `--update` for both modes on that
+output, then `--check` for both; commit the ledger and ratchets together.
+No second reference play is needed. Subsequent library runs include the
+check normally. Recording never silently changes the ratchet.
+
+**What a teardown cites.** The replacements each remaining subsystem needs:
+
+| Teardown | Recorded checks it relies on, alongside routes and assertions |
+|---|---|
+| Events, field and world map | `game` for story/party/inventory; `places` for progression; `pictures` for the field and map |
+| Battles | `game` for party, items and results; `places` for returning to play; `pictures` for combat presentation |
+| Menus and saving | `game` and `sram` for selections and persistence; `pictures` for screens and cursors |
+| Scene engine and video | `pictures` for presentation; `places` for scene transitions; `game` for story consequences |
+| Storage and program entry | The same `game`/`sram` projection from the new storage, plus the movies' `places` and `pictures` |
+| Time model | `places` and `pictures` with the documented tolerances, and `game`/`sram` to detect changed input outcomes |
+
+A teardown names its movies, mode, kinds and protected identities here,
+records them before retiring the comparison, and resolves the exceptions
+it needs to depend on. Storage changes keep the same saved-game projection
+through a host dump adapter. These samples do not prove every intermediate
+state: routes and assertions remain necessary. Sound continues to rely on
+its own tests and digests described in "The sound driver's teardown".
+
 ### Scene continuations: contracts and review validation
 
 Direct scene continuations now consult the registry before entering C. A
@@ -3440,7 +3555,9 @@ The inventory covers 361 entries in six subsystems plus the screen command's
 separately registered field restart dependency, using the existing
 84-movie coverage union (the movie inputs agree with the checkout supplying
 it). Optional hand recordings are outside that standard library. No game
-code changed in this work.
+code changed in this work. Since the scene merge registered the map-turning
+callback (`scene_turn_map`, `$7E:7441`) as its own entry, the attract frame
+pass no longer reaches it and attract has no unreached bytes.
 
 | Subsystem | Bytes no movie executes | Executed in matched fuzz trials | Reviewed safety argument |
 |---|--:|--:|--:|
@@ -3456,7 +3573,7 @@ code changed in this work.
 `tools/unreached_baseline.txt` is the greppable ledger: a movie manifest,
 one inventory row per entry (including zero-byte entries), and exact byte
 runs attached to passing fuzz recipes or reviewed safety reasons. The
-first record's 102 cited recipes made 100,400 trials, 70,585 matched, zero mismatches
+first record's 102 cited recipes made 100,400 trials, 70,097 matched, zero mismatches
 (108 are cited since the screen effects and the controller's ready sample got
 entries of their own); skips
 contribute no evidence. `ct_fuzz --coverage` accumulates original instructions
@@ -3511,22 +3628,49 @@ The conservative traversal also exposes the controller's reset transfer
 Their source-bound review arguments are explicit. The field restart's
 five-byte wait uses the documented vblank timing escape, not byte-exact
 timing equivalence; its following 11 bytes are `field_restart_in_the_dark`'s,
-a field entry outside the audit. The attract frame pass's map-turning
-callback is `scene_turn_map`'s, also outside it.
+a field entry outside the audit.
 
 **The ratchet.** `tools/unreached.py --check` re-derives the current port reach
-and checks the ledger's movie hashes, recipe/implementation fingerprints, proof coverage
-and safety-source hashes. Added entries or changed reach, removed/edited
-movies, stale recipes or C implementations, and changed safety dependencies fail closed. Added
+and checks the ledger's movie hashes, recipe fingerprints, proof coverage
+and safety dependencies. Added entries or changed reach, removed/edited
+movies, stale recipes and changed safety dependencies fail closed. Added
 movies can only increase the recorded union. The sampled suite uses this
 full-library record, never its own partial union to infer absence. With
 `--evidence`, it also replays the cited recipes and verifies that their clean
 results execute every byte claimed in their ledger rows. This is an
 instruction-coverage obligation, not a claim of exhaustive path or input
 coverage.
-Implementation fingerprints include the C sources and headers in `game/`,
-`runtime/` and `dev/`, so changing a shared helper or comparison harness
-invalidates cached evidence without tying the ledger to one host's binary.
+A fuzz row's committed fingerprint names its recipe, base state and movie,
+not the C: hashing every source into the ledger staled all of it at any
+edit anywhere. Each fresh run instead records `implementation`, a hash of the
+C sources and headers in `game/`, `runtime/` and `dev/`, and `--recheck-fuzz`
+accepts only runs of the tree being checked, so a changed helper or
+comparison harness still needs new evidence, without tying the ledger to one
+host's binary. A safety row hashes the definitions its argument rests on,
+not whole files: `depends` in `tools/unreached_safe.toml` names each as
+`path:symbol` (a function, macro, enum constant or table, with every line
+of its file naming it, so callers and table rows citing a guard count; or a
+`re/ram.toml` variable less its prose), and the ledger adds the entry's
+registry row without `cost_milli`, the functions the row runs and guards
+with, and for a macro-generated event entry its command-list row and the
+generator. Recalibrating the timing estimates or editing an unrelated
+function leaves the arguments standing; a change to what one cites stales it
+for review.
+
+The scene-continuation merge transfers `$7E:7441-$7E:74DC` from
+`attract_frame_pass` to `scene_turn_map`, and `$7E:31BE` from
+`attract_vblank_start_loop` to `scene_frame_wait_done`. Re-deriving both
+trees' exact reach shows that every retained audit range is a subset of
+the original full-library range; none gains bytes. The former 156-byte
+callback exclusion leaves this ledger because its separately registered
+scene port owns it now (its comparisons are in `docs/ports.tsv`). This is
+an ownership correction using the existing library record, not an absence
+inferred from the sample. The retained safety entries keep their registry
+contracts apart from calibrated costs; added scene RAM fields do not move
+the sign-refresh cells, and the warp continuations do not change the circle
+builder or its radius selection. Each refreshed row records that review;
+the merge gate replays the unchanged fuzz byte obligations against the new
+implementation fingerprints.
 
 To inspect or rebuild the record, supply the verified ROM with `--rom`:
 

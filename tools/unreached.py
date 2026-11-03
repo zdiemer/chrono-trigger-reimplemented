@@ -169,6 +169,94 @@ def file_hash(path):
     return hashlib.sha256(path.read_text(encoding='utf-8').encode()).hexdigest()
 
 
+def registry_row(root, name):
+    """A registered entry's fields, macros expanded, without its time estimate:
+    recalibrating cost_milli changes no safety argument."""
+    source = dc.Source('game/registry.c', (root / 'game/registry.c').read_text(encoding='utf-8'))
+    raw = dc.strip_comments(source.raw)
+    m = re.search(r'NativeEntry\s+\w+\s*\[\s*\]\s*=\s*\{', raw)
+    if not m:
+        return None
+    body = raw[m.end():dc.matching(raw, m.end() - 1, '{', '}')]
+    body = re.sub(r'^[ \t]*#[ \t]*(define|undef)\b(?:\\\n|[^\n])*', '', body, flags=re.M)
+    for item in dc.split_args(dc.expand_macros(body, source.defines)):
+        if not item.startswith('{'):
+            continue
+        parts = [p.strip() for p in dc.split_args(item[1:dc.matching(item, 0, '{', '}')])]
+        fields = dict(re.match(r'\.(\w+)\s*=\s*(.*)$', p, re.S).groups() for p in parts if p.startswith('.'))
+        if fields.get('name', '').strip('"') == name:
+            return {k: v for k, v in fields.items() if k != 'cost_milli'}
+    return None
+
+
+def definition(root, spec):
+    """The text a safety argument relies on: a whole file (`path`) or one
+    definition in it (`path:symbol`) -- a C function, macro, enum constant or
+    initialized table, with every line of the file that names it (its
+    callers, the table rows citing it, an X-macro list's row) -- or a
+    registry row, or a RAM-map variable. Comments and layout are not part of
+    it. None when the symbol is gone."""
+    path, _, symbol = spec.partition(':')
+    file = root / path
+    if not file.is_file():
+        return None
+    if not symbol:
+        return file.read_text(encoding='utf-8')
+    if path == 'game/registry.c':
+        row = registry_row(root, symbol)
+        return None if row is None else json.dumps(row, sort_keys=True)
+    if path.endswith('.toml'):
+        import tomllib
+        for var in tomllib.loads(file.read_text(encoding='utf-8')).get('var', []):
+            if var.get('name') == symbol:
+                return json.dumps({k: v for k, v in var.items() if k not in ('meaning', 'source')}, sort_keys=True)
+        return None
+    s = dc.Source(path, file.read_text(encoding='utf-8'))
+    uses = '\n'.join(line for line in s.text.splitlines() if re.search(r'\b%s\b' % re.escape(symbol), line))
+    if symbol in s.funcs:
+        f = s.funcs[symbol]
+        text = f"{symbol}({','.join(f.params)}){s.text[f.start:f.end]}"
+    elif symbol in s.defines:
+        text = repr(s.defines[symbol])
+    elif symbol in s.consts:
+        text = s.consts[symbol]
+    else:
+        m = re.search(r'\b%s\s*(?:\[[^\]]*\])?\s*=\s*' % re.escape(symbol), s.text)
+        if m and s.text[m.end()] == '{':
+            text = s.text[m.start():dc.matching(s.text, m.end(), '{', '}') + 1]
+        else:
+            text = ''
+    text = re.sub(r'\s+', ' ', text + '\n' + uses).strip()
+    return text or None
+
+
+def dependency_hash(root, spec):
+    if ':' not in spec:
+        path = root / spec
+        return file_hash(path) if path.is_file() else None
+    text = definition(root, spec)
+    return None if text is None else hashlib.sha256(text.encode()).hexdigest()
+
+
+def safety_dependencies(root, row, cited):
+    """What a reviewed argument rests on: the definitions it cites, the
+    entry's registry row, and the C its row runs and guards with. An event
+    command's entry is generated from its row in the commands' list."""
+    row_fields = registry_row(root, row['name']) or {}
+    depends = list(cited) + [f"game/registry.c:{row['name']}"]
+    sources, _ = dc.load_sources(root)
+    generated = False
+    for field in ('fn', 'guard'):
+        name = row_fields.get(field, '').strip()
+        found = [f'{s.path}:{name}' for s in sources if s.path.endswith('.c') and name in s.funcs]
+        generated |= field == 'fn' and not found
+        depends += found
+    if row['subsystem'] == 'event' and generated:
+        depends += [f"game/event/event.h:{row['name']}", 'game/event/entries.c:EVENT_DEFINE_ENTRY',
+                    'game/event/bridge.c:event_command_entry', 'game/event/bridge.c:event_command_accepts']
+    return list(dict.fromkeys(depends))
+
+
 def movie_hashes():
     return {name: file_hash(path) for name, path, _ in collect('all', None)}
 
@@ -195,9 +283,11 @@ def read_ledger(path):
     return records
 
 
-def check_fuzz_evidence(rows, records, directory):
-    """Fresh runs must actually execute every byte their ledger rows claim."""
+def check_fuzz_evidence(rows, records, directory, root=ROOT):
+    """Fresh runs of this tree's C must actually execute every byte their
+    ledger rows claim."""
     by_entry = {r['entry']: r for r in rows}
+    implementation = unreached_fuzz.implementation_hash(root)
     errors = []
     for c in records:
         if c[0] != 'fuzz' or c[1] not in by_entry:
@@ -209,6 +299,7 @@ def check_fuzz_evidence(rows, records, directory):
             log = prefix.with_suffix('.log').read_text()
             pcs = coverage.load([prefix.with_suffix('.cov')])
             ok = (unreached_fuzz.clean(result, log) and result.get('fingerprint') == digest
+                  and result.get('implementation') == implementation
                   and result.get('seed') == int(seed) and result.get('iterations') == int(trials)
                   and expand(parse_spans(spans)) <= touched(by_entry[entry], pcs))
         except (OSError, ValueError):
@@ -252,10 +343,9 @@ def check_records(rows, records, movies, recipes, states, root=ROOT, measured=Fa
                     errors.append(f'{entry}: stale fuzz recipe {case}')
             else:
                 for dependency in c[4].split(','):
-                    name, digest = dependency.split('=')
-                    path = root / name
-                    if not path.is_file() or file_hash(path) != digest:
-                        errors.append(f'{entry}: safety argument changed in {name}')
+                    spec, digest = dependency.rsplit('=', 1)
+                    if dependency_hash(root, spec) != digest:
+                        errors.append(f'{entry}: safety argument changed in {spec}')
     if not recorded_movies:
         errors.append('no full-library movie manifest')
     for entry, (_, name, _, missing) in ports.items():
@@ -289,7 +379,8 @@ def record(rows, movies, evidence_dir, safety, target):
         if case not in recipes or result['recipe'] != recipes[case]:
             continue
         # Only results produced by the reproducible runner, for this recipe.
-        if result.get('fingerprint') != unreached_fuzz.fingerprint(recipes[case], states):
+        if (result.get('fingerprint') != unreached_fuzz.fingerprint(recipes[case], states)
+                or result.get('implementation') != unreached_fuzz.implementation_hash(ROOT)):
             continue
         evidence.append((case, result, coverage.load([path.with_suffix('.cov')])))
     safe = tomllib.loads(safety.read_text())['safe']
@@ -318,12 +409,13 @@ def record(rows, movies, evidence_dir, safety, target):
             checked = expand(parse_spans(proof['runs']))
             if not checked <= missing:
                 raise ValueError(f"{row['name']}: safety ranges overlap fuzz evidence or are not unreached")
-            sources = proof['sources'] + ['game/registry.c']
-            if row['subsystem'] == 'event':
-                sources += ['game/event/script.h', 'game/event/entries.c']
-            elif row['subsystem'] == 'overworld':
-                sources += ['game/overworld/entries.c']
-            dependencies = ','.join(f'{p}={file_hash(ROOT / p)}' for p in sources)
+            dependencies = []
+            for spec in safety_dependencies(ROOT, row, proof['depends']):
+                digest = dependency_hash(ROOT, spec)
+                if digest is None:
+                    raise ValueError(f"{row['name']}: safety argument cites {spec}, which is not there")
+                dependencies.append(f'{spec}={digest}')
+            dependencies = ','.join(dependencies)
             records.append(['safe', row['entry'], spans_text(runs(checked)), str(len(checked)), dependencies, proof['why']])
             missing -= checked
         if missing:
@@ -335,8 +427,8 @@ def record(rows, movies, evidence_dir, safety, target):
               '# movie\tname\tsha256\treason\n'
               '# port\tsubsystem\tentry\tname\treach-sha256\tbytes\truns\treason\n'
               '# fuzz\tentry\truns\tbytes\trecipe\tseed\ttrials\tmatched\trecipe-sha256\tmismatches\treason\n'
-              '# safe\tentry\truns\tbytes\tsource=sha256,...\treason\n')
-    target.write_text(header + '\n'.join('\t'.join(c) for c in records) + '\n')
+              '# safe\tentry\truns\tbytes\tpath[:symbol]=sha256,...\treason\n')
+    target.write_text(header + '\n'.join('\t'.join(c) for c in records) + '\n', newline='\n')
 
 
 def inventory(rom, paths, cache=None):

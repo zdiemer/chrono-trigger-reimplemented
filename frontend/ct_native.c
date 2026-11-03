@@ -47,6 +47,7 @@
 #include "menu/saves.h"
 #include "core/program.h"
 #include "media.h"
+#include "outcome_picture.h"
 #include "movie.h"
 #include "data/assets.h"
 #include "platform/native/host.h"
@@ -247,7 +248,7 @@ typedef struct {
     ct_movie *movie;
     const char *sram_path, *shot_dir;
     unsigned long frame, frames, shot_every;
-    bool locations, persist, save_pending;
+    bool locations, outcomes, persist, save_pending;
     uint16_t location;
     uint8_t saved[STATE_HOST_SRAM_BYTES];
     int result;
@@ -306,6 +307,8 @@ static void native_step(void *ctx, uint16_t buttons)
     sound_native_frame(d->sound);
     d->frame++;
     picture_frame(d->picture, d->pf, d->frame);
+    if (d->outcomes && outcome_picture_due(d->frame, d->frames))
+        outcome_picture(d->picture->pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT, d->frame);
     if (d->locations && location_id(d->game) != d->location) {
         d->location = location_id(d->game);
         fprintf(stderr, "location: frame %lu $%03X\n", d->frame, d->location & LOCATION_BITS);
@@ -351,7 +354,7 @@ static void usage(FILE *out)
 {
     fprintf(out, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
                  "                 [--headless | --window] [--scale N] [--fullscreen] [--mute]\n"
-                 "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--scene flags[,song]]...\n"
+                 "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--outcomes] [--scene flags[,song]]...\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
                  "Window play writes cartridge saves; headless runs only read them. No quick save/load.\n");
 #ifdef CT_HAVE_SDL
@@ -385,7 +388,7 @@ int main(int argc, char **argv)
     bindings_set("F5 = None", bind_error, sizeof bind_error);
     bindings_set("F7 = None", bind_error, sizeof bind_error);
 #endif
-    bool locations = false;
+    bool locations = false, outcomes = false;
     unsigned scenes = 0;
     uint8_t scene[STATE_HOST_FIRST_SCENES], song[STATE_HOST_FIRST_SCENES];
     for (int i = 1; i < argc; i++) {
@@ -405,6 +408,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--shot-dir") && v) shot_dir = v, i++;
         else if (!strcmp(a, "--end-state") && v) end_state = v, i++;
         else if (!strcmp(a, "--locations")) locations = true;
+        else if (!strcmp(a, "--outcomes")) outcomes = true;
         else if (!strcmp(a, "--scene") && v && scenes < STATE_HOST_FIRST_SCENES && scene_and_song(v, &scene[scenes], &song[scenes]))
             scenes++, i++;
         else {
@@ -488,7 +492,7 @@ int main(int argc, char **argv)
         .game = g, .pf = &pf, .sound = sound, .picture = &picture,
         .movie = movie_path ? &movie : NULL, .sram_path = sram_path,
         .shot_dir = shot_dir, .frames = frames, .shot_every = shot_every,
-        .locations = locations, .persist = windowed, .location = 0xFFFF
+        .locations = locations, .outcomes = outcomes, .persist = windowed, .location = 0xFFFF
     };
     memcpy(driver.saved, state_host_sram(g), sizeof driver.saved);
     pf.save.ctx = &driver;

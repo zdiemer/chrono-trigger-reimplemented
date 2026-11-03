@@ -697,16 +697,13 @@ taking the gate down needs, before it and after it.
   module owns. Saves are written from and read into the structs, and a
   cartridge save (`.srm`) still loads. Measured by the share of `re/ram.toml`'s
   variables still backed by the image; done when none is.
-- **Validation after the teardown.** With no original, the gate holds
-  behaviour by what was recorded from it while it existed: each movie's
-  outcome (the saved game and save RAM at its end, and digests of the picture
-  at checkpoints, never the bytes), the routes' outcomes, the sound's digests
-  (as the sound driver's teardown did), and the guards as assertions. Each
-  subsystem records its outcomes from the reference play in the commit before
-  it retires and names the checks that replace its comparison in its
-  teardown section; the last subsystem to retire is the one that leaves no
-  reference to record from, so these are built as the subsystems go, not at
-  the end.
+- **Validation after the teardown.** Before retiring each subsystem, fill
+  its library coverage in the recorded outcomes (REIMPLEMENTATION.md,
+  "Recorded outcomes"), resolve the differences it needs to rely on, and
+  cite the protected movies and kinds in its teardown section. Preserve
+  the saved-game projection when its storage moves out of work RAM; keep
+  the routes, sound digests and guards as assertions. The last teardown
+  must leave no unrecorded reference behaviour it needs to check.
 
 **Assets: imported once from the user's ROM, then loaded by name.** The
 ports reach ROM data through named accessors (`*_data.h`), every byte of it in

@@ -96,16 +96,54 @@ class UnreachedTest(unittest.TestCase):
     def test_fresh_evidence_requires_the_claimed_bytes(self):
         rows = [dict(self.row, instructions={'C01000': [3, 3, 2, 2]})]
         records = [['fuzz', 'C01000', 'C01000-C01002', '3', 'case', '1', '20', '20', 'hash', '0', 'tested']]
-        result = dict(exit=0, matched=20, mismatched=0, seed=1, iterations=20, fingerprint='hash')
+        result = dict(exit=0, matched=20, mismatched=0, seed=1, iterations=20, fingerprint='hash',
+                      implementation=f.implementation_hash(self.root))
         (self.root / 'case.json').write_text(json.dumps(result))
         (self.root / 'case.log').write_text('matched 20, mismatched 0')
         (self.root / 'case.cov').write_text('C0:1000 16 16\n')
-        self.assertEqual(u.check_fuzz_evidence(rows, records, self.root), [])
+
+        def check():
+            return u.check_fuzz_evidence(rows, records, self.root, root=self.root)
+        self.assertEqual(check(), [])
+        # A run of other C is not evidence for this tree's.
+        (self.root / 'case.json').write_text(json.dumps(dict(result, implementation='other')))
+        self.assertTrue(check())
+        (self.root / 'case.json').write_text(json.dumps(result))
         # A successful comparison in the narrow width did not execute the third byte.
         (self.root / 'case.cov').write_text('C0:1000 8 16\n')
-        self.assertTrue(u.check_fuzz_evidence(rows, records, self.root))
+        self.assertTrue(check())
         (self.root / 'case.cov').unlink()
-        self.assertTrue(u.check_fuzz_evidence(rows, records, self.root))
+        self.assertTrue(check())
+
+    def test_safety_rests_on_definitions_not_files(self):
+        (self.root / 'game').mkdir()
+        source = self.root / 'game' / 'guard.c'
+        source.write_text('static bool bounded(int v) { return v < 7; }\n'
+                          'bool operation_runs(void) { return bounded(1); }\n'
+                          'void operation(void) { operation_runs(); }\n'
+                          'void unrelated(void) {}\n')
+        registry = self.root / 'game' / 'registry.c'
+        registry.write_text('const NativeEntry entries[] = {\n'
+                            '    { .addr = 0xC01000, .name = "operation", .fn = operation, .cost_milli = 10,\n'
+                            '      .guard = operation_runs },\n};\n')
+        specs = u.safety_dependencies(self.root, self.row, ['game/guard.c:bounded'])
+        self.assertEqual(specs, ['game/guard.c:bounded', 'game/registry.c:operation',
+                                 'game/guard.c:operation', 'game/guard.c:operation_runs'])
+        records = self.records[:-1] + [['safe', 'C01000', 'C01000-C01002', '3',
+                                       ','.join(f'{s}={u.dependency_hash(self.root, s)}' for s in specs), 'bounded']]
+        self.assertEqual(self.check(records=records), [])
+        # Recalibrated time, an edited comment or an unrelated function: the argument stands.
+        registry.write_text(registry.read_text().replace('= 10', '= 12'))
+        source.write_text(source.read_text().replace('void unrelated(void) {}', '/* note */ void unrelated(void) { x(); }'))
+        self.assertEqual(self.check(records=records), [])
+        # The bound it cites, a caller's use of it, or the entry's guard: review again.
+        for before, after in (('v < 7', 'v < 8'), ('bounded(1)', 'bounded(2)')):
+            text = source.read_text()
+            source.write_text(text.replace(before, after))
+            self.assertTrue(self.check(records=records))
+            source.write_text(text)
+        registry.write_text(registry.read_text().replace('= operation_runs', '= always'))
+        self.assertTrue(self.check(records=records))
 
     def test_newline_conversion_is_not_a_source_change(self):
         path = self.root / 'source.txt'
@@ -171,17 +209,20 @@ class UnreachedTest(unittest.TestCase):
         _, _, problems = u.walk(an, 0xC08000, {0xC08000})
         self.assertIn('C08000: unresolved call', problems)
 
-    def test_fuzz_fingerprint_tracks_implementation_changes(self):
+    def test_fuzz_evidence_tracks_implementation_changes(self):
         (self.root / 'game').mkdir()
         implementation = self.root / 'game' / 'screen.c'
         implementation.write_text('void curtain(void) {}\n')
         (self.root / 'movie.ctm').write_text('0 1 NONE\n')
         recipe, states = {'state': 'field'}, {'field': {'movie': 'movie.ctm'}}
-        before = f.fingerprint(recipe, states, self.root)
+        before, recorded = f.implementation_hash(self.root), f.fingerprint(recipe, states, self.root)
         implementation.write_bytes(b'void curtain(void) {}\r\n')
-        self.assertEqual(before, f.fingerprint(recipe, states, self.root))
+        self.assertEqual(before, f.implementation_hash(self.root))
         implementation.write_text('void curtain(void) { wait(); }\n')
-        self.assertNotEqual(before, f.fingerprint(recipe, states, self.root))
+        self.assertNotEqual(before, f.implementation_hash(self.root))
+        # The committed fingerprint names the recipe: a change to the C
+        # stales the runs, not the ledger.
+        self.assertEqual(recorded, f.fingerprint(recipe, states, self.root))
 
 
 if __name__ == '__main__':

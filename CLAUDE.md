@@ -130,6 +130,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   a run whose time carries it into the reference's own black), its picture drawn every frame by
   the native renderer (`tools/native_check.py --check`, which also reports where each stops and
   whether it ends as the reference play does; docs/PLAYING.md, "The native program").
+  Recorded end states, checkpoint pictures and places also hold in strict mode and `ct_native`
+  (`tools/outcomes.py --check`, with per-movie reasons and a ratchet; docs/REIMPLEMENTATION.md, "Recorded outcomes").
   Two checks the suite doesn't run, so run them by hand when a change could move them:
   `ct_dev --native on --generated only --misses out.txt` lists anything still interpreted, and
   `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,
