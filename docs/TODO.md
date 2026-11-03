@@ -10,7 +10,7 @@ rest waits, is [PLAN.md](PLAN.md).
 ## Correctness and accuracy
 
 - **Keep the unreached ledger's preconditions when retiring the machine.**
-  `tools/unreached_safe.toml` names all 366 bytes excluded from execution
+  `tools/unreached_safe.toml` names all 210 bytes excluded from execution
   evidence, with exact runs in `tools/unreached_baseline.txt`: event's
   missing-text-table diagnostics (109 bytes), rejected word-OR (12), full
   shared-graphics table diagnostic (6) and graphics-overflow handoffs (12);
@@ -19,12 +19,11 @@ rest waits, is [PLAN.md](PLAN.md).
   clamps (9). Preserve the guard bounds as assertions and replace the
   graphics error handoffs with native failures. Recheck the two immutable
   resource arguments if map records or the radius ramp become editable.
-  The conservative walk also records the attract frame-pass guard's excluded
-  map-turning callback (156), the controller reset transfer (4), the event
-  engine's original-only unknown-command diagnostic (6), and the separately
-  registered field restart wait/continuation (16). Keep the reset chord and
-  vblank-only restart preconditions; port the callback and replace the
-  diagnostic/restart delegations before retiring those machine dependencies.
+  The conservative walk also records the controller reset transfer (4), the
+  event engine's original-only unknown-command diagnostic (6), and the
+  separately registered field restart wait/continuation (16). Keep the reset
+  chord and vblank-only restart preconditions; replace the diagnostic/restart
+  delegations before retiring those machine dependencies.
 - **Exercise both sign-refresh arms after returning from a screen.**
   `overworld_main_loop` `$C2:2603-$C2:2605` and `$C2:267E-$C2:2680`
   are six reviewed-equivalence bytes: conditional increments

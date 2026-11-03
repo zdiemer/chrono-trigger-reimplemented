@@ -3508,23 +3508,25 @@ The inventory covers 343 entries in six subsystems plus the screen command's
 separately registered field restart dependency, using the existing
 84-movie coverage union (the movie inputs agree with the checkout supplying
 it). Optional hand recordings are outside that standard library. No game
-code changed in this work.
+code changed in this work. Since the scene merge registered the map-turning
+callback (`scene_turn_map`, `$7E:7441`) as its own entry, the attract frame
+pass no longer reaches it and attract has no unreached bytes.
 
 | Subsystem | Bytes no movie executes | Executed in matched fuzz trials | Reviewed safety argument |
 |---|--:|--:|--:|
-| attract | 156 | 0 | 156 |
+| attract | 0 | 0 | 0 |
 | data | 0 | 0 | 0 |
 | core | 421 | 417 | 4 |
 | warp | 104 | 95 | 9 |
 | overworld | 1,354 | 1,318 | 36 |
 | event | 1,571 | 1,426 | 145 |
 | field restart dependency | 16 | 0 | 16 |
-| Total | 3,622 | 3,256 | 366 |
+| Total | 3,466 | 3,256 | 210 |
 
 `tools/unreached_baseline.txt` is the greppable ledger: a movie manifest,
 one inventory row per entry (including zero-byte entries), and exact byte
 runs attached to passing fuzz recipes or reviewed safety reasons. The
-102 cited recipes made 100,400 trials, 70,585 matched, zero mismatches; skips
+102 cited recipes made 100,400 trials, 70,097 matched, zero mismatches; skips
 contribute no evidence. `ct_fuzz --coverage` accumulates original instructions
 only after a trial matches. Logs with accessor/page/resource diagnostics
 are rejected, even when the comparator reports a match. Broader casting
@@ -3569,26 +3571,38 @@ and time dial have exactly the port's nonzero-sign predicate and byte
 wraparound, and their flags are dead. Those arms did not run in the fuzz
 comparisons. `tools/unreached_safe.toml` records the arguments, and TODO.md
 keeps the returning-screen fixture and guard-to-assertion obligations.
-The conservative traversal also exposes the map-turning callback excluded
-by the attract frame-pass guard (156 bytes), the controller's reset transfer
-(4), and the event engine's original-only unknown-command diagnostic (6).
+The conservative traversal also exposes the controller's reset transfer
+(4) and the event engine's original-only unknown-command diagnostic (6).
 Their source-bound review arguments are explicit. The field restart's
 five-byte wait uses the documented vblank timing escape, not byte-exact
 timing equivalence; its following 11 bytes remain an original-only handoff.
 
 **The ratchet.** `tools/unreached.py --check` re-derives the current port reach
-and checks the ledger's movie hashes, recipe/implementation fingerprints, proof coverage
-and safety-source hashes. Added entries or changed reach, removed/edited
-movies, stale recipes or C implementations, and changed safety dependencies fail closed. Added
+and checks the ledger's movie hashes, recipe fingerprints, proof coverage
+and safety dependencies. Added entries or changed reach, removed/edited
+movies, stale recipes and changed safety dependencies fail closed. Added
 movies can only increase the recorded union. The sampled suite uses this
 full-library record, never its own partial union to infer absence. With
 `--evidence`, it also replays the cited recipes and verifies that their clean
 results execute every byte claimed in their ledger rows. This is an
 instruction-coverage obligation, not a claim of exhaustive path or input
 coverage.
-Implementation fingerprints include the C sources and headers in `game/`,
-`runtime/` and `dev/`, so changing a shared helper or comparison harness
-invalidates cached evidence without tying the ledger to one host's binary.
+A fuzz row's committed fingerprint names its recipe, base state and movie,
+not the C: hashing every source into the ledger staled all of it at any
+edit anywhere. Each fresh run instead records `implementation`, a hash of the
+C sources and headers in `game/`, `runtime/` and `dev/`, and `--recheck-fuzz`
+accepts only runs of the tree being checked, so a changed helper or
+comparison harness still needs new evidence, without tying the ledger to one
+host's binary. A safety row hashes the definitions its argument rests on,
+not whole files: `depends` in `tools/unreached_safe.toml` names each as
+`path:symbol` (a function, macro, enum constant or table, with every line
+of its file naming it, so callers and table rows citing a guard count; or a
+`re/ram.toml` variable less its prose), and the ledger adds the entry's
+registry row without `cost_milli`, the functions the row runs and guards
+with, and for a macro-generated event entry its command-list row and the
+generator. Recalibrating the timing estimates or editing an unrelated
+function leaves the arguments standing; a change to what one cites stales it
+for review.
 
 To inspect or rebuild the record, supply the verified ROM with `--rom`:
 
