@@ -2987,6 +2987,32 @@ port landing doesn't move its callees (what was `unported` becomes `handback`,
 same routine); the report keeps them apart. `--update` takes a gain and keeps
 the reasons of the lines it keeps.
 
+**A movie ending inside a comparison.** The suite uses
+`ct_dev --finish-fallbacks 120`: counts, traces and the saved end state freeze
+at the movie's last frame, then at most 120 input-free frames let existing
+comparisons finish. A `closed` record cancels only its own file's `open`
+instructions, after the exact entry's match count increases by the number
+of pending invocations, with no new calls, mismatches, interruptions or
+abandonments. Completion is observed between instructions so another call
+later in the same frame cannot obscure it. Unresolved comparisons retain
+their original counts and ratchet failures; the tail's mismatches still fail
+the shadow run. Comparison statistics and instruction diagnostics include
+the tail; saved-game, trace and fallback counts retain the movie's cutoff.
+
+`battle-black-tyrano` ends during scene teardown and field loading: 20
+instructions under `scene_program_restart` and 44,292 under `decompress`
+were previously reported as new or increased open fallbacks. Both comparisons
+match within 11 extra frames. The cutoff saved state is byte-identical to
+the reference at frame 49219; the movie still measures 18 fallback
+instructions (10 handback, eight unported), with none new or increased.
+No fallback baseline was raised to accept the loading call's partial count.
+A replay from a reference state before the cutoff checks zero-, one- and
+120-frame limits: all three retain identical cutoff files and saved states
+before the appended completion records. One extra frame completes only
+decompression, so restart's 20 instructions still fail the ratchet. Eleven
+complete both. Reader tests also reject closure exceeding its own run's
+open count or attempting to cancel another movie's comparison.
+
 **On main**, when this came in, the reference play ran 46.5 KiB of distinct
 code and 347 million instructions in place of hand ports, the same in two runs
 to the instruction; by kind (a byte can be in two):
@@ -3368,6 +3394,20 @@ title's music wait and ten sound retries all match. Their combined-run
 exemptions name this evidence. The five bitmap/race exemptions name the
 independently compared interrupt handlers and explicitly retain the
 mid-picture interaction gap in TODO; standalone fuzz does not close it.
+
+`tools/uncompared_evidence.py` makes eight further comparisons repeatable:
+the flickering trip's wait and frame continuations, and the scene program's
+start, setup, first frame, clear, post-clear and handback entries. In a combined
+shadow run an enclosing port reaches its wait or call-out first, so shadow
+mode abandons these nested continuations before their own comparison point.
+The isolated fixtures remove those ancestors, preserving the callees and
+their registry contracts. Each scene entry matches in `title-start`; each
+flickering entry matches a complete 767-frame trip with real interrupts in
+the first 20,000 frames of `endings-bucket-lavos`. All eight fixtures require
+nonzero calls and every call matched, with no mismatches elsewhere in the
+run. Their baseline reasons name this evidence. The suite runs applicable
+fixtures for selected movies, or all eight with `--evidence`; these extra
+logs never enter the combined timing or fallback totals.
 
 Six narrowed movies, including the complete Beyond Time ending, pass with
 zero mismatches; attract and Epoch pass again after the final startup fix.

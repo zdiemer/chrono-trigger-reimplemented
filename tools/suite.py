@@ -203,6 +203,7 @@ def run_movie(binary, rom, out, name, path, frames):
            "--coverage", str(out / ("cov-%s.txt" % name)),
            "--calls", str(out / ("calls-%s.txt" % name)),
            "--fallbacks", str(out / "fallbacks" / "shadow" / ("%s.txt" % name)),
+           "--finish-fallbacks", "120",
            "--end-state", str(out / ("end-%s.bin" % name)), "--locations", "--outcomes"] + PACK_ARGS
     started = time.time()
     with open(log, "wb") as fh:
@@ -667,7 +668,15 @@ def check_uncompared(args, ctx):
     logs = [str(args.out / ("shadow-%s.log" % name)) for name in ctx["movies"]]
     rc, lines = run_tool([sys.executable, str(ROOT / "tools/uncompared.py"), "--check"] + logs)
     summary = lines[-1] if lines else "no output"
-    return rc == 0, "uncompared", summary, [] if rc == 0 else lines[:-1][-40:]
+    command = [sys.executable, str(ROOT / "tools/uncompared_evidence.py"),
+               "--ct-dev", str(ctx["binary"]), "--rom", str(args.rom),
+               "--out", str(args.out / "uncompared-evidence"), "-j", str(ctx["jobs"])]
+    if not args.evidence:
+        command += ["--movies"] + list(ctx["movies"])
+    evidence_rc, evidence = run_tool(command)
+    summary += "; " + (evidence[-1] if evidence else "no isolated comparison evidence")
+    details = ([] if rc == 0 else lines[:-1][-40:]) + ([] if evidence_rc == 0 else evidence)
+    return rc == 0 and evidence_rc == 0, "uncompared", summary, details
 
 
 def check_strict(args, ctx):

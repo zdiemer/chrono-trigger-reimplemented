@@ -51,6 +51,7 @@ typedef struct Frame {
     uint16_t stop_s;
     uint64_t hidden;   /* COVERED, a comparison's own (named): what it and its callees have not counted */
     const char *name;  /* COVERED: its port's name where the frame is the comparison's own; NULL for a callee's */
+    const NativeEntry *entry;
 } Frame;
 
 /* Counted by (a, b, c, d): instructions by (pc, kind, routine, port), and
@@ -86,6 +87,15 @@ typedef struct Pass {
 } Pass;
 
 struct Fallbacks {
+    struct {
+        uint32_t port;
+        const char *name;
+        const NativeStats *stats;
+        uint64_t hidden;
+        unsigned instances, calls, matched, mismatched, interrupted, abandoned;
+        bool completed;
+    } ending[MAX_FRAMES];
+    int nending;
     Snes *s;
     const NativeRuntime *rt;    /* the runtime observed */
     Frame frames[MAX_FRAMES];
@@ -544,6 +554,10 @@ static bool the_cartridges_sound_protocol(const Snes *s, uint32_t pc)
 
 void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
+    /* Observe completion before the caller starts another invocation of the
+     * same routine later in this frame. Frame-boundary sampling misses it. */
+    if (f->nending)
+        (void)fallbacks_end_pending(f);
     const Snes *s = f->s;
     uint16_t sp = s->cpu.s;
     after_an_rti(f, sp);
@@ -778,7 +792,7 @@ static void on_entered(void *ctx, Snes *s, const NativeEntry *e)
     take_over(f, sp, true);
     if (f->shadow)
         enter(f, (Frame){ .kind = COVERED, .held = e->interrupt, .routine = cpu_pc24(&s->cpu), .port = e->addr,
-                          .floor = sp, .name = e->name });
+                          .floor = sp, .name = e->name, .entry = e });
 }
 
 /* A port yielded to another task: what the other tasks run is theirs, and
@@ -812,7 +826,7 @@ static void on_resumed(void *ctx, Snes *s, const NativeEntry *e, uint16_t entry_
     take_over(f, sp, false);
     if (f->shadow)
         enter(f, (Frame){ .kind = COVERED, .routine = e->addr, .port = e->addr, .floor = entry_s, .start = level,
-                          .name = e->name });
+                          .name = e->name, .entry = e });
 }
 
 /* SHADOW: a wait loop's head, where an idle entry applies. A pass that came
@@ -885,6 +899,67 @@ void fallbacks_attach(Fallbacks *f, NativeRuntime *rt, bool shadow)
 }
 
 /* ---- the report --------------------------------------------------------------------- */
+
+void fallbacks_end_begin(Fallbacks *f)
+{
+    f->nending = 0;
+    if (!f->shadow)
+        return;
+    for (int i = 1; i < f->depth; i++) {
+        const Frame *frame = &f->frames[i];
+        if (frame->kind != COVERED || !frame->name || !frame->hidden)
+            continue;
+        const NativeStats *st = native_stats_for(f->rt, frame->entry);
+        int n = 0;
+        while (n < f->nending && f->ending[n].port != frame->port)
+            n++;
+        if (n == f->nending) {
+            memset(&f->ending[n], 0, sizeof f->ending[n]);
+            f->ending[n].port = frame->port;
+            f->ending[n].name = frame->name;
+            f->ending[n].stats = st;
+            if (st) {
+                f->ending[n].calls = st->calls;
+                f->ending[n].matched = st->matched;
+                f->ending[n].mismatched = st->mismatched;
+                f->ending[n].interrupted = st->interrupted;
+                f->ending[n].abandoned = st->abandoned;
+            }
+            f->nending++;
+        } else if (f->ending[n].stats != st)
+            f->ending[n].stats = NULL;   /* ambiguous registry variants: no completion certificate */
+        f->ending[n].instances++;
+        f->ending[n].hidden += frame->hidden;
+    }
+}
+
+bool fallbacks_end_pending(Fallbacks *f)
+{
+    bool pending = false;
+    for (int i = 0; i < f->nending; i++) {
+        const NativeStats *st = f->ending[i].stats;
+        if (!f->ending[i].completed && st && !native_compares(f->rt, f->ending[i].port) &&
+            st->calls == f->ending[i].calls &&
+            st->matched == f->ending[i].matched + f->ending[i].instances &&
+            st->mismatched == f->ending[i].mismatched &&
+            st->interrupted == f->ending[i].interrupted && st->abandoned == f->ending[i].abandoned)
+            f->ending[i].completed = true;
+        pending |= !f->ending[i].completed;
+    }
+    return pending;
+}
+
+int fallbacks_end_write(const Fallbacks *f, const char *path)
+{
+    FILE *out = fopen(path, "a");
+    if (!out)
+        return -1;
+    for (int i = 0; i < f->nending; i++)
+        if (f->ending[i].completed)
+            fprintf(out, "closed %06X %llu %s\n", (unsigned)f->ending[i].port,
+                    (unsigned long long)f->ending[i].hidden, f->ending[i].name);
+    return fclose(out) == 0 ? 0 : -1;
+}
 
 static void put_addr(FILE *out, uint32_t a)
 {

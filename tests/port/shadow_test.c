@@ -363,6 +363,13 @@ static Counts counts_of(const char *name)
 }
 
 /* Run the program with these routines registered, in SHADOW mode. */
+static void observe_stats(void *ctx, Snes *s, const NativeEntry *entry)
+{
+    (void)s;
+    const NativeStats *st = native_stats_for(ctx, entry);
+    CHECK(st && st->calls > 0, "observer could not read its exact entry's statistics");
+}
+
 static void run_case(const uint8_t *rom, const NativeEntry *table, int n, bool nmi, bool long_loop, int frames)
 {
     Snes *s = malloc(sizeof *s);
@@ -373,6 +380,8 @@ static void run_case(const uint8_t *rom, const NativeEntry *table, int n, bool n
     s->bus.wram[0x30] = long_loop;
     s->bus.wram[0x31] = nmi ? 0x80 : 0x00;
     NativeRuntime *rt = native_create(table, n, NATIVE_SHADOW);
+    NativeObserver observer = { .ctx = rt, .entered = observe_stats };
+    native_set_observer(rt, &observer);
     native_attach(rt, s);
     for (int i = 0; i < frames; i++)
         snes_run_frame(s, 0);
