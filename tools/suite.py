@@ -107,6 +107,8 @@ import time
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from tools import outcomes
+from tools.strict_check import SavedGame
 from tools import timing_gate  # noqa: E402
 
 MISMATCH = re.compile(rb"mismatched [1-9]")
@@ -156,17 +158,25 @@ def collect(only, names):
         # Long hand runs are opt-in, even when the full library is selected.
         if names:
             groups.append(sorted((ROOT / "oracle/movies/hand").glob("*.ctm")))
-    out = []
-    for paths in groups:
-        for p in paths:
-            if names and p.stem not in names:
-                continue
-            frames = movie_frames(p)
-            if frames is None:
-                print("%s: no '# frames N' header, skipped" % p.name, file=sys.stderr)
-                continue
-            out.append((p.stem, p, frames))
-    return out
+    selected = [p for paths in groups for p in paths if not names or p.stem in names]
+    rows = outcomes.require_movies(set(names or ()) | {p.stem for p in selected}, ROOT)
+    return [rows[p.stem] for p in selected]
+
+
+def select_movies(only, names, all_movies=False):
+    """Preflight the recorded set and gate sample before narrowing the run."""
+    sample, bad = gate_movies()
+    if bad:
+        raise ValueError("\n".join(bad))
+    recorded = outcomes.read(outcomes.LEDGER)
+    outcomes.require_movies({n for n, _kind in recorded} | set(sample) | set(names or ()), ROOT)
+    if names:
+        chosen, what = set(names), "the movies named"
+    elif all_movies:
+        chosen, what = set(), "the whole library"
+    else:
+        chosen, what = set(sample), "the gate's sample, %s; --all-movies runs the library" % GATE_MOVIES.name
+    return collect(only, chosen), what
 
 
 # The asset pack the ports read their resources from, imported by main().
@@ -194,11 +204,13 @@ def run_movie(binary, rom, out, name, path, frames):
            "--calls", str(out / ("calls-%s.txt" % name)),
            "--fallbacks", str(out / "fallbacks" / "shadow" / ("%s.txt" % name)),
            "--finish-fallbacks", "120",
-           "--end-state", str(out / ("end-%s.bin" % name)), "--locations"] + PACK_ARGS
+           "--end-state", str(out / ("end-%s.bin" % name)), "--locations", "--outcomes"] + PACK_ARGS
     started = time.time()
     with open(log, "wb") as fh:
         rc = subprocess.call(cmd, stdout=fh, stderr=subprocess.STDOUT)
     text = log.read_bytes()
+    outcomes.capture(out, name, path, frames, text.decode(errors="replace"), rc,
+                     out / ("end-%s.bin" % name), SavedGame(rom), "reference")
     bad = len(MISMATCH.findall(text))
     refused = [r.decode(errors="replace").strip() for r in REFUSED.findall(text)]
     strays = [r.decode(errors="replace").strip() for r in OUT_OF_RANGE.findall(text) + ASSETS.findall(text)]
@@ -676,7 +688,8 @@ def check_strict(args, ctx):
     mode, so it is quick; over a subset of the library (--movies, --only) it
     checks those."""
     cmd = [sys.executable, str(ROOT / "tools/strict_check.py"), "--ct-dev", str(ctx["binary"]), "--rom", str(args.rom),
-           "--check", "-j", str(max(1, min(ctx["jobs"], 2))), "--reference", str(args.out)]
+           "--check", "-j", str(max(1, min(ctx["jobs"], 2))), "--reference", str(args.out),
+           "--outcomes", str(args.out / "outcomes" / "strict")]
     if not ctx["complete"]:
         cmd += ["--movies"] + list(ctx["movies"])
     rc, lines = run_tool(cmd)
@@ -694,13 +707,27 @@ def check_native(args, ctx):
     if not native.exists():
         return False, "native", "%s isn't built" % native.name, []
     cmd = [sys.executable, str(ROOT / "tools/native_check.py"), "--ct-native", str(native), "--rom", str(args.rom),
-           "--check", "-j", str(max(1, min(ctx["jobs"], 2))), "--reference", str(args.out)] + PACK_ARGS
+           "--check", "-j", str(max(1, min(ctx["jobs"], 2))), "--reference", str(args.out),
+           "--outcomes", str(args.out / "outcomes" / "native")] + PACK_ARGS
     if not ctx["complete"]:
         cmd += ["--movies"] + list(ctx["movies"])
     rc, lines = run_tool(cmd)
     summary = lines[-1] if lines else "no output"
     return rc == 0, "native", summary, [] if rc == 0 else [l for l in lines[:-1] if ": dark" in l or ": crashed" in l
                                                            or ": hung" in l or "<--" in l or "not in" in l][-40:]
+
+
+def check_outcomes(args, ctx):
+    """The recorded reference, checked without running it beside the ports."""
+    summaries, details, ok = [], [], True
+    for mode in ("strict", "native"):
+        rc, lines = run_tool([sys.executable, str(ROOT / "tools/outcomes.py"), "--check",
+                              "--runs", str(args.out / "outcomes" / mode), "--mode", mode,
+                              "--movies"] + list(ctx["movies"]))
+        ok &= rc == 0
+        summaries.append(lines[-1] if lines else "no output")
+        details.extend(l for l in lines[:-1] if "FAILED" in l)
+    return ok, "outcomes", "; ".join(summaries), details
 
 
 def check_effects(args, ctx):
@@ -796,6 +823,7 @@ CHECKS = (
     ("uncompared", check_uncompared, "the ratchet on hand ports the shadow runs mostly leave uncompared"),
     ("strict", check_strict, "the ratchet on how far the hand ports alone carry each movie"),
     ("native", check_native, "the movies in the native program, none ending dark"),
+    ("outcomes", check_outcomes, "recorded end states, checkpoint pictures and places"),
     ("effects", check_effects, "the ratchet on logic that reads scaffolding"),
     ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
     ("portsmell", check_portsmell, "the ratchet on the review rubric's mechanical items"),
@@ -838,25 +866,22 @@ def main():
     if not args.rom.exists():
         sys.exit("%s: not found (tools/rom.py stage <path>)" % args.rom)
 
+    try:
+        movies, what = select_movies(args.only, args.movies, args.all_movies)
+    except (OSError, ValueError) as error:
+        print("suite: FAILED: %s" % error, file=sys.stderr)
+        return 1
+    if not movies:
+        sys.exit("no movies to run")
     jobs = args.jobs or max(1, (os.cpu_count() or 2) // 2)
     args.out.mkdir(parents=True, exist_ok=True)
-    for stale in list(args.out.glob("status-*.txt")) + list(args.out.glob("end-*.bin")):
+    for stale in (list(args.out.glob("status-*.txt")) + list(args.out.glob("end-*.bin")) +
+                  list(args.out.glob("outcome-*.txt"))):
         stale.unlink()
+    shutil.rmtree(args.out / "outcomes", ignore_errors=True)
     shutil.rmtree(args.out / "fallbacks" / "shadow", ignore_errors=True)
     (args.out / "fallbacks" / "shadow").mkdir(parents=True)
 
-    if args.movies:
-        chosen, what = set(args.movies), "the movies named"
-    elif args.all_movies:
-        chosen, what = set(), "the whole library"
-    else:
-        sample, bad = gate_movies()
-        if bad:
-            sys.exit("\n".join(bad))
-        chosen, what = set(sample), "the gate's sample, %s; --all-movies runs the library" % GATE_MOVIES.name
-    movies = collect(args.only, chosen)
-    if not movies:
-        sys.exit("no movies to run")
     # Longest first: the three endings are more than half the suite, and one
     # started late sets the wall time while the other workers sit idle.
     movies.sort(key=lambda m: -m[2])

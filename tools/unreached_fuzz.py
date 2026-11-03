@@ -86,10 +86,13 @@ def covers(recipe, owner):
 
 
 def implementation_hash(root):
-    """Bind portable evidence to the C implementation, not one host's binary.
+    """The C implementation a fresh run compared, not one host's binary.
 
-    Include shared game/platform helpers and the comparison harness: changing
-    any of them requires new evidence even if the recipe itself is unchanged.
+    Shared game/platform helpers and the comparison harness are included:
+    evidence from before any of them changed is not fresh. A run records it
+    beside the recipe's fingerprint; the ledger commits only the fingerprint,
+    so a change elsewhere in the tree doesn't stale every row, and the gate's
+    recheck asks for runs of this tree.
     """
     paths = [p for directory in ('game', 'runtime', 'dev')
              for p in (root / directory).rglob('*') if p.suffix in ('.c', '.h')]
@@ -103,8 +106,7 @@ def implementation_hash(root):
 def fingerprint(recipe, states, root=ROOT):
     state = states[recipe['state']]
     movie = root / state['movie']
-    return hashlib.sha256(json.dumps([recipe, state, hashlib.sha256(movie.read_text(encoding='utf-8').encode()).hexdigest(),
-                                     implementation_hash(root)],
+    return hashlib.sha256(json.dumps([recipe, state, hashlib.sha256(movie.read_text(encoding='utf-8').encode()).hexdigest()],
                                      sort_keys=True).encode()).hexdigest()
 
 
@@ -181,11 +183,11 @@ def main():
         result = ({k: v if k == 'name' else int(v) for k, v in match.groupdict().items()}
                   if match else {'error': proc.stdout[-500:]})
         result.update(recipe=recipe, seed=seed, cmd=cmd, exit=proc.returncode,
-                      fingerprint=fingerprint(recipe, states))
+                      fingerprint=fingerprint(recipe, states), implementation=implementation_hash(ROOT))
         prefix.with_suffix('.json').write_text(json.dumps(result, indent=2) + '\n')
         ok = clean(result, proc.stdout)
         print(label(recipe), 'OK' if ok else 'FAILED',
-              {k: v for k, v in result.items() if k not in ('recipe', 'cmd', 'fingerprint')}, flush=True)
+              {k: v for k, v in result.items() if k not in ('recipe', 'cmd', 'fingerprint', 'implementation')}, flush=True)
         return ok
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.j) as pool:

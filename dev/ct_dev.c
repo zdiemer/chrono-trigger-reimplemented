@@ -180,6 +180,7 @@
 #include "port/scaffold_reads.h"
 #include "port/vars_pages.h"
 #include "snes/render.h"
+#include "outcome_picture.h"
 #include "as_port.h"
 #include "snes/system.h"
 #include "snes/zst.h"
@@ -571,7 +572,7 @@ int main(int argc, char **argv)
     int finish_fallbacks = 0;
     PortTiming port_timing = PORT_TIMING_ESTIMATE;
     bool timing_report = false, page_report = false, port_horizon_interrupts = false, scaffold_reads = false;
-    bool locations = false;
+    bool locations = false, outcomes = false;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--timing-report")) {
@@ -580,6 +581,10 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--page-report")) {
             page_report = true;
+            continue;
+        }
+        if (!strcmp(a, "--outcomes")) {
+            outcomes = true;
             continue;
         }
         if (!strcmp(a, "--locations")) {
@@ -730,7 +735,7 @@ int main(int argc, char **argv)
                         "[--mixer dsp|native|check] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
                         "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--finish-fallbacks N] [--census out.txt] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
                         "[--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]... "
-                        "[--asset-reads out.txt] [--assets pack] [--locations]\n");
+                        "[--asset-reads out.txt] [--assets pack] [--locations] [--outcomes]\n");
         return 2;
     }
     if (zst_path && load_state) {
@@ -991,6 +996,9 @@ int main(int argc, char **argv)
     uint8_t cgram[0x200];
     uint16_t location = 0xFFFF;
     for (long frame = (long)snes.frame; frame < frames; frame++) {
+        if (outcomes)
+            draw_pixels = trace_path || shot_every > 0 || want_px_check ||
+                          outcome_picture_due((unsigned long)frame + 1, (unsigned long)frames);
         uint16_t pad = ct_movie_buttons(&movie, (uint32_t)frame);
         snes.bus.pad[1] = ct_movie_buttons2(&movie, (uint32_t)frame);
         snes_run_frame(&snes, pad);
@@ -1009,6 +1017,8 @@ int main(int argc, char **argv)
                 fprintf(stderr, "location: frame %ld $%03X\n", frame + 1, (unsigned)(location & LOCATION_BITS));
             }
         }
+        if (outcomes && outcome_picture_due((unsigned long)frame + 1, (unsigned long)frames))
+            outcome_picture(renderer.pixels, RENDER_WIDTH, RENDER_HEIGHT, (unsigned long)frame + 1);
         if (trace) {
             for (int i = 0; i < 256; i++) {
                 cgram[i * 2] = snes.ppu.cgram[i] & 0xFF;

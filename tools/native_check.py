@@ -54,6 +54,7 @@ import tempfile
 import zlib
 
 import places
+import outcomes
 from strict_check import ROOT, SavedGame, differences, movies, ram_names, reference_play, seconds_for
 
 PLACES_BASELINE = ROOT / "tools/places_baseline.txt"
@@ -108,7 +109,9 @@ def run_one(args, name, path, frames, sram, extra, saved, names, work):
         return ("no save", "its save isn't under oracle/saves"), None
     end = work / ("%s.native.bin" % name)
     text, rc = run_native(args.ct_native.resolve(), args.rom, path, frames, sram,
-                          extra + ["--end-state", str(end), "--locations"])
+                          extra + ["--end-state", str(end), "--locations"] + (["--outcomes"] if args.outcomes else []))
+    if args.outcomes:
+        outcomes.capture(args.outcomes, name, path, frames, text, rc, end, saved, "native")
     if args.logs:
         (args.logs / ("%s.log" % name)).write_text(text)
     ref_end, ref_places = reference(args, name, path, frames, work)
@@ -148,6 +151,7 @@ def main():
     ap.add_argument("--movies", nargs="*", default=[])
     ap.add_argument("-j", "--jobs", type=int, default=2)
     ap.add_argument("--logs", type=pathlib.Path, help="keep each run's stderr, with the places it went, as <movie>.log")
+    ap.add_argument("--outcomes", type=pathlib.Path, help="write digest artifacts for outcomes.py")
     ap.add_argument("--reference", type=pathlib.Path,
                     help="the reference end states, end-<movie>.bin (the suite's shadow runs write them)")
     ap.add_argument("--check", action="store_true",
