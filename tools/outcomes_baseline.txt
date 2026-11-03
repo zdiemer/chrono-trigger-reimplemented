@@ -1,0 +1,298 @@
+# Protected outcome matches: movie/mode kind identities (end, picture frame, place index).
+# --update adds matches, never drops one; temporal drift counts as a match.
+attract-demo/native game end
+attract-demo/native pictures 1 1800 2100 10500
+attract-demo/native places 0 1
+attract-demo/native sram
+attract-demo/strict game end
+attract-demo/strict pictures 1 1800 2100 3000 3600 7500 11100 12000 12900 13200
+attract-demo/strict places 0 1 2 3 4 5 6 8 9 10 11 12
+attract-demo/strict sram end
+battle-denadoro/native game
+battle-denadoro/native pictures 1 1800 2100 2400 2700
+battle-denadoro/native places 0 1 2 3 4
+battle-denadoro/native sram end
+battle-denadoro/strict game
+battle-denadoro/strict pictures 1 1800 2100 2400 2700 3000 3300 3600
+battle-denadoro/strict places 0 1 2 3 4
+battle-denadoro/strict sram end
+battle-golem-twins-gameover/native game end
+battle-golem-twins-gameover/native pictures 1 1800 2100 2400 4500 12300
+battle-golem-twins-gameover/native places 0 1 2 3 4 5 6
+battle-golem-twins-gameover/native sram end
+battle-golem-twins-gameover/strict game
+battle-golem-twins-gameover/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 4800 5100
+battle-golem-twins-gameover/strict places 0 1 2 3 4
+battle-golem-twins-gameover/strict sram end
+battle-guardian/native game
+battle-guardian/native pictures 1 1800 2100 2400
+battle-guardian/native places 0 1 2 3 4 5 6
+battle-guardian/native sram end
+battle-guardian/strict game
+battle-guardian/strict pictures 1 1800 2100 2400 2700 3000 3300 3900 4200 4500 4800 5100 5400 5700 6000 6300
+battle-guardian/strict places 0 1 2 3 4 5 6
+battle-guardian/strict sram end
+battle-lavos-gameover/native game end
+battle-lavos-gameover/native pictures 1 1800 2100 2400 4800 5400 15300 15600 15900 16192
+battle-lavos-gameover/native places 0 1 2 3 4 5 6 7
+battle-lavos-gameover/native sram end
+battle-lavos-gameover/strict game
+battle-lavos-gameover/strict pictures 1 1800 2100 2400 2700 3600 3900 4200 4500 4800 5100 5400 10800
+battle-lavos-gameover/strict places 0 1 2 3 4 5 6 7 8
+battle-lavos-gameover/strict sram end
+battle-magus/native game
+battle-magus/native pictures 1 1800 2100 2400 7500
+battle-magus/native places 0 1 2 3 4 5
+battle-magus/native sram end
+battle-magus/strict game end
+battle-magus/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 7500
+battle-magus/strict places 0 1 2 3 4 5
+battle-magus/strict sram end
+battle-menu-buttons/native game end
+battle-menu-buttons/native pictures 1 1800 2100 2400
+battle-menu-buttons/native places 0 1 2 3 4
+battle-menu-buttons/native sram end
+battle-menu-buttons/strict game end
+battle-menu-buttons/strict pictures 1 1800 2100 2400 2700 3000 3300
+battle-menu-buttons/strict places 0 1 2 3 4
+battle-menu-buttons/strict sram end
+battle-tyrano-lair-walls/native game
+battle-tyrano-lair-walls/native pictures 1 1800 2100 2400 3900 4500
+battle-tyrano-lair-walls/native places 0 1 2 3 4
+battle-tyrano-lair-walls/native sram end
+battle-tyrano-lair-walls/strict game end
+battle-tyrano-lair-walls/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 7800 8042
+battle-tyrano-lair-walls/strict places 0 1 2 3 4
+battle-tyrano-lair-walls/strict sram end
+endings-beyond-time/native game
+endings-beyond-time/native pictures 1 1800 2100 2400
+endings-beyond-time/native places 0 1 2 3 4
+endings-beyond-time/native sram
+endings-beyond-time/strict game
+endings-beyond-time/strict pictures 1 1800 2100 2400 2700 3900 4200 4500
+endings-beyond-time/strict places 0 1 2 3 4
+endings-beyond-time/strict sram end
+events-death-peak/native game
+events-death-peak/native pictures 1 1800 2100 2400
+events-death-peak/native places 0 1 2 3
+events-death-peak/native sram end
+events-death-peak/strict game
+events-death-peak/strict pictures 1 1800 2100 2400 2700 3000 3300
+events-death-peak/strict places 0 1 2 3
+events-death-peak/strict sram
+events-end-of-time-gate/native game
+events-end-of-time-gate/native pictures 1 1800 2100 2400
+events-end-of-time-gate/native places 0 1 2 3
+events-end-of-time-gate/native sram end
+events-end-of-time-gate/strict game end
+events-end-of-time-gate/strict pictures 1 1800 2100 2400 2700 3000 3600 3900 4500
+events-end-of-time-gate/strict places 0 1 2 3 4
+events-end-of-time-gate/strict sram end
+events-epoch-lavos/native game
+events-epoch-lavos/native pictures 1 1800 2100 2400
+events-epoch-lavos/native places 0 1 2 3
+events-epoch-lavos/native sram end
+events-epoch-lavos/strict game end
+events-epoch-lavos/strict pictures 1 1800 2100 2400 2700 3000 4200 4500 5100 7200
+events-epoch-lavos/strict places 0 1 2 3 4 5
+events-epoch-lavos/strict sram end
+events-fair-rescue/native game end
+events-fair-rescue/native pictures 1 1800 2100 2400 4500
+events-fair-rescue/native places 0 1 2 3 4 5 6
+events-fair-rescue/native sram end
+events-fair-rescue/strict game end
+events-fair-rescue/strict pictures 1 1800 2100 2400 2700 3000 3600 3900 4200 4500 5100 7681
+events-fair-rescue/strict places 0 1 2 3 4 5 6
+events-fair-rescue/strict sram end
+events-jetbike-race-won/native game
+events-jetbike-race-won/native pictures 1 900 1200 1500 2700 3000 3300 3600
+events-jetbike-race-won/native places 0 1 2 3 4 5
+events-jetbike-race-won/native sram end
+events-jetbike-race-won/strict game end
+events-jetbike-race-won/strict pictures 1 900 1200 1800 2700 3000 3300 3600 3900 4200 7500 8083
+events-jetbike-race-won/strict places 0 1 2 3 4 5 6
+events-jetbike-race-won/strict sram end
+events-jetbike-race/native game end
+events-jetbike-race/native pictures 1 1800 2100 2400 3000 3300 3600 3900 5400 5700 8700 9000
+events-jetbike-race/native places 0 1 2 3 4 5 6
+events-jetbike-race/native sram end
+events-jetbike-race/strict game end
+events-jetbike-race/strict pictures 1 1800 2100 2400 3000 3300 3600 3900 4200 5100 5400 5700 6300 9000
+events-jetbike-race/strict places 0 1 2 3 4 5 6
+events-jetbike-race/strict sram end
+events-ocean-palace-lavos/native game
+events-ocean-palace-lavos/native pictures 1 1800 2100 2400 3600 17100 25200
+events-ocean-palace-lavos/native places 0 1 2 3 4 5 8
+events-ocean-palace-lavos/native sram end
+events-ocean-palace-lavos/strict game
+events-ocean-palace-lavos/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4800 5700 6000 7200 7500 7800 9600 17100 25200
+events-ocean-palace-lavos/strict places 0 1 2 3 4 5 6 7 8
+events-ocean-palace-lavos/strict sram end
+field-12kbc-1f4/native game end
+field-12kbc-1f4/native pictures 1 1800 2100 2400 2700
+field-12kbc-1f4/native places 0 1 2 3 4 5
+field-12kbc-1f4/native sram end
+field-12kbc-1f4/strict game end
+field-12kbc-1f4/strict pictures 1 1800 2100 2400 2700 2953
+field-12kbc-1f4/strict places 0 1 2 3 4 5
+field-12kbc-1f4/strict sram end
+field-12kbc-1f6/native game end
+field-12kbc-1f6/native pictures 1 1800 2100 2400 2700
+field-12kbc-1f6/native places 0 1 2 3 4 5
+field-12kbc-1f6/native sram end
+field-12kbc-1f6/strict game end
+field-12kbc-1f6/strict pictures 1 1800 2100 2400 2700
+field-12kbc-1f6/strict places 0 1 2 3 4 5
+field-12kbc-1f6/strict sram end
+field-65m-bc-dactyl-flight/native game end
+field-65m-bc-dactyl-flight/native pictures 1 1800 2100 2400 3300 3600 3992
+field-65m-bc-dactyl-flight/native places 0 1 2 3
+field-65m-bc-dactyl-flight/native sram end
+field-65m-bc-dactyl-flight/strict game end
+field-65m-bc-dactyl-flight/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 3992
+field-65m-bc-dactyl-flight/strict places 0 1 2 3
+field-65m-bc-dactyl-flight/strict sram end
+field-65m-bc-dactyl/native game end
+field-65m-bc-dactyl/native pictures 1 1800 2100 2400 2810
+field-65m-bc-dactyl/native places 0 1 2 3
+field-65m-bc-dactyl/native sram end
+field-65m-bc-dactyl/strict game end
+field-65m-bc-dactyl/strict pictures 1 1800 2100 2400 2700 2810
+field-65m-bc-dactyl/strict places 0 1 2 3
+field-65m-bc-dactyl/strict sram end
+field-factory-switch/native game end
+field-factory-switch/native pictures 1 1800 2100 2400 2700 3000
+field-factory-switch/native places 0 1 2 3 4 5
+field-factory-switch/native sram end
+field-factory-switch/strict game end
+field-factory-switch/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 7800 8100
+field-factory-switch/strict places 0 1 2 3 4 5
+field-factory-switch/strict sram end
+field-floor-switch/native game end
+field-floor-switch/native pictures 1 1800 2100 2400 3000 3300 3501
+field-floor-switch/native places 0 1 2 3 4
+field-floor-switch/native sram end
+field-floor-switch/strict game end
+field-floor-switch/strict pictures 1 1800 2100 2400 2700 3000 3300 3501
+field-floor-switch/strict places 0 1 2 3 4
+field-floor-switch/strict sram end
+field-northern-ruins-switch/native game end
+field-northern-ruins-switch/native pictures 1 1800 2100 2400 2700 3600
+field-northern-ruins-switch/native places 0 1 2 3 4 5
+field-northern-ruins-switch/native sram end
+field-northern-ruins-switch/strict game end
+field-northern-ruins-switch/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3811
+field-northern-ruins-switch/strict places 0 1 2 3 4 5
+field-northern-ruins-switch/strict sram end
+field/native game
+field/native pictures 1 1800 2100 2400 5400 5700 6000 6300 6600 6900 7200 7500
+field/native places 0 1 2 3 5 6 7
+field/native sram
+field/strict game end
+field/strict pictures 1 1800 2100 2400 3300 3600 3900 4200 4500 4800 5100 5400 5700 6000 6300 6600 6900 7200 7500 7800 8100 8400 8700 10800 11100 11400
+field/strict places 0 1 2 3 4 5 6 7
+field/strict sram end
+late-omen-battles/native game
+late-omen-battles/native pictures 1 1800 2100 2400 2700 3600
+late-omen-battles/native places 0 1 2 3 4 5
+late-omen-battles/native sram end
+late-omen-battles/strict game
+late-omen-battles/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4800 5100 7800 18300 18412
+late-omen-battles/strict places 0 1 2 3 4 5
+late-omen-battles/strict sram end
+late-omen-terramutant/native game end
+late-omen-terramutant/native pictures 1 1800 2100 2400
+late-omen-terramutant/native places 0 1 2 3
+late-omen-terramutant/native sram end
+late-omen-terramutant/strict game end
+late-omen-terramutant/strict pictures 1 1800 2100 2400 2700 3000 3300 3900 4200
+late-omen-terramutant/strict places 0 1 2 3
+late-omen-terramutant/strict sram end
+menu/native game end
+menu/native pictures 1 1800 2100 2400 5400 5700 6000 6300 6600 6900 7200 7500 7800 8100 8400 8700 8900
+menu/native places 0 1 2 3 5
+menu/native sram
+menu/strict game end
+menu/strict pictures 1 1800 2100 2400 3300 3600 3900 4200 4500 4800 5100 5400 5700 6000 6300 6600 6900 7200 7500 7800 8100 8400 8700 8900
+menu/strict places 0 1 2 3 4 5
+menu/strict sram end
+menus-end-of-time/native game end
+menus-end-of-time/native pictures 1 1800 2100 2400 2700 8100 8400
+menus-end-of-time/native places 0 1 2 3 4
+menus-end-of-time/native sram end
+menus-end-of-time/strict game end
+menus-end-of-time/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 5700 6600 6900 7200 7500 7800 8100 8400
+menus-end-of-time/strict places 0 1 2 3 4 5
+menus-end-of-time/strict sram end
+menus-epoch/native game
+menus-epoch/native pictures 1 1800 2100 2400 2700 6000
+menus-epoch/native places 0 1 2 3 5 6
+menus-epoch/native sram end
+menus-epoch/strict game end
+menus-epoch/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 4800 5100 6000 6300 6900 7200 7500 7800 8100 8400 8700 8800
+menus-epoch/strict places 0 1 2 3 4 5 6 7 8 9
+menus-epoch/strict sram end
+menus-field-menu/native game end
+menus-field-menu/native pictures 1 1800 2100 2400 2700 3000 3600 3900 4200 4500 4800 5100 5400 5700 6000 6300 6600 6900 7200 7500 7800 8100 8400 8700 9000 9300 9600 9900 10200
+menus-field-menu/native places 0 1 2 3
+menus-field-menu/native sram end
+menus-field-menu/strict game end
+menus-field-menu/strict pictures 1 1800 2100 2400 2700 3000 3600 3900 4200 4500 4800 5100 5400 5700 6000 6300 6600 6900 7200 7500 7800 8100 8400 8700 9000 9300 9600 9900 10200
+menus-field-menu/strict places 0 1 2 3
+menus-field-menu/strict sram end
+menus-new-game-plus/native game end
+menus-new-game-plus/native pictures 1 1800 2100 2400 2700
+menus-new-game-plus/native places 0 1 2 3
+menus-new-game-plus/native sram end
+menus-new-game-plus/strict game end
+menus-new-game-plus/strict pictures 1 1800 2100 2400 2700 3000 3116
+menus-new-game-plus/strict places 0 1 2 3
+menus-new-game-plus/strict sram end
+menus-save-point/native game
+menus-save-point/native pictures 1 1800 2100 2400
+menus-save-point/native places 0 1 2 3
+menus-save-point/native sram
+menus-save-point/strict game end
+menus-save-point/strict pictures 1 1800 2100 2400 2700 3000
+menus-save-point/strict places 0 1 2 3
+menus-save-point/strict sram end
+menus-shop-equip/native game
+menus-shop-equip/native pictures 1 300
+menus-shop-equip/native places 0 1 2 3
+menus-shop-equip/native sram end
+menus-shop-equip/strict game end
+menus-shop-equip/strict pictures 1 300 2700 3900 4200 4500 4800 5100 5400 5700 6000 6300 6600 7500 7800 8100 8400 8700 9000 9600 9900 10800 11100 11400 11700 12000 12300 12600 12900 13200 13500 13800 14100 14400 14700 15000 15300 15513
+menus-shop-equip/strict places 0 1 2 3 4 5 6 7
+menus-shop-equip/strict sram end
+menus-shop-inn/native game
+menus-shop-inn/native pictures 1 1800 2100 2400 2700 4500 4800 5100 5400 5700 6000 6300 6900 7200 7500 7800
+menus-shop-inn/native places 0 1 2 3 4 5
+menus-shop-inn/native sram end
+menus-shop-inn/strict game
+menus-shop-inn/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 4800 5100 5400 5700 6000 6300 6600 6900 7200 7500 7800 8100
+menus-shop-inn/strict places 0 1 2 3 4 5
+menus-shop-inn/strict sram end
+menus-sweep/native game end
+menus-sweep/native pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 5100 5400 5700 6000 6300 6424
+menus-sweep/native places 0 1 2 3
+menus-sweep/native sram end
+menus-sweep/strict game end
+menus-sweep/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 4800 5100 5400 5700 6000 6300 6424
+menus-sweep/strict places 0 1 2 3
+menus-sweep/strict sram end
+new-game/native game end
+new-game/native pictures 1 1800 2100 2400 5400 5700 6000 6300 6600 6900 7200
+new-game/native places 0 1 2 3 5
+new-game/native sram
+new-game/strict game end
+new-game/strict pictures 1 1800 2100 2400 3300 3600 3900 4200 4500 4800 5100 5400 5700 6000 6300 6600 6900 7200
+new-game/strict places 0 1 2 3 4 5
+new-game/strict sram end
+title-start/native game end
+title-start/native pictures 1 1800
+title-start/native places 0 1 2
+title-start/native sram
+title-start/strict game end
+title-start/strict pictures 1 1800
+title-start/strict places 0 1 2
+title-start/strict sram end
