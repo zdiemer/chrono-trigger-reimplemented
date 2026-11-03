@@ -1233,3 +1233,27 @@ bool party_start_fits(const GameState *g)
     }
     return (field_map_index_mask(g) & ~WITHIN_THE_MAPS) == 0;
 }
+
+bool field_party_can_start(Snes *s)
+{
+    if (!field_on_page_bank_zero(s))
+        return false;
+    vars_peek(true);
+    bool fits = party_start_fits(state_of(s));
+    vars_peek(false);
+    return fits;
+}
+
+// $C0:9DC3
+/* The openings have finished: place the party on the map. Only Y and V
+ * survive to the caller, from the ground's slope calculation. */
+void field_start_the_party(Snes *s)
+{
+    GameState *g = state_of(s);
+    bool slope = field_start_on_a_slope(g);
+    bool overflow = field_start_overflow(g, m_flag(s, CPU_FLAG_V));
+    party_start_on_the_map(g);
+    ORIGINAL_EFFECT(s->cpu.y = slope ? 0 : (uint16_t)(s->cpu.y & 0x00FF));
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, overflow));
+    m_rts(s);
+}

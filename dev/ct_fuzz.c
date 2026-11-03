@@ -198,7 +198,7 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *state_path = NULL, *routine = NULL;
     const char *coverage_path = NULL;
-    bool apu_loopback = false;
+    bool apu_loopback = false, with_registry = false;
     int data_bank = -1, direct_page = -1, stack = -1, m_width = 0, x_width = 0;
     FuzzOptions o;
     bool decimal = false;
@@ -231,6 +231,10 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--poison-dc")) {
             o.poison_dc = true;
+            continue;
+        }
+        if (!strcmp(a, "--with-registry")) {
+            with_registry = true;
             continue;
         }
         if (!v)
@@ -340,7 +344,12 @@ int main(int argc, char **argv)
     if (decimal)
         base.cpu.p |= CPU_FLAG_D;
     native_direct_contracts(game_natives, game_native_count);
+    /* Let guarded C bridges take their shipping path. No runtime is attached:
+     * explicit call-outs still use the fuzzer's interpreter and budget. */
+    NativeRuntime *registry = with_registry ? native_create(game_natives, game_native_count, NATIVE_ON) : NULL;
     FuzzResult r = fuzz_run(&base, e, &o, stderr);
+    if (registry)
+        native_destroy(registry);
     native_direct_contracts(NULL, 0);
     if (coverage_path && coverage_write(&coverage, coverage_path)) {
         fprintf(stderr, "cannot write %s\n", coverage_path);
@@ -368,7 +377,7 @@ usage:
     fprintf(stderr, "usage: ct_fuzz --rom <rom> --routine <name|BBAAAA> [--load-state f] [--iterations N] "
                     "[--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
                     "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
-                    "  [--stop-at-call BBAAAA]...\n"
+                    "  [--stop-at-call BBAAAA]... [--with-registry]\n"
                     "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");

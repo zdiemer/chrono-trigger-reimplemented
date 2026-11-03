@@ -422,6 +422,38 @@ static bool run_screen_command(GameState *g, uint8_t command, uint8_t x, uint8_t
     }
 }
 
+/* The original's individual effect handlers also have entries, so each
+ * operation can be checked independently of the event dispatcher. These
+ * addresses belong to the bridge; the effects themselves use the table above. */
+static bool screen_effect_can_run(Snes *s, unsigned i)
+{
+    return field_on_page_bank_zero(s) && i < SCREEN_COMMANDS &&
+           (screen_commands[i].kind != OPENS_A_CIRCLE || s->cpu.y < EVENT_SCRIPT_BYTES - 4);
+}
+
+// $C0:4036, $C0:4055, $C0:405D, $C0:40EF, $C0:40B3, $C0:4145
+// $C0:4191, $C0:41B0, $C0:41B4, $C0:41B8, $C0:41C0, $C0:41C4, $C0:41DC, $C0:41C8
+static void screen_effect_entry(Snes *s, unsigned i)
+{
+    GameState *g = state_of(s);
+    uint16_t at = s->cpu.y;
+    uint8_t x = 0, y = 0, radius = 0;
+    if (screen_commands[i].kind == OPENS_A_CIRCLE) {
+        x = script_byte(g, (uint16_t)(at + 2));
+        y = script_byte(g, (uint16_t)(at + 3));
+        radius = script_byte(g, (uint16_t)(at + 4));
+    }
+    bool done = run_screen_command(g, (uint8_t)(FIRST_SCREEN_COMMAND + i), x, y, radius);
+    s->cpu.x = done ? (uint16_t)(at + screen_commands[i].length) : at;
+    m_rts(s);
+}
+
+#define SCREEN_ENTRY(name, command) \
+    void name(Snes *s) { screen_effect_entry(s, command); } \
+    bool name##_accepts(Snes *s) { return screen_effect_can_run(s, command); }
+EVENT_SCREEN_ENTRIES(SCREEN_ENTRY)
+#undef SCREEN_ENTRY
+
 /* The routines the field's end calls, including the scene's fresh stack. */
 enum { WALK_THE_LEADER = 0xC0881E, PALETTE_ANIMATION = 0xFDFFF7, FRAME_WAIT = 0xC0EC60 };
 enum { THE_SCENE_STARTS = 0xC03FD6 };
@@ -450,8 +482,60 @@ static void end_the_field_for_a_scene_on_the_machine(Snes *s, uint8_t scene)
 /* The original's dispatch of the screen commands, a JSR through its table
  * ($C0:4009), with the registers it has there: the command's index doubled
  * in A and X, the carry and the overflow its working out left clear. The
- * game's restart is the original's, from there. */
+ * restart resumes here after the event entry ends its comparison. */
 enum { SCREEN_DISPATCH = 0xC04009, AT_THE_DISPATCH = DC_AL | DC_N | DC_Z | DC_C };
+
+/* Entry addresses are only the machine bridge's calling convention. The
+ * operation table above describes the effects themselves. */
+static const struct { uint32_t entry; EventBridge call; } screen_entries[SCREEN_COMMANDS] = {
+    [0] = { 0xC04036, event_screen_open_hole },
+    [1] = { 0xC04055, event_screen_close_hole },
+    [2] = { 0xC0405D, event_screen_uncover_right },
+    [3] = { 0xC040EF, event_screen_uncover_left },
+    [4] = { 0xC040B3, event_screen_cover_right },
+    [5] = { 0xC04145, event_screen_cover_left },
+    [6] = { 0xC04181, NULL },   /* the restart hands off before its idle wait */
+    [7] = { 0xC04191, event_screen_open_oval },
+    [8] = { 0xC041B0, event_screen_close_oval },
+    [9] = { 0xC041B4, event_screen_circle_bg3 },
+    [10] = { 0xC041B8, event_screen_blend_circle },
+    [11] = { 0xC041C0, event_screen_end_field },
+    [12] = { 0xC041C4, event_screen_remove_oval },
+    [13] = { 0xC041DC, event_screen_end_push },
+    [14] = { 0xC041C8, event_screen_ripple },
+    [15] = { 0xC03E7C, event_screen_party_routine },
+};
+
+bool event_screen_dispatch_accepts(Snes *s)
+{
+    return field_on_page_bank_zero(s) && !(s->cpu.x & 1) && s->cpu.x / 2 < SCREEN_COMMANDS;
+}
+
+/* The runtime owns the vblank wait. Meet the original before it polls,
+ * preserving every register; the dispatcher's return-only don't-care set
+ * does not apply at this handoff. The table bridge supplies its JSR frame. */
+static bool restart_on_the_machine(Snes *s)
+{
+    m_stop_at_own(s, 0xC04181, 0);
+    return false;
+}
+
+// $C0:4009
+/* Resume a screen command at its dispatch, including the restart path.
+ * Each sibling keeps its own registry contract and time. */
+void event_screen_dispatch(Snes *s)
+{
+    unsigned i = s->cpu.x / 2;
+    if (screen_commands[i].kind == RESTARTS_THE_GAME) {
+        field_run_table_step(s, SCREEN_DISPATCH, restart_on_the_machine);
+        return;
+    }
+    if (field_run_or_hand_over(s, SCREEN_DISPATCH, screen_entries[i].entry, DC_C,
+                              screen_entries[i].call, event_machine(s, false))) {
+        m_set_flag(s, CPU_FLAG_C, false);
+        m_rts(s);
+    }
+}
 
 static void as_the_dispatch_has_it(Snes *s, uint8_t command)
 {
@@ -540,7 +624,9 @@ bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *st
         *step = (EventStep){ (uint16_t)(at + SCREEN_COMMAND_LENGTH), false };
         return true;
     }
-    bool done = run_screen_command(g, c.screen_command, (uint8_t)c.x, (uint8_t)c.y, c.radius);
+    bool done;
+    TIMED_AS(g, screen_entries[i].entry,
+             done = run_screen_command(g, c.screen_command, (uint8_t)c.x, (uint8_t)c.y, c.radius));
     *step = (EventStep){ done ? (uint16_t)(at + screen_commands[i].length) : at, false };
     return true;
 }
@@ -568,7 +654,9 @@ void event_cmd_screen_command(Snes *s)
             event_return(s, (EventStep){ s->cpu.x, false });
         return;
     }
-    bool done = run_screen_command(g, c.screen_command, (uint8_t)c.x, (uint8_t)c.y, c.radius);
+    bool done;
+    TIMED_AS(g, screen_entries[i].entry,
+             done = run_screen_command(g, c.screen_command, (uint8_t)c.x, (uint8_t)c.y, c.radius));
     event_return(s, (EventStep){ done ? (uint16_t)(at + screen_commands[i].length) : at, false });
 }
 

@@ -45,6 +45,7 @@
 #include "field/display.h"
 #include "field/scratch.h"
 #include "platform/audio.h"
+#include "platform/timing.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -462,10 +463,66 @@ void field_clear_the_layers_state(GameState *g, Platform *pf)
  * game has is either. */
 enum { SCRIPT_BUFFER = 0x7F2000, SCRIPT_ROOM = 0x1700, CR = 0x0D, LF = 0x0A };
 
-static bool script_fits(const GameState *g)
+typedef enum { SCRIPT_VALID, SCRIPT_IS_TEXT, SCRIPT_TOO_LARGE } ScriptValidity;
+
+static ScriptValidity script_validity(const GameState *g)
 {
     bool text = event_object_count(g) == CR && event_script_byte(g, 0) == LF;
-    return !text && (int16_t)(SCRIPT_ROOM - decompress_length(g)) >= 0;
+    if (text)
+        return SCRIPT_IS_TEXT;
+    /* The original tests the signed difference, including its word wrap. */
+    return (int16_t)(SCRIPT_ROOM - decompress_length(g)) < 0 ? SCRIPT_TOO_LARGE : SCRIPT_VALID;
+}
+
+// $C0:2E1E
+/* A bad script stops the game on a solid diagnostic colour: amber for a
+ * text file where bytecode belongs, dark red for an oversized script. */
+static void show_script_error(GameState *g, Platform *pf, uint16_t color)
+{
+    vid_set_display(pf, PF_AT(0xC02E25), &(VidDisplay){ .blank = true });
+    tm_enable_interrupts(pf, PF_AT(0xC02E2A), 0);
+    vid_stop_uploads(pf, PF_AT(0xC02E2D));
+    vid_enable_line_effects(pf, PF_AT(0xC02E30), 0);
+    set_field_line_effect_enable(g, 0);
+    vid_set_screens(pf, PF_AT(0xC02E36), 0, 0, VID_SCREEN_MAIN | VID_SCREEN_SUB);
+    vid_set_palette_color(pf, PF_AT(0xC02E3C), 0, color);
+    program_ignore_interrupts(g);
+    set_field_brightness(g, 15);
+    tm_enable_interrupts(pf, PF_AT(0xC02E5C), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
+    vid_set_display(pf, PF_AT(0xC02E61), &(VidDisplay){ .brightness = 15 });
+}
+
+// $C0:5CC7
+/* Validate the unpacked script before installing the engine's built-ins.
+ * Invalid data never returns: the original remains on its diagnostic. */
+void field_check_the_script(Snes *s)
+{
+    ScriptValidity validity = script_validity(state_of(s));
+    if (validity == SCRIPT_VALID) {
+        m_rts(s);
+        return;
+    }
+    m_set_flag(s, CPU_FLAG_I, true);
+    s->cpu.db = 0;
+    show_script_error(state_of(s), m_platform(s), validity == SCRIPT_IS_TEXT ? 0x01F0 : 0x000F);
+    m_set_flag(s, CPU_FLAG_I, false);
+    m_stop_at(s, 0xC02E65, DC_A | DC_X | DC_Y | DC_FLAGS);
+}
+
+// $C0:2E65
+/* The diagnostic has no continuation. Interrupts may still arrive, and
+ * their stubs return immediately; the idle entry lets the host advance. */
+void field_script_error_wait(Snes *s) { (void)s; }
+
+// $C0:5703
+/* The unpacker's continuation: reject bad input before installing the
+ * engine's commands. The checker owns the diagnostic and its idle state. */
+void field_finish_loading_script(Snes *s)
+{
+    BridgeMachine as = { false, s->cpu.d, s->cpu.db };
+    if (field_run_or_hand_over(s, 0xC05703, 0xC05CC7, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
+                              field_check_the_script, as))
+        m_stop_at(s, 0xC05CEC, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
 }
 
 /* The built-in commands, copied after the script where the commands and
@@ -495,6 +552,17 @@ static void copy_the_built_in_commands(GameState *g)
     (void)bytes;
 }
 
+// $C0:5CEC
+void field_install_script_builtins(Snes *s)
+{
+    copy_the_built_in_commands(state_of(s));
+    s->cpu.a = 0xFFFF;
+    s->cpu.x = 0x5D6E;
+    s->cpu.y = 0x3786;
+    m_set_nz8(s, s->cpu.db);
+    m_rts(s);
+}
+
 /* The script's place in the table of scripts is its number tripled, which the
  * original adds up from the number in its first scratch cell; its callers read
  * the last sum's overflow, which the unpacker's call keeps. */
@@ -514,7 +582,7 @@ bool field_load_the_script(GameState *g)
     uint16_t script = the_locations_script(g);
     ORIGINAL_EFFECT(leave_last_worked(g, script));
     unpack(g, field_packed_script(g, script), SCRIPT_BUFFER);
-    if (!script_fits(g))
+    if (script_validity(g) != SCRIPT_VALID)
         return false;
     copy_the_built_in_commands(g);
     return true;

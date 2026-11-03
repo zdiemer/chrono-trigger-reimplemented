@@ -19,7 +19,7 @@
  *
  * The console reads the controller by itself early in the vertical blank, and
  * the game waits for that to finish before it takes the buttons; the port
- * leaves the wait to the original (the entries at the end), and other work
+ * leaves the wait to its idle entry, and other work
  * that runs the frame's input again (input_take_frame) goes on without it. */
 #include "core/input.h"
 
@@ -72,15 +72,12 @@ static Buttons advance_repeat(GameState *g, Buttons held_through)
     return held_through;
 }
 
-// $C2:84EC
+// $C2:84FE
 /* Take this frame's buttons: held, pressed and repeating, remembering last
- * frame's held ones to tell which are new. Not yet, while the console is still
- * reading the controller; and the reset buttons, held alone, reset instead,
- * once the held buttons are taken. */
-ControllerRead input_read_controller(GameState *g, Platform *pf)
+ * frame's held ones to tell which are new. The reset buttons, held alone,
+ * reset instead, once the held buttons are taken. */
+static ControllerRead take_controller_sample(GameState *g, Platform *pf)
 {
-    if (!in_ready(pf, PF_AT(0xC284F9)))
-        return CONTROLLER_NOT_READY;
     PadBits pad = in_read(pf, PF_AT(0xC28502), 0);
     Buttons before = input_held(g);
     Buttons held = in_game_order(pad);
@@ -92,6 +89,13 @@ ControllerRead input_read_controller(GameState *g, Platform *pf)
     set_input_pressed(g, pressed);
     set_input_repeat(g, (Buttons)(pressed | advance_repeat(g, (Buttons)(held & before))));
     return CONTROLLER_READ;
+}
+
+// $C2:84EC
+/* Only consume a sample after the console has finished reading the pad. */
+ControllerRead input_read_controller(GameState *g, Platform *pf)
+{
+    return in_ready(pf, PF_AT(0xC284F9)) ? take_controller_sample(g, pf) : CONTROLLER_NOT_READY;
 }
 
 /* ---- The player's button assignments ------------------------------------------------------------ */
@@ -205,7 +209,7 @@ static void on_controller_page(Snes *s)
 
 /* Where the controller read stops rather than returns: at the original's loop
  * on the console's status while its read is still under way ($C2:84F9, the
- * wait this port hands back; docs/TODO.md), which tests the status against an
+ * idle entry below), which tests the status against an
  * 8-bit A of 1; or at the reset code, jumped to with 16-bit registers. Either
  * way on the controller's page. */
 void input_stop_reading(Snes *s, ControllerRead read)
@@ -236,6 +240,40 @@ void input_read_joypad(Snes *s)
     m_rep(s, CPU_FLAG_M);
     m_sep(s, CPU_FLAG_X);
     m_rts(s);
+}
+
+// $C2:84F9
+/* Yield while the console samples the pad. The completed read has its own
+ * entry below the wait, so it is compared and timed as ordinary work. */
+void input_wait_for_controller(Snes *s)
+{
+    if (in_ready(m_platform(s), PF_AT(0xC284F9)))
+        m_stop_at(s, 0xC284FE, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C);
+}
+
+// $C2:84FE
+/* The sample is ready: take the buttons and return to the frame's input
+ * work. This is also where a saved machine resumes after the idle wait. */
+void input_take_ready_controller(Snes *s)
+{
+    ControllerRead read = take_controller_sample(state_of(s), m_platform(s));
+    if (read == CONTROLLER_RESET) {
+        input_stop_reading(s, read);
+        return;
+    }
+    m_rep(s, CPU_FLAG_M);
+    m_sep(s, CPU_FLAG_X);
+    m_rts(s);
+}
+
+bool input_controller_page_ready(Snes *s)
+{
+    return s->cpu.d == CONTROLLER_PAGE && s->cpu.db == 0;
+}
+
+bool input_controller_wait_ready(Snes *s)
+{
+    return input_controller_page_ready(s) && (uint8_t)s->cpu.a == 1;
 }
 
 bool input_map_buttons_runs(Snes *s) { return m_direct_page(s) == CONTROLLER_PAGE; }

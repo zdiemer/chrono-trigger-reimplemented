@@ -101,6 +101,12 @@ static ProgramStub stub_of(uint32_t stub)
 void program_install_vblank_handler(GameState *g, uint32_t handler) { set_nmi_vector(g, stub_jumping_to(handler)); }
 void program_install_line_handler(GameState *g, uint32_t handler) { set_irq_vector(g, stub_jumping_to(handler)); }
 
+void program_ignore_interrupts(GameState *g)
+{
+    set_nmi_vector(g, (nmi_vector(g) & ~STUB_KIND_BITS) | STUB_RETURN);
+    set_irq_vector(g, (irq_vector(g) & ~STUB_KIND_BITS) | STUB_RETURN);
+}
+
 ProgramStub program_vblank_stub(const GameState *g) { return stub_of(nmi_vector(g)); }
 ProgramStub program_line_stub(const GameState *g) { return stub_of(irq_vector(g)); }
 

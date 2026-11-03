@@ -13126,3 +13126,160 @@ three refusals (`fionas_forest`'s departure, `castle_flea`'s facing
 command), open in TODO.md but off the allowlist since the battle stops'
 merge, are back on it as gaps; and `battle-golem-twins-gameover`, which
 drifts on the hand ports alone at this chunk's base as well, is `drifts`.
+
+### Phase 4a, timing: the battle frame work's remainders, chunk 2: the rewards' messages, the music round a battle and the field's ends (`$FD:A982`, `$FD:AD17`-`$FD:AE51`, `$FD:DA55`-`$FD:DB97`, `$C0:0005`-`$C0:000D`, `$C0:0AFF`-`$C0:0B27`, `$C0:1B90`-`$C0:1CFB`, `$C0:3B76`-`$C0:3B97`, `$C0:6E27`, `$C0:75A0`)
+
+The fourth chunk of the timing service's stream, after the battle frame
+work's first remainders (history file, "Phase 4a, timing: the battle frame
+work's remainders").
+
+**How it was chosen.** What the battle's ports still called out to once the
+battle's messages were C, and what that chunk's fallback measure listed of
+the field's and bank `$FD`'s around a battle: the rewards' messages, which
+call the battle's message for each; the turns' work the battle clears as it
+starts; the music the battle's setup and close start; the field's line
+effects the battle's vblank handler rebuilds; and the warp's four ends. With
+them came the field's own small routines the same measure listed (the switch's
+and the chest's sounds, the staging blanked, the credits' letters) and the
+event command that changes place at once, where the strict native run stopped
+(frame 3449, `$C0:3B76`, after its wait for the vblank flag).
+
+**What it is.**
+- The rewards' messages (`battle/rewards_messages.c`, `$FD:AD17`): the
+  experience, the tech points, the gold and each item, then for each member
+  still in the fight every level, single tech, double tech and triple tech
+  noted, each a call to the battle's message as C (`battle_run_long_dc`, which
+  declares that the message reads only A where its guard turns the call away).
+  The original keeps its place in the telling in its own cells and the item's
+  place on the stack; the port keeps the place in a record of its own,
+  leaves it in the cells (scaffolding) before each message and once at the
+  end, and has the item's place kept under its message's call
+  (`BattleFrame`), so a message that hands back leaves the original's code
+  what it reads.
+- The turns' work cleared (`battle/main_loop.c`, `$FD:A982`), a fill of
+  `$7E:AD89`-`$B3F4` charged at the original's store a byte.
+- The field's sounds (`field/sounds.c`): the switch's and the chest's effect
+  panned on the leader (`$C0:1B90`, `$C0:1BA7`); the battle's song and set of
+  effects as it starts (`$C0:1BAB` through `$C0:0008`), or the effects alone
+  where the event keeps the field's song; and after it (`$C0:1BE6` through
+  `$C0:000B`) the field's song back, rising over a second, a lost battle's own
+  song, or the field's effects alone. All through the audio service's
+  commands (`AU_SWITCH_EFFECTS` is new).
+- The line effects rebuilt (`field/line_effects.c`, `$C0:0AFF` through
+  `$C0:0005`): both table sets built on the setup's path and programmed, plain
+  C, the effects to switch on returned.
+- The staging blanked (`field/script_layers.c`, `$C0:75A0`) and the credits'
+  letters unpacked and sent to BG3 (`$C0:6E27`), event `$29`'s and the layer
+  work's.
+- The warp's end (`warp/warp.c`, `$FD:DA55`, `$FD:DAB4`, `$FD:DB13`,
+  `$FD:DB8D`): one entry at the four kinds' ends, the screen dark, the story
+  flags back and the field started again.
+- The change of place at once (`event/locations.c`, `$C0:3B76`): the screen
+  dark, the place left kept, the next made the party's, and the field started
+  on a fresh stack. The wait before it (`$C0:3B71`) depends on timing and stays
+  the idle entry it was (`field/frame.c`; TODO.md, "Frame waits still made on
+  the machine").
+- Left out, each checked against the fallback measure: `$C0:46D1` and
+  `$C0:483A` (the game's halt on a set past a bank's end), `$C0:4186` (the
+  restart after `$C0:4181`'s wait), `$FD:DE87` (the warp's line handler,
+  never enabled) and `$FD:DA00` (the long warp), which no movie runs;
+  `$C0:5AA3`, an object's turn's hand-over for a script run off its end, which no
+  movie takes;
+  `$C0:1F24`, `$C0:28C0`, `$C0:1B36`, `$C0:4009`/`$C0:4036` and
+  `$C0:5703`/`$C0:5CC7`, which the original's code reaches but whose work is
+  C inside their callers' ports already (`field/requests.c`,
+  `field/switches.c`, `event/screen.c`, `field/location.c`; the burndown
+  doesn't credit them); and `$C0:58ED` and `$C0:9DC3`, C in `event/bridge.c`
+  and `field/leaves.c`, which the reference play runs only after a nested
+  comparison is set aside (none in the shipping mode).
+
+**What shadow mode, fuzzing and the gate found.** Over the 35 movies, 0 mismatching. Fuzzing at the
+first message's call, the X and the flags the original leaves there differed
+in every state: the call's set was the bridge's, every register, where the
+message reads only A, which `battle_run_long_dc` now says (and the
+don't-care check verifies). The music's entries left A as the driver hands it
+back, which their callers overwrite at once (`TDC`), declared dead with the
+flags. The switch's, the chest's and the battle's sounds wait on the APU's
+handshake, so their fuzz rows echo the ports (`--apu-loopback`). The line
+effects' rebuild was first the builders' and the programming's entries run on
+the machine; with only A's low byte read after it, it is C, and its time is
+its own rate's: the builders' every-frame rate overestimated the setup's path
+by 10%, and the battle's vblank handler around it by 5%. The effects check
+found the rewards' tech cell, which the learning writes as scaffolding, now
+also written plainly by the messages: its two baseline lines say so.
+
+**Fuzzing** (seed 1, `tools/fuzz_routines.toml`): 0 mismatched on every
+row. The rewards' messages up to the first message, 0 of 3,179 with any
+rewards (16,821 turned away by the guard: a member noted with double techs
+whose list has no end, which the original reads past) and, as a second row
+with the battle's own rewards none and the list ended, 0 of 20,000, each
+reaching a member's first message; the turns' work 0 of 2,000; the switch's
+and the chest's sounds 0 of 5,000 each; the battle's song 0 of 3,769 and the
+music back 0 of 3,933 (the rest the driver's switch of its effects' sets past
+the budget, where the event keeps the field's song: the same call in both);
+the rebuild 0 of 5,000 (its tables past their size on random windows, as the
+builders' are; TODO.md); the staging 0 of 2,000, the letters 0 of 1,000, the
+warp's end 0 of 2,000 and the change of place 0 of 5,000. Nothing is
+narrowed past what a guard turns away.
+
+**Measured.** Shadow mode, calls over the library: the rebuild 538 (all
+compared alone, in the battle's vblank handler), the staging 73 and the
+letters 2 (the endings' credits), the change of place 40, the turns' work 37
+(14 interrupted), the battle's song 37 and the music back 32, the rewards 25
+(19 compared alone), the warp's ends 4 (the long warp's none), the switch's
+sound 1 and the chest's none (both fuzzed). The strict native run
+(`ct_dev --native on --generated off --no-interpreter strict`, the C sound
+driver, as `ct_play --interpreted stop` runs it) goes on from frame 3449 to
+frame 3779, and stops at `$CD:0000`, the jump stub into the battle screen's
+setup, as the attract's battle starts; over 20,000 frames the interpreted
+list falls from 513 addresses to 204, none the field's or bank `$FD`'s
+(PLAN.md, "The native frame"). The fallback measure's reference play went
+from 23.24 M instructions to 22.83 M (the turns' work 0.24 M, the staging 0.15
+M); the shipping mode's over the movies from 57.04 M to 56.88 M, every movie
+that reaches the new entries lower. Over the routes it went from 10.24 M to
+13.47 M, all of it the Beyond Time route's (the two other ending routes
+fell), and not from a longer ending: the route runs the ending for a fixed
+48,000 frames on both builds, the same 13 maps to The End, no played frame
+different. The rise is the route's player-search probes, which go back by
+replaying from the last frame with nothing suspended or owed (a base): the
+replays grew from 30,056 frames to 44,660, most of it on map `2d00` (1,255 to
+7,985), the ending's scene program run as the original's under
+`scene_run_frame_tasks` (`$7E:398A`) and `scene_run_vblank_tasks`
+(`$7E:39BE`), which `ct_drive` counts (TODO.md). Why the bases come less often
+is unconfirmed; the likely cause is estimated time the newly ported ending
+code (`$C0:75A0`, `$C0:6E27`, `$C0:0AFF`) leaves owed at frame ends.
+One line rose, a movie's end: `gato-battle` stops while the rewards' second
+message is up, which was the message's open comparison (`$CD:0021`, 1,083)
+and is now the main loop's (`$C1:812C`, 86 to 2,466).
+
+**After the review** (merge after fixes; none rated translation). The
+bridges no longer keep the original's stack and carry in their logic: a
+`BattleFrame` (battle/bridge.h) says what the original keeps on the stack and
+in the carry at each call or wait, and `battle_run_under`, `battle_wait_under`
+and their kin set it up and take it down, so the battle's message is C steps
+between waits instead of three pushes and a pull before each use. The
+frame work's waits are one pair of helpers (`battle/wait.h`, which
+`tools/dontcare_check.py` reads as the waits they make); the window's sound
+and the field's line effects' rebuild are called as C behind a test of their
+entries' preconditions (`battle_play_a_sound_from`, display.c), not through
+the machine. How a battle ended and its terms are one definition each
+(`BattleResult`, which names a script's third result, and
+`BATTLE_TERMS_*`, battle.h); the battle's close tests only for a win, as the
+original does, so a script's result ends there as a defeat does. The field's
+unpacked BG3 tiles are named in the map (`field_bg3_tiles_unpacked`, the
+battle's copy of the battlefield's and the credits' letters alike); the
+battlefield put back builds its screen as one record and shows it. With the
+rebuild as C, the battle's return in the three ending movies is no longer cut
+short by a frame's interrupt, so shadow mode compares it, and found the boss's
+end leaving the carry its settling leaves (clear) only where the settling was
+called alone; the boss's end leaves it too now. The battle's vblank handler
+was recalibrated for the rebuild (3,278 to 3,630). The fuzz rows of the
+display's close and both messages, which differed at their first sibling's
+call in registers the sibling never reads, match now that those calls declare
+them (`battle_run_dc`, `battle_run_dc_under`, checked against liveness).
+
+**Timing.** Calibrated: the new entries, the chest's sound, which no movie
+reaches, at the switch's, and the warp's four ends at one value, the long
+warp's unmeasured. The
+battle's vblank handler and the layer work, whose stretches hold the rebuild
+and the staging, came back within their limits with those.

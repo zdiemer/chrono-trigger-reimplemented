@@ -58,6 +58,10 @@ void input_stop_reading(Snes *s, ControllerRead read);
 /* The registered entries (game/registry.c). */
 void input_update(Snes *s);
 void input_read_joypad(Snes *s);
+void input_wait_for_controller(Snes *s);
+void input_take_ready_controller(Snes *s);
+bool input_controller_page_ready(Snes *s);
+bool input_controller_wait_ready(Snes *s);
 void input_map_buttons(Snes *s);
 bool input_map_buttons_runs(Snes *s);
 void play_time_tick(Snes *s);

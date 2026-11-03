@@ -376,6 +376,11 @@ enum { FIELD_FRAME_WAIT_LOOP = 0xC0EC71, FIELD_FRAME_WAIT_RETURN = 0xC0EC76 };
 void field_wait_for_frame_loop(Snes *s);
 void field_change_location_wait_for_vblank_loop(Snes *s);
 void field_restart_wait_for_vblank_loop(Snes *s);
+void field_restart_in_the_dark(Snes *s);
+void field_check_the_script(Snes *s);
+void field_finish_loading_script(Snes *s);
+void field_script_error_wait(Snes *s);
+void field_install_script_builtins(Snes *s);
 /* The screen's setup turning the screen back on: one pass of its wait for
  * the vblank ($C0:0B38), and the handlers back on after it ($C0:0B3D). */
 void field_screen_on_wait_for_vblank_loop(Snes *s);

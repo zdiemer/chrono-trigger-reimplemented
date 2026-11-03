@@ -55,6 +55,8 @@ enum { BATTLE_SLIDE_STILL = 0, BATTLE_SLIDE_STARTING_IN = 0xFF, BATTLE_SLIDE_OUT
 void battle_start_the_slide(GameState *g, uint8_t slide);
 // $CD:0534
 static inline bool battle_window_sliding(const GameState *g) { return battle_window_slide_frames(g) != 0; }
+void battle_window_is_sliding(Snes *s);
+void battle_show_the_defeat(Snes *s);
 
 /* ---- scroll.c ------------------------------------------------------------------------------ */
 

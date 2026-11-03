@@ -38,6 +38,8 @@ void program_line(GameState *g, Platform *pf);
  * picture where the mode wants it. `handler` is the handler's address. */
 void program_install_vblank_handler(GameState *g, uint32_t handler);
 void program_install_line_handler(GameState *g, uint32_t handler);
+/* Ignore both interrupts while the diagnostic screen is displayed. */
+void program_ignore_interrupts(GameState *g);
 
 /* Where a stub sends its interrupt: to a handler, back to what it interrupted
  * (the mode turned it away), or nowhere yet -- before any mode has set it, it

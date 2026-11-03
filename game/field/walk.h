@@ -27,6 +27,8 @@ bool screen_is_recentred(const GameState *g);
  * event/bridge.c). */
 void party_start_on_the_map(GameState *g);
 bool party_start_fits(const GameState *g);
+bool field_party_can_start(Snes *s);
+void field_start_the_party(Snes *s);
 
 /* The registered entries: the walk and the recentring, which run the
  * original's layers' scroll and screen edges after them; and their guards. */

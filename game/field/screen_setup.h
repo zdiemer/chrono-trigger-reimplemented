@@ -13,6 +13,7 @@
  * ($C0:2824, after a menu); the objects in view drawn at once ($C0:B0E6), and
  * its guard. */
 void field_set_the_screen_up(Snes *s);
+void field_ready_the_picture(Snes *s);
 void field_fade_in_entry(Snes *s);
 /* The screen set up and faded in, as C, the frame's work going on as it
  * brightens; false where a step is the machine's yet, the program going no
