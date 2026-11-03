@@ -1026,7 +1026,15 @@ int main(int argc, char **argv)
             }
             const uint8_t *data[] = { snes.bus.wram, snes.ppu.vram, snes.bus.sram, cgram, snes.ppu.oam,
                                       wram_written };
-            uint64_t fb_hash = ct_framebuffer_hash(renderer.pixels, RENDER_WIDTH, RENDER_HEIGHT);
+            /* a picture the same as the last frame's has its hash */
+            static uint32_t last_pixels[RENDER_WIDTH * RENDER_HEIGHT];
+            static uint64_t fb_hash;
+            static int hashed;
+            if (!hashed || memcmp(last_pixels, renderer.pixels, sizeof last_pixels) != 0) {
+                fb_hash = ct_framebuffer_hash(renderer.pixels, RENDER_WIDTH, RENDER_HEIGHT);
+                memcpy(last_pixels, renderer.pixels, sizeof last_pixels);
+                hashed = 1;
+            }
             if (ct_trace_write_frame(trace, (uint32_t)frame, pad, data, RENDER_WIDTH, RENDER_HEIGHT, fb_hash) != 0) {
                 fprintf(stderr, "error writing trace\n");
                 return 1;

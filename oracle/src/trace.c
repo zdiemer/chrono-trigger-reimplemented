@@ -11,6 +11,7 @@ struct ct_trace_writer {
     int region_count;
     ct_region_desc *regions;
     uint8_t **prev;
+    uint64_t *prev_hash; /* each region's hash in the last frame, kept for one that hasn't changed */
     int wrote_keyframe;
     int error;
     /* Scratch buffer for one frame record. */
@@ -109,6 +110,7 @@ ct_trace_writer *ct_trace_open(const char *path, uint32_t rom_crc32, const char 
     w->region_count = region_count;
     w->regions = calloc(region_count, sizeof *w->regions);
     w->prev = calloc(region_count, sizeof *w->prev);
+    w->prev_hash = calloc(region_count, sizeof *w->prev_hash);
     for (int i = 0; i < region_count; i++) {
         w->regions[i] = regions[i];
         w->prev[i] = calloc(1, regions[i].size ? regions[i].size : 1);
@@ -140,7 +142,11 @@ static void put_region(ct_trace_writer *w, int r, const uint8_t *cur, int keyfra
     uint32_t size = w->regions[r].size;
     uint8_t *prev = w->prev[r];
 
-    put_u64(w, ct_fnv1a64(CT_FNV1A64_INIT, cur, size));
+    /* The hash goes first, but is worked out after the runs: a region with no
+     * run since the last frame has the last frame's hash, and hashing every
+     * byte of every region every frame is most of what a trace costs. */
+    size_t hash_at = w->len;
+    put_u64(w, 0);
     size_t count_at = w->len;
     put_u32(w, 0);
 
@@ -155,6 +161,12 @@ static void put_region(ct_trace_writer *w, int r, const uint8_t *cur, int keyfra
     } else {
         uint32_t i = 0;
         while (i < size) {
+            /* most of a region is as it was: pass over it a word at a time */
+            uint64_t a, b;
+            while (i + 8 <= size && (memcpy(&a, cur + i, 8), memcpy(&b, prev + i, 8), a == b))
+                i += 8;
+            if (i >= size)
+                break;
             if (cur[i] == prev[i]) {
                 i++;
                 continue;
@@ -172,7 +184,13 @@ static void put_region(ct_trace_writer *w, int r, const uint8_t *cur, int keyfra
         }
     }
     patch_u32(w, count_at, runs);
-    memcpy(prev, cur, size);
+    if (keyframe || runs)
+        w->prev_hash[r] = ct_fnv1a64(CT_FNV1A64_INIT, cur, size);
+    uint64_t h = w->prev_hash[r];
+    patch_u32(w, hash_at, (uint32_t)h);
+    patch_u32(w, hash_at + 4, (uint32_t)(h >> 32));
+    if (runs)
+        memcpy(prev, cur, size);
 }
 
 int ct_trace_write_frame(ct_trace_writer *w, uint32_t frame, uint16_t input, const uint8_t *const *regions,
@@ -204,6 +222,7 @@ int ct_trace_close(ct_trace_writer *w) {
     for (int i = 0; i < w->region_count; i++)
         free(w->prev[i]);
     free(w->prev);
+    free(w->prev_hash);
     free(w->regions);
     free(w->buf);
     free(w);
