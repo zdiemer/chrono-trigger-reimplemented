@@ -262,6 +262,14 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Phase 3a work in flight
 
+- **What the whole-library fixes' review left** (not blocking):
+  - The uncompared baseline's eight scene and warp lines aren't tied to the
+    evidence that clears them on an ordinary run: `endings-bucket-lavos` is
+    checked only under `--evidence`, and `tools/uncompared_evidence.py`'s
+    `compared()` reads only the first row for a name.
+  - `dev/fallbacks.c`: a nested or yielded invocation can certify the outer
+    one and cancel its open count; count each invocation by its own frame.
+  - `ct_dev`: a halt during the comparison tail doesn't set the exit code.
 - **What the field port's review left** (rated "mostly", not blocking):
   - `game/menu/display.c` `send_the_frame` returns a value only so its
     wrapper can put it in Y (line 706); the sibling call-outs beside it do
