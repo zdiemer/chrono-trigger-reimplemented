@@ -262,6 +262,16 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Phase 3a work in flight
 
+- **What the field port's review left** (rated "mostly", not blocking):
+  - `game/menu/display.c` `send_the_frame` returns a value only so its
+    wrapper can put it in Y (line 706); the sibling call-outs beside it do
+    the same. Return what the caller needs, or nothing, and leave Y to the
+    entry wrapper's contract.
+  - `game/field/screen_setup.c` `fade_in`'s `shown` out-parameter is a
+    register leftover; return the brightness the fade ends at instead.
+  - `game/core/input.c` builds a return frame inside the logic rather than
+    in its entry wrapper, and `AssignedSet` (`input.h`) is an enum nothing
+    takes as a type.
 - **The carry chains kept by the owner's decision** (review-port item 12 lists
   them, with the dates they were accepted). Each still rates a file down by the
   rubric's letter and was kept because the original never clears the carry
