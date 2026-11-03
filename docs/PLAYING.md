@@ -117,16 +117,56 @@ byte, so the drift is the shipping mode's own; the routes, which play to a
 goal rather than to a frame, are what answers for it. Every movie reaches its
 end; 31 of the 48 as the reference play does.
 
-Death Peak's wind movie illustrates the sound driver's timing change. The
-reference's calm intervals begin at frames 3603 and 4219; the C driver run's
-begin at 3618 and 4234. The recorded departures at 3604 and 4220 therefore
-leave shelter during a gust, returning to the world map rather than reaching
-the next slope. The pre-scene-continuation port set reproduces the same drift;
-using the cartridge sound driver in that diagnostic build restores the exact
-saved-game result. Its strict ledger records `drifts`, while the
-`death_peak_wind` route waits for calm and reaches the next slope at frame
-4692 with the shipping C driver. This is a recording's timing dependency,
-not a scene/warp logic correction.
+**Drift or a bug.** The end state can't tell a movie that drifts from a port
+that computes something else, so `tools/drift.py` finds where each `drifts`
+movie parts from the reference and says why, and its baseline line gives that
+cause. It plays the movie three ways with `ct_dev --state-trace` (work RAM and
+save RAM every frame, nothing drawn): the reference, strict mode, and the hand
+ports given the original's time (`--port-timing oracle --port-horizon
+interrupts`, with the C sound driver: each port call charged what the
+original's code takes for it). From each run it reads the frames of the game's
+milestones -- a place entered, a song started, the field fading in or going
+dark, a battle member's command menu opening, a text window, a story step --
+and the states the saved game passes through, and matches them in order with
+the reference's. The run parts at the first saved-game state or milestone the
+reference doesn't have there. It is **drift** when the play is already off the
+reference's frames at that point: the report names the milestone that moved and
+by how much, the play clock's offset (the field seeds its random draws from it),
+a recorded press that meets the game at another moment, and a battle's random
+start that differs. It is also drift when no milestone moved but the run with
+the original's time plays as the reference past the parting: the shift is in
+timing state no milestone shows. It is a **bug** when the run parts while
+frame-aligned and the run with the original's time parts there too. That run
+times only the calls it can (the rest run the original's code), so it answers
+for time, and shadow mode for the ports' results. Each run copies the
+reference's presses, so a run that parts never comes back; only the first
+parting is a finding. Over the 46 `drifts` movies every one is drift, and with
+the original's time every one plays as the reference to its end. 34 part in a
+battle whose menus open some frames off, so the recorded presses meet other
+turns, 19 of them also starting the battle from the next random number
+(`$7E:29AD`, from the menus' frame count). The traces are ROM-derived and go to a scratch
+directory (`--keep DIR` keeps them for `tools/trace.py`).
+
+```sh
+python3 tools/drift.py --ct-dev build/main/ct_dev --drifting -j 2     # every `drifts` line
+python3 tools/drift.py --ct-dev build/main/ct_dev --movies events-death-peak-wind
+```
+
+Death Peak's wind movie shows the kind of drift no milestone shows. The wind
+on the slope ($0F4) gusts and calms on a cycle the map's script starts once the
+map is up ($7F:0218, which the `death_peak_wind` route reads). In strict mode
+the slope fades in 15 frames late (frame 3015, against 3000): the load starts
+song $00 and then song $22 a frame later, and the C sound host charges $22's
+start the 14 frames of echo wait it counts as left from $00's
+(`frontend/sound_host.c`, `echo_wait_left`), which the original's start
+doesn't wait out there. The same ports with the cartridge's sound driver fade
+in at 3001, and with the original's time the C driver's run is the
+reference's to the end. So the whole cycle runs 15 frames
+late, the calms beginning at 3618 and 4234 instead of 3603 and 4219, and the
+recorded departures at 3604 and 4220 leave shelter in a gust: the party is blown
+back to the world map ($1F2, frame 4398) instead of climbing to $0F5 (4493).
+The route, which waits for the calm, reaches $0F5 at frame 4692 in the
+shipping mode.
 
 A misses file is a coverage file, so feeding it back is adding it to the
 build's coverage and rebuilding, which generates blocks for that code:

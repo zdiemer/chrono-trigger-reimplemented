@@ -3,6 +3,7 @@ the timing drift strict mode is allowed, or a behaviour difference.
 
     python3 tools/drift.py --ct-dev build/main/ct_dev --movies events-cyrus
     python3 tools/drift.py --ct-dev build/main/ct_dev --drifting -j 2      # every `drifts` line of the baseline
+    python3 tools/drift.py --ct-dev build/main/ct_dev --drifting --baseline  # ... as baseline lines, with the verdict
 
 A movie's presses are the reference play's frame for frame, and the hand
 ports estimate their own time, so a strict run (tools/strict_check.py) whose
@@ -22,10 +23,13 @@ reads two timelines from each:
   battle member's command menu opens (each turn), a text window opens, the
   story steps on (story_line). Each kind is matched in order with the
   reference's, giving the shift d (frames late; negative, early) it lands by;
+  a menu or window whose shift jumps by more than JUMP is paired with another
+  occasion, and the two part there;
 - **the saved game**: the bytes a save holds (strict_check.SavedGame, without
   the play clock and the battles' random start, and without the place and song,
   which are milestones), as the states it passes through (held SETTLE frames or
-  more), matched in order the same way.
+  more), matched in order the same way, stepping over a state one run passes
+  through and the other skips (two changes a frame apart in the other order).
 
 The run parts from the reference at the earliest of: a saved-game state the
 reference doesn't pass through there, or a milestone sequence that goes
@@ -38,9 +42,13 @@ otherwise (another place, another song). It is
   shift, differs in the half second before the parting);
 - also **drift** when nothing the milestones show has moved but the ports with
   the original's time play as the reference does past that point: the shift is
-  in timing state the milestones don't see (a cycle started some frames later);
+  in timing state the milestones don't see (a cycle started some frames later;
+  the report gives the play clock's offset, which the field seeds its random
+  draws from);
 - **bug** when the play parts while frame-aligned and the ports part there with
   the original's time too: the state differs for a reason time doesn't explain.
+  (That run times only the calls it can and runs the original's code for the
+  rest, so it answers for time; shadow mode answers for the ports' results.)
   The report names the frame and the first differing variables; `ct_dev
   --native shadow` and the traces (--keep) find the port.
 
@@ -92,6 +100,10 @@ WATCHED = [(LOCATION_AT, LOCATION_AT + 2), (CURRENT_SONG, CURRENT_SONG + 1), (FI
 # A saved-game state held fewer frames than this is a step on the way to the
 # next (power-on clearing work RAM, a record copied over two frames).
 SETTLE = 4
+# Milestones whose values repeat, and the change of shift between two of them
+# taken for a pairing with another occasion: two seconds.
+REPEATING = {"turn", "text window"}
+JUMP = 120
 # The frames before a parting searched for a press the game meets otherwise.
 PRESS_WINDOW = 30
 # A recorded movie's runs (ct_dev) may take this many times strict_check's
@@ -214,20 +226,46 @@ class Shift:
         return "%s lands %+d frames, at frame %d (reference %d)" % (self.what, self.d, self.run_frame, self.ref_frame)
 
 
-def match(reference, run, what):
+def match(reference, run, what, jump=None):
     """Match two [(frame, value)] in order: the Shifts of the matched part
     (the first record is the starting value, not a change), and where the
-    values part, (reference frame, run frame, index), or None."""
-    shifts = []
+    values part, (reference frame, run frame, index), or None. With `jump`,
+    a shift that differs from the one before by more parts them too: a kind
+    whose values repeat (a member's menu, a window) can pair the reference's
+    with another occasion's once one run has had one more."""
+    shifts, before = [], 0
     for i, (rf, rv) in enumerate(reference):
         if i >= len(run):
             return shifts, None
         sf, sv = run[i]
-        if rv != sv:
+        if rv != sv or (jump is not None and i and abs(sf - rf - before) > jump):
             return shifts, (rf, sf, i)
+        before = sf - rf
         if i:
             shifts.append(Shift(what(rv), rf, sf))
     return shifts, None
+
+
+def match_states(reference, run):
+    """Match two runs' saved-game states in order, as match does, but where one
+    run passes through a state the other skips -- two changes a frame or two
+    apart landing in the other order, or together -- step over it. The Shifts,
+    where they part ((reference frame, run frame, i, j) or None), and how many
+    of each were matched."""
+    shifts, i, j = [], 0, 0
+    while i < len(reference) and j < len(run):
+        (rf, rv), (sf, sv) = reference[i], run[j]
+        if rv == sv:
+            if i and j:
+                shifts.append(Shift("a saved-game change", rf, sf))
+            i, j = i + 1, j + 1
+            continue
+        ahead = next(((a, b) for a, b in ((1, 0), (0, 1), (1, 1), (2, 0), (0, 2))
+                      if i + a < len(reference) and j + b < len(run) and reference[i + a][1] == run[j + b][1]), None)
+        if ahead is None:
+            return shifts, (rf, sf, i, j), (i, j)
+        i, j = i + ahead[0], j + ahead[1]
+    return shifts, None, (i, j)
 
 
 # The location triples the map declares by their first byte: the place, then
@@ -250,17 +288,18 @@ def classify(ref, run, names):
     """How `run` keeps to `ref`: a dict with the verdict and its facts."""
     shifts, partings = [], []
     for kind, theirs in ref.events.items():
-        s, parted = match(theirs, run.events.get(kind, []), lambda v, k=kind: describe_event(k, v))
+        s, parted = match(theirs, run.events.get(kind, []), lambda v, k=kind: describe_event(k, v),
+                          JUMP if kind in REPEATING else None)
         shifts += s
         if parted:
             rf, sf, i = parted
             partings.append((min(rf, sf), "%s at frame %d, where the reference has %s at frame %d" % (
                 describe_event(kind, run.events[kind][i][1]), sf, describe_event(kind, theirs[i][1]), rf), None))
-    s, parted = match(ref.states, run.states, lambda v: "a saved-game change")
+    s, parted, (mi, mj) = match_states(ref.states, run.states)
     shifts += s
     if parted:
-        rf, sf, i = parted
-        theirs, ours = ref.states[i][1], run.states[i][1]
+        rf, sf, i, j = parted
+        theirs, ours = ref.states[i][1], run.states[j][1]
         before = ref.states[i - 1][1] if i else theirs
         cells = [ref.saved_offsets[k] for k in range(len(theirs)) if theirs[k] != ours[k]]
         moved = [ref.saved_offsets[k] for k in range(len(theirs))
@@ -273,13 +312,19 @@ def classify(ref, run, names):
     out = {"shifts": shifts}
     if not partings:
         last = shifts[-1].d if shifts else 0
-        if len(ref.states) == len(run.states):
+        if mi == len(ref.states) and mj == len(run.states):
             out["verdict"] = "same"
         else:
             out["verdict"] = "drift"
-            out["why"] = "the run passes through the reference's saved-game states but %s, %+d frames off at the end" % (
-                "ends before its last %d" % (len(ref.states) - len(run.states)) if len(run.states) < len(ref.states)
-                else "goes %d past its end" % (len(run.states) - len(ref.states)), last)
+            short = mi < len(ref.states)
+            longer, k = (ref, mi) if short else (run, mj)
+            frame = longer.states[k][0]
+            first, after = longer.states[k - 1][1], longer.states[-1][1]
+            changed = cell_names(names, [ref.saved_offsets[i] for i in range(len(first)) if first[i] != after[i]])
+            out["why"] = "the run passes through the reference's saved-game states but %s (%s), %+d frames off at the end" % (
+                ("ends before the reference's last %d, from frame %d" if short else
+                 "goes %d past them, from frame %d") % (len(longer.states) - k, frame),
+                ", ".join(changed[:4]) + (", ..." if len(changed) > 4 else ""), last)
         return out
     at, text, variables = min(partings, key=lambda p: p[0])
     out.update(parting_frame=at, parting=text, variables=variables)
@@ -306,7 +351,37 @@ def classify(ref, run, names):
     return out
 
 
-def report(name, out, ref, run, timed):
+def frames_off(d):
+    return "%d frame%s %s" % (abs(d), "" if abs(d) == 1 else "s", "later" if d > 0 else "earlier")
+
+
+def reason(out, timed):
+    """The verdict as one line, for tools/strict_baseline.txt."""
+    parts = []
+    if "parting" in out:
+        moved = out["set_by"] if out["d"] else (out["moved_here"][-1] if out["moved_here"] else None)
+        if moved:
+            parts.append("%s lands %s at frame %d" % (moved.what, frames_off(moved.d), moved.run_frame))
+        if out.get("clock"):
+            parts.append("the play clock runs %d frame(s) %s" % (abs(out["clock"]), "ahead" if out["clock"] > 0 else "behind"))
+        if out.get("random"):
+            f, a, b = out["random"]
+            parts.append("the battle at frame %d starts from random $%02X, not $%02X" % (f, b, a))
+        elif out.get("press") is not None:
+            parts.append("a recorded press meets the game %s" % frames_off(-out["d"]).replace("later", "late").replace(
+                "earlier", "early"))
+        parts.append("it parts at frame %d (%s)" % (out["parting_frame"], out["parting"]))
+    elif out.get("why"):
+        parts.append(out["why"])
+    if timed is not None:
+        parts.append("with the original's time it plays as the reference to the end" if timed["verdict"] == "same"
+                     else "with the original's time it parts at frame %d too" % timed.get("parting_frame", 0))
+    return "%s: %s" % (out["verdict"], "; ".join(parts))
+
+
+def report(name, out, ref, run, timed, baseline=False):
+    if baseline:
+        return "%s drifts  # %s" % (name, reason(out, timed))
     lines = ["%s: %s" % (name, out["verdict"])]
     if "parting" in out:
         lines.append("  parts at frame %d: %s" % (out["parting_frame"], out["parting"]))
@@ -367,7 +442,7 @@ def one(args, row, saved, names, work):
     if result["verdict"] == "aligned" and timed is not None:
         parted = timed.get("parting_frame")
         result["verdict"] = "drift" if parted is None or parted > result["parting_frame"] else "bug"
-    return report(name, result, ref, run, timed)
+    return report(name, result, ref, run, timed, args.baseline)
 
 
 def drifting(baseline):
@@ -383,6 +458,8 @@ def main(argv=None):
     ap.add_argument("-j", "--jobs", type=int, default=1, help="movies at a time (each runs ct_dev in turn)")
     ap.add_argument("--no-timed", dest="timed", action="store_false", help="skip the run with the original's time")
     ap.add_argument("--keep", type=pathlib.Path, help="keep the state traces here (ROM-derived: not in the repo)")
+    ap.add_argument("--baseline", action="store_true",
+                    help="print each movie as a tools/strict_baseline.txt line, its reason the verdict")
     ap.add_argument("--reuse", action="store_true", help="with --keep, read the traces there instead of playing")
     args = ap.parse_args(argv)
     wanted = set(args.movies) | (set(drifting(strict_check.BASELINE)) if args.drifting else set())

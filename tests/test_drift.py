@@ -108,7 +108,27 @@ class DriftTest(unittest.TestCase):
         run = self.timeline(play(60, {14: {0x2600: 1}}))
         out = drift.classify(ref, run, NAMES)
         self.assertEqual(out["verdict"], "drift")
-        self.assertIn("ends before its last 1", out["why"])
+        self.assertIn("ends before the reference's last 1, from frame 50 (character_records), +4 frames", out["why"])
+
+    def test_two_changes_in_the_other_order_are_not_a_parting(self):
+        ref = self.timeline(play(60, {10: {0x2600: 1}, 20: {0x2602: 1}}))
+        run = self.timeline(play(60, {20: {0x2600: 1, 0x2602: 1}}))
+        self.assertEqual(drift.classify(ref, run, NAMES)["verdict"], "same")
+
+    def test_a_menu_paired_with_another_occasion_parts(self):
+        # the run has one menu fewer: its second pairs with the reference's third
+        ref = [(1, None), (100, 0), (110, None), (300, 0), (310, None), (600, 0)]
+        run = [(1, None), (101, 0), (111, None), (602, 0)]
+        _shifts, parted = drift.match(ref, run, str, drift.JUMP)
+        self.assertEqual(parted, (300, 602, 3))
+
+    def test_the_baseline_reason(self):
+        ref = self.timeline(play(60, {10: {0x0100: 5}, 40: {0x2600: 7}}))
+        run = self.timeline(play(60, {13: {0x0100: 5}, 43: {0x2600: 9}}))
+        same = {"verdict": "same"}
+        text = drift.report("m", drift.classify(ref, run, NAMES), ref, run, same, baseline=True)
+        self.assertTrue(text.startswith("m drifts  # drift: place $005 entered lands 3 frames later at frame 13;"))
+        self.assertTrue(text.endswith("with the original's time it plays as the reference to the end"))
 
     def test_location_triples_are_named(self):
         self.assertEqual(drift.cell_names({}, [0x0103, 0x0107, 0x2600]), ["location", "location_previous", "$7E:2600"])
