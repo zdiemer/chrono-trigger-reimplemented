@@ -34,6 +34,11 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def movie_sha(movie):
+    """A movie is text, so a checkout's line endings don't make it another movie."""
+    return sha(movie.read_bytes().replace(b"\r\n", b"\n"))
+
+
 def observed_digest(values):
     """Pin the entire observed kind, including every picture neighbour and visit."""
     return sha(" ".join(values).encode("ascii"))
@@ -103,7 +108,7 @@ def capture(directory, name, movie, frames, text, rc, end, saved, mode):
     """Digest a run before its scratch end state disappears. Never store bytes."""
     state = end.read_bytes() if end.exists() else b""
     selection = ",".join(map(str, saved.wram)) + ";" + ",".join(map(str, saved.sram))
-    rows = {(name, "input"): ["1", str(frames), sha(movie.read_bytes()), sha(selection.encode())],
+    rows = {(name, "input"): ["1", str(frames), movie_sha(movie), sha(selection.encode())],
             (name, "run"): [mode, str(rc if rc is not None else -1), str(int(bool(FAULT.search(text))))],
             (name, "pictures"): [f + ":" + h for f, h in PICTURE.findall(text)],
             (name, "places"): ["%d:%d" % p for p in places.parse(text)]}
@@ -129,7 +134,7 @@ def validate(rows, name, movie, frames, mode=None):
     if {k for n, k in rows if n == name} != expected:
         raise ValueError("%s: missing or unknown kinds" % name)
     meta = rows[name, "input"]
-    if len(meta) != 4 or meta[:3] != ["1", str(frames), sha(movie.read_bytes())]:
+    if len(meta) != 4 or meta[:3] != ["1", str(frames), movie_sha(movie)]:
         raise ValueError("%s: stale movie or unsupported outcome version" % name)
     if not re.fullmatch(r"[0-9a-f]{64}", meta[3]):
         raise ValueError("bad saved-game selection digest")
