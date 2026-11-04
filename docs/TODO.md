@@ -3011,6 +3011,13 @@ list, by kind, is what `game/` still asks of one.
   - *A song held while the echo settles* loads at the wait's end, uncharged
     (`frontend/sound_host.c`, `sound_native.c`); only short songs met it in
     the library.
+  - *An echo wait charged that the original doesn't wait.* Entering Death
+    Peak's wind slope starts song $00 and then $22 a frame later; the host
+    charges $22's start 14 frames of echo wait left from $00's
+    (`echo_wait_left`), the original's start none, so the slope fades in 15
+    frames late and `events-death-peak-wind` drifts (`tools/drift.py`;
+    PLAYING.md, "Without the interpreter"). Find why the original's start
+    doesn't wait there before changing the charge.
   - *The line interrupt switched with time owed.* `tm_enable_interrupts`
     lets a port's time pass first where the vblank handler goes on or off
     (PORTING.md, "A port that spans frames"; `debt_test`); turning the line
@@ -3022,7 +3029,8 @@ list, by kind, is what `game/` still asks of one.
     Northern Ruins' battle starts 10 frames early and the fight goes
     otherwise. Strict mode ends as the shipping mode does; with the
     original's time (`--port-timing oracle --port-horizon interrupts`) the
-    drifting movies end as the reference's.
+    drifting movies end as the reference's (`tools/drift.py` shows it per
+    movie, with where each parts and the milestone that moved).
   - *Dialog presses.* In `events-ocean-palace-lavos` the presses through
     Schala's and Magus's lines in the Mammon Machine's room land on other
     frames from about frame 18000, one short, and the run waits on a line
