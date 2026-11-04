@@ -2840,6 +2840,26 @@ rest waits, is [PLAN.md](PLAN.md).
   with the original's. Liveness currently requires it, so the experiment
   was reverted rather than masking the flag. Resolve that interrupted-wait
   flag handoff before joining startup and the main loop.
+  This is also what keeps `game/attract/` under the gate: its teardown was
+  attempted and stopped at the preconditions. Its four rows are the scene
+  program's main loop (`$7E:3023`, an idle entry and the scaling pass) and
+  its frame wait (`$7E:31B0`/`$7E:31B7`), and the machine itself enters
+  them (census, attract-demo and title-start: 4.47 M passes of the main
+  loop's wait, 7,161 of the frame wait, `attract_frame_pass` 100 times by
+  the scene's stop and 3 by return, holding `scene_race_scale_pictures` and
+  `scene_program_restart` to the registry). The main loop is the wait the
+  main thread is in at every frame end of a scene, so on the machine it has
+  to be held by an idle entry (PORTING.md, "held waits"): made a C loop its
+  caller runs, a port would stay suspended for a whole title screen, attract
+  sequence or ending, and neither `ct_drive` nor `ct_play`'s quick save
+  would get a base there. The fallback measure also still counts the
+  original's attract code in the reference play (`7E:3023`, `7E:31B0`'s 763
+  instructions under `scene_boot`, the main loop's cut passes in `7E:----`).
+  So attract retires with the scene program, or when the held waits stop
+  needing registered idle entries; the frame wait alone could become a
+  `native_wait_call` on a vblank wake first. Its unreached rows are covered
+  (0 bytes) and it owns no work RAM of its own (the program image is the
+  scene's).
 
 - **Two scene interpreter handbacks retain machine contracts.** All seven
   store/task/video command families have C implementations, but the dispatch
