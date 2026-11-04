@@ -2147,7 +2147,11 @@ it (the sound driver's uploads, a load's unpacking and sends) is charged to it
 (`tm_host_charge`, and the game's state's account through
 `TmHostProgram.owed`), and its next wait lasts the frames owed: lag frames, the
 handlers running and the main thread not (REIMPLEMENTATION.md, "The
-frame-level time model").
+frame-level time model"). A song's start sits out what is owed first
+(`tm_host_sit_out_owed`, as the SNES backend's `native_sync`), so the sound
+driver counts what is left of its echo's wait from where it stands: the wait
+a song starts runs through the work after it, as the original's does
+(SOUND.md, "The port as built").
 `ct_native` (PLAYING.md, "The native program") links it with the whole of
 `game/` and runs the program (`core/program.c`'s main thread and handlers),
 so far through the boot and the field's first start; `ct_play` still runs on

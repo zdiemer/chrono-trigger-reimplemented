@@ -143,7 +143,7 @@ code M block calls)`, a block counted per call, finer than a port's call): the v
 shadow mode for their results. Each run copies the reference's presses, so a
 run that parts never comes back; only the first parting is a finding. Findings
 a reader verified by hand go after `hand-verified:` on the baseline line, and
-`--baseline` keeps them as they are. Over the 46 `drifts` movies every one is
+`--baseline` keeps them as they are. Over the 45 `drifts` movies every one is
 drift. 34 part in a battle whose menus open some frames off, so the recorded
 presses meet other turns, 19 of them also starting the battle from the next
 random number (`$7E:29AD`, from the menus' frame count). The traces are ROM-derived and go to a scratch
@@ -154,21 +154,20 @@ python3 tools/drift.py --ct-dev build/main/ct_dev --drifting -j 2     # every `d
 python3 tools/drift.py --ct-dev build/main/ct_dev --movies events-death-peak-wind
 ```
 
-Death Peak's wind movie shows the kind of drift no milestone shows. The wind
-on the slope ($0F4) gusts and calms on a cycle the map's script starts once the
-map is up ($7F:0218, which the `death_peak_wind` route reads). In strict mode
-the slope fades in 15 frames late (frame 3015, against 3000): the load starts
-song $00 and then song $22 a frame later, and the C sound host charges $22's
-start the 14 frames of echo wait it counts as left from $00's
-(`frontend/sound_host.c`, `echo_wait_left`), which the original's start
-doesn't wait out there. The same ports with the cartridge's sound driver fade
-in at 3001, and with the original's time the C driver's run is the
-reference's to the end. So the whole cycle runs 15 frames
-late, the calms beginning at 3618 and 4234 instead of 3603 and 4219, and the
-recorded departures at 3604 and 4220 leave shelter in a gust: the party is blown
-back to the world map ($1F2, frame 4398) instead of climbing to $0F5 (4493).
-The route, which waits for the calm, reaches $0F5 at frame 4692 in the
-shipping mode.
+A drift can still be worth fixing where a frame-level fault sets it off.
+Death Peak's wind movie drifted with no milestone showing why: the wind on
+the slope ($0F4) gusts and calms on a cycle the map's script starts once the
+map is up ($7F:0218, which the `death_peak_wind` route reads), and the slope
+faded in 15 frames late (frame 3015, against 3000), so the recorded
+departures from shelter met a gust and the party was blown back to the world
+map. The load starts song $00, does some 27 frames of work and starts song
+$22; the hand ports' time for that work is charged after the port stops, so
+$22 reached the C sound host a frame after $00, which charged it the 14
+frames left of $00's echo wait, a wait the original's driver had sat out
+during the work. A song's start now lets the port's time pass first, as the
+original's CPU half writes it after that work (SOUND.md, "The port as
+built"), $22 starts at 2991 as in the reference, and the movie ends as the
+reference play does.
 
 A misses file is a coverage file, so feeding it back is adding it to the
 build's coverage and rebuilding, which generates blocks for that code:

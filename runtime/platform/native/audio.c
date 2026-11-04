@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include "platform/native/host.h"
+#include "platform/time_model.h"
 
 static bool playing(const Platform *pf) { return pf->audio.ctx != NULL; }
 
@@ -47,7 +48,10 @@ size_t au_take_samples(Platform *pf, int16_t *out, size_t max_frames)
 
 bool au_driver_hosted(Platform *pf) { return playing(pf); }
 
-/* The time the original's uploads took is the main thread's to sit out. */
+/* The time the original's uploads took is the main thread's to sit out. A
+ * song's start comes after what the main thread owes so far, as the
+ * original's CPU half reached the ports after that work: the player counts
+ * what is left of the echo's wait from there (SNES backend: native_sync). */
 bool au_driver_boot_taken(Platform *pf)
 {
     if (!playing(pf))
@@ -60,6 +64,8 @@ bool au_driver_command_taken(Platform *pf, AudioCommand c, uint8_t effects_asked
 {
     if (!playing(pf))
         return false;
+    if (time_sound_song_start(c.command))
+        tm_host_sit_out_owed(pf);
     tm_host_charge(pf, pf->audio.command(pf->audio.ctx, c, effects_asked));
     return true;
 }
