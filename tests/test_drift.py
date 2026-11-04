@@ -76,16 +76,18 @@ class DriftTest(unittest.TestCase):
         out = drift.classify(self.timeline(frames), self.timeline(frames), NAMES)
         self.assertEqual(out["verdict"], "same")
 
-    def test_drift_a_load_late_and_a_press_on_another_moment(self):
+    def test_a_load_late_then_the_records_otherwise(self):
         # the run enters the place 3 frames late, then its records change otherwise
         ref = self.timeline(play(60, {10: {0x0100: 5}, 40: {0x2600: 7}}, {38: 0x0080}))
         run = self.timeline(play(60, {13: {0x0100: 5}, 43: {0x2600: 9}}, {38: 0x0080}))
         out = drift.classify(ref, run, NAMES)
-        self.assertEqual(out["verdict"], "drift")
+        self.assertEqual(out["verdict"], "moved")
         self.assertEqual((out["parting_frame"], out["d"]), (40, 3))
         self.assertEqual(out["set_by"].what, "place $005 entered")
         self.assertEqual(out["variables"], ["character_records"])
-        self.assertEqual(out["press"], 35)       # the A at 38 meets the run's game where the reference's was at 35
+        self.assertEqual(out["press"], 35)       # context: the A at 38 meets the run's game where the reference's was at 35
+        out["final"] = drift.decide(out, None)
+        self.assertEqual(out["final"], "unproven")
         text = drift.report("m", out, ref, run, None)
         self.assertIn("shift in force: +3 frames, since place $005 entered lands +3 frames", text)
 
@@ -107,7 +109,7 @@ class DriftTest(unittest.TestCase):
         ref = self.timeline(play(60, {10: {0x2600: 1}, 50: {0x2600: 2}}))
         run = self.timeline(play(60, {14: {0x2600: 1}}))
         out = drift.classify(ref, run, NAMES)
-        self.assertEqual(out["verdict"], "drift")
+        self.assertEqual(out["verdict"], "ends off")
         self.assertIn("ends before the reference's last 1, from frame 50 (character_records), +4 frames", out["why"])
 
     def test_two_changes_in_the_other_order_are_not_a_parting(self):
@@ -122,13 +124,60 @@ class DriftTest(unittest.TestCase):
         _shifts, parted = drift.match(ref, run, str, drift.JUMP)
         self.assertEqual(parted, (300, 602, 3))
 
-    def test_the_baseline_reason(self):
+    def shifted_runs(self):
+        """A reference, a strict run a load late whose records then go otherwise,
+        and the same strict run's timed twin as given."""
         ref = self.timeline(play(60, {10: {0x0100: 5}, 40: {0x2600: 7}}))
         run = self.timeline(play(60, {13: {0x0100: 5}, 43: {0x2600: 9}}))
-        same = {"verdict": "same"}
-        text = drift.report("m", drift.classify(ref, run, NAMES), ref, run, same, baseline=True)
+        return ref, run
+
+    def test_a_shift_is_drift_only_where_the_original_time_plays_as_the_reference(self):
+        ref, run = self.shifted_runs()
+        out = drift.classify(ref, run, NAMES)
+        same = drift.classify(ref, ref, NAMES)
+        self.assertEqual(drift.decide(out, same), "drift")
+        # the timed run parts too (a port computes otherwise): a bug, however the milestones moved
+        self.assertEqual(drift.decide(out, drift.classify(ref, run, NAMES)), "bug")
+        # a timed run that ends short of the reference doesn't prove time either
+        short = self.timeline(play(60, {10: {0x0100: 5}}))
+        self.assertEqual(drift.decide(out, drift.classify(ref, short, NAMES)), "bug")
+
+    def test_aligned_needs_the_original_time_too(self):
+        ref = self.timeline(play(60, {10: {0x0100: 5}, 40: {0x2602: 1}}))
+        run = self.timeline(play(60, {10: {0x0100: 5}, 40: {0x2602: 2}}))
+        timed_late = self.timeline(play(60, {10: {0x0100: 5}, 50: {0x2602: 2}}))
+        out = drift.classify(ref, run, NAMES)
+        self.assertEqual(drift.decide(out, drift.classify(ref, ref, NAMES)), "drift")
+        self.assertEqual(drift.decide(out, drift.classify(ref, timed_late, NAMES)), "bug")
+
+    def test_judge_takes_the_timed_run(self):
+        ref, run = self.shifted_runs()
+        drifted = drift.judge("m", {"reference": ref, "strict": run, "timed": ref}, NAMES)
+        self.assertTrue(drifted.startswith("m: drift"))
+        bugged = drift.judge("m", {"reference": ref, "strict": run, "timed": run}, NAMES)
+        self.assertTrue(bugged.startswith("m: bug"))
+        self.assertIn("with the original's time: parts at frame 40", bugged)
+
+    def test_the_baseline_reason(self):
+        ref, run = self.shifted_runs()
+        text = drift.judge("m", {"reference": ref, "strict": run, "timed": ref}, NAMES, baseline=True,
+                           calls=(900, 100), hand="the load waits on the song")
         self.assertTrue(text.startswith("m drifts  # drift: place $005 entered lands 3 frames later at frame 13;"))
-        self.assertTrue(text.endswith("with the original's time it plays as the reference to the end"))
+        self.assertIn("with the original's time it plays as the reference to the end "
+                      "(hand ports 900 calls, the original's code 100 block calls)", text)
+        self.assertTrue(text.endswith("; hand-verified: the load waits on the song"))
+
+    def test_original_code_from_the_report(self):
+        text = ("native routines (on mode):\n  7E3000 scene_program_start                      calls 1\n"
+                "  C28545 input_map_buttons                        calls 41  skipped 2\n"
+                "  generated blocks: 12454 entries, 1626 reached, calls 958  instructions 99\n")
+        self.assertEqual(drift.original_code(text), (42, 958))
+        self.assertIsNone(drift.original_code("no report"))
+
+    def test_keep_refuses_the_repository(self):
+        with self.assertRaises(SystemExit) as caught:
+            drift.main(["--ct-dev", "ct_dev", "--movies", "menu", "--keep", str(drift.ROOT / "traces")])
+        self.assertIn("out of the repository", str(caught.exception))
 
     def test_location_triples_are_named(self):
         self.assertEqual(drift.cell_names({}, [0x0103, 0x0107, 0x2600]), ["location", "location_previous", "$7E:2600"])

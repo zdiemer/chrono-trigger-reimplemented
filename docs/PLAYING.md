@@ -129,23 +129,25 @@ milestones -- a place entered, a song started, the field fading in or going
 dark, a battle member's command menu opening, a text window, a story step --
 and the states the saved game passes through, and matches them in order with
 the reference's. The run parts at the first saved-game state or milestone the
-reference doesn't have there. It is **drift** when the play is already off the
-reference's frames at that point: the report names the milestone that moved and
-by how much, the play clock's offset (the field seeds its random draws from it),
-a recorded press that meets the game at another moment, and a battle's random
-start that differs. It is also drift when no milestone moved but the run with
-the original's time plays as the reference past the parting: the shift is in
-timing state no milestone shows. It is a **bug** when the run parts while
-frame-aligned and the run with the original's time parts there too. That run
-times only the calls it can (the rest run the original's code), so it answers
-for time, and shadow mode for the ports' results. Each run copies the
-reference's presses, so a run that parts never comes back; only the first
-parting is a finding. Over the 46 `drifts` movies every one is drift, and with
-the original's time every one plays as the reference to its end. 34 part in a
-battle whose menus open some frames off, so the recorded presses meet other
-turns, 19 of them also starting the battle from the next random number
-(`$7E:29AD`, from the menus' frame count). The traces are ROM-derived and go to a scratch
-directory (`--keep DIR` keeps them for `tools/trace.py`).
+reference doesn't have there, and the report says what moved before it: the
+milestone that set the shift in force and by how much, the play clock's offset
+(the field seeds its random draws from it), and a battle that starts from
+another random number. None of that decides the verdict, since a strict run is
+a frame off from its first load and a port's mistake later would show the same
+way. The run with the original's time does: the movie is **drift** only when
+that run plays as the reference to its end, so the original's time alone makes
+the difference, and a **bug** when it parts anywhere or ends short. That run
+times only the calls it can, and the rest run the original's code, so the report
+counts both (`with the original's time ... (hand ports N calls, the original's
+code M block calls)`, a block counted per call, finer than a port's call): the verdict answers for time over the ports' calls, and
+shadow mode for their results. Each run copies the reference's presses, so a
+run that parts never comes back; only the first parting is a finding. Findings
+a reader verified by hand go after `hand-verified:` on the baseline line, and
+`--baseline` keeps them as they are. Over the 46 `drifts` movies every one is
+drift. 34 part in a battle whose menus open some frames off, so the recorded
+presses meet other turns, 19 of them also starting the battle from the next
+random number (`$7E:29AD`, from the menus' frame count). The traces are ROM-derived and go to a scratch
+directory (`--keep DIR`, outside the repository, keeps them for `tools/trace.py`).
 
 ```sh
 python3 tools/drift.py --ct-dev build/main/ct_dev --drifting -j 2     # every `drifts` line

@@ -33,27 +33,30 @@ reads two timelines from each:
 
 The run parts from the reference at the earliest of: a saved-game state the
 reference doesn't pass through there, or a milestone sequence that goes
-otherwise (another place, another song). It is
+otherwise (another place, another song), or the end of a run that stops short of
+(or goes past) the reference's states. The report says what moved before it --
+the milestone that set the shift in force, the play clock's offset (the field
+seeds its random draws from it), a battle starting from another random number,
+and, as context only (both runs replay the same presses), the input the game
+meets there -- but none of that decides the verdict: a strict run is a frame
+off from its first load, and a port's mistake later would look the same. The
+run with the original's time decides it. The movie is
 
-- **drift** when the play is off the reference's frames there: a milestone or
-  saved-game change since the place was entered landed on another frame. The
-  report names the shift in force and the milestone that set it, and a recorded
-  press the game meets at another moment (the movie's input, aligned by the
-  shift, differs in the half second before the parting);
-- also **drift** when nothing the milestones show has moved but the ports with
-  the original's time play as the reference does past that point: the shift is
-  in timing state the milestones don't see (a cycle started some frames later;
-  the report gives the play clock's offset, which the field seeds its random
-  draws from);
-- **bug** when the play parts while frame-aligned and the ports part there with
-  the original's time too: the state differs for a reason time doesn't explain.
-  (That run times only the calls it can and runs the original's code for the
-  rest, so it answers for time; shadow mode answers for the ports' results.)
-  The report names the frame and the first differing variables; `ct_dev
-  --native shadow` and the traces (--keep) find the port.
+- **drift** when that run plays as the reference to its end: the original's
+  time alone makes the difference;
+- **bug** when it parts anywhere or ends short: the state differs for a reason
+  time doesn't explain. The report names the frame and the first differing
+  variables; `ct_dev --native shadow` and the traces (--keep) find the port;
+- **unproven** with --no-timed.
 
-A run that never parts but ends short of (or past) the reference's last states
-is drift too: the report gives the shift at the end.
+That run times only the calls it can and runs the original's code for the
+rest, so the report gives how many of its calls did (from ct_dev's native
+report): the verdict answers for time over the ports' calls, and shadow mode
+answers for their results.
+
+--baseline prints each movie as a tools/strict_baseline.txt line, keeping as
+they are the findings a reader verified by hand (after `hand-verified:` on the
+movie's line).
 
 The traces are ROM-derived; they go to a scratch directory and are deleted, or
 are kept with --keep DIR (outside the repository).
@@ -62,6 +65,7 @@ are kept with --keep DIR (outside the repository).
 import argparse
 import concurrent.futures
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -104,6 +108,14 @@ SETTLE = 4
 # taken for a pairing with another occasion: two seconds.
 REPEATING = {"turn", "text window"}
 JUMP = 120
+# The timed run's report (ct_dev's native report): each hand port's calls,
+# and the calls of the original's code (generated blocks) run in their place
+# or where nothing is ported.
+PORT_CALLS = re.compile(r"^  [0-9A-F]{6} \S+\s+calls (\d+)", re.M)
+GENERATED_CALLS = re.compile(r"^  generated blocks: .* calls (\d+)", re.M)
+# The mark on a baseline line's findings that a reader verified by hand;
+# --baseline keeps them as they are.
+HAND = "hand-verified: "
 # The frames before a parting searched for a press the game meets otherwise.
 PRESS_WINDOW = 30
 # A recorded movie's runs (ct_dev) may take this many times strict_check's
@@ -315,7 +327,7 @@ def classify(ref, run, names):
         if mi == len(ref.states) and mj == len(run.states):
             out["verdict"] = "same"
         else:
-            out["verdict"] = "drift"
+            out["verdict"] = "ends off"
             short = mi < len(ref.states)
             longer, k = (ref, mi) if short else (run, mj)
             frame = longer.states[k][0]
@@ -340,10 +352,7 @@ def classify(ref, run, names):
     out["moved_here"] = here[-3:]
     a, b = ref.clock_at(at - 1), run.clock_at(at - 1 + d)
     out["clock"] = b - a if a is not None and b is not None else 0
-    if not d and not here:
-        out["verdict"] = "aligned"
-        return out
-    out["verdict"] = "drift"
+    out["verdict"] = "moved" if d or here else "aligned"
     out["press"] = next((n for n in range(max(1, at - PRESS_WINDOW - abs(d)), at + 1)
                          if ref.input_at(n) != run.input_at(n + d)), None)
     kept = [(f, ref.random_kept[f], run.random_kept.get(f + d)) for f in sorted(ref.random_kept) if f <= at]
@@ -351,12 +360,34 @@ def classify(ref, run, names):
     return out
 
 
+def decide(result, timed):
+    """The verdict on a strict run, from what it did (classify) and what the
+    run with the original's time did: drift only where that run plays as the
+    reference to its end, so time alone accounts for the difference; a bug
+    where it doesn't, however far off the strict run's milestones were."""
+    if result["verdict"] == "same":
+        return "same"
+    if timed is None:
+        return "unproven"
+    return "drift" if timed["verdict"] == "same" else "bug"
+
+
+def original_code(text):
+    """From a timed run's report: (hand-port calls, calls that ran the
+    original's code), or None."""
+    generated = GENERATED_CALLS.search(text)
+    if not generated:
+        return None
+    return sum(int(m.group(1)) for m in PORT_CALLS.finditer(text)), int(generated.group(1))
+
+
 def frames_off(d):
     return "%d frame%s %s" % (abs(d), "" if abs(d) == 1 else "s", "later" if d > 0 else "earlier")
 
 
-def reason(out, timed):
-    """The verdict as one line, for tools/strict_baseline.txt."""
+def reason(out, timed, calls=None, hand=None):
+    """The verdict as one line, for tools/strict_baseline.txt: the tool's
+    findings, then any a reader verified by hand (`hand`, kept as it was)."""
     parts = []
     if "parting" in out:
         moved = out["set_by"] if out["d"] else (out["moved_here"][-1] if out["moved_here"] else None)
@@ -367,22 +398,30 @@ def reason(out, timed):
         if out.get("random"):
             f, a, b = out["random"]
             parts.append("the battle at frame %d starts from random $%02X, not $%02X" % (f, b, a))
-        elif out.get("press") is not None:
-            parts.append("a recorded press meets the game %s" % frames_off(-out["d"]).replace("later", "late").replace(
-                "earlier", "early"))
         parts.append("it parts at frame %d (%s)" % (out["parting_frame"], out["parting"]))
     elif out.get("why"):
         parts.append(out["why"])
     if timed is not None:
-        parts.append("with the original's time it plays as the reference to the end" if timed["verdict"] == "same"
-                     else "with the original's time it parts at frame %d too" % timed.get("parting_frame", 0))
-    return "%s: %s" % (out["verdict"], "; ".join(parts))
+        parts.append(("with the original's time it plays as the reference to the end" if timed["verdict"] == "same"
+                      else "with the original's time it parts at frame %d too" % timed.get("parting_frame", 0)) +
+                     original_share(calls))
+    if hand:
+        parts.append(HAND + hand)
+    return "%s: %s" % (out["final"], "; ".join(parts))
 
 
-def report(name, out, ref, run, timed, baseline=False):
+def original_share(calls):
+    if not calls:
+        return ""
+    ported, original = calls
+    # a block of the original's code is counted per call, finer than a port's call
+    return " (hand ports %d calls, the original's code %d block calls)" % (ported, original)
+
+
+def report(name, out, ref, run, timed, baseline=False, calls=None, hand=None):
     if baseline:
-        return "%s drifts  # %s" % (name, reason(out, timed))
-    lines = ["%s: %s" % (name, out["verdict"])]
+        return "%s drifts  # %s" % (name, reason(out, timed, calls, hand))
+    lines = ["%s: %s" % (name, out["final"])]
     if "parting" in out:
         lines.append("  parts at frame %d: %s" % (out["parting_frame"], out["parting"]))
         if out["d"]:
@@ -393,8 +432,9 @@ def report(name, out, ref, run, timed, baseline=False):
             lines.append("  the play clock there runs %d frame(s) %s the reference's" % (
                 abs(out["clock"]), "ahead of" if out["clock"] > 0 else "behind"))
         if out.get("press") is not None:
+            # context, not evidence: both runs replay the same presses
             n = out["press"]
-            lines.append("  a press meets the game at another moment: reference frame %d has %s, the run's frame %d %s" % (
+            lines.append("  (context) aligned by the shift, the reference's frame %d has %s, the run's frame %d %s" % (
                 n, buttons_str(ref.input_at(n)), n + out["d"], buttons_str(run.input_at(n + out["d"]))))
         if out.get("random"):
             f, a, b = out["random"]
@@ -408,6 +448,8 @@ def report(name, out, ref, run, timed, baseline=False):
         else:
             lines.append("  with the original's time: %s" % (
                 "plays as the reference to the end" if timed["verdict"] == "same" else timed["why"]))
+        if calls:
+            lines.append("   " + original_share(calls))
     return "\n".join(lines)
 
 
@@ -425,24 +467,44 @@ def play(binary, rom, path, frames, extra, out):
     return proc.returncode, proc.stderr.decode(errors="replace")
 
 
-def one(args, row, saved, names, work):
+def one(args, row, saved, names, work, hands):
     name, path, frames = row
-    timelines = {}
+    timelines, calls = {}, None
     for mode, extra in MODES if args.timed else MODES[:2]:
         out = work / ("%s.%s.cttr" % (name, mode))
-        rc, text = (0, "") if args.reuse and out.exists() else play(args.ct_dev, args.rom, path, frames, extra, out)
+        log = out.with_suffix(".log")
+        if args.reuse and out.exists() and (mode != "timed" or log.exists()):
+            rc, text = 0, log.read_text(errors="replace") if log.exists() else ""
+        else:
+            rc, text = play(args.ct_dev, args.rom, path, frames, extra, out)
+            if args.keep:
+                log.write_text(text)
         if not out.exists():
             return "%s: the %s run failed (exit %s): %s" % (name, mode, rc, " ".join(text.strip().splitlines()[-1:]))
+        if mode == "timed":
+            calls = original_code(text)
         timelines[mode] = Timeline(out, saved)
         if not args.keep:
             out.unlink()
+    return judge(name, timelines, names, args.baseline, calls, hands.get(name))
+
+
+def judge(name, timelines, names, baseline=False, calls=None, hand=None):
+    """Classify the strict run and decide it against the timed run's."""
     ref, run = timelines["reference"], timelines["strict"]
     result = classify(ref, run, names)
     timed = classify(ref, timelines["timed"], names) if "timed" in timelines else None
-    if result["verdict"] == "aligned" and timed is not None:
-        parted = timed.get("parting_frame")
-        result["verdict"] = "drift" if parted is None or parted > result["parting_frame"] else "bug"
-    return report(name, result, ref, run, timed, args.baseline)
+    result["final"] = decide(result, timed)
+    return report(name, result, ref, run, timed, baseline, calls, hand)
+
+
+def hand_findings(baseline):
+    """{movie: the hand-verified findings on its baseline line}."""
+    out = {}
+    for name, (_must, why) in strict_check.read_baseline(baseline).items():
+        if HAND in why:
+            out[name] = why.split(HAND, 1)[1]
+    return out
 
 
 def drifting(baseline):
@@ -462,6 +524,8 @@ def main(argv=None):
                     help="print each movie as a tools/strict_baseline.txt line, its reason the verdict")
     ap.add_argument("--reuse", action="store_true", help="with --keep, read the traces there instead of playing")
     args = ap.parse_args(argv)
+    if args.keep and args.keep.resolve().is_relative_to(ROOT):
+        sys.exit("--keep %s: the traces are ROM-derived and stay out of the repository" % args.keep)
     wanted = set(args.movies) | (set(drifting(strict_check.BASELINE)) if args.drifting else set())
     rows = strict_check.movies(wanted)
     if not rows:
@@ -476,7 +540,8 @@ def main(argv=None):
         work = pathlib.Path(scratch)
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-            for text in pool.map(lambda row: one(args, row, saved, names, work), rows):
+            hands = hand_findings(strict_check.BASELINE)
+            for text in pool.map(lambda row: one(args, row, saved, names, work, hands), rows):
                 print(text, flush=True)
     finally:
         if scratch:
