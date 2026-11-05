@@ -796,11 +796,28 @@ static StripCall strip_call(GameState *g, uint32_t *uncounted)
     return call;
 }
 
-static void strip_return(Snes *s, uint32_t uncounted, void (*leave_cells)(GameState *g))
+/* The queueing leaves the VRAM word (a row strip's two) in the cells it was
+ * handed the pixel in, and comes back with X the strip's first record in the
+ * queue. */
+static void leave_column_queued(GameState *g) { set_menu_object_scratch_map_strip_vram(g, last_strip.vram); }
+
+static void leave_row_queued(GameState *g)
+{
+    set_menu_object_scratch_map_strip_vram(g, last_strip.vram);
+    set_menu_object_scratch_map_strip_end(g, (uint16_t)(last_strip.vram + TILEMAP_SCREEN));
+}
+
+typedef enum { STRIP_BUILT, COLUMN_STRIP_QUEUED, ROW_STRIP_QUEUED } StripDone;
+
+static void strip_return(Snes *s, uint32_t uncounted, StripDone done)
 {
     GameState *g = state_of(s);
     ORIGINAL_EFFECT(uncounted = charge_uncounted_begin(g));
-    ORIGINAL_EFFECT(leave_cells(g));
+    switch (done) {
+    case STRIP_BUILT: ORIGINAL_EFFECT(leave_strip_cells(g)); break;
+    case COLUMN_STRIP_QUEUED: ORIGINAL_EFFECT(leave_column_queued(g)); break;
+    case ROW_STRIP_QUEUED: ORIGINAL_EFFECT(leave_row_queued(g)); break;
+    }
     m_rts(s);
     ORIGINAL_EFFECT(charge_uncounted_end(g, uncounted));
 }
@@ -811,7 +828,7 @@ static void build_column_entry(Snes *s, bool right)
     uint32_t uncounted = 0;
     StripCall c = strip_call(g, &uncounted);
     build_column_strip(g, &c.plane, c.column, c.row, right);
-    strip_return(s, uncounted, leave_strip_cells);
+    strip_return(s, uncounted, STRIP_BUILT);
 }
 
 static void build_row_entry(Snes *s, bool bottom)
@@ -820,7 +837,7 @@ static void build_row_entry(Snes *s, bool bottom)
     uint32_t uncounted = 0;
     StripCall c = strip_call(g, &uncounted);
     build_row_strip(g, &c.plane, c.row, c.column, bottom);
-    strip_return(s, uncounted, leave_strip_cells);
+    strip_return(s, uncounted, STRIP_BUILT);
 }
 
 // $C2:0773
@@ -835,17 +852,6 @@ void menu_map_build_row_strip(Snes *s) { build_row_entry(s, false); }
 // $C2:088F
 void menu_map_build_row_strip_bottom(Snes *s) { build_row_entry(s, true); }
 
-/* The queueing leaves the VRAM word (a row strip's two) in the cells it was
- * handed the pixel in, and comes back with X the strip's first record in the
- * queue. */
-static void leave_column_queued(GameState *g) { set_menu_object_scratch_map_strip_vram(g, last_strip.vram); }
-
-static void leave_row_queued(GameState *g)
-{
-    set_menu_object_scratch_map_strip_vram(g, last_strip.vram);
-    set_menu_object_scratch_map_strip_end(g, (uint16_t)(last_strip.vram + TILEMAP_SCREEN));
-}
-
 // $C2:090D
 void menu_map_queue_column_strip(Snes *s)
 {
@@ -853,7 +859,7 @@ void menu_map_queue_column_strip(Snes *s)
     uint32_t uncounted = 0;
     StripCall c = strip_call(g, &uncounted);
     s->cpu.x = queue_column_strip(g, &c.plane, c.across);
-    strip_return(s, uncounted, leave_column_queued);
+    strip_return(s, uncounted, COLUMN_STRIP_QUEUED);
 }
 
 // $C2:0961
@@ -863,5 +869,5 @@ void menu_map_queue_row_strip(Snes *s)
     uint32_t uncounted = 0;
     StripCall c = strip_call(g, &uncounted);
     s->cpu.x = queue_row_strip(g, &c.plane, c.down);
-    strip_return(s, uncounted, leave_row_queued);
+    strip_return(s, uncounted, ROW_STRIP_QUEUED);
 }
