@@ -13722,6 +13722,31 @@ source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c, game/
   size = 2
   meaning = "The map's scroll: where a column strip's last word went in its 32 (a row strip: the VRAM word of its second half)"
   [[var.field]]
+  name = "map_strip_column"
+  offset = 0x08
+  size = 2
+  meaning = "The map's scroll, into a strip's building: the map tile column it starts from (a column strip's own, a row strip's first)"
+  [[var.field]]
+  name = "map_strip_row"
+  offset = 0x0A
+  size = 2
+  meaning = "The map's scroll, into a strip's building: the map tile row it starts from (a row strip's own, a column strip's first)"
+  [[var.field]]
+  name = "map_strip_halves"
+  offset = 0x08
+  size = 2
+  meaning = "The map's scroll, out of a strip's building: the tile halves it walked, plus one where it started on a map tile's second half"
+  [[var.field]]
+  name = "map_queue_across"
+  offset = 0x08
+  size = 2
+  meaning = "The map's scroll, into a column strip's queueing: the pixel across the plane of the tilemap column it fills"
+  [[var.field]]
+  name = "map_queue_down"
+  offset = 0x0A
+  size = 2
+  meaning = "The map's scroll, into a row strip's queueing: the pixel down the plane of the tilemap row it fills"
+  [[var.field]]
   name = "map_tiles_left"
   offset = 0x0C
   size = 2

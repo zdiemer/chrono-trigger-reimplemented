@@ -4221,6 +4221,11 @@
 #define RAM_MENU_OBJECT_SCRATCH_MAP_STRIP_BUFFER 0x7E0006u /* The map's scroll: where in the upload buffer the last strip was built */
 #define RAM_MENU_OBJECT_SCRATCH_MAP_STRIP_VRAM 0x7E0008u /* The map's scroll: the VRAM word the last strip went to */
 #define RAM_MENU_OBJECT_SCRATCH_MAP_STRIP_END 0x7E000Au /* The map's scroll: where a column strip's last word went in its 32 (a row strip: the VRAM word of its second half) */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_STRIP_COLUMN 0x7E0008u /* The map's scroll, into a strip's building: the map tile column it starts from (a column strip's own, a row strip's first) */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_STRIP_ROW 0x7E000Au /* The map's scroll, into a strip's building: the map tile row it starts from (a row strip's own, a column strip's first) */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_STRIP_HALVES 0x7E0008u /* The map's scroll, out of a strip's building: the tile halves it walked, plus one where it started on a map tile's second half */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_QUEUE_ACROSS 0x7E0008u /* The map's scroll, into a column strip's queueing: the pixel across the plane of the tilemap column it fills */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_QUEUE_DOWN 0x7E000Au /* The map's scroll, into a row strip's queueing: the pixel down the plane of the tilemap row it fills */
 #define RAM_MENU_OBJECT_SCRATCH_MAP_TILES_LEFT 0x7E000Cu /* The map's scroll: tiles left to move by (0 once done) */
 #define RAM_MENU_OBJECT_SCRATCH_MAP_PLANE_INDEX 0x7E000Eu /* The map's scroll: the plane scrolled, doubled as the plane tables index it */
 #define RAM_MENU_OBJECT_SCRATCH_MAP_GROUPS 0x7E0010u /* The map's scroll: where the plane's tile groups are in bank $7E */
