@@ -29,14 +29,14 @@ battle-menu-buttons 5
 battle-motherbrain 7
 battle-mud-imp 5
 battle-nizbel-ii 6
-battle-ozzies-fort 9
+battle-ozzies-fort 11
 battle-r-series 6
 battle-rust-tyrano 5
 battle-son-of-sun 5
 battle-tech-sweep-spekkio 4
 battle-tech-sweep 5
 battle-tyrano-lair-walls 5
-battle-unequipped-armor 4
+battle-unequipped-armor 7
 battle-zombor 5
 endings-beyond-time 5
 endings-bucket-lavos 8
@@ -54,7 +54,7 @@ events-fair-rescue 7
 events-fair-shuffle 6
 events-fair-strength 5
 events-fionas-forest 8
-events-jetbike-race-won 6
+events-jetbike-race-won 7
 events-jetbike-race 7
 events-keepers-dome 6
 events-luccas-mother 12
@@ -62,7 +62,7 @@ events-magic-cave 6
 events-magus-joins 7
 events-ocean-palace-lavos 7
 events-prison-escape 6
-events-proto-dome 6
+events-proto-dome 9
 events-sun-stone 18
 events-zeal-palace 18
 field-12kbc-1f4 6
