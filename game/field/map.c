@@ -256,7 +256,7 @@ void field_mark_the_exits(GameState *g) { mark_the_exits(g); }
 static void unpack_the_map(GameState *g)
 {
     field_ask_to_unpack_the_map(g);
-    TIMED_AS(g, UNPACK_STREAM_ENTRY, (void)unpack_stream(g));
+    (void)unpack_stream(g);
     field_take_the_map_in(g);
 }
 

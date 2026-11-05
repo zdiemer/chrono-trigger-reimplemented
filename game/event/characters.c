@@ -7,9 +7,9 @@
  * ($57-$6D name the character, $80 takes it as an operand); or apart from the
  * party, as one of the map's own objects ($81). The people, creatures and
  * enemies have graphics to unpack into bank $7F unless an object of the map
- * shares theirs, so their commands ($82, $83) are bridges on the machine,
- * which calls the original's unpacker between the casting's two halves, and
- * one sequence with the program, whose unpacker is C. */
+ * shares theirs, which the unpacker (data/decompress.c) does between the
+ * casting's two halves; their commands ($82, $83) are bridges on the
+ * machine, one sequence with the program's. */
 #include "charge.h"
 #include "core/program.h"
 #include "data/decompress.h"
@@ -58,18 +58,13 @@ EVENT_CHECK_TAKING_NOTHING(tables_in_the_rom)
 
 /* ---- The bridges: graphics to unpack ----------------------------------------------------------- */
 
-/* The unpacker ($C3:0002) reads where from and where to from its own cells,
- * and puts back every register it is given: of the registers at the call,
- * the command's machine reads only Y after it, which it leaves to the
- * engine (event/leaves.h). */
-enum { UNPACKER = 0xC30002 };
-enum { THE_UNPACKER_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
+/* The unpacker (data/decompress.c) reads where from and where to from its
+ * own cells, and the original's puts back every register it is given: of the
+ * registers at the call, the command's machine reads only Y after it, which
+ * it leaves to the engine (event/leaves.h). */
 
-/* Where each command calls the unpacker, and where the original stops the
- * game when a set runs past the bank's end. */
-enum { NPC_UNPACKED_AT = 0xC046BC };
+/* Where the original stops the game when a set runs past the bank's end. */
 enum { NPC_TOO_FAR = 0xC046D1 };
-enum { ENEMY_UNPACKED_AT = 0xC04825 };
 enum { ENEMY_TOO_FAR = 0xC0483A };
 
 /* What the command leaves the engine (event/leaves.h): Y where reading the
@@ -89,16 +84,15 @@ static void leave_unpack_call_registers(Snes *s, FieldSpriteRecord r)
     m_set_flag(s, CPU_FLAG_V, false);
 }
 
-/* A set unpacked, as C or on the machine (below): false where the unpacking
- * went no further: the call to the unpacker at each kind's site, and a set
- * that runs past the bank's end stopping the game, which the original does
- * at its error's start. */
+/* A set unpacked, as C or on the machine (below): false where it went no
+ * further, a set that runs past the bank's end stopping the game, which the
+ * original does at its error's start. */
 typedef enum { NPC_SET, ENEMY_SET, SET_KINDS } SetKind;
 static const struct {
-    uint32_t unpacked_at, too_far;
+    uint32_t too_far;
 } set_calls[SET_KINDS] = {
-    [NPC_SET] = { NPC_UNPACKED_AT, NPC_TOO_FAR },
-    [ENEMY_SET] = { ENEMY_UNPACKED_AT, ENEMY_TOO_FAR },
+    [NPC_SET] = { NPC_TOO_FAR },
+    [ENEMY_SET] = { ENEMY_TOO_FAR },
 };
 
 typedef struct {
@@ -135,7 +129,7 @@ static bool unpack(void *ctx, FieldSpriteRecord r, SetKind kind)
 {
     GameState *g = ctx;
     ask_to_unpack(g, r.graphics);
-    TIMED_AS(g, UNPACKER, (void)unpack_stream(g));
+    (void)unpack_stream(g);
     if (graphics_unpacked(g))
         return true;
     program_needs_the_machine(g, set_calls[kind].too_far, "a set of sprite graphics past the bank's end, which stops the game");
@@ -168,18 +162,17 @@ bool event_cast_enemy(GameState *g, Platform *pf, uint16_t at, EventStep *step)
     return true;
 }
 
-/* On the machine: the set unpacked after the others, from the JSL at `site`;
- * false where the port stopped: the unpacker didn't come back as the engine
- * runs, or the set ran past the bank's end (on which nothing of the
- * registers is read). */
+/* On the machine: the set unpacked after the others, the registers left at
+ * the call as the original leaves them for after it; false where the set ran
+ * past the bank's end, where the port stops (and nothing of the registers is
+ * read). */
 static bool unpack_on_the_machine(void *ctx, FieldSpriteRecord r, SetKind kind)
 {
     Snes *s = ctx;
     GameState *g = state_of(s);
     ask_to_unpack(g, r.graphics);
     leave_unpack_call_registers(s, r);
-    if (!bridge_call_long(s, set_calls[kind].unpacked_at, UNPACKER, THE_UNPACKER_IGNORES, event_machine(s, false)))
-        return false;
+    (void)unpack_stream_called(g, false);
     if (graphics_unpacked(g))
         return true;
     m_stop_at(s, set_calls[kind].too_far, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);

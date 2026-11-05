@@ -21,7 +21,7 @@ from tools.disasm.closure import reached_code
 from tools.disasm.cpu import decode
 from tools import unreached_fuzz
 
-SUBSYSTEMS = ('attract', 'data', 'core', 'warp', 'overworld', 'event')
+SUBSYSTEMS = ('attract', 'core', 'warp', 'overworld', 'event')
 # This separately registered field entry owns the screen command's restart
 # arm. Include the dependency so the entire uncovered dispatch is accounted.
 DEPENDENCIES = {'field_restart_wait_for_vblank_loop': 'screen-command restart dependency'}
@@ -104,7 +104,7 @@ def analyze(rom):
             sub = next(iter(candidates))
         subsystems[e.addr] = sub
     live = reached_code(an)
-    live_bytes = {b for pc in live if pc >> 16 not in burndown.RETIRED
+    live_bytes = {b for pc in live if not burndown.retired(pc)
                   for b in range(pc, pc + max(i.size for i in an.code[pc].values()))}
     owners = {p.addr for p in ports}
     walks, unresolved = [], []

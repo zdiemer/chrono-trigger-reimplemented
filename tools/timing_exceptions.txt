@@ -23,12 +23,23 @@ field_nmi vblank-tail the palace's mix of sprite-queue and edge uploads leaves 3
 # moves work on the picture, and `worst` judges it there.
 
 
-# The decompressor: a call is 260-290 lines on average (a frame is 262),
-# seven times the length of vblank, and interrupts are taken during its time: its error
-# moves the end of a load (by 6% of it on average), not a video write. Its time
-# follows the compressed data, literals against copies of every length.
-decompress worst a load 7 vblanks long on average, 6% error; its error moves the end of the load, a frame sooner or later, not a video write
-decompress_direct worst the decompressor writing straight to memory: as decompress
+# The decompressor, which has no entry since the data subsystem's teardown:
+# its estimate, as its entries made it (charge_retired), is charged inside its
+# callers' stretches, which carry its error. A call is 260-290 lines on
+# average (a frame is 262), seven times the length of vblank, and interrupts
+# are taken during its time: its error (6% on average, up to 333k clocks, on
+# this list while it had entries) moves the end of a load, not a video write.
+# The callers below carried it under the unpacker's own entry until then (its
+# time was a part tagged as that entry's, or a call-out to it), so the error
+# moved, not grew: their calibrations, far from their rates or near 1, show
+# their own work is not what is off.
+scene_boot worst the scene program unpacked, 5.6 M clocks a call with the screen blanked: the decompressor's error (1.8%, at most 106448 clocks), which its retired entry carried; the boot's own work is a few stores
+menu_epoch_load_gate_stream worst a gate stream unpacked with the screen blanked, its own work nil (calibrated 1): the decompressor's error on the Epoch's 15 streams (+9.45%, at most 144849 clocks), which its retired entry carried
+menu_epoch_build_map worst the map view's streams unpacked with the screen blanked: the decompressor's error, at most 59812 clocks in a call of 23.6 M (0.3%), which its retired entry carried
+event_cmd_cast_enemy worst an enemy's sprite set unpacked as it is cast, mostly at a map's entry (the vblank check finds none of its writes moved): the decompressor's error (-4.0% drift, at most 144738 clocks), which its retired entry carried
+event_run_init_scripts worst the map's objects cast as their scripts start, their sets unpacked as the map is entered: the decompressor's error (-2.4%, at most 256621 clocks), which its retired entry carried
+field_set_up_the_objects worst as event_run_init_scripts, which it runs: the decompressor's error (-2.0%, at most 257787 clocks), which its retired entry carried
+field_start_the_objects worst as event_run_init_scripts, which it runs: the decompressor's error (-2.1%, at most 256249 clocks), which its retired entry carried
 scene_unpack_resource worst a scene's resource unpacked through the decompressor, which runs inside its stretch at the decompressor's estimate (its own part is a few stores, calibrated 1): the decompressor's error, at most 333201 clocks in loads of 405159 on average while a scene's setup has the screen blanked, moving when the setup ends
 scene_unpack_resource drift as its worst: the decompressor's error on the scenes' streams (+5.8%), carried by the stretch it runs in
 

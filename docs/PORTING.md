@@ -15,7 +15,7 @@ by what it does; move routines when their purpose becomes clearer.
 | Path | What |
 |---|---|
 | `game/core/` | System code shared by every mode (display and interrupt control, the palette and tile animations, the sound driver interface and its data accessors, the block move stub the menus and save code write to RAM) |
-| `game/data/` | Data handling (the decompressor) |
+| `game/data/` | Data handling: the asset catalogue and store, and the decompressor, retired from the gate (REIMPLEMENTATION.md, "The data subsystem's teardown"): no entry, C its callers call |
 | `game/event/` | Event scripts: the language (`script.h`: how a command decodes into an operation's typed parameters and what happens next; each file ends with its opcodes' rows), the engine that runs it (`engine.c`), the scaffolding it reproduces for the gate (`leaves.h`), the original's machine -- entries, guards, registers (`bridge.c`, `entries.c`), the ROM tables (`event_data.h`), and the operations by what they do (`flow.c`: jumps, conditions, waits; `calls.c`: objects calling each other; `variables.h`/`variables.c`: the scripts' variables; `story.c`: the story memory and its flags; `party.h`/`party.c`: the party; `dialog.c`: lines, questions, answers; `animation.c`, `facing.c`, `properties.c`, `movement.c`: objects; `input.c`: the controller; `memory.c`: memory by address; `screen.c`, `sound.c`, `locations.c`: the screen, sound, places and battles) |
 | `game/field/` | Field mode: interrupt handlers, frame sync, objects and their motion, the per-frame object update loop, the sprite table, sprite tile graphics, the layers' scroll arithmetic, the per-line effects' tables and the quadrilateral rasterizer in bank C3, the screen effects the windows cut (`screen_effects.c`) and the layer work scripts leave the main loop, the credits among it (`script_layers.c`). The objects are a module, `field/object.h` (their role, animation, motion and place on the screen), implemented in `object.c`, `animation.c`, `motion.c`, `object_view.c` and `object_update.c`; `bridge.h`/`bridge.c` hold the guards and the pieces the entry wrappers share, `scratch.h` the cells the original writes for itself, and `leaves.c` (with `parts.h`) what the field's routines leave the original's code, worked out beside the wrappers. |
 | `game/menu/` | Menu mode: frame sync, font glyphs, text and numbers, the VRAM upload queue, the save file screen, the save code that checks, saves and loads a slot (`saves.c`), the End of Time's gate screen (`gate_screen.c`), the digits two screens build (`digits.c`), sprite objects with their scripts (the commands in bank C6 among them), the map they scroll and redraw, the Epoch's map view and time dial, the equipment screen (its steps, its windows, the member list and card) and the items screen, with the scrolling lists they share (`lists.c`) |
@@ -980,9 +980,10 @@ keeping `$6D`), `display_blank_and_stop_interrupts`,
 `field_install_nmi`, `field_install_irq` and `field_update_object_visibility`
 (20000 each). The three 16-bit and variable-vs-variable conditionals
 (`$13`-`$15`), which no movie reaches yet, are validated only this way. Not
-fuzzed: `decompress`, whose random source and destination pointers make it
-overwrite its own stack and variables (it needs generated streams), and
-`field_nmi`, which returns with RTI.
+fuzzed: `field_nmi`, which returns with RTI. (The unpacker, whose random
+source and destination pointers made it overwrite its own stack and
+variables, is no entry since the data subsystem's teardown: `unpack_test`
+gives it streams made for it.)
 
 ### Declarations liveness can't prove
 

@@ -1885,11 +1885,8 @@ compares as before: 0 mismatches, no read outside the catalogue and none that
 differs; a pack with a byte in 997 changed makes ports mismatch and prints
 both lines.
 
-What still reads the mapped ROM: the original's code (the emulator); the one
-port that reads cartridge data on the machine rather than through an accessor,
-the decompressor (`data/decompress.c`, on the portstyle backlog), which reads
-the streams the catalogue holds by the pointer the loaders leave; and the video
-service's transfers whose source is a cartridge address (`PF_GAME` of a ROM
+What still reads the mapped ROM: the original's code (the emulator), and the
+video service's transfers whose source is a cartridge address (`PF_GAME` of a ROM
 address: the menus' VRAM fills and ROM copy in `menu/display.c`, the battle's
 tile blocks in `battle/uploads.c`), which the SNES backend sends by DMA from
 the bus. `ct_native` (docs/PLAYING.md, "The native program") reads the game's

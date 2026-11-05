@@ -138,10 +138,8 @@ static void set_up_gate_screen(GameState *g)
 
 /* ---- The registered entries ------------------------------------------------------------------- */
 
-/* The unpacker ($C3:0002) takes where from and where to in its own cells,
- * and reads no register; the swirl's graphics go where the menus unpack
- * graphics before they send them to VRAM. */
-enum { UNPACKER = 0xC30002, UNPACKER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+/* The swirl's graphics go where the menus unpack graphics before they send
+ * them to VRAM. */
 enum { SWIRL_GRAPHICS_UNPACKED_TO = 0x7EB000 };
 
 // $FF:F677
@@ -160,25 +158,11 @@ bool menu_draw_gate_screen(GameState *g)
     return draw_the_gate_screen_with(g, &u);
 }
 
-/* The unpacker called as the original's long call reaches it, with 16-bit
- * registers. */
-static bool unpack_by_the_swirl_s_call(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
-{
-    (void)site;
-    Snes *s = ctx;
-    set_decompress_source(state_of(s), stream);
-    set_decompress_dest(state_of(s), to);
-    menu_set_widths(s, false, false);
-    return menu_call_long(s, 0xFFF690, UNPACKER, UNPACKER_IGNORES);
-}
-
+/* The original keeps P on the stack over the drawing and gives it back. */
 void menu_draw_gate_screen_entry(Snes *s)
 {
-    menu_save_p(s);
-    Unpacker u = { unpack_by_the_swirl_s_call, s };
-    if (!draw_the_gate_screen_with(state_of(s), &u))
-        return;
-    menu_restore_p(s);
+    Unpacker u = overworld_unpacker_called(s);
+    (void)draw_the_gate_screen_with(state_of(s), &u);
     m_rtl(s);
 }
 

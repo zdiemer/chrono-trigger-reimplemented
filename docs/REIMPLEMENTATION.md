@@ -702,7 +702,6 @@ budget: the vblank check finds none of their writes moved.
 
 | Entry | Over | Why it doesn't matter |
 |---|---|---|
-| `decompress`, `decompress_direct` | `vblank-tail`, `vblank-worst`, `worst` | 350k-395k clocks a call on average (260-290 lines, seven vblanks), mean error 6%, the largest 296k and 333k. Interrupts are taken during its time, so the error moves the end of a load, not a video write. Its time follows the compressed data (literals against copies of every length). |
 | `field_rasterize_quad` | `vblank-tail`, `vblank-worst` | Rasterizes a window shape into a RAM table, 35 lines a call (as long as vblank), 7.5% error, at most 14885 clocks. Main-loop work running on into vblank after the NMI, writing RAM, and the original's own time already runs it into the picture. |
 | `menu_object_wave_hdma` | `vblank-tail` | Fills a RAM scroll-wave table in 53-line calls, longer than vblank; its error never exceeds 1396 clocks (one line), just over the tail's 1024. |
 | `menu_draw_glyph` | `vblank-tail` | Draws a glyph into the menu's tile buffer in RAM, 18-line calls; at most 2658 clocks (two lines). |
@@ -942,7 +941,6 @@ off by 1024 clocks or more from 1.115% to 0.512% (in vblank, 1.053% to 0.723%).
 
 | Entry | Over | Why |
 |---|---|---|
-| `decompress`, `decompress_direct` | `vblank-tail`, `vblank-worst`, `worst` | Not a dispatcher: its time follows the compressed data (literals against copies of every length) inside one routine; unchanged (above). |
 | `field_rasterize_quad` | `vblank-tail`, `vblank-worst` | Its time follows the quadrilateral's edges; the edge sequence it inlines is no routine the original calls, so there is nothing to attribute to. |
 | `menu_object_wave_hdma`, `battle_screen_wave_windows`, `scene_draw_circle`, `scene_draw_circle_jump`, `battle_step_hp_gradient` | `vblank-tail` | One routine each, its time following a path inside it (the sign of each wave step's product, the circle's midpoint steps, the gradient's rows): long calls whose error is 1-5% but over the tail's absolute 1024 clocks. |
 | `menu_draw_glyph` | `vblank-tail` | Its pixels are a routine (`$C2:5E89`) and are attributed to it, but that routine's own time follows the pixel's bits (7.1% on its own), so the sum varies as much as before. |
@@ -3229,6 +3227,125 @@ reach it), and `tools/burndown.py` leaves the bank out ("Retired code"). A
 SNES build (target 3) needs a CPU half again: the cartridge's, from the
 matching source, or the deleted port from history (TODO.md).
 
+### The data subsystem's teardown
+
+The second subsystem taken off the gate, on purpose: the gate no longer
+compares the unpacker (`game/data/decompress.c`, the original's `$C3:0557`
+and its jump at `$C3:0002`) with the original's routine. The rest of
+`game/data/` -- the asset catalogue, the store and `packed_graphics.h` --
+never had an entry: it is the cartridge's bytes by name, which
+`tools/assets.py check` and the gate's `asset outside the catalogue` line
+already hold to the catalogue, so the unpacker was the subsystem's machine
+side, and all of it.
+
+**The preconditions, and how each was shown.**
+- *Fully ported, no original code for it in real play.* `tools/burndown.py`
+  counted 0% left of bank `$C3`; the fallback measure's baselines had no line
+  of the decompressor's code in either kind of play, only what the reference
+  ran under its own comparisons (`open C3:0557`, `open C3:0002`); the census
+  over the gate's 37 movies (shipping mode) entered `decompress` 636 times and
+  `decompress_direct` 60, every one from a port's call-out (629 and 60) or a
+  return into one (7) -- none from the original's code.
+- *No generated code touches its state.* No entry is entered from the
+  original's code, so in the shipping mode nothing generated calls the
+  decompressor or reads its page; its cells (`decompress_*`, `$7E:0300-$0316`)
+  are read outside it only by ports (the callers set the source and the
+  destination; the scene program's transfer reads the destination and
+  length), and the cells it keeps as it works (`$0309-$0316`) by nothing:
+  `tools/effects_check.py` found no port reading them and no run-time read
+  of them in the shipping mode, the map names nothing else there.
+- *Its unreached rows covered.* `tools/unreached.py` had both entries at 0
+  bytes no movie runs (the table above: data, 0).
+- *Its recorded outcomes filled for the movies that protect it.* Every
+  movie unpacks -- the maps, their scripts, the graphics, the scene program
+  -- so the protected identities of all 37 recorded movies, strict and
+  native ("Recorded outcomes", below), are the unpacker's: pictures for what
+  it unpacks to be seen, places for the maps and scripts that move play on,
+  `game` and `sram` for the scripts' consequences. Strict mode and `ct_native`
+  ran only the C unpacker before this teardown as after it, so those
+  observations were already the C's, and stay checked.
+
+**Deleted.** The two registry rows, the entry wrapper (its pushes and pulls
+of every register round the C, and the return through the emulated stack),
+its row in `docs/ports.tsv`, its two lines of `tools/timing_exceptions.txt`
+(seven of its callers' took them over: their stretches carry its estimate
+error now, which a tag or a call-out had put on its entry, at most 258 K
+clocks in loads of 0.5 M and more with the error 2-14% of them) and its rows
+of `tools/unreached_baseline.txt`, and its scaffolding: the
+three `ORIGINAL_EFFECT`s that left the cells it works in as the original
+leaves them. Every caller calls it as C: the machine paths that made a call-out to
+`$C3:0002` or `$C3:0557` (the battle's effect graphics and its action's
+tiles, the menus' record sprites, the gate screen's swirl, the Epoch's gate
+stream, the world map's scenes' Mode 7 pictures, the event commands `$82`
+and `$83`, the scene's boot), those that ran its entry in place (the world
+map's loads and the Epoch's map view, the credits' letters, the scene's
+unpacker by resource), and the C paths, which named it in `TIMED_AS`. The decompressor's contract left nothing to check at those calls: no P
+mask, width, page, bank or code-image guard, every register given back, and
+N and Z as its last pull of the data bank sets them, which the one caller
+whose declared set compares them (the world map's scenes' pictures) sets
+the same way. `tools/machine_joints.py`: registered entries 2,241 to 2,239,
+returns 1,023 to 1,022, scaffolding writes 2,065 to 2,062 (its count of
+entries now reads the registry's table alone); `tools/burndown.py`: the
+scene engine's code 3.8 K to 3.0 K and its entries 47 to 45, the total
+264.1 K to 263.2 K, 0% left either way; `tools/unreached.py`: 361 entries
+to 359. The census no longer has the two entries to count (it counts
+registered ones); it wasn't run again over the library. It had no guard,
+so none became an assertion.
+
+**What its callers still on the gate see.** A caller's comparison covers the
+unpacking it does, as any inlined callee's, but for the cells the
+unpacker keeps its place in as it works: the original writes them, the C
+keeps them in locals and nothing else reads them, so every comparison --
+shadow mode's and `native_compare`'s, fuzzing's -- leaves them out
+(`game_uncompared_wram` in `game/registry.c`, `native_leave_uncompared`).
+The destination, the length and the work RAM port are compared, as before.
+**Its time, kept as it was.** The strict and native plays' recorded
+outcomes hold the ports' pace, and some protected identities sit at the
+edge of their window (`attract-demo`'s place 12 in strict mode was entered
+30 frames early of the reference, the most `places.ON_TIME` admits): a
+first version that charged the time model's price on the machine, as
+`ct_native` does, cost 0 of 37 strict ratchets, and one with the same
+rate but none of the old call's structure still moved that place a frame.
+So the unpacker is timed as its entries timed it (`charge_retired`,
+`game/charge.h`): its own accesses at the rate of the entry it was reached
+through, kept in `runtime/port/state_io.c` (`retired_rates`, 4,060 and
+4,057 thousandths), the accesses the original makes besides at the jump's
+entry's, as its charge was made, and taken as they are, as a DMA
+transfer's time is, in the stretch that calls it
+(`native_charge_at_rate`); a machine half that ran the entry in place adds
+the entry's own 25 accesses (`unpack_stream_run`), and one that called it
+on the machine also lets the time pass either side of it, as the call did
+(`unpack_stream_called`, `charge_settle`). `attract-demo`'s strict play
+is then identical to the one before over its 22,600 frames, but for the
+uncompared cells and the stack bytes the entry's pushes left below S, and
+all 37 strict ratchets pass. With no machine, as before, the time model's
+price of the original's accesses.
+
+**What replaces the comparison.** `unpack_test` (no ROM, CI): a worked
+stream and 2,000 random ones, written by an encoder from items -- literals
+and references, both forms of a reference, every segment layout, a short
+control byte after a header, runs of literals as a control byte of 0,
+references that overlap what they copy -- must unpack to exactly what the
+items make, in either bank, nothing written past it, the length returned
+and kept, and the work RAM port after it. A change to one of the format's
+rules fails it (a reference's length taken a bit short fails 2,208 checks).
+And the recorded outcomes above, in strict mode and `ct_native`, over the
+real streams.
+
+**The reference play keeps the cartridge's decompressor**, as it keeps the
+sound driver: shadow mode, `--native off` and `--generated only` are the
+cartridge on the console, and its callers' original code calls it there.
+The fallback measure doesn't count it where it runs in the reference
+(`dev/fallbacks.c`), and does where the hand ports play, as nothing of ours
+reaches it; `tools/burndown.py` and `tools/unreached.py` leave its bytes out
+as retired (`RETIRED_RUNS`: `$C3:0002-$C3:0004`, `$C3:0557-$C3:08B2`).
+
+**What stays in work RAM.** Its storage didn't move: the source, the
+destination and the length are the callers' interface in `$7E:0300-$0307`,
+which ports on the gate set and read, and they move with the first of them
+to leave work RAM; the working cells are written by nothing of ours now
+(TODO.md, "The data subsystem's storage").
+
 ### Recorded outcomes
 
 `tools/outcomes.py` keeps the reference play's results in `tools/outcomes.txt`:
@@ -3597,7 +3714,12 @@ separately registered field restart dependency, using the existing
 it). Optional hand recordings are outside that standard library. No game
 code changed in this work. Since the scene merge registered the map-turning
 callback (`scene_turn_map`, `$7E:7441`) as its own entry, the attract frame
-pass no longer reaches it and attract has no unreached bytes.
+pass no longer reaches it and attract has no unreached bytes. The data
+subsystem's two entries, at 0 bytes, left the inventory with its teardown
+(359 entries since): its code is retired, which the walk leaves out as
+burndown does ("The data subsystem's teardown"), and the two event
+commands whose graphics-overflow arguments cite the unpacking's C
+(`characters.c`) were reviewed again and their digests taken anew.
 
 | Subsystem | Bytes no movie executes | Executed in matched fuzz trials | Reviewed safety argument |
 |---|--:|--:|--:|
