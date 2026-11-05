@@ -580,7 +580,11 @@ void native_await_latch(Snes *s);
  * the machine looks once a pass of the original's poll, a compare with the
  * port and a branch back, NATIVE_PORT0_POLL_CLOCKS, since the sound processor
  * answers in its own time and a coarser step would see it later than the
- * original does), or the picture is at the line
+ * original does), the picture has gone into its next vertical blank
+ * (NATIVE_WAKE_VBLANK: one begun inside a blank waits out the rest of it
+ * first, as a poll of $4212's bit 7 that waits for it to clear and then to
+ * set does, and goes on a pass of the poll into it, as an idle entry's exit
+ * does), or the picture is at the line
  * `wake`, past the vertical blank; no original code runs. In SHADOW mode the original runs its
  * loop: the port's stretch before the wait is compared where the original
  * first comes to the head or the exit with the port's S (its memory, S, the
@@ -601,7 +605,7 @@ void native_await_latch(Snes *s);
  * observer is told of a call-out). */
 enum {
     NATIVE_WAKE_HANDLER = -1, NATIVE_WAKE_HBLANK = -2, NATIVE_WAKE_TIME = -3,
-    NATIVE_WAKE_HBLANK_END = -4, NATIVE_WAKE_MUSIC_START = -5,
+    NATIVE_WAKE_HBLANK_END = -4, NATIVE_WAKE_MUSIC_START = -5, NATIVE_WAKE_VBLANK = -6,
 };
 /* The waits on the APU's port 0, a value each: from NATIVE_WAKE_PORT0_SHOWS
  * down for "until it shows the value", from NATIVE_WAKE_PORT0_LEAVES down for

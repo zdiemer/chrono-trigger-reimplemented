@@ -95,7 +95,26 @@ static inline void pf_snes_call_wait(Platform *pf, PfOrigin o)
     native_call_dc(pf_snes(pf), o.site, o.target, long_call, o.dont_care);
 }
 
-PF_API void tm_wait_frame(Platform *pf, PfOrigin o) { pf_snes_call_wait(pf, o); }
+/* Where the routine only waits for the vblank, the machine waits where the
+ * port stands and no original code runs; shadow mode and the tools call it,
+ * its run counting as the port's (native_wait_call). The wait holds the
+ * routine's own contract: its code in place, 8-bit A and a data bank that
+ * reaches the I/O registers, which its poll reads through; otherwise the
+ * original's code runs, whatever it is. */
+static inline bool pf_snes_waits_in_place_for_the_vblank(Snes *s, uint32_t routine)
+{
+    const PfSnesVblankWait *w = pf_snes_vblank_wait(routine);
+    return w && m_flag(s, CPU_FLAG_M) && m_bank_reaches_io(s) && m_code_matches(s, w->routine, w->length, w->hash);
+}
+
+PF_API void tm_wait_frame(Platform *pf, PfOrigin o)
+{
+    Snes *s = pf_snes(pf);
+    if (pf_snes_waits_in_place_for_the_vblank(s, o.target))
+        native_wait_call(s, o.site, o.target, (o.site >> 16) != (o.target >> 16), o.dont_care, NATIVE_WAKE_VBLANK);
+    else
+        pf_snes_call_wait(pf, o);
+}
 
 /* The battle's wait for a number of frames ($CD:3E3B) takes the count in A. */
 PF_API void tm_wait_frames(Platform *pf, PfOrigin o, uint8_t frames)

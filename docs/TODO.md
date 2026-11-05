@@ -2494,9 +2494,10 @@ rest waits, is [PLAN.md](PLAN.md).
   `$C0:4186`, which no movie reaches): each is an idle entry, a pass at a
   time on the machine, that waits for the vblank through the timing service
   where the original spins on the vblank interrupt's flag; a native build
-  wants it a `tm_` wait its port calls; the attract's `$7E:31B0`/`$7E:31B7`
-  (`attract/main_loop.c`, which reads `$4212` itself rather than through the
-  service); the idle entries on flags a handler clears
+  wants it a `tm_` wait its port calls (the scene program's frame wait,
+  `$7E:31B0`, which only waits, now waits where its callers stand:
+  `tm_wait_frame`, `NATIVE_WAKE_VBLANK`, which these could use once they
+  are a port's call rather than an idle entry); the idle entries on flags a handler clears
   (`field_wait_for_frame_loop`, `menu_wait_for_frame_loop`,
   `menu_wait_ready_loop`, `battle_wait_window_slide_loop`,
   `battle_wait_graphics_loaded_loop`, `scene_race_wait_for_tilemap_upload_loop`,
