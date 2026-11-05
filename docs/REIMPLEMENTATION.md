@@ -3303,28 +3303,30 @@ New movies or missing records fail closed. The suite
 runs both recorded checks after strict and native checks, and clears their
 old artifacts before a run, so skipping a producer cannot pass on stale data.
 
-The ledger records the gate's 37 sample movies (475,874 frames). Both modes
-pass their initial ratchet on all 37, with these protected observations:
+The ledger records the whole library, 84 movies (2,289,640 frames): the gate's
+37 first, the other 47 from the batched library run of `92026499`. Strict mode
+passes its ratchet on all 84 and native mode on 83, with these protected
+observations (after that run's drift-only calibration):
 
 | Mode | Saved game / save RAM matches (movies) | Picture match / drift / differ (checkpoints) | Place match / drift / differ (visits) |
 |---|---|---|---|
-| Strict | 28 / 36 | 424 / 69 / 1,143 | 147 / 73 / 76 |
-| Native | 21 / 30 | 245 / 26 / 1,365 | 39 / 154 / 103 |
+| Strict | 42 / 80 of 84 | 1,062 / 178 / 6,508 | 436 / 163 / 271 |
+| Native | 36 / 71 of 83 | 576 / 96 / 6,944 | 91 / 452 / 324 |
 
-No sample movie matches every kind: every one has picture differences.
-These are existing debts, explicitly reasoned per movie, not a claim of
-harmless pixel changes. Power-on native save RAM starts at zero whereas the
-reference initializes it to `0x60`; the other end-state debts and place
-visits are named in the exceptions. A teardown can rely on the protected
-matches, not on a movie's aggregate ratchet pass.
+No movie matches every kind in either mode. These are existing debts,
+explicitly reasoned per movie, not a claim of harmless pixel changes.
+Power-on native save RAM starts at zero whereas the reference initializes
+it to `0x60`; the other end-state debts and place visits are named in the
+exceptions. A teardown can rely on the protected matches, not on a movie's
+aggregate ratchet pass. `battle-ozzies-fort` has no native outcome: it stops
+in `ct_native` before its end (TODO.md, "Recorded outcomes across the
+library"), so `--check --mode native` over the whole library fails on it.
 
-The next batched library run uses
-`tools/suite.py --all-movies --no-outcomes` for the unrecorded movies, then
-`outcomes.py --record --reference build/suite` without `--movies`. Review
-new differences and give reasons, run `--update` for both modes on that
-output, then `--check` for both; commit the ledger and ratchets together.
-No second reference play is needed. Subsequent library runs include the
-check normally. Recording never silently changes the ratchet.
+A batched library run checks the recorded outcomes as the sample's runs do.
+A change that moves a drifting movie's observations (a recalibration) is
+re-recorded deliberately: `--check` names the newly observed digest, and the
+exception's line takes it with a reason. Recording never silently changes the
+ratchet.
 
 **What a teardown cites.** The replacements each remaining subsystem needs:
 

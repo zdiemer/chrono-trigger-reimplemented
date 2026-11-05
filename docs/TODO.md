@@ -28,15 +28,16 @@ rest waits, is [PLAN.md](PLAN.md).
   The four one-byte returns (`$C0:EC76`, `$C2:034C`, `$9F04`, `$A16F`) are
   already executed by their wrappers; teaching the estimate to distinguish
   those from real stops would remove the conservative count, not game work.
-- **Recorded outcomes across the library.** Record the remaining movies from
-  the next batched `--all-movies` run's artifacts and initialize their strict
-  and native ratchets with reviewed reasons for differences
-  (REIMPLEMENTATION.md, "Recorded outcomes"). Resolve the sample's excepted
+- **Recorded outcomes across the library.** All 84 movies are recorded and
+  have strict ratchets, and 83 native ones (REIMPLEMENTATION.md, "Recorded
+  outcomes"); their differences are excepted as debts. Resolve the excepted
   saved-game, picture and place differences before a teardown relies on
-  those observables; none of the 37 currently matches every picture. Native
+  those observables; none of the 84 is free of differences in either mode. Native
   power-on save RAM also starts at zero rather than the reference's `0x60`.
-  Incomplete library plays must finish before they can supply complete
-  outcomes (the existing strict/native progress checks still locate their stops). A storage teardown must supply the same saved-game
+  `battle-ozzies-fort` stops in `ct_native` at frame 38422 of 39237 (a cartridge
+  read at `$DE:FF00` in no resource of the catalogue), so it has no native
+  outcome and `outcomes.py --check --mode native` over the whole library fails
+  on it until it plays to its end. A storage teardown must supply the same saved-game
   projection from the new storage; a picture hash alone cannot establish
   that a visual difference cannot affect play.
 - **Keep the unreached ledger's preconditions when retiring the machine.**
