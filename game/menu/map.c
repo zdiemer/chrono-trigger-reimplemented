@@ -648,14 +648,23 @@ void menu_leave_map_scrolled(Snes *s, uint8_t named, MenuAxis axis, int8_t step)
     m_sep(s, CPU_FLAG_M);
 }
 
+/* Taking the plane and the step from the cells, the registers left and the
+ * return are the calling convention's work: the scroll's rate is what its C
+ * callers (the object scripts, the overworld's walk) time its work at, where
+ * none of it happens, so they are left out of the estimate. */
 static void scroll_entry(Snes *s, MenuAxis axis)
 {
     GameState *g = state_of(s);
+    uint32_t uncounted = 0;
+    ORIGINAL_EFFECT(uncounted = charge_uncounted_begin(g));
     uint8_t plane = named_plane(g);
     int8_t step = (int8_t)menu_object_scratch_step(g);
+    ORIGINAL_EFFECT(charge_uncounted_end(g, uncounted));
     menu_map_scroll(g, plane, axis, step);
+    ORIGINAL_EFFECT(uncounted = charge_uncounted_begin(g));
     menu_leave_map_scrolled(s, plane, axis, step);
     m_rts(s);
+    ORIGINAL_EFFECT(charge_uncounted_end(g, uncounted));
 }
 
 // $C2:0568
