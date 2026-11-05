@@ -499,16 +499,19 @@ def drifted_values(agg, exceptions):
     return out
 
 
-def interrupted_values(agg):
+def interrupted_values(agg, also=()):
     """{name: calibrated cost_milli} for the entries whose measured time is
-    mostly in stretches an interrupt fell in: the routines whose calls outlast
+    mostly in stretches an interrupt fell in and that have too few others for
+    the drift limit to judge (MIN_STRETCHES): the routines whose calls outlast
     a frame (a battle's setup, a load screen's), which the measurement left out
-    until it took the handlers' time out of them. What a calibration over part
+    until it took the handlers' time out of them, so no calibration reached. What a calibration over part
     of the library may set without moving the entries the library calibrates
     (docs/REIMPLEMENTATION.md, "The timing gate"); a dispatcher among them
     takes its parts among them at their new values and the rest at their
-    present ones."""
-    chosen = {name for name, e in agg.items() if e.measured and 2 * e.int_original > e.original}
+    present ones. `also` names entries to set with them: one whose own work
+    changed (a charge added) since the library last calibrated it."""
+    chosen = {name for name, e in agg.items()
+              if e.measured and (name in also or (2 * e.int_original > e.original and e.stretches < MIN_STRETCHES))}
     out = {}
 
     def value(name):
@@ -582,6 +585,8 @@ def main(argv=None):
                     help="with --calibrate, rewrite only the entries over the drift limit (after adding movies)")
     ap.add_argument("--interrupted", action="store_true",
                     help="with --calibrate, rewrite only the entries measured mostly in interrupted stretches")
+    ap.add_argument("--also", nargs="*", default=[], metavar="ENTRY",
+                    help="with --interrupted, these entries too")
     args = ap.parse_args(argv)
 
     agg = load(args.logs)
@@ -595,7 +600,7 @@ def main(argv=None):
         if args.drifted:
             values = drifted_values(agg, read_exceptions(args.exceptions))
         elif args.interrupted:
-            values = interrupted_values(agg)
+            values = interrupted_values(agg, set(args.also))
         for name, old, new in calibrate(agg, args.calibrate, values):
             print("  %s: %d -> %d" % (name, old, new))
         return 0

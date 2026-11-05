@@ -176,7 +176,7 @@ class TimingGateTest(unittest.TestCase):
         self.assertEqual(setup.calibrated, 6000)
         self.assertNotIn("worst", tg.exceeded(setup))   # its errors are no stretch's own
         self.assertEqual(agg["plain"].calibrated, 4010)
-        self.assertEqual(tg.interrupted_values(agg), {"setup": 6000})
+        self.assertEqual(tg.interrupted_values(agg), {"setup": 6000})   # "plain" has its own calibration
 
     def test_calibrate_drifted_follows_a_handler_into_its_dispatcher(self):
         # The handler is 50% off on its own calls; once it is set right, the
