@@ -266,6 +266,25 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Prune the evidence cache.** `<build>/evidence-cache` gains a set of
   entries for every ct_dev binary and drops none; keep only the entries
   the current binary's keys name, or the newest few binaries'.
+- **What the data teardown's review left** (not blocking):
+  - `scene_boot` has no don't-care set and no longer leaves N and Z as the
+    data bank's after the unpack; if `scene_accept_continuation` refuses,
+    shadow mode compares them at `$7E:3000` and they differ. Declare them or
+    reproduce them.
+  - `$CE:E326`-`$CE:E332` writes `$030C`/`$0310`/`$0314` absolute indexed by
+    X, inside the unpacker's new uncompared range `$0309`-`$0316`: confirm its
+    X and data bank never reach those cells, or narrow the range to the
+    unpacker's own.
+  - REIMPLEMENTATION.md's teardown section says nothing else is mapped at
+    `$0309`-`$0316`; the range also covers unmapped gaps (`$030C`, `$030E`,
+    `$0311`-`$0314`). Say so.
+  - PLAN.md's machine-joints row (2,213 entries, 2,063 scaffolding writes)
+    disagrees with REIMPLEMENTATION.md's 2,241 -> 2,239 and 2,065 -> 2,062;
+    rerun `machine_joints.py` and take one count.
+- **`scene_curtain_jump`'s drift exception has a stale reason.** It explains a
+  negative error (the 18-clock jump estimated as 0), but the library run of
+  `92026499` measures +2.92%, probably the curtain sweep's own drift in the
+  stretch. Re-measure and rewrite the reason.
 - **What the whole-library fixes' review left** (not blocking):
   - The uncompared baseline's eight scene and warp lines aren't tied to the
     evidence that clears them on an ordinary run: `endings-bucket-lavos` is
