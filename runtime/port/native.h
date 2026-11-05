@@ -145,7 +145,7 @@ typedef struct NativeStats {
     /* Timing measurement (docs/REIMPLEMENTATION.md, "Can a hand port be exact?"),
      * reported with native_set_timing_report. SHADOW, over every stretch no
      * interrupt fell in (a stretch is a call, or the part of one between
-     * call-outs): how many; the original's CPU time and the port's bus clocks
+     * call-outs; the interrupted ones are below): how many; the original's CPU time and the port's bus clocks
      * summed (their ratio, less DMA's time, which is the same in both, is
      * the calibrated cost_milli); how many the
      * cost_milli estimate got exactly right; the estimate's total and largest
@@ -156,6 +156,12 @@ typedef struct NativeStats {
     uint64_t t_original_clocks, t_bus_clocks, t_dma_clocks;   /* t_dma_clocks: the part of both DMA took */
     uint64_t t_estimate_error, t_fit_horizon_clocks, t_fit_interrupt_clocks;
     uint32_t t_estimate_max_error;
+    /* The stretches an interrupt fell in, measured with the handlers' time
+     * taken out (end_segment): how many, the original's time so, the port's
+     * bus clocks and their DMA part, and the estimate's absolute error. Their
+     * attributed clocks are among t_parts. */
+    unsigned t_int_stretches;
+    uint64_t t_int_original_clocks, t_int_bus_clocks, t_int_dma_clocks, t_int_estimate_error;
     /* The estimate's absolute error per stretch, counted by bit length: bucket
      * 0 is exact, bucket k (1..NATIVE_ERROR_BUCKETS-1) holds errors of k bits
      * (2^(k-1) to 2^k - 1 master clocks), and the last bucket everything

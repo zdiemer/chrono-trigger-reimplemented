@@ -4,6 +4,7 @@
     python3 tools/timing_gate.py build/suite/shadow-*.log --table    (every entry's numbers)
     python3 tools/timing_gate.py build/suite/shadow-*.log --calibrate game/registry.c
     python3 tools/timing_gate.py build/suite/shadow-*.log --calibrate game/registry.c --drifted
+    python3 tools/timing_gate.py logs/shadow-*.log --calibrate game/registry.c --interrupted
 
 A hand port charges its time as an estimate: its DMA transfers' time as it is,
 and `cost_milli`/1000 times the rest of its own bus clocks (docs/PORTING.md).
@@ -12,7 +13,12 @@ original, which runs on the interpreter in shadow mode, over every stretch of a
 port no interrupt fell in (runtime/port/native.c, end_segment): the totals of
 the original's time, the port's bus clocks and their DMA part, the total
 absolute error, the largest, a histogram of the error by bit length, and the
-same for the stretches within one vblank. This reads those reports from the
+same for the stretches within one vblank. A stretch an interrupt fell in is
+measured too, with the handlers' time taken out of the original's: its totals
+count with the rest (the drift, the calibration), its single error in none of
+the per-stretch limits. That is what measures a routine whose calls outlast a
+frame (a battle's setup, a load screen's), which before it no calibration
+reached. This reads those reports from the
 movie library's shadow logs, sums them per entry over the movies, and checks
 each entry against four limits, each tied to the budget an error could break
 (docs/REIMPLEMENTATION.md, "The timing gate"):
@@ -41,7 +47,9 @@ address with no hand port fails the check.
 
 --calibrate rewrites each measured entry's `cost_milli` in game/registry.c
 to the value the totals imply (with --drifted, only the entries over the drift
-limit: what adding movies to the library needs, docs/REIMPLEMENTATION.md): the original's
+limit: what adding movies to the library needs, docs/REIMPLEMENTATION.md; with
+--interrupted, only the entries measured mostly in interrupted stretches,
+which a calibration over part of the library may set): the original's
 time over the port's bus clocks, DMA's time (the same in both) left out of
 both, and for an entry with parts, the parts' estimates (at their routines' calibrated values) left out too.
 """
@@ -95,6 +103,8 @@ TOTALS = re.compile(r"^    timing: totals original (\d+) native-bus (\d+) dma (\
                     r"  error bits ([\d ]+)$")
 VBLANK = re.compile(r"^    timing: vblank stretches (\d+)  max \|error\| (\d+)  picture max \|error\| (\d+)"
                     r"  vblank error bits ([\d ]+)$")
+INTERRUPTED = re.compile(r"^    timing: interrupted stretches (\d+)  original (\d+) native-bus (\d+) dma (\d+)"
+                         r" \|error\| (\d+)$")
 PART = re.compile(r"^    timing: part ([0-9A-F]{6}) (\S+) native-bus (\d+) dma (\d+) cost_milli (\d+)$")
 BAD_TAGS = re.compile(r"^    timing: attributions to no hand port (\d+) \(last ([0-9A-F]{6})\)"
                       r"  past the parts' room (\d+)$")
@@ -123,6 +133,11 @@ class Entry:
     def __init__(self, name, addr):
         self.name, self.addr = name, addr
         self.stretches = self.exact = self.max_error = 0
+        # The stretches an interrupt fell in, measured with the handlers' time
+        # taken out: their totals are among original, bus, dma and error (the
+        # estimate, the drift and the calibration), their single errors in
+        # none of the per-stretch limits.
+        self.int_stretches = self.int_original = 0
         self.original = self.bus = self.dma = self.error = 0
         self.vblank_stretches = self.vblank_max = self.picture_max = 0
         self.cost_milli = None
@@ -141,7 +156,8 @@ class Entry:
                              % (self.name, self.cost_milli, other.cost_milli))
         if other.cost_milli is not None:
             self.cost_milli = other.cost_milli
-        for f in ("stretches", "exact", "original", "bus", "dma", "error", "vblank_stretches", "movies"):
+        for f in ("stretches", "exact", "original", "bus", "dma", "error", "vblank_stretches", "movies",
+                  "int_stretches", "int_original"):
             setattr(self, f, getattr(self, f) + getattr(other, f))
         for f in ("max_error", "vblank_max", "picture_max"):
             setattr(self, f, max(getattr(self, f), getattr(other, f)))
@@ -162,12 +178,17 @@ class Entry:
         self.bad_tag = other.bad_tag or self.bad_tag
 
     @property
+    def measured_stretches(self):
+        """Every stretch the totals hold, the interrupted ones' included."""
+        return self.stretches + self.int_stretches
+
+    @property
     def mean_time(self):
-        return self.original / self.stretches if self.stretches else 0.0
+        return self.original / self.measured_stretches if self.measured_stretches else 0.0
 
     @property
     def mean_error(self):
-        return self.error / self.stretches if self.stretches else 0.0
+        return self.error / self.measured_stretches if self.measured_stretches else 0.0
 
     @property
     def relative_error(self):
@@ -255,6 +276,15 @@ def parse_report(text):
             cur.vblank_stretches, cur.vblank_max, cur.picture_max = (int(x) for x in m.groups()[:3])
             cur.vblank_hist = [int(x) for x in m.group(4).split()]
             continue
+        m = INTERRUPTED.match(line)
+        if m:
+            n, original, bus, dma, error = (int(x) for x in m.groups())
+            cur.int_stretches, cur.int_original = n, original
+            cur.original += original
+            cur.bus += bus
+            cur.dma += dma
+            cur.error += error
+            continue
         m = PART.match(line)
         if m:
             addr, name, bus, dma, cost = m.groups()
@@ -306,7 +336,7 @@ def read_exceptions(path):
 def exceeded(e):
     """The limits entry e exceeds, as {limit: (value, bound)}."""
     out = {}
-    if e.stretches >= MIN_STRETCHES and abs(e.drift) > DRIFT_LIMIT:
+    if e.measured_stretches >= MIN_STRETCHES and abs(e.drift) > DRIFT_LIMIT:
         out["drift"] = (e.drift, DRIFT_LIMIT)
     if e.vblank_stretches >= MIN_STRETCHES and e.vblank_tail() > TAIL_LIMIT:
         out["vblank-tail"] = (e.vblank_tail(), TAIL_LIMIT)
@@ -353,9 +383,9 @@ def fmt_value(limit, value, bound=False):
 
 
 def describe(e):
-    return ("%d stretches in %d movie(s), mean time %.0f, mean |error| %.0f (%.1f%%), drift %+.2f%%, max %d; "
+    return ("%d stretches (%d interrupted) in %d movie(s), mean time %.0f, mean |error| %.0f (%.1f%%), drift %+.2f%%, max %d; "
             "in vblank %d, off by >= %d clocks %.2f%%, max %d; cost_milli %d, calibrated %d"
-            % (e.stretches, e.movies, e.mean_time, e.mean_error, 100 * e.relative_error, 100 * e.drift,
+            % (e.measured_stretches, e.int_stretches, e.movies, e.mean_time, e.mean_error, 100 * e.relative_error, 100 * e.drift,
                e.picture_max, e.vblank_stretches, 1 << TAIL_BITS, 100 * e.vblank_tail(), e.vblank_max,
                e.cost_milli, e.calibrated))
 
@@ -469,6 +499,30 @@ def drifted_values(agg, exceptions):
     return out
 
 
+def interrupted_values(agg):
+    """{name: calibrated cost_milli} for the entries whose measured time is
+    mostly in stretches an interrupt fell in: the routines whose calls outlast
+    a frame (a battle's setup, a load screen's), which the measurement left out
+    until it took the handlers' time out of them. What a calibration over part
+    of the library may set without moving the entries the library calibrates
+    (docs/REIMPLEMENTATION.md, "The timing gate"); a dispatcher among them
+    takes its parts among them at their new values and the rest at their
+    present ones."""
+    chosen = {name for name, e in agg.items() if e.measured and 2 * e.int_original > e.original}
+    out = {}
+
+    def value(name):
+        if name not in out:
+            e = agg[name]
+            out[name] = e.cost_milli    # while its parts are worked out: no cycle of parts
+            out[name] = e.calibrated_with({p: value(p) for p in e.parts if p in chosen})
+        return out[name]
+
+    for name in chosen:
+        value(name)
+    return out
+
+
 def calibrate(agg, registry, values=None):
     """Rewrite each measured entry's cost_milli in registry to its calibrated
     value, or with `values` ({name: cost_milli}, drifted_values) only those.
@@ -526,6 +580,8 @@ def main(argv=None):
                     help="rewrite cost_milli in this registry from the measurement")
     ap.add_argument("--drifted", action="store_true",
                     help="with --calibrate, rewrite only the entries over the drift limit (after adding movies)")
+    ap.add_argument("--interrupted", action="store_true",
+                    help="with --calibrate, rewrite only the entries measured mostly in interrupted stretches")
     args = ap.parse_args(argv)
 
     agg = load(args.logs)
@@ -535,7 +591,11 @@ def main(argv=None):
         table(agg)
     distribution(agg)
     if args.calibrate:
-        values = drifted_values(agg, read_exceptions(args.exceptions)) if args.drifted else None
+        values = None
+        if args.drifted:
+            values = drifted_values(agg, read_exceptions(args.exceptions))
+        elif args.interrupted:
+            values = interrupted_values(agg)
         for name, old, new in calibrate(agg, args.calibrate, values):
             print("  %s: %d -> %d" % (name, old, new))
         return 0

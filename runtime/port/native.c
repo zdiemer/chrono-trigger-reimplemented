@@ -20,6 +20,8 @@ static void push16_raw(Snes *s, uint16_t v)
 }
 
 #define MAX_ACTIVE 32
+/* Interrupt handlers the timing follows into, one within another. */
+#define MAX_HANDLERS 8
 /* Details kept for the report: of mismatches, and apart from them of
  * everything else (an abandoned comparison, a timing note), so that notes
  * can't crowd out the mismatch the gate fails on. native_set_details lowers
@@ -191,6 +193,9 @@ typedef enum {
  * the payment returns there. */
 typedef struct Debt {
     uint32_t clocks;
+    /* Of clocks, the time of the port's longest DMA transfer (or the longest
+     * of each run the debt took in), paid first and as one step (pay_debt). */
+    uint32_t dma;
     uint32_t pc;
     uint16_t s;
     /* An interrupt was taken at the boundary and its handler hasn't come back
@@ -245,6 +250,12 @@ typedef struct Active {
     unsigned long segment_port_clears[2];   /* apu_port_clears when the segment started */
     uint64_t segment_horizon, segment_interrupt_horizon;   /* SHADOW: at the segment's start (timing spike) */
     bool segment_interrupted, interrupted, mismatched;
+    /* SHADOW: the interrupt handlers open when the segment started, and the
+     * time handlers taken at that depth had spent (NativeRuntime.handler_clocks):
+     * what an interrupted stretch's own time leaves out. */
+    int segment_handler_depth;
+    uint64_t segment_handler_mark;
+    unsigned long segment_handlers_lost;
     uint16_t segment_low_s;   /* SHADOW: the lowest S the original has reached in the segment */
     /* SHADOW, an interrupt entry (NativeEntry.interrupt): the original is at an
      * RTI in the segment, and it has run one; and the stack it moved from in
@@ -412,6 +423,19 @@ struct NativeRuntime {
     bool timing_report;
     bool page_report;
     uint64_t step_master, prev_step_master;   /* SHADOW: master clock at the latest two steps */
+    /* SHADOW: the interrupts the original took and hasn't returned from yet,
+     * each with when it was taken and the S its return comes back to, and per
+     * depth the time spent in the handlers taken there (nested ones within
+     * them included): what the timing of a stretch an interrupt fell in takes
+     * out of the original's time (end_segment). */
+    int handlers_open;
+    uint64_t handler_taken[MAX_HANDLERS];
+    uint16_t handler_returns_s[MAX_HANDLERS];
+    uint64_t handler_clocks[MAX_HANDLERS + 1];
+    /* Handlers that never came back to where they were taken (the menus'
+     * vblank handler goes on in another task, on its own stack): given up
+     * after HANDLER_LOST_CLOCKS, and a stretch they fell in isn't measured. */
+    unsigned long handlers_lost;
     uint16_t prev_s;                          /* SHADOW: the original's S at the latest step */
     uint16_t step_s, before_step_s;           /* the machine's S at the latest two steps (every mode) */
     Snes *timing_copy;                        /* the machine as it was before a port ran, to put it back */
@@ -514,6 +538,7 @@ static void count_from(Active *a, Snes *m)
 {
     m->bus.clocks = 0;
     a->dma_mark = m->bus.dma_clocks;
+    m->bus.dma_longest = 0;
     Job *j = a->job;
     if (j) {
         j->part_bus = 0;
@@ -1135,13 +1160,27 @@ static void end_segment(NativeRuntime *rt, Active *a, Snes *s)
     if (a->segment_bad_tags)
         st->t_bad_tag = a->segment_bad_tag;
     st->t_part_overflows += a->segment_part_overflows;
-    /* Timing: the estimate against the original, which only a stretch no
-     * interrupt fell in measures, and whether the stretch fit (its last
-     * instruction, the step before this one, started before the horizon it had
-     * when it began). Shadow mode's original runs on the interpreter, so this
-     * is the same in every run whatever the ports' estimates are. */
-    if (a->segment_interrupted)
-        return;
+    /* Timing: the estimate against the original, and whether the stretch fit
+     * (its last instruction, the step before this one, started before the
+     * horizon it had when it began). Shadow mode's original runs on the
+     * interpreter, so this is the same in every run whatever the ports'
+     * estimates are. A stretch an interrupt fell in measures the estimate too
+     * once the handlers' time is taken out, if every handler taken in it
+     * returned in it: the port's debt is paid with the same handlers taken
+     * meanwhile (owe), so the rest is what the estimate stands for. Its totals
+     * count, so that a routine whose calls always outlast a frame (a battle's
+     * setup, a load) is measured and calibrated at all, but not its single
+     * error: where its interrupts land, and so what its error moves, is the
+     * per-stretch limits' business only for a stretch none fell in. */
+    bool interrupted = a->segment_interrupted;
+    if (interrupted) {
+        if (rt->handlers_open != a->segment_handler_depth || rt->handlers_lost != a->segment_handlers_lost)
+            return;
+        uint64_t handlers = rt->handler_clocks[a->segment_handler_depth] - a->segment_handler_mark;
+        if (handlers >= original)
+            return;
+        original -= handlers;
+    }
     uint64_t estimate = estimate_parts(rt, a->entry, a->segment_bus_clocks, a->segment_dma_clocks, a->segment_parts,
                                        a->segment_nparts);
     /* the stretch's timing is its owner's (stretch_owner): the owner's own
@@ -1160,6 +1199,14 @@ static void end_segment(NativeRuntime *rt, Active *a, Snes *s)
     if (owner >= 0 && own.bus)
         add_time_part(st, &own);
     uint64_t error = estimate > original ? estimate - original : original - estimate;
+    if (interrupted) {
+        st->t_int_stretches++;
+        st->t_int_original_clocks += original;
+        st->t_int_bus_clocks += a->segment_bus_clocks;
+        st->t_int_dma_clocks += a->segment_dma_clocks;
+        st->t_int_estimate_error += error;
+        return;
+    }
     st->t_stretches++;
     st->t_original_clocks += original;
     st->t_bus_clocks += a->segment_bus_clocks;
@@ -1434,18 +1481,23 @@ static bool unpark(NativeRuntime *rt, Snes *s, uint32_t pc)
     return false;
 }
 
-/* ON: add time a port owes at where the machine is now. */
-static void owe(NativeRuntime *rt, const Snes *s, uint32_t clocks)
+/* ON: add time a port owes at where the machine is now, `dma` of it its
+ * longest DMA transfer's. */
+static void owe(NativeRuntime *rt, const Snes *s, uint32_t clocks, uint32_t dma)
 {
     if (!clocks)
         return;
+    if (dma > clocks)
+        dma = clocks;
     uint32_t pc = cpu_pc24(&s->cpu);
     Debt *top = rt->ndebts ? &rt->debts[rt->ndebts - 1] : NULL;
     if (top && ((top->pc == pc && top->s == s->cpu.s) || rt->ndebts == MAX_DEBTS)) {
         top->clocks += clocks;   /* the same point (or no room: paid with the latest) */
+        if (dma > top->dma)
+            top->dma = dma;
         return;
     }
-    rt->debts[rt->ndebts++] = (Debt){ .clocks = clocks, .pc = pc, .s = s->cpu.s };
+    rt->debts[rt->ndebts++] = (Debt){ .clocks = clocks, .dma = dma, .pc = pc, .s = s->cpu.s };
 }
 
 /* A step of up to `clocks` that native code (a debt's payment, an idle wait)
@@ -1506,7 +1558,27 @@ static int32_t pay_debt(NativeRuntime *rt, Snes *s, uint32_t pc)
     }
     /* Not here, not deeper and no handler of its own running: the machine
      * left the boundary some other way (an interrupt it didn't take after
-     * all, a handler that never came back): the time is paid where it is. */
+     * all, a handler that never came back): the time is paid where it is.
+     *
+     * The port's longest DMA transfer first, whole: the original's transfer
+     * stalls the CPU inside the one instruction that starts it, which nothing
+     * interrupts, so a transfer longer than what is left of the frame (a load
+     * that clears video memory in forced blank) ends the frame's step past a
+     * second vblank, as the original's does. (Its other transfers are paid
+     * with the rest: they are shorter, and all of them at once would be a step
+     * no instruction of the original's takes.) Paid a line at a time it made the
+     * run count one more frame than the reference over every such load, and
+     * the movie's presses met the game a frame early from the first load on:
+     * the load screen's frame count, which the battles' random numbers start
+     * from, a frame short. */
+    if (d->dma) {
+        uint32_t spend = d->dma;
+        d->dma = 0;
+        d->clocks -= spend;
+        if (!d->clocks)
+            rt->ndebts--;
+        return (int32_t)spend;
+    }
     uint32_t spend = until_interrupt(s, d->clocks < SNES_CLOCKS_PER_LINE ? d->clocks : SNES_CLOCKS_PER_LINE);
     d->clocks -= spend;
     if (!d->clocks)
@@ -1537,8 +1609,10 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
     part_flush(j);
     if (rt->mode == NATIVE_ON) {
         owe(rt, s, (uint32_t)estimate_parts(rt, a->entry, m->bus.clocks, m->bus.dma_clocks - a->dma_mark, j->parts,
-                                            j->nparts));
+                                            j->nparts),
+            m->bus.dma_longest);
         m->bus.clocks = 0;
+        m->bus.dma_longest = 0;
         if (j->state == JOB_SYNCING || j->state == JOB_WAITING) {
             a->phase = j->state == JOB_SYNCING ? PH_SYNC : PH_WAIT;
             a->sync_pc = cpu_pc24(&s->cpu);
@@ -1563,6 +1637,9 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
             a->segment_interrupt_horizon = snes_interrupt_horizon(s);
             memcpy(a->segment_port_clears, apu_port_clears, sizeof apu_port_clears);
             a->segment_interrupted = false;
+            a->segment_handler_depth = rt->handlers_open;
+            a->segment_handler_mark = rt->handler_clocks[rt->handlers_open];
+            a->segment_handlers_lost = rt->handlers_lost;
             a->segment_low_s = s->cpu.s;
             a->left_low_s = a->left_s = 0;
         }
@@ -2839,6 +2916,39 @@ static void drop_the_dropped(NativeRuntime *rt, Snes *s)
     }
 }
 
+/* SHADOW: the interrupt the original takes at this step, and each it comes
+ * back from (S back where it was taken), its time added to the depth it was
+ * taken at; a step that sees the same one deliverable again adds nothing. */
+static void handler_taken(NativeRuntime *rt, const Snes *s)
+{
+    uint64_t now = s->master - s->stall_total;
+    int open = rt->handlers_open;
+    if (open == MAX_HANDLERS || (open && rt->handler_returns_s[open - 1] == s->cpu.s && rt->handler_taken[open - 1] == now))
+        return;
+    rt->handler_taken[open] = now;
+    rt->handler_returns_s[open] = s->cpu.s;
+    rt->handlers_open = open + 1;
+}
+
+enum { HANDLER_LOST_CLOCKS = 2 * SNES_CLOCKS_PER_LINE * SNES_LINES_PER_FRAME };
+
+static void follow_handlers(NativeRuntime *rt, const Snes *s)
+{
+    uint64_t now = s->master - s->stall_total;
+    while (rt->handlers_open) {
+        int top = rt->handlers_open - 1;
+        if (now - rt->handler_taken[top] > HANDLER_LOST_CLOCKS) {
+            rt->handlers_open = top;
+            rt->handlers_lost++;
+            continue;
+        }
+        if (s->cpu.s < rt->handler_returns_s[top] || now <= rt->handler_taken[top])
+            return;
+        rt->handlers_open = top;
+        rt->handler_clocks[top] += now - rt->handler_taken[top];
+    }
+}
+
 static int32_t intercept(void *ctx, Snes *s)
 {
     NativeRuntime *rt = ctx;
@@ -2850,6 +2960,8 @@ static int32_t intercept(void *ctx, Snes *s)
     rt->step_master = s->master;
     rt->before_step_s = rt->step_s;
     rt->step_s = s->cpu.s;
+    if (rt->mode == NATIVE_SHADOW)
+        follow_handlers(rt, s);
 
     /* ON: a handler taken where a port waits for one (PH_WAIT), whether the
      * time it owes is still being paid there or not. */
@@ -2889,6 +3001,8 @@ static int32_t intercept(void *ctx, Snes *s)
         drop_the_dropped(rt, s);
 
     if (interrupt_deliverable(s)) {
+        if (rt->mode == NATIVE_SHADOW)
+            handler_taken(rt, s);
         for (int i = 0; i < rt->nactive; i++) {
             Active *a = &rt->active[i];
             if (a->phase == PH_SEGMENT || a->phase == PH_LATCH)
@@ -3526,12 +3640,16 @@ void native_report(const NativeRuntime *rt, FILE *out)
                 fprintf(out, " other x%u", st->page_other);
             fprintf(out, "\n");
         }
-        if (rt->timing_report && st->t_stretches) {
+        if (rt->timing_report && (st->t_stretches || st->t_int_stretches)) {
             double orig = (double)st->t_original_clocks;
+            unsigned per = st->t_stretches ? st->t_stretches : 1;
             /* The calibrated cost_milli is the one for the port's own clocks:
              * the original's time less DMA's and the attributed parts'
-             * estimates, over the rest of its bus clocks. */
-            double own_bus = (double)st->t_bus_clocks, own_dma = (double)st->t_dma_clocks, rest = orig;
+             * estimates, over the rest of its bus clocks, the interrupted
+             * stretches' included. */
+            double own_bus = (double)(st->t_bus_clocks + st->t_int_bus_clocks);
+            double own_dma = (double)(st->t_dma_clocks + st->t_int_dma_clocks);
+            double rest = orig + (double)st->t_int_original_clocks;
             for (unsigned k = 0; k < st->t_nparts; k++) {
                 const NativeTimePart *p = &st->t_parts[k];
                 own_bus -= (double)p->bus;
@@ -3540,8 +3658,8 @@ void native_report(const NativeRuntime *rt, FILE *out)
             }
             fprintf(out, "    timing: stretches %u  estimate exact %u  mean |error| %.1f  max |error| %u  of %.1f"
                          "  calibrated cost_milli %.0f\n",
-                    st->t_stretches, st->t_estimate_exact, (double)st->t_estimate_error / st->t_stretches,
-                    st->t_estimate_max_error, orig / st->t_stretches,
+                    st->t_stretches, st->t_estimate_exact, (double)st->t_estimate_error / per,
+                    st->t_estimate_max_error, orig / per,
                     own_bus > own_dma ? 1000.0 * (rest - own_dma) / (own_bus - own_dma) : 0.0);
             /* Exact totals and the error histogram, for aggregating over
              * movies (tools/suite.py's timing check). */
@@ -3551,6 +3669,11 @@ void native_report(const NativeRuntime *rt, FILE *out)
                     (unsigned long long)st->t_dma_clocks, (unsigned long long)st->t_estimate_error, e->cost_milli);
             for (unsigned k = 0; k < NATIVE_ERROR_BUCKETS; k++)
                 fprintf(out, " %u", st->t_error_hist[k]);
+            if (st->t_int_stretches)
+                fprintf(out, "\n    timing: interrupted stretches %u  original %llu native-bus %llu dma %llu |error| %llu",
+                        st->t_int_stretches, (unsigned long long)st->t_int_original_clocks,
+                        (unsigned long long)st->t_int_bus_clocks, (unsigned long long)st->t_int_dma_clocks,
+                        (unsigned long long)st->t_int_estimate_error);
             fprintf(out, "\n    timing: vblank stretches %u  max |error| %u  picture max |error| %u  vblank error bits",
                     st->t_vblank_stretches, st->t_vblank_max_error, st->t_picture_max_error);
             for (unsigned k = 0; k < NATIVE_ERROR_BUCKETS; k++)

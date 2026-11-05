@@ -160,6 +160,24 @@ class TimingGateTest(unittest.TestCase):
                             "    EVENT_CMD(0xC09ABC, listed, 4000),\n")
             self.assertEqual(tg.calibrate(agg, path, values), [("over", 4000, 4020)])
 
+    def test_interrupted_stretches_count_in_the_totals_only(self):
+        # A setup whose calls always outlast a frame: none uninterrupted, two
+        # measured with the handlers' time out, 6x its bus clocks against an
+        # estimate at 3x. And a port measured mostly uninterrupted.
+        report = (entry("setup", 1, 0, 1, 0, 3000, hist(), 0)
+                  + interrupted(2, 1200000, 200000, 600000)
+                  + entry("plain", 1000, 4000000, 1000000, 0, 4000, hist(b0=1000), 0, addr="C05678")
+                  + interrupted(1, 50000, 10000, 10000))
+        agg = tg.aggregate([tg.parse_report(REPORT + report), tg.parse_report(REPORT + report)])
+        setup = agg["setup"]
+        self.assertEqual((setup.stretches, setup.int_stretches, setup.measured_stretches), (2, 4, 6))
+        self.assertEqual(setup.original, 2400000)
+        self.assertAlmostEqual(setup.drift, 1200002 / 2400000 - 1, places=4)
+        self.assertEqual(setup.calibrated, 6000)
+        self.assertNotIn("worst", tg.exceeded(setup))   # its errors are no stretch's own
+        self.assertEqual(agg["plain"].calibrated, 4010)
+        self.assertEqual(tg.interrupted_values(agg), {"setup": 6000})
+
     def test_calibrate_drifted_follows_a_handler_into_its_dispatcher(self):
         # The handler is 50% off on its own calls; once it is set right, the
         # dispatcher that runs it inline (at the handler's old value) is over.
@@ -219,6 +237,13 @@ class TimingGateTest(unittest.TestCase):
 
 def part(addr, name, bus, dma, cost_milli):
     return "    timing: part %s %s native-bus %d dma %d cost_milli %d\n" % (addr, name, bus, dma, cost_milli)
+
+
+
+def interrupted(stretches, original, bus, error, dma=0):
+    """The line for an entry's stretches an interrupt fell in, the handlers' time taken out."""
+    return ("    timing: interrupted stretches %d  original %d native-bus %d dma %d |error| %d\n"
+            % (stretches, original, bus, dma, error))
 
 
 if __name__ == "__main__":
