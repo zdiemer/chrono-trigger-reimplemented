@@ -1786,6 +1786,10 @@ strings_dee300.141	text	DE:F8BD	DE:F8DF	text:dialog	strings_dee300 entry
 strings_dee300.142	text	DE:F8E0	DE:F8FA	text:dialog	strings_dee300 entry
 strings_dee300.143	text	DE:F8FB	DE:F916	text:dialog	strings_dee300 entry
 menu_dictionary_word	text	DE:FA00	DE:FD00	text:dialog-dictionary	accessor menu_dictionary_word
+strings_deff00	ptr16	DE:FF00	DE:FF09	raw	read
+strings_deff00.0	text	DE:FF0A	DE:FF20	text:dialog	strings_deff00 entry
+strings_deff00.1	text	DE:FF21	DE:FF36	text:dialog	strings_deff00 entry
+strings_deff00.2	text	DE:FF37	DE:FF51	text:dialog	strings_deff00 entry
 setup_character_graphics.116	lz	DF:0000	DF:2032	lz	setup_character_graphics entry
 setup_character_graphics.117	lz	DF:2033	DF:2922	lz	setup_character_graphics entry
 setup_character_graphics.126	lz	DF:2923	DF:4463	lz	setup_character_graphics entry
