@@ -3062,7 +3062,14 @@ list, by kind, is what `game/` still asks of one.
     elsewhere, battles most (279 and 291 of 460 at 40 and 30 clocks an
     access, against 296). Wants a rate that follows the mode (the
     overworld's scenes, the battle), or the routines that overrun named with
-    their own measured time.
+    their own measured time. Two loads that are mostly the CPU's own work
+    are the first to name: the load screen's setup (`$C2:800E`, 14.5
+    frames of the original's time, about 2.4 charged), whose shortfall
+    moves `frames_at_leaving`, and so where the battles start in their
+    random table, in a movie from a save (20 frames in
+    `battle-ozzies-fort`), and the battle's setup from the field (18
+    frames, none charged). `battle-ozzies-fort` measures both ("Ozzie's
+    Fort movie on the native program", below).
   - *The handlers' share of an upload.* The sound driver's upload time is
     the wall's under a light vblank handler; under the menus' busy one the
     original's song loads in about twice the frames. Waiting the CPU half's
@@ -3165,12 +3172,29 @@ list, by kind, is what `game/` still asks of one.
   slot 2 plays to its 39237-frame end in `ct_native`, showing, but the Super Slash
   battle in `$0B8` lasts 19960 frames there against the reference's 4726, so the
   movie's later presses open the trapped chest in `$0B3` the route leaves alone
-  and the run never reaches `$0B4`. Find why the battle runs four times as long
-  before counting the fort as native coverage; a fixed movie's timing can
-  diverge from the native program. The interpreter's
-  route completes all fort events and returns field control, shadow is clean,
-  and strict mode reaches the budget with saved-game drift. The native run also
-  reports two SNES-only video escapes, first at `$7E:5AEB`.
+  and the run never reaches `$0B4`. It is the time model's drift, not a port's
+  difference: the native pictures match the reference's pixel for pixel over
+  the stretch before the battle (frames 15010 to 16180), and what differs is
+  when things happen and the battle's random numbers. The load screen's setup
+  takes the original 14.5 frames (`$C2:800E`'s shadow time) and `ct_native`
+  charges about 2.4 (its sends); with the rest of the way in, the menus'
+  vblank count starts 20 frames early (frame 1702 against 1722) and the game leaves the menus with
+  `frames_at_leaving` `$30` against the reference's `$1C` (strict mode's `$1B`):
+  every battle draws from another place in the random table, the Super Slash
+  battle starting at `$5A` against `$4D`. The field runs a few frames ahead
+  (`tm_frame_time_left` gives every frame time for all its script turns), so
+  Flea's text in `$0B7` finishes at frame 8474 against 8488 and the press at
+  8485 closes it, where the reference's lands before the text ends. And the
+  battle's own setup, 18 frames of the original's main thread between the
+  field's last frame and the main loop's start, costs `ct_native` none: the
+  Super Slash battle's main loop starts at 16302 against 16321, its windows
+  slide in at 16318 against 16336, and Crono's first command menu opens at
+  16404 against 16428, so the recorded presses meet other menus (the item
+  and tech lists where the reference attacks). Forcing the reference's
+  `$1C` alone (a scratch run) doesn't bring it back: the Flea battle then
+  ends 3,064 frames late. Counting the fort as native coverage waits on the
+  time model's overruns ("Long movies still desync", above). The native run
+  also reports two SNES-only video escapes, first at `$7E:5AEB`.
 - **Ocean Palace movie playback.** `battle-golem-twins` and
   `events-ocean-palace-lavos` run for their full 20216 and 30364 frames in
   `ct_native` (exit 0), without a missing-C stop, but both report unsupported video
