@@ -156,6 +156,12 @@ uint32_t tm_host_frames(const Platform *pf);
  * in which the handlers run and the main thread doesn't, as the original's
  * frames went by while it worked. What is left is the frame's own, and goes. */
 void tm_host_charge(Platform *pf, uint32_t clocks);
+/* The main thread sits out what it owes now, rather than at its next wait,
+ * where another processor's time runs on from what it does next (a song's
+ * start, whose echo the sound driver waits for meanwhile): the frames owed, to
+ * the nearest, pass with the handlers running, and the main thread goes on
+ * where it stood. Less than half a frame owed stays owed. */
+void tm_host_sit_out_owed(Platform *pf);
 /* Lag frames so far. */
 uint32_t tm_host_lag_frames(const Platform *pf);
 

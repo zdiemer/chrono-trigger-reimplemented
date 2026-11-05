@@ -7,7 +7,8 @@
  * picture's end, the generator's replay, the pads, a wait routine that looks
  * again after the handlers until its request is answered, a wait for a
  * number of frames, a send to VRAM from the main thread, and the time model's
- * lag frames (the main thread sitting out the frames its charged work took).
+ * lag frames (the main thread sitting out the frames its charged work took,
+ * at its next wait or where it stands).
  * Exits non-zero on failure.
  *
  *   timing_test */
@@ -196,6 +197,28 @@ static void lagging_main(Platform *p, void *ctx)
     }
 }
 
+/* A sixth: the same work owed, sat out where the main thread stands (before
+ * a song's start, which the sound driver's time runs on from), then a quarter
+ * of a frame more, which stays owed. */
+static void sitting_out_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    tm_enable_interrupts(p, PF_AT(0), TM_INT_VBLANK);
+    for (int pass = 0;; pass++) {
+        note('M');
+        if (pass == 0) {
+            tm_host_charge(p, 2 * TIME_FRAME_CLOCKS);
+            game_owes = TIME_FRAME_CLOCKS + 1;
+            tm_host_sit_out_owed(p);
+            note('s');
+            tm_host_charge(p, TIME_FRAME_CLOCKS / 4);
+            tm_host_sit_out_owed(p);
+            note('t');
+        }
+        tm_wait_frame(p, PF_CALL(0, 0));
+    }
+}
+
 static Platform pf;
 
 int main(void)
@@ -312,6 +335,20 @@ int main(void)
     order[order_len] = 0;
     CHECK(strcmp(order, "M|V|V|V|VM|VM|") == 0, "the main thread sits out the frames it owes: %s", order);
     CHECK(tm_host_lag_frames(&lagging) == 3, "three lag frames (%u)", tm_host_lag_frames(&lagging));
+
+    /* the same three frames sat out where the main thread stands: it goes on
+     * in the third frame after, where it was; a quarter frame stays owed */
+    static Platform sitting;
+    TmHostProgram sit = { sitting_out_main, asking_vblank, NULL, NULL, lagging_owed };
+    order_len = 0;
+    tm_host_start(&sitting, &sit, 1);
+    for (int i = 0; i < 5; i++) {
+        tm_host_frame(&sitting);
+        note('|');
+    }
+    order[order_len] = 0;
+    CHECK(strcmp(order, "M|V|V|Vst|VM|") == 0, "the main thread sits out what it owes where it stands: %s", order);
+    CHECK(tm_host_lag_frames(&sitting) == 2, "two lag frames (%u)", tm_host_lag_frames(&sitting));
 
     printf("timing_test: %s\n", failures ? "FAILED" : "ok");
     return failures != 0;

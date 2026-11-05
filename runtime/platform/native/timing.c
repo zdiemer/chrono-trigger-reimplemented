@@ -91,6 +91,23 @@ static void lag_for_what_is_owed(TmHost *t)
     t->owed = 0;
 }
 
+void tm_host_sit_out_owed(Platform *pf)
+{
+    TmHost *t = &pf->timing;
+    if (t->part != TM_HOST_IN_MAIN)
+        return;
+    if (t->program.owed)
+        t->owed = sum(t->owed, t->program.owed(t->program.ctx));
+    uint32_t frames = (uint32_t)(((uint64_t)t->owed + TIME_FRAME_CLOCKS / 2) / TIME_FRAME_CLOCKS);
+    if (!frames)
+        return;
+    /* the main thread goes on in the frame after the last it sits out */
+    t->lagging += frames - 1;
+    t->owed = 0;
+    t->waiting = fiber_current();
+    fiber_switch(t->driver);
+}
+
 /* ---- The service's calls ------------------------------------------------------------------- */
 
 void tm_enable_interrupts(Platform *pf, PfOrigin o, uint8_t sources)

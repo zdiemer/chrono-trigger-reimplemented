@@ -3031,13 +3031,13 @@ list, by kind, is what `game/` still asks of one.
   - *A song held while the echo settles* loads at the wait's end, uncharged
     (`frontend/sound_host.c`, `sound_native.c`); only short songs met it in
     the library.
-  - *An echo wait charged that the original doesn't wait.* Entering Death
-    Peak's wind slope starts song $00 and then $22 a frame later; the host
-    charges $22's start 14 frames of echo wait left from $00's
-    (`echo_wait_left`), the original's start none, so the slope fades in 15
-    frames late and `events-death-peak-wind` drifts (`tools/drift.py`;
-    PLAYING.md, "Without the interpreter"). Find why the original's start
-    doesn't wait there before changing the charge.
+  - *The boot taken with time owed.* A song's start lets the port's time
+    pass before the host counts the echo's wait left (`native_sync`,
+    `tm_host_sit_out_owed`); the boot doesn't, so the driver booted starts
+    (and a boot's own echo wait counts) up to the port's owed time early.
+    Syncing the boot too moved `battle-guardian`'s strict run into menu code
+    with no port (`$C2:83FB`, frame 16396); port that or find what the sync
+    moved before taking it.
   - *The line interrupt switched with time owed.* `tm_enable_interrupts`
     lets a port's time pass first where the vblank handler goes on or off
     (PORTING.md, "A port that spans frames"; `debt_test`); turning the line

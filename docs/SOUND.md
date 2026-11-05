@@ -584,7 +584,18 @@ command answer the time the original's uploads took, which the CPU half then
 lets pass (`platform/time_model.h`; REIMPLEMENTATION.md, "The frame-level time
 model"): the boot's upload, a song's start, the bytes the driver loaded for it
 (`SoundDriver.bytes_sent`, `bytes_moved`) and before a song what is left of
-the echo's wait, so the game keeps the original's pace over its music within
+the echo's wait. The original's driver waits for its echo at the end of a
+song's start (`$0CCD`: the old delay's steps of timer 1 counted from the
+command, the upload's time among them, then the new delay's), taking every
+other command meanwhile (`$0892`), and leaves a song's start on the ports
+until the wait ends; the CPU half goes on with its work after the upload, so
+the wait runs through that work. So a song's start first lets the time the
+game's work has taken so far pass (`native_sync`; in `ct_native`,
+`tm_host_sit_out_owed`), and what is left is counted where the original's
+command reached the sound processor, not where the port's time had yet to
+be charged (entering Death Peak's wind slope starts song $22 some 27 frames
+of work after $00, which ended its wait meanwhile, and was charged 14 frames
+of it before). So the game keeps the original's pace over its music within
 a frame or two, and the driver booted starts its time when the original's
 would, at the upload's end (the time model's numbers were measured on the CPU
 half's port with the original driver, before the teardown). A saved state

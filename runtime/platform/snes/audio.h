@@ -8,6 +8,7 @@
 
 #include "platform/audio.h"
 #include "platform/snes/backend.h"
+#include "platform/time_model.h"
 
 PF_API void au_command(Platform *pf, PfOrigin o, AudioCommand c)
 {
@@ -100,7 +101,14 @@ PF_API bool au_driver_hosted(Platform *pf) { return pf_snes(pf)->apu.host_comman
  * (platform/time_model.h), which the machine lets pass where the CPU half
  * stands, as it would have waited on the ports: the frames an upload took
  * still go by, and interrupts are taken meanwhile (native_wait_time; the
- * shipping mode only, as a port's own estimate is). */
+ * shipping mode only, as a port's own estimate is).
+ *
+ * A song's start lets the time the port has taken so far pass first
+ * (native_sync), as the original's CPU half reached the ports only after that
+ * work: the host counts what is left of the echo's wait from where the sound
+ * processor stands. The original's driver waits for its echo through the
+ * CPU's work after a song's start, not after it: a load that starts one song
+ * and the next after its own work isn't charged the first one's wait. */
 PF_API bool au_driver_boot_taken(Platform *pf)
 {
     Snes *s = pf_snes(pf);
@@ -117,6 +125,8 @@ PF_API bool au_driver_command_taken(Platform *pf, AudioCommand c, uint8_t effect
     Apu *a = &s->apu;
     if (!a->host_command)
         return false;
+    if (time_sound_song_start(c.command))
+        native_sync(s);
     const uint8_t command[4] = { c.command, c.p1, c.p2, c.p3 };
     native_wait_time(s, a->host_command(a->host_ctx, a, command, effects_asked));
     return true;
