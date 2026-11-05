@@ -29,15 +29,12 @@ rest waits, is [PLAN.md](PLAN.md).
   already executed by their wrappers; teaching the estimate to distinguish
   those from real stops would remove the conservative count, not game work.
 - **Recorded outcomes across the library.** All 84 movies are recorded and
-  have strict ratchets, and 83 native ones (REIMPLEMENTATION.md, "Recorded
+  have strict and native ratchets (REIMPLEMENTATION.md, "Recorded
   outcomes"); their differences are excepted as debts. Resolve the excepted
   saved-game, picture and place differences before a teardown relies on
   those observables; none of the 84 is free of differences in either mode. Native
   power-on save RAM also starts at zero rather than the reference's `0x60`.
-  `battle-ozzies-fort` stops in `ct_native` at frame 38422 of 39237 (a cartridge
-  read at `$DE:FF00` in no resource of the catalogue), so it has no native
-  outcome and `outcomes.py --check --mode native` over the whole library fails
-  on it until it plays to its end. A storage teardown must supply the same saved-game
+  A storage teardown must supply the same saved-game
   projection from the new storage; a picture hash alone cannot establish
   that a visual difference cannot affect play.
 - **Keep the unreached ledger's preconditions when retiring the machine.**
@@ -2166,6 +2163,13 @@ rest waits, is [PLAN.md](PLAN.md).
     command lists (`$C2:C54F` and on) that the list's reader looks at: the
     format's terminator rule, read from the reader, would say why, and
     whether the pack needs the byte at all.
+  - **Resources only a read log finds**: a table the scripts name at run
+    time joins the catalogue only once some movie reads it, and `ct_native`
+    stops on a read in no resource. Of the `[[resource]]` tables in
+    `re/hints.toml`, the dialog strings at `$FF:5860` (84 strings) are the one
+    no accessor names and no movie reads; a play that enters a map whose
+    script names it stops there. Record a movie that reads it, or have the
+    catalogue take every hinted table whether or not a log names it.
   - **The accessors' addresses are keys** (PLATFORM.md, "The assets, as
     built"): each accessor still computes where the original kept its data,
     and the read finds the resource by it. Naming the resource in the
@@ -3158,10 +3162,12 @@ list, by kind, is what `game/` still asks of one.
   strict `ct_dev` reaches the movie's end with five character-record bytes
   differing from the reference, not a handler stop.
 - **Ozzie's Fort movie on the native program.** `battle-ozzies-fort` from ctsave12
-  slot 2 reaches its 39237-frame budget in `ct_native` with exit 0 and no reported
-  stop, but the display is blanked after only five screen setups. Determine where
-  its playback ceases to advance before counting the fort as native coverage;
-  a fixed movie's timing can diverge from the native program. The interpreter's
+  slot 2 plays to its 39237-frame end in `ct_native`, showing, but the Super Slash
+  battle in `$0B8` lasts 19960 frames there against the reference's 4726, so the
+  movie's later presses open the trapped chest in `$0B3` the route leaves alone
+  and the run never reaches `$0B4`. Find why the battle runs four times as long
+  before counting the fort as native coverage; a fixed movie's timing can
+  diverge from the native program. The interpreter's
   route completes all fort events and returns field control, shadow is clean,
   and strict mode reaches the budget with saved-game drift. The native run also
   reports two SNES-only video escapes, first at `$7E:5AEB`.

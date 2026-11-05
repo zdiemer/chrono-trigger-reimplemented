@@ -3305,22 +3305,22 @@ old artifacts before a run, so skipping a producer cannot pass on stale data.
 
 The ledger records the whole library, 84 movies (2,289,640 frames): the gate's
 37 first, the other 47 from the batched library run of `92026499`. Strict mode
-passes its ratchet on all 84 and native mode on 83, with these protected
-observations (after that run's drift-only calibration):
+passes its ratchet on all 84 and native mode on all 84, with these protected
+observations (after that run's drift-only calibration; `battle-ozzies-fort`'s
+native row was recorded after it, once the chest messages it reads joined the
+asset catalogue):
 
 | Mode | Saved game / save RAM matches (movies) | Picture match / drift / differ (checkpoints) | Place match / drift / differ (visits) |
 |---|---|---|---|
 | Strict | 42 / 80 of 84 | 1,062 / 178 / 6,508 | 436 / 163 / 271 |
-| Native | 36 / 71 of 83 | 576 / 96 / 6,944 | 91 / 452 / 324 |
+| Native | 36 / 72 of 84 | 583 / 97 / 7,068 | 93 / 461 / 330 |
 
 No movie matches every kind in either mode. These are existing debts,
 explicitly reasoned per movie, not a claim of harmless pixel changes.
 Power-on native save RAM starts at zero whereas the reference initializes
 it to `0x60`; the other end-state debts and place visits are named in the
 exceptions. A teardown can rely on the protected matches, not on a movie's
-aggregate ratchet pass. `battle-ozzies-fort` has no native outcome: it stops
-in `ct_native` before its end (TODO.md, "Recorded outcomes across the
-library"), so `--check --mode native` over the whole library fails on it.
+aggregate ratchet pass.
 
 A batched library run checks the recorded outcomes as the sample's runs do.
 A change that moves a drifting movie's observations (a recalibration) is
