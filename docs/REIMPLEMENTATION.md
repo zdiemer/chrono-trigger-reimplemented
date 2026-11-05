@@ -3154,6 +3154,28 @@ run as C. What holds the most entries to the registry, by distinct entries:
 | the battle's timers and frame dispatch (`$C1:8290`, `$CD:0C95`) | 15, 13 | the script channels and the frame's steps called out |
 | the vectors and stubs (`$00:FF10`, `$00:FF14`, `$00:0500`, `$00:0504`) | every handler | the interrupts reach each mode's handler by address |
 
+**The sprite-object mode's vblank, as calls.** The first row and the last
+met on the world map and the Epoch's screens: the vblank stub left the
+machine at `menu_object_nmi` (`$C2:015E`), whose frame steps were call-outs,
+and `menu_run_objects` called each object's handler by address. Now the stub
+calls the handler (`core/console.c`, a table of the handlers it calls), the
+handler runs its steps as C (`menu_run_or_call`, `menu/display.c`), and the
+object loop runs each handler's registered entry as C (`menu/objects.c`,
+`turn_on_the_machine`), each only where the registry would run that entry
+there -- its P mask with the decimal flag, widths, page, bank and guard, the
+return address pushed as the call pushes it -- and by the machine as before
+where it wouldn't. Census of the four world-map movies (`field-65m-bc`,
+`-dactyl`, `-dactyl-flight`, `field-12kbc-1f4`): entries the machine enters
+82 to 61, its call-outs 75,053 to 32,978 and stops 30,252 to 28,197;
+`menu_object_nmi`, `menu_run_objects`, the frame's five steps and the
+overworld's objects (`overworld_lead`, `_follow`, the vehicles, the Epoch,
+the dactyls, the sign, the region's song, 1,663 to 3,854 entries each) are no
+longer entered by the machine. Their rows stay registered: the calls find
+their contracts there, and the overworld's teardown retires them with its
+main loop's held wait. `tools/machine_joints.py` doesn't move: its patterns
+count stops and named call-outs, not the `m_jsr` and `m_jump_to` hand-offs
+this replaced.
+
 ### The sound driver's teardown
 
 The first subsystem taken off the gate (PLAN.md, "Retiring the gate,

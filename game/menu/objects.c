@@ -15,9 +15,11 @@
 
 #include "charge.h"
 #include "core/program.h"
+#include "menu/bridge.h"
 #include "menu/handlers.h"
 #include "original_effects.h"
 #include "port/machine.h"
+#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -286,17 +288,21 @@ bool menu_objects_run(GameState *g, Platform *pf)
 
 /* ---- On the machine ---- */
 
-/* The handler runs where it is registered, called as the original's JSR at
- * $C2:053E calls its jump through the slot's handler (menu_object_handler,
- * $C2:0553), which adds nothing to the call but the jump: a ported handler
- * runs as C, any other as the original. It says it is done with the carry.
+/* The handler runs as the original's JSR at $C2:053E calls its jump through
+ * the slot's handler (menu_object_handler, $C2:0553), which adds nothing to
+ * the call but the jump: a ported handler as C, called here where the
+ * registry would run its entry (its widths, decimal mode and guard), any
+ * other by the call, as the original. It says it is done with the carry.
  * False where it came back in a way the loop can't go on from, or left the
  * running object elsewhere than a slot: the original then carries on from
  * the call. */
+enum { TURN_SITE = 0xC2053E };
+
 static bool turn_on_the_machine(void *ctx, uint16_t address, uint16_t handler, bool *done)
 {
     Snes *s = ctx;
     GameState *g = state_of(s);
+    uint32_t routine = HANDLERS_BANK | handler;
     if (address != FIRST_SLOT_ADDRESS) {
         m_set_flag(s, CPU_FLAG_C, false);
         m_set_flag(s, CPU_FLAG_V, false);
@@ -305,7 +311,13 @@ static bool turn_on_the_machine(void *ctx, uint16_t address, uint16_t handler, b
     s->cpu.x = address;
     m_set_nz16(s, handler);
     m_sep(s, CPU_FLAG_M);
-    m_jsr(s, 0xC2053E, HANDLERS_BANK | handler);
+    const NativeEntry *port = native_hand_entry_at(s, routine);
+    if (port && !port->idle) {
+        if (!menu_run_any_widths(s, TURN_SITE, routine, port->fn))
+            return false;
+    } else {
+        m_jsr(s, TURN_SITE, routine);
+    }
     if (s->cpu.e || m_x8(s) || !menu_object_address_names_one(menu_object_current(g))) {
         m_stop_at_own(s, 0xC20541, 0);
         return false;

@@ -16,8 +16,11 @@
  * with no machine calls the program's functions instead and has none of them. */
 #include "core/console.h"
 
+#include "charge.h"
 #include "core/program.h"
+#include "menu/display.h"
 #include "port/machine.h"
+#include "port/native.h"
 #include "port/vars_ram.h"
 
 enum {
@@ -61,14 +64,36 @@ void console_vblank_vector(Snes *s) { m_stop_at(s, VBLANK_STUB, 0); }
 /* The line interrupt's vector: on through its stub. */
 void console_line_vector(Snes *s) { m_stop_at(s, LINE_STUB, 0); }
 
+/* The handlers the stubs call as C rather than leave the machine to find by
+ * address: the sprite-object mode's vblank, which runs the world map's and
+ * the Epoch's objects every frame. */
+static const struct {
+    uint32_t handler;
+    NativeFn run;
+} called_handlers[] = {
+    { MENU_OBJECT_VBLANK_HANDLER, menu_object_nmi },
+};
+enum { CALLED_HANDLERS = sizeof called_handlers / sizeof called_handlers[0] };
+
 /* An interrupt goes to the handler its stub names, or back to what it
- * interrupted where the mode has turned it away. */
+ * interrupted where the mode has turned it away. A handler with a row above
+ * is called where the registry would run it at its address (its widths,
+ * decimal mode and guard); anywhere else the machine goes on there. */
 static void take_interrupt(Snes *s, ProgramStub stub)
 {
-    if (stub.kind == PROGRAM_STUB_RETURNS)
+    if (stub.kind == PROGRAM_STUB_RETURNS) {
         m_rti(s);
-    else
-        m_jump_to(s, stub.handler);
+        return;
+    }
+    m_jump_to(s, stub.handler);
+    for (unsigned i = 0; i < CALLED_HANDLERS; i++) {
+        if (called_handlers[i].handler != stub.handler)
+            continue;
+        const NativeEntry *e = native_continuation_entry_at(s, stub.handler);
+        if (e && e->fn == called_handlers[i].run)
+            TIMED_AS(state_of(s), stub.handler, called_handlers[i].run(s));
+        return;
+    }
 }
 
 // $00:0500
