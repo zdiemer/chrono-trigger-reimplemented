@@ -20,7 +20,6 @@
 #include "core/memory.h"
 #include "core/palette.h"
 #include "core/tile_animation.h"
-#include "data/decompress.h"
 #include "event/contact.h"
 #include "event/event.h"
 #include "event/party.h"
@@ -2116,11 +2115,6 @@ const NativeEntry game_natives[] = {
     /* core: a block move stub written to RAM (guarded) */
     { .addr = 0x7E9690, .name = "memory_move_stub", .fn = memory_move_stub, .p_mask = CPU_FLAG_X, .p_value = 0,
       .cost_milli = 2741, .guard = memory_move_stub_present },
-
-    /* data */
-    { .addr = 0xC30002, .name = "decompress", .fn = decompress, .cost_milli = 4060 },
-    /* the same routine, called directly (JSL $C30557 from the scene boot and scene code) */
-    { .addr = 0xC30557, .name = "decompress_direct", .fn = decompress, .cost_milli = 4057 },
 
     /* event engine */
     { .addr = 0xC04009, .name = "event_screen_dispatch", .fn = event_screen_dispatch,
@@ -4894,3 +4888,14 @@ const NativeEntry game_natives[] = {
 };
 
 const int game_native_count = (int)(sizeof game_natives / sizeof game_natives[0]);
+
+/* The data subsystem's gate retired (docs/REIMPLEMENTATION.md, "The data
+ * subsystem's teardown"): the unpacker has no entry here, every port calls it
+ * as C, and the cells the original's unpacker keeps its place in as it works
+ * -- where a segment ends, the bits and control byte left, the last run's
+ * length and the last reference's place -- nothing but that routine reads.
+ * The C keeps them in locals, so the comparisons leave them out. */
+const NativeRange game_uncompared_wram[] = {
+    { 0x7E0309, 0x7E0316 },   /* decompress_segment_end .. decompress_scratch */
+};
+const int game_uncompared_wram_count = (int)(sizeof game_uncompared_wram / sizeof game_uncompared_wram[0]);

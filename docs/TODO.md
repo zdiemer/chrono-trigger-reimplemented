@@ -117,7 +117,7 @@ rest waits, is [PLAN.md](PLAN.md).
   (REIMPLEMENTATION.md, "Can a hand port be exact?"); the timing gate bounds the errors
   (REIMPLEMENTATION.md, "The timing gate"). Left open there: 25 entries whose
   time follows a path inside one routine, or a loop of the port's own, are on
-  `tools/timing_exceptions.txt` (the decompressor, the menu's text, glyphs and
+  `tools/timing_exceptions.txt` (the menu's text, glyphs and
   wave table, `field_rasterize_quad`, the field's sprite table, line-effect
   builders and map unpacker, whose rewrites no longer make the index steps
   the original's time follows, the field's object update, whose steps now
@@ -377,8 +377,7 @@ rest waits, is [PLAN.md](PLAN.md).
     original (history/reimplementation-chunks.md, "Phase 3, battle chunk 4: the party's working
     out"): a hit that steals as well (no record has one); an animation that names no movement
     (`$C1:3760`'s table past its nine rows, no animation the battle gives);
-    the decompressor from the effect graphics loader; and from the battle's
-    start, the wait tail's callee from the frame work and an effect's graphics
+    and from the battle's start, the wait tail's callee from the frame work and an effect's graphics
     loaded `$D1:ECF3`.
   - What the screen script's rows still turn away to the original
     (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"), none of it a
@@ -1142,11 +1141,10 @@ rest waits, is [PLAN.md](PLAN.md).
   say what differs.
 - **What the boot path's review left** (none rated translation): the
   setups still run under the dispatch's return (`scene/program.c`,
-  `scene_bridge_enter`), because each calls the original's code (the
-  unpacker's decompressor, a script's first step, the sound driver) and shadow
-  mode pairs those calls by the stack they are made at, and the title's ends
-  in the original's wait for its song (`$7E:5AAA`); with the decompressor and
-  the wait as C the frame goes. The title's setup still makes its unpacks and
+  `scene_bridge_enter`), because each calls the original's code (a script's
+  first step, the sound driver) and shadow mode pairs those calls by the
+  stack they are made at, and the title's ends in the original's wait for its
+  song (`$7E:5AAA`); with the wait as C the frame goes. The title's setup still makes its unpacks and
   first script step as calls through the machine to ports (`scene_run`), and
   `run_the_first_script` keeps D and DB on the machine stack; the race's does
   the same (`m_jsr_dc`). `math.c`'s
@@ -1197,10 +1195,7 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What the world map's setup review left** (none rated translation; the
   `menu_epoch_build_map` guard is a real precondition and the main loop's
-  call-out unreachable): `overworld/setup.c`'s loaders take the ROM call
-  site (`0xC2280C`...) so the machine's unpacker can rebuild the original's
-  frame, threading the call graph through the logic (give the unpacker a
-  game-state form); `overworld_load_the_map_tiles` is called without
+  call-out unreachable): `overworld_load_the_map_tiles` is called without
   `TIMED_AS(0xC227DE)` though the sends around it are tagged; the
   `doubled >> 15` carry term is 0 for every member byte the game makes;
   `menu_mode_beside`/`menu_random_beside` name a 16-bit clear's second byte
@@ -1478,8 +1473,7 @@ rest waits, is [PLAN.md](PLAN.md).
   byte -- one kind enum in `core/palette.h`, typed fields for the kind and
   fade channels; `cast.c`/`cast.h` say
   the first three NPCs note their graphics where every NPC from the third
-  overwrites the third record (`$C0:463D`); `characters.c`'s header calls the
-  unpacker the original's code (it is `data/decompress.c`), and its
+  overwrites the third record (`$C0:463D`); `characters.c`'s
   `leave_place_registers` works Y out inline unlike `field/leaves.c`;
   `unsigned place` where `PartyPlace` fits; `goes_on_after_sending` and
   `goes_on_after_leaving` near-twins; `colours.c` mixes `|` and `+` for the
@@ -1680,11 +1674,6 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What the world map's set up left** (history/reimplementation-chunks.md, "Phase 3, menus and
   overworld: the world map set up, its scenes' calls and the frame's
   input"):
-  - the world map's loads reach the unpacker through a callback
-    (`overworld/setup.c`'s `Unpacker`): the program's is C
-    (`overworld_unpacker`), the machine's calls the original's for
-    shadow mode to pair; once the comparison retires, the loads call
-    `unpack_stream` plainly;
   - `overworld_back_from_the_menus` is fuzzed up to the map's reload, which
     random states make through the original's call (a map the loader can't
     take); the reload itself is fuzzed alone (`overworld_load_the_map_again`)
@@ -1825,9 +1814,6 @@ rest waits, is [PLAN.md](PLAN.md).
     would bound it.
 - **What the menus' third chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   characters in the records"):
-  - a record's load calls the unpacker (`$C2:F542`, the decompressor's port
-    on the machine) as a call-out; the unpacker as C on the game's state
-    would take the menus' loads off the machine;
   - six-block sprites are left to the original by the guards (their sprites'
     offsets run past the record into the next); no menu shows one;
   - what sets `menu_record_buffer_half` (`$7E:0D72`: nothing in bank `$C2`
@@ -2258,15 +2244,12 @@ rest waits, is [PLAN.md](PLAN.md).
   the play time as they are. No movie reaches either; both want the input
   frame as a `tm_`/`in_` call that has an answer without a wait.
 - **The event commands still on the machine** (history/reimplementation-phase3a.md, "Phase 3a: event
-  onto the field's objects"): 21 bridges, rows of the language's table that
+  onto the field's objects"): 19 bridges, rows of the language's table that
   call out to code still the original's: the sound driver (`sound.c`),
   `$D6`'s and `$D4`'s carries (`party.c`, whose calls to the menus'
   services are C now and keep the machine only for the Y they leave), the
   location change from
-  `$C0:3B71`, `$4E`'s stack, and the unpacker (`$C3:0002`, still a
-  machine-shaped port: `$82` and `$83`, `characters.c`, call it on the
-  machine between their halves of C). A C unpacker taking a source and a
-  destination would make those two operations.
+  `$C0:3B71` and `$4E`'s stack.
 - **What the party on the map left** (history/reimplementation-chunks.md, "Phase 3, field and events:
   the party on the map"):
   - an object is made pushable by bit 1 of the byte event `$84` stores, and
@@ -2981,6 +2964,38 @@ comparisons.
 
 ## The native program
 
+- **The data subsystem's storage** (REIMPLEMENTATION.md, "The data
+  subsystem's teardown"). The unpacker's gate retired but its storage didn't
+  move: its callers name the stream and the destination in work RAM
+  (`decompress_source`, `decompress_dest`, `$7E:0300-$0305`) and it leaves
+  the length there (`decompress_length`), which the scene program's transfer
+  reads. As its callers' state leaves work RAM, `unpack_stream` takes the
+  stream and the destination as parameters and returns the length, and the
+  cells go with the last caller that reads them. The cells it worked in
+  (`$0309-$0316`) nothing of ours writes; `game_uncompared_wram`
+  (`game/registry.c`) leaves them out of every comparison, and goes with
+  the comparisons.
+- **The unpacker's seams with one implementation.** Its callers reach it
+  through callbacks made for a machine half that called it out: the world
+  map's `Unpacker` (`overworld/setup.h`, used by the overworld, the Epoch's
+  screens and the gate screen), which still takes the original's call site
+  and a "didn't come back" result it never gives, and the casting's
+  `SetUnpacker` (`event/characters.c`). They can be plain calls of
+  `unpack_stream`, and the loads' `bool` results lose the unpacking's arm.
+- **The unpacker's pace, kept by hand.** Its time on the machine is its
+  retired entries' estimate (`retired_rates` in `runtime/port/state_io.c`,
+  the entry's own 25 accesses for the machine halves that reached it
+  through the entry, `charge_settle` where they called it), only so the
+  strict and native plays keep the pace the recorded outcomes pin
+  (REIMPLEMENTATION.md, "The data subsystem's teardown"). The time model's
+  price, which `ct_native` charges, moved every strict ratchet. When the
+  outcomes are recorded again on purpose (or the machine's time is the
+  model's for every retired subsystem), charge the model's price, drop the
+  rates, the entry's accesses and the settles, and `unpack_stream_run` and
+  `unpack_stream_called` with them. The timing gate judges the unpacker's
+  estimate error inside its callers' stretches now; the callers on
+  `tools/timing_exceptions.txt` for it say so.
+
 - **CI has no no-SDL configuration.** All four jobs install SDL2, so they do
   not exercise `ct_native`'s headless-only build. Add a configuration with
   SDL2 and pkg-config discovery disabled, `CT_ROM` empty and `CT_WERROR=ON`.
@@ -3435,8 +3450,8 @@ list, by kind, is what `game/` still asks of one.
   `sound_host.c`'s echo waits and command queue over its own ports: the two
   want one core, which `ct_play` needs when it becomes `ct_native`.
 - **ROM data.** `ct_native` reads the game's data from the asset pack through
-  the store; what still reads cartridge addresses outside it, the
-  decompressor and the video transfers from ROM, is under "Assets as data
+  the store; what still reads cartridge addresses outside it, the video
+  transfers from ROM, is under "Assets as data
   files" (Platform).
 - **Reads past a table's end, as the original's glitches make them.** The
   original reads and writes past its tables where a player can push it there
@@ -3987,13 +4002,20 @@ waits on M5 rather than on a backend.
   which the original reads through the work RAM port, overlaps the race's scaler
   output (and the event variables), so the map can't name it in the scene's
   subsystem (`ram_map.py coverage --open`).
-- **The decompressor's port and the original part on streams that aren't
-  streams.** Fuzzing the program's unpacker (`scene_unpack_resource`) over
-  resource numbers past the table's 73 entries, where the "streams" are other
-  bytes of bank `$FE` pointing anywhere, mismatched on 30 of 2,000 states; on
-  the table's own entries none do. Find which input the decompressor
-  (`$C3:0557`, `decompress`) takes apart from the original -- a source in work
-  RAM the destination overwrites is the likeliest -- and guard or match it.
+- **The unpacker and the original part on streams that aren't streams.**
+  Fuzzing the program's unpacker (`scene_unpack_resource`) over resource
+  numbers past the table's 73 entries, where the "streams" are other bytes of
+  bank `$FE` pointing anywhere, mismatched on 30 of 2,000 states, while the
+  decompressor's comparison stood; on the table's own entries none do. Since
+  the data subsystem's teardown its callers' comparisons leave out the cells
+  it works in (REIMPLEMENTATION.md, "The data subsystem's teardown"): run that
+  fuzz again past the table, and what still differs is an input the C takes
+  apart from the original -- a source in work RAM the destination overwrites
+  is the likeliest. The game never makes one (every stream it unpacks is a
+  resource of the catalogue, which the gate's `asset outside the catalogue`
+  line holds it to), so make it a checked precondition of `unpack_stream`, a
+  native failure where a stream isn't the cartridge's, as a retired
+  subsystem's guards are assertions.
 - **The race's and the endings' setups call through the machine.** The
   program's unpacker by resource (`$7E:3691`) and a channel's first script
   step (`$7E:3749`) are ports now (`scene/boot.c`, `scene/script.c`), which

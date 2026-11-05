@@ -685,16 +685,19 @@ static uint32_t name_scene_resource(GameState *g, MenuSceneResource kind, uint8_
     return stream;
 }
 
-/* On the machine, the original's decompressor (a call-out), which takes the
+/* On the machine, the picture unpacked (data/decompress.c), and the
+ * registers left as the original's call to the decompressor leaves them: the
  * resource's number times three in X and the pointer's bank over its high
- * byte in A. */
-static void load_scene_resource(Snes *s, uint32_t site, MenuSceneResource kind, uint8_t number, uint32_t buffer)
+ * byte in A, as the original looks the stream up, and N and Z as the
+ * decompressor's last pull, of the data bank, sets them. */
+static void load_scene_resource(Snes *s, MenuSceneResource kind, uint8_t number, uint32_t buffer)
 {
-    uint32_t stream = name_scene_resource(state_of(s), kind, number, buffer);
+    GameState *g = state_of(s);
+    uint32_t stream = name_scene_resource(g, kind, number, buffer);
+    (void)unpack_stream_called(g, false);
     s->cpu.a = (uint16_t)((stream & 0xFF00) | (uint8_t)(stream >> 16));
     s->cpu.x = (uint16_t)(number * MENU_SCENE_POINTER_BYTES);
-    m_set_nz8(s, (uint8_t)(stream >> 16));
-    m_jsl(s, site, 0xC30002);
+    m_set_nz8(s, s->cpu.db);
     m_rtl(s);
 }
 
@@ -708,28 +711,28 @@ enum { SHARED_GRAPHICS = 2, SHARED_PALETTE = 1, SECOND_GRAPHICS = 13, SECOND_PAL
 /* The Mode 7 graphics most of the world maps' scenes share. */
 void menu_object_load_mode7_graphics(Snes *s)
 {
-    load_scene_resource(s, 0xC6E048, MENU_SCENE_GRAPHICS, SHARED_GRAPHICS, MODE7_GRAPHICS_BUFFER);
+    load_scene_resource(s, MENU_SCENE_GRAPHICS, SHARED_GRAPHICS, MODE7_GRAPHICS_BUFFER);
 }
 
 // $C6:E04D
 /* And their colours. */
 void menu_object_load_mode7_palette(Snes *s)
 {
-    load_scene_resource(s, 0xC6E06D, MENU_SCENE_PALETTES, SHARED_PALETTE, MODE7_PALETTE_BUFFER);
+    load_scene_resource(s, MENU_SCENE_PALETTES, SHARED_PALETTE, MODE7_PALETTE_BUFFER);
 }
 
 // $C6:E64A
 /* The Mode 7 graphics one world map's scene shows after the shared ones. */
 void menu_object_load_second_mode7_graphics(Snes *s)
 {
-    load_scene_resource(s, 0xC6E66A, MENU_SCENE_GRAPHICS, SECOND_GRAPHICS, MODE7_GRAPHICS_BUFFER);
+    load_scene_resource(s, MENU_SCENE_GRAPHICS, SECOND_GRAPHICS, MODE7_GRAPHICS_BUFFER);
 }
 
 // $C6:E66F
 /* And their colours. */
 void menu_object_load_second_mode7_palette(Snes *s)
 {
-    load_scene_resource(s, 0xC6E68F, MENU_SCENE_PALETTES, SECOND_PALETTE, MODE7_PALETTE_BUFFER);
+    load_scene_resource(s, MENU_SCENE_PALETTES, SECOND_PALETTE, MODE7_PALETTE_BUFFER);
 }
 
 /* ---- As C ----------------------------------------------------------------------------------- */
@@ -775,13 +778,13 @@ ROUTINE(ask)
 ROUTINE(note_the_song)
 ROUTINE(place_about_the_view)
 
-/* The pictures are unpacked by the decompressor as C. */
+/* The pictures, unpacked by the decompressor. */
 #define PICTURE(name, kind, number, buffer)                                          \
     static bool name##_routine(GameState *g, Platform *pf, MenuObject self, bool far) \
     {                                                                                \
         (void)pf, (void)self, (void)far;                                             \
         (void)name_scene_resource(g, kind, number, buffer);                          \
-        TIMED_AS(g, UNPACK_STREAM_ENTRY, (void)unpack_stream(g));                    \
+        (void)unpack_stream(g);                                                      \
         return true;                                                                 \
     }
 PICTURE(shared_graphics, MENU_SCENE_GRAPHICS, SHARED_GRAPHICS, MODE7_GRAPHICS_BUFFER)

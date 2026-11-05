@@ -525,6 +525,10 @@ target_link_libraries(time_parts_test PRIVATE ct_runtime)
 add_executable(sound_test tests/port/sound_test.c dev/mixer_check.c frontend/sound_host.c)
 target_include_directories(sound_test PRIVATE dev frontend)
 target_link_libraries(sound_test PRIVATE ct_game ct_vars_checked ct_runtime)
+# The unpacker on streams made up here, with no ROM: what replaced its
+# comparison with the original's when the data subsystem retired the gate.
+add_executable(unpack_test tests/port/unpack_test.c)
+target_link_libraries(unpack_test PRIVATE ct_game ct_vars_checked ct_runtime)
 # The accessors generated from re/ram.toml, and the page kinds' D mapping.
 # The asset pack and the reads through a store, with no ROM and no machine
 # (tests/frontend/assets_test.c is the backing of game/rom.h a build without

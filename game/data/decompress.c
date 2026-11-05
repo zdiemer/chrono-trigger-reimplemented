@@ -15,14 +15,18 @@
  * Literals go out through the work RAM port, and a reference copies inside
  * the destination's bank of work RAM, then points the port after what it
  * copied: so what the port leaves pointing at is where unpacking stopped.
- * The unpacked length is kept for the callers (decompress_length). */
+ * The unpacked length is kept for the callers (decompress_length).
+ *
+ * The gate no longer compares it with the original's routine (REIMPLEMENTATION.md,
+ * "The data subsystem's teardown"): it has no registered entry, every port
+ * calls it as C, and the cells the original keeps its place in as it works
+ * ($0309-$0316), which nothing else reads, it doesn't keep at all. */
 #include "data/decompress.h"
+
+#include <stdbool.h>
 
 #include "charge.h"
 #include "cpu_io.h"
-#include "original_effects.h"
-#include "port/machine.h"
-#include "port/vars_ram.h"
 #include "rom.h"
 #include "vars.h"
 #include "wram.h"
@@ -84,43 +88,29 @@ static void copy_run(Output *out, Reference r)
     hw_port_seek_address(out->g, out->at);
 }
 
-/* The decompressor's own cells, kept here as it works and left as the
- * original leaves them, which nothing reads after it: where the segment
- * ends, the item bits left of the control byte and the control bits left to
- * read, the last run's length and the last reference's place. */
-typedef struct {
-    uint16_t segment_end;
-    uint8_t bits_left, control;
-    bool controlled, referred;
-    uint8_t run_length;
-    uint16_t reference_at;
-} Workings;
-
-static void leave_the_cells(GameState *g, const Workings *l)
-{
-    set_decompress_segment_end(g, l->segment_end);
-    set_decompress_bits_left(g, l->bits_left);
-    if (l->controlled)
-        set_decompress_control(g, l->control);
-    set_decompress_copy_length(g, l->referred ? l->run_length : decompress_copy_length(g) & 0x00FF);
-    if (l->referred)
-        set_decompress_scratch(g, l->reference_at);
-}
-
-/* The original's time, which the timing gate measures the port by, and
- * the native shape keeps (charge.h; charged plainly, not as scaffolding): it
- * reads the stream and writes the output as the port does,
- * but keeps its place, its bits and its counts in its direct page's cells,
- * reading and writing them at each step where the port keeps them in locals.
- * Those accesses, by what it does: its cells set up, and read again at the
- * end; a look at whether the segment ends, at every turn of its loop; a
- * segment's header; a control byte; a reference, the run's length and its
- * place kept and read back, and the data bank kept on the stack over the
- * copy; and an item done, with the control byte going on or done. */
+/* The unpacking's time is as it was while it had entries, so the plays that
+ * pin the ports' pace (the strict and native recorded outcomes) don't move
+ * (charge.h, charge_retired): the port's own accesses at the rate of the
+ * entry it was reached through, and the accesses the original makes besides
+ * at the jump's entry's, as its charge was made; with no machine, the time
+ * model's price of the latter alone (platform/time_model.h). The original reads the stream
+ * and writes the output as the port does, but keeps its place, its bits and
+ * its counts in its direct page's cells, reading and writing them at each
+ * step where the port keeps them in locals. Those accesses, by what
+ * it does: its cells set up, and read again at the end; a look at whether
+ * the segment ends, at every turn of its loop; a segment's header; a control
+ * byte; a reference, the run's length and its place kept and read back, and
+ * the data bank kept on the stack over the copy; and an item done, with the
+ * control byte going on or done. */
 enum {
     ORIGINAL_START_AND_END = 9, ORIGINAL_LOOK_AT_THE_SEGMENT = 2, ORIGINAL_SEGMENT = 5, ORIGINAL_CONTROL = 1,
     ORIGINAL_REFERENCE = 11, ORIGINAL_ITEM_GOES_ON = 4, ORIGINAL_CONTROL_DONE = 3,
 };
+
+/* The routines the unpacking is timed as: the jump the game's code calls, or
+ * the routine itself, which the scene engine calls directly; their entries
+ * were calibrated apart. */
+enum { THE_UNPACKER = 0xC30002, THE_UNPACKER_DIRECT = 0xC30557 };
 
 /* What the unpacking came to, counted as it goes: the turns of its loop,
  * the segments' headers, the control bytes, the references, and the items
@@ -140,101 +130,93 @@ static uint32_t original_accesses(const Counts *n)
 /* The first segment's length, and so where it ends, comes first. */
 enum { FIRST_LENGTH_BYTES = 2, HEADER_BYTES = 3, BITS_IN_A_CONTROL = 8, HEADER_BITS = 0x3F };
 
-// $C3:0557 (entered through the jump at $C3:0002)
-uint16_t unpack_stream(GameState *g)
+static uint16_t unpack(GameState *g, Counts *n)
 {
-    uint32_t mark = 0;
-    Counts n = { 0 };
     uint32_t from = decompress_source(g), to = decompress_dest(g);
     Stream in = { g, (uint8_t)(from >> 16), (uint16_t)(from + FIRST_LENGTH_BYTES) };
     uint16_t first_length = (uint16_t)(rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
-    Workings l = { .segment_end = (uint16_t)(in.at + first_length), .bits_left = BITS_IN_A_CONTROL };
+    uint16_t segment_end = (uint16_t)(in.at + first_length);
+    uint8_t bits_left = BITS_IN_A_CONTROL;
     Output out = { g, (to >> 16) & 1 ? 0x7F0000u : 0x7E0000u, (uint16_t)to };
     hw_port_seek(g, out.at, (uint8_t)(to >> 16));
-    bool long_runs = rom_read8(g, (uint32_t)in.bank << 16 | l.segment_end) & LONG_RUNS;
+    bool long_runs = rom_read8(g, (uint32_t)in.bank << 16 | segment_end) & LONG_RUNS;
 
     for (;;) {
-        n.turns++;
-        if (in.at == l.segment_end) {
+        n->turns++;
+        if (in.at == segment_end) {
             uint8_t bits = stream_byte(&in, 0) & HEADER_BITS;
             if (!bits)
                 break;
-            n.segments++;
-            l.bits_left = bits;
-            l.segment_end = (uint16_t)(stream_word(&in, 1) + (uint16_t)from);
+            n->segments++;
+            bits_left = bits;
+            segment_end = (uint16_t)(stream_word(&in, 1) + (uint16_t)from);
             in.at += HEADER_BYTES;
             continue;
         }
         uint8_t control = stream_byte(&in, 0);
         if (!control) {
-            for (uint16_t n = 1; n <= BITS_IN_A_CONTROL; n++)
-                put_literal(&out, stream_byte(&in, n));
+            for (uint16_t k = 1; k <= BITS_IN_A_CONTROL; k++)
+                put_literal(&out, stream_byte(&in, k));
             in.at += 1 + BITS_IN_A_CONTROL;
             continue;
         }
-        n.controls++;
+        n->controls++;
         in.at++;
         bool reference = control & 1;
-        l.control = control >> 1;
-        l.controlled = true;
-        for (;; n.items++) {
+        control >>= 1;
+        for (;; n->items++) {
             if (reference) {
-                Reference r = reference_at(&in, long_runs);
-                l.referred = true;
-                l.run_length = (uint8_t)(r.length_less_three + 2);
-                l.reference_at = in.at;
-                n.references++;
-                copy_run(&out, r);
+                n->references++;
+                copy_run(&out, reference_at(&in, long_runs));
                 in.at += 2;
             } else {
                 put_literal(&out, stream_byte(&in, 0));
                 in.at++;
             }
-            if (--l.bits_left == 0) {
-                n.items++;
-                l.bits_left = BITS_IN_A_CONTROL;
+            if (--bits_left == 0) {
+                n->items++;
+                bits_left = BITS_IN_A_CONTROL;
                 break;
             }
-            reference = l.control & 1;
-            l.control >>= 1;
+            reference = control & 1;
+            control >>= 1;
         }
     }
+    return (uint16_t)(out.at - (uint16_t)to);
+}
 
-    uint16_t length = (uint16_t)(out.at - (uint16_t)to);
+// $C3:0557 (entered through the jump at $C3:0002)
+/* The stream unpacked, timed as `routine`, with `besides` accesses of the
+ * entry it was reached through. */
+static uint16_t unpack_timed_as(GameState *g, uint32_t routine, uint32_t besides)
+{
+    Counts n = { 0 };
+    uint32_t mark = charge_retired_begin(g);
+    uint16_t length = unpack(g, &n);
     set_decompress_length(g, length);
-    ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
-    ORIGINAL_EFFECT(leave_the_cells(g, &l));
-    ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-    charge_as(g, UNPACK_STREAM_ENTRY, original_accesses(&n));
-    (void)mark;
+    charge_retired_end(g, mark, routine, besides);
+    charge_retired_end(g, charge_retired_begin(g), THE_UNPACKER, original_accesses(&n));
     return length;
 }
 
-/* ---- The entry ------------------------------------------------------------------------------- */
+uint16_t unpack_stream(GameState *g) { return unpack_timed_as(g, THE_UNPACKER, 0); }
 
-/* The original saves every register on the stack and gives them all back,
- * N and Z as the data bank it pulls last sets them; on the way it takes the
- * stream's bank as its data bank through the stack, which leaves the bank in
- * the byte below the saved registers. */
-void decompress(Snes *s)
+uint16_t unpack_stream_direct(GameState *g) { return unpack_timed_as(g, THE_UNPACKER_DIRECT, 0); }
+
+/* Where a machine half reached it through its entry, the entry's own time
+ * goes with it: it saved every register on the stack and gave them back, and
+ * returned, 25 accesses. */
+enum { THE_ENTRY_S_OWN = 25 };
+
+uint16_t unpack_stream_run(GameState *g, bool direct)
 {
-    Cpu *c = &s->cpu;
-    GameState *g = state_of(s);
-    m_push8(s, c->db);
-    m_push16(s, c->d);
-    m_push8(s, c->p);
-    m_push16(s, c->a);
-    m_push16(s, c->x);
-    m_push16(s, c->y);
-    m_push8(s, (uint8_t)(decompress_source(g) >> 16));
-    (void)m_pull8(s);
-    unpack_stream(g);
-    c->y = m_pull16(s);
-    c->x = m_pull16(s);
-    c->a = m_pull16(s);
-    c->p = m_pull8(s);
-    c->d = m_pull16(s);
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
-    m_rtl(s);
+    return unpack_timed_as(g, direct ? THE_UNPACKER_DIRECT : THE_UNPACKER, THE_ENTRY_S_OWN);
+}
+
+uint16_t unpack_stream_called(GameState *g, bool direct)
+{
+    charge_settle(g);
+    uint16_t length = unpack_stream_run(g, direct);
+    charge_settle(g);
+    return length;
 }

@@ -56,8 +56,11 @@ def sources():
 
 
 def registry_entries():
+    """The addresses in the registry's table (game_natives), not in what
+    follows it (the retired subsystems' uncompared cells)."""
     text = (GAME / "registry.c").read_text(encoding="utf-8")
-    return len(ENTRY.findall(text))
+    start = text.index("game_natives[] = {")
+    return len(ENTRY.findall(text[start:text.index("\n};", start)]))
 
 
 def count(per_file):

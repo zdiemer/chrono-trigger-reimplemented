@@ -1524,43 +1524,27 @@ static unsigned record_on_page(const Snes *s)
     return record;
 }
 
-/* The unpacker, called as the original's load calls it, with 16-bit
- * registers; it reads none of them (its entry saves them all). */
-enum { UNPACK_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
 /* The load's block moves leave the data bank on work RAM. */
 static void leave_data_bank_on_work_ram(Snes *s) { s->cpu.db = MENU_DATA_BANK; }
 
-/* A record's sprite loaded, its graphics unpacked where it needs them: the
- * unpacker told where they come from and go, and called, as C or on the
- * machine; false where it went no further. */
-typedef bool (*Unpack)(void *ctx);
-
+/* A record's sprite loaded, its graphics unpacked where it needs them
+ * (data/decompress.c), `called` as the machine's entry called the unpacker. */
 // $C2:F422
-static bool load_the_record_sprite(GameState *g, unsigned record, Unpack unpack, void *ctx)
+static void load_the_record_sprite(GameState *g, unsigned record, bool called)
 {
     Unpacking u = load_record_sprite(g, record);
     if (!u.unpack)
-        return true;
+        return;
     set_decompress_source(g, u.from);
     set_decompress_dest(g, WORK_RAM_BANK | u.to);
-    return unpack(ctx);
+    (void)(called ? unpack_stream_called(g, false) : unpack_stream(g));
 }
 
-static bool unpack_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    menu_set_widths(s, false, false);
-    return menu_call_long(s, 0xC2F542, 0xC30002, UNPACK_IGNORES);
-}
-
+/* The original keeps P on the stack over the load and gives it back. */
 void menu_load_record_sprite(Snes *s)
 {
-    menu_save_p(s);
     ORIGINAL_EFFECT(leave_data_bank_on_work_ram(s));
-    if (!load_the_record_sprite(state_of(s), record_on_page(s), unpack_on_the_machine, s))
-        return;
-    menu_restore_p(s);
+    load_the_record_sprite(state_of(s), record_on_page(s), true);
     m_rts(s);
 }
 
@@ -1642,14 +1626,6 @@ static bool load_record_sprites(GameState *g, LoadRecord load, void *ctx)
     return true;
 }
 
-/* As C, the unpacker called as C. */
-static bool unpack_the_sprite(void *ctx)
-{
-    GameState *g = ctx;
-    TIMED_AS(g, UNPACK_STREAM_ENTRY, (void)unpack_stream(g));
-    return true;
-}
-
 static bool record_sprite_loadable(const GameState *g, unsigned record);
 static bool opening_records_fit(const GameState *g);
 
@@ -1662,9 +1638,8 @@ static bool load(void *ctx, unsigned record)
         program_needs_the_machine(g, 0xC2F422, "a record's sprite the port doesn't load");
         return false;
     }
-    bool loaded = false;
-    TIMED_AS(g, 0xC2F422, loaded = load_the_record_sprite(g, record, unpack_the_sprite, g));
-    return loaded;
+    TIMED_AS(g, 0xC2F422, load_the_record_sprite(g, record, false));
+    return true;
 }
 
 bool menu_record_sprite_loaded(GameState *g, unsigned record) { return load(g, record); }

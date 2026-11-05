@@ -27,8 +27,8 @@
  *
  * The screens call routines of the menus that are still the original's
  * (clearing VRAM, resetting the mode, waiting for a frame, the graphics
- * loader and the decompressor); those calls are made from bridges on the
- * machine, at the original's call sites. */
+ * loader); those calls are made from bridges on the machine, at the
+ * original's call sites. The decompressor is C (data/decompress.c). */
 #include "menu/epoch.h"
 
 #include "charge.h"
@@ -1652,18 +1652,6 @@ static const EpochScreenSteps screen_steps_on_the_machine = {
     wait_frames_on_the_machine, script_begun_on_the_machine,
 };
 
-/* The loader's own call to the decompressor ($C2:721B, its one site). */
-static bool unpack_by_the_loader_s_call(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
-{
-    (void)site;
-    Snes *s = ctx;
-    GameState *g = state_of(s);
-    set_decompress_source(g, stream);
-    set_decompress_dest(g, to);
-    m_jsl_dc(s, 0xC2721B, 0xC30002, READS_NOTHING | DC_DB | DC_D);
-    return true;
-}
-
 /* ---- As C ---- */
 
 typedef struct {
@@ -2195,7 +2183,7 @@ void menu_epoch_time_dial_digit(Snes *s)
 /* The stream's number is in the mode's cell at $08, its bank in A. */
 void menu_epoch_load_gate_stream(Snes *s)
 {
-    Unpacker u = { unpack_by_the_loader_s_call, s };
+    Unpacker u = overworld_unpacker_called(s);
     if (load_gate_stream_from(state_of(s), &u, menu_object_scratch_bytes_byte(state_of(s), 0x08), (uint8_t)s->cpu.a))
         m_rts(s);
 }

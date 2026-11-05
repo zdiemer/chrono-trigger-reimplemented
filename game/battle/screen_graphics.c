@@ -8,11 +8,13 @@
  * frame work, which takes frames; the battle's frame wait doesn't start
  * another effect's load meanwhile.
  *
- * Unpacking and sending are still the original's code, so the loader is a
- * bridge: the machine appears at those two calls and at the entry. */
+ * The unpacking is C (data/decompress.c); the sending is still a call to the
+ * frame work on the machine, so the loader is a bridge: the machine appears
+ * at that call and at the entry. */
 #include "battle/screen.h"
 
 #include "battle/bridge.h"
+#include "data/decompress.h"
 #include "original_effects.h"
 
 enum {
@@ -77,16 +79,14 @@ static void leave_effect_index_flags(Snes *s, uint8_t effect)
     leave_carry_and_overflow(s, twice + effect > 0xFF, as_signed < -128 || as_signed > 127);
 }
 
-/* Unpack a compressed block into the buffer: the decompressor ($C3:0002)
- * takes where from and where to in its cells, and none of the registers but
- * the carry and overflow, which it hands back as they came (the endings'
- * movies show the loader's callers reading the carry). */
-static bool unpack(Snes *s, uint32_t site, uint32_t from)
+/* Unpack a compressed block into the buffer (data/decompress.c), which
+ * leaves the registers as they came: the carry and overflow among them, which
+ * the endings' movies show the loader's callers reading. */
+static void unpack(GameState *g, uint32_t from)
 {
-    GameState *g = state_of(s);
     set_decompress_source(g, from);
     set_decompress_dest(g, UNPACK_BUFFER);
-    return battle_call_long(s, site, 0xC30002, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_DB | DC_D);
+    (void)unpack_stream_called(g, false);
 }
 
 /* Send the buffer to VRAM and wait for it to go: the frame work's transfer
@@ -117,8 +117,7 @@ void battle_load_effect_graphics(Snes *s)
         ORIGINAL_EFFECT(leave_place(g, effect, block));
         ORIGINAL_EFFECT(screen_leave_word(g, 0x53, id));
         ORIGINAL_EFFECT(leave_carry_and_overflow(s, false, false));
-        if (!unpack(s, 0xD1ED38, graphics_block_address(g, id)))
-            return;
+        unpack(g, graphics_block_address(g, id));
         if (!send_buffer(s, 0xD1ED49, block_vram(block), BLOCK_BYTES))
             return;
     }
@@ -126,8 +125,7 @@ void battle_load_effect_graphics(Snes *s)
     load_effect_colors(g, effect);
     ORIGINAL_EFFECT(screen_leave_cell(g, 0x53, effect));
     ORIGINAL_EFFECT(leave_effect_index_flags(s, effect));
-    if (!unpack(s, 0xD1EDB4, effect_tilemap_graphics_address(g, effect)))
-        return;
+    unpack(g, effect_tilemap_graphics_address(g, effect));
     if (!send_buffer(s, 0xD1EDC5, TILEMAP_GRAPHICS_VRAM, TILEMAP_GRAPHICS_BYTES))
         return;
     finish_loading(g);

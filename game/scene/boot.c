@@ -87,29 +87,27 @@ bool scene_boot_bank_reaches_io(Snes *s)
     return valid;
 }
 
-/* Start the scene program, the flags in A. The decompressor is a call-out, and
- * the unpacked program starts directly as C. */
+/* Start the scene program, the flags in A: the program unpacked, and the
+ * unpacked program started directly as C. */
 void scene_boot(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_I, true);   /* SEI */
     bool line_irq = boot(state_of(s), m_platform(s), (uint8_t)s->cpu.a);
     m_set_flag(s, CPU_FLAG_I, !line_irq);   /* interrupts on where the scene uses the line interrupt */
-    m_jsl_dc(s, 0xC3006F, 0xC30557, DC_A | DC_X | DC_N | DC_Z | DC_C);
+    (void)unpack_stream_called(state_of(s), true);
     m_jump_to(s, PROGRAM_START);
     /* Startup owns its long loading stretches, just as at its own entry. */
     if (scene_accept_continuation(s, PROGRAM_START, scene_program_start))
         NATIVE_TIME_AS_SIBLING(s, PROGRAM_START, scene_program_start(s));
 }
 
-/* The program unpacked into work RAM, as C (the decompressor's call from the
- * boot, $C3:006F): the program's code isn't run, but its data -- the scripts,
- * the sprite lists, the tables -- is what the C reads. */
-enum { THE_DECOMPRESSOR = 0xC30557 };
-
+/* The program unpacked into work RAM (the decompressor's call from the boot,
+ * $C3:006F): the program's code isn't run, but its data -- the scripts, the
+ * sprite lists, the tables -- is what the C reads. */
 bool scene_boots(GameState *g, Platform *pf, uint8_t flags)
 {
     bool line_irq = boot(g, pf, flags);
-    TIMED_AS(g, THE_DECOMPRESSOR, (void)unpack_stream(g));
+    (void)unpack_stream_direct(g);
     return line_irq;
 }
 
@@ -233,17 +231,13 @@ void scene_copy_resource_to_upper_ram(Snes *s) { copy_resource_entry(s, SCENE_UP
 
 /* ---- Resources unpacked ------------------------------------------------------------------------ */
 
-/* The decompressor, run as C from the unpacker's call; it reads none of the
- * registers. */
-enum { UNPACK_CALL = 0x7E36A4, DECOMPRESSOR = 0xC30557, THE_DECOMPRESSOR_READS_NOTHING = DC_A | DC_X | DC_N | DC_Z | DC_C };
-
 // $7E:3691
 /* One of the program's resources unpacked as C, by its place in the
  * resource table, to where the caller has set the unpacker's destination. */
 void scene_unpacks(GameState *g, uint16_t resource)
 {
     set_decompress_source(g, scene_resource_stream(g, resource));
-    TIMED_AS(g, THE_DECOMPRESSOR, (void)unpack_stream(g));
+    (void)unpack_stream_direct(g);
 }
 
 /* One of the program's resources unpacked, by its place in the resource table
@@ -256,12 +250,8 @@ void scene_unpack_resource(Snes *s)
     GameState *g = state_of(s);
     uint32_t stream = scene_resource_stream(g, s->cpu.x);
     set_decompress_source(g, stream);
-    m_push8(s, s->cpu.p);
-    m_set_flag(s, CPU_FLAG_M, false);
-    s->cpu.a = (uint16_t)(stream >> 8);
-    if (!scene_run_long(s, UNPACK_CALL, DECOMPRESSOR, THE_DECOMPRESSOR_READS_NOTHING, decompress))
-        return;
-    s->cpu.p = m_pull8(s);
+    s->cpu.a = (uint16_t)(stream >> 8);   /* loaded with a 16-bit accumulator, P kept on the stack around it */
+    (void)unpack_stream_run(g, true);
     m_rts(s);
 }
 

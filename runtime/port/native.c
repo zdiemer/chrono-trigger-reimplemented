@@ -824,6 +824,46 @@ static bool diff_pages(char *out, size_t n, const char *name, const uint8_t *a, 
     return false;
 }
 
+/* Work RAM no comparison looks at (native_leave_uncompared), as offsets into
+ * the 128 KiB of it. */
+static const NativeRange *uncompared_wram;
+static int uncompared_wram_count;
+
+void native_leave_uncompared(const NativeRange *ranges, int count)
+{
+    uncompared_wram = ranges;
+    uncompared_wram_count = count;
+}
+
+static bool wram_compared(size_t at)
+{
+    for (int k = 0; k < uncompared_wram_count; k++)
+        if (at >= (uncompared_wram[k].first & 0x1FFFF) && at <= (uncompared_wram[k].last & 0x1FFFF))
+            return false;
+    return true;
+}
+
+/* diff_pages for work RAM, past the bytes left uncompared. */
+static bool diff_wram(char *out, size_t n, const Snes *o, const Snes *c, uint64_t since)
+{
+    if (!uncompared_wram_count)
+        return diff_pages(out, n, "WRAM", o->bus.wram, c->bus.wram, sizeof o->bus.wram, o->bus.wram_page_epoch,
+                          c->bus.wram_page_epoch, SNES_WRAM_PAGES, since);
+    size_t page = sizeof o->bus.wram / SNES_WRAM_PAGES;
+    for (size_t i = 0; i < SNES_WRAM_PAGES; i++) {
+        const uint8_t *a = o->bus.wram + i * page, *b = c->bus.wram + i * page;
+        if ((o->bus.wram_page_epoch[i] < since && c->bus.wram_page_epoch[i] < since) || !memcmp(a, b, page))
+            continue;
+        for (size_t k = 0; k < page; k++) {
+            if (a[k] != b[k] && wram_compared(i * page + k)) {
+                snprintf(out, n, "WRAM[%04zX] original %02X native %02X", i * page + k, a[k], b[k]);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 #define CHECK_FIELD(label, x, y)                                                                         \
     if ((x) != (y)) {                                                                                    \
         snprintf(out, n, "%s original %lX native %lX", label, (unsigned long)(x), (unsigned long)(y));   \
@@ -861,8 +901,7 @@ static bool compare_machines(const Snes *o, const Snes *c, uint16_t dont_care, u
     CHECK_FIELD("P", o->cpu.p & p_mask, c->cpu.p & p_mask)
     CHECK_FIELD("E", o->cpu.e, c->cpu.e)
 
-    if (diff_pages(out, n, "WRAM", o->bus.wram, c->bus.wram, sizeof o->bus.wram, o->bus.wram_page_epoch,
-                   c->bus.wram_page_epoch, SNES_WRAM_PAGES, since) ||
+    if (diff_wram(out, n, o, c, since) ||
         diff_bytes(out, n, "SRAM", o->bus.sram, c->bus.sram, sizeof o->bus.sram, 0) ||
         diff_pages(out, n, "VRAM", o->ppu.vram, c->ppu.vram, sizeof o->ppu.vram, o->ppu.vram_page_epoch,
                    c->ppu.vram_page_epoch, sizeof o->ppu.vram_page_epoch / sizeof o->ppu.vram_page_epoch[0],
@@ -3436,6 +3475,19 @@ void native_charge_as(Snes *s, uint32_t routine, uint32_t bus_clocks)
     int was = native_time_as(s, routine);
     s->bus.clocks += bus_clocks;
     native_time_end(s, was);
+}
+
+void native_charge_at_rate(Snes *s, uint32_t mark, uint32_t charged_clocks, uint32_t cost_milli)
+{
+    Job *j = current_job;
+    if (!j || j->m != s || !active_runtime || s->bus.clocks < mark)
+        return;
+    uint64_t own = s->bus.clocks - mark;
+    native_uncounted_end(s, mark);
+    uint32_t clocks = (uint32_t)((own + charged_clocks) * cost_milli / 1000);
+    s->bus.clocks += clocks;
+    s->bus.dma_clocks += clocks;   /* estimate_parts takes DMA's clocks as they are */
+    part_flush(j);
 }
 
 uint32_t native_uncounted_begin(Snes *s)

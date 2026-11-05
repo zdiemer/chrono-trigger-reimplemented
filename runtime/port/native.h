@@ -333,6 +333,16 @@ void native_report(const NativeRuntime *rt, FILE *out);
  * (ignoring dont_care registers and flags, and state HDMA changes with time). */
 bool native_compare(const Snes *original, const Snes *native, uint16_t dont_care, char *out, size_t n);
 
+/* Bus addresses in work RAM, first to last inclusive. */
+typedef struct {
+    uint32_t first, last;
+} NativeRange;
+/* Work RAM every comparison (shadow mode's, native_compare's) leaves out from
+ * now on, for the whole process: a retired subsystem's own cells, which its C
+ * no longer writes as the original did (docs/REIMPLEMENTATION.md, "The data
+ * subsystem's teardown"). `ranges` must outlive the comparisons. */
+void native_leave_uncompared(const NativeRange *ranges, int count);
+
 /* Stack bytes the original pushed and pulled again are dead: nothing reads
  * below S, and the next push overwrites them. Shadow mode doesn't compare the
  * ones between the lowest S the original reached since the last comparison
@@ -705,6 +715,12 @@ void native_time_end(Snes *s, int was);
  * or copy whose time the port charges instead. Outside the runtime all three do
  * nothing. */
 void native_charge_as(Snes *s, uint32_t routine, uint32_t bus_clocks);
+/* And work with no registered entry to be estimated as (a retired
+ * subsystem's: the unpacker, data/decompress.c): the bus clocks since `mark`
+ * (native_uncounted_begin) and `charged_clocks` more, estimated at
+ * `cost_milli` and taken as they are, as a DMA transfer's are, in whatever the
+ * stretch's clocks are attributed to. */
+void native_charge_at_rate(Snes *s, uint32_t mark, uint32_t charged_clocks, uint32_t cost_milli);
 uint32_t native_uncounted_begin(Snes *s);
 void native_uncounted_end(Snes *s, uint32_t mark);
 

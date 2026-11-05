@@ -60,12 +60,15 @@ the port reaches the same code another way.
 nothing in the ROM calls and no movie runs) isn't counted at all: the game
 never runs it, so it needs no port.
 
-**Retired code.** Code the game no longer needs because something that isn't a
-port of it does its work (RETIRED, by bank) isn't counted either: bank $C7, the
-cartridge's CPU half of its sound driver, whose protocol only the original's
-driver on the sound processor spoke; the C sound driver takes the game's boot
-and commands as calls (docs/REIMPLEMENTATION.md, "The sound driver's
-teardown"), and the half runs only in the reference play.
+**Retired code.** Code whose subsystem retired the gate isn't counted either
+(RETIRED by bank, RETIRED_RUNS by address; `retired`): what does its work is
+no port registered in its place, and the original's runs only in the
+reference play. Bank $C7, the cartridge's CPU half of its sound driver, whose
+protocol only the original's driver on the sound processor spoke; the C sound
+driver takes the game's boot and commands as calls (docs/REIMPLEMENTATION.md,
+"The sound driver's teardown"). And the decompressor ($C3:0002's jump and
+$C3:0557-$C3:08B2), which every port calls as C ("The data subsystem's
+teardown").
 
 It is a burndown, not an accounting: useful for "which subsystem is barely
 started", not for "this bank is 61.3% done".
@@ -89,10 +92,17 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 RETURNS = {"RTS", "RTL", "RTI", "STP"}
 CALLS = {"JSR", "JSL"}
-# Bank -> what lives there, for the summary. From docs/PORTING.md's subsystems.
-# Banks whose code is retired rather than ported (the docstring, "Retired code").
+# Code retired rather than ported (the docstring, "Retired code"): whole banks,
+# and runs of addresses, first to last.
 RETIRED = {0xC7}
+RETIRED_RUNS = ((0xC30002, 0xC30004), (0xC30557, 0xC308B2))
 
+
+def retired(pc):
+    return (pc >> 16) in RETIRED or any(lo <= pc <= hi for lo, hi in RETIRED_RUNS)
+
+
+# Bank -> what lives there, for the summary. From docs/PORTING.md's subsystems.
 SUBSYSTEM = {
     0x7E: "scene program (RAM)",
     0xC0: "field engine, events",
@@ -378,7 +388,7 @@ def main():
     live = reached_code(an)
     all_code = set()
     for pc, variants in an.code.items():
-        if pc in live and (pc >> 16) not in RETIRED:
+        if pc in live and not retired(pc):
             all_code.update(range(pc, pc + max(i.size for i in variants.values())))
     covered &= all_code
     inlined &= all_code

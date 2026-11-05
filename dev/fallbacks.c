@@ -552,6 +552,21 @@ static bool the_cartridges_sound_protocol(const Snes *s, uint32_t pc)
     return !s->apu.host_command && ((pc >> 16) & 0x7F) == 0x47;
 }
 
+/* The cartridge's decompressor ($C3:0002's jump and $C3:0557-$C3:08B2, and
+ * their mirror in $43) in the reference play: no port stands for it, by
+ * design, since its subsystem retired the gate. Every port calls the C
+ * unpacker (game/data/decompress.c), so where the hand ports play none of
+ * this code runs; in the reference, the cartridge on the console, it is the
+ * original's own machinery, and not counted (docs/REIMPLEMENTATION.md, "The
+ * data subsystem's teardown"). Where the hand ports play it is, since
+ * nothing should reach it. */
+static bool the_cartridges_decompressor(const Fallbacks *f, uint32_t pc)
+{
+    uint16_t at = (uint16_t)pc;
+    return f->shadow && ((pc >> 16) & 0x7F) == 0x43 &&
+           ((at >= 0x0002 && at <= 0x0004) || (at >= 0x0557 && at <= 0x08B2));
+}
+
 void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
     /* Observe completion before the caller starts another invocation of the
@@ -590,7 +605,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         if (f->pass.open)
             f->pass.hidden++;
     }
-    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc)) {
+    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_decompressor(f, pc)) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));
         f->by_kind[eff.kind]++;

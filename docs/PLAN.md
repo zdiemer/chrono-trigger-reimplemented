@@ -69,11 +69,11 @@ in place of the ports: the native coverage.
 | Code run in place of hand ports (`fallbacks.py`) | the reference play over the whole library (84 movies, the batched run of `92026499`): 5.9 K instructions (2.0 K hand-backs, 3.9 K with no port, 0.4 KiB of code), and 81 K under comparisons still open when a movie ended; shipping mode over the movies 0, the routes 1.3 K (all hand-backs, the scene program's at `$7E:3176` in the Beyond Time route); the hand ports alone (`strict_check.py`) carry all 84 movies to their end; no entry refuses in real play over the movies and routes, and `tools/refusal_allowlist.txt` holds no gap (the hand-run long movie's refusals are in TODO.md, "Refusals in real play"); the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The largest fallbacks left, 2: what the measure counted that the ports run") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 22% of 10,489 functions take a `Snes *` (scene 34%, menus 25%, battle 19%, field 18%) | entry wrappers only, then none |
-| ROM data behind named accessors | every accessor read, served from an asset pack imported once from the user's ROM (`ct_play`, `ct_native`) or from the cartridge (`ct_dev` without `--assets`); the decompressor's streams and the video transfers from cartridge addresses still go by the bus | the resources decoded, a resource at a time (Phase 4a, "Assets") |
+| ROM data behind named accessors | every accessor read, served from an asset pack imported once from the user's ROM (`ct_play`, `ct_native`) or from the cartridge (`ct_dev` without `--assets`); the video transfers from cartridge addresses still go by the bus | the resources decoded, a resource at a time (Phase 4a, "Assets") |
 | SPC700 sound driver | reimplemented in C, its commands calls rather than uploads (SOUND.md), and the only driver anything of ours plays: `ct_play`, `ct_drive`, `ct_native` and every `ct_dev` run of the hand ports from power-on; the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP. The gate no longer compares it with the original: its checks are its own (`sound_test`'s digest on a made-up cartridge, `ct_sound_fuzz`'s in `tools/sound_golden.txt`, the host's faults in every run). The cartridge's driver, and its CPU half in bank `$C7`, run only in the reference play, as the console runs the cartridge (REIMPLEMENTATION.md, "The sound driver's teardown") | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 | How far `ct_native` gets, with no emulator under it (PLAYING.md, "The native program") | no stop: the boot, the field and the title's scene as C, the attract demo's field, its first world map as C (the menus' sprite-object mode, `$C2:0000`: the setup, the loop, the vblank handler, the objects and their scripts) and the field after it with its screen effects as C (the curtain, the field's close into a scene, the ripple), the scene it closes into (the credits' page, `$7E:6B04`) and the field after it, its battle as C (`$C0:188C`: the field's setup for it, bank `$C1`'s mode, its handlers, its turns, and the field taken up again), and on through its next world map (the layer's shimmer as C, `$C2:7759`) into the jet bike race's scene as C (`$7E:3B48`, its setup and its tasks), the rising palace's after it (`$7E:671F`), and round to the title again: 200,000 frames without stopping; with `new-game.ctm`'s presses, the movie to its end: the menus a script asks for after the title, Crono's naming, the opening's world map and Crono's house; with `fair.ctm`'s, on across the world map on foot into Leene Square, the fair, to the movie's end; with `fair-companion.ctm`'s, the movie to its end; with `gato-battle.ctm`'s, Gato's battle as C and the movie to its end; with `menu.ctm`'s, the main menu the player opens as C (its panels, and the equipment's, items', techs' and settings' screens as far as the movie goes into them) and the movie to its end; started in a story scene (`--scene`), Lavos falling, the Epoch's dive, the Beyond Time ending's and the reunion's scenes and the staff roll each to its end; the whole of `game/` linked, every service with a host backend; over the library (84 movies), 82 to their end showing a picture, 30 of them ending as the reference play does (`native_check.py`): `battle-ozzies-fort` stops at frame 38422 of 39237 on a cartridge read in no resource of the catalogue, and `events-ocean-palace-lavos` ends on a black picture (`tools/native_dark_exceptions.txt`) | every movie to its end, as strict mode does |
-| The machine's joints in `game/` (`tools/machine_joints.py`, source sites after merging the scene, menu, loop and sound work) | 2,213 registered entries; 1,014 returns through the emulated stack; 91 stops at original addresses; 8 call-outs and 3 registry lookups between ports; 9 time tags that take the machine; 24 register escapes; 546 video calls; 2,063 scaffolding writes. What `ct_native` links: no registered entries, all other counts the same. The sound teardown removed 9 entries, 5 returns, 2 stops and 29 scaffolding writes; the scene and loop continuations remove further machine boundaries | 0: the registry, the wrappers and the scaffolding gone with the gate, subsystem by subsystem |
+| The machine's joints in `game/` (`tools/machine_joints.py`, source sites after merging the scene, menu, loop and sound work) | 2,213 registered entries; 1,014 returns through the emulated stack; 91 stops at original addresses; 8 call-outs and 3 registry lookups between ports; 9 time tags that take the machine; 24 register escapes; 546 video calls; 2,063 scaffolding writes. What `ct_native` links: no registered entries, all other counts the same. The sound teardown removed 9 entries, 5 returns, 2 stops and 29 scaffolding writes; the data teardown 2 entries, 1 return and 3 scaffolding writes; the scene and loop continuations remove further machine boundaries | 0: the registry, the wrappers and the scaffolding gone with the gate, subsystem by subsystem |
 | How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c`. Census (`tools/census.py`, shipping mode with the C sound driver as `ct_play` plays it, 84 movies): 264 entries entered by the machine, 42.0 M times (vector 3.6 M, a port's call-out 25.5 M, its stop 9.6 M, its return 3.2 M, a task's yield 30 K; none from the original's code), and 17 wait loops still passed on the machine 767 M times; 1,368 entries run only as C. None of it is the sound driver's: before the game's side of it became calls, 266 entries, 44.9 M times, the commands at `$C7:0004` 25.5 K of them and the boot 100, and 16 entries the machine came back to from them. Main's post-teardown census, before this merge (not rerun here): 267 entries entered by the machine and 17 wait loops (284 in all), 42.0 M times outside the waits (call-out 25.5 M, stop 9.6 M, vector 3.6 M, return 3.2 M, yield 30 K) and the waits 764 M; 1,366 run only as C, the two less the time tags `$C7:0004` and `$C7:0000` that went with their rows; nothing of bank `$C7` | `main()` boots the game and callers call ports; census 0; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
 
 **Burndown overstates how native the game is.** It counts a port's whole
@@ -494,8 +494,7 @@ what real play runs of it native. What is left is a character's start
 (`$C0:597D`), which the menus call, and
 waits the timing service takes over where their callers
 are ports (TODO.md, "Frame waits still made on the machine"). Every event
-command has a row; event's bridges still call the unpacker (`$C3:0002`,
-TODO.md).
+command has a row.
 
 **`$7E`: the scene program**, the program the field and the game over
 decompress to `$7E:3000` (the title, the attract sequence, the jet bike race
@@ -674,7 +673,14 @@ taking the gate down needs, before it and after it.
      next subsystem is that a retired subsystem's code still runs in the
      reference play, as the cartridge's, and the measures that count the
      original's code (the fallback measure, the burndown) are told it is
-     retired rather than unported.
+     retired rather than unported. The data subsystem's went second
+     (REIMPLEMENTATION.md, "The data subsystem's teardown"): what it showed
+     is that a retired subsystem the still-gated ones call becomes C they
+     call, that the comparisons of its callers leave out the cells it keeps
+     for itself, which its C doesn't, and that its time has to stay what its
+     entries estimated, down to the call's own structure, or the recorded
+     outcomes' protected identities move (TODO.md, "The unpacker's pace,
+     kept by hand").
   4. **Last, the machine leaves the product.** When no subsystem is under
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is
@@ -713,14 +719,12 @@ beside the saves (PLATFORM.md, "The assets, as built"). The same importer can
 build the image for a target that can't afford the ROM or the decoding (GBA,
 Wii, GameCube). What is left:
 
-1. **The last cartridge reads outside the store.** `data/decompress.c` reads
-   its streams on the machine by the pointer the loaders leave, and the video
-   service's transfers from a cartridge address (`menu/display.c`,
-   `battle/uploads.c`) go by DMA from the bus. The streams and the data are in
-   the catalogue, so the decompressor's rewrite (it is on the portstyle
-   backlog) reads them as resources, and the transfers send the store's bytes
-   (`PfData`'s host pointer). A build with no emulator ("The native program",
-   above) needs both.
+1. **The last cartridge reads outside the store.** The video service's
+   transfers from a cartridge address (`menu/display.c`, `battle/uploads.c`)
+   go by DMA from the bus. The data is in the catalogue, so the transfers
+   can send the store's bytes (`PfData`'s host pointer), as the unpacker
+   reads its streams through the store already (`rom_read8`). A build with
+   no emulator ("The native program", above) needs it.
 2. **Decoded next, a resource at a time.** The pack holds the structured
    form: streams decompressed, tiles in a neutral format, palettes as
    colours, text as UTF-8, scripts readable (MATCHING.md's codecs and the
