@@ -2825,7 +2825,43 @@ rest waits, is [PLAN.md](PLAN.md).
   is disabled. Continuing into field entry moves the same difference to
   its song call. The frame therefore retains the ending-entry boundary;
   the ending itself now continues through field entry as C. Settle the
-  shutdown's beam timing before combining these comparisons.
+  shutdown's beam timing before combining these comparisons. Under a
+  warp's teardown (below) this item goes with the comparison: `$210E`
+  is a BG1 scroll latched while the screen is forced blank by `go_dark`,
+  nothing drawn shows it, and the last frame calls the end as one C
+  sequence, as `warp_runs` already does in `ct_native`.
+
+- **The time warp can't retire the gate before its main loop's held wait
+  stops needing registered entries.** A teardown of `game/warp/` was
+  attempted and stopped at the preconditions, for attract's reason (the
+  scene main loop's item, below). Census of the three movies that take a
+  gate (`events-end-of-time-gate`, `battle-lavos-gameover`,
+  `endings-bucket-lavos`; shortest, short and flickering trips): the machine
+  enters the frame wait's idle entry `$FD:EAED` 743,589 times, the
+  screen-on wait `$FD:EADA` 1,599, the vblank handler `$FD:DE15` 1,181
+  (by `console_vblank_stub`'s jump), and each frame entry (`$FD:DA65`,
+  `$DAC4`, `$DB27`; 255, 159 and 767) by return out of that wait; the starts
+  are entered by the field's stop or return, the ends by the last frame's
+  stop. The frame wait is the main thread's wait at every frame end of a
+  trip, held (`tm_wait_for_handlers_held`, PORTING.md): its continuation
+  is the frame entry the idle entry returns to. As calls from the field's
+  end, the trip would be one C loop waiting in place, a port suspended at
+  every frame end for 160 to 768 frames, with no `ct_drive` base and no
+  `ct_play` quick save inside a gate. The vblank handler alone could
+  become a call from `console_vblank_stub`; the loop can't without that
+  price. The rest holds: the shipping mode runs none of the warp's original
+  code (no `FD:` line in `tools/fallback_shipping_baseline.txt`), the
+  burndown leaves nothing of it unported, and the three movies have
+  recorded outcomes (pictures excepted in strict and native for two of
+  them, so they protect places and end states more than the picture).
+  Retire it when held waits no longer need a registered idle entry, or
+  decide that a trip's length without a base is an acceptable price (it
+  takes no input; ct_drive already tolerates far longer stretches in the
+  scaled-bitmap scenes). Its unreached rows stand as they are: the 9
+  clamp bytes (`warp_set_up`'s fixed centres at 128, radius 0 or 2..127)
+  become an assertion in `warp_build_circle` at the teardown, the C
+  clamps kept, rechecked if the radius ramp is loaded from an editable
+  asset.
 
 - **Boot credit pages outside the five-page table.** The page index at
   `$0382` survives startup. Random values above five read unrelated program
