@@ -2842,25 +2842,37 @@ rest waits, is [PLAN.md](PLAN.md).
   was reverted rather than masking the flag. Resolve that interrupted-wait
   flag handoff before joining startup and the main loop.
   This is also what keeps `game/attract/` under the gate: its teardown was
-  attempted and stopped at the preconditions. Its four rows are the scene
-  program's main loop (`$7E:3023`, an idle entry and the scaling pass) and
-  its frame wait (`$7E:31B0`/`$7E:31B7`), and the machine itself enters
-  them (census, attract-demo and title-start: 4.47 M passes of the main
-  loop's wait, 7,161 of the frame wait, `attract_frame_pass` 100 times by
-  the scene's stop and 3 by return, holding `scene_race_scale_pictures` and
-  `scene_program_restart` to the registry). The main loop is the wait the
-  main thread is in at every frame end of a scene, so on the machine it has
-  to be held by an idle entry (PORTING.md, "held waits"): made a C loop its
-  caller runs, a port would stay suspended for a whole title screen, attract
-  sequence or ending, and neither `ct_drive` nor `ct_play`'s quick save
-  would get a base there. The fallback measure also still counts the
-  original's attract code in the reference play (`7E:3023`, `7E:31B0`'s 763
-  instructions under `scene_boot`, the main loop's cut passes in `7E:----`).
-  So attract retires with the scene program, or when the held waits stop
-  needing registered idle entries; the frame wait alone could become a
-  `native_wait_call` on a vblank wake first. Its unreached rows are covered
-  (0 bytes) and it owns no work RAM of its own (the program image is the
-  scene's).
+  attempted and stopped at the preconditions. Its two rows are the scene
+  program's main loop (`$7E:3023`: the idle entry `attract_wait_loop` and
+  the scaling pass `attract_frame_pass`), and the machine itself enters them
+  (census, attract-demo and title-start: 4.47 M passes of the main loop's
+  wait, `attract_frame_pass` 100 times by the scene's stop and 3 by return,
+  holding `scene_race_scale_pictures` and `scene_program_restart` to the
+  registry). The frame wait the file also held (`$7E:31B0`) is off the
+  registry: `tm_wait_frame` waits where its callers stand
+  (`NATIVE_WAKE_VBLANK`, PLATFORM.md "Waiting inside a port"). The main
+  loop can't follow it the same way: `native_wait_call` stands for a call a
+  port makes and goes on from, and nothing calls the main loop -- the first
+  frame stops there, and the main thread rests in it at every frame end of a
+  scene. Made a C loop its caller runs, a port would stay suspended for a
+  whole title screen, attract sequence or ending, and neither `ct_drive` nor
+  `ct_play`'s quick save would get a base there (attract-demo already has a
+  routine suspended at 12,329 of its 22,500 frame ends, in 56 runs, the
+  longest 2,142 frames, the same with the frame wait in place as before). It has to
+  stay held (PORTING.md, "held waits"), and a held wait's continuation is the
+  idle entry at its head. What is left before attract and the scene program
+  retire together: a held wait whose continuation is a C function the
+  runtime names, not an entry it finds by address (a save keeps which wait
+  and nothing else: the loop has no state but the frame routine's operand
+  and the program-over flag, both in work RAM); the interrupted-wait carry
+  handoff above, which the same join meets; `attract_frame_pass`'s scaling
+  passes called as C from that loop (`scene_race_scale_pictures`,
+  `scene_ending_scale_picture`, `scene_scale_the_epoch`, whose scalings stop
+  in the scaler's code and take frames); and `scene_program_restart` reached
+  by a return rather than the loop's stop. The fallback measure still counts
+  the original's attract code in the reference play (`7E:3023`, the main
+  loop's cut passes in `7E:----`). Its unreached rows are covered (0 bytes)
+  and it owns no work RAM of its own (the program image is the scene's).
 
 - **Two scene interpreter handbacks retain machine contracts.** All seven
   store/task/video command families have C implementations, but the dispatch
