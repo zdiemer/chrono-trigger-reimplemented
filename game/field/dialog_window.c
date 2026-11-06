@@ -133,11 +133,10 @@ static void leave_the_pause_product(GameState *g, uint8_t units)
 
 /* ---- Setting the text --------------------------------------------------------------------------- */
 
-/* The field's own messages' strings (a chest's), where a script's dialog
- * takes its strings from the table the script named. */
-enum { FIELD_MESSAGES = 0xDEFF00 };
 enum { MENU_TEXT_START = 0xC257DF, MENU_TEXT_GO_ON = 0xC25823 };
 
+/* The strings the window sets: the field's own messages (a chest's) where the
+ * field opened it, otherwise the table the script named. */
 static uint32_t dialog_strings(const GameState *g)
 {
     return dialog_opened_by_the_field(g) ? FIELD_MESSAGES : dialog_string_table(g);
