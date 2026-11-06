@@ -1289,7 +1289,8 @@ void menu_object_line(GameState *g, Platform *pf) { (void)g, (void)pf; }
 
 /* ---- On the machine ---- */
 
-/* Each step is called from the original's call of it, and the work goes on
+/* Each step is run from the original's call of it, as C where the registry
+ * would run its entry there and as the call otherwise, and the work goes on
  * after it only where it came back as the handler runs. The list's emptying
  * comes back with a 16-bit accumulator. The objects' handlers may read Y and
  * the carry and overflow flags (the handlers are named in work RAM), which
@@ -1298,22 +1299,30 @@ static const struct {
     uint32_t site, routine;
     uint16_t ignores;
     bool long_call;
+    void (*entry)(Snes *);
 } object_frame_calls[OBJECT_FRAME_STEPS] = {
-    [SEND_THE_QUEUE] = { 0xC20318, 0xC20405, NOTHING_READ, false },
-    [TAKE_THE_INPUT] = { 0xC2031B, 0xC28002, 0, true },
-    [EMPTY_THE_SPRITE_LIST] = { 0xC2032B, 0xC20C4D, NOTHING_READ, false },
-    [HIDE_THE_SPRITES] = { 0xC20330, 0xC2034D, NOTHING_READ, false },
-    [RUN_THE_OBJECTS] = { 0xC20333, 0xC2051D, DC_A | DC_X | DC_N | DC_Z, false },
-    [DRAW_THE_SPRITE_LIST] = { 0xC20336, 0xC20CEA, NOTHING_READ, false },
+    [SEND_THE_QUEUE] = { 0xC20318, 0xC20405, NOTHING_READ, false, menu_object_upload_vram_queue },
+    [TAKE_THE_INPUT] = { 0xC2031B, 0xC28002, 0, true, menu_take_the_frames_input },
+    [EMPTY_THE_SPRITE_LIST] = { 0xC2032B, 0xC20C4D, NOTHING_READ, false, menu_reset_sprite_nodes },
+    [HIDE_THE_SPRITES] = { 0xC20330, 0xC2034D, NOTHING_READ, false, menu_hide_all_sprites },
+    [RUN_THE_OBJECTS] = { 0xC20333, 0xC2051D, DC_A | DC_X | DC_N | DC_Z, false, menu_run_objects },
+    [DRAW_THE_SPRITE_LIST] = { 0xC20336, 0xC20CEA, NOTHING_READ, false, menu_draw_sprite_nodes },
 };
 
 static bool object_frame_step_on_the_machine(void *ctx, ObjectFrameStep step)
 {
     Snes *s = ctx;
-    if (object_frame_calls[step].long_call)
+    /* the frame's time passes before each step and after it, as it did when
+     * each was a call the machine made: the input read, the line effects and
+     * the frame's being shown land where the original's do */
+    tm_sync(m_platform(s));
+    if (object_frame_calls[step].long_call)   /* run as C before these were calls, its time paid with the next */
         return menu_run_long(s, object_frame_calls[step].site, object_frame_calls[step].routine,
-                             menu_take_the_frames_input);
-    m_jsr_dc(s, object_frame_calls[step].site, object_frame_calls[step].routine, object_frame_calls[step].ignores);
+                             object_frame_calls[step].entry);
+    if (!menu_run_or_call(s, object_frame_calls[step].site, object_frame_calls[step].routine,
+                          object_frame_calls[step].ignores, object_frame_calls[step].entry))
+        return false;
+    tm_sync(m_platform(s));
     if (step == EMPTY_THE_SPRITE_LIST)
         return !s->cpu.e && !m_m8(s) && !m_x8(s) && s->cpu.d == OBJECT_MODE_PAGE;
     return back_as_the_menus_run(s, OBJECT_MODE_PAGE);
