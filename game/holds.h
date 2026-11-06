@@ -1,0 +1,17 @@
+/* The held waits: where the main thread rests at a frame end, the machine at
+ * the original's loop head with nothing suspended, and the runtime runs the
+ * wait's continuation as C when it goes on (runtime/port/native.h,
+ * native_hold; docs/RUNTIME.md, "Held waits"). Each has a number, which the
+ * machine's state keeps (Snes.held_wait) so that a ct_drive base or a quick
+ * save taken there names the wait; a number is never given to another wait. */
+#ifndef CT_GAME_HOLDS_H
+#define CT_GAME_HOLDS_H
+
+enum {
+    HOLD_NONE = 0,
+    /* the scene program's main loop ($7E:3023): the attract sequence, the
+     * title, the Epoch's dive, the endings (game/attract/main_loop.c) */
+    HOLD_SCENE_MAIN_LOOP = 1,
+};
+
+#endif

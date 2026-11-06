@@ -609,7 +609,17 @@ static inline void m_stop_at(Snes *s, uint32_t at, uint16_t dont_care)
     native_dont_care_at_stop(s, at, dont_care);
 }
 
-/* The same, with `dont_care` the stop's own set: the entry's isn't added
+/* Stop at the head `at` of the held wait `wait` (native_hold), with
+ * `dont_care` dead there as m_stop_at's: where the main thread rests at a
+ * frame end, and the runtime runs the wait's continuation (NativeEntry.hold)
+ * when it goes on. */
+static inline void m_hold_at(Snes *s, uint32_t at, uint16_t dont_care, uint8_t wait)
+{
+    m_stop_at(s, at, dont_care);
+    native_hold(s, wait);
+}
+
+/* The same as m_stop_at, with `dont_care` the stop's own set: the entry's isn't added
  * there (native_own_dont_care_at_stop). For an early exit to code that reads
  * what the entry's callers don't, such as a reset: the entry keeps the larger
  * set for its returns, and the check verifies each where it applies. */

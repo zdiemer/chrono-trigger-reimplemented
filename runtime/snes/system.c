@@ -156,6 +156,7 @@ void snes_power_on(Snes *s)
         s->ppu.cgram[i] = (uint16_t)(red | green << 5 | blue << 10);
     }
     cpu_reset(&s->cpu);
+    s->held_wait = 0;
     s->hclock = 0;
     s->vline = 0;
     s->bus.clocks = 0;

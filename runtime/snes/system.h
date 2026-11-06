@@ -86,6 +86,12 @@ typedef struct Snes {
     /* Set by an intercept that returned time: the length of the last cycle of
      * what it ran, where interrupts are sampled; 0 means one internal cycle. */
     uint32_t intercept_last_cycle;
+    /* The held wait the main thread rests in, if any (port/native.h,
+     * native_hold): the number of the wait whose continuation the runtime
+     * runs here, 0 for none, and the S the main thread rests with. Saved
+     * with the machine, so that a state taken where it rests names the wait. */
+    uint8_t held_wait;
+    uint16_t held_wait_s;
 
     /* The interpreter, for the steps the intercept doesn't take: cpu_step, set
      * by hosts that link it (snes_init leaves it NULL, so the system code

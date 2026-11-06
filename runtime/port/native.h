@@ -77,6 +77,21 @@ typedef struct NativeEntry {
      * loop) leaves it counted. Where it is 0, the pass that leaves stays
      * counted unless a port takes over at the loop's exit. */
     uint8_t idle_return_span;
+    /* A held wait's continuation (native_hold): nonzero, the number of the
+     * wait it goes on from. In ON mode, where the machine names that wait
+     * (Snes.held_wait) and S is the one the main thread rests with, the
+     * runtime goes on in the wait by its number: it takes the wait's
+     * continuations from the rows it set aside for them when it was created,
+     * checks only that the PC is the wait's head, and runs the first that
+     * applies, without looking the address up. `addr` is the original's loop
+     * head, which serves where no wait is named -- a caller still on the gate
+     * whose original code goes round to the loop's head, a state saved before
+     * the wait was held -- and there the machine finds and enters it by
+     * address, as any entry, counted as such; it holds the wait from then on.
+     * SHADOW mode and the tools take it as any entry. An idle continuation
+     * that goes round holds the wait again itself; a port's holds it with
+     * m_hold_at. */
+    uint8_t hold;
     /* Optional extra precondition, for example for code the game places in
      * RAM: return false unless the bytes at the entry are the code the port was
      * written for (see m_code_matches). It runs on the real machine in every
@@ -312,7 +327,9 @@ extern void (*generated_insn_hook)(Snes *s, uint32_t pc24);
 
 /* For the census of how the game is entered (ct_dev --census, dev/census.h):
  * `entered` is called for every hand entry the runtime runs in ON mode, idle
- * ones included, as the machine reaches it, with the machine at its entry;
+ * ones included, as the machine reaches it, with the machine at its entry
+ * (`held` instead, for a held wait's continuation run where the machine names
+ * its wait);
  * `as_c` for every NATIVE_TIME_AS (or TIMED_AS) scope a running port opens
  * naming another registered hand entry (`routine`): that routine's work run
  * as C rather than entered through the machine. Either may be NULL; both are
@@ -321,6 +338,10 @@ typedef struct NativeCensusHooks {
     void *ctx;
     void (*entered)(void *ctx, Snes *s, const NativeEntry *entry);
     void (*as_c)(void *ctx, const NativeEntry *by, const NativeEntry *routine);
+    /* a held wait's continuation run where the machine names its wait
+     * (NativeEntry.hold): run as C by the runtime, the machine entering
+     * nothing */
+    void (*held)(void *ctx, Snes *s, const NativeEntry *entry);
 } NativeCensusHooks;
 extern NativeCensusHooks native_census_hooks;
 
@@ -684,6 +705,14 @@ void native_wait_call(Snes *s, uint32_t site, uint32_t target, bool long_call, u
  * next meets the original. Outside the runtime (ct_fuzz) it stops at the head
  * as in ON mode, so a fuzzed port is compared up to its wait. */
 bool native_wait_loop_held(Snes *s, uint32_t head, uint32_t exit, int32_t wake, uint16_t dont_care);
+/* The held wait `wait` (a number of the game's: NativeEntry.hold), where the
+ * port has stopped at its head: in ON mode, in a port the runtime runs, the
+ * machine names the wait (Snes.held_wait, with the S it rests with), so that
+ * the runtime runs the wait's continuations there as C and a copy of the
+ * machine taken meanwhile -- a ct_drive base, a quick save, which nothing
+ * suspended allows -- names it too. Nothing in the other modes, where the
+ * stop is an ordinary stop. A port calls it through m_hold_at. */
+void native_hold(Snes *s, uint8_t wait);
 /* Whether native_wait_call waits where the port stands rather than making the
  * call (ON mode, in a port the runtime runs): a caller whose wait routine
  * also does something before it waits (puts a value on a port) does that

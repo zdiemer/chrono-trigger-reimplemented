@@ -745,6 +745,13 @@ port names the loop and what the code from its head doesn't read
 (`PF_LOOP_HELD(head, exit, set)`), which shadow mode compares the port at the
 head without and `tools/dontcare_check.py` checks as a stop there.
 
+A main loop whose frame end is itself the wait (the scene program's,
+`$7E:3023`) stops at the head with `m_hold_at(s, head, set, wait)`, where `wait`
+is the wait's number (`game/holds.h`). Its continuations are rows in
+`game_held_waits` carrying that number (`.hold`), not registry rows. The
+runtime runs them where the machine names the wait, and the name survives a
+save (RUNTIME.md, "Held waits").
+
 ## Interrupt handlers
 
 Shadow mode decides that the original has left a routine by its stack: S

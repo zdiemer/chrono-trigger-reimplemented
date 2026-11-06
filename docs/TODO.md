@@ -2852,7 +2852,7 @@ rest waits, is [PLAN.md](PLAN.md).
   sequence, as `warp_runs` already does in `ct_native`.
 
 - **The time warp can't retire the gate before its main loop's held wait
-  stops needing registered entries.** A teardown of `game/warp/` was
+  is named.** A teardown of `game/warp/` was
   attempted and stopped at the preconditions, for attract's reason (the
   scene main loop's item, below). Census of the three movies that take a
   gate (`events-end-of-time-gate`, `battle-lavos-gameover`,
@@ -2874,8 +2874,11 @@ rest waits, is [PLAN.md](PLAN.md).
   burndown leaves nothing of it unported, and the three movies have
   recorded outcomes (pictures excepted in strict and native for two of
   them, so they protect places and end states more than the picture).
-  Retire it when held waits no longer need a registered idle entry, or
-  decide that a trip's length without a base is an acceptable price (it
+  Held waits can now be named (RUNTIME.md, "Held waits"), as the scene
+  program's main loop is. The wait's idle entry `$FD:EAED` and the frame
+  entries it returns to become rows of `game_held_waits` under a number of
+  their own, and the trip's starts hold the wait with `m_hold_at` where they
+  now stop at it. Then retire the warp, or decide that a trip's length without a base is an acceptable price (it
   takes no input; ct_drive already tolerates far longer stretches in the
   scaled-bitmap scenes). Its unreached rows stand as they are: the 9
   clamp bytes (`warp_set_up`'s fixed centres at 128, radius 0 or 2..127)
@@ -2884,7 +2887,7 @@ rest waits, is [PLAN.md](PLAN.md).
   asset.
 
 - **The overworld can't retire the gate before its main loop's held wait
-  stops needing registered entries.** A teardown of `game/overworld/` was
+  is named.** A teardown of `game/overworld/` was
   attempted and stopped at the preconditions, for the warp's and attract's
   reason. Census of four movies on the world map (`field-65m-bc`,
   `field-65m-bc-dactyl`, `field-65m-bc-dactyl-flight`, `field-12kbc-1f4`;
@@ -2909,9 +2912,10 @@ rest waits, is [PLAN.md](PLAN.md).
   loop's open comparison), and the four movies have recorded outcomes. The
   unreached ledger's overworld rows (`overworld_set_up`'s 26 bytes held by
   `unreached_safe`, `overworld_lead`'s 190 by fuzz cases) were not audited
-  further. Retire it when held waits no longer need a registered idle
-  entry (a `native_wait_call` woken by the vblank flag is the candidate for
-  `$C2:0348`) and the object system's vblank path runs as a call.
+  further. Retire it once its wait is named (RUNTIME.md, "Held waits").
+  `$C2:0348`'s idle entry and `overworld_main_loop` become rows of
+  `game_held_waits`, and `next_frame_on_the_machine` holds the wait with
+  `m_hold_at`. The object system's vblank path also has to run as a call.
 
 - **Boot credit pages outside the five-page table.** The page index at
   `$0382` survives startup. Random values above five read unrelated program
@@ -2928,28 +2932,17 @@ rest waits, is [PLAN.md](PLAN.md).
   flag handoff before joining startup and the main loop.
   This is also what keeps `game/attract/` under the gate: its teardown was
   attempted and stopped at the preconditions. Its two rows are the scene
-  program's main loop (`$7E:3023`: the idle entry `attract_wait_loop` and
-  the scaling pass `attract_frame_pass`), and the machine itself enters them
-  (census, attract-demo and title-start: 4.47 M passes of the main loop's
-  wait, `attract_frame_pass` 100 times by the scene's stop and 3 by return,
-  holding `scene_race_scale_pictures` and `scene_program_restart` to the
-  registry). The frame wait the file also held (`$7E:31B0`) is off the
-  registry: `tm_wait_frame` waits where its callers stand
-  (`NATIVE_WAKE_VBLANK`, PLATFORM.md "Waiting inside a port"). The main
-  loop can't follow it the same way: `native_wait_call` stands for a call a
-  port makes and goes on from, and nothing calls the main loop -- the first
-  frame stops there, and the main thread rests in it at every frame end of a
-  scene. Made a C loop its caller runs, a port would stay suspended for a
-  whole title screen, attract sequence or ending, and neither `ct_drive` nor
-  `ct_play`'s quick save would get a base there (attract-demo already has a
-  routine suspended at 12,329 of its 22,500 frame ends, in 56 runs, the
-  longest 2,142 frames, the same with the frame wait in place as before). It has to
-  stay held (PORTING.md, "held waits"), and a held wait's continuation is the
-  idle entry at its head. What is left before attract and the scene program
-  retire together: a held wait whose continuation is a C function the
-  runtime names, not an entry it finds by address (a save keeps which wait
-  and nothing else: the loop has no state but the frame routine's operand
-  and the program-over flag, both in work RAM); the interrupted-wait carry
+  program's main loop (`$7E:3023`: the idle pass `attract_wait_loop` and the
+  scaling pass `attract_frame_pass`). The main thread rests in the loop at
+  every frame end of a scene, so as a C loop a port would stay suspended for
+  a whole title screen, attract sequence or ending, with no `ct_drive` base or
+  quick save there. Instead it is a named held wait (RUNTIME.md, "Held
+  waits"): the first frame holds it (`m_hold_at`), and the two rows are the
+  wait's continuations in `game_held_waits`, not registry rows. Over
+  attract-demo and title-start the census has the machine enter `$7E:3023` 0
+  times, against 4,470,957 passes before, which are now held runs, and the
+  same 12,329 of attract-demo's 22,500 frame ends have a routine suspended. What is left before
+  attract and the scene program retire together: the interrupted-wait carry
   handoff above, which the same join meets; `attract_frame_pass`'s scaling
   passes called as C from that loop (`scene_race_scale_pictures`,
   `scene_ending_scale_picture`, `scene_scale_the_epoch`, whose scalings stop

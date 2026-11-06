@@ -687,7 +687,12 @@ taking the gate down needs, before it and after it.
      assertions) but keeps the machine forms those callers run and the
      scaffolding their comparisons see, its time charged through time tags
      (`game/time_tags.c`); its entries the machine itself enters (the
-     console's vectors, the controller's wait) stay until the machine goes.
+     console's vectors, the controller's wait) stay until the machine goes. A main loop whose frame end the main thread rests in
+     doesn't become a C loop, which would keep a port suspended for a whole
+     screen. It leaves as a named held wait: its continuations go to
+     `game_held_waits`, which the runtime runs where the saved machine names the wait
+     (RUNTIME.md, "Held waits"; the scene program's is the first). The
+     overworld's and the warp's teardowns make theirs so next (TODO.md).
   4. **Last, the machine leaves the product.** When no subsystem is under
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is
