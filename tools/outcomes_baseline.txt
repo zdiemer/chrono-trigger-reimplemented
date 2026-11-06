@@ -44,7 +44,7 @@ battle-denadoro/native game
 battle-denadoro/native pictures 1 1800 2100 2400 2700
 battle-denadoro/native places 0 1 2 3 4
 battle-denadoro/native sram end
-battle-denadoro/strict game
+battle-denadoro/strict game end
 battle-denadoro/strict pictures 1 1800 2100 2400 2700 3000 3300 3600
 battle-denadoro/strict places 0 1 2 3 4
 battle-denadoro/strict sram end

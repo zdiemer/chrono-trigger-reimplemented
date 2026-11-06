@@ -158,6 +158,20 @@ rest waits, is [PLAN.md](PLAN.md).
     leaves them out; they keep a hand-set `cost_milli` of 5000.
   - *The battle songs' load* (the time model's item "The handlers' share of
     an upload", below): 9-12 frames early at every battle with a song of its own.
+  - *Dispatchers' extreme values from the interrupted calibration* (checked,
+    not a wait): `battle_member_attacks_from_bank_fd` (2506 to 519998) and
+    `battle_main_loop_start` (3000 to 114458) carry a sliver of own clocks
+    beside their parts (368 bus clocks over 23 stretches; 264,032 of 20.5 M),
+    and the rest of the original's time once the parts' estimates are taken out
+    lands on it: about 8,300 clocks a stretch for the first, no frame's worth,
+    so no spin is in it. The ten floored to 1 (`battle_set_up`,
+    `battle_enemy_flags_turn`, `menu_open_main_menu`, ...) are the same with
+    the parts a little over: `battle_set_up`'s own time (1,229,158 clocks in
+    `battle-black-tyrano`) equals its parts' measured own times
+    (`battle_setup_state` 773,972 and `battle_setup_graphics` 377,006, with
+    the window and bounds at their rates), so the handlers' time isn't taken
+    out twice. A dispatcher's own value is ill-conditioned this way; it moves
+    only its own few clocks.
   - *Two entries the interrupted calibration would break.* At the values
     their interrupted calls imply, `battle_share_experience` (21758 to
     347796) puts a plain call 51,942 clocks off (the `worst` limit is 50,468)
