@@ -385,17 +385,17 @@ because the merge costs, not the porting, are what a new wave gets wrong.
   and additive-only changes to `runtime/platform/*.h`. Calibration
   (`tools/timing_gate.py --calibrate game/registry.c`) rewrites every measured
   `cost_milli`, so an agent commits only its own subsystem's.
-- **Each agent validates its own branch** with the gate and
-  `--long-routes` on the sample (the whole library is the batched run's, not
-  a branch's), and fuzzes every entry it writes or rewrites. The gate's
+- **Each agent validates its own branch** with the sampled gate, without
+  `--long-routes` (the long routes are main's, once per batch of merges, and
+  the whole library is the batched run's), and fuzzes every entry it writes or rewrites. The gate's
   effects check holds the branch to the native shape: a read by the logic of
   what a port writes only as scaffolding is answered before the merge, not
   added to its baseline unexplained (PORTING.md, "Scaffolding").
 - **Whoever merges** takes them one at a time, and after each: regenerates
   `game/ram.h` from the merged `re/ram.toml` (`python3 tools/ram_map.py
-  header`), recomputes the burndown for this table, and runs the **gate
-  with `--long-routes` on the merged tree**, because a tree combining two
-  branches is one nobody has gated; the whole library follows in the next
+  header`), recomputes the burndown for this table, and runs the **gate on the merged tree**, because a tree combining two
+  branches is one nobody has gated, with `--long-routes` once per batch of
+  merges that can move timing or the native runtime, before the batch pushes; the whole library follows in the next
   batched `--all-movies` run, whose ledger changes land as one commit. Doc conflicts are usually both sides
   appended; a status row two agents changed takes both edits.
 - **A change is reviewed for how it reads before it merges.** A reader

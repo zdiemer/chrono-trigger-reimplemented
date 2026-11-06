@@ -72,10 +72,11 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). By default
   it runs the gate's sample of the movie library, `tools/gate_movies.txt` (a greedy cover of the
   library's shadow coverage per frame played, plus what each check needs, each line with its reason);
-  `--all-movies` runs the whole library. A branch and a merge pass on the sample, and that is
-  enough to push; add `--long-routes` when the change can move timing or the native runtime (a
-  port, a `cost_milli`, the time model, `runtime/`), since the long routes are most of the gate's
-  wall time (its `times:` line says where it went). The whole library (8 hours and more at `-j 2`) runs
+  `--all-movies` runs the whole library. A branch passes on the sample, without `--long-routes`. The long routes are
+  most of the gate's wall time (its `times:` line says where it went), so main runs them once per
+  batch of merges: the merge gate takes `--long-routes` when anything merged since main's last
+  long-routes pass can move timing or the native runtime (a port, a `cost_milli`, the time model,
+  `runtime/`), and that pass is what lets the batch push. The whole library (8 hours and more at `-j 2`) runs
   batched: once over everything merged since its last run, when the machine is free and at a higher
   `-j`, and recalibration and baseline updates (`--calibrate`, `--update`, `--prune`), which take
   the whole library's numbers, come from that run as one ledger commit; on the sample the ratchets drop no baseline
@@ -325,9 +326,10 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
   processes at a time unless told otherwise. Kill a process only by its PID, never
   by image name (`taskkill /IM`, `pkill ct_dev`): that kills other agents' runs.
 - **The gate.** A branch passes on the sampled gate,
-  `py tools/suite.py --ct-dev build/main/ct_dev.exe -j 2 --evidence`, with `--long-routes`
-  when it can move timing or the native runtime (a port, a `cost_milli`, `runtime/`).
-  Don't run `--all-movies` on a branch: the whole library runs batched (see
+  `py tools/suite.py --ct-dev build/main/ct_dev.exe -j 2 --evidence`, without `--long-routes`:
+  whoever merges runs the long routes on main, once per batch of merges (see "Validation" above).
+  A branch runs one long route by hand (`tools/movies/route_check.py`) only when its change is
+  aimed at a route. Don't run `--all-movies` on a branch: the whole library runs batched (see
   "Validation" above). `suite.py` exits 0 even when it fails, so read its last
   line: only `suite OK` is a pass.
 - **Ratchets and exceptions.** Never add a line to a baseline or exceptions file
