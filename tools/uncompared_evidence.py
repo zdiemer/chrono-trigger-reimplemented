@@ -6,7 +6,7 @@ continuation can reach its own point. The flickering entries each own a
 complete trip through real interrupt waits. No counts from these runs are
 mixed into timing, fallback or combined-run comparison totals.
 
-A case that compared keeps its verdict in the build directory
+A case that compared keeps its verdict in the store every worktree shares
 (tools/evidence_cache.py, keyed on the binary, the ROM, the movie, the run's
 options and this Python); a later run takes it from there while none of those
 has changed. --no-cache runs every case again.
@@ -107,7 +107,8 @@ def main():
     ap.add_argument("--movies", nargs="*", help="only evidence for these movies; omit for all fixtures")
     ap.add_argument("-j", type=int, default=2)
     ap.add_argument("--cache", type=pathlib.Path,
-                    help="where compared cases are kept (default: evidence-cache/uncompared beside --ct-dev)")
+                    help="where compared cases are kept (default: build/evidence-cache/uncompared in the main "
+                         "checkout, which every worktree shares)")
     ap.add_argument("--no-cache", action="store_true",
                     help="run every case again rather than take a stored verdict (also CT_EVIDENCE_CACHE=off)")
     args = ap.parse_args()

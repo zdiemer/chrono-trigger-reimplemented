@@ -27,8 +27,8 @@ never ran (unexercised: the run shows nothing for it), or a site had V inverted
 fewer than 100 times, unless the note rests such sites on the static result
 and another of its sites made 100 (update a note's counts to the ones printed).
 
-A movie whose runs all passed keeps its counts in the build directory
-(tools/evidence_cache.py, keyed on the binary, the ROM, the movie, the runs'
+A movie whose runs all passed keeps its counts in the store every worktree
+shares (tools/evidence_cache.py, keyed on the binary, the ROM, the movie, the runs'
 options and this Python), and a later run takes them from there while none of
 those has changed; the counts are summed and judged afresh every time.
 --no-cache makes every movie again.
@@ -176,7 +176,8 @@ def main(argv=None) -> int:
                     help="child processes at once; each movie runs its variants sequentially")
     ap.add_argument("--movies", nargs="*", help="only these (the counts then won't match the notes')")
     ap.add_argument("--cache", type=pathlib.Path,
-                    help="where passing movies' results are kept (default: evidence-cache/dc beside --ct-dev)")
+                    help="where passing movies' results are kept (default: build/evidence-cache/dc in the main "
+                         "checkout, which every worktree shares)")
     ap.add_argument("--no-cache", action="store_true",
                     help="make every movie's runs again rather than take a stored result (also CT_EVIDENCE_CACHE=off)")
     args = ap.parse_args(argv)
