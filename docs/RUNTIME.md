@@ -754,26 +754,43 @@ Now the continuation is named (`runtime/port/native.h`, `native_hold`;
 
 - Each held wait has a number (`game/holds.h`), and its continuations are
   `NativeEntry` rows carrying it (`.hold`), in a table of their own,
-  `game_held_waits` beside the registry's, which `frontend/natives.c` adds to the runtime's.
+  `game_held_waits`, beside the registry's. `frontend/natives.c` adds them to
+  the runtime's table, which keeps their statistics and timing as any
+  entry's. When it is created, the runtime also sets the rows with a wait's
+  number aside in a list of their own.
 - A port that reaches the wait stops at the head with `m_hold_at(s, head,
   set, wait)`. This is `m_stop_at` (shadow mode compares it, and
   `tools/dontcare_check.py` checks the set as a stop's), and in the shipping
   mode it also has the machine name the wait: `Snes.held_wait`, with the S the
   main thread rests with.
-- Where the machine names a wait, the PC is at its head and S is that S, the
-  runtime runs the wait's continuations as C. The census files these runs as
+- Where the machine names a wait and S is the S it rests with, the runtime
+  goes on in the wait before it looks at the address at all
+  (`go_on_in_the_held_wait`, `native.c`). It takes the wait's continuations
+  from that list by the wait's number, checks only that the PC is the wait's
+  head, and runs the first that applies. The census files these runs as
   `held` lines, not as entries by the machine. An idle continuation that goes
   round names the wait again, and a port continuation names it with
-  `m_hold_at`. A continuation that leaves the loop, or whose code isn't in
-  place, leaves the wait unnamed.
+  `m_hold_at`. Where the PC isn't the head or none of them applies (its code
+  isn't in place), the main thread has left the wait: it stops being named,
+  and the machine goes on by the address path.
 - The two fields are saved with the machine, so a `ct_drive` base, a slot or a
   quick save taken in the wait names it, and a fresh runtime goes on in it.
-- The original's address is still honoured. Where the machine comes to the
-  head with no wait named (a caller still on the gate whose original code goes
-  round to the loop; a state from before the fields existed), the
-  continuation is entered as any entry, counted by how the machine got there,
-  and names the wait from then on. Shadow mode and `ct_fuzz` take the rows as
-  ordinary entries, so the comparisons are the same as before.
+- The original's address is still honoured, and this is the only place the
+  rows are found by it. Where the machine comes to the head with no wait named
+  (a caller still on the gate whose original code goes round to the loop; a
+  state from before the fields existed), the address lookup finds the
+  continuation and enters it as any entry. The census counts that as an entry
+  by the machine, by how the machine got there, and the continuation names the
+  wait from then on. Shadow mode and `ct_fuzz` take the rows as ordinary
+  entries, so the comparisons are the same as before. A call-out's callee run
+  in place (`call_in_place_to`) can still run the port continuation by
+  address, as before: no call reaches a main loop's head, which never returns.
+- A state saved before the fields existed loads, with both at 0: a field a
+  state lacks keeps its power-on value ("Save states", above). A state the
+  build before this one saved at attract-demo's frame 12,000, in the scene
+  program's wait, loaded here and played 500 frames, ends with the same state
+  and picture as this build's run that didn't stop. Its first pass is the
+  address path's, and the wait is named from then on.
 
 The scene program's main loop is the first held wait (`HOLD_SCENE_MAIN_LOOP`):
 the first frame (`first_frame_on_the_machine`) holds it, and its two passes
@@ -788,8 +805,11 @@ attract-demo and title-start:
 | census, all entries by the machine | 9,285,097 | 4,814,140 |
 | attract-demo, driven a frame at a time in `ct_drive --native on`: frame ends with a routine suspended | 12,329 of 22,500, in 56 runs, the longest 2,142 | the same frames |
 
-The wait passes match one for one, because the continuations run exactly as
-the idle entry and the port did. A `ct_play` quick save taken at attract-demo's
+The wait passes match one for one, because the continuations are the same
+functions as the idle entry and the port. What changed is how the runtime
+reaches them: by the wait's number, with no address lookup. `tools/machine_joints.py` counts the two rows apart, as
+held waits' continuations: they are still machine wrappers, a joint until the
+loop runs with no machine under it. A `ct_play` quick save taken at attract-demo's
 frame 12,000 (PC `$7E:3023`, wait 1 named), loaded, and played 500 frames ends
 with the same state and the same picture as the run that didn't stop.
 

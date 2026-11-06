@@ -4862,11 +4862,14 @@ const NativeEntry game_natives[] = {
 
 const int game_native_count = (int)(sizeof game_natives / sizeof game_natives[0]);
 
-/* The held waits' continuations (holds.h; runtime/port/native.h, native_hold):
- * where the main thread rests at a frame end, the runtime runs these as C
- * where the machine names their wait, not because it reached their address.
- * Each keeps the original's address for a caller still on the gate whose code
- * comes to the loop's head with no wait named, which enters it there. */
+/* The held waits' continuations (holds.h; runtime/port/native.h, native_hold
+ * and NativeEntry.hold). Where the machine names their wait, with the main
+ * thread resting in it at a frame end, the runtime runs them by the wait's
+ * number. The runtime's table holds them beside the registry's rows (the
+ * hosts add them, frontend/natives.c), but only for the address path: where
+ * no wait is named (a caller still on the gate whose code comes to the loop's
+ * head, a state from before the wait was held), the machine finds one by its
+ * address, enters it as any entry and it holds the wait from there. */
 const NativeEntry game_held_waits[] = {
     /* the scene program's main loop: its empty pass, and its pass with a picture's scaling */
     { .addr = 0x7E3023, .name = "attract_wait_loop", .fn = attract_wait_loop, NEEDS_M16, .idle = true,

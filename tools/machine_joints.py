@@ -28,6 +28,7 @@ GAME = ROOT / "game"
 # (name, pattern, what retires it)
 JOINTS = [
     ("registered entries", None, "ordinary functions their callers call"),
+    ("held waits' continuations", None, "their main loops run as C with no machine under them"),
     ("returns through the emulated stack", r"\bm_rt[sli]\(", "the entry wrappers deleted"),
     ("stops at the original's addresses", r"\bm_stop_at(?:_own)?\(|\bm_hold_at\(|\bnative_\w*dont_care_at_stop\(",
      "the next step called as C"),
@@ -63,6 +64,15 @@ def registry_entries():
     return len(ENTRY.findall(text[start:text.index("\n};", start)]))
 
 
+def held_wait_rows():
+    """The held waits' continuations (game_held_waits): machine wrappers the
+    runtime runs by a wait's number rather than finds by address, still a
+    joint until their main loops run with no machine."""
+    text = (GAME / "registry.c").read_text(encoding="utf-8")
+    start = text.index("game_held_waits[] = {")
+    return len(ENTRY.findall(text[start:text.index("\n};", start)]))
+
+
 def count(per_file):
     totals = collections.Counter()
     by_file = collections.defaultdict(collections.Counter)
@@ -78,6 +88,7 @@ def count(per_file):
                 totals[name] += n
                 by_file[path.relative_to(ROOT).as_posix()][name] += n
     totals["registered entries"] = registry_entries()
+    totals["held waits' continuations"] = held_wait_rows()
     return totals, by_file
 
 
