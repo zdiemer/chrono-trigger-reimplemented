@@ -132,9 +132,9 @@ the reference's. The run parts at the first saved-game state or milestone the
 reference doesn't have there, and the report says what moved before it: the
 milestone that set the shift in force and by how much, the play clock's offset
 (the field seeds its random draws from it), and a battle that starts from
-another random number. None of that decides the verdict, since a strict run is
-a frame off from its first load and a port's mistake later would show the same
-way. The run with the original's time does: the movie is **drift** only when
+another random number. None of that decides the verdict, since a strict run's
+frames part from the reference's by the ports' estimated time and a port's
+mistake later would show the same way. The run with the original's time does: the movie is **drift** only when
 that run plays as the reference to its end, so the original's time alone makes
 the difference, and a **bug** when it parts anywhere or ends short. That run
 times only the calls it can, and the rest run the original's code, so the report

@@ -48,10 +48,17 @@ enum { RULES_SOME_SIT_OUT = 0x01, RULES_UNMARKED_FIGHT = 0x02, CHARACTER_BITS = 
  * one the RAM map names, so it is cleared by address (game/wram.h). */
 enum { PAGE_CELLS_AT = 0x7E0080, PAGE_CELLS_WORDS = 0x36, TABLES_AT = 0x7E2D01, TABLES_WORDS = 0x3FF6 };
 
+/* The fill takes none of the port's own time, and the original's, a store a
+ * word over 32 KiB, is nearly all of the way in's own (about four frames):
+ * charged at the way in's rate, a byte cleared an access. Plainly, not as
+ * scaffolding: the native-shape build keeps the battle's pace (charge.h). */
+enum { THE_WAY_IN = 0xC10000 };
+
 static void clear_battle_memory(GameState *g)
 {
     wram_fill16(g, TABLES_AT, TABLES_WORDS, 0);
     wram_fill16(g, PAGE_CELLS_AT, PAGE_CELLS_WORDS, 0);
+    charge_as(g, THE_WAY_IN, 2 * (TABLES_WORDS + PAGE_CELLS_WORDS));
 }
 
 /* Cells the original sets that nothing reads again. */

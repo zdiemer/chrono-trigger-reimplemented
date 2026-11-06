@@ -286,6 +286,8 @@ static void run_dma(SnesBus *bus, uint8_t channels)
     }
     bus->clocks = clocks;   /* the accesses above counted bus speeds; replace them */
     bus->dma_clocks += clocks - start;
+    if (clocks - start > bus->dma_longest)
+        bus->dma_longest = clocks - start;
 }
 
 /* ---- public ------------------------------------------------------------------ */

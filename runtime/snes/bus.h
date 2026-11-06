@@ -52,6 +52,9 @@ typedef struct SnesBus {
      * time estimates take DMA's time as it is and estimate only the rest
      * (runtime/port/native.c), so they measure their own by difference. */
     uint32_t dma_clocks;
+    /* The longest of them a single $420B write started, since the hand ports'
+     * runtime last cleared it: the stall the original takes as one step. */
+    uint32_t dma_longest;
 
     SnesIo io;
 
