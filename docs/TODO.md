@@ -129,6 +129,47 @@ rest waits, is [PLAN.md](PLAN.md).
   be too once their handlers are entries. Adding a movie or a port means
   recalibrating, since the drift limit holds only for the measured value.
   `--generated only` stays exact.
+- **Strict mode's battles a few frames off** (REIMPLEMENTATION.md, "Calls that
+  outlast a frame, and the battles' drift"). Of the 45 `drifts` movies, 32
+  still part with a battle menu's shift in force, a median 4 frames. What was
+  found and not fixed:
+  - *The passes' knife edge.* A battle's main-loop pass takes two or three
+    frames by whether its work crosses a frame boundary, and the turn timers
+    count passes, so a few lines of error a frame flips a pass. In
+    `battle-denadoro`'s second battle (frames 6700-7020) `battle_draw_objects`
+    estimated +7.9% (1.27 M clocks over 320 frames) where the library's drift
+    is -0.12%: the per-scene spread of its parts.
+  - *Handlers calibrated on their entry wrapper.* `battle_draw_behind`'s
+    calls with no effect playing take the original 84 clocks and are
+    estimated at 659 (+684% in that window): the machine wrapper's reads and
+    writes of the drawing page's cells are most of a short call's bus clocks,
+    and the calibration takes them in, but `battle_draw_objects` runs the same
+    work inline as a part without them. Leaving a wrapper's accesses out of
+    its entry's estimate (`charge_uncounted_*`) would make the two agree.
+  - *A field wait no lag frame explains.* In `battle-black-tyrano` the
+    strict run is already 8 frames early when the battle starts: the field's
+    frames match the reference's one for one, but at frames 7012-7019 an
+    object's frame staging is rewritten 7 frames apart in the reference and 1
+    in strict mode. Something the event waits on there is not counted in
+    frames; find it before the battle start can be judged.
+  - *The menus' long calls.* `menu_open_load_screen`, `menu_draw_load_screen`
+    and `menu_run_the_main_task` are interrupted on every call and their
+    handler goes on in another task, so even the interrupted measurement
+    leaves them out; they keep a hand-set `cost_milli` of 5000.
+  - The sound waits count the light vblank handler's few percent twice.
+  - *Two entries the interrupted calibration would break.* At the values
+    their interrupted calls imply, `battle_share_experience` (21758 to
+    347796) puts a plain call 51,942 clocks off (the `worst` limit is 50,468)
+    and `scene_ending_start_mode7_picture` (10452 to 166947) a vblank one
+    81,358 off: their own clocks are a sliver beside their parts, and their
+    calls' paths differ. They keep their values; the batched calibration over
+    the library will meet the same.
+  - *A long route to check.* A `--long-routes` gate of the branch that added
+    the interrupted measurement, the DMA step and the sound waits' handlers
+    (before the two values above were put back) had 55 of 56 routes reach
+    their outcome in the shipping mode; it was stopped when the gate policy
+    changed, before it named the one that didn't. The batch's long routes
+    will.
 - **Charge the endings' swept window by its lines.** `scene_ending_sweep_window`
   (`$7E:9A0C`, `game/scene/endings.c`) carries one calibrated `cost_milli`,
   but the original's time follows the window's lines and corners as it sweeps
@@ -3023,12 +3064,10 @@ list, by kind, is what `game/` still asks of one.
     access, against 296). Wants a rate that follows the mode (the
     overworld's scenes, the battle), or the routines that overrun named with
     their own measured time.
-  - *The handlers' share of an upload.* The sound driver's upload time is
-    the wall's under a light vblank handler; under the menus' busy one the
-    original's song loads in about twice the frames. Waiting the CPU half's
-    own time on the machine (the handlers on top) followed it, but the
-    native-shape build's `beyond_time` route then never walked out of
-    `$DA01` (its exit search found no move); find why before taking it.
+  - *The handlers' share of an upload, without a machine.* On the machine a
+    sound command's wait takes the handlers' time on top (`native_wait_time`);
+    `ct_native` charges the wall's time under a light handler, so its loads
+    under the battle's or the menus' handler are short.
   - *A song held while the echo settles* loads at the wait's end, uncharged
     (`frontend/sound_host.c`, `sound_native.c`); only short songs met it in
     the library.

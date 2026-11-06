@@ -38,8 +38,9 @@ otherwise (another place, another song), or the end of a run that stops short of
 the milestone that set the shift in force, the play clock's offset (the field
 seeds its random draws from it), a battle starting from another random number,
 and, as context only (both runs replay the same presses), the input the game
-meets there -- but none of that decides the verdict: a strict run is a frame
-off from its first load, and a port's mistake later would look the same. The
+meets there -- but none of that decides the verdict: a strict run's frames
+part from the reference's by the ports' estimated time, and a port's mistake
+later would look the same. The
 run with the original's time decides it. The movie is
 
 - **drift** when that run plays as the reference to its end: the original's

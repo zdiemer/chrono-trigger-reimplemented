@@ -954,6 +954,67 @@ off by 1024 clocks or more from 1.115% to 0.512% (in vblank, 1.053% to 0.723%).
 None of these writes a video register: they write RAM the next vblank uploads,
 and the vblank check finds no video write moved.
 
+**Calls that outlast a frame, and the battles' drift.** Of the 45 movies
+`tools/strict_baseline.txt` marked `drifts`, 33 first moved at a battle: a
+member's command menu opening, or the menu closing, frames early or late, and
+`tools/drift.py` saw most of those battles start from the random number one
+below the reference's. Four causes, each measured by comparing the reference
+play with a strict run over one battle (`ct_dev --state-trace` both ways, the
+shadow run's per-call times):
+
+- *The load screen's frame count.* The battles' random numbers start from the
+  menus' vblank count as the load screen is left (`frames_at_leaving`), and in
+  every save movie strict mode's count was one short: the master clocks of the
+  menus' first vblank were the reference's, but the run had counted one more
+  frame by then. The menus clear video memory with one DMA transfer longer than
+  what is left of the frame; the original's transfer stalls the CPU inside the
+  one instruction that starts it, so the reference's step ran past two vblanks
+  and its frame counter (the movie's frames) went up once, where the port's
+  debt was paid a line at a time and counted both. A port's longest transfer is
+  now paid as one step (`pay_debt`, `runtime/port/native.c`), and every save
+  movie's battles start from the reference's number.
+- *Time no estimate saw.* The way in from the field clears the battle's 32 KiB
+  of memory with a store a word, about four frames of the original's time, and
+  the port's fill took none (`battle_start_from_field`: 1,347,388 clocks of the
+  original's against an estimate of 827, every battle). It is charged now
+  (`charge_as`, at the way in's own rate).
+- *Entries no calibration reached.* The timing report measured only stretches
+  no interrupt fell in, and a routine whose calls always outlast a frame never
+  has one: the battle's setup (`battle_set_up`, `battle_setup_state`,
+  `battle_setup_graphics`, `battle_start_fight`, `battle_main_loop_start`),
+  `field_battle_begins`, the field's return from a battle, the menus' panels,
+  kept their hand-set `cost_milli` (3000, 5000) or one from before they grew;
+  `battle_setup_graphics` ran at half the original's time. A stretch an
+  interrupt fell in is now measured with the handlers' time taken out of the
+  original's (`end_segment`; an interrupt is followed from the step it is
+  taken at to the step that comes back to its S, one that never comes back,
+  the menus' vblank handler going on in another task, given up after two
+  frames and the stretch left out). Its totals count in the drift and the
+  calibration, its single error in none of the per-stretch limits, and
+  `timing_gate.py --calibrate --interrupted` sets only the entries measured
+  mostly so, which a calibration over part of the library may do without
+  moving the entries the library calibrates.
+- *A song loaded under the battle's handler.* A battle with its own song
+  loads it after the battle's vblank handler is in, and the time model's
+  upload rates are the wall's under a light one: `battle-mud-imp`'s battle
+  song took 47 frames in strict mode and 56 in the original's. A sound
+  command's wait now takes the handlers' time on top (the frame-level time
+  model, below).
+
+Measured with the calibration of the entries only interrupted stretches
+measure over 73 shadow runs (the drifting movies and the gate's sample;
+`timing_gate.py --calibrate --interrupted --also battle_start_from_field`),
+and `tools/drift.py --drifting --no-timed`: before, 34 of the 45 parted with
+a battle menu's shift in force, a median 11 frames, and every save movie's
+battles started one random number low; after, the battles start from the
+reference's number (`events-proto-dome`'s differs for another cause, as it
+did), 32 part with a battle menu's shift in force, a median 4 frames, and
+`battle-denadoro` and `events-sun-stone` play as the reference to their end.
+Of the rest, 21 part later than they did and 10 earlier: a battle a frame
+off meets the recorded presses otherwise from there on, so where a movie
+parts moves either way with any change to the time. What is left is in
+TODO.md ("Strict mode's battles a few frames off").
+
 ### The frame-level time model
 
 The estimate keeps a port's own time on the machine; a build with no machine
@@ -1021,13 +1082,14 @@ numbers in `time_model.h` with how):
 | A send to video memory from the main thread, in `ct_native` | 8 a byte | DMA's rate; the handlers' sends are the frame's own |
 
 The sound's are the wall's time under a light vblank handler, and the machine
-lets it pass as a wait (`native_wait_time`, interrupts taken meanwhile). The
-same song loads in about twice the frames under the menus' busy handler
-(`menus-shop-equip`'s songs, 820 to 1,230 clocks a byte), which the model
-doesn't follow. Waiting the CPU half's own time instead, the handlers' on
-top, followed it, but sent the native-shape build's `beyond_time` route into
-a wait it never walked out of, and moved strict mode no further than the
-wall's time (37 movies either way); it was dropped (TODO.md). The C driver
+lets it pass as a wait (`native_wait_time`) with interrupts taken meanwhile
+and their time added on top, so a load under a busier handler takes the
+longer the original's does: the same song loads in about twice the frames
+under the menus' busy handler (`menus-shop-equip`'s songs, 820 to 1,230 clocks
+a byte), and a battle's song, loaded once the battle's vblank handler is in,
+took 47 frames where the original's took 56 (`battle-mud-imp`'s `$45`) before
+the handlers went on top ("Calls that outlast a frame", above). The light
+handler's few percent are counted twice. The C driver
 keeps the count: `SoundDriver.bytes_sent` and `bytes_moved` are
 what it loads (`game/sound/`, a size and no time), and its two hosts
 (`frontend/sound_host.c` on the machine, `frontend/sound_native.c` without)
