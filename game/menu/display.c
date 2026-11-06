@@ -1312,6 +1312,10 @@ static const struct {
 static bool object_frame_step_on_the_machine(void *ctx, ObjectFrameStep step)
 {
     Snes *s = ctx;
+    /* the time the frame's work has taken passes before each step, as it did
+     * when each was a call the machine made: the input read and the line
+     * effects see the beam where the original's do */
+    tm_sync(m_platform(s));
     if (object_frame_calls[step].long_call)
         return menu_run_long(s, object_frame_calls[step].site, object_frame_calls[step].routine,
                              object_frame_calls[step].entry);

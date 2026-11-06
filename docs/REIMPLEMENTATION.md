@@ -3164,7 +3164,14 @@ object loop runs each handler's registered entry as C (`menu/objects.c`,
 `turn_on_the_machine`), each only where the registry would run that entry
 there -- its P mask with the decimal flag, widths, page, bank and guard, the
 return address pushed as the call pushes it -- and by the machine as before
-where it wouldn't. Census of the four world-map movies (`field-65m-bc`,
+where it wouldn't. The shipping mode charges a port's time when its stretch
+ends, and each of those calls used to end one, so the machine's clock caught
+up between the steps and between the objects; as one call the whole frame's
+work landed at once, and the strict runs drifted (`menus-shop-inn`'s places
+and checkpoints, `menus-epoch`'s saved game). The machine side lets the time
+pass (`tm_sync`) before each step and each object's turn, as the calls did,
+which puts both back; `menus-epoch`'s last two checkpoints (8700, 8800) still
+differ in strict mode. Census of the four world-map movies (`field-65m-bc`,
 `-dactyl`, `-dactyl-flight`, `field-12kbc-1f4`): entries the machine enters
 82 to 61, its call-outs 75,053 to 32,978 and stops 30,252 to 28,197;
 `menu_object_nmi`, `menu_run_objects`, the frame's five steps and the
