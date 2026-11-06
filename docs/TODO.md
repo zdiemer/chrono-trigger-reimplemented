@@ -1277,11 +1277,7 @@ rest waits, is [PLAN.md](PLAN.md).
   because the platform has no screen-size call (a platform gap).
 
 - **What the overworld on foot's review left** (none rated translation):
-  the leader's
-  frames that build a map strip are off by 7,000-14,000 clocks (the scroll is
-  timed as itself, at its own 1,445) -- charge the scroll per strip built (its
-  two timing exceptions went with the vblank limits' change to stretches
-  within one vblank, REIMPLEMENTATION.md, "The timing gate"); `followers.c`'s route is a packed byte and
+  `followers.c`'s route is a packed byte and
   `walls_between` returns a bare byte (a `Route` type), `place & 1` stands
   for the second member, scaffolding is written on every try along the
   trail, and `set_off` places the walker another way than the leader;

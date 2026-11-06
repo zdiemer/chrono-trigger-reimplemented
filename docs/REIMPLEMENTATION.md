@@ -686,6 +686,35 @@ that calibrates its own, so a batch of movies is added this way:
    or the part timed as its own routine), and only where that can't reach it,
    an exception with the vblank check's word that no write moved.
 
+**The part timed as its own routine: the menus' map scroll.** The scroll
+(`menu/map.c`) moves a plane a pixel at a time and, where a tile column or row
+comes into view, builds a strip of 30 or 34 tilemap words and queues it. One
+`cost_milli` stood for both, so the frames that built a strip were off by a line
+or more: the scroll command `menu_object_cmd_scroll_map` in 29.85% of its 11,975
+vblank stretches, the one-plane command in 91% of 123, and the object scripts'
+frame that runs them in 2.11%, all three timing exceptions. The original builds
+and queues each strip in routines of its own (`$C2:0773`, `$C2:07C2`, `$C2:0843`,
+`$C2:088F`, `$C2:090D`, `$C2:0961`), so those are registered entries now, which the
+original's scroll enters in shadow mode and which are calibrated on those calls,
+and the scroll here runs each strip under its routine's `TIMED_AS` tag: a strip
+is estimated at the strip routines' rate (`cost_milli` about 15,200 for a build,
+4,500-4,800 for a queueing), a pixel's move at the scroll's (about 5,100). Two
+things it took. An entry's own calls are measured on what the entry does, and
+the strip and scroll entries also take their operands from the original's cells,
+put results back and return, which their C callers never do; with those
+accesses in, a build was calibrated on 1,464 bus clocks a strip where the scroll
+spends 1,256, and every strip the scroll built was underestimated by 2,700
+clocks. The entries leave that calling convention out of the estimate
+(`charge_uncounted_begin`), as the battle script runner's table read is. And
+the ports that run the scroll inline (the two commands, the overworld's walk,
+dactyl and Epoch, the scene's drifting map) were moved by what the split moves
+them on the 35 movies that scroll the map, rather than calibrated on those
+movies alone. Over those movies the strips' estimates are within 0.1% a call,
+the scrolls' 2.5% (46-50% before), and none of the three entries is over the
+vblank tail (0%, 0% and 0.53%); the dactyl's frames that only run a sprite
+script, which its own share of the frame no longer props up, went from 895 to
+1,041 clocks off and are an exception.
+
 An entry over a limit fails unless `tools/timing_exceptions.txt` lists it
 for that limit with a reason; an exception an entry no longer needs is reported
 over the whole library (`--all-movies`; the sample can't tell an exception no
