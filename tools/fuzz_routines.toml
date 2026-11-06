@@ -6993,6 +6993,100 @@ iterations = 2000
 why = "the object mode's page, a data bank of 0 and the running object a slot"
 
 [[routine]]
+name = "menu_map_build_column_strip"
+at = "C2:0773"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E000E-7E000F=00-00", "--fill", "7E0010-7E0010=00-00", "--fill", "7E0011-7E0011=30-30", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=40-40", "--fill", "7E0008-7E0008=00-5F", "--fill", "7E0009-7E0009=00-00", "--fill", "7E000A-7E000A=00-3F", "--fill", "7E000B-7E000B=00-00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E"]
+iterations = 2000
+why = "the object mode's page, the first plane with its own tables, as the scroll leaves them (the second-plane variant: the second), the strip's map column and row on the map, and the upload buffer where the game keeps it ($7E:F000-$F3FF) (map.c's guard)"
+
+[[routine]]
+name = "menu_map_build_column_strip"
+variant = "second-plane"
+at = "C2:0773"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E000E-7E000E=02-02", "--fill", "7E000F-7E000F=00-00", "--fill", "7E0010-7E0010=00-00", "--fill", "7E0011-7E0011=38-38", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=58-58", "--fill", "7E0008-7E0008=00-5F", "--fill", "7E0009-7E0009=00-00", "--fill", "7E000A-7E000A=00-3F", "--fill", "7E000B-7E000B=00-00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E"]
+iterations = 2000
+why = "as the first plane's, for the second plane"
+
+[[routine]]
+name = "menu_map_build_column_strip_right"
+at = "C2:07C2"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E000E-7E000F=00-00", "--fill", "7E0010-7E0010=00-00", "--fill", "7E0011-7E0011=30-30", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=40-40", "--fill", "7E0008-7E0008=00-5F", "--fill", "7E0009-7E0009=00-00", "--fill", "7E000A-7E000A=00-3F", "--fill", "7E000B-7E000B=00-00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E"]
+iterations = 2000
+why = "as menu_map_build_column_strip"
+
+[[routine]]
+name = "menu_map_build_column_strip_right"
+variant = "second-plane"
+at = "C2:07C2"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E000E-7E000E=02-02", "--fill", "7E000F-7E000F=00-00", "--fill", "7E0010-7E0010=00-00", "--fill", "7E0011-7E0011=38-38", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=58-58", "--fill", "7E0008-7E0008=00-5F", "--fill", "7E0009-7E0009=00-00", "--fill", "7E000A-7E000A=00-3F", "--fill", "7E000B-7E000B=00-00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E"]
+iterations = 2000
+why = "as the first plane's, for the second plane"
+
+[[routine]]
+name = "menu_map_build_row_strip"
+at = "C2:0843"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E000E-7E000F=00-00", "--fill", "7E0010-7E0010=00-00", "--fill", "7E0011-7E0011=30-30", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=40-40", "--fill", "7E0008-7E0008=00-5F", "--fill", "7E0009-7E0009=00-00", "--fill", "7E000A-7E000A=00-3F", "--fill", "7E000B-7E000B=00-00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E"]
+iterations = 2000
+why = "as menu_map_build_column_strip"
+
+[[routine]]
+name = "menu_map_build_row_strip"
+variant = "second-plane"
+at = "C2:0843"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E000E-7E000E=02-02", "--fill", "7E000F-7E000F=00-00", "--fill", "7E0010-7E0010=00-00", "--fill", "7E0011-7E0011=38-38", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=58-58", "--fill", "7E0008-7E0008=00-5F", "--fill", "7E0009-7E0009=00-00", "--fill", "7E000A-7E000A=00-3F", "--fill", "7E000B-7E000B=00-00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E"]
+iterations = 2000
+why = "as the first plane's, for the second plane"
+
+[[routine]]
+name = "menu_map_build_row_strip_bottom"
+at = "C2:088F"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E000E-7E000F=00-00", "--fill", "7E0010-7E0010=00-00", "--fill", "7E0011-7E0011=30-30", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=40-40", "--fill", "7E0008-7E0008=00-5F", "--fill", "7E0009-7E0009=00-00", "--fill", "7E000A-7E000A=00-3F", "--fill", "7E000B-7E000B=00-00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E"]
+iterations = 2000
+why = "as menu_map_build_column_strip"
+
+[[routine]]
+name = "menu_map_build_row_strip_bottom"
+variant = "second-plane"
+at = "C2:088F"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E000E-7E000E=02-02", "--fill", "7E000F-7E000F=00-00", "--fill", "7E0010-7E0010=00-00", "--fill", "7E0011-7E0011=38-38", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=58-58", "--fill", "7E0008-7E0008=00-5F", "--fill", "7E0009-7E0009=00-00", "--fill", "7E000A-7E000A=00-3F", "--fill", "7E000B-7E000B=00-00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E"]
+iterations = 2000
+why = "as the first plane's, for the second plane"
+
+[[routine]]
+name = "menu_map_queue_column_strip"
+at = "C2:090D"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E", "--fill", "7E005F-7E005F=00-00"]
+iterations = 2000
+why = "the object mode's page, the upload buffer where the game keeps it ($7E:F000-$F3FF) and the object queue empty (map.c's guard: the queue whole and with room)"
+
+[[routine]]
+name = "menu_map_queue_row_strip"
+at = "C2:0961"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E", "--fill", "7E005F-7E005F=00-00"]
+iterations = 2000
+why = "as menu_map_queue_column_strip"
+
+[[routine]]
 name = "menu_clear_vram"
 at = "C2:26A8"
 subsystem = "menu"

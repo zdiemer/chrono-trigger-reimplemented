@@ -6349,6 +6349,26 @@ void set_menu_object_scratch_map_strip_vram(GameState *g, uint16_t v);
  * of its second half) */
 uint16_t menu_object_scratch_map_strip_end(const GameState *g);
 void set_menu_object_scratch_map_strip_end(GameState *g, uint16_t v);
+/* The map's scroll, into a strip's building: the map tile column it starts from (a column
+ * strip's own, a row strip's first) */
+uint16_t menu_object_scratch_map_strip_column(const GameState *g);
+void set_menu_object_scratch_map_strip_column(GameState *g, uint16_t v);
+/* The map's scroll, into a strip's building: the map tile row it starts from (a row strip's own,
+ * a column strip's first) */
+uint16_t menu_object_scratch_map_strip_row(const GameState *g);
+void set_menu_object_scratch_map_strip_row(GameState *g, uint16_t v);
+/* The map's scroll, out of a strip's building: the tile halves it walked, plus one where it
+ * started on a map tile's second half */
+uint16_t menu_object_scratch_map_strip_halves(const GameState *g);
+void set_menu_object_scratch_map_strip_halves(GameState *g, uint16_t v);
+/* The map's scroll, into a column strip's queueing: the pixel across the plane of the tilemap
+ * column it fills */
+uint16_t menu_object_scratch_map_queue_across(const GameState *g);
+void set_menu_object_scratch_map_queue_across(GameState *g, uint16_t v);
+/* The map's scroll, into a row strip's queueing: the pixel down the plane of the tilemap row it
+ * fills */
+uint16_t menu_object_scratch_map_queue_down(const GameState *g);
+void set_menu_object_scratch_map_queue_down(GameState *g, uint16_t v);
 /* The map's scroll: tiles left to move by (0 once done) */
 uint16_t menu_object_scratch_map_tiles_left(const GameState *g);
 void set_menu_object_scratch_map_tiles_left(GameState *g, uint16_t v);
