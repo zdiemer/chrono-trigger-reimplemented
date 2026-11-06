@@ -100,8 +100,8 @@ PF_API bool au_driver_hosted(Platform *pf) { return pf_snes(pf)->apu.host_comman
 /* The host takes the work at once and answers the original's time for it
  * (platform/time_model.h), which the machine lets pass where the CPU half
  * stands, as it would have waited on the ports: the frames an upload took
- * still go by, and interrupts are taken meanwhile, their time on top
- * (native_wait_time; the shipping mode only, as a port's own estimate is).
+ * still go by, and interrupts are taken meanwhile (native_wait_time; the
+ * shipping mode only, as a port's own estimate is).
  *
  * A song's start lets the time the port has taken so far pass first
  * (native_sync), as the original's CPU half reached the ports only after that

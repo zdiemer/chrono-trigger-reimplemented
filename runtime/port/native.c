@@ -284,7 +284,6 @@ typedef struct Active {
     uint32_t wake_clocks;  /* ...NATIVE_WAKE_TIME's length, and the master clock it ends at once the time owed is paid */
     uint64_t wake_until;
     bool wake_timed;
-    uint64_t wake_step_ends;   /* ...and where the last step it let pass ended, to see a handler's time after it */
     uint32_t polling_left, pass_clocks;   /* ...a loop that gives up: the polling it has left, a pass at a time */
     bool woke;             /* ...and, for a wait on the handlers, that one has been taken where the port is */
     bool exit_passed;      /* ON, PH_WAIT for the hblank: its exit pass's time has passed (IDLE_EXIT_CLOCKS) */
@@ -1702,10 +1701,7 @@ static bool wait_over(Active *a, const Snes *s)
         if (!a->wake_timed) {
             a->wake_timed = true;
             a->wake_until = s->master + a->wake_clocks;
-        } else if (s->master > a->wake_step_ends) {
-            a->wake_until += s->master - a->wake_step_ends;   /* a handler's time, on top (native_wait_time) */
         }
-        a->wake_step_ends = s->master;
         return s->master >= a->wake_until;
     }
     if (a->wake == NATIVE_WAKE_HBLANK)
@@ -1974,7 +1970,6 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         a->job->wait_answered = over;
         if (!over && (!a->pass_clocks || a->polling_left)) {
             uint32_t step = until_interrupt(s, wait_step(a, s));
-            a->wake_step_ends = s->master + step;
             if (a->pass_clocks)
                 a->polling_left -= step < a->polling_left ? step : a->polling_left;
             *result = (int32_t)step;

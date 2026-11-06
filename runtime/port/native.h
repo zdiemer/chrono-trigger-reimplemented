@@ -662,12 +662,11 @@ bool native_wait_loop_held(Snes *s, uint32_t head, uint32_t exit, int32_t wake, 
  * itself then. */
 bool native_waits_in_place(const Snes *s);
 /* ON mode, in a port the runtime runs: the machine stands where the port is
- * for `clocks` master clocks of its own after the time the port owes, taking
- * interrupts there, as for a wait (NATIVE_WAKE_TIME): the original's code
- * after what a wait stands for, which the game can't see but whose time
- * another processor can (the sound processor reads a message after it echoes
- * it). The handlers taken meanwhile add their time on top, as they stretch
- * the original's loop on the ports. Nothing in the other modes. */
+ * for `clocks` master clocks after the time the port owes, taking interrupts
+ * there, as for a wait (NATIVE_WAKE_TIME): the original's code after what a
+ * wait stands for, which the game can't see but whose time another processor
+ * can (the sound processor reads a message after it echoes it). Nothing in
+ * the other modes. */
 void native_wait_time(Snes *s, uint32_t clocks);
 
 /* Time attribution, for a port that runs another routine's work as C rather
