@@ -324,7 +324,7 @@ static bool pause_on_the_machine(void *ctx)
 
 static bool animate_on_the_machine(void *ctx)
 {
-    return battle_call_long(ctx, 0xCD0AD6, PALETTE_ANIMATION, READS_NOTHING | DC_DB);
+    return battle_run_long_dc(ctx, 0xCD0AD6, PALETTE_ANIMATION, READS_NOTHING | DC_DB, palette_animate);
 }
 
 /* ---- The battle's last vblank handler ---------------------------------------------------- */

@@ -107,6 +107,13 @@ typedef struct NativeEntry {
      * after the call; scene/frame.c). SHADOW mode counts the original as
      * returned only once S is above them too. */
     uint8_t pulls;
+    /* A retired routine's time and nothing else (game/time_tags.c): its
+     * subsystem is off the byte-exact gate, so the machine never enters it
+     * here and nothing compares it, but ports that run its work as C still
+     * name it (NATIVE_TIME_AS, TIMED_AS, the charges) and are estimated at
+     * its cost_milli as before. No shadow run measures it any more, so the
+     * value stays the one it was last calibrated to. */
+    bool time_only;
 } NativeEntry;
 
 /* Where generated code can continue at an instruction that isn't an entry
@@ -460,6 +467,19 @@ const NativeEntry *native_running_entry(void);
  * machine's PC whose precondition and guard hold, or NULL. For running
  * registered code synchronously (the APU-direct audio backend). */
 const NativeEntry *native_hand_entry(Snes *s);
+/* A retired routine called as C with a state its contract doesn't take: a
+ * guard that became an assertion when its subsystem left the gate
+ * (docs/PLAN.md, "Retiring the gate, deliberately"). The caller goes on
+ * through the machine as the guard's refusal did, so the play stays the
+ * original's; the break is counted, and ct_dev prints a `contract broken:`
+ * line for each routine, which tools/suite.py fails a movie for. */
+void native_contract_broken(uint32_t routine, const char *what);
+typedef struct {
+    uint32_t routine;
+    const char *what;
+    unsigned long count;
+} NativeContractBreak;
+const NativeContractBreak *native_contract_breaks(unsigned *n);
 /* Standalone validators have no runtime. Supply contracts for explicit C
  * continuations without enabling native dispatch in their interpreter. */
 void native_direct_contracts(const NativeEntry *table, int count);

@@ -568,21 +568,20 @@ static void leave_load(GameState *g, bool any_table, uint8_t table_frames)
         set_palette_animation_scratch(g, SCRATCH_GREEN, table_frames);
 }
 
-/* ---- The entries ------------------------------------------------------------------------------
+/* ---- The machine form ---------------------------------------------------------------------------
  *
- * The translation between the original's registers and the functions above.
- * palette_animate saves its caller's direct page and data bank, runs on the
- * page $0500 with the data bank its caller's direct page's low byte (so 0, its
- * guard), and gives them back. The handlers are entries of their own, with
- * the slot's offset in Y, on that page and data bank and with A's high byte
- * clear (they index the palettes through the whole of A): their guard. */
+ * The animations are retired from the byte-exact gate (REIMPLEMENTATION.md,
+ * "The core services' teardown"): the machine enters none of their routines
+ * as ports, and every caller runs them as C. Callers still under the gate run
+ * the frame's work on the machine, under the original's call
+ * (core/machine_forms.c), and need the registers the original leaves:
+ * palette_animate is that, with its contract. The original saves its
+ * caller's direct page and data bank, runs on the page $0500 with the data
+ * bank its caller's direct page's low byte (so 0, its contract), and gives
+ * them back. */
 
 /* The page, and the slots as the original's Y has them, 12 bytes apart. */
 enum { ANIMATIONS_PAGE = 0x0500, SLOT_BYTES = 12, SLOTS_END = SLOTS * SLOT_BYTES };
-
-/* The slot a handler runs on, from its offset in Y. */
-static unsigned slot_in_y(const Snes *s) { return s->cpu.y / SLOT_BYTES; }
-static bool y_is_a_slot(const Snes *s) { return s->cpu.y < SLOTS_END && s->cpu.y % SLOT_BYTES == 0; }
 
 static uint16_t run_end_of(const GameState *g, unsigned slot, AnimationType type)
 {
@@ -594,10 +593,10 @@ static uint16_t run_end_of(const GameState *g, unsigned slot, AnimationType type
     return (uint16_t)((first + count) * 2);
 }
 
-/* Where a handler leaves X: past the last color it changed, or for a rotation
- * where it ended, or for a frame past the frame in the ROM's frames. The reads
- * that find it are the wrapper's, not the original's, so they take none of
- * the entry's time. */
+/* Where the last handler left X: past the last color it changed, or for a
+ * rotation where it ended, or for a frame past the frame in the ROM's frames.
+ * The reads that find it are the wrapper's, not the original's, so they take
+ * none of the routine's time. */
 static uint16_t run_end(const GameState *g, unsigned slot, AnimationType type)
 {
     uint32_t uncounted = native_uncounted_begin(state_snes(g));
@@ -628,15 +627,18 @@ static bool every_slot_fits(const GameState *g)
     return true;
 }
 
-/* The check takes none of the animations' time: the scene's tasks run it on
- * the machine too, where its reads would be charged as theirs. */
+/* Slots the game never makes (a count of 0 runs the original over 65536
+ * colors and on past the palette) break the animations' contract; the guard
+ * that turned them away to the original is this assertion now. The check
+ * takes none of the animations' time: the scene's tasks run it on the machine
+ * too, where its reads would be charged as theirs. */
 bool palette_animated(GameState *g)
 {
     vars_peek(true);
     bool fits = every_slot_fits(g);
     vars_peek(false);
     if (!fits) {
-        program_needs_the_machine(g, 0xFDE39C, "palette animations the port doesn't take");
+        program_breaks_a_contract(g, 0xFDE39C, "palette animations in slots the game never makes");
         return false;
     }
     palette_animate_a_frame(g);
@@ -649,38 +651,6 @@ bool palette_animate_runs(Snes *s)
         return false;
     vars_peek(true);
     bool ok = every_slot_fits(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-static bool on_the_page(const Snes *s)
-{
-    return s->cpu.d == ANIMATIONS_PAGE && s->cpu.db == 0x00 && (s->cpu.a >> 8) == 0 && y_is_a_slot(s);
-}
-
-static bool slot_in_y_fits(Snes *s, AnimationType type)
-{
-    if (!on_the_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = slot_fits(state_of(s), slot_in_y(s), type);
-    vars_peek(false);
-    return ok;
-}
-
-bool palette_frames_can_run(Snes *s) { return slot_in_y_fits(s, CYCLE_FRAMES); }
-bool palette_table_frames_can_run(Snes *s) { return slot_in_y_fits(s, FRAMES_FROM_TABLE); }
-bool palette_rotation_can_run(Snes *s) { return slot_in_y_fits(s, ROTATE_DOWN); }
-bool palette_fade_can_run(Snes *s) { return slot_in_y_fits(s, FADE_TO_WHITE); }
-
-/* A fade mode's loop is entered with X the slot's first color, as its handler
- * gives it. */
-bool palette_fade_loop_can_run(Snes *s)
-{
-    if (!slot_in_y_fits(s, FADE_TO_WHITE))
-        return false;
-    vars_peek(true);
-    bool ok = s->cpu.x == first_color(state_of(s), slot_in_y(s)) * 2;
     vars_peek(false);
     return ok;
 }
@@ -706,77 +676,6 @@ void palette_animate(Snes *s)
     m_set_flag(s, CPU_FLAG_V, false);
     m_rtl(s);
 }
-
-void palette_clear_animations(Snes *s)
-{
-    palette_stop_animations(state_of(s));
-    m_rtl(s);
-}
-
-void palette_load_animations(Snes *s)
-{
-    palette_load_location_animations(state_of(s));
-    m_rtl(s);
-}
-
-/* A type's handler comes back with the slot's offset in Y as it came and X
- * from run_end. */
-static void handler_entry(Snes *s, AnimationType type)
-{
-    GameState *g = state_of(s);
-    unsigned slot = slot_in_y(s);
-    animate_slot(g, slot, type);
-    s->cpu.x = run_end(g, slot, type);
-    m_rts(s);
-}
-void palette_animate_frames(Snes *s) { handler_entry(s, CYCLE_FRAMES); }
-void palette_animate_frames_from_table(Snes *s) { handler_entry(s, FRAMES_FROM_TABLE); }
-void palette_rotate_down(Snes *s) { handler_entry(s, ROTATE_DOWN); }
-void palette_rotate_up(Snes *s) { handler_entry(s, ROTATE_UP); }
-void palette_fade_to_white(Snes *s) { handler_entry(s, FADE_TO_WHITE); }
-void palette_fade_to_black(Snes *s) { handler_entry(s, FADE_TO_BLACK); }
-void palette_pulse_white(Snes *s) { handler_entry(s, PULSE_WHITE); }
-void palette_pulse_black(Snes *s) { handler_entry(s, PULSE_BLACK); }
-
-/* The fades' restore paths, which their handlers branch to with the slot's
- * offset saved on the stack above the return: they take it back and
- * return. */
-static void restore_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    unsigned slot = slot_in_y(s);
-    restore_colors(g, slot);
-    s->cpu.x = run_end(g, slot, FADE_TO_WHITE);
-    s->cpu.y = m_pull16(s);
-    m_rts(s);
-}
-void palette_restore_after_white(Snes *s) { restore_entry(s); }
-void palette_restore_after_black(Snes *s) { restore_entry(s); }
-
-/* A fade mode's loop, with the fraction its handler left in the multiplier:
- * back with X past the last color. */
-static void fade_loop_entry(Snes *s, uint8_t mode, bool lighten)
-{
-    GameState *g = state_of(s);
-    unsigned slot = slot_in_y(s);
-    fade_colors(g, slot, mode, hw_multiplicand(g), lighten);
-    s->cpu.x = run_end(g, slot, FADE_TO_WHITE);
-    m_rts(s);
-}
-void palette_darken_all(Snes *s) { fade_loop_entry(s, 0, false); }
-void palette_darken_green_blue(Snes *s) { fade_loop_entry(s, 1, false); }
-void palette_darken_red_blue(Snes *s) { fade_loop_entry(s, 2, false); }
-void palette_darken_blue(Snes *s) { fade_loop_entry(s, 3, false); }
-void palette_darken_red_green(Snes *s) { fade_loop_entry(s, 4, false); }
-void palette_darken_green(Snes *s) { fade_loop_entry(s, 5, false); }
-void palette_darken_red(Snes *s) { fade_loop_entry(s, 6, false); }
-void palette_lighten_all(Snes *s) { fade_loop_entry(s, 0, true); }
-void palette_lighten_red(Snes *s) { fade_loop_entry(s, 1, true); }
-void palette_lighten_green(Snes *s) { fade_loop_entry(s, 2, true); }
-void palette_lighten_red_green(Snes *s) { fade_loop_entry(s, 3, true); }
-void palette_lighten_blue(Snes *s) { fade_loop_entry(s, 4, true); }
-void palette_lighten_red_blue(Snes *s) { fade_loop_entry(s, 5, true); }
-void palette_lighten_green_blue(Snes *s) { fade_loop_entry(s, 6, true); }
 
 // $C0:712E
 /* Upload the working palette: the 256 colors at $7E:2200 into CGRAM from entry

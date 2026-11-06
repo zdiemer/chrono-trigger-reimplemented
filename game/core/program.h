@@ -63,6 +63,14 @@ void program_needs_the_machine(GameState *g, uint32_t routine, const char *what)
  * thread. Never on the machine. */
 bool program_went_no_further(const GameState *g);
 
+/* A retired routine (its subsystem off the byte-exact gate) given a state the
+ * game never makes, which its guard used to turn away to the original: the
+ * guard is an assertion now, and this is it failing. With no machine the
+ * program stops there, as at program_needs_the_machine; on the machine the
+ * break is reported (a `contract broken:` line, which fails the gate) and
+ * the caller goes on as its refusal did. */
+void program_breaks_a_contract(GameState *g, uint32_t routine, const char *what);
+
 /* Where a mode that ends sends the program next, which the main thread takes
  * when the mode returns to it: a scene of the scene engine's, the field
  * ending into it. The state's backing keeps it; on the machine the address

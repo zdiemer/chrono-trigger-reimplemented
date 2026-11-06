@@ -189,22 +189,19 @@ void tile_animations_load(GameState *g)
     ORIGINAL_EFFECT(leave_load(g, tables, &left));
 }
 
-/* ---- The entries ----------------------------------------------------------------------------- */
-
-/* The loader saves its caller's flags, direct page and data bank and gives
- * them back; what it leaves in A, X and Y nobody reads (the entry's set). */
-void tile_animation_load(Snes *s)
-{
-    tile_animations_load(state_of(s));
-    m_rtl(s);
-}
-
-/* ---- The entry ------------------------------------------------------------------------------ */
-
-/* The original saves its caller's flags, direct page and data bank on the
+/* ---- The machine form ---------------------------------------------------------------------------
+ *
+ * The animated tiles are retired from the byte-exact gate (REIMPLEMENTATION.md,
+ * "The core services' teardown"): the machine enters neither of their
+ * routines as ports. The line handlers still under the gate send them on the
+ * machine, under the original's call (core/machine_forms.c), with this form
+ * and its contract.
+ *
+ * The original saves its caller's flags, direct page and data bank on the
  * stack and sets its own there, so a slot whose tiles are read from the top of
- * the stack would send those bytes. No slot the game makes reads the stack: the
- * guard refuses one that would, and the original runs it. */
+ * the stack would send those bytes. No slot the game makes reads the stack:
+ * the contract takes none that would, which the guard that turned them away to
+ * the original asserts now. */
 static bool reads_the_stack(const Snes *s, uint32_t tiles)
 {
     enum { LOW_RAM_END = 0x2000, PUSHED = 7 };

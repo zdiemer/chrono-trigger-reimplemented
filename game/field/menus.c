@@ -27,9 +27,9 @@
  * through field_run, which runs each under the frame the original's call
  * pushes and calls out where the entry's guard would turn the state away. The
  * frame wait, the menus, the field's setup and its fade in are the original's
- * routines, called out to from the original's own calls; so is the palette
+ * routines, called out to from the original's own calls. The palette
  * animation, through the original's jump at $FD:FFF7 to it
- * (PALETTE_ANIMATION), which isn't an entry. */
+ * (PALETTE_ANIMATION), runs as C under its call too (core/machine_forms.c). */
 #include "field/menus.h"
 #include "field/dialog_window.h"
 #include "field/field.h"
@@ -637,7 +637,8 @@ static bool walk_on_the_machine(void *ctx, uint8_t control)
 static bool palettes_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
-    return bridge_call_long(s, SCRIPT_FADE_PALETTES, PALETTE_ANIMATION, READS_NOTHING, on_the_field_page(s, false));
+    return field_run_long(s, SCRIPT_FADE_PALETTES, PALETTE_ANIMATION, READS_NOTHING, palette_animate,
+                          on_the_field_page(s, false));
 }
 
 static void dark_on_the_machine(void *ctx) { display_go_dark(ctx); }

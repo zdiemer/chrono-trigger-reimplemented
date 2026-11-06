@@ -112,7 +112,9 @@ from tools.strict_check import SavedGame
 from tools import timing_gate  # noqa: E402
 
 MISMATCH = re.compile(rb"mismatched [1-9]")
-REFUSED = re.compile(rb"^page refused: .*$", re.M)
+# a guard's refusal by page, or a retired routine's broken contract (a guard
+# that became an assertion when its subsystem left the gate)
+REFUSED = re.compile(rb"^(?:page refused|contract broken): .*$", re.M)
 OUT_OF_RANGE = re.compile(rb"^accessor out of range: .*$", re.M)
 ASSETS = re.compile(rb"^asset (?:outside the catalogue|differs from the cartridge): .*$", re.M)
 FRAMES = re.compile(r"^# frames (\d+)", re.M)

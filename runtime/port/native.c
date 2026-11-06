@@ -722,6 +722,8 @@ static int find_entry(const NativeRuntime *rt, uint32_t pc)
  * needs the CPU running (not halted by WAI or STP). */
 static bool entry_applies(const NativeEntry *e, Snes *s)
 {
+    if (e->time_only)
+        return false;
     if ((s->cpu.p & e->p_mask) != e->p_value || s->cpu.e != e->emulation)
         return false;
     if (e->generated && (s->cpu.waiting || s->cpu.stopped))
@@ -742,6 +744,27 @@ static const char *refusal_reason(const NativeEntry *e, const Snes *s)
 }
 
 const NativeEntry *native_hand_entry(Snes *s) { return native_hand_entry_at(s, cpu_pc24(&s->cpu)); }
+
+enum { MAX_CONTRACT_BREAKS = 16 };
+static NativeContractBreak contract_breaks[MAX_CONTRACT_BREAKS];
+static unsigned contract_break_count;
+
+void native_contract_broken(uint32_t routine, const char *what)
+{
+    for (unsigned i = 0; i < contract_break_count; i++)
+        if (contract_breaks[i].routine == routine) {
+            contract_breaks[i].count++;
+            return;
+        }
+    if (contract_break_count < MAX_CONTRACT_BREAKS)
+        contract_breaks[contract_break_count++] = (NativeContractBreak){ routine, what, 1 };
+}
+
+const NativeContractBreak *native_contract_breaks(unsigned *n)
+{
+    *n = contract_break_count;
+    return contract_breaks;
+}
 
 static const NativeEntry *direct_contracts;
 static int direct_contract_count;
@@ -2914,6 +2937,8 @@ static int32_t intercept(void *ctx, Snes *s)
         const NativeEntry *e = &rt->table[idx];
         NativeStats *st = &rt->stats[idx];
 
+        if (e->time_only)
+            continue;   /* a retired routine's time: the original runs it, as the generated code */
         if (e->generated) {
             if (refused && rt->observer.refused) {
                 rt->observer.refused(rt->observer.ctx, s, refused, refused_why);
@@ -3496,6 +3521,8 @@ void native_report(const NativeRuntime *rt, FILE *out)
     for (int i = 0; i < rt->count; i++) {
         const NativeEntry *e = &rt->table[i];
         const NativeStats *st = &rt->stats[i];
+        if (e->time_only)
+            continue;
         if (e->generated) {
             gen_calls += st->calls;
             gen_matched += st->matched;

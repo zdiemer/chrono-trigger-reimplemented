@@ -79,7 +79,8 @@ FRAMES = re.compile(r"^# frames (\d+)", re.M)
 # What a run that got to its last frame must not print (dev/ct_dev.c).
 HALTED = re.compile(r"^halted: frame (\d+) at (\S+)", re.M)
 FAULTS = (("accessor out of range", re.compile(r"^.*accessor out of range.*$", re.M)),
-          ("page refused", re.compile(r"^page refused: .*$", re.M)))
+          ("page refused", re.compile(r"^page refused: .*$", re.M)),
+          ("contract broken", re.compile(r"^contract broken: .*$", re.M)))
 
 # --end-state's layout: work RAM, then save RAM.
 WRAM_BYTES, SRAM_BYTES = 0x20000, 0x2000

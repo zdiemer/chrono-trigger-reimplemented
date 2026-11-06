@@ -193,7 +193,14 @@ bool input_take_frame(GameState *g, Platform *pf)
     return true;
 }
 
-/* ---- The entries -------------------------------------------------------------------------------- */
+/* ---- On the machine -------------------------------------------------------------------------------
+ *
+ * The input work is retired from the byte-exact gate (REIMPLEMENTATION.md,
+ * "The core services' teardown"): every caller runs it as C. What stays on
+ * the machine is the wait the original makes while the console is still
+ * reading the pad: a read that finds it unfinished stops there, at the
+ * registered idle entry, and the sample is taken where the wait ends, the
+ * original returning from there into its caller. */
 
 /* The controller's cells are on the direct page at $0000, which the controller
  * read sets itself and the button assignment is always entered with. */
@@ -223,23 +230,6 @@ void input_stop_reading(Snes *s, ControllerRead read)
         m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
         m_stop_at_own(s, 0xC0FF00, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D);
     }
-}
-
-// $C2:84EC
-/* Called once a frame, from input_update or from the per-frame work at
- * $C2:8473, which reads the second controller as well. It comes back with
- * 16-bit A and 8-bit index registers. */
-void input_read_joypad(Snes *s)
-{
-    on_controller_page(s);
-    ControllerRead read = input_read_controller(state_of(s), m_platform(s));
-    if (read != CONTROLLER_READ) {
-        input_stop_reading(s, read);
-        return;
-    }
-    m_rep(s, CPU_FLAG_M);
-    m_sep(s, CPU_FLAG_X);
-    m_rts(s);
 }
 
 // $C2:84F9
@@ -274,24 +264,6 @@ bool input_controller_page_ready(Snes *s)
 bool input_controller_wait_ready(Snes *s)
 {
     return input_controller_page_ready(s) && (uint8_t)s->cpu.a == 1;
-}
-
-bool input_map_buttons_runs(Snes *s) { return m_direct_page(s) == CONTROLLER_PAGE; }
-
-// $C2:8545
-void input_map_buttons(Snes *s)
-{
-    assign_buttons(state_of(s));
-    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_rts(s);
-}
-
-// $C2:85AE
-void play_time_tick(Snes *s)
-{
-    input_tick_play_time(state_of(s));
-    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_rts(s);
 }
 
 /* The per-frame work saves every register of its caller and gives them back:

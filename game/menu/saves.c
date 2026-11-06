@@ -94,7 +94,7 @@ SavedGameCheck saves_check_slot(GameState *g, Platform *pf, uint8_t slot)
 static uint32_t in_bank(uint32_t at, uint16_t i) { return (at & 0xFF0000u) | (uint16_t)(at + i); }
 
 /* Copy a run into save memory, `to` on, and back. The original moves each
- * with the game's block move (core/memory.c), whose time is charged for it. */
+ * with the game's block move ($7E:9690), whose time is charged for it. */
 static void save_run(GameState *g, Platform *pf, uint32_t from, uint16_t to, uint16_t bytes)
 {
     uint32_t uncounted = charge_uncounted_begin(g);   /* the block move's charge stands for it */

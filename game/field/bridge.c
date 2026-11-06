@@ -1,6 +1,7 @@
 /* The guards the field's entries run under, and what the entry wrappers and
  * bridges share (field/bridge.h). */
 #include "charge.h"
+#include "core/machine_forms.h"
 #include "field/bridge.h"
 
 #include "platform/timing.h"
@@ -49,10 +50,11 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
     /* the sibling runs as C only where the runtime would run it there, its
-     * guard and preconditions holding; otherwise the call is a real one, and
-     * the runtime runs whatever the registry has for the state it meets */
+     * guard and preconditions holding (or, for a retired core service, where
+     * its contract does); otherwise the call is a real one, and the runtime
+     * runs whatever the registry has for the state it meets */
     const NativeEntry *e = native_hand_entry(s);
-    if (!e || e->fn != entry) {
+    if ((!e || e->fn != entry) && !core_machine_form_takes(s, entry)) {
         if (hand_over) {
             /* the call made, its return address pushed: the original goes on
              * from the sibling's entry */
