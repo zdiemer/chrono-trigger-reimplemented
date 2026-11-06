@@ -3049,6 +3049,28 @@ comparisons.
 
 ## The native program
 
+- **What the object mode's vblank review left.** `turn_on_the_machine`
+  (`menu/objects.c`) checks a handler's entry before the return is pushed and
+  PC moved, so a guard that reads S, PC or the stack sees another machine than
+  dispatch shows it: check the overworld handlers' guards, or push first. Shadow
+  mode compares the object handlers and frame steps only inside the vblank
+  stub's stretch now, so their own per-entry and `interrupted` counts are gone:
+  fuzz them alone (`ct_fuzz --routine`). The long input step (`menu_run_long`)
+  runs with no `menu_runs_as_port` check and no `tm_sync` after it, the one
+  step whose contract is never checked. The census paragraph it added to
+  REIMPLEMENTATION.md reads as a chunk log: keep the mechanism and one
+  measurement, move the rest to docs/history/.
+- **What the time warp's teardown review left.** `tools/vblank_check_exceptions.txt`
+  still names `warp_end`, an entry no longer there: re-attribute or prune it at
+  the next whole-library run. `drop_what_the_held_wait_left` doesn't look at
+  `handler_away` or at a call-out whose callee yielded to another task's stack:
+  assert that can't happen, or skip such entries. With oracle port timing or
+  `--exclude warp`, `m_runs_retired_as_c` is still true, so the trip starts as C
+  while the cartridge's frames run on scaffolding nothing writes: make
+  `native_runs_retired_as_c` false there. `the_cartridges_warp`'s comment says
+  "mirror in $3D" where the code matches `$FD` and `$7D`. The kept estimates
+  (`game_kept_estimates`) are frozen, measured by no timing gate or
+  calibration; `re/ram.toml` still cites the deleted `warp_on_its_page`.
 - **What the map scroll's review left.** `menu_run_sprite_script` underestimates
   the frames that only run a sprite script inline; fixing it retires the
   `overworld_dactyl vblank-tail` exception. The three timing exceptions the
