@@ -1010,6 +1010,12 @@ battles started one random number low; after, the battles start from the
 reference's number (`events-proto-dome`'s differs for another cause, as it
 did), 32 part with a battle menu's shift in force, a median 4 frames, and
 `battle-denadoro` and `events-sun-stone` play as the reference to their end.
+Two movies that ended as the reference before now drift, `drift.py` finding
+both drift (with the original's time each plays as the reference to its
+end): `battle-tyrano-lair-walls`, whose battle menu opens a frame late, and
+`late-omen-terramutant`, which the sound waits move. The gate sample's
+strict outcomes were re-recorded with the change (`tools/outcomes_exceptions.txt`;
+the checkpoints a run no longer matches leave `tools/outcomes_baseline.txt`).
 Of the rest, 21 part later than they did and 10 earlier: a battle a frame
 off meets the recorded presses otherwise from there on, so where a movie
 parts moves either way with any change to the time. What is left is in
