@@ -135,7 +135,10 @@ has a case for each):
   port wait through the original's loop and compares its work after the wait,
   and compares the stop at the head the shipping mode makes with the set it
   declares there (`PF_LOOP_HELD`, checked by `tools/dontcare_check.py` as a
-  stop).
+  stop). A main loop's own wait at its frame end (the scene program's,
+  `$7E:3023`) is held by name (`m_hold_at`; RUNTIME.md, "Held waits"): the
+  machine names the wait, a copy keeps the name, and the runtime goes on in
+  its continuation after a restore as it did before it.
 
 The replay is checked against the copy (their save-state images), and every
 one matches: over both routes in the shipping mode (`route_check --mode

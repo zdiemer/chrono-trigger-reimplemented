@@ -2970,6 +2970,10 @@ static int32_t intercept(void *ctx, Snes *s)
     /* ON, for the observer: the first hand entry here that turned the call away */
     const NativeEntry *refused = NULL;
     const char *refused_why = NULL;
+    /* ON: the wait the machine names, where the main thread rests in it
+     * (native_hold), and whether its continuations are registered here */
+    uint8_t held = rt->mode == NATIVE_ON && s->held_wait && s->cpu.s == s->held_wait_s ? s->held_wait : 0;
+    bool held_here = false;
     for (; idx >= 0 && idx < rt->count && rt->table[idx].addr == pc; idx++) {
         const NativeEntry *e = &rt->table[idx];
         NativeStats *st = &rt->stats[idx];
@@ -3021,6 +3025,8 @@ static int32_t intercept(void *ctx, Snes *s)
 
         if (rt->page_report)
             count_page(st, s->cpu.d);
+        if (held && e->hold == held)
+            held_here = true;
         if (!entry_applies(e, s)) {
             st->skipped++;
             if (!refused) {
@@ -3033,6 +3039,16 @@ static int32_t intercept(void *ctx, Snes *s)
         if (rt->mode == NATIVE_ON && rt->port_timing == PORT_TIMING_ORACLE && e->idle)
             continue;   /* the oracle runs only whole routines */
 
+        /* ON: a held wait's continuation takes the wait from the machine,
+         * run as C where the machine names it, or entered where it doesn't
+         * (a caller still on the gate); it holds the wait again where it
+         * goes round */
+        bool as_held = false;
+        if (e->hold && rt->mode == NATIVE_ON) {
+            as_held = held == e->hold;
+            s->held_wait = 0;
+        }
+
         if (e->idle) {
             if (rt->mode != NATIVE_ON) {
                 st->skipped++;
@@ -3042,14 +3058,21 @@ static int32_t intercept(void *ctx, Snes *s)
                  * and none turned it away */
                 return -1;
             }
-            if (native_census_hooks.entered)
+            if (as_held && native_census_hooks.held)
+                native_census_hooks.held(native_census_hooks.ctx, s, e);
+            else if (!as_held && native_census_hooks.entered)
                 native_census_hooks.entered(native_census_hooks.ctx, s, e);
             running_direct = e;
             e->fn(s);
             running_direct = NULL;
-            if (cpu_pc24(&s->cpu) == pc)
+            if (cpu_pc24(&s->cpu) == pc) {
+                if (e->hold) {
+                    s->held_wait = e->hold;
+                    s->held_wait_s = s->cpu.s;
+                }
                 return (int32_t)(e->idle_clocks ? e->idle_clocks
                                                 : until_interrupt(s, snes_clocks_to_next_poll_change(s)));
+            }
             return e->idle_clocks ? 0 : IDLE_EXIT_CLOCKS;
         }
 
@@ -3084,7 +3107,9 @@ static int32_t intercept(void *ctx, Snes *s)
         a->job->nsaved_flags = 0;
         if (rt->observer.entered)
             rt->observer.entered(rt->observer.ctx, s, e);
-        if (rt->mode == NATIVE_ON && native_census_hooks.entered)
+        if (rt->mode == NATIVE_ON && as_held && native_census_hooks.held)
+            native_census_hooks.held(native_census_hooks.ctx, s, e);
+        else if (rt->mode == NATIVE_ON && !as_held && native_census_hooks.entered)
             native_census_hooks.entered(native_census_hooks.ctx, s, e);
         if (rt->mode == NATIVE_SHADOW) {
             clone_refresh(rt, a, s);
@@ -3098,6 +3123,8 @@ static int32_t intercept(void *ctx, Snes *s)
     }
     if (refused && rt->observer.refused)
         rt->observer.refused(rt->observer.ctx, s, refused, refused_why);
+    if (held_here)
+        s->held_wait = 0;   /* the wait's code isn't in place: the original's goes on */
     return rt->mode == NATIVE_ON && rt->generated ? continue_generated(rt, s) : -1;
 }
 
@@ -3128,7 +3155,7 @@ static void call_in_place_to(Snes *s, uint32_t site, uint32_t target, uint32_t r
         uint32_t pc = cpu_pc24(&s->cpu);
         int idx = rt ? find_entry(rt, pc) : -1;
         while (idx >= 0 && idx < rt->count && rt->table[idx].addr == pc &&
-               (rt->table[idx].idle || !entry_applies(&rt->table[idx], s)))
+               (rt->table[idx].idle || rt->table[idx].hold || !entry_applies(&rt->table[idx], s)))
             idx++;
         if (idx >= 0 && idx < rt->count && rt->table[idx].addr == pc) {
             rt->table[idx].fn(s);
@@ -3413,6 +3440,15 @@ bool native_wait_loop_held(Snes *s, uint32_t head, uint32_t exit, int32_t wake, 
     s->cpu.pc = (uint16_t)head;
     native_dont_care_at_stop(s, head, dont_care);
     return false;
+}
+
+void native_hold(Snes *s, uint8_t wait)
+{
+    Job *j = current_job;
+    if (!j || j->m != s || !active_runtime || active_runtime->mode != NATIVE_ON)
+        return;
+    s->held_wait = wait;
+    s->held_wait_s = s->cpu.s;
 }
 
 void native_call_poison_reset(void)

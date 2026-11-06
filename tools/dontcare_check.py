@@ -129,12 +129,14 @@ HEADERS = ("runtime/port/native.h", "runtime/cpu/cpu65816.h")
 DEFAULT_COVERAGE = ("traces/coverage-*.txt", "traces/saves/cov-*.txt")
 DEFAULT_CALLS = ("traces/calls-*.txt", "traces/saves/calls-*.txt")
 STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
+# A held wait's stop (runtime/port/machine.h, m_hold_at(s, at, set, wait)) is
+# a stop at `at` declaring `set`.
 # A jump to a sibling's routine (game/menu/bridge.h, menu_go_on_in(s, at,
 # entry, set)): its port run as C, or a stop at `at` declaring `set` where the
 # runtime wouldn't run it; read as a stop, its arguments at these places.
 # The menus' task loops' waits (game/menu/bridge.h) are stops at their site
 # declaring the named set the wait reads.
-STOP_DELEGATES = {"menu_go_on_in": (1, 3),
+STOP_DELEGATES = {"menu_go_on_in": (1, 3), "m_hold_at": (1, 2),
                   "menu_wait_in_the_task_loop": (1, "MENU_TASK_WAIT_READS_NOTHING"),
                   "menu_wait_frames_in_the_task_loop": (1, "MENU_TASK_WAIT_READS_THE_FRAMES")}
 # A held wait's origin, PF_LOOP_HELD(head, exit, set): a stop at head.

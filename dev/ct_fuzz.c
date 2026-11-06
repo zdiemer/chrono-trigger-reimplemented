@@ -291,6 +291,9 @@ int main(int argc, char **argv)
     for (int i = 0; i < game_native_count; i++)
         if (!strcmp(game_natives[i].name, routine) || game_natives[i].addr == want)
             e = &game_natives[i];
+    for (int i = 0; !e && i < game_held_wait_count; i++)
+        if (!strcmp(game_held_waits[i].name, routine) || game_held_waits[i].addr == want)
+            e = &game_held_waits[i];
     if (!e) {
         fprintf(stderr, "no routine %s\n", routine);
         return 2;

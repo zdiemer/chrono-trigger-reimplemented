@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { VECTOR, GENERATED, INTERP, CALL, STOP, YIELD, RETURN, WAIT, KINDS, NONE = KINDS };
+enum { VECTOR, GENERATED, INTERP, CALL, STOP, YIELD, RETURN, WAIT, KINDS, NONE = KINDS, HELD };
 static const char *const kind_names[KINDS] = { "vector", "generated", "interp", "call", "stop", "yield", "return", "wait" };
 
 /* The cartridge's vectors the machine enters the game through: native mode's
@@ -12,7 +12,8 @@ static const uint32_t vector_cells[] = { 0x00FFEA, 0x00FFEE, 0x00FFFC };
 enum { VECTORS = sizeof vector_cells / sizeof vector_cells[0] };
 
 /* Counted by (entry, kind, caller): the machine's entries. kind NONE: the
- * entry's work run as C by the port `by`. */
+ * entry's work run as C by the port `by`; HELD: a held wait's continuation
+ * run as C by the runtime where the machine names its wait. */
 typedef struct Slot {
     const NativeEntry *entry;
     const NativeEntry *by;   /* the caller, where it is a port */
@@ -113,6 +114,15 @@ static void on_as_c(void *ctx, const NativeEntry *by, const NativeEntry *routine
     count(ctx, routine, by, 0, NONE);
 }
 
+static void on_held(void *ctx, Snes *s, const NativeEntry *e)
+{
+    Census *c = ctx;
+    (void)s;
+    count(c, e, NULL, 0, HELD);
+    c->last = RETURN;
+    c->last_port = e;
+}
+
 static void on_called_out(void *ctx, Snes *s, const NativeEntry *e, uint32_t target)
 {
     Census *c = ctx;
@@ -175,7 +185,7 @@ Census *census_create(Snes *s, NativeRuntime *rt)
     c->last = NONE;
     for (int i = 0; i < VECTORS; i++)
         c->vectors[i] = (uint32_t)(snes_bus_peek(&s->bus, vector_cells[i]) | snes_bus_peek(&s->bus, vector_cells[i] + 1) << 8);
-    native_census_hooks = (NativeCensusHooks){ .ctx = c, .entered = on_entered, .as_c = on_as_c };
+    native_census_hooks = (NativeCensusHooks){ .ctx = c, .entered = on_entered, .as_c = on_as_c, .held = on_held };
     native_set_observer(rt, &(NativeObserver){ .ctx = c, .called_out = on_called_out, .stopped = on_stopped,
                                                .parked = on_parked,
                                                .returned_from_interrupt = on_returned_from_interrupt });
@@ -201,6 +211,7 @@ static int by_entry(const void *a, const void *b)
 /* The format, a line per (entry, how, caller):
  *   machine <entry addr> <entry name> <kind> <caller addr> <caller name or -> <count>
  *   c       <entry addr> <entry name> - <caller addr> <caller name> <count>
+ *   held    <entry addr> <entry name> - 000000 - <count>
  * addresses as six hex digits. */
 int census_write(const Census *c, const char *path)
 {
@@ -221,8 +232,8 @@ int census_write(const Census *c, const char *path)
     for (size_t i = 0; i < n; i++) {
         const Slot *r = &rows[i];
         uint32_t caller = r->by ? r->by->addr : r->caller;
-        fprintf(f, "%s %06X %s %s %06X %s %llu\n", r->kind == NONE ? "c" : "machine", (unsigned)r->entry->addr,
-                r->entry->name, r->kind == NONE ? "-" : kind_names[r->kind], (unsigned)caller,
+        fprintf(f, "%s %06X %s %s %06X %s %llu\n", r->kind == NONE ? "c" : r->kind == HELD ? "held" : "machine",
+                (unsigned)r->entry->addr, r->entry->name, r->kind >= KINDS ? "-" : kind_names[r->kind], (unsigned)caller,
                 r->by ? r->by->name : "-", (unsigned long long)r->n);
     }
     free(rows);
@@ -231,7 +242,7 @@ int census_write(const Census *c, const char *path)
 
 void census_summary(const Census *c, FILE *out)
 {
-    uint64_t by_kind[KINDS + 1] = { 0 };
+    uint64_t by_kind[HELD + 1] = { 0 };
     for (size_t i = 0; i < c->cap; i++)
         if (c->slots[i].used)
             by_kind[c->slots[i].kind] += c->slots[i].n;
@@ -241,7 +252,8 @@ void census_summary(const Census *c, FILE *out)
     fprintf(out, "census: %llu entries by the machine (", (unsigned long long)machine);
     for (int k = 0; k < KINDS; k++)
         fprintf(out, "%s%s %llu", k ? ", " : "", kind_names[k], (unsigned long long)by_kind[k]);
-    fprintf(out, "), %llu runs as C\n", (unsigned long long)by_kind[NONE]);
+    fprintf(out, "), %llu runs as C, %llu held waits' passes\n", (unsigned long long)by_kind[NONE],
+            (unsigned long long)by_kind[HELD]);
 }
 
 void census_destroy(Census *c)

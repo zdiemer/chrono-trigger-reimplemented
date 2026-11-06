@@ -29,7 +29,7 @@ GAME = ROOT / "game"
 JOINTS = [
     ("registered entries", None, "ordinary functions their callers call"),
     ("returns through the emulated stack", r"\bm_rt[sli]\(", "the entry wrappers deleted"),
-    ("stops at the original's addresses", r"\bm_stop_at(?:_own)?\(|\bnative_\w*dont_care_at_stop\(",
+    ("stops at the original's addresses", r"\bm_stop_at(?:_own)?\(|\bm_hold_at\(|\bnative_\w*dont_care_at_stop\(",
      "the next step called as C"),
     ("call-outs to entries by address", r"\bcall_out\w*\(|\bnative_(?:yield_|jump_)?call_dc\(",
      "the callee called as C"),

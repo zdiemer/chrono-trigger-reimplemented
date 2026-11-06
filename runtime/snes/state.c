@@ -442,6 +442,8 @@ static void visit(Visitor *v, Snes *s)
     B(v, "snes.htimer_done_this_line", s->htimer_done_this_line);
     B(v, "snes.refresh_done_this_line", s->refresh_done_this_line);
     U(v, "snes.intercept_last_cycle", s->intercept_last_cycle);
+    U(v, "snes.held_wait", s->held_wait);
+    U(v, "snes.held_wait_s", s->held_wait_s);
 }
 
 /* What the emulation indexes with or loops on, so a state that passes its

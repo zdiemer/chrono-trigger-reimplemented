@@ -51,6 +51,7 @@
 #include "field/streaming.h"
 #include "field/walk.h"
 #include "field/sprites.h"
+#include "holds.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/display.h"
@@ -4832,10 +4833,6 @@ const NativeEntry game_natives[] = {
       .cost_milli = 3903, .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C, .guard = scene_race_pitch_and_move_present },
 
     /* attract (runs from RAM; guarded) */
-    { .addr = 0x7E3023, .name = "attract_wait_loop", .fn = attract_wait_loop, NEEDS_M16, .idle = true,
-      .guard = attract_wait_loop_present },
-    { .addr = 0x7E3023, .name = "attract_frame_pass", .fn = attract_frame_pass, NEEDS_M16, .cost_milli = 3125,
-      .guard = attract_frame_pass_present },
 
     /* the time warp, on its own page (D = $0500) */
     { .addr = 0xFDDB97, .name = "warp_set_up", .fn = warp_set_up, .cost_milli = 24782,
@@ -4884,6 +4881,20 @@ const NativeEntry game_natives[] = {
 };
 
 const int game_native_count = (int)(sizeof game_natives / sizeof game_natives[0]);
+
+/* The held waits' continuations (holds.h; runtime/port/native.h, native_hold):
+ * where the main thread rests at a frame end, the runtime runs these as C
+ * where the machine names their wait, not because it reached their address.
+ * Each keeps the original's address for a caller still on the gate whose code
+ * comes to the loop's head with no wait named, which enters it there. */
+const NativeEntry game_held_waits[] = {
+    /* the scene program's main loop: its empty pass, and its pass with a picture's scaling */
+    { .addr = 0x7E3023, .name = "attract_wait_loop", .fn = attract_wait_loop, NEEDS_M16, .idle = true,
+      .hold = HOLD_SCENE_MAIN_LOOP, .guard = attract_wait_loop_present },
+    { .addr = 0x7E3023, .name = "attract_frame_pass", .fn = attract_frame_pass, NEEDS_M16, .cost_milli = 3125,
+      .hold = HOLD_SCENE_MAIN_LOOP, .guard = attract_frame_pass_present },
+};
+const int game_held_wait_count = (int)(sizeof game_held_waits / sizeof game_held_waits[0]);
 
 /* The data subsystem's gate retired (docs/REIMPLEMENTATION.md, "The data
  * subsystem's teardown"): the unpacker has no entry here, every port calls it

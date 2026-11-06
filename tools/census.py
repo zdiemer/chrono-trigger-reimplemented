@@ -18,7 +18,10 @@ How the machine got to an entry (dev/census.h): `vector` (an interrupt or the
 reset), `generated` or `interp` (the original's code), `call`, `stop`,
 `yield` or `return` (a port's hand-off through the machine: a call-out, a
 stop or jump, a task switch, a return into the original's frame), and `wait`
-(a pass of a wait loop the machine still makes, an idle entry). The report
+(a pass of a wait loop the machine still makes, an idle entry). Apart from
+them, a held wait's continuation the runtime ran as C where the machine names
+its wait (`held` lines, docs/RUNTIME.md "Held waits"): the main thread resting
+at a frame end, which the machine doesn't enter. The report
 names the callers that hold the most entries to the registry: the ports
 whose hand-offs make the machine find an entry by address.
 """
@@ -66,6 +69,7 @@ class Census:
         self.by_kind = collections.Counter()          # (entry, kind) -> count
         self.held = collections.Counter()             # (entry, kind, caller) -> count
         self.as_c = collections.Counter()             # entry -> count
+        self.resting = collections.Counter()          # entry -> runs as a held wait's continuation
         self.movies = collections.defaultdict(set)    # entry -> movies entering it by the machine
 
     def read(self, path, movie):
@@ -77,6 +81,9 @@ class Census:
             self.names[addr] = name
             if what == "c":
                 self.as_c[entry] += n
+                continue
+            if what == "held":
+                self.resting[entry] += n
                 continue
             self.machine[entry] += n
             self.by_kind[entry, kind] += n
@@ -118,6 +125,11 @@ class Census:
         waits = collections.Counter({e: self.by_kind[e, "wait"] for e in machine if self.by_kind[e, "wait"]})
         print("\nwait loops still made on the machine: %d, passes %d" % (len(waits), sum(waits.values())), file=out)
         for e, n in waits.most_common(top):
+            print("  %s %-48s %10d" % (e[0], e[1], n), file=out)
+
+        print("\nheld waits' continuations run as C where the machine names the wait: %d, passes %d"
+              % (len(self.resting), sum(self.resting.values())), file=out)
+        for e, n in self.resting.most_common(top):
             print("  %s %-48s %10d" % (e[0], e[1], n), file=out)
 
         rows = sorted(not_waits, key=lambda e: -self.machine[e])

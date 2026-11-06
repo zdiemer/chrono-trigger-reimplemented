@@ -26,6 +26,12 @@
  *              takes it off the machine is the timing service's wait, not a
  *              call (docs/PLATFORM.md, "Timing without a beam").
  *
+ * Apart from them, `held`: a held wait's continuation (NativeEntry.hold) the
+ * runtime ran as C where the machine names its wait -- the main thread
+ * resting at a frame end, the machine entering nothing (docs/RUNTIME.md,
+ * "Held waits"). Where the machine reaches the wait with none named, the
+ * continuation is entered as any entry and counted above.
+ *
  * The caller is the port (`call`, `stop`, `yield`: the one that made the
  * hand-off; `return`: the latest to run, which is the callee rather than the
  * caller where a port's callee returned into its caller's frame), or the

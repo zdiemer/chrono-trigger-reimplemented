@@ -734,7 +734,68 @@ refused as a raw image.
 
 A state still can't hold a native routine suspended in a call-out
 ([PORTING.md](PORTING.md)), which is why `ct_play` waits for none to be before
-a quick save.
+a quick save. What it does hold is which held wait the main thread rests in
+(`snes.held_wait`, `snes.held_wait_s`; below).
+
+## Held waits
+
+A main loop's frame end is a wait the main thread rests in while the vblank
+handler does the frame's work: the scene program's main loop (`$7E:3023`), the
+overworld's (`$C2:0348`), the warp's (`$FD:EAED`), the field's. Run as a C loop
+that waits in place, the port would stay suspended for a whole screen, and no
+`ct_drive` base or `ct_play` quick save would come there. So the wait is
+*held*: the port stops at the loop's head, nothing is suspended, and what the
+loop does when it goes on is a continuation. Until now the continuation was an
+idle entry in `game/registry.c` that the runtime found by the PC, which kept
+the loop in the registry.
+
+Now the continuation is named (`runtime/port/native.h`, `native_hold`;
+`tests/port/suspend_test.c`, "a main loop's held wait"):
+
+- Each held wait has a number (`game/holds.h`), and its continuations are
+  `NativeEntry` rows carrying it (`.hold`), in a table of their own,
+  `game_held_waits` beside the registry's, which `frontend/natives.c` adds to the runtime's.
+- A port that reaches the wait stops at the head with `m_hold_at(s, head,
+  set, wait)`. This is `m_stop_at` (shadow mode compares it, and
+  `tools/dontcare_check.py` checks the set as a stop's), and in the shipping
+  mode it also has the machine name the wait: `Snes.held_wait`, with the S the
+  main thread rests with.
+- Where the machine names a wait, the PC is at its head and S is that S, the
+  runtime runs the wait's continuations as C. The census files these runs as
+  `held` lines, not as entries by the machine. An idle continuation that goes
+  round names the wait again, and a port continuation names it with
+  `m_hold_at`. A continuation that leaves the loop, or whose code isn't in
+  place, leaves the wait unnamed.
+- The two fields are saved with the machine, so a `ct_drive` base, a slot or a
+  quick save taken in the wait names it, and a fresh runtime goes on in it.
+- The original's address is still honoured. Where the machine comes to the
+  head with no wait named (a caller still on the gate whose original code goes
+  round to the loop; a state from before the fields existed), the
+  continuation is entered as any entry, counted by how the machine got there,
+  and names the wait from then on. Shadow mode and `ct_fuzz` take the rows as
+  ordinary entries, so the comparisons are the same as before.
+
+The scene program's main loop is the first held wait (`HOLD_SCENE_MAIN_LOOP`):
+the first frame (`first_frame_on_the_machine`) holds it, and its two passes
+(`attract_wait_loop`, the empty one, idle; `attract_frame_pass`, a picture's
+scaling, a port) are its continuations. These are the measures over
+attract-demo and title-start:
+
+| Measure | Before | Now |
+|---|---|---|
+| census, `$7E:3023` entered by the machine | 4,470,854 wait passes and 103 frame passes (100 by stop, 3 by return) | 0 |
+| census, held runs | none | 4,470,854 and 103 |
+| census, all entries by the machine | 9,285,097 | 4,814,140 |
+| attract-demo, driven a frame at a time in `ct_drive --native on`: frame ends with a routine suspended | 12,329 of 22,500, in 56 runs, the longest 2,142 | the same frames |
+
+The wait passes match one for one, because the continuations run exactly as
+the idle entry and the port did. A `ct_play` quick save taken at attract-demo's
+frame 12,000 (PC `$7E:3023`, wait 1 named), loaded, and played 500 frames ends
+with the same state and the same picture as the run that didn't stop.
+
+What a teardown still has to do to take a main loop out of the registry is
+make its wait's continuations held-wait rows, as the scene program's are (TODO.md:
+the overworld's and the warp's teardown items).
 
 ## ZSNES save states
 

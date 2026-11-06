@@ -36,6 +36,13 @@
  *   taken from; shadow mode compares the port across the wait. The same port
  *   waiting with native_wait_loop is suspended at frame ends, which is what
  *   the held wait is for.
+ * - a main loop's held wait named by the machine (native_hold, m_hold_at): a
+ *   port stops at the loop's head holding it, and the loop's look is the
+ *   wait's continuation, which the runtime runs as C there: nothing suspended
+ *   at a frame end, the census sees no entry by the machine, and a state taken
+ *   there names the wait, so a fresh machine and runtime go on in it and play
+ *   on exactly as the run did; one with no wait named (a state from before)
+ *   enters the loop once and holds it from there. Shadow mode names nothing.
  *
  * Exits non-zero on failure.
  *
@@ -450,6 +457,146 @@ static void held_wait_case(void)
     free(rom);
 }
 
+/* ---- A main loop's held wait, named by the machine ---------------------------------------- */
+
+/* Bank $00. The start ($8100) clears the frame's flag ($60) and goes on to
+ * the main loop's head ($8102), where the main thread rests: the vblank
+ * handler sets the flag and counts vblanks in $40, and the loop, seeing it,
+ * does the frame's work (counts frames in $70) and clears it. The start is a
+ * port that holds the wait (m_hold_at); the loop's look is the wait's
+ * continuation (an idle entry with a hold number). */
+enum { FRAME_FLAG = 0x60, FRAMES_DONE = 0x70, MAIN_LOOP_HEAD = 0x008102, HOLD_TEST_LOOP = 1 };
+
+static const Code hold_code[] = {
+    /* reset: SEI, native mode, REP #$10, SEP #$20, S = $01FF, NMI on, JMP 8100 */
+    { 0x8000, { 0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x01, 0x9A, 0xA9, 0x80, 0x8D, 0x00, 0x42, 0x4C,
+                0x00, 0x81 }, 19 },
+    /* 8100 STZ $60 : 8102 LDA $60 : BEQ 8102 : INC $70 : STZ $60 : BRA 8102 */
+    { 0x8100, { 0x64, 0x60, 0xA5, 0x60, 0xF0, 0xFC, 0xE6, 0x70, 0x64, 0x60, 0x80, 0xF6 }, 12 },
+    /* 8600 the vblank handler: INC $60 : INC $40 : RTI */
+    { 0x8600, { 0xE6, 0x60, 0xE6, 0x40, 0x40 }, 5 },
+};
+
+static void hold_start(Snes *s)
+{
+    m_write8(s, FRAME_FLAG, 0);
+    m_hold_at(s, MAIN_LOOP_HEAD, DC_A | DC_FLAGS, HOLD_TEST_LOOP);
+}
+
+/* One look of the loop: the frame's work where the handler has asked for it.
+ * It goes round either way, so the main thread rests at the head again. */
+static void hold_look(Snes *s)
+{
+    uint8_t flag = m_read8(s, FRAME_FLAG);
+    if (flag) {
+        m_write8(s, FRAMES_DONE, (uint8_t)(m_read8(s, FRAMES_DONE) + 1));
+        m_write8(s, FRAME_FLAG, 0);
+    }
+    m_set_a8(s, 0);
+    m_set_nz8(s, 0);
+}
+
+static NativeRuntime *hold_runtime(NativeMode mode)
+{
+    static NativeEntry table[2];
+    table[0] = (NativeEntry){ .addr = 0x008100, .name = "hold_start", .fn = hold_start, .p_mask = 0x30,
+                              .p_value = P_M8_X16, .cost_milli = 1000 };
+    table[1] = (NativeEntry){ .addr = MAIN_LOOP_HEAD, .name = "hold_look", .fn = hold_look, .p_mask = 0x20,
+                              .p_value = 0x20, .idle = true, .hold = HOLD_TEST_LOOP };
+    return native_create(table, 2, mode);
+}
+
+/* How the census sees the loop's look: entered by the machine, or run as the
+ * held wait's continuation. */
+static int looks_entered, looks_held;
+
+static void on_look_entered(void *ctx, Snes *s, const NativeEntry *e)
+{
+    (void)ctx, (void)s;
+    looks_entered += e->hold != 0;
+}
+
+static void on_look_held(void *ctx, Snes *s, const NativeEntry *e)
+{
+    (void)ctx, (void)s, (void)e;
+    looks_held++;
+}
+
+static void run_frames(Snes *s, int frames)
+{
+    for (int i = 0; i < frames; i++)
+        snes_run_frame(s, 0);
+}
+
+static void named_hold_case(void)
+{
+    uint8_t *rom = make_rom(hold_code, sizeof hold_code / sizeof hold_code[0], 0x8600);
+    native_census_hooks = (NativeCensusHooks){ .entered = on_look_entered, .held = on_look_held };
+
+    /* the start holds the wait: every look is the continuation's, and the
+     * machine names the wait at every frame end, with nothing suspended */
+    Snes *s = machine(rom);
+    NativeRuntime *rt = hold_runtime(NATIVE_ON);
+    native_attach(rt, s);
+    looks_entered = looks_held = 0;
+    int waiting = suspended_frame_ends(s, rt, 20);
+    CHECK(waiting == 0, "the named hold left a routine suspended at %d of 20 frame ends", waiting);
+    CHECK(looks_entered == 0 && looks_held > 0, "named hold: the loop entered %d times, held %d", looks_entered,
+          looks_held);
+    CHECK(s->held_wait == HOLD_TEST_LOOP && s->bus.wram[FRAMES_DONE] >= 18,
+          "named hold: wait %u named, %u frames done in 20", s->held_wait, s->bus.wram[FRAMES_DONE]);
+
+    /* a state taken there names the wait: a fresh machine and runtime go on
+     * in it, the machine entering nothing, and play on as the run did; with
+     * no wait named (a state from before), the loop's code comes to its head,
+     * is entered once and holds the wait from there */
+    int tries = 0;
+    while (native_owed(rt) && tries++ < 60)
+        snes_run_frame(s, 0);
+    size_t len;
+    uint8_t *state = snes_state_write(s, &len);
+    CHECK(state != NULL, "the state wasn't written");
+    run_frames(s, 30);
+    for (int stale = 0; stale < 2; stale++) {
+        Snes *copy = machine(rom);
+        char err[200] = "";
+        CHECK(state && snes_state_read(copy, state, len, err, sizeof err) == 0, "the state didn't load: %s", err);
+        CHECK(copy->held_wait == HOLD_TEST_LOOP, "the state named wait %u", copy->held_wait);
+        if (stale)
+            copy->held_wait = 0;
+        NativeRuntime *fresh = hold_runtime(NATIVE_ON);
+        native_attach(fresh, copy);
+        looks_entered = looks_held = 0;
+        run_frames(copy, 30);
+        CHECK(looks_entered == stale && looks_held > 0, "loaded%s: the loop entered %d times, held %d",
+              stale ? " with no wait named" : "", looks_entered, looks_held);
+        CHECK(!memcmp(s->bus.wram, copy->bus.wram, sizeof s->bus.wram) && s->master == copy->master &&
+                  !memcmp(&s->cpu, &copy->cpu, offsetof(Cpu, bus)) && copy->held_wait == HOLD_TEST_LOOP,
+              "loaded%s: played on otherwise: frames %u/%u, master %llu/%llu", stale ? " with no wait named" : "",
+              s->bus.wram[FRAMES_DONE], copy->bus.wram[FRAMES_DONE], (unsigned long long)s->master,
+              (unsigned long long)copy->master);
+        native_destroy(fresh);
+        free(copy);
+    }
+    free(state);
+    native_destroy(rt);
+    free(s);
+
+    /* shadow mode names nothing: the stop is compared as any stop, and the
+     * original runs the loop */
+    s = machine(rom);
+    rt = hold_runtime(NATIVE_SHADOW);
+    native_attach(rt, s);
+    run_frames(s, 20);
+    const NativeStats *st = native_stats_named(rt, "hold_start");
+    CHECK(st->matched == 1 && st->mismatched == 0 && !native_failed(rt) && !s->held_wait,
+          "named hold, shadow: %u matched, %u mismatched, wait %u named", st->matched, st->mismatched, s->held_wait);
+    native_destroy(rt);
+    free(s);
+    native_census_hooks = (NativeCensusHooks){ 0 };
+    free(rom);
+}
+
 /* The boot's two beam waits must leave one blank before entering the next
  * line. The title's music wait must remain suspended until the audio side
  * supplies a playing-track mask, even when no interrupt is enabled. */
@@ -515,6 +662,7 @@ int main(void)
     parked_save_case("saved parked, loaded in shadow mode", NATIVE_SHADOW);
     menu_answer_case();
     held_wait_case();
+    named_hold_case();
     scene_wait_case();
     if (failures)
         printf("%d failure(s)\n", failures);

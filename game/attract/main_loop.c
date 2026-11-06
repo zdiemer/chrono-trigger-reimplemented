@@ -6,12 +6,18 @@
  * hold other code and data at other times. */
 #include "attract/attract.h"
 
+#include "holds.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* The scene program's main loop, at $7E:3023: each pass calls the program's
- * frame routine and then looks whether a sequence script has ended the scene
+/* The scene program's main loop, at $7E:3023: the main thread rests in it at
+ * every frame end of a scene, the frame's work done by the vblank handler, so
+ * it is a held wait (holds.h): the scene's first frame stops at its head and
+ * holds it, and the runtime runs these two continuations as C where the
+ * machine names it, each holding it again as it goes round. Each pass calls
+ * the program's frame routine and then looks whether a sequence script has
+ * ended the scene
  * (scene_program_over; scene/script.c), and goes on to the program's restart
  * ($7E:302A) once one has. The routine is named by the call's own operand
  * ($7E:3024), which a scene's setup writes: the title's is an empty one (an
@@ -83,5 +89,8 @@ void attract_frame_pass(Snes *s)
     m_jsr(s, WAIT_LOOP, CODE_BANK | frame_routine(s));
     uint16_t over = scene_program_over(state_of(s));
     leave_flag(s, over);
-    m_stop_at(s, over ? PROGRAM_RESTART : WAIT_LOOP, 0);
+    if (over)
+        m_stop_at(s, PROGRAM_RESTART, 0);
+    else
+        m_hold_at(s, WAIT_LOOP, 0, HOLD_SCENE_MAIN_LOOP);
 }

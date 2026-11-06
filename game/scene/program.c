@@ -31,6 +31,7 @@
 #include "core/console.h"
 #include "core/program.h"
 #include "field/main_loop.h"
+#include "holds.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -211,7 +212,7 @@ static void first_frame_on_the_machine(Snes *s)
     set_scene_program_over(g, 0);
     set_scene_paused(g, 0);
     m_set_flag(s, CPU_FLAG_M, false);
-    m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_THE_CARRY);
+    m_hold_at(s, MAIN_LOOP, THE_LOOP_READS_THE_CARRY, HOLD_SCENE_MAIN_LOOP);
 }
 
 /* ---- The entries --------------------------------------------------------------------------------- */
