@@ -360,6 +360,15 @@ typedef struct {
  * subsystem's teardown"). `ranges` must outlive the comparisons. */
 void native_leave_uncompared(const NativeRange *ranges, int count);
 
+/* The estimates of routines that have no entry any more, for the runtimes
+ * created from now on, for the whole process: a retired subsystem's work,
+ * which its callers run as C under the routine's name (NATIVE_TIME_AS,
+ * TIMED_AS), charged at the cost_milli its entry was calibrated at when it
+ * left the registry (docs/REIMPLEMENTATION.md, "The time warp's teardown").
+ * Only `addr`, `name` and `cost_milli` are read: the machine never enters
+ * one. `estimates` must outlive the runtimes. */
+void native_keep_estimates(const NativeEntry *estimates, int count);
+
 /* Stack bytes the original pushed and pulled again are dead: nothing reads
  * below S, and the next push overwrites them. Shadow mode doesn't compare the
  * ones between the lowest S the original reached since the last comparison

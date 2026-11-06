@@ -57,18 +57,13 @@ void warp_start_the_long_trip(Snes *s);
 void warp_start_the_short_trip(Snes *s);
 void warp_start_the_shortest_trip(Snes *s);
 void warp_start_the_flickering_trip(Snes *s);
-void warp_long_trip_waits(Snes *s);
-void warp_short_trip_waits(Snes *s);
-void warp_shortest_trip_waits(Snes *s);
-void warp_flickering_trip_waits(Snes *s);
-void warp_long_frame(Snes *s);
-void warp_short_frame(Snes *s);
-void warp_shortest_frame(Snes *s);
-void warp_flickering_frame(Snes *s);
 void warp_end(Snes *s);
 void warp_go_dark(Snes *s);
 void warp_put_back_the_story_flags(Snes *s);
-void warp_wait_for_frame(Snes *s);
+/* The main loop's held wait's continuations (holds.h, HOLD_WARP_FRAME): the
+ * next frame, once the vblank handler has taken the last, and the wait's
+ * idle pass before. */
+void warp_next_frame(Snes *s);
 void warp_wait_for_frame_loop(Snes *s);
 void warp_screen_on_wait_for_vblank_loop(Snes *s);
 void warp_turn_the_screen_on(Snes *s);
@@ -85,8 +80,13 @@ void warp_line(GameState *g, Platform *pf);
 
 /* The guards: the warp's own page, with the data bank reaching the I/O
  * registers and the warp's zero in place (its frames, its waits and its end);
- * the data bank alone (the screen's turning on and going dark). */
+ * the data bank alone (the screen's turning on and going dark); and the
+ * held wait's continuations: the port's, which takes only a frame taken and a
+ * wait that returns to a kind's loop, and the idle pass's, the frame not yet
+ * taken. */
 bool warp_on_its_page(Snes *s);
+bool warp_frame_taken(Snes *s);
+bool warp_frame_not_taken(Snes *s);
 bool warp_has_a_destination(Snes *s);
 bool warp_bank_reaches_io(Snes *s);
 

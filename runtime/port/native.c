@@ -349,6 +349,9 @@ typedef struct Replay {
 struct NativeRuntime {
     const NativeEntry *table;
     int count;
+    /* the kept estimates (native_keep_estimates), after the entries in
+     * `table` and `stats`: found by time_as alone, never by the machine */
+    int kept;
     NativeMode mode;
     NativeStats *stats;
     uint8_t filter[0x2000];      /* bit per 16-bit address: some entry might be here */
@@ -477,17 +480,31 @@ static int entry_cmp(const void *a, const void *b)
     return (int)p->generated - (int)q->generated;
 }
 
+/* The estimates kept for routines with no entry (native_keep_estimates). */
+static const NativeEntry *kept_estimates;
+static int kept_estimate_count;
+
+void native_keep_estimates(const NativeEntry *estimates, int count)
+{
+    kept_estimates = estimates;
+    kept_estimate_count = count;
+}
+
 NativeRuntime *native_create(const NativeEntry *table, int count, NativeMode mode)
 {
     NativeRuntime *rt = calloc(1, sizeof *rt);
     rt->detail_limit = DEFAULT_DETAILS;
-    NativeEntry *sorted = malloc(sizeof *sorted * (size_t)(count ? count : 1));
+    int all = count + kept_estimate_count;
+    NativeEntry *sorted = malloc(sizeof *sorted * (size_t)(all ? all : 1));
     memcpy(sorted, table, sizeof *sorted * (size_t)count);
     qsort(sorted, (size_t)count, sizeof *sorted, entry_cmp);
+    if (kept_estimate_count)
+        memcpy(sorted + count, kept_estimates, sizeof *sorted * (size_t)kept_estimate_count);
     rt->table = sorted;
     rt->count = count;
+    rt->kept = kept_estimate_count;
     rt->mode = mode;
-    rt->stats = calloc((size_t)(count ? count : 1), sizeof *rt->stats);
+    rt->stats = calloc((size_t)(all ? all : 1), sizeof *rt->stats);
     for (int i = 0; i < count; i++) {
         uint16_t a = sorted[i].addr & 0xFFFF;
         rt->filter[a >> 3] |= (uint8_t)(1 << (a & 7));
@@ -3494,6 +3511,9 @@ static int time_as(Snes *s, uint32_t routine, bool sibling)
     int was = j->part;
     part_flush(j);
     int idx = find_entry(rt, routine & 0xFFFFFF);
+    for (int k = rt->count; (idx < 0 || rt->table[idx].generated) && k < rt->count + rt->kept; k++)
+        if (rt->table[k].addr == (routine & 0xFFFFFF))
+            idx = k;   /* a retired routine's work, at the estimate kept for it */
     if (idx < 0 || rt->table[idx].generated) {
         j->bad_tags++;   /* nothing to estimate it with: it stays the port's own */
         j->bad_tag = routine;

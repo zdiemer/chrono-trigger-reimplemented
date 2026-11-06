@@ -11,7 +11,7 @@
  * drawn (warp/picture.c), both of the circle's window tables built empty
  * (warp/circle.c) and the line effects started; then the screen comes on, dark
  * until the vblank handler brightens it. Each frame the main loop waits for the
- * vblank handler to take the frame it finished (warp_wait_for_frame), then
+ * vblank handler to take the frame it finished (a held wait), then
  * makes the next one (warp_frame): the plane moved on, its colours turned and
  * pulsed, and the circle built for where the warp is in its course:
  * - opening, its first 32 frames: the tunnel seen only inside a circle that
@@ -29,6 +29,7 @@
 #include "charge.h"
 #include "core/program.h"
 #include "field/main_loop.h"
+#include "holds.h"
 #include "scene/scene.h"
 #include "cpu_io.h"
 #include "original_effects.h"
@@ -54,21 +55,25 @@ void warp_leave_work_word(GameState *g, unsigned cell, uint16_t v)
 typedef enum { WARP_LONG, WARP_SHORT, WARP_SHORTEST, WARP_FLICKERING } WarpKindId;
 
 /* A kind of warp: its last frame, whether its brightness flickers, and, for
- * the original's machine, where its frame starts (the entry its time is
- * charged at) and where it sets the circle's window. */
+ * the original's machine, where its trip starts, where its frame starts (the
+ * routine its time is charged as), where it sets the circle's window and
+ * where it ends. */
 typedef struct {
     uint16_t last_frame;
     bool flickers;
+    uint32_t start;
     uint32_t frame_entry;
     uint32_t window_site;
+    uint32_t ending;
 } WarpKind;
 
 static const WarpKind kinds[] = {
-    [WARP_LONG] = { 0x2FF, false, 0xFDDA06, 0xFDDA42 },
-    [WARP_SHORT] = { 0x0FF, false, 0xFDDA65, 0xFDDAA1 },
-    [WARP_SHORTEST] = { 0x09F, false, 0xFDDAC4, 0xFDDB00 },
-    [WARP_FLICKERING] = { 0x2FF, true, 0xFDDB27, 0xFDDB7A },
+    [WARP_LONG] = { 0x2FF, false, 0xFDDA00, 0xFDDA06, 0xFDDA42, 0xFDDA55 },
+    [WARP_SHORT] = { 0x0FF, false, 0xFDDA5F, 0xFDDA65, 0xFDDAA1, 0xFDDAB4 },
+    [WARP_SHORTEST] = { 0x09F, false, 0xFDDABE, 0xFDDAC4, 0xFDDB00, 0xFDDB13 },
+    [WARP_FLICKERING] = { 0x2FF, true, 0xFDDB1D, 0xFDDB27, 0xFDDB7A, 0xFDDB8D },
 };
+enum { WARP_KINDS = sizeof kinds / sizeof kinds[0] };
 
 /* ---- The story flags ----------------------------------------------------------------------------- */
 
@@ -294,8 +299,6 @@ static void take_the_frame(GameState *g, Platform *pf)
 /* ---- The entries --------------------------------------------------------------------------------- */
 
 enum { WARP_PAGE = 0x0500, SCREEN_ON = 0xFDEADA, THE_SCREEN_ON_CALL = 0xFDDCB5 };
-enum { JSR_SIZE = 3 };
-
 /* What the original's code after each of these reads of the registers: none
  * of them at the main loop's wait, at its end or at the field's entry. */
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
@@ -358,84 +361,97 @@ void warp_end(Snes *s)
         NATIVE_TIME_AS_SIBLING(s, FIELD_STARTS, field_enter(s));
 }
 
-/* A frame, then on to the main loop's wait for the next (`loop`); after the
- * last, to the warp's end (`ending`, the entry below). The end is an entry of
- * its own rather than the last frame's tail: it stops the picture's line
- * effects, and run at the last frame's estimated time they stop a line early
- * or late, where the end's own entry starts in step with the original. A
- * frame leaves A's high byte clear, from the colours' pulse, and the next
- * frame's plane reads it (and shifts it out of what it makes). */
-static bool wait_for_the_frame_from(Snes *s, uint32_t site);
+/* ---- The main loop and its held wait ----------------------------------------------------------- */
 
-static void run_a_frame(Snes *s, WarpKindId id, uint32_t ending)
+/* Each kind's main loop makes a frame and then waits for the vblank handler
+ * to take it ($FD:EAEB, called from $FD:DA03, $FD:DA62, $FD:DAC1, $FD:DB24),
+ * the call's return on the stack to the kind's next frame. The main thread
+ * rests in that wait at every frame end of a trip, so it is a held wait
+ * (holds.h, HOLD_WARP_FRAME; docs/RUNTIME.md, "Held waits"): the loop stops at
+ * the wait's loop with the vblank handler's mark cleared, nothing suspended,
+ * and the runtime goes on with warp_next_frame once the handler has taken
+ * the frame. */
+enum { FRAME_WAIT_LOOP = 0xFDEAED, FRAME_WAIT_LOOP_READS = DC_AL | DC_N | DC_Z };
+
+static void wait_for_the_frame_taken_on_the_machine(Snes *s, const WarpKind *k)
 {
-    const WarpKind *kind = &kinds[id];
-    for (;;) {
-        bool goes_on = false;
-        TIMED_AS(state_of(s), kind->frame_entry, goes_on = make_a_frame(state_of(s), m_platform(s), kind));
-        s->cpu.a = (uint8_t)s->cpu.a;
-        if (!goes_on) {
-            /* Ending HDMA in this comparison also compares its last
-             * scanline writes, which depend on elapsed beam time. Keep the
-             * end's own comparison until that timing seam is settled. */
-            m_stop_at(s, ending, DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-            return;
-        }
-        if (!wait_for_the_frame_from(s, kind->frame_entry - JSR_SIZE))
-            return;
-    }
+    m_push16(s, (uint16_t)(k->frame_entry - 1));
+    set_warp_frame_ended(state_of(s), 0);
+    m_hold_at(s, FRAME_WAIT_LOOP, FRAME_WAIT_LOOP_READS, HOLD_WARP_FRAME);
 }
 
-// $FD:DA06 (the frame, after the wait at $FD:DA03)
-void warp_long_frame(Snes *s) { run_a_frame(s, WARP_LONG, 0xFDDA55); }
-// $FD:DA65 (after the wait at $FD:DA62)
-void warp_short_frame(Snes *s) { run_a_frame(s, WARP_SHORT, 0xFDDAB4); }
-// $FD:DAC4 (after the wait at $FD:DAC1)
-void warp_shortest_frame(Snes *s) { run_a_frame(s, WARP_SHORTEST, 0xFDDB13); }
-// $FD:DB27 (after the wait at $FD:DB24)
-void warp_flickering_frame(Snes *s) { run_a_frame(s, WARP_FLICKERING, 0xFDDB8D); }
-
-/* ---- Each kind's start, and its main loop's wait ------------------------------------------------- */
-
-/* The warp's starts and loops share a held frame wait. Once the handlers
- * have taken the finished frame, its C continuation draws the next one.
- * warp/bridge.c retains the call site for the shadow comparison. */
-enum { SET_UP = 0xFDDB97, WAIT_FOR_FRAME = 0xFDEAEB };
-
-static bool wait_for_the_frame_from(Snes *s, uint32_t site) { return warp_run_from(s, site, WAIT_FOR_FRAME, warp_wait_for_frame); }
-
-static void wait_and_draw(Snes *s, WarpKindId id, uint32_t ending)
+/* The kind whose loop's wait returns to `frame`, or WARP_KINDS for none. */
+static unsigned kind_going_on_at(uint32_t frame)
 {
-    if (wait_for_the_frame_from(s, kinds[id].frame_entry - JSR_SIZE))
-        run_a_frame(s, id, ending);
+    unsigned id = 0;
+    while (id < WARP_KINDS && kinds[id].frame_entry != frame)
+        id++;
+    return id;
 }
+
+/* A frame, then the wait for the next; after the last, on to the warp's end.
+ * The end is an entry of its own rather than the last frame's tail: it stops
+ * the picture's line effects, and run at the last frame's estimated time they
+ * stop a line early or late, where the end's own entry starts in step with
+ * the original. A frame leaves A's high byte clear, from the colours' pulse,
+ * and the next frame's plane reads it (and shifts it out of what it makes). */
+static void make_the_frame_on_the_machine(Snes *s, const WarpKind *kind)
+{
+    bool goes_on = false;
+    TIMED_AS(state_of(s), kind->frame_entry, goes_on = make_a_frame(state_of(s), m_platform(s), kind));
+    s->cpu.a = (uint8_t)s->cpu.a;
+    if (goes_on)
+        wait_for_the_frame_taken_on_the_machine(s, kind);
+    else
+        /* Ending HDMA in this comparison also compares its last scanline
+         * writes, which depend on elapsed beam time. Keep the end's own
+         * comparison until that timing seam is settled. */
+        m_stop_at(s, kind->ending, DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+}
+
+// $FD:EAED (the main loop's wait, the frame taken), with $FD:DA06, $FD:DA65, $FD:DAC4, $FD:DB27
+/* The vblank handler has taken the frame: the wait takes its mark and
+ * returns to the kind's loop, which makes the next frame. The held wait's
+ * continuation (holds.h). */
+void warp_next_frame(Snes *s)
+{
+    GameState *g = state_of(s);
+    m_lda8(s, warp_frame_ended(g));
+    set_warp_frame_ended(g, 0);
+    m_rts(s);
+    make_the_frame_on_the_machine(s, &kinds[kind_going_on_at(cpu_pc24(&s->cpu))]);
+}
+
+// $FD:EAED
+/* One pass of the wait, before the vblank handler has taken the frame: the
+ * held wait's other continuation, an idle one, which goes round. */
+void warp_wait_for_frame_loop(Snes *s) { m_lda8(s, warp_frame_ended(state_of(s))); }
+
+/* ---- Each kind's start --------------------------------------------------------------------------- */
+
+enum { SET_UP = 0xFDDB97 };
 
 /* The warp starts, the flickering one with its flicker at its pattern's
- * start, and its main loop goes round: a frame waited for, then made. */
-static void start(Snes *s, WarpKindId id, uint32_t start, uint32_t ending)
+ * start, and its main loop waits for the first frame (the start leaves the
+ * frame count at 0 for the vblank handler to step). */
+static void start(Snes *s, WarpKindId id)
 {
-    if (!warp_run_from(s, start, SET_UP, warp_set_up))
+    const WarpKind *kind = &kinds[id];
+    if (!warp_run_from(s, kind->start, SET_UP, warp_set_up))
         return;
-    if (kinds[id].flickers)
+    if (kind->flickers)
         set_warp_flicker(state_of(s), 0);
-    wait_and_draw(s, id, ending);
+    wait_for_the_frame_taken_on_the_machine(s, kind);
 }
 
 // $FD:DA00
-void warp_start_the_long_trip(Snes *s) { start(s, WARP_LONG, 0xFDDA00, 0xFDDA55); }
+void warp_start_the_long_trip(Snes *s) { start(s, WARP_LONG); }
 // $FD:DA5F
-void warp_start_the_short_trip(Snes *s) { start(s, WARP_SHORT, 0xFDDA5F, 0xFDDAB4); }
+void warp_start_the_short_trip(Snes *s) { start(s, WARP_SHORT); }
 // $FD:DABE
-void warp_start_the_shortest_trip(Snes *s) { start(s, WARP_SHORTEST, 0xFDDABE, 0xFDDB13); }
+void warp_start_the_shortest_trip(Snes *s) { start(s, WARP_SHORTEST); }
 // $FD:DB1D
-void warp_start_the_flickering_trip(Snes *s) { start(s, WARP_FLICKERING, 0xFDDB1D, 0xFDDB8D); }
-
-// $FD:DA03, $FD:DA62, $FD:DAC1, $FD:DB24
-/* Each kind's main loop going round, after a frame made. */
-void warp_long_trip_waits(Snes *s) { wait_and_draw(s, WARP_LONG, 0xFDDA55); }
-void warp_short_trip_waits(Snes *s) { wait_and_draw(s, WARP_SHORT, 0xFDDAB4); }
-void warp_shortest_trip_waits(Snes *s) { wait_and_draw(s, WARP_SHORTEST, 0xFDDB13); }
-void warp_flickering_trip_waits(Snes *s) { wait_and_draw(s, WARP_FLICKERING, 0xFDDB8D); }
+void warp_start_the_flickering_trip(Snes *s) { start(s, WARP_FLICKERING); }
 
 // $FD:EAC8
 /* The warp's end begins, a call of its own so that the picture's line effects
@@ -451,35 +467,6 @@ void warp_go_dark(Snes *s)
 void warp_put_back_the_story_flags(Snes *s)
 {
     put_back_the_story_flags(state_of(s));
-    m_rts(s);
-}
-
-enum { FRAME_WAIT_LOOP = 0xFDEAED, FRAME_WAIT_LOOP_READS = DC_AL | DC_N | DC_Z };
-
-// $FD:EAEB
-/* The main loop's wait for the next frame: the vblank handler's mark cleared,
- * then waited for (the idle entry below). */
-void warp_wait_for_frame(Snes *s)
-{
-    set_warp_frame_ended(state_of(s), 0);
-    while (!warp_frame_ended(state_of(s)))
-        if (!tm_wait_for_handlers_held(m_platform(s), PF_LOOP_HELD(FRAME_WAIT_LOOP, 0xFDEAF1, FRAME_WAIT_LOOP_READS)))
-            return;
-    m_lda8(s, warp_frame_ended(state_of(s)));
-    set_warp_frame_ended(state_of(s), 0);
-    m_rts(s);
-}
-
-// $FD:EAED
-/* One pass of the wait: on once the vblank handler has taken the frame, the
- * mark cleared again. Idle entry. */
-void warp_wait_for_frame_loop(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t ended = m_lda8(s, warp_frame_ended(g));
-    if (ended == 0)
-        return;
-    set_warp_frame_ended(g, 0);
     m_rts(s);
 }
 
@@ -531,6 +518,33 @@ bool warp_on_its_page(Snes *s)
     return zero;
 }
 
+/* The held wait's port continuation: on the warp's page, the frame taken,
+ * and the wait's call returning to a kind's loop. */
+bool warp_frame_taken(Snes *s)
+{
+    if (!warp_on_its_page(s))
+        return false;
+    uint16_t sp = s->cpu.s;
+    uint32_t frame = (uint32_t)(s->cpu.pb << 16) |
+                     (uint16_t)((snes_bus_peek(&s->bus, (uint16_t)(sp + 1)) | snes_bus_peek(&s->bus, (uint16_t)(sp + 2)) << 8) + 1);
+    vars_peek(true);
+    bool taken = warp_frame_ended(state_of(s)) != 0;
+    vars_peek(false);
+    return taken && kind_going_on_at(frame) < WARP_KINDS;
+}
+
+/* The held wait's idle continuation: on the warp's page, the frame not yet
+ * taken. */
+bool warp_frame_not_taken(Snes *s)
+{
+    if (!warp_on_its_page(s))
+        return false;
+    vars_peek(true);
+    bool taken = warp_frame_ended(state_of(s)) != 0;
+    vars_peek(false);
+    return !taken;
+}
+
 bool warp_has_a_destination(Snes *s)
 {
     return warp_on_its_page(s) && field_location_is_a_number(s);
@@ -576,7 +590,7 @@ bool warp_runs(GameState *g, Platform *pf, uint8_t scene)
         set_warp_flicker(g, 0);
     bool goes_on = true;
     while (goes_on) {
-        TIMED_AS(g, WAIT_FOR_FRAME, wait_for_the_frame_taken(g, pf));
+        wait_for_the_frame_taken(g, pf);
         if (!keeps_its_zero(g)) {
             program_needs_the_machine(g, k->frame_entry, "a warp whose zero has moved");
             return false;
