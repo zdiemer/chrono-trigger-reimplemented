@@ -13,4 +13,10 @@ extern const int game_native_count;
 extern const NativeEntry game_time_tags[];
 extern const int game_time_tag_count;
 
+/* Work RAM the comparisons leave out: the cells a subsystem whose gate
+ * retired keeps for itself, which the original's code writes and its C
+ * doesn't (native_leave_uncompared). */
+extern const NativeRange game_uncompared_wram[];
+extern const int game_uncompared_wram_count;
+
 #endif

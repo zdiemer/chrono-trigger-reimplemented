@@ -10,7 +10,8 @@
 #include "state.h"
 
 /* Unpack the stream at `stream` to `to`, as the original's call at `site`
- * does; false where the unpacking didn't come back (the caller then stops). */
+ * does; false where the unpacking didn't come back (the caller then stops),
+ * which the unpacker as C (overworld_unpacker) never is. */
 typedef struct {
     bool (*unpack)(void *ctx, uint32_t site, uint32_t stream, uint32_t to);
     void *ctx;
@@ -38,10 +39,11 @@ bool overworld_map_tiles_can_load(const GameState *g);
  * sets its markers too. */
 void overworld_clear_the_sign_label(GameState *g);
 
-/* The unpacker on the original's machine: its entry run as the original's
- * call to it reaches it. */
+/* The unpacker as C (data/decompress.h); and for a machine entry, at the pace
+ * its reaching the unpacker's entry had while there was one: run in place
+ * (unpack_stream_run), or called on the machine (unpack_stream_called). */
 Unpacker overworld_unpacker_on_the_machine(Snes *s);
-/* The unpacker as C (data/decompress.h). */
+Unpacker overworld_unpacker_called(Snes *s);
 Unpacker overworld_unpacker(GameState *g);
 
 /* The registered entries and their guards. */

@@ -344,6 +344,7 @@ int main(int argc, char **argv)
     if (decimal)
         base.cpu.p |= CPU_FLAG_D;
     native_direct_contracts(game_natives, game_native_count);
+    native_leave_uncompared(game_uncompared_wram, game_uncompared_wram_count);
     /* Let guarded C bridges take their shipping path. No runtime is attached:
      * explicit call-outs still use the fuzzer's interpreter and budget. */
     NativeRuntime *registry = with_registry ? native_create(game_natives, game_native_count, NATIVE_ON) : NULL;

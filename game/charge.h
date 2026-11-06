@@ -12,8 +12,9 @@
  * machine build without the scaffolding, which must play the routes as the
  * default build does) needs it to keep the original's pace, and it is made
  * plainly, as TIMED_AS is: the unpacker's (data/decompress.c), whose original
- * spends half its time on its direct page's cells. A build with no machine
- * charges nothing either way.
+ * spends half its time on its direct page's cells (charge_retired, since its
+ * entry retired). A build with no machine charges only the time model's
+ * prices.
  * runtime/port/state_io.c is the backing (runtime/port/native.h,
  * native_charge_as). */
 #ifndef CT_GAME_CHARGE_H
@@ -33,6 +34,23 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses);
  * spends where a port fills or copies with wram_fill8, wram_fill16 or
  * wram_copy (wram.h), which take none of the port's own time. */
 void charge_block_move(GameState *g, uint32_t bytes);
+
+/* The time of the work a retired routine does -- one whose entry left the
+ * registry with its subsystem's gate (the unpacker, data/decompress.c) --
+ * from charge_retired_begin to charge_retired_end, with `accesses` more
+ * charged as charge_as charges them. On the machine, the port's own accesses
+ * and the charged ones at the rate the routine's entry was calibrated at when
+ * it retired, as its estimate was made while it had one; with no machine,
+ * the time model's price of the charged ones (platform/time_model.h). Not
+ * scaffolding: it is the routine's whole time. */
+uint32_t charge_retired_begin(GameState *g);
+void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t accesses);
+
+/* On the machine, playing the hand ports, the time charged so far passes
+ * before the port goes on, as it did where the port made a call through the
+ * machine: for a caller still on the gate whose call to a retired routine
+ * was such a call, so that it keeps the pace it had. Nothing elsewhere. */
+void charge_settle(GameState *g);
 
 /* Accesses left out of the estimate: scaffolding that writes once what the
  * original writes over and over, whose time a charge already stands for. */

@@ -262,7 +262,8 @@ static void set_up_one_sprite_effects(GameState *g)
 /* The loading's calls, each where the original makes it: the frame work's
  * loads (battle/battlefield_change.c) -- the effects' two graphics sets and
  * the battlefield changed -- the battle's wait for the next frame ($C1:007E)
- * and the frame step ($C1:10FA, battle/frame_step.c), the unpacker ($C3:0002)
+ * and the frame step ($C1:10FA, battle/frame_step.c), the unpacker (C either
+ * way, data/decompress.c)
  * and the bitmap shapes, built in eight calls ($C1:4943, battle/sprites.c). */
 typedef enum {
     LOAD_GRAPHICS, LOAD_SECOND_GRAPHICS, LOAD_BACKGROUND,
@@ -375,7 +376,7 @@ static ChosenAnimation chosen_for(GameState *g, ShowingKind kind)
 
 /* Wait for the next frame ($C1:007E): the wait reads none of the registers
  * but A's high byte, which it takes along. The frame work's loads take what
- * they load in A, a byte. The decompressor reads none of the registers. */
+ * they load in A, a byte. */
 enum { FRAME_WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS };
 
 /* The waits for the next frame, the frame steps and the shapes' calls, each
@@ -406,7 +407,7 @@ static bool load_on_the_machine(void *ctx, LoadCall call, uint8_t what)
     case LOAD_STEP_BEFORE_THE_TILES:
     case LOAD_STEP_AFTER_THE_TILES:
         return battle_run(s, load_frame_steps[call - LOAD_STEP_AFTER_THE_BACKGROUND], 0xC110FA, battle_frame_step);
-    case LOAD_UNPACK_THE_TILES: return battle_call_long(s, 0xC14880, 0xC30002, DC_A | DC_X | DC_Y | DC_FLAGS | DC_DB | DC_D);
+    case LOAD_UNPACK_THE_TILES: (void)unpack_stream_called(state_of(s), false); return true;
     default: return battle_run(s, shape_calls[call - LOAD_SHAPES], 0xC14943, battle_build_bitmap_shapes_entry);
     }
 }
@@ -434,7 +435,7 @@ static bool load_a_piece(void *ctx, LoadCall call, uint8_t what)
     case LOAD_STEP_AFTER_THE_BACKGROUND:
     case LOAD_STEP_BEFORE_THE_TILES:
     case LOAD_STEP_AFTER_THE_TILES: TIMED_AS(g, 0xC110FA, done = battle_frame_stepped(g, c->pf)); return done;
-    case LOAD_UNPACK_THE_TILES: TIMED_AS(g, UNPACK_STREAM_ENTRY, (void)unpack_stream(g)); return true;
+    case LOAD_UNPACK_THE_TILES: (void)unpack_stream(g); return true;
     default: TIMED_AS(g, 0xC14943, done = battle_build_bitmap_shapes(g, c->pf)); return done;
     }
 }

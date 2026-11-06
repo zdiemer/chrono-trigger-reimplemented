@@ -239,6 +239,13 @@ uint32_t state_host_take_owed(GameState *g)
     g->owed = 0;
     return owed;
 }
+uint32_t charge_retired_begin(GameState *g) { (void)g; return 0; }
+void charge_settle(GameState *g) { (void)g; }
+void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t accesses)
+{
+    (void)mark;
+    charge_as(g, routine, accesses);
+}
 uint32_t charge_uncounted_begin(GameState *g) { (void)g; return 0; }
 void charge_uncounted_end(GameState *g, uint32_t mark) { (void)g, (void)mark; }
 int charge_time_as_begin(GameState *g, uint32_t routine) { (void)g, (void)routine; return 0; }

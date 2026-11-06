@@ -19,7 +19,6 @@
 #include "core/input.h"
 #include "core/palette.h"
 #include "core/tile_animation.h"
-#include "data/decompress.h"
 #include "event/contact.h"
 #include "event/event.h"
 #include "event/party.h"
@@ -2015,14 +2014,9 @@ const NativeEntry game_natives[] = {
     { .addr = 0x000504, .name = "console_line_stub", .fn = console_line_stub, .cost_milli = 1000,
       .guard = console_line_stub_is_set },
 
-    /* data */
-    { .addr = 0xC30002, .name = "decompress", .fn = decompress, .cost_milli = 4060 },
-    /* the same routine, called directly (JSL $C30557 from the scene boot and scene code) */
-    { .addr = 0xC30557, .name = "decompress_direct", .fn = decompress, .cost_milli = 4057 },
-
     /* event engine */
     { .addr = 0xC04009, .name = "event_screen_dispatch", .fn = event_screen_dispatch,
-      NEEDS_M8_X16, .cost_milli = 3458, .guard = event_screen_dispatch_accepts,
+      NEEDS_M8_X16, .cost_milli = 3403, .guard = event_screen_dispatch_accepts,
       .dont_care = DC_A | DC_N | DC_Z },
     { .addr = 0xC09DC3, .name = "field_start_the_party", .fn = field_start_the_party,
       NEEDS_M8_X16_BINARY, .cost_milli = 4248, .guard = field_party_can_start,
@@ -2273,7 +2267,7 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC03F12, event_cmd_place_the_credits, 3375, event_cmd_place_the_credits_accepts),
     EVENT_CMD(0xC03F26, event_cmd_move_searchlight, 10854, event_cmd_move_searchlight_accepts),
     EVENT_CMD(0xC03E84, event_cmd_choose_credits, 2650, event_cmd_choose_credits_accepts),
-    EVENT_CMD(0xC03FAF, event_cmd_screen_command, 5252, event_cmd_screen_command_accepts),
+    EVENT_CMD(0xC03FAF, event_cmd_screen_command, 5449, event_cmd_screen_command_accepts),
     EVENT_CMD(0xC03E7C, event_screen_party_routine, 3400, event_screen_party_routine_accepts),
     EVENT_CMD(0xC03D97, event_cmd_copy_tiles, 6576, event_cmd_copy_tiles_accepts),
     EVENT_CMD(0xC03DC5, event_cmd_queue_tile_copy, 3011, event_cmd_queue_tile_copy_accepts),
@@ -2706,7 +2700,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0x7E30E9, .name = "scene_after_work_ram_clear", .fn = scene_after_work_ram_clear, NEEDS_M8_X16,
       .cost_milli = 4604, .dont_care = DC_AL | DC_X | DC_N | DC_Z | DC_C, .guard = scene_after_work_ram_clear_present },
     { .addr = 0x7E31BE, .name = "scene_frame_wait_done", .fn = scene_frame_wait_done,
-      .cost_milli = 2625, .guard = attract_vblank_wait_present },
+      .cost_milli = 2625, .guard = scene_frame_wait_present },
     { .addr = 0x7E377A, .name = "scene_send_sound_command_long", .fn = scene_send_sound_command_long,
       .p_mask = CPU_FLAG_X, .p_value = 0, .cost_milli = 5250, .dont_care = DC_A | DC_X | DC_N | DC_Z,
       .guard = scene_send_sound_command_long_present },
@@ -4276,7 +4270,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC278A1, .name = "menu_scene_object_in_view", .fn = menu_scene_object_in_view_entry, NEEDS_M8_X16,
       .cost_milli = 3711, .dont_care = DC_A | DC_Y | DC_N | DC_V | DC_Z, .guard = menu_scene_object_in_view_runs },
     { .addr = 0xC27849, .name = "menu_scene_drift_the_map", .fn = menu_scene_drift_the_map_entry, NEEDS_M8_X16_BINARY,
-      .cost_milli = 5055, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_WIDTH, .guard = menu_scene_drift_runs },
+      .cost_milli = 5145, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_WIDTH, .guard = menu_scene_drift_runs },
     { .addr = 0xC21DB5, .name = "menu_clear_the_palette", .fn = menu_clear_the_palette_entry, NEEDS_M8_X16,
       .cost_milli = 6250, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_palette_can_be_cleared },
     /* the Epoch's two Mode 7 screens, and the End of Time's gate */
@@ -4377,13 +4371,13 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC24CC5, .name = "overworld_dactyl", .fn = overworld_dactyl_entry, NEEDS_M8_X16_BINARY,
       .cost_milli = 8008, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_WIDTH, .guard = overworld_dactyl_runs },
     { .addr = 0xC2504B, .name = "overworld_dactyl_second_sprite", .fn = overworld_dactyl_second_sprite_entry,
-      NEEDS_M8_X16_BINARY, .cost_milli = 5556, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_WIDTH,
+      NEEDS_M8_X16_BINARY, .cost_milli = 5445, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_WIDTH,
       .guard = overworld_dactyl_second_sprite_runs },
     { .addr = 0xC25097, .name = "overworld_following_dactyl", .fn = overworld_following_dactyl_entry,
       NEEDS_M8_X16_BINARY, .cost_milli = 5433, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_WIDTH,
       .guard = overworld_following_dactyl_runs },
     { .addr = 0xC25494, .name = "overworld_following_dactyl_second_sprite",
-      .fn = overworld_following_dactyl_second_sprite_entry, NEEDS_M8_X16_BINARY, .cost_milli = 8439,
+      .fn = overworld_following_dactyl_second_sprite_entry, NEEDS_M8_X16_BINARY, .cost_milli = 8178,
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_WIDTH, .guard = overworld_following_dactyl_second_sprite_runs },
     { .addr = 0xC249CF, .name = "overworld_black_omen_watch", .fn = overworld_black_omen_watch_entry,
       NEEDS_M8_X16_BINARY, .cost_milli = 3617, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_WIDTH,
@@ -4740,10 +4734,6 @@ const NativeEntry game_natives[] = {
       .guard = attract_wait_loop_present },
     { .addr = 0x7E3023, .name = "attract_frame_pass", .fn = attract_frame_pass, NEEDS_M16, .cost_milli = 3125,
       .guard = attract_frame_pass_present },
-    { .addr = 0x7E31B0, .name = "attract_vblank_end_loop", .fn = attract_vblank_end_loop, NEEDS_M8, .idle = true,
-      .guard = attract_vblank_wait_present },
-    { .addr = 0x7E31B7, .name = "attract_vblank_start_loop", .fn = attract_vblank_start_loop, NEEDS_M8, .idle = true,
-      .guard = attract_vblank_wait_present },
 
     /* the time warp, on its own page (D = $0500) */
     { .addr = 0xFDDB97, .name = "warp_set_up", .fn = warp_set_up, .cost_milli = 24782,
@@ -4792,3 +4782,14 @@ const NativeEntry game_natives[] = {
 };
 
 const int game_native_count = (int)(sizeof game_natives / sizeof game_natives[0]);
+
+/* The data subsystem's gate retired (docs/REIMPLEMENTATION.md, "The data
+ * subsystem's teardown"): the unpacker has no entry here, every port calls it
+ * as C, and the cells the original's unpacker keeps its place in as it works
+ * -- where a segment ends, the bits and control byte left, the last run's
+ * length and the last reference's place -- nothing but that routine reads.
+ * The C keeps them in locals, so the comparisons leave them out. */
+const NativeRange game_uncompared_wram[] = {
+    { 0x7E0309, 0x7E0316 },   /* decompress_segment_end .. decompress_scratch */
+};
+const int game_uncompared_wram_count = (int)(sizeof game_uncompared_wram / sizeof game_uncompared_wram[0]);

@@ -28,15 +28,13 @@ rest waits, is [PLAN.md](PLAN.md).
   The four one-byte returns (`$C0:EC76`, `$C2:034C`, `$9F04`, `$A16F`) are
   already executed by their wrappers; teaching the estimate to distinguish
   those from real stops would remove the conservative count, not game work.
-- **Recorded outcomes across the library.** Record the remaining movies from
-  the next batched `--all-movies` run's artifacts and initialize their strict
-  and native ratchets with reviewed reasons for differences
-  (REIMPLEMENTATION.md, "Recorded outcomes"). Resolve the sample's excepted
+- **Recorded outcomes across the library.** All 84 movies are recorded and
+  have strict and native ratchets (REIMPLEMENTATION.md, "Recorded
+  outcomes"); their differences are excepted as debts. Resolve the excepted
   saved-game, picture and place differences before a teardown relies on
-  those observables; none of the 37 currently matches every picture. Native
+  those observables; none of the 84 is free of differences in either mode. Native
   power-on save RAM also starts at zero rather than the reference's `0x60`.
-  Incomplete library plays must finish before they can supply complete
-  outcomes (the existing strict/native progress checks still locate their stops). A storage teardown must supply the same saved-game
+  A storage teardown must supply the same saved-game
   projection from the new storage; a picture hash alone cannot establish
   that a visual difference cannot affect play.
 - **Keep the unreached ledger's preconditions when retiring the machine.**
@@ -119,7 +117,7 @@ rest waits, is [PLAN.md](PLAN.md).
   (REIMPLEMENTATION.md, "Can a hand port be exact?"); the timing gate bounds the errors
   (REIMPLEMENTATION.md, "The timing gate"). Left open there: 25 entries whose
   time follows a path inside one routine, or a loop of the port's own, are on
-  `tools/timing_exceptions.txt` (the decompressor, the menu's text, glyphs and
+  `tools/timing_exceptions.txt` (the menu's text, glyphs and
   wave table, `field_rasterize_quad`, the field's sprite table, line-effect
   builders and map unpacker, whose rewrites no longer make the index steps
   the original's time follows, the field's object update, whose steps now
@@ -268,6 +266,25 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Prune the evidence cache.** `<build>/evidence-cache` gains a set of
   entries for every ct_dev binary and drops none; keep only the entries
   the current binary's keys name, or the newest few binaries'.
+- **What the data teardown's review left** (not blocking):
+  - `scene_boot` has no don't-care set and no longer leaves N and Z as the
+    data bank's after the unpack; if `scene_accept_continuation` refuses,
+    shadow mode compares them at `$7E:3000` and they differ. Declare them or
+    reproduce them.
+  - `$CE:E326`-`$CE:E332` writes `$030C`/`$0310`/`$0314` absolute indexed by
+    X, inside the unpacker's new uncompared range `$0309`-`$0316`: confirm its
+    X and data bank never reach those cells, or narrow the range to the
+    unpacker's own.
+  - REIMPLEMENTATION.md's teardown section says nothing else is mapped at
+    `$0309`-`$0316`; the range also covers unmapped gaps (`$030C`, `$030E`,
+    `$0311`-`$0314`). Say so.
+  - PLAN.md's machine-joints row (2,213 entries, 2,063 scaffolding writes)
+    disagrees with REIMPLEMENTATION.md's 2,241 -> 2,239 and 2,065 -> 2,062;
+    rerun `machine_joints.py` and take one count.
+- **`scene_curtain_jump`'s drift exception has a stale reason.** It explains a
+  negative error (the 18-clock jump estimated as 0), but the library run of
+  `92026499` measures +2.92%, probably the curtain sweep's own drift in the
+  stretch. Re-measure and rewrite the reason.
 - **What the whole-library fixes' review left** (not blocking):
   - The uncompared baseline's eight scene and warp lines aren't tied to the
     evidence that clears them on an ordinary run: `endings-bucket-lavos` is
@@ -379,8 +396,7 @@ rest waits, is [PLAN.md](PLAN.md).
     original (history/reimplementation-chunks.md, "Phase 3, battle chunk 4: the party's working
     out"): a hit that steals as well (no record has one); an animation that names no movement
     (`$C1:3760`'s table past its nine rows, no animation the battle gives);
-    the decompressor from the effect graphics loader; and from the battle's
-    start, the wait tail's callee from the frame work and an effect's graphics
+    and from the battle's start, the wait tail's callee from the frame work and an effect's graphics
     loaded `$D1:ECF3`.
   - What the screen script's rows still turn away to the original
     (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"), none of it a
@@ -1144,11 +1160,10 @@ rest waits, is [PLAN.md](PLAN.md).
   say what differs.
 - **What the boot path's review left** (none rated translation): the
   setups still run under the dispatch's return (`scene/program.c`,
-  `scene_bridge_enter`), because each calls the original's code (the
-  unpacker's decompressor, a script's first step, the sound driver) and shadow
-  mode pairs those calls by the stack they are made at, and the title's ends
-  in the original's wait for its song (`$7E:5AAA`); with the decompressor and
-  the wait as C the frame goes. The title's setup still makes its unpacks and
+  `scene_bridge_enter`), because each calls the original's code (a script's
+  first step, the sound driver) and shadow mode pairs those calls by the
+  stack they are made at, and the title's ends in the original's wait for its
+  song (`$7E:5AAA`); with the wait as C the frame goes. The title's setup still makes its unpacks and
   first script step as calls through the machine to ports (`scene_run`), and
   `run_the_first_script` keeps D and DB on the machine stack; the race's does
   the same (`m_jsr_dc`). `math.c`'s
@@ -1199,10 +1214,7 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What the world map's setup review left** (none rated translation; the
   `menu_epoch_build_map` guard is a real precondition and the main loop's
-  call-out unreachable): `overworld/setup.c`'s loaders take the ROM call
-  site (`0xC2280C`...) so the machine's unpacker can rebuild the original's
-  frame, threading the call graph through the logic (give the unpacker a
-  game-state form); `overworld_load_the_map_tiles` is called without
+  call-out unreachable): `overworld_load_the_map_tiles` is called without
   `TIMED_AS(0xC227DE)` though the sends around it are tagged; the
   `doubled >> 15` carry term is 0 for every member byte the game makes;
   `menu_mode_beside`/`menu_random_beside` name a 16-bit clear's second byte
@@ -1480,8 +1492,7 @@ rest waits, is [PLAN.md](PLAN.md).
   byte -- one kind enum in `core/palette.h`, typed fields for the kind and
   fade channels; `cast.c`/`cast.h` say
   the first three NPCs note their graphics where every NPC from the third
-  overwrites the third record (`$C0:463D`); `characters.c`'s header calls the
-  unpacker the original's code (it is `data/decompress.c`), and its
+  overwrites the third record (`$C0:463D`); `characters.c`'s
   `leave_place_registers` works Y out inline unlike `field/leaves.c`;
   `unsigned place` where `PartyPlace` fits; `goes_on_after_sending` and
   `goes_on_after_leaving` near-twins; `colours.c` mixes `|` and `+` for the
@@ -1682,11 +1693,6 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What the world map's set up left** (history/reimplementation-chunks.md, "Phase 3, menus and
   overworld: the world map set up, its scenes' calls and the frame's
   input"):
-  - the world map's loads reach the unpacker through a callback
-    (`overworld/setup.c`'s `Unpacker`): the program's is C
-    (`overworld_unpacker`), the machine's calls the original's for
-    shadow mode to pair; once the comparison retires, the loads call
-    `unpack_stream` plainly;
   - `overworld_back_from_the_menus` is fuzzed up to the map's reload, which
     random states make through the original's call (a map the loader can't
     take); the reload itself is fuzzed alone (`overworld_load_the_map_again`)
@@ -1827,9 +1833,6 @@ rest waits, is [PLAN.md](PLAN.md).
     would bound it.
 - **What the menus' third chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   characters in the records"):
-  - a record's load calls the unpacker (`$C2:F542`, the decompressor's port
-    on the machine) as a call-out; the unpacker as C on the game's state
-    would take the menus' loads off the machine;
   - six-block sprites are left to the original by the guards (their sprites'
     offsets run past the record into the next); no menu shows one;
   - what sets `menu_record_buffer_half` (`$7E:0D72`: nothing in bank `$C2`
@@ -2168,6 +2171,13 @@ rest waits, is [PLAN.md](PLAN.md).
     command lists (`$C2:C54F` and on) that the list's reader looks at: the
     format's terminator rule, read from the reader, would say why, and
     whether the pack needs the byte at all.
+  - **Resources only a read log finds**: a table the scripts name at run
+    time joins the catalogue only once some movie reads it, and `ct_native`
+    stops on a read in no resource. Of the `[[resource]]` tables in
+    `re/hints.toml`, the dialog strings at `$FF:5860` (84 strings) are the one
+    no accessor names and no movie reads; a play that enters a map whose
+    script names it stops there. Record a movie that reads it, or have the
+    catalogue take every hinted table whether or not a log names it.
   - **The accessors' addresses are keys** (PLATFORM.md, "The assets, as
     built"): each accessor still computes where the original kept its data,
     and the read finds the resource by it. Naming the resource in the
@@ -2260,15 +2270,12 @@ rest waits, is [PLAN.md](PLAN.md).
   the play time as they are. No movie reaches either; both want the input
   frame as a `tm_`/`in_` call that has an answer without a wait.
 - **The event commands still on the machine** (history/reimplementation-phase3a.md, "Phase 3a: event
-  onto the field's objects"): 21 bridges, rows of the language's table that
+  onto the field's objects"): 19 bridges, rows of the language's table that
   call out to code still the original's: the sound driver (`sound.c`),
   `$D6`'s and `$D4`'s carries (`party.c`, whose calls to the menus'
   services are C now and keep the machine only for the Y they leave), the
   location change from
-  `$C0:3B71`, `$4E`'s stack, and the unpacker (`$C3:0002`, still a
-  machine-shaped port: `$82` and `$83`, `characters.c`, call it on the
-  machine between their halves of C). A C unpacker taking a source and a
-  destination would make those two operations.
+  `$C0:3B71` and `$4E`'s stack.
 - **What the party on the map left** (history/reimplementation-chunks.md, "Phase 3, field and events:
   the party on the map"):
   - an object is made pushable by bit 1 of the byte event `$84` stores, and
@@ -2497,9 +2504,10 @@ rest waits, is [PLAN.md](PLAN.md).
   `$C0:4186`, which no movie reaches): each is an idle entry, a pass at a
   time on the machine, that waits for the vblank through the timing service
   where the original spins on the vblank interrupt's flag; a native build
-  wants it a `tm_` wait its port calls; the attract's `$7E:31B0`/`$7E:31B7`
-  (`attract/main_loop.c`, which reads `$4212` itself rather than through the
-  service); the idle entries on flags a handler clears
+  wants it a `tm_` wait its port calls (the scene program's frame wait,
+  `$7E:31B0`, which only waits, now waits where its callers stand:
+  `tm_wait_frame`, `NATIVE_WAKE_VBLANK`, which these could use once they
+  are a port's call rather than an idle entry); the idle entries on flags a handler clears
   (`field_wait_for_frame_loop`, `menu_wait_for_frame_loop`,
   `menu_wait_ready_loop`, `battle_wait_window_slide_loop`,
   `battle_wait_graphics_loaded_loop`, `scene_race_wait_for_tilemap_upload_loop`,
@@ -2828,7 +2836,73 @@ rest waits, is [PLAN.md](PLAN.md).
   is disabled. Continuing into field entry moves the same difference to
   its song call. The frame therefore retains the ending-entry boundary;
   the ending itself now continues through field entry as C. Settle the
-  shutdown's beam timing before combining these comparisons.
+  shutdown's beam timing before combining these comparisons. Under a
+  warp's teardown (below) this item goes with the comparison: `$210E`
+  is a BG1 scroll latched while the screen is forced blank by `go_dark`,
+  nothing drawn shows it, and the last frame calls the end as one C
+  sequence, as `warp_runs` already does in `ct_native`.
+
+- **The time warp can't retire the gate before its main loop's held wait
+  stops needing registered entries.** A teardown of `game/warp/` was
+  attempted and stopped at the preconditions, for attract's reason (the
+  scene main loop's item, below). Census of the three movies that take a
+  gate (`events-end-of-time-gate`, `battle-lavos-gameover`,
+  `endings-bucket-lavos`; shortest, short and flickering trips): the machine
+  enters the frame wait's idle entry `$FD:EAED` 743,589 times, the
+  screen-on wait `$FD:EADA` 1,599, the vblank handler `$FD:DE15` 1,181
+  (by `console_vblank_stub`'s jump), and each frame entry (`$FD:DA65`,
+  `$DAC4`, `$DB27`; 255, 159 and 767) by return out of that wait; the starts
+  are entered by the field's stop or return, the ends by the last frame's
+  stop. The frame wait is the main thread's wait at every frame end of a
+  trip, held (`tm_wait_for_handlers_held`, PORTING.md): its continuation
+  is the frame entry the idle entry returns to. As calls from the field's
+  end, the trip would be one C loop waiting in place, a port suspended at
+  every frame end for 160 to 768 frames, with no `ct_drive` base and no
+  `ct_play` quick save inside a gate. The vblank handler alone could
+  become a call from `console_vblank_stub`; the loop can't without that
+  price. The rest holds: the shipping mode runs none of the warp's original
+  code (no `FD:` line in `tools/fallback_shipping_baseline.txt`), the
+  burndown leaves nothing of it unported, and the three movies have
+  recorded outcomes (pictures excepted in strict and native for two of
+  them, so they protect places and end states more than the picture).
+  Retire it when held waits no longer need a registered idle entry, or
+  decide that a trip's length without a base is an acceptable price (it
+  takes no input; ct_drive already tolerates far longer stretches in the
+  scaled-bitmap scenes). Its unreached rows stand as they are: the 9
+  clamp bytes (`warp_set_up`'s fixed centres at 128, radius 0 or 2..127)
+  become an assertion in `warp_build_circle` at the teardown, the C
+  clamps kept, rechecked if the radius ramp is loaded from an editable
+  asset.
+
+- **The overworld can't retire the gate before its main loop's held wait
+  stops needing registered entries.** A teardown of `game/overworld/` was
+  attempted and stopped at the preconditions, for the warp's and attract's
+  reason. Census of four movies on the world map (`field-65m-bc`,
+  `field-65m-bc-dactyl`, `field-65m-bc-dactyl-flight`, `field-12kbc-1f4`;
+  12,676 frames): the machine makes 932,226 passes of the object system's
+  frame wait `$C2:0348`, and enters `overworld_main_loop` (`$C2:23CF`) 1,855
+  times, 1,848 of them by its own stop at the end of a pass and 7 by return;
+  each pass calls out to the wait (`$C2:046E`, 1,861). The loop is one pass
+  per entry because that wait is the main thread's at every frame end on the
+  map, held on the machine (`next_frame_on_the_machine` in `main_loop.c`):
+  as C called from the field's start, the loop would be a port suspended
+  for the whole stay on the map, with no `ct_drive` base and no `ct_play`
+  quick save there. The object rows (`overworld_lead`, `_follow`, the
+  vehicles, the Epoch, the dactyls, the sign, the region's song: 1,663 to
+  3,854 entries each) are entered by `call` from `menu_run_objects`
+  (`$C2:051D`), which the vblank handler reaches by `console_vblank_stub`'s
+  stop into `menu_object_nmi` (2,031): the C path already dispatches them
+  through `menu/handlers.h`, so they leave the registry with the menu's
+  object system's vblank path, not with the overworld. The rest holds as
+  far as was checked: no `C2:` line in `tools/fallback_shipping_baseline.txt`
+  (the reference play's `C2:----` and `open C2:23CF` lines in
+  `tools/fallback_baseline.txt` are the vblank's cut stretches and the
+  loop's open comparison), and the four movies have recorded outcomes. The
+  unreached ledger's overworld rows (`overworld_set_up`'s 26 bytes held by
+  `unreached_safe`, `overworld_lead`'s 190 by fuzz cases) were not audited
+  further. Retire it when held waits no longer need a registered idle
+  entry (a `native_wait_call` woken by the vblank flag is the candidate for
+  `$C2:0348`) and the object system's vblank path runs as a call.
 
 - **Boot credit pages outside the five-page table.** The page index at
   `$0382` survives startup. Random values above five read unrelated program
@@ -2844,25 +2918,37 @@ rest waits, is [PLAN.md](PLAN.md).
   was reverted rather than masking the flag. Resolve that interrupted-wait
   flag handoff before joining startup and the main loop.
   This is also what keeps `game/attract/` under the gate: its teardown was
-  attempted and stopped at the preconditions. Its four rows are the scene
-  program's main loop (`$7E:3023`, an idle entry and the scaling pass) and
-  its frame wait (`$7E:31B0`/`$7E:31B7`), and the machine itself enters
-  them (census, attract-demo and title-start: 4.47 M passes of the main
-  loop's wait, 7,161 of the frame wait, `attract_frame_pass` 100 times by
-  the scene's stop and 3 by return, holding `scene_race_scale_pictures` and
-  `scene_program_restart` to the registry). The main loop is the wait the
-  main thread is in at every frame end of a scene, so on the machine it has
-  to be held by an idle entry (PORTING.md, "held waits"): made a C loop its
-  caller runs, a port would stay suspended for a whole title screen, attract
-  sequence or ending, and neither `ct_drive` nor `ct_play`'s quick save
-  would get a base there. The fallback measure also still counts the
-  original's attract code in the reference play (`7E:3023`, `7E:31B0`'s 763
-  instructions under `scene_boot`, the main loop's cut passes in `7E:----`).
-  So attract retires with the scene program, or when the held waits stop
-  needing registered idle entries; the frame wait alone could become a
-  `native_wait_call` on a vblank wake first. Its unreached rows are covered
-  (0 bytes) and it owns no work RAM of its own (the program image is the
-  scene's).
+  attempted and stopped at the preconditions. Its two rows are the scene
+  program's main loop (`$7E:3023`: the idle entry `attract_wait_loop` and
+  the scaling pass `attract_frame_pass`), and the machine itself enters them
+  (census, attract-demo and title-start: 4.47 M passes of the main loop's
+  wait, `attract_frame_pass` 100 times by the scene's stop and 3 by return,
+  holding `scene_race_scale_pictures` and `scene_program_restart` to the
+  registry). The frame wait the file also held (`$7E:31B0`) is off the
+  registry: `tm_wait_frame` waits where its callers stand
+  (`NATIVE_WAKE_VBLANK`, PLATFORM.md "Waiting inside a port"). The main
+  loop can't follow it the same way: `native_wait_call` stands for a call a
+  port makes and goes on from, and nothing calls the main loop -- the first
+  frame stops there, and the main thread rests in it at every frame end of a
+  scene. Made a C loop its caller runs, a port would stay suspended for a
+  whole title screen, attract sequence or ending, and neither `ct_drive` nor
+  `ct_play`'s quick save would get a base there (attract-demo already has a
+  routine suspended at 12,329 of its 22,500 frame ends, in 56 runs, the
+  longest 2,142 frames, the same with the frame wait in place as before). It has to
+  stay held (PORTING.md, "held waits"), and a held wait's continuation is the
+  idle entry at its head. What is left before attract and the scene program
+  retire together: a held wait whose continuation is a C function the
+  runtime names, not an entry it finds by address (a save keeps which wait
+  and nothing else: the loop has no state but the frame routine's operand
+  and the program-over flag, both in work RAM); the interrupted-wait carry
+  handoff above, which the same join meets; `attract_frame_pass`'s scaling
+  passes called as C from that loop (`scene_race_scale_pictures`,
+  `scene_ending_scale_picture`, `scene_scale_the_epoch`, whose scalings stop
+  in the scaler's code and take frames); and `scene_program_restart` reached
+  by a return rather than the loop's stop. The fallback measure still counts
+  the original's attract code in the reference play (`7E:3023`, the main
+  loop's cut passes in `7E:----`). Its unreached rows are covered (0 bytes)
+  and it owns no work RAM of its own (the program image is the scene's).
 
 - **Two scene interpreter handbacks retain machine contracts.** All seven
   store/task/video command families have C implementations, but the dispatch
@@ -2947,6 +3033,43 @@ comparisons.
 
 ## The native program
 
+- **What the scene frame wait's review left.** REIMPLEMENTATION.md still names
+  `attract_vblank_start_loop` in the attract section; reword it as history now that
+  the row is gone. `pf_snes_vblank_wait` lists only `$7E:31B0`; a caller that enters
+  at `$7E:31B7` takes the original's code, so add it as a second row if one does.
+
+- **The data subsystem's storage** (REIMPLEMENTATION.md, "The data
+  subsystem's teardown"). The unpacker's gate retired but its storage didn't
+  move: its callers name the stream and the destination in work RAM
+  (`decompress_source`, `decompress_dest`, `$7E:0300-$0305`) and it leaves
+  the length there (`decompress_length`), which the scene program's transfer
+  reads. As its callers' state leaves work RAM, `unpack_stream` takes the
+  stream and the destination as parameters and returns the length, and the
+  cells go with the last caller that reads them. The cells it worked in
+  (`$0309-$0316`) nothing of ours writes; `game_uncompared_wram`
+  (`game/registry.c`) leaves them out of every comparison, and goes with
+  the comparisons.
+- **The unpacker's seams with one implementation.** Its callers reach it
+  through callbacks made for a machine half that called it out: the world
+  map's `Unpacker` (`overworld/setup.h`, used by the overworld, the Epoch's
+  screens and the gate screen), which still takes the original's call site
+  and a "didn't come back" result it never gives, and the casting's
+  `SetUnpacker` (`event/characters.c`). They can be plain calls of
+  `unpack_stream`, and the loads' `bool` results lose the unpacking's arm.
+- **The unpacker's pace, kept by hand.** Its time on the machine is its
+  retired entries' estimate (`retired_rates` in `runtime/port/state_io.c`,
+  the entry's own 25 accesses for the machine halves that reached it
+  through the entry, `charge_settle` where they called it), only so the
+  strict and native plays keep the pace the recorded outcomes pin
+  (REIMPLEMENTATION.md, "The data subsystem's teardown"). The time model's
+  price, which `ct_native` charges, moved every strict ratchet. When the
+  outcomes are recorded again on purpose (or the machine's time is the
+  model's for every retired subsystem), charge the model's price, drop the
+  rates, the entry's accesses and the settles, and `unpack_stream_run` and
+  `unpack_stream_called` with them. The timing gate judges the unpacker's
+  estimate error inside its callers' stretches now; the callers on
+  `tools/timing_exceptions.txt` for it say so.
+
 - **What core's teardown left on the machine** (REIMPLEMENTATION.md, "The core
   services' teardown"). The console's eight rows (the reset, its copy at
   `$C0:FF00`, the boot, the two vectors and the two stubs) are how the machine
@@ -2968,7 +3091,20 @@ comparisons.
   none. The 39 time tags
   (`game/time_tags.c`) keep their last calibration; if a caller's timing drifts
   onto one, there is no shadow run to recalibrate it from, so fit it from the
-  callers' stretches or charge the work at the caller's rate.
+  callers' stretches or charge the work at the caller's rate. They are a
+  second mechanism beside the data teardown's `retired_rates`
+  (`runtime/port/state_io.c`); make them one.
+- **What the core teardown's review left** (none blocking):
+  - `ct_drive` doesn't print `contract broken:`, so the routes aren't held to
+    the retired contracts (only the fallback measure's real calls catch a break
+    there); print it as `ct_dev` does and have `route_check.py` fail on it.
+  - `ct_fuzz` builds its table without `game_time_tags`, so a fuzzed port that
+    tags a retired routine counts a bad tag; add them as `frontend/natives.c`
+    does.
+  - `battle/bridge.c`'s `run_entry` skips `native_poison_sibling_return` for the
+    retired forms, so `ct_fuzz --poison-return` doesn't scramble what they leave
+    in the registers; give the forms' contracts their don't-care sets and poison
+    by them.
 
 - **CI has no no-SDL configuration.** All four jobs install SDL2, so they do
   not exercise `ct_native`'s headless-only build. Add a configuration with
@@ -3047,7 +3183,14 @@ list, by kind, is what `game/` still asks of one.
     elsewhere, battles most (279 and 291 of 460 at 40 and 30 clocks an
     access, against 296). Wants a rate that follows the mode (the
     overworld's scenes, the battle), or the routines that overrun named with
-    their own measured time.
+    their own measured time. Two loads that are mostly the CPU's own work
+    are the first to name: the load screen's setup (`$C2:800E`, 14.5
+    frames of the original's time, about 2.4 charged), whose shortfall
+    moves `frames_at_leaving`, and so where the battles start in their
+    random table, in a movie from a save (20 frames in
+    `battle-ozzies-fort`), and the battle's setup from the field (18
+    frames, none charged). `battle-ozzies-fort` measures both ("Ozzie's
+    Fort movie on the native program", below).
   - *The handlers' share of an upload.* The sound driver's upload time is
     the wall's under a light vblank handler; under the menus' busy one the
     original's song loads in about twice the frames. Waiting the CPU half's
@@ -3147,13 +3290,32 @@ list, by kind, is what `game/` still asks of one.
   strict `ct_dev` reaches the movie's end with five character-record bytes
   differing from the reference, not a handler stop.
 - **Ozzie's Fort movie on the native program.** `battle-ozzies-fort` from ctsave12
-  slot 2 reaches its 39237-frame budget in `ct_native` with exit 0 and no reported
-  stop, but the display is blanked after only five screen setups. Determine where
-  its playback ceases to advance before counting the fort as native coverage;
-  a fixed movie's timing can diverge from the native program. The interpreter's
-  route completes all fort events and returns field control, shadow is clean,
-  and strict mode reaches the budget with saved-game drift. The native run also
-  reports two SNES-only video escapes, first at `$7E:5AEB`.
+  slot 2 plays to its 39237-frame end in `ct_native`, showing, but the Super Slash
+  battle in `$0B8` lasts 19960 frames there against the reference's 4726, so the
+  movie's later presses open the trapped chest in `$0B3` the route leaves alone
+  and the run never reaches `$0B4`. It is the time model's drift, not a port's
+  difference: the native pictures match the reference's pixel for pixel over
+  the stretch before the battle (frames 15010 to 16180), and what differs is
+  when things happen and the battle's random numbers. The load screen's setup
+  takes the original 14.5 frames (`$C2:800E`'s shadow time) and `ct_native`
+  charges about 2.4 (its sends); with the rest of the way in, the menus'
+  vblank count starts 20 frames early (frame 1702 against 1722) and the game leaves the menus with
+  `frames_at_leaving` `$30` against the reference's `$1C` (strict mode's `$1B`):
+  every battle draws from another place in the random table, the Super Slash
+  battle starting at `$5A` against `$4D`. The field runs a few frames ahead
+  (`tm_frame_time_left` gives every frame time for all its script turns), so
+  Flea's text in `$0B7` finishes at frame 8474 against 8488 and the press at
+  8485 closes it, where the reference's lands before the text ends. And the
+  battle's own setup, 18 frames of the original's main thread between the
+  field's last frame and the main loop's start, costs `ct_native` none: the
+  Super Slash battle's main loop starts at 16302 against 16321, its windows
+  slide in at 16318 against 16336, and Crono's first command menu opens at
+  16404 against 16428, so the recorded presses meet other menus (the item
+  and tech lists where the reference attacks). Forcing the reference's
+  `$1C` alone (a scratch run) doesn't bring it back: the Flea battle then
+  ends 3,064 frames late. Counting the fort as native coverage waits on the
+  time model's overruns ("Long movies still desync", above). The native run
+  also reports two SNES-only video escapes, first at `$7E:5AEB`.
 - **Ocean Palace movie playback.** `battle-golem-twins` and
   `events-ocean-palace-lavos` run for their full 20216 and 30364 frames in
   `ct_native` (exit 0), without a missing-C stop, but both report unsupported video
@@ -3424,8 +3586,8 @@ list, by kind, is what `game/` still asks of one.
   `sound_host.c`'s echo waits and command queue over its own ports: the two
   want one core, which `ct_play` needs when it becomes `ct_native`.
 - **ROM data.** `ct_native` reads the game's data from the asset pack through
-  the store; what still reads cartridge addresses outside it, the
-  decompressor and the video transfers from ROM, is under "Assets as data
+  the store; what still reads cartridge addresses outside it, the video
+  transfers from ROM, is under "Assets as data
   files" (Platform).
 - **Reads past a table's end, as the original's glitches make them.** The
   original reads and writes past its tables where a player can push it there
@@ -3976,13 +4138,20 @@ waits on M5 rather than on a backend.
   which the original reads through the work RAM port, overlaps the race's scaler
   output (and the event variables), so the map can't name it in the scene's
   subsystem (`ram_map.py coverage --open`).
-- **The decompressor's port and the original part on streams that aren't
-  streams.** Fuzzing the program's unpacker (`scene_unpack_resource`) over
-  resource numbers past the table's 73 entries, where the "streams" are other
-  bytes of bank `$FE` pointing anywhere, mismatched on 30 of 2,000 states; on
-  the table's own entries none do. Find which input the decompressor
-  (`$C3:0557`, `decompress`) takes apart from the original -- a source in work
-  RAM the destination overwrites is the likeliest -- and guard or match it.
+- **The unpacker and the original part on streams that aren't streams.**
+  Fuzzing the program's unpacker (`scene_unpack_resource`) over resource
+  numbers past the table's 73 entries, where the "streams" are other bytes of
+  bank `$FE` pointing anywhere, mismatched on 30 of 2,000 states, while the
+  decompressor's comparison stood; on the table's own entries none do. Since
+  the data subsystem's teardown its callers' comparisons leave out the cells
+  it works in (REIMPLEMENTATION.md, "The data subsystem's teardown"): run that
+  fuzz again past the table, and what still differs is an input the C takes
+  apart from the original -- a source in work RAM the destination overwrites
+  is the likeliest. The game never makes one (every stream it unpacks is a
+  resource of the catalogue, which the gate's `asset outside the catalogue`
+  line holds it to), so make it a checked precondition of `unpack_stream`, a
+  native failure where a stream isn't the cartridge's, as a retired
+  subsystem's guards are assertions.
 - **The race's and the endings' setups call through the machine.** The
   program's unpacker by resource (`$7E:3691`) and a channel's first script
   step (`$7E:3749`) are ports now (`scene/boot.c`, `scene/script.c`), which

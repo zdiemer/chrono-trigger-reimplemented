@@ -225,7 +225,7 @@ static void unpack(GameState *g, uint32_t from, uint32_t to)
 {
     set_decompress_source(g, from);
     set_decompress_dest(g, to);
-    TIMED_AS(g, UNPACK_STREAM_ENTRY, (void)unpack_stream(g));
+    (void)unpack_stream(g);
 }
 
 /* For the original's code and shadow mode: the last block, set or the like

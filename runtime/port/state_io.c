@@ -107,6 +107,27 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses)
 
 void charge_block_move(GameState *g, uint32_t bytes) { charge_as(g, BLOCK_MOVE, bytes * ACCESSES_PER_BYTE_MOVED); }
 
+/* The rates retired routines' entries were calibrated at when they left the
+ * registry (charge_retired_end): their estimates as they were, now that no
+ * entry carries them. */
+static const struct {
+    uint32_t routine, cost_milli;
+} retired_rates[] = {
+    { 0xC30002, 4060 },   /* the unpacker: decompress, the data subsystem's teardown */
+    { 0xC30557, 4057 },   /* and decompress_direct, as the scene engine calls it */
+};
+
+uint32_t charge_retired_begin(GameState *g) { return native_uncounted_begin(state_snes(g)); }
+
+void charge_settle(GameState *g) { native_sync(state_snes(g)); }
+
+void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t accesses)
+{
+    for (unsigned k = 0; k < sizeof retired_rates / sizeof retired_rates[0]; k++)
+        if (retired_rates[k].routine == routine)
+            native_charge_at_rate(state_snes(g), mark, accesses * ACCESS_CLOCKS, retired_rates[k].cost_milli);
+}
+
 uint32_t charge_uncounted_begin(GameState *g) { return native_uncounted_begin(state_snes(g)); }
 
 void charge_uncounted_end(GameState *g, uint32_t mark) { native_uncounted_end(state_snes(g), mark); }

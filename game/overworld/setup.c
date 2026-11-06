@@ -14,10 +14,10 @@
  * colours in, starts the overworld's own state afresh, puts the camera on
  * the party, draws the map's two planes whole and starts the scene's script.
  *
- * Unpacking is the decompressor's (data/decompress.c), which still takes the
- * machine: the loads reach it through an Unpacker the entries supply, which
- * says where the original calls it from. Everything else is the game's state
- * and the video service. */
+ * Unpacking is the decompressor's (data/decompress.c): the loads reach it
+ * through an Unpacker, which says where the original calls it from, and which
+ * is C on the machine as off it since the decompressor's gate retired.
+ * Everything else is the game's state and the video service. */
 #include "overworld/setup.h"
 
 #include "charge.h"
@@ -616,33 +616,46 @@ bool overworld_load_the_map_again(GameState *g, const Unpacker *u, Platform *pf)
 
 /* ---- The entries ------------------------------------------------------------------------------- */
 
-/* The unpacker's own entry, run as the original's long call to it reaches it
- * (it may stop, where the machine isn't the one it was called with). */
-enum { UNPACKER = 0xC30002 };
-
-static bool unpack_on_the_machine(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
-{
-    Snes *s = ctx;
-    GameState *g = state_of(s);
-    set_decompress_source(g, stream);
-    set_decompress_dest(g, to);
-    return menu_run_long(s, site, UNPACKER, decompress);
-}
-
-Unpacker overworld_unpacker_on_the_machine(Snes *s) { return (Unpacker){ unpack_on_the_machine, s }; }
-
-/* As C, the unpacker called as C. */
+/* The unpacker, C wherever the loads run (data/decompress.c). */
 static bool unpack_the_stream(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
 {
     (void)site;
     GameState *g = ctx;
     set_decompress_source(g, stream);
     set_decompress_dest(g, to);
-    TIMED_AS(g, UNPACKER, (void)unpack_stream(g));
+    (void)unpack_stream(g);
     return true;
 }
 
 Unpacker overworld_unpacker(GameState *g) { return (Unpacker){ unpack_the_stream, g }; }
+
+/* For the machine's entries, at the pace their reaching the unpacker's entry
+ * had (data/decompress.h): run in place, as the world map's own and the
+ * Epoch's map view ran it; or called, as the Epoch's gate stream and the gate
+ * screen's swirl called it. */
+static bool unpack_as_run(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
+{
+    (void)site;
+    GameState *g = ctx;
+    set_decompress_source(g, stream);
+    set_decompress_dest(g, to);
+    (void)unpack_stream_run(g, false);
+    return true;
+}
+
+static bool unpack_as_called(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
+{
+    (void)site;
+    GameState *g = ctx;
+    set_decompress_source(g, stream);
+    set_decompress_dest(g, to);
+    (void)unpack_stream_called(g, false);
+    return true;
+}
+
+Unpacker overworld_unpacker_on_the_machine(Snes *s) { return (Unpacker){ unpack_as_run, state_of(s) }; }
+
+Unpacker overworld_unpacker_called(Snes *s) { return (Unpacker){ unpack_as_called, state_of(s) }; }
 
 static Unpacker on_the_machine(Snes *s) { return overworld_unpacker_on_the_machine(s); }
 

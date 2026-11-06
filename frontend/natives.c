@@ -67,6 +67,7 @@ NativeRuntime *natives_restart(NativeRuntime *old, const NativeTable *t, NativeM
     native_destroy(old);
     snes->intercept = NULL;
     snes->intercept_ctx = NULL;
+    native_leave_uncompared(game_uncompared_wram, game_uncompared_wram_count);
     NativeRuntime *rt = native_create(t->entries, t->count, mode);
     native_set_index(rt, t->index, t->index_count);   /* used only with generated entries */
     native_attach(rt, snes);

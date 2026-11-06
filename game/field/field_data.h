@@ -118,6 +118,11 @@ static inline uint8_t field_credits_byte(const GameState *g, uint16_t at) { retu
  * tiles. */
 enum { FIELD_CREDITS_LETTERS_PACKED = 0xFD0000 };
 
+/* The field's own messages, a chest's (what it gave, the gold, that it is
+ * empty): a table of dialog strings at $DE:FF00, which the dialog window sets
+ * in place of the script's table when the field opened it. */
+enum { FIELD_MESSAGES = 0xDEFF00 };
+
 /* The blank tile map entries a row of BG3's staging is cleared with before a
  * credits line: 32 bytes at $D2:0000, the start of the sprite graphics' first
  * bank, which hold 0. */

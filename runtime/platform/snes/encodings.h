@@ -49,6 +49,20 @@ typedef struct {
 } PfSnesVramSender;
 const PfSnesVramSender *pf_snes_vram_sender(uint32_t routine);
 
+/* The original's wait routines that only wait for the next vertical blank to
+ * begin, polling its flag ($4212 bit 7, read with 8-bit A through the data
+ * bank) until it clears and then until it sets, and return: tm_wait_frame
+ * waits where the port stands (NATIVE_WAKE_VBLANK) rather than calling one,
+ * where its code is in place (the hash of its `length` bytes, as
+ * m_code_matches takes it: the scene program's lies in work RAM). NULL where
+ * the routine is none of them. */
+typedef struct {
+    uint32_t routine;
+    uint16_t length;
+    uint64_t hash;
+} PfSnesVblankWait;
+const PfSnesVblankWait *pf_snes_vblank_wait(uint32_t routine);
+
 /* What the original writes, in order, where one call sets a whole screen up
  * (vid_apply_screen). Each part is one of the service's setters with the site
  * of the instruction it stands for; `arg` is the part's layer, register group

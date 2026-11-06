@@ -30,10 +30,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - CPU tests: `python3 tests/cpu/fetch_sst.py` and `python3 tests/apu/fetch_sst_spc700.py` once, then
   `build/main/sst_runner tests/cpu/data/*.bin`, `build/main/sst_generated_runner tests/cpu/data/*.bin`,
   `build/main/generated_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
-  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `assets_test`, `vars_test`, `sound_test`, `timing_test` and `tasks_test` need no data; `build/main/ct_sound_fuzz` plays
+  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `assets_test`, `vars_test`, `sound_test`, `unpack_test`, `timing_test` and `tasks_test` need no data; `build/main/ct_sound_fuzz` plays
   the C sound driver on random command streams and prints its sound's digest (docs/SOUND.md).
 - CI (`.github/workflows/ci.yml`): Linux gcc and clang, macOS Apple clang, Windows MSYS2 MinGW gcc, all
-  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `assets_test`, `vars_test`, `sound_test`, `timing_test`, `tasks_test`,
+  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `suspend_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `assets_test`, `vars_test`, `sound_test`, `unpack_test`, `timing_test`, `tasks_test`,
   the conformance runners (test data cached) and builds `ct_play`, `ct_native` and the oracle. Code must build
   warning-free on all four and tests must pass without a ROM. Docs-only changes don't trigger it.
 - Movies: `oracle/movies/*.ctm` from power-on, and `oracle/movies/saves/*.ctm` from cartridge saves
@@ -72,17 +72,20 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). By default
   it runs the gate's sample of the movie library, `tools/gate_movies.txt` (a greedy cover of the
   library's shadow coverage per frame played, plus what each check needs, each line with its reason);
-  `--all-movies` runs the whole library. A branch and a merge pass on the sample, and that is
-  enough to push; add `--long-routes` when the change can move timing or the native runtime (a
-  port, a `cost_milli`, the time model, `runtime/`), since the long routes are most of the gate's
-  wall time (its `times:` line says where it went). The whole library (8 hours and more at `-j 2`) runs
+  `--all-movies` runs the whole library. A branch passes on the sample, without `--long-routes`. The long routes are
+  most of the gate's wall time (its `times:` line says where it went), so main runs them once per
+  batch of merges: the merge gate takes `--long-routes` when anything merged since main's last
+  long-routes pass can move timing or the native runtime (a port, a `cost_milli`, the time model,
+  `runtime/`), and that pass is what lets the batch push. The whole library (8 hours and more at `-j 2`) runs
   batched: once over everything merged since its last run, when the machine is free and at a higher
   `-j`, and recalibration and baseline updates (`--calibrate`, `--update`, `--prune`), which take
   the whole library's numbers, come from that run as one ledger commit; on the sample the ratchets drop no baseline
   line and report nothing gone for a movie it doesn't run, and the timing gate judges only its worst
   cases (drift and the vblank tail are means over the library, judged by `--all-movies`). "Every movie" below means every movie run. The gate
   is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines, no `page refused` line (a
-  guard that turned away a call whose direct page is no instance `re/ram.toml` declares) and no `accessor out
+  guard that turned away a call whose direct page is no instance `re/ram.toml` declares), no `contract broken:` line (a retired routine
+  called with a state its contract, the guard it had, doesn't take; docs/REIMPLEMENTATION.md, "The core
+  services' teardown") and no `accessor out
   of range` line (a port that called an accessor with an index past what the map declares, reaching the next
   variable in work RAM; both in docs/DISASSEMBLY.md, "The accessors") and no `asset outside the
   catalogue` line (a cartridge read in no resource of `re/assets.tsv`, which `tools/assets.py check`
@@ -119,14 +122,14 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   makes -- in the shadow runs, the movies in the shipping mode or the routes -- unless
   `tools/refusal_allowlist.txt` says why (`tools/fallbacks.py --refusals`); every movie gets as far on the
   hand ports alone -- no generated code, no interpreter, the C sound driver -- as `tools/strict_baseline.txt`
-  says, a movie that reaches its end doing so with no failed exit, hang, `halted:`, `accessor out of range` or
-  `page refused` line, and one the line marks `end` ending with the saved game and save RAM the reference
+  says, a movie that reaches its end doing so with no failed exit, hang, `halted:`, `accessor out of range`,
+  `page refused` or `contract broken:` line, and one the line marks `end` ending with the saved game and save RAM the reference
   play's (`tools/strict_check.py --check`, a ratchet run by the suite, against the shadow runs' `ct_dev
   --end-state`; `ct_dev --native on --generated off --no-interpreter strict`; docs/PLAYING.md,
   "Without the interpreter"); and the build with the
   ports' scaffolding compiled out (`ct_dev_native_shape`, `ct_drive_native_shape`) runs every movie
-  to its end in the shipping mode with no failed exit, hang, `halted:` line, `accessor out of range`
-  or `page refused` line the default build's run doesn't show, and its routes reach their outcomes
+  to its end in the shipping mode with no failed exit, hang, `halted:` line, `accessor out of range`,
+  `page refused` or `contract broken:` line the default build's run doesn't show, and its routes reach their outcomes
   (the fast set; all of them with `--long-routes`); and every movie in `ct_native` (the game with no
   emulator) runs without crashing and doesn't end on a dark screen (or is in `tools/native_dark_exceptions.txt`,
   a run whose time carries it into the reference's own black), its picture drawn every frame by
@@ -325,9 +328,10 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
   processes at a time unless told otherwise. Kill a process only by its PID, never
   by image name (`taskkill /IM`, `pkill ct_dev`): that kills other agents' runs.
 - **The gate.** A branch passes on the sampled gate,
-  `py tools/suite.py --ct-dev build/main/ct_dev.exe -j 2 --evidence`, with `--long-routes`
-  when it can move timing or the native runtime (a port, a `cost_milli`, `runtime/`).
-  Don't run `--all-movies` on a branch: the whole library runs batched (see
+  `py tools/suite.py --ct-dev build/main/ct_dev.exe -j 2 --evidence`, without `--long-routes`:
+  whoever merges runs the long routes on main, once per batch of merges (see "Validation" above).
+  A branch runs one long route by hand (`tools/movies/route_check.py`) only when its change is
+  aimed at a route. Don't run `--all-movies` on a branch: the whole library runs batched (see
   "Validation" above). `suite.py` exits 0 even when it fails, so read its last
   line: only `suite OK` is a pass.
 - **Ratchets and exceptions.** Never add a line to a baseline or exceptions file

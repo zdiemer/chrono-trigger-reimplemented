@@ -275,7 +275,8 @@ typedef struct Active {
     bool wake_timed;
     uint32_t polling_left, pass_clocks;   /* ...a loop that gives up: the polling it has left, a pass at a time */
     bool woke;             /* ...and, for a wait on the handlers, that one has been taken where the port is */
-    bool exit_passed;      /* ON, PH_WAIT for the hblank: its exit pass's time has passed (IDLE_EXIT_CLOCKS) */
+    bool exit_passed;      /* ON, PH_WAIT for a blank: its exit pass's time has passed (IDLE_EXIT_CLOCKS) */
+    bool saw_picture;      /* ON, PH_WAIT for the vblank: the picture has been drawn since the wait began */
     bool wait_compared;    /* SHADOW, a wait in the port's loop: the stretch before it was compared */
     /* PH_CALLOUT: an interrupt taken while the callee runs, or a stack
      * switch (stack_switched), and the S it returns to: until it has, S above
@@ -847,6 +848,46 @@ static bool diff_pages(char *out, size_t n, const char *name, const uint8_t *a, 
     return false;
 }
 
+/* Work RAM no comparison looks at (native_leave_uncompared), as offsets into
+ * the 128 KiB of it. */
+static const NativeRange *uncompared_wram;
+static int uncompared_wram_count;
+
+void native_leave_uncompared(const NativeRange *ranges, int count)
+{
+    uncompared_wram = ranges;
+    uncompared_wram_count = count;
+}
+
+static bool wram_compared(size_t at)
+{
+    for (int k = 0; k < uncompared_wram_count; k++)
+        if (at >= (uncompared_wram[k].first & 0x1FFFF) && at <= (uncompared_wram[k].last & 0x1FFFF))
+            return false;
+    return true;
+}
+
+/* diff_pages for work RAM, past the bytes left uncompared. */
+static bool diff_wram(char *out, size_t n, const Snes *o, const Snes *c, uint64_t since)
+{
+    if (!uncompared_wram_count)
+        return diff_pages(out, n, "WRAM", o->bus.wram, c->bus.wram, sizeof o->bus.wram, o->bus.wram_page_epoch,
+                          c->bus.wram_page_epoch, SNES_WRAM_PAGES, since);
+    size_t page = sizeof o->bus.wram / SNES_WRAM_PAGES;
+    for (size_t i = 0; i < SNES_WRAM_PAGES; i++) {
+        const uint8_t *a = o->bus.wram + i * page, *b = c->bus.wram + i * page;
+        if ((o->bus.wram_page_epoch[i] < since && c->bus.wram_page_epoch[i] < since) || !memcmp(a, b, page))
+            continue;
+        for (size_t k = 0; k < page; k++) {
+            if (a[k] != b[k] && wram_compared(i * page + k)) {
+                snprintf(out, n, "WRAM[%04zX] original %02X native %02X", i * page + k, a[k], b[k]);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 #define CHECK_FIELD(label, x, y)                                                                         \
     if ((x) != (y)) {                                                                                    \
         snprintf(out, n, "%s original %lX native %lX", label, (unsigned long)(x), (unsigned long)(y));   \
@@ -884,8 +925,7 @@ static bool compare_machines(const Snes *o, const Snes *c, uint16_t dont_care, u
     CHECK_FIELD("P", o->cpu.p & p_mask, c->cpu.p & p_mask)
     CHECK_FIELD("E", o->cpu.e, c->cpu.e)
 
-    if (diff_pages(out, n, "WRAM", o->bus.wram, c->bus.wram, sizeof o->bus.wram, o->bus.wram_page_epoch,
-                   c->bus.wram_page_epoch, SNES_WRAM_PAGES, since) ||
+    if (diff_wram(out, n, o, c, since) ||
         diff_bytes(out, n, "SRAM", o->bus.sram, c->bus.sram, sizeof o->bus.sram, 0) ||
         diff_pages(out, n, "VRAM", o->ppu.vram, c->ppu.vram, sizeof o->ppu.vram, o->ppu.vram_page_epoch,
                    c->ppu.vram_page_epoch, sizeof o->ppu.vram_page_epoch / sizeof o->ppu.vram_page_epoch[0],
@@ -1573,6 +1613,7 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
             a->pass_clocks = j->wait_pass_clocks;
             a->woke = false;
             a->exit_passed = false;
+            a->saw_picture = false;
             return;
         }
     } else {
@@ -1656,19 +1697,27 @@ static bool wait_over(Active *a, const Snes *s)
         return !s->bus.in_hblank;
     if (a->wake == NATIVE_WAKE_MUSIC_START)
         return (s->apu.cpu_out[3] & 0x0F) != 0;
+    if (a->wake == NATIVE_WAKE_VBLANK) {
+        if (!s->bus.in_vblank)
+            a->saw_picture = true;
+        return a->saw_picture && s->bus.in_vblank;   /* $4212 bit 7, as the original's polls read it */
+    }
     if (native_wake_is_on_port0(a->wake))
         return native_wake_port0_satisfied(a->wake, s->apu.cpu_out[0]);
     return s->vline < SNES_VBLANK_LINE && s->vline >= (uint32_t)a->wake;
 }
 
 /* ON: the time a waiting port lets pass before it looks again: to the next
- * change of the hblank bit for a wait on it, a pass of the original's poll
+ * change of the hblank bit for a wait on it, to the next line (where the
+ * vblank bit changes) for a wait on the vblank, a pass of the original's poll
  * for a wait on the sound processor (which answers in its own time), else a
  * line. */
 static uint32_t wait_step(const Active *a, const Snes *s)
 {
     if (a->wake == NATIVE_WAKE_HBLANK || a->wake == NATIVE_WAKE_HBLANK_END)
         return snes_clocks_to_next_poll_change(s);
+    if (a->wake == NATIVE_WAKE_VBLANK)
+        return SNES_CLOCKS_PER_LINE - s->hclock;
     if (a->wake == NATIVE_WAKE_MUSIC_START)
         return 68;   /* the scene's status read, mask and branch */
     if (a->pass_clocks)
@@ -1920,6 +1969,17 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
                 a->polling_left -= step < a->polling_left ? step : a->polling_left;
             *result = (int32_t)step;
             return true;
+        }
+        if (a->wake == NATIVE_WAKE_VBLANK && !a->exit_passed) {
+            /* the original's poll sees the blank on its next read and
+             * falls through: its last pass ends no sooner than a pass into
+             * the blank */
+            a->exit_passed = true;
+            uint32_t into = s->vline == SNES_VBLANK_LINE ? s->hclock : IDLE_EXIT_CLOCKS;
+            if (into < IDLE_EXIT_CLOCKS) {
+                *result = (int32_t)(IDLE_EXIT_CLOCKS - into);
+                return true;
+            }
         }
         if (a->wake == NATIVE_WAKE_HBLANK && !a->exit_passed) {
             /* the original's last pass ends no sooner than a pass after
@@ -3461,6 +3521,19 @@ void native_charge_as(Snes *s, uint32_t routine, uint32_t bus_clocks)
     int was = native_time_as(s, routine);
     s->bus.clocks += bus_clocks;
     native_time_end(s, was);
+}
+
+void native_charge_at_rate(Snes *s, uint32_t mark, uint32_t charged_clocks, uint32_t cost_milli)
+{
+    Job *j = current_job;
+    if (!j || j->m != s || !active_runtime || s->bus.clocks < mark)
+        return;
+    uint64_t own = s->bus.clocks - mark;
+    native_uncounted_end(s, mark);
+    uint32_t clocks = (uint32_t)((own + charged_clocks) * cost_milli / 1000);
+    s->bus.clocks += clocks;
+    s->bus.dma_clocks += clocks;   /* estimate_parts takes DMA's clocks as they are */
+    part_flush(j);
 }
 
 uint32_t native_uncounted_begin(Snes *s)

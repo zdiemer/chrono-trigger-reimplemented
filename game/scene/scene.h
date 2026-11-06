@@ -769,6 +769,7 @@ void scene_read_controller_entry(Snes *s);
 bool scene_read_controller_present(Snes *s);
 bool scene_after_work_ram_clear_present(Snes *s);
 void scene_after_work_ram_clear(Snes *s);
+bool scene_frame_wait_present(Snes *s);
 void scene_frame_wait_done(Snes *s);
 bool scene_send_sound_command_long_present(Snes *s);
 void scene_send_sound_command_long(Snes *s);

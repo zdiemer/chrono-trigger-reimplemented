@@ -179,42 +179,22 @@ void field_blank_the_staging(GameState *g)
 /* The credits' font, unpacked where the field unpacks BG3's tiles
  * (field_bg3_tiles_unpacked) and sent to BG3's tiles from $5000. */
 enum { LETTERS_VRAM = 0x5000, LETTERS_BYTES = 0x400 };
-enum { UNPACKER = 0xC30002, THE_UNPACKER_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
 
 // $C0:6E27
 /* The letters the credits are written in, loaded as event $29 chooses a text
- * (game/event/screen.c): unpacked by `unpack`, then sent to BG3's tiles.
- * False where the unpacking went no further. */
-static bool load_the_credits_letters_with(GameState *g, Platform *pf, bool (*unpack)(void *ctx), void *ctx)
+ * (game/event/screen.c): unpacked (data/decompress.c; at the pace the
+ * machine's entry had, which ran the unpacker's entry in place, where
+ * `on_the_machine`), then sent to BG3's tiles. */
+static void load_the_credits_letters(GameState *g, Platform *pf, bool on_the_machine)
 {
     set_decompress_source(g, FIELD_CREDITS_LETTERS_PACKED);
     set_decompress_dest(g, RAM_FIELD_BG3_TILES_UNPACKED);
-    if (!unpack(ctx))
-        return false;
+    (void)(on_the_machine ? unpack_stream_run(g, false) : unpack_stream(g));
     FieldTransfer letters = { LETTERS_VRAM, FIELD_TRANSFER_WORDS, RAM_FIELD_BG3_TILES_UNPACKED, LETTERS_BYTES };
     TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, pf, letters));
-    return true;
 }
 
-static bool unpack_the_letters(void *ctx)
-{
-    GameState *g = ctx;
-    TIMED_AS(g, UNPACK_STREAM_ENTRY, (void)unpack_stream(g));
-    return true;
-}
-
-void field_load_the_credits_letters(GameState *g, Platform *pf)
-{
-    load_the_credits_letters_with(g, pf, unpack_the_letters, g);
-}
-
-/* On the machine the unpacker is the original's long call, which may hand
- * the stream to the original. */
-static bool unpack_the_letters_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    return field_run_long(s, 0xC06E3D, UNPACKER, THE_UNPACKER_IGNORES, decompress, on_the_field_page(s, false));
-}
+void field_load_the_credits_letters(GameState *g, Platform *pf) { load_the_credits_letters(g, pf, false); }
 
 /* ---- The chest's message ------------------------------------------------------------------------- */
 
@@ -282,8 +262,8 @@ void field_blank_the_staging_entry(Snes *s)
 
 void field_load_the_credits_letters_entry(Snes *s)
 {
-    if (load_the_credits_letters_with(state_of(s), m_platform(s), unpack_the_letters_on_the_machine, s))
-        m_rts(s);
+    load_the_credits_letters(state_of(s), m_platform(s), true);
+    m_rts(s);
 }
 
 /* The guard: on the field's page with the data bank $00, and a credits line

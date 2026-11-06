@@ -175,6 +175,8 @@ jobs:
         run: build/ci/vars_test
       - name: sound_test
         run: build/ci/sound_test
+      - name: unpack_test
+        run: build/ci/unpack_test
       - name: bindings_test
         run: build/ci/bindings_test
       - name: assets_test
