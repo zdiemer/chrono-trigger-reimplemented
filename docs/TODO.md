@@ -3031,6 +3031,14 @@ comparisons.
 
 ## The native program
 
+- **What the map scroll's review left.** `menu_run_sprite_script` underestimates
+  the frames that only run a sprite script inline; fixing it retires the
+  `overworld_dactyl vblank-tail` exception. The three timing exceptions the
+  strip split dropped, and the rates it moved (the dactyl, the Epoch, the leader,
+  `menu_run_object_script`), were judged on the 35 movies that scroll the map:
+  the next batched `--all-movies` run confirms them. Its re-recorded outcome
+  lines no longer say whether a protected match was lost; say so.
+
 - **The `dc-evidence:` notes' cited counts are stale.** The notes name how many
   calls their `ct_fuzz --poison-dc` run made, and the current runs make more
   (`game/battle/main_loop.c`'s `$C1:856D` note cites 285; the evidence run made
