@@ -3030,6 +3030,11 @@ comparisons.
 
 ## The native program
 
+- **What the scene frame wait's review left.** REIMPLEMENTATION.md still names
+  `attract_vblank_start_loop` in the attract section; reword it as history now that
+  the row is gone. `pf_snes_vblank_wait` lists only `$7E:31B0`; a caller that enters
+  at `$7E:31B7` takes the original's code, so add it as a second row if one does.
+
 - **The data subsystem's storage** (REIMPLEMENTATION.md, "The data
   subsystem's teardown"). The unpacker's gate retired but its storage didn't
   move: its callers name the stream and the destination in work RAM
