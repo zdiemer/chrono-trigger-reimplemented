@@ -3169,9 +3169,12 @@ ends, and each of those calls used to end one, so the machine's clock caught
 up between the steps and between the objects; as one call the whole frame's
 work landed at once, and the strict runs drifted (`menus-shop-inn`'s places
 and checkpoints, `menus-epoch`'s saved game). The machine side lets the time
-pass (`tm_sync`) before each step and each object's turn, as the calls did,
-which puts both back; `menus-epoch`'s last two checkpoints (8700, 8800) still
-differ in strict mode. Census of the four world-map movies (`field-65m-bc`,
+pass (`tm_sync`) before each step and each object's turn and again after it,
+before the loop counts the turn or the frame is marked shown, as the calls
+did: a script object's first turn on the Epoch's screen runs some 13 frames
+of work, and with the time passing only before the next turn the loop's
+count of it landed three frames early. With both, `menus-epoch`'s strict run
+is the one before the change, frame for frame. Census of the four world-map movies (`field-65m-bc`,
 `-dactyl`, `-dactyl-flight`, `field-12kbc-1f4`): entries the machine enters
 82 to 61, its call-outs 75,053 to 32,978 and stops 30,252 to 28,197;
 `menu_object_nmi`, `menu_run_objects`, the frame's five steps and the

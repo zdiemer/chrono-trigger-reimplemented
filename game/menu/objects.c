@@ -312,13 +312,14 @@ static bool turn_on_the_machine(void *ctx, uint16_t address, uint16_t handler, b
     s->cpu.x = address;
     m_set_nz16(s, handler);
     m_sep(s, CPU_FLAG_M);
-    /* the time the turns have taken passes before each, as it did when each
-     * was a call the machine made */
+    /* the time passes before the turn and after it, before the loop counts
+     * it, as it did when each turn was a call the machine made */
     tm_sync(m_platform(s));
     const NativeEntry *port = native_hand_entry_at(s, routine);
     if (port && !port->idle) {
         if (!menu_run_any_widths(s, TURN_SITE, routine, port->fn))
             return false;
+        tm_sync(m_platform(s));
     } else {
         m_jsr(s, TURN_SITE, routine);
     }

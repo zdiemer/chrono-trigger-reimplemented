@@ -1312,16 +1312,21 @@ static const struct {
 static bool object_frame_step_on_the_machine(void *ctx, ObjectFrameStep step)
 {
     Snes *s = ctx;
-    /* the time the frame's work has taken passes before each step, as it did
-     * when each was a call the machine made: the input read and the line
-     * effects see the beam where the original's do */
+    /* the frame's time passes before each step and after it, as it did when
+     * each was a call the machine made: the input read, the line effects and
+     * the frame's being shown land where the original's do */
     tm_sync(m_platform(s));
-    if (object_frame_calls[step].long_call)
-        return menu_run_long(s, object_frame_calls[step].site, object_frame_calls[step].routine,
-                             object_frame_calls[step].entry);
+    if (object_frame_calls[step].long_call) {
+        bool back = menu_run_long(s, object_frame_calls[step].site, object_frame_calls[step].routine,
+                                  object_frame_calls[step].entry);
+        if (back)
+            tm_sync(m_platform(s));
+        return back;
+    }
     if (!menu_run_or_call(s, object_frame_calls[step].site, object_frame_calls[step].routine,
                           object_frame_calls[step].ignores, object_frame_calls[step].entry))
         return false;
+    tm_sync(m_platform(s));
     if (step == EMPTY_THE_SPRITE_LIST)
         return !s->cpu.e && !m_m8(s) && !m_x8(s) && s->cpu.d == OBJECT_MODE_PAGE;
     return back_as_the_menus_run(s, OBJECT_MODE_PAGE);
