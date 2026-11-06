@@ -5609,9 +5609,9 @@ void set_menu_window_shadows_math_layers(GameState *g, uint8_t v);
 uint8_t menu_window_shadows_fixed_color(const GameState *g);
 void set_menu_window_shadows_fixed_color(GameState *g, uint8_t v);
 
-/* The game's block move (core/memory.c): MVN and RTL, with the banks to and from its callers
- * write before each call (the menus' vblank writes MVN $7E,$7E for a frame's block move; the
- * save code, save RAM's) */
+/* The game's block move: MVN and RTL, with the banks to and from its callers write before each
+ * call (the menus' vblank writes MVN $7E,$7E for a frame's block move; the save code, save
+ * RAM's) */
 uint32_t menu_block_move_stub(const GameState *g);
 void set_menu_block_move_stub(GameState *g, uint32_t v);
 

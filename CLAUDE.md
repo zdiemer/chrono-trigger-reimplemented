@@ -83,7 +83,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   line and report nothing gone for a movie it doesn't run, and the timing gate judges only its worst
   cases (drift and the vblank tail are means over the library, judged by `--all-movies`). "Every movie" below means every movie run. The gate
   is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines, no `page refused` line (a
-  guard that turned away a call whose direct page is no instance `re/ram.toml` declares) and no `accessor out
+  guard that turned away a call whose direct page is no instance `re/ram.toml` declares), no `contract broken:` line (a retired routine
+  called with a state its contract, the guard it had, doesn't take; docs/REIMPLEMENTATION.md, "The core
+  services' teardown") and no `accessor out
   of range` line (a port that called an accessor with an index past what the map declares, reaching the next
   variable in work RAM; both in docs/DISASSEMBLY.md, "The accessors") and no `asset outside the
   catalogue` line (a cartridge read in no resource of `re/assets.tsv`, which `tools/assets.py check`
@@ -120,14 +122,14 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   makes -- in the shadow runs, the movies in the shipping mode or the routes -- unless
   `tools/refusal_allowlist.txt` says why (`tools/fallbacks.py --refusals`); every movie gets as far on the
   hand ports alone -- no generated code, no interpreter, the C sound driver -- as `tools/strict_baseline.txt`
-  says, a movie that reaches its end doing so with no failed exit, hang, `halted:`, `accessor out of range` or
-  `page refused` line, and one the line marks `end` ending with the saved game and save RAM the reference
+  says, a movie that reaches its end doing so with no failed exit, hang, `halted:`, `accessor out of range`,
+  `page refused` or `contract broken:` line, and one the line marks `end` ending with the saved game and save RAM the reference
   play's (`tools/strict_check.py --check`, a ratchet run by the suite, against the shadow runs' `ct_dev
   --end-state`; `ct_dev --native on --generated off --no-interpreter strict`; docs/PLAYING.md,
   "Without the interpreter"); and the build with the
   ports' scaffolding compiled out (`ct_dev_native_shape`, `ct_drive_native_shape`) runs every movie
-  to its end in the shipping mode with no failed exit, hang, `halted:` line, `accessor out of range`
-  or `page refused` line the default build's run doesn't show, and its routes reach their outcomes
+  to its end in the shipping mode with no failed exit, hang, `halted:` line, `accessor out of range`,
+  `page refused` or `contract broken:` line the default build's run doesn't show, and its routes reach their outcomes
   (the fast set; all of them with `--long-routes`); and every movie in `ct_native` (the game with no
   emulator) runs without crashing and doesn't end on a dark screen (or is in `tools/native_dark_exceptions.txt`,
   a run whose time carries it into the reference's own black), its picture drawn every frame by

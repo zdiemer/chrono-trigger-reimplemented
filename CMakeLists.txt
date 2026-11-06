@@ -74,12 +74,13 @@ target_compile_definitions(ct_vars_checked PRIVATE CT_ACCESSOR_CHECKS)
 # Ported game code, organized by subsystem.
 add_library(ct_game STATIC
   game/registry.c
+  game/time_tags.c
   game/core/console.c
   game/core/program.c
   game/core/tasks.c
   game/core/display.c
   game/core/input.c
-  game/core/memory.c
+  game/core/machine_forms.c
   game/core/palette.c
   game/core/sound_commands.c
   game/core/tile_animation.c
@@ -495,7 +496,7 @@ target_link_libraries(ct_state_host PUBLIC ct_platform_native)
 set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
 # What the machine alone runs: the registry (docs/PLAN.md, "The native program, and the
 # registry taken down").
-list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c)
+list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c game/time_tags.c)
 add_executable(ct_native frontend/ct_native.c frontend/file_store.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
   runtime/platform/native/render.c ${CT_NATIVE_GAME_SOURCES})
 target_compile_definitions(ct_native PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)

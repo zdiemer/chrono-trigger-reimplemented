@@ -93,9 +93,9 @@ uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *serve
 
 /* ---- Time charged (charge.h) and plain moves (wram.h) ------------------------------------------ */
 
-/* The block move stub the menus and the save code call ($7E:9690,
- * core/memory.c): the game's block move as a registered routine, whose own
- * calls calibrate its time per byte. */
+/* The block move stub the menus and the save code call ($7E:9690): the
+ * game's block move, whose time per byte its own calls calibrated while it
+ * was registered (it is retired now, its rate a time tag: game/time_tags.c). */
 enum { BLOCK_MOVE = 0x7E9690 };
 /* An access to work RAM, in master clocks; a byte moved is a read and a write. */
 enum { ACCESS_CLOCKS = 8, ACCESSES_PER_BYTE_MOVED = 2 };
@@ -184,6 +184,14 @@ bool program_went_no_further(const GameState *g)
 {
     (void)g;
     return false;
+}
+
+/* On the machine the caller goes on as the refusal did; the break is the
+ * runtime's to report. */
+void program_breaks_a_contract(GameState *g, uint32_t routine, const char *what)
+{
+    (void)g;
+    native_contract_broken(routine, what);
 }
 
 void program_goes_on_to_a_scene(GameState *g, uint8_t scene) { (void)g, (void)scene; }

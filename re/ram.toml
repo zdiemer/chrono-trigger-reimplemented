@@ -239,7 +239,7 @@ start = "7E:9690"
 end = "7E:9693"
 subsystem = ["core", "menu"]
 meaning = "MVN : RTL the menus and save code patch and call"
-source = "re/hints.toml [[ramcode]] mvn_stub; game/core/memory.c"
+source = "re/hints.toml [[ramcode]] mvn_stub"
 
 # ==============================================================================
 # Scenes, the attract program and the decompressor
@@ -23454,8 +23454,8 @@ name = "menu_block_move_stub"
 addr = "7E:9690"
 size = 4
 subsystem = "menu"
-meaning = "The game's block move (core/memory.c): MVN and RTL, with the banks to and from its callers write before each call (the menus' vblank writes MVN $7E,$7E for a frame's block move; the save code, save RAM's)"
-source = "game/menu/display.c, menu_vblank_upload $C2:85D6; game/core/memory.c, memory_move_stub $7E:9690"
+meaning = "The game's block move: MVN and RTL, with the banks to and from its callers write before each call (the menus' vblank writes MVN $7E,$7E for a frame's block move; the save code, save RAM's)"
+source = "game/menu/display.c, menu_vblank_upload $C2:85D6"
 
 [[var]]
 name = "menu_math_records"

@@ -50,42 +50,12 @@ uint16_t palette_animations_leave(void);
  * the slots, the program goes no further (false). */
 bool palette_animated(GameState *g);
 
+/* The frame's work as a still-gated caller's machine path runs it, under the
+ * original's call (core/machine_forms.c): the registers the original leaves,
+ * and its return. Its contract: 8-bit A, 16-bit index registers, binary
+ * arithmetic, a direct page whose low byte is 0, and slots the game makes. */
 void palette_animate(Snes *s);
-void palette_clear_animations(Snes *s);
-void palette_load_animations(Snes *s);
-/* The animation types' handlers ($FD:E437-$FD:E82C). */
-void palette_animate_frames(Snes *s);
-void palette_animate_frames_from_table(Snes *s);
-void palette_rotate_down(Snes *s);
-void palette_rotate_up(Snes *s);
-void palette_fade_to_white(Snes *s);
-void palette_restore_after_white(Snes *s);
-void palette_restore_after_black(Snes *s);
-void palette_fade_to_black(Snes *s);
-void palette_pulse_white(Snes *s);
-void palette_pulse_black(Snes *s);
-/* The fades' channel modes ($FD:E64F-$FD:EA5C). */
-void palette_darken_all(Snes *s);
-void palette_darken_green_blue(Snes *s);
-void palette_darken_red_blue(Snes *s);
-void palette_darken_blue(Snes *s);
-void palette_darken_red_green(Snes *s);
-void palette_darken_green(Snes *s);
-void palette_darken_red(Snes *s);
-void palette_lighten_all(Snes *s);
-void palette_lighten_red(Snes *s);
-void palette_lighten_green(Snes *s);
-void palette_lighten_red_green(Snes *s);
-void palette_lighten_blue(Snes *s);
-void palette_lighten_red_blue(Snes *s);
-void palette_lighten_green_blue(Snes *s);
-/* Their guards. */
 bool palette_animate_runs(Snes *s);
-bool palette_frames_can_run(Snes *s);
-bool palette_table_frames_can_run(Snes *s);
-bool palette_rotation_can_run(Snes *s);
-bool palette_fade_can_run(Snes *s);
-bool palette_fade_loop_can_run(Snes *s);
 
 void palette_upload(Snes *s);
 /* The working palette sent to CGRAM whole ($C0:712E), every mode's vblank

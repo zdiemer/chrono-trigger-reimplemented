@@ -578,7 +578,8 @@ static bool tile_copy_call_on_the_machine(void *ctx, TileCopyCall call)
     case TC_FRAME_WORK:
         return field_run(s, site, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, on_the_field_page(s, false));
     case TC_COPY: return field_run(s, site, COPY_TILES, READS_NOTHING, field_copy_tiles, on_the_field_page(s, false));
-    case TC_PALETTES: return bridge_call_long(s, site, PALETTE_ANIMATION, READS_NOTHING, on_the_field_page(s, false));
+    case TC_PALETTES:
+        return field_run_long(s, site, PALETTE_ANIMATION, READS_NOTHING, palette_animate, on_the_field_page(s, false));
     case TC_DRAW_BG1: return field_run_on_page(s, site, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, FIELD_LAYERS_PAGE);
     case TC_DRAW_BG2: return field_run_on_page(s, site, DRAW_BG2, READS_NOTHING, field_draw_bg2_at_the_load, FIELD_LAYERS_PAGE);
     case TC_DRAW_BG3: return field_run_on_page(s, site, DRAW_BG3, READS_NOTHING, field_draw_bg3_at_the_load, FIELD_LAYERS_PAGE);

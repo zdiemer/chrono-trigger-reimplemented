@@ -493,6 +493,18 @@ static void report_page_refusals(void)
                     (unsigned)r[i].last_d);
 }
 
+/* A retired routine called with a state its contract doesn't take (a guard
+ * that became an assertion when its subsystem left the gate,
+ * native_contract_broken): tools/suite.py fails a movie that prints one. */
+static void report_contract_breaks(void)
+{
+    unsigned n;
+    const NativeContractBreak *b = native_contract_breaks(&n);
+    for (unsigned i = 0; i < n; i++)
+        fprintf(stderr, "contract broken: %02X:%04X %s x%lu\n", (unsigned)(b[i].routine >> 16),
+                (unsigned)(b[i].routine & 0xFFFF), b[i].what, b[i].count);
+}
+
 /* --poison-site: the call sites named, how many calls each made and in how
  * many the overflow flag was among what was scrambled (so inverted). */
 typedef struct {
@@ -1124,6 +1136,7 @@ int main(int argc, char **argv)
             rc = 1;
     }
     report_page_refusals();
+    report_contract_breaks();
     if (snes.halted || snes.cpu.stopped)
         fprintf(stderr, "halted: frame %u at %02X:%04X (%s)\n", (unsigned)snes.frame, snes.cpu.pb, snes.cpu.pc,
                 snes.halted ? "no code runs the instruction there" : "STP");

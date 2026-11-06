@@ -328,3 +328,9 @@ void program_needs_the_machine(GameState *g, uint32_t routine, const char *what)
     g->stopped_at = routine;
     g->stopped_what = what;
 }
+
+/* With no machine there is no original to go on with: the program stops. */
+void program_breaks_a_contract(GameState *g, uint32_t routine, const char *what)
+{
+    program_needs_the_machine(g, routine, what);
+}

@@ -4,6 +4,7 @@
 #include "battle/bridge.h"
 
 #include "battle/battle.h"
+#include "core/machine_forms.h"
 #include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -108,7 +109,8 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
      * guard and preconditions holding; otherwise the call is a real one, and
      * the runtime runs whatever the registry has for the state it meets */
     const NativeEntry *e = native_hand_entry(s);
-    if (!e || e->fn != entry) {
+    bool retired = (!e || e->fn != entry) && core_machine_form_takes(s, entry);
+    if ((!e || e->fn != entry) && !retired) {
         /* a real call, which goes on only on the page it was made on: one
          * that comes back on another stops at its return */
         s->cpu.s = stack;
@@ -116,7 +118,7 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     }
     TIMED_AS(state_of(s), routine, entry(s));
     bool returned = s->cpu.s == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
-    if (returned)
+    if (returned && !retired)
         native_poison_sibling_return(s, e);
     return returned && came_back_from(s, returns_to, page, how);
 }

@@ -51,7 +51,10 @@ rest waits, is [PLAN.md](PLAN.md).
   event engine's original-only unknown-command diagnostic (6), and the
   separately registered field restart wait (5). Keep the reset chord and
   vblank-only restart preconditions, and replace the diagnostic delegation
-  before retiring those machine dependencies.
+  before retiring those machine dependencies. Core's retired services left
+  the ledger with their 410 fuzz-evidenced bytes; their guards' bounds are
+  contracts now (`core/machine_forms.c`, `palette_animated`), and the
+  ledger's walks end at them (`game/time_tags.c`).
 - **Exercise both sign-refresh arms after returning from a screen.**
   `overworld_main_loop` `$C2:2603-$C2:2605` and `$C2:267E-$C2:2680`
   are six reviewed-equivalence bytes: conditional increments
@@ -3075,6 +3078,42 @@ comparisons.
   `unpack_stream_called` with them. The timing gate judges the unpacker's
   estimate error inside its callers' stretches now; the callers on
   `tools/timing_exceptions.txt` for it say so.
+
+- **What core's teardown left on the machine** (REIMPLEMENTATION.md, "The core
+  services' teardown"). The console's eight rows (the reset, its copy at
+  `$C0:FF00`, the boot, the two vectors and the two stubs) are how the machine
+  enters the program, and go with the machine. The controller's wait
+  (`$C2:84F9`, idle) and the sample after it (`$C2:84FE`) are a held wait the
+  menus' machine path stops in, from `input_update`'s machine form and
+  `menu_take_frame_input`; they go when the menus' frame input stops waiting on
+  the machine (or the wait becomes a `native_wait_call`), with the reset chord's
+  hand-off kept (its unreached `safe` row). Three machine forms stay for
+  still-gated callers: `palette_animate` and `tile_animation_upload`
+  (`core/machine_forms.c`, the field's and the battle's bridges) and
+  `input_update` (the menus' `$C2:8002`); each goes when its last machine-path
+  caller does. The palette's and the tiles' `ORIGINAL_EFFECT` scaffolding
+  (scratch cells, the multiplier, the pointer, the load's leftovers) is seen
+  by those callers' shadow comparisons, and the charges in it are time: it
+  comes down with the last of them, not before. `display_blank_and_stop_interrupts`
+  (`$C0:0B4E`) stays registered because the reference play's original code
+  still calls it outside a port; it retires when the fallback measure shows
+  none. The 39 time tags
+  (`game/time_tags.c`) keep their last calibration; if a caller's timing drifts
+  onto one, there is no shadow run to recalibrate it from, so fit it from the
+  callers' stretches or charge the work at the caller's rate. They are a
+  second mechanism beside the data teardown's `retired_rates`
+  (`runtime/port/state_io.c`); make them one.
+- **What the core teardown's review left** (none blocking):
+  - `ct_drive` doesn't print `contract broken:`, so the routes aren't held to
+    the retired contracts (only the fallback measure's real calls catch a break
+    there); print it as `ct_dev` does and have `route_check.py` fail on it.
+  - `ct_fuzz` builds its table without `game_time_tags`, so a fuzzed port that
+    tags a retired routine counts a bad tag; add them as `frontend/natives.c`
+    does.
+  - `battle/bridge.c`'s `run_entry` skips `native_poison_sibling_return` for the
+    retired forms, so `ct_fuzz --poison-return` doesn't scramble what they leave
+    in the registers; give the forms' contracts their don't-care sets and poison
+    by them.
 
 - **CI has no no-SDL configuration.** All four jobs install SDL2, so they do
   not exercise `ct_native`'s headless-only build. Add a configuration with

@@ -137,7 +137,6 @@ game/battle/wait.c battle_wait_for_the_small_handler battle_alternate_frame_pend
 game/battle/window.h battle_work16 battle_work[0] battle_work only # the entries' operands: the original's callers put them there first, every call
 game/battle/window.h battle_work16 battle_work[1] battle_work only # the entries' operands: the original's callers put them there first, every call
 game/battle/window_leaves.c party_status_carry battle_digits[3] battle_digits
-game/core/memory.c memory_move_stub menu_block_move_stub menu_block_move_stub only                            # the stub's own port reads the banks its caller, the original's code, writes into it; the menus' block move writes the stub only for shadow mode and never calls it
 game/event/contact.c contact_is_one field_leader_contact_high field_leader_contact_high                       # a guard; the walk's search past the tables writes the contact in scaffolding (field/walk.c, met_past_the_tables), and its high byte 0 as the plain write before it does
 game/event/party.c event_member_back_to_the_leader field_leader_contact field_leader_contact                  # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
 game/event/party.c party_can_come_back_together field_leader_contact_high field_leader_contact_high # a guard's state half; as contact_is_one's: the high byte 0 is the plain write (set_leader_contact) before any scaffolding one

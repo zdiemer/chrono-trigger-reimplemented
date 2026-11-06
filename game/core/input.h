@@ -55,15 +55,17 @@ void input_tick_play_time(GameState *g);
  * caller has built the stack the original has there. */
 void input_stop_reading(Snes *s, ControllerRead read);
 
-/* The registered entries (game/registry.c). */
+/* The frame's input work as the menus' machine path runs it from the long
+ * entry the other modes take it through ($C2:8002, menu/frame.c), under the
+ * original's call: retired from the gate with the rest of it, but it stops on
+ * the machine where the console's read isn't done. */
 void input_update(Snes *s);
-void input_read_joypad(Snes *s);
+
+/* The registered entries (game/registry.c): the wait for the console's read,
+ * which the machine makes, and the sample taken where it ends. */
 void input_wait_for_controller(Snes *s);
 void input_take_ready_controller(Snes *s);
 bool input_controller_page_ready(Snes *s);
 bool input_controller_wait_ready(Snes *s);
-void input_map_buttons(Snes *s);
-bool input_map_buttons_runs(Snes *s);
-void play_time_tick(Snes *s);
 
 #endif

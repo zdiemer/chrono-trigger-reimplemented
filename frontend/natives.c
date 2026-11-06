@@ -28,7 +28,7 @@ int natives_select(NativeTable *t, const uint8_t *rom, size_t rom_size, const Na
     int generated = use_generated ? generated_native_count : 0;
     bool ports = !c->generated_only ||
                  (c->only == NATIVES_ONLY_TIMED && (c->mode != NATIVE_ON || generated == 0));
-    t->entries = malloc(sizeof *t->entries * (size_t)(game_native_count + generated + 1));
+    t->entries = malloc(sizeof *t->entries * (size_t)(game_native_count + game_time_tag_count + generated + 1));
     t->index = malloc(sizeof *t->index * (size_t)((use_generated ? generated_index_count : 0) + 1));
     if (!t->entries || !t->index) {
         natives_free(t);
@@ -40,6 +40,9 @@ int natives_select(NativeTable *t, const uint8_t *rom, size_t rom_size, const Na
             (!c->ninclude || has_prefix(e->name, c->include, c->ninclude)))
             t->entries[t->ported++] = *e;
     }
+    /* the retired routines' times go wherever the ports do: they name them */
+    for (int i = 0; ports && i < game_time_tag_count; i++)
+        t->entries[t->ported++] = game_time_tags[i];
     for (int i = 0; i < generated; i++) {
         const NativeEntry *e = &generated_natives[i];
         if (!has_prefix(e->name, c->exclude, c->nexclude))

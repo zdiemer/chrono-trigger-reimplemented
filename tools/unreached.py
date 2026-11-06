@@ -76,6 +76,12 @@ def walk(an, entry, owners):
     return own, inline, sorted(unresolved)
 
 
+def retired_routines(root):
+    tags = root / 'game/time_tags.c'
+    text = tags.read_text(encoding='utf-8') if tags.exists() else ''
+    return {int(a, 16) for a in re.findall(r'\.addr = 0x([0-9A-Fa-f]{6})', text)}
+
+
 def analyze(rom):
     an = burndown.Analyzer(burndown.Rom(rom.read_bytes()),
                            burndown.hints_mod.load(ROOT / 're/hints.toml'))
@@ -106,7 +112,11 @@ def analyze(rom):
     live = reached_code(an)
     live_bytes = {b for pc in live if not burndown.retired(pc)
                   for b in range(pc, pc + max(i.size for i in an.code[pc].values()))}
-    owners = {p.addr for p in ports}
+    # A routine retired from the gate with its subsystem (game/time_tags.c)
+    # ends a walk as its entry did: its unreached bytes were evidenced before it
+    # retired, and its guards are assertions now (docs/REIMPLEMENTATION.md, "The
+    # core services' teardown").
+    owners = {p.addr for p in ports} | retired_routines(ROOT)
     walks, unresolved = [], []
     for p in ports:
         if in_scope(subsystems[p.addr], p.name):

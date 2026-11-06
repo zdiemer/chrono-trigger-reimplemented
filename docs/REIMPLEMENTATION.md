@@ -3346,6 +3346,104 @@ which ports on the gate set and read, and they move with the first of them
 to leave work RAM; the working cells are written by nothing of ours now
 (TODO.md, "The data subsystem's storage").
 
+### The core services' teardown
+
+The third subsystem off the gate, and only part of it: `game/core/`'s
+services retire, its machine entry points stay. The machine-entry check
+came first (`tools/census.py`, shipping mode, six movies of the sample:
+`title-start`, `field-65m-bc-dactyl`, `battle-menu-buttons`, `menus-sweep`,
+`events-epoch-lavos`, `field-factory-switch`). Of core's 50 registry rows the
+machine entered 7: the reset, the boot and the interrupts' vectors and stubs
+(41.7 K entries from a vector, 42 K through the stubs), which are how the
+console reaches the program at all; and the palette animations' frame through
+the original's jump at `$FD:FFF7`, 4,288 times, from four ports' call-outs (the
+battle's frame dispatch and its pause, the field's script fade, the field's
+tile-copy request). The controller's wait (`$C2:84F9`, an idle entry) the
+movies didn't reach, but the menus' machine path stops in it where the
+console's read isn't done. Everything else was run only as C: the input work,
+the animated tiles, the palette's handlers, loads and clears, the screen gone
+dark, the block move stub.
+
+**Retired: 39 rows.** The palette animations (`palette_animate` and its jump,
+the eight types' handlers, the fourteen channel modes, the two restore
+paths, the load and the clear and their jumps), the animated tiles (the load,
+the send, their jumps), the input work (`input_update`, the read, the button
+assignments, the play time's tick) and `memory_move_stub` (`core/memory.c`,
+deleted). Their entry wrappers went (31 functions, 7 guards); the four call-outs became runs as C under the
+original's call. What remains of the machine in them is what a still-gated
+caller needs: `palette_animate` and `tile_animation_upload`, the forms the
+field's and the battle's machine paths run under the original's call, with
+the registers the original leaves (`core/machine_forms.c`, which the bridges
+ask where they asked the registry); `input_update`, which the menus' long
+entry `$C2:8002` runs on the machine and which stops in the controller's wait;
+and `display_go_dark`, which the field's and the events' machine paths
+run.
+
+**Guards are assertions.** `core/machine_forms.c` holds each form's contract
+as its row held it -- widths, binary arithmetic, the guard -- and the C paths
+(`palette_animated`) hold theirs: a state the contract doesn't take is
+`program_breaks_a_contract`, which on the machine counts a break
+(`native_contract_broken`, `ct_dev`'s `contract broken:` line, which fails
+the suite, the strict check and the outcomes) and lets the call go to the
+machine as the refusal did, and with no machine stops the program. Over the
+library no core guard ever refused (the fallback baseline has no line of
+core's).
+
+**Time is charged as before.** The retired rows live on as time tags
+(`game/time_tags.c`): entries marked `time_only`, which the runtime puts in its
+table beside the registry's for `NATIVE_TIME_AS`, `TIMED_AS` and the charges to
+name, and which no dispatch, report or guard ever finds. No shadow run
+measures them any more, so each keeps the `cost_milli` it was last calibrated
+to; their error is their callers', which the timing gate still measures. The
+two timing exceptions of retired entries (`memory_move_stub`,
+`tile_animation_load`) went with them.
+
+**What still compares them.** Every caller of core's services is still under
+the gate, and its shadow comparison covers the service's work inside its
+stretch: the palette's colors, the tiles' uploads, the controller's sets and
+the play time are compared as the field's frame's, the battle's, the menus'
+and the scenes'. That is also why the services' scaffolding stays: the
+palette's scratch cells, multiplier and pointer and the tiles' load leftovers
+(`ORIGINAL_EFFECT`) are bytes those comparisons see, and the charges in them
+are time. It comes down with the last of their callers (TODO.md). So the
+movies that protect core are every movie, in shadow mode, through its
+callers. The recorded outcomes cover the 37 movies of the gate's sample (end
+states, pictures and places, checked in strict mode and `ct_native` against
+their reviewed exceptions: `tools/outcomes.txt`), and the rest of the library
+waits for its batched
+run (TODO.md, "Recorded outcomes across the library") -- which a caller's
+teardown needs before core's work goes uncompared.
+
+**The measures.** `tools/machine_joints.py`: registered entries 2,241 to
+2,202, returns through the emulated stack 1,023 to 1,013, scaffolding writes
+2,065 to 2,064. The census over the six movies: 159 entries entered by the
+machine to 158, the call-outs 314,265 to 309,977, nothing of core's but the
+console. `tools/burndown.py` needs no telling: a retired routine's code is
+walked as the callers' that now run it as C, so it stays counted as ported.
+The fallback measure needs none either: in the reference play a retired
+service runs inside its caller's stretch, which stands for it. The unreached
+ledger dropped the 39 entries' rows, with the fuzz evidence of their 410
+bytes no movie reaches (the palette's count-0 paths, the pulses, the fade to
+black's ends and four channel modes, the tiles' stack-reading slots, the
+clock's roll-over),
+recorded against the original before they retired; its walks end at a
+retired routine as they did at its entry (`tools/unreached.py`), and the
+controller sample's reviewed reset hand-off was re-hashed over its unchanged
+code.
+
+**What stays, and why.** The console's eight rows: the vectors and the reset
+are the machine's own way into the program, and go when the machine leaves
+the product (PLAN.md, "The native program", step 4). The controller's wait
+and the sample taken where it ends (`$C2:84F9`, `$C2:84FE`): a held wait, as
+the attract's main loop is (TODO.md, "The scene main loop still starts at its
+original boundary"), which the menus' machine path stops in and returns to
+the original from. `program.c`, `tasks.c` and `sound_commands.c` were never
+registered. And `display_blank_and_stop_interrupts` (`$C0:0B4E`) stays
+registered: retiring it showed the reference play's own code still calling it
+outside any port's stretch (198 instructions, 22 bytes, over the sample's
+shadow runs: the fallback measure's new line), so the original's calls of it
+need the port to stand for them until their callers are ports.
+
 ### Recorded outcomes
 
 `tools/outcomes.py` keeps the reference play's results in `tools/outcomes.txt`:

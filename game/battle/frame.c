@@ -611,7 +611,7 @@ static bool work_on_the_machine(void *ctx, WorkCall call)
         return battle_wait_line(s, 0xCD09AC, 0xCD3B82, DC_X | DC_Y | DC_FLAGS | DC_AH | DC_DB, LINE_TO_WAIT_FOR);
     case WORK_SCREEN_SCRIPTS: return battle_run(s, 0xCD09AF, 0xCD1609, battle_run_screen_scripts);
     case WORK_PAUSE_PALETTES: return battle_call_long(s, 0xCD09BB, 0xD1F426, READS_NOTHING);
-    case WORK_ANIMATE_PALETTES: return battle_call_long(s, 0xCD09BF, 0xFDFFF7, READS_NOTHING);
+    case WORK_ANIMATE_PALETTES: return battle_run_long_dc(s, 0xCD09BF, 0xFDFFF7, READS_NOTHING, palette_animate);
     case WORK_READ: return battle_call_long(s, 0xCD09C6, 0xC28002, READS_Y);
     default: return battle_call(s, 0xCD09CA, 0xCD0340, READS_NOTHING);
     }

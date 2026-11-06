@@ -3791,9 +3791,9 @@
 #define RAM_MENU_WINDOW_SHADOWS_MATH_CONTROL 0x7E968Du /* Color math control */
 #define RAM_MENU_WINDOW_SHADOWS_MATH_LAYERS 0x7E968Eu /* Color math layers */
 #define RAM_MENU_WINDOW_SHADOWS_FIXED_COLOR 0x7E968Fu /* Fixed color: channel bits 5-7, intensity bits 0-4 */
-/* The game's block move (core/memory.c): MVN and RTL, with the banks to and from its callers
- * write before each call (the menus' vblank writes MVN $7E,$7E for a frame's block move; the
- * save code, save RAM's) [4 bytes] */
+/* The game's block move: MVN and RTL, with the banks to and from its callers write before each
+ * call (the menus' vblank writes MVN $7E,$7E for a frame's block move; the save code, save
+ * RAM's) [4 bytes] */
 #define RAM_MENU_BLOCK_MOVE_STUB 0x7E9690u
 /* Source address of the block move bit 7 of $0D13 asks the vblank for (through the MVN stub at
  * $7E:9690) [2 bytes] */
