@@ -3173,8 +3173,12 @@ pass (`tm_sync`) before each step and each object's turn and again after it,
 before the loop counts the turn or the frame is marked shown, as the calls
 did: a script object's first turn on the Epoch's screen runs some 13 frames
 of work, and with the time passing only before the next turn the loop's
-count of it landed three frames early. With both, `menus-epoch`'s strict run
-is the one before the change, frame for frame. Census of the four world-map movies (`field-65m-bc`,
+count of it landed three frames early. The input step, run as C before this
+too, keeps no pause after it. With both, `menus-epoch`'s strict run is the
+one before the change, frame for frame; `attract-demo`'s map upload on frame
+2250 lands a scanline earlier, and its curtain, whose stir mixes in the beam,
+is ragged differently from 2252 (its strict pictures re-recorded, nothing
+protected lost). Census of the four world-map movies (`field-65m-bc`,
 `-dactyl`, `-dactyl-flight`, `field-12kbc-1f4`): entries the machine enters
 82 to 61, its call-outs 75,053 to 32,978 and stops 30,252 to 28,197;
 `menu_object_nmi`, `menu_run_objects`, the frame's five steps and the

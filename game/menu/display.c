@@ -1316,13 +1316,9 @@ static bool object_frame_step_on_the_machine(void *ctx, ObjectFrameStep step)
      * each was a call the machine made: the input read, the line effects and
      * the frame's being shown land where the original's do */
     tm_sync(m_platform(s));
-    if (object_frame_calls[step].long_call) {
-        bool back = menu_run_long(s, object_frame_calls[step].site, object_frame_calls[step].routine,
-                                  object_frame_calls[step].entry);
-        if (back)
-            tm_sync(m_platform(s));
-        return back;
-    }
+    if (object_frame_calls[step].long_call)   /* run as C before these were calls, its time paid with the next */
+        return menu_run_long(s, object_frame_calls[step].site, object_frame_calls[step].routine,
+                             object_frame_calls[step].entry);
     if (!menu_run_or_call(s, object_frame_calls[step].site, object_frame_calls[step].routine,
                           object_frame_calls[step].ignores, object_frame_calls[step].entry))
         return false;
