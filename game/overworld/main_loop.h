@@ -22,8 +22,22 @@ void overworld_come_back_from_the_menus(Snes *s);
 /* Full entry requirements for the frame and menu-return continuations. */
 bool overworld_loop_accepts_machine(Snes *s);
 
+/* The loop's wait for the next frame, a held wait (holds.h,
+ * HOLD_OVERWORLD_FRAME): the port starting it stops in the wait's loop
+ * ($C2:0348), and the runtime goes on with overworld_next_frame once the
+ * vblank handler has counted the frame; overworld_waits_for_the_frame is a
+ * pass of the wait before. The guards say which applies; and whether the
+ * wait at the machine's PC is the loop's, which the mode's other waits that
+ * share its code are not. */
+void overworld_wait_for_the_next_frame_on_the_machine(Snes *s);
+void overworld_next_frame(Snes *s);
+void overworld_waits_for_the_frame(Snes *s);
+bool overworld_frame_counted(Snes *s);
+bool overworld_frame_not_counted(Snes *s);
+bool overworld_main_loop_waits_here(const Snes *s);
+
 /* The halt ($C2:250D): the game stopped for good, a pass at a time, each
- * coming back to itself. */
+ * coming back to itself, a held wait of its own (HOLD_OVERWORLD_HALT). */
 void overworld_halt_entry(Snes *s);
 
 /* Putting the overworld aside while a screen runs, and bringing it back

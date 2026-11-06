@@ -2656,7 +2656,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2046E, .name = "menu_wait_for_frame_jump", .fn = menu_wait_for_frame, NEEDS_M8, .cost_milli = 2750,
       .dont_care = DC_N | DC_Z | DC_C, .guard = menu_frame_wait_on_page },
     { .addr = 0xC20348, .name = "menu_wait_for_frame_loop", .fn = menu_wait_for_frame_loop, NEEDS_M8, .idle = true,
-      .guard = menu_frame_wait_on_page, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C },
+      .guard = menu_frame_wait_loop_runs, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C },
     /* the menus' tasks (game/menu/tasks.c) */
     { .addr = 0xC2821E, .name = "menu_task_waits_a_frame", .fn = menu_task_waits_a_frame, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 4640, .guard = menu_task_can_wait },
@@ -4429,9 +4429,6 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2255A, .name = "overworld_back_from_the_menus", .fn = overworld_back_from_the_menus_entry,
       NEEDS_M8_X16_BINARY, .cost_milli = 1000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = overworld_main_loop_runs },
-    { .addr = 0xC2250D, .name = "overworld_halt", .fn = overworld_halt_entry, NEEDS_M8_X16_BINARY,
-      .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-      .guard = overworld_main_loop_runs },
     { .addr = 0xC2754D, .name = "menu_object_place_under_the_view", .fn = menu_object_place_under_the_view,
       NEEDS_M8_X16_BINARY, .cost_milli = 3892, .dont_care = DC_A | DC_Y | DC_N | DC_V | DC_Z,
       .guard = menu_object_can_be_placed },
@@ -4774,6 +4771,17 @@ const NativeEntry game_held_waits[] = {
       .hold = HOLD_WARP_FRAME, .retired = true, .guard = warp_frame_taken },
     { .addr = 0xFDEAED, .name = "warp_waits_for_the_frame", .fn = warp_waits_for_the_frame, NEEDS_M8, .idle = true,
       .hold = HOLD_WARP_FRAME, .retired = true, .guard = warp_frame_not_taken },
+    /* the overworld's main loop: its pass once the vblank handler has counted
+     * the next frame, and its idle pass before (the mode's page, D = 0); and
+     * its halt, a pass at a time */
+    { .addr = 0xC20348, .name = "overworld_next_frame", .fn = overworld_next_frame, NEEDS_M8_X16_BINARY,
+      .cost_milli = 5557, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .pulls = 2,
+      .hold = HOLD_OVERWORLD_FRAME, .guard = overworld_frame_counted },
+    { .addr = 0xC20348, .name = "overworld_waits_for_the_frame", .fn = overworld_waits_for_the_frame, NEEDS_M8,
+      .idle = true, .hold = HOLD_OVERWORLD_FRAME, .guard = overworld_frame_not_counted },
+    { .addr = 0xC2250D, .name = "overworld_halt", .fn = overworld_halt_entry, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .hold = HOLD_OVERWORLD_HALT, .guard = overworld_main_loop_runs },
 };
 const int game_held_wait_count = (int)(sizeof game_held_waits / sizeof game_held_waits[0]);
 
