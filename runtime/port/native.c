@@ -361,6 +361,9 @@ typedef struct Replay {
 struct NativeRuntime {
     const NativeEntry *table;
     int count;
+    /* the kept estimates (native_keep_estimates), after the entries in
+     * `table` and `stats`: found by time_as alone, never by the machine */
+    int kept;
     NativeMode mode;
     NativeStats *stats;
     uint8_t filter[0x2000];      /* bit per 16-bit address: some entry might be here */
@@ -507,17 +510,31 @@ static int entry_cmp(const void *a, const void *b)
     return (int)p->generated - (int)q->generated;
 }
 
+/* The estimates kept for routines with no entry (native_keep_estimates). */
+static const NativeEntry *kept_estimates;
+static int kept_estimate_count;
+
+void native_keep_estimates(const NativeEntry *estimates, int count)
+{
+    kept_estimates = estimates;
+    kept_estimate_count = count;
+}
+
 NativeRuntime *native_create(const NativeEntry *table, int count, NativeMode mode)
 {
     NativeRuntime *rt = calloc(1, sizeof *rt);
     rt->detail_limit = DEFAULT_DETAILS;
-    NativeEntry *sorted = malloc(sizeof *sorted * (size_t)(count ? count : 1));
+    int all = count + kept_estimate_count;
+    NativeEntry *sorted = malloc(sizeof *sorted * (size_t)(all ? all : 1));
     memcpy(sorted, table, sizeof *sorted * (size_t)count);
     qsort(sorted, (size_t)count, sizeof *sorted, entry_cmp);
+    if (kept_estimate_count)
+        memcpy(sorted + count, kept_estimates, sizeof *sorted * (size_t)kept_estimate_count);
     rt->table = sorted;
     rt->count = count;
+    rt->kept = kept_estimate_count;
     rt->mode = mode;
-    rt->stats = calloc((size_t)(count ? count : 1), sizeof *rt->stats);
+    rt->stats = calloc((size_t)(all ? all : 1), sizeof *rt->stats);
     for (int i = 0; i < count; i++) {
         uint16_t a = sorted[i].addr & 0xFFFF;
         rt->filter[a >> 3] |= (uint8_t)(1 << (a & 7));
@@ -1787,6 +1804,8 @@ static bool wait_over(Active *a, const Snes *s)
             a->saw_picture = true;
         return a->saw_picture && s->bus.in_vblank;   /* $4212 bit 7, as the original's polls read it */
     }
+    if (a->wake == NATIVE_WAKE_VBLANK_FLAG)
+        return s->bus.nmi_flag || s->bus.in_vblank;
     if (native_wake_is_on_port0(a->wake))
         return native_wake_port0_satisfied(a->wake, s->apu.cpu_out[0]);
     return s->vline < SNES_VBLANK_LINE && s->vline >= (uint32_t)a->wake;
@@ -1799,7 +1818,7 @@ static bool wait_over(Active *a, const Snes *s)
  * line. */
 static uint32_t wait_step(const Active *a, const Snes *s)
 {
-    if (a->wake == NATIVE_WAKE_HBLANK || a->wake == NATIVE_WAKE_HBLANK_END)
+    if (a->wake == NATIVE_WAKE_HBLANK || a->wake == NATIVE_WAKE_HBLANK_END || a->wake == NATIVE_WAKE_VBLANK_FLAG)
         return snes_clocks_to_next_poll_change(s);
     if (a->wake == NATIVE_WAKE_VBLANK)
         return SNES_CLOCKS_PER_LINE - s->hclock;
@@ -2065,6 +2084,12 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
                 *result = (int32_t)(IDLE_EXIT_CLOCKS - into);
                 return true;
             }
+        }
+        if (a->wake == NATIVE_WAKE_VBLANK_FLAG && !a->exit_passed) {
+            /* the loop's last pass, as its idle entry's exit took it */
+            a->exit_passed = true;
+            *result = IDLE_EXIT_CLOCKS;
+            return true;
         }
         if (a->wake == NATIVE_WAKE_HBLANK && !a->exit_passed) {
             /* the original's last pass ends no sooner than a pass after
@@ -3082,6 +3107,25 @@ static int32_t start_port(NativeRuntime *rt, Snes *s, const NativeEntry *e, bool
  * or where none of them applies (its code isn't in place), the main thread
  * has left the wait: it is named no longer, and the machine goes on as it
  * stands, by the address path. */
+/* ON: the main thread resting in a held wait has nothing suspended, so a
+ * call-out still waiting for its callee to return at or below the wait's S
+ * is one whose frame the program left behind: the time warp starts on the
+ * game's fresh stack from inside the field's frame, whose call-outs the
+ * original never returns to, and the wait rests where their return would
+ * be. The machine leaving through such a frame (an RTS above it) used to
+ * drop them; a continuation the runtime runs as C makes no such move, so
+ * they are dropped here, counted as abandoned. */
+static void drop_what_the_held_wait_left(NativeRuntime *rt, const Snes *s)
+{
+    while (rt->nactive > 0) {
+        Active *a = &rt->active[rt->nactive - 1];
+        if (a->phase != PH_CALLOUT || !a->job || s->cpu.s < a->job->call_s_after)
+            return;
+        stats_of(rt, a)->abandoned++;
+        finish(rt);
+    }
+}
+
 static bool go_on_in_the_held_wait(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
 {
     uint8_t wait = s->held_wait;
@@ -3210,6 +3254,7 @@ static int32_t intercept(void *ctx, Snes *s)
      * it, the wait's continuations, by its number */
     if (rt->mode == NATIVE_ON && rt->port_timing != PORT_TIMING_ORACLE && s->held_wait && s->cpu.s == s->held_wait_s) {
         int32_t result;
+        drop_what_the_held_wait_left(rt, s);
         if (go_on_in_the_held_wait(rt, s, pc, &result))
             return result;
     }
@@ -3567,6 +3612,8 @@ bool native_waits_in_place(const Snes *s)
     return j && j->m == s && active_runtime && active_runtime->mode == NATIVE_ON;
 }
 
+bool native_runs_retired_as_c(const Snes *s) { return native_waits_in_place(s); }
+
 /* A port's wait in a loop of its own, under the runtime: the machine stands
  * where the port is (ON), or the original runs the loop (SHADOW), and the port
  * is compared at its head with `dont_care` left out. */
@@ -3680,6 +3727,9 @@ static int time_as(Snes *s, uint32_t routine, bool sibling)
     int was = j->part;
     part_flush(j);
     int idx = find_entry(rt, routine & 0xFFFFFF);
+    for (int k = rt->count; (idx < 0 || rt->table[idx].generated) && k < rt->count + rt->kept; k++)
+        if (rt->table[k].addr == (routine & 0xFFFFFF))
+            idx = k;   /* a retired routine's work, at the estimate kept for it */
     if (idx < 0 || rt->table[idx].generated) {
         j->bad_tags++;   /* nothing to estimate it with: it stays the port's own */
         j->bad_tag = routine;

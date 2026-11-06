@@ -294,6 +294,21 @@ const PfSnesVblankWait *pf_snes_vblank_wait(uint32_t routine)
     return NULL;
 }
 
+/* The time warp's ($FD:EADA, its loop on $4210 to $FD:EADF, the handlers
+ * on at $FD:EAE1 and the picture on, dark, at $FD:EAE6), its set-up's last
+ * call. */
+static const PfSnesScreenOnWait screen_on_waits[] = {
+    { 0xFDEADA, 0xFDEADF, 0xFDEAE1, 0xFDEAE6 },
+};
+
+const PfSnesScreenOnWait *pf_snes_screen_on_wait(uint32_t routine)
+{
+    for (size_t i = 0; i < sizeof screen_on_waits / sizeof screen_on_waits[0]; i++)
+        if (screen_on_waits[i].routine == routine)
+            return &screen_on_waits[i];
+    return NULL;
+}
+
 /* ---- Whole screens ---- */
 
 enum {

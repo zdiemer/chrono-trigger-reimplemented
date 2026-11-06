@@ -813,9 +813,30 @@ loop runs with no machine under it. A `ct_play` quick save taken at attract-demo
 frame 12,000 (PC `$7E:3023`, wait 1 named), loaded, and played 500 frames ends
 with the same state and the same picture as the run that didn't stop.
 
+The time warp's main loop is the second (`HOLD_WARP_FRAME`, `$FD:EAED`), and
+the first whose subsystem retired the gate (REIMPLEMENTATION.md, "The time
+warp's teardown"). Three things came with it:
+
+- A continuation of a retired subsystem is marked `.retired`, and
+  `natives_select` adds it in the shipping mode only: shadow mode and the
+  tools leave the cartridge's loop to run there, compared with nothing.
+- `m_hold_at_own` holds with the stop's own don't-care set, as
+  `m_stop_at_own` stops: the trip's start holds from inside the field's
+  event entry, whose set the wait's code doesn't share.
+- Where the main thread rests in a named wait, a call-out still waiting to
+  return at or below the wait's S is dropped as abandoned
+  (`drop_what_the_held_wait_left`): nothing is suspended in a held wait. The
+  trip starts on a fresh stack from inside the field's frame, whose call-out
+  waits at the very S the wait rests at; the machine's RTS into the first
+  frame used to unwind it, and a continuation run as C makes no such move.
+
+Over the three movies that take a gate the machine enters the warp 0 times,
+against 747,559 before, and its 1,181 frames and 747,440 idle passes are the
+wait's continuations, run by its number.
+
 What a teardown still has to do to take a main loop out of the registry is
-make its wait's continuations held-wait rows, as the scene program's are (TODO.md:
-the overworld's and the warp's teardown items).
+make its wait's continuations held-wait rows, as these are (TODO.md: the
+overworld's teardown item).
 
 ## ZSNES save states
 

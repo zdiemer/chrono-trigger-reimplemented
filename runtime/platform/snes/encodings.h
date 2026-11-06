@@ -63,6 +63,19 @@ typedef struct {
 } PfSnesVblankWait;
 const PfSnesVblankWait *pf_snes_vblank_wait(uint32_t routine);
 
+/* The original's routines that wait for the vblank's flag with the vblank
+ * handler off and then turn the handlers and the picture on (a mode's screen
+ * coming back), whose subsystem's gate is retired, so that the shipping mode
+ * waits where the port stands (NATIVE_WAKE_VBLANK_FLAG) and turns them on as
+ * the routine does: where its loop leaves (`exit`, the routine's time from
+ * there charged as the routine there), and where it writes the interrupts'
+ * enable and the display. In ROM, so always in place. NULL where the routine
+ * is none of them. */
+typedef struct {
+    uint32_t routine, exit, interrupts_site, display_site;
+} PfSnesScreenOnWait;
+const PfSnesScreenOnWait *pf_snes_screen_on_wait(uint32_t routine);
+
 /* What the original writes, in order, where one call sets a whole screen up
  * (vid_apply_screen). Each part is one of the service's setters with the site
  * of the instruction it stands for; `arg` is the part's layer, register group

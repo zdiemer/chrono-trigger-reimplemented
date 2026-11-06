@@ -101,9 +101,3 @@ name = "overworld_main_loop"
 runs = "C22603-C22605,C2267E-C22680"
 depends = ["game/overworld/main_loop.c:set_the_sign_again", "re/ram.toml:overworld_sign", "re/ram.toml:overworld_sign_again"]
 why = "Reviewed equivalence for the two sign-refresh arms after map-view/time-dial return: each original instruction increments byte 1B59 modulo 256, only if byte 1B58 is nonzero; its N/Z are overwritten by the following LDA. Both call set_the_sign_again, with exactly that predicate and uint8_t conversion (including 255 -> 0). These six instructions were not executed in the fuzz comparisons; a returning-screen fixture remains useful before teardown."
-
-[[safe]]
-name = "warp_set_up"
-runs = "FDEC19-FDEC1A,FDEC24-FDEC24,FDEC30-FDEC31,FDEC5B-FDEC5C,FDEC68-FDEC69"
-depends = ["game/warp/circle.c:warp_build_circle", "game/warp/circle.c:work_out_half_widths", "game/warp/warp.c:start_the_warp", "game/warp/warp.c:make_a_frame", "game/warp/warp_data.h:warp_circle_radius_on"]
-why = "The shared circle builder fixes both centres at 128 and accepts radius 0 or 2..127. All 32 cartridge ramp values satisfy this (CRC-checked); radius 0 clears the window. Nonzero half-widths never exceed 127, so centre/edge clamps and the radius>=128 upper-half path cannot run. Setup uses radius 0; opening/closing frame recipes cover the ramp. Recheck if centres or ramp change."

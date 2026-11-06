@@ -1,9 +1,8 @@
-"""Compare scene/warp continuations outside their enclosing ports' stretches.
+"""Compare scene continuations outside their enclosing ports' stretches.
 
 The combined shadow run still measures every port. These additional runs
 remove only the ancestors which claim an earlier comparison point, so the
-continuation can reach its own point. The flickering entries each own a
-complete trip through real interrupt waits. No counts from these runs are
+continuation can reach its own point. No counts from these runs are
 mixed into timing, fallback or combined-run comparison totals.
 
 A case that compared keeps its verdict in the store every worktree shares
@@ -35,8 +34,6 @@ CASES = (
     ("scene_program_hands_back", "title-start", 2000, ("scene_program_restart",), ()),
     ("scene_clear_work_ram", "title-start", 2000, SETUP, ()),
     ("scene_after_work_ram_clear", "title-start", 2000, SETUP + ("scene_clear_work_ram",), ()),
-    ("warp_flickering_trip_waits", "endings-bucket-lavos", 20000, (), ("warp_flickering_trip_waits",)),
-    ("warp_flickering_frame", "endings-bucket-lavos", 20000, (), ("warp_flickering_frame",)),
 )
 
 

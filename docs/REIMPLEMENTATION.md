@@ -3580,6 +3580,157 @@ outside any port's stretch (198 instructions, 22 bytes, over the sample's
 shadow runs: the fallback measure's new line), so the original's calls of it
 need the port to stand for them until their callers are ports.
 
+### The time warp's teardown
+
+The fourth subsystem taken off the gate, and the first whose main loop the
+main thread rests in: the gate no longer compares the time warp
+(`game/warp/`, the tunnel of the time gates, `$FD:DA00-$FD:DD95`, its
+handlers `$FD:DE15-$FD:DE97` and its routines `$FD:EAA6-$FD:F28F`) with the
+original's code. Its earlier attempt stopped at the main loop (attract's
+reason): a trip's frame end is the main thread's wait, and as a C loop a
+port would stay suspended for the whole trip. Held waits whose
+continuations the runtime dispatches by the wait's number (RUNTIME.md,
+"Held waits") are what let it go.
+
+**The held wait first, in its own commit.** The wait each kind's loop calls
+(`$FD:EAEB`) holds at its loop (`$FD:EAED`) under `HOLD_WARP_FRAME`
+(`game/holds.h`), the call's return to the kind's next frame on the stack,
+which names the kind. Its continuations are two rows of `game_held_waits`:
+`warp_next_frame`, which takes the frame mark, returns to the kind's loop,
+makes the frame and holds again (it declares `.pulls = 2`, the loop's return
+it takes, so shadow mode followed the original through the frame), and the
+idle pass before the vblank handler has taken the frame. The frame entries
+(`$FD:DA06`, `$DA65`, `$DAC4`, `$DB27`), the loops' waits (`$FD:DA03` and
+the three like it) and the wait routine left the registry. Shadow over the
+three movies that take a gate, before the teardown: `warp_next_frame` 159,
+255 and 767 calls, every one matched, its stretches estimated within 238 to
+778 clocks on average, of 54,305 to 64,868.
+
+**The preconditions, and how each was shown.**
+- *Fully ported, no original code for it in real play.* The burndown left
+  nothing of the warp unported; the shipping fallback baseline had no `FD:`
+  line of it; the three movies' census before entered its entries only from
+  ports' stops and returns and its own idle passes.
+- *No generated code touches its state.* Its cells (`warp_*` in
+  `re/ram.toml`, the page `$0500` and the tables in `$7F`) are written and
+  read by the warp alone; the one shared byte range, the light's pixel masks
+  that the field's palette animations read after the warp, the C still
+  writes (`picture.c`, `set_the_pixel_masks`).
+- *Its unreached rows covered.* Its 9 bytes held by `unreached_safe` were
+  the circle's clamps (fixed centres at 128, a radius of 0 or 2..127 from
+  the cartridge's ramp). The claim is now checked where it is made:
+  `warp_build_circle` stops a build with no machine at any other radius
+  (`program_needs_the_machine`), and keeps the clamps.
+- *Its recorded outcomes filled for the movies that protect it.*
+  `events-end-of-time-gate` (the shortest trip), `battle-lavos-gameover`
+  (the short trip) and `endings-bucket-lavos` (the flickering one) hold
+  `places`, `game` and `sram` in strict mode and `ct_native`, pictures
+  excepted in two of them; the places after each trip and the saved game
+  are what a trip's end decides.
+
+**Deleted.** Every row the warp had in `game_natives` (the starts, the
+set-up, the ends, the end's going dark and story flags, the screen's wait
+and turning on, the vblank handler); the entry wrappers and `warp/bridge.c`
+(a sibling run under an emulated JSR); the guards `warp_has_a_destination`
+(the field's entry holds that contract itself, and `scene_accept_continuation`
+checks it) and `warp_bank_reaches_io`; all the scaffolding: the work cells
+the original leaves in `warp_work`, the circle's half widths and centres,
+the multiplier and divider left as the original's last step left them, the
+work-RAM port, and A's high byte carried into the first frame (C reads the
+bottom line's scale from RAM, `flicker`). The circle's step charge is no
+longer scaffolding: it is the frame's pace on the machine (`charge_as`,
+plain). Its rows in `docs/ports.tsv`, `tools/fuzz_routines.toml`,
+`tools/unreached_baseline.txt` and `unreached_safe.toml`, and
+`tools/uncompared_baseline.txt`.
+
+**What calls it now.** In the shipping mode (`native_runs_retired_as_c`,
+`m_runs_retired_as_c`: ON mode, in a port the runtime runs):
+- the field's end (`field/main_loop.c`, `start_the_scene`) calls
+  `warp_starts_on_the_machine`: the warp's page, bank and widths, the
+  set-up, the screen's wait and turning on, and the hold for the first
+  frame. The set-up's row had no guard or width precondition to keep.
+- the console's vblank stub (`core/console.c`) runs the warp's handler as C
+  and returns from the interrupt, where the stub names it.
+- the held wait's continuations (`.retired = true`, which `natives_select`
+  adds in ON mode only) make every frame and, after the last, the end: the
+  frame's time passes first (`tm_sync`, as the end's own entry started in
+  step with the original, so the line effects stop on the original's line),
+  the screen goes dark, the story flags go back and the field's entry runs
+  as the continuation it was. The `$210E` difference that kept the end an
+  entry of its own went with the comparison.
+- the screen's wait (`$FD:EADA`) waits where the port stands
+  (`NATIVE_WAKE_VBLANK_FLAG`, the flag up or the picture in its blank, a
+  pass of the loop after, as its idle entry went on) and the turning on is
+  the timing service's (`pf_snes_screen_on_wait`).
+
+Elsewhere -- shadow mode's reference play, `--generated only`, the tools --
+the field stops at the kind's start as before and the console's stub jumps
+to the handler, so the cartridge's warp runs, compared with nothing; the
+fallback measure doesn't count it there (`dev/fallbacks.c`,
+`the_cartridges_warp`) and does where the hand ports play, and the burndown
+and `tools/unreached.py` leave its runs out (`RETIRED_RUNS`).
+
+**The guards.** The held wait's two continuations keep theirs, the runtime's
+contract for running them: the warp's page with its zero, the frame taken
+(and the wait's return to a kind's loop) or not. Each is a claim the game
+keeps, checked over real play by the refusal measure
+(`tools/fallbacks.py --refusals`).
+
+**Its time, kept as it was.** The ports run the warp's work under the old
+entries' names (`TIMED_AS`, `NATIVE_TIME_AS`), and those names have no row:
+`game_kept_estimates` keeps each routine's calibrated `cost_milli` (the
+set-up 24,782, a frame 8,303-8,332, the vblank handler 6,710, going dark
+4,300, the story flags 6,994, the screen turned on 4,429), which the runtime
+appends to its table where only a tag finds them (`native_keep_estimates`;
+the machine never enters one). In the shipping mode the three movies play
+the same frame by frame as before the teardown -- work RAM, VRAM, CGRAM,
+OAM, save RAM and the picture over 5,600, 16,192 and 196,000 frames
+(`tools/trace.py diff`) -- but for the warp's own scaffolding cells and the
+stack bytes below S, and on two frames of the first the circle table's
+line 0, off the picture, which the original's widest circle's last fraction
+overwrote.
+
+**What a held wait now does to what it leaves.** The field's end starts the
+trip on the game's fresh stack from inside the field's frame, whose
+call-outs the original never returns to. The machine's RTS into the first
+frame used to unwind past them, and the runtime dropped them; a
+continuation run as C makes no such move, and the wait rests at the very S
+the field's frame's call-out waits to return to. So where the main thread
+rests in a held wait, call-outs still waiting at or below its S are dropped,
+counted as abandoned (`drop_what_the_held_wait_left`, runtime/port/native.c):
+nothing is suspended in a held wait, by its definition.
+
+**The measures.** Census over the three movies (shipping mode): the machine
+entered the warp's entries 747,559 times before (the frame wait's idle
+passes 743,589, the screen's wait 1,599, the vblank handler 1,181 by the
+console's jump, the frames 1,181 by return, starts, ends and the screen
+turned on 3 each), and 0 now: its 1,181 frames and 747,440 idle passes are
+the held wait's continuations, run by the wait's number; the vblank handler
+runs as C in the console's stub 1,181 times, the set-up, the screen turned
+on, going dark and the story flags 3 times each as C. Frame ends with a
+routine suspended, driven a frame at a time in `ct_drive --native on`, over
+the frames the warp's handler is installed: 112 in each of the three
+movies (the set-up's own time, about 110 frames of the original's with the
+screen dark, which the field's event entry owes and pays in the screen's
+wait: TODO.md, "The time warp's set-up is owed with a port suspended"),
+against 113, 112 and 113 before; over the whole movies 1,170, 8,001 and
+181,423 frames, against 2,680, 9,510 and 182,933, as the trip no longer
+leaves the field's frame suspended past it. A `ct_play`
+quick save inside the tunnel: a state saved at
+events-end-of-time-gate's frame 4,000 (in the held wait, the tunnel
+running), loaded in a fresh `ct_drive` and in `ct_play`, and played 500
+frames past the trip's end into Medina, ends with the same work RAM and
+picture as the run that didn't stop, with nothing suspended or replayed. `tools/machine_joints.py`:
+registered entries 2,235 to 2,211, held
+waits' continuations 2 to 4, returns through the emulated stack 1,021 to
+1,016, stops 98 to 97, time tags that take the machine 9 to 8, scaffolding
+writes 2,062 to 2,047.
+
+**What replaces the comparison.** The three movies' recorded outcomes, in
+strict mode and `ct_native` (whose trip, `warp_runs`, is the same C), the
+vblank check over the shipping mode's video writes, and the frame-by-frame
+equality with the shipping mode before the teardown measured above.
+
 ### Recorded outcomes
 
 `tools/outcomes.py` keeps the reference play's results in `tools/outcomes.txt`:

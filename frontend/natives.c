@@ -45,6 +45,8 @@ int natives_select(NativeTable *t, const uint8_t *rom, size_t rom_size, const Na
         t->entries[t->ported++] = game_time_tags[i];
     for (int i = 0; ports && i < game_held_wait_count; i++) {
         const NativeEntry *e = &game_held_waits[i];
+        if (e->retired && c->mode != NATIVE_ON)
+            continue;   /* a retired subsystem's: the cartridge's code runs there */
         if (!has_prefix(e->name, c->exclude, c->nexclude) &&
             (!c->ninclude || has_prefix(e->name, c->include, c->ninclude)))
             t->entries[t->ported++] = *e;
@@ -74,6 +76,7 @@ NativeRuntime *natives_restart(NativeRuntime *old, const NativeTable *t, NativeM
     snes->intercept = NULL;
     snes->intercept_ctx = NULL;
     native_leave_uncompared(game_uncompared_wram, game_uncompared_wram_count);
+    native_keep_estimates(game_kept_estimates, game_kept_estimate_count);
     NativeRuntime *rt = native_create(t->entries, t->count, mode);
     native_set_index(rt, t->index, t->index_count);   /* used only with generated entries */
     native_attach(rt, snes);

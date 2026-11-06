@@ -567,6 +567,21 @@ static bool the_cartridges_decompressor(const Fallbacks *f, uint32_t pc)
            ((at >= 0x0002 && at <= 0x0004) || (at >= 0x0557 && at <= 0x08B2));
 }
 
+/* The cartridge's time warp ($FD:DA00-$FD:DD95, its handlers $FD:DE15-$FD:DE97
+ * and its routines $FD:EAA6-$FD:F28F, and their mirror in $3D) in the
+ * reference play: no port stands for it, by design, since its subsystem
+ * retired the gate. In the shipping mode its trip is C from the field's end
+ * to the field's start again (game/warp/warp.c), so none of this code runs
+ * there; in the reference it is the original's own machinery, and not counted
+ * (docs/REIMPLEMENTATION.md, "The time warp's teardown"). Where the hand
+ * ports play it is, since nothing should reach it. */
+static bool the_cartridges_warp(const Fallbacks *f, uint32_t pc)
+{
+    uint16_t at = (uint16_t)pc;
+    return f->shadow && ((pc >> 16) & 0x7F) == 0x7D &&
+           ((at >= 0xDA00 && at <= 0xDD95) || (at >= 0xDE15 && at <= 0xDE97) || (at >= 0xEAA6 && at <= 0xF28F));
+}
+
 void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
     /* Observe completion before the caller starts another invocation of the
@@ -605,7 +620,8 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         if (f->pass.open)
             f->pass.hidden++;
     }
-    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_decompressor(f, pc)) {
+    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_decompressor(f, pc) &&
+        !the_cartridges_warp(f, pc)) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));
         f->by_kind[eff.kind]++;

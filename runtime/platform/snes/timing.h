@@ -7,6 +7,7 @@
 #include "platform/snes/backend.h"
 #include "platform/snes/encodings.h"
 #include "platform/timing.h"
+#include "platform/video.h"
 
 PF_API void tm_enable_interrupts(Platform *pf, PfOrigin o, uint8_t sources)
 {
@@ -160,10 +161,33 @@ PF_API void tm_wait_line_started(Platform *pf, PfOrigin o)
  * anything else has no routine of the original's to call. */
 enum { SNES_SCREEN_ON_SOURCES = TM_INT_VBLANK | TM_INT_AUTO_JOYPAD, SNES_SCREEN_ON_LINE = 211 };
 
+/* A retired subsystem's routine (pf_snes_screen_on_wait) in the shipping
+ * mode: the machine waits where the port stands, then the routine's own
+ * work, as its loop's idle entry and its tail's entry did when the subsystem
+ * was on the gate: the flag taken, the handlers on, the picture on but dark
+ * until the vblank handler brightens it, and the CPU taking interrupts. Its
+ * contract holds: the loop's 8-bit A and a data bank reaching the registers;
+ * otherwise, and in shadow mode and the tools, the original's routine runs. */
+static inline void pf_snes_turn_the_screen_on(Platform *pf, const PfSnesScreenOnWait *w, uint8_t sources)
+{
+    (void)tm_ack_vblank(pf, PF_AT(w->routine));
+    tm_enable_interrupts(pf, PF_AT(w->interrupts_site), sources);
+    vid_set_display(pf, PF_AT(w->display_site), &(VidDisplay){ 0 });
+    m_set_flag(pf_snes(pf), CPU_FLAG_I, false);
+}
+
 PF_API void tm_wait_frame_then_enable(Platform *pf, PfOrigin o, uint8_t sources, uint16_t line)
 {
     if (sources != SNES_SCREEN_ON_SOURCES || (line != SNES_SCREEN_ON_LINE && line != TM_LINE_UNCHANGED))
         pf_snes_encoding_mismatch(o.site, "tm_wait_frame_then_enable");
+    Snes *s = pf_snes(pf);
+    const PfSnesScreenOnWait *w = pf_snes_screen_on_wait(o.target);
+    if (w && native_runs_retired_as_c(s) && m_flag(s, CPU_FLAG_M) && m_bank_reaches_io(s)) {
+        native_wait_call(s, o.site, o.target, (o.site >> 16) != (o.target >> 16), o.dont_care,
+                         NATIVE_WAKE_VBLANK_FLAG);
+        NATIVE_TIME_AS(s, w->exit, pf_snes_turn_the_screen_on(pf, w, sources));
+        return;
+    }
     pf_snes_call_wait(pf, o);
 }
 

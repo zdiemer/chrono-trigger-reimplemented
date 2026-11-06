@@ -38,42 +38,6 @@ uint16_t warp_build_circle(GameState *g);
 /* The circle window's list pointed at one of its tables (0 or 1). */
 void warp_show_circle_table(GameState *g, unsigned table);
 
-/* ---- The work cells (scaffolding) ---------------------------------------------------------------- */
-
-/* What a routine leaves in warp_work, by the cell's place in it. Scaffolding
- * only: nothing but shadow mode reads the cells. */
-void warp_leave_work_byte(GameState *g, unsigned cell, uint8_t v);
-void warp_leave_work_word(GameState *g, unsigned cell, uint16_t v);
-
-/* ---- The entries (warp/warp.c) ------------------------------------------------------------------- */
-
-/* warp/bridge.c: a sibling's entry run as C as the original's JSR at `site`
- * calls `routine`, under the return it pushes and timed as the routine: true
- * where it came back to the call's return. */
-bool warp_run_from(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
-
-void warp_set_up(Snes *s);
-void warp_start_the_long_trip(Snes *s);
-void warp_start_the_short_trip(Snes *s);
-void warp_start_the_shortest_trip(Snes *s);
-void warp_start_the_flickering_trip(Snes *s);
-void warp_long_trip_waits(Snes *s);
-void warp_short_trip_waits(Snes *s);
-void warp_shortest_trip_waits(Snes *s);
-void warp_flickering_trip_waits(Snes *s);
-void warp_long_frame(Snes *s);
-void warp_short_frame(Snes *s);
-void warp_shortest_frame(Snes *s);
-void warp_flickering_frame(Snes *s);
-void warp_end(Snes *s);
-void warp_go_dark(Snes *s);
-void warp_put_back_the_story_flags(Snes *s);
-void warp_wait_for_frame(Snes *s);
-void warp_wait_for_frame_loop(Snes *s);
-void warp_screen_on_wait_for_vblank_loop(Snes *s);
-void warp_turn_the_screen_on(Snes *s);
-void warp_vblank_entry(Snes *s);
-
 /* As C, for a program with no machine (core/program.c): the trip a field's
  * event asks for, by its scene's number (WARP_FIRST_SCENE on), from the
  * field's end to its start again, false where a step went no further; and
@@ -83,11 +47,19 @@ bool warp_runs(GameState *g, Platform *pf, uint8_t scene);
 void warp_vblank(GameState *g, Platform *pf);
 void warp_line(GameState *g, Platform *pf);
 
-/* The guards: the warp's own page, with the data bank reaching the I/O
- * registers and the warp's zero in place (its frames, its waits and its end);
- * the data bank alone (the screen's turning on and going dark). */
-bool warp_on_its_page(Snes *s);
-bool warp_has_a_destination(Snes *s);
-bool warp_bank_reaches_io(Snes *s);
+/* ---- On the machine (warp/warp.c) -------------------------------------------------------------- */
+
+/* The warp's gate is retired: in the shipping mode the field's end starts the
+ * trip a field's event asks for, by its scene's number, as C, and the
+ * console's vblank stub runs the warp's handler as C, without returning from
+ * the interrupt. Between the two the main thread rests in the main loop's
+ * held wait (holds.h, HOLD_WARP_FRAME), whose continuations are the next
+ * frame and the wait's idle pass, with their guards. */
+void warp_starts_on_the_machine(Snes *s, uint8_t scene);
+void warp_takes_the_frame_on_the_machine(Snes *s);
+void warp_next_frame(Snes *s);
+void warp_waits_for_the_frame(Snes *s);
+bool warp_frame_taken(Snes *s);
+bool warp_frame_not_taken(Snes *s);
 
 #endif

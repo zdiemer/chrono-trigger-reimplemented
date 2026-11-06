@@ -619,6 +619,11 @@ static inline void m_hold_at(Snes *s, uint32_t at, uint16_t dont_care, uint8_t w
     native_hold(s, wait);
 }
 
+/* Whether a retired subsystem runs here as its C (native_runs_retired_as_c):
+ * a still-gated caller calls it then, and elsewhere hands over to the
+ * original's code, as it did before the subsystem retired. */
+static inline bool m_runs_retired_as_c(const Snes *s) { return native_runs_retired_as_c(s); }
+
 /* The same as m_stop_at, with `dont_care` the stop's own set: the entry's isn't added
  * there (native_own_dont_care_at_stop). For an early exit to code that reads
  * what the entry's callers don't, such as a reset: the entry keeps the larger
@@ -628,6 +633,15 @@ static inline void m_stop_at_own(Snes *s, uint32_t at, uint16_t dont_care)
     s->cpu.pb = (uint8_t)(at >> 16);
     s->cpu.pc = (uint16_t)at;
     native_own_dont_care_at_stop(s, at, dont_care);
+}
+
+/* m_hold_at with `dont_care` the stop's own set (m_stop_at_own): for a hold a
+ * port reaches from inside a caller's entry, whose set the wait's code
+ * doesn't share. */
+static inline void m_hold_at_own(Snes *s, uint32_t at, uint16_t dont_care, uint8_t wait)
+{
+    m_stop_at_own(s, at, dont_care);
+    native_hold(s, wait);
 }
 
 #endif

@@ -22,6 +22,7 @@
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
+#include "warp/warp.h"
 
 enum {
     BOOT = 0xFDC000,
@@ -76,12 +77,19 @@ static const struct {
 enum { CALLED_HANDLERS = sizeof called_handlers / sizeof called_handlers[0] };
 
 /* An interrupt goes to the handler its stub names, or back to what it
- * interrupted where the mode has turned it away. A handler with a row above
- * is called where the registry would run it at its address (its widths,
- * decimal mode and guard); anywhere else the machine goes on there. */
+ * interrupted where the mode has turned it away. The time warp's handler is
+ * a retired subsystem's (warp/warp.c): in the shipping mode it runs as C and
+ * returns from the interrupt here. A handler with a row above is called where
+ * the registry would run it at its address (its widths, decimal mode and
+ * guard); anywhere else the machine goes on there. */
 static void take_interrupt(Snes *s, ProgramStub stub)
 {
     if (stub.kind == PROGRAM_STUB_RETURNS) {
+        m_rti(s);
+        return;
+    }
+    if (stub.handler == WARP_VBLANK_HANDLER && m_runs_retired_as_c(s)) {
+        warp_takes_the_frame_on_the_machine(s);
         m_rti(s);
         return;
     }

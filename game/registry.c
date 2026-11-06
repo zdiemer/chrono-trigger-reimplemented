@@ -4749,51 +4749,6 @@ const NativeEntry game_natives[] = {
       .cost_milli = 3903, .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C, .guard = scene_race_pitch_and_move_present },
 
     /* attract (runs from RAM; guarded) */
-
-    /* the time warp, on its own page (D = $0500) */
-    { .addr = 0xFDDB97, .name = "warp_set_up", .fn = warp_set_up, .cost_milli = 24782,
-      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
-    { .addr = 0xFDDA00, .name = "warp_start_the_long_trip", .fn = warp_start_the_long_trip, .cost_milli = 1,
-      .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
-    { .addr = 0xFDDA5F, .name = "warp_start_the_short_trip", .fn = warp_start_the_short_trip, .cost_milli = 1,
-      .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
-    { .addr = 0xFDDABE, .name = "warp_start_the_shortest_trip", .fn = warp_start_the_shortest_trip, .cost_milli = 1,
-      .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
-    { .addr = 0xFDDB1D, .name = "warp_start_the_flickering_trip", .fn = warp_start_the_flickering_trip,
-      .cost_milli = 1, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
-    { .addr = 0xFDDA03, .name = "warp_long_trip_waits", .fn = warp_long_trip_waits, .cost_milli = 2500,
-      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = warp_on_its_page },
-    { .addr = 0xFDDA62, .name = "warp_short_trip_waits", .fn = warp_short_trip_waits, .cost_milli = 2500,
-      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = warp_on_its_page },
-    { .addr = 0xFDDAC1, .name = "warp_shortest_trip_waits", .fn = warp_shortest_trip_waits, .cost_milli = 2500,
-      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = warp_on_its_page },
-    { .addr = 0xFDDB24, .name = "warp_flickering_trip_waits", .fn = warp_flickering_trip_waits, .cost_milli = 2500,
-      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = warp_on_its_page },
-    { .addr = 0xFDDA06, .name = "warp_long_frame", .fn = warp_long_frame, NEEDS_M8_X16, .cost_milli = 8320,
-      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = warp_on_its_page },
-    { .addr = 0xFDDA65, .name = "warp_short_frame", .fn = warp_short_frame, NEEDS_M8_X16, .cost_milli = 8332,
-      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = warp_on_its_page },
-    { .addr = 0xFDDAC4, .name = "warp_shortest_frame", .fn = warp_shortest_frame, NEEDS_M8_X16, .cost_milli = 8303,
-      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = warp_on_its_page },
-    { .addr = 0xFDDB27, .name = "warp_flickering_frame", .fn = warp_flickering_frame, NEEDS_M8_X16,
-      .cost_milli = 8325, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = warp_on_its_page },
-    { .addr = 0xFDDA55, .name = "warp_end", .fn = warp_end, NEEDS_M8_X16, .cost_milli = 3000, .guard = warp_has_a_destination },
-    { .addr = 0xFDDAB4, .name = "warp_end", .fn = warp_end, NEEDS_M8_X16, .cost_milli = 3000, .guard = warp_has_a_destination },
-    { .addr = 0xFDDB13, .name = "warp_end", .fn = warp_end, NEEDS_M8_X16, .cost_milli = 3000, .guard = warp_has_a_destination },
-    { .addr = 0xFDDB8D, .name = "warp_end", .fn = warp_end, NEEDS_M8_X16, .cost_milli = 3000, .guard = warp_has_a_destination },
-    { .addr = 0xFDEAC8, .name = "warp_go_dark", .fn = warp_go_dark, NEEDS_M8, .cost_milli = 4300,
-      .dont_care = DC_A | DC_N | DC_Z, .guard = warp_bank_reaches_io },
-    { .addr = 0xFDEAB7, .name = "warp_put_back_the_story_flags", .fn = warp_put_back_the_story_flags, NEEDS_M8_X16,
-      .cost_milli = 6994, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = warp_on_its_page },
-    { .addr = 0xFDEAEB, .name = "warp_wait_for_frame", .fn = warp_wait_for_frame, NEEDS_M8, .cost_milli = 1250,
-      .guard = warp_on_its_page },
-    { .addr = 0xFDEAED, .name = "warp_wait_for_frame_loop", .fn = warp_wait_for_frame_loop, NEEDS_M8, .idle = true,
-      .idle_return_span = 7, .guard = warp_on_its_page },
-    { .addr = 0xFDEADA, .name = "warp_screen_on_wait_for_vblank_loop", .fn = warp_screen_on_wait_for_vblank_loop,
-      NEEDS_M8, .idle = true, .guard = warp_bank_reaches_io },
-    { .addr = 0xFDEADF, .name = "warp_turn_the_screen_on", .fn = warp_turn_the_screen_on, NEEDS_M8,
-      .cost_milli = 4429, .dont_care = DC_AL | DC_N | DC_Z, .guard = warp_bank_reaches_io },
-    { .addr = 0xFDDE15, .name = "warp_vblank", .fn = warp_vblank_entry, .cost_milli = 6710 },
 };
 
 const int game_native_count = (int)(sizeof game_natives / sizeof game_natives[0]);
@@ -4812,8 +4767,36 @@ const NativeEntry game_held_waits[] = {
       .hold = HOLD_SCENE_MAIN_LOOP, .guard = attract_wait_loop_present },
     { .addr = 0x7E3023, .name = "attract_frame_pass", .fn = attract_frame_pass, NEEDS_M16, .cost_milli = 3125,
       .hold = HOLD_SCENE_MAIN_LOOP, .guard = attract_frame_pass_present },
+    /* the time warp's main loop, its gate retired (the shipping mode only): its
+     * next frame, once the vblank handler has taken the last, and its idle
+     * pass before (the warp's page, D = $0500) */
+    { .addr = 0xFDEAED, .name = "warp_next_frame", .fn = warp_next_frame, NEEDS_M8_X16, .cost_milli = 2653,
+      .hold = HOLD_WARP_FRAME, .retired = true, .guard = warp_frame_taken },
+    { .addr = 0xFDEAED, .name = "warp_waits_for_the_frame", .fn = warp_waits_for_the_frame, NEEDS_M8, .idle = true,
+      .hold = HOLD_WARP_FRAME, .retired = true, .guard = warp_frame_not_taken },
 };
 const int game_held_wait_count = (int)(sizeof game_held_waits / sizeof game_held_waits[0]);
+
+/* The estimates of routines whose entries left the registry but whose work
+ * ports still run as C under their names (TIMED_AS, NATIVE_TIME_AS;
+ * native_keep_estimates): each at the cost_milli its entry was calibrated
+ * at, which the machine never enters. */
+const NativeEntry game_kept_estimates[] = {
+    /* the time warp, its gate retired (docs/REIMPLEMENTATION.md, "The time
+     * warp's teardown"): its set-up, the end's screen gone dark and story
+     * flags put back, the screen turned on, its vblank handler and each kind's
+     * frame */
+    { .addr = 0xFDDB97, .name = "warp_set_up", .cost_milli = 24782 },
+    { .addr = 0xFDEAC8, .name = "warp_go_dark", .cost_milli = 4300 },
+    { .addr = 0xFDEAB7, .name = "warp_put_back_the_story_flags", .cost_milli = 6994 },
+    { .addr = 0xFDEADF, .name = "warp_turn_the_screen_on", .cost_milli = 4429 },
+    { .addr = 0xFDDE15, .name = "warp_vblank", .cost_milli = 6710 },
+    { .addr = 0xFDDA06, .name = "warp_long_frame", .cost_milli = 8320 },
+    { .addr = 0xFDDA65, .name = "warp_short_frame", .cost_milli = 8332 },
+    { .addr = 0xFDDAC4, .name = "warp_shortest_frame", .cost_milli = 8303 },
+    { .addr = 0xFDDB27, .name = "warp_flickering_frame", .cost_milli = 8325 },
+};
+const int game_kept_estimate_count = (int)(sizeof game_kept_estimates / sizeof game_kept_estimates[0]);
 
 /* The data subsystem's gate retired (docs/REIMPLEMENTATION.md, "The data
  * subsystem's teardown"): the unpacker has no entry here, every port calls it

@@ -21,8 +21,6 @@
 #include "warp/warp.h"
 #include "warp/warp_data.h"
 
-#include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/input.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -182,24 +180,6 @@ static void set_the_pixel_masks(GameState *g)
     }
 }
 
-/* What the original leaves of its drawing: the last ray's steps and place and
- * the last pixel's row. */
-enum { WORK_RAY_STEP_ACROSS = 6, WORK_RAY_STEP_DOWN = 8, WORK_RAY_ACROSS = 10, WORK_RAY_DOWN = 12, WORK_PIXEL_ROW = 14 };
-
-typedef struct {
-    uint16_t step_across, step_down, across, down;
-    uint8_t last_y;
-} Ray;
-
-static void leave_the_last_ray(GameState *g, const Ray *r)
-{
-    warp_leave_work_word(g, WORK_RAY_STEP_ACROSS, r->step_across);
-    warp_leave_work_word(g, WORK_RAY_STEP_DOWN, r->step_down);
-    warp_leave_work_word(g, WORK_RAY_ACROSS, r->across);
-    warp_leave_work_word(g, WORK_RAY_DOWN, r->down);
-    warp_leave_work_word(g, WORK_PIXEL_ROW, pixel_row_start(r->last_y));
-}
-
 /* A quarter turn of rays from the top left corner, each drawn a pixel at a
  * time until it leaves the quarter, in bands of colour that widen as they go
  * out: a band's colour runs from 15 down to 1 and round again, never the
@@ -207,38 +187,35 @@ static void leave_the_last_ray(GameState *g, const Ray *r)
  * sine, in 256ths of a pixel. */
 enum { QUARTER_TURN = 64, BAND_RIPPLE = 16, BAND_SHADES = 16, ONE = 0x100 };
 
-static Ray draw_a_ray(GameState *g, uint8_t angle)
+static void draw_a_ray(GameState *g, uint8_t angle)
 {
-    Ray r = { .step_across = (uint8_t)warp_sine(g, angle), .step_down = (uint8_t)warp_sine(g, (uint8_t)(angle + QUARTER_TURN)) };
+    uint16_t step_across = (uint8_t)warp_sine(g, angle), step_down = (uint8_t)warp_sine(g, (uint8_t)(angle + QUARTER_TURN));
+    uint16_t across = 0, down = 0;
     uint8_t ripple = (uint8_t)((angle + QUARTER_TURN) * BAND_RIPPLE);
     uint16_t widening = (uint16_t)(ONE + (warp_sine(g, ripple) + 128) / 8);
     uint16_t band = ONE;
     for (;;) {
-        uint8_t x = (uint8_t)(r.across >> 8), y = (uint8_t)(r.down >> 8);
+        uint8_t x = (uint8_t)(across >> 8), y = (uint8_t)(down >> 8);
         set_light_pixel(g, x, y, (uint8_t)(BAND_SHADES - (band >> 8) % BAND_SHADES) % BAND_SHADES);
-        r.last_y = y;
         band = (uint16_t)(band + widening);
         widening--;
         if ((band >> 8) % BAND_SHADES == 0)
             band = (uint16_t)(band + ONE);
-        r.across = (uint16_t)(r.across + r.step_across);
-        if (r.across >> 8 >= LIGHT_SIDE)
-            break;
-        r.down = (uint16_t)(r.down + r.step_down);
-        if (r.down >> 8 >= LIGHT_SIDE)
-            break;
+        across = (uint16_t)(across + step_across);
+        if (across >> 8 >= LIGHT_SIDE)
+            return;
+        down = (uint16_t)(down + step_down);
+        if (down >> 8 >= LIGHT_SIDE)
+            return;
     }
-    return r;
 }
 
 static void draw_the_light(GameState *g, Platform *pf)
 {
     for (unsigned at = 0; at < LIGHT_BYTES; at++)
         set_warp_light_tiles_byte(g, at, 0);
-    Ray last = { 0 };
     for (unsigned angle = 0; angle <= QUARTER_TURN; angle++)
-        last = draw_a_ray(g, (uint8_t)angle);
-    ORIGINAL_EFFECT(leave_the_last_ray(g, &last));
+        draw_a_ray(g, (uint8_t)angle);
     vid_send_vram(pf, PF_AT(0xFDEC91), LIGHT_TILES_VRAM, PF_GAME(RAM_WARP_LIGHT_TILES), LIGHT_BYTES,
                   VID_VRAM_WORD_PORT);
 }
@@ -282,36 +259,15 @@ static Scale scale_on(uint8_t line)
 
 static uint16_t scale_of(const Scale *sc) { return (uint16_t)(sc->product >> SCALE_SHIFT); }
 
-/* What the original leaves of the scales: the last line's working out, in the
- * work cells, the multiplier (the depth's two bytes multiplied in turn) and the
- * divider. */
-enum { WORK_SCALE_TILT = 0, WORK_SCALE_PRODUCT = 2, WORK_SCALE_PRODUCT_HIGH = 4, WORK_SCALE_DEPTH = 6 };
-
-static void leave_the_last_scale(GameState *g, const Scale *sc)
-{
-    warp_leave_work_byte(g, WORK_SCALE_TILT, sc->tilt);
-    warp_leave_work_word(g, WORK_SCALE_PRODUCT, scale_of(sc));
-    warp_leave_work_word(g, WORK_SCALE_PRODUCT_HIGH, (uint16_t)(sc->product >> (16 + SCALE_SHIFT)));
-    warp_leave_work_word(g, WORK_SCALE_DEPTH, sc->depth);
-    hw_set_dividend(g, UNIT_DEPTH);
-    hw_divide_by(g, sc->distance);
-    hw_set_multiplicand(g, SCALE_TIMES);
-    (void)hw_multiply_by(g, (uint8_t)(sc->depth >> 8));
-    hw_port_seek(g, RAM_ABS(RAM_WARP_PLANE_MATRIX_SECOND_ROW + TABLE_LINES * RAM_WARP_PLANE_MATRIX_SECOND_ROW_STRIDE),
-                 RAM_WARP_PLANE_MATRIX_SECOND_ROW >> 16);
-}
-
 static void scale_the_plane(GameState *g)
 {
-    Scale sc = { 0 };
     for (unsigned line = 0; line < TABLE_LINES; line++) {
-        sc = scale_on((uint8_t)line);
+        Scale sc = scale_on((uint8_t)line);
         set_warp_plane_matrix_first_row_scale(g, line, scale_of(&sc));
         set_warp_plane_matrix_first_row_turn(g, line, 0);
         set_warp_plane_matrix_second_row_turn(g, line, 0);
         set_warp_plane_matrix_second_row_scale(g, line, scale_of(&sc));
     }
-    ORIGINAL_EFFECT(leave_the_last_scale(g, &sc));
 }
 
 /* A line effect's list: the picture's top half from one place in its tables,

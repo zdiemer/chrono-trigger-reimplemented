@@ -68,6 +68,8 @@ protocol only the original's driver on the sound processor spoke; the C sound
 driver takes the game's boot and commands as calls (docs/REIMPLEMENTATION.md,
 "The sound driver's teardown"). And the decompressor ($C3:0002's jump and
 $C3:0557-$C3:08B2), which every port calls as C ("The data subsystem's
+teardown"). And the time warp ($FD:DA00-$FD:DD95, $FD:DE15-$FD:DE97,
+$FD:EAA6-$FD:F28F), whose trip is C in the shipping mode ("The time warp's
 teardown").
 
 It is a burndown, not an accounting: useful for "which subsystem is barely
@@ -95,7 +97,8 @@ CALLS = {"JSR", "JSL"}
 # Code retired rather than ported (the docstring, "Retired code"): whole banks,
 # and runs of addresses, first to last.
 RETIRED = {0xC7}
-RETIRED_RUNS = ((0xC30002, 0xC30004), (0xC30557, 0xC308B2))
+RETIRED_RUNS = ((0xC30002, 0xC30004), (0xC30557, 0xC308B2),
+                (0xFDDA00, 0xFDDD95), (0xFDDE15, 0xFDDE97), (0xFDEAA6, 0xFDF28F))
 
 
 def retired(pc):
