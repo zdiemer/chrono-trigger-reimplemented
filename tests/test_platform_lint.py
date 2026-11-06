@@ -20,9 +20,7 @@ GAME = ROOT / "game"
 
 # Files whose ports still write registers themselves. Remove a file once it is
 # converted; the test fails if a listed file no longer has register constants.
-UNCONVERTED = {
-    "attract/main_loop.c",   # $4212 polls in RAM wait loops
-}
+UNCONVERTED = set()
 
 # Uses of the SNES-only escapes, per file.
 ESCAPES = {

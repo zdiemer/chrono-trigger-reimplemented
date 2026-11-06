@@ -278,6 +278,22 @@ const PfSnesVramSender *pf_snes_vram_sender(uint32_t routine)
     return NULL;
 }
 
+/* ---- The frame waits ---- */
+
+/* The scene program's ($7E:31B0, to its RTS at $7E:31BE), which its first
+ * frame and the turning map's upload call with the vblank handler off. */
+static const PfSnesVblankWait vblank_waits[] = {
+    { 0x7E31B0, 15, 0x04AE9A24245E978Dull },
+};
+
+const PfSnesVblankWait *pf_snes_vblank_wait(uint32_t routine)
+{
+    for (size_t i = 0; i < sizeof vblank_waits / sizeof vblank_waits[0]; i++)
+        if (vblank_waits[i].routine == routine)
+            return &vblank_waits[i];
+    return NULL;
+}
+
 /* ---- Whole screens ---- */
 
 enum {

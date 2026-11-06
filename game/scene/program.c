@@ -242,8 +242,14 @@ void scene_after_work_ram_clear(Snes *s)
 }
 
 // $7E:31BE
-/* The frame wait has completed; its caller can continue. */
+/* The frame wait has completed; its caller can continue. The ports' own
+ * calls of the wait ($7E:31B0) wait where they stand (tm_wait_frame), so
+ * only the original's run of it in shadow mode, or where its code isn't in
+ * place, comes here. */
 void scene_frame_wait_done(Snes *s) { m_rts(s); }
+
+/* The wait, $7E:31B0 to this return, is the program's. */
+bool scene_frame_wait_present(Snes *s) { return m_code_matches(s, 0x7E31B0, 15, 0x04AE9A24245E978Dull); }
 
 // $7E:3000
 /* The program's start, from the boot on the field's page. The clear's matrix

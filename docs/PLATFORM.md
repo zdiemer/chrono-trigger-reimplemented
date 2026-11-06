@@ -1942,7 +1942,7 @@ service. By what they are for:
 | Timer reset | nothing: `$4207-$420A` cleared as a mode starts | 4 | 9 | `$C2:0043`, `$C2:940D`, `$FD:EB13`; the boot `$FD:C000` through `tm_reset_timers` |
 | The line handler's line | line 211 | 3 | 1 | field `$C0:0B28`, battle `$D1:F1B0`, scene boot `$C3:0000` |
 | Hblank waits in the line handlers | nothing: the blank lands at a line's end | 4 | 0 | `$C0:ECEB`, `$D1:FEB8`, `$C3:0530`, `$C3:0538` |
-| Waits for vblank | the frame boundary | 4 | 2 | the races `$C0:3B71`, `$C0:4181`; the attract's `$7E:31B0`/`$7E:31B7`; with the vblank handler off, before turning it on, `$C0:0B28` and `$FD:EADA` |
+| Waits for vblank | the frame boundary | 4 | 2 | the races `$C0:3B71`, `$C0:4181`; the scene program's `$7E:31B0`/`$7E:31B7` (waited in place by `tm_wait_frame`); with the vblank handler off, before turning it on, `$C0:0B28` and `$FD:EADA` |
 | Controller read busy | nothing | 2 | 0 | `$C2:84EC`, `$C3:0A8E` |
 | The battle's wait for a line | not established | 6 | 0 | `$CD:3B82` |
 | Beam budgets | how much deferrable work runs this frame | 0 | 8 | the event scheduler `$C0:5A46`, the sprite frame queue `$C0:CA76` |
@@ -2082,7 +2082,7 @@ without a beam", tracks them):
 | The event scheduler `$C0:5A46` | generated, beam budget | run the due object scripts while `tm_frame_time_left(pf, o, limit)`; natively, all of them every frame |
 | The sprite frame queue `$C0:CA76` | generated, beam budget | the same over the animation queue, with its script-set limit |
 | `$C3:02DD` for `$C3:01E4` | generated | the stir as game code (`scene_draw_random`, ported for the star field), over `tm_entropy` |
-| The races `$C0:3B71` and `$C0:4181`; the attract's `$7E:31B0`/`$7E:31B7`; the waits before a mode enables its vblank handler, the field's `$C0:0B38` and the time warp's `$FD:EADA` (both reached through `tm_wait_frame_then_enable` now); the generated flag waits `$CD:044A`, `$CD:3E55`, `$CF:FCFB`; every idle entry on a flag a handler clears | idle entries, or generated | `tm_wait_frame` |
+| The races `$C0:3B71` and `$C0:4181`; the waits before a mode enables its vblank handler, the field's `$C0:0B38` and the time warp's `$FD:EADA` (both reached through `tm_wait_frame_then_enable` now); the generated flag waits `$CD:044A`, `$CD:3E55`, `$CF:FCFB`; every idle entry on a flag a handler clears | idle entries, or generated | `tm_wait_frame` |
 | The line handlers' hblank waits `$C0:ECEB`, `$D1:FEB8`, `$C3:0530`/`$C3:0538` | idle entries | gone: the blank is `vid_raster_display` at the handler's line |
 | The controller-busy waits in `$C2:84EC` and `$C3:0A8E` | ports that stop at the original's loop | `in_ready` |
 | `$CD:3B82` | idle entries reading the registers directly | `tm_wait_line`, or nothing once its purpose is known |
@@ -2118,7 +2118,7 @@ call it (below).
 
 | Call | SNES backend | Host backend |
 |---|---|---|
-| `tm_wait_frame(pf, PF_CALL_DC(site, routine, set))` | the call of the mode's own wait routine the original made (JSR in its bank, JSL from another) | yields the main thread to the driver |
+| `tm_wait_frame(pf, PF_CALL_DC(site, routine, set))` | the call of the mode's own wait routine the original made (JSR in its bank, JSL from another); where the routine only waits for the next vblank to begin (`pf_snes_vblank_wait`, `encodings.c`: the scene program's `$7E:31B0`) and its contract holds (its code in place, 8-bit A, a data bank reaching the I/O registers), the machine waits where the port stands instead and only shadow mode and the tools call it (`native_wait_call`, `NATIVE_WAKE_VBLANK`) | yields the main thread to the driver |
 | `tm_wait_frame_then_enable(pf, PF_CALL_DC(site, routine, set), sources, line)` | the call of the original's wait for the vblank with the handlers off, which then turns them on (the field's screen setup, `$C0:0B38`; the time warp's start, `$FD:EADA`, whose mode runs no line handler: `line` is `TM_LINE_UNCHANGED`) | waits a frame, then `tm_set_line` (unless `TM_LINE_UNCHANGED`) and `tm_enable_interrupts` |
 | `tm_frame_time_left(pf, o, line)` | `$213F`, `$2137`, `$213D` twice; true while the line is above `line` or at 240 and below | true |
 | `tm_wait_frames(pf, PF_CALL_DC(...), frames)` | the count in A's low byte, and the call of the mode's routine that waits that many (the battle's `$CD:3E3B`) | waits that many frames |
@@ -2237,8 +2237,15 @@ fails on an entry past half its calls uncompared that
 Outside the runtime the original's loop runs in place, and `ct_fuzz
 --stop-at-call` with the loop's head ends a run there. `native_wait_call` is
 the same for a call of a routine that only waits (the battle's wait for a
-line): no call in the shipping mode; a call-out, counted as the port's own
-work, in shadow mode.
+line, the scene program's frame wait): no call in the shipping mode; a
+call-out, counted as the port's own work, in shadow mode. A wait for the
+vblank (`NATIVE_WAKE_VBLANK`) steps a line at a time to the next blank's
+start -- one begun inside a blank waits the rest of it out first, as the
+original's two polls of `$4212` bit 7 do -- and goes on a pass of the poll
+into it (`IDLE_EXIT_CLOCKS`). The scene program's frame wait went so from
+two idle entries to none: over attract-demo and title-start the census's
+7,161 passes of it entered by the machine and the reference play's 763
+instructions of it handed back by `scene_boot` are gone.
 
 **A transfer from the main thread.** `vid_send_vram_and_wait(pf, o, vram,
 src, len)` (`video.h`) sends a buffer to VRAM from the main thread and
