@@ -29,20 +29,30 @@ A result's key is the SHA-256 of a JSON object naming every input it depends on:
 - the recipe: the run's command line with its paths taken out, the frame
   count, the sites, entries and dispatches it poisons or checks;
 - the Python that judges the run (the tool itself and tools/trace.py where
-  it diffs traces), by the SHA-256 of its text, and a SCHEMA number to bump
-  when what a stored result means changes.
+  it diffs traces), by the SHA-256 of its syntax tree with the docstrings
+  taken out (`code_digest`): what the tool does, not how its comments and
+  docstrings read, so editing a tool's prose keeps its hits; and a SCHEMA
+  number to bump when what a stored result means changes.
 
-The entries live as one JSON file each in the build directory, beside the
-binary (`<build>/evidence-cache/<tool>/<key>.json`), never in the repository.
+The entries live as one JSON file each in one store every worktree of the
+checkout shares, in the main checkout's (gitignored) build directory,
+`build/evidence-cache/<tool>/<key>.json` (`default_dir`), never in the
+repository. A store per build directory made every worktree's first gate,
+and main's gate after merging a branch that had passed, make everything
+again for a binary the store already knew under another directory; nothing
+in a key names a path, so the store can be shared and stay sound. Outside a
+git checkout it falls back to `evidence-cache/` beside the binary.
 `--no-cache` on each tool, `--no-evidence-cache` on the suite, or the
 environment variable CT_EVIDENCE_CACHE=off ignores the cache: nothing is read
 from it, and what passes is still written.
 """
 
+import ast
 import hashlib
 import json
 import os
 import pathlib
+import subprocess
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -102,9 +112,28 @@ def text_digest(path) -> str:
     return _cached_digest(path, "text", lambda p: hashlib.sha256(p.read_bytes().replace(b"\r\n", b"\n")).hexdigest())
 
 
+def _code(path: pathlib.Path) -> str:
+    tree = ast.parse(path.read_bytes(), filename=str(path))
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if (isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and body
+                and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)):
+            node.body = body[1:] or [ast.Pass()]
+    # No line numbers: a line moved by an edited comment is the same code.
+    return hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
+
+
+def code_digest(path) -> str:
+    """The SHA-256 of a Python file's syntax tree, docstrings and comments
+    left out: two texts that run the same statements hash the same. A
+    docstring a tool prints (`__doc__` in its help) only changes its help."""
+    return _cached_digest(path, "code", _code)
+
+
 def tools_digest(*paths) -> dict:
     """The judging Python's digests, by path relative to the repository."""
-    return {pathlib.Path(p).resolve().relative_to(ROOT).as_posix(): text_digest(p) for p in paths}
+    return {pathlib.Path(p).resolve().relative_to(ROOT).as_posix(): code_digest(p) for p in paths}
 
 
 def make_key(**parts) -> str:
@@ -116,8 +145,24 @@ def disabled_by_env() -> bool:
     return os.environ.get(ENV, "").strip().lower() in ("off", "0", "no", "false")
 
 
+def shared_root():
+    """The main checkout every worktree of this repository belongs to: the
+    directory holding git's common directory, or None outside git."""
+    try:
+        out = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=ROOT,
+                             capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    common = pathlib.Path(out.stdout.strip()) if out.returncode == 0 and out.stdout.strip() else None
+    return common.parent if common is not None and common.name == ".git" else None
+
+
 def default_dir(binary, tool: str) -> pathlib.Path:
-    """Beside the binary, in its (gitignored) build directory."""
+    """The store every worktree shares, in the main checkout's gitignored
+    build directory; beside the binary when there is no checkout."""
+    root = shared_root()
+    if root is not None:
+        return root / "build" / "evidence-cache" / tool
     return pathlib.Path(binary).resolve().parent / "evidence-cache" / tool
 
 

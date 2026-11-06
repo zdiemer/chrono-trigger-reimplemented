@@ -260,9 +260,18 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Phase 3a work in flight
 
-- **Prune the evidence cache.** `<build>/evidence-cache` gains a set of
-  entries for every ct_dev binary and drops none; keep only the entries
-  the current binary's keys name, or the newest few binaries'.
+- **Prune the evidence cache.** The shared store, `build/evidence-cache` in
+  the main checkout, gains a set of entries for every ct_dev binary any
+  worktree gates and drops none; keep only the newest few binaries'.
+- **Narrow the evidence cache's key.** A dc-evidence movie's result is keyed
+  on the whole `ct_dev` binary (docs/PORTING.md, "Declarations liveness can't
+  prove"), so any change to the C makes all 84 movies again (about 48
+  minutes). A sound narrower key needs to know what C a movie's runs
+  executed: `ct_dev` would record the registered entries each run calls and
+  the key would take the objects those reach (their symbol references, with
+  `game/registry.c`'s table cut and its time model kept), plus `runtime/`,
+  `dev/` and the generated C whole. Until a run records that, the binary is
+  the narrowest key that can't go stale.
 - **What the data teardown's review left** (not blocking):
   - `scene_boot` has no don't-care set and no longer leaves N and Z as the
     data bank's after the unpack; if `scene_accept_continuation` refuses,

@@ -108,6 +108,26 @@ class Keys(unittest.TestCase):
             i.rewrite(i.binary, b"program two")
             self.assertNotEqual(base, uncompared_evidence.case_key(case, i.binary, i.rom))
 
+    def test_the_judging_python_is_its_code_not_its_prose(self):
+        i = self.inputs
+        tool = i.root / "judge.py"
+        def digest(text):
+            i.rewrite(tool, text.encode())
+            return evidence_cache.code_digest(tool)
+        base = digest('"""Judges."""\n\ndef same(a, b):\n    """Whether."""\n    return a == b  # equal\n')
+        self.assertEqual(base, digest('"""Judges two runs."""\n\n# a note\n\ndef same(a, b):\n'
+                                      '    """Whether the two are one."""\n    return a == b\n'))
+        self.assertNotEqual(base, digest('"""Judges."""\n\ndef same(a, b):\n    return a != b\n'))
+        self.assertNotEqual(base, digest('"""Judges."""\n\ndef same(a, b):\n    return "no divergence" == b\n'))
+
+    def test_every_worktree_shares_one_store(self):
+        with mock.patch.object(evidence_cache, "shared_root", return_value=pathlib.Path("/checkout")):
+            self.assertEqual(evidence_cache.default_dir("/checkout/.claude/worktrees/a/build/main/ct_dev", "dc"),
+                             evidence_cache.default_dir("/checkout/build/main/ct_dev", "dc"))
+        with mock.patch.object(evidence_cache, "shared_root", return_value=None):
+            self.assertEqual(evidence_cache.default_dir(self.inputs.binary, "dc"),
+                             self.inputs.binary.resolve().parent / "evidence-cache" / "dc")
+
 
 class Storing(unittest.TestCase):
     def setUp(self):
