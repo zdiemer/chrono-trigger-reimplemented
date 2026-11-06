@@ -78,15 +78,19 @@ typedef struct NativeEntry {
      * counted unless a port takes over at the loop's exit. */
     uint8_t idle_return_span;
     /* A held wait's continuation (native_hold): nonzero, the number of the
-     * wait it goes on from. In ON mode the runtime runs it where the main
-     * thread rests in that wait, the machine named it (Snes.held_wait) and S
-     * is the one it rests with: C the runtime runs where the state says, not
-     * an entry the machine found by its address. The machine at its address
-     * with no wait held (a caller still on the gate, whose original code goes
-     * round to the loop's head; a state from before the wait was held) enters
-     * it as any entry, and holds the wait from there. SHADOW mode and the
-     * tools take it as any entry. An idle continuation that goes round holds
-     * the wait again itself; a port's holds it with m_hold_at. */
+     * wait it goes on from. In ON mode, where the machine names that wait
+     * (Snes.held_wait) and S is the one the main thread rests with, the
+     * runtime goes on in the wait by its number: it takes the wait's
+     * continuations from the rows it set aside for them when it was created,
+     * checks only that the PC is the wait's head, and runs the first that
+     * applies, without looking the address up. `addr` is the original's loop
+     * head, which serves where no wait is named -- a caller still on the gate
+     * whose original code goes round to the loop's head, a state saved before
+     * the wait was held -- and there the machine finds and enters it by
+     * address, as any entry, counted as such; it holds the wait from then on.
+     * SHADOW mode and the tools take it as any entry. An idle continuation
+     * that goes round holds the wait again itself; a port's holds it with
+     * m_hold_at. */
     uint8_t hold;
     /* Optional extra precondition, for example for code the game places in
      * RAM: return false unless the bytes at the entry are the code the port was
