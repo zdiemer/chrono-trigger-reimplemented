@@ -85,30 +85,3 @@ void attract_frame_pass(Snes *s)
     leave_flag(s, over);
     m_stop_at(s, over ? PROGRAM_RESTART : WAIT_LOOP, 0);
 }
-
-/* Guard for the vblank wait at $7E:31B0-$7E:31BE. */
-bool attract_vblank_wait_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E31B0, 15, 0x04AE9A24245E978Dull);
-}
-
-/* $7E:31B0: wait while the display is in vblank ($4212 bit 7 set). Idle entry,
- * 8-bit A. Continues to the second loop at $7E:31B7. */
-void attract_vblank_end_loop(Snes *s)
-{
-    uint8_t status = m_lda8(s, m_read8(s, m_abs(s, 0x4212)));
-    m_bit_imm8(s, 0x80);
-    if (!(status & 0x80))
-        s->cpu.pc = 0x31B7;
-}
-
-/* $7E:31B7: wait until vblank starts, then return. Idle entry, 8-bit A. */
-void attract_vblank_start_loop(Snes *s)
-{
-    uint8_t status = m_lda8(s, m_read8(s, m_abs(s, 0x4212)));
-    m_bit_imm8(s, 0x80);
-    if (status & 0x80) {
-        s->cpu.pc = 0x31BE;
-        m_rts(s);
-    }
-}

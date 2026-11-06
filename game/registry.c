@@ -2802,7 +2802,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0x7E30E9, .name = "scene_after_work_ram_clear", .fn = scene_after_work_ram_clear, NEEDS_M8_X16,
       .cost_milli = 4604, .dont_care = DC_AL | DC_X | DC_N | DC_Z | DC_C, .guard = scene_after_work_ram_clear_present },
     { .addr = 0x7E31BE, .name = "scene_frame_wait_done", .fn = scene_frame_wait_done,
-      .cost_milli = 2625, .guard = attract_vblank_wait_present },
+      .cost_milli = 2625, .guard = scene_frame_wait_present },
     { .addr = 0x7E377A, .name = "scene_send_sound_command_long", .fn = scene_send_sound_command_long,
       .p_mask = CPU_FLAG_X, .p_value = 0, .cost_milli = 5250, .dont_care = DC_A | DC_X | DC_N | DC_Z,
       .guard = scene_send_sound_command_long_present },
@@ -4836,10 +4836,6 @@ const NativeEntry game_natives[] = {
       .guard = attract_wait_loop_present },
     { .addr = 0x7E3023, .name = "attract_frame_pass", .fn = attract_frame_pass, NEEDS_M16, .cost_milli = 3125,
       .guard = attract_frame_pass_present },
-    { .addr = 0x7E31B0, .name = "attract_vblank_end_loop", .fn = attract_vblank_end_loop, NEEDS_M8, .idle = true,
-      .guard = attract_vblank_wait_present },
-    { .addr = 0x7E31B7, .name = "attract_vblank_start_loop", .fn = attract_vblank_start_loop, NEEDS_M8, .idle = true,
-      .guard = attract_vblank_wait_present },
 
     /* the time warp, on its own page (D = $0500) */
     { .addr = 0xFDDB97, .name = "warp_set_up", .fn = warp_set_up, .cost_milli = 24782,
