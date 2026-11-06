@@ -3042,6 +3042,11 @@ comparisons.
 
 ## The native program
 
+- **The `dc-evidence:` notes' cited counts are stale.** The notes name how many
+  calls their `ct_fuzz --poison-dc` run made, and the current runs make more
+  (`game/battle/main_loop.c`'s `$C1:856D` note cites 285; the evidence run made
+  697). `dc_evidence.py` still passes; refresh the counts from a run.
+
 - **What the scene frame wait's review left.** REIMPLEMENTATION.md still names
   `attract_vblank_start_loop` in the attract section; reword it as history now that
   the row is gone. `pf_snes_vblank_wait` lists only `$7E:31B0`; a caller that enters
