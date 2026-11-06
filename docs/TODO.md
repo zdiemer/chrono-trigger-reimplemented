@@ -130,8 +130,8 @@ rest waits, is [PLAN.md](PLAN.md).
   recalibrating, since the drift limit holds only for the measured value.
   `--generated only` stays exact.
 - **Strict mode's battles a few frames off** (REIMPLEMENTATION.md, "Calls that
-  outlast a frame, and the battles' drift"). Of the 45 `drifts` movies, 32
-  still part with a battle menu's shift in force, a median 4 frames. What was
+  outlast a frame, and the battles' drift"). Of the 45 `drifts` movies, 29
+  still part with a battle menu's shift in force, a median 7 frames. What was
   found and not fixed:
   - *The passes' knife edge.* A battle's main-loop pass takes two or three
     frames by whether its work crosses a frame boundary, and the turn timers
@@ -156,7 +156,8 @@ rest waits, is [PLAN.md](PLAN.md).
     and `menu_run_the_main_task` are interrupted on every call and their
     handler goes on in another task, so even the interrupted measurement
     leaves them out; they keep a hand-set `cost_milli` of 5000.
-  - The sound waits count the light vblank handler's few percent twice.
+  - *The battle songs' load* (the time model's item "The handlers' share of
+    an upload", below): 9-12 frames early at every battle with a song of its own.
   - *Two entries the interrupted calibration would break.* At the values
     their interrupted calls imply, `battle_share_experience` (21758 to
     347796) puts a plain call 51,942 clocks off (the `worst` limit is 50,468)
@@ -165,8 +166,9 @@ rest waits, is [PLAN.md](PLAN.md).
     calls' paths differ. They keep their values; the batched calibration over
     the library will meet the same.
   - *A long route to check.* A `--long-routes` gate of the branch that added
-    the interrupted measurement, the DMA step and the sound waits' handlers
-    (before the two values above were put back) had 55 of 56 routes reach
+    the interrupted measurement and the DMA step (with the sound waits'
+    handlers, since backed out, and before the two values above were put
+    back) had 55 of 56 routes reach
     their outcome in the shipping mode; it was stopped when the gate policy
     changed, before it named the one that didn't. The batch's long routes
     will.
@@ -3064,10 +3066,19 @@ list, by kind, is what `game/` still asks of one.
     access, against 296). Wants a rate that follows the mode (the
     overworld's scenes, the battle), or the routines that overrun named with
     their own measured time.
-  - *The handlers' share of an upload, without a machine.* On the machine a
-    sound command's wait takes the handlers' time on top (`native_wait_time`);
-    `ct_native` charges the wall's time under a light handler, so its loads
-    under the battle's or the menus' handler are short.
+  - *The handlers' share of an upload.* The sound driver's upload time is
+    the wall's under a light vblank handler; under the menus' busy one the
+    original's song loads in about twice the frames, and a battle's song,
+    loaded once the battle's handler is in, in 56 frames where strict mode
+    takes 47 (`battle-mud-imp`'s `$45`, 32,997 bytes sent and 8,964 moved;
+    9-12 frames at every battle with a song of its own). Waiting the CPU
+    half's own time on the machine (the handlers on top) followed it, but the
+    native-shape build's `beyond_time` route then never walked out of `$DA01`
+    (its exit search found no move); tried again on the strict-drift branch
+    (adding the handlers' time to `native_wait_time`'s wait), it closed most
+    battles' start shift and broke the same route (`beyond_time:form2`, the
+    second form's chamber, in the native-shape build only), so it was backed
+    out. Find why the route stalls before taking it.
   - *A song held while the echo settles* loads at the wait's end, uncharged
     (`frontend/sound_host.c`, `sound_native.c`); only short songs met it in
     the library.

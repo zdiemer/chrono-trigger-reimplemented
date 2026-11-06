@@ -997,28 +997,31 @@ shadow run's per-call times):
 - *A song loaded under the battle's handler.* A battle with its own song
   loads it after the battle's vblank handler is in, and the time model's
   upload rates are the wall's under a light one: `battle-mud-imp`'s battle
-  song took 47 frames in strict mode and 56 in the original's. A sound
-  command's wait now takes the handlers' time on top (the frame-level time
-  model, below).
+  song took 47 frames in strict mode and 56 in the original's. Taking the
+  handlers' time on top of a sound command's wait closed it, and broke the
+  native-shape build's `beyond_time:form2` route as it had once before, so
+  it is not in (the frame-level time model, below; TODO.md).
 
 Measured with the calibration of the entries only interrupted stretches
 measure over 73 shadow runs (the drifting movies and the gate's sample;
 `timing_gate.py --calibrate --interrupted --also battle_start_from_field`),
 and `tools/drift.py --drifting --no-timed`: before, 34 of the 45 parted with
 a battle menu's shift in force, a median 11 frames, and every save movie's
-battles started one random number low; after, the battles start from the
-reference's number (`events-proto-dome`'s differs for another cause, as it
-did), 32 part with a battle menu's shift in force, a median 4 frames, and
-`battle-denadoro` and `events-sun-stone` play as the reference to their end.
-Two movies that ended as the reference before now drift, `drift.py` finding
-both drift (with the original's time each plays as the reference to its
-end): `battle-tyrano-lair-walls`, whose battle menu opens a frame late, and
-`late-omen-terramutant`, which the sound waits move. The gate sample's
-strict outcomes were re-recorded with the change (`tools/outcomes_exceptions.txt`;
-the checkpoints a run no longer matches leave `tools/outcomes_baseline.txt`).
-Of the rest, 21 part later than they did and 10 earlier: a battle a frame
-off meets the recorded presses otherwise from there on, so where a movie
-parts moves either way with any change to the time. What is left is in
+battles started one random number low; after the first three changes, the
+battles start from the reference's number (`events-proto-dome`'s differs for
+another cause, as it did), 29 part with a battle menu's shift in force, a
+median 7 frames, and `battle-denadoro` ends as the reference
+(`strict_check.py`). `battle-tyrano-lair-walls`, which ended as the reference,
+now drifts (`drift.py`: with the original's time it plays as the reference
+to its end). The gate sample's strict outcomes were re-recorded with the
+change (`tools/outcomes_exceptions.txt`; the checkpoints a run no longer
+matches leave `tools/outcomes_baseline.txt`, each movie that lost one being
+drift or the same as the reference by `drift.py`). Of the rest, 19 part later
+than they did and 6 earlier: a battle a frame off meets the recorded presses
+otherwise from there on, so where a movie parts moves either way with any
+change to the time. With the sound waits' handlers on top as well, the
+median was 4 frames and `events-sun-stone` ended as the reference too; that
+change is out until the route it breaks is understood. What is left is in
 TODO.md ("Strict mode's battles a few frames off").
 
 ### The frame-level time model
@@ -1088,14 +1091,14 @@ numbers in `time_model.h` with how):
 | A send to video memory from the main thread, in `ct_native` | 8 a byte | DMA's rate; the handlers' sends are the frame's own |
 
 The sound's are the wall's time under a light vblank handler, and the machine
-lets it pass as a wait (`native_wait_time`) with interrupts taken meanwhile
-and their time added on top, so a load under a busier handler takes the
-longer the original's does: the same song loads in about twice the frames
-under the menus' busy handler (`menus-shop-equip`'s songs, 820 to 1,230 clocks
-a byte), and a battle's song, loaded once the battle's vblank handler is in,
-took 47 frames where the original's took 56 (`battle-mud-imp`'s `$45`) before
-the handlers went on top ("Calls that outlast a frame", above). The light
-handler's few percent are counted twice. The C driver
+lets it pass as a wait (`native_wait_time`, interrupts taken meanwhile). The
+same song loads in about twice the frames under the menus' busy handler
+(`menus-shop-equip`'s songs, 820 to 1,230 clocks a byte), and a battle's song,
+loaded once the battle's vblank handler is in, in 56 frames where strict mode
+takes 47 (`battle-mud-imp`'s `$45`), which the model doesn't follow. Waiting
+the CPU half's own time instead, the handlers' on top, followed it, but sent
+the native-shape build's `beyond_time` route into a wait it never walked out
+of; tried twice, it was dropped both times (TODO.md). The C driver
 keeps the count: `SoundDriver.bytes_sent` and `bytes_moved` are
 what it loads (`game/sound/`, a size and no time), and its two hosts
 (`frontend/sound_host.c` on the machine, `frontend/sound_native.c` without)
