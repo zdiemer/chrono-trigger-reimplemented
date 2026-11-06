@@ -2870,6 +2870,36 @@ rest waits, is [PLAN.md](PLAN.md).
   clamps kept, rechecked if the radius ramp is loaded from an editable
   asset.
 
+- **The overworld can't retire the gate before its main loop's held wait
+  stops needing registered entries.** A teardown of `game/overworld/` was
+  attempted and stopped at the preconditions, for the warp's and attract's
+  reason. Census of four movies on the world map (`field-65m-bc`,
+  `field-65m-bc-dactyl`, `field-65m-bc-dactyl-flight`, `field-12kbc-1f4`;
+  12,676 frames): the machine makes 932,226 passes of the object system's
+  frame wait `$C2:0348`, and enters `overworld_main_loop` (`$C2:23CF`) 1,855
+  times, 1,848 of them by its own stop at the end of a pass and 7 by return;
+  each pass calls out to the wait (`$C2:046E`, 1,861). The loop is one pass
+  per entry because that wait is the main thread's at every frame end on the
+  map, held on the machine (`next_frame_on_the_machine` in `main_loop.c`):
+  as C called from the field's start, the loop would be a port suspended
+  for the whole stay on the map, with no `ct_drive` base and no `ct_play`
+  quick save there. The object rows (`overworld_lead`, `_follow`, the
+  vehicles, the Epoch, the dactyls, the sign, the region's song: 1,663 to
+  3,854 entries each) are entered by `call` from `menu_run_objects`
+  (`$C2:051D`), which the vblank handler reaches by `console_vblank_stub`'s
+  stop into `menu_object_nmi` (2,031): the C path already dispatches them
+  through `menu/handlers.h`, so they leave the registry with the menu's
+  object system's vblank path, not with the overworld. The rest holds as
+  far as was checked: no `C2:` line in `tools/fallback_shipping_baseline.txt`
+  (the reference play's `C2:----` and `open C2:23CF` lines in
+  `tools/fallback_baseline.txt` are the vblank's cut stretches and the
+  loop's open comparison), and the four movies have recorded outcomes. The
+  unreached ledger's overworld rows (`overworld_set_up`'s 26 bytes held by
+  `unreached_safe`, `overworld_lead`'s 190 by fuzz cases) were not audited
+  further. Retire it when held waits no longer need a registered idle
+  entry (a `native_wait_call` woken by the vblank flag is the candidate for
+  `$C2:0348`) and the object system's vblank path runs as a call.
+
 - **Boot credit pages outside the five-page table.** The page index at
   `$0382` survives startup. Random values above five read unrelated program
   bytes as text and differ in VRAM/OAM; boot now refuses those states before
