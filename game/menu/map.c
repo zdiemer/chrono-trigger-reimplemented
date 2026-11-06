@@ -736,7 +736,7 @@ void menu_map_upload_block(Snes *s)
  * own, which a scroll run on the machine still enters. They take the plane
  * and its tables from the scroll's cells, and the strip's place from the
  * two cells the scroll fills before each call; the game keeps the plane one
- * that scrolls and the place on the map. */
+ * that scrolls, its tables the plane's own and the place on the map. */
 static MapPlane plane_in_cells(const GameState *g)
 {
     return (MapPlane){ (uint8_t)(menu_object_scratch_map_plane_index(g) >> 1), menu_object_scratch_map_groups(g),
@@ -750,7 +750,9 @@ bool menu_map_strip_builds(Snes *s)
     vars_peek(true);
     const GameState *g = state_of(s);
     uint16_t index = menu_object_scratch_map_plane_index(g);
-    bool ok = (index == 0 || index == 2) && buffer_is_in_work_ram(g)
+    MapPlane p = plane_in_cells(g);
+    MapPlane own = plane_of(g, p.plane);
+    bool ok = (index == 0 || index == 2) && p.groups == own.groups && p.map == own.map && buffer_is_in_work_ram(g)
               && menu_object_scratch_map_strip_column(g) < MAP_COLUMNS
               && menu_object_scratch_map_strip_row(g) < MAP_ROWS;
     vars_peek(false);
