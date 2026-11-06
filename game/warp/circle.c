@@ -7,8 +7,7 @@
  * shown. A radius of 0 is no circle at all: every line's window empty. */
 #include "warp/warp.h"
 
-#include "cpu_io.h"
-#include "original_effects.h"
+#include "core/program.h"
 #include "platform/video.h"
 #include "ram.h"
 #include "vars.h"
@@ -27,15 +26,13 @@ enum { LINES_BUILT = 255, EMPTY_LEFT = SCREEN_RIGHT, EMPTY_RIGHT = 0 };
  * way): each step down takes the line's distance over the radius from the
  * width, and the width over the radius moves the point on down. The original
  * keeps a width as a word whose fraction lands on the next line's entry until
- * that line is reached, which only its scaffolding repeats. */
+ * that line is reached, as the C does. */
 enum { MOST_LINES = 0x80, ONE = 0x100, HALF = 0x80, NEGATIVE = 0x8000 };
 
 typedef struct {
     uint8_t width[MOST_LINES + 2];  /* the widths, and the fraction past the last */
-    uint8_t last_given;             /* the last line given a width */
-    uint8_t left_on;                /* the line the point left the quarter from */
     uint8_t step;                   /* a line's share of the radius, in 256ths */
-    uint16_t area, run;             /* where the point was when it left */
+    uint16_t area, run;             /* where the point is */
     uint16_t steps;                 /* how many times the point was stepped */
 } HalfWidths;
 
@@ -44,18 +41,15 @@ static void work_out_half_widths(uint8_t radius, HalfWidths *h)
     h->step = (uint8_t)(ONE / radius);
     h->area = (uint16_t)(radius << 8 | HALF);
     h->run = 0;
-    h->last_given = 0;
     h->steps = 0;
     for (;;) {
         uint8_t line = (uint8_t)(h->run >> 8);
         h->steps++;
-        h->left_on = line;
         h->area = (uint16_t)(h->area - h->step * line);
         if (h->area & NEGATIVE || line + 1u >= sizeof h->width)
             return;
         h->width[line] = (uint8_t)(h->area >> 8);
         h->width[line + 1] = (uint8_t)h->area;
-        h->last_given = line;
         h->run = (uint16_t)(h->run + h->step * (h->area >> 8));
     }
 }
@@ -86,64 +80,32 @@ static void put_circle_line(Builder *b, uint8_t width)
     put_line(b, left, right);
 }
 
-/* What the original leaves of a build: the radius, where the point stopped and
- * the lower half's lines in the work cells; its divider and multiplier as the
- * last step left them; the widths' table; and the port's cursor past the lines. */
-enum { WORK_RADIUS = 0, WORK_AREA = 10, WORK_RUN = 12, WORK_LOWER_LINES = 14 };
-
-static void leave_half_widths(GameState *g, const HalfWidths *h)
-{
-    for (unsigned line = 0; line <= h->last_given + 1u; line++) {
-        if (line < MOST_LINES)
-            set_warp_circle_half_widths(g, line, h->width[line]);
-        else
-            /* the largest radius's last fraction, on the first table's first byte */
-            set_warp_circle_half_widths_unchecked(g, line, h->width[line]);
-    }
-}
-
-static void leave_the_working(GameState *g, uint8_t radius, const HalfWidths *h, uint8_t lower_lines)
-{
-    warp_leave_work_byte(g, WORK_RADIUS, radius);
-    warp_leave_work_word(g, WORK_AREA, h->area);
-    warp_leave_work_word(g, WORK_RUN, h->run);
-    warp_leave_work_byte(g, WORK_LOWER_LINES, lower_lines);
-    hw_set_dividend(g, ONE);
-    hw_divide_by(g, radius);
-    hw_set_multiplicand(g, h->step);
-    (void)hw_multiply_by(g, h->left_on);
-}
-
-static void leave_the_port(GameState *g, unsigned table)
-{
-    uint32_t end = RAM_WARP_CIRCLE_WINDOWS + (table * WARP_CIRCLE_TABLE_LINES + LINES_BUILT) * RAM_WARP_CIRCLE_WINDOWS_STRIDE;
-    hw_port_seek(g, RAM_ABS(end), (uint8_t)(end >> 16));
-}
+enum { BUILD_THE_CIRCLE = 0xFDEB8B };
 
 // $FD:EB8B
 /* Build the circle of the radius warp_circle_radius holds into the table not
  * shown: the lines above it empty, the circle's upper half from its widest line
  * up, its lower half from its widest line down, and the lines below it empty.
  * The radius is one the warp's ramp gives (2-127) or 0: the upper half's count
- * runs from the radius less one and would wrap for a radius of 1. Returns how
- * many times the circle's point was stepped (warp.h). */
+ * runs from the radius less one and would wrap for a radius of 1. That is a
+ * claim the game keeps (the ramp is the cartridge's), checked here: a build
+ * with no machine stops at any other radius, and the clamps below keep the
+ * lines on the screen whatever it is. Returns how many times the circle's
+ * point was stepped (warp.h). */
 uint16_t warp_build_circle(GameState *g)
 {
     unsigned table = (uint8_t)(warp_circle_tables_built(g) + 1) % WARP_CIRCLE_TABLES;
     set_warp_circle_tables_built(g, (uint8_t)(warp_circle_tables_built(g) + 1));
-    ORIGINAL_EFFECT(set_warp_circle_center_x(g, CIRCLE_MIDDLE));
-    ORIGINAL_EFFECT(set_warp_circle_center_y(g, CIRCLE_MIDDLE));
     uint8_t radius = warp_circle_radius(g);
+    if (radius == 1 || radius > MOST_LINES - 1)
+        program_needs_the_machine(g, BUILD_THE_CIRCLE, "a warp's circle of a radius its ramp never gives");
     Builder b = { g, table * WARP_CIRCLE_TABLE_LINES };
     if (radius == 0) {
-        ORIGINAL_EFFECT(warp_leave_work_byte(g, WORK_RADIUS, 0));
         put_empty_lines(&b, LINES_BUILT);
-        ORIGINAL_EFFECT(leave_the_port(g, table));
         return 0;
     }
     HalfWidths h;
     work_out_half_widths(radius, &h);
-    ORIGINAL_EFFECT(leave_half_widths(g, &h));
     if (radius <= CIRCLE_MIDDLE)
         put_empty_lines(&b, (uint8_t)(CIRCLE_MIDDLE - radius));
     for (unsigned line = (radius < CIRCLE_MIDDLE ? radius : CIRCLE_MIDDLE) - 1u; line > 0; line--)
@@ -152,7 +114,5 @@ uint16_t warp_build_circle(GameState *g)
     for (unsigned line = 0; line < lower_lines; line++)
         put_circle_line(&b, h.width[line]);
     put_empty_lines(&b, (uint8_t)(0u - radius - CIRCLE_MIDDLE));
-    ORIGINAL_EFFECT(leave_the_working(g, radius, &h, lower_lines));
-    ORIGINAL_EFFECT(leave_the_port(g, table));
     return h.steps;
 }

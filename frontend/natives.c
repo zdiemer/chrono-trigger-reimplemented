@@ -42,6 +42,8 @@ int natives_select(NativeTable *t, const uint8_t *rom, size_t rom_size, const Na
     }
     for (int i = 0; ports && i < game_held_wait_count; i++) {
         const NativeEntry *e = &game_held_waits[i];
+        if (e->retired && c->mode != NATIVE_ON)
+            continue;   /* a retired subsystem's: the cartridge's code runs there */
         if (!has_prefix(e->name, c->exclude, c->nexclude) &&
             (!c->ninclude || has_prefix(e->name, c->include, c->ninclude)))
             t->entries[t->ported++] = *e;

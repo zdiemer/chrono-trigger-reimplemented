@@ -100,6 +100,12 @@ void native_own_dont_care_at_stop(Snes *s, uint32_t at, uint16_t dont_care)
     no_machine("native_own_dont_care_at_stop");
 }
 void native_hold(Snes *s, uint8_t wait) { (void)s, (void)wait; no_machine("native_hold"); }
+bool native_runs_retired_as_c(const Snes *s)
+{
+    (void)s;
+    no_machine("native_runs_retired_as_c");
+    return false;
+}
 void native_stack_dont_care(Snes *s, uint16_t at, uint16_t bytes) { (void)s, (void)at, (void)bytes; no_machine("native_stack_dont_care"); }
 void native_stack_cared(Snes *s) { (void)s; no_machine("native_stack_cared"); }
 void native_flags_saved(Snes *s) { (void)s; no_machine("native_flags_saved"); }

@@ -1704,6 +1704,8 @@ static bool wait_over(Active *a, const Snes *s)
             a->saw_picture = true;
         return a->saw_picture && s->bus.in_vblank;   /* $4212 bit 7, as the original's polls read it */
     }
+    if (a->wake == NATIVE_WAKE_VBLANK_FLAG)
+        return s->bus.nmi_flag || s->bus.in_vblank;
     if (native_wake_is_on_port0(a->wake))
         return native_wake_port0_satisfied(a->wake, s->apu.cpu_out[0]);
     return s->vline < SNES_VBLANK_LINE && s->vline >= (uint32_t)a->wake;
@@ -1716,7 +1718,7 @@ static bool wait_over(Active *a, const Snes *s)
  * line. */
 static uint32_t wait_step(const Active *a, const Snes *s)
 {
-    if (a->wake == NATIVE_WAKE_HBLANK || a->wake == NATIVE_WAKE_HBLANK_END)
+    if (a->wake == NATIVE_WAKE_HBLANK || a->wake == NATIVE_WAKE_HBLANK_END || a->wake == NATIVE_WAKE_VBLANK_FLAG)
         return snes_clocks_to_next_poll_change(s);
     if (a->wake == NATIVE_WAKE_VBLANK)
         return SNES_CLOCKS_PER_LINE - s->hclock;
@@ -1982,6 +1984,12 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
                 *result = (int32_t)(IDLE_EXIT_CLOCKS - into);
                 return true;
             }
+        }
+        if (a->wake == NATIVE_WAKE_VBLANK_FLAG && !a->exit_passed) {
+            /* the loop's last pass, as its idle entry's exit took it */
+            a->exit_passed = true;
+            *result = IDLE_EXIT_CLOCKS;
+            return true;
         }
         if (a->wake == NATIVE_WAKE_HBLANK && !a->exit_passed) {
             /* the original's last pass ends no sooner than a pass after
@@ -2999,6 +3007,25 @@ static int32_t start_port(NativeRuntime *rt, Snes *s, const NativeEntry *e, bool
  * or where none of them applies (its code isn't in place), the main thread
  * has left the wait: it is named no longer, and the machine goes on as it
  * stands, by the address path. */
+/* ON: the main thread resting in a held wait has nothing suspended, so a
+ * call-out still waiting for its callee to return at or below the wait's S
+ * is one whose frame the program left behind: the time warp starts on the
+ * game's fresh stack from inside the field's frame, whose call-outs the
+ * original never returns to, and the wait rests where their return would
+ * be. The machine leaving through such a frame (an RTS above it) used to
+ * drop them; a continuation the runtime runs as C makes no such move, so
+ * they are dropped here, counted as abandoned. */
+static void drop_what_the_held_wait_left(NativeRuntime *rt, const Snes *s)
+{
+    while (rt->nactive > 0) {
+        Active *a = &rt->active[rt->nactive - 1];
+        if (a->phase != PH_CALLOUT || !a->job || s->cpu.s < a->job->call_s_after)
+            return;
+        stats_of(rt, a)->abandoned++;
+        finish(rt);
+    }
+}
+
 static bool go_on_in_the_held_wait(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
 {
     uint8_t wait = s->held_wait;
@@ -3090,6 +3117,7 @@ static int32_t intercept(void *ctx, Snes *s)
      * it, the wait's continuations, by its number */
     if (rt->mode == NATIVE_ON && rt->port_timing != PORT_TIMING_ORACLE && s->held_wait && s->cpu.s == s->held_wait_s) {
         int32_t result;
+        drop_what_the_held_wait_left(rt, s);
         if (go_on_in_the_held_wait(rt, s, pc, &result))
             return result;
     }
@@ -3444,6 +3472,8 @@ bool native_waits_in_place(const Snes *s)
     const Job *j = current_job;
     return j && j->m == s && active_runtime && active_runtime->mode == NATIVE_ON;
 }
+
+bool native_runs_retired_as_c(const Snes *s) { return native_waits_in_place(s); }
 
 /* A port's wait in a loop of its own, under the runtime: the machine stands
  * where the port is (ON), or the original runs the loop (SHADOW), and the port

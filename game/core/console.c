@@ -19,6 +19,7 @@
 #include "core/program.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
+#include "warp/warp.h"
 
 enum {
     BOOT = 0xFDC000,
@@ -62,13 +63,19 @@ void console_vblank_vector(Snes *s) { m_stop_at(s, VBLANK_STUB, 0); }
 void console_line_vector(Snes *s) { m_stop_at(s, LINE_STUB, 0); }
 
 /* An interrupt goes to the handler its stub names, or back to what it
- * interrupted where the mode has turned it away. */
+ * interrupted where the mode has turned it away. The time warp's handler is
+ * a retired subsystem's (warp/warp.c): in the shipping mode it runs as C and
+ * returns from the interrupt here. */
 static void take_interrupt(Snes *s, ProgramStub stub)
 {
-    if (stub.kind == PROGRAM_STUB_RETURNS)
+    if (stub.kind == PROGRAM_STUB_RETURNS) {
         m_rti(s);
-    else
+    } else if (stub.handler == WARP_VBLANK_HANDLER && m_runs_retired_as_c(s)) {
+        warp_takes_the_frame_on_the_machine(s);
+        m_rti(s);
+    } else {
         m_jump_to(s, stub.handler);
+    }
 }
 
 // $00:0500

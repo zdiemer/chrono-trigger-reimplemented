@@ -19700,101 +19700,6 @@ state = "overworld"
 args = ["--d", "0000", "--db", "00", "--fill", "7E0103-7E0103=00-7F", "--fill", "7F01ED-7F01ED=00,00,00,01"]
 why = "a scene's script's call on the object mode's page, the party anywhere on the region map (the guard), a screen keeping the song a quarter of the time"
 
-# ---- warp: the time warp (bank FD) ---------------------------------------------------------------
-
-[state.warp]
-movie = "oracle/movies/saves/events-end-of-time-gate.ctm"
-frames = 4010
-
-[[routine]]
-name = "warp_set_up"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEADA"]
-iterations = 200
-why = "everything random but the stack: the start writes all it reads but the story flags it keeps; compared up to the wait for the vblank that turns the screen on (the start reaches the original's wait there on the SNES backend)"
-
-[[routine]]
-name = "warp_long_frame"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
-iterations = 5000
-why = "the warp's page with its zero (the guard), everything else random: the frame count anywhere (every phase, and past the end), the circle's tables, the palette"
-
-[[routine]]
-name = "warp_short_frame"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E051C-7E051C=00"]
-iterations = 5000
-why = "as warp_long_frame, the frame count under 256 so its every phase and its end come up"
-
-[[routine]]
-name = "warp_shortest_frame"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E051C-7E051C=00"]
-iterations = 5000
-why = "as warp_short_frame"
-
-[[routine]]
-name = "warp_flickering_frame"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--range", "A=0000-00FF"]
-iterations = 5000
-why = "as warp_long_frame, with A's high byte clear as every frame leaves it: the brightness's index takes it along (game/warp/warp.c, flicker), and only the start leaves it otherwise, before the first frame, whose place in the pattern is 0"
-
-[[routine]]
-name = "warp_go_dark"
-subsystem = "warp"
-state = "warp"
-args = ["--db", "00"]
-iterations = 2000
-why = "a bank reaching the registers (the guard)"
-
-[[routine]]
-name = "warp_end"
-at = "FD:DA55"
-subsystem = "warp"
-state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
-iterations = 2000
-why = "the warp's page with its zero (the guard); the four kinds' ends are the one entry"
-
-[[routine]]
-name = "warp_put_back_the_story_flags"
-subsystem = "warp"
-state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
-iterations = 2000
-why = "the warp's page with its zero (the guard)"
-
-[[routine]]
-name = "warp_wait_for_frame"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
-iterations = 2000
-why = "the warp's page with its zero (the guard)"
-
-[[routine]]
-name = "warp_turn_the_screen_on"
-subsystem = "warp"
-state = "warp"
-args = ["--db", "00"]
-iterations = 2000
-why = "a bank reaching the registers (the guard)"
-
-[[routine]]
-name = "warp_vblank"
-subsystem = "warp"
-state = "warp"
-args = ["--interrupt"]
-iterations = 5000
-why = "everything random but the stack: the handler sets its own page and bank"
-
 # ---- scene: the title's program --------------------------------------------------------------------
 
 [[routine]]
@@ -21143,78 +21048,6 @@ iterations = 2000
 why = "on the battle's page; up to the music's fade, its first call, which waits for the sound driver (its own row fuzzes it)"
 
 [[routine]]
-name = "warp_start_the_long_trip"
-at = "FD:DA00"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEADA"]
-iterations = 200
-why = "as warp_set_up, through the kind's start"
-
-[[routine]]
-name = "warp_start_the_short_trip"
-at = "FD:DA5F"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEADA"]
-iterations = 200
-why = "as warp_set_up, through the kind's start"
-
-[[routine]]
-name = "warp_start_the_shortest_trip"
-at = "FD:DABE"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEADA"]
-iterations = 200
-why = "as warp_set_up, through the kind's start"
-
-[[routine]]
-name = "warp_start_the_flickering_trip"
-at = "FD:DB1D"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEADA"]
-iterations = 200
-why = "as warp_set_up, through the kind's start"
-
-[[routine]]
-name = "warp_long_trip_waits"
-at = "FD:DA03"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
-iterations = 2000
-why = "the warp's page and its zero word (the guard's): the main loop's wait, to its loop"
-
-[[routine]]
-name = "warp_short_trip_waits"
-at = "FD:DA62"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
-iterations = 2000
-why = "as warp_long_trip_waits"
-
-[[routine]]
-name = "warp_shortest_trip_waits"
-at = "FD:DAC1"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
-iterations = 2000
-why = "as warp_long_trip_waits"
-
-[[routine]]
-name = "warp_flickering_trip_waits"
-at = "FD:DB24"
-subsystem = "warp"
-state = "warp"
-args = ["--stop-at-call", "FDEAED", "--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00"]
-iterations = 2000
-why = "as warp_long_trip_waits"
-
-[[routine]]
 name = "scene_call_the_scripts_routine"
 at = "7E:37F3"
 subsystem = "scene"
@@ -22049,14 +21882,6 @@ variant = "destination"
 subsystem = "scene"
 state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0100-7E0101=0000,01EF,01F0", "--stop-at-call", "C00B86", "--apu-loopback"]
-why = "A field or world-map destination; compare through field entry to its first location setup, or its world-map handoff."
-
-[[routine]]
-name = "warp_end"
-variant = "destination"
-subsystem = "warp"
-state = "warp"
-args = ["--d", "0500", "--db", "00", "--fill", "7E0508-7E0509=00", "--fill", "7E0100-7E0101=0000,01EF,01F0", "--stop-at-call", "C00B86", "--apu-loopback"]
 why = "A field or world-map destination; compare through field entry to its first location setup, or its world-map handoff."
 
 [[routine]]

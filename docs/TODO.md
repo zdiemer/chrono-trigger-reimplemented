@@ -38,15 +38,16 @@ rest waits, is [PLAN.md](PLAN.md).
   projection from the new storage; a picture hash alone cannot establish
   that a visual difference cannot affect play.
 - **Keep the unreached ledger's preconditions when retiring the machine.**
-  `tools/unreached_safe.toml` names all 126 bytes excluded from execution
+  `tools/unreached_safe.toml` names all 117 bytes excluded from execution
   evidence, with exact runs in `tools/unreached_baseline.txt`: event's
   missing-text-table diagnostic calls (36 bytes), rejected word-OR (12), full
   shared-graphics table diagnostic (6) and graphics-overflow handoffs (12);
   overworld's unused scene-tile load (26), rejected boarding selector (2)
-  and impossible stationary follower trap (2); warp's fixed-centre/radius
-  clamps (9). Preserve the guard bounds as assertions and replace the
-  graphics error handoffs with native failures. Recheck the two immutable
-  resource arguments if map records or the radius ramp become editable.
+  and impossible stationary follower trap (2). Preserve the guard bounds as
+  assertions and replace the graphics error handoffs with native failures.
+  Recheck the immutable resource argument if map records become editable
+  (the warp's radius ramp is checked where it is used: `warp_build_circle`
+  stops a build with no machine at a radius the ramp never gives).
   The conservative walk also records the controller reset transfer (4), the
   event engine's original-only unknown-command diagnostic (6), and the
   separately registered field restart wait (5). Keep the reset chord and
@@ -212,8 +213,7 @@ rest waits, is [PLAN.md](PLAN.md).
     defeat on the screen effects' battlefield (`$CD:0D93`, fuzzed up to
     the music's fade; its `$CD:0DA2` continuation separately fuzzed up to the
     battlefield change), the planet's count down to the reset
-    (`$7E:63F5`) and its fade out (`$7E:6403`), the warp's long trip
-    (`$FD:DA00`, `$FD:DA03`) and the world map scene's note of the Epoch's
+    (`$7E:63F5`) and its fade out (`$7E:6403`) and the world map scene's note of the Epoch's
     arrival (`$C6:EE31`). Strict mode's own timing reached them; a movie that
     plays them would compare them.
   - Entries that run nested inside another port's stretch and are compared
@@ -283,7 +283,7 @@ rest waits, is [PLAN.md](PLAN.md).
   `92026499` measures +2.92%, probably the curtain sweep's own drift in the
   stretch. Re-measure and rewrite the reason.
 - **What the whole-library fixes' review left** (not blocking):
-  - The uncompared baseline's eight scene and warp lines aren't tied to the
+  - The uncompared baseline's scene lines aren't tied to the
     evidence that clears them on an ordinary run: `endings-bucket-lavos` is
     checked only under `--evidence`, and `tools/uncompared_evidence.py`'s
     `compared()` reads only the first row for a name.
@@ -1178,13 +1178,10 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What the time warp's review left** (none rated translation):
   `WarpKind` carries ROM columns (`frame_entry`, `window_site`) beside the
-  kinds' length and flicker, used as `PF_AT(...)` and `charge_as(...)`
-  (a parallel dispatch table); `warp_build_circle` returns its step count
-  only for the timing charge, and `HalfWidths`' `left_on`, `area` and `run`
-  exist only for scaffolding; `circle.c`'s `h->area & NEGATIVE` is a sign
-  test (`(int16_t)area < 0`), and its comment calls the fraction in
-  `width[line+1]` scaffolding though the logic's own `h->width` may read it
-  on the last line (check); `picture.c`'s callers pass origin tags into
+  kinds' length and flicker, used as `PF_AT(...)`, `charge_as(...)` and the
+  held wait's return (a parallel dispatch table); `warp_build_circle`
+  returns its step count only for the timing charge; `circle.c`'s
+  `h->area & NEGATIVE` is a sign test (`(int16_t)area < 0`); `picture.c`'s callers pass origin tags into
   `start_line_effect`, and the plane's tiles are filled byte by byte
   through the VRAM port; `warp_work`'s offsets are reused across files
   under different names (name the cells in the map); a third private
@@ -2508,10 +2505,11 @@ rest waits, is [PLAN.md](PLAN.md).
   (`field_wait_for_frame_loop`, `menu_wait_for_frame_loop`,
   `menu_wait_ready_loop`, `battle_wait_window_slide_loop`,
   `battle_wait_graphics_loaded_loop`, `scene_race_wait_for_tilemap_upload_loop`,
-  `attract_wait_loop`, `warp_wait_for_frame_loop`); the time warp's wait for
-  the vblank before it turns its picture on (`warp_screen_on_wait_for_vblank_loop`,
-  `$FD:EADA`, reached through `tm_wait_frame_then_enable` as the field's
-  `$C0:0B38` is). Ports that called the modes' wait routines call
+  `attract_wait_loop`). The time warp's wait before it turns its picture on
+  (`$FD:EADA`) waits where its port stands in the shipping mode
+  (`NATIVE_WAKE_VBLANK_FLAG`); the field's (`$C0:0B38`), reached through
+  `tm_wait_frame_then_enable` the same way, is still the original's
+  routine. Ports that called the modes' wait routines call
   `tm_wait_frame` (`field_wait_frame`, `battle_wait_frame`). The battle's
   wait routines are ports whose loops give the processor up through
   `tm_wait_for_handlers` (`battle/wait.c`; PLATFORM.md, "Timing without a
@@ -2826,58 +2824,21 @@ rest waits, is [PLAN.md](PLAN.md).
   racer pictures pass. The wait needs caller-instance matching before this
   boundary can leave. The Epoch and ending gathering paths need no such wait.
 
-- **The last warp frame and HDMA shutdown still compare separately.**
-  Calling `warp_end` directly from the last frame made End of Time gate
-  differ at PPU `$210E` (original 00, native 01): the last scanline value
-  changes with beam time, but the comparison no longer masks it after HDMA
-  is disabled. Continuing into field entry moves the same difference to
-  its song call. The frame therefore retains the ending-entry boundary;
-  the ending itself now continues through field entry as C. Settle the
-  shutdown's beam timing before combining these comparisons. Under a
-  warp's teardown (below) this item goes with the comparison: `$210E`
-  is a BG1 scroll latched while the screen is forced blank by `go_dark`,
-  nothing drawn shows it, and the last frame calls the end as one C
-  sequence, as `warp_runs` already does in `ct_native`.
-
-- **The time warp can't retire the gate before its main loop's held wait
-  is named.** A teardown of `game/warp/` was
-  attempted and stopped at the preconditions, for attract's reason (the
-  scene main loop's item, below). Census of the three movies that take a
-  gate (`events-end-of-time-gate`, `battle-lavos-gameover`,
-  `endings-bucket-lavos`; shortest, short and flickering trips): the machine
-  enters the frame wait's idle entry `$FD:EAED` 743,589 times, the
-  screen-on wait `$FD:EADA` 1,599, the vblank handler `$FD:DE15` 1,181
-  (by `console_vblank_stub`'s jump), and each frame entry (`$FD:DA65`,
-  `$DAC4`, `$DB27`; 255, 159 and 767) by return out of that wait; the starts
-  are entered by the field's stop or return, the ends by the last frame's
-  stop. The frame wait is the main thread's wait at every frame end of a
-  trip, held (`tm_wait_for_handlers_held`, PORTING.md): its continuation
-  is the frame entry the idle entry returns to. As calls from the field's
-  end, the trip would be one C loop waiting in place, a port suspended at
-  every frame end for 160 to 768 frames, with no `ct_drive` base and no
-  `ct_play` quick save inside a gate. The vblank handler alone could
-  become a call from `console_vblank_stub`; the loop can't without that
-  price. The rest holds: the shipping mode runs none of the warp's original
-  code (no `FD:` line in `tools/fallback_shipping_baseline.txt`), the
-  burndown leaves nothing of it unported, and the three movies have
-  recorded outcomes (pictures excepted in strict and native for two of
-  them, so they protect places and end states more than the picture).
-  Held waits can now be named (RUNTIME.md, "Held waits"), as the scene
-  program's main loop is. The wait's idle entry `$FD:EAED` and the frame
-  entries it returns to become rows of `game_held_waits` under a number of
-  their own, and the trip's starts hold the wait with `m_hold_at` where they
-  now stop at it. Then retire the warp, or decide that a trip's length without a base is an acceptable price (it
-  takes no input; ct_drive already tolerates far longer stretches in the
-  scaled-bitmap scenes). Its unreached rows stand as they are: the 9
-  clamp bytes (`warp_set_up`'s fixed centres at 128, radius 0 or 2..127)
-  become an assertion in `warp_build_circle` at the teardown, the C
-  clamps kept, rechecked if the radius ramp is loaded from an editable
-  asset.
+- **The time warp's set-up is owed with a port suspended.** The trip's
+  set-up draws the light a pixel at a time, about 110 frames of the
+  original's time with the screen dark, which the shipping mode charges to
+  the field's event entry that starts the trip; the entry pays it in the
+  screen's wait (`NATIVE_WAKE_VBLANK_FLAG`), suspended, so those frames have
+  no `ct_drive` base and no `ct_play` quick save (112 of
+  events-end-of-time-gate's 271 frames with the warp's handler installed).
+  A held wait at the screen's wait, the set-up's time paid as its
+  continuation's, would give them one.
 
 - **The overworld can't retire the gate before its main loop's held wait
   is named.** A teardown of `game/overworld/` was
-  attempted and stopped at the preconditions, for the warp's and attract's
-  reason. Census of four movies on the world map (`field-65m-bc`,
+  attempted and stopped at the preconditions, for attract's reason (the
+  time warp's, since retired: REIMPLEMENTATION.md, "The time warp's
+  teardown"). Census of four movies on the world map (`field-65m-bc`,
   `field-65m-bc-dactyl`, `field-65m-bc-dactyl-flight`, `field-12kbc-1f4`;
   12,676 frames): the machine makes 932,226 passes of the object system's
   frame wait `$C2:0348`, and enters `overworld_main_loop` (`$C2:23CF`) 1,855
@@ -2981,11 +2942,11 @@ mid-picture. Add resumable comparison checkpoints or a synchronized interrupt
 replay before removing the five bitmap/race exemptions. Keep that distinction
 when extending the race upload-wait comparison described above.
 
-Held sound/warp waits have independent shadow comparisons with interrupts
+Held sound waits have independent shadow comparisons with interrupts
 enabled: the attract opening compares the complete music wait and ten retry
-sends; End of Time gate and Lavos game-over compare 414 frame waits and each
-complete short/shortest trip and frame loop. Their combined-run exemptions
-remain because enclosing C loops own the waits. The merge coordinator runs
+sends. Their combined-run exemptions remain because enclosing C loops own
+the waits (the time warp's are no longer compared: REIMPLEMENTATION.md,
+"The time warp's teardown"). The merge coordinator runs
 the sampled gate after these review fixes; it was not rerun in this review.
 
 The early-boss shadow runs also expose a comparison gap in the held-message
@@ -3492,7 +3453,7 @@ list, by kind, is what `game/` still asks of one.
   scopes still need a state-based API that preserves sibling accounting.
 - **Waits on the beam.** `tm_snes_video_status`, the SNES backend's read of
   the beam's status, from the idle entries' passes (`field/frame.c`,
-  `scene/boot.c`, `warp/warp.c`); and the 19 wait loops the census still sees
+  `scene/boot.c`); and the 19 wait loops the census still sees
   passed on the machine (379 M passes: the menus' ready loop `$C2:81CA` and
   the field's frame wait `$C0:EC71` the most), each wanting the timing
   service's wait ("Timing without a beam", above).
@@ -3738,12 +3699,10 @@ waits on M5 rather than on a backend.
     guard's `field_is_dark` can change with the fade's step: check whether the
     machine guard lets a location change through, on the fade's last frame,
     without checking the leader is readable.
-  - `warp/warp.c`'s `warp_runs` puts the shared pieces together a second time
-    beside the machine's chained entries (the start beside `warp_set_up`, the
-    frame wait beside `warp_wait_for_frame`, the end beside `warp_end`); share a
-    begin and an end of the trip, the machine's page check a step. `kind_of`
-    spells the warp kinds as `WARP_FIRST_SCENE + n` where the field names them
-    (`SCENE_LONG_WARP`, ...); one definition.
+  - `warp/warp.c`'s `kind_of` spells the warp kinds as `WARP_FIRST_SCENE + n`
+    where the field names them (`SCENE_LONG_WARP`, ...); one definition. The
+    trip's end is still put together twice (`warp_runs`, and the held wait's
+    `end_the_trip_on_the_machine`).
   - `scene/planet.c`'s `planet_unpacks` keeps the machine's ROM call sites in
     a column beside the resources; a table only the machine step reads. Two
     comments sit back to back above `PlanetUnpack`.
@@ -4003,8 +3962,8 @@ waits on M5 rather than on a backend.
     measure's counts until the library's batched run takes them;
   - an idle entry's pass that leaves its wait is taken back only where it
     ran nothing but the loop and a port takes over at the exit, or the entry
-    returned within its entry's bytes (`idle_return_span`, set on the warp's
-    frame wait and the scene scripts' wait for the music); the other idle entries' leaving
+    returned within its entry's bytes (`idle_return_span`, set on the scene
+    scripts' wait for the music); the other idle entries' leaving
     passes (an exit that goes on into the routine) stay counted;
   - the Beyond Time route's replays from a base grew from 30,056 frames to
     44,660 with the battle frame work's remainders' second chunk

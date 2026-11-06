@@ -59,6 +59,7 @@
 #include "field/display.h"
 #include "field/parts.h"
 #include "menu/party.h"
+#include "warp/warp.h"
 #include "menu/party_leaves.h"
 #include "menu/saves.h"
 #include "overworld/main_loop.h"
@@ -854,9 +855,11 @@ void field_start_again(Snes *s)
 /* The scenes an event command asks for: below $80 the scene engine's (its
  * flags, scene.h, in A); from $80 the time warp's tunnel (warp/), as long as
  * the trip: the longest for $80, then shorter for $81 and $82, and the one
- * that flickers for the rest. Each starts the warp's setup and runs its
- * frames, still the original's code from its start. What each reads first it
- * sets, the flags the look at the scene's number left among it. */
+ * that flickers for the rest. The warp's gate is retired, so in the shipping
+ * mode its trip starts as C (warp_starts_on_the_machine), and elsewhere at
+ * the original's start for the kind, as the scene engine's does. What each
+ * reads first it sets, the flags the look at the scene's number left among
+ * it. */
 enum { SCENE_ENGINE = 0xC30000, SCENE_FIELD_CLOSES_INTO = 0x85 };
 enum { THE_SCENE_READS_A = DC_X | DC_Y | DC_N | DC_Z | DC_C };
 enum { SCENE_LONG_WARP = 0x80, SCENE_SHORT_WARP = 0x81, SCENE_SHORTEST_WARP = 0x82 };
@@ -864,7 +867,9 @@ enum { LONG_WARP = 0xFDDA00, SHORT_WARP = 0xFDDA5F, SHORTEST_WARP = 0xFDDABE, FL
 
 static void start_the_scene(Snes *s, uint8_t scene)
 {
-    if (scene == SCENE_LONG_WARP)
+    if (scene >= SCENE_LONG_WARP && m_runs_retired_as_c(s))
+        warp_starts_on_the_machine(s, scene);
+    else if (scene == SCENE_LONG_WARP)
         m_stop_at_own(s, LONG_WARP, THE_SCENE_READS_A);
     else if (scene == SCENE_SHORT_WARP)
         m_stop_at_own(s, SHORT_WARP, THE_SCENE_READS_A);

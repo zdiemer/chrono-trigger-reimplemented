@@ -233,7 +233,7 @@ where recalibration and baseline updates come from; "every movie" below is every
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**0 of 318 files is left on the backlog**: the last, `data/decompress.c`, is
+**0 of 317 files is left on the backlog**: the last, `data/decompress.c`, is
 rewritten (the unpacker as a function of the game's state, which the native
 program calls), and `tools/portstyle_baseline.txt` lists none. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
@@ -685,7 +685,14 @@ taking the gate down needs, before it and after it.
      screen. It leaves as a named held wait: its continuations go to
      `game_held_waits`, which the runtime runs where the saved machine names the wait
      (RUNTIME.md, "Held waits"; the scene program's is the first). The
-     overworld's and the warp's teardowns make theirs so next (TODO.md).
+     time warp's went third (REIMPLEMENTATION.md, "The time warp's
+     teardown"): what it showed is that a retired main loop is its held
+     wait's continuations, run in the shipping mode alone while the
+     reference play runs the cartridge's, that its still-gated callers call
+     it as C only there (`m_runs_retired_as_c`), and that a routine whose
+     row went keeps its calibrated estimate (`game_kept_estimates`), so the
+     shipping mode plays as it did, frame for frame. The overworld's
+     teardown makes its main loop so next (TODO.md).
   4. **Last, the machine leaves the product.** When no subsystem is under
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is

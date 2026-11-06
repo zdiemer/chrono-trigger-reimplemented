@@ -92,6 +92,11 @@ typedef struct NativeEntry {
      * that goes round holds the wait again itself; a port's holds it with
      * m_hold_at. */
     uint8_t hold;
+    /* A retired subsystem's held-wait continuation (docs/REIMPLEMENTATION.md,
+     * "The time warp's teardown"): selected in ON mode only (natives_select).
+     * SHADOW mode, which compares, and the tools leave the original's code to
+     * run there, as the cartridge's, compared with nothing. */
+    bool retired;
     /* Optional extra precondition, for example for code the game places in
      * RAM: return false unless the bytes at the entry are the code the port was
      * written for (see m_code_matches). It runs on the real machine in every
@@ -646,6 +651,11 @@ void native_await_latch(Snes *s);
 enum {
     NATIVE_WAKE_HANDLER = -1, NATIVE_WAKE_HBLANK = -2, NATIVE_WAKE_TIME = -3,
     NATIVE_WAKE_HBLANK_END = -4, NATIVE_WAKE_MUSIC_START = -5, NATIVE_WAKE_VBLANK = -6,
+    /* the vblank's flag ($4210 bit 7) up, or the picture in its vertical
+     * blank, with the vblank handler off: the time warp's wait before its
+     * screen comes on ($FD:EADA), which goes on as the loop's idle entry did,
+     * a pass after it sees either */
+    NATIVE_WAKE_VBLANK_FLAG = -7,
 };
 /* The waits on the APU's port 0, a value each: from NATIVE_WAKE_PORT0_SHOWS
  * down for "until it shows the value", from NATIVE_WAKE_PORT0_LEAVES down for
@@ -707,6 +717,12 @@ void native_hold(Snes *s, uint8_t wait);
  * also does something before it waits (puts a value on a port) does that
  * itself then. */
 bool native_waits_in_place(const Snes *s);
+/* Whether a retired subsystem's work runs here as its C (ON mode, in a port
+ * the runtime runs: the shipping mode), rather than as the cartridge's code
+ * on the machine, which is what shadow mode's reference play and the tools
+ * run of a retired subsystem, compared with nothing (docs/REIMPLEMENTATION.md,
+ * "The time warp's teardown"). */
+bool native_runs_retired_as_c(const Snes *s);
 /* ON mode, in a port the runtime runs: the machine stands where the port is
  * for `clocks` master clocks after the time the port owes, taking interrupts
  * there, as for a wait (NATIVE_WAKE_TIME): the original's code after what a

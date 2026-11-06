@@ -130,13 +130,14 @@ DEFAULT_COVERAGE = ("traces/coverage-*.txt", "traces/saves/cov-*.txt")
 DEFAULT_CALLS = ("traces/calls-*.txt", "traces/saves/calls-*.txt")
 STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
 # A held wait's stop (runtime/port/machine.h, m_hold_at(s, at, set, wait)) is
-# a stop at `at` declaring `set`.
+# a stop at `at` declaring `set` (m_hold_at_own: the stop's own set, as
+# m_stop_at_own's).
 # A jump to a sibling's routine (game/menu/bridge.h, menu_go_on_in(s, at,
 # entry, set)): its port run as C, or a stop at `at` declaring `set` where the
 # runtime wouldn't run it; read as a stop, its arguments at these places.
 # The menus' task loops' waits (game/menu/bridge.h) are stops at their site
 # declaring the named set the wait reads.
-STOP_DELEGATES = {"menu_go_on_in": (1, 3), "m_hold_at": (1, 2),
+STOP_DELEGATES = {"menu_go_on_in": (1, 3), "m_hold_at": (1, 2), "m_hold_at_own": (1, 2),
                   "menu_wait_in_the_task_loop": (1, "MENU_TASK_WAIT_READS_NOTHING"),
                   "menu_wait_frames_in_the_task_loop": (1, "MENU_TASK_WAIT_READS_THE_FRAMES")}
 # A held wait's origin, PF_LOOP_HELD(head, exit, set): a stop at head.
@@ -1053,7 +1054,7 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
             for v, _ in vals:
                 if call.name in STOPS or call.name in STOP_DELEGATES or call.name in HELD_WAITS:
                     decls.append(Decl("stop", src.path, src.line(call.offset), f.name if f else None, v[1] & 0xFFFF,
-                                      at=v[0] & 0xFFFFFF, own=call.name == "m_stop_at_own", offset=call.offset))
+                                      at=v[0] & 0xFFFFFF, own=call.name in ("m_stop_at_own", "m_hold_at_own"), offset=call.offset))
                 else:
                     decls.append(Decl("call", src.path, src.line(call.offset), f.name if f else None, v[2] & 0xFFFF,
                                       site=v[0] & 0xFFFFFF, target=None if v[1] is None else v[1] & 0xFFFFFF,
