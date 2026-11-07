@@ -153,26 +153,27 @@ gate before it lands, and a later phase's item can start early when it depends
 on nothing still open. Parallel work shares one machine, so each track is given
 a process budget.
 
-**The order now, by native coverage.** What to port next is picked by what real
-play still runs as the original (`tools/fallbacks.py --by routine`), not by
-which bank has the most unported bytes: a handback is a port calling code that
-isn't ported yet, so retiring it is porting its callee. In order:
+**The order now: the teardowns, then the machine out.** Real play runs no
+original code in place of a hand port in the shipping mode, so the order is no
+longer picked by native coverage but by what each subsystem's teardown needs
+(Phase 4a, "The native program, and the registry taken down", step 3). Sound,
+data, core's services and the time warp are retired. In order:
 
-1. **The menus and the overworld** (84%): what the shipping mode still runs
-   of bank `$C2` is code no port stands for, the screens' own routines still
-   the original's (`C2:----`, the fade out `$C2:83CA`, the gate screen's swirl
-   `$C2:CE86` and the number tiles in `$FF` it calls); and the fallback
-   measure's filing of one task's code under
-   another's hand-back, which shows where to look (TODO.md, "What the
-   shipping mode's fallbacks' eighth chunk left").
-2. **The scene program's five remaining boundaries**: the shared race
-   upload wait, the interrupted first-frame continuation, the warp's HDMA
-   shutdown, and the scripts' unsupported data and calling contexts
-   (TODO.md, "Scene continuation boundaries"). Its RAM and scene-engine
-   code now report 0% unported; modes 5 and 10 still need representative
-   native play beyond their isolated fuzz coverage.
-3. **The battle's** last handback in the shipping mode, the enemies' action
-   showing's stub (`$C1:BD6F`).
+1. **The overworld** (the menus' sprite-object mode and the world map's loop):
+   its vblank and objects already run as calls, and its main loop becomes a
+   held wait as the warp's did (TODO.md).
+2. **The attract and the scene program**: the interrupted wait's carry hand-off,
+   the scalings as C and the restart by return (TODO.md, "The scene main loop
+   still starts at its original boundary").
+3. **The field and the events, then the battle and the menus**: the largest,
+   each needing its unreached code checked and its recorded outcomes over the
+   library first ("The code no movie reaches", "Validation after the teardown").
+4. **`ct_native`'s time model** alongside, so the native program plays as the
+   original does: the loads and the battle's setup it charges wrongly first.
+
+Beside them, sharing no files: video by `vid_*` calls, the last cartridge reads
+outside the asset store, and the game's state moved into C structs as each
+subsystem retires. Then step 4, the machine out of the product.
 
 ## The validation gate
 
