@@ -1,8 +1,7 @@
-/* The overworld's main loop (game/overworld/main_loop.c), on the original's
- * machine, a frame at a time: from its head ($C2:23CF), and from where the
- * original comes back from the menus ($C2:255A). Each ends back at the head
- * for the next frame, or where the overworld leaves for the field, or hands
- * over to the original. */
+/* The overworld's main loop (game/overworld/main_loop.c): as the program runs
+ * it, and on the original's machine in the shipping mode, a frame at a time
+ * as its held wait's continuation. Each pass ends waiting for the next frame,
+ * or where the overworld leaves for the field, or at the halt. */
 #ifndef CT_GAME_OVERWORLD_MAIN_LOOP_H
 #define CT_GAME_OVERWORLD_MAIN_LOOP_H
 
@@ -17,19 +16,27 @@
 typedef enum { OVERWORLD_LEFT, OVERWORLD_WENT_NO_FURTHER } OverworldEnd;
 OverworldEnd overworld_runs(GameState *g, Platform *pf);
 
-void overworld_run_a_frame(Snes *s);
-void overworld_come_back_from_the_menus(Snes *s);
-/* Full entry requirements for the frame and menu-return continuations. */
+/* The loop's contract on the machine: the mode's page with the data bank on
+ * low RAM, an 8-bit accumulator, 16-bit index registers and binary
+ * arithmetic (overworld_main_loop_runs, the page and bank alone). */
 bool overworld_loop_accepts_machine(Snes *s);
+bool overworld_main_loop_runs(Snes *s);
+
+/* The loop's wait for the next frame, a held wait (holds.h,
+ * HOLD_OVERWORLD_FRAME): the port starting it stops in the wait's loop
+ * ($C2:0348), and the runtime goes on with overworld_next_frame once the
+ * vblank handler has counted the frame; overworld_waits_for_the_frame is a
+ * pass of the wait before. The guards say which applies, each where the
+ * wait returns to the loop's pass, which the mode's other waits that share
+ * its code don't. */
+void overworld_wait_for_the_next_frame_on_the_machine(Snes *s);
+void overworld_next_frame(Snes *s);
+void overworld_waits_for_the_frame(Snes *s);
+bool overworld_frame_counted(Snes *s);
+bool overworld_frame_not_counted(Snes *s);
 
 /* The halt ($C2:250D): the game stopped for good, a pass at a time, each
- * coming back to itself. */
+ * coming back to itself, a held wait of its own (HOLD_OVERWORLD_HALT). */
 void overworld_halt_entry(Snes *s);
-
-/* Putting the overworld aside while a screen runs, and bringing it back
- * ($C2:2E23, $C2:2E72), as the original's own routines: the loop does them
- * as C. */
-void overworld_put_aside_entry(Snes *s);
-void overworld_bring_back_entry(Snes *s);
 
 #endif

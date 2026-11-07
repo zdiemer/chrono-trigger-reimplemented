@@ -106,6 +106,8 @@ menu_send_sound
 menu_show_shop_member_slots
 menu_type_the_description
 menu_type_the_description_task
+menu_object_nmi  # the world map's frames since the overworld retired the gate: in shadow mode the object loop calls the cartridge's overworld handlers on the machine, and this comparison, nested in the vblank stub's, is set aside there; the stub's stretch around it compares the whole frame (field-65m-bc-dactyl: console_vblank_stub 2,634 of 2,635 matched, menu_object_nmi 314 of its 346 calls abandoned)
+menu_run_objects  # as menu_object_nmi: the world map's object loop, whose calls of the retired overworld's handlers are the cartridge's in shadow mode, is compared inside the vblank stub's stretch (field-65m-bc-dactyl: all 314 of its calls abandoned, the stub 2,634 of 2,635 matched)
 menu_wait_for_frame  # the sprite-object mode's wait from its start, reached by the jump to it inside that entry's stretch (menu_wait_for_frame_jump), which compares it and waits through its loop
 menu_wait_for_the_first_frame  # the menus' wait for the frame's uploads, the task switch's way to it, reached inside the task switch's stretch (menu_task_waits_a_frame and the loops' ports, which wait through it and compare it); compared alone as the menus open
 menu_wait_frames_sending_the_sound  # run as C by the world map's waits for frames (overworld/main_loop.c, menu_run_or_call), whose stretches compare it; called by the original's code, it is compared; fuzzed alone

@@ -15,10 +15,6 @@
 bool overworld_within_reach(GameState *g, WorldSpot first, ReachRecord first_reaches, WorldSpot second,
                             ReachRecord second_reaches);
 
-/* Scaffolding: the first of the two, as the original hands it to the test
- * before it decides whether to make it. */
-void overworld_leave_reach_from(GameState *g, WorldSpot first, ReachRecord reaches);
-
 /* The vehicles' controller, a frame: the party boards a vehicle, rides it
  * and gets off it again (vehicles.c). */
 void overworld_control_the_vehicles(GameState *g);

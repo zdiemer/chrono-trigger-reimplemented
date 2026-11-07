@@ -17,7 +17,6 @@
 #include "menu/map.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
-#include "original_effects.h"
 #include "ram.h"
 #include "vars.h"
 
@@ -168,28 +167,10 @@ static void start_the_event_here(GameState *g, bool on_an_exit)
         set_overworld_event_over(g, 0);
 }
 
-/* The halt's byte after its record, which nothing reads. */
-static void note_the_halt(GameState *g)
-{
-    unsigned halt = found_record(g, LIST_HALTS);
-    set_overworld_halt_note(g, overworld_halts_column_unchecked(g, halt + 1));
-}
-
 // $C2:6263
 static void show_the_place_name(GameState *g)
 {
     set_overworld_sign(g, overworld_exits_name(g, found_record(g, LIST_EXITS)));
-}
-
-/* What the original leaves of the look-up: the tile's row it looked for, and
- * which lists it found it on. The watcher also counts a step it doesn't use
- * where it found an exit or a halt and no event. */
-static void leave_look_up(GameState *g, MenuObject self, uint16_t row, uint8_t lists, bool counts_a_step)
-{
-    set_overworld_scratch_place_row(g, row);
-    set_overworld_scratch_lists_found(g, lists);
-    if (counts_a_step)
-        set_menu_object_slots_step(g, self, 1);
 }
 
 /* Which lists the tile is on (overworld_lists_found). */
@@ -199,7 +180,7 @@ enum { FOUND_EXIT = 0x01, FOUND_HALT = 0x02, FOUND_EVENT = 0x04 };
 /* The leader's map tile looked up in the lists, and what is there done: an
  * event starts (with the place's name, where it is an exit's tile too); else
  * an exit shows the place's name; else a halt stops the game. */
-static void look_at_the_place(GameState *g, MenuObject self)
+static void look_at_the_place(GameState *g)
 {
     enum { MAP_TILE_PIXELS = 16 };
     WorldSpot at = overworld_party_spot(g, PARTY_LEADER);
@@ -210,8 +191,6 @@ static void look_at_the_place(GameState *g, MenuObject self)
                               | (found_one(g, LIST_EVENTS) ? FOUND_EVENT : 0));
     set_overworld_sign(g, 0);
     set_overworld_lists_found(g, lists);
-    ORIGINAL_EFFECT(leave_look_up(g, self, (uint16_t)(at.y / MAP_TILE_PIXELS), lists,
-                                  !(lists & FOUND_EVENT) && (lists & (FOUND_EXIT | FOUND_HALT))));
     if (lists & FOUND_EVENT) {
         if (lists & FOUND_EXIT)
             show_the_place_name(g);
@@ -219,13 +198,12 @@ static void look_at_the_place(GameState *g, MenuObject self)
     } else if (lists & FOUND_EXIT) {
         show_the_place_name(g);
     } else if (lists & FOUND_HALT) {
-        ORIGINAL_EFFECT(note_the_halt(g));
         overworld_set_mode(g, OVERWORLD_HALTED);
     }
 }
 
 // $C2:3264, $C2:32B7
-void overworld_watch_the_ground(GameState *g, MenuObject self)
+void overworld_watch_the_ground(GameState *g)
 {
     set_overworld_event_before(g, overworld_event(g));
     if (overworld_event_running(g)) {
@@ -238,7 +216,7 @@ void overworld_watch_the_ground(GameState *g, MenuObject self)
     uint8_t news = overworld_ground_news(g);
     if (news & GROUND_NEWS_LOOK) {
         set_overworld_ground_news(g, (uint8_t)(news & ~GROUND_NEWS_LOOK));
-        look_at_the_place(g, self);
+        look_at_the_place(g);
     }
     if (!(overworld_ground_news(g) & GROUND_NEWS_ON_A_PLACE)) {
         set_overworld_sign(g, 0);

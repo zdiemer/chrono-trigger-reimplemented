@@ -3,12 +3,12 @@
  * game's state, its turn as the program runs it with no machine, and the
  * routines the world maps' scenes call of the overworld's.
  *
- * Each turn is the same function of the game's state the machine's entry
- * runs (entries.c); the walkers and the Epoch run a script of their own
- * through the command scripts' interpreter, which here is the interpreter
- * as C (menu/handlers.h). What each takes is the state half of the entry's
- * guard, which the program checks first (menu/handlers.c) and the entries'
- * guards check after the machine's half. */
+ * Each turn is the same function of the game's state the machine's form runs
+ * (entries.c); the walkers and the Epoch run a script of their own through
+ * the command scripts' interpreter, which here is the interpreter as C
+ * (menu/handlers.h). What each takes is the state half of the form's
+ * contract, which the program checks first (menu/handlers.c) and the forms'
+ * contracts check after the machine's half. */
 #include "overworld/handlers.h"
 
 #include "charge.h"
@@ -278,23 +278,6 @@ bool overworld_following_dactyl_second_sprite_takes(const GameState *g, MenuObje
            && overworld_following_second_sprite_keeps_near(g, self);
 }
 
-/* The test takes the reaches the game's callers name. */
-static bool a_reach_record(uint32_t pointer)
-{
-    static const ReachRecord RECORDS[] = { REACH_OF_THE_PARTY, REACH_OF_THE_EPOCH, REACH_OF_THE_DACTYL,
-                                           REACH_OF_THE_EPOCH_IN_FLIGHT, REACH_OF_THE_DACTYL_FROM_THE_AIR,
-                                           REACH_OF_THE_BLACK_OMEN };
-    for (unsigned i = 0; i < sizeof RECORDS / sizeof RECORDS[0]; i++)
-        if (pointer == (OVERWORLD_REACHES_BANK | RECORDS[i]))
-            return true;
-    return false;
-}
-
-bool overworld_reach_test_takes(const GameState *g)
-{
-    return a_reach_record(overworld_scratch_reach_first(g)) && a_reach_record(overworld_scratch_reach_second(g));
-}
-
 /* The scenes' calls are made on an object on the map, facing one of the four
  * ways. */
 bool overworld_epoch_scene_call_takes(const GameState *g, MenuObject self)
@@ -317,11 +300,9 @@ enum { SOUND_DRIVER = 0xC70004, LOCATION_SONG_SENT = 0xC22F49 };
 #define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
 
 // $C2:2F0F
-void overworld_start_the_location_song(GameState *g, Platform *pf, void (*looked_up)(void *ctx, LocationSong song),
-                                       void *ctx)
+void overworld_start_the_location_song(GameState *g, Platform *pf)
 {
     LocationSong song = overworld_location_song(g);
-    looked_up(ctx, song);
     au_command(pf, PF_CALL_DC(LOCATION_SONG_SENT, SOUND_DRIVER, DRIVER_IGNORES), overworld_song_command(song.song));
 }
 
@@ -386,7 +367,7 @@ static MenuTurn fly_the_epoch(GameState *g, Platform *pf, MenuObject self)
         work;                                                                  \
         return MENU_TURN_GOES_ON;                                              \
     }
-GOES_ON(watch_the_ground, overworld_watch_the_ground(g, self))
+GOES_ON(watch_the_ground, overworld_watch_the_ground(g))
 GOES_ON(play_the_region_song, overworld_play_the_region_song(g, self))
 GOES_ON(show_the_sign, overworld_show_the_sign(g, self))
 GOES_ON(control_the_vehicles, overworld_control_the_vehicles(g))
@@ -421,12 +402,10 @@ MENU_HANDLERS(overworld_handlers,
 );
 
 /* The routines the scenes call of the overworld's. */
-static void nothing_to_leave(void *ctx, LocationSong song) { (void)ctx, (void)song; }
-
 static bool start_the_location_song(GameState *g, Platform *pf, MenuObject self, bool far)
 {
     (void)self, (void)far;
-    overworld_start_the_location_song(g, pf, nothing_to_leave, NULL);
+    overworld_start_the_location_song(g, pf);
     return true;
 }
 
