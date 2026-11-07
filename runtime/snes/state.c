@@ -246,6 +246,7 @@ static void visit_bus(Visitor *v, SnesBus *b)
     U(v, "bus.clocks", b->clocks);
     U(v, "bus.access_start", b->access_start);
     U(v, "bus.dma_clocks", b->dma_clocks);
+    U(v, "bus.dma_longest", b->dma_longest);
     U(v, "bus.nmitimen", b->nmitimen);
     U(v, "bus.wrio", b->wrio);
     U(v, "bus.wrmpya", b->wrmpya);
