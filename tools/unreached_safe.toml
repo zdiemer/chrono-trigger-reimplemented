@@ -97,3 +97,9 @@ entry = "C0005D"
 runs = "C00077-C0007C"
 depends = ["game/field/main_loop.c:field_location_is_a_number", "game/field/main_loop.c:LOCATION_SIGN", "game/field/main_loop.c:enter_the_location", "game/field/main_loop.c:location_is_the_menus"]
 why = "The original's signed compares send locations $1F0 and up to the world map before testing $1FF, so this load-error jump (LDX #$7C00; BRL $2E1E) is reached only by a location word from $81F0 to $81FE. The registry guard (field_location_is_a_number) refuses every word with the top bit set, and the game's locations are nine-bit numbers. Keep the guard's bound as an assertion when the field retires."
+
+[[safe]]
+name = "field_unpack_the_map"
+runs = "C0A47C-C0A482"
+depends = ["game/field/map.c:drift_speed", "game/field/map.c:take_the_drift", "game/field/map.c:DRIFT_BACK", "game/field/map.c:take_the_header"]
+why = "BG2 drifting left: the header's BG2 drift byte with a speed across (bits 0-2) and its back bit (3) both set, which negates the speed. Excluded by the cartridge's fixed resources: unpacking the map of each of the 512 location records gives that byte only as $00, $10, $30, $50, $56, $60, $70, $B0, $D0, $E0 or $F0, none with both; the recipe's 32 records and the movies run the rest of the header. drift_speed takes the back bit the same way for either way and either layer (BG3's and the downward arms are fuzzed), so a map with it would take the port's general path. Recheck if location records or maps become editable."

@@ -289,3 +289,9 @@ args = ["--fill", "7E0129-7E0129=06", "--fill", "7E0215-7E0215=10", "--fill", "7
         "--fill", "7E023D-7E023F=7E0200",
         "--fill", "7E2000-7E2000=00,03,05,06,07,08,09,0A,0B,0C"]
 why = "A glyph set where the text's next byte is its end, a pause or each kind of break, on each row (the text read from work RAM made for it, set into the window's staging tiles): the window reads on, holds for the player, or sets on."
+
+[[case]]
+base = "field_set_up_after_a_menu"
+variant = "unreached_gathering"
+args = ["--fill", "7F03FE-7F03FE=01,02", "--fill", "7E0197-7E019B:2=00,02,04,06,08", "--fill", "7E0198-7E019C:2=00"]
+why = "A menu opened while the party was gathering (the count cut short at one or two): the members are put where the leader is, the player given the party back and the gathering counted done."
