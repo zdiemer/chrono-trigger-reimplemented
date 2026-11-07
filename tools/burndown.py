@@ -74,8 +74,8 @@ teardown"). And the overworld (bank $C2's runs from $C2:229D to $C2:57AF, and
 $C2:6263-$C2:631E: the code its retired entries owned, less what the menus'
 code shares), whose world map is C in the shipping mode ("The overworld's
 teardown"). And the scene program's own code in work RAM ($7E:3000-$7E:3175
-and $7E:3177-$7E:31BE: its start, main loop, end, work RAM's clear, sound put
-back to normal and frame wait, less the empty routine the scenes' task lists
+and $7E:3177-$7E:31BE: its start, main loop, end, work RAM's clear, first
+screen, sound put back to normal and frame wait, less the empty routine the scenes' task lists
 call too), which the boot starts as C in the shipping mode ("The scene
 program's teardown").
 

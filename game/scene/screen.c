@@ -88,11 +88,6 @@ bool scene_clear_the_work_ram(GameState *g, Platform *pf, uint8_t matrix_left)
 
 /* ---- A scene's first screen ------------------------------------------------------------------ */
 
-bool scene_init_video_present(Snes *s)
-{
-    return scene_on_scene_page(s) && m_code_matches(s, 0x7E30F9, 126, 0x4F3F340A8EB09E78ull);
-}
-
 /* The screen every scene starts from: blanked, BG mode 0 with every layer's
  * tilemap and tiles at VRAM 0, 32 tiles square and unscrolled; no mosaic, no
  * Mode 7 plane, no window or color math, nothing on either screen and a black
@@ -113,16 +108,6 @@ void scene_set_up_first_screen(GameState *g, Platform *pf)
 {
     set_scene_sprite_high_pointer(g, SCENE_SPRITE_HIGH_TABLE);
     vid_apply_screen(pf, PF_AT(0x7E30F9), &first_screen);
-}
-
-/* Written through a direct page on the register block, which it leaves on the
- * scene's page again; A's high byte ends 0, with 8-bit A and 16-bit X. */
-void scene_init_video(Snes *s)
-{
-    scene_set_up_first_screen(state_of(s), m_platform(s));
-    s->cpu.p = (uint8_t)((s->cpu.p | CPU_FLAG_M) & ~CPU_FLAG_X);
-    s->cpu.a = 0x0000;
-    m_rts(s);
 }
 
 /* ---- Each frame's sprites and palette -------------------------------------------------------- */

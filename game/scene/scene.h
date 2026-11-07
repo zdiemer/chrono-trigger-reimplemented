@@ -821,8 +821,6 @@ bool scene_sequence_bank_is_scripts(Snes *s);
 bool scene_sequence_waits_on_channel(Snes *s);
 
 /* scene/screen.c (the program in RAM; each guarded by a hash of its code) */
-bool scene_init_video_present(Snes *s);
-void scene_init_video(Snes *s);
 bool scene_upload_sprites_present(Snes *s);
 void scene_upload_sprites(Snes *s);
 void scene_finish_and_upload_sprites(Snes *s);

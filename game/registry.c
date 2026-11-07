@@ -2715,8 +2715,6 @@ const NativeEntry game_natives[] = {
       .guard = scene_channel_script_start_present },
     { .addr = 0x7E5978, .name = "scene_title_set_up", .fn = scene_title_set_up_entry, NEEDS_M8_X16, .cost_milli = 46818,
       .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = scene_title_set_up_present },
-    { .addr = 0x7E30F9, .name = "scene_init_video", .fn = scene_init_video, .p_mask = CPU_FLAG_X,
-      .p_value = 0, .cost_milli = 3889, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = scene_init_video_present },
     { .addr = 0x7E380E, .name = "scene_upload_sprites", .fn = scene_upload_sprites, NEEDS_M8_X16,
       .cost_milli = 4453, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = scene_upload_sprites_present },
     { .addr = 0x7E37FA, .name = "scene_animate_the_palettes", .fn = scene_animate_the_palettes, NEEDS_X16,
@@ -4754,6 +4752,7 @@ const NativeEntry game_kept_estimates[] = {
     { .addr = 0x7E3092, .name = "scene_clear_work_ram", .cost_milli = 6782 },
     { .addr = 0x7E3177, .name = "scene_sound_back_to_normal", .cost_milli = 4325 },
     { .addr = 0x7E302A, .name = "scene_program_restart", .cost_milli = 1 },
+    { .addr = 0x7E30F9, .name = "scene_init_video", .cost_milli = 3889 },
 };
 const int game_kept_estimate_count = (int)(sizeof game_kept_estimates / sizeof game_kept_estimates[0]);
 

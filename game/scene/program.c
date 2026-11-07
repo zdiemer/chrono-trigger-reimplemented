@@ -359,12 +359,13 @@ static void hand_back_to_the_field(Snes *s)
 // $7E:302A
 /* A script has ended the scene: interrupts and per-line effects off and the
  * screen blanked, the sound put back to normal, and the game handed back to
- * the field's start. An end not in place, which the game never makes, is a
+ * the field's start. An end not in place or with 8-bit index registers (its code takes
+ * 16-bit ones), which the game never makes, is a
  * contract broken, and the cartridge's end runs instead. */
 static void end_on_the_machine(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!end_present(s)) {
+    if (m_flag(s, CPU_FLAG_X) || !end_present(s)) {
         program_breaks_a_contract(g, PROGRAM_END, "a scene program's end outside its contract");
         m_stop_at_own(s, PROGRAM_END, 0);
         return;

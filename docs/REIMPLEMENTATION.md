@@ -3934,7 +3934,7 @@ above.
 The sixth subsystem off the gate: the gate no longer compares the scene
 program's own code, the code the game decompresses to `$7E:3000` for every
 scene (`$7E:3000-$7E:3175` and `$7E:3177-$7E:31BE`): its start, its work RAM's
-clear, the sound put back to normal, the first frame's wait, its main loop and
+clear, the first screen it sets up, the sound put back to normal, the first frame's wait, its main loop and
 its end. `game/attract/`, which held the main loop, is folded into
 `game/scene/program.c`, where the loop's C for a program with no machine
 (`scene_runs`) already was. What the program calls stays under the gate: the
@@ -3985,17 +3985,19 @@ calls, the tasks and the scripts (the rest of `game/scene/`).
   start's modes, the loop's calls and the end are what those movies' scenes
   exercise.
 
-**Deleted.** Every row the program had in `game_natives` (ten: the start,
+**Deleted.** Every row the program had in `game_natives` (eleven: the start,
 its going on after the clear and after the sound, the setup's entry, the first
-frame, the frame wait's end, the work RAM's clear, the sound put back to
-normal, the end and the hand-back), their wrappers and guards
+frame, the frame wait's end, the work RAM's clear, the first screen
+(`scene_init_video`, `$7E:30F9`, which only the start calls), the sound put
+back to normal, the end and the hand-back), their wrappers and guards
 (`scene_setup_present`, `scene_after_work_ram_clear_present`,
 `scene_frame_wait_present`, `scene_clear_work_ram_present`,
-`scene_sound_back_to_normal_present`, `scene_program_restart_present`), the
+`scene_sound_back_to_normal_present`, `scene_program_restart_present`,
+`scene_init_video_present`), the
 scaffolding (the clear's DMA page left in A's high byte, twice), and
 `game/attract/`; the main loop's two continuations are new rows of
 `game_held_waits`, `.retired`. Its rows in `docs/ports.tsv` (15),
-`tools/fuzz_routines.toml` (17), `tools/uncompared_baseline.txt` (7) and the
+`tools/fuzz_routines.toml` (18), `tools/uncompared_baseline.txt` (7) and the
 isolated comparisons of `tools/uncompared_evidence.py` (6),
 `tools/timing_exceptions.txt` (2), `tools/unreached_baseline.txt` (1),
 `tools/portsmell_baseline.txt` (1) and `tools/fallback_baseline.txt` (2).
@@ -4018,15 +4020,16 @@ runs, compared with nothing; the fallback measure doesn't count it there
 (`dev/fallbacks.c`, `the_cartridges_scene_program`, while the loop's code is
 in place), and the burndown leaves its runs out (`RETIRED_RUNS`).
 
-**The guards are contracts.** The start's and the end's are checked where
-they run, and a state that breaks one is `program_breaks_a_contract` and goes
+**The guards are contracts.** The start's and the end's (the end's code in
+place, 16-bit index registers, the field's location a number) are checked
+where they run, and a state that breaks one is `program_breaks_a_contract` and goes
 to the original. The continuations keep theirs, the runtime's contract for
 running them: the loop's call and test in place on the scene's page, and
 whether there is anything to do.
 
 **Its time.** The routines whose rows went keep their calibrated estimates
-(`game_kept_estimates`: the start 10,929, the clear 6,782, the sound 4,325,
-the end 1), which the C names; the pass keeps the frame pass's (3,125). In
+(`game_kept_estimates`: the start 10,929, the clear 6,782, the first
+screen 3,889, the sound 4,325, the end 1), which the C names; the pass keeps the frame pass's (3,125). In
 shadow mode the setups, which the start ran inline, are their own entries
 now, called by the cartridge's dispatch: the title's declares what its return
 leaves unread (A, X, N, Z, carry), and four setups' loading stretches with the

@@ -2916,6 +2916,21 @@ rest waits, is [PLAN.md](PLAN.md).
   C; until then the pass's call stays out over the race's waits, a frame end
   with a routine suspended.
 
+- **What the retired scene program still leaves to the cartridge.** Its
+  start goes on as C only while what it calls comes back to it. Three paths
+  return to the program's first frame (`$7E:300D`) through the machine, where
+  the cartridge's first frame and loop then run, the loop's head found by
+  address: a setup whose port stops on the machine (`set_the_scene_up`, `done`
+  false), the title's song wait not coming back to the dispatch's return, and
+  a mode with no setup port, called through the program's table. None is
+  reached over the gate's sample (the census enters `$7E:300D` 0 times), but
+  each wants the first frame as a continuation of its own, or the setups'
+  stops made calls. Likewise the main loop's pass, where the race's scaling
+  call (the original's, above) doesn't come back to it (`m_came_back` false),
+  doesn't hold the wait again, and the machine goes on in the cartridge's
+  loop. And the fallback baseline's `7E:----` line was set over the gate's
+  sample at the teardown: the batched library run takes the library's count.
+
 - **Two scene interpreter handbacks retain machine contracts.** All seven
   store/task/video command families have C implementations, but the dispatch
   handback remains for stores outside low RAM, unsupported video encodings,

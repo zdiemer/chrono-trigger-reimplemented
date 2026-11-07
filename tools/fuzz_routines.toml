@@ -575,12 +575,6 @@ why = "the picture read through the data bank, the second bank of work RAM, as e
 # ---- scene: display (P2) -------------------------------------------------------------------------
 
 [[routine]]
-name = "scene_init_video"
-subsystem = "scene"
-state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
-
-[[routine]]
 name = "scene_upload_sprites"
 subsystem = "scene"
 state = "attract"

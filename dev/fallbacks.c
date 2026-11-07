@@ -627,8 +627,8 @@ static bool the_cartridges_overworld(const Fallbacks *f, uint32_t pc)
 
 /* The cartridge's scene program in the reference play, as the warp's: its own
  * code in work RAM ($7E:3000-$7E:3175 and $7E:3177-$7E:31BE: its start, main
- * loop, end, work RAM's clear, sound put back to normal and frame wait, less
- * the empty routine the scenes' task lists call too, which is the program's
+ * loop, end, work RAM's clear, first screen, sound put back to normal and
+ * frame wait, less the empty routine the scenes' task lists call too, which is the program's
  * only where its main loop calls it; tools/burndown.py's RETIRED_RUNS lists
  * the same runs), while the program is the code there (the main loop's test
  * in place, by its hash). In the shipping mode the boot starts it as C and its
