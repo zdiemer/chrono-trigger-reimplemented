@@ -17,6 +17,15 @@ event_screen_cover_left = ["event_cmd_screen_command"]
 event_screen_end_field = ["event_cmd_screen_command"]
 event_screen_ripple = ["event_cmd_screen_command"]
 
+# Recipes known to fail today, each with why: `unreached.py --record` reports
+# them and takes no evidence from them, and fails on any other failing recipe
+# (or on one of these passing). The bytes they would cover stay open.
+[failing]
+"field_take_palette:unreached_party_shares" = "897 of 1,000 mismatch: the original's join indexes the slot table by the older sharer (docs/TODO.md, \"The field's unreached paths, before it retires\")"
+field_unpack_the_map = "50 mismatch, the port stopping where the original goes on; docs/ports.tsv records none (docs/TODO.md, \"The field's unreached paths, before it retires\")"
+field_set_up_after_a_menu = "1 mismatch, as field_unpack_the_map's, whose unpacking it runs (docs/TODO.md, \"The field's unreached paths, before it retires\")"
+field_start_step = "matches, but reads the map's tables past their 64 columns, an accessor out of range (docs/TODO.md, \"The field's unreached paths, before it retires\")"
+
 [[case]]
 base = "event_cmd_screen_command"
 variant = "unreached_effects"
@@ -167,3 +176,102 @@ base = "event_cmd_jump_to_tile"
 variant = "unreached_nearby"
 profile = "movement"
 why = "Three nearby objects, moves fresh or finished, alignment requested or not, and positions safely inside the map."
+
+# ---- field --------------------------------------------------------------------------------------
+# The field's frame wait ($C0:EC60) counts its frame up and spins until the
+# vblank handler clears it; --tick-at at the spin stands in for that handler
+# on both machines (255 passes wrap the count to zero), so the waits return.
+
+[[case]]
+base = "field_move_screen_effect_on:close-ripple"
+variant = "unreached_ripple"
+remove = ["--stop-at-call"]
+args = ["--fill", "7E0139-7E0139=0C", "--fill", "7E0153-7E0153=00,01", "--tick-at", "C0EC71=7E0152", "--budget", "16000000"]
+iterations = 200
+why = "The whole ripple, its frames waited out: the copy settling, the circle opening, held and closing, and the script seeing it played, with either of the line effects' tables."
+
+[[case]]
+base = "field_move_screen_effect_on:close-ripple"
+variant = "unreached_close"
+remove = ["--stop-at-call"]
+args = ["--fill", "7E0139-7E0139=0B", "--tick-at", "C0EC71=7E0152", "--stop-at-call", "C02643", "--budget", "16000000"]
+iterations = 200
+why = "The field's close, its frames waited out and the field put aside, compared where the scene starts on its fresh stack (its own entry)."
+
+[[case]]
+base = "field_take_choice_buttons"
+variant = "unreached_bounds"
+args = ["--fill", "7E0164-7E0165=00-04", "--range", "A=0002-0002"]
+why = "The choice being made (A 2) with the pointer on any line against either bound of the choice: the moves that stop at the last line or wrap round."
+
+[[case]]
+base = "field_nmi"
+variant = "unreached_window_design"
+remove = ["--keep"]
+args = ["--keep", "7E0100-7E0146", "--fill", "7E0147-7E0147=04,08,0C,10,80", "--keep", "7E0148-7E0151",
+        "--fill", "7E0152-7E0152=01", "--keep", "7E0153-7E01FF",
+        "--keep", "7E0900-7E099F", "--fill", "7E09A0-7E09A1=0000", "--keep", "7E09A2-7E09FF", "--keep", "7E1D00-7E1DFF"]
+why = "The screen transitions a menu leaves for the next vblank, a frame finished with no sprite tiles queued: the window design sent, and the job after it, alone and together; and only bits no job answers, which do nothing."
+
+[[case]]
+base = "field_battle_begins"
+variant = "unreached_party_back"
+remove = ["--stop-at-call"]
+args = ["--tick-at", "C0EC71=7E0152", "--budget", "16000000"]
+why = "As the plain recipe, and compared past the party's gathering ($C0:034B, its own entry, its frames waited out) to the start's result rather than at the call."
+
+[[case]]
+base = "field_after_battle"
+variant = "unreached_fade"
+args = ["--fill", "7E0119-7E0119=01-10", "--tick-at", "C0EC71=7E0152"]
+why = "Each battle result with the screen still to brighten: the leader walked and the palettes animated a frame at a time while the fade runs, its frames waited out."
+
+[[case]]
+base = "field_take_palette"
+variant = "unreached_party_shares"
+args = ["--fill", "7E0154-7E0154=00", "--fill", "7E1100-7E117F:2=00,01,02",
+        "--fill", "7E0B85-7E0B87=00,02,04,06,08,0A,0C,0E,10,12,14,16,80",
+        "--fill", "7E1400-7E147F=1818"]
+why = "A party place's object coming into view whose place's slot another object of the same colours holds, or nobody: it joins that object's sharers or takes the free slot (one of other colours the guard turns away). Mismatches today, so no ledger row cites it: the original's join (C071FE-C07210) indexes the slot table and the object's palette by the older sharer's number instead of the slot (docs/TODO.md, \"The field's unreached paths, before it retires\")."
+
+[[case]]
+base = "field_update_object_visibility"
+variant = "unreached_screen_edges"
+args = ["--fill", "7E1D0C-7E1D0C=00,FC,FD,FE,FF", "--fill", "7E1D0E-7E1D0E=00,01,02,80",
+        "--fill", "7E1D10-7E1D10=00,FB,FC,FD,FE,FF"]
+why = "The view's edges at the ends of the byte range, where the margins round them clamp at 0 and $FF."
+
+[[case]]
+base = "field_update_object_visibility"
+variant = "unreached_speaker_leaves"
+args = ["--fill", "7E0F00-7E0F7F=80-FF", "--fill", "7F0A00-7F0A7F=00,01", "--fill", "7E0130-7E0130=00,01"]
+why = "An object in view leaving it while a dialog waits on it as its speaker, with the window's dialog idle or not: the dialog is ended."
+
+[[case]]
+base = "field_take_sprite_block"
+variant = "unreached_all_taken"
+args = ["--fill", "7E1100-7E117F:2=03,04", "--fill", "7E0B88-7E0BA5=00,02,04,06"]
+why = "An object that takes its block as it comes into view, of either size, with every block already given: it takes none."
+
+[[case]]
+base = "field_put_drawn_frame"
+variant = "unreached_disabled"
+args = ["--fill", "7E1110-7E1110=80-FF"]
+why = "The object disabled (its role byte negative): nothing is drawn."
+
+[[case]]
+base = "field_dialog_window_step"
+variant = "unreached_states"
+args = ["--fill", "7E0129-7E0129=00,01,02,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,0F,10,FF", "--fill", "7E0131-7E0131=00-04", "--fill", "7E0215-7E0215=00-0C"]
+why = "The dialog in every state and past the last (which does nothing), with each kind of window position and each control code the text can stop at."
+
+[[case]]
+base = "field_handle_requests"
+variant = "unreached_no_battle"
+remove = ["--stop-at-call"]
+args = ["--fill", "7E0117-7E0117=01", "--fill", "7F2000-7F2000=08-3F", "--fill", "7E0197-7E019B:2=00,02,04,06,80",
+        "--fill", "7E0198-7E019C:2=00", "--fill", "7E1100-7E117F:2=00,03,05,06,85",
+        "--fill", "7E0D00-7E0D7F:2=40,48,50,58,60,68,70,78,80,88,90,98,A0,A8,B0,C0,D0",
+        "--fill", "7E1A81-7E1AFF:2=01,80", "--fill", "7E0F00-7E0F7F:2=00,80",
+        "--tick-at", "C0EC71=7E0152", "--budget", "16000000"]
+why = "A battle asked for alone, with the objects as field_battle_begins' recipe has them: where no enemy is found the request is dropped and the leader walks on this frame instead; where one is, the battle's setup runs, its frames waited out."

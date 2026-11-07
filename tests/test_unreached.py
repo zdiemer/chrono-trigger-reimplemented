@@ -69,6 +69,44 @@ class UnreachedTest(unittest.TestCase):
         (self.root / 'guard.c').write_text('guard removed\n')
         self.assertTrue(self.check())
 
+    def test_open_bytes_only_ahead_of_a_teardown(self):
+        open_row = ['open', 'C01000', 'C01000-C01002', '3', 'not yet evidenced']
+        records = self.records[:-1] + [open_row]
+        self.assertTrue(self.check(records=records))
+        field = [['port', 'field'] + self.records[1][2:]] + [open_row]
+        self.assertEqual(self.check(records=self.records[:1] + field, rows=[dict(self.row, subsystem='field')]), [])
+        self.assertEqual(u.open_summary(field), 'field 3 bytes in 1 entries')
+        self.assertTrue(self.check(records=self.records + [open_row]))
+
+    def test_open_bytes_may_not_grow(self):
+        open_row = ['open', 'C01000', 'C01000-C01002', '3', 'not yet evidenced']
+        field = self.records[:1] + [['port', 'field'] + self.records[1][2:], open_row]
+        rows = [dict(self.row, subsystem='field')]
+        with patch.object(u, 'OPEN', {'field': 3}):
+            self.assertEqual(self.check(records=field, rows=rows), [])
+        with patch.object(u, 'OPEN', {'field': 2}):
+            self.assertTrue(any('cap' in e for e in self.check(records=field, rows=rows)))
+        with patch.object(u, 'OPEN', {'field': 3}), patch.object(u, 'RETIRED', ('field',)):
+            errors = self.check(records=field, rows=rows)
+            self.assertTrue(any('retired' in e for e in errors))
+
+    def test_record_refuses_new_open_bytes(self):
+        row = dict(self.row, subsystem='field')
+        missing = {0xC01000, 0xC01001}
+        self.assertTrue(u.open_errors(row, missing, {}, ()))
+        self.assertTrue(u.open_errors(row, missing, {'C01000': {0xC01000}}, ()))
+        self.assertEqual(u.open_errors(row, missing, {'C01000': missing | {0xC01002}}, ()), [])
+        self.assertEqual(u.open_errors(row, missing, {}, ('field',)), [])
+        self.assertTrue(u.open_errors(self.row, missing, {}, ('event',)))
+
+    def test_a_failing_recipe_is_an_error_not_open(self):
+        self.assertEqual(u.evidence_errors({'a': True}, {}, {'a'}), [])
+        self.assertTrue(u.evidence_errors({'a': False}, {}, set()))
+        self.assertEqual(u.evidence_errors({'a': False}, {'a': 'why'}, set()), [])
+        self.assertTrue(u.evidence_errors({'a': True}, {'a': 'why'}, set()))
+        self.assertTrue(u.evidence_errors({}, {}, {'a'}))
+        self.assertTrue(u.evidence_errors({'a': False}, {'a': 'why'}, {'a'}))
+
     def test_fuzz_must_match_and_recipe_must_be_current(self):
         records = self.records[:-1] + [['fuzz', 'C01000', 'C01000-C01002', '3',
                                        'case', '1', '1000', '999', 'fingerprint', '0', 'boundary']]

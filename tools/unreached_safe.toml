@@ -1,4 +1,4 @@
-# Reviewed exclusions from the six subsystems' conservative audit reach.
+# Reviewed exclusions from the audited subsystems' conservative reach.
 # These are not counted as instructions executed by fuzzing. `depends` names
 # the definitions each argument rests on (path:symbol: a function, macro,
 # constant or table with the lines naming it, or a RAM-map variable); the
@@ -10,7 +10,7 @@
 name = "field_restart_wait_for_vblank_loop"
 runs = "C04181-C04185"
 depends = ["game/field/frame.c:wait_for_vblank_pass", "game/event/screen.c:event_screen_dispatch", "game/event/screen.c:restart_on_the_machine", "game/event/screen.c:screen_commands"]
-why = "Screen-command restart dependency, separately registered in field. The five-byte wait is the documented timing escape in wait_for_vblank_pass: it accepts either a pending flag or current vblank after the interrupt acknowledged that flag, then hands back at C04186. This intentionally avoids the original's flag-read race; it is not a claim of byte-exact timing equivalence. The following 11 bytes (blank the display, S=06FF, jump to FDC000) are field_restart_in_the_dark's, a separately registered field entry outside the audit's subsystems. event_screen_dispatch hands only selector 96 to C04181. These five bytes are reviewed, not fuzz-executed; preserve the vblank-only restart precondition before retiring this dependency."
+why = "Screen-command restart dependency, separately registered in field. The five-byte wait is the documented timing escape in wait_for_vblank_pass: it accepts either a pending flag or current vblank after the interrupt acknowledged that flag, then hands back at C04186. This intentionally avoids the original's flag-read race; it is not a claim of byte-exact timing equivalence. The following 11 bytes (blank the display, S=06FF, jump to FDC000) are field_restart_in_the_dark's, a separately registered field entry whose comparisons execute them. event_screen_dispatch hands only selector 96 to C04181. These five bytes are reviewed, not fuzz-executed; preserve the vblank-only restart precondition before retiring this dependency."
 
 [[safe]]
 name = "input_take_ready_controller"
@@ -78,3 +78,22 @@ runs = "C0483A-C0483F"
 depends = ["game/event/characters.c:cast_enemy", "game/event/characters.c:unpack", "game/event/characters.c:set_calls", "game/event/characters.c:ENEMY_TOO_FAR"]
 why = "The port stops at C0483A on graphics overflow; unreached_overflow compares at that handoff. These bytes belong to the original-only diagnostic after it. Keep a native failure for overflow when the handoff retires."
 
+
+[[safe]]
+name = "field_line_up_with_tile"
+runs = "C030A7-C030B2"
+depends = ["game/field/motion.c:object_line_up_with_tile", "game/field/motion.c:TILE_BOTTOM_Y", "game/field/motion.c:FINE_PIXEL"]
+why = "Dead by arithmetic: the vertical test masks the fine position with $F0 and compares it with $F0, so where they differ the masked value is below and the carry the branch at C03099 tests is always clear. The 12 bytes it would take (a step up) run from no state; object_line_up_with_tile has the same predicate (y != TILE_BOTTOM_Y steps toward it, which is always down)."
+
+[[safe]]
+name = "field_load_tile_graphics"
+runs = "C06DA2-C06DCD"
+depends = ["game/field/location.c:load_tile_graphics", "game/field/field_data.h:tile_set_block", "game/field/field_data.h:location_description_at", "game/field/field_data.h:TILE_SET_BLOCKS"]
+why = "A tile set's eighth block, unpacked to $7F:7000. Excluded by the cartridge's fixed resources: every one of the 512 location records names tile set 0-53 or none ($FF), and none of those 54 sets' eighth list entry is a block (each is $FF); the movies and the fuzz recipe (any record) run the seven-block sets. load_tile_graphics reads the eighth entry the same way and skips $FF, so a set with one would take the port's general block path. Recheck if location records or tile-set lists become editable."
+
+[[safe]]
+name = "field_enter"
+entry = "C0005D"
+runs = "C00077-C0007C"
+depends = ["game/field/main_loop.c:field_location_is_a_number", "game/field/main_loop.c:LOCATION_SIGN", "game/field/main_loop.c:enter_the_location", "game/field/main_loop.c:location_is_the_menus"]
+why = "The original's signed compares send locations $1F0 and up to the world map before testing $1FF, so this load-error jump (LDX #$7C00; BRL $2E1E) is reached only by a location word from $81F0 to $81FE. The registry guard (field_location_is_a_number) refuses every word with the top bit set, and the game's locations are nine-bit numbers. Keep the guard's bound as an assertion when the field retires."
