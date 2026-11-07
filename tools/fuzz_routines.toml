@@ -5761,9 +5761,10 @@ why = "the field's page; the masks within the tables (the guard's)"
 name = "field_unpack_the_map"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E0100-7E0100=00-FF", "--fill", "7E0101-7E0101=00-01"]
+args = ["--d", "0100", "--db", "00", "--fill", "7E0100-7E0100=00-FF", "--fill", "7E0101-7E0101=00-01",
+        "--fill", "7E01FE-7E01FF=0000,00EE,01DC,02CA,03B8,04A6,0594,0682,0770,085E,094C,0A3A,0B28,0C16,0D04,0DF2,0E00,0EEE,0FDC,10CA,11B8,12A6,1394,1482,1570,165E,174C,183A,1928,1A16,1B04,1BF2"]
 iterations = 1000
-why = "the field's page, any location's map: its sizes, flags, screens and exits, the tile maps unpacked where they fit"
+why = "the field's page, a location's map (32 locations' records, spread over the 512; the guard turns away a place where no record starts, whose map number is other bytes): its sizes, flags, screens and exits, the tile maps unpacked where they fit, and any location's exits"
 
 [[routine]]
 name = "field_set_up_the_objects"
@@ -6402,9 +6403,10 @@ why = "the field's page, the party's places objects or none (the guard's), a dia
 name = "field_set_up_after_a_menu"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7F03FE-7F03FE=00,01,02,03", "--fill", "7E01AE-7E01AE=80", "--fill", "7E0126-7E0126=00,01,02", "--fill", "7E0127-7E0127=00,16,28,40"]
+args = ["--d", "0100", "--db", "00", "--fill", "7F03FE-7F03FE=00,01,02,03", "--fill", "7E01AE-7E01AE=80", "--fill", "7E0126-7E0126=00,01,02", "--fill", "7E0127-7E0127=00,16,28,40",
+        "--fill", "7E01FE-7E01FF=0000,00EE,01DC,02CA,03B8,04A6,0594,0682,0770,085E,094C,0A3A,0B28,0C16,0D04,0DF2,0E00,0EEE,0FDC,10CA,11B8,12A6,1394,1482,1570,165E,174C,183A,1928,1A16,1B04,1BF2"]
 iterations = 2000
-why = "the field's page, a gathering cut short or not (the guard takes both members there); no built figure, which the figure's own entry is fuzzed for; the dialog window where the game puts it (at another place the line effects' builder runs off its table in the original)"
+why = "the field's page, 32 locations' records spread over the 512 (the guard turns away a place where no record starts), a gathering cut short or not (the guard takes both members there); no built figure, which the figure's own entry is fuzzed for; the dialog window where the game puts it (at another place the line effects' builder runs off its table in the original)"
 
 [[routine]]
 name = "field_battle_begins"

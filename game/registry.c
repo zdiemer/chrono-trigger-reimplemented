@@ -2482,7 +2482,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC0AF4E, .name = "field_copy_tiles", .fn = field_copy_tiles, NEEDS_M8_X16_BINARY, .cost_milli = 6606,
       .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_tile_copy_fits },
     { .addr = 0xC0A33B, .name = "field_unpack_the_map", .fn = field_unpack_the_map, NEEDS_M8_X16_BINARY,
-      .cost_milli = 4252, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_low_bank },
+      .cost_milli = 4252, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_map_can_be_unpacked },
     { .addr = 0xC0A521, .name = "field_unpack_tile_maps", .fn = field_unpack_tile_maps, NEEDS_M8_X16,
       .cost_milli = 8896, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_unpack_stays_clear },
     /* sprite graphics */
