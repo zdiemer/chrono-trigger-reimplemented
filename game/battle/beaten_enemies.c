@@ -455,11 +455,16 @@ static bool see_off_on_the_machine(void *ctx, uint8_t slot)
  * asker; otherwise the last call to see an enemy off left it. */
 void battle_see_off_the_beaten_enemies(Snes *s)
 {
-    KeptEnemy last_kept;
-    if (!see_the_beaten_enemies_off(state_of(s), see_off_on_the_machine, s, &last_kept))
+    /* read out before the machine is touched again: gcc 13 at -O3 takes the
+     * inlined search's result for a dangling pointer otherwise */
+    KeptEnemy last_kept = { false, 0 };
+    bool done = see_the_beaten_enemies_off(state_of(s), see_off_on_the_machine, s, &last_kept);
+    bool any = last_kept.any;
+    uint8_t slot = last_kept.slot;
+    if (!done)
         return;
-    if (last_kept.any)
-        s->cpu.a = last_kept.slot;
+    if (any)
+        s->cpu.a = slot;
     m_set_flag(s, CPU_FLAG_C, true);
     m_rtl(s);
 }
