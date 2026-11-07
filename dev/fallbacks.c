@@ -641,13 +641,16 @@ static bool the_cartridges_scene_program(const Fallbacks *f, uint32_t pc)
     if (!f->shadow || (pc >> 16) != 0x7E || at < 0x3000 || at > 0x31BE)
         return false;
     if (at == EMPTY_ROUTINE) {
-        /* the loop's call of it, or the sound routine after it branching
-         * back to its return where a scene sends no songs */
+        /* the program's own: a call from its code (the loop's of the empty
+         * routine, the start's of the first screen, which ends on it), or
+         * the sound routine after it branching back to it where a scene
+         * sends no songs */
         uint16_t sp = f->s->cpu.s;
         uint16_t back = (uint16_t)(snes_bus_peek(&f->s->bus, (uint16_t)(sp + 1)) | snes_bus_peek(&f->s->bus, (uint16_t)(sp + 2)) << 8);
         uint32_t routine = f->eff.routine;
         bool in_the_program = routine >= 0x7E3000 && routine <= 0x7E31BE && routine != 0x7E3176;
-        if (back != (uint16_t)(LOOP + 2) && !in_the_program)
+        bool from_the_program = back >= 0x3000 && back <= 0x31BE;
+        if (!from_the_program && !in_the_program)
             return false;
     }
     if (snes_bus_peek(&f->s->bus, LOOP) != JSR)
