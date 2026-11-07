@@ -21,10 +21,17 @@ from tools.disasm.closure import reached_code
 from tools.disasm.cpu import decode
 from tools import unreached_fuzz
 
-SUBSYSTEMS = ('attract', 'core', 'warp', 'overworld', 'event')
-# This separately registered field entry owns the screen command's restart
-# arm. Include the dependency so the entire uncovered dispatch is accounted.
-DEPENDENCIES = {'field_restart_wait_for_vblank_loop': 'screen-command restart dependency'}
+SUBSYSTEMS = ('attract', 'core', 'warp', 'overworld', 'event', 'field')
+# Subsystems inventoried ahead of their teardown. Bytes no comparison or
+# reviewed argument covers yet are recorded as `open` rows rather than refused,
+# so the ledger names exactly what is left; a subsystem retires only once it
+# has none (docs/REIMPLEMENTATION.md, "The code the movie library does not reach").
+OPEN = {'field': "Not yet compared or argued: blocks the field's teardown (docs/TODO.md, "
+                 "\"The field's unreached paths, before it retires\")."}
+# Entries outside SUBSYSTEMS that an audited dispatch hands its work to, so the
+# whole dispatch is accounted (name: why). The screen command's restart wait,
+# field_restart_wait_for_vblank_loop, was one until the field joined the audit.
+DEPENDENCIES = {}
 
 
 def in_scope(subsystem, name):
@@ -286,7 +293,7 @@ def read_ledger(path):
     for n, line in enumerate(path.read_text().splitlines(), 1):
         if line and not line.startswith('#'):
             columns = line.split('\t')
-            fields = {'movie': 4, 'port': 8, 'fuzz': 11, 'safe': 6}
+            fields = {'movie': 4, 'port': 8, 'fuzz': 11, 'safe': 6, 'open': 5}
             if len(columns) != fields.get(columns[0]) or not columns[-1].strip():
                 raise ValueError(f'{path.name}:{n}: malformed record or missing reason')
             records.append(columns)
@@ -337,7 +344,7 @@ def check_records(rows, records, movies, recipes, states, root=ROOT, measured=Fa
             if len(missing) != int(size):
                 errors.append(f'{name}: wrong byte count')
             ports[entry] = (sub, name, digest, missing)
-        elif c[0] in ('fuzz', 'safe'):
+        elif c[0] in ('fuzz', 'safe', 'open'):
             entry, spans = c[1:3]
             covered = expand(parse_spans(spans))
             if not covered or len(covered) != int(c[3]):
@@ -351,7 +358,7 @@ def check_records(rows, records, movies, recipes, states, root=ROOT, measured=Fa
                     errors.append(f'{entry}: invalid fuzz result')
                 if case not in recipes or digest != unreached_fuzz.fingerprint(recipes[case], states):
                     errors.append(f'{entry}: stale fuzz recipe {case}')
-            else:
+            elif c[0] == 'safe':
                 for dependency in c[4].split(','):
                     spec, digest = dependency.rsplit('=', 1)
                     if dependency_hash(root, spec) != digest:
@@ -365,6 +372,9 @@ def check_records(rows, records, movies, recipes, states, root=ROOT, measured=Fa
         if c[0] == 'fuzz' and c[1] in ports and c[4] in recipes:
             if not unreached_fuzz.covers(recipes[c[4]], ports[c[1]][1]):
                 errors.append(f'{c[1]}: {c[4]} is not a reviewed caller of this C implementation')
+    for c in records:
+        if c[0] == 'open' and c[1] in ports and ports[c[1]][0] not in OPEN:
+            errors.append(f'{c[1]}: open bytes in {ports[c[1]][0]}, which is not inventoried ahead of its teardown')
     for entry in proofs.keys() - ports.keys():
         errors.append(f'{entry}: evidence without an inventoried port')
     for r in rows:
@@ -414,7 +424,8 @@ def record(rows, movies, evidence_dir, safety, target):
                             result['fingerprint'], '0', result['recipe']['why']])
             missing -= checked
         for proof in safe:
-            if proof['name'] != row['name']:
+            # `entry` tells apart rows registered under one name at two addresses.
+            if proof['name'] != row['name'] or proof.get('entry', row['entry']) != row['entry']:
                 continue
             checked = expand(parse_spans(proof['runs']))
             if not checked <= missing:
@@ -428,7 +439,9 @@ def record(rows, movies, evidence_dir, safety, target):
             dependencies = ','.join(dependencies)
             records.append(['safe', row['entry'], spans_text(runs(checked)), str(len(checked)), dependencies, proof['why']])
             missing -= checked
-        if missing:
+        if missing and row['subsystem'] in OPEN:
+            records.append(['open', row['entry'], spans_text(runs(missing)), str(len(missing)), OPEN[row['subsystem']]])
+        elif missing:
             raise ValueError(f"{row['name']}: unchecked {spans_text(runs(missing))}")
     errors = check_records(rows, records, movies, recipes, states, measured=True)
     if errors:
@@ -437,7 +450,8 @@ def record(rows, movies, evidence_dir, safety, target):
               '# movie\tname\tsha256\treason\n'
               '# port\tsubsystem\tentry\tname\treach-sha256\tbytes\truns\treason\n'
               '# fuzz\tentry\truns\tbytes\trecipe\tseed\ttrials\tmatched\trecipe-sha256\tmismatches\treason\n'
-              '# safe\tentry\truns\tbytes\tpath[:symbol]=sha256,...\treason\n')
+              '# safe\tentry\truns\tbytes\tpath[:symbol]=sha256,...\treason\n'
+              '# open\tentry\truns\tbytes\treason (not yet evidenced: the subsystem cannot retire)\n')
     target.write_text(header + '\n'.join('\t'.join(c) for c in records) + '\n', newline='\n')
 
 
@@ -475,6 +489,17 @@ def inventory(rom, paths, cache=None):
     return rows
 
 
+def open_summary(records):
+    """Bytes and entries still open per subsystem: what its teardown waits on."""
+    subsystem = {c[2]: c[1] for c in records if c[0] == 'port'}
+    totals = collections.defaultdict(lambda: [0, 0])
+    for c in records:
+        if c[0] == 'open':
+            totals[subsystem.get(c[1], '?')][0] += int(c[3])
+            totals[subsystem.get(c[1], '?')][1] += 1
+    return ', '.join(f'{sub} {b} bytes in {n} entries' for sub, (b, n) in sorted(totals.items()))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--rom', type=pathlib.Path, default=ROOT / 'roms/ct-usa.sfc')
@@ -508,7 +533,9 @@ def main():
             errors += check_fuzz_evidence(rows, records, args.fuzz_dir)
         for error in errors:
             print(error)
-        print('unreached FAIL' if errors else f'unreached OK: {len(rows)} entries, {len(movies)} library movies')
+        still = open_summary(records)
+        print('unreached FAIL' if errors else f'unreached OK: {len(rows)} entries, {len(movies)} library movies'
+              + (f'; open, cannot retire: {still}' if still else ''))
         return int(bool(errors))
     for row in rows:
         if row['uncovered']:

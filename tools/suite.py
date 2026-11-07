@@ -768,7 +768,7 @@ def check_portsmell(args, ctx):
 
 
 def check_unreached(args, ctx):
-    """The six retirement candidates' full-library inventory and path evidence.
+    """The audited subsystems' full-library inventory and path evidence.
 
     The sample cannot establish absence from the library: use the ledger's
     manifest and re-derived reach, never the sample's partial coverage union.
