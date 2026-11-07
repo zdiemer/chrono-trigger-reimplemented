@@ -3036,7 +3036,12 @@ comparisons.
   assert that can't happen, or skip such entries. With oracle port timing or
   `--exclude warp`, `m_runs_retired_as_c` is still true, so the trip starts as C
   while the cartridge's frames run on scaffolding nothing writes: make
-  `native_runs_retired_as_c` false there. `the_cartridges_warp`'s comment says
+  `native_runs_retired_as_c` false there. The overworld's teardown has the
+  same hole (the mode's start sets the world map up as C), and one more:
+  its retired continuations sit at the mode's shared frame wait, so where
+  the set up is the cartridge's they must not be found by address either
+  (`natives_select` would leave them out where the retired subsystem runs
+  as the cartridge's). `the_cartridges_warp`'s comment says
   "mirror in $3D" where the code matches `$FD` and `$7D`. The kept estimates
   (`game_kept_estimates`) are frozen, measured by no timing gate or
   calibration; `re/ram.toml` still cites the deleted `warp_on_its_page`.
