@@ -4258,7 +4258,14 @@ coverage union of the library's shadow runs (the movie inputs agree with
 the checkout supplying it). Optional hand recordings are outside that
 standard library. The data, warp and overworld subsystems left it with
 their teardowns, and attract has no rows since its main loop's passes
-became a held wait's continuations (RUNTIME.md, "Held waits").
+became a held wait's continuations (RUNTIME.md, "Held waits"). Taking the
+union anew moved one event row with its reach unchanged:
+`event_party_back_together`'s gathering of two members (`$C0:0371-$C0:0378`)
+runs in gato-battle's reference play now and didn't in the previous record's,
+so its fuzz row went with those bytes; inventoried without the field, it
+measures the same (its ledger row says so, `REMEASURED` in the tool). The
+inventory's instruction sizes are decoded at all four widths, so one
+subsystem's rows don't change another's.
 
 | Subsystem | Bytes no movie executes | Executed in matched fuzz trials | Reviewed safety argument | Open |
 |---|--:|--:|--:|--:|
@@ -4270,8 +4277,16 @@ became a held wait's continuations (RUNTIME.md, "Held waits").
 **The field, inventoried ahead of its teardown.** The field joined the audit
 before its paths were all checked, so the ledger takes a fourth kind of
 row for it: `open`, bytes neither compared nor argued, which `unreached.py`
-accepts only for a subsystem in its `OPEN` list and `--check` reports as
-what that subsystem's teardown waits on. A subsystem retires with none.
+accepts only for a subsystem in its `OPEN` list and `--check` lists entry by
+entry as what that subsystem's teardown waits on. They are a ratchet, so lost
+evidence can't turn into them: `--record` adds no open byte the ledger it
+replaces didn't have (only a first inventory, `--admit-open`, does), and
+`--check` fails past the subsystem's cap in `OPEN`. A recipe that mismatches
+or reports a diagnostic fails the record rather than leaving its bytes open,
+unless `[failing]` in `tools/unreached_cases.toml` names it with its reason,
+as does a recipe the previous ledger cited with no fresh clean result. A
+teardown moves its subsystem from `OPEN` to `RETIRED`, which fails the check
+while it has an open row.
 Of its 202 entries, 51 have code no movie runs. The field's own recipes
 (`tools/fuzz_routines.toml`) executed 1,598 of those 2,229 bytes as they
 stood; targeted cases took 348 more. Most of what was left sits behind the
