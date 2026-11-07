@@ -212,19 +212,17 @@ static const struct {
     { 0xC6E90F, menu_object_start_the_world_turning },
     { 0xC6E9F5, menu_object_turn_the_world },
     { 0xC6EE23, menu_object_turn_the_world_on },
-    { 0xC22F0F, overworld_start_the_location_song_entry },
-    { 0xC25798, overworld_clear_the_sign_label_entry },
-    { 0xC248A9, overworld_show_the_epoch_flying_entry },
-    { 0xC248CD, overworld_carry_the_epoch_round_entry },
-    { 0xC227DE, overworld_load_the_map_tiles_entry },
 };
 
+/* The retired overworld's routines a scene calls have no registered entry:
+ * the shipping mode runs their machine forms where their contracts hold
+ * (overworld/entries.h), and elsewhere the original's. */
 static void (*script_entry(Snes *s, uint32_t routine))(Snes *)
 {
     for (unsigned i = 0; i < sizeof script_entries / sizeof script_entries[0]; i++)
         if (script_entries[i].routine == routine && menu_runs_as_port(s, routine, script_entries[i].entry))
             return script_entries[i].entry;
-    return NULL;
+    return overworld_machine_form(s, routine);
 }
 
 /* The commands go on from a call with 16-bit index registers on the mode's

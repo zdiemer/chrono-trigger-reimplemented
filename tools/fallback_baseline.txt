@@ -17,7 +17,6 @@ open C1:812C 2841 0  # hidden under battle_main_loop_body's comparison, still op
 open C1:8290 28079 0  # hidden under battle_dispatch_expired_timers's comparison, still open when a run ended: battle-menu-buttons 12916 (new in chunk 11), late-omen-terramutant 4080, late-lavos 3837, late-omen-zeal 3637, battle-tech-sweep 3609
 open C1:AC57 14042 0  # hidden under battle_start_action_showing's comparison, still open when a run ended: late-omen-terramutant (14042) ends inside the action's showing, under battle_run_a_step's open comparison before chunk 11 made the step dispatch C. The shipping mode runs none of the original's code over the movie
 open C1:B967 36037 0  # hidden under battle_carry_out_member_action's comparison, still open when a run ended: battle-tech-sweep 17858, late-omen-zeal 10562 and late-lavos 7617 end inside a member's action; chunk 10 had what the step dispatch's comparison hid of the same ends under open C1:0003 (32045) and counted the rest of battle-tech-sweep's as the original's until chunk 11 kept a live comparison's extent. The shipping mode runs none of the original's code over these movies: a port's work the movie's end cut short
-open C2:23CF 14 0  # hidden under overworld_main_loop's comparison, still open when a run ended
 open CD:0036 6 0  # hidden under battle_sit_out_the_pause_long's comparison, still open when a run ended
 open CD:3E44 1 0  # hidden under battle_sit_out_the_pause's comparison, still open when a run ended
 open FD:ACEE 220 0  # hidden under battle_clear_numbers's comparison, still open when a run ended

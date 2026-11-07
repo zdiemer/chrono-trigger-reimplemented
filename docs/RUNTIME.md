@@ -834,9 +834,25 @@ Over the three movies that take a gate the machine enters the warp 0 times,
 against 747,559 before, and its 1,181 frames and 747,440 idle passes are the
 wait's continuations, run by its number.
 
-What a teardown still has to do to take a main loop out of the registry is
-make its wait's continuations held-wait rows, as these are (TODO.md: the
-overworld's teardown item).
+The overworld's main loop is the third (`HOLD_OVERWORLD_FRAME`), and the
+first whose wait's code other loops share: its head calls the sprite-object
+mode's wait for the next frame (`$C2:23CF` calls `$C2:046E`, which jumps to
+`$C2:0346`), whose loop (`$C2:0348`) the Epoch's screens and the loop's own
+fades wait in too. So the wait is held at the shared loop, and its
+continuations (`overworld_next_frame`, the frame counted: the wait's return,
+the mode's arm and the wait again; `overworld_waits_for_the_frame`, idle)
+take it only where the wait's return on the stack is the loop's pass
+(`$C2:23D2`); the mode's own idle entry there is found only by the address
+path, where no wait is named. The halt the loop can end in, a loop with the
+interrupts off, holds a wait of its own (`HOLD_OVERWORLD_HALT`). Over the
+four world-map movies (`field-65m-bc`, `-dactyl`, `-dactyl-flight`,
+`field-12kbc-1f4`) and `menus-epoch`, shadow mode compared
+`overworld_next_frame` 5,463 times, every one matched, and the shipping mode
+played each frame for frame as before (`tools/trace.py diff`: work RAM, VRAM,
+CGRAM, OAM, save RAM); on `field-65m-bc-dactyl` the machine's wait-loop
+passes went from 377,674 to 214,949, the other 162,393 now the held wait's.
+The overworld then retired the gate, and its three continuations are
+`.retired` (REIMPLEMENTATION.md, "The overworld's teardown").
 
 ## ZSNES save states
 

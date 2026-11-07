@@ -582,6 +582,49 @@ static bool the_cartridges_warp(const Fallbacks *f, uint32_t pc)
            ((at >= 0xDA00 && at <= 0xDD95) || (at >= 0xDE15 && at <= 0xDE97) || (at >= 0xEAA6 && at <= 0xF28F));
 }
 
+/* The cartridge's overworld in the reference play, as the warp's: the code
+ * its retired entries owned in bank $C2 (and its mirror in $02), less what
+ * the menus' code shares (tools/burndown.py's RETIRED_RUNS lists the same
+ * runs). In the shipping mode the world map is C from the sprite-object
+ * mode's start to the field's (game/overworld/), so none of it runs there
+ * (docs/REIMPLEMENTATION.md, "The overworld's teardown"). */
+static bool the_cartridges_overworld(const Fallbacks *f, uint32_t pc)
+{
+    static const struct {
+        uint16_t first, last;
+    } RUNS[] = {
+        { 0x229D, 0x2335 }, { 0x2345, 0x26A7 }, { 0x26D6, 0x271F },
+        { 0x274D, 0x2D6F }, { 0x2D91, 0x57AF }, { 0x6263, 0x631E },
+    };
+    if (!f->shadow)
+        return false;
+    for (int d = f->depth; d >= 0; d--) {
+        /* the instruction itself, then the routines it runs inside: the
+         * menus' helpers the overworld's code calls (the wrap onto the map,
+         * the palette's send) are the cartridge's overworld's there too */
+        uint32_t at24 = d == f->depth ? pc : f->frames[d].routine;
+        if (((at24 >> 16) & 0x7F) != 0x42)
+            continue;
+        uint16_t at = (uint16_t)at24;
+        for (unsigned i = 0; i < sizeof RUNS / sizeof RUNS[0]; i++)
+            if (at >= RUNS[i].first && at <= RUNS[i].last)
+                return true;
+    }
+    /* The objects' loop's jump through the slot's handler (JMP ($0050) at
+     * $C2:0553) where the handler it reaches is one of the overworld's: the
+     * menus' ports call every other handler as C, so only the cartridge's
+     * overworld is reached through it in the reference play. */
+    enum { HANDLER_JUMP = 0x0553, HANDLER_JUMP_END = 0x0555, HANDLER_CELL = 0x0050 };
+    uint16_t at = (uint16_t)pc;
+    if (((pc >> 16) & 0x7F) == 0x42 && at >= HANDLER_JUMP && at <= HANDLER_JUMP_END) {
+        uint16_t handler = (uint16_t)(snes_bus_peek(&f->s->bus, HANDLER_CELL) | snes_bus_peek(&f->s->bus, HANDLER_CELL + 1) << 8);
+        for (unsigned i = 0; i < sizeof RUNS / sizeof RUNS[0]; i++)
+            if (handler >= RUNS[i].first && handler <= RUNS[i].last)
+                return true;
+    }
+    return false;
+}
+
 void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
     /* Observe completion before the caller starts another invocation of the
@@ -621,7 +664,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
             f->pass.hidden++;
     }
     if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_decompressor(f, pc) &&
-        !the_cartridges_warp(f, pc)) {
+        !the_cartridges_warp(f, pc) && !the_cartridges_overworld(f, pc)) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));
         f->by_kind[eff.kind]++;

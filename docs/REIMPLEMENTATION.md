@@ -3289,9 +3289,10 @@ protected lost). Census of the four world-map movies (`field-65m-bc`,
 `menu_object_nmi`, `menu_run_objects`, the frame's five steps and the
 overworld's objects (`overworld_lead`, `_follow`, the vehicles, the Epoch,
 the dactyls, the sign, the region's song, 1,663 to 3,854 entries each) are no
-longer entered by the machine. Their rows stay registered: the calls find
-their contracts there, and the overworld's teardown retires them with its
-main loop's held wait. `tools/machine_joints.py` doesn't move: its patterns
+longer entered by the machine. Their rows stayed registered, the calls
+finding their contracts there, until the overworld's teardown retired them
+with its main loop's held wait (below: the calls find their contracts in the
+overworld's machine forms now). `tools/machine_joints.py` doesn't move: its patterns
 count stops and named call-outs, not the `m_jsr` and `m_jump_to` hand-offs
 this replaced.
 
@@ -3737,6 +3738,154 @@ writes 2,062 to 2,047.
 strict mode and `ct_native` (whose trip, `warp_runs`, is the same C), the
 vblank check over the shipping mode's video writes, and the frame-by-frame
 equality with the shipping mode before the teardown measured above.
+
+### The overworld's teardown
+
+The fifth subsystem off the gate: the gate no longer compares the world
+map walked, ridden and flown (`game/overworld/`, bank `$C2`'s runs
+`$C2:229D-$C2:2335`, `$C2:2345-$C2:26A7`, `$C2:26D6-$C2:271F`,
+`$C2:274D-$C2:2D6F`, `$C2:2D91-$C2:57AF` and `$C2:6263-$C2:631E`: the code its
+entries owned, less what the menus' code shares). Its first attempt stopped
+at its main loop, for the warp's reason, and at its objects, which the
+menus' object loop reached through the machine; the held waits and the
+object mode's vblank as calls (above) are what let it go.
+
+**The held wait first, in its own commit.** The loop's head calls the
+sprite-object mode's wait for the next frame (`$C2:23CF` to `$C2:046E`, a
+jump to `$C2:0346`), whose loop (`$C2:0348`) the Epoch's screens and the
+loop's own fades wait in too. The wait is held at that loop under
+`HOLD_OVERWORLD_FRAME`, the call's return to the pass (`$C2:23D2`) on the
+stack, and its continuations take it only where that return is there: the
+pass (`overworld_next_frame`, the wait's return, the mode's arm, the wait
+again; `.pulls = 2`) and the idle pass before the frame is counted. The
+mode's own idle entry at the loop is found only where no wait is named
+(the address path), which the loop's holds never leave it. The halt, a
+loop with the interrupts off, holds a wait of its own (`HOLD_OVERWORLD_HALT`). Shadow over the four
+world-map movies and `menus-epoch` before the teardown:
+`overworld_next_frame` 5,463 calls, every one matched; the shipping mode
+played the five frame for frame as before.
+
+**The preconditions, and how each was shown.**
+- *Fully ported, no original code for it in real play.* The burndown left
+  nothing of it unported; the shipping fallback baseline had no `C2:` line
+  of it; the census before (below) entered its entries only from the
+  mode's start's stop, its own stops and the wait's returns.
+- *No generated code touches its state.* The calls on record (the
+  library's `--calls` logs) into its routines come from its own code and
+  from the menus' ports: the script commands' sound request (`$C2:18E8`
+  and the two like it, run as C by the script bridge), the map view's
+  tiles' load (`$C2:63DF`) and its label's clear (`$C2:6965`), both C in
+  `menu/epoch.c`.
+- *Its unreached rows covered.* Its 30 bytes held by `unreached_safe` are
+  claims its contracts keep: the scene tiles' load no world map's record
+  asks for is behind the set up's (`overworld_set_up_runs`, a world map
+  whose record is noted), the boarding selector the game never sets behind
+  the leader's (`overworld_leader_takes`), and the stationary follower's
+  trap is `walk_a_leg`'s invariant. Its fuzz-evidenced rows were recorded
+  against the original before it retired, and left the ledger with it.
+- *Its recorded outcomes cover the movies that protect it.*
+  `field-65m-bc-dactyl`, `-dactyl-flight`, `field-12kbc-1f4` and
+  `menus-epoch` are in the gate's sample, with end states, pictures and
+  places in strict mode and `ct_native`; `field-65m-bc` and
+  `events-epoch-lavos` (the Epoch's flight) besides.
+
+**Deleted.** Every row the overworld had in `game_natives` (30: the set up
+and its loads, the thirteen objects' handlers, the scene calls, the ground's
+and the regions' look-ups, the reach test, the main loop, the overworld put
+aside and brought back, the menus' return, the sound request, the label's
+clear, the location's song); the wrappers only the registry called and their
+guards (`overworld_set_up_entry`, the loads', the terrain's, the reach
+test's, the main loop's, the menus' return's, the put aside and brought
+back); all the scaffolding but one cell (below): the lookups' operands and
+the multiplier left as the original's last step left them, the searches'
+and the dactyls' working cells, the step tables' rows, the reach test's
+operands, the work-RAM port left past the lists, A's high byte at the
+field's start, the scene calls' X and carry, the location song's look-up
+registers. Its rows in `docs/ports.tsv` (35), `tools/fuzz_routines.toml`
+(34), `tools/unreached_baseline.txt` (64), `unreached_safe.toml` (4),
+`unreached_cases.toml` (16), `tools/timing_exceptions.txt` (12) and
+`tools/effects_baseline.txt` (the 154 reads of its scaffolding the menus set
+first), and the fallback baseline's open comparison of its loop.
+
+**What calls it now.** In the shipping mode (`m_runs_retired_as_c`):
+- the sprite-object mode's start (`menu/display.c`, still gated) calls
+  `overworld_starts_on_the_machine`: the mode's start's time passed first
+  (`tm_sync`, as when the set up was an entry of its own: the set up turns
+  the frame's interrupt on, and in the start's own stretch that lands a
+  frame early, in `menus-epoch`'s trip through time), the set up as C and
+  the hold for the first frame;
+- the held wait's continuations (`.retired`) make every pass;
+- the menus' object loop (`menu/objects.c`) and the command scripts' bridge
+  (`menu/script_bridge.c`), still gated, run a handler or a routine a scene
+  calls on the machine, under the original's call, with the registers it
+  leaves: they ask `overworld_machine_form` (`overworld/entries.c`) where
+  they asked the registry. These are the machine entries kept, the
+  handlers' and the scene calls' (eighteen), because those callers are
+  under the gate; they go with the menus' object system.
+
+Elsewhere the mode's start stops at the set up's original start, the
+object loop and the bridge make the original's calls, and the cartridge's
+overworld runs, compared with nothing. The object loop's call of a handler
+is a call-out shadow mode compares, and the ports before it in the loop
+leave Y as nothing reads it: the call declares Y unread
+(`overworld_call_the_handler`), on fuzz evidence for the three handlers
+whose scripts liveness can't follow (`menu_run_objects:world_map`). The
+fallback measure doesn't count the cartridge's overworld in the reference
+play (`dev/fallbacks.c`, `the_cartridges_overworld`: its runs, the menus'
+helpers it calls, and the object loop's jump to one of its handlers) and
+does where the hand ports play, and the burndown and `tools/unreached.py` leave its runs out
+(`RETIRED_RUNS`). What its menus' callers call of it as C in every mode --
+the map's tiles' load, the label's clear, the sound request -- keeps the one
+cell of scaffolding the map view's comparison sees (`setup.c`,
+`leave_blocks_counted`).
+
+**The guards are contracts.** Each machine form's is its row's: widths,
+binary arithmetic and guard (`MachineForm`); the set up's, the loop's at the
+menus' return and its map's reload and a mode it doesn't know are checked
+where they are run. A state that breaks one is `program_breaks_a_contract`
+(a `contract broken:` line, which fails the gate) and goes to the original,
+as the refusal did. The held wait's continuations keep their guards, the
+runtime's contract for running them.
+
+**Its time, kept as it was.** The routines whose rows went keep their
+calibrated estimates (`game_kept_estimates`, 28), which the forms' calls,
+the C path's `TIMED_AS` and the charges name; the pass keeps the loop's
+entry's (`overworld_next_frame`, 5557). The charges the scaffolding wrapped
+(the block moves, putting the overworld aside) are plain now. What moved is
+the scaffolding's own time. Over the four world-map movies,
+`events-epoch-lavos` and `fair`'s map the shipping mode
+plays as before, frame for frame (`tools/trace.py diff`: VRAM, CGRAM, OAM,
+save RAM and the picture identical; work RAM but for the scaffolding's own
+cells, the stack below S, and three object fields only the original read).
+In `menus-epoch` the map's reload after the map view no longer seeks the
+work-RAM port, three register writes at the reload's rate, and the picture
+the frame after differs on a line (frame 5,652); from there the movie's
+input lands a frame later on the map, as it does in the native shape, which
+compiled that scaffolding out before.
+
+**The measures.** Census over `field-65m-bc`, `-dactyl`, `-dactyl-flight`,
+`field-12kbc-1f4`, `menus-epoch` and `events-epoch-lavos` (shipping mode):
+the machine entered the overworld's entries 5,971 times before
+(`overworld_main_loop` 5,959, by its own stop and 5 returns;
+`overworld_set_up` 12, by the mode's start's stop) and 0 now; its 5,967
+passes and 2,067,689 idle passes are the held wait's continuations. Entries
+the machine enters 68 to 66, its entries by all ways 6,270,041 to 4,199,502.
+Frame ends with a routine suspended, driven a frame at a time in `ct_drive
+--native on`, on `field-65m-bc-dactyl`'s world map (frames 2,466 to 2,810):
+345 before (the loop waiting in its call to the wait), 31 now (the vblank
+stub's, over the map's first frames); over the movie, 1,271 to 957. A state
+saved there at frame 2,600, in the held wait, loaded in a fresh `ct_drive`
+and played to 2,800, ends with the same work RAM and picture as the run that
+didn't stop. `tools/machine_joints.py`: registered entries 2,178 to 2,147,
+held waits' continuations 4 to 7, returns through the emulated stack 1,007 to
+1,000, stops 97 to 95, scaffolding writes 2,057 to 2,009. `tools/burndown.py`:
+bank `$C2`'s code 59.1K to 46.8K, its entries 559 to 528.
+
+**What replaces the comparison.** The protecting movies' recorded outcomes,
+in strict mode and `ct_native` (whose world map, `overworld_runs`, is the
+same C), the vblank check over the shipping mode's video writes, and the
+frame-by-frame equality with the shipping mode before the teardown measured
+above.
 
 ### Recorded outcomes
 

@@ -6,7 +6,6 @@
 
 #include "charge.h"
 #include "menu/sprites.h"
-#include "original_effects.h"
 #include "overworld/overworld_data.h"
 #include "vars.h"
 
@@ -119,14 +118,6 @@ bool overworld_walkers_start_over(const GameState *g)
     return overworld_travel(g) != overworld_travel_before(g) || overworld_event(g) != overworld_event_before(g);
 }
 
-/* The original picks a walker's step on foot from a table with a row for
- * whether an event runs, which it works out in the mode's first cell. */
-void overworld_leave_step_table_row(GameState *g)
-{
-    enum { ROW_BYTES = 8 };
-    set_overworld_scratch_walker_table_row(g, (uint8_t)(overworld_event(g) * ROW_BYTES));
-}
-
 void overworld_start_over_if_asked(GameState *g, MenuObject walker)
 {
     if (overworld_walkers_start_over(g))
@@ -175,14 +166,6 @@ void overworld_stop_showing_walking(GameState *g, MenuObject walker)
     set_menu_object_slots_facing(g, walker, (uint8_t)(menu_object_slots_facing(g, walker) & ~SHOWS_WALKING));
 }
 
-/* The original hands the animation routines the character in its first cell
- * and leaves the animation it picks in the next. */
-static void leave_animation_picked(GameState *g, uint8_t character, uint8_t animation)
-{
-    set_overworld_scratch_character(g, character);
-    set_overworld_scratch_animation(g, animation);
-}
-
 static uint8_t as_the_character(uint8_t animation, uint8_t character)
 {
     return character == OVERWORLD_MAGUS ? (uint8_t)(animation + OVERWORLD_MAGUS_ANIMATIONS_ON) : animation;
@@ -192,7 +175,6 @@ static void give_animation(GameState *g, MenuObject walker, uint8_t character, u
 {
     uint8_t own = as_the_character(animation, character);
     menu_give_sprite_script(g, walker, own);
-    ORIGINAL_EFFECT(leave_animation_picked(g, character, own));
 }
 
 // $C2:416C, $C2:3987
