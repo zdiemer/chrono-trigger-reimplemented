@@ -37,7 +37,8 @@ A result's key is the SHA-256 of a JSON object naming every input it depends on:
 The entries live as one JSON file each in one store every worktree of the
 checkout shares, in the main checkout's (gitignored) build directory,
 `build/evidence-cache/<tool>/<key>.json` (`default_dir`), never in the
-repository. A store per build directory made every worktree's first gate,
+repository. CT_EVIDENCE_CACHE_DIR selects a different store when the main
+checkout is read-only; each tool still uses its own subdirectory. A store per build directory made every worktree's first gate,
 and main's gate after merging a branch that had passed, make everything
 again for a binary the store already knew under another directory; nothing
 in a key names a path, so the store can be shared and stay sound. Outside a
@@ -160,6 +161,9 @@ def shared_root():
 def default_dir(binary, tool: str) -> pathlib.Path:
     """The store every worktree shares, in the main checkout's gitignored
     build directory; beside the binary when there is no checkout."""
+    override = os.environ.get("CT_EVIDENCE_CACHE_DIR")
+    if override:
+        return pathlib.Path(override).resolve() / tool
     root = shared_root()
     if root is not None:
         return root / "build" / "evidence-cache" / tool

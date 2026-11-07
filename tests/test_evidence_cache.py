@@ -120,6 +120,15 @@ class Keys(unittest.TestCase):
         self.assertNotEqual(base, digest('"""Judges."""\n\ndef same(a, b):\n    return a != b\n'))
         self.assertNotEqual(base, digest('"""Judges."""\n\ndef same(a, b):\n    return "no divergence" == b\n'))
 
+    def test_store_can_stay_in_a_writable_worktree(self):
+        directory = self.inputs.root / "local-cache"
+        with mock.patch.dict(os.environ, {"CT_EVIDENCE_CACHE_DIR": str(directory)}):
+            with mock.patch.object(evidence_cache, "shared_root") as shared:
+                self.assertEqual(evidence_cache.default_dir(self.inputs.binary, "dc"), directory.resolve() / "dc")
+                self.assertEqual(evidence_cache.default_dir(self.inputs.binary, "uncompared"),
+                                 directory.resolve() / "uncompared")
+                shared.assert_not_called()
+
     def test_every_worktree_shares_one_store(self):
         with mock.patch.object(evidence_cache, "shared_root", return_value=pathlib.Path("/checkout")):
             self.assertEqual(evidence_cache.default_dir("/checkout/.claude/worktrees/a/build/main/ct_dev", "dc"),

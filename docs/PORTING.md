@@ -1139,7 +1139,10 @@ verdicts the same way (`build/evidence-cache/uncompared/` in the same shared
 store, keyed on the binary, ROM, movie, frames, the case's options and the
 tool's syntax tree). `--no-cache` on either
 tool, `--no-evidence-cache` on the suite or `CT_EVIDENCE_CACHE=off` makes every
-run again (and still stores what passes). The unreached ledger's fuzz trials
+run again (and still stores what passes). When the main checkout is read-only,
+`CT_EVIDENCE_CACHE_DIR` selects a writable store; the tools use their `dc/`
+and `uncompared/` subdirectories there, with the same keys and checks.
+The unreached ledger's fuzz trials
 (`tools/unreached_fuzz.py`) aren't cached: they take half a minute, and their
 game states already are, keyed on the binary that made them.
 The effect worked out for an enemy's action hands the action's showing
