@@ -17,6 +17,15 @@ event_screen_cover_left = ["event_cmd_screen_command"]
 event_screen_end_field = ["event_cmd_screen_command"]
 event_screen_ripple = ["event_cmd_screen_command"]
 
+# Recipes known to fail today, each with why: `unreached.py --record` reports
+# them and takes no evidence from them, and fails on any other failing recipe
+# (or on one of these passing). The bytes they would cover stay open.
+[failing]
+"field_take_palette:unreached_party_shares" = "897 of 1,000 mismatch: the original's join indexes the slot table by the older sharer (docs/TODO.md, \"The field's unreached paths, before it retires\")"
+field_unpack_the_map = "50 mismatch, the port stopping where the original goes on; docs/ports.tsv records none (docs/TODO.md, \"The field's unreached paths, before it retires\")"
+field_set_up_after_a_menu = "1 mismatch, as field_unpack_the_map's, whose unpacking it runs (docs/TODO.md, \"The field's unreached paths, before it retires\")"
+field_start_step = "matches, but reads the map's tables past their 64 columns, an accessor out of range (docs/TODO.md, \"The field's unreached paths, before it retires\")"
+
 [[case]]
 base = "event_cmd_screen_command"
 variant = "unreached_effects"
