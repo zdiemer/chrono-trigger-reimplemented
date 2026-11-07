@@ -721,10 +721,8 @@ taking the gate down needs, before it and after it.
   retiring their gates. Every remaining byte needs a passing comparison or
   an explicit safety argument in the ledger, with its retirement obligations
   in TODO.md. The sampled gate checks the full-library ledger; it cannot
-  establish absence from movies it does not run. The events are covered;
-  the field is inventoried with 216 bytes `open` in 8 entries, three of them
-  mismatching under fuzz, which its teardown waits on (TODO.md, "The field's
-  unreached paths, before it retires").
+  establish absence from movies it does not run. The events and the field
+  are covered, the field with no byte `open`, so its teardown waits on none.
 - **The game's state as C, not a work-RAM image.** Even `ct_native` keeps the
   game's state as the 128 KiB byte image the accessors read and write, which
   is the original's memory layout carried into the product. When a subsystem

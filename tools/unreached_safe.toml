@@ -109,3 +109,9 @@ name = "field_place_8_sprites"
 runs = "C0BB86-C0BB87,C0BBA0-C0BBA1,C0BBBA-C0BBBB,C0BBD4-C0BBD5,C0BBEE-C0BBEF,C0BC08-C0BC09,C0BC22-C0BC23,C0BC3C-C0BC3D"
 depends = ["game/field/sprites.c:place_larger", "game/field/sprites.c:table_y", "game/field/sprites.c:shown", "game/field/sprites.c:zone_of", "game/field/sprites.c:EIGHT_PLACED"]
 why = "Dead by arithmetic. Each run is the branch the original takes for one of the eight sprites of an object in the screen's upper half (its screen Y's high byte 0 and low byte below $80) whose offset is downward (0-$7F) where adding the offset to the Y carries past 255; 127 + 127 is 254, so the add never carries. zone_of puts such an object in UPPER_HALF, whose EIGHT_PLACED rule (SHOWN_BELOW_OR_IN_THE_TOP_HALF) shows every downward sprite at Y + offset, the original's no-carry arm, which the recipes run. Preserve the zone bounds if the screen's height changes."
+
+[[safe]]
+name = "field_take_palette"
+runs = "C071EB-C071EC"
+depends = ["game/field/palettes.c:object_takes_a_palette_the_tables_hold", "game/field/palettes.c:field_palette_can_be_taken", "game/field/palettes.c:take_party_place_slot"]
+why = "Refused by the guard. A party place's object whose place's slot an object of other colours holds: the original gives up (carry clear) with A left 16-bit from comparing the colours, which its callers then run with. object_takes_a_palette_the_tables_hold turns that call away, so the original's code runs it, and the gate's refusal check holds that no movie's play makes it; take_party_place_slot gives up there too, taking no slot. unreached_party_shares runs the join and the free slot beside it. Keep it as the entry's contract when the field retires."

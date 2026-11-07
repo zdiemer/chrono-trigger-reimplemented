@@ -38,7 +38,7 @@ rest waits, is [PLAN.md](PLAN.md).
   projection from the new storage; a picture hash alone cannot establish
   that a visual difference cannot affect play.
 - **Keep the unreached ledger's preconditions when retiring the machine.**
-  `tools/unreached_safe.toml` names all 143 bytes excluded from execution
+  `tools/unreached_safe.toml` names all 168 bytes excluded from execution
   evidence, with exact runs in `tools/unreached_baseline.txt`: event's
   missing-text-table diagnostic calls (36 bytes), rejected word-OR (12), full
   shared-graphics table diagnostic (6) and graphics-overflow handoffs (12).
@@ -64,35 +64,13 @@ rest waits, is [PLAN.md](PLAN.md).
   a tile set's eighth block no location's set has (44: recheck if location
   records or tile-set lists become editable) and the location load error only
   a negative location word reaches (6: keep `field_location_is_a_number` as an
-  assertion).
-- **The field's unreached paths, before it retires.** `tools/unreached.py`
-  inventories the field ahead of its teardown: 2,229 bytes in 51 of its 202
-  entries no library movie runs, 1,946 executed in matched fuzz trials, 67
-  argued, and 216 in 8 entries `open` in `tools/unreached_baseline.txt`,
-  which its `--check` reports. The field can't leave the gate with any open.
-  - `field_take_palette` (39, `$C0:71EB-$C0:7211`): a party place's object
-    coming into view whose slot another object of the same colours holds.
-    `field_take_palette:unreached_party_shares` mismatches in 897 of 1,000:
-    the original's join (`$C0:71FE-$C0:7210`) writes the slot's newest
-    sharer and the object's palette by the older sharer's number instead of
-    the slot's, which `take_a_slot` doesn't reproduce. Whether play can make
-    the state (two objects of a party place's colours) decides between
-    reproducing it and refusing it in `object_takes_a_palette_the_tables_hold`.
-  - `field_set_up_after_a_menu` (44, `$C0:021F-$C0:024A`) and
-    `field_unpack_the_map` (7, `$C0:A47C-$C0:A482`): their plain recipes
-    mismatch today (1 and 50, the port stopping at `$C0:0001`, `$C0:3011` or
-    `$C0:6126` where the original goes on), where `docs/ports.tsv` records
-    none; the map's unpacking is under both. Find what changed first.
-  - `field_start_step` (20, `$C0:AF04-$C0:AF17`): its recipe matches every
-    state but reads the map's tables past their 64 columns (`accessor out of
-    range`), which disqualifies it; it needs object positions on the map.
-  - `field_walk_the_leader` (45, five 9-byte stops where a look finds the
-    way shut), `field_dialog_window_step` (32, arms on the control code the
-    text stopped at and on the field flag at `$7E:0154` bit 5; the
-    `unreached_states` case doesn't reach them), `field_place_8_sprites`
-    (16, an offset carrying a sprite's position past 255) and
-    `field_read_animation_frame` (13, an animation's end marker with its
-    delay left): each wants a targeted state in `tools/unreached_cases.toml`.
+  assertion), the 8-sprite layout's carry past 255 in the screen's upper half
+  (16, by arithmetic: keep the zone bounds if the screen's height changes) and
+  BG2 drifting left, which no location's map has (7: recheck if maps become
+  editable). The field's map, script and set-up after a menu take only a
+  place where a location's record starts (`location_record_is_one`): keep it
+  as an assertion, since another place's "map" can unpack past its bank onto
+  the stack and the unpacker's cells, where the C and the original part.
 - **Exercise both sign-refresh arms after returning from a screen.**
   The overworld's main loop's `$C2:2603-$C2:2605` and `$C2:267E-$C2:2680`
   are six reviewed-equivalence bytes: conditional increments of the

@@ -74,7 +74,8 @@ class UnreachedTest(unittest.TestCase):
         records = self.records[:-1] + [open_row]
         self.assertTrue(self.check(records=records))
         field = [['port', 'field'] + self.records[1][2:]] + [open_row]
-        self.assertEqual(self.check(records=self.records[:1] + field, rows=[dict(self.row, subsystem='field')]), [])
+        with patch.object(u, 'OPEN', {'field': 3}):
+            self.assertEqual(self.check(records=self.records[:1] + field, rows=[dict(self.row, subsystem='field')]), [])
         self.assertEqual(u.open_summary(field), 'field 3 bytes in 1 entries')
         self.assertTrue(self.check(records=self.records + [open_row]))
 
