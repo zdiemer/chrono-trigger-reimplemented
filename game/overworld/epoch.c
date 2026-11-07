@@ -32,7 +32,6 @@
 #include "charge.h"
 #include "menu/epoch.h"
 #include "menu/sprites.h"
-#include "original_effects.h"
 #include "overworld/music.h"
 #include "vars.h"
 
@@ -85,12 +84,8 @@ static WorldSpot place(const GameState *g, MenuObject self) { return overworld_w
 static void keep_its_spot(GameState *g, MenuObject self) { overworld_keep_vehicle_spot(g, VEHICLE_EPOCH, place(g, self)); }
 
 /* Where the original clears the step's note with a word, the byte after it
- * goes with it; nothing reads it. */
-static void clear_the_step_note_as_a_word(GameState *g)
-{
-    set_overworld_step_begun(g, 0);
-    ORIGINAL_EFFECT(set_overworld_after_step_begun(g, 0));
-}
+ * goes with it; nothing reads it, so only the note is cleared. */
+static void clear_the_step_note_as_a_word(GameState *g) { set_overworld_step_begun(g, 0); }
 
 static void stop(GameState *g, MenuObject self) { overworld_vehicle_stop(g, self); }
 

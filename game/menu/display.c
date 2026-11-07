@@ -35,6 +35,7 @@
 #include "menu/screen_objects.h"
 #include "menu/vram.h"
 #include "original_effects.h"
+#include "overworld/setup.h"
 #include "platform/input.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -950,7 +951,9 @@ void menu_object_mode_starts(GameState *g, Platform *pf)
 
 /* On the machine the mode starts with the CPU's interrupts masked, an 8-bit
  * accumulator and 16-bit index registers, on its page with the data bank on
- * low RAM. */
+ * low RAM. The overworld is off the gate (docs/REIMPLEMENTATION.md, "The
+ * overworld's teardown"), so in the shipping mode the world map's set up
+ * follows as C; elsewhere the original's set up does, the cartridge's code. */
 void menu_object_mode_start(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_I, true);
@@ -959,7 +962,10 @@ void menu_object_mode_start(Snes *s)
     s->cpu.db = 0x00;
     s->cpu.d = MENU_OBJECT_PAGE;
     menu_object_mode_starts(state_of(s), m_platform(s));
-    m_stop_at_own(s, WORLD_MAP_SET_UP, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+    if (m_runs_retired_as_c(s))
+        overworld_starts_on_the_machine(s);
+    else
+        m_stop_at_own(s, WORLD_MAP_SET_UP, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
 }
 
 /* The mode's screen: the sprites' smaller size 16x16, their tiles at VRAM 0;

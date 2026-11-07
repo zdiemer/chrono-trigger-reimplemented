@@ -78,26 +78,3 @@ runs = "C0483A-C0483F"
 depends = ["game/event/characters.c:cast_enemy", "game/event/characters.c:unpack", "game/event/characters.c:set_calls", "game/event/characters.c:ENEMY_TOO_FAR"]
 why = "The port stops at C0483A on graphics overflow; unreached_overflow compares at that handoff. These bytes belong to the original-only diagnostic after it. Keep a native failure for overflow when the handoff retires."
 
-[[safe]]
-name = "overworld_set_up"
-runs = "C22915-C2292E"
-depends = ["game/overworld/setup.c:load_the_scene_graphics", "game/overworld/setup.c:RECORD_SCENE_TILES", "game/overworld/setup.c:on_a_world_map", "game/overworld/setup.c:record_noted"]
-why = "All eight fixed world-map records have the no-stream bit in RECORD_SCENE_TILES (field 7), verified on the CRC-checked USA cartridge. on_a_world_map/record_noted restrict selection to those records. This optional load is never requested by the shipped resources; revisit for edited map records."
-
-[[safe]]
-name = "overworld_lead"
-runs = "C237D6-C237D7"
-depends = ["game/overworld/handlers.c:walker_runs", "game/overworld/overworld.h:NO_VEHICLE", "game/overworld/overworld.h:VEHICLE_EPOCH", "game/overworld/overworld.h:VEHICLE_DACTYL"]
-why = "The original boarding table's selector 1 is excluded by boards_the_game_s; the admitted selectors are NO_VEHICLE (0), EPOCH (2), DACTYL (3), all fuzzed. Preserve the vehicle enum validation."
-
-[[safe]]
-name = "overworld_follow"
-runs = "C24123-C24124"
-depends = ["game/overworld/followers.c:walk_a_leg", "game/overworld/followers.c:walk_the_first_leg", "game/overworld/followers.c:walk_the_next_leg"]
-why = "The original's stationary-walker trap is called only after setting one integer velocity to +1 or -1 and the other to zero (4138/4152 -> 40E4). Both being zero is impossible on those paths. walk_a_leg expresses this invariant; both axes and signs are compared by the follower recipes."
-
-[[safe]]
-name = "overworld_main_loop"
-runs = "C22603-C22605,C2267E-C22680"
-depends = ["game/overworld/main_loop.c:set_the_sign_again", "re/ram.toml:overworld_sign", "re/ram.toml:overworld_sign_again"]
-why = "Reviewed equivalence for the two sign-refresh arms after map-view/time-dial return: each original instruction increments byte 1B59 modulo 256, only if byte 1B58 is nonzero; its N/Z are overwritten by the following LDA. Both call set_the_sign_again, with exactly that predicate and uint8_t conversion (including 255 -> 0). These six instructions were not executed in the fuzz comparisons; a returning-screen fixture remains useful before teardown."

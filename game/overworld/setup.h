@@ -46,14 +46,15 @@ Unpacker overworld_unpacker_on_the_machine(Snes *s);
 Unpacker overworld_unpacker_called(Snes *s);
 Unpacker overworld_unpacker(GameState *g);
 
-/* The registered entries and their guards. */
-void overworld_set_up_entry(Snes *s);
-void overworld_load_the_map_again_entry(Snes *s);
-void overworld_load_the_map_tiles_entry(Snes *s);
-void overworld_finish_the_graphics_entry(Snes *s);
-bool overworld_graphics_finish_runs(Snes *s);
+/* The world map set up on the machine where the sprite-object mode's start
+ * goes on to it, in the shipping mode: the set up as C and the main loop
+ * waiting for its first frame (the original's set up from its start where
+ * the state breaks the set up's contract). */
+void overworld_starts_on_the_machine(Snes *s);
 bool overworld_set_up_runs(Snes *s);
-bool overworld_map_again_runs(Snes *s);
+/* The map's tiles' load as a scene's script calls it on the machine
+ * (entries.c), and its contract. */
+void overworld_load_the_map_tiles_on_the_machine(Snes *s);
 bool overworld_map_tiles_run(Snes *s);
 
 #endif

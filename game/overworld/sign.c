@@ -18,7 +18,6 @@
 #include "menu/sprites.h"
 #include "menu/typeset.h"
 #include "menu/vram.h"
-#include "original_effects.h"
 #include "overworld/overworld_data.h"
 #include "ram.h"
 #include "vars.h"

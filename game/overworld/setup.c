@@ -21,7 +21,7 @@
 #include "overworld/setup.h"
 
 #include "charge.h"
-#include "cpu_io.h"
+#include "core/program.h"
 #include "data/decompress.h"
 #include "menu/bridge.h"
 #include "menu/display.h"
@@ -133,7 +133,9 @@ static bool load_named(GameState *g, const Unpacker *u, uint32_t site, uint8_t f
 }
 
 /* For the original's code and shadow mode: the count of blocks the block
- * loads work with, in the mode's ninth and tenth bytes. */
+ * loads work with, in the mode's ninth and tenth bytes. It outlived the
+ * overworld's gate: the Epoch's map view, still under it, loads the map's
+ * tiles through here (menu/epoch.c), and its comparison sees the cells. */
 static void leave_blocks_counted(GameState *g, uint16_t blocks)
 {
     enum { COUNT_CELL = 0x08 };
@@ -157,23 +159,10 @@ static bool load_blocks(GameState *g, const Unpacker *u, uint32_t site, uint8_t 
 
 /* ---- The sprites --------------------------------------------------------------------------- */
 
-/* The sprite pages' bytes the original reads its record through, a pointer
- * twelve bytes into the record (in the mode's cells $10-$12). */
-static void leave_the_sprite_pages_pointer(GameState *g)
-{
-    enum { POINTER_CELL = 0x10 };
-    uint32_t record = overworld_map_record(g);
-    uint16_t at = (uint16_t)(record + RECORD_SPRITE_PAGES);
-    set_menu_object_scratch_bytes_byte(g, POINTER_CELL, (uint8_t)at);
-    set_menu_object_scratch_bytes_byte(g, POINTER_CELL + 1, (uint8_t)(at >> 8));
-    set_menu_object_scratch_bytes_byte(g, POINTER_CELL + 2, (uint8_t)(record >> 16));
-}
-
 // $C2:2768
 /* The four pages of the map's sprites. */
 static bool load_the_sprite_pages(GameState *g, const Unpacker *u)
 {
-    ORIGINAL_EFFECT(leave_the_sprite_pages_pointer(g));
     return load_blocks(g, u, 0xC227A2, RECORD_SPRITE_PAGES, SPRITE_PAGES, OVERWORLD_SPRITE_GRAPHICS);
 }
 
@@ -202,17 +191,6 @@ static void copy_in_bank(GameState *g, uint16_t from, uint32_t to, uint16_t byte
     charge_block_move(g, bytes);
 }
 
-/* For the original's code and shadow mode: the last member's rows' places,
- * which the copy keeps in the mode's ninth to twelfth bytes. */
-static void leave_the_rows_copied(GameState *g, uint16_t from, uint16_t to)
-{
-    enum { FROM_CELL = 0x08, TO_CELL = 0x0A };
-    set_menu_object_scratch_bytes_byte(g, FROM_CELL, (uint8_t)from);
-    set_menu_object_scratch_bytes_byte(g, FROM_CELL + 1, (uint8_t)(from >> 8));
-    set_menu_object_scratch_bytes_byte(g, TO_CELL, (uint8_t)to);
-    set_menu_object_scratch_bytes_byte(g, TO_CELL + 1, (uint8_t)(to >> 8));
-}
-
 // $C2:2B61 (with $C2:2BBC and $C2:2BCF for each member)
 static bool load_the_party_sprites(GameState *g, const Unpacker *u)
 {
@@ -225,9 +203,6 @@ static bool load_the_party_sprites(GameState *g, const Unpacker *u)
         copy_in_bank(g, character_rows(character), rows_to, CHARACTER_ROW_BYTES);
         copy_in_bank(g, (uint16_t)(character_rows(character) + SECOND_ROW), rows_to + SECOND_ROW, CHARACTER_ROW_BYTES);
     }
-    enum { LAST_PLACE = PARTY_PLACES - 1 };
-    ORIGINAL_EFFECT(leave_the_rows_copied(g, character_rows(party_members(g, LAST_PLACE)),
-                                          (uint16_t)(PARTY_ROWS + LAST_PLACE * CHARACTER_ROW_BYTES)));
     return true;
 }
 
@@ -414,15 +389,12 @@ static const PlaceListStream PLACE_LIST_STREAMS[] = {
 enum { KEPT_COUNTS = 3 };
 
 // $C2:2A44
-/* The places, unpacked to the scene's stage and spread to their lists. The
- * original streams the records through the work RAM port, which it leaves
- * past the last list. */
+/* The places, unpacked to the scene's stage and spread to their lists. */
 static bool load_the_places(GameState *g, const Unpacker *u)
 {
     if (!load_named(g, u, 0xC22A6D, RECORD_PLACE_LISTS, OVERWORLD_PLACE_LISTS, SCENE_STAGE))
         return false;
     uint32_t at = SCENE_STAGE;
-    uint32_t end = 0;
     for (unsigned list = 0; list < sizeof PLACE_LIST_STREAMS / sizeof PLACE_LIST_STREAMS[0]; list++) {
         const PlaceListStream *l = &PLACE_LIST_STREAMS[list];
         uint8_t count = wram_read8(g, at);
@@ -431,9 +403,7 @@ static bool load_the_places(GameState *g, const Unpacker *u)
         uint16_t bytes = (uint16_t)(count * l->record_bytes);
         wram_copy(g, at + 1, l->to, bytes);
         at += 1u + bytes;
-        end = l->to + bytes;
     }
-    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)end, (uint8_t)(end >> 16)));
     return true;
 }
 
@@ -463,17 +433,11 @@ static bool load_the_scene_script(GameState *g, const Unpacker *u)
     return load_named(g, u, 0xC22A3F, RECORD_SCENE_SCRIPT, OVERWORLD_SCENE_SCRIPTS, SCENE_STAGE);
 }
 
-/* The buffer the sign's name and the map view's sprite graphics share,
- * cleared through the work RAM port, which it leaves past it. */
+/* The buffer the sign's name and the map view's sprite graphics share. */
 enum { SIGN_BUFFER_BYTES = 0x800 };
 
 // $C2:2BFB
-static void clear_the_sign_buffer(GameState *g)
-{
-    wram_fill8(g, RAM_OVERWORLD_SIGN_LABEL, SIGN_BUFFER_BYTES, 0);
-    uint32_t end = RAM_OVERWORLD_SIGN_LABEL + SIGN_BUFFER_BYTES;
-    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)end, (uint8_t)(end >> 16)));
-}
+static void clear_the_sign_buffer(GameState *g) { wram_fill8(g, RAM_OVERWORLD_SIGN_LABEL, SIGN_BUFFER_BYTES, 0); }
 
 /* Draw both planes of the map whole, the land's first. */
 enum { LAND_PLANE = 0, OVER_THE_LAND = 1 };
@@ -659,31 +623,35 @@ Unpacker overworld_unpacker_called(Snes *s) { return (Unpacker){ unpack_as_calle
 
 static Unpacker on_the_machine(Snes *s) { return overworld_unpacker_on_the_machine(s); }
 
-/* Where the main loop starts. */
-enum { MAIN_LOOP = 0xC223CF };
+/* Where the set up starts; the original's code from there reads nothing of
+ * the registers but the mode's page and bank. */
+enum { SET_UP = 0xC223A8, THE_SET_UP_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 // $C2:23A8
-/* The set up goes on to the main loop; what it leaves in the registers the
- * loop sets again before it reads. */
-void overworld_set_up_entry(Snes *s)
+/* The world map set up where the sprite-object mode's start goes on to it
+ * (menu/display.c), in the shipping mode: the set up as C, and the main loop
+ * waiting for its first frame (main_loop.c, a held wait). Its contract is the
+ * one its registry row held: the mode's page with an 8-bit accumulator,
+ * 16-bit index registers and binary arithmetic, on a world map whose camera
+ * the party's place puts on the map. A state outside it is reported, and the
+ * original's set up goes on from its start. The mode's start's time passes
+ * first, as it did when the set up was an entry of its own: the set up turns
+ * the frame's interrupt on, and on the machine that lands where the time
+ * charged so far has brought the beam. */
+void overworld_starts_on_the_machine(Snes *s)
 {
-    Unpacker u = on_the_machine(s);
-    if (!overworld_set_up(state_of(s), &u, m_platform(s)))
+    GameState *g = state_of(s);
+    if (!overworld_loop_accepts_machine(s) || !overworld_set_up_runs(s)) {
+        program_breaks_a_contract(g, SET_UP, "a world map set up outside its contract");
+        m_stop_at_own(s, SET_UP, THE_SET_UP_READS_NOTHING);
         return;
-    if (overworld_loop_accepts_machine(s))
-        TIMED_AS(state_of(s), MAIN_LOOP, overworld_run_a_frame(s));
-    else
-        m_stop_at(s, MAIN_LOOP, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-}
-
-// $C2:2C93
-void overworld_load_the_map_again_entry(Snes *s)
-{
-    Unpacker u = on_the_machine(s);
-    if (overworld_load_the_map_again(state_of(s), &u, m_platform(s))) {
-        m_sep(s, CPU_FLAG_M);
-        m_rts(s);
     }
+    tm_sync(m_platform(s));
+    Unpacker u = on_the_machine(s);
+    bool set_up = false;
+    TIMED_AS(g, SET_UP, set_up = overworld_set_up(g, &u, m_platform(s)));
+    if (set_up)
+        overworld_wait_for_the_next_frame_on_the_machine(s);
 }
 
 /* The map's tiles come back with a 16-bit accumulator, the carry of the
@@ -704,19 +672,9 @@ static void leave_the_last_block(Snes *s)
     m_set_flag(s, CPU_FLAG_C, true);
 }
 
-// $C2:2D47
-/* Reached by falling out of the graphics' last block move, with a 16-bit
- * accumulator; it comes back with an 8-bit one. */
-void overworld_finish_the_graphics_entry(Snes *s)
-{
-    Unpacker u = on_the_machine(s);
-    m_sep(s, CPU_FLAG_M);
-    if (finish_the_graphics(state_of(s), &u, m_platform(s)))
-        m_rts(s);
-}
-
 // $C2:27DE
-void overworld_load_the_map_tiles_entry(Snes *s)
+/* The machine form a scene's script calls (overworld/entries.c). */
+void overworld_load_the_map_tiles_on_the_machine(Snes *s)
 {
     Unpacker u = on_the_machine(s);
     if (!overworld_load_the_map_tiles(state_of(s), &u))
@@ -728,7 +686,7 @@ void overworld_load_the_map_tiles_entry(Snes *s)
     m_rts(s);
 }
 
-/* ---- The guards ---------------------------------------------------------------------------- */
+/* ---- The contracts ------------------------------------------------------------------------- */
 
 /* The loads run on the mode's page with the data bank on low RAM, on a world
  * map whose record is in the ROM; the record noted where they read it. */
@@ -764,19 +722,6 @@ bool overworld_map_can_be_loaded_again(const GameState *g)
     return on_a_world_map(g) && record_noted(g) && menu_map_can_redraw(g, LAND_PLANE)
            && menu_map_can_redraw(g, OVER_THE_LAND);
 }
-
-bool overworld_map_again_runs(Snes *s)
-{
-    if (!menu_objects_on_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = overworld_map_can_be_loaded_again(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-/* The palette's send reaches the video registers through the data bank. */
-bool overworld_graphics_finish_runs(Snes *s) { return menu_objects_on_page(s) && m_io_bank(s->cpu.db); }
 
 /* The map's tiles load on a world map whose record is noted (the map view's
  * plane is built from them too: menu/epoch.c). */

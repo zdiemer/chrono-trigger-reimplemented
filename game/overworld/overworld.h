@@ -160,8 +160,6 @@ void overworld_set_step(GameState *g, MenuObject o, OverworldStep step);
 OverworldStep overworld_step(const GameState *g, MenuObject o);
 bool overworld_walkers_start_over(const GameState *g);
 void overworld_start_over_if_asked(GameState *g, MenuObject walker);
-/* Scaffolding: what the original's choice of a step on foot leaves. */
-void overworld_leave_step_table_row(GameState *g);
 
 /* Dress a walker as the member in the place: drawn on the map in the
  * member's palette from the member's tiles, a priority higher on the one map

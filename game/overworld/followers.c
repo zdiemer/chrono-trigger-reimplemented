@@ -24,7 +24,6 @@
 #include "overworld/overworld.h"
 
 #include "charge.h"
-#include "original_effects.h"
 #include "overworld/terrain.h"
 #include "ram.h"
 #include "vars.h"
@@ -61,18 +60,6 @@ static SearchTile tile_of(WorldSpot at) { return (SearchTile){ (uint8_t)(at.x / 
 
 static bool wall(Ground g) { return (g & GROUND_WALL) != 0; }
 
-/* The original keeps the search's working values in the mode's cells as it
- * goes: where it looked along a leg last and where the leg ran; the map's and
- * the kinds' pointers its lookups read through. */
-static void leave_leg(GameState *g, uint8_t at, uint8_t line, uint8_t end)
-{
-    set_overworld_scratch_ground_map(g, RAM_OVERWORLD_MAP);
-    set_overworld_scratch_ground_kinds(g, RAM_OVERWORLD_GROUND_KINDS);
-    set_overworld_scratch_search_at(g, at);
-    set_overworld_scratch_search_line(g, line);
-    set_overworld_scratch_search_end(g, end);
-}
-
 /* The way a leg runs: a tile at a time towards its end, the shorter way as a
  * byte counts it. */
 static int8_t way_along(uint8_t from, uint8_t to) { return (int8_t)(uint8_t)(to - from) < 0 ? -1 : 1; }
@@ -90,7 +77,6 @@ static bool wall_across(GameState *g, uint8_t from, uint8_t to, uint8_t row, uin
         at = (uint8_t)(at + way);
         TIMED_AS(g, 0xC262AE, walled = wall(overworld_ground_at(g, at, above)));
     }
-    ORIGINAL_EFFECT(leave_leg(g, at, row, to));
     *reached = at;
     return walled;
 }
@@ -99,48 +85,32 @@ static bool wall_across(GameState *g, uint8_t from, uint8_t to, uint8_t row, uin
 /* A leg down the column `column`, from the row `from` to `to`: whether either
  * tile of a row it crosses, beside the column on the left or right of the
  * walker's feet, is a wall. Its rows are each a row above the feet's. */
-static bool wall_down(GameState *g, MenuObject self, uint8_t column, uint8_t from, uint8_t to)
+static bool wall_down(GameState *g, uint8_t column, uint8_t from, uint8_t to)
 {
     uint8_t left = (uint8_t)(column - 1), at = (uint8_t)(from - 1), end = (uint8_t)(to - 1);
     int8_t way = way_along(at, end);
-    Ground left_ground = 0;
-    bool walled = false, looked = false;
+    bool walled = false;
     while (at != end && !walled) {
         at = (uint8_t)(at + way);
+        Ground left_ground, right_ground;
         TIMED_AS(g, 0xC262AE, left_ground = overworld_ground_at(g, left, at));
-        Ground right_ground;
         TIMED_AS(g, 0xC262AE, right_ground = overworld_ground_at(g, column, at));
         walled = wall(left_ground | right_ground);
-        looked = true;
     }
-    if (looked)
-        ORIGINAL_EFFECT(set_menu_object_slots_wall_search_left(g, self, left_ground));
-    ORIGINAL_EFFECT(leave_leg(g, column, (uint8_t)(at + 1), end));
     return walled;
 }
 
 // $C2:41B5
 /* Which ways round from one tile to another have a wall: across then down,
  * and down then across. */
-static uint8_t walls_between(GameState *g, MenuObject self, SearchTile from, SearchTile to)
+static uint8_t walls_between(GameState *g, SearchTile from, SearchTile to)
 {
     uint8_t walls = 0, reached;
-    if (wall_across(g, from.column, to.column, from.row, &reached) || wall_down(g, self, reached, from.row, to.row))
+    if (wall_across(g, from.column, to.column, from.row, &reached) || wall_down(g, reached, from.row, to.row))
         walls |= WALL_ACROSS_FIRST;
-    if (wall_down(g, self, from.column, from.row, to.row) || wall_across(g, from.column, to.column, to.row, &reached))
+    if (wall_down(g, from.column, from.row, to.row) || wall_across(g, from.column, to.column, to.row, &reached))
         walls |= WALL_DOWN_FIRST;
-    ORIGINAL_EFFECT(set_overworld_scratch_search_blocked(g, walls));
     return walls;
-}
-
-/* The search's own cells: where from and where to, in tiles, each kept as a
- * word over the next's first byte. */
-static void leave_search(GameState *g, WorldSpot from, WorldSpot to)
-{
-    set_overworld_scratch_search_from_column(g, (uint8_t)(from.x / TILE_PIXELS));
-    set_overworld_scratch_search_to_column(g, (uint8_t)(to.x / TILE_PIXELS));
-    set_overworld_scratch_search_from_row(g, (uint8_t)(from.y / TILE_PIXELS));
-    set_overworld_scratch_search_to_row(g, (uint16_t)(to.y / TILE_PIXELS));
 }
 
 /* The goal, and how far it is from the follower as it sets out. */
@@ -167,7 +137,6 @@ static uint8_t route_by_distance(GameState *g, MenuObject self)
     int16_t across = to_goal(g, self, MENU_ACROSS), down = to_goal(g, self, MENU_DOWN);
     if (across == 0)
         return ROUTE_DOWN_FIRST | 1;
-    ORIGINAL_EFFECT(set_overworld_scratch_distance_across(g, distance(across)));
     if (down == 0)
         return ROUTE_ACROSS_FIRST | 1;
     return distance(down) >= distance(across) ? (ROUTE_DOWN_FIRST | 2) : (ROUTE_ACROSS_FIRST | 2);
@@ -191,13 +160,6 @@ static WorldSpot usual_spot(const GameState *g, MenuObject self)
 
 enum { TRAIL_TRIES = 16, TILE_SPOT = (uint16_t)~(TILE_PIXELS - 1) };
 
-static void leave_trail_search(GameState *g, unsigned tries_left, unsigned steps_back)
-{
-    set_overworld_scratch_trail_tries(g, (uint8_t)tries_left);
-    set_overworld_scratch_trail_looked_at(g, (uint16_t)((overworld_trail_next(g) - TRAIL_STEP_BYTES * steps_back)
-                                                        & (TRAIL_STEPS * TRAIL_STEP_BYTES - 1)));
-}
-
 // $C2:4060
 /* Boxed in both ways: back along the trail, from the leader's last step, for
  * a spot one of the ways round reaches, which the follower heads for, on its
@@ -208,16 +170,12 @@ static uint8_t route_back_along_the_trail(GameState *g, MenuObject self)
     WorldSpot at = overworld_walker_spot(g, self);
     for (unsigned back = 1; back <= TRAIL_TRIES; back++) {
         WorldSpot spot = overworld_trail_back(g, back);
-        ORIGINAL_EFFECT(leave_search(g, at, spot));
-        uint8_t walls = walls_between(g, self, tile_of(at), tile_of(spot));
+        uint8_t walls = walls_between(g, tile_of(at), tile_of(spot));
         if (walls != WALLS_BOTH_WAYS) {
-            ORIGINAL_EFFECT(leave_trail_search(g, TRAIL_TRIES - back + 1, back));
-            ORIGINAL_EFFECT(set_overworld_scratch_trail_way_round(g, walls));
             aim_at(g, self, (WorldSpot){ spot.x & TILE_SPOT, spot.y & TILE_SPOT });
             return route_round(g, self, walls);
         }
     }
-    ORIGINAL_EFFECT(leave_trail_search(g, 0, TRAIL_TRIES + 1));
     aim_at(g, self, usual_spot(g, self));
     return route_by_distance(g, self);
 }
@@ -227,8 +185,7 @@ static uint8_t route_back_along_the_trail(GameState *g, MenuObject self)
 static uint8_t plan_the_route(GameState *g, MenuObject self)
 {
     WorldSpot at = overworld_walker_spot(g, self), leader = overworld_party_spot(g, PARTY_LEADER);
-    ORIGINAL_EFFECT(leave_search(g, at, leader));
-    uint8_t walls = walls_between(g, self, tile_of(at), tile_of(leader));
+    uint8_t walls = walls_between(g, tile_of(at), tile_of(leader));
     return walls == WALLS_BOTH_WAYS ? route_back_along_the_trail(g, self) : route_round(g, self, walls);
 }
 
@@ -282,16 +239,6 @@ typedef struct {
     uint16_t top, bottom, left, right;
 } Box;
 
-static void leave_box(GameState *g, Box b, WorldSpot leader)
-{
-    set_overworld_scratch_box_top(g, b.top);
-    set_overworld_scratch_box_bottom(g, b.bottom);
-    set_overworld_scratch_box_left(g, b.left);
-    set_overworld_scratch_box_right(g, b.right);
-    set_overworld_scratch_box_leader_x(g, leader.x);
-    set_overworld_scratch_box_leader_y(g, leader.y);
-}
-
 // $C2:3EE1, $C2:3F27
 static bool near_the_leader(GameState *g, MenuObject self)
 {
@@ -300,7 +247,6 @@ static bool near_the_leader(GameState *g, MenuObject self)
     WorldSpot at = overworld_walker_spot(g, self), leader = overworld_party_spot(g, PARTY_LEADER);
     Box box = { (uint16_t)(at.y - reach), (uint16_t)(at.y + reach + 1), (uint16_t)(at.x - reach),
                 (uint16_t)(at.x + reach + 1) };
-    ORIGINAL_EFFECT(leave_box(g, box, leader));
     return leader.y >= box.top && leader.y < box.bottom && leader.x >= box.left && leader.x < box.right;
 }
 
@@ -427,7 +373,6 @@ static bool walk_on_foot(GameState *g, MenuObject self, const WalkerScripts *scr
         overworld_animate(g);
         return true;
     }
-    ORIGINAL_EFFECT(overworld_leave_step_table_row(g));
     if (overworld_event_running(g))
         return take_part_in_the_event(g, self, scripts);
     switch (overworld_step(g, self)) {

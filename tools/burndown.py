@@ -70,6 +70,9 @@ driver takes the game's boot and commands as calls (docs/REIMPLEMENTATION.md,
 $C3:0557-$C3:08B2), which every port calls as C ("The data subsystem's
 teardown"). And the time warp ($FD:DA00-$FD:DD95, $FD:DE15-$FD:DE97,
 $FD:EAA6-$FD:F28F), whose trip is C in the shipping mode ("The time warp's
+teardown"). And the overworld (bank $C2's runs from $C2:229D to $C2:57AF, and
+$C2:6263-$C2:631E: the code its retired entries owned, less what the menus'
+code shares), whose world map is C in the shipping mode ("The overworld's
 teardown").
 
 It is a burndown, not an accounting: useful for "which subsystem is barely
@@ -98,7 +101,9 @@ CALLS = {"JSR", "JSL"}
 # and runs of addresses, first to last.
 RETIRED = {0xC7}
 RETIRED_RUNS = ((0xC30002, 0xC30004), (0xC30557, 0xC308B2),
-                (0xFDDA00, 0xFDDD95), (0xFDDE15, 0xFDDE97), (0xFDEAA6, 0xFDF28F))
+                (0xFDDA00, 0xFDDD95), (0xFDDE15, 0xFDDE97), (0xFDEAA6, 0xFDF28F),
+                (0xC2229D, 0xC22335), (0xC22345, 0xC226A7), (0xC226D6, 0xC2271F), (0xC2274D, 0xC22D6F),
+                (0xC22D91, 0xC257AF), (0xC26263, 0xC2631E))
 
 
 def retired(pc):

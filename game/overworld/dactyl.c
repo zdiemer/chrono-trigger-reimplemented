@@ -35,7 +35,6 @@
 #include "cpu_io.h"
 #include "menu/menu_data.h"
 #include "menu/sprites.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- What they share --------------------------------------------------------------------- */
@@ -299,34 +298,6 @@ static void set_off_along(GameState *g, MenuObject self, uint8_t angle)
     menu_object_set_velocity(g, self, (MenuPlace){ (uint32_t)across, (uint32_t)down });
 }
 
-/* The way from the place to the dactyl as the original keeps it, turned
- * round where the place is nearer the other way round the map. */
-static uint16_t kept_way_back(uint16_t from, uint16_t to, uint16_t round)
-{
-    uint16_t back = (uint16_t)(from - to);
-    return magnitude((int16_t)back) >= round / 2 ? (uint16_t)(0u - back) : back;
-}
-
-/* What working the heading out leaves in the mode's cells: the way back
- * from the place down, how far down it is the shorter way, the way back
- * across, the table's angle, the heading, where the dactyl is down and the
- * place. */
-static void leave_heading(GameState *g, MenuObject self, Heading h)
-{
-    enum { DOWN = 0x00, HOW_FAR_DOWN = 0x02, ACROSS = 0x04, TABLE_ANGLE = 0x06, ANGLE = 0x08, WHERE_DOWN = 0x0A,
-           PLACE_ACROSS = 0x0C, PLACE_DOWN = 0x0E };
-    WorldSpot at = place(g, self), goal = overworld_goal(g, self);
-    int16_t across = offset_round(at.x, goal.x, MENU_MAP_WIDTH), down = offset_round(at.y, goal.y, MENU_MAP_HEIGHT);
-    menu_object_leave_cell16(g, DOWN, kept_way_back(at.y, goal.y, MENU_MAP_HEIGHT));
-    menu_object_leave_cell16(g, HOW_FAR_DOWN, magnitude(down));
-    menu_object_leave_cell16(g, ACROSS, kept_way_back(at.x, goal.x, MENU_MAP_WIDTH));
-    menu_object_leave_cell16(g, TABLE_ANGLE, arctangent_between(g, across, down));
-    menu_object_leave_cell16(g, ANGLE, h.angle);
-    menu_object_leave_cell16(g, WHERE_DOWN, at.y);
-    menu_object_leave_cell16(g, PLACE_ACROSS, goal.x);
-    menu_object_leave_cell16(g, PLACE_DOWN, goal.y);
-}
-
 /* How far a spot lies from another along an axis, as the following dactyls
  * measure it slowing down: the shorter way round, though across they count
  * the way round as if the map were MENU_MAP_HEIGHT long. Near the edge where
@@ -349,27 +320,15 @@ static uint32_t slowed(uint32_t velocity, uint16_t distance)
     return back ? 0u - v : v;
 }
 
-/* What slowing leaves in the mode's cells: the whole pixels it moved down a
- * frame, and whether up. */
-static void leave_slowing(GameState *g, uint32_t down)
-{
-    enum { PIXELS = 0x08, BACK = 0x0A };
-    bool back = (int32_t)down < 0;
-    menu_object_leave_cell16(g, PIXELS, (uint16_t)((back ? 0u - down : down) >> 16));
-    menu_object_leave_cell16(g, BACK, back);
-}
-
 // $C2:528A
 /* Coming up to its place it slows so as not to pass it. */
 static void slow_so_as_not_to_pass(GameState *g, MenuObject self)
 {
     MenuPlace v = menu_object_velocity(g, self);
     WorldSpot at = place(g, self), goal = overworld_goal(g, self);
-    uint32_t down = v.y;
     v.x = slowed(v.x, distance_slowing(at.x, goal.x, MENU_MAP_WIDTH / 2));
     v.y = slowed(v.y, distance_slowing(at.y, goal.y, MENU_MAP_HEIGHT / 2));
     menu_object_set_velocity(g, self, v);
-    ORIGINAL_EFFECT(leave_slowing(g, down));
 }
 
 /* Gliding down onto a spot it comes there in the frames the leader takes to
@@ -382,17 +341,6 @@ static uint32_t glide(int16_t distance)
     return distance < 0 ? 0u - v : v;
 }
 
-/* What the glide leaves: the way to the spot across and down, and the
- * divider as it worked the speed down out. */
-static void leave_glide(GameState *g, int16_t across, int16_t down)
-{
-    enum { ACROSS = 0x08, DOWN = 0x0A };
-    menu_object_leave_cell16(g, ACROSS, (uint16_t)across);
-    menu_object_leave_cell16(g, DOWN, (uint16_t)down);
-    hw_set_dividend(g, (uint16_t)(magnitude(down) * GLIDE_UNIT));
-    hw_divide_by(g, GLIDE_FRAMES);
-}
-
 // $C2:53D3
 static void glide_to(GameState *g, MenuObject self, WorldSpot spot)
 {
@@ -400,7 +348,6 @@ static void glide_to(GameState *g, MenuObject self, WorldSpot spot)
     WorldSpot at = place(g, self);
     int16_t across = (int16_t)(spot.x - at.x), down = (int16_t)(spot.y - at.y);
     menu_object_set_velocity(g, self, (MenuPlace){ glide(across), glide(down) });
-    ORIGINAL_EFFECT(leave_glide(g, across, down));
 }
 
 // $C2:50AC
@@ -434,25 +381,17 @@ static void fly_a_frame_to_its_place(GameState *g, MenuObject self)
     animate(g);
 }
 
-/* Gliding down, the original takes the way it faced before from the mode's
- * cell where it meant its own slot's, which holds a byte of the map's
- * scroll. Nothing reads it: it is set again (shown afresh as it takes off,
- * or facing down as the map starts) before the dactyl next shows its way. */
-static void leave_a_stray_way_faced(GameState *g, MenuObject self)
-{
-    set_menu_object_slots_facing_before(g, self, (uint8_t)menu_object_shadows_bg2_scroll_y(g));
-}
-
 // $C2:51AC
-/* The leader's comes down: it glides down onto the leader's spot. */
+/* The leader's comes down: it glides down onto the leader's spot. (The
+ * original also takes the way it faced before from the mode's cell where it
+ * meant its own slot's, which holds a byte of the map's scroll; nothing
+ * reads it before it is set again.) */
 static void glide_down_after_the_leader(GameState *g, MenuObject self)
 {
     set_step(g, self, FOLLOWER_COMES_DOWN);
     start_counting(g, self);
-    ORIGINAL_EFFECT(set_menu_object_slots_dactyl_landing_cleared(g, self, 0));
     put(g, self, place(g, self), -VEHICLE_HEIGHT_IN_THE_AIR);
     glide_to(g, self, leader_s_spot(g));
-    ORIGINAL_EFFECT(leave_a_stray_way_faced(g, self));
     set_menu_object_slots_facing(g, self, FACING_DOWN);
     give_animation(g, self, takes_off(g, self));
     animate(g);
@@ -476,7 +415,6 @@ static void head_for_its_place(GameState *g, MenuObject self)
         set_off_along(g, self, h.angle);
         turn(g, self, (Facing)menu_facing_of_angle(g, h.angle));
     }
-    ORIGINAL_EFFECT(leave_heading(g, self, h));
     set_step(g, self, FOLLOWER_FLIES_TO_ITS_PLACE);
     start_counting(g, self);
     fly_a_frame_to_its_place(g, self);

@@ -44,7 +44,7 @@ enum {
  * it finished its frame (false: its script handed the frame over). */
 bool overworld_lead(GameState *g, MenuObject self, const WalkerScripts *scripts);
 bool overworld_follow(GameState *g, MenuObject self, const WalkerScripts *scripts);
-void overworld_watch_the_ground(GameState *g, MenuObject self);
+void overworld_watch_the_ground(GameState *g);
 void overworld_play_the_region_song(GameState *g, MenuObject self);
 void overworld_show_the_sign(GameState *g, MenuObject self);
 

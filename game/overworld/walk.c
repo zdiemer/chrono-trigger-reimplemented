@@ -24,7 +24,6 @@
 #include "charge.h"
 #include "core/input.h"
 #include "menu/map.h"
-#include "original_effects.h"
 #include "overworld/places.h"
 #include "overworld/terrain.h"
 #include "vars.h"
@@ -33,21 +32,11 @@ static uint8_t leader_character(const GameState *g) { return overworld_character
 
 /* ---- The map moves with the leader ------------------------------------------------------- */
 
-/* The original hands each scroll its plane and its step in the mode's first
- * two cells. */
-static void leave_scroll_named(GameState *g, uint8_t plane, int8_t step)
-{
-    set_menu_object_scratch_plane(g, plane);
-    set_menu_object_scratch_step(g, (uint8_t)step);
-}
-
 /* The map's two planes scroll by the leader's pace along the axis. */
 static void scroll_the_map(GameState *g, MenuAxis axis, int8_t step)
 {
-    for (uint8_t plane = 1; plane <= 2; plane++) {
-        ORIGINAL_EFFECT(leave_scroll_named(g, plane, step));
+    for (uint8_t plane = 1; plane <= 2; plane++)
         TIMED_AS(g, axis == MENU_ACROSS ? 0xC20568 : 0xC2066C, menu_map_scroll(g, plane, axis, step));
-    }
 }
 
 /* The layer over the map takes the same move with the next frame's drift. */
@@ -271,7 +260,6 @@ static bool walk_on_foot(GameState *g, MenuObject self, const WalkerScripts *scr
         overworld_animate(g);
         return true;
     }
-    ORIGINAL_EFFECT(overworld_leave_step_table_row(g));
     if (overworld_event_running(g))
         return take_part_in_the_event(g, self, scripts);
     switch (overworld_step(g, self)) {
