@@ -3094,8 +3094,9 @@ name = "event_cmd_move_to_tile_from_variables"
 at = "C0:5084"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F",
+        "--fill", "7E1D1E-7E1D1F=0F0F,0F1F,0F3F,1F0F,1F1F,1F3F,3F0F,3F1F,3F3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits); the map repeating every 16, 32 or 64 tiles each way, as every map's sizes make it"
 
 [[routine]]
 name = "event_cmd_move_to_tile_from_variables"
@@ -3111,8 +3112,9 @@ name = "event_cmd_move_to_tile_counted"
 at = "C0:4FEA"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F",
+        "--fill", "7E1D1E-7E1D1F=0F0F,0F1F,0F3F,1F0F,1F1F,1F3F,3F0F,3F1F,3F3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits); the map repeating every 16, 32 or 64 tiles each way, as every map's sizes make it"
 
 [[routine]]
 name = "event_cmd_move_to_tile_counted"
@@ -5228,8 +5230,9 @@ why = "the current object and X the same object, as the game calls it (the guard
 name = "field_start_step"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=04-04", "--fill", "7E016E-7E016E=00-00", "--range", "X=0004-0004"]
-why = "as field_set_velocity; the map attributes, the direction and the random index random"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=04-04", "--fill", "7E016E-7E016E=00-00", "--range", "X=0004-0004",
+        "--fill", "7E1D1E-7E1D1F=0F0F,0F1F,0F3F,1F0F,1F1F,1F3F,3F0F,3F1F,3F3F"]
+why = "as field_set_velocity; the map attributes, the direction and the random index random; the map repeating every 16, 32 or 64 tiles each way, as every map's sizes make it"
 
 [[routine]]
 name = "field_object_in_the_way"
