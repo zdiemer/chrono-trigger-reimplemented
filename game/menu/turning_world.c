@@ -152,7 +152,7 @@ static void leave_drawn(GameState *g, Plane land, Plane over)
 static void draw_the_world(GameState *g, Platform *pf, Plane land, Plane over)
 {
     wram_fill8(g, RAM_MENU_WORLD_PICTURE, MENU_WORLD_PICTURE_COUNT, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, MENU_WORLD_PICTURE_COUNT));
+    charge_block_move(g, MENU_WORLD_PICTURE_COUNT);
     for (unsigned row = 0; row < MENU_MAP_ROWS; row++) {
         uint16_t tile_row = (uint16_t)(row / MENU_MAP_ROWS_A_TILE_ROW * MENU_MAP_PICTURE_TILE_ROW);
         for (unsigned column = 0; column < MENU_MAP_COLUMNS; column++) {

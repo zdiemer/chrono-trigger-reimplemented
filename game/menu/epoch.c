@@ -185,7 +185,7 @@ static uint16_t start_tile_row(GameState *g, uint16_t bytes)
 {
     uint16_t buffer = (uint16_t)menu_object_upload_buffer(g);
     wram_fill8(g, in_work_ram(buffer), bytes, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, bytes));
+    charge_block_move(g, bytes);
     return buffer;
 }
 
@@ -231,7 +231,7 @@ static void place_map_picture(GameState *g, Platform *pf)
 {
     for (unsigned i = 0; i < NAME_TABLE_BYTES; i++)
         set_menu_map_name_table(g, i, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, NAME_TABLE_BYTES));
+    charge_block_move(g, NAME_TABLE_BYTES);
     uint8_t tile = FIRST_PICTURE_TILE;
     for (unsigned row = 0; row < PICTURE_TILES_DOWN; row++)
         for (unsigned column = 0; column < PICTURE_TILES_ACROSS; column++)
@@ -823,7 +823,7 @@ static void draw_gate_window(GameState *g, MenuObject dial)
     wram_write8(g, (uint32_t)bank << 16 | (uint16_t)(table + 2), 0);
     uint16_t middle = line_value(g, WORK_RAM_BANK, table, MIDDLE_FROM);
     wram_fill16(g, in_work_ram((uint16_t)(table + 2 * (MIDDLE_FROM + 1))), MIDDLE_TO - MIDDLE_FROM - 1, middle);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * (MIDDLE_TO - MIDDLE_FROM - 1)));
+    charge_block_move(g, 2 * (MIDDLE_TO - MIDDLE_FROM - 1));
 
     uint16_t angle = menu_object_slots_angle(g, dial);
     ScreenPoint corners[CORNERS];
@@ -859,7 +859,7 @@ static void draw_gate_window(GameState *g, MenuObject dial)
         set_line(g, bank, table, line, first_x < second_x ? (uint16_t)(second_x << 8 | first_x)
                                                           : (uint16_t)(first_x << 8 | second_x));
     }
-    ORIGINAL_EFFECT(charge_as(g, 0xC26CC1, FIXED_ACCESSES + LINE_ACCESSES * lines));
+    charge_as(g, 0xC26CC1, FIXED_ACCESSES + LINE_ACCESSES * lines);
     w.after_the_last_line = (uint8_t)(top + lines);
     w.bottom = bottom;
     ORIGINAL_EFFECT(leave_window_drawn(g, &w, &divided));
@@ -892,7 +892,7 @@ static void open_the_window(GameState *g, Platform *pf)
     menu_start_line_effect(g, pf, 0xC26AFA, WINDOW_SLOT, VID_LINE_WINDOW1);
     wram_fill16(g, RAM_MENU_SLOT1_LINE_VALUES, MENU_LINE_TABLE_LINES, CLOSED_LINE);
     wram_fill16(g, RAM_MENU_SLOT1_OTHER_LINE_VALUES, MENU_LINE_TABLE_LINES, CLOSED_LINE);
-    ORIGINAL_EFFECT(charge_block_move(g, 4 * MENU_LINE_TABLE_LINES));
+    charge_block_move(g, 4 * MENU_LINE_TABLE_LINES);
 }
 
 /* Stand the dial at a period: the gate turns to its angle. */
@@ -1061,7 +1061,7 @@ static void gate_spin(GameState *g, Platform *pf, MenuObject spin)
     enum { MOVED = 2 * LAST_LINE + 1 };
     wram_copy(g, in_work_ram((uint16_t)(cosines_were + 2)), in_work_ram(cosines), MOVED);
     wram_copy(g, in_work_ram((uint16_t)(sines_were + 2)), in_work_ram(sines), MOVED);
-    ORIGINAL_EFFECT(charge_as(g, 0xC26F85, 2 * 2 * MOVED));
+    charge_as(g, 0xC26F85, 2 * 2 * MOVED);
     uint16_t angle = menu_object_slots_angle(g, spin);
     gate_spin_line(g, cosines, sines, LAST_LINE, angle);
     set_menu_object_slots_angle(g, spin, (uint16_t)(angle + SPIN_SPEED));
@@ -1207,7 +1207,7 @@ static void keep_dial_palette(GameState *g)
     wram_copy(g, RAM_MENU_LOADED_PALETTE, RAM_MENU_GATE_PALETTE_COPY, PALETTE_BYTES);
     set_menu_loaded_palette(g, WHITE_COLOUR, WHITE);
     wram_copy(g, RAM_MENU_LOADED_PALETTE, RAM_MENU_OBJECT_PALETTE, PALETTE_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * PALETTE_BYTES));
+    charge_block_move(g, 2 * PALETTE_BYTES);
 }
 
 /* The dial's objects: the dial, the gate's spin, two scripts and the seven
@@ -1459,7 +1459,7 @@ static bool show_the_map_view_with(GameState *g, Platform *pf, const EpochScreen
     for (unsigned i = 0; i < VIEW_COLOUR_BYTES; i++)
         set_menu_object_palette_byte(g, VIEW_COLOURS + i, menu_map_view_colour_byte(g, i));
     charge_uncounted_end(g, silenced);
-    ORIGINAL_EFFECT(charge_block_move(g, VIEW_COLOUR_BYTES));
+    charge_block_move(g, VIEW_COLOUR_BYTES);
 
     MenuObject cursor;
     TIMED_AS(g, 0xC2048A, (void)menu_start_object(g, MAP_VIEW_CURSOR, MENU_ORDINARY_SLOT, &cursor));

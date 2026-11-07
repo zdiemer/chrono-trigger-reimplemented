@@ -234,7 +234,7 @@ void menu_note_member_figures(GameState *g)
     }
     set_character_records_hp_cap(g, character, menu_figures_greatest_hp(g));
     set_menu_status_record_hp_cap(g, menu_figures_greatest_hp(g));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * (MENU_FIGURES_WORKED_OUT_COUNT + 2)));
+    charge_block_move(g, 2 * (MENU_FIGURES_WORKED_OUT_COUNT + 2));
 }
 
 // $C2:99B2
@@ -261,7 +261,7 @@ void menu_set_items_aside(GameState *g)
         return;
     wram_copy(g, RAM_INVENTORY_ITEMS, RAM_MENU_ITEMS_SET_ASIDE, INVENTORY_BYTES);
     wram_fill8(g, RAM_INVENTORY_ITEMS, PLACES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, INVENTORY_BYTES + PLACES));
+    charge_block_move(g, INVENTORY_BYTES + PLACES);
 }
 
 // $C2:9121
@@ -270,7 +270,7 @@ void menu_put_items_back(GameState *g)
     if (!story_holds_the_items(g))
         return;
     wram_copy(g, RAM_MENU_ITEMS_SET_ASIDE, RAM_INVENTORY_ITEMS, INVENTORY_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, INVENTORY_BYTES));
+    charge_block_move(g, INVENTORY_BYTES);
 }
 
 /* ---- The entries ------------------------------------------------------------------------------ */

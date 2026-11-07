@@ -40,9 +40,9 @@ enum { LAST_COMMAND = 0xDA };
 static uint32_t handler_of(GameState *g, uint8_t command)
 {
     uint32_t mark = 0;
-    ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
+    mark = charge_uncounted_begin(g);
     uint32_t handler = battle_script_handler(g, command);
-    ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
+    charge_uncounted_end(g, mark);
     return handler;
 }
 

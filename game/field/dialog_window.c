@@ -87,7 +87,7 @@ static void clear_the_row(GameState *g)
         set_field_window_staging(g, i, field_blank_entries_byte(g, i));
     for (unsigned at = BLANK_TILE_BYTES; at < TEXT_ROW_BYTES; at += BLANK_TILE_BYTES)
         wram_copy(g, RAM_FIELD_WINDOW_STAGING, RAM_FIELD_WINDOW_STAGING + at, BLANK_TILE_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, TEXT_ROW_BYTES));
+    charge_block_move(g, TEXT_ROW_BYTES);
 }
 
 /* The next row to set: the row after this one, or the first of a page. */
@@ -658,15 +658,15 @@ void field_colour_the_window(GameState *g)
 {
     uint8_t design = window_design(g);
     uint32_t mark = 0;
-    ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
+    mark = charge_uncounted_begin(g);
     for (unsigned n = 0; n < WINDOW_DESIGN_COLOURS; n++)
         set_palette_base(g, FIRST_WINDOW_COLOUR + n, field_window_design_colour(g, design, FIRST_WINDOW_COLOUR + n));
     for (unsigned n = 0; n < WINDOW_GREYS; n++)
         set_palette_base(g, WINDOW_GREYS_FROM + n, window_greys[n]);
     for (unsigned c = 0; c < PALETTE_COLOURS_ALL; c++)
         set_palette_working(g, c, palette_base(g, c));
-    ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * WINDOW_DESIGN_COLOURS + 2 * PALETTE_COLOURS_ALL));
+    charge_uncounted_end(g, mark);
+    charge_block_move(g, 2 * WINDOW_DESIGN_COLOURS + 2 * PALETTE_COLOURS_ALL);
     (void)mark;
 }
 

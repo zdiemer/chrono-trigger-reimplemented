@@ -148,7 +148,7 @@ static void sample_row(GameState *g, uint16_t source, bool row_moved_on)
 static void repeat_last_row(GameState *g, uint16_t output)
 {
     wram_copy(g, in_scaler_bank(0, (uint16_t)(output - ROW_BYTES)), in_scaler_bank(0, output), ROW_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, ROW_BYTES));
+    charge_block_move(g, ROW_BYTES);
 }
 
 /* ---- Rows ------------------------------------------------------------------------------------ */
@@ -172,7 +172,7 @@ static void end_bitmap(GameState *g, bool borrowed)
     uint16_t bytes = left_over(output, scene_scaler_output_end(g), borrowed);
     if (bytes) {
         wram_fill8(g, in_scaler_bank(0, output), bytes, 0);
-        ORIGINAL_EFFECT(charge_block_move(g, (uint32_t)bytes - 1));
+        charge_block_move(g, (uint32_t)bytes - 1);
     }
     set_scene_scaler_output_end(g, output);
 }

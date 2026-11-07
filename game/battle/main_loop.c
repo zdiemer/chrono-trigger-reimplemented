@@ -142,7 +142,7 @@ enum { TURN_WORK_AT = 0x7EAD89, TURN_WORK_BYTES = 0xB3F5 - 0xAD89 };
 void battle_clear_the_turn_work(GameState *g)
 {
     wram_fill8(g, TURN_WORK_AT, TURN_WORK_BYTES, 0);
-    ORIGINAL_EFFECT(charge_as(g, CLEAR_TURN_WORK, TURN_WORK_BYTES));
+    charge_as(g, CLEAR_TURN_WORK, TURN_WORK_BYTES);
 }
 
 /* Where the battle's random numbers are drawn from its table: kept between

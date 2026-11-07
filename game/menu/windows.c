@@ -171,7 +171,7 @@ static void repeat_tiles(GameState *g, uint16_t from, uint16_t to, uint16_t tile
 {
     uint32_t bytes = (uint32_t)tiles * MENU_TILE_BYTES;
     wram_copy(g, 0x7E0000u + from, 0x7E0000u + to, bytes);
-    ORIGINAL_EFFECT(charge_block_move(g, bytes));
+    charge_block_move(g, bytes);
 }
 
 static void draw_pattern_tiles(GameState *g, uint16_t row_at, uint16_t row, uint16_t columns, MenuWindowStyle style)

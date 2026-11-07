@@ -29,14 +29,23 @@
 
 /* The game, as the driver runs it: its main thread from power-on, which never
  * returns (it waits for frames instead), and its two handlers; and, if the
- * game's state keeps it, the original's time its work was charged since the
- * last call (tm_host_charge), taken as the main thread waits. */
+ * game's state keeps it, the original's time of the game's work since the
+ * last call (its own work at the rates the machine calibrated, and what it
+ * was charged: runtime/port/state_host.c), taken as the main thread waits and
+ * as the main thread starts its part of a frame, where it is the handlers'. */
 typedef struct {
     void (*main_thread)(Platform *pf, void *ctx);
     void (*vblank)(Platform *pf, void *ctx);
     void (*line)(Platform *pf, void *ctx);
     void *ctx;
     uint32_t (*owed)(void *ctx);
+    /* an access the game made through a service rather than its own memory
+     * (the cartridge's save RAM), of `clocks` master clocks on the machine,
+     * which the game's state times as its own (TmHostProgram.owed) */
+    void (*accessed)(void *ctx, uint32_t clocks);
+    /* optional: the main thread's wait at `frame` lasts `frames` more, for
+     * `owed` master clocks of work (ct_native --lag-log) */
+    void (*lagged)(void *ctx, uint32_t frame, uint32_t frames, uint32_t owed);
 } TmHostProgram;
 
 /* Where the frame is: which of its three parts runs. */
@@ -53,6 +62,7 @@ typedef struct {
     uint32_t frame;         /* frames run */
     uint32_t entropy;       /* tm_entropy's generator */
     uint32_t owed;          /* the original's time charged to the main thread since it last waited (master clocks) */
+    uint32_t handlers;      /* the handlers' time in the frame the main thread runs in (master clocks) */
     uint32_t lagging;       /* frames the main thread sits out, its wait lasting through them */
     uint32_t lag_frames;    /* ... in all */
 } TmHost;
@@ -151,17 +161,23 @@ uint16_t tm_host_picture_lines(const Platform *pf);
 uint32_t tm_host_frames(const Platform *pf);
 /* The frame-level time model (platform/time_model.h): the original's time,
  * in master clocks, for work the main thread did another way (the sound
- * driver's uploads, a load's sends to video memory). Where it waits for the next frame with a frame or more
- * of it owed (to the nearest frame), the wait lasts as many more: lag frames,
- * in which the handlers run and the main thread doesn't, as the original's
- * frames went by while it worked. What is left is the frame's own, and goes. */
+ * driver's uploads, a load's sends to video memory), beside the game's own
+ * work its state keeps. Where it waits for the next frame having filled whole
+ * frames (a frame's time less the handlers'), the wait lasts as many more:
+ * lag frames, in which the handlers run and the main thread doesn't, as the
+ * original's frames went by while it worked. What is left fits in the frame,
+ * and goes. */
 void tm_host_charge(Platform *pf, uint32_t clocks);
 /* The main thread sits out what it owes now, rather than at its next wait,
- * where another processor's time runs on from what it does next (a song's
- * start, whose echo the sound driver waits for meanwhile): the frames owed, to
- * the nearest, pass with the handlers running, and the main thread goes on
- * where it stood. Less than half a frame owed stays owed. */
+ * where what it does next changes the frames that go by: another processor's
+ * time runs on from it (a song's start, whose echo the sound driver waits for
+ * meanwhile), or the handlers change (tm_enable_interrupts: a setup the
+ * original ran with its vblank handler off passes with it off). The whole
+ * frames filled pass with the handlers as they are, and the main thread goes
+ * on where it stood, what is left over still owed. */
 void tm_host_sit_out_owed(Platform *pf);
+/* The game's access through a service (TmHostProgram.accessed). */
+void tm_host_game_access(Platform *pf, uint32_t clocks);
 /* Lag frames so far. */
 uint32_t tm_host_lag_frames(const Platform *pf);
 

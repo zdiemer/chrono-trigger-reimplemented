@@ -84,7 +84,7 @@ static void step_the_colours(GameState *g)
         uint32_t at = colour_at(palette, i);
         wram_write16(g, at, colour_toward(wram_read16(g, at), wram_read16(g, colour_at(toward, i))));
     }
-    ORIGINAL_EFFECT(charge_as(g, 0x7E6439, (uint32_t)WORKING_CELL_BYTES_A_COLOUR * colours));
+    charge_as(g, 0x7E6439, (uint32_t)WORKING_CELL_BYTES_A_COLOUR * colours);
 }
 
 /* For the original's code and shadow mode: what its step leaves in its

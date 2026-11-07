@@ -247,8 +247,8 @@ static void find_the_object_before_the_leader(GameState *g)
     FieldLeader leader = field_leader(g);
     Search r = search_before_the_leader(g, leader);
     ORIGINAL_EFFECT(leave_search(g, leader, r));
-    ORIGINAL_EFFECT(charge_as(g, CONFIRM_BUTTON, (uint32_t)r.passed * ACCESSES_A_SLOT +
-                                                     (uint32_t)r.measured * ACCESSES_A_MEASURE));
+    charge_as(g, CONFIRM_BUTTON, (uint32_t)r.passed * ACCESSES_A_SLOT +
+                                                     (uint32_t)r.measured * ACCESSES_A_MEASURE);
     set_leader_contact(g, r.found);
 }
 

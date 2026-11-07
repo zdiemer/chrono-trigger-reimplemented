@@ -656,15 +656,15 @@ static void scroll_entry(Snes *s, MenuAxis axis)
 {
     GameState *g = state_of(s);
     uint32_t uncounted = 0;
-    ORIGINAL_EFFECT(uncounted = charge_uncounted_begin(g));
+    uncounted = charge_uncounted_begin(g);
     uint8_t plane = named_plane(g);
     int8_t step = (int8_t)menu_object_scratch_step(g);
-    ORIGINAL_EFFECT(charge_uncounted_end(g, uncounted));
+    charge_uncounted_end(g, uncounted);
     menu_map_scroll(g, plane, axis, step);
-    ORIGINAL_EFFECT(uncounted = charge_uncounted_begin(g));
+    uncounted = charge_uncounted_begin(g);
     menu_leave_map_scrolled(s, plane, axis, step);
     m_rts(s);
-    ORIGINAL_EFFECT(charge_uncounted_end(g, uncounted));
+    charge_uncounted_end(g, uncounted);
 }
 
 // $C2:0568
@@ -799,11 +799,11 @@ typedef struct {
  * happens, so they are left out of the estimate. */
 static StripCall strip_call(GameState *g, uint32_t *uncounted)
 {
-    ORIGINAL_EFFECT(*uncounted = charge_uncounted_begin(g));
+    *uncounted = charge_uncounted_begin(g);
     StripCall call = { plane_in_cells(g), menu_object_scratch_map_strip_column(g),
                        menu_object_scratch_map_strip_row(g), menu_object_scratch_map_queue_across(g),
                        menu_object_scratch_map_queue_down(g) };
-    ORIGINAL_EFFECT(charge_uncounted_end(g, *uncounted));
+    charge_uncounted_end(g, *uncounted);
     return call;
 }
 
@@ -823,14 +823,14 @@ typedef enum { STRIP_BUILT, COLUMN_STRIP_QUEUED, ROW_STRIP_QUEUED } StripDone;
 static void strip_return(Snes *s, uint32_t uncounted, StripDone done)
 {
     GameState *g = state_of(s);
-    ORIGINAL_EFFECT(uncounted = charge_uncounted_begin(g));
+    uncounted = charge_uncounted_begin(g);
     switch (done) {
     case STRIP_BUILT: ORIGINAL_EFFECT(leave_strip_cells(g)); break;
     case COLUMN_STRIP_QUEUED: ORIGINAL_EFFECT(leave_column_queued(g)); break;
     case ROW_STRIP_QUEUED: ORIGINAL_EFFECT(leave_row_queued(g)); break;
     }
     m_rts(s);
-    ORIGINAL_EFFECT(charge_uncounted_end(g, uncounted));
+    charge_uncounted_end(g, uncounted);
 }
 
 static void build_column_entry(Snes *s, bool right)

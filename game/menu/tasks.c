@@ -345,7 +345,7 @@ static void clear_the_tasks(GameState *g)
         set_menu_tasks_step(g, task, 0);
         set_menu_tasks_step_high(g, task, 0);
     }
-    ORIGINAL_EFFECT(charge_block_move(g, THE_RECORDS_BYTES - 2));
+    charge_block_move(g, THE_RECORDS_BYTES - 2);
 }
 
 // $C2:8190

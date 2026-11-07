@@ -4,15 +4,21 @@
  * nowhere. */
 #include "platform/native/host.h"
 
+/* Save RAM is the cartridge's memory, which the game's reads and writes
+ * reach as the original's do: an access each, timed as the game's own. */
+enum { SAVE_ACCESS_CLOCKS = 8 };
+
 uint8_t sv_read8(Platform *pf, PfOrigin o, uint16_t offset)
 {
     (void)o;
+    tm_host_game_access(pf, SAVE_ACCESS_CLOCKS);
     return sv_peek8(pf, offset);
 }
 
 void sv_write8(Platform *pf, PfOrigin o, uint16_t offset, uint8_t v)
 {
     (void)o;
+    tm_host_game_access(pf, SAVE_ACCESS_CLOCKS);
     if (!pf->save.bytes)
         return;
     pf->save.bytes[offset % SAVE_SIZE] = v;

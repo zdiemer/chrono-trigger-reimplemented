@@ -29,8 +29,9 @@
  * and the cartridge), and whether its picture, drawn every frame by the native
  * renderer, ends showing (tools/native_check.py holds the library to that:
  * reaching the last frame says nothing of the picture). --shot-every writes
- * frames as PNGs, --locations the places the run enters, --end-state work
- * RAM and save RAM at the end. Exit status 0 when it ran every frame, 1 where the
+ * frames as PNGs, --locations the places the run enters, --lag-log each wait
+ * the time model makes last (its frame, the frames and the work's clocks),
+ * --end-state work RAM and save RAM at the end. Exit status 0 when it ran every frame, 1 where the
  * program stopped short, 2 on bad arguments or files, 3 on a fatal machine
  * entry. This file is the driver:
  * the loop, the files and the report are its, as frontend/headless.c's are
@@ -87,6 +88,14 @@ static void run_main_thread(Platform *pf, void *ctx) { program_main_thread(ctx, 
 static void run_vblank(Platform *pf, void *ctx) { program_vblank(ctx, pf); }
 static void run_line(Platform *pf, void *ctx) { program_line(ctx, pf); }
 static uint32_t take_owed(void *ctx) { return state_host_take_owed(ctx); }
+static void game_accessed(void *ctx, uint32_t clocks) { state_host_game_access(ctx, clocks); }
+/* --lag-log: each wait the time model makes last, where the frames the
+ * original's work took are to be found */
+static void lagged(void *ctx, uint32_t frame, uint32_t frames, uint32_t owed)
+{
+    (void)ctx;
+    fprintf(stderr, "lag: frame %u, %u frame(s) for %u clocks of work\n", (unsigned)frame, (unsigned)frames, (unsigned)owed);
+}
 
 /* The picture each frame, drawn from the video service's state by the native
  * renderer, and how long it has been dark: nothing on it but black, which is
@@ -354,7 +363,7 @@ static void usage(FILE *out)
 {
     fprintf(out, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
                  "                 [--headless | --window] [--scale N] [--fullscreen] [--mute]\n"
-                 "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--outcomes] [--scene flags[,song]]...\n"
+                 "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--outcomes] [--scene flags[,song]]...\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
                  "Window play writes cartridge saves; headless runs only read them. No quick save/load.\n");
 #ifdef CT_HAVE_SDL
@@ -388,7 +397,7 @@ int main(int argc, char **argv)
     bindings_set("F5 = None", bind_error, sizeof bind_error);
     bindings_set("F7 = None", bind_error, sizeof bind_error);
 #endif
-    bool locations = false, outcomes = false;
+    bool locations = false, outcomes = false, lag_log = false;
     unsigned scenes = 0;
     uint8_t scene[STATE_HOST_FIRST_SCENES], song[STATE_HOST_FIRST_SCENES];
     for (int i = 1; i < argc; i++) {
@@ -408,6 +417,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--shot-dir") && v) shot_dir = v, i++;
         else if (!strcmp(a, "--end-state") && v) end_state = v, i++;
         else if (!strcmp(a, "--locations")) locations = true;
+        else if (!strcmp(a, "--lag-log")) lag_log = true;
         else if (!strcmp(a, "--outcomes")) outcomes = true;
         else if (!strcmp(a, "--scene") && v && scenes < STATE_HOST_FIRST_SCENES && scene_and_song(v, &scene[scenes], &song[scenes]))
             scenes++, i++;
@@ -487,7 +497,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "ct_native: out of memory\n");
         return 2;
     }
-    tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, take_owed }, 1);
+    tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, take_owed, game_accessed,
+                                         lag_log ? lagged : NULL }, 1);
     NativeDriver driver = {
         .game = g, .pf = &pf, .sound = sound, .picture = &picture,
         .movie = movie_path ? &movie : NULL, .sram_path = sram_path,

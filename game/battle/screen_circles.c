@@ -424,7 +424,7 @@ static ScreenFlow draw_circle(GameState *g, uint8_t circle)
     Window w = circle ? WINDOW_2 : WINDOW_1;
     CircleRows rows = rows_of(rows_radius(radius));
     unsigned below = lay_rows_out(g, &rows, column, kind);
-    ORIGINAL_EFFECT(charge_as(g, DRAW_CIRCLE, ACCESSES_A_ROW * rows.rows));
+    charge_as(g, DRAW_CIRCLE, ACCESSES_A_ROW * rows.rows);
     RowRun run = run_of(kind, radius, line);
     lay_run_into_the_table(g, w, kind, run, line);
     ORIGINAL_EFFECT(leave_rows(g, &rows, column, kind, below));

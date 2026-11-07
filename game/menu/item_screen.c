@@ -235,7 +235,7 @@ static void lay_out_window_lines(GameState *g)
     wram_fill8(g, 0x7E0000u | USERS_LINES_AT, USERS_LINES_BYTES, 0);
     wram_fill16(g, 0x7E0000u | USERS_FIRST_BAND, USERS_BAND_WORDS, USERS_FIRST_VALUE);
     wram_fill16(g, 0x7E0000u | USERS_SECOND_BAND, USERS_BAND_WORDS, USERS_SECOND_VALUE);
-    ORIGINAL_EFFECT(charge_block_move(g, USERS_LINES_BYTES + 4 * USERS_BAND_WORDS));
+    charge_block_move(g, USERS_LINES_BYTES + 4 * USERS_BAND_WORDS);
 }
 
 /* The names of who can equip the item and has joined the party, the first
@@ -271,7 +271,7 @@ static void list_users(GameState *g, uint8_t item)
                 set_menu_item_users_names_byte(g, listed, at, character_names_byte(g, character, at));
             listed++;
         }
-    ORIGINAL_EFFECT(charge_block_move(g, MENU_ITEM_USERS_NAMES_COUNT * NAME_BYTES + listed * NAME_BYTES));
+    charge_block_move(g, MENU_ITEM_USERS_NAMES_COUNT * NAME_BYTES + listed * NAME_BYTES);
     ORIGINAL_EFFECT(leave_users_counted(g, users));
 }
 
@@ -292,7 +292,7 @@ static void note_power(GameState *g, uint8_t item)
         set_menu_item_power_label_byte(g, i, menu_window_byte(g, (uint16_t)(label + i)));
     set_menu_item_power_label_byte(g, LABEL_BYTES, LABEL_END);
     set_menu_item_power_label_byte(g, LABEL_BYTES + 1, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, LABEL_BYTES));
+    charge_block_move(g, LABEL_BYTES);
 }
 
 enum { USERS_WINDOW = 0xC0D5, USERS_LINE_EFFECT = 0x04 };
@@ -362,7 +362,7 @@ void menu_items_sort(GameState *g)
     }
     for (unsigned i = 0; i < CLEARED_LIST_PLACES; i++)
         set_menu_list_items(g, CLEARED_LIST_FROM + i, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * MENU_SORT_HELD_COUNT + CLEARED_LIST_PLACES));
+    charge_block_move(g, 2 * MENU_SORT_HELD_COUNT + CLEARED_LIST_PLACES);
     ORIGINAL_EFFECT(set_menu_scratch_save_member(g, 0));
     for (unsigned at = 0; at < PLACES; at++) {
         uint8_t item = inventory_items_unchecked(g, at);
@@ -539,7 +539,7 @@ void menu_items_draw_row(GameState *g, uint16_t at, uint8_t row)
     pen = menu_draw_number_value(g, count, COUNT_FORMAT, pen);
     pen = (uint16_t)(pen + TILE_BYTES);
     wram_fill8(g, MENU_NAMES_BANK | pen, LABEL_TILES * TILE_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, LABEL_TILES * TILE_BYTES));
+    charge_block_move(g, LABEL_TILES * TILE_BYTES);
     (void)menu_draw_string(g, menu_item_kind_label(g, item), pen, LABEL_SETTINGS);
 }
 
@@ -584,7 +584,7 @@ void menu_items_panel_lay_out(GameState *g, Platform *pf)
         set_menu_palette(g, FIRST_LIST_COLOUR + i, menu_rom_colour(g, MENU_ROM_ITEMS_LIST_COLOURS, i));
     for (unsigned i = 0; i < HIGHLIGHT_COLOURS; i++)
         set_menu_palette(g, FIRST_HIGHLIGHT_COLOUR + i, menu_rom_colour(g, MENU_ROM_ITEMS_HIGHLIGHT_COLOURS, i));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * (LIST_COLOURS + HIGHLIGHT_COLOURS)));
+    charge_block_move(g, 2 * (LIST_COLOURS + HIGHLIGHT_COLOURS));
     set_menu_tasks_countdown(g, MENU_CURSOR_TASK, (uint8_t)(menu_tasks_countdown(g, MENU_CURSOR_TASK) + 2));
 }
 
@@ -593,7 +593,7 @@ void menu_items_panel_lay_out(GameState *g, Platform *pf)
 void menu_items_panel_draw_rows(GameState *g)
 {
     wram_fill8(g, 0x7E0000u | PANEL_ROWS_AT, PANEL_ROWS_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, PANEL_ROWS_BYTES));
+    charge_block_move(g, PANEL_ROWS_BYTES);
     if (menu_story_items(g, 1) == 0)
         TIMED_AS(g, 0xC2AE43, menu_items_draw_rows(g));
     menu_queue_fixed_upload(g, MENU_UPLOAD_TEXT_LAYER);
@@ -906,7 +906,7 @@ void menu_items_show_the_raise(GameState *g)
         set_menu_palette(g, FIRST_SPARKLE_COLOUR + i, menu_rom_colour(g, MENU_ROM_PANEL_HIGHLIGHT_COLOURS, i));
     for (unsigned i = 0; i < MENU_HEAL_SHOWN_COUNT; i++)
         set_menu_heal_shown(g, i, SHOWN_NONE);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * SPARKLE_COLOURS + 2 * MENU_HEAL_SHOWN_COUNT));
+    charge_block_move(g, 2 * SPARKLE_COLOURS + 2 * MENU_HEAL_SHOWN_COUNT);
     set_menu_heal_shown(g, menu_use_member(g) & SHOWN_PLACE_BITS, SHOWN_RAISED);
 }
 
@@ -976,7 +976,7 @@ void menu_items_close_member_window(GameState *g)
 void menu_items_clear_member_window(GameState *g)
 {
     wram_fill8(g, 0x7E0000u | MEMBER_WINDOW_LAYER_AT, MEMBER_WINDOW_LAYER_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, MEMBER_WINDOW_LAYER_BYTES));
+    charge_block_move(g, MEMBER_WINDOW_LAYER_BYTES);
     menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER);
 }
 

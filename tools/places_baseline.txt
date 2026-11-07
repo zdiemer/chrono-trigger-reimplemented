@@ -3,13 +3,13 @@
 # places.ON_TIME frames of the reference's frame, among the places it enters in
 # the reference's order. The gate fails a movie that enters fewer;
 # `tools/native_check.py --update-places` takes the counts a change brings.
-attract-demo 2
+attract-demo 6
 fair-companion 9
 fair 8
-field 7
+field 8
 gato-battle 10
-menu 5
-new-game 5
+menu 6
+new-game 6
 title-start 3
 battle-black-tyrano 7
 battle-castle-flea 19
@@ -48,7 +48,7 @@ events-death-peak-ascent 5
 events-death-peak-wind 6
 events-death-peak 4
 events-end-of-time-gate 4
-events-epoch-lavos 4
+events-epoch-lavos 5
 events-fair-clone 6
 events-fair-rescue 7
 events-fair-shuffle 6
@@ -79,14 +79,11 @@ late-lavos 5
 late-omen-battles 6
 late-omen-terramutant 4
 late-omen-zeal 5
-menus-end-of-time 5
-menus-epoch 6
+menus-end-of-time 6
+menus-epoch 8
 menus-field-menu 4
 menus-new-game-plus 4
 menus-save-point 4
-menus-shop-equip 4
-menus-shop-inn 6
+menus-shop-equip 5
+menus-shop-inn 9
 menus-sweep 4
-events-death-peak 4
-events-fair-rescue 7
-events-ocean-palace-lavos 7
