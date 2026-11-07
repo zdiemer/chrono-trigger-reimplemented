@@ -302,3 +302,10 @@ variant = "unreached_one_off_ends"
 args = ["--fill", "7E01D8-7E01D8=7F", "--fill", "7E1500-7E157F:2=8000", "--fill", "7E1480-7E14FF:2=0000",
         "--fill", "7E1780-7E17FF:2=02", "--fill", "7F8000-7F8403=FF"]
 why = "A one-off animation at the end of its frames (every frame table, in work RAM made for it, an end marker): no frame to draw, and a half pass counted unless it has none left."
+
+[[case]]
+base = "field_walk_the_leader:walking"
+variant = "unreached_nudge_shut"
+iterations = 100000
+args = ["--fill", "7E1800-7E18FF:2=00,0F,60,63,66,69,6C,6F,70,73,76,79,7C,7F,80,83,86,89,8C,8F,90,93,96,99,9C,9F,F0,F3,F6,F9,FC,FF"]
+why = "As the walking recipe, with every place a pixel or so from a tile's edge, where the box's side or foot nudged around another level looks into the next tile: the nudge finds the way shut there too and the leader stops. Each stop takes a tile whose part is another level at one of the foot's or the side's places and open at the other, which random tiles make about once in 20,000 trials."
