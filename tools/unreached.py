@@ -29,9 +29,9 @@ SUBSYSTEMS = ('attract', 'core', 'warp', 'overworld', 'event', 'field')
 # subsystem's open bytes pass its cap here, and `--record` adds no open byte
 # the previous ledger didn't have, unless `--admit-open` names the subsystem
 # (its first inventory). Lower the cap as rows close.
-OPEN = {'field': 216}
-OPEN_REASON = {'field': "Not yet compared or argued: blocks the field's teardown (docs/TODO.md, "
-                        "\"The field's unreached paths, before it retires\")."}
+OPEN = {'field': 0}
+OPEN_REASON = {'field': "Not yet compared or argued: blocks the field's teardown (docs/REIMPLEMENTATION.md, "
+                        "\"The code the movie library does not reach\")."}
 # Subsystems whose gate has retired while rows of theirs stay in the ledger for
 # their still-gated callers. A teardown adds its subsystem here and takes it out
 # of OPEN; `--check` fails while it has an open row.

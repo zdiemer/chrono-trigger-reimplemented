@@ -291,6 +291,23 @@ void field_unpack_the_map(Snes *s)
     m_rts(s);
 }
 
+/* The guard: on the field's page, with the data bank reaching low RAM, where
+ * the unpacker's cells are, and the field's place of its location's record
+ * one where a record starts, as the game always keeps it. Any other place
+ * reads a map number out of the records' bytes, whose "map" can unpack past
+ * the end of its bank onto low RAM -- the stack and the unpacker's own
+ * cells, which the original reads back as it goes and the C keeps in locals
+ * (data/decompress.c), so the two part there. */
+bool field_map_can_be_unpacked(Snes *s)
+{
+    if (!field_on_page_low_bank(s))
+        return false;
+    vars_peek(true);
+    bool ok = location_record_is_one(location_record_offset(state_of(s)));
+    vars_peek(false);
+    return ok;
+}
+
 // $C0:A712
 /* The map's chests and walkable tiles marked (event/chests.c), on the
  * layers' page; nothing it leaves in the registers is read. */

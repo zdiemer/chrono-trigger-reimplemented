@@ -187,6 +187,48 @@ static bool take_a_slot(GameState *g, FieldObject obj, SlotRange range)
     return false;
 }
 
+/* A party place's object joining the sharers of its place's slot. The
+ * original files it, here alone, by the number the slot's newest sharer has
+ * in the object tables where the slot's number belongs ($C0:71FE-$C0:7210):
+ * the object becomes the newest sharer of the slot that number would be,
+ * or, past the eight slots, the owner of the block of sprite tiles it
+ * reaches in the table after them, and wears the palette of the slot that
+ * number names among the eight, whose colours it loads. Its place's slot
+ * keeps the older sharer as its newest. Kept because the gate compares the
+ * tables, and a later leaving reads them. */
+enum { MISFILED_ENTRIES = PALETTE_SLOTS + FIELD_SPRITE_BLOCK_OWNER_COUNT };
+static void join_party_place_sharers(GameState *g, FieldObject obj, FieldLink older)
+{
+    uint8_t misfiled = field_link_byte(older);
+    set_sharer_before(g, obj, older);
+    set_sharer_after(g, obj, field_no_link());
+    set_sharer_after(g, field_linked_object(older), field_link_to(obj));
+    if (misfiled < PALETTE_SLOTS)
+        set_field_palette_slot_newest(g, misfiled, field_link_byte(field_link_to(obj)));
+    else
+        set_field_sprite_block_owner(g, misfiled - PALETTE_SLOTS, field_link_byte(field_link_to(obj)));
+    set_field_object_palette(g, obj, (uint8_t)((misfiled % PALETTE_SLOTS) << 1));
+    object_load_colours(g, obj);
+}
+
+/* A party place's object takes its place's own slot: joining the sharers
+ * there where they have its colours, or the slot if it is free. (Where an
+ * object of other colours holds it the guard turns the call away.) */
+static bool take_party_place_slot(GameState *g, FieldObject obj, uint8_t slot)
+{
+    FieldLink newest = field_link_stored(field_palette_slot_newest(g, slot));
+    ORIGINAL_EFFECT(leave_slot(g, slot));
+    if (!field_link_is_object(newest)) {
+        join_slot(g, obj, slot, field_no_link());
+        return true;
+    }
+    ORIGINAL_EFFECT(original_cell8(g, SHARER_CELL, field_link_byte(newest)));
+    if (field_object_colours(g, field_linked_object(newest)) != field_object_colours(g, obj))
+        return false;
+    join_party_place_sharers(g, obj, newest);
+    return true;
+}
+
 // $C0:7155
 /* A map's screen starts with every slot free. */
 void palette_slots_all_free(GameState *g)
@@ -208,6 +250,8 @@ bool object_take_palette(GameState *g, FieldObject obj)
     ObjectRole role = object_role(g, obj);
     if (field_palettes_set_by_script(g) || role.disabled)
         return false;
+    if (role.kind <= ROLE_PARTY_2)
+        return take_party_place_slot(g, obj, slots_for_kind[role.kind].first);
     return take_a_slot(g, obj, slots_for_kind[role.kind]);
 }
 
@@ -228,6 +272,11 @@ bool object_takes_a_palette_the_tables_hold(const GameState *g, FieldObject obj)
          * callers then run with */
         if (role.kind <= ROLE_PARTY_2 && field_link_is_object(newest) &&
             field_object_colours(g, field_linked_object(newest)) != field_object_colours(g, obj))
+            return false;
+        /* one of the same colours: the original files the object by the
+         * sharer's number, which reaches past the blocks' table for an
+         * object past the first 19 */
+        if (role.kind <= ROLE_PARTY_2 && field_link_is_object(newest) && field_link_byte(newest) >= MISFILED_ENTRIES)
             return false;
     }
     return true;

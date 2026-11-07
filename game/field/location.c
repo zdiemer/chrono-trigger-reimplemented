@@ -905,8 +905,17 @@ void field_load_the_script_entry(Snes *s)
 }
 /* The script's guard: on the field's page, whose cells name the location's
  * record, with the data bank reaching low RAM, where the unpacker's cells
- * are. */
-bool field_script_can_be_loaded(Snes *s) { return field_on_page_low_bank(s); }
+ * are, and the place of the record one where a record starts, as for the
+ * map (field_map_can_be_unpacked says why). */
+bool field_script_can_be_loaded(Snes *s)
+{
+    if (!field_on_page_low_bank(s))
+        return false;
+    vars_peek(true);
+    bool ok = location_record_is_one(location_record_offset(state_of(s)));
+    vars_peek(false);
+    return ok;
+}
 
 /* What it leaves for the menu: X past the party's places (the main menu takes
  * it as its argument), and the carry its last comparison set. */
@@ -972,7 +981,9 @@ bool field_can_be_set_up_again(Snes *s)
     if (!field_on_page_bank_zero(s))
         return false;
     vars_peek(true);
-    bool ok = gathering_can_be_finished(state_of(s));
+    /* the record's place one where a record starts: the graphics, map and
+     * script it names are unpacked (field_map_can_be_unpacked says why) */
+    bool ok = gathering_can_be_finished(state_of(s)) && location_record_is_one(location_record_offset(state_of(s)));
     vars_peek(false);
     return ok;
 }

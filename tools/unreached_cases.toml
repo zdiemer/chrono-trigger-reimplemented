@@ -21,10 +21,6 @@ event_screen_ripple = ["event_cmd_screen_command"]
 # them and takes no evidence from them, and fails on any other failing recipe
 # (or on one of these passing). The bytes they would cover stay open.
 [failing]
-"field_take_palette:unreached_party_shares" = "897 of 1,000 mismatch: the original's join indexes the slot table by the older sharer (docs/TODO.md, \"The field's unreached paths, before it retires\")"
-field_unpack_the_map = "50 mismatch, the port stopping where the original goes on; docs/ports.tsv records none (docs/TODO.md, \"The field's unreached paths, before it retires\")"
-field_set_up_after_a_menu = "1 mismatch, as field_unpack_the_map's, whose unpacking it runs (docs/TODO.md, \"The field's unreached paths, before it retires\")"
-field_start_step = "matches, but reads the map's tables past their 64 columns, an accessor out of range (docs/TODO.md, \"The field's unreached paths, before it retires\")"
 
 [[case]]
 base = "event_cmd_screen_command"
@@ -232,7 +228,7 @@ variant = "unreached_party_shares"
 args = ["--fill", "7E0154-7E0154=00", "--fill", "7E1100-7E117F:2=00,01,02",
         "--fill", "7E0B85-7E0B87=00,02,04,06,08,0A,0C,0E,10,12,14,16,80",
         "--fill", "7E1400-7E147F=1818"]
-why = "A party place's object coming into view whose place's slot another object of the same colours holds, or nobody: it joins that object's sharers or takes the free slot (one of other colours the guard turns away). Mismatches today, so no ledger row cites it: the original's join (C071FE-C07210) indexes the slot table and the object's palette by the older sharer's number instead of the slot (docs/TODO.md, \"The field's unreached paths, before it retires\")."
+why = "A party place's object coming into view whose place's slot another object of the same colours holds, or nobody: it joins that object's sharers or takes the free slot (one of other colours the guard turns away). The original's join (C071FE-C07210) files the object by the older sharer's number where the slot's belongs, which the port reproduces (field/palettes.c, join_party_place_sharers)."
 
 [[case]]
 base = "field_update_object_visibility"
@@ -275,3 +271,46 @@ args = ["--fill", "7E0117-7E0117=01", "--fill", "7F2000-7F2000=08-3F", "--fill",
         "--fill", "7E1A81-7E1AFF:2=01,80", "--fill", "7E0F00-7E0F7F:2=00,80",
         "--tick-at", "C0EC71=7E0152", "--budget", "16000000"]
 why = "A battle asked for alone, with the objects as field_battle_begins' recipe has them: where no enemy is found the request is dropped and the leader walks on this frame instead; where one is, the battle's setup runs, its frames waited out."
+
+[[case]]
+base = "field_dialog_window_step"
+variant = "unreached_read_on"
+args = ["--fill", "7E0129-7E0129=07", "--fill", "7E0162-7E0162=00,03", "--fill", "7E0134-7E0135=0000",
+        "--fill", "7E0131-7E0131=00-03", "--fill", "7E0215-7E0215=03,05,06,07,08,09,0A,0B,0C"]
+why = "A text read, with no question or its answer picked and its hold run out, stopped at each kind of break or a pause, on each row: it goes on on the next row, on a page cleared for it, or the window closes."
+
+[[case]]
+base = "field_dialog_window_step"
+variant = "unreached_field_message"
+args = ["--fill", "7E0129-7E0129=05", "--fill", "7E0126-7E0126=00", "--fill", "7E0154-7E0154=00,20,DF,FF"]
+why = "The window placed, the field's own message (a chest's, field flag bit 5) or a script's line: the typesetter starts on the field's messages or the script's table."
+
+[[case]]
+base = "field_dialog_window_step"
+variant = "unreached_breaks"
+args = ["--fill", "7E0129-7E0129=06", "--fill", "7E0215-7E0215=10", "--fill", "7E0131-7E0131=00-03",
+        "--fill", "7E0210-7E0212=7EF000", "--fill", "7E0214-7E0214=00",
+        "--fill", "7E0230-7E0230=00", "--fill", "7E0231-7E0233=7E2000", "--fill", "7E0237-7E0239=7E2100",
+        "--fill", "7E023D-7E023F=7E0200",
+        "--fill", "7E2000-7E2000=00,03,05,06,07,08,09,0A,0B,0C"]
+why = "A glyph set where the text's next byte is its end, a pause or each kind of break, on each row (the text read from work RAM made for it, set into the window's staging tiles): the window reads on, holds for the player, or sets on."
+
+[[case]]
+base = "field_set_up_after_a_menu"
+variant = "unreached_gathering"
+args = ["--fill", "7F03FE-7F03FE=01,02", "--fill", "7E0197-7E019B:2=00,02,04,06,08", "--fill", "7E0198-7E019C:2=00"]
+why = "A menu opened while the party was gathering (the count cut short at one or two): the members are put where the leader is, the player given the party back and the gathering counted done."
+
+[[case]]
+base = "field_read_animation_frame"
+variant = "unreached_one_off_ends"
+args = ["--fill", "7E01D8-7E01D8=7F", "--fill", "7E1500-7E157F:2=8000", "--fill", "7E1480-7E14FF:2=0000",
+        "--fill", "7E1780-7E17FF:2=02", "--fill", "7F8000-7F8403=FF"]
+why = "A one-off animation at the end of its frames (every frame table, in work RAM made for it, an end marker): no frame to draw, and a half pass counted unless it has none left."
+
+[[case]]
+base = "field_walk_the_leader:walking"
+variant = "unreached_nudge_shut"
+iterations = 100000
+args = ["--fill", "7E1800-7E18FF:2=00,0F,60,63,66,69,6C,6F,70,73,76,79,7C,7F,80,83,86,89,8C,8F,90,93,96,99,9C,9F,F0,F3,F6,F9,FC,FF"]
+why = "As the walking recipe, with every place a pixel or so from a tile's edge, where the box's side or foot nudged around another level looks into the next tile: the nudge finds the way shut there too and the leader stops. Each stop takes a tile whose part is another level at one of the foot's or the side's places and open at the other, which random tiles make about once in 20,000 trials."

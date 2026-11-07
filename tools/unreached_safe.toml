@@ -97,3 +97,21 @@ entry = "C0005D"
 runs = "C00077-C0007C"
 depends = ["game/field/main_loop.c:field_location_is_a_number", "game/field/main_loop.c:LOCATION_SIGN", "game/field/main_loop.c:enter_the_location", "game/field/main_loop.c:location_is_the_menus"]
 why = "The original's signed compares send locations $1F0 and up to the world map before testing $1FF, so this load-error jump (LDX #$7C00; BRL $2E1E) is reached only by a location word from $81F0 to $81FE. The registry guard (field_location_is_a_number) refuses every word with the top bit set, and the game's locations are nine-bit numbers. Keep the guard's bound as an assertion when the field retires."
+
+[[safe]]
+name = "field_unpack_the_map"
+runs = "C0A47C-C0A482"
+depends = ["game/field/map.c:drift_speed", "game/field/map.c:take_the_drift", "game/field/map.c:DRIFT_BACK", "game/field/map.c:take_the_header"]
+why = "BG2 drifting left: the header's BG2 drift byte with a speed across (bits 0-2) and its back bit (3) both set, which negates the speed. Excluded by the cartridge's fixed resources: unpacking the map of each of the 512 location records gives that byte only as $00, $10, $30, $50, $56, $60, $70, $B0, $D0, $E0 or $F0, none with both; the recipe's 32 records and the movies run the rest of the header. drift_speed takes the back bit the same way for either way and either layer (the maps with $B0-$F0 drift BG2 upward through it), so a map with it would take the port's general path. Recheck if location records or maps become editable."
+
+[[safe]]
+name = "field_place_8_sprites"
+runs = "C0BB86-C0BB87,C0BBA0-C0BBA1,C0BBBA-C0BBBB,C0BBD4-C0BBD5,C0BBEE-C0BBEF,C0BC08-C0BC09,C0BC22-C0BC23,C0BC3C-C0BC3D"
+depends = ["game/field/sprites.c:place_larger", "game/field/sprites.c:table_y", "game/field/sprites.c:shown", "game/field/sprites.c:zone_of", "game/field/sprites.c:EIGHT_PLACED"]
+why = "Dead by arithmetic. Each run is the branch the original takes for one of the eight sprites of an object in the screen's upper half (its screen Y's high byte 0 and low byte below $80) whose offset is downward (0-$7F) where adding the offset to the Y carries past 255; 127 + 127 is 254, so the add never carries. zone_of puts such an object in UPPER_HALF, whose EIGHT_PLACED rule (SHOWN_BELOW_OR_IN_THE_TOP_HALF) shows every downward sprite at Y + offset, the original's no-carry arm, which the recipes run. Preserve the zone bounds if the screen's height changes."
+
+[[safe]]
+name = "field_take_palette"
+runs = "C071EB-C071EC"
+depends = ["game/field/palettes.c:object_takes_a_palette_the_tables_hold", "game/field/palettes.c:field_palette_can_be_taken", "game/field/palettes.c:take_party_place_slot"]
+why = "Refused by the guard. A party place's object whose place's slot an object of other colours holds: the original gives up (carry clear) with A left 16-bit from comparing the colours, which its callers then run with. object_takes_a_palette_the_tables_hold turns that call away, so the original's code runs it, and the gate's refusal check holds that no movie's play makes it; take_party_place_slot gives up there too, taking no slot. unreached_party_shares runs the join and the free slot beside it. Keep it as the entry's contract when the field retires."

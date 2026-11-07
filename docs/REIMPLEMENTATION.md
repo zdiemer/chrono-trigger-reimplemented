@@ -4313,8 +4313,8 @@ subsystem's rows don't change another's.
 |---|--:|--:|--:|--:|
 | core | 11 | 7 | 4 | 0 |
 | event | 1,490 | 1,418 | 72 | 0 |
-| field | 2,229 | 1,946 | 67 | 216 |
-| Total | 3,730 | 3,371 | 143 | 216 |
+| field | 2,229 | 2,137 | 92 | 0 |
+| Total | 3,730 | 3,562 | 168 | 0 |
 
 **The field, inventoried ahead of its teardown.** The field joined the audit
 before its paths were all checked, so the ledger takes a fourth kind of
@@ -4339,21 +4339,48 @@ the ripple, the field's close into a scene, the fade after a battle and a
 battle request that finds no enemy run to their ends. The rest took a
 state the recipes didn't make: the window design sent at a vblank, a
 choice's pointer at its bounds, the view's edges clamped, a dialog's
-speaker leaving view, every sprite block given. Three arguments are
-reviewed instead: a vertical line-up arm dead by arithmetic, a tile set's
-eighth block that no location's set has, and a location load error only a
-word the entry's guard refuses reaches. The 216 open bytes are in TODO.md,
-"The field's unreached paths, before it retires", with what fuzzing found
-on the way: a party member's palette slot shared with another object
-mismatches (`field_take_palette:unreached_party_shares`), and the map's
-unpacking and the set-up after a menu mismatch on their plain recipes.
+speaker leaving view, every sprite block given. Six arguments are
+reviewed instead: a vertical line-up arm and the 8-sprite layout's carry
+past 255 in the screen's upper half, both dead by arithmetic; a tile set's
+eighth block and BG2 drifting left, which no location's set or map has; a
+location load error only a word the entry's guard refuses reaches; and a
+party place's slot held by other colours, which the guard turns away. The
+216 bytes the first inventory left open were closed, and what fuzzing found
+on the way fixed. The original files a party place's object joining its
+slot's sharers by the older sharer's number where the slot's belongs
+(`$C0:71FE-$C0:7210`): the port does too (`join_party_place_sharers`), so
+`field_take_palette:unreached_party_shares` went from 897 of 1,000
+mismatching to none. The map's unpacking and the set-up after a menu had
+mismatched on their plain recipes since the unpacker became C (the data
+subsystem's teardown): their random place of the location's record named
+other bytes as a map or a tile set, whose output ran past its bank onto low
+RAM, the stack and the unpacker's own cells, which the original reads back
+as it goes and the C keeps in locals. The game keeps only a place where a
+record starts, so the map's, the script's and the set-up's guards take only
+that (`location_record_is_one`) and their recipes fill 32 records. A step's
+recipe read the map's tables past their 64 columns (`accessor out of
+range`) for a random repeat mask, which the recipes now give as maps make
+it: every 16, 32 or 64 tiles each way. The rest took targeted cases: the
+dialog read on at each break, placed for the field's message and setting
+each break from text made for it in work RAM; a gathering cut short after a
+menu; a one-off animation's end; and the leader nudged around another level
+into a shut way, which a tile half one level and half another makes about
+once in 20,000 trials (that case runs 100,000).
+
+The evidence also replays each inventoried entry with unreached bytes on its
+own plain recipe (`unreached_fuzz.py --ledger`, which the gate's
+`--evidence` runs), cited or not: the map's unpacking had no ledger row on
+its plain recipe, so nothing compared it when the unpacker changed under it.
+Now a port that stops matching on its own recipe fails the gate in the
+commit that does it, not at the next record.
 
 `tools/unreached_baseline.txt` is the greppable ledger: a movie manifest,
 one inventory row per entry (including zero-byte entries), and exact byte
 runs attached to passing fuzz recipes, reviewed safety reasons or, for a
 subsystem inventoried ahead of its teardown, `open`. The
 first record's 102 cited recipes made 100,400 trials, 70,097 matched, zero mismatches;
-with the field's, 118 are cited, 122,400 trials, 83,922 matched; skips
+with the field's, 118 are cited, 122,400 trials, 83,922 matched; with its
+open rows closed, 126, 338,400 trials, 169,094 matched; skips
 contribute no evidence. `ct_fuzz --coverage` accumulates original instructions
 only after a trial matches. Logs with accessor/page/resource diagnostics
 are rejected, even when the comparator reports a match. Broader casting

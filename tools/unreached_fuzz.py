@@ -143,7 +143,7 @@ def main():
     ap.add_argument('--out', type=pathlib.Path, default=ROOT / 'build/unreached')
     selection = ap.add_mutually_exclusive_group(required=True)
     selection.add_argument('--case', action='append', help='name[:variant], repeatable')
-    selection.add_argument('--ledger', type=pathlib.Path, help='replay all fuzz recipes cited in this ledger')
+    selection.add_argument('--ledger', type=pathlib.Path, help='replay all fuzz recipes cited in this ledger, and each inventoried entry with unreached bytes on its own recipe')
     ap.add_argument('--iterations', type=int, default=1000)
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('-j', type=int, default=2, choices=(1, 2))
@@ -161,6 +161,12 @@ def main():
                     ap.error(f'{case}: inconsistent trial specifications in ledger')
                 ledger_trials[case] = limits
         cases = sorted(ledger_trials)
+        # Each inventoried entry's own recipe too, cited or not: a port that
+        # stops matching on it (as the field's map did when the unpacker
+        # became C) fails here, before a case built on it is ever recorded.
+        cases += sorted({line.split('\t')[3] for line in args.ledger.read_text().splitlines()
+                         if line.startswith('port\t') and int(line.split('\t')[5]) > 0}
+                        & set(all_recipes) - set(cases))
     chosen = [all_recipes[key] for key in cases]
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / 'fuzz').mkdir(exist_ok=True)

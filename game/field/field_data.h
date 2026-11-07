@@ -341,6 +341,13 @@ static inline uint16_t location_record_place(uint16_t location)
     return (uint16_t)(LOCATION_RECORD_BYTES * (location & LOCATION_NUMBER_BITS));
 }
 
+/* Whether a place is where one of the records starts, as every place the
+ * game keeps is (location_record_place). */
+static inline bool location_record_is_one(uint16_t place)
+{
+    return place % LOCATION_RECORD_BYTES == 0 && place <= location_record_place(LOCATION_NUMBER_BITS);
+}
+
 static inline LocationDescription location_description_at(const GameState *g, uint16_t place)
 {
     uint32_t at = 0xF60000u + place;
