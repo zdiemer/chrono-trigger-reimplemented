@@ -625,6 +625,41 @@ static bool the_cartridges_overworld(const Fallbacks *f, uint32_t pc)
     return false;
 }
 
+/* The cartridge's scene program in the reference play, as the warp's: its own
+ * code in work RAM ($7E:3000-$7E:3175 and $7E:3177-$7E:31BE: its start, main
+ * loop, end, work RAM's clear, sound put back to normal and frame wait, less
+ * the empty routine the scenes' task lists call too, which is the program's
+ * only where its main loop calls it; tools/burndown.py's RETIRED_RUNS lists
+ * the same runs), while the program is the code there (the main loop's test
+ * in place, by its hash). In the shipping mode the boot starts it as C and its
+ * main loop is a held wait (game/scene/program.c), so none of it runs there
+ * (docs/REIMPLEMENTATION.md, "The scene program's teardown"). */
+static bool the_cartridges_scene_program(const Fallbacks *f, uint32_t pc)
+{
+    enum { LOOP = 0x7E3023, LOOP_TEST = 0x7E3026, LOOP_TEST_BYTES = 4, EMPTY_ROUTINE = 0x3176, JSR = 0x20 };
+    uint16_t at = (uint16_t)pc;
+    if (!f->shadow || (pc >> 16) != 0x7E || at < 0x3000 || at > 0x31BE)
+        return false;
+    if (at == EMPTY_ROUTINE) {
+        /* the loop's call of it, or the sound routine after it branching
+         * back to its return where a scene sends no songs */
+        uint16_t sp = f->s->cpu.s;
+        uint16_t back = (uint16_t)(snes_bus_peek(&f->s->bus, (uint16_t)(sp + 1)) | snes_bus_peek(&f->s->bus, (uint16_t)(sp + 2)) << 8);
+        uint32_t routine = f->eff.routine;
+        bool in_the_program = routine >= 0x7E3000 && routine <= 0x7E31BE && routine != 0x7E3176;
+        if (back != (uint16_t)(LOOP + 2) && !in_the_program)
+            return false;
+    }
+    if (snes_bus_peek(&f->s->bus, LOOP) != JSR)
+        return false;
+    uint64_t h = 0xcbf29ce484222325ull;
+    for (unsigned i = 0; i < LOOP_TEST_BYTES; i++) {
+        h ^= snes_bus_peek(&f->s->bus, LOOP_TEST + i);
+        h *= 0x100000001b3ull;
+    }
+    return h == 0x2B0A967642BA802Bull;
+}
+
 void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
     /* Observe completion before the caller starts another invocation of the
@@ -664,7 +699,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
             f->pass.hidden++;
     }
     if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_decompressor(f, pc) &&
-        !the_cartridges_warp(f, pc) && !the_cartridges_overworld(f, pc)) {
+        !the_cartridges_warp(f, pc) && !the_cartridges_overworld(f, pc) && !the_cartridges_scene_program(f, pc)) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));
         f->by_kind[eff.kind]++;

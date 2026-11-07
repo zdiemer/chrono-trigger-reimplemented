@@ -575,19 +575,6 @@ why = "the picture read through the data bank, the second bank of work RAM, as e
 # ---- scene: display (P2) -------------------------------------------------------------------------
 
 [[routine]]
-name = "scene_program_restart"
-subsystem = "scene"
-state = "attract"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-
-[[routine]]
-name = "scene_clear_work_ram"
-subsystem = "scene"
-state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
-iterations = 2000
-
-[[routine]]
 name = "scene_init_video"
 subsystem = "scene"
 state = "attract"
@@ -1386,14 +1373,6 @@ subsystem = "scene"
 state = "ending"
 args = ["--d", "0000", "--db", "7F", "--keep", "7E3000-7EC994", "--fill", "7E007B-7E007B=00-01"]
 why = "back from the scaler, the data bank its (the regrouping reads the picture through it); either shape"
-
-[[routine]]
-name = "attract_frame_pass"
-variant = "ending"
-subsystem = "attract"
-state = "ending"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E3024-7E3025=8930", "--fill", "7E007C-7E007C=00-00"]
-why = "the main loop's pass with the endings' frame routine, their picture's scaling, named in the call"
 
 # ---- event: bank C0 (the event script's engine and command handlers) ---------------------------------
 #
@@ -19089,13 +19068,6 @@ state = "menus"
 args = ["--jump", "--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=00-29"]
 why = "as menu_run_the_cursor_task, from the wait's return"
 
-[[routine]]
-name = "attract_frame_pass"
-subsystem = "attract"
-state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E3024-7E3025=51D1"]
-why = "the main loop's pass with the attract demo's frame routine, the race's scaling of its pictures, named in the call"
-
 # ---- the menus and the overworld: the world map's setup, its scenes' calls, the frame's input ----------------
 
 [[routine]]
@@ -19227,40 +19199,6 @@ args = ["--d", "0000", "--db", "00"]
 why = "the object mode's page (the guard), any story"
 
 [[routine]]
-name = "scene_program_start"
-subsystem = "scene"
-state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0384-7E0384=00-0F", "--apu-loopback",
-        "--budget", "20000000", "--stop-at-call", "7E31B0"]
-iterations = 400
-why = "the program kept, a mode the setups' table has, the sound's port read back; compared up to the first frame's wait (or a setup's own), which ct_fuzz has no vblank to end"
-
-[[routine]]
-name = "scene_setup_and_first_frame"
-subsystem = "scene"
-state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0384-7E0384=00-0F", "--apu-loopback",
-        "--budget", "20000000", "--stop-at-call", "7E31B0", "--range", "A=0000-00FF"]
-iterations = 400
-why = "the program kept, a mode the setups' table has, the sound's port read back; compared up to the first frame's wait (or a setup's own), which ct_fuzz has no vblank to end: A's high byte 0, as the guard asks (the dispatch takes it into its index)"
-
-[[routine]]
-name = "scene_first_frame"
-subsystem = "scene"
-state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0384-7E0384=00-0F", "--apu-loopback",
-        "--budget", "20000000", "--stop-at-call", "7E31B0"]
-iterations = 400
-why = "the program kept, a mode the setups' table has, the sound's port read back; compared up to the first frame's wait (or a setup's own), which ct_fuzz has no vblank to end"
-
-[[routine]]
-name = "scene_program_hands_back"
-subsystem = "scene"
-state = "attract"
-args = ["--long", "--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
-why = "the program kept, on the scene's own page, as the title's frame and its lists call it"
-
-[[routine]]
 name = "scene_unpack_resource"
 subsystem = "scene"
 state = "attract"
@@ -19284,22 +19222,6 @@ state = "attract"
 args = ["--long", "--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0B21-7E0B21=30-B5",
         "--budget", "8000000"]
 why = "the program kept, the channel's script pointer inside the program, as scene_run_sequence's (a random one jumps into work RAM the two runs part on)"
-
-[[routine]]
-name = "scene_program_goes_on"
-subsystem = "scene"
-state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0384-7E0384=00-0F", "--apu-loopback",
-        "--budget", "20000000", "--stop-at-call", "7E31B0"]
-iterations = 400
-why = "the program kept, a mode the setups' table has, the sound's port read back; compared up to the first frame's wait (or a setup's own), which ct_fuzz has no vblank to end"
-
-[[routine]]
-name = "scene_sound_back_to_normal"
-subsystem = "scene"
-state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
-why = "the program kept, the sound's port read back, so each command's wait ends"
 
 [[routine]]
 name = "scene_title_set_up"
@@ -21203,20 +21125,6 @@ args = ["--db", "7E", "--widths", "8,16", "--range", "X=1234-1234", "--fill", "7
 why = "no matching slot within either list; the original search must continue through following work RAM, preserving the caller accumulator width"
 
 [[routine]]
-name = "scene_after_work_ram_clear"
-subsystem = "scene"
-state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
-why = "the scene program present and command echoes available, so the whole continuation can return"
-
-[[routine]]
-name = "scene_frame_wait_done"
-subsystem = "scene"
-state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
-why = "the scene program present and command echoes available, so the whole continuation can return"
-
-[[routine]]
 name = "scene_send_sound_command_long"
 subsystem = "scene"
 state = "attract"
@@ -21384,22 +21292,6 @@ args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=00
 why = "One bounded racer picture through complete scaling and gathering, with the previous upload finished."
 
 [[routine]]
-name = "scene_program_hands_back"
-variant = "destination"
-subsystem = "scene"
-state = "attract"
-args = ["--long", "--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0100-7E0101=0000,01EF,01F0", "--stop-at-call", "C00B86", "--apu-loopback"]
-why = "A field or world-map destination; compare through field entry to its first location setup, or its world-map handoff."
-
-[[routine]]
-name = "scene_program_restart"
-variant = "destination"
-subsystem = "scene"
-state = "attract"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0100-7E0101=0000,01EF,01F0", "--stop-at-call", "C00B86", "--apu-loopback"]
-why = "A field or world-map destination; compare through field entry to its first location setup, or its world-map handoff."
-
-[[routine]]
 name = "scene_boot"
 variant = "all_modes"
 subsystem = "scene"
@@ -21461,24 +21353,6 @@ iterations = 2000
 why = "Decimal callers must stop at the binary-only scaler entry, with its call frame intact."
 
 [[routine]]
-name = "scene_clear_work_ram"
-variant = "changed_continuation"
-subsystem = "scene"
-state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--fill", "7E30E9-7E30E9=EA", "--fill", "7E0384-7E0384=00"]
-iterations = 2000
-why = "The clear code is intact but its continuation is modified; compare the refusal before running that continuation."
-
-[[routine]]
-name = "scene_sound_back_to_normal"
-variant = "changed_continuation"
-subsystem = "scene"
-state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--fill", "7E37A3-7E37A3=EA", "--fill", "7E0384-7E0384=00"]
-iterations = 2000
-why = "Change the send retry instruction, unused when loopback echoes immediately; the final send must refuse its changed code image."
-
-[[routine]]
 name = "scene_roll_credits"
 variant = "changed_task_list"
 subsystem = "scene"
@@ -21487,11 +21361,3 @@ args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E004
 iterations = 2000
 why = "Credits completion must refuse a modified task-list continuation before unwinding its caller frame."
 
-[[routine]]
-name = "scene_program_start"
-subsystem = "scene"
-state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0384-7E0384=00-0F", "--apu-loopback", "--budget", "20000000", "--stop-at-call", "7E31B0", "--fill", "7E0384-7E0384=00", "--fill", "7E5AAA-7E5AAA=EA"]
-iterations = 100
-why = "The title setup must propagate refusal at its modified music wait without entering the first frame."
-variant = "changed_music_wait"

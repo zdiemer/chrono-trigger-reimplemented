@@ -27,6 +27,9 @@ enum { FULL_BRIGHTNESS = 15 };
 
 /* Where the program runs, in the first bank of work RAM. */
 enum { PROGRAM_START = 0x7E3000, PROGRAM_ADDRESS = 0x3000 };
+/* The program's start sets every register it uses: the fades' pace in A
+ * before the clear takes it, the mode from the flags it was booted with. */
+enum { THE_PROGRAM_READS_NO_REGISTER = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 /* The handlers the boot installs until the program installs its own. */
 enum { BOOT_NMI = 0xC30548, BOOT_IRQ = 0xC30529 };
@@ -88,17 +91,20 @@ bool scene_boot_bank_reaches_io(Snes *s)
 }
 
 /* Start the scene program, the flags in A: the program unpacked, and the
- * unpacked program started directly as C. */
+ * unpacked program started. The program is off the gate
+ * (docs/REIMPLEMENTATION.md, "The scene program's teardown"), so where the
+ * hand ports play it starts as C (scene/program.c); elsewhere the boot stops
+ * at its start and the cartridge's program runs. */
 void scene_boot(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_I, true);   /* SEI */
     bool line_irq = boot(state_of(s), m_platform(s), (uint8_t)s->cpu.a);
     m_set_flag(s, CPU_FLAG_I, !line_irq);   /* interrupts on where the scene uses the line interrupt */
     (void)unpack_stream_called(state_of(s), true);
-    m_jump_to(s, PROGRAM_START);
-    /* Startup owns its long loading stretches, just as at its own entry. */
-    if (scene_accept_continuation(s, PROGRAM_START, scene_program_start))
-        NATIVE_TIME_AS_SIBLING(s, PROGRAM_START, scene_program_start(s));
+    if (m_runs_retired_as_c(s))
+        scene_program_starts_on_the_machine(s);
+    else
+        m_stop_at_own(s, PROGRAM_START, THE_PROGRAM_READS_NO_REGISTER);
 }
 
 /* The program unpacked into work RAM (the decompressor's call from the boot,

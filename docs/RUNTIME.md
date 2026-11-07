@@ -812,6 +812,11 @@ held waits' continuations: they are still machine wrappers, a joint until the
 loop runs with no machine under it. A `ct_play` quick save taken at attract-demo's
 frame 12,000 (PC `$7E:3023`, wait 1 named), loaded, and played 500 frames ends
 with the same state and the same picture as the run that didn't stop.
+The program then retired the gate (REIMPLEMENTATION.md, "The scene program's
+teardown"): its continuations are `scene_program_waits` and
+`scene_program_next_pass` (`game/scene/program.c`), `.retired`, and the pass
+makes the call the setup named and, once a script ends the scene, the
+program's end, by a return rather than a stop.
 
 The time warp's main loop is the second (`HOLD_WARP_FRAME`, `$FD:EAED`), and
 the first whose subsystem retired the gate (REIMPLEMENTATION.md, "The time

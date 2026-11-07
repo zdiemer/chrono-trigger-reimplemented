@@ -1,6 +1,5 @@
 #include "registry.h"
 
-#include "attract/attract.h"
 #include "battle/animation.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
@@ -2693,29 +2692,15 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC308D0, .name = "scene_frame_work", .fn = scene_frame_work_entry, .p_mask = CPU_FLAG_X,
       .p_value = 0, .cost_milli = 3245, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z,
       .guard = scene_pause_is_a_switch },
-    { .addr = 0x7E302A, .name = "scene_program_restart", .fn = scene_program_restart, NEEDS_M16_X16,
-      .cost_milli = 1, .guard = scene_program_restart_present },
-    /* the program's start and end (scene/program.c, scene/sound.c, scene/boot.c, scene/script.c) */
-    { .addr = 0x7E3000, .name = "scene_program_start", .fn = scene_program_start, NEEDS_M8_X16, .cost_milli = 10929,
-      .guard = scene_program_start_present },
-    { .addr = 0x7E30E9, .name = "scene_after_work_ram_clear", .fn = scene_after_work_ram_clear, NEEDS_M8_X16,
-      .cost_milli = 4604, .dont_care = DC_AL | DC_X | DC_N | DC_Z | DC_C, .guard = scene_after_work_ram_clear_present },
-    { .addr = 0x7E31BE, .name = "scene_frame_wait_done", .fn = scene_frame_wait_done,
-      .cost_milli = 2625, .guard = scene_frame_wait_present },
+    /* the scene program's gate is retired (docs/REIMPLEMENTATION.md, "The
+     * scene program's teardown"): its start, its main loop, its end, its work
+     * RAM's clear and its sound put back to normal have no rows here, but for
+     * the main loop's held wait's continuations (game_held_waits), and their
+     * estimates are kept (game_kept_estimates); the boot, the sound's sends
+     * and the scripts (scene/boot.c, scene/sound.c, scene/script.c) */
     { .addr = 0x7E377A, .name = "scene_send_sound_command_long", .fn = scene_send_sound_command_long,
       .p_mask = CPU_FLAG_X, .p_value = 0, .cost_milli = 5250, .dont_care = DC_A | DC_X | DC_N | DC_Z,
       .guard = scene_send_sound_command_long_present },
-    { .addr = 0x7E30F6, .name = "scene_program_goes_on", .fn = scene_program_goes_on, NEEDS_M8_X16, .cost_milli = 12073,
-      .dont_care = DC_AL | DC_X | DC_N | DC_Z | DC_C,
-      .guard = scene_program_start_present },
-    { .addr = 0x7E3003, .name = "scene_setup_and_first_frame", .fn = scene_setup_and_first_frame, NEEDS_M8_X16,
-      .cost_milli = 4247, .guard = scene_setup_present },
-    { .addr = 0x7E300D, .name = "scene_first_frame", .fn = scene_first_frame, NEEDS_M8_X16, .cost_milli = 11123,
-      .guard = scene_program_start_present },
-    { .addr = 0x7E303B, .name = "scene_program_hands_back", .fn = scene_program_hands_back, NEEDS_M8_X16,
-      .cost_milli = 1000, .guard = scene_program_end_present },
-    { .addr = 0x7E3177, .name = "scene_sound_back_to_normal", .fn = scene_sound_back_to_normal_entry, NEEDS_M8_X16,
-      .cost_milli = 4325, .dont_care = DC_AL | DC_X | DC_N | DC_Z | DC_C, .guard = scene_sound_back_to_normal_present },
     { .addr = 0x7E37F3, .name = "scene_call_the_scripts_routine", .fn = scene_call_the_scripts_routine, NEEDS_M16_X16,
       .cost_milli = 1805, .guard = scene_scripts_routine_call_present },
     { .addr = 0x7E3691, .name = "scene_unpack_resource", .fn = scene_unpack_resource, .p_mask = CPU_FLAG_X, .p_value = 0,
@@ -2729,9 +2714,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0x7E375E, .name = "scene_channel_script_comes_back", .fn = scene_channel_script_comes_back, .cost_milli = 2625,
       .guard = scene_channel_script_start_present },
     { .addr = 0x7E5978, .name = "scene_title_set_up", .fn = scene_title_set_up_entry, NEEDS_M8_X16, .cost_milli = 46818,
-      .guard = scene_title_set_up_present },
-    { .addr = 0x7E3092, .name = "scene_clear_work_ram", .fn = scene_clear_work_ram, NEEDS_M8_X16,
-      .cost_milli = 6782, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = scene_clear_work_ram_present },
+      .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = scene_title_set_up_present },
     { .addr = 0x7E30F9, .name = "scene_init_video", .fn = scene_init_video, .p_mask = CPU_FLAG_X,
       .p_value = 0, .cost_milli = 3889, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = scene_init_video_present },
     { .addr = 0x7E380E, .name = "scene_upload_sprites", .fn = scene_upload_sprites, NEEDS_M8_X16,
@@ -4669,8 +4652,6 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16, .idle = true, .idle_clocks = 82, .guard = scene_send_sound_command_present },
     { .addr = 0x7E4BD2, .name = "scene_race_pitch_and_move", .fn = scene_race_pitch_and_move, NEEDS_M8_X16_BINARY,
       .cost_milli = 3903, .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C, .guard = scene_race_pitch_and_move_present },
-
-    /* attract (runs from RAM; guarded) */
 };
 
 const int game_native_count = (int)(sizeof game_natives / sizeof game_natives[0]);
@@ -4684,11 +4665,14 @@ const int game_native_count = (int)(sizeof game_natives / sizeof game_natives[0]
  * head, a state from before the wait was held), the machine finds one by its
  * address, enters it as any entry and it holds the wait from there. */
 const NativeEntry game_held_waits[] = {
-    /* the scene program's main loop: its empty pass, and its pass with a picture's scaling */
-    { .addr = 0x7E3023, .name = "attract_wait_loop", .fn = attract_wait_loop, NEEDS_M16, .idle = true,
-      .hold = HOLD_SCENE_MAIN_LOOP, .guard = attract_wait_loop_present },
-    { .addr = 0x7E3023, .name = "attract_frame_pass", .fn = attract_frame_pass, NEEDS_M16, .cost_milli = 3125,
-      .hold = HOLD_SCENE_MAIN_LOOP, .guard = attract_frame_pass_present },
+    /* the scene program's main loop, its gate retired (the shipping mode
+     * only): a pass, with the call a setup named and the program's end once
+     * a script ends the scene, and the idle pass with nothing to call (the
+     * scene's page) */
+    { .addr = 0x7E3023, .name = "scene_program_next_pass", .fn = scene_program_next_pass, NEEDS_M16, .cost_milli = 3125,
+      .hold = HOLD_SCENE_MAIN_LOOP, .retired = true, .guard = scene_program_passes },
+    { .addr = 0x7E3023, .name = "scene_program_waits", .fn = scene_program_waits, NEEDS_M16, .idle = true,
+      .hold = HOLD_SCENE_MAIN_LOOP, .retired = true, .guard = scene_program_waits_for_the_frame },
     /* the time warp's main loop, its gate retired (the shipping mode only): its
      * next frame, once the vblank handler has taken the last, and its idle
      * pass before (the warp's page, D = $0500) */
@@ -4763,6 +4747,13 @@ const NativeEntry game_kept_estimates[] = {
     { .addr = 0xC22556, .name = "overworld_come_back_to_the_map_s_screen", .cost_milli = 1 },
     { .addr = 0xC2255A, .name = "overworld_back_from_the_menus", .cost_milli = 1000 },
     { .addr = 0xC22ED9, .name = "overworld_pass_on_sound", .cost_milli = 3517 },
+    /* the scene program, its gate retired (docs/REIMPLEMENTATION.md, "The
+     * scene program's teardown"): its start, its work RAM's clear, the sound
+     * put back to normal and its end */
+    { .addr = 0x7E3000, .name = "scene_program_start", .cost_milli = 10929 },
+    { .addr = 0x7E3092, .name = "scene_clear_work_ram", .cost_milli = 6782 },
+    { .addr = 0x7E3177, .name = "scene_sound_back_to_normal", .cost_milli = 4325 },
+    { .addr = 0x7E302A, .name = "scene_program_restart", .cost_milli = 1 },
 };
 const int game_kept_estimate_count = (int)(sizeof game_kept_estimates / sizeof game_kept_estimates[0]);
 

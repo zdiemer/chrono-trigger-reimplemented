@@ -145,27 +145,23 @@ void scene_wait_sound_command_echo_loop(Snes *s)
 
 /* ---- The sound put back to normal ------------------------------------------------------------ */
 
+// $7E:3177
 /* What a scene leaves of the sound driver's state, put back as the next scene
  * starts and as the program ends: the tempo and the pitch unbent at once, the
  * effects' pitch unbent, both pairs of effect voices stopped, and the music at
  * full volume at once. Each command goes through the program's own send,
- * which waits for the driver to take it; the last send returns directly to
- * the caller. A scene that sends no
- * songs leaves the sound alone. The send reads the buffer and none of the
- * registers. */
-enum { SCENE_SEND = 0x7E377E, SEND_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-/* The last send returns to the routine's caller, which reads what the routine
- * was called with of A's high byte, Y and the overflow. */
+ * which waits for the driver to take it. A scene that sends no songs leaves
+ * the sound alone. */
+enum { SCENE_SEND = 0x7E377E };
 
 static const struct {
     uint8_t command, p1, p2;
-    uint32_t site;   /* the routine's call of the send; 0 for the jump to it */
 } back_to_normal[] = {
-    { AU_BEND_BOTH, 0, 0, 0x7E3187 },
-    { AU_BEND_EFFECTS_PITCH, 0, 0, 0x7E318F },
-    { AU_STOP_EFFECTS, 0, 0, 0x7E3197 },
-    { AU_STOP_EFFECTS, 1, 0, 0x7E319F },
-    { AU_FADE_MUSIC, 0, AU_FULL_VOLUME, 0 },
+    { AU_BEND_BOTH, 0, 0 },
+    { AU_BEND_EFFECTS_PITCH, 0, 0 },
+    { AU_STOP_EFFECTS, 0, 0 },
+    { AU_STOP_EFFECTS, 1, 0 },
+    { AU_FADE_MUSIC, 0, AU_FULL_VOLUME },
 };
 enum { BACK_TO_NORMAL = sizeof back_to_normal / sizeof back_to_normal[0] };
 
@@ -199,28 +195,3 @@ void scene_sound_back_to_normal(GameState *g, Platform *pf)
 void scene_sends_the_command(GameState *g, Platform *pf) { TIMED_AS(g, SCENE_SEND, send_and_wait_for_the_echo(g, pf)); }
 
 bool scene_music_is_playing(Platform *pf) { return music_playing(pf) != 0; }
-
-// $7E:3177
-void scene_sound_back_to_normal_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (scene_flags(g) & SCENE_FLAG_NO_SONGS) {
-        m_rts(s);
-        return;
-    }
-    m_set_flag(s, CPU_FLAG_M, true);
-    for (unsigned n = 0; n + 1 < BACK_TO_NORMAL; n++) {
-        into_the_buffer(g, n);
-        au_driver_call(m_platform(s), PF_CALL(back_to_normal[n].site, SCENE_SEND), SEND_READS_NOTHING);
-    }
-    into_the_buffer(g, BACK_TO_NORMAL - 1);
-    if (scene_accept_continuation(s, SCENE_SEND, scene_send_sound_command))
-        TIMED_AS(g, SCENE_SEND, scene_send_sound_command(s));
-}
-
-/* The routine, whose stores reach the sound command buffer through the data
- * bank. */
-bool scene_sound_back_to_normal_present(Snes *s)
-{
-    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E3177, 0x39, 0x39E5E647149652CAull);
-}

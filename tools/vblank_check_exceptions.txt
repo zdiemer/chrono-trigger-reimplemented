@@ -18,9 +18,8 @@
 # the frame's work before them has got to, and in the shipping mode that work
 # is estimated, so they land a line or two later. One frame each.
 scene_title_move_logo screens lines the title's layers appear from line 32 instead of 31, on the one frame they are turned on; the write is mid-picture in the original too
-scene_program_restart display lines the boot program's stop blanks from line 39 or 40 instead of 38, on the frame before it restarts; mid-picture in the original too
-scene_program_restart hdma-enable lines per-line effects end with the blank above, at line 39 or 40 instead of 38, once
-scene_setup_and_first_frame screens lines the attract demo's race, set up as C from the program's start (scene/program.c), sets its screens from line 50 instead of 51, on the one frame it turns them on: the write is mid-picture in the original too
+scene_program_next_pass display lines the scene program's end, run as C at the main loop's last pass since the program retired (scene/program.c), blanks the picture where the frame's estimated work has got to: from line 37 or 38 where the reference's is at 38, once a scene and mid-picture in the original too (before the teardown, its own entry's stop landed it at 39 or 40)
+scene_program_next_pass hdma-enable lines per-line effects end with the blank above, at line 37 or 38 instead of 38, once a scene
 warp_go_dark display lines the time warp's end blanks the picture from line 10 instead of 11, once a warp, after the last frame's work: mid-picture in the original too, and the frame before it is estimated
 warp_go_dark hdma-enable lines the warp's line effects end with the blank above, at line 10 instead of 11, once a warp
 warp_end display visible the same blank at the warp's end, run as C from the end's entry (warp/warp.c): on line 11 of the frame the flickering trip ends on, as the original's on line 11 (endings-bucket-lavos), the shipping mode's trip ending a frame sooner, whose vblank the check pairs it with; not the trips' starts' estimates, which their calibration measured exact (their own work is a store between two calls timed as their routines), so the frame is the trip's frames' estimates' to find

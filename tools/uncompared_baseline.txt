@@ -113,7 +113,6 @@ menu_wait_for_the_first_frame  # the menus' wait for the frame's uploads, the ta
 menu_wait_frames_sending_the_sound  # run as C by the world map's waits for frames (overworld/main_loop.c, menu_run_or_call), whose stretches compare it; called by the original's code, it is compared; fuzzed alone
 scene_call_the_scripts_routine  # run as C by the scene scripts' interpreter for the routine a script calls (scene/script.c, scene_run_long), whose stretch compares it; called by the original's code, it is compared; fuzzed alone
 scene_race_sweep_curtain  # a frame task the scene's frame list runs as C as its call reaches it (scene/frame.c), whose stretch compares it; fuzzed alone
-scene_sound_back_to_normal  # run as C by the scene program's start (scene_program_start) as a scene begins, whose stretch compares it; called on its own, it is compared
 scene_sweep_the_palace_curtain  # a frame task the scene's frame list runs as C as its call reaches it (scene/frame.c), whose stretch compares it; fuzzed alone
 script_play_sound
 script_play_sound_at
@@ -163,9 +162,3 @@ scene_race_scale_after_crono  # whole-picture work crosses interrupts; race-won 
 scene_sample_bitmap_row  # whole-bitmap work crosses interrupts; race-won shadow compares scene_nmi and frame work on every interrupt, and isolated sampler fuzz compares data; the interrupted bitmap/handler interaction remains a TODO gap
 scene_scale_bitmap_row  # whole-bitmap work crosses interrupts; race-won shadow compares scene_nmi and frame work on every interrupt, and isolated row fuzz compares data; the interrupted bitmap/handler interaction remains a TODO gap
 scene_scale_bitmap  # whole-bitmap work crosses interrupts; race-won shadow compares scene_nmi and frame work on every interrupt, and isolated bitmap fuzz compares data; the interrupted bitmap/handler interaction remains a TODO gap
-scene_program_start  # scene_boot claims its next wait/call-out before the nested startup continuation reaches its own point; tools/uncompared_evidence.py removes that ancestor and compares startup through the first frame in title-start
-scene_setup_and_first_frame  # scene_boot or scene_program_start claims the earlier wait/call-out; tools/uncompared_evidence.py removes those ancestors and compares setup through the first frame in title-start
-scene_first_frame  # enclosing setup claims the palette/frame wait before this nested continuation finishes; tools/uncompared_evidence.py compares it independently through frame work and interrupt enabling in title-start
-scene_program_hands_back  # scene_program_restart claims a field-loading call-out before the nested handback finishes; tools/uncompared_evidence.py removes restart and compares the stack reset and guarded field entry in title-start
-scene_clear_work_ram  # scene_boot/start claims the sound exchange before the nested clear and screen continuation finishes; tools/uncompared_evidence.py removes those ancestors and compares the full clear through sound and screen setup in title-start
-scene_after_work_ram_clear  # enclosing clear/start claims the sound exchange before this nested continuation finishes; tools/uncompared_evidence.py removes those ancestors and compares sound normalization and screen setup in title-start

@@ -1933,7 +1933,7 @@ frame-parity read below.
 
 **117 instructions: 52 in hand ports, 65 still generated.** The ports reach
 them through 39 timing service calls, and through direct reads of `$4212` and
-the counters in `attract/main_loop.c` and `battle/wait.c`, which predate the
+the counters in `battle/wait.c`, which predate the
 service. By what they are for:
 
 | Kind | What it computes | Ported | Generated | Where |

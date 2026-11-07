@@ -53,10 +53,11 @@
  * arithmetic, with the perspective, the shared endings' setup and scenes and
  * the staff roll's setup and tasks.
  *
- * game/attract/ holds more of the same program: its main loop ($7E:3023, which
- * waits for scene_program_over) and the ports of its idle waits, written
- * before this subsystem was. They belong here and move when attract is next
- * reworked (docs/TODO.md). */
+ * The program itself -- its start, its main loop and its end (program.c), the
+ * sound put back to normal (sound.c) and the work RAM's clear (screen.c) -- is
+ * off the byte-exact gate (docs/REIMPLEMENTATION.md, "The scene program's
+ * teardown"); the setups, the frame's work and the scenes' routines it calls
+ * are still under it. */
 #ifndef CT_GAME_SCENE_H
 #define CT_GAME_SCENE_H
 
@@ -506,7 +507,7 @@ typedef struct {
     bool steady;
 } MusicStatus;
 MusicStatus scene_music_status(Platform *pf);
-/* As C, for a program with no machine under it: the sound put back to normal
+/* As C, with or without a machine under it: the sound put back to normal
  * as a scene starts and ends, each command sent through the program's own
  * send and its echo waited for; that send alone, of the command in the
  * buffer; and whether the music has started playing. */
@@ -767,10 +768,6 @@ void scene_line_irq_ack(Snes *s);
 void scene_frame_work_entry(Snes *s);
 void scene_read_controller_entry(Snes *s);
 bool scene_read_controller_present(Snes *s);
-bool scene_after_work_ram_clear_present(Snes *s);
-void scene_after_work_ram_clear(Snes *s);
-bool scene_frame_wait_present(Snes *s);
-void scene_frame_wait_done(Snes *s);
 bool scene_send_sound_command_long_present(Snes *s);
 void scene_send_sound_command_long(Snes *s);
 bool scene_pause_is_a_switch(Snes *s);
@@ -824,10 +821,6 @@ bool scene_sequence_bank_is_scripts(Snes *s);
 bool scene_sequence_waits_on_channel(Snes *s);
 
 /* scene/screen.c (the program in RAM; each guarded by a hash of its code) */
-bool scene_program_restart_present(Snes *s);
-void scene_program_restart(Snes *s);
-bool scene_clear_work_ram_present(Snes *s);
-void scene_clear_work_ram(Snes *s);
 bool scene_init_video_present(Snes *s);
 void scene_init_video(Snes *s);
 bool scene_upload_sprites_present(Snes *s);
@@ -1006,15 +999,16 @@ bool scene_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care
 bool scene_runs(GameState *g, Platform *pf, uint8_t flags);
 void scene_stops_the_display(Platform *pf);
 
-/* scene/program.c (the program in RAM): its start, the pieces of it its waits
- * cut, and its end. */
-void scene_program_start(Snes *s);
-void scene_program_goes_on(Snes *s);
-void scene_setup_and_first_frame(Snes *s);
-void scene_first_frame(Snes *s);
-bool scene_program_start_present(Snes *s);
-void scene_program_hands_back(Snes *s);
-bool scene_setup_present(Snes *s);
+/* scene/program.c, on the machine in the shipping mode (the program is
+ * retired): its start, which the boot calls, and its main loop's held wait's
+ * continuations (holds.h, HOLD_SCENE_MAIN_LOOP) with their guards -- a pass,
+ * which makes the call a setup named and ends the program once a script has
+ * ended the scene, and the idle pass with nothing to call. */
+void scene_program_starts_on_the_machine(Snes *s);
+void scene_program_next_pass(Snes *s);
+bool scene_program_passes(Snes *s);
+void scene_program_waits(Snes *s);
+bool scene_program_waits_for_the_frame(Snes *s);
 /* scene/curtain.c: a frame's step of the curtain (the scene engine's $C3:01E4,
  * and its jump $C3:000E) */
 void scene_sweep_the_curtain(Snes *s);
@@ -1026,10 +1020,6 @@ bool scene_curtain_table_fits(uint8_t bank, uint16_t table);
 bool scene_curtain_stepped(GameState *g, Platform *pf, uint16_t salt);
 void scene_curtain_jump(Snes *s);
 bool scene_sweep_the_curtain_present(Snes *s);
-bool scene_program_end_present(Snes *s);
-/* The game back to the field's start on the game's fresh stack, as the
- * program ends. */
-void scene_hand_back_to_the_field(Snes *s);
 /* scene/credit_pages.c (the program in RAM) */
 bool scene_credit_pages_set_up_present(Snes *s);
 void scene_credit_pages_set_up_entry(Snes *s);
@@ -1473,8 +1463,6 @@ bool scene_race_pick_opening_present(Snes *s);
 void scene_race_pick_opening(Snes *s);
 
 /* scene/sound.c (the program in RAM) */
-void scene_sound_back_to_normal_entry(Snes *s);
-bool scene_sound_back_to_normal_present(Snes *s);
 bool scene_wait_for_music_present(Snes *s);
 void scene_wait_for_music_loop(Snes *s);
 bool scene_send_sound_command_present(Snes *s);
