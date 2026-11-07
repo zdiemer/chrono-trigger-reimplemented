@@ -1182,7 +1182,7 @@ The native outcomes were re-recorded with it (`tools/outcomes_exceptions.txt`,
 each line's reason naming the change); the protections lost leave
 `tools/outcomes_baseline.txt` (the end state of `menus-end-of-time`, the save
 RAM of `events-death-peak`, a place of `events-ocean-palace-lavos` and
-checkpoint pictures in nine movies, each a run whose places keep to the
+checkpoint pictures in eight movies, each a run whose places keep to the
 reference's within the window but whose frames moved), and the matches
 gained join it; `tools/places_baseline.txt` takes the counts the change
 brings (none lower).
