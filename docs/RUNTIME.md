@@ -848,9 +848,11 @@ interrupts off, holds a wait of its own (`HOLD_OVERWORLD_HALT`). Over the
 four world-map movies (`field-65m-bc`, `-dactyl`, `-dactyl-flight`,
 `field-12kbc-1f4`) and `menus-epoch`, shadow mode compared
 `overworld_next_frame` 5,463 times, every one matched, and the shipping mode
-plays each frame for frame as before (`tools/trace.py diff`: work RAM, VRAM,
+played each frame for frame as before (`tools/trace.py diff`: work RAM, VRAM,
 CGRAM, OAM, save RAM); on `field-65m-bc-dactyl` the machine's wait-loop
 passes went from 377,674 to 214,949, the other 162,393 now the held wait's.
+The overworld then retired the gate, and its three continuations are
+`.retired` (REIMPLEMENTATION.md, "The overworld's teardown").
 
 ## ZSNES save states
 

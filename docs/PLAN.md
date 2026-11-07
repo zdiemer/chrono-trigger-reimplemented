@@ -291,7 +291,7 @@ docstring says which way it is wrong). **Less than 1% of the code is still gener
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 63.9K | 63.9K | 16.2K | 0% | 448 |
 | field engine, events (`$C0`) | 59.4K | 59.2K | 14.1K | 0% | 432 |
-| menus, text, overworld (`$C2`) | 59.1K | 59.0K | 17.8K | 0% | 557 |
+| menus, text (`$C2`) | 46.8K | 46.7K | 13.1K | 0% | 528 |
 | scene program, RAM (`$7E`) | 25.1K | 25.1K | 3.2K | 0% | 244 |
 | battle frame work (`$CD`) | 15.4K | 15.3K | 4.4K | 0% | 229 |
 | field graphics (`$FD`) | 15.1K | 15.1K | 1.9K | 0% | 120 |
@@ -302,10 +302,11 @@ docstring says which way it is wrong). **Less than 1% of the code is still gener
 | scene data (`$C6`) | 3.4K | 3.4K | 0.6K | 0% | 35 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
 | console stubs (`$00`) | 0.0K | 0.0K | 0.0K | 0% | 5 |
-| **total** | **264.1K** | **263.7K** | **59.0K** | **0%** | **2239** |
+| **total** | **251.8K** | **251.4K** | **54.7K** | **0%** | **2208** |
 
-Bank `$C7`, the sound driver's CPU half, is retired rather than ported, and
-not counted (`burndown.py`, "Retired code").
+Bank `$C7`, the sound driver's CPU half, and the overworld's code in `$C2`
+are retired rather than ported, and not counted (`burndown.py`, "Retired
+code").
 
 The remaining uncovered runs outside the scene program are guarded
 hand-backs and conservative stop accounting: 190 bytes in field/events,
@@ -698,8 +699,15 @@ taking the gate down needs, before it and after it.
      reference play runs the cartridge's, that its still-gated callers call
      it as C only there (`m_runs_retired_as_c`), and that a routine whose
      row went keeps its calibrated estimate (`game_kept_estimates`), so the
-     shipping mode plays as it did, frame for frame. The overworld's
-     teardown makes its main loop so next (TODO.md).
+     shipping mode plays as it did, frame for frame. The overworld went
+     fifth (REIMPLEMENTATION.md, "The overworld's teardown"): a main loop
+     whose wait's code other loops share is held at the shared loop, its
+     continuations taking it only where the wait returns to the loop; the
+     callers still gated (the menus' object loop and script bridge) run its
+     handlers and scene calls as machine forms with their contracts, as
+     core's callers do; and deleting a busy subsystem's scaffolding moves
+     its time by what the scaffolding cost, which is the native shape's
+     pace, not the old shipping mode's.
   4. **Last, the machine leaves the product.** When no subsystem is under
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is

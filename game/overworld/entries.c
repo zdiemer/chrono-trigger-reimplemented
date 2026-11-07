@@ -1,16 +1,35 @@
-/* The overworld on the original's machine: the objects' handlers and the main
- * loop as their registered entries, what each leaves the original's code,
- * and the guards that keep them to the states the game makes.
+/* The overworld's machine forms: the routines its callers still under the
+ * byte-exact gate run on the original's machine, and the contracts they keep.
  *
- * Each object's handler is entered from the mode's object loop
- * (menu/objects.c) with its slot in X and an 8-bit accumulator, and hands
- * back the carry: done or not, the only thing the loop reads of what it
- * leaves (the registry declares the rest, the accumulator's width among
- * them). A walker runs an event's script through the script
- * interpreter's bridge (menu/script_bridge.h), called as from the walker's
- * own call to it. */
+ * The overworld is off the gate (docs/REIMPLEMENTATION.md, "The overworld's
+ * teardown"): game/registry.c lists none of its routines, the machine enters
+ * none of them as ports, and in the shipping mode its work runs as C. Two of
+ * its callers are the menus' and still under the gate, and their machine paths
+ * run a routine where the original calls it, under the frame its call pushes,
+ * with the registers it leaves: the mode's object loop, which calls each
+ * object's handler with its slot in X (menu/objects.c), and the command
+ * scripts' bridge, which calls the routines a scene's script names
+ * (menu/script_bridge.c). Where they asked the registry for the port, they ask
+ * here (overworld_machine_form), and elsewhere -- shadow mode's reference
+ * play, the tools -- they make the original's call, as the cartridge's code
+ * runs there, compared with nothing.
+ *
+ * Each contract is what the routine's registry row held: the registers'
+ * widths and binary arithmetic, and the guard, the handler's machine half
+ * (its slot in X, on the mode's page) and the state half overworld/handlers.c
+ * has, which the program checks too. A guard turned away what the port didn't
+ * take, and the original ran it; now it is an assertion, a claim that the game
+ * never makes such a state, and a state that breaks it is reported
+ * (program_breaks_a_contract) while the call still goes to the machine.
+ *
+ * A handler hands back the carry: done or not, the only thing the loop reads
+ * of what it leaves (the loop sets the accumulator's width again before it
+ * uses it, $C2:0545, $C2:054C). A walker runs an event's script through the
+ * script interpreter's bridge (menu/script_bridge.h), called as from the
+ * walker's own call to it. */
 #include "overworld/entries.h"
 
+#include "core/program.h"
 #include "menu/map.h"
 #include "menu/objects.h"
 #include "menu/script_call.h"
@@ -18,14 +37,12 @@
 #include "menu/vram.h"
 #include "overworld/frames.h"
 #include "overworld/handlers.h"
-#include "overworld/main_loop.h"
 #include "overworld/music.h"
 #include "overworld/overworld.h"
 #include "overworld/places.h"
+#include "overworld/setup.h"
 #include "overworld/sign.h"
-#include "overworld/terrain.h"
 #include "overworld/vehicles.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -33,10 +50,6 @@
 
 /* ---- What the handlers leave --------------------------------------------------------------- */
 
-/* A handler says whether it is done with the carry, which the objects' loop
- * reads; the loop sets the accumulator's width again before it uses it
- * ($C2:0545, $C2:054C), so the width a handler leaves is declared don't-care
- * (DC_WIDTH) and the wrappers leave it as it is. */
 static void handler_returns(Snes *s, bool done)
 {
     m_set_flag(s, CPU_FLAG_C, done);
@@ -81,7 +94,7 @@ static WalkerScripts on_the_machine(WalkerOnTheMachine *w, Snes *s, const uint32
 }
 
 // $C2:3404
-void overworld_lead_entry(Snes *s)
+static void lead(Snes *s)
 {
     GameState *g = state_of(s);
     MenuObject leader = menu_object_running(g);
@@ -92,7 +105,7 @@ void overworld_lead_entry(Snes *s)
 }
 
 // $C2:3AE2
-void overworld_follow_entry(Snes *s)
+static void follow(Snes *s)
 {
     GameState *g = state_of(s);
     MenuObject self = menu_object_running(g);
@@ -103,15 +116,14 @@ void overworld_follow_entry(Snes *s)
 }
 
 // $C2:3264
-void overworld_watch_the_ground_entry(Snes *s)
+static void watch_the_ground(Snes *s)
 {
-    GameState *g = state_of(s);
-    overworld_watch_the_ground(g, menu_object_running(g));
+    overworld_watch_the_ground(state_of(s));
     handler_goes_on(s);
 }
 
 // $C2:2F94
-void overworld_region_song_entry(Snes *s)
+static void region_song(Snes *s)
 {
     GameState *g = state_of(s);
     overworld_play_the_region_song(g, menu_object_running(g));
@@ -119,7 +131,7 @@ void overworld_region_song_entry(Snes *s)
 }
 
 // $C2:5628
-void overworld_sign_entry(Snes *s)
+static void sign(Snes *s)
 {
     GameState *g = state_of(s);
     overworld_show_the_sign(g, menu_object_running(g));
@@ -129,7 +141,7 @@ void overworld_sign_entry(Snes *s)
 /* ---- The vehicles -------------------------------------------------------------------------- */
 
 // $C2:309E
-void overworld_vehicles_entry(Snes *s)
+static void vehicles(Snes *s)
 {
     overworld_control_the_vehicles(state_of(s));
     handler_goes_on(s);
@@ -146,7 +158,7 @@ static ScriptEnd epoch_scene_on_the_machine(void *ctx)
 }
 
 // $C2:42DD
-void overworld_epoch_entry(Snes *s)
+static void epoch(Snes *s)
 {
     GameState *g = state_of(s);
     EpochScripts scripts = { epoch_scene_on_the_machine, s };
@@ -155,14 +167,14 @@ void overworld_epoch_entry(Snes *s)
 }
 
 // $C2:495E
-void overworld_epoch_second_sprite_entry(Snes *s)
+static void epoch_second_sprite(Snes *s)
 {
     GameState *g = state_of(s);
     handler_returns(s, overworld_draw_the_epoch_s_second_sprite(g, menu_object_running(g)));
 }
 
 // $C2:49CF
-void overworld_black_omen_watch_entry(Snes *s)
+static void black_omen_watch(Snes *s)
 {
     overworld_watch_for_the_black_omen(state_of(s));
     handler_goes_on(s);
@@ -171,7 +183,7 @@ void overworld_black_omen_watch_entry(Snes *s)
 /* ---- The dactyls ---------------------------------------------------------------------------- */
 
 // $C2:4CC5
-void overworld_dactyl_entry(Snes *s)
+static void dactyl(Snes *s)
 {
     GameState *g = state_of(s);
     overworld_fly_the_dactyl(g, menu_object_running(g));
@@ -179,7 +191,7 @@ void overworld_dactyl_entry(Snes *s)
 }
 
 // $C2:504B
-void overworld_dactyl_second_sprite_entry(Snes *s)
+static void dactyl_second_sprite(Snes *s)
 {
     GameState *g = state_of(s);
     overworld_draw_the_dactyl_s_second_sprite(g, menu_object_running(g));
@@ -187,7 +199,7 @@ void overworld_dactyl_second_sprite_entry(Snes *s)
 }
 
 // $C2:5097
-void overworld_following_dactyl_entry(Snes *s)
+static void following_dactyl(Snes *s)
 {
     GameState *g = state_of(s);
     overworld_fly_a_following_dactyl(g, menu_object_running(g));
@@ -195,126 +207,79 @@ void overworld_following_dactyl_entry(Snes *s)
 }
 
 // $C2:5494
-void overworld_following_dactyl_second_sprite_entry(Snes *s)
+static void following_dactyl_second_sprite(Snes *s)
 {
     GameState *g = state_of(s);
     overworld_draw_a_following_dactyl_s_second_sprite(g, menu_object_running(g));
     handler_goes_on(s);
 }
 
-/* The test's operands are in the mode's cells: the two spots, and long
- * pointers to their reaches' records. It answers in the carry, which its
- * callers branch on; and it leaves the accumulator 16 bits wide, which
- * $C2:4917's caller goes on with, reading the pad at $C2:44CE. */
-static ReachRecord reach_record(uint32_t pointer) { return (ReachRecord)(uint16_t)pointer; }
-
-// $C2:2345
-void overworld_within_reach_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    WorldSpot first = { overworld_scratch_reach_first_x(g), overworld_scratch_reach_first_y(g) };
-    WorldSpot second = { overworld_scratch_reach_second_x(g), overworld_scratch_reach_second_y(g) };
-    bool within = overworld_within_reach(g, first, reach_record(overworld_scratch_reach_first(g)), second,
-                                         reach_record(overworld_scratch_reach_second(g)));
-    m_set_flag(s, CPU_FLAG_C, within);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-/* The routines the Epoch's scenes' scripts call leave the running object's
- * slot in X and a carry: the script's call command goes on to its length,
- * 3, and the interpreter after it reads neither (it loads X again and clears
- * the carry for the next command), but liveness follows the interpreter's
- * branch for a length of 0, which the call commands never return, and keeps
- * them live there: they are left for shadow mode's comparison at the
- * command's return. */
-static void leave_a_scene_call(Snes *s, bool carry)
-{
-    s->cpu.x = menu_object_current(state_of(s));
-    m_set_flag(s, CPU_FLAG_C, carry);
-}
+/* ---- The routines a scene's script calls ---------------------------------------------------- */
 
 // $C2:48A9
-/* Its carry is its sprite script's place doubled, clear for the game's. */
-void overworld_show_the_epoch_flying_entry(Snes *s)
+static void show_the_epoch_flying(Snes *s)
 {
     GameState *g = state_of(s);
     overworld_show_the_epoch_flying(g, menu_object_running(g));
-    ORIGINAL_EFFECT(leave_a_scene_call(s, false));
     m_rts(s);
-}
-
-/* The wrap onto the map leaves the carry of its last sum: carried round
- * forward, set where it went past the map's right edge (so it is now in the
- * map's first third); carried back, set where it went past the left (so it
- * is now in the last third). */
-static bool wrapped_round(const GameState *g, MenuObject epoch)
-{
-    uint16_t across = menu_object_slots_x_pixel(g, epoch);
-    if (overworld_pace(g, epoch, MENU_ACROSS) < 0)
-        return across >= MENU_MAP_WIDTH - EPOCH_CARRIED_ROUND;
-    return across < EPOCH_CARRIED_ROUND;
 }
 
 // $C2:48CD
-void overworld_carry_the_epoch_round_entry(Snes *s)
+static void carry_the_epoch_round(Snes *s)
 {
     GameState *g = state_of(s);
-    MenuObject self = menu_object_running(g);
-    overworld_carry_the_epoch_round(g, self);
-    ORIGINAL_EFFECT(leave_a_scene_call(s, wrapped_round(g, self)));
+    overworld_carry_the_epoch_round(g, menu_object_running(g));
     m_rts(s);
 }
 
-// $C2:23CF
-void overworld_main_loop_entry(Snes *s) { overworld_run_a_frame(s); }
-
-// $C2:255A
-void overworld_back_from_the_menus_entry(Snes *s) { overworld_come_back_from_the_menus(s); }
-
-/* ---- The guards ---------------------------------------------------------------------------- */
-
-/* Each is the handler's machine half (its slot in X, on the mode's page) and
- * the state half overworld/handlers.c has, which the program checks too. */
-bool overworld_leader_runs(Snes *s) { return menu_object_handler_takes(s, overworld_leader_takes); }
-bool overworld_follower_runs(Snes *s) { return menu_object_handler_takes(s, overworld_follower_takes); }
-bool overworld_watcher_runs(Snes *s) { return menu_object_handler_takes(s, overworld_watcher_takes); }
-bool overworld_region_song_runs(Snes *s) { return menu_object_handler_takes(s, overworld_region_song_takes); }
-bool overworld_sign_runs(Snes *s) { return menu_object_handler_takes(s, overworld_sign_takes); }
-bool overworld_vehicles_run(Snes *s) { return menu_object_handler_takes(s, overworld_vehicles_take); }
-bool overworld_epoch_runs(Snes *s) { return menu_object_handler_takes(s, overworld_epoch_takes); }
-bool overworld_epoch_second_sprite_runs(Snes *s) { return menu_object_handler_takes(s, overworld_epoch_second_sprite_takes); }
-bool overworld_dactyl_runs(Snes *s) { return menu_object_handler_takes(s, overworld_dactyl_takes); }
-bool overworld_dactyl_second_sprite_runs(Snes *s)
+// $C2:2F0F
+static void start_the_location_song(Snes *s)
 {
-    return menu_object_handler_takes(s, overworld_dactyl_second_sprite_takes);
+    overworld_start_the_location_song(state_of(s), m_platform(s));
+    m_rts(s);
 }
+
+// $C2:5798
+/* It comes back with an 8-bit accumulator. */
+static void clear_the_sign_label(Snes *s)
+{
+    overworld_clear_the_sign_label(state_of(s));
+    m_sep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+/* ---- The contracts -------------------------------------------------------------------------- */
+
+/* Each handler's guard is its slot in X on the mode's page (the machine
+ * half) and the state half its row in overworld/handlers.c has. */
+static bool leader_takes(Snes *s) { return menu_object_handler_takes(s, overworld_leader_takes); }
+static bool follower_takes(Snes *s) { return menu_object_handler_takes(s, overworld_follower_takes); }
+static bool watcher_takes(Snes *s) { return menu_object_handler_takes(s, overworld_watcher_takes); }
+static bool region_song_takes(Snes *s) { return menu_object_handler_takes(s, overworld_region_song_takes); }
+static bool sign_takes(Snes *s) { return menu_object_handler_takes(s, overworld_sign_takes); }
+static bool vehicles_take(Snes *s) { return menu_object_handler_takes(s, overworld_vehicles_take); }
+static bool epoch_takes(Snes *s) { return menu_object_handler_takes(s, overworld_epoch_takes); }
+static bool epoch_second_sprite_takes(Snes *s) { return menu_object_handler_takes(s, overworld_epoch_second_sprite_takes); }
+static bool dactyl_takes(Snes *s) { return menu_object_handler_takes(s, overworld_dactyl_takes); }
+static bool dactyl_second_sprite_takes(Snes *s) { return menu_object_handler_takes(s, overworld_dactyl_second_sprite_takes); }
 
 /* The followers read the heading's and the sine's tables through the data
  * bank, which reaches the ROM's first bank. */
-bool overworld_following_dactyl_runs(Snes *s)
+static bool following_dactyl_takes(Snes *s)
 {
     return m_bank_is_zero(s) && menu_object_handler_takes(s, overworld_following_dactyl_takes);
 }
 
-bool overworld_following_dactyl_second_sprite_runs(Snes *s)
+static bool following_dactyl_second_sprite_takes(Snes *s)
 {
     return menu_object_handler_takes(s, overworld_following_dactyl_second_sprite_takes);
 }
 
-bool overworld_black_omen_watch_runs(Snes *s) { return menu_object_handler_runs(s); }
+static bool black_omen_watch_takes(Snes *s) { return menu_object_handler_runs(s); }
 
-bool overworld_reach_test_runs(Snes *s)
-{
-    if (!menu_objects_on_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = overworld_reach_test_takes(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-bool overworld_epoch_scene_call_runs(Snes *s)
+/* The routines the Epoch's scenes call take the running object on the mode's
+ * page, moving where its state says it can. */
+static bool epoch_scene_call_takes(Snes *s)
 {
     if (!menu_object_can_move(s))
         return false;
@@ -325,40 +290,8 @@ bool overworld_epoch_scene_call_runs(Snes *s)
     return ok;
 }
 
-/* The loop runs on the mode's page with the data bank on low RAM. */
-bool overworld_main_loop_runs(Snes *s) { return menu_objects_on_page(s); }
-
-/* ---- The location's song, from a scene's script ------------------------------------------ */
-
-/* The script's call command passes X and the carry on, so the wrapper leaves
- * them as the lookup did: X the region (the song table's index), the carry
- * the lookup's last shift, and A's high byte the region word's, clear (the
- * driver hands them back as it found them). A song a screen keeps leaves
- * them as they came. */
-static void leave_the_lookup(void *ctx, LocationSong song)
-{
-    Snes *s = ctx;
-    if (!song.of_a_region)
-        return;
-    s->cpu.x = song.region;
-    s->cpu.a = (uint16_t)(s->cpu.a & 0x00FF);
-    m_set_flag(s, CPU_FLAG_C, overworld_region_lookup_carry_at_the_location(state_of(s)));
-}
-
-// $C2:2F0F
-static void looked_up(void *ctx, LocationSong song)
-{
-    ORIGINAL_EFFECT(leave_the_lookup(ctx, song));
-}
-
-void overworld_start_the_location_song_entry(Snes *s)
-{
-    overworld_start_the_location_song(state_of(s), m_platform(s), looked_up, s);
-    m_rts(s);
-}
-
-/* It runs on the mode's page. */
-bool overworld_location_song_runs(Snes *s)
+/* The song's look-up runs on the mode's page. */
+static bool location_song_takes(Snes *s)
 {
     if (!menu_objects_on_page(s))
         return false;
@@ -369,22 +302,66 @@ bool overworld_location_song_runs(Snes *s)
     return ok;
 }
 
-/* ---- The sound request, from the original's callers ---------------------------------------- */
+/* 8-bit A, 16-bit index registers, binary arithmetic; 16-bit index registers
+ * and binary arithmetic, A either width. */
+enum {
+    M8_X16_BINARY = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D,
+    X16_BINARY = CPU_FLAG_X | CPU_FLAG_D,
+};
 
-// $C2:2ED9
-/* The carry says the request couldn't be passed on; X is left as it came. */
-void overworld_pass_on_sound_entry(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_C, !overworld_pass_on_sound(state_of(s)));
-    m_rts(s);
-}
+typedef struct {
+    uint32_t routine;
+    void (*form)(Snes *s);
+    uint8_t p_mask, p_value;
+    bool (*holds)(Snes *s);
+    const char *what;
+} MachineForm;
 
-// $C2:5798
-/* Its block move leaves nothing a caller reads (the registry declares it),
- * and an 8-bit accumulator. */
-void overworld_clear_the_sign_label_entry(Snes *s)
+static const MachineForm FORMS[] = {
+    /* the objects' handlers */
+    { 0xC23404, lead, M8_X16_BINARY, CPU_FLAG_M, leader_takes, "the leader outside its contract" },
+    { 0xC23AE2, follow, M8_X16_BINARY, CPU_FLAG_M, follower_takes, "a follower outside its contract" },
+    { 0xC23264, watch_the_ground, M8_X16_BINARY, CPU_FLAG_M, watcher_takes, "the places' watcher outside its contract" },
+    { 0xC22F94, region_song, M8_X16_BINARY, CPU_FLAG_M, region_song_takes, "the region's song outside its contract" },
+    { 0xC25628, sign, M8_X16_BINARY, CPU_FLAG_M, sign_takes, "the sign outside its contract" },
+    { 0xC2309E, vehicles, M8_X16_BINARY, CPU_FLAG_M, vehicles_take, "the vehicles outside their contract" },
+    { 0xC242DD, epoch, M8_X16_BINARY, CPU_FLAG_M, epoch_takes, "the Epoch outside its contract" },
+    { 0xC2495E, epoch_second_sprite, M8_X16_BINARY, CPU_FLAG_M, epoch_second_sprite_takes,
+      "the Epoch's second sprite outside its contract" },
+    { 0xC24CC5, dactyl, M8_X16_BINARY, CPU_FLAG_M, dactyl_takes, "the dactyl outside its contract" },
+    { 0xC2504B, dactyl_second_sprite, M8_X16_BINARY, CPU_FLAG_M, dactyl_second_sprite_takes,
+      "the dactyl's second sprite outside its contract" },
+    { 0xC25097, following_dactyl, M8_X16_BINARY, CPU_FLAG_M, following_dactyl_takes,
+      "a following dactyl outside its contract" },
+    { 0xC25494, following_dactyl_second_sprite, M8_X16_BINARY, CPU_FLAG_M, following_dactyl_second_sprite_takes,
+      "a following dactyl's second sprite outside its contract" },
+    { 0xC249CF, black_omen_watch, M8_X16_BINARY, CPU_FLAG_M, black_omen_watch_takes,
+      "the Black Omen's watch outside its contract" },
+    /* the routines a scene's script calls */
+    { 0xC248A9, show_the_epoch_flying, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, epoch_scene_call_takes,
+      "the Epoch shown flying outside its contract" },
+    { 0xC248CD, carry_the_epoch_round, X16_BINARY, 0, epoch_scene_call_takes,
+      "the Epoch carried round outside its contract" },
+    { 0xC22F0F, start_the_location_song, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, location_song_takes,
+      "the location's song outside its contract" },
+    { 0xC25798, clear_the_sign_label, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, menu_map_page_is_menu,
+      "the sign's label cleared outside its contract" },
+    { 0xC227DE, overworld_load_the_map_tiles_on_the_machine, M8_X16_BINARY, CPU_FLAG_M, overworld_map_tiles_run,
+      "the map's tiles loaded outside their contract" },
+};
+
+void (*overworld_machine_form(Snes *s, uint32_t routine))(Snes *s)
 {
-    overworld_clear_the_sign_label(state_of(s));
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
+    if (!m_runs_retired_as_c(s))
+        return NULL;
+    for (unsigned i = 0; i < sizeof FORMS / sizeof FORMS[0]; i++) {
+        const MachineForm *f = &FORMS[i];
+        if (f->routine != routine)
+            continue;
+        if (!s->cpu.e && (s->cpu.p & f->p_mask) == f->p_value && f->holds(s))
+            return f->form;
+        program_breaks_a_contract(state_of(s), routine, f->what);
+        return NULL;
+    }
+    return NULL;
 }

@@ -18,6 +18,7 @@
 #include "menu/bridge.h"
 #include "menu/handlers.h"
 #include "original_effects.h"
+#include "overworld/entries.h"
 #include "platform/timing.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -292,8 +293,10 @@ bool menu_objects_run(GameState *g, Platform *pf)
 /* The handler runs as the original's JSR at $C2:053E calls its jump through
  * the slot's handler (menu_object_handler, $C2:0553), which adds nothing to
  * the call but the jump: a ported handler as C, called here where the
- * registry would run its entry (its widths, decimal mode and guard), any
- * other by the call, as the original. It says it is done with the carry.
+ * registry would run its entry (its widths, decimal mode and guard), or the
+ * retired overworld's where the shipping mode runs it and its contract holds
+ * (overworld/entries.h), any other by the call, as the original. It says it
+ * is done with the carry.
  * False where it came back in a way the loop can't go on from, or left the
  * running object elsewhere than a slot: the original then carries on from
  * the call. */
@@ -316,8 +319,9 @@ static bool turn_on_the_machine(void *ctx, uint16_t address, uint16_t handler, b
      * it, as it did when each turn was a call the machine made */
     tm_sync(m_platform(s));
     const NativeEntry *port = native_hand_entry_at(s, routine);
-    if (port && !port->idle) {
-        if (!menu_run_any_widths(s, TURN_SITE, routine, port->fn))
+    void (*form)(Snes *) = port && !port->idle ? port->fn : overworld_machine_form(s, routine);
+    if (form) {
+        if (!menu_run_any_widths(s, TURN_SITE, routine, form))
             return false;
         tm_sync(m_platform(s));
     } else {

@@ -38,16 +38,20 @@ rest waits, is [PLAN.md](PLAN.md).
   projection from the new storage; a picture hash alone cannot establish
   that a visual difference cannot affect play.
 - **Keep the unreached ledger's preconditions when retiring the machine.**
-  `tools/unreached_safe.toml` names all 117 bytes excluded from execution
+  `tools/unreached_safe.toml` names all 87 bytes excluded from execution
   evidence, with exact runs in `tools/unreached_baseline.txt`: event's
   missing-text-table diagnostic calls (36 bytes), rejected word-OR (12), full
-  shared-graphics table diagnostic (6) and graphics-overflow handoffs (12);
-  overworld's unused scene-tile load (26), rejected boarding selector (2)
-  and impossible stationary follower trap (2). Preserve the guard bounds as
-  assertions and replace the graphics error handoffs with native failures.
-  Recheck the immutable resource argument if map records become editable
-  (the warp's radius ramp is checked where it is used: `warp_build_circle`
-  stops a build with no machine at a radius the ramp never gives).
+  shared-graphics table diagnostic (6) and graphics-overflow handoffs (12).
+  Preserve the guard bounds as assertions and replace the graphics error
+  handoffs with native failures. Recheck the immutable resource argument if
+  map records become editable (the warp's radius ramp is checked where it is
+  used: `warp_build_circle` stops a build with no machine at a radius the
+  ramp never gives; the overworld's unused scene-tile load is behind its set
+  up's contract, a world map whose record is noted, `overworld_set_up_runs`).
+  The overworld left the ledger with its rows when it retired: its
+  rejected boarding selector is its leader's contract
+  (`overworld_leader_takes`, in `overworld/entries.c`'s machine forms) and
+  its stationary follower trap `walk_a_leg`'s invariant.
   The conservative walk also records the controller reset transfer (4), the
   event engine's original-only unknown-command diagnostic (6), and the
   separately registered field restart wait (5). Keep the reset chord and
@@ -57,12 +61,15 @@ rest waits, is [PLAN.md](PLAN.md).
   contracts now (`core/machine_forms.c`, `palette_animated`), and the
   ledger's walks end at them (`game/time_tags.c`).
 - **Exercise both sign-refresh arms after returning from a screen.**
-  `overworld_main_loop` `$C2:2603-$C2:2605` and `$C2:267E-$C2:2680`
-  are six reviewed-equivalence bytes: conditional increments
-  of the sign-refresh byte modulo 256, with dead flags. Their exact C
-  predicate and arithmetic agree, but the fuzz runs did not execute those
-  arms. Add a returning map-view/time-dial fixture with a visible sign,
-  including refresh count 255, before tearing down that screen machinery.
+  The overworld's main loop's `$C2:2603-$C2:2605` and `$C2:267E-$C2:2680`
+  are six reviewed-equivalence bytes: conditional increments of the
+  sign-refresh byte modulo 256, with dead flags (`set_the_sign_again`). Their
+  exact C predicate and arithmetic agree, but no fuzz run executed those
+  arms, and the overworld retired the gate without the fixture (a returning
+  map-view/time-dial pass with a visible sign, refresh count 255 among them),
+  so `ct_fuzz` has no row to compare them by now. A movie that returns from
+  the map view or the time dial with the sign up would exercise them in the
+  recorded outcomes.
 
 - **A battle's start, one fuzz state in about 4,000.** `field_battle_begins`
   (`tools/fuzz_routines.toml`, both variants; seeds 1-4) mismatches once or
@@ -81,7 +88,7 @@ rest waits, is [PLAN.md](PLAN.md).
   movie has shown that read yet: write `$30` plainly too, or show it unread.
 - **The second movie batch's timing exceptions.** After one drift-only calibration
   over the 84-movie library, these entries are still over a limit and listed in
-  `tools/timing_exceptions.txt` (the second batch's block): `,` (after), `battle_effect_anchor_jump` (vblank-tail), `field_draw_the_objects_in_view` (vblank-worst), `field_refresh_effects` (vblank-tail), `menu_choose_equipment_member` (drift), `menu_choose_on_main_menu` (drift), `menu_run_the_main_task` (drift), `overworld_epoch` (vblank-tail), `overworld_lead` (vblank-tail), `event_cmd_take_formation` (vblank-tail), `field_enter` (worst), `menu_fade_palette_row` (vblank-tail), `menu_load_record_sprites` (drift), `menu_mode_enter` (drift), `menu_window_draw_frame_only` (vblank-tail), `menu_window_frame` (vblank-tail), `overworld_come_back_to_the_map_s_screen` (drift), `overworld_finish_the_graphics` (drift), `overworld_set_up` (drift), `scene_program_hands_back` (drift).
+  `tools/timing_exceptions.txt` (the second batch's block): `,` (after), `battle_effect_anchor_jump` (vblank-tail), `field_draw_the_objects_in_view` (vblank-worst), `field_refresh_effects` (vblank-tail), `menu_choose_equipment_member` (drift), `menu_choose_on_main_menu` (drift), `menu_run_the_main_task` (drift), `event_cmd_take_formation` (vblank-tail), `field_enter` (worst), `menu_fade_palette_row` (vblank-tail), `menu_load_record_sprites` (drift), `menu_mode_enter` (drift), `menu_window_draw_frame_only` (vblank-tail), `menu_window_frame` (vblank-tail), `scene_program_hands_back` (drift).
   Each is work whose time follows its data or its path (a pose's graphics, a
   window's size, a palette row, a load with the screen blanked) or a jump the port
   takes with no bus access; the vblank check finds none of their writes moved.
@@ -1721,13 +1728,15 @@ rest waits, is [PLAN.md](PLAN.md).
     reads past the map's end (`overworld_map`'s `unchecked` pair,
     `terrain.c`). The native storage has to keep the bytes there, or the
     search keep to the map;
-  - the main loop's arms are compared by shadow mode alone: fuzzing can't go
-    past the frame's wait (`$C2:0346` spins on the vblank count, which no
-    fuzzed state changes). No movie takes an exit to an event
+  - the main loop's arms were compared by shadow mode alone (fuzzing can't
+    go past the frame's wait), and since the overworld retired the gate
+    (REIMPLEMENTATION.md, "The overworld's teardown") by nothing but the
+    recorded outcomes. No movie takes an exit to an event
     (`$C2:2417`-`$C2:244F`) or opens the party's exchange from the map
     (mode 9, the `menus-end-of-time` exchange is the gate's); nor walks
     from one region into another (`$C2:3011`-`$C2:309D`, the music's fade
-    and the new song), nor clears the sign from the menus (`$C2:5711`).
+    and the new song), nor clears the sign from the menus (`$C2:5711`): a
+    movie that does would protect them.
 
 - **What the vehicles and the screen's objects left** (history/reimplementation-chunks.md, "Phase 3,
   menus and overworld: the vehicles, the screen's objects and the calls made
@@ -1748,14 +1757,6 @@ rest waits, is [PLAN.md](PLAN.md).
     animation it may be given to be one the language reads, which random
     sprite scripts rarely are): a variant with the slot's scripts kept would
     cover it better.
-
-- **What the world map's set up left** (history/reimplementation-chunks.md, "Phase 3, menus and
-  overworld: the world map set up, its scenes' calls and the frame's
-  input"):
-  - `overworld_back_from_the_menus` is fuzzed up to the map's reload, which
-    random states make through the original's call (a map the loader can't
-    take); the reload itself is fuzzed alone (`overworld_load_the_map_again`)
-    and checked in shadow mode (7 calls).
 
 - **What the menus' tenth chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   party's exchange"):
@@ -2899,38 +2900,6 @@ rest waits, is [PLAN.md](PLAN.md).
   A held wait at the screen's wait, the set-up's time paid as its
   continuation's, would give them one.
 
-- **The overworld can't retire the gate before its main loop's held wait
-  is named.** A teardown of `game/overworld/` was
-  attempted and stopped at the preconditions, for attract's reason (the
-  time warp's, since retired: REIMPLEMENTATION.md, "The time warp's
-  teardown"). Census of four movies on the world map (`field-65m-bc`,
-  `field-65m-bc-dactyl`, `field-65m-bc-dactyl-flight`, `field-12kbc-1f4`;
-  12,676 frames): the machine makes 932,226 passes of the object system's
-  frame wait `$C2:0348`, and enters `overworld_main_loop` (`$C2:23CF`) 1,855
-  times, 1,848 of them by its own stop at the end of a pass and 7 by return;
-  each pass calls out to the wait (`$C2:046E`, 1,861). The loop is one pass
-  per entry because that wait is the main thread's at every frame end on the
-  map, held on the machine (`next_frame_on_the_machine` in `main_loop.c`):
-  as C called from the field's start, the loop would be a port suspended
-  for the whole stay on the map, with no `ct_drive` base and no `ct_play`
-  quick save there. The object rows (`overworld_lead`, `_follow`, the
-  vehicles, the Epoch, the dactyls, the sign, the region's song: 1,663 to
-  3,854 entries each) are entered by `call` from `menu_run_objects`
-  (`$C2:051D`), which the vblank handler reaches by `console_vblank_stub`'s
-  stop into `menu_object_nmi` (2,031): the C path already dispatches them
-  through `menu/handlers.h`, so they leave the registry with the menu's
-  object system's vblank path, not with the overworld. The rest holds as
-  far as was checked: no `C2:` line in `tools/fallback_shipping_baseline.txt`
-  (the reference play's `C2:----` and `open C2:23CF` lines in
-  `tools/fallback_baseline.txt` are the vblank's cut stretches and the
-  loop's open comparison), and the four movies have recorded outcomes. The
-  unreached ledger's overworld rows (`overworld_set_up`'s 26 bytes held by
-  `unreached_safe`, `overworld_lead`'s 190 by fuzz cases) were not audited
-  further. Retire it once its wait is named (RUNTIME.md, "Held waits").
-  `$C2:0348`'s idle entry and `overworld_main_loop` become rows of
-  `game_held_waits`, and `next_frame_on_the_machine` holds the wait with
-  `m_hold_at`. The object system's vblank path also has to run as a call.
-
 - **Boot credit pages outside the five-page table.** The page index at
   `$0382` survives startup. Random values above five read unrelated program
   bytes as text and differ in VRAM/OAM; boot now refuses those states before
@@ -3712,9 +3681,12 @@ Ranked by how much play they block; none is open now.
   the count starts one past the tables, as the battle's start does
   (`field/battle_start.c`, `stray_slot_is_an_enemy`).
 - **Leaving Guardia Castle in 600 A.D.** `overworld_lead` (`C23404`)
-  refuses once at frame 81958 of the long movie, with `X=0DF0`,
-  `D=0000`, `DB=00`, `P=24`. Inspect `overworld_leader_takes`' walker,
-  animation and map-following constraints at the exit.
+  refused once at frame 81958 of the long movie, with `X=0DF0`,
+  `D=0000`, `DB=00`, `P=24`. The overworld has retired the gate since, so
+  its guard is a contract and this is a `contract broken:` line now (the
+  call still goes to the original, as the refusal did); the movie is not in
+  the library. Inspect `overworld_leader_takes`' walker, animation and
+  map-following constraints at the exit.
 
 ## Targets beyond the desktop SNES build
 
@@ -3756,10 +3728,10 @@ waits on M5 rather than on a backend.
 - **What the world map's review left** (none rated translation):
   `field/requests.c`'s `TileCopyCall` carries the original's 33 call sites
   through the logic, where it wants the routine and layer and the bridge keeping
-  the sites; `overworld/main_loop.c`'s `arm_entered`, `script_started`,
-  `cpu_stilled` and `flags_given_back` hooks, and
-  `overworld_start_the_location_song`'s `looked_up`, exist only to set
-  registers the wrapper can work out after the call; `menu/frame.c`'s
+  the sites; `overworld/main_loop.c`'s `arm_entered`, `script_started` and
+  `cpu_stilled` hooks exist only to set registers the screens the loop
+  calls on the machine read (the overworld's teardown took
+  `flags_given_back` and `looked_up` away with its scaffolding); `menu/frame.c`'s
   `bool *sent` exists only for A's leftover; `menu/line_effects.c`'s
   `FAR_CALL_X`/`NEAR_CALL_X` feed the dispatch's X into `step_the_curtain`'s
   `salt`, which wants naming for what it is and the comment there agreeing.

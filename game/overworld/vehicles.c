@@ -30,7 +30,6 @@
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "menu/sprites.h"
-#include "original_effects.h"
 #include "overworld/music.h"
 #include "overworld/places.h"
 #include "overworld/terrain.h"
@@ -51,28 +50,10 @@ static bool reach_along(uint16_t first, uint16_t first_back, uint16_t first_on, 
     return (int16_t)gap < 0;
 }
 
-/* The original hands the test its two spots and their reaches' records in
- * the mode's cells. */
-void overworld_leave_reach_from(GameState *g, WorldSpot first, ReachRecord reaches)
-{
-    set_overworld_scratch_reach_first_x(g, first.x);
-    set_overworld_scratch_reach_first_y(g, first.y);
-    set_overworld_scratch_reach_first(g, OVERWORLD_REACHES_BANK | reaches);
-}
-
-static void leave_reach_to(GameState *g, WorldSpot second, ReachRecord reaches)
-{
-    set_overworld_scratch_reach_second_x(g, second.x);
-    set_overworld_scratch_reach_second_y(g, second.y);
-    set_overworld_scratch_reach_second(g, OVERWORLD_REACHES_BANK | reaches);
-}
-
 // $C2:2345, $C2:2353, $C2:2379
 bool overworld_within_reach(GameState *g, WorldSpot first, ReachRecord first_reaches, WorldSpot second,
                             ReachRecord second_reaches)
 {
-    ORIGINAL_EFFECT(overworld_leave_reach_from(g, first, first_reaches));
-    ORIGINAL_EFFECT(leave_reach_to(g, second, second_reaches));
     Reach a = overworld_reach(g, first_reaches), b = overworld_reach(g, second_reaches);
     return reach_along(first.x, a.left, a.right, second.x, b.left, b.right)
            && reach_along(first.y, a.up, a.down, second.y, b.up, b.down);
@@ -271,7 +252,6 @@ static bool over_the_other_vehicle(GameState *g, Vehicle v)
 {
     Vehicle other = v == VEHICLE_EPOCH ? VEHICLE_DACTYL : VEHICLE_EPOCH;
     WorldSpot at = overworld_vehicle_spot(g, v);
-    ORIGINAL_EFFECT(overworld_leave_reach_from(g, at, reach_in_the_air(v)));
     return parked_here(g, other)
            && overworld_within_reach(g, at, reach_in_the_air(v), overworld_vehicle_spot(g, other), reach_in_the_air(other));
 }
@@ -417,7 +397,6 @@ static void board_when_asked(GameState *g)
     if (!(input_mapped(g, ASSIGNED_HELD) & ASSIGNED_CONFIRM))
         return;
     WorldSpot party = overworld_party_spot(g, PARTY_LEADER);
-    ORIGINAL_EFFECT(overworld_leave_reach_from(g, party, REACH_OF_THE_PARTY));
     if (epoch_on_this_map(g)
         && overworld_within_reach(g, party, REACH_OF_THE_PARTY, overworld_vehicle_spot(g, VEHICLE_EPOCH),
                                   REACH_OF_THE_EPOCH)) {
@@ -470,7 +449,6 @@ void overworld_control_the_vehicles(GameState *g)
     case TRAVEL_BOARDING: {
         // $C2:31D0
         uint8_t members = party_size(g);
-        ORIGINAL_EFFECT(set_overworld_scratch_boarders(g, members));
         if (rides(vehicle) && aboard(g, vehicle) == members)
             set_overworld_travel(g, (uint8_t)vehicle);
         break;

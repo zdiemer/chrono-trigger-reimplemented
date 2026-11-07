@@ -582,6 +582,29 @@ static bool the_cartridges_warp(const Fallbacks *f, uint32_t pc)
            ((at >= 0xDA00 && at <= 0xDD95) || (at >= 0xDE15 && at <= 0xDE97) || (at >= 0xEAA6 && at <= 0xF28F));
 }
 
+/* The cartridge's overworld in the reference play, as the warp's: the code
+ * its retired entries owned in bank $C2 (and its mirror in $02), less what
+ * the menus' code shares (tools/burndown.py's RETIRED_RUNS lists the same
+ * runs). In the shipping mode the world map is C from the sprite-object
+ * mode's start to the field's (game/overworld/), so none of it runs there
+ * (docs/REIMPLEMENTATION.md, "The overworld's teardown"). */
+static bool the_cartridges_overworld(const Fallbacks *f, uint32_t pc)
+{
+    static const struct {
+        uint16_t first, last;
+    } RUNS[] = {
+        { 0x229D, 0x2335 }, { 0x2345, 0x26A7 }, { 0x26D6, 0x271F },
+        { 0x274D, 0x2D6F }, { 0x2D91, 0x57AF }, { 0x6263, 0x631E },
+    };
+    if (!f->shadow || ((pc >> 16) & 0x7F) != 0x42)
+        return false;
+    uint16_t at = (uint16_t)pc;
+    for (unsigned i = 0; i < sizeof RUNS / sizeof RUNS[0]; i++)
+        if (at >= RUNS[i].first && at <= RUNS[i].last)
+            return true;
+    return false;
+}
+
 void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
     /* Observe completion before the caller starts another invocation of the
@@ -621,7 +644,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
             f->pass.hidden++;
     }
     if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_decompressor(f, pc) &&
-        !the_cartridges_warp(f, pc)) {
+        !the_cartridges_warp(f, pc) && !the_cartridges_overworld(f, pc)) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));
         f->by_kind[eff.kind]++;
