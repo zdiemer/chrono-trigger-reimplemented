@@ -3032,12 +3032,28 @@ static void drop_the_dropped(NativeRuntime *rt, Snes *s)
     }
 }
 
+/* Whether the held wait `wait` has a continuation at `pc`: the rest of a
+ * caller the wait returns to, which goes on as the wait's own. */
+static bool the_wait_goes_on_at(const NativeRuntime *rt, uint8_t wait, uint32_t pc)
+{
+    for (int k = 0; k < rt->nheld_rows; k++) {
+        const NativeEntry *e = &rt->table[rt->held_rows[k]];
+        if (e->hold == wait && e->addr == pc)
+            return true;
+    }
+    return false;
+}
+
 /* ON: one pass of an idle entry, run on the machine as it stands: the time
  * to the next point the wait can end if it goes round, else its exit pass.
  * A held wait's continuation that goes round holds the wait again; `held`
  * says it ran because the machine named the wait, which the census counts
- * apart from an entry the machine reached. */
-static int32_t run_idle(Snes *s, const NativeEntry *e, uint32_t pc, bool held)
+ * apart from an entry the machine reached. One that leaves the wait for a
+ * caller's rest that is a continuation of the same wait (the field's main
+ * loop, back from its wait for the next frame) keeps the wait named there,
+ * with the S it returns with, so that after the exit pass the runtime goes on
+ * with that continuation by the wait's number. */
+static int32_t run_idle(NativeRuntime *rt, Snes *s, const NativeEntry *e, uint32_t pc, bool held)
 {
     if (held && native_census_hooks.held)
         native_census_hooks.held(native_census_hooks.ctx, s, e);
@@ -3054,6 +3070,10 @@ static int32_t run_idle(Snes *s, const NativeEntry *e, uint32_t pc, bool held)
             s->held_wait_s = s->cpu.s;
         }
         return (int32_t)(e->idle_clocks ? e->idle_clocks : until_interrupt(s, snes_clocks_to_next_poll_change(s)));
+    }
+    if (e->hold && the_wait_goes_on_at(rt, e->hold, cpu_pc24(&s->cpu))) {
+        s->held_wait = e->hold;
+        s->held_wait_s = s->cpu.s;
     }
     return e->idle_clocks ? 0 : IDLE_EXIT_CLOCKS;
 }
@@ -3140,7 +3160,7 @@ static bool go_on_in_the_held_wait(NativeRuntime *rt, Snes *s, uint32_t pc, int3
             st->skipped++;
             continue;
         }
-        *result = e->idle ? run_idle(s, e, pc, true) : start_port(rt, s, e, true);
+        *result = e->idle ? run_idle(rt, s, e, pc, true) : start_port(rt, s, e, true);
         return true;
     }
     return false;
@@ -3337,7 +3357,7 @@ static int32_t intercept(void *ctx, Snes *s)
                  * and none turned it away */
                 return -1;
             }
-            return run_idle(s, e, pc, false);
+            return run_idle(rt, s, e, pc, false);
         }
 
         if (rt->nactive == MAX_ACTIVE) {

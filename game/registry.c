@@ -2531,7 +2531,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC000BA, .name = "field_wait_for_the_next_frame", .fn = field_wait_for_the_next_frame, NEEDS_M8_X16,
       .cost_milli = 3669, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero },
     { .addr = 0xC000BD, .name = "field_main_loop_goes_round", .fn = field_main_loop_goes_round, NEEDS_M8_X16,
-      .cost_milli = 1000 },
+      .cost_milli = 1000, .guard = field_main_loop_goes_round_alone },
     { .addr = 0xC00CC0, .name = "field_start_again", .fn = field_start_again, NEEDS_M8_X16, .cost_milli = 1000 },
     { .addr = 0xC03FD6, .name = "field_start_the_scene", .fn = field_start_the_scene, NEEDS_M8_X16, .cost_milli = 15370,
       .guard = field_on_page },
@@ -4708,6 +4708,21 @@ const NativeEntry game_held_waits[] = {
     { .addr = 0xC2250D, .name = "overworld_halt", .fn = overworld_halt_entry, NEEDS_M8_X16_BINARY,
       .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .hold = HOLD_OVERWORLD_HALT, .retired = true, .guard = overworld_main_loop_runs },
+    /* the field's wait for the next frame: its pass, for every routine that
+     * waits there, which returns to the caller's rest once the vblank handler
+     * has taken the frame (a data bank reaching low RAM); and the main loop's
+     * rest, a continuation of the same wait where the wait returns into the
+     * loop (the field's page, the data bank 0): its next pass from the head or
+     * after the requests, and the wait again. Each declares what the pass
+     * doesn't read from there, as the loop's stop at its head and the walk's
+     * call do. */
+    { .addr = 0xC0EC71, .name = "field_waits_for_the_frame", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true,
+      .hold = HOLD_FIELD_FRAME, .guard = field_bank_low_ram },
+    { .addr = 0xC000BD, .name = "field_next_frame", .fn = field_next_frame, NEEDS_M8_X16, .cost_milli = 1000,
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .hold = HOLD_FIELD_FRAME, .guard = field_on_page_bank_zero },
+    { .addr = 0xC000A7, .name = "field_next_frame_from_the_walk", .fn = field_next_frame_from_the_walk, NEEDS_M8_X16,
+      .cost_milli = 1000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .hold = HOLD_FIELD_FRAME,
+      .guard = field_on_page_bank_zero },
 };
 const int game_held_wait_count = (int)(sizeof game_held_waits / sizeof game_held_waits[0]);
 

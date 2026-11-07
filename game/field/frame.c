@@ -9,10 +9,12 @@
 #include "vars.h"
 
 /* $C0:EC71 (loop head inside the wait-for-next-frame routine at $C0:EC60)
- * The main loop waits here for the vblank handler to take the frame it
- * finished (field_frame_pending). Idle entry: one pass of the loop, which the
- * frame's wait (field_finish_frame) leaves its waiting to in the shipping
- * mode. */
+ * The field waits here for the vblank handler to take the frame it finished
+ * (field_frame_pending). Idle: one pass of the loop, the held wait's
+ * continuation (holds.h, HOLD_FIELD_FRAME), whichever routine called the
+ * wait; once the frame is taken it returns to the caller's rest, which for the
+ * main loop is a continuation of the same wait (field/main_loop.c,
+ * field_next_frame). */
 void field_wait_for_frame_loop(Snes *s)
 {
     uint8_t pending = field_frame_pending(state_of(s));

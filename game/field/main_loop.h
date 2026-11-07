@@ -38,6 +38,17 @@ void field_walk_a_frame(Snes *s);
 void field_finish_frame(Snes *s);
 void field_wait_for_the_next_frame(Snes *s);
 void field_main_loop_goes_round(Snes *s);
+/* The wait for the next frame, a held wait (holds.h, HOLD_FIELD_FRAME): the
+ * port that starts it stops in its loop ($C0:EC71), whose idle passes
+ * (field/frame.c) return to the caller once the vblank handler has taken the
+ * frame. Where the caller is the main loop, its rest is a continuation of the
+ * wait: the next pass from the loop's head ($C0:00BD) or from the walk
+ * ($C0:00A7, after a request that ended in the wait), and the wait again.
+ * The loop's going round as an entry of its own (field_main_loop_goes_round)
+ * runs only where they refuse. */
+void field_next_frame(Snes *s);
+void field_next_frame_from_the_walk(Snes *s);
+bool field_main_loop_goes_round_alone(Snes *s);
 /* The field starting again on a fresh stack for a new location, and ending
  * for a scene: the one an event command asked for, or the field's close's. */
 void field_start_again(Snes *s);

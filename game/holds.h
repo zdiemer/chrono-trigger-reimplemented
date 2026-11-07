@@ -21,6 +21,10 @@ enum {
     HOLD_OVERWORLD_FRAME = 3,
     /* the overworld's halt ($C2:250D), where the game stops for good */
     HOLD_OVERWORLD_HALT = 4,
+    /* the field's wait for the next frame ($C0:EC71, the loop in $C0:EC60):
+     * every frame on a map, from the main loop and from every routine of the
+     * field's that waits a frame (game/field/main_loop.c) */
+    HOLD_FIELD_FRAME = 5,
 };
 
 #endif
