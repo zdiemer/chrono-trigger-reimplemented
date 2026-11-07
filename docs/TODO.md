@@ -3029,6 +3029,14 @@ comparisons.
 
 ## The native program
 
+- **What the field's unreached review left.** The `unreached_party_shares`
+  recipe fills sharers only up to `$16` where the guard takes up to `$25`: extend
+  it to `$24` so the whole accepted range of the sprite-block owner table is
+  compared. `unreached_fuzz.py --ledger` silently drops an inventoried entry
+  whose name has no recipe; it should report or fail on one. REIMPLEMENTATION.md
+  should give the count of plain recipes `--ledger` replays beside the cited
+  ones. The two new `location_record_is_one` guards repeat the map's
+  `vars_peek` boilerplate: one shared helper.
 - **What the overworld teardown's review left.** `the_cartridges_overworld`
   (`dev/fallbacks.c`) says the menus' helpers the overworld calls are left out,
   which doesn't hold for helpers a handler calls directly (their caller's frame
