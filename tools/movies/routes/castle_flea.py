@@ -30,8 +30,13 @@ def main():
             assert run.talk(11), "Flea's decoy"
             run.checkpoint("flea")
         if start <= 19:
+            # Flea's 4,120 HP against this party's attacks and Mid Tonics is a
+            # long fight: 25,000 frames in the shipping mode and past 30,000 in
+            # the native-shape build, with the same blows and another run of
+            # random numbers (Flea at 4 HP and 62 HP as the tonics run out).
+            # The limit catches a fight that stalls, not one that is slow.
             run.fight(castle_policy, lambda r, s: bool(m.b(FLAGS) & 8),
-                      seed=args.seed, max_frames=30000)
+                      seed=args.seed, max_frames=45000)
             run.checkpoint("won")
         if start <= 20:
             assert run.wait_control(8000), "Flea beaten, field back in hand"
