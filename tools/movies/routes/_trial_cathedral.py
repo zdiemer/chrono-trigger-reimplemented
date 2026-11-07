@@ -1,4 +1,5 @@
 """Rescue Queen Leene from Yakra in the Cathedral, 600 A.D."""
+from .. import addresses as A
 from .. import bfs
 from . import _trial_party as early
 
@@ -27,7 +28,7 @@ def cathedral(run, seed=1):
         run.checkpoint("nun")
     if start <= 4:
         assert run.talk(15), "examine Leene's pin"
-        assert run.dialogs_until(lambda: run.machine.b(early.BATTLE_MENU_MEMBER) < 0x80, 8000)
+        assert run.dialogs_until(lambda: A.battle_menu_open(run.machine), 8000)
         run.checkpoint("nagas")
     if start <= 5:
         early.fight(run, seed=seed, party=2, after=False)
@@ -113,7 +114,7 @@ def cathedral(run, seed=1):
         run.checkpoint("room")
     if start <= 14:
         assert early.advance(run, "UP", lambda: not run.machine.b(early.PLAYER_CONTROL))
-        assert run.dialogs_until(lambda: run.machine.b(early.BATTLE_MENU_MEMBER) < 0x80, 8000)
+        assert run.dialogs_until(lambda: A.battle_menu_open(run.machine), 8000)
         run.checkpoint("battle")
     if start <= 15:
         early.fight(run, seed=seed)

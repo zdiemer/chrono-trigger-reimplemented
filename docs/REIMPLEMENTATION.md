@@ -1004,7 +1004,14 @@ shadow run's per-call times):
   of memory with a store a word, about four frames of the original's time, and
   the port's fill took none (`battle_start_from_field`: 1,347,388 clocks of the
   original's against an estimate of 827, every battle). It is charged now
-  (`charge_as`, at the way in's own rate).
+  (`charge_as`, at the way in's own rate). The port clears all of it at once
+  and then pays the time, so for those four frames the whole of the battle's
+  memory reads as cleared, where the original's loop reaches the command
+  menu's cell late in its pass; the cell then reads 0, member 0's menu, and
+  three routes (`death_peak`, `death_peak_return`, `motherbrain`) took that for
+  a battle's first menu in the native-shape build and fought nothing. The
+  routes now ask `tools/movies/addresses.py`'s `battle_menu_open`, which also
+  wants the first member's max HP set, as some routes already did.
 - *Entries no calibration reached.* The timing report measured only stretches
   no interrupt fell in, and a routine whose calls always outlast a frame never
   has one: the battle's setup (`battle_set_up`, `battle_setup_state`,

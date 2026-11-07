@@ -1,4 +1,5 @@
 """Shared loading, healing and victory checks for the early story bosses."""
+from .. import addresses as A
 from .. import policies
 
 BATTLE_MENU_MEMBER = 0x7E95D5
@@ -7,7 +8,7 @@ PLAYER_CONTROL = 0x7E011F
 
 
 def battle_ready(run):
-    return run.machine.b(BATTLE_MENU_MEMBER) < 0x80 and run.machine.w(0x7E5E32) > 0
+    return A.battle_menu_open(run.machine) and run.machine.w(0x7E5E32) > 0
 
 
 def settle(run, seed=1, policy=None):

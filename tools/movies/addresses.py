@@ -126,6 +126,15 @@ BATTLE_STAT_STRIDE = 0x80
 four 16-bit values. Party members are slots 0-2, enemies 3-10. $5E30 is the HP
 the ported battle_draw_party_status and battle_stats code read."""
 
+def battle_menu_open(machine):
+    """A party member's command menu is open in a battle that has been set up.
+    BATTLE_MENU_MEMBER alone isn't enough: the way in clears the battle's
+    memory before it sets the battle up, and for those frames the cell reads 0,
+    member 0's menu. The first member's max HP is 0 then too, and never in a
+    battle the party fights, so it tells a cleared battle from a menu."""
+    return machine.b(BATTLE_MENU_MEMBER) < 0x80 and machine.w(BATTLE_STATS + 2) > 0
+
+
 BATTLE_TECH_LIST = 0x7E9551
 BATTLE_TECH_LIST_BASE = 0xCCF38C
 """The in-battle tech list: entry `i` of member `m` is at $9551 + ROM byte

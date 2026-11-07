@@ -7,6 +7,7 @@ Used by the routes that play a fight of a place no other movie fights in
 (routes/denadoro_fight.py).
 """
 from . import policies
+from . import addresses as A
 from .addresses import OBJECT_X, OBJECT_Y
 
 BATTLE_MENU_MEMBER = 0x7E95D5   # whose battle menu is open, $80 and up for none
@@ -43,7 +44,7 @@ def enter_from_the_world_map(run):
 
 
 def in_battle(machine):
-    return machine.b(BATTLE_MENU_MEMBER) < 0x80
+    return A.battle_menu_open(machine)
 
 
 def wait_for_battle(run, frames):
@@ -75,7 +76,7 @@ def walk_into_a_fight(run, rounds=3, per_round=8):
             tried.add(index)
 
             def beside(m, px, py, index=index):
-                if m.b(BATTLE_MENU_MEMBER) < 0x80 or run.dialog():
+                if A.battle_menu_open(m) or run.dialog():
                     return True
                 ox, oy = m.w(OBJECT_X + 2 * index) / 16, m.w(OBJECT_Y + 2 * index) / 16
                 return abs(px - ox) <= 14 and abs(py - oy) <= 14
