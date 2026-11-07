@@ -295,3 +295,10 @@ base = "field_set_up_after_a_menu"
 variant = "unreached_gathering"
 args = ["--fill", "7F03FE-7F03FE=01,02", "--fill", "7E0197-7E019B:2=00,02,04,06,08", "--fill", "7E0198-7E019C:2=00"]
 why = "A menu opened while the party was gathering (the count cut short at one or two): the members are put where the leader is, the player given the party back and the gathering counted done."
+
+[[case]]
+base = "field_read_animation_frame"
+variant = "unreached_one_off_ends"
+args = ["--fill", "7E01D8-7E01D8=7F", "--fill", "7E1500-7E157F:2=8000", "--fill", "7E1480-7E14FF:2=0000",
+        "--fill", "7E1780-7E17FF:2=02", "--fill", "7F8000-7F8403=FF"]
+why = "A one-off animation at the end of its frames (every frame table, in work RAM made for it, an end marker): no frame to draw, and a half pass counted unless it has none left."
