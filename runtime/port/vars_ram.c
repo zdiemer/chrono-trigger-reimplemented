@@ -28,6 +28,7 @@ bool vars_peeking(void) { return peeking; }
 
 #include "port/state_host.h"
 
+/* Each access the game's time, as the machine's bus counts it (state_host.c). */
 static uint8_t r8(const GameState *g, uint32_t a)
 {
     if (!peeking)

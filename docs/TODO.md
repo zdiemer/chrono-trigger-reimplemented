@@ -3221,27 +3221,38 @@ list, by kind, is what `game/` still asks of one.
   neither result establishes a native completion of the trial route.
 - **Long movies still desync on the hand ports alone.** The frame-level time
   model (REIMPLEMENTATION.md, "The frame-level time model") charges the C
-  sound driver's uploads in both modes and a load's unpacking and sends in
-  `ct_native`, measured as places entered on time (`tools/places.py`). What
+  sound driver's uploads in both modes and, in `ct_native`, the game's own
+  work at the calibrated rates and a load's unpacking and sends, measured as places entered on time (`tools/places.py`). What
   it doesn't hold yet, by what was measured:
 
-  - *Frames that overrun from their own work.* `ct_native` takes a frame's
-    work to fit its frame. The original's doesn't always: the opening's
-    flight over Guardia pans slower than `ct_native`'s (the house reached 47
-    frames later), and the attract demo, which has no presses, ends 1,229
-    frames behind. Counting the game's reads and writes at the ports' mean
-    rate brought the attract demo to within 390 frames but lost places
-    elsewhere, battles most (279 and 291 of 460 at 40 and 30 clocks an
-    access, against 296). Wants a rate that follows the mode (the
-    overworld's scenes, the battle), or the routines that overrun named with
-    their own measured time. Two loads that are mostly the CPU's own work
-    are the first to name: the load screen's setup (`$C2:800E`, 14.5
-    frames of the original's time, about 2.4 charged), whose shortfall
-    moves `frames_at_leaving`, and so where the battles start in their
-    random table, in a movie from a save (20 frames in
-    `battle-ozzies-fort`), and the battle's setup from the field (18
-    frames, none charged). `battle-ozzies-fort` measures both ("Ozzie's
-    Fort movie on the native program", below).
+  - *Where the game's work is still timed short or long.* `ct_native` times
+    the game's own work at the routines' calibrated rates (REIMPLEMENTATION.md,
+    "The frame-level time model"); over the gate's sample the attract demo
+    ends 211 frames behind the reference (1,229 before), strict mode about as
+    far. What the per-routine comparison against the shadow runs' estimates
+    (the tags' work in `ct_native` against the parts' and entries' estimates
+    over the sample) names next, worst first:
+    - *Tagged more often than the original calls.* `menu_move_among_the_slots`
+      (`$C2:CFA2`, 51,975 tagged stretches against 718 calls, 24 times the
+      machine's estimate), `scene_sample_bitmap_row` (`$C3:034A`, 59,013
+      against 5,160, three times), `menu_reset_sprites` (`$C2:E92D`, 1.4
+      times): a tag around a loop the original runs as one call, or a call
+      made where the original's isn't.
+    - *Guards read as work.* The event engine's C path now looks under
+      `vars_peek` as its machine path does; the field's frame still reads
+      what only the machine's guards read, 1.8 to 7 times the machine's bus
+      clocks a call (`field_finish_frame` `$C0:EC60`, `field_queue_due_turns`
+      `$C0:59D9`, `field_build_line_effect_tables` `$FD:C2C1`), small beside a
+      frame. The menus' object handler (`menu_run_objects`, `$C2:051D`) reads
+      23 times the machine's: handler time, off the frame the main thread
+      has, so it moves only how much of the frame is left (at most half).
+    - *Short.* The power-on to the title's place (`$1B1` at frame 48 against
+      51, strict mode 49) and the load screen's setup (the menus' frame count
+      starting at 1720 against 1722; `battle-ozzies-fort` leaves the menus
+      with `frames_at_leaving` `$1E` against `$1C`).
+    The same comparison with the battle's setup entries measured only by
+    their interrupted stretches (batch 2's `--interrupted` calibration) is
+    the next to make, once the shadow runs print those stretches' totals.
   - *The handlers' share of an upload.* The sound driver's upload time is
     the wall's under a light vblank handler; under the menus' busy one the
     original's song loads in about twice the frames, and a battle's song,
@@ -3334,8 +3345,9 @@ list, by kind, is what `game/` still asks of one.
   forced blank, or show no large send happens with the picture on. A scene's
   port wait soon after boot (`echoed`, `native/audio.c`) passes the driver's start-up
   delay at once, so the sound runs ahead of the frames charged for it. Sound
-  commands a handler issues (`native/audio.c`) and unpacking done in vblank are
-  charged to the main thread's debt. `runtime/platform/time_model.h` ends
+  commands a handler issues (`native/audio.c`) are charged to the main
+  thread's debt (the handlers' work and charges kept by the game's state are
+  the frame's own now). `runtime/platform/time_model.h` ends
   without a newline.
 
 - **Cyrus's fixed movie ends blanked in `ct_native`.** `events-cyrus`
@@ -3348,32 +3360,16 @@ list, by kind, is what `game/` still asks of one.
   strict `ct_dev` reaches the movie's end with five character-record bytes
   differing from the reference, not a handler stop.
 - **Ozzie's Fort movie on the native program.** `battle-ozzies-fort` from ctsave12
-  slot 2 plays to its 39237-frame end in `ct_native`, showing, but the Super Slash
-  battle in `$0B8` lasts 19960 frames there against the reference's 4726, so the
-  movie's later presses open the trapped chest in `$0B3` the route leaves alone
-  and the run never reaches `$0B4`. It is the time model's drift, not a port's
-  difference: the native pictures match the reference's pixel for pixel over
-  the stretch before the battle (frames 15010 to 16180), and what differs is
-  when things happen and the battle's random numbers. The load screen's setup
-  takes the original 14.5 frames (`$C2:800E`'s shadow time) and `ct_native`
-  charges about 2.4 (its sends); with the rest of the way in, the menus'
-  vblank count starts 20 frames early (frame 1702 against 1722) and the game leaves the menus with
-  `frames_at_leaving` `$30` against the reference's `$1C` (strict mode's `$1B`):
-  every battle draws from another place in the random table, the Super Slash
-  battle starting at `$5A` against `$4D`. The field runs a few frames ahead
-  (`tm_frame_time_left` gives every frame time for all its script turns), so
-  Flea's text in `$0B7` finishes at frame 8474 against 8488 and the press at
-  8485 closes it, where the reference's lands before the text ends. And the
-  battle's own setup, 18 frames of the original's main thread between the
-  field's last frame and the main loop's start, costs `ct_native` none: the
-  Super Slash battle's main loop starts at 16302 against 16321, its windows
-  slide in at 16318 against 16336, and Crono's first command menu opens at
-  16404 against 16428, so the recorded presses meet other menus (the item
-  and tech lists where the reference attacks). Forcing the reference's
-  `$1C` alone (a scratch run) doesn't bring it back: the Flea battle then
-  ends 3,064 frames late. Counting the fort as native coverage waits on the
-  time model's overruns ("Long movies still desync", above). The native run
-  also reports two SNES-only video escapes, first at `$7E:5AEB`.
+  slot 2 plays to its 39237-frame end in `ct_native`, showing, but parts from the
+  reference in the field before Flea (`$0B7` entered at 12370 against 7110): the
+  load screen's setup, which `ct_native` charged 2.4 frames of the original's
+  14.5, is charged 14.5 now, and the game leaves the menus with
+  `frames_at_leaving` `$1E` against the reference's `$1C` (`$30` before); the
+  field's songs before Flea start 18 and 29 frames early (frames 4399 and 5896
+  against 4417 and 5925), where strict mode keeps them to the frame, so it is the
+  field's events' work `ct_native` still times short there ("Where the game's
+  work is still timed short or long", above), not a port's difference. The
+  native run also reports two SNES-only video escapes, first at `$7E:5AEB`.
 - **Ocean Palace movie playback.** `battle-golem-twins` and
   `events-ocean-palace-lavos` run for their full 20216 and 30364 frames in
   `ct_native` (exit 0), without a missing-C stop, but both report unsupported video

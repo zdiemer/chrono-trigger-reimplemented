@@ -596,10 +596,11 @@ build/main/ct_native --rom roms/ct-usa.sfc [--assets pack] [--frames N] [--sram 
 
 With `--movie` the controllers press what the movie's frames say,
 frame for frame; the native program's frames keep the original's time only as
-far as the frame-level time model does (REIMPLEMENTATION.md: the sound
-driver's uploads and a load's unpacking and sends, charged as lag frames, the
-run's last line counting them), so a long movie can still go elsewhere than
-its reference play: TODO.md, "The native program". `--locations` lists each
+far as the frame-level time model does (REIMPLEMENTATION.md: the game's own
+work at the rates the machine calibrated, the sound driver's uploads and a
+load's unpacking and sends, the whole frames they fill being lag frames, the
+run's last line counting them, `--lag-log` naming each), so a long movie can
+still go elsewhere than its reference play: TODO.md, "The native program". `--locations` lists each
 place the run enters, with its frame, as `ct_dev --locations` does for the
 reference play, and `tools/places.py` sets the two side by side; `--end-state`
 writes work RAM and save RAM at the end, as `ct_dev --end-state` does.
