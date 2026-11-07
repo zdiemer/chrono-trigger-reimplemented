@@ -665,7 +665,7 @@ static void draw_chapter_label(GameState *g)
 {
     uint16_t at = (uint16_t)(MENU_CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * MENU_CHAPTER_LABEL_BYTES);
     wram_fill8(g, 0x7E0000u | at, MENU_CHAPTER_LABEL_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, MENU_CHAPTER_LABEL_BYTES));
+    charge_block_move(g, MENU_CHAPTER_LABEL_BYTES);
     set_label_at(g, CHAPTER_LABELS, menu_text_string(g), at);
 }
 

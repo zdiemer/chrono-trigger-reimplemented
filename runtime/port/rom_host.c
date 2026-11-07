@@ -8,10 +8,13 @@
  * here, and the program goes no further, the address named where it stops. */
 #include "core/program.h"
 #include "port/state_host.h"
+#include "port/vars_ram.h"
 #include "rom.h"
 
 uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *served)
 {
+    if (!vars_peeking())
+        state_host_game_access(g, 6);
     if (served)
         return *served;
     at &= 0xFFFFFFu;

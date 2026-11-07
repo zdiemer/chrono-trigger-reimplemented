@@ -283,7 +283,7 @@ void scene_double_plane_rows(GameState *g)
         uint32_t from = SCENE_UNPACK_BUFFER + row * PLANE_ROW_BYTES, to = SCENE_PLANE_MAP + row * 2 * PLANE_ROW_BYTES;
         wram_copy(g, from, to, PLANE_ROW_BYTES);
         wram_copy(g, from, to + PLANE_ROW_BYTES, PLANE_ROW_BYTES);
-        ORIGINAL_EFFECT(charge_block_move(g, 2 * PLANE_ROW_BYTES));
+        charge_block_move(g, 2 * PLANE_ROW_BYTES);
     }
 }
 
@@ -299,7 +299,7 @@ static bool load_graphics(GameState *g, Platform *pf, unsigned unpacking, const 
     switch (r->kind) {
     case INTO_PALETTE:
         wram_copy(g, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | UNPACKED_PALETTE, SCENE_PALETTE, PALETTE_BYTES);
-        ORIGINAL_EFFECT(charge_block_move(g, PALETTE_BYTES));
+        charge_block_move(g, PALETTE_BYTES);
         return true;
     case PLANE_PIXELS:
         send_unpacked_as(g, BYTES_ONE_REGISTER, VID_SNES_VRAM_DATA_HIGH);
@@ -336,7 +336,7 @@ static void before_kind(GameState *g, Platform *pf, RaceGraphicsKind kind)
         return;
     case LAYER_MAP:
         wram_fill8(g, ROAD_STRIP, ROAD_STRIP_BYTES, 0);
-        ORIGINAL_EFFECT(charge_block_move(g, ROAD_STRIP_BYTES - 1));
+        charge_block_move(g, ROAD_STRIP_BYTES - 1);
         scene_clear_buffer(pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E3E71);
         return;
     case INTO_PALETTE:
@@ -370,7 +370,7 @@ static void place_block(GameState *g, uint32_t from, uint32_t to)
 {
     for (uint32_t row = 0; row < BLOCK_ROWS; row++)
         wram_copy(g, from + row * BLOCK_PIXELS, to + row * PICTURE_ROW, BLOCK_PIXELS);
-    ORIGINAL_EFFECT(charge_block_move(g, BLOCK_ROWS * BLOCK_PIXELS));
+    charge_block_move(g, BLOCK_ROWS * BLOCK_PIXELS);
 }
 
 /* Where the second part's blocks go in Crono's pictures, the second twice. */
@@ -447,7 +447,7 @@ static bool load_racers_pictures(GameState *g, RaceCalls call, void *ctx)
     if (!call(ctx, RACE_UNPACK, CRONO_SECOND_UNPACKED, CRONO_SECOND_RESOURCE))
         return false;
     wram_copy(g, PICTURES, CRONO_PICTURES_COPY, CRONO_PICTURES_COPY_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, CRONO_PICTURES_COPY_BYTES));
+    charge_block_move(g, CRONO_PICTURES_COPY_BYTES);
     place_crono_blocks(g);
     mirror_crono(g);
     ORIGINAL_EFFECT(leave_mirror_last(g, THIRD_LAST));

@@ -84,7 +84,7 @@ void menu_draw_main_menu_backdrop(GameState *g)
     for (unsigned row = 0; row < BACKDROP_ROWS; row++)
         for (unsigned column = 0; column < TILES_A_ROW; column++)
             set_menu_back_tilemap(g, row * TILES_A_ROW + column, backdrop_tile(row, column));
-    ORIGINAL_EFFECT(charge_the_repeats(g));
+    charge_the_repeats(g);
     menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER_WHOLE);
 }
 
@@ -126,7 +126,7 @@ static void put_the_icons(GameState *g, uint8_t option)
     put_icon(g, ARROW_ABOVE, x, (uint8_t)(lit.y - ARROW_LINES), ARROW_TILE, ARROW_ABOVE_ATTRIBUTES);
     for (unsigned i = 0; i < MENU_ARROW_COLOURS; i++)
         set_menu_palette(g, PALETTE_COLOURS - MENU_ARROW_COLOURS + i, menu_rom_colour(g, MENU_ROM_ARROW_COLOURS, i));
-    ORIGINAL_EFFECT(charge_block_move(g, 4 * MENU_MAIN_MENU_OPTIONS + 2 * MENU_ARROW_COLOURS));
+    charge_block_move(g, 4 * MENU_MAIN_MENU_OPTIONS + 2 * MENU_ARROW_COLOURS);
 }
 
 /* The main menu's windows fit the layers and its colours the frame's
@@ -154,7 +154,7 @@ void menu_draw_main_menu(GameState *g, Platform *pf)
         set_menu_palette(g, ICON_COLOURS + i, menu_rom_colour(g, MENU_ROM_MAIN_MENU_COLOURS, i));
         set_menu_palette(g, ICON_COLOURS + MENU_MAIN_MENU_COLOURS + i, menu_option_colour(g, option, i));
     }
-    ORIGINAL_EFFECT(charge_block_move(g, 4 * MENU_MAIN_MENU_COLOURS));
+    charge_block_move(g, 4 * MENU_MAIN_MENU_COLOURS);
     put_the_icons(g, option);
 }
 
@@ -257,7 +257,7 @@ void menu_main_menu_open_option(GameState *g, Platform *pf)
     set_menu_screen_step(g, 0);
     for (unsigned i = 0; i < SCREEN_COLOURS_COUNT; i++)
         set_menu_palette(g, SCREEN_COLOURS + i, menu_rom_colour(g, MENU_ROM_ROW_8_COLOURS, i));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * SCREEN_COLOURS_COUNT));
+    charge_block_move(g, 2 * SCREEN_COLOURS_COUNT);
     set_menu_cursor_step_seen(g, NO_STEP);
 }
 

@@ -695,7 +695,7 @@ static void load_the_colours(GameState *g, const DiveSetUpSteps *steps, void *ct
     steps->unpack(ctx, UNPACK_DIVE_COLOURS);
     for (unsigned n = 0; n < COPIED_COLOURS; n++)
         set_palette_base(g, COPIED_TO + n, palette_base(g, COPIED_FROM + n));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * COPIED_COLOURS));
+    charge_block_move(g, 2 * COPIED_COLOURS);
     scene_copy_resource_to(g, scene_program_own(), SPRITE_COLOURS, SPRITE_COLOURS_AT, SPRITE_COLOURS_BYTES);
     set_palette_base(g, 0, PALE_CYAN);
     scene_use_loaded_palette(g);

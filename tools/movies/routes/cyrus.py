@@ -174,7 +174,7 @@ def guardians(run, direction, variable, value, seed):
             break
         machine.run(8, direction)
     assert machine.b(variable) == value, "guardian encounter triggered"
-    assert run.dialogs_until(lambda: machine.b(A.BATTLE_MENU_MEMBER) < 0x80, 4000), "battle menu"
+    assert run.dialogs_until(lambda: A.battle_menu_open(machine), 4000), "battle menu"
     seen = []
 
     def won(r, state):

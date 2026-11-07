@@ -164,9 +164,9 @@ def main():
             run.checkpoint("upper")
         if start <= 3:
             assert run.find_player() is not None
-            assert run.walk(lambda m, x, y: y >= 272 or m.b(A.BATTLE_MENU_MEMBER) < 0x80,
+            assert run.walk(lambda m, x, y: y >= 272 or A.battle_menu_open(m),
                             max_nodes=1200) is not None
-            assert run.dialogs_until(lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80, 3000)
+            assert run.dialogs_until(lambda: A.battle_menu_open(m), 3000)
             fight(run, "party", args.seed)
             run.checkpoint("upper_won")
         if start <= 4:
@@ -175,8 +175,8 @@ def main():
         if start <= 5:
             assert run.find_player() is not None
             assert run.walk(lambda m, x, y: (112 <= x <= 176 and 176 <= y <= 240)
-                            or m.b(A.BATTLE_MENU_MEMBER) < 0x80, max_nodes=1500) is not None
-            assert run.dialogs_until(lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80, 4000)
+                            or A.battle_menu_open(m), max_nodes=1500) is not None
+            assert run.dialogs_until(lambda: A.battle_menu_open(m), 4000)
             fight(run, retinite_policy, args.seed)
             assert m.b(0x7F01A3) & 1, "Retinite defeated"
             run.checkpoint("retinite")

@@ -597,14 +597,14 @@ static void make_for_the_middle(GameState *g, unsigned enemy)
 
 /* ---- The movements ----------------------------------------------------------------------- */
 
-bool battle_enemy_movement_needs_target(EnemyMovement movement)
-{
-    return movement <= MOVEMENT_CIRCLE;
-}
-
 /* Waiting for the target to move goes on when the enemy saw no target: it
  * waits on where nobody stands (where_the_original_finds_nobody). */
 static bool takes_no_target(EnemyMovement movement) { return movement == MOVEMENT_WAIT_FOR_TARGET; }
+
+bool battle_enemy_movement_needs_target(EnemyMovement movement)
+{
+    return movement <= MOVEMENT_CIRCLE && !takes_no_target(movement);
+}
 
 void battle_move_enemy(GameState *g, unsigned enemy, EnemyMovement movement, uint8_t animation)
 {
@@ -638,8 +638,7 @@ static bool entry_ready(Snes *s, EnemyMovement movement)
     const GameState *g = state_of(s);
     unsigned enemy = battle_effect_enemy(g);
     bool fits = enemy < BATTLE_ENEMIES && battle_enemy_animation_effect(g, battle_effect_kind(g)) == movement
-                && (!battle_enemy_movement_needs_target(movement) || takes_no_target(movement)
-                    || battle_names_combatant(target_of(g, enemy)));
+                && (!battle_enemy_movement_needs_target(movement) || battle_names_combatant(target_of(g, enemy)));
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && fits;
 }

@@ -55,8 +55,11 @@ class BattleState:
         return self.stats[slot][2]
 
     def menu_open(self):
-        """A command menu is up and taking input (not a list, not targeting)."""
-        return self.member < 3 and self.page == 0 and self.targeting == 0
+        """A command menu is up and taking input (not a list, not targeting), in a
+        battle that has been set up: while the way in clears the battle's memory
+        the cells read as member 0's menu, but its max HP is 0
+        (addresses.battle_menu_open)."""
+        return self.member < 3 and self.page == 0 and self.targeting == 0 and self.max_hp(self.member) > 0
 
 
 class Bot:

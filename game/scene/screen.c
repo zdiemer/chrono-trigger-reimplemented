@@ -551,7 +551,7 @@ void scene_copy_resource_to(GameState *g, SceneProgramPage page, unsigned resour
 {
     ORIGINAL_EFFECT(set_scene_call_first(g, page, bytes));
     scene_copy_resource_bytes(g, scene_unpacked_bank(g), scene_resource_offset(g, resource), to, bytes);
-    ORIGINAL_EFFECT(charge_block_move(g, bytes));
+    charge_block_move(g, bytes);
 }
 
 /* ---- A Mode 7 plane's name table --------------------------------------------------------------- */
@@ -571,7 +571,7 @@ void scene_widen_the_plane_map(GameState *g)
         wram_fill8(g, to + UNPACKED_ROW_BYTES, UNPACKED_ROW_BYTES, 0);
         /* The original moves the row's 64 bytes, then stores the first empty
          * tile and moves it on over the other 63, one byte on. */
-        ORIGINAL_EFFECT(charge_block_move(g, UNPACKED_ROW_BYTES + (UNPACKED_ROW_BYTES - 1)));
+        charge_block_move(g, UNPACKED_ROW_BYTES + (UNPACKED_ROW_BYTES - 1));
     }
     ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), 0));
 }
@@ -594,7 +594,7 @@ enum { LOADED_PALETTE = 0x7E2000, PALETTE_BYTES = 0x200 };
 void scene_use_loaded_palette(GameState *g)
 {
     wram_copy(g, LOADED_PALETTE, WORKING_PALETTE, PALETTE_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, PALETTE_BYTES));
+    charge_block_move(g, PALETTE_BYTES);
 }
 
 /* As the program's code calls it, with 16-bit index registers: back with

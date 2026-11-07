@@ -268,7 +268,7 @@ static void clear_past_the_equipment(GameState *g)
         set_menu_item_users(g, item, 0);
     for (unsigned item = FIRST_ACCESSORY; item < MENU_ITEMS; item++)
         set_menu_item_amounts(g, item, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * MENU_ITEMS - FIRST_OF_THE_REST - FIRST_ACCESSORY));
+    charge_block_move(g, 2 * MENU_ITEMS - FIRST_OF_THE_REST - FIRST_ACCESSORY);
 }
 
 static uint16_t figures_of(GameState *g, uint8_t item)

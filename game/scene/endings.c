@@ -112,7 +112,7 @@ static void stop_frame_tasks(GameState *g)
 {
     for (unsigned slot = 0; slot < FRAME_TASK_SLOTS; slot++)
         set_scene_tasks(g, slot, NO_TASK);
-    ORIGINAL_EFFECT(charge_block_move(g, FRAME_TASK_SLOTS * 2));
+    charge_block_move(g, FRAME_TASK_SLOTS * 2);
 }
 
 // $7E:7F05
@@ -120,7 +120,7 @@ static void stop_vblank_tasks(GameState *g)
 {
     for (unsigned slot = 0; slot < VBLANK_TASK_SLOTS; slot++)
         set_scene_early_tasks(g, slot, NO_TASK);
-    ORIGINAL_EFFECT(charge_block_move(g, VBLANK_TASK_SLOTS * 2));
+    charge_block_move(g, VBLANK_TASK_SLOTS * 2);
 }
 
 /* A scene starts on a black screen with no per-line effects. */
@@ -324,7 +324,7 @@ static void lay_out_mosaic(GameState *g)
      * down in a word of the second bank */
     ORIGINAL_EFFECT(hw_port_seek_address(g, (uint16_t)(MOSAIC_NUMBERS + MOSAIC_TILES)));
     ORIGINAL_EFFECT(wram_write16(g, MOSAIC_COUNTER, 0));
-    ORIGINAL_EFFECT(charge_block_move(g, MOSAIC_TILES * MOSAIC_TILE_BYTES));
+    charge_block_move(g, MOSAIC_TILES * MOSAIC_TILE_BYTES);
 }
 
 /* The scene's colors, out of the program's resources: the ground's first 128
@@ -369,7 +369,7 @@ enum { DARKENED_BYTES = 0xEF, WORKING_PALETTE = 0x7E2200 };
 static void darken_first_colors(GameState *g)
 {
     wram_fill8(g, WORKING_PALETTE + 1, DARKENED_BYTES, wram_read8(g, WORKING_PALETTE));
-    ORIGINAL_EFFECT(charge_block_move(g, DARKENED_BYTES));
+    charge_block_move(g, DARKENED_BYTES);
 }
 
 /* The captions: the first comes the next frame, each stays $140 frames once in,
@@ -1030,7 +1030,7 @@ static uint16_t set_last_colors(GameState *g, SceneProgramPage page)
     scene_use_loaded_palette(g);
     uint32_t black = (uint32_t)SCENE_LOWER_WORK_RAM << 16 | (uint16_t)(WORKING_PALETTE_PAGE + BLACKENED_COLOR * COLOR_BYTES);
     wram_fill8(g, black, BLACKENED_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, BLACKENED_BYTES));
+    charge_block_move(g, BLACKENED_BYTES);
     set_scene_ending_window_left(g, SWEEP_FROM);
     for (unsigned corner = 0; corner < SWEEP_CORNERS; corner++)
         set_scene_ending_window_corners(g, corner, SWEEP_CORNERS_AT);
@@ -1378,7 +1378,7 @@ static void show_the_ground_s_first_later_colors(GameState *g, Platform *pf, uin
     (void)channel;
     uint32_t bank = (uint32_t)SCENE_LOWER_WORK_RAM << 16;
     wram_copy(g, bank | ground_color_sets[0], bank | WORKING_PALETTE_PAGE, GROUND_COLORS_MOVED);
-    ORIGINAL_EFFECT(charge_block_move(g, GROUND_COLORS_MOVED));
+    charge_block_move(g, GROUND_COLORS_MOVED);
 }
 
 // $7E:9919

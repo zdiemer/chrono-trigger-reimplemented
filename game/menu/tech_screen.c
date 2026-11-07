@@ -274,7 +274,7 @@ static void show_member_rows_from(GameState *g, uint16_t line)
 static void put_member_lines_at_rest(GameState *g)
 {
     show_member_rows_from(g, MEMBER_LINES_AT_REST);
-    ORIGINAL_EFFECT(charge_block_move(g, 4 * LINE_BANDS));
+    charge_block_move(g, 4 * LINE_BANDS);
 }
 
 /* The triple techs the rocks give (menu/techs.h) listed as the party has
@@ -283,7 +283,7 @@ void menu_techs_note_rock_techs(GameState *g)
 {
     for (unsigned i = 0; i < MENU_ROCKS; i++)
         set_menu_tech_groups_listed(g, MENU_FIRST_ROCK_GROUP + i, party_triple_techs_learned(g, MENU_FIRST_ROCK_TECH + i));
-    ORIGINAL_EFFECT(charge_block_move(g, MENU_ROCKS));
+    charge_block_move(g, MENU_ROCKS);
     put_member_lines_at_rest(g);
 }
 
@@ -806,7 +806,7 @@ static void move_list_rows(GameState *g, bool up)
         for (unsigned r = 0; r < ROWS_UP; r++)
             wram_copy(g, WORK_RAM | (uint16_t)(SECOND_ROW_TOP + r * TILE_ROW_BYTES),
                       WORK_RAM | (uint16_t)(FIRST_ROW_TOP + r * TILE_ROW_BYTES), NAME_COLUMN_BYTES);
-        ORIGINAL_EFFECT(charge_block_move(g, ROWS_UP * NAME_COLUMN_BYTES));
+        charge_block_move(g, ROWS_UP * NAME_COLUMN_BYTES);
         ORIGINAL_EFFECT(leave_rows_copied_up(g));
         return;
     }
@@ -816,7 +816,7 @@ static void move_list_rows(GameState *g, bool up)
                   NAME_COLUMN_BYTES);
     }
     wram_copy(g, WORK_RAM | INCOMING_ROWS, WORK_RAM | FIRST_ROWS, INCOMING_ROWS_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, ROWS_DOWN * NAME_COLUMN_BYTES + INCOMING_ROWS_BYTES));
+    charge_block_move(g, ROWS_DOWN * NAME_COLUMN_BYTES + INCOMING_ROWS_BYTES);
     ORIGINAL_EFFECT(leave_rows_copied_down(g));
 }
 
@@ -1000,7 +1000,7 @@ void menu_techs_show_targets(GameState *g, Platform *pf)
 {
     for (unsigned band = 0; band < MENU_TECH_TARGET_LINES_COUNT; band++)
         set_menu_tech_target_lines(g, band, TARGET_LINES);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * MENU_TECH_TARGET_LINES_COUNT));
+    charge_block_move(g, 2 * MENU_TECH_TARGET_LINES_COUNT);
     set_menu_record_block_limit(g, TARGET_BLOCKS);
     draw_targets(g, pf);
     set_menu_use_helps(g, 0);
@@ -1066,7 +1066,7 @@ void menu_techs_close_targets(GameState *g)
 {
     for (unsigned band = 0; band < MENU_TECH_TARGET_LINES_COUNT; band++)
         set_menu_tech_target_lines(g, band, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * MENU_TECH_TARGET_LINES_COUNT));
+    charge_block_move(g, 2 * MENU_TECH_TARGET_LINES_COUNT);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
     menu_queue_fixed_upload(g, MENU_UPLOAD_LINE_TABLES);
 }
@@ -1153,7 +1153,7 @@ void menu_techs_panel_show(GameState *g, Platform *pf)
         const PanelColours *c = &PANEL_COLOURS[run];
         for (unsigned i = 0; i < c->count; i++)
             set_menu_palette(g, c->first + i, menu_rom_colour(g, c->from, i));
-        ORIGINAL_EFFECT(charge_block_move(g, 2u * c->count));
+        charge_block_move(g, 2u * c->count);
     }
     set_menu_line_effects(g, PANEL_LINE_EFFECTS);
     TIMED_AS(g, 0xC286DD, menu_build_math_table(g, pf));

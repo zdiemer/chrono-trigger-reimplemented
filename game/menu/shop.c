@@ -173,7 +173,7 @@ static void take_the_goods(GameState *g)
 {
     for (unsigned i = 0; i < MENU_SHOP_LIST_BYTES; i++)
         set_menu_shop_goods(g, i, menu_shop_good(g, shop_number(g), i));
-    ORIGINAL_EFFECT(charge_block_move(g, MENU_SHOP_LIST_BYTES));
+    charge_block_move(g, MENU_SHOP_LIST_BYTES);
     unsigned offered = 0;
     while (menu_shop_goods(g, offered) != 0)
         offered++;
@@ -441,7 +441,7 @@ void menu_shop_start_panel(GameState *g)
 {
     for (unsigned i = 0; i < MARKS_TILES; i++)
         put_tile(g, (uint16_t)(MARKS_AT + i * TILE_BYTES), MARK_BLANK);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * MARKS_TILES));
+    charge_block_move(g, 2 * MARKS_TILES);
     put_tile(g, OWNED_AT, 0);
     put_tile(g, OWNED_TAIL_AT, 0);
     put_tile(g, WORN_AT, 0);
@@ -549,12 +549,12 @@ void menu_shop_open_colours(GameState *g)
         const ShopColours *c = &SHOP_COLOURS[run];
         for (unsigned i = 0; i < c->count; i++)
             set_menu_palette(g, c->first + i, menu_rom_colour(g, c->from, i));
-        ORIGINAL_EFFECT(charge_block_move(g, 2u * c->count));
+        charge_block_move(g, 2u * c->count);
     }
     TIMED_AS(g, 0xC2A0E7, menu_equip_dim_colours(g, FIRST_DIMMED));
     for (unsigned band = 0; band < BANDS_AT_REST; band++)
         set_menu_row_line_values(g, band, BAND_AT_REST);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * BANDS_AT_REST));
+    charge_block_move(g, 2 * BANDS_AT_REST);
     TIMED_AS(g, 0xFFF548, menu_build_number_tiles(g));
 }
 
@@ -755,7 +755,7 @@ static void list_for_sale(GameState *g)
 {
     for (unsigned i = 0; i < FOR_SALE_CLEARED; i++)
         set_menu_shop_for_sale(g, i, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, FOR_SALE_CLEARED));
+    charge_block_move(g, FOR_SALE_CLEARED);
     set_menu_list_last_place(g, LAST_ROW);
     uint8_t listed = 0;
     for (unsigned place = 0; place < MENU_INVENTORY_PLACES; place++) {
@@ -941,7 +941,7 @@ static void move_the_rows(GameState *g, bool up)
             uint16_t to = (uint16_t)(LIST_WINDOW_AT + r * ROW_BYTES);
             copy_tiles(g, (uint16_t)(to + TWO_TILE_ROWS), to, LIST_WINDOW_TILES);
         }
-        ORIGINAL_EFFECT(charge_block_move(g, LIST_TILE_ROWS * LIST_WINDOW_TILES * TILE_BYTES));
+        charge_block_move(g, LIST_TILE_ROWS * LIST_WINDOW_TILES * TILE_BYTES);
         return;
     }
     for (unsigned r = ROWS_KEPT_SLIDING_UP; r-- > 0;) {
@@ -949,7 +949,7 @@ static void move_the_rows(GameState *g, bool up)
         copy_tiles(g, from, (uint16_t)(from + TWO_TILE_ROWS), LIST_WINDOW_TILES);
     }
     copy_tiles(g, INCOMING_ROWS_AT, TOP_ROWS_AT, WHOLE_ROWS_TILES);
-    ORIGINAL_EFFECT(charge_block_move(g, ROWS_KEPT_SLIDING_UP * LIST_WINDOW_TILES * TILE_BYTES + TWO_TILE_ROWS));
+    charge_block_move(g, ROWS_KEPT_SLIDING_UP * LIST_WINDOW_TILES * TILE_BYTES + TWO_TILE_ROWS);
 }
 
 /* The slide over: the rows moved along, the upload queue emptied (the
@@ -1048,7 +1048,7 @@ void menu_shop_open_quantity(GameState *g, Platform *pf, ShopStep step)
     set_menu_cursor_index(g, SHOP_QUANTITY);
     for (unsigned band = 0; band < QUANTITY_BANDS; band++)
         set_menu_row_line_values_past(g, band, QUANTITY_BAND);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * QUANTITY_BANDS));
+    charge_block_move(g, 2 * QUANTITY_BANDS);
     (void)menu_draw_string(g, MENU_ITEM_TABLES_BANK | menu_item_name_places(g, item), QUANTITY_NAME_AT, NAME_SETTINGS);
     menu_draw_windows(g, pf, QUANTITY_WINDOWS);
     menu_queue_fixed_upload(g, UPLOAD_QUANTITY);
@@ -1204,7 +1204,7 @@ static void close_the_quantity(GameState *g)
     set_menu_cursor_index(g, menu_shop_list_cursor(g));
     for (unsigned band = 0; band < QUANTITY_BANDS; band++)
         set_menu_row_line_values_past(g, band, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * QUANTITY_BANDS));
+    charge_block_move(g, 2 * QUANTITY_BANDS);
     set_menu_shop_place_shown(g, NO_PLACE_SHOWN);
     ORIGINAL_EFFECT(set_menu_shop_place_shown_past(g, 0xFF));
     (void)menu_draw_number_value(g, gold(g), GOLD_FORMAT, GOLD_AT);

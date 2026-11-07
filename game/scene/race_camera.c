@@ -129,11 +129,11 @@ enum { DIVISORS = 0x100, DIVISORS_MOVED = DIVISORS - 1 };
 void race_forget_divisors(GameState *g)
 {
     uint32_t mark = 0;
-    ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
+    mark = charge_uncounted_begin(g);
     for (unsigned i = 0; i < DIVISORS; i++)
         set_scene_race_divisors(g, i, 0);
-    ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-    ORIGINAL_EFFECT(charge_block_move(g, DIVISORS_MOVED));
+    charge_uncounted_end(g, mark);
+    charge_block_move(g, DIVISORS_MOVED);
 }
 
 // $7E:42CE

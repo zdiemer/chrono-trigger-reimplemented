@@ -737,7 +737,7 @@ static void start_battlefield_script(GameState *g, ScreenChannel channel, uint8_
 void battle_start_battlefield_scripts(GameState *g)
 {
     wram_fill16(g, CHANNELS_STATE_AT, CHANNELS_STATE_WORDS, 0);
-    ORIGINAL_EFFECT(charge_as(g, 0xCD0D33, CHANNELS_STATE_BYTES));
+    charge_as(g, 0xCD0D33, CHANNELS_STATE_BYTES);
     for (ScreenChannel channel = 0; channel < SCREEN_CHANNELS; channel++) {
         uint8_t script = battle_battlefield_scripts(g, channel);
         if (script != NO_BATTLEFIELD_SCRIPT)

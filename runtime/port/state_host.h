@@ -6,9 +6,9 @@
  * (runtime/port/vars_ram.c, built with CT_VARS_HOST): work RAM's 128 KiB and the
  * cartridge's 8 KiB of save RAM held in the host's memory and reached at the
  * original's addresses, and the multiplier, divider and work RAM port worked
- * out in C rather than by registers. Of the time a port is charged, a load's is
- * kept for the frame-level time model (platform/time_model.h); the original's
- * frames have nothing to stand in for. What the
+ * out in C rather than by registers. The game's work is timed for the
+ * frame-level time model (platform/time_model.h): its accesses at the rates
+ * the machine calibrated, and the charges as the machine makes them. What the
  * handle is stays this file's business: game/ never sees inside it.
  *
  * An access the backing has no memory for -- a register, or anything outside
@@ -45,10 +45,15 @@ uint8_t *state_host_sram(GameState *g);
 enum { STATE_HOST_STRAYS_KEPT = 8 };
 unsigned long state_host_strays(const GameState *g, uint32_t *first, unsigned *kept);
 
-/* The original's time a load was charged since the last call (charge.h,
+/* The original's time of the game's work since the last call: its own
+ * accesses at the calibrated rates and what it was charged (charge.h,
  * platform/time_model.h), in master clocks, which the timing backend takes as
  * the main thread waits (TmHostProgram.owed). */
 uint32_t state_host_take_owed(GameState *g);
+/* An access the game made (its accessors, its reads of the cartridge, save
+ * RAM through the save service), of `clocks` master clocks on the machine,
+ * timed at the rate of the routine its work is timed as. */
+void state_host_game_access(const GameState *g, uint32_t clocks);
 
 /* The most scenes a driver starts the game in, one after another (program_starts_in_a_scene). */
 enum { STATE_HOST_FIRST_SCENES = 4 };

@@ -383,7 +383,9 @@ def check_routes(args, ctx):
     passed = sum(1 for line in lines if re.match(r"^\S+\s+pass", line))
     failed = sum(1 for line in lines if re.match(r"^\S+\s+FAIL", line))
     summary = "%d of %d route(s) reach their outcome in the shipping mode" % (passed, passed + failed)
-    return rc == 0 and failed == 0, "routes", summary, [] if rc == 0 else lines[-30:]
+    # the routes that failed and why, ahead of the table's tail, which may not reach them
+    failures = [line for line in lines if line.startswith("FAIL ")]
+    return rc == 0 and failed == 0, "routes", summary, [] if rc == 0 else failures + lines[-30:]
 
 
 # ---- the shipping mode's fallbacks and the native shape -----------------------------

@@ -543,7 +543,7 @@ ObjectsAhead object_in_the_way(GameState *g, FieldObject obj)
             r = look_for_objects_ahead(g, obj, r, &n);
     }
     ORIGINAL_EFFECT(leave_target(g, r));
-    ORIGINAL_EFFECT(charge_search(g, n));
+    charge_search(g, n);
     return r;
 }
 

@@ -1004,7 +1004,14 @@ shadow run's per-call times):
   of memory with a store a word, about four frames of the original's time, and
   the port's fill took none (`battle_start_from_field`: 1,347,388 clocks of the
   original's against an estimate of 827, every battle). It is charged now
-  (`charge_as`, at the way in's own rate).
+  (`charge_as`, at the way in's own rate). The port clears all of it at once
+  and then pays the time, so for those four frames the whole of the battle's
+  memory reads as cleared, where the original's loop reaches the command
+  menu's cell late in its pass; the cell then reads 0, member 0's menu, and
+  three routes (`death_peak`, `death_peak_return`, `motherbrain`) took that for
+  a battle's first menu in the native-shape build and fought nothing. The
+  routes now ask `tools/movies/addresses.py`'s `battle_menu_open`, which also
+  wants the first member's max HP set, as some routes already did.
 - *Entries no calibration reached.* The timing report measured only stretches
   no interrupt fell in, and a routine whose calls always outlast a frame never
   has one: the battle's setup (`battle_set_up`, `battle_setup_state`,
@@ -1066,43 +1073,62 @@ its calibrated `cost_milli` estimate, measured and bounded by the timing gate
 above: it is what keeps the shipping mode's video writes where the vblank
 check wants them, frame by frame. The model charges only what no estimate can
 see because the port hands the work away: the C sound driver's boot and
-commands (below). Without a machine there is no bus to count and no registry
-of `cost_milli` linked, and the model is all the time there is: a frame runs
-its handlers and the main thread's work to its wait, and what the original
-spent frames on, its loads, is charged by what they moved. The two backings of `charge.h`
-divide it: `runtime/port/state_io.c` (the machine) puts a charge into the
-port's estimate, as it always has; `runtime/port/state_host.c` (`ct_native`)
-puts it into the model's. At the teardown the estimate and the timing gate
-retire with the machine that measures them; the model's constants, measured
-from it once, and the places' ratchet (below) are what stay.
+commands (below). Without a machine there is no bus to count, and the model
+is all the time there is: the game's own work timed as the machine's
+estimate times it, and what the ports hand away charged by what they moved.
+The two backings of `charge.h` divide it: `runtime/port/state_io.c` (the
+machine) puts a charge into the port's estimate, as it always has;
+`runtime/port/state_host.c` (`ct_native`) puts it, and the game's own work,
+into the model's. At the teardown the estimate and the timing gate retire
+with the machine that measures them; the model's constants and the rates,
+measured from it once, and the places' ratchet (below) are what stay.
 
-**What a lag frame is computed from.** From the charges alone. The host timing
-backend (`platform/native/timing.c`) keeps what the main thread owes since it
-last waited (`tm_host_charge`, and the game's state's own account through
-`TmHostProgram.owed`); at its wait for the frame, the frames owed to the
-nearest (the main thread's own work, which nothing counts, takes some of each
-frame too, and half a frame is the even guess) become lag frames, in which the
-vblank and line handlers run and the main thread doesn't, as the original's
-did while it loaded; the rest of the frame goes. A frame's own work is taken
-to fit its frame (`tm_frame_time_left` has time for everything). `timing_test`
-holds the arithmetic.
+**The game's own work, at the calibrated rates.** `ct_native` counts each
+access the game makes -- its accessors (`vars_ram.c`), its reads of the
+cartridge (`rom_host.c`), save RAM through the save service
+(`TmHostProgram.accessed`) -- at the bus clocks it takes on the machine (8, 6
+for the cartridge's), and times them at the `cost_milli` of the routine the
+work is tagged as (`TIMED_AS`, `NATIVE_TIME_AS`: `charge_time_as_begin`), the
+rate the machine calibrated for it. The rates are the registry's and the time
+tags' (`game/time_tags.c`), which the build writes as a table
+(`tools/time_rates.py`, `runtime/port/time_rates.h`), so the program keeps no
+registry and always has the last calibration's. A charge is made as on the
+machine: at its routine's rate, the accesses it stands for left out
+(`charge_uncounted_begin`), the unpacker at the price below. For that the
+charges are plain, not scaffolding (`game/charge.h`): 171 of them were in
+`ORIGINAL_EFFECT`, so the build with no scaffolding had none, and the
+native-shape build ran without them too. What isn't the game's work takes
+none: a guard's look (`vars_peek`, which the event engine's C path now takes
+as its machine path does), the C sound driver and the CPU half's side of a
+command (`frontend/sound_native.c`, whose time the hooks answer), the
+handlers' (below). The menus' load screen shows what this brings: its setup
+(`$C2:800E` up to its tasks) took the original 14.5 frames (the shadow run's
+estimate of its parts, 5.17 M clocks), and the model charged 2.4, its sends
+and sound alone; it charges 14.5 now, and `battle-ozzies-fort`'s battles start
+from a random number two from the reference's where they started twenty off.
 
-That last is a choice, tried the other way and measured. Counting the game's
-own reads and writes of its state in `ct_native` (every accessor goes through
-`state_host_read8` and `_write8`) at the ports' mean rate (the original's time
-against their bus clocks in the shadow runs' timing reports, about 5 to 1, 40
-clocks an access), the handlers' share taken off each frame and every whole
-frame past it a lag frame, the attract demo (no presses, so its places are the
-game's own time) kept to the reference far better: 1,229 frames behind at its
-end with the charges alone (2,023 before them), 390 with the work counted.
-But the library as a whole entered fewer places on time (279 and, at 30
-clocks an access, 291, against 296 with the charges alone at the time): a
-mean rate over-charges light frames and under-charges heavy ones, and a
-battle's turns land by the frame. The opening's flight over Guardia shows the
-gap: the original's per-frame work there overruns where the count says it
-fits, and its pan reaches the house 44 frames later than `ct_native`'s. A
-per-mode rate, or the overrunning routines' own rates, is the next step
-(TODO.md, "The native program").
+**What a lag frame is computed from.** The host timing backend
+(`platform/native/timing.c`) keeps what the main thread owes since it last
+waited (`tm_host_charge`, and the game's state's account through
+`TmHostProgram.owed`). As the main thread starts its part of a frame it takes
+what the handlers did since it last ran, the frame's own: that much less of
+the frame is the main thread's (up to half of it). At its wait, the whole
+frames its work fills, so measured, become lag frames, in which the vblank and
+line handlers run and the main thread doesn't, as the original's did while it
+worked; what is left fits in the frame and goes. Where the handlers change
+(`tm_enable_interrupts`), what is owed is sat out first, under the handlers
+it was done with: the menus' setup runs with the vblank handler off, and its
+fourteen frames pass with it off, as the original's, before the handler that
+counts the menus' frames comes on. `timing_test` holds the arithmetic.
+
+Before the work was timed, the frames owed went to the nearest, half a frame
+standing for the work nothing counted. Counting the work at one mean rate (40
+clocks an access) was tried then: the attract demo kept to the reference far
+better, but the library entered fewer places on time, a mean rate
+over-charging light frames and under-charging heavy ones. The routines' own
+rates are what follow the heavy frames, and with them the whole frames filled,
+not the nearest, are the measure: to the nearest, the field's every fifth
+frame (two thirds of a frame of work, which fits the original's frame) lagged.
 
 **What is charged, and at what rates** (each measured on the machine; the
 numbers in `time_model.h` with how):
@@ -1116,6 +1142,7 @@ numbers in `time_model.h` with how):
 | A song's start while the echo's buffer settles | what is left of the wait, counted after the time the port owes so far has passed (`native_sync`, `tm_host_sit_out_owed`) | the original's song waits on the ports for it; the driver's wait runs through the CPU's work after the last song, which reaches the ports only after that work |
 | The unpacker (`$C3:0002`), in `ct_native` | 64 a charged access | its charge counts the accesses the original makes to its own cells, which follow the stream; its whole time over new-game's 60 streams (29.0 M clocks in the shadow run) against those accesses |
 | A send to video memory from the main thread, in `ct_native` | 8 a byte | DMA's rate; the handlers' sends are the frame's own |
+| The game's own work, in `ct_native` | 8 a memory access (6 the cartridge's), at the tagged routine's `cost_milli` | the machine's estimate of a port, its rates the registry's and the time tags' as last calibrated; a charge at its routine's rate |
 
 The sound's are the wall's time under a light vblank handler, and the machine
 lets it pass as a wait (`native_wait_time`, interrupts taken meanwhile). The
@@ -1144,6 +1171,28 @@ enters in the reference's order. Over the 53 library movies (460 places):
 | Before | 240 | 34 |
 | The sound driver's time | 294 | 37 (339 places on time) |
 | And loads (`ct_native` only) | 299 | |
+
+Timing the game's own work was measured over the gate's 37-movie sample
+(`tools/native_check.py --movies ...`, against the suite's shadow runs): 194 of
+the reference's 293 places entered on time before, 209 after; the places
+entered within 5 frames of the reference's, 148 before and 196 after; and the
+attract demo, whose places are the game's own time, 1,229 frames behind the
+reference at its end before and 211 after. Movies ending as the
+reference's: 18 of 36 compared before, 18 of 37 after (`events-fair-rescue`,
+`late-omen-terramutant` and `menus-shop-inn` among those that now do,
+`menus-end-of-time` and `battle-magus` among those that now drift). The new
+time took `late-omen-battles` into a battle where an enemy waits for its
+target to move with none in sight, which the program's C path refused
+though the movement's entry takes it (`battle_enemy_movement_needs_target`
+now says the waiting movement goes on with none); it now reaches its end.
+The native outcomes were re-recorded with it (`tools/outcomes_exceptions.txt`,
+each line's reason naming the change); the protections lost leave
+`tools/outcomes_baseline.txt` (the end state of `menus-end-of-time`, the save
+RAM of `events-death-peak`, a place of `events-ocean-palace-lavos` and
+checkpoint pictures in eight movies, each a run whose places keep to the
+reference's within the window but whose frames moved), and the matches
+gained join it; `tools/places_baseline.txt` takes the counts the change
+brings (none lower).
 
 Strict mode's three, `battle-magus`, `battle-tyrano-lair-walls` and
 `field-factory-switch`, now end as the reference's, and none ends worse; in

@@ -663,7 +663,7 @@ static uint16_t move_the_block(GameState *g)
     uint32_t bytes = size ? size : 0x10000u;
     ORIGINAL_EFFECT(set_menu_block_move_stub(g, (uint32_t)STUB_BANK_AND_RETURN << 16 | STUB_BLOCK_MOVE));
     wram_copy(g, 0x7E0000u | from, 0x7E0000u | to, bytes);
-    ORIGINAL_EFFECT(charge_block_move(g, bytes));
+    charge_block_move(g, bytes);
     return (uint16_t)(to + bytes);
 }
 
@@ -887,7 +887,7 @@ void menu_build_math_table(GameState *g, Platform *pf)
     enum { TABLE_BYTES = 0x100 };
     for (unsigned i = 0; i < MENU_MATH_RAMP_COLORS_COUNT; i++)
         set_menu_math_ramp_colors(g, i, menu_math_ramp_color(g, i));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * MENU_MATH_RAMP_COLORS_COUNT));
+    charge_block_move(g, 2 * MENU_MATH_RAMP_COLORS_COUNT);
     const VidLineEffect e = { .target = VID_LINE_MATH_LAYERS, .table = PF_GAME(RAM_MENU_MATH_LINE_TABLES),
                               .indirect = false, .indirect_bank = 0x7E };
     vid_set_line_slot(pf, PF_AT(0xC286ED), 0, &e);
@@ -1035,7 +1035,7 @@ enum { MAIN_LAYERS = 0x17, SUB_LAYERS = 0x13 };
 void menu_object_reset_the_mode(GameState *g)
 {
     wram_fill8(g, RAM_MENU_OBJECT_SCRATCH, MODE_PAGE_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, MODE_PAGE_BYTES - 1));
+    charge_block_move(g, MODE_PAGE_BYTES - 1);
     set_menu_object_display_blank(g, SCREEN_OFF);
     set_menu_object_shadows_bg_mode(g, MODE_1_BG3_IN_FRONT);
     set_menu_object_shadows_mode7_matrix_byte(g, MATRIX_A_HIGH, IDENTITY_HIGH);

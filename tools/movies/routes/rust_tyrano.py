@@ -79,7 +79,7 @@ def main():
         if start <= 3:
             assert run.wait_control()
             assert run.walk(lambda m, x, y: not m.b(CONTROL)) is not None
-            assert run.dialogs_until(lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80, 5000)
+            assert run.dialogs_until(lambda: A.battle_menu_open(m), 5000)
             m.run(700)                 # the party and Tyrano take their places
             run.checkpoint("battle")
         if start <= 4:

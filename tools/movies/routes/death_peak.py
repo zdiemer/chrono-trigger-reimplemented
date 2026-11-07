@@ -121,7 +121,7 @@ def spawn_policy(bot, state, rng, inventory):
 
 def spawn(run, bit, seed):
     m = run.machine
-    assert run.dialogs_until(lambda: m.b(A.BATTLE_MENU_MEMBER) < 128, 4000), "the Spawn's command menu"
+    assert run.dialogs_until(lambda: A.battle_menu_open(m), 4000), "the Spawn's command menu"
     run.fight(spawn_policy, lambda r, state: state.hp(9) == 0, seed=seed, max_frames=15000)
     assert run.wait_control(5000), "the field after the Spawn"
     assert m.b(0x7F0064) & bit, "the Spawn's victory flag"

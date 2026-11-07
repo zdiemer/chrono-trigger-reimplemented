@@ -307,10 +307,10 @@ static Way look(GameState *g, Walk *w, uint16_t x, uint16_t y)
     ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_X, x));
     ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_Y, y));
     MapPlace place = place_of(g, w->look);
-    ORIGINAL_EFFECT(charge_as(g, THE_WALK, ACCESSES_A_LOOK));
+    charge_as(g, THE_WALK, ACCESSES_A_LOOK);
     if (!(field_tile_walkable(g, place.row, place.column) & WALKABLE))
         return WAY_WALL;
-    ORIGINAL_EFFECT(charge_as(g, THE_WALK, ACCESSES_THE_GROUND));
+    charge_as(g, THE_WALK, ACCESSES_THE_GROUND);
     Ground ground = ground_at(g, place, (uint8_t)x, (uint8_t)y);
     if (ground.climb)
         w->step.y = slowed_to_a_climb(w->step.y);

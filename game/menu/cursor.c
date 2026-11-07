@@ -276,14 +276,14 @@ void menu_keep_cursor_places(GameState *g)
 {
     for (unsigned place = 0; place < MENU_CURSOR_PLACES_KEPT_COUNT; place++)
         copy_place(g, place, true);
-    ORIGINAL_EFFECT(charge_block_move(g, MENU_CURSOR_PLACES_KEPT_COUNT * PLACE_BYTES));
+    charge_block_move(g, MENU_CURSOR_PLACES_KEPT_COUNT * PLACE_BYTES);
 }
 
 void menu_put_cursor_places_back(GameState *g)
 {
     for (unsigned place = 0; place < MENU_CURSOR_PLACES_KEPT_COUNT; place++)
         copy_place(g, place, false);
-    ORIGINAL_EFFECT(charge_block_move(g, MENU_CURSOR_PLACES_KEPT_COUNT * PLACE_BYTES));
+    charge_block_move(g, MENU_CURSOR_PLACES_KEPT_COUNT * PLACE_BYTES);
 }
 
 /* ---- The entries -------------------------------------------------------------------------------- */

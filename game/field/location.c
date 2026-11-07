@@ -67,14 +67,14 @@ enum {
 void field_put_the_state_aside(GameState *g)
 {
     wram_copy(g, FIELD_STATE_FROM, FIELD_STATE_ASIDE, FIELD_STATE_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, FIELD_STATE_BYTES));
+    charge_block_move(g, FIELD_STATE_BYTES);
 }
 
 // $C0:0905
 void field_bring_the_state_back(GameState *g)
 {
     wram_copy(g, FIELD_STATE_ASIDE, FIELD_STATE_FROM, FIELD_STATE_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, FIELD_STATE_BYTES));
+    charge_block_move(g, FIELD_STATE_BYTES);
 }
 
 /* A party with no leader on the map (as a save's load leaves it, or the
@@ -436,13 +436,13 @@ void field_load_location_palette(GameState *g)
     uint8_t palette = location_palette(g, location_record_offset(g));
     ORIGINAL_EFFECT(leave_the_palette_product(g, palette));
     uint32_t mark = 0;
-    ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
+    mark = charge_uncounted_begin(g);
     for (unsigned row = 0; row < LOCATION_PALETTE_ROWS; row++)
         for (unsigned c = 0; c < LOCATION_PALETTE_ROW_COLOURS; c++)
             set_palette_base(g, (FIRST_ROW + row) * ROW_COLOURS + FIRST_ROW_COLOUR + c,
                              location_palette_colour(g, palette, row, c));
-    ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-    ORIGINAL_EFFECT(charge_block_move(g, LOCATION_PALETTE_BYTES));
+    charge_uncounted_end(g, mark);
+    charge_block_move(g, LOCATION_PALETTE_BYTES);
     (void)mark;
 }
 
@@ -539,15 +539,15 @@ enum { BUILT_IN_COPIES = sizeof built_in_copies / sizeof built_in_copies[0] };
 static void copy_the_built_in_commands(GameState *g)
 {
     uint32_t mark = 0, bytes = 0;
-    ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
+    mark = charge_uncounted_begin(g);
     for (unsigned c = 0; c < BUILT_IN_COPIES; c++) {
         for (uint16_t i = 0; i < built_in_copies[c].bytes; i++)
             set_event_script_byte(g, (uint16_t)(built_in_copies[c].to + i),
                                   built_in_command_byte(g, (uint16_t)(built_in_copies[c].from + i)));
         bytes += built_in_copies[c].bytes;
     }
-    ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-    ORIGINAL_EFFECT(charge_block_move(g, bytes));
+    charge_uncounted_end(g, mark);
+    charge_block_move(g, bytes);
     (void)mark;
     (void)bytes;
 }
