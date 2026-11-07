@@ -1171,11 +1171,21 @@ the reference's 293 places entered on time before, 209 after; the places
 entered within 5 frames of the reference's, 148 before and 196 after; and the
 attract demo, whose places are the game's own time, 1,229 frames behind the
 reference at its end before and 211 after. Movies ending as the
-reference's: 18 of 36 compared, before and after (`events-fair-rescue`,
+reference's: 18 of 36 compared before, 18 of 37 after (`events-fair-rescue`,
 `late-omen-terramutant` and `menus-shop-inn` among those that now do,
-`battle-magus` among those that drift where it ended; `late-omen-battles`
-now reaches an enemy's movement the program doesn't run, at frame 16,487 of
-18,412).
+`menus-end-of-time` and `battle-magus` among those that now drift). The new
+time took `late-omen-battles` into a battle where an enemy waits for its
+target to move with none in sight, which the program's C path refused
+though the movement's entry takes it (`battle_enemy_movement_needs_target`
+now says the waiting movement goes on with none); it now reaches its end.
+The native outcomes were re-recorded with it (`tools/outcomes_exceptions.txt`,
+each line's reason naming the change); the protections lost leave
+`tools/outcomes_baseline.txt` (the end state of `menus-end-of-time`, the save
+RAM of `events-death-peak`, a place of `events-ocean-palace-lavos` and
+checkpoint pictures in nine movies, each a run whose places keep to the
+reference's within the window but whose frames moved), and the matches
+gained join it; `tools/places_baseline.txt` takes the counts the change
+brings (none lower).
 
 Strict mode's three, `battle-magus`, `battle-tyrano-lair-walls` and
 `field-factory-switch`, now end as the reference's, and none ends worse; in
