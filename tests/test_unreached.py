@@ -69,6 +69,15 @@ class UnreachedTest(unittest.TestCase):
         (self.root / 'guard.c').write_text('guard removed\n')
         self.assertTrue(self.check())
 
+    def test_open_bytes_only_ahead_of_a_teardown(self):
+        open_row = ['open', 'C01000', 'C01000-C01002', '3', 'not yet evidenced']
+        records = self.records[:-1] + [open_row]
+        self.assertTrue(self.check(records=records))
+        field = [['port', 'field'] + self.records[1][2:]] + [open_row]
+        self.assertEqual(self.check(records=self.records[:1] + field, rows=[dict(self.row, subsystem='field')]), [])
+        self.assertEqual(u.open_summary(field), 'field 3 bytes in 1 entries')
+        self.assertTrue(self.check(records=self.records + [open_row]))
+
     def test_fuzz_must_match_and_recipe_must_be_current(self):
         records = self.records[:-1] + [['fuzz', 'C01000', 'C01000-C01002', '3',
                                        'case', '1', '1000', '999', 'fingerprint', '0', 'boundary']]

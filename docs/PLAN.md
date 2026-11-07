@@ -716,12 +716,15 @@ taking the gate down needs, before it and after it.
 
 - **The code no movie reaches, checked before its subsystem retires.**
   Extend `tools/unreached.py` to the remaining 65816 subsystems: battle,
-  field, menu and scene. Compare the full library's coverage with their
+  menu and scene. Compare the full library's coverage with their
   ported live reach, then fuzz the missing paths against the original before
   retiring their gates. Every remaining byte needs a passing comparison or
   an explicit safety argument in the ledger, with its retirement obligations
   in TODO.md. The sampled gate checks the full-library ledger; it cannot
-  establish absence from movies it does not run.
+  establish absence from movies it does not run. The events are covered;
+  the field is inventoried with 216 bytes `open` in 8 entries, three of them
+  mismatching under fuzz, which its teardown waits on (TODO.md, "The field's
+  unreached paths, before it retires").
 - **The game's state as C, not a work-RAM image.** Even `ct_native` keeps the
   game's state as the 128 KiB byte image the accessors read and write, which
   is the original's memory layout carried into the product. When a subsystem

@@ -4293,36 +4293,52 @@ all decoded callees until another registered entry owns them. It does not
 use burndown's stop/call-out pruning. Missing instructions and unresolved
 calls or jumps are listed by entry and address and fail the inventory.
 
-The inventory covers 361 entries in six subsystems plus the screen command's
-separately registered field restart dependency, using the existing
-84-movie coverage union (the movie inputs agree with the checkout supplying
-it). Optional hand recordings are outside that standard library. No game
-code changed in this work. Since the scene merge registered the map-turning
-callback (`scene_turn_map`, `$7E:7441`) as its own entry, the attract frame
-pass no longer reaches it and attract has no unreached bytes. The data
-subsystem's two entries, at 0 bytes, left the inventory with its teardown
-(359 entries since): its code is retired, which the walk leaves out as
-burndown does ("The data subsystem's teardown"), and the two event
-commands whose graphics-overflow arguments cite the unpacking's C
-(`characters.c`) were reviewed again and their digests taken anew.
+The inventory covers the subsystems still under the gate that a teardown
+is next for, and keeps the rows of those that retired until their callers
+do: 463 entries now (core 11, event 250, field 202), using the 84-movie
+coverage union of the library's shadow runs (the movie inputs agree with
+the checkout supplying it). Optional hand recordings are outside that
+standard library. The data, warp and overworld subsystems left it with
+their teardowns, and attract has no rows since its main loop's passes
+became a held wait's continuations (RUNTIME.md, "Held waits").
 
-| Subsystem | Bytes no movie executes | Executed in matched fuzz trials | Reviewed safety argument |
-|---|--:|--:|--:|
-| attract | 0 | 0 | 0 |
-| data | 0 | 0 | 0 |
-| core | 421 | 417 | 4 |
-| warp | 104 | 95 | 9 |
-| overworld | 1,354 | 1,318 | 36 |
-| event | 1,498 | 1,426 | 72 |
-| field restart dependency | 5 | 0 | 5 |
-| Total | 3,382 | 3,256 | 126 |
+| Subsystem | Bytes no movie executes | Executed in matched fuzz trials | Reviewed safety argument | Open |
+|---|--:|--:|--:|--:|
+| core | 11 | 7 | 4 | 0 |
+| event | 1,490 | 1,418 | 72 | 0 |
+| field | 2,229 | 1,946 | 67 | 216 |
+| Total | 3,730 | 3,371 | 143 | 216 |
+
+**The field, inventoried ahead of its teardown.** The field joined the audit
+before its paths were all checked, so the ledger takes a fourth kind of
+row for it: `open`, bytes neither compared nor argued, which `unreached.py`
+accepts only for a subsystem in its `OPEN` list and `--check` reports as
+what that subsystem's teardown waits on. A subsystem retires with none.
+Of its 202 entries, 51 have code no movie runs. The field's own recipes
+(`tools/fuzz_routines.toml`) executed 1,598 of those 2,229 bytes as they
+stood; targeted cases took 348 more. Most of what was left sits behind the
+field's frame wait (`$C0:EC60`), which spins until the vblank handler clears
+its count and so never returned under `ct_fuzz`: `--tick-at C0EC71=7E0152`
+stands in for the handler on both machines, the count wrapping to zero, and
+the ripple, the field's close into a scene, the fade after a battle and a
+battle request that finds no enemy run to their ends. The rest took a
+state the recipes didn't make: the window design sent at a vblank, a
+choice's pointer at its bounds, the view's edges clamped, a dialog's
+speaker leaving view, every sprite block given. Three arguments are
+reviewed instead: a vertical line-up arm dead by arithmetic, a tile set's
+eighth block that no location's set has, and a location load error only a
+word the entry's guard refuses reaches. The 216 open bytes are in TODO.md,
+"The field's unreached paths, before it retires", with what fuzzing found
+on the way: a party member's palette slot shared with another object
+mismatches (`field_take_palette:unreached_party_shares`), and the map's
+unpacking and the set-up after a menu mismatch on their plain recipes.
 
 `tools/unreached_baseline.txt` is the greppable ledger: a movie manifest,
 one inventory row per entry (including zero-byte entries), and exact byte
-runs attached to passing fuzz recipes or reviewed safety reasons. The
-first record's 102 cited recipes made 100,400 trials, 70,097 matched, zero mismatches
-(108 are cited since the screen effects and the controller's ready sample got
-entries of their own); skips
+runs attached to passing fuzz recipes, reviewed safety reasons or, for a
+subsystem inventoried ahead of its teardown, `open`. The
+first record's 102 cited recipes made 100,400 trials, 70,097 matched, zero mismatches;
+with the field's, 118 are cited, 122,400 trials, 83,922 matched; skips
 contribute no evidence. `ct_fuzz --coverage` accumulates original instructions
 only after a trial matches. Logs with accessor/page/resource diagnostics
 are rejected, even when the comparator reports a match. Broader casting
@@ -4357,8 +4373,8 @@ the per-effect entries (`event_screen_cover_left` and its siblings), machine
 bridges over the same `run_screen_command` table, so the file's shared list
 names the screen command as their caller. The restart's five-byte wait
 belongs to `field_restart_wait_for_vblank_loop`;
-that dependency has its own ledger row rather than disappearing at an
-ownership boundary.
+it has its own ledger row (a dependency the audit took in before the field
+joined it) rather than disappearing at an ownership boundary.
 
 **What is reviewed rather than executed.** Most exclusions are rejected
 selectors, missing-resource diagnostics, explicit error handoffs or branches
@@ -4375,7 +4391,7 @@ The conservative traversal also exposes the controller's reset transfer
 Their source-bound review arguments are explicit. The field restart's
 five-byte wait uses the documented vblank timing escape, not byte-exact
 timing equivalence; its following 11 bytes are `field_restart_in_the_dark`'s,
-a field entry outside the audit.
+whose own comparisons execute them.
 
 **The ratchet.** `tools/unreached.py --check` re-derives the current port reach
 and checks the ledger's movie hashes, recipe fingerprints, proof coverage
@@ -4439,4 +4455,4 @@ are applied to both machines.
 
 The focused unreached and burndown unit tests pass without a ROM. The
 sampled gate's `--long-routes --evidence` run rechecks the complete ledger
-and replays all 108 cited recipes alongside its normal validation.
+and replays all 118 cited recipes alongside its normal validation.
