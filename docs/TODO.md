@@ -3018,6 +3018,18 @@ comparisons.
 
 ## The native program
 
+- **What the overworld teardown's review left.** `the_cartridges_overworld`
+  (`dev/fallbacks.c`) says the menus' helpers the overworld calls are left out,
+  which doesn't hold for helpers a handler calls directly (their caller's frame
+  is `$C2:0553`): they are still counted, the safe side, so fix the comment or
+  the walk. Two retired routines kept no estimate (`overworld_within_reach`,
+  `overworld_region_at`; nothing times anything as them): the teardown section
+  should say so. The charges taken out of `ORIGINAL_EFFECT` now charge time in
+  the native-shape build too, so "the native shape's pace" is approximate.
+  `next_frame` in `overworld/main_loop.c` returns a `bool` nothing reads. The
+  machine forms skip the run's `--exclude` check `native_hand_entry_at` makes;
+  and a comparison of `menu_run_objects` and `menu_object_nmi` of their own on
+  the world map would let their two uncompared-baseline lines go.
 - **What the object mode's vblank review left.** `turn_on_the_machine`
   (`menu/objects.c`) checks a handler's entry before the return is pushed and
   PC moved, so a guard that reads S, PC or the stack sees another machine than
