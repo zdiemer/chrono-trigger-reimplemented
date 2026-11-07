@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "charge.h"
 #include "core/sound_commands.h"
 #include "platform/native/mixer.h"
 #include "platform/time_model.h"
@@ -225,10 +226,14 @@ static void pass(void *ctx, uint32_t cycles)
 
 /* ---- The hooks --------------------------------------------------------------------------------- */
 
+/* The driver's work, and the CPU half's that hands it a command, are not the
+ * game's own time: the original's time for them is what the hooks answer. */
 static void send(void *ctx, AudioCommand c)
 {
     SoundNative *n = ctx;
+    uint32_t mark = charge_uncounted_begin(n->game);
     sound_driver_send(n->game, n->pf, c);
+    charge_uncounted_end(n->game, mark);
 }
 
 /* The boot and the game's commands answer the original's time for them
@@ -244,7 +249,9 @@ static uint32_t boot(void *ctx)
     n->driver.echo_waits = true;
     memset(n->in, 0, sizeof n->in);
     memset(n->out, 0, sizeof n->out);
+    uint32_t mark = charge_uncounted_begin(n->game);
     sound_boot(&n->driver, n->game, mixer_voices(&n->mixer));
+    charge_uncounted_end(n->game, mark);
     n->booted = true;
     n->starting = time_in_spc_cycles(TIME_SOUND_BOOT);
     n->phase = WAITING;
@@ -267,7 +274,9 @@ static uint32_t command(void *ctx, AudioCommand c, uint8_t effects_asked)
         return 0;
     uint32_t waited = time_sound_song_start(c.command) ? time_of_spc_cycles(echo_wait_left(n)) : 0;
     uint32_t sent = n->driver.bytes_sent, moved = n->driver.bytes_moved;
+    uint32_t mark = charge_uncounted_begin(n->game);
     take(n, (Held){ { c.command, c.p1, c.p2, c.p3 }, true, effects_asked });
+    charge_uncounted_end(n->game, mark);
     return waited + time_of_sound_command(c.command, n->driver.bytes_sent - sent, n->driver.bytes_moved - moved);
 }
 

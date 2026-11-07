@@ -371,7 +371,7 @@ void menu_exchange_panel_start(GameState *g, Platform *pf)
     TIMED_AS(g, 0xC2F90C, (void)menu_set_label_laid_out(g, MENU_LABEL_STRINGS, label, GATE_LABEL_AT, MENU_TEXT_SIXTEEN_COLOUR_LABEL));
     for (unsigned i = 0; i < GATE_COLOURS; i++)
         set_menu_palette(g, GATE_COLOURS_TO + i, menu_palette(g, GATE_COLOURS_FROM + i));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * GATE_COLOURS));
+    charge_block_move(g, 2 * GATE_COLOURS);
 }
 
 void menu_exchange_put_the_gate_sprite_on_its_record(GameState *g)
@@ -406,7 +406,7 @@ void menu_exchange_panel_colours(GameState *g)
         set_menu_palette(g, PANEL_COLOURS + i, menu_rom_colour(g, MENU_ROM_EXCHANGE_PANEL_COLOURS, i));
     for (unsigned i = 0; i < MENU_EXCHANGE_HIGHLIGHT_COLOURS; i++)
         set_menu_palette(g, HIGHLIGHT + i, menu_rom_colour(g, MENU_ROM_ITEMS_HIGHLIGHT_COLOURS, i));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * (MENU_EXCHANGE_PANEL_COLOURS + MENU_EXCHANGE_HIGHLIGHT_COLOURS) + ROW_COPIED));
+    charge_block_move(g, 2 * (MENU_EXCHANGE_PANEL_COLOURS + MENU_EXCHANGE_HIGHLIGHT_COLOURS) + ROW_COPIED);
     TIMED_AS(g, 0xC2F5A7, menu_load_character_colours(g));
     TIMED_AS(g, 0xC2A0E7, menu_equip_dim_colours(g, DIMMED_COLOURS_AT));
     list_the_party(g);

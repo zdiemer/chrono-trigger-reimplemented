@@ -85,7 +85,7 @@ static void clear_the_row(GameState *g)
     uint16_t at = row_start(g), bytes = menu_description_row_bytes(g);
     for (uint16_t i = 0; i < bytes; i += TILE_BYTES)
         lay_tile(g, (uint16_t)(at + i), 0);
-    ORIGINAL_EFFECT(charge_block_move(g, (uint16_t)(bytes - TILE_BYTES)));
+    charge_block_move(g, (uint16_t)(bytes - TILE_BYTES));
 }
 
 /* The text's tiles, in work RAM's bank as the screen set it. */
@@ -264,7 +264,7 @@ void menu_describe_setting(GameState *g, uint8_t option, uint8_t value_text)
         set_menu_text_string(g, option);
         for (uint16_t at = 0; at < LINE_BYTES; at += TILE_BYTES)
             lay_tile(g, (uint16_t)(TEXT_LAYER_AT + at), 0);
-        ORIGINAL_EFFECT(charge_block_move(g, LINE_BYTES - TILE_BYTES));
+        charge_block_move(g, LINE_BYTES - TILE_BYTES);
         menu_start_task(g, MENU_DESCRIPTION_TASK, TYPE_A_SETTING);
     } else if (menu_tasks_state(g, MENU_DESCRIPTION_TASK) == 0 && value_text != menu_description_stale(g)) {
         uint16_t from = menu_description_line_from(g);

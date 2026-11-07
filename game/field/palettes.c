@@ -93,14 +93,14 @@ void object_load_colours(GameState *g, FieldObject obj)
     unsigned to = object_first_colour(g, obj) + FIRST_OBJECT_COLOUR;
     uint16_t from = field_object_colours(g, obj);
     uint32_t mark = 0;
-    ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
+    mark = charge_uncounted_begin(g);
     for (unsigned n = 0; n < FIELD_SPRITE_COLOURS; n++) {
         uint16_t colour = field_sprite_colour(g, from, n);
         set_palette_base(g, to + n, colour);
         set_palette_working(g, to + n, colour);
     }
-    ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * FIELD_SPRITE_COLOURS * 2));
+    charge_uncounted_end(g, mark);
+    charge_block_move(g, 2 * FIELD_SPRITE_COLOURS * 2);
     (void)mark;
 }
 
@@ -297,7 +297,7 @@ void party_palette_moves_up(GameState *g, unsigned from)
     unsigned to = FIRST_SPRITE_COLOUR + (LEADERS_PALETTE + from - 1u) * COLOURS_A_PALETTE;
     for (unsigned c = 0; c < COLOURS_A_PALETTE; c++)
         set_palette_base(g, to + c, palette_base(g, to + COLOURS_A_PALETTE + c));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * COLOURS_A_PALETTE));
+    charge_block_move(g, 2 * COLOURS_A_PALETTE);
 }
 
 // $C0:3711

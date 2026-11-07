@@ -44,7 +44,7 @@ static void put_tile_byte(GameState *g, uint16_t at, uint8_t v) { wram_write8(g,
 static void move_block(GameState *g, uint32_t from, uint16_t to, uint32_t bytes)
 {
     wram_copy(g, from, in_work_ram(to), bytes);
-    ORIGINAL_EFFECT(charge_block_move(g, bytes));
+    charge_block_move(g, bytes);
 }
 
 static void move_in_work_ram(GameState *g, uint16_t from, uint16_t to, uint32_t bytes) { move_block(g, in_work_ram(from), to, bytes); }
@@ -149,7 +149,7 @@ static void queue_in_place_of(GameState *g, uint16_t first, unsigned count)
 {
     set_menu_vram_queue_bytes(g, 0);
     queue_records(g, first, count);
-    ORIGINAL_EFFECT(charge_block_move(g, count * MENU_UPLOAD_BYTES));
+    charge_block_move(g, count * MENU_UPLOAD_BYTES);
 }
 
 /* ---- The sets ------------------------------------------------------------------------------ */
@@ -211,7 +211,7 @@ static void load_colours(GameState *g, uint16_t from, unsigned first, unsigned c
 {
     for (unsigned i = 0; i < count; i++)
         set_menu_palette(g, first + i, menu_rom_colour(g, from, i));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * count));
+    charge_block_move(g, 2 * count);
 }
 
 // $C2:975D-$C2:9798

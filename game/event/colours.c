@@ -82,7 +82,7 @@ static void start_fade(GameState *g, uint8_t slot, const ColourEffect *e, unsign
 static void write_script_colours(GameState *g, unsigned first, uint16_t at, uint16_t bytes)
 {
     uint32_t mark = 0;
-    ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
+    mark = charge_uncounted_begin(g);
     for (uint16_t b = 0; b < bytes; b += 2) {
         unsigned colour = first + b / 2u;
         uint8_t low = script_byte(g, (uint16_t)(at + b));
@@ -93,8 +93,8 @@ static void write_script_colours(GameState *g, unsigned first, uint16_t at, uint
             value = (uint16_t)((palette_base(g, colour) & 0xFF00) | low);
         set_palette_base(g, colour, value);
     }
-    ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-    ORIGINAL_EFFECT(charge_block_move(g, 2u * bytes));
+    charge_uncounted_end(g, mark);
+    charge_block_move(g, 2u * bytes);
     (void)mark;
 }
 

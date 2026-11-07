@@ -28,8 +28,17 @@ bool vars_peeking(void) { return peeking; }
 
 #include "port/state_host.h"
 
-static uint8_t r8(const GameState *g, uint32_t a) { return state_host_read8(g, a); }
-static void w8(GameState *g, uint32_t a, uint8_t v) { state_host_write8(g, a, v); }
+static uint8_t r8(const GameState *g, uint32_t a)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    return state_host_read8(g, a);
+}
+static void w8(GameState *g, uint32_t a, uint8_t v)
+{
+    state_host_game_access(g, 8);
+    state_host_write8(g, a, v);
+}
 
 #else
 

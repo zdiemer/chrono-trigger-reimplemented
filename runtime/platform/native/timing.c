@@ -44,6 +44,10 @@ void tm_host_frame(Platform *pf)
         t->program.vblank(pf, t->program.ctx);
     }
     t->part = TM_HOST_IN_MAIN;
+    /* what the handlers did since the main thread last ran, the line
+     * handler's and the vblank's, is the frame's own time, not the main
+     * thread's: it is what the frame leaves the main thread less */
+    t->handlers = t->program.owed ? t->program.owed(t->program.ctx) : 0;
     if (t->lagging) {
         t->lagging--;
         t->lag_frames++;
@@ -78,16 +82,45 @@ void tm_host_charge(Platform *pf, uint32_t clocks)
 
 uint32_t tm_host_lag_frames(const Platform *pf) { return pf->timing.lag_frames; }
 
-/* The main thread's wait with time owed, its own charges and what the game's
- * state kept (TmHostProgram.owed): the frames it spans, to the nearest, are
- * lag frames. To the nearest, since the main thread's own work in the frame,
- * which nothing counts, takes some of it too, half a frame being the even
- * guess. */
-static void lag_for_what_is_owed(TmHost *t)
+void tm_host_game_access(Platform *pf, uint32_t clocks)
+{
+    TmHost *t = &pf->timing;
+    if (t->program.accessed)
+        t->program.accessed(t->program.ctx, clocks);
+}
+
+/* The whole frames the main thread's work fills: each frame has its time
+ * less the handlers' for it (as much as half a frame: a handler that takes
+ * more leaves the frame to a main thread that does little), and what is left
+ * over fits in the frame the wait is in. */
+static uint32_t main_threads_frame(const TmHost *t)
+{
+    return TIME_FRAME_CLOCKS - (t->handlers < TIME_FRAME_CLOCKS / 2 ? t->handlers : TIME_FRAME_CLOCKS / 2);
+}
+
+static uint32_t frames_filled(const TmHost *t) { return t->owed / main_threads_frame(t); }
+
+static void take_the_games_account(TmHost *t)
 {
     if (t->program.owed)
         t->owed = sum(t->owed, t->program.owed(t->program.ctx));
-    t->lagging += (uint32_t)(((uint64_t)t->owed + TIME_FRAME_CLOCKS / 2) / TIME_FRAME_CLOCKS);
+}
+
+static void report_lag(TmHost *t, uint32_t frames)
+{
+    if (frames && t->program.lagged)
+        t->program.lagged(t->program.ctx, t->frame, frames, t->owed);
+}
+
+/* The main thread's wait with time owed, its own charges and what the game's
+ * state kept (TmHostProgram.owed): the whole frames its work fills are lag
+ * frames, and the rest is the frame's own. */
+static void lag_for_what_is_owed(TmHost *t)
+{
+    take_the_games_account(t);
+    uint32_t frames = frames_filled(t);
+    report_lag(t, frames);
+    t->lagging += frames;
     t->owed = 0;
 }
 
@@ -96,14 +129,15 @@ void tm_host_sit_out_owed(Platform *pf)
     TmHost *t = &pf->timing;
     if (t->part != TM_HOST_IN_MAIN)
         return;
-    if (t->program.owed)
-        t->owed = sum(t->owed, t->program.owed(t->program.ctx));
-    uint32_t frames = (uint32_t)(((uint64_t)t->owed + TIME_FRAME_CLOCKS / 2) / TIME_FRAME_CLOCKS);
+    take_the_games_account(t);
+    uint32_t frames = frames_filled(t);
     if (!frames)
         return;
-    /* the main thread goes on in the frame after the last it sits out */
+    report_lag(t, frames);
+    /* the main thread goes on in the frame after the last it sits out, with
+     * what was left over still owed */
     t->lagging += frames - 1;
-    t->owed = 0;
+    t->owed %= main_threads_frame(t);
     t->waiting = fiber_current();
     fiber_switch(t->driver);
 }
@@ -113,6 +147,10 @@ void tm_host_sit_out_owed(Platform *pf)
 void tm_enable_interrupts(Platform *pf, PfOrigin o, uint8_t sources)
 {
     (void)o;
+    /* the frames the main thread's work so far spans went by with the
+     * handlers it had, the original's setup running with them off */
+    if (sources != pf->timing.interrupts)
+        tm_host_sit_out_owed(pf);
     pf->timing.interrupts = sources;
 }
 

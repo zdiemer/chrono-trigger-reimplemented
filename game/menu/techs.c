@@ -87,7 +87,7 @@ void menu_list_techs(GameState *g, uint8_t character, MenuTechKind kind)
 {
     for (unsigned i = 0; i < CLEARED_PLACES; i++)
         set_menu_tech_list(g, i, MENU_NO_TECH);
-    ORIGINAL_EFFECT(charge_block_move(g, CLEARED_PLACES));
+    charge_block_move(g, CLEARED_PLACES);
     uint8_t groups[MENU_TECH_MEMBER_GROUPS_COUNT];
     unsigned found = groups_of(g, character, kind, groups);
     uint8_t listed = 0;

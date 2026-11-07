@@ -282,7 +282,7 @@ static void colour_the_amounts(GameState *g)
 {
     for (unsigned i = 0; i < MENU_AMOUNT_COLOURS; i++)
         set_menu_palette(g, MENU_FIRST_AMOUNT_COLOUR + i, menu_rom_colour(g, MENU_ROM_AMOUNT_COLOURS, i));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * MENU_AMOUNT_COLOURS));
+    charge_block_move(g, 2 * MENU_AMOUNT_COLOURS);
 }
 
 // $C2:8F55

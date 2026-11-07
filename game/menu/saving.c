@@ -82,7 +82,7 @@ static void make_room_for_the_summary(GameState *g)
 {
     for (unsigned tile = SUMMARY_FROM_ROW * TILES_A_ROW; tile < (SUMMARY_FROM_ROW + SUMMARY_ROWS) * TILES_A_ROW; tile++)
         set_menu_front_tilemap(g, tile, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * SUMMARY_ROWS * TILES_A_ROW - 2));
+    charge_block_move(g, 2 * SUMMARY_ROWS * TILES_A_ROW - 2);
     set_menu_description_item(g, NOTHING_DESCRIBED);
     set_menu_description_stale(g, NOTHING_DESCRIBED);
     uint8_t slot = save_slot_chosen(g);
@@ -97,7 +97,7 @@ static void finish_the_screen(GameState *g, Platform *pf)
     set_menu_scroll_y(g, TEXT_LAYER, A_LINE_UP);
     for (unsigned i = 0; i < MENU_LOAD_SCREEN_TEXT_COLOURS; i++)
         set_menu_palette(g, TEXT_COLOURS_AT + i, menu_load_screen_text_colour(g, i));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * MENU_LOAD_SCREEN_TEXT_COLOURS));
+    charge_block_move(g, 2 * MENU_LOAD_SCREEN_TEXT_COLOURS);
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     TIMED_AS(g, 0xC2984A, menu_clear_sprites(g));
     TIMED_AS(g, 0xC286DD, menu_build_math_table(g, pf));

@@ -175,7 +175,7 @@ void menu_equip_open(GameState *g) { next_step(g); }
 void menu_equip_set_up_screen(GameState *g, Platform *pf)
 {
     wram_fill8(g, 0x7E0000u | HIDDEN_ROWS_AT, HIDDEN_ROWS_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, HIDDEN_ROWS_BYTES));
+    charge_block_move(g, HIDDEN_ROWS_BYTES);
     for (unsigned copy = 0; copy < 2; copy++)
         for (unsigned i = 0; i < SCREEN_COLOURS; i++)
             set_menu_palette(g, FIRST_SCREEN_COLOUR + copy * SCREEN_COLOURS + i,

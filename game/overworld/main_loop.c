@@ -100,7 +100,7 @@ static void put_aside(GameState *g, const Aside *what, unsigned n)
         wram_copy(g, what[i].from, RAM_OVERWORLD_PUT_ASIDE + what[i].to, what[i].bytes);
         bytes += what[i].bytes;
     }
-    ORIGINAL_EFFECT(charge_as(g, PUT_ASIDE, ACCESSES_A_BYTE * bytes));
+    charge_as(g, PUT_ASIDE, ACCESSES_A_BYTE * bytes);
 }
 
 static void bring_back(GameState *g, const Aside *what, unsigned n)
@@ -110,7 +110,7 @@ static void bring_back(GameState *g, const Aside *what, unsigned n)
         wram_copy(g, RAM_OVERWORLD_PUT_ASIDE + what[i].to, what[i].from, what[i].bytes);
         bytes += what[i].bytes;
     }
-    ORIGINAL_EFFECT(charge_as(g, BRING_BACK, ACCESSES_A_BYTE * bytes));
+    charge_as(g, BRING_BACK, ACCESSES_A_BYTE * bytes);
 }
 
 enum { OVERWORLD_PIECES = sizeof OVERWORLD_ASIDE / sizeof OVERWORLD_ASIDE[0] };

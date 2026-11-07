@@ -67,7 +67,7 @@ static uint16_t line_at(const Circle *c, int line) { return (uint16_t)(c->table 
 static void close_lines(GameState *g, const Circle *c, int first_line, int lines)
 {
     wram_fill16(g, in_table(c, line_at(c, first_line)), (uint32_t)lines, CLOSED_LINE);
-    ORIGINAL_EFFECT(charge_block_move(g, (uint32_t)(lines - 1) * LINE_BYTES));
+    charge_block_move(g, (uint32_t)(lines - 1) * LINE_BYTES);
 }
 
 /* The original closes a whole table with a block move that runs three bytes

@@ -60,7 +60,7 @@ void overworld_build_the_sign_script(GameState *g)
 void overworld_clear_the_sign_label(GameState *g)
 {
     wram_fill8(g, RAM_OVERWORLD_SIGN_LABEL, LABEL_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, LABEL_BYTES - 1));
+    charge_block_move(g, LABEL_BYTES - 1);
 }
 
 // $C2:563F

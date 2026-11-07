@@ -314,6 +314,6 @@ void input_update(Snes *s)
     }
     TIMED_AS(g, 0xC28545, assign_buttons(g));
     TIMED_AS(g, 0xC285AE, input_tick_play_time(g));
-    ORIGINAL_EFFECT(charge_as(g, 0xC284D2, SAVE_AND_RESTORE_ACCESSES));
+    charge_as(g, 0xC284D2, SAVE_AND_RESTORE_ACCESSES);
     m_rts(s);
 }

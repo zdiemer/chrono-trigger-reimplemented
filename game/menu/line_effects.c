@@ -193,7 +193,7 @@ static void squashed_iris(GameState *g, MenuObject o, uint8_t slot)
 static void fill_lines(GameState *g, uint16_t at, uint16_t lines, uint16_t v)
 {
     wram_fill16(g, in_line_bank(at), lines, v);
-    ORIGINAL_EFFECT(charge_block_move(g, 2u * lines));
+    charge_block_move(g, 2u * lines);
 }
 
 /* Where the capsule's centre line is: the line above the circle's centre,

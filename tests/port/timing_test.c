@@ -219,11 +219,49 @@ static void sitting_out_main(Platform *p, void *ctx)
     }
 }
 
+/* A seventh: a handler whose work takes a quarter of each frame, and a main
+ * thread whose work takes a frame and a half: the frame left it is three
+ * quarters, so its work fills two. */
+static void busy_vblank(Platform *p, void *ctx)
+{
+    asking_vblank(p, ctx);
+    game_owes += TIME_FRAME_CLOCKS / 4;
+}
+
+static void beside_handlers_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    tm_enable_interrupts(p, PF_AT(0), TM_INT_VBLANK);
+    for (int pass = 0;; pass++) {
+        note('M');
+        if (pass == 1)
+            game_owes = TIME_FRAME_CLOCKS * 3 / 2;
+        tm_wait_frame(p, PF_CALL(0, 0));
+    }
+}
+
+/* An eighth: two frames of work done with the vblank handler off, then the
+ * handler turned on: the two frames pass with it off, as the original's
+ * setup ran. */
+static void setting_up_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    for (int pass = 0;; pass++) {
+        note('M');
+        if (pass == 0) {
+            game_owes = 2 * TIME_FRAME_CLOCKS;
+            tm_enable_interrupts(p, PF_AT(0), TM_INT_VBLANK);
+            note('e');
+        }
+        tm_wait_frame(p, PF_CALL(0, 0));
+    }
+}
+
 static Platform pf;
 
 int main(void)
 {
-    TmHostProgram program = { game_main, game_vblank, game_line, NULL, NULL };
+    TmHostProgram program = { game_main, game_vblank, game_line, NULL, NULL, NULL, NULL };
     tm_host_start(&pf, &program, 12345);
 
     /* frame 1: no handlers yet; the main thread turns them on, and the line
@@ -279,7 +317,7 @@ int main(void)
 
     /* a wait from the task resumes the task, not the main thread */
     static Platform tasks;
-    TmHostProgram with_tasks = { tasks_main, NULL, NULL, NULL, NULL };
+    TmHostProgram with_tasks = { tasks_main, NULL, NULL, NULL, NULL, NULL, NULL };
     order_len = 0;
     tm_host_start(&tasks, &with_tasks, 1);
     for (int i = 0; i < 3; i++) {
@@ -291,7 +329,7 @@ int main(void)
 
     /* the screen brought back: a frame with no handlers, then they come on */
     static Platform back;
-    TmHostProgram bring_back = { bring_back_main, game_vblank, game_line, NULL, NULL };
+    TmHostProgram bring_back = { bring_back_main, game_vblank, game_line, NULL, NULL, NULL, NULL };
     order_len = 0;
     tm_host_start(&back, &bring_back, 1);
     for (int i = 0; i < 3; i++) {
@@ -306,7 +344,7 @@ int main(void)
      * number of frames is that many; the VRAM a send names gets its bytes,
      * the address wrapping round */
     static Platform asking;
-    TmHostProgram ask = { asking_main, asking_vblank, NULL, NULL, NULL };
+    TmHostProgram ask = { asking_main, asking_vblank, NULL, NULL, NULL, NULL, NULL };
     order_len = 0;
     vid_host_start(&asking, NULL, NULL, NULL);
     tm_host_start(&asking, &ask, 1);
@@ -325,7 +363,7 @@ int main(void)
     /* three frames and a clock owed: three lag frames, in which the handler
      * runs and the main thread doesn't */
     static Platform lagging;
-    TmHostProgram lag = { lagging_main, asking_vblank, NULL, NULL, lagging_owed };
+    TmHostProgram lag = { lagging_main, asking_vblank, NULL, NULL, lagging_owed, NULL, NULL };
     order_len = 0;
     tm_host_start(&lagging, &lag, 1);
     for (int i = 0; i < 6; i++) {
@@ -339,7 +377,7 @@ int main(void)
     /* the same three frames sat out where the main thread stands: it goes on
      * in the third frame after, where it was; a quarter frame stays owed */
     static Platform sitting;
-    TmHostProgram sit = { sitting_out_main, asking_vblank, NULL, NULL, lagging_owed };
+    TmHostProgram sit = { sitting_out_main, asking_vblank, NULL, NULL, lagging_owed, NULL, NULL };
     order_len = 0;
     tm_host_start(&sitting, &sit, 1);
     for (int i = 0; i < 5; i++) {
@@ -349,6 +387,33 @@ int main(void)
     order[order_len] = 0;
     CHECK(strcmp(order, "M|V|V|Vst|VM|") == 0, "the main thread sits out what it owes where it stands: %s", order);
     CHECK(tm_host_lag_frames(&sitting) == 2, "two lag frames (%u)", tm_host_lag_frames(&sitting));
+
+    /* the handlers' time comes off the frame the main thread's work has */
+    static Platform beside;
+    TmHostProgram busy = { beside_handlers_main, busy_vblank, NULL, NULL, lagging_owed, NULL, NULL };
+    order_len = 0;
+    game_owes = 0;
+    tm_host_start(&beside, &busy, 1);
+    for (int i = 0; i < 5; i++) {
+        tm_host_frame(&beside);
+        note('|');
+    }
+    order[order_len] = 0;
+    CHECK(strcmp(order, "M|VM|V|V|VM|") == 0, "the work fills the frames the handlers leave: %s", order);
+    CHECK(tm_host_lag_frames(&beside) == 2, "two lag frames (%u)", tm_host_lag_frames(&beside));
+
+    /* what was done with the handler off passes with it off */
+    static Platform setting_up;
+    TmHostProgram setup = { setting_up_main, asking_vblank, NULL, NULL, lagging_owed, NULL, NULL };
+    order_len = 0;
+    game_owes = 0;
+    tm_host_start(&setting_up, &setup, 1);
+    for (int i = 0; i < 4; i++) {
+        tm_host_frame(&setting_up);
+        note('|');
+    }
+    order[order_len] = 0;
+    CHECK(strcmp(order, "M||e|VM|") == 0, "the setup's frames pass before the handler is on: %s", order);
 
     printf("timing_test: %s\n", failures ? "FAILED" : "ok");
     return failures != 0;

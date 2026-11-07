@@ -250,7 +250,7 @@ static void fade_colors(GameState *g, unsigned slot, uint8_t mode, uint8_t fract
         set_palette_working(g, at, color);
     }
     ORIGINAL_EFFECT(leave_fade(g, lighten, mode, fraction, palette_base(g, (unsigned)(first + count - 1))));
-    ORIGINAL_EFFECT(charge_fade(g, lighten, mode, count));
+    charge_fade(g, lighten, mode, count);
 }
 
 static void faded_by(GameState *g, unsigned slot, uint8_t fraction, bool lighten)

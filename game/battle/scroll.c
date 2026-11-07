@@ -260,13 +260,13 @@ static void start_requested_presets(GameState *g)
     if (request & REQUEST_SLOT_10) {
         start_preset(g, PRESET_SLOT_10, FIRST_PRESET_SLOT + PRESET_SLOT_10);
         set_battle_palette_preset_request(g, request & (uint8_t)~REQUEST_SLOT_10);
-        ORIGINAL_EFFECT(charge_block_move(g, PRESET_SLOT_BYTES));
+        charge_block_move(g, PRESET_SLOT_BYTES);
         return;
     }
     for (unsigned preset = PRESET_SLOTS_8_9; preset < PRESET_SLOT_10; preset++)
         start_preset(g, preset, FIRST_PRESET_SLOT + preset);
     set_battle_palette_preset_request(g, request & (uint8_t)~REQUEST_SLOTS_8_9);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * PRESET_SLOT_BYTES));
+    charge_block_move(g, 2 * PRESET_SLOT_BYTES);
 }
 
 // $CD:0B51

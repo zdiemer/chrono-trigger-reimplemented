@@ -199,7 +199,7 @@ static uint16_t character_rows(uint8_t character) { return (uint16_t)((uint16_t)
 static void copy_in_bank(GameState *g, uint16_t from, uint32_t to, uint16_t bytes)
 {
     wram_copy(g, (to & 0xFF0000u) | from, to, bytes);
-    ORIGINAL_EFFECT(charge_block_move(g, bytes));
+    charge_block_move(g, bytes);
 }
 
 /* For the original's code and shadow mode: the last member's rows' places,
@@ -280,7 +280,7 @@ static void keep_the_palette(GameState *g)
     for (unsigned i = 0; i < ROW_BYTES; i++)
         set_menu_object_palette_byte(g, LAST_ROW_FROM + i, overworld_last_sprite_colours_byte(g, i));
     set_menu_palette_row_users(g, 0, overworld_last_sprite_colours_byte(g, ROW_BYTES));
-    ORIGINAL_EFFECT(charge_block_move(g, PALETTE_BYTES + 1 + ROW_BYTES + 1));
+    charge_block_move(g, PALETTE_BYTES + 1 + ROW_BYTES + 1);
 }
 
 /* ---- The Black Omen ------------------------------------------------------------------------ */
@@ -497,7 +497,7 @@ static void take_the_story_flags(GameState *g)
     for (unsigned i = 0; i < STORY_FLAGS; i++)
         set_menu_story_flags_bytes_byte(g, i, event_memory_byte(g, STORY_FLAGS_AT + i));
     set_menu_story_progress(g, story_line(g));
-    ORIGINAL_EFFECT(charge_block_move(g, STORY_FLAGS));
+    charge_block_move(g, STORY_FLAGS);
 }
 
 // $C2:2703
