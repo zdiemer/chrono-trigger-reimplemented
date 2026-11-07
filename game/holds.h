@@ -10,7 +10,7 @@
 enum {
     HOLD_NONE = 0,
     /* the scene program's main loop ($7E:3023): the attract sequence, the
-     * title, the Epoch's dive, the endings (game/attract/main_loop.c) */
+     * title, the Epoch's dive, the endings (game/scene/program.c) */
     HOLD_SCENE_MAIN_LOOP = 1,
     /* the time warp's main loop ($FD:EAED, the wait each kind's loop calls):
      * every frame of a trip through a time gate (game/warp/warp.c) */

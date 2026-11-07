@@ -59,7 +59,6 @@ menu_object_cmd_for_frames_moving vblank-tail runs its object's sprite script in
 
 # The jet bike race's frame tasks, writing RAM the next vblank sends.
 scene_race_draw vblank-tail draws the race's sprites into the RAM sprite table in 22-line calls, longer than vblank, through the scene's sprite routines, each timed as itself (TIMED_AS), whose scalars fit their own calls only on average; at most 1723 clocks (1.3 lines), which moves only when the table is ready
-scene_program_start worst the program's start, which runs the scene's setup as C (scene/program.c): graphics loading with the display blanked, the race's picture setup and the shared endings' ground and captions. Boot now attributes these loading stretches to this sibling; the scene sample's worst is 190868 clocks, moving when the scene starts (previously 90451 with boot's stretches reported separately)
 scene_ending_load_ground_and_picture worst a script's scene change in the shared endings, with the per-line effects off: the ground's name table and the picture's 240 rows mirrored in long loops, two or four calls whose time the vblank's interrupt splits; at most 542602 clocks in calls of 448,000 on average, moving when the picture first shows
 
 # The telepod ending's staff roll, a frame task writing RAM the next vblank sends.
@@ -219,7 +218,6 @@ menu_load_record_sprites drift loads the records' sprites with the screen blanke
 menu_mode_enter drift the menus' entry is one jump, 18 clocks the original takes against the port's 0 bus accesses: no scalar scales nothing; it moves the menus' start by the same 18 clocks every time
 menu_window_draw_frame_only vblank-tail draws a window's frame into the menus' tilemap buffer in RAM, its time following the window's size: 1.79% of 112 vblank stretches off by at least 1024 clocks, at most 1166
 menu_window_frame vblank-tail the same frame drawing for a window and its contents' rows, following the window's size: 8.13% of 123 vblank stretches off by at least 1024 clocks, at most 1415, writing RAM the next vblank uploads
-scene_program_hands_back drift the scene program's hand-back is one jump, 70 clocks the original takes against the port's 0 bus accesses: no scalar scales nothing; it moves the hand-back by the same 70 clocks every time
 
 # The library's batched run of 92026499 (84 movies), after its drift-only calibration
 # (timing_gate.py --calibrate --drifted); each entry was measured over the whole library,
@@ -227,3 +225,7 @@ scene_program_hands_back drift the scene program's hand-back is one jump, 70 clo
 menu_object_step_curtain drift the menus' attract curtain's step is the curtain's sweep, attributed at scene_sweep_the_curtain's own rate (cost_milli 9912, fit over the scenes' 1229 calls), and its own share is a few clocks (cost_milli 1); this site's sweeps measure 9380 a bus clock, so +3.02% over its 256 stretches in the attract demo, which no smaller positive scalar reaches; at most 3361 clocks, 10 stretches in vblank within 788, writing the curtain's line table in RAM, which the line effect reads the next frame
 
 # The map's scroll timed a strip at a time (menu/map.c): measured over the 35 movies that scroll the map.
+scene_dive_set_up worst the Epoch's dive's setup, graphics unpacked and sent with the display blanked (a call of 164856 clocks on average, mean error 9.8%, at most 79366): measured as its own entry since the scene program retired and the cartridge's dispatch calls it in the reference play; before, scene_program_start's stretch held it, under that entry's exception for the same loading
+scene_ending_set_up worst the shared endings' setup, their ground and captions loaded with the display blanked (263420 clocks a call on average, mean error 16.5%, at most 90451, the worst scene_program_start's exception named): measured as its own entry since the scene program retired
+scene_planet_set_up worst the planet's setup, loaded with the display blanked (at most 190868 clocks, the worst scene_program_start's exception named): measured as its own entry since the scene program retired; its drift (+44.6% over 10 stretches in one movie, calibrated 4847 against 8621) waits for the batched library run's recalibration
+scene_race_set_up worst the race's setup, its pictures and track loaded with the display blanked (256201 clocks a call on average, mean error 8.2%, drift -0.03%, at most 89389): measured as its own entry since the scene program retired; before, scene_program_start's stretch held it

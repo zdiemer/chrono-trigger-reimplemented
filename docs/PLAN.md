@@ -157,18 +157,17 @@ a process budget.
 original code in place of a hand port in the shipping mode, so the order is no
 longer picked by native coverage but by what each subsystem's teardown needs
 (Phase 4a, "The native program, and the registry taken down", step 3). Sound,
-data, core's services and the time warp are retired. In order:
+data, core's services, the time warp, the overworld and the scene program are
+retired. In order:
 
-1. **The overworld** (the menus' sprite-object mode and the world map's loop):
-   its vblank and objects already run as calls, and its main loop becomes a
-   held wait as the warp's did (TODO.md).
-2. **The attract and the scene program**: the interrupted wait's carry hand-off,
-   the scalings as C and the restart by return (TODO.md, "The scene main loop
-   still starts at its original boundary").
-3. **The field and the events, then the battle and the menus**: the largest,
+1. **The field and the events, then the battle and the menus**: the largest,
    each needing its unreached code checked and its recorded outcomes over the
    library first ("The code no movie reaches", "Validation after the teardown").
-4. **`ct_native`'s time model** alongside, so the native program plays as the
+   The rest of the scene engine (its setups, frame's work and scenes' routines,
+   `game/scene/`) beside them, the race's scaling first called as C from the
+   program's main loop (TODO.md, "The race's scaling from the scene program's
+   main loop").
+2. **`ct_native`'s time model** alongside, so the native program plays as the
    original does: the loads and the battle's setup it charges wrongly first.
 
 Beside them, sharing no files: video by `vid_*` calls, the last cartridge reads
@@ -234,7 +233,7 @@ where recalibration and baseline updates come from; "every movie" below is every
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**0 of 317 files is left on the backlog**: the last, `data/decompress.c`, is
+**0 of 316 files is left on the backlog**: the last, `data/decompress.c`, is
 rewritten (the unpacker as a function of the game's state, which the native
 program calls), and `tools/portstyle_baseline.txt` lists none. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
@@ -708,7 +707,12 @@ taking the gate down needs, before it and after it.
      handlers and scene calls as machine forms with their contracts, as
      core's callers do; and deleting a busy subsystem's scaffolding moves
      its time by what the scaffolding cost, which is the native shape's
-     pace, not the old shipping mode's.
+     pace, not the old shipping mode's. The scene program went sixth
+     (REIMPLEMENTATION.md, "The scene program's teardown"): a boundary a
+     comparison couldn't cross (the first frame's carry into the loop) goes
+     with the comparison, and a retired loop that calls still-gated routines
+     calls each as C under its registry row's contract, and through the
+     machine where its C waits at a point the machine can't wait in place.
   4. **Last, the machine leaves the product.** When no subsystem is under
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is

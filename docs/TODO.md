@@ -435,8 +435,8 @@ rest waits, is [PLAN.md](PLAN.md).
     one leaves derivation from the final state. Three more are on the baseline
     with a reason (a wrapper's entry state for a call-out, a shared wrapper's
     exit, the scene interpreter's per-command derivation).
-  - 10 return frames pushed by hand outside a bridge (rubric items 85, 101) in
-    `attract/main_loop.c`, battle's `animation.c`,
+  - 9 return frames pushed by hand outside a bridge (rubric items 85, 101) in
+    battle's `animation.c`,
     `main_loop.c`, `core/input.c`, `menu/cursor.c` (3) and
     scene's `frame.c` (2) and `script.c`: register the inlined subroutine as
     its own entry, or port the call-out that needs the frame.
@@ -1289,9 +1289,7 @@ rest waits, is [PLAN.md](PLAN.md).
   defined again in several places, one buffer under three names (once, in
   `scene.h`); cells declared wider than they mean and a flag incremented
   (`reset_disabled = 1` aside); scaffolding written through
-  `set_scene_race_picture`, an accessor named for the race;
-  `attract/main_loop.c` picks between two calls that differ only in
-  address with an if/else.
+  `set_scene_race_picture`, an accessor named for the race.
 
 - **What the world map's setup review left** (none rated translation; the
   `menu_epoch_build_map` guard is a real precondition and the main loop's
@@ -1338,9 +1336,7 @@ rest waits, is [PLAN.md](PLAN.md).
   `keep_divisor(g, last_divisor(g))` writes back what the cell holds (drop
   it); `perspective.c`'s line-above-the-screen cells are written plainly
   though nothing reads them (ORIGINAL_EFFECT, or name the reader), and the
-  two in `$7F` have no `reuses`; `attract/main_loop.c` runs the registered
-  `scene_race_scale_pictures` through `m_jsr` (confirm it must, item 102) and
-  describes the scene program's main loop from `game/attract/`; `native.c`'s
+  two in `$7F` have no `reuses`; `native.c`'s
   entries at one address are sorted by `qsort`, which isn't stable, so two
   hand entries with overlapping guards would run in a library-picked order
   (break ties by table index, or assert at start that guards at one address
@@ -2581,8 +2577,8 @@ rest waits, is [PLAN.md](PLAN.md).
   are a port's call rather than an idle entry); the idle entries on flags a handler clears
   (`field_wait_for_frame_loop`, `menu_wait_for_frame_loop`,
   `menu_wait_ready_loop`, `battle_wait_window_slide_loop`,
-  `battle_wait_graphics_loaded_loop`, `scene_race_wait_for_tilemap_upload_loop`,
-  `attract_wait_loop`). The time warp's wait before it turns its picture on
+  `battle_wait_graphics_loaded_loop`, `scene_race_wait_for_tilemap_upload_loop`).
+  The time warp's wait before it turns its picture on
   (`$FD:EADA`) waits where its port stands in the shipping mode
   (`NATIVE_WAKE_VBLANK_FLAG`); the field's (`$C0:0B38`), reached through
   `tm_wait_frame_then_enable` the same way, is still the original's
@@ -2916,35 +2912,35 @@ rest waits, is [PLAN.md](PLAN.md).
   bytes as text and differ in VRAM/OAM; boot now refuses those states before
   mutation. Valid page indices and all sixteen modes are fuzzed separately.
 
-- **The scene main loop still starts at its original boundary.** Replacing
-  the `$7E:3023` stop with C callback dispatch and a held wait at `$7E:3026`
-  passes attract-demo, but Epoch reports `scene_boot` at the wait with P
-  original 04, native 05. After the interrupted prelude, refreshing the
-  clone's memory preserves its carry; the next wait compares that carry
-  with the original's. Liveness currently requires it, so the experiment
-  was reverted rather than masking the flag. Resolve that interrupted-wait
-  flag handoff before joining startup and the main loop.
-  This is also what keeps `game/attract/` under the gate: its teardown was
-  attempted and stopped at the preconditions. Its two rows are the scene
-  program's main loop (`$7E:3023`: the idle pass `attract_wait_loop` and the
-  scaling pass `attract_frame_pass`). The main thread rests in the loop at
-  every frame end of a scene, so as a C loop a port would stay suspended for
-  a whole title screen, attract sequence or ending, with no `ct_drive` base or
-  quick save there. Instead it is a named held wait (RUNTIME.md, "Held
-  waits"): the first frame holds it (`m_hold_at`), and the two rows are the
-  wait's continuations in `game_held_waits`, not registry rows. Over
-  attract-demo and title-start the census has the machine enter `$7E:3023` 0
-  times, against 4,470,957 passes before, which are now held runs, and the
-  same 12,329 of attract-demo's 22,500 frame ends have a routine suspended. What is left before
-  attract and the scene program retire together: the interrupted-wait carry
-  handoff above, which the same join meets; `attract_frame_pass`'s scaling
-  passes called as C from that loop (`scene_race_scale_pictures`,
-  `scene_ending_scale_picture`, `scene_scale_the_epoch`, whose scalings stop
-  in the scaler's code and take frames); and `scene_program_restart` reached
-  by a return rather than the loop's stop. The fallback measure still counts
-  the original's attract code in the reference play (`7E:3023`, the main
-  loop's cut passes in `7E:----`). Its unreached rows are covered (0 bytes)
-  and it owns no work RAM of its own (the program image is the scene's).
+- **The race's scaling from the scene program's main loop.** The program is
+  retired (REIMPLEMENTATION.md, "The scene program's teardown"), and its main
+  loop's pass calls the endings', the Epoch's and the turned map's routines as
+  C, but the race's (`$7E:51D1`) as the original calls it, through the
+  machine: between its racers the routine waits for the last racer's tiles to
+  be sent (`$7E:5211`), and its C (`scene_race_scale_pictures`, which
+  `ct_native` runs) waits there with `tm_wait_frame`, which on the machine
+  calls the address it is given as a routine. `$7E:5211` isn't one, so as C
+  on the machine the race went wrong at once (tried: the attract demo's race
+  desynchronized at frame 8,360). An in-place wait on the race's pending
+  tiles (the kind the warp's screen wait uses, `NATIVE_WAKE_VBLANK_FLAG`), or
+  the race's routine held as a wait of its own, would let the pass call it as
+  C; until then the pass's call stays out over the race's waits, a frame end
+  with a routine suspended.
+
+- **What the retired scene program still leaves to the cartridge.** Its
+  start goes on as C only while what it calls comes back to it. Three paths
+  return to the program's first frame (`$7E:300D`) through the machine, where
+  the cartridge's first frame and loop then run, the loop's head found by
+  address: a setup whose port stops on the machine (`set_the_scene_up`, `done`
+  false), the title's song wait not coming back to the dispatch's return, and
+  a mode with no setup port, called through the program's table. None is
+  reached over the gate's sample (the census enters `$7E:300D` 0 times), but
+  each wants the first frame as a continuation of its own, or the setups'
+  stops made calls. Likewise the main loop's pass, where the race's scaling
+  call (the original's, above) doesn't come back to it (`m_came_back` false),
+  doesn't hold the wait again, and the machine goes on in the cartridge's
+  loop. And the fallback baseline's `7E:----` line was set over the gate's
+  sample at the teardown: the batched library run takes the library's count.
 
 - **Two scene interpreter handbacks retain machine contracts.** All seven
   store/task/video command families have C implementations, but the dispatch
@@ -4261,9 +4257,6 @@ waits on M5 rather than on a backend.
     offset could be computed from its index.
   - The bank `$FE` resources (above) wait for the platform.
   - The title's logo sweep and ripple (above) wait for their Phase 3 ports.
-  - `game/attract/` is the same scene program (its main loop and idle waits)
-    and belongs in `game/scene/`; the two headers point at each other until
-    attract is next reworked.
 - **`scene/scene_data.h` reads bank `$FE` by address** (`scene_data_byte`,
   which the resource copies use): the asset seam wants a named accessor for
   each resource the table at `$FE:0000` points to.

@@ -583,7 +583,8 @@ Each of these is a finding. Every example here comes from this repo.
     row" that can't be checked, and was wrong (it was 1/128). Wherever a comment
     states a fraction, name the unit as a constant.
 54. **One program split across subsystem directories**, with neither header
-    pointing at the other (`game/scene/` and `game/attract/`).
+    pointing at the other (`game/scene/` and the old `game/attract/`, the scene
+    program's main loop, since folded into it).
 55. **Generic operand names forced by a language-wide parameter list.** An
     interpreter whose table decodes into one shared set of parameters (`word`,
     `second_word`, `first`) lets every operation take them without saying what

@@ -23,18 +23,11 @@ if str(ROOT) not in sys.path:
 
 from tools import evidence_cache  # noqa: E402
 
-BOOT = ("scene_boot",)
-SETUP = BOOT + ("scene_program_start",)
-# entry, movie, frames, excluded ancestors, include-only entries
-CASES = (
-    ("scene_program_start", "title-start", 2000, BOOT, ()),
-    ("scene_setup_and_first_frame", "title-start", 2000, SETUP, ()),
-    ("scene_first_frame", "title-start", 2000,
-     SETUP + ("scene_setup_and_first_frame", "scene_title_set_up"), ()),
-    ("scene_program_hands_back", "title-start", 2000, ("scene_program_restart",), ()),
-    ("scene_clear_work_ram", "title-start", 2000, SETUP, ()),
-    ("scene_after_work_ram_clear", "title-start", 2000, SETUP + ("scene_clear_work_ram",), ()),
-)
+# entry, movie, frames, excluded ancestors, include-only entries. The scene
+# program's start, setup, first frame, clear and hand-back had their cases here
+# until the program retired the gate (docs/REIMPLEMENTATION.md, "The scene
+# program's teardown"): none is an entry now.
+CASES = ()
 
 
 def compared(text, name):
