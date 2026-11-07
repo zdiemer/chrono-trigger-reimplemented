@@ -46,7 +46,7 @@ void menu_draw_portrait(GameState *g, uint16_t origin, uint8_t character, uint8_
     uint16_t colours = menu_large_portrait_colours(g, character % CHARACTER_SLOTS);
     for (unsigned i = 0; i < PORTRAIT_COLOURS; i++)
         set_menu_palette(g, first_colour + i, menu_large_portrait_colour(g, colours, i));
-    ORIGINAL_EFFECT(charge_block_move(g, PORTRAIT_COLOURS * PALETTE_BYTES));
+    charge_block_move(g, PORTRAIT_COLOURS * PALETTE_BYTES);
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
 }
 

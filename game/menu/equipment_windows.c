@@ -170,7 +170,7 @@ void menu_equip_take_slot(GameState *g)
     set_menu_text_attribute(g, 0);
     (void)menu_draw_string(g, menu_slot_label(g, slot), SLOT_LABEL_AT, SLOT_LABEL_SETTINGS);
     wram_copy(g, 0x7E0000u | LABELS_ROW, 0x7E0000u | LABELS_ROW_COPY, ROW_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, ROW_BYTES));
+    charge_block_move(g, ROW_BYTES);
 }
 
 /* The slots' marks: each slot's row of eleven tiles, its two tile rows, in
@@ -341,7 +341,7 @@ static void put_bands_at_rest(GameState *g)
                        (uint16_t)(menu_slots_bands_at_rest_byte(g, at + 1) | menu_slots_bands_at_rest_byte(g, at + 2) << 8));
     }
     set_menu_staged_line_table_lines(g, MENU_SLOTS_BANDS_AT_REST, menu_slots_bands_at_rest_byte(g, MENU_SLOTS_BANDS_AT_REST * BAND_BYTES));
-    ORIGINAL_EFFECT(charge_block_move(g, MENU_SLOTS_BANDS_AT_REST * BAND_BYTES + 1));
+    charge_block_move(g, MENU_SLOTS_BANDS_AT_REST * BAND_BYTES + 1);
 }
 
 /* The original takes the scroll bar's hold and the cursor's hiding down
@@ -359,7 +359,7 @@ void menu_equip_clear_slot_labels(GameState *g, Platform *pf)
     menu_draw_windows(g, pf, MEMBERS_LIST);
     wram_fill8(g, 0x7E0000u | LABEL_ROWS_AT, LABEL_ROW_BYTES, 0);
     wram_fill8(g, 0x7E0000u | SECOND_LABEL_ROWS_AT, LABEL_ROW_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * LABEL_ROW_BYTES));
+    charge_block_move(g, 2 * LABEL_ROW_BYTES);
     TIMED_AS(g, 0xC2A1B2, menu_draw_member_rows(g, pf));
     menu_queue_fixed_upload(g, UPLOAD_BG1_SLID);
 }
@@ -367,7 +367,7 @@ void menu_equip_clear_slot_labels(GameState *g, Platform *pf)
 void menu_equip_start_members_slide(GameState *g, MenuWindowSlide *w)
 {
     wram_fill8(g, 0x7E0000u | ROW_TABLES_AT, ROW_TABLES_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, ROW_TABLES_BYTES));
+    charge_block_move(g, ROW_TABLES_BYTES);
     TIMED_AS(g, 0xC29E76, menu_colour_member_rows(g));
     schedule_table_copy(g, STAGED_TABLE, LIVE_TABLE, SLIDE_TABLE_BYTES);
     put_bands_at_rest(g);

@@ -233,7 +233,7 @@ static void drop_the_spaces(GameState *g)
         set_menu_name_kept_byte(g, place, END_OF_NAME);
         set_menu_name_trimmed_byte(g, place, typed(g, place));
     }
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * NAME_BYTES - 2));
+    charge_block_move(g, 2 * NAME_BYTES - 2);
     for (unsigned place = NAME_BYTES; place-- > 0;) {
         Letter l = menu_name_trimmed_byte(g, place);
         if (l == SPACE)
@@ -303,7 +303,7 @@ bool menu_naming_give_the_name(GameState *g)
         return false;
     for (unsigned place = 0; place < NAME_BYTES; place++)
         set_name_letter(g, named(g), place, kept(g, place));
-    ORIGINAL_EFFECT(charge_block_move(g, NAME_BYTES));
+    charge_block_move(g, NAME_BYTES);
     return true;
 }
 
@@ -401,7 +401,7 @@ void menu_naming_open(GameState *g, Platform *pf)
     set_menu_scroll_y(g, TEXT_LAYER, TEXT_LAYER_AT_REST);
     for (unsigned word = 0; word < LABEL_TILE_BYTES / 2; word++)
         set_menu_glyph_tiles(g, word, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * NAME_BYTES + 2 * TILES_A_ROW + LABEL_TILE_BYTES));
+    charge_block_move(g, 2 * NAME_BYTES + 2 * TILES_A_ROW + LABEL_TILE_BYTES);
     menu_draw_windows(g, pf, NAME_WINDOW);
     TIMED_AS(g, 0xC286DD, menu_build_math_table(g, pf));
     set_menu_text_strings(g, LABEL_STRINGS);
@@ -473,13 +473,13 @@ void menu_naming_open_the_battle_mode(GameState *g, Platform *pf)
         for (unsigned tile = 0; tile < MODE_ROW_TILES; tile++)
             set_menu_front_tilemap(g, MODE_SCREEN_AT + MODE_SCREEN_TILES + row * 2 * MODE_ROW_TILES + tile,
                                    menu_battle_mode_screen_tile(g, MODE_SCREEN_TILES + row * MODE_ROW_TILES + tile));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * (MODE_SCREEN_TILES + MODE_ROWS * MODE_ROW_TILES)));
+    charge_block_move(g, 2 * (MODE_SCREEN_TILES + MODE_ROWS * MODE_ROW_TILES));
     ORIGINAL_EFFECT(set_menu_scratch_mode_rows_left(g, 0));
     menu_draw_windows(g, pf, MODE_WINDOWS);
     TIMED_AS(g, 0xC286DD, menu_build_math_table(g, pf));
     for (unsigned i = 0; i < MODE_COLOURS; i++)
         set_menu_palette(g, MODE_COLOURS_AT + i, menu_battle_mode_colour(g, i));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * MODE_COLOURS));
+    charge_block_move(g, 2 * MODE_COLOURS);
     set_menu_scroll_y(g, TEXT_LAYER, 1);
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     set_menu_line_effects(g, MODE_LINE_EFFECTS);

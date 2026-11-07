@@ -212,7 +212,7 @@ static void charge_conversion(GameState *g, uint32_t value, uint8_t bytes)
 /* The number of `bytes` bytes at `at` as decimal digits. */
 static uint32_t value_converted(GameState *g, uint32_t value, uint8_t bytes)
 {
-    ORIGINAL_EFFECT(charge_conversion(g, value, bytes));
+    charge_conversion(g, value, bytes);
     return decimal_digits(value);
 }
 

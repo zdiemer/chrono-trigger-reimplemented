@@ -29,13 +29,13 @@ void menu_move_list_rows(GameState *g, uint16_t rows_at, unsigned shown_bytes, u
     uint32_t first = WORK_RAM | rows_at, past = WORK_RAM | (uint16_t)(rows_at + shown_bytes);
     if (!up) {
         wram_copy(g, first + row_bytes, first, shown_bytes);
-        ORIGINAL_EFFECT(charge_block_move(g, shown_bytes));
+        charge_block_move(g, shown_bytes);
         return;
     }
     for (unsigned row = shown_bytes / row_bytes - 1; row-- > 0;)
         wram_copy(g, first + row * row_bytes, first + (row + 1) * row_bytes, row_bytes);
     wram_copy(g, past, first, row_bytes);
-    ORIGINAL_EFFECT(charge_block_move(g, shown_bytes));
+    charge_block_move(g, shown_bytes);
 }
 
 /* ---- The frame ----------------------------------------------------------------------------------- */

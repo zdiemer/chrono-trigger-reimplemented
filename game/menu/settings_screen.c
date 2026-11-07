@@ -146,7 +146,7 @@ static void take_boxes_from_the_settings(GameState *g)
 {
     for (unsigned box = 0; box < MENU_SETTINGS_BOXES; box++)
         tick_box(g, box, is_a_choosing_box(box) ? false : setting(g, (SettingCell)box) != 0);
-    ORIGINAL_EFFECT(charge_block_move(g, MENU_SETTINGS_BOXES));
+    charge_block_move(g, MENU_SETTINGS_BOXES);
 }
 
 /* The front layer's tilemap, by where in work RAM a tile is, as the ROM's
@@ -245,7 +245,7 @@ static void use_the_settings_buttons(GameState *g)
         else
             set_button_assignment_spare(g, button);
     }
-    ORIGINAL_EFFECT(charge_block_move(g, own ? 2 * ASSIGNMENTS : ASSIGNMENTS));
+    charge_block_move(g, own ? 2 * ASSIGNMENTS : ASSIGNMENTS);
 }
 
 /* A row is the button's glyph, then an arrow and the button it is changing
@@ -316,14 +316,14 @@ static void copy_own_to_rows(GameState *g)
 {
     for (unsigned i = 0; i < ASSIGNMENTS; i++)
         set_menu_settings_buttons(g, i, own_button_assignments(g, i));
-    ORIGINAL_EFFECT(charge_block_move(g, ASSIGNMENTS));
+    charge_block_move(g, ASSIGNMENTS);
 }
 
 static void keep_rows_as_own(GameState *g)
 {
     for (unsigned i = 0; i < ASSIGNMENTS; i++)
         set_own_button_assignments(g, i, menu_settings_buttons(g, i));
-    ORIGINAL_EFFECT(charge_block_move(g, ASSIGNMENTS));
+    charge_block_move(g, ASSIGNMENTS);
 }
 
 /* The places of the eighth assignment's list past the nine assignments. The
@@ -472,7 +472,7 @@ void menu_settings_reset_buttons(GameState *g)
         set_own_button_assignments(g, i, menu_default_button_assignment(g, i));
         set_menu_settings_buttons(g, i, menu_default_button_assignment(g, i));
     }
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * ASSIGNMENTS));
+    charge_block_move(g, 2 * ASSIGNMENTS);
     menu_settings_use_buttons(g);
 }
 
@@ -742,7 +742,7 @@ void menu_settings_panel_frame(GameState *g, Platform *pf)
         set_menu_text_tilemap(g, CAPTION_AT + i, CAPTION_LINE);
     for (unsigned i = 0; i < CAPTION_END_TILES; i++)
         set_menu_text_tilemap(g, CAPTION_END_AT + i, CAPTION_END);
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * (CAPTION_TILES + CAPTION_END_TILES)));
+    charge_block_move(g, 2 * (CAPTION_TILES + CAPTION_END_TILES));
     menu_queue_fixed_upload(g, UPLOAD_CAPTION);
     take_boxes_from_the_settings(g);
 }
@@ -774,7 +774,7 @@ void menu_settings_panel_show(GameState *g, Platform *pf)
         const PanelColours *c = &PANEL_COLOURS[run];
         for (unsigned i = 0; i < c->count; i++)
             set_menu_palette(g, c->first + i, menu_rom_colour(g, c->from, i));
-        ORIGINAL_EFFECT(charge_block_move(g, 2u * c->count));
+        charge_block_move(g, 2u * c->count);
     }
     TIMED_AS(g, 0xC286DD, menu_build_math_table(g, pf));
     set_menu_line_effects(g, PANEL_LINE_EFFECTS);

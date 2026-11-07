@@ -381,10 +381,10 @@ static void build_line_charged(GameState *g, unsigned layer, Line line, Staging 
 {
     uint32_t mark = 0;
     uint16_t start = out->at;
-    ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
+    mark = charge_uncounted_begin(g);
     build_line(g, layer, line, out);
-    ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-    ORIGINAL_EFFECT(charge_as(g, STREAMING, (uint32_t)(out->at - start) / ENTRY_BYTES * accesses_16_entries / 16));
+    charge_uncounted_end(g, mark);
+    charge_as(g, STREAMING, (uint32_t)(out->at - start) / ENTRY_BYTES * accesses_16_entries / 16);
     (void)mark;
     (void)start;
 }
@@ -428,15 +428,15 @@ void stream_the_layers(GameState *g)
             if (pixels == 0)
                 continue;
             uint32_t mark = 0;
-            ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));   /* the pixels' charge below stands for it */
+            mark = charge_uncounted_begin(g);   /* the pixels' charge below stands for it */
             (void)mark;
             LayerMove m = start_moving(g, layer, ways[w].axis, ways[w].forward);
             for (unsigned n = 0; n < pixels; n++)
                 move_a_pixel(g, &m);
             finish_moving(g, &m);
             note_the_crossing(g, &m);
-            ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-            ORIGINAL_EFFECT(charge_as(g, STREAMING, (uint32_t)pixels * ACCESSES_FOUR_PIXELS / 4));
+            charge_uncounted_end(g, mark);
+            charge_as(g, STREAMING, (uint32_t)pixels * ACCESSES_FOUR_PIXELS / 4);
             moved = true;
         }
     }
@@ -530,7 +530,7 @@ void draw_layer_at_the_maps_load(GameState *g, unsigned layer)
     static const uint32_t drawing[FIELD_LAYERS] = { DRAW_BG1, DRAW_BG2, DRAW_BG3 };
     Staging out = { 0 };
     uint32_t mark = 0;
-    ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));   /* the entries' charge below stands for it */
+    mark = charge_uncounted_begin(g);   /* the entries' charge below stands for it */
     (void)mark;
     if (layer != FIELD_BG1 && drawn_whole(g, layer))
         draw_whole(g, layer, &out);
@@ -539,8 +539,8 @@ void draw_layer_at_the_maps_load(GameState *g, unsigned layer)
         draw_rows(g, layer, &out, own.left, own.top, own.bottom);
     } else
         draw_the_screen(g, layer, &out, screen_edges(g, false));
-    ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-    ORIGINAL_EFFECT(charge_as(g, drawing[layer], (uint32_t)out.at / ENTRY_BYTES * ACCESSES_A_DRAWN_ENTRY));
+    charge_uncounted_end(g, mark);
+    charge_as(g, drawing[layer], (uint32_t)out.at / ENTRY_BYTES * ACCESSES_A_DRAWN_ENTRY);
     ORIGINAL_EFFECT(leave_port_after(g, out));
 }
 

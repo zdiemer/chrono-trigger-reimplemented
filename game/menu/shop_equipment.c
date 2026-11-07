@@ -173,7 +173,7 @@ void menu_shop_choose_the_member(GameState *g, Platform *pf)
 {
     for (unsigned figure = 0; figure < FIGURES; figure++)
         set_menu_figure_marks(g, figure, FIGURE_AS_IT_IS);
-    ORIGINAL_EFFECT(charge_block_move(g, FIGURES - 2));
+    charge_block_move(g, FIGURES - 2);
     menu_work_on_member(g, (uint8_t)(menu_cursor_index(g) - SHOP_FIRST_MEMBER));
     TIMED_AS(g, 0xC28820, (void)menu_load_member(g, menu_member_worked_on(g)));
     menu_draw_windows(g, pf, EQUIPMENT_WINDOW);

@@ -101,7 +101,7 @@ static void save_run(GameState *g, Platform *pf, uint32_t from, uint16_t to, uin
     for (uint16_t i = 0; i < bytes; i++)
         sv_write8(pf, PF_AT(0xFFFA44), (uint16_t)(to + i), wram_read8(g, in_bank(from, i)));
     charge_uncounted_end(g, uncounted);
-    ORIGINAL_EFFECT(charge_block_move(g, bytes));
+    charge_block_move(g, bytes);
 }
 
 static void load_run(GameState *g, Platform *pf, uint16_t from, uint32_t to, uint16_t bytes)
@@ -110,7 +110,7 @@ static void load_run(GameState *g, Platform *pf, uint16_t from, uint32_t to, uin
     for (uint16_t i = 0; i < bytes; i++)
         wram_write8(g, in_bank(to, i), sv_read8(pf, PF_AT(0xFFFADB), (uint16_t)(from + i)));
     charge_uncounted_end(g, uncounted);
-    ORIGINAL_EFFECT(charge_block_move(g, bytes));
+    charge_block_move(g, bytes);
 }
 
 /* ---- What the save code leaves where the original works ------------------------------------ */
@@ -307,7 +307,7 @@ void saves_clear_the_game(GameState *g)
     wram_fill8(g, RAM_EVENT_MEMORY, STORY_BYTES, 0);
     wram_fill8(g, RAM_PLAY_TIME, CLOCK_PAGE_BYTES, 0);
     wram_fill8(g, RAM_GAME_SETTINGS, SETTINGS_TO_JOINED_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, STORY_BYTES + CLOCK_PAGE_BYTES + SETTINGS_TO_JOINED_BYTES));
+    charge_block_move(g, STORY_BYTES + CLOCK_PAGE_BYTES + SETTINGS_TO_JOINED_BYTES);
     for (unsigned i = 0; i < GAME_SETTINGS_COUNT; i++)
         set_game_settings(g, i, menu_new_game_setting(g, i));
     for (unsigned i = 0; i < BUTTON_ASSIGNMENTS_COUNT; i++)
@@ -341,8 +341,8 @@ void saves_start_a_new_game(GameState *g)
     set_party_characters_joined(g, menu_character_bit(g, CRONO));
     set_battle_party_placement_tile_x(g, 0, 0);
     wram_fill8(g, RAM_BATTLE_REMEMBERED_CURSORS, REMEMBERED_CURSORS_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, INVENTORY_BYTES + MENU_NEW_GAME_RECORDS_BYTES + PARTY_RECORD_PLACES
-                                             + REMEMBERED_CURSORS_BYTES));
+    charge_block_move(g, INVENTORY_BYTES + MENU_NEW_GAME_RECORDS_BYTES + PARTY_RECORD_PLACES
+                                             + REMEMBERED_CURSORS_BYTES);
 }
 
 // $C2:8D6A

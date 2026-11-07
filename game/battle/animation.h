@@ -63,7 +63,9 @@ typedef enum {
     ENEMY_MOVEMENTS
 } EnemyMovement;
 
-/* Whether the movement goes by the enemy's target (battle_enemy_target_seen). */
+/* Whether the movement goes by the enemy's target (battle_enemy_target_seen),
+ * so runs only where the enemy has one: waiting for the target to move goes
+ * on with none, as its entry's guard takes it. */
 bool battle_enemy_movement_needs_target(EnemyMovement movement);
 
 /* A step of the enemy's movement, the variant its animation picks. */

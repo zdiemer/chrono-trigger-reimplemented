@@ -6,15 +6,17 @@
  * the original does at length -- a block move done as a fill, a search done in
  * locals -- that estimate misses the original's time, and keeping the
  * original's shape so it gets counted is the wrong fix (the review's item 36).
- * These say what the time was instead. They are scaffolding: call them through
- * ORIGINAL_EFFECT (original_effects.h), and a native build has none of them.
- * But where a charge is most of a routine's time, the native shape (the
- * machine build without the scaffolding, which must play the routes as the
- * default build does) needs it to keep the original's pace, and it is made
- * plainly, as TIMED_AS is: the unpacker's (data/decompress.c), whose original
- * spends half its time on its direct page's cells (charge_retired, since its
- * entry retired). A build with no machine charges only the time model's
- * prices.
+ * These say what the time was instead. They are the original's time, not
+ * scaffolding, so they are made plainly, as TIMED_AS is, never through
+ * ORIGINAL_EFFECT: the native shape (the machine build without the
+ * scaffolding, which must play the routes as the default build does) keeps
+ * the original's pace with them, and a build with no machine times the game's
+ * work with them (runtime/port/state_host.c: the charges at the routines'
+ * calibrated rates, as here, the unpacker's at the time model's price). The
+ * unpacker's (data/decompress.c), whose original spends half its time on its
+ * direct page's cells, is charge_retired, since its entry retired. An
+ * uncounted stretch (charge_uncounted_begin) is plain for the same reason:
+ * the charge after it stands for the accesses it leaves out.
  * runtime/port/state_io.c is the backing (runtime/port/native.h,
  * native_charge_as). */
 #ifndef CT_GAME_CHARGE_H

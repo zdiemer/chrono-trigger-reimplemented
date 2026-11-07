@@ -451,7 +451,7 @@ static void draw_node(GameState *g, NodeLink node)
         ORIGINAL_EFFECT(note_sprite(sx, sy, x_on, shown));
         p.at = (uint16_t)(p.at + 4);
     } while (--left != 0);
-    ORIGINAL_EFFECT(charge_node(g, (look & ON_THE_MAP) != 0, sprites, tested_down, shown_sprites));
+    charge_node(g, (look & ON_THE_MAP) != 0, sprites, tested_down, shown_sprites);
 }
 
 /* What the drawing leaves in the mode's scratch cells: the last node's place
@@ -872,7 +872,7 @@ static void put_colours(GameState *g, unsigned record, uint16_t from)
         uint16_t at = (uint16_t)(from + 2 * i);
         set_menu_palette(g, first + i, (uint16_t)(menu_sprite_colour_byte(g, at) | menu_sprite_colour_byte(g, (uint16_t)(at + 1)) << 8));
     }
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * SPRITE_COLOURS));
+    charge_block_move(g, 2 * SPRITE_COLOURS);
 }
 
 /* A character's sprite colours ($FF:F628): the twelve its sprites have,
@@ -1034,7 +1034,7 @@ static uint16_t frame_buffer_for(const GameState *g, uint8_t blocks_before)
 static void put_blank_tile(GameState *g, uint16_t at)
 {
     wram_fill8(g, WORK_RAM_BANK | at, TILE_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, TILE_BYTES));
+    charge_block_move(g, TILE_BYTES);
 }
 
 static void put_tile(GameState *g, uint32_t graphics, FrameTile tile, uint16_t at)
@@ -1042,7 +1042,7 @@ static void put_tile(GameState *g, uint32_t graphics, FrameTile tile, uint16_t a
     uint32_t from = in_bank(graphics, (uint16_t)(tile.number * TILE_BYTES));
     if (!tile.mirrored) {
         wram_copy(g, from, WORK_RAM_BANK | at, TILE_BYTES);
-        ORIGINAL_EFFECT(charge_block_move(g, TILE_BYTES));
+        charge_block_move(g, TILE_BYTES);
         return;
     }
     uint8_t pixels[TILE_BYTES];
@@ -1179,7 +1179,7 @@ static void show_frame(GameState *g, unsigned record, uint8_t frame)
     uint32_t offsets = in_bank(list, list_bytes);
     for (uint16_t i = 0; i < offset_bytes; i++)
         set_menu_record_sprite_offsets_byte(g, record, i, menu_sprite_byte(g, in_bank(offsets, i)));
-    ORIGINAL_EFFECT(charge_block_move(g, offset_bytes));
+    charge_block_move(g, offset_bytes);
     FrameTiles tiles = frame_tiles_at(g, list, blocks);
     ORIGINAL_EFFECT(leave_frame_found(g, frame, bytes, &tiles));
     TIMED_AS(g, 0xC2F75C, show_frame_tiles(g, record, &tiles));
@@ -1961,7 +1961,7 @@ void menu_load_character_colours(GameState *g)
         for (unsigned i = 0; i < MENU_WEAPON_COLOURS; i++)
             set_menu_palette(g, first + i, c.colour[i]);
     }
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * CHARACTER_RECORDS * (SPRITE_COLOURS + MENU_WEAPON_COLOURS)));
+    charge_block_move(g, 2 * CHARACTER_RECORDS * (SPRITE_COLOURS + MENU_WEAPON_COLOURS));
     ORIGINAL_EFFECT(set_menu_scratch_colours_loaded(g, CHARACTER_RECORDS));
 }
 

@@ -26,6 +26,7 @@
 
 #include "charge.h"
 #include "core/program.h"
+#include "port/vars_ram.h"
 
 /* ---- The table, by opcode ------------------------------------------------------------- */
 
@@ -448,12 +449,17 @@ static bool run(void *ctx, uint16_t at, EventStep *step)
     const EventOpcode *row = event_opcode(opcode);
     uint32_t handler = HANDLERS_BANK | command_handler(c->game, opcode);
     BridgeWork bridge = bridge_for(opcode);
-    if (row && !row->run && bridge && event_runs_here(c->game, row, at)) {
+    /* whether the port runs it is the program's question, not the game's
+     * work: it takes none of the original's time (port/vars_ram.h) */
+    vars_peek(true);
+    bool runs_here = row && event_runs_here(c->game, row, at);
+    vars_peek(false);
+    if (row && !row->run && bridge && runs_here) {
         bool goes_on = false;
         TIMED_AS(c->game, handler, goes_on = bridge(c->game, c->pf, at, step));
         return goes_on;
     }
-    if (!row || !row->run || !event_runs_here(c->game, row, at)) {
+    if (!row || !row->run || !runs_here) {
         program_needs_the_machine(c->game, handler, "an event command only the machine runs");
         return false;
     }
