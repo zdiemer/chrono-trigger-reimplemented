@@ -4,7 +4,6 @@
 # the list empties as the backlog is rewritten. A deliberate exception carries
 # its reason as a `#` comment on its line.
 
-game/attract/main_loop.c                     return-address-pushed    1
 game/battle/animation.c                      return-address-pushed    1
 game/battle/bridge.c                         pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
 game/battle/display.c                        sibling-through-machine  2

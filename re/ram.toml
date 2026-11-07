@@ -326,7 +326,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Nonzero once a sequence script has reached its stop: the program's main loop, which waits for it, then ends the scene (16-bit)"
-source = "game/scene/script.c, stop (command $AF, $C3:0B95); game/attract/main_loop.c, attract_wait_loop $7E:3023"
+source = "game/scene/script.c, stop (command $AF, $C3:0B95); game/scene/program.c, the main loop $7E:3023"
 
 [[var]]
 name = "scene_joypad"

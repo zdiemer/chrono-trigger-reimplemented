@@ -49,41 +49,17 @@ enum ScreenTaskRow { ROW_ANIMATE_PALETTES, ROW_FINISH_SPRITES, ROW_BRIGHTEN, ROW
 
 /* ---- The program stops ---------------------------------------------------------------------- */
 
-bool scene_program_restart_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E302A, 14, 0x614033C5F8C83156ull) && scene_program_end_present(s);
-}
-
 // $7E:302A
 /* The program stops: interrupts and per-line effects off and the screen
  * blanked, before it moves the stack and jumps to the reset code. */
-static void stop_display(Platform *pf)
+void scene_stops_the_display(Platform *pf)
 {
     tm_enable_interrupts(pf, PF_AT(0x7E302F), 0);
     vid_enable_line_effects(pf, PF_AT(0x7E3032), 0);
     vid_set_display(pf, PF_AT(0x7E3035), &(VidDisplay){ .blank = true });
 }
 
-/* Normalize the sound through its held driver waits (scene/sound.c), then
- * hand the game back to the field (scene/program.c). */
-enum { SOUND_CALL = 0x7E3038, SOUND_BACK_TO_NORMAL = 0x7E3177, THE_SOUND_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-void scene_stops_the_display(Platform *pf) { stop_display(pf); }
-
-void scene_program_restart(Snes *s)
-{
-    stop_display(m_platform(s));
-    s->cpu.p |= CPU_FLAG_M;
-    if (scene_run(s, SOUND_CALL, SOUND_BACK_TO_NORMAL, THE_SOUND_READS_NOTHING, scene_sound_back_to_normal_entry))
-        scene_hand_back_to_the_field(s);
-}
-
 /* ---- The program's work RAM cleared --------------------------------------------------------- */
-
-bool scene_clear_work_ram_present(Snes *s)
-{
-    return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E3092, 87, 0x2A1AE096D5B36F10ull);
-}
 
 /* What the clear covers: the direct page, then low RAM from past the stack up
  * to the sound driver interface's page -- or, for the title coming back, from
@@ -110,29 +86,7 @@ bool scene_clear_the_work_ram(GameState *g, Platform *pf, uint8_t matrix_left)
     return keep_below_tasks;
 }
 
-/* The shorter clear returns with A's high byte 0 and D back on the scene's
- * page; the longer one continues through sound and screen setup. */
-void scene_clear_work_ram(Snes *s)
-{
-    bool shorter = scene_clear_the_work_ram(state_of(s), m_platform(s), (uint8_t)s->cpu.a);
-    s->cpu.d = 0x0000;
-    if (!shorter) {
-        /* The DMA setup leaves its page in A's high byte, also on refusal. */
-        ORIGINAL_EFFECT(s->cpu.a = (uint16_t)(M_DP_DMA | (s->cpu.a & 0xFF)));
-        if (scene_accept_continuation(s, 0x7E30E9, scene_after_work_ram_clear))
-            TIMED_AS(state_of(s), 0x7E30E9, scene_after_work_ram_clear(s));
-        return;
-    }
-    s->cpu.a = 0x0000;
-    m_rts(s);
-}
-
 /* ---- A scene's first screen ------------------------------------------------------------------ */
-
-bool scene_init_video_present(Snes *s)
-{
-    return scene_on_scene_page(s) && m_code_matches(s, 0x7E30F9, 126, 0x4F3F340A8EB09E78ull);
-}
 
 /* The screen every scene starts from: blanked, BG mode 0 with every layer's
  * tilemap and tiles at VRAM 0, 32 tiles square and unscrolled; no mosaic, no
@@ -154,16 +108,6 @@ void scene_set_up_first_screen(GameState *g, Platform *pf)
 {
     set_scene_sprite_high_pointer(g, SCENE_SPRITE_HIGH_TABLE);
     vid_apply_screen(pf, PF_AT(0x7E30F9), &first_screen);
-}
-
-/* Written through a direct page on the register block, which it leaves on the
- * scene's page again; A's high byte ends 0, with 8-bit A and 16-bit X. */
-void scene_init_video(Snes *s)
-{
-    scene_set_up_first_screen(state_of(s), m_platform(s));
-    s->cpu.p = (uint8_t)((s->cpu.p | CPU_FLAG_M) & ~CPU_FLAG_X);
-    s->cpu.a = 0x0000;
-    m_rts(s);
 }
 
 /* ---- Each frame's sprites and palette -------------------------------------------------------- */

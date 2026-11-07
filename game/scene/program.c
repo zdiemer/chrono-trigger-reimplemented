@@ -11,19 +11,23 @@
  * credits (scene/credit_pages.c), the palace rising (scene/rising_palace.c),
  * Lavos falling to the planet (scene/lavos_falls.c), the Epoch's dive
  * (scene/epoch_dive.c), the shared endings', the unused panoramas and turning
- * figures, and the staff roll's are all C; and its first frame: the palette the setup made sent, a frame
- * waited out, the frame's work done once (scene/frame.c) and the interrupts
- * on. The program's main loop then runs
- * (attract/main_loop.c) until a script ends the scene, when the program blanks
- * the screen (scene/screen.c), puts the sound back to normal and hands the
- * game back to the field's start, on the game's fresh stack.
+ * figures, and the staff roll's are all C; and its first frame: the palette
+ * the setup made sent, a frame waited out, the frame's work done once
+ * (scene/frame.c) and the interrupts on. The program's main loop then makes
+ * the call the setup named each pass until a script ends the scene, when the
+ * program blanks the screen (scene/screen.c), puts the sound back to normal
+ * and hands the game back to the field's start, on the game's fresh stack.
  *
- * Sound exchanges and the title's music wait hold their C continuations
- * through platform waits. Startup hands back at the main loop; its first
- * frame's interrupt carry is still live across that boundary (docs/TODO.md).
+ * The same sequence runs twice here: with no machine under it (scene_runs, the
+ * program from the boot to its end), and on the machine in the shipping mode,
+ * where the boot starts it, the main loop is a held wait whose passes are the
+ * runtime's continuations, and the setups and the frame's work are entries
+ * still under the gate. The program itself is off the gate
+ * (docs/REIMPLEMENTATION.md, "The scene program's teardown"): elsewhere the
+ * cartridge's program runs, compared with nothing.
  *
- * All of it is the program's code, in work RAM, so every entry is guarded by
- * a hash of its code. */
+ * All of it is the program's code, in work RAM, where other code and data are
+ * at other times, so its contracts check a hash of its code. */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -69,15 +73,6 @@ static void start_from_the_first_screen(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0x7E3843, scene_hide_every_sprite(pf));
     TIMED_AS(g, 0x7E30F9, scene_set_up_first_screen(g, pf));
-}
-
-/* The screen's setup is written through a direct page on the register block
- * and leaves 8-bit A at 0, with 16-bit index registers, as the program's
- * setups take it. */
-static void as_the_screen_s_setup_leaves_it(Snes *s)
-{
-    s->cpu.p = (uint8_t)((s->cpu.p | CPU_FLAG_M) & ~CPU_FLAG_X);
-    s->cpu.a = 0x0000;
 }
 
 /* ---- The scene's setup, by its mode ------------------------------------------------------------ */
@@ -199,7 +194,8 @@ enum {
 // $7E:300D
 /* The palette the setup made sent, a frame waited out, the frame's work done
  * once, and the vblank and line interrupts and the controllers' reading on;
- * the scene neither over nor paused, the main loop runs (16-bit A). */
+ * the scene neither over nor paused, and the main loop's wait held (16-bit
+ * A). */
 static void first_frame_on_the_machine(Snes *s)
 {
     GameState *g = state_of(s);
@@ -215,93 +211,142 @@ static void first_frame_on_the_machine(Snes *s)
     m_hold_at(s, MAIN_LOOP, THE_LOOP_READS_THE_CARRY, HOLD_SCENE_MAIN_LOOP);
 }
 
-/* ---- The entries --------------------------------------------------------------------------------- */
+/* ---- The program's start, on the machine ------------------------------------------------------- */
 
-/* The start's own routine ($7E:3063), which the program calls first: its
- * return is on the stack under everything it calls, and it returns to the
- * setup's dispatch. */
-enum { PROGRAM_START = 0x7E3000, SOUND_CALL = 0x7E30F3, SOUND_BACK_TO_NORMAL = 0x7E3177 };
-enum { THE_SOUND_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { PROGRAM_START = 0x7E3000, CLEAR_WORK_RAM = 0x7E3092, SOUND_BACK_TO_NORMAL = 0x7E3177 };
 
-/* The clear works through the DMA registers' page, which it leaves in A's
- * high byte; the sound's commands hand it back to the start untouched. */
-static void leave_the_clear_s_page_in_a(Snes *s) { s->cpu.a = (uint16_t)(M_DP_DMA | (s->cpu.a & 0x00FF)); }
-
-// $7E:30E9
-/* After the full work-RAM clear, normalize the sound and establish the
- * empty screen before returning to the scene's setup. */
-void scene_after_work_ram_clear(Snes *s)
+/* The sound put back to normal as a scene starts, unless the scene has no
+ * songs: no song on its way, then the driver's commands (scene/sound.c). */
+static void put_the_sound_back(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
-    if (!(scene_flags(g) & SCENE_FLAG_NO_SONGS)) {
-        set_scene_song(g, NO_SONG);
-        if (!scene_run(s, SOUND_CALL, SOUND_BACK_TO_NORMAL, THE_SOUND_READS_NOTHING, scene_sound_back_to_normal_entry))
-            return;
-    }
-    if (scene_accept_continuation(s, 0x7E30F6, scene_program_goes_on))
-        TIMED_AS(g, 0x7E30F6, scene_program_goes_on(s));
+    if (scene_flags(g) & SCENE_FLAG_NO_SONGS)
+        return;
+    set_scene_song(g, NO_SONG);
+    TIMED_AS(g, SOUND_BACK_TO_NORMAL, scene_sound_back_to_normal(g, pf));
 }
 
-// $7E:31BE
-/* The frame wait has completed; its caller can continue. The ports' own
- * calls of the wait ($7E:31B0) wait where they stand (tm_wait_frame), so
- * only the original's run of it in shadow mode, or where its code isn't in
- * place, comes here. */
-void scene_frame_wait_done(Snes *s) { m_rts(s); }
-
-/* The wait, $7E:31B0 to this return, is the program's. */
-bool scene_frame_wait_present(Snes *s) { return m_code_matches(s, 0x7E31B0, 15, 0x04AE9A24245E978Dull); }
-
-// $7E:3000
-/* The program's start, from the boot on the field's page. The clear's matrix
- * value is what A holds there, the fades' pace. */
-void scene_program_start(Snes *s)
+/* The program's start, from the boot on the field's page: the start's own
+ * routine ($7E:3063), whose return is on the stack under everything it calls,
+ * then the setup and the first frame. The clear's matrix value is the fades'
+ * pace, which the original has in A there. */
+static void start_the_program(Snes *s)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
     scene_bridge_enter(s, PROGRAM_START);
     reset_the_program(g);
     bool title_coming_back = false;
-    TIMED_AS(g, 0x7E3092, title_coming_back = scene_clear_the_work_ram(g, pf, FADE_PACE));
+    TIMED_AS(g, CLEAR_WORK_RAM, title_coming_back = scene_clear_the_work_ram(g, pf, FADE_PACE));
     s->cpu.d = SCENE_PAGE;
     if (!title_coming_back) {
-        if (!(scene_flags(g) & SCENE_FLAG_NO_SONGS)) {
-            set_scene_song(g, NO_SONG);
-            ORIGINAL_EFFECT(leave_the_clear_s_page_in_a(s));
-            if (!scene_run(s, SOUND_CALL, SOUND_BACK_TO_NORMAL, THE_SOUND_READS_NOTHING, scene_sound_back_to_normal_entry))
-                return;
-        }
+        put_the_sound_back(g, pf);
         start_from_the_first_screen(g, pf);
     }
     scene_bridge_leave(s);
     set_the_scene_up(s);
 }
 
-// $7E:30F6
-/* The start's own routine goes on where the sound's last command returns:
- * every sprite hidden and the first screen, and back to the program. */
-void scene_program_goes_on(Snes *s)
+/* The program's contract: entered from the boot with an 8-bit accumulator and
+ * 16-bit index registers; its start, the routines it runs inline, its main
+ * loop's test, its end and its sound routine the code the port stands for
+ * (the main loop's call is left out of the hash: a setup points it at its
+ * scene's routine); its stores reaching low RAM and the I/O registers through
+ * the data bank; and the mode one of the table's. */
+static bool start_present(Snes *s)
 {
-    start_from_the_first_screen(state_of(s), m_platform(s));
-    as_the_screen_s_setup_leaves_it(s);
-    m_rts(s);
+    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E3000, 0x24, 0x86AB875D97E1ED1Cull) &&
+           m_code_matches(s, 0x7E3026, 0x18A, 0x60EA7B591D51F309ull) &&
+           m_code_matches(s, 0x7E3843, 45, 0x36CEE4DC10A522A8ull) &&
+           m_code_matches(s, 0x7E388B, 36, 0x84B3B18FAFEEAE44ull);
 }
 
-// $7E:3003
-/* The scene set up and its first frame, where the start's own routine returns
- * after the sound's commands. */
-void scene_setup_and_first_frame(Snes *s) { set_the_scene_up(s); }
+static bool start_takes(Snes *s)
+{
+    if (s->cpu.e || (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M || !start_present(s))
+        return false;
+    vars_peek(true);
+    bool ok = (scene_flags(state_of(s)) & SCENE_MODE_BITS) < SCENE_MODES;
+    vars_peek(false);
+    return ok;
+}
 
-/* The first frame, where a setup that waited returns. */
-void scene_first_frame(Snes *s) { first_frame_on_the_machine(s); }
+// $7E:3000
+/* The scene program is off the byte-exact gate (docs/REIMPLEMENTATION.md,
+ * "The scene program's teardown"): where the hand ports play, the boot starts
+ * it as C, timed as the program's start, and the setups and the frame's work
+ * it calls are entries still under the gate, called as the registry has them.
+ * A start outside the program's contract, which the game never makes, is a
+ * contract broken, and the cartridge's program starts instead. */
+void scene_program_starts_on_the_machine(Snes *s)
+{
+    m_jump_to(s, PROGRAM_START);
+    if (!start_takes(s)) {
+        program_breaks_a_contract(state_of(s), PROGRAM_START, "a scene program's start outside its contract");
+        m_stop_at_own(s, PROGRAM_START, 0);
+        return;
+    }
+    NATIVE_TIME_AS_SIBLING(s, PROGRAM_START, start_the_program(s));
+}
 
-/* ---- The program's end ------------------------------------------------------------------------------ */
+/* ---- The main loop, on the machine ------------------------------------------------------------ */
 
-enum { FIELD_STARTS = 0xC00000, THE_FIELD_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+/* The routines a pass calls as C (main_loop_pass, below), each with the entry
+ * whose registry row is its contract: the widths and arithmetic it is called
+ * with, and its guard. Not the race's scaling: between its racers it waits for
+ * the last one's tiles to be sent, inside the routine ($7E:5211), a wait the
+ * machine can neither hold nor wait out where a port stands yet, so its call
+ * stays the original's, and the race's entries take it (docs/TODO.md, "The
+ * race's scaling from the scene program's main loop"). */
+static const struct {
+    ScenePass call;
+    void (*entry)(Snes *s);
+} PASS_ENTRIES[] = {
+    { SCENE_PASS_ENDING_SCALING, scene_ending_scale_picture_entry },
+    { SCENE_PASS_DIVE_SCALING, scene_scale_the_epoch_entry },
+    { SCENE_PASS_TURN_MAP, scene_turn_map_entry },
+};
+enum { PASS_ENTRY_COUNT = sizeof PASS_ENTRIES / sizeof PASS_ENTRIES[0] };
+
+static bool main_loop_pass(GameState *g, Platform *pf);
+
+/* The pass's call: as C where the routine's contract takes the state, as the
+ * registry would run it; where it turns the state away, the call the original
+ * makes. False where that call didn't come back. */
+static bool pass_on_the_machine(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint16_t call = scene_main_loop_call(g);
+    if (call == SCENE_PASS_NOTHING)
+        return true;
+    for (unsigned n = 0; n < PASS_ENTRY_COUNT; n++) {
+        if (PASS_ENTRIES[n].call != call)
+            continue;
+        const NativeEntry *e = native_hand_entry_at(s, PROGRAM_BANK | call);
+        if (!e || e->fn != PASS_ENTRIES[n].entry)
+            break;
+        if (!main_loop_pass(g, m_platform(s)))
+            program_breaks_a_contract(g, PROGRAM_BANK | call, "a scene's main loop call its guard took and its C didn't");
+        return true;
+    }
+    uint16_t stack = s->cpu.s;
+    m_jsr(s, MAIN_LOOP, PROGRAM_BANK | call);
+    return m_came_back(s, MAIN_LOOP + 3, stack);
+}
+
+/* The program's end ($7E:302A, and its hand-back $7E:303B): its code in
+ * place, and the field's location a number for the field's start the game
+ * goes back to. */
+enum { PROGRAM_END = 0x7E302A, FIELD_STARTS = 0xC00000 };
+
+static bool end_present(Snes *s)
+{
+    return m_code_matches(s, PROGRAM_END, 14, 0x614033C5F8C83156ull) &&
+           m_code_matches(s, 0x7E303B, 8, 0xF200A66DE169CF3Aull) && field_location_is_a_number(s);
+}
 
 /* The game back to the field's start, on the game's fresh stack, which the
  * original sets through X. */
-void scene_hand_back_to_the_field(Snes *s)
+static void hand_back_to_the_field(Snes *s)
 {
     s->cpu.x = CONSOLE_STACK_TOP;
     s->cpu.s = CONSOLE_STACK_TOP;
@@ -311,46 +356,76 @@ void scene_hand_back_to_the_field(Snes *s)
         NATIVE_TIME_AS_SIBLING(s, FIELD_STARTS, field_enter(s));
 }
 
-// $7E:303B
-/* Where the sound's last command returns at the program's end. */
-void scene_program_hands_back(Snes *s) { scene_hand_back_to_the_field(s); }
-
-/* ---- The guards ---------------------------------------------------------------------------------- */
-
-/* The start, its table of setups and the routines it runs inline as one
- * stretch of the program; the sprites' hiding and the palette's sending.
- * The main loop's call of the frame's own routine is left out: the race's
- * setup points it at the race's (the loop is the original's, past where the
- * start stops). The program's stores reach low RAM and the I/O registers
- * through the data bank; and the mode is one of the table's. */
-static bool start_present(Snes *s)
+// $7E:302A
+/* A script has ended the scene: interrupts and per-line effects off and the
+ * screen blanked, the sound put back to normal, and the game handed back to
+ * the field's start. An end not in place or with 8-bit index registers (its code takes
+ * 16-bit ones), which the game never makes, is a
+ * contract broken, and the cartridge's end runs instead. */
+static void end_on_the_machine(Snes *s)
 {
-    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E3000, 0x24, 0x86AB875D97E1ED1Cull) &&
-           m_code_matches(s, 0x7E3026, 0x18A, 0x60EA7B591D51F309ull) &&
-           m_code_matches(s, 0x7E3843, 45, 0x36CEE4DC10A522A8ull) &&
-           m_code_matches(s, 0x7E388B, 36, 0x84B3B18FAFEEAE44ull);
+    GameState *g = state_of(s);
+    if (m_flag(s, CPU_FLAG_X) || !end_present(s)) {
+        program_breaks_a_contract(g, PROGRAM_END, "a scene program's end outside its contract");
+        m_stop_at_own(s, PROGRAM_END, 0);
+        return;
+    }
+    TIMED_AS(g, PROGRAM_END, scene_stops_the_display(m_platform(s)));
+    TIMED_AS(g, SOUND_BACK_TO_NORMAL, scene_sound_back_to_normal(g, m_platform(s)));
+    m_set_flag(s, CPU_FLAG_M, true);   /* the field's start takes an 8-bit accumulator, as the end leaves it */
+    hand_back_to_the_field(s);
 }
 
-bool scene_after_work_ram_clear_present(Snes *s) { return start_present(s); }
-
-bool scene_program_start_present(Snes *s)
+// $7E:3023
+/* The main thread rests in the program's main loop at every frame end of a
+ * scene, the frame's work done by the vblank handler, so the loop is a held
+ * wait (holds.h): the first frame holds it, and in the shipping mode the
+ * runtime runs these two continuations where the machine names it (the
+ * subsystem is retired, so elsewhere the cartridge's loop runs). Each pass
+ * makes the call a setup named -- nothing, or the scaling of a picture the
+ * scene draws as it goes -- then looks whether a sequence script has ended
+ * the scene (scene_program_over; scene/script.c), and ends the program once
+ * one has. */
+void scene_program_next_pass(Snes *s)
 {
-    if (!start_present(s))
-        return false;
+    if (!pass_on_the_machine(s))
+        return;
+    if (scene_program_over(state_of(s))) {
+        end_on_the_machine(s);
+        return;
+    }
+    m_hold_at(s, MAIN_LOOP, THE_LOOP_READS_THE_CARRY, HOLD_SCENE_MAIN_LOOP);
+}
+
+/* A pass with nothing to call and the scene going on: the idle continuation,
+ * which goes round. */
+void scene_program_waits(Snes *s) { (void)s; }
+
+/* The continuations' guards: the program's loop -- its call, and its test
+ * after it -- on the scene's page; the idle pass where there is nothing to
+ * call and the scene isn't over, the other everywhere else. Each is a claim
+ * the game keeps, which the refusal measure checks over real play
+ * (tools/fallbacks.py --refusals). */
+enum { JSR = 0x20 };
+
+static bool loop_present(Snes *s)
+{
+    return snes_bus_peek(&s->bus, MAIN_LOOP) == JSR && m_code_matches(s, MAIN_LOOP + 3, 4, 0x2B0A967642BA802Bull) &&
+           m_direct_page(s) == SCENE_PAGE;
+}
+
+static bool nothing_to_do(Snes *s)
+{
     vars_peek(true);
-    bool ok = (scene_flags(state_of(s)) & SCENE_MODE_BITS) < SCENE_MODES;
+    const GameState *g = state_of(s);
+    bool idle = scene_main_loop_call(g) == SCENE_PASS_NOTHING && !scene_program_over(g);
     vars_peek(false);
-    return ok;
+    return idle;
 }
 
-/* Where the sound's last command returns, the setups' dispatch takes A's high
- * byte into its index with the mode: the start's routine leaves it 0. */
-bool scene_setup_present(Snes *s) { return (s->cpu.a & 0xFF00) == 0 && scene_program_start_present(s); }
+bool scene_program_passes(Snes *s) { return loop_present(s) && !nothing_to_do(s); }
 
-bool scene_program_end_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E303B, 8, 0xF200A66DE169CF3Aull) && field_location_is_a_number(s);
-}
+bool scene_program_waits_for_the_frame(Snes *s) { return loop_present(s) && nothing_to_do(s); }
 
 /* ---- The program as C, with no machine ------------------------------------------------------------ */
 
@@ -439,12 +514,9 @@ bool scene_runs(GameState *g, Platform *pf, uint8_t flags)
     (void)scene_boots(g, pf, flags);
     reset_the_program(g);
     bool title_coming_back = false;
-    TIMED_AS(g, 0x7E3092, title_coming_back = scene_clear_the_work_ram(g, pf, FADE_PACE));
+    TIMED_AS(g, CLEAR_WORK_RAM, title_coming_back = scene_clear_the_work_ram(g, pf, FADE_PACE));
     if (!title_coming_back) {
-        if (!(scene_flags(g) & SCENE_FLAG_NO_SONGS)) {
-            set_scene_song(g, NO_SONG);
-            TIMED_AS(g, SOUND_BACK_TO_NORMAL, scene_sound_back_to_normal(g, pf));
-        }
+        put_the_sound_back(g, pf);
         start_from_the_first_screen(g, pf);
     }
     uint8_t mode = scene_flags(g) & SCENE_MODE_BITS;

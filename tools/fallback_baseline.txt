@@ -4,10 +4,8 @@
 # A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes
 # on one, is a new fallback, and needs its reason. An `open PORT` line is what the original ran
 # under that port's comparisons still open when a run ended, which hides it from the rest.
-7E:---- 6 7  # no call on record (scene program (RAM)): the main loop's passes an interrupt cut inside its empty call, counted until the measure matched a cut pass by the S it returns to; over the whole library (the batched run of 92026499) under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2")
-7E:3023 1 3  # handback by attract_frame_pass (scene program (RAM))
+7E:---- 4 8  # no call on record (scene program (RAM)): the race's wait for its last tiles and the gathering after it ($7E:5211-$7E:5220), a pass an interrupt cut in events-jetbike-race-won's reference play, where since the scene program retired the cartridge's main loop makes the race's call with no port of the loop around it to match the cut pass by (REIMPLEMENTATION.md, "The scene program's teardown"); the main loop's own cut passes this line held before (6 instructions, 7 bytes over the library) are the retired program's now, not counted; over the gate's sample, the batched library run takes the library's count
 7E:3176 1346 1  # handback by scene_boot, scene_run_vblank_tasks (scene program (RAM))
-7E:31B0 327 7  # handback by scene_boot (scene program (RAM))
 C0:---- 1099 131  # no port yet (field engine, events)
 C0:0B38 320 5  # handback by field_enter, field_fade_in, field_fade_in_after_a_menu (field engine, events)
 C2:---- 2825 271  # no call on record (menus, text, overworld): the menus' code after a vblank; over the whole library (the batched run of 92026499) under the measure that keeps a comparison's stretch a vblank handler gave up (REIMPLEMENTATION.md, "The largest fallbacks left, 2")
