@@ -41,7 +41,7 @@ def fight(run, policy="party_with_lapis", seed=1):
             seen.append(True)
         return bool(seen) and not living and any(state.hp(i) for i in range(3))
 
-    assert run.dialogs_until(lambda: run.machine.b(A.BATTLE_MENU_MEMBER) < 0x80, 3000), "battle menu"
+    assert run.dialogs_until(lambda: A.battle_menu_open(run.machine), 3000), "battle menu"
     run.fight(policy, won, seed=seed, max_frames=30000, max_tries=80)
     assert run.wait_control(12000), "field after battle"
 

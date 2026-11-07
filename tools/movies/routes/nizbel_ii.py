@@ -48,8 +48,8 @@ def reach(run, goal, label):
             assert control(run), "arrival"
             return
         if not m.b(0x7E011F) or run.dialog():
-            run.dialogs_until(lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80 or m.b(0x7E011F) != 0, 6000)
-            if m.b(A.BATTLE_MENU_MEMBER) < 0x80:
+            run.dialogs_until(lambda: A.battle_menu_open(m) or m.b(0x7E011F) != 0, 6000)
+            if A.battle_menu_open(m):
                 fight(run)
         else:
             assert moves is not None, "path to " + label
@@ -128,7 +128,7 @@ def main():
     if start <= 4:
         # $12E object 0 starts the guards at column $37, rows $13-$19.
         assert run.go(55 * 16 + 8, 22 * 16), "Kino's guards"
-        assert run.dialogs_until(lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80, 6000), "guards attack"
+        assert run.dialogs_until(lambda: A.battle_menu_open(m), 6000), "guards attack"
         fight(run, args.seed)
         run.checkpoint("guards")
     if start <= 5:

@@ -69,7 +69,7 @@ def main():
             assert run.wait_control()
             machine.run(100, "UP")
             machine.run(3, "A")
-            assert run.dialogs_until(lambda: machine.b(A.BATTLE_MENU_MEMBER) < 0x80
+            assert run.dialogs_until(lambda: A.battle_menu_open(machine)
                                      and machine.w(A.BATTLE_STATS + 6 * 128 + 2) == 9500, 8000)
             run.checkpoint("battle")
         if start <= 4:

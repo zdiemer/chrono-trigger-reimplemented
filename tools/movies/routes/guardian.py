@@ -9,6 +9,7 @@ lines, and the battle (formation $93) the battle bot fights. The Guardian's AI b
 back (its action $10, $C1:9E78), which no other movie's enemy uses. The route stops once the
 battle is won and the field is back in hand.
 """
+from .. import addresses as A
 from .. import policies
 from ..campaign import Run, route_arguments, run_route
 
@@ -70,7 +71,7 @@ def main():
             machine.run(30)
             if not run.find_player():
                 break
-        assert run.dialogs_until(lambda: machine.b(BATTLE_MENU_MEMBER) < 0x80, 8000), "the battle's first menu"
+        assert run.dialogs_until(lambda: A.battle_menu_open(machine), 8000), "the battle's first menu"
         run.checkpoint("battle")
     if start <= 5:
         seen = []

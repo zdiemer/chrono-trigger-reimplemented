@@ -114,7 +114,7 @@ def walk_to(run, x, y, goal=None, battle_var=11, fight=None, scene_waits=False):
         if run.dialog() and not m.b(0x7F0200 + 2 * battle_var):
             assert run.wait_control(), "floor speech finishes"
             continue
-        starts = lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80
+        starts = lambda: A.battle_menu_open(m)
         assert (confirm_until(run, starts) if scene_waits else run.dialogs_until(starts, 6000)), "encounter starts"
         (fight or fight_once)(run)
     raise AssertionError("too many encounters on the walk")
@@ -265,7 +265,7 @@ def main():
         if start <= 7:
             assert run.wait_control()
             assert run.exit_to("7e00"), "conveyor"
-            assert run.dialogs_until(lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80, 6000)
+            assert run.dialogs_until(lambda: A.battle_menu_open(m), 6000)
             run.fight("party", lambda r, s: r.map_id() == "fa00", seed=args.seed,
                       max_frames=100000, max_tries=100)
             assert run.wait_control()
@@ -322,7 +322,7 @@ def main():
             assert run.wait_control()
             if not m.b(0x7F013F) & 0x20:
                 assert seek(run, 888, 520, lambda: m.b(0x7E011F) == 0, battle_var=9)
-                assert run.dialogs_until(lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80, 6000)
+                assert run.dialogs_until(lambda: A.battle_menu_open(m), 6000)
                 fight_once(run)
                 assert run.wait_control()
             assert seek(run, 888, 525)
@@ -412,7 +412,7 @@ def main():
         if start <= 18:
             assert run.wait_control()
             assert seek(run, 160, 200, lambda: m.b(0x7E011F) == 0, battle_var=9)
-            assert run.dialogs_until(lambda: m.b(A.BATTLE_MENU_MEMBER) < 0x80, 8000)
+            assert run.dialogs_until(lambda: A.battle_menu_open(m), 8000)
             fight_once(run, policy="motherbrain", seed=args.seed)
             assert run.dialogs_until(lambda: run.map_id() == "f201", 12000)
             m.run(600)

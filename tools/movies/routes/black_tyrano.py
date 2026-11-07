@@ -10,6 +10,7 @@ bot fights it. After it Azala's last words, and event $FF $24 hands the screen t
 program at mode 4 ($7E:53BB): Lavos falling on the 65,000,000 B.C. world, which no other movie
 plays. The route stops once the scene has run its course and the field is back.
 """
+from .. import addresses as A
 from .. import policies
 from ..campaign import Run, route_arguments, run_route
 
@@ -79,7 +80,7 @@ def main():
         machine.run(2, "UP")
         machine.run(8)
         machine.run(3, "A")
-        assert run.dialogs_until(lambda: machine.b(BATTLE_MENU_MEMBER) < 0x80, 8000), "the battle's first menu"
+        assert run.dialogs_until(lambda: A.battle_menu_open(machine), 8000), "the battle's first menu"
         run.checkpoint("battle")
     if start <= 5:
         seen = []
