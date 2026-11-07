@@ -32,6 +32,11 @@ def fight_once(run, party=3, seed=1, policy="party"):
     run.fight(policy, won, party=party, seed=seed, max_tries=100)
 
 
+# A state slot the escort pod's charge goes back to (seek uses 4091, find_player 4090,
+# object_path 4089, the castle 4088).
+BEFORE_THE_CHARGE = 4087
+
+
 def seek(run, x, y, goal=None, battle_var=11, max_nodes=3800):
     """Search machine copies toward a spot, dashing and stopping for encounters.
 
@@ -353,8 +358,26 @@ def main():
             if not m.b(0x7F013F) & 2:
                 walk_to(run, 680, 720, lambda: bool(m.b(0x7F013F) & 2))
             assert m.b(0x7F013F) & 0x1F == 0x1F, "main floor encounters cleared"
-            walk_to(run, 400, 415, lambda: bool(m.b(0x7F013C) & 0x40))
-            assert seek(run, 400, 264, lambda: bool(m.b(0x7F013E) & 2)), "charge the escort pod"
+            # The charge is timed: stepping in at (400, 415) opens it
+            # ($7F:013C bit $40) and it runs out on the way to the pod, a long
+            # way round the patrols (the shipping mode's search takes 3,198 of
+            # the 3,800 nodes the machine's state slots allow). Where the
+            # patrols stand as it opens depends on the run's time, and from
+            # some moments the search finds no way in time. Then the charge is
+            # opened again from the moment before, a little later.
+            charged = lambda: bool(m.b(0x7F013E) & 2)
+            m.mark(BEFORE_THE_CHARGE)
+            try:
+                for wait in (0, 20, 40, 60, 90, 120):
+                    if wait:
+                        m.restore(BEFORE_THE_CHARGE)
+                        m.run(wait)
+                    walk_to(run, 400, 415, lambda: bool(m.b(0x7F013C) & 0x40))
+                    if seek(run, 400, 264, charged):
+                        break
+            finally:
+                m.free(BEFORE_THE_CHARGE)
+            assert charged(), "charge the escort pod"
             assert m.b(0x7F013E) & 2
             m.run(80)
             walk_to(run, 344, 136, lambda: m.b(0x7F0218) == 1)
