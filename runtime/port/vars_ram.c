@@ -28,7 +28,8 @@ bool vars_peeking(void) { return peeking; }
 
 #include "port/state_host.h"
 
-/* Each access the game's time, as the machine's bus counts it (state_host.c). */
+/* Each access the game's time, as the machine's bus counts it (state_host.c),
+   but for a guard's look, which takes none of it (vars_peek). */
 static uint8_t r8(const GameState *g, uint32_t a)
 {
     if (!peeking)
@@ -37,7 +38,8 @@ static uint8_t r8(const GameState *g, uint32_t a)
 }
 static void w8(GameState *g, uint32_t a, uint8_t v)
 {
-    state_host_game_access(g, 8);
+    if (!peeking)
+        state_host_game_access(g, 8);
     state_host_write8(g, a, v);
 }
 

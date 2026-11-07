@@ -36,6 +36,21 @@ def rates(text):
     return [(a, c) for _, a, c in sorted(found)]
 
 
+LITERAL = re.compile(r"\.cost_milli = \d+")
+INVOCATION = re.compile(r"^    [A-Z_]+\(0x[0-9A-Fa-f]+,", re.M)
+
+
+def check_complete(text, name):
+    """Every literal `.cost_milli = N` and every table macro's row parsed, so a
+    rate the parse misses fails the build rather than leaving its routine
+    untimed."""
+    structs = sum(1 for m in STRUCT.finditer(text) if COST.search(m.group(0)))
+    literals, macros, rows = len(LITERAL.findall(text)), len(MACRO.findall(text)), len(INVOCATION.findall(text))
+    if structs != literals or macros != rows:
+        sys.exit("%s: parsed %d entries' and %d table rows' rates, but it has %d `.cost_milli = N` and %d rows"
+                 % (name, structs, macros, literals, rows))
+
+
 def table(sources):
     seen = {}
     for text in sources:
@@ -58,7 +73,10 @@ def main(argv=None):
     ap.add_argument("sources", nargs="+", type=pathlib.Path)
     ap.add_argument("-o", "--out", type=pathlib.Path, required=True)
     args = ap.parse_args(argv)
-    rows = table([p.read_text() for p in args.sources])
+    texts = [p.read_text() for p in args.sources]
+    for path, text in zip(args.sources, texts):
+        check_complete(text, path)
+    rows = table(texts)
     if not rows:
         sys.exit("no rates found in %s" % ", ".join(map(str, args.sources)))
     write(rows, args.out)
