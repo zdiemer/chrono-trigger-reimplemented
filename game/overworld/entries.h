@@ -16,4 +16,10 @@
  * that isn't one of the overworld's: the caller makes the original's call. */
 void (*overworld_machine_form(Snes *s, uint32_t routine))(Snes *s);
 
+/* The original's call, from the objects' loop ($C2:053E), of the
+ * overworld's handler at `routine`, where its form doesn't run: with what
+ * the handler doesn't read of the registers declared. False, and no call made, for a routine that
+ * isn't one of the overworld's handlers. */
+bool overworld_call_the_handler(Snes *s, uint32_t routine);
+
 #endif

@@ -3751,9 +3751,9 @@ loop's own fades wait in too. The wait is held at that loop under
 stack, and its continuations take it only where that return is there: the
 pass (`overworld_next_frame`, the wait's return, the mode's arm, the wait
 again; `.pulls = 2`) and the idle pass before the frame is counted. The
-mode's own idle entry at the loop turns the loop's case away
-(`menu_frame_wait_loop_runs`). The halt, a loop with the interrupts off,
-holds a wait of its own (`HOLD_OVERWORLD_HALT`). Shadow over the four
+mode's own idle entry at the loop is found only where no wait is named
+(the address path), which the loop's holds never leave it. The halt, a
+loop with the interrupts off, holds a wait of its own (`HOLD_OVERWORLD_HALT`). Shadow over the four
 world-map movies and `menus-epoch` before the teardown:
 `overworld_next_frame` 5,463 calls, every one matched; the shipping mode
 played the five frame for frame as before.
@@ -3818,9 +3818,15 @@ first), and the fallback baseline's open comparison of its loop.
 
 Elsewhere the mode's start stops at the set up's original start, the
 object loop and the bridge make the original's calls, and the cartridge's
-overworld runs, compared with nothing; the fallback measure doesn't count it
-there (`dev/fallbacks.c`, `the_cartridges_overworld`) and does where the hand
-ports play, and the burndown and `tools/unreached.py` leave its runs out
+overworld runs, compared with nothing. The object loop's call of a handler
+is a call-out shadow mode compares, and the ports before it in the loop
+leave Y as nothing reads it: the call declares Y unread
+(`overworld_call_the_handler`), on fuzz evidence for the three handlers
+whose scripts liveness can't follow (`menu_run_objects:world_map`). The
+fallback measure doesn't count the cartridge's overworld in the reference
+play (`dev/fallbacks.c`, `the_cartridges_overworld`: its runs, the menus'
+helpers it calls, and the object loop's jump to one of its handlers) and
+does where the hand ports play, and the burndown and `tools/unreached.py` leave its runs out
 (`RETIRED_RUNS`). What its menus' callers call of it as C in every mode --
 the map's tiles' load, the label's clear, the sound request -- keeps the one
 cell of scaffolding the map view's comparison sees (`setup.c`,

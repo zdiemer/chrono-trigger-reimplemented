@@ -2656,7 +2656,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2046E, .name = "menu_wait_for_frame_jump", .fn = menu_wait_for_frame, NEEDS_M8, .cost_milli = 2750,
       .dont_care = DC_N | DC_Z | DC_C, .guard = menu_frame_wait_on_page },
     { .addr = 0xC20348, .name = "menu_wait_for_frame_loop", .fn = menu_wait_for_frame_loop, NEEDS_M8, .idle = true,
-      .guard = menu_frame_wait_loop_runs, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C },
+      .guard = menu_frame_wait_on_page, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C },
     /* the menus' tasks (game/menu/tasks.c) */
     { .addr = 0xC2821E, .name = "menu_task_waits_a_frame", .fn = menu_task_waits_a_frame, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 4640, .guard = menu_task_can_wait },

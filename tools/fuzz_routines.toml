@@ -8877,6 +8877,16 @@ iterations = 500
 why = "the object mode's page, a data bank of 0 and the running object a slot"
 
 [[routine]]
+name = "menu_run_objects"
+variant = "world_map"
+at = "C2:051D"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7E0000-7FFFFF", "--d", "0000", "--db", "00", "--range", "Y=0000-FFFF", "--budget", "2000000"]
+iterations = 1000
+why = "the world map's objects as the state has them (the leader, the followers, the watcher, the music, the sign, the vehicles, the Epoch and its second sprite), Y random: the calls of the retired overworld's handlers, whose Y the loop declares unread (their dc-evidence)"
+
+[[routine]]
 name = "menu_draw_sprite_nodes"
 at = "C2:0CEA"
 subsystem = "menu"

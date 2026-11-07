@@ -842,8 +842,8 @@ fades wait in too. So the wait is held at the shared loop, and its
 continuations (`overworld_next_frame`, the frame counted: the wait's return,
 the mode's arm and the wait again; `overworld_waits_for_the_frame`, idle)
 take it only where the wait's return on the stack is the loop's pass
-(`$C2:23D2`); the mode's own idle entry there turns that case away
-(`menu_frame_wait_loop_runs`). The halt the loop can end in, a loop with the
+(`$C2:23D2`); the mode's own idle entry there is found only by the address
+path, where no wait is named. The halt the loop can end in, a loop with the
 interrupts off, holds a wait of its own (`HOLD_OVERWORLD_HALT`). Over the
 four world-map movies (`field-65m-bc`, `-dactyl`, `-dactyl-flight`,
 `field-12kbc-1f4`) and `menus-epoch`, shadow mode compared

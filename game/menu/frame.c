@@ -16,7 +16,6 @@
 #include "core/input.h"
 #include "menu/bridge.h"
 #include "original_effects.h"
-#include "overworld/main_loop.h"
 #include "overworld/music.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
@@ -181,12 +180,6 @@ void menu_wait_ready_loop(Snes *s)
 /* The first waits on the menus' page, the second reads its cell through a
  * data bank that reaches low RAM. */
 bool menu_frame_wait_on_page(Snes *s) { return m_direct_page(s) == 0x0000; }
-
-/* The overworld main loop's wait is a held wait of its own (overworld/main_loop.c,
- * HOLD_OVERWORLD_FRAME), whose continuations go on with the loop's pass: the
- * loop's idle entry here waits for the mode's other waits, which share its code. */
-bool menu_frame_wait_loop_runs(Snes *s) { return menu_frame_wait_on_page(s) && !overworld_main_loop_waits_here(s); }
-
 bool menu_ready_wait_reaches_low_ram(Snes *s) { return m_bank_reaches_low_ram(s); }
 
 /* ---- Stopping the tasks ------------------------------------------------------------------------- */

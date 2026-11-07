@@ -350,6 +350,35 @@ static const MachineForm FORMS[] = {
       "the map's tiles loaded outside their contract" },
 };
 
+/* Where the cartridge's handler runs instead (shadow mode's reference play,
+ * the tools), the objects' loop makes the original's call: a handler reads
+ * its slot in X and nothing of Y, which a port before it in the loop leaves
+ * as it likes (its own entry declares Y dead). */
+enum { HANDLER_CALL_SITE = 0xC2053E, HANDLER_IGNORES = DC_Y };
+
+static const struct {
+    uint32_t routine;
+    uint16_t ignores;
+} HANDLER_CALLS[] = {
+    { 0xC23404, HANDLER_IGNORES }, { 0xC23AE2, HANDLER_IGNORES }, { 0xC23264, HANDLER_IGNORES },
+    { 0xC22F94, HANDLER_IGNORES }, { 0xC25628, HANDLER_IGNORES }, { 0xC2309E, HANDLER_IGNORES },
+    { 0xC242DD, HANDLER_IGNORES }, { 0xC2495E, HANDLER_IGNORES }, { 0xC24CC5, HANDLER_IGNORES },
+    { 0xC2504B, HANDLER_IGNORES }, { 0xC25097, HANDLER_IGNORES }, { 0xC25494, HANDLER_IGNORES },
+    { 0xC249CF, HANDLER_IGNORES },
+};
+
+bool overworld_call_the_handler(Snes *s, uint32_t routine)
+{
+    for (unsigned i = 0; i < sizeof HANDLER_CALLS / sizeof HANDLER_CALLS[0]; i++)
+        if (HANDLER_CALLS[i].routine == routine) {
+            /* dc-evidence: ct_fuzz --poison-dc menu_run_objects:world_map, seed 1: 1000
+             * states, 10000 call-outs scrambled, 0 mismatched */
+            m_jsr_dc(s, HANDLER_CALL_SITE, HANDLER_CALLS[i].routine, HANDLER_CALLS[i].ignores);
+            return true;
+        }
+    return false;
+}
+
 void (*overworld_machine_form(Snes *s, uint32_t routine))(Snes *s)
 {
     if (!m_runs_retired_as_c(s))

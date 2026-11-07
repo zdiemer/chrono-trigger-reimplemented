@@ -324,7 +324,7 @@ static bool turn_on_the_machine(void *ctx, uint16_t address, uint16_t handler, b
         if (!menu_run_any_widths(s, TURN_SITE, routine, form))
             return false;
         tm_sync(m_platform(s));
-    } else {
+    } else if (!overworld_call_the_handler(s, routine)) {
         m_jsr(s, TURN_SITE, routine);
     }
     if (s->cpu.e || m_x8(s) || !menu_object_address_names_one(menu_object_current(g))) {

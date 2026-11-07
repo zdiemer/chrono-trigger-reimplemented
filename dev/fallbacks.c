@@ -596,12 +596,32 @@ static bool the_cartridges_overworld(const Fallbacks *f, uint32_t pc)
         { 0x229D, 0x2335 }, { 0x2345, 0x26A7 }, { 0x26D6, 0x271F },
         { 0x274D, 0x2D6F }, { 0x2D91, 0x57AF }, { 0x6263, 0x631E },
     };
-    if (!f->shadow || ((pc >> 16) & 0x7F) != 0x42)
+    if (!f->shadow)
         return false;
+    for (int d = f->depth; d >= 0; d--) {
+        /* the instruction itself, then the routines it runs inside: the
+         * menus' helpers the overworld's code calls (the wrap onto the map,
+         * the palette's send) are the cartridge's overworld's there too */
+        uint32_t at24 = d == f->depth ? pc : f->frames[d].routine;
+        if (((at24 >> 16) & 0x7F) != 0x42)
+            continue;
+        uint16_t at = (uint16_t)at24;
+        for (unsigned i = 0; i < sizeof RUNS / sizeof RUNS[0]; i++)
+            if (at >= RUNS[i].first && at <= RUNS[i].last)
+                return true;
+    }
+    /* The objects' loop's jump through the slot's handler (JMP ($0050) at
+     * $C2:0553) where the handler it reaches is one of the overworld's: the
+     * menus' ports call every other handler as C, so only the cartridge's
+     * overworld is reached through it in the reference play. */
+    enum { HANDLER_JUMP = 0x0553, HANDLER_JUMP_END = 0x0555, HANDLER_CELL = 0x0050 };
     uint16_t at = (uint16_t)pc;
-    for (unsigned i = 0; i < sizeof RUNS / sizeof RUNS[0]; i++)
-        if (at >= RUNS[i].first && at <= RUNS[i].last)
-            return true;
+    if (((pc >> 16) & 0x7F) == 0x42 && at >= HANDLER_JUMP && at <= HANDLER_JUMP_END) {
+        uint16_t handler = (uint16_t)(snes_bus_peek(&f->s->bus, HANDLER_CELL) | snes_bus_peek(&f->s->bus, HANDLER_CELL + 1) << 8);
+        for (unsigned i = 0; i < sizeof RUNS / sizeof RUNS[0]; i++)
+            if (handler >= RUNS[i].first && handler <= RUNS[i].last)
+                return true;
+    }
     return false;
 }
 

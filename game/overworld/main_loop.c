@@ -653,6 +653,9 @@ static bool map_loaded_on_the_machine(void *ctx, MapLoad load)
 
 static Pass come_back_to_the_map_s_screen(Snes *s);
 
+/* Where the original comes back from the menus, and its dispatch on the mode. */
+enum { BACK_FROM_THE_MENUS = 0xC22556, DISPATCH = 0xC223D2 };
+
 /* The menus move the stack, which leaves the loop behind: it takes up again
  * where the original comes back from them and has set the mode's screen up
  * again ($C2:2556, $C2:0043). The menus take the screen in A and its argument
@@ -662,7 +665,6 @@ static Pass come_back_to_the_map_s_screen(Snes *s);
  * the original's code goes on from their return. */
 static Pass menus_on_the_machine(void *ctx, OverworldMode mode)
 {
-    enum { BACK_FROM_THE_MENUS = 0xC22556 };
     Snes *s = ctx;
     s->cpu.a = the_menus_screen(mode);
     s->cpu.x = past_the_last_piece(OVERWORLD_ASIDE, OVERWORLD_PIECES);
@@ -689,7 +691,6 @@ static bool time_dial_on_the_machine(void *ctx) { return menu_run(ctx, 0xC22655,
  * original's dispatch goes on, with the machine as the wait left it. */
 static void handed_over_on_the_machine(void *ctx)
 {
-    enum { DISPATCH = 0xC223D2 };
     program_breaks_a_contract(state_of(ctx), DISPATCH, "a world map's mode the loop doesn't know");
     m_stop_at(ctx, DISPATCH, 0);
 }
@@ -772,7 +773,7 @@ void overworld_next_frame(Snes *s)
 void overworld_waits_for_the_frame(Snes *s) { (void)s; }
 
 /* The wait's return on the stack is to the main loop's pass. */
-bool overworld_main_loop_waits_here(const Snes *s)
+static bool waits_in_the_main_loop(const Snes *s)
 {
     uint16_t sp = s->cpu.s;
     uint16_t pushed = (uint16_t)(snes_bus_peek(&s->bus, (uint16_t)(sp + 1)) | snes_bus_peek(&s->bus, (uint16_t)(sp + 2)) << 8);
@@ -793,12 +794,12 @@ static bool frame_counted(Snes *s)
 
 bool overworld_frame_counted(Snes *s)
 {
-    return overworld_main_loop_runs(s) && overworld_main_loop_waits_here(s) && frame_counted(s);
+    return overworld_main_loop_runs(s) && waits_in_the_main_loop(s) && frame_counted(s);
 }
 
 bool overworld_frame_not_counted(Snes *s)
 {
-    return overworld_main_loop_runs(s) && overworld_main_loop_waits_here(s) && !frame_counted(s);
+    return overworld_main_loop_runs(s) && waits_in_the_main_loop(s) && !frame_counted(s);
 }
 
 // $C2:250D

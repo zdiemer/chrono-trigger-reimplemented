@@ -127,7 +127,6 @@ void menu_wait_for_frame(Snes *s);
 void menu_take_the_frames_input(Snes *s);
 void menu_wait_ready_loop(Snes *s);
 bool menu_frame_wait_on_page(Snes *s);
-bool menu_frame_wait_loop_runs(Snes *s);
 bool menu_ready_wait_reaches_low_ram(Snes *s);
 
 #include "menu/glyphs.h"
