@@ -2981,6 +2981,49 @@ comparisons.
 
 ## The native program
 
+- **Battle and menu teardown preconditions.** The initial shipping census on
+  `battle-menu-buttons`, `menus-sweep` and `menus-epoch` enters 87 entries by
+  the machine, 3,455,625 times; 835 run only as C. No entry is entered from
+  generated or interpreted code. Four waits account for 3,315,508 passes:
+  `menu_wait_ready_loop` 2,743,894, `menu_wait_for_frame_loop` 565,707,
+  `battle_wait_window_slide_loop` 5,906 and
+  `battle_wait_graphics_loaded_loop` 1. The menu scheduler is entered 6,321
+  times from its wait; its main task 5,760 times, the battle loop head and
+  body 57 each. Make these waits and task/loop continuations held boundaries,
+  and make the interrupt handoffs and by-address calls checked C calls.
+  The starting `machine_joints.py` counts are 1,689 registry entries, 69 held
+  continuations, 917 returns, 91 stops, 6 call-outs, 3 registry lookups,
+  8 machine time tags, 24 register escapes and 1,587 scaffolding writes.
+
+  Burndown rounds every battle/menu bank to 0% left; that is not proof of
+  zero fallback. The existing batched shipping report has no battle fallback
+  and 28 original menu instructions in `battle-r-series`, in the fade/task
+  continuation. Recheck that movie on this branch and close any surviving
+  fallback. Check shared-state readers before deleting scratch writes,
+  including ports outside these two subsystems; no generated entry in the
+  census alone does not establish that state precondition.
+
+  The conservative inventory against the existing 84-movie coverage union
+  measures 13,556 battle bytes in 289 entries and 5,277 menu bytes in 157
+  entries that no movie executes. Neither subsystem is yet enrolled in the
+  committed unreached ledger. `unreached.py --subsystem battle --subsystem
+  menu --coverage-dir <library-coverage>` reproduces this inventory without
+  changing the ledger's checked scope. Its audit follows declared task-switch
+  targets as ownership boundaries and does not mistake a pushed relative
+  return for a branch. Replay the existing recipes, close their uncovered
+  arms, and preserve the resulting preconditions as contracts. Three battle
+  entries lack a plain recipe: `battle_wait_music_fade_loop` (9 bytes),
+  `battle_aim_action` (447) and `battle_call_enemies_in` (42).
+
+  Initial outcome witnesses are `battle-menu-buttons`, `menus-sweep` and
+  `menus-epoch`: both modes protect SRAM end states, pictures and ordered
+  places; both also protect game end states except native `menus-epoch`.
+  The exact protected identities remain in `tools/outcomes_baseline.txt`.
+  Extend the teardown's witness table to battle wins, losses, techs and
+  rewards and the menus' save, shop and new-game-plus paths before retirement.
+  The bucket-Lavos native-shape route protects the previously regressed
+  battle backedges; the telepod-Lavos route needs the incoming field fix.
+
 - **What the field and events' teardown review left.** Remove the three
   `tools/uncompared_baseline.txt` rows for `field_nmi`, `field_irq` and
   `field_walk_a_frame`, whose comparisons retired with the field. Update

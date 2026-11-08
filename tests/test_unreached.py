@@ -263,6 +263,28 @@ class UnreachedTest(unittest.TestCase):
         self.assertTrue({0xC04009, 0xC04145, 0xC041C8, 0xC04181} <= own | inline)
         self.assertNotIn(0xC0FF00, own | inline)
 
+    def test_task_switch_targets_are_ownership_boundaries(self):
+        hints = Hints()
+        for pc in (0xC08000, 0xC09000):
+            hints.entries.append(SimpleNamespace(addr=pc, m=True, x=True, kind='test'))
+        hints.indirect[0xC08000] = [0xC09000]
+        hints.nofollow.add(0xC08000)
+        an = Analyzer(FakeRom({0xC08000: bytes.fromhex('6C0010'),
+                               0xC09000: bytes.fromhex('EA60')}), hints)
+        an.run()
+        own, inline, problems = u.walk(an, 0xC08000, {0xC08000, 0xC09000})
+        self.assertEqual(problems, [])
+        self.assertEqual(own | inline, {0xC08000, 0xC08001, 0xC08002})
+
+    def test_pushed_relative_return_is_not_a_branch(self):
+        hints = Hints()
+        hints.entries.append(SimpleNamespace(addr=0xC08000, m=True, x=True, kind='test'))
+        an = Analyzer(FakeRom({0xC08000: bytes.fromhex('6206006060')}), hints)
+        an.run()
+        own, inline, problems = u.walk(an, 0xC08000, {0xC08000})
+        self.assertEqual(problems, [])
+        self.assertEqual(own | inline, set(range(0xC08000, 0xC08004)))
+
     def test_unresolved_walks_are_explicit(self):
         hints = Hints()
         hints.entries.append(SimpleNamespace(addr=0xC08000, m=True, x=True, kind='test'))

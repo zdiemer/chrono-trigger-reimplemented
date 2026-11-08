@@ -371,7 +371,7 @@ def successors(an, insn):
                 else (insn.pc & 0xFF0000) | (insn.operand & 0xFFFF)], []
     if name in ("BRA", "BRL"):
         return [insn.branch_target()], []
-    if mode in (Mode.REL8, Mode.REL16):  # conditional branch
+    if mode in (Mode.REL8, Mode.REL16) and name != "PER":  # conditional branch, not a pushed return
         return [insn.branch_target(), insn.next_pc], []
     return [insn.next_pc], []
 
