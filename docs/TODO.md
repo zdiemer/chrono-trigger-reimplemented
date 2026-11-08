@@ -2981,6 +2981,12 @@ comparisons.
 
 ## The native program
 
+- **What the field and events' teardown review left.** Remove the three
+  `tools/uncompared_baseline.txt` rows for `field_nmi`, `field_irq` and
+  `field_walk_a_frame`, whose comparisons retired with the field. Update
+  `game/event/entries.c` and `bridge.h`'s comments, which still describe the field
+  as gated. Remove the empty control-flow blocks the scaffolding's deletion left
+  in `game/field/map.c` and `game/event/party.c`.
 - **The field's remaining mode interfaces.** Remove the five retired dispatch
   entries when their callers no longer need them: boot's `field_first_start`,
   the menus/overworld/scene/warp `field_enter`, and battle's two music calls
