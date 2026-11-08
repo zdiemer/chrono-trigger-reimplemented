@@ -120,6 +120,14 @@ BATTLE_ITEM_TOP = 0x7E95E6
 selected item is `top + row` (place_list_cursor draws the cursor from $95E5 and
 the arrows from $95E6)."""
 
+BATTLE_ITEM_LIST = 0x7E1580
+BATTLE_ITEM_LIST_SIZE = 0x100
+BATTLE_ITEM_RECORD_SIZE = 5
+"""The battle menu's item records: item id at byte 0, available count at byte 3
+(`battle_item_list` in re/ram.toml). Choosing an item reserves one here;
+the inventory is updated when the fight ends (game/battle/menu_input.c and
+inventory.c). Empty and exhausted records keep their menu row."""
+
 BATTLE_STATS = 0x7E5E30
 BATTLE_STAT_STRIDE = 0x80
 """Per-combatant stats, `BATTLE_STATS + slot * $80`: HP, max HP, MP, max MP as

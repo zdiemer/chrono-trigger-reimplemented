@@ -12,7 +12,7 @@ import tempfile
 import unittest
 
 from tools.movies import addresses, bfs, ctdrv, mkmovie, policies
-from tools.movies.bot import BattleState
+from tools.movies.bot import BattleState, Bot
 from tools.movies.campaign import Run
 
 
@@ -294,9 +294,9 @@ def battle_state(member=0, party_hp=((500, 500, 40, 40), (400, 400, 40, 40), (0,
 
 
 def inventory(counts):
-    """(ids, counts) for an inventory holding the given {item: count}."""
-    ids = bytearray(addresses.INVENTORY_SIZE)
-    amounts = bytearray(addresses.INVENTORY_SIZE)
+    """(ids, counts) for a battle list holding the given {item: count}."""
+    ids = bytearray(addresses.BATTLE_ITEM_LIST_SIZE)
+    amounts = bytearray(addresses.BATTLE_ITEM_LIST_SIZE)
     for index, item in enumerate(sorted(counts)):
         ids[index] = item
         amounts[index] = counts[item]
@@ -304,15 +304,47 @@ def inventory(counts):
 
 
 class TestPolicies(unittest.TestCase):
-    def test_item_index_skips_items_the_battle_menu_hides(self):
-        items = inventory({policies.TONIC: 1, policies.REVIVE: 2, 0xC8: 3})    # $C8 Shelter: not in battle
+    def test_item_index_finds_available_items(self):
+        items = inventory({policies.TONIC: 1, policies.REVIVE: 2})
         self.assertEqual(policies.item_index(items, policies.TONIC), 0)
         self.assertEqual(policies.item_index(items, policies.REVIVE), 1)
         self.assertIsNone(policies.item_index(items, policies.MEGA_ELIXIR))
 
-    def test_item_index_skips_empty_stacks(self):
+    def test_item_index_preserves_exhausted_rows(self):
         items = inventory({policies.TONIC: 0, policies.REVIVE: 1})
-        self.assertEqual(policies.item_index(items, policies.REVIVE), 0)
+        self.assertIsNone(policies.item_index(items, policies.TONIC))
+        self.assertEqual(policies.item_index(items, policies.REVIVE), 1)
+
+    def test_item_index_preserves_empty_rows(self):
+        items = inventory({0: 0, policies.REVIVE: 1})
+        self.assertEqual(policies.item_index(items, policies.REVIVE), 1)
+
+    def test_bot_uses_available_battle_counts_before_inventory_is_updated(self):
+        class Memory:
+            def __init__(self):
+                self.ram = bytearray(0x10000)
+
+            def peek(self, address, length):
+                offset = address & 0xFFFF
+                return bytes(self.ram[offset:offset + length])
+
+        memory = Memory()
+        # The bag still holds the fight's initial eleven MegaElixirs. Its
+        # battle row has just one left; the following Revive keeps row 9.
+        memory.ram[(addresses.INVENTORY_ITEMS & 0xFFFF) + 8] = policies.MEGA_ELIXIR
+        memory.ram[(addresses.INVENTORY_COUNTS & 0xFFFF) + 8] = 11
+        record = (addresses.BATTLE_ITEM_LIST & 0xFFFF) + 8 * addresses.BATTLE_ITEM_RECORD_SIZE
+        memory.ram[record] = policies.MEGA_ELIXIR
+        memory.ram[record + 3] = 1
+        memory.ram[record + 5] = policies.REVIVE
+        memory.ram[record + 8] = 7
+        bot = Bot.__new__(Bot)
+        bot.machine = memory
+        self.assertEqual(policies.use(bot.inventory(), policies.MEGA_ELIXIR, None), ("item", 8, None))
+        # A queued command reserves the last one before the bag changes.
+        memory.ram[record + 3] = 0
+        self.assertIsNone(policies.use(bot.inventory(), policies.MEGA_ELIXIR, None))
+        self.assertEqual(policies.use(bot.inventory(), policies.REVIVE, 0), ("item", 9, 0))
 
     def test_enemies_ignores_dummies_and_the_dead(self):
         state = battle_state(enemies=((3, 100, 100), (4, 1, 1), (5, 0, 900)))
@@ -406,8 +438,8 @@ class TestAddresses(unittest.TestCase):
     def test_all_addresses_are_documented_bus_addresses(self):
         import tools.movies.addresses as module
         for name, value in vars(module).items():
-            if name.isupper() and isinstance(value, int) and name != "INVENTORY_SIZE" \
-                    and name != "BATTLE_STAT_STRIDE":
+            if name.isupper() and isinstance(value, int) and name not in {
+                    "INVENTORY_SIZE", "BATTLE_STAT_STRIDE", "BATTLE_ITEM_LIST_SIZE", "BATTLE_ITEM_RECORD_SIZE"}:
                 self.assertTrue(0x7E0000 <= value <= 0x7FFFFF or 0xC00000 <= value <= 0xFFFFFF,
                                 "%s = %06X is not a work RAM or ROM address" % (name, value))
 
