@@ -85,6 +85,9 @@ static const struct {
     { 0x8A00, { 0xAF, 0x40, 0x00, 0x7E, 0xCF, 0x42, 0x00, 0x7E, 0xD0, 0x04, 0x8F, 0x50, 0x00, 0x7E, 0x60 }, 15 },
     /* A caller of the counter wait, for the external tick test. */
     { 0x8B00, { 0x20, 0x00, 0x82, 0x60 }, 4 },
+    /* Both notifications must arrive before this wait can finish. */
+    { 0x8C00, { 0xAF, 0x40, 0x00, 0x7E, 0xD0, 0xFA, 0xAF, 0x41, 0x00, 0x7E, 0xD0, 0xF4, 0x60 }, 13 },
+    { 0x8D00, { 0x20, 0x00, 0x8C, 0x60 }, 4 },
 };
 
 /* ---- the ports ------------------------------------------------------------------------- */
@@ -172,6 +175,12 @@ static void calls_wait(Snes *s)
 
 static bool refuses(Snes *s) { (void)s; return false; }
 
+static void calls_two_waits(Snes *s)
+{
+    m_jsr(s, 0xC08D00, 0xC08C00);
+    m_rts(s);
+}
+
 /* The call as the original makes it, the registers as the original has them,
  * declaring dead what the callee doesn't read (right), or A, which it does
  * (wrong, and only scrambling shows it). */
@@ -231,6 +240,7 @@ static const NativeEntry entries[] = {
     { .addr = 0xC08A00, .name = "assumes_tied", .fn = assumes_tied, M8_X16 },
     { .addr = 0xC08B00, .name = "calls_wait", .fn = calls_wait, M8_X16 },
     { .addr = 0xC08000, .name = "refused_copy", .fn = copy_ok, .guard = refuses, M8_X16 },
+    { .addr = 0xC08D00, .name = "calls_two_waits", .fn = calls_two_waits, M8_X16 },
 };
 
 static uint8_t rom[ROM_SIZE];
@@ -332,12 +342,23 @@ int main(void)
     CHECK(fuzz_parse_area("7E0040-7E0040=01", false, &o.areas[o.nareas++]), "fill a wait counter");
     r = run(13, &o, log, sizeof log);
     CHECK(r.callout == 200 && counts.committed_insns == 0, "timed out call-outs contribute no coverage");
-    o.tick_pc = 0xC08200;
-    o.tick_address = 0x7E0040;
+    o.ticks[0].pc = 0xC08200;
+    o.ticks[0].address = 0x7E0040;
+    o.nticks = 1;
     o.budget = 20000;
     r = run(13, &o, log, sizeof log);
     CHECK(r.matched == 200 && r.mismatched == 0 && counts.matched == 200,
           "counter ticks on both original and call-out let the waits finish: %s", log);
+    CHECK(fuzz_parse_area("7E0041-7E0041=01", false, &o.areas[o.nareas++]), "fill the second wait counter");
+    o.ticks[0].pc = 0xC08C00;
+    r = run(15, &o, log, sizeof log);
+    CHECK(r.callout == 200 && r.matched == 0, "one notification cannot finish the two-counter wait");
+    o.ticks[1].pc = 0xC08C00;
+    o.ticks[1].address = 0x7E0041;
+    o.nticks = 2;
+    r = run(15, &o, log, sizeof log);
+    CHECK(r.matched == 200 && r.mismatched == 0,
+          "both machines receive every notification at a shared wait: %s", log);
 
     /* The port loops where the original returns: abandoned and a finding. */
     o = options(100);

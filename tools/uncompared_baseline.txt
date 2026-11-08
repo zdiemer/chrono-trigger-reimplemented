@@ -15,6 +15,7 @@ battle_click_cursor
 battle_dissolve_an_enemy  # run as C by the beaten enemies' pass (battle_see_to_the_beaten_enemies, an enemy's dissolve rule), whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
 battle_dispatch_expired_timers  # Ocean Palace pair: 310 of 615 comparisons interrupted, 305 matched, none mismatched; comparison coverage gap tracked in docs/TODO.md, "Refusals in real play"
 battle_draw_menu_window
+battle_load_effect_graphics  # 03ba3f61 retired the unpacker into this entry: all 102 library calls cross interrupts; uncompared_evidence.py compares 2048 complete randomized loads (six effects, both transfer sizes), zero mismatches or skips, using both wait-counter notifications
 battle_effect_hit
 battle_effect_item_restore  # interrupts leave 99 of 195 item-restoration stretches to the original; the other 96 calls compare and match, with the lair's healing taking the interrupted share just past half; also fuzzed alone with the existing constraints, zero mismatches
 battle_enemy_message_turn  # run as C by the expired timers' dispatch (battle_dispatch_expired_timers) as the Lavos Core's turns come, whose stretch compares it; fuzzed alone

@@ -915,6 +915,13 @@ For an interpreted wait on an externally updated byte, `--tick-at
 PC=WRAM` increments that WRAM byte before each execution of PC on both
 machines (including the port's interpreted call-outs). For example,
 `--tick-at C20348=7E004B` supplies the sprite mode's frame notification.
+The option can repeat up to eight times. The effect graphics loader needs
+both its frame and upload counters notified at the same wait: its
+`notifications` recipe compares all six effects and both upload chunk sizes.
+After the unpacker's teardown made all 102 library calls cross interrupts,
+`uncompared_evidence.py` supplies two seeds of 1,024 complete comparisons
+instead, requiring zero skips as well as zero mismatches. The sampled gate
+runs them for the Beyond Time ending; `--evidence` always runs them.
 This does not run vblank, the objects, audio or a video frame; use it only
 where the counter notification is the dependency under test. Up to 64
 `--keep`/`--fill` areas can describe a trial's state.

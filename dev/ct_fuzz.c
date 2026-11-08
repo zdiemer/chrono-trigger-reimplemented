@@ -94,7 +94,7 @@
  * --coverage records only original instructions from matched trials, with
  * their accumulator/index widths. Skips and mismatches contribute nothing.
  * --tick-at PC=WRAM increments a WRAM byte before that interpreted PC on
- * both machines. This models an external counter notification for a wait;
+ * both machines; repeat it for several notifications. This models an external counter notification for a wait;
  * it does not run interrupts, objects or a video frame.
  */
 #include <stdio.h>
@@ -248,10 +248,10 @@ int main(int argc, char **argv)
             unsigned pc, address;
             char extra;
             if (sscanf(v, "%x=%x%c", &pc, &address, &extra) != 2 || pc == 0 || pc > 0xFFFFFF ||
-                address < 0x7E0000 || address > 0x7FFFFF)
+                address < 0x7E0000 || address > 0x7FFFFF || o.nticks == FUZZ_MAX_TICKS)
                 goto usage;
-            o.tick_pc = pc;
-            o.tick_address = address;
+            o.ticks[o.nticks].pc = pc;
+            o.ticks[o.nticks++].address = address;
         }
         else if (!strcmp(a, "--iterations")) o.iterations = strtoul(v, NULL, 0);
         else if (!strcmp(a, "--seed")) o.seed = strtoull(v, NULL, 0);
@@ -382,7 +382,7 @@ usage:
                     "[--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
                     "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]... [--with-registry]\n"
-                    "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]\n"
+                    "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]...\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");
     return 2;

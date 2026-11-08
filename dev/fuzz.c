@@ -260,13 +260,19 @@ static void stop_at_call(uint32_t site, uint32_t target, uint16_t dont_care)
     }
 }
 
+static void notify_counters(Snes *s)
+{
+    for (unsigned i = 0; i < stop_options->nticks; i++)
+        if (cpu_pc24(&s->cpu) == stop_options->ticks[i].pc) {
+            uint32_t at = stop_options->ticks[i].address;
+            snes_bus_write(&s->bus, at, (uint8_t)(snes_bus_read(&s->bus, at) + 1));
+        }
+}
+
 static CpuStep callout_step(Cpu *cpu)
 {
     in_callout = true;
-    if (stop_options->tick_pc && cpu_pc24(cpu) == stop_options->tick_pc) {
-        uint32_t at = stop_options->tick_address;
-        snes_bus_write(&native_machine->bus, at, (uint8_t)(snes_bus_read(&native_machine->bus, at) + 1));
-    }
+    notify_counters(native_machine);
     CpuStep r = cpu_step(cpu);
     in_callout = false;
     return r;
@@ -317,10 +323,7 @@ static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s, bool must_step, 
             return true;
         s->cpu.nmi_pending = false;
         s->cpu.irq_line = false;
-        if (stop_options->tick_pc && cpu_pc24(&s->cpu) == stop_options->tick_pc) {
-            uint32_t at = stop_options->tick_address;
-            snes_bus_write(&s->bus, at, (uint8_t)(snes_bus_read(&s->bus, at) + 1));
-        }
+        notify_counters(s);
         cpu_step(&s->cpu);
     }
     return false;

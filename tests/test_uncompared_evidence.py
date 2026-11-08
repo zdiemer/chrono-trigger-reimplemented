@@ -1,9 +1,20 @@
 import unittest
 
-from tools.uncompared_evidence import compared
+from tools.uncompared_evidence import compared, fuzz_compared
 
 
 class ComparisonEvidenceTest(unittest.TestCase):
+    def test_fuzz_requires_every_iteration_to_compare(self):
+        row = ("battle_load_effect_graphics: 1024 iterations, matched 1024, mismatched 0 "
+               "(the port looping where the original returns 0), skipped 0 (guard 0)\n")
+        self.assertTrue(fuzz_compared(row, "battle_load_effect_graphics", 1024))
+        for bad in ("", row + row, row.replace("matched 1024", "matched 1023"),
+                    row.replace("skipped 0", "skipped 1"),
+                    row.replace("mismatched 0", "mismatched 1"),
+                    row + "asset outside the catalogue: test\n"):
+            self.assertFalse(fuzz_compared(bad, "battle_load_effect_graphics", 1024))
+        self.assertFalse(fuzz_compared(row, "battle_load_effect_graphics", 2048))
+
     def row(self, calls=1, matched=1, suffix=""):
         return ("  7E3000 scene_program_start calls %d matched %d mismatched 0 interrupted 0%s\n"
                 % (calls, matched, suffix))

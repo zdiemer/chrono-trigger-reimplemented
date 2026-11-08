@@ -13,6 +13,7 @@
 #define FUZZ_MAX_AREAS 64
 #define FUZZ_MAX_VALUES 32
 #define FUZZ_MAX_STOP_CALLS 12
+#define FUZZ_MAX_TICKS 8
 
 /* A range of work RAM the fuzzer sets: from the base state (keep) or random
  * bytes from lo to hi (fill). Absolute, lo_addr-hi_addr as 24-bit bus
@@ -65,7 +66,8 @@ typedef struct FuzzOptions {
     void *coverage_ctx;
     /* An external counter notification at an interpreted wait-loop head,
      * applied on both machines. This models the notification, not a handler. */
-    uint32_t tick_pc, tick_address;
+    struct { uint32_t pc, address; } ticks[FUZZ_MAX_TICKS];
+    unsigned nticks;
     unsigned long iterations;
     uint64_t seed;
     bool long_call, interrupt;

@@ -10655,6 +10655,19 @@ iterations = 1000
 why = "the effect in A, its high byte clear; the unpacking and the transfer are call-outs"
 
 [[routine]]
+name = "battle_load_effect_graphics"
+variant = "notifications"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-0005",
+        "--fill", "7ECA20-7ECA20=00", "--fill", "7ECA26-7ECA26=00",
+        "--fill", "7ECD02-7ECD02=00", "--fill", "7ECD05-7ECD05=00",
+        "--fill", "7E993A-7E993A=00", "--fill", "7ECE0F-7ECE0F=00-01",
+        "--tick-at", "CD3E84=7ECA20", "--tick-at", "CD3E84=7ECA26", "--budget", "4000000"]
+iterations = 1024
+why = "all six effects, both transfer chunk sizes, no paused battle or menu turn; both frame and upload readiness counters are notified in the interpreted wait on both machines. The whole loader returns and compares, including every unpacked block, palette, queue descriptor and loading flag. Notifications do not perform DMA or a video frame; those services have their own checks. uncompared_evidence.py also runs this recipe from power-on with all work RAM randomized, for seeds 1 and 2."
+
+[[routine]]
 name = "battle_screen_draw_beam"
 subsystem = "battle"
 state = "battle"
