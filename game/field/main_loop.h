@@ -37,7 +37,6 @@ bool field_effects_refreshed(GameState *g);
 void field_walk_a_frame(Snes *s);
 void field_finish_frame(Snes *s);
 void field_wait_for_the_next_frame(Snes *s);
-void field_main_loop_goes_round(Snes *s);
 /* The wait for the next frame, a held wait (holds.h, HOLD_FIELD_FRAME): the
  * port that starts it stops in its loop ($C0:EC71), whose idle passes
  * (field/frame.c) return to the caller once the vblank handler has taken the

@@ -2529,7 +2529,7 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16, .cost_milli = 2589, .guard = field_on_page_bank_zero },
     { .addr = 0xC000BA, .name = "field_wait_for_the_next_frame", .fn = field_wait_for_the_next_frame, NEEDS_M8_X16,
       .cost_milli = 3669, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero },
-    { .addr = 0xC000BD, .name = "field_main_loop_goes_round", .fn = field_main_loop_goes_round, NEEDS_M8_X16,
+    { .addr = 0xC000BD, .name = "field_main_loop_goes_round", .fn = field_frame, NEEDS_M8_X16,
       .cost_milli = 1000, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C },
     { .addr = 0xC00CC0, .name = "field_start_again", .fn = field_start_again, NEEDS_M8_X16, .cost_milli = 1000 },
     { .addr = 0xC03FD6, .name = "field_start_the_scene", .fn = field_start_the_scene, NEEDS_M8_X16, .cost_milli = 15370,

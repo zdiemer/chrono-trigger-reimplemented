@@ -674,6 +674,23 @@ static void returning_hold_case(void)
           "returning hold: the retained row did not own matching address-path comparisons");
     native_destroy(rt);
     free(s);
+
+    /* Naming a wait must not bypass a continuation's P contract. This one
+     * requires decimal mode, while the program runs in binary mode: its
+     * retained address entry must take every return instead. */
+    NativeEntry guarded[4];
+    memcpy(guarded, table, sizeof guarded);
+    guarded[2].p_mask = CPU_FLAG_D;
+    guarded[2].p_value = CPU_FLAG_D;
+    s = machine(rom);
+    rt = native_create(guarded, 4, NATIVE_ON);
+    native_attach(rt, s);
+    run_frames(s, 20);
+    CHECK(native_stats_named(rt, "next_frame")->skipped >= 18 &&
+              native_stats_named(rt, "registered_frame")->calls >= 18 && !native_failed(rt),
+          "returning hold bypassed the continuation's decimal-mode contract");
+    native_destroy(rt);
+    free(s);
     free(rom);
 }
 

@@ -3034,6 +3034,16 @@ comparisons.
   and 25 timing-service calls enter `$C0:0B38` before naming its wait.
   Remove those caller-side machine dependencies during teardown while
   preserving arbitrary callers' returns and save/load behavior.
+  Loose-RAM fuzzing of the whole pass with `--with-registry` also needs
+  follow-up: from the `field` recipe's frame-11,400 state, seed 1, 2,000
+  trials, `--d 0100 --db 00`, `field_main_loop_goes_round` matches 1,363,
+  mismatches at trials 113, 260 and 1396, and skips 634 call-outs past the
+  budget. All three trials also fail through the existing `field_frame`
+  path (which additionally fails trial 1744); the first two differ in A's
+  high byte, the third also in object cells. Both runs reach out-of-range
+  character names, event scripts and line-effect tables. Determine the
+  accepted state invariants and fix the responsible callees/guards; the
+  coherent-field continuation recipe is not evidence for arbitrary RAM.
 - **What the field's unreached review left.** The `unreached_party_shares`
   recipe fills sharers only up to `$16` where the guard takes up to `$25`: extend
   it to `$24` so the whole accepted range of the sprite-block owner table is
