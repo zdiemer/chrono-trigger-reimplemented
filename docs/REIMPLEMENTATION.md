@@ -4034,9 +4034,10 @@ field's object/script graph and randomizes registers, flags and the wait
 byte (clear, set and wrapping): 2,000 matches, no skips or mismatches.
 Loose-RAM trials reach existing field-pass failures too (TODO.md); they are
 not counted as successful validation. Wrong-page and wrong-bank refusal
-trials with the registry compare 1,000 each, all matching. The 546 Python
-tests pass (10 skip), as do `suspend_test`, `state_test`, `shadow_test`,
-`debt_test` and `time_parts_test`.
+trials with the registry compare 1,000 each, all matching. The final 34
+focused Python checks for fallback accounting, gate integration, the port
+subset and platform access pass, as do `suspend_test`, `state_test`,
+`shadow_test`, `debt_test` and `time_parts_test`.
 
 The 37-movie sampled shadow gate is clean: 147,080 returning passes,
 221 first passes and 153,854 wait setups compare, all matching. Another
@@ -4044,6 +4045,13 @@ The 37-movie sampled shadow gate is clean: 147,080 returning passes,
 those calls are not comparisons, and the coherent-state fuzz recipe does
 not close the loose-RAM follow-up in TODO.md. The sampled timing check
 passes with the existing exceptions and unchanged estimates.
+
+The complete sampled gate with `-j 1 --evidence`, without long routes,
+ends `suite OK`: all 37 movies pass both strict and native outcome ratchets,
+and the evidence stage passes its 84 library replays. Shipping fallbacks
+and real-play guard refusals are zero. The existing outcome differences
+remain covered by their unchanged ratchets; this does not claim that every
+native outcome equals the reference.
 
 **Fallback accounting.** Both idle rows declare the return span
 `$C0:EC71-$C0:EC76`, so the measure recognizes the final pass as the idle
