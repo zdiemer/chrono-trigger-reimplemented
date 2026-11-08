@@ -1,6 +1,6 @@
 /* Where the event script language (event/script.h) meets the original's
- * machine: the registered entries of the engine and of the commands, the
- * guards, the translation to and from the original's registers, and what the
+ * machine: the engine and command forms the still-gated field calls, their
+ * checked contracts and translation to and from registers, and what the
  * bridges -- the commands that still call out to the original's code -- share.
  * Nothing outside this file, event/bridge.c and the bridges takes a `Snes *`;
  * a build without the original's engine replaces them. The bridges call the
@@ -10,14 +10,12 @@
  * Every command handler has the same calling convention in the original:
  * entered through the table at $C0:5D6E with 8-bit A, 16-bit X and Y, Y the
  * command's offset; it returns X = where the script goes on and the carry set
- * to keep running the object's script this frame. It also leaves Y and V,
- * which the entries reproduce as scaffolding (event/leaves.h); A, N and Z are
- * dead, and declared so at every entry (game/registry.c). */
+ * to keep running the object's script this frame. Y, V and parser scratch are no longer reconstructed. */
 #ifndef CT_GAME_EVENT_BRIDGE_H
 #define CT_GAME_EVENT_BRIDGE_H
 
 #include "event/event.h"
-#include "event/leaves.h"
+#include "field/scratch.h"
 #include "event/script.h"
 #include "field/bridge.h"
 #include "menu/party.h"
@@ -31,9 +29,7 @@
  * handler's calling convention. event/event.h lists them (EVENT_BRIDGES). */
 typedef void (*EventBridge)(Snes *s);
 
-/* The registered entry of an opcode's row, and its guard: the port runs the
- * command at Y by its row and returns as the original does. */
-void event_command_entry(Snes *s, uint8_t opcode);
+/* The state half of a retained command form's contract. */
 bool event_command_accepts(Snes *s, uint8_t opcode);
 
 /* Call a bridge of this subsystem as the original's JSR at `site` calls the
@@ -41,11 +37,6 @@ bool event_command_accepts(Snes *s, uint8_t opcode);
  * or stops, as the original's handler would; its time is the handler's. True
  * if it returned (false: it stopped, and the original has the machine). */
 bool event_call_bridge(Snes *s, uint32_t site, uint32_t routine, EventBridge bridge);
-
-/* The scaffolding record for a command, starting from the registers the
- * machine has, and the Y and V the command leaves from the record. */
-EventLeaves event_leaves_of(const Snes *s);
-void event_hand_back(Snes *s, const EventLeaves *left);
 
 /* For the bridges: the command's offset (Y at entry); the command there,
  * decoded by `opcode`'s row (a bridge reads its operands by name, as the
@@ -59,7 +50,6 @@ void event_return(Snes *s, EventStep st);
  * services a command calls where the original makes its long call to them
  * ($C2:8004): the dispatcher's answer kept, and Y left as it leaves it
  * (event/party.c, menu/party_leaves.h). */
-void event_menus_answered(Snes *s, PartyService service, const PartyServiceCall *call);
 
 /* How a command runs on the machine: 8-bit A, 16-bit X and Y (`x8` for the
  * calls made with 8-bit index registers), on the field's page, with the data

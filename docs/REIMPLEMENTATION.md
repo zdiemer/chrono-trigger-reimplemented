@@ -3939,154 +3939,294 @@ same C), the vblank check over the shipping mode's video writes, and the
 frame-by-frame equality with the shipping mode before the teardown measured
 above.
 
+### The field's callers and held continuations
+
+The console's interrupt stubs call `field_nmi` and `field_irq` directly,
+through the same contract check as the sprite-object handler. The check
+sees the handler's PC and the interrupted stack, and keeps every registry
+precondition; a refusal stops at the handler's original entry. The queued
+script turns likewise call `event_run_object_script` directly, with the
+call's return pushed before its full contract is checked. A turn that
+changes location or enters a battle can leave without returning; its caller
+does not continue the queue in that case. Both calls keep their existing
+calibrated time tags. A former call-out settles its caller's time after the
+call frame is pushed, and its callee's time before resuming the caller;
+those stack accesses remain charged to the caller. These hand-offs let the
+event and field comparisons retire without returning their loops to the interpreter.
+
+The fades, menu returns, tile-copy stages, battle returns, scene close and
+ripple now resume from named held continuations. Picture startup returns
+through its held caller at `$C0:28A4`, and immediate location changes and
+restarts use `HOLD_FIELD_LOCATION` and `HOLD_FIELD_RESTART`. Changing location
+resets the stack, then starts the new field as a
+held continuation with `field_enter`'s full contract. None of these waits
+keeps its field caller suspended across a frame. Battle and menu tasks still
+keep their own machine interfaces. The runtime indexes all held rows instead
+of silently keeping only sixteen; `suspend_test` checks saving and restoring
+a wait after more than sixteen preceding held rows.
+
+A row-tail removal's effect on visibility is game state, not scaffolding.
+During Lara's rescue it leaves object zero present to collision and script
+conditions but excluded from normal object updates. `ObjectView` names this
+state `PRESENT_WITHOUT_UPDATES`; `object_apply_row_tail_visibility` owns the
+storage rule. A predecessor of object zero clears visibility instead, and
+other admitted end markers select other objects. A subsequent ordinary
+visibility update replaces the state. The write is ordinary state and survives the build without scaffolding.
+`field_test`, linked against that build and requiring no ROM, covers these
+cases and removal from the middle of a row without a visibility change.
+The original six-movie inventory and intermediate measurements are in
+history/field-teardown.md.
+
+### The events' teardown
+
+The event interpreter's 250 registry rows have retired, including the
+confirm-button operation in `event/contact.c`. Its ordinary opcode rows
+call C operations; their individual machine wrappers and the unused talk,
+touch and single-member-return wrappers are deleted. The field calls the
+engine and remaining command bridges as C, including the empty-battle
+regrouping. That regrouping's return is held through the field's battle
+decision or scene close, preserving a saveable frame boundary.
+
+The 46 retained called machine forms serve the legacy field driver: its location
+setup and restoration call the openings and map script, the frame calls
+object turns and the confirm button, the menu return restarts an object's
+script, and battle setup/restoration call party regrouping. The interpreter
+calls the command and screen forms through the same checked boundary.
+`event/machine_forms.c` lists each full contract (including the exact
+decimal-mode mask); refusal reports a broken contract before leaving the
+machine at the original entry. These are called forms, not dispatch rows.
+The forms retain the register conventions that the legacy driver reads.
+Their scratch reconstruction left with the field's retirement below; only
+the menus' wave-phase alias keeps its compatibility writes.
+
+The unreached ledger's bounds remain checked: word comparisons admit seven
+operators, byte comparisons eight; all six say/ask forms require a nonzero
+text-table bank; object, party, script and graphics-allocation bounds remain
+contracts. Unknown opcodes and graphics-bank overflow report explicit
+failures instead of delegating to original diagnostics. `event_contract_test`
+checks operand bounds and the retained machine forms' widths, decimal mode,
+page, bank, emulation mode and object index without a ROM.
+
+`game/time_tags.c` retains every calibrated rate. The fallback measure
+excludes the original event code only in reference play; shipping still
+counts it. The burndown uses the same 19 owned runs (14,416 bytes), and the
+unreached measure keeps retired entries as ownership boundaries. Census
+dispatch counts and `machine_joints.py` exclude these time-only rows.
+
+The replacement evidence was recorded before retirement. The protected
+movies and identities below are from `tools/outcomes_baseline.txt`; picture
+identities are completed frame numbers and places are the ordered visit
+indices. Strict and native retain their own matches. Existing exceptions
+describe the other outcomes and do not weaken these identities.
+
+| Movie | Mode | Game / SRAM | Pictures | Places |
+|---|---|---|---|---|
+| field-floor-switch | strict | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3300, 3501 | 0–4 |
+| field-floor-switch | native | end/end | 1, 1800, 2100, 2400, 3000, 3300, 3501 | 0–4 |
+| field-factory-switch | strict | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3300, 3600, 3900, 7800, 8100 | 0–5 |
+| field-factory-switch | native | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3300, 7200 | 0–5 |
+| field-northern-ruins-switch | strict | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3300, 3600, 3811 | 0–5 |
+| field-northern-ruins-switch | native | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3600 | 0–5 |
+| field-12kbc-1f4 | strict | end/end | 1, 1800, 2100, 2400, 2700, 2953 | 0–5 |
+| field-12kbc-1f4 | native | end/end | 1, 1800, 2100, 2400, 2700 | 0–5 |
+| events-end-of-time-gate | strict | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3600, 3900, 4500 | 0–4 |
+| events-end-of-time-gate | native | —/end | 1, 1800, 2100, 2400 | 0–3 |
+| events-luccas-mother | strict | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3300, 3600, 3900, 4200, 4500, 4800, 9300, 9600, 9900, 10200, 10500, 10800, 11100, 11400, 11700, 12000, 12600, 12900, 13200, 13500, 13800, 14100, 14400, 14700, 15000, 15300, 15600, 15701 | 0–12 |
+| events-luccas-mother | native | end/end | 1, 1800, 2100, 2400, 4200, 8400, 8700, 9000, 9300, 9900, 10500, 10800, 11100, 11400, 11700, 12000, 12300, 12600, 12900, 13200, 13500, 14400, 14700, 15000, 15300 | 0–12 |
+
+
+### The field's teardown
+
+The field and events now run without their byte-exact comparisons. Of the
+field's 202 registry rows, 197 leave the dispatch table; five remain as
+uncompared compatibility entries for callers that still need that boundary.
+The runtime enters these adapters only for shipping play; reference and
+shadow play run the original there. Their metadata remains available to
+still-gated callers' direct calls, including contracts and return conventions.
+Every removed entry retains its calibrated rate in `game/time_tags.c`.
+The five old idle rows keep their unmetered zero rate; they had no calibrated
+estimate to transfer.
+The field's held frame loop, waits, screen startup, location changes,
+menu returns and screen effects keep their named continuations. They leave
+the C call chain at a frame boundary, so the driver still has a base for
+route exploration and quick saves. The internal location restart at
+`$C0:0CC0`, entered by 19 returns in the preparation census, now calls its
+checked form and leaves on the held location continuation with a fresh stack.
+Interrupts call the field handlers from the console stub under their original
+contracts.
+
+The five retained dispatch entries are:
+
+| Entry | Caller that still needs it |
+|---|---|
+| `field_first_start`, `$C0:000E` | `console_boot` stops at the title/first-start boundary. |
+| `field_enter`, `$C0:0000` | `menu_mode_restart` and the retired overworld's `after_the_pass` stop here; the retired scene program and warp select this continuation under its contract. |
+| `field_rebuild_the_line_effects`, `$C0:0005` | The still-gated battle closing handler's fallback at `$D1:F4E2`. Its ordinary path already calls the C operation. |
+| `field_start_the_battle_song`, `$C0:0008` | Battle screen setup's long call at `$D1:F405`. |
+| `field_bring_the_music_back`, `$C0:000B` | Battle closing's music restoration at `$CD:043E`, including its original page/bank return convention. |
+
+The 90 called machine forms in `field/machine_forms.c` retain the exact P
+masks, including decimal mode, and the original page, bank and state
+contracts. Invalid calls report a broken contract before stopping at the
+original entry. The forms and held adapters still translate the legacy
+driver's registers and stack; they are not dispatch entries. The native
+program calls the existing state/platform operations. The battle's layer
+scroll and the scene ending's window shape already use those operations;
+the latter still needs its returned Y convention and the scratch covered by
+its enclosing byte comparison. Screen startup also leaves Y and overflow
+where the still-gated sprite and menu callers expect them.
+
+The field's scratch reconstruction and `event/leaves.c` are deleted except
+for two interfaces still under their callers' gates. The menus' wave-phase
+alias at `$7E:01E2-$7E:01E3` is isolated in
+`field/menu_compat.h`: event calls leave the place/table bytes, the party
+movement dispatch leaves its operand byte, and tile/property copying
+clears the appropriate bytes. Each writes only the live alias, preserving
+the neighbouring bytes. The menu wave handler at `$C2:77C7` reads that
+phase; those writes remain until the menus retire. The scene ending's
+window task (`$7E:9A0C`) includes the rasterizer's last-edge and fill scratch
+in its byte comparison. `field/window_shape.c` retains those writes only
+for the scene's low-RAM table, until that task retires; the field's own
+window tables do not write them. `$7E:0F00` is instead
+real object-view state, as the preceding held-continuation section explains
+and `field_test` checks, including the last object slot and middle removal.
+
+The existing explicit time charges remain ordinary work. The retired
+operations also preserve the work formerly counted through their temporary
+accesses: animation and sprite selection, screen and map setup, visibility,
+the walk, scripted movement, and event operand decoding. The counts come
+from the removed reads and writes, at the running operation's unchanged
+calibrated rate. RAM, I/O and cartridge reads keep their respective bus
+prices in the legacy backing; no scratch value is reconstructed. The host
+backing adds nothing for this work, since the native program already omitted
+the comparison scaffolding. A repeated visibility test that the host did
+count keeps its ordinary charge in both backings.
+
+For example, a tile run formerly wrote three temporary words and the
+three-byte upload cursor. Its estimate now counts six RAM and three I/O
+accesses. The walk records which kinds of work it performed, counting a
+ground probe once even if several collision checks repeated it, as its old
+final temporary writes did. Event decoding retains only counts for the
+operand widths and the selected jump distance, without copying operands
+or retaining their scratch addresses.
+
+The visibility work matters: without these charges, the End of Time queue
+admits Gaspar's frame one pass early and loses protected pictures 2700 and
+3000. Instrumented before/after runs locate that change at the beam deadline;
+preserving the work restores both identities. Startup work likewise keeps
+the Omen's protected picture 4500, and event parse work keeps the End of
+Time menu's pictures 4500 and 7800. Former call-outs settle the
+caller after pushing its call frame and the callee before returning, so its
+work retains its own rate. No new timing exception substitutes for that
+attribution.
+
+The fallback and burndown measures name the field's 35 owned code runs
+(52,134 bytes) and its two three-byte jumps into the menu typesetter
+(`$C2:0003`, `$C2:0009`) as retired. The typesetter's bodies remain gated;
+the field calls their C operations. Removing the enclosing field comparisons
+also exposes the already-retired core animation services to the reference
+counter: the tile/palette bodies at `$FD:DE98-$FD:EAA5` and their jump
+veneers at `$FD:FFEE-$FD:FFF0` and `$FD:FFF4-$FD:FFFF`. Reference play excludes
+those exact ranges; shipping play still counts any original execution.
+The fallback counter also keeps a compared register-restoring epilogue
+covered until the runtime ends its comparison, instead of dropping it as
+soon as S rises. A synthetic continuation test covers that distinction.
+The unreached ledger retires the 202
+field rows only after their 2,229 bytes are covered: 2,137 in matched trials
+and 92 by reviewed safety arguments. The held close/ripple cases keep all
+283 bytes of their old whole-call proofs and check their persistent counter
+and center at each continuation, in nine cases of 200 matched trials each.
+The empty-battle return has 150 matches (50 guard refusals), the stored-place
+fade 200, and the after-battle entry 913; together they keep all 60 bytes
+of their old whole-call proofs. Palette sharing also matches all 1,000 trials after extending the
+older sharer through `$24`, the full admitted sprite-block-owner range.
+The final field replay selects 70 cited recipes and 23 additional plain
+recipes. After retirement, the remaining core ledger selects one cited
+recipe and one additional plain recipe; the tool now fails on any missing
+recipe instead of silently omitting it. Invalid script, tile-map, sprite-table and
+screen-layout states now report explicit contract failures.
+
+The protected movies are `field-floor-switch`, `field-factory-switch`,
+`field-northern-ruins-switch`, `field-12kbc-1f4`,
+`events-end-of-time-gate` and `events-luccas-mother`. Both strict and native
+mode retain the game end state, SRAM end state, completed-frame pictures
+and ordered place visits enumerated in the events' teardown table above.
+Those exact identities were recorded before either comparison retired;
+the existing exceptions describe the unprotected outcomes separately.
+
+On the six protected movies (39,953 frames), the shipping census changes
+from 20 field entries entered by the machine 150,357 times and three event
+entries 81,903 times, to two field compatibility entries entered 17 times
+and no event machine entry. The remaining field hits are `field_enter`
+(11 returns) and `field_first_start` (six boot stops). The held field
+continuations run 8,636,383 times and the event continuations 78 times;
+they preserve the frame boundary rather than handing the loop to the
+interpreter. Globally, machine entries fall from 96 / 1,928,243 hits to
+75 / 1,696,007 hits; entries reached only as C rise from 771 to 790.
+
+`machine_joints.py`, before either retirement and after both, reports:
+
+| Joint | Before | After |
+|---|---:|---:|
+| Registered entries | 2,136 | 1,689 |
+| Held continuations | 13 | 69 |
+| Emulated-stack returns | 993 | 917 |
+| Stops | 99 | 91 |
+| Address call-outs | 8 | 6 |
+| Registry sibling lookups | 3 | 3 |
+| Machine time tags / register escapes | 8 / 24 | 8 / 24 |
+| Video service calls | 551 | 544 |
+| Scaffolding writes | 1,844 | 1,587 |
+
+The 38-movie outcome replay (the sample plus Lara) preserves every protected
+identity in strict and native modes. Against the validated events commit,
+the refreshed strict exceptions lose no matching picture identity; the
+Tyrano Lair and save-point movies gain four and one respectively. The
+attract sequence's places are one frame earlier in its first cycle and two
+in its second. Death Peak's saved-game and SRAM projections change only
+the stored location facing, down to up, with identical pictures and visits.
+Each existing exception records its specific A/B result; no protected
+baseline is weakened. The field, event-contract, suspension and time-parts
+tests pass, as do the static style, smell and scaffolding-read ratchets.
+The shadow test verifies that retired compatibility entries start no
+comparison while their direct callers still receive the guarded metadata.
+
+Each retirement commit passes the sampled gate with evidence, one worker,
+without long routes; each log ends in `suite OK`. The field retirement's
+37 shadow replays have no mismatches, and its 7,200-frame generated-only
+trace has no divergence. Timing passes over 1,376 entries and 131,959,739
+compared stretches, using the 66 existing exceptions. Shipping play has no
+original-code fallback or guard refusal; vblank has no new finding. All
+37 movies finish in strict, native and native-shape modes, and both fast
+routes reach their outcomes. Both recorded-outcome ratchets pass, including
+the separate final Lara replay. The remaining unreached ledger, 6,986 asset
+resources and all 84 freshly made evidence replays pass. The final six-movie
+census above is repeated on that validated build.
+
 ### The field's held waits
 
-The field's waits are named before its teardown; every registry row stays.
-`HOLD_FIELD_FRAME` holds the shared frame wait at `$C0:EC71`, and
-`HOLD_FIELD_SCREEN` the picture's startup wait at `$C0:0B38`. The first
-frame is held too, the main loop's full entry contract is checked before
-its direct call, and the retained `field_main_loop_goes_round` compares
-the same next-pass implementation as the held continuation. Its registry
-row names `field_frame` as its `shadow_body`: shadow mode recognizes the
-head reached at the same stack depth inside a returning pass as part of
-that comparison. The two entries keep distinct wrappers, without reading
-the PC to tell them apart; independently entered frames still compare.
-Its don't-care
-set is the loop head's existing set:
-A's high byte and overflow remain live. The runtime preserves a hold across
-an idle return into another of that wait's continuations, with the new S;
-address lookup prefers retained rows over their held aliases.
+`HOLD_FIELD_FRAME` names the shared wait at `$C0:EC71`; its return address
+selects the main-loop pass or the caller's named continuation. Fades, menu
+returns, tile-copy stages, battle returns and screen effects leave no field
+caller suspended across a frame. `HOLD_FIELD_SCREEN` names startup at
+`$C0:0B38`, `HOLD_FIELD_LOCATION` the immediate location change, and
+`HOLD_FIELD_RESTART` the script restart. The held number and machine state
+are saved together, so loading a base resumes the same continuation.
 
-**One frame wait, not one per caller.** The return already on the emulated
-stack identifies who waited. The idle pass only reads the pending-frame
-byte and returns when the vblank handler has taken it. Two return addresses
-are main-loop continuations: `$C0:00BD`, the next complete pass, and
-`$C0:00A7`, the walk after a request. Other returns resume their caller as
-before. The four movies below exercise the full loop, requests, fades,
-menus, an event party regroup and a battle return. Their census keeps the
-same 406 machine calls/returns into the wait's setup (`$C0:EC60`); its
-2.18 million polling passes, and the main-loop passes, no longer enter by
-address. A fade or event command waiting through a call-out can still be
-suspended; the held wait does not invent a continuation for that caller.
+The loop head and frame-end wait are ordinary calls under their original
+contracts. The empty backedge still uses `native_sync_boundary`: an ordinary
+time sync would skip the driver's minimum step and interrupt poll when
+there were no accesses. The frame-end wait settles the pass's accrued work
+before marking the frame ready. A refused contract stops at its original
+entry. Retained registry rows take precedence over their held aliases.
 
-**Timing and contracts.** Before calling the loop head or its frame-end
-wait directly, the caller keeps the preceding dispatch boundary and
-checks `native_hand_entry_at`, including the full P mask, widths, page,
-bank and code guard. Refusal stops at the original entry. Inline work keeps
-the original entries' estimates; no estimate changes. The next-pass wrapper
-uses `NATIVE_TIME_AS_SIBLING` for the field pass: its timing error belongs to
-`field_frame`, including the inlined screen effects, rather than the loop
-backedge. This changes report ownership only. In the Death Peak movie its
-110,607-clock worst stretch remains covered by `field_frame`'s existing
-exception; no exception is added for the wrapper.
-The walk continuation uses its retained wrapper and cost without an extra
-continuation charge. The screen wait keeps the existing vblank predicate
-and idle exit time; its handler-enable continuation keeps the original
-width and I/O-bank contract.
-
-The backedge makes no accesses: `tm_sync` alone would skip its empty
-stretch, losing the driver's minimum step and interrupt poll at the old
-stop. `native_sync_boundary` yields even that empty stretch; the frame-end
-wait still uses `tm_sync` to settle the pass's work. Without the empty
-boundary, `attract-demo` first diverged from main at frame 2,727 and its
-second demo cycle later slipped four frames. Keeping it restores the first
-5,000 frames byte for byte and all 22,500 frames' existing strict outcome
-expectations, without changing their exceptions. `suspend_test` also
-compares an empty backedge with its direct continuation for eight frames,
-including the vblank interrupts, with no ROM.
-The full demo trace has no divergence outside the stack page, including
-every framebuffer hash. Its first remaining difference, frame 5,843, is
-two bytes at `$7E:06F8` and `$7E:06FA` below both runs' S (`$06FD`); both
-are waiting at `$C0:EC71` with P `$20`. These are stack residue left by the
-different dispatch paths. The four field traces below remain entirely equal.
-
-**Measured against main (`bfd75c49`).** Shipping mode over `field-floor-switch` (3,501
-frames), `field-factory-switch` (8,387), `field-northern-ruins-switch`
-(3,811) and `field-12kbc-1f4` (2,953):
-
-| Census measure | Before | Held waits |
-|---|---:|---:|
-| `$C0:0097`, machine entries | 4,132 | 0 |
-| `$C0:00BD`, machine entries | 4,114 | 0 |
-| `$C0:EC71`, machine polling passes | 2,182,034 | 0 |
-| `$C0:0B38`, machine entries/passes | 6,723 | 25 |
-| All machine entries | 3,525,734 | 1,324,628 |
-
-The named frame wait runs 2,182,293 idle passes, 4,114 complete-loop
-continuations, 18 first passes and 2 request continuations. Screen startup
-has 6,698 held idle passes and 25 handler-enable continuations; its 25
-remaining address entries are the timing service's initial calls.
-`tools/trace.py diff --framebuffer` finds no divergence over all 18,652
-frames in WRAM, VRAM, SRAM, CGRAM, OAM or the framebuffer hashes.
-At floor-switch frame 2,800, `ct_drive` saves at
-`$C0:EC71` with wait 5 named and nothing suspended. A slot reload and a
-fresh process loading the file reach frame 3,000 with every state field and
-the PNG identical to uninterrupted play; replayed, inexact and lost loads
-all stay zero. `suspend_test` covers the returned stack depth, save/load and
-the retained row's shadow comparison independently of the ROM, including
-a deliberately wrong inline body that must fail that comparison.
-
-The floor-switch shadow run compares 682 returning passes, 4 first passes
-and 779 frame-wait setups, all matching and none interrupted. Fuzz seed 1
-compares the frame-wait setup on 5,000 arbitrary states, all matching.
-With the registry available, the loop's recipe preserves the resident
-field's object/script graph and randomizes registers, flags and the wait
-byte (clear, set and wrapping): 2,000 matches, no skips or mismatches.
-Loose-RAM trials reach existing field-pass failures too (TODO.md); they are
-not counted as successful validation. Wrong-page and wrong-bank refusal
-trials with the registry compare 1,000 each, all matching. The final 34
-focused Python checks for fallback accounting, gate integration, the port
-subset and platform access pass, as do `suspend_test`, `state_test`,
-`shadow_test`, `debt_test` and `time_parts_test`.
-
-The 37-movie sampled shadow gate is clean: 147,080 returning passes,
-221 first passes and 153,854 wait setups compare, all matching. Another
-1,586 returning passes, 1 first pass and 28 wait setups are interrupted;
-those calls are not comparisons, and the coherent-state fuzz recipe does
-not close the loose-RAM follow-up in TODO.md. The sampled timing check
-passes with the existing exceptions and unchanged estimates.
-
-The complete sampled gate with `-j 1 --evidence`, without long routes,
-ends `suite OK`: all 37 movies pass both strict and native outcome ratchets,
-and the evidence stage passes its 84 library replays. Shipping fallbacks
-and real-play guard refusals are zero. The existing outcome differences
-remain covered by their unchanged ratchets; this does not claim that every
-native outcome equals the reference.
-
-**Fallback accounting.** Both idle rows declare the return span
-`$C0:EC71-$C0:EC76`, so the measure recognizes the final pass as the idle
-port's work, just as it recognizes the passes that keep waiting. Movie
-cutoff prefixes are not waived: the bounded tail certifies only
-the exact idle passes it completes ("A movie ending inside a comparison",
-above). `shadow_test` checks loop and return completions, an interrupted
-pass, an exit outside the return span, and a later pass that cannot close
-an earlier one. The reader and gate integration tests pass (24 tests).
-Runtime handoffs settle an already-completed idle return before discarding
-its tracking, as the next instruction hook would: Golem Twins' game-over
-replay exposed that ordering. Six targeted shadow replays pass the fallback
-ratchet without idle allowances; floor-switch and save-point certify their
-partial prefixes in one extra frame.
-Over the complete sample, 28 cutoff idle instructions are certified; the
-fallback ratchet reports no new or increased routine after those certificates.
-The unreached-path audit replays its recipes and passes for 463 entries over
-the 84-movie inventory. Its existing location-error argument keeps the same
-guard and six bytes: only `field_enter`'s source fingerprint is refreshed,
-with the reason that a successful entry now names the frame hold.
-
-Three movies end inside a battle called by the field pass: `battle-menu-buttons`,
-`battle-magus` and `late-omen-terramutant`. Their field comparisons remain
-open after the bounded 120-frame tail. Restoring only the old backedge
-wrapper for those replays measures 6 instructions each under `field_frame`;
-the returning wrapper measures the same work plus its backedge, 7 each.
-`fallback_baseline.txt` therefore keeps 21 unresolved instructions under
-`open C0:00BD`, with that reason. The old `open C0:0097` allowance awaits
-the batched library update; it is not pruned on this sample. Shipping-mode
-fallbacks over the sample and its two fast routes are zero.
-
-`tools/machine_joints.py`: registered entries remain 2,136; held
-continuations 7 to 13; emulated-stack returns 994 to 993; stops 97 to 99
-(the two direct-call refusal paths); all other measures unchanged, including
-1,844 scaffolding writes. This is preparation for teardown, not retirement.
+The runtime indexes every held row, including more than sixteen rows for
+one wait. `suspend_test` checks save/load at the returned stack depth, that
+large continuation set, and the empty backedge's interrupt ordering.
+The earlier four-movie trace equality and floor-switch save/reload experiment
+are recorded in history/field-teardown.md; the teardown's fresh census and
+outcomes are above. Held adapters remain a machine joint until the legacy
+driver gives way to the native program.
 
 ### The scene program's teardown
 
@@ -4612,10 +4752,10 @@ calls or jumps are listed by entry and address and fail the inventory.
 
 The inventory covers the subsystems still under the gate that a teardown
 is next for, and keeps the rows of those that retired until their callers
-do: 463 entries now (core 11, event 250, field 202), using the 84-movie
+do: 11 core entries now, using the 84-movie
 coverage union of the library's shadow runs (the movie inputs agree with
 the checkout supplying it). Optional hand recordings are outside that
-standard library. The data, warp and overworld subsystems left it with
+standard library. The data, warp, overworld, event and field subsystems left it with
 their teardowns, and attract has no rows since its main loop's passes
 became a held wait's continuations (RUNTIME.md, "Held waits"). Taking the
 union anew moved one event row with its reach unchanged:
@@ -4629,67 +4769,25 @@ subsystem's rows don't change another's.
 | Subsystem | Bytes no movie executes | Executed in matched fuzz trials | Reviewed safety argument | Open |
 |---|--:|--:|--:|--:|
 | core | 11 | 7 | 4 | 0 |
-| event | 1,490 | 1,418 | 72 | 0 |
-| field | 2,229 | 2,137 | 92 | 0 |
-| Total | 3,730 | 3,562 | 168 | 0 |
+| Total | 11 | 7 | 4 | 0 |
 
-**The field, inventoried ahead of its teardown.** The field joined the audit
-before its paths were all checked, so the ledger takes a fourth kind of
-row for it: `open`, bytes neither compared nor argued, which `unreached.py`
-accepts only for a subsystem in its `OPEN` list and `--check` lists entry by
-entry as what that subsystem's teardown waits on. They are a ratchet, so lost
-evidence can't turn into them: `--record` adds no open byte the ledger it
-replaces didn't have (only a first inventory, `--admit-open`, does), and
-`--check` fails past the subsystem's cap in `OPEN`. A recipe that mismatches
-or reports a diagnostic fails the record rather than leaving its bytes open,
-unless `[failing]` in `tools/unreached_cases.toml` names it with its reason,
-as does a recipe the previous ledger cited with no fresh clean result. A
-teardown moves its subsystem from `OPEN` to `RETIRED`, which fails the check
-while it has an open row.
-Of its 202 entries, 51 have code no movie runs. The field's own recipes
-(`tools/fuzz_routines.toml`) executed 1,598 of those 2,229 bytes as they
-stood; targeted cases took 348 more. Most of what was left sits behind the
-field's frame wait (`$C0:EC60`), which spins until the vblank handler clears
-its count and so never returned under `ct_fuzz`: `--tick-at C0EC71=7E0152`
-stands in for the handler on both machines, the count wrapping to zero, and
-the ripple, the field's close into a scene, the fade after a battle and a
-battle request that finds no enemy run to their ends. The rest took a
-state the recipes didn't make: the window design sent at a vblank, a
-choice's pointer at its bounds, the view's edges clamped, a dialog's
-speaker leaving view, every sprite block given. Six arguments are
-reviewed instead: a vertical line-up arm and the 8-sprite layout's carry
-past 255 in the screen's upper half, both dead by arithmetic; a tile set's
-eighth block and BG2 drifting left, which no location's set or map has; a
-location load error only a word the entry's guard refuses reaches; and a
-party place's slot held by other colours, which the guard turns away. The
-216 bytes the first inventory left open were closed, and what fuzzing found
-on the way fixed. The original files a party place's object joining its
-slot's sharers by the older sharer's number where the slot's belongs
-(`$C0:71FE-$C0:7210`): the port does too (`join_party_place_sharers`), so
-`field_take_palette:unreached_party_shares` went from 897 of 1,000
-mismatching to none. The map's unpacking and the set-up after a menu had
-mismatched on their plain recipes since the unpacker became C (the data
-subsystem's teardown): their random place of the location's record named
-other bytes as a map or a tile set, whose output ran past its bank onto low
-RAM, the stack and the unpacker's own cells, which the original reads back
-as it goes and the C keeps in locals. The game keeps only a place where a
-record starts, so the map's, the script's and the set-up's guards take only
-that (`location_record_is_one`) and their recipes fill 32 records. A step's
-recipe read the map's tables past their 64 columns (`accessor out of
-range`) for a random repeat mask, which the recipes now give as maps make
-it: every 16, 32 or 64 tiles each way. The rest took targeted cases: the
-dialog read on at each break, placed for the field's message and setting
-each break from text made for it in work RAM; a gathering cut short after a
-menu; a one-off animation's end; and the leader nudged around another level
-into a shut way, which a tile half one level and half another makes about
-once in 20,000 trials (that case runs 100,000).
+Before the events retired, their 250 entries accounted for another 1,490
+unreached bytes: 1,418 executed in matched fuzz trials and 72 supported by
+reviewed safety arguments. Their contracts now retain those preconditions.
+
+A subsystem may join the audit before every path has evidence. Its `open`
+rows are a ratchet, never a replacement for lost comparisons, and retirement
+requires none. No current subsystem is admitted to `OPEN`. The field's
+audit and the fixes that closed its original 216 open bytes are in
+history/field-teardown.md; its final proof counts are in the teardown above.
 
 The evidence also replays each inventoried entry with unreached bytes on its
 own plain recipe (`unreached_fuzz.py --ledger`, which the gate's
 `--evidence` runs), cited or not: the map's unpacking had no ledger row on
 its plain recipe, so nothing compared it when the unpacker changed under it.
-Now a port that stops matching on its own recipe fails the gate in the
-commit that does it, not at the next record.
+A missing recipe is an error, not a silently omitted owner. The remaining
+ledger selects one cited recipe and one additional plain recipe. A port that
+stops matching on its own recipe fails the gate in the commit that does it.
 
 `tools/unreached_baseline.txt` is the greppable ledger: a movie manifest,
 one inventory row per entry (including zero-byte entries), and exact byte

@@ -38,7 +38,6 @@
 #include "field/layers.h"
 #include "field/sprites.h"
 #include "field/streaming.h"
-#include "field/layers.h"
 #include "field/bridge.h"
 #include "field/display.h"
 #include "field/parts.h"
@@ -136,12 +135,6 @@ static const struct {
     [SWITCH_TWO_BY_THREE] = { 0xC01212, 0xC0149D },
 };
 
-static void leave_shape_before_the_sound(GameState *g, SwitchPress p)
-{
-    if (p.shape == SWITCH_ONE_BY_TWO || (p.shape == SWITCH_TWO_BY_TWO && p.step_column == 0))
-        set_field_switch_shape(g, (uint8_t)p.shape);
-}
-
 /* A step event's and a chest's sounds, and what the machine leaves after
  * each answer (the original's registers, which its later calls read): the
  * program plays the sound as C and leaves nothing; the machine's entry calls
@@ -167,7 +160,6 @@ static bool answer_step_event_with(GameState *g, const StepAndChestSteps *steps,
         steps->step_answered(ctx, step, false);
         return true;
     }
-    ORIGINAL_EFFECT(leave_shape_before_the_sound(g, p));
     if (!steps->switch_sound(ctx, p, step))
         return false;
     field_queue_switch_redraw(g, p, step);
@@ -182,7 +174,6 @@ static bool answer_step_event_with(GameState *g, const StepAndChestSteps *steps,
  * the sound went no further. */
 static bool answer_chest_with(GameState *g, const StepAndChestSteps *steps, void *ctx)
 {
-    ORIGINAL_EFFECT(field_chest_opening_starts(g));
     answered(g, FIELD_REQUEST_OPEN_CHEST);
     if (!steps->chest_sound(ctx))
         return false;
@@ -260,7 +251,7 @@ typedef struct {
 static bool sound_at_the_leader(StepAndChestContext *c, uint32_t entry, void (*play)(GameState *, Platform *))
 {
     if (!field_leader_readable(c->game)) {
-        program_needs_the_machine(c->game, entry, "a sound at a leader the port doesn't read");
+        program_breaks_a_contract(c->game, entry, "a sound at a leader the port doesn't read");
         return false;
     }
     TIMED_AS(c->game, entry, play(c->game, c->pf));
@@ -304,21 +295,12 @@ enum { RECENTRE = 0xC0885A, COPY_TILES = 0xC0AF4E, SCROLL_LAYERS = 0xC02C41, FRE
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
        READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
-static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
-{
-    return bridge_call(s, site, routine, dont_care, on_the_field_page(s, false));
-}
 /* The columns right of the view brought in once the screen is put back where
  * the party is (field/streaming.h). */
 static bool bring_in_the_right_columns(Snes *s, uint32_t site)
 {
     return field_run(s, site, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, READS_NOTHING, field_bring_in_the_right_columns,
                      on_the_field_page(s, false));
-}
-
-static bool wait_frame(Snes *s, uint32_t site)
-{
-    return field_wait_frame(s, site, FRAME_WAIT, READS_NOTHING, on_the_field_page(s, false));
 }
 
 /* The field's own steps (field/main_loop.c), run as C. */
@@ -344,13 +326,13 @@ static void keep_where_the_party_was(GameState *g)
     set_location_previous_flags(g, (uint8_t)(at.facing ^ FACING_OPPOSITE));
 }
 
-/* The field starts again on a fresh stack at its start ($C0:0000), which the
- * port leaves to the original, from where it sets the stack. */
+/* The field starts again on a fresh stack, then its held entry loads the
+ * next location after the old C call chain has ended. */
 enum { FIELD_STARTS_AGAIN = 0xC00CC0, AS_THE_FIELD_STARTS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 // $C0:0C8F
-/* A step of the fade a frame; dark, the change made. False where the port
- * has handed the field's new start to the original. */
+/* A step of the fade a frame; dark, the change made. False once the field
+ * has handed over to the next location's held entry. */
 static bool change_location_on_the_machine(Snes *s)
 {
     GameState *g = state_of(s);
@@ -359,7 +341,7 @@ static bool change_location_on_the_machine(Snes *s)
     display_go_dark(s);
     keep_where_the_party_was(g);
     field_move_to_the_next_place(g);
-    m_stop_at_own(s, FIELD_STARTS_AGAIN, AS_THE_FIELD_STARTS);
+    field_hands_over_to(s, FIELD_STARTS_AGAIN, AS_THE_FIELD_STARTS, field_start_again);
     return false;
 }
 
@@ -446,6 +428,12 @@ static void trade_bg1_base(GameState *g)
 
 // $C0:179A-$C0:17EB, $C0:1867-$C0:188B
 /* One layer alone. */
+static bool finish_one_layer(FieldLayer layer, TileCopyRun run, void *ctx)
+{
+    return run(ctx, alone[layer].refreshed_after) && run(ctx, alone[layer].columns)
+           && run(ctx, alone[layer].last_wait);
+}
+
 static bool send_one_layer(GameState *g, FieldLayer layer, TileCopyRun run, void *ctx)
 {
     if (!run(ctx, alone[layer].drawn))
@@ -455,21 +443,33 @@ static bool send_one_layer(GameState *g, FieldLayer layer, TileCopyRun run, void
         return false;
     set_field_map_transition(g, alone[layer].move);
     set_field_tile_copy_queued_maps(g, 0);
-    return run(ctx, alone[layer].waited) && run(ctx, alone[layer].refreshed_after) && run(ctx, alone[layer].columns)
-           && run(ctx, alone[layer].last_wait);
+    return run(ctx, alone[layer].waited) && finish_one_layer(layer, run, ctx);
 }
 
 // $C0:17EC-$C0:1866
 /* BG1 and BG2: BG1 drawn and sent; then BG2 drawn and sent to BG1's place
  * while BG1 goes again to the transition's; then BG1 drawn and sent back, a
  * frame each. */
-static bool send_bg1_and_bg2(GameState *g, TileCopyRun run, void *ctx)
+static bool finish_both_layers(TileCopyRun run, void *ctx)
 {
-    if (!run(ctx, BOTH_BG1_DRAWN) || !run(ctx, BOTH_BG1_REFRESHED))
+    return run(ctx, BOTH_REFRESHED_AFTER) && run(ctx, BOTH_COLUMNS) && run(ctx, TC_LAST_WAIT);
+}
+
+static bool restore_first_layer(GameState *g, TileCopyRun run, void *ctx)
+{
+    if (!run(ctx, BOTH_BG1_DRAWN_AGAIN))
         return false;
-    set_field_map_transition(g, FIELD_MOVE_TO_THE_LOADERS_PLACE);
-    set_field_tile_copy_queued_maps(g, 0);
-    if (!run(ctx, BOTH_BG1_WAITED) || !run(ctx, BOTH_BG2_DRAWN))
+    trade_bg1_base(g);
+    field_put_the_layer_at_its_start(g, FIELD_BG1);
+    if (!run(ctx, BOTH_BG1_REFRESHED_AGAIN))
+        return false;
+    set_field_map_transition(g, FIELD_MOVE_TO_BG1);
+    return run(ctx, BOTH_BG1_WAITED_AGAIN) && finish_both_layers(run, ctx);
+}
+
+static bool send_second_layer(GameState *g, TileCopyRun run, void *ctx)
+{
+    if (!run(ctx, BOTH_BG2_DRAWN))
         return false;
     trade_bg1_base(g);
     field_put_the_layer_at_its_start(g, FIELD_BG1);
@@ -477,25 +477,31 @@ static bool send_bg1_and_bg2(GameState *g, TileCopyRun run, void *ctx)
     if (!run(ctx, BOTH_BG2_REFRESHED))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG2);
-    if (!run(ctx, BOTH_BG2_WAITED) || !run(ctx, BOTH_BG1_DRAWN_AGAIN))
-        return false;
-    trade_bg1_base(g);
-    field_put_the_layer_at_its_start(g, FIELD_BG1);
-    if (!run(ctx, BOTH_BG1_REFRESHED_AGAIN))
-        return false;
-    set_field_map_transition(g, FIELD_MOVE_TO_BG1);
-    return run(ctx, BOTH_BG1_WAITED_AGAIN) && run(ctx, BOTH_REFRESHED_AFTER) && run(ctx, BOTH_COLUMNS)
-           && run(ctx, TC_LAST_WAIT);
+    return run(ctx, BOTH_BG2_WAITED) && restore_first_layer(g, run, ctx);
 }
 
-// $C0:1779
-/* The screen scrolls back onto the grid a frame at a time, the frame's work
- * going on, then the tiles are copied and the layers they changed sent; the
- * main loop's pass goes on after the last frame's wait. */
-static bool copy_the_tiles(GameState *g, TileCopyRun run, void *ctx)
+static bool send_bg1_and_bg2(GameState *g, TileCopyRun run, void *ctx)
 {
-    answered(g, FIELD_REQUEST_TILE_COPY);
-    screen_starts_recentring(g);
+    if (!run(ctx, BOTH_BG1_DRAWN) || !run(ctx, BOTH_BG1_REFRESHED))
+        return false;
+    set_field_map_transition(g, FIELD_MOVE_TO_THE_LOADERS_PLACE);
+    set_field_tile_copy_queued_maps(g, 0);
+    return run(ctx, BOTH_BG1_WAITED) && send_second_layer(g, run, ctx);
+}
+
+static bool send_copied_layers(GameState *g, TileCopyRun run, void *ctx)
+{
+    switch ((QueuedMaps)field_tile_copy_queued_maps(g)) {
+    case QUEUED_BG1: return send_one_layer(g, FIELD_BG1, run, ctx);
+    case QUEUED_BG2: return send_one_layer(g, FIELD_BG2, run, ctx);
+    case QUEUED_BG3: return send_one_layer(g, FIELD_BG3, run, ctx);
+    case QUEUED_BG1_AND_BG2: return send_bg1_and_bg2(g, run, ctx);
+    default: return true;
+    }
+}
+
+static bool centre_then_copy(GameState *g, TileCopyRun run, void *ctx)
+{
     for (;;) {
         if (!run(ctx, RECENTRING) || !run(ctx, RECENTRING_FRAME_WORK))
             return false;
@@ -504,15 +510,18 @@ static bool copy_the_tiles(GameState *g, TileCopyRun run, void *ctx)
         if (!run(ctx, RECENTRING_WAIT))
             return false;
     }
-    if (!run(ctx, COPYING) || !run(ctx, COPYING_PALETTES) || !run(ctx, COPYING_WAIT))
-        return false;
-    switch ((QueuedMaps)field_tile_copy_queued_maps(g)) {
-    case QUEUED_BG1: return send_one_layer(g, FIELD_BG1, run, ctx);
-    case QUEUED_BG2: return send_one_layer(g, FIELD_BG2, run, ctx);
-    case QUEUED_BG3: return send_one_layer(g, FIELD_BG3, run, ctx);
-    case QUEUED_BG1_AND_BG2: return send_bg1_and_bg2(g, run, ctx);
-    default: return true;
-    }
+    return run(ctx, COPYING) && run(ctx, COPYING_PALETTES) && run(ctx, COPYING_WAIT)
+           && send_copied_layers(g, run, ctx);
+}
+
+// $C0:1779
+/* Centre the screen, copy the tiles and send the changed layers. Each
+ * transfer ends a frame, so its next stage can also be resumed on its own. */
+static bool copy_the_tiles(GameState *g, TileCopyRun run, void *ctx)
+{
+    answered(g, FIELD_REQUEST_TILE_COPY);
+    screen_starts_recentring(g);
+    return centre_then_copy(g, run, ctx);
 }
 
 /* ---- As C ---- */
@@ -536,7 +545,7 @@ static bool tile_copy_call(void *ctx, TileCopyCall call)
         return done;
     case TC_COPY:
         if (!field_tile_copy_is_on_the_map(g)) {
-            program_needs_the_machine(g, COPY_TILES, "a tile copy off the map");
+            program_breaks_a_contract(g, COPY_TILES, "a tile copy off the map");
             return false;
         }
         TIMED_AS(g, COPY_TILES, map_copy_tiles(g));
@@ -548,7 +557,7 @@ static bool tile_copy_call(void *ctx, TileCopyCall call)
     case TC_REFRESH: TIMED_AS(g, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(g)); return done;
     case TC_COLUMNS:
         if (!layers_repeat_within_the_maps(g)) {
-            program_needs_the_machine(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "layers the port doesn't stream");
+            program_breaks_a_contract(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "layers the port doesn't stream");
             return false;
         }
         TIMED_AS(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, stream_the_right_columns(g));
@@ -569,7 +578,7 @@ static bool tile_copy_call_on_the_machine(void *ctx, TileCopyCall call)
 {
     Snes *s = ctx;
     if (call == TC_LAST_WAIT) {
-        m_stop_at_own(s, FRAME_WAIT, THE_LAST_WAIT);
+        field_hold_finished_frame(s, THE_LAST_WAIT);
         return false;
     }
     uint32_t site = tile_copy_calls[call].site;
@@ -585,13 +594,42 @@ static bool tile_copy_call_on_the_machine(void *ctx, TileCopyCall call)
     case TC_DRAW_BG3: return field_run_on_page(s, site, DRAW_BG3, READS_NOTHING, field_draw_bg3_at_the_load, FIELD_LAYERS_PAGE);
     case TC_REFRESH: return refresh(s, site);
     case TC_COLUMNS: return bring_in_the_right_columns(s, site);
-    case TC_WAIT: return wait_frame(s, site);
+    case TC_WAIT: return field_hold_next_frame(s, site, READS_NOTHING, on_the_field_page(s, false));
     default: return false;
     }
 }
 
 /* False where the port stopped. */
 static bool answer_tile_copy(Snes *s) { return copy_the_tiles(state_of(s), tile_copy_call_on_the_machine, s); }
+
+// $C0:178E
+void field_tile_copy_recentres(Snes *s)
+{
+    if (centre_then_copy(state_of(s), tile_copy_call_on_the_machine, s))
+        field_return_to_waiting_caller(s);
+}
+
+// $C0:179A
+void field_tile_copy_sends_layers(Snes *s)
+{
+    if (send_copied_layers(state_of(s), tile_copy_call_on_the_machine, s))
+        field_return_to_waiting_caller(s);
+}
+
+// $C0:17BC
+void field_tile_copy_finishes_bg1(Snes *s) { (void)finish_one_layer(FIELD_BG1, tile_copy_call_on_the_machine, s); }
+// $C0:17E5
+void field_tile_copy_finishes_bg2(Snes *s) { (void)finish_one_layer(FIELD_BG2, tile_copy_call_on_the_machine, s); }
+// $C0:1882
+void field_tile_copy_finishes_bg3(Snes *s) { (void)finish_one_layer(FIELD_BG3, tile_copy_call_on_the_machine, s); }
+// $C0:188B
+void field_tile_copy_returns(Snes *s) { field_return_to_waiting_caller(s); }
+// $C0:180E
+void field_tile_copy_sends_second_layer(Snes *s) { (void)send_second_layer(state_of(s), tile_copy_call_on_the_machine, s); }
+// $C0:1835
+void field_tile_copy_restores_first_layer(Snes *s) { (void)restore_first_layer(state_of(s), tile_copy_call_on_the_machine, s); }
+// $C0:1859
+void field_tile_copy_finishes_both_layers(Snes *s) { (void)finish_both_layers(tile_copy_call_on_the_machine, s); }
 
 /* ---- A battle ($C0:188C) ------------------------------------------------------------------- */
 
@@ -664,7 +702,7 @@ static FieldBattleStart begins_on_the_machine(void *ctx)
 static bool no_battle_turn_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
-    TIMED_AS(state_of(s), FIELD_TURN, field_walk_a_frame(s));
+    field_hands_over_to(s, FIELD_TURN, READS_NOTHING, field_walk_a_frame);
     return false;
 }
 
@@ -675,7 +713,10 @@ static bool scroll_on_the_machine(void *ctx)
 }
 
 static bool refresh_before_the_battle_on_the_machine(void *ctx) { return refresh(ctx, 0xC0189D); }
-static bool wait_before_the_battle_on_the_machine(void *ctx) { return wait_frame(ctx, 0xC018A4); }
+static bool wait_before_the_battle_on_the_machine(void *ctx)
+{
+    return field_hold_next_frame(ctx, 0xC018A4, READS_NOTHING, on_the_field_page(ctx, false));
+}
 
 static bool fight_on_the_machine(void *ctx)
 {
@@ -684,7 +725,11 @@ static bool fight_on_the_machine(void *ctx)
     return bridge_call_long(s, 0xC018A7, BATTLE, 0, on_the_field_page(s, false));
 }
 
-static bool take_up_on_the_machine(void *ctx) { return call(ctx, 0xC018C1, FIELD_AFTER_BATTLE, READS_NOTHING); }
+static bool take_up_on_the_machine(void *ctx)
+{
+    return field_run_called(ctx, 0xC018C1, FIELD_AFTER_BATTLE, READS_NOTHING,
+                                  field_after_battle, on_the_field_page(ctx, false));
+}
 
 static bool press_on_the_machine(void *ctx)
 {
@@ -700,7 +745,34 @@ static bool free_on_the_machine(void *ctx)
                      on_the_field_page(s, false));
 }
 
-static bool field_turn_on_the_machine(void *ctx) { return call(ctx, 0xC018CA, FIELD_TURN, READS_NOTHING); }
+static bool field_turn_on_the_machine(void *ctx)
+{
+    return field_run_called(ctx, 0xC018CA, FIELD_TURN, READS_NOTHING,
+                                  field_walk_a_frame, on_the_field_page(ctx, false));
+}
+
+// $C0:18C4
+void field_requested_battle_finishes(Snes *s)
+{
+    if (press_on_the_machine(s) && free_on_the_machine(s) && field_turn_on_the_machine(s))
+        field_return_to_waiting_caller(s);
+}
+
+// $C0:18CD
+void field_requested_battle_returns(Snes *s) { field_return_to_waiting_caller(s); }
+
+// $C0:18A7
+void field_requested_battle_starts(Snes *s)
+{
+    if (!fight_on_the_machine(s))
+        return;
+    GameState *g = state_of(s);
+    TIMED_AS(g, FIELD_INSTALL_NMI_ENTRY, field_take_the_vblank_interrupt(g));
+    TIMED_AS(g, FIELD_INSTALL_IRQ_ENTRY, field_take_the_line_interrupt(g));
+    battle_over(g);
+    if (take_up_on_the_machine(s) && press_on_the_machine(s) && free_on_the_machine(s) && field_turn_on_the_machine(s))
+        field_return_to_waiting_caller(s);
+}
 
 /* False where the port stopped. */
 static bool answer_battle(Snes *s)
@@ -770,7 +842,7 @@ static bool press_the_switches(void *ctx)
 {
     GameState *g = ((RequestedBattleContext *)ctx)->game;
     if (!field_remembered_switches_on_the_map(g)) {
-        program_needs_the_machine(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "remembered switches off the map");
+        program_breaks_a_contract(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "remembered switches off the map");
         return false;
     }
     TIMED_AS(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, field_press_the_remembered_switches(g));
@@ -838,7 +910,7 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
     if (field_requests(g) == 0)
         return FIELD_PASS_GOES_ON;
     if (!field_requests_can_be_answered(g)) {
-        program_needs_the_machine(g, FIELD_HANDLE_REQUESTS_ENTRY, "requests the port doesn't answer");
+        program_breaks_a_contract(g, FIELD_HANDLE_REQUESTS_ENTRY, "requests the port doesn't answer");
         return FIELD_PASS_STOPS;
     }
     if (asked(g, FIELD_REQUEST_LOCATION_CHANGE))
@@ -904,4 +976,24 @@ bool field_requests_can_run(Snes *s)
     bool ok = field_requests_can_be_answered(state_of(s));
     vars_peek(false);
     return ok;
+}
+
+// $C0:1893
+/* Resume the request after an empty battle's regrouping frame. */
+void field_requested_battle_decided(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (m_flag(s, CPU_FLAG_C)) {
+        battle_over(g);
+        (void)no_battle_turn_on_the_machine(s);
+        return;
+    }
+    if (!scroll_on_the_machine(s))
+        return;
+    set_field_display_flags(g, (uint8_t)(field_display_flags(g) | FIELD_DISPLAY_SETUP));
+    if (!refresh_before_the_battle_on_the_machine(s))
+        return;
+    set_field_display_flags(g, (uint8_t)(field_display_flags(g) & ~FIELD_DISPLAY_SETUP));
+    if (wait_before_the_battle_on_the_machine(s))
+        field_requested_battle_starts(s);
 }

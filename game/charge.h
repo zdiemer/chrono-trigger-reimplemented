@@ -32,6 +32,22 @@
  * calibrated rate. */
 void charge_as(GameState *g, uint32_t routine, uint32_t accesses);
 
+/* Work formerly counted through a retired port's temporary memory accesses
+ * on the legacy machine. Keep its calibrated beam-budget estimate without
+ * reconstructing those cells, at the current operation's rate. The native
+ * program never counted these
+ * accesses (its build omitted the comparison scaffolding), so its backing
+ * keeps the native estimate unchanged. */
+void charge_legacy_accesses(GameState *g, uint32_t accesses);
+
+/* The same estimate for former multiplier or upload-cursor accesses,
+ * whose machine bus price differs from work RAM's. */
+void charge_legacy_io_accesses(GameState *g, uint32_t accesses);
+
+/* Reads of the retired operation's cartridge tables, at the selected
+ * cartridge speed. No table bytes are read or retained. */
+void charge_legacy_rom_accesses(GameState *g, uint32_t accesses);
+
 /* The time of the game's block move moving `bytes` bytes: what the original
  * spends where a port fills or copies with wram_fill8, wram_fill16 or
  * wram_copy (wram.h), which take none of the port's own time. */

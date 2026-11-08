@@ -21,6 +21,9 @@
 #include "event/engine.h"
 #include "event/calls.h"
 #include "event/party.h"
+#include "core/program.h"
+#include "field/bridge.h"
+#include "field/main_loop.h"
 #include "field/palettes.h"
 #include "event/variables.h"
 #include "field/field.h"
@@ -37,44 +40,13 @@ Someone someone_of_object(const GameState *g, FieldObject object)
     return (Someone){ true, object_disabled(g, object), object_position(g, object), object };
 }
 
-/* For shadow mode: whom the original finds in an empty place. It takes the
- * place's marker for an object like any other, and reads the slot its byte
- * names past the object tables (field/object.h, object_past_the_tables): for
- * the game's marker, a slot disabled when object 0's script has got to an
- * offset with the low byte's top bit set, and standing where object 0's
- * vertical position and horizontal velocity say. So the moves toward the
- * member mostly find nobody to walk to, as the game means, and now and then
- * set off toward that tile; and noting the member's tile notes it.
- *
- * None of it shows. Over the movie library the moves are made by the
- * objects that stand in for a party's second and third members in the first
- * maps of a new game (locations $001 and $002), following them while Crono
- * is on his own: 3 calls of each object's
- * 5,000 set off (just after the map loads, while object 0's script is early
- * on), and the objects are out of view. The tile is noted every frame by an
- * ending with no party at all, and nothing reads the variables before the
- * map changes. A native build has nobody there.
- *
- * One read of the original comes later than the port's: lining up with the
- * slot, it stops the walker first, and the slot's vertical fine position is
- * the low byte of object 0's horizontal velocity, which the stop zeroes when
- * the walker is object 0. */
-static void see_what_the_original_finds(const GameState *g, FieldLink marker, FieldObject asking, Someone *found)
-{
-    FieldObject slot = field_linked_object(marker);
-    ObjectPastTheTables past = object_past_the_tables(g, slot);
-    if (asking == slot - FIELD_OBJECTS)
-        past.at.y &= 0xFF00;
-    *found = (Someone){ true, past.disabled, past.at, slot };
-}
-
 Someone member_in_place(const GameState *g, PartyPlace place, FieldObject asking)
 {
+    (void)asking;
     FieldLink link = party_member_link(g, place);
     if (field_link_is_object(link))
         return someone_of_object(g, field_linked_object(link));
     Someone nobody = { .there = false };
-    ORIGINAL_EFFECT(see_what_the_original_finds(g, link, asking, &nobody));
     return nobody;
 }
 
@@ -139,8 +111,6 @@ void event_cmd_take_out_of_party(Snes *s)
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     uint8_t character = event_command_of(s, 0xD6).character;
-    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + LENGTH)));
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, character));
     bool go_on = goes_on_after_leaving(g, character, m_flag(s, CPU_FLAG_C));
     take_out_of_party(g, character);
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), go_on });
@@ -151,22 +121,6 @@ void event_cmd_take_out_of_party(Snes *s)
 /* The menus' services, which the original's long call reaches; their time
  * is theirs. */
 enum { MENUS_SERVICES = 0xC28004 };
-
-/* For the original's code and shadow mode: the menus' dispatcher keeps the
- * Y and X a command hands it (menu/party_leaves.h) -- the character it
- * names, or the command's offset, and an item or whatever X held -- and
- * the answer; the Y it leaves is the command's. */
-static PartyServiceCall menus_called(GameState *g, uint16_t y, uint16_t x)
-{
-    return party_service_called(g, (uint8_t)y, (uint8_t)x);
-}
-
-void event_menus_answered(Snes *s, PartyService service, const PartyServiceCall *call)
-{
-    GameState *g = state_of(s);
-    party_service_answered(g, service, call);
-    s->cpu.y = party_service_y(g, service);
-}
 
 /* What every one of the menus' services ends with, after its work. */
 static void shown(GameState *g) { party_wear_it_shows(g); }
@@ -179,28 +133,22 @@ void event_cmd_party_routine_0a(Snes *s)
     enum { LENGTH = 3 };
     GameState *g = state_of(s);
     uint16_t resume = (uint16_t)(event_command_offset(s) + LENGTH);
-    ORIGINAL_EFFECT(event_keep_offset(g, resume));
     EventCommand c = event_command_of(s, 0xD5);
     uint8_t character = (uint8_t)c.first_argument, item = (uint8_t)c.second_argument;
-    PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = menus_called(g, character, item));
     TIMED_AS(g, MENUS_SERVICES, (party_equip(g, character, item), shown(g)));
-    ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_EQUIP, &call));
     event_return(s, (EventStep){ resume, m_flag(s, CPU_FLAG_C) });
 }
 
 /* Every character's HP filled, then (or alone) every character's MP, each
  * through the menus' services; `answered` follows each, saying whether the
  * other follows. */
-static void fill_with(GameState *g, bool hp, bool mp, void (*answered)(void *ctx, PartyService done, bool more), void *ctx)
+static void fill_with(GameState *g, bool hp, bool mp)
 {
     if (hp) {
         TIMED_AS(g, MENUS_SERVICES, (party_fill_hp(g), shown(g)));
-        answered(ctx, SERVICE_FILL_HP, mp);
     }
     if (mp) {
         TIMED_AS(g, MENUS_SERVICES, (party_fill_mp(g), shown(g)));
-        answered(ctx, SERVICE_FILL_MP, false);
     }
 }
 
@@ -212,31 +160,12 @@ typedef struct {
     PartyServiceCall call;
 } FillOnTheMachine;
 
-static void answered_on_the_machine(void *ctx, PartyService done, bool more)
-{
-    FillOnTheMachine *m = ctx;
-    ORIGINAL_EFFECT(event_menus_answered(m->s, done, &m->call));
-    if (more)
-        ORIGINAL_EFFECT(m->call = menus_called(state_of(m->s), party_service_y(state_of(m->s), done), party_service_x(done)));
-}
-
 static void fill(Snes *s, bool hp, bool mp)
 {
     GameState *g = state_of(s);
     uint16_t resume = (uint16_t)(event_command_offset(s) + 1);
-    ORIGINAL_EFFECT(event_keep_offset(g, resume));
-    FillOnTheMachine m = { s, { 0 } };
-    ORIGINAL_EFFECT(m.call = menus_called(g, resume, s->cpu.x));
-    fill_with(g, hp, mp, answered_on_the_machine, &m);
+    fill_with(g, hp, mp);
     event_return(s, (EventStep){ resume, m_flag(s, CPU_FLAG_C) });
-}
-
-/* For the original's code and shadow mode: a jump's distance kept, and the
- * overflow of the sum that took it. */
-static void leave_jump(Snes *s, uint16_t from, uint8_t distance)
-{
-    keep_word(state_of(s), KEPT_FIRST, distance);
-    m_set_flag(s, CPU_FLAG_V, field_add_overflows16(from, distance));
 }
 
 /* A condition on the record ($D2, $CF): on after it if the character is
@@ -263,18 +192,13 @@ static EventStep after_asking(const GameState *g, uint16_t at, bool there)
  * it the menus as X. */
 static void ask_after_character(Snes *s, uint8_t opcode, PartyService service, unsigned places)
 {
+    (void)service;
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     uint8_t character = event_command_of(s, opcode).character;
-    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + ASKING_JUMP_BYTE)));
-    PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = menus_called(g, character, (uint16_t)(at + ASKING_JUMP_BYTE)));
     bool there = false;
     TIMED_AS(g, MENUS_SERVICES, there = among_the_record(g, character, places));
-    ORIGINAL_EFFECT(event_menus_answered(s, service, &call));
     if (!there) {
-        uint16_t from = (uint16_t)(at + ASKING_JUMP_BYTE);
-        ORIGINAL_EFFECT(leave_jump(s, from, script_byte(g, from)));
     }
     event_return(s, after_asking(g, at, there));
 }
@@ -295,14 +219,10 @@ static void change_the_record(Snes *s, uint8_t opcode, PartyService service)
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     uint8_t character = event_command_of(s, opcode).character;
-    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + LENGTH)));
-    PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = menus_called(g, character, (uint16_t)(at + LENGTH)));
     if (service == SERVICE_RECRUIT)
         TIMED_AS(g, MENUS_SERVICES, ((void)party_recruit(g, character), shown(g)));
     else
         TIMED_AS(g, MENUS_SERVICES, ((void)party_dismiss(g, character), shown(g)));
-    ORIGINAL_EFFECT(event_menus_answered(s, service, &call));
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), m_flag(s, CPU_FLAG_C) });
 }
 
@@ -323,13 +243,8 @@ void event_cmd_note_item_count(Snes *s)
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, 0xD7);
-    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + ITEM_ENDS)));
-    PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = menus_called(g, at, c.item));
     uint8_t count = 0;
     TIMED_AS(g, MENUS_SERVICES, (count = menu_items_held(g, c.item), shown(g)));
-    ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_COUNT_ITEM, &call));
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, count));
     set_variable_byte(g, c.variable, count);
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), true });
 }
@@ -343,7 +258,6 @@ static void object_joins_the_party(GameState *g, uint8_t character)
     FieldLink object = field_link_stored(field_character_objects(g, character));
     if (!field_link_is_object(object))
         return;
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_SECOND, field_link_byte(object)));
     PartyPlace place = place_taken(g, PARTY_FIRST_MEMBER) ? PARTY_SECOND_MEMBER : PARTY_FIRST_MEMBER;
     set_field_party_objects(g, place, field_link_byte(object));
 }
@@ -356,12 +270,7 @@ void event_cmd_bring_into_the_party(Snes *s)
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     uint8_t character = event_command_of(s, 0xD3).character;
-    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + LENGTH)));
-    ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, character));
-    PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = menus_called(g, character, (uint16_t)(at + LENGTH)));
     TIMED_AS(g, MENUS_SERVICES, ((void)party_bring_in(g, character), shown(g)));
-    ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_BRING_IN, &call));
     object_joins_the_party(g, character);
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), m_flag(s, CPU_FLAG_C) });
 }
@@ -430,16 +339,6 @@ static void member_steps_out(GameState *g, uint8_t character)
  * last member's object it compared. */
 enum { PALETTES_MOVED_X = 0x2200 };
 
-static uint16_t x_for_the_menus(const FieldLink before[PARTY_PLACES], const GameState *g, uint8_t character)
-{
-    bool leader_goes = field_link_is_object(before[0]) && object_character(g, field_linked_object(before[0])) == character;
-    if (leader_goes || !field_link_is_object(before[1]))
-        return PALETTES_MOVED_X;
-    if (object_character(g, field_linked_object(before[1])) == character)
-        return PALETTES_MOVED_X;
-    return field_link_byte(field_link_is_object(before[2]) ? before[2] : before[1]);
-}
-
 /* Whether the object's turn goes on after someone is sent to the reserve. As
  * with someone leaving ($D6, above), the original goes on by the carry of its
  * last comparison of a member's character with the one sent, which the
@@ -472,21 +371,11 @@ void event_cmd_send_to_the_reserve(Snes *s)
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     uint8_t character = event_command_of(s, 0xD4).character;
-    FieldLink before[PARTY_PLACES];
-    for (PartyPlace place = 0; place < PARTY_PLACES; place++)
-        before[place] = party_member_link(g, place);
-    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + LENGTH)));
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, character));
     vars_peek(true);
-    uint16_t x = 0;
-    ORIGINAL_EFFECT(x = x_for_the_menus(before, g, character));
     bool go_on = goes_on_after_sending(g, character, m_flag(s, CPU_FLAG_C));
     vars_peek(false);
     member_steps_out(g, character);
-    PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = menus_called(g, character, x));
     TIMED_AS(g, MENUS_SERVICES, ((void)party_send_to_the_reserve(g, character), shown(g)));
-    ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_SEND_TO_THE_RESERVE, &call));
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), go_on });
 }
 
@@ -515,11 +404,9 @@ static bool asked(GameState *g, Platform *pf, uint16_t at, EventStep *step, uint
     return true;
 }
 
-static void nothing_answered(void *ctx, PartyService done, bool more) { (void)ctx, (void)done, (void)more; }
-
 static bool filled(GameState *g, uint16_t at, EventStep *step, bool hp, bool mp)
 {
-    fill_with(g, hp, mp, nothing_answered, NULL);
+    fill_with(g, hp, mp);
     *step = (EventStep){ (uint16_t)(at + 1), THE_DISPATCH_LEAVES_THE_CARRY };
     return true;
 }
@@ -738,14 +625,6 @@ void formation_facing_bits(Facing facing, bool *column_bit, bool *row_bit)
  * column and the row, each with its facing bit. */
 enum { FACING_BIT = 0x80 };
 
-static void keep_formation_place(GameState *g, FormationPlace p)
-{
-    bool column_bit, row_bit;
-    formation_facing_bits(p.facing, &column_bit, &row_bit);
-    keep_byte(g, KEPT_SECOND, (uint8_t)(p.tile.x | (column_bit ? FACING_BIT : 0)));
-    keep_byte(g, KEPT_THIRD, (uint8_t)(p.tile.y | (row_bit ? FACING_BIT : 0)));
-}
-
 /* A member takes its place in the formation: it drops what it was doing for
  * its script, which is told the tile and the way to face. */
 static void send_to_formation_place(GameState *g, PartyPlace place, FormationPlace p)
@@ -754,7 +633,6 @@ static void send_to_formation_place(GameState *g, PartyPlace place, FormationPla
     object_run_script_from(g, member_object(g, place), PARTY_SCRIPT_LEVEL, party_script_start(script));
     party_script_go_to(g, script, p.tile);
     party_script_face(g, script, p.facing);
-    ORIGINAL_EFFECT(keep_formation_place(g, p));
 }
 
 /* Whether any of the party still runs the party's script. */
@@ -812,7 +690,6 @@ static void send_to_the_leader(GameState *g, FieldObject member)
 /* The gathering scripts count up to PARTY_ALL_GATHERED (event/party.h),
  * starting at one more for the second place empty. */
 
-
 // $C0:345A
 /* The members gather to the leader, and the script waits until they are
  * there; with nobody but the leader, it goes on at once. */
@@ -851,20 +728,6 @@ void member_back_to_the_leader(GameState *g, FieldObject member)
 
 /* Its entry: the field's routine after a battle ($C0:034B) names the member
  * in the cell the leader's contact is kept in, with 8-bit index registers. */
-void event_member_back_to_the_leader(Snes *s)
-{
-    GameState *g = state_of(s);
-    member_back_to_the_leader(g, field_linked_object(field_link_stored(field_leader_contact(g))));
-    m_rts(s);
-}
-
-/* For the original: it names each member it sends back in the cell the
- * leader's contact is kept in, which the walk sets again before it reads
- * it. */
-static void leave_member_named(GameState *g, FieldObject member)
-{
-    set_field_leader_contact(g, field_object_offset(member));
-}
 
 // $C0:034B
 /* After a battle the party comes back together: the members walk back to
@@ -874,6 +737,13 @@ static void leave_member_named(GameState *g, FieldObject member)
  * where it stands sends nobody. */
 void party_back_together(GameState *g)
 {
+    vars_peek(true);
+    bool fits = party_can_come_back_together(g);
+    vars_peek(false);
+    if (!fits) {
+        program_breaks_a_contract(g, 0xC0034B, "the returning party names invalid objects or script levels");
+        return;
+    }
     if (battle_terms(g, BATTLE_TERMS_PARTY_STAYS_PUT)) {
         set_variable_byte(g, GATHERING_COUNT, PARTY_ALL_GATHERED);
         return;
@@ -886,7 +756,6 @@ void party_back_together(GameState *g)
     uint8_t gathered = PARTY_ALL_GATHERED;
     for (PartyPlace place = PARTY_FIRST_MEMBER; place < PARTY_PLACES && place_taken(g, place); place++) {
         FieldObject member = member_object(g, place);
-        ORIGINAL_EFFECT(leave_member_named(g, member));
         TIMED_AS(g, 0xC05B1F, member_back_to_the_leader(g, member));
         gathered--;
     }
@@ -900,7 +769,7 @@ void event_party_back_together(Snes *s)
 {
     party_back_together(state_of(s));
     m_rep(s, CPU_FLAG_X);
-    m_stop_at(s, 0xC000EB, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+    field_hands_over_to(s, 0xC000EB, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, field_walk_a_frame);
 }
 
 /* Its guard: on the field's page; the members there are objects the tables
@@ -930,18 +799,6 @@ bool event_party_back_can_run(Snes *s)
 /* Its guard: the member is an object the tables hold, as the game keeps it
  * (the original adds its whole word to the place's offset), at a level the
  * places hold. */
-bool event_member_can_go_back(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t member = field_leader_contact(g);
-    bool ok = field_names_object(member) && field_leader_contact_high(g) == 0 &&
-              event_object_call_state_level(g, field_linked_object(field_link_stored(member))) < EVENT_LEVELS;
-    vars_peek(false);
-    return ok;
-}
 
 /* The regrouping's guard: the party's places hold objects the tables do, as
  * the game keeps them (the original adds each one's whole word to a place's

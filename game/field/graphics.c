@@ -68,46 +68,7 @@ void field_draw_frame_tile(GameState *g, ObjectGraphics set, uint16_t tile, uint
 
 /* ---- For the original's code and shadow mode (field/scratch.h) -------------------------- */
 
-/* The tile copies save the caller's Y (and give it back from there). */
-static void leave_saved_y(GameState *g, uint16_t y) { original_cell16(g, FIELD_SAVED_Y_CELL, y); }
-
 /* ---- Entries: the frame builder's calls, on the field's page ------------------------------ */
-
-/* The set the original's caller left in field_sprite_graphics. */
-static ObjectGraphics graphics_left(const GameState *g)
-{
-    return (ObjectGraphics){ field_sprite_graphics_bank(g), field_sprite_graphics_address(g) };
-}
-
-/* 16-bit A, the tile. Y comes back as it came, from the cell the copy saved
- * it in (the guards keep the copies' writes off the cell). The straight copy
- * draws at field_sprite_tile_offset, and leaves the port's cursor past the
- * tile in the bank it is in, A that cursor, and the overflow of its sum; the
- * mirrored one draws at the port's cursor, which it leaves past the tile. */
-static void tile_copy_entry(Snes *s, bool mirrored)
-{
-    GameState *g = state_of(s);
-    uint16_t tile = s->cpu.a, y = s->cpu.y;
-    ORIGINAL_EFFECT(leave_saved_y(g, y));
-    if (mirrored) {
-        uint16_t to = (uint16_t)s->bus.wram_port_addr;
-        copy_sprite_tile_flipped(g, graphics_left(g), tile, to);
-        hw_port_seek_address(g, (uint16_t)(to + FIELD_TILE_BYTES));
-    } else {
-        uint16_t to = field_sprite_tile_offset(g);
-        copy_sprite_tile(g, graphics_left(g), tile, to);
-        uint16_t cursor = (uint16_t)(to + FIELD_TILE_BYTES);
-        hw_port_seek_address(g, cursor);
-        m_set_flag(s, CPU_FLAG_V, field_add_overflows16(to, FIELD_TILE_BYTES));
-        tile = cursor;
-    }
-    s->cpu.a = tile;
-    s->cpu.y = y;
-    m_rts(s);
-}
-
-void field_copy_sprite_tile(Snes *s) { tile_copy_entry(s, false); }
-void field_copy_sprite_tile_flipped(Snes *s) { tile_copy_entry(s, true); }
 
 /* The mirrored copy's guard: on the field's page with the data bank $00, the
  * tile's 32 bytes in banks where every address answers (elsewhere the copy
@@ -115,19 +76,3 @@ void field_copy_sprite_tile_flipped(Snes *s) { tile_copy_entry(s, true); }
  * bank, the last bank's into bank $00), and the port's 32 bytes inside the
  * build bank, where the frame builder places it. */
 enum { BANK_END = 0x10000 };
-
-bool field_tile_copy_in_build_bank(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    ObjectGraphics set = graphics_left(state_of(s));
-    vars_peek(false);
-    uint32_t first = ((uint32_t)set.bank << 16) + field_set_tile_start(set, s->cpu.a);
-    uint32_t last = first + FIELD_TILE_BYTES - 1;
-    if (!field_bank_always_answers((uint8_t)(first >> 16)) || !field_bank_always_answers((uint8_t)(last >> 16)))
-        return false;
-    uint32_t port = s->bus.wram_port_addr;
-    uint8_t bank = (uint8_t)(0x7E + (port >> 16));   /* the port's 17 bits reach banks $7E and $7F */
-    return bank == FIELD_BUILD_BANK && (port & 0xFFFF) + FIELD_TILE_BYTES <= BANK_END;
-}

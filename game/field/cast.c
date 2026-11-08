@@ -56,18 +56,6 @@ static ObjectGraphics long_entry(const GameState *g, FieldSpriteTable table, uin
     return (ObjectGraphics){ (uint8_t)(at >> 16), (uint16_t)at };
 }
 
-/* For the original's code and shadow mode: what reading a record leaves --
- * its place in its table, the multiplier as working out its colours' place
- * left it, and the last of its fields worked out, in the first scratch cell.
- * Only the command that read the record reads them back. */
-static void leave_record_read(GameState *g, uint16_t place, uint8_t palette, uint16_t last_field)
-{
-    set_field_sprite_record_place(g, place);
-    hw_set_multiplicand(g, palette);
-    hw_multiply_by(g, FIELD_SPRITE_COLOURS * 2);
-    original_cell16(g, FIELD_SCRATCH_CELLS, last_field);
-}
-
 /* ---- A sprite put on ----------------------------------------------------------------------- */
 
 static void set_graphics(GameState *g, FieldObject obj, ObjectGraphics set)
@@ -114,7 +102,8 @@ static void put_on_character_sprite(GameState *g, FieldObject obj, uint8_t chara
     wear_record(g, obj, r);
     set_graphics(g, obj, long_entry(g, FIELD_SPRITE_GRAPHICS_SETS, r.graphics));
     start_fresh(g, obj);
-    ORIGINAL_EFFECT(leave_record_read(g, (uint16_t)(character * FIELD_SPRITE_RECORD_BYTES), r.palette, r.graphics));
+    charge_legacy_accesses(g, 4); /* sprite record and last field */
+    charge_legacy_io_accesses(g, 4); /* palette multiplication */
 }
 
 /* ---- Blocks of sprite tiles ---------------------------------------------------------------- *
@@ -177,20 +166,12 @@ static FieldLink block_owner(const GameState *g, unsigned block)
 static bool block_free(const GameState *g, unsigned block) { return !field_link_is_object(block_owner(g, block)); }
 static void free_block(GameState *g, unsigned block) { set_field_sprite_block_owner(g, block, field_link_byte(field_no_link())); }
 
-/* For the original's code and shadow mode: the block, and the high byte of
- * its first tile's row as the original worked it out, in a scratch cell. */
-static void leave_block(GameState *g, unsigned block)
-{
-    enum { ROW_OF_TILES = 0xFE, ROW_SHIFT = 4 };
-    original_cell16(g, FIELD_SCRATCH_CELLS, (uint16_t)(((block & ROW_OF_TILES) << ROW_SHIFT & 0xFF00) | block));
-}
-
 static void take_block(GameState *g, FieldObject obj, unsigned block, bool pair)
 {
+    charge_legacy_accesses(g, 2); /* selected block and tile row */
     set_field_sprite_block_owner(g, block, field_link_byte(field_link_to(obj)));
     if (pair)
         set_field_sprite_block_owner(g, block + 1, field_link_byte(field_link_to(obj)));
-    ORIGINAL_EFFECT(leave_block(g, block));
     use_block(g, obj, block, (uint16_t)(block * RECORDS_A_BLOCK));
 }
 
@@ -423,11 +404,6 @@ bool graphics_unpacked(GameState *g)
     return end >= UNPACKED_FROM;
 }
 
-/* For the original's code and shadow mode: the graphics set worked out last,
- * in the scratch cell it keeps it in. */
-enum { SET_CELL = FIELD_SCRATCH_CELLS + 10 };
-static void leave_set(GameState *g, uint8_t set) { original_cell8(g, SET_CELL, set); }
-
 /* ---- People, creatures and enemies -------------------------------------------------------- */
 
 // $C0:4557
@@ -441,7 +417,7 @@ static void cast_as_another(GameState *g, FieldObject obj, ObjectKind kind, uint
     start_fresh(g, obj);
     object_set_solidity(g, obj, true);
     wear_record(g, obj, r);
-    ORIGINAL_EFFECT(leave_set(g, r.graphics));
+    charge_legacy_accesses(g, 1); /* selected graphics set */
 }
 
 /* Graphics shared with an object of the map, or to unpack. */
@@ -470,8 +446,8 @@ CastGraphics object_cast_as_npc(GameState *g, FieldObject obj, uint8_t npc)
     cast_as_another(g, obj, ROLE_WALKS_ONLY, npc, r);
     CastGraphics found = find_graphics(g, obj, r);
     note_npc_graphics(g, unpacked_end(g));
-    ORIGINAL_EFFECT(leave_record_read(g, (uint16_t)(npc * FIELD_SPRITE_RECORD_BYTES), r.palette,
-                                      found.source == GRAPHICS_SHARED ? r.assembly : r.graphics));
+    charge_legacy_accesses(g, 4); /* sprite record and last field */
+    charge_legacy_io_accesses(g, 4); /* palette multiplication */
     return found;
 }
 
@@ -490,8 +466,8 @@ CastGraphics object_cast_as_enemy(GameState *g, FieldObject obj, uint8_t enemy)
         set_graphics(g, obj, long_entry(g, FIELD_SPRITE_GRAPHICS_SETS, r.graphics));
     else
         found = find_graphics(g, obj, r);
-    ORIGINAL_EFFECT(leave_record_read(g, (uint16_t)(enemy * BATTLE_SPRITE_RECORD_BYTES), r.palette,
-                                      found.source == GRAPHICS_SHARED ? r.assembly : r.graphics));
+    charge_legacy_accesses(g, 4); /* sprite record and last field */
+    charge_legacy_io_accesses(g, 4); /* palette multiplication */
     return found;
 }
 
@@ -501,22 +477,12 @@ enum { SET_APART = 0x80, BLOCK_BITS = 0x7F };
 
 static unsigned enemy_block(uint8_t slot) { return (slot & BLOCK_BITS) + 1u; }
 
-/* For the original's code and shadow mode: the slot byte, and the block over
- * the low byte of its first tile's row pair, in the scratch cells the
- * command worked them out in. */
-enum { SLOT_CELL = FIELD_SCRATCH_CELLS + 8 };
-static void leave_enemy_place(GameState *g, uint8_t slot, unsigned block)
-{
-    original_cell8(g, SLOT_CELL, slot);
-    original_cell16(g, FIELD_SCRATCH_CELLS, (uint16_t)(block_first_tile(block & ~1u) & 0xFF00) | (uint8_t)block);
-}
-
 // $C0:4799
 void enemy_takes_its_place(GameState *g, Platform *pf, FieldObject obj, uint8_t slot)
 {
     unsigned block = enemy_block(slot);
     take_enemy_block(g, obj, block);
-    ORIGINAL_EFFECT(leave_enemy_place(g, slot, block));
+    charge_legacy_accesses(g, 3); /* slot, block and tile row */
     if (object_sprite_layout(g, obj) == LAYOUT_24) {
         set_field_built_sprite_object(g, field_link_byte(field_link_to(obj)));
         TIMED_AS(g, 0xC0E12A, object_draw_whole_figure(g, pf, obj));
@@ -547,45 +513,4 @@ bool cast_enemy_fits(const GameState *g, uint8_t enemy, uint8_t slot)
     }
     return field_figure_drawable(g, set, long_entry(g, FIELD_SPRITE_ASSEMBLIES, r.assembly),
                                  (uint16_t)(block * RECORDS_A_BLOCK));
-}
-
-/* ---- Where it meets the original ------------------------------------------------------------ */
-
-/* The current object (8-bit index registers), coming into view or leaving
- * it: taking a block leaves the overflow clear, where it took one; nothing
- * else they leave is read. */
-void field_take_sprite_block(Snes *s)
-{
-    if (object_take_sprite_block(state_of(s), (FieldObject)field_current_object_slot(s)))
-        m_set_flag(s, CPU_FLAG_V, false);
-    m_rts(s);
-}
-
-void field_give_up_sprite_block(Snes *s)
-{
-    object_give_up_sprite_block(state_of(s), (FieldObject)field_current_object_slot(s));
-    m_rts(s);
-}
-
-/* The guards: the current object one the tables hold, on the field's page
- * with the data bank $00; its kind one the original's table of blocks has
- * (a disabled object takes none); and, leaving, its records in a block. */
-bool field_sprite_block_can_be_taken(Snes *s)
-{
-    if (!field_current_object_bank_zero(s))
-        return false;
-    vars_peek(true);
-    ObjectRole role = object_role(state_of(s), (FieldObject)field_current_object_slot(s));
-    vars_peek(false);
-    return role.disabled || role.kind <= ROLE_LEFT_ALONE;
-}
-
-bool field_sprite_block_can_be_given_up(Snes *s)
-{
-    if (!field_current_object_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = object_sprite_block_in_the_tables(state_of(s), (FieldObject)field_current_object_slot(s));
-    vars_peek(false);
-    return ok;
 }

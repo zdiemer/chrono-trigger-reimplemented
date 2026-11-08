@@ -220,6 +220,22 @@ void carries(Snes *s) { bridge_call(s, 0xC08003, 0xC08020, DC_Y, bridge_machine_
         self.assertNotIn(dc.BRIDGE_FILE, text)
         self.assertEqual(counts["calls"], 2)
 
+    def test_field_held_calls(self):
+        port = dc.Source("game/port.c", """
+void waits(Snes *s) { field_hold_next_frame(s, 0xC08003, DC_X, machine(s)); }
+void finishes(Snes *s) { field_hold_finished_frame(s, DC_Y); }
+void continues(Snes *s) { field_hands_over_to(s, 0xC08020, DC_X, next); }
+void calls(Snes *s) { field_run_called(s, 0xC08003, 0xC08020, DC_Y, next, machine(s)); }
+""")
+        headers = [dc.Source("runtime/port/native.h", NATIVE_H)]
+        declarations, found = dc.declarations([port], dc.Evaluator([port], headers))
+        self.assertEqual(found, [])
+        self.assertEqual([(d.kind, d.at, d.site, d.target, d.dont_care) for d in declarations],
+                         [("call", 0, 0xC08003, 0xC0EC60, dc._lv.X),
+                          ("stop", 0xC0EC60, 0, 0, dc._lv.Y),
+                          ("stop", 0xC08020, 0, 0, dc._lv.X),
+                          ("call", 0, 0xC08003, 0xC08020, dc._lv.Y)])
+
     def test_waits_of_one_routine(self):
         """A wait called (s, site) declares its routine's call with the
         routine and the set its header names, and the battle's forms with what

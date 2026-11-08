@@ -242,12 +242,13 @@ void object_start_on_the_map(GameState *g, FieldObject obj);
  * updates, animates and draws it. The object update and the view take only
  * the flag; the checks for what is in the way, the party's re-sort and the
  * scripts' condition count as in view as well an object whose flag a row's
- * link has overwritten (object_update.c, leave_stray_in_view_write), which the
- * game does to the first object. */
-typedef enum { OUT_OF_VIEW, IN_VIEW, OVERWRITTEN_BY_A_LINK } ObjectView;
+ * tail removal has left present without updates, which the game does to the
+ * first object during Lara's rescue. */
+typedef enum { OUT_OF_VIEW, IN_VIEW, PRESENT_WITHOUT_UPDATES } ObjectView;
 ObjectView object_view(const GameState *g, FieldObject obj);
 static inline bool object_in_view(const GameState *g, FieldObject obj) { return object_view(g, obj) == IN_VIEW; }
 void object_set_in_view(GameState *g, FieldObject obj, bool in_view);
+void object_apply_row_tail_visibility(GameState *g, FieldLink end, FieldLink predecessor);
 /* A map's screen starts with every object out of view and no frame of its
  * drawn ($C0:A7E9); then each that shows comes into view where it is near
  * enough the screen, taking its palette and its block of sprite tiles
@@ -699,7 +700,6 @@ void object_set_sprite_priorities_past_the_tables(GameState *g, FieldObject slot
  * place of the party, field/party_trail.c), on the bytes after the
  * priorities' and after the velocities' (the next object's vertical velocity
  * and its speed). */
-void object_take_sprite_priorities_past_the_tables(GameState *g, FieldObject slot, SpritePriorities priorities);
 void object_set_step_past_the_tables(GameState *g, FieldObject slot, Velocity step);
 /* And what the walk's search reads besides: whether the slot's in-view byte
  * isn't the out-of-view one, and whether it reads as solid. */

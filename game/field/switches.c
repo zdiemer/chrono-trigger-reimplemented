@@ -85,13 +85,6 @@ static bool switch_of(uint8_t tile, SwitchShape *shape, unsigned *column)
     return false;
 }
 
-bool field_is_switch(const GameState *g, uint16_t step)
-{
-    SwitchShape shape;
-    unsigned column;
-    return switch_of(field_map_byte(g, step), &shape, &column);
-}
-
 /* Whether a switch stepped onto lies inside the map: each of its tiles, the
  * columns left of the step and the rows above it, in a row of the map (a
  * tile left of a row's first column is the row above's last, as the
@@ -180,14 +173,7 @@ static TileEntries tile_entries(const GameState *g, int column, int row)
 /* For the original's code and shadow mode: working out the entries leaves
  * the screen's edges as words in two of the page's scratch cells, and the
  * last entry's row times 32. */
-enum { LEFT_EDGE_CELL = 0xDB, TOP_EDGE_CELL = 0xDD, ENTRIES_A_ROW = FIELD_TILE_MAP_HALF_COLUMNS };
-static void leave_entries(GameState *g, int last_row)
-{
-    original_cell16(g, LEFT_EDGE_CELL, (uint16_t)(field_screen_edges_high(g, 0) << 8 | field_screen_left(g)));
-    original_cell16(g, TOP_EDGE_CELL, (uint16_t)(field_screen_edges_high(g, 1) << 8 | field_screen_top(g)));
-    uint16_t y = (uint16_t)((ENTRIES_A_TILE * last_row - field_screen_top(g) + field_layer_position_y(g, BG1) + 1) & ROW_BITS);
-    original_cell16(g, FIELD_LAST_WORKED_CELL, (uint16_t)(y * ENTRIES_A_ROW));
-}
+enum { ENTRIES_A_ROW = FIELD_TILE_MAP_HALF_COLUMNS };
 
 enum { REDRAW_CHEST = 0x02, REDRAW_SWITCH = 0x10 };
 
@@ -209,7 +195,6 @@ void field_queue_switch_redraw(GameState *g, SwitchPress p, uint16_t step)
         }
     set_field_switch_shape(g, (uint8_t)p.shape);
     set_field_tiles_to_redraw(g, (uint8_t)(field_tiles_to_redraw(g) | REDRAW_SWITCH));
-    ORIGINAL_EFFECT(leave_entries(g, row));
 }
 
 /* ---- The chests ---------------------------------------------------------------------------- */
@@ -217,9 +202,6 @@ void field_queue_switch_redraw(GameState *g, SwitchPress p, uint16_t step)
 /* A chest as the map shows it closed: the tile $FE, or $E0; open, the next
  * tile. */
 static uint8_t closed_chest_tile(ChestKind kind) { return kind == CHEST_AT_THE_SET_END ? 0xFE : 0xE0; }
-
-/* A chest's opening starts: its kind forgotten until the chest is seen. */
-void field_chest_opening_starts(GameState *g) { set_field_chest_kind(g, CHEST_AT_THE_SET_END); }
 
 // $C0:16EE
 /* The chest the leader opened shown open: its tile moved on in the map and
@@ -240,7 +222,6 @@ bool field_open_chest(GameState *g)
     for (unsigned k = 0; k < QUARTERS; k++)
         set_field_chest_entries(g, k, e.entry[k]);
     set_field_tiles_to_redraw(g, (uint8_t)(field_tiles_to_redraw(g) | REDRAW_CHEST));
-    ORIGINAL_EFFECT(leave_entries(g, place.row));
     return true;
 }
 

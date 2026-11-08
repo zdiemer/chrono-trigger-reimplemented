@@ -35,7 +35,6 @@ static void push16_raw(Snes *s, uint16_t v)
 #define MAX_STRETCH_RUNS 8     /* sibling runs one stretch's clocks are tallied for (stretch_owner) */
 #define MAX_SEGMENT_PARTS 128  /* distinct routines one stretch of a port attributes time to (the battle timers' dispatch, a whole turn, reaches more than 32; the field's frame, followed through a scene or the menus on their own stacks, more than 48) */
 #define MAX_PARKED 16          /* routines parked in yields at once (the menus run eight tasks) */
-#define MAX_HELD_ROWS 16       /* held waits' continuations in a table (NativeEntry.hold) */
 
 /* A native_time_as scope: the routine's table index (-1 the port's own), and
  * for a sibling's run (native_time_as_sibling) the run's number in its job, 0
@@ -425,7 +424,7 @@ struct NativeRuntime {
     /* ON: the held waits' continuations, by their place in the table, which
      * the runtime runs by the number of the wait the machine names
      * (go_on_in_the_held_wait), not by the PC */
-    int held_rows[MAX_HELD_ROWS];
+    int *held_rows;
     int nheld_rows;
 
     /* Timing measurement and the oracle (native_set_port_timing,
@@ -514,7 +513,9 @@ static int entry_cmp(const void *a, const void *b)
         return p->addr < q->addr ? -1 : 1;
     if (p->generated != q->generated)
         return (int)p->generated - (int)q->generated;
-    return (int)(p->hold != 0) - (int)(q->hold != 0);
+    if ((p->hold != 0) != (q->hold != 0))
+        return (int)(p->hold != 0) - (int)(q->hold != 0);
+    return strcmp(p->name ? p->name : "", q->name ? q->name : "");
 }
 
 /* The estimates kept for routines with no entry (native_keep_estimates). */
@@ -542,13 +543,14 @@ NativeRuntime *native_create(const NativeEntry *table, int count, NativeMode mod
     rt->kept = kept_estimate_count;
     rt->mode = mode;
     rt->stats = calloc((size_t)(all ? all : 1), sizeof *rt->stats);
+    rt->held_rows = malloc((size_t)(count ? count : 1) * sizeof *rt->held_rows);
     for (int i = 0; i < count; i++) {
         uint16_t a = sorted[i].addr & 0xFFFF;
         rt->filter[a >> 3] |= (uint8_t)(1 << (a & 7));
         rt->generated += sorted[i].generated;
         if (sorted[i].generated && (sorted[i].guard || sorted[i].emulation))
             rt->record_filter[a >> 3] |= (uint8_t)(1 << (a & 7));
-        if (sorted[i].hold && rt->nheld_rows < MAX_HELD_ROWS)
+        if (sorted[i].hold)
             rt->held_rows[rt->nheld_rows++] = i;
     }
     active_runtime = rt;
@@ -733,6 +735,7 @@ void native_destroy(NativeRuntime *rt)
         free(rt->stats[i].t_parts);
     free((void *)rt->table);
     free(rt->stats);
+    free(rt->held_rows);
     free(rt);
 }
 
@@ -3304,7 +3307,7 @@ static int32_t intercept(void *ctx, Snes *s)
         const NativeEntry *e = &rt->table[idx];
         NativeStats *st = &rt->stats[idx];
 
-        if (e->time_only)
+        if (e->time_only || (e->retired && rt->mode != NATIVE_ON))
             continue;   /* a retired routine's time: the original runs it, as the generated code */
         if (e->generated) {
             if (refused && rt->observer.refused) {

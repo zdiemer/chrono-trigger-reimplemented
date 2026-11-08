@@ -18,9 +18,10 @@
  * the bridges on the machine, and hands what the port doesn't have to the
  * original. */
 #include "event/engine.h"
+#include "charge.h"
 #include "event/calls.h"
 #include "event/event_data.h"
-#include "event/leaves.h"
+#include "field/scratch.h"
 #include "event/party.h"
 #include "event/variables.h"
 
@@ -63,8 +64,8 @@ const EventOpcode *event_opcode(uint8_t opcode)
  * ends with the bank: a command in its last bytes would read its operands
  * through the next bank's mirror of low RAM, where they could be the cells it
  * writes. No script is that long, and no game object odd or past the 64, so
- * everything else is the original's to run (and would be an assertion in a
- * build without it; docs/PLAN.md). */
+ * a command outside these bounds breaks a checked contract in both the
+ * retained machine forms and the native runner. */
 
 /* The bytes a command's operands are read from: its own, and at least
  * eight (a row may decode operands its shorter forms don't have). */
@@ -266,18 +267,56 @@ EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *r
     return c;
 }
 
+/* The old machine adapter saved decoded operands before running a command.
+ * Reads used to derive its dead registers were uncounted, but these writes
+ * were part of the handler's calibrated estimate. Keep only their work;
+ * there are no operand copies or scratch addresses here. The following
+ * commands' remaining wave-phase byte is written by the machine bridge. */
+static uint8_t legacy_parse_work(uint8_t opcode)
+{
+    switch (opcode) {
+    case 0x12: case 0x14: return 4; /* byte comparison and resume offset */
+    case 0x13: case 0x15: return 6; /* word comparison and resume offset */
+    case 0xE6: return 3; /* layers and drift */
+    case 0x16: /* comparison resume offset */
+    case 0xDC: case 0xDD: case 0xDE: /* location */
+    case 0x48: case 0x49: case 0x4C: case 0x4D: /* memory operand offset */
+    case 0x58: case 0x59: /* story value */
+    case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: /* variable value */
+    case 0x5D: case 0x5E: case 0x60: case 0x61: /* arithmetic amount */
+        return 2;
+    case 0xB5: case 0xB6: /* remaining half of the following offset */
+    case 0xF0: /* sound operand */
+    case 0x56: case 0x65: case 0x66: /* story value or flag operand */
+    case 0x4F: case 0x5B: case 0x5F: /* byte value or amount */
+    case 0x63: case 0x64: case 0x67: case 0x69: case 0x6B: /* flags */
+        return 1;
+    default: return 0;
+    }
+}
+
 EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
 {
     EventCommand c = event_decode(g, pf, row, at);
-    return event_follow(g, row, at, row->run(g, &c));
+    charge_legacy_accesses(g, legacy_parse_work(row->opcode));
+    EventFlow flow = row->run(g, &c);
+    if (flow.kind == FLOW_JUMP)
+        charge_legacy_accesses(g, 2); /* the selected jump distance */
+    return event_follow(g, row, at, flow);
 }
 
 /* ---- Turns ------------------------------------------------------------------------------ */
 
 /* The last script offset reads the first byte past bank $7F, an I/O register
  * that holds whatever was last on the bus; no script is that long, and a turn
- * that gets there is left to the original, whose bus it is. */
+ * that gets there breaks the script-boundary contract. */
 enum { SCRIPT_END = 0xFFFF };
+
+static EventTurnEnd broken_turn(GameState *g, EventTurnEnd end)
+{
+    program_breaks_a_contract(g, 0xC05A93, "an event turn left its script or object tables");
+    return end;
+}
 
 /* The turn's budget of commands is the game's, in event_commands_left: the
  * commands still run by the original's code can spend it too (fuzzing finds
@@ -293,6 +332,10 @@ static bool spend_command(GameState *g)
 // $C0:5A93
 EventTurnEnd event_run_turn(GameState *g, FieldObject object, const EventRunner *r, uint16_t *stopped_at)
 {
+    if (object >= FIELD_OBJECTS) {
+        *stopped_at = 0;
+        return broken_turn(g, TURN_NOT_OURS_BEFORE);
+    }
     set_event_commands_left(g, event_commands_per_turn(g));
     uint16_t at = event_object_script_position(g, object);
     object_make_current(g, object);
@@ -300,7 +343,7 @@ EventTurnEnd event_run_turn(GameState *g, FieldObject object, const EventRunner 
     do {
         *stopped_at = at;
         if (at == SCRIPT_END)
-            return TURN_OFF_THE_SCRIPT;
+            return broken_turn(g, TURN_OFF_THE_SCRIPT);
         if (!r->run(r->ctx, at, &st))
             return TURN_HANDED_BACK;
         at = st.next;
@@ -309,14 +352,10 @@ EventTurnEnd event_run_turn(GameState *g, FieldObject object, const EventRunner 
     /* the commands may have named another object running, or left a state
      * the port doesn't reach as the original does */
     if (!object_current_is_one(g) || !r->state_is_ours(r->ctx))
-        return TURN_NOT_OURS;
+        return broken_turn(g, TURN_NOT_OURS);
     set_event_object_script_position(g, object_current(g), at);
     return TURN_OVER;
 }
-
-/* For the original's code and shadow mode: the map setup keeps the
- * openings' end, the object count doubled, in event_object_end. */
-static void leave_openings_end(GameState *g, uint8_t count) { set_event_object_end(g, (uint16_t)(count * 2)); }
 
 /* An object's opening is its script's first function. */
 enum { OPENING_FUNCTION = 0 };
@@ -330,7 +369,7 @@ static EventTurnEnd run_to_the_first_zero(GameState *g, uint16_t at, const Event
     for (;;) {
         *stopped_at = at;
         if (at == SCRIPT_END)
-            return TURN_OFF_THE_SCRIPT;
+            return broken_turn(g, TURN_OFF_THE_SCRIPT);
         if (script_byte(g, at) == 0)
             break;
         if (!r->run(r->ctx, at, &st))
@@ -340,7 +379,7 @@ static EventTurnEnd run_to_the_first_zero(GameState *g, uint16_t at, const Event
     /* the commands may have named another object running, or left a state the
      * port doesn't reach as the original does */
     if (!object_current_is_one(g) || !r->state_is_ours(r->ctx))
-        return TURN_NOT_OURS;
+        return broken_turn(g, TURN_NOT_OURS);
     set_event_object_script_position(g, object_current(g), (uint16_t)(at + 1));
     return TURN_OVER;
 }
@@ -361,6 +400,13 @@ static EventTurnEnd run_opening(GameState *g, FieldObject object, const EventRun
  * in forgotten, the object at the least urgent level. */
 EventTurnEnd event_restart_the_running_object(GameState *g, const EventRunner *r, uint16_t *stopped_at)
 {
+    vars_peek(true);
+    bool valid = object_current_is_one(g);
+    vars_peek(false);
+    if (!valid) {
+        *stopped_at = 0;
+        return broken_turn(g, TURN_NOT_OURS_BEFORE);
+    }
     uint16_t at = object_function_start(g, object_current(g), OPENING_FUNCTION);
     EventTurnEnd end = run_to_the_first_zero(g, at, r, stopped_at);
     if (end == TURN_OVER)
@@ -385,12 +431,12 @@ EventTurnEnd event_run_map_script_commands(GameState *g, const EventRunner *r, u
         /* past the buffer the script runs on into the next bank, which no
          * map's does: the original's, whose bus it is */
         if (at >= EVENT_SCRIPT_BYTES)
-            return TURN_OFF_THE_SCRIPT;
+            return broken_turn(g, TURN_OFF_THE_SCRIPT);
         if (script_byte(g, at) == 0)
             return TURN_OVER;
         /* a command the original ran may have left the data bank elsewhere */
         if (!r->state_is_ours(r->ctx))
-            return TURN_NOT_OURS;
+            return broken_turn(g, TURN_NOT_OURS);
         if (!r->run(r->ctx, at, &st))
             return TURN_HANDED_BACK;
         at = st.next;
@@ -401,14 +447,18 @@ EventTurnEnd event_run_map_script_commands(GameState *g, const EventRunner *r, u
 EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, FieldObject *object, uint16_t *stopped_at)
 {
     uint8_t count = event_object_count(g);
-    ORIGINAL_EFFECT(leave_openings_end(g, count));
+    if (count == 0 || count > FIELD_OBJECTS) {
+        *object = 0;
+        *stopped_at = 0;
+        return broken_turn(g, TURN_NOT_OURS_BEFORE);
+    }
     FieldObject next = 0;
     do {
         *object = next;
         /* the object's cells are reached through the data bank, which a
          * command the original ran may have left elsewhere */
         if (!r->state_is_ours(r->ctx))
-            return TURN_NOT_OURS_BEFORE;
+            return broken_turn(g, TURN_NOT_OURS_BEFORE);
         object_start_on_the_map(g, next);
         if (object_runs_a_script(g, next)) {
             EventTurnEnd e = run_opening(g, next, r, stopped_at);
@@ -460,7 +510,7 @@ static bool run(void *ctx, uint16_t at, EventStep *step)
         return goes_on;
     }
     if (!row || !row->run || !runs_here) {
-        program_needs_the_machine(c->game, handler, "an event command only the machine runs");
+        program_breaks_a_contract(c->game, handler, row ? "an event command outside its contract" : "an invalid event opcode");
         return false;
     }
     TIMED_AS(c->game, handler, *step = event_perform(c->game, c->pf, row, at));

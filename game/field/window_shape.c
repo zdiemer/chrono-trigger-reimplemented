@@ -18,6 +18,8 @@
  * The table is a buffer the caller locates (its pointer is
  * field_window_shape_table), so it is reached by address. */
 #include "field/field.h"
+#include "charge.h"
+#include "core/program.h"
 
 #include "field/bridge.h"
 #include "field/scratch.h"
@@ -47,7 +49,23 @@ static Point corner(const GameState *g, unsigned c)
     return (Point){ field_window_shape_corners_x(g, c), field_window_shape_corners_y(g, c) };
 }
 
-/* ---- For the original's code and shadow mode (field/scratch.h) -------------------------- */
+/* The ending-window task is still byte-exact. Its call to the retired
+ * rasterizer includes these cells in the enclosing comparison. The field's
+ * own tables need none of them; this compatibility write goes with the
+ * scene task's gate. */
+static void original_shape_cell8(GameState *g, uint8_t cell, uint8_t v)
+{
+    if (cell >= 0xF0)
+        set_field_window_shape_steps_byte(g, (unsigned)(cell - 0xF0), v);
+    else
+        set_field_window_shape_edge_byte(g, (unsigned)(cell - 0x53), v);
+}
+
+static void original_shape_cell16(GameState *g, uint8_t cell, uint16_t v)
+{
+    original_shape_cell8(g, cell, (uint8_t)v);
+    original_shape_cell8(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
+}
 
 /* The last sloped edge drawn, as the original leaves it in its cells (field/
  * scratch.h, "What a wrapper can't work out"): its width, height and the
@@ -231,7 +249,10 @@ static void rasterize_quad(GameState *g)
         last = draw_edge(g, column, e);
     }
     uint16_t fill_length = empty_outside_lines(g, column, top, right_start);
-    ORIGINAL_EFFECT(leave_for_original(g, last, fill_length, right_side_found));
+    if (column.bank == FILL_BANK)
+        ORIGINAL_EFFECT(leave_for_original(g, last, fill_length, right_side_found));
+    (void)last;
+    (void)fill_length;
 }
 
 /* The guard: the table where the game puts it, in bank $7F, or in bank $7E
@@ -259,7 +280,7 @@ static bool fill_stays_in_its_bank(const GameState *g)
     return true;
 }
 
-bool field_window_shape_fits(const GameState *g)
+static bool field_window_shape_fits(const GameState *g)
 {
     uint8_t bank = field_window_shape_table_bank(g);
     uint16_t address = field_window_shape_table_address(g);
@@ -267,16 +288,15 @@ bool field_window_shape_fits(const GameState *g)
     return placed && address < TABLE_END && field_window_shape_starts_on_a_line(g);
 }
 
-bool field_window_shape_table_in_place(Snes *s)
-{
-    vars_peek(true);
-    bool ok = field_window_shape_fits(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
 void field_draw_window_shape(GameState *g)
 {
+    uint32_t mark = charge_uncounted_begin(g);
+    bool fits = field_window_shape_fits(g);
+    charge_uncounted_end(g, mark);
+    if (!fits) {
+        program_breaks_a_contract(g, 0xC30EFA, "window shape outside its table");
+        return;
+    }
     ORIGINAL_EFFECT(shape_leaves.sloped = false);
     rasterize_quad(g);
 }
@@ -294,16 +314,4 @@ uint16_t field_window_shape_leaves_y(const GameState *g)
     if (below)
         return (uint16_t)(table + LINE_BYTES);
     return (uint16_t)(right_start * LINE_BYTES + table + LINE_BYTES);
-}
-
-/* Entered through the JMP at $C3:0011, or at $C3:0EFA itself (the shared
- * endings' swept window), with 16-bit X; it sets its own direct page and
- * restores the caller's. Of what it leaves in the registers, only Y is read
- * after, by the swept window's task, which leaves its list with it. */
-void field_rasterize_quad(Snes *s)
-{
-    GameState *g = state_of(s);
-    field_draw_window_shape(g);
-    ORIGINAL_EFFECT(s->cpu.y = field_window_shape_leaves_y(g));
-    m_rtl(s);
 }

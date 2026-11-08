@@ -27,8 +27,6 @@ void field_queued_frames_drawn(GameState *g, Platform *pf);
  * battle, field/battle_return.c), and whether the port can for the object. */
 void object_put_drawn_frame_back(GameState *g, FieldObject obj);
 bool object_drawn_frame_can_go_back(const GameState *g, FieldObject obj);
-void field_put_drawn_frame(Snes *s);
-bool field_frames_can_put(Snes *s);
 
 /* A 24-sprite figure's frame drawn whole (field/frames.c); and whether the
  * port draws one with these graphics, frame descriptions and records as the
@@ -36,7 +34,6 @@ bool field_frames_can_put(Snes *s);
  * engine has live after the command that loads a figure. */
 void object_draw_whole_figure(GameState *g, Platform *pf, FieldObject obj);
 bool field_figure_drawable(const GameState *g, ObjectGraphics set, ObjectGraphics descriptions, uint16_t records);
-uint16_t field_whole_figure_y(void);
 void field_draw_whole_figure(Snes *s);
 bool field_figure_can_be_drawn(Snes *s);
 

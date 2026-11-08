@@ -23,6 +23,7 @@
 #include "charge.h"
 #include "core/program.h"
 #include "event/engine.h"
+#include "event/event.h"
 #include "field/bridge.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -97,14 +98,6 @@ static FieldObject take_the_first(GameState *g)
 
 /* ---- The turns -------------------------------------------------------------------------------- */
 
-/* For the original's code and shadow mode: the count of objects doubled,
- * where the objects' loops keep their end, as the object update does
- * (field/object_update.c). */
-static void leave_loop_end(GameState *g, uint8_t count)
-{
-    set_event_object_end(g, (uint16_t)((event_object_end(g) & 0xFF00) | (uint8_t)(count * 2)));
-}
-
 // $C0:59D9
 /* Every frame: each object counts down to its script's next turn, and those
  * whose turn has come are queued for it, which starts their countdown again.
@@ -112,7 +105,7 @@ static void leave_loop_end(GameState *g, uint8_t count)
 static void queue_due_turns(GameState *g)
 {
     uint8_t count = event_object_count(g);
-    ORIGINAL_EFFECT(leave_loop_end(g, count));
+    charge_legacy_accesses(g, 4); /* loop bound's former word read/write */
     for (FieldObject obj = 0; obj < count; obj++) {
         if (!object_turn_comes(g, obj))
             continue;
@@ -157,15 +150,10 @@ void field_queue_due_turns(Snes *s)
     m_rts(s);
 }
 
-/* Each turn is the event engine's entry ($C0:5A93), called on the machine
- * from the original's call of it: one call for the last object in the
- * queue, another for the rest. The beam would read right through a C call
- * too (platform/timing.h waits for the original's latch in shadow mode); the
- * call is for shadow mode's comparison, which then compares at each turn and
- * waits only a turn for the original's latch, where a C call would stretch
- * one comparison across the frame's turns and leave more calls interrupted.
- * A build with no machine calls the engine for each. The engine reads the
- * object from X and nothing else of the registers. */
+/* Run a queued object's turn directly. Its entry contract is checked with
+ * the call's return in place, and a refused turn is left at that entry.
+ * A location change or battle can abandon the turn instead of returning:
+ * the caller then leaves the machine exactly where the turn stopped. */
 enum { RUN_A_TURN = 0xC05A93, A_TURN_AMONG_OTHERS = 0xC05A7C, THE_LAST_TURN = 0xC05A8B };
 enum { THE_ENGINE_READS_X = DC_A | DC_Y | DC_N | DC_Z | DC_C };
 
@@ -174,8 +162,8 @@ static bool take_turn_on_the_machine(void *ctx, FieldObject obj)
     Snes *s = ctx;
     bool last = !field_link_is_object(queue_head(state_of(s)));
     s->cpu.x = field_object_offset(obj);
-    return bridge_call(s, last ? THE_LAST_TURN : A_TURN_AMONG_OTHERS, RUN_A_TURN, THE_ENGINE_READS_X,
-                       on_the_field_page(s, true));
+    return field_run_called(s, last ? THE_LAST_TURN : A_TURN_AMONG_OTHERS, RUN_A_TURN, THE_ENGINE_READS_X,
+                            event_run_object_script, on_the_field_page(s, true));
 }
 
 void field_run_queued_turns(Snes *s)
@@ -199,7 +187,7 @@ static bool take_turn(void *ctx, FieldObject obj)
     if (end == TURN_OVER)
         return true;
     if (end != TURN_HANDED_BACK)
-        program_needs_the_machine(c->game, RUN_A_TURN, "a turn the event engine hands to the original");
+        program_breaks_a_contract(c->game, RUN_A_TURN, "a turn the event engine hands to the original");
     return false;
 }
 

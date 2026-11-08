@@ -111,11 +111,5 @@ bool party_trail_places_hold(const GameState *g);
 /* The registered entries (field/party_trail.c): the leader's step ($C0:9E29)
  * and each member's ($C0:A26B, $C0:A2CE), as event $B0's handler calls them,
  * with the current object the one stepping and 8-bit index registers. */
-void field_leader_steps(Snes *s);
-void field_first_member_follows(Snes *s);
-void field_second_member_follows(Snes *s);
-bool field_leader_can_step(Snes *s);
-bool field_first_member_can_follow(Snes *s);
-bool field_second_member_can_follow(Snes *s);
 
 #endif

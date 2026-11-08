@@ -12,7 +12,7 @@
  * which a number opens) and wait until the player has closed it. */
 #include "battle/inventory.h"
 #include "charge.h"
-#include "event/leaves.h"
+#include "field/scratch.h"
 #include "event/script.h"
 #include "event/variables.h"
 #include "field/field.h"

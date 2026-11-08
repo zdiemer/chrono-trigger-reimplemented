@@ -4,21 +4,14 @@
 #include "charge.h"
 #include "event/bridge.h"
 #include "event/engine.h"
+#include "event/machine_forms.h"
+#include "core/program.h"
 #include "event/event_data.h"
 #include "port/native.h"
+#include "field/menu_compat.h"
 #include "field/parts.h"
 #include "field/party.h"
 #include "field/walk.h"
-
-/* ---- The registers a command leaves --------------------------------------------------- */
-
-EventLeaves event_leaves_of(const Snes *s) { return (EventLeaves){ s->cpu.y, m_flag(s, CPU_FLAG_V) }; }
-
-void event_hand_back(Snes *s, const EventLeaves *left)
-{
-    s->cpu.y = left->y;
-    m_set_flag(s, CPU_FLAG_V, left->overflow);
-}
 
 EventCommand event_command_of(Snes *s, uint8_t opcode)
 {
@@ -36,7 +29,7 @@ void event_return(Snes *s, EventStep st)
  *
  * Each opcode's handler is at the address the original's table gives it
  * (event_data.h), which names the command's time (native_time_as) and its
- * registered entry. It is read without the machine's time where the port
+ * calibrated time tag. It is read without the machine's time where the port
  * runs the command: the original's dispatch reads it too, but only once,
  * where the port has already. */
 
@@ -67,9 +60,9 @@ static EventBridge bridge_of(uint8_t opcode)
  * the object's doubled slot in an index register. So a command is the same
  * routine only when the game enters it the way it always does: D on the field
  * page ($0100), a data bank whose low half is low RAM and I/O and whose high
- * half the $C0 tables (bank $00 or $80), and what event_runs_here asks of the
- * state. Any other call is the original's (a guard that turned calls away
- * shows as a drop in the entry's shadow count). The state is looked at
+ * half the $C0 tables (bank $00), and what event_runs_here asks of the
+ * state. A call outside that contract reports a broken contract and stops
+ * at the original entry. The state is looked at
  * without the machine's time (port/vars_ram.h, vars_peek). */
 
 static bool machine_as_the_engine_keeps_it(const Snes *s)
@@ -110,22 +103,16 @@ bool event_has_objects(Snes *s)
 
 /* ---- The commands' entries --------------------------------------------------------------- */
 
-void event_command_entry(Snes *s, uint8_t opcode)
-{
-    const EventOpcode *row = event_opcode(opcode);
-    uint16_t at = event_command_offset(s);
-    EventLeaves left = event_leaves_of(s);
-    EventStep st = event_perform_leaving(state_of(s), m_platform(s), row, at, &left);
-    ORIGINAL_EFFECT(event_hand_back(s, &left));
-    event_return(s, st);
-}
-
 bool event_call_bridge(Snes *s, uint32_t site, uint32_t routine, EventBridge bridge)
 {
     uint16_t s_before = s->cpu.s;
     m_push16(s, (uint16_t)(site + 2));
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
+    if (!event_machine_form_takes(s, bridge)) {
+        m_stop_at_own(s, routine, 0);
+        return false;
+    }
     TIMED_AS(state_of(s), routine, bridge(s));
     return s->cpu.s == s_before && s->cpu.pb == (uint8_t)(site >> 16) && s->cpu.pc == (uint16_t)(site + JSR_SIZE);
 }
@@ -167,20 +154,6 @@ static bool back(OnTheMachine *m, BridgeMachine as)
     return bridge_back(m->s, dispatch_return[m->dispatch], as);
 }
 
-/* A command the port doesn't run: the original's handler, from its table. */
-static bool through_the_table(OnTheMachine *m, uint16_t at, EventStep *st)
-{
-    Snes *s = m->s;
-    uint8_t opcode = script_byte(state_of(s), at);
-    BridgeMachine as = event_machine(s, false);
-    enter_as_the_table_does(s, opcode, at);
-    m_jsr(s, dispatch_site[m->dispatch], HANDLERS_BANK | command_handler(state_of(s), opcode));
-    if (!back(m, as))
-        return false;
-    *st = (EventStep){ s->cpu.x, m_flag(s, CPU_FLAG_C) };
-    return true;
-}
-
 /* A command by its row: its operation as C, or its bridge on the machine. */
 static bool run_on_the_machine(void *ctx, uint16_t at, EventStep *st)
 {
@@ -189,8 +162,11 @@ static bool run_on_the_machine(void *ctx, uint16_t at, EventStep *st)
     GameState *g = state_of(s);
     uint8_t opcode = script_byte(g, at);
     const EventOpcode *row = event_opcode(opcode);
-    if (!row || !takes(s, row, at))
-        return through_the_table(m, at, st);
+    if (!row || !takes(s, row, at)) {
+        program_breaks_a_contract(g, HANDLERS_BANK | command_handler(g, opcode),
+                                 row ? "an event command outside its contract" : "an invalid event opcode");
+        return false;
+    }
     uint32_t handler = handler_of(s, opcode);
     if (!row->run) {
         BridgeMachine as = event_machine(s, false);
@@ -200,13 +176,15 @@ static bool run_on_the_machine(void *ctx, uint16_t at, EventStep *st)
         *st = (EventStep){ s->cpu.x, m_flag(s, CPU_FLAG_C) };
         return true;
     }
-    EventLeaves left = event_leaves_of(s);
-    TIMED_AS(state_of(s), handler, *st = event_perform_leaving(g, m_platform(s), row, at, &left));
+    TIMED_AS(g, handler, {
+        if (opcode == 0xB5 || opcode == 0xB6)
+            ORIGINAL_EFFECT(field_leaves_menu_wave_high(g, (uint8_t)at));
+        *st = event_perform(g, m_platform(s), row, at);
+    });
     /* X and the carry, as the handler returns them: where the original's loop
      * reads them if it takes over after this command */
     s->cpu.x = st->next;
     m_set_flag(s, CPU_FLAG_C, st->go_on);
-    ORIGINAL_EFFECT(event_hand_back(s, &left));
     return true;
 }
 
@@ -216,6 +194,7 @@ static bool bank_reaches_low_ram(void *ctx) { return m_bank_reaches_low_ram(((On
  * object's) in X as its loop has it there. */
 static void hand_over(Snes *s, uint16_t x, uint32_t where, uint16_t dont_care)
 {
+    program_breaks_a_contract(state_of(s), where, "an event turn left its script or machine contract");
     s->cpu.x = x;
     m_stop_at_own(s, where, dont_care);
 }
@@ -247,35 +226,17 @@ void event_run_object_script(Snes *s)
     }
 }
 
-/* After the openings the party starts on the map (field/walk.h), and the
- * map setup returns. What the start leaves its caller: X the second
- * member's link as a word, the last it put on the trail; Y's low byte, which the
- * start's look at a slope clears (it counts its shift in Y); and the slope's
- * overflow (field/leaves.c). The map's own script, which the objects' setup
- * runs next, can leave X as it found it for the menus' service after it. */
-static void leave_start_registers(Snes *s, bool slope, bool overflow)
-{
-    const GameState *g = state_of(s);
-    s->cpu.x = (uint16_t)(field_party_objects_high(g, PARTY_SECOND_MEMBER) << 8 |
-                          field_link_byte(party_member_link(g, PARTY_SECOND_MEMBER)));
-    s->cpu.y = slope ? 0 : (uint16_t)(s->cpu.y & 0x00FF);
-    m_set_flag(s, CPU_FLAG_V, overflow);
-}
-
 static void start_the_party(Snes *s)
 {
     GameState *g = state_of(s);
     vars_peek(true);
     bool fits = party_start_fits(g);
-    bool slope = fits && field_start_on_a_slope(g);
-    bool overflow = fits && field_start_overflow(g, m_flag(s, CPU_FLAG_V));
     vars_peek(false);
     if (!fits) {
         m_stop_at(s, 0xC09DC3, DC_A | DC_X | DC_N | DC_Z | DC_C);
         return;
     }
     party_start_on_the_map(g);
-    ORIGINAL_EFFECT(leave_start_registers(s, slope, overflow));
     m_rep(s, CPU_FLAG_X);
     m_rts(s);
 }
@@ -316,15 +277,6 @@ bool event_map_script_can_run(Snes *s) { return machine_as_the_engine_keeps_it(s
  * up, the original's loop goes on from the command it got to. */
 enum { RESTART_LOOP = 0xC05990, THE_RESTART_READS_X = DC_A | DC_Y | DC_N | DC_Z | DC_C };
 
-static void leave_restarted(Snes *s)
-{
-    const GameState *g = state_of(s);
-    uint8_t level = event_object_call_state_level(g, object_current(g));
-    s->cpu.x = field_object_offset(object_current(g));
-    s->cpu.a = level;   /* over the cleared calls' zero, a word */
-    m_set_nz8(s, level);
-}
-
 void event_restart_the_running_object_entry(Snes *s)
 {
     OnTheMachine m = { s, IN_A_RESTART };
@@ -334,7 +286,6 @@ void event_restart_the_running_object_entry(Snes *s)
     case TURN_HANDED_BACK:
         return;
     case TURN_OVER:
-        ORIGINAL_EFFECT(leave_restarted(s));
         m_rts(s);
         return;
     default:

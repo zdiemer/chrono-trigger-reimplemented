@@ -7,6 +7,7 @@
  * field main loop carries it out, and the script waits on it meanwhile. A
  * battle is requested the same way, and the script waits until it is over. */
 #include "event/bridge.h"
+#include "field/main_loop.h"
 #include "charge.h"
 #include "core/program.h"
 #include "event/engine.h"
@@ -15,6 +16,7 @@
 #include "core/display.h"
 #include "event/variables.h"
 #include "field/field.h"
+#include "holds.h"
 
 enum { FULL_BRIGHTNESS = 0x0F };
 
@@ -64,7 +66,6 @@ static void raise_setting_1e(GameState *g) { set_field_setting_1e(g, 1); }
 static EventFlow go_to_location(GameState *g, uint16_t map_and_how, uint16_t tile)
 {
     if (!change_pending(g)) {
-        ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, map_and_how));
         set_location_as(g, WHERE_IT_GOES_NEXT, location_of(map_and_how, tile));
         request_change(g);
     }
@@ -162,9 +163,8 @@ static void go_now_on_the_machine(Snes *s, uint8_t opcode)
 {
     GameState *g = state_of(s);
     EventCommand c = event_command_of(s, opcode);
-    ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, c.map_and_how));
     set_the_place_to_go_now(g, opcode, &c);
-    m_stop_at_own(s, 0xC03B71, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+    m_hold_at(s, 0xC03B71, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, HOLD_FIELD_LOCATION);
 }
 
 /* The field starts again from its start, on the game's fresh stack, and
@@ -178,7 +178,9 @@ void event_go_now_in_the_dark(Snes *s)
     the_place_changes(state_of(s));
     s->cpu.x = CONSOLE_STACK_TOP;
     s->cpu.s = CONSOLE_STACK_TOP;
-    m_stop_at(s, FIELD_STARTS, THE_FIELD_READS_NOTHING);
+    /* The fresh stack ends the old field's C call chain.
+     * Start the next field as the held continuation of this hand-off. */
+    m_hold_at_own(s, FIELD_STARTS, THE_FIELD_READS_NOTHING, HOLD_FIELD_LOCATION);
 }
 
 void event_cmd_go_to_location_now(Snes *s) { go_now_on_the_machine(s, GO_NOW); }

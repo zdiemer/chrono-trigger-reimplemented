@@ -88,4 +88,16 @@ void field_move_screen_effect_on(Snes *s);
 bool field_screen_effect_moved_on(GameState *g, Platform *pf);
 bool field_screen_effect_can_move_on(Snes *s);
 
+/* Continuations of the field's held frame waits. */
+void field_scene_close_puts_the_field_aside(Snes *s);
+void field_scene_close_starts_the_scene(Snes *s);
+void field_ripple_settles(Snes *s);
+void field_ripple_settled_a_frame(Snes *s);
+void field_ripple_grew_a_frame(Snes *s);
+void field_ripple_held_a_frame(Snes *s);
+void field_ripple_shrank_a_frame(Snes *s);
+void field_screen_effect_returns(Snes *s);
+
+void field_scene_close_field_is_aside(Snes *s);
+
 #endif

@@ -50,12 +50,6 @@ bool object_palette_links_in_the_tables(const GameState *g, FieldObject obj);
  * has set the palettes. */
 bool object_palette_links_safe_to_give_up(const GameState *g, FieldObject obj);
 
-void field_give_up_palette(Snes *s);
-bool field_palette_can_be_given_up(Snes *s);
-void field_take_enemy_palette_slot(Snes *s);
-bool field_enemy_palette_slot_can_be_taken(Snes *s);
-void field_take_palette(Snes *s);
-bool field_palette_can_be_taken(Snes *s);
 
 enum { FIELD_GIVE_UP_PALETTE_ENTRY = 0xC0734C, FIELD_TAKE_ENEMY_PALETTE_ENTRY = 0xC072B4,
        FIELD_TAKE_PALETTE_ENTRY = 0xC07170 };

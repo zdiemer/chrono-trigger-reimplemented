@@ -158,20 +158,6 @@ static void store_layer_edges(GameState *g, unsigned layer, uint16_t base, const
         set_word(g, set_field_layer_edge_sizes_byte, layer, k, sizes[k]);
 }
 
-/* For the original's code and shadow mode (field/scratch.h): the last
- * layer's runs leave the right column's column and the row above the screen
- * they were taken from, that row's start, and the sizes of the top row's
- * wrap and the columns' parts, in cells of the layers' page. */
-static void leave_for_original(GameState *g, uint16_t right_column_at, uint16_t row_above, const LayerEdges *last)
-{
-    original_layer_cell16(g, 0x52, (uint16_t)(row_above * FIELD_TILE_MAP_HALF_COLUMNS));
-    original_layer_cell16(g, 0x62, right_column_at);
-    original_layer_cell16(g, 0x64, row_above);
-    original_layer_cell16(g, 0x6A, last->row_sizes.wrapped);
-    original_layer_cell16(g, 0x6C, last->column_sizes.to_map_end);
-    original_layer_cell16(g, 0x6E, last->column_sizes.from_map_top);
-}
-
 // $C0:7F9A
 /* Every frame: each layer's edge runs around its position (the tile at the
  * screen's top left), which the uploads send when the layer has moved onto
@@ -191,7 +177,7 @@ void field_find_layer_edges(GameState *g)
         right_column(&e, right, above);
         store_layer_edges(g, layer, field_layer_map_base(g, layer), &e);
     }
-    ORIGINAL_EFFECT(leave_for_original(g, right, above, &e));
+    charge_legacy_accesses(g, 12); /* six temporary edge words */
 }
 
 static void put_the_layer_at_its_start(GameState *g, FieldLayer layer)
@@ -434,36 +420,6 @@ static TileAttributes read_tile_attributes(GameState *g, MapPlace p, uint8_t pro
 
 enum { RUN = 0x80, RUN_OF_256 = 0x00 };
 
-/* The last run the unpacking repeated, which it leaves in cells of the
- * layers' page for the original's code and shadow mode (field/scratch.h, "What
- * a wrapper can't work out"): written only by record_run, read only by
- * leave_for_original_unpack. */
-static struct {
-    bool had_run;
-    TileAttributes last_run;
-} unpack_leaves;
-
-static void record_run(TileAttributes a)
-{
-    unpack_leaves.had_run = true;
-    unpack_leaves.last_run = a;
-}
-
-/* For the original's code and shadow mode (field/scratch.h): the attributes'
- * size, the row the unpacking stopped on (past the last, which a map of no
- * rows puts at the second), and the last run's bytes. */
-static void leave_for_original_unpack(GameState *g, MapSize size)
-{
-    original_layer_cell16(g, 0x52, (uint16_t)(size.rows << 8));
-    original_layer_cell8(g, 0x54, size.columns);
-    original_layer_cell8(g, 0x55, size.rows ? size.rows : 1);
-    if (unpack_leaves.had_run) {
-        original_layer_cell8(g, 0x58, unpack_leaves.last_run.properties);
-        original_layer_cell8(g, 0x5A, unpack_leaves.last_run.upper);
-        original_layer_cell8(g, 0x5C, unpack_leaves.last_run.lower);
-    }
-}
-
 /* The attributes: three bytes a tile, over BG1's size. A first byte with RUN
  * set starts a run: the tile's bytes (RUN taken off) repeat for the count
  * after them, 0 meaning 256. */
@@ -474,7 +430,6 @@ static void unpack_attributes(GameState *g, MapSize size)
         uint8_t first = hw_port_read(g);
         TileAttributes a = read_tile_attributes(g, p, (uint8_t)(first & ~RUN));
         if (first & RUN) {
-            ORIGINAL_EFFECT(record_run(a));
             uint8_t count = hw_port_read(g);
             for (unsigned repeats = (count == RUN_OF_256 ? 0x100u : count) - 1; repeats != 0; repeats--) {
                 if (!next_tile(size, &p))
@@ -499,9 +454,7 @@ void field_unpack_the_tile_maps(GameState *g)
     if (field_map_flags(g) & FIELD_MAP_HAS_BG3)
         unpack_layer_map(g, FIELD_BG3);
     MapSize size = layer_size(g, FIELD_BG1);
-    ORIGINAL_EFFECT(unpack_leaves.had_run = false);
     unpack_attributes(g, size);
-    ORIGINAL_EFFECT(leave_for_original_unpack(g, size));
 }
 
 /* ---- Entries: on the layers' page ------------------------------------------------------- */
@@ -539,16 +492,6 @@ bool field_tile_maps_fit(const GameState *g)
     return fits && bytes < STREAM_REACHES_LAYERS_PAGE;
 }
 
-bool field_unpack_stays_clear(Snes *s)
-{
-    if (!field_on_layers_page(s) || !m_bank_reaches_io(s))
-        return false;
-    vars_peek(true);
-    bool ok = field_tile_maps_fit(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
 /* The overflow of BG3's right column's address, the last sum, is the one
  * thing its callers read; and it leaves A 8-bit, whatever it came with. */
 bool field_layer_edges_overflow(const GameState *g)
@@ -559,30 +502,6 @@ bool field_layer_edges_overflow(const GameState *g)
     return field_add_overflows16((uint16_t)(sum - base), base);
 }
 
-void field_compute_layer_edges(Snes *s)
-{
-    GameState *g = state_of(s);
-    field_find_layer_edges(g);
-    m_set_flag(s, CPU_FLAG_V, field_layer_edges_overflow(g));
-    m_set_flag(s, CPU_FLAG_M, true);
-    m_rts(s);
-}
-
-/* It leaves the edges' overflow, as the edges' own entry does, and A
- * 8-bit. */
-static void put_at_its_start(Snes *s, FieldLayer layer)
-{
-    GameState *g = state_of(s);
-    field_put_the_layer_at_its_start(g, layer);
-    m_set_flag(s, CPU_FLAG_V, field_layer_edges_overflow(g));
-    m_set_flag(s, CPU_FLAG_M, true);
-    m_rts(s);
-}
-
-void field_put_bg1_at_its_start(Snes *s) { put_at_its_start(s, FIELD_BG1); }
-void field_put_bg2_at_its_start(Snes *s) { put_at_its_start(s, FIELD_BG2); }
-void field_put_bg3_at_its_start(Snes *s) { put_at_its_start(s, FIELD_BG3); }
-
 /* Nothing they leave in the registers is read after (the entries' don't-care
  * sets). */
 void field_layer_scroll_updated(GameState *g) { update_layer_scroll(g); }
@@ -590,11 +509,5 @@ void field_layer_scroll_updated(GameState *g) { update_layer_scroll(g); }
 void field_update_layer_scroll(Snes *s)
 {
     update_layer_scroll(state_of(s));
-    m_rts(s);
-}
-
-void field_unpack_tile_maps(Snes *s)
-{
-    field_unpack_the_tile_maps(state_of(s));
     m_rts(s);
 }

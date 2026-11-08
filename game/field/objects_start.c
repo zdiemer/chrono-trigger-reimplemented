@@ -137,12 +137,6 @@ static void clear(GameState *g, Platform *pf, unsigned which)
  * page. */
 enum { UPPER_BANK = 1, FUNCTION_TABLE_BYTES = 0x20 };
 
-static void leave_the_port(GameState *g, unsigned objects)
-{
-    hw_port_seek(g, (uint16_t)(RAM_ABS(RAM_FIELD_OBJECT_COLOUR_EFFECT) + 2 * objects), UPPER_BANK);
-    original_cell16(g, 0xD9, (uint16_t)(objects * FUNCTION_TABLE_BYTES));
-}
-
 /* Where the next graphics set a script unpacks goes, the middle of bank $7F,
  * and the people and creatures loaded: none yet. */
 enum { UNPACKED_GRAPHICS_START = 0x8000 };
@@ -156,7 +150,8 @@ void field_objects_start_afresh(GameState *g, Platform *pf)
         object_start_afresh(g, obj);
     for (FieldObject obj = (FieldObject)objects; obj < SLOTS_DISABLED_TO; obj++)
         slot_unused(g, obj);
-    ORIGINAL_EFFECT(leave_the_port(g, objects));
+    charge_legacy_accesses(g, 2); /* function-table extent */
+    charge_legacy_io_accesses(g, 3); /* completed defaults cursor */
     clear(g, pf, 1);
     clear(g, pf, 2);
     set_field_script_queue_head(g, field_link_byte(field_no_link()));
@@ -183,7 +178,6 @@ static void go_on_to_the_openings(Snes *s)
     TIMED_AS(state_of(s), OPENINGS, event_run_init_scripts(s));
 }
 
-
 /* On the field's page; returns from the openings. */
 void field_start_the_objects(Snes *s)
 {
@@ -203,11 +197,7 @@ static BridgeMachine page(const Snes *s) { return on_the_field_page(s, false); }
 static void show_what_the_party_wears(Snes *s)
 {
     GameState *g = state_of(s);
-    PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)s->cpu.y, (uint8_t)s->cpu.x));
     TIMED_AS(g, MENUS_SERVICES, party_wear_it_shows(g));
-    ORIGINAL_EFFECT(party_service_answered(g, SERVICE_SHOW_WHAT_IT_WEARS, &call));
-    (void)call;
 }
 
 /* The scanlines the objects' script turns and their animation stop at each
@@ -246,7 +236,7 @@ static bool ran_its_course(GameState *g, EventTurnEnd end, uint32_t routine)
     if (end == TURN_OVER)
         return true;
     if (end != TURN_HANDED_BACK)
-        program_needs_the_machine(g, routine, "a script the event engine hands to the original");
+        program_breaks_a_contract(g, routine, "a script the event engine hands to the original");
     return false;
 }
 
@@ -267,7 +257,7 @@ bool field_objects_set_up(GameState *g, Platform *pf)
     if (!ran_its_course(g, end, OPENINGS))
         return false;
     if (!party_start_fits(g)) {
-        program_needs_the_machine(g, PARTY_STARTS, "the party's start where the port doesn't take it");
+        program_breaks_a_contract(g, PARTY_STARTS, "the party's start where the port doesn't take it");
         return false;
     }
     TIMED_AS(g, PARTY_STARTS, party_start_on_the_map(g));

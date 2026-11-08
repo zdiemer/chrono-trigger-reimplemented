@@ -4,10 +4,10 @@
  * A facing is one of four directions, the way the object's sprite looks
  * (field/object.h). A turn shows from the next frame, and ends the object's
  * turn so the new facing shows before the script goes on. */
-#include "event/leaves.h"
+#include "field/scratch.h"
+#include "charge.h"
 #include "event/script.h"
 #include "event/variables.h"
-#include "field/scratch.h"
 
 // $C0:5535
 /* Turn an object -- this one, or another -- to a direction. */
@@ -23,7 +23,7 @@ EVENT_OPERATION(face, object, facing)
 static EventFlow note_facing(GameState *g, FieldObject object, EventVariable variable)
 {
     Facing facing = object_facing(g, object);
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, (uint8_t)facing));
+    charge_legacy_accesses(g, 1); /* the selected facing */
     set_variable_byte(g, variable, (uint8_t)facing);
     return next_command();
 }
@@ -34,17 +34,6 @@ EVENT_OPERATION(note_facing, object, variable)
 static bool faces_a_way(const GameState *g, FieldObject object) { return object_facing_is_one(g, object); }
 EVENT_CHECK(faces_a_way, object)
 
-/* For the original's code and shadow mode: the original keeps the object it
- * turns toward in its first scratch cell, and works the direction out with
- * the field's routine, which leaves its cells (field/scratch.h; its overflow
- * is event/leaves.c's). */
-static void leave_aim_toward(GameState *g, FieldObject target, Aim aim, Direction d)
-{
-    keep_word(g, KEPT_FIRST, field_object_offset(target));
-    field_leave_aim(g, aim);
-    field_leave_direction(g, aim, d);
-}
-
 // $C0:55A9
 /* Turn to face an object, or a party member: toward the tile it stands on,
  * or on the same tile, where on it. A disabled object is passed over. */
@@ -54,7 +43,6 @@ static EventFlow face_toward(GameState *g, FieldObject self, FieldObject target)
         return next_command();
     Aim aim = aim_toward_object(g, self, target);
     Direction d = direction_between(g, aim.from, aim.to);
-    ORIGINAL_EFFECT(leave_aim_toward(g, target, aim, d));
     object_turn(g, self, facing_of_direction(g, d));
     return end_turn();
 }

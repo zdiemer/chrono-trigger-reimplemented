@@ -504,12 +504,17 @@ static void hold_look(Snes *s)
 
 static NativeRuntime *hold_runtime(NativeMode mode)
 {
-    static NativeEntry table[2];
+    /* The live loop sorts after twenty unused holds, beyond the former
+     * fixed limit of sixteen continuations. */
+    static NativeEntry table[22];
     table[0] = (NativeEntry){ .addr = 0x008100, .name = "hold_start", .fn = hold_start, .p_mask = 0x30,
                               .p_value = P_M8_X16, .cost_milli = 1000 };
     table[1] = (NativeEntry){ .addr = MAIN_LOOP_HEAD, .name = "hold_look", .fn = hold_look, .p_mask = 0x20,
                               .p_value = 0x20, .idle = true, .hold = HOLD_TEST_LOOP };
-    return native_create(table, 2, mode);
+    for (int i = 2; i < 22; i++)
+        table[i] = (NativeEntry){ .addr = (uint32_t)(0x007000 + i), .name = "unused_hold",
+                                  .fn = hold_look, .idle = true, .hold = HOLD_TEST_LOOP };
+    return native_create(table, 22, mode);
 }
 
 /* How the census sees the loop's look: entered by the machine, or run as the

@@ -2,7 +2,12 @@
  * bridges share (field/bridge.h). */
 #include "charge.h"
 #include "core/machine_forms.h"
+#include "event/machine_forms.h"
+#include "field/machine_forms.h"
 #include "field/bridge.h"
+#include "field/field_data.h"
+#include "field/main_loop.h"
+#include "holds.h"
 
 #include "platform/timing.h"
 #include "port/native.h"
@@ -21,10 +26,36 @@ bool bridge_back(Snes *s, uint32_t returns_to, BridgeMachine m)
     return false;
 }
 
-bool field_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m)
+/* The caller has a continuation after this wait. Settle its work before
+ * marking the frame ready, then leave the whole C call chain at the named
+ * wait. No caller is suspended over the next frame. */
+bool field_hold_next_frame(Snes *s, uint32_t site, uint16_t dont_care, BridgeMachine m)
 {
-    tm_wait_frame(m_platform(s), PF_CALL_DC(site, routine, dont_care));
-    return bridge_back(s, site + JSR_SIZE, m);
+    return field_run_called(s, site, FIELD_FRAME_WAIT, dont_care, field_finish_frame, m);
+}
+
+void field_return_to_waiting_caller(Snes *s)
+{
+    m_rts(s);
+    native_hold(s, HOLD_FIELD_FRAME);
+}
+
+void field_hands_over_to(Snes *s, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    m_jump_to(s, routine);
+    const NativeEntry *e = native_hand_entry_at(s, routine);
+    if ((!e || e->fn != entry) && !event_machine_form_takes(s, entry) && !field_machine_form_takes(s, entry)) {
+        m_stop_at_own(s, routine, dont_care);
+        return;
+    }
+    TIMED_AS(state_of(s), routine, entry(s));
+}
+
+void field_hold_finished_frame(Snes *s, uint16_t dont_care)
+{
+    m_jump_to(s, FIELD_FRAME_WAIT);
+    tm_sync(m_platform(s));
+    field_hands_over_to(s, FIELD_FRAME_WAIT, dont_care, field_finish_frame);
 }
 
 bool bridge_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m)
@@ -40,7 +71,7 @@ bool bridge_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
 }
 
 static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
-                      BridgeMachine m, bool long_call, bool hand_over)
+                      BridgeMachine m, bool long_call, bool hand_over, bool replaces_call_out)
 {
     uint16_t stack = s->cpu.s;
     uint32_t returns_to = site + (long_call ? JSL_SIZE : JSR_SIZE);
@@ -49,12 +80,15 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     m_push16(s, (uint16_t)(returns_to - 1));
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
+    if (replaces_call_out)
+        charge_settle(state_of(s));
     /* the sibling runs as C only where the runtime would run it there, its
      * guard and preconditions holding (or, for a retired core service, where
      * its contract does); otherwise the call is a real one, and the runtime
      * runs whatever the registry has for the state it meets */
     const NativeEntry *e = native_hand_entry(s);
-    if ((!e || e->fn != entry) && !core_machine_form_takes(s, entry)) {
+    if ((!e || e->fn != entry) && !core_machine_form_takes(s, entry)
+        && !event_machine_form_takes(s, entry) && !field_machine_form_takes(s, entry)) {
         if (hand_over) {
             /* the call made, its return address pushed: the original goes on
              * from the sibling's entry */
@@ -66,6 +100,8 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     }
     TIMED_AS(state_of(s), routine, entry(s));
     bool returned = s->cpu.s == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
+    if (replaces_call_out && returned)
+        charge_settle(state_of(s));
     return returned && bridge_back(s, returns_to, m);
 }
 
@@ -80,19 +116,28 @@ bool field_run_table_step(Snes *s, uint32_t site, bool (*step)(Snes *))
 
 bool field_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *), BridgeMachine m)
 {
-    return run_entry(s, site, routine, dont_care, entry, m, false, false);
+    return run_entry(s, site, routine, dont_care, entry, m, false, false, false);
 }
 
 bool field_run_or_hand_over(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                             BridgeMachine m)
 {
-    return run_entry(s, site, routine, dont_care, entry, m, false, true);
+    return run_entry(s, site, routine, dont_care, entry, m, false, true, false);
+}
+
+/* Let a former call-out's caller and callee pass their time at the same
+ * call and return boundaries. Its call frame belongs to the caller's time,
+ * just as native_call's stack writes did. */
+bool field_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                       BridgeMachine m)
+{
+    return run_entry(s, site, routine, dont_care, entry, m, false, true, true);
 }
 
 bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                     BridgeMachine m)
 {
-    return run_entry(s, site, routine, dont_care, entry, m, true, false);
+    return run_entry(s, site, routine, dont_care, entry, m, true, false, false);
 }
 
 bool field_run_holding(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
@@ -136,7 +181,13 @@ bool field_on_page_io_bank(Snes *s) { return field_on_page(s) && m_bank_reaches_
 bool field_on_page_low_bank(Snes *s) { return field_on_page(s) && m_bank_reaches_low_ram(s); }
 bool field_on_page_bank_zero(Snes *s) { return field_on_page(s) && m_bank_is_zero(s); }
 
-bool field_object_x_low_bank(Snes *s) { return field_on_page_low_bank(s) && field_names_object(s->cpu.x); }
+bool field_location_record_is_one(Snes *s)
+{
+    vars_peek(true);
+    bool one = location_record_is_one(location_record_offset(state_of(s)));
+    vars_peek(false);
+    return one;
+}
 
 /* The current object, as the entry's index registers read it: its low byte
  * with 8-bit X, the word with 16-bit X. Looked at without the machine's time
@@ -151,9 +202,7 @@ static bool current_object_is_one(Snes *s)
 
 bool field_current_object_low_bank(Snes *s) { return field_on_page_low_bank(s) && current_object_is_one(s); }
 bool field_current_object_bank_zero(Snes *s) { return field_on_page_bank_zero(s) && current_object_is_one(s); }
-bool field_current_object_io_bank(Snes *s) { return field_on_page_io_bank(s) && current_object_is_one(s); }
 
 bool field_on_layers_page(Snes *s) { return m_direct_page(s) == FIELD_LAYERS_PAGE; }
 bool field_on_layers_page_low_bank(Snes *s) { return field_on_layers_page(s) && m_bank_reaches_low_ram(s); }
 bool field_on_layers_page_io_bank(Snes *s) { return field_on_layers_page(s) && m_bank_reaches_io(s); }
-

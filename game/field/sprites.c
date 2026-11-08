@@ -83,31 +83,13 @@ static void set_range_next(GameState *g, unsigned r, uint16_t at) { set_field_sp
 static uint16_t range_high(const GameState *g, unsigned r) { return (uint16_t)(field_sprite_range_high(g, r) - FIELD_SPRITE_TABLE_ADDRESS); }
 static void set_range_high(GameState *g, unsigned r, uint16_t at) { set_field_sprite_range_high(g, r, (uint16_t)(at + FIELD_SPRITE_TABLE_ADDRESS)); }
 
-/* For the original's code and shadow mode (field/scratch.h): the object's
- * sprite count, which it counts down in field_sprites_left as it sends them. */
-static void leave_sprites_left(GameState *g) { set_field_sprites_left(g, 0); }
-
 /* The table's entries are streamed through the work RAM port, in bank $7E. */
 static void open_table_stream(GameState *g) { hw_port_seek_bank(g, 0); }
-
-/* For the original's memory and shadow mode: a range that more sprites fill
- * than it has room for runs its high table cursor on past the table's end,
- * and the original writes the high bits there too, into whatever low RAM
- * follows the table (the table's entries run on the same way, through the
- * port). The port writes the same bytes, by address, since they are no
- * variable's. A build without the original's memory has nothing past the
- * table, and a range that full loses its last sprites' high bits. */
-static void leave_stray_high_bits(GameState *g, uint16_t at, uint8_t bits)
-{
-    wram_write8(g, 0x7E0000u | (uint16_t)(FIELD_SPRITE_TABLE_ADDRESS + at), bits);
-}
 
 static void set_high_bits(GameState *g, uint16_t at, uint8_t bits)
 {
     if (at < FIELD_SPRITE_TABLE_BYTES)
         set_field_sprite_table_byte(g, at, bits);
-    else
-        ORIGINAL_EFFECT(leave_stray_high_bits(g, at, bits));
 }
 
 /* Write an object's sprites into its range: their high table bits at the
@@ -135,7 +117,7 @@ static void write_sprites(GameState *g, unsigned range, const Sprite *sprites, u
         hw_port_write(g, sprites[n].tile);
         hw_port_write(g, sprites[n].attributes);
     }
-    ORIGINAL_EFFECT(leave_sprites_left(g));
+    charge_legacy_accesses(g, 1); /* the completed sprite count */
 }
 
 /* Hide the entries each range used last frame beyond this frame's last, and
@@ -265,7 +247,6 @@ void sprites_set_record_sprite(GameState *g, FieldObject obj, unsigned n, FrameS
     set_record_look(g, r, (uint16_t)(sprite.attributes << 8 | sprite.tile));
 }
 
-
 /* The object's sprites as a list, from its records and its high bits. */
 static unsigned object_sprites(const GameState *g, FieldObject obj, Sprite *out)
 {
@@ -280,7 +261,6 @@ static unsigned object_sprites(const GameState *g, FieldObject obj, Sprite *out)
 }
 
 /* ---- Drawing an object --------------------------------------------------------------------- */
-
 
 // $C0:B309
 /* Draw the object's sprites into its range. */
@@ -407,19 +387,6 @@ static uint8_t all_large(void)
     return bits;
 }
 
-/* For the original's code and shadow mode (field/scratch.h): placing leaves
- * the object's screen position ($C3, $C5, as the object's table keeps it),
- * its records' offset ($D9), and the ninth bits it gathered: all but the
- * first sprite's ($E5) and the first's ($E6). */
-static void leave_place(GameState *g, FieldObject obj, uint8_t ninth_bits)
-{
-    original_cell16(g, 0xC3, field_object_screen_x(g, obj));
-    original_cell16(g, 0xC5, (uint16_t)(field_object_screen_y(g, obj) & SCREEN_NINE_BITS));
-    original_cell16(g, 0xD9, object_sprite_records(g, obj));
-    original_cell8(g, 0xE5, (uint8_t)(ninth_bits >> BITS_A_SPRITE));
-    original_cell8(g, 0xE6, (uint8_t)(ninth_bits & ((1u << BITS_A_SPRITE) - 1)));
-}
-
 /* For the original's memory and shadow mode: for an object above the screen's
  * top the original places a fifth sprite's Y, in the record after the
  * object's four, which is the next block's first record (another object's,
@@ -430,13 +397,6 @@ static void leave_place(GameState *g, FieldObject obj, uint8_t ninth_bits)
 static uint8_t stray_fifth_y_offset(const GameState *g, FieldObject obj)
 {
     return field_sprite_records_byte_unchecked(g, (unsigned)sprite_record(g, obj, SPRITES_PLACED).at + RECORD_Y_OFFSET);
-}
-
-static void leave_stray_fifth_sprite_y(GameState *g, FieldObject obj, int16_t screen_y)
-{
-    unsigned fifth = (unsigned)sprite_record(g, obj, SPRITES_PLACED).at;
-    uint8_t y = table_y(FOUR.zone[ABOVE_THE_SCREEN], screen_y, stray_fifth_y_offset(g, obj));
-    set_field_sprite_records_byte_unchecked(g, fifth + RECORD_Y, y);
 }
 
 // $C0:B788, $C0:B8CA
@@ -466,14 +426,15 @@ static void place_sprites(GameState *g, FieldObject obj, bool reload)
             set_record_y_offset(g, r, frame_y_offset(g, r));
         set_record_y(g, r, table_y(FOUR.zone[zone_of(at.y)], at.y, record_y_offset(g, r)));
     }
-    if (zone_of(at.y) == ABOVE_THE_SCREEN)
-        ORIGINAL_EFFECT(leave_stray_fifth_sprite_y(g, obj, at.y));
     if (reload)
         for (unsigned n = 0; n < SPRITES_PLACED; n++) {
             SpriteRecord r = sprite_record(g, obj, n);
             set_record_look(g, r, frame_look(g, r));
         }
-    ORIGINAL_EFFECT(leave_place(g, obj, ninth_bits));
+    /* Position/record reads and their temporary words, plus the two high
+     * bit bytes: 14 accesses. Above the screen the old fifth-sprite write
+     * also read the record pointer twice and its offset: six more. */
+    charge_legacy_accesses(g, 14 + (zone_of(at.y) == ABOVE_THE_SCREEN ? 6 : 0));
 }
 
 /* ---- Placing the larger layouts --------------------------------------------------------- */
@@ -500,38 +461,6 @@ static uint8_t place_four_across(GameState *g, FieldObject obj, unsigned first, 
     uint8_t high = (uint8_t)(bits | all_large());
     object_set_sprites_high_bits(g, obj, first, high);
     return high;
-}
-
-/* What placing a larger layout leaves the original's code and shadow mode
- * (field/scratch.h): the object's screen position ($C3, $C5), where its
- * records are ($D9, for the 24-sprite layout its last four's), and the last
- * four's ninth bits as its loops left them ($E5-$E7): the 8- and 12-sprite
- * layouts' in two cells and where the last four's records are ($E7, a
- * word), the 24-sprite one's the first three alone; and the 24-sprite
- * layout's count ($C9), run down where it counts. */
-static void leave_larger_place(GameState *g, FieldObject obj, SpriteLayout layout, Zone zone)
-{
-    unsigned last_four = (unsigned)layouts[layout].sprites - SPRITES_PLACED;
-    uint16_t records = object_sprite_records(g, obj);
-    uint8_t high = object_sprite_high_bits(g, obj, last_four);
-    uint8_t ninth[SPRITES_PLACED];
-    for (unsigned n = 0; n < SPRITES_PLACED; n++)
-        ninth[n] = (uint8_t)((high >> (BITS_A_SPRITE * n)) & 1);
-    original_cell16(g, 0xC3, field_object_screen_x(g, obj));
-    original_cell16(g, 0xC5, (uint16_t)(field_object_screen_y(g, obj) & SCREEN_NINE_BITS));
-    if (layout == LAYOUT_24) {
-        original_cell16(g, 0xD9, (uint16_t)(records + last_four * RECORD_BYTES));
-        original_cell8(g, 0xE5, ninth[0]);
-        original_cell8(g, 0xE6, ninth[1]);
-        original_cell8(g, 0xE7, ninth[2]);
-        if (zone != ABOVE_THE_SCREEN)
-            set_field_sprites_left(g, 0);   /* the count its loops run down is the draw's */
-        return;
-    }
-    original_cell16(g, 0xD9, records);
-    original_cell8(g, 0xE5, (uint8_t)(ninth[3] << 4 | ninth[2] << 2 | ninth[1]));
-    original_cell8(g, 0xE6, ninth[0]);
-    original_cell16(g, 0xE7, (uint16_t)(records + last_four * RECORD_BYTES));
 }
 
 // $C0:BA65, $C0:BCDC, $C0:BFF2, $C0:C2BF, $C0:C73A (and its fours $C0:C6E7)
@@ -563,7 +492,9 @@ static bool place_larger(GameState *g, FieldObject obj, SpriteLayout layout, boo
             SpriteRecord r = sprite_record(g, obj, n);
             set_record_look(g, r, frame_look(g, r));
         }
-    ORIGINAL_EFFECT(leave_larger_place(g, obj, layout, zone));
+    /* Position, records and high bits used to be read back into temporaries;
+     * the 24-sprite count was written only on or below the screen. */
+    charge_legacy_accesses(g, layout == LAYOUT_24 && zone == ABOVE_THE_SCREEN ? 16 : 17);
     if (layout != LAYOUT_24 || zone != ABOVE_THE_SCREEN)
         return true;
     int16_t last_top = (int16_t)(at.y + (int8_t)last_offset);
@@ -675,7 +606,6 @@ static void free_frame_areas(GameState *g, FieldObject obj, SpriteLayout layout)
 
 /* ---- What an object's records need ------------------------------------------------------- */
 
-
 typedef enum { RECORDS_NOTHING, RECORDS_PLACE, RECORDS_REBUILD } RecordsWork;
 
 /* What an object's records need: nothing to draw, only placing, or a
@@ -786,19 +716,6 @@ static void leave_update_registers(Snes *s, FieldObject obj, RecordsWork work)
         s->cpu.y &= 0x00FF;
 }
 
-/* The current object's (16-bit X). The carry says there was nothing to
- * draw. */
-void field_update_object_sprites(Snes *s)
-{
-    GameState *g = state_of(s);
-    FieldObject obj = (FieldObject)field_current_object_slot(s);
-    RecordsWork work = records_work(g, obj);
-    RecordsOutcome r = bring_records_up_to_date(g, obj);
-    leave_update_registers(s, obj, work);
-    m_set_flag(s, CPU_FLAG_C, r == RECORDS_NONE_TO_DRAW);
-    m_rts(s);
-}
-
 enum { UPDATE_RECORDS = 0xC0B701, DRAW = 0xC0B309 };
 
 static bool records_in_the_tables(const GameState *g, FieldObject obj, SpriteLayout layout);
@@ -885,14 +802,6 @@ static void draw_by_the_port(Snes *s, FieldObject obj)
     leave_draw_registers(s, obj, work, r);
 }
 
-/* The draw, called as the original calls it where the port doesn't draw as
- * C: going on where it came back with 8-bit A and 16-bit X on the field's
- * page and the bank it had. */
-static bool call_out(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
-{
-    return bridge_call(s, site, routine, dont_care, on_the_field_page(s, false));
-}
-
 /* The draw's call sites: a row's first object, and the rest. The draw reads
  * Y (the original's row counter, the row doubled) and the carry through;
  * nothing else it is entered with. */
@@ -912,7 +821,7 @@ static bool draw(Snes *s, FieldObject obj, unsigned row, unsigned site, bool by_
     }
     uint16_t row_count = (uint16_t)(row * 2);
     s->cpu.y = row_count;
-    if (!call_out(s, draw_sites[site], DRAW, DRAW_DONT_CARE))
+    if (!field_run_called(s, draw_sites[site], DRAW, DRAW_DONT_CARE, field_draw_object_sprites, on_the_field_page(s, false)))
         return false;
     if (s->cpu.y == row_count)
         return true;
@@ -972,67 +881,11 @@ void field_build_sprite_table(Snes *s)
     m_rts(s);
 }
 
-/* The placing and rebuilding entries: the object in X (16-bit), which the
- * guard has made sure is the current one, whose high table bits the
- * original's placing writes. They leave the overflow of their last sum. */
-static void place_entry(Snes *s, SpriteLayout layout, bool reload)
-{
-    GameState *g = state_of(s);
-    FieldObject obj = (FieldObject)field_object_in_x(s);
-    if (layout == LAYOUT_4)
-        place_sprites(g, obj, reload);
-    else
-        place_larger(g, obj, layout, reload);
-    m_set_flag(s, CPU_FLAG_V, placing_overflow(g, obj, layout));
-    m_rts(s);
-}
-
-void field_position_sprites(Snes *s) { place_entry(s, LAYOUT_4, false); }
-void field_load_and_position_sprites(Snes *s) { place_entry(s, LAYOUT_4, true); }
-void field_place_8_sprites(Snes *s) { place_entry(s, LAYOUT_8, false); }
-void field_rebuild_8_sprites(Snes *s) { place_entry(s, LAYOUT_8, true); }
-void field_place_12_sprites(Snes *s) { place_entry(s, LAYOUT_12, false); }
-void field_rebuild_12_sprites(Snes *s) { place_entry(s, LAYOUT_12, true); }
-
-/* The frees, the current object's (on the field's page, 16-bit X); freeing
- * takes 8-bit index registers, which clears Y's high byte. */
-static void free_entry(Snes *s, SpriteLayout layout)
-{
-    GameState *g = state_of(s);
-    free_frame_areas(g, object_current(g), layout);
-    s->cpu.y &= 0x00FF;
-    m_rts(s);
-}
-
-void field_free_4_sprite_areas(Snes *s) { free_entry(s, LAYOUT_4); }
-
 void field_free_every_sprite_area(Snes *s)
 {
     sprites_free_every_frame_area(state_of(s));
     m_rts(s);
 }
-
-/* The claims, from the frame builder with 8-bit index registers on the
- * field's page: the carry says the areas were claimed, and X is left the
- * current object where they were and the end of the search where not; the
- * VRAM's sum leaves the overflow clear. */
-static void claim_entry(Snes *s, SpriteLayout layout)
-{
-    GameState *g = state_of(s);
-    FieldObject obj = object_current(g);
-    bool claimed = claim_frame_areas(g, obj, layout);
-    s->cpu.x = claimed ? (uint8_t)field_current_object(g) : (uint16_t)(FIELD_FRAME_AREAS - areas_for(layout) + 1);
-    if (claimed)
-        m_set_flag(s, CPU_FLAG_V, false);
-    m_set_flag(s, CPU_FLAG_C, claimed);
-    m_rts(s);
-}
-
-void field_claim_4_sprite_areas(Snes *s) { claim_entry(s, LAYOUT_4); }
-void field_claim_8_sprite_areas(Snes *s) { claim_entry(s, LAYOUT_8); }
-void field_claim_12_sprite_areas(Snes *s) { claim_entry(s, LAYOUT_12); }
-void field_free_8_sprite_areas(Snes *s) { free_entry(s, LAYOUT_8); }
-void field_free_12_sprite_areas(Snes *s) { free_entry(s, LAYOUT_12); }
 
 /* ---- Guards ------------------------------------------------------------------------------- */
 
@@ -1061,8 +914,8 @@ static bool cursors_in_table(const GameState *g)
  * frames': an offset past them has the original read and write on into what
  * follows (the objects' high bits, the rest of bank $7F, and past its end
  * bank $80's low RAM and I/O registers). The game puts every object's records
- * inside them; only the fifth sprite's stray Y goes past, which
- * leave_stray_fifth_sprite_y writes on purpose. */
+ * inside them. The original's stray fifth-sprite write was comparison
+ * scaffolding and has retired. */
 bool sprites_records_fit(uint16_t records, SpriteLayout layout)
 {
     return (uint32_t)records + layouts[layout].sprites * RECORD_BYTES <= FIELD_SPRITE_RECORDS_BYTES;
@@ -1091,42 +944,6 @@ bool field_sprites_draw_in_table(Snes *s)
 
 /* Placing: the object in X is the current object, whose high bits the
  * original writes (the game always places the current object). */
-/* Bringing the current object's records up to date: they are inside the
- * tables. */
-bool field_sprites_update_in_tables(Snes *s)
-{
-    if (!field_current_object_low_bank(s))
-        return false;
-    vars_peek(true);
-    bool ok = own_records_in_the_tables(state_of(s), (FieldObject)field_current_object_slot(s));
-    vars_peek(false);
-    return ok;
-}
-
-static bool places_object(Snes *s, SpriteLayout layout)
-{
-    if (!field_current_object_low_bank(s) || !field_names_object(s->cpu.x))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = field_object_in_x(s) == field_current_object_slot(s) &&
-              records_in_the_tables(g, (FieldObject)field_object_in_x(s), layout);
-    vars_peek(false);
-    return ok;
-}
-
-bool field_sprites_place_object(Snes *s) { return places_object(s, LAYOUT_4); }
-bool field_sprites_place_8(Snes *s) { return places_object(s, LAYOUT_8); }
-bool field_sprites_place_12(Snes *s) { return places_object(s, LAYOUT_12); }
-
-/* The current object (8-bit index registers), leaving view; nothing it
- * leaves in the registers is read. */
-void field_release_frame_areas(Snes *s)
-{
-    sprites_release_frame_areas(state_of(s), (FieldObject)field_current_object_slot(s));
-    m_rts(s);
-}
-
 /* On the field's page; nothing it leaves in the registers is read. */
 void field_build_the_sprites_afresh(Snes *s)
 {

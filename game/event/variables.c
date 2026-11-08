@@ -6,7 +6,7 @@
  * amount as a number in the script or as another variable's value; the rows
  * at the end say which opcode is which. */
 #include "event/event_data.h"
-#include "event/leaves.h"
+#include "field/scratch.h"
 #include "event/script.h"
 #include "event/variables.h"
 #include "field/field.h"
@@ -37,7 +37,6 @@ static EventFlow subtract(GameState *g, EventVariable counted, uint16_t amount, 
     return next_command();
 }
 EVENT_OPERATION(subtract, variable, amount, width)
-
 
 /* A byte variable as a set of flags: raise some, keep only some, or turn
  * some over. */
@@ -73,7 +72,6 @@ static EventFlow halve(GameState *g, EventVariable variable, uint8_t times)
     unsigned n = times ? times : 256;
     set_variable_byte(g, variable, n >= 8 ? 0 : (uint8_t)(variable_byte(g, variable) >> n));
     /* the original counts the halvings down in its scratch cell */
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, 0));
     return next_command();
 }
 EVENT_OPERATION(halve, variable, times)
@@ -83,7 +81,6 @@ EVENT_OPERATION(halve, variable, times)
 static EventFlow roll(GameState *g, EventVariable variable)
 {
     uint8_t value = field_draw_random(g);
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, value));
     set_variable_byte(g, variable, value);
     return next_command();
 }

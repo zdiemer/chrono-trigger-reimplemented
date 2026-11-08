@@ -320,6 +320,11 @@ static void leave_finished(Fallbacks *f, uint16_t s)
     while (f->depth > kept && !f->frames[f->depth - 1].held && !f->frames[f->depth - 1].away &&
            s > f->frames[f->depth - 1].floor) {
         Frame *top = &f->frames[f->depth - 1];
+        /* A compared epilogue can pull registers saved before this entry
+         * (the battle's return to the field). Its rising S is not a return
+         * yet: the runtime ends that exact stretch at its return point. */
+        if (f->shadow && top->kind == COVERED && top->name && f->rt && native_compares(f->rt, top->port))
+            return;
         if (switched && top->kind == COVERED && top->name) {
             top->held = true;
             return;
@@ -590,6 +595,17 @@ static bool the_cartridges_decompressor(const Fallbacks *f, uint32_t pc)
            ((at >= 0x0002 && at <= 0x0004) || (at >= 0x0557 && at <= 0x08B2));
 }
 
+/* The core tile/palette animation services retired before the field. The
+ * field's enclosing comparisons used to cover their reference execution;
+ * without those comparisons the exact service bodies and jump veneers
+ * must be recognized here too. Shipping still counts every instruction. */
+static bool the_cartridges_animations(const Fallbacks *f, uint32_t pc)
+{
+    uint16_t at = (uint16_t)pc;
+    return f->shadow && ((pc >> 16) & 0x7F) == 0x7D &&
+           ((at >= 0xDE98 && at <= 0xEAA5) || (at >= 0xFFEE && at <= 0xFFF0) || at >= 0xFFF4);
+}
+
 /* The cartridge's time warp ($FD:DA00-$FD:DD95, its handlers $FD:DE15-$FD:DE97
  * and its routines $FD:EAA6-$FD:F28F, and their mirror in $3D) in the
  * reference play: no port stands for it, by design, since its subsystem
@@ -686,6 +702,94 @@ static bool the_cartridges_scene_program(const Fallbacks *f, uint32_t pc)
     return h == 0x2B0A967642BA802Bull;
 }
 
+/* Events retired their comparison. Only reference play may execute these
+ * owned runs; shipping still counts every original instruction as fallback. */
+static bool the_cartridges_events(const Fallbacks *f, uint32_t pc)
+{
+    static const struct { uint32_t first, last; } runs[] = {
+        { 0xC0034B, 0xC0038E },
+        { 0xC01AAC, 0xC01ADE },
+        { 0xC01CFC, 0xC01D55 },
+        { 0xC01D5E, 0xC01E91 },
+        { 0xC01E9A, 0xC01F23 },
+        { 0xC02E67, 0xC0305C },
+        { 0xC03154, 0xC03B70 },
+        { 0xC03B76, 0xC03FD5 },
+        { 0xC04000, 0xC0400D },
+        { 0xC04036, 0xC04180 },
+        { 0xC04191, 0xC054AF },
+        { 0xC054B6, 0xC05613 },
+        { 0xC058DE, 0xC05928 },
+        { 0xC0595C, 0xC059D8 },
+        { 0xC05A93, 0xC05B62 },
+        { 0xC05B8D, 0xC05B94 },
+        { 0xC05C90, 0xC05CC6 },
+        { 0xC05F6E, 0xC06466 },
+        { 0xC06487, 0xC06D2E },
+};
+    if (!f->shadow)
+        return false;
+    pc |= 0x800000;
+    for (unsigned i = 0; i < sizeof runs / sizeof runs[0]; i++)
+        if (pc >= runs[i].first && pc <= runs[i].last)
+            return true;
+    return false;
+}
+
+/* The field's exact owned runs in reference play. Shipping continues
+ * counting any original instruction here as fallback. */
+static bool the_cartridges_field(const Fallbacks *f, uint32_t pc)
+{
+    static const struct { uint32_t first, last; } runs[] = {
+        { 0xC00000, 0xC00001 },
+        { 0xC00005, 0xC0034A },
+        { 0xC0038F, 0xC00B4D },
+        { 0xC00B64, 0xC01AAB },
+        { 0xC01ADF, 0xC01CFB },
+        { 0xC01F24, 0xC021ED },
+        { 0xC0220E, 0xC02E66 },
+        { 0xC0305D, 0xC03153 },
+        { 0xC03B71, 0xC03B75 },
+        { 0xC03FD6, 0xC03FFF },
+        { 0xC04181, 0xC04190 },
+        { 0xC05614, 0xC058DD },
+        { 0xC05929, 0xC0595B },
+        { 0xC059D9, 0xC05A92 },
+        { 0xC05B63, 0xC05B8C },
+        { 0xC05B95, 0xC05BF1 },
+        { 0xC05BFA, 0xC05C8F },
+        { 0xC05CC7, 0xC05D36 },
+        { 0xC06D2F, 0xC06E9F },
+        { 0xC06EB0, 0xC06FA6 },
+        { 0xC06FB9, 0xC0712D },
+        { 0xC07154, 0xC07180 },
+        { 0xC07199, 0xC08901 },
+        { 0xC08924, 0xC09BF4 },
+        { 0xC09C37, 0xC09FF6 },
+        { 0xC0A079, 0xC0A941 },
+        { 0xC0A947, 0xC0AF2F },
+        { 0xC0AF4E, 0xC0ED13 },
+        { 0xC0ED15, 0xC0F16F },
+        /* Field dialog's jump veneers into the still-gated typesetter.
+         * The field calls those operations directly; their bodies stay gated. */
+        { 0xC20003, 0xC20005 },
+        { 0xC20009, 0xC2000B },
+        { 0xC30011, 0xC30013 },
+        { 0xC30EFA, 0xC310BF },
+        { 0xFDC0D7, 0xFDC2DE },
+        { 0xFDC2EB, 0xFDD5D3 },
+        { 0xFDFFE5, 0xFDFFED },
+        { 0xFDFFF1, 0xFDFFF3 },
+};
+    if (!f->shadow)
+        return false;
+    pc |= 0x800000;
+    for (unsigned i = 0; i < sizeof runs / sizeof runs[0]; i++)
+        if (pc >= runs[i].first && pc <= runs[i].last)
+            return true;
+    return false;
+}
+
 void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
     /* Observe completion before the caller starts another invocation of the
@@ -724,8 +828,8 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         if (f->pass.open)
             f->pass.hidden++;
     }
-    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_decompressor(f, pc) &&
-        !the_cartridges_warp(f, pc) && !the_cartridges_overworld(f, pc) && !the_cartridges_scene_program(f, pc)) {
+    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_field(f, pc) && !the_cartridges_events(f, pc) && !the_cartridges_decompressor(f, pc) &&
+        !the_cartridges_animations(f, pc) && !the_cartridges_warp(f, pc) && !the_cartridges_overworld(f, pc) && !the_cartridges_scene_program(f, pc)) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));
         f->by_kind[eff.kind]++;

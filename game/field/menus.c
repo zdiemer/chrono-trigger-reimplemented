@@ -46,7 +46,6 @@
 #include "core/program.h"
 #include "event/engine.h"
 #include "menu/display.h"
-#include "field/screen_setup.h"
 #include "core/display.h"
 #include "core/input.h"
 #include "event/event.h"
@@ -396,10 +395,8 @@ typedef bool (*PressStart)(void *ctx);
 /* Once a frame: Start pauses, the Start assignment does what it does, the
  * menu button opens the main menu, and otherwise a choice waiting takes the
  * buttons. False where a step didn't come back. */
-static bool pause_and_menus(GameState *g, const StopSteps *steps, PressStart start, void *ctx)
+static bool menu_input_after_pause(GameState *g, const StopSteps *steps, PressStart start, void *ctx)
 {
-    if (start_pauses(g) && !pause(g, steps, ctx))
-        return false;
     if (assigned_pressed(g, ASSIGNED_START) && !start(ctx))
         return false;
     if (!assigned_pressed(g, ASSIGNED_MENU)) {
@@ -408,6 +405,11 @@ static bool pause_and_menus(GameState *g, const StopSteps *steps, PressStart sta
         return true;
     }
     return !menus_may_open(g) || open_menu(g, steps, ctx, OPENED_BY_MENU_BUTTON);
+}
+
+static bool pause_and_menus(GameState *g, const StopSteps *steps, PressStart start, void *ctx)
+{
+    return (!start_pauses(g) || pause(g, steps, ctx)) && menu_input_after_pause(g, steps, start, ctx);
 }
 
 /* ---- As C ------------------------------------------------------------------------------------- */
@@ -474,7 +476,7 @@ static bool put_aside(void *ctx, FieldStop stop)
     (void)stop;
     MenuStopContext *c = ctx;
     if (!field_party_can_be_kept(c->game)) {
-        program_needs_the_machine(c->game, FIELD_PUT_ASIDE_ENTRY, "a party the port doesn't keep for a menu");
+        program_breaks_a_contract(c->game, FIELD_PUT_ASIDE_ENTRY, "a party the port doesn't keep for a menu");
         return false;
     }
     TIMED_AS(c->game, FIELD_PUT_ASIDE_ENTRY, field_put_aside(c->game));
@@ -519,7 +521,7 @@ static bool start_character_over(void *ctx, unsigned row)
     if (end == TURN_OVER)
         return true;
     if (end != TURN_HANDED_BACK)
-        program_needs_the_machine(c->game, OBJECT_START, "a character's script the event engine hands to the original");
+        program_breaks_a_contract(c->game, OBJECT_START, "a character's script the event engine hands to the original");
     return false;
 }
 
@@ -530,7 +532,7 @@ static bool party_back(void *ctx, FieldStop stop)
     (void)stop;
     MenuStopContext *c = ctx;
     if (!party_links_readable(c->game)) {
-        program_needs_the_machine(c->game, BRING_THE_PARTY_BACK, "a party the port doesn't bring back");
+        program_breaks_a_contract(c->game, BRING_THE_PARTY_BACK, "a party the port doesn't bring back");
         return false;
     }
     bool done = false;
@@ -622,7 +624,7 @@ static bool effects_built_on_the_machine(void *ctx, FieldStop stop)
 static bool wait_on_the_machine(void *ctx, FieldStop stop)
 {
     Snes *s = ctx;
-    return field_wait_frame(s, sites[stop].wait, FRAME_WAIT, READS_NOTHING, on_the_field_page(s, false));
+    return field_hold_next_frame(s, sites[stop].wait, READS_NOTHING, on_the_field_page(s, false));
 }
 
 /* The original keeps the control on the stack over the walk, which the
@@ -735,6 +737,72 @@ void field_press_start(Snes *s)
         m_set_flag(s, CPU_FLAG_V, field_story_test_overflow(g));
     if (press_start_with(g, &on_the_machine, s))
         m_rts(s);
+}
+
+// $C0:1981, $C0:19FF
+/* The menu's fade has finished; the clock runs and the interrupted field
+ * pass continues. The Start assignment has one more button check in its
+ * caller, whereas the menu button returns straight to the field pass. */
+void field_back_from_a_menu_fade(Snes *s)
+{
+    start_play_clock(state_of(s));
+    field_return_to_waiting_caller(s);
+}
+
+// $C0:1920
+/* The Start assignment's menu has returned. Take the remaining menu/choice
+ * input once, without restarting the pause or opening Start's menu again. */
+void field_after_the_start_menu(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (!assigned_pressed(g, ASSIGNED_MENU)) {
+        if (dialog_choice_waiting(g))
+            TIMED_AS(g, FIELD_TAKE_CHOICE_BUTTONS_ENTRY, field_take_choice_buttons(g, dialog_choice_active(g)));
+    } else if (menus_may_open(g) && !open_menu(g, &on_the_machine, s, OPENED_BY_MENU_BUTTON)) {
+        return;
+    }
+    field_return_to_waiting_caller(s);
+}
+
+// $C0:18F7
+/* A paused frame has been shown. Resume the remaining input checks only
+ * when Start releases the pause; otherwise keep its dim picture another
+ * frame. The saved brightness is game state, not a suspended local. */
+void field_pause_continues(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (start_pressed(g)) {
+        end_pause(g);
+        if (menu_input_after_pause(g, &on_the_machine, press_start_on_the_machine, s))
+            field_return_to_waiting_caller(s);
+        return;
+    }
+    show_paused(g);
+    if (!effects_built_on_the_machine(s, PAUSED))
+        return;
+    set_field_display_flags(g, DISPLAY_FIRST_SET);
+    (void)wait_on_the_machine(s, PAUSED);
+}
+
+// $C0:1956
+void field_menu_fade_continues(Snes *s)
+{
+    if (open_menu(state_of(s), &on_the_machine, s, OPENED_BY_MENU_BUTTON))
+        field_return_to_waiting_caller(s);
+}
+
+// $C0:19BF
+void field_start_menu_fade_continues(Snes *s)
+{
+    if (open_menu(state_of(s), &on_the_machine, s, OPENED_BY_START))
+        field_return_to_waiting_caller(s);
+}
+
+// $C0:0CE8
+void field_script_menu_fade_continues(Snes *s)
+{
+    if (open_script_menu(state_of(s), &on_the_machine, s) == MENU_BACK_IN_THE_PASS)
+        field_return_to_waiting_caller(s);
 }
 
 /* True where it came back to the main loop's pass, false where the port

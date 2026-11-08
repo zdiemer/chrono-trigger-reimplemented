@@ -14,7 +14,7 @@
  * event/script.h); the object's form names colours in its palette, the
  * screen's form among the 256. */
 #include "charge.h"
-#include "event/leaves.h"
+#include "field/scratch.h"
 #include "event/script.h"
 #include "field/palettes.h"
 
@@ -108,15 +108,6 @@ enum { SLOT_BYTES = 12, NO_EFFECT = 0xFFFF, NO_EFFECT_BIT = 0x8000 };
 static bool remembers_effect(const GameState *g, FieldObject obj)
 {
     return !(field_object_colour_effect(g, obj) & NO_EFFECT_BIT);
-}
-
-bool event_object_remembers_colour_effect(const GameState *g, FieldObject obj) { return remembers_effect(g, obj); }
-
-bool event_colour_effect_slot(const GameState *g, uint8_t *slot)
-{
-    FreeSlot free = free_animation_slot(g);
-    *slot = free.slot;
-    return free.found;
 }
 
 /* The effect stops, its slot free, and the object's colours are loaded

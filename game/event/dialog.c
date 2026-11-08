@@ -8,7 +8,7 @@
  * decides, the top or the bottom of the screen -- is part of the command. */
 #include "event/dialog.h"
 
-#include "event/leaves.h"
+#include "field/scratch.h"
 #include "event/script.h"
 #include "field/dialog_window.h"
 #include "field/field.h"
@@ -94,14 +94,6 @@ static EventFlow say(GameState *g, FieldObject self, uint8_t line, WindowPlace w
     return stay();
 }
 EVENT_OPERATION(say, self, line, window)
-
-/* For event/leaves.c, before a question runs: whether it opens its window
- * (no dialog on screen, and the object not waiting on one it opened), where
- * the original keeps its choices' operand. */
-bool event_question_opens(const GameState *g, FieldObject self)
-{
-    return !dialog_on_screen(g) && !event_object_wait_dialog(g, self);
-}
 
 // $C0:3643
 /* Ask a question: a line with choices, and wait for the answer, which

@@ -20,48 +20,40 @@
  * operands from variables. A jump, a launch and following are operations
  * too, and so is the party's step, which the party's own module takes
  * (field/party.h).
- *
- * What the original's handlers leave in Y and V for the code after them
- * (event/leaves.h) is the field's routines' they called: each move says so
- * where it ends, through the field's record of what those routines leave
- * (field/scratch.h). */
+ */
 #include "cpu_io.h"
+#include "charge.h"
 #include "event/bridge.h"
 #include "event/contact.h"
-#include "event/leaves.h"
+#include "field/scratch.h"
 #include "event/party.h"
 #include "event/script.h"
 #include "field/party.h"
-#include "field/scratch.h"
-
-/* ---- What the original leaves (event/leaves.h, field/scratch.h) --------------------------- */
-
-/* The original works a move's direction out with the field's routine, from
- * two tiles it leaves in cells: the running object's and the one it heads
- * for, where the object it heads for is kept too. */
-static void leave_aim(GameState *g, Aim aim, Direction d)
-{
-    field_leave_aim(g, aim);
-    field_leave_direction(g, aim, d);
-}
-
-/* Turning aside, the original leaves the new direction in the field's
- * direction cell, which the step's start reads. */
-static void leave_turned_aside(GameState *g, Direction turned)
-{
-    set_field_direction(g, (uint16_t)((field_direction(g) & 0xFF00) | turned));
-}
-
-/* What the step's start and the walking animation leave (the Y and V of a
- * move that set off, and the check for objects in the way) is said where
- * they happen, through event/leaves.h: nothing after the move says which way
- * its step started. */
 
 /* ---- Setting off, arriving --------------------------------------------------------------- */
 
 /* A move that meets an object in the way turns aside from it, three
  * sixteenths of a turn (directions being a byte to a turn). */
 enum { TURN_ASIDE = 0x30 };
+
+/* Work the old adapter spent deriving a move's register result. Keep its
+ * calibrated estimate, without deriving dead registers or saving operands.
+ * Looking up the branch of that estimate is itself uncounted. */
+static void charge_move_result(GameState *g, FieldObject self, StepStart start, bool walking)
+{
+    uint32_t mark = charge_uncounted_begin(g);
+    bool animated = walking && object_animation_mode(g, self) == ANIMATE_WITH_MOVEMENT;
+    charge_uncounted_end(g, mark);
+    unsigned accesses = 2 + (start.outcome != START_STILL ? 2 : 0) + (walking ? 1 : 0);
+    if (animated)
+        accesses += 4;
+    else if (start.outcome == START_BLOCKED) {
+        accesses += 5;
+        charge_legacy_rom_accesses(g, 2);
+    } else if (start.outcome != START_STILL && start.outcome != START_TURNED_STILL)
+        accesses += 8;
+    charge_legacy_accesses(g, accesses);
+}
 
 /* Set off in a direction for `steps` steps: facing the way when walking, and
  * turned aside from an object in the way; the object then walks, and the
@@ -71,10 +63,14 @@ static EventFlow set_off(GameState *g, FieldObject self, MoveStyle style, Direct
     if (style == WALKING)
         object_set_facing(g, self, facing_of_direction(g, direction));
     bool blocked = object_in_the_way(g, self).blocked;
-    ORIGINAL_EFFECT(leave_in_the_way_check(g, self));
+    uint32_t mark = charge_uncounted_begin(g);
+    bool in_view = object_view(g, self) != OUT_OF_VIEW;
+    bool looked = in_view && (field_object_blocking(g, self) & BLOCKED_BY_OBJECTS);
+    charge_uncounted_end(g, mark);
+    charge_legacy_accesses(g, 1 + (in_view ? 1 : 0) + (looked ? 2 : 0));
     if (blocked) {
         direction = (Direction)(direction + TURN_ASIDE);
-        ORIGINAL_EFFECT(leave_turned_aside(g, direction));
+        charge_legacy_accesses(g, 4); /* turned direction's word read/write */
         if (style == WALKING)
             object_set_facing(g, self, facing_of_direction(g, direction));
     }
@@ -82,7 +78,7 @@ static EventFlow set_off(GameState *g, FieldObject self, MoveStyle style, Direct
     StepStart start = object_start_step(g, self, direction);
     if (style == WALKING)
         object_animate_movement(g, self);
-    ORIGINAL_EFFECT(leave_set_off(g, self, start, style == WALKING));
+    charge_move_result(g, self, start, style == WALKING);
     return stay();
 }
 
@@ -90,7 +86,7 @@ static EventFlow set_off(GameState *g, FieldObject self, MoveStyle style, Direct
 static EventFlow set_off_toward(GameState *g, FieldObject self, MoveStyle style, Aim aim, uint8_t steps)
 {
     Direction d = direction_between(g, aim.from, aim.to);
-    ORIGINAL_EFFECT(leave_aim(g, aim, d));
+    charge_legacy_accesses(g, 10); /* two tiles, angle work and direction */
     return set_off(g, self, style, d, steps);
 }
 
@@ -107,7 +103,7 @@ static EventFlow keep_lining_up(GameState *g, FieldObject self, MoveStyle style)
 {
     if (style == WALKING) {
         object_animate_movement(g, self);
-        ORIGINAL_EFFECT(leave_walk_overflow(g, self));
+        charge_legacy_accesses(g, 4); /* velocity read back for the old result */
     }
     return stay();
 }
@@ -151,7 +147,7 @@ static EventFlow move_to_tile(GameState *g, FieldObject self, uint8_t tile_x, ui
         return stay();
     if (fresh) {
         Aim aim = { object_tile(g, self), { tile_x, tile_y } };
-        ORIGINAL_EFFECT(field_leave_aim(g, aim));
+        charge_legacy_accesses(g, 4); /* the move's two tiles */
         if (aim.from.x != aim.to.x || aim.from.y != aim.to.y)
             return set_off_toward(g, self, style, aim, steps_to_set_off(g, self, counted, steps));
         if (object_lines_up(g, self, LINE_UP_ON_THE_TILE) && object_line_up_with_tile(g, self))
@@ -192,11 +188,9 @@ static EventFlow walk_up_to(GameState *g, FieldObject self, Someone quarry, Move
 {
     if (quarry.there && !quarry.disabled) {
         Aim aim = { object_tile(g, self), tile_at(quarry.at) };
-        ORIGINAL_EFFECT(field_leave_aim(g, aim));
-        ORIGINAL_EFFECT(field_leave_target_object(g, quarry.object));
+        charge_legacy_accesses(g, 6); /* two tiles and target selection */
         if (!tiles_next_to(aim.from, aim.to)) {
             if (until == WELL_ON_SCREEN) {
-                ORIGINAL_EFFECT(keep_screen_edges(g));
                 if (tile_well_on_screen(g, aim.from))
                     return arrive(g, self, style);
             }
@@ -247,15 +241,13 @@ static EventFlow move_in_direction(GameState *g, FieldObject self, Direction dir
     case MOVE_DONE: return arrive(g, self, style);
     default: break;
     }
-    ORIGINAL_EFFECT(set_field_direction(g, direction));
     object_start_move(g, self, steps, CROSS_ALWAYS);
     if (style == WALKING)
         object_set_facing(g, self, facing_of_direction(g, direction));
     object_mark_scripted_move(g, self);
-    StepStart start = object_start_step(g, self, direction);
+    (void)object_start_step(g, self, direction);
     if (style == WALKING)
         object_animate_movement(g, self);
-    ORIGINAL_EFFECT(leave_set_off(g, self, start, style == WALKING));
     return stay();
 }
 EVENT_OPERATION(move_in_direction, self, direction, steps, style)
@@ -299,13 +291,12 @@ EVENT_OPERATION(launch, self, velocity_x, velocity_y, acceleration, steps)
  * quotient. */
 static bool steps_along(GameState *g, uint8_t own, uint8_t target, int8_t velocity, uint8_t *steps)
 {
+    (void)g;
     uint8_t distance = target >= own ? (uint8_t)(target - own) : (uint8_t)(own - target);
     uint16_t dividend = (uint16_t)(distance << 8);
-    ORIGINAL_EFFECT(hw_set_dividend(g, dividend));
     if (velocity == 0)
         return false;
     uint8_t speed = velocity < 0 ? (uint8_t)-velocity : (uint8_t)velocity;
-    ORIGINAL_EFFECT(hw_divide_by(g, speed));
     *steps = (uint8_t)(dividend / speed);
     return true;
 }
@@ -324,16 +315,6 @@ static uint8_t jump_steps(GameState *g, FieldObject self, Aim aim, uint8_t heigh
     return height;
 }
 
-/* For the original's code and shadow mode: the jump keeps its height in
- * event_count's low byte across its calls, and multiplies the steps by the
- * height in hardware, which it leaves holding the product. */
-static void leave_jump(GameState *g, uint8_t steps, uint8_t height)
-{
-    set_event_count(g, (uint16_t)((event_count(g) & 0xFF00) | height));
-    hw_set_multiplicand(g, steps);
-    hw_multiply_by(g, height);
-}
-
 // $C0:4D06
 /* Jump to a tile: an arc as high as the command says, at the object's speed,
  * landing on the tile. Waits until it lands. */
@@ -346,11 +327,9 @@ static EventFlow jump_to_tile(GameState *g, FieldObject self, uint8_t tile_x, ui
     }
     Aim aim = { object_tile(g, self), { tile_x, tile_y } };
     Direction d = direction_between(g, aim.from, aim.to);
-    ORIGINAL_EFFECT(leave_aim(g, aim, d));
     object_head(g, self, d);
     uint8_t steps = jump_steps(g, self, aim, height);
     object_jump(g, self, steps, height);
-    ORIGINAL_EFFECT(leave_jump(g, steps, height));
     return stay();
 }
 EVENT_OPERATION(jump_to_tile, self, tile_x, tile_y, height)

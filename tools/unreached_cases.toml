@@ -182,17 +182,17 @@ why = "Three nearby objects, moves fresh or finished, alignment requested or not
 base = "field_move_screen_effect_on:close-ripple"
 variant = "unreached_ripple"
 remove = ["--stop-at-call"]
-args = ["--fill", "7E0139-7E0139=0C", "--fill", "7E0153-7E0153=00,01", "--tick-at", "C0EC71=7E0152", "--budget", "16000000"]
+args = ["--fill", "7E0139-7E0139=0C", "--fill", "7E0126-7E0126=00-02", "--fill", "7E0153-7E0153=00,01", "--tick-at", "C0EC71=7E0152", "--budget", "16000000"]
 iterations = 200
-why = "The whole ripple, its frames waited out: the copy settling, the circle opening, held and closing, and the script seeing it played, with either of the line effects' tables."
+why = "The ripple through its first held frame, with either line-effects table and one of its three guarded window layouts. Each later stretch is compared at its own held continuation."
 
 [[case]]
 base = "field_move_screen_effect_on:close-ripple"
 variant = "unreached_close"
 remove = ["--stop-at-call"]
-args = ["--fill", "7E0139-7E0139=0B", "--tick-at", "C0EC71=7E0152", "--stop-at-call", "C02643", "--budget", "16000000"]
+args = ["--fill", "7E0139-7E0139=0B", "--fill", "7E0126-7E0126=00-02", "--tick-at", "C0EC71=7E0152", "--stop-at-call", "C02643", "--budget", "16000000"]
 iterations = 200
-why = "The field's close, its frames waited out and the field put aside, compared where the scene starts on its fresh stack (its own entry)."
+why = "The close through its first held frame; the line-effects selector is one of its three guarded layouts. Random selectors beyond the table enter unrelated original code and read dead registers. Later held continuations are separate trials."
 
 [[case]]
 base = "field_take_choice_buttons"
@@ -214,19 +214,19 @@ base = "field_battle_begins"
 variant = "unreached_party_back"
 remove = ["--stop-at-call"]
 args = ["--tick-at", "C0EC71=7E0152", "--budget", "16000000"]
-why = "As the plain recipe, and compared past the party's gathering ($C0:034B, its own entry, its frames waited out) to the start's result rather than at the call."
+why = "As the plain recipe, through the party's gathering to its first held boundary. The held_no_battle_return case checks the result after the gathering separately."
 
 [[case]]
 base = "field_after_battle"
 variant = "unreached_fade"
 args = ["--fill", "7E0119-7E0119=01-10", "--tick-at", "C0EC71=7E0152"]
-why = "Each battle result with the screen still to brighten: the leader walked and the palettes animated a frame at a time while the fade runs, its frames waited out."
+why = "Each battle result through its first held fade frame. The held_kept_place_fade case checks the resumed fade and the return to the stored location separately."
 
 [[case]]
 base = "field_take_palette"
 variant = "unreached_party_shares"
 args = ["--fill", "7E0154-7E0154=00", "--fill", "7E1100-7E117F:2=00,01,02",
-        "--fill", "7E0B85-7E0B87=00,02,04,06,08,0A,0C,0E,10,12,14,16,80",
+        "--fill", "7E0B85-7E0B87=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,20,22,24,80",
         "--fill", "7E1400-7E147F=1818"]
 why = "A party place's object coming into view whose place's slot another object of the same colours holds, or nobody: it joins that object's sharers or takes the free slot (one of other colours the guard turns away). The original's join (C071FE-C07210) files the object by the older sharer's number where the slot's belongs, which the port reproduces (field/palettes.c, join_party_place_sharers)."
 
@@ -314,3 +314,74 @@ variant = "unreached_nudge_shut"
 iterations = 100000
 args = ["--fill", "7E1800-7E18FF:2=00,0F,60,63,66,69,6C,6F,70,73,76,79,7C,7F,80,83,86,89,8C,8F,90,93,96,99,9C,9F,F0,F3,F6,F9,FC,FF"]
 why = "As the walking recipe, with every place a pixel or so from a tile's edge, where the box's side or foot nudged around another level looks into the next tile: the nudge finds the way shut there too and the leader stops. Each stop takes a tile whose part is another level at one of the foot's or the side's places and open at the other, which random tiles make about once in 20,000 trials."
+
+[[case]]
+base = "field_move_screen_effect_on:unreached_close"
+variant = "held_close_aside"
+at = "C02628"
+args = []
+iterations = 200
+why = "The close after its first frame: battle setup and effects refresh, through the next held frame."
+
+[[case]]
+base = "field_move_screen_effect_on:unreached_close"
+variant = "held_close_scene"
+at = "C02631"
+args = []
+iterations = 200
+why = "The close after its second frame: interrupts handed over and the scene entered on its fresh stack."
+
+[[case]]
+base = "field_move_screen_effect_on:unreached_ripple"
+variant = "held_ripple_settles"
+at = "C0268B"
+args = []
+iterations = 200
+why = "The settling ripple refreshes and waits for its next frame."
+
+[[case]]
+base = "field_move_screen_effect_on:unreached_ripple"
+variant = "held_ripple_settled"
+at = "C02691"
+args = ["--fill", "7E1DFF-7E1DFF=01,02"]
+iterations = 200
+why = "The settling counter either waits again or opens the circle and begins its growth."
+
+[[case]]
+base = "field_move_screen_effect_on:unreached_ripple"
+variant = "held_ripple_grew"
+at = "C026C7"
+args = ["--fill", "7E1DFF-7E1DFF=01,02"]
+iterations = 200
+why = "The growing counter either draws another circle or begins holding it."
+
+[[case]]
+base = "field_move_screen_effect_on:unreached_ripple"
+variant = "held_ripple_held"
+at = "C026DA"
+args = ["--fill", "7E1DFF-7E1DFF=01,02"]
+iterations = 200
+why = "The holding counter either draws another circle or begins shrinking it."
+
+[[case]]
+base = "field_move_screen_effect_on:unreached_ripple"
+variant = "held_ripple_shrank"
+at = "C026F1"
+args = ["--fill", "7E1DFF-7E1DFF=01,02"]
+iterations = 200
+why = "The shrinking counter either draws again or restores the layers, finishes the effect, and waits its last frame."
+
+[[case]]
+base = "field_battle_begins:unreached_party_back"
+variant = "held_no_battle_return"
+at = "C00281"
+iterations = 200
+why = "The empty-battle gathering has returned: set the result and return to its waiting caller at the held boundary."
+
+[[case]]
+base = "field_after_battle:unreached_fade"
+variant = "held_kept_place_fade"
+at = "C002E8"
+args = ["--fill", "7E0119-7E0119=00,01"]
+iterations = 200
+why = "Resume the held fade with one step left or already dark; check both the next held frame and restoring the stored location before the fresh field entry."

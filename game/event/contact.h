@@ -42,16 +42,11 @@ bool leader_looks_to_push(const GameState *g, bool touched);
  * map by a facing of the leader's four. */
 bool event_touch_is_ours(const GameState *g);
 
-/* The registered entries, and their guards: the confirm button ($C0:1AAC,
- * from the field's main loop), the talk ($C0:5AC5, from the confirm button)
- * and the touch ($C0:3154, from event $B0). */
+/* The confirm button's machine form and contract, for the gated field
+ * main loop. Talk and touch are ordinary operations with no entry wrappers. */
 void field_press_confirm(Snes *s);
 /* The confirm button as C: talk to what the leader faces, or open a chest. */
 void field_confirm_pressed(GameState *g);
-void event_talk_to_contact(Snes *s);
-void event_touch_contact(Snes *s);
 bool field_confirm_can_run(Snes *s);
-bool event_contact_is_one(Snes *s);
-bool event_touch_can_run(Snes *s);
 
 #endif

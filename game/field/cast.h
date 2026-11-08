@@ -84,10 +84,6 @@ void sprite_blocks_all_free(GameState *g);
 void object_give_up_sprite_block(GameState *g, FieldObject obj);
 bool object_sprite_block_in_the_tables(const GameState *g, FieldObject obj);
 
-void field_take_sprite_block(Snes *s);
-void field_give_up_sprite_block(Snes *s);
-bool field_sprite_block_can_be_taken(Snes *s);
-bool field_sprite_block_can_be_given_up(Snes *s);
 enum { FIELD_TAKE_SPRITE_BLOCK_ENTRY = 0xC06F9A, FIELD_GIVE_UP_SPRITE_BLOCK_ENTRY = 0xC07056 };
 bool cast_graphics_entry_for(const GameState *g, uint8_t set);
 bool cast_enemy_fits(const GameState *g, uint8_t enemy, uint8_t slot);

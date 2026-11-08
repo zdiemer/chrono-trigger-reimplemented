@@ -15,7 +15,7 @@
 #include "data/decompress.h"
 #include "event/bridge.h"
 #include "event/engine.h"
-#include "event/leaves.h"
+#include "field/scratch.h"
 #include "event/script.h"
 #include "field/cast.h"
 #include "field/frames.h"
@@ -58,25 +58,11 @@ EVENT_CHECK_TAKING_NOTHING(tables_in_the_rom)
 
 /* ---- The bridges: graphics to unpack ----------------------------------------------------------- */
 
-/* The unpacker (data/decompress.c) reads where from and where to from its
- * own cells, and the original's puts back every register it is given: of the
- * registers at the call, the command's machine reads only Y after it, which
- * it leaves to the engine (event/leaves.h). */
-
 /* Where the original stops the game when a set runs past the bank's end. */
 enum { NPC_TOO_FAR = 0xC046D1 };
 enum { ENEMY_TOO_FAR = 0xC0483A };
 
-/* What the command leaves the engine (event/leaves.h): Y where reading the
- * record left it, and the overflow of its last sum (field/leaves.c). */
-static void leave_cast_registers(Snes *s, CastGraphics graphics)
-{
-    const GameState *g = state_of(s);
-    s->cpu.y = field_cast_y(graphics.record, graphics.source);
-    m_set_flag(s, CPU_FLAG_V, field_cast_overflow(g, graphics.record, graphics.source));
-}
-
-/* ... and at the unpacker's call, which keeps them for after it: Y where
+/* At the unpacker's call, which keeps these registers for after it: Y where
  * looking up the set left it, and the overflow of the lookup's sum, clear. */
 static void leave_unpack_call_registers(Snes *s, FieldSpriteRecord r)
 {
@@ -132,7 +118,7 @@ static bool unpack(void *ctx, FieldSpriteRecord r, SetKind kind)
     (void)unpack_stream(g);
     if (graphics_unpacked(g))
         return true;
-    program_needs_the_machine(g, set_calls[kind].too_far, "a set of sprite graphics past the bank's end, which stops the game");
+    program_breaks_a_contract(g, set_calls[kind].too_far, "a set of sprite graphics past the bank's end, which stops the game");
     return false;
 }
 
@@ -175,6 +161,7 @@ static bool unpack_on_the_machine(void *ctx, FieldSpriteRecord r, SetKind kind)
     (void)unpack_stream_called(g, false);
     if (graphics_unpacked(g))
         return true;
+    program_breaks_a_contract(g, set_calls[kind].too_far, "sprite graphics exceed their bank");
     m_stop_at(s, set_calls[kind].too_far, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
     return false;
 }
@@ -187,28 +174,11 @@ void event_cmd_cast_npc(Snes *s)
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, 0x82);
-    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + CAST_NPC_LENGTH)));
     SetUnpacker u = { unpack_on_the_machine, s };
     CastGraphics graphics;
     if (!cast_npc(g, c.self, c.npc, &u, &graphics))
         return;
-    ORIGINAL_EFFECT(leave_cast_registers(s, graphics));
     event_return(s, (EventStep){ (uint16_t)(at + CAST_NPC_LENGTH), true });
-}
-
-/* What taking its place leaves: the sum of its block's tiles, the overflow
- * clear; and Y's low byte alone, the original working the block out with
- * 8-bit index registers -- or a figure's drawing's, where it drew one. */
-static void leave_place_registers(Snes *s, bool figure_drawn)
-{
-    m_set_flag(s, CPU_FLAG_V, false);
-    s->cpu.y = figure_drawn ? field_whole_figure_y() : (uint16_t)(s->cpu.y & 0x00FF);
-}
-
-/* Between an enemy's unpacking and its place: what the casting leaves. */
-static void leave_cast_registers_between(void *ctx, CastGraphics graphics)
-{
-    ORIGINAL_EFFECT(leave_cast_registers(ctx, graphics));
 }
 
 // $C0:46DF
@@ -228,12 +198,10 @@ void event_cmd_cast_enemy(Snes *s)
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, 0x83);
-    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + ENEMY_ENDS)));
     SetUnpacker u = { unpack_on_the_machine, s };
     CastGraphics graphics;
-    if (!cast_enemy(g, m_platform(s), c.self, c.enemy, c.slot, &u, &graphics, leave_cast_registers_between))
+    if (!cast_enemy(g, m_platform(s), c.self, c.enemy, c.slot, &u, &graphics, nothing_between))
         return;
-    ORIGINAL_EFFECT(leave_place_registers(s, object_sprite_layout(g, c.self) == LAYOUT_24));
     event_return(s, (EventStep){ (uint16_t)(at + CAST_ENEMY_LENGTH), true });
 }
 

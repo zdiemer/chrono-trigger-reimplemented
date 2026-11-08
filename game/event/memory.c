@@ -9,6 +9,7 @@
  * it last read through, and the one it last wrote through (the cells
  * event_source_pointer and event_target_pointer); nothing but the command
  * itself reads them back, so they are kept as scaffolding. */
+#include "charge.h"
 #include "event/bridge.h"
 #include "event/engine.h"
 #include "event/variables.h"
@@ -19,7 +20,7 @@
 /* A variable learns the byte or the word at an address. */
 static EventFlow peek(GameState *g, EventVariable variable, Address address, Width width)
 {
-    ORIGINAL_EFFECT(set_event_source_pointer(g, address));
+    charge_legacy_accesses(g, 3); /* source address selection */
     uint16_t value = width == AS_BYTE ? wram_read8(g, address) : wram_read16(g, address);
     set_variable(g, variable, value, width);
     return next_command();
@@ -30,7 +31,7 @@ EVENT_OPERATION(peek, variable, address, width)
 /* Write a byte or a word at an address: a number, or a variable's value. */
 static EventFlow poke(GameState *g, Address address, uint16_t value, Width width)
 {
-    ORIGINAL_EFFECT(set_event_target_pointer(g, address));
+    charge_legacy_accesses(g, 3); /* destination address selection */
     if (width == AS_BYTE)
         wram_write8(g, address, (uint8_t)value);
     else
@@ -62,23 +63,10 @@ static DataBlock data_block(uint16_t destination, uint8_t bank, uint16_t size, u
     return (DataBlock){ to_bank, destination, length, (uint16_t)(at + COPY_DATA_LENGTH) };
 }
 
-/* The original counts the copy in event_count, as its block move takes it:
- * one less than the bytes. */
-static void keep_count(GameState *g, uint16_t length) { set_event_count(g, (uint16_t)(length - 1)); }
-
 /* For the original's code and shadow mode: the block move leaves Y where the
  * destination ended, and turning the source's end back into a script offset
  * leaves V. Both follow from the block. */
-enum { SCRIPT_ADDRESS = 0x2001 };   /* where the script starts in its bank */
-
-static void leave_copy_ends(EventLeaves *left, DataBlock b)
-{
-    uint16_t from_end = (uint16_t)(b.from + b.length);
-    left->y = (uint16_t)(b.to + b.length);
-    left->overflow = field_subtract_overflows16((uint16_t)(from_end + SCRIPT_ADDRESS), SCRIPT_ADDRESS);
-}
-
-// $C0:6846
+enum { SCRIPT_ADDRESS = 0x2001 };   // $C0:6846
 /* Copy the data that follows the command into work RAM (a table of positions
  * for a cutscene, a patch to some state), and go on after it. The copy goes a
  * byte at a time with the destination wrapping in its bank, as the original's
@@ -86,7 +74,6 @@ static void leave_copy_ends(EventLeaves *left, DataBlock b)
 static EventStep copy_data(GameState *g, uint16_t destination, uint8_t bank, uint16_t size, uint16_t at)
 {
     DataBlock b = data_block(destination, bank, size, at);
-    ORIGINAL_EFFECT(keep_count(g, b.length));
     uint16_t from = b.from, to = b.to;
     for (uint16_t left = b.length; left != 0; left--) {
         wram_write8(g, b.bank | to, script_byte(g, from));
@@ -109,12 +96,9 @@ void event_cmd_copy_data(Snes *s)
 {
     m_push8(s, s->cpu.db);
     uint16_t at = event_command_offset(s);
-    EventLeaves left = event_leaves_of(s);
     EventCommand c = event_command_of(s, 0x4E);
     EventStep st = copy_data(state_of(s), c.destination, c.bank, c.size, at);
-    ORIGINAL_EFFECT(leave_copy_ends(&left, data_block(c.destination, c.bank, c.size, at)));
     s->cpu.db = m_pull8(s);
-    ORIGINAL_EFFECT(event_hand_back(s, &left));
     event_return(s, st);
 }
 

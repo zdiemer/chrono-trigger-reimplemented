@@ -118,12 +118,9 @@ Footprint field_footprint(const GameState *g, uint8_t at);
 /* What the party's steps leave the original's callers (field/leaves.c): the
  * overflow of the leader's step, and of a member's, which follows from
  * whether it moved on. */
-bool field_leader_step_overflow(const GameState *g, bool before);
-bool field_member_step_overflow(const GameState *g, PartyPlace place, bool moved_on);
 /* The object a member's step leaves Y on: the member's own, which its gait
  * looks up, where it moved on; the one in its place, which it posed, where
  * it waited (field/party_trail.c). */
-uint8_t field_member_step_y(const GameState *g, FieldObject member, PartyPlace place, bool moved_on);
 
 /* A tile copy (field/tile_copy.c): the map's tables it can take whole, in
  * the order it takes them; what the copy's description names, a table's bit
@@ -156,16 +153,6 @@ FieldSlopeSum field_slope_sum(const GameState *g, uint8_t slope, uint8_t fine_x,
  * start, and that tile. */
 enum { FIELD_START_FINE_X = 0x80, FIELD_START_FINE_Y = 0xFF };
 MapPlace field_start_place(const GameState *g);
-
-/* What the party's start on the map leaves the openings' caller
- * (field/leaves.c): whether it looked at a slope, and the overflow of the
- * slope's sum there. */
-bool field_start_on_a_slope(const GameState *g);
-bool field_start_overflow(const GameState *g, bool before);
-
-/* What each part of the copy leaves in the original's cells (field/leaves.c). */
-void field_leave_table_copied(GameState *g, TileRectangle r, MapTable table);
-void field_leave_bit_copied(GameState *g, TileRectangle r, uint8_t bit);
 
 /* How the pad walks the leader this frame, and a moving floor's pull in a
  * footprint's movement, rounded away from nothing to whole walking steps. */

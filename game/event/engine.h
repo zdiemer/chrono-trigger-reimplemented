@@ -7,7 +7,7 @@
 
 /* How the engine runs each command of a turn. `run` runs the command at `at`
  * and says where the script goes (false: it handed the rest of the turn to
- * someone else, the original on the development system). `state_is_ours`
+ * another game mode). `state_is_ours`
  * says whether the game's state is still one the port reaches as it expects
  * after what `run` ran (on the development system, whether a command the
  * original ran left the data bank elsewhere); a native runner is always
@@ -45,10 +45,9 @@ EventTurnEnd event_restart_the_running_object(GameState *g, const EventRunner *r
  * function, up to its first zero byte, all at once. */
 EventTurnEnd event_run_map_script_commands(GameState *g, const EventRunner *r, uint16_t *stopped_at);
 
-/* A runner with no machine under it: each command's operation as C, timed as
- * its handler. A command only the machine runs yet (a bridge, or a state the
- * port doesn't take) hands the turn back, the program stopping there
- * (core/program.h, program_needs_the_machine). */
+/* Each command as C, timed at its retained estimate. An invalid opcode
+ * or a state outside its contract reports a broken contract and stops the
+ * turn (core/program.h, program_breaks_a_contract). */
 typedef struct {
     GameState *game;
     Platform *pf;

@@ -103,8 +103,6 @@ bool party_can_come_back_together(const GameState *g);
 void member_back_to_the_leader(GameState *g, FieldObject member);
 void event_party_back_together(Snes *s);
 bool event_party_back_can_run(Snes *s);
-void event_member_back_to_the_leader(Snes *s);
-bool event_member_can_go_back(Snes *s);
 
 /* Someone leaves the party: their place is empty, on the map and in the
  * party's record. */

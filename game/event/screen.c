@@ -11,6 +11,7 @@
  * interrupt steps them a frame at a time toward their target, and marks them
  * running (field/field.h, field_effect_status) until they arrive. */
 #include "event/bridge.h"
+#include "holds.h"
 #include "charge.h"
 #include "core/display.h"
 #include "core/palette.h"
@@ -77,7 +78,7 @@ static uint8_t tint_math(TintMix mix) { return mix == TINT_ADDED ? 0x17 : 0x97; 
 static void take_target_channels(GameState *g)
 {
     uint8_t channels = field_fixed_color_target(g) & CHANNELS;
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, channels));
+    charge_legacy_accesses(g, 1); /* selected tint channels */
     set_field_fixed_color(g, (uint8_t)((field_fixed_color(g) & STRENGTH) | channels));
 }
 
@@ -339,9 +340,6 @@ void event_cmd_choose_credits(Snes *s)
     if (!choose_credits_with(g, m_platform(s), at, load_the_letters_on_the_machine, &m, &c))
         return;
     s->cpu.y = m_pull16(s);
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, c.credits_text));
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_THIRD, c.credits_text));
-    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + 1)));
     event_return(s, (EventStep){ (uint16_t)(at + CHOOSE_CREDITS_LENGTH), true });
 }
 
@@ -464,20 +462,30 @@ enum { THE_SCENE_STARTS = 0xC03FD6 };
  * The original then starts the scene on a fresh stack, reading its number
  * from where the command keeps it: the scene engine's, or from $80 the time
  * gate's tunnels (bank $FD's). */
-static void end_the_field_for_a_scene_on_the_machine(Snes *s, uint8_t scene)
+static void fade_the_field_for_a_scene(Snes *s)
 {
     GameState *g = state_of(s);
     BridgeMachine as = event_machine(s, false);
-    set_field_scene_to_start(g, scene);
     while (field_dims_a_step(g)) {
         if (!field_run(s, 0xC03FC3, WALK_THE_LEADER, READS_NOTHING, field_walk_the_leader, as) ||
             !field_run_long(s, 0xC03FC6, PALETTE_ANIMATION, READS_NOTHING, palette_animate, as) ||
-            !field_wait_frame(s, 0xC03FCA, FRAME_WAIT, READS_NOTHING, as))
+            !field_hold_next_frame(s, 0xC03FCA, READS_NOTHING, as))
             return;
     }
     display_go_dark(s);
     TIMED_AS(g, THE_SCENE_STARTS, field_start_the_scene(s));
 }
+
+static void end_the_field_for_a_scene_on_the_machine(Snes *s, uint8_t scene)
+{
+    set_field_scene_to_start(state_of(s), scene);
+    fade_the_field_for_a_scene(s);
+}
+
+// $C0:3FCD
+/* The fade's next step, after the frame was shown. The scene request is
+ * already state; no script command or suspended caller needs to survive. */
+void event_scene_fade_continues(Snes *s) { fade_the_field_for_a_scene(s); }
 
 /* The original's dispatch of the screen commands, a JSR through its table
  * ($C0:4009), with the registers it has there: the command's index doubled
@@ -516,7 +524,7 @@ bool event_screen_dispatch_accepts(Snes *s)
  * does not apply at this handoff. The table bridge supplies its JSR frame. */
 static bool restart_on_the_machine(Snes *s)
 {
-    m_stop_at_own(s, 0xC04181, 0);
+    m_hold_at_own(s, 0xC04181, 0, HOLD_FIELD_RESTART);
     return false;
 }
 
@@ -562,13 +570,8 @@ static void note_the_game_finished(Snes *s)
 
 void event_screen_party_routine(Snes *s)
 {
-    GameState *g = state_of(s);
     uint16_t resume = (uint16_t)(event_command_offset(s) + SCREEN_COMMAND_LENGTH);
-    ORIGINAL_EFFECT(event_keep_offset(g, resume));
-    PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)resume, (uint8_t)s->cpu.x));
     TIMED_AS(state_of(s), MENUS_SERVICES, note_the_game_finished(s));
-    ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_GAME_FINISHED, &call));
     s->cpu.x = resume;
     m_rts(s);
 }
@@ -643,10 +646,9 @@ void event_cmd_screen_command(Snes *s)
         return;
     }
     unsigned i = screen_command_index(c.screen_command);
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FOURTH, c.screen_command));
     as_the_dispatch_has_it(s, c.screen_command);
     if (screen_commands[i].kind == RESTARTS_THE_GAME) {
-        m_stop_at_own(s, SCREEN_DISPATCH, AT_THE_DISPATCH);
+        field_hands_over_to(s, SCREEN_DISPATCH, AT_THE_DISPATCH, event_screen_dispatch);
         return;
     }
     if (screen_commands[i].kind == CALLS_PARTY_ROUTINE) {

@@ -27,10 +27,7 @@
  * screen's middle the way it walks, and not past the map's edges; while a
  * script has the screen scroll back onto the 16-pixel grid (before a map
  * change), the party holds still and the screen moves a pixel a frame.
- *
- * The walk works in cells of the layers' page, which only its own code reads
- * back; they are left as the original leaves them, from a record of the last
- * values, as scaffolding (field/scratch.h). */
+ */
 #include "field/walk.h"
 
 #include "charge.h"
@@ -48,82 +45,30 @@
 #include "port/machine.h"
 #include "vars.h"
 
-/* ---- What the original leaves (field/scratch.h) --------------------------------------- *
- *
- * The walk keeps its working values in the layers' page's cells $52-$73: the
- * last point it looked at on the map ($66, $68), the leader's place ($62,
- * $64), what the map says there ($58-$5C), the level worked out ($56, $60,
- * $6A-$6F), the slope's sum ($54), the screen's checks and the floor's speed
- * ($52, $54), and where the leader will stand ($70-$73). Nothing reads them
- * but the walk; each cell's last value is recorded here on the way and left
- * once at the end. */
-enum { WALK_CELLS = 0x52, WALK_CELLS_END = 0x74 };
-
-static struct {
-    uint8_t value[WALK_CELLS_END - WALK_CELLS];
-    bool kept[WALK_CELLS_END - WALK_CELLS];
-} walk_cells;
-
-static void forget_walk_cells(void)
-{
-    for (unsigned i = 0; i < WALK_CELLS_END - WALK_CELLS; i++)
-        walk_cells.kept[i] = false;
-}
-
-static void record_cell(uint8_t cell, uint8_t v)
-{
-    walk_cells.value[cell - WALK_CELLS] = v;
-    walk_cells.kept[cell - WALK_CELLS] = true;
-}
-
-static void record_cell_word(uint8_t cell, uint16_t v)
-{
-    record_cell(cell, (uint8_t)v);
-    record_cell((uint8_t)(cell + 1), (uint8_t)(v >> 8));
-}
-
-enum { AHEAD_CELLS = 0x70 };
-
-static void leave_walk_cells(GameState *g)
-{
-    for (uint8_t cell = WALK_CELLS; cell < WALK_CELLS_END; cell++) {
-        if (!walk_cells.kept[cell - WALK_CELLS])
-            continue;
-        uint8_t v = walk_cells.value[cell - WALK_CELLS];
-        if (cell < AHEAD_CELLS)
-            original_layer_cell8(g, cell, v);
-        else if (cell < AHEAD_CELLS + 2)
-            set_field_walk_ahead_x(g, (uint16_t)(cell == AHEAD_CELLS ? (field_walk_ahead_x(g) & 0xFF00) | v
-                                                                       : (field_walk_ahead_x(g) & 0x00FF) | v << 8));
-        else
-            set_field_walk_ahead_y(g, (uint16_t)(cell == AHEAD_CELLS + 2 ? (field_walk_ahead_y(g) & 0xFF00) | v
-                                                                           : (field_walk_ahead_y(g) & 0x00FF) | v << 8));
-    }
-}
-
-/* The cells, by what the walk keeps in them. */
-enum {
-    CELL_SCREEN_CHECK = 0x52,   /* also a floor's speed, an exit's how */
-    CELL_SCREEN_CHECK_BACK = 0x54,   /* also the slope's sum */
-    CELL_HEIGHT_IN_TILE = 0x56,
-    CELL_PROPERTIES = 0x58, CELL_UPPER_ATTRIBUTES = 0x5A, CELL_LOWER_ATTRIBUTES = 0x5C,
-    CELL_SHAPE = 0x60,
-    CELL_AT_X = 0x62, CELL_AT_Y = 0x64, CELL_LOOK_X = 0x66, CELL_LOOK_Y = 0x68,
-    CELL_LEVEL = 0x6A, CELL_CROSSING = 0x6C, CELL_PRIORITY_LOWER = 0x6E, CELL_PRIORITY_UPPER = 0x6F,
-    CELL_AHEAD_X = 0x70, CELL_AHEAD_Y = 0x72,
-};
-
 /* ---- The map under a point -------------------------------------------------------------- */
 
 /* A point on the map, 1/16 pixel, the tile in the high byte. */
 typedef FieldPosition MapPoint;
+
+/* The walk's estimate used to include its final temporary writes, once per
+ * kind of work even when several probes repeated it. Keep that estimate as
+ * work, without retaining any of the temporary values or their storage. */
+typedef struct {
+    bool ground, slope, landing, screen, screen_back;
+} WalkWork;
+
+static void charge_walk_work(GameState *g, WalkWork work, unsigned probes)
+{
+    charge_legacy_accesses(g, probes + (work.ground ? 9 : 0) +
+        (work.landing ? 16 : 0) + (work.screen ? 1 : 0) +
+        (work.slope || work.screen_back ? 1 : 0));
+}
 
 static MapPlace place_of(const GameState *g, MapPoint p)
 {
     uint16_t index = (uint16_t)((p.y & 0xFF00) | (p.x >> 8)) & field_map_index_mask(g);
     return map_place_at(index);
 }
-
 
 /* What the map says of a point: the level of the tile's part it is on,
  * whether that part is a crossing, whether the tile is a climb, and the
@@ -173,7 +118,6 @@ static bool on_upper_part(const GameState *g, TileShape shape, uint8_t fine_x, u
     default:
         if (tile_shape_is_a_slope(shape)) {
             FieldSlopeSum s = field_slope_sum(g, tile_shape_slope(shape), fine_x, fine_y);
-            ORIGINAL_EFFECT(record_cell(CELL_SCREEN_CHECK_BACK, s.sum));
             return s.upper;
         }
         return false;
@@ -183,19 +127,6 @@ static bool on_upper_part(const GameState *g, TileShape shape, uint8_t fine_x, u
 /* The byte the original keeps a tile part's crossing as: the crossing bit
  * where the part's level sits. */
 static uint8_t crossing_byte(uint8_t lower, uint8_t shift) { return (uint8_t)(lower & TILE_CROSSING_BIT << shift); }
-
-static void record_ground(Ground ground, TileShape shape, uint8_t fine_y, uint8_t shift)
-{
-    record_cell(CELL_PROPERTIES, ground.tile.properties);
-    record_cell(CELL_UPPER_ATTRIBUTES, ground.tile.upper);
-    record_cell(CELL_LOWER_ATTRIBUTES, ground.tile.lower);
-    record_cell(CELL_HEIGHT_IN_TILE, (uint8_t)(fine_y >> 2));
-    record_cell(CELL_SHAPE, shape >= SHAPE_FIRST_SLOPE ? tile_shape_slope(shape) : 0);
-    record_cell(CELL_LEVEL, ground.level);
-    record_cell(CELL_CROSSING, crossing_byte(ground.tile.lower, shift));
-    record_cell(CELL_PRIORITY_LOWER, (uint8_t)(tile_priority(ground.tile.upper) << 4));
-    record_cell(CELL_PRIORITY_UPPER, (uint8_t)(tile_priority(ground.tile.lower) << 4));
-}
 
 /* The byte of the layers' page the original notes a climb in is the one the
  * layers' edges keep their wrap in (field/layers.c), which reads it there
@@ -209,17 +140,18 @@ static void note_climb(GameState *g, bool climb)
 
 // $C0:9AB2 (the attributes), $C0:9AD3 (the level)
 /* What the map says at a point of a tile. */
-static Ground ground_at(GameState *g, MapPlace place, uint8_t fine_x, uint8_t fine_y)
+static Ground ground_at(GameState *g, MapPlace place, uint8_t fine_x, uint8_t fine_y, WalkWork *work)
 {
     Ground ground = { 0 };
     ground.tile = map_tile_attributes(g, place);
     TileShape shape = tile_shape(ground.tile);
+    work->ground = true;
+    work->slope |= tile_shape_is_a_slope(shape);
     ground.climb = shape == SHAPE_CLIMB;
     note_climb(g, ground.climb);
     uint8_t shift = on_upper_part(g, shape, fine_x, fine_y) ? TILE_UPPER_PART_SHIFT : TILE_LOWER_PART;
     ground.level = (MapLevel)(ground.tile.lower >> shift & TILE_LEVEL_BITS);
     ground.crossing = crossing_byte(ground.tile.lower, shift) != 0;
-    ORIGINAL_EFFECT(record_ground(ground, shape, fine_y, shift));
     return ground;
 }
 
@@ -285,6 +217,7 @@ typedef struct {
     FieldPosition at;
     Step step;
     MapPoint look;
+    WalkWork work;
 } Walk;
 
 typedef enum { WAY_OPEN, WAY_WALL, WAY_OTHER_LEVEL } Way;
@@ -304,14 +237,12 @@ enum { THE_WALK = 0xC0881E, ACCESSES_A_LOOK = 12, ACCESSES_THE_GROUND = 24 };
 static Way look(GameState *g, Walk *w, uint16_t x, uint16_t y)
 {
     w->look = (MapPoint){ x, y };
-    ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_X, x));
-    ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_Y, y));
     MapPlace place = place_of(g, w->look);
     charge_as(g, THE_WALK, ACCESSES_A_LOOK);
     if (!(field_tile_walkable(g, place.row, place.column) & WALKABLE))
         return WAY_WALL;
     charge_as(g, THE_WALK, ACCESSES_THE_GROUND);
-    Ground ground = ground_at(g, place, (uint8_t)x, (uint8_t)y);
+    Ground ground = ground_at(g, place, (uint8_t)x, (uint8_t)y, &w->work);
     if (ground.climb)
         w->step.y = slowed_to_a_climb(w->step.y);
     return reachable(g, ground) ? WAY_OPEN : WAY_OTHER_LEVEL;
@@ -390,8 +321,6 @@ static bool met_past_the_tables(GameState *g, FieldObject start, MapPoint p, boo
  * (above). */
 static bool object_stands_in_the_way(GameState *g, MapPoint p)
 {
-    ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_X, p.x));
-    ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_Y, p.y));
     FieldObject start = object_search_start(g);
     bool stops_past = false;
     if (start >= FIELD_OBJECTS && met_past_the_tables(g, start, p, &stops_past))
@@ -427,12 +356,6 @@ static uint16_t left_side_as_aslant(uint16_t x) { return (uint16_t)(left_side(x)
  * right, but within the map's first pixel (the same, with the nudge). */
 static uint16_t right_side_nudged_left(uint16_t x) { return (uint16_t)(right_side(x) - NUDGE + (x >= NUDGE)); }
 
-static void record_at(const Walk *w)
-{
-    record_cell_word(CELL_AT_X, w->at.x);
-    record_cell_word(CELL_AT_Y, w->at.y);
-}
-
 // $C0:8AB5 (right), $C0:8BC4 (left)
 /* Walking across: the box's leading side at its feet and its head. Where the
  * head meets something, the leader steps down around it; where the feet meet
@@ -440,7 +363,6 @@ static void record_at(const Walk *w)
  * can't go on across goes on alone. */
 static bool walk_across(GameState *g, Walk *w)
 {
-    ORIGINAL_EFFECT(record_at(w));
     bool right = w->step.x > 0;
     uint16_t front = (uint16_t)((right ? right_side(w->at.x) : left_side(w->at.x)) + w->step.x);
     if (object_stands_in_the_way(g, (MapPoint){ front, (uint16_t)(w->at.y - OBJECT_HEIGHT) })) {
@@ -490,7 +412,6 @@ static bool walk_across(GameState *g, Walk *w)
  * the left side does, right; a wall stops it. */
 static bool walk_along(GameState *g, Walk *w)
 {
-    ORIGINAL_EFFECT(record_at(w));
     bool up = w->step.y < 0;
     uint16_t row = (uint16_t)((up ? top_side(w->at.y) : w->at.y) + w->step.y);
     if (object_stands_in_the_way(g, (MapPoint){ w->at.x, row })) {
@@ -562,7 +483,6 @@ typedef struct {
  * on both ends, it stops, as it does where both are blocked. */
 static bool walk_aslant(GameState *g, Walk *w, Aslant a)
 {
-    ORIGINAL_EFFECT(record_at(w));
     bool up = w->step.y < 0;
     uint16_t row = (uint16_t)((up ? top_side(w->at.y) : w->at.y) + w->step.y);
     uint16_t corner = side_x(w, a.leading);
@@ -605,21 +525,19 @@ enum { NO_EXIT = 0x80, ONE_TILE = 0x100, NEAR_THE_EXIT = 0x3F };
 /* An exit on the tile the leader steps onto takes the party to its location:
  * where the exit's column is the tile's, anywhere near its row, or where its
  * row is. */
-static void take_an_exit(GameState *g, MapPlace place, MapPoint to)
+static void take_an_exit(GameState *g, MapPlace place, MapPoint to, WalkWork *work)
 {
     uint8_t exit = field_tile_exits(g, place.row, place.column);
     if (exit & NO_EXIT)
         return;
-    ORIGINAL_EFFECT(hw_set_multiplicand(g, exit));
-    ORIGINAL_EFFECT(hw_multiply_by(g, 7));
     FieldExit e = field_exit(g, field_location_exits(g), exit);
+    work->screen = true;
     uint8_t column = (uint8_t)(to.x >> 8), row = (uint8_t)(to.y >> 8);
     int8_t rows_off = (int8_t)(e.y - row);
     uint8_t distance = rows_off < 0 ? (uint8_t)-rows_off : (uint8_t)rows_off;
     bool on = e.x == column ? distance < NEAR_THE_EXIT : e.y == row;
     if (!on)
         return;
-    ORIGINAL_EFFECT(record_cell(CELL_SCREEN_CHECK, (uint8_t)(e.map_and_how >> 8)));
     field_set_next_location(g, location_from(e.map_and_how, e.to_x, e.to_y));
     field_request(g, FIELD_REQUEST_LOCATION_CHANGE);
 }
@@ -647,7 +565,6 @@ typedef enum { FLOOR_UP, FLOOR_DOWN, FLOOR_LEFT, FLOOR_RIGHT } FloorWay;
 static Velocity floor_pull(uint8_t upper_attributes)
 {
     uint8_t speed = floor_speeds[(upper_attributes & TILE_FLOOR_SPEED) >> 2];
-    ORIGINAL_EFFECT(record_cell(CELL_SCREEN_CHECK, speed));
     switch ((FloorWay)(upper_attributes & TILE_FLOOR_WAY)) {
     case FLOOR_UP: return (Velocity){ 0, (int8_t)-speed };
     case FLOOR_DOWN: return (Velocity){ 0, (int8_t)speed };
@@ -666,12 +583,9 @@ static void step_onto(GameState *g, Walk *w)
     MapPoint to = { (uint16_t)(w->at.x + w->step.x), (uint16_t)(w->at.y + w->step.y) };
     MapPoint ahead = { to.x, (uint16_t)((int8_t)w->step.y < 0 ? to.y - ONE_TILE : to.y + ONE_TILE) };
     w->look = to;
-    ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_X, to.x));
-    ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_Y, to.y));
-    ORIGINAL_EFFECT(record_cell_word(CELL_AHEAD_X, ahead.x));
-    ORIGINAL_EFFECT(record_cell_word(CELL_AHEAD_Y, ahead.y));
+    w->work.landing = true;
     MapPlace place = place_of(g, to);
-    Ground ground = ground_at(g, place, (uint8_t)to.x, (uint8_t)to.y);
+    Ground ground = ground_at(g, place, (uint8_t)to.x, (uint8_t)to.y, &w->work);
     if (ground.climb)
         w->step.y = slowed_to_a_climb(w->step.y);
     if (!reachable(g, ground)) {
@@ -680,7 +594,7 @@ static void step_onto(GameState *g, Walk *w)
     }
     bool changing_place = field_requested(g, FIELD_REQUEST_LOCATION_CHANGE);
     if (!changing_place)
-        take_an_exit(g, place, to);
+        take_an_exit(g, place, to, &w->work);
     set_off_a_step_event(g, ahead, changing_place);
     if (!ground.crossing) {
         set_field_leader_level(g, ground.level);
@@ -689,6 +603,7 @@ static void step_onto(GameState *g, Walk *w)
         walker_take_priorities(g, w->leader, tile_priority(ground.tile.lower), tile_priority(ground.tile.upper));
     }
     bool moving_floor = (ground.tile.upper & TILE_FLOOR_SPEED) != 0;
+    w->work.screen |= moving_floor;
     set_leader_ground(g, leader_ground_of(ground.climb, moving_floor));
     Velocity pull = moving_floor ? floor_pull(ground.tile.upper) : (Velocity){ 0, 0 };
     set_field_floor_pull_x(g, (uint8_t)pull.x);
@@ -755,15 +670,15 @@ static Velocity keep_to_the_map(GameState *g, FieldLeader leader, Velocity step)
     if (step.x < 0 && field_map_edges_left(g) >= t.x)
         moved.x = 0;
     if (step.x > 0) {
-        ORIGINAL_EFFECT(original_cell8(g, 0xD9, field_map_edges_right(g)));
+        charge_legacy_accesses(g, 2); /* the right edge's temporary read and write */
         if (t.x >= field_map_edges_right(g))
             moved.x = 0;
     }
     if (step.y < 0 && (uint8_t)(field_map_edges_top(g) + 1) >= t.y)
         moved.y = 0;
     if (step.y > 0) {
+        charge_legacy_accesses(g, 1); /* the lower edge's temporary */
         uint8_t last = (uint8_t)(field_map_edges_bottom(g) + 1);
-        ORIGINAL_EFFECT(original_cell8(g, 0xD9, last));
         if (t.y >= last)
             moved.y = 0;
     }
@@ -804,17 +719,24 @@ static uint8_t fine_scroll(const GameState *g, Axis axis)
 /* Whether the screen follows the leader forward (right, down) or back by
  * `pixels`: short of the map's edge, while the leader is past the screen's
  * middle that way; at the edge, only as far as the screen's last tile. */
-static bool screen_follows(const GameState *g, FieldLeader leader, Axis axis, bool forward, uint8_t pixels)
+static bool screen_follows(GameState *g, FieldLeader leader, Axis axis, bool forward, uint8_t pixels, WalkWork *work)
 {
     uint8_t screen = screen_leading_edge(g, axis, forward), edge = map_edge(g, axis, forward);
     uint8_t middle = axis == AXIS_X ? SCREEN_MIDDLE_X : SCREEN_MIDDLE_Y;
+    work->screen = true;
     if (forward) {
-        if (screen < edge)
-            return leader_on_screen(g, leader, axis) > middle;
-        if (screen > edge)
-            return false;
-        return (uint8_t)(fine_scroll(g, axis) + pixels) < FIELD_MAP_TILE_PIXELS;
+        bool follows = screen < edge ? leader_on_screen(g, leader, axis) > middle :
+            screen > edge ? false : (uint8_t)(fine_scroll(g, axis) + pixels) < FIELD_MAP_TILE_PIXELS;
+        if (axis == AXIS_Y && !follows) {
+            work->screen_back = true;
+            /* The old downward check also left a backward check: three
+             * edge reads and, at the edge, one fine-scroll read. */
+            charge_legacy_accesses(g, screen == edge ? 4 : 3);
+        }
+        return follows;
     }
+    work->screen_back = true;
+    charge_legacy_accesses(g, 1); /* the backward check's edge read */
     if (edge < screen)
         return leader_on_screen(g, leader, axis) < middle;
     if (edge > screen)
@@ -822,63 +744,29 @@ static bool screen_follows(const GameState *g, FieldLeader leader, Axis axis, bo
     return (int8_t)(fine_scroll(g, axis) - pixels) >= 0;
 }
 
-/* For the original's code and shadow mode: what each check leaves in the
- * walk's cells -- forward, how far; back, how far and the screen's edge that
- * way. The original, turning down the screen's step down, goes on into its
- * check up with what the check down ended on (the screen's middle short of
- * the map's edge, the screen's edge past it, and at it the fine scroll with
- * the step), negated and made pixels, which only these cells show. */
-static void leave_screen_check(const GameState *g, Axis axis, bool forward, uint8_t pixels)
-{
-    if (forward) {
-        record_cell(CELL_SCREEN_CHECK, pixels);
-        return;
-    }
-    record_cell(CELL_SCREEN_CHECK_BACK, pixels);
-    record_cell(CELL_SCREEN_CHECK, screen_leading_edge(g, axis, false));
-}
-
-static void leave_check_down_turned_back(const GameState *g, uint8_t pixels)
-{
-    uint8_t screen = screen_leading_edge(g, AXIS_Y, true), edge = map_edge(g, AXIS_Y, true);
-    uint8_t ended_on = screen < edge ? SCREEN_MIDDLE_Y : screen > edge ? screen : (uint8_t)(fine_scroll(g, AXIS_Y) + pixels);
-    leave_screen_check(g, AXIS_Y, false, (uint8_t)((uint8_t)-ended_on >> 4));
-}
-
 static uint8_t pixels_of(int8_t step) { return (uint8_t)((step < 0 ? -step : step) >> 4); }
 
 /* Whether the screen follows the leader one way on an axis. */
-static bool screen_follows_step(const GameState *g, FieldLeader leader, Axis axis, int8_t step)
+static bool screen_follows_step(GameState *g, FieldLeader leader, Axis axis, int8_t step, WalkWork *work)
 {
     bool forward = step > 0;
-    ORIGINAL_EFFECT(leave_screen_check(g, axis, forward, pixels_of(step)));
-    return screen_follows(g, leader, axis, forward, pixels_of(step));
+    return screen_follows(g, leader, axis, forward, pixels_of(step), work);
 }
 
 // $C0:99DE
 /* The screen follows the leader's step on each axis where it may. */
-static Velocity follow_with_the_screen(GameState *g, FieldLeader leader, Velocity step)
+static Velocity follow_with_the_screen(GameState *g, FieldLeader leader, Velocity step, WalkWork *work)
 {
     Velocity screen = step;
-    if (step.x != 0 && !screen_follows_step(g, leader, AXIS_X, step.x))
+    if (step.x != 0 && !screen_follows_step(g, leader, AXIS_X, step.x, work))
         screen.x = 0;
-    if (step.y != 0 && !screen_follows_step(g, leader, AXIS_Y, step.y)) {
+    if (step.y != 0 && !screen_follows_step(g, leader, AXIS_Y, step.y, work)) {
         screen.y = 0;
-        if (step.y > 0)
-            ORIGINAL_EFFECT(leave_check_down_turned_back(g, pixels_of(step.y)));
     }
     return screen;
 }
 
 /* ---- The walk ----------------------------------------------------------------------------------- */
-
-/* The sign the walk makes the high byte of the screen's step on each axis,
- * as it works the step out as a word; nothing reads it. */
-static void leave_step_signs(GameState *g, Step step)
-{
-    set_field_screen_scroll_step_high(g, AXIS_X, (uint8_t)((uint16_t)step.x >> 8));
-    set_field_screen_scroll_step_high(g, AXIS_Y, (uint8_t)((uint16_t)step.y >> 8));
-}
 
 /* Where the screen's recentring onto the grid is (field_screen_recentring):
  * none under way, starting, or under way. */
@@ -907,14 +795,13 @@ static Velocity pad_and_pull(const GameState *g, Velocity *walk)
  * field/object.h). */
 void leader_walks(GameState *g)
 {
-    ORIGINAL_EFFECT(forget_walk_cells());
     FieldLeader leader = field_leader(g);
     leader_loses_contact(g);
     Velocity walk;
     Velocity first = pad_and_pull(g, &walk);
     set_field_leader_walk_x(g, (uint8_t)walk.x);
     set_field_leader_walk_y(g, (uint8_t)walk.y);
-    Walk w = { leader, { 0, 0 }, { first.x, first.y }, { 0, 0 } };
+    Walk w = { leader, { 0, 0 }, { first.x, first.y }, { 0, 0 }, { false } };
     bool against_the_map = field_leader_collides(g) != 0 && (w.step.x != 0 || w.step.y != 0);
     if (against_the_map) {
         w.at = field_leader_position(g, leader);
@@ -924,16 +811,15 @@ void leader_walks(GameState *g)
     Velocity moved = keep_to_the_map(g, leader, step);
     set_field_leader_movement_x(g, (uint8_t)moved.x);
     set_field_leader_movement_y(g, (uint8_t)moved.y);
-    Velocity screen = follow_with_the_screen(g, leader, step);
+    Velocity screen = follow_with_the_screen(g, leader, step, &w.work);
     set_field_screen_scroll_step(g, AXIS_X, (uint8_t)screen.x);
     set_field_screen_scroll_step(g, AXIS_Y, (uint8_t)screen.y);
-    if (against_the_map)
-        ORIGINAL_EFFECT(leave_step_signs(g, w.step));
-    ORIGINAL_EFFECT(leave_walk_cells(g));
+    /* An attempted map walk recorded the origin and probe (eight accesses)
+     * and two step signs; a landing and ground checks add their work above. */
+    charge_walk_work(g, w.work, against_the_map ? 10 : 0);
 }
 
 /* ---- The screen back onto the grid --------------------------------------------------------------- */
-
 
 /* The screen's step back onto the grid: a pixel, toward the leader. */
 enum { A_PIXEL_FORWARD = 0x10, A_PIXEL_BACK = 0xF0 };
@@ -1001,7 +887,6 @@ void screen_recentring_moved(GameState *g)
 
 /* ---- A map's start ------------------------------------------------------------------------------- */
 
-
 MapPlace field_start_place(const GameState *g)
 {
     return map_place_at((uint16_t)((location_y(g) << 8 | location_x(g)) & field_map_index_mask(g)));
@@ -1016,10 +901,8 @@ MapPlace field_start_place(const GameState *g)
 void party_start_on_the_map(GameState *g)
 {
     party_trail_start(g);
-    ORIGINAL_EFFECT(forget_walk_cells());
-    ORIGINAL_EFFECT(record_cell(CELL_LOOK_X, FIELD_START_FINE_X));
-    ORIGINAL_EFFECT(record_cell(CELL_LOOK_Y, FIELD_START_FINE_Y));
-    Ground ground = ground_at(g, field_start_place(g), FIELD_START_FINE_X, FIELD_START_FINE_Y);
+    WalkWork work = { false };
+    Ground ground = ground_at(g, field_start_place(g), FIELD_START_FINE_X, FIELD_START_FINE_Y, &work);
     if (ground.climb) {
         int16_t vertical = (int8_t)field_screen_scroll_step(g, AXIS_Y);
         set_field_screen_scroll_step(g, AXIS_Y, (uint8_t)slowed_to_a_climb(vertical));
@@ -1034,7 +917,7 @@ void party_start_on_the_map(GameState *g)
     party_place_layered(g, PARTY_FIRST_MEMBER, upper_half, upper_half);
     party_place_layered(g, PARTY_SECOND_MEMBER, upper_half, upper_half);
     set_leader_ground(g, leader_ground_of(ground.climb, false));
-    ORIGINAL_EFFECT(leave_walk_cells(g));
+    charge_walk_work(g, work, 2); /* the initial probe's two fine coordinates */
 }
 
 /* ---- The entries -------------------------------------------------------------------------------- */
@@ -1047,7 +930,8 @@ enum { NOTHING_READ = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 static bool scroll_the_layers(Snes *s, uint32_t scroll_site, uint32_t edges_site)
 {
     BridgeMachine m = { false, FIELD_LAYERS_PAGE, s->cpu.db };
-    return bridge_call(s, scroll_site, 0xC091AC, NOTHING_READ, m) && bridge_call(s, edges_site, 0xC093E1, NOTHING_READ, m);
+    return field_run_called(s, scroll_site, 0xC091AC, NOTHING_READ, field_update_layer_scroll, m) &&
+           field_run_called(s, edges_site, 0xC093E1, NOTHING_READ, field_stream_the_layers, m);
 }
 
 static void on_the_layers_page(Snes *s) { m_push16(s, s->cpu.d), s->cpu.d = FIELD_LAYERS_PAGE; }
@@ -1090,7 +974,7 @@ static bool scroll(void *ctx, LayersScroll after)
     GameState *g = ctx;
     TIMED_AS(g, LAYER_SCROLL, field_layer_scroll_updated(g));
     if (!layers_repeat_within_the_maps(g)) {
-        program_needs_the_machine(g, LAYERS_STREAMED, "layers the port doesn't stream");
+        program_breaks_a_contract(g, LAYERS_STREAMED, "layers the port doesn't stream");
         return false;
     }
     TIMED_AS(g, LAYERS_STREAMED, stream_the_layers(g));
@@ -1103,7 +987,7 @@ static bool walk_fits(const GameState *g);
 bool field_the_leader_walks(GameState *g)
 {
     if (!walk_fits(g)) {
-        program_needs_the_machine(g, THE_WALK, "a walk the port doesn't take");
+        program_breaks_a_contract(g, THE_WALK, "a walk the port doesn't take");
         return false;
     }
     return walk_the_leader(g, scroll, g);
@@ -1124,7 +1008,7 @@ static bool recentring_fits(const GameState *g)
 bool field_the_screen_recentres(GameState *g)
 {
     if (!recentring_fits(g)) {
-        program_needs_the_machine(g, 0xC0885A, "a recentring with no leader the tables hold");
+        program_breaks_a_contract(g, 0xC0885A, "a recentring with no leader the tables hold");
         return false;
     }
     return recentre(g, scroll, g);
@@ -1232,28 +1116,4 @@ bool party_start_fits(const GameState *g)
             return false;
     }
     return (field_map_index_mask(g) & ~WITHIN_THE_MAPS) == 0;
-}
-
-bool field_party_can_start(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool fits = party_start_fits(state_of(s));
-    vars_peek(false);
-    return fits;
-}
-
-// $C0:9DC3
-/* The openings have finished: place the party on the map. Only Y and V
- * survive to the caller, from the ground's slope calculation. */
-void field_start_the_party(Snes *s)
-{
-    GameState *g = state_of(s);
-    bool slope = field_start_on_a_slope(g);
-    bool overflow = field_start_overflow(g, m_flag(s, CPU_FLAG_V));
-    party_start_on_the_map(g);
-    ORIGINAL_EFFECT(s->cpu.y = slope ? 0 : (uint16_t)(s->cpu.y & 0x00FF));
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, overflow));
-    m_rts(s);
 }

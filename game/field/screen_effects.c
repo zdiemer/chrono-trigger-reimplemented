@@ -448,16 +448,21 @@ static void ripple_begins(GameState *g)
 static void ripple_circle_opens(GameState *g)
 {
     choose_windows(g, &HOLE);
+    set_scene_circle_center_x(g, RIPPLE_X);
+    set_scene_circle_center_y(g, RIPPLE_Y);
     set_field_circle_radius(g, RIPPLE_START_RADIUS);
     window_line_effect(g, SLOT_WINDOW1, true);
 }
 
 // $C0:2725
 /* The ripple's circle at the radius it has reached, over what the table
- * holds outside it. */
+ * holds outside it. The center survives a held frame; only its low bytes
+ * are state here. The circle renderer's compatibility write clears the high
+ * bytes and leaves these low bytes unchanged. */
 static void draw_the_ripple(GameState *g)
 {
-    draw_circle(g, RIPPLE_X, RIPPLE_Y, field_circle_radius(g), SCENE_CIRCLE_KEEPS_OUTSIDE);
+    draw_circle(g, (uint8_t)scene_circle_center_x(g), (uint8_t)scene_circle_center_y(g),
+                field_circle_radius(g), SCENE_CIRCLE_KEEPS_OUTSIDE);
 }
 
 static void ripple_ends(GameState *g)
@@ -570,20 +575,36 @@ static const struct {
 };
 enum { RIPPLE_STRETCHES = sizeof ripple_stretches / sizeof ripple_stretches[0] };
 
-static bool ripple_stretch(GameState *g, unsigned stretch, const EffectCalls *calls, void *ctx)
+static bool ripple_stretch(GameState *g, unsigned stretch, uint8_t left, const EffectCalls *calls, void *ctx)
 {
     Moment at = ripple_stretches[stretch].moment;
-    for (uint8_t left = ripple_stretches[stretch].frames; left != 0; left--) {
+    for (; left != 0; left--) {
         if (ripple_stretches[stretch].shown) {
             draw_the_ripple(g);
             set_field_circle_radius(g, (uint8_t)(field_circle_radius(g) + ripple_stretches[stretch].growth));
         }
-        ORIGINAL_EFFECT(set_field_ripple_frames_left(g, left));
+        set_field_ripple_frames_left(g, left);
         if (!calls->refresh(ctx, at) || !calls->wait_a_frame(ctx, at))
             return false;
     }
-    ORIGINAL_EFFECT(set_field_ripple_frames_left(g, 0));
+    set_field_ripple_frames_left(g, 0);
     return true;
+}
+
+/* The stretch and its remaining frames survive each held frame boundary.
+ * The counter is game state: resuming a ripple reads it. */
+static bool ripple_continues(GameState *g, unsigned stretch, uint8_t left, const EffectCalls *calls, void *ctx)
+{
+    if (!ripple_stretch(g, stretch, left, calls, ctx))
+        return false;
+    for (stretch++; stretch < RIPPLE_STRETCHES; stretch++) {
+        if (ripple_stretches[stretch].moment == RIPPLE_GROWING)
+            ripple_circle_opens(g);
+        if (!ripple_stretch(g, stretch, ripple_stretches[stretch].frames, calls, ctx))
+            return false;
+    }
+    ripple_ends(g);
+    return calls->refresh(ctx, RIPPLE_ENDS) && calls->wait_a_frame(ctx, RIPPLE_ENDS);
 }
 
 // $C0:264F
@@ -599,17 +620,10 @@ static bool play_the_ripple(GameState *g, const EffectCalls *calls, void *ctx)
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG2);
     ripple_begins(g);
-    ORIGINAL_EFFECT(set_field_ripple_frames_left(g, RIPPLE_SETTLES));
+    set_field_ripple_frames_left(g, RIPPLE_SETTLES);
     if (!calls->wait_a_frame(ctx, RIPPLE_BEGINS))
         return false;
-    for (unsigned stretch = 0; stretch < RIPPLE_STRETCHES; stretch++) {
-        if (ripple_stretches[stretch].moment == RIPPLE_GROWING)
-            ripple_circle_opens(g);
-        if (!ripple_stretch(g, stretch, calls, ctx))
-            return false;
-    }
-    ripple_ends(g);
-    return calls->refresh(ctx, RIPPLE_ENDS) && calls->wait_a_frame(ctx, RIPPLE_ENDS);
+    return ripple_continues(g, 0, RIPPLE_SETTLES, calls, ctx);
 }
 
 /* ---- A frame's step ----------------------------------------------------------------------------- */
@@ -719,7 +733,7 @@ bool field_screen_effect_moved_on(GameState *g, Platform *pf)
     static const EffectCalls in_the_program = { sweep_the_curtain, draw_bg1, refresh_the_effects, wait_for_the_frame, put_the_field_aside,
                                       start_the_scene };
     if (!effect_fits(g)) {
-        program_needs_the_machine(g, SCREEN_EFFECT, "a screen effect the port doesn't draw");
+        program_breaks_a_contract(g, SCREEN_EFFECT, "a screen effect the port doesn't draw");
         return false;
     }
     ScreenEffectContext c = { g, pf };
@@ -781,10 +795,10 @@ static bool wait_on_the_machine(void *ctx, Moment at)
 {
     Snes *s = ctx;
     if (at == RIPPLE_ENDS) {
-        TIMED_AS(state_of(s), FIELD_FRAME_WAIT, field_finish_frame(s));
+        field_hold_finished_frame(s, 0);
         return false;
     }
-    return bridge_call(s, calls_at[at].wait, FIELD_FRAME_WAIT, READS_NOTHING, on_the_field_page(s, false));
+    return field_hold_next_frame(s, calls_at[at].wait, READS_NOTHING, on_the_field_page(s, false));
 }
 
 static bool battle_set_up_on_the_machine(void *ctx)
@@ -804,13 +818,51 @@ static void the_scene_starts_on_the_machine(void *ctx)
     TIMED_AS(state_of(s), THE_SCENE_STARTS, field_close_into_the_scene(s));
 }
 
-static bool step_on_the_machine(Snes *s)
-{
-    static const EffectCalls on_the_machine = { sweep_on_the_machine,   draw_bg1_on_the_machine,
+static const EffectCalls on_the_machine = { sweep_on_the_machine,   draw_bg1_on_the_machine,
                                                 refresh_on_the_machine, wait_on_the_machine,
                                                 battle_set_up_on_the_machine, the_scene_starts_on_the_machine };
+
+static bool step_on_the_machine(Snes *s)
+{
     return move_on_a_step(state_of(s), m_platform(s), &on_the_machine, s);
 }
+
+// $C0:2628
+void field_scene_close_puts_the_field_aside(Snes *s)
+{
+    if (battle_set_up_on_the_machine(s) && refresh_on_the_machine(s, CLOSE_ENDS)
+        && wait_on_the_machine(s, CLOSE_ENDS))
+        field_scene_close_starts_the_scene(s);
+}
+
+// $C0:2631
+void field_scene_close_starts_the_scene(Snes *s)
+{
+    field_hands_over(state_of(s), m_platform(s));
+    the_scene_starts_on_the_machine(s);
+}
+
+// $C0:268B
+void field_ripple_settles(Snes *s)
+{
+    (void)(refresh_on_the_machine(s, RIPPLE_SETTLING) && wait_on_the_machine(s, RIPPLE_SETTLING));
+}
+
+static void ripple_after_a_frame(Snes *s, unsigned stretch)
+{
+    GameState *g = state_of(s);
+    (void)ripple_continues(g, stretch, (uint8_t)(field_ripple_frames_left(g) - 1), &on_the_machine, s);
+}
+// $C0:2691
+void field_ripple_settled_a_frame(Snes *s) { ripple_after_a_frame(s, 0); }
+// $C0:26C7
+void field_ripple_grew_a_frame(Snes *s) { ripple_after_a_frame(s, 1); }
+// $C0:26DA
+void field_ripple_held_a_frame(Snes *s) { ripple_after_a_frame(s, 2); }
+// $C0:26F1
+void field_ripple_shrank_a_frame(Snes *s) { ripple_after_a_frame(s, 3); }
+// $C0:21ED
+void field_screen_effect_returns(Snes *s) { field_return_to_waiting_caller(s); }
 
 /* The steps that call on the field run as the original's table runs them,
  * from its JSR. */
@@ -842,4 +894,12 @@ bool field_screen_effect_can_move_on(Snes *s)
     bool ok = effect_fits(state_of(s));
     vars_peek(false);
     return ok;
+}
+
+// $C0:262B
+/* The scene close also resumes after a battle setup that found no enemies. */
+void field_scene_close_field_is_aside(Snes *s)
+{
+    if (refresh_on_the_machine(s, CLOSE_ENDS) && wait_on_the_machine(s, CLOSE_ENDS))
+        field_scene_close_starts_the_scene(s);
 }

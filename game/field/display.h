@@ -21,29 +21,10 @@ void field_forget_the_queued_transfers(GameState *g);
 void field_upload_layer_edge(GameState *g, Platform *pf, unsigned upload);
 bool field_layer_edges_fit(const GameState *g);
 
-void field_upload_sprites(Snes *s);
-void field_upload_vram_queue(Snes *s);
 /* The twelve deferred uploads of the layers' edge runs: a row or a column
  * scrolling into view, each layer's. */
-void field_upload_layer1_bottom_row(Snes *s);
-void field_upload_layer2_bottom_row(Snes *s);
-void field_upload_layer3_bottom_row(Snes *s);
-void field_upload_layer1_top_row(Snes *s);
-void field_upload_layer2_top_row(Snes *s);
-void field_upload_layer3_top_row(Snes *s);
-void field_upload_layer1_right_column(Snes *s);
-void field_upload_layer2_right_column(Snes *s);
-void field_upload_layer3_right_column(Snes *s);
-void field_upload_layer1_left_column(Snes *s);
-void field_upload_layer2_left_column(Snes *s);
-void field_upload_layer3_left_column(Snes *s);
-void field_init_video_mode(Snes *s);
-void field_set_screens(Snes *s);
-void field_vram_transfer(Snes *s);
 void field_irq(Snes *s);
-void field_fill_memory(Snes *s);
 bool field_display_bank_is_io(Snes *s);
-bool field_edge_runs_small(Snes *s);
 
 /* A transfer to VRAM the field describes (field_transfer) and sends at once
  * ($C0:2DC8), its size 0 for 64 KiB; and a stretch of work RAM cleared
@@ -70,11 +51,6 @@ enum { FIELD_VRAM_TRANSFER_ENTRY = 0xC02DC8, FIELD_FILL_MEMORY_ENTRY = 0xC02DF1 
 void field_send_staged_layer(GameState *g, Platform *pf, bool both_screens);
 void field_send_staged_bg2_screen(GameState *g, Platform *pf, bool right);
 void field_send_bg3_piece(const GameState *g, Platform *pf);
-void field_send_staged_screen(Snes *s);
-void field_send_staged_screens(Snes *s);
-void field_send_staged_bg2_right(Snes *s);
-void field_send_staged_bg2_left(Snes *s);
-void field_send_bg3_piece_entry(Snes *s);
 enum { FIELD_SEND_STAGED_SCREEN_ENTRY = 0xC07F62, FIELD_SEND_STAGED_SCREENS_ENTRY = 0xC07F77,
        FIELD_SEND_STAGED_BG2_RIGHT_ENTRY = 0xC07F58, FIELD_SEND_STAGED_BG2_LEFT_ENTRY = 0xC07F5D,
        FIELD_SEND_BG3_PIECE_ENTRY = 0xC0EC77 };
@@ -88,7 +64,5 @@ void field_show_the_maps_screens(const GameState *g, Platform *pf);
  * Y for the menus' per-frame routine; `none` where the queue is empty. */
 uint16_t field_queue_last_second_size(const GameState *g, uint16_t none);
 
-void field_redraw_after_picture(Snes *s);
-bool field_redraw_can_run(Snes *s);
 
 #endif

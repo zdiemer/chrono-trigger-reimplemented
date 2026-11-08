@@ -43,7 +43,7 @@ void field_wait_for_the_next_frame(Snes *s);
  * frame. Where the caller is the main loop, its rest is a continuation of the
  * wait: the next pass from the loop's head ($C0:00BD) or from the walk
  * ($C0:00A7, after a request that ended in the wait), and the wait again.
- * The address entries stay registered for shadow comparisons and old saves. */
+ * The held aliases preserve the saved wait state after comparison retires. */
 void field_next_frame(Snes *s);
 /* The field starting again on a fresh stack for a new location, and ending
  * for a scene: the one an event command asked for, or the field's close's. */
@@ -116,8 +116,6 @@ bool field_set_up_again(GameState *g, Platform *pf);
  * none (the put-aside's guard). */
 bool field_party_can_be_kept(const GameState *g);
 void field_start_location_song(Snes *s);
-void field_load_tile_graphics(Snes *s);
-void field_load_bg3_graphics(Snes *s);
 void field_load_tile_looks_entry(Snes *s);
 /* The tile set's looks loaded, and BG3's, as C ($C0:09DD, $C0:0A14). */
 void field_load_tile_looks(GameState *g);
@@ -128,8 +126,6 @@ bool field_party_can_be_put_aside(Snes *s);
  * script unpacked with the built-in commands after it. */
 void field_load_location_palette(GameState *g);
 void field_clear_the_layers_state(GameState *g, Platform *pf);
-void field_load_location_palette_entry(Snes *s);
-void field_clear_the_layers_state_entry(Snes *s);
 void field_load_the_script_entry(Snes *s);
 /* The location's event script unpacked, as C ($C0:56D4): false where it
  * doesn't fit, which the original checks. */

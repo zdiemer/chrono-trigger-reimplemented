@@ -206,12 +206,6 @@ static void set_window2_table(GameState *g, uint8_t set)
 
 enum { WAVE_PHASE_STEP = 0x3E };   /* the phase's even steps into the offsets' table */
 
-/* For the original's code and shadow mode (field/scratch.h): the original
- * counts the wave's line in the field page's cell the objects' motion keeps
- * its direction in (field_direction, which nothing moving uses while the
- * tables are built), and leaves it there. */
-static void leave_wave_line(GameState *g, uint8_t line) { set_field_direction(g, line); }
-
 // $FD:CC5E (set 0, BG3's table), $FD:CCB8 (set 1)
 /* `lines` lines of the wave, 16 or fewer to an entry, each entry starting at
  * the wave's line, which moves on past them. */
@@ -381,7 +375,6 @@ static void wave_band_table(GameState *g, TableWriter t, uint8_t set, const Layo
         }
     }
     end_table(g, t);
-    ORIGINAL_EFFECT(leave_wave_line(g, line));
 }
 
 /* The screens: the window's frame at the band's top and bottom, its body
@@ -429,15 +422,6 @@ enum {
     BOTTOM_WAVE_START = 0x58,   /* a waving BG3's table divides the first 129 lines 88 + 41 */
 };
 
-/* For the original's code and shadow mode (field/scratch.h): window 1's
- * table keeps a count of lines beside the band ($DB) and its last part's
- * pointer ($D9). */
-static void leave_window1_counts(GameState *g, uint8_t beside_band, uint16_t last_part)
-{
-    original_cell8(g, 0xDB, beside_band);
-    original_cell16(g, 0xD9, last_part);
-}
-
 /* Window 1 follows its per-line table (two bytes a line) outside the band,
  * reading on past the band's lines, and covers the whole line inside it. The
  * top window's last part is longer than the other tables'. */
@@ -445,17 +429,13 @@ static void window1_table(GameState *g, uint8_t set, WindowPosition position, co
 {
     TableWriter t = table_of(set, SLOT_WINDOW1);
     uint16_t lines = window_edge_lines_values(set);
-    uint8_t beside_band = 0;
     const uint8_t last = (uint8_t)(plain->count - 1);
     for (uint8_t i = 0; i < plain->count; i++) {
         uint8_t n = plain->lines[i];
         if (i == plain->band) {
             put(g, &t, n, window1_edges_values(set));
         } else {
-            if (i == plain->band - 1 || (position == WINDOW_AT_TOP && i == plain->band + 1))
-                beside_band = n;
             if (i == last) {
-                ORIGINAL_EFFECT(leave_window1_counts(g, beside_band, lines));
                 if (position == WINDOW_AT_TOP)
                     n = TOP_WINDOW1_END;
             }
@@ -561,20 +541,6 @@ enum {
     SHADED_LINES = SHADING_STEPS * SHADING_STEP + SHADING_STEP + SHADING_REST + SHADING_DEEPEST * SHADING_STEP,
 };
 
-/* For the original's code and shadow mode (field/scratch.h): the original
- * divides on the hardware divider, whose registers keep the division, and
- * keeps where its run would have ended next ($DB), its step and remainder in
- * bytes ($DD, $DF) and its last color ($E1) on the field's page. */
-static void leave_shading(GameState *g)
-{
-    hw_set_dividend(g, SHADING_LINES);
-    hw_divide_by(g, SHADING_STEPS);
-    original_cell8(g, 0xDB, (uint8_t)((SHADED_LINES + SHADING_STEP) * 2));
-    original_cell8(g, 0xDD, (uint8_t)(SHADING_STEP * 2));
-    original_cell8(g, 0xDF, (uint8_t)(SHADING_REST * 2));
-    original_cell8(g, 0xE1, vid_line_fixed_color(ALL_CHANNELS, SHADING_DEEPEST));
-}
-
 /* Table set 1's copy of the shading. The copy runs on past the shading's lines
  * into the start of the copy itself, which lies right after them, so its lines
  * past the shading's repeat its own first ones. */
@@ -599,7 +565,6 @@ static void fill_dialog_shading(GameState *g)
     shade(g, &line, SHADING_STEP + SHADING_REST, &SHADING_SUBTRACT, 0);
     for (uint8_t intensity = 1; intensity <= SHADING_DEEPEST; intensity++)
         shade(g, &line, SHADING_STEP, &SHADING_SUBTRACT, intensity);
-    ORIGINAL_EFFECT(leave_shading(g));
     copy_dialog_shading(g);
 }
 
@@ -773,20 +738,10 @@ static void leave(Snes *s, Leaves l, uint8_t a_low)
  * into bytes that aren't code, which stays the original's. */
 enum { LINE_BANK = 0x7F };
 bool field_line_effects_page_is_field(Snes *s) { return s->cpu.d == FIELD_PAGE; }
-bool field_line_effects_bank_is_7f(Snes *s) { return s->cpu.db == LINE_BANK; }
-bool field_line_effects_page_and_bank(Snes *s) { return s->cpu.d == FIELD_PAGE && s->cpu.db == LINE_BANK; }
 
 /* Sending the scroll is entered with window 2's table choice in the carry,
  * which the port takes from the choice itself. */
-bool field_line_effects_scroll_after_choice(Snes *s)
-{
-    if (!field_line_effects_page_and_bank(s))
-        return false;
-    vars_peek(true);
-    bool ok = window2_choice(state_of(s)) == m_flag(s, CPU_FLAG_C);
-    vars_peek(false);
-    return ok;
-}
+
 bool field_line_effects_page_reaches_ram(Snes *s) { return field_on_page_low_bank(s); }
 bool field_line_effects_can_build(Snes *s)
 {
@@ -807,23 +762,6 @@ void field_build_line_effect_tables(Snes *s)
     leave(s, leaves_after_build(g, set, position, m_flag(s, CPU_FLAG_V)), 0x01);
     m_rtl(s);
 }
-
-/* The builders, each an entry of its own: they return with 8-bit index
- * registers, whatever they were entered with. */
-static void builder_entry(Snes *s, uint8_t set, WindowPosition position)
-{
-    GameState *g = state_of(s);
-    build_for(g, set, position);
-    Leaves l = leaves_after_build(g, set, position, m_flag(s, CPU_FLAG_V));
-    leave(s, l, l.a_low);
-    m_rts(s);
-}
-void field_build_no_window_0(Snes *s) { builder_entry(s, 0, WINDOW_NONE); }
-void field_build_no_window_1(Snes *s) { builder_entry(s, 1, WINDOW_NONE); }
-void field_build_top_window_0(Snes *s) { builder_entry(s, 0, WINDOW_AT_TOP); }
-void field_build_top_window_1(Snes *s) { builder_entry(s, 1, WINDOW_AT_TOP); }
-void field_build_bottom_window_0(Snes *s) { builder_entry(s, 0, WINDOW_AT_BOTTOM); }
-void field_build_bottom_window_1(Snes *s) { builder_entry(s, 1, WINDOW_AT_BOTTOM); }
 
 /* The shading's block move leaves the overflow of its last run's end (and the
  * data bank its destination's, which only the fill hands back). */
@@ -853,98 +791,6 @@ void field_init_line_effect_values(Snes *s)
     m_rtl(s);
 }
 
-void field_fill_dialog_shading(Snes *s)
-{
-    fill_dialog_shading(state_of(s));
-    after_shading(s);
-    s->cpu.db = LINE_BANK;
-    m_rts(s);
-}
-
-static void window2_entry(Snes *s, uint8_t set)
-{
-    GameState *g = state_of(s);
-    set_window2_table(g, set);
-    s->cpu.x = (uint16_t)(window2_lines(g, set) + WHOLE_SCREEN_TOP);
-    m_set_flag(s, CPU_FLAG_C, window2_choice(g));
-    m_rts(s);
-}
-void field_set_window2_table_0(Snes *s) { window2_entry(s, 0); }
-void field_set_window2_table_1(Snes *s) { window2_entry(s, 1); }
-
-/* A's low byte is left the last count the table was written with. */
-static void bg2_entry(Snes *s, uint8_t set)
-{
-    GameState *g = state_of(s);
-    set_bg2_table(g, set);
-    m_set_a8(s, !bg2_waves(g) ? TABLE_END : (uint8_t)(LINES_EACH | WAVE_LINES));
-    m_rts(s);
-}
-void field_set_bg2_table_0(Snes *s) { bg2_entry(s, 0); }
-void field_set_bg2_table_1(Snes *s) { bg2_entry(s, 1); }
-
-/* Entered with window 2's table's last pointer in X. */
-static void send_scroll_entry(Snes *s, uint8_t set)
-{
-    GameState *g = state_of(s);
-    send_scroll(g, set);
-    Leaves l = leaves_after_send(g, set, false, s->cpu.x, m_flag(s, CPU_FLAG_V));
-    leave(s, l, field_fixed_color_math_layers(g));
-    m_rts(s);
-}
-void field_send_scroll_0(Snes *s) { send_scroll_entry(s, 0); }
-void field_send_scroll_1(Snes *s) { send_scroll_entry(s, 1); }
-
-/* The wave's pieces, each an entry of its own, pass the wave's line on in
- * the cell the original counts it in (leave_wave_line). */
-static uint8_t wave_line_kept(const GameState *g) { return (uint8_t)field_direction(g); }
-static void keep_wave_line(GameState *g, uint8_t line)
-{
-    set_field_direction(g, (uint16_t)((field_direction(g) & 0xFF00) | line));
-}
-
-// $FD:CC58
-void field_start_wave_table(Snes *s)
-{
-    set_field_direction(state_of(s), 0);
-    s->cpu.y = 0;
-    m_rts(s);
-}
-
-/* $FD:CC5E writes set 0's BG3 table, $FD:CCB8 set 1's; A is the lines and Y
- * the entry's offset in the table. A's high byte is left the last pointer's,
- * and its low byte the wave's line, or 0 where the lines ended with a whole
- * entry; $D9 the last entry's lines, the same way. */
-static void wave_part_entry(Snes *s, uint8_t set)
-{
-    GameState *g = state_of(s);
-    uint8_t lines = (uint8_t)s->cpu.a, line = wave_line_kept(g);
-    TableWriter t = { table_of(set, SLOT_BG3_SCROLL).table, s->cpu.y };
-    wave_part(g, &t, set, lines, &line);
-    keep_wave_line(g, line);
-    bool whole = lines >= WAVE_LINES && lines % WAVE_LINES == 0;
-    /* where the last entry points: the values of the line it started at */
-    uint8_t last_entry = lines == 0 ? 0 : whole ? WAVE_LINES : lines % WAVE_LINES;
-    uint16_t values = wave_values(set, (uint8_t)(line - last_entry) & (WAVE_LINES - 1));
-    original_cell8(g, 0xD9, whole ? 0 : lines % WAVE_LINES);
-    s->cpu.y = t.next;
-    s->cpu.a = (uint16_t)((values & 0xFF00) | (whole ? 0 : line));
-    m_rts(s);
-}
-void field_put_wave_part_0(Snes *s) { wave_part_entry(s, 0); }
-void field_put_wave_part_1(Snes *s) { wave_part_entry(s, 1); }
-
-// $FD:CCB2
-/* Lines that don't wave (the window band) still move the wave's line on. */
-void field_skip_wave_lines(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t line = (uint8_t)(wave_line_kept(g) + (uint8_t)s->cpu.a);
-    keep_wave_line(g, line);
-    m_set_a8(s, line);
-    m_rts(s);
-}
-
 // $C0:0AFF (through $C0:0005)
 /* Both table sets built afresh as the field's setup builds them, from its own
  * scroll and color math, and the line effects programmed from them; returns
@@ -963,7 +809,7 @@ uint8_t field_rebuild_line_effects(GameState *g, Platform *pf)
     return field_line_effect_enable(g);
 }
 
-/* Only A's low byte is read after it. */
+/* The still-gated battle handler's fallback at $D1:F4E2. */
 void field_rebuild_the_line_effects(Snes *s)
 {
     m_set_a8(s, field_rebuild_line_effects(state_of(s), m_platform(s)));
