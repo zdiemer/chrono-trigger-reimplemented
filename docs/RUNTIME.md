@@ -876,6 +876,9 @@ callers, including a suspended fade, event command or battle return. The
 wait itself has no suspended C frame; those callers can still have one.
 The idle rows declare their six-byte span through the return, so the
 fallback measure recognizes the exit pass as work the idle port performs.
+At a movie cutoff, the gate's bounded tail can certify the unfinished idle
+pass by its identity; a later pass at the same address cannot replace it
+(REIMPLEMENTATION.md, "A movie ending inside a comparison").
 One ID is sufficient because the saved stack already identifies the caller:
 no caller-specific state or pointer is stored in the hold.
 The returning wrapper's registry row names the loop-head wrapper as its `shadow_body`,

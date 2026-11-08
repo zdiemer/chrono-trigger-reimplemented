@@ -3030,6 +3030,9 @@ comparisons.
   and 25 timing-service calls enter `$C0:0B38` before naming its wait.
   Remove those caller-side machine dependencies during teardown while
   preserving arbitrary callers' returns and save/load behavior.
+  Three battle movies also retain 21 instructions under the returning
+  field pass's open comparison, the documented `open C0:00BD` allowance;
+  the field still waits inside that caller for the battle to finish.
   Loose-RAM fuzzing of the whole pass with `--with-registry` also needs
   follow-up: from the `field` recipe's frame-11,400 state, seed 1, 2,000
   trials, `--d 0100 --db 00`, `field_main_loop_goes_round` matches 1,363,

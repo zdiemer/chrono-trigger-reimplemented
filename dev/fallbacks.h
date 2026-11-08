@@ -77,10 +77,13 @@ void fallbacks_reset(Fallbacks *f);
 /* Writes the counts (the format is tools/fallbacks.py's; a run's own file, so
  * tools add files rather than this adding to one). Returns 0 on success. */
 int fallbacks_write(Fallbacks *f, const char *path);
-/* After writing the movie's counts, watch only its unfinished comparisons.
+/* After writing the movie's counts, watch its unfinished comparisons and idle passes.
  * A bounded tail can certify their completion without counting extra frames
  * as part of the movie. New calls, interruptions and abandonment cannot
- * certify an old comparison. Unresolved comparisons keep their open rows. */
+ * certify an old comparison. Unresolved comparisons keep their open rows.
+ * Idle passes cut short by the movie are tracked by identity too, including
+ * passes held aside by interrupts. Only their exact completion can append
+ * idle-closed evidence for the instructions counted before the cutoff. */
 void fallbacks_end_begin(Fallbacks *f);
 bool fallbacks_end_pending(Fallbacks *f);
 int fallbacks_end_write(const Fallbacks *f, const char *path);

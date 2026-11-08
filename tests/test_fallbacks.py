@@ -72,6 +72,54 @@ class FallbacksTest(unittest.TestCase):
         self.assertEqual(sorted(nbytes), [0xC0ABCD, 0xC0ABCE, 0xC0ABCF])
         self.assertEqual(dict(ports), {"handback": {"C0:0097"}})
 
+    def test_idle_completion_removes_only_the_certified_prefix(self):
+        with (self.root / "movie.txt").open("a") as f:
+            f.write("idle-closed unported C21000 2 1 C21000 -\n")
+        m = self.measure()
+        self.assertEqual(sum(m.insns.values()), 266)
+        self.assertEqual(sum(m.idle_completed.values()), 1)
+        self.assertEqual(m.bad, [])
+
+    def test_fully_certified_idle_instruction_leaves_no_bytes(self):
+        (self.root / "movie.txt").write_text(
+            "insn unported C21000 2 1 C21000 -\n"
+            "idle-closed unported C21000 2 1 C21000 -\n")
+        m = self.measure()
+        self.assertEqual(m.routines(), {})
+        self.assertIn("1 cutoff idle instructions certified", fallbacks.totals_line(m))
+
+    def test_idle_completion_cannot_cancel_another_movie(self):
+        (self.root / "other.txt").write_text("idle-closed unported C21000 2 1 C21000 -\n")
+        m = self.measure()
+        self.assertEqual(sum(m.insns.values()), 267)
+        self.assertEqual(len(m.bad), 1)
+
+    def test_idle_completion_leaves_only_the_surviving_width(self):
+        (self.root / "movie.txt").write_text(
+            "insn unported C21000 2 1 C21000 -\n"
+            "insn unported C21000 3 1 C21000 -\n"
+            "idle-closed unported C21000 3 1 C21000 -\n")
+        row = self.measure().routines()["C2:1000"]
+        self.assertEqual(row[0], 1)
+        self.assertEqual(row[1], {0xC21000, 0xC21001})
+
+    def test_idle_completion_must_match_length_kind_and_owner(self):
+        for line in ("idle-closed unported C21000 3 1 C21000 -",
+                     "idle-closed handback C21000 2 1 C21000 -",
+                     "idle-closed unported C21000 2 1 C21000 C00097"):
+            with self.subTest(line=line):
+                (self.root / "movie.txt").write_text(RUN + line + "\n")
+                m = self.measure()
+                self.assertEqual(sum(m.insns.values()), 267)
+                self.assertEqual(len(m.bad), 1)
+
+    def test_idle_completion_cannot_exceed_the_cutoff(self):
+        with (self.root / "movie.txt").open("a") as f:
+            f.write("idle-closed unported C21000 2 101 C21000 -\n")
+        m = self.measure()
+        self.assertEqual(sum(m.insns.values()), 267)
+        self.assertEqual(len(m.bad), 1)
+
     def test_totals_are_distinct_bytes_and_instructions(self):
         line = fallbacks.totals_line(self.measure())
         self.assertIn("267 instructions", line)

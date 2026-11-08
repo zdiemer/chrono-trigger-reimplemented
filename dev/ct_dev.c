@@ -119,8 +119,8 @@
  * measures where the run went. tools/fallbacks.py reads the file.
  * --finish-fallbacks N (shadow only, 1-120) freezes those counts and the saved
  * end state at the movie cutoff, then allows up to N input-free frames for
- * open comparisons to match. Only proven completions cancel open counts;
- * new invocations, interrupted or abandoned comparisons cannot do so.
+ * open comparisons to match and exact idle passes to complete. Only proven
+ * completions cancel cutoff counts; later invocations cannot replace them.
  * --census out.txt (with --native on; not with --fallbacks) counts, for each
  * registered entry, how often the machine entered it -- through a vector,
  * from the original's code, or from a port's call-out, stop, yield or return
@@ -1125,7 +1125,7 @@ int main(int argc, char **argv)
             }
             bool pending = fallbacks_end_pending(fallbacks);
             fprintf(stderr, "fallback completion: %u extra frame(s), %s\n", snes.frame - cutoff,
-                    pending ? "unresolved comparisons remain counted" : "cutoff comparisons matched");
+                    pending ? "unresolved cutoff work remains counted" : "cutoff work certified");
             if (fallbacks_end_write(fallbacks, fallbacks_path) != 0)
                 rc = 1;
         }

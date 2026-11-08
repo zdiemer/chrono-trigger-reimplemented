@@ -37,6 +37,7 @@
 #include "port/machine.h"
 #include "port/native.h"
 #include "snes/system.h"
+#include "fallbacks.h"
 
 static int failures;
 
@@ -444,8 +445,82 @@ static void check_direct_contracts(const uint8_t *rom)
     CHECK(!native_continuation_entry_at(&s, entry.addr), "standalone contracts were not cleared");
 }
 
+typedef struct IdleCutoff {
+    Fallbacks *fallbacks;
+    Snes *s;
+    bool taken, interrupt;
+} IdleCutoff;
+
+static void idle_cutoff_note(void *ctx, uint32_t pc, uint8_t p, bool e)
+{
+    IdleCutoff *cutoff = ctx;
+    if (!cutoff->taken && pc == 0x008102) {
+        cutoff->taken = true;
+        fallbacks_end_begin(cutoff->fallbacks);
+        CHECK(fallbacks_end_pending(cutoff->fallbacks), "idle prefix was certified before it completed");
+        if (cutoff->interrupt)
+            cutoff->s->cpu.nmi_pending = true;
+    }
+    fallbacks_note(cutoff->fallbacks, pc, p, e);
+}
+
+static void idle_cutoff_wait(Snes *s)
+{
+    uint8_t flag = m_read8(s, 0x10);
+    m_set_a8(s, flag);
+    m_set_nz8(s, flag);
+    if (!flag)
+        m_rts(s);
+}
+
+/* Cut off after the first read in an idle pass. The following tail must
+ * finish that very pass; another pass at the same address and stack cannot
+ * replace it. The interrupted case also exercises the kept-aside identity. */
+static void check_idle_cutoff(uint8_t flag, uint8_t span, bool interrupt, bool outside, bool completes)
+{
+    static const uint8_t start[] = {
+        0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x01, 0x9A,
+        0x20, 0x00, 0x81, 0xE6, 0x10, 0x20, 0x00, 0x81, 0xDB,
+    };
+    static const uint8_t wait[] = { 0xA5, 0x10, 0xD0, 0xFC, 0x60 };
+    uint8_t *rom = make_rom(NMI_RETURNS);
+    memcpy(rom + 0x8000, start, sizeof start);
+    memcpy(rom + 0x8100, wait, sizeof wait);
+    if (outside) {
+        rom[0x8103] = 0x1C;
+        rom[0x8120] = 0xE6, rom[0x8121] = 0x11, rom[0x8122] = 0x60;
+    }
+    Snes *s = malloc(sizeof *s);
+    snes_init(s, rom, ROM_SIZE);
+    snes_power_on(s);
+    s->bus.wram[0x10] = flag;
+    NativeEntry entry = { .addr = 0x008100, .name = "idle_cutoff", .fn = idle_cutoff_wait,
+        .idle = true, .idle_return_span = span, .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M };
+    NativeRuntime *rt = native_create(&entry, 1, NATIVE_SHADOW);
+    native_attach(rt, s);
+    Fallbacks *f = fallbacks_create(s);
+    fallbacks_attach(f, rt, true);
+    IdleCutoff cutoff = { .fallbacks = f, .s = s, .interrupt = interrupt };
+    s->cpu.on_insn = idle_cutoff_note;
+    s->cpu.on_insn_ctx = &cutoff;
+    snes_run_frame(s, 0);
+    CHECK(cutoff.taken && fallbacks_end_pending(f) != completes,
+          "idle cutoff: flag %u span %u interrupt %d outside %d completion %d expected %d",
+          flag, span, interrupt, outside, !fallbacks_end_pending(f), completes);
+    native_set_observer(rt, NULL);
+    fallbacks_destroy(f);
+    native_destroy(rt);
+    free(s);
+    free(rom);
+}
+
 int main(void)
 {
+    check_idle_cutoff(1, 0, false, false, true);
+    check_idle_cutoff(0, 5, false, false, true);
+    check_idle_cutoff(0, 5, true, false, true);
+    check_idle_cutoff(0, 0, false, false, false);
+    check_idle_cutoff(1, 5, false, true, false);
     uint8_t *rom = make_rom(NMI_RETURNS);
     check_direct_contracts(rom);
 

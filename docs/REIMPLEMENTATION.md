@@ -3146,6 +3146,16 @@ their original counts and ratchet failures; the tail's mismatches still fail
 the shadow run. Comparison statistics and instruction diagnostics include
 the tail; saved-game, trace and fallback counts retain the movie's cutoff.
 
+The tail also finishes an idle pass cut short by the last frame. Each pass
+has an identity preserved while an interrupt holds it aside. Only that
+pass reaching its head again, or completing through its declared idle
+return span, can certify its counted prefix with `idle-closed` records.
+The reader subtracts only matching instruction addresses, lengths, kinds
+and owners in the same movie's file; it rejects excess or cross-movie
+credits. An abandoned pass, an exit outside the span, or a later pass at
+the same address and stack does not certify the prefix. The raw cutoff
+counts stay in the file, and the tail contributes no new instructions.
+
 `battle-black-tyrano` ends during scene teardown and field loading: 20
 instructions under `scene_program_restart` and 44,292 under `decompress`
 were previously reported as new or increased open fallbacks. Both comparisons
@@ -4021,8 +4031,19 @@ passes with the existing exceptions and unchanged estimates.
 
 **Fallback accounting.** Both idle rows declare the return span
 `$C0:EC71-$C0:EC76`, so the measure recognizes the final pass as the idle
-port's work, just as it recognizes the passes that keep waiting. Three
-movies end inside a battle called by the field pass: `battle-menu-buttons`,
+port's work, just as it recognizes the passes that keep waiting. Movie
+cutoff prefixes are not waived: the bounded tail certifies only
+the exact idle passes it completes ("A movie ending inside a comparison",
+above). `shadow_test` checks loop and return completions, an interrupted
+pass, an exit outside the return span, and a later pass that cannot close
+an earlier one. The reader and gate integration tests pass (24 tests).
+Runtime handoffs settle an already-completed idle return before discarding
+its tracking, as the next instruction hook would: Golem Twins' game-over
+replay exposed that ordering. Six targeted shadow replays pass the fallback
+ratchet without idle allowances; floor-switch and save-point certify their
+partial prefixes in one extra frame.
+
+Three movies end inside a battle called by the field pass: `battle-menu-buttons`,
 `battle-magus` and `late-omen-terramutant`. Their field comparisons remain
 open after the bounded 120-frame tail. Restoring only the old backedge
 wrapper for those replays measures 6 instructions each under `field_frame`;
