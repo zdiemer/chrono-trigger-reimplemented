@@ -3315,11 +3315,14 @@ static int32_t intercept(void *ctx, Snes *s)
          * check every enclosing segment, not only the innermost. Aliases of
          * the same C entry at the same stack depth are the same invocation
          * too (field_enter's second entry after its opening prologue).
+         * A wrapper may name a distinct entry into its inline body explicitly
+         * (shadow_body), so the wrappers needn't dispatch on the machine PC.
          * Comparing that body again would nest a comparison per iteration. */
         if (rt->mode == NATIVE_SHADOW && rt->nactive > 0) {
             for (int i = rt->nactive - 1; i >= 0; i--) {
                 const Active *in = &rt->active[i];
-                if (in->entry->fn == e->fn && in->phase == PH_SEGMENT && in->entry_s == s->cpu.s)
+                if ((in->entry->fn == e->fn || in->entry->shadow_body == e->fn) &&
+                    in->phase == PH_SEGMENT && in->entry_s == s->cpu.s)
                     return -1;
             }
         }

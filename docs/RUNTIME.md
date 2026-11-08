@@ -876,9 +876,10 @@ callers, including a suspended fade, event command or battle return. The
 wait itself has no suspended C frame; those callers can still have one.
 One ID is sufficient because the saved stack already identifies the caller:
 no caller-specific state or pointer is stored in the hold.
-The loop head and return share an entry wrapper, so a shadow comparison of
-the returning pass does not nest another comparison of the same pass at
-the head. Its sibling timing scope assigns the pass's error to the field
+The returning wrapper's registry row names the loop head's `shadow_body`,
+so a shadow comparison of the returning pass does not nest another
+comparison of the same pass at the same stack depth. Each entry has its own
+wrapper; independent calls still compare. Its sibling timing scope assigns the pass's error to the field
 pass, preserving both its estimate and the backedge's separate measurement.
 The runtime's guard still decides whether a named continuation
 applies; `suspend_test` exercises a decimal-mode refusal after an idle return.

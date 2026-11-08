@@ -615,6 +615,14 @@ static void returning_hold_frame(Snes *s)
     hold_start(s);
 }
 
+static void returning_hold_first_frame(Snes *s) { returning_hold_frame(s); }
+
+static void returning_hold_bad_frame(Snes *s)
+{
+    m_write8(s, FRAMES_DONE, (uint8_t)(m_read8(s, FRAMES_DONE) + 1));
+    returning_hold_frame(s);
+}
+
 static void returning_hold_case(void)
 {
     static const Code code[] = {
@@ -625,12 +633,13 @@ static void returning_hold_case(void)
         { 0x8600, { 0xE6, 0x60, 0xE6, 0x40, 0x40 }, 5 },
     };
     const NativeEntry table[] = {
-        { .addr = 0x008200, .name = "first_frame", .fn = returning_hold_frame, .cost_milli = 1000 },
+        { .addr = 0x008200, .name = "first_frame", .fn = returning_hold_first_frame, .cost_milli = 1000 },
         { .addr = MAIN_LOOP_HEAD, .name = "shared_wait", .fn = returning_hold_look,
           .idle = true, .hold = HOLD_TEST_LOOP },
         { .addr = 0x008205, .name = "next_frame", .fn = returning_hold_frame,
           .cost_milli = 1000, .hold = HOLD_TEST_LOOP },
-        { .addr = 0x008205, .name = "registered_frame", .fn = returning_hold_frame, .cost_milli = 1000 },
+        { .addr = 0x008205, .name = "registered_frame", .fn = returning_hold_frame,
+          .shadow_body = returning_hold_first_frame, .cost_milli = 1000 },
     };
     uint8_t *rom = make_rom(code, sizeof code / sizeof code[0], 0x8600);
     Snes *s = machine(rom);
@@ -664,14 +673,30 @@ static void returning_hold_case(void)
     free(s);
 
     /* The address path must use the retained row even though its alias was
-     * supplied first. Otherwise shadow counts depend on the host's qsort. */
+     * supplied first. The distinct first-pass wrapper is compared once:
+     * thereafter its work is inside the returning pass's comparison. */
     s = machine(rom);
     rt = native_create(table, 4, NATIVE_SHADOW);
     native_attach(rt, s);
     run_frames(s, 20);
     CHECK(native_stats_named(rt, "registered_frame")->matched >= 18 &&
+              native_stats_named(rt, "first_frame")->calls == 1 &&
               native_stats_named(rt, "next_frame")->calls == 0 && !native_failed(rt),
           "returning hold: the retained row did not own matching address-path comparisons");
+    native_destroy(rt);
+    free(s);
+
+    /* Naming an inline body only removes the overlapping comparison. The
+     * retained wrapper must still detect a wrong effect in that body. */
+    NativeEntry bad[4];
+    memcpy(bad, table, sizeof bad);
+    bad[3].fn = returning_hold_bad_frame;
+    s = machine(rom);
+    rt = native_create(bad, 4, NATIVE_SHADOW);
+    native_attach(rt, s);
+    run_frames(s, 4);
+    CHECK(native_stats_named(rt, "registered_frame")->mismatched > 0 && native_failed(rt),
+          "returning hold: inline body escaped the retained wrapper's comparison");
     native_destroy(rt);
     free(s);
 

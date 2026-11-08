@@ -191,7 +191,7 @@ static void take_the_interrupts(GameState *g)
 
 /* Where the field's entry and its main loop start; the loop reads A's high
  * byte and the overflow as the last pass, or the field's entry, left them. */
-enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097, WAIT_FOR_THE_NEXT_FRAME = 0xC000BA, NEXT_FRAME = 0xC000BD };
+enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097, WAIT_FOR_THE_NEXT_FRAME = 0xC000BA };
 enum { THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 /* For shadow mode: the sound driver's start is called with the field's
@@ -672,17 +672,8 @@ static void pass_then_stop_at_the_wait(Snes *s, PassStep first)
         m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
 }
 
-// $C0:0097, $C0:00BD
-/* The first pass and the pass after a frame wait share their entry wrapper:
- * shadow mode recognizes the loop head inside the returning pass as the
- * same invocation, rather than starting an overlapping comparison. */
-void field_frame(Snes *s)
-{
-    if (s->cpu.pc == (uint16_t)NEXT_FRAME)
-        field_next_frame(s);
-    else
-        pass_then_stop_at_the_wait(s, PAUSE_AND_MENUS_STEP);
-}
+// $C0:0097
+void field_frame(Snes *s) { pass_then_stop_at_the_wait(s, PAUSE_AND_MENUS_STEP); }
 
 /* The pass going on after a step whose routine came back to it itself: a
  * request answered over frames, which ends by jumping to the frame's wait

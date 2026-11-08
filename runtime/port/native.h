@@ -50,6 +50,12 @@ typedef struct NativeEntry {
     uint32_t addr;          /* 24-bit entry address */
     const char *name;
     NativeFn fn;
+    /* A second entry into the body this wrapper compares inline. SHADOW
+     * treats it like an alias of fn while this entry's segment is active
+     * at the same stack depth, rather than nesting an overlapping comparison.
+     * Calls with their own stack frame and independent entries still compare.
+     * This permits distinct wrappers without asking the machine for its PC. */
+    NativeFn shadow_body;
     uint8_t p_mask;         /* entry precondition on P: (p & p_mask) == p_value */
     uint8_t p_value;
     /* ON-mode time cost: the time the native routine's DMA transfers took, as

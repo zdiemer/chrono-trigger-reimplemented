@@ -3936,10 +3936,12 @@ The field's waits are named before its teardown; every registry row stays.
 `HOLD_FIELD_SCREEN` the picture's startup wait at `$C0:0B38`. The first
 frame is held too, the main loop's full entry contract is checked before
 its direct call, and the retained `field_main_loop_goes_round` compares
-the same next-pass implementation as the held continuation. Both loop
-addresses use the `field_frame` wrapper, so shadow mode recognizes the
-head reached inside a returning pass as the same invocation instead of
-starting an overlapping comparison. Its don't-care
+the same next-pass implementation as the held continuation. Its registry
+row names `field_frame` as its `shadow_body`: shadow mode recognizes the
+head reached at the same stack depth inside a returning pass as part of
+that comparison. The two entries keep distinct wrappers, without reading
+the PC to tell them apart; independently entered frames still compare.
+Its don't-care
 set is the loop head's existing set:
 A's high byte and overflow remain live. The runtime preserves a hold across
 an idle return into another of that wait's continuations, with the new S;
@@ -3994,7 +3996,8 @@ VRAM, SRAM, CGRAM or OAM. At floor-switch frame 2,800, `ct_drive` saves at
 fresh process loading the file reach frame 3,000 with every state field and
 the PNG identical to uninterrupted play; replayed, inexact and lost loads
 all stay zero. `suspend_test` covers the returned stack depth, save/load and
-the retained row's shadow comparison independently of the ROM.
+the retained row's shadow comparison independently of the ROM, including
+a deliberately wrong inline body that must fail that comparison.
 
 The floor-switch shadow run compares 682 returning passes, 4 first passes
 and 779 frame-wait setups, all matching and none interrupted. Fuzz seed 1
