@@ -18,6 +18,8 @@
 #include "field/machine_forms.h"
 
 #include "charge.h"
+#include "battle/entries.h"
+#include "battle/program.h"
 #include "core/program.h"
 #include "field/field.h"
 #include "field/display.h"
@@ -76,6 +78,10 @@ static const struct {
     NativeFn run;
 } called_handlers[] = {
     { MENU_OBJECT_VBLANK_HANDLER, menu_object_nmi },
+    { MENU_VBLANK_HANDLER, menu_nmi_enter },
+    { BATTLE_VBLANK_HANDLER, battle_nmi },
+    { BATTLE_LINE_HANDLER, battle_irq },
+    { BATTLE_CLOSING_VBLANK_HANDLER, battle_nmi_alternate },
     { FIELD_VBLANK_HANDLER, field_nmi },
     { FIELD_LINE_HANDLER, field_irq },
 };

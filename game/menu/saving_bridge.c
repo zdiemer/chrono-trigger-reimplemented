@@ -216,7 +216,12 @@ static bool ends(void *ctx, SavingEnd end)
         else
             m_stop_at_own(s, MOVE_AMONG_THE_SLOTS, READS_A_HIGH);
         break;
-    case SAVING_BUZZES: TIMED_AS(state_of(s), REFUSAL_SOUND, menu_play_refusal_sound(s)); break;
+    case SAVING_BUZZES:
+        /* The refusal returns to the main menu's first step before the
+         * buzzer saves the flags on the task's stack. */
+        ORIGINAL_EFFECT(leave_the_step(s));
+        TIMED_AS(state_of(s), REFUSAL_SOUND, menu_play_refusal_sound(s));
+        break;
     }
     return false;
 }

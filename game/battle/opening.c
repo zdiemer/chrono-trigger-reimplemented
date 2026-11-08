@@ -26,6 +26,7 @@
 #include "battle/screen.h"
 #include "battle/setup.h"
 #include "charge.h"
+#include "holds.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -257,7 +258,7 @@ void battle_set_up(Snes *s) { (void)set_up(set_up_on_the_machine, s); }
 void battle_set_up_after_the_graphics(Snes *s)
 {
     if (set_up_after_the_graphics(state_of(s), open_the_window_on_the_machine, s))
-        m_stop_at(s, SLIDE_WAIT, THE_WAIT_READS_A_S_HIGH_BYTE);
+        m_hold_at(s, SLIDE_WAIT, THE_WAIT_READS_A_S_HIGH_BYTE, HOLD_BATTLE_WINDOW);
 }
 
 /* Every combatant there's graphics known to the builder (battle/sprites.c). */

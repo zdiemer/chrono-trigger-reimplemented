@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
 

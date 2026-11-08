@@ -12,6 +12,7 @@
 #include "battle/main_loop.h"
 #include "battle/status_timers.h"
 #include "charge.h"
+#include "holds.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -252,7 +253,7 @@ void battle_tick_timers(Snes *s)
 {
     battle_count_timers_down(state_of(s));
     m_sep(s, CPU_FLAG_M);
-    m_stop_at(s, SEARCH, DC_A | DC_X | DC_Y | DC_FLAGS);
+    m_hold_at(s, SEARCH, DC_A | DC_X | DC_Y | DC_FLAGS, HOLD_BATTLE_PASS);
 }
 
 /* Each due kind's handler run: the timed statuses' (battle/status_timers.c),
@@ -349,5 +350,5 @@ void battle_dispatch_expired_timers(Snes *s)
 {
     static const DueCalls on_the_machine = { handlers_begin_on_the_machine, see_to_on_the_machine };
     if (see_to_the_timers(state_of(s), &on_the_machine, s))
-        m_stop_at(s, REST_OF_PASS, DC_A | DC_X | DC_Y | DC_FLAGS);
+        m_hold_at(s, REST_OF_PASS, DC_A | DC_X | DC_Y | DC_FLAGS, HOLD_BATTLE_PASS);
 }

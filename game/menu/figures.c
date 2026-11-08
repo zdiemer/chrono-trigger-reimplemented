@@ -410,11 +410,13 @@ bool menu_member_figures_are_notable(Snes *s)
 bool menu_everyones_figures_can_be_noted(const GameState *g)
 {
     bool ok = true;
-    for (uint8_t character = 0; ok && character < CHARACTER_RECORDS_COUNT; character++)
+    for (uint8_t character = 0; ok && character < CHARACTER_RECORDS_COUNT; character++) {
+        ok = menu_character_can_be_loaded(g, character);
         for (unsigned slot = 0; ok && slot < MENU_EQUIPMENT_SLOTS; slot++) {
             uint8_t item = character_records_record_byte(g, character, menu_category_slot_place(g, (uint8_t)slot));
             ok = an_item_of_the_games(item, (MenuItemCategory)slot);
         }
+    }
     return ok;
 }
 

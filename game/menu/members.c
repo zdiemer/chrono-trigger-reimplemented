@@ -341,7 +341,13 @@ bool menu_member_can_be_loaded(const GameState *g, uint8_t member)
 {
     if (member >= MENU_MEMBERS_COUNT)
         return false;
-    uint8_t character = menu_members(g, member);
+    return menu_character_can_be_loaded(g, menu_members(g, member));
+}
+
+/* Loading a character also loads its name. A record's name selector must
+ * name one of the seven characters, even when no party list is involved. */
+bool menu_character_can_be_loaded(const GameState *g, uint8_t character)
+{
     if (character & NO_MEMBER)
         return true;
     return character < CHARACTERS && (character_records_record_byte(g, character, 0) & CHARACTER_BITS) < CHARACTERS;

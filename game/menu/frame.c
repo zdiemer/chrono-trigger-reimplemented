@@ -5,7 +5,7 @@
  * frame to be counted (game/menu/display.c, menu_object_nmi), the menus'
  * for the handler to have sent the uploads the frame queued
  * (menu_nmi_work). Each mode is in its wait at nearly every frame's end, so
- * the ports leave the waiting to the loops' idle entries here in the
+ * the ports leave the waiting to named idle continuations here in the
  * shipping mode, which a saved machine holds (platform/timing.h,
  * tm_wait_for_handlers_held), and wait through them themselves elsewhere.
  * Between its waits the menus' loop runs a turn of each of their tasks
@@ -13,6 +13,7 @@
 #include "menu/menu.h"
 
 #include "charge.h"
+#include "holds.h"
 #include "core/input.h"
 #include "menu/bridge.h"
 #include "original_effects.h"
@@ -27,8 +28,8 @@
 /* The sprite-object mode's wait for the next frame: until the vblank handler
  * has counted a frame past the one it sees now. The mode is in it at nearly
  * every frame's end, so a saved machine has to hold it: the shipping mode
- * leaves it to the loop's idle entry, below, which goes on as this does, and
- * the port stops at the loop (tm_wait_for_handlers_held). The loop keeps the
+ * leaves it to the loop's named idle continuation, below, which goes on as
+ * this does. Its registry alias keeps shadow comparisons. The loop keeps the
  * count it saw in A, comparing the count with it, and the comparison's flags
  * are dead after it (the entries' set). */
 enum { FRAME_WAIT = 0xC20346, FRAME_WAIT_LOOP = 0xC20348, FRAME_WAIT_RETURN = 0xC2034C, THE_LOOP_SETS_THE_FLAGS = DC_N | DC_Z | DC_C };
@@ -62,7 +63,11 @@ void menu_wait_for_the_next_frame(GameState *g, Platform *pf)
 
 static bool a_frame_held(void *ctx)
 {
-    return tm_wait_for_handlers_held(m_platform(ctx), PF_LOOP_HELD(FRAME_WAIT_LOOP, FRAME_WAIT_RETURN, THE_LOOP_SETS_THE_FLAGS));
+    Snes *s = ctx;
+    if (tm_wait_for_handlers_held(m_platform(s), PF_LOOP_HELD(FRAME_WAIT_LOOP, FRAME_WAIT_RETURN, THE_LOOP_SETS_THE_FLAGS)))
+        return true;
+    m_hold_at(s, FRAME_WAIT_LOOP, THE_LOOP_SETS_THE_FLAGS, HOLD_MENU_FRAME);
+    return false;
 }
 
 void menu_wait_for_frame(Snes *s)

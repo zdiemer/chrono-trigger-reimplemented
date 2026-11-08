@@ -31,6 +31,15 @@ enum {
     HOLD_FIELD_LOCATION = 7,
     /* a script's restart, once the picture reaches vblank */
     HOLD_FIELD_RESTART = 8,
+    /* sprite-object screens waiting for their next vblank count */
+    HOLD_MENU_FRAME = 9,
+    /* menu tasks waiting for the queued picture to be uploaded */
+    HOLD_MENU_TASKS = 10,
+    /* battle startup waits for graphics and the opening window */
+    HOLD_BATTLE_GRAPHICS = 11,
+    HOLD_BATTLE_WINDOW = 12,
+    /* battle passes keep their dispatch boundaries while the gate remains */
+    HOLD_BATTLE_PASS = 13,
 };
 
 #endif

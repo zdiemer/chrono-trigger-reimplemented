@@ -3919,6 +3919,32 @@ const int game_native_count = (int)(sizeof game_natives / sizeof game_natives[0]
  * head, a state from before the wait was held), the machine finds one by its
  * address, enters it as any entry and it holds the wait from there. */
 const NativeEntry game_held_waits[] = {
+    /* Battle waits and pass boundaries, retaining their gated aliases. */
+    { .addr = 0xCCF05B, .name = "battle_wait_graphics_loaded_loop_held", .fn = battle_wait_graphics_loaded_loop, NEEDS_M8,
+      .idle = true, .guard = battle_on_page, .hold = HOLD_BATTLE_GRAPHICS },
+    { .addr = 0xC1003C, .name = "battle_wait_window_slide_loop_held", .fn = battle_wait_window_slide_loop, NEEDS_M8,
+      .idle = true, .guard = battle_on_page, .hold = HOLD_BATTLE_WINDOW },
+    { .addr = 0xC18120, .name = "battle_main_loop_held", .fn = battle_main_loop, NEEDS_M8_X16, .cost_milli = 3250,
+      .guard = battle_on_page, .hold = HOLD_BATTLE_PASS },
+    { .addr = 0xC1812C, .name = "battle_main_loop_body_held", .fn = battle_main_loop_body, NEEDS_M8_X16_BINARY,
+      .cost_milli = 25934, .guard = battle_on_page, .hold = HOLD_BATTLE_PASS },
+    { .addr = 0xC18231, .name = "battle_tick_timers_held", .fn = battle_tick_timers, .p_mask = CPU_FLAG_X,
+      .p_value = 0, .cost_milli = 33831, .guard = battle_on_page, .hold = HOLD_BATTLE_PASS },
+    { .addr = 0xC18290, .name = "battle_dispatch_expired_timers_held", .fn = battle_dispatch_expired_timers,
+      NEEDS_M8_X16_BINARY, .cost_milli = 15339, .guard = battle_on_page, .hold = HOLD_BATTLE_PASS },
+    { .addr = 0xC18345, .name = "battle_main_loop_tail_held", .fn = battle_main_loop_tail, NEEDS_M8_X16,
+      .cost_milli = 16728, .guard = battle_pass_ends_plainly, .hold = HOLD_BATTLE_PASS },
+    /* Menu comparisons remain registered while the unreached audit closes.
+     * Shipping waits name these continuations, preserving their original
+     * contracts and the scheduler's calibrated rate at a saveable boundary. */
+    { .addr = 0xC20348, .name = "menu_frame_held", .fn = menu_wait_for_frame_loop, NEEDS_M8, .idle = true,
+      .guard = menu_frame_wait_on_page, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C,
+      .hold = HOLD_MENU_FRAME },
+    { .addr = 0xC281CA, .name = "menu_uploads_held", .fn = menu_wait_ready_loop, NEEDS_M8, .idle = true,
+      .guard = menu_ready_wait_reaches_low_ram, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .hold = HOLD_MENU_TASKS },
+    { .addr = 0xC281CF, .name = "menu_tasks_held", .fn = menu_run_the_tasks, NEEDS_M8_X8, .cost_milli = 4107,
+      .guard = menu_tasks_can_run, .hold = HOLD_MENU_TASKS },
     { .addr = 0xC00281, .name = "field_no_battle_returns", .fn = field_no_battle_returns, NEEDS_M8_X16,
       .cost_milli = 4219, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z,
       .guard = field_battle_can_begin, .hold = HOLD_FIELD_FRAME, .retired = true },

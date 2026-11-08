@@ -90,6 +90,7 @@ void menu_finish_member_card(GameState *g);
  * a character or the end of the list. For the guards of the screens that
  * draw them. */
 bool menu_member_can_be_loaded(const GameState *g, uint8_t member);
+bool menu_character_can_be_loaded(const GameState *g, uint8_t character);
 bool menu_member_card_can_be_drawn(const GameState *g);
 bool menu_member_card_can_be_drawn_for(const GameState *g, uint8_t member);
 bool menu_member_rows_can_be_drawn(const GameState *g);

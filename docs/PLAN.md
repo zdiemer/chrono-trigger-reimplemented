@@ -713,6 +713,12 @@ taking the gate down needs, before it and after it.
      with the comparison, and a retired loop that calls still-gated routines
      calls each as C under its registry row's contract, and through the
      machine where its C waits at a point the machine can't wait in place.
+     Battle and menus are next: close their unreached obligations and shared
+     state readers, then retire the menu services before the battle callers.
+     Their named waits preserve saveable frame boundaries; the scheduler's
+     task-stack transfers still need C continuations (REIMPLEMENTATION.md,
+     "Battle and menu held boundaries"; TODO.md, "Battle and menu teardown
+     preconditions").
   4. **Last, the machine leaves the product.** When no subsystem is under
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is

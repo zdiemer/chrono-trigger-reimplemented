@@ -4228,6 +4228,53 @@ are recorded in history/field-teardown.md; the teardown's fresh census and
 outcomes are above. Held adapters remain a machine joint until the legacy
 driver gives way to the native program.
 
+### Battle and menu held boundaries
+
+Battle and menus remain under the byte-exact gate. Their first control-flow
+step gives the shipping runtime named continuations for the menu object's
+frame wait, the menu upload wait and scheduler, the battle graphics and
+window waits, and the five boundaries of a battle pass. The ten held rows
+retain the original rows' complete contracts and calibrated estimates;
+the original rows still own the shadow comparisons. A boundary settles and
+returns exactly as it did before, rather than keeping a whole screen or
+battle suspended inside one port.
+
+The console now calls the menus' NMI entry and all three battle interrupt
+handlers through its checked C table. `native_continuation_entry_at` checks
+the full entry contract before the call, including arithmetic mode and the
+guard; a refusal stops at the original handler. The menus' separate NMI
+work checkpoint remains registered.
+
+The shipping census on `battle-menu-buttons`, `menus-sweep` and `menus-epoch`
+changes from 87 machine-entered entries and 3,455,625 calls in all to 74
+and 124,216. Wait-loop passes fall from 3,315,508 to zero; entries run only
+as C rise from 835 to 838. Held continuations run 7,750,841 times across 34
+entries. This is a control-flow change, not retirement: `machine_joints.py`
+still counts 1,689 registry rows and 917 emulated returns. Held rows rise
+from 69 to 79; explicit stops from 91 to 93 because the two menu waits now
+name their holds. The six call-outs and three registry lookups remain.
+
+The precondition audit also fixes two menu defects without narrowing their
+fuzz recipes. A refused save restores the main-menu step's flags before the
+buzzer saves them: `menu_open_saving` matches all 2,000 trials. The item
+builder checks the character-name bound already enforced by member loading,
+before loading every character's figures: `menu_build_items` matches 206
+of 500 trials and rejects the other 294 invalid records, with no accessor
+diagnostic. The flag write adds one scaffolding site (1,587 to 1,588); it
+remains necessary while the save menu is compared.
+
+Shipping traces before and after these changes are identical in all five
+memory regions over the three census movies' 20,310 frames. `suspend_test`
+passes its held-continuation and save/load cases. The native-shape
+`bucket_lavos` route reaches the Good Night ending at frame 168,290; its five
+loads away from a base replay exactly, with none differing or lost.
+Reloading each of its seven checkpoints twice and running another 120 frames
+also gives identical work RAM; all eight required replays are exact.
+The unreached inventory and the remaining task-stack work are in TODO.md,
+"Battle and menu teardown preconditions". No entry, guard, scratch cell or
+fallback exemption has been retired on the strength of this control-flow
+step.
+
 ### The scene program's teardown
 
 The sixth subsystem off the gate: the gate no longer compares the scene

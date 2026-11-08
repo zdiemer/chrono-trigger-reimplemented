@@ -23,6 +23,7 @@
 #include "menu/menu.h"
 
 #include "charge.h"
+#include "holds.h"
 #include "core/program.h"
 #include "core/tasks.h"
 #include "menu/description.h"
@@ -206,9 +207,9 @@ static void leave_the_page_below(Snes *s, uint16_t stack)
 /* No task goes on this frame: back on the menus' main stack and page, the
  * data bank work RAM's, to wait for the frame's uploads to be sent. The
  * menus are in this wait at nearly every frame's end, so a saved machine has
- * to hold it: the shipping mode leaves it to the loop's idle entry, which goes
- * on into the next frame's turns as the port does, and the port stops at the
- * loop (tm_wait_for_handlers_held). False there. */
+ * to hold it: the shipping mode names the idle continuation and its next
+ * frame's scheduler, leaving no suspended port while it waits. Their
+ * registry aliases keep shadow comparisons. False at the held boundary. */
 static bool wait_for_the_next_frame(Snes *s)
 {
     ORIGINAL_EFFECT(leave_the_page_below(s, THE_MAIN_STACK));
@@ -219,8 +220,10 @@ static bool wait_for_the_next_frame(Snes *s)
     const GameState *g = state_of(s);
     while (!menu_vblank_done(g))
         if (!tm_wait_for_handlers_held(m_platform(s),
-                                       PF_LOOP_HELD(WAIT_FOR_THE_UPLOADS, THE_UPLOADS_SENT, THE_WAIT_READS_NOTHING)))
+                                       PF_LOOP_HELD(WAIT_FOR_THE_UPLOADS, THE_UPLOADS_SENT, THE_WAIT_READS_NOTHING))) {
+            m_hold_at(s, WAIT_FOR_THE_UPLOADS, THE_WAIT_READS_NOTHING, HOLD_MENU_TASKS);
             return false;
+        }
     return true;
 }
 

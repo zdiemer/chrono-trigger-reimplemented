@@ -2981,19 +2981,17 @@ comparisons.
 
 ## The native program
 
-- **Battle and menu teardown preconditions.** The initial shipping census on
-  `battle-menu-buttons`, `menus-sweep` and `menus-epoch` enters 87 entries by
-  the machine, 3,455,625 times; 835 run only as C. No entry is entered from
-  generated or interpreted code. Four waits account for 3,315,508 passes:
-  `menu_wait_ready_loop` 2,743,894, `menu_wait_for_frame_loop` 565,707,
-  `battle_wait_window_slide_loop` 5,906 and
-  `battle_wait_graphics_loaded_loop` 1. The menu scheduler is entered 6,321
-  times from its wait; its main task 5,760 times, the battle loop head and
-  body 57 each. Make these waits and task/loop continuations held boundaries,
-  and make the interrupt handoffs and by-address calls checked C calls.
-  The starting `machine_joints.py` counts are 1,689 registry entries, 69 held
-  continuations, 917 returns, 91 stops, 6 call-outs, 3 registry lookups,
-  8 machine time tags, 24 register escapes and 1,587 scaffolding writes.
+- **Battle and menu teardown preconditions.** Retire their wrappers and rows
+  only after the unreached obligations and state readers below are resolved.
+  The held boundaries and checked interrupt handoffs are described in
+  REIMPLEMENTATION.md, "Battle and menu held boundaries". The menus' task
+  starts and resumptions still transfer through the machine. Simply chaining
+  `start` through `menu_go_on_in` crosses the task stack's return boundary:
+  `menus-sweep` reports scheduler and task comparisons returning before the
+  next native wait, and the shipping trace first differs at frame 1,723 in
+  the cursor task's stack bytes `$7E:0AFD-$7E:0AFE`. Preserve the scheduler's
+  comparison checkpoints while making its task transfers resumable C
+  continuations; the failed chaining experiment is not in the implementation.
 
   Burndown rounds every battle/menu bank to 0% left; that is not proof of
   zero fallback. The existing batched shipping report has no battle fallback
@@ -3014,6 +3012,22 @@ comparisons.
   arms, and preserve the resulting preconditions as contracts. Three battle
   entries lack a plain recipe: `battle_wait_music_fade_loop` (9 bytes),
   `battle_aim_action` (447) and `battle_call_enemies_in` (42).
+
+  The initial 200-trial replay has 435 clean recipes out of 443. Extending
+  176 recipes with remaining gaps to their declared limits (up to 2,000)
+  leaves 3,292 battle bytes in 74 entries and 2,417 menu bytes in 77 entries
+  before the save-refusal and character-name fixes. Close the remaining
+  failures in `battle_copy_frame_tiles`, `battle_draw_afterimage`,
+  `battle_load_item_animation`, `battle_send_vram_and_wait`, `menu_draw_text`,
+  `menu_epoch_build_map` and `menu_load_record_sprite`; the last appears only
+  in the longer run (3 mismatches out of 2,000). Some recipes leave the
+  original running at a call-out or use invalid asset/state combinations;
+  distinguish fixture constraints from defects and preserve every resulting
+  precondition. The object-script dispatcher's conservative reach includes
+  22 targets absent from the C tables, in `$C2:7911-$C2:7D5E` and
+  `$C6:E072-$C6:E1FF`. Implement them or establish their actual script
+  preconditions; a dispatcher trial that calls the original is not C evidence
+  for those targets.
 
   Initial outcome witnesses are `battle-menu-buttons`, `menus-sweep` and
   `menus-epoch`: both modes protect SRAM end states, pictures and ordered
