@@ -3037,6 +3037,12 @@ comparisons.
 
 ## The native program
 
+- **What the batched library ledger's review left.** `suspend_test` has no case of an
+  interrupt pending at a task's yield entry, the new `switch_pending` branch.
+  `tools/uncompared_evidence.py` counts a matched trial as complete even when it
+  is an intentional early stop: require an explicit count of full returns.
+  Separate the dispatchers' ordinary and interrupted timing paths before they are
+  recalibrated again.
 - **What the field's unreached review left.** The `unreached_party_shares`
   recipe fills sharers only up to `$16` where the guard takes up to `$25`: extend
   it to `$24` so the whole accepted range of the sprite-block owner table is
