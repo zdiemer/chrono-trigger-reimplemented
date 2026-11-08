@@ -144,11 +144,12 @@ static void set_task_waiting(Snes *s, uint16_t record, uint16_t top, uint16_t re
 }
 
 static bool a_goes_on = true;
+static bool wait_not_recorded;
 
 static bool task_a_goes_on(Snes *s, uint16_t s_after)
 {
-    (void)s;
-    (void)s_after;
+    if (wait_not_recorded && cpu_pc24(&s->cpu) == SWITCH && s->cpu.s == (uint16_t)(s_after - 2))
+        return false;   /* closing cleared the record; the switch has yet to write the new wait */
     return a_goes_on;
 }
 
@@ -166,7 +167,7 @@ static const NativeEntry tasks_table[] = {
       .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_FLAGS },
 };
 
-typedef enum { RUN_THROUGH, DROP_THE_TASK, RESTART_THE_TASK } TaskCase;
+typedef enum { RUN_THROUGH, DROP_THE_TASK, RESTART_THE_TASK, WAIT_NOT_RECORDED } TaskCase;
 
 static void tasks_case(const char *what, NativeMode mode, TaskCase how)
 {
@@ -174,8 +175,12 @@ static void tasks_case(const char *what, NativeMode mode, TaskCase how)
     Snes *s = machine(rom);
     memset(s->bus.wram, 0, 0x600);
     a_goes_on = true;
+    wait_not_recorded = how == WAIT_NOT_RECORDED;
     set_task_waiting(s, B_RECORD, B_TOP, 0x8180);
-    NativeRuntime *rt = native_create(tasks_table, 1, mode);
+    NativeEntry entry = tasks_table[0];
+    if (how == WAIT_NOT_RECORDED)
+        entry.cost_milli = 5000000;   /* cross a frame paying the work before the switch starts */
+    NativeRuntime *rt = native_create(&entry, 1, mode);
     native_attach(rt, s);
     enum { FRAMES = 4, PARKED_MIDWAY = 2 };
     bool parked_seen = false;
@@ -196,13 +201,13 @@ static void tasks_case(const char *what, NativeMode mode, TaskCase how)
     const uint8_t *w = s->bus.wram;
     const NativeStats *st = native_stats_named(rt, "count_and_yield");
     CHECK(!s->cpu.stopped, "%s: ran into the ROM's fill at $%02X:%04X", what, s->cpu.pb, s->cpu.pc);
-    CHECK(w[B_TURNS] > 10, "%s: task B took %u turns", what, w[B_TURNS]);
+    CHECK(w[B_TURNS] > (how == WAIT_NOT_RECORDED ? 0 : 10), "%s: task B took %u turns", what, w[B_TURNS]);
     CHECK(w[COUNT_BEFORE] == w[COUNT_AFTER] || w[COUNT_BEFORE] == (uint8_t)(w[COUNT_AFTER] + 1),
           "%s: counted %u before the yield and %u after", what, w[COUNT_BEFORE], w[COUNT_AFTER]);
     CHECK(parked_seen, "%s: the port was never parked at a frame's end", what);
     CHECK(native_suspended(rt) == native_parked(rt), "%s: %d suspended, %d of them parked", what,
           native_suspended(rt), native_parked(rt));
-    if (how == RUN_THROUGH)
+    if (how == RUN_THROUGH || how == WAIT_NOT_RECORDED)
         CHECK(st->abandoned == 0, "%s: %u calls abandoned", what, st->abandoned);
     if (how == DROP_THE_TASK)
         CHECK(st->abandoned >= 1 && st->abandoned < st->calls, "%s: %u of %u calls abandoned", what, st->abandoned,
@@ -217,6 +222,7 @@ static void tasks_case(const char *what, NativeMode mode, TaskCase how)
     native_destroy(rt);
     free(s);
     free(rom);
+    wait_not_recorded = false;
 }
 
 /* Saved at the first frame's end with the port parked in its yield, and the
@@ -658,6 +664,7 @@ int main(void)
     tasks_case("a task dropped, shipping mode", NATIVE_ON, DROP_THE_TASK);
     tasks_case("a task dropped, shadow mode", NATIVE_SHADOW, DROP_THE_TASK);
     tasks_case("a task started afresh, shipping mode", NATIVE_ON, RESTART_THE_TASK);
+    tasks_case("the switch has yet to record the wait", NATIVE_ON, WAIT_NOT_RECORDED);
     parked_save_case("saved parked, loaded in the shipping mode", NATIVE_ON);
     parked_save_case("saved parked, loaded in shadow mode", NATIVE_SHADOW);
     menu_answer_case();

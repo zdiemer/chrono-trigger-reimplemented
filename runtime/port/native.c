@@ -383,6 +383,8 @@ struct NativeRuntime {
         Active a;
         Snes *clone;
         uint64_t since;
+        uint16_t switch_s;
+        bool switch_pending;   /* the yield's callee has not had a chance to record the wait */
     } parked[MAX_PARKED];
     int nparked;
     uint32_t parked_frame;
@@ -1525,6 +1527,8 @@ static void park(NativeRuntime *rt, Snes *s)
     rt->parked[at].a = *a;
     rt->parked[at].clone = NULL;
     rt->parked[at].since = 0;
+    rt->parked[at].switch_s = s->cpu.s;
+    rt->parked[at].switch_pending = true;
     if (rt->mode == NATIVE_SHADOW) {
         rt->parked[at].clone = rt->clones[level];
         rt->parked[at].since = rt->clone_since[level];
@@ -3023,11 +3027,19 @@ static void drop_the_dropped(NativeRuntime *rt, Snes *s)
     bool switched = s->cpu.s > rt->parked_s + MAX_PULL || s->cpu.s + MAX_PUSH < rt->parked_s;
     rt->parked_frame = s->frame;
     rt->parked_s = s->cpu.s;
-    if (!new_frame && !switched)
-        return;
     for (int i = rt->nparked - 1; i >= 0; i--) {
         const Job *j = rt->parked[i].a.job;
-        if (!j->goes_on(s, j->call_s_after))
+        /* Paying the caller's debt can cross a frame before the switch runs.
+         * The task's record still describes the work before this wait (a
+         * closing menu has even cleared it). Ask only after the callee gets
+         * its first turn, keeping it pending across interrupts at its entry. */
+        if (rt->parked[i].switch_pending) {
+            if (cpu_pc24(&s->cpu) == j->call_target && s->cpu.s == rt->parked[i].switch_s &&
+                !interrupt_deliverable(s))
+                rt->parked[i].switch_pending = false;
+            continue;
+        }
+        if ((new_frame || switched) && !j->goes_on(s, j->call_s_after))
             drop_parked(rt, i, "its task can't go on from it");
     }
 }

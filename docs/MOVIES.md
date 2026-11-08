@@ -119,6 +119,15 @@ has a case for each):
   the stack the wait kept, or being taken back into it), and a task stopped --
   every task is, as the menus close -- or started afresh over the wait is
   dropped, counted abandoned, as the original's routine never finishes either.
+  The question waits until the yield's callee has begun: paying the caller's
+  owed time can cross a frame before the task switch records the new wait.
+  In particular, closing the menus clears the task records before its fade
+  waits. Judging that cleared record at the switch's entry abandoned the live
+  closing task (`battle-r-series`, frame 37306 at `$C2:83FB` in the batched
+  `bfd75c49` run), stopping strict play and running 28 original instructions
+  in shipping mode. The pending switch stays live across debt payment and
+  interrupts at its entry; `suspend_test` exercises the frame boundary with a
+  wait whose record is not ready yet, alongside dropped and restarted tasks.
   A second yield to the same return and S drops the first (its stack has been
   used again). A task that goes on after a drop anyway has the original's code
   run the rest of its step, as for a port abandoned.
