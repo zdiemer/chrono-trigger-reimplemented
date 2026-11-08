@@ -46,7 +46,6 @@
 #include "core/program.h"
 #include "event/engine.h"
 #include "menu/display.h"
-#include "field/screen_setup.h"
 #include "core/display.h"
 #include "core/input.h"
 #include "event/event.h"
@@ -477,7 +476,7 @@ static bool put_aside(void *ctx, FieldStop stop)
     (void)stop;
     MenuStopContext *c = ctx;
     if (!field_party_can_be_kept(c->game)) {
-        program_needs_the_machine(c->game, FIELD_PUT_ASIDE_ENTRY, "a party the port doesn't keep for a menu");
+        program_breaks_a_contract(c->game, FIELD_PUT_ASIDE_ENTRY, "a party the port doesn't keep for a menu");
         return false;
     }
     TIMED_AS(c->game, FIELD_PUT_ASIDE_ENTRY, field_put_aside(c->game));
@@ -522,7 +521,7 @@ static bool start_character_over(void *ctx, unsigned row)
     if (end == TURN_OVER)
         return true;
     if (end != TURN_HANDED_BACK)
-        program_needs_the_machine(c->game, OBJECT_START, "a character's script the event engine hands to the original");
+        program_breaks_a_contract(c->game, OBJECT_START, "a character's script the event engine hands to the original");
     return false;
 }
 
@@ -533,7 +532,7 @@ static bool party_back(void *ctx, FieldStop stop)
     (void)stop;
     MenuStopContext *c = ctx;
     if (!party_links_readable(c->game)) {
-        program_needs_the_machine(c->game, BRING_THE_PARTY_BACK, "a party the port doesn't bring back");
+        program_breaks_a_contract(c->game, BRING_THE_PARTY_BACK, "a party the port doesn't bring back");
         return false;
     }
     bool done = false;

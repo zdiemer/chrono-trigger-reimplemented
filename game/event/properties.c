@@ -3,7 +3,8 @@
  * its sprite is layered against the map, and whether it has a sprite at all;
  * and asking where an object stands. Each is the field's object's
  * (field/object.h). */
-#include "event/leaves.h"
+#include "field/scratch.h"
+#include "charge.h"
 #include "event/party.h"
 #include "event/script.h"
 #include "event/variables.h"
@@ -54,23 +55,10 @@ EVENT_OPERATION(set_arrival, self, arrival)
 static EventFlow set_move_length(GameState *g, FieldObject self, uint8_t move_length)
 {
     uint8_t steps = (uint8_t)(move_length + 1);
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, steps));
     object_set_move_length(g, self, steps);
     return next_command();
 }
 EVENT_OPERATION(set_move_length, self, move_length)
-
-/* For the original's code and shadow mode: layering an object as the map is
- * where it stands, the original keeps its upper half's priority, as the
- * hardware's bits, in its first scratch cell -- off the map, from the bytes
- * it reads there (field/object.h, object_layer_as_the_map). */
-static void keep_upper_priority(GameState *g, MapTile tile)
-{
-    MapPlace place = { tile.y, tile.x };
-    TileAttributes there =
-        tile_on_the_map(tile) ? map_tile_attributes(g, place) : map_tile_attributes_past_the_map(g, place);
-    keep_byte(g, KEPT_FIRST, (uint8_t)(tile_priority(there.upper) << 4));
-}
 
 // $C0:4B74
 /* Put the object on a tile, at its bottom edge -- centred across it, or where
@@ -83,11 +71,8 @@ static EventFlow stand_on_tile(GameState *g, FieldObject self, uint8_t tile_x, u
     object_put_on_tile(g, self, tile, centred);
     if (object_follows_the_map(g, self)) {
         object_layer_as_the_map(g, self, tile);
-        ORIGINAL_EFFECT(keep_upper_priority(g, tile));
     } else {
-        ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, tile_x));
     }
-    ORIGINAL_EFFECT(keep_high_byte(g, KEPT_FIRST, tile_y));
     return next_command();
 }
 EVENT_OPERATION(stand_on_tile, self, tile_x, tile_y, centred)
@@ -101,7 +86,6 @@ static EventFlow place(GameState *g, FieldObject self, uint16_t x, uint16_t y)
     if (object_follows_the_map(g, self)) {
         MapTile tile = object_tile(g, self);
         object_layer_as_the_map(g, self, tile);
-        ORIGINAL_EFFECT(keep_upper_priority(g, tile));
     }
     return next_command();
 }
@@ -115,10 +99,6 @@ static EventFlow set_layering(GameState *g, FieldObject self, uint8_t layering)
 {
     ObjectLayering l = layering_of_byte(layering);
     object_set_layering(g, self, l);
-    if (l.follows_the_map)
-        ORIGINAL_EFFECT(keep_upper_priority(g, object_tile(g, self)));
-    else
-        ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, layering));
     return next_command();
 }
 EVENT_OPERATION(set_layering, self, layering)
@@ -142,8 +122,7 @@ EVENT_OPERATION(set_sprite, object, sprite)
 
 static void note(GameState *g, MapTile tile, EventVariable column, EventVariable row)
 {
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, tile.x));
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_SECOND, tile.y));
+    charge_legacy_accesses(g, 2); /* the selected column and row */
     set_variable_byte(g, column, tile.x);
     set_variable_byte(g, row, tile.y);
 }

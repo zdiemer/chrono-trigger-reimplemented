@@ -783,14 +783,13 @@ void set_event_object_end(GameState *g, uint16_t v);
 uint16_t event_count(const GameState *g);
 void set_event_count(GameState *g, uint16_t v);
 
-/* The offset of a comparison command's jump byte, which the comparisons' shared routine notes
- * and reads back itself (scaffolding) */
+/* The original comparisons' shared scratch cell for their jump-byte offset; retired, since the C
+ * comparisons keep that offset locally */
 uint16_t event_condition_resume(const GameState *g);
 void set_event_condition_resume(GameState *g, uint16_t v);
 
-/* Where a command goes on, which the original keeps across its calls into other code (the moves,
- * sound, the party routines) and reads back itself: nothing else reads it (ct_dev
- * --event-reads), so the port keeps it in a local and writes the cell as scaffolding */
+/* Where a command goes on, which the original keeps across calls and reads back itself; the C
+ * bridges keep it locally and no longer reconstruct this scratch cell */
 uint16_t event_saved_position(const GameState *g);
 void set_event_saved_position(GameState *g, uint16_t v);
 
@@ -802,11 +801,9 @@ void set_event_source_pointer(GameState *g, uint32_t v);
 uint32_t event_target_pointer(const GameState *g);
 void set_event_target_pointer(GameState *g, uint32_t v);
 
-/* The field page's scratch cells, $D9-$E6. Each event command keeps its operands and
- * intermediate values in the words at $D9, $DB, $DD, $DF, $E1 and $E3, and only that command
- * reads them back (ct_dev --event-reads over the library; the menus' wave handler at $C2:77C7
- * reads $E2 as a phase it never sets); the field's motion, sprite, layer and graphics routines
- * leave their values there on the way (field/scratch.h) [14 bytes, one at a time] */
+/* The original field/event scratch cells, $D9-$E6. Their reconstruction has retired except for
+ * the menus' wave phase at $E2-$E3, read by $C2:77C7. Named state aliases in this range, such as
+ * field_scene_to_start, remain ordinary game state [14 bytes, one at a time] */
 enum { EVENT_SCRATCH_BYTES = 14 };
 uint8_t event_scratch_byte(const GameState *g, unsigned at);
 void set_event_scratch_byte(GameState *g, unsigned at, uint8_t v);

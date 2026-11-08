@@ -26,9 +26,11 @@
  * game over's button), it runs a frame with only the leader's walk and the
  * effects' refresh (field_walk_a_frame).
  *
- * The field's own steps that are ports run as C; the rest are the original's
- * routines, called from the original's calls (field/bridge.h). */
+ * The legacy driver calls the field's steps through checked machine forms;
+ * the native program calls their state/platform operations directly. Battle
+ * and menu hand-offs retain their still-gated interfaces. */
 #include "field/main_loop.h"
+#include "field/machine_forms.h"
 #include "field/dialog_window.h"
 #include "field/field.h"
 #include "field/frames.h"
@@ -194,10 +196,6 @@ static void take_the_interrupts(GameState *g)
 enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097, WAIT_FOR_THE_NEXT_FRAME = 0xC000BA };
 enum { THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
-/* For shadow mode: the sound driver's start is called with the field's
- * page's high byte in A's, which the original sets D through. */
-static void leave_the_page_in_a(Snes *s) { s->cpu.a = (uint16_t)((FIELD_PAGE & 0xFF00) | (s->cpu.a & 0x00FF)); }
-
 /* The field's entry reads none of the registers the power-on leaves. */
 enum { ENTERING_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
@@ -236,15 +234,11 @@ void field_first_start(Snes *s)
     display_leaves_the_machine_dark(s);
     wake(g, pf);
     s->cpu.x = power_on_clears[POWER_ON_CLEARS - 1].bytes;
-    ORIGINAL_EFFECT(leave_the_page_in_a(s));
     bool hosted = sound_driver_host_boots(g, pf);
     if (!hosted && !bridge_call_long(s, 0xC00053, SOUND_DRIVER_BOOT, THE_BOOT_IGNORES, page(s)))
         return;
-    PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)s->cpu.y, (uint8_t)s->cpu.x));
     TIMED_AS(g, MENUS_SERVICES, start_from_the_saves(g, pf));
-    ORIGINAL_EFFECT(party_service_answered(g, SERVICE_POWER_ON, &call));
-    m_stop_at(s, ENTER, ENTERING_READS_NOTHING);
+    field_hands_over_to(s, ENTER, ENTERING_READS_NOTHING, field_enter);
 }
 
 /* ---- The field entered ---------------------------------------------------------------------- */
@@ -265,7 +259,7 @@ static bool load(GameState *g, Platform *pf)
 {
     if (field_load_the_location(g, pf))
         return true;
-    program_needs_the_machine(g, FIELD_LOAD_LOCATION_ENTRY, "a location whose map or script the port doesn't take");
+    program_breaks_a_contract(g, FIELD_LOAD_LOCATION_ENTRY, "a location whose map or script the port doesn't take");
     return false;
 }
 
@@ -312,8 +306,14 @@ typedef struct {
  * steps; the locations from $1F0 are the world map's instead, which comes
  * back to the field's start for the place it leaves for. False where it went
  * no further. */
+enum { LOCATION_SIGN = 0x8000 };
+
 static bool enter_the_location(GameState *g, Platform *pf, const EnterSteps *steps, void *ctx)
 {
+    if (location_id(g) & LOCATION_SIGN) {
+        program_breaks_a_contract(g, ENTER, "a field location outside its unsigned range");
+        return false;
+    }
     for (;;) {
         TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
         take_the_interrupts(g);
@@ -381,7 +381,6 @@ void field_enter(Snes *s)
 /* The guard: a location the game keeps, its number in the word's low bits
  * (the original reads the word as a signed number, and a negative one would
  * take neither of the field's ways in). */
-enum { LOCATION_SIGN = 0x8000 };
 bool field_location_is_a_number(Snes *s)
 {
     vars_peek(true);
@@ -427,11 +426,9 @@ static bool frames(GameState *g, Platform *pf)
     return true;
 }
 
-/* In order, each with the original's call of it: its entry where the port
- * runs it as C under the call, none where it is a port called on the machine
- * as the original's call (a budget, or the update), and the index
- * registers' width it is called with. The line effects' tables and the
- * palettes are reached by long calls. */
+/* In order, each step's original call, calibrated routine, checked machine
+ * form and state/platform operation. The legacy driver's index width and
+ * long-call convention stay at this boundary. */
 static const struct {
     uint32_t site, routine;
     void (*entry)(Snes *);
@@ -439,11 +436,11 @@ static const struct {
     bool (*run)(GameState *, Platform *);
 } frame_work[] = {
     { 0xC000C1, TURNS_DUE, field_queue_due_turns, false, true, turns_due },
-    { 0xC000C4, SCRIPT_TURNS, NULL, false, true, field_queued_turns_run },
+    { 0xC000C4, SCRIPT_TURNS, field_run_queued_turns, false, true, field_queued_turns_run },
     { 0xC000C7, LINE_EFFECTS, field_build_line_effect_tables, true, true, line_effects },
     { 0xC000CD, PALETTE_ANIMATION, palette_animate, true, false, palettes },
-    { 0xC000D3, UPDATE_OBJECTS, NULL, false, true, objects },
-    { 0xC000D6, SPRITE_FRAMES, NULL, false, true, frames },
+    { 0xC000D3, UPDATE_OBJECTS, field_update_objects, false, true, objects },
+    { 0xC000D6, SPRITE_FRAMES, field_draw_queued_frames, false, true, frames },
 };
 enum { FRAME_WORK_STEPS = sizeof frame_work / sizeof frame_work[0] };
 
@@ -478,7 +475,7 @@ bool field_frame_work_done(GameState *g, Platform *pf)
     bool built = false;
     TIMED_AS(g, SPRITE_TABLE, built = field_sprite_table_built(g));
     if (!built)
-        program_needs_the_machine(g, SPRITE_TABLE, "a sprite table the port doesn't build");
+        program_breaks_a_contract(g, SPRITE_TABLE, "a sprite table the port doesn't build");
     return built;
 }
 
@@ -492,8 +489,10 @@ static bool frame_work_step_on_the_machine(void *ctx, unsigned step)
             m_rep(s, CPU_FLAG_X);
     }
     BridgeMachine m = frame_work[step].x8 ? page_x8(s) : page(s);
-    if (!frame_work[step].entry)
-        return bridge_call(s, frame_work[step].site, frame_work[step].routine, READS_THE_OVERFLOW, m);
+    if (frame_work[step].routine == SCRIPT_TURNS || frame_work[step].routine == UPDATE_OBJECTS ||
+        frame_work[step].routine == SPRITE_FRAMES)
+        return field_run_called(s, frame_work[step].site, frame_work[step].routine, READS_THE_OVERFLOW,
+                                frame_work[step].entry, m);
     if (frame_work[step].long_call)
         return field_run_long(s, frame_work[step].site, frame_work[step].routine, READS_THE_OVERFLOW,
                               frame_work[step].entry, m);
@@ -507,10 +506,12 @@ void field_frame_work(Snes *s)
     if (!do_the_frame_work(frame_work_step_on_the_machine, s))
         return;
     m_rep(s, CPU_FLAG_X);
-    if (field_sprite_rows_drawable(s))
-        TIMED_AS(state_of(s), SPRITE_TABLE, field_build_sprite_table(s));
-    else
+    if (!field_sprite_rows_drawable(s)) {
+        program_breaks_a_contract(state_of(s), SPRITE_TABLE, "sprite rows outside the field's drawable tables");
         m_stop_at(s, SPRITE_TABLE, 0);
+        return;
+    }
+    field_hands_over_to(s, SPRITE_TABLE, 0, field_build_sprite_table);
 }
 
 /* ---- The main loop's pass ------------------------------------------------------------------- */
@@ -851,7 +852,7 @@ enum { FIELD_STARTS = 0xC00000, THE_FIELD_READS_NOTHING = DC_A | DC_X | DC_Y | D
 void field_start_again(Snes *s)
 {
     on_a_fresh_stack(s);
-    m_stop_at(s, FIELD_STARTS, THE_FIELD_READS_NOTHING);
+    m_hold_at_own(s, FIELD_STARTS, THE_FIELD_READS_NOTHING, HOLD_FIELD_LOCATION);
 }
 
 /* The scenes an event command asks for: below $80 the scene engine's (its
@@ -928,9 +929,8 @@ void field_close_into_the_scene(Snes *s)
  * rest:
  * - the main loop's, whose next pass is a continuation of the same wait
  *   (field_next_frame), which the runtime goes on with by the wait's number;
- * - a port that goes on after the wait (a fade's frames, a request answered
- *   over frames, an event command's frame), which called it through the
- *   machine and is suspended over it: the return goes back into that call.
+ * - a fade, request or event command's named continuation, another row of
+ *   the same held wait, with the old C call chain already ended.
  * The loop reads the count into A's low byte each pass; the high byte its
  * callers may read is the count's, as the original leaves it
  * (field/leaves.c). */
@@ -956,8 +956,7 @@ static void wait_for_the_next_frame_after_the_pass(Snes *s)
 {
     m_jump_to(s, WAIT_FOR_THE_NEXT_FRAME);
     tm_sync(m_platform(s));
-    const NativeEntry *e = native_hand_entry_at(s, WAIT_FOR_THE_NEXT_FRAME);
-    if (!e || e->fn != field_wait_for_the_next_frame) {
+    if (!field_machine_form_takes(s, field_wait_for_the_next_frame)) {
         m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
         return;
     }
@@ -987,8 +986,7 @@ void field_next_frame(Snes *s)
 {
     m_jump_to(s, MAIN_LOOP);
     native_sync_boundary(s);
-    const NativeEntry *e = native_hand_entry_at(s, MAIN_LOOP);
-    if (!e || e->fn != field_frame) {
+    if (!field_machine_form_takes(s, field_frame)) {
         m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW);
         return;
     }

@@ -98,14 +98,6 @@ static FieldObject take_the_first(GameState *g)
 
 /* ---- The turns -------------------------------------------------------------------------------- */
 
-/* For the original's code and shadow mode: the count of objects doubled,
- * where the objects' loops keep their end, as the object update does
- * (field/object_update.c). */
-static void leave_loop_end(GameState *g, uint8_t count)
-{
-    set_event_object_end(g, (uint16_t)((event_object_end(g) & 0xFF00) | (uint8_t)(count * 2)));
-}
-
 // $C0:59D9
 /* Every frame: each object counts down to its script's next turn, and those
  * whose turn has come are queued for it, which starts their countdown again.
@@ -113,7 +105,7 @@ static void leave_loop_end(GameState *g, uint8_t count)
 static void queue_due_turns(GameState *g)
 {
     uint8_t count = event_object_count(g);
-    ORIGINAL_EFFECT(leave_loop_end(g, count));
+    charge_legacy_accesses(g, 4); /* loop bound's former word read/write */
     for (FieldObject obj = 0; obj < count; obj++) {
         if (!object_turn_comes(g, obj))
             continue;
@@ -195,7 +187,7 @@ static bool take_turn(void *ctx, FieldObject obj)
     if (end == TURN_OVER)
         return true;
     if (end != TURN_HANDED_BACK)
-        program_needs_the_machine(c->game, RUN_A_TURN, "a turn the event engine hands to the original");
+        program_breaks_a_contract(c->game, RUN_A_TURN, "a turn the event engine hands to the original");
     return false;
 }
 

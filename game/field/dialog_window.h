@@ -83,10 +83,6 @@ enum { FIELD_BUILD_WINDOW_FRAME_ENTRY = 0xC029F7, FIELD_BUILD_TEXT_AREA_ENTRY = 
        FIELD_SEND_WINDOW_DESIGN_ENTRY = 0xC06E5C, FIELD_SEND_CHOICE_POINTER_ENTRY = 0xC06F5E };
 void field_build_the_window_frame_entry(Snes *s);
 void field_build_the_text_area_entry(Snes *s);
-void field_send_the_window_frame_entry(Snes *s);
-void field_send_the_text_area_entry(Snes *s);
-void field_send_the_window_design_entry(Snes *s);
-void field_send_the_choice_pointer_entry(Snes *s);
 
 enum { FIELD_DIALOG_WINDOW_STEP_ENTRY = 0xC01F87, FIELD_TAKE_CHOICE_BUTTONS_ENTRY = 0xC01ADF,
        FIELD_SEND_DIALOG_TEXT_ENTRY = 0xC06ECB, FIELD_REFRESH_CHOICE_POINTER_ENTRY = 0xC0F05E };
@@ -94,13 +90,5 @@ enum { FIELD_DIALOG_WINDOW_STEP_ENTRY = 0xC01F87, FIELD_TAKE_CHOICE_BUTTONS_ENTR
 /* The entries (game/registry.c), and their guards. */
 void field_dialog_window_step_entry(Snes *s);
 bool field_dialog_window_can_step(Snes *s);
-void field_take_choice_buttons_entry(Snes *s);
-void field_send_dialog_text_entry(Snes *s);
-void field_refresh_choice_pointer_entry(Snes *s);
-void field_draw_choice_line_0(Snes *s);
-void field_draw_choice_line_1(Snes *s);
-void field_draw_choice_line_2(Snes *s);
-void field_draw_choice_line_3(Snes *s);
-bool field_choice_lines_dp_is_ppu(Snes *s);
 
 #endif

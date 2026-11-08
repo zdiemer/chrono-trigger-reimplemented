@@ -26,7 +26,7 @@
 #include "event/calls.h"
 #include "event/chests.h"
 #include "event/dialog.h"
-#include "event/leaves.h"
+#include "field/scratch.h"
 #include "event/party.h"
 #include "event/script.h"
 #include "field/bridge.h"
@@ -109,28 +109,11 @@ Touch leaders_touch(const GameState *g)
     return t;
 }
 
-/* What the original leaves in the arithmetic units: looking at a push, the
- * object's level as the multiplier's first operand (for the place it works
- * out next); and pushing, a word stored as the second operand, whose high
- * byte clears the divider's dividend's low byte. */
-static void leave_looking_to_push(GameState *g, FieldObject object)
-{
-    if (!leader_looks_to_push(g, false))
-        return;
-    hw_set_multiplicand(g, event_object_call_state_level(g, object));
-}
-
-static void leave_pushing(GameState *g)
-{
-    hw_set_dividend(g, (uint16_t)(hw_dividend(g) & 0xFF00));
-}
-
 /* The object is pushed: the push script walks it to the tile, at the most
  * urgent level, and no other push starts until it is done. */
 static void push(GameState *g, FieldObject object, MapTile to)
 {
     party_script_go_to(g, PUSH_SCRIPT, to);
-    ORIGINAL_EFFECT(leave_pushing(g));
     object_run_script_from(g, object, PUSHED_LEVEL, party_script_start(PUSH_SCRIPT));
     mark_field_object_pushed(g);
 }
@@ -144,7 +127,6 @@ void touch_what_the_leader_met(GameState *g)
     Touch t = leaders_touch(g);
     if (t.touched)
         call_on(g, object, TOUCH_LEVEL, TOUCH_FUNCTION);
-    ORIGINAL_EFFECT(leave_looking_to_push(g, object));
     if (t.pushed)
         push(g, object, t.to);
 }
@@ -213,30 +195,6 @@ static Search search_before_the_leader(const GameState *g, FieldLeader leader)
  * near enough along, across. */
 enum { CELL_LEADER_X = 0xC3, CELL_LEADER_Y = 0xC5 };
 
-static bool subtraction_overflows(uint16_t from, uint16_t take, bool borrow)
-{
-    return field_add_with_carry_overflows16(from, (uint16_t)~take, !borrow);
-}
-
-static void leave_search(GameState *g, FieldLeader leader, Search r)
-{
-    FieldPosition at = field_leader_position(g, leader);
-    Facing facing = field_leader_facing(g, leader);
-    keep_word(g, KEPT_SECOND, (uint16_t)(facing * 2));
-    original_cell16(g, CELL_LEADER_X, at.x);
-    original_cell16(g, CELL_LEADER_Y, at.y);
-    if (r.measured == 0)
-        return;
-    FieldPosition there = object_position(g, r.last_measured);
-    bool nearer = measured_nearer(g, r.last_measured, leader.obj);
-    ObjectBearing b = object_bearing(at, there, facing, nearer);
-    bool vertical = facing == FACING_UP || facing == FACING_DOWN;
-    if (b.ahead && b.along < TALK_REACH_ALONG)
-        event_leave_overflow(subtraction_overflows(vertical ? there.x : there.y, vertical ? at.x : at.y, true));
-    else
-        event_leave_overflow(subtraction_overflows(vertical ? there.y : there.x, vertical ? at.y : at.x, nearer));
-}
-
 /* The original steps its index down the slots with the checks spelled out
  * for each, where the port reads a byte or two a slot: what the port charges
  * is that difference, a pass for every slot and more for each it measures,
@@ -247,17 +205,9 @@ static void find_the_object_before_the_leader(GameState *g)
 {
     FieldLeader leader = field_leader(g);
     Search r = search_before_the_leader(g, leader);
-    ORIGINAL_EFFECT(leave_search(g, leader, r));
     charge_as(g, CONFIRM_BUTTON, (uint32_t)r.passed * ACCESSES_A_SLOT +
                                                      (uint32_t)r.measured * ACCESSES_A_MEASURE);
     set_leader_contact(g, r.found);
-}
-
-/* A talk leaves the overflow clear where the object takes the call. */
-static void leave_talk(const GameState *g)
-{
-    if (object_takes_a_call_now(g, contact(g), TALK_LEVEL))
-        event_leave_overflow(false);
 }
 
 enum { TALK = 0xC05AC5 };
@@ -282,7 +232,6 @@ ChestGift press_confirm(GameState *g)
     if (!leader_has_contact(g))
         find_the_object_before_the_leader(g);
     if (leader_has_contact(g)) {
-        ORIGINAL_EFFECT(leave_talk(g));
         TIMED_AS(g, TALK, talk_to_the_leaders_contact(g));
     }
     return open_the_chest_before_the_leader(g);
@@ -301,11 +250,6 @@ static void give_the_gift(GameState *g, ChestGift gift)
         TIMED_AS(g, 0xC1D0A2, battle_give_gold(g, gift.amount));
     announce_the_gift(g, gift);
 }
-
-/* The confirm button, from the field's main loop with 16-bit index
- * registers on the field's page; the entry leaves the overflow as the press
- * worked it out. */
-static void leave_overflow(Snes *s) { m_set_flag(s, CPU_FLAG_V, event_overflow_left(m_flag(s, CPU_FLAG_V))); }
 
 static bool confirm_fits(const GameState *g);
 
@@ -326,15 +270,11 @@ void field_confirm_pressed(GameState *g)
 void field_press_confirm(Snes *s)
 {
     GameState *g = state_of(s);
-    ORIGINAL_EFFECT(event_forget_overflow());
     ChestGift gift = press_confirm(g);
     if (gift.kind != GIFT_NOTHING)
         give_the_gift(g, gift);
-    ORIGINAL_EFFECT(leave_overflow(s));
     m_rts(s);
 }
-
-
 
 /* The guards: the object is one the tables hold, as the game keeps it (the
  * original adds its whole word to a place's offset), and runs at one of the
@@ -349,8 +289,6 @@ static bool names_a_contact(const GameState *g, FieldLink object, uint8_t high)
 
 static bool contact_is_one(const GameState *g) { return names_a_contact(g, leader_contact(g), field_leader_contact_high(g)); }
 
-
-
 bool event_touch_is_ours(const GameState *g)
 {
     if (!contact_is_one(g))
@@ -364,8 +302,6 @@ bool event_touch_is_ours(const GameState *g)
     TileBeyond beyond = tile_beyond(object_tile(g, object), leaders_facing(g));
     return !beyond.there || tile_on_the_map(beyond.tile);
 }
-
-
 
 /* The confirm button's: what a press reads is the game's where it goes on
  * past the pad. The leader is an object the tables hold or nobody (the

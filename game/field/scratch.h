@@ -1,35 +1,7 @@
-/* What the field's routines leave behind for the original's code and shadow
- * mode, and nothing else reads.
- *
- * Two kinds, both scaffolding: they stand while the original's code runs
- * beside the ports and shadow mode compares every byte and register, and go
- * when the gate retires (docs/PLAN.md, "Retiring the gate, deliberately").
- *
- * - Cells the original writes on the way. The field's routines keep values in
- *   scratch cells of their direct page as they work: the field's page, $C1-$C8
- *   (field_work) and $D9-$E6 (the cells the event commands use too,
- *   `event_scratch`); the layers' page, $1D52-$1D5C and $1D62-$1D6F
- *   (field_layer_work, field_layer_edge_work); and the window shape
- *   rasterizer's page, $0353-$035A and $03F0-$03FD (field_window_shape_edge,
- *   _steps). A port keeps its values in C, so nothing in game/ reads these
- *   back. Each file gathers its writes in small helpers named for what the
- *   original had in the cells (`leave_...`), which write the final values
- *   once. `cell` is the offset on the page, as the original's direct-page
- *   operand spells it: these are addresses on purpose, since they are the
- *   original's.
- *
- * - What a wrapper works out. An entry's wrapper gives the original's callers
- *   the registers they read, derived from the call's inputs, its result and
- *   the game's state after it: the last distance the in-the-way search
- *   measured from the object it names, the wave's last carry from the table
- *   it wrote. What it looks at again it reads under vars_peek, so it takes
- *   none of the machine's time. Only cells the original leaves whose values
- *   follow the path the routine took and are nowhere in the final state (the
- *   last run the tile unpacking repeated, the last sloped edge a window shape
- *   drew) are recorded on the way, in a file-static record named
- *   `..._leaves`, through a `record_...` helper called as an ORIGINAL_EFFECT
- *   and read only by the helper that leaves the cells. The logic's
- *   signatures never carry any of it. */
+/* Arithmetic and register results required by the machine compatibility
+ * path and still-gated callers. The menus' two live scratch aliases are
+ * isolated in field/menu_compat.h. The still-gated scene window keeps its
+ * compared rasterizer scratch locally in field/window_shape.c. */
 #ifndef CT_GAME_FIELD_SCRATCH_H
 #define CT_GAME_FIELD_SCRATCH_H
 
@@ -70,26 +42,6 @@ static inline bool field_subtract_overflows16(uint16_t a, uint16_t b)
     return (((a ^ b) & (a ^ difference)) & 0x8000) != 0;
 }
 
-/* What the motion's routines leave the original's code and shadow mode, for
- * their entries' wrappers and for a caller that runs them as C where the
- * original called them (event's moves, whose commands hand on a Y and a V;
- * event/leaves.h), worked out in field/leaves.c: the cells the direction
- * routine works from and leaves (field_leave_aim, field_leave_direction) and
- * its overflow; the check for objects in the way keeping its caller's Y, and
- * the object it (or a move) keeps as its target; the Y and the overflow a
- * step's start leaves; a jump's overflow; the overflow animating with the
- * movement leaves where it did; and the screen test's. */
-void field_leave_aim(GameState *g, Aim aim);
-void field_leave_direction(GameState *g, Aim aim, Direction d);
-bool field_direction_overflow(Aim aim, Direction d);
-void field_leave_in_the_way_check(GameState *g, FieldObject obj, uint16_t callers_y);
-void field_leave_target_object(GameState *g, FieldObject obj);
-uint16_t field_step_start_y(const GameState *g, StepStart r, uint16_t callers_y);
-bool field_step_start_overflow(const GameState *g, FieldObject obj, StepStart r);
-bool field_walk_overflow(const GameState *g, FieldObject obj);
-bool field_jump_overflow(const GameState *g, FieldObject obj);
-bool field_screen_test_overflow(const GameState *g, MapTile tile);
-
 /* What casting an object leaves the event command that cast it (field/cast.c):
  * Y at the last of its sprite record's table entries read -- the animations'
  * where its graphics were shared, else the graphics set's bank -- and the
@@ -97,63 +49,10 @@ bool field_screen_test_overflow(const GameState *g, MapTile tile);
  * were shared, the unpacked graphics' new end where a set was unpacked, none
  * otherwise. */
 uint16_t field_cast_y(FieldSpriteRecord r, GraphicsSource source);
-bool field_cast_overflow(const GameState *g, FieldSpriteRecord r, GraphicsSource source);
 
 /* The frame read's overflow (field/animation.c's entry): from whether it
  * took a frame and the frame the object was on before. */
 bool field_frame_read_overflow(const GameState *g, FieldObject obj, bool took_a_frame, uint8_t frame_before);
-
-/* The field page's cells: its work cells from $C1, and from $D9 the scratch
- * cells, the first of which ($D9) is where many of the field's routines
- * leave the last value they worked with (a switch's last entry's row, a
- * frame's attributes). */
-enum { FIELD_WORK_CELLS = 0xC1, FIELD_SCRATCH_CELLS = 0xD9, FIELD_LAST_WORKED_CELL = FIELD_SCRATCH_CELLS, FIELD_MORE_SCRATCH_CELLS = 0xE7, FIELD_LAYER_WORK_CELLS = 0x50,
-       FIELD_LAYER_EDGE_CELLS = 0x60 };
-enum { SHAPE_EDGE_CELLS = 0x53, SHAPE_STEP_CELLS = 0xF0 };
-
-static inline void original_cell8(GameState *g, uint8_t cell, uint8_t v)
-{
-    if (cell >= FIELD_MORE_SCRATCH_CELLS)
-        set_field_scratch_more(g, (unsigned)(cell - FIELD_MORE_SCRATCH_CELLS), v);
-    else if (cell >= FIELD_SCRATCH_CELLS)
-        set_event_scratch_byte(g, (unsigned)(cell - FIELD_SCRATCH_CELLS), v);
-    else
-        set_field_work_byte(g, (unsigned)(cell - FIELD_WORK_CELLS), v);
-}
-
-static inline void original_cell16(GameState *g, uint8_t cell, uint16_t v)
-{
-    original_cell8(g, cell, (uint8_t)v);
-    original_cell8(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
-}
-
-static inline void original_layer_cell8(GameState *g, uint8_t cell, uint8_t v)
-{
-    if (cell >= FIELD_LAYER_EDGE_CELLS)
-        set_field_layer_edge_work_byte(g, (unsigned)(cell - FIELD_LAYER_EDGE_CELLS), v);
-    else
-        set_field_layer_work_byte(g, (unsigned)(cell - FIELD_LAYER_WORK_CELLS), v);
-}
-
-static inline void original_layer_cell16(GameState *g, uint8_t cell, uint16_t v)
-{
-    original_layer_cell8(g, cell, (uint8_t)v);
-    original_layer_cell8(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
-}
-
-static inline void original_shape_cell8(GameState *g, uint8_t cell, uint8_t v)
-{
-    if (cell >= SHAPE_STEP_CELLS)
-        set_field_window_shape_steps_byte(g, (unsigned)(cell - SHAPE_STEP_CELLS), v);
-    else
-        set_field_window_shape_edge_byte(g, (unsigned)(cell - SHAPE_EDGE_CELLS), v);
-}
-
-static inline void original_shape_cell16(GameState *g, uint8_t cell, uint16_t v)
-{
-    original_shape_cell8(g, cell, (uint8_t)v);
-    original_shape_cell8(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
-}
 
 /* What the window shapes' drawing leaves in Y, for the scaffolding of the
  * routines that call it and leave it in turn (field/window_shape.c; the

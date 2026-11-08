@@ -18,9 +18,10 @@
  * the bridges on the machine, and hands what the port doesn't have to the
  * original. */
 #include "event/engine.h"
+#include "charge.h"
 #include "event/calls.h"
 #include "event/event_data.h"
-#include "event/leaves.h"
+#include "field/scratch.h"
 #include "event/party.h"
 #include "event/variables.h"
 
@@ -266,10 +267,42 @@ EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *r
     return c;
 }
 
+/* The old machine adapter saved decoded operands before running a command.
+ * Reads used to derive its dead registers were uncounted, but these writes
+ * were part of the handler's calibrated estimate. Keep only their work;
+ * there are no operand copies or scratch addresses here. The following
+ * commands' remaining wave-phase byte is written by the machine bridge. */
+static uint8_t legacy_parse_work(uint8_t opcode)
+{
+    switch (opcode) {
+    case 0x12: case 0x14: return 4; /* byte comparison and resume offset */
+    case 0x13: case 0x15: return 6; /* word comparison and resume offset */
+    case 0xE6: return 3; /* layers and drift */
+    case 0x16: /* comparison resume offset */
+    case 0xDC: case 0xDD: case 0xDE: /* location */
+    case 0x48: case 0x49: case 0x4C: case 0x4D: /* memory operand offset */
+    case 0x58: case 0x59: /* story value */
+    case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: /* variable value */
+    case 0x5D: case 0x5E: case 0x60: case 0x61: /* arithmetic amount */
+        return 2;
+    case 0xB5: case 0xB6: /* remaining half of the following offset */
+    case 0xF0: /* sound operand */
+    case 0x56: case 0x65: case 0x66: /* story value or flag operand */
+    case 0x4F: case 0x5B: case 0x5F: /* byte value or amount */
+    case 0x63: case 0x64: case 0x67: case 0x69: case 0x6B: /* flags */
+        return 1;
+    default: return 0;
+    }
+}
+
 EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
 {
     EventCommand c = event_decode(g, pf, row, at);
-    return event_follow(g, row, at, row->run(g, &c));
+    charge_legacy_accesses(g, legacy_parse_work(row->opcode));
+    EventFlow flow = row->run(g, &c);
+    if (flow.kind == FLOW_JUMP)
+        charge_legacy_accesses(g, 2); /* the selected jump distance */
+    return event_follow(g, row, at, flow);
 }
 
 /* ---- Turns ------------------------------------------------------------------------------ */
@@ -284,7 +317,6 @@ static EventTurnEnd broken_turn(GameState *g, EventTurnEnd end)
     program_breaks_a_contract(g, 0xC05A93, "an event turn left its script or object tables");
     return end;
 }
-
 
 /* The turn's budget of commands is the game's, in event_commands_left: the
  * commands still run by the original's code can spend it too (fuzzing finds
@@ -324,10 +356,6 @@ EventTurnEnd event_run_turn(GameState *g, FieldObject object, const EventRunner 
     set_event_object_script_position(g, object_current(g), at);
     return TURN_OVER;
 }
-
-/* For the original's code and shadow mode: the map setup keeps the
- * openings' end, the object count doubled, in event_object_end. */
-static void leave_openings_end(GameState *g, uint8_t count) { set_event_object_end(g, (uint16_t)(count * 2)); }
 
 /* An object's opening is its script's first function. */
 enum { OPENING_FUNCTION = 0 };
@@ -424,7 +452,6 @@ EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, FieldObject 
         *stopped_at = 0;
         return broken_turn(g, TURN_NOT_OURS_BEFORE);
     }
-    ORIGINAL_EFFECT(leave_openings_end(g, count));
     FieldObject next = 0;
     do {
         *object = next;

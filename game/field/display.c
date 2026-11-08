@@ -148,36 +148,6 @@ bool field_layer_edges_fit(const GameState *g)
     return true;
 }
 
-bool field_edge_runs_small(Snes *s)
-{
-    if (m_direct_page(s) != FIELD_LAYERS_PAGE || !m_bank_reaches_io(s))
-        return false;
-    vars_peek(true);
-    bool ok = field_layer_edges_fit(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-#define EDGE_RUN_ENTRY(name, upload)                                                                                   \
-    void name(Snes *s)                                                                                                 \
-    {                                                                                                                  \
-        field_upload_layer_edge(state_of(s), m_platform(s), (upload));                                                   \
-        m_rts(s);                                                                                                      \
-    }
-
-EDGE_RUN_ENTRY(field_upload_layer1_bottom_row, 0)
-EDGE_RUN_ENTRY(field_upload_layer2_bottom_row, 1)
-EDGE_RUN_ENTRY(field_upload_layer3_bottom_row, 2)
-EDGE_RUN_ENTRY(field_upload_layer1_top_row, 3)
-EDGE_RUN_ENTRY(field_upload_layer2_top_row, 4)
-EDGE_RUN_ENTRY(field_upload_layer3_top_row, 5)
-EDGE_RUN_ENTRY(field_upload_layer1_right_column, 6)
-EDGE_RUN_ENTRY(field_upload_layer2_right_column, 7)
-EDGE_RUN_ENTRY(field_upload_layer3_right_column, 8)
-EDGE_RUN_ENTRY(field_upload_layer1_left_column, 9)
-EDGE_RUN_ENTRY(field_upload_layer2_left_column, 10)
-EDGE_RUN_ENTRY(field_upload_layer3_left_column, 11)
-
 /* ---- Setting a map's display up -------------------------------------------------------- */
 
 // $FD:C0D7
@@ -327,58 +297,12 @@ static void end_picture(Platform *pf)
 
 bool field_display_bank_is_io(Snes *s) { return m_io_bank(s->cpu.db); }
 
-/* Nothing these leave in the registers is read after (the entries' don't-care
- * sets). */
-void field_upload_sprites(Snes *s)
-{
-    field_upload_sprite_table(m_platform(s));
-    m_rts(s);
-}
-
 uint16_t field_queue_last_second_size(const GameState *g, uint16_t none)
 {
     unsigned entries = 0;
     while (field_vram_queue_used(g, entries) != 0)
         entries++;
     return entries != 0 ? field_vram_queue_size2(g, entries - 1) : none;
-}
-
-/* Y is left the last entry's second size, which the callers read. */
-void field_upload_vram_queue(Snes *s)
-{
-    GameState *g = state_of(s);
-    s->cpu.y = field_queue_last_second_size(g, s->cpu.y);
-    field_upload_queued_transfers(g, m_platform(s));
-    m_rts(s);
-}
-
-void field_init_video_mode(Snes *s)
-{
-    field_set_the_video_mode(m_platform(s));
-    m_rtl(s);
-}
-
-void field_set_screens(Snes *s)
-{
-    field_show_the_maps_screens(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-void field_vram_transfer(Snes *s)
-{
-    vram_transfer(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-/* X is left the size, which the callers read (as it was before the clear,
- * which can clear it). */
-void field_fill_memory(Snes *s)
-{
-    const GameState *g = state_of(s);
-    uint16_t size = field_transfer_size(g);
-    fill_memory(m_platform(s), field_transfer_source(g), size);
-    s->cpu.x = size;
-    m_rts(s);
 }
 
 /* ---- After the picture ---------------------------------------------------------------------- */
@@ -392,12 +316,6 @@ static void redraw_after_the_picture(GameState *g, Platform *pf)
     if (field_choice_pointer_shown(g))
         TIMED_AS(g, FIELD_REFRESH_CHOICE_POINTER_ENTRY, field_refresh_choice_pointer(g, pf));
     field_redraw_changed_tiles(g, pf);
-}
-
-void field_redraw_after_picture(Snes *s)
-{
-    redraw_after_the_picture(state_of(s), m_platform(s));
-    m_rts(s);
 }
 
 /* ---- The line interrupt ----------------------------------------------------------------------- */
@@ -467,41 +385,4 @@ void field_irq(Snes *s)
         }
     }
     m_return_to_interrupted(s);
-}
-
-/* Its guard: the data bank $00, on whatever page the interrupt has (it
- * reaches its cells as the field's page does). */
-bool field_redraw_can_run(Snes *s) { return m_bank_is_zero(s); }
-
-/* The staged layer's sends and BG3's piece, on the field's page with the
- * data bank reaching the registers; what they leave in A, X and the flags
- * nobody reads, and they leave Y as it was. */
-void field_send_staged_screen(Snes *s)
-{
-    field_send_staged_layer(state_of(s), m_platform(s), false);
-    m_rts(s);
-}
-
-void field_send_staged_screens(Snes *s)
-{
-    field_send_staged_layer(state_of(s), m_platform(s), true);
-    m_rts(s);
-}
-
-void field_send_staged_bg2_right(Snes *s)
-{
-    field_send_staged_bg2_screen(state_of(s), m_platform(s), true);
-    m_rts(s);
-}
-
-void field_send_staged_bg2_left(Snes *s)
-{
-    field_send_staged_bg2_screen(state_of(s), m_platform(s), false);
-    m_rts(s);
-}
-
-void field_send_bg3_piece_entry(Snes *s)
-{
-    field_send_bg3_piece(state_of(s), m_platform(s));
-    m_rts(s);
 }

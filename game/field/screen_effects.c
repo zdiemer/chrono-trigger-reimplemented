@@ -456,7 +456,9 @@ static void ripple_circle_opens(GameState *g)
 
 // $C0:2725
 /* The ripple's circle at the radius it has reached, over what the table
- * holds outside it. */
+ * holds outside it. The center survives a held frame; only its low bytes
+ * are state here. The circle renderer's compatibility write clears the high
+ * bytes and leaves these low bytes unchanged. */
 static void draw_the_ripple(GameState *g)
 {
     draw_circle(g, (uint8_t)scene_circle_center_x(g), (uint8_t)scene_circle_center_y(g),
@@ -731,7 +733,7 @@ bool field_screen_effect_moved_on(GameState *g, Platform *pf)
     static const EffectCalls in_the_program = { sweep_the_curtain, draw_bg1, refresh_the_effects, wait_for_the_frame, put_the_field_aside,
                                       start_the_scene };
     if (!effect_fits(g)) {
-        program_needs_the_machine(g, SCREEN_EFFECT, "a screen effect the port doesn't draw");
+        program_breaks_a_contract(g, SCREEN_EFFECT, "a screen effect the port doesn't draw");
         return false;
     }
     ScreenEffectContext c = { g, pf };

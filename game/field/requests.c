@@ -38,7 +38,6 @@
 #include "field/layers.h"
 #include "field/sprites.h"
 #include "field/streaming.h"
-#include "field/layers.h"
 #include "field/bridge.h"
 #include "field/display.h"
 #include "field/parts.h"
@@ -136,12 +135,6 @@ static const struct {
     [SWITCH_TWO_BY_THREE] = { 0xC01212, 0xC0149D },
 };
 
-static void leave_shape_before_the_sound(GameState *g, SwitchPress p)
-{
-    if (p.shape == SWITCH_ONE_BY_TWO || (p.shape == SWITCH_TWO_BY_TWO && p.step_column == 0))
-        set_field_switch_shape(g, (uint8_t)p.shape);
-}
-
 /* A step event's and a chest's sounds, and what the machine leaves after
  * each answer (the original's registers, which its later calls read): the
  * program plays the sound as C and leaves nothing; the machine's entry calls
@@ -167,7 +160,6 @@ static bool answer_step_event_with(GameState *g, const StepAndChestSteps *steps,
         steps->step_answered(ctx, step, false);
         return true;
     }
-    ORIGINAL_EFFECT(leave_shape_before_the_sound(g, p));
     if (!steps->switch_sound(ctx, p, step))
         return false;
     field_queue_switch_redraw(g, p, step);
@@ -182,7 +174,6 @@ static bool answer_step_event_with(GameState *g, const StepAndChestSteps *steps,
  * the sound went no further. */
 static bool answer_chest_with(GameState *g, const StepAndChestSteps *steps, void *ctx)
 {
-    ORIGINAL_EFFECT(field_chest_opening_starts(g));
     answered(g, FIELD_REQUEST_OPEN_CHEST);
     if (!steps->chest_sound(ctx))
         return false;
@@ -260,7 +251,7 @@ typedef struct {
 static bool sound_at_the_leader(StepAndChestContext *c, uint32_t entry, void (*play)(GameState *, Platform *))
 {
     if (!field_leader_readable(c->game)) {
-        program_needs_the_machine(c->game, entry, "a sound at a leader the port doesn't read");
+        program_breaks_a_contract(c->game, entry, "a sound at a leader the port doesn't read");
         return false;
     }
     TIMED_AS(c->game, entry, play(c->game, c->pf));
@@ -335,13 +326,13 @@ static void keep_where_the_party_was(GameState *g)
     set_location_previous_flags(g, (uint8_t)(at.facing ^ FACING_OPPOSITE));
 }
 
-/* The field starts again on a fresh stack at its start ($C0:0000), which the
- * port leaves to the original, from where it sets the stack. */
+/* The field starts again on a fresh stack, then its held entry loads the
+ * next location after the old C call chain has ended. */
 enum { FIELD_STARTS_AGAIN = 0xC00CC0, AS_THE_FIELD_STARTS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 // $C0:0C8F
-/* A step of the fade a frame; dark, the change made. False where the port
- * has handed the field's new start to the original. */
+/* A step of the fade a frame; dark, the change made. False once the field
+ * has handed over to the next location's held entry. */
 static bool change_location_on_the_machine(Snes *s)
 {
     GameState *g = state_of(s);
@@ -350,7 +341,7 @@ static bool change_location_on_the_machine(Snes *s)
     display_go_dark(s);
     keep_where_the_party_was(g);
     field_move_to_the_next_place(g);
-    m_stop_at_own(s, FIELD_STARTS_AGAIN, AS_THE_FIELD_STARTS);
+    field_hands_over_to(s, FIELD_STARTS_AGAIN, AS_THE_FIELD_STARTS, field_start_again);
     return false;
 }
 
@@ -554,7 +545,7 @@ static bool tile_copy_call(void *ctx, TileCopyCall call)
         return done;
     case TC_COPY:
         if (!field_tile_copy_is_on_the_map(g)) {
-            program_needs_the_machine(g, COPY_TILES, "a tile copy off the map");
+            program_breaks_a_contract(g, COPY_TILES, "a tile copy off the map");
             return false;
         }
         TIMED_AS(g, COPY_TILES, map_copy_tiles(g));
@@ -566,7 +557,7 @@ static bool tile_copy_call(void *ctx, TileCopyCall call)
     case TC_REFRESH: TIMED_AS(g, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(g)); return done;
     case TC_COLUMNS:
         if (!layers_repeat_within_the_maps(g)) {
-            program_needs_the_machine(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "layers the port doesn't stream");
+            program_breaks_a_contract(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "layers the port doesn't stream");
             return false;
         }
         TIMED_AS(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, stream_the_right_columns(g));
@@ -851,7 +842,7 @@ static bool press_the_switches(void *ctx)
 {
     GameState *g = ((RequestedBattleContext *)ctx)->game;
     if (!field_remembered_switches_on_the_map(g)) {
-        program_needs_the_machine(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "remembered switches off the map");
+        program_breaks_a_contract(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "remembered switches off the map");
         return false;
     }
     TIMED_AS(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, field_press_the_remembered_switches(g));
@@ -919,7 +910,7 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
     if (field_requests(g) == 0)
         return FIELD_PASS_GOES_ON;
     if (!field_requests_can_be_answered(g)) {
-        program_needs_the_machine(g, FIELD_HANDLE_REQUESTS_ENTRY, "requests the port doesn't answer");
+        program_breaks_a_contract(g, FIELD_HANDLE_REQUESTS_ENTRY, "requests the port doesn't answer");
         return FIELD_PASS_STOPS;
     }
     if (asked(g, FIELD_REQUEST_LOCATION_CHANGE))

@@ -700,7 +700,6 @@ void object_set_sprite_priorities_past_the_tables(GameState *g, FieldObject slot
  * place of the party, field/party_trail.c), on the bytes after the
  * priorities' and after the velocities' (the next object's vertical velocity
  * and its speed). */
-void object_take_sprite_priorities_past_the_tables(GameState *g, FieldObject slot, SpritePriorities priorities);
 void object_set_step_past_the_tables(GameState *g, FieldObject slot, Velocity step);
 /* And what the walk's search reads besides: whether the slot's in-view byte
  * isn't the out-of-view one, and whether it reads as solid. */

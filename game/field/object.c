@@ -10,11 +10,11 @@
  * as its move length's, a tile crossing as a signed byte, the sprite's halves'
  * priorities as the hardware's attribute bits. */
 #include "field/object.h"
+#include "charge.h"
 
 #include "field/field_data.h"
 #include "field/layers.h"
 #include "field/party.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- Role ------------------------------------------------------------------------------ */
@@ -76,7 +76,6 @@ bool object_runs_a_script(const GameState *g, FieldObject obj)
 {
     return !(field_object_character(g, obj) & NO_SCRIPT_BIT);
 }
-
 
 /* ---- Past the tables (field/object.h) ----------------------------------------------------- */
 
@@ -145,26 +144,11 @@ void object_take_off_the_map(GameState *g, FieldObject obj)
     object_set_sprite(g, obj, SPRITE_HIDDEN);
 }
 
-/* For the original's memory and shadow mode: the original clears the
- * solidity with a word store, whose second byte is the next slot's sprite
- * records' state (and past the last slot, the first object's falling flag,
- * where its memory has that table). The game doesn't depend on it: an
- * object's records state is set again as it comes into view, before its
- * sprite is drawn (object_view.c; docs/history/reimplementation-phase3a.md says how that was
- * checked). */
-static void leave_word_clear_spill(GameState *g, FieldObject obj)
-{
-    if (obj + 1 < FIELD_OBJECTS)
-        object_records_to_build(g, (FieldObject)(obj + 1));
-    else
-        set_field_object_accelerating(g, 0, 0);
-}
-
 // $C0:58DE (the map setup's openings)
 void object_start_on_the_map(GameState *g, FieldObject obj)
 {
+    charge_legacy_accesses(g, 1); /* the old word clear's unused high byte */
     object_set_solidity(g, obj, false);
-    ORIGINAL_EFFECT(leave_word_clear_spill(g, obj));
     set_field_object_accelerating(g, obj, 0);
     set_field_object_acceleration(g, obj, 0);
 }
@@ -362,11 +346,6 @@ void object_set_sprite_priorities_past_the_tables(GameState *g, FieldObject slot
     set_field_object_sprite_priority_unchecked(g, slot, priorities_word(upper, lower));
 }
 
-void object_take_sprite_priorities_past_the_tables(GameState *g, FieldObject slot, SpritePriorities priorities)
-{
-    set_field_object_sprite_priority_unchecked(g, slot, (uint16_t)(priorities.upper_stored << 8 | priorities.lower_stored));
-}
-
 SpritePriorities object_sprite_priorities(const GameState *g, FieldObject obj)
 {
     uint16_t both = field_object_sprite_priority(g, obj);
@@ -390,20 +369,11 @@ static void layer_as(GameState *g, FieldObject obj, TileAttributes there)
     object_set_sprite_priorities(g, obj, tile_priority(there.upper), tile_priority(there.lower));
 }
 
-/* For shadow mode: off the map, the original layers the object from the
- * bytes past the attribute tables' rows (field/layers.h). */
-static void layer_as_past_the_map(GameState *g, FieldObject obj, MapTile tile)
-{
-    layer_as(g, obj, map_tile_attributes_past_the_map(g, (MapPlace){ tile.y, tile.x }));
-}
-
 // $C0:4BA3
 void object_layer_as_the_map(GameState *g, FieldObject obj, MapTile tile)
 {
     if (tile_on_the_map(tile))
         layer_as(g, obj, map_tile_attributes(g, (MapPlace){ tile.y, tile.x }));
-    else
-        ORIGINAL_EFFECT(layer_as_past_the_map(g, obj, tile));
 }
 
 void object_take_own_priorities(GameState *g, FieldObject obj)
@@ -434,7 +404,6 @@ void object_set_blocked_by(GameState *g, FieldObject obj, ObjectBlocking blockin
 {
     set_field_object_blocking(g, obj, blocking);
 }
-
 
 // $C0:4867
 void object_set_contact(GameState *g, FieldObject obj, ObjectContact contact) { set_field_object_solid(g, obj, contact); }
@@ -494,7 +463,6 @@ enum { SCRIPTED_MOVE_MARK = 1 };
 void object_mark_scripted_move(GameState *g, FieldObject obj) { set_field_object_counted_move(g, obj, SCRIPTED_MOVE_MARK); }
 bool object_scripted_move_marked(const GameState *g, FieldObject obj) { return field_object_counted_move(g, obj) != 0; }
 void object_unmark_scripted_move(GameState *g, FieldObject obj) { set_field_object_counted_move(g, obj, 0); }
-
 
 /* ---- The party ------------------------------------------------------------------------- */
 

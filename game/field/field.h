@@ -356,8 +356,6 @@ uint8_t field_draw_random(GameState *g);
 void field_take_the_vblank_interrupt(GameState *g);
 void field_take_the_line_interrupt(GameState *g);
 enum { FIELD_INSTALL_NMI_ENTRY = 0xC00B64, FIELD_INSTALL_IRQ_ENTRY = 0xC00B75 };
-void field_install_nmi(Snes *s);
-void field_install_irq(Snes *s);
 
 /* The handlers they install, as C for a program with no machine under it:
  * the vblank's (field/nmi.c), which sends the frame's work and takes the
@@ -377,27 +375,12 @@ void field_wait_for_frame_loop(Snes *s);
 void field_change_location_wait_for_vblank_loop(Snes *s);
 void field_restart_wait_for_vblank_loop(Snes *s);
 void field_restart_in_the_dark(Snes *s);
-void field_check_the_script(Snes *s);
-void field_finish_loading_script(Snes *s);
-void field_script_error_wait(Snes *s);
-void field_install_script_builtins(Snes *s);
 /* The screen's setup turning the screen back on: one pass of its wait for
  * the vblank ($C0:0B38), and the handlers back on after it ($C0:0B3D). */
 void field_screen_on_wait_for_vblank_loop(Snes *s);
 void field_turn_the_handlers_on(Snes *s);
 
 /* field/motion.c */
-void field_direction_to_target(Snes *s);
-void field_set_velocity(Snes *s);
-void field_start_step(Snes *s);
-void field_object_in_the_way(Snes *s);
-void field_line_up_with_object(Snes *s);
-void field_line_up_with_tile(Snes *s);
-void field_move_object(Snes *s);
-void field_move_object_unbounded(Snes *s);
-bool field_heads_current_object(Snes *s);
-bool field_object_checks_its_way(Snes *s);
-bool field_lines_up_with_an_object(Snes *s);
 
 /* field/script_turns.c: the objects counted down to their scripts' turns and
  * queued, and the queued turns run while the frame has time. */
@@ -411,12 +394,8 @@ bool field_turns_can_be_counted(Snes *s);
 bool field_turns_can_run(Snes *s);
 
 /* field/animation.c */
-void field_update_walk_animation(Snes *s);
-void field_stand_animation(Snes *s);
 void field_tick_object_animation(Snes *s);
-void field_read_animation_frame(Snes *s);
 bool field_object_delays_in_bank(Snes *s);
-bool field_object_frames_in_bank(Snes *s);
 
 /* field/object_view.c. The view step as C (false where a row's links are
  * none the port takes, the program going no further there), and an object
@@ -424,7 +403,6 @@ bool field_object_frames_in_bank(Snes *s);
 bool object_view_updated(GameState *g, FieldObject obj);
 void object_window_only_checked(GameState *g, FieldObject obj);
 void field_update_object_visibility(Snes *s);
-void field_update_object_in_window(Snes *s);
 
 /* field/window_shape.c: the quadrilateral in field_window_shape_corners drawn
  * into the table field_window_shape_table points at, as C, and whether the
@@ -432,10 +410,7 @@ void field_update_object_in_window(Snes *s);
  * end, the right side starting on a line, which the rasterizer reads before
  * it finds one of its own). */
 void field_draw_window_shape(GameState *g);
-bool field_window_shape_fits(const GameState *g);
 bool field_window_shape_starts_on_a_line(const GameState *g);
-void field_rasterize_quad(Snes *s);
-bool field_window_shape_table_in_place(Snes *s);
 
 /* field/scroll.c: the layers a map scrolls by themselves, a frame's worth;
  * the battle on the map's background scrolls them too (battle/frame.c). */

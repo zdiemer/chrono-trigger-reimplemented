@@ -226,7 +226,7 @@ why = "Each battle result through its first held fade frame. The held_kept_place
 base = "field_take_palette"
 variant = "unreached_party_shares"
 args = ["--fill", "7E0154-7E0154=00", "--fill", "7E1100-7E117F:2=00,01,02",
-        "--fill", "7E0B85-7E0B87=00,02,04,06,08,0A,0C,0E,10,12,14,16,80",
+        "--fill", "7E0B85-7E0B87=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,20,22,24,80",
         "--fill", "7E1400-7E147F=1818"]
 why = "A party place's object coming into view whose place's slot another object of the same colours holds, or nobody: it joins that object's sharers or takes the free slot (one of other colours the guard turns away). The original's join (C071FE-C07210) files the object by the older sharer's number where the slot's belongs, which the port reproduces (field/palettes.c, join_party_place_sharers)."
 

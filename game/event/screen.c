@@ -78,7 +78,7 @@ static uint8_t tint_math(TintMix mix) { return mix == TINT_ADDED ? 0x17 : 0x97; 
 static void take_target_channels(GameState *g)
 {
     uint8_t channels = field_fixed_color_target(g) & CHANNELS;
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, channels));
+    charge_legacy_accesses(g, 1); /* selected tint channels */
     set_field_fixed_color(g, (uint8_t)((field_fixed_color(g) & STRENGTH) | channels));
 }
 
@@ -340,9 +340,6 @@ void event_cmd_choose_credits(Snes *s)
     if (!choose_credits_with(g, m_platform(s), at, load_the_letters_on_the_machine, &m, &c))
         return;
     s->cpu.y = m_pull16(s);
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, c.credits_text));
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_THIRD, c.credits_text));
-    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + 1)));
     event_return(s, (EventStep){ (uint16_t)(at + CHOOSE_CREDITS_LENGTH), true });
 }
 
@@ -573,13 +570,8 @@ static void note_the_game_finished(Snes *s)
 
 void event_screen_party_routine(Snes *s)
 {
-    GameState *g = state_of(s);
     uint16_t resume = (uint16_t)(event_command_offset(s) + SCREEN_COMMAND_LENGTH);
-    ORIGINAL_EFFECT(event_keep_offset(g, resume));
-    PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)resume, (uint8_t)s->cpu.x));
     TIMED_AS(state_of(s), MENUS_SERVICES, note_the_game_finished(s));
-    ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_GAME_FINISHED, &call));
     s->cpu.x = resume;
     m_rts(s);
 }
@@ -654,7 +646,6 @@ void event_cmd_screen_command(Snes *s)
         return;
     }
     unsigned i = screen_command_index(c.screen_command);
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FOURTH, c.screen_command));
     as_the_dispatch_has_it(s, c.screen_command);
     if (screen_commands[i].kind == RESTARTS_THE_GAME) {
         field_hands_over_to(s, SCREEN_DISPATCH, AT_THE_DISPATCH, event_screen_dispatch);

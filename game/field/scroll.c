@@ -6,6 +6,7 @@
  * position, which is copied to the layer's scroll values, and the fraction
  * stays, sign-extended so that a negative accumulator keeps counting down. */
 #include "field/field.h"
+#include "charge.h"
 
 #include "field/scratch.h"
 #include "port/machine.h"
@@ -67,14 +68,6 @@ static void accumulate(GameState *g, unsigned layer)
         g, layer, (uint8_t)(field_auto_scroll_speed_y(g, layer) + field_auto_scroll_accumulator_y(g, layer)));
 }
 
-/* For the original's code and shadow mode (field/scratch.h): a move back
- * leaves its whole pixels at $D9 of the field's page, the last one's. */
-static void leave_for_original(GameState *g, int8_t last_backward)
-{
-    if (last_backward < 0)
-        original_cell16(g, 0xD9, (uint16_t)-whole_pixels(last_backward));
-}
-
 static int8_t backward(int8_t before, int8_t accumulated) { return accumulated < 0 ? accumulated : before; }
 
 // $C0:2C41
@@ -95,7 +88,8 @@ void field_scroll_layers_by_themselves(GameState *g)
         last_backward = backward(last_backward, scroll_axis(g, AUTO_BG3, AXIS_X));
         last_backward = backward(last_backward, scroll_axis(g, AUTO_BG3, AXIS_Y));
     }
-    ORIGINAL_EFFECT(leave_for_original(g, last_backward));
+    if (last_backward < 0)
+        charge_legacy_accesses(g, 2); /* the backward step's magnitude */
 }
 
 /* It sets its own direct page and data bank, and restores the caller's;

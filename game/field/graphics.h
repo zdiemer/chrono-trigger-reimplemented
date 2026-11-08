@@ -28,8 +28,5 @@ static inline uint32_t field_set_tile_start(ObjectGraphics set, uint16_t tile)
 /* field/graphics.c: tile `tile` of the graphics set, drawn into bank
  * FIELD_BUILD_BANK at `to`, straight or mirrored as its name says. */
 void field_draw_frame_tile(GameState *g, ObjectGraphics set, uint16_t tile, uint16_t to);
-void field_copy_sprite_tile(Snes *s);
-void field_copy_sprite_tile_flipped(Snes *s);
-bool field_tile_copy_in_build_bank(Snes *s);
 
 #endif

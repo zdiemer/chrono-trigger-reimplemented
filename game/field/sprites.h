@@ -21,16 +21,6 @@ bool field_sprite_table_built(GameState *g);
 /* A finite row list whose objects' sprite records fit in their tables. */
 bool field_sprite_rows_drawable(Snes *s);
 void field_draw_object_sprites(Snes *s);
-void field_update_object_sprites(Snes *s);
-void field_position_sprites(Snes *s);
-void field_load_and_position_sprites(Snes *s);
-void field_place_8_sprites(Snes *s);
-void field_rebuild_8_sprites(Snes *s);
-void field_place_12_sprites(Snes *s);
-void field_rebuild_12_sprites(Snes *s);
-void field_free_4_sprite_areas(Snes *s);
-void field_free_8_sprite_areas(Snes *s);
-void field_free_12_sprite_areas(Snes *s);
 void field_free_every_sprite_area(Snes *s);
 /* A map's start frees every frame area ($C0:E935). */
 void sprites_free_every_frame_area(GameState *g);
@@ -41,14 +31,7 @@ void sprites_all_to_build_afresh(GameState *g);
 void field_build_the_sprites_afresh(Snes *s);
 bool field_sprites_can_be_built_afresh(Snes *s);
 enum { FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY = 0xC0B192 };
-void field_claim_4_sprite_areas(Snes *s);
-void field_claim_8_sprite_areas(Snes *s);
-void field_claim_12_sprite_areas(Snes *s);
 bool field_sprites_draw_in_table(Snes *s);
-bool field_sprites_update_in_tables(Snes *s);
-bool field_sprites_place_object(Snes *s);
-bool field_sprites_place_8(Snes *s);
-bool field_sprites_place_12(Snes *s);
 
 /* For the frame builder (field/frames.c): the claim of the tile areas a new
  * frame is drawn into, a sprite of the frame's data the records are rebuilt
@@ -60,7 +43,6 @@ typedef struct {
 bool sprites_claim_frame_areas(GameState *g, FieldObject obj, SpriteLayout layout);
 /* An object leaving view lets go of the frame areas it holds ($C0:EA42). */
 void sprites_release_frame_areas(GameState *g, FieldObject obj);
-void field_release_frame_areas(Snes *s);
 enum { FIELD_RELEASE_FRAME_AREAS_ENTRY = 0xC0EA42 };
 void sprites_set_frame_sprite(GameState *g, FieldObject obj, unsigned n, FrameSprite sprite);
 void sprites_set_record_sprite(GameState *g, FieldObject obj, unsigned n, FrameSprite sprite);

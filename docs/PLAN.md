@@ -490,12 +490,13 @@ map and through time, and the world map's set up from its record's streams.
 The dactyls' flight over the 65,000,000 B.C. map is C too (history/reimplementation-chunks.md
 "Phase 4a, the shipping mode's fallbacks, chunk 5").
 
-**`$C0`: the field and events**, 2% left after seventeen chunks and the field's part of the battle frame work's remainders, and 98% of
-what real play runs of it native. What is left is a character's start
-(`$C0:597D`), which the menus call, and
-waits the timing service takes over where their callers
-are ports (TODO.md, "Frame waits still made on the machine"). Every event
-command has a row.
+**`$C0`: the field and events** have retired their byte-exact gate. Their
+ordinary operations run as C, with held continuations for the legacy
+driver's frame boundaries. Five uncompared field entries remain for boot,
+mode reentry and battle callers; the menus retain their wave-phase alias.
+REIMPLEMENTATION.md, "The field's teardown" and "The events' teardown",
+name the retained interfaces and protected outcomes. The next work here is
+removing those interfaces with their callers, not adding ports.
 
 **`$7E`: the scene program**, the program the field and the game over
 decompress to `$7E:3000` (the title, the attract sequence, the jet bike race
@@ -724,10 +725,7 @@ taking the gate down needs, before it and after it.
   retiring their gates. Every remaining byte needs a passing comparison or
   an explicit safety argument in the ledger, with its retirement obligations
   in TODO.md. The sampled gate checks the full-library ledger; it cannot
-  establish absence from movies it does not run. The events and the field
-  are covered, the field with no byte `open`, so its teardown waits on none.
-  Retire the field and retain the menu/battle mode
-  interfaces (REIMPLEMENTATION.md, "The field's callers and held continuations").
+  establish absence from movies it does not run.
 - **The game's state as C, not a work-RAM image.** Even `ct_native` keeps the
   game's state as the 128 KiB byte image the accessors read and write, which
   is the original's memory layout carried into the product. When a subsystem

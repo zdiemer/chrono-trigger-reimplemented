@@ -19,6 +19,7 @@
 #include "field/field.h"
 #include "field/object.h"
 #include "field/parts.h"
+#include "field/menu_compat.h"
 #include "port/machine.h"
 #include "vars.h"
 
@@ -59,7 +60,6 @@ static MapPlace offset_by(MapPlace p, unsigned row, unsigned column)
     return (MapPlace){ (uint8_t)(p.row + row), (uint8_t)(p.column + column) };
 }
 
-
 /* ---- Copying ------------------------------------------------------------------------------- */
 
 static void copy_table(GameState *g, TileRectangle r, MapTable table)
@@ -68,7 +68,7 @@ static void copy_table(GameState *g, TileRectangle r, MapTable table)
         for (unsigned column = 0; column < r.width; column++)
             set_table_byte(g, table, offset_by(r.to, row, column),
                            table_byte(g, table, offset_by(r.from, row, column)));
-    ORIGINAL_EFFECT(field_leave_table_copied(g, r, table));
+    ORIGINAL_EFFECT(field_leaves_menu_wave_low(g, 0));
 }
 
 static void copy_property_bit(GameState *g, TileRectangle r, uint8_t bit)
@@ -81,7 +81,8 @@ static void copy_property_bit(GameState *g, TileRectangle r, uint8_t bit)
                                       (uint8_t)((there & ~bit) | (field_tile_properties(g, from.row, from.column) & bit)));
         }
     }
-    ORIGINAL_EFFECT(field_leave_bit_copied(g, r, bit));
+    ORIGINAL_EFFECT(field_leaves_menu_wave_low(g, 0));
+    ORIGINAL_EFFECT(field_leaves_menu_wave_high(g, 0));
 }
 
 // $C0:AF4E, and its table copy $C0:B096

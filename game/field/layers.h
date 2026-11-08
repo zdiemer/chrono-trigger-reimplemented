@@ -148,9 +148,6 @@ bool field_layer_edges_overflow(const GameState *g);
 /* A layer put back at the top left of its tile map (its place and scroll 0),
  * and the edges found again, as a whole map drawn afresh is sent. */
 void field_put_the_layer_at_its_start(GameState *g, FieldLayer layer);
-void field_put_bg1_at_its_start(Snes *s);
-void field_put_bg2_at_its_start(Snes *s);
-void field_put_bg3_at_its_start(Snes *s);
 /* For the original's code (field/leaves.c): what the edges' working out
  * leaves in the registers -- where in its tile map the last layer's column
  * right of the view starts and the row above the view it starts on
@@ -174,12 +171,9 @@ bool field_tile_maps_fit(const GameState *g);
 enum { FIELD_UNPACK_TILE_MAPS_ENTRY = 0xC0A521 };
 
 /* field/layers.c */
-void field_compute_layer_edges(Snes *s);
 void field_update_layer_scroll(Snes *s);
 /* The layers' scroll moved on for the frame ($C0:91AC), as C. */
 void field_layer_scroll_updated(GameState *g);
-void field_unpack_tile_maps(Snes *s);
-bool field_unpack_stays_clear(Snes *s);
 
 /* A layer's tile map setting: the high byte of its place in VRAM with its
  * size's bits, as the line effects send it and a battle takes it over. */

@@ -543,13 +543,12 @@
  * the low byte. Read back only by the command that wrote it (scaffolding) [2 bytes] */
 #define RAM_EVENT_COUNT 0x7E01C1u
 #define RAM_EVENT_COUNT_DP 0xC1u             /* page field */
-/* The offset of a comparison command's jump byte, which the comparisons' shared routine notes
- * and reads back itself (scaffolding) [2 bytes] */
+/* The original comparisons' shared scratch cell for their jump-byte offset; retired, since the C
+ * comparisons keep that offset locally [2 bytes] */
 #define RAM_EVENT_CONDITION_RESUME 0x7E01C3u
 #define RAM_EVENT_CONDITION_RESUME_DP 0xC3u  /* page field */
-/* Where a command goes on, which the original keeps across its calls into other code (the moves,
- * sound, the party routines) and reads back itself: nothing else reads it (ct_dev
- * --event-reads), so the port keeps it in a local and writes the cell as scaffolding [2 bytes] */
+/* Where a command goes on, which the original keeps across calls and reads back itself; the C
+ * bridges keep it locally and no longer reconstruct this scratch cell [2 bytes] */
 #define RAM_EVENT_SAVED_POSITION 0x7E01C7u
 #define RAM_EVENT_SAVED_POSITION_DP 0xC7u    /* page field */
 /* The 24-bit pointer events $48 and $49 read through [3 bytes] */
@@ -558,17 +557,14 @@
 /* The 24-bit pointer events $4A-$4D write through [3 bytes] */
 #define RAM_EVENT_TARGET_POINTER 0x7E01D0u
 #define RAM_EVENT_TARGET_POINTER_DP 0xD0u    /* page field */
-/* The field page's scratch cells, $D9-$E6. Each event command keeps its operands and
- * intermediate values in the words at $D9, $DB, $DD, $DF, $E1 and $E3, and only that command
- * reads them back (ct_dev --event-reads over the library; the menus' wave handler at $C2:77C7
- * reads $E2 as a phase it never sets); the field's motion, sprite, layer and graphics routines
- * leave their values there on the way (field/scratch.h) [14 bytes] */
+/* The original field/event scratch cells, $D9-$E6. Their reconstruction has retired except for
+ * the menus' wave phase at $E2-$E3, read by $C2:77C7. Named state aliases in this range, such as
+ * field_scene_to_start, remain ordinary game state [14 bytes] */
 #define RAM_EVENT_SCRATCH 0x7E01D9u
 #define RAM_EVENT_SCRATCH_DP 0xD9u           /* page field */
-/* The cells event $FE works out the searchlight's corners in: the corner coordinates left, the
- * start of the last as a word (its whole pixel in the high byte), the frames, and the offset of
- * the next coordinate in the corners' table. Only the command reads them, so the port leaves
- * their last values for shadow mode (event/leaves.c) [10 bytes] */
+/* The original event $FE's searchlight scratch: coordinates left, the last start, frames and
+ * next corner offset. Retired; the C operation keeps these intermediate values locally [10
+ * bytes] */
 #define RAM_EVENT_SEARCHLIGHT_WORK 0x7E01EEu
 #define RAM_EVENT_SEARCHLIGHT_WORK_DP 0xEEu  /* page field */
 #define RAM_EVENT_SEARCHLIGHT_WORK_COORDINATES_LEFT 0x7E01EEu /* Coordinates still to work out */

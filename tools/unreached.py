@@ -29,13 +29,12 @@ SUBSYSTEMS = ('attract', 'core', 'warp', 'overworld', 'event', 'field')
 # subsystem's open bytes pass its cap here, and `--record` adds no open byte
 # the previous ledger didn't have, unless `--admit-open` names the subsystem
 # (its first inventory). Lower the cap as rows close.
-OPEN = {'field': 0}
-OPEN_REASON = {'field': "Not yet compared or argued: blocks the field's teardown (docs/REIMPLEMENTATION.md, "
-                        "\"The code the movie library does not reach\")."}
+OPEN = {}
+OPEN_REASON = {}
 # Subsystems whose gate has retired while rows of theirs stay in the ledger for
 # their still-gated callers. A teardown adds its subsystem here and takes it out
 # of OPEN; `--check` fails while it has an open row.
-RETIRED = ('core', 'event')
+RETIRED = ('core', 'event', 'field')
 # Entries outside SUBSYSTEMS that an audited dispatch hands its work to, so the
 # whole dispatch is accounted (name: why). The screen command's restart wait,
 # field_restart_wait_for_vblank_loop, was one until the field joined the audit.
@@ -142,6 +141,11 @@ def analyze(rom):
     owners = {p.addr for p in ports} | retired_routines(ROOT)
     walks, unresolved = [], []
     for p in ports:
+        if burndown.retired(p.addr):
+            # A retained mode-entry wrapper is still an ownership boundary,
+            # but its subsystem's already-evidenced bytes have retired.
+            walks.append((p, set(), set()))
+            continue
         if in_scope(subsystems[p.addr], p.name):
             own, inline, issues = walk(an, p.addr, owners)
             unresolved.extend(f'{p.name} ({p.addr:06X}): {issue}' for issue in issues)
@@ -161,7 +165,7 @@ def analyze(rom):
     result = []
     for p in ports:
         sub = subsystems[p.addr]
-        if not in_scope(sub, p.name):
+        if not in_scope(sub, p.name) or burndown.retired(p.addr):
             continue
         region = owned[p.addr]
         result.append(dict(subsystem=sub, entry=f'{p.addr:06X}', name=p.name,

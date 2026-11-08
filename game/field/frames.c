@@ -42,8 +42,6 @@
 #include "platform/video.h"
 
 #include "charge.h"
-#include "original_effects.h"
-#include "cpu_io.h"
 #include "field/bridge.h"
 #include "field/scratch.h"
 #include "port/machine.h"
@@ -179,59 +177,6 @@ static int8_t sprite_offset(const GameState *g, unsigned sprites, uint32_t descr
 
 /* ---- For the original's code and shadow mode (field/scratch.h) -------------------------------- */
 
-/* Drawing starts from cells the original's copies read: the graphics set,
- * the build place's bank, and the frame tables' bank the frame read reads. */
-static void leave_drawing_from(GameState *g, ObjectGraphics set)
-{
-    set_field_sprite_graphics_bank(g, set.bank);
-    set_field_sprite_graphics_address(g, set.address);
-    set_field_sprite_tile_bank(g, FIELD_BUILD_BANK);
-}
-
-static void leave_start(GameState *g, ObjectGraphics set)
-{
-    leave_drawing_from(g, set);
-    set_field_frame_entry_bank(g, FIELD_FRAME_TABLES_BANK);
-}
-
-/* A finished frame's sprites' attributes before their priority: the palette
- * and the tiles' page. */
-static void leave_attributes(GameState *g, FieldObject obj)
-{
-    original_cell8(g, FIELD_LAST_WORKED_CELL, (uint8_t)(field_object_palette(g, obj) | object_sprite_tiles(g, obj) >> 8));
-}
-
-/* The new frame's number, which the claim is made with ($EE's low byte). */
-static void leave_new_frame(GameState *g, uint8_t frame)
-{
-    set_field_direction(g, (uint16_t)((field_direction(g) & 0xFF00) | frame));
-}
-
-/* The description's place, found with the multiplier. */
-static void leave_description_place(GameState *g, uint32_t description)
-{
-    set_field_frame_description_address(g, (uint16_t)description);
-    set_field_frame_description_bank(g, (uint8_t)(description >> 16));
-}
-
-static void leave_description(GameState *g, const FramePlan *plan, uint8_t frame, uint32_t description)
-{
-    hw_set_multiplicand(g, frame);
-    (void)hw_multiply_by(g, description_bytes(plan));
-    leave_description_place(g, description);
-}
-
-/* After a run: its count run down to 0, the Y the last copy saved (the last
- * tile's place in the description), the place of the last tile, and the work
- * RAM port's cursor past it, which the copies leave there. */
-static void leave_run(GameState *g, TileRun run, uint16_t last_at)
-{
-    set_field_frame_tiles_left(g, 0);
-    original_cell16(g, FIELD_SAVED_Y_CELL, (uint16_t)((run.first + run.count - 1) * WORDS_A_TILE_NAME));
-    set_field_sprite_tile_offset(g, last_at);
-    hw_port_seek(g, (uint16_t)(last_at + TILE_BYTES), FIELD_BUILD_BANK & 1);
-}
-
 /* ---- Drawing ------------------------------------------------------------------------------- */
 
 /* A run of the description's tiles, one after another from its place in the
@@ -241,7 +186,10 @@ static void draw_run(GameState *g, FieldObject obj, ObjectGraphics set, uint32_t
     uint16_t at = (uint16_t)(field_object_frame_staging(g, obj) + run.to);
     for (unsigned t = 0; t < run.count; t++)
         field_draw_frame_tile(g, set, tile_name(g, description, run.first + t), (uint16_t)(at + t * TILE_BYTES));
-    ORIGINAL_EFFECT(leave_run(g, run, (uint16_t)(at + (run.count - 1) * TILE_BYTES)));
+    /* Count the former count, saved offset, tile offset and upload cursor
+     * (2 + 2 + 2 + 3 byte accesses) at the builder's calibrated rate. */
+    charge_legacy_accesses(g, 6);
+    charge_legacy_io_accesses(g, 3);
 }
 
 static void draw_part(GameState *g, FieldObject obj, ObjectGraphics set, uint32_t description, const FramePart *part)
@@ -347,7 +295,9 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
     if (layout == LAYOUT_24)
         return FRAME_NOT_DUE;
     ObjectGraphics set = object_graphics(g, obj);
-    ORIGINAL_EFFECT(leave_start(g, set));
+    /* The calibrated builder includes selecting its graphics and frame
+     * tables (five byte accesses). Those selections are now plain values. */
+    charge_legacy_accesses(g, 5);
     bool holding = object_holds_frame(g, obj);
     if (holding && layout == LAYOUT_12)
         return FRAME_WAITS;
@@ -361,21 +311,24 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
             return FRAME_NO_NEXT;
         if (f.frame == object_frame_drawn(g, obj))
             return FRAME_ALREADY_DRAWN;
-        ORIGINAL_EFFECT(leave_new_frame(g, f.frame));
+        charge_legacy_accesses(g, 4); /* frame selection's former word read/write */
         if (!sprites_claim_frame_areas(g, obj, layout))
             return FRAME_NO_ROOM;
         object_set_frame_drawn(g, obj, f.frame);
     }
     uint8_t frame = object_frame_drawn(g, obj);
     uint32_t description = frame_description(g, obj, plan, frame);
-    ORIGINAL_EFFECT(leave_description(g, plan, frame, description));
+    /* Description selection used four multiplier accesses and a three-byte
+     * pointer. Keep that work in the beam-budgeted queue's estimate. */
+    charge_legacy_accesses(g, 3);
+    charge_legacy_io_accesses(g, 4);
     for (unsigned p = first; p <= last; p++)
         draw_part(g, obj, set, description, &plan->part[p]);
     if (last + 1 < plan->parts)
         return FRAME_PART_DRAWN;
     queue_upload(g, obj, plan);
     frame_sprites(g, obj, plan, description, INTO_THE_FRAME_DATA);
-    ORIGINAL_EFFECT(leave_attributes(g, obj));
+    charge_legacy_accesses(g, 4); /* palette/page reads and attribute selection */
     return FRAME_DRAWN;
 }
 
@@ -403,15 +356,6 @@ static FrameSprite figure_sprite(const GameState *g, uint32_t description, unsig
                           (uint8_t)(FIGURE_PRIORITY << ATTRIBUTE_PRIORITY_SHIFT | FIGURE_PALETTE << ATTRIBUTE_PALETTE_SHIFT) };
 }
 
-/* For the original's code and shadow mode: the set and the description it
- * drew from, and the run of all its tiles, as a frame's drawing leaves them. */
-static void leave_figure(GameState *g, ObjectGraphics set, uint32_t description)
-{
-    leave_drawing_from(g, set);
-    leave_description_place(g, description);
-    leave_run(g, (TileRun){ 0, FIGURE_TILES, 0 }, (uint16_t)(figure_place() + (FIGURE_TILES - 1) * TILE_BYTES));
-}
-
 // $C0:E12A
 /* Draw a 24-sprite figure's frame whole: its tiles from its graphics set as
  * its description names them, sent at once to its place in VRAM, and each
@@ -425,7 +369,8 @@ void object_draw_whole_figure(GameState *g, Platform *pf, FieldObject obj)
     object_set_frame_drawn(g, obj, FIGURE_FRAME);
     for (unsigned t = 0; t < FIGURE_TILES; t++)
         field_draw_frame_tile(g, set, tile_name(g, description, t), (uint16_t)(figure_place() + t * TILE_BYTES));
-    ORIGINAL_EFFECT(leave_figure(g, set, description));
+    charge_legacy_accesses(g, 13); /* graphics, description and completed run */
+    charge_legacy_io_accesses(g, 3);
     vid_send_vram(pf, PF_AT(0xC0E19A), FIGURE_VRAM, PF_GAME(RAM_FIELD_FIGURE_TILES), FIELD_FIGURE_TILES_BYTES,
                   VID_VRAM_WORD_PORT);
     for (unsigned n = 0; n < FIGURE_SPRITES; n++)
@@ -448,9 +393,9 @@ void object_put_drawn_frame_back(GameState *g, FieldObject obj)
     const FramePlan *plan = plan_for(g, obj, layout);
     uint8_t frame = object_frame_drawn(g, obj);
     uint32_t description = frame_description(g, obj, plan, frame);
-    ORIGINAL_EFFECT(leave_description(g, plan, frame, description));
     frame_sprites(g, obj, plan, description, ONTO_THE_RECORDS);
-    ORIGINAL_EFFECT(leave_attributes(g, obj));
+    charge_legacy_accesses(g, 7); /* description and attributes */
+    charge_legacy_io_accesses(g, 4);
     object_mark_records_built(g, obj);
 }
 
@@ -549,32 +494,23 @@ void field_draw_next_frame(Snes *s)
     m_rts(s);
 }
 
-/* Each object's frame is the frame builder's entry ($C0:CAD9), called on the
- * machine from the original's call of it: one call for the only object in
- * the queue, another for the first of several. As for the scripts' turns
- * (field/script_turns.c), the call is for shadow mode's comparison, a frame's
- * drawing at a time, not for the beam, which a C call would read right too. A
- * build with no machine calls the builder as C. It reads the current object
- * and the overflow, and says in the carry whether the frame has more parts to
- * draw. */
+/* The legacy frame queue calls the checked builder form directly, settling
+ * its work at the old call boundary before reading the beam again. The
+ * native program calls the state operation. The legacy result in carry
+ * says whether the frame has more parts to draw. */
 enum { DRAW_A_FRAME = 0xC0CAD9, THE_FIRST_OF_SEVERAL = 0xC0CAAE, THE_ONLY_ONE = 0xC0CAC2 };
 enum { THE_BUILDER_READS_THE_OBJECT = DC_A | DC_X | DC_Y | DC_N | DC_Z };
-
-/* For shadow mode: the carry the original's choice between its two calls
- * leaves, the queue's head compared with its tail, which the builder then
- * replaces with its answer. */
-static void leave_the_choice(Snes *s)
-{
-    const GameState *g = state_of(s);
-    m_set_flag(s, CPU_FLAG_C, field_animation_queue_head(g) >= field_animation_queue_tail(g));
-}
 
 static FrameDrawing draw_on_the_machine(void *ctx, FieldObject obj, bool alone)
 {
     (void)obj;
     Snes *s = ctx;
-    ORIGINAL_EFFECT(leave_the_choice(s));
-    if (!bridge_call(s, alone ? THE_ONLY_ONE : THE_FIRST_OF_SEVERAL, DRAW_A_FRAME, THE_BUILDER_READS_THE_OBJECT,
+    /* The old call selection read both queue indices for its flags. The
+     * queue front already supplies that answer, but its two accesses remain
+     * part of the calibrated work before the beam deadline is read again. */
+    charge_legacy_accesses(state_of(s), 2);
+    if (!field_run_called(s, alone ? THE_ONLY_ONE : THE_FIRST_OF_SEVERAL, DRAW_A_FRAME, THE_BUILDER_READS_THE_OBJECT,
+                          field_draw_next_frame,
                      on_the_field_page(s, true)))
         return FRAME_DRAWING_WENT_ELSEWHERE;
     return m_flag(s, CPU_FLAG_C) ? FRAME_HAS_MORE_PARTS : FRAME_WHOLE;
@@ -625,8 +561,6 @@ bool field_queued_frames_can_be_drawn(Snes *s)
  * ($C0:47E5) returns. */
 enum { FIGURE_Y_AFTER = FIGURE_TILES * WORDS_A_TILE_NAME + FIGURE_SPRITES * OFFSET_BYTES - 1 };
 
-uint16_t field_whole_figure_y(void) { return FIGURE_Y_AFTER; }
-
 void field_draw_whole_figure(Snes *s)
 {
     object_draw_whole_figure(state_of(s), m_platform(s), (FieldObject)field_current_object_slot(s));
@@ -637,15 +571,6 @@ void field_draw_whole_figure(Snes *s)
 }
 
 // $C0:CB0A
-/* The current object (8-bit X). Nothing the original leaves in the
- * registers is read after it (its callers' own callers read none). */
-void field_put_drawn_frame(Snes *s)
-{
-    GameState *g = state_of(s);
-    object_put_drawn_frame_back(g, (FieldObject)field_current_object_slot(s));
-    m_rts(s);
-}
-
 /* The guard: the current object's pictures where the port reads them as the
  * original does -- its frame tables in their bank for the frame read, its
  * descriptions in the ROM, its graphics in the ROM below its last bank
@@ -752,18 +677,6 @@ bool field_figure_can_be_drawn(Snes *s)
     bool ok = (s->cpu.x >> 1) == obj && !(s->cpu.x & 1) &&
               field_figure_drawable(g, object_graphics(g, obj), object_frame_descriptions(g, obj),
                                     object_sprite_records(g, obj));
-    vars_peek(false);
-    return ok;
-}
-
-bool field_frames_can_put(Snes *s)
-{
-    if (!field_current_object_bank_zero(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = object_making_current_recognises(g) &&
-              object_drawn_frame_can_go_back(g, (FieldObject)field_current_object_slot(s));
     vars_peek(false);
     return ok;
 }

@@ -105,6 +105,23 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses)
     native_charge_as(state_snes(g), routine, accesses * ACCESS_CLOCKS);
 }
 
+void charge_legacy_accesses(GameState *g, uint32_t accesses)
+{
+    state_snes(g)->bus.clocks += accesses * ACCESS_CLOCKS;
+}
+
+void charge_legacy_io_accesses(GameState *g, uint32_t accesses)
+{
+    enum { IO_ACCESS_CLOCKS = 6 };
+    state_snes(g)->bus.clocks += accesses * IO_ACCESS_CLOCKS;
+}
+
+void charge_legacy_rom_accesses(GameState *g, uint32_t accesses)
+{
+    Snes *s = state_snes(g);
+    s->bus.clocks += accesses * (s->bus.fastrom ? 6 : 8);
+}
+
 void charge_block_move(GameState *g, uint32_t bytes) { charge_as(g, BLOCK_MOVE, bytes * ACCESSES_PER_BYTE_MOVED); }
 
 /* The rates retired routines' entries were calibrated at when they left the

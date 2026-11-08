@@ -123,14 +123,6 @@ static MenuTextStop stopped_at(const GameState *g) { return (MenuTextStop)menu_t
 /* A pause in the text lasts its count of quarter seconds. */
 enum { FRAMES_A_PAUSE_UNIT = 15 };
 
-/* For the original's code and shadow mode: the original works a pause's
- * frames out on the multiplier. */
-static void leave_the_pause_product(GameState *g, uint8_t units)
-{
-    hw_set_multiplicand(g, units);
-    (void)hw_multiply_by(g, FRAMES_A_PAUSE_UNIT);
-}
-
 /* ---- Setting the text --------------------------------------------------------------------------- */
 
 enum { MENU_TEXT_START = 0xC257DF, MENU_TEXT_GO_ON = 0xC25823 };
@@ -197,7 +189,6 @@ static void after_a_glyph(GameState *g)
         if (units == 0) {
             send_the_text(g, SEND_ONCE);
         } else {
-            ORIGINAL_EFFECT(leave_the_pause_product(g, units));
             set_field_dialog_hold(g, (uint16_t)(units * FRAMES_A_PAUSE_UNIT));
             send_the_text(g, SEND_EVERY_FRAME);
         }
@@ -249,7 +240,6 @@ static void place_the_window(GameState *g)
     set_dialog_window_position(g, (uint8_t)place_for(g));
     set_dialog_window_state(g, 0);
     set_dialog_text_row(g, 0);
-    ORIGINAL_EFFECT(set_dialog_window_opening_clears(g, 0));
     send_the_text(g, SEND_NOTHING);
     start_the_text(g);
 }
@@ -579,21 +569,12 @@ static void stage_entry(GameState *g, unsigned n, uint16_t entry)
     set_field_window_staging(g, 2 * n + 1, (uint8_t)(entry >> 8));
 }
 
-/* For the original's code and shadow mode: it writes the maps through the
- * work RAM port, whose cursor it leaves past the last entry. */
-static void leave_the_port_past(GameState *g, unsigned entries)
-{
-    enum { WORK_RAM_LOWER_BANK = 0 };
-    hw_port_seek(g, (uint16_t)(RAM_ABS(RAM_FIELD_WINDOW_STAGING) + 2 * entries), WORK_RAM_LOWER_BANK);
-}
-
 // $C0:29F7
 void field_build_the_window_frame(GameState *g)
 {
     for (unsigned row = 0; row < FRAME_ROWS; row++)
         for (unsigned column = 0; column < FRAME_COLUMNS; column++)
             stage_entry(g, row * FRAME_COLUMNS + column, frame_entry(row, column));
-    ORIGINAL_EFFECT(leave_the_port_past(g, FRAME_ROWS * FRAME_COLUMNS));
 }
 
 /* For the original's code and shadow mode: the end of the last run of tiles
@@ -606,8 +587,6 @@ void field_build_the_text_area(GameState *g)
     for (unsigned row = 0; row < TEXT_AREA_ROWS; row++)
         for (unsigned column = 0; column < FRAME_COLUMNS; column++)
             stage_entry(g, row * FRAME_COLUMNS + column, text_area_entry(row, column));
-    ORIGINAL_EFFECT(leave_the_port_past(g, TEXT_AREA_ROWS * FRAME_COLUMNS));
-    ORIGINAL_EFFECT(original_cell8(g, FIELD_SCRATCH_CELLS, LAST_TEXT_AREA_TILE));
 }
 
 static FieldTransfer staged_map(uint16_t vram, unsigned rows)
@@ -745,34 +724,7 @@ void field_dialog_window_step_entry(Snes *s)
     m_rtl(s);
 }
 
-void field_take_choice_buttons_entry(Snes *s)
-{
-    field_take_choice_buttons(state_of(s), (uint8_t)s->cpu.a);
-    m_rts(s);
-}
-
-void field_send_dialog_text_entry(Snes *s)
-{
-    field_send_dialog_text(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-/* The pointer's writers are entered with the direct page on the video
- * registers, which they write through; on any other page they write memory,
- * which stays the original's. */
-bool field_choice_lines_dp_is_ppu(Snes *s) { return s->cpu.d == M_DP_PPU; }
-
 // $C0:F159, $C0:F142, $C0:F12B, $C0:F110
-void field_draw_choice_line_0(Snes *s) { draw_line_start(m_platform(s), 0, false, own_tiles[0]); m_rts(s); }
-void field_draw_choice_line_1(Snes *s) { draw_line_start(m_platform(s), 1, false, own_tiles[1]); m_rts(s); }
-void field_draw_choice_line_2(Snes *s) { draw_line_start(m_platform(s), 2, false, own_tiles[2]); m_rts(s); }
-void field_draw_choice_line_3(Snes *s) { draw_line_start(m_platform(s), 3, false, own_tiles[3]); m_rts(s); }
-
-void field_refresh_choice_pointer_entry(Snes *s)
-{
-    field_refresh_choice_pointer(state_of(s), m_platform(s));
-    m_rts(s);
-}
 
 /* The window's looks, on the field's page with the data bank reaching the
  * registers; nothing they leave in the registers is read but Y, which they
@@ -787,28 +739,4 @@ void field_build_the_text_area_entry(Snes *s)
 {
     field_build_the_text_area(state_of(s));
     m_rtl(s);
-}
-
-void field_send_the_window_frame_entry(Snes *s)
-{
-    field_send_the_window_frame(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-void field_send_the_text_area_entry(Snes *s)
-{
-    field_send_the_text_area(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-void field_send_the_window_design_entry(Snes *s)
-{
-    field_send_the_window_design(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-void field_send_the_choice_pointer_entry(Snes *s)
-{
-    field_send_the_choice_pointer(state_of(s), m_platform(s));
-    m_rts(s);
 }

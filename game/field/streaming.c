@@ -116,15 +116,6 @@ typedef struct {
     uint8_t map_column, map_row;
 } LineEnd;
 
-static void leave_line(GameState *g, Line line, LineEnd end)
-{
-    original_layer_cell8(g, 0x52, end.map_column);
-    original_layer_cell8(g, 0x54, end.map_row);
-    original_layer_cell8(g, 0x58, line.column);
-    original_layer_cell8(g, 0x5A, line.row);
-    original_layer_cell8(g, 0x5C, 0);
-}
-
 /* The half a line starting on an odd tile begins with: the rows of BG1 and
  * BG2 count it as one of the line's map tiles and end with a half of the map
  * tile after the last, so the line is as long either way -- the second half
@@ -175,19 +166,16 @@ static void build_line(GameState *g, unsigned layer, Line line, Staging *out)
         if (odd_start_counts(layer, line.way))
             tiles--;
     }
-    uint8_t last = p.along;
     while (tiles > 0) {
         uint16_t look = look_at(g, layer, line.way, p);
         stage_half(g, out, layer, line.way, p, look, false);
         stage_half(g, out, layer, line.way, p, look, true);
         tiles--;
-        last = p.along;
         p.along = (uint8_t)((p.along + 1) & along_mask);
     }
     if (odd && odd_start_counts(layer, line.way))   /* the second half again: see above */
         stage_half(g, out, layer, line.way, p, look_at(g, layer, line.way, p), true);
     /* the original's rows leave the map tile after the last, its columns the last */
-    ORIGINAL_EFFECT(leave_line(g, line, row ? (LineEnd){ p.along, p.across } : (LineEnd){ p.across, last }));
 }
 
 /* ---- The layers' moves, a pixel at a time ------------------------------------------------ */
@@ -362,11 +350,6 @@ static Line line_coming_in(ScreenEdges e, Side side)
  * original leaves after its last line. */
 enum { WORK_RAM_LOWER_BANK = 0 };
 
-static void leave_port_after(GameState *g, Staging s)
-{
-    hw_port_seek(g, (uint16_t)(field_staged_line(FIELD_BG1, false) + s.at), WORK_RAM_LOWER_BANK);
-}
-
 /* The streaming's time: a steady part, and a part the lines' lengths and the
  * moves' pixels set, which the port's own reads and writes don't follow (it
  * keeps a move in locals, and works a map tile's look out once for its two
@@ -394,14 +377,10 @@ static void bring_in(GameState *g, unsigned layer, Side side)
     Line line = line_coming_in(screen_edges(g, keeps_own_edges(g, layer)), side);
     Staging out = { (uint16_t)(field_staged_line(layer, line.way == DOWN_A_COLUMN) - field_staged_line(FIELD_BG1, false)) };
     build_line_charged(g, layer, line, &out, line.way == ALONG_A_ROW ? ACCESSES_16_ROW_ENTRIES : ACCESSES_16_COLUMN_ENTRIES);
-    ORIGINAL_EFFECT(leave_port_after(g, out));
+    charge_legacy_io_accesses(g, 3); /* the completed staging cursor */
     move_place_in_tile_map(g, layer, side);
     set_field_layer_upload_flags(g, side, (uint8_t)(field_layer_upload_flags(g, side) | 1u << layer));
 }
-
-/* The count the original's loops run down, a cell of the layers' page, which
- * is left 0 once a layer has moved at all. */
-static void leave_moves_counted(GameState *g) { original_layer_cell8(g, 0x66, 0); }
 
 /* The ways a layer moves, in the order it takes them: right, left, up and
  * down. */
@@ -420,7 +399,6 @@ void stream_the_layers(GameState *g)
 {
     for (unsigned side = 0; side < SIDES; side++)
         set_field_layer_edges_crossed(g, side, 0);
-    bool moved = false;
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
         for (unsigned w = 0; w < WAYS; w++) {
             unsigned k = layer * AXES + ways[w].axis;
@@ -437,11 +415,8 @@ void stream_the_layers(GameState *g)
             note_the_crossing(g, &m);
             charge_uncounted_end(g, mark);
             charge_as(g, STREAMING, (uint32_t)pixels * ACCESSES_FOUR_PIXELS / 4);
-            moved = true;
         }
     }
-    if (moved)
-        ORIGINAL_EFFECT(leave_moves_counted(g));
     for (unsigned side = 0; side < SIDES; side++)
         set_field_layer_upload_flags(g, side, 0);
     static const Side order[SIDES] = { SIDE_ABOVE, SIDE_BELOW, SIDE_LEFT, SIDE_RIGHT };
@@ -466,7 +441,7 @@ void stream_the_right_columns(GameState *g)
         Line line = line_coming_in(screen_edges(g, keeps_own_edges(g, layer)), SIDE_RIGHT);
         Staging out = { (uint16_t)(field_staged_line(layer, true) - field_staged_line(FIELD_BG1, false)) };
         build_line_charged(g, layer, line, &out, ACCESSES_16_COLUMN_ENTRIES);
-        ORIGINAL_EFFECT(leave_port_after(g, out));
+        charge_legacy_io_accesses(g, 3); /* the completed staging cursor */
         set_field_layer_upload_flags(g, SIDE_RIGHT, (uint8_t)(field_layer_upload_flags(g, SIDE_RIGHT) | 1u << layer));
     }
     TIMED_AS(g, 0xC07F9A, field_find_layer_edges(g));
@@ -502,7 +477,6 @@ static void draw_the_screen(GameState *g, unsigned layer, Staging *out, ScreenEd
     uint8_t below = (uint8_t)(e.top + SCREEN_ROWS_DRAWN);
     for (uint8_t row = e.top; row != below; row++)
         build_line(g, layer, (Line){ ALONG_A_ROW, e.left, row, DRAWN_TILES }, out);
-    ORIGINAL_EFFECT(original_layer_cell8(g, 0x5A, below));   /* the original's row, moved on past the last */
     set_field_layer_edge_wrap(g, (uint16_t)(field_layer_edge_wrap(g) & 0xFF00));
 }
 
@@ -541,7 +515,7 @@ void draw_layer_at_the_maps_load(GameState *g, unsigned layer)
         draw_the_screen(g, layer, &out, screen_edges(g, false));
     charge_uncounted_end(g, mark);
     charge_as(g, drawing[layer], (uint32_t)out.at / ENTRY_BYTES * ACCESSES_A_DRAWN_ENTRY);
-    ORIGINAL_EFFECT(leave_port_after(g, out));
+    charge_legacy_io_accesses(g, 3); /* outside the explicitly priced drawing */
 }
 
 /* ---- The entry ---------------------------------------------------------------------------- */
@@ -616,7 +590,7 @@ bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)
 {
     bool fits = layer == FIELD_BG2 ? layer_drawing_fits(g, FIELD_BG2) : layers_repeat_within_the_maps(g);
     if (!fits) {
-        program_needs_the_machine(g, drawing_entries[layer], "a layer the port doesn't draw at the map's load");
+        program_breaks_a_contract(g, drawing_entries[layer], "a layer the port doesn't draw at the map's load");
         return false;
     }
     TIMED_AS(g, drawing_entries[layer], draw_layer_at_the_maps_load(g, layer));

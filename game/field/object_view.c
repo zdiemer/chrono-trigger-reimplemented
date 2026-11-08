@@ -42,16 +42,6 @@ static uint8_t widen_up(uint8_t v, uint8_t by) { return v + by > 0xFF ? 0xFF : (
 static uint8_t tile_x2(const GameState *g, FieldObject obj) { return (uint8_t)(field_object_x_tile(g, obj) << 1); }
 static uint8_t tile_y2(const GameState *g, FieldObject obj) { return (uint8_t)(field_object_y_tile(g, obj) << 1); }
 
-/* For the original's code and shadow mode (field/scratch.h): the window's
- * edges, which it keeps at $C3-$C6. */
-static void leave_window(GameState *g, ViewWindow w)
-{
-    original_cell8(g, 0xC3, w.left);
-    original_cell8(g, 0xC4, w.right);
-    original_cell8(g, 0xC5, w.top);
-    original_cell8(g, 0xC6, w.bottom);
-}
-
 /* ---- The in-view flag: its storage ---------------------------------------------------------- */
 
 /* The original keeps a flag byte, $80 in view and 0 out of it; a row's link
@@ -158,15 +148,6 @@ static bool take_what_it_needs(GameState *g, FieldObject obj);
 /* ---- The screen's start ------------------------------------------------------------------- */
 
 // $C0:A7E9
-/* A map's screen starts with every object out of view, no frame of its
- * drawn. (The original writes the two bytes of each through the work RAM
- * port, whose cursor it leaves past the last.) */
-static void leave_the_cursor_past(GameState *g, unsigned objects)
-{
-    enum { WORK_RAM_LOWER_BANK = 0 };
-    hw_port_seek(g, (uint16_t)(RAM_ABS(RAM_FIELD_OBJECT_IN_VIEW) + objects * 2), WORK_RAM_LOWER_BANK);
-}
-
 void objects_all_out_of_view(GameState *g)
 {
     unsigned objects = event_object_count(g);
@@ -174,7 +155,7 @@ void objects_all_out_of_view(GameState *g)
         object_set_in_view(g, obj, false);
         object_forget_frame_drawn(g, obj);
     }
-    ORIGINAL_EFFECT(leave_the_cursor_past(g, objects));
+    charge_legacy_io_accesses(g, 3); /* the completed object cursor */
 }
 
 /* The window an object is in view in at the screen's start: the screen
@@ -198,7 +179,7 @@ bool object_in_view_at_the_start(GameState *g, FieldObject obj)
     if (!object_can_be_seen(g, obj))
         return false;
     ViewWindow w = start_window(g);
-    ORIGINAL_EFFECT(leave_window(g, w));
+    charge_legacy_accesses(g, 4); /* the start window's temporary edges */
     if (!in_window(g, w, obj))
         return false;
     come_into_view(g, obj);
@@ -223,7 +204,7 @@ static bool check_on_screen(GameState *g, FieldObject obj)
 {
     ViewWindow w = { (uint8_t)(field_screen_left(g) - WIDER_ACROSS), (uint8_t)(field_screen_right(g) + WIDER_ACROSS),
                      field_screen_top(g), (uint8_t)(field_screen_bottom(g) + WIDER_BELOW) };
-    ORIGINAL_EFFECT(leave_window(g, w));
+    charge_legacy_accesses(g, 4); /* the four temporary window edges */
     uint8_t x = tile_x2(g, obj), y = tile_y2(g, obj);
     bool inside = (int8_t)(x - w.left) >= 0 && (int8_t)(x - w.right) < 0 && (int8_t)(y - w.top) >= 0 &&
                   (int8_t)(y - w.bottom) < 0;
@@ -273,9 +254,15 @@ typedef enum { OUT_OF_SIGHT, IN_SIGHT, VIEW_WENT_ELSEWHERE } ViewUpdate;
  * one-off animation it was playing is hurried to its end. */
 static ViewUpdate update_view(GameState *g, FieldObject obj, const ViewSteps *steps, void *ctx)
 {
-    if (object_can_be_seen(g, obj))
-        ORIGINAL_EFFECT(leave_window(g, view_window(g)));
-    bool inside = belongs_in_view(g, obj);
+    bool disabled = object_disabled(g, obj);
+    bool shown = !disabled && (int8_t)field_object_sprite_flag(g, obj) > 0;
+    /* Visibility used to be evaluated twice, including in the native
+     * program; count that repeated read without performing it again.
+     * Only the machine also read and saved the four temporary edges. */
+    charge_as(g, 0xC0A88D, disabled ? 1 : 2);
+    if (shown)
+        charge_legacy_accesses(g, 8);
+    bool inside = shown && in_window(g, view_window(g), obj);
     bool was_in_view = object_in_view(g, obj);
     if (inside) {
         if (!was_in_view) {
@@ -323,7 +310,7 @@ enum { VIEW = 0xC0A88D };
 bool object_view_updated(GameState *g, FieldObject obj)
 {
     if (field_view_changes(g, obj) && !field_view_change_in_the_tables(g, obj)) {
-        program_needs_the_machine(g, VIEW, "an object coming into view or leaving it with tables the port doesn't read");
+        program_breaks_a_contract(g, VIEW, "an object coming into view or leaving it with tables the port doesn't read");
         return false;
     }
     static const ViewSteps in_the_program = { rows, NULL };
@@ -354,8 +341,9 @@ static bool rows_on_the_machine(void *ctx, FieldObject obj, bool join)
     Snes *s = ctx;
     if (field_rows_step(s, obj, join))
         return true;
-    return bridge_call(s, join ? JOIN_SITE : LEAVE_SITE, join ? FIELD_JOIN_ROW_ENTRY : FIELD_LEAVE_ROW_ENTRY,
-                       ROWS_CALL_DONT_CARE, on_the_field_page(s, true));
+    return field_run_called(s, join ? JOIN_SITE : LEAVE_SITE, join ? FIELD_JOIN_ROW_ENTRY : FIELD_LEAVE_ROW_ENTRY,
+                            ROWS_CALL_DONT_CARE, join ? field_join_object_row : field_leave_object_row,
+                            on_the_field_page(s, true));
 }
 
 /* Taking colours or a block leaves the overflow clear, which the original's
@@ -368,8 +356,9 @@ static void clear_the_overflow(void *ctx) { m_set_flag((Snes *)ctx, CPU_FLAG_V, 
 bool field_update_visibility(Snes *s, FieldObject obj)
 {
     GameState *g = state_of(s);
-    if (object_can_be_seen(g, obj))
+    if (object_can_be_seen(g, obj)) {
         m_set_flag(s, CPU_FLAG_V, bottom_overflows(g, WIDER_BELOW));
+    }
     static const ViewSteps on_the_machine = { rows_on_the_machine, clear_the_overflow };
     ViewUpdate view = update_view(g, obj, &on_the_machine, s);
     if (view == VIEW_WENT_ELSEWHERE)
@@ -406,10 +395,4 @@ void field_update_in_window(Snes *s, FieldObject obj)
     GameState *g = state_of(s);
     m_set_flag(s, CPU_FLAG_C, check_on_screen(g, obj));
     m_set_flag(s, CPU_FLAG_V, bottom_overflows(g, WIDER_BELOW));
-}
-
-void field_update_object_in_window(Snes *s)
-{
-    field_update_in_window(s, (FieldObject)field_current_object_slot(s));
-    m_rts(s);
 }

@@ -135,6 +135,26 @@ def make_state(ct_dev, rom, directory, name, spec):
     return path
 
 
+def ledger_recipes(lines, available):
+    """Cited trials plus every uncovered owner's plain recipe, without omissions."""
+    trials, owners = {}, set()
+    for line in lines:
+        columns = line.split('\t')
+        if columns[0] == 'fuzz':
+            case, seed, count = columns[4:7]
+            limits = (int(seed), int(count))
+            if case in trials and trials[case] != limits:
+                raise ValueError(f'{case}: inconsistent trial specifications in ledger')
+            trials[case] = limits
+        elif columns[0] == 'port' and int(columns[5]) > 0:
+            owners.add(columns[3])
+    missing = (set(trials) | owners) - set(available)
+    if missing:
+        raise ValueError('ledger recipes missing: ' + ', '.join(sorted(missing)))
+    plain = sorted(owners - set(trials))
+    return sorted(trials) + plain, trials, len(plain)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--rom', type=pathlib.Path, default=ROOT / 'roms/ct-usa.sfc')
@@ -152,21 +172,12 @@ def main():
     cases = args.case
     ledger_trials = {}
     if args.ledger:
-        for line in args.ledger.read_text().splitlines():
-            if line.startswith('fuzz\t'):
-                columns = line.split('\t')
-                case, seed, trials = columns[4:7]
-                limits = (int(seed), int(trials))
-                if case in ledger_trials and ledger_trials[case] != limits:
-                    ap.error(f'{case}: inconsistent trial specifications in ledger')
-                ledger_trials[case] = limits
-        cases = sorted(ledger_trials)
-        # Each inventoried entry's own recipe too, cited or not: a port that
-        # stops matching on it (as the field's map did when the unpacker
-        # became C) fails here, before a case built on it is ever recorded.
-        cases += sorted({line.split('\t')[3] for line in args.ledger.read_text().splitlines()
-                         if line.startswith('port\t') and int(line.split('\t')[5]) > 0}
-                        & set(all_recipes) - set(cases))
+        try:
+            cases, ledger_trials, plain_count = ledger_recipes(
+                args.ledger.read_text().splitlines(), all_recipes)
+        except ValueError as error:
+            ap.error(str(error))
+        print(f'unreached fuzz: {len(ledger_trials)} cited recipes, {plain_count} additional plain recipes', flush=True)
     chosen = [all_recipes[key] for key in cases]
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / 'fuzz').mkdir(exist_ok=True)

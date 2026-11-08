@@ -20,6 +20,7 @@
 #include "data/decompress.h"
 #include "event/chests.h"
 #include "field/bridge.h"
+#include "core/program.h"
 #include "field/field_data.h"
 #include "field/scratch.h"
 #include "original_effects.h"
@@ -48,8 +49,6 @@ static void take_the_layers(GameState *g)
 {
     uint8_t sizes = field_map_header_sizes(g), layers = field_map_header_layers(g);
     for (unsigned layer = FIELD_BG1; layer <= FIELD_BG3; layer++) {
-        ORIGINAL_EFFECT(set_field_map_layer_sizes_width_high(g, layer, 0));
-        ORIGINAL_EFFECT(set_field_map_layer_sizes_height_high(g, layer, 0));
     }
     set_field_map_flags(g, (layers & HEADER_HAS_BG3) ? FIELD_MAP_HAS_BG3 : 0);
     set_field_bg2_half_scroll(g, (layers & HEADER_BG2_AT_HALF_PACE) ? BG2_HALF_PACE : 0);
@@ -113,12 +112,6 @@ static void take_the_drift(GameState *g, unsigned layer, uint8_t drift)
     set_field_layer_drawn_whole(g, (uint8_t)(field_layer_drawn_whole(g) | FIELD_LAYER_BIT(layer)));
 }
 
-/* For the original's code and shadow mode (field/scratch.h): the original
- * reads the header through a cell of the layers' page, which it leaves
- * holding the screens' byte. (The cells after it the tile maps' unpacking
- * leaves its own values in.) */
-static void leave_the_header(GameState *g) { original_layer_cell8(g, 0x50, field_map_header_screens(g)); }
-
 // $C0:A33B (from the unpacked header on)
 static void take_the_header(GameState *g)
 {
@@ -127,7 +120,6 @@ static void take_the_header(GameState *g)
     set_field_layer_drawn_whole(g, field_layer_still(g));
     take_the_drift(g, FIELD_BG2, field_map_header_bg2_drift(g));
     take_the_drift(g, FIELD_BG3, field_map_header_bg3_drift(g));
-    ORIGINAL_EFFECT(leave_the_header(g));
 }
 
 // $C0:7399
@@ -195,17 +187,6 @@ static uint16_t next_exit_tile(uint16_t tile, bool down, uint16_t repeat)
     return (uint16_t)((tile & 0xFF00) | ((tile + 1) & repeat & 0x00FF));
 }
 
-/* For the original's code and shadow mode: where the original kept the last
- * exit's record (where there was one), how many exits it marked, and where
- * the run ends. */
-static void leave_the_exits(GameState *g, FieldExitRun run, const uint16_t *last, uint8_t marked)
-{
-    if (last)
-        original_layer_cell16(g, 0x52, *last);
-    original_layer_cell16(g, 0x54, marked);
-    original_layer_cell16(g, 0x56, run.end);
-}
-
 static void mark_the_exits(GameState *g)
 {
     for (unsigned row = 0; row < EXIT_TABLE_ROWS; row++)
@@ -215,8 +196,6 @@ static void mark_the_exits(GameState *g)
     set_field_location_exits(g, run.first);
     uint16_t repeat = field_map_index_mask(g);
     uint8_t exit = 0;
-    uint16_t last = run.first;
-    bool any = false;
     for (uint16_t at = run.first; at < run.end; at = (uint16_t)(at + FIELD_EXIT_BYTES)) {
         FieldExit e = field_exit(g, at, 0);
         bool down = (e.reach & EXIT_RUNS_DOWN) != 0;
@@ -227,10 +206,7 @@ static void mark_the_exits(GameState *g)
             mark(g, tile, exit);
         }
         exit++;
-        last = at;
-        any = true;
     }
-    ORIGINAL_EFFECT(leave_the_exits(g, run, any ? &last : NULL, exit));
 }
 
 /* ---- The map unpacked ------------------------------------------------------------------------- */
@@ -242,7 +218,6 @@ enum { UNPACKED_MAP = RAM_FIELD_MAP_HEADER };
 void field_ask_to_unpack_the_map(GameState *g)
 {
     uint16_t map = location_map(g, location_record_offset(g));
-    ORIGINAL_EFFECT(original_cell16(g, FIELD_SCRATCH_CELLS, map));
     set_decompress_source(g, field_packed_map(g, map));
     set_decompress_dest(g, UNPACKED_MAP);
 }
@@ -277,13 +252,12 @@ bool field_load_the_map(GameState *g)
  * it is entered with the layers' page's high byte in A's, which the original
  * set D through. */
 enum { THE_TILE_MAPS_IGNORE = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-static void leave_the_page_in_a(Snes *s) { s->cpu.a = (uint16_t)((FIELD_LAYERS_PAGE & 0xFF00) | (s->cpu.a & 0x00FF)); }
 
 void field_unpack_the_map(Snes *s)
 {
     GameState *g = state_of(s);
     if (!field_load_the_map(g)) {
-        ORIGINAL_EFFECT(leave_the_page_in_a(s));
+        program_breaks_a_contract(g, FIELD_UNPACK_TILE_MAPS_ENTRY, "tile maps outside the field layout");
         if (!bridge_call_on_page(s, 0xC0A500, FIELD_UNPACK_TILE_MAPS_ENTRY, THE_TILE_MAPS_IGNORE, FIELD_LAYERS_PAGE))
             return;
         field_mark_the_exits(g);
@@ -300,12 +274,7 @@ void field_unpack_the_map(Snes *s)
  * (data/decompress.c), so the two part there. */
 bool field_map_can_be_unpacked(Snes *s)
 {
-    if (!field_on_page_low_bank(s))
-        return false;
-    vars_peek(true);
-    bool ok = location_record_is_one(location_record_offset(state_of(s)));
-    vars_peek(false);
-    return ok;
+    return field_on_page_low_bank(s) && field_location_record_is_one(s);
 }
 
 // $C0:A712

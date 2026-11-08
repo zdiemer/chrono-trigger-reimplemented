@@ -73,31 +73,32 @@ class UnreachedTest(unittest.TestCase):
         open_row = ['open', 'C01000', 'C01000-C01002', '3', 'not yet evidenced']
         records = self.records[:-1] + [open_row]
         self.assertTrue(self.check(records=records))
-        field = [['port', 'field'] + self.records[1][2:]] + [open_row]
-        with patch.object(u, 'OPEN', {'field': 3}):
-            self.assertEqual(self.check(records=self.records[:1] + field, rows=[dict(self.row, subsystem='field')]), [])
-        self.assertEqual(u.open_summary(field), 'field 3 bytes in 1 entries')
+        pending = [['port', 'pending'] + self.records[1][2:]] + [open_row]
+        with patch.object(u, 'OPEN', {'pending': 3}):
+            self.assertEqual(self.check(records=self.records[:1] + pending, rows=[dict(self.row, subsystem='pending')]), [])
+        self.assertEqual(u.open_summary(pending), 'pending 3 bytes in 1 entries')
         self.assertTrue(self.check(records=self.records + [open_row]))
 
     def test_open_bytes_may_not_grow(self):
         open_row = ['open', 'C01000', 'C01000-C01002', '3', 'not yet evidenced']
-        field = self.records[:1] + [['port', 'field'] + self.records[1][2:], open_row]
-        rows = [dict(self.row, subsystem='field')]
-        with patch.object(u, 'OPEN', {'field': 3}):
-            self.assertEqual(self.check(records=field, rows=rows), [])
-        with patch.object(u, 'OPEN', {'field': 2}):
-            self.assertTrue(any('cap' in e for e in self.check(records=field, rows=rows)))
-        with patch.object(u, 'OPEN', {'field': 3}), patch.object(u, 'RETIRED', ('field',)):
-            errors = self.check(records=field, rows=rows)
+        pending = self.records[:1] + [['port', 'pending'] + self.records[1][2:], open_row]
+        rows = [dict(self.row, subsystem='pending')]
+        with patch.object(u, 'OPEN', {'pending': 3}):
+            self.assertEqual(self.check(records=pending, rows=rows), [])
+        with patch.object(u, 'OPEN', {'pending': 2}):
+            self.assertTrue(any('cap' in e for e in self.check(records=pending, rows=rows)))
+        with patch.object(u, 'OPEN', {'pending': 3}), patch.object(u, 'RETIRED', ('pending',)):
+            errors = self.check(records=pending, rows=rows)
             self.assertTrue(any('retired' in e for e in errors))
 
     def test_record_refuses_new_open_bytes(self):
-        row = dict(self.row, subsystem='field')
+        row = dict(self.row, subsystem='pending')
         missing = {0xC01000, 0xC01001}
-        self.assertTrue(u.open_errors(row, missing, {}, ()))
-        self.assertTrue(u.open_errors(row, missing, {'C01000': {0xC01000}}, ()))
-        self.assertEqual(u.open_errors(row, missing, {'C01000': missing | {0xC01002}}, ()), [])
-        self.assertEqual(u.open_errors(row, missing, {}, ('field',)), [])
+        with patch.object(u, 'OPEN', {'pending': 3}):
+            self.assertTrue(u.open_errors(row, missing, {}, ()))
+            self.assertTrue(u.open_errors(row, missing, {'C01000': {0xC01000}}, ()))
+            self.assertEqual(u.open_errors(row, missing, {'C01000': missing | {0xC01002}}, ()), [])
+            self.assertEqual(u.open_errors(row, missing, {}, ('pending',)), [])
         self.assertTrue(u.open_errors(self.row, missing, {}, ('event',)))
 
     def test_a_failing_recipe_is_an_error_not_open(self):
@@ -203,6 +204,25 @@ class UnreachedTest(unittest.TestCase):
     def test_an_unrelated_callout_is_not_evidence_for_a_port(self):
         self.assertFalse(f.covers({'name': 'caller'}, 'callee'))
         self.assertTrue(f.covers({'name': 'caller', 'covers': ['callee']}, 'callee'))
+
+    def test_ledger_requires_an_uncovered_owners_plain_recipe(self):
+        with self.assertRaisesRegex(ValueError, 'ledger recipes missing: owner'):
+            f.ledger_recipes(['port\tfield\tC01234\towner\thash\t2'], {})
+
+    def test_ledger_counts_additional_plain_recipes(self):
+        lines = ['port\tfield\tC01234\towner\thash\t2',
+                 'port\tfield\tC01240\tcovered\thash\t0',
+                 'fuzz\tC01234\tC01234-C01235\t2\towner:held\t1\t200']
+        cases, limits, plain = f.ledger_recipes(lines, {'owner', 'owner:held'})
+        self.assertEqual(cases, ['owner:held', 'owner'])
+        self.assertEqual(limits, {'owner:held': (1, 200)})
+        self.assertEqual(plain, 1)
+
+    def test_ledger_refuses_inconsistent_trial_counts(self):
+        lines = ['fuzz\tC01234\tC01234\t1\towner\t1\t200',
+                 'fuzz\tC01234\tC01235\t1\towner\t1\t1000']
+        with self.assertRaisesRegex(ValueError, 'inconsistent trial specifications'):
+            f.ledger_recipes(lines, {'owner'})
 
     def test_held_continuation_recipe_keeps_its_owner_and_entry(self):
         (self.root / 'tools').mkdir()

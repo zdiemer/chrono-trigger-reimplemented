@@ -21,7 +21,9 @@
  * (field/object.h). */
 #include "cpu_io.h"
 #include "event/calls.h"
-#include "event/leaves.h"
+#include "charge.h"
+#include "field/menu_compat.h"
+#include "field/scratch.h"
 #include "event/script.h"
 
 enum { LOWEST_LEVEL = EVENT_LEVELS - 1, FUNCTIONS = 16 };
@@ -40,14 +42,6 @@ enum { OBJECTS_PER_LEVEL = 64, BYTES_PER_LEVEL = OBJECTS_PER_LEVEL * 2 };
 
 typedef uint16_t Place;   /* an entry of event_saved_positions */
 
-/* What the original leaves as it finds a place: the multiplier holding the
- * level's offset (it multiplies in hardware). */
-static void leave_multiplying(GameState *g, uint8_t level)
-{
-    hw_set_multiplicand(g, level);
-    hw_multiply_by(g, BYTES_PER_LEVEL);
-}
-
 /* The offset of an object's place at a level among the places, which the
  * original works out in a scratch cell. */
 static uint16_t event_place_offset(FieldObject object, uint8_t level)
@@ -60,8 +54,9 @@ static Place place_of(FieldObject object, uint8_t level) { return (Place)(level 
 /* ... and the calls keep its offset in a scratch cell. */
 static Place place_found(GameState *g, FieldObject object, uint8_t level)
 {
-    ORIGINAL_EFFECT(leave_multiplying(g, level));
-    ORIGINAL_EFFECT(keep_word(g, KEPT_FIFTH, event_place_offset(object, level)));
+    charge_legacy_accesses(g, 1); /* the offset byte not shared with the menu */
+    charge_legacy_io_accesses(g, 4); /* level multiplication */
+    ORIGINAL_EFFECT(field_leaves_menu_wave_low(g, (uint8_t)(event_place_offset(object, level) >> 8)));
     return place_of(object, level);
 }
 
@@ -96,7 +91,8 @@ uint16_t object_function_start(const GameState *g, FieldObject object, uint8_t f
 /* A call keeps where the target's functions are as it looks one up. */
 static uint16_t function_start(GameState *g, FieldObject object, uint8_t function)
 {
-    ORIGINAL_EFFECT(keep_word(g, KEPT_SIXTH, function_table(object)));
+    charge_legacy_accesses(g, 1); /* the table byte not shared with the menu */
+    ORIGINAL_EFFECT(field_leaves_menu_wave_high(g, (uint8_t)function_table(object)));
     return object_function_start(g, object, function);
 }
 
@@ -113,20 +109,6 @@ void object_forget_its_calls(GameState *g, FieldObject object)
 
 typedef enum { TAKES_CALLS, REFUSES_CALLS, PASSED_OVER } Answer;
 
-/* A call, as the scripts write it: the level in its high nibble, the function
- * in its low. What the original keeps of it: the target, then the target's
- * level, the call and the level it asks for. */
-static uint8_t call_byte(uint8_t level, uint8_t function) { return (uint8_t)(level << 4 | function); }
-
-static void keep_target(GameState *g, FieldObject target) { keep_word(g, KEPT_SECOND, field_object_offset(target)); }
-
-static void keep_levels(GameState *g, uint8_t current, uint8_t level, uint8_t function)
-{
-    keep_byte(g, KEPT_FIRST, current);
-    keep_byte(g, KEPT_THIRD, call_byte(level, function));
-    keep_byte(g, KEPT_FOURTH, level);
-}
-
 static Answer answer_of(const GameState *g, FieldObject target)
 {
     if (refusing_calls(g, target))
@@ -136,7 +118,7 @@ static Answer answer_of(const GameState *g, FieldObject target)
 
 static Answer answer(GameState *g, FieldObject target)
 {
-    ORIGINAL_EFFECT(keep_target(g, target));
+    charge_legacy_accesses(g, 2); /* selected target */
     return answer_of(g, target);
 }
 
@@ -150,7 +132,8 @@ static int urgency_of(const GameState *g, FieldObject target, uint8_t level)
 
 static int urgency(GameState *g, FieldObject target, uint8_t level, uint8_t function)
 {
-    ORIGINAL_EFFECT(keep_levels(g, event_object_call_state_level(g, target), level, function));
+    charge_legacy_accesses(g, 4); /* level read and three decoded selections */
+    (void)function;
     return urgency_of(g, target, level);
 }
 
@@ -176,8 +159,8 @@ static void interrupt(GameState *g, FieldObject target, uint8_t level, uint8_t f
 void object_run_script_from(GameState *g, FieldObject object, uint8_t level, uint16_t start)
 {
     uint8_t own = event_object_call_state_level(g, object);
-    ORIGINAL_EFFECT(leave_multiplying(g, own));
-    ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, event_place_offset(object, own)));
+    charge_legacy_accesses(g, 2); /* suspended place */
+    charge_legacy_io_accesses(g, 4); /* level multiplication */
     run_from(g, object, place_of(object, own), level, start);
     object_turn_now(g, object);
 }
@@ -255,7 +238,7 @@ static EventFlow call_and_wait(GameState *g, FieldObject self, FieldObject targe
                                uint8_t function)
 {
     if (waiting(g, self)) {
-        ORIGINAL_EFFECT(keep_target(g, target));
+        charge_legacy_accesses(g, 2); /* selected target while waiting */
         if (!object_unreachable(g, target) && urgency(g, target, level, function) >= 0)
             return stay();
         set_waiting(g, self, false);
@@ -279,8 +262,8 @@ static EventFlow return_from_function(GameState *g, FieldObject self)
     uint8_t level = event_object_call_state_level(g, self);
     if (level == LOWEST_LEVEL)
         return stay();
-    ORIGINAL_EFFECT(hw_set_multiplicand(g, level));
-    ORIGINAL_EFFECT(hw_multiply_by(g, BYTES_PER_LEVEL));   /* the original multiplies in hardware */
+    charge_legacy_io_accesses(g, 4); /* resumed level's multiplication */
+    ((void)0);   /* the original multiplies in hardware */
     set_place(g, place_of(self, level), 0);
     Resumption r = resumption_below(g, self, level);
     set_event_object_call_state_level(g, self, r.level);
@@ -324,18 +307,6 @@ static EventFlow make_reachable(GameState *g, FieldObject object)
     return next_command();
 }
 EVENT_OPERATION(make_reachable, object)
-
-/* For event/leaves.c, before a call runs: whether it reaches the target's
- * places -- queued or interrupting where it just calls, interrupting where
- * it waits to be taken, and not while its caller waits it out. */
-bool event_call_reaches_the_places(const GameState *g, CallKind kind, FieldObject self, FieldObject target, bool there,
-                                   uint8_t level)
-{
-    if ((kind == CALL_AND_WAIT && waiting(g, self)) || !there || answer_of(g, target) != TAKES_CALLS)
-        return false;
-    int order = urgency_of(g, target, level);
-    return kind == CALL_AND_GO ? order != 0 : order < 0;
-}
 
 /* The guard's part for a return: at the lowest level, or with something to
  * resume in the levels below it. Past them the original's search reads on

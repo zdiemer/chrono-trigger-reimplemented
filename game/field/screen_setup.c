@@ -139,6 +139,7 @@ static bool draw_a_layer(Snes *s, unsigned layer)
         TIMED_AS(g, drawing[layer].routine, draw_layer_at_the_maps_load(g, layer));
         return true;
     }
+    program_breaks_a_contract(g, drawing[layer].routine, "a layer drawing outside its map bounds");
     return bridge_call_on_page(s, drawing[layer].site, drawing[layer].routine, READS_NOTHING, FIELD_LAYERS_PAGE);
 }
 
@@ -184,8 +185,11 @@ static bool draw_the_map_on_the_machine(Snes *s)
         return false;
     if (layers_repeat_within_the_maps(g))
         TIMED_AS(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, stream_the_right_columns(g));
-    else if (!bridge_call(s, 0xC00AF3, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, READS_NOTHING, on_the_field_page(s, false)))
-        return false;
+    else {
+        program_breaks_a_contract(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "layer columns outside their repeated maps");
+        if (!bridge_call(s, 0xC00AF3, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, READS_NOTHING, on_the_field_page(s, false)))
+            return false;
+    }
     if (field_bg3_map_size(g) != 0)
         set_field_layer_map_size(g, FIELD_BG3, field_bg3_map_size(g));
     return true;
@@ -214,9 +218,11 @@ static bool draw_at_once_on_the_machine(Snes *s, FieldObject obj)
 {
     GameState *g = state_of(s);
     TIMED_AS(g, FIELD_UPDATE_SCREEN_POSITION_ENTRY, object_update_screen_position(g, obj));
-    if (!field_rows_step(s, obj, true) &&
-        !bridge_call(s, 0xC0B104, FIELD_JOIN_ROW_ENTRY, JOINS_ITS_ROW_READS, on_the_field_page(s, true)))
-        return false;
+    if (!field_rows_step(s, obj, true)) {
+        program_breaks_a_contract(g, FIELD_JOIN_ROW_ENTRY, "an object outside its row chain");
+        if (!bridge_call(s, 0xC0B104, FIELD_JOIN_ROW_ENTRY, JOINS_ITS_ROW_READS, on_the_field_page(s, true)))
+            return false;
+    }
     set_field_vram_queue_end(g, 0);
     bool came_back = true;
     while (draw_a_frame_part(s, &came_back))
@@ -236,13 +242,6 @@ static bool draw_at_once_on_the_machine(Snes *s, FieldObject obj)
  * registers for the objects. */
 enum { SPRITE_TABLE = 0xC0B271 };
 
-/* For the original's code and shadow mode: the loop's end, the object count
- * doubled, in event_object_end's low byte. */
-static void leave_loop_end(GameState *g, unsigned objects)
-{
-    set_event_object_end(g, (uint16_t)((event_object_end(g) & 0xFF00) | (uint8_t)(objects * 2)));
-}
-
 /* For the original's code and shadow mode: the overflow the loop leaves for
  * the sprite table, which carries it on where it makes no sum of its own:
  * the last object looked at for the view (one that shows) had the start's
@@ -257,16 +256,13 @@ static bool may_come_into_view(const GameState *g, FieldObject obj)
     return !role.disabled && role.kind != ROLE_WINDOW_ONLY;
 }
 
-static bool looked_at_for_the_view(const GameState *g, FieldObject obj)
-{
-    return may_come_into_view(g, obj) && (int8_t)field_object_sprite_flag(g, obj) > 0;
-}
-
-static void leave_the_overflow(Snes *s, unsigned objects)
+/* The sprite builder carries this flag through to still-gated callers.
+ * Keep its calling convention until those callers retire with the menus. */
+static void leave_view_overflow_on_the_machine(Snes *s, unsigned objects)
 {
     const GameState *g = state_of(s);
     for (unsigned obj = objects; obj-- > 0;)
-        if (looked_at_for_the_view(g, (FieldObject)obj)) {
+        if (may_come_into_view(g, (FieldObject)obj) && (int8_t)field_object_sprite_flag(g, (FieldObject)obj) > 0) {
             if (!object_in_view(g, (FieldObject)obj))
                 m_set_flag(s, CPU_FLAG_V, field_add_overflows8(field_screen_bottom(g), START_WINDOW_BELOW));
             return;
@@ -277,7 +273,7 @@ void field_draw_the_objects_in_view(Snes *s)
 {
     GameState *g = state_of(s);
     unsigned objects = event_object_count(g);
-    ORIGINAL_EFFECT(leave_loop_end(g, objects));
+    charge_legacy_accesses(g, 4); /* the old loop bound's word read and write */
     m_sep(s, CPU_FLAG_X);
     for (FieldObject obj = 0; obj < objects; obj++) {
         object_make_current(g, obj);
@@ -287,7 +283,7 @@ void field_draw_the_objects_in_view(Snes *s)
             return;
     }
     m_rep(s, CPU_FLAG_X);
-    ORIGINAL_EFFECT(leave_the_overflow(s, objects));
+    leave_view_overflow_on_the_machine(s, objects);
     if (field_sprite_rows_drawable(s))
         TIMED_AS(g, SPRITE_TABLE, field_build_sprite_table(s));
     else
@@ -361,17 +357,6 @@ enum { THE_OBJECTS_READ_Y_AND_THE_OVERFLOW = DC_A | DC_X | DC_N | DC_Z | DC_C };
 
 static BridgeMachine page(const Snes *s) { return on_the_field_page(s, false); }
 
-/* For the original's code and shadow mode: what the object tables' fills
- * before the objects are drawn leave in Y, and the overflow the map's
- * drawing leaves (its edge runs' last sum), which the drawing of the
- * objects reads where it calls the original's routines. */
-static void leave_y_and_the_overflow(Snes *s)
-{
-    enum { THE_LAST_FILL_LEAVES = 0x00FF };
-    s->cpu.y = THE_LAST_FILL_LEAVES;
-    m_set_flag(s, CPU_FLAG_V, field_layer_edges_overflow(state_of(s)));
-}
-
 /* The dialog window's looks, the window design's tiles and colours, the
  * choice pointer's tiles and the field's own sprites. */
 static void put_up_the_window(GameState *g, Platform *pf)
@@ -397,12 +382,18 @@ static bool set_the_screen_up(Snes *s)
     Platform *pf = m_platform(s);
     if (field_remembered_switches_on_the_map(g))
         TIMED_AS(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, field_press_the_remembered_switches(g));
-    else if (!bridge_call(s, 0xC0286C, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, READS_NOTHING, page(s)))
-        return false;
+    else {
+        program_breaks_a_contract(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "remembered switches outside the map");
+        if (!bridge_call(s, 0xC0286C, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, READS_NOTHING, page(s)))
+            return false;
+    }
     if (!field_run_table_step(s, 0xC0286F, draw_the_map_on_the_machine))
         return false;
     field_objects_let_go(g, false);   /* a map's screen starts with no object holding anything of it */
-    ORIGINAL_EFFECT(leave_y_and_the_overflow(s));
+    /* The still-gated sprite/menu chain reads the fill's Y and the map
+     * drawing's overflow. They remain part of this machine call's result. */
+    s->cpu.y = 0x00FF;
+    m_set_flag(s, CPU_FLAG_V, field_layer_edges_overflow(g));
     if (!field_run(s, 0xC02881, DRAW_THE_OBJECTS, THE_OBJECTS_READ_Y_AND_THE_OVERFLOW, field_draw_the_objects_in_view,
                    page(s)))
         return false;
@@ -440,7 +431,7 @@ void field_set_the_screen_up(Snes *s)
  * port takes), the program goes no further (core/program.h). */
 static bool machine_only(GameState *g, uint32_t routine, const char *what)
 {
-    program_needs_the_machine(g, routine, what);
+    program_breaks_a_contract(g, routine, what);
     return false;
 }
 

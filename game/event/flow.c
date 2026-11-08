@@ -7,7 +7,8 @@
  * condition holds, or how long to wait. The conditions on the story, the
  * party, dialog and the controller are with those, in their own files. */
 #include "event/bridge.h"
-#include "event/leaves.h"
+#include "charge.h"
+#include "field/scratch.h"
 #include "event/variables.h"
 
 // $C0:62B5
@@ -57,15 +58,6 @@ static EventFlow if_compares(GameState *g, uint16_t left, uint16_t right, uint8_
 }
 EVENT_OPERATION(if_compares, left, right, comparison)
 
-/* What the original keeps of a story comparison: the byte compared, the
- * value it is compared with and the operator. */
-static void keep_story_comparison(GameState *g, uint8_t byte, uint8_t value, uint8_t how)
-{
-    keep_byte(g, KEPT_FIRST, byte);
-    keep_byte(g, KEPT_SECOND, value);
-    keep_byte(g, KEPT_THIRD, how);
-}
-
 // $C0:63E6
 /* If a byte of the story -- an event seen, a chest opened -- compares with a
  * value. The operator's top bit says the byte is on the story's second
@@ -73,7 +65,7 @@ static void keep_story_comparison(GameState *g, uint8_t byte, uint8_t value, uin
 static EventFlow if_story(GameState *g, uint8_t offset, uint16_t value, uint8_t comparison)
 {
     uint8_t byte = story_byte(g, story_offset_in(offset, comparison));
-    ORIGINAL_EFFECT(keep_story_comparison(g, byte, (uint8_t)value, operator_in(comparison)));
+    charge_legacy_accesses(g, 3); /* compared byte, value and operator */
     return unless_jump(holds(operator_in(comparison), byte, value));
 }
 EVENT_OPERATION(if_story, offset, value, comparison)
@@ -102,7 +94,6 @@ EVENT_OPERATION(if_in_view, object)
  * can start without the camera moving. */
 static EventFlow if_well_on_screen(GameState *g, FieldObject object)
 {
-    ORIGINAL_EFFECT(keep_screen_edges(g));
     return unless_jump(tile_well_on_screen(g, object_tile(g, object)));
 }
 EVENT_OPERATION(if_well_on_screen, object)

@@ -5,7 +5,8 @@
  * Reading the story is done where it is used: the variables take values
  * from it (event/variables.c), and the conditions test it (event/flow.c). */
 #include "event/event_data.h"
-#include "event/leaves.h"
+#include "charge.h"
+#include "field/scratch.h"
 #include "event/script.h"
 #include "event/variables.h"
 
@@ -30,10 +31,6 @@ static bool records_in_the_story(const GameState *g, StoryOffset story_at, Width
 }
 EVENT_CHECK(records_in_the_story, story_at, width)
 
-/* What the original keeps of a flag: its mask (and the operand that names
- * it, by event/leaves.c's table). */
-static void keep_mask(GameState *g, uint8_t mask) { keep_byte(g, KEPT_FIRST, mask); }
-
 // $C0:6B76
 /* Raise a story flag, or lower it: a bit of a byte on the story's first
  * page, or its second. The original looks the bit up in a table of eight
@@ -42,7 +39,7 @@ static void keep_mask(GameState *g, uint8_t mask) { keep_byte(g, KEPT_FIRST, mas
 static EventFlow mark_story_flag(GameState *g, uint8_t flag_bit, bool on_second_page, uint8_t offset, bool raise)
 {
     uint8_t mask = raise ? bit_mask(g, flag_bit) : bit_clear_mask(g, flag_bit);
-    ORIGINAL_EFFECT(keep_mask(g, mask));
+    charge_legacy_accesses(g, 1); /* the selected flag mask */
     StoryOffset at = (StoryOffset)((on_second_page ? STORY_SECOND_PAGE : 0) | offset);
     uint8_t byte = story_byte(g, at);
     set_story_byte(g, at, raise ? (uint8_t)(byte | mask) : (uint8_t)(byte & mask));

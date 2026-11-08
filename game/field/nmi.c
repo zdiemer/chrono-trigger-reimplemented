@@ -261,7 +261,7 @@ void field_vblank(GameState *g, Platform *pf)
     if (field_frame_pending(g) != 0 && !work_before_the_queue(g, pf)) {
         upload_the_queue(g, pf);
         if (!edges(g)) {
-            program_needs_the_machine(g, FIELD_VBLANK_HANDLER, "layers' edges the port doesn't upload");
+            program_breaks_a_contract(g, FIELD_VBLANK_HANDLER, "layers' edges the port doesn't upload");
             return;
         }
         upload_the_edges(g, pf);
@@ -289,6 +289,7 @@ enum { NMI_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
  * stops at the call's return otherwise. */
 static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t page)
 {
+    program_breaks_a_contract(state_of(s), routine, "a field edge upload outside its bounds");
     return bridge_call(s, site, routine, NMI_DONT_CARE, (BridgeMachine){ false, page, 0 });
 }
 

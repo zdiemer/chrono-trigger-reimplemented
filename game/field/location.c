@@ -187,18 +187,12 @@ static void finish_the_gathering(GameState *g)
 /* Where the location's record is, which the field keeps: the original works
  * it out on the multiplier, which only the comparison with it sees. */
 enum { LOCATION_LOW_BITS = 0x00FF };
-static void leave_the_record_product(GameState *g, uint16_t location)
-{
-    hw_set_multiplicand(g, (uint8_t)(location & LOCATION_LOW_BITS));
-    (void)hw_multiply_by(g, LOCATION_RECORD_BYTES);
-}
 
 // $C0:092B
 static LocationDescription find_the_record(GameState *g)
 {
     uint16_t location = location_id(g);
     set_location_record_offset(g, location_record_place(location));
-    ORIGINAL_EFFECT(leave_the_record_product(g, location));
     return location_description_at(g, location_record_offset(g));
 }
 
@@ -228,19 +222,6 @@ static void unpack(GameState *g, uint32_t from, uint32_t to)
     (void)unpack_stream(g);
 }
 
-/* For the original's code and shadow mode: the last block, set or the like
- * worked with, in the scratch cell the original keeps it in. */
-static void leave_last_worked(GameState *g, uint16_t v) { original_cell16(g, FIELD_LAST_WORKED_CELL, v); }
-
-/* ... and, for the tile graphics, where it read the set's list, on the
- * multiplier and in the cells it read through. */
-static void leave_the_list(GameState *g, uint8_t set)
-{
-    hw_set_multiplicand(g, set);
-    (void)hw_multiply_by(g, TILE_SET_BLOCKS);
-    set_field_tile_set_list_place(g, tile_set_blocks_place(set) + TILE_SET_BLOCKS - 1);
-}
-
 /* Where the six blocks for VRAM go, each described as a transfer whether the
  * set has the block or not. */
 static FieldTransfer vram_block_transfer(unsigned n)
@@ -257,14 +238,12 @@ static void load_tile_graphics(GameState *g, Platform *pf)
     uint8_t set = the_record(g).tile_set;
     if (set == NO_TILE_SET)
         return;
-    uint8_t last = NO_GRAPHICS_BLOCK;
     for (unsigned n = 0; n < TILE_SET_BLOCKS; n++) {
         uint8_t block = tile_set_block(g, set, n);
         if (n < TILE_SET_BLOCKS_IN_VRAM && block == NO_GRAPHICS_BLOCK)
             field_describe_transfer(g, vram_block_transfer(n));
         if (block == NO_GRAPHICS_BLOCK)
             continue;
-        last = block;
         if (n < TILE_SET_BLOCKS_IN_VRAM) {
             unpack(g, graphics_block_address(g, block), UNPACKED_TILES);
             TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, pf, vram_block_transfer(n)));
@@ -272,9 +251,6 @@ static void load_tile_graphics(GameState *g, Platform *pf)
             unpack(g, graphics_block_address(g, block), kept_blocks[n - TILE_SET_BLOCKS_IN_VRAM]);
         }
     }
-    if (last != NO_GRAPHICS_BLOCK)
-        ORIGINAL_EFFECT(leave_last_worked(g, last));
-    ORIGINAL_EFFECT(leave_the_list(g, set));
 }
 
 // $C0:6DCF
@@ -291,7 +267,6 @@ static void load_bg3_graphics(GameState *g, Platform *pf)
     FieldTransfer t = { .vram = BG3_VRAM_TILES, .mode = TRANSFER_WORDS, .source = BG3_UNPACKED_TILES,
                         .size = BLOCK_TILES };
     TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, pf, t));
-    ORIGINAL_EFFECT(leave_last_worked(g, (uint16_t)(3 * block)));
 }
 
 // $C0:09DD
@@ -301,7 +276,6 @@ void field_load_tile_looks(GameState *g)
     uint8_t set = the_record(g).tile_set;
     if (set == NO_TILE_SET)
         return;
-    ORIGINAL_EFFECT(leave_last_worked(g, set));
     unpack(g, tile_looks_address(g, set), TILE_LOOKS);
 }
 
@@ -312,7 +286,6 @@ void field_load_bg3_tile_looks(GameState *g)
     uint8_t set = the_record(g).bg3_tile_set;
     if (field_map_has_no_bg3_set(g) != 0 || set == NO_TILE_SET)
         return;
-    ORIGINAL_EFFECT(leave_last_worked(g, set));
     unpack(g, bg3_tile_looks_address(g, set), BG3_TILE_LOOKS);
 }
 
@@ -385,20 +358,6 @@ static bool came_back_on_the_machine(void *ctx, uint32_t returns)
     return bridge_back(s, returns, on_the_field_page(s, false));
 }
 
-/* ---- Where the tile set's loading meets the original ------------------------------------------- */
-
-void field_load_tile_graphics(Snes *s)
-{
-    load_tile_graphics(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-void field_load_bg3_graphics(Snes *s)
-{
-    load_bg3_graphics(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
 void field_load_tile_looks_entry(Snes *s)
 {
     field_load_tile_looks(state_of(s));
@@ -424,17 +383,10 @@ void field_start_location_song(Snes *s)
  * palette's place out on the multiplier, which only the comparison sees. */
 enum { FIRST_ROW = 1, ROW_COLOURS = 16, FIRST_ROW_COLOUR = 1, LOCATION_PALETTE_BYTES = 210 };
 
-static void leave_the_palette_product(GameState *g, uint8_t palette)
-{
-    hw_set_multiplicand(g, palette);
-    (void)hw_multiply_by(g, LOCATION_PALETTE_BYTES);
-}
-
 // $C0:7084
 void field_load_location_palette(GameState *g)
 {
     uint8_t palette = location_palette(g, location_record_offset(g));
-    ORIGINAL_EFFECT(leave_the_palette_product(g, palette));
     uint32_t mark = 0;
     mark = charge_uncounted_begin(g);
     for (unsigned row = 0; row < LOCATION_PALETTE_ROWS; row++)
@@ -474,57 +426,6 @@ static ScriptValidity script_validity(const GameState *g)
     return (int16_t)(SCRIPT_ROOM - decompress_length(g)) < 0 ? SCRIPT_TOO_LARGE : SCRIPT_VALID;
 }
 
-// $C0:2E1E
-/* A bad script stops the game on a solid diagnostic colour: amber for a
- * text file where bytecode belongs, dark red for an oversized script. */
-static void show_script_error(GameState *g, Platform *pf, uint16_t color)
-{
-    vid_set_display(pf, PF_AT(0xC02E25), &(VidDisplay){ .blank = true });
-    tm_enable_interrupts(pf, PF_AT(0xC02E2A), 0);
-    vid_stop_uploads(pf, PF_AT(0xC02E2D));
-    vid_enable_line_effects(pf, PF_AT(0xC02E30), 0);
-    set_field_line_effect_enable(g, 0);
-    vid_set_screens(pf, PF_AT(0xC02E36), 0, 0, VID_SCREEN_MAIN | VID_SCREEN_SUB);
-    vid_set_palette_color(pf, PF_AT(0xC02E3C), 0, color);
-    program_ignore_interrupts(g);
-    set_field_brightness(g, 15);
-    tm_enable_interrupts(pf, PF_AT(0xC02E5C), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
-    vid_set_display(pf, PF_AT(0xC02E61), &(VidDisplay){ .brightness = 15 });
-}
-
-// $C0:5CC7
-/* Validate the unpacked script before installing the engine's built-ins.
- * Invalid data never returns: the original remains on its diagnostic. */
-void field_check_the_script(Snes *s)
-{
-    ScriptValidity validity = script_validity(state_of(s));
-    if (validity == SCRIPT_VALID) {
-        m_rts(s);
-        return;
-    }
-    m_set_flag(s, CPU_FLAG_I, true);
-    s->cpu.db = 0;
-    show_script_error(state_of(s), m_platform(s), validity == SCRIPT_IS_TEXT ? 0x01F0 : 0x000F);
-    m_set_flag(s, CPU_FLAG_I, false);
-    m_stop_at(s, 0xC02E65, DC_A | DC_X | DC_Y | DC_FLAGS);
-}
-
-// $C0:2E65
-/* The diagnostic has no continuation. Interrupts may still arrive, and
- * their stubs return immediately; the idle entry lets the host advance. */
-void field_script_error_wait(Snes *s) { (void)s; }
-
-// $C0:5703
-/* The unpacker's continuation: reject bad input before installing the
- * engine's commands. The checker owns the diagnostic and its idle state. */
-void field_finish_loading_script(Snes *s)
-{
-    BridgeMachine as = { false, s->cpu.d, s->cpu.db };
-    if (field_run_or_hand_over(s, 0xC05703, 0xC05CC7, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
-                              field_check_the_script, as))
-        m_stop_at(s, 0xC05CEC, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
-}
-
 /* The built-in commands, copied after the script where the commands and
  * routines that use them expect them: the first run from its start, the second
  * three times, and the third alone (each of the first two copies a little of
@@ -553,15 +454,6 @@ static void copy_the_built_in_commands(GameState *g)
 }
 
 // $C0:5CEC
-void field_install_script_builtins(Snes *s)
-{
-    copy_the_built_in_commands(state_of(s));
-    s->cpu.a = 0xFFFF;
-    s->cpu.x = 0x5D6E;
-    s->cpu.y = 0x3786;
-    m_set_nz8(s, s->cpu.db);
-    m_rts(s);
-}
 
 /* The script's place in the table of scripts is its number tripled, which the
  * original adds up from the number in its first scratch cell; its callers read
@@ -580,10 +472,12 @@ static uint16_t the_locations_script(const GameState *g) { return location_scrip
 bool field_load_the_script(GameState *g)
 {
     uint16_t script = the_locations_script(g);
-    ORIGINAL_EFFECT(leave_last_worked(g, script));
     unpack(g, field_packed_script(g, script), SCRIPT_BUFFER);
-    if (script_validity(g) != SCRIPT_VALID)
+    // $C0:5CC7
+    if (script_validity(g) != SCRIPT_VALID) {
+        program_breaks_a_contract(g, 0xC05CC7, "a text or oversized field script");
         return false;
+    }
     copy_the_built_in_commands(g);
     return true;
 }
@@ -751,7 +645,7 @@ static bool map_script(void *ctx)
     if (end == TURN_OVER)
         return true;
     if (end != TURN_HANDED_BACK)
-        program_needs_the_machine(c->game, MAP_SCRIPT_STARTS, "a map's script the event engine hands to the original");
+        program_breaks_a_contract(c->game, MAP_SCRIPT_STARTS, "a map's script the event engine hands to the original");
     return false;
 }
 
@@ -777,7 +671,7 @@ static bool gathering_can_be_finished(const GameState *g);
 bool field_set_up_again(GameState *g, Platform *pf)
 {
     if (!gathering_can_be_finished(g)) {
-        program_needs_the_machine(g, FIELD_SET_UP_AGAIN_ENTRY, "a gathering cut short the port doesn't finish");
+        program_breaks_a_contract(g, FIELD_SET_UP_AGAIN_ENTRY, "a gathering cut short the port doesn't finish");
         return false;
     }
     LocationLoadContext c = { g, pf };
@@ -805,17 +699,9 @@ static const struct {
     [AFTER_A_MENU] = { 0xC001CF, 0xC001D8 },
 };
 
-/* For shadow mode: the original works the record's place out in A, and its
- * high byte stays there for the song's calls to the driver. */
-static void leave_the_place_in_a(Snes *s)
-{
-    s->cpu.a = (uint16_t)((location_record_offset(state_of(s)) & 0xFF00) | (s->cpu.a & 0x00FF));
-}
-
 static bool song_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
-    ORIGINAL_EFFECT(leave_the_place_in_a(s));
     return field_run(s, SONG_SITE_ENTERING, LOCATION_SONG, READS_A_HIGH, field_start_location_song, page(s));
 }
 
@@ -877,18 +763,6 @@ void field_load_location(Snes *s)
         m_rts(s);
 }
 
-void field_load_location_palette_entry(Snes *s)
-{
-    field_load_location_palette(state_of(s));
-    m_rts(s);
-}
-
-void field_clear_the_layers_state_entry(Snes *s)
-{
-    field_clear_the_layers_state(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
 /* Where the script doesn't fit, the original's check and its error screen,
  * from its call, which reads nothing but the overflow its callers keep. */
 enum { SCRIPT_CHECKED = 0xC05703, THE_CHECK_READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
@@ -909,12 +783,7 @@ void field_load_the_script_entry(Snes *s)
  * map (field_map_can_be_unpacked says why). */
 bool field_script_can_be_loaded(Snes *s)
 {
-    if (!field_on_page_low_bank(s))
-        return false;
-    vars_peek(true);
-    bool ok = location_record_is_one(location_record_offset(state_of(s)));
-    vars_peek(false);
-    return ok;
+    return field_on_page_low_bank(s) && field_location_record_is_one(s);
 }
 
 /* What it leaves for the menu: X past the party's places (the main menu takes

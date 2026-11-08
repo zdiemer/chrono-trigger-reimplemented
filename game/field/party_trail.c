@@ -27,6 +27,7 @@
  * The trail is kept in bank $7F as seven tables of 128, one for each part of
  * a footprint, and where each of the party is along it on the field's page;
  * the storage functions below are the only code that knows. */
+#include "charge.h"
 #include "field/party.h"
 
 #include "field/bridge.h"
@@ -129,12 +130,6 @@ bool party_trail_places_hold(const GameState *g)
 
 /* ---- What the original leaves (field/scratch.h) --------------------------------------- */
 
-/* Whether a moving floor carries the one stepping, which the original notes
- * in a scratch cell, and the gait lookup's horizontal part, which it keeps
- * in another. */
-static void leave_carried(GameState *g, bool carried) { original_cell8(g, 0xE5, carried); }
-static void leave_lookup_across(GameState *g, uint8_t across) { original_cell8(g, 0xDB, across); }
-
 /* ---- The gait a walk shows ------------------------------------------------------------ */
 
 typedef enum { STANDS, WALKS, RUNS } Gait;
@@ -165,10 +160,9 @@ typedef struct {
 
 static uint8_t lookup_speed(int8_t v) { return v >= 0 ? (uint8_t)v : (uint8_t)(0x20 - v); }
 
-static GaitLookup gait_lookup(GameState *g, Velocity walk)
+static GaitLookup gait_lookup(Velocity walk)
 {
     uint8_t across = (uint8_t)(lookup_speed(walk.x) >> 3);
-    ORIGINAL_EFFECT(leave_lookup_across(g, across));
     uint8_t entry = (uint8_t)((lookup_speed(walk.y) | across) >> 1 & 0x3F);
     return (GaitLookup){ entry >> 3, entry & 7 };
 }
@@ -186,9 +180,9 @@ typedef struct {
 
 static const Pose STANDING = { STANDS, FACING_UP, false, FACING_UP };
 
-static Pose pose_of(GameState *g, Velocity walk)
+static Pose pose_of(Velocity walk)
 {
-    GaitLookup l = gait_lookup(g, walk);
+    GaitLookup l = gait_lookup(walk);
     if (l.down >= AXIS_GAITS || l.across >= AXIS_GAITS)
         return STANDING;
     AxisGait down = axis_gaits[l.down], across = axis_gaits[l.across];
@@ -264,6 +258,7 @@ static void stand_or_fidget(GameState *g, FieldObject obj)
  * floor carries it, where a run against something is no run on the spot. */
 static void take_pose(GameState *g, FieldObject turns, FieldObject shows, Pose p, bool carried)
 {
+    charge_legacy_accesses(g, 1); /* the pose's horizontal gait selection */
     if (p.gait == STANDS) {
         stand_or_fidget(g, shows);
         return;
@@ -293,11 +288,11 @@ void party_leader_steps(GameState *g, FieldObject leader)
     LeaderGround ground = leader_ground(g);
     GroundKind kind = ground_kind(ground);
     Velocity walk = field_pad_walk(g);
-    ORIGINAL_EFFECT(leave_carried(g, kind == GROUND_MOVING_FLOOR));
+    charge_legacy_accesses(g, 1); /* moving-floor selection */
     if (kind == GROUND_CLIMB)
         climb(g, leader, walk.y != 0);
     else
-        take_pose(g, leader, leader, pose_of(g, walk), kind == GROUND_MOVING_FLOOR);
+        take_pose(g, leader, leader, pose_of(walk), kind == GROUND_MOVING_FLOOR);
     Velocity moved = leader_movement(g);
     if (!leader_moves(g)) {
         object_set_step(g, leader, (Velocity){ 0, 0 });
@@ -352,15 +347,7 @@ static void wait_on_the_trail(GameState *g, FieldObject member, FieldObject in_t
     }
     Velocity against = { (int8_t)(f.walk.x - field_floor_pull(f.movement.x)),
                          (int8_t)(f.walk.y - field_floor_pull(f.movement.y)) };
-    take_pose(g, member, in_the_place, pose_of(g, against), false);
-}
-
-/* For shadow mode: the priorities the original lays on an empty place of
- * the party, on the slot its marker names past the tables (field/object.h,
- * object_past_the_tables), the bytes after the priorities'. */
-static void leave_stray_footprint_priorities(GameState *g, FieldLink marker, SpritePriorities priorities)
-{
-    object_take_sprite_priorities_past_the_tables(g, field_linked_object(marker), priorities);
+    take_pose(g, member, in_the_place, pose_of(against), false);
 }
 
 /* A member's step moves the object its place of the party names; moving on,
@@ -388,8 +375,6 @@ static void layer_the_place(GameState *g, PartyPlace place, SpritePriorities pri
     FieldLink link = party_member_link(g, place);
     if (field_link_is_object(link))
         object_take_sprite_priorities(g, field_linked_object(link), priorities);
-    else
-        ORIGINAL_EFFECT(leave_stray_footprint_priorities(g, link, priorities));
 }
 
 /* An emptied place's member moving on poses itself; waiting, it would pose
@@ -404,7 +389,7 @@ bool party_place_steps(const GameState *g, PartyPlace place)
 // $C0:A26B (the first member), $C0:A2CE (the second), and their gait $C0:9ED1, $C0:9F20
 void party_member_follows(GameState *g, FieldObject member, PartyPlace place)
 {
-    ORIGINAL_EFFECT(leave_carried(g, false));
+    charge_legacy_accesses(g, 1); /* the member is not carried */
     step_the_place(g, place, (Velocity){ 0, 0 });
     if (!party_member_moves_on(g, place)) {
         FieldObject in_the_place = field_linked_object(party_member_link(g, place));
@@ -419,7 +404,7 @@ void party_member_follows(GameState *g, FieldObject member, PartyPlace place)
     if (ground_kind(f.ground) == GROUND_CLIMB)
         climb(g, member, f.walk.y != 0);
     else
-        take_pose(g, member, member, pose_of(g, f.walk), false);
+        take_pose(g, member, member, pose_of(f.walk), false);
 }
 
 /* ---- The party regrouping --------------------------------------------------------------- */
@@ -466,67 +451,9 @@ void party_trail_catch_up(GameState *g)
     set_place_on_trail(g, PARTY_SECOND_MEMBER, newest);
 }
 
-/* For shadow mode: the slot past the object tables, where the original lays
- * an empty place out (its marker's slot), keeps the priorities it writes. */
-static void leave_stray_priorities(GameState *g, FieldLink marker, uint8_t upper, uint8_t lower)
-{
-    object_set_sprite_priorities_past_the_tables(g, field_linked_object(marker), upper, lower);
-}
-
 void party_place_layered(GameState *g, PartyPlace place, uint8_t upper, uint8_t lower)
 {
     FieldLink link = party_member_link(g, place);
     if (field_link_is_object(link))
         object_set_sprite_priorities(g, field_linked_object(link), upper, lower);
-    else
-        ORIGINAL_EFFECT(leave_stray_priorities(g, link, upper, lower));
 }
-
-/* ---- The entries ----------------------------------------------------------------------- */
-
-void field_leader_steps(Snes *s)
-{
-    GameState *g = state_of(s);
-    FieldObject leader = object_current(g);
-    party_leader_steps(g, leader);
-    s->cpu.y = field_object_offset(leader);
-    m_set_flag(s, CPU_FLAG_V, field_leader_step_overflow(g, m_flag(s, CPU_FLAG_V)));
-    m_rts(s);
-}
-
-static void member_follows(Snes *s, PartyPlace place)
-{
-    GameState *g = state_of(s);
-    FieldObject member = object_current(g);
-    vars_peek(true);
-    bool moved_on = party_member_moves_on(g, place);
-    vars_peek(false);
-    party_member_follows(g, member, place);
-    s->cpu.y = field_member_step_y(g, member, place, moved_on);
-    m_set_flag(s, CPU_FLAG_V, field_member_step_overflow(g, place, moved_on));
-    m_rts(s);
-}
-
-void field_first_member_follows(Snes *s) { member_follows(s, PARTY_FIRST_MEMBER); }
-void field_second_member_follows(Snes *s) { member_follows(s, PARTY_SECOND_MEMBER); }
-
-/* The guards. The leader's step is the current object's, whichever it is;
- * a member's moves the object in its place of the party, one the tables
- * hold, or has the place empty for a moment (party_place_steps). Both read the random table through the data bank, and the trail by
- * the places on it. */
-bool field_leader_can_step(Snes *s) { return field_current_object_bank_zero(s); }
-
-static bool member_can_follow(Snes *s, PartyPlace place)
-{
-    if (!field_current_object_bank_zero(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = party_place_steps(g, place) &&
-              party_trail_places_hold(g);
-    vars_peek(false);
-    return ok;
-}
-
-bool field_first_member_can_follow(Snes *s) { return member_can_follow(s, PARTY_FIRST_MEMBER); }
-bool field_second_member_can_follow(Snes *s) { return member_can_follow(s, PARTY_SECOND_MEMBER); }

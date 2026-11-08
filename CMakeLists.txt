@@ -102,7 +102,6 @@ add_library(ct_game STATIC
   game/event/flow.c
   game/event/input.c
   game/event/items.c
-  game/event/leaves.c
   game/event/locations.c
   game/event/memory.c
   game/event/movement.c
@@ -119,6 +118,7 @@ add_library(ct_game STATIC
   game/field/palettes.c
   game/field/menus.c
   game/field/start.c
+  game/field/machine_forms.c
   game/field/bridge.c
   game/field/display.c
   game/field/frame.c

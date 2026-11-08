@@ -3,7 +3,9 @@
 #include "charge.h"
 #include "core/machine_forms.h"
 #include "event/machine_forms.h"
+#include "field/machine_forms.h"
 #include "field/bridge.h"
+#include "field/field_data.h"
 #include "field/main_loop.h"
 #include "holds.h"
 
@@ -24,12 +26,6 @@ bool bridge_back(Snes *s, uint32_t returns_to, BridgeMachine m)
     return false;
 }
 
-bool field_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m)
-{
-    tm_wait_frame(m_platform(s), PF_CALL_DC(site, routine, dont_care));
-    return bridge_back(s, site + JSR_SIZE, m);
-}
-
 /* The caller has a continuation after this wait. Settle its work before
  * marking the frame ready, then leave the whole C call chain at the named
  * wait. No caller is suspended over the next frame. */
@@ -48,7 +44,7 @@ void field_hands_over_to(Snes *s, uint32_t routine, uint16_t dont_care, void (*e
 {
     m_jump_to(s, routine);
     const NativeEntry *e = native_hand_entry_at(s, routine);
-    if ((!e || e->fn != entry) && !event_machine_form_takes(s, entry)) {
+    if ((!e || e->fn != entry) && !event_machine_form_takes(s, entry) && !field_machine_form_takes(s, entry)) {
         m_stop_at_own(s, routine, dont_care);
         return;
     }
@@ -92,7 +88,7 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
      * runs whatever the registry has for the state it meets */
     const NativeEntry *e = native_hand_entry(s);
     if ((!e || e->fn != entry) && !core_machine_form_takes(s, entry)
-        && !event_machine_form_takes(s, entry)) {
+        && !event_machine_form_takes(s, entry) && !field_machine_form_takes(s, entry)) {
         if (hand_over) {
             /* the call made, its return address pushed: the original goes on
              * from the sibling's entry */
@@ -185,7 +181,13 @@ bool field_on_page_io_bank(Snes *s) { return field_on_page(s) && m_bank_reaches_
 bool field_on_page_low_bank(Snes *s) { return field_on_page(s) && m_bank_reaches_low_ram(s); }
 bool field_on_page_bank_zero(Snes *s) { return field_on_page(s) && m_bank_is_zero(s); }
 
-bool field_object_x_low_bank(Snes *s) { return field_on_page_low_bank(s) && field_names_object(s->cpu.x); }
+bool field_location_record_is_one(Snes *s)
+{
+    vars_peek(true);
+    bool one = location_record_is_one(location_record_offset(state_of(s)));
+    vars_peek(false);
+    return one;
+}
 
 /* The current object, as the entry's index registers read it: its low byte
  * with 8-bit X, the word with 16-bit X. Looked at without the machine's time
@@ -200,9 +202,7 @@ static bool current_object_is_one(Snes *s)
 
 bool field_current_object_low_bank(Snes *s) { return field_on_page_low_bank(s) && current_object_is_one(s); }
 bool field_current_object_bank_zero(Snes *s) { return field_on_page_bank_zero(s) && current_object_is_one(s); }
-bool field_current_object_io_bank(Snes *s) { return field_on_page_io_bank(s) && current_object_is_one(s); }
 
 bool field_on_layers_page(Snes *s) { return m_direct_page(s) == FIELD_LAYERS_PAGE; }
 bool field_on_layers_page_low_bank(Snes *s) { return field_on_layers_page(s) && m_bank_reaches_low_ram(s); }
 bool field_on_layers_page_io_bank(Snes *s) { return field_on_layers_page(s) && m_bank_reaches_io(s); }
-

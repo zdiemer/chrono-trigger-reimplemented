@@ -429,7 +429,8 @@ static void check_direct_contracts(const uint8_t *rom)
     s.cpu.p = CPU_FLAG_M;
     s.bus.wram[0x30] = 0x42;
     const NativeEntry entry = { .addr = 0x008100, .name = "direct_contract", .fn = loop_first,
-        .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M, .guard = direct_contract_guard };
+        .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M, .guard = direct_contract_guard,
+        .retired = true };
     native_direct_contracts(&entry, 1);
     CHECK(native_continuation_entry_at(&s, entry.addr) == &entry, "standalone continuation was not accepted");
     s.cpu.p |= CPU_FLAG_D;
@@ -440,6 +441,18 @@ static void check_direct_contracts(const uint8_t *rom)
     s.bus.wram[0x30] = 0x42;
     NativeRuntime *rt = native_create(&entry, 0, NATIVE_OFF);
     CHECK(!native_continuation_entry_at(&s, entry.addr), "standalone contracts overrode a runtime's table");
+    native_destroy(rt);
+    /* Retirement removes the entry's own comparison, but its direct callers
+     * still need the exact contract and return metadata in shadow mode. */
+    rt = native_create(&entry, 1, NATIVE_SHADOW);
+    native_attach(rt, &s);
+    const NativeEntry *kept = native_hand_entry_at(&s, entry.addr);
+    CHECK(kept && kept->fn == entry.fn && kept->retired, "retired direct-call metadata was lost");
+    s.cpu.p |= CPU_FLAG_D;
+    CHECK(!native_hand_entry_at(&s, entry.addr), "retired direct call bypassed its decimal contract");
+    s.cpu.p &= (uint8_t)~CPU_FLAG_D;
+    s.bus.wram[0x30] = 0;
+    CHECK(!native_hand_entry_at(&s, entry.addr), "retired direct call bypassed its guard");
     native_destroy(rt);
     native_direct_contracts(NULL, 0);
     CHECK(!native_continuation_entry_at(&s, entry.addr), "standalone contracts were not cleared");
@@ -514,8 +527,69 @@ static void check_idle_cutoff(uint8_t flag, uint8_t span, bool interrupt, bool o
     free(rom);
 }
 
+typedef struct EpilogueCount {
+    Fallbacks *fallbacks;
+    unsigned long outside;
+} EpilogueCount;
+
+static void epilogue_note(void *ctx, uint32_t pc, uint8_t p, bool e)
+{
+    EpilogueCount *count = ctx;
+    if (pc < 0x008180 || pc > 0x008186)
+        count->outside++;
+    fallbacks_note(count->fallbacks, pc, p, e);
+}
+
+static void restore_callers_frame(Snes *s) { m_return_to_caller_long(s); }
+
+/* A continuation restores the registers saved before its entry. Rising S
+ * during those pulls must not make its still-compared tail a fallback. */
+static void check_epilogue_coverage(void)
+{
+    static const uint8_t call[] = { 0x22, 0x00, 0x81, 0x00, 0xDB };
+    static const uint8_t save[] = { 0x08, 0xC2, 0x30, 0x8B, 0x0B, 0x48, 0xDA, 0x5A, 0x4C, 0x80, 0x81 };
+    static const uint8_t restore[] = { 0x7A, 0xFA, 0x68, 0x2B, 0xAB, 0x28, 0x6B };
+    uint8_t *rom = make_rom(NMI_RETURNS);
+    memcpy(rom + 0x8010, call, sizeof call);
+    memcpy(rom + 0x8100, save, sizeof save);
+    memcpy(rom + 0x8180, restore, sizeof restore);
+    Snes *s = malloc(sizeof *s);
+    snes_init(s, rom, ROM_SIZE);
+    snes_power_on(s);
+    memset(s->bus.wram, 0, 0x100);
+    NativeEntry entry = { .addr = 0x008180, .name = "restore_callers_frame", .fn = restore_callers_frame };
+    NativeRuntime *rt = native_create(&entry, 1, NATIVE_SHADOW);
+    native_attach(rt, s);
+    Fallbacks *f = fallbacks_create(s);
+    fallbacks_attach(f, rt, true);
+    EpilogueCount count = { .fallbacks = f };
+    s->cpu.on_insn = epilogue_note;
+    s->cpu.on_insn_ctx = &count;
+    snes_run_frame(s, 0);
+    const NativeStats *st = native_stats_named(rt, entry.name);
+    CHECK(st && st->matched == 1 && st->mismatched == 0, "register-restoring continuation did not match");
+    FILE *report = tmpfile();
+    CHECK(report != NULL, "could not open fallback summary");
+    if (report) {
+        fallbacks_summary(f, report);
+        rewind(report);
+        unsigned long refused, handback, skipped, unported;
+        int fields = fscanf(report, "fallbacks: refused %lu, handback %lu, skipped %lu, unported %lu instructions",
+                            &refused, &handback, &skipped, &unported);
+        CHECK(fields == 4 && refused == 0 && handback == 0 && skipped == 0 && unported == count.outside,
+              "compared epilogue was counted as fallback (outside %lu)", count.outside);
+        fclose(report);
+    }
+    native_set_observer(rt, NULL);
+    fallbacks_destroy(f);
+    native_destroy(rt);
+    free(s);
+    free(rom);
+}
+
 int main(void)
 {
+    check_epilogue_coverage();
     check_idle_cutoff(1, 0, false, false, true);
     check_idle_cutoff(0, 5, false, false, true);
     check_idle_cutoff(0, 5, true, false, true);
@@ -535,6 +609,8 @@ int main(void)
     expect("loop_third", true);
     RUN(true, false, 2, ENTRY(0x008100, loop_wrong));
     expect("loop_wrong", false);
+    RUN(true, false, 2, ENTRY(0x008100, loop_wrong, .retired = true));
+    CHECK(counts_of("loop_wrong").calls == 0, "retired entry started a shadow comparison\n%s", details);
 
     RUN(false, false, 2, ENTRY(0x008100, loop_whole), ENTRY(0x008103, loop_head), ENTRY(0x008105, loop_tail));
     expect("loop_whole", true);

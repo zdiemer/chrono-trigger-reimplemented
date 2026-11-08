@@ -94,21 +94,6 @@ static bool stray_slot_is_an_enemy(const GameState *g, MapTile corner)
            && tile_on_the_battlefield((MapTile){ (uint8_t)(at.x >> 8), (uint8_t)(at.y >> 8) }, corner);
 }
 
-/* For the original's code and shadow mode: the screen's corner, in two of
- * the page's scratch cells, where the original keeps it as it works; the
- * ground's copy keeps it masked there, with its row count run down to 0. */
-enum { CORNER_X_CELL = 0xDB, CORNER_Y_CELL = 0xDD };
-static void leave_corner(GameState *g, MapTile corner)
-{
-    original_cell8(g, CORNER_X_CELL, corner.x);
-    original_cell8(g, CORNER_Y_CELL, corner.y);
-}
-static void leave_the_ground(GameState *g, uint8_t left, uint8_t top)
-{
-    leave_corner(g, (MapTile){ left, top });
-    original_cell16(g, FIELD_LAST_WORKED_CELL, 0);
-}
-
 // $C0:0617
 /* The objects the search looks at: from the object past the map's last to
  * the first after the map's own (the original's count). */
@@ -121,7 +106,6 @@ static void find_the_enemies(GameState *g)
             set_field_battle_enemies(g, found++, field_link_byte(field_link_to(obj)));
     }
     set_field_battle_enemies(g, found, field_link_byte(field_no_link()));
-    ORIGINAL_EFFECT(leave_corner(g, corner));
 }
 
 static bool enemies_found(const GameState *g) { return field_link_is_object(field_link_stored(field_battle_enemies(g, 0))); }
@@ -150,7 +134,6 @@ static void keep_the_ground(GameState *g)
         }
     for (unsigned colour = 0; colour < PALETTE_WORKING_COUNT; colour++)
         set_palette_working(g, colour, palette_base(g, colour));
-    ORIGINAL_EFFECT(leave_the_ground(g, left, top));
 }
 
 /* ---- The party and the enemies ($C0:041A, $C0:04ED) ------------------------------------------- */
@@ -183,7 +166,6 @@ static uint8_t party_priority_byte(const GameState *g)
 static void keep_where_the_party_stands(GameState *g)
 {
     MapTile corner = screen_corner(g);
-    ORIGINAL_EFFECT(leave_corner(g, corner));
     uint8_t priority = party_priority_byte(g);
     for (PartyPlace place = 0; place < PARTY_PLACES; place++) {
         FieldLink link = party_member_link(g, place);
@@ -229,14 +211,7 @@ static uint8_t battle_kind(const GameState *g, FieldObject obj)
 
 /* For the original's code and shadow mode: what it worked out last for an
  * enemy, in the cells it keeps it in, and its place on the multiplier. */
-enum { PLACE_BYTES = 12, KIND_CELL = 0xEE };
-static void leave_enemy(GameState *g, FieldObject obj, unsigned place)
-{
-    hw_set_multiplicand(g, (uint8_t)place);
-    (void)hw_multiply_by(g, PLACE_BYTES);
-    original_cell8(g, FIELD_LAST_WORKED_CELL, (uint8_t)object_sprite_layout(g, obj));
-    set_field_direction(g, (uint16_t)((field_direction(g) & 0xFF00) | (uint8_t)(battle_kind(g, obj) & ~KIND_HIDDEN)));
-}
+enum { PLACE_BYTES = 12 };
 
 // $C0:0557
 static void keep_the_enemy(GameState *g, FieldObject obj, MapTile corner)
@@ -262,7 +237,6 @@ static void keep_the_enemy(GameState *g, FieldObject obj, MapTile corner)
     set_battle_enemy_placement_palette(g, place, (uint8_t)(field_object_palette(g, obj) >> 1));
     ObjectGraphics graphics = object_graphics(g, obj);
     set_battle_enemy_placement_graphics(g, place, (uint32_t)graphics.bank << 16 | graphics.address);
-    ORIGINAL_EFFECT(leave_enemy(g, obj, place));
 }
 
 /* The first six enemies found are the battle's (the list stops at the first
@@ -278,8 +252,6 @@ static void keep_the_enemies(GameState *g)
         set_battle_enemy_placement_enemy(g, place, NO_ENEMY);
         set_field_battle_enemy_objects(g, place, NO_ENEMY_OBJECT);
     }
-    ORIGINAL_EFFECT(set_field_own_tile_x(g, corner.x));
-    ORIGINAL_EFFECT(set_field_own_tile_y(g, corner.y));
     for (unsigned i = 0; i < BATTLE_ENEMIES; i++) {
         FieldLink link = field_link_stored(field_battle_enemies(g, i));
         if (!field_link_is_object(link))
@@ -364,7 +336,7 @@ static bool come_back_together(void *ctx)
 {
     BattleStartContext *c = ctx;
     if (!party_can_come_back_together(c->game)) {
-        program_needs_the_machine(c->game, PARTY_BACK_TOGETHER, "a party the port doesn't bring back together");
+        program_breaks_a_contract(c->game, PARTY_BACK_TOGETHER, "a party the port doesn't bring back together");
         return false;
     }
     TIMED_AS(c->game, PARTY_BACK_TOGETHER, party_back_together(c->game));
@@ -374,7 +346,7 @@ static bool come_back_together(void *ctx)
 FieldBattleStart field_battle_set_up(GameState *g, Platform *pf)
 {
     if (!battle_fits(g)) {
-        program_needs_the_machine(g, FIELD_BATTLE_BEGINS_ENTRY, "a battle's start the port doesn't take");
+        program_breaks_a_contract(g, FIELD_BATTLE_BEGINS_ENTRY, "a battle's start the port doesn't take");
         return FIELD_BATTLE_START_STOPPED;
     }
     BattleStartContext c = { g, pf };

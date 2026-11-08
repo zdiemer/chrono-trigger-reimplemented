@@ -134,13 +134,10 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
   the original (battles play out differently). That difference is accepted
   (REIMPLEMENTATION.md, "Can a hand port be exact?"); the timing gate bounds the errors
-  (REIMPLEMENTATION.md, "The timing gate"). Left open there: 25 entries whose
-  time follows a path inside one routine, or a loop of the port's own, are on
+  (REIMPLEMENTATION.md, "The timing gate"). Entries whose time follows a path
+  inside one routine, or a loop of the port's own, remain on
   `tools/timing_exceptions.txt` (the menu's text, glyphs and
-  wave table, `field_rasterize_quad`, the field's sprite table, line-effect
-  builders and map unpacker, whose rewrites no longer make the index steps
-  the original's time follows, the field's object update, whose steps now
-  run in its own call, the scene's circle, the battle's wave
+  wave table, the scene's circle, the battle's wave
   windows and HP gradient, the free-slot walk that starts a menu object, and
   the own loops of the effect slots, the object
   drawing and its underlays); a dispatcher's handlers are attributed to
@@ -1650,12 +1647,6 @@ rest waits, is [PLAN.md](PLAN.md).
   are the entry wrappers reading the operands the original's callers hand
   them, which a line with that reason answers, but the `[only]` ones in logic
   (`python3 tools/effects_check.py | grep only`) are where to look first.
-- **The run check doesn't mark event's parallel table.** `event/leaves.c`'s
-  runner is `#if ORIGINAL_EFFECTS` code around the operation, not an
-  `ORIGINAL_EFFECT`, so `--scaffold-reads` counts its writes as the logic's;
-  the source check sees them. Evaluating the runner's before and after parts
-  inside an `ORIGINAL_EFFECT` (or bumping `original_effect_depth` around
-  them) would let the runs see them too.
 - **A debt waits a frame at most for a handler taken at its boundary**
   (`runtime/port/native.c`, `DEBT_HANDLER_CLOCKS`): a handler that moves the
   stack and doesn't come back within a frame, but does later, gets the rest of
@@ -2480,45 +2471,10 @@ rest waits, is [PLAN.md](PLAN.md).
     switch's upper tile as the lower one's pressed tile (the original sets it
     so, `field/switches.c`): a native build decides what it shows once the
     gate no longer compares the map;
-  - the screen's setup runs the original's wait for the vblank with the
-    handlers off through `tm_wait_frame_then_enable` on the SNES backend
-    (`$C0:0B38`, an `[[entry]]` hint so that liveness knows it as a routine);
-    the host backend waits a frame and turns them on;
   - the dialog window's look (its frame and text area tile maps, the window
     design's tiles and colours, the choice pointer) is built into work RAM
     and sent as the original's transfers: a native renderer could draw the
     window from its height and position directly.
-- **Bridges called from the engine are compared at the engine's boundary.**
-  The engine calls a bridge directly, so shadow mode sees its call-outs as
-  the engine's and abandons the bridge's own comparison ("started inside the
-  engine's stretch"): the bridges left (the sound commands, the menus' party
-  routines, the location change, `$4E`) are counted abandoned rather than
-  matched, while the engine's entries match on every call. They are still checked (every call-out's registers, the
-  engine's state at its end), and fuzzing covers them one by one; a way for
-  shadow mode to compare a nested port's stretch would count them again.
-- **Event's scaffolding, and what would let liveness drop it** (history/reimplementation-phase3a.md,
-  "The event language"). The `ORIGINAL_EFFECT`s and the parallel table
-  `event/leaves.c` reproduce what nothing in the library reads but shadow
-  mode:
-  - *V* is never read after a command (1.5 million commands over the
-    library); the only read of it is a PLA in the sound driver's error path
-    (`$C7:0A90`) that discards a pushed P. Liveness keeps it live because the
-    field loop leaves through JMLs it can't follow. Following those JMLs (a
-    hint per site, or the runtime's call log carrying JML edges) would let
-    `DC_V` be declared at the engine's entries and every handler's, and the
-    whole V column and its derivations go.
-  - *Y* is read in one place, `STY $C0` at `$C2:8C36` (the menus' dispatcher,
-    after the openings at map setup and the `$C0:595C` run of object 0),
-    which stores its low byte at `$04C0`; nothing the library runs reads
-    `$04C0` afterwards, and the menus' port shows the service those calls
-    ask for (`$0B`, what the party wears) ignores it (`menu/party_bridge.c`),
-    so `DC_Y` holds at `$C0:9DC3` and the parse column goes, but only
-    once `$C0:597D` is ported too (it reaches the handlers' entries as the
-    original's code; `$C0:595C` is the engine's now). The sound commands' calls to the driver keep Y
-    and A's high byte for the same reason.
-  - *The scratch cells* (`$D9-$E4`) and the command cells (`$C1-$D2`, the
-    saved position among them) are read only by the command that wrote them --
-    with one exception, below. They go when the gate does.
 - **The menus' wave phase starts from event's scratch cell.** The wave handler
   at `$C2:77C7` (`menus-end-of-time`) reads and advances `$01E2` as its phase
   (`menu_wave_phase`, `menu/wave.c`: it means its object's own, and reaches
@@ -3025,15 +2981,18 @@ comparisons.
 
 ## The native program
 
-- **Finish the field teardown.** Retire its registry rows and entry wrappers, turn
-  guards into checked contracts, remove unneeded scaffolding and keep the
-  calibrated time attribution. Keep and list the machine forms and scratch
-  writes the still-gated menu/battle callers require. The protected outcome
-  identities, rather than the absence of exceptions, are the replacement
-  evidence: name the movies, modes, kinds and identities in the teardown.
-  The original census and ledger inventory are in
-  history/field-teardown.md; do not treat that audit's superseded outcome
-  interpretation as a retirement prerequisite.
+- **The field's remaining mode interfaces.** Remove the five retired dispatch
+  entries when their callers no longer need them: boot's `field_first_start`,
+  the menus/overworld/scene/warp `field_enter`, and battle's two music calls
+  and line-effect fallback. The menu wave handler still reads the two scratch
+  bytes preserved by `field/menu_compat.h`; remove those writes with the menus.
+  The still-gated ending-window task also compares the rasterizer's scratch;
+  remove the low-RAM-table compatibility writes with that scene task.
+  The sprite/menu chain also retains the screen setup's Y and overflow
+  calling convention. The legacy-only work estimates replace counted
+  temporary accesses; remove that backing with the legacy driver.
+  The held adapters and called machine forms remain until the legacy driver
+  gives way to the native program. REIMPLEMENTATION.md lists each caller.
 
 - **What the batched library ledger's review left.** `suspend_test` has no case of an
   interrupt pending at a task's yield entry, the new `switch_pending` branch.
@@ -3041,35 +3000,14 @@ comparisons.
   is an intentional early stop: require an explicit count of full returns.
   Separate the dispatchers' ordinary and interrupted timing paths before they are
   recalibrated again.
-- **The field's arbitrary-state fuzzing and battle boundary.** Preserve
-  empty dispatch boundaries too (`native_sync_boundary`): settling only
-  accrued accesses skips the driver's minimum step and interrupt poll.
-  Three battle movies retain one battle call each under the held battle
-  start's open comparison (`open C0:18A7`, three instructions). The older
-  whole-library `open C0:00BD` allowance awaits the batched ledger update;
-  shipping mode executes neither as original code.
-  Loose-RAM fuzzing of the whole pass with `--with-registry` needs
-  follow-up: from the `field` recipe's frame-11,400 state, seed 1, 2,000
-  trials, `--d 0100 --db 00`, `field_main_loop_goes_round` matches 1,363,
-  mismatches at trials 113, 260 and 1396, and skips 634 call-outs past the
-  budget. All three trials also fail through the existing `field_frame`
-  path (which additionally fails trial 1744); the first two differ in A's
-  high byte, the third also in object cells. Both runs reach out-of-range
-  character names, event scripts and line-effect tables. Determine the
-  accepted state invariants and fix the responsible callees/guards; the
-  coherent-field continuation recipe is not evidence for arbitrary RAM.
-  The sampled gate also interrupts 1,586 returning field passes, 1 first
-  pass and 28 frame-wait setups; those are not successful comparisons.
-  Keep their caller and object/script states in scope when closing this
-  fuzzing gap.
-- **What the field's unreached review left.** The `unreached_party_shares`
-  recipe fills sharers only up to `$16` where the guard takes up to `$25`: extend
-  it to `$24` so the whole accepted range of the sprite-block owner table is
-  compared. `unreached_fuzz.py --ledger` silently drops an inventoried entry
-  whose name has no recipe; it should report or fail on one. REIMPLEMENTATION.md
-  should give the count of plain recipes `--ledger` replays beside the cited
-  ones. The two new `location_record_is_one` guards repeat the map's
-  `vars_peek` boilerplate: one shared helper.
+- **The field's arbitrary-state validation.** Define coherent object/script
+  invariants for whole-field property tests. The earlier loose-RAM loop fuzzing
+  reached out-of-range character names, event scripts and line-effect tables;
+  its three shared failures and interrupted comparisons are recorded in
+  history/field-teardown.md. The passing coherent-state recipes are not proof
+  for arbitrary RAM. Preserve the empty dispatch boundary and interrupt poll
+  while changing the driver. The old `open C0:00BD` and `open C0:18A7` ledger
+  allowances await the batched library update; do not prune them on the sample.
 - **What the overworld teardown's review left.** `the_cartridges_overworld`
   (`dev/fallbacks.c`) says the menus' helpers the overworld calls are left out,
   which doesn't hold for helpers a handler calls directly (their caller's frame
@@ -3342,8 +3280,6 @@ list, by kind, is what `game/` still asks of one.
   past the map's last") is stale since a full map starts at slot 63;
   `stray_slot_is_an_enemy` works out its tile by hand instead of `tile_at()`
   and writes the "there" test again instead of sharing `there()`.
-  `field_member_step_y` (`field/leaves.c`) sits under the doc comment that
-  belongs to `field_member_step_overflow`.
 - **What Zeal's fall's and the walk guards' review left** (none rated
   translation): `ripple_the_first_plane` (`game/menu/line_effects.c`) returns
   the phase's carry only for the wrapper's C, which could come from the stored
@@ -3581,20 +3517,10 @@ list, by kind, is what `game/` still asks of one.
   (`battle/bridge.c`, `battle/steps.c`, `field/bridge.c`, `menu/bridge.c`,
   `scene/bridge.c`). These go as each subsystem's ports call ports (PLAN.md's
   step 1) and its wrappers leave (step 3).
-  Field's tail-call lookup is gone. Its sprite-building continuations still
-  hand malformed row chains or out-of-table records to the original: removing
-  that boundary exposed 20/300 fuzz mismatches in `field_frame_work`, while
-  the existing drawable-row check restores the predecessor's 0/24 compared.
-  The sprite builder's own entry still accepts those states and calls out
-  per draw; retiring that fallback needs its entry guard and callers changed
-  together. The battle loop backedges also need an iterative
+  The battle loop backedges also need an iterative
   continuation with a comparison boundary: shadow waits resume their C call,
   so directly chaining every backedge would recurse across frames.
-  Tile-copy completion also retains its stop before frame
-  completion: pending interrupts from the tile send must run before
-  `field_frame_pending` is incremented. Retiring this stop needs an explicit
-  runtime interrupt-delivery boundary, not only a timing scope.
-  The generic field and battle bridges still consult the registry
+  The generic battle bridge still consults the registry
   to validate each sibling's width/page/data guards (and battle's return
   poisoning); deleting the lookup alone bypasses those contracts. Some direct
   targets have stricter bank guards than their callers, including the party's
@@ -3690,9 +3616,7 @@ list, by kind, is what `game/` still asks of one.
   - The C paths of events `$D5`, `$D6`, `$29` and `$FF $96` (the game's
     restart) are fuzzed only through their machine entries: no movie reaches
     them, so the C itself is unexercised.
-  - field/object.c's section "Past the tables: the original's effects only" is
-    stale now that `object_in_the_way` reads those slots as logic, and
-    re/ram.toml's `unchecked` notes for view, role and solidity cite only the
+  - re/ram.toml's `unchecked` notes for view, role and solidity cite only the
     walk, not `object_in_the_way`.
   - `menu_draw_empty_label_entry` saves P and returns without restoring it
     when refused (unreachable behind the registry's guard).

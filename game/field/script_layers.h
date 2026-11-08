@@ -25,7 +25,6 @@ void credits_start_at(GameState *g, uint8_t column, uint8_t row);
  * callers reach. */
 void field_blank_the_staging(GameState *g);
 enum { FIELD_BLANK_THE_STAGING_ENTRY = 0xC075A0, FIELD_LOAD_THE_CREDITS_LETTERS_ENTRY = 0xC06E27 };
-void field_blank_the_staging_entry(Snes *s);
 void field_load_the_credits_letters(GameState *g, Platform *pf);
 void field_load_the_credits_letters_entry(Snes *s);
 

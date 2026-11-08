@@ -10,9 +10,10 @@
  * RAM below $2000, the I/O registers, and the tables in the upper half of bank
  * $C0), and objects through their slot doubled in an index register. So a port
  * is the same routine only where the game enters it the way it always does,
- * and each entry's guard says which of these it assumes. Any other call is the
- * original's; a guard that turned away a call shows as a drop in the entry's
- * shadow count, and a D no page names as a `page refused` line. */
+ * and each called form's contract says which of these it assumes. A field
+ * call outside that contract reports `contract broken` before stopping at
+ * the original entry. The retained gated callees still use their registry
+ * guards, including the direct-page check. */
 #ifndef CT_GAME_FIELD_BRIDGE_H
 #define CT_GAME_FIELD_BRIDGE_H
 
@@ -119,7 +120,6 @@ bool bridge_call_on_page(Snes *s, uint32_t site, uint32_t routine, uint16_t dont
 /* The field's wait for the next frame, as the timing service's
  * (platform/timing.h), from the JSR at `site` to the original's wait
  * `routine` ($C0:EC60). True if it came back as `m`, as bridge_call. */
-bool field_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m);
 /* For callers with a named continuation after the frame wait. */
 bool field_hold_next_frame(Snes *s, uint32_t site, uint16_t dont_care, BridgeMachine m);
 void field_return_to_waiting_caller(Snes *s);
@@ -168,13 +168,13 @@ bool field_on_page(Snes *s);
 bool field_on_page_io_bank(Snes *s);         /* the I/O registers */
 bool field_on_page_low_bank(Snes *s);        /* low RAM */
 bool field_on_page_bank_zero(Snes *s);       /* low RAM, the I/O registers and bank $C0's tables */
+/* A record boundary in the location catalogue, inspected without charging time. */
+bool field_location_record_is_one(Snes *s);
 
 /* ... and the object named in X (8-bit), or the current object, is one. The
  * current object is a word, read as the width of X the entry runs with. */
-bool field_object_x_low_bank(Snes *s);
 bool field_current_object_low_bank(Snes *s);
 bool field_current_object_bank_zero(Snes *s);
-bool field_current_object_io_bank(Snes *s);
 
 /* On the layers' page. */
 bool field_on_layers_page(Snes *s);

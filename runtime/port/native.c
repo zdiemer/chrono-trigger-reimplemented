@@ -3307,7 +3307,7 @@ static int32_t intercept(void *ctx, Snes *s)
         const NativeEntry *e = &rt->table[idx];
         NativeStats *st = &rt->stats[idx];
 
-        if (e->time_only)
+        if (e->time_only || (e->retired && rt->mode != NATIVE_ON))
             continue;   /* a retired routine's time: the original runs it, as the generated code */
         if (e->generated) {
             if (refused && rt->observer.refused) {

@@ -79,13 +79,6 @@ static KeptPlace kept_enemy_place(const GameState *g, unsigned enemy)
                         battle_enemy_placement_frame(g, enemy) };
 }
 
-/* For the original's code and shadow mode: the last kept place's row, in
- * pixels, as the original worked out its screen Y. */
-static void leave_last_row(GameState *g, KeptPlace k)
-{
-    original_cell8(g, FIELD_LAST_WORKED_CELL, (uint8_t)(k.tile_y * TILE_PIXELS));
-}
-
 // $C0:07EC (the kept enemy's), $C0:08A0 (a member's)
 /* An object back where the battle kept it: on its tile of the map at the
  * pixel within it, on the screen there, its animation's frame time over,
@@ -100,7 +93,6 @@ static void put_back(GameState *g, FieldObject obj, KeptPlace k)
     object_put_on_screen_as_kept(g, obj, (uint8_t)(k.tile_x * TILE_PIXELS | k.x_offset),
                                  (uint8_t)(k.tile_y * TILE_PIXELS | k.y_offset));
     object_end_frame_time(g, obj);
-    ORIGINAL_EFFECT(leave_last_row(g, k));
     object_make_current(g, obj);
     TIMED_AS(g, JOIN_ROW, object_join_row(g, obj));
     TIMED_AS(g, PUT_FRAME_BACK, object_put_drawn_frame_back(g, obj));
@@ -146,20 +138,9 @@ static void put_party_back(GameState *g)
     }
 }
 
-/* For the original's code and shadow mode: the screen's corner in tiles, in
- * the tile the direction routine works from (field_own_tile), where the
- * original works the places out. */
-static void leave_corner(GameState *g)
-{
-    MapTile corner = screen_corner(g);
-    set_field_own_tile_x(g, corner.x);
-    set_field_own_tile_y(g, corner.y);
-}
-
 /* The enemies and the party back on the field as the battle kept them. */
 static void put_back_after_battle(GameState *g)
 {
-    ORIGINAL_EFFECT(leave_corner(g));
     for (unsigned enemy = 0; enemy < ENEMIES; enemy++) {
         FieldLink link = field_link_stored(field_battle_enemy_objects(g, enemy));
         if (field_link_is_object(link))
@@ -343,7 +324,7 @@ static bool table_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
     m_rep(s, CPU_FLAG_X);
-    return bridge_call(s, 0xC0072B, BUILD_SPRITE_TABLE, READS_NOTHING, on_the_field_page(s, false));
+    return field_run_called(s, 0xC0072B, BUILD_SPRITE_TABLE, READS_NOTHING, field_build_sprite_table, on_the_field_page(s, false));
 }
 
 // $C0:0715
@@ -356,15 +337,6 @@ void field_return_from_battle(Snes *s)
 }
 
 // $C0:072E
-/* The return's end on its own, where the original comes back from building
- * the sprite table (when the guard below sent the return to the original):
- * the field's page, 8-bit A, 16-bit X. */
-void field_hold_party_if_defeated(Snes *s)
-{
-    party_hold_frames_if_defeated(state_of(s));
-    m_rts(s);
-}
-
 /* The original's routines it calls, and the field's own that run frames. */
 enum {
     SCRIPT_UNPACKED = 0xC056D4,     /* the location's event script unpacked */
@@ -443,7 +415,6 @@ enum { STATE_BLOCK_END = (RAM_FIELD_RIPPLE_FRAMES_LEFT + 1) & 0xFFFF };
 /* The field's page, 8-bit A and 16-bit index registers. */
 void field_after_battle(Snes *s)
 {
-    ORIGINAL_EFFECT(s->cpu.y = STATE_BLOCK_END);
     (void)take_up_after_battle(state_of(s), after_on_the_machine, s);
 }
 
@@ -521,7 +492,7 @@ static bool build_the_sprite_table(void *ctx)
     bool built = false;
     TIMED_AS(g, BUILD_SPRITE_TABLE, built = field_sprite_table_built(g));
     if (!built)
-        program_needs_the_machine(g, BUILD_SPRITE_TABLE, "a sprite table the port doesn't build");
+        program_breaks_a_contract(g, BUILD_SPRITE_TABLE, "a sprite table the port doesn't build");
     return built;
 }
 
@@ -535,7 +506,7 @@ static bool map_script(AfterBattleContext *c)
     if (end == TURN_OVER)
         return true;
     if (end != TURN_HANDED_BACK)
-        program_needs_the_machine(c->game, MAP_SCRIPT_STARTS, "a map's script the event engine hands to the original");
+        program_breaks_a_contract(c->game, MAP_SCRIPT_STARTS, "a map's script the event engine hands to the original");
     return false;
 }
 
@@ -559,7 +530,7 @@ static bool after_battle_call(void *ctx, AfterCall call, FadeOut way)
     case AFTER_FADE_WAIT: TIMED_AS(g, FIELD_FRAME_WAIT, field_finish_the_frame(g, c->pf)); return true;
     case AFTER_PUT_BACK:
         if (!battle_return_fits(g)) {
-            program_needs_the_machine(g, RETURN_FROM_BATTLE, "a party or enemies the port doesn't put back");
+            program_breaks_a_contract(g, RETURN_FROM_BATTLE, "a party or enemies the port doesn't put back");
             return false;
         }
         TIMED_AS(g, RETURN_FROM_BATTLE, done = return_from_battle(g, build_the_sprite_table, g));
@@ -571,14 +542,14 @@ static bool after_battle_call(void *ctx, AfterCall call, FadeOut way)
     case AFTER_SCRIPT:
         TIMED_AS(g, SCRIPT_UNPACKED, done = field_load_the_script(g));
         if (!done)
-            program_needs_the_machine(g, SCRIPT_UNPACKED, "a location's script that doesn't fit");
+            program_breaks_a_contract(g, SCRIPT_UNPACKED, "a location's script that doesn't fit");
         return done;
     case AFTER_MAP_SCRIPT: return map_script(c);
     case AFTER_CHESTS: TIMED_AS(g, CHESTS_MARK_THE_MAP_ENTRY, chests_mark_the_map(g)); return true;
     case AFTER_TEXT_AREA: TIMED_AS(g, FIELD_BUILD_TEXT_AREA_ENTRY, field_build_the_text_area(g)); return true;
     case AFTER_BACK_TOGETHER:
         if (!party_can_come_back_together(g)) {
-            program_needs_the_machine(g, PARTY_BACK_TOGETHER, "a party the port doesn't bring back together");
+            program_breaks_a_contract(g, PARTY_BACK_TOGETHER, "a party the port doesn't bring back together");
             return false;
         }
         TIMED_AS(g, PARTY_BACK_TOGETHER, party_back_together(g));

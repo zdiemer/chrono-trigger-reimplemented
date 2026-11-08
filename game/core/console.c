@@ -15,6 +15,7 @@
  * These are the program's entries as the CPU reaches them, by address; a build
  * with no machine calls the program's functions instead and has none of them. */
 #include "core/console.h"
+#include "field/machine_forms.h"
 
 #include "charge.h"
 #include "core/program.h"
@@ -102,7 +103,8 @@ static void take_interrupt(Snes *s, ProgramStub stub)
         if (called_handlers[i].handler != stub.handler)
             continue;
         const NativeEntry *e = native_continuation_entry_at(s, stub.handler);
-        if (e && e->fn == called_handlers[i].run)
+        if ((e && e->fn == called_handlers[i].run) ||
+            (m_runs_retired_as_c(s) && field_machine_form_takes(s, called_handlers[i].run)))
             TIMED_AS(state_of(s), stub.handler, called_handlers[i].run(s));
         else
             m_stop_at(s, called_handlers[i].handler, 0);

@@ -4,8 +4,7 @@
  * by.
  *
  * Commands to the driver go through the audio service (platform/audio.h),
- * which on the development system hands them to the driver's CPU half at
- * $C7:0004, the original's code; so the commands that send one are bridges,
+ * which calls the retired C sound driver; the commands that send one are bridges,
  * which check what the driver left before going on. The waits only read the
  * driver's status, and are operations like any other. */
 #include "event/bridge.h"
@@ -13,19 +12,7 @@
 
 #include "platform/audio.h"
 
-/* What the driver's command routine reads of the registers it is called
- * with: nothing (it takes the command from its buffer), and nothing reads X,
- * A's low byte or the flags after it returns either (checked against
- * liveness by tools/dontcare_check.py). A's high byte and Y it hands back as
- * it found them, and the command leaves them to its caller: the dispatch's,
- * and the original's parse position (event/leaves.h). */
 #define DRIVER_IGNORES (DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C)
-
-/* Y as the original's handler has it at the driver's call: where its parse
- * of the operands stopped, which the driver hands back and the command
- * leaves its caller (after the openings at map setup, the menus' dispatcher
- * at $C2:8C36 stores it). */
-static void leave_parse_at_the_call(Snes *s, uint16_t y) { s->cpu.y = y; }
 
 /* The script goes on at `resume`, the object's turn over for this frame. */
 static void finish(Snes *s, uint16_t resume) { event_return(s, (EventStep){ resume, false }); }
@@ -129,18 +116,11 @@ bool event_send_sound_command(GameState *g, Platform *pf, uint16_t at, EventStep
  * stopped, and the offset kept is the one before the script goes on. */
 static bool sent(Snes *s, uint32_t returns_to, BridgeMachine as) { return bridge_back(s, returns_to, as); }
 
-static void as_at_the_call(Snes *s, uint16_t at, uint16_t kept)
-{
-    ORIGINAL_EFFECT(event_keep_offset(state_of(s), kept));
-    ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
-}
-
 void event_cmd_play_effect(Snes *s)
 {
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, PLAY_EFFECT);
     BridgeMachine as = event_machine(s, false);
-    as_at_the_call(s, at, (uint16_t)(at + PLAY_EFFECT_BYTES - 1));
     play_effect(m_platform(s), &c);
     if (sent(s, 0xC03C2A, as))
         finish(s, (uint16_t)(at + PLAY_EFFECT_BYTES));
@@ -151,7 +131,6 @@ void event_cmd_play_song(Snes *s)
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, PLAY_SONG);
     BridgeMachine as = event_machine(s, false);
-    as_at_the_call(s, at, (uint16_t)(at + PLAY_SONG_BYTES - 1));
     play_song(state_of(s), m_platform(s), &c);
     if (sent(s, 0xC03C47, as))
         finish(s, (uint16_t)(at + PLAY_SONG_BYTES));
@@ -162,7 +141,6 @@ void event_cmd_fade_music(Snes *s)
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, FADE_MUSIC);
     BridgeMachine as = event_machine(s, false);
-    as_at_the_call(s, at, (uint16_t)(at + FADE_MUSIC_BYTES - 1));
     fade_the_music(m_platform(s), &c);
     if (!sent(s, 0xC03C6D, as))
         return;
@@ -179,7 +157,6 @@ void event_cmd_send_sound_command(Snes *s)
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, SEND_SOUND_COMMAND);
     BridgeMachine as = event_machine(s, false);
-    as_at_the_call(s, at, (uint16_t)(at + SEND_SOUND_COMMAND_BYTES));
     send_the_command(m_platform(s), &c);
     if (sent(s, 0xC03CB8, as))
         finish(s, (uint16_t)(at + SEND_SOUND_COMMAND_BYTES));

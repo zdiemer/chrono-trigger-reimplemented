@@ -19,7 +19,6 @@ game/battle/tech_records.c                   flag-note-in-logic       1
 game/core/input.c                            return-address-pushed    1
 game/core/input.h                            enum-types-nothing       1
 game/event/bridge.c                          pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
-game/event/movement.c                        flag-note-in-logic       1
 game/field/bridge.c                          pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
 game/menu/bridge.c                           pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
 game/menu/cursor.c                           return-address-pushed    3

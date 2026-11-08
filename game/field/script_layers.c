@@ -96,16 +96,6 @@ static void blank_the_staged_row(GameState *g)
                                      field_blank_entries_byte(g, i % FIELD_BLANK_ENTRIES_BYTES));
 }
 
-/* For the original's code and shadow mode: it lays the line out through the
- * work RAM port, which it leaves past the line's last entry, and works the
- * line's place out from its column, which it leaves in the field page's
- * scratch. */
-static void leave_the_line(GameState *g, unsigned entries)
-{
-    hw_port_seek(g, (uint16_t)(field_staged_line(FIELD_BG3, false) + entries * ENTRY_BYTES), 0);
-    original_cell16(g, FIELD_LAST_WORKED_CELL, field_credits_column(g) & COLUMN_BITS);
-}
-
 // $C0:278F
 /* A line of the credits: BG3's staged row blanked, the line's letters laid
  * out in it, and the line sent. At the text's end the writing stops, and the
@@ -132,7 +122,6 @@ static void write_a_credits_line(GameState *g)
         entries++;
         at++;
     }
-    ORIGINAL_EFFECT(leave_the_line(g, entries));
 }
 
 /* A line the staging holds: one ending within BG3's staged lines. */
@@ -251,12 +240,6 @@ void field_do_script_layer_work(Snes *s)
     do_the_layer_work(g);
     if (writes_a_line)
         m_set_flag(s, CPU_FLAG_V, false);
-    m_rts(s);
-}
-
-void field_blank_the_staging_entry(Snes *s)
-{
-    field_blank_the_staging(state_of(s));
     m_rts(s);
 }
 

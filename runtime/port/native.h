@@ -98,10 +98,12 @@ typedef struct NativeEntry {
      * that goes round holds the wait again itself; a port's holds it with
      * m_hold_at. */
     uint8_t hold;
-    /* A retired subsystem's held-wait continuation (docs/REIMPLEMENTATION.md,
-     * "The time warp's teardown"): selected in ON mode only (natives_select).
-     * SHADOW mode, which compares, and the tools leave the original's code to
-     * run there, as the cartridge's, compared with nothing. */
+    /* A retired subsystem's compatibility entry or held-wait continuation
+     * (docs/REIMPLEMENTATION.md, "The field's teardown"): entered by the
+     * machine only in ON mode. SHADOW runs the original there, uncompared.
+     * Compatibility entries retain their metadata for still-gated callers'
+     * direct calls, including their guards and returned don't-care sets;
+     * retired held continuations are selected only in ON (natives_select). */
     bool retired;
     /* Optional extra precondition, for example for code the game places in
      * RAM: return false unless the bytes at the entry are the code the port was
