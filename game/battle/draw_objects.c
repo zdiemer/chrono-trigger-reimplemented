@@ -185,6 +185,18 @@ static unsigned draw_combatant(GameState *g, unsigned slot, unsigned sprite)
  * object's are). A count of 0, or of 8 or more, copies eight groups. */
 enum { ENTRIES_PER_COMBATANT = 4, SPRITES_PER_TILE_GROUP = 4, MOST_TILE_GROUPS = 8 };
 
+static unsigned tile_sprites(uint16_t count)
+{
+    unsigned groups = count == 0 || count >= MOST_TILE_GROUPS ? MOST_TILE_GROUPS : count;
+    return groups * SPRITES_PER_TILE_GROUP;
+}
+
+static bool tile_copy_fits(unsigned from, unsigned to, uint16_t count)
+{
+    unsigned sprites = tile_sprites(count);
+    return from + sprites <= BATTLE_OBJECT_SPRITE_ENTRIES_COUNT && to + sprites <= SPRITES;
+}
+
 static void leave_tile_groups(GameState *g, uint16_t count)
 {
     set_battle_draw_tile_groups(g, count == 0 || count >= MOST_TILE_GROUPS ? (uint16_t)(count - (MOST_TILE_GROUPS - 1)) : 0);
@@ -195,8 +207,7 @@ static void leave_tile_groups(GameState *g, uint16_t count)
  * sprites from `to` on. */
 static void copy_tiles(GameState *g, unsigned from, unsigned to, uint16_t count)
 {
-    unsigned groups = count == 0 || count >= MOST_TILE_GROUPS ? MOST_TILE_GROUPS : count;
-    for (unsigned n = 0; n < groups * SPRITES_PER_TILE_GROUP; n++) {
+    for (unsigned n = 0; n < tile_sprites(count); n++) {
         set_oam_buffer_tile(g, to + n, battle_object_sprite_entries_tile(g, from + n));
         set_oam_buffer_attributes(g, to + n, battle_object_sprite_entries_attributes(g, from + n));
     }
@@ -625,6 +636,31 @@ static bool at_a_sprite(const GameState *g)
 
 static bool drawing_a_combatant(const GameState *g) { return combatant_object(battle_draw_object(g)) && at_a_sprite(g); }
 
+/* A frame may run into the following combatants' part records, but neither
+ * its source parts nor its output sprites may run past their whole buffers. */
+static bool combatant_frame_fits(const GameState *g)
+{
+    if (!drawing_a_combatant(g))
+        return false;
+    unsigned slot = slot_of_object(battle_draw_object(g));
+    if (hidden(g, slot))
+        return true;
+    unsigned parts = frame_parts(g, slot);
+    return slot * PART_ENTRIES_PER_COMBATANT + parts <= BATTLE_PART_OFFSETS_COUNT &&
+           battle_oam_next(g) / SPRITE_BYTES + parts <= SPRITES;
+}
+
+/* An afterimage copies its tiles even when the combatant is hidden. The
+ * previous frame's part count determines that copy's size. */
+static bool afterimage_fits(const GameState *g)
+{
+    if (!combatant_frame_fits(g))
+        return false;
+    unsigned slot = slot_of_object(battle_draw_object(g));
+    return tile_copy_fits(slot * ENTRIES_PER_COMBATANT, battle_oam_next(g) / SPRITE_BYTES,
+                         tile_groups_for(battle_draw_part_count(g)));
+}
+
 /* Each guard looks at the state without taking the machine's time. */
 static bool peek(Snes *s, bool (*test)(const GameState *))
 {
@@ -640,7 +676,9 @@ bool battle_drawing_combatant(Snes *s) { return battle_sprite_page_ready(s) && p
 
 /* The frame's own routines set A before they use it, whatever the caller
  * left there. */
-bool battle_drawing_combatant_frame(Snes *s) { return battle_sprite_page(s) && peek(s, drawing_a_combatant); }
+bool battle_drawing_combatant_frame(Snes *s) { return battle_sprite_page(s) && peek(s, combatant_frame_fits); }
+
+bool battle_drawing_afterimage_frame(Snes *s) { return battle_sprite_page(s) && peek(s, afterimage_fits); }
 
 bool battle_drawing_combatant_in_x(Snes *s)
 {
@@ -728,7 +766,13 @@ static bool names_sprite(uint16_t at)
 
 bool battle_tile_copy_in_buffers(Snes *s)
 {
-    return battle_sprite_page(s) && names_entry(s->cpu.x) && names_sprite(s->cpu.y);
+    if (!battle_sprite_page(s) || !names_entry(s->cpu.x) || !names_sprite(s->cpu.y))
+        return false;
+    vars_peek(true);
+    uint16_t count = battle_draw_tile_groups(state_of(s));
+    vars_peek(false);
+    return tile_copy_fits((s->cpu.x - SPRITE_ENTRIES_AT) / SPRITE_BYTES,
+                         (s->cpu.y - SPRITE_BUFFER_AT) / SPRITE_BYTES, count);
 }
 
 void battle_copy_frame_tiles(Snes *s)

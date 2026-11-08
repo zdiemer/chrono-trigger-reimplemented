@@ -10511,7 +10511,7 @@ name = "battle_draw_afterimage"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "1D00", "--db", "7E", "--fill", "7E1DC5-7E1DC5=0C-16", "--fill", "7E1DC6-7E1DC6=00-00", "--fill", "7E1DCA-7E1DCA=00-01"]
-why = "on the objects' page, a combatant's object in the cell of the object being drawn; the guard takes the next free sprite at a sprite's place"
+why = "on the objects' page, a combatant's object in the draw cell; the guard checks the whole tile copy (including hidden combatants) and the visible frame against their source and sprite buffers"
 
 [[routine]]
 name = "battle_draw_combatant"
@@ -10519,7 +10519,7 @@ at = "CF:EAC5"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "1D00", "--db", "7E", "--fill", "7E1DC5-7E1DC5=0C-16", "--fill", "7E1DC6-7E1DC6=00-00", "--fill", "7E1DCA-7E1DCA=00-01"]
-why = "as battle_draw_afterimage"
+why = "on the objects' page with a combatant in the draw cell; the guard bounds the visible frame's complete part range and output sprites, while hidden frames draw nothing"
 
 [[routine]]
 name = "battle_copy_frame_tiles"
@@ -10527,7 +10527,7 @@ at = "CF:EB94"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "1D00", "--db", "7E", "--range", "X=11B0-125C/4", "--range", "Y=0700-08FC/4"]
-why = "X a sprite entry and Y a sprite of the buffer, as the pass computes them"
+why = "X a sprite entry and Y a sprite of the buffer; the guard checks the complete copy, with zero or at least eight groups copying eight groups"
 
 [[routine]]
 name = "battle_draw_in_front"

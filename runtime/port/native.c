@@ -3154,12 +3154,16 @@ static int32_t start_port(NativeRuntime *rt, Snes *s, const NativeEntry *e, bool
  * original never returns to, and the wait rests where their return would
  * be. The machine leaving through such a frame (an RTS above it) used to
  * drop them; a continuation the runtime runs as C makes no such move, so
- * they are dropped here, counted as abandoned. */
+ * they are dropped here, counted as abandoned. A callee on another stack
+ * still returns to its caller: the stack-switch tracking has already marked
+ * it away, and the new stack's S says nothing about the caller's frame. */
 static void drop_what_the_held_wait_left(NativeRuntime *rt, const Snes *s)
 {
     while (rt->nactive > 0) {
         Active *a = &rt->active[rt->nactive - 1];
         if (a->phase != PH_CALLOUT || !a->job || s->cpu.s < a->job->call_s_after)
+            return;
+        if (a->handler_away && (uint32_t)s->cpu.s > (uint32_t)a->job->call_s_after + NATIVE_STACK_SWITCH_DISTANCE)
             return;
         stats_of(rt, a)->abandoned++;
         finish(rt);
@@ -3180,6 +3184,7 @@ static bool go_on_in_the_held_wait(NativeRuntime *rt, Snes *s, uint32_t pc, int3
             st->skipped++;
             continue;
         }
+        drop_what_the_held_wait_left(rt, s);
         *result = e->idle ? run_idle(rt, s, e, pc, true) : start_port(rt, s, e, true);
         return true;
     }
@@ -3294,7 +3299,6 @@ static int32_t intercept(void *ctx, Snes *s)
      * it, the wait's continuations, by its number */
     if (rt->mode == NATIVE_ON && rt->port_timing != PORT_TIMING_ORACLE && s->held_wait && s->cpu.s == s->held_wait_s) {
         int32_t result;
-        drop_what_the_held_wait_left(rt, s);
         if (go_on_in_the_held_wait(rt, s, pc, &result))
             return result;
     }

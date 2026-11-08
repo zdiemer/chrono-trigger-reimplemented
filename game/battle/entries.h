@@ -898,6 +898,7 @@ void battle_draw_effect(Snes *s);
 bool battle_draw_pass_ready(Snes *s);
 bool battle_drawing_combatant(Snes *s);
 bool battle_drawing_combatant_frame(Snes *s);
+bool battle_drawing_afterimage_frame(Snes *s);
 bool battle_drawing_combatant_in_x(Snes *s);
 bool battle_drawing_combatant_x_and_cell(Snes *s);
 bool battle_drawing_effect_record(Snes *s);

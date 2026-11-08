@@ -779,6 +779,16 @@ Now the continuation is named (`runtime/port/native.h`, `native_hold`;
   full contract before running it. A return anywhere else leaves the hold.
   Address lookup prefers rows without a hold over held aliases, preserving
   the comparison identity of retained routines in shadow mode and old saves.
+- A hold only discards an enclosing call-out whose stack was actually
+  unwound. A callee on another stack is still away from its caller, as the
+  runtime's stack-switch tracking records; the new stack's higher pointer
+  cannot prove that caller dead. The menus' scheduler exercises this case.
+  `suspend_test` keeps a caller suspended across that wait and checks that
+  it resumes after the callee restores its stack and returns. Such a caller
+  still prevents a save base: naming the inner wait does not serialize an
+  enclosing C continuation. Returning near the caller's original stack and
+  starting afresh still abandons the old frame; the same test checks that a
+  prior stack excursion cannot leave that dead caller suspended forever.
 - The two fields are saved with the machine, so a `ct_drive` base, a slot or a
   quick save taken in the wait names it, and a fresh runtime goes on in it.
 - The original's address is still honoured, and this is the only place the

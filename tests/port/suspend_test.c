@@ -730,6 +730,87 @@ static void returning_hold_case(void)
     free(rom);
 }
 
+/* A callee waits on a higher, separate stack, then restores its caller's
+ * stack. The hold must not mistake that switch for an unwound call. */
+static bool other_stack_starts_afresh;
+
+static void other_stack_wait(Snes *s)
+{
+    m_write16(s, A_RECORD, s->cpu.s);
+    s->cpu.s = A_TOP + 2 * NATIVE_STACK_SWITCH_DISTANCE;
+    m_write8(s, FRAME_FLAG, 0);
+    m_hold_at(s, MAIN_LOOP_HEAD, DC_A | DC_FLAGS, HOLD_TEST_LOOP);
+}
+
+static void other_stack_look(Snes *s)
+{
+    if (m_read8(s, FRAME_FLAG)) {
+        if (other_stack_starts_afresh) {
+            s->cpu.s = A_TOP + 2;
+            m_jump_to(s, 0x008180);
+        } else {
+            s->cpu.s = m_read16(s, A_RECORD);
+            m_rts(s);
+        }
+    }
+}
+
+static void other_stack_fresh_loop(Snes *s) { (void)s; }
+
+static void other_stack_caller(Snes *s)
+{
+    native_call(s, 0x008200, 0x008300, false);
+    m_write8(s, COUNT_AFTER, (uint8_t)(m_read8(s, COUNT_AFTER) + 1));
+    m_stop_at(s, 0x008200, DC_A | DC_FLAGS);
+}
+
+static void other_stack_hold_case(void)
+{
+    static const Code code[] = {
+        { 0x8000, { 0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x03, 0x9A,
+                    0xA9, 0x80, 0x8D, 0x00, 0x42, 0x4C, 0x00, 0x82 }, 19 },
+        { 0x8600, { 0xE6, 0x60, 0x40 }, 3 },
+    };
+    const NativeEntry table[] = {
+        { .addr = 0x008200, .name = "caller", .fn = other_stack_caller, .cost_milli = 1000 },
+        { .addr = 0x008300, .name = "other_stack", .fn = other_stack_wait, .cost_milli = 1000 },
+        { .addr = MAIN_LOOP_HEAD, .name = "other_stack_wait", .fn = other_stack_look,
+          .idle = true, .hold = HOLD_TEST_LOOP },
+        { .addr = 0x008180, .name = "fresh_loop", .fn = other_stack_fresh_loop,
+          .idle = true, .hold = HOLD_TEST_LOOP },
+    };
+    uint8_t *rom = make_rom(code, sizeof code / sizeof code[0], 0x8600);
+    Snes *s = machine(rom);
+    NativeRuntime *rt = native_create(table, 4, NATIVE_ON);
+    native_attach(rt, s);
+    s->bus.wram[COUNT_AFTER] = 0;
+    int waiting = suspended_frame_ends(s, rt, 10);
+    CHECK(waiting >= 8 && s->bus.wram[COUNT_AFTER] >= 8 &&
+              native_stats_named(rt, "caller")->abandoned == 0,
+          "other stack hold: suspended %d frames, returned %u, abandoned %u", waiting,
+          s->bus.wram[COUNT_AFTER], native_stats_named(rt, "caller")->abandoned);
+    native_destroy(rt);
+    free(s);
+
+    /* Starting afresh near the caller's old stack really does discard its
+     * return. A previous excursion onto another stack must not keep the
+     * abandoned C caller suspended forever. */
+    other_stack_starts_afresh = true;
+    s = machine(rom);
+    rt = native_create(table, 4, NATIVE_ON);
+    native_attach(rt, s);
+    s->bus.wram[COUNT_AFTER] = 0;
+    waiting = suspended_frame_ends(s, rt, 10);
+    CHECK(waiting <= 1 && s->bus.wram[COUNT_AFTER] == 0 &&
+              native_stats_named(rt, "caller")->abandoned == 1,
+          "fresh stack hold: suspended %d frames, returned %u, abandoned %u", waiting,
+          s->bus.wram[COUNT_AFTER], native_stats_named(rt, "caller")->abandoned);
+    native_destroy(rt);
+    free(s);
+    other_stack_starts_afresh = false;
+    free(rom);
+}
+
 /* The boot's two beam waits must leave one blank before entering the next
  * line. The title's music wait must remain suspended until the audio side
  * supplies a playing-track mask, even when no interrupt is enabled. */
@@ -854,6 +935,7 @@ int main(void)
     held_wait_case();
     named_hold_case();
     returning_hold_case();
+    other_stack_hold_case();
     empty_boundary_case();
     scene_wait_case();
     if (failures)

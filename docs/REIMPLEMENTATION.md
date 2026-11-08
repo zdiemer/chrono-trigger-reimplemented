@@ -4243,7 +4243,16 @@ The console now calls the menus' NMI entry and all three battle interrupt
 handlers through its checked C table. `native_continuation_entry_at` checks
 the full entry contract before the call, including arithmetic mode and the
 guard; a refusal stops at the original handler. The menus' separate NMI
-work checkpoint remains registered.
+work checkpoint remains registered. Battle's handlers still enter through
+their registry rows in shadow mode, so their own interrupt comparisons
+finish at the RTI; the console's direct calls are the shipping path.
+
+The upload wait uses the menus' own stack. Its higher stack pointer does
+not mean that the field's caller was unwound: the runtime preserves a
+call-out already marked away by its stack-switch tracking. That caller is
+still suspended until the menus return, so this inner hold alone does not
+provide a save base inside every menu. The field's return and the tasks'
+parked continuations must become held continuations too before retirement.
 
 The shipping census on `battle-menu-buttons`, `menus-sweep` and `menus-epoch`
 changes from 87 machine-entered entries and 3,455,625 calls in all to 74
@@ -4263,6 +4272,17 @@ of 500 trials and rejects the other 294 invalid records, with no accessor
 diagnostic. The flag write adds one scaffolding site (1,587 to 1,588); it
 remains necessary while the save menu is compared.
 
+The battle drawing audit also closes incomplete buffer guards. A tile copy
+must fit its entire group count in both the sprite-entry and OAM buffers,
+including the original's eight-group meaning for zero or at least eight.
+A visible combatant frame must fit its part offsets and output sprites;
+an afterimage checks its tile copy even when the combatant is hidden. With
+the existing fuzz input ranges and 2,000 trials each, tile copying matches
+1,429 and rejects 571, afterimage drawing matches 367 and rejects 1,633,
+and combatant drawing matches 496 and rejects 1,504. None mismatches or
+reports an accessor outside its range. These complete-range bounds must
+survive as contracts when their guards retire.
+
 Shipping traces before and after these changes are identical in all five
 memory regions over the three census movies' 20,310 frames. `suspend_test`
 passes its held-continuation and save/load cases. The native-shape
@@ -4270,6 +4290,10 @@ passes its held-continuation and save/load cases. The native-shape
 loads away from a base replay exactly, with none differing or lost.
 Reloading each of its seven checkpoints twice and running another 120 frames
 also gives identical work RAM; all eight required replays are exact.
+Eight menu checkpoints from `menus-sweep` also replay exactly, with one or
+two routines still suspended at each checkpoint: these validate replay,
+not new save bases. Fresh shipping runs of `menu` and `battle-r-series`
+execute zero original instructions both before and after the changes.
 The unreached inventory and the remaining task-stack work are in TODO.md,
 "Battle and menu teardown preconditions". No entry, guard, scratch cell or
 fallback exemption has been retired on the strength of this control-flow

@@ -76,14 +76,15 @@ void console_line_vector(Snes *s) { m_stop_at(s, LINE_STUB, 0); }
 static const struct {
     uint32_t handler;
     NativeFn run;
+    bool compared_at_entry;
 } called_handlers[] = {
-    { MENU_OBJECT_VBLANK_HANDLER, menu_object_nmi },
-    { MENU_VBLANK_HANDLER, menu_nmi_enter },
-    { BATTLE_VBLANK_HANDLER, battle_nmi },
-    { BATTLE_LINE_HANDLER, battle_irq },
-    { BATTLE_CLOSING_VBLANK_HANDLER, battle_nmi_alternate },
-    { FIELD_VBLANK_HANDLER, field_nmi },
-    { FIELD_LINE_HANDLER, field_irq },
+    { MENU_OBJECT_VBLANK_HANDLER, menu_object_nmi, false },
+    { MENU_VBLANK_HANDLER, menu_nmi_enter, false },
+    { BATTLE_VBLANK_HANDLER, battle_nmi, true },
+    { BATTLE_LINE_HANDLER, battle_irq, true },
+    { BATTLE_CLOSING_VBLANK_HANDLER, battle_nmi_alternate, true },
+    { FIELD_VBLANK_HANDLER, field_nmi, false },
+    { FIELD_LINE_HANDLER, field_irq, false },
 };
 enum { CALLED_HANDLERS = sizeof called_handlers / sizeof called_handlers[0] };
 
@@ -108,9 +109,13 @@ static void take_interrupt(Snes *s, ProgramStub stub)
     for (unsigned i = 0; i < CALLED_HANDLERS; i++) {
         if (called_handlers[i].handler != stub.handler)
             continue;
+        /* Until battle retires, its interrupt entry owns the comparison.
+         * Nesting it under the stub ends that comparison at the RTI before
+         * its wrapper can report the result. Shipping still calls it here. */
+        bool compare = called_handlers[i].compared_at_entry && !m_runs_retired_as_c(s);
         const NativeEntry *e = native_continuation_entry_at(s, stub.handler);
-        if ((e && e->fn == called_handlers[i].run) ||
-            (m_runs_retired_as_c(s) && field_machine_form_takes(s, called_handlers[i].run)))
+        if (!compare && ((e && e->fn == called_handlers[i].run) ||
+                        (m_runs_retired_as_c(s) && field_machine_form_takes(s, called_handlers[i].run))))
             TIMED_AS(state_of(s), stub.handler, called_handlers[i].run(s));
         else
             m_stop_at(s, called_handlers[i].handler, 0);

@@ -2985,7 +2985,10 @@ comparisons.
   only after the unreached obligations and state readers below are resolved.
   The held boundaries and checked interrupt handoffs are described in
   REIMPLEMENTATION.md, "Battle and menu held boundaries". The menus' task
-  starts and resumptions still transfer through the machine. Simply chaining
+  starts and resumptions still transfer through the machine. The field's
+  call into menu mode also remains suspended on its original stack while
+  the menu scheduler holds its separate stack; turn that return into a
+  continuation before claiming save bases throughout a menu. Simply chaining
   `start` through `menu_go_on_in` crosses the task stack's return boundary:
   `menus-sweep` reports scheduler and task comparisons returning before the
   next native wait, and the shipping trace first differs at frame 1,723 in
@@ -2996,8 +2999,9 @@ comparisons.
   Burndown rounds every battle/menu bank to 0% left; that is not proof of
   zero fallback. The existing batched shipping report has no battle fallback
   and 28 original menu instructions in `battle-r-series`, in the fade/task
-  continuation. Recheck that movie on this branch and close any surviving
-  fallback. Check shared-state readers before deleting scratch writes,
+  continuation. Fresh shipping runs of `battle-r-series` and `menu` on this
+  branch and its saved pre-change binary both execute zero original
+  instructions. Check shared-state readers before deleting scratch writes,
   including ports outside these two subsystems; no generated entry in the
   census alone does not establish that state precondition.
 
@@ -3016,8 +3020,9 @@ comparisons.
   The initial 200-trial replay has 435 clean recipes out of 443. Extending
   176 recipes with remaining gaps to their declared limits (up to 2,000)
   leaves 3,292 battle bytes in 74 entries and 2,417 menu bytes in 77 entries
-  before the save-refusal and character-name fixes. Close the remaining
-  failures in `battle_copy_frame_tiles`, `battle_draw_afterimage`,
+  before the save-refusal, character-name and drawing-buffer fixes. Preserve
+  the complete source and destination bounds added to tile copying, frames
+  and afterimages when their guards retire. Close the remaining failures in
   `battle_load_item_animation`, `battle_send_vram_and_wait`, `menu_draw_text`,
   `menu_epoch_build_map` and `menu_load_record_sprite`; the last appears only
   in the longer run (3 mismatches out of 2,000). Some recipes leave the
@@ -3036,7 +3041,8 @@ comparisons.
   Extend the teardown's witness table to battle wins, losses, techs and
   rewards and the menus' save, shop and new-game-plus paths before retirement.
   The bucket-Lavos native-shape route protects the previously regressed
-  battle backedges; the telepod-Lavos route needs the incoming field fix.
+  battle backedges. Main's route-bot fix for live consumable counts is now
+  merged; run the telepod-Lavos route with the native-shape driver too.
 
 - **What the field and events' teardown review left.** Remove the three
   `tools/uncompared_baseline.txt` rows for `field_nmi`, `field_irq` and

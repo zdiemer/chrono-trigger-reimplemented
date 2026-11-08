@@ -1808,7 +1808,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xCFE92C, .name = "battle_draw_afterimages", .fn = battle_draw_afterimages, NEEDS_M8_X16,
       .cost_milli = 15035, .guard = battle_drawing_combatant_x_and_cell, .dont_care = DC_X | DC_Y | DC_FLAGS | DC_AL },
     { .addr = 0xCFE99C, .name = "battle_draw_afterimage", .fn = battle_draw_afterimage, NEEDS_M8_X16_BINARY,
-      .cost_milli = 7898, .guard = battle_drawing_combatant_frame, .dont_care = DC_X | DC_Y | DC_FLAGS | DC_AL },
+      .cost_milli = 7898, .guard = battle_drawing_afterimage_frame, .dont_care = DC_X | DC_Y | DC_FLAGS | DC_AL },
     { .addr = 0xCFEAC5, .name = "battle_draw_combatant", .fn = battle_draw_combatant, NEEDS_M16_X16_BINARY,
       .cost_milli = 8578, .guard = battle_drawing_combatant_frame, .dont_care = DC_X | DC_Y | DC_FLAGS | DC_AL },
     { .addr = 0xCFEB94, .name = "battle_copy_frame_tiles", .fn = battle_copy_frame_tiles, NEEDS_M16_X16,
