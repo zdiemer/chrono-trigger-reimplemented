@@ -878,7 +878,9 @@ One ID is sufficient because the saved stack already identifies the caller:
 no caller-specific state or pointer is stored in the hold.
 The loop head and return share an entry wrapper, so a shadow comparison of
 the returning pass does not nest another comparison of the same pass at
-the head. The runtime's guard still decides whether a named continuation
+the head. Its sibling timing scope assigns the pass's error to the field
+pass, preserving both its estimate and the backedge's separate measurement.
+The runtime's guard still decides whether a named continuation
 applies; `suspend_test` exercises a decimal-mode refusal after an idle return.
 
 The picture's startup has a separate wait (`HOLD_FIELD_SCREEN`, `$C0:0B38`):

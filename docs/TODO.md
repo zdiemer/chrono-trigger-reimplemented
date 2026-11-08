@@ -2575,18 +2575,14 @@ rest waits, is [PLAN.md](PLAN.md).
   `$7E:31B0`, which only waits, now waits where its callers stand:
   `tm_wait_frame`, `NATIVE_WAKE_VBLANK`, which these could use once they
   are a port's call rather than an idle entry); the idle entries on flags a handler clears
-  (`field_wait_for_frame_loop`, `menu_wait_for_frame_loop`,
+  (`menu_wait_for_frame_loop`,
   `menu_wait_ready_loop`, `battle_wait_window_slide_loop`,
   `battle_wait_graphics_loaded_loop`, `scene_race_wait_for_tilemap_upload_loop`).
-  The time warp's wait before it turns its picture on
-  (`$FD:EADA`) waits where its port stands in the shipping mode
-  (`NATIVE_WAKE_VBLANK_FLAG`); the field's (`$C0:0B38`), reached through
-  `tm_wait_frame_then_enable` the same way, is still the original's
-  routine. Ports that called the modes' wait routines call
+  Ports that called the modes' wait routines call
   `tm_wait_frame` (`field_wait_frame`, `battle_wait_frame`). The battle's
   wait routines are ports whose loops give the processor up through
   `tm_wait_for_handlers` (`battle/wait.c`; PLATFORM.md, "Timing without a
-  beam, as built"), and the field's, the sprite-object mode's and the
+  beam, as built"), and the sprite-object mode's and the
   menus' frame waits, which the main thread is in at nearly every frame's
   end, through `tm_wait_for_handlers_held`, leaving the shipping mode's
   waiting to their idle entries (docs/MOVIES.md, "Suspended routines and
@@ -3571,12 +3567,10 @@ list, by kind, is what `game/` still asks of one.
   the existing drawable-row check restores the predecessor's 0/24 compared.
   The sprite builder's own entry still accepts those states and calls out
   per draw; retiring that fallback needs its entry guard and callers changed
-  together. The field/battle/overworld loop backedges also need an iterative
+  together. The battle loop backedges also need an iterative
   continuation with a comparison boundary: shadow waits resume their C call,
   so directly chaining every backedge would recurse across frames.
-  The field pass's wait boundary also lets the replay driver restore a
-  suspended frame; retain it until that continuation is represented outside
-  the C stack. Tile-copy completion also retains its stop before frame
+  Tile-copy completion also retains its stop before frame
   completion: pending interrupts from the tile send must run before
   `field_frame_pending` is incremented. Retiring this stop needs an explicit
   runtime interrupt-delivery boundary, not only a timing scope.
@@ -3614,12 +3608,12 @@ list, by kind, is what `game/` still asks of one.
   handle, as `TIMED_AS` (charge.h) has, whose host half is a no-op.
   The field, battle, overworld, event and controller now use `TIMED_AS`
   for ordinary timing scopes. Battle's three `NATIVE_TIME_AS_SIBLING`
-  scopes still need a state-based API that preserves sibling accounting.
+  scopes and the field's returning-pass scope still need a state-based API
+  that preserves sibling accounting.
 - **Waits on the beam.** `tm_snes_video_status`, the SNES backend's read of
   the beam's status, from the idle entries' passes (`field/frame.c`,
-  `scene/boot.c`); and the 19 wait loops the census still sees
-  passed on the machine (379 M passes: the menus' ready loop `$C2:81CA` and
-  the field's frame wait `$C0:EC71` the most), each wanting the timing
+  `scene/boot.c`); and the remaining wait loops passed on the machine,
+  especially the menus' ready loop `$C2:81CA`, each wanting the timing
   service's wait ("Timing without a beam", above).
 - **Code run from RAM.** 29 of the entries the machine enters are code in work
   RAM: the scene program, decompressed to `$7E:3000` and run there (its

@@ -973,12 +973,13 @@ static void wait_for_the_next_frame_after_the_pass(Snes *s)
     TIMED_AS(state_of(s), WAIT_FOR_THE_NEXT_FRAME, field_wait_for_the_next_frame(s));
 }
 
-/* A pass from `from` on, estimated as the entry the machine came to there
- * before the wait was held, then the wait for the next frame. */
+/* A pass from `from` on, estimated and measured as the sibling entry the
+ * machine came to before the wait was held. Its error still belongs to the
+ * field pass, including its inlined screen effects, not to the backedge. */
 static void pass_then_wait(Snes *s, PassStep from, uint32_t timed_as)
 {
     bool goes_on = false;
-    TIMED_AS(state_of(s), timed_as, goes_on = pass_on_the_machine_from(s, from));
+    NATIVE_TIME_AS_SIBLING(s, timed_as, goes_on = pass_on_the_machine_from(s, from));
     if (goes_on)
         wait_for_the_next_frame_after_the_pass(s);
 }

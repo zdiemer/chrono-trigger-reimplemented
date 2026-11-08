@@ -3961,7 +3961,12 @@ suspended; the held wait does not invent a continuation for that caller.
 wait directly, the caller pays the preceding stretch with `tm_sync` and
 checks `native_hand_entry_at`, including the full P mask, widths, page,
 bank and code guard. Refusal stops at the original entry. Inline work keeps
-the original entries' estimates through `TIMED_AS`; no estimate changes.
+the original entries' estimates; no estimate changes. The next-pass wrapper
+uses `NATIVE_TIME_AS_SIBLING` for the field pass: its timing error belongs to
+`field_frame`, including the inlined screen effects, rather than the loop
+backedge. This changes report ownership only. In the Death Peak movie its
+110,607-clock worst stretch remains covered by `field_frame`'s existing
+exception; no exception is added for the wrapper.
 The walk continuation uses its retained wrapper and cost without an extra
 continuation charge. The screen wait keeps the existing vblank predicate
 and idle exit time; its handler-enable continuation keeps the original
